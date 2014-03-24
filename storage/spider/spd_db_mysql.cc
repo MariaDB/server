@@ -10454,7 +10454,7 @@ int spider_mysql_handler::show_records(
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   error_num = res->fetch_table_records(
     1,
-    share->records
+    spider->table_rows
   );
   res->free_result();
   delete res;

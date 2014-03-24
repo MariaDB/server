@@ -166,6 +166,7 @@ public:
   bool               high_priority;
   bool               insert_delayed;
   bool               use_pre_call;
+  bool               use_pre_records;
   enum thr_lock_type lock_type;
   int                lock_mode;
   uint               sql_command;
@@ -236,6 +237,7 @@ public:
   SPIDER_ITEM_HLD    *direct_aggregate_item_first;
   SPIDER_ITEM_HLD    *direct_aggregate_item_current;
 #endif
+  ha_rows            table_rows;
 
   /* for fulltext search */
   bool               ft_init_and_first;
@@ -495,6 +497,7 @@ public:
     key_range *end_key
   );
   int check_crd();
+  int pre_records();
   ha_rows records();
   const char *table_type() const;
   ulonglong table_flags() const;

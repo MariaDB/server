@@ -20,6 +20,7 @@
 #define SPIDER_BG_SIMPLE_NO_ACTION           0
 #define SPIDER_BG_SIMPLE_CONNECT             1
 #define SPIDER_BG_SIMPLE_DISCONNECT          2
+#define SPIDER_BG_SIMPLE_RECORDS             3
 
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
@@ -220,7 +221,11 @@ int spider_bg_conn_search(
 
 void spider_bg_conn_simple_action(
   SPIDER_CONN *conn,
-  uint simple_action
+  uint simple_action,
+  bool caller_wait,
+  void *target,
+  uint link_idx,
+  int *error_num
 );
 
 void *spider_bg_conn_action(

@@ -5173,14 +5173,42 @@ int spider_db_show_table_status(
 
 int spider_db_show_records(
   ha_spider *spider,
-  int link_idx
+  int link_idx,
+  bool pre_call
 ) {
   int error_num;
   SPIDER_CONN *conn = spider->conns[link_idx];
   DBUG_ENTER("spider_db_show_records");
-  error_num = spider->dbton_handler[conn->dbton_id]->show_records(
-    link_idx
-  );
+  if (pre_call)
+  {
+    if (spider_param_bgs_mode(spider->trx->thd, spider->share->bgs_mode))
+    {
+      if (!(error_num = spider_create_conn_thread(conn)))
+      {
+        spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_RECORDS, FALSE,
+          spider, link_idx, (int *) &spider->result_list.bgs_error);
+      }
+    } else {
+      error_num = spider->dbton_handler[conn->dbton_id]->show_records(
+        link_idx
+      );
+    }
+  } else {
+    if (spider->use_pre_records)
+    {
+      if (spider_param_bgs_mode(spider->trx->thd, spider->share->bgs_mode))
+      {
+        spider_bg_conn_wait(conn);
+        error_num = spider->result_list.bgs_error;
+      } else {
+        error_num = 0;
+      }
+    } else {
+      error_num = spider->dbton_handler[conn->dbton_id]->show_records(
+        link_idx
+      );
+    }
+  }
   DBUG_RETURN(error_num);
 }
 

@@ -101,6 +101,7 @@ ha_spider::ha_spider(
   error_mode = 0;
   use_spatial_index = FALSE;
   use_pre_call = FALSE;
+  use_pre_records = FALSE;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -203,6 +204,7 @@ ha_spider::ha_spider(
   error_mode = 0;
   use_spatial_index = FALSE;
   use_pre_call = FALSE;
+  use_pre_records = FALSE;
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   do_direct_update = FALSE;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -1704,6 +1706,7 @@ int ha_spider::reset()
   high_priority = FALSE;
   insert_delayed = FALSE;
   use_pre_call = FALSE;
+  use_pre_records = FALSE;
   bulk_insert = FALSE;
   clone_bitmap_init = FALSE;
   result_list.tmp_table_join = FALSE;
@@ -8676,6 +8679,24 @@ int ha_spider::check_crd()
   DBUG_RETURN(0);
 }
 
+int ha_spider::pre_records()
+{
+  int error_num;
+  backup_error_status();
+  DBUG_ENTER("ha_spider::pre_records");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (sql_command == SQLCOM_ALTER_TABLE)
+  {
+    DBUG_RETURN(0);
+  }
+  if ((error_num = spider_db_show_records(this, search_link_idx, TRUE)))
+  {
+    DBUG_RETURN(check_error_mode(error_num));
+  }
+  use_pre_records = TRUE;
+  DBUG_RETURN(0);
+}
+
 ha_rows ha_spider::records()
 {
   int error_num;
@@ -8684,14 +8705,18 @@ ha_rows ha_spider::records()
   DBUG_PRINT("info",("spider this=%p", this));
   if (sql_command == SQLCOM_ALTER_TABLE)
   {
+    use_pre_records = FALSE;
     DBUG_RETURN(0);
   }
-  if ((error_num = spider_db_show_records(this, search_link_idx)))
+  if ((error_num = spider_db_show_records(this, search_link_idx, FALSE)))
   {
+    use_pre_records = FALSE;
     check_error_mode(error_num);
     DBUG_RETURN(HA_POS_ERROR);
   }
-  DBUG_RETURN(share->records);
+  use_pre_records = FALSE;
+  share->records = table_rows;
+  DBUG_RETURN(table_rows);
 }
 
 const char *ha_spider::table_type() const
@@ -9364,7 +9389,9 @@ int ha_spider::direct_update_rows_init(
   bool sorted,
   uchar *new_data
 ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   int error_num;
+#endif
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
@@ -9658,7 +9685,9 @@ int ha_spider::direct_delete_rows_init(
   uint range_count,
   bool sorted
 ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   int error_num;
+#endif
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;

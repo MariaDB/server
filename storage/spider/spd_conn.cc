@@ -2096,18 +2096,38 @@ int spider_bg_conn_search(
 
 void spider_bg_conn_simple_action(
   SPIDER_CONN *conn,
-  uint simple_action
+  uint simple_action,
+  bool caller_wait,
+  void *target,
+  uint link_idx,
+  int *error_num
 ) {
   DBUG_ENTER("spider_bg_conn_simple_action");
   pthread_mutex_lock(&conn->bg_conn_mutex);
-  conn->bg_caller_wait = TRUE;
+  conn->bg_target = target;
+  conn->link_idx = link_idx;
   conn->bg_simple_action = simple_action;
-  pthread_mutex_lock(&conn->bg_conn_sync_mutex);
+  conn->bg_error_num = error_num;
+  if (caller_wait)
+  {
+    conn->bg_caller_wait = TRUE;
+    pthread_mutex_lock(&conn->bg_conn_sync_mutex);
+  } else {
+    conn->bg_caller_sync_wait = TRUE;
+    pthread_mutex_lock(&conn->bg_conn_sync_mutex);
+  }
   pthread_cond_signal(&conn->bg_conn_cond);
   pthread_mutex_unlock(&conn->bg_conn_mutex);
-  pthread_cond_wait(&conn->bg_conn_sync_cond, &conn->bg_conn_sync_mutex);
-  pthread_mutex_unlock(&conn->bg_conn_sync_mutex);
-  conn->bg_caller_wait = FALSE;
+  if (caller_wait)
+  {
+    pthread_cond_wait(&conn->bg_conn_sync_cond, &conn->bg_conn_sync_mutex);
+    pthread_mutex_unlock(&conn->bg_conn_sync_mutex);
+    conn->bg_caller_wait = FALSE;
+  } else {
+    pthread_cond_wait(&conn->bg_conn_sync_cond, &conn->bg_conn_sync_mutex);
+    pthread_mutex_unlock(&conn->bg_conn_sync_mutex);
+    conn->bg_caller_sync_wait = FALSE;
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -2449,6 +2469,13 @@ void *spider_bg_conn_action(
           break;
         case SPIDER_BG_SIMPLE_DISCONNECT:
           conn->db_conn->bg_disconnect();
+          break;
+        case SPIDER_BG_SIMPLE_RECORDS:
+          DBUG_PRINT("info",("spider bg simple records"));
+          spider = (ha_spider*) conn->bg_target;
+          *conn->bg_error_num =
+            spider->dbton_handler[conn->dbton_id]->
+              show_records(conn->link_idx);
           break;
         default:
           break;

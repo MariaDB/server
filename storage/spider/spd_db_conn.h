@@ -639,7 +639,8 @@ int spider_db_show_table_status(
 
 int spider_db_show_records(
   ha_spider *spider,
-  int link_idx
+  int link_idx,
+  bool pre_call
 );
 
 void spider_db_set_cardinarity(
