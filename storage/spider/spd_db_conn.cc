@@ -8563,8 +8563,10 @@ int spider_db_udf_direct_sql(
                 }
 #if MYSQL_VERSION_ID < 50500
 #else
-                if (table->pos_in_table_list)
-                {
+                if (
+                  table->s->tmp_table == NO_TMP_TABLE &&
+                  table->pos_in_table_list
+                ) {
                   TABLE_LIST *next_tables =
                     table->pos_in_table_list->next_global;
                   while (next_tables && next_tables->parent_l)
@@ -8651,8 +8653,10 @@ int spider_db_udf_direct_sql(
                 table->file->ha_external_lock(table->in_use, F_UNLCK);
 #if MYSQL_VERSION_ID < 50500
 #else
-                if (table->pos_in_table_list)
-                {
+                if (
+                  table->s->tmp_table == NO_TMP_TABLE &&
+                  table->pos_in_table_list
+                ) {
                   TABLE_LIST *next_tables =
                     table->pos_in_table_list->next_global;
                   while (next_tables && next_tables->parent_l)
