@@ -3114,6 +3114,7 @@ int spider_commit(
             error_num = tmp_error_num;
         }
         trx->trx_xa = FALSE;
+        trx->join_trx_top = NULL;
       } else {
         if ((conn = spider_tree_first(trx->join_trx_top)))
         {
@@ -3183,6 +3184,7 @@ int spider_rollback(
             error_num = tmp_error_num;
         }
         trx->trx_xa = FALSE;
+        trx->join_trx_top = NULL;
       } else {
         if ((conn = spider_tree_first(trx->join_trx_top)))
         {
