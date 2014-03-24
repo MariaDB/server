@@ -3641,33 +3641,33 @@ int spider_db_store_result(
           }
           DBUG_RETURN(error_num);
         }
-        if (
-          error_num != HA_ERR_END_OF_FILE &&
-          (error_num = spider_db_errorno(conn))
-        )
-          DBUG_RETURN(error_num);
-        else {
-          DBUG_PRINT("info",("spider set finish_flg point 1"));
-          DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
-          DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
-          current->finish_flg = TRUE;
-          result_list->finish_flg = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-          if (result_list->bgs_phase <= 1)
-          {
-#endif
-            result_list->current_row_num = 0;
-            table->status = STATUS_NOT_FOUND;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-          }
-#endif
-          if (!conn->mta_conn_mutex_unlock_later)
-          {
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-          }
-          DBUG_RETURN(HA_ERR_END_OF_FILE);
+        bool call_db_errorno = FALSE;
+        if (error_num != HA_ERR_END_OF_FILE)
+        {
+          call_db_errorno = TRUE;
+          if ((error_num = spider_db_errorno(conn)))
+            DBUG_RETURN(error_num);
         }
+        DBUG_PRINT("info",("spider set finish_flg point 1"));
+        DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
+        DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
+        current->finish_flg = TRUE;
+        result_list->finish_flg = TRUE;
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+        if (result_list->bgs_phase <= 1)
+        {
+#endif
+          result_list->current_row_num = 0;
+          table->status = STATUS_NOT_FOUND;
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+        }
+#endif
+        if (!conn->mta_conn_mutex_unlock_later && !call_db_errorno)
+        {
+          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+          pthread_mutex_unlock(&conn->mta_conn_mutex);
+        }
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
       } else {
         if (!conn->mta_conn_mutex_unlock_later)
         {

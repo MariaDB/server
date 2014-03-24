@@ -378,3 +378,4 @@ int spider_param_casual_read(
   THD *thd,
   int casual_read
 );
+my_bool spider_param_dry_access();

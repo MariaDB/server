@@ -2914,6 +2914,23 @@ int spider_param_casual_read(
     casual_read : THDVAR(thd, casual_read));
 }
 
+static my_bool spider_dry_access;
+static MYSQL_SYSVAR_BOOL(
+  dry_access,
+  spider_dry_access,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "dry access",
+  NULL,
+  NULL,
+  FALSE
+);
+
+my_bool spider_param_dry_access()
+{
+  DBUG_ENTER("spider_param_dry_access");
+  DBUG_RETURN(spider_dry_access);
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -3045,6 +3062,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(internal_xa_id_type),
   MYSQL_SYSVAR(casual_read),
+  MYSQL_SYSVAR(dry_access),
   NULL
 };
 

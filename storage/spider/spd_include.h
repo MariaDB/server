@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.1.12"
+#define SPIDER_DETAIL_VERSION "3.1.13"
 #define SPIDER_HEX_VERSION 0x0301
 
 #if MYSQL_VERSION_ID < 50500
@@ -137,7 +137,7 @@
 #define SPIDER_SET_FILE_POS(A) \
   {(A)->thd = current_thd; (A)->func_name = __func__; (A)->file_name = __FILE__; (A)->line_no = __LINE__;}
 #define SPIDER_CLEAR_FILE_POS(A) \
-  {(A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
+  {DBUG_PRINT("info", ("spider thd=%p func_name=%s file_name=%s line_no=%lu", (A)->thd, (A)->func_name ? (A)->func_name : "NULL", (A)->file_name ? (A)->file_name : "NULL", (A)->line_no)); (A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
 
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;

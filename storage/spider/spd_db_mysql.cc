@@ -1443,16 +1443,19 @@ int spider_db_mysql::connect(
     if (connect_mutex)
       pthread_mutex_lock(&spider_open_conn_mutex);
     /* tgt_db not use */
-    if (!mysql_real_connect(
-      db_conn,
-      tgt_host,
-      tgt_username,
-      tgt_password,
-      NULL,
-      tgt_port,
-      tgt_socket,
-      CLIENT_MULTI_STATEMENTS
-    )) {
+    if (
+      !spider_param_dry_access() &&
+      !mysql_real_connect(
+        db_conn,
+        tgt_host,
+        tgt_username,
+        tgt_password,
+        NULL,
+        tgt_port,
+        tgt_socket,
+        CLIENT_MULTI_STATEMENTS
+      )
+    ) {
       if (connect_mutex)
         pthread_mutex_unlock(&spider_open_conn_mutex);
       error_num = mysql_errno(db_conn);
@@ -1484,6 +1487,8 @@ int spider_db_mysql::ping(
 ) {
   DBUG_ENTER("spider_db_mysql::ping");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (spider_param_dry_access())
+    DBUG_RETURN(0);
   DBUG_RETURN(simple_command(db_conn, COM_PING, 0, 0, 0));
 }
 
@@ -1522,7 +1527,7 @@ int spider_db_mysql::exec_query(
   uint length,
   int quick_mode
 ) {
-  int error_num;
+  int error_num = 0;
   uint log_result_errors = spider_param_log_result_errors();
   DBUG_ENTER("spider_db_mysql::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -1544,7 +1549,10 @@ int spider_db_mysql::exec_query(
     general_log_write(current_thd, COM_QUERY, tmp_query_str.ptr(),
       tmp_query_str.length());
   }
-  error_num = mysql_real_query(db_conn, query, length);
+  if (!spider_param_dry_access())
+  {
+    error_num = mysql_real_query(db_conn, query, length);
+  }
   if (
     (error_num && log_result_errors >= 1) ||
     (log_result_errors >= 2 && db_conn->warning_count > 0) ||
@@ -1705,13 +1713,16 @@ void spider_db_mysql::print_warnings(
       pthread_mutex_lock(&conn->mta_conn_mutex);
       SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
 */
-      if (!mysql_real_query(db_conn, SPIDER_SQL_SHOW_WARNINGS_STR,
-        SPIDER_SQL_SHOW_WARNINGS_LEN))
-      {
-        MYSQL_RES *res;
+      if (
+        spider_param_dry_access() ||
+        !mysql_real_query(db_conn, SPIDER_SQL_SHOW_WARNINGS_STR,
+          SPIDER_SQL_SHOW_WARNINGS_LEN)
+      ) {
+        MYSQL_RES *res = NULL;
         MYSQL_ROW row = NULL;
         uint num_fields;
         if (
+          spider_param_dry_access() ||
           !(res = mysql_store_result(db_conn)) ||
           !(row = mysql_fetch_row(res))
         ) {
@@ -1772,8 +1783,10 @@ spider_db_result *spider_db_mysql::store_result(
   if ((result = new spider_db_mysql_result()))
   {
     *error_num = 0;
-    if (!(result->db_result = mysql_store_result(db_conn)))
-    {
+    if (
+      spider_param_dry_access() ||
+      !(result->db_result = mysql_store_result(db_conn))
+    ) {
       delete result;
       result = NULL;
     } else {
@@ -1796,8 +1809,10 @@ spider_db_result *spider_db_mysql::use_result(
   if ((result = new spider_db_mysql_result()))
   {
     *error_num = 0;
-    if (!(result->db_result = db_conn->methods->use_result(db_conn)))
-    {
+    if (
+      spider_param_dry_access() ||
+      !(result->db_result = db_conn->methods->use_result(db_conn))
+    ) {
       delete result;
       result = NULL;
     } else {
@@ -1869,6 +1884,8 @@ int spider_db_mysql::set_character_set(
 ) {
   DBUG_ENTER("spider_db_mysql::set_character_set");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (spider_param_dry_access())
+    DBUG_RETURN(0);
   DBUG_RETURN(mysql_set_character_set(db_conn, csname));
 }
 
@@ -1877,6 +1894,8 @@ int spider_db_mysql::select_db(
 ) {
   DBUG_ENTER("spider_db_mysql::select_db");
   DBUG_PRINT("info",("spider this=%p", this));
+  if (spider_param_dry_access())
+    DBUG_RETURN(0);
   DBUG_RETURN(mysql_select_db(db_conn, dbname));
 }
 
@@ -9879,6 +9898,14 @@ int spider_mysql_handler::show_table_status(
     request_key.handler = spider;
     request_key.request_id = 1;
     request_key.next = NULL;
+    if (spider_param_dry_access())
+    {
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
+      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      pthread_mutex_unlock(&conn->mta_conn_mutex);
+      DBUG_RETURN(0);
+    }
     if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
     {
       conn->mta_conn_mutex_lock_already = FALSE;
@@ -10004,6 +10031,14 @@ int spider_mysql_handler::show_table_status(
     request_key.handler = spider;
     request_key.request_id = 1;
     request_key.next = NULL;
+    if (spider_param_dry_access())
+    {
+      conn->mta_conn_mutex_lock_already = FALSE;
+      conn->mta_conn_mutex_unlock_later = FALSE;
+      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+      pthread_mutex_unlock(&conn->mta_conn_mutex);
+      DBUG_RETURN(0);
+    }
     if (!(res = conn->db_conn->store_result(NULL, &request_key, &error_num)))
     {
       conn->mta_conn_mutex_lock_already = FALSE;
