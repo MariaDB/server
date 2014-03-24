@@ -1591,6 +1591,8 @@ typedef struct st_spider_result_list
   uint                    *sql_kind_backup;
   uint                    sql_kinds_backup;
   bool                    use_union;
+  bool                    use_both_key;
+  const key_range         *end_key;
   spider_string           *insert_sqls;
   spider_string           *update_sqls;
   TABLE                   **upd_tmp_tbls;

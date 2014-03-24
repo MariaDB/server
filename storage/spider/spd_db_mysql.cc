@@ -7119,10 +7119,17 @@ int spider_mysql_handler::append_condition_part(
         }
         ha_where_pos = str->length();
 
-        if (sql_part2.length())
-        {
-          str->append(sql_part2);
-          start_where = FALSE;
+        if (
+          spider->sql_command == SQLCOM_HA_READ ||
+          !spider->result_list.use_both_key
+        ) {
+          if (sql_part2.length())
+          {
+            str->append(sql_part2);
+            start_where = FALSE;
+          }
+        } else {
+          DBUG_RETURN(0);
         }
       }
       break;

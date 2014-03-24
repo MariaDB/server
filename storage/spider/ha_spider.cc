@@ -154,6 +154,7 @@ ha_spider::ha_spider(
   result_list.direct_aggregate = FALSE;
 #endif
   result_list.casual_read = NULL;
+  result_list.use_both_key = FALSE;
   DBUG_VOID_RETURN;
 }
 
@@ -258,6 +259,7 @@ ha_spider::ha_spider(
   result_list.direct_aggregate = FALSE;
 #endif
   result_list.casual_read = NULL;
+  result_list.use_both_key = FALSE;
   ref_length = sizeof(SPIDER_POSITION);
   DBUG_VOID_RETURN;
 }
@@ -1714,6 +1716,7 @@ int ha_spider::reset()
   clone_bitmap_init = FALSE;
   result_list.tmp_table_join = FALSE;
   result_list.use_union = FALSE;
+  result_list.use_both_key = FALSE;
   pt_clone_last_searcher = NULL;
   conn_kinds = SPIDER_CONN_KIND_MYSQL;
   has_clone_for_merge = FALSE;
@@ -4126,10 +4129,14 @@ int ha_spider::read_range_first(
     if ((error_num = spider_bg_all_conn_pre_next(this, search_link_idx)))
       DBUG_RETURN(error_num);
     use_pre_call = FALSE;
-    DBUG_RETURN(read_range_next());
+    if ((error_num = read_range_next()))
+      DBUG_RETURN(error_num);
+    DBUG_RETURN(check_ha_range_eof());
   }
-  DBUG_RETURN(read_range_first_internal(table->record[0], start_key, end_key,
-    eq_range, sorted));
+  if ((error_num = read_range_first_internal(table->record[0], start_key,
+    end_key, eq_range, sorted)))
+    DBUG_RETURN(error_num);
+  DBUG_RETURN(check_ha_range_eof());
 }
 
 int ha_spider::read_range_next()
@@ -4160,7 +4167,7 @@ int ha_spider::read_range_next()
   if ((error_num = spider_db_seek_next(table->record[0], this, search_link_idx,
     table)))
     DBUG_RETURN(check_error_mode_eof(error_num));
-  DBUG_RETURN(0);
+  DBUG_RETURN(check_ha_range_eof());
 }
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
@@ -4687,7 +4694,7 @@ int ha_spider::read_multi_range_first_internal(
 #else
           *found_range_p = multi_range_curr;
 #endif
-          DBUG_RETURN(0);
+          DBUG_RETURN(check_ha_range_eof());
         }
         if (
           error_num != HA_ERR_END_OF_FILE &&
@@ -5743,7 +5750,7 @@ int ha_spider::read_multi_range_next(
   ) {
     if (!(error_num = spider_db_seek_next(table->record[0], this,
       search_link_idx, table)))
-      DBUG_RETURN(0);
+      DBUG_RETURN(check_ha_range_eof());
 #ifdef HA_MRR_USE_DEFAULT_IMPL
     range_res = mrr_funcs.next(mrr_iter, &mrr_cur_range);
     DBUG_PRINT("info",("spider range_res1=%d", range_res));
@@ -6092,7 +6099,7 @@ int ha_spider::read_multi_range_next(
 #else
           *found_range_p = multi_range_curr;
 #endif
-          DBUG_RETURN(0);
+          DBUG_RETURN(check_ha_range_eof());
         }
         if (
           error_num != HA_ERR_END_OF_FILE &&
@@ -11487,6 +11494,35 @@ void ha_spider::check_direct_order_limit()
     result_list.check_direct_order_limit = TRUE;
   }
   DBUG_VOID_RETURN;
+}
+
+int ha_spider::check_ha_range_eof()
+{
+  DBUG_ENTER("ha_spider::check_ha_range_eof");
+  DBUG_PRINT("info",("spider this=%p", this));
+  const key_range *end_key = result_list.end_key;
+  DBUG_PRINT("info",("spider use_both_key=%s",
+    result_list.use_both_key ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider sql_kind[%u]=%u",
+    search_link_idx, sql_kind[search_link_idx]));
+  DBUG_PRINT("info",("spider sql_command=%u", sql_command));
+  if (
+    result_list.use_both_key &&
+    (sql_kind[search_link_idx] & SPIDER_SQL_KIND_HANDLER) &&
+    sql_command != SQLCOM_HA_READ
+  ) {
+    int cmp_result = key_cmp(result_list.key_info->key_part,
+      end_key->key, end_key->length);
+    DBUG_PRINT("info",("spider cmp_result=%d", cmp_result));
+    if (
+      cmp_result > 0 ||
+      (end_key->flag == HA_READ_BEFORE_KEY && !cmp_result)
+    ) {
+      table->status = STATUS_NOT_FOUND;
+      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+  }
+  DBUG_RETURN(0);
 }
 
 int ha_spider::drop_tmp_tables()

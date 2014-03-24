@@ -740,6 +740,7 @@ public:
   );
   uint check_partitioned();
   void check_direct_order_limit();
+  int check_ha_range_eof();
   int drop_tmp_tables();
   bool handler_opened(
     int link_idx,

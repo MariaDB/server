@@ -1595,9 +1595,10 @@ int spider_db_append_key_where_internal(
     start_key_part_map = 0;
     use_both = FALSE;
   }
-  if (end_key)
+  if (end_key) {
     end_key_part_map = end_key->keypart_map & full_key_part_map;
-  else {
+    result_list->end_key = end_key;
+  } else {
     end_key_part_map = 0;
     use_both = FALSE;
   }
@@ -1657,6 +1658,8 @@ int spider_db_append_key_where_internal(
     tgt_key_part_map = end_key_part_map;
   }
   DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
+  if (start_key_part_map == end_key_part_map)
+    result_list->use_both_key = TRUE;
 
   if (sql_kind == SPIDER_SQL_KIND_SQL)
   {
