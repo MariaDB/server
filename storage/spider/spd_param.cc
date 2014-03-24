@@ -33,6 +33,9 @@
 #include "spd_trx.h"
 
 extern struct st_mysql_plugin spider_i_s_alloc_mem;
+#ifdef MARIADB_BASE_VERSION
+extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
+#endif
 
 extern volatile ulonglong spider_mon_table_cache_version;
 extern volatile ulonglong spider_mon_table_cache_version_req;
@@ -3086,3 +3089,24 @@ mysql_declare_plugin(spider)
 },
 spider_i_s_alloc_mem
 mysql_declare_plugin_end;
+
+#ifdef MARIADB_BASE_VERSION
+maria_declare_plugin(spider)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &spider_storage_engine,
+  "SPIDER",
+  "Kentoku Shiba",
+  "Spider storage engine",
+  PLUGIN_LICENSE_GPL,
+  spider_db_init,
+  spider_db_done,
+  SPIDER_HEX_VERSION,
+  spider_status_variables,
+  spider_system_variables,
+  SPIDER_DETAIL_VERSION,
+  MariaDB_PLUGIN_MATURITY_BETA
+},
+spider_i_s_alloc_mem_maria
+maria_declare_plugin_end;
+#endif
