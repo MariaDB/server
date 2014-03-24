@@ -17,14 +17,14 @@ Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl, perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc, passwd, lsb-base (>= 3.0-10), libmariadbclient18 (>= ${binary:Version}), galera (>=25.2)
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5, mysql-server-core-10.0, mariadb-server, mysql-server, virtual-mysql-server, mariadb-galera-server
-Conflicts: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}), mariadb-galera-server (<< ${source:Version}),
+Conflicts: mariadb-server, mysql-server, mariadb-galera-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
     mysql-server-core-5.0, mysql-server-core-5.1, mysql-server-core-5.5,
     mariadb-server-core-5.1, mariadb-server-core-5.2, mariadb-server-core-5.5,
     mariadb-server-core-10.0,
     mariadb-tokudb-engine-5.5, mariadb-tokudb-engine-10.0
-Replaces: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}), mariadb-galera-server (<< ${source:Version}),
+Replaces: mariadb-server, mysql-server, mariadb-galera-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3, mariadb-server-5.5,
     libmariadbclient16 (<< 5.3.4), libmariadbclient-dev (<< 5.5.0),
