@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.1.15"
+#define SPIDER_DETAIL_VERSION "3.1.16"
 #define SPIDER_HEX_VERSION 0x0301
 
 #if MYSQL_VERSION_ID < 50500
@@ -63,8 +63,8 @@
 #endif
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
-#define spider_stmt_da_message(A) (A)->get_stmt_da()->message()
-#define spider_stmt_da_sql_errno(A) (A)->get_stmt_da()->sql_errno()
+#define spider_stmt_da_message(A) thd_get_error_message(A)
+#define spider_stmt_da_sql_errno(A) thd_get_error_number(A)
 #define spider_user_defined_key_parts(A) (A)->user_defined_key_parts
 #define SPIDER_CAN_BG_UPDATE (1LL << 39)
 #define SPIDER_ALTER_ADD_PARTITION        Alter_info::ALTER_ADD_PARTITION
@@ -80,8 +80,13 @@
 #define spider_stmt_da_message(A) (A)->main_da.message()
 #define spider_stmt_da_sql_errno(A) (A)->main_da.sql_errno()
 #else
+#if MYSQL_VERSION_ID < 50600
 #define spider_stmt_da_message(A) (A)->stmt_da->message()
 #define spider_stmt_da_sql_errno(A) (A)->stmt_da->sql_errno()
+#else
+#define spider_stmt_da_message(A) (A)->get_stmt_da()->message()
+#define spider_stmt_da_sql_errno(A) (A)->get_stmt_da()->sql_errno()
+#endif
 #endif
 #define spider_user_defined_key_parts(A) (A)->key_parts
 #define SPIDER_ALTER_ADD_PARTITION        ALTER_ADD_PARTITION

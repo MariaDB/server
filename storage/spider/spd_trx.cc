@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -249,7 +249,7 @@ int spider_trx_another_lock_tables(
   SPIDER_BACKUP_DASTATUS;
   sql_str.init_calc_mem(188);
   sql_str.length(0);
-  memset(&tmp_spider, 0, sizeof(ha_spider));
+  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   memset(&tmp_share, 0, sizeof(SPIDER_SHARE));
   tmp_spider.share = &tmp_share;
   tmp_spider.trx = trx;
@@ -295,7 +295,7 @@ int spider_trx_another_flush_tables(
   long tmp_link_statuses = SPIDER_LINK_STATUS_OK;
   DBUG_ENTER("spider_trx_another_flush_tables");
   SPIDER_BACKUP_DASTATUS;
-  memset(&tmp_spider, 0, sizeof(ha_spider));
+  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   tmp_share.link_count = 1;
   tmp_share.all_link_count = 1;
   tmp_share.link_statuses = &tmp_link_statuses;
@@ -329,7 +329,7 @@ int spider_trx_all_flush_tables(
   long tmp_link_statuses = SPIDER_LINK_STATUS_OK;
   DBUG_ENTER("spider_trx_all_flush_tables");
   SPIDER_BACKUP_DASTATUS;
-  memset(&tmp_spider, 0, sizeof(ha_spider));
+  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   tmp_share.link_count = 1;
   tmp_share.all_link_count = 1;
   tmp_share.link_statuses = &tmp_link_statuses;
@@ -361,7 +361,7 @@ int spider_trx_all_unlock_tables(
   ha_spider tmp_spider;
   DBUG_ENTER("spider_trx_all_unlock_tables");
   SPIDER_BACKUP_DASTATUS;
-  memset(&tmp_spider, 0, sizeof(ha_spider));
+  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   tmp_spider.conns = &conn;
   tmp_spider.need_mons = &need_mon;
   while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
@@ -389,7 +389,7 @@ int spider_trx_all_start_trx(
   ha_spider tmp_spider;
   DBUG_ENTER("spider_trx_all_start_trx");
   SPIDER_BACKUP_DASTATUS;
-  memset(&tmp_spider, 0, sizeof(ha_spider));
+  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   tmp_spider.trx = trx;
   tmp_spider.need_mons = &need_mon;
   while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
@@ -424,7 +424,7 @@ int spider_trx_all_flush_logs(
   long net_write_timeout = 600;
   DBUG_ENTER("spider_trx_all_flush_logs");
   SPIDER_BACKUP_DASTATUS;
-  memset(&tmp_spider, 0, sizeof(ha_spider));
+  memset((void*)&tmp_spider, 0, sizeof(ha_spider));
   tmp_share.link_count = 1;
   tmp_share.all_link_count = 1;
   tmp_share.link_statuses = &tmp_link_statuses;
