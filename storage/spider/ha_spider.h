@@ -125,6 +125,7 @@ public:
   bool               clone_bitmap_init;
   ha_spider          *pt_clone_source_handler;
   ha_spider          *pt_clone_last_searcher;
+  bool               has_clone_for_merge;
 
   bool               init_index_handler;
   bool               init_rnd_handler;

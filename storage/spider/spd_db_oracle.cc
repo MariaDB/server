@@ -4773,6 +4773,7 @@ int spider_oracle_handler::init()
   st_spider_share *share = spider->share;
   int init_sql_alloc_size =
     spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
+  TABLE *table = spider->get_table();
   DBUG_ENTER("spider_oracle_handler::init");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.init_calc_mem(67);
@@ -4804,6 +4805,7 @@ int spider_oracle_handler::init()
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
+      &minimum_select_bitmap, sizeof(uchar) * no_bytes_in_map(table->read_set),
       NullS))
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -6007,10 +6009,12 @@ int spider_oracle_handler::append_minimum_select(
   int field_length;
   bool appended = FALSE;
   DBUG_ENTER("spider_oracle_handler::append_minimum_select");
+  minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+      spider_set_bit(minimum_select_bitmap, (*field)->field_index);
       field_length =
         oracle_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length +
@@ -6092,10 +6096,12 @@ int spider_oracle_handler::append_minimum_select_with_alias(
   int field_length;
   bool appended = FALSE;
   DBUG_ENTER("spider_oracle_handler::append_minimum_select_with_alias");
+  minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+      spider_set_bit(minimum_select_bitmap, (*field)->field_index);
       field_length =
         oracle_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(alias_length + field_length +
@@ -11597,16 +11603,68 @@ bool spider_oracle_handler::support_use_handler(
   DBUG_RETURN(FALSE);
 }
 
+void spider_oracle_handler::minimum_select_bitmap_create()
+{
+  TABLE *table = spider->get_table();
+  Field **field_p;
+  DBUG_ENTER("spider_oracle_handler::minimum_select_bitmap_create");
+  memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
+  if (
+    spider->has_clone_for_merge ||
+#ifdef HA_CAN_BULK_ACCESS
+    (spider->is_clone && !spider->is_bulk_access_clone)
+#else
+    spider->is_clone
+#endif
+  ) {
+    /* need preparing for cmp_ref */
+    TABLE_SHARE *table_share = table->s;
+    if (
+      table_share->primary_key == MAX_KEY
+    ) {
+      /* need all columns */
+      memset(minimum_select_bitmap, 0xFF, no_bytes_in_map(table->read_set));
+      DBUG_VOID_RETURN;
+    } else {
+      /* need primary key columns */
+      uint roop_count;
+      KEY *key_info;
+      KEY_PART_INFO *key_part;
+      Field *field;
+      key_info = &table_share->key_info[table_share->primary_key];
+      key_part = key_info->key_part;
+      for (roop_count = 0;
+        roop_count < spider_user_defined_key_parts(key_info);
+        roop_count++)
+      {
+        field = key_part[roop_count].field;
+        spider_set_bit(minimum_select_bitmap, field->field_index);
+      }
+    }
+  }
+  for (field_p = table->field; *field_p; field_p++)
+  {
+    uint field_index = (*field_p)->field_index;
+    if (
+      spider_bit_is_set(spider->searched_bitmap, field_index) |
+      bitmap_is_set(table->read_set, field_index) |
+      bitmap_is_set(table->write_set, field_index)
+    ) {
+      spider_set_bit(minimum_select_bitmap, field_index);
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 bool spider_oracle_handler::minimum_select_bit_is_set(
   uint field_index
 ) {
-  TABLE *table = spider->get_table();
   DBUG_ENTER("spider_oracle_handler::minimum_select_bit_is_set");
-  DBUG_RETURN(
-    spider_bit_is_set(spider->searched_bitmap, field_index) |
-    bitmap_is_set(table->read_set, field_index) |
-    bitmap_is_set(table->write_set, field_index)
-  );
+  DBUG_PRINT("info",("spider field_index=%u", field_index));
+  DBUG_PRINT("info",("spider minimum_select_bitmap=%s",
+    spider_bit_is_set(minimum_select_bitmap, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_RETURN(spider_bit_is_set(minimum_select_bitmap, field_index));
 }
 
 void spider_oracle_handler::copy_minimum_select_bitmap(
@@ -11620,18 +11678,10 @@ void spider_oracle_handler::copy_minimum_select_bitmap(
     roop_count++)
   {
     bitmap[roop_count] =
-      spider->searched_bitmap[roop_count] |
-      ((uchar *) table->read_set->bitmap)[roop_count] |
-      ((uchar *) table->write_set->bitmap)[roop_count];
+      minimum_select_bitmap[roop_count];
     DBUG_PRINT("info",("spider roop_count=%d", roop_count));
     DBUG_PRINT("info",("spider bitmap=%d",
       bitmap[roop_count]));
-    DBUG_PRINT("info",("spider searched_bitmap=%d",
-      spider->searched_bitmap[roop_count]));
-    DBUG_PRINT("info",("spider read_set=%d",
-      ((uchar *) table->read_set->bitmap)[roop_count]));
-    DBUG_PRINT("info",("spider write_set=%d",
-      ((uchar *) table->write_set->bitmap)[roop_count]));
   }
   DBUG_VOID_RETURN;
 }

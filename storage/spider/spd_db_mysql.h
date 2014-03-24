@@ -542,6 +542,7 @@ class spider_mysql_handler: public spider_db_handler
 public:
   spider_mysql_share      *mysql_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
+  uchar                   *minimum_select_bitmap;
   spider_mysql_handler(
     ha_spider *spider,
     spider_mysql_share *share
@@ -1287,6 +1288,7 @@ public:
   bool support_use_handler(
     int use_handler
   );
+  void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(
     uint field_index
   );

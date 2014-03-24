@@ -493,6 +493,7 @@ public:
   int                     hs_skip;
   spider_handlersocket_share *handlersocket_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
+  uchar                   *minimum_select_bitmap;
   spider_handlersocket_handler(
     ha_spider *spider,
     spider_handlersocket_share *db_share
@@ -937,6 +938,7 @@ public:
   bool support_use_handler(
     int use_handler
   );
+  void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(
     uint field_index
   );

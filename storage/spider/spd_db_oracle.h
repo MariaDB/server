@@ -620,8 +620,9 @@ class spider_oracle_handler: public spider_db_handler
   SPIDER_INT_HLD          *union_table_name_pos_first;
   SPIDER_INT_HLD          *union_table_name_pos_current;
 public:
-  spider_oracle_share      *oracle_share;
+  spider_oracle_share     *oracle_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
+  uchar                   *minimum_select_bitmap;
   spider_oracle_handler(
     ha_spider *spider,
     spider_oracle_share *share
@@ -1370,6 +1371,7 @@ public:
   bool support_use_handler(
     int use_handler
   );
+  void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(
     uint field_index
   );

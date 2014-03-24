@@ -7660,8 +7660,25 @@ bool spider_check_direct_order_limit(
   longlong select_limit;
   longlong offset_limit;
   DBUG_ENTER("spider_check_direct_order_limit");
-  if (spider->sql_command != SQLCOM_HA_READ)
-  {
+  DBUG_PRINT("info",("spider SQLCOM_HA_READ=%s",
+    (spider->sql_command == SQLCOM_HA_READ) ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider has_clone_for_merge=%s",
+    spider->has_clone_for_merge ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider is_clone=%s",
+    spider->is_clone ? "TRUE" : "FALSE"));
+#ifdef HA_CAN_BULK_ACCESS
+  DBUG_PRINT("info",("spider is_bulk_access_clone=%s",
+    spider->is_bulk_access_clone ? "TRUE" : "FALSE"));
+#endif
+  if (
+    spider->sql_command != SQLCOM_HA_READ &&
+    !spider->has_clone_for_merge &&
+#ifdef HA_CAN_BULK_ACCESS
+    (!spider->is_clone || spider->is_bulk_access_clone)
+#else
+    !spider->is_clone
+#endif
+  ) {
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
     bool first_check = TRUE;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE

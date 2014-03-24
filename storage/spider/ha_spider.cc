@@ -87,6 +87,7 @@ ha_spider::ha_spider(
   mrr_key_buff = NULL;
 #endif
   append_tblnm_alias = NULL;
+  has_clone_for_merge = FALSE;
   is_clone = FALSE;
   clone_bitmap_init = FALSE;
   pt_clone_source_handler = NULL;
@@ -188,6 +189,7 @@ ha_spider::ha_spider(
   mrr_key_buff = NULL;
 #endif
   append_tblnm_alias = NULL;
+  has_clone_for_merge = FALSE;
   is_clone = FALSE;
   clone_bitmap_init = FALSE;
   pt_clone_source_handler = NULL;
@@ -283,6 +285,7 @@ handler *ha_spider::clone(
     HA_OPEN_IGNORE_IF_LOCKED))
     DBUG_RETURN(NULL);
   spider->sync_from_clone_source_base(this);
+  has_clone_for_merge = TRUE;
 
   DBUG_RETURN((handler *) spider);
 }
@@ -1723,6 +1726,7 @@ int ha_spider::reset()
   result_list.use_union = FALSE;
   pt_clone_last_searcher = NULL;
   conn_kinds = SPIDER_CONN_KIND_MYSQL;
+  has_clone_for_merge = FALSE;
   while (condition)
   {
     tmp_cond = condition->next;
@@ -7425,6 +7429,12 @@ void ha_spider::position(
     pt_clone_last_searcher->position(record);
     memcpy(ref, pt_clone_last_searcher->ref, ref_length);
   } else {
+    if (is_clone)
+    {
+      DBUG_PRINT("info",("spider set pt_clone_last_searcher (NULL) to %p",
+        pt_clone_source_handler));
+      pt_clone_source_handler->pt_clone_last_searcher = NULL;
+    }
     memset(ref, '0', sizeof(SPIDER_POSITION));
     DBUG_PRINT("info",("spider self position"));
     DBUG_PRINT("info",

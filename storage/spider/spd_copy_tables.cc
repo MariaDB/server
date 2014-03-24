@@ -1097,6 +1097,7 @@ long long spider_copy_tables_body(
   for (roop_count = 0; roop_count < all_link_cnt; roop_count++)
   {
     spider[roop_count].conns = NULL;
+    spider[roop_count].change_table_ptr(table, table_share);
   }
   for (roop_count = 0, table_conn = copy_tables->table_conn[0];
     table_conn; roop_count++, table_conn = table_conn->next)
