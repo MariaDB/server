@@ -2827,6 +2827,17 @@ uint spider_param_log_result_errors()
   DBUG_RETURN(spider_log_result_errors);
 }
 
+static char *spider_version = (char *) SPIDER_DETAIL_VERSION;
+static MYSQL_SYSVAR_STR(
+  version,
+  spider_version,
+  PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
+  "The version of Spider",
+  NULL,
+  NULL,
+  SPIDER_DETAIL_VERSION
+);
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2954,6 +2965,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #endif
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(log_result_errors),
+  MYSQL_SYSVAR(version),
   NULL
 };
 
@@ -2967,7 +2979,7 @@ mysql_declare_plugin(spider)
   PLUGIN_LICENSE_GPL,
   spider_db_init,
   spider_db_done,
-  0x0301,
+  SPIDER_HEX_VERSION,
   spider_status_variables,
   spider_system_variables,
   NULL,
