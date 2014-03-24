@@ -5229,7 +5229,7 @@ sub report_failure_and_restart ($) {
     # In these cases we may want valgrind report from normal termination
     $tinfo->{'dont_kill_server'}= 1;
   }
-  # Shotdown properly if not to be killed (for valgrind)
+  # Shutdown properly if not to be killed (for valgrind)
   stop_all_servers($tinfo->{'dont_kill_server'} ? $opt_shutdown_timeout : 0);
 
   $tinfo->{'result'}= 'MTR_RES_FAILED';

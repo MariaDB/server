@@ -7685,6 +7685,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
               check_grant(thd, SELECT_ACL, table, FALSE, 1, FALSE)))
       DBUG_RETURN(TRUE);
 
+    table->grant.orig_want_privilege= 0;
     table->table_in_first_from_clause= 1;
   }
   /*
