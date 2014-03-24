@@ -814,15 +814,6 @@ int ha_spider::check_access_kind(
   DBUG_ENTER("ha_spider::check_access_kind");
   DBUG_PRINT("info",("spider this=%p", this));
   sql_command = thd_sql_command(thd);
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  do_direct_update = FALSE;
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  maybe_do_hs_direct_update = FALSE;
-  memset(do_hs_direct_update, 0, share->link_bitmap_size);
-#endif
-#endif
   conn_kinds = 0;
   switch (sql_command)
   {
@@ -879,24 +870,10 @@ int ha_spider::check_access_kind(
       break;
     case SQLCOM_HS_UPDATE:
     case SQLCOM_HS_DELETE:
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-      do_direct_update = TRUE;
-      maybe_do_hs_direct_update = TRUE;
-#endif
+      conn_kinds |= SPIDER_CONN_KIND_MYSQL;
       for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       {
-        conn_kinds |= SPIDER_CONN_KIND_MYSQL;
         conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-        if (spider_param_use_hs_write(thd, share->use_hs_writes[roop_count]))
-        {
-          DBUG_PRINT("info",("spider do_hs_direct_update[%d]=TRUE",
-            roop_count));
-          spider_set_bit(do_hs_direct_update, roop_count);
-        } else {
-          maybe_do_hs_direct_update = FALSE;
-        }
-#endif
       }
       break;
     case SQLCOM_HS_INSERT:
@@ -922,13 +899,10 @@ int ha_spider::check_access_kind(
     case SQLCOM_UPDATE_MULTI:
     case SQLCOM_DELETE:
     case SQLCOM_DELETE_MULTI:
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-      do_direct_update = TRUE;
-#endif
     default:
+      conn_kinds |= SPIDER_CONN_KIND_MYSQL;
       for (roop_count = 0; roop_count < (int) share->link_count; roop_count++)
       {
-        conn_kinds |= SPIDER_CONN_KIND_MYSQL;
         conn_kind[roop_count] = SPIDER_CONN_KIND_MYSQL;
       }
       break;
@@ -945,16 +919,30 @@ int ha_spider::check_access_kind(
   }
   DBUG_PRINT("info",("spider sql_command=%u", sql_command));
   DBUG_PRINT("info",("spider thd->query_id=%lld", thd->query_id));
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+#ifdef HS_HAS_SQLCOM
+  if (sql_command == SQLCOM_HS_UPDATE)
+    update_request = TRUE;
+  else
+#endif
+    update_request = FALSE;
+#else
   if (
 #ifdef HS_HAS_SQLCOM
     sql_command == SQLCOM_HS_UPDATE ||
 #endif
     sql_command == SQLCOM_UPDATE ||
-    sql_command == SQLCOM_UPDATE_MULTI
+    sql_command == SQLCOM_UPDATE_MULTI ||
+    /* for triggers */
+    sql_command == SQLCOM_INSERT ||
+    sql_command == SQLCOM_INSERT_SELECT ||
+    sql_command == SQLCOM_DELETE ||
+    sql_command == SQLCOM_DELETE_MULTI
   )
     update_request = TRUE;
   else
     update_request = FALSE;
+#endif
   DBUG_RETURN(0);
 }
 
@@ -1479,13 +1467,9 @@ int ha_spider::external_lock(
       conn_kinds & SPIDER_CONN_KIND_HS_WRITE
 #if defined(HS_HAS_SQLCOM) && defined(HANDLER_HAS_DIRECT_UPDATE_ROWS)
     ) ||
-    (
-      do_direct_update &&
-      (
-        sql_command == SQLCOM_HS_UPDATE ||
-        sql_command == SQLCOM_HS_DELETE
-      )
-    )
+    /* for direct_update */
+    sql_command == SQLCOM_HS_UPDATE ||
+    sql_command == SQLCOM_HS_DELETE
 #endif
   ) {
     SPIDER_CONN *hs_conn;
@@ -1755,6 +1739,7 @@ int ha_spider::reset()
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
   direct_update_fields = NULL;
 #endif
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
@@ -1990,14 +1975,8 @@ int ha_spider::index_read_map_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-  if (do_direct_update)
-  {
-    direct_update_kinds = SPIDER_SQL_KIND_SQL;
-    memset(do_hs_direct_update, 0, share->link_bitmap_size);
-  }
-#endif
+  do_direct_update = FALSE;
 #endif
   if (
     find_flag >= HA_READ_MBR_CONTAIN &&
@@ -2495,6 +2474,9 @@ int ha_spider::index_read_last_map_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
+#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -2960,6 +2942,9 @@ int ha_spider::index_first_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
+#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -3333,6 +3318,9 @@ int ha_spider::index_last_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
+#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -3759,6 +3747,9 @@ int ha_spider::read_range_first_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
+#endif
   if (
     start_key &&
     start_key->flag >= HA_READ_MBR_CONTAIN &&
@@ -4314,6 +4305,9 @@ int ha_spider::read_multi_range_first_internal(
     my_error(ER_QUERY_INTERRUPTED, MYF(0));
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
   }
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
+#endif
   if ((error_num = index_handler_init()))
     DBUG_RETURN(check_error_mode_eof(error_num));
   if (is_clone)
@@ -7108,6 +7102,9 @@ int ha_spider::rnd_next_internal(
   /* do not copy table data at alter table */
   if (sql_command == SQLCOM_ALTER_TABLE)
     DBUG_RETURN(HA_ERR_END_OF_FILE);
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  do_direct_update = FALSE;
+#endif
 
   if (rnd_scan_and_first)
   {
@@ -9192,6 +9189,41 @@ int ha_spider::pre_write_row(
 }
 #endif
 
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+void ha_spider::direct_update_init(
+  THD *thd,
+  bool hs_request
+) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  uint roop_count;
+#endif
+  DBUG_ENTER("ha_spider::direct_update_init");
+  DBUG_PRINT("info",("spider this=%p", this));
+  do_direct_update = TRUE;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+  if (hs_request)
+  {
+    maybe_do_hs_direct_update = TRUE;
+    memset(do_hs_direct_update, 0, share->link_bitmap_size);
+    for (roop_count = 0; roop_count < share->link_count; roop_count++)
+    {
+      if (spider_param_use_hs_write(thd, share->use_hs_writes[roop_count]))
+      {
+        DBUG_PRINT("info",("spider do_hs_direct_update[%d]=TRUE",
+          roop_count));
+        spider_set_bit(do_hs_direct_update, roop_count);
+      } else {
+        maybe_do_hs_direct_update = FALSE;
+      }
+    }
+  } else {
+    maybe_do_hs_direct_update = FALSE;
+  }
+#endif
+  DBUG_VOID_RETURN;
+}
+#endif
+
 bool ha_spider::start_bulk_update(
 ) {
   DBUG_ENTER("ha_spider::start_bulk_update");
@@ -9332,6 +9364,7 @@ int ha_spider::direct_update_rows_init(
   bool sorted,
   uchar *new_data
 ) {
+  int error_num;
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
@@ -9359,6 +9392,14 @@ int ha_spider::direct_update_rows_init(
       mode, ranges, range_count, sorted, new_data));
   }
 #endif
+  direct_update_init(
+    thd,
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    sql_command == SQLCOM_HS_UPDATE
+#else
+    FALSE
+#endif
+  );
   if (!condition)
     cond_check = FALSE;
   spider_get_select_limit(this, &select_lex, &select_limit, &offset_limit);
@@ -9379,6 +9420,7 @@ int ha_spider::direct_update_rows_init(
       spider_db_append_condition(this, NULL, 0, TRUE)
     ) {
       DBUG_PRINT("info",("spider FALSE by condition"));
+      do_direct_update = FALSE;
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
     }
     if (select_lex->order_list.elements)
@@ -9390,12 +9432,17 @@ int ha_spider::direct_update_rows_init(
         if (check_item_type_sql((*order->item)))
         {
           DBUG_PRINT("info",("spider FALSE by order"));
+          do_direct_update = FALSE;
           DBUG_RETURN(HA_ERR_WRONG_COMMAND);
         }
       }
       result_list.direct_order_limit = TRUE;
     }
 
+    if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
+    {
+      DBUG_RETURN(error_num);
+    }
     trx->direct_update_count++;
     DBUG_PRINT("info",("spider OK"));
     DBUG_RETURN(0);
@@ -9431,6 +9478,7 @@ int ha_spider::direct_update_rows_init(
     if (pk_update && spider_check_hs_pk_update(this, &ranges->start_key))
     {
       DBUG_PRINT("info",("spider FALSE by pk_update"));
+      do_direct_update = FALSE;
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
     }
 #endif
@@ -9439,6 +9487,7 @@ int ha_spider::direct_update_rows_init(
     DBUG_RETURN(0);
   }
   DBUG_PRINT("info",("spider FALSE by default"));
+  do_direct_update = FALSE;
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
@@ -9610,6 +9659,7 @@ int ha_spider::direct_delete_rows_init(
   uint range_count,
   bool sorted
 ) {
+  int error_num;
   st_select_lex *select_lex;
   longlong select_limit;
   longlong offset_limit;
@@ -9635,6 +9685,14 @@ int ha_spider::direct_delete_rows_init(
       mode, ranges, range_count, sorted));
   }
 #endif
+  direct_update_init(
+    thd,
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+    sql_command == SQLCOM_HS_DELETE
+#else
+    FALSE
+#endif
+  );
   if (!condition)
     cond_check = FALSE;
   spider_get_select_limit(this, &select_lex, &select_limit, &offset_limit);
@@ -9652,6 +9710,7 @@ int ha_spider::direct_delete_rows_init(
       spider_db_append_condition(this, NULL, 0, TRUE)
     ) {
       DBUG_PRINT("info",("spider FALSE by condition"));
+      do_direct_update = FALSE;
       DBUG_RETURN(HA_ERR_WRONG_COMMAND);
     }
     if (select_lex->order_list.elements)
@@ -9663,12 +9722,17 @@ int ha_spider::direct_delete_rows_init(
         if (check_item_type_sql((*order->item)))
         {
           DBUG_PRINT("info",("spider FALSE by order"));
+          do_direct_update = FALSE;
           DBUG_RETURN(HA_ERR_WRONG_COMMAND);
         }
       }
       result_list.direct_order_limit = TRUE;
     }
 
+    if ((error_num = spider_check_trx_and_get_conn(thd, this, TRUE)))
+    {
+      DBUG_RETURN(error_num);
+    }
     trx->direct_delete_count++;
     DBUG_PRINT("info",("spider OK"));
     DBUG_RETURN(0);
@@ -9691,6 +9755,7 @@ int ha_spider::direct_delete_rows_init(
     DBUG_RETURN(0);
   }
   DBUG_PRINT("info",("spider FALSE by default"));
+  do_direct_update = FALSE;
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 
@@ -10759,6 +10824,11 @@ int ha_spider::info_push(
     case INFO_KIND_UPDATE_FIELDS:
       DBUG_PRINT("info",("spider INFO_KIND_UPDATE_FIELDS"));
       direct_update_fields = (List<Item> *) info;
+      update_request = TRUE;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      if (keyread && check_partitioned())
+        keyread = FALSE;
+#endif
       break;
     case INFO_KIND_UPDATE_VALUES:
       DBUG_PRINT("info",("spider INFO_KIND_UPDATE_VALUES"));
@@ -12075,15 +12145,6 @@ int ha_spider::sync_from_clone_source(
     DBUG_PRINT("info",("spider synced from clone source all"));
     trx = spider->trx;
     sql_command = spider->sql_command;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-    do_direct_update = spider->do_direct_update;
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-    memcpy(do_hs_direct_update, spider->do_hs_direct_update,
-      share->link_bitmap_size);
-#endif
-#endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     conn_kinds = spider->conn_kinds;
     memcpy(conn_kind, spider->conn_kind, sizeof(uint) * share->link_count);
@@ -12126,15 +12187,6 @@ int ha_spider::sync_from_clone_source(
   {
     DBUG_PRINT("info",("spider synced from clone source"));
     sql_command = spider->sql_command;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-    do_direct_update = spider->do_direct_update;
-#endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-    memcpy(do_hs_direct_update, spider->do_hs_direct_update,
-      share->link_bitmap_size);
-#endif
-#endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     conn_kinds = spider->conn_kinds;
     memcpy(conn_kind, spider->conn_kind, sizeof(uint) * share->link_count);

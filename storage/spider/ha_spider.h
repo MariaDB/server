@@ -549,6 +549,12 @@ public:
     uchar *buf
   );
 #endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  void direct_update_init(
+    THD *thd,
+    bool hs_request
+  );
+#endif
   bool start_bulk_update();
   int exec_bulk_update(
     uint *dup_key_found
