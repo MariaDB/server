@@ -3832,6 +3832,7 @@ int ha_spider::read_range_first_internal(
   result_list.limit_num =
     result_list.internal_limit >= result_list.split_read ?
     result_list.split_read : result_list.internal_limit;
+  DBUG_PRINT("info",("spider limit_num=%lld", result_list.limit_num));
   if (
     (error_num = spider_db_append_key_where(
       start_key, eq_range ? NULL : end_key, this))
@@ -4264,28 +4265,6 @@ int ha_spider::multi_range_read_init(
     )
   );
 }
-
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
-int ha_spider::multi_range_read_next(
-  range_id_t *range_info
-)
-#else
-int ha_spider::multi_range_read_next(
-  char **range_info
-)
-#endif
-{
-  int error_num;
-  DBUG_ENTER("ha_spider::multi_range_read_next");
-  DBUG_PRINT("info",("spider this=%p", this));
-  if (!mrr_have_range)
-  {
-    error_num = multi_range_read_next_first(range_info);
-    mrr_have_range = TRUE;
-  } else
-    error_num = multi_range_read_next_next(range_info);
-  DBUG_RETURN(error_num);
-}
 #endif
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
@@ -4408,6 +4387,7 @@ int ha_spider::read_multi_range_first_internal(
         result_list.split_read ?
         result_list.split_read :
         result_list.internal_limit - result_list.record_num;
+      DBUG_PRINT("info",("spider limit_num=%lld", result_list.limit_num));
       if (
 #ifdef HA_MRR_USE_DEFAULT_IMPL
         (error_num = spider_db_append_key_where(
@@ -4695,6 +4675,8 @@ int ha_spider::read_multi_range_first_internal(
         }
       } else {
 #ifdef HA_MRR_USE_DEFAULT_IMPL
+        if (!range_info)
+          DBUG_RETURN(0);
         if (!(error_num = spider_db_fetch(table->record[0], this, table)))
 #else
         if (!buf || !(error_num = spider_db_fetch(buf, this, table)))
@@ -5094,6 +5076,7 @@ int ha_spider::read_multi_range_first_internal(
         }
       } else {
         result_list.limit_num = result_list.internal_limit;
+        result_list.split_read = result_list.internal_limit;
         if (
           (error_num = init_union_table_name_pos_sql()) ||
           (error_num = append_union_all_start_sql_part(
@@ -5137,6 +5120,9 @@ int ha_spider::read_multi_range_first_internal(
           )
             DBUG_RETURN(error_num);
           set_where_pos_sql(SPIDER_SQL_TYPE_SELECT_SQL);
+          DBUG_PRINT("info",("spider internal_offset=%lld",
+            result_list.internal_offset));
+          DBUG_PRINT("info",("spider limit_num=%lld", result_list.limit_num));
           if (
 #ifdef HA_MRR_USE_DEFAULT_IMPL
             (error_num = spider_db_append_key_where(
@@ -5537,6 +5523,8 @@ int ha_spider::read_multi_range_first_internal(
           DBUG_RETURN(error_num);
       } else {
 #ifdef HA_MRR_USE_DEFAULT_IMPL
+        if (!range_info)
+          DBUG_RETURN(0);
         if (!(error_num = spider_db_fetch(table->record[0], this, table)))
 #else
         if (!buf || !(error_num = spider_db_fetch(buf, this, table)))
@@ -5611,6 +5599,56 @@ int ha_spider::read_multi_range_first_internal(
 }
 
 #ifdef HA_MRR_USE_DEFAULT_IMPL
+int ha_spider::pre_multi_range_read_next(
+  bool use_parallel
+) {
+  DBUG_ENTER("ha_spider::pre_multi_range_read_next");
+  DBUG_PRINT("info",("spider this=%p", this));
+  check_pre_call(use_parallel);
+  if (use_pre_call)
+  {
+    store_error_num =
+      multi_range_read_next_first(NULL);
+    DBUG_RETURN(store_error_num);
+  }
+  DBUG_RETURN(0);
+}
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
+int ha_spider::multi_range_read_next(
+  range_id_t *range_info
+)
+#else
+int ha_spider::multi_range_read_next(
+  char **range_info
+)
+#endif
+{
+  int error_num;
+  DBUG_ENTER("ha_spider::multi_range_read_next");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (use_pre_call)
+  {
+    if (store_error_num)
+    {
+      if (store_error_num == HA_ERR_END_OF_FILE)
+        table->status = STATUS_NOT_FOUND;
+      DBUG_RETURN(store_error_num);
+    }
+    if ((error_num = spider_bg_all_conn_pre_next(this, search_link_idx)))
+      DBUG_RETURN(error_num);
+    use_pre_call = FALSE;
+    mrr_have_range = TRUE;
+    DBUG_RETURN(multi_range_read_next_next(range_info));
+  }
+  if (!mrr_have_range)
+  {
+    error_num = multi_range_read_next_first(range_info);
+    mrr_have_range = TRUE;
+  } else
+    error_num = multi_range_read_next_next(range_info);
+  DBUG_RETURN(error_num);
+}
 #else
 int ha_spider::pre_read_multi_range_first(
   KEY_MULTI_RANGE **found_range_p,

@@ -469,6 +469,9 @@ public:
     bool use_parallel
   );
 #ifdef HA_MRR_USE_DEFAULT_IMPL
+  int pre_multi_range_read_next(
+    bool use_parallel
+  );
 #else
   int pre_read_multi_range_first(
     KEY_MULTI_RANGE **found_range_p,

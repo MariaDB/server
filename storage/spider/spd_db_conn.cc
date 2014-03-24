@@ -3680,14 +3680,14 @@ int spider_db_store_result(
           current->record_num));
         DBUG_PRINT("info",("spider result_list->record_num=%lld",
           result_list->record_num));
+        DBUG_PRINT("info",("spider result_list->internal_limit=%lld",
+          result_list->internal_limit));
+        DBUG_PRINT("info",("spider result_list->split_read=%lld",
+          result_list->split_read));
         if (
           result_list->internal_limit <= result_list->record_num ||
           result_list->split_read > current->record_num
         ) {
-          DBUG_PRINT("info",("spider result_list->internal_limit=%lld",
-            result_list->internal_limit));
-          DBUG_PRINT("info",("spider result_list->split_read=%lld",
-            result_list->split_read));
           DBUG_PRINT("info",("spider set finish_flg point 2"));
           DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
           DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
