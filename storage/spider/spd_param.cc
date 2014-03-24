@@ -2827,6 +2827,32 @@ uint spider_param_log_result_errors()
   DBUG_RETURN(spider_log_result_errors);
 }
 
+static uint spider_log_result_error_with_sql;
+/*
+  0: no log
+  1: log spider sql at logging result errors
+  2: log user sql at logging result errors
+  3: log both sql at logging result errors
+ */
+static MYSQL_SYSVAR_UINT(
+  log_result_error_with_sql,
+  spider_log_result_error_with_sql,
+  PLUGIN_VAR_RQCMDARG,
+  "Log sql at logging result errors",
+  NULL,
+  NULL,
+  0,
+  0,
+  3,
+  0
+);
+
+uint spider_param_log_result_error_with_sql()
+{
+  DBUG_ENTER("spider_param_log_result_error_with_sql");
+  DBUG_RETURN(spider_log_result_error_with_sql);
+}
+
 static char *spider_version = (char *) SPIDER_DETAIL_VERSION;
 static MYSQL_SYSVAR_STR(
   version,
@@ -2988,6 +3014,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #endif
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(log_result_errors),
+  MYSQL_SYSVAR(log_result_error_with_sql),
   MYSQL_SYSVAR(version),
   MYSQL_SYSVAR(internal_xa_id_type),
   NULL

@@ -1523,16 +1523,19 @@ int spider_db_mysql::exec_query(
   int quick_mode
 ) {
   int error_num;
+  uint log_result_errors = spider_param_log_result_errors();
   DBUG_ENTER("spider_db_mysql::exec_query");
   DBUG_PRINT("info",("spider this=%p", this));
   if (spider_param_general_log())
   {
     const char *tgt_str = conn->tgt_host;
     uint32 tgt_len = conn->tgt_host_length;
-    spider_string tmp_query_str(length + conn->tgt_wrapper_length +
-      tgt_len + (SPIDER_SQL_SPACE_LEN * 2));
+    spider_string tmp_query_str;
     tmp_query_str.init_calc_mem(230);
-    tmp_query_str.length(0);
+    if (tmp_query_str.reserve(
+      length + conn->tgt_wrapper_length +
+      tgt_len + (SPIDER_SQL_SPACE_LEN * 2)))
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     tmp_query_str.q_append(conn->tgt_wrapper, conn->tgt_wrapper_length);
     tmp_query_str.q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
     tmp_query_str.q_append(tgt_str, tgt_len);
@@ -1542,34 +1545,82 @@ int spider_db_mysql::exec_query(
       tmp_query_str.length());
   }
   error_num = mysql_real_query(db_conn, query, length);
-  if (spider_param_log_result_errors() >= 2 && db_conn->warning_count > 0)
-  {
-    time_t cur_time = (time_t) time((time_t*) 0);
-    struct tm lt;
-    struct tm *l_time = localtime_r(&cur_time, &lt);
-    fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
-      "from [%s] %ld to %ld:  "
-      "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
-      l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
-      l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-      conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
-      db_conn->affected_rows, db_conn->insert_id,
-      db_conn->server_status, db_conn->warning_count);
-    if (spider_param_log_result_errors() >= 3)
-      print_warnings(l_time);
-  } else if (spider_param_log_result_errors() >= 4)
-  {
-    time_t cur_time = (time_t) time((time_t*) 0);
-    struct tm lt;
-    struct tm *l_time = localtime_r(&cur_time, &lt);
-    fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [INFO SPIDER RESULT] "
-      "from [%s] %ld to %ld:  "
-      "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
-      l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
-      l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
-      conn->tgt_host, db_conn->thread_id, current_thd->thread_id,
-      db_conn->affected_rows, db_conn->insert_id,
-      db_conn->server_status, db_conn->warning_count);
+  if (
+    (error_num && log_result_errors >= 1) ||
+    (log_result_errors >= 2 && db_conn->warning_count > 0) ||
+    (log_result_errors >= 4)
+  ) {
+    THD *thd = current_thd;
+    uint log_result_error_with_sql = spider_param_log_result_error_with_sql();
+    if (log_result_error_with_sql)
+    {
+      time_t cur_time = (time_t) time((time_t*) 0);
+      struct tm lt;
+      struct tm *l_time = localtime_r(&cur_time, &lt);
+      spider_string tmp_query_str;
+      tmp_query_str.init_calc_mem(243);
+      uint query_length = thd->query_length();
+      if ((log_result_error_with_sql & 2) && query_length)
+      {
+        Security_context *security_ctx = thd->security_ctx;
+        tmp_query_str.length(0);
+        if (tmp_query_str.reserve(query_length + 1))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        tmp_query_str.q_append(thd->query(), query_length);
+        fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [RECV SPIDER SQL] "
+          "from [%s][%s] to %ld:  "
+          "sql: %s\n",
+          l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+          l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+          security_ctx->user ? security_ctx->user : "system user",
+          security_ctx->host_or_ip,
+          thd->thread_id,
+          tmp_query_str.c_ptr_safe());
+      }
+      if (log_result_error_with_sql & 1)
+      {
+        tmp_query_str.length(0);
+        if (tmp_query_str.reserve(length + 1))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        tmp_query_str.q_append(query, length);
+        fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [SEND SPIDER SQL] "
+          "from %ld to [%s] %ld:  "
+          "sql: %s\n",
+          l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+          l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+          thd->thread_id, conn->tgt_host, db_conn->thread_id,
+          tmp_query_str.c_ptr_safe());
+      }
+    }
+    if (log_result_errors >= 2 && db_conn->warning_count > 0)
+    {
+      time_t cur_time = (time_t) time((time_t*) 0);
+      struct tm lt;
+      struct tm *l_time = localtime_r(&cur_time, &lt);
+      fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [WARN SPIDER RESULT] "
+        "from [%s] %ld to %ld:  "
+        "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
+        l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+        l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+        conn->tgt_host, db_conn->thread_id, thd->thread_id,
+        db_conn->affected_rows, db_conn->insert_id,
+        db_conn->server_status, db_conn->warning_count);
+      if (spider_param_log_result_errors() >= 3)
+        print_warnings(l_time);
+    } else if (log_result_errors >= 4)
+    {
+      time_t cur_time = (time_t) time((time_t*) 0);
+      struct tm lt;
+      struct tm *l_time = localtime_r(&cur_time, &lt);
+      fprintf(stderr, "%04d%02d%02d %02d:%02d:%02d [INFO SPIDER RESULT] "
+        "from [%s] %ld to %ld:  "
+        "affected_rows: %llu  id: %llu  status: %u  warning_count: %u\n",
+        l_time->tm_year + 1900, l_time->tm_mon + 1, l_time->tm_mday,
+        l_time->tm_hour, l_time->tm_min, l_time->tm_sec,
+        conn->tgt_host, db_conn->thread_id, thd->thread_id,
+        db_conn->affected_rows, db_conn->insert_id,
+        db_conn->server_status, db_conn->warning_count);
+    }
   }
   DBUG_RETURN(error_num);
 }
