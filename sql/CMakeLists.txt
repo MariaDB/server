@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2011, Oracle and/or its affiliates.
+# Copyright (c) 2006, 2013, Oracle and/or its affiliates.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +16,7 @@
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/sql 
-${CMAKE_BINARY_DIR}/pcre 
-${CMAKE_SOURCE_DIR}/pcre 
+${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql

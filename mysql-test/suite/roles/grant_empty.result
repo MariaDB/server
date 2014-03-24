@@ -1,3 +1,5 @@
+grant '' to foo@localhost;
+ERROR OP000: Invalid role specification ``.
 create user ''@localhost;
 create role r1;
 grant r1 to ''@localhost;

@@ -1,5 +1,5 @@
-/* Copyright (c) 2005, 2011, Oracle and/or its affiliates
-   Copyright (C) 2009, 2011, Monty Program Ab
+/* Copyright (c) 2005, 2013, Oracle and/or its affiliates
+   Copyright (C) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -622,6 +622,7 @@ void **thd_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
 void thd_storage_lock_wait(MYSQL_THD thd, long long value);
 int thd_tx_isolation(const MYSQL_THD thd);
 int thd_tx_is_read_only(const MYSQL_THD thd);
+int thd_rpl_is_parallel(const MYSQL_THD thd);
 /**
   Create a temporary file.
 

@@ -5485,3 +5485,11 @@ SELECT * FROM t1;
 ERROR HY000: Table 't1' is marked as crashed and should be repaired
 DROP TABLE t1;
 End of 5.1 tests
+#
+# MDEV-5612 - my_rename() deletes files when it shouldn't
+#
+CREATE TABLE t1(a INT NOT NULL) ENGINE=CSV;
+RENAME TABLE t1 TO t2;
+SELECT * FROM t2;
+a
+DROP TABLE t2;

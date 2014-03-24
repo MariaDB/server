@@ -43,10 +43,12 @@ SET sql_log_bin=1;
 *** Test that we give warning when explict @@gtid_slave_pos=xxx that conflicts with what is in our binary log ***
 include/stop_slave.inc
 INSERT INTO t1 VALUES(3);
+include/save_master_gtid.inc
 SET GLOBAL gtid_slave_pos='0-1-3';
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER by a;
 a
 1
@@ -54,6 +56,7 @@ a
 3
 include/stop_slave.inc
 INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
 INSERT INTO t1 VALUES (10);
 DELETE FROM t1 WHERE a=10;
 SET GLOBAL gtid_slave_pos='0-1-4';
@@ -62,6 +65,7 @@ Warning	1947	Specified GTID 0-1-4 conflicts with the binary log which contains a
 RESET MASTER;
 SET GLOBAL gtid_slave_pos='0-1-4';
 START SLAVE;
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER by a;
 a
 1
@@ -127,6 +131,8 @@ STOP SLAVE IO_THREAD;
 CHANGE MASTER TO MASTER_USE_GTID=CURRENT_POS;
 include/start_slave.inc
 INSERT INTO t1 VALUES(3);
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -138,6 +144,8 @@ SET SQL_LOG_BIN=1;
 *** Test reconnecting slave with GTID after purge logs on master. ***
 FLUSH LOGS;
 INSERT INTO t1 VALUES (4);
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 FLUSH LOGS;
 FLUSH LOGS;
@@ -146,8 +154,10 @@ show binary logs;
 Log_name	File_size
 master-bin.000004	#
 INSERT INTO t1 VALUES (5);
+include/save_master_gtid.inc
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;
 a
 1
@@ -162,7 +172,9 @@ SET GLOBAL gtid_slave_pos="";
 RESET MASTER;
 TRUNCATE TABLE t1;
 INSERT INTO t1 VALUES (10);
+include/save_master_gtid.inc
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 a
 10

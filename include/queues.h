@@ -51,6 +51,7 @@ typedef struct st_queue {
 
 #define queue_first_element(queue) 1
 #define queue_last_element(queue) (queue)->elements
+#define queue_empty(queue) ((queue)->elements == 0)
 #define queue_top(queue) ((queue)->root[1])
 #define queue_element(queue,index) ((queue)->root[index])
 #define queue_end(queue) ((queue)->root[(queue)->elements])

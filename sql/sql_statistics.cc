@@ -346,6 +346,8 @@ protected:
     if ((err= stat_file->ha_update_row(record[1], record[0])) &&
          err != HA_ERR_RECORD_IS_THE_SAME)
       return TRUE;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
   }
 
@@ -529,6 +531,8 @@ public:
       store_stat_fields();
       if ((err= stat_file->ha_write_row(record[0])))
 	return TRUE;
+      /* Make change permanent and avoid 'table is marked as crashed' errors */
+      stat_file->extra(HA_EXTRA_FLUSH);
     } 
     return FALSE;
   }
@@ -583,6 +587,8 @@ public:
     int err;
     if ((err= stat_file->ha_delete_row(record[0])))
       return TRUE;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
   } 
 };
@@ -3508,6 +3514,8 @@ double get_column_range_cardinality(Field *field,
         Histogram *hist= &col_stats->histogram;
         if (hist->is_available())
         {
+          store_key_image_to_rec(field, (uchar *) min_endp->key,
+                                 min_endp->length);
           double pos= field->pos_in_interval(col_stats->min_value,
                                              col_stats->max_value);
           res= col_non_nulls * 

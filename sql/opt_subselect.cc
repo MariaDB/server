@@ -1082,7 +1082,7 @@ bool convert_join_subqueries_to_semijoins(JOIN *join)
     if (convert_join_subqueries_to_semijoins(child_join))
       DBUG_RETURN(TRUE);
     in_subq->sj_convert_priority= 
-      test(in_subq->emb_on_expr_nest != NO_JOIN_NEST) * MAX_TABLES * 2 +
+      MY_TEST(in_subq->emb_on_expr_nest != NO_JOIN_NEST) * MAX_TABLES * 2 +
       in_subq->is_correlated * MAX_TABLES + child_join->outer_tables;
   }
   
@@ -2384,7 +2384,7 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
       if (!is_excluded_key)
       {
         keyinfo= table->key_info + key;
-        is_excluded_key= !test(keyinfo->flags & HA_NOSAME);
+        is_excluded_key= !MY_TEST(keyinfo->flags & HA_NOSAME);
       }
       if (!is_excluded_key)
       {
@@ -2471,8 +2471,8 @@ bool is_multiple_semi_joins(JOIN *join, POSITION *prefix, uint idx, table_map in
     if ((emb_sj_nest= prefix[i].table->emb_sj_nest))
     {
       if (inner_tables & emb_sj_nest->sj_inner_tables)
-        return !test(inner_tables == (emb_sj_nest->sj_inner_tables &
-                                      ~join->const_table_map));
+        return !MY_TEST(inner_tables == (emb_sj_nest->sj_inner_tables &
+                                         ~join->const_table_map));
     }
   }
   return FALSE;
@@ -3206,9 +3206,9 @@ at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
       if (join->positions[idx - i].table->emb_sj_nest != tab->emb_sj_nest)
         return NULL;
     }
-    *loose_scan= test(remaining_tables & ~tab->table->map &
-                             (emb_sj_nest->sj_inner_tables |
-                              emb_sj_nest->nested_join->sj_depends_on));
+    *loose_scan= MY_TEST(remaining_tables & ~tab->table->map &
+                                (emb_sj_nest->sj_inner_tables |
+                                 emb_sj_nest->nested_join->sj_depends_on));
     if (*loose_scan && !emb_sj_nest->sj_subq_pred->sjm_scan_allowed)
       return NULL;
     else
@@ -3594,12 +3594,12 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     for (i= 0; i < tmp_key_parts; i++, cur_key_part++, ref_key++)
     {
       tab_ref->items[i]= emb_sj_nest->sj_subq_pred->left_expr->element_index(i);
-      int null_count= test(cur_key_part->field->real_maybe_null());
+      int null_count= MY_TEST(cur_key_part->field->real_maybe_null());
       *ref_key= new store_key_item(thd, cur_key_part->field,
                                    /* TODO:
                                       the NULL byte is taken into account in
                                       cur_key_part->store_length, so instead of
-                                      cur_ref_buff + test(maybe_null), we could
+                                      cur_ref_buff + MY_TEST(maybe_null), we could
                                       use that information instead.
                                    */
                                    cur_ref_buff + null_count,
@@ -3828,7 +3828,7 @@ static bool is_cond_sj_in_equality(Item *item)
       ((Item_func*)item)->functype()== Item_func::EQ_FUNC)
   {
     Item_func_eq *item_eq= (Item_func_eq*)item;
-    return test(item_eq->in_equality_no != UINT_MAX);
+    return MY_TEST(item_eq->in_equality_no != UINT_MAX);
   }
   return FALSE;
 }
@@ -4100,7 +4100,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
   {
     DBUG_PRINT("info",("Creating group key in temporary table"));
     share->keys=1;
-    share->uniques= test(using_unique_constraint);
+    share->uniques= MY_TEST(using_unique_constraint);
     table->key_info=keyinfo;
     keyinfo->key_part=key_part_info;
     keyinfo->flags=HA_NOSAME;
@@ -5288,6 +5288,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         if (!(*join_where)->fixed)
           (*join_where)->fix_fields(join->thd, join_where);
       }
+      table->table->maybe_null= MY_TEST(join->mixed_implicit_grouping);
     }
 
     if ((nested_join= table->nested_join))
@@ -5318,9 +5319,9 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
   through Item::cleanup() calls).
 */
 
-void cleanup_empty_jtbm_semi_joins(JOIN *join)
+void cleanup_empty_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list)
 {
-  List_iterator<TABLE_LIST> li(*join->join_list);
+  List_iterator<TABLE_LIST> li(*join_list);
   TABLE_LIST *table;
   while ((table= li++))
   {
@@ -5331,6 +5332,10 @@ void cleanup_empty_jtbm_semi_joins(JOIN *join)
         free_tmp_table(join->thd, table->table);
         table->table= NULL;
       }
+    }
+    else if (table->nested_join && table->sj_subq_pred)
+    {
+      cleanup_empty_jtbm_semi_joins(join, &table->nested_join->join_list);
     }
   }
 }

@@ -1,4 +1,4 @@
-/* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1466,7 +1466,7 @@ prepare_for_next_key_part:
         ptr was incremented by 1. Since store_length still counts null-byte,
         we need to subtract 1 from store_length.
       */
-      ptr+= store_length - test(key_part->null_bit);
+      ptr+= store_length - MY_TEST(key_part->null_bit);
       if (tmp.append(STRING_WITH_LEN(" AND ")))
         goto err;
 
@@ -2129,7 +2129,7 @@ int ha_federated::update_row(const uchar *old_data, uchar *new_data)
     this? Because we only are updating one record, and LIMIT enforces
     this.
   */
-  bool has_a_primary_key= test(table->s->primary_key != MAX_KEY);
+  bool has_a_primary_key= MY_TEST(table->s->primary_key != MAX_KEY);
   
   /*
     buffers for following strings
@@ -2331,7 +2331,6 @@ int ha_federated::delete_row(const uchar *buf)
 
   DBUG_RETURN(0);
 }
-
 
 /*
   Positions an index cursor to the index specified in the handle. Fetches the
@@ -2725,7 +2724,8 @@ void ha_federated::position(const uchar *record __attribute__ ((unused)))
 {
   DBUG_ENTER("ha_federated::position");
   
-  DBUG_ASSERT(stored_result);
+  if (!stored_result)
+    DBUG_VOID_RETURN;
 
   position_called= TRUE;
   /* Store result set address. */
@@ -3118,14 +3118,6 @@ int ha_federated::real_connect()
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
   DBUG_ENTER("ha_federated::real_connect");
-
-  /* 
-    Bug#25679
-    Ensure that we do not hold the LOCK_open mutex while attempting
-    to establish Federated connection to guard against a trivial
-    Denial of Service scenerio.
-  */
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   DBUG_ASSERT(mysql == NULL);
 

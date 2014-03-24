@@ -255,7 +255,7 @@ int mysql_update(THD *thd,
                  ha_rows *found_return, ha_rows *updated_return)
 {
   bool		using_limit= limit != HA_POS_ERROR;
-  bool		safe_update= test(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  bool safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
   bool          used_key_is_modified= FALSE, transactional_table, will_batch;
   bool		can_compare_record;
   int           res;
@@ -314,7 +314,7 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
-  query_plan.updating_a_view= test(table_list->view);
+  query_plan.updating_a_view= MY_TEST(table_list->view);
   
   /* Calculate "table->covering_keys" based on the WHERE */
   table->covering_keys= table->s->keys_in_use;
@@ -502,7 +502,7 @@ int mysql_update(THD *thd,
   if (used_key_is_modified || order ||
       partition_key_modified(table, table->write_set))
   {
-    if (order && (need_sort || used_key_is_modified))
+    if (order && need_sort)
       query_plan.using_filesort= true;
     else
       query_plan.using_io_buffer= true;
@@ -703,16 +703,8 @@ int mysql_update(THD *thd,
 
   transactional_table= table->file->has_transactions();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
-  if (table->triggers &&
-      table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                    TRG_ACTION_AFTER))
+  if (table->prepare_triggers_for_update_stmt_or_event())
   {
-    /*
-      The table has AFTER UPDATE triggers that might access to subject 
-      table and therefore might need update to be done immediately. 
-      So we turn-off the batching.
-    */ 
-    (void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
     will_batch= FALSE;
   }
   else
@@ -1610,17 +1602,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       table->no_keyread=1;
       table->covering_keys.clear_all();
       table->pos_in_table_list= tl;
-      if (table->triggers &&
-          table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                        TRG_ACTION_AFTER))
-      {
-	/*
-           The table has AFTER UPDATE triggers that might access to subject 
-           table and therefore might need update to be done immediately. 
-           So we turn-off the batching.
-	*/ 
-	(void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-      }
+      table->prepare_triggers_for_update_stmt_or_event();
     }
   }
 

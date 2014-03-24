@@ -117,7 +117,7 @@ my_bool mariadb_dyncol_has_names(DYNAMIC_COLUMN *str)
 {
   if (str->length < 1)
     return FALSE;
-  return test(str->str[0] & DYNCOL_FLG_NAMES);
+  return MY_TEST(str->str[0] & DYNCOL_FLG_NAMES);
 }
 
 static enum enum_dyncol_func_result

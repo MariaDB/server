@@ -373,48 +373,6 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
   return 0;
 }
 
-/*
-  Prepare triggers  for INSERT-like statement.
-
-  SYNOPSIS
-    prepare_triggers_for_insert_stmt()
-      table   Table to which insert will happen
-
-  NOTE
-    Prepare triggers for INSERT-like statement by marking fields
-    used by triggers and inform handlers that batching of UPDATE/DELETE 
-    cannot be done if there are BEFORE UPDATE/DELETE triggers.
-*/
-
-void prepare_triggers_for_insert_stmt(TABLE *table)
-{
-  if (table->triggers)
-  {
-    if (table->triggers->has_triggers(TRG_EVENT_DELETE,
-                                      TRG_ACTION_AFTER))
-    {
-      /*
-        The table has AFTER DELETE triggers that might access to 
-        subject table and therefore might need delete to be done 
-        immediately. So we turn-off the batching.
-      */ 
-      (void) table->file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-    }
-    if (table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                      TRG_ACTION_AFTER))
-    {
-      /*
-        The table has AFTER UPDATE triggers that might access to subject 
-        table and therefore might need update to be done immediately. 
-        So we turn-off the batching.
-      */ 
-      (void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-    }
-  }
-  table->mark_columns_needed_for_insert();
-}
-
-
 /**
   Upgrade table-level lock of INSERT statement to TL_WRITE if
   a more concurrent lock is infeasible for some reason. This is
@@ -660,7 +618,7 @@ static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
   thd->lex->explain->add_insert_plan(explain);
   
   /* See Update_plan::updating_a_view for details */
-  bool skip= test(table_list->view);
+  bool skip= MY_TEST(table_list->view);
 
   /* Save subquery children */
   for (SELECT_LEX_UNIT *unit= thd->lex->select_lex.first_inner_unit();
@@ -902,7 +860,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
-  prepare_triggers_for_insert_stmt(table);
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
 
 
   if (table_list->prepare_where(thd, 0, TRUE) ||
@@ -1933,7 +1892,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       if (table_list)
       {
         table_list= table_list->top_table();
-        view= test(table_list->view);
+        view= MY_TEST(table_list->view);
       }
       if (view)
       {
@@ -3072,7 +3031,7 @@ bool Delayed_insert::handle_inserts(void)
 
   THD_STAGE_INFO(&thd, stage_insert);
   max_rows= delayed_insert_limit;
-  if (thd.killed || table->s->has_old_version())
+  if (thd.killed || table->s->tdc.flushed)
   {
     thd.killed= KILL_SYSTEM_THREAD;
     max_rows= ULONG_MAX;                     // Do as much as possible
@@ -3537,7 +3496,10 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         table_list->prepare_check_option(thd));
 
   if (!res)
-     prepare_triggers_for_insert_stmt(table);
+  {
+     table->prepare_triggers_for_insert_stmt_or_event();
+     table->mark_columns_needed_for_insert();
+  }
 
   DBUG_RETURN(res);
 }
@@ -3998,6 +3960,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
         */
         DBUG_ASSERT(0);
       }
+      DBUG_ASSERT(create_table->table == create_info->table);
     }
   }
   else
@@ -4211,8 +4174,8 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 
   result= store_create_info(thd, &tmp_table_list, &query, create_info,
                             /* show_database */ TRUE,
-                            test(create_info->options &
-                                 HA_LEX_CREATE_REPLACE));
+                            MY_TEST(create_info->options &
+                                    HA_LEX_CREATE_REPLACE));
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
   if (mysql_bin_log.is_open())
@@ -4285,6 +4248,8 @@ bool select_create::send_eof()
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
   }
+  else if (!thd->is_current_stmt_binlog_format_row())
+    table->s->table_creation_was_logged= 1;
 
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
@@ -4343,13 +4308,12 @@ void select_create::abort_result_set()
     of the table succeeded or not, since we need to reset the binary
     log state.
     
-    However if there was an orignal table that was deleted, as part of
+    However if there was an original table that was deleted, as part of
     create or replace table, then we must log the statement.
   */
 
   save_option_bits= thd->variables.option_bits;
-  if (!(thd->log_current_statement))
-    thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
   select_insert::abort_result_set();
   thd->transaction.stmt.modified_non_trans_table= FALSE;
   thd->variables.option_bits= save_option_bits;
@@ -4357,6 +4321,12 @@ void select_create::abort_result_set()
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
+  if (create_info->table_was_deleted)
+  {
+    /* Unlock locked table that was dropped by CREATE */
+    thd->locked_tables_list.unlock_locked_table(thd,
+                                                create_info->mdl_ticket);
+  }
   if (m_plock)
   {
     mysql_unlock_tables(thd, *m_plock);
@@ -4366,11 +4336,21 @@ void select_create::abort_result_set()
 
   if (table)
   {
+    bool tmp_table= table->s->tmp_table;
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->auto_increment_field_not_null= FALSE;
     drop_open_table(thd, table, create_table->db, create_table->table_name);
     table=0;                                    // Safety
+    if (thd->log_current_statement)
+    {
+      /* Remove logging of drop, create + insert rows */
+      binlog_reset_cache(thd);
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, create_table->db, create_table->db_length,
+                     create_table->table_name, create_table->table_name_length,
+                     tmp_table);
+    }
   }
   DBUG_VOID_RETURN;
 }

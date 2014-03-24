@@ -89,12 +89,13 @@ static handler *partition_create_handler(handlerton *hton,
 static uint partition_flags();
 static uint alter_table_flags(uint flags);
 
+extern "C" int cmp_key_then_part_id(void *key_p, uchar *ref1, uchar *ref2);
+
 /*
   If frm_error() is called then we will use this to to find out what file
   extensions exist for the storage engine. This is also used by the default
   rename_table and delete_table method in handler.cc.
 */
-
 static const char *ha_partition_ext[]=
 {
   ha_par_ext, NullS
@@ -3421,7 +3422,7 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
   m_mode= mode;
   m_open_test_lock= test_if_locked;
   m_part_field_array= m_part_info->full_part_field_array;
-  if (get_from_handler_file(name, &table->mem_root, test(m_is_clone_of)))
+  if (get_from_handler_file(name, &table->mem_root, MY_TEST(m_is_clone_of)))
     DBUG_RETURN(error);
   name_buffer_ptr= m_name_buffer_ptr;
   if (populate_partition_name_hash())
@@ -5119,8 +5120,8 @@ bool ha_partition::init_record_priority_queue()
     }
     m_start_key.key= (const uchar*)ptr;
     /* Initialize priority queue, initialized to reading forward. */
-    if (init_queue(&m_queue, used_parts, (uint) PARTITION_BYTES_IN_POS,
-                   0, key_rec_cmp, (void*)m_curr_key_info, 0, 0))
+    if (init_queue(&m_queue, used_parts, 0,
+                   0, cmp_key_then_part_id, (void*)m_curr_key_info, 0, 0))
     {
       my_free(m_ordered_rec_buffer);
       m_ordered_rec_buffer= NULL;
@@ -5327,6 +5328,52 @@ int ha_partition::index_read_map(uchar *buf, const uchar *key,
   m_start_key.keypart_map= keypart_map;
   m_start_key.flag= find_flag;
   DBUG_RETURN(common_index_read(buf, TRUE));
+}
+
+
+/*
+  @brief
+  Provide ordering by (key_value, partition_id). 
+  
+  @detail
+  Ordering by partition id is required so that key scans on key=const
+  return rows in rowid order (this is required for some variants of 
+  index_merge to work).  
+  
+  In ha_partition, rowid is a (partition_id, underlying_table_rowid). 
+  handle_ordered_index_scan must return rows ordered by (key, rowid).
+
+  If two rows have the same key value and come from different partitions, 
+  it is sufficient to return them in the order of their partition_id.
+*/
+
+extern "C" int cmp_key_then_part_id(void *key_p, uchar *ref1, uchar *ref2)
+{
+  my_ptrdiff_t diff1, diff2;
+  int res;
+
+  if ((res= key_rec_cmp(key_p, ref1 + PARTITION_BYTES_IN_POS, 
+                        ref2 + PARTITION_BYTES_IN_POS)))
+  {
+    return res;
+  }
+  
+  /* The following was taken from ha_partition::cmp_ref */
+  diff1= ref2[1] - ref1[1];
+  diff2= ref2[0] - ref1[0];
+  if (!diff1 && !diff2)
+    return 0;
+
+  if (diff1 > 0)
+    return(-1);
+
+  if (diff1 < 0)
+    return(+1);
+
+  if (diff2 > 0)
+    return(-1);
+
+  return(+1);
 }
 
 
@@ -5694,7 +5741,7 @@ int ha_partition::read_range_first(const key_range *start_key,
     m_start_key.key= NULL;
 
   m_index_scan_type= partition_read_range;
-  error= common_index_read(m_rec0, test(start_key));
+  error= common_index_read(m_rec0, MY_TEST(start_key));
   DBUG_RETURN(error);
 }
 
@@ -6151,7 +6198,7 @@ void ha_partition::return_top_record(uchar *buf)
 int ha_partition::handle_ordered_index_scan_key_not_found()
 {
   int error;
-  uint i;
+  uint i, old_elements= m_queue.elements;
   uchar *part_buf= m_ordered_rec_buffer;
   uchar *curr_rec_buf= NULL;
   DBUG_ENTER("ha_partition::handle_ordered_index_scan_key_not_found");
@@ -6185,9 +6232,12 @@ int ha_partition::handle_ordered_index_scan_key_not_found()
   bitmap_clear_all(&m_key_not_found_partitions);
   m_key_not_found= false;
 
-  /* Update m_top_entry, which may have changed. */
-  uchar *key_buffer= queue_top(&m_queue);
-  m_top_entry= uint2korr(key_buffer);
+  if (m_queue.elements > old_elements)
+  {
+    /* Update m_top_entry, which may have changed. */
+    uchar *key_buffer= queue_top(&m_queue);
+    m_top_entry= uint2korr(key_buffer);
+  }
   DBUG_RETURN(0);
 }
 
@@ -7689,8 +7739,8 @@ uint32 ha_partition::calculate_key_hash_value(Field **field_array)
   ulong nr1= 1;
   ulong nr2= 4;
   bool use_51_hash;
-  use_51_hash= test((*field_array)->table->part_info->key_algorithm ==
-                    partition_info::KEY_ALGORITHM_51);
+  use_51_hash= MY_TEST((*field_array)->table->part_info->key_algorithm ==
+                       partition_info::KEY_ALGORITHM_51);
 
   do
   {
@@ -8448,6 +8498,16 @@ uint ha_partition::min_record_length(uint options) const
     If they belong to different partitions we decide that they are not
     the same record. Otherwise we use the particular handler to decide if
     they are the same. Sort in partition id order if not equal.
+
+  MariaDB note: 
+    Please don't merge the code from MySQL that does this:
+
+    We get two references and need to check if those records are the same.
+    If they belong to different partitions we decide that they are not
+    the same record. Otherwise we use the particular handler to decide if
+    they are the same. Sort in partition id order if not equal.
+
+    It is incorrect, MariaDB has an alternative fix.
 */
 
 int ha_partition::cmp_ref(const uchar *ref1, const uchar *ref2)

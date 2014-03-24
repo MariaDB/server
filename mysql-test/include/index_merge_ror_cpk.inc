@@ -79,8 +79,11 @@ select pk1,pk2 from t1 where key1 = 10 and key2=10 and 2*pk1+1 < 2*96+1;
 # Verify that CPK is always used for index intersection scans
 # (this is because it is used as a filter, not for retrieval)
 explain select * from t1 where badkey=1 and key1=10;
+set @tmp_index_merge_ror_cpk=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
 --replace_column 9 ROWS
 explain select * from t1 where pk1 < 7500 and key1 = 10;
+set optimizer_switch=@tmp_index_merge_ror_cpk;
 
 # Verify that keys with 'tails' of PK members are ok.
 explain select * from t1 where pktail1ok=1 and key1=10;

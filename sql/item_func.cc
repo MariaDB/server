@@ -2615,7 +2615,8 @@ void Item_func_round::fix_length_and_dec()
   case INT_RESULT:
     if ((!decimals_to_set && truncate) || (args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS))
     {
-      int length_can_increase= test(!truncate && (val1 < 0) && !val1_unsigned);
+      int length_can_increase= MY_TEST(!truncate && (val1 < 0) &&
+                                       !val1_unsigned);
       max_length= args[0]->max_length + length_can_increase;
       /* Here we can keep INT_RESULT */
       cached_result_type= INT_RESULT;
@@ -2664,6 +2665,9 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
   // Pre-compute these, to avoid optimizing away e.g. 'floor(v/tmp) * tmp'.
   volatile double value_div_tmp= value / tmp;
   volatile double value_mul_tmp= value * tmp;
+
+  if (!dec_negative && my_isinf(tmp)) // "dec" is too large positive number
+    return value;
 
   if (dec_negative && my_isinf(tmp))
     tmp2= 0.0;
@@ -3987,6 +3991,34 @@ err:
 }
 
 
+longlong Item_master_gtid_wait::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  longlong result= 0;
+
+  if (args[0]->null_value)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  null_value=0;
+#ifdef HAVE_REPLICATION
+  THD* thd= current_thd;
+  longlong timeout_us;
+  String *gtid_pos = args[0]->val_str(&value);
+
+  if (arg_count==2 && !args[1]->null_value)
+    timeout_us= (longlong)(1e6*args[1]->val_real());
+  else
+    timeout_us= (longlong)-1;
+
+  result= rpl_global_gtid_waiting.wait_for_pos(thd, gtid_pos, timeout_us);
+#endif
+  return result;
+}
+
+
 /**
   Enables a session to wait on a condition until a timeout or a network
   disconnect occurs.
@@ -4589,7 +4621,7 @@ longlong Item_func_sleep::val_int()
 
   mysql_cond_destroy(&cond);
 
-  return test(!error); 		// Return 1 killed
+  return MY_TEST(!error);                  // Return 1 killed
 }
 
 
@@ -6656,7 +6688,7 @@ void Item_func_sp::fix_length_and_dec()
   max_length= sp_result_field->field_length;
   collation.set(sp_result_field->charset());
   maybe_null= 1;
-  unsigned_flag= test(sp_result_field->flags & UNSIGNED_FLAG);
+  unsigned_flag= MY_TEST(sp_result_field->flags & UNSIGNED_FLAG);
 
   DBUG_VOID_RETURN;
 }

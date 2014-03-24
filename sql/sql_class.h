@@ -55,6 +55,7 @@ void set_thd_stage_info(void *thd,
   (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
 
 #include "my_apc.h"
+#include "rpl_gtid.h"
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -79,6 +80,9 @@ enum enum_delay_key_write { DELAY_KEY_WRITE_NONE, DELAY_KEY_WRITE_ON,
 enum enum_slave_exec_mode { SLAVE_EXEC_MODE_STRICT,
                             SLAVE_EXEC_MODE_IDEMPOTENT,
                             SLAVE_EXEC_MODE_LAST_BIT };
+enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
+                                       SLAVE_RUN_TRIGGERS_FOR_RBR_YES,
+                                       SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 enum enum_mark_columns
@@ -120,8 +124,9 @@ enum enum_filetype { FILETYPE_CSV, FILETYPE_XML };
 #define MODE_PAD_CHAR_TO_FULL_LENGTH    (1ULL << 31)
 
 /* Bits for different old style modes */
-#define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	1
-#define OLD_MODE_NO_PROGRESS_INFO			2
+#define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
+#define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
+#define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -1516,6 +1521,7 @@ public:
                    MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
+  void unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
   ~Locked_tables_list()
   {
     reset();
@@ -1655,8 +1661,8 @@ struct wait_for_commit
 {
   /*
     The LOCK_wait_commit protects the fields subsequent_commits_list and
-    wakeup_subsequent_commits_running (for a waitee), and the flag
-    waiting_for_commit and associated COND_wait_commit (for a waiter).
+    wakeup_subsequent_commits_running (for a waitee), and the pointer
+    waiterr and associated COND_wait_commit (for a waiter).
   */
   mysql_mutex_t LOCK_wait_commit;
   mysql_cond_t COND_wait_commit;
@@ -1664,7 +1670,13 @@ struct wait_for_commit
   wait_for_commit *subsequent_commits_list;
   /* Link field for entries in subsequent_commits_list. */
   wait_for_commit *next_subsequent_commit;
-  /* Our waitee, if we did register_wait_for_prior_commit(), else NULL. */
+  /*
+    Our waitee, if we did register_wait_for_prior_commit(), and were not
+    yet woken up. Else NULL.
+
+    When this is cleared for wakeup, the COND_wait_commit condition is
+    signalled.
+  */
   wait_for_commit *waitee;
   /*
     Generic pointer for use by the transaction coordinator to optimise the
@@ -1675,12 +1687,6 @@ struct wait_for_commit
     used by another transaction coordinator for similar purposes.
   */
   void *opaque_pointer;
-  /*
-    The waiting_for_commit flag is cleared when a waiter has been woken
-    up. The COND_wait_commit condition is signalled when this has been
-    cleared.
-  */
-  bool waiting_for_commit;
   /* The wakeup error code from the waitee. 0 means no error. */
   int wakeup_error;
   /*
@@ -1696,10 +1702,14 @@ struct wait_for_commit
       Quick inline check, to avoid function call and locking in the common case
       where no wakeup is registered, or a registered wait was already signalled.
     */
-    if (waiting_for_commit)
+    if (waitee)
       return wait_for_prior_commit2(thd);
     else
+    {
+      if (wakeup_error)
+        my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
       return wakeup_error;
+    }
   }
   void wakeup_subsequent_commits(int wakeup_error)
   {
@@ -1720,7 +1730,7 @@ struct wait_for_commit
   }
   void unregister_wait_for_prior_commit()
   {
-    if (waiting_for_commit)
+    if (waitee)
       unregister_wait_for_prior_commit2();
   }
   /*
@@ -1740,7 +1750,7 @@ struct wait_for_commit
       }
       next_ptr_ptr= &cur->next_subsequent_commit;
     }
-    waiting_for_commit= false;
+    waitee= NULL;
   }
 
   void wakeup(int wakeup_error);
@@ -1751,6 +1761,7 @@ struct wait_for_commit
 
   wait_for_commit();
   ~wait_for_commit();
+  void reinit();
 };
 
 
@@ -3661,6 +3672,12 @@ private:
    */
   LEX_STRING invoker_user;
   LEX_STRING invoker_host;
+
+  /* Protect against add/delete of temporary tables in parallel replication */
+  void rgi_lock_temporary_tables();
+  void rgi_unlock_temporary_tables();
+  bool rgi_have_temporary_tables();
+public:
   /*
     Flag, mutex and condition for a thread to wait for a signal from another
     thread.
@@ -3671,12 +3688,12 @@ private:
   bool wakeup_ready;
   mysql_mutex_t LOCK_wakeup_ready;
   mysql_cond_t COND_wakeup_ready;
+  /*
+     The GTID assigned to the last commit. If no GTID was assigned to any commit
+     so far, this is indicated by last_commit_gtid.seq_no == 0.
+  */
+  rpl_gtid last_commit_gtid;
 
-  /* Protect against add/delete of temporary tables in parallel replication */
-  void rgi_lock_temporary_tables();
-  void rgi_unlock_temporary_tables();
-  bool rgi_have_temporary_tables();
-public:
   inline void lock_temporary_tables()
   {
     if (rgi_slave)
@@ -4441,7 +4458,7 @@ public:
     table.str= internal_table_name;
     table.length=1;
   }
-  bool is_derived_table() const { return test(sel); }
+  bool is_derived_table() const { return MY_TEST(sel); }
   inline void change_db(char *db_name)
   {
     db.str= db_name; db.length= (uint) strlen(db_name);

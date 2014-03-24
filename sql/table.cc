@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -819,8 +818,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                                          keyinfo->comment.length);
       strpos+= keyinfo->comment.length;
     } 
-    DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
-               (keyinfo->comment.length > 0));
+    DBUG_ASSERT(MY_TEST(keyinfo->flags & HA_USES_COMMENT) ==
+                (keyinfo->comment.length > 0));
   }
 
   share->keys= keys; // do it *after* all key_info's are initialized
@@ -2889,9 +2888,9 @@ partititon_err:
   else if (outparam->file)
   {
     handler::Table_flags flags= outparam->file->ha_table_flags();
-    outparam->no_replicate= ! test(flags & (HA_BINLOG_STMT_CAPABLE
-                                            | HA_BINLOG_ROW_CAPABLE))
-                            || test(flags & HA_HAS_OWN_BINLOGGING);
+    outparam->no_replicate= ! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE
+                                               | HA_BINLOG_ROW_CAPABLE))
+                            || MY_TEST(flags & HA_HAS_OWN_BINLOGGING);
   }
   else
   {
@@ -3253,7 +3252,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   /* header */
   fileinfo[0]=(uchar) 254;
   fileinfo[1]= 1;
-  fileinfo[2]= FRM_VER+3+ test(create_info->varchar);
+  fileinfo[2]= FRM_VER + 3 + MY_TEST(create_info->varchar);
 
   fileinfo[3]= (uchar) ha_legacy_type(
         ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
@@ -3272,8 +3271,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   */
   for (i= 0; i < keys; i++)
   {
-    DBUG_ASSERT(test(key_info[i].flags & HA_USES_COMMENT) == 
-               (key_info[i].comment.length > 0));
+    DBUG_ASSERT(MY_TEST(key_info[i].flags & HA_USES_COMMENT) ==
+                (key_info[i].comment.length > 0));
     if (key_info[i].flags & HA_USES_COMMENT)
       key_comment_total_bytes += 2 + key_info[i].comment.length;
   }
@@ -3805,14 +3804,15 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   bool result= TRUE;
 
   /*
-    To protect used_tables list from being concurrently modified
-    while we are iterating through it we acquire LOCK_open.
+    To protect all_tables list from being concurrently modified
+    while we are iterating through it we increment tdc.all_tables_refs.
     This does not introduce deadlocks in the deadlock detector
-    because we won't try to acquire LOCK_open while
+    because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
-  if (gvisitor->m_lock_open_count++ == 0)
-    mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  tdc.all_tables_refs++;
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   All_share_tables_list::Iterator tables_it(tdc.all_tables);
 
@@ -3832,7 +3832,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    if (table->in_use && gvisitor->inspect_edge(&table->in_use->mdl_context))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
     }
@@ -3841,7 +3842,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    if (table->in_use && table->in_use->mdl_context.visit_subgraph(gvisitor))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
     }
@@ -3853,8 +3855,10 @@ end_leave_node:
   gvisitor->leave_node(src_ctx);
 
 end:
-  if (gvisitor->m_lock_open_count-- == 1)
-    mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  if (!--tdc.all_tables_refs)
+    mysql_cond_broadcast(&tdc.COND_release);
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   return result;
 }
@@ -3890,7 +3894,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   MDL_wait::enum_wait_status wait_status;
 
   mysql_mutex_assert_owner(&tdc.LOCK_table_share);
-  DBUG_ASSERT(has_old_version());
+  DBUG_ASSERT(tdc.flushed);
 
   tdc.m_flush_tickets.push_front(&ticket);
 
@@ -3993,6 +3997,10 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  master_had_triggers= 0;
+#endif
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
@@ -6181,9 +6189,9 @@ bool TABLE::is_filled_at_execution()
     do not have a corresponding table reference. Such tables are filled
     during execution.
   */
-  return test(!pos_in_table_list ||
-              pos_in_table_list->jtbm_subselect || 
-              pos_in_table_list->is_active_sjm());
+  return MY_TEST(!pos_in_table_list ||
+                 pos_in_table_list->jtbm_subselect ||
+                 pos_in_table_list->is_active_sjm());
 }
 
 
@@ -6654,6 +6662,81 @@ int TABLE::update_default_fields()
   DBUG_RETURN(res);
 }
 
+
+/*
+  Prepare triggers  for INSERT-like statement.
+
+  SYNOPSIS
+    prepare_triggers_for_insert_stmt_or_event()
+
+  NOTE
+    Prepare triggers for INSERT-like statement by marking fields
+    used by triggers and inform handlers that batching of UPDATE/DELETE 
+    cannot be done if there are BEFORE UPDATE/DELETE triggers.
+*/
+
+void TABLE::prepare_triggers_for_insert_stmt_or_event()
+{
+  if (triggers)
+  {
+    if (triggers->has_triggers(TRG_EVENT_DELETE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to
+        subject table and therefore might need delete to be done
+        immediately. So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    }
+    if (triggers->has_triggers(TRG_EVENT_UPDATE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    }
+  }
+}
+
+
+bool TABLE::prepare_triggers_for_delete_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_DELETE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER DELETE triggers that might access to subject table
+      and therefore might need delete to be done immediately. So we turn-off
+      the batching.
+    */
+    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+
+bool TABLE::prepare_triggers_for_update_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_UPDATE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER UPDATE triggers that might access to subject
+      table and therefore might need update to be done immediately.
+      So we turn-off the batching.
+    */ 
+    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
 
 /*
   @brief Reset const_table flag

@@ -1218,7 +1218,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   thd->enable_slow_log= opt_log_slow_admin_statements;
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
-                         test(m_lex->check_opt.sql_flags & TT_USEFRM),
+                         MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
                          &handler::ha_repair, 0);
 

@@ -16,6 +16,10 @@
 #ifndef RPL_GTID_H
 #define RPL_GTID_H
 
+#include "hash.h"
+#include "queues.h"
+
+
 /* Definitions for MariaDB global transaction ID (GTID). */
 
 
@@ -35,6 +39,60 @@ enum enum_gtid_skip_type {
   GTID_SKIP_NOT, GTID_SKIP_STANDALONE, GTID_SKIP_TRANSACTION
 };
 
+
+/*
+  Structure to keep track of threads waiting in MASTER_GTID_WAIT().
+
+  Since replication is (mostly) single-threaded, we want to minimise the
+  performance impact on that from MASTER_GTID_WAIT(). To achieve this, we
+  are careful to keep the common lock between replication threads and
+  MASTER_GTID_WAIT threads held for as short as possible. We keep only
+  a single thread waiting to be notified by the replication threads; this
+  thread then handles all the (potentially heavy) lifting of dealing with
+  all current waiting threads.
+*/
+struct gtid_waiting {
+  /* Elements in the hash, basically a priority queue for each domain. */
+  struct hash_element {
+    QUEUE queue;
+    uint32 domain_id;
+  };
+  /* A priority queue to handle waiters in one domain in seq_no order. */
+  struct queue_element {
+    uint64 wait_seq_no;
+    THD *thd;
+    int queue_idx;
+    /*
+      do_small_wait is true if we have responsibility for ensuring that there
+      is a small waiter.
+    */
+    bool do_small_wait;
+    /*
+      The flag `done' is set when the wait is completed (either due to reaching
+      the position waited for, or due to timeout or kill). The queue_element
+      is in the queue if and only if `done' is true.
+    */
+    bool done;
+  };
+
+  mysql_mutex_t LOCK_gtid_waiting;
+  HASH hash;
+
+  void init();
+  void destroy();
+  hash_element *get_entry(uint32 domain_id);
+  int wait_for_pos(THD *thd, String *gtid_str, longlong timeout_us);
+  void promote_new_waiter(gtid_waiting::hash_element *he);
+  int wait_for_gtid(THD *thd, rpl_gtid *wait_gtid, struct timespec *wait_until);
+  void process_wait_hash(uint64 wakeup_seq_no, gtid_waiting::hash_element *he);
+  int register_in_wait_queue(THD *thd, rpl_gtid *wait_gtid, hash_element *he,
+                             queue_element *elem);
+  void remove_from_wait_queue(hash_element *he, queue_element *elem);
+};
+
+
+class Relay_log_info;
+struct rpl_group_info;
 
 /*
   Replication slave state.
@@ -61,6 +119,33 @@ struct rpl_slave_state
   {
     struct list_element *list;
     uint32 domain_id;
+    /* Highest seq_no seen so far in this domain. */
+    uint64 highest_seq_no;
+    /*
+      If this is non-NULL, then it is the waiter responsible for the small
+      wait in MASTER_GTID_WAIT().
+    */
+    gtid_waiting::queue_element *gtid_waiter;
+    /*
+      If gtid_waiter is non-NULL, then this is the seq_no that its
+      MASTER_GTID_WAIT() is waiting on. When we reach this seq_no, we need to
+      signal the waiter on COND_wait_gtid.
+    */
+    uint64 min_wait_seq_no;
+    mysql_cond_t COND_wait_gtid;
+
+    /*
+      For --gtid-ignore-duplicates. The Relay_log_info that currently owns
+      this domain, and the number of worker threads that are active in it.
+
+      The idea is that only one of multiple master connections is allowed to
+      actively apply events for a given domain. Other connections must either
+      discard the events (if the seq_no in GTID shows they have already been
+      applied), or wait to see if the current owner will apply it.
+    */
+    const Relay_log_info *owner_rli;
+    uint32 owner_count;
+    mysql_cond_t COND_gtid_ignore_duplicates;
 
     list_element *grab_list() { list_element *l= list; list= NULL; return l; }
     void add(list_element *l)
@@ -86,7 +171,8 @@ struct rpl_slave_state
   void deinit();
   void truncate_hash();
   ulong count() const { return hash.records; }
-  int update(uint32 domain_id, uint32 server_id, uint64 sub_id, uint64 seq_no);
+  int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
+             uint64 seq_no, rpl_group_info *rgi);
   int truncate_state_table(THD *thd);
   int record_gtid(THD *thd, const rpl_gtid *gtid, uint64 sub_id,
                   bool in_transaction, bool in_statement);
@@ -99,14 +185,13 @@ struct rpl_slave_state
            bool in_statement);
   bool is_empty();
 
-  void lock() { DBUG_ASSERT(inited); mysql_mutex_lock(&LOCK_slave_state); }
-  void unlock() { DBUG_ASSERT(inited); mysql_mutex_unlock(&LOCK_slave_state); }
-
   element *get_element(uint32 domain_id);
   int put_back_list(uint32 domain_id, list_element *list);
 
-  void update_state_hash(uint64 sub_id, rpl_gtid *gtid);
+  void update_state_hash(uint64 sub_id, rpl_gtid *gtid, rpl_group_info *rgi);
   int record_and_update_gtid(THD *thd, struct rpl_group_info *rgi);
+  int check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi);
+  void release_domain_owner(rpl_group_info *rgi);
 };
 
 
@@ -203,6 +288,7 @@ struct slave_connection_state
   int append_to_string(String *out_str);
   int get_gtid_list(rpl_gtid *gtid_list, uint32 list_size);
 };
+
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
                                             bool *first);

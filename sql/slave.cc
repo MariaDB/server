@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2011, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -331,7 +331,7 @@ run_slave_init_thread()
   pthread_t th;
 
   slave_init_thread_running= true;
-  if (mysql_thread_create(key_thread_slave_init, &th, NULL,
+  if (mysql_thread_create(key_thread_slave_init, &th, &connection_attrib,
                           handle_slave_init, NULL))
   {
     sql_print_error("Failed to create thread while initialising slave");
@@ -615,7 +615,14 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
   if (thread_mask & (SLAVE_SQL|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating SQL thread"));
-    mi->rli.abort_slave=1;
+    if (opt_slave_parallel_threads > 0 &&
+        mi->rli.abort_slave && mi->rli.stop_for_until)
+    {
+      mi->rli.stop_for_until= false;
+      mi->rli.parallel.stop_during_until();
+    }
+    else
+      mi->rli.abort_slave=1;
     if ((error=terminate_slave_thread(mi->rli.sql_driver_thd, sql_lock,
                                       &mi->rli.stop_cond,
                                       &mi->rli.slave_running,
@@ -1049,8 +1056,8 @@ static bool sql_slave_killed(rpl_group_info *rgi)
       DBUG_PRINT("info", ("modified_non_trans_table: %d  OPTION_BEGIN: %d  "
                           "OPTION_KEEP_LOG: %d  is_in_group: %d",
                           thd->transaction.all.modified_non_trans_table,
-                          test(thd->variables.option_bits & OPTION_BEGIN),
-                          test(thd->variables.option_bits & OPTION_KEEP_LOG),
+                          MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
+                          MY_TEST(thd->variables.option_bits & OPTION_KEEP_LOG),
                           rli->is_in_group()));
 
       if (rli->abort_slave)
@@ -1336,6 +1343,7 @@ bool is_network_error(uint errorno)
       errorno == ER_CON_COUNT_ERROR ||
       errorno == ER_CONNECTION_KILLED ||
       errorno == ER_NEW_ABORTING_CONNECTION ||
+      errorno == ER_NET_READ_INTERRUPTED ||
       errorno == ER_SERVER_SHUTDOWN)
     return TRUE;
 
@@ -2039,6 +2047,39 @@ after_set_capability:
       }
     }
 
+    query_str.length(0);
+    if (query_str.append(STRING_WITH_LEN("SET @slave_gtid_ignore_duplicates="),
+                         system_charset_info) ||
+        query_str.append_ulonglong(opt_gtid_ignore_duplicates != false))
+    {
+      err_code= ER_OUTOFMEMORY;
+      errmsg= "The slave I/O thread stops because a fatal out-of-memory error "
+        "is encountered when it tries to set @slave_gtid_ignore_duplicates.";
+      sprintf(err_buff, "%s Error: Out of memory", errmsg);
+      goto err;
+    }
+
+    rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
+    if (rc)
+    {
+      err_code= mysql_errno(mysql);
+      if (is_network_error(err_code))
+      {
+        mi->report(ERROR_LEVEL, err_code,
+                   "Setting @slave_gtid_ignore_duplicates failed with "
+                   "error: %s", mysql_error(mysql));
+        goto network_err;
+      }
+      else
+      {
+        /* Fatal error */
+        errmsg= "The slave I/O thread stops because a fatal error is "
+          "encountered when it tries to set @slave_gtid_ignore_duplicates.";
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        goto err;
+      }
+    }
+
     if (mi->rli.until_condition == Relay_log_info::UNTIL_GTID)
     {
       query_str.length(0);
@@ -2628,8 +2669,24 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     if ((mi->slave_running == MYSQL_SLAVE_RUN_CONNECT) &&
         mi->rli.slave_running)
     {
-      long time_diff= ((long)(time(0) - mi->rli.last_master_timestamp)
-                       - mi->clock_diff_with_master);
+      long time_diff;
+      bool idle;
+      time_t stamp= mi->rli.last_master_timestamp;
+
+      if (!stamp)
+        idle= true;
+      else
+      {
+        idle= mi->rli.sql_thread_caught_up;
+        if (opt_slave_parallel_threads > 0 && idle &&
+            !mi->rli.parallel.workers_idle())
+          idle= false;
+      }
+      if (idle)
+        time_diff= 0;
+      else
+      {
+        time_diff= ((long)(time(0) - stamp) - mi->clock_diff_with_master);
       /*
         Apparently on some systems time_diff can be <0. Here are possible
         reasons related to MySQL:
@@ -2645,13 +2702,15 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
         slave is 2. At SHOW SLAVE STATUS time, assume that the difference
         between timestamp of slave and rli->last_master_timestamp is 0
         (i.e. they are in the same second), then we get 0-(2-1)=-1 as a result.
-        This confuses users, so we don't go below 0: hence the MY_MAX().
+        This confuses users, so we don't go below 0.
 
         last_master_timestamp == 0 (an "impossible" timestamp 1970) is a
         special marker to say "consider we have caught up".
       */
-      protocol->store((longlong)(mi->rli.last_master_timestamp ?
-                                 MY_MAX(0, time_diff) : 0));
+        if (time_diff < 0)
+          time_diff= 0;
+      }
+      protocol->store((longlong)time_diff);
     }
     else
     {
@@ -3205,7 +3264,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
     "skipped because event skip counter was non-zero"
   };
   DBUG_PRINT("info", ("OPTION_BEGIN: %d  IN_STMT: %d  IN_TRANSACTION: %d",
-                      test(thd->variables.option_bits & OPTION_BEGIN),
+                      MY_TEST(thd->variables.option_bits & OPTION_BEGIN),
                       rli->get_flag(Relay_log_info::IN_STMT),
                       rli->get_flag(Relay_log_info::IN_TRANSACTION)));
   DBUG_PRINT("skip_event", ("%s event was %s",
@@ -3409,6 +3468,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         message about error in query execution to be printed.
       */
       rli->abort_slave= 1;
+      rli->stop_for_until= true;
       mysql_mutex_unlock(&rli->data_lock);
       delete ev;
       DBUG_RETURN(1);
@@ -3436,26 +3496,58 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     update_state_of_relay_log(rli, ev);
 
-    /*
-      Execute queries in parallel, except if slave_skip_counter is set,
-      as it's is easier to skip queries in single threaded mode.
-    */
-
-    if (opt_slave_parallel_threads > 0 && rli->slave_skip_counter == 0)
-      DBUG_RETURN(rli->parallel.do_event(serial_rgi, ev, event_size));
-
-    /*
-      For GTID, allocate a new sub_id for the given domain_id.
-      The sub_id must be allocated in increasing order of binlog order.
-    */
-    if (typ == GTID_EVENT &&
-        event_group_new_gtid(serial_rgi, static_cast<Gtid_log_event *>(ev)))
+    if (opt_slave_parallel_threads > 0)
     {
-      sql_print_error("Error reading relay log event: %s",
-                      "slave SQL thread aborted because of out-of-memory error");
-      mysql_mutex_unlock(&rli->data_lock);
-      delete ev;
-      DBUG_RETURN(1);
+      int res= rli->parallel.do_event(serial_rgi, ev, event_size);
+      if (res >= 0)
+        DBUG_RETURN(res);
+      /*
+        Else we proceed to execute the event non-parallel.
+        This is the case for pre-10.0 events without GTID, and for handling
+        slave_skip_counter.
+      */
+    }
+
+    if (typ == GTID_EVENT)
+    {
+      Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
+
+      /*
+        For GTID, allocate a new sub_id for the given domain_id.
+        The sub_id must be allocated in increasing order of binlog order.
+      */
+      if (event_group_new_gtid(serial_rgi, gev))
+      {
+        sql_print_error("Error reading relay log event: %s", "slave SQL thread "
+                        "aborted because of out-of-memory error");
+        mysql_mutex_unlock(&rli->data_lock);
+        delete ev;
+        DBUG_RETURN(1);
+      }
+
+      if (opt_gtid_ignore_duplicates)
+      {
+        serial_rgi->current_gtid.domain_id= gev->domain_id;
+        serial_rgi->current_gtid.server_id= gev->server_id;
+        serial_rgi->current_gtid.seq_no= gev->seq_no;
+        int res= rpl_global_gtid_slave_state.check_duplicate_gtid
+          (&serial_rgi->current_gtid, serial_rgi);
+        if (res < 0)
+        {
+          sql_print_error("Error processing GTID event: %s", "slave SQL "
+                          "thread aborted because of out-of-memory error");
+          mysql_mutex_unlock(&rli->data_lock);
+          delete ev;
+          DBUG_RETURN(1);
+        }
+        /*
+          If we need to skip this event group (because the GTID was already
+          applied), then do it using the code for slave_skip_counter, which
+          is able to handle skipping until the end of the event group.
+        */
+        if (!res)
+          rli->slave_skip_counter= 1;
+      }
     }
 
     serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;
@@ -4353,6 +4445,7 @@ pthread_handler_t handle_slave_sql(void *arg)
     Seconds_Behind_Master grows. No big deal.
   */
   rli->abort_slave = 0;
+  rli->stop_for_until= false;
   mysql_mutex_unlock(&rli->run_lock);
   mysql_cond_broadcast(&rli->start_cond);
 
@@ -4524,7 +4617,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   }
 
   if (opt_slave_parallel_threads > 0)
-    rli->parallel.wait_for_done();
+    rli->parallel.wait_for_done(thd, rli);
 
   /* Thread stopped. Print the current replication position to the log */
   {
@@ -4550,7 +4643,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     get the correct position printed.)
   */
   if (opt_slave_parallel_threads > 0)
-    rli->parallel.wait_for_done();
+    rli->parallel.wait_for_done(thd, rli);
 
   /*
     Some events set some playgrounds, which won't be cleared because thread
@@ -6120,6 +6213,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
 
       if (hot_log)
         mysql_mutex_unlock(log_lock);
+      rli->sql_thread_caught_up= false;
       DBUG_RETURN(ev);
     }
     if (opt_reckless_slave)                     // For mysql-test
@@ -6157,12 +6251,10 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
           Seconds_Behind_Master would be zero only when master has no
           more updates in binlog for slave. The heartbeat can be sent
           in a (small) fraction of slave_net_timeout. Until it's done
-          rli->last_master_timestamp is temporarely (for time of
-          waiting for the following event) reset whenever EOF is
-          reached.
+          rli->sql_thread_caught_up is temporarely (for time of waiting for
+          the following event) set whenever EOF is reached.
         */
-        time_t save_timestamp= rli->last_master_timestamp;
-        rli->last_master_timestamp= 0;
+        rli->sql_thread_caught_up= true;
 
         DBUG_ASSERT(rli->relay_log.get_open_count() ==
                     rli->cur_log_old_open_count);
@@ -6288,7 +6380,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
         rli->relay_log.wait_for_update_relay_log(rli->sql_driver_thd);
         // re-acquire data lock since we released it earlier
         mysql_mutex_lock(&rli->data_lock);
-        rli->last_master_timestamp= save_timestamp;
+        rli->sql_thread_caught_up= false;
         continue;
       }
       /*

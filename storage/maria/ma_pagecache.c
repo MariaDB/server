@@ -482,7 +482,7 @@ error:
   DBUG_PRINT("info",
              ("info_check_lock: thread: 0x%lx block 0x%lx: info: %d wrt: %d,"
               "to lock: %s, to pin: %s",
-              (ulong)thread, (ulong)block, test(info),
+              (ulong) thread, (ulong) block, MY_TEST(info),
               (info ? info->write_lock : 0),
               page_cache_page_lock_str[lock],
               page_cache_page_pin_str[pin]));

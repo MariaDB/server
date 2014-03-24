@@ -51,6 +51,7 @@ IF(BOOST_OK)
                    oqgraph_shim.cc oqgraph_thunk.cc oqgraph_judy.cc
                    STORAGE_ENGINE
                    MODULE_ONLY
+                   RECOMPILE_FOR_EMBEDDED
                    COMPONENT oqgraph-engine
                    LINK_LIBRARIES ${Judy_LIBRARIES})
   MESSAGE(STATUS "OQGraph OK")

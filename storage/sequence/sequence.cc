@@ -20,6 +20,7 @@
   a engine that auto-creates tables with rows filled with sequential values
 */
 
+#include <ctype.h>
 #include <mysql_version.h>
 #include <handler.h>
 #include <table.h>
@@ -265,14 +266,19 @@ static handler *create_handler(handlerton *hton, TABLE_SHARE *table,
 static bool parse_table_name(const char *name, size_t name_length,
                              ulonglong *from, ulonglong *to, ulonglong *step)
 {
-  uint n1= 0, n2= 0;
+  uint n0=0, n1= 0, n2= 0;
   *step= 1;
 
   // the table is discovered if its name matches the pattern of seq_1_to_10 or 
   // seq_1_to_10_step_3
-  sscanf(name, "seq_%llu_to_%llu%n_step_%llu%n",
-         from, to, &n1, step, &n2);
-  return n1 != name_length && n2 != name_length;
+  sscanf(name, "seq_%llu_to_%n%llu%n_step_%llu%n",
+         from, &n0, to, &n1, step, &n2);
+  // I consider this a bug in sscanf() - when an unsigned number
+  // is requested, -5 should *not* be accepted. But is is :(
+  // hence the additional check below:
+  return
+    n0 == 0 || !isdigit(name[4]) || !isdigit(name[n0]) || // reject negative numbers
+    (n1 != name_length && n2 != name_length);
 }
 
 

@@ -36,12 +36,6 @@ static my_bool delete_dynamic_record(MARIA_HA *info,MARIA_RECORD_POS filepos,
 static my_bool _ma_cmp_buffer(File file, const uchar *buff, my_off_t filepos,
                               uint length);
 
-/* Play it safe; We have a small stack when using threads */
-#undef my_alloca
-#undef my_afree
-#define my_alloca(A) my_malloc((A),MYF(0))
-#define my_afree(A) my_free((A))
-
 	/* Interface function from MARIA_HA */
 
 #ifdef HAVE_MMAP
@@ -256,7 +250,8 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
 	  MARIA_DYN_DELETE_BLOCK_HEADER+1);
   reclength= (info->s->base.pack_reclength +
 	      _ma_calc_total_blob_length(info,record)+ extra);
-  if (!(rec_buff=(uchar*) my_alloca(reclength)))
+  if (!(rec_buff=(uchar*) my_safe_alloca(reclength,
+                                         MARIA_MAX_RECORD_ON_STACK)))
   {
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
@@ -270,7 +265,7 @@ my_bool _ma_write_blob_record(MARIA_HA *info, const uchar *record)
   error= write_dynamic_record(info,
                               rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
                               reclength2);
-  my_afree(rec_buff);
+  my_safe_afree(rec_buff, reclength, MARIA_MAX_RECORD_ON_STACK);
   return(error != 0);
 }
 
@@ -294,7 +289,8 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
     return 1;
   }
 #endif
-  if (!(rec_buff=(uchar*) my_alloca(reclength)))
+  if (!(rec_buff=(uchar*) my_safe_alloca(reclength,
+                                         MARIA_MAX_RECORD_ON_STACK)))
   {
     my_errno= HA_ERR_OUT_OF_MEM; /* purecov: inspected */
     return(1);
@@ -304,7 +300,7 @@ my_bool _ma_update_blob_record(MARIA_HA *info, MARIA_RECORD_POS pos,
   error=update_dynamic_record(info,pos,
 			      rec_buff+ALIGN_SIZE(MARIA_MAX_DYN_BLOCK_HEADER),
 			      reclength);
-  my_afree(rec_buff);
+  my_safe_afree(rec_buff, reclength, MARIA_MAX_RECORD_ON_STACK);
   return(error != 0);
 }
 
@@ -406,7 +402,7 @@ static int _ma_find_writepos(MARIA_HA *info,
   {
     /* No deleted blocks;  Allocate a new block */
     *filepos=info->state->data_file_length;
-    if ((tmp=reclength+3 + test(reclength >= (65520-3))) <
+    if ((tmp= reclength + 3 + MY_TEST(reclength >= (65520 - 3))) <
 	info->s->base.min_block_length)
       tmp= info->s->base.min_block_length;
     else
@@ -849,7 +845,7 @@ static my_bool update_dynamic_record(MARIA_HA *info, MARIA_RECORD_POS filepos,
       if (length < reclength)
       {
 	uint tmp=MY_ALIGN(reclength - length + 3 +
-			  test(reclength >= 65520L),MARIA_DYN_ALIGN_SIZE);
+                          MY_TEST(reclength >= 65520L), MARIA_DYN_ALIGN_SIZE);
 	/* Don't create a block bigger than MARIA_MAX_BLOCK_LENGTH */
 	tmp= MY_MIN(length+tmp, MARIA_MAX_BLOCK_LENGTH)-length;
 	/* Check if we can extend this block */
@@ -1014,7 +1010,7 @@ uint _ma_rec_pack(MARIA_HA *info, register uchar *to,
 	    pos++;
 	}
 	new_length=(uint) (end-pos);
-	if (new_length +1 + test(column->length > 255 && new_length > 127)
+        if (new_length + 1 + MY_TEST(column->length > 255 && new_length > 127)
 	    < length)
 	{
 	  if (column->length > 255 && new_length > 127)
@@ -1138,7 +1134,7 @@ my_bool _ma_rec_check(MARIA_HA *info,const uchar *record, uchar *rec_buff,
 	    pos++;
 	}
 	new_length=(uint) (end-pos);
-	if (new_length +1 + test(column->length > 255 && new_length > 127)
+        if (new_length + 1 + MY_TEST(column->length > 255 && new_length > 127)
 	    < length)
 	{
 	  if (!(flag & bit))
@@ -1191,7 +1187,7 @@ my_bool _ma_rec_check(MARIA_HA *info,const uchar *record, uchar *rec_buff,
       to+= length;
   }
   if (packed_length != (uint) (to - rec_buff) +
-      test(info->s->calc_checksum) || (bit != 1 && (flag & ~(bit - 1))))
+      MY_TEST(info->s->calc_checksum) || (bit != 1 && (flag & ~(bit - 1))))
     goto err;
   if (with_checksum && ((uchar) checksum != (uchar) *to))
   {
@@ -1559,7 +1555,8 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   my_bool error;
   DBUG_ENTER("_ma_cmp_dynamic_unique");
 
-  if (!(old_record=my_alloca(info->s->base.reclength)))
+  if (!(old_record= my_safe_alloca(info->s->base.reclength,
+                                   MARIA_MAX_RECORD_ON_STACK)))
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -1580,7 +1577,8 @@ my_bool _ma_cmp_dynamic_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff=      old_rec_buff;
     info->rec_buff_size= old_rec_buff_size;
   }
-  my_afree(old_record);
+  my_safe_afree(old_record, info->s->base.reclength,
+                MARIA_MAX_RECORD_ON_STACK);
   DBUG_RETURN(error);
 }
 
@@ -1595,7 +1593,9 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   uchar *buffer;
   MARIA_BLOCK_INFO block_info;
   my_bool error= 1;
+  size_t buffer_length;
   DBUG_ENTER("_ma_cmp_dynamic_record");
+  LINT_INIT(buffer_length);
 
   if (info->opt_flag & WRITE_CACHE_USED)
   {
@@ -1612,8 +1612,10 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   {						/* If check isn't disabled  */
     if (info->s->base.blobs)
     {
-      if (!(buffer=(uchar*) my_alloca(info->s->base.pack_reclength+
-				     _ma_calc_total_blob_length(info,record))))
+      buffer_length= (info->s->base.pack_reclength +
+                      _ma_calc_total_blob_length(info,record));
+      if (!(buffer=(uchar*) my_safe_alloca(buffer_length,
+                                           MARIA_MAX_RECORD_ON_STACK)))
 	DBUG_RETURN(1);
     }
     reclength= _ma_rec_pack(info,buffer,record);
@@ -1665,7 +1667,7 @@ my_bool _ma_cmp_dynamic_record(register MARIA_HA *info,
   error= 0;
 err:
   if (buffer != info->rec_buff)
-    my_afree(buffer);
+    my_safe_afree(buffer, buffer_length, MARIA_MAX_RECORD_ON_STACK);
   DBUG_PRINT("exit", ("result: %d", error));
   DBUG_RETURN(error);
 }
