@@ -576,7 +576,6 @@ handle_rpl_parallel_thread(void *arg)
         half-processed event group.
       */
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-      thd->wait_for_prior_commit();
       signal_error_to_sql_driver_thread(thd, group_rgi, 1);
       finish_event_group(thd, group_rgi->gtid_sub_id,
                          group_rgi->parallel_entry, group_rgi);
