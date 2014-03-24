@@ -158,10 +158,10 @@ struct st_maria_plugin spider_i_s_alloc_mem_maria =
   PLUGIN_LICENSE_GPL,
   spider_i_s_alloc_mem_init,
   spider_i_s_alloc_mem_deinit,
-  0x0001,
+  0x0100,
   NULL,
   NULL,
-  "0.1",
-  MariaDB_PLUGIN_MATURITY_BETA,
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_GAMMA,
 };
 #endif
