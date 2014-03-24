@@ -1154,6 +1154,13 @@ public:
   virtual void set_order_to_pos(
     ulong sql_type
   ) = 0;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  virtual int append_group_by_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  ) = 0;
+#endif
   virtual int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,

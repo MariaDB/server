@@ -4970,14 +4970,24 @@ int spider_mysql_handler::append_tmp_table_and_sql_for_bka(
       table_dot_aliases, table_dot_alias_lengths)) ||
     (error_num = append_condition_part(
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN,
-      SPIDER_SQL_TYPE_SELECT_SQL, FALSE)) ||
-    (
-      spider->result_list.direct_order_limit &&
-      (error_num = append_key_order_for_direct_order_limit_with_alias(&sql,
-        SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN))
-    )
+      SPIDER_SQL_TYPE_SELECT_SQL, FALSE))
   )
     DBUG_RETURN(error_num);
+  if (spider->result_list.direct_order_limit)
+  {
+    if ((error_num = append_key_order_for_direct_order_limit_with_alias(&sql,
+      SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  else if (spider->result_list.direct_aggregate)
+  {
+    if ((error_num =
+      append_group_by(&sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#endif
+
   DBUG_RETURN(0);
 }
 
@@ -5184,14 +5194,26 @@ int spider_mysql_handler::append_union_table_and_sql_for_bka(
       table_dot_aliases, table_dot_alias_lengths)) ||
     (error_num = append_condition_part(
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN,
-      SPIDER_SQL_TYPE_TMP_SQL, FALSE)) ||
-    (
-      spider->result_list.direct_order_limit &&
-      (error_num = append_key_order_for_direct_order_limit_with_alias(&tmp_sql,
-        SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN))
-    )
+      SPIDER_SQL_TYPE_TMP_SQL, FALSE))
   )
     DBUG_RETURN(error_num);
+  if (spider->result_list.direct_order_limit)
+  {
+    if ((error_num =
+      append_key_order_for_direct_order_limit_with_alias(&tmp_sql,
+        SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN))
+    )
+      DBUG_RETURN(error_num);
+  }
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  else if (spider->result_list.direct_aggregate)
+  {
+    if ((error_num =
+      append_group_by(&tmp_sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#endif
+
   DBUG_RETURN(0);
 }
 
@@ -7245,6 +7267,37 @@ void spider_mysql_handler::set_order_to_pos(
 }
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_mysql_handler::append_group_by_part(
+  const char *alias,
+  uint alias_length,
+  ulong sql_type
+) {
+  int error_num;
+  spider_string *str;
+  DBUG_ENTER("spider_mysql_handler::append_group_by_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  switch (sql_type)
+  {
+    case SPIDER_SQL_TYPE_SELECT_SQL:
+    case SPIDER_SQL_TYPE_TMP_SQL:
+      str = &sql;
+      break;
+    case SPIDER_SQL_TYPE_INSERT_SQL:
+    case SPIDER_SQL_TYPE_UPDATE_SQL:
+    case SPIDER_SQL_TYPE_DELETE_SQL:
+    case SPIDER_SQL_TYPE_BULK_UPDATE_SQL:
+      str = &update_sql;
+      break;
+    case SPIDER_SQL_TYPE_HANDLER:
+      str = &ha_sql;
+      break;
+    default:
+      DBUG_RETURN(0);
+  }
+  error_num = append_group_by(str, alias, alias_length);
+  DBUG_RETURN(error_num);
+}
+
 int spider_mysql_handler::append_group_by(
   spider_string *str,
   const char *alias,

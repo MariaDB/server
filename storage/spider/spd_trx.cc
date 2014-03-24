@@ -1638,7 +1638,7 @@ int spider_internal_start_trx(
     if (
       !trx->trx_xa &&
       trx->internal_xa &&
-      !trx->trx_consistent_snapshot || trx->internal_xa_snapshot == 3
+      (!trx->trx_consistent_snapshot || trx->internal_xa_snapshot == 3)
     ) {
       trx->trx_xa = TRUE;
       trx->xid.formatID = 1;

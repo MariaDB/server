@@ -944,6 +944,13 @@ public:
   void set_order_to_pos_sql(
     ulong sql_type
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by_sql_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  );
+#endif
   int append_key_order_for_merge_with_alias_sql_part(
     const char *alias,
     uint alias_length,

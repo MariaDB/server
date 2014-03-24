@@ -4448,6 +4448,19 @@ void spider_handlersocket_handler::set_order_to_pos(
   DBUG_VOID_RETURN;
 }
 
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_handlersocket_handler::append_group_by_part(
+  const char *alias,
+  uint alias_length,
+  ulong sql_type
+) {
+  DBUG_ENTER("spider_handlersocket_handler::append_group_by_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(0);
+  DBUG_RETURN(0);
+}
+#endif
+
 int spider_handlersocket_handler::append_key_order_for_merge_with_alias_part(
   const char *alias,
   uint alias_length,

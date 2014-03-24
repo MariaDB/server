@@ -960,6 +960,11 @@ public:
     ulong sql_type
   );
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  );
   int append_group_by(
     spider_string *str,
     const char *alias,
