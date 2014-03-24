@@ -1635,46 +1635,47 @@ int spider_internal_start_trx(
       thd_get_xid(trx->thd, (MYSQL_XID*) &trx->xid);
     }
 
-    if (!trx->trx_xa && trx->internal_xa)
-    {
-      if (!trx->trx_consistent_snapshot || trx->internal_xa_snapshot == 3)
-      {
-        trx->trx_xa = TRUE;
-        trx->xid.formatID = 1;
-        trx->xid.gtrid_length
-          = my_sprintf(trx->xid.data,
-          (trx->xid.data, "%lx", thd_get_thread_id(trx->thd)));
+    if (
+      !trx->trx_xa &&
+      trx->internal_xa &&
+      !trx->trx_consistent_snapshot || trx->internal_xa_snapshot == 3
+    ) {
+      trx->trx_xa = TRUE;
+      trx->xid.formatID = 1;
+      trx->xid.gtrid_length
+        = my_sprintf(trx->xid.data,
+        (trx->xid.data, "%lx", thd_get_thread_id(trx->thd)));
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100002
-        trx->xid.bqual_length
-          = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
-          (trx->xid.data + trx->xid.gtrid_length, "%lx",
-          trx->thd->variables.server_id));
+      trx->xid.bqual_length
+        = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
+        (trx->xid.data + trx->xid.gtrid_length, "%lx",
+        trx->thd->variables.server_id));
 #else
-        trx->xid.bqual_length
-          = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
-          (trx->xid.data + trx->xid.gtrid_length, "%x",
-          trx->thd->server_id));
+      trx->xid.bqual_length
+        = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
+        (trx->xid.data + trx->xid.gtrid_length, "%x",
+        trx->thd->server_id));
 #endif
 
-        trx->internal_xid_state.xa_state = XA_ACTIVE;
-        trx->internal_xid_state.xid.set(&trx->xid);
-        trx->internal_xid_state.in_thd = 1;
-        while ((error_num = spider_xa_lock(&trx->internal_xid_state)))
+      trx->internal_xid_state.xa_state = XA_ACTIVE;
+      trx->internal_xid_state.xid.set(&trx->xid);
+      trx->internal_xid_state.in_thd = 1;
+      while ((error_num = spider_xa_lock(&trx->internal_xid_state)))
+      {
+        if (error_num != ER_SPIDER_XA_LOCKED_NUM)
+          goto error;
+        else if (trx->xid.formatID == 0)
         {
-          if (error_num != ER_SPIDER_XA_LOCKED_NUM)
-            goto error;
-          else if (trx->xid.formatID == 0)
-          {
-            my_message(error_num, ER_SPIDER_XA_LOCKED_STR, MYF(0));
-            goto error;
-          }
-          /* retry */
-          trx->xid.formatID++;
-          trx->internal_xid_state.xid.set(&trx->xid);
+          my_message(error_num, ER_SPIDER_XA_LOCKED_STR, MYF(0));
+          goto error;
         }
-        xa_lock = TRUE;
+        /* retry */
+        trx->xid.formatID++;
+        trx->internal_xid_state.xid.set(&trx->xid);
       }
-    }
+      xa_lock = TRUE;
+    } else
+      trx->internal_xa = FALSE;
 
     DBUG_PRINT("info",("spider trx->trx_consistent_snapshot= %s",
       trx->trx_consistent_snapshot ? "TRUE" : "FALSE"));
