@@ -3190,7 +3190,9 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
       thd->mdl_context.release_transactional_locks();
+#ifdef WITH_WSREP
       WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
+#endif /* WITH_WSREP */
       return true;
     }
     /*

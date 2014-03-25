@@ -231,7 +231,13 @@ void wsrep_sst_complete (const wsrep_uuid_t* sst_uuid,
   }
   else
   {
-    WSREP_WARN("Nobody is waiting for SST.");
+    /* This can happen when called from wsrep_synced_cb().
+       At the moment there is no way to check there
+       if main thread is still waiting for signal,
+       so wsrep_sst_complete() is called from there
+       each time wsrep_ready changes from FALSE -> TRUE.
+    */
+    WSREP_DEBUG("Nobody is waiting for SST.");
   }
   mysql_mutex_unlock (&LOCK_wsrep_sst);
 }
@@ -1049,7 +1055,10 @@ void wsrep_SE_init_grab()
 
 void wsrep_SE_init_wait()
 {
-  mysql_cond_wait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init);
+  while (SE_initialized == false)
+  {
+    mysql_cond_wait (&COND_wsrep_sst_init, &LOCK_wsrep_sst_init);
+  }
   mysql_mutex_unlock (&LOCK_wsrep_sst_init);
 }
 

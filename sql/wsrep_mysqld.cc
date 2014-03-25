@@ -407,14 +407,26 @@ void wsrep_ready_wait ()
 static void wsrep_synced_cb(void* app_ctx)
 {
   WSREP_INFO("Synchronized with group, ready for connections");
+  bool signal_main= false;
   if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
   if (!wsrep_ready)
   {
     wsrep_ready= TRUE;
     mysql_cond_signal (&COND_wsrep_ready);
+    signal_main= true;
+
   }
   local_status.set(WSREP_MEMBER_SYNCED);
   mysql_mutex_unlock (&LOCK_wsrep_ready);
+
+  if (signal_main)
+  {
+      wsrep_SE_init_grab();
+      // Signal mysqld init thread to continue
+      wsrep_sst_complete (&local_uuid, local_seqno, false);
+      // and wait for SE initialization
+      wsrep_SE_init_wait();
+  }
 }
 
 static void wsrep_init_position()
