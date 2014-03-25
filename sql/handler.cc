@@ -1398,14 +1398,29 @@ int ha_commit_trans(THD *thd, bool all)
       if (WSREP(thd) && ht->db_type== DB_TYPE_WSREP)
       {
         error= 1;
-        /* avoid sending error, if we need to replay */
-        if (thd->wsrep_conflict_state!= MUST_REPLAY)
+        switch (err)
         {
-          my_error(ER_LOCK_DEADLOCK, MYF(0), err);
+        case WSREP_TRX_SIZE_EXCEEDED:
+          /* give user size exeeded erro from wsrep_api.h */
+          my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
+          break;
+        case WSREP_TRX_CERT_FAIL:
+        case WSREP_TRX_ERROR:
+          /* avoid sending error, if we need to replay */
+          if (thd->wsrep_conflict_state!= MUST_REPLAY)
+          {
+            my_error(ER_LOCK_DEADLOCK, MYF(0), err);
+          }
         }
       }
-     else
-        /* not wsrep hton, bail to native mysql behavior */
+      /* avoid sending error, if we need to replay */
+      if (thd->wsrep_conflict_state!= MUST_REPLAY)
+      {
+        my_error(ER_LOCK_DEADLOCK, MYF(0), err);
+      }
+    }
+    lse
+      /* not wsrep hton, bail to native mysql behavior */
 #endif /* WITH_WSREP */
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
 #ifdef WITH_WSREP
@@ -5754,6 +5769,17 @@ static int binlog_log_row(TABLE* table,
   bool error= 0;
   THD *const thd= table->in_use;
 
+#ifdef WITH_WSREP
+  /* only InnoDB tables will be replicated through binlog emulation */
+  if (WSREP_EMULATE_BINLOG(thd)                          && 
+      table->file->ht->db_type != DB_TYPE_INNODB         &&
+      !(table->file->ht->db_type == DB_TYPE_PARTITION_DB && 
+	(((ha_partition*)(table->file))->wsrep_db_type() == DB_TYPE_INNODB)))
+	//	!strcmp(table->file->table_type(), "InnoDB"))
+  {
+    return 0;
+  } 
+#endif /* WITH_WSREP */
   if (check_table_binlog_row_based(thd, table))
   {
     MY_BITMAP cols;

@@ -1264,6 +1264,7 @@ public:
     return h;
   }
 #ifdef WITH_WSREP
+  virtual int wsrep_db_type() const;
   void wsrep_reset_files()
   {
     for (uint i=0; i < m_tot_parts; i++)

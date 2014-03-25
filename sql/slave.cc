@@ -4613,6 +4613,21 @@ err_during_init:
   DBUG_EXECUTE_IF("simulate_slave_delay_at_terminate_bug38694", sleep(5););
   mysql_mutex_unlock(&rli->run_lock);  // tell the world we are done
 
+#ifdef WITH_WSREP
+  /* if slave stopped due to node going non primary, we set global flag to
+     trigger automatic restart of slave when node joins back to cluster
+  */
+  if (WSREP_ON && !wsrep_ready)
+  {
+    WSREP_INFO("Slave thread stopped because node dropped from cluster");
+    if (wsrep_restart_slave)
+    {
+      WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+		 "automatically restarted when node joins back to cluster");
+      wsrep_restart_slave_activated= TRUE;
+    }
+  }
+#endif /* WITH_WSREP */
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
 #ifdef HAVE_OPENSSL

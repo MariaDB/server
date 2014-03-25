@@ -55,8 +55,8 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
                      wsrep_max_ws_size, total_length);
           goto error;
       }
-      uchar* tmp = (uchar *)my_realloc(*buf, total_length, 
-                                       MYF(MY_ALLOW_ZERO_PTR));
+
+      uchar* tmp = (uchar *)my_realloc(*buf, total_length, MYF(0));
       if (!tmp)
       {
           WSREP_ERROR("could not (re)allocate buffer: %zu + %u",
@@ -72,7 +72,7 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
 
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
   {
-    WSREP_ERROR("failed to initialize io-cache");
+    WSREP_WARN("failed to initialize io-cache");
     goto cleanup;
   }
 
@@ -81,7 +81,7 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
 error:
   if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
   {
-    WSREP_WARN("failed to initialize io-cache");
+    WSREP_ERROR("failed to initialize io-cache");
   }
 cleanup:
   my_free(*buf);
@@ -166,19 +166,19 @@ static int wsrep_write_cache_once(wsrep_t*  const wsrep,
         {
             WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
                        wsrep_max_ws_size, total_length);
+	    err = WSREP_TRX_SIZE_EXCEEDED;
             goto cleanup;
         }
 
         if (total_length > allocated)
         {
             size_t const new_size(heap_size(total_length));
-            uchar* tmp = (uchar *)my_realloc(heap_buf, new_size, 
-                                             MYF(MY_ALLOW_ZERO_PTR));
+            uchar* tmp = (uchar *)my_realloc(heap_buf, new_size, MYF(0));
             if (!tmp)
             {
                 WSREP_ERROR("could not (re)allocate buffer: %zu + %u",
                             allocated, length);
-                err = WSREP_SIZE_EXCEEDED;
+                err = WSREP_TRX_SIZE_EXCEEDED;
                 goto cleanup;
             }
 
@@ -233,7 +233,7 @@ static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
     if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
     {
       WSREP_ERROR("failed to initialize io-cache");
-      return WSREP_TRX_ROLLBACK;
+      return WSREP_TRX_ERROR;
     }
 
     int err(WSREP_OK);
@@ -254,7 +254,7 @@ static int wsrep_write_cache_inc(wsrep_t*  const wsrep,
         {
             WSREP_WARN("transaction size limit (%lu) exceeded: %zu",
                        wsrep_max_ws_size, total_length);
-            err = WSREP_SIZE_EXCEEDED;
+            err = WSREP_TRX_SIZE_EXCEEDED;
             goto cleanup;
         }
 
@@ -348,4 +348,60 @@ int wsrep_binlog_savepoint_rollback(THD *thd, void *sv)
   if (!wsrep_emulate_bin_log) return 0;
   int rcode = binlog_hton->savepoint_rollback(binlog_hton, thd, sv);
   return rcode;
+}
+
+void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
+{
+  char filename[PATH_MAX]= {0};
+  int len= snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld.log",
+                    wsrep_data_home_dir, thd->thread_id,
+                    (long long)wsrep_thd_trx_seqno(thd));
+  size_t bytes_in_cache = 0;
+  // check path
+  if (len >= PATH_MAX)
+  {
+    WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
+    return ;
+  }
+  // init cache
+  my_off_t const saved_pos(my_b_tell(cache));
+  if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
+  {
+    WSREP_ERROR("failed to initialize io-cache");
+    return ;
+  }
+  // open file
+  FILE* of = fopen(filename, "wb");
+  if (!of)
+  {
+    WSREP_ERROR("Failed to open file '%s': %d (%s)",
+                filename, errno, strerror(errno));
+    goto cleanup;
+  }
+  // ready to write
+  bytes_in_cache= my_b_bytes_in_cache(cache);
+  if (unlikely(bytes_in_cache == 0)) bytes_in_cache = my_b_fill(cache);
+  if (likely(bytes_in_cache > 0)) do
+  {
+    if (my_fwrite(of, cache->read_pos, bytes_in_cache,
+                  MYF(MY_WME | MY_NABP)) == (size_t) -1)
+    {
+      WSREP_ERROR("Failed to write file '%s'", filename);
+      goto cleanup;
+    }
+    cache->read_pos= cache->read_end;
+  } while ((cache->file >= 0) && (bytes_in_cache= my_b_fill(cache)));
+  if(cache->error == -1)
+  {
+    WSREP_ERROR("RBR inconsistent");
+    goto cleanup;
+  }
+cleanup:
+  // init back
+  if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
+  {
+    WSREP_ERROR("failed to reinitialize io-cache");
+  }
+  // close file
+  if (of) fclose(of);
 }
