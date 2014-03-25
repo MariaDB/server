@@ -663,7 +663,7 @@ void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
 
-  wsrep_thr_lock_init(wsrep_thd_is_brute_force, wsrep_abort_thd,
+  wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_abort_thd,
                       wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
 
   /* Skip replication start if no cluster address */
@@ -1369,6 +1369,13 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
 
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
   DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED);
+
+  if (thd->global_read_lock.can_acquire_protection())
+  {
+    WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %lu",
+                thd->query(), thd->thread_id);
+    return -1;
+  }
 
   if (wsrep_debug && thd->mdl_context.has_locks())
   {

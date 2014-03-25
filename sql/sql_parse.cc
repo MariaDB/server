@@ -808,11 +808,7 @@ void do_handle_bootstrap(THD *thd)
   if (my_thread_init() || thd->store_globals())
   {
 #ifndef EMBEDDED_LIBRARY
-#ifdef WITH_WSREP
-    close_connection(thd, ER_OUT_OF_RESOURCES, 1);
-#else
     close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif /* WITH_WSREP */
 #endif
     thd->fatal_error();
     goto end;
@@ -7884,7 +7880,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
-        !wsrep_thd_is_brute_force((void *)tmp))
+        !wsrep_thd_is_BF((void *)tmp, true))
 #else
     if ((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx))

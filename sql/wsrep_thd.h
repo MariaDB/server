@@ -24,7 +24,9 @@ void wsrep_replay_transaction(THD *thd);
 void wsrep_create_appliers(long threads);
 void wsrep_create_rollbacker();
 
-extern "C" int  wsrep_thd_is_brute_force(void *thd_ptr);
+extern "C" my_bool  wsrep_thd_is_BF(void *thd_ptr, my_bool sync);
+extern "C" my_bool  wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync);
+extern "C" my_bool  wsrep_thd_is_local(void *thd_ptr, my_bool sync);
 extern "C" int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
                                 my_bool signal);
 extern "C" int  wsrep_thd_in_locking_session(void *thd_ptr);

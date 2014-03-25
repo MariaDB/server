@@ -55,11 +55,7 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
                                            some places */
 /* Function prototypes */
 void kill_mysql(void);
-#ifdef WITH_WSREP
-void close_connection(THD *thd, uint sql_errno= 0, bool lock=1);
-#else
 void close_connection(THD *thd, uint sql_errno= 0);
-#endif /* WITH_WSREP */
 void handle_connection_in_main_thread(THD *thd);
 void create_thread_to_handle_connection(THD *thd);
 void delete_running_thd(THD *thd);

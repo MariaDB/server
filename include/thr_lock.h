@@ -22,7 +22,7 @@ extern "C" {
 #endif
 #ifdef WITH_WSREP
 #include <my_sys.h>
-  typedef int (* wsrep_thd_is_brute_force_fun)(void *);
+  typedef my_bool (* wsrep_thd_is_brute_force_fun)(void *, my_bool);
   typedef int (* wsrep_abort_thd_fun)(void *, void *, my_bool);
   typedef int (* wsrep_on_fun)(void *);
   void wsrep_thr_lock_init(

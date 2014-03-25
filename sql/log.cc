@@ -567,8 +567,11 @@ void thd_binlog_trx_reset(THD * thd)
   {
     binlog_cache_mngr *const cache_mngr=
       (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-    if (cache_mngr) cache_mngr->reset(false, true);
- }
+    if (cache_mngr) 
+    {
+      cache_mngr->reset_cache(&cache_mngr->stmt_cache);
+      cache_mngr->reset_cache(&cache_mngr->trx_cache);
+    }
   thd->clear_binlog_table_maps();
 }
 
