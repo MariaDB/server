@@ -7720,8 +7720,10 @@ bool spider_check_direct_order_limit(
         first_check ? "TRUE" : "FALSE"));
       DBUG_PRINT("info",("spider (select_lex->options & OPTION_FOUND_ROWS)=%s",
         (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
       DBUG_PRINT("info",("spider direct_aggregate=%s",
         spider->result_list.direct_aggregate ? "TRUE" : "FALSE"));
+#endif
       DBUG_PRINT("info",("spider select_lex->group_list.elements=%u",
         select_lex->group_list.elements));
       DBUG_PRINT("info",("spider select_lex->with_sum_func=%s",
