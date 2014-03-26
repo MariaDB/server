@@ -30,7 +30,7 @@ XTAB::XTAB(LPCSTR name, LPCSTR srcdef) : Name(name)
   Next = NULL;
   To_Tdb = NULL;
   Srcdef = srcdef;
-  Creator = NULL;
+  Schema = NULL;
   Qualifier = NULL;
 
 #ifdef DEBTRACE
@@ -46,7 +46,7 @@ XTAB::XTAB(PTABLE tp) : Name(tp->Name)
   Next = NULL;
   To_Tdb = NULL;
   Srcdef = tp->Srcdef;
-  Creator = tp->Creator;
+  Schema = tp->Schema;
   Qualifier = tp->Qualifier;
 
 #ifdef DEBTRACE
@@ -83,7 +83,7 @@ void XTAB::Print(PGLOBAL g, FILE *f, uint n)
 
   for (PTABLE tp = this; tp; tp = tp->Next) {
     fprintf(f, "%sTABLE: %s.%s %s\n",
-            m, SVP(tp->Creator), tp->Name, SVP(tp->Srcdef));
+            m, SVP(tp->Schema), tp->Name, SVP(tp->Srcdef));
     PlugPutOut(g, f, TYPE_TDB, tp->To_Tdb, n + 2);
     } /* endfor tp */
 
@@ -101,7 +101,7 @@ void XTAB::Print(PGLOBAL g, char *ps, uint z)
 
   for (PTABLE tp = this; tp && n > 0; tp = tp->Next) {
     i = sprintf(buf, "TABLE: %s.%s %s To_Tdb=%p ",
-                SVP(tp->Creator), tp->Name, SVP(tp->Srcdef), tp->To_Tdb);
+                SVP(tp->Schema), tp->Name, SVP(tp->Srcdef), tp->To_Tdb);
     strncat(ps, buf, n);
     n -= i;
     } // endif tp

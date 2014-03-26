@@ -29,6 +29,7 @@
 #include "ma_key_recover.h"
 #include "ma_recovery_util.h"
 #include "hash.h"
+#include <my_check_opt.h>
 
 struct st_trn_for_recovery /* used only in the REDO phase */
 {
@@ -1175,7 +1176,7 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   DBUG_ASSERT(maria_tmpdir);
 
   info->s->state.key_map= uint8korr(rec->header + FILEID_STORE_SIZE + 8);
-  quick_repair= test(param.testflag & T_QUICK);
+  quick_repair= MY_TEST(param.testflag & T_QUICK);
 
   if (param.testflag & T_REP_PARALLEL)
   {

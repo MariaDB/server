@@ -1,7 +1,7 @@
 /**************** Table H Declares Source Code File (.H) ***************/
-/*  Name: TABLE.H    Version 2.2                                       */
+/*  Name: TABLE.H    Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
 /*                                                                     */
 /*  This file contains the TBX, OPJOIN and TDB class definitions.      */
 /***********************************************************************/
@@ -185,15 +185,7 @@ class DllExport TDBASE : public TDB {
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
   virtual bool   IsView(void) {return FALSE;}
-  virtual CHARSET_INFO *data_charset()
-  {
-    /*
-      If no DATA_CHARSET is specified, we assume that character
-      set of the remote data is the same with CHARACTER SET 
-      definition of the SQL column.
-    */
-    return m_data_charset ? m_data_charset : &my_charset_bin;
-  }
+  virtual CHARSET_INFO *data_charset(void);
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual int    GetProgCur(void) {return GetRecpos();}
   virtual PSZ    GetFile(PGLOBAL g) {return "Not a file";}
@@ -229,7 +221,7 @@ class DllExport TDBASE : public TDB {
 /***********************************************************************/
 /*  The abstract base class declaration for the catalog tables.        */
 /***********************************************************************/
-class TDBCAT : public TDBASE {
+class DllExport TDBCAT : public TDBASE {
   friend class CATCOL;
  public:
   // Constructor
@@ -268,7 +260,7 @@ class TDBCAT : public TDBASE {
 /***********************************************************************/
 /*  Class CATCOL: ODBC info column.                                    */
 /***********************************************************************/
-class CATCOL : public COLBLK {
+class DllExport CATCOL : public COLBLK {
   friend class TDBCAT;
  public:
   // Constructors

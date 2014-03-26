@@ -73,7 +73,7 @@ RELDEF::RELDEF(void)
 /***********************************************************************/
 TABDEF::TABDEF(void)
   {
-  Owner = NULL;
+  Schema = NULL;
   Desc = NULL;
   Catfunc = FNC_NO;
   Card = 0;
@@ -338,9 +338,9 @@ COLCRT::COLCRT(PSZ name)
   Fmt = NULL;
   Offset = -1;
   Long = -1;
-//Freq = -1;
+  Precision = -1;
   Key = -1;
-  Prec = -1;
+  Scale = -1;
   Opt = -1;
   DataType = '*';
   } // end of COLCRT constructor for table creation
@@ -354,9 +354,9 @@ COLCRT::COLCRT(void)
   Fmt = NULL;
   Offset = 0;
   Long = 0;
-//Freq = 0;
+  Precision = 0;
   Key = 0;
-  Prec = 0;
+  Scale = 0;
   Opt = 0;
   DataType = '*';
   } // end of COLCRT constructor for table & view definition
@@ -394,8 +394,10 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
 
     strcpy(F.Type, GetFormatType(Buf_Type));
     F.Length = cfp->Length;
-    F.Prec = cfp->Prec;
+    F.Prec = cfp->Scale;
     Offset = (cfp->Offset < 0) ? poff : cfp->Offset;
+    Precision = cfp->Precision;
+    Scale = cfp->Scale;
     Long = cfp->Length;
     Opt = cfp->Opt;
     Key = cfp->Key;

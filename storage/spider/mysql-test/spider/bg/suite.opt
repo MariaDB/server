@@ -1,1 +1,1 @@
---loose-innodb
+--loose-innodb --skip-performance-schema

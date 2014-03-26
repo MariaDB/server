@@ -187,6 +187,11 @@ equivalent to adding <b>/M</b> to each regular expression. The size is given in
 bytes for both libraries.
 </P>
 <P>
+<b>-O</b>
+Behave as if each pattern has the <b>/O</b> modifier, that is disable
+auto-possessification for all patterns.
+</P>
+<P>
 <b>-o</b> <i>osize</i>
 Set the number of elements in the output vector that is used when calling
 <b>pcre[16|32]_exec()</b> or <b>pcre[16|32]_dfa_exec()</b> to be <i>osize</i>. The
@@ -256,18 +261,23 @@ should never be studied (see the <b>/S</b> pattern modifier below).
 </P>
 <P>
 <b>-t</b>
-Run each compile, study, and match many times with a timer, and output
-resulting time per compile or match (in milliseconds). Do not set <b>-m</b> with
-<b>-t</b>, because you will then get the size output a zillion times, and the
-timing will be distorted. You can control the number of iterations that are
-used for timing by following <b>-t</b> with a number (as a separate item on the
-command line). For example, "-t 1000" would iterate 1000 times. The default is
-to iterate 500000 times.
+Run each compile, study, and match many times with a timer, and output the
+resulting times per compile, study, or match (in milliseconds). Do not set
+<b>-m</b> with <b>-t</b>, because you will then get the size output a zillion
+times, and the timing will be distorted. You can control the number of
+iterations that are used for timing by following <b>-t</b> with a number (as a
+separate item on the command line). For example, "-t 1000" iterates 1000 times.
+The default is to iterate 500000 times.
 </P>
 <P>
 <b>-tm</b>
 This is like <b>-t</b> except that it times only the matching phase, not the
 compile or study phases.
+</P>
+<P>
+<b>-T</b> <b>-TM</b>
+These behave like <b>-t</b> and <b>-tm</b>, but in addition, at the end of a run,
+the total times for all compiles, studies, and matches are output.
 </P>
 <br><a name="SEC5" href="#TOC1">DESCRIPTION</a><br>
 <P>
@@ -287,7 +297,7 @@ option states whether or not <b>readline()</b> will be used.
 <P>
 The program handles any number of sets of input on a single input file. Each
 set starts with a regular expression, and continues with any number of data
-lines to be matched against the pattern.
+lines to be matched against that pattern.
 </P>
 <P>
 Each data line is matched separately and independently. If you want to do
@@ -361,6 +371,7 @@ sections.
   <b>/M</b>              show compiled memory size
   <b>/m</b>              set PCRE_MULTILINE
   <b>/N</b>              set PCRE_NO_AUTO_CAPTURE
+  <b>/O</b>              set PCRE_NO_AUTO_POSSESS
   <b>/P</b>              use the POSIX wrapper
   <b>/S</b>              study the pattern after compilation
   <b>/s</b>              set PCRE_DOTALL
@@ -419,6 +430,7 @@ options that do not correspond to anything in Perl:
   <b>/f</b>              PCRE_FIRSTLINE
   <b>/J</b>              PCRE_DUPNAMES
   <b>/N</b>              PCRE_NO_AUTO_CAPTURE
+  <b>/O</b>              PCRE_NO_AUTO_POSSESS
   <b>/U</b>              PCRE_UNGREEDY
   <b>/W</b>              PCRE_UCP
   <b>/X</b>              PCRE_EXTRA
@@ -562,8 +574,8 @@ matched. There are a number of qualifying characters that may follow <b>/S</b>.
 They may appear in any order.
 </P>
 <P>
-If <b>S</b> is followed by an exclamation mark, <b>pcre[16|32]_study()</b> is called
-with the PCRE_STUDY_EXTRA_NEEDED option, causing it always to return a
+If <b>/S</b> is followed by an exclamation mark, <b>pcre[16|32]_study()</b> is
+called with the PCRE_STUDY_EXTRA_NEEDED option, causing it always to return a
 <b>pcre_extra</b> block, even when studying discovers no useful information.
 </P>
 <P>
@@ -642,6 +654,37 @@ function:
 The <b>/+</b> modifier works as described above. All other modifiers are
 ignored.
 </P>
+<br><b>
+Locking out certain modifiers
+</b><br>
+<P>
+PCRE can be compiled with or without support for certain features such as
+UTF-8/16/32 or Unicode properties. Accordingly, the standard tests are split up
+into a number of different files that are selected for running depending on
+which features are available. When updating the tests, it is all too easy to
+put a new test into the wrong file by mistake; for example, to put a test that
+requires UTF support into a file that is used when it is not available. To help
+detect such mistakes as early as possible, there is a facility for locking out
+specific modifiers. If an input line for <b>pcretest</b> starts with the string
+"&#60; forbid " the following sequence of characters is taken as a list of
+forbidden modifiers. For example, in the test files that must not use UTF or
+Unicode property support, this line appears:
+<pre>
+  &#60; forbid 8W
+</pre>
+This locks out the /8 and /W modifiers. An immediate error is given if they are
+subsequently encountered. If the character string contains &#60; but not &#62;, all the
+multi-character modifiers that begin with &#60; are locked out. Otherwise, such
+modifiers must be explicitly listed, for example:
+<pre>
+  &#60; forbid &#60;JS&#62;&#60;cr&#62;
+</pre>
+There must be a single space between &#60; and "forbid" for this feature to be
+recognised. If there is not, the line is interpreted either as a request to
+re-load a pre-compiled pattern (see "SAVING AND RELOADING COMPILED PATTERNS"
+below) or, if there is a another &#60; character, as a pattern that uses &#60; as its
+delimiter.
+</P>
 <br><a name="SEC7" href="#TOC1">DATA LINES</a><br>
 <P>
 Before each data line is passed to <b>pcre[16|32]_exec()</b>, leading and trailing
@@ -662,6 +705,7 @@ recognized:
   \v         vertical tab (\x0b)
   \nnn       octal character (up to 3 octal digits); always
                a byte unless &#62; 255 in UTF-8 or 16-bit or 32-bit mode
+  \o{dd...}  octal character (any number of octal digits}
   \xhh       hexadecimal byte (up to 2 hex digits)
   \x{hh...}  hexadecimal character (any number of hex digits)
   \A         pass the PCRE_ANCHORED option to <b>pcre[16|32]_exec()</b> or <b>pcre[16|32]_dfa_exec()</b>
@@ -1031,10 +1075,9 @@ writing the file, <b>pcretest</b> expects to read a new pattern.
 </P>
 <P>
 A saved pattern can be reloaded into <b>pcretest</b> by specifying &#60; and a file
-name instead of a pattern. The name of the file must not contain a &#60; character,
-as otherwise <b>pcretest</b> will interpret the line as a pattern delimited by &#60;
-characters.
-For example:
+name instead of a pattern. There must be no space between &#60; and the file name,
+which must not contain a &#60; character, as otherwise <b>pcretest</b> will
+interpret the line as a pattern delimited by &#60; characters. For example:
 <pre>
    re&#62; &#60;/some/file
   Compiled pattern loaded from /some/file
@@ -1091,7 +1134,7 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC17" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 26 April 2013
+Last updated: 12 November 2013
 <br>
 Copyright &copy; 1997-2013 University of Cambridge.
 <br>

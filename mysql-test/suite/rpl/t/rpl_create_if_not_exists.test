@@ -52,6 +52,8 @@ CREATE DATABASE IF NOT EXISTS mysqltest;
 USE mysqltest;
 CREATE TABLE IF NOT EXISTS t(c1 int);
 CREATE TABLE IF NOT EXISTS t1 LIKE t;
+# The following will not be logged because t2 existed and we will not
+# put the data of SELECT into the binary log
 CREATE TABLE IF NOT EXISTS t2 SELECT * FROM t;
 CREATE EVENT IF NOT EXISTS e 
 ON SCHEDULE AT CURRENT_TIMESTAMP + INTERVAL 1 HOUR 
@@ -104,7 +106,7 @@ SELECT * FROM t1;
 SELECT * FROM t2; 
 sync_slave_with_master; 
 
-# In these two statements, t1 and t2 are the base table. The recoreds of t2
+# In these two statements, t1 and t2 are the base table. The records of t2
 # are inserted into it when CREATE TABLE ...  SELECT was executed.  
 SELECT * FROM t1;
 SELECT * FROM t2;

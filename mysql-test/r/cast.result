@@ -1,3 +1,4 @@
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select CAST(1-2 AS UNSIGNED);
 CAST(1-2 AS UNSIGNED)
 18446744073709551615
@@ -62,7 +63,7 @@ cast(12.444 as double)
 12.444
 select cast(cast("20:01:01" as time) as datetime);
 cast(cast("20:01:01" as time) as datetime)
-0000-00-00 20:01:01
+2001-02-03 20:01:01
 select cast(cast("8:46:06.23434" AS time) as decimal(32,10));
 cast(cast("8:46:06.23434" AS time) as decimal(32,10))
 84606.0000000000
@@ -764,7 +765,7 @@ cast(cast("2101-00-01 02:03:04" as datetime) as time)
 02:03:04
 SELECT CAST(CAST('20:05:05' AS TIME) as date);
 CAST(CAST('20:05:05' AS TIME) as date)
-0000-00-00
+2001-02-03
 set sql_mode= TRADITIONAL;
 select cast("2101-00-01 02:03:04" as datetime);
 cast("2101-00-01 02:03:04" as datetime)
@@ -778,9 +779,7 @@ Warnings:
 Warning	1292	Incorrect datetime value: '2101-00-01 02:03:04'
 SELECT CAST(CAST('20:05:05' AS TIME) as date);
 CAST(CAST('20:05:05' AS TIME) as date)
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '20:05:05'
+2001-02-03
 set sql_mode=DEFAULT;
 create table t1 (f1 time, f2 date, f3 datetime);
 insert into t1 values ('11:22:33','2011-12-13','2011-12-13 11:22:33');
@@ -790,9 +789,7 @@ cast(f1 as unsigned)	cast(f2 as unsigned)	cast(f3 as unsigned)
 drop table t1;
 SELECT CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY;
 CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '0000-00-00'
+2001-02-04
 SET SQL_MODE=ALLOW_INVALID_DATES;
 SELECT DATE("foo");
 DATE("foo")

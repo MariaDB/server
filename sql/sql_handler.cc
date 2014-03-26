@@ -1135,7 +1135,7 @@ void mysql_ha_flush(THD *thd)
         ((hash_tables->table->mdl_ticket &&
          hash_tables->table->mdl_ticket->has_pending_conflicting_lock()) ||
          (!hash_tables->table->s->tmp_table &&
-          hash_tables->table->s->has_old_version())))
+          hash_tables->table->s->tdc.flushed)))
       mysql_ha_close_table(hash_tables);
   }
 

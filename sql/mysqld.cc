@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -380,7 +380,8 @@ static DYNAMIC_ARRAY all_options;
 ulong my_bind_addr;
 #endif /* WITH_WSREP */
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0, opt_abort;
+my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
 my_bool opt_log_queries_not_using_indexes= 0;
@@ -496,6 +497,7 @@ ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
+ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
 ulonglong binlog_cache_size=0;
@@ -565,6 +567,7 @@ ulong rpl_recovery_rank=0;
 ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
+ulong opt_slave_domain_parallel_threads= 0;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
@@ -905,6 +908,7 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_global_user_client_stats, key_LOCK_global_table_stats,
   key_LOCK_global_index_stats,
   key_LOCK_wakeup_ready, key_LOCK_wait_commit;
+PSI_mutex_key key_LOCK_gtid_waiting;
 
 PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
@@ -950,6 +954,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_global_index_stats, "LOCK_global_index_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_wakeup_ready, "THD::LOCK_wakeup_ready", 0},
   { &key_LOCK_wait_commit, "wait_for_commit::LOCK_wait_commit", 0},
+  { &key_LOCK_gtid_waiting, "gtid_waiting::LOCK_gtid_waiting", 0},
   { &key_LOCK_thd_data, "THD::LOCK_thd_data", 0},
   { &key_LOCK_user_conn, "LOCK_user_conn", PSI_FLAG_GLOBAL},
   { &key_LOCK_uuid_short_generator, "LOCK_uuid_short_generator", PSI_FLAG_GLOBAL},
@@ -1036,8 +1041,11 @@ PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
 PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
-PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_pool,
-  key_COND_parallel_entry, key_COND_prepare_ordered;
+PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
+  key_COND_rpl_thread_pool,
+  key_COND_parallel_entry, key_COND_group_commit_orderer,
+  key_COND_prepare_ordered;
+PSI_cond_key key_COND_wait_gtid;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1089,9 +1097,12 @@ static PSI_cond_info all_server_conds[]=
 #endif
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
+  { &key_COND_rpl_thread_queue, "COND_rpl_thread_queue", 0},
   { &key_COND_rpl_thread_pool, "COND_rpl_thread_pool", 0},
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
-  { &key_COND_prepare_ordered, "COND_prepare_ordered", 0}
+  { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
+  { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
+  { &key_COND_wait_gtid, "COND_wait_gtid", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
@@ -2060,6 +2071,7 @@ static void mysqld_exit(int exit_code)
     but if a kill -15 signal was sent, the signal thread did
     spawn the kill_server_thread thread, which is running concurrently.
   */
+  rpl_deinit_gtid_waiting();
   rpl_deinit_gtid_slave_state();
   wait_for_signal_thread_to_end();
   mysql_audit_finalize();
@@ -2085,7 +2097,7 @@ void clean_up(bool print_message)
   // We must call end_slave() as clean_up may have been called during startup
   end_slave();
   if (use_slave_mask)
-    bitmap_free(&slave_error_mask);
+    my_bitmap_free(&slave_error_mask);
 #endif
   stop_handle_manager();
   release_ddl_log();
@@ -2139,7 +2151,7 @@ void clean_up(bool print_message)
   if (defaults_argv)
     free_defaults(defaults_argv);
   free_tmpdir(&mysql_tmpdir_list);
-  bitmap_free(&temp_pool);
+  my_bitmap_free(&temp_pool);
   free_max_user_conn();
   free_global_user_stats();
   free_global_client_stats();
@@ -3536,7 +3548,6 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
   DBUG_ASSERT(str != NULL);
   DBUG_ASSERT(error != 0);
 
-  mysql_audit_general(thd, MYSQL_AUDIT_GENERAL_ERROR, error, str);
   if (MyFlags & ME_JUST_INFO)
   {
     level= Sql_condition::WARN_LEVEL_NOTE;
@@ -3559,6 +3570,8 @@ void my_message_sql(uint error, const char *str, myf MyFlags)
       thd->is_fatal_error= 1;
     (void) thd->raise_condition(error, NULL, level, str);
   }
+  else
+    mysql_audit_general(0, MYSQL_AUDIT_GENERAL_ERROR, error, str);
 
   /* When simulating OOM, skip writing to error log to avoid mtr errors */
   DBUG_EXECUTE_IF("simulate_out_of_memory", DBUG_VOID_RETURN;);
@@ -4407,7 +4420,7 @@ static int init_common_variables()
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
 #if (ENABLE_TEMP_POOL)
-  if (use_temp_pool && bitmap_init(&temp_pool,0,1024,1))
+  if (use_temp_pool && my_bitmap_init(&temp_pool,0,1024,1))
     return 1;
 #else
   use_temp_pool= 0;
@@ -4553,6 +4566,7 @@ static int init_thread_environment()
 
 #ifdef HAVE_REPLICATION
   rpl_init_gtid_slave_state();
+  rpl_init_gtid_waiting();
 #endif
 
 #ifdef WITH_WSREP
@@ -6323,7 +6337,7 @@ default_service_handling(char **argv,
 
   /* We have to quote filename if it contains spaces */
   pos= add_quoted_string(path_and_service, file_path, end);
-  if (*extra_opt)
+  if (extra_opt && *extra_opt)
   {
     /* 
      Add option after file_path. There will be zero or one extra option.  It's 
@@ -8742,7 +8756,6 @@ static int option_cmp(my_option *a, my_option *b)
         return 1;
     }
   }
-  DBUG_ASSERT(a->name == b->name);
   return 0;
 }
 
@@ -8757,9 +8770,16 @@ static void print_help()
   sys_var_add_options(&all_options, sys_var::PARSE_EARLY);
   add_plugin_options(&all_options, &mem_root);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
+  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
 
   my_print_help((my_option*) all_options.buffer);
+
+  /* Add variables that can be shown but not changed, like version numbers */
+  pop_dynamic(&all_options);
+  sys_var_add_options(&all_options, sys_var::SHOW_VALUE_IN_HELP);
+  sort_dynamic(&all_options, (qsort_cmp) option_cmp);
+  add_terminator(&all_options);
   my_print_variables((my_option*) all_options.buffer);
 
   free_root(&mem_root, MYF(0));
@@ -8901,7 +8921,7 @@ static int mysql_init_variables(void)
   my_atomic_rwlock_init(&thread_running_lock);
   my_atomic_rwlock_init(&thread_count_lock);
   my_atomic_rwlock_init(&statistics_lock);
-  my_atomic_rwlock_init(slave_executed_entries_lock);
+  my_atomic_rwlock_init(&slave_executed_entries_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();
@@ -9125,7 +9145,7 @@ mysqld_get_one_option(int optid,
     opt_myisam_log=1;
     break;
   case (int) OPT_BIN_LOG:
-    opt_bin_log= test(argument != disabled_my_option);
+    opt_bin_log= MY_TEST(argument != disabled_my_option);
     opt_bin_log_used= 1;
     break;
   case (int) OPT_LOG_BASENAME:
@@ -9639,7 +9659,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     Set some global variables from the global_system_variables
     In most cases the global variables will not be used
   */
-  my_disable_locking= myisam_single_user= test(opt_external_locking == 0);
+  my_disable_locking= myisam_single_user= MY_TEST(opt_external_locking == 0);
   my_default_record_cache_size=global_system_variables.read_buff_size;
 
   /*
@@ -9696,8 +9716,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 #endif
 
   global_system_variables.engine_condition_pushdown=
-    test(global_system_variables.optimizer_switch &
-         OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
+    MY_TEST(global_system_variables.optimizer_switch &
+            OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
 
   opt_readonly= read_only;
 
@@ -9732,6 +9752,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
         max_binlog_size_var->option.def_value;
     }
   }
+
+  /* Ensure that some variables are not set higher than needed */
+  if (back_log > max_connections)
+    back_log= max_connections;
+  if (thread_cache_size > max_connections)
+    thread_cache_size= max_connections;
+  
   return 0;
 }
 
@@ -10207,6 +10234,10 @@ PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for backgrou
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
 PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
+PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
+PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
+PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
+PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -10214,6 +10245,12 @@ PSI_stage_info *all_server_stages[]=
 {
   & stage_after_create,
   & stage_allocating_local_table,
+  & stage_alter_inplace,
+  & stage_alter_inplace_commit,
+  & stage_alter_inplace_prepare,
+  & stage_binlog_processing_checkpoint_notify,
+  & stage_binlog_stopping_background_thread,
+  & stage_binlog_waiting_background_tasks,
   & stage_changing_master,
   & stage_checking_master_version,
   & stage_checking_permissions,
@@ -10223,9 +10260,9 @@ PSI_stage_info *all_server_stages[]=
   & stage_closing_tables,
   & stage_connecting_to_master,
   & stage_converting_heap_to_myisam,
+  & stage_copy_to_tmp_table,
   & stage_copying_to_group_table,
   & stage_copying_to_tmp_table,
-  & stage_copy_to_tmp_table,
   & stage_creating_delayed_handler,
   & stage_creating_sort_index,
   & stage_creating_table,
@@ -10274,8 +10311,13 @@ PSI_stage_info *all_server_stages[]=
   & stage_sending_cached_result_to_client,
   & stage_sending_data,
   & stage_setup,
-  & stage_slave_has_read_all_relay_log,
   & stage_show_explain,
+  & stage_slave_has_read_all_relay_log,
+  & stage_slave_waiting_event_from_coordinator,
+  & stage_slave_waiting_worker_queue,
+  & stage_slave_waiting_worker_to_free_events,
+  & stage_slave_waiting_worker_to_release_partition,
+  & stage_slave_waiting_workers_to_exit,
   & stage_sorting,
   & stage_sorting_for_group,
   & stage_sorting_for_order,
@@ -10294,20 +10336,27 @@ PSI_stage_info *all_server_stages[]=
   & stage_user_sleep,
   & stage_verifying_table,
   & stage_waiting_for_delay_list,
+  & stage_waiting_for_gtid_to_be_written_to_binary_log,
   & stage_waiting_for_handler_insert,
   & stage_waiting_for_handler_lock,
   & stage_waiting_for_handler_open,
   & stage_waiting_for_insert,
   & stage_waiting_for_master_to_send_event,
   & stage_waiting_for_master_update,
+  & stage_waiting_for_prior_transaction_to_commit,
+  & stage_waiting_for_query_cache_lock,
+  & stage_waiting_for_relay_log_space,
+  & stage_waiting_for_room_in_worker_thread,
   & stage_waiting_for_slave_mutex_on_exit,
   & stage_waiting_for_slave_thread_to_start,
   & stage_waiting_for_table_flush,
-  & stage_waiting_for_query_cache_lock,
   & stage_waiting_for_the_next_event_in_relay_log,
   & stage_waiting_for_the_slave_thread_to_advance_position,
+  & stage_waiting_for_work_from_sql_thread,
   & stage_waiting_to_finalize_termination,
-  & stage_waiting_to_get_readlock
+  & stage_waiting_to_get_readlock,
+  & stage_master_gtid_wait_primary,
+  & stage_master_gtid_wait
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

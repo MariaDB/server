@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -208,6 +208,36 @@ row_undo_mod_remove_clust_low(
 		return(DB_SUCCESS);
 	}
 
+	trx_id_offset = btr_cur_get_index(btr_cur)->trx_id_offset;
+
+	if (!trx_id_offset) {
+		mem_heap_t*	heap	= NULL;
+		ulint		trx_id_col;
+		const ulint*	offsets;
+		ulint		len;
+
+		trx_id_col = dict_index_get_sys_col_pos(
+			btr_cur_get_index(btr_cur), DATA_TRX_ID);
+		ut_ad(trx_id_col > 0);
+		ut_ad(trx_id_col != ULINT_UNDEFINED);
+
+		offsets = rec_get_offsets(
+			btr_cur_get_rec(btr_cur), btr_cur_get_index(btr_cur),
+			NULL, trx_id_col + 1, &heap);
+
+		trx_id_offset = rec_get_nth_field_offs(
+			offsets, trx_id_col, &len);
+		ut_ad(len == DATA_TRX_ID_LEN);
+		mem_heap_free(heap);
+	}
+
+	if (trx_read_trx_id(btr_cur_get_rec(btr_cur) + trx_id_offset)
+	    != node->new_trx_id) {
+		/* The record must have been purged and then replaced
+		with a different one. */
+		return(DB_SUCCESS);
+	}
+
 	/* We are about to remove an old, delete-marked version of the
 	record that may have been delete-marked by a different transaction
 	than the rolling-back one. */
@@ -323,13 +353,16 @@ row_undo_mod_clust(
 		case TRX_UNDO_UPD_DEL_REC:
 			row_log_table_delete(
 				btr_pcur_get_rec(pcur), index, offsets,
-				node->trx->id);
+				true, node->trx->id);
 			break;
 		default:
 			ut_ad(0);
 			break;
 		}
 	}
+
+	ut_ad(rec_get_trx_id(btr_pcur_get_rec(pcur), index)
+	      == node->new_trx_id);
 
 	btr_pcur_commit_specify_mtr(pcur, &mtr);
 
@@ -1044,7 +1077,8 @@ row_undo_mod_parse_undo_rec(
 				    &dummy_extern, &undo_no, &table_id);
 	node->rec_type = type;
 
-	node->table = dict_table_open_on_id(table_id, dict_locked, FALSE);
+	node->table = dict_table_open_on_id(
+		table_id, dict_locked, DICT_TABLE_OP_NORMAL);
 
 	/* TODO: other fixes associated with DROP TABLE + rollback in the
 	same table by another user */
@@ -1119,14 +1153,6 @@ row_undo_mod(
 
 	node->index = dict_table_get_first_index(node->table);
 	ut_ad(dict_index_is_clust(node->index));
-
-	if (dict_index_is_online_ddl(node->index)) {
-		/* Note that we are rolling back this transaction, so
-		that all inserts and updates with this DB_TRX_ID can
-		be skipped. */
-		row_log_table_rollback(node->index, node->trx->id);
-	}
-
 	/* Skip the clustered index (the first index) */
 	node->index = dict_table_get_next_index(node->index);
 

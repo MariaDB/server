@@ -141,7 +141,7 @@ t1	CREATE TABLE `t1` (
   `e` bigint(20) DEFAULT NULL,
   `f` double DEFAULT NULL,
   `g` double DEFAULT NULL,
-  `h` double(20,5) DEFAULT NULL
+  `h` decimal(20,5) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`='MYSQL' `OPTION_LIST`='host=127.0.0.1,user=root,port=SLAVE_PORT'
 SELECT * FROM t1;
 a	b	c	d	e	f	g	h

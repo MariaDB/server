@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011 Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -194,10 +194,20 @@ private:
 
 /* Order clause list element */
 
+typedef int (*fast_field_copier)(Field *to, Field *from);
+
+
 typedef struct st_order {
   struct st_order *next;
   Item	 **item;			/* Point at item in select fields */
   Item	 *item_ptr;			/* Storage for initial item */
+  /*
+    Reference to the function we are trying to optimize copy to
+    a temporary table
+  */
+  fast_field_copier fast_field_copier_func;
+  /* Field for which above optimizer function setup */
+  Field  *fast_field_copier_setup;
   int    counter;                       /* position in SELECT list, correct
                                            only if counter_used is true*/
   bool	 asc;				/* true if ascending */
@@ -481,8 +491,6 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
 struct TABLE_share;
 struct All_share_tables;
 
-extern ulong tdc_refresh_version(void);
-
 typedef struct st_table_field_type
 {
   LEX_STRING name;
@@ -611,6 +619,7 @@ struct TABLE_SHARE
       Protects ref_count and m_flush_tickets.
     */
     mysql_mutex_t LOCK_table_share;
+    mysql_cond_t COND_release;
     TABLE_SHARE *next, **prev;            /* Link to unused shares */
     uint ref_count;                       /* How many TABLE objects uses this */
     /**
@@ -623,6 +632,8 @@ struct TABLE_SHARE
     */
     All_share_tables_list all_tables;
     TABLE_list free_tables;
+    ulong version;
+    bool flushed;
   } tdc;
 
   LEX_CUSTRING tabledef_version;
@@ -660,8 +671,6 @@ struct TABLE_SHARE
   LEX_STRING normalized_path;		/* unpack_filename(path) */
   LEX_STRING connect_string;
 
-  bool is_gtid_slave_pos;
-
   /* 
      Set of keys in use, implemented as a Bitmap.
      Excludes keys disabled by ALTER TABLE ... DISABLE KEYS.
@@ -670,7 +679,6 @@ struct TABLE_SHARE
   key_map keys_for_keyread;
   ha_rows min_rows, max_rows;		/* create information */
   ulong   avg_row_length;		/* create information */
-  ulong   version;
   ulong   mysql_version;		/* 0 if .frm is created before 5.0 */
   ulong   reclength;			/* Recordlength */
   /* Stored record length. No generated-only virtual fields are included */
@@ -734,6 +742,7 @@ struct TABLE_SHARE
   bool is_view;
   bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
+  bool table_creation_was_logged;
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -847,12 +856,6 @@ struct TABLE_SHARE
   inline ulong get_table_def_version()
   {
     return table_map_id;
-  }
-
-  /** Is this table share being expelled from the table definition cache?  */
-  inline bool has_old_version() const
-  {
-    return version != tdc_refresh_version();
   }
 
   /**
@@ -1067,7 +1070,6 @@ public:
   ORDER		*group;
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
-  my_bitmap_map	*bitmap_init_value;
   MY_BITMAP     def_read_set, def_write_set, def_vcol_set, tmp_set; 
   MY_BITMAP     eq_join_set;         /* used to mark equi-joined fields */
   MY_BITMAP     cond_set;   /* used to mark fields from sargable conditions*/
@@ -1952,7 +1954,7 @@ struct TABLE_LIST
      Indicates that if TABLE_LIST object corresponds to the table/view
      which requires special handling.
   */
-  enum
+  enum enum_open_strategy
   {
     /* Normal open. */
     OPEN_NORMAL= 0,
@@ -2203,7 +2205,7 @@ struct TABLE_LIST
    */
   char *get_table_name() const { return view != NULL ? view_name.str : table_name; }
   bool is_active_sjm();
-  bool is_jtbm() { return test(jtbm_subselect!=NULL); }
+  bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   st_select_lex_unit *get_unit();
   st_select_lex *get_single_select();
   void wrap_into_nested_join(List<TABLE_LIST> &join_list);

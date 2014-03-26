@@ -63,8 +63,6 @@ Archibald	2001-05-17	3
 Nabucho	2003-08-12	2
 RONALD	1980-02-26	4
 ALTER TABLE t1 READONLY=no;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -80,8 +78,6 @@ Nabucho	2003-08-12	2
 RONALD	1980-02-26	4
 BILL	1973-06-30	5
 ALTER TABLE t1 READONLY=1;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

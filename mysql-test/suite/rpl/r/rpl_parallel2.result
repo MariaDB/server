@@ -1,0 +1,18 @@
+include/rpl_init.inc [topology=1->2]
+*** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+include/start_slave.inc
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave");
+INSERT INTO t1 VALUES (1,sleep(2));
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
+Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
+Seconds_Behind_Master = '0'
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+DROP TABLE t1;
+include/rpl_end.inc

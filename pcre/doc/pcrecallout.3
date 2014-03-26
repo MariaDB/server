@@ -1,4 +1,4 @@
-.TH PCRECALLOUT 3 "03 March 2013" "PCRE 8.33"
+.TH PCRECALLOUT 3 "12 November 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH SYNOPSIS
@@ -55,17 +55,50 @@ The
 .\" HREF
 \fBpcretest\fP
 .\"
-command has an option that sets automatic callouts; when it is used, the output
-indicates how the pattern is matched. This is useful information when you are
-trying to optimize the performance of a particular pattern.
+program has a pattern qualifier (/C) that sets automatic callouts; when it is
+used, the output indicates how the pattern is being matched. This is useful
+information when you are trying to optimize the performance of a particular
+pattern.
 .
 .
 .SH "MISSING CALLOUTS"
 .rs
 .sp
-You should be aware that, because of optimizations in the way PCRE matches
-patterns by default, callouts sometimes do not happen. For example, if the
-pattern is
+You should be aware that, because of optimizations in the way PCRE compiles and
+matches patterns, callouts sometimes do not happen exactly as you might expect.
+.P
+At compile time, PCRE "auto-possessifies" repeated items when it knows that
+what follows cannot be part of the repeat. For example, a+[bc] is compiled as
+if it were a++[bc]. The \fBpcretest\fP output when this pattern is anchored and
+then applied with automatic callouts to the string "aaaa" is:
+.sp
+  --->aaaa
+   +0 ^        ^
+   +1 ^        a+
+   +3 ^   ^    [bc]
+  No match
+.sp
+This indicates that when matching [bc] fails, there is no backtracking into a+
+and therefore the callouts that would be taken for the backtracks do not occur.
+You can disable the auto-possessify feature by passing PCRE_NO_AUTO_POSSESS
+to \fBpcre_compile()\fP, or starting the pattern with (*NO_AUTO_POSSESS). If
+this is done in \fBpcretest\fP (using the /O qualifier), the output changes to
+this:
+.sp
+  --->aaaa
+   +0 ^        ^
+   +1 ^        a+
+   +3 ^   ^    [bc]
+   +3 ^  ^     [bc]
+   +3 ^ ^      [bc]
+   +3 ^^       [bc]
+  No match
+.sp
+This time, when matching [bc] fails, the matcher backtracks into a+ and tries
+again, repeatedly, until a+ itself fails.
+.P
+Other optimizations that provide fast "no match" results also affect callouts.
+For example, if the pattern is
 .sp
   ab(?C4)cd
 .sp
@@ -89,11 +122,11 @@ callouts such as the example above are obeyed.
 .rs
 .sp
 During matching, when PCRE reaches a callout point, the external function
-defined by \fIpcre_callout\fP or \fIpcre[16|32]_callout\fP is called
-(if it is set). This applies to both normal and DFA matching. The only
-argument to the callout function is a pointer to a \fBpcre_callout\fP
-or \fBpcre[16|32]_callout\fP block.
-These structures contains the following fields:
+defined by \fIpcre_callout\fP or \fIpcre[16|32]_callout\fP is called (if it is
+set). This applies to both normal and DFA matching. The only argument to the
+callout function is a pointer to a \fBpcre_callout\fP or
+\fBpcre[16|32]_callout\fP block. These structures contains the following
+fields:
 .sp
   int           \fIversion\fP;
   int           \fIcallout_number\fP;
@@ -217,6 +250,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 03 March 2013
+Last updated: 12 November 2013
 Copyright (c) 1997-2013 University of Cambridge.
 .fi

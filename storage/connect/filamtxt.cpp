@@ -535,7 +535,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
   if (!Stream)
     return RC_EF;
 
-  if (trace)
+  if (trace > 1)
     htrc("ReadBuffer: Tdbp=%p To_Line=%p Placed=%d\n",
                       Tdbp, Tdbp->To_Line, Placed); 
 
@@ -548,20 +548,20 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
 
     CurBlk = (int)Rows++;
 
-     if (trace)
+     if (trace > 1)
       htrc("ReadBuffer: CurBlk=%d\n", CurBlk); 
 
   } else
     Placed = false;
 
-  if (trace)
+  if (trace > 1)
     htrc(" About to read: stream=%p To_Buf=%p Buflen=%d\n",
                           Stream, To_Buf, Buflen);
 
   if (fgets(To_Buf, Buflen, Stream)) {
     p = To_Buf + strlen(To_Buf) - 1;
 
-    if (trace)
+    if (trace > 1)
       htrc(" Read: To_Buf=%p p=%c\n", To_Buf, To_Buf, p);
 
 #if defined(UNIX)
@@ -589,7 +589,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     } else if (*p == '\n')
       *p = '\0';          // Eliminate ending new-line character
 
-    if (trace)
+    if (trace > 1)
       htrc(" To_Buf='%s'\n", To_Buf);
 
     strcpy(Tdbp->To_Line, To_Buf);
@@ -610,7 +610,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
     rc = RC_FX;
   } // endif's fgets
 
-  if (trace)
+  if (trace > 1)
     htrc("ReadBuffer: rc=%d\n", rc);
 
   IsRead = true;

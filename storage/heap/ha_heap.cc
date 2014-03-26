@@ -90,7 +90,7 @@ ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
 
 int ha_heap::open(const char *name, int mode, uint test_if_locked)
 {
-  internal_table= test(test_if_locked & HA_OPEN_INTERNAL_TABLE);
+  internal_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   if (internal_table || (!(file= heap_open(name, mode)) && my_errno == ENOENT))
   {
     HP_CREATE_INFO create_info;
@@ -106,7 +106,7 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
     if (rc)
       goto end;
 
-    implicit_emptied= test(created_new_share);
+    implicit_emptied= MY_TEST(created_new_share);
     if (internal_table)
       file= heap_open_from_share(internal_share, mode);
     else

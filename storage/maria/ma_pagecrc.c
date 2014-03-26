@@ -88,7 +88,7 @@ static my_bool maria_page_crc_check(uchar *page,
   }
   new_crc= maria_page_crc((uint32) page_no, page, data_length);
   DBUG_ASSERT(new_crc != no_crc_val);
-  res= test(new_crc != crc);
+  res= MY_TEST(new_crc != crc);
   if (res)
   {
     /*

@@ -52,7 +52,7 @@ class DllExport XOBJECT : public BLOCK {
   virtual short  GetShortValue(void);
   virtual int    GetIntValue(void);
   virtual double GetFloatValue(void);
-  virtual int    GetPrecision(void) = 0;
+  virtual int    GetScale(void) = 0;
 
   // Methods
   virtual void   Reset(void) {}
@@ -92,7 +92,7 @@ class DllExport XVOID : public XOBJECT {
   virtual PSZ    GetCharValue(void) {return NULL;}
   virtual int    GetIntValue(void) {return 0;}
   virtual double GetFloatValue(void) {return 0.0;}
-  virtual int    GetPrecision() {return 0;}
+  virtual int    GetScale() {return 0;}
 
   // Methods
   virtual bool   Compare(PXOB xp) {return xp->GetType() == TYPE_VOID;}
@@ -115,7 +115,7 @@ class DllExport CONSTANT : public XOBJECT {
   virtual int    GetType(void) {return TYPE_CONST;}
   virtual int    GetResultType(void) {return Value->Type;}
   virtual int    GetLength(void) {return Value->GetValLen();}
-  virtual int    GetPrecision() {return Value->GetValPrec();}
+  virtual int    GetScale() {return Value->GetValPrec();}
   virtual int    GetLengthEx(void);
 
   // Methods
@@ -123,7 +123,7 @@ class DllExport CONSTANT : public XOBJECT {
   virtual bool   SetFormat(PGLOBAL g, FORMAT& fmt)
                  {return Value->SetConstFormat(g, fmt);}
   virtual int    CheckSpcCol(PTDB, int) {return 1;}
-          void   Convert(PGLOBAL g, int newtype);
+//        void   Convert(PGLOBAL g, int newtype);
 //        bool   Rephrase(PGLOBAL g, PSZ work);
           void   SetValue(PVAL vp) {Value = vp;}
   virtual bool   VerifyColumn(PTBX txp) {return true;}

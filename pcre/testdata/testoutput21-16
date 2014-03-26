@@ -8,7 +8,11 @@ No study data
 Error -28 from pcre16_fullinfo(0)
 Running in 16-bit mode but pattern was compiled in 8-bit mode
 
-%-- Generated from: ^[aL](?P<name>(?:[AaLl]+)[^xX-]*?)(?P<other>[\x{150}-\x{250}\x{300}]|[^\x{800}aAs-uS-U\x{d800}-\x{dfff}])++[^#\b\x{500}\x{1000}]{3,5}$
+%-- Generated from: 
+    /^[aL](?P<name>(?:[AaLl]+)[^xX-]*?)(?P<other>[\x{150}-\x{250}\x{300}]|
+      [^\x{800}aAs-uS-U\x{d800}-\x{dfff}])++[^#\b\x{500}\x{1000}]{3,5}$
+      /x
+
     In 16-bit mode with options:  S>testdata/saved16LE-1
                                  FS>testdata/saved16BE-1
     In 32-bit mode with options:  S>testdata/saved32LE-1
@@ -42,7 +46,7 @@ Capturing subpattern count = 2
 Named capturing subpatterns:
   name    1
   other   2
-Options: anchored
+Options: anchored extended
 No first char
 No need char
 Subject length lower bound = 6
@@ -75,7 +79,7 @@ Capturing subpattern count = 2
 Named capturing subpatterns:
   name    1
   other   2
-Options: anchored
+Options: anchored extended
 No first char
 No need char
 Subject length lower bound = 6

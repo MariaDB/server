@@ -59,6 +59,12 @@ CHECK_FUNCTION_EXISTS(sched_getcpu  HAVE_SCHED_GETCPU)
 IF(NOT MSVC)
 # either define HAVE_IB_GCC_ATOMIC_BUILTINS or not
 IF(NOT CMAKE_CROSSCOMPILING)
+  # workaround for gcc 4.1.2 RHEL5/x86, gcc atomic ops only work under -march=i686
+  IF(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" AND CMAKE_COMPILER_IS_GNUCC AND
+     CMAKE_C_COMPILER_VERSION VERSION_LESS "4.1.3")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=i686")
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i686")
+  ENDIF()
   CHECK_C_SOURCE_RUNS(
   "
   int main()
@@ -410,18 +416,8 @@ IF(WITH_INNODB)
   SET(WITH_INNOBASE_STORAGE_ENGINE TRUE)
 ENDIF()
 
-
-# On solaris, reduce symbol visibility, so loader does not mix
-# the same symbols from builtin innodb and from shared one.
-# Only required for old GCC (3.4.3) that does not support hidden visibility
-IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_COMPILER_IS_GNUCC 
-  AND NOT HAVE_VISIBILITY_HIDDEN)
-  SET(LINKER_SCRIPT "-Wl,-M${CMAKE_CURRENT_SOURCE_DIR}/plugin_exports")
-ELSE()
-  SET(LINKER_SCRIPT)
-ENDIF()
-
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
-  DEFAULT
+  MODULE_ONLY
   MODULE_OUTPUT_NAME ha_innodb
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${LINKER_SCRIPT})
+

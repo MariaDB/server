@@ -65,10 +65,14 @@ documentation. This document contains a quick-reference summary of the syntax.
   \n         newline (hex 0A)
   \r         carriage return (hex 0D)
   \t         tab (hex 09)
+  \0dd       character with octal code 0dd
   \ddd       character with octal code ddd, or backreference
+  \o{ddd..}  character with octal code ddd..
   \xhh       character with hex code hh
   \x{hhh..}  character with hex code hhh..
-</PRE>
+</pre>
+Note that \0dd is always an octal code, and that \8 and \9 are the literal
+characters "8" and "9".
 </P>
 <br><a name="SEC4" href="#TOC1">CHARACTER TYPES</a><br>
 <P>
@@ -92,9 +96,11 @@ documentation. This document contains a quick-reference summary of the syntax.
   \W         a "non-word" character
   \X         a Unicode extended grapheme cluster
 </pre>
-In PCRE, by default, \d, \D, \s, \S, \w, and \W recognize only ASCII
-characters, even in a UTF mode. However, this can be changed by setting the
-PCRE_UCP option.
+By default, \d, \s, and \w match only ASCII characters, even in UTF-8 mode
+or in the 16- bit and 32-bit libraries. However, if locale-specific matching is
+happening, \s and \w may also match characters with code points in the range
+128-255. If the PCRE_UCP option is set, the behaviour of these escape sequences
+is changed to use Unicode properties and they match many more characters.
 </P>
 <br><a name="SEC5" href="#TOC1">GENERAL CATEGORY PROPERTIES FOR \p and \P</a><br>
 <P>
@@ -150,11 +156,13 @@ PCRE_UCP option.
 <pre>
   Xan        Alphanumeric: union of properties L and N
   Xps        POSIX space: property Z or tab, NL, VT, FF, CR
-  Xsp        Perl space: property Z or tab, NL, FF, CR
+  Xsp        Perl space: property Z or tab, NL, VT, FF, CR
   Xuc        Univerally-named character: one that can be
                represented by a Universal Character Name
   Xwd        Perl word: property Xan or underscore
-</PRE>
+</pre>
+Perl and POSIX space are now the same. Perl added VT to its space character set
+at release 5.18 and PCRE changed at release 8.34.
 </P>
 <br><a name="SEC7" href="#TOC1">SCRIPT NAMES FOR \p AND \P</a><br>
 <P>
@@ -385,7 +393,9 @@ newline-setting options with similar syntax:
   (*UTF32)        set UTF-32 mode: 32-bit library (PCRE_UTF32)
   (*UTF)          set appropriate UTF mode for the library in use
   (*UCP)          set PCRE_UCP (use Unicode properties for \d etc)
-</PRE>
+</pre>
+Note that LIMIT_MATCH and LIMIT_RECURSION can only reduce the value of the
+limits set by the caller of pcre_exec(), not increase them.
 </P>
 <br><a name="SEC17" href="#TOC1">LOOKAHEAD AND LOOKBEHIND ASSERTIONS</a><br>
 <P>
@@ -516,7 +526,7 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC27" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 26 April 2013
+Last updated: 12 November 2013
 <br>
 Copyright &copy; 1997-2013 University of Cambridge.
 <br>

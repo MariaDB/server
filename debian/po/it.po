@@ -2,7 +2,7 @@
 # Copyright (C) 2009 Software in the Public Interest
 # This file is distributed under the same license as the mysql-dfsg-5.1 package.
 # Luca Monducci <luca.mo@tiscali.it>, 2006 - 2009.
-# 
+#
 msgid ""
 msgstr ""
 "Project-Id-Version: mysql-dfsg-5.1 5.1.37 italian debconf templates\n"
@@ -177,9 +177,6 @@ msgstr ""
 #. Description
 #: ../mariadb-galera-server-10.0.templates:8001
 #, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mariadb-server-10.0/README.Debian file for "
-#| "more information."
 msgid ""
 "Please read the /usr/share/doc/mariadb-server-10.0/README.Debian file for "
 "more information."

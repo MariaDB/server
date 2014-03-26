@@ -4949,6 +4949,7 @@ retry:
 			os_has_said_disk_full = FALSE;
 		}
 		node->being_extended = FALSE;
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
 		goto complete_io;
 	}
 #endif

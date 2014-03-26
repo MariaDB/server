@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -318,8 +317,6 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
     strmov(share->path.str, path);
     share->normalized_path.str=    share->path.str;
     share->normalized_path.length= path_length;
-    /* TEMPORARY FIX: if true, this means this is mysql.gtid_slave_pos table */
-    share->is_gtid_slave_pos= FALSE;
     share->table_category= get_table_category(& share->db, & share->table_name);
     share->open_errno= ENOENT;
     share->cached_row_logging_check= -1;
@@ -778,7 +775,6 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     keyinfo->ext_key_part_map= 0;
     if (share->use_ext_keys && i && !(keyinfo->flags & HA_NOSAME))
     {
-      keyinfo->ext_key_part_map= 0;
       for (j= 0; 
            j < first_key_parts && keyinfo->ext_key_parts < MAX_REF_PARTS;
            j++)
@@ -825,8 +821,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                                          keyinfo->comment.length);
       strpos+= keyinfo->comment.length;
     } 
-    DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
-               (keyinfo->comment.length > 0));
+    DBUG_ASSERT(MY_TEST(keyinfo->flags & HA_USES_COMMENT) ==
+                (keyinfo->comment.length > 0));
   }
 
   share->keys= keys; // do it *after* all key_info's are initialized
@@ -2016,7 +2012,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!(bitmaps= (my_bitmap_map*) alloc_root(&share->mem_root,
                                              share->column_bitmap_size)))
     goto err;
-  bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
+  my_bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
   bitmap_set_all(&share->all_set);
 
   delete handler_file;
@@ -2824,17 +2820,17 @@ partititon_err:
   bitmap_size= share->column_bitmap_size;
   if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*6)))
     goto err;
-  bitmap_init(&outparam->def_read_set,
+  my_bitmap_init(&outparam->def_read_set,
               (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmap_init(&outparam->def_write_set,
+  my_bitmap_init(&outparam->def_write_set,
               (my_bitmap_map*) (bitmaps+bitmap_size), share->fields, FALSE);
-  bitmap_init(&outparam->def_vcol_set,
+  my_bitmap_init(&outparam->def_vcol_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*2), share->fields, FALSE);
-  bitmap_init(&outparam->tmp_set,
+  my_bitmap_init(&outparam->tmp_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*3), share->fields, FALSE);
-  bitmap_init(&outparam->eq_join_set,
+  my_bitmap_init(&outparam->eq_join_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*4), share->fields, FALSE);
-  bitmap_init(&outparam->cond_set,
+  my_bitmap_init(&outparam->cond_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*5), share->fields, FALSE);
   outparam->default_column_bitmaps();
 
@@ -2895,9 +2891,9 @@ partititon_err:
   else if (outparam->file)
   {
     handler::Table_flags flags= outparam->file->ha_table_flags();
-    outparam->no_replicate= ! test(flags & (HA_BINLOG_STMT_CAPABLE
-                                            | HA_BINLOG_ROW_CAPABLE))
-                            || test(flags & HA_HAS_OWN_BINLOGGING);
+    outparam->no_replicate= ! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE
+                                               | HA_BINLOG_ROW_CAPABLE))
+                            || MY_TEST(flags & HA_HAS_OWN_BINLOGGING);
   }
   else
   {
@@ -3259,7 +3255,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   /* header */
   fileinfo[0]=(uchar) 254;
   fileinfo[1]= 1;
-  fileinfo[2]= FRM_VER+3+ test(create_info->varchar);
+  fileinfo[2]= FRM_VER + 3 + MY_TEST(create_info->varchar);
 
   fileinfo[3]= (uchar) ha_legacy_type(
         ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
@@ -3278,8 +3274,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   */
   for (i= 0; i < keys; i++)
   {
-    DBUG_ASSERT(test(key_info[i].flags & HA_USES_COMMENT) == 
-               (key_info[i].comment.length > 0));
+    DBUG_ASSERT(MY_TEST(key_info[i].flags & HA_USES_COMMENT) ==
+                (key_info[i].comment.length > 0));
     if (key_info[i].flags & HA_USES_COMMENT)
       key_comment_total_bytes += 2 + key_info[i].comment.length;
   }
@@ -3811,7 +3807,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   bool result= TRUE;
 
   /*
-    To protect used_tables list from being concurrently modified
+    To protect all_tables list from being concurrently modified
     while we are iterating through it we acquire LOCK_open.
     This does not introduce deadlocks in the deadlock detector
     because we won't try to acquire LOCK_open while
@@ -3838,7 +3834,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    if (table->in_use && gvisitor->inspect_edge(&table->in_use->mdl_context))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
     }
@@ -3847,7 +3844,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    if (table->in_use && table->in_use->mdl_context.visit_subgraph(gvisitor))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
     }
@@ -3896,7 +3894,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   MDL_wait::enum_wait_status wait_status;
 
   mysql_mutex_assert_owner(&tdc.LOCK_table_share);
-  DBUG_ASSERT(has_old_version());
+  DBUG_ASSERT(tdc.flushed);
 
   tdc.m_flush_tickets.push_front(&ticket);
 
@@ -4137,8 +4135,9 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   SELECT_LEX *select= get_single_select();
   List_iterator_fast<Item> it(select->item_list);
   uint field_count= 0;
-  Query_arena *arena= thd->stmt_arena, backup;
+  Query_arena *arena, backup;
   bool res= FALSE;
+  DBUG_ENTER("TABLE_LIST::create_field_translation");
 
   if (thd->stmt_arena->is_conventional() ||
       thd->stmt_arena->is_stmt_prepare_or_first_sp_execute())
@@ -4159,7 +4158,7 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   if (field_translation)
   {
     /*
-      Update items in the field translation aftet view have been prepared.
+      Update items in the field translation after view have been prepared.
       It's needed because some items in the select list, like IN subselects,
       might be substituted for optimized ones.
     */
@@ -4172,13 +4171,10 @@ bool TABLE_LIST::create_field_translation(THD *thd)
       field_translation_updated= TRUE;
     }
 
-    return FALSE;
+    DBUG_RETURN(FALSE);
   }
 
-  if (arena->is_conventional())
-    arena= 0;                                   // For easier test
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   /* Create view fields translation table */
 
@@ -4198,12 +4194,14 @@ bool TABLE_LIST::create_field_translation(THD *thd)
   }
   field_translation= transl;
   field_translation_end= transl + field_count;
+  /* It's safe to cache this table for prepared statements */
+  cacheable_table= 1;
 
 exit:
   if (arena)
     thd->restore_active_arena(arena, &backup);
 
-  return res;
+  DBUG_RETURN(res);
 }
 
 
@@ -6193,9 +6191,9 @@ bool TABLE::is_filled_at_execution()
     do not have a corresponding table reference. Such tables are filled
     during execution.
   */
-  return test(!pos_in_table_list ||
-              pos_in_table_list->jtbm_subselect || 
-              pos_in_table_list->is_active_sjm());
+  return MY_TEST(!pos_in_table_list ||
+                 pos_in_table_list->jtbm_subselect ||
+                 pos_in_table_list->is_active_sjm());
 }
 
 

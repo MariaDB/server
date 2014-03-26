@@ -55,9 +55,6 @@ TRIGGERS
 USER_PRIVILEGES
 USER_STATISTICS
 VIEWS
-XTRADB_INTERNAL_HASH_TABLES
-XTRADB_READ_VIEW
-XTRADB_RSEG
 SELECT t.table_name, c1.column_name
 FROM information_schema.tables t
 INNER JOIN
@@ -127,9 +124,6 @@ TRIGGERS	TRIGGER_SCHEMA
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
-XTRADB_INTERNAL_HASH_TABLES	INTERNAL_HASH_TABLE_NAME
-XTRADB_READ_VIEW	READ_VIEW_UNDO_NUMBER
-XTRADB_RSEG	rseg_id
 SELECT t.table_name, c1.column_name
 FROM information_schema.tables t
 INNER JOIN
@@ -199,9 +193,6 @@ TRIGGERS	TRIGGER_SCHEMA
 USER_PRIVILEGES	GRANTEE
 USER_STATISTICS	USER
 VIEWS	TABLE_SCHEMA
-XTRADB_INTERNAL_HASH_TABLES	INTERNAL_HASH_TABLE_NAME
-XTRADB_READ_VIEW	READ_VIEW_UNDO_NUMBER
-XTRADB_RSEG	rseg_id
 select 1 as "must be 1" from information_schema.tables  where "ACCOUNTS"=
 (select cast(table_name as char)  from information_schema.tables
 order by table_name limit 1) limit 1;
@@ -276,9 +267,6 @@ TRIGGERS	information_schema.TRIGGERS	1
 USER_PRIVILEGES	information_schema.USER_PRIVILEGES	1
 USER_STATISTICS	information_schema.USER_STATISTICS	1
 VIEWS	information_schema.VIEWS	1
-XTRADB_INTERNAL_HASH_TABLES	information_schema.XTRADB_INTERNAL_HASH_TABLES	1
-XTRADB_READ_VIEW	information_schema.XTRADB_READ_VIEW	1
-XTRADB_RSEG	information_schema.XTRADB_RSEG	1
 +---------------------------------------+
 +---------------------------------------+
 +---------------------------------------+
@@ -338,9 +326,6 @@ Database: information_schema
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
 | VIEWS                                 |
-| XTRADB_INTERNAL_HASH_TABLES           |
-| XTRADB_READ_VIEW                      |
-| XTRADB_RSEG                           |
 +---------------------------------------+
 +---------------------------------------+
 +---------------------------------------+
@@ -400,9 +385,6 @@ Database: INFORMATION_SCHEMA
 | USER_PRIVILEGES                       |
 | USER_STATISTICS                       |
 | VIEWS                                 |
-| XTRADB_INTERNAL_HASH_TABLES           |
-| XTRADB_READ_VIEW                      |
-| XTRADB_RSEG                           |
 +--------------------+
 +--------------------+
 +--------------------+
@@ -411,5 +393,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND table_name<>'ndb_binlog_index' AND table_name<>'ndb_apply_status' GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	57
+information_schema	54
 mysql	30

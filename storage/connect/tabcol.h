@@ -15,7 +15,7 @@
 /***********************************************************************/
 /*  Definition of class XTAB with all its method functions.            */
 /***********************************************************************/
-class DllExport XTAB: public BLOCK {  // Table Name-Owner-Srcdef block.
+class DllExport XTAB: public BLOCK {  // Table Name-Schema-Srcdef block.
   friend class TDBPRX;
   friend class TDBTBM;
  public:
@@ -28,12 +28,12 @@ class DllExport XTAB: public BLOCK {  // Table Name-Owner-Srcdef block.
   PTDB   GetTo_Tdb(void) {return To_Tdb;}
   LPCSTR GetName(void) {return Name;}
   LPCSTR GetSrc(void) {return Srcdef;}
-  LPCSTR GetCreator(void) {return Creator;}
+  LPCSTR GetSchema(void) {return Schema;}
   LPCSTR GetQualifier(void) {return Qualifier;}
   void   SetTo_Tdb(PTDB tdbp) {To_Tdb = tdbp;}
   void   SetName(LPCSTR name) {Name = name;}
   void   SetSrc(LPCSTR srcdef) {Srcdef = srcdef;}
-  void   SetCreator(LPCSTR crname) {Creator = crname;}
+  void   SetSchema(LPCSTR schname) {Schema = schname;}
   void   SetQualifier(LPCSTR qname) {Qualifier = qname;}
 
   // Methods
@@ -47,7 +47,7 @@ class DllExport XTAB: public BLOCK {  // Table Name-Owner-Srcdef block.
   PTDB      To_Tdb;            // Points to Table description Block
   LPCSTR    Name;              // Table name
   LPCSTR    Srcdef;            // Table Source definition
-  LPCSTR    Creator;           // Creator name
+  LPCSTR    Schema;            // Schema name
   LPCSTR    Qualifier;         // Qualifier name
   }; // end of class XTAB
 
@@ -68,7 +68,7 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
   virtual int    GetResultType(void) {assert(false); return TYPE_VOID;}
   virtual int    GetLength(void) {assert(false); return 0;}
   virtual int    GetLengthEx(void) {assert(false); return 0;}
-  virtual int    GetPrecision() {assert(false); return 0;};
+  virtual int    GetScale() {assert(false); return 0;};
           LPCSTR GetName(void) {return Name;}
           LPCSTR GetQualifier(void) {return Qualifier;}
           PTABLE GetTo_Table(void) {return To_Table;}

@@ -171,8 +171,8 @@ can skip ahead to the CMake section.
        pcre16_version.c
        pcre16_xclass.c
 
- (8) If you want to build a 16-bit library (as well as, or instead of the 8-bit
-     or 32-bit libraries) repeat steps 5-6 with the following files:
+ (8) If you want to build a 32-bit library (as well as, or instead of the 8-bit
+     or 16-bit libraries) repeat steps 5-6 with the following files:
 
        pcre32_byte_order.c
        pcre32_chartables.c

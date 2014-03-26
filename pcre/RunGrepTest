@@ -502,6 +502,10 @@ echo "---------------------------- Test 105 -----------------------------" >>tes
 (cd $srcdir; $valgrind $pcregrep --colour=always "ipsum|" ./testdata/grepinput3) >>testtry 2>&1
 echo "RC=$?" >>testtry
 
+echo "---------------------------- Test 106 -----------------------------" >>testtry
+(cd $srcdir; echo "a" | $valgrind $pcregrep -M "|a" ) >>testtry 2>&1
+echo "RC=$?" >>testtry
+
 
 # Now compare the results.
 

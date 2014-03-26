@@ -1,4 +1,4 @@
-.TH PCREPRECOMPILE 3 "24 June 2012" "PCRE 8.30"
+.TH PCREPRECOMPILE 3 "12 November 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "SAVING AND RE-USING PRECOMPILED PCRE PATTERNS"
@@ -90,8 +90,8 @@ study data.
 .rs
 .sp
 Re-using a precompiled pattern is straightforward. Having reloaded it into main
-memory, called \fBpcre[16|32]_pattern_to_host_byte_order()\fP if necessary,
-you pass its pointer to \fBpcre[16|32]_exec()\fP or \fBpcre[16|32]_dfa_exec()\fP in
+memory, called \fBpcre[16|32]_pattern_to_host_byte_order()\fP if necessary, you
+pass its pointer to \fBpcre[16|32]_exec()\fP or \fBpcre[16|32]_dfa_exec()\fP in
 the usual way.
 .P
 However, if you passed a pointer to custom character tables when the pattern
@@ -110,15 +110,19 @@ in the
 .\"
 documentation.
 .P
+\fBWarning:\fP The tables that \fBpcre_exec()\fP and \fBpcre_dfa_exec()\fP use
+must be the same as those that were used when the pattern was compiled. If this
+is not the case, the behaviour is undefined.
+.P
 If you did not provide custom character tables when the pattern was compiled,
 the pointer in the compiled pattern is NULL, which causes the matching
 functions to use PCRE's internal tables. Thus, you do not need to take any
 special action at run time in this case.
 .P
 If you saved study data with the compiled pattern, you need to create your own
-\fBpcre[16|32]_extra\fP data block and set the \fIstudy_data\fP field to point to the
-reloaded study data. You must also set the PCRE_EXTRA_STUDY_DATA bit in the
-\fIflags\fP field to indicate that study data is present. Then pass the
+\fBpcre[16|32]_extra\fP data block and set the \fIstudy_data\fP field to point
+to the reloaded study data. You must also set the PCRE_EXTRA_STUDY_DATA bit in
+the \fIflags\fP field to indicate that study data is present. Then pass the
 \fBpcre[16|32]_extra\fP block to the matching function in the usual way. If the
 pattern was studied for just-in-time optimization, that data cannot be saved,
 and so is lost by a save/restore cycle.
@@ -146,6 +150,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 24 June 2012
-Copyright (c) 1997-2012 University of Cambridge.
+Last updated: 12 November 2013
+Copyright (c) 1997-2013 University of Cambridge.
 .fi

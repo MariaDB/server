@@ -81,6 +81,8 @@ uint calc_days_in_year(uint year)
 my_bool check_date(const MYSQL_TIME *ltime, my_bool not_zero_date,
                    ulonglong flags, int *was_cut)
 {
+  if (ltime->time_type == MYSQL_TIMESTAMP_TIME)
+    return FALSE;
   if (not_zero_date)
   {
     if (((flags & TIME_NO_ZERO_IN_DATE) &&
@@ -917,7 +919,8 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
 #endif
 
   tmp= (time_t) (((calc_daynr((uint) t->year, (uint) t->month, (uint) t->day) -
-                   (long) days_at_timestart)*86400L + (long) t->hour*3600L +
+                   (long) days_at_timestart) * SECONDS_IN_24H +
+                   (long) t->hour*3600L +
                   (long) (t->minute*60 + t->second)) + (time_t) my_time_zone -
                  3600);
 
@@ -976,7 +979,7 @@ my_system_gmt_sec(const MYSQL_TIME *t_src, long *my_timezone, uint *error_code)
 
 
   /* shift back, if we were dealing with boundary dates */
-  tmp+= shift*86400L;
+  tmp+= shift * SECONDS_IN_24H;
 
   /*
     This is possible for dates, which slightly exceed boundaries.

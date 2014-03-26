@@ -1,7 +1,7 @@
 #ifndef ITEM_FUNC_INCLUDED
 #define ITEM_FUNC_INCLUDED
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -160,7 +160,7 @@ public:
   void count_decimal_length();
   inline bool get_arg0_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
-    return (null_value=args[0]->get_date(ltime, fuzzy_date));
+    return (null_value=args[0]->get_date_with_conversion(ltime, fuzzy_date));
   }
   void count_datetime_length(Item **item, uint nitems);
   bool count_string_result_length(enum_field_types field_type,
@@ -1643,6 +1643,22 @@ public:
 };
 
 
+class Item_master_gtid_wait :public Item_int_func
+{
+  String value;
+public:
+  Item_master_gtid_wait(Item *a) :Item_int_func(a) {}
+  Item_master_gtid_wait(Item *a,Item *b) :Item_int_func(a,b) {}
+  longlong val_int();
+  const char *func_name() const { return "master_gtid_wait"; }
+  void fix_length_and_dec() { max_length=10+1+10+1+20+1; maybe_null=0;}
+  bool check_vcol_func_processor(uchar *int_arg) 
+  {
+    return trace_unsupported_by_check_vcol_func_processor(func_name());
+  }
+};
+
+
 /* Handling of user definable variables */
 
 class user_var_entry;
@@ -1724,7 +1740,9 @@ public:
   {
     return save_in_field(field, no_conversions, 1);
   }
-  void save_org_in_field(Field *field) { (void)save_in_field(field, 1, 0); }
+  void save_org_in_field(Field *field,
+                         fast_field_copier data __attribute__ ((__unused__)))
+    { (void)save_in_field(field, 1, 0); }
   bool register_field_in_read_map(uchar *arg);
   bool register_field_in_bitmap(uchar *arg);
   bool set_entry(THD *thd, bool create_if_not_exists);
@@ -1909,6 +1927,41 @@ public:
     /* TODO: consider adding in support for the MATCH-based virtual columns */
     return trace_unsupported_by_check_vcol_func_processor(func_name());
   }
+private:
+  /**
+     Check whether storage engine for given table, 
+     allows FTS Boolean search on non-indexed columns.
+
+     @todo A flag should be added to the extended fulltext API so that 
+           it may be checked whether search on non-indexed columns are 
+           supported. Currently, it is not possible to check for such a 
+           flag since @c this->ft_handler is not yet set when this function is 
+           called.  The current hack is to assume that search on non-indexed
+           columns are supported for engines that does not support the extended
+           fulltext API (e.g., MyISAM), while it is not supported for other 
+           engines (e.g., InnoDB)
+
+     @param table_arg Table for which storage engine to check
+
+     @retval true if BOOLEAN search on non-indexed columns is supported
+     @retval false otherwise
+   */
+  bool allows_search_on_non_indexed_columns(TABLE* table_arg)
+  {
+    // Only Boolean search may support non_indexed columns
+    if (!(flags & FT_BOOL))
+      return false;
+
+    DBUG_ASSERT(table_arg && table_arg->file);
+
+    // Assume that if extended fulltext API is not supported,
+    // non-indexed columns are allowed.  This will be true for MyISAM.
+    if ((table_arg->file->ha_table_flags() & HA_CAN_FULLTEXT_EXT) == 0)
+      return true;
+
+    return false;
+  }
+
 };
 
 

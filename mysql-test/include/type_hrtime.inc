@@ -1,6 +1,8 @@
 
 --source include/have_innodb.inc
 
+SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
+
 --disable_warnings
 drop table if exists t1, t2, t3;
 --enable_warnings
@@ -126,3 +128,4 @@ select * from t2;
 drop view v1;
 drop table t1, t2;
 
+SET timestamp=DEFAULT;

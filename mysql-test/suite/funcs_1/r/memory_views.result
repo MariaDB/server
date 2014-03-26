@@ -7580,7 +7580,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 SELECT * FROM test.tb2 limit 2' at line 1
 CREATE OR REPLACE TEMPORARY VIEW test.v1 AS
 SELECT * FROM test.tb2 limit 2 ;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'TEMPORARY VIEW test.v1 AS
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VIEW test.v1 AS
 SELECT * FROM test.tb2 limit 2' at line 1
 Drop view if exists test.v1 ;
 Use test;

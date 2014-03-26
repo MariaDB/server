@@ -2615,7 +2615,8 @@ void Item_func_round::fix_length_and_dec()
   case INT_RESULT:
     if ((!decimals_to_set && truncate) || (args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS))
     {
-      int length_can_increase= test(!truncate && (val1 < 0) && !val1_unsigned);
+      int length_can_increase= MY_TEST(!truncate && (val1 < 0) &&
+                                       !val1_unsigned);
       max_length= args[0]->max_length + length_can_increase;
       /* Here we can keep INT_RESULT */
       cached_result_type= INT_RESULT;
@@ -2955,11 +2956,6 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   }
   unpack_time(min_max, ltime);
 
-  if (!(fuzzy_date & TIME_TIME_ONLY) &&
-      ((null_value= check_date_with_warn(ltime, fuzzy_date,
-                                         MYSQL_TIMESTAMP_ERROR))))
-    return true;
-
   if (compare_as_dates->field_type() == MYSQL_TYPE_DATE)
   {
     ltime->time_type= MYSQL_TIMESTAMP_DATE;
@@ -2970,8 +2966,15 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
     ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
     ltime->month= ltime->day= 0;
+    if (adjust_time_range_with_warn(ltime,
+                                    std::min<uint>(decimals, TIME_SECOND_PART_DIGITS)))
+      return (null_value= true);
   }
 
+  if (!(fuzzy_date & TIME_TIME_ONLY) &&
+      ((null_value= check_date_with_warn(ltime, fuzzy_date,
+                                         MYSQL_TIMESTAMP_ERROR))))
+    return true;
 
   return (null_value= 0);
 }
@@ -3997,6 +4000,34 @@ err:
 }
 
 
+longlong Item_master_gtid_wait::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  longlong result= 0;
+
+  if (args[0]->null_value)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  null_value=0;
+#ifdef HAVE_REPLICATION
+  THD* thd= current_thd;
+  longlong timeout_us;
+  String *gtid_pos = args[0]->val_str(&value);
+
+  if (arg_count==2 && !args[1]->null_value)
+    timeout_us= (longlong)(1e6*args[1]->val_real());
+  else
+    timeout_us= (longlong)-1;
+
+  result= rpl_global_gtid_waiting.wait_for_pos(thd, gtid_pos, timeout_us);
+#endif
+  return result;
+}
+
+
 /**
   Enables a session to wait on a condition until a timeout or a network
   disconnect occurs.
@@ -4599,7 +4630,7 @@ longlong Item_func_sleep::val_int()
 
   mysql_cond_destroy(&cond);
 
-  return test(!error); 		// Return 1 killed
+  return MY_TEST(!error);                  // Return 1 killed
 }
 
 
@@ -6226,6 +6257,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     return TRUE;
   }
 
+  bool allows_multi_table_search= true;
   const_item_cache=0;
   for (uint i=1 ; i < arg_count ; i++)
   {
@@ -6237,7 +6269,10 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "AGAINST");
       return TRUE;
     }
+    allows_multi_table_search &= 
+      allows_search_on_non_indexed_columns(((Item_field *)item)->field->table);
   }
+
   /*
     Check that all columns come from the same table.
     We've already checked that columns in MATCH are fields so
@@ -6246,7 +6281,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   if ((used_tables_cache & ~PARAM_TABLE_BIT) != item->used_tables())
     key=NO_SUCH_KEY;
 
-  if (key == NO_SUCH_KEY && !(flags & FT_BOOL))
+  if (key == NO_SUCH_KEY && !allows_multi_table_search)
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"MATCH");
     return TRUE;
@@ -6344,7 +6379,7 @@ bool Item_func_match::fix_index()
   }
 
 err:
-  if (flags & FT_BOOL)
+  if (allows_search_on_non_indexed_columns(table))
   {
     key=NO_SUCH_KEY;
     return 0;
@@ -6662,7 +6697,7 @@ void Item_func_sp::fix_length_and_dec()
   max_length= sp_result_field->field_length;
   collation.set(sp_result_field->charset());
   maybe_null= 1;
-  unsigned_flag= test(sp_result_field->flags & UNSIGNED_FLAG);
+  unsigned_flag= MY_TEST(sp_result_field->flags & UNSIGNED_FLAG);
 
   DBUG_VOID_RETURN;
 }

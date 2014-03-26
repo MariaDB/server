@@ -1,7 +1,7 @@
 /*************** Valblk H Declares Source Code File (.H) ***************/
-/*  Name: VALBLK.H    Version 2.0                                      */
+/*  Name: VALBLK.H    Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes declares.        */
 /***********************************************************************/
@@ -58,6 +58,7 @@ class VALBLK : public BLOCK {
   virtual longlong GetBigintValue(int n) = 0;
   virtual ulonglong GetUBigintValue(int n) = 0;
   virtual double GetFloatValue(int n) = 0;
+  virtual char  *GetCharString(char *p, int n) = 0;
   virtual void   ReAlloc(void *mp, int n) {Blkp = mp; Nval = n;}
   virtual void   Reset(int n) = 0;
   virtual bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
@@ -133,6 +134,7 @@ class TYPBLK : public VALBLK {
   virtual longlong GetBigintValue(int n) {return (longlong)Typp[n];}
   virtual ulonglong GetUBigintValue(int n) {return (ulonglong)Typp[n];}
   virtual double GetFloatValue(int n) {return (double)Typp[n];}
+  virtual char  *GetCharString(char *p, int n);
   virtual void   Reset(int n) {Typp[n] = 0;}
 
   // Methods
@@ -199,6 +201,7 @@ class CHRBLK : public VALBLK {
   virtual longlong GetBigintValue(int n);
   virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n);
+  virtual char  *GetCharString(char *p, int n);
   virtual void   Reset(int n);
   virtual void   SetPrec(int p) {Ci = (p != 0);}
   virtual bool   IsCi(void) {return Ci;}
@@ -252,6 +255,7 @@ class STRBLK : public VALBLK {
   virtual longlong GetBigintValue(int n);
   virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n) {return atof(Strp[n]);}
+  virtual char  *GetCharString(char *p, int n) {return Strp[n];}
   virtual void   Reset(int n) {Strp[n] = NULL;}
 
   // Methods
@@ -286,10 +290,11 @@ class DATBLK : public TYPBLK<int> {
   DATBLK(void *mp, int size);
 
   // Implementation
-  virtual bool SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
+  virtual bool  SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
+  virtual char *GetCharString(char *p, int n);
 
   // Methods
-  virtual void SetValue(PSZ sp, int n);
+  virtual void  SetValue(PSZ sp, int n);
 
  protected:
   // Members

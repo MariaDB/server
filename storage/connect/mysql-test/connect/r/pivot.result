@@ -44,8 +44,6 @@ Car  DOUBLE(8,2) FLAG=1,
 Food DOUBLE(8,2) FLAG=1)
 ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
 ALTER TABLE pivex OPTION_LIST='port=PORT';
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivex;
 Who	Week	Beer	Car	Food
 Beth	3	16.00	0.00	0.00
@@ -61,6 +59,8 @@ Joe	5	14.00	0.00	12.00
 # Restricting the columns in a Pivot Table
 #
 ALTER TABLE pivex DROP COLUMN week;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
 SELECT * FROM pivex;
 Who	Beer	Car	Food
 Beth	51.00	0.00	29.00
@@ -81,8 +81,6 @@ SRCDEF='select who, week, what, sum(amount) as amount from expenses where week i
 Warnings:
 Warning	1105	Cannot check looping reference
 ALTER TABLE pivex OPTION_LIST='PivotCol=what,FncCol=amount,port=PORT';
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivex;
 Who	Week	Beer	Car	Food
 Beth	4	15.00	0.00	17.00
@@ -103,8 +101,6 @@ What CHAR(12) NOT NULL,
 `5` DOUBLE(8,2) FLAG=1)
 ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=expenses;
 ALTER TABLE pivex OPTION_LIST='PivotCol=Week,port=PORT';
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivex;
 Who	What	3	4	5
 Beth	Beer	16.00	15.00	20.00
@@ -130,8 +126,6 @@ SRCDEF='select who, what, case when week=3 then ''First'' when week=5 then ''Las
 Warnings:
 Warning	1105	Cannot check looping reference
 ALTER TABLE pivex OPTION_LIST='PivotCol=wk,FncCol=amnt,port=PORT';
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivex;
 Who	What	First	Middle	Last
 Beth	Beer	104.96	98.40	131.20
@@ -202,8 +196,6 @@ ENGINE=CONNECT TABLE_TYPE=PIVOT TABNAME=pets OPTION_LIST='PivotCol=race,groupby=
 SELECT * FROM pivet;
 ERROR HY000: Got error 122 'Cannot find matching column' from CONNECT
 ALTER TABLE pivet OPTION_LIST='PivotCol=race,groupby=1,accept=1';
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SELECT * FROM pivet;
 name	dog	cat
 John	2	0

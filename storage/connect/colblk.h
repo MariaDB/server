@@ -1,7 +1,7 @@
 /*************** Colblk H Declares Source Code File (.H) ***************/
-/*  Name: COLBLK.H    Version 1.6                                      */
+/*  Name: COLBLK.H    Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the COLBLK and derived classes declares.        */
 /***********************************************************************/
@@ -29,7 +29,8 @@ class DllExport COLBLK : public XOBJECT {
   // Implementation
   virtual int     GetType(void) {return TYPE_COLBLK;}
   virtual int     GetResultType(void) {return Buf_Type;}
-  virtual int     GetPrecision(void) {return Format.Prec;}
+  virtual int     GetScale(void) {return Format.Prec;}
+  virtual int     GetPrecision(void) {return Precision;}
   virtual int     GetLength(void) {return Long;}
   virtual int     GetLengthEx(void);
   virtual int     GetAmType() {return TYPE_AM_ERROR;}
@@ -53,6 +54,7 @@ class DllExport COLBLK : public XOBJECT {
           PSZ     GetDomain(void) {return (Cdp) ? Cdp->Decode : NULL;}
           PSZ     GetDesc(void) {return (Cdp) ? Cdp->Desc : NULL;}
           PSZ     GetFmt(void) {return (Cdp) ? Cdp->Fmt : NULL;}
+          bool    IsUnsigned(void) {return Unsigned;}
           bool    IsNullable(void) {return Nullable;}
           void    SetNullable(bool b) {Nullable = b;}
                   
@@ -88,6 +90,7 @@ class DllExport COLBLK : public XOBJECT {
   int     Opt;                 // Cluster/sort information
   int     Buf_Type;            // Data type
   int     Long;                // Internal length in table
+  int     Precision;           // Column length (as for ODBC)
   FORMAT  Format;              // Output format
   ushort  ColUse;              // Column usage
   ushort  Status;              // Column read status
@@ -96,7 +99,7 @@ class DllExport COLBLK : public XOBJECT {
 /***********************************************************************/
 /*  Class SPCBLK: Base class for special column descriptors.           */
 /***********************************************************************/
-class SPCBLK : public COLBLK {
+class DllExport SPCBLK : public COLBLK {
  public:
   // Constructor
   SPCBLK(PCOLUMN cp);
@@ -118,7 +121,7 @@ class SPCBLK : public COLBLK {
 /***********************************************************************/
 /*  Class RIDBLK: ROWID special column descriptor.                     */
 /***********************************************************************/
-class RIDBLK : public SPCBLK {
+class DllExport RIDBLK : public SPCBLK {
  public:
   // Constructor
   RIDBLK(PCOLUMN cp, bool rnm);
@@ -137,7 +140,7 @@ class RIDBLK : public SPCBLK {
 /***********************************************************************/
 /*  Class FIDBLK: FILEID special column descriptor.                    */
 /***********************************************************************/
-class FIDBLK : public SPCBLK {
+class DllExport FIDBLK : public SPCBLK {
  public:
   // Constructor
   FIDBLK(PCOLUMN cp);
@@ -158,7 +161,7 @@ class FIDBLK : public SPCBLK {
 /***********************************************************************/
 /*  Class TIDBLK: TABID special column descriptor.                     */
 /***********************************************************************/
-class TIDBLK : public SPCBLK {
+class DllExport TIDBLK : public SPCBLK {
  public:
   // Constructor
   TIDBLK(PCOLUMN cp);
@@ -183,7 +186,7 @@ class TIDBLK : public SPCBLK {
 /***********************************************************************/
 /*  Class SIDBLK: SERVID special column descriptor.                    */
 /***********************************************************************/
-class SIDBLK : public SPCBLK {
+class DllExport SIDBLK : public SPCBLK {
  public:
   // Constructor
   SIDBLK(PCOLUMN cp);

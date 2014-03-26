@@ -347,7 +347,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
   if (xtrace)
     printf("About to open the table: tdbp=%p\n", tdbp);
 
-  if (mode != MODE_ANY) {
+  if (mode != MODE_ANY && mode != MODE_ALTER) {
     if (tdbp->OpenDB(g)) {
       printf("%s\n", g->Message);
       return true;

@@ -25,3 +25,42 @@ drop table t1,t2;
 --replace_result "Writing to net" "NULL"
 --replace_regex /localhost[:0-9]*/localhost/
 SHOW PROCESSLIST;
+
+--echo #
+--echo # MDEV-5372 Make "CAST(time_expr AS DATETIME)" compatible with the SQL Standard)
+--echo #
+set @@old_mode=zero_date_time_cast;
+SELECT CAST(TIME'-10:30:30' AS DATETIME);
+SELECT CAST(TIME'10:20:30' AS DATETIME);
+SELECT CAST(TIME'830:20:30' AS DATETIME);
+CREATE TABLE t1 (a DATETIME);
+INSERT INTO t1 VALUES (TIME'-10:20:30');
+INSERT INTO t1 VALUES (TIME'10:20:30');
+INSERT INTO t1 VALUES (TIME'830:20:30');
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a TIMESTAMP);
+INSERT INTO t1 VALUES (TIME'-10:20:30');
+INSERT INTO t1 VALUES (TIME'10:20:30');
+INSERT INTO t1 VALUES (TIME'830:20:30');
+SELECT * FROM t1;
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME);
+INSERT INTO t1 VALUES (TIME'-10:20:30');
+INSERT INTO t1 VALUES (TIME'10:20:30');
+INSERT INTO t1 VALUES (TIME'830:20:30');
+SELECT a, CAST(a AS DATETIME), TO_DAYS(a) FROM t1;
+DROP TABLE t1;
+# Note, it was actually a bug that TO_DAYS('830:20:30') returned NULL
+# for a column, while 3 for an expression. We won't fix this,
+# it's "old_mode" anyway.
+SELECT TO_DAYS(TIME'-10:20:30');
+SELECT TO_DAYS(TIME'10:20:30');
+SELECT TO_DAYS(TIME'830:20:30');
+
+# This is to cover Item_temporal_hybrid_func::fix_temporal_type in old_mode:
+CREATE TABLE t1 (a DATETIME, b TIME);
+INSERT INTO t1 VALUES (NULL, '00:20:12');
+INSERT INTO t1 VALUES (NULL, '-00:20:12');
+SELECT IF(1,ADDDATE(IFNULL(a,b),0),1) FROM t1;
+DROP TABLE t1;

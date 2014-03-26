@@ -1088,7 +1088,7 @@ ALTER TABLE t PARTITION BY RANGE (UNIX_TIMESTAMP(event_time) DIV 1)
 (PARTITION p0 VALUES LESS THAN (123456789),
 PARTITION pMAX VALUES LESS THAN MAXVALUE);
 ALTER TABLE t EXCHANGE PARTITION p0 WITH TABLE general_log;
-ERROR HY000: Incorrect usage of PARTITION and log table
+ERROR HY000: You cannot 'ALTER PARTITION' a log table if logging is enabled
 ALTER TABLE general_log ENGINE = CSV;
 SET @@global.general_log = @old_general_log_state;
 DROP TABLE t;

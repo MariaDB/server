@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates
-   Copyright (c) 2009, 2012, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates
+   Copyright (c) 2009, 2013, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1273,6 +1273,7 @@ static my_bool setup_one_fetch_function(MYSQL_BIND *, MYSQL_FIELD *field);
 #define RESET_LONG_DATA 2
 #define RESET_STORE_RESULT 4
 #define RESET_CLEAR_ERROR 8
+#define RESET_ALL_BUFFERS 16
 
 static my_bool reset_stmt_handle(MYSQL_STMT *stmt, uint flags);
 
@@ -2083,8 +2084,8 @@ static my_bool execute(MYSQL_STMT *stmt, char *packet, ulong length)
   buff[4]= (char) stmt->flags;
   int4store(buff+5, 1);                         /* iteration count */
 
-  res= test(cli_advanced_command(mysql, COM_STMT_EXECUTE, buff, sizeof(buff),
-                                 (uchar*) packet, length, 1, stmt) ||
+  res= MY_TEST(cli_advanced_command(mysql, COM_STMT_EXECUTE, buff, sizeof(buff),
+                                    (uchar*) packet, length, 1, stmt) ||
             (*mysql->methods->read_query_result)(mysql));
   stmt->affected_rows= mysql->affected_rows;
   stmt->server_status= mysql->server_status;
@@ -2571,7 +2572,7 @@ int STDCALL mysql_stmt_execute(MYSQL_STMT *stmt)
     reinit_result_set_metadata(stmt);
     prepare_to_fetch_result(stmt);
   }
-  DBUG_RETURN(test(stmt->last_errno));
+  DBUG_RETURN(MY_TEST(stmt->last_errno));
 }
 
 
@@ -3187,14 +3188,14 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
   {
     double data= my_strntod(&my_charset_latin1, value, length, &endptr, &err);
     float fdata= (float) data;
-    *param->error= (fdata != data) | test(err);
+    *param->error= (fdata != data) | MY_TEST(err);
     floatstore(buffer, fdata);
     break;
   }
   case MYSQL_TYPE_DOUBLE:
   {
     double data= my_strntod(&my_charset_latin1, value, length, &endptr, &err);
-    *param->error= test(err);
+    *param->error= MY_TEST(err);
     doublestore(buffer, data);
     break;
   }
@@ -3204,7 +3205,7 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
     MYSQL_TIME_STATUS status;
     str_to_time(value, length, tm, 0, &status);
     err= status.warnings;
-    *param->error= test(err);
+    *param->error= MY_TEST(err);
     break;
   }
   case MYSQL_TYPE_DATE:
@@ -3215,8 +3216,8 @@ static void fetch_string_with_conversion(MYSQL_BIND *param, char *value,
     MYSQL_TIME_STATUS status;
     (void) str_to_datetime(value, length, tm, 0, &status);
     err= status.warnings;
-    *param->error= test(err) && (param->buffer_type == MYSQL_TYPE_DATE &&
-                                 tm->time_type != MYSQL_TIMESTAMP_DATE);
+    *param->error= MY_TEST(err) && (param->buffer_type == MYSQL_TYPE_DATE &&
+                                    tm->time_type != MYSQL_TIMESTAMP_DATE);
     break;
   }
   case MYSQL_TYPE_TINY_BLOB:
@@ -3338,7 +3339,7 @@ static void fetch_long_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
   {
     int error;
     value= number_to_datetime(value, 0, (MYSQL_TIME *) buffer, 0, &error);
-    *param->error= test(error);
+    *param->error= MY_TEST(error);
     break;
   }
   default:
@@ -3686,7 +3687,7 @@ static void fetch_result_with_conversion(MYSQL_BIND *param, MYSQL_FIELD *field,
 static void fetch_result_tinyint(MYSQL_BIND *param, MYSQL_FIELD *field,
                                  uchar **row)
 {
-  my_bool field_is_unsigned= test(field->flags & UNSIGNED_FLAG);
+  my_bool field_is_unsigned= MY_TEST(field->flags & UNSIGNED_FLAG);
   uchar data= **row;
   *(uchar *)param->buffer= data;
   *param->error= param->is_unsigned != field_is_unsigned && data > INT_MAX8;
@@ -3696,7 +3697,7 @@ static void fetch_result_tinyint(MYSQL_BIND *param, MYSQL_FIELD *field,
 static void fetch_result_short(MYSQL_BIND *param, MYSQL_FIELD *field,
                                uchar **row)
 {
-  my_bool field_is_unsigned= test(field->flags & UNSIGNED_FLAG);
+  my_bool field_is_unsigned= MY_TEST(field->flags & UNSIGNED_FLAG);
   ushort data= (ushort) sint2korr(*row);
   shortstore(param->buffer, data);
   *param->error= param->is_unsigned != field_is_unsigned && data > INT_MAX16;
@@ -3707,7 +3708,7 @@ static void fetch_result_int32(MYSQL_BIND *param,
                                MYSQL_FIELD *field __attribute__((unused)),
                                uchar **row)
 {
-  my_bool field_is_unsigned= test(field->flags & UNSIGNED_FLAG);
+  my_bool field_is_unsigned= MY_TEST(field->flags & UNSIGNED_FLAG);
   uint32 data= (uint32) sint4korr(*row);
   longstore(param->buffer, data);
   *param->error= param->is_unsigned != field_is_unsigned && data > INT_MAX32;
@@ -3718,7 +3719,7 @@ static void fetch_result_int64(MYSQL_BIND *param,
                                MYSQL_FIELD *field __attribute__((unused)),
                                uchar **row)
 {
-  my_bool field_is_unsigned= test(field->flags & UNSIGNED_FLAG);
+  my_bool field_is_unsigned= MY_TEST(field->flags & UNSIGNED_FLAG);
   ulonglong data= (ulonglong) sint8korr(*row);
   *param->error= param->is_unsigned != field_is_unsigned && data > LONGLONG_MAX;
   longlongstore(param->buffer, data);
@@ -4615,6 +4616,14 @@ static my_bool reset_stmt_handle(MYSQL_STMT *stmt, uint flags)
             *mysql->unbuffered_fetch_owner= TRUE;
           mysql->status= MYSQL_STATUS_READY;
         }
+        if (flags & RESET_ALL_BUFFERS)
+        {
+          /* mysql_stmt_next_result will flush all pending
+             result sets 
+          */
+          while (mysql_more_results(mysql) &&
+                 mysql_stmt_next_result(stmt) == 0);
+        }
       }
       if (flags & RESET_SERVER_SIDE)
       {
@@ -4679,27 +4688,18 @@ my_bool STDCALL mysql_stmt_close(MYSQL_STMT *stmt)
   {
     mysql->stmts= list_delete(mysql->stmts, &stmt->list);
     /*
-      Clear NET error state: if the following commands come through
-      successfully, connection will still be usable for other commands.
+     Clear NET error state: if the following commands come through
+     successfully, connection will still be usable for other commands.
     */
     net_clear_error(&mysql->net);
+
     if ((int) stmt->state > (int) MYSQL_STMT_INIT_DONE)
     {
       uchar buff[MYSQL_STMT_HEADER];             /* 4 bytes - stmt id */
 
-      if (mysql->unbuffered_fetch_owner == &stmt->unbuffered_fetch_cancelled)
-        mysql->unbuffered_fetch_owner= 0;
-      if (mysql->status != MYSQL_STATUS_READY)
-      {
-        /*
-          Flush result set of the connection. If it does not belong
-          to this statement, set a warning.
-        */
-        (*mysql->methods->flush_use_result)(mysql, TRUE);
-        if (mysql->unbuffered_fetch_owner)
-          *mysql->unbuffered_fetch_owner= TRUE;
-        mysql->status= MYSQL_STATUS_READY;
-      }
+      if ((rc= reset_stmt_handle(stmt, RESET_ALL_BUFFERS | RESET_CLEAR_ERROR)))
+        return rc;
+
       int4store(buff, stmt->stmt_id);
       if ((rc= stmt_command(mysql, COM_STMT_CLOSE, buff, 4, stmt)))
       {
@@ -4711,7 +4711,7 @@ my_bool STDCALL mysql_stmt_close(MYSQL_STMT *stmt)
   my_free(stmt->extension);
   my_free(stmt);
 
-  DBUG_RETURN(test(rc));
+  DBUG_RETURN(MY_TEST(rc));
 }
 
 /*
@@ -4731,7 +4731,7 @@ my_bool STDCALL mysql_stmt_reset(MYSQL_STMT *stmt)
   /* Reset the client and server sides of the prepared statement */
   DBUG_RETURN(reset_stmt_handle(stmt,
                                 RESET_SERVER_SIDE | RESET_LONG_DATA |
-                                RESET_CLEAR_ERROR));
+                                RESET_ALL_BUFFERS | RESET_CLEAR_ERROR));
 }
 
 /*
@@ -4842,7 +4842,6 @@ int STDCALL mysql_next_result(MYSQL *mysql)
 
   DBUG_RETURN(-1);				/* No more results */
 }
-
 
 int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
 {

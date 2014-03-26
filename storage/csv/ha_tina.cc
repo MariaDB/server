@@ -143,6 +143,7 @@ static void init_tina_psi_keys(void)
 static const char *ha_tina_exts[] = {
   CSV_EXT,
   CSM_EXT,
+  CSN_EXT,
   NullS
 };
 

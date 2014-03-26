@@ -219,7 +219,7 @@ drop table t1;
 #
 CREATE TABLE t1 (my_primary_key varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
-ERROR HY000: Internal error: 'target column family has no key_alias defined, PRIMARY KEY column must be named 'rowkey''
+ERROR HY000: Internal error: target column family has no key_alias defined, PRIMARY KEY column must be named 'rowkey'
 CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf10';
 DROP TABLE t1;
@@ -365,7 +365,7 @@ drop table t2;
 CREATE TABLE t2 (rowkey varchar(32) PRIMARY KEY, varint_col varbinary(2)) ENGINE=CASSANDRA
 thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cf9';
 select rowkey, hex(varint_col) from t2;
-ERROR HY000: Internal error: 'Unable to convert value for field `varint_col` from Cassandra's data format. Source data is 4 bytes, 0x12345678'
+ERROR HY000: Internal error: Unable to convert value for field `varint_col` from Cassandra's data format. Source data is 4 bytes, 0x12345678
 drop table t2;
 #
 # Decimal datatype support
@@ -557,7 +557,7 @@ delete from t1;
 drop table t1;
 CREATE TABLE t1 (rowkey varchar(10) PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd1';
 select * from t1;
-ERROR HY000: Internal error: 'Unable to convert value for field `dyn` from Cassandra's data format. Name length exceed limit of 16383: 'very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_v'
+ERROR HY000: Internal error: Unable to convert value for field `dyn` from Cassandra's data format. Name length exceed limit of 16383: 'very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_very_v
 drop table t1;
 CREATE TABLE t1 (rowkey int PRIMARY KEY, dyn blob DYNAMIC_COLUMN_STORAGE=yes) 
 ENGINE=CASSANDRA thrift_host='localhost' keyspace='mariadbtest2' column_family = 'cfd2';

@@ -144,7 +144,7 @@ bool trans_begin(THD *thd, uint flags)
     thd->server_status&=
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
-    res= test(ha_commit_trans(thd, TRUE));
+    res= MY_TEST(ha_commit_trans(thd, TRUE));
 #ifdef WITH_WSREP
     wsrep_post_commit(thd, TRUE);
 #endif /* WITH_WSREP */
@@ -181,7 +181,7 @@ bool trans_begin(THD *thd, uint flags)
       compatibility.
     */
     const bool user_is_super=
-      test(thd->security_ctx->master_access & SUPER_ACL);
+      MY_TEST(thd->security_ctx->master_access & SUPER_ACL);
     if (opt_readonly && !user_is_super)
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
@@ -206,7 +206,7 @@ bool trans_begin(THD *thd, uint flags)
   if (flags & MYSQL_START_TRANS_OPT_WITH_CONS_SNAPSHOT)
     res= ha_start_consistent_snapshot(thd);
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -249,7 +249,7 @@ bool trans_commit(THD *thd)
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->lex->start_transaction_opt= 0;
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -272,6 +272,10 @@ bool trans_commit_implicit(THD *thd)
   if (trans_check(thd))
     DBUG_RETURN(TRUE);
 
+  if (thd->variables.option_bits & OPTION_GTID_BEGIN)
+    DBUG_PRINT("error", ("OPTION_GTID_BEGIN is set. "
+                         "Master and slave will have different GTID values"));
+
   if (thd->in_multi_stmt_transaction_mode() ||
       (thd->variables.option_bits & OPTION_TABLE_LOCK))
   {
@@ -284,7 +288,7 @@ bool trans_commit_implicit(THD *thd)
     thd->server_status&=
       ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
     DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
-    res= test(ha_commit_trans(thd, TRUE));
+    res= MY_TEST(ha_commit_trans(thd, TRUE));
 #ifdef WITH_WSREP
     wsrep_post_commit(thd, TRUE);
 #endif /* WITH_WSREP */
@@ -335,10 +339,12 @@ bool trans_rollback(THD *thd)
   res= ha_rollback_trans(thd, TRUE);
   (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
+  /* Reset the binlog transaction marker */
+  thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   thd->transaction.all.modified_non_trans_table= FALSE;
   thd->lex->start_transaction_opt= 0;
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -384,7 +390,7 @@ bool trans_rollback_implicit(THD *thd)
   /* Rollback should clear transaction_rollback_request flag. */
   DBUG_ASSERT(! thd->transaction_rollback_request);
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -442,7 +448,7 @@ bool trans_commit_stmt(THD *thd)
 
   thd->transaction.stmt.reset();
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -631,7 +637,7 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
   if (!res && !binlog_on)
     thd->mdl_context.rollback_to_savepoint(sv->mdl_savepoint);
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -666,7 +672,7 @@ bool trans_release_savepoint(THD *thd, LEX_STRING name)
 
   thd->transaction.savepoints= sv->prev;
 
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 
@@ -833,7 +839,7 @@ bool trans_xa_commit(THD *thd)
     wsrep_register_hton(thd, TRUE);
 #endif /* WITH_WSREP */
     int r= ha_commit_trans(thd, TRUE);
-    if ((res= test(r)))
+    if ((res= MY_TEST(r)))
       my_error(r == 1 ? ER_XA_RBROLLBACK : ER_XAER_RMERR, MYF(0));
 #ifdef WITH_WSREP
     wsrep_post_commit(thd, TRUE);
@@ -866,7 +872,7 @@ bool trans_xa_commit(THD *thd)
     {
       DEBUG_SYNC(thd, "trans_xa_commit_after_acquire_commit_lock");
 
-      res= test(ha_commit_one_phase(thd, 1));
+      res= MY_TEST(ha_commit_one_phase(thd, 1));
       if (res)
         my_error(ER_XAER_RMERR, MYF(0));
     }

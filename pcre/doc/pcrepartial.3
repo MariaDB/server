@@ -1,4 +1,4 @@
-.TH PCREPARTIAL 3 "20 February 2013" "PCRE 8.33"
+.TH PCREPARTIAL 3 "02 July 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PARTIAL MATCHING IN PCRE"
@@ -280,6 +280,15 @@ Notice that when the match is complete, only the last part is shown; PCRE does
 not retain the previously partially-matched string. It is up to the calling
 program to do that if it needs to.
 .P
+That means that, for an unanchored pattern, if a continued match fails, it is
+not possible to try again at a new starting point. All this facility is capable
+of doing is continuing with the previous match attempt. In the previous
+example, if the second set of data is "ug23" the result is no match, even
+though there would be a match for "aug23" if the entire string were given at
+once. Depending on the application, this may or may not be what you want.
+The only way to allow for starting again at the next character is to retain the
+matched part of the subject and try a new complete match.
+.P
 You can set the PCRE_PARTIAL_SOFT or PCRE_PARTIAL_HARD options with
 PCRE_DFA_RESTART to continue partial matching over multiple segments. This
 facility can be used to pass very long subject strings to the DFA matching
@@ -462,6 +471,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 20 February 2013
+Last updated: 02 July 2013
 Copyright (c) 1997-2013 University of Cambridge.
 .fi

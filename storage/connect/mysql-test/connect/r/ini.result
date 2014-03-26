@@ -185,8 +185,6 @@ UK	10
 FR	20
 RU	30
 ALTER TABLE t1 READONLY=1;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -202,8 +200,6 @@ ERROR HY000: Table 't1' is read only
 TRUNCATE TABLE t1;
 ERROR HY000: Table 't1' is read only
 ALTER TABLE t1 READONLY=0;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

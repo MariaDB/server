@@ -6,18 +6,16 @@ PCRE - Perl-compatible regular expressions
 .sp
 .B #include <pcre.h>
 .PP
-.SM
+.nf
 .B void pcre_assign_jit_stack(pcre_extra *\fIextra\fP,
-.ti +5n
-.B pcre_jit_callback \fIcallback\fP, void *\fIdata\fP);
-.PP
+.B "     pcre_jit_callback \fIcallback\fP, void *\fIdata\fP);"
+.sp
 .B void pcre16_assign_jit_stack(pcre16_extra *\fIextra\fP,
-.ti +5n
-.B pcre16_jit_callback \fIcallback\fP, void *\fIdata\fP);
-.PP
+.B "     pcre16_jit_callback \fIcallback\fP, void *\fIdata\fP);"
+.sp
 .B void pcre32_assign_jit_stack(pcre32_extra *\fIextra\fP,
-.ti +5n
-.B pcre32_jit_callback \fIcallback\fP, void *\fIdata\fP);
+.B "     pcre32_jit_callback \fIcallback\fP, void *\fIdata\fP);"
+.fi
 .
 .SH DESCRIPTION
 .rs

@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2010, Oracle and/or its affiliates
+# Copyright (c) 2006, 2013, Oracle and/or its affiliates
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -35,3 +35,8 @@ ADD_CONVENIENCE_LIBRARY(strings ${STRINGS_SOURCES})
 
 ADD_EXECUTABLE(conf_to_src EXCLUDE_FROM_ALL conf_to_src.c)
 TARGET_LINK_LIBRARIES(conf_to_src strings)
+
+INSTALL_DEBUG_SYMBOLS(strings)
+IF(MSVC)
+   INSTALL_DEBUG_TARGET(strings DESTINATION ${INSTALL_LIBDIR}/debug)
+ENDIF()

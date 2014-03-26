@@ -94,8 +94,8 @@ rw_lock_get_waiters(
 	const prio_rw_lock_t*	lock)	/*!< in: rw-lock */
 {
 	return rw_lock_get_waiters(&lock->base_lock)
-		| lock->high_priority_s_waiters
-		| lock->high_priority_x_waiters;
+		|| lock->high_priority_s_waiters
+		|| lock->high_priority_x_waiters;
 }
 
 /********************************************************************//**
@@ -619,32 +619,14 @@ rw_lock_s_unlock_func(
 	if (lock_word == 0) {
 
 		/* A waiting next-writer exists, either high priority or
-		regular.  Wake up the first waiter in this order: 1) high
-		priority next-writer; 2) high priority X waiters; 3) high
-		priority S waiters; 4) regular priority next-waiter.  This
-		allows high priority requests to overtake an already-waiting
-		regular priority next-waiter.  */
+		regular, sharing the same wait event.  */
 		if (lock->high_priority_wait_ex_waiter) {
 
 			lock->high_priority_wait_ex_waiter = 0;
-			/* Note that we do not have a separate high priority
-			next-waiter event.  There can be only one such waiter,
-			here we already know it's high priority, no
-			regular-priority wakeup may happen.  */
-			os_event_set(lock->base_lock.wait_ex_event);
-		} else if (lock->high_priority_x_waiters) {
-
-			lock->high_priority_x_waiters = 0;
-			os_event_set(lock->high_priority_x_event);
-		} else if (lock->high_priority_s_waiters) {
-
-			lock->high_priority_s_waiters = 0;
-			os_event_set(lock->high_priority_s_event);
-		} else {
-
-			os_event_set(lock->base_lock.wait_ex_event);
 		}
+		os_event_set(lock->base_lock.wait_ex_event);
 		sync_array_object_signalled();
+
 	} else if (lock_word == X_LOCK_DECR) {
 
 		/* S-waiters may exist during an S unlock if a high-priority
@@ -765,6 +747,8 @@ rw_lock_x_unlock_func(
 #endif
 						     &lock->base_lock);
 
+	ut_ad(lock->high_priority_wait_ex_waiter == 0);
+
 	if (rw_lock_lock_word_incr(&lock->base_lock, x_lock_incr)
 	    == X_LOCK_DECR) {
 
@@ -776,12 +760,10 @@ rw_lock_x_unlock_func(
 
 		if (lock->high_priority_x_waiters) {
 
-			lock->high_priority_x_waiters = 0;
 			os_event_set(lock->high_priority_x_event);
 			sync_array_object_signalled();
 		} else if (lock->high_priority_s_waiters) {
 
-			lock->high_priority_s_waiters = 0;
 			os_event_set(lock->high_priority_s_event);
 			sync_array_object_signalled();
 		} else if (lock->base_lock.waiters) {

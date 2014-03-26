@@ -102,8 +102,8 @@ study data.
 <br><a name="SEC3" href="#TOC1">RE-USING A PRECOMPILED PATTERN</a><br>
 <P>
 Re-using a precompiled pattern is straightforward. Having reloaded it into main
-memory, called <b>pcre[16|32]_pattern_to_host_byte_order()</b> if necessary,
-you pass its pointer to <b>pcre[16|32]_exec()</b> or <b>pcre[16|32]_dfa_exec()</b> in
+memory, called <b>pcre[16|32]_pattern_to_host_byte_order()</b> if necessary, you
+pass its pointer to <b>pcre[16|32]_exec()</b> or <b>pcre[16|32]_dfa_exec()</b> in
 the usual way.
 </P>
 <P>
@@ -119,6 +119,11 @@ in the
 documentation.
 </P>
 <P>
+<b>Warning:</b> The tables that <b>pcre_exec()</b> and <b>pcre_dfa_exec()</b> use
+must be the same as those that were used when the pattern was compiled. If this
+is not the case, the behaviour is undefined.
+</P>
+<P>
 If you did not provide custom character tables when the pattern was compiled,
 the pointer in the compiled pattern is NULL, which causes the matching
 functions to use PCRE's internal tables. Thus, you do not need to take any
@@ -126,9 +131,9 @@ special action at run time in this case.
 </P>
 <P>
 If you saved study data with the compiled pattern, you need to create your own
-<b>pcre[16|32]_extra</b> data block and set the <i>study_data</i> field to point to the
-reloaded study data. You must also set the PCRE_EXTRA_STUDY_DATA bit in the
-<i>flags</i> field to indicate that study data is present. Then pass the
+<b>pcre[16|32]_extra</b> data block and set the <i>study_data</i> field to point
+to the reloaded study data. You must also set the PCRE_EXTRA_STUDY_DATA bit in
+the <i>flags</i> field to indicate that study data is present. Then pass the
 <b>pcre[16|32]_extra</b> block to the matching function in the usual way. If the
 pattern was studied for just-in-time optimization, that data cannot be saved,
 and so is lost by a save/restore cycle.
@@ -149,9 +154,9 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC6" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 24 June 2012
+Last updated: 12 November 2013
 <br>
-Copyright &copy; 1997-2012 University of Cambridge.
+Copyright &copy; 1997-2013 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

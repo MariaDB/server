@@ -471,7 +471,7 @@ bool ha_tokudb::inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha
 
         // Set the new compression
         enum toku_compression_method method = row_type_to_compression_method((srv_row_format_t)create_info->option_struct->row_format);
-        uint32_t curr_num_DBs = table->s->keys + test(hidden_primary_key);
+        uint32_t curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
         for (uint32_t i = 0; i < curr_num_DBs; i++) {
             db = share->key_file[i];
             error = db->change_compression_method(db, method);
@@ -594,7 +594,7 @@ int ha_tokudb::alter_table_add_or_drop_column(TABLE *altered_table, Alter_inplac
     uint32_t max_column_extra_size;
     uint32_t num_column_extra;
     uint32_t num_columns = 0;
-    uint32_t curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint32_t curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
 
     uint32_t columns[table->s->fields + altered_table->s->fields]; // set size such that we know it is big enough for both cases
     memset(columns, 0, sizeof(columns));
@@ -721,7 +721,7 @@ bool ha_tokudb::commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_i
             restore_drop_indexes(table, index_drop_offsets, ha_alter_info->index_drop_count);
         }
         if (ctx->compression_changed) {
-            uint32_t curr_num_DBs = table->s->keys + test(hidden_primary_key);
+            uint32_t curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
             for (uint32_t i = 0; i < curr_num_DBs; i++) {
                 DB *db = share->key_file[i];
                 int error = db->change_compression_method(db, ctx->orig_compression_method);
@@ -746,7 +746,7 @@ int ha_tokudb::alter_table_expand_varchar_offsets(TABLE *altered_table, Alter_in
     int error = 0;
     tokudb_alter_ctx *ctx = static_cast<tokudb_alter_ctx *>(ha_alter_info->handler_ctx);
 
-    uint32_t curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint32_t curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     for (uint32_t i = 0; i < curr_num_DBs; i++) {
         // change to a new descriptor
         DBT row_descriptor; memset(&row_descriptor, 0, sizeof row_descriptor);
@@ -928,7 +928,7 @@ int ha_tokudb::alter_table_expand_one_column(TABLE *altered_table, Alter_inplace
         assert(0);
     }
 
-    uint32_t curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint32_t curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     for (uint32_t i = 0; i < curr_num_DBs; i++) {
         // change to a new descriptor
         DBT row_descriptor; memset(&row_descriptor, 0, sizeof row_descriptor);
@@ -1007,7 +1007,7 @@ int ha_tokudb::alter_table_expand_blobs(TABLE *altered_table, Alter_inplace_info
     int error = 0;
     tokudb_alter_ctx *ctx = static_cast<tokudb_alter_ctx *>(ha_alter_info->handler_ctx);
 
-    uint32_t curr_num_DBs = table->s->keys + test(hidden_primary_key);
+    uint32_t curr_num_DBs = table->s->keys + MY_TEST(hidden_primary_key);
     for (uint32_t i = 0; i < curr_num_DBs; i++) {
         // change to a new descriptor
         DBT row_descriptor; memset(&row_descriptor, 0, sizeof row_descriptor);

@@ -139,6 +139,7 @@ class DllExport TDBXML : public TDBASE {
   int     Coltype;                  // Default column type
   int     Limit;                    // Limit of multiple values
   int     Header;                   // n first rows are header rows
+  int     Multiple;                 // If multiple files
   int     Nrow;                     // The table cardinality
   int     Irow;                     // The current row index
   int     Nsub;                     // The current subrow index

@@ -280,8 +280,8 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   int2store(forminfo+2, frm.length - filepos);
   int4store(fileinfo+10, frm.length);
-  fileinfo[26]= (uchar) test((create_info->max_rows == 1) &&
-			     (create_info->min_rows == 1) && (keys == 0));
+  fileinfo[26]= (uchar) MY_TEST((create_info->max_rows == 1) &&
+                                (create_info->min_rows == 1) && (keys == 0));
   int2store(fileinfo+28,key_info_length);
 
   if (part_info)
@@ -898,7 +898,7 @@ static bool pack_fields(uchar *buff, List<Create_field> &create_fields,
       */
       if (field->vcol_info && field->vcol_info->expr_str.length)
       {
-        *buff++= (uchar)(1 + test(field->interval));
+        *buff++= (uchar) (1 + MY_TEST(field->interval));
         *buff++= (uchar) field->sql_type;
         *buff++= (uchar) field->stored_in_db;
         if (field->interval)
