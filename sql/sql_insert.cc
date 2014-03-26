@@ -3636,16 +3636,6 @@ void select_insert::store_values(List<Item> &values)
                                          TRG_EVENT_INSERT);
 }
 
-void select_insert::send_error(uint errcode,const char *err)
-{
-  DBUG_ENTER("select_insert::send_error");
-
-  my_message(errcode, err, MYF(0));
-
-  DBUG_VOID_RETURN;
-}
-
-
 bool select_insert::send_eof()
 {
   int error;
@@ -4195,36 +4185,6 @@ void select_create::store_values(List<Item> &values)
 {
   fill_record_n_invoke_before_triggers(thd, table, field, values, 1,
                                        TRG_EVENT_INSERT);
-}
-
-
-void select_create::send_error(uint errcode,const char *err)
-{
-  DBUG_ENTER("select_create::send_error");
-
-  DBUG_PRINT("info",
-             ("Current statement %s row-based",
-              thd->is_current_stmt_binlog_format_row() ? "is" : "is NOT"));
-  DBUG_PRINT("info",
-             ("Current table (at 0x%lu) %s a temporary (or non-existant) table",
-              (ulong) table,
-              table && !table->s->tmp_table ? "is NOT" : "is"));
-  /*
-    This will execute any rollbacks that are necessary before writing
-    the transcation cache.
-
-    We disable the binary log since nothing should be written to the
-    binary log.  This disabling is important, since we potentially do
-    a "roll back" of non-transactional tables by removing the table,
-    and the actual rollback might generate events that should not be
-    written to the binary log.
-
-  */
-  tmp_disable_binlog(thd);
-  select_insert::send_error(errcode, err);
-  reenable_binlog(thd);
-
-  DBUG_VOID_RETURN;
 }
 
 
