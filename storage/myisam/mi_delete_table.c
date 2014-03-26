@@ -20,44 +20,47 @@
 
 #include "fulltext.h"
 
-int mi_delete_table(const char *name)
+static int delete_one_file(const char *name, const char *ext,
+                           PSI_file_key pskey, myf flags)
 {
   char from[FN_REFLEN];
+  DBUG_ENTER("delete_one_file");
+  fn_format(from,name, "", ext, MY_UNPACK_FILENAME | MY_APPEND_EXT);
+  if (my_is_symlink(from) && (*myisam_test_invalid_symlink)(from))
+  {
+    /*
+      Symlink is pointing to file in data directory.
+      Remove symlink, keep file.
+    */
+    if (mysql_file_delete(pskey, from, flags))
+      DBUG_RETURN(my_errno);
+  }
+  else
+  {
+    if (mysql_file_delete_with_symlink(pskey, from, flags))
+      DBUG_RETURN(my_errno);
+  }
+  DBUG_RETURN(0);
+}
+
+int mi_delete_table(const char *name)
+{
+  int res;
   DBUG_ENTER("mi_delete_table");
 
 #ifdef EXTRA_DEBUG
   check_table_is_closed(name,"delete");
 #endif
 
-  fn_format(from,name,"",MI_NAME_IEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  if (my_is_symlink(from) && (*myisam_test_invalid_symlink)(from))
-  {
-    /*
-      Symlink is pointing to file in data directory.
-      Remove symlink, keep file.
-    */
-    if (mysql_file_delete(mi_key_file_kfile, from, MYF(MY_WME)))
-      DBUG_RETURN(my_errno);
-  }
-  else
-  {
-    if (mysql_file_delete_with_symlink(mi_key_file_kfile, from, MYF(MY_WME)))
-      DBUG_RETURN(my_errno);
-  }
-  fn_format(from,name,"",MI_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  if (my_is_symlink(from) && (*myisam_test_invalid_symlink)(from))
-  {
-    /*
-      Symlink is pointing to file in data directory.
-      Remove symlink, keep file.
-    */
-    if (mysql_file_delete(mi_key_file_dfile, from, MYF(MY_WME)))
-      DBUG_RETURN(my_errno);
-  }
-  else
-  {
-    if (mysql_file_delete_with_symlink(mi_key_file_dfile, from, MYF(MY_WME)))
-      DBUG_RETURN(my_errno);
-  }
+  if ((res= delete_one_file(name, MI_NAME_IEXT, mi_key_file_kfile, MYF(MY_WME))))
+    DBUG_RETURN(res);
+  if ((res= delete_one_file(name, MI_NAME_DEXT, mi_key_file_dfile, MYF(MY_WME))))
+    DBUG_RETURN(res);
+
+  // optionally present:
+  delete_one_file(name, ".OLD", mi_key_file_dfile, MYF(0));
+  delete_one_file(name, ".TMD", mi_key_file_dfile, MYF(0));
+
   DBUG_RETURN(0);
 }
+
