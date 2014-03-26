@@ -4559,6 +4559,9 @@ err:
   Create a table
 
   @param thd                 Thread object
+  @param orig_db             Database for error messages
+  @param orig_table_name     Table name for error messages
+                             (it's different from table_name for ALTER TABLE)
   @param db                  Database
   @param table_name          Table name
   @param path                Path to table (i.e. to its .FRM file without
@@ -4587,6 +4590,7 @@ err:
 
 static
 int create_table_impl(THD *thd,
+                       const char *orig_db, const char *orig_table_name,
                        const char *db, const char *table_name,
                        const char *path,
                        HA_CREATE_INFO *create_info,
@@ -4767,8 +4771,9 @@ int create_table_impl(THD *thd,
   }
   else
   {
-    file= mysql_create_frm_image(thd, db, table_name, create_info, alter_info,
-                                 create_table_mode, key_info, key_count, frm);
+    file= mysql_create_frm_image(thd, orig_db, orig_table_name, create_info,
+                                 alter_info, create_table_mode, key_info,
+                                 key_count, frm);
     if (!file)
       goto err;
     if (rea_create_table(thd, frm, path, db, table_name, create_info,
@@ -4884,9 +4889,9 @@ int mysql_create_table_no_lock(THD *thd,
     }
   }
 
-  res= create_table_impl(thd, db, table_name, path, create_info,
-                         alter_info, create_table_mode, is_trans,
-                         &not_used_1, &not_used_2, &frm);
+  res= create_table_impl(thd, db, table_name, db, table_name, path,
+                         create_info, alter_info, create_table_mode,
+                         is_trans, &not_used_1, &not_used_2, &frm);
   my_free(const_cast<uchar*>(frm.str));
   return res;
 }
@@ -8514,7 +8519,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   tmp_disable_binlog(thd);
   create_info->options|=HA_CREATE_TMP_ALTER;
-  error= create_table_impl(thd, alter_ctx.new_db, alter_ctx.tmp_name,
+  error= create_table_impl(thd,
+                           alter_ctx.db, alter_ctx.table_name,
+                           alter_ctx.new_db, alter_ctx.tmp_name,
                            alter_ctx.get_tmp_path(),
                            create_info, alter_info,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
