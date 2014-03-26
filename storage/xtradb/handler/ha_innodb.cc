@@ -147,26 +147,6 @@ extern bool wsrep_prepare_key_for_innodb(const uchar *cache_key,
 extern handlerton * wsrep_hton;
 extern TC_LOG* tc_log;
 extern void wsrep_cleanup_transaction(THD *thd);
-
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal);
-static void
-wsrep_fake_trx_id(handlerton* hton, THD *thd);
-static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
-static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
-
-#ifdef WITH_WSREP
-dict_index_t*
-wsrep_dict_foreign_find_index(
-	dict_table_t*	table,
-	const char**	col_names,
-	const char**	columns,
-	ulint		n_cols,
-	dict_index_t*	types_idx,
-	ibool		check_charsets,
-	ulint		check_null);
-
 #endif /* WITH_WSREP */
 /** to protect innobase_open_files */
 static mysql_mutex_t innobase_share_mutex;
@@ -1447,10 +1427,9 @@ innobase_srv_conc_enter_innodb(
 	trx_t*	trx)	/*!< in: transaction handle */
 {
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
+	if (wsrep_on(trx->mysql_thd) && 
 	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
 #endif /* WITH_WSREP */
-
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
 
@@ -1482,14 +1461,13 @@ innobase_srv_conc_exit_innodb(
 /*==========================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
-#ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
-	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
-#endif /* WITH_WSREP */
-
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
+#endif /* WITH_WSREP */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
@@ -1672,6 +1650,15 @@ innobase_release_temporary_latches(
 	return(0);
 }
 
+#ifdef WITH_WSREP
+static int 
+wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd, 
+			my_bool signal);
+static void
+wsrep_fake_trx_id(handlerton* hton, THD *thd);
+static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
+static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
+#endif
 /********************************************************************//**
 Increments innobase_active_counter and every INNOBASE_WAKE_INTERVALth
 time calls srv_active_wake_master_thread. This function should be used
@@ -3920,6 +3907,11 @@ innobase_commit_low(
 /*================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
+	if (trx_is_started(trx)) {
+
+		trx_commit_for_mysql(trx);
+	}
+
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
@@ -3937,11 +3929,6 @@ innobase_commit_low(
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
-
-	if (trx_is_started(trx)) {
-
-		trx_commit_for_mysql(trx);
-	}
 
 #ifdef WITH_WSREP
 	if (wsrep_on((void*)thd)) { thd_proc_info(thd, tmp); }
@@ -6000,8 +5987,13 @@ wsrep_innobase_mysql_sort(
 		ut_a(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
+		//tmp_length = charset->coll->strnxfrm(charset, str, str_length,
+		//				     tmp_str, str_length);
+		/* Note: in MySQL 5.6:
+		 */
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
-						     str_length, tmp_str, tmp_length, 0);
+				     str_length, tmp_str, tmp_length, 0);
+		/**/
 		DBUG_ASSERT(tmp_length == str_length);
  
 		break;
@@ -6543,10 +6535,10 @@ innobase_read_from_2_little_endian(
 	return((uint) ((ulint)(buf[0]) + 256 * ((ulint)(buf[1]))));
 }
 
-#ifdef WITH_WSREP
 /*******************************************************************//**
 Stores a key value for a row to a buffer.
 @return	key value length as stored in buff */
+#ifdef WITH_WSREP
 UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
@@ -8506,7 +8498,8 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (!err && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	if (error == DB_SUCCESS                          && 
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
             wsrep_on(user_thd)) {
 
 		DBUG_PRINT("wsrep", ("update row key"));
@@ -9777,9 +9770,18 @@ ha_innobase::ft_end()
 
 	rnd_end();
 }
+#ifdef WITH_WSREP
+extern dict_index_t*
+wsrep_dict_foreign_find_index(
+	dict_table_t*	table,
+	const char**	columns,
+	ulint		n_cols,
+	dict_index_t*	types_idx,
+	ibool		check_charsets,
+	ulint		check_null);
 
-extern
-dberr_t
+
+extern dberr_t
 wsrep_append_foreign_key(
 /*===========================*/
 	trx_t*		trx,		/*!< in: trx */
@@ -9809,7 +9811,7 @@ wsrep_append_foreign_key(
 			((!foreign->referenced_table) ?
 			     "referenced table" : "foreign table")),
 			   (thd && wsrep_thd_query(thd)) ?
- 			   wsrep_thd_query(thd) : "void");
+			   wsrep_thd_query(thd) : "void");
 		return DB_ERROR;
 	}
 
@@ -10004,7 +10006,7 @@ wsrep_append_key(
 		WSREP_WARN("Appending row key failed: %s, %d",
 			   (wsrep_thd_query(thd)) ?
 			   wsrep_thd_query(thd) : "void", rcode);
-		DBUG_RETURN(-1);
+		DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 	}
 	DBUG_RETURN(0);
 }
@@ -17831,8 +17833,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
-		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal);
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu", 
 			    victim_trx->id);
 
@@ -17849,6 +17849,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			case WSREP_WARNING:
 				WSREP_DEBUG("cancel commit warning: %llu",
 					    victim_trx->id);
+				wsrep_thd_UNLOCK(thd);
+				wsrep_thd_awake(thd, signal);
 				DBUG_RETURN(1);
 				break;
 			case WSREP_OK:
@@ -17866,6 +17868,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				break;
 			}
 		}
+		wsrep_thd_UNLOCK(thd);
+		wsrep_thd_awake(thd, signal);
 		break;
 	case QUERY_EXEC:
 		/* it is possible that victim trx is itself waiting for some 
@@ -17884,7 +17888,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
-			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
@@ -17892,7 +17895,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
                                             wsrep_thd_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
-			wsrep_thd_UNLOCK(thd);
 			/* Note that innobase_kill_connection will take lock_mutex
 			and trx_mutex */
 			wsrep_thd_awake(thd, signal);
@@ -17951,16 +17953,15 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_DEBUG("signaling aborter");
 		mysql_cond_signal(&COND_wsrep_rollback);
 		mysql_mutex_unlock(&LOCK_wsrep_rollback);
-		wsrep_thd_UNLOCK(thd);
 
 		break;
 	}
 	default:
 		WSREP_WARN("bad wsrep query state: %d", 
 			  wsrep_thd_query_state(thd));
-		wsrep_thd_UNLOCK(thd);
 		break;
 	}
+	wsrep_thd_UNLOCK(thd);
      
 	DBUG_RETURN(0);
 }

@@ -41,10 +41,10 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0bh.h"
 #include "read0types.h"
 #include "page0types.h"
+#include "ut0bh.h"
 #ifdef WITH_WSREP
 #include "trx0xa.h"
 #endif /* WITH_WSREP */
-#include "ut0bh.h"
 
 typedef UT_LIST_BASE_NODE_T(trx_t) trx_list_t;
 
@@ -328,6 +328,19 @@ UNIV_INTERN
 void
 trx_sys_print_mysql_binlog_offset(void);
 /*===================================*/
+#ifdef WITH_WSREP
+/** Update WSREP checkpoint XID in sys header. */
+void
+trx_sys_update_wsrep_checkpoint(
+        const XID*      xid,         /*!< in: WSREP XID */
+        trx_sysf_t*     sys_header,  /*!< in: sys_header */
+        mtr_t*          mtr);        /*!< in: mtr       */
+
+void
+/** Read WSREP checkpoint XID from sys header. */
+trx_sys_read_wsrep_checkpoint(
+        XID* xid); /*!< out: WSREP XID */
+#endif /* WITH_WSREP */
 /*****************************************************************//**
 Prints to stderr the MySQL master log offset info in the trx system header if
 the magic number shows it valid. */
@@ -485,19 +498,6 @@ trx_sys_validate_trx_list(void);
 /*===========================*/
 #endif /* UNIV_DEBUG */
 
-#ifdef WITH_WSREP
-/** Update WSREP checkpoint XID in sys header. */
-void
-trx_sys_update_wsrep_checkpoint(
-        const XID*      xid,  /*!< in: WSREP XID */
-        trx_sysf_t*     sys_header,  /*!< in: sys_header */
-        mtr_t*          mtr); /*!< in: mtr       */
-void
-/** Read WSREP checkpoint XID from sys header. */
-trx_sys_read_wsrep_checkpoint(
-        XID* xid); /*!< out: WSREP XID */
-#endif /* WITH_WSREP */
-
 /* The automatically created system rollback segment has this id */
 #define TRX_SYS_SYSTEM_RSEG_ID	0
 
@@ -570,10 +570,8 @@ this contains the same fields as TRX_SYS_MYSQL_LOG_INFO below */
 #define TRX_SYS_MYSQL_LOG_NAME		12	/*!< MySQL log file name */
 
 #ifdef WITH_WSREP
-/* We hijack TRX_SYS_MYSQL_MASTER_LOG_INFO, it seems to be completely unused
-   otherwise (see comments for MySQL bug #34058). */
-/** */
-#define TRX_SYS_WSREP_XID_INFO TRX_SYS_MYSQL_MASTER_LOG_INFO
+/* The offset to WSREP XID headers */
+#define TRX_SYS_WSREP_XID_INFO (UNIV_PAGE_SIZE - 3500)
 #define TRX_SYS_WSREP_XID_MAGIC_N_FLD 0
 #define TRX_SYS_WSREP_XID_MAGIC_N 0x77737265
 

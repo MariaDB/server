@@ -1190,12 +1190,12 @@ trx_write_serialisation_history(
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
 #ifdef WITH_WSREP
-        sys_header = trx_sysf_get(mtr);
-        /* Update latest MySQL wsrep XID in trx sys header. */
-        if (wsrep_is_wsrep_xid((const void *)&trx->xid))
-        {
-            trx_sys_update_wsrep_checkpoint(&trx->xid, sys_header, mtr);
-        }
+	sys_header = trx_sysf_get(&mtr);
+	/* Update latest MySQL wsrep XID in trx sys header. */
+	if (wsrep_is_wsrep_xid(&trx->xid))
+	{
+		trx_sys_update_wsrep_checkpoint(&trx->xid, sys_header, &mtr);
+	}
 #endif /* WITH_WSREP */
 
 	/* Update the latest MySQL binlog name and offset info
@@ -1516,8 +1516,6 @@ trx_commit_in_memory(
 	ut_ad(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 	ut_ad(!trx->in_ro_trx_list);
 	ut_ad(!trx->in_rw_trx_list);
-
-	trx->dict_operation = TRX_DICT_OP_NONE;
 
 #ifdef WITH_WSREP
 	if (wsrep_on(trx->mysql_thd)) {

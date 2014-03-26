@@ -285,6 +285,19 @@ innobase_casedn_str(
 /*================*/
 	char*	a);	/*!< in/out: string to put in lower case */
 
+#ifdef WITH_WSREP
+UNIV_INTERN
+int
+wsrep_innobase_kill_one_trx(void *thd_ptr,
+                            const trx_t *bf_trx, trx_t *victim_trx, ibool signal);
+extern "C" int wsrep_thd_is_brute_force(void *thd_ptr);
+int wsrep_trx_order_before(void *thd1, void *thd2);
+void wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
+			       unsigned char* str, unsigned int str_length);
+int 
+wsrep_on(void *thd_ptr);
+extern "C" int wsrep_is_wsrep_xid(const void*);
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Determines the connection character set.
 @return	connection character set */
@@ -375,21 +388,6 @@ thd_flush_log_at_trx_commit(
 /*================================*/
 	void*	thd);
 
-#ifdef WITH_WSREP
-UNIV_INTERN
-int
-wsrep_innobase_kill_one_trx(void *thd_ptr,
-                            const trx_t *bf_trx, trx_t *victim_trx, ibool signal);
-
-extern "C" int wsrep_thd_is_brute_force(void *thd_ptr);
-int wsrep_trx_order_before(void *thd1, void *thd2);
-void wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
-			       unsigned char* str, unsigned int str_length);
-//UNIV_INTERN
-int 
-wsrep_on(void *thd_ptr);
-extern "C" int wsrep_is_wsrep_xid(const void*);
-#endif /* WITH_WSREP */
 /**********************************************************************//**
 Get the current setting of the lower_case_table_names global parameter from
 mysqld.cc. We do a dirty read because for one there is no synchronization

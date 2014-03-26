@@ -16826,7 +16826,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
-			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
@@ -16834,7 +16833,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
                                             wsrep_thd_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
-			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake(thd, signal);
 
 			/* for BF thd, we need to prevent him from committing */
@@ -16891,16 +16889,15 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_DEBUG("signaling aborter");
 		mysql_cond_signal(&COND_wsrep_rollback);
 		mysql_mutex_unlock(&LOCK_wsrep_rollback);
-		wsrep_thd_UNLOCK(thd);
 
 		break;
 	}
 	default:
 		WSREP_WARN("bad wsrep query state: %d", 
 			  wsrep_thd_query_state(thd));
-		wsrep_thd_UNLOCK(thd);
 		break;
 	}
+	wsrep_thd_UNLOCK(thd);
      
 	DBUG_RETURN(0);
 }
