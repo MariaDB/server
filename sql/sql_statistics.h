@@ -302,16 +302,27 @@ public:
           (max + 1 == get_width() ?  1.0 : (get_value(max) * inv_prec_factor)) -
           (min == 0 ?  0.0 : (get_value(min-1) * inv_prec_factor));
 
-      /*
-        So:
-        - each bucket has the same #rows 
-        - values are unformly distributed across the [min_value,max_value] domain.
+      if (current_bucket_width < 1e-16)
+      {
+        /*
+          A special case: we are at the first (or the last) bucket in the
+          histogram, the bucket's value range is a singlepoint [x,x], and 
+          pos_value=0 (for the first bucket) or pos_value=1 (for the last).
+        */
+        sel= avg_sel;
+      }
+      else
+      {
+        /*
+          So:
+          - each bucket has the same #rows 
+          - values are unformly distributed across the [min_value,max_value] domain.
 
-        If a bucket has value range that's N times bigger then average, than
-        each value will have to have N times fewer rows than average.
-      */
-      DBUG_ASSERT(current_bucket_width);
-      sel= avg_sel * avg_bucket_width / current_bucket_width;
+          If a bucket has value range that's N times bigger then average, than
+          each value will have to have N times fewer rows than average.
+        */
+        sel= avg_sel * avg_bucket_width / current_bucket_width;
+      }
 
       /*
         (Q: if we just follow this proportion we may end up in a situation
