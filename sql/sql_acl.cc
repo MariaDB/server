@@ -11728,9 +11728,6 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
       mpvio->cached_client_reply.pkt= 0;
       mpvio->packets_read++;
 
-      if (mpvio->make_it_fail)
-        goto err;
-
       DBUG_RETURN ((int) mpvio->cached_client_reply.pkt_len);
     }
 
@@ -11765,21 +11762,13 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
   else
     *buf= mpvio->thd->net.read_pos;
 
-  if (mpvio->make_it_fail)
-    goto err;
-
   DBUG_RETURN((int)pkt_len);
 
 err:
   if (mpvio->status == MPVIO_EXT::FAILURE)
   {
     if (!mpvio->thd->is_error())
-    {
-      if (mpvio->make_it_fail)
-        login_failed_error(mpvio->thd);
-      else
-        my_error(ER_HANDSHAKE_ERROR, MYF(0));
-    }
+      my_error(ER_HANDSHAKE_ERROR, MYF(0));
   }
   DBUG_RETURN(-1);
 }
@@ -12044,7 +12033,7 @@ bool acl_authenticate(THD *thd, uint connect_errors,
     auth_plugin_name= &mpvio.acl_user->plugin;
     res= do_auth_once(thd, auth_plugin_name, &mpvio);
   }
-  if (mpvio.make_it_fail)
+  if (mpvio.make_it_fail && res == CR_OK)
   {
     mpvio.status= MPVIO_EXT::FAILURE;
     res= CR_ERROR;
@@ -12341,6 +12330,8 @@ static int native_password_authenticate(MYSQL_PLUGIN_VIO *vio,
 #ifdef NO_EMBEDDED_ACCESS_CHECKS
   DBUG_RETURN(CR_OK);
 #endif
+
+  DBUG_EXECUTE_IF("native_password_bad_reply", { pkt_len= 12; });
 
   if (pkt_len == 0) /* no password */
     DBUG_RETURN(mpvio->acl_user->salt_len != 0 ? CR_AUTH_USER_CREDENTIALS : CR_OK);
