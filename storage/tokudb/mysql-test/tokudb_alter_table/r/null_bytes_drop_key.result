@@ -49,8 +49,5 @@ UPDATE t SET c27=0;
 set tokudb_disable_hot_alter=0;
 set tokudb_disable_slow_alter=1;
 ALTER TABLE t DROP KEY c25;
-ERROR 42000: Table 't' uses an extension that doesn't exist in this MySQL version
-set tokudb_disable_slow_alter=0;
-ALTER TABLE t DROP KEY c25;
 UPDATE t SET c27=0;
 drop table t;
