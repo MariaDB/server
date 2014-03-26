@@ -481,8 +481,6 @@ static void wsrep_init_position()
   }
 }
 
-extern char* my_bind_addr_str;
-
 int wsrep_init()
 {
   int rcode= -1;

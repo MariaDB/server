@@ -4628,6 +4628,7 @@ err_during_init:
     }
   }
 #endif /* WITH_WSREP */
+
   DBUG_LEAVE;                                   // Must match DBUG_ENTER()
   my_thread_end();
 #ifdef HAVE_OPENSSL

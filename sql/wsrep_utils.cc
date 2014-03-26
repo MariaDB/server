@@ -321,6 +321,8 @@ thd::~thd ()
 /* Returns INADDR_NONE, INADDR_ANY, INADDR_LOOPBACK or something else */
 unsigned int wsrep_check_ip (const char* const addr)
 {
+  if (addr && 0 == strcasecmp(addr, MY_BIND_ALL_ADDRESSES)) return INADDR_ANY;
+
   unsigned int ret = INADDR_NONE;
   struct addrinfo *res, hints;
 
@@ -360,9 +362,6 @@ unsigned int wsrep_check_ip (const char* const addr)
 
   return ret;
 }
-
-extern char* my_bind_addr_str;
-extern uint        mysqld_port;
 
 size_t wsrep_guess_ip (char* buf, size_t buf_len)
 {
