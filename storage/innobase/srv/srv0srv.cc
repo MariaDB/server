@@ -2399,27 +2399,6 @@ suspend_thread:
 	OS_THREAD_DUMMY_RETURN;	/* Not reached, avoid compiler warning */
 }
 
-#ifdef WITH_WSREP_TODO
-/*********************************************************************//**
-check if lock timeout was for priority thread,
-as a side effect trigger lock monitor
-@return	false for regular lock timeout */
-static ibool
-wsrep_is_BF_lock_timeout(
-/*====================*/
-	 srv_slot_t*	slot) /* in: lock slot to check for lock priority */
-{
-	if (wsrep_on(thr_get_trx(slot->thr)->mysql_thd) &&
-	    wsrep_thd_is_brute_force((thr_get_trx(slot->thr))->mysql_thd)) {
-		fprintf(stderr, "WSREP: BF lock wait long\n");
-		srv_print_innodb_monitor 	= TRUE;
-		srv_print_innodb_lock_monitor 	= TRUE;
-		os_event_set(lock_sys->timeout_event);
-		return TRUE;
-	}
-	return FALSE;
- }
-#endif /* WITH_WSREP_TODO */
 /*********************************************************************//**
 Check if purge should stop.
 @return true if it should shutdown. */

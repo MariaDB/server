@@ -184,6 +184,28 @@ lock_wait_table_reserve_slot(
 	return(NULL);
 }
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+check if lock timeout was for priority thread, 
+as a side effect trigger lock monitor
+@return        false for regular lock timeout */
+static ibool
+wsrep_is_BF_lock_timeout(
+/*====================*/
+    trx_t* trx) /* in: trx to check for lock priority */
+{
+       if (wsrep_on(trx->mysql_thd) &&
+           wsrep_thd_is_brute_force(trx->mysql_thd)) {
+               fprintf(stderr, "WSREP: BF lock wait long\n");
+                srv_print_innodb_monitor       = TRUE;
+                srv_print_innodb_lock_monitor  = TRUE;
+                os_event_set(srv_monitor_event);
+                return TRUE;
+       }
+       return FALSE;
+ }
+#endif /* WITH_WSREP */
+
 /***************************************************************//**
 Puts a user OS thread to wait for a lock to be released. If an error
 occurs during the wait trx->error_state associated with thr is
@@ -350,9 +372,15 @@ lock_wait_suspend_thread(
 
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
+#ifdef WITH_WSREP
+                if (!wsrep_is_BF_lock_timeout(trx)) {
+#endif /* WITH_WSREP */
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 
+#ifdef WITH_WSREP
+                }
+#endif /* WITH_WSREP */
 		MONITOR_INC(MONITOR_TIMEOUT);
 	}
 
@@ -436,8 +464,13 @@ lock_wait_check_and_cancel(
 		if (trx->lock.wait_lock) {
 
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
-
+#ifdef WITH_WSREP
+                        if (!wsrep_is_BF_lock_timeout(trx)) {
+#endif /* WITH_WSREP */
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
+#ifdef WITH_WSREP
+                        }
+#endif /* WITH_WSREP */
 		}
 
 		lock_mutex_exit();
