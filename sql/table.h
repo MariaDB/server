@@ -979,6 +979,9 @@ struct TABLE_SHARE
   */
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
 
+  bool write_frm_image(void)
+  { return frm_image ? write_frm_image(frm_image->str, frm_image->length) : 0; }
+
   /*
     returns an frm image for this table.
     the memory is allocated and must be freed later

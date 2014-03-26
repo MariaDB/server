@@ -5,6 +5,7 @@ CREATE TABLE foo (c1 int not null primary key) engine=TokuDB;
 SELECT CREATE_OPTIONS 
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
 CREATE_OPTIONS
+`compression`='tokudb_zlib'
 SHOW CREATE TABLE foo;
 Table	Create Table
 foo	CREATE TABLE `foo` (

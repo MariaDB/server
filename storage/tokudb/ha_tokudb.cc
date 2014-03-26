@@ -6861,6 +6861,12 @@ int ha_tokudb::create(const char *name, TABLE * form, HA_CREATE_INFO * create_in
     THD* thd = ha_thd();
     memset(&kc_info, 0, sizeof(kc_info));
 
+    // TokuDB does not support discover_table_names() and writes no files
+    // in the database directory, so automatic filename-based
+    // discover_table_names() doesn't work either. So, it must force .frm
+    // file to disk.
+    form->s->write_frm_image();
+
     trx = (tokudb_trx_data *) thd_data_get(ha_thd(), tokudb_hton->slot);
 
     const srv_row_format_t row_type= (srv_row_format_t)form->s->option_struct->row_format;
