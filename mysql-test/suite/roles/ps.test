@@ -1,0 +1,4 @@
+#
+# MDEV-5521 SET ROLE as prepared statement crashes the server
+#
+PREPARE stmt FROM 'SET ROLE NONE';

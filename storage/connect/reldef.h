@@ -87,7 +87,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
 
  protected:
   // Members
-  PSZ     Owner;                /* Table owner (for ODBC)              */
+  PSZ     Schema;               /* Table schema (for ODBC)             */
   PSZ     Desc;                 /* Table description                   */
   uint    Catfunc;              /* Catalog function ID                 */
   int     Card;                 /* (max) number of rows in table       */
@@ -149,6 +149,7 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   PSZ  GetFmt(void) {return Fmt;}
   int  GetOpt(void) {return Opt;}
   int  GetLong(void) {return Long;}
+  int  GetPrecision(void) {return Precision;}
   int  GetOffset(void) {return Offset;}
   void SetOffset(int offset) {Offset = offset;}
 
@@ -161,7 +162,8 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   int     Offset;             /* Offset of field within record         */
   int     Long;               /* Length of field in file record (!BIN) */
   int     Key;                /* Key (greater than 1 if multiple)      */
-  int     Prec;               /* Precision for float values            */
+  int     Precision;          /* Logical column length                 */
+  int     Scale;              /* Decimals for float/decimal values     */
   int     Opt;                /* 0:Not 1:clustered 2:sorted-asc 3:desc */
   char    DataType;           /* Internal data type (C, N, F, T)       */
   }; // end of COLCRT

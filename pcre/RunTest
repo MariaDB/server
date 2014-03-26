@@ -14,11 +14,11 @@
 # UTF-8 with the UTF-8 check turned off; for this, studying must also be
 # disabled with /SS.
 #
-# When JIT support is available, all the tests are also run with -s+ to test
-# (again, almost) everything with studying and the JIT option, unless "nojit"
-# is given on the command line. There are also two tests for JIT-specific
-# features, one to be run when JIT support is available (unless "nojit" is
-# specified), and one when it is not.
+# When JIT support is available, all appropriate tests are also run with -s+ to
+# test (again, almost) everything with studying and the JIT option, unless
+# "nojit" is given on the command line. There are also two tests for
+# JIT-specific features, one to be run when JIT support is available (unless
+# "nojit" is specified), and one when it is not.
 #
 # Whichever of the 8-, 16- and 32-bit libraries exist are tested. It is also
 # possible to select which to test by giving "-8", "-16" or "-32" on the
@@ -30,9 +30,13 @@
 # runs tests 3 to 15, excluding test 10, and just "~10" runs all the tests
 # except test 10. Whatever order the arguments are in, the tests are always run
 # in numerical order.
-
+#
+# Inappropriate tests are automatically skipped (with a comment to say so): for
+# example, if JIT support is not compiled, test 12 is skipped, whereas if JIT
+# support is compiled, test 13 is skipped.
+#
 # Other arguments can be one of the words "valgrind", "valgrind-log", or "sim"
-# followed by an argument to run cross- compiled executables under a simulator,
+# followed by an argument to run cross-compiled executables under a simulator,
 # for example:
 #
 # RunTest 3 sim "qemu-arm -s 8388608"
@@ -62,8 +66,8 @@ title8="Test 8: DFA matching main functionality"
 title9="Test 9: DFA matching with UTF"
 title10="Test 10: DFA matching with Unicode properties"
 title11="Test 11: Internal offsets and code size tests"
-title12="Test 12: JIT-specific features (JIT available)"
-title13="Test 13: JIT-specific features (JIT not available)"
+title12="Test 12: JIT-specific features (when JIT is available)"
+title13="Test 13: JIT-specific features (when JIT is not available)"
 title14="Test 14: Specials for the basic 8-bit library"
 title15="Test 15: Specials for the 8-bit library with UTF-8 support"
 title16="Test 16: Specials for the 8-bit library with Unicode propery support"
@@ -350,79 +354,6 @@ if [ $jit -ne 0 -a "$nojit" != "yes" ] ; then
   jitopt=-s+
 fi
 
-# Handle any explicit skips
-
-for i in $skip; do eval do$i=no; done
-
-# If any unsuitable tests were explicitly requested, grumble.
-
-if [ $utf -eq 0 ] ; then
-  if [ $do4 = yes ] ; then
-    echo "Can't run test 4 because UTF support is not configured"
-    exit 1
-  fi
-  if [ $do5 = yes ] ; then
-    echo "Can't run test 5 because UTF support is not configured"
-    exit 1
-  fi
-  if [ $do9 = yes ] ; then
-    echo "Can't run test 8 because UTF support is not configured"
-    exit 1
-  fi
-  if [ $do15 = yes ] ; then
-    echo "Can't run test 15 because UTF support is not configured"
-    exit 1
-  fi
-  if [ $do18 = yes ] ; then
-    echo "Can't run test 18 because UTF support is not configured"
-  fi
-  if [ $do22 = yes ] ; then
-    echo "Can't run test 22 because UTF support is not configured"
-  fi
-fi
-
-if [ $ucp -eq 0 ] ; then
-  if [ $do6 = yes ] ; then
-    echo "Can't run test 6 because Unicode property support is not configured"
-    exit 1
-  fi
-  if [ $do7 = yes ] ; then
-    echo "Can't run test 7 because Unicode property support is not configured"
-    exit 1
-  fi
-  if [ $do10 = yes ] ; then
-    echo "Can't run test 10 because Unicode property support is not configured"
-    exit 1
-  fi
-  if [ $do16 = yes ] ; then
-    echo "Can't run test 16 because Unicode property support is not configured"
-    exit 1
-  fi
-  if [ $do19 = yes ] ; then
-    echo "Can't run test 19 because Unicode property support is not configured"
-    exit 1
-  fi
-fi
-
-if [ $link_size -ne 2 ] ; then
-  if [ $do11 = yes ] ; then
-    echo "Can't run test 11 because the link size ($link_size) is not 2"
-    exit 1
-  fi
-fi
-
-if [ $jit -eq 0 ] ; then
-  if [ $do12 = "yes" ] ; then
-    echo "Can't run test 12 because JIT support is not configured"
-    exit 1
-  fi
-else
-  if [ $do13 = "yes" ] ; then
-    echo "Can't run test 13 because JIT support is configured"
-    exit 1
-  fi
-fi
-
 # If no specific tests were requested, select all. Those that are not
 # relevant will be automatically skipped.
 
@@ -461,8 +392,8 @@ if [ $do1  = no -a $do2  = no -a $do3  = no -a $do4  = no -a \
   do26=yes
 fi
 
-# Handle any explicit skips (again, so that an argument list may consist only
-# of explicit skips).
+# Handle any explicit skips at this stage, so that an argument list may consist
+# only of explicit skips.
 
 for i in $skip; do eval do$i=no; done
 

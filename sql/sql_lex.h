@@ -1152,7 +1152,7 @@ public:
   }
   bool requires_prelocking()
   {
-    return test(query_tables_own_last);
+    return MY_TEST(query_tables_own_last);
   }
   void mark_as_requiring_prelocking(TABLE_LIST **tables_own_last)
   {
@@ -2641,6 +2641,7 @@ struct LEX: public Query_tables_list
       sl->uncacheable|= cause;
       un->uncacheable|= cause;
     }
+    select_lex.uncacheable|= cause;
   }
   void set_trg_event_type_for_tables();
 

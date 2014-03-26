@@ -269,7 +269,7 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
       case CIM_REAL64:
       case CIM_REAL32:
         prec = 2;
-        typ = TYPE_FLOAT;
+        typ = TYPE_DOUBLE;
         lng = 15;
         break;
       case CIM_SINT64:

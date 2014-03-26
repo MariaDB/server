@@ -19,6 +19,7 @@
 
 #include "my_global.h"                          /* my_bool */
 #include "my_sys.h"                             // pthread_mutex_t
+#include "m_string.h"                           // LEX_CUSTRING
 
 class Alter_info;
 class Alter_table_ctx;
@@ -187,11 +188,11 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 #define C_ALTER_TABLE_FRM_ONLY   -2
 #define C_ASSISTED_DISCOVERY     -3
 
-bool mysql_create_table_no_lock(THD *thd, const char *db,
-                                const char *table_name,
-                                HA_CREATE_INFO *create_info,
-                                Alter_info *alter_info, bool *is_trans,
-                                int create_table_mode);
+int mysql_create_table_no_lock(THD *thd, const char *db,
+                               const char *table_name,
+                               HA_CREATE_INFO *create_info,
+                               Alter_info *alter_info, bool *is_trans,
+                               int create_table_mode);
 
 handler *mysql_create_frm_image(THD *thd,
                                 const char *db, const char *table_name,
@@ -238,7 +239,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, my_bool if_exists,
                     my_bool drop_temporary);
 int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
                             bool drop_temporary, bool drop_view,
-                            bool log_query);
+                            bool log_query, bool dont_free_locks);
 bool quick_rm_table(THD *thd, handlerton *base, const char *db,
                     const char *table_name, uint flags);
 void close_cached_table(THD *thd, TABLE *table);

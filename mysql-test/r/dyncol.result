@@ -697,14 +697,14 @@ column_get(column_create(1, 0), 1 as datetime)
 select column_get(column_create(1, "2001021"), 1 as datetime);
 column_get(column_create(1, "2001021"), 1 as datetime)
 2020-01-02 01:00:00
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select column_get(column_create(1, "8:46:06.23434" AS time), 1 as datetime);
 column_get(column_create(1, "8:46:06.23434" AS time), 1 as datetime)
-0000-00-00 08:46:06
+2001-02-03 08:46:06
 select column_get(column_create(1, "-808:46:06.23434" AS time), 1 as datetime);
 column_get(column_create(1, "-808:46:06.23434" AS time), 1 as datetime)
-NULL
-Warnings:
-Warning	1292	Truncated incorrect datetime value: '-808:46:06'
+2000-12-31 07:13:53
+SET timestamp=DEFAULT;
 set @@sql_mode="allow_invalid_dates";
 select column_get(column_create(1, "2011-02-30 18:46:06.23434" AS CHAR), 1 as datetime);
 column_get(column_create(1, "2011-02-30 18:46:06.23434" AS CHAR), 1 as datetime)

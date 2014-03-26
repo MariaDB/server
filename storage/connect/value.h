@@ -47,9 +47,9 @@ DllExport int   GetFormatType(char);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
 //lExport int   ConvertType(int, int, CONV, bool match = false);
-DllExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
+//lExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
-                              PSZ fmt = NULL);
+                              bool uns = false, PSZ fmt = NULL);
 DllExport ulonglong CharToNumber(char *, int, ulonglong, bool, 
                                  bool *minus = NULL, bool *rc = NULL);
 
@@ -254,6 +254,37 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   bool        Ci;                   // true if case insensitive
   int         Len;
   }; // end of class TYPVAL<PSZ>
+
+/***********************************************************************/
+/*  Specific DECIMAL class.                                            */
+/***********************************************************************/
+class DllExport DECVAL: public TYPVAL<PSZ> { 
+ public:
+  // Constructors
+  DECVAL(PSZ s);
+  DECVAL(PGLOBAL g, PSZ s, int n, int prec, bool uns);
+
+  // Implementation
+  virtual bool   IsTypeNum(void) {return true;}
+  virtual bool   IsZero(void);
+  virtual void   Reset(void);
+  virtual int    GetValPrec() {return Prec;}
+
+  // Methods
+//virtual bool   SetValue_pval(PVAL valp, bool chktype);
+//virtual bool   SetValue_char(char *p, int n);
+//virtual void   SetValue_psz(PSZ s);
+//virtual void   SetValue_pvblk(PVBLK blk, int n);
+//virtual void   SetBinValue(void *p);
+  virtual bool   GetBinValue(void *buf, int buflen, bool go);
+  virtual char  *ShowValue(char *buf, int);
+//virtual char  *GetCharString(char *p);
+  virtual bool   IsEqual(PVAL vp, bool chktype);
+//virtual bool   FormatValue(PVAL vp, char *fmt);
+//virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
+
+  // Members
+  }; // end of class DECVAL
 
 /***********************************************************************/
 /*  Class DTVAL: represents a time stamp value.                        */

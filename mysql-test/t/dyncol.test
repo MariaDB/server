@@ -248,8 +248,10 @@ select column_get(column_create(1, "20010203"), 1 as datetime);
 select column_get(column_create(1, 0), 1 as datetime);
 select column_get(column_create(1, "2001021"), 1 as datetime);
 
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select column_get(column_create(1, "8:46:06.23434" AS time), 1 as datetime);
 select column_get(column_create(1, "-808:46:06.23434" AS time), 1 as datetime);
+SET timestamp=DEFAULT;
 
 set @@sql_mode="allow_invalid_dates";
 select column_get(column_create(1, "2011-02-30 18:46:06.23434" AS CHAR), 1 as datetime);

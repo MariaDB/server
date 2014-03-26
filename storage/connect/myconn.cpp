@@ -723,7 +723,8 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
       // For direct MySQL connection, display the MySQL date string
       crp->Type = TYPE_STRING;
 
-    crp->Prec = (crp->Type == TYPE_FLOAT) ? fld->decimals : 0;
+    crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
+              ? fld->decimals : 0;
     crp->Length = fld->max_length;
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;

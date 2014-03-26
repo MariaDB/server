@@ -1,4 +1,4 @@
-.TH PCRETEST 1 "26 April 2013" "PCRE 8.33"
+.TH PCRETEST 1 "12 November 2013" "PCRE 8.34"
 .SH NAME
 pcretest - a program for testing Perl-compatible regular expressions.
 .SH SYNOPSIS
@@ -155,6 +155,10 @@ Output the size of each compiled pattern after it has been compiled. This is
 equivalent to adding \fB/M\fP to each regular expression. The size is given in
 bytes for both libraries.
 .TP 10
+\fB-O\fP
+Behave as if each pattern has the \fB/O\fP modifier, that is disable
+auto-possessification for all patterns.
+.TP 10
 \fB-o\fP \fIosize\fP
 Set the number of elements in the output vector that is used when calling
 \fBpcre[16|32]_exec()\fP or \fBpcre[16|32]_dfa_exec()\fP to be \fIosize\fP. The
@@ -216,17 +220,21 @@ contains (*MARK) items there may also be differences, for the same reason. The
 should never be studied (see the \fB/S\fP pattern modifier below).
 .TP 10
 \fB-t\fP
-Run each compile, study, and match many times with a timer, and output
-resulting time per compile or match (in milliseconds). Do not set \fB-m\fP with
-\fB-t\fP, because you will then get the size output a zillion times, and the
-timing will be distorted. You can control the number of iterations that are
-used for timing by following \fB-t\fP with a number (as a separate item on the
-command line). For example, "-t 1000" would iterate 1000 times. The default is
-to iterate 500000 times.
+Run each compile, study, and match many times with a timer, and output the
+resulting times per compile, study, or match (in milliseconds). Do not set
+\fB-m\fP with \fB-t\fP, because you will then get the size output a zillion
+times, and the timing will be distorted. You can control the number of
+iterations that are used for timing by following \fB-t\fP with a number (as a
+separate item on the command line). For example, "-t 1000" iterates 1000 times.
+The default is to iterate 500000 times.
 .TP 10
 \fB-tm\fP
 This is like \fB-t\fP except that it times only the matching phase, not the
 compile or study phases.
+.TP 10
+\fB-T\fP \fB-TM\fP
+These behave like \fB-t\fP and \fB-tm\fP, but in addition, at the end of a run,
+the total times for all compiles, studies, and matches are output.
 .
 .
 .SH DESCRIPTION
@@ -246,7 +254,7 @@ option states whether or not \fBreadline()\fP will be used.
 .P
 The program handles any number of sets of input on a single input file. Each
 set starts with a regular expression, and continues with any number of data
-lines to be matched against the pattern.
+lines to be matched against that pattern.
 .P
 Each data line is matched separately and independently. If you want to do
 multi-line matches, you have to use the \en escape sequence (or \er or \er\en,
@@ -320,6 +328,7 @@ sections.
   \fB/M\fP              show compiled memory size
   \fB/m\fP              set PCRE_MULTILINE
   \fB/N\fP              set PCRE_NO_AUTO_CAPTURE
+  \fB/O\fP              set PCRE_NO_AUTO_POSSESS
   \fB/P\fP              use the POSIX wrapper
   \fB/S\fP              study the pattern after compilation
   \fB/s\fP              set PCRE_DOTALL
@@ -376,6 +385,7 @@ options that do not correspond to anything in Perl:
   \fB/f\fP              PCRE_FIRSTLINE
   \fB/J\fP              PCRE_DUPNAMES
   \fB/N\fP              PCRE_NO_AUTO_CAPTURE
+  \fB/O\fP              PCRE_NO_AUTO_POSSESS
   \fB/U\fP              PCRE_UNGREEDY
   \fB/W\fP              PCRE_UCP
   \fB/X\fP              PCRE_EXTRA
@@ -508,8 +518,8 @@ expression has been compiled, and the results used when the expression is
 matched. There are a number of qualifying characters that may follow \fB/S\fP.
 They may appear in any order.
 .P
-If \fBS\fP is followed by an exclamation mark, \fBpcre[16|32]_study()\fP is called
-with the PCRE_STUDY_EXTRA_NEEDED option, causing it always to return a
+If \fB/S\fP is followed by an exclamation mark, \fBpcre[16|32]_study()\fP is
+called with the PCRE_STUDY_EXTRA_NEEDED option, causing it always to return a
 \fBpcre_extra\fP block, even when studying discovers no useful information.
 .P
 If \fB/S\fP is followed by a second S character, it suppresses studying, even
@@ -585,6 +595,37 @@ The \fB/+\fP modifier works as described above. All other modifiers are
 ignored.
 .
 .
+.SS "Locking out certain modifiers"
+.rs
+.sp
+PCRE can be compiled with or without support for certain features such as
+UTF-8/16/32 or Unicode properties. Accordingly, the standard tests are split up
+into a number of different files that are selected for running depending on
+which features are available. When updating the tests, it is all too easy to
+put a new test into the wrong file by mistake; for example, to put a test that
+requires UTF support into a file that is used when it is not available. To help
+detect such mistakes as early as possible, there is a facility for locking out
+specific modifiers. If an input line for \fBpcretest\fP starts with the string
+"< forbid " the following sequence of characters is taken as a list of
+forbidden modifiers. For example, in the test files that must not use UTF or
+Unicode property support, this line appears:
+.sp
+  < forbid 8W
+.sp
+This locks out the /8 and /W modifiers. An immediate error is given if they are
+subsequently encountered. If the character string contains < but not >, all the
+multi-character modifiers that begin with < are locked out. Otherwise, such
+modifiers must be explicitly listed, for example:
+.sp
+  < forbid <JS><cr>
+.sp
+There must be a single space between < and "forbid" for this feature to be
+recognised. If there is not, the line is interpreted either as a request to
+re-load a pre-compiled pattern (see "SAVING AND RELOADING COMPILED PATTERNS"
+below) or, if there is a another < character, as a pattern that uses < as its
+delimiter.
+.
+.
 .SH "DATA LINES"
 .rs
 .sp
@@ -608,6 +649,7 @@ recognized:
   \ev         vertical tab (\ex0b)
   \ennn       octal character (up to 3 octal digits); always
                a byte unless > 255 in UTF-8 or 16-bit or 32-bit mode
+  \eo{dd...}  octal character (any number of octal digits}
   \exhh       hexadecimal byte (up to 2 hex digits)
   \ex{hh...}  hexadecimal character (any number of hex digits)
 .\" JOIN
@@ -1031,10 +1073,9 @@ exact copy of the compiled pattern. If there is additional study data, this
 writing the file, \fBpcretest\fP expects to read a new pattern.
 .P
 A saved pattern can be reloaded into \fBpcretest\fP by specifying < and a file
-name instead of a pattern. The name of the file must not contain a < character,
-as otherwise \fBpcretest\fP will interpret the line as a pattern delimited by <
-characters.
-For example:
+name instead of a pattern. There must be no space between < and the file name,
+which must not contain a < character, as otherwise \fBpcretest\fP will
+interpret the line as a pattern delimited by < characters. For example:
 .sp
    re> </some/file
   Compiled pattern loaded from /some/file
@@ -1094,6 +1135,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 26 April 2013
+Last updated: 12 November 2013
 Copyright (c) 1997-2013 University of Cambridge.
 .fi

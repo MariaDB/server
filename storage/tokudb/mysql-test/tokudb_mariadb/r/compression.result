@@ -1,3 +1,4 @@
+drop table if exists t1,t2,t3,t4,t5,t6;
 create table t1 (a text) engine=tokudb compression=tokudb_uncompressed;
 create table t2 (a text) engine=tokudb compression=tokudb_zlib;
 create table t3 (a text) engine=tokudb compression=tokudb_quicklz;

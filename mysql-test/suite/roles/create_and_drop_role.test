@@ -18,7 +18,6 @@ select user, host, is_role from user where user like 'test%';
 drop role test_role1;
 drop role test_role2, test_role3;
 
-
 create role test_role1;
 --error ER_CANNOT_USER
 create role test_role1;
@@ -45,3 +44,27 @@ drop user dummy@'';
 --sorted_result
 select user, host, is_role from user where user like 'test%';
 disconnect mysql;
+connection default;
+
+#
+# MDEV-5520 Connection lost on wrong CREATE ROLE
+#
+--error ER_INVALID_ROLE
+create role '';
+
+#
+# MDEV-5523 Server crashes on DROP USER <rolename>
+#
+create role r1;
+--error ER_CANNOT_USER
+drop user r1;
+drop role r1;
+
+#
+# MDEV-5525 Assertion `status == 0' fails on creating user after granting it role admin option
+# 
+create role r1 with admin u1;
+create user foo@bar;
+drop user foo@bar;
+drop role r1;
+

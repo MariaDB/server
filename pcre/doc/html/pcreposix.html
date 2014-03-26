@@ -13,7 +13,7 @@ from the original man page. If there is any nonsense in it, please consult the
 man page, in case the conversion went wrong.
 <br>
 <ul>
-<li><a name="TOC1" href="#SEC1">SYNOPSIS OF POSIX API</a>
+<li><a name="TOC1" href="#SEC1">SYNOPSIS</a>
 <li><a name="TOC2" href="#SEC2">DESCRIPTION</a>
 <li><a name="TOC3" href="#SEC3">COMPILING A PATTERN</a>
 <li><a name="TOC4" href="#SEC4">MATCHING NEWLINE CHARACTERS</a>
@@ -23,23 +23,21 @@ man page, in case the conversion went wrong.
 <li><a name="TOC8" href="#SEC8">AUTHOR</a>
 <li><a name="TOC9" href="#SEC9">REVISION</a>
 </ul>
-<br><a name="SEC1" href="#TOC1">SYNOPSIS OF POSIX API</a><br>
+<br><a name="SEC1" href="#TOC1">SYNOPSIS</a><br>
 <P>
 <b>#include &#60;pcreposix.h&#62;</b>
 </P>
 <P>
 <b>int regcomp(regex_t *<i>preg</i>, const char *<i>pattern</i>,</b>
-<b>int <i>cflags</i>);</b>
-</P>
-<P>
+<b>     int <i>cflags</i>);</b>
+<br>
+<br>
 <b>int regexec(regex_t *<i>preg</i>, const char *<i>string</i>,</b>
-<b>size_t <i>nmatch</i>, regmatch_t <i>pmatch</i>[], int <i>eflags</i>);</b>
-</P>
-<P>
-<b>size_t regerror(int <i>errcode</i>, const regex_t *<i>preg</i>,</b>
-<b>char *<i>errbuf</i>, size_t <i>errbuf_size</i>);</b>
-</P>
-<P>
+<b>     size_t <i>nmatch</i>, regmatch_t <i>pmatch</i>[], int <i>eflags</i>);</b>
+<b>     size_t regerror(int <i>errcode</i>, const regex_t *<i>preg</i>,</b>
+<b>     char *<i>errbuf</i>, size_t <i>errbuf_size</i>);</b>
+<br>
+<br>
 <b>void regfree(regex_t *<i>preg</i>);</b>
 </P>
 <br><a name="SEC2" href="#TOC1">DESCRIPTION</a><br>

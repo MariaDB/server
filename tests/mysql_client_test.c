@@ -5976,6 +5976,10 @@ static void test_bind_date_conv(uint row_count)
   MYSQL_TIME   tm[4];
   ulong        second_part;
   uint         year, month, day, hour, minute, sec;
+  uint         now_year= 1990, now_month= 3, now_day= 13;
+
+  rc= mysql_query(mysql, "SET timestamp=UNIX_TIMESTAMP('1990-03-13')");
+  myquery(rc);
 
   stmt= mysql_simple_prepare(mysql, "INSERT INTO test_date VALUES(?, ?, ?, ?)");
   check_stmt(stmt);
@@ -6076,9 +6080,15 @@ static void test_bind_date_conv(uint row_count)
                 i, tm[i].year, tm[i].month, tm[i].day,
                 tm[i].hour, tm[i].minute, tm[i].second,
                 tm[i].second_part);
-      DIE_UNLESS(tm[i].year == 0 || tm[i].year == year+count);
-      DIE_UNLESS(tm[i].month == 0 || tm[i].month == month+count);
-      DIE_UNLESS(tm[i].day == 0 || tm[i].day == day+count);
+      DIE_UNLESS(tm[i].year == 0 || tm[i].year == year + count ||
+                 (tm[i].year == now_year &&
+                  my_bind[i].buffer_type == MYSQL_TYPE_TIME));
+      DIE_UNLESS(tm[i].month == 0 || tm[i].month == month + count ||
+                 (tm[i].month == now_month &&
+                  my_bind[i].buffer_type == MYSQL_TYPE_TIME));
+      DIE_UNLESS(tm[i].day == 0 || tm[i].day == day + count ||
+                 (tm[i].day == now_day &&
+                  my_bind[i].buffer_type == MYSQL_TYPE_TIME));
 
       DIE_UNLESS(tm[i].hour == 0 || tm[i].hour == hour+count);
       DIE_UNLESS(tm[i].minute == 0 || tm[i].minute == minute+count);
@@ -18749,6 +18759,109 @@ static void test_bug12337762()
   DBUG_VOID_RETURN;
 }
 
+/* 
+   MDEV-4603: mysql_stmt_reset doesn't clear
+              all result sets (from stored procedures).
+   This test requires also fix for MDEV-4604
+*/
+static void test_mdev4603()
+{
+  MYSQL *my;
+  MYSQL_STMT *stmt;
+  int i, rc;
+  int a[] = {10,20,30};
+  MYSQL_BIND bind[3];
+
+  myheader("test_mdev4603");
+  my= mysql_client_init(NULL);
+
+  if (!mysql_real_connect(my, opt_host, opt_user,
+                               opt_password, current_db, opt_port,
+                               opt_unix_socket, CLIENT_MULTI_RESULTS))
+    DIE("mysql_real_connect failed");
+
+  /* 1st test:
+     use a procedure with out param
+  */
+  rc= mysql_query(my, "DROP PROCEDURE IF EXISTS p1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE PROCEDURE p1(OUT p_out VARCHAR(19), IN p_in INT, INOUT p_inout INT)" 
+                         "BEGIN "
+                          "  SET p_in = 300, p_out := 'This is OUT param', p_inout = 200; "
+                          "  SELECT p_inout, p_in, substring(p_out, 9);"
+                         "END");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  DIE_UNLESS(stmt != NULL);
+
+  rc= mysql_stmt_prepare(stmt, "CALL P1(?,?,?)", 14);
+  DIE_UNLESS(rc == 0);
+
+  DIE_UNLESS(mysql_stmt_param_count(stmt) == 3);
+
+  memset(bind, 0, sizeof(MYSQL_BIND) * 3);
+  for (i=0; i < 3; i++)
+  {
+    bind[i].buffer= &a[i];
+    bind[i].buffer_type= MYSQL_TYPE_LONG;
+  }
+  bind[0].buffer_type= MYSQL_TYPE_NULL;
+  rc= mysql_stmt_bind_param(stmt, bind);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_execute(stmt);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_fetch(stmt);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_reset(stmt);
+  DIE_UNLESS(rc == 0);
+
+  /*connection shouldn't be blocked now */
+
+  rc= mysql_query(mysql, "DROP PROCEDURE p1");
+  myquery(rc);
+
+  /* 2nd test:
+     reset all result sets */
+  rc= mysql_query(my, "CREATE PROCEDURE p1() "
+                      "BEGIN"
+                      "  SELECT 1,2,3 FROM DUAL;"
+                      "  SELECT 'foo' FROM DUAL;"
+                      "END");
+  myquery(rc);
+
+  rc= mysql_stmt_prepare(stmt, "CALL P1()", 9);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_execute(stmt);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_reset(stmt);
+  DIE_UNLESS(rc == 0);
+
+  /* 3rd test:
+     mysql_stmt_close should also flush all pending
+     result sets
+  */
+  
+  rc= mysql_stmt_prepare(stmt, "CALL P1()", 9);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_execute(stmt);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_stmt_close(stmt);
+  DIE_UNLESS(rc == 0);
+
+  rc= mysql_query(my, "DROP PROCEDURE p1");
+  myquery(rc);
+
+  mysql_close(my);
+}
 
 /*
   BUG 11754979 - 46675: ON DUPLICATE KEY UPDATE AND UPDATECOUNT() POSSIBLY WRONG
@@ -19289,6 +19402,7 @@ static struct my_tests_st my_tests[]= {
   { "test_bug57058", test_bug57058 },
   { "test_bug56976", test_bug56976 },
   { "test_mdev3885", test_mdev3885 },
+  { "test_mdev4603", test_mdev4603 },
   { "test_bug11766854", test_bug11766854 },
   { "test_bug12337762", test_bug12337762 },
   { "test_progress_reporting", test_progress_reporting },

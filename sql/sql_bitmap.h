@@ -1,4 +1,4 @@
-/* Copyright (c) 2003, 2010, Oracle and/or its affiliates
+/* Copyright (c) 2003, 2013, Oracle and/or its affiliates
    Copyright (c) 2009, 2013, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -34,7 +34,7 @@ public:
   Bitmap() { init(); }
   Bitmap(const Bitmap& from) { *this=from; }
   explicit Bitmap(uint prefix_to_set) { init(prefix_to_set); }
-  void init() { bitmap_init(&map, buffer, default_width, 0); }
+  void init() { my_bitmap_init(&map, buffer, default_width, 0); }
   void init(uint prefix_to_set) { init(); set_prefix(prefix_to_set); }
   uint length() const { return default_width; }
   Bitmap& operator=(const Bitmap& map2)
@@ -52,7 +52,7 @@ public:
   void intersect(ulonglong map2buff)
   {
     MY_BITMAP map2;
-    bitmap_init(&map2, (uint32 *)&map2buff, sizeof(ulonglong)*8, 0);
+    my_bitmap_init(&map2, (uint32 *)&map2buff, sizeof(ulonglong)*8, 0);
     bitmap_intersect(&map, &map2);
   }
   /* Use highest bit for all bits above sizeof(ulonglong)*8. */
@@ -61,7 +61,7 @@ public:
     intersect(map2buff);
     if (map.n_bits > sizeof(ulonglong) * 8)
       bitmap_set_above(&map, sizeof(ulonglong),
-                       test(map2buff & (1LL << (sizeof(ulonglong) * 8 - 1))));
+                       MY_TEST(map2buff & (1LL << (sizeof(ulonglong) * 8 - 1))));
   }
   void subtract(Bitmap& map2) { bitmap_subtract(&map, &map2.map); }
   void merge(Bitmap& map2) { bitmap_union(&map, &map2.map); }
@@ -156,7 +156,7 @@ public:
   void intersect_extended(ulonglong map2) { map&= map2; }
   void subtract(Bitmap<64>& map2) { map&= ~map2.map; }
   void merge(Bitmap<64>& map2) { map|= map2.map; }
-  bool is_set(uint n) const { return test(map & (((ulonglong)1) << n)); }
+  bool is_set(uint n) const { return MY_TEST(map & (((ulonglong) 1) << n)); }
   bool is_prefix(uint n) const { return map == (((ulonglong)1) << n)-1; }
   bool is_clear_all() const { return map == (ulonglong)0; }
   bool is_set_all() const { return map == ~(ulonglong)0; }

@@ -889,7 +889,7 @@ public:
     m_view_access_denied_message_ptr(NULL) 
   {
     
-    m_sctx = test(m_top_view->security_ctx) ?
+    m_sctx= MY_TEST(m_top_view->security_ctx) ?
       m_top_view->security_ctx : thd->security_ctx;
   }
 
@@ -1045,7 +1045,7 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
   if ((table_list->view ?
        view_store_create_info(thd, table_list, &buffer) :
        store_create_info(thd, table_list, &buffer, NULL,
-                         FALSE /* show_database */)))
+                         FALSE /* show_database */, FALSE)))
     goto exit;
 
   if (table_list->view)
@@ -1530,6 +1530,8 @@ static void append_create_options(THD *thd, String *packet,
                       to tailor the format of the statement.  Can be
                       NULL, in which case only SQL_MODE is considered
                       when building the statement.
+    show_database     Add database name to table name
+    create_or_replace Use CREATE OR REPLACE syntax
 
   NOTE
     Currently always return 0, but might return error code in the
@@ -1540,7 +1542,8 @@ static void append_create_options(THD *thd, String *packet,
  */
 
 int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO *create_info_arg, bool show_database)
+                      HA_CREATE_INFO *create_info_arg, bool show_database,
+                      bool create_or_replace)
 {
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
@@ -1573,10 +1576,12 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
 
   restore_record(table, s->default_values); // Get empty record
 
+  packet->append(STRING_WITH_LEN("CREATE "));
+  if (create_or_replace)
+    packet->append(STRING_WITH_LEN("OR REPLACE "));
   if (share->tmp_table)
-    packet->append(STRING_WITH_LEN("CREATE TEMPORARY TABLE "));
-  else
-    packet->append(STRING_WITH_LEN("CREATE TABLE "));
+    packet->append(STRING_WITH_LEN("TEMPORARY "));
+  packet->append(STRING_WITH_LEN("TABLE "));
   if (create_info_arg &&
       (create_info_arg->options & HA_LEX_CREATE_IF_NOT_EXISTS))
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));
@@ -2010,7 +2015,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
       end= longlong10_to_str(key_info->block_size, buff, 10);
       packet->append(buff, (uint) (end - buff));
     }
-    DBUG_ASSERT(test(key_info->flags & HA_USES_COMMENT) == 
+    DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                (key_info->comment.length > 0));
     if (key_info->flags & HA_USES_COMMENT)
     {
@@ -2224,7 +2229,8 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   field->maybe_null=1;
   field_list.push_back(field=new Item_empty_string("Info",max_query_length));
   field->maybe_null=1;
-  if (!thd->variables.old_mode)
+  if (!thd->variables.old_mode &&
+      !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
   {
     field_list.push_back(field= new Item_float("Progress", 0.0, 3, 7));
     field->maybe_null= 0;
@@ -2296,6 +2302,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                                   (double) tmp->progress.max_counter) /
                                  (double) max_stage)) *
                                100.0);
+          set_if_smaller(thd_info->progress, 100);
         }
         else
           thd_info->progress= 0.0;
@@ -2330,7 +2337,8 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
     protocol->store(thd_info->state_info, system_charset_info);
     protocol->store(thd_info->query_string.str(),
                     thd_info->query_string.charset());
-    if (!thd->variables.old_mode)
+    if (!thd->variables.old_mode &&
+        !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
       protocol->store(thd_info->progress, 3, &store_buffer);
     if (protocol->write())
       break; /* purecov: inspected */
@@ -2394,7 +2402,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
   fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 bool select_result_text_buffer::send_result_set_metadata(List<Item> &fields, uint flag)
@@ -4831,6 +4839,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
+          else if (schema_table_idx == SCH_TRIGGERS &&
+                   db_name == &INFORMATION_SCHEMA_NAME)
+          {
+            continue;
+          }
           else
           {
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
@@ -5429,7 +5442,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     uint col_access;
     check_access(thd,SELECT_ACL, db_name->str,
-                 &tables->grant.privilege, 0, 0, test(tables->schema_table));
+                 &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
     col_access= get_column_grant(thd, &tables->grant,
                                  db_name->str, table_name->str,
                                  field->field_name) & COL_ACLS;
@@ -5568,13 +5581,13 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      tmp= &yesno[test(hton->commit)];
+      tmp= &yesno[MY_TEST(hton->commit)];
       table->field[3]->store(tmp->str, tmp->length, scs);
       table->field[3]->set_notnull();
-      tmp= &yesno[test(hton->prepare)];
+      tmp= &yesno[MY_TEST(hton->prepare)];
       table->field[4]->store(tmp->str, tmp->length, scs);
       table->field[4]->set_notnull();
-      tmp= &yesno[test(hton->savepoint_set)];
+      tmp= &yesno[MY_TEST(hton->savepoint_set)];
       table->field[5]->store(tmp->str, tmp->length, scs);
       table->field[5]->set_notnull();
 
@@ -6141,7 +6154,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         else
           table->field[14]->store("", 0, cs);
         table->field[14]->set_notnull();
-        DBUG_ASSERT(test(key_info->flags & HA_USES_COMMENT) == 
+        DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                    (key_info->comment.length > 0));
         if (key_info->flags & HA_USES_COMMENT)
           table->field[15]->store(key_info->comment.str, 
@@ -7682,7 +7695,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
-  bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
+  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
               FALSE);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);
@@ -8053,8 +8066,20 @@ static bool do_fill_table(THD *thd,
 
   da->push_warning_info(&wi_tmp);
 
-  bool res= table_list->schema_table->fill_table(
-    thd, table_list, join_table->select_cond);
+  Item *item= join_table->select_cond;
+  if (join_table->cache_select &&
+      join_table->cache_select->cond)
+  {
+    /*
+      If join buffering is used, we should use the condition that is attached
+      to the join cache. Cache condition has a part of WHERE that can be
+      checked when we're populating this table.
+      join_tab->select_cond is of no interest, because it only has conditions
+      that depend on both this table and previous tables in the join order.
+    */
+    item= join_table->cache_select->cond;
+  }
+  bool res= table_list->schema_table->fill_table(thd, table_list, item);
 
   da->pop_warning_info();
 

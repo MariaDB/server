@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -325,6 +325,11 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_SET_MEMBER, MONITOR_FLUSH_BATCH_SCANNED,
 	 MONITOR_FLUSH_BATCH_SCANNED_PER_CALL},
 
+	{"buffer_flush_batch_rescan", "buffer",
+	 "Number of times rescan of flush list forced",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_FLUSH_HP_RESCAN},
+
 	/* Cumulative counter for pages flushed in flush batches */
 	{"buffer_flush_batch_total_pages", "buffer",
 	 "Total pages flushed as part of flush batch",
@@ -386,7 +391,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of times a wait happens due to sync flushing",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_SYNC_WAITS},
-
 
 	/* Cumulative counter for flush batches for adaptive flushing  */
 	{"buffer_flush_adaptive_total_pages", "buffer",
@@ -880,13 +884,33 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_MODULE,
 	 MONITOR_DEFAULT_START, MONITOR_MODULE_INDEX},
 
-	{"index_splits", "index", "Number of index splits",
+	{"index_page_splits", "index", "Number of index page splits",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_INDEX_SPLIT},
 
-	{"index_merges", "index", "Number of index merges",
+	{"index_page_merge_attempts", "index",
+	 "Number of index page merge attempts",
 	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_INDEX_MERGE},
+	 MONITOR_DEFAULT_START, MONITOR_INDEX_MERGE_ATTEMPTS},
+
+	{"index_page_merge_successful", "index",
+	 "Number of successful index page merges",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_INDEX_MERGE_SUCCESSFUL},
+
+	{"index_page_reorg_attempts", "index",
+	 "Number of index page reorganization attempts",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_INDEX_REORG_ATTEMPTS},
+
+	{"index_page_reorg_successful", "index",
+	 "Number of successful index page reorganizations",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_INDEX_REORG_SUCCESSFUL},
+
+	{"index_page_discards", "index", "Number of index pages discarded",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_INDEX_DISCARD},
 
 	/* ========== Counters for Adaptive Hash Index ========== */
 	{"module_adaptive_hash", "adaptive_hash_index", "Adpative Hash Index",
@@ -1616,7 +1640,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_RWLOCK_X_SPIN_WAITS:
-		value = rw_lock_stats.rw_x_os_wait_count;
+		value = rw_lock_stats.rw_x_spin_wait_count;
 		break;
 
 	case MONITOR_OVLD_RWLOCK_S_SPIN_ROUNDS:

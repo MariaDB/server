@@ -524,7 +524,7 @@ typedef struct st_join_table {
   ha_rows get_examined_rows();
   bool preread_init();
 
-  bool is_sjm_nest() { return test(bush_children); }
+  bool is_sjm_nest() { return MY_TEST(bush_children); }
 
   bool access_from_tables_is_allowed(table_map used_tables,
                                      table_map sjm_lookup_tables)
@@ -1119,6 +1119,12 @@ public:
     restore_no_rows_in_result() in ::reinit()
   */
   bool no_rows_in_result_called;
+
+  /**
+    This is set if SQL_CALC_ROWS was calculated by filesort()
+    and should be taken from the appropriate JOIN_TAB
+  */
+  bool filesort_found_rows;
   
   /**
     Copy of this JOIN to be used with temporary tables.
@@ -1141,7 +1147,8 @@ public:
   */
   JOIN *tmp_join;
   ROLLUP rollup;				///< Used with rollup
-
+  
+  bool mixed_implicit_grouping;
   bool select_distinct;				///< Set if SELECT DISTINCT
   /**
     If we have the GROUP BY statement in the query,
@@ -1293,7 +1300,7 @@ public:
     lock= thd_arg->lock;
     select_lex= 0; //for safety
     tmp_join= 0;
-    select_distinct= test(select_options & SELECT_DISTINCT);
+    select_distinct= MY_TEST(select_options & SELECT_DISTINCT);
     no_order= 0;
     simple_order= 0;
     simple_group= 0;
@@ -1334,6 +1341,7 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
+    filesort_found_rows= false;
     exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
@@ -1436,7 +1444,7 @@ public:
   void set_allowed_join_cache_types();
   bool is_allowed_hash_join_access()
   { 
-    return test(allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
+    return MY_TEST(allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
            max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT;
   }
   /*
@@ -1455,7 +1463,7 @@ public:
     return ((const_tables != table_count &&
 	    ((select_distinct || !simple_order || !simple_group) ||
 	     (group_list && order) ||
-	     test(select_options & OPTION_BUFFER_RESULT))) ||
+             MY_TEST(select_options & OPTION_BUFFER_RESULT))) ||
             (rollup.state != ROLLUP::STATE_NONE && select_distinct));
   }
   bool choose_subquery_plan(table_map join_tables);

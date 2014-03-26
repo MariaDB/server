@@ -280,3 +280,14 @@ SELECT FOUND_ROWS();
 FOUND_ROWS()
 1
 DROP TABLE t1;
+create table t1 (f1 int primary key, f2 tinyint) engine=myisam;
+insert t1 values (10,3),(11,2),(12,3);
+create table t2 (f3 int primary key) engine=myisam;
+insert t2 values (11),(12),(13);
+select f1 from t1,t2 where f1=f3 and f2=3 order by f1;
+f1
+12
+select found_rows();
+found_rows()
+1
+drop table t1, t2;

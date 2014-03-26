@@ -6,6 +6,8 @@ reset master;
 reset slave;
 start slave;
 include/wait_for_slave_to_start.inc
+set @save_slave_ddl_exec_mode=@@global.slave_ddl_exec_mode;
+set @@global.slave_ddl_exec_mode=STRICT;
 create table t1(n int not null auto_increment primary key)ENGINE=InnoDB;
 insert into t1 values (NULL);
 drop table t1;
@@ -287,4 +289,5 @@ a	b
 5	1
 6	1
 drop table t1;
+set @@global.slave_ddl_exec_mode=@save_slave_ddl_exec_mode;
 include/rpl_end.inc

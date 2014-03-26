@@ -442,30 +442,32 @@ DROP TABLE IF EXISTS t1;
 --echo #
 --echo # Testing ALTER
 --echo #
+# Temporarily change the file name because ALTER that are not executed not in place
+# delete the data file when it has the same path/name than the default file name.
 CREATE TABLE t1
 (
   a VARCHAR(10) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1c.dbf';
 INSERT INTO t1 VALUES ('10');
 SELECT * FROM t1;
---chmod 0777 $MYSQLD_DATADIR/test/t1.dbf
+--chmod 0777 $MYSQLD_DATADIR/test/t1c.dbf
 --vertical_results
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1c.dbf');
 --horizontal_results
 ALTER TABLE t1 MODIFY a VARCHAR(10) NOT NULL;
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 --vertical_results
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1c.dbf');
 --horizontal_results
 ALTER TABLE t1 MODIFY a INT(10) NOT NULL;
 SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 --vertical_results
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR
-eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
+eval CALL dbf_header('$MYSQLD_DATADIR/test/t1c.dbf');
 --horizontal_results
 
 # TODO: this does not work on Windows
@@ -478,7 +480,7 @@ eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
 #eval CALL dbf_header('$MYSQLD_DATADIR/test/t1.dbf');
 #--horizontal_results
 DROP TABLE IF EXISTS t1;
---remove_file $MYSQLD_DATADIR/test/t1.dbf
+--remove_file $MYSQLD_DATADIR/test/t1c.dbf
 
 
 --echo #

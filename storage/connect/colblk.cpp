@@ -38,6 +38,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     Format = cdp->F;
     Opt = cdp->Opt;
     Long = cdp->Long;
+    Precision = cdp->Precision;
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
     Nullable = !!(cdp->Flags & U_NULLS);
@@ -47,6 +48,7 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
     memset(&Format, 0, sizeof(FORMAT));
     Opt = 0;
     Long = 0;
+    Precision = 0;
     Buf_Type = TYPE_ERROR;
     Nullable = false;
     Unsigned = false;
@@ -165,7 +167,7 @@ bool COLBLK::CheckSort(PTDB tdbp)
 /*  InitValue: prepare a column block for read operation.              */
 /*  Now we use Format.Length for the len parameter to avoid strings    */
 /*  to be truncated when converting from string to coded string.       */
-/*  Added in version 1.5 is the arguments GetPrecision() and Domain    */
+/*  Added in version 1.5 is the arguments GetScale() and Domain        */
 /*  in calling AllocateValue. Domain is used for TYPE_DATE only.       */
 /***********************************************************************/
 bool COLBLK::InitValue(PGLOBAL g)
@@ -173,12 +175,9 @@ bool COLBLK::InitValue(PGLOBAL g)
   if (Value)
     return false;                       // Already done
 
-  // Unsigned can be set only for valid value types
-  int prec = (Unsigned) ? 1 : GetPrecision();
-
   // Allocate a Value object
-  if (!(Value = AllocateValue(g, Buf_Type, Format.Length,
-                                 prec, GetDomain())))
+  if (!(Value = AllocateValue(g, Buf_Type, Precision,
+                              GetScale(), Unsigned, GetDomain())))
     return true;
 
   AddStatus(BUF_READY);
@@ -270,7 +269,7 @@ SPCBLK::SPCBLK(PCOLUMN cp)
        : COLBLK((PCOLDEF)NULL, cp->GetTo_Table()->GetTo_Tdb(), 0)
   {
   Name = (char*)cp->GetName();
-  Long = 0;
+  Precision = Long = 0;
   Buf_Type = TYPE_ERROR;
   } // end of SPCBLK constructor
 
@@ -290,7 +289,7 @@ void SPCBLK::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 RIDBLK::RIDBLK(PCOLUMN cp, bool rnm) : SPCBLK(cp)
   {
-  Long = 10;
+  Precision = Long = 10;
   Buf_Type = TYPE_INT;
   Rnm = rnm;
   *Format.Type = 'N';
@@ -313,7 +312,7 @@ void RIDBLK::ReadColumn(PGLOBAL g)
 FIDBLK::FIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = _MAX_PATH;
+  Precision = Long = _MAX_PATH;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
@@ -348,7 +347,7 @@ void FIDBLK::ReadColumn(PGLOBAL g)
 TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = 64;
+  Precision = Long = 64;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
@@ -375,7 +374,7 @@ void TIDBLK::ReadColumn(PGLOBAL g)
 SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = 64;
+  Precision = Long = 64;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;

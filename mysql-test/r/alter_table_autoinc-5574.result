@@ -1,0 +1,11 @@
+create table t1(a int(10)unsigned not null auto_increment primary key,
+b varchar(255) not null) engine=innodb default charset=utf8;
+insert into t1 values(1,'aaa'),(2,'bbb');
+alter table t1 auto_increment=1;
+insert into t1 values(NULL, 'ccc');
+select * from t1;
+a	b
+1	aaa
+2	bbb
+3	ccc
+drop table t1;

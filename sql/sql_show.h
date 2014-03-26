@@ -75,7 +75,8 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_EXTRA               37
 
 int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO  *create_info_arg, bool show_database);
+                      HA_CREATE_INFO  *create_info_arg, bool show_database,
+                      bool create_or_replace);
 int view_store_create_info(THD *thd, TABLE_LIST *table, String *buff);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);

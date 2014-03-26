@@ -1,0 +1,23 @@
+#
+# MDEV-5668 Assertion `granted_role->is_role()' fails on granting role with empty name
+#
+--error ER_INVALID_ROLE
+grant '' to foo@localhost;
+
+#
+# MDEV-5238 Server crashes in find_role_grant_pair on SHOW GRANTS for an anonymous user
+#
+--source include/not_embedded.inc
+
+create user ''@localhost;
+create role r1;
+grant r1 to ''@localhost;
+
+--connect (con1,localhost,nonexisting_user,,)
+select current_user;
+show grants;
+
+connection default;
+drop role r1;
+drop user ''@localhost;
+

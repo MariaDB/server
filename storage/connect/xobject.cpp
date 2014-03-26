@@ -109,6 +109,7 @@ int CONSTANT::GetLengthEx(void)
   return Value->GetValLen();
   } // end of GetLengthEx
 
+#if 0
 /***********************************************************************/
 /*  Convert a constant to the given type.                              */
 /***********************************************************************/
@@ -119,6 +120,7 @@ void CONSTANT::Convert(PGLOBAL g, int newtype)
       longjmp(g->jumper[g->jump_level], TYPE_CONST);
 
   } // end of Convert
+#endif // 0
 
 /***********************************************************************/
 /*  Compare: returns true if this object is equivalent to xp.          */
@@ -151,7 +153,7 @@ bool CONSTANT::Rephrase(PGLOBAL g, PSZ work)
     case TYPE_DATE:
       sprintf(work + strlen(work), "%d", Value->GetIntValue());
       break;
-    case TYPE_FLOAT:
+    case TYPE_DOUBLE:
       sprintf(work + strlen(work), "%lf", Value->GetFloatValue());
       break;
     case TYPE_BIGINT:

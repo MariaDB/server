@@ -124,6 +124,10 @@ enum dberr_t {
 					during online index creation */
 
 	DB_IO_ERROR,			/*!< Generic IO error */
+	DB_IDENTIFIER_TOO_LONG,		/*!< Identifier name too long */
+	DB_FTS_EXCEED_RESULT_CACHE_LIMIT,	/*!< FTS query memory
+					exceeds result cache limit */
+	DB_TEMP_FILE_WRITE_FAILURE,	/*!< Temp file write failure */
 
 	/* The following are partial failure codes */
 	DB_FAIL = 1000,

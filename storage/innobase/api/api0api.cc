@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2008, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2008, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -245,7 +245,7 @@ ib_open_table_by_id(
 		dict_mutex_enter_for_mysql();
 	}
 
-	table = dict_table_open_on_id(table_id, FALSE, FALSE);
+	table = dict_table_open_on_id(table_id, FALSE, DICT_TABLE_OP_NORMAL);
 
 	if (table != NULL && table->ibd_file_missing) {
 		table = NULL;
@@ -355,7 +355,9 @@ ib_read_tuple(
 /*==========*/
 	const rec_t*	rec,		/*!< in: Record to read */
 	ib_bool_t	page_format,	/*!< in: IB_TRUE if compressed format */
-	ib_tuple_t*	tuple)		/*!< in: tuple to read into */
+	ib_tuple_t*	tuple,		/*!< in: tuple to read into */
+	void**		rec_buf,        /*!< in/out: row buffer */
+        ulint*          len)            /*!< in/out: buffer len */
 {
 	ulint		i;
 	void*		ptr;
@@ -366,6 +368,7 @@ ib_read_tuple(
 	ulint*		offsets	= offsets_;
 	dtuple_t*	dtuple = tuple->ptr;
 	const dict_index_t* index = tuple->index;
+	ulint		offset_size;
 
 	rec_offs_init(offsets_);
 
@@ -375,8 +378,20 @@ ib_read_tuple(
 	rec_meta_data = rec_get_info_bits(rec, page_format);
 	dtuple_set_info_bits(dtuple, rec_meta_data);
 
-	/* Make a copy of the rec. */
-	ptr = mem_heap_alloc(tuple->heap, rec_offs_size(offsets));
+	offset_size = rec_offs_size(offsets);
+
+	if (rec_buf && *rec_buf) {
+		if (*len < offset_size) {
+			free(*rec_buf);
+			*rec_buf = malloc(offset_size);
+			*len = offset_size;
+		}
+		ptr = *rec_buf;
+	}  else {
+		/* Make a copy of the rec. */
+		ptr = mem_heap_alloc(tuple->heap, offset_size);
+	}
+
 	copy = rec_copy(ptr, rec, offsets);
 
 	n_index_fields = ut_min(
@@ -557,12 +572,20 @@ ib_trx_start(
 /*=========*/
 	ib_trx_t	ib_trx,		/*!< in: transaction to restart */
 	ib_trx_level_t	ib_trx_level,	/*!< in: trx isolation level */
+	ib_bool_t	read_write,	/*!< in: true if read write
+					transaction */
+	ib_bool_t	auto_commit,	/*!< in: auto commit after each
+					single DML */
 	void*		thd)		/*!< in: THD */
 {
 	ib_err_t	err = DB_SUCCESS;
 	trx_t*		trx = (trx_t*) ib_trx;
 
 	ut_a(ib_trx_level <= IB_TRX_SERIALIZABLE);
+
+	trx->api_trx = true;
+	trx->api_auto_commit = auto_commit;
+	trx->read_write = read_write;
 
 	trx_start_if_not_started(trx);
 
@@ -583,16 +606,22 @@ UNIV_INTERN
 ib_trx_t
 ib_trx_begin(
 /*=========*/
-	ib_trx_level_t	ib_trx_level)	/*!< in: trx isolation level */
+	ib_trx_level_t	ib_trx_level,	/*!< in: trx isolation level */
+	ib_bool_t	read_write,     /*!< in: true if read write
+					transaction */
+	ib_bool_t	auto_commit)	/*!< in: auto commit after each
+					single DML */
 {
 	trx_t*		trx;
 	ib_bool_t	started;
 
 	trx = trx_allocate_for_mysql();
-	started = ib_trx_start((ib_trx_t) trx, ib_trx_level, NULL);
+
+	started = ib_trx_start(static_cast<ib_trx_t>(trx), ib_trx_level,
+			       read_write, auto_commit, NULL);
 	ut_a(started);
 
-	return((ib_trx_t) trx);
+	return(static_cast<ib_trx_t>(trx));
 }
 
 /*****************************************************************//**
@@ -652,14 +681,10 @@ ib_trx_commit(
 	trx_t*		trx = (trx_t*) ib_trx;
 
 	if (trx->state == TRX_STATE_NOT_STARTED) {
-		err = ib_trx_release(ib_trx);
 		return(err);
 	}
 
 	trx_commit(trx);
-
-	err = ib_trx_release(ib_trx);
-	ut_a(err == DB_SUCCESS);
 
 	return(DB_SUCCESS);
 }
@@ -681,9 +706,6 @@ ib_trx_rollback(
 
         /* It should always succeed */
         ut_a(err == DB_SUCCESS);
-
-	err = ib_trx_release(ib_trx);
-	ut_a(err == DB_SUCCESS);
 
 	ib_wake_master_thread();
 
@@ -1183,7 +1205,7 @@ ib_cursor_open_index_using_name(
 
 	/* We want to increment the ref count, so we do a redundant search. */
 	table = dict_table_open_on_id(cursor->prebuilt->table->id,
-				      FALSE, FALSE);
+				      FALSE, DICT_TABLE_OP_NORMAL);
 	ut_a(table != NULL);
 
 	/* The first index is always the cluster index. */
@@ -1371,11 +1393,12 @@ ib_cursor_commit_trx(
 {
 	ib_err_t        err = DB_SUCCESS;
 	ib_cursor_t*    cursor = (ib_cursor_t*) ib_crsr;
+#ifdef UNIV_DEBUG
 	row_prebuilt_t*	prebuilt = cursor->prebuilt;
 
 	ut_ad(prebuilt->trx == (trx_t*) ib_trx);
-	err = ib_trx_commit(ib_trx);
-	prebuilt->trx = NULL;
+#endif /* UNIV_DEBUG */
+	ib_trx_commit(ib_trx);
 	cursor->valid_trx = FALSE;
 	return(err);
 }
@@ -1629,6 +1652,8 @@ ib_cursor_insert_row(
 		err = ib_execute_insert_query_graph(
 			src_tuple->index->table, q_proc->grph.ins, node->ins);
 	}
+
+	srv_active_wake_master_thread();
 
 	return(err);
 }
@@ -1914,6 +1939,8 @@ ib_cursor_update_row(
 		err = ib_execute_update_query_graph(cursor, pcur);
 	}
 
+	srv_active_wake_master_thread();
+
 	return(err);
 }
 
@@ -1951,7 +1978,7 @@ ib_delete_row(
 	upd = ib_update_vector_create(cursor);
 
 	page_format = dict_table_is_comp(index->table);
-	ib_read_tuple(rec, page_format, tuple);
+	ib_read_tuple(rec, page_format, tuple, NULL, NULL);
 
 	upd->n_fields = ib_tuple_get_n_cols(ib_tpl);
 
@@ -2039,6 +2066,8 @@ ib_cursor_delete_row(
 		err = DB_RECORD_NOT_FOUND;
 	}
 
+	srv_active_wake_master_thread();
+
 	return(err);
 }
 
@@ -2050,7 +2079,9 @@ ib_err_t
 ib_cursor_read_row(
 /*===============*/
 	ib_crsr_t	ib_crsr,	/*!< in: InnoDB cursor instance */
-	ib_tpl_t	ib_tpl)		/*!< out: read cols into this tuple */
+	ib_tpl_t	ib_tpl,		/*!< out: read cols into this tuple */
+	void**		row_buf,        /*!< in/out: row buffer */
+	ib_ulint_t*	row_len)        /*!< in/out: row buffer len */
 {
 	ib_err_t	err;
 	ib_tuple_t*	tuple = (ib_tuple_t*) ib_tpl;
@@ -2094,7 +2125,8 @@ ib_cursor_read_row(
 			}
 
 			if (!rec_get_deleted_flag(rec, page_format)) {
-				ib_read_tuple(rec, page_format, tuple);
+				ib_read_tuple(rec, page_format, tuple,
+					      row_buf, (ulint*) row_len);
 				err = DB_SUCCESS;
 			} else{
 				err = DB_RECORD_NOT_FOUND;
@@ -2296,12 +2328,14 @@ ib_col_set_value(
 	ib_tpl_t	ib_tpl,		/*!< in: tuple instance */
 	ib_ulint_t	col_no,		/*!< in: column index in tuple */
 	const void*	src,		/*!< in: data value */
-	ib_ulint_t	len)		/*!< in: data value len */
+	ib_ulint_t	len,		/*!< in: data value len */
+	ib_bool_t	need_cpy)	/*!< in: if need memcpy */
 {
 	const dtype_t*  dtype;
 	dfield_t*	dfield;
 	void*		dst = NULL;
 	ib_tuple_t*	tuple = (ib_tuple_t*) ib_tpl;
+	ulint		col_len;
 
 	dfield = ib_col_get_dfield(tuple, col_no);
 
@@ -2312,6 +2346,7 @@ ib_col_set_value(
 	}
 
 	dtype = dfield_get_type(dfield);
+	col_len = dtype_get_len(dtype);
 
 	/* Not allowed to update system columns. */
 	if (dtype_get_mtype(dtype) == DATA_SYS) {
@@ -2325,10 +2360,10 @@ ib_col_set_value(
 	for that. */
 	if (ib_col_is_capped(dtype)) {
 
-		len = ut_min(len, dtype_get_len(dtype));
+		len = ut_min(len, col_len);
 
 		if (dst == NULL || len > dfield_get_len(dfield)) {
-			dst = mem_heap_alloc(tuple->heap, dtype_get_len(dtype));
+			dst = mem_heap_alloc(tuple->heap, col_len);
 			ut_a(dst != NULL);
 		}
 	} else if (dst == NULL || len > dfield_get_len(dfield)) {
@@ -2342,7 +2377,7 @@ ib_col_set_value(
 	switch (dtype_get_mtype(dtype)) {
 	case DATA_INT: {
 
-		if (dtype_get_len(dtype) == len) {
+		if (col_len == len) {
 			ibool		usign;
 
 			usign = dtype_get_prtype(dtype) & DATA_UNSIGNED;
@@ -2387,22 +2422,96 @@ ib_col_set_value(
 
 		memset((byte*) dst + len,
 		       pad_char,
-		       dtype_get_len(dtype) - len);
+		       col_len - len);
 
 		memcpy(dst, src, len);
 
-		len = dtype_get_len(dtype);
+		len = col_len;
 		break;
 	}
 	case DATA_BLOB:
 	case DATA_BINARY:
-	case DATA_MYSQL:
 	case DATA_DECIMAL:
 	case DATA_VARCHAR:
-	case DATA_VARMYSQL:
 	case DATA_FIXBINARY:
-		memcpy(dst, src, len);
+		if (need_cpy) {
+			memcpy(dst, src, len);
+		} else {
+			dfield_set_data(dfield, src, len);
+			dst = dfield_get_data(dfield);
+		}
 		break;
+
+	case DATA_MYSQL:
+	case DATA_VARMYSQL: {
+		ulint		cset;
+		CHARSET_INFO*	cs;
+		int		error = 0;
+		ulint		true_len = len;
+
+		/* For multi byte character sets we need to
+		calculate the true length of the data. */
+		cset = dtype_get_charset_coll(
+			dtype_get_prtype(dtype));
+		cs = all_charsets[cset];
+		if (cs) {
+			uint pos = (uint)(col_len / cs->mbmaxlen);
+
+			if (len > 0 && cs->mbmaxlen > 1) {
+				true_len = (ulint)
+					cs->cset->well_formed_len(
+						cs,
+						(const char*)src,
+						(const char*)src + len,
+						pos,
+						&error);
+
+				if (true_len < len) {
+					len = true_len;
+				}
+			}
+		}
+
+		/* All invalid bytes in data need be truncated.
+		If len == 0, means all bytes of the data is invalid.
+		In this case, the data will be truncated to empty.*/
+		memcpy(dst, src, len);
+
+		/* For DATA_MYSQL, need to pad the unused
+		space with spaces. */
+		if (dtype_get_mtype(dtype) == DATA_MYSQL) {
+			ulint		n_chars;
+
+			if (len < col_len) {
+				ulint	pad_len = col_len - len;
+
+				ut_a(cs != NULL);
+				ut_a(!(pad_len % cs->mbminlen));
+
+				cs->cset->fill(cs, (char*)dst + len,
+					       pad_len,
+					       0x20 /* space */);
+			}
+
+			/* Why we should do below? See function
+			row_mysql_store_col_in_innobase_format */
+
+			ut_a(!(dtype_get_len(dtype)
+				% dtype_get_mbmaxlen(dtype)));
+
+			n_chars = dtype_get_len(dtype)
+				/ dtype_get_mbmaxlen(dtype);
+
+			/* Strip space padding. */
+			while (col_len > n_chars
+				&& ((char*)dst)[col_len - 1] == 0x20) {
+				col_len--;
+			}
+
+			len = col_len;
+		}
+		break;
+	}
 
 	default:
 		ut_error;
@@ -2476,7 +2585,9 @@ ib_col_copy_value_low(
 						 data_len, usign);
 
 			if (usign) {
-				if (len == 2) {
+				if (len == 1) {
+					*(ib_i8_t*)dst = (ib_i8_t)ret;
+				} else if (len == 2) {
 					*(ib_i16_t*)dst = (ib_i16_t)ret;
 				} else if (len == 4) {
 					*(ib_i32_t*)dst = (ib_i32_t)ret;
@@ -2484,7 +2595,9 @@ ib_col_copy_value_low(
 					*(ib_i64_t*)dst = (ib_i64_t)ret;
 				}
 			} else {
-				if (len == 2) {
+				if (len == 1) {
+					*(ib_u8_t*)dst = (ib_i8_t)ret;
+				} else if (len == 2) {
 					*(ib_u16_t*)dst = (ib_i16_t)ret;
 				} else if (len == 4) {
 					*(ib_u32_t*)dst = (ib_i32_t)ret;
@@ -3450,7 +3563,7 @@ ib_tuple_write_int(
 		return(DB_DATA_MISMATCH);
 	}
 
-	return(ib_col_set_value(ib_tpl, col_no, value, type_len));
+	return(ib_col_set_value(ib_tpl, col_no, value, type_len, true));
 }
 
 /*****************************************************************//**
@@ -3465,7 +3578,7 @@ ib_tuple_write_i8(
 	int		col_no,		/*!< in: column number */
 	ib_i8_t		val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3480,7 +3593,7 @@ ib_tuple_write_i16(
 	int		col_no,		/*!< in: column number */
 	ib_i16_t	val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3495,7 +3608,7 @@ ib_tuple_write_i32(
 	int		col_no,		/*!< in: column number */
 	ib_i32_t	val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3510,7 +3623,7 @@ ib_tuple_write_i64(
 	int		col_no,		/*!< in: column number */
 	ib_i64_t	val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3525,7 +3638,7 @@ ib_tuple_write_u8(
 	int		col_no,		/*!< in: column number */
 	ib_u8_t		val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3540,7 +3653,7 @@ ib_tuple_write_u16(
 	int		col_no,		/*!< in: column number */
 	ib_u16_t	val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3555,7 +3668,7 @@ ib_tuple_write_u32(
 	int		col_no,		/*!< in: column number */
 	ib_u32_t	val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3570,7 +3683,7 @@ ib_tuple_write_u64(
 	int		col_no,		/*!< in: column number */
 	ib_u64_t	val)		/*!< in: value to write */
 {
-	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+	return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val), true));
 }
 
 /*****************************************************************//**
@@ -3603,7 +3716,8 @@ ib_tuple_write_double(
 	dfield = ib_col_get_dfield(tuple, col_no);
 
 	if (dtype_get_mtype(dfield_get_type(dfield)) == DATA_DOUBLE) {
-		return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+		return(ib_col_set_value(ib_tpl, col_no,
+					&val, sizeof(val), true));
 	} else {
 		return(DB_DATA_MISMATCH);
 	}
@@ -3653,7 +3767,8 @@ ib_tuple_write_float(
 	dfield = ib_col_get_dfield(tuple, col_no);
 
 	if (dtype_get_mtype(dfield_get_type(dfield)) == DATA_FLOAT) {
-		return(ib_col_set_value(ib_tpl, col_no, &val, sizeof(val)));
+		return(ib_col_set_value(ib_tpl, col_no,
+					&val, sizeof(val), true));
 	} else {
 		return(DB_DATA_MISMATCH);
 	}
@@ -3756,7 +3871,7 @@ ib_table_truncate(
 	ib_trx_t        ib_trx = NULL;
 	ib_crsr_t       ib_crsr = NULL;
 
-	ib_trx = ib_trx_begin(IB_TRX_SERIALIZABLE);
+	ib_trx = ib_trx_begin(IB_TRX_SERIALIZABLE, true, false);
 
 	dict_mutex_enter_for_mysql();
 

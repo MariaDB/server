@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -184,6 +184,86 @@ log_buf_pool_get_oldest_modification(void)
 	return(lsn);
 }
 
+/** Extends the log buffer.
+@param[in] len	requested minimum size in bytes */
+static
+void
+log_buffer_extend(
+	ulint	len)
+{
+	ulint	move_start;
+	ulint	move_end;
+	byte	tmp_buf[OS_FILE_LOG_BLOCK_SIZE];
+
+	mutex_enter(&(log_sys->mutex));
+
+	while (log_sys->is_extending) {
+		/* Another thread is trying to extend already.
+		Needs to wait for. */
+		mutex_exit(&(log_sys->mutex));
+
+		log_buffer_flush_to_disk();
+
+		mutex_enter(&(log_sys->mutex));
+
+		if (srv_log_buffer_size > len / UNIV_PAGE_SIZE) {
+			/* Already extended enough by the others */
+			mutex_exit(&(log_sys->mutex));
+			return;
+		}
+	}
+
+	log_sys->is_extending = true;
+
+	while (log_sys->n_pending_writes != 0
+	       || ut_calc_align_down(log_sys->buf_free,
+				     OS_FILE_LOG_BLOCK_SIZE)
+		  != ut_calc_align_down(log_sys->buf_next_to_write,
+					OS_FILE_LOG_BLOCK_SIZE)) {
+		/* Buffer might have >1 blocks to write still. */
+		mutex_exit(&(log_sys->mutex));
+
+		log_buffer_flush_to_disk();
+
+		mutex_enter(&(log_sys->mutex));
+	}
+
+	move_start = ut_calc_align_down(
+		log_sys->buf_free,
+		OS_FILE_LOG_BLOCK_SIZE);
+	move_end = log_sys->buf_free;
+
+	/* store the last log block in buffer */
+	ut_memcpy(tmp_buf, log_sys->buf + move_start,
+		  move_end - move_start);
+
+	log_sys->buf_free -= move_start;
+	log_sys->buf_next_to_write -= move_start;
+
+	/* reallocate log buffer */
+	srv_log_buffer_size = len / UNIV_PAGE_SIZE + 1;
+	mem_free(log_sys->buf_ptr);
+	log_sys->buf_ptr = static_cast<byte*>(
+		mem_zalloc(LOG_BUFFER_SIZE + OS_FILE_LOG_BLOCK_SIZE));
+	log_sys->buf = static_cast<byte*>(
+		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
+	log_sys->buf_size = LOG_BUFFER_SIZE;
+	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
+		- LOG_BUF_FLUSH_MARGIN;
+
+	/* restore the last log block */
+	ut_memcpy(log_sys->buf, tmp_buf, move_end - move_start);
+
+	ut_ad(log_sys->is_extending);
+	log_sys->is_extending = false;
+
+	mutex_exit(&(log_sys->mutex));
+
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"innodb_log_buffer_size was extended to %lu.",
+		LOG_BUFFER_SIZE);
+}
+
 /************************************************************//**
 Opens the log for log_write_low. The log must be closed with log_close and
 released with log_release.
@@ -204,10 +284,36 @@ log_reserve_and_open(
 	ulint	count			= 0;
 #endif /* UNIV_DEBUG */
 
-	ut_a(len < log->buf_size / 2);
+	if (len >= log->buf_size / 2) {
+		DBUG_EXECUTE_IF("ib_log_buffer_is_short_crash",
+				DBUG_SUICIDE(););
+
+		/* log_buffer is too small. try to extend instead of crash. */
+		ib_logf(IB_LOG_LEVEL_WARN,
+			"The transaction log size is too large"
+			" for innodb_log_buffer_size (%lu >= %lu / 2). "
+			"Trying to extend it.",
+			len, LOG_BUFFER_SIZE);
+
+		log_buffer_extend((len + 1) * 2);
+	}
 loop:
 	mutex_enter(&(log->mutex));
 	ut_ad(!recv_no_log_write);
+
+	if (log->is_extending) {
+
+		mutex_exit(&(log->mutex));
+
+		/* Log buffer size is extending. Writing up to the next block
+		should wait for the extending finished. */
+
+		os_thread_sleep(100000);
+
+		ut_ad(++count < 50);
+
+		goto loop;
+	}
 
 	/* Calculate an upper limit for the space the string may take in the
 	log buffer */
@@ -758,6 +864,7 @@ log_init(void)
 		ut_align(log_sys->buf_ptr, OS_FILE_LOG_BLOCK_SIZE));
 
 	log_sys->buf_size = LOG_BUFFER_SIZE;
+	log_sys->is_extending = false;
 
 	log_sys->max_buf_free = log_sys->buf_size / LOG_BUF_FLUSH_RATIO
 		- LOG_BUF_FLUSH_MARGIN;
@@ -852,7 +959,7 @@ log_init(void)
 	recv_sys->scanned_lsn = log_sys->lsn;
 	recv_sys->scanned_checkpoint_no = 0;
 	recv_sys->recovered_lsn = log_sys->lsn;
-	recv_sys->limit_lsn = IB_ULONGLONG_MAX;
+	recv_sys->limit_lsn = LSN_MAX;
 #endif
 }
 
@@ -1161,7 +1268,7 @@ log_group_file_header_flush(
 
 		srv_stats.os_log_pending_writes.inc();
 
-		fil_io(OS_FILE_WRITE | OS_FILE_LOG, TRUE, group->space_id, 0,
+		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (dest_offset / UNIV_PAGE_SIZE),
 		       (ulint) (dest_offset % UNIV_PAGE_SIZE),
 		       OS_FILE_LOG_BLOCK_SIZE,
@@ -1290,7 +1397,7 @@ loop:
 
 		ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
 
-		fil_io(OS_FILE_WRITE | OS_FILE_LOG, TRUE, group->space_id, 0,
+		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
 		       (ulint) (next_offset % UNIV_PAGE_SIZE), write_len, buf,
 		       group);
@@ -1323,7 +1430,7 @@ log_write_up_to(
 /*============*/
 	lsn_t	lsn,	/*!< in: log sequence number up to which
 			the log should be written,
-			IB_ULONGLONG_MAX if not specified */
+			LSN_MAX if not specified */
 	ulint	wait,	/*!< in: LOG_NO_WAIT, LOG_WAIT_ONE_GROUP,
 			or LOG_WAIT_ALL_GROUPS */
 	ibool	flush_to_disk)
@@ -1787,7 +1894,7 @@ log_group_checkpoint(
 
 #ifdef UNIV_LOG_ARCHIVE
 	if (log_sys->archiving_state == LOG_ARCH_OFF) {
-		archived_lsn = IB_ULONGLONG_MAX;
+		archived_lsn = LSN_MAX;
 	} else {
 		archived_lsn = log_sys->archived_lsn;
 
@@ -1799,7 +1906,7 @@ log_group_checkpoint(
 
 	mach_write_to_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN, archived_lsn);
 #else /* UNIV_LOG_ARCHIVE */
-	mach_write_to_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN, IB_ULONGLONG_MAX);
+	mach_write_to_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN, LSN_MAX);
 #endif /* UNIV_LOG_ARCHIVE */
 
 	for (i = 0; i < LOG_MAX_N_GROUPS; i++) {
@@ -1855,7 +1962,7 @@ log_group_checkpoint(
 		added with 1, as we want to distinguish between a normal log
 		file write and a checkpoint field write */
 
-		fil_io(OS_FILE_WRITE | OS_FILE_LOG, FALSE, group->space_id, 0,
+		fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->space_id, 0,
 		       write_offset / UNIV_PAGE_SIZE,
 		       write_offset % UNIV_PAGE_SIZE,
 		       OS_FILE_LOG_BLOCK_SIZE,
@@ -1906,7 +2013,7 @@ log_reset_first_header_and_checkpoint(
 
 	mach_write_to_4(buf + LOG_CHECKPOINT_LOG_BUF_SIZE, 2 * 1024 * 1024);
 
-	mach_write_to_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN, IB_ULONGLONG_MAX);
+	mach_write_to_8(buf + LOG_CHECKPOINT_ARCHIVED_LSN, LSN_MAX);
 
 	fold = ut_fold_binary(buf, LOG_CHECKPOINT_CHECKSUM_1);
 	mach_write_to_4(buf + LOG_CHECKPOINT_CHECKSUM_1, fold);
@@ -1937,7 +2044,7 @@ log_group_read_checkpoint_info(
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	fil_io(OS_FILE_READ | OS_FILE_LOG, TRUE, group->space_id, 0,
+	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->space_id, 0,
 	       field / UNIV_PAGE_SIZE, field % UNIV_PAGE_SIZE,
 	       OS_FILE_LOG_BLOCK_SIZE, log_sys->checkpoint_buf, NULL);
 }
@@ -2070,7 +2177,7 @@ void
 log_make_checkpoint_at(
 /*===================*/
 	lsn_t	lsn,		/*!< in: make a checkpoint at this or a
-				later lsn, if IB_ULONGLONG_MAX, makes
+				later lsn, if LSN_MAX, makes
 				a checkpoint at the latest lsn */
 	ibool	write_always)	/*!< in: the function normally checks if
 				the new checkpoint would have a
@@ -2196,7 +2303,7 @@ log_group_read_log_seg(
 {
 	ulint	len;
 	lsn_t	source_offset;
-	ibool	sync;
+	bool	sync;
 
 	ut_ad(mutex_own(&(log_sys->mutex)));
 
@@ -2294,7 +2401,7 @@ log_group_archive_file_header_write(
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	fil_io(OS_FILE_WRITE | OS_FILE_LOG, TRUE, group->archive_space_id,
+	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
 	       dest_offset / UNIV_PAGE_SIZE,
 	       dest_offset % UNIV_PAGE_SIZE,
 	       2 * OS_FILE_LOG_BLOCK_SIZE,
@@ -2329,7 +2436,7 @@ log_group_archive_completed_header_write(
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	fil_io(OS_FILE_WRITE | OS_FILE_LOG, TRUE, group->archive_space_id,
+	fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->archive_space_id,
 	       dest_offset / UNIV_PAGE_SIZE,
 	       dest_offset % UNIV_PAGE_SIZE,
 	       OS_FILE_LOG_BLOCK_SIZE,
@@ -2458,7 +2565,7 @@ loop:
 
 	MONITOR_INC(MONITOR_LOG_IO);
 
-	fil_io(OS_FILE_WRITE | OS_FILE_LOG, FALSE, group->archive_space_id,
+	fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->archive_space_id,
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),
 	       (ulint) (next_offset % UNIV_PAGE_SIZE),
 	       ut_calc_align(len, OS_FILE_LOG_BLOCK_SIZE), buf,

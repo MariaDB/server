@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -212,7 +212,6 @@ uchar *sys_var::global_value_ptr(THD *thd, LEX_STRING *base)
 
 bool sys_var::check(THD *thd, set_var *var)
 {
-  do_deprecated_warning(thd);
   if ((var->value && do_check(thd, var))
       || (on_check && on_check(this, thd, var)))
   {
@@ -546,10 +545,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 {
   int result= 0;
 
-  /* A write lock should be held on LOCK_system_variables_hash */
-
+  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
   for (sys_var *var= first; var; var= var->next)
     result|= my_hash_delete(&system_variable_hash, (uchar*) var);
+  mysql_rwlock_unlock(&LOCK_system_variables_hash);
 
   return result;
 }
@@ -669,7 +668,7 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list)
     if ((error= var->check(thd)))
       goto err;
   }
-  if (!(error= test(thd->is_error())))
+  if (!(error= MY_TEST(thd->is_error())))
   {
     it.rewind();
     while ((var= it++))
@@ -697,6 +696,7 @@ err:
 
 int set_var::check(THD *thd)
 {
+  var->do_deprecated_warning(thd);
   if (var->is_readonly())
   {
     my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->name.str, "read only");
@@ -855,9 +855,7 @@ int set_var_password::update(THD *thd)
 int set_var_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  ulonglong access;
-  int status= acl_check_setrole(thd, base.str, &access);
-  save_result.ulonglong_value= access;
+  int status= acl_check_setrole(thd, role.str, &access);
   return status;
 #else
   return 0;
@@ -867,7 +865,7 @@ int set_var_role::check(THD *thd)
 int set_var_role::update(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  return acl_setrole(thd, base.str, save_result.ulonglong_value);
+  return acl_setrole(thd, role.str, access);
 #else
   return 0;
 #endif

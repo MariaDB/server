@@ -90,7 +90,7 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 /***********************************************************************/
 ODBCDEF::ODBCDEF(void)
   {
-  Connect = Tabname = Tabowner = Tabqual = Srcdef = Qchar = Qrystr = NULL;
+  Connect= Tabname= Tabschema= Tabcat= Srcdef= Qchar= Qrystr= Sep= NULL;
   Catver = Options = Quoted = Maxerr = Maxres = 0;
   Xsrc = false;
   }  // end of ODBCDEF constructor
@@ -104,11 +104,13 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Tabname = Cat->GetStringCatInfo(g, "Name",
                  (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
   Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-//Tabowner = Cat->GetStringCatInfo(g, "Owner", NULL);
-  Tabowner = Cat->GetStringCatInfo(g, "Dbname", NULL);
-  Tabqual = Cat->GetStringCatInfo(g, "Qualifier", NULL);
+  Tabschema = Cat->GetStringCatInfo(g, "Dbname", NULL);
+  Tabschema = Cat->GetStringCatInfo(g, "Schema", Tabschema);
+  Tabcat = Cat->GetStringCatInfo(g, "Qualifier", NULL);
+  Tabcat = Cat->GetStringCatInfo(g, "Catalog", Tabcat);
   Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
   Qrystr = Cat->GetStringCatInfo(g, "Query_String", "?");
+  Sep = Cat->GetStringCatInfo(g, "Separator", NULL);
   Catver = Cat->GetIntCatInfo("Catver", 2);
   Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
   Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
@@ -170,10 +172,11 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
   if (tdp) {
     Connect = tdp->Connect;
     TableName = tdp->Tabname;
-    Owner = tdp->Tabowner;
-    Qualifier = tdp->Tabqual;
+    Schema = tdp->Tabschema;
+    Catalog = tdp->Tabcat;
     Srcdef = tdp->Srcdef;
     Qrystr = tdp->Qrystr;
+    Sep = tdp->GetSep();
     Options = tdp->Options;
     Quoted = max(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
@@ -181,10 +184,11 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
   } else {
     Connect = NULL;
     TableName = NULL;
-    Owner = NULL;
-    Qualifier = NULL;
+    Schema = NULL;
+    Catalog = NULL;
     Srcdef = NULL;
     Qrystr = NULL;
+    Sep = 0;
     Options = 0;
     Quoted = 0;
     Rows = 0;
@@ -211,8 +215,8 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Cnp = tdbp->Cnp;
   Connect = tdbp->Connect;
   TableName = tdbp->TableName;
-  Owner = tdbp->Owner;
-  Qualifier = tdbp->Qualifier;
+  Schema = tdbp->Schema;
+  Catalog = tdbp->Catalog;
   Srcdef = tdbp->Srcdef;
   Qrystr = tdbp->Qrystr;
   Quote = tdbp->Quote;
@@ -336,7 +340,7 @@ int TDBODBC::Decode(char *txt, char *buf, size_t n)
 char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   {
   char   *colist, *tabname, *sql, buf[64];
-  LPCSTR  ownp = NULL, qualp = NULL;
+  LPCSTR  schmp = NULL, catp = NULL;
   int     len, ncol = 0;
   bool    first = true;
   PTABLE  tablep = To_Table;
@@ -406,37 +410,34 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   len = (strlen(colist) + strlen(buf) + 14);
   len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
 
-//  if (tablep->GetQualifier())             This is used when using a table
-//    qualp = tablep->GetQualifier();       from anotherPlugDB database but
-//  else                                    makes no sense for ODBC.
-  if (Qualifier && *Qualifier)
-    qualp = Qualifier;
+  if (Catalog && *Catalog)
+    catp = Catalog;
 
-  if (qualp)
-    len += (strlen(qualp) + 2);
+  if (catp)
+    len += (strlen(catp) + 2);
 
-  if (tablep->GetCreator())
-    ownp = tablep->GetCreator();
-  else if (Owner && *Owner)
-    ownp = Owner;
+  if (tablep->GetSchema())
+    schmp = tablep->GetSchema();
+  else if (Schema && *Schema)
+    schmp = Schema;
 
-  if (ownp)
-    len += (strlen(ownp) + 1);
+  if (schmp)
+    len += (strlen(schmp) + 1);
 
   sql = (char*)PlugSubAlloc(g, NULL, len);
   strcat(strcat(strcpy(sql, "SELECT "), colist), " FROM ");
 
-  if (qualp) {
-    strcat(sql, qualp);
+  if (catp) {
+    strcat(sql, catp);
 
-    if (ownp)
-      strcat(strcat(sql, "."), ownp);
+    if (schmp)
+      strcat(strcat(sql, "."), schmp);
     else
       strcat(sql, ".");
 
     strcat(sql, ".");
-  } else if (ownp)
-    strcat(strcat(sql, ownp), ".");
+  } else if (schmp)
+    strcat(strcat(sql, schmp), ".");
 
   strcat(sql, tabname);
 
@@ -921,7 +922,8 @@ ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   } // endif cprec
 
   // Set additional ODBC access method information for column.
-  Long = cdp->GetLong();
+//Long = cdp->GetLong();
+  Long = Precision;
 //strcpy(F_Date, cdp->F_Date);
   To_Val = NULL;
   Slen = 0;
@@ -986,10 +988,10 @@ bool ODBCCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {
@@ -1036,11 +1038,13 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
   } else
     Value->SetNull(false);
 
-  if (Bufp && tdbp->Rows)
+  if (Bufp && tdbp->Rows) {
     if (Buf_Type == TYPE_DATE)
       *Sqlbuf = ((TIMESTAMP_STRUCT*)Bufp)[n];
     else
       Value->SetValue_pvblk(Blkp, n);
+
+    } // endif Bufp
 
   if (Buf_Type == TYPE_DATE) {
     struct tm dbtime = {0,0,0,0,0,0,0,0,0};
@@ -1052,7 +1056,14 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
     dbtime.tm_mon = (int)Sqlbuf->month - 1;
     dbtime.tm_year = (int)Sqlbuf->year - 1900;
     ((DTVAL*)Value)->MakeTime(&dbtime);
-    } // endif Buf_Type
+  } else if (Buf_Type == TYPE_DECIM && tdbp->Sep) {
+    // Be sure to use decimal point
+    char *p = strchr(Value->GetCharValue(), tdbp->Sep);
+
+    if (p)
+      *p = '.';
+
+  } // endif Buf_Type
 
   if (g->Trace) {
     char buf[32];
@@ -1080,7 +1091,8 @@ void ODBCCOL::AllocateBuffers(PGLOBAL g, int rows)
   if (Buf_Type == TYPE_DATE)
     Bufp = PlugSubAlloc(g, NULL, rows * sizeof(TIMESTAMP_STRUCT));
   else {
-    Blkp = AllocValBlock(g, NULL, Buf_Type, rows, Long+1, 0, true, false, false);
+    Blkp = AllocValBlock(g, NULL, Buf_Type, rows, GetBuflen(), 
+                                  GetScale(), true, false, false);
     Bufp = Blkp->GetValPointer();
     } // endelse
 
@@ -1107,13 +1119,21 @@ void *ODBCCOL::GetBuffer(DWORD rows)
 /***********************************************************************/
 SWORD ODBCCOL::GetBuflen(void)
   {
-  if (Buf_Type == TYPE_DATE)
-    return (SWORD)sizeof(TIMESTAMP_STRUCT);
-  else if (Buf_Type == TYPE_STRING)
-    return (SWORD)Value->GetClen() + 1;
-  else
-    return (SWORD)Value->GetClen();
+  SWORD flen;
 
+  switch (Buf_Type) {
+    case TYPE_DATE:
+      flen = (SWORD)sizeof(TIMESTAMP_STRUCT);
+      break;
+    case TYPE_STRING:
+    case TYPE_DECIM:
+      flen = (SWORD)Value->GetClen() + 1;
+      break;
+    default:
+      flen = (SWORD)Value->GetClen();
+    } // endswitch Buf_Type
+
+  return flen;
   } // end of GetBuflen
 
 /***********************************************************************/
@@ -1137,11 +1157,18 @@ void ODBCCOL::WriteColumn(PGLOBAL g)
     Sqlbuf->month  = dbtime->tm_mon + 1;
     Sqlbuf->year   = dbtime->tm_year + 1900;
     Sqlbuf->fraction = 0;
-    } // endif Buf_Type
+  } else if (Buf_Type == TYPE_DECIM) {
+    // Some data sources require local decimal separator
+    char *p, sep = ((PTDBODBC)To_Tdb)->Sep;
+
+    if (sep && (p = strchr(Value->GetCharValue(), '.')))
+      *p = sep;
+
+  } // endif Buf_Type
 
   if (Nullable)
     *StrLen = (Value->IsNull()) ? SQL_NULL_DATA :
-              (IsTypeNum(Buf_Type)) ? 0 : SQL_NTS;
+         (IsTypeChar(Buf_Type)) ? SQL_NTS : 0;
 
   } // end of WriteColumn
 
@@ -1415,7 +1442,7 @@ PQRYRES TDBSRC::GetResult(PGLOBAL g)
 TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   {
   Dsn = tdp->GetConnect();
-  Schema = tdp->GetTabowner();
+  Schema = tdp->GetTabschema();
   Tab = tdp->GetTabname();
   } // end of TDBOTB constructor
 

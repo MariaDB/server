@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2013, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -518,7 +518,7 @@ typedef struct st_mysql_cond mysql_cond_t;
   @c mysql_cond_timedwait is a drop-in replacement
   for @c pthread_cond_timedwait.
 */
-#ifdef HAVE_PSI_COND_INTERFACE
+#if defined(HAVE_PSI_INTERFACE) || defined(SAFE_MUTEX)
   #define mysql_cond_timedwait(C, M, W) \
     inline_mysql_cond_timedwait(C, M, W, __FILE__, __LINE__)
 #else
@@ -1170,8 +1170,8 @@ static inline int inline_mysql_cond_wait(
 static inline int inline_mysql_cond_timedwait(
   mysql_cond_t *that,
   mysql_mutex_t *mutex,
-  struct timespec *abstime
-#ifdef HAVE_PSI_COND_INTERFACE
+  const struct timespec *abstime
+#if defined(HAVE_PSI_INTERFACE) || defined(SAFE_MUTEX)
   , const char *src_file, uint src_line
 #endif
   )

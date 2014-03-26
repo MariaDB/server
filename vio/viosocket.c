@@ -362,7 +362,7 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
 #endif
   DBUG_ENTER("vio_blocking");
 
-  *old_mode= test(!(vio->fcntl_mode & O_NONBLOCK));
+  *old_mode= MY_TEST(!(vio->fcntl_mode & O_NONBLOCK));
   DBUG_PRINT("enter", ("set_blocking_mode: %d  old_mode: %d",
 		       (int) set_blocking_mode, (int) *old_mode));
 
@@ -407,7 +407,7 @@ int vio_blocking(Vio *vio, my_bool set_blocking_mode, my_bool *old_mode)
       r = ioctlsocket(sd,FIONBIO,(void*) &arg);
   }
   else
-    r=  test(!(vio->fcntl_mode & O_NONBLOCK)) != set_blocking_mode;
+    r=  MY_TEST(!(vio->fcntl_mode & O_NONBLOCK)) != set_blocking_mode;
 #endif /* !defined(__WIN__) */
   DBUG_PRINT("exit", ("%d", r));
   DBUG_RETURN(r);
@@ -1060,16 +1060,16 @@ int vio_io_wait(Vio *vio, enum enum_vio_io_event event, int timeout)
   switch (event)
   {
   case VIO_IO_EVENT_READ:
-    ret= test(FD_ISSET(fd, &readfds));
+    ret= MY_TEST(FD_ISSET(fd, &readfds));
     break;
   case VIO_IO_EVENT_WRITE:
   case VIO_IO_EVENT_CONNECT:
-    ret= test(FD_ISSET(fd, &writefds));
+    ret= MY_TEST(FD_ISSET(fd, &writefds));
     break;
   }
 
   /* Error conditions pending? */
-  ret|= test(FD_ISSET(fd, &exceptfds));
+  ret|= MY_TEST(FD_ISSET(fd, &exceptfds));
 
   /* Not a timeout, ensure that a condition was met. */
   DBUG_ASSERT(ret);
@@ -1154,7 +1154,7 @@ vio_socket_connect(Vio *vio, struct sockaddr *addr, socklen_t len, int timeout)
 #else
       errno= error;
 #endif
-      ret= test(error);
+      ret= MY_TEST(error);
     }
   }
 
@@ -1166,7 +1166,7 @@ vio_socket_connect(Vio *vio, struct sockaddr *addr, socklen_t len, int timeout)
       DBUG_RETURN(TRUE);
   }
 
-  DBUG_RETURN(test(ret));
+  DBUG_RETURN(MY_TEST(ret));
 }
 
 

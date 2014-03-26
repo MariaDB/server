@@ -501,6 +501,22 @@ static struct regression_test_case regression_test_cases[] = {
 	{ MUAP, 0 | F_PROPERTY, "(\\P{N})\\1{1,2}ww", "wwwww" },
 	{ PCRE_UCP, 0 | F_PROPERTY, "(\\P{N})\\1{2,}", ".www." },
 	{ CMUAP, 0, "(\xf0\x90\x90\x80)\\1", "\xf0\x90\x90\xa8\xf0\x90\x90\xa8" },
+	{ MUA | PCRE_DUPNAMES, 0 | F_NOMATCH, "\\k<A>{1,3}(?<A>aa)(?<A>bb)", "aabb" },
+	{ MUA | PCRE_DUPNAMES | PCRE_JAVASCRIPT_COMPAT, 0, "\\k<A>{1,3}(?<A>aa)(?<A>bb)", "aabb" },
+	{ MUA | PCRE_DUPNAMES | PCRE_JAVASCRIPT_COMPAT, 0, "\\k<A>*(?<A>aa)(?<A>bb)", "aabb" },
+	{ MUA | PCRE_DUPNAMES, 0, "(?<A>aa)(?<A>bb)\\k<A>{0,3}aaaaaa", "aabbaaaaaa" },
+	{ MUA | PCRE_DUPNAMES, 0, "(?<A>aa)(?<A>bb)\\k<A>{2,5}bb", "aabbaaaabb" },
+	{ MUA | PCRE_DUPNAMES, 0, "(?:(?<A>aa)|(?<A>bb))\\k<A>{0,3}m", "aaaaaaaabbbbaabbbbm" },
+	{ MUA | PCRE_DUPNAMES, 0 | F_NOMATCH, "\\k<A>{1,3}?(?<A>aa)(?<A>bb)", "aabb" },
+	{ MUA | PCRE_DUPNAMES | PCRE_JAVASCRIPT_COMPAT, 0, "\\k<A>{1,3}?(?<A>aa)(?<A>bb)", "aabb" },
+	{ MUA | PCRE_DUPNAMES, 0, "\\k<A>*?(?<A>aa)(?<A>bb)", "aabb" },
+	{ MUA | PCRE_DUPNAMES, 0, "(?:(?<A>aa)|(?<A>bb))\\k<A>{0,3}?m", "aaaaaabbbbbbaabbbbbbbbbbm" },
+	{ MUA | PCRE_DUPNAMES, 0, "(?:(?<A>aa)|(?<A>bb))\\k<A>*?m", "aaaaaabbbbbbaabbbbbbbbbbm" },
+	{ MUA | PCRE_DUPNAMES, 0, "(?:(?<A>aa)|(?<A>bb))\\k<A>{2,3}?", "aaaabbbbaaaabbbbbbbbbb" },
+	{ CMUA | PCRE_DUPNAMES, 0, "(?:(?<A>AA)|(?<A>BB))\\k<A>{0,3}M", "aaaaaaaabbbbaabbbbm" },
+	{ CMUA | PCRE_DUPNAMES, 0, "(?:(?<A>AA)|(?<A>BB))\\k<A>{1,3}M", "aaaaaaaabbbbaabbbbm" },
+	{ CMUA | PCRE_DUPNAMES, 0, "(?:(?<A>AA)|(?<A>BB))\\k<A>{0,3}?M", "aaaaaabbbbbbaabbbbbbbbbbm" },
+	{ CMUA | PCRE_DUPNAMES, 0, "(?:(?<A>AA)|(?<A>BB))\\k<A>{2,3}?", "aaaabbbbaaaabbbbbbbbbb" },
 
 	/* Assertions. */
 	{ MUA, 0, "(?=xx|yy|zz)\\w{4}", "abczzdefg" },
@@ -1374,7 +1390,7 @@ static int regression_tests(void)
 #endif
 
 		/* printf("[%d-%d-%d|%d-%d|%d-%d|%d-%d]%s",
-			return_value8[0], return_value16[0],
+			return_value8[0], return_value16[0], return_value32[0],
 			ovector8_1[0], ovector8_1[1],
 			ovector16_1[0], ovector16_1[1],
 			ovector32_1[0], ovector32_1[1],

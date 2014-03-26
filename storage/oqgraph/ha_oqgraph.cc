@@ -538,7 +538,11 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   origid= destid= weight= 0;
 
+  // Here we're abusing init_tmp_table_share() which is normally only works for thread-local shares.
   init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
+  // because of that, we need to reinitialize the memroot (to reset MY_THREAD_SPECIFIC flag)
+  DBUG_ASSERT(share->mem_root.used == NULL); // it's still empty
+  init_sql_alloc(&share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   // What I think this code is doing:
   // * Our OQGRAPH table is `database_blah/name`

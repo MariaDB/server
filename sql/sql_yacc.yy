@@ -344,7 +344,7 @@ int case_stmt_action_when(LEX *lex, Item *when, bool simple)
     (jump_if_not from instruction 2 to 5, 5 to 8 ... in the example)
   */
 
-  return !test(i) ||
+  return !MY_TEST(i) ||
          sp->push_backpatch(i, ctx->push_label(current_thd, empty_lex_str, 0)) ||
          sp->add_cont_backpatch(i) ||
          sp->add_instr(i);
@@ -362,7 +362,7 @@ int case_stmt_action_then(LEX *lex)
   sp_pcontext *ctx= lex->spcont;
   uint ip= sp->instructions();
   sp_instr_jump *i = new sp_instr_jump(ip, ctx);
-  if (!test(i) || sp->add_instr(i))
+  if (!MY_TEST(i) || sp->add_instr(i))
     return 1;
 
   /*
@@ -1155,6 +1155,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  EXISTS                        /* SQL-2003-R */
 %token  EXIT_SYM
 %token  EXPANSION_SYM
+%token  EXPORT_SYM
 %token  EXTENDED_SYM
 %token  EXTENT_SIZE_SYM
 %token  EXTRACT_SYM                   /* SQL-2003-N */
@@ -1664,7 +1665,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
         udf_type opt_if_exists opt_local opt_table_options table_options
-        table_option opt_if_not_exists opt_no_write_to_binlog
+        table_option opt_if_not_exists create_or_replace opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options spatial_type union_option
         field_def
@@ -1771,7 +1772,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <symbol> keyword keyword_sp
 
 %type <lex_user> user grant_user grant_role user_or_role current_role
-                 admin_option_for_role
+                 admin_option_for_role user_maybe_role
 
 %type <charset>
         opt_collate
@@ -1828,7 +1829,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         object_privilege object_privilege_list user_list user_and_role_list
         rename_list
         clear_privileges flush_options flush_option
-        opt_with_read_lock flush_options_list
+        opt_flush_lock flush_lock flush_options_list
         equal optional_braces
         opt_mi_check_type opt_to mi_check_types 
         table_to_table_list table_to_table opt_table_list opt_as
@@ -1843,7 +1844,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         statement sp_suid
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
         opt_field_or_var_spec fields_or_vars opt_load_data_set_spec
-        view_replace_or_algorithm view_replace
         view_algorithm view_or_trigger_or_sp_or_event
         definer_tail no_definer_tail
         view_suid view_tail view_list_opt view_list view_select
@@ -2341,25 +2341,29 @@ connection_name:
 /* create a table */
 
 create:
-          CREATE opt_table_options TABLE_SYM opt_if_not_exists table_ident
+          create_or_replace opt_table_options TABLE_SYM opt_if_not_exists table_ident
           {
             LEX *lex= thd->lex;
             lex->sql_command= SQLCOM_CREATE_TABLE;
+            if ($1 && $4)
+            {
+               my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE", "IF NOT EXISTS");
+               MYSQL_YYABORT;
+            }
             if (!lex->select_lex.add_table_to_list(thd, $5, NULL,
                                                    TL_OPTION_UPDATING,
                                                    TL_WRITE, MDL_EXCLUSIVE))
               MYSQL_YYABORT;
-            /*
-              For CREATE TABLE, an non-existing table is not an error.
-              Instruct open_tables() to just take an MDL lock if the
-              table does not exist.
-            */
-            lex->query_tables->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
             lex->alter_info.reset();
             lex->col_list.empty();
             lex->change=NullS;
             bzero((char*) &lex->create_info,sizeof(lex->create_info));
-            lex->create_info.options=$2 | $4;
+            /*
+              For CREATE TABLE we should not open the table even if it exists.
+              If the table exists, we should either not create it or replace it
+            */
+            lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+            lex->create_info.options= ($1 | $2 | $4);
             lex->create_info.default_table_charset= NULL;
             lex->name.str= 0;
             lex->name.length= 0;
@@ -2428,14 +2432,22 @@ create:
             lex->name= $4;
             lex->create_info.options=$3;
           }
-        | CREATE
+        | create_or_replace
           {
-            Lex->create_view_mode= VIEW_CREATE_NEW;
+            Lex->create_view_mode= ($1 == 0 ? VIEW_CREATE_NEW :
+                                    VIEW_CREATE_OR_REPLACE);
             Lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
             Lex->create_view_suid= TRUE;
           }
           view_or_trigger_or_sp_or_event
-          {}
+          {
+            if ($1 && Lex->sql_command != SQLCOM_CREATE_VIEW)
+            {
+               my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE",
+                       "TRIGGERS / SP / EVENT");
+               MYSQL_YYABORT;
+            }
+          }
         | CREATE USER clear_privileges grant_list
           {
             Lex->sql_command = SQLCOM_CREATE_USER;
@@ -5512,6 +5524,17 @@ opt_if_not_exists:
           {
             Lex->check_exists= TRUE;
             $$=HA_LEX_CREATE_IF_NOT_EXISTS;
+          }
+         ;
+
+create_or_replace:
+          CREATE /* empty */
+          {
+            $$= 0;
+          }
+        | CREATE OR_SYM REPLACE
+          {
+            $$= HA_LEX_CREATE_REPLACE;
           }
          ;
 
@@ -10262,7 +10285,7 @@ variable_aux:
             if ($$ == NULL)
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->uncacheable(UNCACHEABLE_RAND);
+            lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
             lex->set_var_list.push_back(item);
           }
         | ident_or_text
@@ -10271,7 +10294,7 @@ variable_aux:
             if ($$ == NULL)
               MYSQL_YYABORT;
             LEX *lex= Lex;
-            lex->uncacheable(UNCACHEABLE_RAND);
+            lex->uncacheable(UNCACHEABLE_SIDEEFFECT);
           }
         | '@' opt_var_ident_type ident_or_text opt_component
           {
@@ -12778,24 +12801,36 @@ flush_options:
             YYPS->m_lock_type= TL_READ_NO_INSERT;
             YYPS->m_mdl_type= MDL_SHARED_HIGH_PRIO;
           }
-          opt_table_list {}
-          opt_with_read_lock {}
+          opt_table_list opt_flush_lock
         | flush_options_list
         ;
 
-opt_with_read_lock:
+opt_flush_lock:
           /* empty */ {}
-        | WITH READ_SYM LOCK_SYM optional_flush_tables_arguments
+        | flush_lock
+        {
+          TABLE_LIST *tables= Lex->query_tables;
+          for (; tables; tables= tables->next_global)
           {
-            TABLE_LIST *tables= Lex->query_tables;
-            Lex->type|= REFRESH_READ_LOCK | $4;
-            for (; tables; tables= tables->next_global)
-            {
-              tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-              tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
-              tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
-            }
+            tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
+            tables->required_type= FRMTYPE_TABLE; /* Don't try to flush views. */
+            tables->open_type= OT_BASE_ONLY;      /* Ignore temporary tables. */
           }
+        }
+        ;
+
+flush_lock:
+          WITH READ_SYM LOCK_SYM optional_flush_tables_arguments
+          { Lex->type|= REFRESH_READ_LOCK | $4; }
+        | FOR_SYM
+          {
+            if (Lex->query_tables == NULL) // Table list can't be empty
+            {
+              my_parse_error(ER(ER_NO_TABLES_USED));
+              MYSQL_YYABORT;
+            } 
+            Lex->type|= REFRESH_FOR_EXPORT;
+          } EXPORT_SYM
         ;
 
 flush_options_list:
@@ -13916,7 +13951,7 @@ ident_or_text:
         | LEX_HOSTNAME { $$=$1;}
         ;
 
-user:
+user_maybe_role:
           ident_or_text
           {
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
@@ -13974,7 +14009,15 @@ user:
           }
         ;
 
-user_or_role: user | current_role;
+user_or_role: user_maybe_role | current_role;
+
+user: user_maybe_role
+         {
+           if ($1->user.str != current_user.str && $1->host.str == 0)
+             $1->host= host_not_specified;
+           $$= $1;
+         }
+         ;
 
 /* Keyword that we allow for identifiers (except SP labels) */
 keyword:
@@ -14131,6 +14174,7 @@ keyword_sp:
         | EVERY_SYM                {}
         | EXCHANGE_SYM             {}
         | EXPANSION_SYM            {}
+        | EXPORT_SYM               {}
         | EXTENDED_SYM             {}
         | EXTENT_SIZE_SYM          {}
         | FAULTS_SYM               {}
@@ -15148,6 +15192,11 @@ current_role:
 grant_role:
           ident_or_text
           {
+            if ($1.length == 0)
+            {
+              my_error(ER_INVALID_ROLE, MYF(0), "");
+              MYSQL_YYABORT;
+            }
             if (!($$=(LEX_USER*) thd->alloc(sizeof(st_lex_user))))
               MYSQL_YYABORT;
             $$->user = $1;
@@ -15799,7 +15848,7 @@ view_or_trigger_or_sp_or_event:
           {}
         | no_definer no_definer_tail
           {}
-        | view_replace_or_algorithm definer_opt view_tail
+        | view_algorithm definer_opt view_tail
           {}
         ;
 
@@ -15857,20 +15906,6 @@ definer:
  CREATE VIEW statement parts.
 
 **************************************************************************/
-
-view_replace_or_algorithm:
-          view_replace
-          {}
-        | view_replace view_algorithm
-          {}
-        | view_algorithm
-          {}
-        ;
-
-view_replace:
-          OR_SYM REPLACE
-          { Lex->create_view_mode= VIEW_CREATE_OR_REPLACE; }
-        ;
 
 view_algorithm:
           ALGORITHM_SYM EQ UNDEFINED_SYM

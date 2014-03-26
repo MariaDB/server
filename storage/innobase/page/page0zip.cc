@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -69,11 +69,11 @@ UNIV_INTERN mysql_pfs_key_t		page_zip_stat_per_index_mutex_key;
 #endif /* !UNIV_HOTBACKUP */
 
 /* Compression level to be used by zlib. Settable by user. */
-UNIV_INTERN ulint	page_compression_level = 6;
+UNIV_INTERN uint	page_zip_level = DEFAULT_COMPRESSION_LEVEL;
 
 /* Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */
-UNIV_INTERN bool	page_log_compressed_pages = true;
+UNIV_INTERN my_bool	page_zip_log_pages = true;
 
 /* Please refer to ../include/page0zip.ic for a description of the
 compressed page format. */
@@ -655,8 +655,8 @@ page_zip_dir_encode(
 #if PAGE_ZIP_DIR_SLOT_MASK & (PAGE_ZIP_DIR_SLOT_MASK + 1)
 # error "PAGE_ZIP_DIR_SLOT_MASK is not 1 less than a power of 2"
 #endif
-#if PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE - 1
-# error "PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE - 1"
+#if PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE_MAX - 1
+# error "PAGE_ZIP_DIR_SLOT_MASK < UNIV_PAGE_SIZE_MAX - 1"
 #endif
 		if (UNIV_UNLIKELY(rec_get_n_owned_new(rec))) {
 			offs |= PAGE_ZIP_DIR_SLOT_OWNED;
@@ -864,11 +864,12 @@ page_zip_compress_node_ptrs(
 		c_stream->next_in = (byte*) rec;
 		c_stream->avail_in = rec_offs_data_size(offsets)
 			- REC_NODE_PTR_SIZE;
-		ut_ad(c_stream->avail_in);
 
-		err = deflate(c_stream, Z_NO_FLUSH);
-		if (UNIV_UNLIKELY(err != Z_OK)) {
-			break;
+		if (c_stream->avail_in) {
+			err = deflate(c_stream, Z_NO_FLUSH);
+			if (UNIV_UNLIKELY(err != Z_OK)) {
+				break;
+			}
 		}
 
 		ut_ad(!c_stream->avail_in);
@@ -1199,7 +1200,7 @@ page_zip_compress(
 				m_start, m_end, m_nonempty */
 	const page_t*	page,	/*!< in: uncompressed page */
 	dict_index_t*	index,	/*!< in: index of the B-tree node */
-	ulint		level,	/*!< in: commpression level */
+	ulint		level,	/*!< in: compression level */
 	mtr_t*		mtr)	/*!< in: mini-transaction, or NULL */
 {
 	z_stream	c_stream;
@@ -1246,7 +1247,7 @@ page_zip_compress(
 	ut_a(!memcmp(page + (PAGE_NEW_SUPREMUM - REC_N_NEW_EXTRA_BYTES + 1),
 		     supremum_extra_data, sizeof supremum_extra_data));
 
-	if (UNIV_UNLIKELY(!page_get_n_recs(page))) {
+	if (page_is_empty(page)) {
 		ut_a(rec_get_next_offs(page + PAGE_NEW_INFIMUM, TRUE)
 		     == PAGE_NEW_SUPREMUM);
 	}
@@ -1263,7 +1264,7 @@ page_zip_compress(
 	if (UNIV_UNLIKELY(page_zip_compress_dbg)) {
 		fprintf(stderr, "compress %p %p %lu %lu %lu\n",
 			(void*) page_zip, (void*) page,
-			page_is_leaf(page),
+			(ibool) page_is_leaf(page),
 			n_fields, n_dense);
 	}
 	if (UNIV_UNLIKELY(page_zip_compress_log)) {
@@ -2173,6 +2174,32 @@ page_zip_apply_log(
 }
 
 /**********************************************************************//**
+Set the heap_no in a record, and skip the fixed-size record header
+that is not included in the d_stream.
+@return	TRUE on success, FALSE if d_stream does not end at rec */
+static
+ibool
+page_zip_decompress_heap_no(
+/*========================*/
+	z_stream*	d_stream,	/*!< in/out: compressed page stream */
+	rec_t*		rec,		/*!< in/out: record */
+	ulint&		heap_status)	/*!< in/out: heap_no and status bits */
+{
+	if (d_stream->next_out != rec - REC_N_NEW_EXTRA_BYTES) {
+		/* n_dense has grown since the page was last compressed. */
+		return(FALSE);
+	}
+
+	/* Skip the REC_N_NEW_EXTRA_BYTES. */
+	d_stream->next_out = rec;
+
+	/* Set heap_no and the status bits. */
+	mach_write_to_2(rec - REC_NEW_HEAP_NO, heap_status);
+	heap_status += 1 << REC_HEAP_NO_SHIFT;
+	return(TRUE);
+}
+
+/**********************************************************************//**
 Decompress the records of a node pointer page.
 @return	TRUE on success, FALSE on failure */
 static
@@ -2208,8 +2235,8 @@ page_zip_decompress_node_ptrs(
 		      - PAGE_ZIP_START - PAGE_DIR);
 		switch (inflate(d_stream, Z_SYNC_FLUSH)) {
 		case Z_STREAM_END:
-			/* Apparently, n_dense has grown
-			since the time the page was last compressed. */
+			page_zip_decompress_heap_no(
+				d_stream, rec, heap_status);
 			goto zlib_done;
 		case Z_OK:
 		case Z_BUF_ERROR:
@@ -2224,12 +2251,10 @@ page_zip_decompress_node_ptrs(
 			goto zlib_error;
 		}
 
-		ut_ad(d_stream->next_out == rec - REC_N_NEW_EXTRA_BYTES);
-		/* Prepare to decompress the data bytes. */
-		d_stream->next_out = rec;
-		/* Set heap_no and the status bits. */
-		mach_write_to_2(rec - REC_NEW_HEAP_NO, heap_status);
-		heap_status += 1 << REC_HEAP_NO_SHIFT;
+		if (!page_zip_decompress_heap_no(
+			    d_stream, rec, heap_status)) {
+			ut_ad(0);
+		}
 
 		/* Read the offsets. The status bits are needed here. */
 		offsets = rec_get_offsets(rec, index, offsets,
@@ -2331,13 +2356,12 @@ zlib_done:
 
 	if (UNIV_UNLIKELY
 	    (page_zip_get_trailer_len(page_zip,
-				      dict_index_is_clust(index), NULL)
+				      dict_index_is_clust(index))
 	     + page_zip->m_end >= page_zip_get_size(page_zip))) {
 		page_zip_fail(("page_zip_decompress_node_ptrs:"
 			       " %lu + %lu >= %lu, %lu\n",
 			       (ulong) page_zip_get_trailer_len(
-				       page_zip, dict_index_is_clust(index),
-				       NULL),
+				       page_zip, dict_index_is_clust(index)),
 			       (ulong) page_zip->m_end,
 			       (ulong) page_zip_get_size(page_zip),
 			       (ulong) dict_index_is_clust(index)));
@@ -2398,8 +2422,8 @@ page_zip_decompress_sec(
 		if (UNIV_LIKELY(d_stream->avail_out)) {
 			switch (inflate(d_stream, Z_SYNC_FLUSH)) {
 			case Z_STREAM_END:
-				/* Apparently, n_dense has grown
-				since the time the page was last compressed. */
+				page_zip_decompress_heap_no(
+					d_stream, rec, heap_status);
 				goto zlib_done;
 			case Z_OK:
 			case Z_BUF_ERROR:
@@ -2415,15 +2439,10 @@ page_zip_decompress_sec(
 			}
 		}
 
-		ut_ad(d_stream->next_out == rec - REC_N_NEW_EXTRA_BYTES);
-
-		/* Skip the REC_N_NEW_EXTRA_BYTES. */
-
-		d_stream->next_out = rec;
-
-		/* Set heap_no and the status bits. */
-		mach_write_to_2(rec - REC_NEW_HEAP_NO, heap_status);
-		heap_status += 1 << REC_HEAP_NO_SHIFT;
+		if (!page_zip_decompress_heap_no(
+			    d_stream, rec, heap_status)) {
+			ut_ad(0);
+		}
 	}
 
 	/* Decompress the data of the last record and any trailing garbage,
@@ -2488,12 +2507,12 @@ zlib_done:
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
-	if (UNIV_UNLIKELY(page_zip_get_trailer_len(page_zip, FALSE, NULL)
+	if (UNIV_UNLIKELY(page_zip_get_trailer_len(page_zip, FALSE)
 			  + page_zip->m_end >= page_zip_get_size(page_zip))) {
 
 		page_zip_fail(("page_zip_decompress_sec: %lu + %lu >= %lu\n",
 			       (ulong) page_zip_get_trailer_len(
-				       page_zip, FALSE, NULL),
+				       page_zip, FALSE),
 			       (ulong) page_zip->m_end,
 			       (ulong) page_zip_get_size(page_zip)));
 		return(FALSE);
@@ -2657,8 +2676,8 @@ page_zip_decompress_clust(
 		err = inflate(d_stream, Z_SYNC_FLUSH);
 		switch (err) {
 		case Z_STREAM_END:
-			/* Apparently, n_dense has grown
-			since the time the page was last compressed. */
+			page_zip_decompress_heap_no(
+				d_stream, rec, heap_status);
 			goto zlib_done;
 		case Z_OK:
 		case Z_BUF_ERROR:
@@ -2673,12 +2692,10 @@ page_zip_decompress_clust(
 			goto zlib_error;
 		}
 
-		ut_ad(d_stream->next_out == rec - REC_N_NEW_EXTRA_BYTES);
-		/* Prepare to decompress the data bytes. */
-		d_stream->next_out = rec;
-		/* Set heap_no and the status bits. */
-		mach_write_to_2(rec - REC_NEW_HEAP_NO, heap_status);
-		heap_status += 1 << REC_HEAP_NO_SHIFT;
+		if (!page_zip_decompress_heap_no(
+			    d_stream, rec, heap_status)) {
+			ut_ad(0);
+		}
 
 		/* Read the offsets. The status bits are needed here. */
 		offsets = rec_get_offsets(rec, index, offsets,
@@ -2819,12 +2836,12 @@ zlib_done:
 		page_zip->m_nonempty = mod_log_ptr != d_stream->next_in;
 	}
 
-	if (UNIV_UNLIKELY(page_zip_get_trailer_len(page_zip, TRUE, NULL)
+	if (UNIV_UNLIKELY(page_zip_get_trailer_len(page_zip, TRUE)
 			  + page_zip->m_end >= page_zip_get_size(page_zip))) {
 
 		page_zip_fail(("page_zip_decompress_clust: %lu + %lu >= %lu\n",
 			       (ulong) page_zip_get_trailer_len(
-				       page_zip, TRUE, NULL),
+				       page_zip, TRUE),
 			       (ulong) page_zip->m_end,
 			       (ulong) page_zip_get_size(page_zip)));
 		return(FALSE);
@@ -3001,7 +3018,7 @@ zlib_error:
 	/* Copy the infimum and supremum records. */
 	memcpy(page + (PAGE_NEW_INFIMUM - REC_N_NEW_EXTRA_BYTES),
 	       infimum_extra, sizeof infimum_extra);
-	if (UNIV_UNLIKELY(!page_get_n_recs(page))) {
+	if (page_is_empty(page)) {
 		rec_set_next_offs_new(page + PAGE_NEW_INFIMUM,
 				      PAGE_NEW_SUPREMUM);
 	} else {
@@ -4630,8 +4647,7 @@ page_zip_reorganize(
 	/* Restore logging. */
 	mtr_set_log_mode(mtr, log_mode);
 
-	if (!page_zip_compress(page_zip, page, index,
-			       page_compression_level, mtr)) {
+	if (!page_zip_compress(page_zip, page, index, page_zip_level, mtr)) {
 
 #ifndef UNIV_HOTBACKUP
 		buf_block_free(temp_block);
@@ -4715,8 +4731,7 @@ page_zip_copy_recs(
 		memcpy(page_zip, src_zip, sizeof *page_zip);
 		page_zip->data = data;
 	}
-	ut_ad(page_zip_get_trailer_len(page_zip,
-				       dict_index_is_clust(index), NULL)
+	ut_ad(page_zip_get_trailer_len(page_zip, dict_index_is_clust(index))
 	      + page_zip->m_end < page_zip_get_size(page_zip));
 
 	if (!page_is_leaf(src)

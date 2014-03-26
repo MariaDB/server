@@ -2753,7 +2753,7 @@ KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp),
 /***********************************************************************/
 bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   {
-  int len = colp->GetLength(), prec = colp->GetPrecision();
+  int len = colp->GetLength(), prec = colp->GetScale();
 
   // Currently no indexing on NULL columns
   if (colp->IsNullable()) {
@@ -2774,7 +2774,8 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
 
-  if (!(Valp = AllocateValue(g, Type, len, colp->GetPrecision())))
+  if (!(Valp = AllocateValue(g, Type, len, colp->GetScale(),
+                                           colp->IsUnsigned())))
     return true;
 
   Klen = Valp->GetClen();
@@ -2825,7 +2826,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 #endif
 
   // Allocate the Value object used when moving items
-  Valp = AllocateValue(g, Type, len, prec, NULL);
+  Valp = AllocateValue(g, Type, len, prec, false, NULL);
   Klen = Valp->GetClen();
 
   if (n[2]) {

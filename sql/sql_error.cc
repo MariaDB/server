@@ -464,6 +464,7 @@ Diagnostics_area::set_error_status(uint sql_errno,
                                    const Sql_condition *error_condition)
 {
   DBUG_ENTER("set_error_status");
+  DBUG_PRINT("enter", ("error: %d", sql_errno));
   /*
     Only allowed to report error if has not yet reported a success
     The only exception is when we flush the message to the client,

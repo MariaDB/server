@@ -32,9 +32,10 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   virtual const char *GetType(void) {return "ODBC";}
   PSZ  GetConnect(void) {return Connect;}
   PSZ  GetTabname(void) {return Tabname;}
-  PSZ  GetTabowner(void) {return Tabowner;}
-  PSZ  GetTabqual(void) {return Tabqual;}
+  PSZ  GetTabschema(void) {return Tabschema;}
+  PSZ  GetTabcat(void) {return Tabcat;}
   PSZ  GetSrcdef(void) {return Srcdef;}
+  char GetSep(void) {return (Sep) ? *Sep : 0;}
   int  GetQuoted(void) {return Quoted;} 
   int  GetCatver(void) {return Catver;}
   int  GetOptions(void) {return Options;}
@@ -47,11 +48,12 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   // Members
   PSZ     Connect;            /* ODBC connection string                */
   PSZ     Tabname;            /* External table name                   */
-  PSZ     Tabowner;           /* External table owner                  */
-  PSZ     Tabqual;            /* External table qualifier              */
+  PSZ     Tabschema;          /* External table schema                 */
+  PSZ     Tabcat;             /* External table catalog                */
   PSZ     Srcdef;             /* The source table SQL definition       */
   PSZ     Qchar;              /* Identifier quoting character          */
   PSZ     Qrystr;             /* The original query                    */
+  PSZ     Sep;                /* Decimal separator                     */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
   int     Quoted;             /* Identifier quoting level              */
@@ -115,8 +117,8 @@ class TDBODBC : public TDBASE {
   ODBCCOL *Cnp;               // Points to count(*) column
   char    *Connect;           // Points to connection string
   char    *TableName;         // Points to ODBC table name
-  char    *Owner;             // Points to ODBC table Owner
-  char    *Qualifier;         // Points to ODBC table Qualifier
+  char    *Schema;            // Points to ODBC table Schema
+  char    *Catalog;           // Points to ODBC table Catalog
   char    *Srcdef;            // The source table SQL definition
   char    *Query;             // Points to SQL statement
   char    *Count;             // Points to count(*) SQL statement
@@ -125,6 +127,7 @@ class TDBODBC : public TDBASE {
   char    *MulConn;           // Used for multiple ODBC tables
   char    *DBQ;               // The address part of Connect string
   char    *Qrystr;            // The original query
+  char     Sep;               // The decimal separator
   int      Options;           // Connect options
   int      Quoted;            // The identifier quoting level
   int      Fpos;              // Position of last read record

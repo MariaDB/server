@@ -5379,7 +5379,7 @@ ERROR 42000: The storage engine for the table doesn't support nullable columns
 SHOW WARNINGS;
 Level	Code	Message
 Error	1178	The storage engine for the table doesn't support nullable columns
-Error	1005	Can't create table `test`.`t1` (errno: 138 "Unsupported extension used for table")
+Warning	1112	Table 't1' uses an extension that doesn't exist in this MariaDB version
 create table t1 (c1 tinyblob not null) engine=csv;
 insert into t1 values("This");
 update t1 set c1="That" where c1="This";
@@ -5485,3 +5485,11 @@ SELECT * FROM t1;
 ERROR HY000: Table 't1' is marked as crashed and should be repaired
 DROP TABLE t1;
 End of 5.1 tests
+#
+# MDEV-5612 - my_rename() deletes files when it shouldn't
+#
+CREATE TABLE t1(a INT NOT NULL) ENGINE=CSV;
+RENAME TABLE t1 TO t2;
+SELECT * FROM t2;
+a
+DROP TABLE t2;
