@@ -908,6 +908,22 @@ explain extended select * from t1 where a=-1;
 
 drop table t0, t1;
 
+--echo #
+--echo # MDEV-4362: Selectivity estimates for IN (...) do not depend on whether the values are in range
+--echo #
+create table t1 (col1 int);
+set @a=-1;
+create table t2 (a int)  select (@a:=@a+1) as a from information_schema.session_variables A limit 100;
+insert into t1 select A.a from t2 A, t2 B where A.a < 100 and B.a < 100;
+select min(col1), max(col1), count(*) from t1;
+set histogram_size=100;
+analyze table t1 persistent for all;
+explain extended select * from t1 where col1 in (1,2,3);
+--echo # Must not cause fp division by zero, or produce nonsense numbers:
+explain extended select * from t1 where col1 in (-1,-2,-3);
+explain extended select * from t1 where col1<=-1;
+drop table t1, t2;
+
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
