@@ -173,24 +173,15 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
 
   if (tmp_len < create_info->comment.length)
   {
-    char *real_table_name= (char*) table;
-    List_iterator<Create_field> it(create_fields);
-    Create_field *field;
-    while ((field=it++))
-    {
-      if (field->field && field->field->table &&
-         (real_table_name= field->field->table->s->table_name.str))
-        break;
-    }
     if (thd->is_strict_mode())
     {
       my_error(ER_TOO_LONG_TABLE_COMMENT, MYF(0),
-               real_table_name, TABLE_COMMENT_MAXLEN);
+               table, TABLE_COMMENT_MAXLEN);
       DBUG_RETURN(frm);
     }
     char warn_buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_TABLE_COMMENT),
-                real_table_name, TABLE_COMMENT_MAXLEN);
+                table, TABLE_COMMENT_MAXLEN);
     push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
                  ER_TOO_LONG_TABLE_COMMENT, warn_buff);
     create_info->comment.length= tmp_len;
