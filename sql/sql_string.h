@@ -568,4 +568,7 @@ static inline bool check_if_only_end_space(CHARSET_INFO *cs,
   return str+ cs->cset->scan(cs, str, end, MY_SEQ_SPACES) == end;
 }
 
+int append_query_string(CHARSET_INFO *csinfo, String *to,
+                        const char *str, size_t len, bool no_backslash);
+
 #endif /* SQL_STRING_INCLUDED */
