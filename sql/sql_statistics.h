@@ -113,7 +113,7 @@ class Histogram
 
 private:
   Histogram_type type;
-  uint8 size;
+  uint8 size; /* Size of values array, in bytes */
   uchar *values;
 
   uint prec_factor()
@@ -142,6 +142,7 @@ public:
 private:
   uint get_value(uint i)
   {
+    DBUG_ASSERT(i < get_width());
     switch (type) {
     case SINGLE_PREC_HB:
       return (uint) (((uint8 *) values)[i]);
@@ -150,7 +151,7 @@ private:
     }
     return 0;
   }
-
+  /* Find the bucket which value 'pos' falls into. */
   uint find_bucket(double pos, bool first)
   {
     uint val= (uint) (pos * prec_factor());
@@ -169,6 +170,10 @@ private:
       else
         break;
     }
+
+    if (val > get_value(i))
+      i++;
+
     if (val == get_value(i))
     {
       if (first)
@@ -234,24 +239,89 @@ public:
     sel= bucket_sel * (max - min + 1);
     return sel;
   } 
+  
+  
+  /*
+    Estimate selectivity of "col=const" using a histogram
+    
+    @param pos      Position of the "const" between column's min_value and 
+                    max_value.  This is a number in [0..1] range.
+    @param avg_sel  Average selectivity of condition "col=const" in this table.
+                    It is calcuated as (#non_null_values / #distinct_values).
+    
+    @return
+       Expected condition selectivity (a number between 0 and 1)
+  */
 
   double point_selectivity(double pos, double avg_sel)
   {
     double sel;
-    double bucket_sel= 1.0/(get_width() + 1);  
+    /* Find the bucket that contains the value 'pos'. */
     uint min= find_bucket(pos, TRUE);
+    uint pos_value= (uint) (pos * prec_factor());
+
+    /* Find how many buckets this value occupies */
     uint max= min;
-    while (max + 1 < get_width() && get_value(max + 1) == get_value(max))
+    while (max + 1 < get_width() && get_value(max + 1) == pos_value)
       max++;
-    double inv_prec_factor= (double) 1.0 / prec_factor(); 
-    double width= (max + 1 == get_width() ?
-                   1.0 : get_value(max) * inv_prec_factor) -
-	          (min == 0 ?
-                   0.0 : get_value(min-1) * inv_prec_factor); 
-    sel= avg_sel * (bucket_sel * (max + 1 - min)) / width;
+
+    if (max > min)
+    {
+      /*
+        The value occupies multiple buckets. Use start_bucket ... end_bucket as
+        selectivity.
+      */
+      double bucket_sel= 1.0/(get_width() + 1);  
+      sel= bucket_sel * (max - min + 1);
+    }
+    else
+    {
+      /* 
+        The value 'pos' fits within one single histogram bucket.
+
+        Histogram buckets have the same numbers of rows, but they cover
+        different ranges of values.
+
+        We assume that values are uniformly distributed across the [0..1] value
+        range.
+      */
+
+      /* 
+        If all buckets covered value ranges of the same size, the width of
+        value range would be:
+      */
+      double avg_bucket_width= 1.0 / (get_width() + 1);
+      
+      /*
+        Let's see what is the width of value range that our bucket is covering.
+          (min==max currently. they are kept in the formula just in case we 
+           will want to extend it to handle multi-bucket case)
+      */
+      double inv_prec_factor= (double) 1.0 / prec_factor(); 
+      double current_bucket_width= 
+          (max + 1 == get_width() ?  1.0 : (get_value(max) * inv_prec_factor)) -
+          (min == 0 ?  0.0 : (get_value(min-1) * inv_prec_factor));
+
+      /*
+        So:
+        - each bucket has the same #rows 
+        - values are unformly distributed across the [min_value,max_value] domain.
+
+        If a bucket has value range that's N times bigger then average, than
+        each value will have to have N times fewer rows than average.
+      */
+      DBUG_ASSERT(current_bucket_width);
+      sel= avg_sel * avg_bucket_width / current_bucket_width;
+
+      /*
+        (Q: if we just follow this proportion we may end up in a situation
+        where number of different values we expect to find in this bucket
+        exceeds the number of rows that this histogram has in a bucket. Are 
+        we ok with this or we would want to have certain caps?)
+      */
+    }
     return sel;
   }
-             
 };
 
 
