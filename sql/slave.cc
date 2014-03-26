@@ -4165,6 +4165,7 @@ err:
   if (mi->using_gtid != Master_info::USE_GTID_NO)
     flush_master_info(mi, TRUE, TRUE);
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
+  thd->add_status_to_global();
   mysql_mutex_lock(&mi->run_lock);
 
 err_during_init:
@@ -4664,6 +4665,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
     flush_relay_log_info(rli);
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
+  thd->add_status_to_global();
   mysql_mutex_lock(&rli->run_lock);
 err_during_init:
   /* We need data_lock, at least to wake up any waiting master_pos_wait() */

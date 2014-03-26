@@ -758,6 +758,14 @@ SELECT * from t1;
 id	color	ts
 7	GREEN	2
 DROP TABLE t1;
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+SET @@max_heap_table_size = 1024*1024*1024*20;
+CREATE TEMPORARY TABLE tmp ENGINE=MEMORY
+SELECT id FROM t1;
+DROP TEMPORARY TABLE tmp;
+drop table t1;
 #
 # BUG#11825482: Broken key length calculation for btree index
 #

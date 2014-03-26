@@ -510,6 +510,22 @@ DELETE FROM t1 WHERE ts = 1 AND color = 'GREEN';
 SELECT * from t1;
 DROP TABLE t1;
 
+
+#
+# MDEV-5905 Creating tmp. memory table kills the server
+#
+
+CREATE TABLE t1 (id INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (2);
+
+SET @@max_heap_table_size = 1024*1024*1024*20;
+
+CREATE TEMPORARY TABLE tmp ENGINE=MEMORY
+  SELECT id FROM t1;
+DROP TEMPORARY TABLE tmp;
+drop table t1;
+
 --echo #
 --echo # BUG#11825482: Broken key length calculation for btree index
 --echo #
