@@ -33,7 +33,7 @@ foo	CREATE TABLE `foo` (
   `e` timestamp(4) NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
   `f` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
   `g` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 alter table foo change b b timestamp(1);
 alter table foo change b b timestamp(3);
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this MariaDB version
@@ -86,7 +86,7 @@ foo	CREATE TABLE `foo` (
   `e` datetime(4) DEFAULT NULL,
   `f` datetime(5) DEFAULT NULL,
   `g` datetime(6) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 alter table foo change b b datetime(1);
 alter table foo change b b datetime(3);
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this MariaDB version
@@ -136,7 +136,7 @@ foo	CREATE TABLE `foo` (
   `e` time(4) DEFAULT NULL,
   `f` time(5) DEFAULT NULL,
   `g` time(6) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 alter table foo change b b time(1);
 alter table foo change b b time(3);
 ERROR 42000: Table 'foo' uses an extension that doesn't exist in this MariaDB version

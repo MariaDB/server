@@ -4,7 +4,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 /*!50100 PARTITION BY KEY (a)
 (PARTITION part0 ENGINE = TokuDB,
  PARTITION part1 ENGINE = TokuDB) */
