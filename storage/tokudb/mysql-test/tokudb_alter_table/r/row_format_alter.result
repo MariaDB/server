@@ -10,7 +10,7 @@ Table	Create Table
 foo	CREATE TABLE `foo` (
   `c1` int(11) NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=TokuDB DEFAULT CHARSET=latin1
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `compression`='tokudb_zlib'
 ALTER TABLE foo compression=tokudb_lzma, add column c2 int not null;
 SELECT CREATE_OPTIONS
 FROM INFORMATION_SCHEMA.TABLES  WHERE (table_name LIKE 'foo');
