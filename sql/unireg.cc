@@ -40,7 +40,7 @@
 #define ALLOCA_THRESHOLD       2048
 
 static uint pack_keys(uchar *,uint, KEY *, ulong);
-static bool pack_header(uchar *, List<Create_field> &, uint, ulong, handler *);
+static bool pack_header(THD *, uchar *, List<Create_field> &, uint, ulong, handler *);
 static uint get_interval_id(uint *,List<Create_field> &, Create_field *);
 static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
@@ -99,7 +99,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                               uint keys, KEY *key_info, handler *db_file)
 {
   LEX_STRING str_db_type;
-  uint reclength, key_info_length, tmp_len, i;
+  uint reclength, key_info_length, i;
   ulong key_buff_length;
   ulong filepos, data_offset;
   uint options_len;
@@ -115,7 +115,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     create_info->null_bits++;
   data_offset= (create_info->null_bits + 7) / 8;
 
-  error= pack_header(forminfo, create_fields, create_info->table_options,
+  error= pack_header(thd, forminfo, create_fields, create_info->table_options,
                      data_offset, db_file);
 
   if (error)
@@ -150,42 +150,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
                                                keys, key_info);
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
-  /*
-    This gives us the byte-position of the character at
-    (character-position, not byte-position) TABLE_COMMENT_MAXLEN.
-    The trick here is that character-positions start at 0, so the last
-    character in a maximum-allowed length string would be at char-pos
-    MAXLEN-1; charpos MAXLEN will be the position of the terminator.
-    Consequently, bytepos(charpos(MAXLEN)) should be equal to
-    comment[length] (which should also be the terminator, or at least
-    the first byte after the payload in the strict sense). If this is
-    not so (bytepos(charpos(MAXLEN)) comes /before/ the end of the
-    string), the string is too long.
-
-    For additional credit, realise that UTF-8 has 1-3 bytes before 6.0,
-    and 1-4 bytes in 6.0 (6.0 also has UTF-32).
-  */
-  tmp_len= system_charset_info->cset->charpos(system_charset_info,
-                                              create_info->comment.str,
-                                              create_info->comment.str +
-                                              create_info->comment.length,
-                                              TABLE_COMMENT_MAXLEN);
-
-  if (tmp_len < create_info->comment.length)
-  {
-    if (thd->is_strict_mode())
-    {
-      my_error(ER_TOO_LONG_TABLE_COMMENT, MYF(0),
-               table, TABLE_COMMENT_MAXLEN);
-      DBUG_RETURN(frm);
-    }
-    char warn_buff[MYSQL_ERRMSG_SIZE];
-    my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_TABLE_COMMENT),
-                table, TABLE_COMMENT_MAXLEN);
-    push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                 ER_TOO_LONG_TABLE_COMMENT, warn_buff);
-    create_info->comment.length= tmp_len;
-  }
+  if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
+                              ER_TOO_LONG_TABLE_COMMENT, table))
+     DBUG_RETURN(frm);
   /*
     If table comment is longer than TABLE_COMMENT_INLINE_MAXLEN bytes,
     store the comment in an extra segment (up to TABLE_COMMENT_MAXLEN bytes).
@@ -496,7 +463,8 @@ static uint pack_keys(uchar *keybuff, uint key_count, KEY *keyinfo,
 
 /* Make formheader */
 
-static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
+static bool pack_header(THD *thd, uchar *forminfo,
+                        List<Create_field> &create_fields,
                         uint table_options, ulong data_offset, handler *file)
 {
   uint length,int_count,int_length,no_empty, int_parts;
@@ -521,32 +489,18 @@ static bool pack_header(uchar *forminfo, List<Create_field> &create_fields,
   Create_field *field;
   while ((field=it++))
   {
-    uint tmp_len= system_charset_info->cset->charpos(system_charset_info,
-                                                     field->comment.str,
-                                                     field->comment.str +
-                                                     field->comment.length,
-                                                     COLUMN_COMMENT_MAXLEN);
-    if (tmp_len < field->comment.length)
-    {
-      myf myf_warning= current_thd->is_strict_mode() ? 0 : ME_JUST_WARNING;
+    if (validate_comment_length(thd, &field->comment, COLUMN_COMMENT_MAXLEN,
+                                ER_TOO_LONG_FIELD_COMMENT, field->field_name))
+       DBUG_RETURN(1);
 
-      my_error(ER_TOO_LONG_FIELD_COMMENT, myf_warning, field->field_name,
-               COLUMN_COMMENT_MAXLEN);
-
-      if (!myf_warning)
-	DBUG_RETURN(1);
-
-      field->comment.length= tmp_len;
-    }
     if (field->vcol_info)
     {
       uint col_expr_maxlen= field->virtual_col_expr_maxlen();
-      tmp_len=
-        system_charset_info->cset->charpos(system_charset_info,
-                                           field->vcol_info->expr_str.str,
-                                           field->vcol_info->expr_str.str +
-                                           field->vcol_info->expr_str.length,
-                                           col_expr_maxlen);
+      uint tmp_len= my_charpos(system_charset_info,
+                               field->vcol_info->expr_str.str,
+                               field->vcol_info->expr_str.str +
+                               field->vcol_info->expr_str.length,
+                               col_expr_maxlen);
 
       if (tmp_len < field->vcol_info->expr_str.length)
       {

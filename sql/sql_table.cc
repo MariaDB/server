@@ -4089,30 +4089,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
     }
 
-    uint tmp_len= system_charset_info->cset->charpos(system_charset_info,
-                                           key->key_create_info.comment.str,
-                                           key->key_create_info.comment.str +
-                                           key->key_create_info.comment.length,
-                                           INDEX_COMMENT_MAXLEN);
-
-    if (tmp_len < key->key_create_info.comment.length)
-    {
-      if (thd->is_strict_mode())
-      {
-        my_error(ER_TOO_LONG_INDEX_COMMENT, MYF(0),
-                 key_info->name, static_cast<ulong>(INDEX_COMMENT_MAXLEN));
-        DBUG_RETURN(-1);
-      }
-      char warn_buff[MYSQL_ERRMSG_SIZE];
-      my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_INDEX_COMMENT),
-                  key_info->name, static_cast<ulong>(INDEX_COMMENT_MAXLEN));
-      /* do not push duplicate warnings */
-      if (!thd->get_stmt_da()->has_sql_condition(warn_buff, strlen(warn_buff)))
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     ER_TOO_LONG_INDEX_COMMENT, warn_buff);
-
-      key->key_create_info.comment.length= tmp_len;
-    }
+    if (validate_comment_length(thd, &key->key_create_info.comment,
+                                INDEX_COMMENT_MAXLEN, ER_TOO_LONG_INDEX_COMMENT,
+                                key_info->name))
+       DBUG_RETURN(TRUE);
 
     key_info->comment.length= key->key_create_info.comment.length;
     if (key_info->comment.length > 0)
@@ -4193,6 +4173,43 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       DBUG_RETURN(TRUE);
 
   DBUG_RETURN(FALSE);
+}
+
+/**
+  check comment length of table, column, index and partition
+
+  If comment lenght is more than the standard length
+  truncate it and store the comment lenght upto the standard
+  comment length size
+
+  @param          thd             Thread handle
+  @param[in,out]  comment         Comment
+  @param          max_len         Maximum allowed comment length
+  @param          err_code        Error message
+  @param          name            Name of commented object
+
+  @return Operation status
+    @retval       true            Error found
+    @retval       false           On Success
+*/
+bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
+                             uint err_code, const char *name)
+{
+  DBUG_ENTER("validate_comment_length");
+  uint tmp_len= my_charpos(system_charset_info, comment->str,
+                           comment->str + comment->length, max_len);
+  if (tmp_len < comment->length)
+  {
+    if (thd->is_strict_mode())
+    {
+       my_error(err_code, MYF(0), name, static_cast<ulong>(max_len));
+       DBUG_RETURN(true);
+    }
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, err_code,
+                        ER(err_code), name, static_cast<ulong>(max_len));
+    comment->length= tmp_len;
+  }
+  DBUG_RETURN(false);
 }
 
 
@@ -4403,6 +4420,45 @@ handler *mysql_create_frm_image(THD *thd,
     char *part_syntax_buf;
     uint syntax_len;
     handlerton *engine_type;
+    List_iterator<partition_element> part_it(part_info->partitions);
+    partition_element *part_elem;
+
+    while ((part_elem= part_it++))
+    {
+      if (part_elem->part_comment)
+      {
+        LEX_STRING comment= {
+          part_elem->part_comment, strlen(part_elem->part_comment)
+        };
+        if (validate_comment_length(thd, &comment,
+                                     TABLE_PARTITION_COMMENT_MAXLEN,
+                                     ER_TOO_LONG_TABLE_PARTITION_COMMENT,
+                                     part_elem->partition_name))
+          DBUG_RETURN(NULL);
+        part_elem->part_comment[comment.length]= '\0';
+      }
+      if (part_elem->subpartitions.elements)
+      {
+        List_iterator<partition_element> sub_it(part_elem->subpartitions);
+        partition_element *subpart_elem;
+        while ((subpart_elem= sub_it++))
+        {
+          if (subpart_elem->part_comment)
+          {
+            LEX_STRING comment= {
+              subpart_elem->part_comment, strlen(subpart_elem->part_comment)
+            };
+            if (validate_comment_length(thd, &comment,
+                                         TABLE_PARTITION_COMMENT_MAXLEN,
+                                         ER_TOO_LONG_TABLE_PARTITION_COMMENT,
+                                         subpart_elem->partition_name))
+              DBUG_RETURN(NULL);
+            subpart_elem->part_comment[comment.length]= '\0';
+          }
+        }
+      }
+    } 
+
     if (create_info->tmp_table())
     {
       my_error(ER_PARTITION_NO_TEMPORARY, MYF(0));

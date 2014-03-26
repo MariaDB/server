@@ -2539,6 +2539,9 @@ int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
 bool get_field(MEM_ROOT *mem, Field *field, class String *res);
 
+bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
+                             uint err_code, const char *name);
+
 int closefrm(TABLE *table, bool free_share);
 void free_blobs(TABLE *table);
 void free_field_buffers_larger_than(TABLE *table, uint32 size);
