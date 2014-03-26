@@ -175,27 +175,6 @@ func_exit:
 	return(is_referenced);
 }
 
-#ifdef WITH_WSREP
-ulint 
-wsrep_append_foreign_key(
-	trx_t*		trx,
-	dict_foreign_t*	foreign,
-	const rec_t*	clust_rec,
-	dict_index_t*	clust_index,
-	ibool		referenced,
-	ibool		shared);
-
-ulint
-wsrep_row_upd_check_foreign_constraints(
-	upd_node_t*	node,	/*!< in: row update node */
-	btr_pcur_t*	pcur,	/*!< in: cursor positioned on a record; NOTE: the
-				cursor position is lost in this function! */
-	dict_table_t*	table,	/*!< in: table in question */
-	dict_index_t*	index,	/*!< in: index of the cursor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
-	que_thr_t*	thr,	/*!< in: query thread */
-	mtr_t*		mtr);	/*!< in: mtr */
-#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Checks if possible foreign key constraints hold after a delete of the record
@@ -314,7 +293,125 @@ run_again:
 	}
 
 	err = DB_SUCCESS;
+func_exit:
+	if (got_s_lock) {
+		row_mysql_unfreeze_data_dictionary(trx);
+	}
 
+	mem_heap_free(heap);
+
+	return(err);
+}
+#ifdef WITH_WSREP
+static
+dberr_t
+wsrep_row_upd_check_foreign_constraints(
+/*=================================*/
+	upd_node_t*	node,	/*!< in: row update node */
+	btr_pcur_t*	pcur,	/*!< in: cursor positioned on a record; NOTE: the
+				cursor position is lost in this function! */
+	dict_table_t*	table,	/*!< in: table in question */
+	dict_index_t*	index,	/*!< in: index of the cursor */
+	ulint*		offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
+	que_thr_t*	thr,	/*!< in: query thread */
+	mtr_t*		mtr)	/*!< in: mtr */
+{
+	dict_foreign_t*	foreign;
+	mem_heap_t*	heap;
+	dtuple_t*	entry;
+	trx_t*		trx;
+	const rec_t*	rec;
+	ulint		n_ext;
+	dberr_t		err;
+	ibool		got_s_lock	= FALSE;
+
+	if (UT_LIST_GET_FIRST(table->foreign_list) == NULL) {
+
+		return(DB_SUCCESS);
+	}
+
+	trx = thr_get_trx(thr);
+
+        /* TODO: make native slave thread bail out here */
+
+	rec = btr_pcur_get_rec(pcur);
+	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	heap = mem_heap_create(500);
+
+	entry = row_rec_to_index_entry(rec, index, offsets,
+				       &n_ext, heap);
+
+	mtr_commit(mtr);
+
+	mtr_start(mtr);
+
+	if (trx->dict_operation_lock_mode == 0) {
+		got_s_lock = TRUE;
+
+		row_mysql_freeze_data_dictionary(trx);
+	}
+
+	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+
+	while (foreign) {
+		/* Note that we may have an update which updates the index
+		record, but does NOT update the first fields which are
+		referenced in a foreign key constraint. Then the update does
+		NOT break the constraint. */
+
+		if (foreign->foreign_index == index
+		    && (node->is_delete
+			|| row_upd_changes_first_fields_binary(
+				entry, index, node->update,
+				foreign->n_fields))) {
+
+			if (foreign->referenced_table == NULL) {
+				foreign->referenced_table =
+					dict_table_open_on_name(
+					  foreign->referenced_table_name_lookup,
+					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+			}
+
+			if (foreign->referenced_table) {
+				mutex_enter(&(dict_sys->mutex));
+
+				(foreign->referenced_table
+				 ->n_foreign_key_checks_running)++;
+
+				mutex_exit(&(dict_sys->mutex));
+			}
+
+			/* NOTE that if the thread ends up waiting for a lock
+			we will release dict_operation_lock temporarily!
+			But the counter on the table protects 'foreign' from
+			being dropped while the check is running. */
+
+			err = row_ins_check_foreign_constraint(
+				TRUE, foreign, table, entry, thr);
+
+			if (foreign->referenced_table) {
+				mutex_enter(&(dict_sys->mutex));
+
+				ut_a(foreign->referenced_table
+				     ->n_foreign_key_checks_running > 0);
+
+				(foreign->referenced_table
+				 ->n_foreign_key_checks_running)--;
+
+				mutex_exit(&(dict_sys->mutex));
+			}
+
+			if (err != DB_SUCCESS) {
+
+				goto func_exit;
+			}
+		}
+
+		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
+	}
+
+	err = DB_SUCCESS;
 func_exit:
 	if (got_s_lock) {
 		row_mysql_unfreeze_data_dictionary(trx);
@@ -326,6 +423,7 @@ func_exit:
 
 	return(err);
 }
+#endif /* WITH_WSREP */
 
 /*********************************************************************//**
 Creates an update node for a query graph.
@@ -2014,123 +2112,6 @@ row_upd_clust_rec_by_insert_inherit_func(
 
 	return(inherit);
 }
-
-#ifdef WITH_WSREP
-ulint
-wsrep_row_upd_check_foreign_constraints(
-/*=================================*/
-	upd_node_t*	node,	/*!< in: row update node */
-	btr_pcur_t*	pcur,	/*!< in: cursor positioned on a record; NOTE: the
-				cursor position is lost in this function! */
-	dict_table_t*	table,	/*!< in: table in question */
-	dict_index_t*	index,	/*!< in: index of the cursor */
-	ulint*		offsets,/*!< in/out: rec_get_offsets(pcur.rec, index) */
-	que_thr_t*	thr,	/*!< in: query thread */
-	mtr_t*		mtr)	/*!< in: mtr */
-{
-	dict_foreign_t*	foreign;
-	mem_heap_t*	heap;
-	dtuple_t*	entry;
-	trx_t*		trx;
-	const rec_t*	rec;
-	ulint		n_ext;
-	ulint		err;
-	ibool		got_s_lock	= FALSE;
-
-	if (UT_LIST_GET_FIRST(table->foreign_list) == NULL) {
-
-		return(DB_SUCCESS);
-	}
-
-	trx = thr_get_trx(thr);
-
-	rec = btr_pcur_get_rec(pcur);
-	ut_ad(rec_offs_validate(rec, index, offsets));
-
-	heap = mem_heap_create(500);
-
-	entry = row_rec_to_index_entry(rec, index, offsets, &n_ext, heap);
-
-	mtr_commit(mtr);
-
-	mtr_start(mtr);
-
-	if (trx->dict_operation_lock_mode == 0) {
-		got_s_lock = TRUE;
-
-		row_mysql_freeze_data_dictionary(trx);
-	}
-
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
-
-	while (foreign) {
-		/* Note that we may have an update which updates the index
-		record, but does NOT update the first fields which are
-		referenced in a foreign key constraint. Then the update does
-		NOT break the constraint. */
-
-		if (foreign->foreign_index == index
-		    && (node->is_delete
-			|| row_upd_changes_first_fields_binary(
-				entry, index, node->update,
-				foreign->n_fields))) {
-
-			if (foreign->referenced_table == NULL) {
-				foreign->referenced_table =
-					dict_table_open_on_name(
-					  foreign->referenced_table_name_lookup,
-					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-			}
-
-			if (foreign->referenced_table) {
-				mutex_enter(&(dict_sys->mutex));
-
-				(foreign->referenced_table
-				 ->n_foreign_key_checks_running)++;
-
-				mutex_exit(&(dict_sys->mutex));
-			}
-
-			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_operation_lock temporarily!
-			But the counter on the table protects 'foreign' from
-			being dropped while the check is running. */
-
-			err = row_ins_check_foreign_constraint(
-				TRUE, foreign, table, entry, thr);
-
-			if (foreign->referenced_table) {
-				mutex_enter(&(dict_sys->mutex));
-
-				ut_a(foreign->referenced_table
-				     ->n_foreign_key_checks_running > 0);
-
-				(foreign->referenced_table
-				 ->n_foreign_key_checks_running)--;
-
-				mutex_exit(&(dict_sys->mutex));
-			}
-
-			if (err != DB_SUCCESS) {
-
-				goto func_exit;
-			}
-		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
-	}
-
-	err = DB_SUCCESS;
-func_exit:
-	if (got_s_lock) {
-		row_mysql_unfreeze_data_dictionary(trx);
-	}
-
-	mem_heap_free(heap);
-
-	return(err);
-}
-#endif /* WITH_WSREP */
 
 /***********************************************************//**
 Marks the clustered index record deleted and inserts the updated version

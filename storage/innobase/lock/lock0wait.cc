@@ -195,7 +195,7 @@ wsrep_is_BF_lock_timeout(
     trx_t* trx) /* in: trx to check for lock priority */
 {
        if (wsrep_on(trx->mysql_thd) &&
-           wsrep_thd_is_brute_force(trx->mysql_thd)) {
+           wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
                fprintf(stderr, "WSREP: BF lock wait long\n");
                 srv_print_innodb_monitor       = TRUE;
                 srv_print_innodb_lock_monitor  = TRUE;

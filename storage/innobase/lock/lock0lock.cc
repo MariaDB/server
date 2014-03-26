@@ -978,47 +978,6 @@ lock_rec_has_to_wait(
 	    && !lock_mode_compatible(static_cast<enum lock_mode>(
 			             LOCK_MODE_MASK & type_mode),
 				     lock_get_mode(lock2))) {
-#ifdef WITH_WSREP
-		/* if BF thread is locking and has conflict with another BF
-		   thread, we need to look at trx ordering and lock types */
-		if (for_locking                                    &&
-		    wsrep_thd_is_brute_force(trx->mysql_thd) &&
-		    wsrep_thd_is_brute_force(lock2->trx->mysql_thd)) {
-
-			if (wsrep_debug) {
-				fprintf(stderr, "\n BF-BF lock conflict \n");
-				lock_rec_print(stderr, lock2);
-			}
-
-			if (wsrep_trx_order_before(trx->mysql_thd,
-						   lock2->trx->mysql_thd) &&
-			    (type_mode & LOCK_MODE_MASK) == LOCK_X &&
-			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
-			{
-				/* exclusive lock conflicts are not accepted */
-				fprintf(stderr, "BF-BF X lock conflict\n");
-				lock_rec_print(stderr, lock2);
-
-				abort();
-			} else {
-				if (wsrep_debug) {
-					fprintf(stderr,
-						"BF conflict, modes: %lu %lu\n",
-						type_mode,
-						lock2->type_mode);
-#ifdef OUT
-					fprintf(stderr,
-						"seqnos %llu %llu\n",
-						(long long)wsrep_thd_trx_seqno(
-							trx->mysql_thd),
-						(long long)wsrep_thd_trx_seqno(
-							lock2->trx->mysql_thd));
-#endif
-				}
-				return FALSE;
-			}
-		}
-#endif /* WITH_WSREP */
 
 		/* We have somewhat complex rules when gap type record locks
 		cause waits */
@@ -1068,6 +1027,44 @@ lock_rec_has_to_wait(
 			return(FALSE);
 		}
 
+#ifdef WITH_WSREP
+		/* if BF thread is locking and has conflict with another BF
+		   thread, we need to look at trx ordering and lock types */
+		if (for_locking                                    &&
+		    wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
+
+			if (wsrep_debug) {
+				fprintf(stderr, "\n BF-BF lock conflict \n");
+				lock_rec_print(stderr, lock2);
+			}
+
+			if (wsrep_trx_order_before(trx->mysql_thd, 
+						   lock2->trx->mysql_thd) &&
+			    (type_mode & LOCK_MODE_MASK) == LOCK_X        &&
+			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
+			{
+				/* exclusive lock conflicts are not accepted */
+				fprintf(stderr, "BF-BF X lock conflict\n");
+				lock_rec_print(stderr, lock2);
+				abort();
+			} else {
+				/* if lock2->index->n_uniq <= 
+				   lock2->index->n_user_defined_cols
+				   operation is on uniq index
+				*/
+				if (wsrep_debug) fprintf(stderr,
+					"BF conflict, modes: %lu %lu, "
+					"idx: %s-%s n_uniq %u n_user %u\n",
+					type_mode, lock2->type_mode,
+					lock2->index->name, 
+					lock2->index->table_name,
+					lock2->index->n_uniq, 
+					lock2->index->n_user_defined_cols);
+				return FALSE;
+			}
+		}
+#endif /* WITH_WSREP */
 		return(TRUE);
 	}
 
@@ -1630,8 +1627,8 @@ void
 wsrep_kill_victim(const trx_t * const trx, const lock_t *lock) {
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(lock->trx));
-	my_bool bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
-	my_bool bf_other = wsrep_thd_is_brute_force(lock->trx->mysql_thd);
+	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
+	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
 	if ((bf_this && !bf_other) ||
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
@@ -1929,11 +1926,6 @@ lock_rec_create(
 	lock->trx = trx;
 
 	lock->type_mode = (type_mode & ~LOCK_TYPE_MASK) | LOCK_REC;
-#ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(trx->mysql_thd)) {
-		lock->type_mode |= WSREP_BF;
-	}
-#endif /* WITH_WSREP */
 	lock->index = index;
 
 	lock->un_member.rec_lock.space = space;
@@ -1953,12 +1945,12 @@ lock_rec_create(
 	ut_ad(index->table->n_ref_count > 0 || !index->table->can_be_evicted);
 
 #ifdef WITH_WSREP
-	  if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
+	  if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
 
 		while (hash 						       &&
-		       wsrep_thd_is_brute_force(((lock_t *)hash)->trx->mysql_thd) &&
+		       wsrep_thd_is_BF(((lock_t *)hash)->trx->mysql_thd, TRUE) &&
 		       wsrep_trx_order_before(
 				((lock_t *)hash)->trx->mysql_thd,
 				trx->mysql_thd)) {
@@ -2361,11 +2353,6 @@ lock_rec_lock_fast(
 	      || (LOCK_MODE_MASK & mode) == LOCK_X);
 	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == 0
-#ifdef WITH_WSREP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == 0
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
-#endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP);
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
@@ -2382,8 +2369,7 @@ lock_rec_lock_fast(
 #else
 			lock = lock_rec_create(
 				mode, block, heap_no, index, trx, FALSE);
-#endif
-
+#endif /* WITH_WSREP */
 		}
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
@@ -2451,11 +2437,6 @@ lock_rec_lock_slow(
 	      || (LOCK_MODE_MASK & mode) == LOCK_X);
 	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == 0
-#ifdef WITH_WSREP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == 0
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
-#endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP);
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 
@@ -2564,11 +2545,6 @@ lock_rec_lock(
 	      || (LOCK_MODE_MASK & mode) == LOCK_X);
 	ut_ad(mode - (LOCK_MODE_MASK & mode) == LOCK_GAP
 	      || mode - (LOCK_MODE_MASK & mode) == LOCK_REC_NOT_GAP
-#ifdef WITH_WSREP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == 0
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_GAP
-	      || mode - (LOCK_MODE_MASK & mode) - WSREP_BF == LOCK_REC_NOT_GAP
-#endif /* WITH_WSREP */
 	      || mode - (LOCK_MODE_MASK & mode) == 0);
 
 #ifdef WITH_WSREP
@@ -4023,18 +3999,18 @@ lock_deadlock_select_victim(
 		/* The joining  transaction is 'smaller',
 		choose it as the victim and roll it back. */
 #ifdef WITH_WSREP
-		if (!wsrep_thd_is_brute_force(ctx->start->mysql_thd)) {
-		    return(ctx->start);
-		}
-#else
-		return(ctx->start);
-#endif
+          if (wsrep_thd_is_BF(ctx->start->mysql_thd, TRUE))
+                return(ctx->wait_lock->trx);
+        else
+#endif /* WITH_WSREP */
+			return(ctx->start);
 	}
+
 #ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd)) {
-		return(ctx->start);
-	}
-#endif
+        if (wsrep_thd_is_BF(ctx->wait_lock->trx->mysql_thd, TRUE))
+                return(ctx->start);
+        else
+#endif /* WITH_WSREP */
 	return(ctx->wait_lock->trx);
 }
 
@@ -4184,7 +4160,7 @@ lock_deadlock_search(
 			ctx->too_deep = TRUE;
 
 #ifdef WITH_WSREP
-			if (wsrep_thd_is_brute_force(ctx->start->mysql_thd))
+			if (wsrep_thd_is_BF(ctx->start->mysql_thd, TRUE))
 				return(ctx->wait_lock->trx->id);
 			else
 #endif /* WITH_WSREP */
@@ -4205,7 +4181,7 @@ lock_deadlock_search(
 				ctx->too_deep = TRUE;
 
 #ifdef WITH_WSREP
-				if (wsrep_thd_is_brute_force(ctx->start->mysql_thd))
+				if (wsrep_thd_is_BF(ctx->start->mysql_thd, TRUE))
 					return(lock->trx->id);
 				else
 #endif /* WITH_WSREP */
@@ -4342,7 +4318,7 @@ lock_deadlock_check_and_resolve(
 			ut_a(victim_trx_id == trx->id);
 
 #ifdef WITH_WSREP
-			if (!wsrep_thd_is_brute_force(ctx.start->mysql_thd))
+			if (!wsrep_thd_is_BF(ctx.start->mysql_thd, TRUE))
 			{
 #endif /* WITH_WSREP */
 				if (!srv_read_only_mode) {
@@ -4438,7 +4414,7 @@ lock_table_create(
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
 
 #ifdef WITH_WSREP
-	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
+	if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
         	UT_LIST_INSERT_AFTER(
 		    un_member.tab_lock.locks, table->locks, c_lock, lock);
         } else {
@@ -6476,7 +6452,7 @@ lock_rec_convert_impl_to_expl(
 
 			if (rec_get_deleted_flag(rec, rec_offs_comp(offsets))
 #ifdef WITH_WSREP
-			    && !wsrep_thd_is_brute_force(impl_trx->mysql_thd)
+			    && !wsrep_thd_is_BF(impl_trx->mysql_thd, FALSE)
 			    /* BF-BF conflict is possible if advancing into
 			       lock_rec_other_has_conflicting*/
 #endif /* WITH_WSREP */

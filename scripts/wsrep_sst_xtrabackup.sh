@@ -38,6 +38,8 @@
 # Make sure to read that before proceeding!
 
 
+
+
 . $(dirname $0)/wsrep_sst_common
 
 ealgo=""
@@ -609,8 +611,6 @@ then
         if [[ $ecode -ne 0 ]];then 
             wsrep_log_error "Error while getting data from donor node: " \
                             "exit codes: ${RC[@]}"
-            wsrep_log_error "Data directory ${DATA} needs to be empty for SST:" \
-                            "Manual intervention required in that case"
             exit 32
         fi
     done

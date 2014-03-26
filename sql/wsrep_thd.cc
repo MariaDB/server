@@ -472,7 +472,6 @@ void wsrep_create_rollbacker()
   }
 }
 
-extern "C"
 my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
 { 
   my_bool status = FALSE;
@@ -520,7 +519,6 @@ my_bool wsrep_thd_is_local(void *thd_ptr, my_bool sync)
   return status;
 }
 
-extern "C"
 int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
 {
   THD *victim_thd = (THD *) victim_thd_ptr;

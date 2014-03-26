@@ -76,7 +76,6 @@
 #include "wsrep_var.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
-ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 #endif
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -4876,42 +4875,8 @@ will be ignored as the --log-bin option is not defined.");
   }
 #endif
 
-#ifdef WITH_WSREP /* WSREP BEFORE SE */
-  if (!wsrep_recovery)
-  {
-    if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
-    {
-      wsrep_provider_init(WSREP_NONE);
-      if (wsrep_init()) unireg_abort(1);
-    }
-    else // full wsrep initialization
-    {
-      // add basedir/bin to PATH to resolve wsrep script names
-      char* const tmp_path((char*)alloca(strlen(mysql_home) +
-                                           strlen("/bin") + 1));
-      if (tmp_path)
-      {
-        strcpy(tmp_path, mysql_home);
-        strcat(tmp_path, "/bin");
-        wsrep_prepend_PATH(tmp_path);
-      }
-      else
-      {
-        WSREP_ERROR("Could not append %s/bin to PATH", mysql_home);
-      }
   DBUG_ASSERT(!opt_bin_log || opt_bin_logname);
 
-      if (wsrep_before_SE())
-      {
-#ifndef EMBEDDED_LIBRARY
-        set_ports(); // this is also called in network_init() later but we need
-                     // to know mysqld_port now - lp:1071882
-#endif /* !EMBEDDED_LIBRARY */
-        wsrep_init_startup(true);
-      }
-    }
-  }
-#endif /* WITH_WSREP */
   if (opt_bin_log)
   {
     /* Reports an error and aborts, if the --log-bin's path 
@@ -4959,10 +4924,67 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     {
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
     }
+#ifdef WITH_WSREP /* WSREP BEFORE SE */
+    /*
+      Wsrep initialization must happen at this point, because:
+      - opt_bin_logname must be known when starting replication
+        since SST may need it
+      - SST may modify binlog index file, so it must be opened
+        after SST has happened
+     */
+  }
+  if (!wsrep_recovery)
+  {
+    if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
+    {
+      wsrep_provider_init(WSREP_NONE);
+      if (wsrep_init()) unireg_abort(1);
+    }
+    else // full wsrep initialization
+    {
+      // add basedir/bin to PATH to resolve wsrep script names
+      char* const tmp_path((char*)alloca(strlen(mysql_home) +
+                                           strlen("/bin") + 1));
+      if (tmp_path)
+      {
+        strcpy(tmp_path, mysql_home);
+        strcat(tmp_path, "/bin");
+        wsrep_prepend_PATH(tmp_path);
+      }
+      else
+      {
+        WSREP_ERROR("Could not append %s/bin to PATH", mysql_home);
+      }
+
+      if (wsrep_before_SE())
+      {
+        set_ports(); // this is also called in network_init() later but we need
+                     // to know mysqld_port now - lp:1071882
+        wsrep_init_startup(true);
+      }
+    }
+  }
+  if (opt_bin_log)
+  {
+    /*
+      Variable ln is not defined at this scope. We use opt_bin_logname instead.
+      It should be the same as ln since
+      - mysql_bin_log.generate_name() returns first argument if new log name
+        is not generated
+      - if new log name is generated, return value is assigned to ln and copied
+        to opt_bin_logname above
+     */
+    if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
+                                      TRUE))
+    {
+      unireg_abort(1);
+    }
+#else
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, ln, TRUE))
     {
       unireg_abort(1);
     }
+#endif /* WITH_WSREP */
   }
 
   /* call ha_init_key_cache() on all key caches to init them */
@@ -5304,20 +5326,9 @@ pthread_handler_t start_wsrep_THD(void *arg)
   ++connection_count;
   mysql_mutex_unlock(&LOCK_connection_count);
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  wsrep_running_threads++;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-
   processor(thd);
 
   close_connection(thd, 0);
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  wsrep_running_threads--;
-  WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
 
   // Note: We can't call THD destructor without crashing
   // if plugins have not been initialized. However, in most of the

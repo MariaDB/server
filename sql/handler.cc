@@ -1144,10 +1144,27 @@ int ha_prepare(THD *thd)
       {
         if ((err= ht->prepare(ht, thd, all)))
         {
+#ifdef WITH_WSREP
+          if (WSREP(thd) && ht->db_type== DB_TYPE_WSREP)
+          {
+	    error= 1;
+	    /* avoid sending error, if we need to replay */
+            if (thd->wsrep_conflict_state!= MUST_REPLAY)
+            {
+              my_error(ER_LOCK_DEADLOCK, MYF(0), err);
+            }
+          }
+          else
+          {
+            /* not wsrep hton, bail to native mysql behavior */
+#endif
           my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
           ha_rollback_trans(thd, all);
           error=1;
           break;
+#ifdef WITH_WSREP
+          }
+#endif
         }
       }
       else
@@ -1419,7 +1436,7 @@ int ha_commit_trans(THD *thd, bool all)
         my_error(ER_LOCK_DEADLOCK, MYF(0), err);
       }
     }
-    lse
+    else
       /* not wsrep hton, bail to native mysql behavior */
 #endif /* WITH_WSREP */
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
@@ -5666,7 +5683,9 @@ static bool check_table_binlog_row_based(THD *thd, TABLE *table)
           table->s->cached_row_logging_check &&
           (thd->variables.option_bits & OPTION_BIN_LOG) &&
 #ifdef WITH_WSREP
-          ((WSREP(thd) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
+          /* applier and replayer should not binlog */
+          ((WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV)) ||
+           mysql_bin_log.is_open()));
 #else
           mysql_bin_log.is_open());
 #endif
