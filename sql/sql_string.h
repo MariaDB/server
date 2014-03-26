@@ -359,7 +359,7 @@ public:
   }
   bool append(const String &s);
   bool append(const char *s);
-  bool append(LEX_STRING *ls)
+  bool append(const LEX_STRING *ls)
   {
     return append(ls->str, ls->length);
   }

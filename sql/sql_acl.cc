@@ -5805,19 +5805,41 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   DBUG_RETURN(result);
 }
 
-static void append_user(String *str, const char *u, const char *h)
+/**
+  append a user or role name to a buffer that will be later used as an error message
+*/
+static void append_user(String *str, const LEX_STRING *u, const LEX_STRING *h)
 {
   if (str->length())
     str->append(',');
   str->append('\'');
   str->append(u);
   /* hostname part is not relevant for roles, it is always empty */
-  if (*h)
+  if (u->length == 0 || h->length != 0)
   {
     str->append(STRING_WITH_LEN("'@'"));
     str->append(h);
   }
   str->append('\'');
+}
+
+static void append_user(String *str, LEX_USER *user)
+{
+  append_user(str, & user->user, & user->host);
+}
+
+/**
+  append a string to a buffer that will be later used as an error message
+
+  @note
+  a string can be either CURRENT_USER or CURRENT_ROLE or NONE, it should be
+  neither quoted nor escaped.
+*/
+static void append_str(String *str, const char *s, size_t l)
+{
+  if (str->length())
+    str->append(',');
+  str->append(s, l);
 }
 
 static int can_grant_role_callback(ACL_USER_BASE *grantee,
@@ -5935,13 +5957,15 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       if (!thd->security_ctx->priv_role[0])
       {
         my_error(ER_INVALID_ROLE, MYF(0), "NONE");
-        append_user(&wrong_users, "NONE", "");
+        append_str(&wrong_users, STRING_WITH_LEN("NONE"));
         result= 1;
         continue;
       }
       if (!(role_as_user= find_acl_role(thd->security_ctx->priv_role)))
       {
-        append_user(&wrong_users, thd->security_ctx->priv_role, "");
+        LEX_STRING ls= { thd->security_ctx->priv_role,
+                         strlen(thd->security_ctx->priv_role) };
+        append_user(&wrong_users, &ls, &empty_lex_str);
         result= 1;
         continue;
       }
@@ -5949,7 +5973,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       /* can not grant current_role to current_role */
       if (granted_role->user.str == current_role.str)
       {
-        append_user(&wrong_users, thd->security_ctx->priv_role, "");
+        append_user(&wrong_users, &role_as_user->user, &empty_lex_str);
         result= 1;
         continue;
       }
@@ -5976,7 +6000,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       {
         if (is_invalid_role_name(username.str))
         {
-          append_user(&wrong_users, username.str, "");
+          append_user(&wrong_users, &username, &empty_lex_str);
           result= 1;
           continue;
         }
@@ -6002,7 +6026,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
                              false, create_new_user,
                              no_auto_create_user))
       {
-        append_user(&wrong_users, username.str, hostname.str);
+        append_user(&wrong_users, &username, &hostname);
         result= 1;
         continue;
       }
@@ -6014,7 +6038,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
     if (!grantee)
     {
-      append_user(&wrong_users, username.str, hostname.str);
+      append_user(&wrong_users, &username, &hostname);
       result= 1;
       continue;
     }
@@ -6036,7 +6060,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         if (role_as_user &&
             traverse_role_graph_down(role, 0, 0, 0) == ROLE_CYCLE_FOUND)
         {
-          append_user(&wrong_users, username.str, "");
+          append_user(&wrong_users, &username, &empty_lex_str);
           result= 1;
           undo_add_role_user_mapping(grantee, role);
           continue;
@@ -6048,7 +6072,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       /* grant was already removed or never existed */
       if (!hash_entry)
       {
-        append_user(&wrong_users, username.str, hostname.str);
+        append_user(&wrong_users, &username, &hostname);
         result= 1;
         continue;
       }
@@ -6069,7 +6093,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
                                     thd->lex->with_admin_option,
                                     hash_entry, revoke))
     {
-      append_user(&wrong_users, username.str, "");
+      append_user(&wrong_users, &username, &empty_lex_str);
       result= 1;
       if (!revoke)
       {
@@ -9109,28 +9133,6 @@ static int handle_grant_data(TABLE_LIST *tables, bool drop,
 
 end:
   DBUG_RETURN(result);
-}
-
-static void append_user(String *str, LEX_USER *user)
-{
-  if (str->length())
-    str->append(',');
-  str->append('\'');
-  str->append(user->user.str);
-  /* hostname part is not relevant for roles, it is always empty */
-  if (!user->is_role())
-  {
-    str->append(STRING_WITH_LEN("'@'"));
-    str->append(user->host.str);
-  }
-  str->append('\'');
-}
-
-static void append_str(String *str, const char *s, size_t l)
-{
-  if (str->length())
-    str->append(',');
-  str->append(s, l);
 }
 
 /*
