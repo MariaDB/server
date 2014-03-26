@@ -5808,24 +5808,25 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 /**
   append a user or role name to a buffer that will be later used as an error message
 */
-static void append_user(String *str, const LEX_STRING *u, const LEX_STRING *h)
+static void append_user(THD *thd, String *str,
+                        const LEX_STRING *u, const LEX_STRING *h)
 {
   if (str->length())
     str->append(',');
-  str->append('\'');
-  str->append(u);
+  append_query_string(system_charset_info, str, u->str, u->length,
+                      thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   /* hostname part is not relevant for roles, it is always empty */
   if (u->length == 0 || h->length != 0)
   {
-    str->append(STRING_WITH_LEN("'@'"));
-    str->append(h);
+    str->append('@');
+    append_query_string(system_charset_info, str, h->str, h->length,
+                        thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
   }
-  str->append('\'');
 }
 
-static void append_user(String *str, LEX_USER *user)
+static void append_user(THD *thd, String *str, LEX_USER *user)
 {
-  append_user(str, & user->user, & user->host);
+  append_user(thd, str, & user->user, & user->host);
 }
 
 /**
@@ -5965,7 +5966,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       {
         LEX_STRING ls= { thd->security_ctx->priv_role,
                          strlen(thd->security_ctx->priv_role) };
-        append_user(&wrong_users, &ls, &empty_lex_str);
+        append_user(thd, &wrong_users, &ls, &empty_lex_str);
         result= 1;
         continue;
       }
@@ -5973,7 +5974,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       /* can not grant current_role to current_role */
       if (granted_role->user.str == current_role.str)
       {
-        append_user(&wrong_users, &role_as_user->user, &empty_lex_str);
+        append_user(thd, &wrong_users, &role_as_user->user, &empty_lex_str);
         result= 1;
         continue;
       }
@@ -6000,7 +6001,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       {
         if (is_invalid_role_name(username.str))
         {
-          append_user(&wrong_users, &username, &empty_lex_str);
+          append_user(thd, &wrong_users, &username, &empty_lex_str);
           result= 1;
           continue;
         }
@@ -6026,7 +6027,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
                              false, create_new_user,
                              no_auto_create_user))
       {
-        append_user(&wrong_users, &username, &hostname);
+        append_user(thd, &wrong_users, &username, &hostname);
         result= 1;
         continue;
       }
@@ -6038,7 +6039,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
 
     if (!grantee)
     {
-      append_user(&wrong_users, &username, &hostname);
+      append_user(thd, &wrong_users, &username, &hostname);
       result= 1;
       continue;
     }
@@ -6060,7 +6061,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
         if (role_as_user &&
             traverse_role_graph_down(role, 0, 0, 0) == ROLE_CYCLE_FOUND)
         {
-          append_user(&wrong_users, &username, &empty_lex_str);
+          append_user(thd, &wrong_users, &username, &empty_lex_str);
           result= 1;
           undo_add_role_user_mapping(grantee, role);
           continue;
@@ -6072,7 +6073,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       /* grant was already removed or never existed */
       if (!hash_entry)
       {
-        append_user(&wrong_users, &username, &hostname);
+        append_user(thd, &wrong_users, &username, &hostname);
         result= 1;
         continue;
       }
@@ -6093,7 +6094,7 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
                                     thd->lex->with_admin_option,
                                     hash_entry, revoke))
     {
-      append_user(&wrong_users, &username, &empty_lex_str);
+      append_user(thd, &wrong_users, &username, &empty_lex_str);
       result= 1;
       if (!revoke)
       {
@@ -9188,7 +9189,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
     if (handle_as_role && is_invalid_role_name(user_name->user.str))
     {
-      append_user(&wrong_users, user_name);
+      append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
     }
@@ -9202,7 +9203,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     */
     if (handle_grant_data(tables, 0, user_name, NULL))
     {
-      append_user(&wrong_users, user_name);
+      append_user(thd, &wrong_users, user_name);
 
       result= TRUE;
       continue;
@@ -9211,7 +9212,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     some_users_created= TRUE;
     if (replace_user_table(thd, tables[0].table, *user_name, 0, 0, 1, 0))
     {
-      append_user(&wrong_users, user_name);
+      append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
     }
@@ -9236,7 +9237,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
                                       &user_name->user, true,
                                       NULL, false))
       {
-        append_user(&wrong_users, user_name);
+        append_user(thd, &wrong_users, user_name);
         if (grantee)
           undo_add_role_user_mapping(grantee, role);
         result= TRUE;
@@ -9309,14 +9310,14 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
     if (handle_as_role != user_name->is_role())
     {
-      append_user(&wrong_users, user_name);
+      append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
     }
 
     if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
     {
-      append_user(&wrong_users, user_name);
+      append_user(thd, &wrong_users, user_name);
       result= TRUE;
       continue;
     }
@@ -9389,13 +9390,13 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
     tmp_user_to= user_list++;
     if (!(user_from= get_current_user(thd, tmp_user_from, false)))
     {
-      append_user(&wrong_users, user_from);
+      append_user(thd, &wrong_users, user_from);
       result= TRUE;
       continue;
     }
     if (!(user_to= get_current_user(thd, tmp_user_to, false)))
     {
-      append_user(&wrong_users, user_to);
+      append_user(thd, &wrong_users, user_to);
       result= TRUE;
       continue;
     }
@@ -9410,7 +9411,7 @@ bool mysql_rename_user(THD *thd, List <LEX_USER> &list)
         handle_grant_data(tables, 0, user_from, user_to) <= 0)
     {
       /* NOTE TODO renaming roles is not yet implemented */
-      append_user(&wrong_users, user_from);
+      append_user(thd, &wrong_users, user_from);
       result= TRUE;
       continue;
     }
