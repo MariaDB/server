@@ -4766,9 +4766,6 @@ private:
 bool slave_execute_deferred_events(THD *thd);
 #endif
 
-int append_query_string(THD *thd, CHARSET_INFO *csinfo,
-                        String const *from, String *to);
-
 bool rpl_get_position_info(const char **log_file_name, ulonglong *log_pos,
                            const char **group_relay_log_name,
                            ulonglong *relay_log_pos);

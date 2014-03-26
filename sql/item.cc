@@ -41,7 +41,6 @@
                                        // REPORT_EXCEPT_NOT_FOUND,
                                        // find_item_in_list,
                                        // RESOLVED_AGAINST_ALIAS, ...
-#include "log_event.h"                 // append_query_string
 #include "sql_expression_cache.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
@@ -3749,8 +3748,9 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
   case LONG_DATA_VALUE:
     {
       str->length(0);
-      append_query_string(thd, value.cs_info.character_set_client, &str_value,
-                          str);
+      append_query_string(value.cs_info.character_set_client, str,
+                          str_value.ptr(), str_value.length(),
+                          thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
       break;
     }
   case NULL_VALUE:

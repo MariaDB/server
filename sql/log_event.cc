@@ -687,37 +687,35 @@ char *str_to_hex(char *to, const char *from, uint len)
 #ifndef MYSQL_CLIENT
 
 /**
-  Append a version of the 'from' string suitable for use in a query to
+  Append a version of the 'str' string suitable for use in a query to
   the 'to' string.  To generate a correct escaping, the character set
   information in 'csinfo' is used.
 */
 
-int
-append_query_string(THD *thd, CHARSET_INFO *csinfo,
-                    String const *from, String *to)
+int append_query_string(CHARSET_INFO *csinfo, String *to,
+                        const char *str, size_t len, bool no_backslash)
 {
   char *beg, *ptr;
   uint32 const orig_len= to->length();
-  if (to->reserve(orig_len + from->length() * 2 + 4))
+  if (to->reserve(orig_len + len * 2 + 4))
     return 1;
 
   beg= (char*) to->ptr() + to->length();
   ptr= beg;
   if (csinfo->escape_with_backslash_is_dangerous)
-    ptr= str_to_hex(ptr, from->ptr(), from->length());
+    ptr= str_to_hex(ptr, str, len);
   else
   {
     *ptr++= '\'';
-    if (!(thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES))
+    if (!no_backslash)
     {
-      ptr+= escape_string_for_mysql(csinfo, ptr, 0,
-                                    from->ptr(), from->length());
+      ptr+= escape_string_for_mysql(csinfo, ptr, 0, str, len);
     }
     else
     {
-      const char *frm_str= from->ptr();
+      const char *frm_str= str;
 
-      for (; frm_str < (from->ptr() + from->length()); frm_str++)
+      for (; frm_str < (str + len); frm_str++)
       {
         /* Using '' way to represent "'" */
         if (*frm_str == '\'')
