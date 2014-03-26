@@ -754,6 +754,11 @@ typedef struct system_status_var
 #define last_system_status_var questions
 #define last_cleared_system_status_var memory_used
 
+void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
+
+void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
+                        STATUS_VAR *dec_var);
+
 void mark_transaction_to_rollback(THD *thd, bool all);
 
 
@@ -3616,6 +3621,13 @@ public:
   /* Wake this thread up from wait_for_wakeup_ready(). */
   void signal_wakeup_ready();
 
+  void add_status_to_global()
+  {
+    mysql_mutex_lock(&LOCK_status);
+    add_to_status(&global_status_var, &status_var);
+    mysql_mutex_unlock(&LOCK_status);
+  }
+
   wait_for_commit *wait_for_commit_ptr;
   int wait_for_prior_commit()
   {
@@ -4816,10 +4828,6 @@ public:
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
 
-void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
-
-void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
-                        STATUS_VAR *dec_var);
 void mark_transaction_to_rollback(THD *thd, bool all);
 
 /* Inline functions */

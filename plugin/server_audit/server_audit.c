@@ -84,6 +84,9 @@ static void closelog() {}
 #include <typelib.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
+#ifndef RTLD_DEFAULT
+#define RTLD_DEFAULT NULL
+#endif
 
 #undef my_init_dynamic_array_ci
 #define init_dynamic_array2 loc_init_dynamic_array2
@@ -110,6 +113,20 @@ static void closelog() {}
 #define pop_dynamic loc_pop_dynamic
 #define delete_dynamic loc_delete_dynamic
 void *loc_alloc_dynamic(DYNAMIC_ARRAY *array);
+#ifdef my_strnncoll
+#undef my_strnncoll
+#define my_strnncoll(s, a, b, c, d) (my_strnncoll_binary((s), (a), (b), (c), (d), 0))
+#endif
+
+static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
+    const uchar *s, size_t slen,
+    const uchar *t, size_t tlen,
+    my_bool t_is_prefix)
+{
+  size_t len= slen < tlen ? slen : tlen;
+  int cmp= memcmp(s,t,len);
+  return cmp ? cmp : (int)((t_is_prefix ? len : slen) - tlen);
+}
 
 #include "../../mysys/array.c"
 #include "../../mysys/hash.c"
@@ -172,6 +189,10 @@ static char default_file_name[DEFAULT_FILENAME_LEN+1]= "server_audit.log";
 
 static void update_file_path(MYSQL_THD thd, struct st_mysql_sys_var *var,
                              void *var_ptr, const void *save);
+static void update_file_rotate_size(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                    void *var_ptr, const void *save);
+static void update_file_rotations(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                                  void *var_ptr, const void *save);
 static void update_incl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
                               void *var_ptr, const void *save);
 static void update_excl_users(MYSQL_THD thd, struct st_mysql_sys_var *var,
@@ -230,11 +251,11 @@ static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
        "Path to the log file.", NULL, update_file_path, default_file_name);
 static MYSQL_SYSVAR_ULONGLONG(file_rotate_size, file_rotate_size,
        PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation.",
-       NULL, NULL,
+       NULL, update_file_rotate_size,
        1000000, 100, ((long long) 0x7FFFFFFFFFFFFFFFLL), 1);
 static MYSQL_SYSVAR_UINT(file_rotations, rotations,
        PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed.",
-       NULL, NULL, 9, 0, 999, 1);
+       NULL, update_file_rotations, 9, 0, 999, 1);
 static MYSQL_SYSVAR_BOOL(file_rotate_now, rotate, PLUGIN_VAR_OPCMDARG,
        "Force log rotation now.", NULL, rotate_log, FALSE);
 static MYSQL_SYSVAR_BOOL(logging, logging,
@@ -253,7 +274,13 @@ static const char *syslog_facility_names[]=
 {
   "LOG_USER", "LOG_MAIL", "LOG_DAEMON", "LOG_AUTH",
   "LOG_SYSLOG", "LOG_LPR", "LOG_NEWS", "LOG_UUCP",
-  "LOG_CRON", "LOG_AUTHPRIV", "LOG_FTP",
+  "LOG_CRON",
+#ifdef LOG_AUTHPRIV
+ "LOG_AUTHPRIV",
+#endif
+#ifdef LOG_FTP
+ "LOG_FTP",
+#endif
   "LOG_LOCAL0", "LOG_LOCAL1", "LOG_LOCAL2", "LOG_LOCAL3",
   "LOG_LOCAL4", "LOG_LOCAL5", "LOG_LOCAL6", "LOG_LOCAL7",
   0
@@ -262,7 +289,13 @@ static unsigned int syslog_facility_codes[]=
 {
   LOG_USER, LOG_MAIL, LOG_DAEMON, LOG_AUTH,
   LOG_SYSLOG, LOG_LPR, LOG_NEWS, LOG_UUCP,
-  LOG_CRON, LOG_AUTHPRIV, LOG_FTP,
+  LOG_CRON,
+#ifdef LOG_AUTHPRIV
+ LOG_AUTHPRIV,
+#endif
+#ifdef LOG_FTP
+  LOG_FTP,
+#endif
   LOG_LOCAL0, LOG_LOCAL1, LOG_LOCAL2, LOG_LOCAL3,
   LOG_LOCAL4, LOG_LOCAL5, LOG_LOCAL6, LOG_LOCAL7,
 };
@@ -1332,6 +1365,7 @@ exit_func:
     switch (after_action) {
     case AA_FREE_CONNECTION:
       my_hash_delete(&connection_hash, (uchar *) cn);
+      cn= 0;
       break;
     case AA_CHANGE_USER:
     {
@@ -1434,11 +1468,11 @@ static int server_audit_init(void *p __attribute__((unused)))
   serv_ver= server_version;
 #endif /*_WIN32*/
 
-  my_hash_init_ptr= dlsym(NULL, "_my_hash_init");
+  my_hash_init_ptr= dlsym(RTLD_DEFAULT, "_my_hash_init");
   if (!my_hash_init_ptr)
   {
     maria_above_5= 1;
-    my_hash_init_ptr= dlsym(NULL, "my_hash_init2");
+    my_hash_init_ptr= dlsym(RTLD_DEFAULT, "my_hash_init2");
   }
 
   if (!serv_ver || !my_hash_init_ptr)
@@ -1496,15 +1530,17 @@ static int server_audit_init(void *p __attribute__((unused)))
   /* so we warn users if both Query Cashe and TABLE events enabled.      */
   if (!started_mysql && FILTER(EVENT_TABLE))
   {
-    ulonglong *qc_size= (ulonglong *) dlsym(NULL, "query_cache_size");
+    ulonglong *qc_size= (ulonglong *) dlsym(RTLD_DEFAULT, "query_cache_size");
     if (qc_size == NULL || *qc_size != 0)
     {
       struct loc_system_variables *g_sys_var=
-        (struct loc_system_variables *) dlsym(NULL, "global_system_variables");
+        (struct loc_system_variables *) dlsym(RTLD_DEFAULT,
+                                          "global_system_variables");
       if (g_sys_var && g_sys_var->query_cache_type != 0)
       {
         error_header();
-        fprintf(stderr, "Query cache is enabled with the TABLE events. Some table reads can be veiled.");
+        fprintf(stderr, "Query cache is enabled with the TABLE events."
+                        " Some table reads can be veiled.");
       }
     }
   }
@@ -1680,6 +1716,41 @@ exit_func:
 }
 
 
+static void update_file_rotations(MYSQL_THD thd  __attribute__((unused)),
+              struct st_mysql_sys_var *var  __attribute__((unused)),
+              void *var_ptr  __attribute__((unused)), const void *save)
+{
+  rotations= *(unsigned int *) save;
+  error_header();
+  fprintf(stderr, "Log file rotations was changed to '%d'.\n", rotations);
+
+  if (!logging || output_type != OUTPUT_FILE)
+    return;
+
+  flogger_mutex_lock(&lock_operations);
+  logfile->rotations= rotations;
+  flogger_mutex_unlock(&lock_operations);
+}
+
+
+static void update_file_rotate_size(MYSQL_THD thd  __attribute__((unused)),
+              struct st_mysql_sys_var *var  __attribute__((unused)),
+              void *var_ptr  __attribute__((unused)), const void *save)
+{
+  file_rotate_size= *(unsigned long long *) save;
+  error_header();
+  fprintf(stderr, "Log file rotate size was changed to '%lld'.\n",
+          file_rotate_size);
+
+  if (!logging || output_type != OUTPUT_FILE)
+    return;
+
+  flogger_mutex_lock(&lock_operations);
+  logfile->size_limit= file_rotate_size;
+  flogger_mutex_unlock(&lock_operations);
+}
+
+
 static void update_incl_users(MYSQL_THD thd,
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
@@ -1821,6 +1892,7 @@ static void update_mode(MYSQL_THD thd  __attribute__((unused)),
   flogger_mutex_unlock(&lock_operations);
 }
 
+
 static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
               struct st_mysql_sys_var *var  __attribute__((unused)),
               void *var_ptr  __attribute__((unused)), const void *save)
@@ -1828,8 +1900,15 @@ static void update_syslog_ident(MYSQL_THD thd  __attribute__((unused)),
   strncpy(syslog_ident_buffer, *(const char **) save,
           sizeof(syslog_ident_buffer));
   syslog_ident= syslog_ident_buffer;
+  error_header();
+  fprintf(stderr, "SYSYLOG ident was changed to '%s'\n", syslog_ident);
   flogger_mutex_lock(&lock_operations);
   mark_always_logged(thd);
+  if (logging && output_type == OUTPUT_SYSLOG)
+  {
+    stop_logging();
+    start_logging();
+  }
   flogger_mutex_unlock(&lock_operations);
 }
 
