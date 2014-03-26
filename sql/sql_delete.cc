@@ -1047,17 +1047,6 @@ int multi_delete::send_data(List<Item> &values)
 }
 
 
-void multi_delete::send_error(uint errcode,const char *err)
-{
-  DBUG_ENTER("multi_delete::send_error");
-
-  /* First send error what ever it is ... */
-  my_message(errcode, err, MYF(0));
-
-  DBUG_VOID_RETURN;
-}
-
-
 void multi_delete::abort_result_set()
 {
   DBUG_ENTER("multi_delete::abort_result_set");
@@ -1292,7 +1281,7 @@ bool multi_delete::send_eof()
     }
   }
   if (local_error != 0)
-    error_handled= TRUE; // to force early leave from ::send_error()
+    error_handled= TRUE; // to force early leave from ::abort_result_set()
 
   if (!local_error)
   {

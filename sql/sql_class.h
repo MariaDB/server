@@ -3838,7 +3838,6 @@ public:
   { return fields.elements; }
   virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
   virtual bool initialize_tables (JOIN *join=0) { return 0; }
-  virtual void send_error(uint errcode,const char *err);
   virtual bool send_eof()=0;
   /**
     Check if this query returns a result set and therefore is allowed in
@@ -3965,7 +3964,6 @@ public:
   select_to_file(sql_exchange *ex) :exchange(ex), file(-1),row_count(0L)
   { path[0]=0; }
   ~select_to_file();
-  void send_error(uint errcode,const char *err);
   bool send_eof();
   void cleanup();
 };
@@ -4038,7 +4036,6 @@ class select_insert :public select_result_interceptor {
   virtual int send_data(List<Item> &items);
   virtual void store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
-  void send_error(uint errcode,const char *err);
   bool send_eof();
   virtual void abort_result_set();
   /* not implemented: select_insert is never re-used in prepared statements */
@@ -4076,7 +4073,6 @@ public:
 
   int binlog_show_create_table(TABLE **tables, uint count);
   void store_values(List<Item> &values);
-  void send_error(uint errcode,const char *err);
   bool send_eof();
   virtual void abort_result_set();
   virtual bool can_rollback_data() { return 1; }
@@ -4594,7 +4590,7 @@ class multi_delete :public select_result_interceptor
   bool delete_while_scanning;
   /*
      error handling (rollback and binlogging) can happen in send_eof()
-     so that afterward send_error() needs to find out that.
+     so that afterward abort_result_set() needs to find out that.
   */
   bool error_handled;
 
@@ -4604,7 +4600,6 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
-  void send_error(uint errcode,const char *err);
   int do_deletes();
   int do_table_deletes(TABLE *table, bool ignore);
   bool send_eof();
@@ -4640,7 +4635,7 @@ class multi_update :public select_result_interceptor
   bool ignore;
   /* 
      error handling (rollback and binlogging) can happen in send_eof()
-     so that afterward send_error() needs to find out that.
+     so that afterward  abort_result_set() needs to find out that.
   */
   bool error_handled;
   
@@ -4654,7 +4649,6 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
-  void send_error(uint errcode,const char *err);
   int  do_updates();
   bool send_eof();
   inline ha_rows num_found()

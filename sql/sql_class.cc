@@ -2439,12 +2439,6 @@ select_result::select_result()
   thd=current_thd;
 }
 
-void select_result::send_error(uint errcode,const char *err)
-{
-  my_message(errcode, err, MYF(0));
-}
-
-
 void select_result::cleanup()
 {
   /* do nothing */
@@ -2585,20 +2579,6 @@ bool select_send::send_eof()
 /************************************************************************
   Handling writing to file
 ************************************************************************/
-
-void select_to_file::send_error(uint errcode,const char *err)
-{
-  my_message(errcode, err, MYF(0));
-  if (file > 0)
-  {
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    /* Delete file on error */
-    mysql_file_delete(key_select_to_file, path, MYF(0));
-    file= -1;
-  }
-}
-
 
 bool select_to_file::send_eof()
 {

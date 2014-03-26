@@ -2077,13 +2077,6 @@ int multi_update::send_data(List<Item> &not_used_values)
 }
 
 
-void multi_update::send_error(uint errcode,const char *err)
-{
-  /* First send error what ever it is ... */
-  my_error(errcode, MYF(0), err);
-}
-
-
 void multi_update::abort_result_set()
 {
   /* the error was handled or nothing deleted and no side effects return */
@@ -2406,7 +2399,7 @@ bool multi_update::send_eof()
               thd->transaction.stmt.modified_non_trans_table);
 
   if (local_error != 0)
-    error_handled= TRUE; // to force early leave from ::send_error()
+    error_handled= TRUE; // to force early leave from ::abort_result_set()
 
   if (local_error > 0) // if the above log write did not fail ...
   {
