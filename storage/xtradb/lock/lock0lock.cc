@@ -981,7 +981,6 @@ lock_rec_has_to_wait(
 	    && !lock_mode_compatible(static_cast<enum lock_mode>(
 			             LOCK_MODE_MASK & type_mode),
 				     lock_get_mode(lock2))) {
-
 #ifdef WITH_WSREP
 		/* if BF thread is locking and has conflict with another BF
 		   thread, we need to look at trx ordering and lock types */
@@ -1021,7 +1020,7 @@ lock_rec_has_to_wait(
 				}
 				return FALSE;
 			}
- 		}
+		}
 #endif /* WITH_WSREP */
 
 		/* We have somewhat complex rules when gap type record locks
@@ -1630,14 +1629,13 @@ lock_rec_other_has_expl_req(
 #endif /* UNIV_DEBUG */
 
 #ifdef WITH_WSREP
-static void
-wsrep_kill_victim(trx_t *trx, lock_t *lock) {
+static
+void
+wsrep_kill_victim(const trx_t * const trx, const lock_t *lock) {
         ut_ad(lock_mutex_own());
         ut_ad(trx_mutex_own(lock->trx));
-
 	my_bool bf_this  = wsrep_thd_is_brute_force(trx->mysql_thd);
 	my_bool bf_other = wsrep_thd_is_brute_force(lock->trx->mysql_thd);
-
 	if ((bf_this && !bf_other) ||
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
@@ -1677,12 +1675,11 @@ wsrep_kill_victim(trx_t *trx, lock_t *lock) {
 				}
 			}
 			wsrep_innobase_kill_one_trx(trx->mysql_thd,
-				(const trx_t*)trx, lock->trx, TRUE);
+				(const trx_t*) trx, lock->trx, TRUE);
 		}
 	}
 }
-#endif /* WITH_WSREP */
-
+#endif
 /*********************************************************************//**
 Checks if some other transaction has a conflicting explicit lock request
 in the queue, so that we have to wait.
@@ -1719,6 +1716,7 @@ lock_rec_other_has_conflicting(
 #else
  		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
 #endif /* WITH_WSREP */
+
 			return(lock);
 		}
 	}
@@ -1879,7 +1877,7 @@ lock_t*
 lock_rec_create(
 /*============*/
 #ifdef WITH_WSREP
-	lock_t*		  const c_lock,	/* conflicting lock */
+	lock_t*			const c_lock,   /* conflicting lock */
 	que_thr_t*		thr,
 #endif
 	ulint			type_mode,/*!< in: lock mode and wait
@@ -1940,8 +1938,8 @@ lock_rec_create(
 		lock->type_mode |= WSREP_BF;
 	}
 #endif /* WITH_WSREP */
-
 	lock->index = index;
+
 	lock->un_member.rec_lock.space = space;
 	lock->un_member.rec_lock.page_no = page_no;
 	lock->un_member.rec_lock.n_bits = n_bytes * 8;
@@ -2144,7 +2142,7 @@ lock_rec_enqueue_waiting(
 		lock = lock_rec_create(
 			type_mode | LOCK_WAIT, block, heap_no,
 			index, trx, TRUE);
-#endif /* WITH_WSREP */
+#endif /*WITH_WSREP */
 	} else {
 		ut_ad(lock->type_mode & LOCK_WAIT);
 		ut_ad(lock->type_mode & LOCK_CONV_BY_OTHER);
@@ -2401,7 +2399,8 @@ lock_rec_lock_fast(
 #else
 			lock = lock_rec_create(
 				mode, block, heap_no, index, trx, FALSE);
-#endif /* WITH_WSREP */
+#endif
+
 		}
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
@@ -2454,11 +2453,11 @@ lock_rec_lock_slow(
 	que_thr_t*		thr)	/*!< in: query thread */
 {
 	trx_t*			trx;
+#ifdef WITH_WSREP
+	lock_t*			c_lock(NULL);
+#endif
 	lock_t*			lock;
 	dberr_t			err = DB_SUCCESS;
-#ifdef WITH_WSREP
-	lock_t*			c_lock = NULL;
-#endif
 
 	ut_ad(lock_mutex_own());
 	ut_ad((LOCK_MODE_MASK & mode) != LOCK_S
@@ -2533,6 +2532,7 @@ enqueue_waiting:
 		err = lock_rec_enqueue_waiting(
 			mode, block, heap_no, lock, index, thr);
 #endif /* WITH_WSREP */
+
 	} else if (!impl) {
 		/* Set the requested lock on the record, note that
 		we already own the transaction mutex. */
@@ -4040,20 +4040,18 @@ lock_deadlock_select_victim(
 	if (trx_weight_ge(ctx->wait_lock->trx, ctx->start)) {
 		/* The joining  transaction is 'smaller',
 		choose it as the victim and roll it back. */
-
 #ifdef WITH_WSREP
 		if (!wsrep_thd_is_brute_force(ctx->start->mysql_thd))
 			return(ctx->start);
 		else
 #endif /* WITH_WSREP */
-			return(ctx->start);
-	}
-
-#ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd)) {
 		return(ctx->start);
 	}
-#endif
+#ifdef WITH_WSREP
+	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd))
+		return(ctx->start);
+        else
+#endif /* WITH_WSREP */
 	return(ctx->wait_lock->trx);
 }
 
@@ -4426,6 +4424,7 @@ lock_table_create(
 	ut_ad(table->n_ref_count > 0 || !table->can_be_evicted);
 
 	UT_LIST_ADD_LAST(trx_locks, trx->lock.trx_locks, lock);
+
 #ifdef WITH_WSREP
 	if (c_lock && wsrep_thd_is_brute_force(trx->mysql_thd)) {
         	UT_LIST_INSERT_AFTER(
@@ -4464,7 +4463,6 @@ lock_table_create(
 	}
 	if (c_lock) trx_mutex_exit(c_lock->trx);
 #else
-
 	UT_LIST_ADD_LAST(un_member.tab_lock.locks, table->locks, lock);
 #endif /* WITH_WSREP */
 

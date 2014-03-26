@@ -1471,14 +1471,13 @@ innobase_srv_conc_exit_innodb(
 /*==========================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
+#ifdef UNIV_SYNC_DEBUG
+	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
+#endif /* UNIV_SYNC_DEBUG */
 #ifdef WITH_WSREP
 	if (wsrep_on(trx->mysql_thd) &&
 	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
 #endif /* WITH_WSREP */
-
-#ifdef UNIV_SYNC_DEBUG
-	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
-#endif /* UNIV_SYNC_DEBUG */
 
 	/* This is to avoid making an unnecessary function call. */
 	if (trx->declared_to_be_inside_innodb
@@ -3968,6 +3967,11 @@ innobase_commit_low(
 /*================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
+	if (trx_is_started(trx)) {
+
+		trx_commit_for_mysql(trx);
+	}
+
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
@@ -3985,11 +3989,6 @@ innobase_commit_low(
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
-
-	if (trx_is_started(trx)) {
-
-		trx_commit_for_mysql(trx);
-	}
 
 #ifdef WITH_WSREP
 	if (wsrep_on((void*)thd)) { thd_proc_info(thd, tmp); }
@@ -6048,8 +6047,13 @@ wsrep_innobase_mysql_sort(
 		ut_a(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
+		//tmp_length = charset->coll->strnxfrm(charset, str, str_length,
+		//				     tmp_str, str_length);
+		/* Note: in MySQL 5.6:
+		 */
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
-						     str_length, tmp_str, tmp_length, 0);
+				     str_length, tmp_str, tmp_length, 0);
+		/**/
 		DBUG_ASSERT(tmp_length == str_length);
  
 		break;
@@ -6592,10 +6596,10 @@ innobase_read_from_2_little_endian(
 	return((uint) ((ulint)(buf[0]) + 256 * ((ulint)(buf[1]))));
 }
 
-#ifdef WITH_WSREP
 /*******************************************************************//**
 Stores a key value for a row to a buffer.
 @return	key value length as stored in buff */
+#ifdef WITH_WSREP
 UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
@@ -8559,7 +8563,8 @@ func_exit:
 	innobase_active_small();
 
 #ifdef WITH_WSREP
-	if (!err && wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
+	if (error == DB_SUCCESS                          && 
+	    wsrep_thd_exec_mode(user_thd) == LOCAL_STATE &&
             wsrep_on(user_thd)) {
 
 		DBUG_PRINT("wsrep", ("update row key"));
@@ -17830,8 +17835,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 
 		WSREP_DEBUG("kill query for: %ld",
 			    wsrep_thd_thread_id(thd));
-		wsrep_thd_UNLOCK(thd);
-		wsrep_thd_awake(thd, signal);
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for %llu", 
 			    victim_trx->id);
 
@@ -17848,6 +17851,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 			case WSREP_WARNING:
 				WSREP_DEBUG("cancel commit warning: %llu",
 					    victim_trx->id);
+				wsrep_thd_UNLOCK(thd);
+				wsrep_thd_awake(thd, signal);
 				DBUG_RETURN(1);
 				break;
 			case WSREP_OK:
@@ -17865,6 +17870,8 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				break;
 			}
 		}
+		wsrep_thd_UNLOCK(thd);
+		wsrep_thd_awake(thd, signal);
 		break;
 	case QUERY_EXEC:
 		/* it is possible that victim trx is itself waiting for some 
@@ -17883,7 +17890,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 				lock_cancel_waiting_and_release(wait_lock);
 			}
 
-			wsrep_thd_UNLOCK(thd);
 			wsrep_thd_awake(thd, signal);
 		} else {
 			/* abort currently executing query */
@@ -17891,7 +17897,6 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
                                             wsrep_thd_thread_id(thd)));
 			WSREP_DEBUG("kill query for: %ld",
 				wsrep_thd_thread_id(thd));
-			wsrep_thd_UNLOCK(thd);
 			/* Note that innobase_kill_connection will take lock_mutex
 			and trx_mutex */
 			wsrep_thd_awake(thd, signal);
@@ -17950,16 +17955,15 @@ wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
 		WSREP_DEBUG("signaling aborter");
 		mysql_cond_signal(&COND_wsrep_rollback);
 		mysql_mutex_unlock(&LOCK_wsrep_rollback);
-		wsrep_thd_UNLOCK(thd);
 
 		break;
 	}
 	default:
 		WSREP_WARN("bad wsrep query state: %d", 
 			  wsrep_thd_query_state(thd));
-		wsrep_thd_UNLOCK(thd);
 		break;
 	}
+	wsrep_thd_UNLOCK(thd);
      
 	DBUG_RETURN(0);
 }

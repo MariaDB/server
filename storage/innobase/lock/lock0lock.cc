@@ -4029,15 +4029,14 @@ lock_deadlock_select_victim(
 		if (!wsrep_thd_is_brute_force(ctx->start->mysql_thd)) {
 		    return(ctx->start);
 		}
-#else
+#endif /* WITH_WSREP */
 		return(ctx->start);
-#endif
 	}
 #ifdef WITH_WSREP
-	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd)) {
+	if (wsrep_thd_is_brute_force(ctx->wait_lock->trx->mysql_thd))
 		return(ctx->start);
-	}
-#endif
+        else
+#endif /* WITH_WSREP */
 	return(ctx->wait_lock->trx);
 }
 

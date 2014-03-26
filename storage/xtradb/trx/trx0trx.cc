@@ -1228,7 +1228,7 @@ trx_write_serialisation_history(
 		trx_sys_update_mysql_binlog_offset(
 			trx->mysql_log_file_name,
 			trx->mysql_log_offset,
-			TRX_SYS_MYSQL_LOG_INFO,
+			TRX_SYS_MYSQL_LOG_INFO, 
 #ifdef WITH_WSREP
                         sys_header,
 #endif /* WITH_WSREP */
