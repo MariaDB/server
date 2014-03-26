@@ -1004,7 +1004,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint blob_length= uint2korr(ptr);
     blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                    blob_length, &my_charset_bin);
-    if (append_escaped(to, &blob))
+    if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
@@ -1013,7 +1013,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint var_length= uint2korr(ptr);
     varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                       var_length, &my_charset_bin);
-    if (append_escaped(to, &varchar))
+    if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
   else
@@ -1025,7 +1025,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     if (field->result_type() == STRING_RESULT)
     {
-      if (append_escaped(to, res))
+      if (to->append_for_single_quote(res))
         DBUG_RETURN(1);
     }
     else if (to->append(res->ptr(), res->length()))

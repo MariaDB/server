@@ -496,7 +496,16 @@ public:
     return FALSE;
   }
   void print(String *print);
+
   bool append_for_single_quote(const char *st, uint len);
+  bool append_for_single_quote(const String *s)
+  {
+    return append_for_single_quote(s->ptr(), s->length());
+  }
+  bool append_for_single_quote(const char *st)
+  {
+    return append_for_single_quote(st, strlen(st));
+  }
 
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
   void swap(String &s);
