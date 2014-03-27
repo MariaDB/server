@@ -17955,7 +17955,7 @@ static MYSQL_SYSVAR_BOOL(use_lz4, srv_use_lz4,
 #endif /* HAVE_LZ4 */
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
-  PLUGIN_VAR_RQCMDARG,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Number of multi-threaded flush threads",
   NULL, NULL,
   MTFLUSH_DEFAULT_WORKER, /* Default setting */
@@ -17964,7 +17964,7 @@ static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   0);
 
 static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
-  PLUGIN_VAR_OPCMDARG ,
+  PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Use multi-threaded flush. Default FALSE.",
   NULL, NULL, FALSE);
 

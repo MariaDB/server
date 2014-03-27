@@ -1,0 +1,21 @@
+select @@global.innodb_use_mtflush;
+@@global.innodb_use_mtflush
+0
+select @@session.innodb_use_mtflush;
+ERROR HY000: Variable 'innodb_use_mtflush' is a GLOBAL variable
+show global variables like 'innodb_use_mtflush';
+Variable_name	Value
+innodb_use_mtflush	OFF
+show session variables like 'innodb_use_mtflush';
+Variable_name	Value
+innodb_use_mtflush	OFF
+select * from information_schema.global_variables where variable_name='innodb_use_mtflush';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_USE_MTFLUSH	OFF
+select * from information_schema.session_variables where variable_name='innodb_use_mtflush';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_USE_MTFLUSH	OFF
+set global innodb_use_mtflush=1;
+ERROR HY000: Variable 'innodb_use_mtflush' is a read only variable
+set session innodb_use_mtflush=1;
+ERROR HY000: Variable 'innodb_use_mtflush' is a read only variable

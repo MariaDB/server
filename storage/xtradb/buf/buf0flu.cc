@@ -1549,6 +1549,7 @@ buf_flush_LRU_list_batch(
 
 	n->flushed = 0;
 	n->evicted = 0;
+	n->unzip_LRU_evicted = 0;
 
 	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
@@ -1660,21 +1661,22 @@ buf_do_LRU_batch(
 	flush_counters_t*	n)	/*!< out: flushed/evicted page
 					counts */
 {
-	ulint	count = 0;
-
 	if (buf_LRU_evict_from_unzip_LRU(buf_pool)) {
-		count += buf_free_from_unzip_LRU_list_batch(buf_pool, max);
+		n->unzip_LRU_evicted
+			+= buf_free_from_unzip_LRU_list_batch(buf_pool, max);
+	} else {
+		n->unzip_LRU_evicted = 0;
 	}
 
-	if (max > count) {
-		buf_flush_LRU_list_batch(buf_pool, max - count, limited_scan,
-					 n);
+	if (max > n->unzip_LRU_evicted) {
+		buf_flush_LRU_list_batch(buf_pool, max - n->unzip_LRU_evicted,
+					 limited_scan, n);
 	} else {
 		n->evicted = 0;
 		n->flushed = 0;
 	}
 
-	n->flushed += count;
+	n->evicted += n->unzip_LRU_evicted;
 }
 
 /*******************************************************************//**
@@ -2306,9 +2308,15 @@ buf_flush_LRU_tail(void)
 
 				requested_pages[i] += lru_chunk_size;
 
+				/* If we failed to flush or evict this
+				instance, do not bother anymore. But take into
+			        account that we might have zero flushed pages
+				because the flushing request was fully
+				satisfied by unzip_LRU evictions. */
 				if (requested_pages[i] >= scan_depth[i]
 				    || !(srv_cleaner_eviction_factor
-					 ? n.evicted : n.flushed)) {
+					? n.evicted
+					: (n.flushed + n.unzip_LRU_evicted))) {
 
 					active_instance[i] = false;
 					remaining_instances--;
