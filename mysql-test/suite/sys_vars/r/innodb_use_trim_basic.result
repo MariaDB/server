@@ -1,0 +1,33 @@
+SET @start_use_trim = @@global.innodb_use_trim;
+SELECT @start_use_trim;
+@start_use_trim
+0
+SELECT COUNT(@@GLOBAL.innodb_use_trim);
+COUNT(@@GLOBAL.innodb_use_trim)
+1
+1 Expected
+SET @@GLOBAL.innodb_use_trim=1;
+SELECT COUNT(@@GLOBAL.innodb_use_trim);
+COUNT(@@GLOBAL.innodb_use_trim)
+1
+1 Expected
+SELECT IF(@@GLOBAL.innodb_use_trim, 'ON', 'OFF') = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_use_trim';
+IF(@@GLOBAL.innodb_use_trim, 'ON', 'OFF') = VARIABLE_VALUE
+1
+1 Expected
+SELECT COUNT(@@GLOBAL.innodb_use_trim);
+COUNT(@@GLOBAL.innodb_use_trim)
+1
+1 Expected
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_use_trim';
+COUNT(VARIABLE_VALUE)
+1
+1 Expected
+SET @@global.innodb_use_trim = @start_use_trim;
+SELECT @@global.innodb_use_trim;
+@@global.innodb_use_trim
+0

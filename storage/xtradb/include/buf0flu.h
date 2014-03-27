@@ -40,6 +40,8 @@ extern ibool buf_page_cleaner_is_active;
 struct flush_counters_t {
 	ulint	flushed;	/*!< number of dirty pages flushed */
 	ulint	evicted;	/*!< number of clean pages evicted */
+	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
+				evicted */
 };
 
 
