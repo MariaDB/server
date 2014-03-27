@@ -237,7 +237,6 @@ our $opt_fast= 0;
 our $opt_force= 0;
 our $opt_mem= $ENV{'MTR_MEM'};
 our $opt_clean_vardir= $ENV{'MTR_CLEAN_VARDIR'};
-our $opt_use_copy= 0;
 
 our $opt_gcov;
 our $opt_gcov_src_dir;
@@ -1144,7 +1143,6 @@ sub command_line_setup {
 	     # skip-im is deprecated and silently ignored
 	     'skip-im'                  => \&ignore_option,
              'staging-run'              => \$opt_staging_run,
-             'use-copy'                 => \$opt_use_copy,
 
              # Specify ports
 	     'build-thread|mtr-build-thread=i' => \$opt_build_thread,
@@ -2681,7 +2679,7 @@ sub setup_vardir() {
   # and make them world readable
   copytree("$glob_mysql_test_dir/std_data", "$opt_vardir/std_data", "0022");
 
-  # create a plugin dir and copy plugins into it
+  # create a plugin dir and copy or symlink plugins into it
   if ($source_dist)
   {
     $plugindir="$opt_vardir/plugins";
@@ -2699,6 +2697,13 @@ sub setup_vardir() {
     }
     else
     {
+      my $opt_use_copy= 1;
+      if (symlink "$opt_vardir/run", "$plugindir/symlink_test")
+      {
+        $opt_use_copy= 0;
+        unlink "$plugindir/symlink_test";
+      }
+
       for (<../storage/*/.libs/*.so>,
            <../plugin/*/.libs/*.so>,
            <../plugin/*/*/.libs/*.so>,
@@ -6423,9 +6428,6 @@ Options to control what test suites or cases to run
   skip-test-list=FILE   Skip the tests listed in FILE. Each line in the file
                         is an entry and should be formatted as: 
                         <TESTNAME> : <COMMENT>
-  use-copy              Copy plugins instead of symlinking them. This is
-                        only useful when running on a system that doesn't
-                        support symlinks.
 
 Options that specify ports
 
