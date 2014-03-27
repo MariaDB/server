@@ -59,6 +59,7 @@ INSERT INTO t1 VALUES
 (25, 'zzzzzzzzzzzzzzzzzz', 'bbb', '1989-03-12', 0.01,  b'101');
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -210,6 +211,7 @@ DELETE FROM mysql.column_stats;
 set histogram_size=4;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT db_name, table_name, column_name,
 min_value, max_value,
@@ -228,6 +230,7 @@ set histogram_size=8;
 set histogram_type='DOUBLE_PREC_HB';
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT db_name, table_name, column_name,
 min_value, max_value,
@@ -246,6 +249,7 @@ set histogram_size= 0;
 set histogram_type=default;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 CREATE TABLE t3 (
 a int NOT NULL PRIMARY KEY,
@@ -273,6 +277,7 @@ INSERT INTO t3 VALUES
 (29, 'vvvvvvvvvvvvv', 'dddddddd');
 ANALYZE TABLE t3;
 Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -574,6 +579,7 @@ test	t1	idx2	2	2.3846
 test	t1	idx3	1	8.5000
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx4);
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -774,6 +780,7 @@ test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -797,6 +804,7 @@ test	t1	idx4	3	NULL
 UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -873,6 +881,7 @@ test	t1	PRIMARY	1	1.0000
 test	t1	idx3	1	8.5000
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -898,6 +907,7 @@ DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -908,6 +918,7 @@ SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -934,6 +945,7 @@ test	t1	idx4	2	1.6875
 test	t1	idx4	3	1.1304
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT * FROM mysql.index_stats;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -948,6 +960,7 @@ DELETE FROM mysql.column_stats;
 DELETE FROM mysql.index_stats;
 ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -977,6 +990,7 @@ INSERT INTO t2 SELECT * FROM t1;
 set optimizer_switch='extended_keys=off';
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -1022,6 +1036,7 @@ DELETE FROM mysql.index_stats;
 set optimizer_switch='extended_keys=on';
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -1070,6 +1085,7 @@ test	t2	idx4	2	1.6875
 test	t2	idx4	3	1.1304
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -1094,6 +1110,7 @@ test	t2	idx2	2	2.3846
 test	t2	idx3	1	8.5000
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -1128,6 +1145,7 @@ test	t2	idx4	3	1.1154
 test	t2	idx4	4	1.0000
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -1152,6 +1170,7 @@ test	t2	idx2	2	2.3846
 test	t2	idx3	1	8.5000
 ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
 db_name	table_name	index_name	prefix_arity	avg_frequency
@@ -1192,6 +1211,7 @@ test	t2	idx3	2	1.0000
 test	t2	PRIMARY	1	1.0000
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -1244,6 +1264,7 @@ db_name	table_name	index_name	prefix_arity	avg_frequency
 set use_stat_tables='never';
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 SELECT * FROM mysql.table_stats;
 db_name	table_name	cardinality
@@ -1523,6 +1544,7 @@ insert into t1 values (1),(2),(3);
 set histogram_size=10;
 analyze table t1  persistent for all;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select db_name, table_name, column_name,
 min_value, max_value,
@@ -1547,6 +1569,7 @@ histogram_size	10
 histogram_type	DOUBLE_PREC_HB
 analyze table t1 persistent for all;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select db_name, table_name, column_name,
 min_value, max_value,
@@ -1587,6 +1610,7 @@ set @@max_heap_table_size=1024*16;
 set histogram_size=63;
 analyze table t2 persistent for all;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 select db_name, table_name, column_name,
 min_value, max_value,
