@@ -375,6 +375,8 @@ wsrep_row_upd_check_foreign_constraints(
 
 	trx = thr_get_trx(thr);
 
+        /* TODO: make native slave thread bail out here */
+
 	rec = btr_pcur_get_rec(pcur);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 

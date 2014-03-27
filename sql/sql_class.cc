@@ -66,6 +66,7 @@
 #include "lock.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 #endif
 #include "sql_connect.h"
 
@@ -957,6 +958,10 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
     mysql_cond_broadcast(&COND_wsrep_replaying);
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
   }
+}
+extern "C" int wsrep_thd_retry_counter(THD *thd) 
+{
+  return(thd->wsrep_retry_counter);
 }
 
 extern int
@@ -2129,7 +2134,19 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
+#ifdef WITH_WSREP
+      {
         signalled|= mysql_lock_abort_for_thread(this, thd_table);
+        if (this && WSREP(this) && wsrep_thd_is_BF((void *)this, FALSE)) 
+        {
+          WSREP_DEBUG("remove_table_from_cache: %llu",
+                      (unsigned long long) this->real_id);
+          wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+        }
+      }
+#else
+        signalled|= mysql_lock_abort_for_thread(this, thd_table);
+#endif
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }

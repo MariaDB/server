@@ -763,6 +763,19 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   if (check_one_table_access(thd, DROP_ACL, first_table))
     DBUG_RETURN(TRUE);
 
+#ifdef WITH_WSREP
+  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+
+  if ((!thd->is_current_stmt_binlog_format_row() ||
+       !find_temporary_table(thd, first_table))  &&
+      wsrep_to_isolation_begin(
+        thd, first_table->db, first_table->table_name, NULL)
+      )
+  {
+    WSREP_WARN("ALTER TABLE isolation failure");
+    DBUG_RETURN(TRUE);
+  }
+#endif /* WITH_WSREP */
   if (open_tables(thd, &first_table, &table_counter, 0))
     DBUG_RETURN(true);
 

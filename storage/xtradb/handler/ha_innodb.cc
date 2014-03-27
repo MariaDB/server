@@ -1437,8 +1437,8 @@ innobase_srv_conc_enter_innodb(
 	trx_t*	trx)	/*!< in: transaction handle */
 {
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
-	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
 #endif /* WITH_WSREP */
 	if (srv_thread_concurrency) {
 		if (trx->n_tickets_to_enter_innodb > 0) {
@@ -1475,8 +1475,8 @@ innobase_srv_conc_exit_innodb(
 	ut_ad(!sync_thread_levels_nonempty_trx(trx->has_search_latch));
 #endif /* UNIV_SYNC_DEBUG */
 #ifdef WITH_WSREP
-	if (wsrep_on(trx->mysql_thd) &&
-	    wsrep_thd_is_brute_force(trx->mysql_thd)) return;
+	if (wsrep_on(trx->mysql_thd) && 
+	    wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
 #endif /* WITH_WSREP */
 
 	/* This is to avoid making an unnecessary function call. */
@@ -3967,11 +3967,6 @@ innobase_commit_low(
 /*================*/
 	trx_t*	trx)	/*!< in: transaction handle */
 {
-	if (trx_is_started(trx)) {
-
-		trx_commit_for_mysql(trx);
-	}
-
 #ifdef WITH_WSREP
 	THD* thd = (THD*)trx->mysql_thd;
 	const char* tmp = 0;
@@ -3989,7 +3984,10 @@ innobase_commit_low(
 #endif /* WSREP_PROC_INFO */
 	}
 #endif /* WITH_WSREP */
+	if (trx_is_started(trx)) {
 
+		trx_commit_for_mysql(trx);
+	}
 #ifdef WITH_WSREP
 	if (wsrep_on((void*)thd)) { thd_proc_info(thd, tmp); }
 #endif /* WITH_WSREP */
@@ -6054,7 +6052,7 @@ wsrep_innobase_mysql_sort(
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
 				     str_length, tmp_str, tmp_length, 0);
 		/**/
-		DBUG_ASSERT(tmp_length == str_length);
+		DBUG_ASSERT(tmp_length <= str_length);
  
 		break;
 	}
@@ -7755,7 +7753,6 @@ ha_innobase::write_row(
 				    wsrep_thd_query(user_thd));
 		}
 #endif /* WITH_WSREP */
-
 		/* ALTER TABLE is COMMITted at every 10000 copied rows.
 		The IX table lock for the original table has to be re-issued.
 		As this method will be called on a temporary table where the
@@ -7794,7 +7791,8 @@ no_commit:
 			{
 			case WSREP_TRX_OK:
 				break;
-			case WSREP_TRX_ROLLBACK:
+			case WSREP_TRX_SIZE_EXCEEDED:
+			case WSREP_TRX_CERT_FAIL:
 			case WSREP_TRX_ERROR:
 				DBUG_RETURN(1);
 			}
@@ -7818,10 +7816,12 @@ no_commit:
 			{
 			case WSREP_TRX_OK:
 				break;
-			case WSREP_TRX_ROLLBACK:
+			case WSREP_TRX_SIZE_EXCEEDED:
+			case WSREP_TRX_CERT_FAIL:
 			case WSREP_TRX_ERROR:
 				DBUG_RETURN(1);
 			}
+
 			if (binlog_hton->commit(binlog_hton, user_thd, 1))
                                 DBUG_RETURN(1);
                         wsrep_post_commit(user_thd, TRUE);
@@ -7949,9 +7949,10 @@ no_commit:
 #ifdef WITH_WSREP
 			/* workaround for LP bug #355000, retrying the insert */
 			case SQLCOM_INSERT:
-				if (wsrep_on(current_thd)          &&
-				    auto_inc_inserted              &&
-				    wsrep_drupal_282555_workaround &&
+                               if (wsrep_on(current_thd)                     &&
+                                   auto_inc_inserted                         &&
+                                   wsrep_drupal_282555_workaround            &&
+                                   wsrep_thd_retry_counter(current_thd) == 0 &&
 				    !thd_test_options(current_thd, 
 						      OPTION_NOT_AUTOCOMMIT | 
 						      OPTION_BEGIN)) {
@@ -7963,8 +7964,7 @@ no_commit:
 					error= DB_SUCCESS;
 					wsrep_thd_set_conflict_state(
 						current_thd, MUST_ABORT);
-                                        innobase_srv_conc_exit_innodb(
-						prebuilt->trx);
+                                        innobase_srv_conc_exit_innodb(prebuilt->trx);
                                         /* jump straight to func exit over
                                          * later wsrep hooks */
                                         goto func_exit;
@@ -10133,6 +10133,13 @@ ha_innobase::wsrep_append_keys(
 	} else {
 		ut_a(table->s->keys <= 256);
 		uint i;
+                bool hasPK= false;
+
+                for (i=0; i<table->s->keys && !hasPK; ++i) {
+                       KEY*  key_info  = table->key_info + i;
+                       if (key_info->flags & HA_NOSAME) hasPK = true;
+                }
+
 		for (i=0; i<table->s->keys; ++i) {
 			uint  len;
 			char  keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
@@ -10153,13 +10160,10 @@ ha_innobase::wsrep_append_keys(
 					   table->s->table_name.str, 
 					   key_info->name);
 			}
-			if (key_info->flags & HA_NOSAME ||
+			if (!hasPK || key_info->flags & HA_NOSAME ||
 			    ((tab &&
 			      dict_table_get_referenced_constraint(tab, idx)) ||
 			     (!tab && referenced_by_foreign_key()))) {
-
-				if (key_info->flags & HA_NOSAME || shared)
-			  		key_appended = true;
 
 				len = wsrep_store_key_val_for_row(
 					table, i, key0, key_info->key_length, 
@@ -10169,6 +10173,10 @@ ha_innobase::wsrep_append_keys(
 						thd, trx, table_share, table, 
 						keyval0, len+1, shared);
 					if (rcode) DBUG_RETURN(rcode);
+
+				if (key_info->flags & HA_NOSAME || shared)
+			  		key_appended = true;
+
 				}
 				else
 				{
@@ -17759,6 +17767,7 @@ wsrep_abort_slave_trx(wsrep_seqno_t bf_seqno, wsrep_seqno_t victim_seqno)
 }
 /*******************************************************************//**
 This function is used to kill one transaction in BF. */
+
 int
 wsrep_innobase_kill_one_trx(void * const bf_thd_ptr,
                             const trx_t * const bf_trx,

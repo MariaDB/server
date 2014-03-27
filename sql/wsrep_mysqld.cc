@@ -26,6 +26,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "log_event.h"
+#include <slave.h>
 
 wsrep_t *wsrep                  = NULL;
 my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
@@ -63,7 +64,10 @@ ulong   wsrep_mysql_replication_bundle = 0;
 my_bool wsrep_desync                   = 0; // desynchronize the node from the
                                             // cluster
 my_bool wsrep_load_data_splitting      = 1; // commit load data every 10K intervals
-
+my_bool wsrep_restart_slave            = 0; // should mysql slave thread be 
+                                            // restarted, if node joins back
+my_bool wsrep_restart_slave_activated  = 0; // node has dropped, and slave 
+                                            // restart will be needed 
 /*
  * End configuration options
  */
@@ -126,7 +130,7 @@ static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
     sql_print_error("WSREP: %s", msg);
     break;
   case WSREP_LOG_DEBUG:
-    if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
+    sql_print_information ("[Debug] WSREP: %s", msg);
   default:
     break;
   }
@@ -407,14 +411,32 @@ void wsrep_ready_wait ()
 static void wsrep_synced_cb(void* app_ctx)
 {
   WSREP_INFO("Synchronized with group, ready for connections");
+  bool signal_main= false;
   if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
   if (!wsrep_ready)
   {
     wsrep_ready= TRUE;
     mysql_cond_signal (&COND_wsrep_ready);
+    signal_main= true;
+
   }
   local_status.set(WSREP_MEMBER_SYNCED);
   mysql_mutex_unlock (&LOCK_wsrep_ready);
+
+  if (signal_main)
+  {
+      wsrep_SE_init_grab();
+      // Signal mysqld init thread to continue
+      wsrep_sst_complete (&local_uuid, local_seqno, false);
+      // and wait for SE initialization
+      wsrep_SE_init_wait();
+  }
+  if (wsrep_restart_slave_activated)
+  {
+    WSREP_INFO("MySQL slave restart");
+    wsrep_restart_slave_activated= FALSE;
+    init_slave();
+  }
 }
 
 static void wsrep_init_position()
@@ -495,7 +517,18 @@ int wsrep_init()
     wsrep_ready_set(TRUE);
     wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
-    return 0;
+    wsrep_init_args args;
+    args.options = (wsrep_provider_options) ?
+            wsrep_provider_options : "";
+    rcode = wsrep->init(wsrep, &args);
+    if (rcode)
+    {
+      DBUG_PRINT("wsrep",("wsrep::init() failed: %d", rcode));
+      WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
+      free(wsrep);
+      wsrep = NULL;
+    }
+    return rcode;
   }
   else
   {
@@ -651,7 +684,7 @@ void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
 
-  wsrep_thr_lock_init(wsrep_thd_is_brute_force, wsrep_abort_thd,
+  wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_abort_thd,
                       wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
 
   /* Skip replication start if no cluster address */
@@ -1357,6 +1390,13 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
 
   DBUG_ASSERT(thd->wsrep_exec_mode == LOCAL_STATE);
   DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno == WSREP_SEQNO_UNDEFINED);
+
+  if (thd->global_read_lock.can_acquire_protection())
+  {
+    WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %lu",
+                thd->query(), thd->thread_id);
+    return -1;
+  }
 
   if (wsrep_debug && thd->mdl_context.has_locks())
   {

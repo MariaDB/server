@@ -8945,7 +8945,7 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
 #ifdef WITH_WSREP
       {
 	signalled|= mysql_lock_abort_for_thread(thd, thd_table);
-	if (thd && WSREP(thd) && wsrep_thd_is_brute_force((void *)thd)) 
+	if (thd && WSREP(thd) && wsrep_thd_is_BF((void *)thd, true)) 
 	{
 	  WSREP_DEBUG("remove_table_from_cache: %llu",
 		      (unsigned long long) thd->real_id);

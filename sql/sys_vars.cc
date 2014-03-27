@@ -3314,7 +3314,9 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
       thd->mdl_context.release_transactional_locks();
+#ifdef WITH_WSREP
       WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
+#endif /* WITH_WSREP */
       return true;
     }
     /*
@@ -4646,6 +4648,10 @@ static Sys_var_mybool Sys_wsrep_load_data_splitting(
        "transaction after every 10K rows inserted",
        GLOBAL_VAR(wsrep_load_data_splitting), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_wsrep_restart_slave(
+       "wsrep_restart_slave", "Should MySQL slave be restarted automatically, when node joins back to cluster",
+       GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 #endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)

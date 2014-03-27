@@ -76,7 +76,6 @@
 #include "wsrep_var.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
-ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 #endif
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -2747,11 +2746,7 @@ static void network_init(void)
   @note
     For the connection that is doing shutdown, this is called twice
 */
-#ifdef WITH_WSREP
-void close_connection(THD *thd, uint sql_errno, bool lock)
-#else
 void close_connection(THD *thd, uint sql_errno)
-#endif
 {
   DBUG_ENTER("close_connection");
 
@@ -2984,7 +2979,11 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   unlink_thd(thd);
   /* Mark that current_thd is not valid anymore */
   set_current_thd(0);
+#ifdef WITH_WSREP
+  if (put_in_cache && cache_thread() && !thd->wsrep_applier)
+#else
   if (put_in_cache && cache_thread())
+#endif /* WITH_WSREP */
     DBUG_RETURN(0);                             // Thread is reused
 
   /*
@@ -3428,10 +3427,21 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     should not be any other mysql_cond_signal() calls.
   */
   mysql_mutex_lock(&LOCK_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
   mysql_cond_broadcast(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
 
-  (void) pthread_sigmask(SIG_BLOCK,&set,NULL);
+  /*
+    Waiting for until mysqld_server_started != 0
+    to ensure that all server components has been successfully
+    initialized. This step is mandatory since signal processing
+    could be done safely only when all server components
+    has been initialized.
+  */
+  mysql_mutex_lock(&LOCK_server_started);
+  while (!mysqld_server_started)
+    mysql_cond_wait(&COND_server_started, &LOCK_server_started);
+  mysql_mutex_unlock(&LOCK_server_started);
+
   for (;;)
   {
     int error;					// Used when debugging
@@ -4879,42 +4889,8 @@ will be ignored as the --log-bin option is not defined.");
   }
 #endif
 
-#ifdef WITH_WSREP /* WSREP BEFORE SE */
-  if (!wsrep_recovery)
-  {
-    if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
-    {
-      wsrep_provider_init(WSREP_NONE);
-      if (wsrep_init()) unireg_abort(1);
-    }
-    else // full wsrep initialization
-    {
-      // add basedir/bin to PATH to resolve wsrep script names
-      char* const tmp_path((char*)alloca(strlen(mysql_home) +
-                                           strlen("/bin") + 1));
-      if (tmp_path)
-      {
-        strcpy(tmp_path, mysql_home);
-        strcat(tmp_path, "/bin");
-        wsrep_prepend_PATH(tmp_path);
-      }
-      else
-      {
-        WSREP_ERROR("Could not append %s/bin to PATH", mysql_home);
-      }
   DBUG_ASSERT(!opt_bin_log || opt_bin_logname);
 
-      if (wsrep_before_SE())
-      {
-#ifndef EMBEDDED_LIBRARY
-        set_ports(); // this is also called in network_init() later but we need
-                     // to know mysqld_port now - lp:1071882
-#endif /* !EMBEDDED_LIBRARY */
-        wsrep_init_startup(true);
-      }
-    }
-  }
-#endif /* WITH_WSREP */
   if (opt_bin_log)
   {
     /* Reports an error and aborts, if the --log-bin's path 
@@ -4962,10 +4938,67 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     {
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
     }
+#ifdef WITH_WSREP /* WSREP BEFORE SE */
+    /*
+      Wsrep initialization must happen at this point, because:
+      - opt_bin_logname must be known when starting replication
+        since SST may need it
+      - SST may modify binlog index file, so it must be opened
+        after SST has happened
+     */
+  }
+  if (!wsrep_recovery)
+  {
+    if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
+    {
+      wsrep_provider_init(WSREP_NONE);
+      if (wsrep_init()) unireg_abort(1);
+    }
+    else // full wsrep initialization
+    {
+      // add basedir/bin to PATH to resolve wsrep script names
+      char* const tmp_path((char*)alloca(strlen(mysql_home) +
+                                           strlen("/bin") + 1));
+      if (tmp_path)
+      {
+        strcpy(tmp_path, mysql_home);
+        strcat(tmp_path, "/bin");
+        wsrep_prepend_PATH(tmp_path);
+      }
+      else
+      {
+        WSREP_ERROR("Could not append %s/bin to PATH", mysql_home);
+      }
+
+      if (wsrep_before_SE())
+      {
+        set_ports(); // this is also called in network_init() later but we need
+                     // to know mysqld_port now - lp:1071882
+        wsrep_init_startup(true);
+      }
+    }
+  }
+  if (opt_bin_log)
+  {
+    /*
+      Variable ln is not defined at this scope. We use opt_bin_logname instead.
+      It should be the same as ln since
+      - mysql_bin_log.generate_name() returns first argument if new log name
+        is not generated
+      - if new log name is generated, return value is assigned to ln and copied
+        to opt_bin_logname above
+     */
+    if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
+                                      TRUE))
+    {
+      unireg_abort(1);
+    }
+#else
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, ln, TRUE))
     {
       unireg_abort(1);
     }
+#endif /* WITH_WSREP */
   }
 
   /* call ha_init_key_cache() on all key caches to init them */
@@ -5262,7 +5295,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->thr_create_utime=  microsecond_interval_timer();
   if (MYSQL_CALLBACK_ELSE(thread_scheduler, init_new_connection_thread, (), 0))
   {
-    close_connection(thd, ER_OUT_OF_RESOURCES, 1);
+    close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
 
@@ -5285,7 +5318,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->thread_stack= (char*) &thd;
   if (thd->store_globals())
   {
-    close_connection(thd, ER_OUT_OF_RESOURCES, 1);
+    close_connection(thd, ER_OUT_OF_RESOURCES);
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thread_scheduler, end_thread, (thd, 0));
     delete thd;
@@ -5307,19 +5340,9 @@ pthread_handler_t start_wsrep_THD(void *arg)
   ++connection_count;
   mysql_mutex_unlock(&LOCK_connection_count);
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  wsrep_running_threads++;
-  mysql_cond_signal(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-
   processor(thd);
 
-  close_connection(thd, 0, 1);
-
-  mysql_mutex_lock(&LOCK_thread_count);
-  wsrep_running_threads--;
-  mysql_cond_signal(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  close_connection(thd, 0);
 
   // Note: We can't call THD destructor without crashing
   // if plugins have not been initialized. However, in most of the
@@ -5337,6 +5360,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
     // at server shutdown
   }
 
+  my_thread_end();
   if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
   {
     mysql_mutex_lock(&LOCK_thread_count);
@@ -5550,7 +5574,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
 	!is_replaying_connection(tmp))
     {
       WSREP_INFO("killing local connection: %ld",tmp->thread_id);
-      close_connection(tmp,0,0);
+      close_connection(tmp,0);
     }
 #endif
   }
@@ -6644,11 +6668,7 @@ void create_thread_to_handle_connection(THD *thd)
     my_snprintf(error_message_buff, sizeof(error_message_buff),
                 ER_THD(thd, ER_CANT_CREATE_THREAD), error);
     net_send_error(thd, ER_CANT_CREATE_THREAD, error_message_buff, NULL);
-#ifdef WITH_WSREP
-      close_connection(thd, ER_OUT_OF_RESOURCES ,0);
-#else
     close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif /* WITH_WSREP */
 
     mysql_mutex_lock(&LOCK_thread_count);
     thd->unlink();
@@ -6694,11 +6714,7 @@ static void create_new_thread(THD *thd)
     mysql_mutex_unlock(&LOCK_connection_count);
 
     DBUG_PRINT("error",("Too many connections"));
-#ifdef WITH_WSREP
-    close_connection(thd, ER_CON_COUNT_ERROR, 1);
-#else
     close_connection(thd, ER_CON_COUNT_ERROR);
-#endif /* WITH_WSREP */
     statistic_increment(denied_connections, &LOCK_status);
     delete thd;
     statistic_increment(connection_errors_max_connection, &LOCK_status);
@@ -7109,11 +7125,7 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     if (!(thd->net.vio= vio_new_win32pipe(hConnectedPipe)) ||
 	my_net_init(&thd->net, thd->net.vio, MYF(MY_THREAD_SPECIFIC)))
     {
-#ifdef WITH_WSREP
-      close_connection(thd, ER_OUT_OF_RESOURCES, 1);
-#else
       close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif
       delete thd;
       set_current_thd(0);
       continue;
@@ -7311,11 +7323,7 @@ pthread_handler_t handle_connections_shared_memory(void *arg)
                                                    event_conn_closed)) ||
         my_net_init(&thd->net, thd->net.vio, MYF(MY_THREAD_SPECIFIC)))
     {
-#ifdef WITH_WSREP
-      close_connection(thd, ER_OUT_OF_RESOURCES, 1);
-#else
       close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif
       errmsg= 0;
       goto errorconn;
     }
