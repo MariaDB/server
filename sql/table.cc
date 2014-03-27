@@ -3468,11 +3468,15 @@ bool check_db_name(LEX_STRING *org_name)
     return 1;
 
   if (lower_case_table_names == 1 && name != any_db)
-    org_name->length= my_casedn_str(files_charset_info, name);
+  {
+    org_name->length= name_length= my_casedn_str(files_charset_info, name);
+    if (check_for_path_chars)
+      org_name->length+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
+  }
   if (db_name_is_in_ignore_db_dirs_list(name))
     return 1;
 
-  return check_table_name(name, org_name->length, check_for_path_chars);
+  return check_table_name(name, name_length, check_for_path_chars);
 }
 
 

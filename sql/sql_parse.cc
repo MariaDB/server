@@ -3997,7 +3997,7 @@ end_with_restore_list:
     strmov(db_name.str, lex->name.str);
     if (check_db_name(&db_name))
     {
-      my_error(ER_WRONG_DB_NAME, MYF(0), db_name);
+      my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
       break;
     }
     res= mysqld_show_create_db(thd, &db_name, &lex->name, &lex->create_info);
