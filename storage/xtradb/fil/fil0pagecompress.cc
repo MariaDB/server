@@ -132,7 +132,7 @@ fil_compress_page(
 		}
 	} else {
 #endif /* HAVE_LZ4 */
-		err = compress2(out_buf+header_len, &write_size, buf, len, level);
+		err = compress2(out_buf+header_len, (ulong *)&write_size, buf, len, level);
 
 		if (err != Z_OK) {
 			/* If error we leave the actual page as it was */
