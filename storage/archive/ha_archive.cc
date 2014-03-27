@@ -781,12 +781,8 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 #endif /* HAVE_READLINK */
   {
     if (create_info->data_file_name)
-    {
-      push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_OPTION_IGNORED,
-                          ER_DEFAULT(WARN_OPTION_IGNORED),
-                          "DATA DIRECTORY");
-    }
+      my_error(WARN_OPTION_IGNORED, MYF(ME_JUST_WARNING), "DATA DIRECTORY");
+
     fn_format(name_buff, name, "", ARZ,
               MY_REPLACE_EXT | MY_UNPACK_FILENAME);
     linkname[0]= 0;
@@ -794,12 +790,7 @@ int ha_archive::create(const char *name, TABLE *table_arg,
 
   /* Archive engine never uses INDEX DIRECTORY. */
   if (create_info->index_file_name)
-  {
-    push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
-                        WARN_OPTION_IGNORED,
-                        ER_DEFAULT(WARN_OPTION_IGNORED),
-                        "INDEX DIRECTORY");
-  }
+      my_error(WARN_OPTION_IGNORED, MYF(ME_JUST_WARNING), "INDEX DIRECTORY");
 
   /*
     There is a chance that the file was "discovered". In this case
