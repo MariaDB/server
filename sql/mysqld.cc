@@ -2045,6 +2045,10 @@ extern "C" void unireg_abort(int exit_code)
     wsrep_close_threads(thd); /* this won't close all threads */
     sleep(1); /* so give some time to exit for those which can */
     WSREP_INFO("Some threads may fail to exit.");
+
+    /* In bootstrap mode we deinitialize wsrep here. */
+    if (opt_bootstrap && wsrep_inited)
+      wsrep_deinit();
   }
 #endif // WITH_WSREP
   clean_up(!opt_abort && (exit_code || !opt_bootstrap)); /* purecov: inspected */
@@ -5323,6 +5327,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
     // at server shutdown
   }
 
+  my_thread_end();
   if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
   {
     mysql_mutex_lock(&LOCK_thread_count);
