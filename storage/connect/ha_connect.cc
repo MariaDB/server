@@ -455,7 +455,6 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   creat_query_id= (table && table->in_use) ? table->in_use->query_id : 0;
   stop= false;
   alter= false;
-  mrr= false;
   indexing= -1;
   locked= 0;
   data_file_name= NULL;
@@ -2287,7 +2286,7 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
 
 //statistic_increment(ha_read_key_count, &LOCK_status);
 
-  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len, mrr)) {
+  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len)) {
     case RC_OK:
       xp->fnd++;
       rc= MakeRecord((char*)buf);

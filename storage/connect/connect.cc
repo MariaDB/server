@@ -57,7 +57,7 @@ extern "C" int trace;
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
 void  CntEndDB(PGLOBAL);
-RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr= false);
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp);
 
 /***********************************************************************/
 /*  MySQL routines called externally by semantic routines.             */
@@ -387,7 +387,7 @@ bool CntRewindTable(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 /*  Evaluate all columns after a record is read.                       */
 /***********************************************************************/
-RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp)
   {
   RCODE rc= RC_OK;
   PCOL  colp;
@@ -706,7 +706,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
 /*  IndexRead: fetch a record having the index value.                  */
 /***********************************************************************/
 RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
-                   const void *key, int len, bool mrr)
+                   const void *key, int len)
   {
   char   *kp= (char*)key;
   int     n;
@@ -783,7 +783,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   xbp->SetNth(0);
 
   if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
-    rc= EvalColumns(g, tdbp, mrr);
+    rc= EvalColumns(g, tdbp);
 
   return rc;
   } // end of CntIndexRead

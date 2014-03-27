@@ -485,7 +485,6 @@ protected:
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
   bool          alter;                // True when converting to other engine
-  bool          mrr;                  // True when getting index positions
   int           indexing;             // Type of indexing for CONNECT
   int           locked;               // Table lock
   THR_LOCK_DATA lock_data;
