@@ -2590,8 +2590,10 @@ main(int argc, char **argv)
     return 1;
   }
 
+#ifdef WITH_WSREP
   // Replicate MyISAM DDL for this session, cf. lp:1161432
-  printf("SET SESSION wsrep_replicate_myisam=ON;\n");
+  printf("SET GLOBAL wsrep_replicate_myisam= ON;\n");
+#endif /* WITH_WSREP */
 
   if (argc == 2)
   {
@@ -2643,6 +2645,12 @@ main(int argc, char **argv)
     free_root(&tz_storage, MYF(0));
   }
 
+#ifdef WITH_WSREP
+  // Reset wsrep_replicate_myisam. lp:1161432
+  printf("SET GLOBAL wsrep_replicate_myisam= OFF;\n");
+#endif /* WITH_WSREP */
+
+  free_defaults(default_argv);
   my_end(0);
   return 0;
 }

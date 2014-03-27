@@ -6131,7 +6131,7 @@ void ha_wsrep_fake_trx_id(THD *thd)
   } 
   else 
   {
-    WSREP_WARN("cannot get get fake InnoDB transaction ID");
+    WSREP_WARN("cannot get fake InnoDB transaction ID");
   }
 
   DBUG_VOID_RETURN;
