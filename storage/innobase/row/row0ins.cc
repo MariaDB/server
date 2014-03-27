@@ -1920,9 +1920,6 @@ row_ins_scan_sec_index_for_duplicate(
 	mem_heap_t*	offsets_heap)
 				/*!< in/out: memory heap that can be emptied */
 {
-#ifdef WITH_WSREP
-	trx_t*		trx = thr_get_trx(thr);
-#endif
 	ulint		n_unique;
 	int		cmp;
 	ulint		n_fields_cmp;
@@ -1980,15 +1977,8 @@ row_ins_scan_sec_index_for_duplicate(
 		if (flags & BTR_NO_LOCKING_FLAG) {
 			/* Set no locks when applying log
 			in online table rebuild. */
-#ifdef WITH_WSREP
-		/* slave applier must not get duplicate error */
-		} else if (allow_duplicates ||
-		    (wsrep_on(trx->mysql_thd) &&
-		     wsrep_thd_is_brute_force(trx->mysql_thd))) {
-#else
 		} else if (allow_duplicates) {
 
-#endif
 
 			/* If the SQL-query will update or replace
 			duplicate key we will take X-lock for
@@ -2000,6 +1990,10 @@ row_ins_scan_sec_index_for_duplicate(
 				rec, index, offsets, thr);
 		} else {
 
+#ifdef WITH_WSREP
+		  /* appliers don't need dupkey checks */
+		  if (!wsrep_thd_is_brute_force(thr_get_trx(thr)->mysql_thd))
+#endif /* WITH_WSREP */
 			err = row_ins_set_shared_rec_lock(
 				LOCK_ORDINARY, block,
 				rec, index, offsets, thr);
