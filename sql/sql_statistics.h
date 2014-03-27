@@ -151,6 +151,7 @@ private:
     }
     return 0;
   }
+
   /* Find the bucket which value 'pos' falls into. */
   uint find_bucket(double pos, bool first)
   {
@@ -171,7 +172,7 @@ private:
         break;
     }
 
-    if (val > get_value(i))
+    if (val > get_value(i) && i < (get_width() - 1))
       i++;
 
     if (val == get_value(i))
@@ -251,6 +252,27 @@ public:
     
     @return
        Expected condition selectivity (a number between 0 and 1)
+
+    @notes 
+       [re_zero_length_buckets] If a bucket with zero value-length is in the
+       middle of the histogram, we will not have min==max. Example: suppose, 
+       pos_value=0x12, and the histogram is:
+
+             #n  #n+1 #n+2                 
+        ... 0x10 0x12 0x12 0x14 ...
+                        |
+                        +------------- bucket with zero value-length
+      
+        Here, we will get min=#n+1, max=#n+2, and use the multi-bucket formula.
+       
+        The problem happens at the histogram ends. if pos_value=0, and the
+        histogram is:
+
+        0x00 0x10 ...
+
+        then min=0, max=0. This means pos_value is contained within bucket #0,
+        but on the other hand, histogram data says that the bucket has only one
+        value.
   */
 
   double point_selectivity(double pos, double avg_sel)
@@ -263,6 +285,16 @@ public:
     /* Find how many buckets this value occupies */
     uint max= min;
     while (max + 1 < get_width() && get_value(max + 1) == pos_value)
+      max++;
+    
+    /*
+      A special case: we're looking at a single bucket, and that bucket has
+      zero value-length. Use the multi-bucket formula (attempt to use
+      single-bucket formula will cause divison by zero).
+
+      For more details see [re_zero_length_buckets] above.
+    */
+    if (max == min && get_value(max) == ((max==0)? 0 : get_value(max-1)))
       max++;
 
     if (max > min)
@@ -302,27 +334,17 @@ public:
           (max + 1 == get_width() ?  1.0 : (get_value(max) * inv_prec_factor)) -
           (min == 0 ?  0.0 : (get_value(min-1) * inv_prec_factor));
 
-      if (current_bucket_width < 1e-16)
-      {
-        /*
-          A special case: we are at the first (or the last) bucket in the
-          histogram, the bucket's value range is a singlepoint [x,x], and 
-          pos_value=0 (for the first bucket) or pos_value=1 (for the last).
-        */
-        sel= avg_sel;
-      }
-      else
-      {
-        /*
-          So:
-          - each bucket has the same #rows 
-          - values are unformly distributed across the [min_value,max_value] domain.
+      DBUG_ASSERT(current_bucket_width); /* We shouldn't get a one zero-width bucket */
 
-          If a bucket has value range that's N times bigger then average, than
-          each value will have to have N times fewer rows than average.
-        */
-        sel= avg_sel * avg_bucket_width / current_bucket_width;
-      }
+      /*
+        So:
+        - each bucket has the same #rows 
+        - values are unformly distributed across the [min_value,max_value] domain.
+
+        If a bucket has value range that's N times bigger then average, than
+        each value will have to have N times fewer rows than average.
+      */
+      sel= avg_sel * avg_bucket_width / current_bucket_width;
 
       /*
         (Q: if we just follow this proportion we may end up in a situation
