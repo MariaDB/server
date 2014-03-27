@@ -1175,6 +1175,15 @@ inline ulonglong char_prefix_to_ulonglong(uchar *src)
   return uint8korr(src); 
 }
 
+/*
+  Compute res = a - b, without losing precision and taking care that these are
+  unsigned numbers.
+*/
+static inline double safe_substract(ulonglong a, ulonglong b)
+{
+  return (a > b)? double(a - b) : -double(b - a);
+}
+
 
 /**
   @brief
@@ -1227,10 +1236,10 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
   minp= char_prefix_to_ulonglong(minp_prefix);
   maxp= char_prefix_to_ulonglong(maxp_prefix);
   double n, d;
-  n= mp - minp;
+  n= safe_substract(mp, minp);
   if (n < 0)
     return 0.0;
-  d= maxp - minp;
+  d= safe_substract(maxp, minp);
   if (d <= 0)
     return 1.0;
   return MY_MIN(n/d, 1.0);
