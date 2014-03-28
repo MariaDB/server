@@ -332,8 +332,6 @@ static TABLE *tc_acquire_table(THD *thd, TABLE_SHARE *share)
 
   mysql_mutex_lock(&share->tdc.LOCK_table_share);
   table= share->tdc.free_tables.pop_front();
-  mysql_mutex_unlock(&share->tdc.LOCK_table_share);
-
   if (table)
   {
     DBUG_ASSERT(!table->in_use);
@@ -343,6 +341,7 @@ static TABLE *tc_acquire_table(THD *thd, TABLE_SHARE *share)
     /* The children must be detached from the table. */
     DBUG_ASSERT(!table->file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
   }
+  mysql_mutex_unlock(&share->tdc.LOCK_table_share);
   return table;
 }
 
