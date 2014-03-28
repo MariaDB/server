@@ -2893,6 +2893,7 @@ case SQLCOM_PREPARE:
       CREATE TABLE OR EXISTS failures by dropping the table and
       retrying the create.
     */
+    create_info.org_options= create_info.options;
     if (thd->slave_thread &&
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
         !(lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS))
