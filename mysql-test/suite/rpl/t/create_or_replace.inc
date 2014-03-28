@@ -96,6 +96,43 @@ connection server_1;
 drop table t1;
 
 --echo #
+--echo # Check how CREATE is logged on slave in case of conflicts
+--echo #
+
+save_master_pos;
+connection server_2;
+sync_with_master;
+--let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
+create table t1 (server_2_to_be_delete int);
+create table t2 (server_2_to_be_delete int);
+create table t4 (server_2_to_be_delete int);
+set @org_binlog_format=@@binlog_format;
+set @@global.binlog_format="ROW";
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+start slave;
+--source include/wait_for_slave_to_start.inc
+connection server_1;
+create temporary table t9 (a int);
+insert into t9 values(1);
+create table t1 (new_table int);
+create table t2 select * from t9;
+create table t4 like t9;
+create table t5 select * from t9;
+save_master_pos;
+connection server_2;
+sync_with_master;
+--echo binlog from server 2
+--source include/show_binlog_events.inc
+set @@global.binlog_format=@org_binlog_format;
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+start slave;
+--source include/wait_for_slave_to_start.inc
+connection server_1;
+drop table t1,t2,t4,t5,t9;
+
+--echo #
 --echo # Ensure that DROP TABLE is run as DROP IF NOT EXISTS
 --echo #
 
