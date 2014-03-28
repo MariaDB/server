@@ -4164,8 +4164,9 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 
   result= store_create_info(thd, &tmp_table_list, &query, create_info,
                             /* show_database */ TRUE,
-                            MY_TEST(create_info->options &
-                                    HA_LEX_CREATE_REPLACE));
+                            MY_TEST(create_info->org_options &
+                                    HA_LEX_CREATE_REPLACE) ||
+                            create_info->table_was_deleted);
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
   if (mysql_bin_log.is_open())

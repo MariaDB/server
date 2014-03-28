@@ -1591,6 +1591,7 @@ struct HA_CREATE_INFO
   uint stats_sample_pages;
   uint null_bits;                       /* NULL bits at start of record */
   uint options;				/* OR of HA_CREATE_ options */
+  uint org_options;                     /* original options from query */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
   SQL_I_List<TABLE_LIST> merge_list;

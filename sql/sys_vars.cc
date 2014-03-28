@@ -2717,11 +2717,11 @@ static Sys_var_mybool Sys_slave_compressed_protocol(
 static const char *slave_exec_mode_names[]= {"STRICT", "IDEMPOTENT", 0};
 static Sys_var_enum Slave_exec_mode(
        "slave_exec_mode",
-       "Modes for how replication events should be executed. Legal values "
+       "How replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
        "replication will not stop for operations that are idempotent. "
        "For example, in row based replication attempts to delete rows that "
-       "doesn't exist will be ignored."
+       "doesn't exist will be ignored. "
        "In STRICT mode, replication will stop on any unexpected difference "
        "between the master and the slave",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
@@ -2729,11 +2729,11 @@ static Sys_var_enum Slave_exec_mode(
 
 static Sys_var_enum Slave_ddl_exec_mode(
        "slave_ddl_exec_mode",
-       "Modes for how replication events should be executed. Legal values "
+       "How replication events should be executed. Legal values "
        "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
        "replication will not stop for DDL operations that are idempotent. "
-       "This means that CREATE TABLE is treated CREATE TABLE OR REPLACE and "
-       "DROP TABLE is threated as DROP TABLE IF EXISTS. ",
+       "This means that CREATE TABLE is treated as CREATE TABLE OR REPLACE and "
+       "DROP TABLE is treated as DROP TABLE IF EXISTS.",
        GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
 

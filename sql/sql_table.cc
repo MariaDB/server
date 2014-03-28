@@ -5460,8 +5460,9 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           int result __attribute__((unused))=
             store_create_info(thd, table, &query,
                               create_info, FALSE /* show_database */,
-                              MY_TEST(create_info->options &
-                                      HA_LEX_CREATE_REPLACE));
+                              MY_TEST(create_info->org_options &
+                                      HA_LEX_CREATE_REPLACE) ||
+                              create_info->table_was_deleted);
 
           DBUG_ASSERT(result == 0); // store_create_info() always return 0
           do_logging= FALSE;
