@@ -871,12 +871,12 @@ The following options may be given as the first argument:
  --slave-compressed-protocol 
  Use compression on master/slave protocol
  --slave-ddl-exec-mode=name 
- Modes for how replication events should be executed.
- Legal values are STRICT and IDEMPOTENT (default). In
- IDEMPOTENT mode, replication will not stop for DDL
- operations that are idempotent. This means that CREATE
- TABLE is treated CREATE TABLE OR REPLACE and DROP TABLE
- is threated as DROP TABLE IF EXISTS. 
+ How replication events should be executed. Legal values
+ are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
+ replication will not stop for DDL operations that are
+ idempotent. This means that CREATE TABLE is treated as
+ CREATE TABLE OR REPLACE and DROP TABLE is treated as DROP
+ TABLE IF EXISTS.
  --slave-domain-parallel-threads=# 
  Maximum number of parallel threads to use on slave for
  events in a single replication domain. When using
@@ -886,14 +886,13 @@ The following options may be given as the first argument:
  as many threads as it wants, up to the value of
  slave_parallel_threads.
  --slave-exec-mode=name 
- Modes for how replication events should be executed.
- Legal values are STRICT (default) and IDEMPOTENT. In
- IDEMPOTENT mode, replication will not stop for operations
- that are idempotent. For example, in row based
- replication attempts to delete rows that doesn't exist
- will be ignored.In STRICT mode, replication will stop on
- any unexpected difference between the master and the
- slave
+ How replication events should be executed. Legal values
+ are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode,
+ replication will not stop for operations that are
+ idempotent. For example, in row based replication
+ attempts to delete rows that doesn't exist will be
+ ignored. In STRICT mode, replication will stop on any
+ unexpected difference between the master and the slave
  --slave-load-tmpdir=name 
  The location where the slave should put its temporary
  files when replicating a LOAD DATA INFILE command
