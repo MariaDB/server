@@ -10808,13 +10808,15 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   table_list->table_id= DBUG_EVALUATE_IF("inject_tblmap_same_id_maps_diff_table", 0, m_table_id);
   table_list->updating= 1;
   table_list->required_type= FRMTYPE_TABLE;
+
+  DBUG_PRINT("debug", ("table: %s is mapped to %u", table_list->table_name, 
+                                                    table_list->table_id));
 #ifdef RBR_TRIGGERS
   table_list->master_had_triggers= ((m_flags & TM_BIT_HAS_TRIGGERS_F) ? 1 : 0);
+  DBUG_PRINT("debug", ("table->master_had_triggers=%d", 
+                       (int)table_list->master_had_triggers));
 #endif //RBR_TRIGGERS
-  DBUG_PRINT("debug", ("table: %s is mapped to %u%s",
-                       table_list->table_name, table_list->table_id,
-                       (table_list->master_had_triggers ?
-                        " (master had triggers)" : "")));
+
   enum_tbl_map_status tblmap_status= check_table_map(rgi, table_list);
   if (tblmap_status == OK_TO_PROCESS)
   {
