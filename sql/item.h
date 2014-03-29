@@ -971,6 +971,11 @@ public:
   double val_real_from_decimal();
   double val_real_from_date();
 
+  // Get TIME, DATE or DATETIME using proper sql_mode flags for the field type
+  bool get_temporal_with_sql_mode(MYSQL_TIME *ltime);
+  // Check NULL value for a TIME, DATE or DATETIME expression
+  bool is_null_from_temporal();
+
   int save_time_in_field(Field *field);
   int save_date_in_field(Field *field);
   int save_str_value_in_field(Field *field, String *result);
@@ -2933,6 +2938,9 @@ public:
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 
+  bool is_null()
+  { return is_null_from_temporal(); }
+  bool get_date_with_sql_mode(MYSQL_TIME *to);
   String *val_str(String *str)
   { return val_string_from_date(str); }
   longlong val_int()
@@ -2959,6 +2967,14 @@ public:
   {
     max_length= MAX_DATE_WIDTH;
     fixed= 1;
+    /*
+      If date has zero month or day, it can return NULL in case of
+      NO_ZERO_DATE or NO_ZERO_IN_DATE.
+      We can't just check the current sql_mode here in constructor,
+      because sql_mode can change in case of prepared statements
+      between PREPARE and EXECUTE.
+    */
+    maybe_null= !ltime->month || !ltime->day;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   void print(String *str, enum_query_type query_type);
@@ -2995,6 +3011,8 @@ public:
   {
     max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
     fixed= 1;
+    // See the comment on maybe_null in Item_date_literal
+    maybe_null= !ltime->month || !ltime->day;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   void print(String *str, enum_query_type query_type);
