@@ -6758,7 +6758,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   {
     if (table->table.length)
       table->table.length= my_casedn_str(files_charset_info, table->table.str);
-    if (ptr->db_length)
+    if (ptr->db_length && ptr->db != any_db)
       ptr->db_length= my_casedn_str(files_charset_info, ptr->db);
   }
       

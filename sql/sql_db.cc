@@ -579,7 +579,17 @@ int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create_info,
     DBUG_RETURN(-1);
   }
 
-  if (lock_schema_name(thd, db))
+  char db_tmp[SAFE_NAME_LEN], *dbnorm;
+  if (lower_case_table_names)
+  {
+    strmake_buf(db_tmp, db);
+    my_casedn_str(system_charset_info, db_tmp);
+    dbnorm= db_tmp;
+  }
+  else
+    dbnorm= db;
+
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(-1);
 
   /* Check directory */
@@ -783,7 +793,17 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   Drop_table_error_handler err_handler;
   DBUG_ENTER("mysql_rm_db");
 
-  if (lock_schema_name(thd, db))
+  char db_tmp[SAFE_NAME_LEN], *dbnorm;
+  if (lower_case_table_names)
+  {
+    strmake_buf(db_tmp, db);
+    my_casedn_str(system_charset_info, db_tmp);
+    dbnorm= db_tmp;
+  }
+  else
+    dbnorm= db;
+
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
 
   length= build_table_filename(path, sizeof(path) - 1, db, "", "", 0);
@@ -808,7 +828,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
     }
   }
 
-  if (find_db_tables_and_rm_known_files(thd, dirp, db, path, &tables))
+  if (find_db_tables_and_rm_known_files(thd, dirp, dbnorm, path, &tables))
     goto exit;
 
   /*
@@ -825,7 +845,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
                        0) ||
-      lock_db_routines(thd, db))
+      lock_db_routines(thd, dbnorm))
     goto exit;
 
   if (!in_bootstrap)
@@ -872,10 +892,10 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
 
     ha_drop_database(path);
     tmp_disable_binlog(thd);
-    query_cache_invalidate1(thd, db);
-    (void) sp_drop_db_routines(thd, db); /* @todo Do not ignore errors */
+    query_cache_invalidate1(thd, dbnorm);
+    (void) sp_drop_db_routines(thd, dbnorm); /* @todo Do not ignore errors */
 #ifdef HAVE_EVENT_SCHEDULER
-    Events::drop_schema_events(thd, db);
+    Events::drop_schema_events(thd, dbnorm);
 #endif
     reenable_binlog(thd);
 
@@ -1012,13 +1032,6 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
 
   /* Now put the tables in the list */
   tot_list_next_local= tot_list_next_global= &tot_list;
-
-  if (lower_case_table_names)
-  {
-    /* Change database name to lower case for comparision */
-    db.str= thd->strmake(db.str, db.length);
-    db.length= my_casedn_str(files_charset_info, db.str);
-  }
 
   for (size_t idx=0; idx < files.elements(); idx++)
   {
