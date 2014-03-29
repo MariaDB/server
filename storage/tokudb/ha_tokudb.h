@@ -788,6 +788,10 @@ private:
     bool check_upsert(THD *thd, List<Item> &update_fields, List<Item> &update_values);
     int send_upsert_message(THD *thd, List<Item> &update_fields, List<Item> &update_values, DB_TXN *txn);
 #endif
+#ifdef WITH_WSREP
+	int wsrep_append_keys(THD *thd, bool shared,
+			      const uchar* record0, const uchar* record1);
+#endif
 };
 
 static inline bool key_is_clustering(const KEY *key) {
