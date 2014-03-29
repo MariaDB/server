@@ -2180,6 +2180,7 @@ update mysqltest2.t2 as t2, mysqltest2.v3_merge as v3 set v3.val= 'test17'
 update mysqltest1.t11 as t11, mysqltest2.v31 as v31 set v31.val= 'test18'
   where t11.id= v31.id;
 
+--disable_ps_protocol
 --echo #
 --echo # C) Finally, check how we handle privilege checking in case when
 --echo #    view is used through another view. Again we will use SECURITY
@@ -2197,6 +2198,7 @@ update mysqltest1.t11 as t11, mysqltest2.v41 as v4 set v4.val= 'test20'
   where t11.id= v4.id;
 update mysqltest1.t11 as t11, mysqltest2.v42 as v4 set v4.val= 'test20'
   where t11.id= v4.id;
+--enable_ps_protocol
 
 --echo #
 --echo # Clean-up.
