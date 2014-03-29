@@ -62,6 +62,7 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 extern int num_read, num_there, num_eq[];                 // Statistics
+extern "C" int  trace;
 
 /* ------------------------------------------------------------------- */
 
@@ -203,9 +204,8 @@ bool ZIPFAM::AllocateBuffer(PGLOBAL g)
   Buflen = Lrecl + 2;                     // Lrecl does not include CRLF
 //Buflen *= ((Mode == MODE_DELETE) ? DOS_BUFF_LEN : 1);    NIY
 
-#ifdef DEBTRACE
- htrc("SubAllocating a buffer of %d bytes\n", Buflen);
-#endif
+  if (trace)
+    htrc("SubAllocating a buffer of %d bytes\n", Buflen);
 
   To_Buf = (char*)PlugSubAlloc(g, NULL, Buflen);
 
@@ -331,9 +331,9 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
   } else
     rc = Zerror(g);
 
-#ifdef DEBTRACE
- htrc(" Read: '%s' rc=%d\n", To_Buf, rc);
-#endif
+  if (trace > 1)
+    htrc(" Read: '%s' rc=%d\n", To_Buf, rc);
+
   return rc;
   } // end of ReadBuffer
 
@@ -373,9 +373,8 @@ void ZIPFAM::CloseTableFile(PGLOBAL g)
   {
   int rc = gzclose(Zfile);
 
-#ifdef DEBTRACE
- htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
-#endif
+  if (trace)
+    htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
 //To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll
@@ -403,7 +402,7 @@ ZBKFAM::ZBKFAM(PDOSDEF tdp) : ZIPFAM(tdp)
   CurLine = NULL;
   NxtLine = NULL;
   Closing = false;
-  BlkPos = tdp->GetTo_Pos();
+  BlkPos = NULL;
   } // end of ZBKFAM standard constructor
 
 ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
@@ -412,23 +411,6 @@ ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
   NxtLine = txfp->NxtLine;
   Closing = txfp->Closing;
   } // end of ZBKFAM copy constructor
-
-/***********************************************************************/
-/*  Use BlockTest to reduce the table estimated size.                  */
-/***********************************************************************/
-int ZBKFAM::MaxBlkSize(PGLOBAL g, int s)
-  {
-  int  savcur = CurBlk;
-  int size;
-
-  // Roughly estimate the table size as the sum of blocks
-  // that can contain good rows
-  for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
-    size += (CurBlk == Block - 1) ? Last : Nrec;
-
-  CurBlk = savcur;
-  return size;
-  } // end of MaxBlkSize
 
 /***********************************************************************/
 /*  ZBK Cardinality: returns table cardinality in number of rows.      */
@@ -509,56 +491,8 @@ int ZBKFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int ZBKFAM::ReadBuffer(PGLOBAL g)
   {
-  int     n, rc = RC_OK;
-
-  /*********************************************************************/
-  /*  Sequential reading when Placed is not true.                      */
-  /*********************************************************************/
-  if (++CurNum < Rbuf) {
-    CurLine = NxtLine;
-
-    // Get the position of the next line in the buffer
-    while (*NxtLine++ != '\n') ;
-
-    // Set caller line buffer
-    n = NxtLine - CurLine - Ending;
-    memcpy(Tdbp->GetLine(), CurLine, n);
-    Tdbp->GetLine()[n] = '\0';
-    return RC_OK;
-  } else if (Rbuf < Nrec && CurBlk != -1)
-    return RC_EF;
-
-  /*********************************************************************/
-  /*  New block.                                                       */
-  /*********************************************************************/
-  CurNum = 0;
-
-  if (++CurBlk >= Block)
-    return RC_EF;
-
-  BlkLen = BlkPos[CurBlk + 1] - BlkPos[CurBlk];
-
-  if (!(n = gzread(Zfile, To_Buf, BlkLen))) {
-    rc = RC_EF;
-  } else if (n > 0) {
-    // Get the position of the current line
-    CurLine = To_Buf;
-
-    // Now get the position of the next line
-    for (NxtLine = CurLine; *NxtLine++ != '\n';) ;
-
-    // Set caller line buffer
-    n = NxtLine - CurLine - Ending;
-    memcpy(Tdbp->GetLine(), CurLine, n);
-    Tdbp->GetLine()[n] = '\0';
-    Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
-    IsRead = true;
-    rc = RC_OK;
-    num_read++;
-  } else
-    rc = Zerror(g);
-
-  return rc;
+  strcpy(g->Message, "This AM cannot be used in this version");
+  return RC_FX;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -664,9 +598,8 @@ void ZBKFAM::CloseTableFile(PGLOBAL g)
   } else
     rc = gzclose(Zfile);
 
-#ifdef DEBTRACE
- htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
-#endif
+  if (trace)
+    htrc("ZIP CloseDB: closing %s rc=%d\n", To_File, rc);
 
   Zfile = NULL;            // So we can know whether table is open
 //To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll
@@ -769,9 +702,6 @@ int ZIXFAM::ReadBuffer(PGLOBAL g)
   /*********************************************************************/
   CurNum = 0;
   Tdbp->SetLine(To_Buf);
-
-//if (++CurBlk >= Block)
-//  return RC_EF;
 
   if (!(n = gzread(Zfile, To_Buf, Buflen))) {
     rc = RC_EF;

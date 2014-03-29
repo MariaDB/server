@@ -625,7 +625,7 @@ void PRXCOL::Reset(void)
 /***********************************************************************/
 void PRXCOL::ReadColumn(PGLOBAL g)
   {
-  if (trace)
+  if (trace > 1)
     htrc("PRX ReadColumn: name=%s\n", Name);
 
   if (Colp) {

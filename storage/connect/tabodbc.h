@@ -158,7 +158,6 @@ class ODBCCOL : public COLBLK {
 //        PVBLK   GetBlkp(void) {return Blkp;}
 
   // Methods
-//virtual bool   CheckLocal(PTDB tdbp);
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);

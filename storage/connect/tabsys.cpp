@@ -113,6 +113,7 @@ PTDB INIDEF::GetTable(PGLOBAL g, MODE m)
   return tdbp;
   } // end of GetTable
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete INI table files using platform API.        */
 /***********************************************************************/
@@ -134,6 +135,7 @@ bool INIDEF::DeleteTableFile(PGLOBAL g)
 
   return rc;                                  // Return true if error
   } // end of DeleteTableFile
+#endif // 0
 
 /* ------------------------------------------------------------------- */
 

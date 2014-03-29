@@ -22,6 +22,8 @@
 #include "xtable.h"
 #include "tabcol.h"
 
+extern "C" int  trace;
+
 /***********************************************************************/
 /*  XTAB public constructor.                                           */
 /***********************************************************************/
@@ -33,9 +35,9 @@ XTAB::XTAB(LPCSTR name, LPCSTR srcdef) : Name(name)
   Schema = NULL;
   Qualifier = NULL;
 
-#ifdef DEBTRACE
- htrc(" making new TABLE %s %s\n", Name, Srcdef);
-#endif
+  if (trace)
+    htrc("XTAB: making new TABLE %s %s\n", Name, Srcdef);
+
   } // end of XTAB constructor
 
 /***********************************************************************/
@@ -49,9 +51,9 @@ XTAB::XTAB(PTABLE tp) : Name(tp->Name)
   Schema = tp->Schema;
   Qualifier = tp->Qualifier;
 
-#ifdef DEBTRACE
- htrc(" making copy TABLE %s %s\n", Name, Srcdef);
-#endif
+  if (trace)
+    htrc(" making copy TABLE %s %s\n", Name, Srcdef);
+
   } // end of XTAB constructor
 
 /***********************************************************************/
@@ -61,9 +63,8 @@ PTABLE XTAB::Link(PTABLE tab2)
   {
   PTABLE tabp;
 
-#ifdef DEBTRACE
- htrc("Linking tables %s... to %s\n", Name, tab2->Name);
-#endif
+  if (trace)
+    htrc("Linking tables %s... to %s\n", Name, tab2->Name);
 
   for (tabp = this; tabp->Next; tabp = tabp->Next) ;
 
@@ -118,9 +119,9 @@ COLUMN::COLUMN(LPCSTR name) : Name(name)
   To_Col = NULL;
   Qualifier = NULL;
 
-#ifdef DEBTRACE
- htrc(" making new COLUMN %s\n", Name);
-#endif
+  if (trace)
+    htrc(" making new COLUMN %s\n", Name);
+
   } // end of COLUMN constructor
 
 /***********************************************************************/

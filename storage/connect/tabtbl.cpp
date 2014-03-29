@@ -1,11 +1,11 @@
 /************* TabTbl C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABTBL                                                */
 /* -------------                                                       */
-/*  Version 1.6                                                        */
+/*  Version 1.7                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to PlugDB Software Development          2008-2013    */
+/*  (C) Copyright to PlugDB Software Development          2008-2014    */
 /*  Author: Olivier BERTRAND                                           */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
@@ -66,7 +66,6 @@
 #include "global.h"      // global declarations
 #include "plgdbsem.h"    // DB application declarations
 #include "reldef.h"      // DB definition declares
-//#include "filter.h"      // FILTER classes dcls
 #include "filamtxt.h"
 #include "tabcol.h"
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
@@ -245,7 +244,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
 //  PlugSetPath(filename, Tdbp->GetFile(g), Tdbp->GetPath());
 
   for (n = 0, tp = tdp->Tablep; tp; tp = tp->GetNext()) {
-    if (TestFil(g, To_Filter, tp)) {
+    if (TestFil(g, To_CondFil, tp)) {
       tabp = new(g) XTAB(tp);
 
       if (tabp->GetSrc()) {
@@ -286,14 +285,14 @@ bool TDBTBL::InitTableList(PGLOBAL g)
   hc->get_table()->s->connect_string.length = sln;
 
 //NumTables = n;
-  To_Filter = NULL;        // To avoid doing it several times
+  To_CondFil = NULL;        // To avoid doing it several times
   return FALSE;
   } // end of InitTableList
 
 /***********************************************************************/
 /*  Test the tablename against the pseudo "local" filter.              */
 /***********************************************************************/
-bool TDBTBL::TestFil(PGLOBAL g, PFIL filp, PTABLE tabp)
+bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
   {
   char *body, *fil, op[8], tn[NAME_LEN];
   bool  neg;
@@ -421,12 +420,12 @@ bool TDBTBL::OpenDB(PGLOBAL g)
     } // endif use
 
   /*********************************************************************/
-  /*  When GetMaxsize was called, To_Filter was not set yet.           */
+  /*  When GetMaxsize was called, To_CondFil was not set yet.          */
   /*********************************************************************/
-  if (To_Filter && Tablist) {
+  if (To_CondFil && Tablist) {
     Tablist = NULL;
     Nbc = 0;
-    } // endif To_Filter
+    } // endif To_CondFil
 
   /*********************************************************************/
   /*  Open the first table of the list.                                */
@@ -661,12 +660,12 @@ bool TDBTBM::OpenDB(PGLOBAL g)
 
 #if 0
   /*********************************************************************/
-  /*  When GetMaxsize was called, To_Filter was not set yet.           */
+  /*  When GetMaxsize was called, To_CondFil was not set yet.          */
   /*********************************************************************/
-  if (To_Filter && Tablist) {
+  if (To_CondFil && Tablist) {
     Tablist = NULL;
     Nbc = 0;
-    } // endif To_Filter
+    } // endif To_CondFil
 #endif // 0
 
   /*********************************************************************/

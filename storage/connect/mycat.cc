@@ -96,7 +96,7 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !WIN32
 
-extern int xtrace;
+extern "C" int trace;
 
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
@@ -166,6 +166,29 @@ bool IsFileType(TABTYPE type)
 
   return isfile;
   } // end of IsFileType
+
+/***********************************************************************/
+/*  Return true for table types returning exact row count.             */
+/***********************************************************************/
+bool IsExactType(TABTYPE type)
+  {
+  bool exact;
+
+  switch (type) {                      
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_DBF:
+//  case TAB_XML:     depends on Multiple || Xpand || Coltype
+    case TAB_VEC:
+      exact= true;
+      break;
+    default:
+      exact= false;
+      break;
+    } // endswitch type
+
+  return exact;
+  } // end of IsExactType
 
 /***********************************************************************/
 /*  Return true for table types accepting null fields.                 */
@@ -693,7 +716,7 @@ bool MYCAT::GetIndexInfo(PGLOBAL g, PTABDEF defp)
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
                                        LPCSTR type, PRELDEF *prp)
   {
-	if (xtrace)
+	if (trace)
 		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
 
  	// If not specified get the type of this table
@@ -712,7 +735,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
   TABTYPE tc;
   PRELDEF tdp= NULL;
 
-	if (xtrace)
+	if (trace)
 		printf("MakeTableDesc: name=%s am=%s\n", name, SVP(am));
 
   /*********************************************************************/
@@ -771,14 +794,14 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
   PTDB    tdbp= NULL;
   LPCSTR  name= tablep->GetName();
 
-	if (xtrace)
+	if (trace)
 		printf("GetTableDB: name=%s\n", name);
 
   // Look for the description of the requested table
   tdp= GetTableDesc(g, name, type);
 
   if (tdp) {
-		if (xtrace)
+		if (trace)
 			printf("tdb=%p type=%s\n", tdp, tdp->GetType());
 
 		if (tablep->GetQualifier())
@@ -788,7 +811,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 		} // endif tdp
 
   if (tdbp) {
-		if (xtrace)
+		if (trace)
 			printf("tdbp=%p name=%s amtype=%d\n", tdbp, tdbp->GetName(),
 																						tdbp->GetAmType());
     tablep->SetTo_Tdb(tdbp);

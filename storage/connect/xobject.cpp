@@ -109,19 +109,6 @@ int CONSTANT::GetLengthEx(void)
   return Value->GetValLen();
   } // end of GetLengthEx
 
-#if 0
-/***********************************************************************/
-/*  Convert a constant to the given type.                              */
-/***********************************************************************/
-void CONSTANT::Convert(PGLOBAL g, int newtype)
-  {
-  if (Value->GetType() != newtype)
-    if (!(Value = AllocateValue(g, Value, newtype)))
-      longjmp(g->jumper[g->jump_level], TYPE_CONST);
-
-  } // end of Convert
-#endif // 0
-
 /***********************************************************************/
 /*  Compare: returns true if this object is equivalent to xp.          */
 /***********************************************************************/
