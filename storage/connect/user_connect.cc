@@ -47,8 +47,7 @@
 #include "user_connect.h"
 #include "mycat.h"
 
-extern "C" char  plgxini[];
-extern int xtrace;
+extern "C" int trace;
 
 /****************************************************************************/
 /*  Initialize the user_connect static member.                              */
@@ -149,7 +148,7 @@ bool user_connect::CheckCleanup(void)
     g->Alchecked = 0;
     last_query_id= thdp->query_id;
 
-    if (xtrace)
+    if (trace)
       printf("=====> Begin new query %llu\n", last_query_id);
 
     return true;

@@ -527,8 +527,8 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
 
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
 
-  if (To_Filter)
-    strcat(strcat(Query, " WHERE "), To_Filter->Body);
+  if (To_CondFil)
+    strcat(strcat(Query, " WHERE "), To_CondFil->Body);
 
   if (trace)
     htrc("Query=%s\n", Query);
@@ -1034,7 +1034,7 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   // Statement was not prepared, we must construct and execute
   // an insert query for each line to insert
   int  rc;
-  char buf[32];
+  char buf[64];
 
   strcpy(Qbuf, Query);
 
@@ -1135,7 +1135,6 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
         : COLBLK(NULL, tdbp, i)
   {
   Name = fld->name;
-  Opt = 0;
   Precision = Long = fld->length;
   Buf_Type = MYSQLtoPLG(fld->type);
   strcpy(Format.Type, GetFormatType(Buf_Type));
@@ -1143,9 +1142,6 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
   Format.Prec = fld->decimals;
   ColUse = U_P;
   Nullable = !IS_NOT_NULL(fld->flags);
-
-  if (Buf_Type == TYPE_DECIM)
-    Precision = ((Field_new_decimal*)fld)->precision;
 
   // Set additional MySQL access method information for column.
   Bind = NULL;
@@ -1398,11 +1394,11 @@ PCMD TDBMYEXC::MakeCMD(PGLOBAL g)
   {
   PCMD xcmd = NULL;
 
-  if (To_Filter) {
+  if (To_CondFil) {
     if (Cmdcol) {
-      if (!stricmp(Cmdcol, To_Filter->Body) &&
-          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
-        xcmd = To_Filter->Cmds;
+      if (!stricmp(Cmdcol, To_CondFil->Body) &&
+          (To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
+        xcmd = To_CondFil->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 

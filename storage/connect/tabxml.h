@@ -10,9 +10,6 @@ typedef class XMLDEF *PXMLDEF;
 typedef class TDBXML *PTDBXML;
 typedef class XMLCOL *PXMLCOL;
 
-// These functions are exported from the Extended.dll
-//PTABDEF __stdcall GetXML(PGLOBAL g, void *memp);
-
 /* --------------------------- XML classes --------------------------- */
 
 /***********************************************************************/
@@ -30,7 +27,6 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   // Methods
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
-  virtual bool DeleteTableFile(PGLOBAL g);
 
  protected:
   // Members
@@ -53,7 +49,6 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
   }; // end of XMLDEF
 
 #if defined(INCLUDE_TDBXML)
-
 /***********************************************************************/
 /*  This is the class declaration for the simple XML tables.           */
 /***********************************************************************/
@@ -242,5 +237,4 @@ class XPOSCOL : public XMLCOLX {
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
   }; // end of class XPOSCOL
-
 #endif // INCLUDE_TDBXML

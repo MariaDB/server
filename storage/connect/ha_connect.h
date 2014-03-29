@@ -122,8 +122,6 @@ struct ha_table_option_struct {
 struct ha_field_option_struct
 {
   ulonglong offset;
-  ulonglong freq;      // Not used by this version
-  ulonglong opt;       // Not used by this version
   ulonglong fldlen;
   const char *dateformat;
   const char *fieldformat;
@@ -173,11 +171,13 @@ public:
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
+  bool     CheckString(const char *str1, const char *str2);
+  bool     SameString(TABLE *tab, char *opn);
   bool     SetIntegerOption(char *opname, int n);
-  bool     SameChar(TABLE *tab, char *opn);
   bool     SameInt(TABLE *tab, char *opn);
   bool     SameBool(TABLE *tab, char *opn);
   bool     FileExists(const char *fn);
+  bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
@@ -241,8 +241,8 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE;
-  }
+    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER | HA_KEYREAD_ONLY;
+  } // end of index_flags
 
   /** @brief
     unireg.cc will call max_supported_record_length(), max_supported_keys(),
@@ -328,7 +328,7 @@ public:
    condition stack.
  */ 
 virtual const COND *cond_push(const COND *cond);
-PFIL  CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond);
+PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 
  /**
@@ -417,6 +417,9 @@ const char *GetValStr(OPVAL vop, bool neg);
     skip it and and MySQL will treat it as not implemented.
   */
 //int index_last(uchar *buf);
+
+  /* Index condition pushdown implementation */
+//Item *idx_cond_push(uint keyno, Item* idx_cond);
 
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times

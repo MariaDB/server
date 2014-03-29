@@ -38,7 +38,6 @@ class DllExport ZIPFAM : public TXTFAM {
   virtual void Reset(void);
   virtual int  GetFileLength(PGLOBAL g);
   virtual int  Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
-  virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  GetRowID(void);
   virtual bool RecordPos(PGLOBAL g);
@@ -78,7 +77,6 @@ class DllExport ZBKFAM : public ZIPFAM {
 
   // Methods
   virtual int  Cardinality(PGLOBAL g);
-  virtual int  MaxBlkSize(PGLOBAL g, int s);
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  GetRowID(void);
   virtual bool RecordPos(PGLOBAL g);
@@ -122,7 +120,7 @@ class DllExport ZIXFAM : public ZBKFAM {
   // No additional Members
   }; // end of class ZIXFAM
 
-#ifdef NOT_USED
+#if 0
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for PlugDB    */
 /*  fixed/variable files compressed using the zlib library functions.  */
@@ -166,6 +164,6 @@ class DllExport ZLBFAM : public BLKFAM {
   int      *Zlenp;            // Pointer to block length
   bool      Optimized;        // true when opt file is available
   }; // end of class ZLBFAM
-#endif // NOT_USED
+#endif // 0
 
 #endif // __FILAMZIP_H
