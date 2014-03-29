@@ -7118,15 +7118,21 @@ bool check_grant_db(THD *thd, const char *db)
 {
   Security_context *sctx= thd->security_ctx;
   char helping [SAFE_NAME_LEN + USERNAME_LENGTH+2], *end;
-  char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2];
+  char helping2 [SAFE_NAME_LEN + USERNAME_LENGTH+2], *tmp_db;
   uint len, UNINIT_VAR(len2);
   bool error= TRUE;
 
-  end= strmov(helping, sctx->priv_user) + 1;
-  end= strnmov(end, db, helping + sizeof(helping) - end);
+  tmp_db= strmov(helping, sctx->priv_user) + 1;
+  end= strnmov(tmp_db, db, helping + sizeof(helping) - tmp_db);
 
   if (end >= helping + sizeof(helping)) // db name was truncated
     return 1;                           // no privileges for an invalid db name
+
+  if (lower_case_table_names)
+  {
+    end = tmp_db + my_casedn_str(files_charset_info, tmp_db);
+    db=tmp_db;
+  }
 
   len= (uint) (end - helping) + 1;
 

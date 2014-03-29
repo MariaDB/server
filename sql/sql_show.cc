@@ -9381,6 +9381,9 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   db= trg_name->m_db;
 
   db.str= thd->strmake(db.str, db.length);
+  if (lower_case_table_names)
+    db.length= my_casedn_str(files_charset_info, db.str);
+
   tbl_name.str= thd->strmake(tbl_name.str, tbl_name.length);
 
   if (db.str == NULL || tbl_name.str == NULL)
