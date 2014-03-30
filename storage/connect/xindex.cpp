@@ -61,6 +61,9 @@
 /***********************************************************************/
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 extern "C" int  trace;
+#if defined(XMAP)
+extern     bool xmap;
+#endif   // XMAP
 
 /***********************************************************************/
 /*  Last two parameters are true to enable type checking, and last one */
@@ -811,12 +814,16 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   return rc;
   } // end of SaveIndex
 
-#if !defined(XMAP)
 /***********************************************************************/
 /*  Init: Open and Initialize a Key Index.                             */
 /***********************************************************************/
 bool XINDEX::Init(PGLOBAL g)
   {
+#if defined(XMAP)
+  if (xmap)
+    return MapInit(g);
+#endif   // XMAP
+
   /*********************************************************************/
   /*  Table will be accessed through an index table.                   */
   /*  If sorting is required, this will be done later.                 */
@@ -1053,11 +1060,11 @@ err:
   return true;
   } // end of Init
 
-#else    // XMAP
+#if defined(XMAP)
 /***********************************************************************/
 /*  Init: Open and Initialize a Key Index.                             */
 /***********************************************************************/
-bool XINDEX::Init(PGLOBAL g)
+bool XINDEX::MapInit(PGLOBAL g)
   {
   /*********************************************************************/
   /*  Table will be accessed through an index table.                   */
@@ -1259,7 +1266,7 @@ bool XINDEX::Init(PGLOBAL g)
 err:
   Close();
   return true;
-  } // end of Init
+  } // end of MapInit
 #endif   // XMAP
 
 /***********************************************************************/
@@ -2848,7 +2855,8 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
     } // endif n[1]
 
   Ndf = n[0];
-  IsSorted = colp->GetOpt() < 0;
+//IsSorted = colp->GetOpt() < 0;
+  IsSorted = false;
   return m + Bkeys.Size + Keys.Size + Koff.Size;
   } // end of MapInit
 #endif // XMAP

@@ -34,7 +34,7 @@ typedef class MYSQLC *PMYC;
 /***********************************************************************/
 /*  Prototypes of info functions.                                      */
 /***********************************************************************/
-PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info);

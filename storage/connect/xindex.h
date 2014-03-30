@@ -192,6 +192,9 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   virtual void Print(PGLOBAL g, FILE *f, uint n);
   virtual void Print(PGLOBAL g, char *ps, uint z);
   virtual bool Init(PGLOBAL g) = 0;
+#if defined(XMAP)
+  virtual bool MapInit(PGLOBAL g) = 0;
+#endif   // XMAP
   virtual int  MaxRange(void) {return 1;}
   virtual int  Fetch(PGLOBAL g) = 0;
   virtual bool NextVal(bool eq) {return true;}
@@ -248,6 +251,9 @@ class DllExport XINDEX : public XXBASE {
   // Methods
   virtual void Reset(void);
   virtual bool Init(PGLOBAL g);
+#if defined(XMAP)
+  virtual bool MapInit(PGLOBAL g);
+#endif   // XMAP
   virtual int  Qcompare(int *, int *);
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
@@ -403,6 +409,9 @@ class DllExport XXROW : public XXBASE {
 
   // Methods
   virtual bool Init(PGLOBAL g);
+#if defined(XMAP)
+  virtual bool MapInit(PGLOBAL g) {return true;}
+#endif   // XMAP
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
   virtual int  MaxRange(void) {return 1;}
