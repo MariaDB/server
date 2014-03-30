@@ -173,15 +173,19 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
   // Fixme
   char *p;
 
-  if( *relPath == '\\' || *relPath == '/' ) {
+  if ( *relPath == '\\' || *relPath == '/' ) {
     strncpy(absPath, relPath, maxLength);
-  } else if(*relPath == '~') {
+  } else if (*relPath == '~') {
     // get the path to the home directory
-    struct passwd *pw = getpwuid_r(getuid());
+    struct passwd *pw = getpwuid(getuid());
     const char    *homedir = pw->pw_dir;
 
-    strcat(strcat(strncpy(absPath, homedir, maxLength), "/"), relPath);
-  }  else {
+    if (homedir)
+      strcat(strncpy(absPath, homedir, maxLength), relPath + 1);
+    else
+      strncpy(absPath, relPath, maxLength);
+        
+  } else {
     char buff[2*_MAX_PATH];
 
     p= getcwd(buff, _MAX_PATH);

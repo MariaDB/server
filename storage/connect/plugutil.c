@@ -255,7 +255,20 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
     strcpy(pBuff, FileName); // FileName includes absolute path
     return pBuff;
   } // endif
+  
+#if !defined(WIN32)
+  if (*FileName == '~') {
+    if (_fullpath(pBuff, FileName, _MAX_PATH)) {
+      if (trace > 1)
+        htrc("pbuff='%s'\n", pBuff);
 
+     return pBuff;
+    } else
+      return FileName;     // Error, return unchanged name
+      
+    } // endif FileName  
+#endif   // !WIN32
+  
   if (strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
   {
     char tmp[_MAX_PATH];

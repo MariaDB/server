@@ -194,6 +194,7 @@ static my_bool indx_map= 0;
 /*  Utility functions.                                                 */
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
+void PushWarning(PGLOBAL g, THD *thd, int level);
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
@@ -302,18 +303,6 @@ ha_create_table_option connect_field_option_list[]=
 /***********************************************************************/
 /*  Push G->Message as a MySQL warning.                                */
 /***********************************************************************/
-void PushWarning(PGLOBAL g, THD *thd, int level)
-  {
-  if (thd) {
-    Sql_condition::enum_warning_level wlvl;
-
-    wlvl= (Sql_condition::enum_warning_level)level;
-    push_warning(thd, wlvl, 0, g->Message);
-  } else
-    htrc("%s\n", g->Message);
-
-  } // end of PushWarning
-
 bool PushWarning(PGLOBAL g, PTDBASE tdbp, int level)
 {
   PHC    phc;
@@ -327,6 +316,18 @@ bool PushWarning(PGLOBAL g, PTDBASE tdbp, int level)
   PushWarning(g, thd, level);
   return false;
 } // end of PushWarning
+
+void PushWarning(PGLOBAL g, THD *thd, int level)
+  {
+  if (thd) {
+    Sql_condition::enum_warning_level wlvl;
+
+    wlvl= (Sql_condition::enum_warning_level)level;
+    push_warning(thd, wlvl, 0, g->Message);
+  } else
+    htrc("%s\n", g->Message);
+
+  } // end of PushWarning
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key con_key_mutex_CONNECT_SHARE_mutex;

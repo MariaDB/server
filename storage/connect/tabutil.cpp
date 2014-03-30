@@ -220,6 +220,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 
     crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(GetTypeName(type), i);
+    fmt = NULL;
 
     if (type == TYPE_DATE) {
       // When creating tables we do need info about date columns
@@ -239,7 +240,6 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 //      prec = (prec(???) == NOT_FIXED_DEC) ? 0 : fp->field_length;
 
       len = fp->char_length();
-      fmt = NULL;
     } else
       prec = len = zconv;
 
