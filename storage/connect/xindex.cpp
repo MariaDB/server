@@ -1627,6 +1627,12 @@ int XINDEX::Fetch(PGLOBAL g)
 
       Op = (Mul || Nval < Nk) ? OP_NXTDIF : OP_NEXT;
       break;
+    case OP_LAST:                // Read last key
+      for (Cur_K = Num_K - 1, kp = To_KeyCol; kp; kp = kp->Next)
+        kp->Val_K = kp->Kblp->GetNval() - 1;
+
+      Op = OP_NEXT;
+      break;
     default:                      // Should be OP_EQ
 //    if (Tbxp->Key_Rank < 0) {
         /***************************************************************/
@@ -1937,6 +1943,11 @@ int XINDXS::Fetch(PGLOBAL g)
     case OP_FSTDIF:               // Read first diff
       To_KeyCol->Val_K = Cur_K = 0;
       Op = (Mul) ? OP_NXTDIF : OP_NEXT;
+      break;
+    case OP_LAST:                // Read first
+      Cur_K = Num_K - 1;
+      To_KeyCol->Val_K = To_KeyCol->Kblp->GetNval() - 1;
+      Op = OP_NEXT;
       break;
     default:                      // Should OP_EQ
       /*****************************************************************/

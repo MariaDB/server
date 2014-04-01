@@ -241,7 +241,8 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER | HA_KEYREAD_ONLY;
+    return HA_READ_NEXT | HA_READ_RANGE   | HA_READ_ORDER
+                        | HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
   } // end of index_flags
 
   /** @brief
@@ -416,7 +417,7 @@ const char *GetValStr(OPVAL vop, bool neg);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-//int index_last(uchar *buf);
+  int index_last(uchar *buf);
 
   /* Index condition pushdown implementation */
 //Item *idx_cond_push(uint keyno, Item* idx_cond);

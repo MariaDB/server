@@ -2482,7 +2482,6 @@ int ha_connect::index_first(uchar *buf)
 } // end of index_first
 
 
-#ifdef NOT_USED
 /**
   @brief
   index_last() asks for the last key in the index.
@@ -2496,9 +2495,15 @@ int ha_connect::index_first(uchar *buf)
 int ha_connect::index_last(uchar *buf)
 {
   DBUG_ENTER("ha_connect::index_last");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-#endif // NOT_USED
+  int rc;
+
+  if (indexing <= 0) {
+    rc= HA_ERR_INTERNAL_ERROR;
+  } else
+    rc= ReadIndexed(buf, OP_LAST);
+
+  DBUG_RETURN(rc);
+} // end of index_last
 
 
 /****************************************************************************/
