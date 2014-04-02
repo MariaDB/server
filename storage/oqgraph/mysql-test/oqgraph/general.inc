@@ -26,6 +26,9 @@ CREATE TABLE graph (
     KEY (latch, destid, origid) USING HASH
   ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
 
+# Regression for MDEV-5891
+select * from graph;
+
 #--
 #-- ASCII art graph of this test data
 #--          +-->(2)
