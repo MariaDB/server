@@ -3390,6 +3390,17 @@ double records_in_column_ranges(PARAM *param, uint idx,
     on the rows of 'table' in the processed query.
     The calculated selectivity is assigned to the field table->cond_selectivity.
     
+    Selectivity is calculated as a product of selectivities imposed by:
+
+    1. possible range accesses. (if multiple range accesses use the same
+       restrictions on the same field, we make adjustments for that)
+    2. Sargable conditions on fields for which we have column statistics (if 
+       a field is used in a possible range access, we assume that selectivity
+       is already provided by the range access' estimates)
+    3. Reading a few records from the table pages and checking the condition
+       selectivity (this is used for conditions like "column LIKE '%val%'" 
+       where approaches #1 and #2 do not provide selectivity data).
+
   NOTE
     Currently the selectivities of range conditions over different columns are
     considered independent. 
@@ -3415,14 +3426,90 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   if (table->pos_in_table_list->schema_table)
     DBUG_RETURN(FALSE);
   
+  MY_BITMAP handled_columns;
+  my_bitmap_map* buf;
+  if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
+    DBUG_RETURN(TRUE);
+  my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
+
+  /*
+    First, take into account possible range accesses. 
+    range access estimates are the most precise, we prefer them to any other
+    estimate sources.
+  */
+
+  for (keynr= 0;  keynr < table->s->keys; keynr++)
+  {
+    if (table->quick_keys.is_set(keynr))
+      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
+  }
+
+  /* 
+    Walk through all indexes, indexes where range access uses more keyparts 
+    go first.
+  */
+  for (uint quick_key_parts= max_quick_key_parts;
+       quick_key_parts; quick_key_parts--)
+  {
+    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    {
+      if (table->quick_keys.is_set(keynr) &&
+          table->quick_key_parts[keynr] == quick_key_parts)
+      {
+        uint i;
+        uint used_key_parts= table->quick_key_parts[keynr];
+        double quick_cond_selectivity= table->quick_rows[keynr] / 
+	                               table_records;
+        KEY *key_info= table->key_info + keynr;
+        KEY_PART_INFO* key_part= key_info->key_part;
+        /*
+          Suppose, there are range conditions on two keys
+            KEY1 (col1, col2)
+            KEY2 (col3, col2)
+          
+          we don't want to count selectivity of condition on col2 twice.
+          
+          First, find the longest key prefix that's made of columns whose
+          selectivity wasn't already accounted for.
+        */
+        for (i= 0; i < used_key_parts; i++, key_part++)
+        {
+          if (bitmap_is_set(&handled_columns, key_part->fieldnr-1))
+	    break; 
+          bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
+        }
+        if (i)
+        {
+          /* 
+            There is at least 1-column prefix of columns whose selectivity has
+            not yet been accounted for.
+          */
+          table->cond_selectivity*= quick_cond_selectivity;
+          if (i != used_key_parts)
+	  {
+            /*
+              Range access got us estimate for #used_key_parts.
+              We need estimate for #(i-1) key parts.
+            */
+            double f1= key_info->actual_rec_per_key(i-1);
+            double f2= key_info->actual_rec_per_key(i);
+            table->cond_selectivity*= f1 / f2;
+          }
+        }
+      }
+    }
+  }
+   
+  /* 
+    Second step: calculate the selectivity of the range conditions not 
+    supported by any index
+  */
+  bitmap_subtract(used_fields, &handled_columns);
+  /* no need to do: my_bitmap_free(&handled_columns); */
+
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
   {
-    /* 
-      Calculate the selectivity of the range conditions not supported
-      by any index
-    */
-
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;
@@ -3509,47 +3596,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   bitmap_clear_all(used_fields);
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
-  }
 
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
-  {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
-    {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
-      {
-        uint i;
-        uint used_key_parts= table->quick_key_parts[keynr];
-        double quick_cond_selectivity= table->quick_rows[keynr] / 
-	                               table_records;
-        KEY *key_info= table->key_info + keynr;
-        KEY_PART_INFO* key_part= key_info->key_part;
-        for (i= 0; i < used_key_parts; i++, key_part++)
-        {
-          if (bitmap_is_set(used_fields, key_part->fieldnr-1))
-	    break; 
-          bitmap_set_bit(used_fields, key_part->fieldnr-1);
-        }
-        if (i)
-        {
-          table->cond_selectivity*= quick_cond_selectivity;
-          if (i != used_key_parts)
-	  {
-            double f1= key_info->actual_rec_per_key(i-1);
-            double f2= key_info->actual_rec_per_key(i);
-            table->cond_selectivity*= f1 / f2;
-          }
-        }
-      } 
-    }
-  }
-
-  /* Calculate selectivity of probably highly selective predicates */
+  /* Check if we can improve selectivity estimates by using sampling */
   ulong check_rows=
     MY_MIN(thd->variables.optimizer_selectivity_sampling_limit,
         (ulong) (table_records * SELECTIVITY_SAMPLING_SHARE));

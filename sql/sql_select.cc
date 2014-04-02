@@ -5557,7 +5557,20 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 }
 
 
-/* Estimate of the number matching candidates in the joined table */
+/*
+  Estimate how many records we will get if we read just this table and apply
+  a part of WHERE that can be checked for it.
+
+  @detail
+  Estimate how many records we will get if we
+   - read the given table with its "independent" access method (either quick 
+     select or full table/index scan),
+   - apply the part of WHERE that refers only to this table.
+
+  @seealso
+    table_cond_selectivity() produces selectivity of condition that is checked
+    after joining rows from this table to rows from preceding tables.
+*/
 
 inline
 double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
@@ -7236,14 +7249,25 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 
 /**
   @brief
-  Get the selectivity of conditions when joining a table
+    Get the selectivity of conditions when joining a table
 
   @param join       The optimized join
   @param s          The table to be joined for evaluation
   @param rem_tables The bitmap of tables to be joined later
 
+  @detail
+    Get selectivity of conditions that can be applied when joining this table
+    with previous tables.
+
+    For quick selects and full table scans, selectivity of COND(this_table)
+    is accounted for in matching_candidates_in_table(). Here, we only count
+    selectivity of COND(this_table, previous_tables). 
+
+    For other access methods, we need to calculate selectivity of the whole
+    condition, "COND(this_table) AND COND(this_table, previous_tables)".
+
   @retval
-  selectivity of the conditions imposed on the rows of s
+    selectivity of the conditions imposed on the rows of s
 */
 
 static
@@ -7255,22 +7279,21 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   TABLE *table= s->table;
   MY_BITMAP *read_set= table->read_set;
   double sel= s->table->cond_selectivity;
-  double table_records= table->stat_records();
   POSITION *pos= &join->positions[idx];
   uint keyparts= 0;
   uint found_part_ref_or_null= 0;
 
-  /* Discount the selectivity of the access method used to join table s */
-  if (s->quick && s->quick->index != MAX_KEY)
+  if (pos->key != 0)
   {
-    if (pos->key == 0 && table_records > 0)
-    {
-      sel/= table->quick_rows[s->quick->index]/table_records;
-    }
-  }
-  else if (pos->key != 0)
-  {
-    /* A ref/ access or hash join is used to join table */
+    /* 
+      A ref access or hash join is used for this table.
+
+      It could have some parts with "t.key_part=const". Using ref access
+      means that we will only get records where the condition holds, so we
+      should remove its selectivity from the condition selectivity.
+      
+      (TODO: more details about the "t.key=othertable.col" case)
+    */
     KEYUSE *keyuse= pos->key;
     KEYUSE *prev_ref_keyuse= keyuse;
     uint key= keyuse->key;
@@ -7317,9 +7340,14 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   }
   else
   {
+    /*
+      The table is accessed with full table scan, or quick select.
+      Selectivity of COND(table) is already accounted for in 
+      matching_candidates_in_table().
+    */
     sel= 1;
   }
-    
+
   /* 
     If the field f from the table is equal to a field from one the
     earlier joined tables then the selectivity of the range conditions

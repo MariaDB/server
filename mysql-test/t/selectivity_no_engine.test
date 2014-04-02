@@ -84,7 +84,23 @@ explain extended select * from t1 where col1 in (-1,-2,-3);
 explain extended select * from t1 where col1<=-1;
 drop table t1, t2;
 
+--echo # 
+--echo # MDEV-5984: EITS: Incorrect filtered% value for single-table select with range access
+--echo # 
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
+create table t2 (a int, b int, col1 varchar(64), col2 varchar(64), key(a,b));
+insert into t2 select A.a+10*B.a, C.a+10*D.a, 'filler-data1', 'filler-data2' from t1 A, t1 B, t1 C, t1 D;
+
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables='preferably';
+analyze table t2 persistent for all;
+--echo # This must show filtered=100%:
+explain extended select * from t2 where a in (1,2,3) and b in (1,2,3);
+
+drop table t2, t1;
 --echo # 
 --echo # End of the test file
 --echo # 
