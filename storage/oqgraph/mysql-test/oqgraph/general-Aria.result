@@ -18,6 +18,8 @@ linkid  BIGINT    UNSIGNED NULL,
 KEY (latch, origid, destid) USING HASH,
 KEY (latch, destid, origid) USING HASH
 ) ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id', DESTID='to_id';
+select * from graph;
+latch	origid	destid	weight	seq	linkid
 INSERT INTO graph_base(from_id, to_id) VALUES (1,2), (2,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (1,3), (3,1);
 INSERT INTO graph_base(from_id, to_id) VALUES (3,4), (4,3);

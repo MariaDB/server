@@ -3,4 +3,3 @@ mysql-test/mysql-test-run --record oqgraph.general-MyISAM
 mysql-test/mysql-test-run --record oqgraph.general-MEMORY
 mysql-test/mysql-test-run --record oqgraph.general-Aria
 mysql-test/mysql-test-run --record oqgraph.general-innodb
-mysql-test/mysql-test-run --record oqgraph.general-xtradb
