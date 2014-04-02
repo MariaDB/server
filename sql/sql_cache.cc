@@ -1333,6 +1333,7 @@ ulong Query_cache::resize(ulong query_cache_size_arg)
       query->unlock_n_destroy();
       block= block->next;
     } while (block != queries_blocks);
+    queries_blocks= NULL; // avoid second destroying by free_cache
   }
   free_cache();
 
@@ -1404,9 +1405,9 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     Query_cache_query_flags flags;
     // fill all gaps between fields with 0 to get repeatable key
     bzero(&flags, QUERY_CACHE_FLAGS_SIZE);
-    flags.client_long_flag= test(thd->client_capabilities & CLIENT_LONG_FLAG);
-    flags.client_protocol_41= test(thd->client_capabilities &
-                                   CLIENT_PROTOCOL_41);
+    flags.client_long_flag= MY_TEST(thd->client_capabilities & CLIENT_LONG_FLAG);
+    flags.client_protocol_41= MY_TEST(thd->client_capabilities &
+                                      CLIENT_PROTOCOL_41);
     /*
       Protocol influences result format, so statement results in the binary
       protocol (COM_EXECUTE) cannot be served to statements asking for results
@@ -1415,10 +1416,10 @@ void Query_cache::store_query(THD *thd, TABLE_LIST *tables_used)
     flags.protocol_type= (unsigned int) thd->protocol->type();
     /* PROTOCOL_LOCAL results are not cached. */
     DBUG_ASSERT(flags.protocol_type != (unsigned int) Protocol::PROTOCOL_LOCAL);
-    flags.more_results_exists= test(thd->server_status &
-                                    SERVER_MORE_RESULTS_EXISTS);
+    flags.more_results_exists= MY_TEST(thd->server_status &
+                                       SERVER_MORE_RESULTS_EXISTS);
     flags.in_trans= thd->in_active_multi_stmt_transaction();
-    flags.autocommit= test(thd->server_status & SERVER_STATUS_AUTOCOMMIT);
+    flags.autocommit= MY_TEST(thd->server_status & SERVER_STATUS_AUTOCOMMIT);
     flags.pkt_nr= net->pkt_nr;
     flags.character_set_client_num=
       thd->variables.character_set_client->number;
@@ -1899,14 +1900,14 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
 
   // fill all gaps between fields with 0 to get repeatable key
   bzero(&flags, QUERY_CACHE_FLAGS_SIZE);
-  flags.client_long_flag= test(thd->client_capabilities & CLIENT_LONG_FLAG);
-  flags.client_protocol_41= test(thd->client_capabilities &
-                                 CLIENT_PROTOCOL_41);
+  flags.client_long_flag= MY_TEST(thd->client_capabilities & CLIENT_LONG_FLAG);
+  flags.client_protocol_41= MY_TEST(thd->client_capabilities &
+                                    CLIENT_PROTOCOL_41);
   flags.protocol_type= (unsigned int) thd->protocol->type();
-  flags.more_results_exists= test(thd->server_status &
-                                  SERVER_MORE_RESULTS_EXISTS);
+  flags.more_results_exists= MY_TEST(thd->server_status &
+                                     SERVER_MORE_RESULTS_EXISTS);
   flags.in_trans= thd->in_active_multi_stmt_transaction();
-  flags.autocommit= test(thd->server_status & SERVER_STATUS_AUTOCOMMIT);
+  flags.autocommit= MY_TEST(thd->server_status & SERVER_STATUS_AUTOCOMMIT);
   flags.pkt_nr= thd->net.pkt_nr;
   flags.character_set_client_num= thd->variables.character_set_client->number;
   flags.character_set_results_num=
@@ -3409,7 +3410,7 @@ my_bool Query_cache::register_all_tables(THD *thd,
     if (block_table->parent)
       unlink_table(block_table);
   }
-  return test(n);
+  return MY_TEST(n);
 }
 
 
@@ -4109,7 +4110,7 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
 	      (long) OPTION_TO_QUERY_CACHE,
 	      (long) lex->select_lex.options,
 	      (int) thd->variables.query_cache_type,
-              (uint) test(qc_is_able_to_intercept_result(thd))));
+              (uint) MY_TEST(qc_is_able_to_intercept_result(thd))));
   DBUG_RETURN(0);
 }
 

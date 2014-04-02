@@ -359,7 +359,7 @@ public:
   }
   bool append(const String &s);
   bool append(const char *s);
-  bool append(LEX_STRING *ls)
+  bool append(const LEX_STRING *ls)
   {
     return append(ls->str, ls->length);
   }
@@ -496,7 +496,16 @@ public:
     return FALSE;
   }
   void print(String *print);
+
   bool append_for_single_quote(const char *st, uint len);
+  bool append_for_single_quote(const String *s)
+  {
+    return append_for_single_quote(s->ptr(), s->length());
+  }
+  bool append_for_single_quote(const char *st)
+  {
+    return append_for_single_quote(st, strlen(st));
+  }
 
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
   void swap(String &s);
@@ -558,5 +567,8 @@ static inline bool check_if_only_end_space(CHARSET_INFO *cs,
 {
   return str+ cs->cset->scan(cs, str, end, MY_SEQ_SPACES) == end;
 }
+
+int append_query_string(CHARSET_INFO *csinfo, String *to,
+                        const char *str, size_t len, bool no_backslash);
 
 #endif /* SQL_STRING_INCLUDED */

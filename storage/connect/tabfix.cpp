@@ -1,11 +1,11 @@
 /************* TabFix C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFIX                                                */
 /* -------------                                                       */
-/*  Version 4.8                                                        */
+/*  Version 4.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */

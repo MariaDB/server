@@ -14,7 +14,9 @@
 drop database if exists db;
 --enable_warnings
 create database db;
+create table db.this_will_not_be_replicated (i int) engine=MyISAM;
 create table db.t1 (i int) engine=MyISAM;
+create table db.t2 (i int) engine=MyISAM;
 --save_master_pos
 
 # Create the same schema and another table
@@ -26,7 +28,7 @@ create table db.t1 (i int) engine=MyISAM;
 drop database if exists db;
 --enable_warnings
 create database db;
-create table db.t2 (i int) engine=MyISAM;
+create table db.t3 (i int) engine=MyISAM;
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
 
@@ -54,10 +56,14 @@ master_host='127.0.0.1',
 master_user='root';
 
 # the schema creation will be replicated from the 1st master,
-# so we want to skip it in the second replication connection.
-
-# Normally it should have been 2 events, but currently Binlog_checkpoint +
-# 2 Gtid also count. Maybe we'll need to modify the test later
+# so we want to skip it in the second replication connection
+# The events we want to skip are:
+#
+# The start format statement event
+# drop database if exists db
+# create database db
+# Create table db.t1
+# - > 4 events in total
 
 --let $skip_counter_saved = `select @@global.sql_slave_skip_counter`
 --let $max_relay_log_size_saved= `select @@global.max_relay_log_size`
@@ -71,7 +77,8 @@ select @@session.sql_slave_skip_counter;
 set global sql_slave_skip_counter= default;
 select @@global.sql_slave_skip_counter;
 select @@session.sql_slave_skip_counter;
-set global sql_slave_skip_counter= 5;
+set global sql_slave_skip_counter= 4;
+
 set default_master_connection = 'master1';
 select @@session.sql_slave_skip_counter;
 set default_master_connection = 'qqq';
@@ -100,7 +107,6 @@ select @@session.max_relay_log_size;
 set global max_binlog_size= 4*1024*1024;
 select @@global.max_relay_log_size;
 
-
 start slave 'master2';
 --source include/wait_for_slave_to_start.inc
 set default_master_connection = '';
@@ -115,7 +121,7 @@ set default_master_connection = '';
 # If the skip_counter worked as expected, we should
 # get here (replication shouldn't have broken)
 # and should see both tables here
-# (drop database which came from master2 shoudn't have been executed
+# (drop database which came from master2 shouldn't have been executed
 # so t1 should still exist)
 
 show tables in db;

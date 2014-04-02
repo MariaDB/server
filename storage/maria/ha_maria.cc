@@ -724,8 +724,8 @@ int maria_check_definition(MARIA_KEYDEF *t1_keyinfo,
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_fulltext= %d, t2_fulltext=%d",
-                            test(t1_keyinfo[i].flag & HA_FULLTEXT),
-                            test(t2_keyinfo[i].flag & HA_FULLTEXT)));
+                            MY_TEST(t1_keyinfo[i].flag & HA_FULLTEXT),
+                            MY_TEST(t2_keyinfo[i].flag & HA_FULLTEXT)));
        DBUG_RETURN(1);
     }
     if (t1_keyinfo[i].flag & HA_SPATIAL && t2_keyinfo[i].flag & HA_SPATIAL)
@@ -735,8 +735,8 @@ int maria_check_definition(MARIA_KEYDEF *t1_keyinfo,
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_spatial= %d, t2_spatial=%d",
-                            test(t1_keyinfo[i].flag & HA_SPATIAL),
-                            test(t2_keyinfo[i].flag & HA_SPATIAL)));
+                            MY_TEST(t1_keyinfo[i].flag & HA_SPATIAL),
+                            MY_TEST(t2_keyinfo[i].flag & HA_SPATIAL)));
        DBUG_RETURN(1);
     }
     if (t1_keyinfo[i].keysegs != t2_keyinfo[i].keysegs ||
@@ -1334,7 +1334,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
                                  share->pack.header_length, 1, MYF(MY_WME))))
       {
         error= maria_chk_data_link(&param, file,
-                                   test(param.testflag & T_EXTEND));
+                                   MY_TEST(param.testflag & T_EXTEND));
         end_io_cache(&(param.read_cache));
       }
       param.testflag= old_testflag;
@@ -1627,7 +1627,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         thd_proc_info(thd, buf);
         param->testflag|= T_REP_PARALLEL;
         error= maria_repair_parallel(param, file, fixed_name,
-                                     test(param->testflag & T_QUICK));
+                                     MY_TEST(param->testflag & T_QUICK));
         /* to reset proc_info, as it was pointing to local buffer */
         thd_proc_info(thd, "Repair done");
       }
@@ -1636,7 +1636,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
         thd_proc_info(thd, "Repair by sorting");
         param->testflag|= T_REP_BY_SORT;
         error= maria_repair_by_sort(param, file, fixed_name,
-                                    test(param->testflag & T_QUICK));
+                                    MY_TEST(param->testflag & T_QUICK));
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
@@ -1648,7 +1648,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       thd_proc_info(thd, "Repair with keycache");
       param->testflag &= ~(T_REP_BY_SORT | T_REP_PARALLEL);
       error= maria_repair(param, file, fixed_name,
-                          test(param->testflag & T_QUICK));
+                          MY_TEST(param->testflag & T_QUICK));
     }
     param->testflag= save_testflag | (param->testflag & T_RETRY_WITHOUT_QUICK);
     optimize_done= 1;
@@ -1656,7 +1656,7 @@ int ha_maria::repair(THD *thd, HA_CHECK *param, bool do_optimize)
       set full_repair_done if we re-wrote all rows and all keys
       (and thus removed all transid's from the table
     */
-    full_repair_done= !test(param->testflag & T_QUICK);
+    full_repair_done= !MY_TEST(param->testflag & T_QUICK);
   }
   if (!error)
   {
@@ -2124,7 +2124,7 @@ void ha_maria::start_bulk_insert(ha_rows rows, uint flags)
       }
       else
       {
-        my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+        my_bool all_keys= MY_TEST(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
         maria_disable_indexes_for_rebuild(file, rows, all_keys);
       }
       if (share->now_transactional)
@@ -3300,7 +3300,7 @@ static int maria_rollback(handlerton *hton __attribute__ ((unused)),
 
 bool maria_flush_logs(handlerton *hton)
 {
-  return test(translog_purge_at_flush());
+  return MY_TEST(translog_purge_at_flush());
 }
 
 

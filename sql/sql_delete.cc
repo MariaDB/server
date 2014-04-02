@@ -140,7 +140,7 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
       explain->jtype= JT_NEXT;
   }
 
-  explain->using_where= test(select && select->cond);
+  explain->using_where= MY_TEST(select && select->cond);
   explain->using_filesort= using_filesort;
   explain->using_io_buffer= using_io_buffer;
 
@@ -252,7 +252,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= &thd->lex->select_lex;
   query_plan.table= table;
-  query_plan.updating_a_view= test(table_list->view);
+  query_plan.updating_a_view= MY_TEST(table_list->view);
 
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                                             select_lex->item_list, &conds))
@@ -291,7 +291,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_RETURN(TRUE);
 
   const_cond= (!conds || conds->const_item());
-  safe_update=test(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
   if (safe_update && const_cond)
   {
     my_message(ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE,
@@ -521,16 +521,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   init_ftfuncs(thd, select_lex, 1);
   THD_STAGE_INFO(thd, stage_updating);
 
-  if (table->triggers &&
-      table->triggers->has_triggers(TRG_EVENT_DELETE,
-                                    TRG_ACTION_AFTER))
+  if (table->prepare_triggers_for_delete_stmt_or_event())
   {
-    /*
-      The table has AFTER DELETE triggers that might access to subject table
-      and therefore might need delete to be done immediately. So we turn-off
-      the batching.
-    */
-    (void) table->file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
     will_batch= FALSE;
   }
   else
@@ -938,17 +930,7 @@ multi_delete::initialize_tables(JOIN *join)
 	transactional_tables= 1;
       else
 	normal_tables= 1;
-      if (tbl->triggers &&
-          tbl->triggers->has_triggers(TRG_EVENT_DELETE,
-                                      TRG_ACTION_AFTER))
-      {
-	/*
-          The table has AFTER DELETE triggers that might access to subject 
-          table and therefore might need delete to be done immediately. 
-          So we turn-off the batching.
-        */
-	(void) tbl->file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-      }
+      tbl->prepare_triggers_for_delete_stmt_or_event();
       tbl->prepare_for_position();
       tbl->mark_columns_needed_for_delete();
     }
@@ -1062,17 +1044,6 @@ int multi_delete::send_data(List<Item> &values)
     }
   }
   DBUG_RETURN(0);
-}
-
-
-void multi_delete::send_error(uint errcode,const char *err)
-{
-  DBUG_ENTER("multi_delete::send_error");
-
-  /* First send error what ever it is ... */
-  my_message(errcode, err, MYF(0));
-
-  DBUG_VOID_RETURN;
 }
 
 
@@ -1310,7 +1281,7 @@ bool multi_delete::send_eof()
     }
   }
   if (local_error != 0)
-    error_handled= TRUE; // to force early leave from ::send_error()
+    error_handled= TRUE; // to force early leave from ::abort_result_set()
 
   if (!local_error)
   {

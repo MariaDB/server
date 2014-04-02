@@ -39,7 +39,6 @@ class DllExport COLBLK : public XOBJECT {
           PCOL    GetNext(void) {return Next;}
           PSZ     GetName(void) {return Name;}
           int     GetIndex(void) {return Index;}
-          int     GetOpt(void) {return Opt;}
           ushort  GetColUse(void) {return ColUse;}
           ushort  GetColUse(ushort u) {return (ColUse & u);}
           ushort  GetStatus(void) {return Status;}
@@ -62,10 +61,7 @@ class DllExport COLBLK : public XOBJECT {
   virtual void    Reset(void);
   virtual bool    Compare(PXOB xp);
   virtual bool    SetFormat(PGLOBAL, FORMAT&);
-  virtual int     CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
   virtual bool    IsSpecial(void) {return false;}
-  virtual int     CheckSpcCol(PTDB tdbp, int n) {return 2;}
-  virtual bool    CheckSort(PTDB tdbp);
   virtual bool    Eval(PGLOBAL g);
   virtual bool    SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void    SetTo_Val(PVAL valp) {}
@@ -73,8 +69,6 @@ class DllExport COLBLK : public XOBJECT {
   virtual void    WriteColumn(PGLOBAL g);
   virtual void    Print(PGLOBAL g, FILE *, uint);
   virtual void    Print(PGLOBAL g, char *, uint);
-  virtual bool    VarSize(void) {return false;}
-  virtual bool    IsColInside(PCOL colp) {return this == colp;}
           bool    InitValue(PGLOBAL g);
 
  protected:
@@ -87,7 +81,6 @@ class DllExport COLBLK : public XOBJECT {
   bool    Nullable;            // True if nullable
   bool    Unsigned;            // True if unsigned
   int     Index;               // Column number in table
-  int     Opt;                 // Cluster/sort information
   int     Buf_Type;            // Data type
   int     Long;                // Internal length in table
   int     Precision;           // Column length (as for ODBC)
@@ -150,8 +143,6 @@ class DllExport FIDBLK : public SPCBLK {
 
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual int  CheckSpcCol(PTDB tdbp, int n) 
-  {return (n == 2 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
@@ -171,8 +162,6 @@ class DllExport TIDBLK : public SPCBLK {
 
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual int  CheckSpcCol(PTDB tdbp, int n)
-              {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
@@ -196,8 +185,6 @@ class DllExport SIDBLK : public SPCBLK {
 
   // Methods
   virtual void Reset(void) {}       // This is a pseudo constant column
-  virtual int  CheckSpcCol(PTDB tdbp, int n)
-              {return (n == 3 && tdbp == To_Tdb) ? 1 : 2;}
   virtual void ReadColumn(PGLOBAL g);
 
  protected:

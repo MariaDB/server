@@ -885,7 +885,7 @@ public:
     m_view_access_denied_message_ptr(NULL) 
   {
     
-    m_sctx = test(m_top_view->security_ctx) ?
+    m_sctx= MY_TEST(m_top_view->security_ctx) ?
       m_top_view->security_ctx : thd->security_ctx;
   }
 
@@ -1009,9 +1009,10 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   {
     /*
-      Use open_tables() directly rather than open_normal_and_derived_tables().
-      This ensures that close_thread_tables() is not called if open tables fails
-      and the error is ignored. This allows us to handle broken views nicely.
+      Use open_tables() directly rather than
+      open_normal_and_derived_tables().  This ensures that
+      close_thread_tables() is not called if open tables fails and the
+      error is ignored. This allows us to handle broken views nicely.
     */
     uint counter;
     Show_create_error_handler view_error_suppressor(thd, table_list);
@@ -1105,7 +1106,8 @@ exit:
   DBUG_RETURN(error);
 }
 
-bool mysqld_show_create_db(THD *thd, char *dbname,
+bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
+                           LEX_STRING *orig_dbname,
                            HA_CREATE_INFO *create_info)
 {
   char buff[2048];
@@ -1123,32 +1125,32 @@ bool mysqld_show_create_db(THD *thd, char *dbname,
   if (test_all_bits(sctx->master_access, DB_ACLS))
     db_access=DB_ACLS;
   else
-    db_access= (acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname, 0) |
+    db_access= (acl_get(sctx->host, sctx->ip, sctx->priv_user, dbname->str, 0) |
 		sctx->master_access);
-  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname))
+  if (!(db_access & DB_ACLS) && check_grant_db(thd,dbname->str))
   {
     status_var_increment(thd->status_var.access_denied_errors);
     my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
-             sctx->priv_user, sctx->host_or_ip, dbname);
+             sctx->priv_user, sctx->host_or_ip, dbname->str);
     general_log_print(thd,COM_INIT_DB,ER(ER_DBACCESS_DENIED_ERROR),
-                      sctx->priv_user, sctx->host_or_ip, dbname);
+                      sctx->priv_user, sctx->host_or_ip, orig_dbname->str);
     DBUG_RETURN(TRUE);
   }
 #endif
-  if (is_infoschema_db(dbname))
+  if (is_infoschema_db(dbname->str))
   {
-    dbname= INFORMATION_SCHEMA_NAME.str;
+    *dbname= INFORMATION_SCHEMA_NAME;
     create.default_table_charset= system_charset_info;
   }
   else
   {
-    if (check_db_dir_existence(dbname))
+    if (check_db_dir_existence(dbname->str))
     {
-      my_error(ER_BAD_DB_ERROR, MYF(0), dbname);
+      my_error(ER_BAD_DB_ERROR, MYF(0), dbname->str);
       DBUG_RETURN(TRUE);
     }
 
-    load_db_opt_by_name(thd, dbname, &create);
+    load_db_opt_by_name(thd, dbname->str, &create);
   }
   List<Item> field_list;
   field_list.push_back(new Item_empty_string("Database",NAME_CHAR_LEN));
@@ -1159,12 +1161,12 @@ bool mysqld_show_create_db(THD *thd, char *dbname,
     DBUG_RETURN(TRUE);
 
   protocol->prepare_for_resend();
-  protocol->store(dbname, strlen(dbname), system_charset_info);
+  protocol->store(orig_dbname->str, orig_dbname->length, system_charset_info);
   buffer.length(0);
   buffer.append(STRING_WITH_LEN("CREATE DATABASE "));
   if (create_options & HA_LEX_CREATE_IF_NOT_EXISTS)
     buffer.append(STRING_WITH_LEN("/*!32312 IF NOT EXISTS*/ "));
-  append_identifier(thd, &buffer, dbname, strlen(dbname));
+  append_identifier(thd, &buffer, dbname->str, dbname->length);
 
   if (create.default_table_charset)
   {
@@ -2011,7 +2013,7 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
       end= longlong10_to_str(key_info->block_size, buff, 10);
       packet->append(buff, (uint) (end - buff));
     }
-    DBUG_ASSERT(test(key_info->flags & HA_USES_COMMENT) == 
+    DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                (key_info->comment.length > 0));
     if (key_info->flags & HA_USES_COMMENT)
     {
@@ -2398,7 +2400,7 @@ int select_result_explain_buffer::send_data(List<Item> &items)
   fill_record(thd, dst_table, dst_table->field, items, TRUE, FALSE);
   res= dst_table->file->ha_write_tmp_row(dst_table->record[0]);
   set_current_thd(cur_thd);  
-  DBUG_RETURN(test(res));
+  DBUG_RETURN(MY_TEST(res));
 }
 
 bool select_result_text_buffer::send_result_set_metadata(List<Item> &fields, uint flag)
@@ -4835,6 +4837,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (fill_schema_table_names(thd, tables, db_name, table_name))
               continue;
           }
+          else if (schema_table_idx == SCH_TRIGGERS &&
+                   db_name == &INFORMATION_SCHEMA_NAME)
+          {
+            continue;
+          }
           else
           {
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
@@ -5433,7 +5440,7 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     uint col_access;
     check_access(thd,SELECT_ACL, db_name->str,
-                 &tables->grant.privilege, 0, 0, test(tables->schema_table));
+                 &tables->grant.privilege, 0, 0, MY_TEST(tables->schema_table));
     col_access= get_column_grant(thd, &tables->grant,
                                  db_name->str, table_name->str,
                                  field->field_name) & COL_ACLS;
@@ -5572,13 +5579,13 @@ static my_bool iter_schema_engines(THD *thd, plugin_ref plugin,
       table->field[1]->store(option_name, strlen(option_name), scs);
       table->field[2]->store(plugin_decl(plugin)->descr,
                              strlen(plugin_decl(plugin)->descr), scs);
-      tmp= &yesno[test(hton->commit)];
+      tmp= &yesno[MY_TEST(hton->commit)];
       table->field[3]->store(tmp->str, tmp->length, scs);
       table->field[3]->set_notnull();
-      tmp= &yesno[test(hton->prepare)];
+      tmp= &yesno[MY_TEST(hton->prepare)];
       table->field[4]->store(tmp->str, tmp->length, scs);
       table->field[4]->set_notnull();
-      tmp= &yesno[test(hton->savepoint_set)];
+      tmp= &yesno[MY_TEST(hton->savepoint_set)];
       table->field[5]->store(tmp->str, tmp->length, scs);
       table->field[5]->set_notnull();
 
@@ -6145,7 +6152,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         else
           table->field[14]->store("", 0, cs);
         table->field[14]->set_notnull();
-        DBUG_ASSERT(test(key_info->flags & HA_USES_COMMENT) == 
+        DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                    (key_info->comment.length > 0));
         if (key_info->flags & HA_USES_COMMENT)
           table->field[15]->store(key_info->comment.str, 
@@ -8057,8 +8064,20 @@ static bool do_fill_table(THD *thd,
 
   da->push_warning_info(&wi_tmp);
 
-  bool res= table_list->schema_table->fill_table(
-    thd, table_list, join_table->select_cond);
+  Item *item= join_table->select_cond;
+  if (join_table->cache_select &&
+      join_table->cache_select->cond)
+  {
+    /*
+      If join buffering is used, we should use the condition that is attached
+      to the join cache. Cache condition has a part of WHERE that can be
+      checked when we're populating this table.
+      join_tab->select_cond is of no interest, because it only has conditions
+      that depend on both this table and previous tables in the join order.
+    */
+    item= join_table->cache_select->cond;
+  }
+  bool res= table_list->schema_table->fill_table(thd, table_list, item);
 
   da->pop_warning_info();
 
@@ -9362,6 +9381,9 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
   db= trg_name->m_db;
 
   db.str= thd->strmake(db.str, db.length);
+  if (lower_case_table_names)
+    db.length= my_casedn_str(files_charset_info, db.str);
+
   tbl_name.str= thd->strmake(tbl_name.str, tbl_name.length);
 
   if (db.str == NULL || tbl_name.str == NULL)

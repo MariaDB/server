@@ -163,6 +163,7 @@ SET debug_sync='RESET';
 
 --echo *** Test that group-committed transactions on the master can replicate in parallel on the slave. ***
 --connection server_1
+SET debug_sync='RESET';
 FLUSH LOGS;
 --source include/wait_for_binlog_checkpoint.inc
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
@@ -230,6 +231,7 @@ REAP;
 REAP;
 --connection con_temp5
 REAP;
+SET debug_sync='RESET';
 
 --connection server_1
 SELECT * FROM t3 ORDER BY a;
@@ -270,6 +272,10 @@ SELECT * FROM t3 ORDER BY a;
 --echo *** Test STOP SLAVE in parallel mode ***
 --connection server_2
 --source include/stop_slave.inc
+# Respawn all worker threads to clear any left-over debug_sync or other stuff.
+SET debug_sync='RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
 
 --connection server_1
 # Set up a couple of transactions. The first will be blocked halfway
@@ -288,7 +294,7 @@ BEGIN;
 INSERT INTO t2 VALUES (20);
 --disable_warnings
 INSERT INTO t1 VALUES (20);
---disable_warnings
+--enable_warnings
 INSERT INTO t2 VALUES (21);
 INSERT INTO t3 VALUES (20, 20);
 COMMIT;
@@ -300,7 +306,7 @@ SET binlog_format=@old_format;
 # Start a connection that will block the replicated transaction halfway.
 --connection con_temp1
 BEGIN;
-INSERT INTO t2 VALUES  (21);
+INSERT INTO t2 VALUES (21);
 
 --connection server_2
 START SLAVE;
@@ -312,13 +318,20 @@ START SLAVE;
 --connection con_temp2
 # Initiate slave stop. It will have to wait for the current event group
 # to complete.
+# The dbug injection causes debug_sync to signal 'wait_for_done_waiting'
+# when the SQL driver thread is ready.
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 send STOP SLAVE;
 
 --connection con_temp1
+SET debug_sync='now WAIT_FOR wait_for_done_waiting';
 ROLLBACK;
 
 --connection con_temp2
 reap;
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync='RESET';
 
 --connection server_2
 --source include/wait_for_slave_to_stop.inc
@@ -397,6 +410,7 @@ REAP;
 
 --connection server_1
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
+SET debug_sync='RESET';
 
 --connection server_2
 SET sql_log_bin=0;
@@ -424,13 +438,14 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1963
+--let $slave_sql_errno= 1317,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 
 # Now we have to disable the debug_sync statements, so they do not trigger
 # when the events are retried.
+SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 SET sql_log_bin=0;
@@ -535,6 +550,7 @@ REAP;
 
 --connection server_1
 SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
+SET debug_sync='RESET';
 
 --connection server_2
 # Wait until T2 is inside executing its insert of 42, then find it in SHOW
@@ -557,12 +573,12 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1963
+--let $slave_sql_errno= 1317,1964
 --source include/wait_for_slave_sql_error.inc
-SELECT * FROM t3 WHERE a >= 40 ORDER BY a;
 
 # Now we have to disable the debug_sync statements, so they do not trigger
 # when the events are retried.
+SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 SET sql_log_bin=0;
@@ -673,6 +689,7 @@ REAP;
 
 --connection server_1
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
+SET debug_sync='RESET';
 
 --connection server_2
 # Wait until T2 is inside executing its insert of 52, then find it in SHOW
@@ -695,12 +712,13 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1963
+--let $slave_sql_errno= 1317,1964
 --source include/wait_for_slave_sql_error.inc
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 
 # Now we have to disable the debug_sync statements, so they do not trigger
 # when the events are retried.
+SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 SET sql_log_bin=0;
@@ -752,7 +770,7 @@ CHANGE MASTER TO master_use_gtid=slave_pos;
 --source include/stop_slave.inc
 SET GLOBAL binlog_format=@old_format;
 SET GLOBAL slave_parallel_threads=0;
-SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL slave_parallel_threads=4;
 --source include/start_slave.inc
 
 
@@ -762,24 +780,29 @@ SET GLOBAL slave_parallel_threads=3;
 # can run in parallel with each other (same group commit and commit id),
 # but not in parallel with T1.
 #
-# We use three worker threads. T1 and T2 will be queued on the first, T3 on
-# the second, and T4 on the third. We will delay T1 commit, T3 will wait for
-# T1 to commit before it can start. We will kill T3 during this wait, and
+# We use four worker threads, each Ti will be queued on each their own
+# worker thread. We will delay T1 commit, T3 will wait for T1 to begin
+# commit before it can start. We will kill T3 during this wait, and
 # check that everything works correctly.
 #
 # It is rather tricky to get the correct thread id of the worker to kill.
-# We start by injecting three dummy transactions in a debug_sync-controlled
+# We start by injecting four dummy transactions in a debug_sync-controlled
 # manner to be able to get known thread ids for the workers in a pool with
-# just 3 worker threads. Then we let in each of the real test transactions
+# just 4 worker threads. Then we let in each of the real test transactions
 # T1-T4 one at a time in a way which allows us to know which transaction
 # ends up with which thread id.
 
 --connection server_1
 SET binlog_format=statement;
 SET gtid_domain_id=2;
+BEGIN;
+# This debug_sync will linger on and be used to control T4 later.
+INSERT INTO t3 VALUES (70, foo(70,
+       'rpl_parallel_start_waiting_for_prior SIGNAL t4_waiting', ''));
 INSERT INTO t3 VALUES (60, foo(60,
        'ha_write_row_end SIGNAL d2_query WAIT_FOR d2_cont2',
        'rpl_parallel_end_of_group SIGNAL d2_done WAIT_FOR d2_cont'));
+COMMIT;
 SET gtid_domain_id=0;
 
 --connection server_2
@@ -813,12 +836,30 @@ INSERT INTO t3 VALUES (63, foo(63,
 SET debug_sync='now WAIT_FOR d0_query';
 --let $d0_thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%foo(63%' AND INFO NOT LIKE '%LIKE%'`
 
+--connection server_1
+SET gtid_domain_id=3;
+BEGIN;
+# These debug_sync's will linger on and be used to control T2 later.
+INSERT INTO t3 VALUES (68, foo(68,
+       'rpl_parallel_start_waiting_for_prior SIGNAL t2_waiting', ''));
+INSERT INTO t3 VALUES (69, foo(69,
+       'ha_write_row_end SIGNAL d3_query WAIT_FOR d3_cont2',
+       'rpl_parallel_end_of_group SIGNAL d3_done WAIT_FOR d3_cont'));
+COMMIT;
+SET gtid_domain_id=0;
+
+--connection server_2
+SET debug_sync='now WAIT_FOR d3_query';
+--let $d3_thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO LIKE '%foo(69%' AND INFO NOT LIKE '%LIKE%'`
+
 SET debug_sync='now SIGNAL d2_cont2';
 SET debug_sync='now WAIT_FOR d2_done';
 SET debug_sync='now SIGNAL d1_cont2';
 SET debug_sync='now WAIT_FOR d1_done';
 SET debug_sync='now SIGNAL d0_cont2';
 SET debug_sync='now WAIT_FOR d0_done';
+SET debug_sync='now SIGNAL d3_cont2';
+SET debug_sync='now WAIT_FOR d3_done';
 
 # Now prepare the real transactions T1, T2, T3, T4 on the master.
 
@@ -826,7 +867,7 @@ SET debug_sync='now WAIT_FOR d0_done';
 # Create transaction T1.
 SET binlog_format=statement;
 INSERT INTO t3 VALUES (64, foo(64,
-       'commit_before_prepare_ordered SIGNAL t1_waiting WAIT_FOR t1_cont', ''));
+       'rpl_parallel_before_mark_start_commit SIGNAL t1_waiting WAIT_FOR t1_cont', ''));
 
 # Create transaction T2, as a group commit leader on the master.
 SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2 WAIT_FOR master_cont2';
@@ -861,6 +902,7 @@ REAP;
 
 --connection server_1
 SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
+SET debug_sync='RESET';
 
 --connection server_2
 # Now we have the four transactions pending for replication on the slave.
@@ -872,15 +914,20 @@ SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
 SET debug_sync='now SIGNAL d0_cont';
 SET debug_sync='now WAIT_FOR t1_waiting';
 
-# T2 will be queued on the same worker D0 as T1.
+# Make the worker D3 free, and wait for T2 to be queued in it.
+SET debug_sync='now SIGNAL d3_cont';
+SET debug_sync='now WAIT_FOR t2_waiting';
+
 # Now release worker D1, and wait for T3 to be queued in it.
 # T3 will wait for T1 to commit before it can start.
 SET debug_sync='now SIGNAL d1_cont';
 SET debug_sync='now WAIT_FOR t3_waiting';
 
-# Release worker D2. T4 may or may not have time to be queued on it, but
-# it will not be able to complete due to T3 being killed.
+# Release worker D2. Wait for T4 to be queued, so we are sure it has
+# received the debug_sync signal (else we might overwrite it with the
+# next debug_sync).
 SET debug_sync='now SIGNAL d2_cont';
+SET debug_sync='now WAIT_FOR t4_waiting';
 
 # Now we kill the waiting transaction T3 in worker D1.
 --replace_result $d1_thd_id THD_ID
@@ -892,13 +939,18 @@ SET debug_sync='now WAIT_FOR t3_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1927,1963
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
-SELECT * FROM t3 WHERE a >= 60 ORDER BY a;
+# Since T2, T3, and T4 run in parallel, we can not be sure if T2 will have time
+# to commit or not before the stop. However, T1 should commit, and T3/T4 may
+# not have committed. (After slave restart we check that all become committed
+# eventually).
+SELECT * FROM t3 WHERE a >= 60 AND a != 65 ORDER BY a;
 
 # Now we have to disable the debug_sync statements, so they do not trigger
 # when the events are retried.
+SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 SET sql_log_bin=0;
@@ -914,7 +966,7 @@ CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
 SET sql_log_bin=1;
 
 --connection server_1
-INSERT INTO t3 VALUES (69,0);
+UPDATE t3 SET b=b+1 WHERE a=60;
 --save_master_pos
 
 --connection server_2
@@ -951,6 +1003,7 @@ SET GLOBAL slave_parallel_threads=10;
 
 --echo *** 5. Test killing thread that is waiting for queue of max length to shorten ***
 
+# Find the thread id of the driver SQL thread that we want to kill.
 --let $wait_condition= SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%Slave has read all relay log%'
 --source include/wait_condition.inc
 --let $thd_id= `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE '%Slave has read all relay log%'`
@@ -961,12 +1014,8 @@ SET GLOBAL slave_parallel_max_queued=9000;
 --let bigstring= `SELECT REPEAT('x', 10000)`
 SET binlog_format=statement;
 # Create an event that will wait to be signalled.
-INSERT INTO t3 VALUES (70, foo(0,
+INSERT INTO t3 VALUES (80, foo(0,
        'ha_write_row_end SIGNAL query_waiting WAIT_FOR query_cont', ''));
---disable_query_log
-# Create an event that will fill up the queue.
-eval INSERT INTO t3 VALUES (71, LENGTH('$bigstring'));
---enable_query_log
 
 --connection server_2
 SET debug_sync='now WAIT_FOR query_waiting';
@@ -977,11 +1026,14 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_wait_queue_max";
 
 --connection server_1
-# This event will have to wait for the queue to become shorter before it can
-# be queued. We will test that things work when we kill the SQL driver thread
-# during this wait.
-INSERT INTO t3 VALUES (72, 0);
-SELECT * FROM t3 WHERE a >= 70 ORDER BY a;
+--disable_query_log
+# Create an event that will fill up the queue.
+# The Xid event at the end of the event group will have to wait for the Query
+# event with the INSERT to drain so the queue becomes shorter. However that in
+# turn waits for the prior event group to continue.
+eval INSERT INTO t3 VALUES (81, LENGTH('$bigstring'));
+--enable_query_log
+SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
 
 --connection server_2
 SET debug_sync='now WAIT_FOR wait_queue_ready';
@@ -992,22 +1044,23 @@ eval KILL $thd_id;
 SET debug_sync='now WAIT_FOR wait_queue_killed';
 SET debug_sync='now SIGNAL query_cont';
 
---let $slave_sql_errno= 1317,1927,1963
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
-SELECT * FROM t3 WHERE a >= 70 ORDER BY a;
 
 SET GLOBAL debug_dbug=@old_dbug;
 SET GLOBAL slave_parallel_max_queued= @old_max_queued;
 
 --connection server_1
-INSERT INTO t3 VALUES (73,0);
+INSERT INTO t3 VALUES (82,0);
+SET binlog_format=@old_format;
 --save_master_pos
 
 --connection server_2
+SET debug_sync='RESET';
 --source include/start_slave.inc
 --sync_with_master
-SELECT * FROM t3 WHERE a >= 70 ORDER BY a;
+SELECT * FROM t3 WHERE a >= 80 ORDER BY a;
 
 
 --connection server_2
@@ -1016,6 +1069,185 @@ SET GLOBAL binlog_format=@old_format;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 --source include/start_slave.inc
+
+--echo *** MDEV-5788 Incorrect free of rgi->deferred_events in parallel replication  ***
+
+--connection server_2
+# Use just two worker threads, so we are sure to get the rpl_group_info added
+# to the free list, which is what triggered the bug.
+--source include/stop_slave.inc
+SET GLOBAL replicate_ignore_table="test.t3";
+SET GLOBAL slave_parallel_threads=2;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t3 VALUES (100, rand());
+INSERT INTO t3 VALUES (101, rand());
+
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--connection server_1
+INSERT INTO t3 VALUES (102, rand());
+INSERT INTO t3 VALUES (103, rand());
+INSERT INTO t3 VALUES (104, rand());
+INSERT INTO t3 VALUES (105, rand());
+
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+SET GLOBAL replicate_ignore_table="";
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t3 VALUES (106, rand());
+INSERT INTO t3 VALUES (107, rand());
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--replace_column 2 #
+SELECT * FROM t3 WHERE a >= 100 ORDER BY a;
+
+
+--echo *** MDEV-5921: In parallel replication, an error is not correctly signalled to the next transaction ***
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+--source include/start_slave.inc
+
+--connection server_1
+INSERT INTO t3 VALUES (110, 1);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+# Inject a duplicate key error.
+SET sql_log_bin=0;
+INSERT INTO t3 VALUES (111, 666);
+SET sql_log_bin=1;
+
+--connection server_1
+
+# Create a group commit with two inserts, the first one conflicts with a row on the slave
+--connect (con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+send INSERT INTO t3 VALUES (111, 2);
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued1';
+
+--connect (con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+send INSERT INTO t3 VALUES (112, 3);
+
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+
+--connection con1
+REAP;
+--connection con2
+REAP;
+SET debug_sync='RESET';
+--save_master_pos
+
+--connection server_2
+--let $slave_sql_errno= 1062
+--source include/wait_for_slave_sql_error.inc
+--source include/wait_for_slave_sql_to_stop.inc
+# We should not see the row (112,3) here, it should be rolled back due to
+# error signal from the prior transaction.
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+SET sql_log_bin=0;
+DELETE FROM t3 WHERE a=111 AND b=666;
+SET sql_log_bin=1;
+START SLAVE SQL_THREAD;
+--sync_with_master
+SELECT * FROM t3 WHERE a >= 110 ORDER BY a;
+
+
+--echo ***MDEV-5914: Parallel replication deadlock due to InnoDB lock conflicts ***
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+
+# Create a group commit with UPDATE and DELETE, in that order.
+# The bug was that while the UPDATE's row lock does not block the DELETE, the
+# DELETE's gap lock _does_ block the UPDATE. This could cause a deadlock
+# on the slave.
+--connection con1
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+send UPDATE t4 SET b=NULL WHERE a=6;
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued1';
+
+--connection con2
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+send DELETE FROM t4 WHERE b <= 3;
+
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+
+--connection con1
+REAP;
+--connection con2
+REAP;
+SET debug_sync='RESET';
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+--source include/stop_slave.inc
+
+SELECT * FROM t4 ORDER BY a;
+
+
+# Another example, this one with INSERT vs. DELETE
+--connection server_1
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+
+# Create a group commit with INSERT and DELETE, in that order.
+# The bug was that while the INSERT's insert intention lock does not block
+# the DELETE, the DELETE's gap lock _does_ block the INSERT. This could cause
+# a deadlock on the slave.
+--connection con1
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+send INSERT INTO t4 VALUES (7, NULL);
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued1';
+
+--connection con2
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+send DELETE FROM t4 WHERE b <= 3;
+
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+
+--connection con1
+REAP;
+--connection con2
+REAP;
+SET debug_sync='RESET';
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t4 ORDER BY a;
 
 
 --connection server_2
@@ -1026,7 +1258,7 @@ SET DEBUG_SYNC= 'RESET';
 
 --connection server_1
 DROP function foo;
-DROP TABLE t1,t2,t3;
+DROP TABLE t1,t2,t3,t4;
 SET DEBUG_SYNC= 'RESET';
 
 --source include/rpl_end.inc

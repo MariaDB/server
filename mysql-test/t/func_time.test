@@ -1103,7 +1103,9 @@ drop table t1;
 #
 # lp:731815 Crash/valgrind warning Item::send with 5.1-micro
 #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select convert_tz(timediff('0000-00-00 00:00:00', cast('2008-03-26 07:09:06' as datetime)), 'UTC', 'Europe/Moscow');
+SET timestamp=DEFAULT;
 
 #
 # lp:736370 Datetime functions in subquery context cause wrong result and bogus warnings in mysql-5.1-micr
@@ -1425,12 +1427,14 @@ SHOW COLUMNS FROM t1;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 CREATE TABLE t1 AS SELECT
   TIMESTAMP('00:00:00','10:10:10'),
   TIMESTAMP(TIME('00:00:00'),'10:10:10');
 SHOW COLUMNS FROM t1;
 SELECT * FROM t1;
 DROP TABLE t1;
+SET timestamp=DEFAULT;
 
 --echo #
 --echo # MDEV-4869 Wrong result of MAKETIME(0, 0, -0.1)
@@ -1440,6 +1444,7 @@ SELECT MAKETIME(0, 0, -0.1);
 --echo #
 --echo # MDEV-4857 Wrong result of HOUR('1 00:00:00')
 --echo #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 SELECT HOUR('1 02:00:00'), HOUR('26:00:00');
 SELECT HOUR(TIME'1 02:00:00'), HOUR(TIME'26:00:00');
 SELECT HOUR(TIME('1 02:00:00')), HOUR(TIME('26:00:00'));
@@ -1449,6 +1454,7 @@ SELECT EXTRACT(HOUR FROM '1 02:00:00'), EXTRACT(HOUR FROM '26:00:00');
 SELECT EXTRACT(HOUR FROM TIME'1 02:00:00'), EXTRACT(HOUR FROM TIME'26:00:00');
 SELECT EXTRACT(HOUR FROM TIME('1 02:00:00')), EXTRACT(HOUR FROM TIME('26:00:00'));
 SELECT EXTRACT(DAY FROM TIME('1 02:00:00')), EXTRACT(DAY FROM TIME('26:00:00'));
+SET timestamp=DEFAULT;
 
 --echo #
 --echo # MDEV-5458 RQG hits 'sql/tztime.cc:799: my_time_t sec_since_epoch(int, int, int, int, int, int): Assertion `mon > 0 && mon < 13' failed.'
@@ -1492,6 +1498,7 @@ SELECT CAST(ADDTIME(COALESCE(a,b),0) AS CHAR) FROM t1;
 SELECT CAST(ADDTIME(CASE WHEN 0 THEN a ELSE b END,0) AS CHAR) FROM t1;
 DROP TABLE t1;
 
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 CREATE TABLE t1 (a DATETIME, b TIME);
 INSERT INTO t1 VALUES (NULL, '00:20:12');
 SELECT IF(1,ADDDATE(IFNULL(a,b),0),1) FROM t1;
@@ -1502,4 +1509,14 @@ SELECT IF(1,ADDTIME(IFNULL(a,b),0),1) FROM t1;
 SELECT CAST(ADDTIME(IFNULL(a,b),0) AS CHAR) FROM t1;
 SELECT CAST(ADDTIME(COALESCE(a,b),0) AS CHAR) FROM t1;
 SELECT CAST(ADDTIME(CASE WHEN 0 THEN a ELSE b END,0) AS CHAR) FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+
+--echo #
+--echo # MDEV-5870 Assertion `ltime->neg == 0' fails with COALESCE, ADDDATE, MAKEDATE
+--echo #
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2003-05-13 19:36:05'), ('2012-12-12 09:20:06');
+SELECT COALESCE(ADDDATE(MAKEDATE(2011,121), dt), '2006-09-12' ) FROM t1;
 DROP TABLE t1;

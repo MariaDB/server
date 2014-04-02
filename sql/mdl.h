@@ -28,6 +28,7 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>
+#include <hash.h>
 
 #include <algorithm>
 
@@ -347,12 +348,15 @@ public:
                                           m_ptr - 1);
     m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2, name,
                                           NAME_LEN) - m_ptr + 1);
+    m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
+                               m_length - 1);
   }
   void mdl_key_init(const MDL_key *rhs)
   {
     memcpy(m_ptr, rhs->m_ptr, rhs->m_length);
     m_length= rhs->m_length;
     m_db_name_length= rhs->m_db_name_length;
+    m_hash_value= rhs->m_hash_value;
   }
   bool is_equal(const MDL_key *rhs) const
   {
@@ -392,15 +396,26 @@ public:
   {
     return & m_namespace_to_wait_state_name[(int)mdl_namespace()];
   }
+  my_hash_value_type hash_value() const
+  {
+    return m_hash_value + mdl_namespace();
+  }
+  my_hash_value_type tc_hash_value() const
+  {
+    return m_hash_value;
+  }
 
 private:
   uint16 m_length;
   uint16 m_db_name_length;
+  my_hash_value_type m_hash_value;
   char m_ptr[MAX_MDLKEY_LENGTH];
   static PSI_stage_info m_namespace_to_wait_state_name[NAMESPACE_END];
 private:
   MDL_key(const MDL_key &);                     /* not implemented */
   MDL_key &operator=(const MDL_key &);          /* not implemented */
+  friend my_hash_value_type mdl_hash_function(const CHARSET_INFO *,
+                                              const uchar *, size_t);
 };
 
 
@@ -504,17 +519,7 @@ public:
 
   virtual bool inspect_edge(MDL_context *dest) = 0;
   virtual ~MDL_wait_for_graph_visitor();
-  MDL_wait_for_graph_visitor() :m_lock_open_count(0) {}
-public:
-  /**
-   XXX, hack: During deadlock search, we may need to
-   inspect TABLE_SHAREs and acquire LOCK_open. Since
-   LOCK_open is not a recursive mutex, count here how many
-   times we "took" it (but only take and release once).
-   Not using a native recursive mutex or rwlock in 5.5 for
-   LOCK_open since it has significant performance impacts.
-  */
-  uint m_lock_open_count;
+  MDL_wait_for_graph_visitor() {}
 };
 
 /**
@@ -964,10 +969,6 @@ extern "C" unsigned long thd_get_thread_id(const MYSQL_THD thd);
   is gone.
 */
 extern "C" int thd_is_connected(MYSQL_THD thd);
-
-#ifndef DBUG_OFF
-extern mysql_mutex_t LOCK_open;
-#endif
 
 
 /*

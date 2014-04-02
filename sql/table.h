@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011 Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -194,10 +194,20 @@ private:
 
 /* Order clause list element */
 
+typedef int (*fast_field_copier)(Field *to, Field *from);
+
+
 typedef struct st_order {
   struct st_order *next;
   Item	 **item;			/* Point at item in select fields */
   Item	 *item_ptr;			/* Storage for initial item */
+  /*
+    Reference to the function we are trying to optimize copy to
+    a temporary table
+  */
+  fast_field_copier fast_field_copier_func;
+  /* Field for which above optimizer function setup */
+  Field  *fast_field_copier_setup;
   int    counter;                       /* position in SELECT list, correct
                                            only if counter_used is true*/
   bool	 asc;				/* true if ascending */
@@ -481,8 +491,6 @@ TABLE_CATEGORY get_table_category(const LEX_STRING *db,
 struct TABLE_share;
 struct All_share_tables;
 
-extern ulong tdc_refresh_version(void);
-
 typedef struct st_table_field_type
 {
   LEX_STRING name;
@@ -608,11 +616,14 @@ struct TABLE_SHARE
   struct
   {
     /**
-      Protects ref_count and m_flush_tickets.
+      Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
+      all_tables_refs.
     */
     mysql_mutex_t LOCK_table_share;
+    mysql_cond_t COND_release;
     TABLE_SHARE *next, **prev;            /* Link to unused shares */
     uint ref_count;                       /* How many TABLE objects uses this */
+    uint all_tables_refs;                 /* Number of refs to all_tables */
     /**
       List of tickets representing threads waiting for the share to be flushed.
     */
@@ -623,6 +634,8 @@ struct TABLE_SHARE
     */
     All_share_tables_list all_tables;
     TABLE_list free_tables;
+    ulong version;
+    bool flushed;
   } tdc;
 
   LEX_CUSTRING tabledef_version;
@@ -668,7 +681,6 @@ struct TABLE_SHARE
   key_map keys_for_keyread;
   ha_rows min_rows, max_rows;		/* create information */
   ulong   avg_row_length;		/* create information */
-  ulong   version;
   ulong   mysql_version;		/* 0 if .frm is created before 5.0 */
   ulong   reclength;			/* Recordlength */
   /* Stored record length. No generated-only virtual fields are included */
@@ -732,6 +744,7 @@ struct TABLE_SHARE
   bool is_view;
   bool deleting;                        /* going to delete this table */
   bool can_cmp_whole_record;
+  bool table_creation_was_logged;
   ulong table_map_id;                   /* for row-based replication */
 
   /*
@@ -845,12 +858,6 @@ struct TABLE_SHARE
   inline ulong get_table_def_version()
   {
     return table_map_id;
-  }
-
-  /** Is this table share being expelled from the table definition cache?  */
-  inline bool has_old_version() const
-  {
-    return version != tdc_refresh_version();
   }
 
   /**
@@ -971,6 +978,9 @@ struct TABLE_SHARE
     writes the frm image to an frm file, corresponding to this table
   */
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
+
+  bool write_frm_image(void)
+  { return frm_image ? write_frm_image(frm_image->str, frm_image->length) : 0; }
 
   /*
     returns an frm image for this table.
@@ -1230,6 +1240,10 @@ public:
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  bool master_had_triggers;
+#endif
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
@@ -1358,6 +1372,10 @@ public:
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
+
+  void prepare_triggers_for_insert_stmt_or_event();
+  bool prepare_triggers_for_delete_stmt_or_event();
+  bool prepare_triggers_for_update_stmt_or_event();
 };
 
 
@@ -2155,9 +2173,11 @@ struct TABLE_LIST
   }
   inline void set_merged_derived()
   {
+    DBUG_ENTER("set_merged_derived");
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MERGE);
     set_check_merged();
+    DBUG_VOID_RETURN;
   }
   inline bool is_materialized_derived()
   {
@@ -2165,9 +2185,11 @@ struct TABLE_LIST
   }
   void set_materialized_derived()
   {
+    DBUG_ENTER("set_materialized_derived");
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
+    DBUG_VOID_RETURN;
   }
   inline bool is_multitable()
   {
@@ -2200,7 +2222,7 @@ struct TABLE_LIST
    */
   char *get_table_name() const { return view != NULL ? view_name.str : table_name; }
   bool is_active_sjm();
-  bool is_jtbm() { return test(jtbm_subselect!=NULL); }
+  bool is_jtbm() { return MY_TEST(jtbm_subselect != NULL); }
   st_select_lex_unit *get_unit();
   st_select_lex *get_single_select();
   void wrap_into_nested_join(List<TABLE_LIST> &join_list);
@@ -2523,6 +2545,9 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
 bool get_field(MEM_ROOT *mem, Field *field, class String *res);
+
+bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
+                             uint err_code, const char *name);
 
 int closefrm(TABLE *table, bool free_share);
 void free_blobs(TABLE *table);

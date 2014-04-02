@@ -1,6 +1,7 @@
 SET SESSION STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
+drop table if exists t0,t1,t2,t3;
 select @@global.use_stat_tables;
 @@global.use_stat_tables
 COMPLEMENTARY
@@ -18,6 +19,7 @@ insert into t1 values
 (9), (3), (2), (NULL), (NULL), (2), (NULL), (1), (5), (NULL);
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 select * from mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
@@ -73,7 +75,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	0.31	Using where; Using temporary; Using filesort
 1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
-1	PRIMARY	supplier	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	80.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
 2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
@@ -114,7 +116,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where; Using temporary; Using filesort
 1	PRIMARY	part	ALL	PRIMARY	NULL	NULL	NULL	200	2.08	Using where; Using join buffer (flat, BNL join)
 1	PRIMARY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	Using where
-1	PRIMARY	supplier	ALL	PRIMARY,i_s_nationkey	NULL	NULL	NULL	10	80.00	Using where; Using join buffer (flat, BNL join)
+1	PRIMARY	supplier	eq_ref	PRIMARY,i_s_nationkey	PRIMARY	4	dbt3_s001.partsupp.ps_suppkey	1	100.00	Using where
 1	PRIMARY	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	Using where
 2	DEPENDENT SUBQUERY	region	ALL	PRIMARY	NULL	NULL	NULL	5	20.00	Using where
 2	DEPENDENT SUBQUERY	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	PRIMARY	4	dbt3_s001.part.p_partkey	3	100.00	
@@ -164,7 +166,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	supplier	index	PRIMARY	PRIMARY	4	NULL	10	100.00	
 1	PRIMARY	<derived3>	ref	key0	key0	5	dbt3_s001.supplier.s_suppkey	10	100.00	Using where
 3	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	228	100.00	Using where; Using temporary; Using filesort
-2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	228	100.00	
+2	SUBQUERY	<derived4>	ALL	NULL	NULL	NULL	NULL	227	100.00	
 4	DERIVED	lineitem	range	i_l_shipdate	i_l_shipdate	4	NULL	228	100.00	Using where; Using temporary; Using filesort
 Warnings:
 Note	1003	select `dbt3_s001`.`supplier`.`s_suppkey` AS `s_suppkey`,`dbt3_s001`.`supplier`.`s_name` AS `s_name`,`dbt3_s001`.`supplier`.`s_address` AS `s_address`,`dbt3_s001`.`supplier`.`s_phone` AS `s_phone`,`revenue0`.`total_revenue` AS `total_revenue` from `dbt3_s001`.`supplier` join `dbt3_s001`.`revenue0` where ((`revenue0`.`supplier_no` = `dbt3_s001`.`supplier`.`s_suppkey`) and (`revenue0`.`total_revenue` = (select max(`revenue0`.`total_revenue`) from `dbt3_s001`.`revenue0`))) order by `dbt3_s001`.`supplier`.`s_suppkey`
@@ -357,13 +359,13 @@ and o_orderkey = l_orderkey
 group by c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice
 order by o_totalprice desc, o_orderdate;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	orders	ALL	PRIMARY,i_o_custkey	NULL	NULL	NULL	1500	100.00	Using where; Using temporary; Using filesort
-1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	dbt3_s001.orders.o_orderkey	1	100.00	
+1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	6005	0.00	Using temporary; Using filesort
+1	PRIMARY	orders	eq_ref	PRIMARY,i_o_custkey	PRIMARY	4	<subquery2>.l_orderkey	1	100.00	Using where
 1	PRIMARY	customer	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.orders.o_custkey	1	100.00	
-1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey_quantity	4	dbt3_s001.orders.o_orderkey	4	100.00	Using index
+1	PRIMARY	lineitem	ref	PRIMARY,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	<subquery2>.l_orderkey	4	100.00	
 2	MATERIALIZED	lineitem	index	NULL	PRIMARY	8	NULL	6005	100.00	
 Warnings:
-Note	1003	select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having (sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250)) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where ((`dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey`) and (`<subquery2>`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey`) and (`dbt3_s001`.`lineitem`.`l_orderkey` = `dbt3_s001`.`orders`.`o_orderkey`)) group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
+Note	1003	select `dbt3_s001`.`customer`.`c_name` AS `c_name`,`dbt3_s001`.`customer`.`c_custkey` AS `c_custkey`,`dbt3_s001`.`orders`.`o_orderkey` AS `o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE` AS `o_orderdate`,`dbt3_s001`.`orders`.`o_totalprice` AS `o_totalprice`,sum(`dbt3_s001`.`lineitem`.`l_quantity`) AS `sum(l_quantity)` from  <materialize> (select `dbt3_s001`.`lineitem`.`l_orderkey` from `dbt3_s001`.`lineitem` group by `dbt3_s001`.`lineitem`.`l_orderkey` having (sum(`dbt3_s001`.`lineitem`.`l_quantity`) > 250)) join `dbt3_s001`.`customer` join `dbt3_s001`.`orders` join `dbt3_s001`.`lineitem` where ((`dbt3_s001`.`customer`.`c_custkey` = `dbt3_s001`.`orders`.`o_custkey`) and (`dbt3_s001`.`orders`.`o_orderkey` = `<subquery2>`.`l_orderkey`) and (`dbt3_s001`.`lineitem`.`l_orderkey` = `<subquery2>`.`l_orderkey`)) group by `dbt3_s001`.`customer`.`c_name`,`dbt3_s001`.`customer`.`c_custkey`,`dbt3_s001`.`orders`.`o_orderkey`,`dbt3_s001`.`orders`.`o_orderDATE`,`dbt3_s001`.`orders`.`o_totalprice` order by `dbt3_s001`.`orders`.`o_totalprice` desc,`dbt3_s001`.`orders`.`o_orderDATE`
 select 
 c_name, c_custkey, o_orderkey, o_orderdate, o_totalprice, sum(l_quantity)
 from customer, orders, lineitem
@@ -570,6 +572,7 @@ Supplier#000000010	Saygah3gYWMp72i PY
 set histogram_size=127;
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
 Table	Op	Msg_type	Msg_text
+dbt3_s001.part	analyze	status	Engine-independent statistics collected
 dbt3_s001.part	analyze	status	OK
 flush table part;
 set optimizer_use_condition_selectivity=4;
@@ -626,6 +629,7 @@ set histogram_type='DOUBLE_PREC_HB';
 set histogram_size=126;
 ANALYZE TABLE part PERSISTENT FOR COLUMNS(p_name) INDEXES();
 Table	Op	Msg_type	Msg_text
+dbt3_s001.part	analyze	status	Engine-independent statistics collected
 dbt3_s001.part	analyze	status	OK
 flush table part;
 EXPLAIN EXTENDED select sql_calc_found_rows
@@ -681,6 +685,7 @@ set histogram_type='SINGLE_PREC_HB';
 set histogram_size=24;
 ANALYZE TABLE nation PERSISTENT FOR COLUMNS(n_name) INDEXES();
 Table	Op	Msg_type	Msg_text
+dbt3_s001.nation	analyze	status	Engine-independent statistics collected
 dbt3_s001.nation	analyze	status	OK
 flush table nation;
 EXPLAIN EXTENDED select sql_calc_found_rows
@@ -798,9 +803,10 @@ explain extended
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	1	0.00	Using where
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	0.00	Using where; FirstMatch(t1); Using join buffer (flat, BNL join)
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	100.00	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	0.00	
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where ((`test`.`t2`.`b` = `test`.`t1`.`a`) and (`test`.`t1`.`a` > 3))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` semi join (`test`.`t2`) where ((`test`.`t1`.`a` > 3))
 select * from t1 where a in ( select b from t2 ) AND ( a > 3 );
 a
 drop table t1,t2;
@@ -828,12 +834,13 @@ set histogram_size=127;
 set histogram_type='SINGLE_PREC_HB';
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 flush table t1;
 set optimizer_use_condition_selectivity=4;
 explain extended select * from t1 where a=0;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1025	49.61	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1025	0.39	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` = 0)
 drop table t1;
@@ -895,6 +902,7 @@ CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES (9), (1);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 FLUSH TABLES;
 set optimizer_use_condition_selectivity=3;
@@ -922,7 +930,9 @@ CREATE TABLE t2 (c int);
 INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6),(7),(8);
 ANALYZE TABLE t1, t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 FLUSH TABLES;
 set optimizer_use_condition_selectivity=3;
@@ -950,6 +960,7 @@ CREATE TABLE t1 (a varchar(1));
 INSERT INTO t1 VALUES ('x'), ('y');
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 FLUSH TABLES;
 set optimizer_use_condition_selectivity=3;
@@ -970,7 +981,9 @@ CREATE TABLE t2 (b int);
 INSERT INTO t2 VALUES (4),(5),(2),(5),(1),(1),(2);
 ANALYZE TABLE t1, t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 FLUSH TABLES;
 set optimizer_use_condition_selectivity=3;
@@ -996,6 +1009,7 @@ INSERT INTO t1 VALUES
 (1),(7),(4),(7),(NULL),(2),(NULL),(4),(NULL),(NULL),(1),(3),(8),(8);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 FLUSH TABLE t1;
 set optimizer_use_condition_selectivity=3;
@@ -1043,8 +1057,11 @@ INSERT INTO t3 VALUES
 ('brown'),('taylor'),('anderson'),('taylor');
 ANALYZE TABLE t1, t2, t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 FLUSH TABLES;
 set  optimizer_use_condition_selectivity=4;
@@ -1068,8 +1085,11 @@ CREATE TABLE t3 (c VARCHAR(8), d VARCHAR(8));
 INSERT INTO t3 VALUES ('white','black'),('cyan','yellow');
 ANALYZE TABLE t1, t2, t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 FLUSH TABLES;
 set optimizer_use_condition_selectivity=3;
@@ -1093,7 +1113,9 @@ INSERT INTO t2 VALUES
 ('j'),('u'),('i'),('r'),('x'),('a'),('x'),('s');
 ANALYZE TABLE t1, t2;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 FLUSH TABLES;
 SET optimizer_use_condition_selectivity=3;
@@ -1112,6 +1134,7 @@ insert into t1 values
 set use_stat_tables='preferably';
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 flush table t1;
 set optimizer_use_condition_selectivity=3;
@@ -1126,6 +1149,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (`test`.`t1`.`a` 
 alter table t1 change column a a int;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 flush table t1;
 explain extended select * from t1 where a between 5 and 7;
@@ -1150,8 +1174,11 @@ CREATE TABLE t3 (c3 char(1), INDEX(c3)) ENGINE=MyISAM;
 INSERT INTO t3 VALUES ('v'), ('c');
 ANALYZE TABLE t1,t2,t3;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
 test.t3	analyze	status	OK
 SELECT * FROM t1
 WHERE 2 IN ( SELECT pk2 FROM t2 LEFT JOIN t3 ON (c3 = c2 ) WHERE i2 = 3 );
@@ -1174,6 +1201,25 @@ SELECT * FROM INFORMATION_SCHEMA.TRIGGERS WHERE SQL_MODE != '';
 TRIGGER_CATALOG	TRIGGER_SCHEMA	TRIGGER_NAME	EVENT_MANIPULATION	EVENT_OBJECT_CATALOG	EVENT_OBJECT_SCHEMA	EVENT_OBJECT_TABLE	ACTION_ORDER	ACTION_CONDITION	ACTION_STATEMENT	ACTION_ORIENTATION	ACTION_TIMING	ACTION_REFERENCE_OLD_TABLE	ACTION_REFERENCE_NEW_TABLE	ACTION_REFERENCE_OLD_ROW	ACTION_REFERENCE_NEW_ROW	CREATED	SQL_MODE	DEFINER	CHARACTER_SET_CLIENT	COLLATION_CONNECTION	DATABASE_COLLATION
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 #
+# Bug mdev-5630: always true conjunctive condition   
+#                when optimizer_use_condition_selectivity=3
+#
+set use_stat_tables = 'preferably';
+set optimizer_use_condition_selectivity = 3;
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (10);
+CREATE TABLE t2 (id int, flag char(1), INDEX(id)) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (100,'0'),(101,'1');
+ANALYZE TABLE t1, t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM t1, t2 WHERE id = a AND ( a = 16 OR flag AND a != 6 );
+a	id	flag
+DROP TABLE t1,t2;
+#
 # Bug mdev-4429: join with  range condition whose selectivity == 0   
 #                when optimizer_use_condition_selectivity=3
 #
@@ -1191,8 +1237,11 @@ INSERT INTO continent VALUES
 SET use_stat_tables=PREFERABLY;
 ANALYZE TABLE country, language, continent;
 Table	Op	Msg_type	Msg_text
+test.country	analyze	status	Engine-independent statistics collected
 test.country	analyze	status	OK
+test.language	analyze	status	Engine-independent statistics collected
 test.language	analyze	status	OK
+test.continent	analyze	status	Engine-independent statistics collected
 test.continent	analyze	status	OK
 FLUSH TABLES;
 SET optimizer_use_condition_selectivity=3;
@@ -1210,6 +1259,103 @@ Warnings:
 Note	1003	select `test`.`language`.`lang_group` AS `lang_group`,`test`.`language`.`lang` AS `lang`,`test`.`country`.`code` AS `code`,`test`.`country`.`country_group` AS `country_group`,`test`.`continent`.`cont_group` AS `cont_group`,`test`.`continent`.`cont` AS `cont` from `test`.`language` join `test`.`country` join `test`.`continent` where ((`test`.`language`.`lang_group` = `test`.`country`.`country_group`) and isnull(`test`.`country`.`country_group`))
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 drop table language, country, continent;
+set use_stat_tables=@save_use_stat_tables;
+#
+# Bug mdev-5191: performance degradation due to a suboptimal chosen plan   
+#                when optimizer_use_condition_selectivity=3
+#
+set use_stat_tables = 'preferably';
+set @@RAND_SEED1=810763568, @@RAND_SEED2=600681772;
+set TIMESTAMP=1394806993;
+create table t1 (a int, b int) engine=myisam;
+insert t1 values (rand()*1e5, rand()*1e5);
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+insert t1 select rand()*1e5, rand()*1e5 from t1;
+create table t2 (c int, d int, key(c), key(d)) engine=myisam;
+insert t2 select floor(rand()*1e5/2)*2, floor(rand()*1e5/3)*3 from t1;
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+set optimizer_use_condition_selectivity=1;
+explain extended 
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	262144	100.00	Using where
+1	SIMPLE	t2	ref	c,d	c	5	test.t1.b	5	100.00	
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	262144	100.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t3` where ((`test`.`t2`.`c` = `test`.`t1`.`b`) and (`test`.`t3`.`a` = `test`.`t2`.`d`) and (`test`.`t3`.`b` < 5) and (`test`.`t1`.`a` < 2000))
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+a	b	c	d	a	b
+1495	89366	89366	28296	28296	3
+961	24512	24512	85239	85239	4
+1063	89366	89366	28296	28296	3
+221	56120	56120	28296	28296	3
+set optimizer_use_condition_selectivity=3;
+explain extended
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	262144	0.00	Using where
+1	SIMPLE	t2	ref	c,d	d	5	test.t3.a	7	100.00	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	262144	2.00	Using where; Using join buffer (flat, BNL join)
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`a` AS `a`,`test`.`t3`.`b` AS `b` from `test`.`t1` join `test`.`t2` join `test`.`t1` `t3` where ((`test`.`t1`.`b` = `test`.`t2`.`c`) and (`test`.`t2`.`d` = `test`.`t3`.`a`) and (`test`.`t3`.`b` < 5) and (`test`.`t1`.`a` < 2000))
+select * from t1, t2, t1 as t3
+where t1.b=t2.c and t2.d=t3.a and t3.b<5 and t1.a < 2000;
+a	b	c	d	a	b
+961	24512	24512	85239	85239	4
+1495	89366	89366	28296	28296	3
+1063	89366	89366	28296	28296	3
+221	56120	56120	28296	28296	3
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+#
+# Bug mdev-5931: no where condition after constant table row substitution 
+#                with optimizer_use_condition_selectivity=3
+#
+CREATE TABLE t1 (a varchar(3), b varchar(3)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo', 'foo');
+CREATE TABLE t2 (c INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1), (2);
+set optimizer_use_condition_selectivity=3;
+EXPLAIN EXTENDED
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	100.00	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
+Warnings:
+Note	1003	select 'foo' AS `a`,'foo' AS `b`,`test`.`t2`.`c` AS `c` from `test`.`t2` where 1
+SELECT * FROM t1, t2 WHERE c >= 0 OR a = b ;
+a	b	c
+foo	foo	1
+foo	foo	2
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
 SET SESSION STORAGE_ENGINE=DEFAULT;

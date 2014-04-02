@@ -925,7 +925,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint blob_length= uint2korr(ptr);
     blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                    blob_length, &my_charset_bin);
-    if (append_escaped(to, &blob))
+    if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
@@ -934,7 +934,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint var_length= uint2korr(ptr);
     varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                       var_length, &my_charset_bin);
-    if (append_escaped(to, &varchar))
+    if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
   else
@@ -946,7 +946,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     if (field->result_type() == STRING_RESULT)
     {
-      if (append_escaped(to, res))
+      if (to->append_for_single_quote(res))
         DBUG_RETURN(1);
     }
     else if (to->append(res->ptr(), res->length()))
@@ -1386,7 +1386,7 @@ prepare_for_next_key_part:
         ptr was incremented by 1. Since store_length still counts null-byte,
         we need to subtract 1 from store_length.
       */
-      ptr+= store_length - test(key_part->null_bit);
+      ptr+= store_length - MY_TEST(key_part->null_bit);
       if (tmp.append(STRING_WITH_LEN(" AND ")))
         goto err;
 
@@ -2286,7 +2286,7 @@ int ha_federatedx::update_row(const uchar *old_data, uchar *new_data)
     this? Because we only are updating one record, and LIMIT enforces
     this.
   */
-  bool has_a_primary_key= test(table->s->primary_key != MAX_KEY);
+  bool has_a_primary_key= MY_TEST(table->s->primary_key != MAX_KEY);
   
   /*
     buffers for following strings
@@ -2716,7 +2716,8 @@ int ha_federatedx::read_range_next()
 int ha_federatedx::index_next(uchar *buf)
 {
   DBUG_ENTER("ha_federatedx::index_next");
-  DBUG_RETURN(read_next(buf, stored_result));
+  int retval=read_next(buf, stored_result);
+  DBUG_RETURN(retval);
 }
 
 
@@ -2871,7 +2872,8 @@ int ha_federatedx::rnd_next(uchar *buf)
     */
     DBUG_RETURN(1);
   }
-  DBUG_RETURN(read_next(buf, stored_result));
+  int retval=read_next(buf, stored_result);
+  DBUG_RETURN(retval);
 }
 
 
@@ -2942,10 +2944,11 @@ void ha_federatedx::position(const uchar *record __attribute__ ((unused)))
 {
   DBUG_ENTER("ha_federatedx::position");
 
-  bzero(ref, ref_length);
-
   if (!stored_result)
+  {
+    bzero(ref, ref_length);
     DBUG_VOID_RETURN;
+  }
 
   if (txn->acquire(share, TRUE, &io))
     DBUG_VOID_RETURN;
@@ -3381,14 +3384,6 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   {
     FEDERATEDX_SERVER server;
 
-    /* 
-      Bug#25679
-      Ensure that we do not hold the LOCK_open mutex while attempting
-      to establish FederatedX connection to guard against a trivial
-      Denial of Service scenerio.
-    */
-    mysql_mutex_assert_not_owner(&LOCK_open);
-
     fill_server(thd->mem_root, &server, &tmp_share, create_info->table_charset);
 
 #ifndef DBUG_OFF
@@ -3658,6 +3653,6 @@ maria_declare_plugin(federatedx)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "2.1",                      /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA /* maturity */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;

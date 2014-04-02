@@ -8,7 +8,6 @@
 #include "xtable.h"                     // Base class declares
 #include "tabdos.h"
 
-//pedef struct _tabdesc  *PTABD;        // For friend setting
 typedef class  TDBFMT    *PTDBFMT;
 
 /***********************************************************************/
@@ -90,8 +89,8 @@ class TDBCSV : public TDBDOS {
   int   Nerr;              // Number of bad records
   int   Maxerr;            // Maximum number of bad records
   int   Quoted;            // Quoting level for quoted fields
-  bool  Accept;             // true if bad lines are accepted
-  bool  Header;             // true if first line contains column headers
+  bool  Accept;            // true if bad lines are accepted
+  bool  Header;            // true if first line contains column headers
   char  Sep;               // Separator
   char  Qot;               // Quoting character
   }; // end of class TDBCSV
@@ -112,10 +111,8 @@ class CSVCOL : public DOSCOL {
   virtual int    GetAmType() {return TYPE_AM_CSV;}
 
   // Methods
-  virtual bool   VarSize(void);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
-//        void   Print(FILE *, uint);
 
  protected:
   // Default constructor not to be used

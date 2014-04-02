@@ -49,6 +49,33 @@ bool int_to_datetime_with_warn(longlong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate,
                                const char *name);
 
+bool time_to_datetime(THD *thd, const MYSQL_TIME *tm, MYSQL_TIME *dt);
+bool time_to_datetime_with_warn(THD *thd,
+                                const MYSQL_TIME *tm, MYSQL_TIME *dt,
+                                ulonglong fuzzydate);
+inline void datetime_to_time(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
+              ltime->time_type == MYSQL_TIMESTAMP_DATETIME);
+  DBUG_ASSERT(ltime->neg == 0);
+  ltime->year= ltime->month= ltime->day= 0;
+  ltime->time_type= MYSQL_TIMESTAMP_TIME;
+}
+inline void datetime_to_date(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
+              ltime->time_type == MYSQL_TIMESTAMP_DATETIME);
+  DBUG_ASSERT(ltime->neg == 0);
+  ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
+  ltime->time_type= MYSQL_TIMESTAMP_DATE;
+}
+inline void date_to_datetime(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_DATE ||
+              ltime->time_type == MYSQL_TIMESTAMP_DATETIME);
+  DBUG_ASSERT(ltime->neg == 0);
+  ltime->time_type= MYSQL_TIMESTAMP_DATETIME;
+}
 void make_truncated_value_warning(THD *thd,
                                   Sql_condition::enum_warning_level level,
                                   const ErrConv *str_val,
@@ -76,8 +103,8 @@ bool my_TIME_to_str(const MYSQL_TIME *ltime, String *str, uint dec);
 /* MYSQL_TIME operations */
 bool date_add_interval(MYSQL_TIME *ltime, interval_type int_type,
                        INTERVAL interval);
-bool calc_time_diff(MYSQL_TIME *l_time1, MYSQL_TIME *l_time2, int l_sign,
-                    longlong *seconds_out, long *microseconds_out);
+bool calc_time_diff(const MYSQL_TIME *l_time1, const MYSQL_TIME *l_time2,
+                    int l_sign, longlong *seconds_out, long *microseconds_out);
 int my_time_compare(const MYSQL_TIME *a, const MYSQL_TIME *b);
 void localtime_to_TIME(MYSQL_TIME *to, struct tm *from);
 void calc_time_from_sec(MYSQL_TIME *to, long seconds, long microseconds);

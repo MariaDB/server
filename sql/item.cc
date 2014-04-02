@@ -41,7 +41,6 @@
                                        // REPORT_EXCEPT_NOT_FOUND,
                                        // find_item_in_list,
                                        // RESOLVED_AGAINST_ALIAS, ...
-#include "log_event.h"                 // append_query_string
 #include "sql_expression_cache.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
@@ -234,6 +233,36 @@ bool Item::val_bool()
 }
 
 
+/**
+  Get date/time/datetime.
+  Optionally extend TIME result to DATETIME.
+*/
+bool Item::get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate)
+{
+  /*
+    Some TIME type items return error when trying to do get_date()
+    without TIME_TIME_ONLY set (e.g. Item_field for Field_time).
+    In the SQL standard time->datetime conversion mode we add TIME_TIME_ONLY.
+    In the legacy time->datetime conversion mode we do not add TIME_TIME_ONLY
+    and leave it to get_date() to check date.
+  */
+  ulonglong time_flag= (field_type() == MYSQL_TYPE_TIME &&
+           !(current_thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST)) ?
+           TIME_TIME_ONLY : 0;
+  if (get_date(ltime, fuzzydate | time_flag))
+    return true;
+  if (ltime->time_type == MYSQL_TIMESTAMP_TIME &&
+      !(fuzzydate & TIME_TIME_ONLY))
+  {
+    MYSQL_TIME tmp;
+    if (time_to_datetime_with_warn(current_thd, ltime, &tmp, fuzzydate))
+      return null_value= true;
+    *ltime= tmp;
+  }
+  return false;
+}
+
+
 /*
   For the items which don't have its own fast val_str_ascii()
   implementation we provide a generic slower version,
@@ -312,12 +341,29 @@ String *Item::val_string_from_decimal(String *str)
 }
 
 
+/*
+ All val_xxx_from_date() must call this method, to expose consistent behaviour
+ regarding SQL_MODE when converting DATE/DATETIME to other data types.
+*/
+bool Item::get_temporal_with_sql_mode(MYSQL_TIME *ltime)
+{
+  return get_date(ltime, field_type() == MYSQL_TYPE_TIME
+                          ? TIME_TIME_ONLY
+                          : sql_mode_for_dates(current_thd));
+}
+
+
+bool Item::is_null_from_temporal()
+{
+  MYSQL_TIME ltime;
+  return get_temporal_with_sql_mode(&ltime);
+}
+
+
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, field_type() == MYSQL_TYPE_TIME
-                       ? TIME_TIME_ONLY
-                       : sql_mode_for_dates(current_thd)) ||
+  if (get_temporal_with_sql_mode(&ltime) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -374,7 +420,7 @@ my_decimal *Item::val_decimal_from_date(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates(current_thd)))
+  if (get_temporal_with_sql_mode(&ltime))
   {
     my_decimal_set_zero(decimal_value);
     null_value= 1;                               // set NULL, stop processing
@@ -401,7 +447,7 @@ longlong Item::val_int_from_date()
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0))
+  if (get_temporal_with_sql_mode(&ltime))
     return 0;
   longlong v= TIME_to_ulonglong(&ltime);
   return ltime.neg ? -v : v;
@@ -412,7 +458,7 @@ double Item::val_real_from_date()
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0))
+  if (get_temporal_with_sql_mode(&ltime))
     return 0;
   return TIME_to_double(&ltime);
 }
@@ -852,7 +898,7 @@ void Item_ident::cleanup()
   table_name= orig_table_name;
   field_name= orig_field_name;
   /* Store if this Item was depended */
-  can_be_depended= test(depended_from);
+  can_be_depended= MY_TEST(depended_from);
   DBUG_VOID_RETURN;
 }
 
@@ -1681,17 +1727,28 @@ bool Item_name_const::is_null()
 Item_name_const::Item_name_const(Item *name_arg, Item *val):
     value_item(val), name_item(name_arg)
 {
-  if (!(valid_args= name_item->basic_const_item() &&
-                    (value_item->basic_const_item() ||
-                     ((value_item->type() == FUNC_ITEM) &&
-                      ((((Item_func *) value_item)->functype() ==
-                         Item_func::COLLATE_FUNC) ||
-                      ((((Item_func *) value_item)->functype() ==
-                         Item_func::NEG_FUNC) &&
-                      (((Item_func *) value_item)->key_item()->type() !=
-                         FUNC_ITEM)))))))
-    my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
   Item::maybe_null= TRUE;
+  valid_args= true;
+  if (!name_item->basic_const_item())
+    goto err;
+
+  if (value_item->basic_const_item())
+    return; // ok
+
+  if (value_item->type() == FUNC_ITEM)
+  {
+    Item_func *value_func= (Item_func *) value_item;
+    if (value_func->functype() != Item_func::COLLATE_FUNC &&
+        value_func->functype() != Item_func::NEG_FUNC)
+      goto err;
+
+    if (value_func->key_item()->basic_const_item())
+      return; // ok
+  }
+
+err:
+  valid_args= false;
+  my_error(ER_WRONG_ARGUMENTS, MYF(0), "NAME_CONST");
 }
 
 
@@ -2428,7 +2485,7 @@ void Item_field::set_field(Field *field_par)
   field_name= field_par->field_name;
   db_name= field_par->table->s->db.str;
   alias_name_used= field_par->table->alias_name_used;
-  unsigned_flag=test(field_par->flags & UNSIGNED_FLAG);
+  unsigned_flag= MY_TEST(field_par->flags & UNSIGNED_FLAG);
   collation.set(field_par->charset(), field_par->derivation(),
                 field_par->repertoire());
   fix_char_length(field_par->char_length());
@@ -3708,8 +3765,9 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
   case LONG_DATA_VALUE:
     {
       str->length(0);
-      append_query_string(thd, value.cs_info.character_set_client, &str_value,
-                          str);
+      append_query_string(value.cs_info.character_set_client, str,
+                          str_value.ptr(), str_value.length(),
+                          thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
       break;
     }
   case NULL_VALUE:
@@ -5228,8 +5286,8 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   if (any_privileges)
   {
     char *db, *tab;
-    db= cached_table->get_db_name();
-    tab= cached_table->get_table_name();
+    db=  field->table->s->db.str;
+    tab= field->table->s->table_name.str;
     if (!(have_privileges= (get_column_grant(thd, &field->table->grant,
                                              db, tab, field_name) &
                             VIEW_ANY_ACL)))
@@ -5250,7 +5308,12 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
     marker= thd->lex->current_select->cur_pos_in_select_list;
   }
 mark_non_agg_field:
-  if (fixed && thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY)
+  /*
+    table->pos_in_table_list can be 0 when fixing partition functions
+    or virtual fields.
+  */
+  if (fixed && (thd->variables.sql_mode & MODE_ONLY_FULL_GROUP_BY) &&
+      field->table->pos_in_table_list)
   {
     /*
       Mark selects according to presence of non aggregated fields.
@@ -5263,7 +5326,7 @@ mark_non_agg_field:
       (the current level) or a stub added by non-SELECT queries.
     */
     SELECT_LEX *select_lex= cached_table ? 
-      cached_table->select_lex : context->select_lex;
+      cached_table->select_lex : field->table->pos_in_table_list->select_lex;
     if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
     else
@@ -5903,13 +5966,51 @@ static int save_field_in_field(Field *from, bool *null_value,
 }
 
 
+static int memcpy_field_value(Field *to, Field *from)
+{
+  if (to->ptr != from->ptr)
+    memcpy(to->ptr,from->ptr, to->pack_length());
+  return 0;
+}
+
+fast_field_copier Item_field::setup_fast_field_copier(Field *to)
+{
+  DBUG_ENTER("Item_field::setup_fast_field_copier");
+  DBUG_RETURN(memcpy_field_possible(to, field) ?
+              &memcpy_field_value :
+              &field_conv_incompatible);
+}
+
+
 /**
   Set a field's value from a item.
 */
 
-void Item_field::save_org_in_field(Field *to)
+void Item_field::save_org_in_field(Field *to,
+                                   fast_field_copier fast_field_copier_func)
 {
-  save_field_in_field(field, &null_value, to, TRUE);
+  DBUG_ENTER("Item_field::save_org_in_field");
+  DBUG_PRINT("enter", ("setup: 0x%lx  data: 0x%lx",
+                       (ulong) to, (ulong) fast_field_copier_func));
+  if (fast_field_copier_func)
+  {
+    if (field->is_null())
+    {
+      null_value= TRUE;
+      set_field_to_null_with_conversions(to, TRUE);
+      DBUG_VOID_RETURN;
+    }
+    to->set_notnull();
+    if (to == field)
+    {
+      null_value= 0;
+      DBUG_VOID_RETURN;
+    }
+    (*fast_field_copier_func)(to, field);
+  }
+  else
+    save_field_in_field(field, &null_value, to, TRUE);
+  DBUG_VOID_RETURN;
 }
 
 
@@ -7430,9 +7531,9 @@ int Item_ref::save_in_field(Field *to, bool no_conversions)
 }
 
 
-void Item_ref::save_org_in_field(Field *field)
+void Item_ref::save_org_in_field(Field *field, fast_field_copier optimizer_data)
 {
-  (*ref)->save_org_in_field(field);
+  (*ref)->save_org_in_field(field, optimizer_data);
 }
 
 
@@ -8303,7 +8404,7 @@ int Item_default_value::save_in_field(Field *field_arg, bool no_conversions)
 
       if (context->error_processor == &view_error_processor)
       {
-        TABLE_LIST *view= cached_table->top_table();
+        TABLE_LIST *view= field_arg->table->pos_in_table_list->top_table();
         push_warning_printf(field_arg->table->in_use,
                             Sql_condition::WARN_LEVEL_WARN,
                             ER_NO_DEFAULT_FOR_VIEW_FIELD,
@@ -8413,6 +8514,8 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
     {
       tmp_field->init(field_arg->field->table);
       set_field(tmp_field);
+      // the index is important when read bits set
+      tmp_field->field_index= field_arg->field->field_index;
     }
   }
   return FALSE;
@@ -8725,6 +8828,25 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
 {
   Item_result res_type=item_cmp_type(field->result_type(),
 				     item->result_type());
+  /*
+    We have to check field->cmp_type() instead of res_type,
+    as result_type() - and thus res_type - can never be TIME_RESULT (yet).
+  */
+  if (field->cmp_type() == TIME_RESULT)
+  {
+    MYSQL_TIME field_time, item_time;
+    if (field->type() == MYSQL_TYPE_TIME)
+    {
+      field->get_time(&field_time);
+      item->get_time(&item_time);
+    }
+    else
+    {
+      field->get_date(&field_time, TIME_INVALID_DATES);
+      item->get_date(&item_time, TIME_INVALID_DATES);
+    }
+    return my_time_compare(&field_time, &item_time);
+  }
   if (res_type == STRING_RESULT)
   {
     char item_buff[MAX_FIELD_WIDTH];
@@ -8773,25 +8895,6 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
       return 0;
     field_val= field->val_decimal(&field_buf);
     return my_decimal_cmp(field_val, item_val);
-  }
-  /*
-    We have to check field->cmp_type() instead of res_type,
-    as result_type() - and thus res_type - can never be TIME_RESULT (yet).
-  */
-  if (field->cmp_type() == TIME_RESULT)
-  {
-    MYSQL_TIME field_time, item_time;
-    if (field->type() == MYSQL_TYPE_TIME)
-    {
-      field->get_time(&field_time);
-      item->get_time(&item_time);
-    }
-    else
-    {
-      field->get_date(&field_time, TIME_INVALID_DATES);
-      item->get_date(&item_time, TIME_INVALID_DATES);
-    }
-    return my_time_compare(&field_time, &item_time);
   }
   /*
     The patch for Bug#13463415 started using this function for comparing

@@ -567,7 +567,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   int type;
 
   tmp.length(0);
-  if (!(res= args[1]->val_str(&tmp)) ||
+  if (!(res= args[0]->val_str(&tmp)) ||
       (type= find_type(res->c_ptr_safe(),
                        &hystorgam_types_typelib, MYF(0))) <= 0)
   {
@@ -577,7 +577,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   type--;
 
   tmp.length(0);
-  if (!(res= args[0]->val_str(&tmp)))
+  if (!(res= args[1]->val_str(&tmp)))
   {
     null_value= 1;
     return 0;
@@ -1163,6 +1163,7 @@ String *Item_func_reverse::val_str(String *str)
       if ((l= my_ismbchar(res->charset(),ptr,end)))
       {
         tmp-= l;
+        DBUG_ASSERT(tmp >= tmp_value.ptr());
         memcpy(tmp,ptr,l);
         ptr+= l;
       }
@@ -2092,18 +2093,35 @@ String *Item_func_trim::val_str(String *str)
   ptr= (char*) res->ptr();
   end= ptr+res->length();
   r_ptr= remove_str->ptr();
-  while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
-    ptr+=remove_length;
 #ifdef USE_MB
   if (use_mb(res->charset()))
   {
+    while (ptr + remove_length <= end)
+    {
+      uint num_bytes= 0;
+      while (num_bytes < remove_length)
+      {
+        uint len;
+        if ((len= my_ismbchar(res->charset(), ptr + num_bytes, end)))
+          num_bytes+= len;
+        else
+          ++num_bytes;
+      }
+      if (num_bytes != remove_length)
+        break;
+      if (memcmp(ptr, r_ptr, remove_length))
+        break;
+      ptr+= remove_length;
+    }
     char *p=ptr;
     register uint32 l;
  loop:
     while (ptr + remove_length < end)
     {
-      if ((l=my_ismbchar(res->charset(), ptr,end))) ptr+=l;
-      else ++ptr;
+      if ((l= my_ismbchar(res->charset(), ptr,end)))
+        ptr+= l;
+      else
+        ++ptr;
     }
     if (ptr + remove_length == end && !memcmp(ptr,r_ptr,remove_length))
     {
@@ -2116,6 +2134,8 @@ String *Item_func_trim::val_str(String *str)
   else
 #endif /* USE_MB */
   {
+    while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
+      ptr+=remove_length;
     while (ptr + remove_length <= end &&
 	   !memcmp(end-remove_length,r_ptr,remove_length))
       end-=remove_length;
@@ -3534,6 +3554,8 @@ String *Item_func_weight_string::val_str(String *str)
                                  nweights ? nweights : tmp_length,
                                  (const uchar *) res->ptr(), res->length(),
                                  flags);
+  DBUG_ASSERT(frm_length <= tmp_length);
+
   tmp_value.length(frm_length);
   null_value= 0;
   return &tmp_value;
@@ -4259,6 +4281,7 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
 
 void Item_func_dyncol_create::fix_length_and_dec()
 {
+  max_length= MAX_BLOB_WIDTH;
   maybe_null= TRUE;
   collation.set(&my_charset_bin);
   decimals= 0;
@@ -4784,7 +4807,7 @@ String *Item_dyncol_get::val_str(String *str_result)
     goto null;
   case DYN_COL_INT:
   case DYN_COL_UINT:
-    str_result->set_int(val.x.long_value, test(val.type == DYN_COL_UINT),
+    str_result->set_int(val.x.long_value, MY_TEST(val.type == DYN_COL_UINT),
                        &my_charset_latin1);
     break;
   case DYN_COL_DOUBLE:

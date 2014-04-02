@@ -4926,10 +4926,20 @@ retry:
 
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
-		ulint n_pages = size_after_extend - start_page_no;
+		os_offset_t	start_offset = start_page_no * page_size;
+		os_offset_t	n_pages = (size_after_extend - start_page_no);
+		os_offset_t	len = n_pages * page_size;
 
-		success = os_file_set_size(node->name, node->handle,
-			n_pages * page_size);
+		if (posix_fallocate(node->handle, start_offset, len) == -1) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "preallocating file "
+				"space for file \'%s\' failed.  Current size "
+				INT64PF ", desired size " INT64PF "\n",
+				node->name, start_offset, len+start_offset);
+			os_file_handle_error_no_exit(node->name, "posix_fallocate", FALSE);
+			success = FALSE;
+		} else {
+			success = TRUE;
+		}
 
 		mutex_enter(&fil_system->mutex);
 		if (success) {
@@ -4937,7 +4947,14 @@ retry:
 			space->size += n_pages;
 			os_has_said_disk_full = FALSE;
 		}
-		goto complete_io;
+
+		/* If posix_fallocate was used to extent the file space
+		we need to complete the io. Because no actual writes were
+		dispatched read operation is enough here. Without this
+		there will be assertion at shutdown indicating that
+		all IO is not completed. */
+		fil_node_complete_io(node, fil_system, OS_FILE_READ);
+		goto file_extended;
 	}
 #endif
 
@@ -4995,12 +5012,10 @@ retry:
 	space->size += pages_added;
 	node->size += pages_added;
 
-#ifdef HAVE_POSIX_FALLOCATE
-complete_io:
-	fil_node_complete_io(node, fil_system, OS_FILE_READ);
-#else
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
-#endif
+
+	/* At this point file has been extended */
+file_extended:
 
 	node->being_extended = FALSE;
 	*actual_size = space->size;

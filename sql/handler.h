@@ -1591,6 +1591,7 @@ struct HA_CREATE_INFO
   uint stats_sample_pages;
   uint null_bits;                       /* NULL bits at start of record */
   uint options;				/* OR of HA_CREATE_ options */
+  uint org_options;                     /* original options from query */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
   SQL_I_List<TABLE_LIST> merge_list;
@@ -1621,6 +1622,7 @@ struct HA_CREATE_INFO
   TABLE *table;
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
+  bool table_was_deleted;
 
   bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
 };
@@ -1740,8 +1742,11 @@ public:
   // Table is renamed
   static const HA_ALTER_FLAGS ALTER_RENAME               = 1L << 18;
 
-  // Change the storage type of column 
-  static const HA_ALTER_FLAGS ALTER_COLUMN_STORAGE_TYPE = 1L << 19;
+  // column's engine options changed, something in field->option_struct
+  static const HA_ALTER_FLAGS ALTER_COLUMN_OPTION        = 1L << 19;
+
+  // MySQL alias for the same thing:
+  static const HA_ALTER_FLAGS ALTER_COLUMN_STORAGE_TYPE  = 1L << 19;
 
   // Change the column format of column
   static const HA_ALTER_FLAGS ALTER_COLUMN_COLUMN_FORMAT = 1L << 20;
@@ -1770,7 +1775,7 @@ public:
   // Partition operation with ALL keyword
   static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1L << 28;
 
-  // Partition operation with ALL keyword
+  // Virtual columns changed
   static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 29;
 
   /**
@@ -2717,6 +2722,18 @@ public:
   }
   virtual double scan_time()
   { return ulonglong2double(stats.data_file_length) / IO_SIZE + 2; }
+
+  /**
+     The cost of reading a set of ranges from the table using an index
+     to access it.
+     
+     @param index  The index number.
+     @param ranges The number of ranges to be read.
+     @param rows   Total number of rows to be read.
+     
+     This method can be used to calculate the total cost of scanning a table
+     using an index by calling it using read_time(index, 1, table_size).
+  */
   virtual double read_time(uint index, uint ranges, ha_rows rows)
   { return rows2double(ranges+rows); }
 
@@ -3940,7 +3957,7 @@ static inline const char *ha_resolve_storage_engine_name(const handlerton *db_ty
 
 static inline bool ha_check_storage_engine_flag(const handlerton *db_type, uint32 flag)
 {
-  return db_type == NULL ? FALSE : test(db_type->flags & flag);
+  return db_type == NULL ? FALSE : MY_TEST(db_type->flags & flag);
 }
 
 static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)

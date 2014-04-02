@@ -59,7 +59,9 @@ void CloseXMLFile(PGLOBAL g, PFBLOCK fp, bool all)
     xp->Count--;
   } else if (xp && xp->Count > 0) {
     try  {
-      xp->Docp->Release();
+      if (xp->Docp)
+        xp->Docp->Release();
+
     }  catch(_com_error e)  {
       sprintf(g->Message, "%s %s", MSG(COM_ERROR), e.Description());
     }  catch(...) {}

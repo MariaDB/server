@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -680,18 +680,16 @@ void
 my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
                     const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
-  const uchar *pos = key;
-  
   /*
      Remove trailing spaces. We have to do this to be able to compare
     'A ' and 'A' as identical
   */
-  key= skip_trailing_space(key, len);
+  const uchar *end = skip_trailing_space(key, len);
   
-  for (; pos < (uchar*) key ; pos++)
+  for (; key < end ; key++)
   {
     nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*pos)) + (nr1[0] << 8);
+	     ((uint)*key)) + (nr1[0] << 8);
     nr2[0]+=3;
   }
 }

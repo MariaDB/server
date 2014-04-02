@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -542,25 +542,19 @@ int check_if_log_table(const TABLE_LIST *table,
 {
   int result= 0;
   if (table->db_length == 5 &&
-      !(lower_case_table_names ?
-        my_strcasecmp(system_charset_info, table->db, "mysql") :
-        strcmp(table->db, "mysql")))
+      !my_strcasecmp(table_alias_charset, table->db, "mysql"))
   {
     const char *table_name= table->table_name;
 
     if (table->table_name_length == 11 &&
-        !(lower_case_table_names ?
-          my_strcasecmp(system_charset_info,
-                        table_name, "general_log") :
-          strcmp(table_name, "general_log")))
+        !my_strcasecmp(table_alias_charset, table_name, "general_log"))
     {
       result= QUERY_LOG_GENERAL;
       goto end;
     }
 
-    if (table->table_name_length == 8 && !(lower_case_table_names ?
-      my_strcasecmp(system_charset_info, table_name, "slow_log") :
-      strcmp(table_name, "slow_log")))
+    if (table->table_name_length == 8 &&
+        !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
     {
       result= QUERY_LOG_SLOW;
       goto end;
@@ -2052,6 +2046,21 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   DBUG_RETURN(error);
 }
 
+
+void binlog_reset_cache(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ? 
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
+  DBUG_ENTER("binlog_reset_cache");
+  if (cache_mngr)
+  {
+    thd->binlog_remove_pending_rows_event(TRUE, TRUE);
+    cache_mngr->reset(true, true);
+  }
+  DBUG_VOID_RETURN;
+}
+
+
 void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
 {
   DBUG_ENTER("MYSQL_BIN_LOG::set_write_error");
@@ -2975,7 +2984,7 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
-  :reset_master_pending(false),
+  :reset_master_pending(false), mark_xid_done_waiting(0),
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
@@ -3581,7 +3590,8 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
     if (!bytes_read)
       break;					// end of file
     mysql_file_seek(file, offset-init_offset, MY_SEEK_SET, MYF(0));
-    if (mysql_file_write(file, io_buf, bytes_read, MYF(MY_WME | MY_NABP)))
+    if (mysql_file_write(file, io_buf, bytes_read,
+                         MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)))
       goto err;
   }
   /* The following will either truncate the file or fill the end with \n' */
@@ -3791,6 +3801,31 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
   const char* save_name;
   DBUG_ENTER("reset_logs");
 
+  if (!is_relay_log)
+  {
+    if (init_state && !is_empty_state())
+    {
+      my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
+      DBUG_RETURN(1);
+    }
+
+    /*
+      Mark that a RESET MASTER is in progress.
+      This ensures that a binlog checkpoint will not try to write binlog
+      checkpoint events, which would be useless (as we are deleting the binlog
+      anyway) and could deadlock, as we are holding LOCK_log.
+
+      Wait for any mark_xid_done() calls that might be already running to
+      complete (mark_xid_done_waiting counter to drop to zero); we need to
+      do this before we take the LOCK_log to not deadlock.
+    */
+    mysql_mutex_lock(&LOCK_xid_list);
+    reset_master_pending= true;
+    while (mark_xid_done_waiting > 0)
+      mysql_cond_wait(&COND_xid_list, &LOCK_xid_list);
+    mysql_mutex_unlock(&LOCK_xid_list);
+  }
+
   if (thd)
     ha_reset_logs(thd);
   /*
@@ -3802,24 +3837,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
 
   if (!is_relay_log)
   {
-    if (init_state && !is_empty_state())
-    {
-      my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
-      mysql_mutex_unlock(&LOCK_index);
-      mysql_mutex_unlock(&LOCK_log);
-      DBUG_RETURN(1);
-    }
-
-    /*
-      Mark that a RESET MASTER is in progress.
-      This ensures that a binlog checkpoint will not try to write binlog
-      checkpoint events, which would be useless (as we are deleting the binlog
-      anyway) and could deadlock, as we are holding LOCK_log.
-    */
-    mysql_mutex_lock(&LOCK_xid_list);
-    reset_master_pending= true;
-    mysql_mutex_unlock(&LOCK_xid_list);
-
     /*
       We are going to nuke all binary log files.
       Without binlog, we cannot XA recover prepared-but-not-committed
@@ -5503,6 +5520,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
   }
   if (err)
     DBUG_RETURN(true);
+  thd->last_commit_gtid= gtid;
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
@@ -6702,13 +6720,15 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   */
   wfc= orig_entry->thd->wait_for_commit_ptr;
   orig_entry->queued_by_other= false;
-  if (wfc && wfc->waiting_for_commit)
+  if (wfc && wfc->waitee)
   {
     mysql_mutex_lock(&wfc->LOCK_wait_commit);
     /* Do an extra check here, this time safely under lock. */
-    if (wfc->waiting_for_commit)
+    if (wfc->waitee)
     {
       PSI_stage_info old_stage;
+      wait_for_commit *loc_waitee;
+
       /*
         By setting wfc->opaque_pointer to our own entry, we mark that we are
         ready to commit, but waiting for another transaction to commit before
@@ -6719,21 +6739,20 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
         queued_by_other flag is set.
       */
       wfc->opaque_pointer= orig_entry;
+      DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
       orig_entry->thd->ENTER_COND(&wfc->COND_wait_commit,
                                   &wfc->LOCK_wait_commit,
                                   &stage_waiting_for_prior_transaction_to_commit,
                                   &old_stage);
-      DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior");
-      while (wfc->waiting_for_commit && !orig_entry->thd->check_killed())
+      while ((loc_waitee= wfc->waitee) && !orig_entry->thd->check_killed())
         mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
       wfc->opaque_pointer= NULL;
       DBUG_PRINT("info", ("After waiting for prior commit, queued_by_other=%d",
                  orig_entry->queued_by_other));
 
-      if (wfc->waiting_for_commit)
+      if (loc_waitee)
       {
         /* Wait terminated due to kill. */
-        wait_for_commit *loc_waitee= wfc->waitee;
         mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
         if (loc_waitee->wakeup_subsequent_commits_running ||
             orig_entry->queued_by_other)
@@ -6743,13 +6762,14 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           do
           {
             mysql_cond_wait(&wfc->COND_wait_commit, &wfc->LOCK_wait_commit);
-          } while (wfc->waiting_for_commit);
+          } while (wfc->waitee);
         }
         else
         {
           /* We were killed, so remove us from the list of waitee. */
           wfc->remove_from_list(&loc_waitee->subsequent_commits_list);
           mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+          wfc->waitee= NULL;
 
           orig_entry->thd->EXIT_COND(&old_stage);
           /* Interrupted by kill. */
@@ -6765,12 +6785,11 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     }
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
-
-    if (wfc->wakeup_error)
-    {
-      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-      DBUG_RETURN(-1);
-    }
+  }
+  if (wfc && wfc->wakeup_error)
+  {
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    DBUG_RETURN(-1);
   }
 
   /*
@@ -8899,9 +8918,13 @@ TC_LOG_BINLOG::mark_xid_done(ulong binlog_id, bool write_checkpoint)
     locks in the opposite order.
   */
 
+  ++mark_xid_done_waiting;
   mysql_mutex_unlock(&LOCK_xid_list);
   mysql_mutex_lock(&LOCK_log);
   mysql_mutex_lock(&LOCK_xid_list);
+  --mark_xid_done_waiting;
+  if (unlikely(reset_master_pending))
+    mysql_cond_signal(&COND_xid_list);
   /* We need to reload current_binlog_id due to release/re-take of lock. */
   current= current_binlog_id;
 
@@ -9098,7 +9121,7 @@ start_binlog_background_thread()
                                 array_elements(all_binlog_threads));
 #endif
 
-  if (mysql_thread_create(key_thread_binlog, &th, NULL,
+  if (mysql_thread_create(key_thread_binlog, &th, &connection_attrib,
                           binlog_background_thread, NULL))
     return 1;
 

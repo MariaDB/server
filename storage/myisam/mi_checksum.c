@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2001, 2003-2004 MySQL AB
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,7 @@ ha_checksum mi_checksum(MI_INFO *info, const uchar *buf)
   const uchar *record= buf;
   MI_COLUMNDEF *column= info->s->rec;
   MI_COLUMNDEF *column_end= column+ info->s->base.fields;
-  my_bool skip_null_bits= test(info->s->options & HA_OPTION_NULL_FIELDS);
+  my_bool skip_null_bits= MY_TEST(info->s->options & HA_OPTION_NULL_FIELDS);
 
   for ( ; column != column_end ; buf+= column++->length)
   {
@@ -40,7 +40,7 @@ ha_checksum mi_checksum(MI_INFO *info, const uchar *buf)
       length=_mi_calc_blob_length(column->length-
                                   portable_sizeof_char_ptr,
                                   buf);
-      memcpy(&pos, buf+column->length - portable_sizeof_char_ptr,
+      memcpy((void*) &pos, buf+column->length - portable_sizeof_char_ptr,
 	     sizeof(char*));
       break;
     }

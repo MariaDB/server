@@ -144,6 +144,7 @@
 /* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
 #if defined(_AIX) && defined(_LARGE_FILE_API)
 #undef _LARGE_FILE_API
+#undef __GNUG__
 #endif
 
 /*
@@ -264,6 +265,16 @@
 #endif
 #endif
 
+
+#ifdef _AIX
+/*
+  AIX includes inttypes.h from sys/types.h
+  Explicitly request format macros before the first inclusion of inttypes.h
+*/
+#define __STDC_FORMAT_MACROS  
+#endif
+
+
 #if !defined(__WIN__)
 #ifndef _POSIX_PTHREAD_SEMANTICS
 #define _POSIX_PTHREAD_SEMANTICS /* We want posix threads */
@@ -316,6 +327,13 @@ C_MODE_END
 #define _LONG_LONG 1		/* For AIX string library */
 #endif
 
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
+#endif
+
+
 #ifndef stdin
 #include <stdio.h>
 #endif
@@ -341,6 +359,14 @@ C_MODE_END
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
+
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
+#endif
+
+
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
@@ -474,7 +500,7 @@ typedef unsigned short ushort;
 #endif
 
 #define swap_variables(t, a, b) do { t dummy; dummy= a; a= b; b= dummy; } while(0)
-#define test(a)		((a) ? 1 : 0)
+#define MY_TEST(a) ((a) ? 1 : 0)
 #define set_if_bigger(a,b)  do { if ((a) < (b)) (a)=(b); } while(0)
 #define set_if_smaller(a,b) do { if ((a) > (b)) (a)=(b); } while(0)
 #define set_bits(type, bit_count) (sizeof(type)*8 <= (bit_count) ? ~(type) 0 : ((((type) 1) << (bit_count)) - (type) 1))
@@ -1214,11 +1240,10 @@ static inline double rint(double x)
 #define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */
 
-/*
-  Define default tmpdir if not already set.
-*/
-#if !defined(DEFAULT_TMPDIR)
-#define DEFAULT_TMPDIR P_tmpdir
+/* Workaround for _LARGE_FILES and _LARGE_FILE_API incompatibility on AIX */
+#if defined(_AIX) && defined(_LARGE_FILE_API)
+#undef _LARGE_FILE_API
+#undef __GNUG__
 #endif
 
 #endif /* my_global_h */

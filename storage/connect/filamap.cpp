@@ -46,6 +46,8 @@
 #include "filamap.h"
 #include "tabdos.h"
 
+extern "C" int  trace;
+
 /* --------------------------- Class MAPFAM -------------------------- */
 
 /***********************************************************************/
@@ -89,9 +91,8 @@ int MAPFAM::GetFileLength(PGLOBAL g)
 
   len = (To_Fb) ? To_Fb->Length :  TXTFAM::GetFileLength(g);
 
-#ifdef DEBTRACE
- htrc("Mapped file length=%d\n", len);
-#endif
+  if (trace)
+    htrc("Mapped file length=%d\n", len);
 
   return len;
   } // end of GetFileLength
@@ -128,9 +129,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-#ifdef DEBTRACE
- htrc("Mapping file, fp=%p\n", fp);
-#endif
+    if (trace)
+      htrc("Mapping file, fp=%p\n", fp);
+
   } else
     fp = NULL;
 
@@ -166,9 +167,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
         sprintf(g->Message, MSG(OPEN_MODE_ERROR),
                 "map", (int) rc, filename);
 
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+      if (trace)
+        htrc("CreateFileMap: %s\n", g->Message);
+
       return (mode == MODE_READ && rc == ENOENT)
               ? PushWarning(g, Tdbp) : true;
       } // endif hFile
@@ -228,10 +229,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
   Fpos = Mempos = Memory;
   Top = Memory + len;
 
-#ifdef DEBTRACE
- htrc("fp=%p count=%d MapView=%p len=%d Top=%p\n",
-  fp, fp->Count, Memory, len, Top);
-#endif
+  if (trace)
+    htrc("fp=%p count=%d MapView=%p len=%d Top=%p\n",
+          fp, fp->Count, Memory, len, Top);
 
   return AllocateBuffer(g);          // Useful for DBF files
   } // end of OpenTableFile
@@ -322,8 +322,8 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-    Fpos = Mempos;
-    CurBlk = (int)Rows++;
+		Fpos = Mempos;
+		CurBlk = (int)Rows++;
   } else
     Placed = false;
 
@@ -365,20 +365,19 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   int    n;
 
-#ifdef DEBTRACE
- fprintf(debug,
-  "MAP DeleteDB: irc=%d mempos=%p tobuf=%p Tpos=%p Spos=%p\n",
-  irc, Mempos, To_Buf, Tpos, Spos);
-#endif
+  if (trace)
+    htrc("MAP DeleteDB: irc=%d mempos=%p tobuf=%p Tpos=%p Spos=%p\n",
+         irc, Mempos, To_Buf, Tpos, Spos);
 
   if (irc != RC_OK) {
     /*******************************************************************/
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = Top;
-#ifdef DEBTRACE
- htrc("Fpos placed at file top=%p\n", Fpos);
-#endif
+
+    if (trace)
+      htrc("Fpos placed at file top=%p\n", Fpos);
+
     } // endif irc
 
   if (Tpos == Spos)
@@ -394,17 +393,16 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     memmove(Tpos, Spos, n);
     Tpos += n;
 
-#ifdef DEBTRACE
- htrc("move %d bytes\n", n);
-#endif
+    if (trace)
+      htrc("move %d bytes\n", n);
+
     } // endif n
 
   if (irc == RC_OK) {
     Spos = Mempos;                               // New start position
 
-#ifdef DEBTRACE
- htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
-#endif
+    if (trace)
+      htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
   } else if (To_Fb) {                 // Can be NULL for deleted files
     /*******************************************************************/
@@ -432,9 +430,8 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
       return RC_FX;
       } // endif
 
-#ifdef DEBTRACE
- htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
-#endif
+    if (trace)
+     htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
     if (!SetEndOfFile(fp->Handle)) {
       sprintf(g->Message, MSG(FUNCTION_ERROR),
@@ -466,10 +463,10 @@ void MAPFAM::CloseTableFile(PGLOBAL g)
   PlugCloseFile(g, To_Fb);
   To_Fb = NULL;              // To get correct file size in Cardinality 
 
-#ifdef DEBTRACE
- htrc("MAP Close: closing %s count=%d\n",
-   To_File, (To_Fb) ? To_Fb->Count : 0);
-#endif
+  if (trace)
+    htrc("MAP Close: closing %s count=%d\n",
+         To_File, (To_Fb) ? To_Fb->Count : 0);
+
   } // end of CloseTableFile
 
 /***********************************************************************/
@@ -491,7 +488,7 @@ MBKFAM::MBKFAM(PDOSDEF tdp) : MAPFAM(tdp)
   Block = tdp->GetBlock();
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
-  BlkPos = tdp->GetTo_Pos();
+  BlkPos = NULL;
   CurNum = Nrec;
   } // end of MBKFAM standard constructor
 
@@ -537,37 +534,8 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
-  int len;
-
-  /*********************************************************************/
-  /*  Sequential block reading when Placed is not true.                */
-  /*********************************************************************/
-  if (Placed) {
-    Placed = false;
-  } else if (Mempos >= Top) {        // Are we at the end of the memory
-    return RC_EF;
-  } else if (++CurNum < Nrec) {                                           
-    Fpos = Mempos;
-  } else {                                                            
-    /*******************************************************************/
-    /*  New block.                                                     */
-    /*******************************************************************/
-    CurNum = 0;                                                       
-                                                                       
-    if (++CurBlk >= Block)                                           
-      return RC_EF;                                                   
-                                                                       
-    Fpos = Mempos = Memory + BlkPos[CurBlk];
-  } // endif's
-
-  // Immediately calculate next position (Used by DeleteDB)
-  while (*Mempos++ != '\n') ;        // What about Unix ???
-
-  // Set caller line buffer
-  len = (Mempos - Fpos) - Ending;
-  memcpy(Tdbp->GetLine(), Fpos, len);
-  Tdbp->GetLine()[len] = '\0';
-  return RC_OK;
+  strcpy(g->Message, "This AM cannot be used in this version");
+  return RC_FX;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -657,7 +625,7 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     /*  New block.                                                     */
     /*******************************************************************/
     CurNum = 0;                                                       
-                                                                       
+
     if (++CurBlk >= Block)                                           
       return RC_EF;                                                   
                                                                        

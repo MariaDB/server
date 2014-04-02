@@ -377,6 +377,7 @@ create table t1 (i int);
 lock table t1 write;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 alter table t1 add column a varchar(8);
 drop table t1;
@@ -389,6 +390,7 @@ INSERT INTO t1 VALUES (1),(2);
 DELETE FROM t1 WHERE a=1;
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 DROP TABLE t1;
 #
@@ -417,10 +419,12 @@ CREATE TABLE t1 (id int PRIMARY KEY) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (1),(2);
 ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 CREATE TABLE t2 (name char(3)) ENGINE=MyISAM;
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 INSERT INTO t2 VALUES ('USA'),('AUS');
 SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
@@ -433,6 +437,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	0	Using where
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
 id	name

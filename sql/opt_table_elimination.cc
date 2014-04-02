@@ -356,7 +356,7 @@ public:
     bound.
   */
   void touch() { unbound_args--; }
-  bool is_applicable() { return !test(unbound_args); }
+  bool is_applicable() { return !MY_TEST(unbound_args); }
   
   /* Iteration over values that */
   typedef char *Iterator;
@@ -1072,7 +1072,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     else 
     {
       /* It's a multi-equality */
-      eq_mod->unbound_args= !test(eq_mod->expr);
+      eq_mod->unbound_args= !MY_TEST(eq_mod->expr);
       List_iterator<Dep_value_field> it(*eq_mod->mult_equal_fields);
       Dep_value_field* field_val;
       while ((field_val= it++))
@@ -1398,7 +1398,7 @@ Dep_module_expr *merge_eq_mods(Dep_module_expr *start,
             }
           }
 
-          if (fv->elements + test(old->expr) > 1)
+          if (fv->elements + MY_TEST(old->expr) > 1)
           {
             old->mult_equal_fields= fv;
             old->level= and_level;

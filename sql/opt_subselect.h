@@ -28,7 +28,7 @@ int pull_out_semijoin_tables(JOIN *join);
 bool optimize_semijoin_nests(JOIN *join, table_map all_table_map);
 bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,  
                            Item **join_where);
-void cleanup_empty_jtbm_semi_joins(JOIN *join);
+void cleanup_empty_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list);
 
 // used by Loose_scan_opt
 ulonglong get_bound_sj_equalities(TABLE_LIST *sj_nest, 
@@ -168,7 +168,7 @@ public:
     }
   }
 
-  bool have_a_case() { return test(handled_sj_equalities); }
+  bool have_a_case() { return MY_TEST(handled_sj_equalities); }
 
   void check_ref_access_part1(JOIN_TAB *s, uint key, KEYUSE *start_key, 
                               table_map found_part)

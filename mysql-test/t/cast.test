@@ -2,6 +2,9 @@
 # Test of cast function
 #
 
+# For TIME->DATETIME conversion
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
+
 select CAST(1-2 AS UNSIGNED);
 select CAST(CAST(1-2 AS UNSIGNED) AS SIGNED INTEGER);
 select CAST('10 ' as unsigned integer);

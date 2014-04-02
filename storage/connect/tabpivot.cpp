@@ -95,7 +95,7 @@ PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
 /***********************************************************************/
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   {
-  char    *query, *colname, buf[32];
+  char    *query, *colname, buf[64];
   int      ndif, nblin, w = 0;
   PVAL     valp;
   PCOLRES *pcrp, crp, fncrp = NULL;
@@ -121,7 +121,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     } // endif Exec
 
   // We must have a storage query to get pivot column values
-  Qryp = Myc.GetResult(g);
+  Qryp = Myc.GetResult(g, true);
   Myc.Close();
 
   if (!Fncol) {
@@ -405,7 +405,7 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
       strcat(colist, Picol);
   
       // Now we know how much was suballocated
-      PlugSubAlloc(g, NULL, strlen(colist));
+      PlugSubAlloc(g, NULL, strlen(colist) + 1);
   
       // Locate the source string (size is not known yet)
       Tabsrc = (char*)PlugSubAlloc(g, NULL, 0);
@@ -423,7 +423,7 @@ bool TDBPIVOT::GetSourceTable(PGLOBAL g)
         strcat(strcat(Tabsrc, " ORDER BY "), colist);
 
       // Now we know how much was suballocated
-      PlugSubAlloc(g, NULL, strlen(Tabsrc));
+      PlugSubAlloc(g, NULL, strlen(Tabsrc) + 1);
       } // endif !GBdone
 
   } else if (!Tabsrc) {

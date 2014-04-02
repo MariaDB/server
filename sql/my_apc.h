@@ -62,7 +62,7 @@ public:
   */
   inline bool have_apc_requests()
   {
-    return test(apc_calls);
+    return MY_TEST(apc_calls);
   }
 
   inline bool is_enabled() { return enabled; }

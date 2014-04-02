@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2013, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -66,6 +66,7 @@
   An instrumented mutex structure.
   @sa mysql_mutex_t
 */
+
 struct st_mysql_mutex
 {
   /** The real mutex. */
@@ -95,6 +96,15 @@ struct st_mysql_mutex
   @sa mysql_mutex_destroy
 */
 typedef struct st_mysql_mutex mysql_mutex_t;
+
+/* How to access the pthread_mutex in mysql_mutex_t */
+#ifdef SAFE_MUTEX
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#elif defined(MY_PTHREAD_FASTMUTEX)
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#else
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex
+#endif
 
 /**
   An instrumented rwlock structure.
@@ -1170,7 +1180,7 @@ static inline int inline_mysql_cond_wait(
 static inline int inline_mysql_cond_timedwait(
   mysql_cond_t *that,
   mysql_mutex_t *mutex,
-  struct timespec *abstime
+  const struct timespec *abstime
 #ifdef HAVE_PSI_COND_INTERFACE
   , const char *src_file, uint src_line
 #endif

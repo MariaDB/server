@@ -32,7 +32,7 @@
 #include "spd_table.h"
 #include "spd_trx.h"
 
-extern struct st_mysql_plugin spider_i_s_alloc_mem;
+extern struct st_maria_plugin spider_i_s_alloc_mem;
 
 extern volatile ulonglong spider_mon_table_cache_version;
 extern volatile ulonglong spider_mon_table_cache_version_req;
@@ -2957,7 +2957,7 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
   NULL
 };
 
-mysql_declare_plugin(spider)
+maria_declare_plugin(spider)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &spider_storage_engine,
@@ -2970,10 +2970,8 @@ mysql_declare_plugin(spider)
   0x0300,
   spider_status_variables,
   spider_system_variables,
-  NULL,
-#if MYSQL_VERSION_ID >= 50600
-  0,
-#endif
+  "3.0",
+  MariaDB_PLUGIN_MATURITY_BETA
 },
 spider_i_s_alloc_mem
-mysql_declare_plugin_end;
+maria_declare_plugin_end;
