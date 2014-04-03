@@ -1575,6 +1575,46 @@ bool XINDEX::NextVal(bool eq)
   } // end of NextVal
 
 /***********************************************************************/
+/*  XINDEX: Find Cur_K and Val_K's of previous index entry.            */
+/*  Returns false if Ok, true if there are no more values.             */
+/***********************************************************************/
+bool XINDEX::PrevVal(void)
+  {
+  int  n, neq = Nk + 1, curk;
+  PXCOL kcp;
+
+  if (Cur_K == 0)
+    return true;
+  else
+    curk = --Cur_K;
+
+  for (n = Nk, kcp = To_LastCol; kcp; n--, kcp = kcp->Previous) {
+    if (kcp->Kof) {
+      if (curk < kcp->Kof[kcp->Val_K])
+        neq = n;
+
+    } else {
+#ifdef _DEBUG
+      assert(curk == kcp->Val_K -1);
+#endif // _DEBUG
+      neq = n;
+    } // endif Kof
+
+#ifdef _DEBUG
+    assert(kcp->Val_K >= 0);
+#endif // _DEBUG
+
+    // If this is not a break...
+    if (neq > n)
+      break;                  // all previous columns have same value
+
+    curk = --kcp->Val_K;      // This is a break, get new column value
+    } // endfor kcp
+
+  return false;
+  } // end of PrevVal
+
+/***********************************************************************/
 /*  XINDEX: Fetch a physical or logical record.                        */
 /***********************************************************************/
 int XINDEX::Fetch(PGLOBAL g)
@@ -1871,6 +1911,25 @@ int XINDXS::GroupSize(void)
   } // end of GroupSize
 
 /***********************************************************************/
+/*  XINDXS: Find Cur_K and Val_K of previous index value.              */
+/*  Returns false if Ok, true if there are no more values.             */
+/***********************************************************************/
+bool XINDXS::PrevVal(void)
+  {
+  if (--Cur_K < 0)
+    return true;
+
+  if (Mul) {
+    if (Cur_K < Pof[To_KeyCol->Val_K])
+      To_KeyCol->Val_K--;
+
+  } else
+    To_KeyCol->Val_K = Cur_K;
+
+  return false;
+  } // end of PrevVal
+
+/***********************************************************************/
 /*  XINDXS: Find Cur_K and Val_K of next index value.                  */
 /*  If b is true next value must be equal to last one.                 */
 /*  Returns false if Ok, true if there are no more (equal) values.     */
@@ -1914,16 +1973,16 @@ int XINDXS::Fetch(PGLOBAL g)
   /*  Table read through a sorted index.                               */
   /*********************************************************************/
   switch (Op) {
-    case OP_NEXT:                 // Read next
+    case OP_NEXT:                // Read next
       if (NextVal(false))
         return -1;               // End of indexed file
 
       break;
-    case OP_FIRST:                // Read first
+    case OP_FIRST:               // Read first
       To_KeyCol->Val_K = Cur_K = 0;
       Op = OP_NEXT;
       break;
-    case OP_SAME:                 // Read next same
+    case OP_SAME:                // Read next same
 #if defined(TRACE)
 //      printf("looking for next same value\n");
 #endif   // TRACE
@@ -1934,7 +1993,7 @@ int XINDXS::Fetch(PGLOBAL g)
         } // endif Mul
 
       break;
-    case OP_NXTDIF:               // Read next dif
+    case OP_NXTDIF:              // Read next dif
       if (++To_KeyCol->Val_K == Ndif)
         return -1;               // End of indexed file
 
@@ -1946,10 +2005,15 @@ int XINDXS::Fetch(PGLOBAL g)
       break;
     case OP_LAST:                // Read first
       Cur_K = Num_K - 1;
-      To_KeyCol->Val_K = To_KeyCol->Kblp->GetNval() - 1;
-      Op = OP_NEXT;
+      To_KeyCol->Val_K = Ndif - 1;
+      Op = OP_PREV;
       break;
-    default:                      // Should OP_EQ
+    case OP_PREV:                // Read previous
+      if (PrevVal())
+        return -1;               // End of indexed file
+
+      break;
+    default:                     // Should be OP_EQ
       /*****************************************************************/
       /*  Look for the first key equal to the link column values       */
       /*  and return its rank whithin the index table.                 */
