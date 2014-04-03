@@ -224,23 +224,27 @@ wsrep_pick_url() {
 wsrep_start_position_opt=""
 wsrep_recover_position() {
   local mysqld_cmd="$@"
-  local wr_logfile=$(mktemp)
   local euid=$(id -u)
   local ret=0
+
+  local wr_logfile=$(mktemp $DATADIR/wsrep_recovery.XXXXXX)
 
   [ "$euid" = "0" ] && chown $user $wr_logfile
   chmod 600 $wr_logfile
 
-  log_notice "WSREP: Running position recovery with --log_error=$wr_logfile"
+  local wr_pidfile="$DATADIR/"`@HOSTNAME@`"-recover.pid"
 
-  eval_log_error "$mysqld_cmd --log_error=$wr_logfile --wsrep-recover"
+  local wr_options="--log_error='$wr_logfile' --pid-file='$wr_pidfile'"
+
+  log_notice "WSREP: Running position recovery with $wr_options"
+
+  eval_log_error "$mysqld_cmd --wsrep_recover $wr_options"
 
   local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
   if [ -z "$rp" ]; then
     local skipped="$(grep WSREP $wr_logfile | grep 'skipping position recovery')"
     if [ -z "$skipped" ]; then
-      log_error "WSREP: Failed to recover position: 
-'`cat $wr_logfile`'"
+      log_error "WSREP: Failed to recover position: '`cat $wr_logfile`'"
       ret=1
     else
       log_notice "WSREP: Position recovery skipped"
@@ -843,40 +847,6 @@ Please remove it manually and start $0 again;
 mysqld daemon not started"
     exit 1
   fi
-fi
-
-# Flush and purge buffers/caches.
-#
-
-if @TARGET_LINUX@ && test $flush_caches -eq 1
-then
-  # Locate sync, ensure it exists.
-  if ! my_which sync > /dev/null 2>&1
-  then
-    log_error "sync command not found, required for --flush-caches"
-    exit 1
-  # Flush file system buffers.
-  elif ! sync
-  then
-    # Huh, the sync() function is always successful...
-    log_error "sync failed, check if sync is properly installed"
-  fi
-
-  # Locate sysctl, ensure it exists.
-  if ! my_which sysctl > /dev/null 2>&1
-  then
-    log_error "sysctl command not found, required for --flush-caches"
-    exit 1
-  # Purge page cache, dentries and inodes.
-  elif ! sysctl -q -w vm.drop_caches=3
-  then
-    log_error "sysctl failed, check the error message for details"
-    exit 1
-  fi
-elif test $flush_caches -eq 1
-then
-  log_error "--flush-caches is not supported on this platform"
-  exit 1
 fi
 
 #
