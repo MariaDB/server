@@ -163,6 +163,8 @@
 /*  Initialize the ha_connect static members.                          */
 /***********************************************************************/
 #define SZCONV 8192
+#define SZWORK 67108864            // Default work area size 64M
+#define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
        char version[]= "Version 1.02.0002 March 16, 2014";
@@ -179,12 +181,14 @@ extern "C" {
        bool xmap= false;
 #endif   // XMAP
 
-ulong ha_connect::num= 0;
+       uint worksize= SZWORK;
+ulong  ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
 /* CONNECT system variables */ 
 static int     xtrace= 0;
 static int     conv_size= SZCONV;
+static uint    work_size= SZWORK;
 static ulong   type_conv= 0;
 #if defined(XMAP)
 static my_bool indx_map= 0;
@@ -227,6 +231,13 @@ static void update_connect_xconv(MYSQL_THD thd,
 {
   xconv= (int)(*(ulong *)var_ptr= *(ulong *)save);
 } // end of update_connect_xconv
+
+static void update_connect_worksize(MYSQL_THD thd,
+                                 struct st_mysql_sys_var *var,
+                                 void *var_ptr, const void *save)
+{
+  worksize= (uint)(*(ulong *)var_ptr= *(ulong *)save);
+} // end of update_connect_worksize
 
 #if defined(XMAP)
 static void update_connect_xmap(MYSQL_THD thd,
@@ -1997,13 +2008,17 @@ bool ha_connect::get_error_message(int error, String* buf)
 
   if (xp && xp->g) {
     PGLOBAL g= xp->g;
-    char   *msg= (char*)PlugSubAlloc(g, NULL, strlen(g->Message) * 3);
+    char    msg[3072];         // MAX_STR * 3
     uint    dummy_errors;
     uint32  len= copy_and_convert(msg, strlen(g->Message) * 3,
                                system_charset_info,
                                g->Message, strlen(g->Message),
                                &my_charset_latin1,
                                &dummy_errors);
+
+    if (trace)
+      htrc("GEM(%u): %s\n", len, g->Message);
+
     msg[len]= '\0';
     buf->copy(msg, (uint)strlen(msg), system_charset_info);
   } else
@@ -5268,6 +5283,11 @@ static MYSQL_SYSVAR_BOOL(indx_map, indx_map, PLUGIN_VAR_RQCMDARG,
        NULL, update_connect_xmap, 0);
 #endif   // XMAP
 
+// Size used for g->Sarea_Size
+static MYSQL_SYSVAR_UINT(work_size, work_size,
+       PLUGIN_VAR_RQCMDARG, "Size of the CONNECT work area.",
+       NULL, update_connect_worksize, SZWORK, SZWMIN, UINT_MAX, 1);
+
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
   MYSQL_SYSVAR(conv_size),
@@ -5275,6 +5295,7 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
 #if defined(XMAP)
   MYSQL_SYSVAR(indx_map),
 #endif   // XMAP
+  MYSQL_SYSVAR(work_size),
   NULL
 };
 

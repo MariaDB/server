@@ -115,11 +115,6 @@ void htrc(char const *fmt, ...)
   va_list ap;
   va_start (ap, fmt);
 
-//if (trace == 0 || (trace == 1 && !debug) || !fmt) {
-//  printf("In %s wrong trace=%d debug=%p fmt=%p\n",
-//    __FILE__, trace, debug, fmt);
-//  trace = 0;
-//  } // endif trace
 
 //if (trace == 1)
 //  vfprintf(debug, fmt, ap);
@@ -490,10 +485,9 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   size = ((size + 7) / 8) * 8;       /* Round up size to multiple of 8 */
   pph = (PPOOLHEADER)memp;
 
-#if defined(DEBUG2) || defined(DEBUG3)
- htrc("SubAlloc in %p size=%d used=%d free=%d\n",
-  memp, size, pph->To_Free, pph->FreeBlk);
-#endif
+  if (trace > 2)
+    htrc("SubAlloc in %p size=%d used=%d free=%d\n",
+          memp, size, pph->To_Free, pph->FreeBlk);
 
   if ((uint)size > pph->FreeBlk) {   /* Not enough memory left in pool */
     char     *pname = "Work";
@@ -502,9 +496,8 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
       "Not enough memory in %s area for request of %u (used=%d free=%d)",
                           pname, (uint) size, pph->To_Free, pph->FreeBlk);
 
-#if defined(DEBUG2) || defined(DEBUG3)
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("PlugSubAlloc: %s\n", g->Message);
 
     longjmp(g->jumper[g->jump_level], 1);
     } /* endif size OS32 code */
@@ -515,10 +508,11 @@ void *PlugSubAlloc(PGLOBAL g, void *memp, size_t size)
   memp = MakePtr(memp, pph->To_Free); /* Points to suballocated block  */
   pph->To_Free += size;               /* New offset of pool free block */
   pph->FreeBlk -= size;               /* New size   of pool free block */
-#if defined(DEBUG2) || defined(DEBUG3)
- htrc("Done memp=%p used=%d free=%d\n",
-  memp, pph->To_Free, pph->FreeBlk);
-#endif
+
+  if (trace > 2)
+    htrc("Done memp=%p used=%d free=%d\n",
+          memp, pph->To_Free, pph->FreeBlk);
+
   return (memp);
   } /* end of PlugSubAlloc */
 
