@@ -1,11 +1,11 @@
 /************** MyConn C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYCONN                                                 */
 /* -------------                                                        */
-/*  Version 1.7                                                         */
+/*  Version 1.8                                                         */
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2013     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2014     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -47,7 +47,8 @@
 #include "myconn.h"
 
 extern "C" int   trace;
-extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
+extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
+extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
 
 // Returns the current used port
 uint GetDefaultPort(void)
@@ -340,6 +341,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             const char *user, const char *pwd,
                             int pt)
   {
+  const char *pipe = NULL;
   uint cto = 60, nrt = 120;
 
   m_DB = mysql_init(NULL);
@@ -356,6 +358,16 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
+#if defined(WIN32)
+  if (!strcmp(host, ".")) {
+    mysql_options(m_DB, MYSQL_OPT_NAMED_PIPE, NULL);
+    pipe = mysqld_unix_port;
+    } // endif host
+#else   // !WIN32
+  if (!strcmp(host, "localhost"))
+    pipe = mysqld_unix_port;
+#endif  // !WIN32
+
 #if 0
   if (pwd && !strcmp(pwd, "*")) {
     if (GetPromptAnswer(g, "*Enter password:")) {
@@ -367,7 +379,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     } // endif pwd
 #endif // 0
 
-  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, NULL, CLIENT_MULTI_RESULTS)) {
+  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
 #if defined(_DEBUG)
     sprintf(g->Message, "mysql_real_connect failed: (%d) %s",
                         mysql_errno(m_DB), mysql_error(m_DB));
