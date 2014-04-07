@@ -557,9 +557,11 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   size_t tlen= strlen(options->table_name);
   size_t plen= (int)(p - name) + tlen + 1;
 
-  share->path.str= (char*)alloc_root(&share->mem_root, plen);
+  share->path.str= (char*)alloc_root(&share->mem_root, plen + 1); // MDEV-5996 space for trailing zero
+  // it seems there was a misunderstanding of why there is a separate length field in the String object
   strmov(strnmov(share->path.str, name, (int)(p - name) + 1), options->table_name);
 
+  share->path.str[plen] = 0; // MDEV-5996 Make sure the pointer is zero terminated.  I really think this needs refactoring, soon...
   share->normalized_path.str= share->path.str;
   share->path.length= share->normalized_path.length= plen;
 
