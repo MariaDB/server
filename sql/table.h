@@ -1114,7 +1114,11 @@ public:
   */
   ha_rows	quick_rows[MAX_KEY];
 
-  /* Bitmaps of key parts that =const for the entire join. */
+  /* 
+    Bitmaps of key parts that =const for the duration of join execution. If
+    we're in a subquery, then the constant may be different across subquery
+    re-executions.
+  */
   key_part_map  const_key_parts[MAX_KEY];
 
   uint		quick_key_parts[MAX_KEY];

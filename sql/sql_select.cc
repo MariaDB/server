@@ -5274,7 +5274,8 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
   {
     if (!use->is_for_hash_join())
     {
-      if (!use->used_tables && use->optimize != KEY_OPTIMIZE_REF_OR_NULL)
+      if (!(use->used_tables & ~OUTER_REF_TABLE_BIT) && 
+          use->optimize != KEY_OPTIMIZE_REF_OR_NULL)
         use->table->const_key_parts[use->key]|= use->keypart_map;
       if (use->keypart != FT_KEYPART)
       {
@@ -14912,7 +14913,7 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 static bool
 test_if_equality_guarantees_uniqueness(Item *l, Item *r)
 {
-  return r->const_item() &&
+  return (r->const_item() || !(r->used_tables() & ~OUTER_REF_TABLE_BIT)) &&
     item_cmp_type(l->cmp_type(), r->cmp_type()) == l->cmp_type() &&
     (l->cmp_type() != STRING_RESULT ||
      l->collation.collation == r->collation.collation);
