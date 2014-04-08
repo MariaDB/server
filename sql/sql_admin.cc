@@ -736,6 +736,17 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         compl_result_code= update_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
+      else
+      {
+        protocol->prepare_for_resend();
+        protocol->store(table_name, system_charset_info); 
+        protocol->store(operator_name, system_charset_info);
+        protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+	protocol->store(STRING_WITH_LEN("Engine-independent statistics collected"), 
+                        system_charset_info);
+        if (protocol->write())
+          goto err;
+      }
     }
 
     if (result_code == HA_ADMIN_NOT_IMPLEMENTED && need_repair_or_alter)

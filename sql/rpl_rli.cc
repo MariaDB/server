@@ -1435,7 +1435,8 @@ rpl_load_gtid_slave_state(THD *thd)
     if ((err= rpl_global_gtid_slave_state.update(tmp_entry.gtid.domain_id,
                                                  tmp_entry.gtid.server_id,
                                                  tmp_entry.sub_id,
-                                                 tmp_entry.gtid.seq_no)))
+                                                 tmp_entry.gtid.seq_no,
+                                                 NULL)))
     {
       mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
@@ -1488,10 +1489,11 @@ rpl_group_info::reinit(Relay_log_info *rli)
   tables_to_lock_count= 0;
   trans_retries= 0;
   last_event_start_time= 0;
-  is_error= false;
+  worker_error= 0;
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
+  gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
   commit_orderer.reinit();
 }
 
@@ -1629,6 +1631,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   */
   thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
   thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+  /*
+    Ensure we always release the domain for others to process, when using
+    --gtid-ignore-duplicates.
+  */
+  if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    rpl_global_gtid_slave_state.release_domain_owner(this);
 
   /*
     Reset state related to long_find_row notes in the error log:

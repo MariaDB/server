@@ -187,6 +187,7 @@ PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   return tdbp;
   } // end of GetTable
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete XML table files using platform API.        */
 /***********************************************************************/
@@ -208,6 +209,7 @@ bool XMLDEF::DeleteTableFile(PGLOBAL g)
 
   return rc;                                  // Return true if error
   } // end of DeleteTableFile
+#endif // 0
 
 /* ------------------------- TDBXML Class ---------------------------- */
 
@@ -1314,7 +1316,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   PXNODE TopNode = NULL;
 //PXATTR AttNode = NULL;
 
-  if (trace)
+  if (trace > 1)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, Tdbp->GetTdb_No(), ColUse, Status);
 
@@ -1324,14 +1326,11 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  if (Value->IsNull())
-    return;
-
   /*********************************************************************/
   /*  If a check pass was done while updating, all node contruction    */
   /*  has been already one.                                            */
   /*********************************************************************/
-  if (Status && Tdbp->Checked) {
+  if (Status && Tdbp->Checked && !Value->IsNull()) {
     assert (ColNode != NULL);
     assert ((Type ? (void *)ValNode : (void *)AttNode) != NULL);
     goto fin;
@@ -1343,6 +1342,12 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod || Tdbp->Colname))
     longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+
+  /*********************************************************************/
+  /*  Null values are represented by no node.                          */
+  /*********************************************************************/
+  if (Value->IsNull())
+    return;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */

@@ -376,7 +376,7 @@ maria_declare_plugin(sequence)
   NULL,
   NULL,
   "0.1",
-  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
 

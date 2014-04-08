@@ -1,11 +1,11 @@
 /************** MyConn C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYCONN                                                 */
 /* -------------                                                        */
-/*  Version 1.7                                                         */
+/*  Version 1.8                                                         */
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2013     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2014     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -47,7 +47,8 @@
 #include "myconn.h"
 
 extern "C" int   trace;
-extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
+extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
+extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
 
 // Returns the current used port
 uint GetDefaultPort(void)
@@ -283,8 +284,11 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
   if (!port)
     port = mysqld_port;
 
-  query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
-  strcat(strcpy(query, srcdef), " LIMIT 0");
+  if (!strnicmp(srcdef, "select ", 7)) { 
+    query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
+    strcat(strcpy(query, srcdef), " LIMIT 0");
+  } else
+    query = (char *)srcdef;
 
   // Open a MySQL connection for this table
   if (myc.Open(g, host, db, user, pwd, port))
@@ -292,7 +296,7 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
 
   // Send the source command to MySQL
   if (myc.ExecSQL(g, query, &w) == RC_OK)
-    qrp = myc.GetResult(g);
+    qrp = myc.GetResult(g, true);
 
   myc.Close();
   return qrp;
@@ -337,6 +341,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             const char *user, const char *pwd,
                             int pt)
   {
+  const char *pipe = NULL;
   uint cto = 60, nrt = 120;
 
   m_DB = mysql_init(NULL);
@@ -353,6 +358,16 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
+#if defined(WIN32)
+  if (!strcmp(host, ".")) {
+    mysql_options(m_DB, MYSQL_OPT_NAMED_PIPE, NULL);
+    pipe = mysqld_unix_port;
+    } // endif host
+#else   // !WIN32
+  if (!strcmp(host, "localhost"))
+    pipe = mysqld_unix_port;
+#endif  // !WIN32
+
 #if 0
   if (pwd && !strcmp(pwd, "*")) {
     if (GetPromptAnswer(g, "*Enter password:")) {
@@ -364,7 +379,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     } // endif pwd
 #endif // 0
 
-  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, NULL, CLIENT_MULTI_RESULTS)) {
+  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
 #if defined(_DEBUG)
     sprintf(g->Message, "mysql_real_connect failed: (%d) %s",
                         mysql_errno(m_DB), mysql_error(m_DB));
@@ -673,7 +688,7 @@ MYSQL_FIELD *MYSQLC::GetNextField(void)
 /***********************************************************************/
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
-  char        *fmt;
+  char        *fmt, v;
   int          n;
   bool         uns;
   PCOLRES     *pcrp, crp;
@@ -702,7 +717,6 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   qrp->Nblin = 0;
   qrp->Cursor = 0;
 
-
 //for (fld = mysql_fetch_field(m_Res); fld;
 //     fld = mysql_fetch_field(m_Res)) {
   for (fld = GetNextField(); fld; fld = GetNextField()) {
@@ -715,17 +729,19 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     crp->Name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
     strcpy(crp->Name, fld->name);
 
-    if ((crp->Type = MYSQLtoPLG(fld->type)) == TYPE_ERROR) {
+    if ((crp->Type = MYSQLtoPLG(fld->type, &v)) == TYPE_ERROR) {
       sprintf(g->Message, "Type %d not supported for column %s",
                           fld->type, crp->Name);
       return NULL;
     } else if (crp->Type == TYPE_DATE && !pdb)
       // For direct MySQL connection, display the MySQL date string
       crp->Type = TYPE_STRING;
+    else
+      crp->Var = v;
 
     crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
               ? fld->decimals : 0;
-    crp->Length = fld->max_length;
+    crp->Length = max(fld->length, fld->max_length);
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;
 

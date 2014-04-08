@@ -20,7 +20,6 @@ typedef struct _xblock {          /* Loaded XML file block        */
   short              Type;        /* TYPE_FB_XML                  */
   int                Retcode;     /* Return code from Load        */
   MSXML2::IXMLDOMDocumentPtr Docp;/* Document interface pointer   */
-//IXMLDOMNodeListPtr Nlist;
   } XBLOCK, *PXBLOCK;
 
 /******************************************************************/
@@ -123,9 +122,6 @@ class DOMATTR : public XMLATTRIBUTE {
   friend class DOMDOC;
   friend class DOMNODE;
  public:
-  // Properties
-//virtual char *GetText(void);
-
   // Methods
   virtual bool  SetText(PGLOBAL g, char *txtp, int len);
 

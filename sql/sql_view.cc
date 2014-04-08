@@ -1652,7 +1652,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       {
         if (non_existant_views.length())
           non_existant_views.append(',');
-        non_existant_views.append(String(view->table_name,system_charset_info));
+        non_existant_views.append(name);
       }
       else
       {

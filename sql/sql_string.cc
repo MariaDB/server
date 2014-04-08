@@ -1014,7 +1014,7 @@ outp:
 
 /*
   Append characters to a single-quoted string '...', escaping special
-  characters as necessary.
+  characters with backslashes as necessary.
   Does not add the enclosing quotes, this is left up to caller.
 */
 #define APPEND(X)   if (append(X)) return 1; else break

@@ -26,7 +26,6 @@ const char *GetFmt(int type, bool un = false);
 /*  Class VALBLK represent a base class for variable blocks.           */
 /***********************************************************************/
 class VALBLK : public BLOCK {
-//friend void SemColData(PGLOBAL g, PSEM semp);
  public:
   // Constructors
   VALBLK(void *mp, int type, int nval, bool un = false);
@@ -79,12 +78,6 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(char *sp, uint len, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
-#if 0
-  virtual void   SetMin(PVAL valp, int n) = 0;
-  virtual void   SetMax(PVAL valp, int n) = 0;
-  virtual void   SetValues(PVBLK pv, int i, int n) = 0;
-  virtual void   AddMinus1(PVBLK pv, int n1, int n2) {assert(false);}
-#endif // 0
   virtual void   Move(int i, int j) = 0;
   virtual int    CompVal(PVAL vp, int n) = 0;
   virtual int    CompVal(int i1, int i2) = 0;
@@ -119,12 +112,10 @@ class TYPBLK : public VALBLK {
  public:
   // Constructors
   TYPBLK(void *mp, int size, int type, int prec = 0, bool un = false);
-//TYPBLK(void *mp, int size, int prec, int type);
 
   // Implementation
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(TYPE);}
-//virtual PSZ    GetCharValue(int n);
   virtual char   GetTinyValue(int n) {return (char)Typp[n];}
   virtual uchar  GetUTinyValue(int n) {return (uchar)Typp[n];}
   virtual short  GetShortValue(int n) {return (short)Typp[n];}
@@ -160,7 +151,6 @@ class TYPBLK : public VALBLK {
                   {Typp[n] = (TYPE)cval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -211,7 +201,6 @@ class CHRBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -263,7 +252,6 @@ class STRBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);

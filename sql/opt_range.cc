@@ -3168,7 +3168,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         }
       }
 
-      if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE))
+      if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+          head->stat_records() != 0)
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
@@ -3408,7 +3409,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
 
-  if (table_records == 0)
+  if (!cond || table_records == 0)
     DBUG_RETURN(FALSE);
 
   if (table->pos_in_table_list->schema_table)

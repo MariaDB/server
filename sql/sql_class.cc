@@ -1715,9 +1715,7 @@ void THD::init_for_queries()
 
 void THD::change_user(void)
 {
-  mysql_mutex_lock(&LOCK_status);
-  add_to_status(&global_status_var, &status_var);
-  mysql_mutex_unlock(&LOCK_status);
+  add_status_to_global();
 
   cleanup();
   reset_killed();
@@ -1748,14 +1746,13 @@ void THD::cleanup(void)
 #endif
 
   mysql_ha_cleanup(this);
+  locked_tables_list.unlock_locked_tables(this);
 
   close_temporary_tables(this);
 
   transaction.xid_state.xa_state= XA_NOTR;
   trans_rollback(this);
   xid_cache_delete(&transaction.xid_state);
-
-  locked_tables_list.unlock_locked_tables(this);
 
   DBUG_ASSERT(open_tables == NULL);
   /*
@@ -2700,12 +2697,6 @@ select_result::select_result()
   thd=current_thd;
 }
 
-void select_result::send_error(uint errcode,const char *err)
-{
-  my_message(errcode, err, MYF(0));
-}
-
-
 void select_result::cleanup()
 {
   /* do nothing */
@@ -2853,20 +2844,6 @@ bool select_send::send_eof()
 /************************************************************************
   Handling writing to file
 ************************************************************************/
-
-void select_to_file::send_error(uint errcode,const char *err)
-{
-  my_message(errcode, err, MYF(0));
-  if (file > 0)
-  {
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    /* Delete file on error */
-    mysql_file_delete(key_select_to_file, path, MYF(0));
-    file= -1;
-  }
-}
-
 
 bool select_to_file::send_eof()
 {
@@ -4497,6 +4474,12 @@ extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd)
 extern "C" int thd_slave_thread(const MYSQL_THD thd)
 {
   return(thd->slave_thread);
+}
+
+/* Returns true for a worker thread in parallel replication. */
+extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
+{
+  return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)

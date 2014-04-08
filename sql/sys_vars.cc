@@ -1778,10 +1778,11 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_ulong Sys_slave_parallel_threads(
        "slave_parallel_threads",
-       "Alpha feature, to only be used by developers doing testing! "
        "If non-zero, number of threads to spawn to apply in parallel events "
        "on the slave that were group-committed on the master or were logged "
-       "with GTID in different replication domains.",
+       "with GTID in different replication domains. Note that these threads "
+       "are in addition to the IO and SQL threads, which are always created "
+       "by a replication slave",
        GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
@@ -1839,6 +1840,50 @@ static Sys_var_ulong Sys_slave_parallel_max_queued(
        "--slave-parallel-threads > 0.",
        GLOBAL_VAR(opt_slave_parallel_max_queued), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
+
+
+static bool
+check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return running ? true : false;
+}
+
+
+static Sys_var_mybool Sys_gtid_ignore_duplicates(
+       "gtid_ignore_duplicates",
+       "When set, different master connections in multi-source replication are "
+       "allowed to receive and process event groups with the same GTID (when "
+       "using GTID mode). Only one will be applied, any others will be "
+       "ignored. Within a given replication domain, just the sequence number "
+       "will be used to decide whether a given GTID has been already applied; "
+       "this means it is the responsibility of the user to ensure that GTID "
+       "sequence numbers are strictly increasing.",
+       GLOBAL_VAR(opt_gtid_ignore_duplicates), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_gtid_ignore_duplicates),
+       ON_UPDATE(fix_gtid_ignore_duplicates));
 #endif
 
 
@@ -2692,11 +2737,11 @@ static Sys_var_mybool Sys_slave_compressed_protocol(
 static const char *slave_exec_mode_names[]= {"STRICT", "IDEMPOTENT", 0};
 static Sys_var_enum Slave_exec_mode(
        "slave_exec_mode",
-       "Modes for how replication events should be executed. Legal values "
+       "How replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
        "replication will not stop for operations that are idempotent. "
        "For example, in row based replication attempts to delete rows that "
-       "doesn't exist will be ignored."
+       "doesn't exist will be ignored. "
        "In STRICT mode, replication will stop on any unexpected difference "
        "between the master and the slave",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
@@ -2704,13 +2749,30 @@ static Sys_var_enum Slave_exec_mode(
 
 static Sys_var_enum Slave_ddl_exec_mode(
        "slave_ddl_exec_mode",
-       "Modes for how replication events should be executed. Legal values "
+       "How replication events should be executed. Legal values "
        "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
        "replication will not stop for DDL operations that are idempotent. "
-       "This means that CREATE TABLE is treated CREATE TABLE OR REPLACE and "
-       "DROP TABLE is threated as DROP TABLE IF EXISTS. ",
+       "This means that CREATE TABLE is treated as CREATE TABLE OR REPLACE and "
+       "DROP TABLE is treated as DROP TABLE IF EXISTS.",
        GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
+
+#ifdef RBR_TRIGGERS
+static const char *slave_run_triggers_for_rbr_names[]=
+  {"NO", "YES", "LOGGING", 0};
+static Sys_var_enum Slave_run_triggers_for_rbr(
+       "slave_run_triggers_for_rbr",
+       "Modes for how triggers in row-base replication on slave side will be "
+       "executed. Legal values are NO (default), YES and LOGGING. NO means "
+       "that trigger for RBR will not be running on slave. YES and LOGGING "
+       "means that triggers will be running on slave, if there was not "
+       "triggers running on the master for the statement. LOGGING also means "
+       "results of that the executed triggers work will be written to "
+       "the binlog.",
+       GLOBAL_VAR(slave_run_triggers_for_rbr), CMD_LINE(REQUIRED_ARG),
+       slave_run_triggers_for_rbr_names,
+       DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
+#endif //RBR_TRIGGERS
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
@@ -4851,7 +4913,7 @@ const char *use_stat_tables_modes[] =
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
        "Specifies how to use system statistics tables. Possible values are "
-       "NEVER, COMPLEMENTARY, PREVERABLY",
+       "NEVER, COMPLEMENTARY, PREFERABLY",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
        use_stat_tables_modes, DEFAULT(0));
 

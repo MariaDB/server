@@ -3027,6 +3027,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
   char buff[FN_REFLEN];
   const myf errortype= ME_ERROR+ME_WAITTANG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
+  DBUG_PRINT("info", ("error: %d  db_errno: %d", error, db_errno));
 
   switch (error) {
   case OPEN_FRM_OPEN_ERROR:
@@ -3443,10 +3444,11 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
 
   SYNPOSIS
     check_db_name()
-    org_name		Name of database and length
+    org_name		Name of database
 
   NOTES
-    If lower_case_table_names is set then database is converted to lower case
+    If lower_case_table_names is set to 1 then database name is converted
+    to lower case
 
   RETURN
     0	ok
@@ -3468,9 +3470,12 @@ bool check_db_name(LEX_STRING *org_name)
   if (!name_length || name_length > NAME_LEN)
     return 1;
 
-  if (lower_case_table_names && name != any_db)
-    my_casedn_str(files_charset_info, name);
-
+  if (lower_case_table_names == 1 && name != any_db)
+  {
+    org_name->length= name_length= my_casedn_str(files_charset_info, name);
+    if (check_for_path_chars)
+      org_name->length+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
+  }
   if (db_name_is_in_ignore_db_dirs_list(name))
     return 1;
 
@@ -3808,13 +3813,14 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   /*
     To protect all_tables list from being concurrently modified
-    while we are iterating through it we acquire LOCK_open.
+    while we are iterating through it we increment tdc.all_tables_refs.
     This does not introduce deadlocks in the deadlock detector
-    because we won't try to acquire LOCK_open while
+    because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
-  if (gvisitor->m_lock_open_count++ == 0)
-    mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  tdc.all_tables_refs++;
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   All_share_tables_list::Iterator tables_it(tdc.all_tables);
 
@@ -3857,8 +3863,10 @@ end_leave_node:
   gvisitor->leave_node(src_ctx);
 
 end:
-  if (gvisitor->m_lock_open_count-- == 1)
-    mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  if (!--tdc.all_tables_refs)
+    mysql_cond_broadcast(&tdc.COND_release);
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   return result;
 }
@@ -4003,6 +4011,10 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  master_had_triggers= 0;
+#endif
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
@@ -6664,6 +6676,81 @@ int TABLE::update_default_fields()
   DBUG_RETURN(res);
 }
 
+
+/*
+  Prepare triggers  for INSERT-like statement.
+
+  SYNOPSIS
+    prepare_triggers_for_insert_stmt_or_event()
+
+  NOTE
+    Prepare triggers for INSERT-like statement by marking fields
+    used by triggers and inform handlers that batching of UPDATE/DELETE 
+    cannot be done if there are BEFORE UPDATE/DELETE triggers.
+*/
+
+void TABLE::prepare_triggers_for_insert_stmt_or_event()
+{
+  if (triggers)
+  {
+    if (triggers->has_triggers(TRG_EVENT_DELETE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to
+        subject table and therefore might need delete to be done
+        immediately. So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    }
+    if (triggers->has_triggers(TRG_EVENT_UPDATE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    }
+  }
+}
+
+
+bool TABLE::prepare_triggers_for_delete_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_DELETE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER DELETE triggers that might access to subject table
+      and therefore might need delete to be done immediately. So we turn-off
+      the batching.
+    */
+    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+
+bool TABLE::prepare_triggers_for_update_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_UPDATE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER UPDATE triggers that might access to subject
+      table and therefore might need update to be done immediately.
+      So we turn-off the batching.
+    */ 
+    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
 
 /*
   @brief Reset const_table flag

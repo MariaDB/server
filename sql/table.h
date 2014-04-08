@@ -616,12 +616,14 @@ struct TABLE_SHARE
   struct
   {
     /**
-      Protects ref_count and m_flush_tickets.
+      Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
+      all_tables_refs.
     */
     mysql_mutex_t LOCK_table_share;
     mysql_cond_t COND_release;
     TABLE_SHARE *next, **prev;            /* Link to unused shares */
     uint ref_count;                       /* How many TABLE objects uses this */
+    uint all_tables_refs;                 /* Number of refs to all_tables */
     /**
       List of tickets representing threads waiting for the share to be flushed.
     */
@@ -977,6 +979,9 @@ struct TABLE_SHARE
   */
   bool write_frm_image(const uchar *frm_image, size_t frm_length);
 
+  bool write_frm_image(void)
+  { return frm_image ? write_frm_image(frm_image->str, frm_image->length) : 0; }
+
   /*
     returns an frm image for this table.
     the memory is allocated and must be freed later
@@ -1235,6 +1240,10 @@ public:
   bool get_fields_in_item_tree;      /* Signal to fix_field */
   bool m_needs_reopen;
   bool created;    /* For tmp tables. TRUE <=> tmp table was actually created.*/
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  bool master_had_triggers;
+#endif
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
@@ -1363,6 +1372,10 @@ public:
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
+
+  void prepare_triggers_for_insert_stmt_or_event();
+  bool prepare_triggers_for_delete_stmt_or_event();
+  bool prepare_triggers_for_update_stmt_or_event();
 };
 
 
@@ -2160,9 +2173,11 @@ struct TABLE_LIST
   }
   inline void set_merged_derived()
   {
+    DBUG_ENTER("set_merged_derived");
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MERGE);
     set_check_merged();
+    DBUG_VOID_RETURN;
   }
   inline bool is_materialized_derived()
   {
@@ -2170,9 +2185,11 @@ struct TABLE_LIST
   }
   void set_materialized_derived()
   {
+    DBUG_ENTER("set_materialized_derived");
     derived_type= ((derived_type & DTYPE_MASK) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
+    DBUG_VOID_RETURN;
   }
   inline bool is_multitable()
   {
@@ -2528,6 +2545,9 @@ bool check_table_name(const char *name, size_t length, bool check_for_path_chars
 int rename_file_ext(const char * from,const char * to,const char * ext);
 char *get_field(MEM_ROOT *mem, Field *field);
 bool get_field(MEM_ROOT *mem, Field *field, class String *res);
+
+bool validate_comment_length(THD *thd, LEX_STRING *comment, size_t max_len,
+                             uint err_code, const char *name);
 
 int closefrm(TABLE *table, bool free_share);
 void free_blobs(TABLE *table);

@@ -925,7 +925,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint blob_length= uint2korr(ptr);
     blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                    blob_length, &my_charset_bin);
-    if (append_escaped(to, &blob))
+    if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
@@ -934,7 +934,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint var_length= uint2korr(ptr);
     varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                       var_length, &my_charset_bin);
-    if (append_escaped(to, &varchar))
+    if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
   else
@@ -946,7 +946,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     if (field->result_type() == STRING_RESULT)
     {
-      if (append_escaped(to, res))
+      if (to->append_for_single_quote(res))
         DBUG_RETURN(1);
     }
     else if (to->append(res->ptr(), res->length()))
@@ -3384,14 +3384,6 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   {
     FEDERATEDX_SERVER server;
 
-    /* 
-      Bug#25679
-      Ensure that we do not hold the LOCK_open mutex while attempting
-      to establish FederatedX connection to guard against a trivial
-      Denial of Service scenerio.
-    */
-    mysql_mutex_assert_not_owner(&LOCK_open);
-
     fill_server(thd->mem_root, &server, &tmp_share, create_info->table_charset);
 
 #ifndef DBUG_OFF
@@ -3661,6 +3653,6 @@ maria_declare_plugin(federatedx)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "2.1",                      /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA /* maturity */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;

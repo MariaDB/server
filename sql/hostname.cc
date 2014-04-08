@@ -126,7 +126,7 @@ void Host_errors::aggregate(const Host_errors *errors)
   m_local+= errors->m_local;
 }
 
-static hash_filo *hostname_cache;
+static Hash_filo<Host_entry> *hostname_cache;
 ulong host_cache_size;
 
 void hostname_cache_refresh()
@@ -149,7 +149,7 @@ bool hostname_cache_init()
   Host_entry tmp;
   uint key_offset= (uint) ((char*) (&tmp.ip_key) - (char*) &tmp);
 
-  if (!(hostname_cache= new hash_filo(host_cache_size,
+  if (!(hostname_cache= new Hash_filo<Host_entry>(host_cache_size,
                                       key_offset, HOST_ENTRY_KEY_SIZE,
                                       NULL, (my_hash_free_key) free,
                                       &my_charset_bin)))
@@ -187,11 +187,11 @@ static void prepare_hostname_cache_key(const char *ip_string,
 }
 
 Host_entry *hostname_cache_first()
-{ return (Host_entry *) hostname_cache->first(); }
+{ return hostname_cache->first(); }
 
 static inline Host_entry *hostname_cache_search(const char *ip_key)
 {
-  return (Host_entry *) hostname_cache->search((uchar *) ip_key, 0);
+  return hostname_cache->search((uchar *) ip_key, 0);
 }
 
 static void add_hostname_impl(const char *ip_key, const char *hostname,

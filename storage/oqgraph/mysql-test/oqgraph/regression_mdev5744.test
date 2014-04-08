@@ -7,6 +7,8 @@ DROP TABLE IF EXISTS graph_base;
 DROP TABLE IF EXISTS graph;
 --enable_warnings
 
+call mtr.add_suppression("graph_base is open on delete");
+
 # Create the backing store
 CREATE TABLE graph_base (
     from_id INT UNSIGNED NOT NULL,

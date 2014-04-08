@@ -567,7 +567,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   int type;
 
   tmp.length(0);
-  if (!(res= args[1]->val_str(&tmp)) ||
+  if (!(res= args[0]->val_str(&tmp)) ||
       (type= find_type(res->c_ptr_safe(),
                        &hystorgam_types_typelib, MYF(0))) <= 0)
   {
@@ -577,7 +577,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   type--;
 
   tmp.length(0);
-  if (!(res= args[0]->val_str(&tmp)))
+  if (!(res= args[1]->val_str(&tmp)))
   {
     null_value= 1;
     return 0;
@@ -3554,6 +3554,8 @@ String *Item_func_weight_string::val_str(String *str)
                                  nweights ? nweights : tmp_length,
                                  (const uchar *) res->ptr(), res->length(),
                                  flags);
+  DBUG_ASSERT(frm_length <= tmp_length);
+
   tmp_value.length(frm_length);
   null_value= 0;
   return &tmp_value;
@@ -4279,6 +4281,7 @@ bool Item_func_dyncol_create::fix_fields(THD *thd, Item **ref)
 
 void Item_func_dyncol_create::fix_length_and_dec()
 {
+  max_length= MAX_BLOB_WIDTH;
   maybe_null= TRUE;
   collation.set(&my_charset_bin);
   decimals= 0;

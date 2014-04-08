@@ -7909,7 +7909,7 @@ int spider_db_open_item_string(
     tmp_str.mem_calc();
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     if (
-      append_escaped(str->get_str(), tmp_str2) ||
+      str->get_str()->append_for_single_quote(tmp_str2) ||
       str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN)
     )
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9029,7 +9029,7 @@ int spider_db_udf_ping_table_append_mon_next(
   str->q_append(SPIDER_SQL_SELECT_STR, SPIDER_SQL_SELECT_LEN);
   str->q_append(SPIDER_SQL_PING_TABLE_STR, SPIDER_SQL_PING_TABLE_LEN);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  append_escaped(str->get_str(), child_table_name_str.get_str());
+  str->get_str()->append_for_single_quote(child_table_name_str.get_str());
   str->mem_calc();
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -9040,7 +9040,7 @@ int spider_db_udf_ping_table_append_mon_next(
   str->q_append(limit_str, limit_str_length);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  append_escaped(str->get_str(), where_clause_str.get_str());
+  str->get_str()->append_for_single_quote(where_clause_str.get_str());
   str->mem_calc();
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -9093,7 +9093,7 @@ int spider_db_udf_ping_table_append_select(
   ))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   if (use_where)
-    append_escaped(str->get_str(), where_str->get_str());
+    str->get_str()->append_for_single_quote(where_str->get_str());
   str->mem_calc();
   str->q_append(SPIDER_SQL_LIMIT_STR, SPIDER_SQL_LIMIT_LEN);
   str->q_append(limit_str, limit_str_length);

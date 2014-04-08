@@ -592,6 +592,26 @@
    fun:dl_open_worker
 }
 
+{
+   libc pthread_exit 9
+   Memcheck:Leak
+   fun:malloc
+   fun:local_strdup
+   fun:_dl_map_object
+   fun:openaux
+   fun:_dl_catch_error 
+}
+
+{
+   libc do_lookup_x
+   Memcheck:Leak
+   fun:calloc
+   fun:do_lookup_x
+   fun:_dl_lookup_symbol_x
+   ...
+   fun:_dl_catch_error 
+}
+
 #
 # This is seen internally in the system libraries on 64-bit RHAS3.
 #

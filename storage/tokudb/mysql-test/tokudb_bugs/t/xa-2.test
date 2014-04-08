@@ -1,5 +1,5 @@
--- source include/have_tokudb.inc
-#--source include/not_5_5.inc
+--source include/have_tokudb.inc
+--source include/not_5_5.inc
 
 --disable_warnings
 drop table if exists t1;

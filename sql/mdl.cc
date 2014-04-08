@@ -2007,8 +2007,6 @@ bool MDL_lock::has_pending_conflicting_lock(enum_mdl_type type)
 {
   bool result;
 
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   mysql_prlock_rdlock(&m_rwlock);
   result= (m_waiting.bitmap() & incompatible_granted_types_bitmap()[type]);
   mysql_prlock_unlock(&m_rwlock);
@@ -2183,7 +2181,6 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
   /* Don't take chances in production. */
   mdl_request->ticket= NULL;
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   /*
     Check whether the context already holds a shared lock on the object,
@@ -2273,7 +2270,6 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
 {
   MDL_ticket *ticket;
 
-  mysql_mutex_assert_not_owner(&LOCK_open);
   /*
     By submitting mdl_request->type to MDL_ticket::create()
     we effectively downgrade the cloned lock to the level of
@@ -2934,7 +2930,6 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
                        lock->key.db_name(), lock->key.name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   lock->remove_ticket(&MDL_lock::m_granted, ticket);
 
@@ -3032,8 +3027,6 @@ void MDL_context::release_all_locks_for_name(MDL_ticket *name)
 
 void MDL_ticket::downgrade_lock(enum_mdl_type type)
 {
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   /*
     Do nothing if already downgraded. Used when we FLUSH TABLE under
     LOCK TABLES and a table is listed twice in LOCK TABLES list.

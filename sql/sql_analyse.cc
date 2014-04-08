@@ -1080,7 +1080,7 @@ int collect_string(String *element,
   else
     info->found = 1;
   info->str->append('\'');
-  if (append_escaped(info->str, element))
+  if (info->str->append_for_single_quote(element))
     return 1;
   info->str->append('\'');
   return 0;
@@ -1239,56 +1239,3 @@ uint check_ulonglong(const char *str, uint length)
   return ((uchar) str[-1] <= (uchar) cmp[-1]) ? smaller : bigger;
 } /* check_ulonlong */
 
-
-/*
-  Quote special characters in a string.
-
-  SYNOPSIS
-   append_escaped(to_str, from_str)
-   to_str (in) A pointer to a String.
-   from_str (to) A pointer to an allocated string
-
-  DESCRIPTION
-    append_escaped() takes a String type variable, where it appends
-    escaped the second argument. Only characters that require escaping
-    will be escaped.
-
-  RETURN VALUES
-    0 Success
-    1 Out of memory
-*/
-
-bool append_escaped(String *to_str, String *from_str)
-{
-  char *from, *end, c;
-
-  if (to_str->realloc(to_str->length() + from_str->length()))
-    return 1;
-
-  from= (char*) from_str->ptr();
-  end= from + from_str->length();
-  for (; from < end; from++)
-  {
-    c= *from;
-    switch (c) {
-    case '\0':
-      c= '0';
-      break;
-    case '\032':
-      c= 'Z';
-      break;
-    case '\\':
-    case '\'':
-      break;
-    default:
-      goto normal_character;
-    }
-    if (to_str->append('\\'))
-      return 1;
-
-  normal_character:
-    if (to_str->append(c))
-      return 1;
-  }
-  return 0;
-}

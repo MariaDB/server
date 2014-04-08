@@ -4773,11 +4773,14 @@ handler::Table_flags
 ha_innobase::table_flags() const
 /*============================*/
 {
+	THD *thd = ha_thd();
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
-	ulong const tx_isolation = thd_tx_isolation(ha_thd());
+	ulong const tx_isolation = thd_tx_isolation(thd);
 
-	if (tx_isolation <= ISO_READ_COMMITTED) {
+	if (tx_isolation <= ISO_READ_COMMITTED &&
+	    !(tx_isolation == ISO_READ_COMMITTED &&
+	      thd_rpl_is_parallel(thd))) {
 		return(int_table_flags);
 	}
 
@@ -6557,7 +6560,10 @@ get_innobase_type_from_mysql_type(
 	case MYSQL_TYPE_LONG_BLOB:
 		return(DATA_BLOB);
 	case MYSQL_TYPE_NULL:
-		return(DATA_FIXBINARY);
+		/* MySQL currently accepts "NULL" datatype, but will
+		reject such datatype in the next release. We will cope
+		with it and not trigger assertion failure in 5.1 */
+		break;
 	default:
 		ut_error;
 	}

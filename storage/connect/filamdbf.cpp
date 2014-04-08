@@ -485,16 +485,15 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("%s\n", g->Message);
+    
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
-#ifdef DEBTRACE
- htrc("File %s is open in mode %s\n", filename, opmode);
-#endif
+  if (trace)
+    htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fb = dbuserp->Openlist;     // Keep track of File block
 
@@ -853,10 +852,10 @@ void DBFFAM::CloseTableFile(PGLOBAL g)
     rc = PlugCloseFile(g, To_Fb);
 
  fin:
-#ifdef DEBTRACE
- htrc("DBF CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
-  To_File, mode, wrc, rc);
-#endif
+  if (trace)
+    htrc("DBF CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
+         To_File, mode, wrc, rc);
+
   Stream = NULL;           // So we can know whether table is open
   } // end of CloseTableFile
 

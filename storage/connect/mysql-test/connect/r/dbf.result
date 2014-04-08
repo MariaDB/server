@@ -390,22 +390,22 @@ CREATE TABLE t1
 (
 a BLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 CREATE TABLE t1
 (
 a TINYBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 CREATE TABLE t1
 (
 a MEDIUMBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 CREATE TABLE t1
 (
 a LONGBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 #
 # Testing DATE
 #

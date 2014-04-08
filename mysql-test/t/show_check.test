@@ -1375,7 +1375,7 @@ SET NAMES latin1;
 
 
 --echo #
---echo # WL#6454: Deprecate SHOW AUTHORS and SHOW CONTRIBUTORS
+--echo # Test SHOW AUTHORS and SHOW CONTRIBUTORS
 --echo #
 
 --disable_result_log

@@ -769,7 +769,6 @@ os_file_handle_error(
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
-static
 ibool
 os_file_handle_error_no_exit(
 /*=========================*/
