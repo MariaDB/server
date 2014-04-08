@@ -635,8 +635,8 @@ ulonglong ha_connect::table_flags() const
 {
   ulonglong   flags= HA_CAN_VIRTUAL_COLUMNS | HA_REC_NOT_IN_SEQ |
                      HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-                     HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
-                     HA_PARTIAL_COLUMN_READ |
+//                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
+                     HA_PARTIAL_COLUMN_READ | HA_FILE_BASED |
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
@@ -647,9 +647,6 @@ ulonglong ha_connect::table_flags() const
   if (pos) {
     TABTYPE type= hp->GetRealType(pos);
     
-    if (IsFileType(type))
-      flags|= HA_FILE_BASED;
-
     if (IsExactType(type))
       flags|= (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT);
 
@@ -1407,8 +1404,9 @@ int ha_connect::MakeRecord(char *buf)
         } // endif colp
 
       value= colp->GetValue();
+      p= NULL;
 
-      // All this could be better optimized
+      // All this was better optimized
       if (!value->IsNull()) {
         switch (value->GetType()) {
           case TYPE_DATE:
@@ -1433,39 +1431,37 @@ int ha_connect::MakeRecord(char *buf)
             // Get date in the format required by MySQL fields
             value->FormatValue(sdvalout, fmt);
             p= sdvalout->GetCharValue();
-            break;
-          case TYPE_DOUBLE:
-            p= NULL;
+            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
           case TYPE_STRING:
-            // Passthru
-          default:
+          case TYPE_DECIM:
             p= value->GetCharString(val);
+            charset= tdbp->data_charset();
+            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+            break;
+          case TYPE_DOUBLE:
+            rc= fp->store(value->GetFloatValue());
+            break;
+          default:
+            rc= fp->store(value->GetBigintValue(), value->IsUnsigned());
             break;
           } // endswitch Type
 
-        if (p) {
-          if (fp->store(p, strlen(p), charset, CHECK_FIELD_WARN)) {
-            // Avoid "error" on null fields
-            if (value->GetIntValue())
-              rc= HA_ERR_WRONG_IN_RECORD;
-    
-            DBUG_PRINT("MakeRecord", ("%s", p));
-            } // endif store
-    
-        } else
-          if (fp->store(value->GetFloatValue())) {
-//          rc= HA_ERR_WRONG_IN_RECORD;   a Warning was ignored
-            char buf[128];
-            THD *thd= ha_thd();
+        // Store functions returns 1 on overflow and -1 on fatal error
+        if (rc > 0) {
+          char buf[128];
+          THD *thd= ha_thd();
 
-            sprintf(buf, "Out of range value for column '%s' at row %ld",
-              fp->field_name, 
-              thd->get_stmt_da()->current_row_for_warning());
+          sprintf(buf, "Out of range value %s for column '%s' at row %ld",
+            value->GetCharString(val),
+            fp->field_name, 
+            thd->get_stmt_da()->current_row_for_warning());
 
-            push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
-            DBUG_PRINT("MakeRecord", ("%s", value->GetCharString(val)));
-            } // endif store
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
+          DBUG_PRINT("MakeRecord", ("%s", buf));
+          rc= 0;
+        } else if (rc < 0)
+          rc= HA_ERR_WRONG_IN_RECORD;
 
         fp->set_notnull();
       } else
@@ -2455,7 +2451,6 @@ int ha_connect::index_next(uchar *buf)
 } // end of index_next
 
 
-#ifdef NOT_USED
 /**
   @brief
   Used to read backwards through the index.
@@ -2463,9 +2458,15 @@ int ha_connect::index_next(uchar *buf)
 int ha_connect::index_prev(uchar *buf)
 {
   DBUG_ENTER("ha_connect::index_prev");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-#endif // NOT_USED
+  int rc;
+
+  if (indexing > 0) {
+    rc= ReadIndexed(buf, OP_PREV);
+  } else
+    rc= HA_ERR_WRONG_COMMAND;
+
+  DBUG_RETURN(rc);
+} // end of index_prev
 
 
 /**

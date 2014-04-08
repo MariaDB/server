@@ -98,7 +98,8 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   char    *query, *colname, buf[64];
   int      rc, ndif, nblin, w = 0;
   bool     b = false;
-  PVAL     valp;
+  PVAL     valp;   
+  PQRYRES  qrp;
   PCOLRES *pcrp, crp, fncrp = NULL;
 
   // Save stack and allocation environment and prepare error return
@@ -113,8 +114,8 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   if (!Tabsrc && Tabname) {
     // Locate the  query
-    query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 16);
-    sprintf(query, "SELECT * FROM %s", Tabname);
+    query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 26);
+    sprintf(query, "SELECT * FROM `%s` LIMIT 1", Tabname);
   } else if (!Tabsrc) {
     strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
     return NULL;
@@ -132,9 +133,8 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     goto err;
 
   // We must have a storage query to get pivot column values
-  Qryp = Myc.GetResult(g, true);
-  Myc.Close();
-  b = false;
+  if (!(Qryp = Myc.GetResult(g, true)))
+    goto err;
 
   if (!Fncol) {
     for (crp = Qryp->Colresp; crp; crp = crp->Next)
@@ -143,7 +143,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   
     if (!Fncol) {
       strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-      return NULL;
+      goto err;
       } // endif Fncol
   
     } // endif Fncol
@@ -156,7 +156,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   
     if (!Picol) {
       strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-      return NULL;
+      goto err;
       } // endif Picol
   
     } // endif picol
@@ -166,7 +166,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     if (!stricmp(Picol, crp->Name)) {
       if (crp->Nulls) {
         sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
-        return NULL;
+        goto err;
         } // endif Nulls
 
       Rblkp = crp->Kdata;
@@ -179,31 +179,59 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   if (!Rblkp) {
     strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-    return NULL;
+    goto err;
   } else if (!fncrp) {
     strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-    return NULL;
+    goto err;
   } // endif
 
-  // Before calling sort, initialize all
-  nblin = Qryp->Nblin;
+  if (Tabsrc) {
+    Myc.Close();
+    b = false;
 
-  Index.Size = nblin * sizeof(int);
-  Index.Sub = TRUE;                  // Should be small enough
+    // Before calling sort, initialize all
+    nblin = Qryp->Nblin;
 
-  if (!PlgDBalloc(g, NULL, Index))
-    return NULL;
+    Index.Size = nblin * sizeof(int);
+    Index.Sub = TRUE;                  // Should be small enough
 
-  Offset.Size = (nblin + 1) * sizeof(int);
-  Offset.Sub = TRUE;                 // Should be small enough
+    if (!PlgDBalloc(g, NULL, Index))
+      return NULL;
 
-  if (!PlgDBalloc(g, NULL, Offset))
-    return NULL;
+    Offset.Size = (nblin + 1) * sizeof(int);
+    Offset.Sub = TRUE;                 // Should be small enough
 
-  ndif = Qsort(g, nblin);
+    if (!PlgDBalloc(g, NULL, Offset))
+      return NULL;
 
-  if (ndif < 0)           // error
-    return NULL;
+    ndif = Qsort(g, nblin);
+
+    if (ndif < 0)           // error
+      return NULL;
+
+  } else {
+    // The query was limited, we must get pivot column values
+    query = (char*)PlugSubAlloc(g, NULL, 0);
+    sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
+    PlugSubAlloc(g, NULL, strlen(query) + 1);
+    Myc.FreeResult();
+
+    // Send the source command to MySQL
+    if (Myc.ExecSQL(g, query, &w) == RC_FX)
+      goto err;
+
+    // We must have a storage query to get pivot column values
+    if (!(qrp = Myc.GetResult(g, true)))
+      goto err;
+
+    Myc.Close();
+    b = false;
+
+    // Get the column list
+    crp = qrp->Colresp;
+    Rblkp = crp->Kdata;
+    ndif = qrp->Nblin;
+  } // endif Tabsrc
 
   // Allocate the Value used to retieve column names
   if (!(valp = AllocateValue(g, Rblkp->GetType(),
@@ -220,7 +248,11 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
       crp = fncrp;
 
     // Get the value that will be the generated column name
-    valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+    if (Tabsrc)
+      valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+    else
+      valp->SetValue_pvblk(Rblkp, i);
+
     colname = valp->GetCharString(buf);
     crp->Name = (char*)PlugSubAlloc(g, NULL, strlen(colname) + 1);
     strcpy(crp->Name, colname);

@@ -365,7 +365,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             int pt)
   {
   const char *pipe = NULL;
-  uint cto = 60, nrt = 120;
+  uint cto = 6000, nrt = 12000;
 
   m_DB = mysql_init(NULL);
 
