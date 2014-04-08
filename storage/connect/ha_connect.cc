@@ -3916,7 +3916,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   char        v, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
-  const char *col, *ocl, *rnk, *pic, *fcl;
+  const char *col, *ocl, *rnk, *pic, *fcl, *skc;
   char       *tab, *dsn, *shm; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
@@ -3941,7 +3941,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -3967,6 +3967,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     ocl= GetListOption(g, "occurcol", topt->oplist, NULL);
     pic= GetListOption(g, "pivotcol", topt->oplist, NULL);
     fcl= GetListOption(g, "fnccol", topt->oplist, NULL);
+    skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
 #if defined(WIN32)
@@ -4229,7 +4230,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         break;
       case TAB_PIVOT:
-        qrp= PivotColumns(g, tab, src, pic, fcl, host, db, user, pwd, port);
+        qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
         break;
       case TAB_OEM:
         qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);

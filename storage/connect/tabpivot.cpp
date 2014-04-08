@@ -58,11 +58,11 @@ extern "C" int trace;
 /***********************************************************************/
 PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src, 
                                 const char *picol, const char *fncol,
-                                const char *host,  const char *db,
-                                const char *user,  const char *pwd,
-                                int port)
+                                const char *skcol, const char *host,  
+                                const char *db,    const char *user,
+                                const char *pwd,   int port)
   {
-  PIVAID pvd(tab, src, picol, fncol, host, db, user, pwd, port);
+  PIVAID pvd(tab, src, picol, fncol, skcol, host, db, user, pwd, port);
 
   return pvd.MakePivotColumns(g);
   } // end of PivotColumns
@@ -72,10 +72,10 @@ PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src,
 /***********************************************************************/
 /*  PIVAID constructor.                                                */
 /***********************************************************************/
-PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
-               const char *fncol, const char *host, const char *db,
-               const char *user,  const char *pwd,  int port)
-      : CSORT(false)
+PIVAID::PIVAID(const char *tab,   const char *src,   const char *picol,
+               const char *fncol, const char *skcol, const char *host,
+               const char *db,    const char *user,  const char *pwd,
+               int port) : CSORT(false)
   {
   Host = (char*)host;
   User = (char*)user;
@@ -86,16 +86,30 @@ PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
   Tabsrc = (char*)src;
   Picol = (char*)picol;
   Fncol = (char*)fncol;
+  Skcol = (char*)skcol;
   Rblkp = NULL;
   Port = (port) ? port : GetDefaultPort();
   } // end of PIVAID constructor
+
+/***********************************************************************/
+/*  Skip columns that are in the skipped column list.                  */
+/***********************************************************************/
+bool PIVAID::SkipColumn(PCOLRES crp, char *skc)
+  {
+  if (skc)
+    for (char *p = skc; *p; p += (strlen(p) + 1))
+      if (!stricmp(crp->Name, p))
+        return true;
+
+  return false;
+  } // end of SkipColumn
 
 /***********************************************************************/
 /*  Make the Pivot table column list.                                  */
 /***********************************************************************/
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   {
-  char    *query, *colname, buf[64];
+  char    *p, *query, *colname, *skc, buf[64];
   int      rc, ndif, nblin, w = 0;
   bool     b = false;
   PVAL     valp;   
@@ -111,6 +125,21 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
     goto err;
     } // endif rc
+
+  // Are there columns to skip?
+  if (Skcol) {
+    uint n = strlen(Skcol);
+
+    skc = (char*)PlugSubAlloc(g, NULL, n + 2);
+    strcpy(skc, Skcol);
+    skc[n + 1] = 0;
+
+    // Replace ; by nulls in skc
+    for (p = strchr(skc, ';'); p; p = strchr(p, ';'))
+      *p++ = 0;
+
+  } else
+    skc = NULL;
 
   if (!Tabsrc && Tabname) {
     // Locate the  query
@@ -138,7 +167,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   if (!Fncol) {
     for (crp = Qryp->Colresp; crp; crp = crp->Next)
-      if (!Picol || stricmp(Picol, crp->Name))
+      if ((!Picol || stricmp(Picol, crp->Name)) && !SkipColumn(crp, skc))
         Fncol = crp->Name;
   
     if (!Fncol) {
@@ -151,7 +180,7 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   if (!Picol) {
     // Find default Picol as the last one not equal to Fncol
     for (crp = Qryp->Colresp; crp; crp = crp->Next)
-      if (stricmp(Fncol, crp->Name))
+      if (stricmp(Fncol, crp->Name) && !SkipColumn(crp, skc))
         Picol = crp->Name;
   
     if (!Picol) {
@@ -163,7 +192,10 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   
   // Prepare the column list
   for (pcrp = &Qryp->Colresp; crp = *pcrp; )
-    if (!stricmp(Picol, crp->Name)) {
+    if (SkipColumn(crp, skc)) {
+      // Ignore this column
+      *pcrp = crp->Next;
+    } else if (!stricmp(Picol, crp->Name)) {
       if (crp->Nulls) {
         sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
         goto err;
