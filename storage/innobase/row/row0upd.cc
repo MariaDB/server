@@ -373,6 +373,8 @@ wsrep_row_upd_check_foreign_constraints(
 
 	trx = thr_get_trx(thr);
 
+        /* TODO: make native slave thread bail out here */
+
 	rec = btr_pcur_get_rec(pcur);
 	ut_ad(rec_offs_validate(rec, index, offsets));
 
@@ -2716,6 +2718,10 @@ row_upd_clust_step(
 			goto exit_func;
 		}
 	}
+
+	ut_ad(lock_trx_has_rec_x_lock(thr_get_trx(thr), index->table,
+				      btr_pcur_get_block(pcur),
+				      page_rec_get_heap_no(rec)));
 
 	/* NOTE: the following function calls will also commit mtr */
 

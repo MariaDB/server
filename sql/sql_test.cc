@@ -88,21 +88,22 @@ static void print_cached_tables(void)
   puts("DB             Table                            Version  Thread  Open  Lock");
 
   tdc_it.init();
-  mysql_mutex_lock(&LOCK_open);
   while ((share= tdc_it.next()))
   {
+    mysql_mutex_lock(&share->tdc.LOCK_table_share);
     TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
     while ((entry= it++))
     {
+      THD *in_use= entry->in_use;
       printf("%-14.14s %-32s%6ld%8ld%6d  %s\n",
-             entry->s->db.str, entry->s->table_name.str, entry->s->version,
-             entry->in_use ? entry->in_use->thread_id : 0,
+             entry->s->db.str, entry->s->table_name.str, entry->s->tdc.version,
+             in_use ? in_use->thread_id : 0,
              entry->db_stat ? 1 : 0,
-             entry->in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
-                             "Not in use");
+             in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
+                      "Not in use");
     }
+    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
   }
-  mysql_mutex_unlock(&LOCK_open);
   tdc_it.deinit();
   printf("\nCurrent refresh version: %ld\n", tdc_refresh_version());
   fflush(stdout);
@@ -382,6 +383,15 @@ void print_sjm(SJ_MATERIALIZATION_INFO *sjm)
 }
 /* purecov: end */
 
+/*
+  Debugging help: force List<...>::elem function not be removed as unused.
+*/
+Item* (List<Item>:: *dbug_list_item_elem_ptr)(int)= &List<Item>::elem;
+Item_equal* (List<Item_equal>:: *dbug_list_item_equal_elem_ptr)(int)=
+  &List<Item_equal>::elem;
+TABLE_LIST* (List<TABLE_LIST>:: *dbug_list_table_list_elem_ptr)(int) =
+  &List<TABLE_LIST>::elem;
+
 #endif
 
 typedef struct st_debug_lock
@@ -605,7 +615,6 @@ Next alarm time: %lu\n",
 	(ulong)alarm_info.next_alarm_time);
 #endif
   display_table_locks();
-  fflush(stdout);
 #ifdef HAVE_MALLINFO
   struct mallinfo info= mallinfo();
   printf("\nMemory status:\n\
@@ -637,4 +646,5 @@ Estimated memory (with thread stack):    %ld\n",
   Events::dump_internal_status();
 #endif
   puts("");
+  fflush(stdout);
 }

@@ -94,8 +94,6 @@ t1vec	.blk	8
 # Testing READONLY
 #
 ALTER TABLE t1 READONLY=yes;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -111,8 +109,6 @@ ERROR HY000: Table 't1' is read only
 TRUNCATE TABLE t1;
 ERROR HY000: Table 't1' is read only
 ALTER TABLE t1 READONLY=no;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

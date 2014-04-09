@@ -1597,10 +1597,6 @@ select distinct concat(a, b) from t1;
 concat(a, b)
 11113333
 drop table t1;
-CREATE TABLE t1 ( a char(10) ) ENGINE=InnoDB;
-SELECT a FROM t1 WHERE MATCH (a) AGAINST ('test' IN BOOLEAN MODE);
-ERROR HY000: The table does not have FULLTEXT index to support this query
-DROP TABLE t1;
 CREATE TABLE t1 (a_id tinyint(4) NOT NULL default '0', PRIMARY KEY  (a_id)) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 INSERT INTO t1 VALUES (1),(2),(3);
 CREATE TABLE t2 (b_id tinyint(4) NOT NULL default '0',b_a tinyint(4) NOT NULL default '0', PRIMARY KEY  (b_id), KEY  (b_a), 

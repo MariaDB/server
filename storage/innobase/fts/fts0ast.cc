@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2007, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2007, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,6 +26,18 @@ Created 2007/3/16 Sunny Bains.
 #include "mem0mem.h"
 #include "fts0ast.h"
 #include "fts0pars.h"
+#include "fts0fts.h"
+
+/* The FTS ast visit pass. */
+enum fts_ast_visit_pass_t {
+	FTS_PASS_FIRST,		/*!< First visit pass,
+				process operators excluding
+				FTS_EXIST and FTS_IGNORE */
+	FTS_PASS_EXIST,		/*!< Exist visit pass,
+				process operator FTS_EXIST */
+	FTS_PASS_IGNORE		/*!< Ignore visit pass,
+				process operator FTS_IGNORE */
+};
 
 /******************************************************************//**
 Create an empty fts_ast_node_t.
@@ -66,7 +78,7 @@ fts_ast_create_node_oper(
 /******************************************************************//**
 This function takes ownership of the ptr and is responsible
 for free'ing it
-@return new node */
+@return new node or a node list with tokenized words */
 UNIV_INTERN
 fts_ast_node_t*
 fts_ast_create_node_term(
@@ -74,17 +86,68 @@ fts_ast_create_node_term(
 	void*		arg,			/*!< in: ast state instance */
 	const char*	ptr)			/*!< in: ast term string */
 {
-	ulint		len = strlen(ptr);
-	fts_ast_node_t*	node = fts_ast_node_create();
+	fts_ast_state_t*	state = static_cast<fts_ast_state_t*>(arg);
+	ulint			len = strlen(ptr);
+	ulint			cur_pos = 0;
+	fts_ast_node_t*         node = NULL;
+	fts_ast_node_t*		node_list = NULL;
+	fts_ast_node_t*		first_node = NULL;
 
-	node->type = FTS_AST_TERM;
+	/* Scan the incoming string and filter out any "non-word" characters */
+	while (cur_pos < len) {
+		fts_string_t	str;
+		ulint		offset;
+		ulint		cur_len;
 
-	node->term.ptr = static_cast<byte*>(ut_malloc(len + 1));
-	memcpy(node->term.ptr, ptr, len + 1);
+		cur_len = innobase_mysql_fts_get_token(
+			state->charset,
+			reinterpret_cast<const byte*>(ptr) + cur_pos,
+			reinterpret_cast<const byte*>(ptr) + len, &str, &offset);
 
-	fts_ast_state_add_node((fts_ast_state_t*) arg, node);
+		if (cur_len == 0) {
+			break;
+		}
 
-	return(node);
+		cur_pos += cur_len;
+
+		if (str.f_n_char > 0) {
+			/* If the subsequent term (after the first one)'s size
+			is less than fts_min_token_size, we shall ignore
+			that. This is to make consistent with MyISAM behavior */
+			if (first_node && (str.f_n_char < fts_min_token_size)) {
+				continue;
+			}
+
+			node = fts_ast_node_create();
+
+			node->type = FTS_AST_TERM;
+
+			node->term.ptr = static_cast<byte*>(ut_malloc(
+				str.f_len + 1));
+			memcpy(node->term.ptr, str.f_str, str.f_len);
+			node->term.ptr[str.f_len] = '\0';
+
+			fts_ast_state_add_node(
+				static_cast<fts_ast_state_t*>(arg), node);
+
+			if (first_node) {
+				/* There is more than one word, create
+				a list to organize them */
+				if (!node_list) {
+					node_list = fts_ast_create_node_list(
+						static_cast<fts_ast_state_t*>(
+							arg),
+						 first_node);
+				}
+
+				fts_ast_add_node(node_list, node);
+			} else {
+				first_node = node;
+			}
+		}
+	}
+
+	return((node_list != NULL) ? node_list : first_node);
 }
 
 /******************************************************************//**
@@ -101,11 +164,19 @@ fts_ast_create_node_text(
 	ulint		len = strlen(ptr);
 	fts_ast_node_t*	node = NULL;
 
-	ut_ad(len >= 2);
 
-	if (len == 2) {
+	ut_ad(len >= 1);
+
+	if (len <= 2) {
+		/* There is a way to directly supply null terminator
+		in the query string (by using 0x220022) and get here,
+		and certainly it would not make a valid query text */
 		ut_ad(ptr[0] == '\"');
-		ut_ad(ptr[1] == '\"');
+
+		if (len == 2) {
+			ut_ad(ptr[1] == '\"');
+		}
+
 		return(NULL);
 	}
 
@@ -297,6 +368,16 @@ fts_ast_term_set_wildcard(
 	fts_ast_node_t*	node)			/*!< in/out: set attribute of
 						a term node */
 {
+	if (!node) {
+		return;
+	}
+
+	/* If it's a node list, the wildcard should be set to the tail node*/
+	if (node->type == FTS_AST_LIST)	{
+		ut_ad(node->list.tail != NULL);
+		node = node->list.tail;
+	}
+
 	ut_a(node->type == FTS_AST_TERM);
 	ut_a(!node->term.wildcard);
 
@@ -393,9 +474,9 @@ fts_ast_node_print(
 }
 
 /******************************************************************//**
-Traverse the AST - in-order traversal, except for the FTS_IGNORE
-nodes, which will be ignored in the first pass of each level, and
-visited in a second pass after all other nodes in the same level are visited.
+Traverse the AST - in-order traversal, except for the FTX_EXIST and FTS_IGNORE
+nodes, which will be ignored in the first pass of each level, and visited in a
+second and third pass after all other nodes in the same level are visited.
 @return DB_SUCCESS if all went well */
 UNIV_INTERN
 dberr_t
@@ -407,85 +488,142 @@ fts_ast_visit(
 	void*			arg,		/*!< in: arg for callback */
 	bool*			has_ignore)	/*!< out: true, if the operator
 						was ignored during processing,
-						currently we only ignore
-						FTS_IGNORE operator */
+						currently we ignore FTS_EXIST
+						and FTS_IGNORE operators */
 {
 	dberr_t			error = DB_SUCCESS;
 	fts_ast_node_t*		oper_node = NULL;
 	fts_ast_node_t*		start_node;
 	bool			revisit = false;
 	bool			will_be_ignored = false;
+	fts_ast_visit_pass_t	visit_pass = FTS_PASS_FIRST;
 
 	start_node = node->list.head;
 
 	ut_a(node->type == FTS_AST_LIST
 	     || node->type == FTS_AST_SUBEXP_LIST);
 
+	if (oper == FTS_EXIST_SKIP) {
+		visit_pass = FTS_PASS_EXIST;
+	} else if (oper == FTS_IGNORE_SKIP) {
+		visit_pass = FTS_PASS_IGNORE;
+	}
+
 	/* In the first pass of the tree, at the leaf level of the
-	tree, FTS_IGNORE operation will be ignored. It will be
-	repeated at the level above the leaf level */
+	tree, FTS_EXIST and FTS_IGNORE operation will be ignored.
+	It will be repeated at the level above the leaf level.
+
+	The basic idea here is that when we encounter FTS_EXIST or
+	FTS_IGNORE, we will change the operator node into FTS_EXIST_SKIP
+	or FTS_IGNORE_SKIP, and term node & text node with the operators
+	is ignored in the first pass. We have two passes during the revisit:
+	We process nodes with FTS_EXIST_SKIP in the exist pass, and then
+	process nodes with FTS_IGNORE_SKIP in the ignore pass.
+
+	The order should be restrictly followed, or we will get wrong results.
+	For example, we have a query 'a +b -c d +e -f'.
+	first pass: process 'a' and 'd' by union;
+	exist pass: process '+b' and '+e' by intersection;
+	ignore pass: process '-c' and '-f' by difference. */
+
 	for (node = node->list.head;
 	     node && (error == DB_SUCCESS);
 	     node = node->next) {
 
-		if (node->type == FTS_AST_LIST) {
+		switch(node->type) {
+		case FTS_AST_LIST:
+			if (visit_pass != FTS_PASS_FIRST) {
+				break;
+			}
+
 			error = fts_ast_visit(oper, node, visitor,
 					      arg, &will_be_ignored);
 
 			/* If will_be_ignored is set to true, then
-			we encountered and ignored a FTS_IGNORE operator,
-			and a second pass is needed to process FTS_IGNORE
-			operator */
+			we encountered and ignored a FTS_EXIST or FTS_IGNORE
+			operator. */
 			if (will_be_ignored) {
 				revisit = true;
+				/* Remember oper for list in case '-abc&def',
+				ignored oper is from previous node of list.*/
+				node->oper = oper;
 			}
-		} else if (node->type == FTS_AST_SUBEXP_LIST) {
+
+			break;
+
+		case FTS_AST_SUBEXP_LIST:
+			if (visit_pass != FTS_PASS_FIRST) {
+				break;
+			}
+
 			error = fts_ast_visit_sub_exp(node, visitor, arg);
-		} else if (node->type == FTS_AST_OPER) {
+			break;
+
+		case FTS_AST_OPER:
 			oper = node->oper;
 			oper_node = node;
-		} else {
+
+			/* Change the operator for revisit */
+			if (oper == FTS_EXIST) {
+				oper_node->oper = FTS_EXIST_SKIP;
+			} else if (oper == FTS_IGNORE) {
+				oper_node->oper = FTS_IGNORE_SKIP;
+			}
+
+			break;
+
+		default:
 			if (node->visited) {
 				continue;
 			}
 
 			ut_a(oper == FTS_NONE || !oper_node
-			     || oper_node->oper == oper);
+			     || oper_node->oper == oper
+			     || oper_node->oper == FTS_EXIST_SKIP
+			     || oper_node->oper == FTS_IGNORE_SKIP);
 
-			if (oper == FTS_IGNORE) {
+			if (oper== FTS_EXIST || oper == FTS_IGNORE) {
 				*has_ignore = true;
-				/* Change the operator to FTS_IGNORE_SKIP,
-				so that it is processed in the second pass */
-				oper_node->oper = FTS_IGNORE_SKIP;
 				continue;
 			}
 
-			if (oper == FTS_IGNORE_SKIP) {
-				/* This must be the second pass, now we process
-				the FTS_IGNORE operator */
-				visitor(FTS_IGNORE, node, arg);
-			} else {
-				visitor(oper, node, arg);
+			/* Process leaf node accroding to its pass.*/
+			if (oper == FTS_EXIST_SKIP
+			    && visit_pass == FTS_PASS_EXIST) {
+				error = visitor(FTS_EXIST, node, arg);
+				node->visited = true;
+			} else if (oper == FTS_IGNORE_SKIP
+				   && visit_pass == FTS_PASS_IGNORE) {
+				error = visitor(FTS_IGNORE, node, arg);
+				node->visited = true;
+			} else if (visit_pass == FTS_PASS_FIRST) {
+				error = visitor(oper, node, arg);
+				node->visited = true;
 			}
-
-			node->visited = true;
 		}
 	}
 
-	/* Second pass to process the skipped FTS_IGNORE operation.
-	It is only performed at the level above leaf level */
 	if (revisit) {
+		/* Exist pass processes the skipped FTS_EXIST operation. */
+                for (node = start_node;
+		     node && error == DB_SUCCESS;
+		     node = node->next) {
+
+			if (node->type == FTS_AST_LIST
+			    && node->oper != FTS_IGNORE) {
+				error = fts_ast_visit(FTS_EXIST_SKIP, node,
+					visitor, arg, &will_be_ignored);
+			}
+		}
+
+		/* Ignore pass processes the skipped FTS_IGNORE operation. */
 		for (node = start_node;
 		     node && error == DB_SUCCESS;
 		     node = node->next) {
 
 			if (node->type == FTS_AST_LIST) {
-				/* In this pass, it will process all those
-				operators ignored in the first pass, and those
-				whose operators are set to FTS_IGNORE_SKIP */
-				error = fts_ast_visit(
-					oper, node, visitor, arg,
-					&will_be_ignored);
+				error = fts_ast_visit(FTS_IGNORE_SKIP, node,
+					visitor, arg, &will_be_ignored);
 			}
 		}
 	}

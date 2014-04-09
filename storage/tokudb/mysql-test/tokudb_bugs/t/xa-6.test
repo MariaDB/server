@@ -1,10 +1,13 @@
--- source include/have_tokudb.inc
+--source include/have_tokudb.inc
 --source include/have_debug.inc
 
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
 
+# Ensure that all tables are properly closed before we start simulating
+# crashes
+FLUSH TABLES;
 
 # test that simple xa commands work with TokuDB
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=tokudb;

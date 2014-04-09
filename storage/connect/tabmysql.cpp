@@ -527,8 +527,8 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
 
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
 
-  if (To_Filter)
-    strcat(strcat(Query, " WHERE "), To_Filter->Body);
+  if (To_CondFil)
+    strcat(strcat(Query, " WHERE "), To_CondFil->Body);
 
   if (trace)
     htrc("Query=%s\n", Query);
@@ -1034,7 +1034,7 @@ int TDBMYSQL::WriteDB(PGLOBAL g)
   // Statement was not prepared, we must construct and execute
   // an insert query for each line to insert
   int  rc;
-  char buf[32];
+  char buf[64];
 
   strcpy(Qbuf, Query);
 
@@ -1117,7 +1117,7 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   } // endif cprec
 
   // Set additional MySQL access method information for column.
-  Long = cdp->GetLong();
+  Precision = Long = cdp->GetLong();
   Bind = NULL;
   To_Val = NULL;
   Slen = 0;
@@ -1135,8 +1135,7 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
         : COLBLK(NULL, tdbp, i)
   {
   Name = fld->name;
-  Opt = 0;
-  Long = fld->length;
+  Precision = Long = fld->length;
   Buf_Type = MYSQLtoPLG(fld->type);
   strcpy(Format.Type, GetFormatType(Buf_Type));
   Format.Length = Long;
@@ -1202,10 +1201,10 @@ bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {
@@ -1280,7 +1279,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
       tdbp->Fetched = TRUE;
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
-    if (trace)
+    if (trace > 1)
       htrc("MySQL ReadColumn: name=%s buf=%s\n", Name, buf);
 
     // TODO: have a true way to differenciate temporal values
@@ -1395,11 +1394,11 @@ PCMD TDBMYEXC::MakeCMD(PGLOBAL g)
   {
   PCMD xcmd = NULL;
 
-  if (To_Filter) {
+  if (To_CondFil) {
     if (Cmdcol) {
-      if (!stricmp(Cmdcol, To_Filter->Body) &&
-          (To_Filter->Op == OP_EQ || To_Filter->Op == OP_IN)) {
-        xcmd = To_Filter->Cmds;
+      if (!stricmp(Cmdcol, To_CondFil->Body) &&
+          (To_CondFil->Op == OP_EQ || To_CondFil->Op == OP_IN)) {
+        xcmd = To_CondFil->Cmds;
       } else
         strcpy(g->Message, "Invalid command specification filter");
 

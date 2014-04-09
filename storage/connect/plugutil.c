@@ -37,8 +37,6 @@
 /*    IBM Linker                                                       */
 /*                                                                     */
 /***********************************************************************/
-//efine DEBTRACE 3
-//efine DEBTRACE2
 
 /***********************************************************************/
 /*                                                                     */
@@ -83,7 +81,6 @@
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
 #endif   // WIN32
 
-extern char plgini[];
 extern int  trace;
 
 #if defined(XMSG)
@@ -152,6 +149,7 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
     g->Sarea_Size = worksize;
     g->Trace = 0;
     g->Createas = 0;
+    g->Alchecked = 0;
     g->Activityp = g->ActivityStart = NULL;
     g->Xchk = NULL;
     strcpy(g->Message, "");

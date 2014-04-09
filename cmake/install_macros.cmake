@@ -31,6 +31,9 @@ MACRO (INSTALL_DSYM_DIRECTORIES targets)
       GET_TARGET_PROPERTY(type ${target} TYPE)
       # It's a dirty hack, but cmake too stupid and mysql cmake files too buggy */
       STRING(REPLACE "liblibmysql.dylib" "libmysqlclient.${SHARED_LIB_MAJOR_VERSION}.dylib" location ${location})
+      IF(DEBUG_EXTNAME)
+        STRING(REGEX REPLACE "/mysqld$" "/mysqld-debug" location ${location})
+      ENDIF()
       IF(type MATCHES "EXECUTABLE" OR type MATCHES "MODULE" OR type MATCHES "SHARED_LIBRARY")
         INSTALL(DIRECTORY "${location}.dSYM" DESTINATION ${ARG_DESTINATION} COMPONENT Debuginfo)
       ENDIF()
@@ -47,10 +50,10 @@ FUNCTION (INSTALL_DEBUG_SYMBOLS)
   )
   
   IF(NOT ARG_COMPONENT)
-    MESSAGE(FATAL_ERROR "No COMPONENT passed to  INSTALL_DEBUG_SYMBOLS")
+    SET(ARG_COMPONENT DebugBinaries)
   ENDIF()
   IF(NOT ARG_INSTALL_LOCATION)
-    MESSAGE(FATAL_ERROR "No INSTALL_LOCATION passed to INSTALL_DEBUG_SYMBOLS")
+    SET(ARG_INSTALL_LOCATION lib)
   ENDIF()
   SET(targets ${ARG_DEFAULT_ARGS})
   FOREACH(target ${targets})
@@ -420,6 +423,7 @@ FUNCTION(INSTALL_MYSQL_TEST from to)
       PATTERN "*.vcxproj.filters" EXCLUDE
       PATTERN "*.vcxproj.user" EXCLUDE
       PATTERN "CTest" EXCLUDE
+      PATTERN "*~" EXCLUDE
     )
   ENDIF()
 ENDFUNCTION()

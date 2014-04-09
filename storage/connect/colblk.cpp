@@ -23,6 +23,8 @@
 #include "xindex.h"
 #include "xtable.h"
 
+extern "C" int  trace;
+
 /***********************************************************************/
 /*  COLBLK protected constructor.                                      */
 /***********************************************************************/
@@ -36,8 +38,8 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
   if ((Cdp = cdp)) {
     Name = cdp->Name;
     Format = cdp->F;
-    Opt = cdp->Opt;
     Long = cdp->Long;
+    Precision = cdp->Precision;
     Buf_Type = cdp->Buf_Type;
     ColUse |= cdp->Flags;       // Used by CONNECT
     Nullable = !!(cdp->Flags & U_NULLS);
@@ -45,8 +47,8 @@ COLBLK::COLBLK(PCOLDEF cdp, PTDB tdbp, int i)
   } else {
     Name = NULL;
     memset(&Format, 0, sizeof(FORMAT));
-    Opt = 0;
     Long = 0;
+    Precision = 0;
     Buf_Type = TYPE_ERROR;
     Nullable = false;
     Unsigned = false;
@@ -72,9 +74,8 @@ COLBLK::COLBLK(PCOL col1, PTDB tdbp)
 //To_Orig = col1;
   To_Tdb = tdbp;
 
-#ifdef DEBTRACE
- htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
-#endif
+  if (trace > 1)
+    htrc(" copying COLBLK %s from %p to %p\n", Name, col1, this);
 
   if (tdbp)
     // Attach the new column to the table block
@@ -112,21 +113,12 @@ bool COLBLK::SetFormat(PGLOBAL g, FORMAT& fmt)
   {
   fmt = Format;
 
-#ifdef DEBTRACE
- htrc("COLBLK: %p format=%c(%d,%d)\n", 
-   this, *fmt.Type, fmt.Length, fmt.Prec);
-#endif
+  if (trace > 1)
+    htrc("COLBLK: %p format=%c(%d,%d)\n", 
+         this, *fmt.Type, fmt.Length, fmt.Prec);
 
   return false;
   } // end of SetFormat
-
-/***********************************************************************/
-/*  CheckColumn:  a column descriptor is found, say it by returning 1. */
-/***********************************************************************/
-int COLBLK::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
-  {
-  return 1;
-  } // end of CheckColumn
 
 /***********************************************************************/
 /*  Eval:  get the column value from the last read record or from a    */
@@ -134,9 +126,8 @@ int COLBLK::CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &p, int &ag)
 /***********************************************************************/
 bool COLBLK::Eval(PGLOBAL g)
   {
-#ifdef DEBTRACE
- htrc("Col Eval: %s status=%.4X\n", Name, Status);
-#endif
+  if (trace > 1)
+    htrc("Col Eval: %s status=%.4X\n", Name, Status);
 
   if (!GetStatus(BUF_READ)) {
 //  if (To_Tdb->IsNull())
@@ -153,19 +144,10 @@ bool COLBLK::Eval(PGLOBAL g)
   } // end of Eval
 
 /***********************************************************************/
-/*  CheckSort:                                                         */
-/*  Used to check that a table is involved in the sort list items.     */
-/***********************************************************************/
-bool COLBLK::CheckSort(PTDB tdbp)
-  {
-  return (tdbp == To_Tdb);
-  } // end of CheckSort
-
-/***********************************************************************/
 /*  InitValue: prepare a column block for read operation.              */
 /*  Now we use Format.Length for the len parameter to avoid strings    */
 /*  to be truncated when converting from string to coded string.       */
-/*  Added in version 1.5 is the arguments GetPrecision() and Domain    */
+/*  Added in version 1.5 is the arguments GetScale() and Domain        */
 /*  in calling AllocateValue. Domain is used for TYPE_DATE only.       */
 /***********************************************************************/
 bool COLBLK::InitValue(PGLOBAL g)
@@ -173,21 +155,17 @@ bool COLBLK::InitValue(PGLOBAL g)
   if (Value)
     return false;                       // Already done
 
-  // Unsigned can be set only for valid value types
-  int prec = (Unsigned) ? 1 : GetPrecision();
-
   // Allocate a Value object
-  if (!(Value = AllocateValue(g, Buf_Type, Format.Length,
-                                 prec, GetDomain())))
+  if (!(Value = AllocateValue(g, Buf_Type, Precision,
+                              GetScale(), Unsigned, GetDomain())))
     return true;
 
   AddStatus(BUF_READY);
   Value->SetNullable(Nullable);
 
-#ifdef DEBTRACE
- htrc(" colp=%p type=%d value=%p coluse=%.4X status=%.4X\n",
-  this, Buf_Type, Value, ColUse, Status);
-#endif
+  if (trace > 1)
+    htrc(" colp=%p type=%d value=%p coluse=%.4X status=%.4X\n",
+         this, Buf_Type, Value, ColUse, Status);
 
   return false;
   } // end of InitValue
@@ -270,7 +248,7 @@ SPCBLK::SPCBLK(PCOLUMN cp)
        : COLBLK((PCOLDEF)NULL, cp->GetTo_Table()->GetTo_Tdb(), 0)
   {
   Name = (char*)cp->GetName();
-  Long = 0;
+  Precision = Long = 0;
   Buf_Type = TYPE_ERROR;
   } // end of SPCBLK constructor
 
@@ -290,7 +268,7 @@ void SPCBLK::WriteColumn(PGLOBAL g)
 /***********************************************************************/
 RIDBLK::RIDBLK(PCOLUMN cp, bool rnm) : SPCBLK(cp)
   {
-  Long = 10;
+  Precision = Long = 10;
   Buf_Type = TYPE_INT;
   Rnm = rnm;
   *Format.Type = 'N';
@@ -313,7 +291,7 @@ void RIDBLK::ReadColumn(PGLOBAL g)
 FIDBLK::FIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = _MAX_PATH;
+  Precision = Long = _MAX_PATH;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
@@ -348,7 +326,7 @@ void FIDBLK::ReadColumn(PGLOBAL g)
 TIDBLK::TIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = 64;
+  Precision = Long = 64;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
@@ -375,7 +353,7 @@ void TIDBLK::ReadColumn(PGLOBAL g)
 SIDBLK::SIDBLK(PCOLUMN cp) : SPCBLK(cp)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
-  Long = 64;
+  Precision = Long = 64;
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;

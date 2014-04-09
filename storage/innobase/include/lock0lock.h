@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -466,6 +466,14 @@ lock_table(
 	enum lock_mode	mode,	/*!< in: lock mode */
 	que_thr_t*	thr)	/*!< in: query thread */
 	__attribute__((nonnull, warn_unused_result));
+/*********************************************************************//**
+Creates a table IX lock object for a resurrected transaction. */
+UNIV_INTERN
+void
+lock_table_ix_resurrect(
+/*====================*/
+	dict_table_t*	table,	/*!< in/out: table */
+	trx_t*		trx);	/*!< in/out: transaction */
 /*************************************************************//**
 Removes a granted record lock of a transaction from the queue and grants
 locks to other transactions waiting in the queue if they now are entitled
@@ -824,6 +832,19 @@ lock_trx_has_sys_table_locks(
 /*=========================*/
 	const trx_t*	trx)	/*!< in: transaction to check */
 	__attribute__((warn_unused_result));
+
+/*******************************************************************//**
+Check if the transaction holds an exclusive lock on a record.
+@return	whether the locks are held */
+UNIV_INTERN
+bool
+lock_trx_has_rec_x_lock(
+/*====================*/
+	const trx_t*		trx,	/*!< in: transaction to check */
+	const dict_table_t*	table,	/*!< in: table to check */
+	const buf_block_t*	block,	/*!< in: buffer block of the record */
+	ulint			heap_no)/*!< in: record heap number */
+	__attribute__((nonnull, warn_unused_result));
 #endif /* UNIV_DEBUG */
 
 /** Lock modes and types */
@@ -873,7 +894,6 @@ lock_trx_has_sys_table_locks(
 				record */
 #define LOCK_CONV_BY_OTHER 4096 /*!< this bit is set when the lock is created
 				by other transaction */
-#define WSREP_BF		8192
 #if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_CONV_BY_OTHER)&LOCK_TYPE_MASK
 # error
 #endif

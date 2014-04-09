@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -184,6 +184,28 @@ lock_wait_table_reserve_slot(
 	return(NULL);
 }
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+check if lock timeout was for priority thread, 
+as a side effect trigger lock monitor
+@return        false for regular lock timeout */
+static ibool
+wsrep_is_BF_lock_timeout(
+/*====================*/
+    trx_t* trx) /* in: trx to check for lock priority */
+{
+       if (wsrep_on(trx->mysql_thd) &&
+           wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+               fprintf(stderr, "WSREP: BF lock wait long\n");
+                srv_print_innodb_monitor       = TRUE;
+                srv_print_innodb_lock_monitor  = TRUE;
+                os_event_set(srv_monitor_event);
+                return TRUE;
+       }
+       return FALSE;
+ }
+#endif /* WITH_WSREP */
+
 /***************************************************************//**
 Puts a user OS thread to wait for a lock to be released. If an error
 occurs during the wait trx->error_state associated with thr is
@@ -266,6 +288,16 @@ lock_wait_suspend_thread(
 	lock_wait_mutex_exit();
 	trx_mutex_exit(trx);
 
+	ulint	lock_type = ULINT_UNDEFINED;
+
+	lock_mutex_enter();
+
+	if (const lock_t* wait_lock = trx->lock.wait_lock) {
+		lock_type = lock_get_type_low(wait_lock);
+	}
+
+	lock_mutex_exit();
+
 	had_dict_lock = trx->dict_operation_lock_mode;
 
 	switch (had_dict_lock) {
@@ -301,7 +333,17 @@ lock_wait_suspend_thread(
 		srv_conc_force_exit_innodb(trx);
 	}
 
+	/* Unknown is also treated like a record lock */
+	if (lock_type == ULINT_UNDEFINED || lock_type == LOCK_REC) {
+		thd_wait_begin(trx->mysql_thd, THD_WAIT_ROW_LOCK);
+	} else {
+		ut_ad(lock_type == LOCK_TABLE);
+		thd_wait_begin(trx->mysql_thd, THD_WAIT_TABLE_LOCK);
+	}
+
 	os_event_wait(slot->event);
+
+	thd_wait_end(trx->mysql_thd);
 
 	/* After resuming, reacquire the data dictionary latch if
 	necessary. */
@@ -333,7 +375,8 @@ lock_wait_suspend_thread(
 			finish_time = (ib_int64_t) sec * 1000000 + ms;
 		}
 
-		diff_time = (ulint) (finish_time - start_time);
+		diff_time = (finish_time > start_time) ?
+			    (ulint) (finish_time - start_time) : 0;
 
 		srv_stats.n_lock_wait_current_count.dec();
 		srv_stats.n_lock_wait_time.add(diff_time);
@@ -346,13 +389,23 @@ lock_wait_suspend_thread(
 
 			lock_sys->n_lock_max_wait_time = diff_time;
 		}
+
+		/* Record the lock wait time for this thread */
+		thd_set_lock_wait_time(trx->mysql_thd, diff_time);
+
 	}
 
 	if (lock_wait_timeout < 100000000
 	    && wait_time > (double) lock_wait_timeout) {
+#ifdef WITH_WSREP
+                if (!wsrep_is_BF_lock_timeout(trx)) {
+#endif /* WITH_WSREP */
 
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
 
+#ifdef WITH_WSREP
+                }
+#endif /* WITH_WSREP */
 		MONITOR_INC(MONITOR_TIMEOUT);
 	}
 
@@ -436,8 +489,13 @@ lock_wait_check_and_cancel(
 		if (trx->lock.wait_lock) {
 
 			ut_a(trx->lock.que_state == TRX_QUE_LOCK_WAIT);
-
+#ifdef WITH_WSREP
+                        if (!wsrep_is_BF_lock_timeout(trx)) {
+#endif /* WITH_WSREP */
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
+#ifdef WITH_WSREP
+                        }
+#endif /* WITH_WSREP */
 		}
 
 		lock_mutex_exit();

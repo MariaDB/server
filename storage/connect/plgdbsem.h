@@ -1,7 +1,7 @@
 /************** PlgDBSem H Declares Source Code File (.H) **************/
-/*  Name: PLGDBSEM.H  Version 3.5                                      */
+/*  Name: PLGDBSEM.H  Version 3.6                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the PlugDB++ application type definitions.      */
 /***********************************************************************/
@@ -26,7 +26,6 @@
 
 enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_COLUMN     = 51,    /* Column Name/Qualifier Block   */
-//           TYPE_OPVAL      = 52,    /* Operator value (OPVAL)        */
              TYPE_TDB        = 53,    /* Table Description Block       */
              TYPE_COLBLK     = 54,    /* Column Description Block      */
              TYPE_PSZ        = 64,    /* Pointer to String ended by 0  */
@@ -34,8 +33,6 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_XOBJECT    = 69,    /* Extended DB object            */
              TYPE_COLCRT     = 71,    /* Column creation block         */
              TYPE_CONST      = 72,    /* Constant                      */
-//           TYPE_INDEXDEF   = 73,    /* Index definition block        */
-//           TYPE_OPER       = 74,    /* Operator block (OPER)         */
 
 /*-------------------- type tokenized string --------------------------*/
              TYPE_DATE       =  8,    /* Timestamp                     */
@@ -144,21 +141,19 @@ enum RECFM {RECFM_NAF   =    -2,      /* Not a file                    */
             RECFM_PLG   =     5,      /* Table accessed via PLGconn    */
             RECFM_DBF   =     6};     /* DBase formatted file          */
 
-#if 0
 enum MISC {DB_TABNO     =     1,      /* DB routines in Utility Table  */
            MAX_MULT_KEY =    10,      /* Max multiple key number       */
            NAM_LEN      =   128,      /* Length of col and tab names   */
            ARRAY_SIZE   =    50,      /* Default array block size      */
-           MAXRES       =   500,      /* Default maximum result lines  */
-           MAXLIN       = 10000,      /* Default maximum data lines    */
+//         MAXRES       =   500,      /* Default maximum result lines  */
+//         MAXLIN       = 10000,      /* Default maximum data lines    */
            MAXBMP       =    32};     /* Default XDB2 max bitmap size  */
 
+#if 0
 enum ALGMOD {AMOD_AUTO =  0,          /* PLG chooses best algorithm    */
              AMOD_SQL  =  1,          /* Use SQL algorithm             */
              AMOD_QRY  =  2};         /* Use QUERY algorithm           */
-#else   // !0
-#define    NAM_LEN          128
-#endif // !0
+#endif // 0
 
 enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
            MODE_ANY     =  0,         /* Unspecified mode              */
@@ -166,7 +161,8 @@ enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
            MODE_WRITE   = 20,         /* Input/Output mode             */
            MODE_UPDATE  = 30,         /* Input/Output mode             */
            MODE_INSERT  = 40,         /* Input/Output mode             */
-           MODE_DELETE  = 50};        /* Input/Output mode             */
+           MODE_DELETE  = 50,         /* Input/Output mode             */
+           MODE_ALTER   = 60};        /* alter mode                    */
 
 #if !defined(RC_OK_DEFINED)
 #define RC_OK_DEFINED
@@ -341,9 +337,7 @@ typedef class XTAB       *PTABLE;
 typedef class COLUMN     *PCOLUMN;
 typedef class XOBJECT    *PXOB;
 typedef class COLBLK     *PCOL;
-typedef class TBX        *PTBX;
 typedef class TDB        *PTDB;
-typedef       void       *PSQL;          // Not used
 typedef class TDBASE     *PTDBASE;
 typedef class TDBDOS     *PTDBDOS;
 typedef class TDBFIX     *PTDBFIX;
@@ -412,41 +406,25 @@ typedef struct _mblock {               /* Memory block                 */
 /*  The QUERY application User Block.                                  */
 /***********************************************************************/
 typedef struct {                       /* User application block       */
-//void      *Act2;                     /* RePoint to activity block    */
-//short      LineLen;                  /* Current output line len      */
   NAME       Name;                     /* User application name        */
-//NAME       Password;                 /* User application password    */
-//PSZ        UserFile;                 /* User application filename    */
   char       Server[17];               /* Server name                  */
   char       DBName[17];               /* Current database name        */
-//char       Host[65];                 /* Caller's host name           */
-//char       User[17];                 /* Caller's user name           */
-//uint       Granted;                  /* Grant bitmap                 */
   PCATLG     Catalog;                  /* To CATALOG class             */
   PQRYRES    Result;                   /* To query result blocks       */
   PFBLOCK    Openlist;                 /* To file/map open list        */
   PMBLOCK    Memlist;                  /* To memory block list         */
   PXUSED     Xlist;                    /* To used index list           */
-//int        Maxres;                   /* Result Max nb of lines       */
-//int        Maxtmp;                   /* Intermediate tables Maxres   */
-//int        Maxlin;                   /* Query Max nb of data lines   */
-//int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
   int        Check;                    /* General level of checking    */
   int        Numlines;                 /* Number of lines involved     */
-//ALGMOD     AlgChoice;                /* Choice of algorithm mode     */
-//AREADEF    DescArea;                 /* Table desc. area size        */
   USETEMP    UseTemp;                  /* Use temporary file           */
-//int        Curtype;                  /* 0: static else: dynamic      */
   int        Vtdbno;                   /* Used for TDB number setting  */
   bool       Remote;                   /* true: if remotely called     */
-//bool       NotFinal;                 /* true: for intermediate table */
   bool       Proginfo;                 /* true: return progress info   */
   bool       Subcor;                   /* Used for Progress info       */
   size_t     ProgMax;                  /* Used for Progress info       */
   size_t     ProgCur;                  /* Used for Progress info       */
   size_t     ProgSav;                  /* Used for Progress info       */
   LPCSTR     Step;                     /* Execution step name          */
-//char       Work[_MAX_PATH];          /* Local work path              */
   } DBUSERBLK, *PDBUSER;
 
 /***********************************************************************/
@@ -534,6 +512,7 @@ typedef  struct _colres {
   int     Prec;                    /* Precision                        */
   int     Flag;                    /* Flag option value                */
   XFLD    Fld;                     /* Type of field info               */
+  char    Var;                     /* Type added information           */
   } COLRES;
 
 #if defined(WIN32) && !defined(NOEX)
@@ -549,8 +528,6 @@ PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 char    *PlgGetDataPath(PGLOBAL g);
-void    *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
-void    *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
@@ -558,9 +535,10 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /**************************************************************************/
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
-PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                       int *buftyp, XFLD *fldtyp, 
-                       unsigned int *length, bool blank, bool nonull);
+DllExport PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
+                                 int *buftyp, XFLD *fldtyp, 
+                                 unsigned int *length, 
+                                 bool blank, bool nonull);
 
 /***********************************************************************/
 /*  Exported utility routines.                                         */
@@ -576,12 +554,13 @@ DllExport PCATLG  PlgGetCatalog(PGLOBAL g, bool jump = true);
 DllExport bool    PlgSetXdbPath(PGLOBAL g, PSZ, PSZ, char *, int, char *, int);
 DllExport void    PlgDBfree(MBLOCK&);
 DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
-//lExport PSZ     GetIniString(PGLOBAL, void *, LPCSTR, LPCSTR, LPCSTR, LPCSTR);
-//lExport int     GetIniSize(char *, char *, char *, char *);
-//lExport bool    WritePrivateProfileInt(LPCSTR, LPCSTR, int, LPCSTR);
+DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
+DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);
 DllExport char    *GetIni(int n= 0);
 DllExport void    SetTrc(void);
+DllExport char   *GetListOption(PGLOBAL, const char *, const char *, 
+                                         const char *def=NULL);
 
 #define MSGID_NONE                         0
 #define MSGID_CANNOT_OPEN                  1
@@ -597,4 +576,4 @@ int global_open(GLOBAL *g, int msgid, const char *filename, int flags, int mode)
 DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir);
 char *MakeEscape(PGLOBAL g, char* str, char q);
 
-bool PushWarning(PGLOBAL, PTDBASE, int level = 1);
+DllExport bool PushWarning(PGLOBAL, PTDBASE, int level = 1);

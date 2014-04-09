@@ -38,7 +38,6 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
-  virtual bool DeleteTableFile(PGLOBAL g) {return true;}
   virtual bool Indexable(void) {return false;}
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
@@ -87,7 +86,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
 
  protected:
   // Members
-  PSZ     Owner;                /* Table owner (for ODBC)              */
+  PSZ     Schema;               /* Table schema (for ODBC)             */
   PSZ     Desc;                 /* Table description                   */
   uint    Catfunc;              /* Catalog function ID                 */
   int     Card;                 /* (max) number of rows in table       */
@@ -116,7 +115,6 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   virtual AMT  GetDefType(void) {return TYPE_AM_OEM;}
 
   // Methods
-  virtual bool DeleteTableFile(PGLOBAL g);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
@@ -147,8 +145,8 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   PSZ  GetName(void) {return Name;}
   PSZ  GetDecode(void) {return Decode;}
   PSZ  GetFmt(void) {return Fmt;}
-  int  GetOpt(void) {return Opt;}
   int  GetLong(void) {return Long;}
+  int  GetPrecision(void) {return Precision;}
   int  GetOffset(void) {return Offset;}
   void SetOffset(int offset) {Offset = offset;}
 
@@ -161,8 +159,8 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   int     Offset;             /* Offset of field within record         */
   int     Long;               /* Length of field in file record (!BIN) */
   int     Key;                /* Key (greater than 1 if multiple)      */
-  int     Prec;               /* Precision for float values            */
-  int     Opt;                /* 0:Not 1:clustered 2:sorted-asc 3:desc */
+  int     Precision;          /* Logical column length                 */
+  int     Scale;              /* Decimals for float/decimal values     */
   char    DataType;           /* Internal data type (C, N, F, T)       */
   }; // end of COLCRT
 

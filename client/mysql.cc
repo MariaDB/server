@@ -1,6 +1,7 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2013, 2014, SkySQL Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -915,6 +916,7 @@ static COMMANDS commands[] = {
   { "MAKE_SET", 0, 0, 0, ""},
   { "MAKEDATE", 0, 0, 0, ""},
   { "MAKETIME", 0, 0, 0, ""},
+  { "MASTER_GTID_WAIT", 0, 0, 0, ""},
   { "MASTER_POS_WAIT", 0, 0, 0, ""},
   { "MAX", 0, 0, 0, ""},
   { "MBRCONTAINS", 0, 0, 0, ""},
@@ -1175,12 +1177,9 @@ int main(int argc,char *argv[])
     exit(1);
   }
   defaults_argv=argv;
-  if (get_options(argc, (char **) argv))
-  {
-    free_defaults(defaults_argv);
-    my_end(0);
-    exit(1);
-  }
+  if ((status.exit_status= get_options(argc, (char **) argv)))
+    mysql_end(-1);
+
   if (status.batch && !status.line_buff &&
       !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, stdin)))
   {
@@ -1227,7 +1226,7 @@ int main(int argc,char *argv[])
 
   put_info("Welcome to the MariaDB monitor.  Commands end with ; or \\g.",
 	   INFO_INFO);
-  sprintf((char*) glob_buffer.ptr(),
+  my_snprintf((char*) glob_buffer.ptr(), glob_buffer.alloced_length(),
 	  "Your %s connection id is %lu\nServer version: %s\n",
           mysql_get_server_name(&mysql),
 	  mysql_thread_id(&mysql), server_version_string(&mysql));
@@ -1411,7 +1410,8 @@ sig_handler window_resize(int sig)
   struct winsize window_size;
 
   if (ioctl(fileno(stdin), TIOCGWINSZ, &window_size) == 0)
-    terminal_width= window_size.ws_col;
+    if (window_size.ws_col > 0)
+      terminal_width= window_size.ws_col;
 }
 #endif
 
@@ -1675,8 +1675,9 @@ static void usage(int version)
     return;
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   printf("Usage: %s [OPTIONS] [database]\n", my_progname);
-  my_print_help(my_long_options);
   print_defaults("my", load_default_groups);
+  puts("");
+  my_print_help(my_long_options);
   my_print_variables(my_long_options);
 }
 
@@ -1874,7 +1875,7 @@ static int get_options(int argc, char **argv)
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
 
   if ((ho_error=handle_options(&argc, &argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    return(ho_error);
 
   *mysql_params->p_max_allowed_packet= opt_max_allowed_packet;
   *mysql_params->p_net_buffer_length= opt_net_buffer_length;

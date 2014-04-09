@@ -174,6 +174,7 @@ my @DEFAULT_SUITES= qw(
     heap-
     innodb-
     innodb_fts-
+    innodb_zip-
     maria-
     multi_source-
     optimizer_unfixed_bugs-
@@ -2678,7 +2679,7 @@ sub setup_vardir() {
   # and make them world readable
   copytree("$glob_mysql_test_dir/std_data", "$opt_vardir/std_data", "0022");
 
-  # create a plugin dir and copy plugins into it
+  # create a plugin dir and copy or symlink plugins into it
   if ($source_dist)
   {
     $plugindir="$opt_vardir/plugins";
@@ -2696,6 +2697,13 @@ sub setup_vardir() {
     }
     else
     {
+      my $opt_use_copy= 1;
+      if (symlink "$opt_vardir/run", "$plugindir/symlink_test")
+      {
+        $opt_use_copy= 0;
+        unlink "$plugindir/symlink_test";
+      }
+
       for (<../storage/*/.libs/*.so>,
            <../plugin/*/.libs/*.so>,
            <../plugin/*/*/.libs/*.so>,
@@ -2705,7 +2713,14 @@ sub setup_vardir() {
            <$bindir/sql/*.so>)
       {
         my $pname=basename($_);
-        symlink rel2abs($_), "$plugindir/$pname";
+        if ($opt_use_copy)
+        {
+          copy rel2abs($_), "$plugindir/$pname";
+        }
+        else
+        {
+          symlink rel2abs($_), "$plugindir/$pname";
+        }
         set_plugin_var($pname);
       }
     }
@@ -4265,11 +4280,18 @@ sub run_testcase ($$) {
       #
       foreach my $option ($config->options_in_group("ENV"))
       {
-	# Save old value to restore it before next time
-	$old_env{$option->name()}= $ENV{$option->name()};
+        my ($name, $val)= ($option->name(), $option->value());
 
-	mtr_verbose($option->name(), "=",$option->value());
-	$ENV{$option->name()}= $option->value();
+	# Save old value to restore it before next time
+	$old_env{$name}= $ENV{$name};
+
+        unless (defined $val) {
+          mtr_warning("Uninitialized value for ", $name,
+            ", group [ENV], file ", $current_config_name);
+        } else {
+          mtr_verbose($name, "=", $val);
+          $ENV{$name}= $val;
+        }
       }
     }
 
@@ -4824,6 +4846,9 @@ sub extract_warning_lines ($$) {
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|'log-bin-use-v1-row-events' is MySQL 5.6 compatible option|,
      qr|InnoDB: Setting thread \d+ nice to \d+ failed, current nice \d+, errno 13|, # setpriority() fails under valgrind
+     # Galera-related warnings.
+     qr|WSREP:.*down context.*|,
+     qr|WSREP: Failed to send state UUID:.*|,
     );
 
   my $matched_lines= [];
@@ -5212,7 +5237,7 @@ sub report_failure_and_restart ($) {
     # In these cases we may want valgrind report from normal termination
     $tinfo->{'dont_kill_server'}= 1;
   }
-  # Shotdown properly if not to be killed (for valgrind)
+  # Shutdown properly if not to be killed (for valgrind)
   stop_all_servers($tinfo->{'dont_kill_server'} ? $opt_shutdown_timeout : 0);
 
   $tinfo->{'result'}= 'MTR_RES_FAILED';
@@ -6181,6 +6206,13 @@ sub valgrind_arguments {
     mtr_add_arg($args, "--num-callers=16");
     mtr_add_arg($args, "--suppressions=%s/valgrind.supp", $glob_mysql_test_dir)
       if -f "$glob_mysql_test_dir/valgrind.supp";
+
+    # Ensure the jemalloc works with mysqld
+    if ($mysqld_variables{'version-malloc-library'} ne "system" &&
+        $$exe =~ /mysqld/)
+    {
+      mtr_add_arg($args, "--soname-synonyms=somalloc=NONE" );
+    }
   }
 
   # Add valgrind options, can be overriden by user
@@ -6311,7 +6343,20 @@ sub usage ($) {
 
 $0 [ OPTIONS ] [ TESTCASE ]
 
-Options to control what engine/variation to run
+Where test case can be specified as:
+
+testcase[.test]         Runs the test case named 'testcase' from all suits
+path-to-testcase
+[suite.]testcase[,combination]
+
+Examples:
+
+alias
+main.alias              'main' is the name of the suite for the 't' directory.
+rpl.rpl_invoked_features,mix,xtradb_plugin
+suite/rpl/t/rpl.rpl_invoked_features
+
+Options to control what engine/variation to run:
 
   embedded-server       Use the embedded server, i.e. no mysqld daemons
   ps-protocol           Use the binary protocol between client and server

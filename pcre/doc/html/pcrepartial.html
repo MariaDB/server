@@ -306,6 +306,16 @@ not retain the previously partially-matched string. It is up to the calling
 program to do that if it needs to.
 </P>
 <P>
+That means that, for an unanchored pattern, if a continued match fails, it is
+not possible to try again at a new starting point. All this facility is capable
+of doing is continuing with the previous match attempt. In the previous
+example, if the second set of data is "ug23" the result is no match, even
+though there would be a match for "aug23" if the entire string were given at
+once. Depending on the application, this may or may not be what you want.
+The only way to allow for starting again at the next character is to retain the
+matched part of the subject and try a new complete match.
+</P>
+<P>
 You can set the PCRE_PARTIAL_SOFT or PCRE_PARTIAL_HARD options with
 PCRE_DFA_RESTART to continue partial matching over multiple segments. This
 facility can be used to pass very long subject strings to the DFA matching
@@ -490,7 +500,7 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC11" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 20 February 2013
+Last updated: 02 July 2013
 <br>
 Copyright &copy; 1997-2013 University of Cambridge.
 <br>

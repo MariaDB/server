@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2007, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2007, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1102,11 +1102,7 @@ bool setup_connection_thread_globals(THD *thd)
 {
   if (thd->store_globals())
   {
-#ifdef WITH_WSREP
-    close_connection(thd, ER_OUT_OF_RESOURCES, 1);
-#else
     close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thd->scheduler, end_thread, (thd, 0));
     return 1;                                   // Error
@@ -1351,11 +1347,7 @@ void do_handle_one_connection(THD *thd_arg)
 
   if (MYSQL_CALLBACK_ELSE(thd->scheduler, init_new_connection_thread, (), 0))
   {
-#ifdef WITH_WSREP
-    close_connection(thd, ER_OUT_OF_RESOURCES, 1);
-#else
     close_connection(thd, ER_OUT_OF_RESOURCES);
-#endif
     statistic_increment(aborted_connects,&LOCK_status);
     MYSQL_CALLBACK(thd->scheduler, end_thread, (thd, 0));
     return;
@@ -1413,13 +1405,9 @@ void do_handle_one_connection(THD *thd_arg)
     thd->wsrep_query_state= QUERY_EXITING;
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
-#endif   
-end_thread:
-#ifdef WITH_WSREP
-    close_connection(thd, 0, 1);
-#else
-    close_connection(thd);
 #endif
+end_thread:
+    close_connection(thd);
 
     if (thd->userstat_running)
       update_global_user_stats(thd, create_user, time(NULL));

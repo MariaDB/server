@@ -113,6 +113,7 @@ PTDB INIDEF::GetTable(PGLOBAL g, MODE m)
   return tdbp;
   } // end of GetTable
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete INI table files using platform API.        */
 /***********************************************************************/
@@ -134,6 +135,7 @@ bool INIDEF::DeleteTableFile(PGLOBAL g)
 
   return rc;                                  // Return true if error
   } // end of DeleteTableFile
+#endif // 0
 
 /* ------------------------------------------------------------------- */
 
@@ -416,10 +418,10 @@ bool INICOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
       if (GetDomain() || ((DTVAL *)value)->IsFormatted())
         goto newval;          // This will make a new value;
 
-    } else if (Buf_Type == TYPE_FLOAT)
+    } else if (Buf_Type == TYPE_DOUBLE || Buf_Type == TYPE_DECIM)
       // Float values must be written with the correct (column) precision
       // Note: maybe this should be forced by ShowValue instead of this ?
-      value->SetPrec(GetPrecision());
+      value->SetPrec(GetScale());
 
     Value = value;            // Directly access the external value
   } else {

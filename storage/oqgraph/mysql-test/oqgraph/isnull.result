@@ -38,5 +38,5 @@ NULL	1	NULL	1	1	2
 select * from graph where latch is null and destid=2;
 latch	origid	destid	weight	seq	linkid
 NULL	NULL	2	1	1	1
-DROP TABLE graph_base;
 DROP TABLE graph;
+DROP TABLE graph_base;

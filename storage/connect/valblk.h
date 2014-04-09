@@ -1,7 +1,7 @@
 /*************** Valblk H Declares Source Code File (.H) ***************/
-/*  Name: VALBLK.H    Version 2.0                                      */
+/*  Name: VALBLK.H    Version 2.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the VALBLK and derived classes declares.        */
 /***********************************************************************/
@@ -26,7 +26,6 @@ const char *GetFmt(int type, bool un = false);
 /*  Class VALBLK represent a base class for variable blocks.           */
 /***********************************************************************/
 class VALBLK : public BLOCK {
-//friend void SemColData(PGLOBAL g, PSEM semp);
  public:
   // Constructors
   VALBLK(void *mp, int type, int nval, bool un = false);
@@ -58,6 +57,7 @@ class VALBLK : public BLOCK {
   virtual longlong GetBigintValue(int n) = 0;
   virtual ulonglong GetUBigintValue(int n) = 0;
   virtual double GetFloatValue(int n) = 0;
+  virtual char  *GetCharString(char *p, int n) = 0;
   virtual void   ReAlloc(void *mp, int n) {Blkp = mp; Nval = n;}
   virtual void   Reset(int n) = 0;
   virtual bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
@@ -78,12 +78,6 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(char *sp, uint len, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
-#if 0
-  virtual void   SetMin(PVAL valp, int n) = 0;
-  virtual void   SetMax(PVAL valp, int n) = 0;
-  virtual void   SetValues(PVBLK pv, int i, int n) = 0;
-  virtual void   AddMinus1(PVBLK pv, int n1, int n2) {assert(false);}
-#endif // 0
   virtual void   Move(int i, int j) = 0;
   virtual int    CompVal(PVAL vp, int n) = 0;
   virtual int    CompVal(int i1, int i2) = 0;
@@ -118,12 +112,10 @@ class TYPBLK : public VALBLK {
  public:
   // Constructors
   TYPBLK(void *mp, int size, int type, int prec = 0, bool un = false);
-//TYPBLK(void *mp, int size, int prec, int type);
 
   // Implementation
   virtual void   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(TYPE);}
-//virtual PSZ    GetCharValue(int n);
   virtual char   GetTinyValue(int n) {return (char)Typp[n];}
   virtual uchar  GetUTinyValue(int n) {return (uchar)Typp[n];}
   virtual short  GetShortValue(int n) {return (short)Typp[n];}
@@ -133,6 +125,7 @@ class TYPBLK : public VALBLK {
   virtual longlong GetBigintValue(int n) {return (longlong)Typp[n];}
   virtual ulonglong GetUBigintValue(int n) {return (ulonglong)Typp[n];}
   virtual double GetFloatValue(int n) {return (double)Typp[n];}
+  virtual char  *GetCharString(char *p, int n);
   virtual void   Reset(int n) {Typp[n] = 0;}
 
   // Methods
@@ -158,7 +151,6 @@ class TYPBLK : public VALBLK {
                   {Typp[n] = (TYPE)cval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -199,6 +191,7 @@ class CHRBLK : public VALBLK {
   virtual longlong GetBigintValue(int n);
   virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n);
+  virtual char  *GetCharString(char *p, int n);
   virtual void   Reset(int n);
   virtual void   SetPrec(int p) {Ci = (p != 0);}
   virtual bool   IsCi(void) {return Ci;}
@@ -208,7 +201,6 @@ class CHRBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -252,6 +244,7 @@ class STRBLK : public VALBLK {
   virtual longlong GetBigintValue(int n);
   virtual ulonglong GetUBigintValue(int n);
   virtual double GetFloatValue(int n) {return atof(Strp[n]);}
+  virtual char  *GetCharString(char *p, int n) {return Strp[n];}
   virtual void   Reset(int n) {Strp[n] = NULL;}
 
   // Methods
@@ -259,7 +252,6 @@ class STRBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
-//virtual void   SetValues(PVBLK pv, int k, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -286,10 +278,11 @@ class DATBLK : public TYPBLK<int> {
   DATBLK(void *mp, int size);
 
   // Implementation
-  virtual bool SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
+  virtual bool  SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
+  virtual char *GetCharString(char *p, int n);
 
   // Methods
-  virtual void SetValue(PSZ sp, int n);
+  virtual void  SetValue(PSZ sp, int n);
 
  protected:
   // Members

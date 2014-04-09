@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2011, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2006, 2013, Oracle and/or its affiliates. All rights reserved.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -172,6 +172,10 @@ ENDIF()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysqlbug.sh
   ${CMAKE_CURRENT_BINARY_DIR}/mysqlbug ESCAPE_QUOTES @ONLY)
+  EXECUTE_PROCESS(
+  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/mysqlbug
+  )
+
 INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/mysqlbug
   DESTINATION ${INSTALL_BINDIR}
   COMPONENT Server
@@ -205,13 +209,16 @@ CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_install_db.sh
   ${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db ESCAPE_QUOTES @ONLY)
   SET(DEST ${INSTALL_SCRIPTDIR})
   SET(EXT)
+  EXECUTE_PROCESS(
+  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db
+  )
+
 INSTALL_SCRIPT(
  "${CMAKE_CURRENT_BINARY_DIR}/mysql_install_db"
   DESTINATION ${DEST}
   COMPONENT Server
   )
 ENDIF()
-
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
 SET(sysconfdir ${prefix})
@@ -314,7 +321,13 @@ IF(WIN32)
   ENDFOREACH()
 ELSE()
   IF(WITH_WSREP)
-    SET(WSREP_BINARIES wsrep_sst_common wsrep_sst_mysqldump wsrep_sst_rsync wsrep_sst_xtrabackup)
+    SET(WSREP_BINARIES
+      wsrep_sst_common
+      wsrep_sst_mysqldump
+      wsrep_sst_rsync
+      wsrep_sst_xtrabackup
+      wsrep_sst_xtrabackup-v2
+    )
   ENDIF()
   # On Unix, most of the files end up in the bin directory
   SET(BIN_SCRIPTS

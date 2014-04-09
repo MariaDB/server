@@ -2,10 +2,16 @@ SHOW CONTRIBUTORS;
 Name	Location	Comment
 Booking.com	http://www.booking.com	Founding member of the MariaDB foundation
 SkySQL Ab	http://www.skysql.com	Founding member of the MariaDB foundation
+Auttomatic	http://automattic.com	Member of the MariaDB foundation
 Parallels	http://www.parallels.com/products/plesk	Founding member of the MariaDB foundation
+Verkkokauppa.com	Finland	Sponsor of the MariaDB foundation
+Webyog	Bangalor	Sponsor of the MariaDB foundation
+Percona	USA	Sponsor of the MariaDB foundation
 Jelastic.com	Russia	Sponsor of the MariaDB foundation
 Planetta.net	Finland	Sponsor of the MariaDB foundation
 Open query	Australia	Sponsor of the MariaDB foundation
+Google	USA	Sponsoring parallel replication and GTID
+Facebook	USA	Sponsoring non-blocking API, LIMIT ROWS EXAMINED etc
 Ronald Bradford	Brisbane, Australia	EFF contribution for UC2006 Auction
 Sheeri Kritzer	Boston, Mass. USA	EFF contribution for UC2006 Auction
 Mark Shuttleworth	London, UK.	EFF contribution for UC2006 Auction

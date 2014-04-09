@@ -128,7 +128,7 @@ static int spider_i_s_alloc_mem_deinit(
   DBUG_RETURN(0);
 }
 
-struct st_mysql_plugin spider_i_s_alloc_mem =
+struct st_maria_plugin spider_i_s_alloc_mem =
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &spider_i_s_info,
@@ -141,8 +141,6 @@ struct st_mysql_plugin spider_i_s_alloc_mem =
   0x0001,
   NULL,
   NULL,
-  NULL,
-#if MYSQL_VERSION_ID >= 50600
-  0,
-#endif
+  "0.1",
+  MariaDB_PLUGIN_MATURITY_BETA
 };

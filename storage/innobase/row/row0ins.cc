@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1732,16 +1732,22 @@ do_possible_lock_wait:
 		/* We had temporarily released dict_operation_lock in
 		above lock sleep wait, now we have the lock again, and
 		we will need to re-check whether the foreign key has been
-		dropped */
-		for (const dict_foreign_t* check_foreign = UT_LIST_GET_FIRST(
-			table->referenced_list);
-		     check_foreign;
-		     check_foreign = UT_LIST_GET_NEXT(
-                                referenced_list, check_foreign)) {
-			if (check_foreign == foreign) {
-				verified = true;
-				break;
+		dropped. We only need to verify if the table is referenced
+		table case (check_ref == 0), since MDL lock will prevent
+		concurrent DDL and DML on the same table */
+		if (!check_ref) {
+			for (const dict_foreign_t* check_foreign
+				= UT_LIST_GET_FIRST( table->referenced_list);
+			     check_foreign;
+			     check_foreign = UT_LIST_GET_NEXT(
+					referenced_list, check_foreign)) {
+				if (check_foreign == foreign) {
+					verified = true;
+					break;
+				}
 			}
+		} else {
+			verified = true;
 		}
 
 		if (!verified) {
@@ -1965,6 +1971,7 @@ row_ins_scan_sec_index_for_duplicate(
 	do {
 		const rec_t*		rec	= btr_pcur_get_rec(&pcur);
 		const buf_block_t*	block	= btr_pcur_get_block(&pcur);
+		ulint			lock_type;
 
 		if (page_rec_is_infimum(rec)) {
 
@@ -1974,11 +1981,20 @@ row_ins_scan_sec_index_for_duplicate(
 		offsets = rec_get_offsets(rec, index, offsets,
 					  ULINT_UNDEFINED, &offsets_heap);
 
+		/* If the transaction isolation level is no stronger than
+		READ COMMITTED, then avoid gap locks. */
+		if (!page_rec_is_supremum(rec)
+		    && thr_get_trx(thr)->isolation_level
+					<= TRX_ISO_READ_COMMITTED) {
+			lock_type = LOCK_REC_NOT_GAP;
+		} else {
+			lock_type = LOCK_ORDINARY;
+		}
+
 		if (flags & BTR_NO_LOCKING_FLAG) {
 			/* Set no locks when applying log
 			in online table rebuild. */
 		} else if (allow_duplicates) {
-
 
 			/* If the SQL-query will update or replace
 			duplicate key we will take X-lock for
@@ -1986,17 +2002,15 @@ row_ins_scan_sec_index_for_duplicate(
 			INSERT ON DUPLICATE KEY UPDATE). */
 
 			err = row_ins_set_exclusive_rec_lock(
-				LOCK_ORDINARY, block,
-				rec, index, offsets, thr);
+				lock_type, block, rec, index, offsets, thr);
 		} else {
 
 #ifdef WITH_WSREP
 		  /* appliers don't need dupkey checks */
-		  if (!wsrep_thd_is_brute_force(thr_get_trx(thr)->mysql_thd))
+		  if (!wsrep_thd_is_BF(thr_get_trx(thr)->mysql_thd, 0))
 #endif /* WITH_WSREP */
 			err = row_ins_set_shared_rec_lock(
-				LOCK_ORDINARY, block,
-				rec, index, offsets, thr);
+				lock_type, block, rec, index, offsets, thr);
 		}
 
 		switch (err) {
@@ -2021,6 +2035,19 @@ row_ins_scan_sec_index_for_duplicate(
 				err = DB_DUPLICATE_KEY;
 
 				thr_get_trx(thr)->error_info = index;
+
+				/* If the duplicate is on hidden FTS_DOC_ID,
+				state so in the error log */
+				if (DICT_TF2_FLAG_IS_SET(
+					index->table,
+					DICT_TF2_FTS_HAS_DOC_ID)
+				    && strcmp(index->name,
+					      FTS_DOC_ID_INDEX_NAME) == 0) {
+					ib_logf(IB_LOG_LEVEL_ERROR,
+						"Duplicate FTS_DOC_ID value"
+						" on table %s",
+						index->table->name);
+				}
 
 				goto end_scan;
 			}
@@ -2177,13 +2204,7 @@ row_ins_duplicate_error_in_clust(
 			sure that in roll-forward we get the same duplicate
 			errors as in original execution */
 
-#ifdef WITH_WSREP
-			if (trx->duplicates ||
-			    (wsrep_on(trx->mysql_thd) && 
-			     wsrep_thd_is_brute_force(trx->mysql_thd))) {
-#else
 			if (trx->duplicates) {
-#endif
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for
@@ -2228,13 +2249,7 @@ duplicate:
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
 						  ULINT_UNDEFINED, &heap);
 
-#ifdef WITH_WSREP
-			if (trx->duplicates ||
-			    (wsrep_on(trx->mysql_thd) && 
-			     wsrep_thd_is_brute_force(trx->mysql_thd))) {
-#else
 			if (trx->duplicates) {
-#endif
 
 				/* If the SQL-query will update or replace
 				duplicate key we will take X-lock for
@@ -2528,7 +2543,7 @@ err_exit:
 			DBUG_EXECUTE_IF(
 				"row_ins_extern_checkpoint",
 				log_make_checkpoint_at(
-					IB_ULONGLONG_MAX, TRUE););
+					LSN_MAX, TRUE););
 			err = row_ins_index_entry_big_rec(
 				entry, big_rec, offsets, &offsets_heap, index,
 				thr_get_trx(thr)->mysql_thd,

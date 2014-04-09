@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -506,13 +506,8 @@ bool Sql_cmd_alter_table_exchange_partition::
 
   /* Don't allow to exchange with log table */
   swap_table_list= table_list->next_local;
-  if (check_if_log_table(swap_table_list->db_length, swap_table_list->db,
-                         swap_table_list->table_name_length,
-                         swap_table_list->table_name, 0))
-  {
-    my_error(ER_WRONG_USAGE, MYF(0), "PARTITION", "log table");
+  if (check_if_log_table(swap_table_list, FALSE, "ALTER PARTITION"))
     DBUG_RETURN(TRUE);
-  }
 
   /*
     Currently no MDL lock that allows both read and write and is upgradeable
@@ -768,6 +763,19 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   if (check_one_table_access(thd, DROP_ACL, first_table))
     DBUG_RETURN(TRUE);
 
+#ifdef WITH_WSREP
+  TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
+
+  if ((!thd->is_current_stmt_binlog_format_row() ||
+       !find_temporary_table(thd, first_table))  &&
+      wsrep_to_isolation_begin(
+        thd, first_table->db, first_table->table_name, NULL)
+      )
+  {
+    WSREP_WARN("ALTER TABLE isolation failure");
+    DBUG_RETURN(TRUE);
+  }
+#endif /* WITH_WSREP */
   if (open_tables(thd, &first_table, &table_counter, 0))
     DBUG_RETURN(true);
 

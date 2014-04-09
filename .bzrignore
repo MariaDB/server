@@ -1463,4 +1463,4 @@ storage/tokudb/ft-index/utils/tokudb_gen
 storage/tokudb/ft-index/utils/tokudb_load
 storage/connect/connect.cnf
 storage/cassandra/cassandra.cnf
-libmysql/libmysql.version
+libmysql/libmysql_versions.ld

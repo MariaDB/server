@@ -408,7 +408,7 @@ public:
       new_max=arg->max_value; flag_max=arg->max_flag;
     }
     return new SEL_ARG(field, part, new_min, new_max, flag_min, flag_max,
-		       test(maybe_flag && arg->maybe_flag));
+                       MY_TEST(maybe_flag && arg->maybe_flag));
   }
   SEL_ARG *clone_first(SEL_ARG *arg)
   {						// min <= X < arg->min
@@ -1823,7 +1823,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
     *create_error= 1;
   }
   else
-    bitmap_init(&column_bitmap, bitmap, head->s->fields, FALSE);
+    my_bitmap_init(&column_bitmap, bitmap, head->s->fields, FALSE);
   DBUG_VOID_RETURN;
 }
 
@@ -2847,7 +2847,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   param->fields_bitmap_size= table->s->column_bitmap_size;
   if (!(tmp= (my_bitmap_map*) alloc_root(param->mem_root,
                                   param->fields_bitmap_size)) ||
-      bitmap_init(&param->needed_fields, tmp, table->s->fields, FALSE))
+      my_bitmap_init(&param->needed_fields, tmp, table->s->fields, FALSE))
     return 1;
 
   bitmap_copy(&param->needed_fields, table->read_set);
@@ -3168,7 +3168,8 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
         }
       }
 
-      if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE))
+      if (optimizer_flag(thd, OPTIMIZER_SWITCH_INDEX_MERGE) &&
+          head->stat_records() != 0)
       {
         /* Try creating index_merge/ROR-union scan. */
         SEL_IMERGE *imerge;
@@ -3223,7 +3224,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     Assume that if the user is using 'limit' we will only need to scan
     limit rows if we are using a key
   */
-  DBUG_RETURN(records ? test(quick) : -1);
+  DBUG_RETURN(records ? MY_TEST(quick) : -1);
 }
 
 /****************************************************************************
@@ -3408,7 +3409,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
 
-  if (table_records == 0)
+  if (!cond || table_records == 0)
     DBUG_RETURN(FALSE);
 
   if (table->pos_in_table_list->schema_table)
@@ -3460,6 +3461,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       table->reginfo.impossible_range= 1;
       goto free_alloc;
     }  
+    else if (tree->type == SEL_TREE::ALWAYS)
+    {
+      rows= table_records;
+      goto free_alloc;
+    }        
     else if (tree->type == SEL_TREE::MAYBE)
     {
       rows= table_records;
@@ -3782,8 +3788,8 @@ typedef struct st_part_prune_param
   int last_subpart_partno; /* Same as above for supartitioning */
 
   /*
-    is_part_keypart[i] == test(keypart #i in partitioning index is a member
-                               used in partitioning)
+    is_part_keypart[i] == MY_TEST(keypart #i in partitioning index is a member
+                                  used in partitioning)
     Used to maintain current values of cur_part_fields and cur_subpart_fields
   */
   my_bool *is_part_keypart;
@@ -3974,7 +3980,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
     res == 1 => some used partitions => retval=FALSE
     res == -1 - we jump over this line to all_used:
   */
-  retval= test(!res);
+  retval= MY_TEST(!res);
   goto end;
 
 all_used:
@@ -4104,7 +4110,7 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
     */
     return find_used_partitions_imerge(ppar, merges.head());
   }
-  bitmap_init(&all_merges, bitmap_buf, n_bits, FALSE);
+  my_bitmap_init(&all_merges, bitmap_buf, n_bits, FALSE);
   bitmap_set_prefix(&all_merges, n_bits);
 
   List_iterator<SEL_IMERGE> it(merges);
@@ -4607,7 +4613,7 @@ process_next_key_part:
         ppar->mark_full_partition_used(ppar->part_info, part_id);
         found= TRUE;
       }
-      res= test(found);
+      res= MY_TEST(found);
     }
     /*
       Restore the "used partitions iterator" to the default setting that
@@ -4751,7 +4757,7 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
     uint32 bufsize= bitmap_buffer_size(ppar->part_info->num_subparts);
     if (!(buf= (my_bitmap_map*) alloc_root(alloc, bufsize)))
       return TRUE;
-    bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts,
+    my_bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts,
                 FALSE);
   }
   range_par->key_parts= key_part;
@@ -5511,7 +5517,7 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
   if (!(bitmap_buf= (my_bitmap_map *) alloc_root(param->mem_root,
                                                  param->fields_bitmap_size)))
     return TRUE;
-  if (bitmap_init(fields_bitmap, bitmap_buf, param->table->s->fields, FALSE))
+  if (my_bitmap_init(fields_bitmap, bitmap_buf, param->table->s->fields, FALSE))
     return TRUE;
   
   return FALSE;
@@ -5649,7 +5655,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
     }
   }
 
-  i= n_index_scans - test(cpk_scan != NULL) + 1;
+  i= n_index_scans - MY_TEST(cpk_scan != NULL) + 1;
 
   if (!(common->search_scans =
 	(INDEX_SCAN_INFO **) alloc_root (param->mem_root,
@@ -5719,7 +5725,7 @@ bool prepare_search_best_index_intersect(PARAM *param,
   if (!(common->best_intersect=
 	(INDEX_SCAN_INFO **) alloc_root (param->mem_root,
                                          sizeof(INDEX_SCAN_INFO *) *
-                                         (i + test(cpk_scan != NULL)))))
+                                         (i + MY_TEST(cpk_scan != NULL)))))
     return TRUE;
 
   size_t calc_cost_buff_size=
@@ -6329,7 +6335,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
                                                 param->fields_bitmap_size)))
     DBUG_RETURN(NULL);
 
-  if (bitmap_init(&ror_scan->covered_fields, bitmap_buf,
+  if (my_bitmap_init(&ror_scan->covered_fields, bitmap_buf,
                   param->table->s->fields, FALSE))
     DBUG_RETURN(NULL);
   bitmap_clear_all(&ror_scan->covered_fields);
@@ -6447,7 +6453,7 @@ ROR_INTERSECT_INFO* ror_intersect_init(const PARAM *param)
   if (!(buf= (my_bitmap_map*) alloc_root(param->mem_root,
                                          param->fields_bitmap_size)))
     return NULL;
-  if (bitmap_init(&info->covered_fields, buf, param->table->s->fields,
+  if (my_bitmap_init(&info->covered_fields, buf, param->table->s->fields,
                   FALSE))
     return NULL;
   info->is_covering= FALSE;
@@ -6571,8 +6577,8 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
   SEL_ARG *sel_arg, *tuple_arg= NULL;
   key_part_map keypart_map= 0;
   bool cur_covered;
-  bool prev_covered= test(bitmap_is_set(&info->covered_fields,
-                                        key_part->fieldnr-1));
+  bool prev_covered= MY_TEST(bitmap_is_set(&info->covered_fields,
+                                           key_part->fieldnr - 1));
   key_range min_range;
   key_range max_range;
   min_range.key= key_val;
@@ -6586,8 +6592,8 @@ static double ror_scan_selectivity(const ROR_INTERSECT_INFO *info,
        sel_arg= sel_arg->next_key_part)
   {
     DBUG_PRINT("info",("sel_arg step"));
-    cur_covered= test(bitmap_is_set(&info->covered_fields,
-                                    key_part[sel_arg->part].fieldnr-1));
+    cur_covered= MY_TEST(bitmap_is_set(&info->covered_fields,
+                                       key_part[sel_arg->part].fieldnr - 1));
     if (cur_covered != prev_covered)
     {
       /* create (part1val, ..., part{n-1}val) tuple. */
@@ -7024,7 +7030,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
     covered_fields->bitmap= (my_bitmap_map*)alloc_root(param->mem_root,
                                                param->fields_bitmap_size);
   if (!covered_fields->bitmap ||
-      bitmap_init(covered_fields, covered_fields->bitmap,
+      my_bitmap_init(covered_fields, covered_fields->bitmap,
                   param->table->s->fields, FALSE))
     DBUG_RETURN(0);
   bitmap_clear_all(covered_fields);
@@ -7684,7 +7690,8 @@ static SEL_TREE *get_func_mm_tree(RANGE_OPT_PARAM *param, Item_func *cond_func,
       param       PARAM from SQL_SELECT::test_quick_select
       cond_func   item for the predicate
       field_item  field in the predicate
-      value       constant in the predicate
+      value       constant in the predicate (or a field already read from 
+                  a table in the case of dynamic range access)
                   (for BETWEEN it contains the number of the field argument,
                    for IN it's always 0) 
       inv         TRUE <> NOT cond_func is considered
@@ -7953,24 +7960,43 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
     DBUG_RETURN(ftree);
   }
   default:
+
+    DBUG_ASSERT (!ftree);
     if (cond_func->arguments()[0]->real_item()->type() == Item::FIELD_ITEM)
     {
       field_item= (Item_field*) (cond_func->arguments()[0]->real_item());
-      value= cond_func->arg_count > 1 ? cond_func->arguments()[1] : 0;
+      value= cond_func->arg_count > 1 ? cond_func->arguments()[1] : NULL;
+      if (value && value->is_expensive())
+        DBUG_RETURN(0);
+      if (!cond_func->arguments()[0]->real_item()->const_item())
+        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
     }
-    else if (cond_func->have_rev_func() &&
-             cond_func->arguments()[1]->real_item()->type() ==
-                                                            Item::FIELD_ITEM)
+    /*
+      Even if get_full_func_mm_tree() was executed above and did not
+      return a range predicate it may still be possible to create one
+      by reversing the order of the operands. Note that this only
+      applies to predicates where both operands are fields. Example: A
+      query of the form
+
+         WHERE t1.a OP t2.b
+
+      In this case, arguments()[0] == t1.a and arguments()[1] == t2.b.
+      When creating range predicates for t2, get_full_func_mm_tree()
+      above will return NULL because 'field' belongs to t1 and only
+      predicates that applies to t2 are of interest. In this case a
+      call to get_full_func_mm_tree() with reversed operands (see
+      below) may succeed.
+    */
+    if (!ftree && cond_func->have_rev_func() &&
+        cond_func->arguments()[1]->real_item()->type() == Item::FIELD_ITEM)
     {
       field_item= (Item_field*) (cond_func->arguments()[1]->real_item());
       value= cond_func->arguments()[0];
+      if (value && value->is_expensive())
+        DBUG_RETURN(0);
+      if (!cond_func->arguments()[1]->real_item()->const_item())
+        ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
     }
-    else
-      DBUG_RETURN(0);
-    if (value && value->is_expensive())
-      DBUG_RETURN(0);
-
-    ftree= get_full_func_mm_tree(param, cond_func, field_item, value, inv);
   }
 
   DBUG_RETURN(ftree);
@@ -10606,8 +10632,13 @@ static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts)
     if (param->table->field[fieldnr]->key_length() != kp->length)
       return FALSE;
   }
-
-  if (key_part == key_part_end)
+  
+  /*
+    If there are equalities for all key parts, it is a ROR scan. If there are
+    equalities all keyparts and even some of key parts from "Extended Key"
+    index suffix, it is a ROR-scan, too.
+  */
+  if (key_part >= key_part_end)
     return TRUE;
 
   key_part= table_key->key_part + nparts;
@@ -10663,12 +10694,12 @@ get_quick_select(PARAM *param,uint idx,SEL_ARG *key_tree, uint mrr_flags,
   if (param->table->key_info[param->real_keynr[idx]].flags & HA_SPATIAL)
     quick=new QUICK_RANGE_SELECT_GEOM(param->thd, param->table,
                                       param->real_keynr[idx],
-                                      test(parent_alloc),
+                                      MY_TEST(parent_alloc),
                                       parent_alloc, &create_err);
   else
     quick=new QUICK_RANGE_SELECT(param->thd, param->table,
                                  param->real_keynr[idx],
-                                 test(parent_alloc), NULL, &create_err);
+                                 MY_TEST(parent_alloc), NULL, &create_err);
 
   if (quick)
   {
@@ -10778,15 +10809,16 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
     {
       KEY *table_key=quick->head->key_info+quick->index;
       flag=EQ_RANGE;
-      if ((table_key->flags & HA_NOSAME) && key->part == table_key->user_defined_key_parts-1)
+      if ((table_key->flags & HA_NOSAME) &&
+          key_tree->part == table_key->user_defined_key_parts-1)
       {
-	if (!(table_key->flags & HA_NULL_PART_KEY) ||
-	    !null_part_in_key(key,
-			      param->min_key,
-			      (uint) (tmp_min_key - param->min_key)))
-	  flag|= UNIQUE_RANGE;
-	else
-	  flag|= NULL_RANGE;
+        if ((table_key->flags & HA_NULL_PART_KEY) &&
+            null_part_in_key(key,
+                             param->min_key,
+                             (uint) (tmp_min_key - param->min_key)))
+          flag|= NULL_RANGE;
+        else
+          flag|= UNIQUE_RANGE;
       }
     }
   }
@@ -10816,7 +10848,7 @@ get_quick_keys(PARAM *param,QUICK_RANGE_SELECT *quick,KEY_PART *key,
 }
 
 /*
-  Return 1 if there is only one range and this uses the whole primary key
+  Return 1 if there is only one range and this uses the whole unique key
 */
 
 bool QUICK_RANGE_SELECT::unique_key_range()
@@ -11662,7 +11694,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
 
     result= file->read_range_first(last_range->min_keypart_map ? &start_key : 0,
 				   last_range->max_keypart_map ? &end_key : 0,
-                                   test(last_range->flag & EQ_RANGE),
+                                   MY_TEST(last_range->flag & EQ_RANGE),
 				   TRUE);
     if (last_range->flag == (UNIQUE_RANGE | EQ_RANGE))
       last_range= 0;			// Stop searching

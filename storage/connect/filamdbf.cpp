@@ -178,18 +178,18 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 /****************************************************************************/
 PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
   {
-  static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
-                          TYPE_INT,    TYPE_INT,   TYPE_SHORT};
-  static XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
-                          FLD_PREC, FLD_LENGTH, FLD_SCALE};
-  static unsigned int length[] = {11, 6, 8, 10, 10, 6};
+  int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
+                   TYPE_INT,    TYPE_INT,   TYPE_SHORT};
+  XFLD fldtyp[] = {FLD_NAME, FLD_TYPE,   FLD_TYPENAME,
+                   FLD_PREC, FLD_LENGTH, FLD_SCALE};
+  unsigned int length[] = {11, 6, 8, 10, 10, 6};
   char       buf[2], filename[_MAX_PATH];
   int        ncol = sizeof(buftyp) / sizeof(int);
   int        rc, type, len, field, fields;
   BOOL       bad;
   DBFHEADER  mainhead;
   DESCRIPTOR thisfield;
-  FILE      *infile;
+  FILE      *infile = NULL;
   PQRYRES    qrp;
   PCOLRES    crp;
 
@@ -228,8 +228,12 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
   qrp = PlgAllocResult(g, ncol, fields, IDS_COLUMNS + 3,
                           buftyp, fldtyp, length, true, false);
 
-  if (info || !qrp)
+  if (info || !qrp) {
+  	if (infile)
+      fclose(infile);
+      
     return qrp;
+    } // endif info
 
   if (trace) {
     htrc("Structure of %s\n", filename);
@@ -271,11 +275,11 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
         type = TYPE_STRING;
         break;
       case 'N':
-        type = (thisfield.Decimals) ? TYPE_FLOAT
+        type = (thisfield.Decimals) ? TYPE_DOUBLE
              : (len > 10) ? TYPE_BIGINT : TYPE_INT;
         break;
       case 'F':
-        type = TYPE_FLOAT;
+        type = TYPE_DOUBLE;
         break;
       case 'D':
         type = TYPE_DATE;            // Is this correct ???
@@ -481,16 +485,15 @@ bool DBFFAM::OpenTableFile(PGLOBAL g)
   PlugSetPath(filename, To_File, Tdbp->GetPath());
 
   if (!(Stream = PlugOpenFile(g, filename, opmode))) {
-#ifdef DEBTRACE
- htrc("%s\n", g->Message);
-#endif
+    if (trace)
+      htrc("%s\n", g->Message);
+    
     return (mode == MODE_READ && errno == ENOENT)
             ? PushWarning(g, Tdbp) : true;
     } // endif Stream
 
-#ifdef DEBTRACE
- htrc("File %s is open in mode %s\n", filename, opmode);
-#endif
+  if (trace)
+    htrc("File %s is open in mode %s\n", filename, opmode);
 
   To_Fb = dbuserp->Openlist;     // Keep track of File block
 
@@ -849,10 +852,10 @@ void DBFFAM::CloseTableFile(PGLOBAL g)
     rc = PlugCloseFile(g, To_Fb);
 
  fin:
-#ifdef DEBTRACE
- htrc("DBF CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
-  To_File, mode, wrc, rc);
-#endif
+  if (trace)
+    htrc("DBF CloseTableFile: closing %s mode=%d wrc=%d rc=%d\n",
+         To_File, mode, wrc, rc);
+
   Stream = NULL;           // So we can know whether table is open
   } // end of CloseTableFile
 

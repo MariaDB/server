@@ -245,23 +245,6 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
   } // end of SetBlockInfo
 
 /***********************************************************************/
-/*  Use BlockTest to reduce the table estimated size.                  */
-/***********************************************************************/
-int VCTFAM::MaxBlkSize(PGLOBAL g, int s)
-  {
-  int  savcur = CurBlk;
-  int size;
-
-  // Roughly estimate the table size as the sum of blocks
-  // that can contain good rows
-  for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
-    size += (CurBlk == Block - 1) ? Last : Nrec;
-
-  CurBlk = savcur;
-  return size;
-  } // end of MaxBlkSize
-
-/***********************************************************************/
 /*  VCT Cardinality: returns table cardinality in number of rows.      */
 /*  This function can be called with a null argument to test the       */
 /*  availability of Cardinality implementation (1 yes, 0 no).          */

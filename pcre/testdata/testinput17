@@ -1,6 +1,8 @@
 /-- This set of tests is for the 16- and 32-bit library's basic (non-UTF-16 
     or -32) features that are not compatible with the 8-bit library, or which 
     give different output in 16- or 32-bit mode. --/
+    
+< forbid 8W 
 
 /a\Cb/
     aXb
@@ -292,5 +294,14 @@
 
 /^\x{ffff}{0,3}/i
     \x{ffff}
+
+/[^\x00-a]{12,}[^b-\xff]*/BZ
+
+/[^\s]*\s* [^\W]+\W+ [^\d]*?\d0 [^\d\w]{4,6}?\w*A/BZ
+
+/a*[b-\x{200}]?a#a*[b-\x{200}]?b#[a-f]*[g-\x{200}]*#[g-\x{200}]*[a-c]*#[g-\x{200}]*[a-h]*/BZ
+
+/^[\x{1234}\x{4321}]{2,4}?/
+    \x{1234}\x{1234}\x{1234}
 
 /-- End of testinput17 --/

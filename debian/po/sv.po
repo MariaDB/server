@@ -1,7 +1,7 @@
 # Translation of mysql-dfsg-5.1 debconf template to Swedish
 # Copyright (C) 2009 Martin Bagge <brother@bsnet.se>
 # This file is distributed under the same license as the mysql-dfsg-5.1 package.
-# 
+#
 # Andreas Henriksson <andreas@fatal.se>, 2007
 # Martin Bagge <brother@bsnet.se>, 2009
 msgid ""
@@ -178,9 +178,6 @@ msgstr "Du bör kontrollera kontots lösenord efter installationen av paketet."
 #. Description
 #: ../mariadb-galera-server-10.0.templates:8001
 #, fuzzy
-#| msgid ""
-#| "Please read the /usr/share/doc/mariadb-server-10.0/README.Debian file for "
-#| "more information."
 msgid ""
 "Please read the /usr/share/doc/mariadb-server-10.0/README.Debian file for "
 "more information."

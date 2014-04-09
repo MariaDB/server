@@ -195,7 +195,7 @@ static int run_test(const char *filename)
   else
     uniques=0;
 
-  offset_to_key= test(null_fields);
+  offset_to_key= MY_TEST(null_fields);
   if (key_field == FIELD_BLOB || key_field == FIELD_VARCHAR)
     offset_to_key+= 2;
 

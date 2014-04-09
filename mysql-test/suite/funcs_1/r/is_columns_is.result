@@ -429,20 +429,6 @@ def	information_schema	VIEWS	TABLE_CATALOG	1		NO	varchar	512	1536	NULL	NULL	NULL
 def	information_schema	VIEWS	TABLE_NAME	3		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
 def	information_schema	VIEWS	TABLE_SCHEMA	2		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
 def	information_schema	VIEWS	VIEW_DEFINITION	4	NULL	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select	
-def	information_schema	XTRADB_INTERNAL_HASH_TABLES	CONSTANT_MEMORY	3	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_INTERNAL_HASH_TABLES	INTERNAL_HASH_TABLE_NAME	1		NO	varchar	100	300	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(100)			select	
-def	information_schema	XTRADB_INTERNAL_HASH_TABLES	TOTAL_MEMORY	2	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_INTERNAL_HASH_TABLES	VARIABLE_MEMORY	4	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_READ_VIEW	READ_VIEW_LOW_LIMIT_TRX_ID	4		NO	varchar	18	54	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(18)			select	
-def	information_schema	XTRADB_READ_VIEW	READ_VIEW_LOW_LIMIT_TRX_NUMBER	2		NO	varchar	18	54	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(18)			select	
-def	information_schema	XTRADB_READ_VIEW	READ_VIEW_UNDO_NUMBER	1	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_READ_VIEW	READ_VIEW_UPPER_LIMIT_TRX_ID	3		NO	varchar	18	54	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(18)			select	
-def	information_schema	XTRADB_RSEG	curr_size	6	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_RSEG	max_size	5	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_RSEG	page_no	4	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_RSEG	rseg_id	1	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_RSEG	space_id	2	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
-def	information_schema	XTRADB_RSEG	zip_size	3	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 ##########################################################################
 # Show the quotient of CHARACTER_OCTET_LENGTH and CHARACTER_MAXIMUM_LENGTH
 ##########################################################################
@@ -930,17 +916,3 @@ NULL	information_schema	USER_STATISTICS	EMPTY_QUERIES	bigint	NULL	NULL	NULL	NULL
 3.0000	information_schema	VIEWS	SECURITY_TYPE	varchar	7	21	utf8	utf8_general_ci	varchar(7)
 3.0000	information_schema	VIEWS	CHARACTER_SET_CLIENT	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	VIEWS	COLLATION_CONNECTION	varchar	32	96	utf8	utf8_general_ci	varchar(32)
-3.0000	information_schema	XTRADB_INTERNAL_HASH_TABLES	INTERNAL_HASH_TABLE_NAME	varchar	100	300	utf8	utf8_general_ci	varchar(100)
-NULL	information_schema	XTRADB_INTERNAL_HASH_TABLES	TOTAL_MEMORY	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_INTERNAL_HASH_TABLES	CONSTANT_MEMORY	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_INTERNAL_HASH_TABLES	VARIABLE_MEMORY	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_READ_VIEW	READ_VIEW_UNDO_NUMBER	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-3.0000	information_schema	XTRADB_READ_VIEW	READ_VIEW_LOW_LIMIT_TRX_NUMBER	varchar	18	54	utf8	utf8_general_ci	varchar(18)
-3.0000	information_schema	XTRADB_READ_VIEW	READ_VIEW_UPPER_LIMIT_TRX_ID	varchar	18	54	utf8	utf8_general_ci	varchar(18)
-3.0000	information_schema	XTRADB_READ_VIEW	READ_VIEW_LOW_LIMIT_TRX_ID	varchar	18	54	utf8	utf8_general_ci	varchar(18)
-NULL	information_schema	XTRADB_RSEG	rseg_id	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_RSEG	space_id	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_RSEG	zip_size	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_RSEG	page_no	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_RSEG	max_size	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
-NULL	information_schema	XTRADB_RSEG	curr_size	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned

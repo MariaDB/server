@@ -1,7 +1,7 @@
 /**************** Table H Declares Source Code File (.H) ***************/
-/*  Name: TABLE.H    Version 2.2                                       */
+/*  Name: TABLE.H    Version 2.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1999-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1999-2014    */
 /*                                                                     */
 /*  This file contains the TBX, OPJOIN and TDB class definitions.      */
 /***********************************************************************/
@@ -33,58 +33,20 @@ class CMD : public BLOCK {
   char *Cmd;
 }; // end of class CMD
 
-// Filter passed all tables
-typedef struct _filter {
+// Condition filter structure
+typedef struct _cond_filter {
   char  *Body;
   OPVAL  Op;
   PCMD   Cmds;
-} FILTER, *PFIL;
+} CONDFIL, *PCFIL;
 
 typedef class TDBCAT *PTDBCAT;
 typedef class CATCOL *PCATCOL;
 
 /***********************************************************************/
-/*  Definition of class TBX (pure virtual class for TDB and OPJOIN)    */
-/***********************************************************************/
-class DllExport TBX: public BLOCK { // Base class for OPJOIN and TDB classes.
- public:
-  // Constructors
-  TBX(void);
-  TBX(PTBX txp);
-
-  // Implementation
-  inline  PTBX  GetOrig(void) {return To_Orig;}
-  inline  TUSE  GetUse(void) {return Use;}
-  inline  void  SetUse(TUSE n) {Use = n;}
-  inline  PFIL  GetFilter(void) {return To_Filter;}
-  inline  void  SetOrig(PTBX txp) {To_Orig = txp;}
-  inline  void  SetFilter(PFIL fp) {To_Filter = fp;}
-
-  // Methods
-  virtual bool IsSame(PTBX tp) {return tp == this;}
-  virtual int  GetTdb_No(void) = 0;   // Convenience during conversion
-  virtual PTDB GetNext(void) = 0;
-  virtual int  Cardinality(PGLOBAL) = 0;
-  virtual int  GetMaxSize(PGLOBAL) = 0;
-  virtual int  GetProgMax(PGLOBAL) = 0;
-  virtual int  GetProgCur(void) = 0;
-  virtual int  GetBadLines(void) {return 0;}
-  virtual PTBX Copy(PTABS t) = 0;
-
- protected:
-//virtual void PrepareFilters(PGLOBAL g) = 0;
-
- protected:
-  // Members
-  PTBX  To_Orig;      // Pointer to original if it is a copy
-  PFIL  To_Filter;
-  TUSE  Use;
-  }; // end of class TBX
-
-/***********************************************************************/
 /*  Definition of class TDB with all its method functions.             */
 /***********************************************************************/
-class DllExport TDB: public TBX {     // Table Descriptor Block.
+class DllExport TDB: public BLOCK {     // Table Descriptor Block.
  public:
   // Constructors
   TDB(PTABDEF tdp = NULL);
@@ -92,11 +54,17 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
 
   // Implementation
   static  void   SetTnum(int n) {Tnum = n;}
+  inline  PTDB   GetOrig(void) {return To_Orig;}
+  inline  TUSE   GetUse(void) {return Use;}
+  inline  PCFIL  GetCondFil(void) {return To_CondFil;}
   inline  LPCSTR GetName(void) {return Name;}
   inline  PTABLE GetTable(void) {return To_Table;}
   inline  PCOL   GetColumns(void) {return Columns;}
   inline  int    GetDegree(void) {return Degree;}
   inline  MODE   GetMode(void) {return Mode;}
+  inline  void   SetOrig(PTDB txp) {To_Orig = txp;}
+  inline  void   SetUse(TUSE n) {Use = n;}
+  inline  void   SetCondFil(PCFIL cfp) {To_CondFil = cfp;}
   inline  void   SetNext(PTDB tdbp) {Next = tdbp;}
   inline  void   SetName(LPCSTR name) {Name = name;}
   inline  void   SetTable(PTABLE tablep) {To_Table = tablep;}
@@ -105,25 +73,30 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
   inline  void   SetMode(MODE mode) {Mode = mode;}
 
   //Properties
+  virtual AMT    GetAmType(void) {return TYPE_AM_ERROR;}
   virtual int    GetTdb_No(void) {return Tdb_No;}
   virtual PTDB   GetNext(void) {return Next;}
   virtual PCATLG GetCat(void) {return NULL;}
 
   // Methods
-  virtual AMT    GetAmType(void) {return TYPE_AM_ERROR;}
+  virtual bool   IsSame(PTDB tp) {return tp == this;}
   virtual bool   GetBlockValues(PGLOBAL g) {return false;}
   virtual int    Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
+  virtual int    GetMaxSize(PGLOBAL) = 0;
+  virtual int    GetProgMax(PGLOBAL) = 0;
+  virtual int    GetProgCur(void) = 0;
   virtual int    RowNumber(PGLOBAL g, bool b = false);
   virtual bool   IsReadOnly(void) {return true;}
-  virtual const CHARSET_INFO *data_charset() { return NULL; }
+  virtual const CHARSET_INFO *data_charset() {return NULL;}
   virtual PTDB   Duplicate(PGLOBAL g) {return NULL;}
   virtual PTDB   CopyOne(PTABS t) {return this;}
-  virtual PTBX   Copy(PTABS t);
+  virtual PTDB   Copy(PTABS t);
   virtual void   PrintAM(FILE *f, char *m) 
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
   virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);
   virtual PSZ    GetServer(void) = 0;
+  virtual int    GetBadLines(void) {return 0;}
 
   // Database pure virtual routines
   virtual PCOL   ColDB(PGLOBAL g, PSZ name, int num) = 0;
@@ -135,12 +108,11 @@ class DllExport TDB: public TBX {     // Table Descriptor Block.
   virtual void   CloseDB(PGLOBAL) = 0;
   virtual int    CheckWrite(PGLOBAL g) {return 0;}
 
-  // Database routines
-  bool OpenTable(PGLOBAL g, PSQL sqlp, MODE mode);
-  void CloseTable(PGLOBAL g);
-
  protected:
   // Members
+  PTDB   To_Orig;      // Pointer to original if it is a copy
+  TUSE   Use;
+  PCFIL  To_CondFil;   // To condition filter structure
   static int Tnum;     // Used to generate Tdb_no's
   const  int Tdb_No;   // GetTdb_No() is always 0 for OPJOIN
   PTDB   Next;         // Next in linearized queries
@@ -185,15 +157,7 @@ class DllExport TDBASE : public TDB {
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
   virtual bool   IsView(void) {return FALSE;}
-  virtual CHARSET_INFO *data_charset()
-  {
-    /*
-      If no DATA_CHARSET is specified, we assume that character
-      set of the remote data is the same with CHARACTER SET 
-      definition of the SQL column.
-    */
-    return m_data_charset ? m_data_charset : &my_charset_bin;
-  }
+  virtual CHARSET_INFO *data_charset(void);
   virtual int    GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
   virtual int    GetProgCur(void) {return GetRecpos();}
   virtual PSZ    GetFile(PGLOBAL g) {return "Not a file";}
@@ -229,7 +193,7 @@ class DllExport TDBASE : public TDB {
 /***********************************************************************/
 /*  The abstract base class declaration for the catalog tables.        */
 /***********************************************************************/
-class TDBCAT : public TDBASE {
+class DllExport TDBCAT : public TDBASE {
   friend class CATCOL;
  public:
   // Constructor
@@ -268,7 +232,7 @@ class TDBCAT : public TDBASE {
 /***********************************************************************/
 /*  Class CATCOL: ODBC info column.                                    */
 /***********************************************************************/
-class CATCOL : public COLBLK {
+class DllExport CATCOL : public COLBLK {
   friend class TDBCAT;
  public:
   // Constructors

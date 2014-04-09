@@ -66,6 +66,7 @@
 #include "lock.h"
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 #endif
 #include "sql_connect.h"
 
@@ -518,14 +519,14 @@ extern "C" int mysql_tmpfile(const char *prefix)
 extern "C"
 int thd_in_lock_tables(const THD *thd)
 {
-  return test(thd->in_lock_tables);
+  return MY_TEST(thd->in_lock_tables);
 }
 
 
 extern "C"
 int thd_tablespace_op(const THD *thd)
 {
-  return test(thd->tablespace_op);
+  return MY_TEST(thd->tablespace_op);
 }
 
 extern "C"
@@ -957,6 +958,10 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
     mysql_cond_broadcast(&COND_wsrep_replaying);
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
   }
+}
+extern "C" int wsrep_thd_retry_counter(THD *thd) 
+{
+  return(thd->wsrep_retry_counter);
 }
 
 extern int
@@ -1445,6 +1450,7 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
     break;
   default:
     DBUG_ASSERT(FALSE);
@@ -1591,6 +1597,7 @@ void THD::init(void)
   set_status_var_init();
   bzero((char *) &org_status_var, sizeof(org_status_var));
   start_bytes_received= 0;
+  last_commit_gtid.seq_no= 0;
 #ifdef WITH_WSREP
   wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
   wsrep_conflict_state= NO_CONFLICT;
@@ -1708,9 +1715,7 @@ void THD::init_for_queries()
 
 void THD::change_user(void)
 {
-  mysql_mutex_lock(&LOCK_status);
-  add_to_status(&global_status_var, &status_var);
-  mysql_mutex_unlock(&LOCK_status);
+  add_status_to_global();
 
   cleanup();
   reset_killed();
@@ -1741,14 +1746,13 @@ void THD::cleanup(void)
 #endif
 
   mysql_ha_cleanup(this);
+  locked_tables_list.unlock_locked_tables(this);
 
   close_temporary_tables(this);
 
   transaction.xid_state.xa_state= XA_NOTR;
   trans_rollback(this);
   xid_cache_delete(&transaction.xid_state);
-
-  locked_tables_list.unlock_locked_tables(this);
 
   DBUG_ASSERT(open_tables == NULL);
   /*
@@ -2127,7 +2131,19 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
+#ifdef WITH_WSREP
+      {
         signalled|= mysql_lock_abort_for_thread(this, thd_table);
+        if (this && WSREP(this) && wsrep_thd_is_BF((void *)this, FALSE)) 
+        {
+          WSREP_DEBUG("remove_table_from_cache: %llu",
+                      (unsigned long long) this->real_id);
+          wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+        }
+      }
+#else
+        signalled|= mysql_lock_abort_for_thread(this, thd_table);
+#endif
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
@@ -2681,12 +2697,6 @@ select_result::select_result()
   thd=current_thd;
 }
 
-void select_result::send_error(uint errcode,const char *err)
-{
-  my_message(errcode, err, MYF(0));
-}
-
-
 void select_result::cleanup()
 {
   /* do nothing */
@@ -2702,6 +2712,7 @@ bool select_result::check_simple_select() const
 static String default_line_term("\n",default_charset_info);
 static String default_escaped("\\",default_charset_info);
 static String default_field_term("\t",default_charset_info);
+static String default_enclosed_and_line_start("", default_charset_info);
 static String default_xml_row_term("<row>", default_charset_info);
 
 sql_exchange::sql_exchange(char *name, bool flag,
@@ -2710,7 +2721,7 @@ sql_exchange::sql_exchange(char *name, bool flag,
 {
   filetype= filetype_arg;
   field_term= &default_field_term;
-  enclosed=   line_start= &my_empty_string;
+  enclosed=   line_start= &default_enclosed_and_line_start;
   line_term=  filetype == FILETYPE_CSV ?
               &default_line_term : &default_xml_row_term;
   escaped=    &default_escaped;
@@ -2834,23 +2845,9 @@ bool select_send::send_eof()
   Handling writing to file
 ************************************************************************/
 
-void select_to_file::send_error(uint errcode,const char *err)
-{
-  my_message(errcode, err, MYF(0));
-  if (file > 0)
-  {
-    (void) end_io_cache(&cache);
-    mysql_file_close(file, MYF(0));
-    /* Delete file on error */
-    mysql_file_delete(key_select_to_file, path, MYF(0));
-    file= -1;
-  }
-}
-
-
 bool select_to_file::send_eof()
 {
-  int error= test(end_io_cache(&cache));
+  int error= MY_TEST(end_io_cache(&cache));
   if (mysql_file_close(file, MYF(MY_WME)) || thd->is_error())
     error= true;
 
@@ -3031,8 +3028,8 @@ select_export::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
     escape_char= (int) (uchar) (*exchange->escaped)[0];
   else
     escape_char= -1;
-  is_ambiguous_field_sep= test(strchr(ESCAPE_CHARS, field_sep_char));
-  is_unsafe_field_sep= test(strchr(NUMERIC_CHARS, field_sep_char));
+  is_ambiguous_field_sep= MY_TEST(strchr(ESCAPE_CHARS, field_sep_char));
+  is_unsafe_field_sep= MY_TEST(strchr(NUMERIC_CHARS, field_sep_char));
   line_sep_char= (exchange->line_term->length() ?
                  (int) (uchar) (*exchange->line_term)[0] : INT_MAX);
   if (!field_term_length)
@@ -4479,6 +4476,12 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
   return(thd->slave_thread);
 }
 
+/* Returns true for a worker thread in parallel replication. */
+extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
+{
+  return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
+}
+
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction.all.modified_non_trans_table);
@@ -5307,7 +5310,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       DBUG_PRINT("info", ("table: %s; ha_table_flags: 0x%llx",
                           table->table_name, flags));
 
-      if (table->table->no_replicate && !table->table->s->is_gtid_slave_pos)
+      if (table->table->no_replicate)
       {
         /*
           The statement uses a table that is not replicated.
@@ -5649,6 +5652,10 @@ THD::binlog_prepare_pending_rows_event(TABLE* table, uint32 serv_id,
   /* Fetch the type code for the RowsEventT template parameter */
   int const general_type_code= RowsEventT::TYPE_CODE;
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
+
   /*
     There is no good place to set up the transactional data, so we
     have to do it here.
@@ -5850,6 +5857,10 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
 
   size_t const len= pack_row(table, cols, row_data, record);
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
+
   Rows_log_event* const ev=
     binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
                                       len, is_trans,
@@ -5888,6 +5899,10 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                                         before_record);
   size_t const after_size= pack_row(table, cols, after_row,
                                        after_record);
+
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
 
   /*
     Don't print debug messages when running valgrind since they can
@@ -5937,6 +5952,10 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
 
   size_t const len= pack_row(table, cols, row_data, record);
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_trans= 1;
+
   Rows_log_event* const ev=
     binlog_prepare_pending_rows_event(table, variables.server_id, cols, colcnt,
 				      len, is_trans,
@@ -5961,6 +5980,10 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
 #endif
     DBUG_RETURN(0);
 
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
+
   mysql_bin_log.remove_pending_rows_event(this, is_transactional);
 
   if (clear_maps)
@@ -5983,6 +6006,10 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
   if (!mysql_bin_log.is_open())
 #endif
     DBUG_RETURN(0);
+
+  /* Ensure that all events in a GTID group are in the same cache */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+    is_transactional= 1;
 
   /*
     Mark the event as the last event of a statement if the stmt_end
@@ -6236,6 +6263,14 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_ASSERT(query_arg && mysql_bin_log.is_open());
 #endif
 
+  /* If this is withing a BEGIN ... COMMIT group, don't log it */
+  if (variables.option_bits & OPTION_GTID_BEGIN)
+  {
+    direct= 0;
+    is_trans= 1;
+  }
+  DBUG_PRINT("info", ("is_trans: %d  direct: %d", is_trans, direct));
+
   if (get_binlog_local_stmt_filter() == BINLOG_FILTER_SET)
   {
     /*
@@ -6373,14 +6408,23 @@ bool THD::rgi_have_temporary_tables()
 }
 
 
+void
+wait_for_commit::reinit()
+{
+  subsequent_commits_list= NULL;
+  next_subsequent_commit= NULL;
+  waitee= NULL;
+  opaque_pointer= NULL;
+  wakeup_error= 0;
+  wakeup_subsequent_commits_running= false;
+}
+
+
 wait_for_commit::wait_for_commit()
-  : subsequent_commits_list(0), next_subsequent_commit(0), waitee(0),
-    opaque_pointer(0),
-    waiting_for_commit(false), wakeup_error(0),
-    wakeup_subsequent_commits_running(false)
 {
   mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wait_commit, &COND_wait_commit, 0);
+  reinit();
 }
 
 
@@ -6428,7 +6472,7 @@ wait_for_commit::wakeup(int wakeup_error)
 
   */
   mysql_mutex_lock(&LOCK_wait_commit);
-  waiting_for_commit= false;
+  waitee= NULL;
   this->wakeup_error= wakeup_error;
   /*
     Note that it is critical that the mysql_cond_signal() here is done while
@@ -6460,9 +6504,8 @@ wait_for_commit::wakeup(int wakeup_error)
 void
 wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 {
-  waiting_for_commit= true;
-  wakeup_error= 0;
   DBUG_ASSERT(!this->waitee /* No prior registration allowed */);
+  wakeup_error= 0;
   this->waitee= waitee;
 
   mysql_mutex_lock(&waitee->LOCK_wait_commit);
@@ -6472,7 +6515,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
     see comments on wakeup_subsequent_commits2() for details.
   */
   if (waitee->wakeup_subsequent_commits_running)
-    waiting_for_commit= false;
+    this->waitee= NULL;
   else
   {
     /*
@@ -6492,13 +6535,62 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
   returns immediately.
 */
 int
-wait_for_commit::wait_for_prior_commit2()
+wait_for_commit::wait_for_prior_commit2(THD *thd)
 {
+  PSI_stage_info old_stage;
+  wait_for_commit *loc_waitee;
+
   mysql_mutex_lock(&LOCK_wait_commit);
-  while (waiting_for_commit)
+  DEBUG_SYNC(thd, "wait_for_prior_commit_waiting");
+  thd->ENTER_COND(&COND_wait_commit, &LOCK_wait_commit,
+                  &stage_waiting_for_prior_transaction_to_commit,
+                  &old_stage);
+  while ((loc_waitee= this->waitee) && !thd->check_killed())
     mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
-  mysql_mutex_unlock(&LOCK_wait_commit);
-  waitee= NULL;
+  if (!loc_waitee)
+  {
+    if (wakeup_error)
+      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    goto end;
+  }
+  /*
+    Wait was interrupted by kill. We need to unregister our wait and give the
+    error. But if a wakeup is already in progress, then we must ignore the
+    kill and not give error, otherwise we get inconsistency between waitee and
+    waiter as to whether we succeed or fail (eg. we may roll back but waitee
+    might attempt to commit both us and any subsequent commits waiting for us).
+  */
+  mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
+  if (loc_waitee->wakeup_subsequent_commits_running)
+  {
+    /* We are being woken up; ignore the kill and just wait. */
+    mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+    do
+    {
+      mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
+    } while (this->waitee);
+    if (wakeup_error)
+      my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    goto end;
+  }
+  remove_from_list(&loc_waitee->subsequent_commits_list);
+  mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+  this->waitee= NULL;
+
+  wakeup_error= thd->killed_errno();
+  if (!wakeup_error)
+    wakeup_error= ER_QUERY_INTERRUPTED;
+  my_message(wakeup_error, ER(wakeup_error), MYF(0));
+  thd->EXIT_COND(&old_stage);
+  /*
+    Must do the DEBUG_SYNC() _after_ exit_cond(), as DEBUG_SYNC is not safe to
+    use within enter_cond/exit_cond.
+  */
+  DEBUG_SYNC(thd, "wait_for_prior_commit_killed");
+  return wakeup_error;
+
+end:
+  thd->EXIT_COND(&old_stage);
   return wakeup_error;
 }
 
@@ -6581,11 +6673,11 @@ wait_for_commit::wakeup_subsequent_commits2(int wakeup_error)
 void
 wait_for_commit::unregister_wait_for_prior_commit2()
 {
+  wait_for_commit *loc_waitee;
+
   mysql_mutex_lock(&LOCK_wait_commit);
-  if (waiting_for_commit)
+  if ((loc_waitee= this->waitee))
   {
-    wait_for_commit *loc_waitee= this->waitee;
-    wait_for_commit **next_ptr_ptr, *cur;
     mysql_mutex_lock(&loc_waitee->LOCK_wait_commit);
     if (loc_waitee->wakeup_subsequent_commits_running)
     {
@@ -6597,28 +6689,18 @@ wait_for_commit::unregister_wait_for_prior_commit2()
         See comments on wakeup_subsequent_commits2() for more details.
       */
       mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
-      while (waiting_for_commit)
+      while (this->waitee)
         mysql_cond_wait(&COND_wait_commit, &LOCK_wait_commit);
     }
     else
     {
       /* Remove ourselves from the list in the waitee. */
-      next_ptr_ptr= &loc_waitee->subsequent_commits_list;
-      while ((cur= *next_ptr_ptr) != NULL)
-      {
-        if (cur == this)
-        {
-          *next_ptr_ptr= this->next_subsequent_commit;
-          break;
-        }
-        next_ptr_ptr= &cur->next_subsequent_commit;
-      }
-      waiting_for_commit= false;
+      remove_from_list(&loc_waitee->subsequent_commits_list);
       mysql_mutex_unlock(&loc_waitee->LOCK_wait_commit);
+      this->waitee= NULL;
     }
   }
   mysql_mutex_unlock(&LOCK_wait_commit);
-  this->waitee= NULL;
 }
 
 

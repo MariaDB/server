@@ -50,9 +50,20 @@ typedef struct _xinfo {
 
 class XCHK : public BLOCK {
 public:
-  XCHK(void) {oldsep= newsep= false; oldpix= newpix= NULL;}
+  XCHK(void) {oldsep= newsep= false; 
+              oldopn= newopn= NULL;
+              oldpix= newpix= NULL;}
+
+  inline char *SetName(PGLOBAL g, char *name) {
+    char *nm= NULL;
+    if (name) {nm= (char*)PlugSubAlloc(g, NULL, strlen(name) + 1);
+               strcpy(nm, name);}
+    return nm;}
+
   bool         oldsep;              // Sepindex before create/alter
   bool         newsep;              // Sepindex after create/alter
+  char        *oldopn;              // Optname before create/alter
+  char        *newopn;              // Optname after create/alter
   PIXDEF       oldpix;              // The indexes before create/alter
   PIXDEF       newpix;              // The indexes after create/alter
 }; // end of class XCHK
@@ -111,8 +122,6 @@ struct ha_table_option_struct {
 struct ha_field_option_struct
 {
   ulonglong offset;
-  ulonglong freq;      // Not used by this version
-  ulonglong opt;       // Not used by this version
   ulonglong fldlen;
   const char *dateformat;
   const char *fieldformat;
@@ -156,15 +165,22 @@ public:
   // CONNECT Implementation
   static   bool connect_init(void);
   static   bool connect_end(void);
+  TABTYPE  GetRealType(PTOS pos);
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE *table_arg);
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
+  bool     CheckString(const char *str1, const char *str2);
+  bool     SameString(TABLE *tab, char *opn);
   bool     SetIntegerOption(char *opname, int n);
+  bool     SameInt(TABLE *tab, char *opn);
+  bool     SameBool(TABLE *tab, char *opn);
+  bool     FileExists(const char *fn);
+  bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
-  PIXDEF   GetIndexInfo(void);
+  PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
 //int      GetColNameLen(Field *fp);
@@ -199,18 +215,19 @@ public:
    */
   const char **bas_ext() const;
 
+ /**
+    Check if a storage engine supports a particular alter table in-place
+    @note Called without holding thr_lock.c lock.
+ */
+ virtual enum_alter_inplace_result
+ check_if_supported_inplace_alter(TABLE *altered_table,
+                                  Alter_inplace_info *ha_alter_info);
+
   /** @brief
     This is a list of flags that indicate what functionality the storage engine
     implements. The current table flags are documented in handler.h
   */
-  ulonglong table_flags() const
-  {
-    return (HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_HAS_RECORDS |
-            HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-            HA_NO_COPY_ON_ALTER | HA_CAN_VIRTUAL_COLUMNS |
-            HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
-            /*HA_NULL_IN_KEY |*/ HA_MUST_USE_TABLE_CONDITION_PUSHDOWN);
-  }
+  ulonglong table_flags() const;
 
   /** @brief
     This is a bitmap of flags that indicates how the storage engine
@@ -224,8 +241,8 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE;
-  }
+    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER | HA_KEYREAD_ONLY;
+  } // end of index_flags
 
   /** @brief
     unireg.cc will call max_supported_record_length(), max_supported_keys(),
@@ -311,7 +328,7 @@ public:
    condition stack.
  */ 
 virtual const COND *cond_push(const COND *cond);
-PFIL  CheckCond(PGLOBAL g, PFIL filp, AMT tty, Item *cond);
+PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 
  /**
@@ -401,6 +418,9 @@ const char *GetValStr(OPVAL vop, bool neg);
   */
 //int index_last(uchar *buf);
 
+  /* Index condition pushdown implementation */
+//Item *idx_cond_push(uint keyno, Item* idx_cond);
+
   /** @brief
     Unlike index_init(), rnd_init() can be called two consecutive times
     without rnd_end() in between (it only makes sense if scan=1). In this
@@ -445,8 +465,9 @@ const char *GetValStr(OPVAL vop, bool neg);
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
 protected:
-  bool check_privileges(THD *thd, PTOS options);
+  bool check_privileges(THD *thd, PTOS options, char *dbn);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
+  char *GetDBfromName(const char *name);
 
   // Members
   static ulong  num;                  // Tracable handler number
@@ -463,6 +484,7 @@ protected:
   XINFO         xinfo;                // The table info structure
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
+  bool          alter;                // True when converting to other engine
   int           indexing;             // Type of indexing for CONNECT
   int           locked;               // Table lock
   THR_LOCK_DATA lock_data;

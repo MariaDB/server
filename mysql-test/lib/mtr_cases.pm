@@ -337,15 +337,20 @@ sub parse_disabled {
 #
 sub collect_default_suites(@)
 {
-  my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
-                         [ @plugin_suitedirs ], '*');
-  for my $d (@dirs) {
-    next unless -f "$d/suite.pm";
-    my $sname= basename($d);
+  use File::Find;
+  my @dirs;
+  find(sub {
+      push @dirs, [$File::Find::topdir, $File::Find::name]
+        if -d and -f "$File::Find::name/suite.pm";
+  }, my_find_dir(dirname($::glob_mysql_test_dir), \@plugin_suitedirs));
+
+  for (@dirs) {
+    my ($plugin_root, $dir) = @$_;
+    my $sname= substr $dir, 1 + length $plugin_root;
     # ignore overlays here, otherwise we'd need accurate
     # duplicate detection with overlay support for the default suite list
     next if $sname eq 'main' or -d "$::glob_mysql_test_dir/suite/$sname";
-    my $s = load_suite_object($sname, $d);
+    my $s = load_suite_object($sname, $dir);
     push @_, $sname if $s->is_default();
   }
   return @_;
@@ -857,6 +862,8 @@ sub collect_one_test_case {
       # Suite has no config, autodetect which one to use
       if ($tinfo->{rpl_test}) {
         $config= "suite/rpl/my.cnf";
+      } elsif ($tinfo->{galera_test}) {
+        $config= "suite/galera/my.cnf";
       } else {
         $config= "include/default_my.cnf";
       }
@@ -977,6 +984,7 @@ my $tags_map= {'big_test' => ['big_test', 1],
                'master-slave' => ['rpl_test', 1],
                'ndb_master-slave' => ['rpl_test', 1, 'ndb_test', 1],
                'long_test' => ['long_test', 1],
+               'galera_init' => ['galera_test', 1],
 };
 my $tags_regex_string= join('|', keys %$tags_map);
 my $tags_regex= qr:include/($tags_regex_string)\.inc:o;

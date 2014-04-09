@@ -1,7 +1,7 @@
 #ifndef PARTITION_INFO_INCLUDED
 #define PARTITION_INFO_INCLUDED
 
-/* Copyright (c) 2006, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2006, 2010, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -317,7 +317,7 @@ public:
   bool check_partition_info(THD *thd, handlerton **eng_type,
                             handler *file, HA_CREATE_INFO *info,
                             bool check_partition_function);
-  void print_no_partition_found(TABLE *table);
+  void print_no_partition_found(TABLE *table, myf errflag);
   void print_debug(const char *str, uint*);
   Item* get_column_item(Item *item, Field *field);
   int fix_partition_values(THD *thd,

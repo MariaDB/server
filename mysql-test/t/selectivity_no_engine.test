@@ -1,0 +1,96 @@
+--source include/have_stat_tables.inc
+
+--echo #
+--echo #  Engine-agnostic tests for statistics-based selectivity calculations.
+--echo #   - selectivity tests that depend on the engine should go into
+--echo #     t/selectivity.test. That test is run with myisam/innodb/xtradb.
+--echo #   - this file is for tests that don't depend on the engine. 
+--echo #
+
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+select @@global.use_stat_tables;
+select @@session.use_stat_tables;
+
+set @save_use_stat_tables=@@use_stat_tables;
+
+set use_stat_tables='preferably';
+
+set @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity;
+set @save_histogram_size=@@histogram_size;
+set @save_histogram_type=@@histogram_type;
+
+--echo #
+--echo # MDEV-5917: EITS: different order of predicates in IN (...) causes different estimates
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (col1 int);
+--echo # one value in 1..100 range
+insert into t2 select A.a + B.a*10 from t1 A, t1 B;
+--echo # ten values in 100...200 range
+insert into t2 select 100 + A.a + B.a*10 from t1 A, t1 B, t1 C;
+
+set histogram_type='SINGLE_PREC_HB';
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+analyze table t2 persistent for all;
+
+--echo # The following two must have the same in 'Extra' column:
+explain extended select * from t2 where col1 IN (20, 180);
+explain extended select * from t2 where col1 IN (180, 20);
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-5926: EITS: Histogram estimates for column=least_possible_value are wrong
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a from t0 A, t0 B, t0 C;
+set histogram_size=20;
+set histogram_type='single_prec_hb';
+analyze table t1 persistent for all;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+--echo # Should select about 10%:
+explain extended select * from t1 where a=2;
+--echo # Should select about 10%:
+explain extended select * from t1 where a=1;
+--echo # Must not have filtered=100%:
+explain extended select * from t1 where a=0;
+--echo # Again, must not have filtered=100%:
+explain extended select * from t1 where a=-1;
+
+drop table t0, t1;
+
+--echo #
+--echo # MDEV-4362: Selectivity estimates for IN (...) do not depend on whether the values are in range
+--echo #
+create table t1 (col1 int);
+set @a=-1;
+create table t2 (a int)  select (@a:=@a+1) as a from information_schema.session_variables A limit 100;
+insert into t1 select A.a from t2 A, t2 B where A.a < 100 and B.a < 100;
+select min(col1), max(col1), count(*) from t1;
+set histogram_size=100;
+analyze table t1 persistent for all;
+explain extended select * from t1 where col1 in (1,2,3);
+--echo # Must not cause fp division by zero, or produce nonsense numbers:
+explain extended select * from t1 where col1 in (-1,-2,-3);
+explain extended select * from t1 where col1<=-1;
+drop table t1, t2;
+
+
+--echo # 
+--echo # End of the test file
+--echo # 
+
+set use_stat_tables= @save_use_stat_tables;
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+

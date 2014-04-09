@@ -17,7 +17,6 @@
 /*  Name: CONNECT.H    Version 2.4                                     */
 /*  This file contains the some based classes declares.                */
 /***********************************************************************/
-//#include "xtable.h"                     // Base class declares
 #include "filamtxt.h"
 #include "tabdos.h"
 
@@ -37,7 +36,7 @@ bool  CntRewindTable(PGLOBAL g, PTDB tdbp);
 int   CntCloseTable(PGLOBAL g, PTDB tdbp);
 int   CntIndexInit(PGLOBAL g, PTDB tdbp, int id);
 RCODE CntReadNext(PGLOBAL g, PTDB tdbp);
-RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n);
+RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n); 
 RCODE CntWriteRow(PGLOBAL g, PTDB tdbp);
 RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp);
 RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
@@ -51,8 +50,6 @@ PGLOBAL CntExit(PGLOBAL g);
 /*  These classes purpose is chiefly to access protected items!        */
 /***********************************************************************/
 class DOXDEF: public DOSDEF {
-//friend class TDBDOX;
-//friend int MakeIndex(PGLOBAL, PTDB, PIXDEF);
   friend int CntIndexInit(PGLOBAL, PTDB, int);
   }; // end of class DOXDEF
 
@@ -73,10 +70,7 @@ class TDBDOX: public TDBDOS {
 class XKPDEF: public KPARTDEF {
   friend class TDBDOX;
   friend class ha_connect;
-//friend int CntMakeIndex(PGLOBAL, const char *, PIXDEF);
   friend int CntIndexInit(PGLOBAL, PTDB, int);
  public:
   XKPDEF(const char *name, int n) : KPARTDEF((PSZ)name, n) {}
   }; // end of class XKPDEF
-
-//RCODE CheckRecord(PGLOBAL g, PTDB tdbp, char *oldbuf, char *newbuf);

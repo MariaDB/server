@@ -1,5 +1,5 @@
 //
-// $Id: ha_sphinx.h 2921 2011-08-21 21:35:02Z tomat $
+// $Id: ha_sphinx.h 3866 2013-05-22 11:54:20Z kevg $
 //
 
 #ifdef USE_PRAGMA_INTERFACE
@@ -128,7 +128,11 @@ public:
 	THR_LOCK_DATA **		store_lock ( THD * thd, THR_LOCK_DATA ** to, enum thr_lock_type lock_type );
 
 public:
+#if MYSQL_VERSION_ID<50610
 	virtual const COND *	cond_push ( const COND *cond );
+#else
+	virtual const Item *		cond_push ( const Item *cond );
+#endif	
 	virtual void			cond_pop ();
 
 private:
@@ -167,5 +171,5 @@ int sphinx_showfunc_word_count ( THD *, SHOW_VAR *, char * );
 int sphinx_showfunc_words ( THD *, SHOW_VAR *, char * );
 
 //
-// $Id: ha_sphinx.h 2921 2011-08-21 21:35:02Z tomat $
+// $Id: ha_sphinx.h 3866 2013-05-22 11:54:20Z kevg $
 //

@@ -22,6 +22,7 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
+
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
@@ -34,7 +35,6 @@ extern bool
 wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                            MDL_ticket *ticket);
 #endif /* WITH_WSREP */
-
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_map_mutex;
 static PSI_mutex_key key_MDL_wait_LOCK_wait_status;
@@ -136,15 +136,9 @@ class MDL_map_partition
 public:
   MDL_map_partition();
   ~MDL_map_partition();
-  inline MDL_lock *find_or_insert(const MDL_key *mdl_key,
-                                  my_hash_value_type hash_value);
-  unsigned long get_lock_owner(const MDL_key *key,
-                               my_hash_value_type hash_value);
+  inline MDL_lock *find_or_insert(const MDL_key *mdl_key);
+  unsigned long get_lock_owner(const MDL_key *key);
   inline void remove(MDL_lock *lock);
-  my_hash_value_type get_key_hash(const MDL_key *mdl_key) const
-  {
-    return my_calc_hash(&m_locks, mdl_key->ptr(), mdl_key->length());
-  }
 private:
   bool move_from_hash_to_lock_mutex(MDL_lock *lock);
   /** A partition of all acquired locks in the server. */
@@ -778,13 +772,21 @@ void MDL_map::init()
 }
 
 
+my_hash_value_type mdl_hash_function(const CHARSET_INFO *cs,
+                                     const uchar *key, size_t length)
+{
+  MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));
+  return mdl_key->hash_value();
+}
+
+
 /** Initialize the partition in the container with all MDL locks. */
 
 MDL_map_partition::MDL_map_partition()
 {
   mysql_mutex_init(key_MDL_map_mutex, &m_mutex, NULL);
-  my_hash_init(&m_locks, &my_charset_bin, 16 /* FIXME */, 0, 0,
-               mdl_locks_key, 0, 0);
+  my_hash_init2(&m_locks, 0, &my_charset_bin, 16 /* FIXME */, 0, 0,
+                mdl_locks_key, mdl_hash_function, 0, 0);
 };
 
 
@@ -858,11 +860,10 @@ MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
     return lock;
   }
 
-  my_hash_value_type hash_value= m_partitions.at(0)->get_key_hash(mdl_key);
-  uint part_id= hash_value % mdl_locks_hash_partitions;
+  uint part_id= mdl_key->hash_value() % mdl_locks_hash_partitions;
   MDL_map_partition *part= m_partitions.at(part_id);
 
-  return part->find_or_insert(mdl_key, hash_value);
+  return part->find_or_insert(mdl_key);
 }
 
 
@@ -875,15 +876,14 @@ MDL_lock* MDL_map::find_or_insert(const MDL_key *mdl_key)
   @retval NULL     - Failure (OOM).
 */
 
-MDL_lock* MDL_map_partition::find_or_insert(const MDL_key *mdl_key,
-                                            my_hash_value_type hash_value)
+MDL_lock* MDL_map_partition::find_or_insert(const MDL_key *mdl_key)
 {
   MDL_lock *lock;
 
 retry:
   mysql_mutex_lock(&m_mutex);
   if (!(lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                          hash_value,
+                                                          mdl_key->hash_value(),
                                                           mdl_key->ptr(),
                                                           mdl_key->length())))
   {
@@ -1035,10 +1035,9 @@ MDL_map::get_lock_owner(const MDL_key *mdl_key)
   }
   else
   {
-    my_hash_value_type hash_value= m_partitions.at(0)->get_key_hash(mdl_key);
-    uint part_id= hash_value % mdl_locks_hash_partitions;
+    uint part_id= mdl_key->hash_value() % mdl_locks_hash_partitions;
     MDL_map_partition *part= m_partitions.at(part_id);
-    res= part->get_lock_owner(mdl_key, hash_value);
+    res= part->get_lock_owner(mdl_key);
   }
   return res;
 }
@@ -1046,15 +1045,14 @@ MDL_map::get_lock_owner(const MDL_key *mdl_key)
 
 
 unsigned long
-MDL_map_partition::get_lock_owner(const MDL_key *mdl_key,
-                                  my_hash_value_type hash_value)
+MDL_map_partition::get_lock_owner(const MDL_key *mdl_key)
 {
   MDL_lock *lock;
   unsigned long res= 0;
 
   mysql_mutex_lock(&m_mutex);
   lock= (MDL_lock*) my_hash_search_using_hash_value(&m_locks,
-                                                  hash_value,
+                                                  mdl_key->hash_value(),
                                                   mdl_key->ptr(),
                                                   mdl_key->length());
   if (lock)
@@ -1482,7 +1480,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
   DBUG_ASSERT(ticket->get_lock());
 #ifdef WITH_WSREP
   if ((this == &(ticket->get_lock()->m_waiting)) &&
-      wsrep_thd_is_brute_force((void *)(ticket->get_ctx()->wsrep_get_thd())))
+      wsrep_thd_is_BF((void *)(ticket->get_ctx()->wsrep_get_thd()), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
     Ticket_iterator itg(ticket->get_lock()->m_granted);
@@ -1493,7 +1491,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
 
     while ((waiting= itw++) && !added)
     {
-      if (!wsrep_thd_is_brute_force((void *)(waiting->get_ctx()->wsrep_get_thd())))
+      if (!wsrep_thd_is_BF((void *)(waiting->get_ctx()->wsrep_get_thd()), true))
       {
         WSREP_DEBUG("MDL add_ticket inserted before: %lu %s",
                     wsrep_thd_thread_id(waiting->get_ctx()->wsrep_get_thd()),
@@ -1894,7 +1892,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             ticket->is_incompatible_when_granted(type_arg))
 #ifdef WITH_WSREP
         {
-          if (wsrep_thd_is_brute_force((void *)(requestor_ctx->wsrep_get_thd())) &&
+          if (wsrep_thd_is_BF((void *)(requestor_ctx->wsrep_get_thd()),false) &&
               key.mdl_namespace() == MDL_key::GLOBAL)
           {
             WSREP_DEBUG("global lock granted for BF: %lu %s",
@@ -1935,7 +1933,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 #ifdef WITH_WSREP
   else
   {
-    if (wsrep_thd_is_brute_force((void *)(requestor_ctx->wsrep_get_thd())) &&
+    if (wsrep_thd_is_BF((void *)(requestor_ctx->wsrep_get_thd()), false) &&
 	key.mdl_namespace() == MDL_key::GLOBAL)
     {
       WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
@@ -2008,8 +2006,6 @@ void MDL_lock::remove_ticket(Ticket_list MDL_lock::*list, MDL_ticket *ticket)
 bool MDL_lock::has_pending_conflicting_lock(enum_mdl_type type)
 {
   bool result;
-
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   mysql_prlock_rdlock(&m_rwlock);
   result= (m_waiting.bitmap() & incompatible_granted_types_bitmap()[type]);
@@ -2185,7 +2181,6 @@ MDL_context::try_acquire_lock_impl(MDL_request *mdl_request,
 
   /* Don't take chances in production. */
   mdl_request->ticket= NULL;
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   /*
     Check whether the context already holds a shared lock on the object,
@@ -2275,7 +2270,6 @@ MDL_context::clone_ticket(MDL_request *mdl_request)
 {
   MDL_ticket *ticket;
 
-  mysql_mutex_assert_not_owner(&LOCK_open);
   /*
     By submitting mdl_request->type to MDL_ticket::create()
     we effectively downgrade the cloned lock to the level of
@@ -2936,7 +2930,6 @@ void MDL_context::release_lock(enum_mdl_duration duration, MDL_ticket *ticket)
                        lock->key.db_name(), lock->key.name()));
 
   DBUG_ASSERT(this == ticket->get_ctx());
-  mysql_mutex_assert_not_owner(&LOCK_open);
 
   lock->remove_ticket(&MDL_lock::m_granted, ticket);
 
@@ -3034,8 +3027,6 @@ void MDL_context::release_all_locks_for_name(MDL_ticket *name)
 
 void MDL_ticket::downgrade_lock(enum_mdl_type type)
 {
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   /*
     Do nothing if already downgraded. Used when we FLUSH TABLE under
     LOCK TABLES and a table is listed twice in LOCK TABLES list.

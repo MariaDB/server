@@ -163,10 +163,11 @@ static int prepare_for_repair(THD *thd, TABLE_LIST *table_list,
     - Run a normal repair using the new index file and the old data file
   */
 
-  if (table->s->frm_version != FRM_VER_TRUE_VARCHAR)
+  if (table->s->frm_version != FRM_VER_TRUE_VARCHAR &&
+      table->s->varchar_fields)
   {
     error= send_check_errmsg(thd, table_list, "repair",
-                             "Failed repairing incompatible .frm file");
+                             "Failed repairing a very old .frm file as the data file format has changed between versions. Please dump the table in your old system with mysqldump and read it into this system with mysql or mysqlimport");
     goto end;
   }
 
@@ -735,6 +736,17 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         compl_result_code= update_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
+      else
+      {
+        protocol->prepare_for_resend();
+        protocol->store(table_name, system_charset_info); 
+        protocol->store(operator_name, system_charset_info);
+        protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+	protocol->store(STRING_WITH_LEN("Engine-independent statistics collected"), 
+                        system_charset_info);
+        if (protocol->write())
+          goto err;
+      }
     }
 
     if (result_code == HA_ADMIN_NOT_IMPLEMENTED && need_repair_or_alter)
@@ -1222,7 +1234,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL)
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
-                         test(m_lex->check_opt.sql_flags & TT_USEFRM),
+                         MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
                          &handler::ha_repair, 0);
 

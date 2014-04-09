@@ -385,7 +385,7 @@ bool partition_info::can_prune_insert(THD* thd,
     DBUG_RETURN(true);
   }
   /* Also clears all bits. */
-  if (bitmap_init(used_partitions, bitmap_buf, num_partitions, false))
+  if (my_bitmap_init(used_partitions, bitmap_buf, num_partitions, false))
   {
     /* purecov: begin deadcode */
     /* Cannot happen, due to pre-alloc. */
@@ -1574,9 +1574,7 @@ end:
 */
 static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
 {
-#ifdef HAVE_READLINK
-  if (!my_use_symdir || (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
-#endif
+  if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
   {
     if (part_elem->data_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -1852,7 +1850,7 @@ end:
   RETURN VALUES
 */
 
-void partition_info::print_no_partition_found(TABLE *table_arg)
+void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
 {
   char buf[100];
   char *buf_ptr= (char*)&buf;
@@ -1866,7 +1864,7 @@ void partition_info::print_no_partition_found(TABLE *table_arg)
                                 SELECT_ACL, &table_list, TRUE))
   {
     my_message(ER_NO_PARTITION_FOR_GIVEN_VALUE,
-               ER(ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT), MYF(0));
+               ER(ER_NO_PARTITION_FOR_GIVEN_VALUE_SILENT), errflag);
   }
   else
   {
@@ -1882,7 +1880,7 @@ void partition_info::print_no_partition_found(TABLE *table_arg)
                      part_expr->unsigned_flag ? 10 : -10);
       dbug_tmp_restore_column_map(table_arg->read_set, old_map);
     }
-    my_error(ER_NO_PARTITION_FOR_GIVEN_VALUE, MYF(0), buf_ptr);
+    my_error(ER_NO_PARTITION_FOR_GIVEN_VALUE, errflag, buf_ptr);
   }
 }
 

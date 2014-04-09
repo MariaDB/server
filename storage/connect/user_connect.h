@@ -62,12 +62,11 @@ public:
   static PCONNECT  to_users;            // To the chain of users
   PCONNECT     next;                    // Next user in chain
   PCONNECT     previous;                // Previous user in chain
-  PGLOBAL      g;                        // The common handle to CONNECT
-//char         dbname[32];              // The DBCONNECT database
+  PGLOBAL      g;                       // The common handle to CONNECT
   query_id_t   last_query_id;           // the latest user query id
-  int          count;                    // if used by several handlers
+  int          count;                   // if used by several handlers
   // Statistics
   ulong        nrd, fnd, nfd;
-  ulonglong tb1;
+  ulonglong    tb1;
 }; // end of user_connect class definition
 

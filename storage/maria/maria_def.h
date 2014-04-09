@@ -42,6 +42,7 @@
 
 #define MAX_NONMAPPED_INSERTS 1000
 #define MARIA_MAX_TREE_LEVELS 32
+#define MARIA_MAX_RECORD_ON_STACK 16384
 
 /* maria_open() flag, specific for maria_pack */
 #define HA_OPEN_IGNORE_MOVED_STATE (1U << 30)
@@ -1318,6 +1319,13 @@ void _ma_remap_file(MARIA_HA *info, my_off_t size);
 MARIA_RECORD_POS _ma_write_init_default(MARIA_HA *info, const uchar *record);
 my_bool _ma_write_abort_default(MARIA_HA *info);
 int maria_delete_table_files(const char *name, myf sync_dir);
+
+/*
+  This cannot be in my_base.h as it clashes with HA_SPATIAL.
+  But it was introduced for Aria engine, and is only used there.
+  So it can safely stay here, only visible to Aria
+*/
+#define HA_RTREE_INDEX	        16384	/* For RTREE search */
 
 C_MODE_START
 #define MARIA_FLUSH_DATA  1

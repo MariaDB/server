@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -178,7 +178,12 @@ trx_sys_flush_max_trx_id(void)
 	mtr_t		mtr;
 	trx_sysf_t*	sys_header;
 
+#ifndef WITH_WSREP
+       /* wsrep_fake_trx_id  violates this assert
+        * Copied from trx_sys_get_new_trx_id
+        */
 	ut_ad(mutex_own(&trx_sys->mutex));
+#endif /* WITH_WSREP */
 
 	if (!srv_read_only_mode) {
 		mtr_start(&mtr);
@@ -213,7 +218,8 @@ trx_sys_update_mysql_binlog_offset(
 {
 #ifndef WITH_WSREP
 	trx_sysf_t*	sys_header;
-#endif
+#endif /* !WITH_WSREP */
+
 	if (ut_strlen(file_name) >= TRX_SYS_MYSQL_LOG_NAME_LEN) {
 
 		/* We cannot fit the name to the 512 bytes we have reserved */
@@ -223,7 +229,7 @@ trx_sys_update_mysql_binlog_offset(
 
 #ifndef WITH_WSREP
 	sys_header = trx_sysf_get(mtr);
-#endif
+#endif /* !WITH_WSREP */
 
 	if (mach_read_from_4(sys_header + field
 			     + TRX_SYS_MYSQL_LOG_MAGIC_N_FLD)
@@ -312,12 +318,49 @@ trx_sys_print_mysql_binlog_offset(void)
 
 #ifdef WITH_WSREP
 
+#ifdef UNIV_DEBUG
+static long long trx_sys_cur_xid_seqno = -1;
+static unsigned char trx_sys_cur_xid_uuid[16];
+
+long long read_wsrep_xid_seqno(const XID* xid)
+{
+    long long seqno;
+    memcpy(&seqno, xid->data + 24, sizeof(long long));
+    return seqno;
+}
+
+void read_wsrep_xid_uuid(const XID* xid, unsigned char* buf)
+{
+    memcpy(buf, xid->data + 8, 16);
+}
+
+#endif /* UNIV_DEBUG */
+
 void
 trx_sys_update_wsrep_checkpoint(
-        const XID*      xid,  /*!< in: transaction XID */
+        const XID*      xid,        /*!< in: transaction XID */
         trx_sysf_t*     sys_header, /*!< in: sys_header */
-        mtr_t*          mtr)  /*!< in: mtr */
+        mtr_t*          mtr)        /*!< in: mtr */
 {
+#ifdef UNIV_DEBUG
+        {
+            /* Check that seqno is monotonically increasing */
+            unsigned char xid_uuid[16];
+            long long xid_seqno = read_wsrep_xid_seqno(xid);
+            read_wsrep_xid_uuid(xid, xid_uuid);
+            if (!memcmp(xid_uuid, trx_sys_cur_xid_uuid, 8))
+            {
+                ut_ad(xid_seqno > trx_sys_cur_xid_seqno);
+                trx_sys_cur_xid_seqno = xid_seqno;
+            }
+            else
+            {
+                memcpy(trx_sys_cur_xid_uuid, xid_uuid, 16);
+            }
+            trx_sys_cur_xid_seqno = xid_seqno;
+        }
+#endif /* UNIV_DEBUG */
+
         ut_ad(xid && mtr);
         ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid((const void *)xid));
 
@@ -982,7 +1025,7 @@ trx_sys_create_rsegs(
 	ut_a(n_spaces < TRX_SYS_N_RSEGS);
 	ut_a(n_rsegs <= TRX_SYS_N_RSEGS);
 
-	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO || srv_read_only_mode) {
+	if (srv_read_only_mode) {
 		return(ULINT_UNDEFINED);
 	}
 

@@ -192,7 +192,7 @@ int Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
                                              bool is_tmp_table)
 {
   int error= 0;
-  uint flags;
+  uint flags= 0;
   DBUG_ENTER("Sql_cmd_truncate_table::handler_truncate");
 
   /*
@@ -259,6 +259,7 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   bool error= TRUE;
   TABLE_SHARE *share= table->s;
   handlerton *table_type= table->s->db_type();
+  TABLE *new_table;
   DBUG_ENTER("recreate_temporary_table");
 
   table->file->info(HA_STATUS_AUTO | HA_STATUS_NO_LOCK);
@@ -269,11 +270,13 @@ static bool recreate_temporary_table(THD *thd, TABLE *table)
   dd_recreate_table(thd, share->db.str, share->table_name.str,
                     share->normalized_path.str);
 
-  if (open_table_uncached(thd, table_type, share->path.str, share->db.str,
-                          share->table_name.str, true, true))
+  if ((new_table= open_table_uncached(thd, table_type, share->path.str,
+                                      share->db.str,
+                                      share->table_name.str, true, true)))
   {
     error= FALSE;
     thd->thread_specific_used= TRUE;
+    new_table->s->table_creation_was_logged= share->table_creation_was_logged;
   }
   else
     rm_temporary_table(table_type, share->path.str);
@@ -455,6 +458,12 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   {
     bool hton_can_recreate;
 
+#ifdef WITH_WSREP
+    if (WSREP(thd) && wsrep_to_isolation_begin(thd, 
+                                                table_ref->db, 
+                                                table_ref->table_name, NULL))
+        DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 
@@ -531,12 +540,6 @@ bool Sql_cmd_truncate_table::execute(THD *thd)
   if (check_one_table_access(thd, DROP_ACL, first_table))
     DBUG_RETURN(res);
 
-#ifdef WITH_WSREP
-  if (WSREP(thd) && wsrep_to_isolation_begin(thd, 
-					     first_table->db, 
-					     first_table->table_name, NULL))
-    DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
   if (! (res= truncate_table(thd, first_table)))
     my_ok(thd);
   DBUG_RETURN(res);

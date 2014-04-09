@@ -226,6 +226,16 @@ INSERT INTO global_suppressions VALUES
  ("Slave I/O: Notifying master by SET @master_binlog_checksum= @@global.binlog_checksum failed with error.*"),
  ("Slave I/O: Setting master-side filtering of @@skip_replication failed with error:.*"),
  ("Slave I/O: Setting @mariadb_slave_capability failed with error:.*"),
+
+ /*
+   Galera-related warnings.
+ */
+ ("WSREP: Could not open saved state file for reading: .*"),
+ ("WSREP: last inactive check more than .* skipping check"),
+ ("WSREP: Gap in state sequence. Need state transfer."),
+ ("WSREP: Failed to prepare for incremental state transfer: .*"),
+ ("WSREP: error executing 'SET GLOBAL innodb_disallow_writes=.*"),
+ ("WSREP: Failed to disallow InnoDB writes"),
  ("THE_LAST_SUPPRESSION")||
 
 

@@ -1610,7 +1610,7 @@ call p_verify_reprepare_count(0);
 # Base table with name of table to be created exists
 --error ER_TABLE_EXISTS_ERROR
 execute stmt;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 --error ER_TABLE_EXISTS_ERROR
 execute stmt;
 call p_verify_reprepare_count(0);
@@ -1622,7 +1622,7 @@ execute stmt;
 call p_verify_reprepare_count(0);
 --error ER_TABLE_EXISTS_ERROR
 execute stmt;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 drop temporary table t2;
 --error ER_TABLE_EXISTS_ERROR
 execute stmt;
@@ -1641,7 +1641,7 @@ drop table t2;
 create view t2 as select 1;
 --error ER_TABLE_EXISTS_ERROR,9999
 execute stmt;
-call p_verify_reprepare_count(1);
+call p_verify_reprepare_count(0);
 --error ER_TABLE_EXISTS_ERROR,9999
 execute stmt;
 call p_verify_reprepare_count(0);

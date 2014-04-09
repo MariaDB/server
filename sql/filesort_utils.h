@@ -95,7 +95,7 @@ public:
   bool check_sort_buffer_properties(uint num_records,  uint record_length)
   {
     return (static_cast<uint>(m_idx_array.size()) == num_records &&
-            m_record_length == m_record_length);
+            m_record_length == record_length);
   }
 
   /// Frees the buffer.

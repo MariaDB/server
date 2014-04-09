@@ -50,4 +50,7 @@ int wsrep_binlog_close_connection(THD* thd);
 int wsrep_binlog_savepoint_set(THD *thd,  void *sv);
 int wsrep_binlog_savepoint_rollback(THD *thd, void *sv);
 
+/* Dump replication buffer to disk without intermediate buffer */
+void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache);
+
 #endif /* WSREP_BINLOG_H */

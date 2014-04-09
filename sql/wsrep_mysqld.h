@@ -96,6 +96,8 @@ extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
+extern my_bool     wsrep_restart_slave;
+extern my_bool     wsrep_restart_slave_activated;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 
@@ -158,6 +160,7 @@ extern "C" char * wsrep_thd_query(THD *thd);
 extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd);
 extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id);
 extern "C" void wsrep_thd_awake(THD *thd, my_bool signal);
+extern "C" int wsrep_thd_retry_counter(THD *thd);
 
 
 extern void wsrep_close_client_connections(my_bool wait_to_end);
@@ -232,8 +235,9 @@ extern void wsrep_ready_wait();
 
 enum wsrep_trx_status {
     WSREP_TRX_OK,
-    WSREP_TRX_ROLLBACK,
-    WSREP_TRX_ERROR,
+    WSREP_TRX_CERT_FAIL,      /* certification failure, must abort */
+    WSREP_TRX_SIZE_EXCEEDED,  /* trx size exceeded */
+    WSREP_TRX_ERROR,          /* native mysql error */
 };
 
 extern enum wsrep_trx_status
@@ -274,6 +278,7 @@ extern rpl_sidno     wsrep_sidno;
 #endif /* GTID_SUPPORT */
 extern my_bool       wsrep_preordered_opt;
 
+#ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
 extern PSI_mutex_key key_LOCK_wsrep_sst;
@@ -288,7 +293,7 @@ extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
 extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 extern PSI_mutex_key key_LOCK_wsrep_desync;
-
+#endif /* HAVE_PSI_INTERFACE */
 struct TABLE_LIST;
 int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                              const TABLE_LIST* table_list);

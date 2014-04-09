@@ -542,6 +542,11 @@ public:
            collation.collation : &my_charset_bin;
   }
   /**
+    Fix the returned timestamp to match field_type(),
+    which is important for val_str().
+  */
+  bool fix_temporal_type(MYSQL_TIME *ltime);
+  /**
     Return string value in ASCII character set.
   */
   String *val_str_ascii(String *str);

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -125,7 +125,7 @@ UNIV_INTERN mysql_pfs_key_t	trx_sys_mutex_key;
 #ifndef UNIV_HOTBACKUP
 #ifdef UNIV_DEBUG
 /* Flag to control TRX_RSEG_N_SLOTS behavior debugging. */
-uint		trx_rseg_n_slots_debug = 0;
+UNIV_INTERN uint	trx_rseg_n_slots_debug = 0;
 #endif
 
 /** This is used to track the maximum file format id known to InnoDB. It's
@@ -178,7 +178,12 @@ trx_sys_flush_max_trx_id(void)
 	mtr_t		mtr;
 	trx_sysf_t*	sys_header;
 
+#ifndef WITH_WSREP
+       /* wsrep_fake_trx_id  violates this assert
+        * Copied from trx_sys_get_new_trx_id
+        */
 	ut_ad(mutex_own(&trx_sys->mutex));
+#endif /* WITH_WSREP */
 
 	if (!srv_read_only_mode) {
 		mtr_start(&mtr);
@@ -1011,7 +1016,7 @@ trx_sys_create_rsegs(
 	ut_a(n_spaces < TRX_SYS_N_RSEGS);
 	ut_a(n_rsegs <= TRX_SYS_N_RSEGS);
 
-	if (srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO || srv_read_only_mode) {
+	if (srv_read_only_mode) {
 		return(ULINT_UNDEFINED);
 	}
 

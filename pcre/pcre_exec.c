@@ -107,8 +107,8 @@ because the offset vector is always a multiple of 3 long. */
 
 /* Min and max values for the common repeats; for the maxima, 0 => infinity */
 
-static const char rep_min[] = { 0, 0, 1, 1, 0, 0 };
-static const char rep_max[] = { 0, 0, 0, 0, 1, 1 };
+static const char rep_min[] = { 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, };
+static const char rep_max[] = { 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, };
 
 #ifdef PCRE_DEBUG
 /*************************************************
@@ -167,7 +167,7 @@ match_ref(int offset, register PCRE_PUCHAR eptr, int length, match_data *md,
 {
 PCRE_PUCHAR eptr_start = eptr;
 register PCRE_PUCHAR p = md->start_subject + md->offset_vector[offset];
-#ifdef SUPPORT_UTF
+#if defined SUPPORT_UTF && defined SUPPORT_UCP
 BOOL utf = md->utf;
 #endif
 
@@ -195,8 +195,7 @@ ASCII characters. */
 
 if (caseless)
   {
-#ifdef SUPPORT_UTF
-#ifdef SUPPORT_UCP
+#if defined SUPPORT_UTF && defined SUPPORT_UCP
   if (utf)
     {
     /* Match characters up to the end of the reference. NOTE: the number of
@@ -229,7 +228,6 @@ if (caseless)
       }
     }
   else
-#endif
 #endif
 
   /* The same code works when not in UTF-8 mode and in UTF-8 mode when there
@@ -312,7 +310,7 @@ enum { RM1=1, RM2,  RM3,  RM4,  RM5,  RM6,  RM7,  RM8,  RM9,  RM10,
        RM31,  RM32, RM33, RM34, RM35, RM36, RM37, RM38, RM39, RM40,
        RM41,  RM42, RM43, RM44, RM45, RM46, RM47, RM48, RM49, RM50,
        RM51,  RM52, RM53, RM54, RM55, RM56, RM57, RM58, RM59, RM60,
-       RM61,  RM62, RM63, RM64, RM65, RM66, RM67, RM68 };
+       RM61,  RM62, RM63, RM64, RM65, RM66, RM67 };
 
 /* These versions of the macros use the stack, as normal. There are debugging
 versions and production versions. Note that the "rw" argument of RMATCH isn't
@@ -1173,6 +1171,7 @@ for (;;)
           ecode = md->start_code + code_offset;
           save_capture_last = md->capture_last;
           matched_once = TRUE;
+          mstart = md->start_match_ptr;    /* In case \K changed it */
           continue;
           }
 
@@ -1245,6 +1244,7 @@ for (;;)
         eptr = md->end_match_ptr;
         ecode = md->start_code + code_offset;
         matched_once = TRUE;
+        mstart = md->start_match_ptr;   /* In case \K reset it */
         continue;
         }
 
@@ -1274,25 +1274,32 @@ for (;;)
 
     /* Control never reaches here. */
 
-    /* Conditional group: compilation checked that there are no more than
-    two branches. If the condition is false, skipping the first branch takes us
-    past the end if there is only one branch, but that's OK because that is
-    exactly what going to the ket would do. */
+    /* Conditional group: compilation checked that there are no more than two
+    branches. If the condition is false, skipping the first branch takes us
+    past the end of the item if there is only one branch, but that's exactly
+    what we want. */
 
     case OP_COND:
     case OP_SCOND:
-    codelink = GET(ecode, 1);
+
+    /* The variable codelink will be added to ecode when the condition is
+    false, to get to the second branch. Setting it to the offset to the ALT
+    or KET, then incrementing ecode achieves this effect. We now have ecode
+    pointing to the condition or callout. */
+
+    codelink = GET(ecode, 1);   /* Offset to the second branch */
+    ecode += 1 + LINK_SIZE;     /* From this opcode */
 
     /* Because of the way auto-callout works during compile, a callout item is
     inserted between OP_COND and an assertion condition. */
 
-    if (ecode[LINK_SIZE+1] == OP_CALLOUT)
+    if (*ecode == OP_CALLOUT)
       {
       if (PUBL(callout) != NULL)
         {
         PUBL(callout_block) cb;
         cb.version          = 2;   /* Version 1 of the callout block */
-        cb.callout_number   = ecode[LINK_SIZE+2];
+        cb.callout_number   = ecode[1];
         cb.offset_vector    = md->offset_vector;
 #if defined COMPILE_PCRE8
         cb.subject          = (PCRE_SPTR)md->start_subject;
@@ -1304,8 +1311,8 @@ for (;;)
         cb.subject_length   = (int)(md->end_subject - md->start_subject);
         cb.start_match      = (int)(mstart - md->start_subject);
         cb.current_position = (int)(eptr - md->start_subject);
-        cb.pattern_position = GET(ecode, LINK_SIZE + 3);
-        cb.next_item_length = GET(ecode, 3 + 2*LINK_SIZE);
+        cb.pattern_position = GET(ecode, 2);
+        cb.next_item_length = GET(ecode, 2 + LINK_SIZE);
         cb.capture_top      = offset_top/2;
         cb.capture_last     = md->capture_last & CAPLMASK;
         /* Internal change requires this for API compatibility. */
@@ -1315,207 +1322,119 @@ for (;;)
         if ((rrc = (*PUBL(callout))(&cb)) > 0) RRETURN(MATCH_NOMATCH);
         if (rrc < 0) RRETURN(rrc);
         }
+
+      /* Advance ecode past the callout, so it now points to the condition. We
+      must adjust codelink so that the value of ecode+codelink is unchanged. */
+
       ecode += PRIV(OP_lengths)[OP_CALLOUT];
       codelink -= PRIV(OP_lengths)[OP_CALLOUT];
       }
 
-    condcode = ecode[LINK_SIZE+1];
+    /* Test the various possible conditions */
 
-    /* Now see what the actual condition is */
-
-    if (condcode == OP_RREF || condcode == OP_NRREF)    /* Recursion test */
+    condition = FALSE;
+    switch(condcode = *ecode)
       {
-      if (md->recursive == NULL)                /* Not recursing => FALSE */
+      case OP_RREF:         /* Numbered group recursion test */
+      if (md->recursive != NULL)     /* Not recursing => FALSE */
         {
-        condition = FALSE;
-        ecode += GET(ecode, 1);
-        }
-      else
-        {
-        unsigned int recno = GET2(ecode, LINK_SIZE + 2);   /* Recursion group number*/
+        unsigned int recno = GET2(ecode, 1);   /* Recursion group number*/
         condition = (recno == RREF_ANY || recno == md->recursive->group_num);
-
-        /* If the test is for recursion into a specific subpattern, and it is
-        false, but the test was set up by name, scan the table to see if the
-        name refers to any other numbers, and test them. The condition is true
-        if any one is set. */
-
-        if (!condition && condcode == OP_NRREF)
-          {
-          pcre_uchar *slotA = md->name_table;
-          for (i = 0; i < md->name_count; i++)
-            {
-            if (GET2(slotA, 0) == recno) break;
-            slotA += md->name_entry_size;
-            }
-
-          /* Found a name for the number - there can be only one; duplicate
-          names for different numbers are allowed, but not vice versa. First
-          scan down for duplicates. */
-
-          if (i < md->name_count)
-            {
-            pcre_uchar *slotB = slotA;
-            while (slotB > md->name_table)
-              {
-              slotB -= md->name_entry_size;
-              if (STRCMP_UC_UC(slotA + IMM2_SIZE, slotB + IMM2_SIZE) == 0)
-                {
-                condition = GET2(slotB, 0) == md->recursive->group_num;
-                if (condition) break;
-                }
-              else break;
-              }
-
-            /* Scan up for duplicates */
-
-            if (!condition)
-              {
-              slotB = slotA;
-              for (i++; i < md->name_count; i++)
-                {
-                slotB += md->name_entry_size;
-                if (STRCMP_UC_UC(slotA + IMM2_SIZE, slotB + IMM2_SIZE) == 0)
-                  {
-                  condition = GET2(slotB, 0) == md->recursive->group_num;
-                  if (condition) break;
-                  }
-                else break;
-                }
-              }
-            }
-          }
-
-        /* Chose branch according to the condition */
-
-        ecode += condition? 1 + IMM2_SIZE : GET(ecode, 1);
         }
-      }
+      break;
 
-    else if (condcode == OP_CREF || condcode == OP_NCREF)  /* Group used test */
-      {
-      offset = GET2(ecode, LINK_SIZE+2) << 1;  /* Doubled ref number */
-      condition = offset < offset_top && md->offset_vector[offset] >= 0;
-
-      /* If the numbered capture is unset, but the reference was by name,
-      scan the table to see if the name refers to any other numbers, and test
-      them. The condition is true if any one is set. This is tediously similar
-      to the code above, but not close enough to try to amalgamate. */
-
-      if (!condition && condcode == OP_NCREF)
+      case OP_DNRREF:       /* Duplicate named group recursion test */
+      if (md->recursive != NULL)
         {
-        unsigned int refno = offset >> 1;
-        pcre_uchar *slotA = md->name_table;
-
-        for (i = 0; i < md->name_count; i++)
+        int count = GET2(ecode, 1 + IMM2_SIZE);
+        pcre_uchar *slot = md->name_table + GET2(ecode, 1) * md->name_entry_size;
+        while (count-- > 0)
           {
-          if (GET2(slotA, 0) == refno) break;
-          slotA += md->name_entry_size;
-          }
-
-        /* Found a name for the number - there can be only one; duplicate names
-        for different numbers are allowed, but not vice versa. First scan down
-        for duplicates. */
-
-        if (i < md->name_count)
-          {
-          pcre_uchar *slotB = slotA;
-          while (slotB > md->name_table)
-            {
-            slotB -= md->name_entry_size;
-            if (STRCMP_UC_UC(slotA + IMM2_SIZE, slotB + IMM2_SIZE) == 0)
-              {
-              offset = GET2(slotB, 0) << 1;
-              condition = offset < offset_top &&
-                md->offset_vector[offset] >= 0;
-              if (condition) break;
-              }
-            else break;
-            }
-
-          /* Scan up for duplicates */
-
-          if (!condition)
-            {
-            slotB = slotA;
-            for (i++; i < md->name_count; i++)
-              {
-              slotB += md->name_entry_size;
-              if (STRCMP_UC_UC(slotA + IMM2_SIZE, slotB + IMM2_SIZE) == 0)
-                {
-                offset = GET2(slotB, 0) << 1;
-                condition = offset < offset_top &&
-                  md->offset_vector[offset] >= 0;
-                if (condition) break;
-                }
-              else break;
-              }
-            }
+          unsigned int recno = GET2(slot, 0);
+          condition = recno == md->recursive->group_num;
+          if (condition) break;
+          slot += md->name_entry_size;
           }
         }
+      break;
 
-      /* Chose branch according to the condition */
+      case OP_CREF:         /* Numbered group used test */
+      offset = GET2(ecode, 1) << 1;  /* Doubled ref number */
+      condition = offset < offset_top && md->offset_vector[offset] >= 0;
+      break;
 
-      ecode += condition? 1 + IMM2_SIZE : GET(ecode, 1);
-      }
+      case OP_DNCREF:      /* Duplicate named group used test */
+        {
+        int count = GET2(ecode, 1 + IMM2_SIZE);
+        pcre_uchar *slot = md->name_table + GET2(ecode, 1) * md->name_entry_size;
+        while (count-- > 0)
+          {
+          offset = GET2(slot, 0) << 1;
+          condition = offset < offset_top && md->offset_vector[offset] >= 0;
+          if (condition) break;
+          slot += md->name_entry_size;
+          }
+        }
+      break;
 
-    else if (condcode == OP_DEF)     /* DEFINE - always false */
-      {
-      condition = FALSE;
-      ecode += GET(ecode, 1);
-      }
+      case OP_DEF:     /* DEFINE - always false */
+      break;
 
-    /* The condition is an assertion. Call match() to evaluate it - setting
-    md->match_function_type to MATCH_CONDASSERT causes it to stop at the end of
-    an assertion. */
+      /* The condition is an assertion. Call match() to evaluate it - setting
+      md->match_function_type to MATCH_CONDASSERT causes it to stop at the end
+      of an assertion. */
 
-    else
-      {
+      default:
       md->match_function_type = MATCH_CONDASSERT;
-      RMATCH(eptr, ecode + 1 + LINK_SIZE, offset_top, md, NULL, RM3);
+      RMATCH(eptr, ecode, offset_top, md, NULL, RM3);
       if (rrc == MATCH_MATCH)
         {
         if (md->end_offset_top > offset_top)
           offset_top = md->end_offset_top;  /* Captures may have happened */
         condition = TRUE;
-        ecode += 1 + LINK_SIZE + GET(ecode, LINK_SIZE + 2);
+
+        /* Advance ecode past the assertion to the start of the first branch,
+        but adjust it so that the general choosing code below works. */
+
+        ecode += GET(ecode, 1);
         while (*ecode == OP_ALT) ecode += GET(ecode, 1);
+        ecode += 1 + LINK_SIZE - PRIV(OP_lengths)[condcode];
         }
 
       /* PCRE doesn't allow the effect of (*THEN) to escape beyond an
-      assertion; it is therefore treated as NOMATCH. */
+      assertion; it is therefore treated as NOMATCH. Any other return is an
+      error. */
 
       else if (rrc != MATCH_NOMATCH && rrc != MATCH_THEN)
         {
         RRETURN(rrc);         /* Need braces because of following else */
         }
-      else
-        {
-        condition = FALSE;
-        ecode += codelink;
-        }
+      break;
       }
 
-    /* We are now at the branch that is to be obeyed. As there is only one, can
-    use tail recursion to avoid using another stack frame, except when there is
-    unlimited repeat of a possibly empty group. In the latter case, a recursive
-    call to match() is always required, unless the second alternative doesn't
-    exist, in which case we can just plough on. Note that, for compatibility
-    with Perl, the | in a conditional group is NOT treated as creating two
-    alternatives. If a THEN is encountered in the branch, it propagates out to
-    the enclosing alternative (unless nested in a deeper set of alternatives,
-    of course). */
+    /* Choose branch according to the condition */
 
-    if (condition || *ecode == OP_ALT)
+    ecode += condition? PRIV(OP_lengths)[condcode] : codelink;
+
+    /* We are now at the branch that is to be obeyed. As there is only one, we
+    can use tail recursion to avoid using another stack frame, except when
+    there is unlimited repeat of a possibly empty group. In the latter case, a
+    recursive call to match() is always required, unless the second alternative
+    doesn't exist, in which case we can just plough on. Note that, for
+    compatibility with Perl, the | in a conditional group is NOT treated as
+    creating two alternatives. If a THEN is encountered in the branch, it
+    propagates out to the enclosing alternative (unless nested in a deeper set
+    of alternatives, of course). */
+
+    if (condition || ecode[-(1+LINK_SIZE)] == OP_ALT)
       {
       if (op != OP_SCOND)
         {
-        ecode += 1 + LINK_SIZE;
         goto TAIL_RECURSE;
         }
 
       md->match_function_type = MATCH_CBEGROUP;
-      RMATCH(eptr, ecode + 1 + LINK_SIZE, offset_top, md, eptrb, RM49);
+      RMATCH(eptr, ecode, offset_top, md, eptrb, RM49);
       RRETURN(rrc);
       }
 
@@ -1523,7 +1442,6 @@ for (;;)
 
     else
       {
-      ecode += 1 + LINK_SIZE;
       }
     break;
 
@@ -2089,6 +2007,7 @@ for (;;)
 
     if (*ecode == OP_KETRPOS)
       {
+      md->start_match_ptr = mstart;    /* In case \K reset it */
       md->end_match_ptr = eptr;
       md->end_offset_top = offset_top;
       RRETURN(MATCH_KETRPOS);
@@ -2656,19 +2575,24 @@ for (;;)
           RRETURN(MATCH_NOMATCH);
         break;
 
-        case PT_SPACE:    /* Perl space */
-        if ((PRIV(ucp_gentype)[prop->chartype] == ucp_Z ||
-             c == CHAR_HT || c == CHAR_NL || c == CHAR_FF || c == CHAR_CR)
-               == (op == OP_NOTPROP))
-          RRETURN(MATCH_NOMATCH);
-        break;
+        /* Perl space used to exclude VT, but from Perl 5.18 it is included,
+        which means that Perl space and POSIX space are now identical. PCRE
+        was changed at release 8.34. */
 
+        case PT_SPACE:    /* Perl space */
         case PT_PXSPACE:  /* POSIX space */
-        if ((PRIV(ucp_gentype)[prop->chartype] == ucp_Z ||
-             c == CHAR_HT || c == CHAR_NL || c == CHAR_VT ||
-             c == CHAR_FF || c == CHAR_CR)
-               == (op == OP_NOTPROP))
-          RRETURN(MATCH_NOMATCH);
+        switch(c)
+          {
+          HSPACE_CASES:
+          VSPACE_CASES:
+          if (op == OP_NOTPROP) RRETURN(MATCH_NOMATCH);
+          break;
+
+          default:
+          if ((PRIV(ucp_gentype)[prop->chartype] == ucp_Z) ==
+            (op == OP_NOTPROP)) RRETURN(MATCH_NOMATCH);
+          break;
+          }
         break;
 
         case PT_WORD:
@@ -2742,15 +2666,7 @@ for (;;)
     similar code to character type repeats - written out again for speed.
     However, if the referenced string is the empty string, always treat
     it as matched, any number of times (otherwise there could be infinite
-    loops). */
-
-    case OP_REF:
-    case OP_REFI:
-    caseless = op == OP_REFI;
-    offset = GET2(ecode, 1) << 1;               /* Doubled ref number */
-    ecode += 1 + IMM2_SIZE;
-
-    /* If the reference is unset, there are two possibilities:
+    loops). If the reference is unset, there are two possibilities:
 
     (a) In the default, Perl-compatible state, set the length negative;
     this ensures that every attempt at a match fails. We can't just fail
@@ -2760,8 +2676,39 @@ for (;;)
     so that the back reference matches an empty string.
 
     Otherwise, set the length to the length of what was matched by the
-    referenced subpattern. */
+    referenced subpattern.
 
+    The OP_REF and OP_REFI opcodes are used for a reference to a numbered group
+    or to a non-duplicated named group. For a duplicated named group, OP_DNREF
+    and OP_DNREFI are used. In this case we must scan the list of groups to
+    which the name refers, and use the first one that is set. */
+
+    case OP_DNREF:
+    case OP_DNREFI:
+    caseless = op == OP_DNREFI;
+      {
+      int count = GET2(ecode, 1+IMM2_SIZE);
+      pcre_uchar *slot = md->name_table + GET2(ecode, 1) * md->name_entry_size;
+      ecode += 1 + 2*IMM2_SIZE;
+
+      while (count-- > 0)
+        {
+        offset = GET2(slot, 0) << 1;
+        if (offset < offset_top && md->offset_vector[offset] >= 0) break;
+        slot += md->name_entry_size;
+        }
+      if (count < 0)
+        length = (md->jscript_compat)? 0 : -1;
+      else
+        length = md->offset_vector[offset+1] - md->offset_vector[offset];
+      }
+    goto REF_REPEAT;
+
+    case OP_REF:
+    case OP_REFI:
+    caseless = op == OP_REFI;
+    offset = GET2(ecode, 1) << 1;               /* Doubled ref number */
+    ecode += 1 + IMM2_SIZE;
     if (offset >= offset_top || md->offset_vector[offset] < 0)
       length = (md->jscript_compat)? 0 : -1;
     else
@@ -2769,6 +2716,7 @@ for (;;)
 
     /* Set up for repetition, or handle the non-repeated case */
 
+    REF_REPEAT:
     switch (*ecode)
       {
       case OP_CRSTAR:
@@ -2917,8 +2865,12 @@ for (;;)
         case OP_CRMINPLUS:
         case OP_CRQUERY:
         case OP_CRMINQUERY:
+        case OP_CRPOSSTAR:
+        case OP_CRPOSPLUS:
+        case OP_CRPOSQUERY:
         c = *ecode++ - OP_CRSTAR;
-        minimize = (c & 1) != 0;
+        if (c < OP_CRPOSSTAR - OP_CRSTAR) minimize = (c & 1) != 0;
+        else possessive = TRUE;
         min = rep_min[c];                 /* Pick up values from tables; */
         max = rep_max[c];                 /* zero for max => infinity */
         if (max == 0) max = INT_MAX;
@@ -2926,7 +2878,9 @@ for (;;)
 
         case OP_CRRANGE:
         case OP_CRMINRANGE:
+        case OP_CRPOSRANGE:
         minimize = (*ecode == OP_CRMINRANGE);
+        possessive = (*ecode == OP_CRPOSRANGE);
         min = GET2(ecode, 1);
         max = GET2(ecode, 1 + IMM2_SIZE);
         if (max == 0) max = INT_MAX;
@@ -3068,6 +3022,9 @@ for (;;)
               if ((BYTE_MAP[c/8] & (1 << (c&7))) == 0) break;
             eptr += len;
             }
+
+          if (possessive) continue;    /* No backtracking */
+
           for (;;)
             {
             RMATCH(eptr, ecode, offset_top, md, eptrb, RM18);
@@ -3098,6 +3055,9 @@ for (;;)
               if ((BYTE_MAP[c/8] & (1 << (c&7))) == 0) break;
             eptr++;
             }
+
+          if (possessive) continue;    /* No backtracking */
+
           while (eptr >= pp)
             {
             RMATCH(eptr, ecode, offset_top, md, eptrb, RM19);
@@ -3113,9 +3073,10 @@ for (;;)
     /* Control never gets here */
 
 
-    /* Match an extended character class. This opcode is encountered only
-    when UTF-8 mode mode is supported. Nevertheless, we may not be in UTF-8
-    mode, because Unicode properties are supported in non-UTF-8 mode. */
+    /* Match an extended character class. In the 8-bit library, this opcode is
+    encountered only when UTF-8 mode mode is supported. In the 16-bit and
+    32-bit libraries, codepoints greater than 255 may be encountered even when
+    UTF is not supported. */
 
 #if defined SUPPORT_UTF || !defined COMPILE_PCRE8
     case OP_XCLASS:
@@ -3131,8 +3092,12 @@ for (;;)
         case OP_CRMINPLUS:
         case OP_CRQUERY:
         case OP_CRMINQUERY:
+        case OP_CRPOSSTAR:
+        case OP_CRPOSPLUS:
+        case OP_CRPOSQUERY:
         c = *ecode++ - OP_CRSTAR;
-        minimize = (c & 1) != 0;
+        if (c < OP_CRPOSSTAR - OP_CRSTAR) minimize = (c & 1) != 0;
+        else possessive = TRUE;
         min = rep_min[c];                 /* Pick up values from tables; */
         max = rep_max[c];                 /* zero for max => infinity */
         if (max == 0) max = INT_MAX;
@@ -3140,7 +3105,9 @@ for (;;)
 
         case OP_CRRANGE:
         case OP_CRMINRANGE:
+        case OP_CRPOSRANGE:
         minimize = (*ecode == OP_CRMINRANGE);
+        possessive = (*ecode == OP_CRPOSRANGE);
         min = GET2(ecode, 1);
         max = GET2(ecode, 1 + IMM2_SIZE);
         if (max == 0) max = INT_MAX;
@@ -3212,6 +3179,9 @@ for (;;)
           if (!PRIV(xclass)(c, data, utf)) break;
           eptr += len;
           }
+
+        if (possessive) continue;    /* No backtracking */
+
         for(;;)
           {
           RMATCH(eptr, ecode, offset_top, md, eptrb, RM21);
@@ -3590,7 +3560,6 @@ for (;;)
           if (fc != cc && foc != cc) break;
           eptr++;
           }
-
         if (possessive) continue;       /* No backtracking */
         for (;;)
           {
@@ -3599,9 +3568,8 @@ for (;;)
           eptr--;
           if (rrc != MATCH_NOMATCH) RRETURN(rrc);
           }
-        RRETURN(MATCH_NOMATCH);
+        /* Control never gets here */
         }
-      /* Control never gets here */
       }
 
     /* Caseful comparisons (includes all multi-byte characters) */
@@ -3657,7 +3625,7 @@ for (;;)
           eptr--;
           if (rrc != MATCH_NOMATCH) RRETURN(rrc);
           }
-        RRETURN(MATCH_NOMATCH);
+        /* Control never gets here */
         }
       }
     /* Control never gets here */
@@ -3942,10 +3910,8 @@ for (;;)
             eptr--;
             }
           }
-
-        RRETURN(MATCH_NOMATCH);
+        /* Control never gets here */
         }
-      /* Control never gets here */
       }
 
     /* Caseful comparisons */
@@ -4079,8 +4045,7 @@ for (;;)
             eptr--;
             }
           }
-
-        RRETURN(MATCH_NOMATCH);
+        /* Control never gets here */
         }
       }
     /* Control never gets here */
@@ -4262,22 +4227,11 @@ for (;;)
             }
           break;
 
-          case PT_SPACE:    /* Perl space */
-          for (i = 1; i <= min; i++)
-            {
-            if (eptr >= md->end_subject)
-              {
-              SCHECK_PARTIAL();
-              RRETURN(MATCH_NOMATCH);
-              }
-            GETCHARINCTEST(c, eptr);
-            if ((UCD_CATEGORY(c) == ucp_Z || c == CHAR_HT || c == CHAR_NL ||
-                 c == CHAR_FF || c == CHAR_CR)
-                   == prop_fail_result)
-              RRETURN(MATCH_NOMATCH);
-            }
-          break;
+          /* Perl space used to exclude VT, but from Perl 5.18 it is included,
+          which means that Perl space and POSIX space are now identical. PCRE
+          was changed at release 8.34. */
 
+          case PT_SPACE:    /* Perl space */
           case PT_PXSPACE:  /* POSIX space */
           for (i = 1; i <= min; i++)
             {
@@ -4287,10 +4241,18 @@ for (;;)
               RRETURN(MATCH_NOMATCH);
               }
             GETCHARINCTEST(c, eptr);
-            if ((UCD_CATEGORY(c) == ucp_Z || c == CHAR_HT || c == CHAR_NL ||
-                 c == CHAR_VT || c == CHAR_FF || c == CHAR_CR)
-                   == prop_fail_result)
-              RRETURN(MATCH_NOMATCH);
+            switch(c)
+              {
+              HSPACE_CASES:
+              VSPACE_CASES:
+              if (prop_fail_result) RRETURN(MATCH_NOMATCH);
+              break;
+
+              default:
+              if ((UCD_CATEGORY(c) == ucp_Z) == prop_fail_result)
+                RRETURN(MATCH_NOMATCH);
+              break;
+              }
             }
           break;
 
@@ -5010,25 +4972,11 @@ for (;;)
             }
           /* Control never gets here */
 
-          case PT_SPACE:    /* Perl space */
-          for (fi = min;; fi++)
-            {
-            RMATCH(eptr, ecode, offset_top, md, eptrb, RM60);
-            if (rrc != MATCH_NOMATCH) RRETURN(rrc);
-            if (fi >= max) RRETURN(MATCH_NOMATCH);
-            if (eptr >= md->end_subject)
-              {
-              SCHECK_PARTIAL();
-              RRETURN(MATCH_NOMATCH);
-              }
-            GETCHARINCTEST(c, eptr);
-            if ((UCD_CATEGORY(c) == ucp_Z || c == CHAR_HT || c == CHAR_NL ||
-                 c == CHAR_FF || c == CHAR_CR)
-                   == prop_fail_result)
-              RRETURN(MATCH_NOMATCH);
-            }
-          /* Control never gets here */
+          /* Perl space used to exclude VT, but from Perl 5.18 it is included,
+          which means that Perl space and POSIX space are now identical. PCRE
+          was changed at release 8.34. */
 
+          case PT_SPACE:    /* Perl space */
           case PT_PXSPACE:  /* POSIX space */
           for (fi = min;; fi++)
             {
@@ -5041,10 +4989,18 @@ for (;;)
               RRETURN(MATCH_NOMATCH);
               }
             GETCHARINCTEST(c, eptr);
-            if ((UCD_CATEGORY(c) == ucp_Z || c == CHAR_HT || c == CHAR_NL ||
-                 c == CHAR_VT || c == CHAR_FF || c == CHAR_CR)
-                   == prop_fail_result)
-              RRETURN(MATCH_NOMATCH);
+            switch(c)
+              {
+              HSPACE_CASES:
+              VSPACE_CASES:
+              if (prop_fail_result) RRETURN(MATCH_NOMATCH);
+              break;
+
+              default:
+              if ((UCD_CATEGORY(c) == ucp_Z) == prop_fail_result)
+                RRETURN(MATCH_NOMATCH);
+              break;
+              }
             }
           /* Control never gets here */
 
@@ -5097,7 +5053,7 @@ for (;;)
           case PT_UCNC:
           for (fi = min;; fi++)
             {
-            RMATCH(eptr, ecode, offset_top, md, eptrb, RM68);
+            RMATCH(eptr, ecode, offset_top, md, eptrb, RM60);
             if (rrc != MATCH_NOMATCH) RRETURN(rrc);
             if (fi >= max) RRETURN(MATCH_NOMATCH);
             if (eptr >= md->end_subject)
@@ -5528,24 +5484,11 @@ for (;;)
             }
           break;
 
-          case PT_SPACE:    /* Perl space */
-          for (i = min; i < max; i++)
-            {
-            int len = 1;
-            if (eptr >= md->end_subject)
-              {
-              SCHECK_PARTIAL();
-              break;
-              }
-            GETCHARLENTEST(c, eptr, len);
-            if ((UCD_CATEGORY(c) == ucp_Z || c == CHAR_HT || c == CHAR_NL ||
-                 c == CHAR_FF || c == CHAR_CR)
-                 == prop_fail_result)
-              break;
-            eptr+= len;
-            }
-          break;
+          /* Perl space used to exclude VT, but from Perl 5.18 it is included,
+          which means that Perl space and POSIX space are now identical. PCRE
+          was changed at release 8.34. */
 
+          case PT_SPACE:    /* Perl space */
           case PT_PXSPACE:  /* POSIX space */
           for (i = min; i < max; i++)
             {
@@ -5556,12 +5499,21 @@ for (;;)
               break;
               }
             GETCHARLENTEST(c, eptr, len);
-            if ((UCD_CATEGORY(c) == ucp_Z || c == CHAR_HT || c == CHAR_NL ||
-                 c == CHAR_VT || c == CHAR_FF || c == CHAR_CR)
-                 == prop_fail_result)
+            switch(c)
+              {
+              HSPACE_CASES:
+              VSPACE_CASES:
+              if (prop_fail_result) goto ENDLOOP99;  /* Break the loop */
               break;
+
+              default:
+              if ((UCD_CATEGORY(c) == ucp_Z) == prop_fail_result)
+                goto ENDLOOP99;   /* Break the loop */
+              break;
+              }
             eptr+= len;
             }
+          ENDLOOP99:
           break;
 
           case PT_WORD:
@@ -5642,7 +5594,7 @@ for (;;)
           }
         }
 
-      /* Match extended Unicode sequences. We will get here only if the
+      /* Match extended Unicode grapheme clusters. We will get here only if the
       support is in the binary; otherwise a compile-time error occurs. */
 
       else if (ctype == OP_EXTUNI)
@@ -5675,21 +5627,41 @@ for (;;)
         /* eptr is now past the end of the maximum run */
 
         if (possessive) continue;    /* No backtracking */
+
         for(;;)
           {
-          if (eptr == pp) goto TAIL_RECURSE;
+          int lgb, rgb;
+          PCRE_PUCHAR fptr;
+
+          if (eptr == pp) goto TAIL_RECURSE;   /* At start of char run */
           RMATCH(eptr, ecode, offset_top, md, eptrb, RM45);
           if (rrc != MATCH_NOMATCH) RRETURN(rrc);
+
+          /* Backtracking over an extended grapheme cluster involves inspecting
+          the previous two characters (if present) to see if a break is
+          permitted between them. */
+
           eptr--;
-          for (;;)                        /* Move back over one extended */
+          if (!utf) c = *eptr; else
             {
-            if (!utf) c = *eptr; else
+            BACKCHAR(eptr);
+            GETCHAR(c, eptr);
+            }
+          rgb = UCD_GRAPHBREAK(c);
+
+          for (;;)
+            {
+            if (eptr == pp) goto TAIL_RECURSE;   /* At start of char run */
+            fptr = eptr - 1;
+            if (!utf) c = *fptr; else
               {
-              BACKCHAR(eptr);
-              GETCHAR(c, eptr);
+              BACKCHAR(fptr);
+              GETCHAR(c, fptr);
               }
-            if (UCD_CATEGORY(c) != ucp_M) break;
-            eptr--;
+            lgb = UCD_GRAPHBREAK(c);
+            if ((PRIV(ucp_gbtable)[lgb] & (1 << rgb)) == 0) break;
+            eptr = fptr;
+            rgb = lgb;
             }
           }
         }
@@ -6211,11 +6183,8 @@ for (;;)
           }
         }
 
-      /* Get here if we can't make it match with any permitted repetitions */
-
-      RRETURN(MATCH_NOMATCH);
+      /* Control never gets here */
       }
-    /* Control never gets here */
 
     /* There's been some horrible disaster. Arrival here can only mean there is
     something seriously wrong in the code above or the OP_xxx definitions. */
@@ -6249,15 +6218,15 @@ switch (frame->Xwhere)
   LBL(53) LBL(54) LBL(55) LBL(56) LBL(57) LBL(58) LBL(63) LBL(64)
   LBL(65) LBL(66)
 #if defined SUPPORT_UTF || !defined COMPILE_PCRE8
-  LBL(21)
+  LBL(20) LBL(21)
 #endif
 #ifdef SUPPORT_UTF
-  LBL(16) LBL(18) LBL(20)
+  LBL(16) LBL(18)
   LBL(22) LBL(23) LBL(28) LBL(30)
   LBL(32) LBL(34) LBL(42) LBL(46)
 #ifdef SUPPORT_UCP
   LBL(36) LBL(37) LBL(38) LBL(39) LBL(40) LBL(41) LBL(44) LBL(45)
-  LBL(59) LBL(60) LBL(61) LBL(62) LBL(67) LBL(68)
+  LBL(59) LBL(60) LBL(61) LBL(62) LBL(67)
 #endif  /* SUPPORT_UCP */
 #endif  /* SUPPORT_UTF */
   default:
@@ -6410,7 +6379,7 @@ const pcre_uint8 *start_bits = NULL;
 PCRE_PUCHAR start_match = (PCRE_PUCHAR)subject + start_offset;
 PCRE_PUCHAR end_subject;
 PCRE_PUCHAR start_partial = NULL;
-PCRE_PUCHAR match_partial;
+PCRE_PUCHAR match_partial = NULL;
 PCRE_PUCHAR req_char_ptr = start_match - 1;
 
 const pcre_study_data *study;
@@ -7178,7 +7147,7 @@ if (rc != MATCH_NOMATCH && rc != PCRE_ERROR_PARTIAL)
 
 /* Handle partial matches - disable any mark data */
 
-if (start_partial != NULL)
+if (match_partial != NULL)
   {
   DPRINTF((">>>> returning PCRE_ERROR_PARTIAL\n"));
   md->mark = NULL;

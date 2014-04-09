@@ -1,5 +1,5 @@
-/* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab
+/* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1093,11 +1093,7 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     will be TRUE as far as we make new table cache).
   */
   old_lex= thd->lex;
-  arena= thd->stmt_arena;
-  if (arena->is_conventional())
-    arena= 0;
-  else
-    thd->set_n_backup_active_arena(arena, &backup);
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   /* init timestamp */
   if (!table->timestamp.str)
@@ -1656,7 +1652,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       {
         if (non_existant_views.length())
           non_existant_views.append(',');
-        non_existant_views.append(String(view->table_name,system_charset_info));
+        non_existant_views.append(name);
       }
       else
       {

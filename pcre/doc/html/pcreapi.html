@@ -46,125 +46,125 @@ man page, in case the conversion went wrong.
 <br><a name="SEC1" href="#TOC1">PCRE NATIVE API BASIC FUNCTIONS</a><br>
 <P>
 <b>pcre *pcre_compile(const char *<i>pattern</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
-</P>
-<P>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre *pcre_compile2(const char *<i>pattern</i>, int <i>options</i>,</b>
-<b>int *<i>errorcodeptr</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
-</P>
-<P>
+<b>     int *<i>errorcodeptr</i>,</b>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre_extra *pcre_study(const pcre *<i>code</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>);</b>
-</P>
-<P>
+<b>     const char **<i>errptr</i>);</b>
+<br>
+<br>
 <b>void pcre_free_study(pcre_extra *<i>extra</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre_exec(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
-</P>
-<P>
+<b>     const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
+<br>
+<br>
 <b>int pcre_dfa_exec(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
-<b>int *<i>workspace</i>, int <i>wscount</i>);</b>
+<b>     const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
+<b>     int *<i>workspace</i>, int <i>wscount</i>);</b>
 </P>
 <br><a name="SEC2" href="#TOC1">PCRE NATIVE API STRING EXTRACTION FUNCTIONS</a><br>
 <P>
 <b>int pcre_copy_named_substring(const pcre *<i>code</i>,</b>
-<b>const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, const char *<i>stringname</i>,</b>
-<b>char *<i>buffer</i>, int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     const char *<i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, const char *<i>stringname</i>,</b>
+<b>     char *<i>buffer</i>, int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre_copy_substring(const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>, char *<i>buffer</i>,</b>
-<b>int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>, char *<i>buffer</i>,</b>
+<b>     int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre_get_named_substring(const pcre *<i>code</i>,</b>
-<b>const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, const char *<i>stringname</i>,</b>
-<b>const char **<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     const char *<i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, const char *<i>stringname</i>,</b>
+<b>     const char **<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre_get_stringnumber(const pcre *<i>code</i>,</b>
-<b>const char *<i>name</i>);</b>
-</P>
-<P>
+<b>     const char *<i>name</i>);</b>
+<br>
+<br>
 <b>int pcre_get_stringtable_entries(const pcre *<i>code</i>,</b>
-<b>const char *<i>name</i>, char **<i>first</i>, char **<i>last</i>);</b>
-</P>
-<P>
+<b>     const char *<i>name</i>, char **<i>first</i>, char **<i>last</i>);</b>
+<br>
+<br>
 <b>int pcre_get_substring(const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>,</b>
-<b>const char **<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>,</b>
+<b>     const char **<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre_get_substring_list(const char *<i>subject</i>,</b>
-<b>int *<i>ovector</i>, int <i>stringcount</i>, const char ***<i>listptr</i>);</b>
-</P>
-<P>
+<b>     int *<i>ovector</i>, int <i>stringcount</i>, const char ***<i>listptr</i>);</b>
+<br>
+<br>
 <b>void pcre_free_substring(const char *<i>stringptr</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre_free_substring_list(const char **<i>stringptr</i>);</b>
 </P>
 <br><a name="SEC3" href="#TOC1">PCRE NATIVE API AUXILIARY FUNCTIONS</a><br>
 <P>
 <b>int pcre_jit_exec(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
-<b>pcre_jit_stack *<i>jstack</i>);</b>
-</P>
-<P>
+<b>     const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
+<b>     pcre_jit_stack *<i>jstack</i>);</b>
+<br>
+<br>
 <b>pcre_jit_stack *pcre_jit_stack_alloc(int <i>startsize</i>, int <i>maxsize</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre_jit_stack_free(pcre_jit_stack *<i>stack</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre_assign_jit_stack(pcre_extra *<i>extra</i>,</b>
-<b>pcre_jit_callback <i>callback</i>, void *<i>data</i>);</b>
-</P>
-<P>
+<b>     pcre_jit_callback <i>callback</i>, void *<i>data</i>);</b>
+<br>
+<br>
 <b>const unsigned char *pcre_maketables(void);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre_fullinfo(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>int <i>what</i>, void *<i>where</i>);</b>
-</P>
-<P>
+<b>     int <i>what</i>, void *<i>where</i>);</b>
+<br>
+<br>
 <b>int pcre_refcount(pcre *<i>code</i>, int <i>adjust</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre_config(int <i>what</i>, void *<i>where</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>const char *pcre_version(void);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre_pattern_to_host_byte_order(pcre *<i>code</i>,</b>
-<b>pcre_extra *<i>extra</i>, const unsigned char *<i>tables</i>);</b>
+<b>     pcre_extra *<i>extra</i>, const unsigned char *<i>tables</i>);</b>
 </P>
 <br><a name="SEC4" href="#TOC1">PCRE NATIVE API INDIRECTED FUNCTIONS</a><br>
 <P>
 <b>void *(*pcre_malloc)(size_t);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void (*pcre_free)(void *);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void *(*pcre_stack_malloc)(size_t);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void (*pcre_stack_free)(void *);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int (*pcre_callout)(pcre_callout_block *);</b>
 </P>
 <br><a name="SEC5" href="#TOC1">PCRE 8-BIT, 16-BIT, AND 32-BIT LIBRARIES</a><br>
@@ -484,6 +484,13 @@ the
 <a href="pcreposix.html"><b>pcreposix</b></a>
 documentation.
 <pre>
+  PCRE_CONFIG_PARENS_LIMIT
+</pre>
+The output is a long integer that gives the maximum depth of nesting of
+parentheses (of any kind) in a pattern. This limit is imposed to cap the amount
+of system stack used when a pattern is compiled. It is specified when PCRE is
+built; the default is 250.
+<pre>
   PCRE_CONFIG_MATCH_LIMIT
 </pre>
 The output is a long integer that gives the default limit for the number of
@@ -509,12 +516,14 @@ avoiding the use of the stack.
 <br><a name="SEC11" href="#TOC1">COMPILING A PATTERN</a><br>
 <P>
 <b>pcre *pcre_compile(const char *<i>pattern</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre *pcre_compile2(const char *<i>pattern</i>, int <i>options</i>,</b>
-<b>int *<i>errorcodeptr</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
+<b>     int *<i>errorcodeptr</i>,</b>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
 </P>
 <P>
 Either of the functions <b>pcre_compile()</b> or <b>pcre_compile2()</b> can be
@@ -580,8 +589,9 @@ If the final argument, <i>tableptr</i>, is NULL, PCRE uses a default set of
 character tables that are built when PCRE is compiled, using the default C
 locale. Otherwise, <i>tableptr</i> must be an address that is the result of a
 call to <b>pcre_maketables()</b>. This value is stored with the compiled
-pattern, and used again by <b>pcre_exec()</b>, unless another table pointer is
-passed to it. For more discussion, see the section on locale support below.
+pattern, and used again by <b>pcre_exec()</b> and <b>pcre_dfa_exec()</b> when the
+pattern is matched. For more discussion, see the section on locale support
+below.
 </P>
 <P>
 This code fragment shows a typical straightforward call to <b>pcre_compile()</b>:
@@ -666,12 +676,24 @@ documentation.
 <pre>
   PCRE_EXTENDED
 </pre>
-If this bit is set, white space data characters in the pattern are totally
-ignored except when escaped or inside a character class. White space does not
-include the VT character (code 11). In addition, characters between an
-unescaped # outside a character class and the next newline, inclusive, are also
-ignored. This is equivalent to Perl's /x option, and it can be changed within a
-pattern by a (?x) option setting.
+If this bit is set, most white space characters in the pattern are totally
+ignored except when escaped or inside a character class. However, white space
+is not allowed within sequences such as (?&#62; that introduce various
+parenthesized subpatterns, nor within a numerical quantifier such as {1,3}.
+However, ignorable white space is permitted between an item and a following
+quantifier and between a quantifier and a following + that indicates
+possessiveness.
+</P>
+<P>
+White space did not used to include the VT character (code 11), because Perl
+did not treat this character as white space. However, Perl changed at release
+5.18, so PCRE followed at release 8.34, and VT is now treated as white space.
+</P>
+<P>
+PCRE_EXTENDED also causes characters between an unescaped # outside a character
+class and the next newline, inclusive, to be ignored. PCRE_EXTENDED is
+equivalent to Perl's /x option, and it can be changed within a pattern by a
+(?x) option setting.
 </P>
 <P>
 Which characters are interpreted as newlines is controlled by the options
@@ -825,6 +847,15 @@ were followed by ?: but named parentheses can still be used for capturing (and
 they acquire numbers in the usual way). There is no equivalent of this option
 in Perl.
 <pre>
+  PCRE_NO_AUTO_POSSESS
+</pre>
+If this option is set, it disables "auto-possessification". This is an
+optimization that, for example, turns a+b into a++b in order to avoid
+backtracks into a+ that can never be successful. However, if callouts are in
+use, auto-possessification means that some of them are never taken. You can set
+this option if you want the matching functions to do a full unoptimized search
+and run all the callouts, but it is mainly provided for testing purposes.
+<pre>
   PCRE_NO_START_OPTIMIZE
 </pre>
 This is an option that acts at matching time; that is, it is really an option
@@ -875,10 +906,10 @@ page. If an invalid UTF-8 sequence is found, <b>pcre_compile()</b> returns an
 error. If you already know that your pattern is valid, and you want to skip
 this check for performance reasons, you can set the PCRE_NO_UTF8_CHECK option.
 When it is set, the effect of passing an invalid UTF-8 string as a pattern is
-undefined. It may cause your program to crash. Note that this option can also
-be passed to <b>pcre_exec()</b> and <b>pcre_dfa_exec()</b>, to suppress the
-validity checking of subject strings only. If the same string is being matched
-many times, the option can be safely set for the second and subsequent
+undefined. It may cause your program to crash or loop. Note that this option
+can also be passed to <b>pcre_exec()</b> and <b>pcre_dfa_exec()</b>, to suppress
+the validity checking of subject strings only. If the same string is being
+matched many times, the option can be safely set for the second and subsequent
 matchings to improve performance.
 </P>
 <br><a name="SEC12" href="#TOC1">COMPILATION ERROR CODES</a><br>
@@ -923,7 +954,7 @@ have fallen out of use. To avoid confusion, they have not been re-used.
   31  POSIX collating elements are not supported
   32  this version of PCRE is compiled without UTF support
   33  [this code is not in use]
-  34  character value in \x{...} sequence is too large
+  34  character value in \x{} or \o{} is too large
   35  invalid condition (?(0)
   36  \C not allowed in lookbehind assertion
   37  PCRE does not support \L, \l, \N{name}, \U, or \u
@@ -971,14 +1002,20 @@ have fallen out of use. To avoid confusion, they have not been re-used.
   75  name is too long in (*MARK), (*PRUNE), (*SKIP), or (*THEN)
   76  character value in \u.... sequence is too large
   77  invalid UTF-32 string (specifically UTF-32)
+  78  setting UTF is disabled by the application
+  79  non-hex character in \x{} (closing brace missing?)
+  80  non-octal character in \o{} (closing brace missing?)
+  81  missing opening brace after \o
+  82  parentheses are too deeply nested
+  83  invalid range in character class
 </pre>
 The numbers 32 and 10000 in errors 48 and 49 are defaults; different values may
 be used if the limits were changed when PCRE was built.
 <a name="studyingapattern"></a></P>
 <br><a name="SEC13" href="#TOC1">STUDYING A PATTERN</a><br>
 <P>
-<b>pcre_extra *pcre_study(const pcre *<i>code</i>, int <i>options</i></b>
-<b>const char **<i>errptr</i>);</b>
+<b>pcre_extra *pcre_study(const pcre *<i>code</i>, int <i>options</i>,</b>
+<b>     const char **<i>errptr</i>);</b>
 </P>
 <P>
 If a compiled pattern is going to be used several times, it is worth spending
@@ -1101,15 +1138,18 @@ There is a longer discussion of PCRE_NO_START_OPTIMIZE
 <P>
 PCRE handles caseless matching, and determines whether characters are letters,
 digits, or whatever, by reference to a set of tables, indexed by character
-value. When running in UTF-8 mode, this applies only to characters
-with codes less than 128. By default, higher-valued codes never match escapes
-such as \w or \d, but they can be tested with \p if PCRE is built with
-Unicode character property support. Alternatively, the PCRE_UCP option can be
-set at compile time; this causes \w and friends to use Unicode property
-support instead of built-in tables. The use of locales with Unicode is
-discouraged. If you are handling characters with codes greater than 128, you
-should either use UTF-8 and Unicode, or use locales, but not try to mix the
-two.
+code point. When running in UTF-8 mode, or in the 16- or 32-bit libraries, this
+applies only to characters with code points less than 256. By default,
+higher-valued code points never match escapes such as \w or \d. However, if
+PCRE is built with Unicode property support, all characters can be tested with
+\p and \P, or, alternatively, the PCRE_UCP option can be set when a pattern
+is compiled; this causes \w and friends to use Unicode property support
+instead of the built-in tables.
+</P>
+<P>
+The use of locales with Unicode is discouraged. If you are handling characters
+with code points greater than 128, you should either use Unicode support, or
+use locales, but not try to mix the two.
 </P>
 <P>
 PCRE contains an internal set of tables that are used when the final argument
@@ -1127,10 +1167,10 @@ for this locale support is expected to die away.
 <P>
 External tables are built by calling the <b>pcre_maketables()</b> function,
 which has no arguments, in the relevant locale. The result can then be passed
-to <b>pcre_compile()</b> or <b>pcre_exec()</b> as often as necessary. For
-example, to build and use tables that are appropriate for the French locale
-(where accented characters with values greater than 128 are treated as letters),
-the following code could be used:
+to <b>pcre_compile()</b> as often as necessary. For example, to build and use
+tables that are appropriate for the French locale (where accented characters
+with values greater than 128 are treated as letters), the following code could
+be used:
 <pre>
   setlocale(LC_CTYPE, "fr_FR");
   tables = pcre_maketables();
@@ -1148,21 +1188,25 @@ needed.
 <P>
 The pointer that is passed to <b>pcre_compile()</b> is saved with the compiled
 pattern, and the same tables are used via this pointer by <b>pcre_study()</b>
-and normally also by <b>pcre_exec()</b>. Thus, by default, for any single
+and also by <b>pcre_exec()</b> and <b>pcre_dfa_exec()</b>. Thus, for any single
 pattern, compilation, studying and matching all happen in the same locale, but
-different patterns can be compiled in different locales.
+different patterns can be processed in different locales.
 </P>
 <P>
 It is possible to pass a table pointer or NULL (indicating the use of the
-internal tables) to <b>pcre_exec()</b>. Although not intended for this purpose,
-this facility could be used to match a pattern in a different locale from the
-one in which it was compiled. Passing table pointers at run time is discussed
-below in the section on matching a pattern.
+internal tables) to <b>pcre_exec()</b> or <b>pcre_dfa_exec()</b> (see the
+discussion below in the section on matching a pattern). This facility is
+provided for use with pre-compiled patterns that have been saved and reloaded.
+Character tables are not saved with patterns, so if a non-standard table was
+used at compile time, it must be provided again when the reloaded pattern is
+matched. Attempting to use this facility to match a pattern in a different
+locale from the one in which it was compiled is likely to lead to anomalous
+(usually incorrect) results.
 <a name="infoaboutpattern"></a></P>
 <br><a name="SEC15" href="#TOC1">INFORMATION ABOUT A PATTERN</a><br>
 <P>
 <b>int pcre_fullinfo(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>int <i>what</i>, void *<i>where</i>);</b>
+<b>     int <i>what</i>, void *<i>where</i>);</b>
 </P>
 <P>
 The <b>pcre_fullinfo()</b> function returns information about a compiled
@@ -1303,9 +1347,14 @@ is -1.
 </P>
 <P>
 Since for the 32-bit library using the non-UTF-32 mode, this function is unable
-to return the full 32-bit range of the character, this value is deprecated;
+to return the full 32-bit range of characters, this value is deprecated;
 instead the PCRE_INFO_REQUIREDCHARFLAGS and PCRE_INFO_REQUIREDCHAR values should
 be used.
+<pre>
+  PCRE_INFO_MATCH_EMPTY
+</pre>
+Return 1 if the pattern can match an empty string, otherwise 0. The fourth
+argument should point to an <b>int</b> variable.
 <pre>
   PCRE_INFO_MATCHLIMIT
 </pre>
@@ -1364,16 +1413,18 @@ contains the parenthesis number. The rest of the entry is the corresponding
 name, zero terminated.
 </P>
 <P>
-The names are in alphabetical order. Duplicate names may appear if (?| is used
-to create multiple groups with the same number, as described in the
+The names are in alphabetical order. If (?| is used to create multiple groups
+with the same number, as described in the
 <a href="pcrepattern.html#dupsubpatternnumber">section on duplicate subpattern numbers</a>
 in the
 <a href="pcrepattern.html"><b>pcrepattern</b></a>
-page. Duplicate names for subpatterns with different numbers are permitted only
-if PCRE_DUPNAMES is set. In all cases of duplicate names, they appear in the
-table in the order in which they were found in the pattern. In the absence of
-(?| this is the order of increasing number; when (?| is used this is not
-necessarily the case because later subpatterns may have lower numbers.
+page, the groups may be given the same name, but there is only one entry in the
+table. Different names for groups of the same number are not permitted.
+Duplicate names for subpatterns with different numbers are permitted,
+but only if PCRE_DUPNAMES is set. They appear in the table in the order in
+which they were found in the pattern. In the absence of (?| this is the order
+of increasing number; when (?| is used this is not necessarily the case because
+later subpatterns may have lower numbers.
 </P>
 <P>
 As a simple example of the name/number table, consider the following pattern
@@ -1487,30 +1538,14 @@ returned. For anchored patterns, 0 is returned.
 <pre>
   PCRE_INFO_FIRSTCHARACTER
 </pre>
-Return the fixed first character value, if PCRE_INFO_FIRSTCHARACTERFLAGS
-returned 1; otherwise returns 0. The fourth argument should point to an
-<b>uint_t</b> variable.
+Return the fixed first character value in the situation where
+PCRE_INFO_FIRSTCHARACTERFLAGS returns 1; otherwise return 0. The fourth
+argument should point to an <b>uint_t</b> variable.
 </P>
 <P>
 In the 8-bit library, the value is always less than 256. In the 16-bit library
 the value can be up to 0xffff. In the 32-bit library in UTF-32 mode the value
 can be up to 0x10ffff, and up to 0xffffffff when not using UTF-32 mode.
-</P>
-<P>
-If there is no fixed first value, and if either
-<br>
-<br>
-(a) the pattern was compiled with the PCRE_MULTILINE option, and every branch
-starts with "^", or
-<br>
-<br>
-(b) every branch of the pattern starts with ".*" and PCRE_DOTALL is not set
-(if it were set, the pattern would be anchored),
-<br>
-<br>
--1 is returned, indicating that the pattern matches only at the start of a
-subject string or after any newline within the string. Otherwise -2 is
-returned. For anchored patterns, -2 is returned.
 <pre>
   PCRE_INFO_REQUIREDCHARFLAGS
 </pre>
@@ -1559,8 +1594,8 @@ is different. (This seems a highly unlikely scenario.)
 <br><a name="SEC17" href="#TOC1">MATCHING A PATTERN: THE TRADITIONAL FUNCTION</a><br>
 <P>
 <b>int pcre_exec(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
+<b>     const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
 </P>
 <P>
 The function <b>pcre_exec()</b> is called to match a subject string against a
@@ -1723,17 +1758,22 @@ and is described in the
 documentation.
 </P>
 <P>
-The <i>tables</i> field is used to pass a character tables pointer to
-<b>pcre_exec()</b>; this overrides the value that is stored with the compiled
-pattern. A non-NULL value is stored with the compiled pattern only if custom
-tables were supplied to <b>pcre_compile()</b> via its <i>tableptr</i> argument.
-If NULL is passed to <b>pcre_exec()</b> using this mechanism, it forces PCRE's
-internal tables to be used. This facility is helpful when re-using patterns
-that have been saved after compiling with an external set of tables, because
-the external tables might be at a different address when <b>pcre_exec()</b> is
-called. See the
+The <i>tables</i> field is provided for use with patterns that have been
+pre-compiled using custom character tables, saved to disc or elsewhere, and
+then reloaded, because the tables that were used to compile a pattern are not
+saved with it. See the
 <a href="pcreprecompile.html"><b>pcreprecompile</b></a>
-documentation for a discussion of saving compiled patterns for later use.
+documentation for a discussion of saving compiled patterns for later use. If
+NULL is passed using this mechanism, it forces PCRE's internal tables to be
+used.
+</P>
+<P>
+<b>Warning:</b> The tables that <b>pcre_exec()</b> uses must be the same as those
+that were used when the pattern was compiled. If this is not the case, the
+behaviour of <b>pcre_exec()</b> is undefined. Therefore, when a pattern is
+compiled and matched in the same process, this field should never be set. In
+this (the most common) case, the correct table pointer is automatically passed
+with the compiled pattern from <b>pcre_compile()</b> to <b>pcre_exec()</b>.
 </P>
 <P>
 If PCRE_EXTRA_MARK is set in the <i>flags</i> field, the <i>mark</i> field must
@@ -1951,7 +1991,7 @@ all the matches in a single subject string. However, you should be sure that
 the value of <i>startoffset</i> points to the start of a character (or the end
 of the subject). When PCRE_NO_UTF8_CHECK is set, the effect of passing an
 invalid string as a subject or an invalid value of <i>startoffset</i> is
-undefined. Your program may crash.
+undefined. Your program may crash or loop.
 <pre>
   PCRE_PARTIAL_HARD
   PCRE_PARTIAL_SOFT
@@ -2413,17 +2453,17 @@ no longer in use and is never returned.
 <br><a name="SEC18" href="#TOC1">EXTRACTING CAPTURED SUBSTRINGS BY NUMBER</a><br>
 <P>
 <b>int pcre_copy_substring(const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>, char *<i>buffer</i>,</b>
-<b>int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>, char *<i>buffer</i>,</b>
+<b>     int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre_get_substring(const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>,</b>
-<b>const char **<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>,</b>
+<b>     const char **<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre_get_substring_list(const char *<i>subject</i>,</b>
-<b>int *<i>ovector</i>, int <i>stringcount</i>, const char ***<i>listptr</i>);</b>
+<b>     int *<i>ovector</i>, int <i>stringcount</i>, const char ***<i>listptr</i>);</b>
 </P>
 <P>
 Captured substrings can be accessed directly by using the offsets returned by
@@ -2508,19 +2548,19 @@ provided.
 <br><a name="SEC19" href="#TOC1">EXTRACTING CAPTURED SUBSTRINGS BY NAME</a><br>
 <P>
 <b>int pcre_get_stringnumber(const pcre *<i>code</i>,</b>
-<b>const char *<i>name</i>);</b>
-</P>
-<P>
+<b>     const char *<i>name</i>);</b>
+<br>
+<br>
 <b>int pcre_copy_named_substring(const pcre *<i>code</i>,</b>
-<b>const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, const char *<i>stringname</i>,</b>
-<b>char *<i>buffer</i>, int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     const char *<i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, const char *<i>stringname</i>,</b>
+<b>     char *<i>buffer</i>, int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre_get_named_substring(const pcre *<i>code</i>,</b>
-<b>const char *<i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, const char *<i>stringname</i>,</b>
-<b>const char **<i>stringptr</i>);</b>
+<b>     const char *<i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, const char *<i>stringname</i>,</b>
+<b>     const char **<i>stringptr</i>);</b>
 </P>
 <P>
 To extract a substring by name, you first have to find associated number.
@@ -2572,7 +2612,7 @@ same number causes an error at compile time.
 <br><a name="SEC20" href="#TOC1">DUPLICATE SUBPATTERN NAMES</a><br>
 <P>
 <b>int pcre_get_stringtable_entries(const pcre *<i>code</i>,</b>
-<b>const char *<i>name</i>, char **<i>first</i>, char **<i>last</i>);</b>
+<b>     const char *<i>name</i>, char **<i>first</i>, char **<i>last</i>);</b>
 </P>
 <P>
 When a pattern is compiled with the PCRE_DUPNAMES option, names for subpatterns
@@ -2653,9 +2693,9 @@ the value returned is the size of each block that is obtained from the heap.
 <br><a name="SEC23" href="#TOC1">MATCHING A PATTERN: THE ALTERNATIVE FUNCTION</a><br>
 <P>
 <b>int pcre_dfa_exec(const pcre *<i>code</i>, const pcre_extra *<i>extra</i>,</b>
-<b>const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
-<b>int *<i>workspace</i>, int <i>wscount</i>);</b>
+<b>     const char *<i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
+<b>     int *<i>workspace</i>, int <i>wscount</i>);</b>
 </P>
 <P>
 The function <b>pcre_dfa_exec()</b> is called to match a subject string against
@@ -2784,6 +2824,15 @@ matching string is given first. If there were too many matches to fit into
 the longest matches. Unlike <b>pcre_exec()</b>, <b>pcre_dfa_exec()</b> can use
 the entire <i>ovector</i> for returning matched strings.
 </P>
+<P>
+NOTE: PCRE's "auto-possessification" optimization usually applies to character
+repeats at the end of a pattern (as well as internally). For example, the
+pattern "a\d+" is compiled as if it were "a\d++" because there is no point
+even considering the possibility of backtracking into the repeated digits. For
+DFA matching, this means that only one possible match is found. If you really
+do want multiple matches in such cases, either use an ungreedy repeat
+("a\d+?") or set the PCRE_NO_AUTO_POSSESS option when compiling.
+</P>
 <br><b>
 Error returns from <b>pcre_dfa_exec()</b>
 </b><br>
@@ -2850,7 +2899,7 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC26" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 12 May 2013
+Last updated: 12 November 2013
 <br>
 Copyright &copy; 1997-2013 University of Cambridge.
 <br>

@@ -126,6 +126,15 @@ character of the subject. The algorithm does not automatically move on to find
 matches that start at later positions.
 </P>
 <P>
+PCRE's "auto-possessification" optimization usually applies to character
+repeats at the end of a pattern (as well as internally). For example, the
+pattern "a\d+" is compiled as if it were "a\d++" because there is no point
+even considering the possibility of backtracking into the repeated digits. For
+DFA matching, this means that only one possible match is found. If you really
+do want multiple matches in such cases, either use an ungreedy repeat
+("a\d+?") or set the PCRE_NO_AUTO_POSSESS option when compiling.
+</P>
+<P>
 There are a number of features of PCRE regular expressions that are not
 supported by the alternative matching algorithm. They are as follows:
 </P>
@@ -224,7 +233,7 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC8" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 08 January 2012
+Last updated: 12 November 2013
 <br>
 Copyright &copy; 1997-2012 University of Cambridge.
 <br>

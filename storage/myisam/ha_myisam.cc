@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -479,8 +480,8 @@ int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_fulltext= %d, t2_fulltext=%d",
-                            test(t1_keyinfo[i].flag & HA_FULLTEXT),
-                            test(t2_keyinfo[i].flag & HA_FULLTEXT)));
+                            MY_TEST(t1_keyinfo[i].flag & HA_FULLTEXT),
+                            MY_TEST(t2_keyinfo[i].flag & HA_FULLTEXT)));
        DBUG_RETURN(1);
     }
     if (t1_keyinfo[i].flag & HA_SPATIAL && t2_keyinfo[i].flag & HA_SPATIAL)
@@ -490,8 +491,8 @@ int check_definition(MI_KEYDEF *t1_keyinfo, MI_COLUMNDEF *t1_recinfo,
     {
        DBUG_PRINT("error", ("Key %d has different definition", i));
        DBUG_PRINT("error", ("t1_spatial= %d, t2_spatial=%d",
-                            test(t1_keyinfo[i].flag & HA_SPATIAL),
-                            test(t2_keyinfo[i].flag & HA_SPATIAL)));
+                            MY_TEST(t1_keyinfo[i].flag & HA_SPATIAL),
+                            MY_TEST(t2_keyinfo[i].flag & HA_SPATIAL)));
        DBUG_RETURN(1);
     }
     if ((!mysql_40_compat &&
@@ -667,7 +668,7 @@ ha_myisam::ha_myisam(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), file(0),
   int_table_flags(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |
                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
-                  HA_CAN_VIRTUAL_COLUMNS |
+                  HA_CAN_VIRTUAL_COLUMNS | HA_CAN_EXPORT |
                   HA_DUPLICATE_POS | HA_CAN_INDEX_BLOBS | HA_AUTO_PART_KEY |
                   HA_FILE_BASED | HA_CAN_GEOMETRY | HA_NO_TRANSACTIONS |
                   HA_CAN_INSERT_DELAYED | HA_CAN_BIT_FIELD | HA_CAN_RTREEKEYS |
@@ -774,7 +775,7 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
                          true, table))
     {
       /* purecov: begin inspected */
-      my_errno= HA_ERR_CRASHED;
+      my_errno= HA_ERR_INCOMPATIBLE_DEFINITION;
       goto err;
       /* purecov: end */
     }
@@ -912,7 +913,7 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
                                  my_default_record_cache_size, READ_CACHE,
                                  share->pack.header_length, 1, MYF(MY_WME))))
       {
-        error= chk_data_link(&param, file, test(param.testflag & T_EXTEND));
+        error= chk_data_link(&param, file, MY_TEST(param.testflag & T_EXTEND));
         end_io_cache(&(param.read_cache));
       }
       param.testflag= old_testflag;
@@ -1079,7 +1080,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
 
   param.db_name=    table->s->db.str;
   param.table_name= table->alias.c_ptr();
-  param.tmpfile_createflag = O_RDWR | O_TRUNC;
+  param.tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
   param.using_global_keycache = 1;
   param.thd= thd;
   param.tmpdir= &mysql_tmpdir_list;
@@ -1108,7 +1109,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
 			share->state.key_map);
     ulonglong testflag= param.testflag;
 #ifdef HAVE_MMAP
-    bool remap= test(share->file_map);
+    bool remap= MY_TEST(share->file_map);
     /*
       mi_repair*() functions family use file I/O even if memory
       mapping is available.
@@ -1130,14 +1131,14 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
         /* TODO: respect myisam_repair_threads variable */
         thd_proc_info(thd, "Parallel repair");
         error = mi_repair_parallel(&param, file, fixed_name,
-                                   test(param.testflag & T_QUICK));
+                                   MY_TEST(param.testflag & T_QUICK));
       }
       else
       {
         thd_proc_info(thd, "Repair by sorting");
         DEBUG_SYNC(thd, "myisam_before_repair_by_sort");
         error = mi_repair_by_sort(&param, file, fixed_name,
-                                  test(param.testflag & T_QUICK));
+                                  MY_TEST(param.testflag & T_QUICK));
       }
       if (error && file->create_unique_index_by_sort && 
           share->state.dupp_key != MAX_KEY)
@@ -1149,7 +1150,7 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
       thd_proc_info(thd, "Repair with keycache");
       param.testflag &= ~T_REP_BY_SORT;
       error=  mi_repair(&param, file, fixed_name,
-			test(param.testflag & T_QUICK));
+                        MY_TEST(param.testflag & T_QUICK));
     }
     param.testflag= testflag | (param.testflag & T_RETRY_WITHOUT_QUICK);
 #ifdef HAVE_MMAP
@@ -1561,7 +1562,7 @@ void ha_myisam::start_bulk_insert(ha_rows rows, uint flags)
     }
     else
     {
-      my_bool all_keys= test(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
+      my_bool all_keys= MY_TEST(flags & HA_CREATE_UNIQUE_INDEX_BY_SORT);
       mi_disable_indexes_for_rebuild(file, rows, all_keys);
     }
   }
@@ -2005,9 +2006,26 @@ int ha_myisam::create(const char *name, register TABLE *table_arg,
                                (ulonglong) 0);
   create_info.data_file_length= ((ulonglong) share->max_rows *
                                  share->avg_row_length);
-  create_info.data_file_name= ha_create_info->data_file_name;
-  create_info.index_file_name= ha_create_info->index_file_name;
   create_info.language= share->table_charset->number;
+
+#ifdef HAVE_READLINK
+  if (my_use_symdir)
+  {
+    create_info.data_file_name= ha_create_info->data_file_name;
+    create_info.index_file_name= ha_create_info->index_file_name;
+  }
+  else
+#endif /* HAVE_READLINK */
+  {
+    if (ha_create_info->data_file_name)
+      push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                          "DATA DIRECTORY");
+    if (ha_create_info->index_file_name)
+      push_warning_printf(table_arg->in_use, Sql_condition::WARN_LEVEL_WARN,
+                          WARN_OPTION_IGNORED, ER(WARN_OPTION_IGNORED),
+                          "INDEX DIRECTORY");
+  }
 
   if (ha_create_info->tmp_table())
     create_flags|= HA_CREATE_TMP_TABLE | HA_CREATE_DELAY_KEY_WRITE;

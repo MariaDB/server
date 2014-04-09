@@ -92,3 +92,15 @@ DROP TABLE t1;
 
 
 --echo End of 5.1 tests
+
+#
+# MDEV-5820 MySQL Bug #54805 definitions in regex/my_regex.h conflict with /usr/include/regex.h
+# Bug #55427 REGEXP does not recognize '\t' as [:blank:]
+#
+# Test that \t is indeed recognized as [[:blank:]]
+#
+SELECT ' '  REGEXP '[[:blank:]]';
+SELECT '\t' REGEXP '[[:blank:]]';
+
+SELECT ' '  REGEXP '[[:space:]]';
+SELECT '\t' REGEXP '[[:space:]]';

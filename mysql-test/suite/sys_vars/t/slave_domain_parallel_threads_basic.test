@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+SET @save_slave_domain_parallel_threads= @@GLOBAL.slave_domain_parallel_threads;
+
+SELECT @@GLOBAL.slave_domain_parallel_threads as 'must be zero because of default';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.slave_domain_parallel_threads  as 'no session var';
+
+SET GLOBAL slave_domain_parallel_threads= 0;
+SET GLOBAL slave_domain_parallel_threads= DEFAULT;
+SET GLOBAL slave_domain_parallel_threads= 10;
+SELECT @@GLOBAL.slave_domain_parallel_threads;
+
+SET GLOBAL slave_domain_parallel_threads = @save_slave_domain_parallel_threads;

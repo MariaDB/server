@@ -42,126 +42,126 @@ man page, in case the conversion went wrong.
 <br><a name="SEC1" href="#TOC1">PCRE 16-BIT API BASIC FUNCTIONS</a><br>
 <P>
 <b>pcre16 *pcre16_compile(PCRE_SPTR16 <i>pattern</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
-</P>
-<P>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre16 *pcre16_compile2(PCRE_SPTR16 <i>pattern</i>, int <i>options</i>,</b>
-<b>int *<i>errorcodeptr</i>,</b>
-<b>const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
-<b>const unsigned char *<i>tableptr</i>);</b>
-</P>
-<P>
+<b>     int *<i>errorcodeptr</i>,</b>
+<b>     const char **<i>errptr</i>, int *<i>erroffset</i>,</b>
+<b>     const unsigned char *<i>tableptr</i>);</b>
+<br>
+<br>
 <b>pcre16_extra *pcre16_study(const pcre16 *<i>code</i>, int <i>options</i>,</b>
-<b>const char **<i>errptr</i>);</b>
-</P>
-<P>
+<b>     const char **<i>errptr</i>);</b>
+<br>
+<br>
 <b>void pcre16_free_study(pcre16_extra *<i>extra</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre16_exec(const pcre16 *<i>code</i>, const pcre16_extra *<i>extra</i>,</b>
-<b>PCRE_SPTR16 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR16 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>);</b>
+<br>
+<br>
 <b>int pcre16_dfa_exec(const pcre16 *<i>code</i>, const pcre16_extra *<i>extra</i>,</b>
-<b>PCRE_SPTR16 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
-<b>int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
-<b>int *<i>workspace</i>, int <i>wscount</i>);</b>
+<b>     PCRE_SPTR16 <i>subject</i>, int <i>length</i>, int <i>startoffset</i>,</b>
+<b>     int <i>options</i>, int *<i>ovector</i>, int <i>ovecsize</i>,</b>
+<b>     int *<i>workspace</i>, int <i>wscount</i>);</b>
 </P>
 <br><a name="SEC2" href="#TOC1">PCRE 16-BIT API STRING EXTRACTION FUNCTIONS</a><br>
 <P>
 <b>int pcre16_copy_named_substring(const pcre16 *<i>code</i>,</b>
-<b>PCRE_SPTR16 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, PCRE_SPTR16 <i>stringname</i>,</b>
-<b>PCRE_UCHAR16 *<i>buffer</i>, int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR16 <i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, PCRE_SPTR16 <i>stringname</i>,</b>
+<b>     PCRE_UCHAR16 *<i>buffer</i>, int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre16_copy_substring(PCRE_SPTR16 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>, PCRE_UCHAR16 *<i>buffer</i>,</b>
-<b>int <i>buffersize</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>, PCRE_UCHAR16 *<i>buffer</i>,</b>
+<b>     int <i>buffersize</i>);</b>
+<br>
+<br>
 <b>int pcre16_get_named_substring(const pcre16 *<i>code</i>,</b>
-<b>PCRE_SPTR16 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, PCRE_SPTR16 <i>stringname</i>,</b>
-<b>PCRE_SPTR16 *<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR16 <i>subject</i>, int *<i>ovector</i>,</b>
+<b>     int <i>stringcount</i>, PCRE_SPTR16 <i>stringname</i>,</b>
+<b>     PCRE_SPTR16 *<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre16_get_stringnumber(const pcre16 *<i>code</i>,</b>
-<b>PCRE_SPTR16 <i>name</i>);</b>
-</P>
-<P>
+<b>"     PCRE_SPTR16 <i>name</i>);</b>
+<br>
+<br>
 <b>int pcre16_get_stringtable_entries(const pcre16 *<i>code</i>,</b>
-<b>PCRE_SPTR16 <i>name</i>, PCRE_UCHAR16 **<i>first</i>, PCRE_UCHAR16 **<i>last</i>);</b>
-</P>
-<P>
+<b>     PCRE_SPTR16 <i>name</i>, PCRE_UCHAR16 **<i>first</i>, PCRE_UCHAR16 **<i>last</i>);</b>
+<br>
+<br>
 <b>int pcre16_get_substring(PCRE_SPTR16 <i>subject</i>, int *<i>ovector</i>,</b>
-<b>int <i>stringcount</i>, int <i>stringnumber</i>,</b>
-<b>PCRE_SPTR16 *<i>stringptr</i>);</b>
-</P>
-<P>
+<b>     int <i>stringcount</i>, int <i>stringnumber</i>,</b>
+<b>     PCRE_SPTR16 *<i>stringptr</i>);</b>
+<br>
+<br>
 <b>int pcre16_get_substring_list(PCRE_SPTR16 <i>subject</i>,</b>
-<b>int *<i>ovector</i>, int <i>stringcount</i>, PCRE_SPTR16 **<i>listptr</i>);</b>
-</P>
-<P>
+<b>     int *<i>ovector</i>, int <i>stringcount</i>, PCRE_SPTR16 **<i>listptr</i>);</b>
+<br>
+<br>
 <b>void pcre16_free_substring(PCRE_SPTR16 <i>stringptr</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre16_free_substring_list(PCRE_SPTR16 *<i>stringptr</i>);</b>
 </P>
 <br><a name="SEC3" href="#TOC1">PCRE 16-BIT API AUXILIARY FUNCTIONS</a><br>
 <P>
 <b>pcre16_jit_stack *pcre16_jit_stack_alloc(int <i>startsize</i>, int <i>maxsize</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre16_jit_stack_free(pcre16_jit_stack *<i>stack</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void pcre16_assign_jit_stack(pcre16_extra *<i>extra</i>,</b>
-<b>pcre16_jit_callback <i>callback</i>, void *<i>data</i>);</b>
-</P>
-<P>
+<b>     pcre16_jit_callback <i>callback</i>, void *<i>data</i>);</b>
+<br>
+<br>
 <b>const unsigned char *pcre16_maketables(void);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre16_fullinfo(const pcre16 *<i>code</i>, const pcre16_extra *<i>extra</i>,</b>
-<b>int <i>what</i>, void *<i>where</i>);</b>
-</P>
-<P>
+<b>     int <i>what</i>, void *<i>where</i>);</b>
+<br>
+<br>
 <b>int pcre16_refcount(pcre16 *<i>code</i>, int <i>adjust</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre16_config(int <i>what</i>, void *<i>where</i>);</b>
-</P>
-<P>
+<br>
+<br>
 <b>const char *pcre16_version(void);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int pcre16_pattern_to_host_byte_order(pcre16 *<i>code</i>,</b>
-<b>pcre16_extra *<i>extra</i>, const unsigned char *<i>tables</i>);</b>
+<b>     pcre16_extra *<i>extra</i>, const unsigned char *<i>tables</i>);</b>
 </P>
 <br><a name="SEC4" href="#TOC1">PCRE 16-BIT API INDIRECTED FUNCTIONS</a><br>
 <P>
 <b>void *(*pcre16_malloc)(size_t);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void (*pcre16_free)(void *);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void *(*pcre16_stack_malloc)(size_t);</b>
-</P>
-<P>
+<br>
+<br>
 <b>void (*pcre16_stack_free)(void *);</b>
-</P>
-<P>
+<br>
+<br>
 <b>int (*pcre16_callout)(pcre16_callout_block *);</b>
 </P>
 <br><a name="SEC5" href="#TOC1">PCRE 16-BIT API 16-BIT-ONLY FUNCTION</a><br>
 <P>
 <b>int pcre16_utf16_to_host_byte_order(PCRE_UCHAR16 *<i>output</i>,</b>
-<b>PCRE_SPTR16 <i>input</i>, int <i>length</i>, int *<i>byte_order</i>,</b>
-<b>int <i>keep_boms</i>);</b>
+<b>     PCRE_SPTR16 <i>input</i>, int <i>length</i>, int *<i>byte_order</i>,</b>
+<b>     int <i>keep_boms</i>);</b>
 </P>
 <br><a name="SEC6" href="#TOC1">THE PCRE 16-BIT LIBRARY</a><br>
 <P>

@@ -1,4 +1,4 @@
-.TH PCREAPI 3 "12 May 2013" "PCRE 8.33"
+.TH PCREAPI 3 "12 November 2013" "PCRE 8.34"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .sp
@@ -8,138 +8,115 @@ PCRE - Perl-compatible regular expressions
 .SH "PCRE NATIVE API BASIC FUNCTIONS"
 .rs
 .sp
-.SM
+.nf
 .B pcre *pcre_compile(const char *\fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre *pcre_compile2(const char *\fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
-.PP
+.B "     int *\fIerrorcodeptr\fP,"
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.sp
 .B pcre_extra *pcre_study(const pcre *\fIcode\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP);
-.PP
+.B "     const char **\fIerrptr\fP);"
+.sp
 .B void pcre_free_study(pcre_extra *\fIextra\fP);
-.PP
+.sp
 .B int pcre_exec(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B "const char *\fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);
-.PP
+.B "     const char *\fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);"
+.sp
 .B int pcre_dfa_exec(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B "const char *\fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,
-.ti +5n
-.B int *\fIworkspace\fP, int \fIwscount\fP);
+.B "     const char *\fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,"
+.B "     int *\fIworkspace\fP, int \fIwscount\fP);"
+.fi
 .
 .
 .SH "PCRE NATIVE API STRING EXTRACTION FUNCTIONS"
 .rs
 .sp
+.nf
 .B int pcre_copy_named_substring(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, const char *\fIstringname\fP,
-.ti +5n
-.B char *\fIbuffer\fP, int \fIbuffersize\fP);
-.PP
+.B "     const char *\fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, const char *\fIstringname\fP,"
+.B "     char *\fIbuffer\fP, int \fIbuffersize\fP);"
+.sp
 .B int pcre_copy_substring(const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP, char *\fIbuffer\fP,
-.ti +5n
-.B int \fIbuffersize\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP, char *\fIbuffer\fP,"
+.B "     int \fIbuffersize\fP);"
+.sp
 .B int pcre_get_named_substring(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, const char *\fIstringname\fP,
-.ti +5n
-.B const char **\fIstringptr\fP);
-.PP
+.B "     const char *\fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, const char *\fIstringname\fP,"
+.B "     const char **\fIstringptr\fP);"
+.sp
 .B int pcre_get_stringnumber(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIname\fP);
-.PP
+.B "     const char *\fIname\fP);"
+.sp
 .B int pcre_get_stringtable_entries(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIname\fP, char **\fIfirst\fP, char **\fIlast\fP);
-.PP
+.B "     const char *\fIname\fP, char **\fIfirst\fP, char **\fIlast\fP);"
+.sp
 .B int pcre_get_substring(const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP,
-.ti +5n
-.B const char **\fIstringptr\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP,"
+.B "     const char **\fIstringptr\fP);"
+.sp
 .B int pcre_get_substring_list(const char *\fIsubject\fP,
-.ti +5n
-.B int *\fIovector\fP, int \fIstringcount\fP, "const char ***\fIlistptr\fP);"
-.PP
+.B "     int *\fIovector\fP, int \fIstringcount\fP, const char ***\fIlistptr\fP);"
+.sp
 .B void pcre_free_substring(const char *\fIstringptr\fP);
-.PP
+.sp
 .B void pcre_free_substring_list(const char **\fIstringptr\fP);
+.fi
 .
 .
 .SH "PCRE NATIVE API AUXILIARY FUNCTIONS"
 .rs
 .sp
+.nf
 .B int pcre_jit_exec(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B "const char *\fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,
-.ti +5n
-.B pcre_jit_stack *\fIjstack\fP);
-.PP
+.B "     const char *\fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,"
+.B "     pcre_jit_stack *\fIjstack\fP);"
+.sp
 .B pcre_jit_stack *pcre_jit_stack_alloc(int \fIstartsize\fP, int \fImaxsize\fP);
-.PP
+.sp
 .B void pcre_jit_stack_free(pcre_jit_stack *\fIstack\fP);
-.PP
+.sp
 .B void pcre_assign_jit_stack(pcre_extra *\fIextra\fP,
-.ti +5n
-.B pcre_jit_callback \fIcallback\fP, void *\fIdata\fP);
-.PP
+.B "     pcre_jit_callback \fIcallback\fP, void *\fIdata\fP);"
+.sp
 .B const unsigned char *pcre_maketables(void);
-.PP
+.sp
 .B int pcre_fullinfo(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B int \fIwhat\fP, void *\fIwhere\fP);
-.PP
+.B "     int \fIwhat\fP, void *\fIwhere\fP);"
+.sp
 .B int pcre_refcount(pcre *\fIcode\fP, int \fIadjust\fP);
-.PP
+.sp
 .B int pcre_config(int \fIwhat\fP, void *\fIwhere\fP);
-.PP
+.sp
 .B const char *pcre_version(void);
-.PP
+.sp
 .B int pcre_pattern_to_host_byte_order(pcre *\fIcode\fP,
-.ti +5n
-.B pcre_extra *\fIextra\fP, const unsigned char *\fItables\fP);
+.B "     pcre_extra *\fIextra\fP, const unsigned char *\fItables\fP);"
+.fi
 .
 .
 .SH "PCRE NATIVE API INDIRECTED FUNCTIONS"
 .rs
 .sp
+.nf
 .B void *(*pcre_malloc)(size_t);
-.PP
+.sp
 .B void (*pcre_free)(void *);
-.PP
+.sp
 .B void *(*pcre_stack_malloc)(size_t);
-.PP
+.sp
 .B void (*pcre_stack_free)(void *);
-.PP
+.sp
 .B int (*pcre_callout)(pcre_callout_block *);
+.fi
 .
 .
 .SH "PCRE 8-BIT, 16-BIT, AND 32-BIT LIBRARIES"
@@ -483,6 +460,13 @@ the
 .\"
 documentation.
 .sp
+  PCRE_CONFIG_PARENS_LIMIT
+.sp
+The output is a long integer that gives the maximum depth of nesting of
+parentheses (of any kind) in a pattern. This limit is imposed to cap the amount
+of system stack used when a pattern is compiled. It is specified when PCRE is
+built; the default is 250.
+.sp
   PCRE_CONFIG_MATCH_LIMIT
 .sp
 The output is a long integer that gives the default limit for the number of
@@ -509,19 +493,16 @@ avoiding the use of the stack.
 .SH "COMPILING A PATTERN"
 .rs
 .sp
+.nf
 .B pcre *pcre_compile(const char *\fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
 .sp
 .B pcre *pcre_compile2(const char *\fIpattern\fP, int \fIoptions\fP,
-.ti +5n
-.B int *\fIerrorcodeptr\fP,
-.ti +5n
-.B const char **\fIerrptr\fP, int *\fIerroffset\fP,
-.ti +5n
-.B const unsigned char *\fItableptr\fP);
+.B "     int *\fIerrorcodeptr\fP,"
+.B "     const char **\fIerrptr\fP, int *\fIerroffset\fP,"
+.B "     const unsigned char *\fItableptr\fP);"
+.fi
 .P
 Either of the functions \fBpcre_compile()\fP or \fBpcre_compile2()\fP can be
 called to compile a pattern into an internal form. The only difference between
@@ -581,8 +562,9 @@ If the final argument, \fItableptr\fP, is NULL, PCRE uses a default set of
 character tables that are built when PCRE is compiled, using the default C
 locale. Otherwise, \fItableptr\fP must be an address that is the result of a
 call to \fBpcre_maketables()\fP. This value is stored with the compiled
-pattern, and used again by \fBpcre_exec()\fP, unless another table pointer is
-passed to it. For more discussion, see the section on locale support below.
+pattern, and used again by \fBpcre_exec()\fP and \fBpcre_dfa_exec()\fP when the
+pattern is matched. For more discussion, see the section on locale support
+below.
 .P
 This code fragment shows a typical straightforward call to \fBpcre_compile()\fP:
 .sp
@@ -670,12 +652,22 @@ documentation.
 .sp
   PCRE_EXTENDED
 .sp
-If this bit is set, white space data characters in the pattern are totally
-ignored except when escaped or inside a character class. White space does not
-include the VT character (code 11). In addition, characters between an
-unescaped # outside a character class and the next newline, inclusive, are also
-ignored. This is equivalent to Perl's /x option, and it can be changed within a
-pattern by a (?x) option setting.
+If this bit is set, most white space characters in the pattern are totally
+ignored except when escaped or inside a character class. However, white space
+is not allowed within sequences such as (?> that introduce various
+parenthesized subpatterns, nor within a numerical quantifier such as {1,3}.
+However, ignorable white space is permitted between an item and a following
+quantifier and between a quantifier and a following + that indicates
+possessiveness.
+.P
+White space did not used to include the VT character (code 11), because Perl
+did not treat this character as white space. However, Perl changed at release
+5.18, so PCRE followed at release 8.34, and VT is now treated as white space.
+.P
+PCRE_EXTENDED also causes characters between an unescaped # outside a character
+class and the next newline, inclusive, to be ignored. PCRE_EXTENDED is
+equivalent to Perl's /x option, and it can be changed within a pattern by a
+(?x) option setting.
 .P
 Which characters are interpreted as newlines is controlled by the options
 passed to \fBpcre_compile()\fP or by a special sequence at the start of the
@@ -821,6 +813,15 @@ were followed by ?: but named parentheses can still be used for capturing (and
 they acquire numbers in the usual way). There is no equivalent of this option
 in Perl.
 .sp
+  PCRE_NO_AUTO_POSSESS
+.sp
+If this option is set, it disables "auto-possessification". This is an
+optimization that, for example, turns a+b into a++b in order to avoid
+backtracks into a+ that can never be successful. However, if callouts are in
+use, auto-possessification means that some of them are never taken. You can set
+this option if you want the matching functions to do a full unoptimized search
+and run all the callouts, but it is mainly provided for testing purposes.
+.sp
   PCRE_NO_START_OPTIMIZE
 .sp
 This is an option that acts at matching time; that is, it is really an option
@@ -886,10 +887,10 @@ page. If an invalid UTF-8 sequence is found, \fBpcre_compile()\fP returns an
 error. If you already know that your pattern is valid, and you want to skip
 this check for performance reasons, you can set the PCRE_NO_UTF8_CHECK option.
 When it is set, the effect of passing an invalid UTF-8 string as a pattern is
-undefined. It may cause your program to crash. Note that this option can also
-be passed to \fBpcre_exec()\fP and \fBpcre_dfa_exec()\fP, to suppress the
-validity checking of subject strings only. If the same string is being matched
-many times, the option can be safely set for the second and subsequent
+undefined. It may cause your program to crash or loop. Note that this option
+can also be passed to \fBpcre_exec()\fP and \fBpcre_dfa_exec()\fP, to suppress
+the validity checking of subject strings only. If the same string is being
+matched many times, the option can be safely set for the second and subsequent
 matchings to improve performance.
 .
 .
@@ -936,7 +937,7 @@ have fallen out of use. To avoid confusion, they have not been re-used.
   31  POSIX collating elements are not supported
   32  this version of PCRE is compiled without UTF support
   33  [this code is not in use]
-  34  character value in \ex{...} sequence is too large
+  34  character value in \ex{} or \eo{} is too large
   35  invalid condition (?(0)
   36  \eC not allowed in lookbehind assertion
   37  PCRE does not support \eL, \el, \eN{name}, \eU, or \eu
@@ -984,6 +985,12 @@ have fallen out of use. To avoid confusion, they have not been re-used.
   75  name is too long in (*MARK), (*PRUNE), (*SKIP), or (*THEN)
   76  character value in \eu.... sequence is too large
   77  invalid UTF-32 string (specifically UTF-32)
+  78  setting UTF is disabled by the application
+  79  non-hex character in \ex{} (closing brace missing?)
+  80  non-octal character in \eo{} (closing brace missing?)
+  81  missing opening brace after \eo
+  82  parentheses are too deeply nested
+  83  invalid range in character class
 .sp
 The numbers 32 and 10000 in errors 48 and 49 are defaults; different values may
 be used if the limits were changed when PCRE was built.
@@ -993,9 +1000,10 @@ be used if the limits were changed when PCRE was built.
 .SH "STUDYING A PATTERN"
 .rs
 .sp
-.B pcre_extra *pcre_study(const pcre *\fIcode\fP, int \fIoptions\fP
-.ti +5n
-.B const char **\fIerrptr\fP);
+.nf
+.B pcre_extra *pcre_study(const pcre *\fIcode\fP, int \fIoptions\fP,
+.B "     const char **\fIerrptr\fP);"
+.fi
 .PP
 If a compiled pattern is going to be used several times, it is worth spending
 more time analyzing it in order to speed up the time taken for matching. The
@@ -1117,15 +1125,17 @@ below.
 .sp
 PCRE handles caseless matching, and determines whether characters are letters,
 digits, or whatever, by reference to a set of tables, indexed by character
-value. When running in UTF-8 mode, this applies only to characters
-with codes less than 128. By default, higher-valued codes never match escapes
-such as \ew or \ed, but they can be tested with \ep if PCRE is built with
-Unicode character property support. Alternatively, the PCRE_UCP option can be
-set at compile time; this causes \ew and friends to use Unicode property
-support instead of built-in tables. The use of locales with Unicode is
-discouraged. If you are handling characters with codes greater than 128, you
-should either use UTF-8 and Unicode, or use locales, but not try to mix the
-two.
+code point. When running in UTF-8 mode, or in the 16- or 32-bit libraries, this
+applies only to characters with code points less than 256. By default,
+higher-valued code points never match escapes such as \ew or \ed. However, if
+PCRE is built with Unicode property support, all characters can be tested with
+\ep and \eP, or, alternatively, the PCRE_UCP option can be set when a pattern
+is compiled; this causes \ew and friends to use Unicode property support
+instead of the built-in tables.
+.P
+The use of locales with Unicode is discouraged. If you are handling characters
+with code points greater than 128, you should either use Unicode support, or
+use locales, but not try to mix the two.
 .P
 PCRE contains an internal set of tables that are used when the final argument
 of \fBpcre_compile()\fP is NULL. These are sufficient for many applications.
@@ -1140,10 +1150,10 @@ for this locale support is expected to die away.
 .P
 External tables are built by calling the \fBpcre_maketables()\fP function,
 which has no arguments, in the relevant locale. The result can then be passed
-to \fBpcre_compile()\fP or \fBpcre_exec()\fP as often as necessary. For
-example, to build and use tables that are appropriate for the French locale
-(where accented characters with values greater than 128 are treated as letters),
-the following code could be used:
+to \fBpcre_compile()\fP as often as necessary. For example, to build and use
+tables that are appropriate for the French locale (where accented characters
+with values greater than 128 are treated as letters), the following code could
+be used:
 .sp
   setlocale(LC_CTYPE, "fr_FR");
   tables = pcre_maketables();
@@ -1159,24 +1169,29 @@ needed.
 .P
 The pointer that is passed to \fBpcre_compile()\fP is saved with the compiled
 pattern, and the same tables are used via this pointer by \fBpcre_study()\fP
-and normally also by \fBpcre_exec()\fP. Thus, by default, for any single
+and also by \fBpcre_exec()\fP and \fBpcre_dfa_exec()\fP. Thus, for any single
 pattern, compilation, studying and matching all happen in the same locale, but
-different patterns can be compiled in different locales.
+different patterns can be processed in different locales.
 .P
 It is possible to pass a table pointer or NULL (indicating the use of the
-internal tables) to \fBpcre_exec()\fP. Although not intended for this purpose,
-this facility could be used to match a pattern in a different locale from the
-one in which it was compiled. Passing table pointers at run time is discussed
-below in the section on matching a pattern.
+internal tables) to \fBpcre_exec()\fP or \fBpcre_dfa_exec()\fP (see the
+discussion below in the section on matching a pattern). This facility is
+provided for use with pre-compiled patterns that have been saved and reloaded.
+Character tables are not saved with patterns, so if a non-standard table was
+used at compile time, it must be provided again when the reloaded pattern is
+matched. Attempting to use this facility to match a pattern in a different
+locale from the one in which it was compiled is likely to lead to anomalous
+(usually incorrect) results.
 .
 .
 .\" HTML <a name="infoaboutpattern"></a>
 .SH "INFORMATION ABOUT A PATTERN"
 .rs
 .sp
+.nf
 .B int pcre_fullinfo(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B int \fIwhat\fP, void *\fIwhere\fP);
+.B "     int \fIwhat\fP, void *\fIwhere\fP);"
+.fi
 .PP
 The \fBpcre_fullinfo()\fP function returns information about a compiled
 pattern. It replaces the \fBpcre_info()\fP function, which was removed from the
@@ -1310,9 +1325,14 @@ only if it follows something of variable length. For example, for the pattern
 is -1.
 .P
 Since for the 32-bit library using the non-UTF-32 mode, this function is unable
-to return the full 32-bit range of the character, this value is deprecated;
+to return the full 32-bit range of characters, this value is deprecated;
 instead the PCRE_INFO_REQUIREDCHARFLAGS and PCRE_INFO_REQUIREDCHAR values should
 be used.
+.sp
+  PCRE_INFO_MATCH_EMPTY
+.sp
+Return 1 if the pattern can match an empty string, otherwise 0. The fourth
+argument should point to an \fBint\fP variable.
 .sp
   PCRE_INFO_MATCHLIMIT
 .sp
@@ -1369,8 +1389,8 @@ most significant byte first. In the 16-bit library, the pointer points to
 contains the parenthesis number. The rest of the entry is the corresponding
 name, zero terminated.
 .P
-The names are in alphabetical order. Duplicate names may appear if (?| is used
-to create multiple groups with the same number, as described in the
+The names are in alphabetical order. If (?| is used to create multiple groups
+with the same number, as described in the
 .\" HTML <a href="pcrepattern.html#dupsubpatternnumber">
 .\" </a>
 section on duplicate subpattern numbers
@@ -1379,11 +1399,13 @@ in the
 .\" HREF
 \fBpcrepattern\fP
 .\"
-page. Duplicate names for subpatterns with different numbers are permitted only
-if PCRE_DUPNAMES is set. In all cases of duplicate names, they appear in the
-table in the order in which they were found in the pattern. In the absence of
-(?| this is the order of increasing number; when (?| is used this is not
-necessarily the case because later subpatterns may have lower numbers.
+page, the groups may be given the same name, but there is only one entry in the
+table. Different names for groups of the same number are not permitted.
+Duplicate names for subpatterns with different numbers are permitted,
+but only if PCRE_DUPNAMES is set. They appear in the table in the order in
+which they were found in the pattern. In the absence of (?| this is the order
+of increasing number; when (?| is used this is not necessarily the case because
+later subpatterns may have lower numbers.
 .P
 As a simple example of the name/number table, consider the following pattern
 after compilation by the 8-bit library (assume PCRE_EXTENDED is set, so white
@@ -1501,25 +1523,13 @@ returned. For anchored patterns, 0 is returned.
 .sp
   PCRE_INFO_FIRSTCHARACTER
 .sp
-Return the fixed first character value, if PCRE_INFO_FIRSTCHARACTERFLAGS
-returned 1; otherwise returns 0. The fourth argument should point to an
-\fBuint_t\fP variable.
+Return the fixed first character value in the situation where
+PCRE_INFO_FIRSTCHARACTERFLAGS returns 1; otherwise return 0. The fourth
+argument should point to an \fBuint_t\fP variable.
 .P
 In the 8-bit library, the value is always less than 256. In the 16-bit library
 the value can be up to 0xffff. In the 32-bit library in UTF-32 mode the value
 can be up to 0x10ffff, and up to 0xffffffff when not using UTF-32 mode.
-.P
-If there is no fixed first value, and if either
-.sp
-(a) the pattern was compiled with the PCRE_MULTILINE option, and every branch
-starts with "^", or
-.sp
-(b) every branch of the pattern starts with ".*" and PCRE_DOTALL is not set
-(if it were set, the pattern would be anchored),
-.sp
--1 is returned, indicating that the pattern matches only at the start of a
-subject string or after any newline within the string. Otherwise -2 is
-returned. For anchored patterns, -2 is returned.
 .sp
   PCRE_INFO_REQUIREDCHARFLAGS
 .sp
@@ -1567,11 +1577,11 @@ is different. (This seems a highly unlikely scenario.)
 .SH "MATCHING A PATTERN: THE TRADITIONAL FUNCTION"
 .rs
 .sp
+.nf
 .B int pcre_exec(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B "const char *\fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);
+.B "     const char *\fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP);"
+.fi
 .P
 The function \fBpcre_exec()\fP is called to match a subject string against a
 compiled pattern, which is passed in the \fIcode\fP argument. If the
@@ -1724,19 +1734,23 @@ and is described in the
 .\"
 documentation.
 .P
-The \fItables\fP field is used to pass a character tables pointer to
-\fBpcre_exec()\fP; this overrides the value that is stored with the compiled
-pattern. A non-NULL value is stored with the compiled pattern only if custom
-tables were supplied to \fBpcre_compile()\fP via its \fItableptr\fP argument.
-If NULL is passed to \fBpcre_exec()\fP using this mechanism, it forces PCRE's
-internal tables to be used. This facility is helpful when re-using patterns
-that have been saved after compiling with an external set of tables, because
-the external tables might be at a different address when \fBpcre_exec()\fP is
-called. See the
+The \fItables\fP field is provided for use with patterns that have been
+pre-compiled using custom character tables, saved to disc or elsewhere, and
+then reloaded, because the tables that were used to compile a pattern are not
+saved with it. See the
 .\" HREF
 \fBpcreprecompile\fP
 .\"
-documentation for a discussion of saving compiled patterns for later use.
+documentation for a discussion of saving compiled patterns for later use. If
+NULL is passed using this mechanism, it forces PCRE's internal tables to be
+used.
+.P
+\fBWarning:\fP The tables that \fBpcre_exec()\fP uses must be the same as those
+that were used when the pattern was compiled. If this is not the case, the
+behaviour of \fBpcre_exec()\fP is undefined. Therefore, when a pattern is
+compiled and matched in the same process, this field should never be set. In
+this (the most common) case, the correct table pointer is automatically passed
+with the compiled pattern from \fBpcre_compile()\fP to \fBpcre_exec()\fP.
 .P
 If PCRE_EXTRA_MARK is set in the \fIflags\fP field, the \fImark\fP field must
 be set to point to a suitable variable. If the pattern contains any
@@ -1960,7 +1974,7 @@ all the matches in a single subject string. However, you should be sure that
 the value of \fIstartoffset\fP points to the start of a character (or the end
 of the subject). When PCRE_NO_UTF8_CHECK is set, the effect of passing an
 invalid string as a subject or an invalid value of \fIstartoffset\fP is
-undefined. Your program may crash.
+undefined. Your program may crash or loop.
 .sp
   PCRE_PARTIAL_HARD
   PCRE_PARTIAL_SOFT
@@ -2423,21 +2437,18 @@ no longer in use and is never returned.
 .SH "EXTRACTING CAPTURED SUBSTRINGS BY NUMBER"
 .rs
 .sp
+.nf
 .B int pcre_copy_substring(const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP, char *\fIbuffer\fP,
-.ti +5n
-.B int \fIbuffersize\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP, char *\fIbuffer\fP,"
+.B "     int \fIbuffersize\fP);"
+.sp
 .B int pcre_get_substring(const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, int \fIstringnumber\fP,
-.ti +5n
-.B const char **\fIstringptr\fP);
-.PP
+.B "     int \fIstringcount\fP, int \fIstringnumber\fP,"
+.B "     const char **\fIstringptr\fP);"
+.sp
 .B int pcre_get_substring_list(const char *\fIsubject\fP,
-.ti +5n
-.B int *\fIovector\fP, int \fIstringcount\fP, "const char ***\fIlistptr\fP);"
+.B "     int *\fIovector\fP, int \fIstringcount\fP, const char ***\fIlistptr\fP);"
+.fi
 .PP
 Captured substrings can be accessed directly by using the offsets returned by
 \fBpcre_exec()\fP in \fIovector\fP. For convenience, the functions
@@ -2516,25 +2527,20 @@ provided.
 .SH "EXTRACTING CAPTURED SUBSTRINGS BY NAME"
 .rs
 .sp
+.nf
 .B int pcre_get_stringnumber(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIname\fP);
-.PP
+.B "     const char *\fIname\fP);"
+.sp
 .B int pcre_copy_named_substring(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, const char *\fIstringname\fP,
-.ti +5n
-.B char *\fIbuffer\fP, int \fIbuffersize\fP);
-.PP
+.B "     const char *\fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, const char *\fIstringname\fP,"
+.B "     char *\fIbuffer\fP, int \fIbuffersize\fP);"
+.sp
 .B int pcre_get_named_substring(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIsubject\fP, int *\fIovector\fP,
-.ti +5n
-.B int \fIstringcount\fP, const char *\fIstringname\fP,
-.ti +5n
-.B const char **\fIstringptr\fP);
+.B "     const char *\fIsubject\fP, int *\fIovector\fP,"
+.B "     int \fIstringcount\fP, const char *\fIstringname\fP,"
+.B "     const char **\fIstringptr\fP);"
+.fi
 .PP
 To extract a substring by name, you first have to find associated number.
 For example, for this pattern
@@ -2586,9 +2592,10 @@ same number causes an error at compile time.
 .SH "DUPLICATE SUBPATTERN NAMES"
 .rs
 .sp
+.nf
 .B int pcre_get_stringtable_entries(const pcre *\fIcode\fP,
-.ti +5n
-.B const char *\fIname\fP, char **\fIfirst\fP, char **\fIlast\fP);
+.B "     const char *\fIname\fP, char **\fIfirst\fP, char **\fIlast\fP);"
+.fi
 .PP
 When a pattern is compiled with the PCRE_DUPNAMES option, names for subpatterns
 are not required to be unique. (Duplicate names are always allowed for
@@ -2677,13 +2684,12 @@ the value returned is the size of each block that is obtained from the heap.
 .SH "MATCHING A PATTERN: THE ALTERNATIVE FUNCTION"
 .rs
 .sp
+.nf
 .B int pcre_dfa_exec(const pcre *\fIcode\fP, "const pcre_extra *\fIextra\fP,"
-.ti +5n
-.B "const char *\fIsubject\fP," int \fIlength\fP, int \fIstartoffset\fP,
-.ti +5n
-.B int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,
-.ti +5n
-.B int *\fIworkspace\fP, int \fIwscount\fP);
+.B "     const char *\fIsubject\fP, int \fIlength\fP, int \fIstartoffset\fP,"
+.B "     int \fIoptions\fP, int *\fIovector\fP, int \fIovecsize\fP,"
+.B "     int *\fIworkspace\fP, int \fIwscount\fP);"
+.fi
 .P
 The function \fBpcre_dfa_exec()\fP is called to match a subject string against
 a compiled pattern, using a matching algorithm that scans the subject string
@@ -2810,6 +2816,14 @@ matching string is given first. If there were too many matches to fit into
 \fIovector\fP, the yield of the function is zero, and the vector is filled with
 the longest matches. Unlike \fBpcre_exec()\fP, \fBpcre_dfa_exec()\fP can use
 the entire \fIovector\fP for returning matched strings.
+.P
+NOTE: PCRE's "auto-possessification" optimization usually applies to character
+repeats at the end of a pattern (as well as internally). For example, the
+pattern "a\ed+" is compiled as if it were "a\ed++" because there is no point
+even considering the possibility of backtracking into the repeated digits. For
+DFA matching, this means that only one possible match is found. If you really
+do want multiple matches in such cases, either use an ungreedy repeat
+("a\ed+?") or set the PCRE_NO_AUTO_POSSESS option when compiling.
 .
 .
 .SS "Error returns from \fBpcre_dfa_exec()\fP"
@@ -2886,6 +2900,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 12 May 2013
+Last updated: 12 November 2013
 Copyright (c) 1997-2013 University of Cambridge.
 .fi

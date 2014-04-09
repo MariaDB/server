@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2005, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2005, 2013, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -764,6 +764,9 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
                      NULL, NULL, 0, 0))
       DBUG_RETURN(1);
     db= thd->lex->select_lex.db;
+
+    if (lower_case_table_names)
+      my_casedn_str(system_charset_info, db);
   }
   ret= db_repository->fill_schema_events(thd, tables, db);
 

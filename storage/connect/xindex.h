@@ -98,12 +98,6 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   void    SetNParts(uint np) {Nparts = (signed)np;}
   void    SetMaxSame(int mxs) {MaxSame = mxs;}
   void    SetMxsame(PXINDEX x);
-//int     GetOffset(void) {return Offset;}
-//void    SetOffset(int off) {Offset = off;}
-//int     GetOffhigh(void) {return Offhigh;}
-//void    SetOffhigh(int hof) {Offhigh = hof;}
-//int     GetSize(void) {return Size;}
-//void    SetSize(int size) {Size = size;}
   int     GetMaxSame(void) {return MaxSame;}
   bool    Define(PGLOBAL g, void *memp, PTABDEF dfp, LPCSTR p);
   PIXDEF  GetIndexOf(PCOL colp, bool hd = false);
@@ -123,9 +117,6 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   bool    AutoInc;            /* true if unique key in auto increment  */
   int     Nparts;             /* Number of key parts                   */
   int     ID;                 /* Index ID number                       */
-//int     Offset;             /* Offset in index file                  */
-//int     Offhigh;            /* Offset high in big index file         */
-//int     Size;               /* Size of index file                    */
   int     MaxSame;            /* Max number of same values             */
   }; // end of INDEXDEF
 
@@ -253,9 +244,6 @@ class DllExport XINDEX : public XXBASE {
   virtual int  GetCurPos(void) {return (Pex) ? Pex[Cur_K] : Cur_K;}
   virtual void SetNval(int n) {Nval = n;}
           int  GetMaxSame(void) {return MaxSame;}
-//        int  GetDefoff(void) {return Defoff;}
-//        int  GetDefhigh(void) {return Defhigh;}
-//        int  GetSize(void) {return Size;}
 
   // Methods
   virtual void Reset(void);
@@ -288,9 +276,6 @@ class DllExport XINDEX : public XXBASE {
   int     Nk;               // The number of indexed columns
   int     Nval;             // The number of used columns
   int     Incr;             // Increment of record position
-//int     Defoff;           // Offset of definition in index file
-//int     Defhigh;          // High order of offset big value
-//int     Size;             // Size of definition in index file
   int     MaxSame;          // Max number of same values
   }; // end of class XINDEX
 
