@@ -1495,7 +1495,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   }
   else if (!is_group_event)
   {
-    my_off_t log_pos;
     int err;
     bool tmp;
     /*
@@ -1509,7 +1508,13 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     serial_rgi->is_parallel_exec= true;
     err= rpt_handle_event(qev, NULL);
     serial_rgi->is_parallel_exec= tmp;
-    log_pos= ev->log_pos;
+    if (ev->is_relay_log_event())
+      qev->future_event_master_log_pos= 0;
+    else if (typ == ROTATE_EVENT)
+      qev->future_event_master_log_pos=
+        (static_cast<Rotate_log_event *>(ev))->pos;
+    else
+      qev->future_event_master_log_pos= ev->log_pos;
     delete_or_keep_event_post_apply(serial_rgi, typ, ev);
 
     if (err)
@@ -1532,7 +1537,6 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
          the current point.
     */
     qev->ev= NULL;
-    qev->future_event_master_log_pos= log_pos;
   }
   else
   {
