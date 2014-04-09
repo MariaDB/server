@@ -1099,6 +1099,9 @@ The following options may be given as the first argument:
  --wsrep-recover     Recover database state after crash and exit
  --wsrep-replicate-myisam 
  To enable myisam replication
+ --wsrep-restart-slave 
+ Should MySQL slave be restarted automatically, when node
+ joins back to cluster
  --wsrep-retry-autocommit=# 
  Max number of times to retry a failed autocommit
  statement
@@ -1439,6 +1442,7 @@ wsrep-provider none
 wsrep-provider-options 
 wsrep-recover FALSE
 wsrep-replicate-myisam FALSE
+wsrep-restart-slave FALSE
 wsrep-retry-autocommit 1
 wsrep-slave-threads 1
 wsrep-sst-auth (No default value)

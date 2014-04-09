@@ -55,8 +55,8 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
                      wsrep_max_ws_size, total_length);
           goto error;
       }
-
-      uchar* tmp = (uchar *)my_realloc(*buf, total_length, MYF(0));
+      uchar* tmp = (uchar *)my_realloc(*buf, total_length,
+                                       MYF(MY_ALLOW_ZERO_PTR));
       if (!tmp)
       {
           WSREP_ERROR("could not (re)allocate buffer: %zu + %u",
@@ -173,7 +173,8 @@ static int wsrep_write_cache_once(wsrep_t*  const wsrep,
         if (total_length > allocated)
         {
             size_t const new_size(heap_size(total_length));
-            uchar* tmp = (uchar *)my_realloc(heap_buf, new_size, MYF(0));
+            uchar* tmp = (uchar *)my_realloc(heap_buf, new_size,
+                                             MYF(MY_ALLOW_ZERO_PTR));
             if (!tmp)
             {
                 WSREP_ERROR("could not (re)allocate buffer: %zu + %u",

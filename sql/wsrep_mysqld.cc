@@ -520,6 +520,7 @@ int wsrep_init()
     wsrep_init_args args;
     args.options = (wsrep_provider_options) ?
             wsrep_provider_options : "";
+    args.logger_cb= wsrep_log_cb;
     rcode = wsrep->init(wsrep, &args);
     if (rcode)
     {

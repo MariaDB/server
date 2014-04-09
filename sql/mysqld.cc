@@ -3437,18 +3437,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
-  /*
-    Waiting for until mysqld_server_started != 0
-    to ensure that all server components has been successfully
-    initialized. This step is mandatory since signal processing
-    could be done safely only when all server components
-    has been initialized.
-  */
-  mysql_mutex_lock(&LOCK_server_started);
-  while (!mysqld_server_started)
-    mysql_cond_wait(&COND_server_started, &LOCK_server_started);
-  mysql_mutex_unlock(&LOCK_server_started);
-
+  (void) pthread_sigmask(SIG_BLOCK,&set,NULL);
   for (;;)
   {
     int error;					// Used when debugging
