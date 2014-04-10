@@ -2626,7 +2626,7 @@ static bool check_equality_for_exist2in(Item_func *func,
 
 typedef struct st_eq_field_outer
 {
-  Item_func **eq_ref;
+  Item **eq_ref;
   Item_ident *local_field;
   Item *outer_exp;
 } EQ_FIELD_OUTER;
@@ -2665,7 +2665,7 @@ static bool find_inner_outer_equalities(Item **conds,
                                       &element.outer_exp))
       {
         found= TRUE;
-        element.eq_ref= (Item_func **)li.ref();
+        element.eq_ref= li.ref();
         if (result.append(element))
           goto alloc_err;
       }
@@ -2677,7 +2677,7 @@ static bool find_inner_outer_equalities(Item **conds,
                                        &element.outer_exp))
   {
     found= TRUE;
-    element.eq_ref= (Item_func **)conds;
+    element.eq_ref= conds;
     if (result.append(element))
       goto alloc_err;
   }
@@ -2700,7 +2700,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
   THD *thd= (THD *)opt_arg;
   SELECT_LEX *first_select=unit->first_select(), *save_select;
   JOIN *join= first_select->join;
-  Item_func *eq= NULL, **eq_ref= NULL;
+  Item **eq_ref= NULL;
   Item_ident *local_field= NULL;
   Item *outer_exp= NULL;
   Item *left_exp= NULL; Item_in_subselect *in_subs;
@@ -2774,7 +2774,6 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
     {
       Item *item= it++;
       eq_ref= eqs.at(i).eq_ref;
-      eq= *eq_ref;
       local_field= eqs.at(i).local_field;
       outer_exp= eqs.at(i).outer_exp;
       /* Add the field to the SELECT_LIST */
@@ -2789,10 +2788,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
 
       /* remove the parts from condition */
       if (!upper_not || !local_field->maybe_null)
-      {
-        eq->arguments()[0]= new Item_int(1);
-        eq->arguments()[1]= new Item_int(1);
-      }
+        *eq_ref= new Item_int(1);
       else
       {
         *eq_ref= new Item_func_isnotnull(
