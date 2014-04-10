@@ -318,7 +318,7 @@ handle_slave_init(void *arg __attribute__((unused)))
 
   mysql_mutex_lock(&LOCK_thread_count);
   slave_init_thread_running= false;
-  mysql_cond_signal(&COND_thread_count);
+  mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
   return 0;
