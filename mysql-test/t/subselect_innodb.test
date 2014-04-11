@@ -513,5 +513,26 @@ explain select
     ORDER BY t2.id ASC LIMIT 1)
 from 
   t1;
-drop table t1, t2;
+
+--echo #
+--echo # MDEV-6081: ORDER BY+ref(const): selectivity is very incorrect (MySQL Bug#14338686)
+--echo #
+
+alter table t2 add key2 int;
+update t2 set key2=key1;
+alter table t2 add key(key2);
+analyze table t2;
+flush tables;
+--echo # Table tsubq must use 'ref' + Using filesort (not 'index' w/o filesort)
+--replace_column 9 #
+explain select 
+   (SELECT 
+      concat(id, '-', key1, '-', col1)
+    FROM t2
+    WHERE t2.key1 = t1.a
+    ORDER BY t2.key2 ASC LIMIT 1)
+from 
+  t1;
+
+drop table t1,t2;
 
