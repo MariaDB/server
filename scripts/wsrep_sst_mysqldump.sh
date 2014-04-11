@@ -54,10 +54,10 @@ then
 fi
 
 # Check client version
-if ! mysql --version | grep 'Distrib 5.5' >/dev/null
+if ! mysql --version | grep 'Distrib 10.0' >/dev/null
 then
     mysql --version >&2
-    wsrep_log_error "this operation requires MySQL client version 5.5.x"
+    wsrep_log_error "this operation requires MySQL client version 10.0.x"
     exit $EINVAL
 fi
 
@@ -78,15 +78,17 @@ set sql_mode='';
 
 USE mysql;
 
-SET @str = IF (@@have_csv = 'YES', 'CREATE TABLE IF NOT EXISTS general_log (event_time TIMESTAMP NOT NULL, user_host MEDIUMTEXT NOT NULL, thread_id INTEGER NOT NULL, server_id INTEGER UNSIGNED NOT NULL, command_type VARCHAR(64) NOT NULL,argument MEDIUMTEXT NOT NULL) engine=CSV CHARACTER SET utf8 comment=\"General log\"', 'SET @dummy = 0');
+SET @cond = (SELECT (SUPPORT = 'YES' or SUPPORT = 'DEFAULT') FROM INFORMATION_SCHEMA.ENGINES WHERE ENGINE = 'csv');
 
-PREPARE stmt FROM @str;
+SET @stmt = IF (@cond = '1', 'CREATE TABLE IF NOT EXISTS general_log ( event_time timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), user_host mediumtext NOT NULL, thread_id bigint(21) unsigned NOT NULL, server_id int(10) unsigned NOT NULL, command_type varchar(64) NOT NULL, argument mediumtext NOT NULL) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT=\"General log\"', 'SET @dummy = 0');
+
+PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DROP PREPARE stmt;
 
-SET @str = IF (@@have_csv = 'YES', 'CREATE TABLE IF NOT EXISTS slow_log (start_time TIMESTAMP NOT NULL, user_host MEDIUMTEXT NOT NULL, query_time TIME NOT NULL, lock_time TIME NOT NULL, rows_sent INTEGER NOT NULL, rows_examined INTEGER NOT NULL, db VARCHAR(512) NOT NULL, last_insert_id INTEGER NOT NULL, insert_id INTEGER NOT NULL, server_id INTEGER UNSIGNED NOT NULL, sql_text MEDIUMTEXT NOT NULL) engine=CSV CHARACTER SET utf8 comment=\"Slow log\"', 'SET @dummy = 0');
+SET @stmt = IF (@cond = '1', 'CREATE TABLE IF NOT EXISTS slow_log ( start_time timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6), user_host mediumtext NOT NULL, query_time time(6) NOT NULL, lock_time time(6) NOT NULL, rows_sent int(11) NOT NULL, rows_examined int(11) NOT NULL, db varchar(512) NOT NULL, last_insert_id int(11) NOT NULL, insert_id int(11) NOT NULL, server_id int(10) unsigned NOT NULL, sql_text mediumtext NOT NULL, thread_id bigint(21) unsigned NOT NULL) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT=\"Slow log\"', 'SET @dummy = 0');
 
-PREPARE stmt FROM @str;
+PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DROP PREPARE stmt;"
 
