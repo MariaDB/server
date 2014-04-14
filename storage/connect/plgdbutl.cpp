@@ -383,7 +383,7 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
   } // end of PlgGetCatalog
 
 /***********************************************************************/
-/*  PlgGetCatalog: returns CATALOG class pointer.                      */
+/*  PlgGetDataPath: returns the default data path.                     */
 /***********************************************************************/
 char *PlgGetDataPath(PGLOBAL g)
   {

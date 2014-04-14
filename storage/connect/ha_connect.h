@@ -165,7 +165,7 @@ public:
   // CONNECT Implementation
   static   bool connect_init(void);
   static   bool connect_end(void);
-  TABTYPE  GetRealType(PTOS pos);
+  TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE *table_arg);
   bool     GetBooleanOption(char *opname, bool bdef);

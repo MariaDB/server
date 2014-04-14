@@ -268,22 +268,22 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
     // For unspecified values, get the values of old style options
     // but only if called from MYSQLDEF, else set them to NULL
     Portnumber = (sport && sport[0]) ? atoi(sport) 
-               : (b) ? Cat->GetIntCatInfo("Port", GetDefaultPort()) : 0;
+               : (b) ? GetIntCatInfo("Port", GetDefaultPort()) : 0;
 
     if (Username[0] == 0)
-      Username = (b) ? Cat->GetStringCatInfo(g, "User", "*") : NULL;
+      Username = (b) ? GetStringCatInfo(g, "User", "*") : NULL;
 
     if (Hostname[0] == 0)
-      Hostname = (b) ? Cat->GetStringCatInfo(g, "Host", "localhost") : NULL;
+      Hostname = (b) ? GetStringCatInfo(g, "Host", "localhost") : NULL;
 
     if (!Database || !*Database)
-      Database = (b) ? Cat->GetStringCatInfo(g, "Database", "*") : NULL;
+      Database = (b) ? GetStringCatInfo(g, "Database", "*") : NULL;
 
     if (!Tabname || !*Tabname)
-      Tabname = (b) ? Cat->GetStringCatInfo(g, "Tabname", Name) : NULL;
+      Tabname = (b) ? GetStringCatInfo(g, "Tabname", Name) : NULL;
 
     if (!Password)
-      Password = (b) ? Cat->GetStringCatInfo(g, "Password", NULL) : NULL;
+      Password = (b) ? GetStringCatInfo(g, "Password", NULL) : NULL;
     } // endif URL
 
 #if 0
@@ -308,37 +308,37 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   if (stricmp(am, "MYPRX")) {
     // Normal case of specific MYSQL table
-    url = Cat->GetStringCatInfo(g, "Connect", NULL);
+    url = GetStringCatInfo(g, "Connect", NULL);
 
     if (!url || !*url) { 
       // Not using the connection URL
-      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
-      Database = Cat->GetStringCatInfo(g, "Database", "*");
-      Tabname = Cat->GetStringCatInfo(g, "Name", Name); // Deprecated
-      Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-      Username = Cat->GetStringCatInfo(g, "User", "*");
-      Password = Cat->GetStringCatInfo(g, "Password", NULL);
-      Portnumber = Cat->GetIntCatInfo("Port", GetDefaultPort());
+      Hostname = GetStringCatInfo(g, "Host", "localhost");
+      Database = GetStringCatInfo(g, "Database", "*");
+      Tabname = GetStringCatInfo(g, "Name", Name); // Deprecated
+      Tabname = GetStringCatInfo(g, "Tabname", Tabname);
+      Username = GetStringCatInfo(g, "User", "*");
+      Password = GetStringCatInfo(g, "Password", NULL);
+      Portnumber = GetIntCatInfo("Port", GetDefaultPort());
       Server = Hostname;
     } else if (ParseURL(g, url))
       return true;
 
-    Bind = !!Cat->GetIntCatInfo("Bind", 0);
-    Delayed = !!Cat->GetIntCatInfo("Delayed", 0);
+    Bind = !!GetIntCatInfo("Bind", 0);
+    Delayed = !!GetIntCatInfo("Delayed", 0);
   } else {
     // MYSQL access from a PROXY table 
-    Database = Cat->GetStringCatInfo(g, "Database", "*");
-    Isview = Cat->GetBoolCatInfo("View", FALSE);
+    Database = GetStringCatInfo(g, "Database", "*");
+    Isview = GetBoolCatInfo("View", FALSE);
 
     // We must get other connection parms from the calling table
     Remove_tshp(Cat);
-    url = Cat->GetStringCatInfo(g, "Connect", NULL);
+    url = GetStringCatInfo(g, "Connect", NULL);
 
     if (!url || !*url) { 
-      Hostname = Cat->GetStringCatInfo(g, "Host", "localhost");
-      Username = Cat->GetStringCatInfo(g, "User", "*");
-      Password = Cat->GetStringCatInfo(g, "Password", NULL);
-      Portnumber = Cat->GetIntCatInfo("Port", GetDefaultPort());
+      Hostname = GetStringCatInfo(g, "Host", "localhost");
+      Username = GetStringCatInfo(g, "User", "*");
+      Password = GetStringCatInfo(g, "Password", NULL);
+      Portnumber = GetIntCatInfo("Port", GetDefaultPort());
       Server = Hostname;
     } else {
       char *locdb = Database;
@@ -352,16 +352,16 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Tabname = Name;
   } // endif am
 
-  if ((Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL)))
+  if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
     Isview = true;
 
   // Used for Update and Delete
-  Qrystr = Cat->GetStringCatInfo(g, "Query_String", "?");
-  Quoted = Cat->GetIntCatInfo("Quoted", 0);
+  Qrystr = GetStringCatInfo(g, "Query_String", "?");
+  Quoted = GetIntCatInfo("Quoted", 0);
 
   // Specific for command executing tables
-  Xsrc = Cat->GetBoolCatInfo("Execsrc", false);
-  Mxr = Cat->GetIntCatInfo("Maxerr", 0);
+  Xsrc = GetBoolCatInfo("Execsrc", false);
+  Mxr = GetIntCatInfo("Maxerr", 0);
   return FALSE;
   } // end of DefineAM
 

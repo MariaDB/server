@@ -619,10 +619,16 @@ static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp)
 /****************************************************************************/
 TABTYPE ha_connect::GetRealType(PTOS pos)
 {
-  TABTYPE type= GetTypeID(pos->type);
+  TABTYPE type;
+  
+  if (pos || (pos= GetTableOptionStruct(table))) {
+    type= GetTypeID(pos->type);
 
-  if (type == TAB_UNDEF)
-    type= pos->srcdef ? TAB_MYSQL : pos->tabname ? TAB_PRX : TAB_DOS;
+    if (type == TAB_UNDEF)
+      type= pos->srcdef ? TAB_MYSQL : pos->tabname ? TAB_PRX : TAB_DOS;
+
+  } else
+    type= TAB_UNDEF;
 
   return type;
 } // end of GetRealType
@@ -2802,11 +2808,20 @@ int ha_connect::info(uint flag)
   if (!valid_info) {
     // tdbp must be available to get updated info
     if (xp->CheckQuery(valid_query_id) || !tdbp) {
+      PDBUSER dup= PlgGetUser(g);
+      PCATLG  cat= (dup) ? dup->Catalog : NULL;
+
       if (xmod == MODE_ANY || xmod == MODE_ALTER) {
         // Pure info, not a query
         pure= true;
         xp->CheckCleanup();
         } // endif xmod
+
+      // This is necessary for getting file length
+      if (cat && table)
+        cat->SetDataPath(g, table->s->db.str);
+      else
+        return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
       tdbp= GetTDB(g);
       } // endif tdbp
@@ -4796,7 +4811,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     // Get the index definitions
     if (xdp= GetIndexInfo()) {
-      if (IsTypeIndexable(type)) {
+      if (GetIndexType(type) == 1) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
     
@@ -4812,7 +4827,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     
           } // endif cat
     
-      } else {
+      } else if (!GetIndexType(type)) {
         sprintf(g->Message, "Table type %s is not indexable", options->type);
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_UNSUPPORTED;
@@ -5106,35 +5121,36 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   if (ha_alter_info->handler_flags & index_operations ||
       !SameString(altered_table, "optname") ||
       !SameBool(altered_table, "sepindex")) {
-    if (!IsTypeIndexable(type)) {
+    if (GetIndexType(type) == 1) {
+      g->Xchk= new(g) XCHK;
+      PCHK xcp= (PCHK)g->Xchk;
+  
+      xcp->oldpix= GetIndexInfo(table->s);
+      xcp->newpix= GetIndexInfo(altered_table->s);
+      xcp->oldsep= GetBooleanOption("sepindex", false);
+      xcp->oldsep= xcp->SetName(g, GetStringOption("optname"));
+      tshp= altered_table->s;
+      xcp->newsep= GetBooleanOption("sepindex", false);
+      xcp->newsep= xcp->SetName(g, GetStringOption("optname"));
+      tshp= NULL;
+  
+      if (xtrace && g->Xchk)
+        htrc(
+          "oldsep=%d newsep=%d oldopn=%s newopn=%s oldpix=%p newpix=%p\n",
+                xcp->oldsep, xcp->newsep, 
+                SVP(xcp->oldopn), SVP(xcp->newopn), 
+                xcp->oldpix, xcp->newpix);
+  
+      if (sqlcom == SQLCOM_ALTER_TABLE)
+        idx= true;
+      else
+        DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+
+    } else if (!GetIndexType(type)) {
       sprintf(g->Message, "Table type %s is not indexable", oldopt->type);
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       DBUG_RETURN(HA_ALTER_ERROR);
-     } // endif Indexable
-
-    g->Xchk= new(g) XCHK;
-    PCHK xcp= (PCHK)g->Xchk;
-
-    xcp->oldpix= GetIndexInfo(table->s);
-    xcp->newpix= GetIndexInfo(altered_table->s);
-    xcp->oldsep= GetBooleanOption("sepindex", false);
-    xcp->oldsep= xcp->SetName(g, GetStringOption("optname"));
-    tshp= altered_table->s;
-    xcp->newsep= GetBooleanOption("sepindex", false);
-    xcp->newsep= xcp->SetName(g, GetStringOption("optname"));
-    tshp= NULL;
-
-    if (xtrace && g->Xchk)
-      htrc(
-        "oldsep=%d newsep=%d oldopn=%s newopn=%s oldpix=%p newpix=%p\n",
-              xcp->oldsep, xcp->newsep, 
-              SVP(xcp->oldopn), SVP(xcp->newopn), 
-              xcp->oldpix, xcp->newpix);
-
-    if (sqlcom == SQLCOM_ALTER_TABLE)
-      idx= true;
-    else
-      DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+    } // endif index type
 
     } // endif index operation
 

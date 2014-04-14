@@ -78,10 +78,10 @@ bool XCLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char buf[8];
 
-  Xcol = Cat->GetStringCatInfo(g, "Colname", "");
-  Cat->GetCharCatInfo("Separator", ",", buf, sizeof(buf));
+  Xcol = GetStringCatInfo(g, "Colname", "");
+  GetCharCatInfo("Separator", ",", buf, sizeof(buf));
   Sep = (strlen(buf) == 2 && buf[0] == '\\' && buf[1] == 't') ? '\t' : *buf;
-  Mult = Cat->GetIntCatInfo("Mult", 10);
+  Mult = GetIntCatInfo("Mult", 10);
   return PRXDEF::DefineAM(g, am, poff);
   } // end of DefineAM
 

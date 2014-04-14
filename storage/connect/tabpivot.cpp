@@ -344,11 +344,11 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   DB = (char*)Tablep->GetQualifier();
   Tabsrc = (char*)Tablep->GetSrc();
 
-  Host = Cat->GetStringCatInfo(g, "Host", "localhost");
-  User = Cat->GetStringCatInfo(g, "User", "*");
-  Pwd = Cat->GetStringCatInfo(g, "Password", NULL);
-  Picol = Cat->GetStringCatInfo(g, "PivotCol", NULL);
-  Fncol = Cat->GetStringCatInfo(g, "FncCol", NULL);
+  Host = GetStringCatInfo(g, "Host", "localhost");
+  User = GetStringCatInfo(g, "User", "*");
+  Pwd = GetStringCatInfo(g, "Password", NULL);
+  Picol = GetStringCatInfo(g, "PivotCol", NULL);
+  Fncol = GetStringCatInfo(g, "FncCol", NULL);
   
   // If fncol is like avg(colname), separate Fncol and Function
   if (Fncol && (p1 = strchr(Fncol, '(')) && (p2 = strchr(p1, ')')) &&
@@ -357,11 +357,11 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Function = Fncol;
     Fncol = p1;
   } else
-    Function = Cat->GetStringCatInfo(g, "Function", "SUM");
+    Function = GetStringCatInfo(g, "Function", "SUM");
 
-  GBdone = Cat->GetBoolCatInfo("Groupby", false);
-  Accept = Cat->GetBoolCatInfo("Accept", false);
-  Port = Cat->GetIntCatInfo("Port", 3306);
+  GBdone = GetBoolCatInfo("Groupby", false);
+  Accept = GetBoolCatInfo("Accept", false);
+  Port = GetIntCatInfo("Port", 3306);
   Desc = (Tabsrc) ? Tabsrc : Tabname;
   return FALSE;
   } // end of DefineAM
