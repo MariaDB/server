@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013 SkySQL Ab. All Rights Reserved.
+Copyright (C) 2013, 2014 SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -21,6 +21,12 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "fsp0fsp.h"
 #include "fsp0pagecompress.h"
+
+#define PAGE_UNCOMPRESSED   0
+#define PAGE_ZLIB_ALGORITHM 1
+#define PAGE_LZ4_ALGORITHM  2
+#define PAGE_LZO_ALGORITHM  3
+#define PAGE_ALGORITHM_LAST PAGE_LZO_ALGORITHM
 
 /******************************************************************//**
 @file include/fil0pagecompress.h
@@ -85,7 +91,9 @@ fil_compress_page(
         byte*           out_buf,       /*!< out: compressed buffer */
         ulint           len,           /*!< in: length of input buffer.*/
         ulint           compression_level, /*!< in: compression level */
-	ulint*          out_len);       /*!< out: actual length of compressed page */
+	ulint*          out_len,       /*!< out: actual length of compressed
+				       page */
+	byte*		lzo_mem);      /*!< in: temporal memory used by LZO */
 
 /****************************************************************//**
 For page compressed pages decompress the page after actual read

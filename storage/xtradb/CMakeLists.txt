@@ -19,8 +19,10 @@ INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
 INCLUDE(lz4)
+INCLUDE(lzo)
 
-MYSQL_CHECK_LZ4()
+MYSQL_CHECK_LZ4_STATIC()
+MYSQL_CHECK_LZO_STATIC()
 
 # OS tests
 IF(UNIX)

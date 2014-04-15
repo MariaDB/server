@@ -103,6 +103,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #endif /* UNIV_DEBUG */
 #include "fts0priv.h"
 #include "page0zip.h"
+#include "fil0pagecompress.h"
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -17947,12 +17948,20 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   "Use trim. Default FALSE.",
   NULL, NULL, FALSE);
 
-#ifdef HAVE_LZ4
-static MYSQL_SYSVAR_BOOL(use_lz4, srv_use_lz4,
-  PLUGIN_VAR_OPCMDARG ,
-  "Use LZ4 for page compression",
-  NULL, NULL, FALSE);
-#endif /* HAVE_LZ4 */
+static MYSQL_SYSVAR_LONG(compression_algorithm, innodb_compression_algorithm,
+  PLUGIN_VAR_OPCMDARG,
+  "Compression algorithm used on page compression. 1 for zlib, 2 for lz3, 3 for lzo",
+  NULL, NULL,
+  PAGE_ZLIB_ALGORITHM,
+  0,
+#if defined(HAVE_LZO) && defined(HAVE_LZ4)
+  PAGE_ALGORITHM_LAST,
+#elif defined(HAVE_LZ4) && !defined(HAVE_LZO)
+  PAGE_ALGORITHM_LZ4,
+#else
+  PAGE_ALGORITHM_ZLIB,
+#endif
+  0);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -18159,9 +18168,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(locking_fake_changes),
   MYSQL_SYSVAR(use_stacktrace),
   MYSQL_SYSVAR(use_trim),
-#ifdef HAVE_LZ4
-  MYSQL_SYSVAR(use_lz4),
-#endif
+  MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
   NULL

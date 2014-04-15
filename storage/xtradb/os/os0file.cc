@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -78,6 +78,10 @@ Created 10/21/1995 Heikki Tuuri
 # ifndef DFS_IOCTL_ATOMIC_WRITE_SET
 #  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
 # endif
+#endif
+
+#ifdef HAVE_LZO
+#include "lzo/lzo1x.h"
 #endif
 
 /** Insert buffer segment id */
@@ -230,6 +234,12 @@ struct os_aio_slot_t{
 	int		n_bytes;	/* bytes written/read. */
 	int		ret;		/* AIO return code */
 #endif /* WIN_ASYNC_IO */
+#ifdef HAVE_LZO
+	byte		lzo_mem[LZO1X_1_15_MEM_COMPRESS];
+#else
+	byte		lzo_mem;	/* Temporal memory used by LZO */
+#endif
+
 };
 
 /** The asynchronous i/o array structure */
@@ -4596,7 +4606,15 @@ found:
 
 		ut_ad(slot->page_buf);
 
-		tmp = fil_compress_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf, len, page_compression_level, &real_len);
+		/* Call page compression */
+		tmp = fil_compress_page(fil_node_get_space_id(slot->message1),
+			(byte *)buf,
+			slot->page_buf,
+			len,
+			page_compression_level,
+			&real_len,
+			slot->lzo_mem
+		);
 
 		/* If compression succeeded, set up the length and buffer */
 		if (tmp != buf) {

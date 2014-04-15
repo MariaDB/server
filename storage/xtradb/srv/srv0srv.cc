@@ -73,6 +73,7 @@ Created 10/8/1995 Heikki Tuuri
 
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0pagecompress.h"
 
 /* prototypes of new functions added to ha_innodb.cc for kill_idle_transaction */
 ibool		innobase_thd_is_idle(const void* thd);
@@ -172,7 +173,7 @@ UNIV_INTERN my_bool     srv_use_posix_fallocate         = FALSE;
 /* If this flag is TRUE, then we disable doublewrite buffer */
 UNIV_INTERN my_bool     srv_use_atomic_writes           = FALSE;
 /* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
-UNIV_INTERN my_bool	srv_use_lz4                     = FALSE;
+UNIV_INTERN long	innodb_compression_algorithm = PAGE_ZLIB_ALGORITHM;
 /* Number of threads used for multi-threaded flush */
 UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
 /* If this flag is TRUE, then we will use multi threaded flush. */

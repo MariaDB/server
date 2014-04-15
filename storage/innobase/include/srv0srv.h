@@ -249,8 +249,8 @@ extern my_bool srv_use_posix_fallocate;
 /* Use atomic writes i.e disable doublewrite buffer */
 extern my_bool srv_use_atomic_writes;
 
-/* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
-extern my_bool srv_use_lz4;
+/* Compression algorithm*/
+extern long innodb_compression_algorithm;
 
 /* Number of flush threads */
 #define MTFLUSH_MAX_WORKER       64
