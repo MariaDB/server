@@ -17,6 +17,10 @@
 
 # This is a reference script for mysqldump-based state snapshot tansfer
 
+# This variable is not used in mysqldump sst, so better initialize it
+# to avoid shell's "parameter not set" message.
+WSREP_SST_OPT_CONF=""
+
 . $(dirname $0)/wsrep_sst_common
 
 EINVAL=22
@@ -119,5 +123,4 @@ else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL
 fi
-wsrep_cleanup_progress_file
-#
+
