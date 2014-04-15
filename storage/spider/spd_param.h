@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software); you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -370,3 +370,16 @@ int spider_param_udf_ds_use_real_table(
 #endif
 my_bool spider_param_general_log();
 uint spider_param_log_result_errors();
+uint spider_param_log_result_error_with_sql();
+uint spider_param_internal_xa_id_type(
+  THD *thd
+);
+int spider_param_casual_read(
+  THD *thd,
+  int casual_read
+);
+my_bool spider_param_dry_access();
+int spider_param_delete_all_rows_type(
+  THD *thd,
+  int delete_all_rows_type
+);

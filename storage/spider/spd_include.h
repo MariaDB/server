@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -12,6 +12,9 @@
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+
+#define SPIDER_DETAIL_VERSION "3.2.0"
+#define SPIDER_HEX_VERSION 0x0302
 
 #if MYSQL_VERSION_ID < 50500
 #else
@@ -77,8 +80,13 @@
 #define spider_stmt_da_message(A) (A)->main_da.message()
 #define spider_stmt_da_sql_errno(A) (A)->main_da.sql_errno()
 #else
+#if MYSQL_VERSION_ID < 50600
 #define spider_stmt_da_message(A) (A)->stmt_da->message()
 #define spider_stmt_da_sql_errno(A) (A)->stmt_da->sql_errno()
+#else
+#define spider_stmt_da_message(A) (A)->get_stmt_da()->message()
+#define spider_stmt_da_sql_errno(A) (A)->get_stmt_da()->sql_errno()
+#endif
 #endif
 #define spider_user_defined_key_parts(A) (A)->key_parts
 #define SPIDER_ALTER_ADD_PARTITION        ALTER_ADD_PARTITION
@@ -89,6 +97,12 @@
 #define SPIDER_ALTER_REBUILD_PARTITION    ALTER_REBUILD_PARTITION
 #define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
+#endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100009
+#define SPIDER_TEST(A) MY_TEST(A)
+#else
+#define SPIDER_TEST(A) test(A)
 #endif
 
 #if MYSQL_VERSION_ID >= 50500
@@ -118,7 +132,7 @@
 #define SPIDER_TMP_SHARE_LONG_COUNT         15
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           243
+#define SPIDER_MEM_CALC_LIST_NUM           244
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;
@@ -134,7 +148,7 @@
 #define SPIDER_SET_FILE_POS(A) \
   {(A)->thd = current_thd; (A)->func_name = __func__; (A)->file_name = __FILE__; (A)->line_no = __LINE__;}
 #define SPIDER_CLEAR_FILE_POS(A) \
-  {(A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
+  {DBUG_PRINT("info", ("spider thd=%p func_name=%s file_name=%s line_no=%lu", (A)->thd, (A)->func_name ? (A)->func_name : "NULL", (A)->file_name ? (A)->file_name : "NULL", (A)->line_no)); (A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
 
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;
@@ -261,6 +275,9 @@ typedef struct st_spider_conn
   uint               opened_handlers;
   ulonglong          conn_id;
   ulonglong          connection_id;
+  query_id_t         casual_read_query_id;
+  uint               casual_read_current_id;
+  st_spider_conn     *casual_read_base_conn;
   pthread_mutex_t    mta_conn_mutex;
   volatile bool      mta_conn_mutex_lock_already;
   volatile bool      mta_conn_mutex_unlock_later;
@@ -473,6 +490,7 @@ typedef struct st_spider_transaction
   bool               trx_start;
   bool               trx_xa;
   bool               trx_consistent_snapshot;
+  bool               trx_xa_prepared;
 
   bool               use_consistent_snapshot;
   bool               internal_xa;
@@ -571,6 +589,18 @@ typedef struct st_spider_transaction
   longlong           current_alloc_mem_buffer[SPIDER_MEM_CALC_LIST_NUM];
   ulonglong          alloc_mem_count_buffer[SPIDER_MEM_CALC_LIST_NUM];
   ulonglong          free_mem_count_buffer[SPIDER_MEM_CALC_LIST_NUM];
+
+  MEM_ROOT           mem_root;
+
+  /* for transaction level query */
+  SPIDER_SHARE       *tmp_share;
+  char               *tmp_connect_info[SPIDER_TMP_SHARE_CHAR_PTR_COUNT];
+  uint               tmp_connect_info_length[SPIDER_TMP_SHARE_UINT_COUNT];
+  long               tmp_long[SPIDER_TMP_SHARE_LONG_COUNT];
+  longlong           tmp_longlong[SPIDER_TMP_SHARE_LONGLONG_COUNT];
+  ha_spider          *tmp_spider;
+  int                tmp_need_mon;
+  spider_db_handler  *tmp_dbton_handler[SPIDER_DBTON_SIZE];
 } SPIDER_TRX;
 
 typedef struct st_spider_share
@@ -734,6 +764,8 @@ typedef struct st_spider_share
 #ifdef HA_CAN_FORCE_BULK_DELETE
   int                force_bulk_delete;
 #endif
+  int                casual_read;
+  int                delete_all_rows_type;
 
   int                bka_mode;
   char               *bka_engine;

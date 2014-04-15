@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2013 Kentoku Shiba
+/* Copyright (C) 2012-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -493,6 +493,7 @@ public:
   int                     hs_skip;
   spider_handlersocket_share *handlersocket_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
+  uchar                   *minimum_select_bitmap;
   spider_handlersocket_handler(
     ha_spider *spider,
     spider_handlersocket_share *db_share
@@ -627,7 +628,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   );
   int append_is_null(
     ulong sql_type,
@@ -637,7 +639,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   );
   int append_where_terminator_part(
     ulong sql_type,
@@ -671,6 +674,13 @@ public:
   void set_order_to_pos(
     ulong sql_type
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  );
+#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,
@@ -928,6 +938,7 @@ public:
   bool support_use_handler(
     int use_handler
   );
+  void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(
     uint field_index
   );
