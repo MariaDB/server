@@ -5181,6 +5181,7 @@ restart:
        thd->lex->sql_command== SQLCOM_LOAD           ||
        thd->lex->sql_command== SQLCOM_DELETE)        &&
       wsrep_replicate_myisam                         &&
+      (*start)                                       &&
       (*start)->table && (*start)->table->file->ht->db_type == DB_TYPE_MYISAM)
     {
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));

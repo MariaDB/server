@@ -934,8 +934,9 @@ wait_signal:
     else
     {
       WSREP_ERROR("Failed to read from: %s", proc.cmd());
+      proc.wait();
     }
-    if (err && proc.error()) err= proc.error();
+    if (!err && proc.error()) err= proc.error();
   }
   else
   {

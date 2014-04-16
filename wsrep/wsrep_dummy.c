@@ -388,4 +388,3 @@ int wsrep_dummy_loader(wsrep_t* w)
 
     return 0;
 }
-

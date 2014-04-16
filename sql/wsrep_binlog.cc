@@ -320,3 +320,59 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
   }
 }
 
+void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache)
+{
+  char filename[PATH_MAX]= {0};
+  int len= snprintf(filename, PATH_MAX, "%s/GRA_%ld_%lld.log",
+                    wsrep_data_home_dir, thd->thread_id,
+                    (long long)wsrep_thd_trx_seqno(thd));
+  size_t bytes_in_cache = 0;
+  // check path
+  if (len >= PATH_MAX)
+  {
+    WSREP_ERROR("RBR dump path too long: %d, skipping dump.", len);
+    return ;
+  }
+  // init cache
+  my_off_t const saved_pos(my_b_tell(cache));
+  if (reinit_io_cache(cache, READ_CACHE, 0, 0, 0))
+  {
+    WSREP_ERROR("failed to initialize io-cache");
+    return ;
+  }
+  // open file
+  FILE* of = fopen(filename, "wb");
+  if (!of)
+  {
+    WSREP_ERROR("Failed to open file '%s': %d (%s)",
+                filename, errno, strerror(errno));
+    goto cleanup;
+  }
+  // ready to write
+  bytes_in_cache= my_b_bytes_in_cache(cache);
+  if (unlikely(bytes_in_cache == 0)) bytes_in_cache = my_b_fill(cache);
+  if (likely(bytes_in_cache > 0)) do
+  {
+    if (my_fwrite(of, cache->read_pos, bytes_in_cache,
+                  MYF(MY_WME | MY_NABP)) == (size_t) -1)
+    {
+      WSREP_ERROR("Failed to write file '%s'", filename);
+      goto cleanup;
+    }
+    cache->read_pos= cache->read_end;
+  } while ((cache->file >= 0) && (bytes_in_cache= my_b_fill(cache)));
+  if(cache->error == -1)
+  {
+    WSREP_ERROR("RBR inconsistent");
+    goto cleanup;
+  }
+cleanup:
+  // init back
+  if (reinit_io_cache(cache, WRITE_CACHE, saved_pos, 0, 0))
+  {
+    WSREP_ERROR("failed to reinitialize io-cache");
+  }
+  // close file
+  if (of) fclose(of);
+}
+

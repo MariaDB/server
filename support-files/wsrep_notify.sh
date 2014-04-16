@@ -87,6 +87,7 @@ do
     --members)
         MEMBERS=$2
         shift
+        fi
         ;;
     esac
     shift

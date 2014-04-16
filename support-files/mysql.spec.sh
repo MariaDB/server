@@ -1207,6 +1207,7 @@ echo "====="                                     >> $STATUS_HISTORY
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync
 %attr(755, root, root) %{_bindir}/wsrep_sst_rsync_wan
 %attr(755, root, root) %{_bindir}/wsrep_sst_xtrabackup
+%attr(755, root, root) %{_bindir}/wsrep_sst_xtrabackup-v2
 %endif
 
 %attr(755, root, root) %{_sbindir}/mysqld

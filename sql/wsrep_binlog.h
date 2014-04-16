@@ -46,4 +46,7 @@ int wsrep_write_cache (wsrep_t*  wsrep,
 /* Dump replication buffer to disk */
 void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len);
 
+/* Dump replication buffer to disk without intermediate buffer */
+void wsrep_dump_rbr_direct(THD* thd, IO_CACHE* cache);
+
 #endif /* WSREP_BINLOG_H */

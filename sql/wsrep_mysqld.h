@@ -95,6 +95,8 @@ extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
+extern my_bool     wsrep_restart_slave;
+extern my_bool     wsrep_restart_slave_activated;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 
