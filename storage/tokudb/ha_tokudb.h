@@ -794,6 +794,11 @@ private:
     bool check_upsert(THD *thd, List<Item> &update_fields, List<Item> &update_values);
     int send_upsert_message(THD *thd, List<Item> &update_fields, List<Item> &update_values, DB_TXN *txn);
 #endif
+#ifdef WITH_WSREP
+	int wsrep_append_keys(THD *thd, bool shared,
+			      const uchar* record0, const uchar* record1);
+#endif
+
 public:
     // mysql sometimes retires a txn before a cursor that references the txn is closed.
     // for example, commit is sometimes called before index_end.  the following methods
@@ -822,11 +827,6 @@ static inline bool key_is_clustering(const KEY *key) {
 static inline bool key_is_clustering(const KEY *key) {
     return key->option_struct && key->option_struct->clustering;
 }
-#endif
-
-#ifdef WITH_WSREP
-	int wsrep_append_keys(THD *thd, bool shared,
-			      const uchar* record0, const uchar* record1);
 #endif
 
 #endif
