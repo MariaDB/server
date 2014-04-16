@@ -24,13 +24,28 @@ SET GLOBAL wsrep_replicate_myisam= OFF;
 CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
 
 --replace_column 2 #
-SHOW VARIABLES LIKE 'wsrep%';
+SHOW GLOBAL STATUS LIKE 'wsrep%';
 
 --echo
 --replace_column 2 #
-SHOW VARIABLES LIKE 'wsrep_%';
+SHOW GLOBAL STATUS LIKE 'wsrep_%';
+
+SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 
 --echo # Should show nothing.
-SHOW VARIABLES LIKE 'x';
+SHOW STATUS LIKE 'x';
+
+--echo #
+--echo # MDEV#6079: xtrabackup SST failing with maria-10.0-galera
+--echo #
+
+# The following 2 variables are used in innobackupex during xtrabackup-based
+# SST.
+--echo
+--replace_column 2 #
+SHOW STATUS LIKE 'wsrep_local_state_uuid';
+--echo
+--replace_column 2 #
+SHOW STATUS LIKE 'wsrep_last_committed';
 
 --echo # End of test.

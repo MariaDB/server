@@ -2947,11 +2947,39 @@ static bool show_status_array(THD *thd, const char *wild,
     *prefix_end++= '_';
   len=name_buffer + sizeof(name_buffer) - prefix_end;
 
+#ifdef WITH_WSREP
+  bool is_wsrep_var= FALSE;
+  /*
+    This is a workaround for lp:1306875 (PBX) to skip switching of wsrep
+    status variable name's first letter to uppercase. This is an optimization
+    for status variables defined under wsrep plugin.
+    TODO: remove once lp:1306875 has been addressed.
+  */
+  if (*prefix && !my_strcasecmp(system_charset_info, prefix, "wsrep"))
+  {
+    is_wsrep_var= TRUE;
+  }
+#endif /* WITH_WSREP */
+
   for (; variables->name; variables++)
   {
     bool wild_checked;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
+
+#ifdef WITH_WSREP
+    /*
+      If the prefix is NULL, that means we are looking into the status variables
+      defined directly under mysqld.cc. Do not capitalize wsrep status variable
+      names until lp:1306875 has been fixed.
+      TODO: remove once lp:1306875 has been addressed.
+     */
+    if (!(*prefix) && !strncasecmp(name_buffer, "wsrep", strlen("wsrep")))
+    {
+      is_wsrep_var= TRUE;
+    }
+#endif /* WITH_WSREP */
+
     if (ucase_names)
       my_caseup_str(system_charset_info, name_buffer);
     else
@@ -2960,8 +2988,13 @@ static bool show_status_array(THD *thd, const char *wild,
       DBUG_ASSERT(name_buffer[0] >= 'a');
       DBUG_ASSERT(name_buffer[0] <= 'z');
 
+#ifdef WITH_WSREP
+      // TODO: remove once lp:1306875 has been addressed.
+      if (status_var && (is_wsrep_var == FALSE))
+#else
       /* traditionally status variables have a first letter uppercased */
       if (status_var)
+#endif /* WITH_WSREP */
         name_buffer[0]-= 'a' - 'A';
     }
 

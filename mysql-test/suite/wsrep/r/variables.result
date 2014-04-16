@@ -16,84 +16,118 @@ SET GLOBAL wsrep_replicate_myisam= OFF;
 # variables when using "_"
 #
 CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
-SHOW VARIABLES LIKE 'wsrep%';
+SHOW GLOBAL STATUS LIKE 'wsrep%';
 Variable_name	Value
-wsrep_osu_method	#
-wsrep_auto_increment_control	#
+wsrep_local_state_uuid	#
+wsrep_protocol_version	#
+wsrep_last_committed	#
+wsrep_replicated	#
+wsrep_replicated_bytes	#
+wsrep_repl_keys	#
+wsrep_repl_keys_bytes	#
+wsrep_repl_data_bytes	#
+wsrep_repl_other_bytes	#
+wsrep_received	#
+wsrep_received_bytes	#
+wsrep_local_commits	#
+wsrep_local_cert_failures	#
+wsrep_local_replays	#
+wsrep_local_send_queue	#
+wsrep_local_send_queue_avg	#
+wsrep_local_recv_queue	#
+wsrep_local_recv_queue_avg	#
+wsrep_local_cached_downto	#
+wsrep_flow_control_paused_ns	#
+wsrep_flow_control_paused	#
+wsrep_flow_control_sent	#
+wsrep_flow_control_recv	#
+wsrep_cert_deps_distance	#
+wsrep_apply_oooe	#
+wsrep_apply_oool	#
+wsrep_apply_window	#
+wsrep_commit_oooe	#
+wsrep_commit_oool	#
+wsrep_commit_window	#
+wsrep_local_state	#
+wsrep_local_state_comment	#
+wsrep_cert_index_size	#
 wsrep_causal_reads	#
-wsrep_certify_nonpk	#
-wsrep_cluster_address	#
-wsrep_cluster_name	#
-wsrep_convert_lock_to_trx	#
-wsrep_data_home_dir	#
-wsrep_dbug_option	#
-wsrep_debug	#
-wsrep_desync	#
-wsrep_drupal_282555_workaround	#
-wsrep_forced_binlog_format	#
-wsrep_load_data_splitting	#
-wsrep_log_conflicts	#
-wsrep_max_ws_rows	#
-wsrep_max_ws_size	#
-wsrep_mysql_replication_bundle	#
-wsrep_node_address	#
-wsrep_node_incoming_address	#
-wsrep_node_name	#
-wsrep_notify_cmd	#
-wsrep_on	#
-wsrep_provider	#
-wsrep_provider_options	#
-wsrep_recover	#
-wsrep_replicate_myisam	#
-wsrep_restart_slave	#
-wsrep_retry_autocommit	#
-wsrep_slave_threads	#
-wsrep_sst_auth	#
-wsrep_sst_donor	#
-wsrep_sst_donor_rejects_queries	#
-wsrep_sst_method	#
-wsrep_sst_receive_address	#
-wsrep_start_position	#
+wsrep_incoming_addresses	#
+wsrep_cluster_conf_id	#
+wsrep_cluster_size	#
+wsrep_cluster_state_uuid	#
+wsrep_cluster_status	#
+wsrep_connected	#
+wsrep_local_bf_aborts	#
+wsrep_local_index	#
+wsrep_provider_name	#
+wsrep_provider_vendor	#
+wsrep_provider_version	#
+wsrep_ready	#
 
-SHOW VARIABLES LIKE 'wsrep_%';
+SHOW GLOBAL STATUS LIKE 'wsrep_%';
 Variable_name	Value
-wsrep_osu_method	#
-wsrep_auto_increment_control	#
+wsrep_local_state_uuid	#
+wsrep_protocol_version	#
+wsrep_last_committed	#
+wsrep_replicated	#
+wsrep_replicated_bytes	#
+wsrep_repl_keys	#
+wsrep_repl_keys_bytes	#
+wsrep_repl_data_bytes	#
+wsrep_repl_other_bytes	#
+wsrep_received	#
+wsrep_received_bytes	#
+wsrep_local_commits	#
+wsrep_local_cert_failures	#
+wsrep_local_replays	#
+wsrep_local_send_queue	#
+wsrep_local_send_queue_avg	#
+wsrep_local_recv_queue	#
+wsrep_local_recv_queue_avg	#
+wsrep_local_cached_downto	#
+wsrep_flow_control_paused_ns	#
+wsrep_flow_control_paused	#
+wsrep_flow_control_sent	#
+wsrep_flow_control_recv	#
+wsrep_cert_deps_distance	#
+wsrep_apply_oooe	#
+wsrep_apply_oool	#
+wsrep_apply_window	#
+wsrep_commit_oooe	#
+wsrep_commit_oool	#
+wsrep_commit_window	#
+wsrep_local_state	#
+wsrep_local_state_comment	#
+wsrep_cert_index_size	#
 wsrep_causal_reads	#
-wsrep_certify_nonpk	#
-wsrep_cluster_address	#
-wsrep_cluster_name	#
-wsrep_convert_lock_to_trx	#
-wsrep_data_home_dir	#
-wsrep_dbug_option	#
-wsrep_debug	#
-wsrep_desync	#
-wsrep_drupal_282555_workaround	#
-wsrep_forced_binlog_format	#
-wsrep_load_data_splitting	#
-wsrep_log_conflicts	#
-wsrep_max_ws_rows	#
-wsrep_max_ws_size	#
-wsrep_mysql_replication_bundle	#
-wsrep_node_address	#
-wsrep_node_incoming_address	#
-wsrep_node_name	#
-wsrep_notify_cmd	#
-wsrep_on	#
-wsrep_provider	#
-wsrep_provider_options	#
-wsrep_recover	#
-wsrep_replicate_myisam	#
-wsrep_restart_slave	#
-wsrep_retry_autocommit	#
-wsrep_slave_threads	#
-wsrep_sst_auth	#
-wsrep_sst_donor	#
-wsrep_sst_donor_rejects_queries	#
-wsrep_sst_method	#
-wsrep_sst_receive_address	#
-wsrep_start_position	#
-# Should show nothing.
-SHOW VARIABLES LIKE 'x';
+wsrep_incoming_addresses	#
+wsrep_cluster_conf_id	#
+wsrep_cluster_size	#
+wsrep_cluster_state_uuid	#
+wsrep_cluster_status	#
+wsrep_connected	#
+wsrep_local_bf_aborts	#
+wsrep_local_index	#
+wsrep_provider_name	#
+wsrep_provider_vendor	#
+wsrep_provider_version	#
+wsrep_ready	#
+SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 Variable_name	Value
+wsrep_local_state_comment	Synced
+# Should show nothing.
+SHOW STATUS LIKE 'x';
+Variable_name	Value
+#
+# MDEV#6079: xtrabackup SST failing with maria-10.0-galera
+#
+
+SHOW STATUS LIKE 'wsrep_local_state_uuid';
+Variable_name	Value
+wsrep_local_state_uuid	#
+
+SHOW STATUS LIKE 'wsrep_last_committed';
+Variable_name	Value
+wsrep_last_committed	#
 # End of test.
