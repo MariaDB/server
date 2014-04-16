@@ -285,7 +285,45 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
 
     # DBD::mysql requires this
     is_prefix
-  )  
+  )
+
+ 
+  # And even more so on Debian
+  SET(CLIENT_API_5_5_EXTRA
+    # libmyodbc. Argh!
+    alloc_dynamic
+    alloc_root
+    delete_dynamic
+    dynstr_append
+    dynstr_append_mem
+    dynstr_append_os_quoted
+    dynstr_free
+    dynstr_realloc
+    free_root
+    get_dynamic
+    init_dynamic_array2
+    init_dynamic_string
+    int2str
+    list_add
+    list_delete
+    my_end
+    my_free
+    my_malloc
+    my_memdup
+    my_realloc
+    my_strdup
+    set_dynamic
+    strdup_root
+    strend
+    strfill
+    strmake
+    strmake_root
+    strxmov
+
+    # pam_mysql.so
+    make_scrambled_password
+    make_scrambled_password_323
+  )
 
   # Linker script to version symbols in Fedora- and Debian- compatible way, MDEV-5529
   SET(VERSION_SCRIPT_TEMPLATE ${CMAKE_CURRENT_SOURCE_DIR}/libmysql_versions.ld.in)
@@ -303,7 +341,7 @@ IF(CMAKE_SYSTEM_NAME MATCHES "Linux")
   ENDFOREACH()
       
   SET (CLIENT_API_5_5_LIST)
-  FOREACH (f ${CLIENT_API_FUNCTIONS_5_5})
+  FOREACH (f ${CLIENT_API_FUNCTIONS_5_5} ${CLIENT_API_5_5_EXTRA})
     SET(CLIENT_API_5_5_LIST "${CLIENT_API_5_5_LIST}\t${f};\n")
   ENDFOREACH()
 
@@ -364,7 +402,9 @@ IF(UNIX)
 ENDIF()
 
 IF(NOT DISABLE_SHARED)
-  MERGE_LIBRARIES(libmysql SHARED ${LIBS} EXPORTS ${CLIENT_API_FUNCTIONS} ${CLIENT_API_5_1_EXTRA} COMPONENT SharedLibraries)
+  MERGE_LIBRARIES(libmysql SHARED ${LIBS}
+    EXPORTS ${CLIENT_API_FUNCTIONS} ${CLIENT_API_5_1_EXTRA} ${CLIENT_API_5_5_EXTRA}
+    COMPONENT SharedLibraries)
   IF(UNIX)
     # libtool compatability
     IF(CMAKE_SYSTEM_NAME MATCHES "FreeBSD" OR APPLE)

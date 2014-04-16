@@ -1,8 +1,8 @@
 #!/usr/bin/perl
 # -*- cperl -*-
 
-# Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2013, Monty Program Ab
+# Copyright (c) 2004, 2014, Oracle and/or its affiliates.
+# Copyright (c) 2009, 2014, Monty Program Ab
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -469,7 +469,6 @@ sub main {
     );
   mtr_error("Could not create testcase server port: $!") unless $server;
   my $server_port = $server->sockport();
-  mtr_report("Using server port $server_port");
 
   if ($opt_resfile) {
     resfile_init("$opt_vardir/mtr-results.txt");
@@ -513,15 +512,17 @@ sub main {
   # Send Ctrl-C to any children still running
   kill("INT", keys(%children));
 
-  # Wait for childs to exit
-  foreach my $pid (keys %children)
-  {
-    my $ret_pid= waitpid($pid, 0);
-    if ($ret_pid != $pid){
-      mtr_report("Unknown process $ret_pid exited");
-    }
-    else {
-      delete $children{$ret_pid};
+  if (!IS_WINDOWS) { 
+    # Wait for children to exit
+    foreach my $pid (keys %children)
+    {
+      my $ret_pid= waitpid($pid, 0);
+      if ($ret_pid != $pid){
+        mtr_report("Unknown process $ret_pid exited");
+      }
+      else {
+        delete $children{$ret_pid};
+      }
     }
   }
 
@@ -1863,21 +1864,8 @@ sub collect_mysqld_features {
   mtr_add_arg($args, "--lc-messages-dir=%s", $path_language);
   mtr_add_arg($args, "--skip-grant-tables");
   mtr_add_arg($args, "--log-warnings=0");
-  for (@opt_extra_mysqld_opt) {
-    mtr_add_arg($args, $_) unless /^--binlog-format\b/;
-  }
-  my $euid= $>;
-  if (!IS_WINDOWS and $euid == 0) {
-    mtr_add_arg($args, "--user=root");
-  }
   mtr_add_arg($args, "--verbose");
   mtr_add_arg($args, "--help");
-
-  # Need --user=root if running as *nix root user
-  if (!IS_WINDOWS and $> == 0)
-  {
-    mtr_add_arg($args, "--user=root");
-  }
 
   my $exe_mysqld= find_mysqld($bindir);
   my $cmd= join(" ", $exe_mysqld, @$args);

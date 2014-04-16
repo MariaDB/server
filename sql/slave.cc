@@ -1220,6 +1220,7 @@ bool is_network_error(uint errorno)
       errorno == ER_CON_COUNT_ERROR ||
       errorno == ER_CONNECTION_KILLED ||
       errorno == ER_NEW_ABORTING_CONNECTION ||
+      errorno == ER_NET_READ_INTERRUPTED ||
       errorno == ER_SERVER_SHUTDOWN)
     return TRUE;
 
@@ -3358,6 +3359,7 @@ err:
   }
   write_ignored_events_info_to_relay_log(thd, mi);
   thd_proc_info(thd, "Waiting for slave mutex on exit");
+  thd->add_status_to_global();
   mysql_mutex_lock(&mi->run_lock);
 
 err_during_init:
@@ -3753,6 +3755,7 @@ the slave SQL thread with \"SLAVE START\". We stopped at log \
   thd->catalog= 0;
   thd->reset_query();
   thd->reset_db(NULL, 0);
+  thd->add_status_to_global();
   thd_proc_info(thd, "Waiting for slave mutex on exit");
   mysql_mutex_lock(&rli->run_lock);
 err_during_init:

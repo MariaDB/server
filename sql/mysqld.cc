@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
    Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -2168,7 +2168,7 @@ static struct passwd *check_user(const char *user)
   }
   if (!user)
   {
-    if (!opt_bootstrap)
+    if (!opt_bootstrap && !opt_help)
     {
       sql_print_error("Fatal error: Please read \"Security\" section of the manual to find out how to run mysqld as root!\n");
       unireg_abort(1);
@@ -2629,9 +2629,7 @@ void unlink_thd(THD *thd)
   thd_cleanup(thd);
   dec_connection_count(thd);
 
-  mysql_mutex_lock(&LOCK_status);
-  add_to_status(&global_status_var, &thd->status_var);
-  mysql_mutex_unlock(&LOCK_status);
+  thd->add_status_to_global();
 
   mysql_mutex_lock(&LOCK_thread_count);
   thread_count--;
@@ -5770,12 +5768,6 @@ int mysqld_main(int argc, char **argv)
     if (read_init_file(opt_init_file))
       unireg_abort(1);
   }
-
-  /*
-    We must have LOCK_open before LOCK_global_system_variables because
-    LOCK_open is hold while sql_plugin.c::intern_sys_var_ptr() is called.
-  */
-  mysql_mutex_record_order(&LOCK_open, &LOCK_global_system_variables);
 
   create_shutdown_thread();
   start_handle_manager();

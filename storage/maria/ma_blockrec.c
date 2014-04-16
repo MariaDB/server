@@ -3248,8 +3248,9 @@ static my_bool write_block_record(MARIA_HA *info,
           blob_length-= (blob_length % FULL_PAGE_SIZE(block_size));
         if (blob_length)
         {
-          memcpy(&log_array_pos->str, record + tmp_column->offset + length,
-                       sizeof(uchar*));
+          memcpy((void*) &log_array_pos->str,
+                 record + tmp_column->offset + length,
+                 sizeof(uchar*));
           log_array_pos->length= blob_length;
           log_entry_length+= blob_length;
           log_array_pos++;
@@ -5144,7 +5145,12 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   int error;
   DBUG_ENTER("_ma_cmp_block_unique");
 
-  if (!(old_record= my_alloca(info->s->base.reclength)))
+  /*
+    Don't allocate more than 16K on the stack to ensure we don't get
+    stack overflow.
+  */
+  if (!(old_record= my_safe_alloca(info->s->base.reclength,
+                                   MARIA_MAX_RECORD_ON_STACK)))
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -5166,7 +5172,8 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff_size= org_rec_buff_size;
   }
   DBUG_PRINT("exit", ("result: %d", error));
-  my_afree(old_record);
+  my_safe_afree(old_record, info->s->base.reclength,
+                MARIA_MAX_RECORD_ON_STACK);
   DBUG_RETURN(error != 0);
 }
 
@@ -5338,6 +5345,7 @@ int _ma_scan_restore_block_record(MARIA_HA *info,
     info                Maria handler
     record              Store found here
     record_pos          Value stored in info->cur_row.next_pos after last call
+                        This is offset inside the current pagebuff
     skip_deleted
 
   NOTES
@@ -5375,7 +5383,7 @@ restart_record_read:
     /* Ensure that scan.dir and record_pos are in sync */
     DBUG_ASSERT(info->scan.dir == dir_entry_pos(info->scan.page_buff,
                                                 share->block_size,
-                                                record_pos));
+                                                (uint) record_pos));
 
     /* Search for a valid directory entry (not 0) */
     while (!(offset= uint2korr(info->scan.dir)))
@@ -5971,12 +5979,12 @@ static size_t fill_update_undo_parts(MARIA_HA *info, const uchar *oldrec,
     {
       uint size_length= column->length - portable_sizeof_char_ptr;
       old_column_length= _ma_calc_blob_length(size_length, old_column_pos);
-      memcpy(&old_column_pos, oldrec + column->offset + size_length,
+      memcpy((void*) &old_column_pos, oldrec + column->offset + size_length,
              sizeof(old_column_pos));
       if (!new_column_is_empty)
       {
         new_column_length= _ma_calc_blob_length(size_length, new_column_pos);
-        memcpy(&new_column_pos, newrec + column->offset + size_length,
+        memcpy((void*) &new_column_pos, newrec + column->offset + size_length,
                sizeof(old_column_pos));
       }
       break;

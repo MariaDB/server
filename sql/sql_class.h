@@ -712,6 +712,11 @@ typedef struct system_status_var
 
 #define last_system_status_var questions
 
+void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
+
+void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
+                        STATUS_VAR *dec_var);
+
 void mark_transaction_to_rollback(THD *thd, bool all);
 
 #ifdef MYSQL_SERVER
@@ -2660,8 +2665,11 @@ public:
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we
     assume this is never called if the fatal error is set.
+
     @todo: To silence an error, one should use Internal_error_handler
-    mechanism. In future this function will be removed.
+    mechanism. Issuing an error that can be possibly later "cleared" is not
+    compatible with other installed error handlers and audit plugins.
+    In future this function will be removed.
   */
   inline void clear_error()
   {
@@ -3160,6 +3168,14 @@ public:
   void wait_for_wakeup_ready();
   /* Wake this thread up from wait_for_wakeup_ready(). */
   void signal_wakeup_ready();
+
+  void add_status_to_global()
+  {
+    mysql_mutex_lock(&LOCK_status);
+    add_to_status(&global_status_var, &status_var);
+    mysql_mutex_unlock(&LOCK_status);
+  }
+
 private:
 
   /** The current internal error handler for this thread, or NULL. */
@@ -4202,10 +4218,6 @@ public:
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
 
-void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
-
-void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
-                        STATUS_VAR *dec_var);
 void mark_transaction_to_rollback(THD *thd, bool all);
 
 /* Inline functions */

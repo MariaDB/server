@@ -13,9 +13,8 @@ IF(NOT TOKUDB_OK OR WITHOUT_TOKUDB OR WITHOUT_TOKUDB_STORAGE_ENGINE)
   RETURN()
 ENDIF()
 
-############################################
-SET(ENV{TOKUDB_VERSION} "7.1.0")
-SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-galera-server-5.5/README-TOKUDB\nusr/share/doc/mariadb-galera-server-5.5/README.md" PARENT_SCOPE)
+SET(TOKUDB_VERSION "7.1.5")
+SET(TOKUDB_DEB_FILES "usr/lib/mysql/plugin/ha_tokudb.so\netc/mysql/conf.d/tokudb.cnf\nusr/bin/tokuftdump\nusr/share/doc/mariadb-server-5.5/README-TOKUDB\nusr/share/doc/mariadb-server-5.5/README.md" PARENT_SCOPE)
 SET(USE_BDB OFF CACHE BOOL "")
 SET(USE_VALGRIND OFF CACHE BOOL "")
 SET(BUILD_TESTING  OFF CACHE BOOL "")
@@ -31,14 +30,13 @@ MARK_AS_ADVANCED(USE_VALGRIND)
 MARK_AS_ADVANCED(XZ_SOURCE_DIR)
 ############################################
 
-IF(DEFINED ENV{TOKUDB_VERSION})
-    SET(TOKUDB_VERSION $ENV{TOKUDB_VERSION})
-    ADD_DEFINITIONS("-DTOKUDB_VERSION=\"${TOKUDB_VERSION}\"")
+IF(NOT DEFINED TOKUDB_VERSION)
+    IF(DEFINED ENV{TOKUDB_VERSION})
+        SET(TOKUDB_VERSION $ENV{TOKUDB_VERSION})
+    ENDIF()
 ENDIF()
-
-IF(DEFINED ENV{TOKUDB_PATCHES})
-    SET(TOKUDB_PATCHES $ENV{TOKUDB_PATCHES})
-    ADD_DEFINITIONS("-DTOKUDB_PATCHES=${TOKUDB_PATCHES}")
+IF(DEFINED TOKUDB_VERSION)
+    ADD_DEFINITIONS("-DTOKUDB_VERSION=\"${TOKUDB_VERSION}\"")
 ENDIF()
 
 ADD_SUBDIRECTORY(ft-index)
