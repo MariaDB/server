@@ -47,6 +47,7 @@ usr/bin/wsrep_sst_common
 usr/bin/wsrep_sst_mysqldump
 usr/bin/wsrep_sst_rsync
 usr/bin/wsrep_sst_xtrabackup
+usr/bin/wsrep_sst_xtrabackup-v2
 usr/share/doc/mariadb-galera-server-10.0/mysqld.sym.gz
 usr/share/doc/mariadb-galera-server-10.0/INFO_SRC
 usr/share/doc/mariadb-galera-server-10.0/INFO_BIN
