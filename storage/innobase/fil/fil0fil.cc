@@ -745,7 +745,7 @@ fil_node_open_file(
 	ulint		space_id;
 	ulint		flags=0;
 	ulint		page_size;
-	ibool           atomic_writes=FALSE;
+	ulint           atomic_writes=0;
 
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
@@ -3425,7 +3425,7 @@ fil_create_new_single_table_tablespace(
 	/* TRUE if a table is created with CREATE TEMPORARY TABLE */
 	bool		is_temp = !!(flags2 & DICT_TF2_TEMPORARY);
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags);
-	bool		atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
+	ulint		atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
 
 	ut_a(space_id > 0);
 	ut_ad(!srv_read_only_mode);
@@ -3720,7 +3720,7 @@ fil_open_single_table_tablespace(
 	fsp_open_info	remote;
 	ulint		tablespaces_found = 0;
 	ulint		valid_tablespaces_found = 0;
-	ibool           atomic_writes = FALSE;
+	ulint           atomic_writes = 0;
 
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(!fix_dict || rw_lock_own(&dict_operation_lock, RW_LOCK_EX));

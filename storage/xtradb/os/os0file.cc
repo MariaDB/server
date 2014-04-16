@@ -628,10 +628,13 @@ os_file_get_last_error_low(
 				"InnoDB: because of either a thread exit"
 				" or an application request.\n"
 				"InnoDB: Retry attempt is made.\n");
-		} else if (err == ECANCELED) {
-			fprintf(stderr,
-				"InnoDB: Operation canceled (%d):%s\n",
-				err, strerror(err));
+		} else if (err == ECANCELED || err == ENOTTY) {
+			if (strerror(err) != NULL) {
+				fprintf(stderr,
+					"InnoDB: Error number %d"
+					" means '%s'.\n",
+					err, strerror(err));
+			}
 
 			if(srv_use_atomic_writes) {
 				fprintf(stderr,
@@ -698,6 +701,20 @@ os_file_get_last_error_low(
 				"InnoDB: The error means mysqld does not have"
 				" the access rights to\n"
 				"InnoDB: the directory.\n");
+		} else if (err == ECANCELED || err == ENOTTY) {
+			if (strerror(err) != NULL) {
+				fprintf(stderr,
+					"InnoDB: Error number %d"
+					" means '%s'.\n",
+					err, strerror(err));
+			}
+
+
+			if(srv_use_atomic_writes) {
+				fprintf(stderr,
+					"InnoDB: Error trying to enable atomic writes on "
+					"non-supported destination!\n");
+			}
 		} else {
 			if (strerror(err) != NULL) {
 				fprintf(stderr,
@@ -735,6 +752,7 @@ os_file_get_last_error_low(
 		}
 		break;
 	case ECANCELED:
+        case ENOTTY:
                 return(OS_FILE_OPERATION_NOT_SUPPORTED);
 	case EINTR:
 		if (srv_use_native_aio) {
@@ -1591,13 +1609,21 @@ os_file_create_simple_no_error_handling_func(
 			  attributes,
 			  NULL);		// No template file
 
+	/* If we have proper file handle and atomic writes should be used,
+	try to set atomic writes and if that fails when creating a new
+	table, produce a error. If atomic writes are used on existing
+	file, ignore error and use traditional writes for that file */
 	if (file != INVALID_HANDLE_VALUE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
-			 CloseHandle(file);
+		if (create_mode == OS_FILE_CREATE) {
+			fprintf(stderr, "InnoDB: Error: Can't create file using atomic writes\n");
+			CloseHandle(file);
+			os_file_delete_if_exists_func(name);
 			*success = FALSE;
 			file = INVALID_HANDLE_VALUE;
+		}
 	}
 
 	*success = (file != INVALID_HANDLE_VALUE);
@@ -1660,13 +1686,21 @@ os_file_create_simple_no_error_handling_func(
 	}
 #endif /* USE_FILE_LOCK */
 
+	/* If we have proper file handle and atomic writes should be used,
+	try to set atomic writes and if that fails when creating a new
+	table, produce a error. If atomic writes are used on existing
+	file, ignore error and use traditional writes for that file */
 	if (file != -1
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
-		*success = FALSE;
-		close(file);
-		file = -1;
+		if (create_mode == OS_FILE_CREATE) {
+			fprintf(stderr, "InnoDB: Error: Can't create file using atomic writes\n");
+			close(file);
+			os_file_delete_if_exists_func(name);
+			*success = FALSE;
+			file = -1;
+		}
 	}
 
 #endif /* __WIN__ */
@@ -1752,15 +1786,16 @@ os_file_set_atomic_writes(
 
 	if (ioctl(file, DFS_IOCTL_ATOMIC_WRITE_SET, &atomic_option)) {
 
+		fprintf(stderr, "InnoDB: Warning:Trying to enable atomic writes on "
+			"file %s on non-supported platform!\n", name);
 		os_file_handle_error_no_exit(name, "ioctl(DFS_IOCTL_ATOMIC_WRITE_SET)", FALSE, __FILE__, __LINE__);
 		return(FALSE);
 	}
 
 	return(TRUE);
 #else
-	ib_logf(IB_LOG_LEVEL_ERROR,
-		"trying to enable atomic writes on non-supported platform! "
-		"Please restart with innodb_use_atomic_writes disabled.\n");
+ 	fprintf(stderr, "InnoDB: Error: trying to enable atomic writes on "
+		"file %s on non-supported platform!\n", name);
 	return(FALSE);
 #endif
 }
@@ -1951,13 +1986,21 @@ os_file_create_func(
 
 	} while (retry);
 
+	/* If we have proper file handle and atomic writes should be used,
+	try to set atomic writes and if that fails when creating a new
+	table, produce a error. If atomic writes are used on existing
+	file, ignore error and use traditional writes for that file */
 	if (file != INVALID_HANDLE_VALUE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
-			 CloseHandle(file);
+		if (create_mode == OS_FILE_CREATE) {
+			fprintf(stderr, "InnoDB: Error: Can't create file using atomic writes\n");
+			CloseHandle(file);
+			os_file_delete_if_exists_func(name);
 			*success = FALSE;
 			file = INVALID_HANDLE_VALUE;
+		}
 	}
 
 #else /* __WIN__ */
@@ -2090,13 +2133,21 @@ os_file_create_func(
 	}
 #endif /* USE_FILE_LOCK */
 
+	/* If we have proper file handle and atomic writes should be used,
+	try to set atomic writes and if that fails when creating a new
+	table, produce a error. If atomic writes are used on existing
+	file, ignore error and use traditional writes for that file */
 	if (file != -1
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
-		*success = FALSE;
-		close(file);
-		file = -1;
+		if (create_mode == OS_FILE_CREATE) {
+			fprintf(stderr, "InnoDB: Error: Can't create file using atomic writes\n");
+			close(file);
+			os_file_delete_if_exists_func(name);
+			*success = FALSE;
+			file = -1;
+		}
 	}
 
 
