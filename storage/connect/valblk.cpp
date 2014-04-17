@@ -40,7 +40,10 @@
 #include "plgdbsem.h"
 #include "valblk.h"
 
-#define CheckBlanks     assert(!Blanks);
+#define CheckBlanks      assert(!Blanks);
+#define CheckParms(V, N) ChkIndx(N); ChkTyp(V);
+
+extern "C" int  trace;
 
 /***********************************************************************/
 /*  AllocValBlock: allocate a VALBLK according to type.                */
@@ -50,10 +53,9 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
   {
   PVBLK blkp;
 
-#ifdef DEBTRACE
- htrc("AVB: mp=%p type=%d nval=%d len=%d check=%u blank=%u\n",
-  mp, type, nval, len, check, blank);
-#endif
+  if (trace)
+    htrc("AVB: mp=%p type=%d nval=%d len=%d check=%u blank=%u\n",
+         mp, type, nval, len, check, blank);
 
   switch (type) {
     case TYPE_STRING:
@@ -545,7 +547,7 @@ int TYPBLK<TYPE>::Find(PVAL vp)
 template <class TYPE>
 int TYPBLK<TYPE>::GetMaxLength(void)
   {
-  char buf[32];
+  char buf[64];
   int i, n, m;
 
   for (i = n = 0; i < Nval; i++) {
@@ -736,13 +738,13 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
   {
   char  *p = Chrp + n * Long;
 
-#if defined(_DEBUG) || defined(DEBTRACE)
+#if defined(_DEBUG)
   if (Check && (signed)len > Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(SET_STR_TRUNC));
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Check
-#endif
+#endif   // _DEBUG
 
   if (sp)
     memcpy(p, sp, min((unsigned)Long, len));
@@ -785,13 +787,13 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
 /***********************************************************************/
 void CHRBLK::SetValues(PVBLK pv, int k, int n)
   {
-#if defined(_DEBUG) || defined(DEBTRACE)
+#if defined(_DEBUG)
   if (Type != pv->GetType() || Long != ((CHRBLK*)pv)->Long) {
     PGLOBAL& g = Global;
     strcpy(g->Message, MSG(BLKTYPLEN_MISM));
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Type
-#endif
+#endif   // _DEBUG
   char *p = ((CHRBLK*)pv)->Chrp;
 
   if (!k)

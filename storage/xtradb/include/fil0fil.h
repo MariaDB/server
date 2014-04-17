@@ -1057,4 +1057,18 @@ fil_space_name(
 /*===========*/
 	fil_space_t*	space);	/*!< in: space */
 #endif
+
+/****************************************************************//**
+Does error handling when a file operation fails.
+@return	TRUE if we should retry the operation */
+ibool
+os_file_handle_error_no_exit(
+/*=========================*/
+	const char*	name,		/*!< in: name of a file or NULL */
+	const char*	operation,	/*!< in: operation */
+	ibool		on_error_silent,/*!< in: if TRUE then don't print
+					any message to the log. */
+	const char*	file,		/*!< in: file name */
+	const ulint	line);		/*!< in: line */
+
 #endif /* fil0fil_h */

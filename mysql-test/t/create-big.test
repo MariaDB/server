@@ -420,8 +420,19 @@ set @a:=0;
 set debug_sync='create_table_select_before_check_if_exists SIGNAL parked WAIT_FOR go';
 --send create table if not exists t1 select 1 as i;
 connection addconroot1;
-create trigger t1_bi before insert on t1 for each row set @a:=1;
+set debug_sync='now WAIT_FOR parked';
+--send create trigger t1_bi before insert on t1 for each row set @a:=1;
+connection addconroot2;
+# Wait until the above DROP TABLE is blocked due to CREATE TABLE
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for table metadata lock" and
+          info like "create trigger%";
+--source include/wait_condition.inc
+set debug_sync='now SIGNAL go';
 connection default;
+--reap
+connection addconroot1;
 --reap
 connection default;
 select @a;

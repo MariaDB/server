@@ -67,7 +67,6 @@
                                         // table_to_filename
                                         // mysql_*_alter_copy_data
 #include "opt_range.h"                  // store_key_image_to_rec
-#include "sql_analyse.h"                // append_escaped
 #include "sql_alter.h"                  // Alter_table_ctx
 
 #include <algorithm>
@@ -1935,10 +1934,9 @@ static int add_uint(File fptr, ulonglong number)
 */
 static int add_quoted_string(File fptr, const char *quotestr)
 {
-  String orgstr(quotestr, system_charset_info);
   String escapedstr;
   int err= add_string(fptr, "'");
-  err+= append_escaped(&escapedstr, &orgstr);
+  err+= escapedstr.append_for_single_quote(quotestr);
   err+= add_string(fptr, escapedstr.c_ptr_safe());
   return err + add_string(fptr, "'");
 }

@@ -38,7 +38,6 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
-  virtual bool DeleteTableFile(PGLOBAL g) {return true;}
   virtual bool Indexable(void) {return false;}
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
@@ -116,7 +115,6 @@ class DllExport OEMDEF : public TABDEF {                  /* OEM table */
   virtual AMT  GetDefType(void) {return TYPE_AM_OEM;}
 
   // Methods
-  virtual bool DeleteTableFile(PGLOBAL g);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
@@ -147,7 +145,6 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   PSZ  GetName(void) {return Name;}
   PSZ  GetDecode(void) {return Decode;}
   PSZ  GetFmt(void) {return Fmt;}
-  int  GetOpt(void) {return Opt;}
   int  GetLong(void) {return Long;}
   int  GetPrecision(void) {return Precision;}
   int  GetOffset(void) {return Offset;}
@@ -164,7 +161,6 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
   int     Key;                /* Key (greater than 1 if multiple)      */
   int     Precision;          /* Logical column length                 */
   int     Scale;              /* Decimals for float/decimal values     */
-  int     Opt;                /* 0:Not 1:clustered 2:sorted-asc 3:desc */
   char    DataType;           /* Internal data type (C, N, F, T)       */
   }; // end of COLCRT
 

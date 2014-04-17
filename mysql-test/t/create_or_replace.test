@@ -1,5 +1,5 @@
 #
-# Check CREATE OR REPLACE ALTER TABLE
+# Check CREATE OR REPLACE TABLE
 #
 
 --source include/have_innodb.inc
@@ -196,11 +196,56 @@ drop table t1;
 create table t1 (i int) engine=InnoDB;
 create table t3 (i int) engine=InnoDB;
 insert into t3 values(1),(2),(3);
-lock table t1 write, t2 write, t3 write;
+create table t4 (i int) engine=InnoDB;
+insert into t4 values(1);
+lock table t1 write, t2 write, t3 write, t4 write;
 create or replace table t1 (a int, i int) engine=innodb select t2.a,t3.i from t2,t3;
+select * from t4;
 unlock tables;
 select * from t1 order by a,i;
-drop table t1,t3;
+drop table t1,t3,t4;
+
+--echo #
+--echo # Test the meta data locks are freed properly
+--echo #
+
+create database mysqltest2;
+
+drop table if exists test.t1,mysqltest2.t2;
+create table test.t1 (i int);
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table test.t1;
+show tables;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+--error ER_TABLE_MUST_HAVE_COLUMNS
+create or replace table mysqltest2.t2;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+
+create table test.t1 (i int);
+create table mysqltest2.t2 like test.t1;
+lock table test.t1 write, mysqltest2.t2 write;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+--error ER_DUP_FIELDNAME
+create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
+show tables;
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+--error ER_DUP_FIELDNAME
+create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
+--replace_column 1 #
+select * from information_schema.metadata_lock_info;
+create table t1 (i int);
+drop table t1;
+drop database mysqltest2;
 
 --echo #
 --echo # Testing CREATE .. LIKE

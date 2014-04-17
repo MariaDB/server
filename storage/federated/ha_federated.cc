@@ -1004,7 +1004,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint blob_length= uint2korr(ptr);
     blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                    blob_length, &my_charset_bin);
-    if (append_escaped(to, &blob))
+    if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
@@ -1013,7 +1013,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
     uint var_length= uint2korr(ptr);
     varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
                       var_length, &my_charset_bin);
-    if (append_escaped(to, &varchar))
+    if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
   else
@@ -1025,7 +1025,7 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     if (field->result_type() == STRING_RESULT)
     {
-      if (append_escaped(to, res))
+      if (to->append_for_single_quote(res))
         DBUG_RETURN(1);
     }
     else if (to->append(res->ptr(), res->length()))
@@ -3119,14 +3119,6 @@ int ha_federated::real_connect()
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
   DBUG_ENTER("ha_federated::real_connect");
 
-  /* 
-    Bug#25679
-    Ensure that we do not hold the LOCK_open mutex while attempting
-    to establish Federated connection to guard against a trivial
-    Denial of Service scenerio.
-  */
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   DBUG_ASSERT(mysql == NULL);
 
   if (!(mysql= mysql_init(NULL)))
@@ -3474,6 +3466,6 @@ maria_declare_plugin(federated)
   NULL,                       /* status variables                */
   NULL,                       /* system variables                */
   "1.0",                      /* string version */
-  MariaDB_PLUGIN_MATURITY_BETA /* maturity */
+  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
 }
 maria_declare_plugin_end;

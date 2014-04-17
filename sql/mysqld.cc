@@ -479,6 +479,9 @@ ulong open_files_limit, max_binlog_size;
 ulong slave_trans_retries;
 uint  slave_net_timeout;
 ulong slave_exec_mode_options;
+#ifdef RBR_TRIGGERS
+ulong slave_run_triggers_for_rbr= 0;
+#endif //RBR_TRIGGERS
 ulong slave_ddl_exec_mode_options= SLAVE_EXEC_MODE_IDEMPOTENT;
 ulonglong slave_type_conversions_options;
 ulong thread_cache_size=0;
@@ -553,6 +556,7 @@ ulong opt_slave_domain_parallel_threads= 0;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
+my_bool opt_gtid_ignore_duplicates= FALSE;
 
 const double log_10[] = {
   1e000, 1e001, 1e002, 1e003, 1e004, 1e005, 1e006, 1e007, 1e008, 1e009,
@@ -987,7 +991,7 @@ PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
   key_COND_prepare_ordered;
-PSI_cond_key key_COND_wait_gtid;
+PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
 {
@@ -1035,7 +1039,8 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
-  { &key_COND_wait_gtid, "COND_wait_gtid", 0}
+  { &key_COND_wait_gtid, "COND_wait_gtid", 0},
+  { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
 };
 
 PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
@@ -2710,9 +2715,7 @@ void unlink_thd(THD *thd)
   thd_cleanup(thd);
   dec_connection_count(thd);
 
-  mysql_mutex_lock(&LOCK_status);
-  add_to_status(&global_status_var, &thd->status_var);
-  mysql_mutex_unlock(&LOCK_status);
+  thd->add_status_to_global();
 
   mysql_mutex_lock(&LOCK_thread_count);
   thd->unlink();
@@ -9445,6 +9448,7 @@ PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for 
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
+PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master connection to process GTID received on multiple master connections", 0};
 
 #ifdef HAVE_PSI_INTERFACE
 
@@ -9563,7 +9567,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_to_finalize_termination,
   & stage_waiting_to_get_readlock,
   & stage_master_gtid_wait_primary,
-  & stage_master_gtid_wait
+  & stage_master_gtid_wait,
+  & stage_gtid_wait_other_connection
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

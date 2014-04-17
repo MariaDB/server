@@ -43,7 +43,6 @@ class DllExport DBFBASE {
   int  Nerr;                        /*  Number of bad records                */
   int  Maxerr;                      /*  Maximum number of bad records        */
   int  ReadMode;                    /*  1: ALL 2: DEL 0: NOT DEL            */
-//PSZ  Defpath;                      /*  Default data path                   */
   }; // end of class DBFBASE
 
 /****************************************************************************/
@@ -63,22 +62,18 @@ class DllExport DBFFAM : public FIXFAM, public DBFBASE {
   // Methods
   virtual int  GetNerr(void) {return Nerr;}
   virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetRowID(void);              // Temporarily suppressed
   virtual bool OpenTableFile(PGLOBAL g);
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
-//virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
   virtual void CloseTableFile(PGLOBAL g);
   virtual void Rewind(void);
 
  protected:
-  // Members
   virtual bool CopyHeader(PGLOBAL g);
 
-//int  Records;                       in TXTFAM
-//int  Headlen;                       in TXTFAM
+  // Members
   }; // end of class DBFFAM
 
 /****************************************************************************/
@@ -100,17 +95,13 @@ class DllExport DBMFAM : public MPXFAM, public DBFBASE {
   // Methods
   virtual int  GetNerr(void) {return Nerr;}
   virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetRowID(void);              // Temporarily suppressed
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
-//virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
   virtual void Rewind(void);
 
  protected:
   // Members
-//int  Records;                       in TXTFAM
-//int  Headlen;                       in TXTFAM
   }; // end of class DBFFAM
 
 #endif // __FILAMDBF_H

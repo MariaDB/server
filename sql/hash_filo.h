@@ -199,4 +199,17 @@ public:
   }
 };
 
+template <class T> class Hash_filo: public hash_filo
+{
+public:
+  Hash_filo(uint size_arg, uint key_offset_arg, uint key_length_arg,
+	    my_hash_get_key get_key_arg, my_hash_free_key free_element_arg,
+	    CHARSET_INFO *hash_charset_arg) :
+    hash_filo(size_arg, key_offset_arg, key_length_arg,
+              get_key_arg, free_element_arg, hash_charset_arg) {}
+  T* first() { return (T*)hash_filo::first(); }
+  T* last()  { return (T*)hash_filo::last(); }
+  T* search(uchar* key, size_t len) { return (T*)hash_filo::search(key, len); }
+};
+
 #endif

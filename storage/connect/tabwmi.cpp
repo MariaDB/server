@@ -14,7 +14,7 @@
 #include "reldef.h"
 #include "xtable.h"
 #include "colblk.h"
-#include "filter.h"
+//#include "filter.h"
 //#include "xindex.h"
 #include "tabwmi.h"
 #include "valblk.h"
@@ -480,8 +480,8 @@ bool TDBWMI::Initialize(PGLOBAL g)
 /***********************************************************************/
 void TDBWMI::DoubleSlash(PGLOBAL g)
   {
-  if (To_Filter && strchr(To_Filter->Body, '\\')) {
-    char *body = To_Filter->Body;
+  if (To_CondFil && strchr(To_CondFil->Body, '\\')) {
+    char *body = To_CondFil->Body;
     char *buf = (char*)PlugSubAlloc(g, NULL, strlen(body) * 2);
     int   i = 0, k = 0;
 
@@ -492,8 +492,8 @@ void TDBWMI::DoubleSlash(PGLOBAL g)
       buf[k++] = body[i];
       } while (body[i++]);
 
-    To_Filter->Body = buf;
-    } // endif To_Filter
+    To_CondFil->Body = buf;
+    } // endif To_CondFil
 
   } // end of DoubleSlash
 
@@ -540,13 +540,13 @@ char *TDBWMI::MakeWQL(PGLOBAL g)
 
   // Below 14 is length of 'select ' + length of ' from ' + 1
   len = (strlen(colist) + strlen(Wclass) + 14);
-  len += (To_Filter ? strlen(To_Filter->Body) + 7 : 0);
+  len += (To_CondFil ? strlen(To_CondFil->Body) + 7 : 0);
   wql = (char*)PlugSubAlloc(g, NULL, len);
   strcat(strcat(strcpy(wql, "SELECT "), colist), " FROM ");
   strcat(wql, Wclass);
 
-  if (To_Filter)
-    strcat(strcat(wql, " WHERE "), To_Filter->Body);
+  if (To_CondFil)
+    strcat(strcat(wql, " WHERE "), To_CondFil->Body);
 
   return wql;
   } // end of MakeWQL
@@ -659,8 +659,8 @@ bool TDBWMI::OpenDB(PGLOBAL g)
     return true;
     } // endif Mode
 
-  if (!To_Filter && !stricmp(Wclass, "CIM_Datafile")
-                 && !stricmp(Nspace, "root\\cimv2")) {
+  if (!To_CondFil && !stricmp(Wclass, "CIM_Datafile")
+                  && !stricmp(Nspace, "root\\cimv2")) {
     strcpy(g->Message, 
       "Would last forever when not filtered, use DIR table instead");
     return true;

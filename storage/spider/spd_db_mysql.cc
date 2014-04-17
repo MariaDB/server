@@ -3717,7 +3717,7 @@ int spider_db_mysql_util::append_escaped_util(
 ) {
   DBUG_ENTER("spider_db_mysql_util::append_escaped_util");
   DBUG_PRINT("info",("spider this=%p", this));
-  append_escaped(to->get_str(), from);
+  to->get_str()->append_for_single_quote(from);
   to->mem_calc();
   DBUG_RETURN(0);
 }

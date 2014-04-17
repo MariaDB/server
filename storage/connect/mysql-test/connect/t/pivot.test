@@ -143,4 +143,21 @@ SELECT * FROM pivet;
 
 DROP TABLE pivet;
 DROP TABLE pets;
+
+--echo #
+--echo # MDEV-5734
+--echo #
+CREATE TABLE fruit (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(32) DEFAULT NULL,
+  `cnt` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;
+INSERT INTO fruit VALUES (1,'apple',1),(2,'banana',1),(3,'apple',2),(4,'cherry',4),(5,'durazno',2);
+SELECT * FROM fruit;
+CREATE TABLE fruit_pivot ENGINE=CONNECT TABLE_TYPE=pivot TABNAME=fruit;
+SELECT * FROM fruit_pivot;
+
+DROP TABLE fruit_pivot;
+DROP TABLE fruit;
 --remove_file $MYSQLD_DATADIR/test/expenses.txt

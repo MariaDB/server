@@ -1676,7 +1676,7 @@ buf_do_LRU_batch(
 		n->flushed = 0;
 	}
 
-	n->evicted += n->unzip_LRU_evicted;
+	n->flushed += n->unzip_LRU_evicted;
 }
 
 /*******************************************************************//**

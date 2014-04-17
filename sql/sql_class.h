@@ -80,6 +80,9 @@ enum enum_delay_key_write { DELAY_KEY_WRITE_NONE, DELAY_KEY_WRITE_ON,
 enum enum_slave_exec_mode { SLAVE_EXEC_MODE_STRICT,
                             SLAVE_EXEC_MODE_IDEMPOTENT,
                             SLAVE_EXEC_MODE_LAST_BIT };
+enum enum_slave_run_triggers_for_rbr { SLAVE_RUN_TRIGGERS_FOR_RBR_NO,
+                                       SLAVE_RUN_TRIGGERS_FOR_RBR_YES,
+                                       SLAVE_RUN_TRIGGERS_FOR_RBR_LOGGING};
 enum enum_slave_type_conversions { SLAVE_TYPE_CONVERSIONS_ALL_LOSSY,
                                    SLAVE_TYPE_CONVERSIONS_ALL_NON_LOSSY};
 enum enum_mark_columns
@@ -750,6 +753,11 @@ typedef struct system_status_var
 
 #define last_system_status_var questions
 #define last_cleared_system_status_var memory_used
+
+void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
+
+void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
+                        STATUS_VAR *dec_var);
 
 void mark_transaction_to_rollback(THD *thd, bool all);
 
@@ -1518,6 +1526,7 @@ public:
                    MYF(MY_THREAD_SPECIFIC));
   }
   void unlock_locked_tables(THD *thd);
+  void unlock_locked_table(THD *thd, MDL_ticket *mdl_ticket);
   ~Locked_tables_list()
   {
     reset();
@@ -3612,6 +3621,13 @@ public:
   /* Wake this thread up from wait_for_wakeup_ready(). */
   void signal_wakeup_ready();
 
+  void add_status_to_global()
+  {
+    mysql_mutex_lock(&LOCK_status);
+    add_to_status(&global_status_var, &status_var);
+    mysql_mutex_unlock(&LOCK_status);
+  }
+
   wait_for_commit *wait_for_commit_ptr;
   int wait_for_prior_commit()
   {
@@ -3822,7 +3838,6 @@ public:
   { return fields.elements; }
   virtual bool send_result_set_metadata(List<Item> &list, uint flags)=0;
   virtual bool initialize_tables (JOIN *join=0) { return 0; }
-  virtual void send_error(uint errcode,const char *err);
   virtual bool send_eof()=0;
   /**
     Check if this query returns a result set and therefore is allowed in
@@ -3949,7 +3964,6 @@ public:
   select_to_file(sql_exchange *ex) :exchange(ex), file(-1),row_count(0L)
   { path[0]=0; }
   ~select_to_file();
-  void send_error(uint errcode,const char *err);
   bool send_eof();
   void cleanup();
 };
@@ -4022,7 +4036,6 @@ class select_insert :public select_result_interceptor {
   virtual int send_data(List<Item> &items);
   virtual void store_values(List<Item> &values);
   virtual bool can_rollback_data() { return 0; }
-  void send_error(uint errcode,const char *err);
   bool send_eof();
   virtual void abort_result_set();
   /* not implemented: select_insert is never re-used in prepared statements */
@@ -4060,7 +4073,6 @@ public:
 
   int binlog_show_create_table(TABLE **tables, uint count);
   void store_values(List<Item> &values);
-  void send_error(uint errcode,const char *err);
   bool send_eof();
   virtual void abort_result_set();
   virtual bool can_rollback_data() { return 1; }
@@ -4578,7 +4590,7 @@ class multi_delete :public select_result_interceptor
   bool delete_while_scanning;
   /*
      error handling (rollback and binlogging) can happen in send_eof()
-     so that afterward send_error() needs to find out that.
+     so that afterward abort_result_set() needs to find out that.
   */
   bool error_handled;
 
@@ -4588,7 +4600,6 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
-  void send_error(uint errcode,const char *err);
   int do_deletes();
   int do_table_deletes(TABLE *table, bool ignore);
   bool send_eof();
@@ -4624,7 +4635,7 @@ class multi_update :public select_result_interceptor
   bool ignore;
   /* 
      error handling (rollback and binlogging) can happen in send_eof()
-     so that afterward send_error() needs to find out that.
+     so that afterward  abort_result_set() needs to find out that.
   */
   bool error_handled;
   
@@ -4638,7 +4649,6 @@ public:
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
   int send_data(List<Item> &items);
   bool initialize_tables (JOIN *join);
-  void send_error(uint errcode,const char *err);
   int  do_updates();
   bool send_eof();
   inline ha_rows num_found()
@@ -4812,10 +4822,6 @@ public:
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
 
-void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
-
-void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
-                        STATUS_VAR *dec_var);
 void mark_transaction_to_rollback(THD *thd, bool all);
 
 /* Inline functions */

@@ -764,6 +764,9 @@ Events::fill_schema_events(THD *thd, TABLE_LIST *tables, COND * /* cond */)
                      NULL, NULL, 0, 0))
       DBUG_RETURN(1);
     db= thd->lex->select_lex.db;
+
+    if (lower_case_table_names)
+      my_casedn_str(system_charset_info, db);
   }
   ret= db_repository->fill_schema_events(thd, tables, db);
 

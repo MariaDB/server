@@ -2047,6 +2047,39 @@ after_set_capability:
       }
     }
 
+    query_str.length(0);
+    if (query_str.append(STRING_WITH_LEN("SET @slave_gtid_ignore_duplicates="),
+                         system_charset_info) ||
+        query_str.append_ulonglong(opt_gtid_ignore_duplicates != false))
+    {
+      err_code= ER_OUTOFMEMORY;
+      errmsg= "The slave I/O thread stops because a fatal out-of-memory error "
+        "is encountered when it tries to set @slave_gtid_ignore_duplicates.";
+      sprintf(err_buff, "%s Error: Out of memory", errmsg);
+      goto err;
+    }
+
+    rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
+    if (rc)
+    {
+      err_code= mysql_errno(mysql);
+      if (is_network_error(err_code))
+      {
+        mi->report(ERROR_LEVEL, err_code,
+                   "Setting @slave_gtid_ignore_duplicates failed with "
+                   "error: %s", mysql_error(mysql));
+        goto network_err;
+      }
+      else
+      {
+        /* Fatal error */
+        errmsg= "The slave I/O thread stops because a fatal error is "
+          "encountered when it tries to set @slave_gtid_ignore_duplicates.";
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        goto err;
+      }
+    }
+
     if (mi->rli.until_condition == Relay_log_info::UNTIL_GTID)
     {
       query_str.length(0);
@@ -3475,18 +3508,46 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
       */
     }
 
-    /*
-      For GTID, allocate a new sub_id for the given domain_id.
-      The sub_id must be allocated in increasing order of binlog order.
-    */
-    if (typ == GTID_EVENT &&
-        event_group_new_gtid(serial_rgi, static_cast<Gtid_log_event *>(ev)))
+    if (typ == GTID_EVENT)
     {
-      sql_print_error("Error reading relay log event: %s",
-                      "slave SQL thread aborted because of out-of-memory error");
-      mysql_mutex_unlock(&rli->data_lock);
-      delete ev;
-      DBUG_RETURN(1);
+      Gtid_log_event *gev= static_cast<Gtid_log_event *>(ev);
+
+      /*
+        For GTID, allocate a new sub_id for the given domain_id.
+        The sub_id must be allocated in increasing order of binlog order.
+      */
+      if (event_group_new_gtid(serial_rgi, gev))
+      {
+        sql_print_error("Error reading relay log event: %s", "slave SQL thread "
+                        "aborted because of out-of-memory error");
+        mysql_mutex_unlock(&rli->data_lock);
+        delete ev;
+        DBUG_RETURN(1);
+      }
+
+      if (opt_gtid_ignore_duplicates)
+      {
+        serial_rgi->current_gtid.domain_id= gev->domain_id;
+        serial_rgi->current_gtid.server_id= gev->server_id;
+        serial_rgi->current_gtid.seq_no= gev->seq_no;
+        int res= rpl_global_gtid_slave_state.check_duplicate_gtid
+          (&serial_rgi->current_gtid, serial_rgi);
+        if (res < 0)
+        {
+          sql_print_error("Error processing GTID event: %s", "slave SQL "
+                          "thread aborted because of out-of-memory error");
+          mysql_mutex_unlock(&rli->data_lock);
+          delete ev;
+          DBUG_RETURN(1);
+        }
+        /*
+          If we need to skip this event group (because the GTID was already
+          applied), then do it using the code for slave_skip_counter, which
+          is able to handle skipping until the end of the event group.
+        */
+        if (!res)
+          rli->slave_skip_counter= 1;
+      }
     }
 
     serial_rgi->future_event_relay_log_pos= rli->future_event_relay_log_pos;
@@ -4104,6 +4165,7 @@ err:
   if (mi->using_gtid != Master_info::USE_GTID_NO)
     flush_master_info(mi, TRUE, TRUE);
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
+  thd->add_status_to_global();
   mysql_mutex_lock(&mi->run_lock);
 
 err_during_init:
@@ -4603,6 +4665,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
   if (rli->mi->using_gtid != Master_info::USE_GTID_NO)
     flush_relay_log_info(rli);
   THD_STAGE_INFO(thd, stage_waiting_for_slave_mutex_on_exit);
+  thd->add_status_to_global();
   mysql_mutex_lock(&rli->run_lock);
 err_during_init:
   /* We need data_lock, at least to wake up any waiting master_pos_wait() */

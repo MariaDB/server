@@ -370,7 +370,6 @@ os_slot_alloc_page_buf(
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
-static
 ibool
 os_file_handle_error_no_exit(
 /*=========================*/
@@ -785,7 +784,6 @@ Does error handling when a file operation fails.
 Conditionally exits (calling exit(3)) based on should_exit value and the
 error type, if should_exit is TRUE then on_error_silent is ignored.
 @return	TRUE if we should retry the operation */
-static
 ibool
 os_file_handle_error_cond_exit(
 /*===========================*/
@@ -900,7 +898,6 @@ os_file_handle_error(
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
-static
 ibool
 os_file_handle_error_no_exit(
 /*=========================*/

@@ -98,6 +98,11 @@ extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
 extern ulong slave_exec_mode_options, slave_ddl_exec_mode_options;
 extern ulong slave_retried_transactions;
+#ifdef RBR_TRIGGERS
+extern ulong slave_run_triggers_for_rbr;
+#else
+#define slave_run_triggers_for_rbr 0
+#endif //RBR_TRIGGERS
 extern ulonglong slave_type_conversions_options;
 extern my_bool read_only, opt_readonly;
 extern my_bool lower_case_file_system;
@@ -184,6 +189,7 @@ extern ulong opt_slave_domain_parallel_threads;
 extern ulong opt_slave_parallel_max_queued;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
+extern my_bool opt_gtid_ignore_duplicates;
 extern ulong back_log;
 extern ulong executed_events;
 extern char language[FN_REFLEN];
@@ -299,7 +305,7 @@ extern PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 extern PSI_cond_key key_COND_rpl_thread, key_COND_rpl_thread_queue,
   key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer;
-extern PSI_cond_key key_COND_wait_gtid;
+extern PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 extern PSI_thread_key key_thread_bootstrap, key_thread_delayed_insert,
   key_thread_handle_manager, key_thread_kill_server, key_thread_main,
@@ -440,6 +446,7 @@ extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
+extern PSI_stage_info stage_gtid_wait_other_connection;
 
 #ifdef HAVE_PSI_STATEMENT_INTERFACE
 /**

@@ -1591,6 +1591,7 @@ struct HA_CREATE_INFO
   uint stats_sample_pages;
   uint null_bits;                       /* NULL bits at start of record */
   uint options;				/* OR of HA_CREATE_ options */
+  uint org_options;                     /* original options from query */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
   SQL_I_List<TABLE_LIST> merge_list;
@@ -1621,6 +1622,7 @@ struct HA_CREATE_INFO
   TABLE *table;
   TABLE_LIST *pos_in_locked_tables;
   MDL_ticket *mdl_ticket;
+  bool table_was_deleted;
 
   bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
 };
@@ -2720,6 +2722,18 @@ public:
   }
   virtual double scan_time()
   { return ulonglong2double(stats.data_file_length) / IO_SIZE + 2; }
+
+  /**
+     The cost of reading a set of ranges from the table using an index
+     to access it.
+     
+     @param index  The index number.
+     @param ranges The number of ranges to be read.
+     @param rows   Total number of rows to be read.
+     
+     This method can be used to calculate the total cost of scanning a table
+     using an index by calling it using read_time(index, 1, table_size).
+  */
   virtual double read_time(uint index, uint ranges, ha_rows rows)
   { return rows2double(ranges+rows); }
 

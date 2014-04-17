@@ -80,6 +80,15 @@ SHOW TABLES LIKE "T1";
 SELECT * from T1;
 DROP TABLE T1;
 
+create database mysqltest_UPPERCASE;
+CREATE TABLE mysqltest_UPPERCASE.T1 (a int) engine=innodb;
+CREATE TABLE mysqltest_uppercase.t2 (a int) engine=innodb;
+CREATE TABLE mysqltest_UPPERCASE.t3 (a int) engine=innodb;
+drop table mysqltest_UPPERCASE.T1;
+drop table mysqltest_UPPERCASE.T2;
+drop table mysqltest_uppercase.t3;
+drop database mysqltest_UPPERCASE;
+
 #
 # Test problem with temporary tables (Bug #2858)
 #
@@ -119,6 +128,7 @@ drop table T1;
 create database mysqltest_LC2;
 use mysqltest_LC2;
 create table myUC (i int);
+show tables;
 insert into myUC values (1),(2),(3);
 select * from myUC;
 use test;
@@ -208,13 +218,18 @@ drop table if exists t_bug44738_UPPERCASE;
 --enable_warnings
 create database mysqltest_UPPERCASE;
 use mysqltest_UPPERCASE;
+select database();
 create table t_bug44738_UPPERCASE (i int) comment='Old comment';
 create table t_bug44738_lowercase (i int) comment='Old comment';
+create table t_bug44738_UPPERCASE2 (i int) comment='Old comment';
+create table t_bug44738_lowercase2 (i int) comment='Old comment';
 select table_schema, table_name, table_comment from information_schema.tables
   where table_schema like 'mysqltest_%' and table_name like 't_bug44738_%'
   order by table_name;
 alter table t_bug44738_UPPERCASE comment='New comment';
 alter table t_bug44738_lowercase comment='New comment';
+alter table mysqltest_uppercase.t_bug44738_UPPERCASE2 comment='New comment';
+alter table mysqltest_UPPERCASE.t_bug44738_lowercase2 comment='New comment';
 --echo # There should be no stale entries in TDC for our tables after the
 --echo # above ALTER TABLE statements so new version of comments should be
 --echo # returned by the below query to I_S.
@@ -257,3 +272,19 @@ create table t_bug44738_UPPERCASE (i int);
 flush tables;
 create table t_bug44738_UPPERCASE (i int);
 drop table t_bug44738_UPPERCASE;
+
+--echo #
+--echo # Bug #21317 SHOW CREATE DATABASE does not obey to
+--echo # lower_case_table_names
+--echo #
+
+create database mysql_TEST;
+create table mysql_TEST.T1(a int);
+show databases like 'mysql%';
+show databases like 'mysql_T%';
+show databases like 'mysql_t%';
+show create database mysql_test;
+show create database mysql_TEST;
+show create table mysql_TEST.T1;
+show create table mysql_test.t1;
+drop database mysql_TEST;

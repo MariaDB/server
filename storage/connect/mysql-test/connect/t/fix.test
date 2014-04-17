@@ -61,7 +61,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   name char(12) not null,
-  city char(12) not null,
+  city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
@@ -71,7 +71,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   name char(12) not null,
-  city char(12) not null,
+  city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
@@ -82,7 +82,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   name char(12) not null,
-  city char(12) not null,
+  city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
@@ -92,7 +92,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
   name char(12) not null,
-  city char(12) not null,
+  city char(11) not null,
   birth date not null date_format='DD/MM/YYYY',
   hired date not null date_format='DD/MM/YYYY' flag=36
 ) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;

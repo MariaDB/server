@@ -542,25 +542,19 @@ int check_if_log_table(const TABLE_LIST *table,
 {
   int result= 0;
   if (table->db_length == 5 &&
-      !(lower_case_table_names ?
-        my_strcasecmp(system_charset_info, table->db, "mysql") :
-        strcmp(table->db, "mysql")))
+      !my_strcasecmp(table_alias_charset, table->db, "mysql"))
   {
     const char *table_name= table->table_name;
 
     if (table->table_name_length == 11 &&
-        !(lower_case_table_names ?
-          my_strcasecmp(system_charset_info,
-                        table_name, "general_log") :
-          strcmp(table_name, "general_log")))
+        !my_strcasecmp(table_alias_charset, table_name, "general_log"))
     {
       result= QUERY_LOG_GENERAL;
       goto end;
     }
 
-    if (table->table_name_length == 8 && !(lower_case_table_names ?
-      my_strcasecmp(system_charset_info, table_name, "slow_log") :
-      strcmp(table_name, "slow_log")))
+    if (table->table_name_length == 8 &&
+        !my_strcasecmp(table_alias_charset, table_name, "slow_log"))
     {
       result= QUERY_LOG_SLOW;
       goto end;
@@ -2051,6 +2045,21 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 
   DBUG_RETURN(error);
 }
+
+
+void binlog_reset_cache(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ? 
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
+  DBUG_ENTER("binlog_reset_cache");
+  if (cache_mngr)
+  {
+    thd->binlog_remove_pending_rows_event(TRUE, TRUE);
+    cache_mngr->reset(true, true);
+  }
+  DBUG_VOID_RETURN;
+}
+
 
 void MYSQL_BIN_LOG::set_write_error(THD *thd, bool is_transactional)
 {
@@ -3581,7 +3590,8 @@ static bool copy_up_file_and_fill(IO_CACHE *index_file, my_off_t offset)
     if (!bytes_read)
       break;					// end of file
     mysql_file_seek(file, offset-init_offset, MY_SEEK_SET, MYF(0));
-    if (mysql_file_write(file, io_buf, bytes_read, MYF(MY_WME | MY_NABP)))
+    if (mysql_file_write(file, io_buf, bytes_read,
+                         MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)))
       goto err;
   }
   /* The following will either truncate the file or fill the end with \n' */

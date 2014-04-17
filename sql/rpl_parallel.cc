@@ -20,6 +20,8 @@
 
 struct rpl_parallel_thread_pool global_rpl_thread_pool;
 
+static void signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi,
+                                              int err);
 
 static int
 rpt_handle_event(rpl_parallel_thread::queued_event *qev,
@@ -94,10 +96,11 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
 
 static void
-finish_event_group(THD *thd, int err, uint64 sub_id,
-                   rpl_parallel_entry *entry, rpl_group_info *rgi)
+finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
+                   rpl_group_info *rgi)
 {
   wait_for_commit *wfc= &rgi->commit_orderer;
+  int err;
 
   /*
     Remove any left-over registration to wait for a prior commit to
@@ -120,10 +123,10 @@ finish_event_group(THD *thd, int err, uint64 sub_id,
     waiting for us will in any case receive the error back from their
     wait_for_prior_commit() call.
   */
-  if (err)
+  if (rgi->worker_error)
     wfc->unregister_wait_for_prior_commit();
-  else
-    err= wfc->wait_for_prior_commit(thd);
+  else if ((err= wfc->wait_for_prior_commit(thd)))
+    signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
 
   /*
@@ -150,7 +153,7 @@ finish_event_group(THD *thd, int err, uint64 sub_id,
     not yet started should just skip their group, preparing for stop of the
     SQL driver thread.
   */
-  if (unlikely(rgi->is_error) &&
+  if (unlikely(rgi->worker_error) &&
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
   /*
@@ -163,14 +166,14 @@ finish_event_group(THD *thd, int err, uint64 sub_id,
 
   thd->clear_error();
   thd->get_stmt_da()->reset_diagnostics_area();
-  wfc->wakeup_subsequent_commits(err);
+  wfc->wakeup_subsequent_commits(rgi->worker_error);
 }
 
 
 static void
-signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi)
+signal_error_to_sql_driver_thread(THD *thd, rpl_group_info *rgi, int err)
 {
-  rgi->is_error= true;
+  rgi->worker_error= err;
   rgi->cleanup_context(thd, true);
   rgi->rli->abort_slave= true;
   rgi->rli->stop_for_until= false;
@@ -202,7 +205,7 @@ handle_rpl_parallel_thread(void *arg)
   struct rpl_parallel_thread::queued_event *events;
   bool group_standalone= true;
   bool in_event_group= false;
-  bool group_skip_for_stop= false;
+  bool skip_event_group= false;
   rpl_group_info *group_rgi= NULL;
   group_commit_orderer *gco, *tmp_gco;
   uint64 event_gtid_sub_id= 0;
@@ -239,6 +242,39 @@ handle_rpl_parallel_thread(void *arg)
   thd_proc_info(thd, "Waiting for work from main SQL threads");
   thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
+  /*
+    For now, we need to run the replication parallel worker threads in
+    READ COMMITTED. This is needed because gap locks are not symmetric.
+    For example, a gap lock from a DELETE blocks an insert intention lock,
+    but not vice versa. So an INSERT followed by DELETE can group commit
+    on the master, but if we are unlucky with thread scheduling we can
+    then deadlock on the slave because the INSERT ends up waiting for a
+    gap lock from the DELETE (and the DELETE in turn waits for the INSERT
+    in wait_for_prior_commit()). See also MDEV-5914.
+
+    It should be mostly safe to run in READ COMMITTED in the slave anyway.
+    The commit order is already fixed from on the master, so we do not
+    risk logging into the binlog in an incorrect order between worker
+    threads (one that would cause different results if executed on a
+    lower-level slave that uses this slave as a master). The only
+    potential problem is with transactions run in a different master
+    connection (using multi-source replication), or run directly on the
+    slave by an application; when using READ COMMITTED we are not
+    guaranteed serialisability of binlogged statements.
+
+    In practice, this is unlikely to be an issue. In GTID mode, such
+    parallel transactions from multi-source or application must in any
+    case use a different replication domain, in which case binlog order
+    by definition must be independent between the different domain. Even
+    in non-GTID mode, normally one will assume that the external
+    transactions are not conflicting with those applied by the slave, so
+    that isolation level should make no difference. It would be rather
+    strange if the result of applying query events from one master would
+    depend on the timing and nature of other queries executed from
+    different multi-source connections or done directly on the slave by
+    an application. Still, something to be aware of.
+  */
+  thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->thd= thd;
@@ -294,7 +330,6 @@ handle_rpl_parallel_thread(void *arg)
         continue;
       }
 
-      err= 0;
       group_rgi= rgi;
       gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
@@ -304,6 +339,7 @@ handle_rpl_parallel_thread(void *arg)
         PSI_stage_info old_stage;
         uint64 wait_count;
 
+        thd->tx_isolation= (enum_tx_isolation)thd->variables.tx_isolation;
         in_event_group= true;
         /*
           If the standalone flag is set, then this event group consists of a
@@ -346,12 +382,12 @@ handle_rpl_parallel_thread(void *arg)
           did_enter_cond= true;
           do
           {
-            if (thd->check_killed() && !rgi->is_error)
+            if (thd->check_killed() && !rgi->worker_error)
             {
               DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
               thd->send_kill_message();
               slave_output_error_info(rgi->rli, thd);
-              signal_error_to_sql_driver_thread(thd, rgi);
+              signal_error_to_sql_driver_thread(thd, rgi, 1);
               /*
                 Even though we were killed, we need to continue waiting for the
                 prior event groups to signal that we can continue. Otherwise we
@@ -385,13 +421,13 @@ handle_rpl_parallel_thread(void *arg)
             point where we can safely stop. So set a flag that will cause us
             to skip, rather than execute, the following events.
           */
-          group_skip_for_stop= true;
+          skip_event_group= true;
         }
         else
-          group_skip_for_stop= false;
+          skip_event_group= false;
 
         if (unlikely(entry->stop_on_error_sub_id <= rgi->wait_commit_sub_id))
-          group_skip_for_stop= true;
+          skip_event_group= true;
         else if (rgi->wait_commit_sub_id > entry->last_committed_sub_id)
         {
           /*
@@ -417,9 +453,31 @@ handle_rpl_parallel_thread(void *arg)
           */
           rgi->cleanup_context(thd, true);
           thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
-          thd->wait_for_commit_ptr->wakeup_subsequent_commits(err);
+          thd->wait_for_commit_ptr->wakeup_subsequent_commits(rgi->worker_error);
         }
         thd->wait_for_commit_ptr= &rgi->commit_orderer;
+
+        if (opt_gtid_ignore_duplicates)
+        {
+          int res=
+            rpl_global_gtid_slave_state.check_duplicate_gtid(&rgi->current_gtid,
+                                                             rgi);
+          if (res < 0)
+          {
+            /* Error. */
+            slave_output_error_info(rgi->rli, thd);
+            signal_error_to_sql_driver_thread(thd, rgi, 1);
+          }
+          else if (!res)
+          {
+            /* GTID already applied by another master connection, skip. */
+            skip_event_group= true;
+          }
+          else
+          {
+            /* We have to apply the event. */
+          }
+        }
       }
 
       group_ending= event_type == XID_EVENT ||
@@ -438,7 +496,7 @@ handle_rpl_parallel_thread(void *arg)
         processing between the event groups as a simple way to ensure that
         everything is stopped and cleaned up correctly.
       */
-      if (!rgi->is_error && !group_skip_for_stop)
+      if (!rgi->worker_error && !skip_event_group)
         err= rpt_handle_event(events, rpt);
       else
         err= thd->wait_for_prior_commit();
@@ -452,19 +510,19 @@ handle_rpl_parallel_thread(void *arg)
       events->next= qevs_to_free;
       qevs_to_free= events;
 
-      if (err)
+      if (unlikely(err) && !rgi->worker_error)
       {
         slave_output_error_info(rgi->rli, thd);
-        signal_error_to_sql_driver_thread(thd, rgi);
+        signal_error_to_sql_driver_thread(thd, rgi, err);
       }
       if (end_of_group)
       {
         in_event_group= false;
-        finish_event_group(thd, err, event_gtid_sub_id, entry, rgi);
+        finish_event_group(thd, event_gtid_sub_id, entry, rgi);
         rgi->next= rgis_to_free;
         rgis_to_free= rgi;
         group_rgi= rgi= NULL;
-        group_skip_for_stop= false;
+        skip_event_group= false;
         DEBUG_SYNC(thd, "rpl_parallel_end_of_group");
       }
 
@@ -518,15 +576,14 @@ handle_rpl_parallel_thread(void *arg)
         half-processed event group.
       */
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
-      thd->wait_for_prior_commit();
-      finish_event_group(thd, 1, group_rgi->gtid_sub_id,
+      signal_error_to_sql_driver_thread(thd, group_rgi, 1);
+      finish_event_group(thd, group_rgi->gtid_sub_id,
                          group_rgi->parallel_entry, group_rgi);
-      signal_error_to_sql_driver_thread(thd, group_rgi);
       in_event_group= false;
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
       rpt->free_rgi(group_rgi);
       group_rgi= NULL;
-      group_skip_for_stop= false;
+      skip_event_group= false;
     }
     if (!in_event_group)
     {

@@ -36,8 +36,6 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
 
  protected:
-  // Specific file erase routine for vertical tables
-  virtual bool Erase(char *filename);
           int  MakeFnPattern(char *fpat);
 
   // Members

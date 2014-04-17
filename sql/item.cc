@@ -41,7 +41,6 @@
                                        // REPORT_EXCEPT_NOT_FOUND,
                                        // find_item_in_list,
                                        // RESOLVED_AGAINST_ALIAS, ...
-#include "log_event.h"                 // append_query_string
 #include "sql_expression_cache.h"
 
 const String my_null_string("NULL", 4, default_charset_info);
@@ -342,12 +341,29 @@ String *Item::val_string_from_decimal(String *str)
 }
 
 
+/*
+ All val_xxx_from_date() must call this method, to expose consistent behaviour
+ regarding SQL_MODE when converting DATE/DATETIME to other data types.
+*/
+bool Item::get_temporal_with_sql_mode(MYSQL_TIME *ltime)
+{
+  return get_date(ltime, field_type() == MYSQL_TYPE_TIME
+                          ? TIME_TIME_ONLY
+                          : sql_mode_for_dates(current_thd));
+}
+
+
+bool Item::is_null_from_temporal()
+{
+  MYSQL_TIME ltime;
+  return get_temporal_with_sql_mode(&ltime);
+}
+
+
 String *Item::val_string_from_date(String *str)
 {
   MYSQL_TIME ltime;
-  if (get_date(&ltime, field_type() == MYSQL_TYPE_TIME
-                       ? TIME_TIME_ONLY
-                       : sql_mode_for_dates(current_thd)) ||
+  if (get_temporal_with_sql_mode(&ltime) ||
       str->alloc(MAX_DATE_STRING_REP_LENGTH))
   {
     null_value= 1;
@@ -404,7 +420,7 @@ my_decimal *Item::val_decimal_from_date(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, sql_mode_for_dates(current_thd)))
+  if (get_temporal_with_sql_mode(&ltime))
   {
     my_decimal_set_zero(decimal_value);
     null_value= 1;                               // set NULL, stop processing
@@ -431,7 +447,7 @@ longlong Item::val_int_from_date()
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0))
+  if (get_temporal_with_sql_mode(&ltime))
     return 0;
   longlong v= TIME_to_ulonglong(&ltime);
   return ltime.neg ? -v : v;
@@ -442,7 +458,7 @@ double Item::val_real_from_date()
 {
   DBUG_ASSERT(fixed == 1);
   MYSQL_TIME ltime;
-  if (get_date(&ltime, 0))
+  if (get_temporal_with_sql_mode(&ltime))
     return 0;
   return TIME_to_double(&ltime);
 }
@@ -3749,8 +3765,9 @@ const String *Item_param::query_val_str(THD *thd, String* str) const
   case LONG_DATA_VALUE:
     {
       str->length(0);
-      append_query_string(thd, value.cs_info.character_set_client, &str_value,
-                          str);
+      append_query_string(value.cs_info.character_set_client, str,
+                          str_value.ptr(), str_value.length(),
+                          thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
       break;
     }
   case NULL_VALUE:
@@ -8497,6 +8514,8 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
     {
       tmp_field->init(field_arg->field->table);
       set_field(tmp_field);
+      // the index is important when read bits set
+      tmp_field->field_index= field_arg->field->field_index;
     }
   }
   return FALSE;

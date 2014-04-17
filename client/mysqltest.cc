@@ -7943,6 +7943,7 @@ void handle_error(struct st_command *command,
 
   DBUG_ENTER("handle_error");
 
+  command->used_replace= 1;
   if (command->require_file)
   {
     /*

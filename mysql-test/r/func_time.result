@@ -2481,3 +2481,16 @@ CAST(ADDTIME(CASE WHEN 0 THEN a ELSE b END,0) AS CHAR)
 2001-02-03 00:20:12
 DROP TABLE t1;
 SET timestamp=DEFAULT;
+#
+# MDEV-5870 Assertion `ltime->neg == 0' fails with COALESCE, ADDDATE, MAKEDATE
+#
+CREATE TABLE t1 (dt DATETIME);
+INSERT INTO t1 VALUES ('2003-05-13 19:36:05'), ('2012-12-12 09:20:06');
+SELECT COALESCE(ADDDATE(MAKEDATE(2011,121), dt), '2006-09-12' ) FROM t1;
+COALESCE(ADDDATE(MAKEDATE(2011,121), dt), '2006-09-12' )
+2006-09-12
+2006-09-12
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+Warning	1441	Datetime function: datetime field overflow
+DROP TABLE t1;

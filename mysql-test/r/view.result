@@ -201,7 +201,7 @@ c	d
 2	5
 3	10
 drop view v100;
-ERROR 42S02: Unknown table 'v100'
+ERROR 42S02: Unknown table 'test.v100'
 drop view t1;
 ERROR HY000: 'test.t1' is not VIEW
 drop table v1;
@@ -2872,7 +2872,7 @@ Tables_in_test
 t1
 v1
 DROP VIEW v2,v1;
-ERROR 42S02: Unknown table 'v2'
+ERROR 42S02: Unknown table 'test.v2'
 SHOW TABLES;
 Tables_in_test
 t1
@@ -5000,6 +5000,22 @@ v1_field1
 deallocate prepare my_stmt;
 DROP VIEW v1,v2;
 DROP TABLE t1,t2,t3,t4;
+#
+#MDEV-5717: Server crash with insert statement containing DEFAULT into
+#view
+#
+CREATE TABLE t1 (
+`id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+`test` tinyint(3) unsigned NOT NULL DEFAULT '0',
+PRIMARY KEY (`id`)
+);
+CREATE VIEW v1 AS (select  t1.id AS id,  t1.test AS test from t1);
+INSERT INTO v1 SET test = DEFAULT;
+select * from v1;
+id	test
+1	0
+drop view v1;
+drop table t1;
 # -----------------------------------------------------------------
 # -- End of 5.3 tests.
 # -----------------------------------------------------------------

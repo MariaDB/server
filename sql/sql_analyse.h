@@ -365,6 +365,4 @@ public:
 				      List<Item> &field_list);
 };
 
-bool append_escaped(String *to_str, String *from_str);
-
 #endif /* SQL_ANALYSE_INCLUDED */

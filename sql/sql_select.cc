@@ -3064,7 +3064,8 @@ void JOIN::exec_inner()
                                    Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
   error= do_select(curr_join, curr_fields_list, NULL, procedure);
   thd->limit_found_rows= curr_join->send_records;
-  if (curr_join->order && curr_join->filesort_found_rows)
+  if (curr_join->order && curr_join->sortorder &&
+      curr_join->select_options & OPTION_FOUND_ROWS)
   {
     /* Use info provided by filesort. */
     DBUG_ASSERT(curr_join->table_count > curr_join->const_tables);
@@ -3820,6 +3821,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   { 
     conds->update_used_tables();
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
+    if (conds && conds->type() == Item::COND_ITEM &&
+        ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
+      join->cond_equal= &((Item_cond_and*) conds)->cond_equal;
     join->select_lex->where= conds;
     if (join->cond_value == Item::COND_FALSE)
     {
@@ -5556,9 +5560,23 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 /* Estimate of the number matching candidates in the joined table */
 
 inline
-ha_rows matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint)
+double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
+                                     uint use_cond_selectivity)
 {
-  ha_rows records= s->found_records;
+  ha_rows records;
+  double dbl_records;
+
+  if (use_cond_selectivity > 1)
+  {
+    TABLE *table= s->table;
+    double sel= table->cond_selectivity;
+    double table_records= table->stat_records();
+    dbl_records= table_records * sel;
+    return dbl_records;
+  }
+
+  records = s->found_records;
+
   /*
     If there is a filtering condition on the table (i.e. ref analyzer found
     at least one "table.keyXpartY= exprZ", where exprZ refers only to tables
@@ -5578,7 +5596,8 @@ ha_rows matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint)
   if (s->table->quick_condition_rows != s->found_records)
     records= s->table->quick_condition_rows;
 
-  return records;
+  dbl_records= records;
+  return dbl_records;
 }
 
 
@@ -5621,6 +5640,7 @@ best_access_path(JOIN      *join,
                  POSITION *loose_scan_pos)
 {
   THD *thd= join->thd;
+  uint use_cond_selectivity= thd->variables.optimizer_use_condition_selectivity;
   KEYUSE *best_key=         0;
   uint best_max_key_part=   0;
   my_bool found_constraint= 0;
@@ -6052,7 +6072,8 @@ best_access_path(JOIN      *join,
   {
     double join_sel= 0.1;
     /* Estimate the cost of  the hash join access to the table */
-    ha_rows rnd_records= matching_candidates_in_table(s, found_constraint);
+    double rnd_records= matching_candidates_in_table(s, found_constraint,
+                                                     use_cond_selectivity);
 
     tmp= s->quick ? s->quick->read_time : s->scan_time();
     tmp+= (s->records - rnd_records)/(double) TIME_FOR_COMPARE;
@@ -6064,7 +6085,7 @@ best_access_path(JOIN      *join,
     best_time= tmp + 
                (record_count*join_sel) / TIME_FOR_COMPARE * rnd_records;
     best= tmp;
-    records= rows2double(rnd_records);
+    records= rnd_records;
     best_key= hj_start_key;
     best_ref_depends_map= 0;
     best_uses_jbuf= TRUE;
@@ -6111,7 +6132,8 @@ best_access_path(JOIN      *join,
       !(s->table->force_index && best_key && !s->quick) &&               // (4)
       !(best_key && s->table->pos_in_table_list->jtbm_subselect))        // (5)
   {                                             // Check full join
-    ha_rows rnd_records= matching_candidates_in_table(s, found_constraint);
+    double rnd_records= matching_candidates_in_table(s, found_constraint,
+                                                      use_cond_selectivity);
 
     /*
       Range optimizer never proposes a RANGE if it isn't better
@@ -6139,7 +6161,11 @@ best_access_path(JOIN      *join,
     else
     {
       /* Estimate cost of reading table. */
-      tmp= s->scan_time();
+      if (s->table->force_index && !best_key) // index scan
+        tmp= s->table->file->read_time(s->ref.key, 1, s->records);
+      else // table scan
+        tmp= s->scan_time();
+
       if ((s->table->map & join->outer_join) || disable_jbuf)     // Can't use join cache
       {
         /*
@@ -6184,7 +6210,7 @@ best_access_path(JOIN      *join,
         will ensure that this will be used
       */
       best= tmp;
-      records= rows2double(rnd_records);
+      records= rnd_records;
       best_key= 0;
       /* range/index_merge/ALL/index access method are "independent", so: */
       best_ref_depends_map= 0;
@@ -7289,6 +7315,10 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       keyuse++;
     } while (keyuse->table == table && keyuse->key == key);
   }
+  else
+  {
+    sel= 1;
+  }
     
   /* 
     If the field f from the table is equal to a field from one the
@@ -7588,7 +7618,11 @@ best_extension_by_limited_search(JOIN      *join,
         if (join->sort_by_table &&
             join->sort_by_table !=
             join->positions[join->const_tables].table->table)
-          /* We have to make a temp table */
+          /* 
+             We may have to make a temp table, note that this is only a 
+             heuristic since we cannot know for sure at this point. 
+             Hence it may be wrong.
+          */
           current_read_time+= current_record_count;
         if (current_read_time < join->best_read)
         {
@@ -8313,7 +8347,7 @@ get_best_combination(JOIN *join)
       Save records_read in JOIN_TAB so that select_describe()/etc don't have
       to access join->best_positions[]. 
     */
-    j->records_read= (ha_rows)join->best_positions[tablenr].records_read;
+    j->records_read= join->best_positions[tablenr].records_read;
     j->cond_selectivity= join->best_positions[tablenr].cond_selectivity;
     join->map2table[j->table->tablenr]= j;
 
@@ -14230,7 +14264,10 @@ optimize_cond(JOIN *join, COND *conds,
       Remove all and-levels where CONST item != CONST item
     */
     DBUG_EXECUTE("where",print_where(conds,"after const change", QT_ORDINARY););
-    conds= remove_eq_conds(thd, conds, cond_value) ;
+    conds= remove_eq_conds(thd, conds, cond_value);
+    if (conds && conds->type() == Item::COND_ITEM &&
+        ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
+      join->cond_equal= &((Item_cond_and*) conds)->cond_equal;
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
   }
   DBUG_RETURN(conds);
@@ -16117,9 +16154,23 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     keyinfo->name= (char*) "distinct_key";
     keyinfo->algorithm= HA_KEY_ALG_UNDEF;
     keyinfo->is_statistics_from_stat_tables= FALSE;
-    keyinfo->rec_per_key=0;
     keyinfo->read_stats= NULL;
     keyinfo->collected_stats= NULL;
+
+    /*
+      Needed by non-merged semi-joins: SJ-Materialized table must have a valid 
+      rec_per_key array, because it participates in join optimization. Since
+      the table has no data, the only statistics we can provide is "unknown",
+      i.e. zero values.
+
+      (For table record count, we calculate and set JOIN_TAB::found_records,
+       see get_delayed_table_estimates()).
+    */
+    size_t rpk_size= keyinfo->user_defined_key_parts * sizeof(keyinfo->rec_per_key[0]);
+    if (!(keyinfo->rec_per_key= (ulong*) alloc_root(&table->mem_root, 
+                                                    rpk_size)))
+      goto err;
+    bzero(keyinfo->rec_per_key, rpk_size);
 
     /*
       Create an extra field to hold NULL bits so that unique indexes on
@@ -18540,7 +18591,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         records are read. Because of optimization in some cases it can
         provide only select_limit_cnt+1 records.
       */
-      if (join->order && join->filesort_found_rows &&
+      if (join->order && join->sortorder &&
           join->select_options & OPTION_FOUND_ROWS)
       {
         DBUG_PRINT("info", ("filesort NESTED_LOOP_QUERY_LIMIT"));
@@ -18562,7 +18613,6 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	  /* Join over all rows in table;  Return number of found rows */
 	  TABLE *table=jt->table;
 
-	  join->select_options ^= OPTION_FOUND_ROWS;
 	  if (table->sort.record_pointers ||
 	      (table->sort.io_cache && my_b_inited(table->sort.io_cache)))
 	  {
@@ -20395,11 +20445,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
                             select, filesort_limit, 0,
                             &examined_rows, &found_rows);
   table->sort.found_records= filesort_retval;
-  if (found_rows != HA_POS_ERROR)
-  {
-    tab->records= found_rows;                     // For SQL_CALC_ROWS
-    join->filesort_found_rows= true;
-  }
+  tab->records= found_rows;                     // For SQL_CALC_ROWS
 
   if (quick_created)
   {

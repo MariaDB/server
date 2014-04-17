@@ -31,18 +31,28 @@ struct show_table_contributors_st {
   Get permission before editing.
 
   Names should be encoded using UTF-8.
+
+  See also https://mariadb.com/kb/en/log-of-mariadb-contributions/
 */
 
 struct show_table_contributors_st show_table_contributors[]= {
-  /* MariaDB foundation members, in contribution size order */
+  /* MariaDB foundation members, in contribution, size , time order */
   {"Booking.com", "http://www.booking.com", "Founding member of the MariaDB foundation"},
   {"SkySQL Ab", "http://www.skysql.com", "Founding member of the MariaDB foundation"},
+  {"Auttomatic", "http://automattic.com", "Member of the MariaDB foundation"},  
   {"Parallels", "http://www.parallels.com/products/plesk", "Founding member of the MariaDB foundation"},
 
   /* Smaller sponsors, newer per year */
+  {"Verkkokauppa.com", "Finland", "Sponsor of the MariaDB foundation"},
+  {"Webyog", "Bangalor", "Sponsor of the MariaDB foundation"},
+  {"Percona", "USA", "Sponsor of the MariaDB foundation"},
   {"Jelastic.com", "Russia", "Sponsor of the MariaDB foundation"},
   {"Planetta.net", "Finland", "Sponsor of the MariaDB foundation"},
   {"Open query", "Australia", "Sponsor of the MariaDB foundation"},
+
+  /* Sponsors of important features */
+  {"Google", "USA", "Sponsoring parallel replication and GTID" },
+  {"Facebook", "USA", "Sponsoring non-blocking API, LIMIT ROWS EXAMINED etc"},
 
   /* Individual contributors, names in historical order, newer first */
   {"Ronald Bradford", "Brisbane, Australia", "EFF contribution for UC2006 Auction"},

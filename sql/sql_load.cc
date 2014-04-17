@@ -28,7 +28,6 @@
 #include <my_dir.h>
 #include "sql_view.h"                           // check_key_in_view
 #include "sql_insert.h" // check_that_all_fields_are_given_values,
-                        // prepare_triggers_for_insert_stmt,
                         // write_record
 #include "sql_acl.h"    // INSERT_ACL, UPDATE_ACL
 #include "log_event.h"  // Delete_file_log_event,
@@ -298,7 +297,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
   }
 
-  prepare_triggers_for_insert_stmt(table);
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
 
   uint tot_length=0;
   bool use_blobs= 0, use_vars= 0;

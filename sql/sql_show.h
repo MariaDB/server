@@ -86,7 +86,9 @@ bool append_identifier(THD *thd, String *packet, const char *name,
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
-bool mysqld_show_create_db(THD *thd, char *dbname, HA_CREATE_INFO *create);
+bool mysqld_show_create_db(THD *thd, LEX_STRING *db_name,
+                           LEX_STRING *orig_db_name,
+                           HA_CREATE_INFO *create);
 
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
 int mysqld_show_status(THD *thd);

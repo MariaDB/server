@@ -239,7 +239,7 @@ PARTITION Partc ,
 PARTITION PartD );
 ERROR 42S01: Table 'tablea' already exists
 SHOW TABLES;
-Tables_in_mysql_test_db
+Tables_in_MySQL_Test_DB
 TableA
 RENAME TABLE TableA to tablea;
 ERROR 42S01: Table 'tablea' already exists
@@ -466,7 +466,7 @@ PARTITION Partc ,
 PARTITION PartD );
 ERROR 42S01: Table 'tablea' already exists
 SHOW TABLES;
-Tables_in_mysql_test_db
+Tables_in_MySQL_Test_DB
 TableA
 RENAME TABLE TableA to tablea;
 ERROR 42S01: Table 'tablea' already exists
@@ -688,7 +688,7 @@ PARTITION Partc VALUES LESS THAN (10) ,
 PARTITION PartD VALUES LESS THAN (13) );
 ERROR 42S01: Table 'tablea' already exists
 SHOW TABLES;
-Tables_in_mysql_test_db
+Tables_in_MySQL_Test_DB
 TableA
 RENAME TABLE TableA to tablea;
 ERROR 42S01: Table 'tablea' already exists
@@ -906,7 +906,7 @@ PARTITION Partc VALUES IN (3,4,7) ,
 PARTITION PartD VALUES IN (5,6,12) );
 ERROR 42S01: Table 'tablea' already exists
 SHOW TABLES;
-Tables_in_mysql_test_db
+Tables_in_MySQL_Test_DB
 TableA
 RENAME TABLE TableA to tablea;
 ERROR 42S01: Table 'tablea' already exists

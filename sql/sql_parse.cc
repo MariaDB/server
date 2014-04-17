@@ -1435,7 +1435,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     lex_start(thd);
     /* Must be before we init the table list. */
     if (lower_case_table_names)
+    {
       table_name.length= my_casedn_str(files_charset_info, table_name.str);
+      db.length= my_casedn_str(files_charset_info, db.str);
+    }
     table_list.init_one_table(db.str, db.length, table_name.str,
                               table_name.length, table_name.str, TL_READ);
     /*
@@ -2851,14 +2854,13 @@ case SQLCOM_PREPARE:
     /* Might have been updated in create_table_precheck */
     create_info.alias= create_table->alias;
 
-#ifdef HAVE_READLINK
-    /* Fix names if symlinked tables */
+    /* Fix names if symlinked or relocated tables */
     if (append_file_to_dir(thd, &create_info.data_file_name,
 			   create_table->table_name) ||
 	append_file_to_dir(thd, &create_info.index_file_name,
 			   create_table->table_name))
       goto end_with_restore_list;
-#endif
+
     /*
       If no engine type was given, work out the default now
       rather than at parse-time.
@@ -2891,6 +2893,7 @@ case SQLCOM_PREPARE:
       CREATE TABLE OR EXISTS failures by dropping the table and
       retrying the create.
     */
+    create_info.org_options= create_info.options;
     if (thd->slave_thread &&
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
         !(lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS))
@@ -3869,9 +3872,7 @@ end_with_restore_list:
       prepared statement- safe.
     */
     HA_CREATE_INFO create_info(lex->create_info);
-    char *alias;
-    if (!(alias=thd->strmake(lex->name.str, lex->name.length)) ||
-        check_db_name(&lex->name))
+    if (check_db_name(&lex->name))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
       break;
@@ -3894,8 +3895,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
-    res= mysql_create_db(thd,(lower_case_table_names == 2 ? alias :
-                              lex->name.str), &create_info, 0);
+    res= mysql_create_db(thd, lex->name.str, &create_info, 0);
     break;
   }
   case SQLCOM_DROP_DB:
@@ -3988,14 +3988,20 @@ end_with_restore_list:
   }
   case SQLCOM_SHOW_CREATE_DB:
   {
+    char db_name_buff[NAME_LEN+1];
+    LEX_STRING db_name;
     DBUG_EXECUTE_IF("4x_server_emul",
                     my_error(ER_UNKNOWN_ERROR, MYF(0)); goto error;);
-    if (check_db_name(&lex->name))
+
+    db_name.str= db_name_buff;
+    db_name.length= lex->name.length;
+    strmov(db_name.str, lex->name.str);
+    if (check_db_name(&db_name))
     {
-      my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
+      my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
       break;
     }
-    res= mysqld_show_create_db(thd, lex->name.str, &lex->create_info);
+    res= mysqld_show_create_db(thd, &db_name, &lex->name, &lex->create_info);
     break;
   }
   case SQLCOM_CREATE_EVENT:
@@ -4642,6 +4648,10 @@ create_sp_error:
           open_and_lock_tables(thd, all_tables, TRUE, 0))
        goto error;
 
+      if (check_routine_access(thd, EXECUTE_ACL, lex->spname->m_db.str,
+                               lex->spname->m_name.str, TRUE, FALSE))
+        goto error;
+
       /*
         By this moment all needed SPs should be in cache so no need to look 
         into DB. 
@@ -4691,11 +4701,6 @@ create_sp_error:
 	  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
 	}
 
-	if (check_routine_access(thd, EXECUTE_ACL,
-				 sp->m_db.str, sp->m_name.str, TRUE, FALSE))
-	{
-	  goto error;
-	}
 	select_limit= thd->variables.select_limit;
 	thd->variables.select_limit= HA_POS_ERROR;
 
@@ -6749,8 +6754,14 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   ptr->alias= alias_str;
   ptr->is_alias= alias ? TRUE : FALSE;
-  if (lower_case_table_names && table->table.length)
-    table->table.length= my_casedn_str(files_charset_info, table->table.str);
+  if (lower_case_table_names)
+  {
+    if (table->table.length)
+      table->table.length= my_casedn_str(files_charset_info, table->table.str);
+    if (ptr->db_length && ptr->db != any_db)
+      ptr->db_length= my_casedn_str(files_charset_info, ptr->db);
+  }
+      
   ptr->table_name=table->table.str;
   ptr->table_name_length=table->table.length;
   ptr->lock_type=   lock_type;
@@ -7675,6 +7686,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
               check_grant(thd, SELECT_ACL, table, FALSE, 1, FALSE)))
       DBUG_RETURN(TRUE);
 
+    table->grant.orig_want_privilege= 0;
     table->table_in_first_from_clause= 1;
   }
   /*
