@@ -1917,6 +1917,13 @@ loop_end:
     TABLE *tbl= table;
     do
     {
+      /*
+        Signal each table (including tables referenced by WITH CHECK OPTION
+        clause) for which we will store row position in the temporary table
+        that we need a position to be read first.
+      */
+      tbl->prepare_for_position();
+
       Field_string *field= new Field_string(tbl->file->ref_length, 0,
                                             tbl->alias.c_ptr(),
                                             &my_charset_bin);
