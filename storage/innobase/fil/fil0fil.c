@@ -4190,7 +4190,6 @@ fil_extend_space_to_desired_size(
 	}
 
 	mem_free(buf2);
-
 	fil_node_complete_io(node, fil_system, OS_FILE_WRITE);
 
 complete_io:
