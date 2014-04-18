@@ -38,6 +38,7 @@ wsrep_provider
 wsrep_provider_options
 wsrep_recover
 wsrep_replicate_myisam
+wsrep_restart_slave
 wsrep_retry_autocommit
 wsrep_slave_threads
 wsrep_sst_auth
