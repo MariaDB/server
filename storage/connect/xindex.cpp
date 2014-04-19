@@ -723,7 +723,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
       return true;
     } // endswitch Ftype
 
-  if ((sep = dup->Catalog->GetBoolCatInfo("SepIndex", false))) {
+  if ((sep = defp->GetBoolCatInfo("SepIndex", false))) {
     // Index is saved in a separate file
 #if !defined(UNIX)
     char drive[_MAX_DRIVE];
@@ -1627,7 +1627,7 @@ int XINDEX::Fetch(PGLOBAL g)
   switch (Op) {
     case OP_NEXT:                 // Read next
       if (NextVal(false))
-        return -1;               // End of indexed file
+        return -1;                // End of indexed file
 
       break;
     case OP_FIRST:                // Read first
@@ -1643,7 +1643,7 @@ int XINDEX::Fetch(PGLOBAL g)
 
       if (NextVal(true)) {
         Op = OP_EQ;
-        return -2;               // no more equal values
+        return -2;                // no more equal values
         } // endif NextVal
 
       break;
@@ -1651,9 +1651,9 @@ int XINDEX::Fetch(PGLOBAL g)
 //      while (!NextVal(true)) ;
 
 //      if (Cur_K >= Num_K)
-//        return -1;               // End of indexed file
+//        return -1;              // End of indexed file
       if (NextValDif())
-        return -1;               // End of indexed file
+        return -1;                // End of indexed file
 
       break;
     case OP_FSTDIF:               // Read first diff
@@ -1662,11 +1662,16 @@ int XINDEX::Fetch(PGLOBAL g)
 
       Op = (Mul || Nval < Nk) ? OP_NXTDIF : OP_NEXT;
       break;
-    case OP_LAST:                // Read last key
+    case OP_LAST:                 // Read last key
       for (Cur_K = Num_K - 1, kp = To_KeyCol; kp; kp = kp->Next)
         kp->Val_K = kp->Kblp->GetNval() - 1;
 
       Op = OP_NEXT;
+      break;
+    case OP_PREV:                 // Read previous
+      if (PrevVal())
+        return -1;                // End of indexed file
+
       break;
     default:                      // Should be OP_EQ
 //    if (Tbxp->Key_Rank < 0) {

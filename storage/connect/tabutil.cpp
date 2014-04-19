@@ -307,10 +307,10 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char *pn, *db, *tab, *def = NULL;
 
-  db = Cat->GetStringCatInfo(g, "Dbname", "*");
-  def = Cat->GetStringCatInfo(g, "Srcdef", NULL);
+  db = GetStringCatInfo(g, "Dbname", "*");
+  def = GetStringCatInfo(g, "Srcdef", NULL);
 
-  if (!(tab = Cat->GetStringCatInfo(g, "Tabname", NULL))) {
+  if (!(tab = GetStringCatInfo(g, "Tabname", NULL))) {
     if (!def) {
       strcpy(g->Message, "Missing object table definition");
       return TRUE;

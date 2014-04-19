@@ -120,36 +120,37 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
              : (am && (*am == 'B' || *am == 'b')) ? "B"
              : (am && !stricmp(am, "DBF"))        ? "D" : "V";
 
-  Desc = Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
-  Ofn = Cat->GetStringCatInfo(g, "Optname", Fn);
-  Cat->GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
+  Desc = Fn = GetStringCatInfo(g, "Filename", NULL);
+  Ofn = GetStringCatInfo(g, "Optname", Fn);
+  GetCharCatInfo("Recfm", (PSZ)dfm, buf, sizeof(buf));
   Recfm = (toupper(*buf) == 'F') ? RECFM_FIX :
           (toupper(*buf) == 'B') ? RECFM_BIN :
           (toupper(*buf) == 'D') ? RECFM_DBF : RECFM_VAR;
-  Lrecl = Cat->GetIntCatInfo("Lrecl", 0);
+  Lrecl = GetIntCatInfo("Lrecl", 0);
 
   if (Recfm != RECFM_DBF)
-    Compressed = Cat->GetIntCatInfo("Compressed", 0);
+    Compressed = GetIntCatInfo("Compressed", 0);
 
-  Mapped = Cat->GetBoolCatInfo("Mapped", map);
-  Block = Cat->GetIntCatInfo("Blocks", 0);
-  Last = Cat->GetIntCatInfo("Last", 0);
-  Ending = Cat->GetIntCatInfo("Ending", CRLF);
+  Mapped = GetBoolCatInfo("Mapped", map);
+  Block = GetIntCatInfo("Blocks", 0);
+  Last = GetIntCatInfo("Last", 0);
+  Ending = GetIntCatInfo("Ending", CRLF);
 
   if (Recfm == RECFM_FIX || Recfm == RECFM_BIN) {
-    Huge = Cat->GetBoolCatInfo("Huge", Cat->GetDefHuge());
-    Padded = Cat->GetBoolCatInfo("Padded", false);
-    Blksize = Cat->GetIntCatInfo("Blksize", 0);
-    Eof = (Cat->GetIntCatInfo("EOF", 0) != 0);
+    Huge = GetBoolCatInfo("Huge", Cat->GetDefHuge());
+    Padded = GetBoolCatInfo("Padded", false);
+    Blksize = GetIntCatInfo("Blksize", 0);
+    Eof = (GetIntCatInfo("EOF", 0) != 0);
   } else if (Recfm == RECFM_DBF) {
-    Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
-    Accept = (Cat->GetIntCatInfo("Accept", 0) != 0);
-    ReadMode = Cat->GetIntCatInfo("Readmode", 0);
+    Maxerr = GetIntCatInfo("Maxerr", 0);
+    Accept = (GetIntCatInfo("Accept", 0) != 0);
+    ReadMode = GetIntCatInfo("Readmode", 0);
   } else // (Recfm == RECFM_VAR)
-    AvgLen = Cat->GetIntCatInfo("Avglen", 0);
+    AvgLen = GetIntCatInfo("Avglen", 0);
 
   // Ignore wrong Index definitions for catalog commands
-  return (Cat->GetIndexInfo(g, this) /*&& !Cat->GetCatFnc()*/);
+  SetIndexInfo();
+  return false;
   } // end of DefineAM
 
 /***********************************************************************/
@@ -222,7 +223,7 @@ bool DOSDEF::DeleteIndexFile(PGLOBAL g, PIXDEF pxdf)
     return false;           // No index
 
   // If true indexes are in separate files
-  sep = Cat->GetBoolCatInfo("SepIndex", false);
+  sep = GetBoolCatInfo("SepIndex", false);
 
   if (!sep && pxdf) {
     strcpy(g->Message, MSG(NO_RECOV_SPACE));
@@ -755,13 +756,11 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   /*  Save the optimization values for this table.                     */
   /*********************************************************************/
   if (!SaveBlockValues(g)) {
-    PCATLG cat = PlgGetCatalog(g);
-
     defp->Block = Txfp->Block;
     defp->Last = Txfp->Last;
     CloseDB(g);
-    cat->SetIntCatInfo("Blocks", Txfp->Block);
-    cat->SetIntCatInfo("Last", Txfp->Last);
+    defp->SetIntCatInfo("Blocks", Txfp->Block);
+    defp->SetIntCatInfo("Last", Txfp->Last);
     return RC_OK;
     } // endif SaveBlockValues
 
@@ -1559,7 +1558,6 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 //PCOLDEF cdp;
   PXINDEX x;
   PXLOAD  pxp;
-  PCATLG  cat = PlgGetCatalog(g);
 
   Mode = MODE_READ;
   Use = USE_READY;
@@ -1608,7 +1606,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       } // endfor kdp
 
   keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
-  sep = cat->GetBoolCatInfo("SepIndex", false);
+  sep = dfp->GetBoolCatInfo("SepIndex", false);
 
   /*********************************************************************/
   /*  Construct and save the defined indexes.                          */

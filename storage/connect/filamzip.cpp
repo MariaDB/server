@@ -652,13 +652,12 @@ int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
   if (irc == RC_EF) {
     LPCSTR  name = Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
-    PCATLG  cat = PlgGetCatalog(g);
 
     defp->SetBlock(0);
     defp->SetLast(Nrec);
 
-    if (!cat->SetIntCatInfo("Blocks", 0) ||
-        !cat->SetIntCatInfo("Last", 0)) {
+    if (!defp->SetIntCatInfo("Blocks", 0) ||
+        !defp->SetIntCatInfo("Last", 0)) {
       sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
       return RC_FX;
     } else
@@ -677,7 +676,6 @@ void ZBKFAM::CloseTableFile(PGLOBAL g)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    PCATLG  cat = PlgGetCatalog(g);
     LPCSTR  name = Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
@@ -696,8 +694,8 @@ void ZBKFAM::CloseTableFile(PGLOBAL g)
     if (rc != RC_FX) {
       defp->SetBlock(Block);
       defp->SetLast(Last);
-      cat->SetIntCatInfo("Blocks", Block);
-      cat->SetIntCatInfo("Last", Last);
+      defp->SetIntCatInfo("Blocks", Block);
+      defp->SetIntCatInfo("Last", Last);
       } // endif
 
     gzclose(Zfile);
@@ -1335,7 +1333,6 @@ void ZLBFAM::CloseTableFile(PGLOBAL g)
   int rc = RC_OK;
 
   if (Tdbp->GetMode() == MODE_INSERT) {
-    PCATLG  cat = PlgGetCatalog(g);
     LPCSTR  name = Tdbp->GetName();
     PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
 
@@ -1355,8 +1352,8 @@ void ZLBFAM::CloseTableFile(PGLOBAL g)
     if (rc != RC_FX) {
       defp->SetBlock(Block);
       defp->SetLast(Last);
-      cat->SetIntCatInfo("Blocks", Block);
-      cat->SetIntCatInfo("Last", Last);
+      defp->SetIntCatInfo("Blocks", Block);
+      defp->SetIntCatInfo("Last", Last);
       } // endif
 
     fclose(Stream);

@@ -415,10 +415,10 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (DOSDEF::DefineAM(g, "CSV", poff))
     return true;
 
-  Cat->GetCharCatInfo("Separator", ",", buf, sizeof(buf));
+  GetCharCatInfo("Separator", ",", buf, sizeof(buf));
   Sep = (strlen(buf) == 2 && buf[0] == '\\' && buf[1] == 't') ? '\t' : *buf;
-  Quoted = Cat->GetIntCatInfo("Quoted", -1);
-  Cat->GetCharCatInfo("Qchar", "", buf, sizeof(buf));
+  Quoted = GetIntCatInfo("Quoted", -1);
+  GetCharCatInfo("Qchar", "", buf, sizeof(buf));
   Qot = *buf;
 
   if (Qot && Quoted < 0)
@@ -427,9 +427,9 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Qot = '"';
 
   Fmtd = (!Sep || (am && (*am == 'F' || *am == 'f')));
-  Header = (Cat->GetIntCatInfo("Header", 0) != 0);
-  Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
-  Accept = (Cat->GetIntCatInfo("Accept", 0) != 0);
+  Header = (GetIntCatInfo("Header", 0) != 0);
+  Maxerr = GetIntCatInfo("Maxerr", 0);
+  Accept = (GetIntCatInfo("Accept", 0) != 0);
   return false;
   } // end of DefineAM
 

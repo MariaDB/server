@@ -14,6 +14,7 @@
 #include "my_sys.h"
 
 typedef class  INDEXDEF *PIXDEF;
+typedef class  ha_connect *PHC;
 
 /***********************************************************************/
 /*  Table or View (relation) definition block.                         */
@@ -38,6 +39,12 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   void    SetCat(PCATLG cat) { Cat=cat; }
 
   // Methods
+  bool    GetBoolCatInfo(PSZ what, bool bdef);
+  bool    SetIntCatInfo(PSZ what, int ival);
+  int     GetIntCatInfo(PSZ what, int idef);
+  int     GetSizeCatInfo(PSZ what, PSZ sdef);
+  int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);
+  char   *GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef);
   virtual bool Indexable(void) {return false;}
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
@@ -48,6 +55,7 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   LPCSTR  Database;                    /* Table database               */
   PCOLDEF To_Cols;                     /* To a list of column desc     */
   PCATLG  Cat;                         /* To DB catalog info           */
+  PHC     Hc;                          /* The Connect handler          */
   }; // end of RELDEF
 
 /***********************************************************************/
@@ -71,7 +79,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   int     GetPseudo(void) {return Pseudo;}
   PSZ     GetPath(void)
             {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
-  bool    SepIndex(void) {return Cat->GetBoolCatInfo("SepIndex", false);}
+  bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}
   virtual PIXDEF GetIndx(void) {return NULL;}
@@ -80,6 +88,8 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   const CHARSET_INFO *data_charset() {return m_data_charset;}
 
   // Methods
+          int  GetColCatInfo(PGLOBAL g);
+          void SetIndexInfo(void);
           bool DropTable(PGLOBAL g, PSZ name);
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am);
   virtual bool DefineAM(PGLOBAL, LPCSTR, int) = 0;
@@ -172,9 +182,7 @@ class DllExport COLCRT : public BLOCK { /* Column description block             
 /*  Column definition block.                                           */
 /***********************************************************************/
 class DllExport COLDEF : public COLCRT { /* Column description block             */
-  friend class CATALOG;
-  friend class PLUGCAT;
-  friend class MYCAT;
+  friend class TABDEF;
   friend class COLBLK;
   friend class DBFFAM;
   friend class TDBASE;

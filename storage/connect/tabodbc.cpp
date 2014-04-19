@@ -100,22 +100,22 @@ ODBCDEF::ODBCDEF(void)
 /***********************************************************************/
 bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  Desc = Connect = Cat->GetStringCatInfo(g, "Connect", "");
-  Tabname = Cat->GetStringCatInfo(g, "Name",
+  Desc = Connect = GetStringCatInfo(g, "Connect", "");
+  Tabname = GetStringCatInfo(g, "Name",
                  (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
-  Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-  Tabschema = Cat->GetStringCatInfo(g, "Dbname", NULL);
-  Tabschema = Cat->GetStringCatInfo(g, "Schema", Tabschema);
-  Tabcat = Cat->GetStringCatInfo(g, "Qualifier", NULL);
-  Tabcat = Cat->GetStringCatInfo(g, "Catalog", Tabcat);
-  Srcdef = Cat->GetStringCatInfo(g, "Srcdef", NULL);
-  Qrystr = Cat->GetStringCatInfo(g, "Query_String", "?");
-  Sep = Cat->GetStringCatInfo(g, "Separator", NULL);
-  Catver = Cat->GetIntCatInfo("Catver", 2);
-  Xsrc = Cat->GetBoolCatInfo("Execsrc", FALSE);
-  Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
-  Maxres = Cat->GetIntCatInfo("Maxres", 0);
-  Quoted = Cat->GetIntCatInfo("Quoted", 0);
+  Tabname = GetStringCatInfo(g, "Tabname", Tabname);
+  Tabschema = GetStringCatInfo(g, "Dbname", NULL);
+  Tabschema = GetStringCatInfo(g, "Schema", Tabschema);
+  Tabcat = GetStringCatInfo(g, "Qualifier", NULL);
+  Tabcat = GetStringCatInfo(g, "Catalog", Tabcat);
+  Srcdef = GetStringCatInfo(g, "Srcdef", NULL);
+  Qrystr = GetStringCatInfo(g, "Query_String", "?");
+  Sep = GetStringCatInfo(g, "Separator", NULL);
+  Catver = GetIntCatInfo("Catver", 2);
+  Xsrc = GetBoolCatInfo("Execsrc", FALSE);
+  Maxerr = GetIntCatInfo("Maxerr", 0);
+  Maxres = GetIntCatInfo("Maxres", 0);
+  Quoted = GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;

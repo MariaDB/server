@@ -58,11 +58,11 @@ extern "C" int trace;
 /***********************************************************************/
 PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src, 
                                 const char *picol, const char *fncol,
-                                const char *host,  const char *db,
-                                const char *user,  const char *pwd,
-                                int port)
+                                const char *skcol, const char *host,  
+                                const char *db,    const char *user,
+                                const char *pwd,   int port)
   {
-  PIVAID pvd(tab, src, picol, fncol, host, db, user, pwd, port);
+  PIVAID pvd(tab, src, picol, fncol, skcol, host, db, user, pwd, port);
 
   return pvd.MakePivotColumns(g);
   } // end of PivotColumns
@@ -72,10 +72,10 @@ PQRYRES PivotColumns(PGLOBAL g, const char *tab,   const char *src,
 /***********************************************************************/
 /*  PIVAID constructor.                                                */
 /***********************************************************************/
-PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
-               const char *fncol, const char *host, const char *db,
-               const char *user,  const char *pwd,  int port)
-      : CSORT(false)
+PIVAID::PIVAID(const char *tab,   const char *src,   const char *picol,
+               const char *fncol, const char *skcol, const char *host,
+               const char *db,    const char *user,  const char *pwd,
+               int port) : CSORT(false)
   {
   Host = (char*)host;
   User = (char*)user;
@@ -86,19 +86,34 @@ PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
   Tabsrc = (char*)src;
   Picol = (char*)picol;
   Fncol = (char*)fncol;
+  Skcol = (char*)skcol;
   Rblkp = NULL;
   Port = (port) ? port : GetDefaultPort();
   } // end of PIVAID constructor
+
+/***********************************************************************/
+/*  Skip columns that are in the skipped column list.                  */
+/***********************************************************************/
+bool PIVAID::SkipColumn(PCOLRES crp, char *skc)
+  {
+  if (skc)
+    for (char *p = skc; *p; p += (strlen(p) + 1))
+      if (!stricmp(crp->Name, p))
+        return true;
+
+  return false;
+  } // end of SkipColumn
 
 /***********************************************************************/
 /*  Make the Pivot table column list.                                  */
 /***********************************************************************/
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   {
-  char    *query, *colname, buf[64];
+  char    *p, *query, *colname, *skc, buf[64];
   int      rc, ndif, nblin, w = 0;
   bool     b = false;
-  PVAL     valp;
+  PVAL     valp;   
+  PQRYRES  qrp;
   PCOLRES *pcrp, crp, fncrp = NULL;
 
   // Save stack and allocation environment and prepare error return
@@ -111,10 +126,25 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     goto err;
     } // endif rc
 
+  // Are there columns to skip?
+  if (Skcol) {
+    uint n = strlen(Skcol);
+
+    skc = (char*)PlugSubAlloc(g, NULL, n + 2);
+    strcpy(skc, Skcol);
+    skc[n + 1] = 0;
+
+    // Replace ; by nulls in skc
+    for (p = strchr(skc, ';'); p; p = strchr(p, ';'))
+      *p++ = 0;
+
+  } else
+    skc = NULL;
+
   if (!Tabsrc && Tabname) {
     // Locate the  query
-    query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 16);
-    sprintf(query, "SELECT * FROM %s", Tabname);
+    query = (char*)PlugSubAlloc(g, NULL, strlen(Tabname) + 26);
+    sprintf(query, "SELECT * FROM `%s` LIMIT 1", Tabname);
   } else if (!Tabsrc) {
     strcpy(g->Message, MSG(SRC_TABLE_UNDEF));
     return NULL;
@@ -132,18 +162,17 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
     goto err;
 
   // We must have a storage query to get pivot column values
-  Qryp = Myc.GetResult(g, true);
-  Myc.Close();
-  b = false;
+  if (!(Qryp = Myc.GetResult(g, true)))
+    goto err;
 
   if (!Fncol) {
     for (crp = Qryp->Colresp; crp; crp = crp->Next)
-      if (!Picol || stricmp(Picol, crp->Name))
+      if ((!Picol || stricmp(Picol, crp->Name)) && !SkipColumn(crp, skc))
         Fncol = crp->Name;
   
     if (!Fncol) {
       strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-      return NULL;
+      goto err;
       } // endif Fncol
   
     } // endif Fncol
@@ -151,22 +180,25 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   if (!Picol) {
     // Find default Picol as the last one not equal to Fncol
     for (crp = Qryp->Colresp; crp; crp = crp->Next)
-      if (stricmp(Fncol, crp->Name))
+      if (stricmp(Fncol, crp->Name) && !SkipColumn(crp, skc))
         Picol = crp->Name;
   
     if (!Picol) {
       strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-      return NULL;
+      goto err;
       } // endif Picol
   
     } // endif picol
   
   // Prepare the column list
   for (pcrp = &Qryp->Colresp; crp = *pcrp; )
-    if (!stricmp(Picol, crp->Name)) {
+    if (SkipColumn(crp, skc)) {
+      // Ignore this column
+      *pcrp = crp->Next;
+    } else if (!stricmp(Picol, crp->Name)) {
       if (crp->Nulls) {
         sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
-        return NULL;
+        goto err;
         } // endif Nulls
 
       Rblkp = crp->Kdata;
@@ -179,31 +211,59 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
 
   if (!Rblkp) {
     strcpy(g->Message, MSG(NO_DEF_PIVOTCOL));
-    return NULL;
+    goto err;
   } else if (!fncrp) {
     strcpy(g->Message, MSG(NO_DEF_FNCCOL));
-    return NULL;
+    goto err;
   } // endif
 
-  // Before calling sort, initialize all
-  nblin = Qryp->Nblin;
+  if (Tabsrc) {
+    Myc.Close();
+    b = false;
 
-  Index.Size = nblin * sizeof(int);
-  Index.Sub = TRUE;                  // Should be small enough
+    // Before calling sort, initialize all
+    nblin = Qryp->Nblin;
 
-  if (!PlgDBalloc(g, NULL, Index))
-    return NULL;
+    Index.Size = nblin * sizeof(int);
+    Index.Sub = TRUE;                  // Should be small enough
 
-  Offset.Size = (nblin + 1) * sizeof(int);
-  Offset.Sub = TRUE;                 // Should be small enough
+    if (!PlgDBalloc(g, NULL, Index))
+      return NULL;
 
-  if (!PlgDBalloc(g, NULL, Offset))
-    return NULL;
+    Offset.Size = (nblin + 1) * sizeof(int);
+    Offset.Sub = TRUE;                 // Should be small enough
 
-  ndif = Qsort(g, nblin);
+    if (!PlgDBalloc(g, NULL, Offset))
+      return NULL;
 
-  if (ndif < 0)           // error
-    return NULL;
+    ndif = Qsort(g, nblin);
+
+    if (ndif < 0)           // error
+      return NULL;
+
+  } else {
+    // The query was limited, we must get pivot column values
+    query = (char*)PlugSubAlloc(g, NULL, 0);
+    sprintf(query, "SELECT DISTINCT `%s` FROM `%s`", Picol, Tabname);
+    PlugSubAlloc(g, NULL, strlen(query) + 1);
+    Myc.FreeResult();
+
+    // Send the source command to MySQL
+    if (Myc.ExecSQL(g, query, &w) == RC_FX)
+      goto err;
+
+    // We must have a storage query to get pivot column values
+    if (!(qrp = Myc.GetResult(g, true)))
+      goto err;
+
+    Myc.Close();
+    b = false;
+
+    // Get the column list
+    crp = qrp->Colresp;
+    Rblkp = crp->Kdata;
+    ndif = qrp->Nblin;
+  } // endif Tabsrc
 
   // Allocate the Value used to retieve column names
   if (!(valp = AllocateValue(g, Rblkp->GetType(),
@@ -220,7 +280,11 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
       crp = fncrp;
 
     // Get the value that will be the generated column name
-    valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+    if (Tabsrc)
+      valp->SetValue_pvblk(Rblkp, Pex[Pof[i]]);
+    else
+      valp->SetValue_pvblk(Rblkp, i);
+
     colname = valp->GetCharString(buf);
     crp->Name = (char*)PlugSubAlloc(g, NULL, strlen(colname) + 1);
     strcpy(crp->Name, colname);
@@ -280,11 +344,11 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   DB = (char*)Tablep->GetQualifier();
   Tabsrc = (char*)Tablep->GetSrc();
 
-  Host = Cat->GetStringCatInfo(g, "Host", "localhost");
-  User = Cat->GetStringCatInfo(g, "User", "*");
-  Pwd = Cat->GetStringCatInfo(g, "Password", NULL);
-  Picol = Cat->GetStringCatInfo(g, "PivotCol", NULL);
-  Fncol = Cat->GetStringCatInfo(g, "FncCol", NULL);
+  Host = GetStringCatInfo(g, "Host", "localhost");
+  User = GetStringCatInfo(g, "User", "*");
+  Pwd = GetStringCatInfo(g, "Password", NULL);
+  Picol = GetStringCatInfo(g, "PivotCol", NULL);
+  Fncol = GetStringCatInfo(g, "FncCol", NULL);
   
   // If fncol is like avg(colname), separate Fncol and Function
   if (Fncol && (p1 = strchr(Fncol, '(')) && (p2 = strchr(p1, ')')) &&
@@ -293,11 +357,11 @@ bool PIVOTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Function = Fncol;
     Fncol = p1;
   } else
-    Function = Cat->GetStringCatInfo(g, "Function", "SUM");
+    Function = GetStringCatInfo(g, "Function", "SUM");
 
-  GBdone = Cat->GetBoolCatInfo("Groupby", false);
-  Accept = Cat->GetBoolCatInfo("Accept", false);
-  Port = Cat->GetIntCatInfo("Port", 3306);
+  GBdone = GetBoolCatInfo("Groupby", false);
+  Accept = GetBoolCatInfo("Accept", false);
+  Port = GetIntCatInfo("Port", 3306);
   Desc = (Tabsrc) ? Tabsrc : Tabname;
   return FALSE;
   } // end of DefineAM

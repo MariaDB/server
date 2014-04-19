@@ -264,9 +264,9 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
 /***********************************************************************/
 bool OCCURDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
-  Rcol = Cat->GetStringCatInfo(g, "RankCol", "");
-  Colist = Cat->GetStringCatInfo(g, "Colist", "");
-  Xcol = Cat->GetStringCatInfo(g, "OccurCol", Colist);
+  Rcol = GetStringCatInfo(g, "RankCol", "");
+  Colist = GetStringCatInfo(g, "Colist", "");
+  Xcol = GetStringCatInfo(g, "OccurCol", Colist);
   return PRXDEF::DefineAM(g, am, poff);
   } // end of DefineAM
 

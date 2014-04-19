@@ -1125,13 +1125,12 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
       // Update catalog values for Block and Last
       PVCTDEF defp = (PVCTDEF)Tdbp->GetDef();
       LPCSTR  name = Tdbp->GetName();
-      PCATLG  cat = PlgGetCatalog(g);
 
       defp->SetBlock(Block);
       defp->SetLast(Last);
 
-      if (!cat->SetIntCatInfo("Blocks", Block) ||
-          !cat->SetIntCatInfo("Last", Last)) {
+      if (!defp->SetIntCatInfo("Blocks", Block) ||
+          !defp->SetIntCatInfo("Last", Last)) {
         sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
         rc = true;
         } // endif

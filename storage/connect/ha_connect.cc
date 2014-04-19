@@ -637,10 +637,16 @@ static PGLOBAL GetPlug(THD *thd, PCONNECT& lxp)
 /****************************************************************************/
 TABTYPE ha_connect::GetRealType(PTOS pos)
 {
-  TABTYPE type= GetTypeID(pos->type);
+  TABTYPE type;
+  
+  if (pos || (pos= GetTableOptionStruct(table))) {
+    type= GetTypeID(pos->type);
 
-  if (type == TAB_UNDEF)
-    type= pos->srcdef ? TAB_MYSQL : pos->tabname ? TAB_PRX : TAB_DOS;
+    if (type == TAB_UNDEF)
+      type= pos->srcdef ? TAB_MYSQL : pos->tabname ? TAB_PRX : TAB_DOS;
+
+  } else
+    type= TAB_UNDEF;
 
   return type;
 } // end of GetRealType
@@ -653,8 +659,8 @@ ulonglong ha_connect::table_flags() const
 {
   ulonglong   flags= HA_CAN_VIRTUAL_COLUMNS | HA_REC_NOT_IN_SEQ |
                      HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-                     HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
-                     HA_PARTIAL_COLUMN_READ |
+//                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
+                     HA_PARTIAL_COLUMN_READ | HA_FILE_BASED |
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
@@ -1433,8 +1439,9 @@ int ha_connect::MakeRecord(char *buf)
         } // endif colp
 
       value= colp->GetValue();
+      p= NULL;
 
-      // All this could be better optimized
+      // All this was better optimized
       if (!value->IsNull()) {
         switch (value->GetType()) {
           case TYPE_DATE:
@@ -1459,39 +1466,37 @@ int ha_connect::MakeRecord(char *buf)
             // Get date in the format required by MySQL fields
             value->FormatValue(sdvalout, fmt);
             p= sdvalout->GetCharValue();
-            break;
-          case TYPE_DOUBLE:
-            p= NULL;
+            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
             break;
           case TYPE_STRING:
-            // Passthru
-          default:
+          case TYPE_DECIM:
             p= value->GetCharString(val);
+            charset= tdbp->data_charset();
+            rc= fp->store(p, strlen(p), charset, CHECK_FIELD_WARN);
+            break;
+          case TYPE_DOUBLE:
+            rc= fp->store(value->GetFloatValue());
+            break;
+          default:
+            rc= fp->store(value->GetBigintValue(), value->IsUnsigned());
             break;
           } // endswitch Type
 
-        if (p) {
-          if (fp->store(p, strlen(p), charset, CHECK_FIELD_WARN)) {
-            // Avoid "error" on null fields
-            if (value->GetIntValue())
-              rc= HA_ERR_WRONG_IN_RECORD;
+        // Store functions returns 1 on overflow and -1 on fatal error
+        if (rc > 0) {
+          char buf[128];
+          THD *thd= ha_thd();
 
-            DBUG_PRINT("MakeRecord", ("%s", p));
-            } // endif store
+          sprintf(buf, "Out of range value %s for column '%s' at row %ld",
+            value->GetCharString(val),
+            fp->field_name, 
+            thd->get_stmt_da()->current_row_for_warning());
 
-        } else
-          if (fp->store(value->GetFloatValue())) {
-//          rc= HA_ERR_WRONG_IN_RECORD;   a Warning was ignored
-            char buf[128];
-            THD *thd= ha_thd();
-
-            sprintf(buf, "Out of range value for column '%s' at row %ld",
-              fp->field_name,
-              thd->get_stmt_da()->current_row_for_warning());
-
-            push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
-            DBUG_PRINT("MakeRecord", ("%s", value->GetCharString(val)));
-            } // endif store
+          push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, buf);
+          DBUG_PRINT("MakeRecord", ("%s", buf));
+          rc= 0;
+        } else if (rc < 0)
+          rc= HA_ERR_WRONG_IN_RECORD;
 
         fp->set_notnull();
       } else
@@ -2670,7 +2675,6 @@ int ha_connect::index_next(uchar *buf)
 } // end of index_next
 
 
-#ifdef NOT_USED
 /**
   @brief
   Used to read backwards through the index.
@@ -2678,9 +2682,15 @@ int ha_connect::index_next(uchar *buf)
 int ha_connect::index_prev(uchar *buf)
 {
   DBUG_ENTER("ha_connect::index_prev");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-}
-#endif // NOT_USED
+  int rc;
+
+  if (indexing > 0) {
+    rc= ReadIndexed(buf, OP_PREV);
+  } else
+    rc= HA_ERR_WRONG_COMMAND;
+
+  DBUG_RETURN(rc);
+} // end of index_prev
 
 
 /**
@@ -3017,11 +3027,20 @@ int ha_connect::info(uint flag)
   if (!valid_info) {
     // tdbp must be available to get updated info
     if (xp->CheckQuery(valid_query_id) || !tdbp) {
+      PDBUSER dup= PlgGetUser(g);
+      PCATLG  cat= (dup) ? dup->Catalog : NULL;
+
       if (xmod == MODE_ANY || xmod == MODE_ALTER) {
         // Pure info, not a query
         pure= true;
         xp->CheckCleanup();
         } // endif xmod
+
+      // This is necessary for getting file length
+      if (cat && table)
+        cat->SetDataPath(g, table->s->db.str);
+      else
+        return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
       tdbp= GetTDB(g);
       } // endif tdbp
@@ -4330,8 +4349,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   char        v, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
-  const char *col, *ocl, *rnk, *pic, *fcl;
-  char       *tab, *dsn, *shm;
+  const char *col, *ocl, *rnk, *pic, *fcl, *skc;
+  char       *tab, *dsn, *shm; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
@@ -4360,7 +4379,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  user= host= pwd= tbl= src= col= ocl= pic= fcl= rnk= dsn= NULL;
+  user= host= pwd= tbl= src= col= ocl= pic= fcl= skc= rnk= dsn= NULL;
 
   // Get the useful create options
   ttp= GetTypeID(topt->type);
@@ -4386,6 +4405,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     ocl= GetListOption(g, "occurcol", topt->oplist, NULL);
     pic= GetListOption(g, "pivotcol", topt->oplist, NULL);
     fcl= GetListOption(g, "fnccol", topt->oplist, NULL);
+    skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
 #if defined(WIN32)
@@ -4652,7 +4672,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
         break;
       case TAB_PIVOT:
-        qrp= PivotColumns(g, tab, src, pic, fcl, host, db, user, pwd, port);
+        qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
         break;
       case TAB_OEM:
         qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
@@ -5236,7 +5256,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     // Get the index definitions
     if (xdp= GetIndexInfo()) {
-      if (IsTypeIndexable(type)) {
+      if (GetIndexType(type) == 1) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
@@ -5251,8 +5271,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
             CloseTable(g);
 
           } // endif cat
-
-      } else {
+    
+      } else if (!GetIndexType(type)) {
         sprintf(g->Message, "Table type %s is not indexable", options->type);
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_UNSUPPORTED;
@@ -5546,35 +5566,36 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   if (ha_alter_info->handler_flags & index_operations ||
       !SameString(altered_table, "optname") ||
       !SameBool(altered_table, "sepindex")) {
-    if (!IsTypeIndexable(type)) {
+    if (GetIndexType(type) == 1) {
+      g->Xchk= new(g) XCHK;
+      PCHK xcp= (PCHK)g->Xchk;
+  
+      xcp->oldpix= GetIndexInfo(table->s);
+      xcp->newpix= GetIndexInfo(altered_table->s);
+      xcp->oldsep= GetBooleanOption("sepindex", false);
+      xcp->oldsep= xcp->SetName(g, GetStringOption("optname"));
+      tshp= altered_table->s;
+      xcp->newsep= GetBooleanOption("sepindex", false);
+      xcp->newsep= xcp->SetName(g, GetStringOption("optname"));
+      tshp= NULL;
+  
+      if (xtrace && g->Xchk)
+        htrc(
+          "oldsep=%d newsep=%d oldopn=%s newopn=%s oldpix=%p newpix=%p\n",
+                xcp->oldsep, xcp->newsep, 
+                SVP(xcp->oldopn), SVP(xcp->newopn), 
+                xcp->oldpix, xcp->newpix);
+  
+      if (sqlcom == SQLCOM_ALTER_TABLE)
+        idx= true;
+      else
+        DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+
+    } else if (!GetIndexType(type)) {
       sprintf(g->Message, "Table type %s is not indexable", oldopt->type);
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       DBUG_RETURN(HA_ALTER_ERROR);
-     } // endif Indexable
-
-    g->Xchk= new(g) XCHK;
-    PCHK xcp= (PCHK)g->Xchk;
-
-    xcp->oldpix= GetIndexInfo(table->s);
-    xcp->newpix= GetIndexInfo(altered_table->s);
-    xcp->oldsep= GetBooleanOption("sepindex", false);
-    xcp->oldsep= xcp->SetName(g, GetStringOption("optname"));
-    tshp= altered_table->s;
-    xcp->newsep= GetBooleanOption("sepindex", false);
-    xcp->newsep= xcp->SetName(g, GetStringOption("optname"));
-    tshp= NULL;
-
-    if (xtrace && g->Xchk)
-      htrc(
-        "oldsep=%d newsep=%d oldopn=%s newopn=%s oldpix=%p newpix=%p\n",
-              xcp->oldsep, xcp->newsep,
-              SVP(xcp->oldopn), SVP(xcp->newopn),
-              xcp->oldpix, xcp->newpix);
-
-    if (sqlcom == SQLCOM_ALTER_TABLE)
-      idx= true;
-    else
-      DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+    } // endif index type
 
     } // endif index operation
 
