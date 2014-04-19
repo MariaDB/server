@@ -36,8 +36,7 @@ bool  CntRewindTable(PGLOBAL g, PTDB tdbp);
 int   CntCloseTable(PGLOBAL g, PTDB tdbp);
 int   CntIndexInit(PGLOBAL g, PTDB tdbp, int id);
 RCODE CntReadNext(PGLOBAL g, PTDB tdbp);
-RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n, 
-                   bool mrr = false);
+RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n, bool mrr); 
 RCODE CntWriteRow(PGLOBAL g, PTDB tdbp);
 RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp);
 RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);

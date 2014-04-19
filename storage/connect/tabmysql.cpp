@@ -1134,10 +1134,13 @@ MYSQLCOL::MYSQLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PSZ am)
         : COLBLK(NULL, tdbp, i)
   {
+  const char *chset = get_charset_name(fld->charsetnr);
+  char  v = (!strcmp(chset, "binary")) ? 'B' : 0;
+
   Name = fld->name;
   Opt = 0;
   Precision = Long = fld->length;
-  Buf_Type = MYSQLtoPLG(fld->type);
+  Buf_Type = MYSQLtoPLG(fld->type, &v);
   strcpy(Format.Type, GetFormatType(Buf_Type));
   Format.Length = Long;
   Format.Prec = fld->decimals;
@@ -1616,5 +1619,5 @@ TDBMCL::TDBMCL(PMYDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBMCL::GetResult(PGLOBAL g)
   {
-  return MyColumns(g, Host, Db, User, Pwd, Tab, NULL, Port, false);
+  return MyColumns(g, NULL, Host, Db, User, Pwd, Tab, NULL, Port, false);
   } // end of GetResult

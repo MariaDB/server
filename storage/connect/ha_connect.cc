@@ -20,6 +20,7 @@
   The ha_connect engine is a stubbed storage engine that enables to create tables
   based on external data. Principally they are based on plain files of many
   different types, but also on collections of such files, collection of tables,
+  local or remote MySQL/MariaDB tables retrieved via MySQL API,
   ODBC tables retrieving data from other DBMS having an ODBC server, and even
   virtual tables.
 
@@ -53,14 +54,21 @@
 
   @note
   It was written also from the Brian's ha_example handler and contains parts
-  of it that are there but not currently used, such as table variables.
+  of it that are there, such as table and system  variables.
 
   @note
   When you create an CONNECT table, the MySQL Server creates a table .frm
   (format) file in the database directory, using the table name as the file
-  name as is customary with MySQL. No other files are created. To get an idea
-  of what occurs, here is an example select that would do a scan of an entire
-  table:
+  name as is customary with MySQL.
+  For file based tables, if a file name is not specified, this is an inward
+  table. An empty file is made in the current data directory that you can
+  populate later like for other engine tables. This file modified on ALTER
+  and is deleted when dropping the table.
+  If a file name is specified, this in an outward table. The specified file
+  will be used as representing the table data and will not be modified or
+  deleted on command such as ALTER or DROP.
+  To get an idea of what occurs, here is an example select that would do
+  a scan of an entire table:
 
   @code
   ha-connect::open
@@ -157,7 +165,10 @@
 /***********************************************************************/
 /*  Initialize the ha_connect static members.                          */
 /***********************************************************************/
-//efine CONNECT_INI "connect.ini"
+#define SZCONV 8192
+#define SZWORK 67108864            // Default work area size 64M
+#define SZWMIN 4194304             // Minimum work area size  4M
+
 extern "C" {
        char  version[]= "Version 1.02.0002 March 16, 2014";
 
@@ -165,17 +176,32 @@ extern "C" {
        char  msglang[];            // Default message language
 #endif
        int  trace= 0;              // The general trace value
+       int  xconv= 0;              // The type conversion option
+       int  zconv= SZCONV;         // The text conversion size
 } // extern "C"
 
-static int xtrace= 0;
+#if defined(XMAP)
+       bool xmap= false;
+#endif   // XMAP
 
-ulong ha_connect::num= 0;
+       uint worksize= SZWORK;
+ulong  ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
+
+/* CONNECT system variables */
+static int     xtrace= 0;
+static int     conv_size= SZCONV;
+static uint    work_size= SZWORK;
+static ulong   type_conv= 0;
+#if defined(XMAP)
+static my_bool indx_map= 0;
+#endif   // XMAP
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
+void PushWarning(PGLOBAL g, THD *thd, int level);
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
@@ -192,10 +218,42 @@ static void update_connect_xtrace(MYSQL_THD thd,
                                   struct st_mysql_sys_var *var,
                                   void *var_ptr, const void *save)
 {
-  xtrace= *(int *)save;
-//xtrace= *(int *)var_ptr= *(int *)save;
+  xtrace= *(int *)var_ptr= *(int *)save;
 } // end of update_connect_xtrace
 
+static void update_connect_zconv(MYSQL_THD thd,
+                                  struct st_mysql_sys_var *var,
+                                  void *var_ptr, const void *save)
+{
+  zconv= *(int *)var_ptr= *(int *)save;
+} // end of update_connect_zconv
+
+static void update_connect_xconv(MYSQL_THD thd,
+                                 struct st_mysql_sys_var *var,
+                                 void *var_ptr, const void *save)
+{
+  xconv= (int)(*(ulong *)var_ptr= *(ulong *)save);
+} // end of update_connect_xconv
+
+static void update_connect_worksize(MYSQL_THD thd,
+                                 struct st_mysql_sys_var *var,
+                                 void *var_ptr, const void *save)
+{
+  worksize= (uint)(*(ulong *)var_ptr= *(ulong *)save);
+} // end of update_connect_worksize
+
+#if defined(XMAP)
+static void update_connect_xmap(MYSQL_THD thd,
+                                struct st_mysql_sys_var *var,
+                                void *var_ptr, const void *save)
+{
+  xmap= (bool)(*(my_bool *)var_ptr= *(my_bool *)save);
+} // end of update_connect_xmap
+#endif   // XMAP
+
+/***********************************************************************/
+/*  The CONNECT handlerton object.                                     */
+/***********************************************************************/
 handlerton *connect_hton;
 
 /**
@@ -274,21 +332,29 @@ ha_create_table_option connect_index_option_list[]=
 /*  Push G->Message as a MySQL warning.                                */
 /***********************************************************************/
 bool PushWarning(PGLOBAL g, PTDBASE tdbp, int level)
-  {
+{
   PHC    phc;
   THD   *thd;
   MYCAT *cat= (MYCAT*)tdbp->GetDef()->GetCat();
-  Sql_condition::enum_warning_level wlvl;
-
 
   if (!cat || !(phc= cat->GetHandler()) || !phc->GetTable() ||
       !(thd= (phc->GetTable())->in_use))
     return true;
 
-//push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-  wlvl= (Sql_condition::enum_warning_level)level;
-  push_warning(thd, wlvl, 0, g->Message);
+  PushWarning(g, thd, level);
   return false;
+} // end of PushWarning
+
+void PushWarning(PGLOBAL g, THD *thd, int level)
+  {
+  if (thd) {
+    Sql_condition::enum_warning_level wlvl;
+
+    wlvl= (Sql_condition::enum_warning_level)level;
+    push_warning(thd, wlvl, 0, g->Message);
+  } else
+    htrc("%s\n", g->Message);
+
   } // end of PushWarning
 
 #ifdef HAVE_PSI_INTERFACE
@@ -883,6 +949,7 @@ PFOS ha_connect::GetFieldOptionStruct(Field *fdp)
 void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 {
   const char *cp;
+  char   *chset, v;
   ha_field_option_struct *fop;
   Field*  fp;
   Field* *fldp;
@@ -934,6 +1001,9 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Fieldfmt= NULL;
   } // endif fop
 
+  chset = (char *)fp->charset()->name;
+  v = (!strcmp(chset, "binary")) ? 'B' : 0;
+
   switch (fp->type()) {
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_VARCHAR:
@@ -941,7 +1011,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       pcf->Flags |= U_VAR;
       /* no break */
     default:
-      pcf->Type= MYSQLtoPLG(fp->type());
+      pcf->Type= MYSQLtoPLG(fp->type(), &v);
       break;
     } // endswitch SQL type
 
@@ -2146,13 +2216,17 @@ bool ha_connect::get_error_message(int error, String* buf)
 
   if (xp && xp->g) {
     PGLOBAL g= xp->g;
-    char   *msg= (char*)PlugSubAlloc(g, NULL, strlen(g->Message) * 3);
+    char    msg[3072];         // MAX_STR * 3
     uint    dummy_errors;
     uint32  len= copy_and_convert(msg, strlen(g->Message) * 3,
                                system_charset_info,
                                g->Message, strlen(g->Message),
                                &my_charset_latin1,
                                &dummy_errors);
+
+    if (trace)
+      htrc("GEM(%u): %s\n", len, g->Message);
+
     msg[len]= '\0';
     buf->copy(msg, (uint)strlen(msg), system_charset_info);
   } else
@@ -2638,7 +2712,6 @@ int ha_connect::index_first(uchar *buf)
 } // end of index_first
 
 
-#ifdef NOT_USED
 /**
   @brief
   index_last() asks for the last key in the index.
@@ -2652,9 +2725,15 @@ int ha_connect::index_first(uchar *buf)
 int ha_connect::index_last(uchar *buf)
 {
   DBUG_ENTER("ha_connect::index_last");
-  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+  int rc;
+
+  if (indexing <= 0) {
+    rc= HA_ERR_INTERNAL_ERROR;
+  } else
+    rc= ReadIndexed(buf, OP_LAST);
+
+  DBUG_RETURN(rc);
 }
-#endif // NOT_USED
 
 
 /****************************************************************************/
@@ -3154,7 +3233,7 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
                            MODE newmode, bool *chk, bool *cras)
 {
-  if (xtrace) {
+  if ((trace= xtrace)) {
     LEX_STRING *query_string= thd_query_string(thd);
     htrc("%p check_mode: cmdtype=%d\n", this, thd_sql_command(thd));
     htrc("Cmd=%.*s\n", (int) query_string->length, query_string->str);
@@ -4265,6 +4344,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   PCOLRES     crp;
   PCONNECT    xp= NULL;
   PGLOBAL     g= GetPlug(thd, xp);
+  PDBUSER     dup= PlgGetUser(g);
+  PCATLG      cat= (dup) ? dup->Catalog : NULL;
   PTOS        topt= table_s->option_struct;
 #if defined(NEW_WAY)
 //CHARSET_INFO *cs;
@@ -4410,8 +4491,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       if (create_info->connect_string.str) {
         int     len= create_info->connect_string.length;
         PMYDEF  mydef= new(g) MYSQLDEF();
-        PDBUSER dup= PlgGetUser(g);
-        PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
         dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
         strncpy(dsn, create_info->connect_string.str, len);
@@ -4494,8 +4573,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   if (ok) {
     char   *cnm, *rem, *dft, *xtra;
     int     i, len, prec, dec, typ, flg;
-    PDBUSER dup= PlgGetUser(g);
-    PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
     if (cat)
       cat->SetDataPath(g, table_s->db.str);
@@ -4545,7 +4622,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
       case TAB_MYSQL:
-        qrp= MyColumns(g, host, db, user, pwd, tab,
+        qrp= MyColumns(g, thd, host, db, user, pwd, tab,
                        NULL, port, fnc == FNC_COL);
         break;
 #endif   // MYSQL_SUPPORT
@@ -4565,7 +4642,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         qrp= TabColumns(g, thd, db, tab, bif);
 
         if (!qrp && bif && fnc != FNC_COL)         // tab is a view
-          qrp= MyColumns(g, host, db, user, pwd, tab, NULL, port, false);
+          qrp= MyColumns(g, thd, host, db, user, pwd, tab, NULL, port, false);
 
         if (qrp && ttp == TAB_OCCUR && fnc != FNC_COL)
           if (OcrColumns(g, qrp, col, ocl, rnk)) {
@@ -4603,12 +4680,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         if (!len && typ == TYPE_STRING)
           len= 256;      // STRBLK's have 0 length
 
-#if defined(NEW_WAY)
         // Now add the field
+#if defined(NEW_WAY)
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
                        NOT_NULL_FLAG, "", flg, dbf, v);
 #else   // !NEW_WAY
-        // Now add the field
         if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
                       NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
@@ -4666,6 +4742,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
               break;
             case FLD_EXTRA:
               xtra= crp->Kdata->GetCharValue(i);
+
+              // Auto_increment is not supported yet
+              if (!stricmp(xtra, "AUTO_INCREMENT"))
+                xtra= NULL;
+
               break;
             default:
               break;                 // Ignore
@@ -5677,12 +5758,63 @@ Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+// Tracing: 0 no, 1 yes, >1 more tracing
 static MYSQL_SYSVAR_INT(xtrace, xtrace,
        PLUGIN_VAR_RQCMDARG, "Console trace value.",
        NULL, update_connect_xtrace, 0, 0, INT_MAX, 1);
 
+// Size used when converting TEXT columns to VARCHAR
+static MYSQL_SYSVAR_INT(conv_size, conv_size,
+       PLUGIN_VAR_RQCMDARG, "Size used when converting TEXT columns.",
+       NULL, update_connect_zconv, SZCONV, 0, 65500, 1);
+
+/**
+  Type conversion:
+    no:   Unsupported types -> TYPE_ERROR
+    yes:  TEXT -> VARCHAR
+    skip: skip unsupported type columns in Discovery
+*/
+const char *xconv_names[]=
+{
+  "NO", "YES", "SKIP", NullS
+};
+
+TYPELIB xconv_typelib=
+{
+  array_elements(xconv_names) - 1, "xconv_typelib",
+  xconv_names, NULL
+};
+
+static MYSQL_SYSVAR_ENUM(
+  type_conv,                       // name
+  type_conv,                       // varname
+  PLUGIN_VAR_RQCMDARG,             // opt
+  "Unsupported types conversion.", // comment
+  NULL,                            // check
+  update_connect_xconv,            // update function
+  0,                               // def (no)
+  &xconv_typelib);                 // typelib
+
+#if defined(XMAP)
+// Using file mapping for indexes if true
+static MYSQL_SYSVAR_BOOL(indx_map, indx_map, PLUGIN_VAR_RQCMDARG,
+       "Using file mapping for indexes",
+       NULL, update_connect_xmap, 0);
+#endif   // XMAP
+
+// Size used for g->Sarea_Size
+static MYSQL_SYSVAR_UINT(work_size, work_size,
+       PLUGIN_VAR_RQCMDARG, "Size of the CONNECT work area.",
+       NULL, update_connect_worksize, SZWORK, SZWMIN, UINT_MAX, 1);
+
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
+  MYSQL_SYSVAR(conv_size),
+  MYSQL_SYSVAR(type_conv),
+#if defined(XMAP)
+  MYSQL_SYSVAR(indx_map),
+#endif   // XMAP
+  MYSQL_SYSVAR(work_size),
   NULL
 };
 

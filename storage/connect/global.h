@@ -1,6 +1,6 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright Olivier Bertrand                       1993-2012     */
+/*  (C) Copyright Olivier Bertrand                       1993-2014     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -84,6 +84,7 @@
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
 #define  TYPE_DECIM        9
+#define  TYPE_BIN         10
 
 #if defined(OS32)
   #define  SYS_STAMP   "OS32"

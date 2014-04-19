@@ -293,6 +293,7 @@ enum OPVAL {OP_EQ      =   1,         /* Filtering operator =          */
             OP_CURDT   = 113,         /* Scalar function Op CurDate    */
             OP_NWEEK   = 114,         /* Scalar function Op Week number*/
             OP_ROW     = 115,         /* Scalar function Op Row        */
+            OP_PREV    = 116,         /* Index operator Find Previous  */
             OP_SYSTEM  = 200,         /* Scalar function Op System     */
             OP_REMOVE  = 201,         /* Scalar function Op Remove     */
             OP_RENAME  = 202,         /* Scalar function Op Rename     */

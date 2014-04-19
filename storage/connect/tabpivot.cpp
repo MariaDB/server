@@ -96,9 +96,20 @@ PIVAID::PIVAID(const char *tab,   const char *src,  const char *picol,
 PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   {
   char    *query, *colname, buf[64];
-  int      ndif, nblin, w = 0;
+  int      rc, ndif, nblin, w = 0;
+  bool     b = false;
   PVAL     valp;
   PCOLRES *pcrp, crp, fncrp = NULL;
+
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return NULL;
+    } // endif jump_level
+
+  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+    goto err;
+    } // endif rc
 
   if (!Tabsrc && Tabname) {
     // Locate the  query
@@ -113,16 +124,17 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   // Open a MySQL connection for this table
   if (Myc.Open(g, Host, Database, User, Pwd, Port))
     return NULL;
+  else
+    b = true;
 
   // Send the source command to MySQL
-  if (Myc.ExecSQL(g, query, &w) == RC_FX) {
-    Myc.Close();
-    return NULL;
-    } // endif Exec
+  if (Myc.ExecSQL(g, query, &w) == RC_FX)
+    goto err;
 
   // We must have a storage query to get pivot column values
   Qryp = Myc.GetResult(g, true);
   Myc.Close();
+  b = false;
 
   if (!Fncol) {
     for (crp = Qryp->Colresp; crp; crp = crp->Next)
@@ -152,6 +164,11 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   // Prepare the column list
   for (pcrp = &Qryp->Colresp; crp = *pcrp; )
     if (!stricmp(Picol, crp->Name)) {
+      if (crp->Nulls) {
+        sprintf(g->Message, "Pivot column %s cannot be nullable", Picol);
+        return NULL;
+        } // endif Nulls
+
       Rblkp = crp->Kdata;
       *pcrp = crp->Next;
     } else if (!stricmp(Fncol, crp->Name)) {
@@ -218,6 +235,12 @@ PQRYRES PIVAID::MakePivotColumns(PGLOBAL g)
   // We added ndif columns and removed 2 (picol and fncol)
   Qryp->Nbcol += (ndif - 2);
   return Qryp;
+
+err:
+  if (b)
+    Myc.Close();
+
+  return NULL;
   } // end of MakePivotColumns
 
 /***********************************************************************/

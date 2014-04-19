@@ -1,9 +1,9 @@
 /************** MyUtil C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYUTIL                                                 */
 /* -------------                                                        */
-/*  Version 1.1                                                         */
+/*  Version 1.2                                                         */
 /*                                                                      */
-/*  Author Olivier BERTRAND                               2013          */
+/*  Author Olivier BERTRAND                               2014          */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -26,6 +26,8 @@
 #include "myutil.h"
 #define  DLL_EXPORT            // Items are exported from this DLL
 
+extern "C" int xconv;
+
 /************************************************************************/
 /*  Convert from MySQL type name to PlugDB type number                  */
 /************************************************************************/
@@ -38,8 +40,7 @@ int MYSQLtoPLG(char *typname, char *var)
     type = TYPE_INT;
   else if (!stricmp(typname, "smallint"))
     type = TYPE_SHORT;
-  else if (!stricmp(typname, "char") || !stricmp(typname, "varchar") ||
-           !stricmp(typname, "text") || !stricmp(typname, "blob"))
+  else if (!stricmp(typname, "char") || !stricmp(typname, "varchar"))
     type = TYPE_STRING;
   else if (!stricmp(typname, "double")  || !stricmp(typname, "float") ||
            !stricmp(typname, "real"))
@@ -54,7 +55,20 @@ int MYSQLtoPLG(char *typname, char *var)
     type = TYPE_BIGINT;
   else if (!stricmp(typname, "tinyint"))
     type = TYPE_TINY;
-  else
+  else if (!stricmp(typname, "text") && var) {
+    switch (xconv) {
+      case 1:
+        type = TYPE_STRING;
+        *var = 'X';
+        break;
+      case 2:
+        *var = 'K';
+      default:
+        type = TYPE_ERROR;
+      } // endswitch xconv
+
+    return type;
+  } else
     type = TYPE_ERROR;
 
   if (var) {
@@ -71,9 +85,11 @@ int MYSQLtoPLG(char *typname, char *var)
       else if (!stricmp(typname, "year"))
         *var = 'Y';
 
-    } else if (type == TYPE_STRING && stricmp(typname, "char"))
+    } else if (type == TYPE_STRING && !stricmp(typname, "varchar"))
       // This is to make the difference between CHAR and VARCHAR 
       *var = 'V';
+    else if (type == TYPE_ERROR && xconv == 2)
+      *var = 'K';
     else
       *var = 0;
 
@@ -196,34 +212,50 @@ int MYSQLtoPLG(int mytype, char *var)
 #if !defined(ALPHA)
     case MYSQL_TYPE_VARCHAR:
 #endif   // !ALPHA)
+    case MYSQL_TYPE_STRING:
+      type = TYPE_STRING;
+      break;
     case MYSQL_TYPE_BLOB:
     case MYSQL_TYPE_TINY_BLOB:
     case MYSQL_TYPE_MEDIUM_BLOB:
     case MYSQL_TYPE_LONG_BLOB:
-    case MYSQL_TYPE_STRING:
-      type = TYPE_STRING;
-      break;
+      if (var) {
+        switch (xconv) {
+          case 1:
+            if (*var != 'B') {
+              // This is a TEXT column
+              type = TYPE_STRING;
+              *var = 'X';
+            } else
+              type = TYPE_ERROR;
+ 
+            break;
+          case 2:
+            *var = 'K';       // Skip
+          default:
+            type = TYPE_ERROR;
+          } // endswitch xconv
+
+        return type;
+        } // endif var
+
     default:
       type = TYPE_ERROR;
     } // endswitch mytype
 
   if (var) switch (mytype) {
     // This is to make the difference between CHAR and VARCHAR 
-    case MYSQL_TYPE_VAR_STRING:
 #if !defined(ALPHA)
     case MYSQL_TYPE_VARCHAR:
 #endif   // !ALPHA)
-    case MYSQL_TYPE_BLOB:
-    case MYSQL_TYPE_TINY_BLOB:
-    case MYSQL_TYPE_MEDIUM_BLOB:
-    case MYSQL_TYPE_LONG_BLOB: *var = 'V'; break;
+    case MYSQL_TYPE_VAR_STRING: *var = 'V'; break;
     // This is to make the difference between temporal values 
-    case MYSQL_TYPE_TIMESTAMP: *var = 'S'; break;
-    case MYSQL_TYPE_DATE:      *var = 'D'; break;
-    case MYSQL_TYPE_DATETIME:  *var = 'A'; break;
-    case MYSQL_TYPE_YEAR:      *var = 'Y'; break;
-    case MYSQL_TYPE_TIME:      *var = 'T'; break;
-    default:                   *var = 0;
+    case MYSQL_TYPE_TIMESTAMP:  *var = 'S'; break;
+    case MYSQL_TYPE_DATE:       *var = 'D'; break;
+    case MYSQL_TYPE_DATETIME:   *var = 'A'; break;
+    case MYSQL_TYPE_YEAR:       *var = 'Y'; break;
+    case MYSQL_TYPE_TIME:       *var = 'T'; break;
+    default:                    *var = 0;
     } // endswitch mytype
 
   return type;

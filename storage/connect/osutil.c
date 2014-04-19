@@ -16,6 +16,7 @@ my_bool CloseFileHandle(HANDLE h)
 #include <sys/stat.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include <pwd.h>
 
 extern FILE *debug;
 
@@ -172,16 +173,23 @@ char *_fullpath(char *absPath, const char *relPath, size_t maxLength)
   // Fixme
   char *p;
 
-  if( *relPath == '\\' || *relPath == '/' ) {
+  if ( *relPath == '\\' || *relPath == '/' ) {
     strncpy(absPath, relPath, maxLength);
-  } else if(*relPath == '~') {
+  } else if (*relPath == '~') {
     // get the path to the home directory
-    // Fixme
-    strncpy(absPath, relPath, maxLength);
-  }  else {
+    struct passwd *pw = getpwuid(getuid());
+    const char    *homedir = pw->pw_dir;
+
+    if (homedir)
+      strcat(strncpy(absPath, homedir, maxLength), relPath + 1);
+    else
+      strncpy(absPath, relPath, maxLength);
+        
+  } else {
     char buff[2*_MAX_PATH];
 
-    assert(getcwd(buff, _MAX_PATH) != NULL);
+    p= getcwd(buff, _MAX_PATH);
+    assert(p);
     strcat(buff,"/");
     strcat(buff, relPath);
     strncpy(absPath, buff, maxLength);
