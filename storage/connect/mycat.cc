@@ -275,9 +275,10 @@ int GetIndexType(TABTYPE type)
       xtyp= 1;
       break;
     case TAB_MYSQL:
+//  case TAB_ODBC:
+      xtyp= 2;
+      break;
     case TAB_ODBC:
-//      xtyp= 2;     Remote indexes not implemented yet
-//      break;
     default:
       xtyp= 0;
       break;

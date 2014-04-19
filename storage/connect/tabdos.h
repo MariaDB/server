@@ -49,7 +49,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int     GetEnding(void) {return Ending;}
 
   // Methods
-  virtual bool Indexable(void) {return Compressed != 1;}
+  virtual int  Indexable(void) {return (Compressed != 1) ? 1 : 0;}
   virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
@@ -146,10 +146,10 @@ class DllExport TDBDOS : public TDBASE {
   virtual int   ReadBuffer(PGLOBAL g) {return Txfp->ReadBuffer(g);}
 
   // Specific routine
-  virtual int  EstimatedLength(PGLOBAL g);
+  virtual int   EstimatedLength(PGLOBAL g);
 
   // Optimization routines
-          int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
+  virtual int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
 
  protected:
   // Members

@@ -752,7 +752,7 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Make the command and allocate whatever is used for getting results.                   */
   /*********************************************************************/
-  if (Mode == MODE_READ) {
+  if (Mode == MODE_READ || Mode == MODE_READX) {
     if ((Query = MakeSQL(g, false))) {
       for (PODBCCOL colp = (PODBCCOL)Columns; colp;
                     colp = (PODBCCOL)colp->GetNext())
@@ -1315,7 +1315,7 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
 
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
-  if (Mode != MODE_READ) {
+  if (Mode != MODE_READ && Mode != MODE_READX) {
     strcpy(g->Message, "No INSERT/DELETE/UPDATE of XDBC tables");
     return true;
     } // endif Mode

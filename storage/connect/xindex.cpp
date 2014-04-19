@@ -79,7 +79,7 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   {
   int     rc;
   PTABLE  tablep;
-  PTDBDOS tdbp;
+  PTDBASE tdbp;
   PCATLG  cat = PlgGetCatalog(g, true);
 
   /*********************************************************************/
@@ -87,13 +87,13 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   /*********************************************************************/
   tablep = new(g) XTAB(name);
 
-  if (!(tdbp = (PTDBDOS)cat->GetTable(g, tablep)))
+  if (!(tdbp = (PTDBASE)cat->GetTable(g, tablep)))
     rc = RC_NF;
   else if (!tdbp->GetDef()->Indexable()) {
     sprintf(g->Message, MSG(TABLE_NO_INDEX), name);
     rc = RC_NF;
   } else if ((rc = tdbp->MakeIndex(g, pxdf, add)) == RC_INFO)
-    rc = RC_OK;            // No index
+    rc = RC_OK;            // No or remote index
 
   return rc;
   } // end of PlgMakeIndex
