@@ -1243,9 +1243,10 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
   if (!xp->CheckQuery(valid_query_id) && tdbp
                       && !stricmp(tdbp->GetName(), table_name)
                       && (tdbp->GetMode() == xmod
+                       || (tdbp->GetMode() == MODE_READ && xmod == MODE_READX)
                        || tdbp->GetAmType() == TYPE_AM_XML)) {
     tp= tdbp;
-//  tp->SetMode(xmod);
+    tp->SetMode(xmod);
   } else if ((tp= CntGetTDB(g, table_name, xmod, this))) {
     valid_query_id= xp->last_query_id;
     tp->SetMode(xmod);
@@ -1643,6 +1644,88 @@ int ha_connect::CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf)
 
 
 /***********************************************************************/
+/*  Return the where clause for remote indexed read.                   */
+/***********************************************************************/
+bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q, 
+                                         const void *key, int klen)
+{
+  const uchar   *ptr;
+  uint           rem, len, stlen; //, prtlen;
+  bool           nq, b= false;
+  Field         *fp;
+  KEY           *kfp;
+  KEY_PART_INFO *kpart;
+
+  if (active_index == MAX_KEY)
+    return 0;
+
+  strcat(qry, " WHERE (");
+  kfp= &table->key_info[active_index];
+  rem= kfp->user_defined_key_parts,
+  len= klen,
+  ptr= (const uchar *)key;
+
+  for (kpart= kfp->key_part; rem; rem--, kpart++) {
+    fp= kpart->field;
+    stlen= kpart->store_length;
+//  prtlen= min(stlen, len);
+    nq= fp->str_needs_quotes();
+
+    if (b)
+      strcat(qry, " AND ");
+    else
+      b= true;
+
+    strcat(strncat(strcat(qry, q), fp->field_name, strlen(fp->field_name)), q);
+
+    switch (op) {
+      case OP_EQ:
+      case OP_GT:
+      case OP_GE:
+        strcat(qry, GetValStr(op, false));
+        break;
+      default:
+        strcat(qry, " ??? ");
+      } // endwitch op
+
+    if (nq)
+      strcat(qry, "'");
+
+    if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
+      String varchar;
+      uint   var_length= uint2korr(ptr);
+
+      varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
+                      var_length, &my_charset_bin);
+      strncat(qry, varchar.ptr(), varchar.length());
+    } else {
+      char   strbuff[MAX_FIELD_WIDTH];
+      String str(strbuff, sizeof(strbuff), kpart->field->charset()), *res;
+
+      res= fp->val_str(&str, ptr);
+      strncat(qry, res->ptr(), res->length());
+    } // endif flag
+
+    if (nq)
+      strcat(qry, "'");
+
+    if (stlen >= len)
+      break;
+
+    len-= stlen;
+
+    /* For nullable columns, null-byte is already skipped before, that is
+      ptr was incremented by 1. Since store_length still counts null-byte,
+      we need to subtract 1 from store_length. */
+    ptr+= stlen - test(kpart->null_bit);
+    } // endfor kpart
+
+  strcat(qry, ")");
+  return false;
+} // end of MakeKeyWhere
+
+
+/***********************************************************************/
 /*  Return the string representing an operator.                        */
 /***********************************************************************/
 const char *ha_connect::GetValStr(OPVAL vop, bool neg)
@@ -1948,7 +2031,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
         } else {
           p1= p2 + strlen(p2);
-          strcpy(p1, GetValStr(vop, FALSE));
+          strcpy(p1, GetValStr(vop, false));
           p2= p1 + strlen(p1);
         } // endif CheckCond
 
@@ -2311,7 +2394,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   dup->Check |= CHK_OPT;
 
   if (tdbp) {
-    bool b= ((PTDBASE)tdbp)->GetDef()->Indexable();
+    bool b= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
     if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true, b))) {
       if (rc == RC_INFO) {
@@ -2522,6 +2605,18 @@ int ha_connect::index_init(uint idx, bool sorted)
 
   if (xtrace)
     htrc("index_init: this=%p idx=%u sorted=%d\n", this, idx, sorted);
+
+  if (GetIndexType(GetRealType()) == 2) {
+    // This is a remote index
+    xmod= MODE_READX;
+
+    if (!(rc= rnd_init(0))) {
+      active_index= idx;
+      indexing= 2;         // TO DO: mul?
+      } //endif rc
+
+    DBUG_RETURN(rc);
+    } // endif index type
 
   if ((rc= rnd_init(0)))
     return rc;
@@ -3040,12 +3135,16 @@ int ha_connect::info(uint flag)
       if (cat && table)
         cat->SetDataPath(g, table->s->db.str);
       else
-        return HA_ERR_INTERNAL_ERROR;           // Should never happen
+        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
       tdbp= GetTDB(g);
       } // endif tdbp
 
     valid_info= CntInfo(g, tdbp, &xinfo);
+
+    if (((signed)xinfo.records) < 0)
+      DBUG_RETURN(HA_ERR_INITIALIZATION);  // Error in Cardinality
+
     } // endif valid_info
 
   if (flag & HA_STATUS_VARIABLE) {
@@ -3305,7 +3404,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         newmode= MODE_ALTER;
         break;
       default:
-        htrc("Unsupported sql_command=%d", thd_sql_command(thd));
+        htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         newmode= MODE_ERROR;
@@ -3350,7 +3449,7 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         newmode= MODE_ALTER;
         break;
       default:
-        htrc("Unsupported sql_command=%d", thd_sql_command(thd));
+        htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
         my_message(ER_NOT_ALLOWED_COMMAND, g->Message, MYF(0));
         newmode= MODE_ERROR;
@@ -3474,87 +3573,88 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 //        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);  causes assert error
           push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
           DBUG_RETURN(0);
-          } // endif Indexable
-
-        bool    oldsep= ((PCHK)g->Xchk)->oldsep;
-        bool    newsep= ((PCHK)g->Xchk)->newsep;
-        PTDBDOS tdp= (PTDBDOS)tdbp;
-
-        PDOSDEF ddp= (PDOSDEF)tdp->GetDef();
-        PIXDEF  xp, xp1, xp2, drp=NULL, adp= NULL;
-        PIXDEF  oldpix= ((PCHK)g->Xchk)->oldpix;
-        PIXDEF  newpix= ((PCHK)g->Xchk)->newpix;
-        PIXDEF *xlst, *xprc;
-
-        ddp->SetIndx(oldpix);
-
-        if (oldsep != newsep) {
-          // All indexes have to be remade
-          ddp->DeleteIndexFile(g, NULL);
-          oldpix= NULL;
-          ddp->SetIndx(NULL);
-          SetBooleanOption("Sepindex", newsep);
-        } else if (newsep) {
-          // Make the list of dropped indexes
-          xlst= &drp; xprc= &oldpix;
-
-          for (xp2= oldpix; xp2; xp2= xp) {
-            for (xp1= newpix; xp1; xp1= xp1->Next)
-              if (IsSameIndex(xp1, xp2))
-                break;        // Index not to drop
-
-            xp= xp2->GetNext();
-
-            if (!xp1) {
-              *xlst= xp2;
-              *xprc= xp;
-              *(xlst= &xp2->Next)= NULL;
-            } else
-              xprc= &xp2->Next;
-
-            } // endfor xp2
-
-          if (drp) {
-            // Here we erase the index files
-            ddp->DeleteIndexFile(g, drp);
-            } // endif xp1
-
-        } else if (oldpix) {
-          // TODO: optimize the case of just adding new indexes
-          if (!newpix)
+        } else if (((PTDBASE)tdbp)->GetDef()->Indexable() == 1) {
+          bool    oldsep= ((PCHK)g->Xchk)->oldsep;
+          bool    newsep= ((PCHK)g->Xchk)->newsep;
+          PTDBDOS tdp= (PTDBDOS)tdbp;
+      
+          PDOSDEF ddp= (PDOSDEF)tdp->GetDef();
+          PIXDEF  xp, xp1, xp2, drp=NULL, adp= NULL;
+          PIXDEF  oldpix= ((PCHK)g->Xchk)->oldpix;
+          PIXDEF  newpix= ((PCHK)g->Xchk)->newpix;
+          PIXDEF *xlst, *xprc; 
+      
+          ddp->SetIndx(oldpix);
+      
+          if (oldsep != newsep) {
+            // All indexes have to be remade
             ddp->DeleteIndexFile(g, NULL);
-
-          oldpix= NULL;     // To remake all indexes
-          ddp->SetIndx(NULL);
-        } // endif sepindex
-
-        // Make the list of new created indexes
-        xlst= &adp; xprc= &newpix;
-
-        for (xp1= newpix; xp1; xp1= xp) {
-          for (xp2= oldpix; xp2; xp2= xp2->Next)
-            if (IsSameIndex(xp1, xp2))
-              break;        // Index already made
-
-          xp= xp1->Next;
-
-          if (!xp2) {
-            *xlst= xp1;
-            *xprc= xp;
-            *(xlst= &xp1->Next)= NULL;
-          } else
-            xprc= &xp1->Next;
-
-          } // endfor xp1
-
-        if (adp)
-          // Here we do make the new indexes
-          if (tdp->MakeIndex(g, adp, true) == RC_FX) {
-            // Make it a warning to avoid crash
-            push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                              0, g->Message);
-            rc= 0;
-            } // endif MakeIndex
+            oldpix= NULL;
+            ddp->SetIndx(NULL);
+            SetBooleanOption("Sepindex", newsep);
+          } else if (newsep) {
+            // Make the list of dropped indexes
+            xlst= &drp; xprc= &oldpix;
+      
+            for (xp2= oldpix; xp2; xp2= xp) {
+              for (xp1= newpix; xp1; xp1= xp1->Next)
+                if (IsSameIndex(xp1, xp2))
+                  break;        // Index not to drop
+      
+              xp= xp2->GetNext();
+      
+              if (!xp1) {
+                *xlst= xp2;
+                *xprc= xp;
+                *(xlst= &xp2->Next)= NULL;
+              } else
+                xprc= &xp2->Next;
+      
+              } // endfor xp2
+      
+            if (drp) {
+              // Here we erase the index files
+              ddp->DeleteIndexFile(g, drp);
+              } // endif xp1
+      
+          } else if (oldpix) {
+            // TODO: optimize the case of just adding new indexes
+            if (!newpix)
+              ddp->DeleteIndexFile(g, NULL);
+      
+            oldpix= NULL;     // To remake all indexes
+            ddp->SetIndx(NULL);
+          } // endif sepindex
+      
+          // Make the list of new created indexes
+          xlst= &adp; xprc= &newpix;
+      
+          for (xp1= newpix; xp1; xp1= xp) {
+            for (xp2= oldpix; xp2; xp2= xp2->Next)
+              if (IsSameIndex(xp1, xp2))
+                break;        // Index already made
+      
+            xp= xp1->Next;
+      
+            if (!xp2) {
+              *xlst= xp1;
+              *xprc= xp;
+              *(xlst= &xp1->Next)= NULL;
+            } else
+              xprc= &xp1->Next;
+      
+            } // endfor xp1
+      
+          if (adp)
+            // Here we do make the new indexes
+            if (tdp->MakeIndex(g, adp, true) == RC_FX) {
+              // Make it a warning to avoid crash
+              push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
+                                0, g->Message);
+              rc= 0;
+              } // endif MakeIndex
+      
+        } // endif indexable
 
         } // endif Tdbp
 
@@ -5276,7 +5376,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         sprintf(g->Message, "Table type %s is not indexable", options->type);
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         rc= HA_ERR_UNSUPPORTED;
-      } // endif Indexable
+      } // endif index type
 
       } // endif xdp
 
@@ -5285,62 +5385,6 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     my_message(ER_UNKNOWN_ERROR,
                "CONNECT index modification should be in-place", MYF(0));
     DBUG_RETURN(HA_ERR_UNSUPPORTED);
-#if 0
-    PIXDEF xdp= GetIndexInfo();
-    PCHK   xcp= (PCHK)g->Xchk;
-
-    if (xdp) {
-      if (!IsTypeIndexable(type)) {
-        g->Xchk= NULL;
-        sprintf(g->Message, "Table type %s is not indexable", options->type);
-        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-        rc= HA_ERR_INTERNAL_ERROR;
-      } else {
-        xcp->newpix= xdp;
-        xcp->newsep= GetBooleanOption("Sepindex", false);
-      } // endif Indexable
-
-    } else if (!xcp->oldpix)
-      g->Xchk= NULL;
-
-    if (xtrace && g->Xchk)
-      htrc("oldsep=%d newsep=%d oldpix=%p newpix=%p\n",
-              xcp->oldsep, xcp->newsep, xcp->oldpix, xcp->newpix);
-
-//  if (g->Xchk &&
-//      (sqlcom != SQLCOM_CREATE_INDEX && sqlcom != SQLCOM_DROP_INDEX)) {
-    if (g->Xchk) {
-      PIXDEF xp1, xp2;
-      bool   b= false;        // true if index changes
-
-      if (xcp->oldsep == xcp->newsep) {
-        for (xp1= xcp->newpix, xp2= xcp->oldpix;
-             xp1 || xp2;
-             xp1= xp1->Next, xp2= xp2->Next)
-          if (!xp1 || !xp2 || !IsSameIndex(xp1, xp2)) {
-            b= true;
-            break;
-            } // endif xp1
-
-      } else
-        b= true;
-
-      if (!b)
-        g->Xchk= NULL;
-
-#if 0
-      if (b) {
-        // CONNECT does not support indexing via ALTER TABLE
-        my_message(ER_UNKNOWN_ERROR,
-           "CONNECT does not support index modification via ALTER TABLE",
-           MYF(0));
-        DBUG_RETURN(HA_ERR_UNSUPPORTED);
-        } // endif b
-#endif // 0
-
-      } // endif Xchk
-
-#endif // 0
   } // endif Xchk
 
   table= st;

@@ -160,6 +160,7 @@ enum ALGMOD {AMOD_AUTO =  0,          /* PLG chooses best algorithm    */
 enum MODE {MODE_ERROR   = -1,         /* Invalid mode                  */
            MODE_ANY     =  0,         /* Unspecified mode              */
            MODE_READ    = 10,         /* Input/Output mode             */
+           MODE_READX   = 11,         /* Read indexed mode             */
            MODE_WRITE   = 20,         /* Input/Output mode             */
            MODE_UPDATE  = 30,         /* Input/Output mode             */
            MODE_INSERT  = 40,         /* Input/Output mode             */

@@ -213,6 +213,8 @@ public:
   int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
   int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
                                              uint key_len= 0);
+  bool     MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
+                                   const void *key, int klen);
 
   /** @brief
     The name that will be used for display purposes.

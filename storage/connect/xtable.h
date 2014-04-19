@@ -74,7 +74,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   inline  void   SetDegree(int degree) {Degree = degree;}
   inline  void   SetMode(MODE mode) {Mode = mode;}
 
-  //Properties
+  // Properties
   virtual AMT    GetAmType(void) {return TYPE_AM_ERROR;}
   virtual int    GetTdb_No(void) {return Tdb_No;}
   virtual PTDB   GetNext(void) {return Next;}
@@ -109,6 +109,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual int    DeleteDB(PGLOBAL, int) = 0;
   virtual void   CloseDB(PGLOBAL) = 0;
   virtual int    CheckWrite(PGLOBAL g) {return 0;}
+  virtual bool   ReadKey(PGLOBAL, OPVAL, const void *, int) = 0;
 
  protected:
   // Members
@@ -179,6 +180,10 @@ class DllExport TDBASE : public TDB {
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
   virtual PCOL InsertSpcBlk(PGLOBAL g, PCOLDEF cdp);
   virtual void MarkDB(PGLOBAL g, PTDB tdb2);
+  virtual int  MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
+                {strcpy(g->Message, "Remote index"); return RC_INFO;}
+  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
+                      {assert(false); return true;}
 
  protected:
   // Members

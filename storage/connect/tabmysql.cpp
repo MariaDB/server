@@ -61,6 +61,7 @@
 #include "tabmysql.h"
 #include "valblk.h"
 #include "tabutil.h"
+#include "ha_connect.h"
 
 #if defined(_CONSOLE)
 void PrintResult(PGLOBAL, PSEM, PQRYRES);
@@ -481,16 +482,16 @@ PCOL TDBMYSQL::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /*  Note: when implementing EOM filtering, column only used in local   */
 /*  filter should be removed from column list.                         */
 /***********************************************************************/
-bool TDBMYSQL::MakeSelect(PGLOBAL g)
+bool TDBMYSQL::MakeSelect(PGLOBAL g, bool mx)
   {
   char   *tk = "`";
-  int     rank = 0;
-  bool    b = FALSE;
+  int     len = 0, rank = 0;
+  bool    b = false;
   PCOL    colp;
 //PDBUSER dup = PlgGetUser(g);
 
   if (Query)
-    return FALSE;        // already done
+    return false;        // already done
 
   if (Srcdef) {
     Query = Srcdef;
@@ -506,12 +507,12 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
       if (!colp->IsSpecial()) {
 //      if (colp->IsSpecial()) {
 //        strcpy(g->Message, MSG(NO_SPEC_COL));
-//        return TRUE;
+//        return true;
 //      } else {
         if (b)
           strcat(Query, ", ");
         else
-          b = TRUE;
+          b = true;
 
         strcat(strcat(strcat(Query, tk), colp->GetName()), tk);
         ((PMYCOL)colp)->Rank = rank++;
@@ -526,16 +527,24 @@ bool TDBMYSQL::MakeSelect(PGLOBAL g)
   } // endif ncol
 
   strcat(strcat(strcat(strcat(Query, " FROM "), tk), Tabname), tk);
+  len = strlen(Query);
 
-  if (To_CondFil)
-    strcat(strcat(Query, " WHERE "), To_CondFil->Body);
+  if (To_CondFil) {
+    if (!mx) {
+      strcat(strcat(Query, " WHERE "), To_CondFil->Body);
+      len = strlen(Query) + 1;
+    } else
+      len += (strlen(To_CondFil->Body) + 256);
+
+  } else
+    len += (mx ? 256 : 1);
 
   if (trace)
     htrc("Query=%s\n", Query);
 
   // Now we know how much to suballocate
-  PlugSubAlloc(g, NULL, strlen(Query) + 1);
-  return FALSE;
+  PlugSubAlloc(g, NULL, len);
+  return false;
   } // end of MakeSelect
 
 /***********************************************************************/
@@ -833,9 +842,9 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Allocate whatever is used for getting results.                   */
   /*********************************************************************/
-  if (Mode == MODE_READ) {
-    if (!MakeSelect(g))
-      m_Rc = Myc.ExecSQL(g, Query);
+  if (Mode == MODE_READ || Mode == MODE_READX) {
+    MakeSelect(g, Mode == MODE_READX);
+    m_Rc = (Mode == MODE_READ) ? Myc.ExecSQL(g, Query) : RC_OK;
 
 #if 0
     if (!Myc.m_Res || !Myc.m_Fields) {
@@ -993,6 +1002,36 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
     return RC_FX;               // Error
 
   } // end of SendCommand
+
+/***********************************************************************/
+/*  Data Base indexed read routine for MYSQL access method.            */
+/***********************************************************************/
+bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
+{
+  int  oldlen = strlen(Query);
+  bool rc;
+
+  if (op == OP_NEXT)
+    return false;
+  else if (op == OP_FIRST) {
+    if (To_CondFil)
+      strcat(strcat(Query, " WHERE "), To_CondFil->Body);
+
+  } else {
+    if (Myc.m_Res)
+      Myc.FreeResult();
+
+    rc = To_Def->GetHandler()->MakeKeyWhere(g, Query, op, "`", key, len);
+
+    if (To_CondFil)
+      strcat(strcat(strcat(Query, " AND ("), To_CondFil->Body), ")");
+
+  } // endif's op
+
+  m_Rc = Myc.ExecSQL(g, Query);
+  Query[oldlen] = 0;
+  return false;
+} // end of ReadKey
 
 /***********************************************************************/
 /*  Data Base read routine for MYSQL access method.                    */
@@ -1452,7 +1491,7 @@ bool TDBMYEXC::OpenDB(PGLOBAL g)
 
   Use = USE_OPEN;       // Do it now in case we are recursively called
 
-  if (Mode != MODE_READ) {
+  if (Mode != MODE_READ && Mode != MODE_READX) {
     strcpy(g->Message, "No INSERT/DELETE/UPDATE of MYSQL EXEC tables");
     return true;
     } // endif Mode

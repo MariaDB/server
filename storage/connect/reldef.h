@@ -31,6 +31,7 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   PSZ     GetName(void) {return Name;}
   PSZ     GetDB(void) {return (PSZ)Database;}
   PCOLDEF GetCols(void) {return To_Cols;}
+  PHC     GetHandler(void) {return Hc;}
   void    SetCols(PCOLDEF pcd) {To_Cols = pcd;}
   PCATLG  GetCat(void) {return Cat;}
   virtual const char *GetType(void) = 0;
@@ -45,7 +46,7 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   int     GetSizeCatInfo(PSZ what, PSZ sdef);
   int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);
   char   *GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef);
-  virtual bool Indexable(void) {return false;}
+  virtual int  Indexable(void) {return 0;}
   virtual bool Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am) = 0;
   virtual PTDB GetTable(PGLOBAL g, MODE mode) = 0;
 

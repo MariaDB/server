@@ -587,7 +587,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
   tbxp= (TDBDOX*)tdbp;
   tbxp->SetKindex(NULL);
   tbxp->To_Key_Col= NULL;
-  rc= tbxp->ResetTableOpt(g, false, ((PTDBASE)tdbp)->GetDef()->Indexable());
+  rc= tbxp->ResetTableOpt(g, true, 
+                           ((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
  err:
   if (trace > 1)
@@ -709,7 +710,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
                    const void *key, int len, bool mrr)
   {
   char   *kp= (char*)key;
-  int     n;
+  int     n, x;
   short   lg;
   bool    rcb;
   RCODE   rc;
@@ -720,9 +721,18 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
   if (!ptdb)
     return RC_FX;
-  if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
+  else
+    x= ((PTDBASE)ptdb)->GetDef()->Indexable();
+
+  if (!x) {
     sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
     return RC_FX;
+  } else if (x == 2) {
+    // Remote index
+    if (ptdb->ReadKey(g, op, key, len))
+      return RC_FX;
+
+    goto rnd;
   } else
     tdbp= (PTDBDOX)ptdb;
 
@@ -782,8 +792,9 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   xbp->SetOp(op);
   xbp->SetNth(0);
 
-  if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
-    rc= EvalColumns(g, tdbp, mrr);
+ rnd:
+  if ((rc= (RCODE)ptdb->ReadDB(g)) == RC_OK)
+    rc= EvalColumns(g, ptdb, mrr);
 
   return rc;
   } // end of CntIndexRead
@@ -795,7 +806,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
                    bool *incl, key_part_map *kmap)
   {
   const uchar *p, *kp;
-  int     i, n, k[2];
+  int     i, n, x, k[2];
   short   lg;
   bool    b, rcb;
   PVAL    valp;
@@ -805,10 +816,16 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
   if (!ptdb)
     return -1;
-  else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
+
+  x= ((PTDBASE)ptdb)->GetDef()->Indexable();
+
+  if (!x) {
     sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
+  } else if (x == 2) {
+    // Remote index
+    return 2;
   } else
     tdbp= (PTDBDOX)ptdb;
 

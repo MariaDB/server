@@ -57,7 +57,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int    *GetTo_Pos(void) {return To_Pos;}
 
   // Methods
-  virtual bool Indexable(void) {return Compressed != 1;}
+  virtual int  Indexable(void) {return (Compressed != 1) ? 1 : 0;}
   virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);
@@ -165,15 +165,15 @@ class DllExport TDBDOS : public TDBASE {
   virtual int   ReadBuffer(PGLOBAL g) {return Txfp->ReadBuffer(g);}
 
   // Specific routine
-  virtual int  EstimatedLength(PGLOBAL g);
+  virtual int   EstimatedLength(PGLOBAL g);
 
   // Optimization routines
-          int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
+  virtual int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
           void  ResetBlockFilter(PGLOBAL g);
           bool  GetDistinctColumnValues(PGLOBAL g, int nrec);
 
  protected:
-          PBF    CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv);
+          PBF   CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv);
 
   // Members
   PTXF    Txfp;              // To the File access method class
@@ -181,7 +181,7 @@ class DllExport TDBDOS : public TDBASE {
   PBF     To_BlkFil;         // To evaluation block filter
   PFIL    SavFil;            // Saved hidden filter
   char   *To_Line;           // Points to current processed line
-  int     Cardinal;           // Table Cardinality
+  int     Cardinal;          // Table Cardinality
   RECFM   Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
   int     Lrecl;             // Logical Record Length
   int     AvgLen;            // Logical Record Average Length
