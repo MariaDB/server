@@ -248,8 +248,10 @@ select column_get(column_create(1, "20010203"), 1 as datetime);
 select column_get(column_create(1, 0), 1 as datetime);
 select column_get(column_create(1, "2001021"), 1 as datetime);
 
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 select column_get(column_create(1, "8:46:06.23434" AS time), 1 as datetime);
 select column_get(column_create(1, "-808:46:06.23434" AS time), 1 as datetime);
+SET timestamp=DEFAULT;
 
 set @@sql_mode="allow_invalid_dates";
 select column_get(column_create(1, "2011-02-30 18:46:06.23434" AS CHAR), 1 as datetime);
@@ -818,3 +820,17 @@ INSERT INTO t1 SET dyncol = COLUMN_CREATE( 3, REPEAT('a',330), 4, 'x' );
 SELECT COLUMN_ADD( COLUMN_ADD( dyncol, 1, REPEAT('b',130) ), 3, 'y' ) FROM t1;
 
 DROP TABLE t1;
+
+--echo #
+--echo #MDEV-5840: group_concat( column_json(dynamic_column )) return empty
+--echo #result
+--echo #
+create table t1 (dyn blob);
+insert into t1 values (column_create('name1','value1','name2','value2'));
+select group_concat(cast(column_json(dyn) as char)) from t1;
+
+drop table t1;
+
+--echo #
+--echo # end of 10.0 tests
+--echo #

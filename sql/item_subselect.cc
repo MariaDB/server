@@ -2626,7 +2626,7 @@ static bool check_equality_for_exist2in(Item_func *func,
 
 typedef struct st_eq_field_outer
 {
-  Item_func **eq_ref;
+  Item **eq_ref;
   Item_ident *local_field;
   Item *outer_exp;
 } EQ_FIELD_OUTER;
@@ -2665,7 +2665,7 @@ static bool find_inner_outer_equalities(Item **conds,
                                       &element.outer_exp))
       {
         found= TRUE;
-        element.eq_ref= (Item_func **)li.ref();
+        element.eq_ref= li.ref();
         if (result.append(element))
           goto alloc_err;
       }
@@ -2677,7 +2677,7 @@ static bool find_inner_outer_equalities(Item **conds,
                                        &element.outer_exp))
   {
     found= TRUE;
-    element.eq_ref= (Item_func **)conds;
+    element.eq_ref= conds;
     if (result.append(element))
       goto alloc_err;
   }
@@ -2700,7 +2700,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
   THD *thd= (THD *)opt_arg;
   SELECT_LEX *first_select=unit->first_select(), *save_select;
   JOIN *join= first_select->join;
-  Item_func *eq= NULL, **eq_ref= NULL;
+  Item **eq_ref= NULL;
   Item_ident *local_field= NULL;
   Item *outer_exp= NULL;
   Item *left_exp= NULL; Item_in_subselect *in_subs;
@@ -2774,7 +2774,6 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
     {
       Item *item= it++;
       eq_ref= eqs.at(i).eq_ref;
-      eq= *eq_ref;
       local_field= eqs.at(i).local_field;
       outer_exp= eqs.at(i).outer_exp;
       /* Add the field to the SELECT_LIST */
@@ -2789,10 +2788,7 @@ bool Item_exists_subselect::exists2in_processor(uchar *opt_arg)
 
       /* remove the parts from condition */
       if (!upper_not || !local_field->maybe_null)
-      {
-        eq->arguments()[0]= new Item_int(1);
-        eq->arguments()[1]= new Item_int(1);
-      }
+        *eq_ref= new Item_int(1);
       else
       {
         *eq_ref= new Item_func_isnotnull(
@@ -3341,7 +3337,7 @@ subselect_single_select_engine(THD *thd_arg, st_select_lex *select,
 			       select_result_interceptor *result_arg,
 			       Item_subselect *item_arg)
   :subselect_engine(thd_arg, item_arg, result_arg),
-   prepared(0), executed(0), optimize_error(0),
+   prepared(0), executed(0),
    select_lex(select), join(0)
 {
   select_lex->master_unit()->item= item_arg;
@@ -3355,7 +3351,7 @@ int subselect_single_select_engine::get_identifier()
 void subselect_single_select_engine::cleanup()
 {
   DBUG_ENTER("subselect_single_select_engine::cleanup");
-  prepared= executed= optimize_error= 0;
+  prepared= executed= 0;
   join= 0;
   result->cleanup();
   select_lex->uncacheable&= ~UNCACHEABLE_DEPENDENT_INJECTED;
@@ -3399,7 +3395,7 @@ bool subselect_union_engine::is_executed() const
 bool subselect_union_engine::no_rows()
 {
   /* Check if we got any rows when reading UNION result from temp. table: */
-  return test(!unit->fake_select_lex->join->send_records);
+  return MY_TEST(!unit->fake_select_lex->join->send_records);
 }
 
 
@@ -3589,9 +3585,6 @@ int subselect_single_select_engine::exec()
 {
   DBUG_ENTER("subselect_single_select_engine::exec");
 
-  if (optimize_error)
-    DBUG_RETURN(1);
-
   char const *save_where= thd->where;
   SELECT_LEX *save_select= thd->lex->current_select;
   thd->lex->current_select= select_lex;
@@ -3604,7 +3597,7 @@ int subselect_single_select_engine::exec()
     if (join->optimize())
     {
       thd->where= save_where;
-      executed= optimize_error= 1;
+      executed= 1;
       thd->lex->current_select= save_select;
       DBUG_RETURN(join->error ? join->error : 1);
     }
@@ -4685,13 +4678,13 @@ ulonglong subselect_hash_sj_engine::rowid_merge_buff_size(
 */
 
 static my_bool
-bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
+my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 {
   my_bitmap_map *bitmap_buf;
 
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
                                                 bitmap_buffer_size(n_bits))) ||
-      bitmap_init(map, bitmap_buf, n_bits, FALSE))
+      my_bitmap_init(map, bitmap_buf, n_bits, FALSE))
     return TRUE;
   bitmap_clear_all(map);
   return FALSE;
@@ -4729,9 +4722,9 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
 
   DBUG_ENTER("subselect_hash_sj_engine::init");
 
-  if (bitmap_init_memroot(&non_null_key_parts, tmp_columns->elements,
+  if (my_bitmap_init_memroot(&non_null_key_parts, tmp_columns->elements,
                             thd->mem_root) ||
-      bitmap_init_memroot(&partial_match_key_parts, tmp_columns->elements,
+      my_bitmap_init_memroot(&partial_match_key_parts, tmp_columns->elements,
                             thd->mem_root))
     DBUG_RETURN(TRUE);
 
@@ -5241,8 +5234,8 @@ int subselect_hash_sj_engine::exec()
   /* The subquery should be optimized, and materialized only once. */
   DBUG_ASSERT(materialize_join->optimized && !is_materialized);
   materialize_join->exec();
-  if ((res= test(materialize_join->error || thd->is_fatal_error ||
-                 thd->is_error())))
+  if ((res= MY_TEST(materialize_join->error || thd->is_fatal_error ||
+                    thd->is_error())))
     goto err;
 
   /*
@@ -5325,7 +5318,7 @@ int subselect_hash_sj_engine::exec()
       count_pm_keys= count_partial_match_columns - count_null_only_columns +
                      (nn_key_parts ? 1 : 0);
 
-    choose_partial_match_strategy(test(nn_key_parts),
+    choose_partial_match_strategy(MY_TEST(nn_key_parts),
                                   has_covering_null_row,
                                   &partial_match_key_parts);
     DBUG_ASSERT(strategy == PARTIAL_MATCH_MERGE ||
@@ -5453,7 +5446,7 @@ Ordered_key::Ordered_key(uint keyid_arg, TABLE *tbl_arg, Item *search_key_arg,
 Ordered_key::~Ordered_key()
 {
   my_free(key_buff);
-  bitmap_free(&null_key);
+  my_bitmap_free(&null_key);
 }
 
 
@@ -5563,7 +5556,7 @@ bool Ordered_key::alloc_keys_buffers()
     lookup offset.
   */
   /* Notice that max_null_row is max array index, we need count, so +1. */
-  if (bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
+  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
     return TRUE;
 
   cur_key_idx= HA_POS_ERROR;
@@ -6002,8 +5995,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
   */
   if (!has_covering_null_columns)
   {
-    if (bitmap_init_memroot(&matching_keys, merge_keys_count, thd->mem_root) ||
-        bitmap_init_memroot(&matching_outer_cols, merge_keys_count, thd->mem_root))
+    if (my_bitmap_init_memroot(&matching_keys, merge_keys_count, thd->mem_root) ||
+        my_bitmap_init_memroot(&matching_outer_cols, merge_keys_count, thd->mem_root))
       return TRUE;
 
     /*
@@ -6300,7 +6293,7 @@ bool subselect_rowid_merge_engine::partial_match()
     Do not add the non_null_key, since it was already processed above.
   */
   bitmap_clear_all(&matching_outer_cols);
-  for (uint i= test(non_null_key); i < merge_keys_count; i++)
+  for (uint i= MY_TEST(non_null_key); i < merge_keys_count; i++)
   {
     DBUG_ASSERT(merge_keys[i]->get_column_count() == 1);
     if (merge_keys[i]->get_search_key(0)->null_value)
@@ -6317,7 +6310,7 @@ bool subselect_rowid_merge_engine::partial_match()
     nullable columns (above we guarantee there is a match for the non-null
     coumns), the result is UNKNOWN.
   */
-  if (count_nulls_in_search_key == merge_keys_count - test(non_null_key))
+  if (count_nulls_in_search_key == merge_keys_count - MY_TEST(non_null_key))
   {
     res= TRUE;
     goto end;

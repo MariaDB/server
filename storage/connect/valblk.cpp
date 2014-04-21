@@ -188,7 +188,7 @@ bool VALBLK::AllocBuff(PGLOBAL g, size_t size)
   Mblk.Size = size;
 
   if (!(Blkp = PlgDBalloc(g, NULL, Mblk))) {
-    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "Blkp", Mblk.Size);
+    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "Blkp", (int) Mblk.Size);
     fprintf(stderr, "%s\n", g->Message);
     return true;
     } // endif Blkp
@@ -571,7 +571,7 @@ int TYPBLK<TYPE>::GetMaxLength(void)
 
   for (i = n = 0; i < Nval; i++) {
     m = sprintf(buf, Fmt, Typp[i]);
-    n = max(n, m);
+    n = MY_MAX(n, m);
     } // endfor i
 
   return n;
@@ -768,7 +768,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
 #endif   // _DEBUG
 
   if (sp)
-    memcpy(p, sp, min((unsigned)Long, len));
+    memcpy(p, sp, MY_MIN((unsigned)Long, len));
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
@@ -934,7 +934,7 @@ int CHRBLK::GetMaxLength(void)
   for (i = n = 0; i < Nval; i++)
     if (!IsNull(i)) {
       GetValPtrEx(i);
-      n = max(n, (signed)strlen(Valp));
+      n = MY_MAX(n, (signed)strlen(Valp));
       } // endif null
 
   return n;
@@ -1208,7 +1208,7 @@ int STRBLK::GetMaxLength(void)
 
   for (i = n = 0; i < Nval; i++)
     if (Strp[i])
-      n = max(n, (signed)strlen(Strp[i]));
+      n = MY_MAX(n, (signed)strlen(Strp[i]));
 
   return n;
   } // end of GetMaxLength

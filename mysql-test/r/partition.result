@@ -2534,6 +2534,34 @@ i
 3
 4
 DROP TABLE t1;
+#
+# MDEV-5555: Incorrect index_merge on BTREE indices
+#
+CREATE TABLE t1 (
+id bigint(20) unsigned NOT NULL,
+id2 bigint(20) unsigned NOT NULL,
+dob date DEFAULT NULL,
+address char(100) DEFAULT NULL,
+city char(35) DEFAULT NULL,
+hours_worked_per_week smallint(5) unsigned DEFAULT NULL,
+weeks_worked_last_year tinyint(3) unsigned DEFAULT NULL,
+KEY dob (dob),
+KEY address (address),
+KEY city (city),
+KEY hours_worked_per_week (hours_worked_per_week),
+KEY weeks_worked_last_year (weeks_worked_last_year)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+PARTITION BY KEY (id) PARTITIONS 5;
+# Insert some rows 
+select * from t1 where hours_worked_per_week = 40 and weeks_worked_last_year = 52 and dob < '1949-11-21';
+id	id2	dob	address	city	hours_worked_per_week	weeks_worked_last_year
+16	16	1949-11-07	address16	city16	40	52
+50	50	1923-09-08	address50	city50	40	52
+select * from t1 IGNORE INDEX(dob, weeks_worked_last_year, hours_worked_per_week) where hours_worked_per_week = 40 and weeks_worked_last_year = 52 and dob < '1949-11-21';
+id	id2	dob	address	city	hours_worked_per_week	weeks_worked_last_year
+16	16	1949-11-07	address16	city16	40	52
+50	50	1923-09-08	address50	city50	40	52
+drop table t1;
 CREATE TABLE t1 ( d DATE NOT NULL)
 PARTITION BY RANGE( YEAR(d) ) (
 PARTITION p0 VALUES LESS THAN (1960),

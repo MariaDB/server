@@ -31,6 +31,12 @@
 #define make_atomic_store_body(S)  *a= v
 #define MY_ATOMIC_MODE "gcc-builtins-up"
 
+#elif defined(__ATOMIC_SEQ_CST)
+#define MY_ATOMIC_MODE "gcc-builtins-smp"
+#define make_atomic_load_body(S)                    \
+  ret= __atomic_load_n(a, __ATOMIC_SEQ_CST)
+#define make_atomic_store_body(S)                   \
+  __atomic_store_n(a, v, __ATOMIC_SEQ_CST)
 #else
 #define MY_ATOMIC_MODE "gcc-builtins-smp"
 #define make_atomic_load_body(S)                    \

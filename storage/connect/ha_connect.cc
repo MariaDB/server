@@ -695,7 +695,7 @@ char *GetListOption(PGLOBAL g, const char *opname,
 
     } else {
       if (pn) {
-        n= min(pn - pk, 15);
+        n= MY_MIN(pn - pk, 15);
         memcpy(key, pk, n);
         key[n]= 0;
       } else
@@ -1009,7 +1009,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
       break;
     case TYPE_DOUBLE:
-      pcf->Scale= max(min(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
+      pcf->Scale= MY_MAX(MY_MIN(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
       break;
     case TYPE_DECIM:
       pcf->Precision= ((Field_new_decimal*)fp)->precision;
@@ -1639,7 +1639,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
   for (kpart= kfp->key_part; rem; rem--, kpart++) {
     fp= kpart->field;
     stlen= kpart->store_length;
-//  prtlen= min(stlen, len);
+//  prtlen= MY_MIN(stlen, len);
     nq= fp->str_needs_quotes();
 
     if (b)
@@ -1688,7 +1688,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     /* For nullable columns, null-byte is already skipped before, that is
       ptr was incremented by 1. Since store_length still counts null-byte,
       we need to subtract 1 from store_length. */
-    ptr+= stlen - test(kpart->null_bit);
+    ptr+= stlen - MY_TEST(kpart->null_bit);
     } // endfor kpart
 
   strcat(qry, ")");
@@ -2942,8 +2942,8 @@ int ha_connect::info(uint flag)
 
   if (flag & HA_STATUS_CONST) {
     // This is imported from the previous handler and must be reconsidered
-    stats.max_data_file_length= 4294967295;
-    stats.max_index_file_length= 4398046510080;
+    stats.max_data_file_length= 4294967295LL;
+    stats.max_index_file_length= 4398046510080LL;
     stats.create_time= 0;
     data_file_name= xinfo.data_file_name;
     index_file_name= NULL;
@@ -3847,11 +3847,11 @@ static bool add_field(String *sql, const char *field_name, int typ,
     if (!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
       // dec must be < len and < 31
-      error|= sql->append_ulonglong(min(dec, (min(len, 31) - 1)));
+      error|= sql->append_ulonglong(MY_MIN(dec, (MY_MIN(len, 31) - 1)));
     } else if (dec > 0 && !strcmp(type, "DECIMAL")) {
       error|= sql->append(',');
       // dec must be < len
-      error|= sql->append_ulonglong(min(dec, len - 1));
+      error|= sql->append_ulonglong(MY_MIN(dec, len - 1));
     } // endif dec
 
     error|= sql->append(')');
@@ -4030,7 +4030,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        v, spc= ',', qch= 0;
+  char        v=0, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
@@ -4092,7 +4092,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
+#if defined(ODBC_SUPPORT)
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+#endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));

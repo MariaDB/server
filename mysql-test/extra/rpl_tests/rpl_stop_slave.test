@@ -59,3 +59,6 @@ source include/wait_for_slave_sql_to_stop.inc;
 connection slave;
 START SLAVE SQL_THREAD;
 source include/wait_for_slave_sql_to_start.inc;
+
+connection master;
+sync_slave_with_master;

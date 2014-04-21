@@ -373,48 +373,6 @@ static int check_update_fields(THD *thd, TABLE_LIST *insert_table_list,
   return 0;
 }
 
-/*
-  Prepare triggers  for INSERT-like statement.
-
-  SYNOPSIS
-    prepare_triggers_for_insert_stmt()
-      table   Table to which insert will happen
-
-  NOTE
-    Prepare triggers for INSERT-like statement by marking fields
-    used by triggers and inform handlers that batching of UPDATE/DELETE 
-    cannot be done if there are BEFORE UPDATE/DELETE triggers.
-*/
-
-void prepare_triggers_for_insert_stmt(TABLE *table)
-{
-  if (table->triggers)
-  {
-    if (table->triggers->has_triggers(TRG_EVENT_DELETE,
-                                      TRG_ACTION_AFTER))
-    {
-      /*
-        The table has AFTER DELETE triggers that might access to 
-        subject table and therefore might need delete to be done 
-        immediately. So we turn-off the batching.
-      */ 
-      (void) table->file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
-    }
-    if (table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                      TRG_ACTION_AFTER))
-    {
-      /*
-        The table has AFTER UPDATE triggers that might access to subject 
-        table and therefore might need update to be done immediately. 
-        So we turn-off the batching.
-      */ 
-      (void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-    }
-  }
-  table->mark_columns_needed_for_insert();
-}
-
-
 /**
   Upgrade table-level lock of INSERT statement to TL_WRITE if
   a more concurrent lock is infeasible for some reason. This is
@@ -660,7 +618,7 @@ static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
   thd->lex->explain->add_insert_plan(explain);
   
   /* See Update_plan::updating_a_view for details */
-  bool skip= test(table_list->view);
+  bool skip= MY_TEST(table_list->view);
 
   /* Save subquery children */
   for (SELECT_LEX_UNIT *unit= thd->lex->select_lex.first_inner_unit();
@@ -902,7 +860,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
 
-  prepare_triggers_for_insert_stmt(table);
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
 
 
   if (table_list->prepare_where(thd, 0, TRUE) ||
@@ -1229,7 +1188,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
 
   DBUG_ASSERT(view->table != 0 && view->field_translation != 0);
 
-  (void) bitmap_init(&used_fields, used_fields_buff, table->s->fields, 0);
+  (void) my_bitmap_init(&used_fields, used_fields_buff, table->s->fields, 0);
   bitmap_clear_all(&used_fields);
 
   view->contain_auto_increment= 0;
@@ -1933,7 +1892,7 @@ int check_that_all_fields_are_given_values(THD *thd, TABLE *entry,
       if (table_list)
       {
         table_list= table_list->top_table();
-        view= test(table_list->view);
+        view= MY_TEST(table_list->view);
       }
       if (view)
       {
@@ -3072,7 +3031,7 @@ bool Delayed_insert::handle_inserts(void)
 
   THD_STAGE_INFO(&thd, stage_insert);
   max_rows= delayed_insert_limit;
-  if (thd.killed || table->s->has_old_version())
+  if (thd.killed || table->s->tdc.flushed)
   {
     thd.killed= KILL_SYSTEM_THREAD;
     max_rows= ULONG_MAX;                     // Do as much as possible
@@ -3537,7 +3496,10 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         table_list->prepare_check_option(thd));
 
   if (!res)
-     prepare_triggers_for_insert_stmt(table);
+  {
+     table->prepare_triggers_for_insert_stmt_or_event();
+     table->mark_columns_needed_for_insert();
+  }
 
   DBUG_RETURN(res);
 }
@@ -3674,16 +3636,6 @@ void select_insert::store_values(List<Item> &values)
                                          TRG_EVENT_INSERT);
 }
 
-void select_insert::send_error(uint errcode,const char *err)
-{
-  DBUG_ENTER("select_insert::send_error");
-
-  my_message(errcode, err, MYF(0));
-
-  DBUG_VOID_RETURN;
-}
-
-
 bool select_insert::send_eof()
 {
   int error;
@@ -3803,7 +3755,8 @@ void select_insert::abort_result_set() {
     */
     changed= (info.copied || info.deleted || info.updated);
     transactional_table= table->file->has_transactions();
-    if (thd->transaction.stmt.modified_non_trans_table)
+    if (thd->transaction.stmt.modified_non_trans_table ||
+        thd->log_current_statement)
     {
         if (!can_rollback_data())
           thd->transaction.all.modified_non_trans_table= TRUE;
@@ -3925,6 +3878,16 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
 
   DEBUG_SYNC(thd,"create_table_select_before_create");
 
+  /* Check if LOCK TABLES + CREATE OR REPLACE of existing normal table*/
+  if (thd->locked_tables_mode && create_table->table &&
+      !create_info->tmp_table())
+  {
+    /* Remember information about the locked table */
+    create_info->pos_in_locked_tables=
+      create_table->table->pos_in_locked_tables;
+    create_info->mdl_ticket= create_table->table->mdl_ticket;
+  }
+
   /*
     Create and lock table.
 
@@ -3941,51 +3904,63 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
     TABLE, which is a wrong order. So we keep binary logging disabled when we
     open_table().
   */
-  {
-    if (!mysql_create_table_no_lock(thd, create_table->db,
-                                    create_table->table_name,
-                                    create_info, alter_info, NULL,
-                                    select_field_count))
-    {
-      DEBUG_SYNC(thd,"create_table_select_before_open");
 
-      if (!create_info->tmp_table())
-      {
-        Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
-        /*
-          Here we open the destination table, on which we already have
-          an exclusive metadata lock.
-        */
-        if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
-        {
-          quick_rm_table(thd, create_info->db_type, create_table->db,
-                         table_case_name(create_info, create_table->table_name),
-                         0);
-        }
-        else
-          table= create_table->table;
-      }
-      else
-      {
-        if (open_temporary_table(thd, create_table))
-        {
-          /*
-            This shouldn't happen as creation of temporary table should make
-            it preparable for open. Anyway we can't drop temporary table if
-            we are unable to find it.
-          */
-          DBUG_ASSERT(0);
-        }
-        else
-          table= create_table->table;
-      }
-    }
-    if (!table)                                   // open failed
+  if (!mysql_create_table_no_lock(thd, create_table->db,
+                                  create_table->table_name,
+                                  create_info, alter_info, NULL,
+                                  select_field_count))
+  {
+    DEBUG_SYNC(thd,"create_table_select_before_open");
+
+    /*
+      If we had a temporary table or a table used with LOCK TABLES,
+      it was closed by mysql_create()
+    */
+    create_table->table= 0;
+
+    if (!create_info->tmp_table())
     {
-      if (!thd->is_error())                     // CREATE ... IF NOT EXISTS
-        my_ok(thd);                             //   succeed, but did nothing
-      DBUG_RETURN(0);
+      Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN);
+      TABLE_LIST::enum_open_strategy save_open_strategy;
+
+      /* Force the newly created table to be opened */
+      save_open_strategy= create_table->open_strategy;
+      create_table->open_strategy= TABLE_LIST::OPEN_NORMAL;
+      /*
+        Here we open the destination table, on which we already have
+        an exclusive metadata lock.
+      */
+      if (open_table(thd, create_table, thd->mem_root, &ot_ctx))
+      {
+        quick_rm_table(thd, create_info->db_type, create_table->db,
+                       table_case_name(create_info, create_table->table_name),
+                       0);
+      }
+      /* Restore */
+      create_table->open_strategy= save_open_strategy;
     }
+    else
+    {
+      if (open_temporary_table(thd, create_table))
+      {
+        /*
+          This shouldn't happen as creation of temporary table should make
+          it preparable for open. Anyway we can't drop temporary table if
+          we are unable to find it.
+        */
+        DBUG_ASSERT(0);
+      }
+      DBUG_ASSERT(create_table->table == create_info->table);
+    }
+  }
+  else
+    create_table->table= 0;                     // Create failed
+  
+  if (!(table= create_table->table))
+  {
+    if (!thd->is_error())                     // CREATE ... IF NOT EXISTS
+      my_ok(thd);                             //   succeed, but did nothing
+    DBUG_RETURN(0);
   }
 
   DEBUG_SYNC(thd,"create_table_select_before_lock");
@@ -4003,7 +3978,7 @@ static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
     /* purecov: begin tested */
     /*
       This can happen in innodb when you get a deadlock when using same table
-      in insert and select
+      in insert and select or when you run out of memory.
     */
     my_error(ER_CANT_LOCK, MYF(0), my_errno);
     if (*lock)
@@ -4101,8 +4076,6 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     thd->binlog_start_trans_and_stmt();
   }
 
-  DBUG_ASSERT(create_table->table == NULL);
-
   DEBUG_SYNC(thd,"create_table_select_before_check_if_exists");
 
   if (!(table= create_table_from_items(thd, create_info, create_table,
@@ -4190,7 +4163,10 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   query.length(0);      // Have to zero it since constructor doesn't
 
   result= store_create_info(thd, &tmp_table_list, &query, create_info,
-                            /* show_database */ TRUE);
+                            /* show_database */ TRUE,
+                            MY_TEST(create_info->org_options &
+                                    HA_LEX_CREATE_REPLACE) ||
+                            create_info->table_was_deleted);
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
   if (mysql_bin_log.is_open())
@@ -4213,70 +4189,70 @@ void select_create::store_values(List<Item> &values)
 }
 
 
-void select_create::send_error(uint errcode,const char *err)
-{
-  DBUG_ENTER("select_create::send_error");
-
-  DBUG_PRINT("info",
-             ("Current statement %s row-based",
-              thd->is_current_stmt_binlog_format_row() ? "is" : "is NOT"));
-  DBUG_PRINT("info",
-             ("Current table (at 0x%lu) %s a temporary (or non-existant) table",
-              (ulong) table,
-              table && !table->s->tmp_table ? "is NOT" : "is"));
-  /*
-    This will execute any rollbacks that are necessary before writing
-    the transcation cache.
-
-    We disable the binary log since nothing should be written to the
-    binary log.  This disabling is important, since we potentially do
-    a "roll back" of non-transactional tables by removing the table,
-    and the actual rollback might generate events that should not be
-    written to the binary log.
-
-  */
-  tmp_disable_binlog(thd);
-  select_insert::send_error(errcode, err);
-  reenable_binlog(thd);
-
-  DBUG_VOID_RETURN;
-}
-
-
 bool select_create::send_eof()
 {
-  bool tmp=select_insert::send_eof();
-  if (tmp)
-    abort_result_set();
-  else
+  if (select_insert::send_eof())
   {
-    /*
-      Do an implicit commit at end of statement for non-temporary
-      tables.  This can fail, but we should unlock the table
-      nevertheless.
-    */
-    if (!table->s->tmp_table)
-    {
-      trans_commit_stmt(thd);
-      trans_commit_implicit(thd);
-    }
-
-    table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
-    table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
-    if (m_plock)
-    {
-      mysql_unlock_tables(thd, *m_plock);
-      *m_plock= NULL;
-      m_plock= NULL;
-    }
+    abort_result_set();
+    return 1;
   }
-  return tmp;
+
+  exit_done= 1;                                 // Avoid double calls
+  /*
+    Do an implicit commit at end of statement for non-temporary
+    tables.  This can fail, but we should unlock the table
+    nevertheless.
+  */
+  if (!table->s->tmp_table)
+  {
+    trans_commit_stmt(thd);
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+      trans_commit_implicit(thd);
+  }
+  else if (!thd->is_current_stmt_binlog_format_row())
+    table->s->table_creation_was_logged= 1;
+
+  table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
+  table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
+
+  if (m_plock)
+  {
+    MYSQL_LOCK *lock= *m_plock;
+    *m_plock= NULL;
+    m_plock= NULL;
+
+    if (create_info->pos_in_locked_tables)
+    {
+      /*
+        If we are under lock tables, we have created a table that was
+        originally locked. We should add back the lock to ensure that
+        all tables in the thd->open_list are locked!
+      */
+      table->mdl_ticket= create_info->mdl_ticket;
+
+      /* The following should never fail, except if out of memory */
+      if (!thd->locked_tables_list.restore_lock(thd,
+                                                create_info->
+                                                pos_in_locked_tables,
+                                                table, lock))
+        return 0;                               // ok
+      /* Fail. Continue without locking the table */
+    }
+    mysql_unlock_tables(thd, lock);
+  }
+  return 0;
 }
 
 
 void select_create::abort_result_set()
 {
+  ulonglong save_option_bits;
   DBUG_ENTER("select_create::abort_result_set");
+
+  /* Avoid double calls, could happen in case of out of memory on cleanup */
+  if (exit_done)
+    DBUG_VOID_RETURN;
+  exit_done= 1;
 
   /*
     In select_insert::abort_result_set() we roll back the statement, including
@@ -4292,14 +4268,26 @@ void select_create::abort_result_set()
     We also roll back the statement regardless of whether the creation
     of the table succeeded or not, since we need to reset the binary
     log state.
+    
+    However if there was an original table that was deleted, as part of
+    create or replace table, then we must log the statement.
   */
-  tmp_disable_binlog(thd);
+
+  save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
   select_insert::abort_result_set();
   thd->transaction.stmt.modified_non_trans_table= FALSE;
-  reenable_binlog(thd);
+  thd->variables.option_bits= save_option_bits;
+
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
+  if (create_info->table_was_deleted)
+  {
+    /* Unlock locked table that was dropped by CREATE */
+    thd->locked_tables_list.unlock_locked_table(thd,
+                                                create_info->mdl_ticket);
+  }
   if (m_plock)
   {
     mysql_unlock_tables(thd, *m_plock);
@@ -4309,12 +4297,21 @@ void select_create::abort_result_set()
 
   if (table)
   {
+    bool tmp_table= table->s->tmp_table;
     table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
     table->auto_increment_field_not_null= FALSE;
     drop_open_table(thd, table, create_table->db, create_table->table_name);
     table=0;                                    // Safety
+    if (thd->log_current_statement && mysql_bin_log.is_open())
+    {
+      /* Remove logging of drop, create + insert rows */
+      binlog_reset_cache(thd);
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, create_table->db, create_table->db_length,
+                     create_table->table_name, create_table->table_name_length,
+                     tmp_table);
+    }
   }
   DBUG_VOID_RETURN;
 }
-

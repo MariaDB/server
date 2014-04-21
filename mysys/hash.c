@@ -40,12 +40,12 @@ static void movelink(HASH_LINK *array,uint pos,uint next_link,uint newlink);
 static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length);
 
-static my_hash_value_type calc_hash(const HASH *hash,
-                                    const uchar *key, size_t length)
+my_hash_value_type my_hash_sort(const CHARSET_INFO *cs, const uchar *key,
+                                size_t length)
 {
-  ulong nr1=1, nr2=4;
-  hash->charset->coll->hash_sort(hash->charset,(uchar*) key,length,&nr1,&nr2);
-  return (my_hash_value_type)nr1;
+  ulong nr1= 1, nr2= 4;
+  cs->coll->hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
+  return (my_hash_value_type) nr1;
 }
 
 /**
@@ -78,6 +78,7 @@ my_bool
 my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
               ulong size, size_t key_offset, size_t key_length,
               my_hash_get_key get_key,
+              my_hash_function hash_function,
               void (*free_element)(void*), uint flags)
 {
   my_bool res;
@@ -89,6 +90,7 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
   hash->key_length=key_length;
   hash->blength=1;
   hash->get_key=get_key;
+  hash->hash_function= hash_function ? hash_function : my_hash_sort;
   hash->free=free_element;
   hash->flags=flags;
   hash->charset=charset;
@@ -200,7 +202,8 @@ static uint my_hash_rec_mask(const HASH *hash, HASH_LINK *pos,
 {
   size_t length;
   uchar *key= (uchar*) my_hash_key(hash, pos->data, &length, 0);
-  return my_hash_mask(calc_hash(hash, key, length), buffmax, maxlength);
+  return my_hash_mask(hash->hash_function(hash->charset, key, length), buffmax,
+                      maxlength);
 }
 
 
@@ -214,7 +217,7 @@ my_hash_value_type rec_hashnr(HASH *hash,const uchar *record)
 {
   size_t length;
   uchar *key= (uchar*) my_hash_key(hash, record, &length, 0);
-  return calc_hash(hash,key,length);
+  return hash->hash_function(hash->charset, key, length);
 }
 
 
@@ -234,12 +237,6 @@ uchar* my_hash_search_using_hash_value(const HASH *hash,
                                        key, length, &state);
 }
 
-my_hash_value_type my_calc_hash(const HASH *hash,
-                                const uchar *key, size_t length)
-{
-  return calc_hash(hash, key, length ? length : hash->key_length);
-}
-
 
 /*
   Search after a record based on a key
@@ -254,7 +251,8 @@ uchar* my_hash_first(const HASH *hash, const uchar *key, size_t length,
   uchar *res;
   if (my_hash_inited(hash))
     res= my_hash_first_from_hash_value(hash,
-                   calc_hash(hash, key, length ? length : hash->key_length),
+                   hash->hash_function(hash->charset, key,
+                                       length ? length : hash->key_length),
                    key, length, current_record);
   else
     res= 0;
@@ -644,9 +642,9 @@ my_bool my_hash_update(HASH *hash, uchar *record, uchar *old_key,
 
   /* Search after record with key */
 
-  idx= my_hash_mask(calc_hash(hash, old_key, (old_key_length ?
-                                              old_key_length :
-                                              hash->key_length)),
+  idx= my_hash_mask(hash->hash_function(hash->charset, old_key,
+                                        (old_key_length ? old_key_length :
+                                                          hash->key_length)),
                     blength, records);
   new_index= my_hash_mask(rec_hashnr(hash, record), blength, records);
   if (idx == new_index)

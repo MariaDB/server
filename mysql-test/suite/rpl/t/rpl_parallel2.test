@@ -1,0 +1,41 @@
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** MDEV-5509: Incorrect value for Seconds_Behind_Master if parallel replication ***
+
+--connection server_2
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT);
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave");
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--connection server_1
+INSERT INTO t1 VALUES (1,sleep(2));
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+
+--echo Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
+--let $status_items= Seconds_Behind_Master
+--source include/show_slave_status.inc
+
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc

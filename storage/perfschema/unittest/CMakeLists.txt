@@ -15,8 +15,7 @@
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/include/mysql
-                    ${CMAKE_BINARY_DIR}/pcre
-                    ${CMAKE_SOURCE_DIR}/pcre
+                    ${PCRE_INCLUDES}
                     ${CMAKE_SOURCE_DIR}/sql
                     ${SSL_INCLUDE_DIRS}
                     ${CMAKE_SOURCE_DIR}/unittest/mytap

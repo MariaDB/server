@@ -111,10 +111,14 @@ SELECT @@global.old_mode;
 @@global.old_mode
 NO_PROGRESS_INFO
 SET @@global.old_mode = 4;
-ERROR 42000: Variable 'old_mode' can't be set to the value of '4'
 SELECT @@global.old_mode;
 @@global.old_mode
-NO_PROGRESS_INFO
+ZERO_DATE_TIME_CAST
+SET @@global.old_mode = 8;
+ERROR 42000: Variable 'old_mode' can't be set to the value of '8'
+SELECT @@global.old_mode;
+@@global.old_mode
+ZERO_DATE_TIME_CAST
 SET @@global.old_mode = 0.4;
 ERROR 42000: Incorrect argument type to variable 'old_mode'
 '#---------------------FN_DYNVARS_152_08----------------------#'

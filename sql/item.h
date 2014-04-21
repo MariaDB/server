@@ -709,8 +709,12 @@ public:
   /* Function returns 1 on overflow and -1 on fatal errors */
   int save_in_field_no_warnings(Field *field, bool no_conversions);
   virtual int save_in_field(Field *field, bool no_conversions);
-  virtual void save_org_in_field(Field *field)
+  virtual void save_org_in_field(Field *field,
+                                 fast_field_copier data
+                                 __attribute__ ((__unused__)))
   { (void) save_in_field(field, 1); }
+  virtual fast_field_copier setup_fast_field_copier(Field *field)
+  { return NULL; }
   virtual int save_safe_in_field(Field *field)
   { return save_in_field(field, 1); }
   virtual bool send(Protocol *protocol, String *str);
@@ -946,7 +950,7 @@ public:
     save_val() is method of val_* family which stores value in the given
     field.
   */
-  virtual void save_val(Field *to) { save_org_in_field(to); }
+  virtual void save_val(Field *to) { save_org_in_field(to, NULL); }
   /*
     save_result() is method of val*result() family which stores value in
     the given field.
@@ -966,6 +970,11 @@ public:
   longlong val_int_from_date();
   double val_real_from_decimal();
   double val_real_from_date();
+
+  // Get TIME, DATE or DATETIME using proper sql_mode flags for the field type
+  bool get_temporal_with_sql_mode(MYSQL_TIME *ltime);
+  // Check NULL value for a TIME, DATE or DATETIME expression
+  bool is_null_from_temporal();
 
   int save_time_in_field(Field *field);
   int save_date_in_field(Field *field);
@@ -1071,6 +1080,8 @@ public:
   virtual bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_time(MYSQL_TIME *ltime)
   { return get_date(ltime, TIME_TIME_ONLY | TIME_INVALID_DATES); }
+  // Get date with automatic TIME->DATETIME conversion
+  bool get_date_with_conversion(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool get_seconds(ulonglong *sec, ulong *sec_part);
   virtual bool get_date_result(MYSQL_TIME *ltime, ulonglong fuzzydate)
   { return get_date(ltime,fuzzydate); }
@@ -1462,7 +1473,7 @@ public:
   {
     if (is_expensive_cache < 0)
       is_expensive_cache= walk(&Item::is_expensive_processor, 0, (uchar*)0);
-    return test(is_expensive_cache);
+    return MY_TEST(is_expensive_cache);
   }
   virtual Field::geometry_type get_geometry_type() const
     { return Field::GEOM_GEOMETRY; };
@@ -2070,7 +2081,8 @@ public:
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   void make_field(Send_field *tmp_field);
   int save_in_field(Field *field,bool no_conversions);
-  void save_org_in_field(Field *field);
+  void save_org_in_field(Field *field, fast_field_copier optimizer_data);
+  fast_field_copier setup_fast_field_copier(Field *field);
   table_map used_tables() const;
   table_map all_used_tables() const; 
   enum Item_result result_type () const
@@ -2105,7 +2117,11 @@ public:
       tab->merge_keys.merge(field->part_of_key);
       if (tab->read_set)
         bitmap_fast_test_and_set(tab->read_set, field->field_index);
-      if (field->vcol_info)
+      /* 
+        Do not mark a self-referecing virtual column.
+        Such virtual columns are reported as invalid.
+      */
+      if (field->vcol_info && tab->vcol_set)
         tab->mark_virtual_col(field);
     }
   }
@@ -2400,7 +2416,7 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   Item_num *neg() { value= -value; return this; }
   uint decimal_precision() const
-  { return (uint)(max_length - test(value < 0)); }
+  { return (uint) (max_length - MY_TEST(value < 0)); }
   bool eq(const Item *, bool binary_cmp) const;
   bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
@@ -2922,6 +2938,9 @@ public:
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 
+  bool is_null()
+  { return is_null_from_temporal(); }
+  bool get_date_with_sql_mode(MYSQL_TIME *to);
   String *val_str(String *str)
   { return val_string_from_date(str); }
   longlong val_int()
@@ -2948,6 +2967,14 @@ public:
   {
     max_length= MAX_DATE_WIDTH;
     fixed= 1;
+    /*
+      If date has zero month or day, it can return NULL in case of
+      NO_ZERO_DATE or NO_ZERO_IN_DATE.
+      We can't just check the current sql_mode here in constructor,
+      because sql_mode can change in case of prepared statements
+      between PREPARE and EXECUTE.
+    */
+    maybe_null= !ltime->month || !ltime->day;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATE; }
   void print(String *str, enum_query_type query_type);
@@ -2984,6 +3011,8 @@ public:
   {
     max_length= MAX_DATETIME_WIDTH + (decimals ? decimals + 1 : 0);
     fixed= 1;
+    // See the comment on maybe_null in Item_date_literal
+    maybe_null= !ltime->month || !ltime->day;
   }
   enum_field_types field_type() const { return MYSQL_TYPE_DATETIME; }
   void print(String *str, enum_query_type query_type);
@@ -3099,7 +3128,9 @@ public:
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   int save_in_field(Field *field, bool no_conversions);
-  void save_org_in_field(Field *field);
+  void save_org_in_field(Field *field, fast_field_copier optimizer_data);
+  fast_field_copier setup_fast_field_copier(Field *field)
+  { return (*ref)->setup_fast_field_copier(field); }
   enum Item_result result_type () const { return (*ref)->result_type(); }
   enum_field_types field_type() const   { return (*ref)->field_type(); }
   Field *get_tmp_table_field()
@@ -3328,7 +3359,8 @@ public:
   bool is_null();
   bool get_date(MYSQL_TIME *ltime, ulonglong fuzzydate);
   bool send(Protocol *protocol, String *buffer);
-  void save_org_in_field(Field *field)
+  void save_org_in_field(Field *field,
+                         fast_field_copier data __attribute__ ((__unused__)))
   {
     save_val(field);
   }
@@ -3525,7 +3557,8 @@ public:
     return Item_direct_ref::get_date(ltime, fuzzydate);
   }
   bool send(Protocol *protocol, String *buffer);
-  void save_org_in_field(Field *field)
+  void save_org_in_field(Field *field,
+                         fast_field_copier data __attribute__ ((__unused__)))
   {
     if (check_null_ref())
       field->set_null();
@@ -3543,6 +3576,7 @@ public:
   void cleanup()
   {
     null_ref_table= NULL;
+    item_equal= NULL;
     Item_direct_ref::cleanup();
   }
 };
@@ -3591,7 +3625,7 @@ public:
   {}
   void save_in_result_field(bool no_conversions)
   {
-    outer_ref->save_org_in_field(result_field);
+    outer_ref->save_org_in_field(result_field, NULL);
   }
   bool fix_fields(THD *, Item **);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
@@ -3993,7 +4027,7 @@ public:
 
   bool walk(Item_processor processor, bool walk_subquery, uchar *args)
   {
-    return arg->walk(processor, walk_subquery, args) ||
+    return (arg && arg->walk(processor, walk_subquery, args)) ||
       (this->*processor)(args);
   }
 
@@ -4225,7 +4259,7 @@ public:
   virtual void store(Item *item);
   virtual bool cache_value()= 0;
   bool basic_const_item() const
-  { return test(example && example->basic_const_item());}
+  { return MY_TEST(example && example->basic_const_item()); }
   virtual void clear() { null_value= TRUE; value_cached= FALSE; }
   bool is_null() { return null_value; }
   virtual bool is_expensive()

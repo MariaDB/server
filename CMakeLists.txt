@@ -153,6 +153,7 @@ INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
 INCLUDE(jemalloc)
+INCLUDE(pcre)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -329,8 +330,15 @@ SET(PLUGINDIR "${DEFAULT_MYSQL_HOME}/${INSTALL_PLUGINDIR}")
 IF(INSTALL_SYSCONFDIR)
   SET(DEFAULT_SYSCONFDIR "${INSTALL_SYSCONFDIR}")
 ENDIF()
+
+OPTION(TMPDIR
+"PATH to MySQL TMP dir. If unspecified, defaults to P_tmpdir in <stdio.h>" OFF)
 IF(TMPDIR)
-  SET(DEFAULT_TMPDIR "${TMPDIR}")
+  # Quote it, to make it a const char string.
+  SET(DEFAULT_TMPDIR "\"${TMPDIR}\"")
+ELSE()
+  # Do not quote it, to refer to the P_tmpdir macro in <stdio.h>.
+  SET(DEFAULT_TMPDIR "P_tmpdir")
 ENDIF()
 
 # Run platform tests
@@ -352,7 +360,10 @@ MYSQL_CHECK_SSL()
 # Add readline or libedit.
 MYSQL_CHECK_READLINE()
 
+SET(MALLOC_LIBRARY "system")
 CHECK_JEMALLOC()
+
+CHECK_PCRE()
 
 #
 # Setup maintainer mode options. Platform checks are
@@ -389,7 +400,6 @@ ADD_SUBDIRECTORY(include)
 ADD_SUBDIRECTORY(dbug)
 ADD_SUBDIRECTORY(strings)
 ADD_SUBDIRECTORY(vio)
-ADD_SUBDIRECTORY(pcre)
 ADD_SUBDIRECTORY(mysys)
 ADD_SUBDIRECTORY(mysys_ssl)
 ADD_SUBDIRECTORY(libmysql)
@@ -417,6 +427,7 @@ IF(NOT WITHOUT_SERVER)
     ADD_SUBDIRECTORY(internal)
   ENDIF()
   ADD_SUBDIRECTORY(packaging/rpm-uln)
+  ADD_SUBDIRECTORY(packaging/rpm-oel)
 ENDIF()
 
 IF(UNIX)

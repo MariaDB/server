@@ -396,7 +396,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     Pwd = tdp->Password;
     Server = tdp->Server;
     Qrystr = tdp->Qrystr;
-    Quoted = max(0, tdp->Quoted);
+    Quoted = MY_MAX(0, tdp->Quoted);
     Port = tdp->Portnumber;
     Isview = tdp->Isview;
     Prep = tdp->Bind;
@@ -1009,7 +1009,6 @@ int TDBMYSQL::SendCommand(PGLOBAL g)
 bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 {
   int  oldlen = strlen(Query);
-  bool rc;
 
   if (op == OP_NEXT)
     return false;
@@ -1021,7 +1020,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
     if (Myc.m_Res)
       Myc.FreeResult();
 
-    rc = To_Def->GetHandler()->MakeKeyWhere(g, Query, op, "`", key, len);
+    To_Def->GetHandler()->MakeKeyWhere(g, Query, op, "`", key, len);
 
     if (To_CondFil)
       strcat(strcat(strcat(Query, " AND ("), To_CondFil->Body), ")");

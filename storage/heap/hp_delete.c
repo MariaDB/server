@@ -1,4 +1,4 @@
-/* Copyright (C) 2000-2002, 2004-2007 MySQL AB
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ int hp_rb_delete_key(HP_INFO *info, register HP_KEYDEF *keyinfo,
 		   const uchar *record, uchar *recpos, int flag)
 {
   heap_rb_param custom_arg;
-  uint old_allocated;
+  ulong old_allocated;
   int res;
 
   if (flag) 

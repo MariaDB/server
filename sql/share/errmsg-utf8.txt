@@ -2118,13 +2118,9 @@ ER_INSERT_INFO
         spa "Registros: %ld  Duplicados: %ld  Peligros: %ld"
         swe "Rader: %ld  Dubletter: %ld  Varningar: %ld"
         ukr "Записів: %ld  Дублікатів: %ld  Застережень: %ld"
-ER_UPDATE_TABLE_USED  
-        eng "You can't specify target table '%-.192s' for update in FROM clause"
-        ger "Die Verwendung der zu aktualisierenden Zieltabelle '%-.192s' ist in der FROM-Klausel nicht zulässig."
-        jpn "FROM句にある表 '%-.192s' はUPDATEの対象にできません。"
-        rus "Не допускается указание таблицы '%-.192s' в списке таблиц FROM для внесения в нее изменений"
-        swe "INSERT-table '%-.192s' får inte finnas i FROM tabell-listan"
-        ukr "Таблиця '%-.192s' що змінюється не дозволена у переліку таблиць FROM"
+ER_UPDATE_TABLE_USED
+        eng "Table '%-.192s' is specified twice, both as a target for '%s' and as a separate source for data"
+        swe "Table '%-.192s' är använd två gånger. Både för '%s' och för att hämta data"
 ER_NO_SUCH_THREAD  
         cze "Neznámá identifikace threadu: %lu"
         dan "Ukendt tråd id: %lu"
@@ -7034,7 +7030,7 @@ ER_UNTIL_REQUIRES_USING_GTID
 ER_GTID_STRICT_OUT_OF_ORDER
 	eng "An attempt was made to binlog GTID %u-%u-%llu which would create an out-of-order sequence number with existing GTID %u-%u-%llu, and gtid strict mode is enabled."
 ER_GTID_START_FROM_BINLOG_HOLE
-	eng "The binlog on the master is missing the GTID %u-%u-%llu requested by the slave (even though both a prior and a subsequent sequence number does exist), and GTID strict mode is enabled"
+	eng "The binlog on the master is missing the GTID %u-%u-%llu requested by the slave (even though a subsequent sequence number does exist), and GTID strict mode is enabled"
 ER_SLAVE_UNEXPECTED_MASTER_SWITCH
 	eng "Unexpected GTID received from master after reconnect. This normally indicates that the master server was replaced without restarting the slave threads. %s"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_GTID_DOMAIN_ID_SEQ_NO
@@ -7067,3 +7063,7 @@ ER_CHANGE_SLAVE_PARALLEL_THREADS_ACTIVE
 	eng "Cannot change @@slave_parallel_threads while another change is in progress"
 ER_PRIOR_COMMIT_FAILED
 	eng "Commit failed due to failure of an earlier commit on which this one depends"
+ER_IT_IS_A_VIEW 42S02
+        eng "'%-.192s' is a view"
+ER_SLAVE_SKIP_NOT_IN_GTID
+	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."

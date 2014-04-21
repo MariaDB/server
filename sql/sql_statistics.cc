@@ -346,6 +346,8 @@ protected:
     if ((err= stat_file->ha_update_row(record[1], record[0])) &&
          err != HA_ERR_RECORD_IS_THE_SAME)
       return TRUE;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
   }
 
@@ -529,6 +531,8 @@ public:
       store_stat_fields();
       if ((err= stat_file->ha_write_row(record[0])))
 	return TRUE;
+      /* Make change permanent and avoid 'table is marked as crashed' errors */
+      stat_file->extra(HA_EXTRA_FLUSH);
     } 
     return FALSE;
   }
@@ -583,6 +587,8 @@ public:
     int err;
     if ((err= stat_file->ha_delete_row(record[0])))
       return TRUE;
+    /* Make change permanent and avoid 'table is marked as crashed' errors */
+    stat_file->extra(HA_EXTRA_FLUSH);
     return FALSE;
   } 
 };
@@ -3508,6 +3514,8 @@ double get_column_range_cardinality(Field *field,
         Histogram *hist= &col_stats->histogram;
         if (hist->is_available())
         {
+          store_key_image_to_rec(field, (uchar *) min_endp->key,
+                                 min_endp->length);
           double pos= field->pos_in_interval(col_stats->min_value,
                                              col_stats->max_value);
           res= col_non_nulls * 
@@ -3557,3 +3565,120 @@ double get_column_range_cardinality(Field *field,
   }
   return res;
 }
+
+
+
+/*
+  Estimate selectivity of "col=const" using a histogram
+  
+  @param pos      Position of the "const" between column's min_value and 
+                  max_value.  This is a number in [0..1] range.
+  @param avg_sel  Average selectivity of condition "col=const" in this table.
+                  It is calcuated as (#non_null_values / #distinct_values).
+  
+  @return
+     Expected condition selectivity (a number between 0 and 1)
+
+  @notes 
+     [re_zero_length_buckets] If a bucket with zero value-length is in the
+     middle of the histogram, we will not have min==max. Example: suppose, 
+     pos_value=0x12, and the histogram is:
+
+           #n  #n+1 #n+2                 
+      ... 0x10 0x12 0x12 0x14 ...
+                      |
+                      +------------- bucket with zero value-length
+    
+      Here, we will get min=#n+1, max=#n+2, and use the multi-bucket formula.
+     
+      The problem happens at the histogram ends. if pos_value=0, and the
+      histogram is:
+
+      0x00 0x10 ...
+
+      then min=0, max=0. This means pos_value is contained within bucket #0,
+      but on the other hand, histogram data says that the bucket has only one
+      value.
+*/
+
+double Histogram::point_selectivity(double pos, double avg_sel)
+{
+  double sel;
+  /* Find the bucket that contains the value 'pos'. */
+  uint min= find_bucket(pos, TRUE);
+  uint pos_value= (uint) (pos * prec_factor());
+
+  /* Find how many buckets this value occupies */
+  uint max= min;
+  while (max + 1 < get_width() && get_value(max + 1) == pos_value)
+    max++;
+  
+  /*
+    A special case: we're looking at a single bucket, and that bucket has
+    zero value-length. Use the multi-bucket formula (attempt to use
+    single-bucket formula will cause divison by zero).
+
+    For more details see [re_zero_length_buckets] above.
+  */
+  if (max == min && get_value(max) == ((max==0)? 0 : get_value(max-1)))
+    max++;
+
+  if (max > min)
+  {
+    /*
+      The value occupies multiple buckets. Use start_bucket ... end_bucket as
+      selectivity.
+    */
+    double bucket_sel= 1.0/(get_width() + 1);  
+    sel= bucket_sel * (max - min + 1);
+  }
+  else
+  {
+    /* 
+      The value 'pos' fits within one single histogram bucket.
+
+      Histogram buckets have the same numbers of rows, but they cover
+      different ranges of values.
+
+      We assume that values are uniformly distributed across the [0..1] value
+      range.
+    */
+
+    /* 
+      If all buckets covered value ranges of the same size, the width of
+      value range would be:
+    */
+    double avg_bucket_width= 1.0 / (get_width() + 1);
+    
+    /*
+      Let's see what is the width of value range that our bucket is covering.
+        (min==max currently. they are kept in the formula just in case we 
+         will want to extend it to handle multi-bucket case)
+    */
+    double inv_prec_factor= (double) 1.0 / prec_factor(); 
+    double current_bucket_width= 
+        (max + 1 == get_width() ?  1.0 : (get_value(max) * inv_prec_factor)) -
+        (min == 0 ?  0.0 : (get_value(min-1) * inv_prec_factor));
+
+    DBUG_ASSERT(current_bucket_width); /* We shouldn't get a one zero-width bucket */
+
+    /*
+      So:
+      - each bucket has the same #rows 
+      - values are unformly distributed across the [min_value,max_value] domain.
+
+      If a bucket has value range that's N times bigger then average, than
+      each value will have to have N times fewer rows than average.
+    */
+    sel= avg_sel * avg_bucket_width / current_bucket_width;
+
+    /*
+      (Q: if we just follow this proportion we may end up in a situation
+      where number of different values we expect to find in this bucket
+      exceeds the number of rows that this histogram has in a bucket. Are 
+      we ok with this or we would want to have certain caps?)
+    */
+  }
+  return sel;
+}
+

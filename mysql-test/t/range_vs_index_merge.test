@@ -454,6 +454,8 @@ SELECT * FROM City WHERE Name LIKE 'Pa%';
 #   index merge retrievals over:
 #     2. key1 and key3
 #     3. key2 and key3
+set @tmp_range_vs_index_merge=@@optimizer_switch;
+set optimizer_switch='extended_keys=off';
 
 EXPLAIN
 SELECT * FROM City
@@ -578,6 +580,7 @@ SELECT * FROM City
 
 DROP INDEX Population ON City;
 DROP INDEX Name ON City;
+set optimizer_switch=@tmp_range_vs_index_merge;
 
 # The pattern of the WHERE condition used in the following query is
 #   (key1|2_p1=c AND range(key1_p2)) OR (key1|2_p1=c AND range(key2_p2))

@@ -736,6 +736,17 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
         compl_result_code= update_statistics_for_table(thd, table->table);
       if (compl_result_code)
         result_code= HA_ADMIN_FAILED;
+      else
+      {
+        protocol->prepare_for_resend();
+        protocol->store(table_name, system_charset_info); 
+        protocol->store(operator_name, system_charset_info);
+        protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+	protocol->store(STRING_WITH_LEN("Engine-independent statistics collected"), 
+                        system_charset_info);
+        if (protocol->write())
+          goto err;
+      }
     }
 
     if (result_code == HA_ADMIN_NOT_IMPLEMENTED && need_repair_or_alter)
@@ -1218,7 +1229,7 @@ bool Sql_cmd_repair_table::execute(THD *thd)
   thd->enable_slow_log= opt_log_slow_admin_statements;
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "repair",
                          TL_WRITE, 1,
-                         test(m_lex->check_opt.sql_flags & TT_USEFRM),
+                         MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
                          &handler::ha_repair, 0);
 

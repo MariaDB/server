@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2013 Kentoku Shiba
+/* Copyright (C) 2012-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -620,8 +620,9 @@ class spider_oracle_handler: public spider_db_handler
   SPIDER_INT_HLD          *union_table_name_pos_first;
   SPIDER_INT_HLD          *union_table_name_pos_current;
 public:
-  spider_oracle_share      *oracle_share;
+  spider_oracle_share     *oracle_share;
   SPIDER_LINK_FOR_HASH    *link_for_hash;
+  uchar                   *minimum_select_bitmap;
   spider_oracle_handler(
     ha_spider *spider,
     spider_oracle_share *share
@@ -870,7 +871,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   );
   int append_is_null(
     ulong sql_type,
@@ -880,7 +882,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   );
   int append_where_terminator_part(
     ulong sql_type,
@@ -960,6 +963,11 @@ public:
     ulong sql_type
   );
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  );
   int append_group_by(
     spider_string *str,
     const char *alias,
@@ -1363,6 +1371,7 @@ public:
   bool support_use_handler(
     int use_handler
   );
+  void minimum_select_bitmap_create();
   bool minimum_select_bit_is_set(
     uint field_index
   );

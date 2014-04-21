@@ -108,6 +108,14 @@ SELECT * from T1;
 a
 1
 DROP TABLE T1;
+create database mysqltest_UPPERCASE;
+CREATE TABLE mysqltest_UPPERCASE.T1 (a int) engine=innodb;
+CREATE TABLE mysqltest_uppercase.t2 (a int) engine=innodb;
+CREATE TABLE mysqltest_UPPERCASE.t3 (a int) engine=innodb;
+drop table mysqltest_UPPERCASE.T1;
+drop table mysqltest_UPPERCASE.T2;
+drop table mysqltest_uppercase.t3;
+drop database mysqltest_UPPERCASE;
 create table T1 (EVENT_ID int auto_increment primary key,  LOCATION char(20));
 insert into T1 values (NULL,"Mic-4"),(NULL,"Mic-5"),(NULL,"Mic-6");
 SELECT LOCATION FROM T1 WHERE EVENT_ID=2 UNION ALL  SELECT LOCATION FROM T1 WHERE EVENT_ID=3;
@@ -148,6 +156,9 @@ drop table T1;
 create database mysqltest_LC2;
 use mysqltest_LC2;
 create table myUC (i int);
+show tables;
+Tables_in_mysqltest_LC2
+myUC
 insert into myUC values (1),(2),(3);
 select * from myUC;
 i
@@ -224,16 +235,25 @@ drop database if exists mysqltest_UPPERCASE;
 drop table if exists t_bug44738_UPPERCASE;
 create database mysqltest_UPPERCASE;
 use mysqltest_UPPERCASE;
+select database();
+database()
+mysqltest_UPPERCASE
 create table t_bug44738_UPPERCASE (i int) comment='Old comment';
 create table t_bug44738_lowercase (i int) comment='Old comment';
+create table t_bug44738_UPPERCASE2 (i int) comment='Old comment';
+create table t_bug44738_lowercase2 (i int) comment='Old comment';
 select table_schema, table_name, table_comment from information_schema.tables
 where table_schema like 'mysqltest_%' and table_name like 't_bug44738_%'
   order by table_name;
 table_schema	table_name	table_comment
 mysqltest_UPPERCASE	t_bug44738_lowercase	Old comment
+mysqltest_UPPERCASE	t_bug44738_lowercase2	Old comment
 mysqltest_UPPERCASE	t_bug44738_UPPERCASE	Old comment
+mysqltest_UPPERCASE	t_bug44738_UPPERCASE2	Old comment
 alter table t_bug44738_UPPERCASE comment='New comment';
 alter table t_bug44738_lowercase comment='New comment';
+alter table mysqltest_uppercase.t_bug44738_UPPERCASE2 comment='New comment';
+alter table mysqltest_UPPERCASE.t_bug44738_lowercase2 comment='New comment';
 # There should be no stale entries in TDC for our tables after the
 # above ALTER TABLE statements so new version of comments should be
 # returned by the below query to I_S.
@@ -242,7 +262,9 @@ where table_schema like 'mysqltest_%' and table_name like 't_bug44738_%'
   order by table_name;
 table_schema	table_name	table_comment
 mysqltest_UPPERCASE	t_bug44738_lowercase	New comment
+mysqltest_UPPERCASE	t_bug44738_lowercase2	New comment
 mysqltest_UPPERCASE	t_bug44738_UPPERCASE	New comment
+mysqltest_UPPERCASE	t_bug44738_UPPERCASE2	New comment
 drop database mysqltest_UPPERCASE;
 use test;
 # Let us check that the original test case which led to discovery
@@ -274,8 +296,41 @@ Database	Table	In_use	Name_locked
 test	t_bug44738_uppercase	0	0
 # So attempt to create table with the same name should fail.
 create table t_bug44738_UPPERCASE (i int);
-ERROR HY000: Can't find file: './test/t_bug44738_uppercase.MYI' (errno: 2 "No such file or directory")
+ERROR 42S01: Table 't_bug44738_uppercase' already exists
 # And should succeed after FLUSH TABLES.
 flush tables;
 create table t_bug44738_UPPERCASE (i int);
 drop table t_bug44738_UPPERCASE;
+#
+# Bug #21317 SHOW CREATE DATABASE does not obey to
+# lower_case_table_names
+#
+create database mysql_TEST;
+create table mysql_TEST.T1(a int);
+show databases like 'mysql%';
+Database (mysql%)
+mysql
+mysql_TEST
+show databases like 'mysql_T%';
+Database (mysql_T%)
+mysql_TEST
+show databases like 'mysql_t%';
+Database (mysql_t%)
+mysql_TEST
+show create database mysql_test;
+Database	Create Database
+mysql_test	CREATE DATABASE `mysql_test` /*!40100 DEFAULT CHARACTER SET latin1 */
+show create database mysql_TEST;
+Database	Create Database
+mysql_TEST	CREATE DATABASE `mysql_TEST` /*!40100 DEFAULT CHARACTER SET latin1 */
+show create table mysql_TEST.T1;
+Table	Create Table
+T1	CREATE TABLE `T1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+show create table mysql_test.t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop database mysql_TEST;

@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -61,6 +61,8 @@
 #define ER_SPIDER_NOSQL_WRAPPER_IS_INVALID_STR "Can't use wrapper '%s' for NOSQL connection"
 #define ER_SPIDER_REQUEST_KEY_NUM 12523
 #define ER_SPIDER_REQUEST_KEY_STR "Request key not found"
+#define ER_SPIDER_CANT_OPEN_SYS_TABLE_NUM 12524
+#define ER_SPIDER_CANT_OPEN_SYS_TABLE_STR "Can't open system table %s.%s"
 
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_NUM 12601
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_STR "Can't use both spider_use_consistent_snapshot = 1 and spider_internal_xa = 1"

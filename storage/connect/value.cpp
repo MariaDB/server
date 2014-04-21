@@ -569,7 +569,7 @@ bool TYPVAL<double>::SetValue_char(char *p, int n)
     for (; n > 0 && *p == ' '; p++) 
       n--;
 
-    memcpy(buf, p, min(n, 31));
+    memcpy(buf, p, MY_MIN(n, 31));
     buf[n] = '\0';
     Tval = atof(buf);
 
@@ -986,7 +986,7 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
   if (p) {
     rc = n > Len;
 
-    if ((n = min(n, Len))) {
+    if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
 
 //	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
@@ -1380,7 +1380,7 @@ bool DECVAL::SetValue_char(char *p, int n)
   if (p) {
     rc = n > Len;
 
-    if ((n = min(n, Len))) {
+    if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
 
 //	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
@@ -1650,7 +1650,7 @@ bool BINVAL::SetValue_char(char *p, int n)
 
   if (p) {
     rc = n > Clen;
-    Len = min(n, Clen);
+    Len = MY_MIN(n, Clen);
     memcpy(Binp, p, Len);
     Null = false;
   } else {
@@ -1668,7 +1668,7 @@ bool BINVAL::SetValue_char(char *p, int n)
 void BINVAL::SetValue_psz(PSZ s)
   {
   if (s) {
-    Len = min(Clen, (signed)strlen(s));
+    Len = MY_MIN(Clen, (signed)strlen(s));
     memcpy(Binp, s, Len);
     Null = false;
   } else {
@@ -1695,7 +1695,7 @@ void BINVAL::SetValue_pvblk(PVBLK blk, int n)
     else
       Len = blk->GetVlen();
 
-    Len = min(Clen, Len);
+    Len = MY_MIN(Clen, Len);
     memcpy(Binp, vp, Len);
     Null = false;
   } // endif vp
@@ -1844,7 +1844,7 @@ bool BINVAL::GetBinValue(void *buf, int buflen, bool go)
 /***********************************************************************/
 char *BINVAL::ShowValue(char *buf, int len)
   {
-  int n = min(Len, len / 2);
+  int n = MY_MIN(Len, len / 2);
 
   sprintf(buf, GetXfmt(), n, Binp);
   return buf;

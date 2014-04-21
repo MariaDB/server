@@ -1,5 +1,4 @@
-/*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1015,7 +1014,7 @@ outp:
 
 /*
   Append characters to a single-quoted string '...', escaping special
-  characters as necessary.
+  characters with backslashes as necessary.
   Does not add the enclosing quotes, this is left up to caller.
 */
 #define APPEND(X)   if (append(X)) return 1; else break

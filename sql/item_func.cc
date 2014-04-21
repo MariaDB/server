@@ -2615,7 +2615,8 @@ void Item_func_round::fix_length_and_dec()
   case INT_RESULT:
     if ((!decimals_to_set && truncate) || (args[0]->decimal_precision() < DECIMAL_LONGLONG_DIGITS))
     {
-      int length_can_increase= test(!truncate && (val1 < 0) && !val1_unsigned);
+      int length_can_increase= MY_TEST(!truncate && (val1 < 0) &&
+                                       !val1_unsigned);
       max_length= args[0]->max_length + length_can_increase;
       /* Here we can keep INT_RESULT */
       cached_result_type= INT_RESULT;
@@ -2664,6 +2665,9 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
   // Pre-compute these, to avoid optimizing away e.g. 'floor(v/tmp) * tmp'.
   volatile double value_div_tmp= value / tmp;
   volatile double value_mul_tmp= value * tmp;
+
+  if (!dec_negative && my_isinf(tmp)) // "dec" is too large positive number
+    return value;
 
   if (dec_negative && my_isinf(tmp))
     tmp2= 0.0;
@@ -3987,6 +3991,34 @@ err:
 }
 
 
+longlong Item_master_gtid_wait::val_int()
+{
+  DBUG_ASSERT(fixed == 1);
+  longlong result= 0;
+
+  if (args[0]->null_value)
+  {
+    null_value= 1;
+    return 0;
+  }
+
+  null_value=0;
+#ifdef HAVE_REPLICATION
+  THD* thd= current_thd;
+  longlong timeout_us;
+  String *gtid_pos = args[0]->val_str(&value);
+
+  if (arg_count==2 && !args[1]->null_value)
+    timeout_us= (longlong)(1e6*args[1]->val_real());
+  else
+    timeout_us= (longlong)-1;
+
+  result= rpl_global_gtid_waiting.wait_for_pos(thd, gtid_pos, timeout_us);
+#endif
+  return result;
+}
+
+
 /**
   Enables a session to wait on a condition until a timeout or a network
   disconnect occurs.
@@ -4589,7 +4621,7 @@ longlong Item_func_sleep::val_int()
 
   mysql_cond_destroy(&cond);
 
-  return test(!error); 		// Return 1 killed
+  return MY_TEST(!error);                  // Return 1 killed
 }
 
 
@@ -6656,7 +6688,7 @@ void Item_func_sp::fix_length_and_dec()
   max_length= sp_result_field->field_length;
   collation.set(sp_result_field->charset());
   maybe_null= 1;
-  unsigned_flag= test(sp_result_field->flags & UNSIGNED_FLAG);
+  unsigned_flag= MY_TEST(sp_result_field->flags & UNSIGNED_FLAG);
 
   DBUG_VOID_RETURN;
 }
@@ -6709,22 +6741,18 @@ Item_func_sp::execute_impl(THD *thd)
 {
   bool err_status= TRUE;
   Sub_statement_state statement_state;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *save_security_ctx= thd->security_ctx;
-#endif
   enum enum_sp_data_access access=
     (m_sp->m_chistics->daccess == SP_DEFAULT_ACCESS) ?
      SP_DEFAULT_ACCESS_MAPPING : m_sp->m_chistics->daccess;
 
   DBUG_ENTER("Item_func_sp::execute_impl");
 
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (context->security_ctx)
   {
     /* Set view definer security context */
     thd->security_ctx= context->security_ctx;
   }
-#endif
   if (sp_check_access(thd))
     goto error;
 
@@ -6752,9 +6780,7 @@ Item_func_sp::execute_impl(THD *thd)
   thd->restore_sub_statement_state(&statement_state);
 
 error:
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx= save_security_ctx;
-#endif
 
   DBUG_RETURN(err_status);
 }
@@ -6825,11 +6851,9 @@ Item_func_sp::sp_check_access(THD *thd)
 {
   DBUG_ENTER("Item_func_sp::sp_check_access");
   DBUG_ASSERT(m_sp);
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   if (check_routine_access(thd, EXECUTE_ACL,
 			   m_sp->m_db.str, m_sp->m_name.str, 0, FALSE))
     DBUG_RETURN(TRUE);
-#endif
 
   DBUG_RETURN(FALSE);
 }
@@ -6841,7 +6865,29 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   bool res;
   DBUG_ENTER("Item_func_sp::fix_fields");
   DBUG_ASSERT(fixed == 0);
- 
+
+  /* 
+    Checking privileges to execute the function while creating view and
+    executing the function of select.
+   */
+  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) ||
+      (thd->lex->sql_command == SQLCOM_CREATE_VIEW))
+  {
+    Security_context *save_security_ctx= thd->security_ctx;
+    if (context->security_ctx)
+      thd->security_ctx= context->security_ctx;
+
+    res= check_routine_access(thd, EXECUTE_ACL, m_name->m_db.str,
+                              m_name->m_name.str, 0, FALSE);
+    thd->security_ctx= save_security_ctx;
+
+    if (res)
+    {
+      context->process_error(thd);
+      DBUG_RETURN(res);
+    }
+  }
+
   /*
     We must call init_result_field before Item_func::fix_fields() 
     to make m_sp and result_field members available to fix_length_and_dec(),

@@ -6,6 +6,15 @@ found in the git revision history:
     http://www.canonware.com/cgi-bin/gitweb.cgi?p=jemalloc.git
     git://canonware.com/jemalloc.git
 
+* 3.3.1a (December 27, 2013)
+
+  Bug fixes from 3.4.1
+  - Fix Valgrind integration flaws that caused Valgrind warnings about reads of
+    uninitialized memory in:
+    + arena chunk headers
+    + internal zero-initialized data structures (relevant to tcache and prof
+      code)
+
 * 3.3.1 (March 6, 2013)
 
   This version fixes bugs that are typically encountered only when utilizing

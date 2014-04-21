@@ -1,0 +1,304 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+--echo *** Test all-to-all replication with --gtid-ignore-duplicates ***
+
+--connect (server_1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (server_2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+--connect (server_3,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (server_4,127.0.0.1,root,,,$SERVER_MYPORT_4)
+
+# Setup A <-> B, B <-> C, C <-> A, and A -> D.
+
+--connection server_1
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET GLOBAL gtid_ignore_duplicates=1;
+SET GLOBAL gtid_domain_id= 1;
+SET SESSION gtid_domain_id= 1;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'b2a' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+--replace_result $SERVER_MYPORT_3 MYPORT_3
+eval CHANGE MASTER 'c2a' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'b2a';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'c2a';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+--connection server_2
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET GLOBAL gtid_ignore_duplicates=1;
+SET GLOBAL gtid_domain_id= 2;
+SET SESSION gtid_domain_id= 2;
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval CHANGE MASTER 'a2b' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+--replace_result $SERVER_MYPORT_3 MYPORT_3
+eval CHANGE MASTER 'c2b' TO master_port=$SERVER_MYPORT_3, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'a2b';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'c2b';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+--connection server_3
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET GLOBAL gtid_ignore_duplicates=1;
+SET GLOBAL gtid_domain_id= 3;
+SET SESSION gtid_domain_id= 3;
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval CHANGE MASTER 'a2c' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'b2c' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'a2c';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = 'b2c';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+--connection server_4
+SET @old_parallel= @@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+SET @old_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+SET GLOBAL gtid_ignore_duplicates=1;
+SET GLOBAL gtid_domain_id= 1;
+SET SESSION gtid_domain_id= 1;
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval CHANGE MASTER 'a2d' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+set default_master_connection = 'a2d';
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+set default_master_connection = '';
+
+
+--connection server_1
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+BEGIN;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+COMMIT;
+INSERT INTO t1 VALUES (4), (5);
+INSERT INTO t1 VALUES (6);
+
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_4
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+--connection server_1
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+
+# Test that we can connect at a GTID position that has not yet reached
+# that master server.
+# We stop the connections C->B and A->B, create an event on C, Check that
+# the event has reached A (but not B). Then let A stop and re-connect to
+# B, which will connect at the new event, which is in the future for B.
+
+--connection server_3
+INSERT INTO t1 VALUES (10);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+STOP SLAVE "c2b";
+SET default_master_connection = "c2b";
+--source include/wait_for_slave_to_stop.inc
+STOP SLAVE "a2b";
+SET default_master_connection = "a2b";
+--source include/wait_for_slave_to_stop.inc
+
+--connection server_3
+INSERT INTO t1 VALUES (11);
+--source include/save_master_gtid.inc
+
+--connection server_1
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+SET default_master_connection = "b2a";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+
+--connection server_2
+INSERT INTO t1 VALUES (12);
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+--source include/save_master_gtid.inc
+
+--connection server_1
+START SLAVE "b2a";
+SET default_master_connection = "b2a";
+--source include/wait_for_slave_to_start.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+
+--connection server_2
+START SLAVE "c2b";
+SET default_master_connection = "c2b";
+--source include/wait_for_slave_to_start.inc
+START SLAVE "a2b";
+SET default_master_connection = "a2b";
+--source include/wait_for_slave_to_start.inc
+
+--connection server_1
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+
+
+--echo *** Test also with not using parallel replication.
+
+--connection server_1
+SET default_master_connection = "b2a";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "c2a";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET GLOBAL slave_parallel_threads=0;
+SET default_master_connection = "b2a";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = "c2a";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+
+--connection server_2
+SET default_master_connection = "a2b";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "c2b";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET GLOBAL slave_parallel_threads=0;
+SET default_master_connection = "a2b";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = "c2b";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+
+--connection server_3
+SET default_master_connection = "a2c";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET default_master_connection = "b2c";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET GLOBAL slave_parallel_threads=0;
+SET default_master_connection = "a2c";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = "b2c";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+
+--connection server_4
+SET default_master_connection = "a2d";
+STOP SLAVE;
+--source include/wait_for_slave_to_stop.inc
+SET GLOBAL slave_parallel_threads=0;
+SET default_master_connection = "a2d";
+START SLAVE;
+--source include/wait_for_slave_to_start.inc
+
+
+--connection server_2
+INSERT INTO t1 VALUES (21);
+BEGIN;
+INSERT INTO t1 VALUES (22);
+INSERT INTO t1 VALUES (23);
+COMMIT;
+INSERT INTO t1 VALUES (24), (25);
+INSERT INTO t1 VALUES (26);
+
+--source include/save_master_gtid.inc
+
+--connection server_1
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+
+--connection server_3
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+
+--connection server_4
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+
+
+# Clean up.
+--connection server_1
+SET GLOBAL gtid_domain_id=0;
+STOP ALL SLAVES;
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
+
+--connection server_2
+SET GLOBAL gtid_domain_id=0;
+STOP ALL SLAVES;
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
+
+--connection server_3
+SET GLOBAL gtid_domain_id=0;
+STOP ALL SLAVES;
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
+
+--connection server_4
+SET GLOBAL gtid_domain_id=0;
+STOP ALL SLAVES;
+SET GLOBAL slave_parallel_threads= @old_parallel;
+SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
+
+--connection server_1
+DROP TABLE t1;
+--source reset_master_slave.inc
+--disconnect server_1
+
+--connection server_2
+DROP TABLE t1;
+--source reset_master_slave.inc
+--disconnect server_2
+
+--connection server_3
+DROP TABLE t1;
+--source reset_master_slave.inc
+--disconnect server_3
+
+--connection server_4
+DROP TABLE t1;
+--source reset_master_slave.inc
+--disconnect server_4

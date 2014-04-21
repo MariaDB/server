@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1205,7 +1205,7 @@ void spider_db_append_xid_str(
   DBUG_ENTER("spider_db_append_xid_str");
 
   format_id_length =
-    my_sprintf(format_id, (format_id, "0x%lx", xid->formatID));
+    my_sprintf(format_id, (format_id, "%lu", xid->formatID));
   spider_db_append_hex_string(tmp_str, (uchar *) xid->data, xid->gtrid_length);
 /*
   tmp_str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
@@ -1595,9 +1595,10 @@ int spider_db_append_key_where_internal(
     start_key_part_map = 0;
     use_both = FALSE;
   }
-  if (end_key)
+  if (end_key) {
     end_key_part_map = end_key->keypart_map & full_key_part_map;
-  else {
+    result_list->end_key = end_key;
+  } else {
     end_key_part_map = 0;
     use_both = FALSE;
   }
@@ -1657,6 +1658,8 @@ int spider_db_append_key_where_internal(
     tgt_key_part_map = end_key_part_map;
   }
   DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
+  if (start_key_part_map == end_key_part_map)
+    result_list->use_both_key = TRUE;
 
   if (sql_kind == SPIDER_SQL_KIND_SQL)
   {
@@ -1707,6 +1710,7 @@ int spider_db_append_key_where_internal(
 #endif
       }
     } else {
+      DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
       if (tgt_key_part_map > 1)
         key_eq = TRUE;
       else
@@ -1716,10 +1720,11 @@ int spider_db_append_key_where_internal(
       (key_eq && use_key == start_key) ||
       (!key_eq && start_key_part_map)
     ) {
+      bool tgt_final = (use_key == start_key && tgt_key_part_map == 1);
       ptr = start_key->key + length;
       if (
         (error_num = dbton_hdl->append_is_null_part(sql_type, key_part,
-          start_key, &ptr, key_eq))
+          start_key, &ptr, key_eq, tgt_final))
       ) {
         if (error_num > 0)
           DBUG_RETURN(error_num);
@@ -1759,10 +1764,13 @@ int spider_db_append_key_where_internal(
               share->access_charset))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-          if (spider_dbton[dbton_id].db_util->
-            append_column_value(spider, str_part, field, ptr,
-              share->access_charset))
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          if (use_key == start_key)
+          {
+            if (spider_dbton[dbton_id].db_util->
+              append_column_value(spider, str_part, field, ptr,
+                share->access_charset))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          }
         }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         else {
@@ -1807,13 +1815,19 @@ int spider_db_append_key_where_internal(
                   share->access_charset))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-              if (str->reserve(SPIDER_SQL_EQUAL_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-              if (spider_dbton[dbton_id].db_util->
-                append_column_value(spider, str_part, field, ptr,
-                  share->access_charset))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              if (use_key == start_key)
+              {
+                if (tgt_key_part_map == 1)
+                {
+                  if (str->reserve(SPIDER_SQL_EQUAL_LEN))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                  str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
+                }
+                if (spider_dbton[dbton_id].db_util->
+                  append_column_value(spider, str_part, field, ptr,
+                    share->access_charset))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              }
             }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
             else {
@@ -1860,13 +1874,19 @@ int spider_db_append_key_where_internal(
                   share->access_charset))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-              if (str->reserve(SPIDER_SQL_GT_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
-              if (spider_dbton[dbton_id].db_util->
-                append_column_value(spider, str_part, field, ptr,
-                  share->access_charset))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              if (use_key == start_key)
+              {
+                if (tgt_key_part_map == 1)
+                {
+                  if (str->reserve(SPIDER_SQL_GT_LEN))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                  str->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
+                }
+                if (spider_dbton[dbton_id].db_util->
+                  append_column_value(spider, str_part, field, ptr,
+                    share->access_charset))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              }
             }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
             else {
@@ -1914,13 +1934,19 @@ int spider_db_append_key_where_internal(
                   share->access_charset))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-              if (str->reserve(SPIDER_SQL_LT_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
-              if (spider_dbton[dbton_id].db_util->
-                append_column_value(spider, str_part, field, ptr,
-                  share->access_charset))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              if (use_key == start_key)
+              {
+                if (tgt_key_part_map == 1)
+                {
+                  if (str->reserve(SPIDER_SQL_LT_LEN))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                  str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+                }
+                if (spider_dbton[dbton_id].db_util->
+                  append_column_value(spider, str_part, field, ptr,
+                    share->access_charset))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              }
             }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
             else {
@@ -1974,13 +2000,20 @@ int spider_db_append_key_where_internal(
                   share->access_charset))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-              if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
-              if (spider_dbton[dbton_id].db_util->
-                append_column_value(spider, str_part, field, ptr,
-                  share->access_charset))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              if (use_key == start_key)
+              {
+                if (tgt_key_part_map == 1)
+                {
+                  if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                  str->q_append(SPIDER_SQL_LTEQUAL_STR,
+                    SPIDER_SQL_LTEQUAL_LEN);
+                }
+                if (spider_dbton[dbton_id].db_util->
+                  append_column_value(spider, str_part, field, ptr,
+                    share->access_charset))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              }
             }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
             else {
@@ -2116,13 +2149,20 @@ int spider_db_append_key_where_internal(
                   share->access_charset))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-              if (str->reserve(SPIDER_SQL_GTEQUAL_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_GTEQUAL_STR, SPIDER_SQL_GTEQUAL_LEN);
-              if (spider_dbton[dbton_id].db_util->
-                append_column_value(spider, str_part, field, ptr,
-                  share->access_charset))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              if (use_key == start_key)
+              {
+                if (tgt_key_part_map == 1)
+                {
+                  if (str->reserve(SPIDER_SQL_GTEQUAL_LEN))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                  str->q_append(SPIDER_SQL_GTEQUAL_STR,
+                    SPIDER_SQL_GTEQUAL_LEN);
+                }
+                if (spider_dbton[dbton_id].db_util->
+                  append_column_value(spider, str_part, field, ptr,
+                    share->access_charset))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+              }
             }
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
             else {
@@ -2152,9 +2192,12 @@ int spider_db_append_key_where_internal(
         str_part2->q_append(SPIDER_SQL_AND_STR,
           SPIDER_SQL_AND_LEN);
 
-        if (str_part->reserve(SPIDER_SQL_COMMA_LEN))
-          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        str_part->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+        if (use_key == start_key)
+        {
+          if (str_part->reserve(SPIDER_SQL_COMMA_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str_part->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+        }
       }
     }
 
@@ -2166,9 +2209,10 @@ int spider_db_append_key_where_internal(
         (key_eq && use_key == end_key) ||
         (!key_eq && end_key_part_map)
       ) {
+        bool tgt_final = (use_key == end_key && tgt_key_part_map == 1);
         ptr = end_key->key + length;
         if ((error_num = dbton_hdl->append_is_null_part(sql_type, key_part,
-          end_key, &ptr, key_eq)))
+          end_key, &ptr, key_eq, tgt_final)))
         {
           if (error_num > 0)
             DBUG_RETURN(error_num);
@@ -2207,13 +2251,21 @@ int spider_db_append_key_where_internal(
                 share->access_charset))
               DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-            if (str->reserve(SPIDER_SQL_EQUAL_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
-            if (spider_dbton[dbton_id].db_util->
-              append_column_value(spider, str_part, field, ptr,
-                share->access_charset))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            if (use_key == end_key)
+            {
+/*
+              if (tgt_key_part_map == 1)
+              {
+                if (str->reserve(SPIDER_SQL_EQUAL_LEN))
+                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
+              }
+*/
+              if (spider_dbton[dbton_id].db_util->
+                append_column_value(spider, str_part, field, ptr,
+                  share->access_charset))
+                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            }
           }
         } else {
           DBUG_PRINT("info", ("spider end_key->flag=%d", end_key->flag));
@@ -2251,13 +2303,19 @@ int spider_db_append_key_where_internal(
                     share->access_charset))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-                if (str->reserve(SPIDER_SQL_LT_LEN))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                if (use_key == end_key)
+                {
+                  if (tgt_key_part_map == 1)
+                  {
+                    if (str->reserve(SPIDER_SQL_LT_LEN))
+                      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                    str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+                  }
+                  if (spider_dbton[dbton_id].db_util->
+                    append_column_value(spider, str_part, field, ptr,
+                      share->access_charset))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                }
               }
               break;
             default:
@@ -2291,13 +2349,20 @@ int spider_db_append_key_where_internal(
                     share->access_charset))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
 
-                if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-                str->q_append(SPIDER_SQL_LTEQUAL_STR, SPIDER_SQL_LTEQUAL_LEN);
-                if (spider_dbton[dbton_id].db_util->
-                  append_column_value(spider, str_part, field, ptr,
-                    share->access_charset))
-                  DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                if (use_key == end_key)
+                {
+                  if (tgt_key_part_map == 1)
+                  {
+                    if (str->reserve(SPIDER_SQL_LTEQUAL_LEN))
+                      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                    str->q_append(SPIDER_SQL_LTEQUAL_STR,
+                      SPIDER_SQL_LTEQUAL_LEN);
+                  }
+                  if (spider_dbton[dbton_id].db_util->
+                    append_column_value(spider, str_part, field, ptr,
+                      share->access_charset))
+                    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+                }
               }
               break;
           }
@@ -2314,9 +2379,12 @@ int spider_db_append_key_where_internal(
           str_part2->q_append(SPIDER_SQL_AND_STR,
             SPIDER_SQL_AND_LEN);
 
-          if (str_part->reserve(SPIDER_SQL_COMMA_LEN))
-            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          str_part->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+          if (use_key == end_key)
+          {
+            if (str_part->reserve(SPIDER_SQL_COMMA_LEN))
+              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+            str_part->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+          }
         }
       }
       if (use_both && (!start_key_part_map || !end_key_part_map))
@@ -2745,6 +2813,13 @@ int spider_db_fetch_table(
       {
         if (!row->is_null())
           spider->multi_range_hit_point = row->val_int();
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+        else if (result_list->direct_aggregate)
+        {
+          table->status = STATUS_NOT_FOUND;
+          DBUG_RETURN(HA_ERR_END_OF_FILE);
+        }
+#endif
         else
           DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
         row->next();
@@ -2926,6 +3001,13 @@ int spider_db_fetch_key(
     DBUG_PRINT("info", ("spider mrr_with_cnt"));
     if (!row->is_null())
       spider->multi_range_hit_point = row->val_int();
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+    else if (result_list->direct_aggregate)
+    {
+      table->status = STATUS_NOT_FOUND;
+      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+#endif
     else
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     row->next();
@@ -3026,6 +3108,13 @@ int spider_db_fetch_minimum_columns(
     DBUG_PRINT("info", ("spider mrr_with_cnt"));
     if (!row->is_null())
       spider->multi_range_hit_point = row->val_int();
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+    else if (result_list->direct_aggregate)
+    {
+      table->status = STATUS_NOT_FOUND;
+      DBUG_RETURN(HA_ERR_END_OF_FILE);
+    }
+#endif
     else
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     row->next();
@@ -3555,33 +3644,33 @@ int spider_db_store_result(
           }
           DBUG_RETURN(error_num);
         }
-        if (
-          error_num != HA_ERR_END_OF_FILE &&
-          (error_num = spider_db_errorno(conn))
-        )
-          DBUG_RETURN(error_num);
-        else {
-          DBUG_PRINT("info",("spider set finish_flg point 1"));
-          DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
-          DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
-          current->finish_flg = TRUE;
-          result_list->finish_flg = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-          if (result_list->bgs_phase <= 1)
-          {
-#endif
-            result_list->current_row_num = 0;
-            table->status = STATUS_NOT_FOUND;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-          }
-#endif
-          if (!conn->mta_conn_mutex_unlock_later)
-          {
-            SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-            pthread_mutex_unlock(&conn->mta_conn_mutex);
-          }
-          DBUG_RETURN(HA_ERR_END_OF_FILE);
+        bool call_db_errorno = FALSE;
+        if (error_num != HA_ERR_END_OF_FILE)
+        {
+          call_db_errorno = TRUE;
+          if ((error_num = spider_db_errorno(conn)))
+            DBUG_RETURN(error_num);
         }
+        DBUG_PRINT("info",("spider set finish_flg point 1"));
+        DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
+        DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
+        current->finish_flg = TRUE;
+        result_list->finish_flg = TRUE;
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+        if (result_list->bgs_phase <= 1)
+        {
+#endif
+          result_list->current_row_num = 0;
+          table->status = STATUS_NOT_FOUND;
+#ifndef WITHOUT_SPIDER_BG_SEARCH
+        }
+#endif
+        if (!conn->mta_conn_mutex_unlock_later && !call_db_errorno)
+        {
+          SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
+          pthread_mutex_unlock(&conn->mta_conn_mutex);
+        }
+        DBUG_RETURN(HA_ERR_END_OF_FILE);
       } else {
         if (!conn->mta_conn_mutex_unlock_later)
         {
@@ -3594,14 +3683,14 @@ int spider_db_store_result(
           current->record_num));
         DBUG_PRINT("info",("spider result_list->record_num=%lld",
           result_list->record_num));
+        DBUG_PRINT("info",("spider result_list->internal_limit=%lld",
+          result_list->internal_limit));
+        DBUG_PRINT("info",("spider result_list->split_read=%lld",
+          result_list->split_read));
         if (
           result_list->internal_limit <= result_list->record_num ||
           result_list->split_read > current->record_num
         ) {
-          DBUG_PRINT("info",("spider result_list->internal_limit=%lld",
-            result_list->internal_limit));
-          DBUG_PRINT("info",("spider result_list->split_read=%lld",
-            result_list->split_read));
           DBUG_PRINT("info",("spider set finish_flg point 2"));
           DBUG_PRINT("info",("spider current->finish_flg = TRUE"));
           DBUG_PRINT("info",("spider result_list->finish_flg = TRUE"));
@@ -4785,7 +4874,7 @@ int spider_db_seek_tmp(
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     pos->row->first();
   }
-  if (spider->sql_kind[spider->result_link_idx] == SPIDER_SQL_KIND_SQL)
+  if (pos->sql_kind == SPIDER_SQL_KIND_SQL)
   {
     if (!spider->select_column_mode)
     {
@@ -5087,14 +5176,55 @@ int spider_db_show_table_status(
 
 int spider_db_show_records(
   ha_spider *spider,
-  int link_idx
+  int link_idx,
+  bool pre_call
 ) {
   int error_num;
-  SPIDER_CONN *conn = spider->conns[link_idx];
+  THD *thd = spider->trx->thd;
+  SPIDER_CONN *conn;
   DBUG_ENTER("spider_db_show_records");
-  error_num = spider->dbton_handler[conn->dbton_id]->show_records(
-    link_idx
-  );
+  if (pre_call)
+  {
+    if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
+    {
+      if ((error_num = spider_check_and_get_casual_read_conn(thd, spider,
+        link_idx)))
+      {
+        DBUG_RETURN(error_num);
+      }
+      conn = spider->conns[link_idx];
+      if (!(error_num = spider_create_conn_thread(conn)))
+      {
+        spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_RECORDS, FALSE,
+          spider, link_idx, (int *) &spider->result_list.bgs_error);
+      }
+    } else {
+      conn = spider->conns[link_idx];
+      error_num = spider->dbton_handler[conn->dbton_id]->show_records(
+        link_idx
+      );
+    }
+  } else {
+    conn = spider->conns[link_idx];
+    if (spider->use_pre_records)
+    {
+      if (spider_param_bgs_mode(thd, spider->share->bgs_mode))
+      {
+        spider_bg_conn_wait(conn);
+        error_num = spider->result_list.bgs_error;
+        if (conn->casual_read_base_conn)
+        {
+          spider->conns[link_idx] = conn->casual_read_base_conn;
+        }
+      } else {
+        error_num = 0;
+      }
+    } else {
+      error_num = spider->dbton_handler[conn->dbton_id]->show_records(
+        link_idx
+      );
+    }
+  }
   DBUG_RETURN(error_num);
 }
 
@@ -5584,7 +5714,6 @@ int spider_db_bulk_bulk_insert(
 ) {
   int error_num = 0, first_insert_link_idx = -1, tmp_error_num;
   int roop_count2;
-  SPIDER_RESULT_LIST *result_list = &spider->result_list;
   SPIDER_SHARE *share = spider->share;
   SPIDER_CONN *conn, *first_insert_conn = NULL;
   TABLE *table = spider->get_table();
@@ -5624,6 +5753,7 @@ int spider_db_bulk_bulk_insert(
     if (conn->conn_kind != SPIDER_CONN_KIND_MYSQL)
     {
       uint roop_count;
+      SPIDER_RESULT_LIST *result_list = &spider->result_list;
       DBUG_PRINT("info",("spider conn=%p", conn));
       DBUG_PRINT("info",("spider result_list->hs_upd_rows=%llu",
         result_list->hs_upd_rows));
@@ -6283,12 +6413,14 @@ int spider_db_direct_update(
       ) {
         DBUG_RETURN(error_num);
       }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
       if (
         (spider->direct_update_kinds & SPIDER_SQL_KIND_HS) &&
         (error_num = spider->append_direct_update_set_hs_part())
       ) {
         DBUG_RETURN(error_num);
       }
+#endif
     }
 #endif
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -6323,6 +6455,7 @@ int spider_db_direct_update(
       DBUG_RETURN(error_num);
     }
   }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (spider->direct_update_kinds & SPIDER_SQL_KIND_HS)
   {
     if (
@@ -6337,6 +6470,7 @@ int spider_db_direct_update(
       DBUG_RETURN(error_num);
     }
   }
+#endif
 
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
@@ -6455,9 +6589,9 @@ int spider_db_direct_update(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
       if (!spider_bit_is_set(spider->do_hs_direct_update, roop_count))
       {
+#endif
         if (!counted)
         {
-#endif
           *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
           DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
           counted = TRUE;
@@ -6559,9 +6693,9 @@ int spider_db_bulk_direct_update(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     if (!spider_bit_is_set(spider->do_hs_direct_update, roop_count))
     {
+#endif
       if (!counted)
       {
-#endif
         *update_rows = spider->conns[roop_count]->db_conn->affected_rows();
         DBUG_PRINT("info", ("spider update_rows = %u", *update_rows));
         counted = TRUE;
@@ -6747,6 +6881,7 @@ int spider_db_direct_delete(
       DBUG_RETURN(error_num);
     }
   }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (spider->direct_update_kinds & SPIDER_SQL_KIND_HS)
   {
     if (
@@ -6761,6 +6896,7 @@ int spider_db_direct_delete(
       DBUG_RETURN(error_num);
     }
   }
+#endif
 
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
@@ -6926,6 +7062,7 @@ int spider_db_direct_delete(
     if ((error_num = spider->reset_sql_sql(SPIDER_SQL_TYPE_DELETE_SQL)))
       error_num2 = error_num;
   }
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   if (spider->direct_update_kinds & SPIDER_SQL_KIND_HS)
   {
     if ((error_num = spider->reset_hs_sql(SPIDER_SQL_TYPE_DELETE_HS)))
@@ -6933,6 +7070,7 @@ int spider_db_direct_delete(
     if ((error_num = spider->reset_hs_keys(SPIDER_SQL_TYPE_DELETE_HS)))
       error_num2 = error_num;
   }
+#endif
   DBUG_RETURN(error_num2);
 }
 #endif
@@ -7909,7 +8047,7 @@ int spider_db_open_item_string(
     tmp_str.mem_calc();
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     if (
-      append_escaped(str->get_str(), tmp_str2) ||
+      str->get_str()->append_for_single_quote(tmp_str2) ||
       str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN)
     )
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -7932,10 +8070,27 @@ int spider_db_open_item_int(
   {
     char tmp_buf[MAX_FIELD_WIDTH];
     spider_string tmp_str(tmp_buf, MAX_FIELD_WIDTH, str->charset());
+    String *tmp_str2;
     tmp_str.init_calc_mem(127);
-    if (str->append(*item->val_str(tmp_str.get_str())))
+    if (!(tmp_str2 = item->val_str(tmp_str.get_str())))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     tmp_str.mem_calc();
+#ifdef SPIDER_ITEM_HAS_CMP_TYPE
+    DBUG_PRINT("info",("spider cmp_type=%u", item->cmp_type()));
+    if (item->cmp_type() == TIME_RESULT)
+    {
+      if (str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN * 2 + tmp_str2->length()))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+      str->append(*tmp_str2);
+      str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
+    } else {
+#endif
+      if (str->append(*tmp_str2))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+#ifdef SPIDER_ITEM_HAS_CMP_TYPE
+    }
+#endif
   }
   DBUG_RETURN(0);
 }
@@ -7951,6 +8106,7 @@ int spider_db_open_item_cache(
   DBUG_ENTER("spider_db_open_item_cache");
   if (!item_cache->const_item())
     DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+  DBUG_PRINT("info",("spider result_type=%u", item_cache->result_type()));
   switch (item_cache->result_type())
   {
     case STRING_RESULT:
@@ -8534,8 +8690,10 @@ int spider_db_udf_direct_sql(
                 }
 #if MYSQL_VERSION_ID < 50500
 #else
-                if (table->pos_in_table_list)
-                {
+                if (
+                  table->s->tmp_table == NO_TMP_TABLE &&
+                  table->pos_in_table_list
+                ) {
                   TABLE_LIST *next_tables =
                     table->pos_in_table_list->next_global;
                   while (next_tables && next_tables->parent_l)
@@ -8622,8 +8780,10 @@ int spider_db_udf_direct_sql(
                 table->file->ha_external_lock(table->in_use, F_UNLCK);
 #if MYSQL_VERSION_ID < 50500
 #else
-                if (table->pos_in_table_list)
-                {
+                if (
+                  table->s->tmp_table == NO_TMP_TABLE &&
+                  table->pos_in_table_list
+                ) {
                   TABLE_LIST *next_tables =
                     table->pos_in_table_list->next_global;
                   while (next_tables && next_tables->parent_l)
@@ -8865,16 +9025,19 @@ int spider_db_udf_ping_table(
   bool use_where,
   longlong limit
 ) {
-  int error_num, need_mon = 0;
-  uint tmp_conn_link_idx = 0;
-  ha_spider spider;
+  int error_num;
   DBUG_ENTER("spider_db_udf_ping_table");
   if (!pthread_mutex_trylock(&table_mon_list->monitor_mutex))
   {
+    int need_mon = 0;
+    uint tmp_conn_link_idx = 0;
+    ha_spider spider;
+    uchar db_request_phase = 0;
     spider.share = share;
     spider.trx = trx;
     spider.need_mons = &need_mon;
     spider.conn_link_idx = &tmp_conn_link_idx;
+    spider.db_request_phase = &db_request_phase;
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &need_mon;
@@ -9029,7 +9192,7 @@ int spider_db_udf_ping_table_append_mon_next(
   str->q_append(SPIDER_SQL_SELECT_STR, SPIDER_SQL_SELECT_LEN);
   str->q_append(SPIDER_SQL_PING_TABLE_STR, SPIDER_SQL_PING_TABLE_LEN);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  append_escaped(str->get_str(), child_table_name_str.get_str());
+  str->get_str()->append_for_single_quote(child_table_name_str.get_str());
   str->mem_calc();
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -9040,7 +9203,7 @@ int spider_db_udf_ping_table_append_mon_next(
   str->q_append(limit_str, limit_str_length);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  append_escaped(str->get_str(), where_clause_str.get_str());
+  str->get_str()->append_for_single_quote(where_clause_str.get_str());
   str->mem_calc();
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -9093,7 +9256,7 @@ int spider_db_udf_ping_table_append_select(
   ))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   if (use_where)
-    append_escaped(str->get_str(), where_str->get_str());
+    str->get_str()->append_for_single_quote(where_str->get_str());
   str->mem_calc();
   str->q_append(SPIDER_SQL_LIMIT_STR, SPIDER_SQL_LIMIT_LEN);
   str->q_append(limit_str, limit_str_length);
@@ -9279,6 +9442,8 @@ int spider_db_udf_copy_tables(
       {
         tmp_spider = &spider[roop_count];
         tmp_conn = tmp_spider->conns[0];
+        /* disable transaction */
+        spider_conn_clear_queue_at_commit(tmp_conn);
         if (!tmp_conn->trx_start)
         {
           if (spider_db_ping(tmp_spider, tmp_conn, 0))
@@ -9301,6 +9466,8 @@ int spider_db_udf_copy_tables(
       {
         tmp_spider = &spider[roop_count];
         tmp_conn = tmp_spider->conns[0];
+        /* disable transaction */
+        spider_conn_clear_queue_at_commit(tmp_conn);
         spider_db_handler *tmp_dbton_hdl =
           tmp_spider->dbton_handler[tmp_conn->dbton_id];
         if ((error_num = tmp_dbton_hdl->insert_lock_tables_list(tmp_conn, 0)))
@@ -9916,7 +10083,9 @@ int spider_db_bulk_open_handler(
   int link_idx
 ) {
   int error_num = 0;
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   bool opening_index = FALSE;
+#endif
   DBUG_ENTER("spider_db_bulk_open_handler");
   DBUG_PRINT("info",("spider spider=%p", spider));
   DBUG_PRINT("info",("spider conn=%p", conn));

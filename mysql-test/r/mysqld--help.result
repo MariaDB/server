@@ -212,6 +212,16 @@ The following options may be given as the first argument:
  multiple masters), each independent source server must
  use a distinct domain_id. For simple tree-shaped
  replication topologies, it can be left at its default, 0.
+ --gtid-ignore-duplicates 
+ When set, different master connections in multi-source
+ replication are allowed to receive and process event
+ groups with the same GTID (when using GTID mode). Only
+ one will be applied, any others will be ignored. Within a
+ given replication domain, just the sequence number will
+ be used to decide whether a given GTID has been already
+ applied; this means it is the responsibility of the user
+ to ensure that GTID sequence numbers are strictly
+ increasing.
  --gtid-strict-mode  Enforce strict seq_no ordering of events in the binary
  log. Slave stops with an error if it encounters an event
  that would cause it to generate an out-of-order binlog if
@@ -860,13 +870,29 @@ The following options may be given as the first argument:
  --skip-slave-start  If set, slave is not autostarted.
  --slave-compressed-protocol 
  Use compression on master/slave protocol
+ --slave-ddl-exec-mode=name 
+ How replication events should be executed. Legal values
+ are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode,
+ replication will not stop for DDL operations that are
+ idempotent. This means that CREATE TABLE is treated as
+ CREATE TABLE OR REPLACE and DROP TABLE is treated as DROP
+ TABLE IF EXISTS.
+ --slave-domain-parallel-threads=# 
+ Maximum number of parallel threads to use on slave for
+ events in a single replication domain. When using
+ multiple domains, this can be used to limit a single
+ domain from grabbing all threads and thus stalling other
+ domains. The default of 0 means to allow a domain to grab
+ as many threads as it wants, up to the value of
+ slave_parallel_threads.
  --slave-exec-mode=name 
- Modes for how replication events should be executed.
- Legal values are STRICT (default) and IDEMPOTENT. In
- IDEMPOTENT mode, replication will not stop for operations
- that are idempotent. In STRICT mode, replication will
- stop on any unexpected difference between the master and
- the slave
+ How replication events should be executed. Legal values
+ are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode,
+ replication will not stop for operations that are
+ idempotent. For example, in row based replication
+ attempts to delete rows that doesn't exist will be
+ ignored. In STRICT mode, replication will stop on any
+ unexpected difference between the master and the slave
  --slave-load-tmpdir=name 
  The location where the slave should put its temporary
  files when replicating a LOAD DATA INFILE command
@@ -882,11 +908,12 @@ The following options may be given as the first argument:
  relay log looking for opportunities for parallel
  replication. Only used when --slave-parallel-threads > 0.
  --slave-parallel-threads=# 
- Alpha feature, to only be used by developers doing
- testing! If non-zero, number of threads to spawn to apply
- in parallel events on the slave that were group-committed
- on the master or were logged with GTID in different
- replication domains.
+ If non-zero, number of threads to spawn to apply in
+ parallel events on the slave that were group-committed on
+ the master or were logged with GTID in different
+ replication domains. Note that these threads are in
+ addition to the IO and SQL threads, which are always
+ created by a replication slave
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -1007,7 +1034,7 @@ The following options may be given as the first argument:
  (usually get from GUI tools)
  --use-stat-tables=name 
  Specifies how to use system statistics tables. Possible
- values are NEVER, COMPLEMENTARY, PREVERABLY
+ values are NEVER, COMPLEMENTARY, PREFERABLY
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -1023,7 +1050,7 @@ auto-increment-increment 1
 auto-increment-offset 1
 autocommit TRUE
 automatic-sp-privileges TRUE
-back-log 50
+back-log 150
 big-tables FALSE
 bind-address (No default value)
 binlog-annotate-row-events FALSE
@@ -1077,6 +1104,7 @@ gdb FALSE
 general-log FALSE
 group-concat-max-len 1024
 gtid-domain-id 0
+gtid-ignore-duplicates FALSE
 gtid-strict-mode FALSE
 help TRUE
 histogram-size 0
@@ -1174,7 +1202,7 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on
 optimizer-use-condition-selectivity 1
 performance-schema TRUE
 performance-schema-accounts-size 10
@@ -1225,7 +1253,8 @@ port 3306
 port-open-timeout 0
 preload-buffer-size 32768
 profiling-history-size 15
-progress-report-time 56
+progress-report-time 5
+protocol-version 10
 query-alloc-block-size 8192
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
@@ -1264,6 +1293,8 @@ skip-networking FALSE
 skip-show-database FALSE
 skip-slave-start FALSE
 slave-compressed-protocol FALSE
+slave-ddl-exec-mode IDEMPOTENT
+slave-domain-parallel-threads 0
 slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600

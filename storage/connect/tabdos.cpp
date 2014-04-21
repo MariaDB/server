@@ -494,7 +494,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
       } // endif Type
 
       colp->InitValue(g);
-      n = max(n, xdp->GetNparts());
+      n = MY_MAX(n, xdp->GetNparts());
       } // endfor kdp
 
   keycols = (PCOL*)PlugSubAlloc(g, NULL, n * sizeof(PCOL));
@@ -687,7 +687,7 @@ int TDBDOS::EstimatedLength(PGLOBAL g)
     // result if we set dep to 1
     dep = 1 + cdp->GetLong() / 20;           // Why 20 ?????
   } else for (; cdp; cdp = cdp->GetNext())
-    dep = max(dep, cdp->GetOffset());
+    dep = MY_MAX(dep, cdp->GetOffset());
 
   return (int)dep;
   } // end of Estimated Length
@@ -1004,7 +1004,7 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 
   // Allocate the buffer used in WriteColumn for numeric columns
   if (IsTypeNum(Buf_Type))
-    Buf = (char*)PlugSubAlloc(g, NULL, max(32, Long + Dcm + 1));
+    Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(32, Long + Dcm + 1));
 
   // Because Colblk's have been made from a copy of the original TDB in
   // case of Update, we must reset them to point to the original one.
@@ -1133,7 +1133,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
       memset(tdbp->To_Line + len, ' ', tdbp->Lrecl - len);
     else
       // The size actually available must be recalculated
-      field = min(len - Deplac, Long);
+      field = MY_MIN(len - Deplac, Long);
 
     } // endif Ftype
 
