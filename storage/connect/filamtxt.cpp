@@ -836,7 +836,7 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
         return true;
         } // endif
 
-    req = (size_t)min(n, Dbflen);
+    req = (size_t)MY_MIN(n, Dbflen);
     len = fread(DelBuf, 1, req, Stream);
 
     if (trace)

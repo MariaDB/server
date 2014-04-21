@@ -95,13 +95,13 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   DOSDEF::DefineAM(g, "BIN", poff);
 
-  Estimate = Cat->GetIntCatInfo("Estimate", 0);
-  Split = Cat->GetIntCatInfo("Split", (Estimate) ? 0 : 1);
-  Header = Cat->GetIntCatInfo("Header", 0);
+  Estimate = GetIntCatInfo("Estimate", 0);
+  Split = GetIntCatInfo("Split", (Estimate) ? 0 : 1);
+  Header = GetIntCatInfo("Header", 0);
 
   // CONNECT must have Block/Last info for VEC tables
   if (Estimate && !Split && !Header) {
-    char *fn = Cat->GetStringCatInfo(g, "Filename", "?");
+    char *fn = GetStringCatInfo(g, "Filename", "?");
 
     // No separate header file fo urbi tables
     Header = (*fn == '?') ? 3 : 2;
@@ -112,7 +112,7 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // For packed files the logical record length is calculated in poff
   if (poff != Lrecl) {
     Lrecl = poff;
-    Cat->SetIntCatInfo("Lrecl", poff);
+    SetIntCatInfo("Lrecl", poff);
     } // endif poff
 
   Padded = false;

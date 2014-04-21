@@ -39,6 +39,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   inline  int  GetPortnumber(void) {return Portnumber;}
 
   // Methods
+  virtual int  Indexable(void) {return 2;}
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
           bool ParseURL(PGLOBAL g, char *url, bool b = true);
@@ -96,6 +97,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
+  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len);
 
   // Specific routines
           bool SetColumnRanks(PGLOBAL g);
@@ -104,7 +106,7 @@ class TDBMYSQL : public TDBASE {
 
  protected:
   // Internal functions
-  bool MakeSelect(PGLOBAL g);
+  bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
   int  BindColumns(PGLOBAL g);
   int  MakeCommand(PGLOBAL g);

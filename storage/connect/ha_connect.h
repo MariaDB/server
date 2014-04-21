@@ -165,7 +165,7 @@ public:
   // CONNECT Implementation
   static   bool connect_init(void);
   static   bool connect_end(void);
-  TABTYPE  GetRealType(PTOS pos);
+  TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE *table_arg);
   bool     GetBooleanOption(char *opname, bool bdef);
@@ -198,6 +198,8 @@ public:
   int      CheckRecord(PGLOBAL g, const uchar *oldbuf, uchar *newbuf);
   int      ReadIndexed(uchar *buf, OPVAL op, const uchar* key= NULL,
                                              uint key_len= 0);
+  bool     MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
+                                   const void *key, int klen);
 
   /** @brief
     The name that will be used for display purposes.
@@ -241,7 +243,8 @@ public:
   */
   ulong index_flags(uint inx, uint part, bool all_parts) const
   {
-    return HA_READ_NEXT | HA_READ_RANGE | HA_READ_ORDER | HA_KEYREAD_ONLY;
+    return HA_READ_NEXT | HA_READ_RANGE   | HA_READ_ORDER |
+           HA_READ_PREV | HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
   } // end of index_flags
 
   /** @brief
@@ -404,7 +407,7 @@ const char *GetValStr(OPVAL vop, bool neg);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-//int index_prev(uchar *buf);
+int index_prev(uchar *buf);
 
   /** @brief
     We implement this in ha_connect.cc. It's not an obligatory method;
@@ -416,7 +419,7 @@ const char *GetValStr(OPVAL vop, bool neg);
     We implement this in ha_connect.cc. It's not an obligatory method;
     skip it and and MySQL will treat it as not implemented.
   */
-//int index_last(uchar *buf);
+  int index_last(uchar *buf);
 
   /* Index condition pushdown implementation */
 //Item *idx_cond_push(uint keyno, Item* idx_cond);

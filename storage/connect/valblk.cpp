@@ -44,6 +44,7 @@
 #define CheckParms(V, N) ChkIndx(N); ChkTyp(V);
 
 extern "C" int  trace;
+extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 
 /***********************************************************************/
 /*  AllocValBlock: allocate a VALBLK according to type.                */
@@ -105,8 +106,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
       return NULL;
     } // endswitch Type
 
-  blkp->Init(g, check);
-  return blkp;
+  return (blkp->Init(g, check)) ? NULL : blkp;
   } // end of AllocValBlock
 
 /* -------------------------- Class VALBLK --------------------------- */
@@ -116,6 +116,7 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
 /***********************************************************************/
 VALBLK::VALBLK(void *mp, int type, int nval, bool un)
   {
+  Mblk = Nmblk;
   Blkp = mp;
   To_Nulls = NULL;
   Check = true;
@@ -180,6 +181,22 @@ void VALBLK::SetNullable(bool b)
   } // end of SetNullable
 
 /***********************************************************************/
+/*  Buffer allocation routine.                                         */
+/***********************************************************************/
+bool VALBLK::AllocBuff(PGLOBAL g, size_t size)
+  {
+  Mblk.Size = size;
+
+  if (!(Blkp = PlgDBalloc(g, NULL, Mblk))) {
+    sprintf(g->Message, MSG(MEM_ALLOC_ERR), "Blkp", (int) Mblk.Size);
+    fprintf(stderr, "%s\n", g->Message);
+    return true;
+    } // endif Blkp
+
+  return false;
+  } // end of AllocBuff
+
+/***********************************************************************/
 /*  Check functions.                                                   */
 /***********************************************************************/
 void VALBLK::ChkIndx(int n)
@@ -229,13 +246,15 @@ TYPBLK<TYPE>::TYPBLK(void *mp, int nval, int type, int prec, bool un)
 /*  Initialization routine.                                            */
 /***********************************************************************/
 template <class TYPE>
-void TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
+bool TYPBLK<TYPE>::Init(PGLOBAL g, bool check)
   {
   if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(TYPE));
+    if (AllocBuff(g, Nval * sizeof(TYPE)))
+      return true;
 
   Check = check;
   Global = g;
+  return false;
   } // end of Init
 
 /***********************************************************************/
@@ -552,7 +571,7 @@ int TYPBLK<TYPE>::GetMaxLength(void)
 
   for (i = n = 0; i < Nval; i++) {
     m = sprintf(buf, Fmt, Typp[i]);
-    n = max(n, m);
+    n = MY_MAX(n, m);
     } // endfor i
 
   return n;
@@ -576,16 +595,18 @@ CHRBLK::CHRBLK(void *mp, int nval, int len, int prec, bool blank)
 /***********************************************************************/
 /*  Initialization routine.                                            */
 /***********************************************************************/
-void CHRBLK::Init(PGLOBAL g, bool check)
+bool CHRBLK::Init(PGLOBAL g, bool check)
   {
   Valp = (char*)PlugSubAlloc(g, NULL, Long + 1);
   Valp[Long] = '\0';
 
   if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * Long);
+    if (AllocBuff(g, Nval * Long))
+      return true;
 
   Check = check;
   Global = g;
+  return false;
   } // end of Init
 
 /***********************************************************************/
@@ -747,7 +768,7 @@ void CHRBLK::SetValue(char *sp, uint len, int n)
 #endif   // _DEBUG
 
   if (sp)
-    memcpy(p, sp, min((unsigned)Long, len));
+    memcpy(p, sp, MY_MIN((unsigned)Long, len));
 
   if (Blanks) {
     // Suppress eventual ending zero and right fill with blanks
@@ -913,7 +934,7 @@ int CHRBLK::GetMaxLength(void)
   for (i = n = 0; i < Nval; i++)
     if (!IsNull(i)) {
       GetValPtrEx(i);
-      n = max(n, (signed)strlen(Valp));
+      n = MY_MAX(n, (signed)strlen(Valp));
       } // endif null
 
   return n;
@@ -936,13 +957,15 @@ STRBLK::STRBLK(PGLOBAL g, void *mp, int nval)
 /***********************************************************************/
 /*  Initialization routine.                                            */
 /***********************************************************************/
-void STRBLK::Init(PGLOBAL g, bool check)
+bool STRBLK::Init(PGLOBAL g, bool check)
   {
   if (!Blkp)
-    Blkp = PlugSubAlloc(g, NULL, Nval * sizeof(PSZ));
+    if (AllocBuff(g, Nval * sizeof(PSZ)))
+      return true;
 
   Check = check;
   Global = g;
+  return false;
   } // end of Init
 
 /***********************************************************************/
@@ -1185,7 +1208,7 @@ int STRBLK::GetMaxLength(void)
 
   for (i = n = 0; i < Nval; i++)
     if (Strp[i])
-      n = max(n, (signed)strlen(Strp[i]));
+      n = MY_MAX(n, (signed)strlen(Strp[i]));
 
   return n;
   } // end of GetMaxLength
