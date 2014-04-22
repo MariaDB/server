@@ -613,3 +613,31 @@ t1	CREATE TABLE `t1` (
   `TIMESTAMP'2001-01-00 00:00:00'` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-5975 Prepared statements with DATE literals do not honor NO_ZERO_IN_DATE
+#
+SET sql_mode=DEFAULT;
+PREPARE stmt FROM "SELECT (SELECT DATE'2001-00-00') AS c";
+EXECUTE stmt;
+c
+2001-00-00
+SET sql_mode='no_zero_in_date';
+EXECUTE stmt;
+c
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2001-00-00'
+DEALLOCATE PREPARE stmt;
+SET sql_mode=DEFAULT;
+PREPARE stmt FROM "SELECT (SELECT TIMESTAMP'2001-00-00 10:20:30') AS c";
+EXECUTE stmt;
+c
+2001-00-00 10:20:30
+SET sql_mode='no_zero_in_date';
+EXECUTE stmt;
+c
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '2001-00-00 10:20:30'
+DEALLOCATE PREPARE stmt;
+SET sql_mode=DEFAULT;

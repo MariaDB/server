@@ -6509,6 +6509,7 @@ void Item_date_literal::print(String *str, enum_query_type query_type)
 bool Item_date_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed);
+  fuzzy_date |= sql_mode_for_dates(current_thd);
   *ltime= cached_time;
   return (null_value= check_date_with_warn(ltime, fuzzy_date,
                                            MYSQL_TIMESTAMP_ERROR));
@@ -6528,6 +6529,7 @@ void Item_datetime_literal::print(String *str, enum_query_type query_type)
 bool Item_datetime_literal::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {
   DBUG_ASSERT(fixed);
+  fuzzy_date |= sql_mode_for_dates(current_thd);
   *ltime= cached_time;
   return (null_value= check_date_with_warn(ltime, fuzzy_date,
                                            MYSQL_TIMESTAMP_ERROR));
