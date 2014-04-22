@@ -102,8 +102,9 @@ bool Alter_table_statement::execute(THD *thd)
 #ifdef WITH_WSREP
   TABLE *find_temporary_table(THD *thd, const TABLE_LIST *tl);
 
-  if (!thd->is_current_stmt_binlog_format_row() ||
-       !find_temporary_table(thd, first_table))
+  if (WSREP(thd) &&
+      (!thd->is_current_stmt_binlog_format_row() ||
+       !find_temporary_table(thd, first_table)))
   {
     if (wsrep_to_isolation_begin(thd,
                                  lex->name.str ? select_lex->db : NULL,
