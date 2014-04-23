@@ -370,7 +370,6 @@ os_slot_alloc_page_buf(
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
-static
 ibool
 os_file_handle_error_no_exit(
 /*=========================*/
@@ -6337,6 +6336,7 @@ os_slot_alloc_page_buf(
 	byte*           cbuf2;
 	byte*           cbuf;
 
+	/* We allocate extra to avoid memory overwrite on compression */
 	cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
 	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 	slot->page_compression_page = static_cast<byte *>(cbuf2);

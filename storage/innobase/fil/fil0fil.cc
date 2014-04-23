@@ -4997,7 +4997,7 @@ retry:
 				"space for file \'%s\' failed.  Current size "
 				INT64PF ", desired size " INT64PF "\n",
 				node->name, start_offset, len+start_offset);
-			os_file_handle_error_no_exit(node->name, "posix_fallocate", FALSE);
+			os_file_handle_error_no_exit(node->name, "posix_fallocate", FALSE, __FILE__, __LINE__);
 			success = FALSE;
 		} else {
 			success = TRUE;

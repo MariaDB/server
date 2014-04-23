@@ -1318,8 +1318,10 @@ os_file_handle_error_no_exit(
 /*=========================*/
 	const char*	name,		/*!< in: name of a file or NULL */
 	const char*	operation,	/*!< in: operation */
-	ibool		on_error_silent);/*!< in: if TRUE then don't print
+	ibool		on_error_silent,/*!< in: if TRUE then don't print
 					any message to the log. */
+	const char*	file,		/*!< in: file name */
+	const ulint	line);		/*!< in: line */
 
 #ifndef UNIV_NONINL
 #include "os0file.ic"

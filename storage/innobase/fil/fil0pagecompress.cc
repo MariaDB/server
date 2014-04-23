@@ -70,6 +70,8 @@ static ulint srv_data_read, srv_data_written;
 #include "lzo/lzo1x.h"
 #endif
 
+/* Used for debugging */
+//#define UNIV_PAGECOMPRESS_DEBUG 1
 
 /****************************************************************//**
 For page compressed pages compress the page before actual write
@@ -145,7 +147,7 @@ fil_compress_page(
 		err = lzo1x_1_15_compress(
 			buf, len, out_buf+header_len, &write_size, lzo_mem);
 
-		if (err != LZO_E_OK || write_size > len) {
+		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			fprintf(stderr,
 				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu",
 				space_id, fil_space_name(space), len, err, write_size);

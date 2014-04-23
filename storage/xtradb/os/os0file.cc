@@ -6406,6 +6406,7 @@ os_slot_alloc_page_buf(
 	byte*           cbuf2;
 	byte*           cbuf;
 
+	/* We allocate extra to avoid memory overwrite on compression */
 	cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
 	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 	slot->page_compression_page = static_cast<byte *>(cbuf2);
