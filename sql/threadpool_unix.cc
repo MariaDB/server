@@ -19,6 +19,9 @@
 #include <sql_class.h>
 #include <my_pthread.h>
 #include <scheduler.h>
+
+#ifdef HAVE_POOL_OF_THREADS
+
 #include <sql_connect.h>
 #include <mysqld.h>
 #include <debug_sync.h>
@@ -1678,3 +1681,5 @@ static void print_pool_blocked_message(bool max_threads_reached)
     msg_written= true;
   }
 }
+
+#endif /* HAVE_POOL_OF_THREADS */

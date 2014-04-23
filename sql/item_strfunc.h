@@ -1084,7 +1084,7 @@ class Item_func_uncompressed_length : public Item_int_func
 public:
   Item_func_uncompressed_length(Item *a):Item_int_func(a){}
   const char *func_name() const{return "uncompressed_length";}
-  void fix_length_and_dec() { max_length=10; }
+  void fix_length_and_dec() { max_length=10; maybe_null= true; }
   longlong val_int();
 };
 
@@ -1174,6 +1174,7 @@ public:
   String *val_str(String *);
   void fix_length_and_dec()
   {
+    max_length= MAX_BLOB_WIDTH;
     maybe_null= 1;
     collation.set(&my_charset_bin);
     decimals= 0;

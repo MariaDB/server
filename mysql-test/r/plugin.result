@@ -127,7 +127,7 @@ drop table t1;
 SET @OLD_SQL_MODE=@@SQL_MODE;
 SET SQL_MODE='IGNORE_BAD_TABLE_OPTIONS';
 #illegal value fixed
-CREATE TABLE t1 (a int) ENGINE=example ULL=10000000000000000000 one_or_two='ttt' YESNO=SSS;
+CREATE TABLE t1 (a int, b int) ENGINE=example ULL=10000000000000000000 one_or_two='ttt' YESNO=SSS;
 Warnings:
 Warning	1912	Incorrect value '10000000000000000000' for option 'ULL'
 Warning	1912	Incorrect value 'ttt' for option 'one_or_two'
@@ -135,7 +135,8 @@ Warning	1912	Incorrect value 'SSS' for option 'YESNO'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `ULL`=10000000000000000000 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5'
 #alter table
 alter table t1 ULL=10000000;
@@ -144,7 +145,8 @@ Note	1105	EXAMPLE DEBUG: ULL 4294967290 -> 10000000
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5' `ULL`=10000000
 alter table t1 change a a int complex='c,c,c';
 Warnings:
@@ -152,15 +154,15 @@ Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX '(null)' -> 'c,c,c'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `complex`='c,c,c'
+  `a` int(11) DEFAULT NULL `complex`='c,c,c',
+  `b` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `one_or_two`='ttt' `YESNO`=SSS `VAROPT`='5' `ULL`=10000000
 alter table t1 one_or_two=two;
-Warnings:
-Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX 'c,c,c' -> 'c,c,c'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL `complex`='c,c,c'
+  `a` int(11) DEFAULT NULL `complex`='c,c,c',
+  `b` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `YESNO`=SSS `VAROPT`='5' `ULL`=10000000 `one_or_two`=two
 drop table t1;
 #illegal value error
@@ -204,8 +206,6 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=EXAMPLE DEFAULT CHARSET=latin1 `varopt`=15
 alter table t1 varopt=default;
-Warnings:
-Note	1105	EXAMPLE DEBUG: Field `a` COMPLEX '(null)' -> '(null)'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

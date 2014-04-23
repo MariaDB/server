@@ -497,7 +497,7 @@ bool VCTFAM::AllocateBuffer(PGLOBAL g)
         Clens[i] = cdp->GetClen();
         Deplac[i] = Headlen + cdp->GetPoff() * n * Nrec;
         Isnum[i] = IsTypeNum(cdp->GetType());
-        Buflen = max(Buflen, cdp->GetClen());
+        Buflen = MY_MAX(Buflen, cdp->GetClen());
         } // endfor cdp
 
       if (!UseTemp || MaxBlk) {
@@ -884,9 +884,9 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
     /*  Non consecutive line to delete. Move intermediate lines.       */
     /*******************************************************************/
     if (!MaxBlk)
-      req = (size_t)min(n, Nrec - max(Spos % Nrec, Tpos % Nrec));
+      req = (size_t)MY_MIN(n, Nrec - MY_MAX(Spos % Nrec, Tpos % Nrec));
     else
-      req = (size_t)min(n, Nrec);
+      req = (size_t)MY_MIN(n, Nrec);
 
     if (req) for (i = 0; i < Ncol; i++) {
       if (MaxBlk) {
@@ -1017,7 +1017,7 @@ bool VCTFAM::CleanUnusedSpace(PGLOBAL g)
     /*  Note: this seems to work even column blocks have been made     */
     /*  with Blanks = true. Perhaps should it be set to false for VEC. */
     /*******************************************************************/
-    req = (size_t)min(n, Nrec);
+    req = (size_t)MY_MIN(n, Nrec);
     memset(To_Buf, 0, Buflen);
 
     for (i = 0; i < Ncol; i++) {
@@ -1606,7 +1606,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       for (n = Fpos - Spos; n > 0; n -= req) {
         soff = Spos % Nrec;
         toff = Tpos % Nrec;
-        req = (size_t)min(n, Nrec - max(soff, toff));
+        req = (size_t)MY_MIN(n, Nrec - MY_MAX(soff, toff));
 
         for (i = 0; i < Ncol; i++) {
           ps = Memcol[i] + (Spos / Nrec) * Blksize + soff * Clens[i];
@@ -2037,7 +2037,7 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
 
         for (i = 0; cdp && i < Ncol; i++, cdp = cdp->GetNext()) {
           Clens[i] = cdp->GetClen();
-          Buflen = max(Buflen, cdp->GetClen());
+          Buflen = MY_MAX(Buflen, cdp->GetClen());
           } // endfor cdp
 
       } else {  // Mode Update, only some columns are updated
@@ -2048,7 +2048,7 @@ bool VECFAM::AllocateBuffer(PGLOBAL g)
             T_Streams[i] = NULL;   // Mark the streams to open
 
           Clens[i] = cp->Clen;
-          Buflen = max(Buflen, cp->Clen);
+          Buflen = MY_MAX(Buflen, cp->Clen);
           } // endfor cp
 
         InitUpdate = true;         // To be initialized
@@ -2329,7 +2329,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
     /*******************************************************************/
     /*  Non consecutive line to delete. Move intermediate lines.       */
     /*******************************************************************/
-    req = (size_t)min(n, Nrec);
+    req = (size_t)MY_MIN(n, Nrec);
 
     for (i = 0; i < Ncol; i++) {
       if (!T_Streams[i])
@@ -3635,7 +3635,7 @@ bool BGVFAM::AllocateBuffer(PGLOBAL g)
 
         Clens[i] = cdp->GetClen();
         Isnum[i] = IsTypeNum(cdp->GetType());
-        Buflen = max(Buflen, cdp->GetClen());
+        Buflen = MY_MAX(Buflen, cdp->GetClen());
         } // endfor cdp
 
       if (!UseTemp || MaxBlk) {
@@ -3939,9 +3939,9 @@ bool BGVFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
     /*  Non consecutive line to delete. Move intermediate lines.       */
     /*******************************************************************/
     if (!MaxBlk)
-      req = (DWORD)min(n, Nrec - max(Spos % Nrec, Tpos % Nrec));
+      req = (DWORD)MY_MIN(n, Nrec - MY_MAX(Spos % Nrec, Tpos % Nrec));
     else
-      req = (DWORD)min(n, Nrec);
+      req = (DWORD)MY_MIN(n, Nrec);
 
     if (req) for (i = 0; i < Ncol; i++) {
       if (!MaxBlk) {
@@ -4048,7 +4048,7 @@ bool BGVFAM::CleanUnusedSpace(PGLOBAL g)
       /*  This seems to work even column blocks have been made with    */
       /*  Blanks = true. Perhaps should it be set to false for VEC.    */
       /*****************************************************************/
-      req = min(n, Nrec);
+      req = MY_MIN(n, Nrec);
 
       for (i = 0; i < Ncol; i++) {
         pos = BigDep[i] + (BIGINT)Tpos * (BIGINT)Clens[i];

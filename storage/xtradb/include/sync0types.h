@@ -36,9 +36,9 @@ struct ib_prio_mutex_t;
 
 /** Priority mutex and rwlatch acquisition priorities */
 enum ib_sync_priority {
-	DEFAULT_PRIO,
-	LOW_PRIO,
-	HIGH_PRIO
+	IB_DEFAULT_PRIO,
+	IB_LOW_PRIO,
+	IB_HIGH_PRIO
 };
 
 #endif

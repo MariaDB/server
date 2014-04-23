@@ -144,12 +144,14 @@ End of 5.0 tests
 #
 # Bug#53942 valgrind warnings with timestamp() function and incomplete datetime values
 #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 CREATE TABLE t1(f1 TIME);
 INSERT INTO t1 VALUES ('23:38:57');
 SELECT TIMESTAMP(f1,'1') FROM t1;
 TIMESTAMP(f1,'1')
-NULL
+2001-02-03 23:38:58
 DROP TABLE t1;
+SET timestamp=DEFAULT;
 End of 5.1 tests
 create table t1 (a time);
 insert t1 values (-131415);
@@ -177,11 +179,11 @@ drop table t1;
 #
 # MDEV-4634 Crash in CONVERT_TZ
 #
+SET timestamp=unix_timestamp('2001-02-03 10:20:30');
 SELECT CONVERT_TZ(GREATEST(TIME('00:00:00'),TIME('00:00:00')),'+00:00','+7:5');
 CONVERT_TZ(GREATEST(TIME('00:00:00'),TIME('00:00:00')),'+00:00','+7:5')
-NULL
-Warnings:
-Warning	1292	Incorrect datetime value: '00:00:00'
+2001-02-03 07:05:00
+SET timestamp=DEFAULT;
 #
 # MDEV-4652 Wrong result for CONCAT(GREATEST(TIME('00:00:01'),TIME('00:00:00')))
 #

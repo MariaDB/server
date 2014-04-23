@@ -735,5 +735,30 @@ drop table t1,t2,t3;
 set optimizer_switch=default;
 set optimizer_switch='exists_to_in=on';
 
+--echo #
+--echo #MDEV-5401: Wrong result (missing row) on a 2nd execution of PS with
+--echo #exists_to_in=on, MERGE view or a SELECT SQ
+--echo #
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE ALGORITHM=MERGE VIEW v1 AS SELECT * FROM t1;
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2),(3);
+
+SELECT * FROM v1 WHERE EXISTS ( SELECT * FROM t2 t2x, t2 t2y WHERE t2y.b = a );
+
+PREPARE stmt FROM "SELECT * FROM v1 WHERE EXISTS ( SELECT * FROM t2 t2x, t2 t2y WHERE t2y.b = a )";
+EXECUTE stmt;
+EXECUTE stmt;
+
+deallocate prepare stmt;
+
+drop view v1;
+drop table t1,t2;
+
+--echo # End of 10.0 tests
+
 #restore defaults
 set optimizer_switch=default;

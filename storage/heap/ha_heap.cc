@@ -90,7 +90,7 @@ ha_heap::ha_heap(handlerton *hton, TABLE_SHARE *table_arg)
 
 int ha_heap::open(const char *name, int mode, uint test_if_locked)
 {
-  internal_table= test(test_if_locked & HA_OPEN_INTERNAL_TABLE);
+  internal_table= MY_TEST(test_if_locked & HA_OPEN_INTERNAL_TABLE);
   if (internal_table || (!(file= heap_open(name, mode)) && my_errno == ENOENT))
   {
     HP_CREATE_INFO create_info;
@@ -106,7 +106,7 @@ int ha_heap::open(const char *name, int mode, uint test_if_locked)
     if (rc)
       goto end;
 
-    implicit_emptied= test(created_new_share);
+    implicit_emptied= MY_TEST(created_new_share);
     if (internal_table)
       file= heap_open_from_share(internal_share, mode);
     else
@@ -215,7 +215,7 @@ void ha_heap::update_key_stats()
       else
       {
         ha_rows hash_buckets= file->s->keydef[i].hash_buckets;
-        uint no_records= hash_buckets ? (uint) (file->s->records/hash_buckets) : 2;
+        ha_rows no_records= hash_buckets ? (file->s->records/hash_buckets) : 2;
         if (no_records < 2)
           no_records= 2;
         key->rec_per_key[key->user_defined_key_parts-1]= no_records;
@@ -244,6 +244,7 @@ int ha_heap::write_row(uchar * buf)
        We can perform this safely since only one writer at the time is
        allowed on the table.
     */
+    records_changed= 0;
     file->s->key_stat_version++;
   }
   return res;
@@ -260,6 +261,7 @@ int ha_heap::update_row(const uchar * old_data, uchar * new_data)
        We can perform this safely since only one writer at the time is
        allowed on the table.
     */
+    records_changed= 0;
     file->s->key_stat_version++;
   }
   return res;
@@ -276,6 +278,7 @@ int ha_heap::delete_row(const uchar * buf)
        We can perform this safely since only one writer at the time is
        allowed on the table.
     */
+    records_changed= 0;
     file->s->key_stat_version++;
   }
   return res;
@@ -726,8 +729,8 @@ heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   if (share->max_rows && share->max_rows < max_rows)
     max_rows= share->max_rows;
 
-  hp_create_info->max_records= (ulong) max_rows;
-  hp_create_info->min_records= (ulong) share->min_rows;
+  hp_create_info->max_records= (ulong) MY_MIN(max_rows, ULONG_MAX);
+  hp_create_info->min_records= (ulong) MY_MIN(share->min_rows, ULONG_MAX);
   hp_create_info->keys= share->keys;
   hp_create_info->reclength= share->reclength;
   hp_create_info->keydef= keydef;

@@ -182,7 +182,7 @@ public:
   static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
   char    *GetStringOption(char *opname, char *sdef= NULL);
-  PTOS     GetTableOptionStruct(TABLE *table_arg);
+  PTOS     GetTableOptionStruct(TABLE_SHARE *s= NULL);
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
@@ -225,7 +225,7 @@ public:
     The name of the index type that will be used for display.
     Don't implement this method unless you really have indexes.
    */
-  const char *index_type(uint inx) { return "XINDEX"; }
+  const char *index_type(uint inx);
 
   /** @brief
     The file extensions.
@@ -256,11 +256,7 @@ public:
     If all_parts is set, MySQL wants to know the flags for the combined
     index, up to and including 'part'.
   */
-  ulong index_flags(uint inx, uint part, bool all_parts) const
-  {
-    return HA_READ_NEXT | HA_READ_RANGE   | HA_READ_ORDER |
-           HA_READ_PREV | HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
-  } // end of index_flags
+  ulong index_flags(uint inx, uint part, bool all_parts) const;
 
   /** @brief
     unireg.cc will call max_supported_record_length(), max_supported_keys(),

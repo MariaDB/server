@@ -1,0 +1,14 @@
+--source include/not_embedded.inc
+
+SET @save_gtid_ignore_duplicates= @@GLOBAL.gtid_ignore_duplicates;
+
+SELECT @@GLOBAL.gtid_ignore_duplicates as 'must be zero because of default';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.gtid_ignore_duplicates  as 'no session var';
+
+SET GLOBAL gtid_ignore_duplicates= FALSE;
+SET GLOBAL gtid_ignore_duplicates= DEFAULT;
+SET GLOBAL gtid_ignore_duplicates= TRUE;
+SELECT @@GLOBAL.gtid_ignore_duplicates;
+
+SET GLOBAL gtid_ignore_duplicates = @save_gtid_ignore_duplicates;

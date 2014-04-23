@@ -780,13 +780,13 @@ struct prio_rw_lock_t {
 						provides the lock word etc. for
 						the priority rw lock  */
 	volatile ulint		high_priority_s_waiters;
-						/* If 1, high priority S
-						waiters exist */
+						/* Number of high priority S
+						waiters */
 	os_event_t		high_priority_s_event; /* High priority wait
 						array event for S waiters */
 	volatile ulint		high_priority_x_waiters;
-						/* If 1, high priority X
-						waiters exist */
+						/* Number of high priority X
+						waiters */
 	os_event_t		high_priority_x_event;
 						/* High priority wait arraay
 						event for X waiters */

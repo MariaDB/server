@@ -113,7 +113,7 @@ class Histogram
 
 private:
   Histogram_type type;
-  uint8 size;
+  uint8 size; /* Size of values array, in bytes */
   uchar *values;
 
   uint prec_factor()
@@ -142,6 +142,7 @@ public:
 private:
   uint get_value(uint i)
   {
+    DBUG_ASSERT(i < get_width());
     switch (type) {
     case SINGLE_PREC_HB:
       return (uint) (((uint8 *) values)[i]);
@@ -151,6 +152,7 @@ private:
     return 0;
   }
 
+  /* Find the bucket which value 'pos' falls into. */
   uint find_bucket(double pos, bool first)
   {
     uint val= (uint) (pos * prec_factor());
@@ -169,6 +171,10 @@ private:
       else
         break;
     }
+
+    if (val > get_value(i) && i < (get_width() - 1))
+      i++;
+
     if (val == get_value(i))
     {
       if (first)
@@ -234,24 +240,11 @@ public:
     sel= bucket_sel * (max - min + 1);
     return sel;
   } 
-
-  double point_selectivity(double pos, double avg_sel)
-  {
-    double sel;
-    double bucket_sel= 1.0/(get_width() + 1);  
-    uint min= find_bucket(pos, TRUE);
-    uint max= min;
-    while (max + 1 < get_width() && get_value(max + 1) == get_value(max))
-      max++;
-    double inv_prec_factor= (double) 1.0 / prec_factor(); 
-    double width= (max + 1 == get_width() ?
-                   1.0 : get_value(max) * inv_prec_factor) -
-	          (min == 0 ?
-                   0.0 : get_value(min-1) * inv_prec_factor); 
-    sel= avg_sel * (bucket_sel * (max + 1 - min)) / width;
-    return sel;
-  }
-             
+  
+  /*
+    Estimate selectivity of "col=const" using a histogram
+  */
+  double point_selectivity(double pos, double avg_sel);
 };
 
 
@@ -354,7 +347,7 @@ public:
 
   bool is_null(uint stat_field_no)
   {
-    return test(column_stat_nulls & (1 << stat_field_no));
+    return MY_TEST(column_stat_nulls & (1 << stat_field_no));
   }
 
   double get_nulls_ratio()

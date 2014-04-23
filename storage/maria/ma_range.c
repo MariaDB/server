@@ -177,7 +177,7 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
 
     This is the reason that we add the SEARCH_UPDATE flag here. It makes
     the key estimation compare in the same way like key write operations
-    do. Olny so we will find the keys where they have been inserted.
+    do. Only so we will find the keys where they have been inserted.
 
     Adding the flag unconditionally does not hurt as it is used in the
     above mentioned condition only. So it can safely be used together
@@ -219,7 +219,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
   LINT_INIT(max_keynr);
 
   if (pos == HA_OFFSET_ERROR)
-    DBUG_RETURN(0.5);
+    DBUG_RETURN(0.0);
 
   if (_ma_fetch_keypage(&page, info, keyinfo, pos,
                         PAGECACHE_LOCK_LEFT_UNLOCKED, DFLT_INIT_HITS,
@@ -238,8 +238,8 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
       Try to find a smaller, better matching key.
       Matches keynr + [0-1]
     */
-    if (flag > 0 && ! page.node)
-      offset= 1.0;
+    if (! page.node)
+      offset= 0.0;
     else if ((offset= _ma_search_pos(info, key, nextflag,
                                      _ma_kpos(page.node,keypos))) < 0)
       DBUG_RETURN(offset);
@@ -247,10 +247,19 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
   else
   {
     /*
-      Found match. Keypos points at the start of the found key
-      Matches keynr+1
+      Found match. Keypos points at the start of the found key.
+
+      For node pages, we are counting underlying trees and for key
+      pages we are counting keys.
+
+      If this is a node then we have to search backwards to find the
+      first occurence of the key.  The row position in a node tree
+      is keynr (starting from 0) + offset for sub tree.  If there is
+      no sub tree to search, then we are at start of next sub tree.
+
+      If this is not a node, then the current key position is correct.
     */
-    offset=1.0;					/* Matches keynr+1 */
+    offset= (page.node) ? 1.0 : 0.0;
     if ((nextflag & SEARCH_FIND) && page.node &&
 	((keyinfo->flag & (HA_NOSAME | HA_NULL_PART)) != HA_NOSAME ||
          (nextflag & (SEARCH_PREFIX | SEARCH_NO_FIND | SEARCH_LAST |
@@ -267,14 +276,18 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
   }
   DBUG_PRINT("info",("keynr: %d  offset: %g  max_keynr: %d  nod: %d  flag: %d",
 		     keynr,offset,max_keynr,page.node,flag));
-  DBUG_RETURN((keynr+offset)/(max_keynr+1));
+  DBUG_RETURN((keynr + offset) / (max_keynr + MY_TEST(page.node)));
 err:
   DBUG_PRINT("exit",("Error: %d",my_errno));
   DBUG_RETURN (-1.0);
 }
 
 
-/* Get keynummer of current key and max number of keys in nod */
+/*
+  Get keynummer of current key and max number of keys in nod
+
+  keynr >= 0 && key_nr <= max_key
+*/
 
 static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key)
 {

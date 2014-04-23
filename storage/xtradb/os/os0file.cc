@@ -769,7 +769,6 @@ os_file_handle_error(
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
-static
 ibool
 os_file_handle_error_no_exit(
 /*=========================*/
@@ -1565,18 +1564,32 @@ os_file_set_nocache(
 	}
 #elif defined(O_DIRECT)
 	if (fcntl(fd, F_SETFL, O_DIRECT) == -1) {
-		int	errno_save = errno;
-
-		ib_logf(IB_LOG_LEVEL_ERROR,
-			"Failed to set O_DIRECT on file %s: %s: %s, "
-			"continuing anyway",
-			file_name, operation_name, strerror(errno_save));
-
+		int		errno_save = errno;
+		static bool	warning_message_printed = false;
 		if (errno_save == EINVAL) {
-			ib_logf(IB_LOG_LEVEL_ERROR,
-				"O_DIRECT is known to result in 'Invalid "
-				"argument' on Linux on tmpfs, see MySQL "
-				"Bug#26662");
+			if (!warning_message_printed) {
+				warning_message_printed = true;
+# ifdef UNIV_LINUX
+				ib_logf(IB_LOG_LEVEL_WARN,
+					"Failed to set O_DIRECT on file "
+					"%s: %s: %s, continuing anyway. "
+					"O_DIRECT is known to result "
+					"in 'Invalid argument' on Linux on "
+					"tmpfs, see MySQL Bug#26662.",
+					file_name, operation_name,
+					strerror(errno_save));
+# else /* UNIV_LINUX */
+				goto short_warning;
+# endif /* UNIV_LINUX */
+			}
+		} else {
+# ifndef UNIV_LINUX
+short_warning:
+# endif
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Failed to set O_DIRECT on file %s: %s: %s, "
+				"continuing anyway.",
+				file_name, operation_name, strerror(errno_save));
 		}
 	}
 #endif /* defined(UNIV_SOLARIS) && defined(DIRECTIO_ON) */
@@ -1791,6 +1804,9 @@ os_file_create_func(
 		} else {
 			*success = TRUE;
 			retry = FALSE;
+			if (srv_use_native_aio && ((attributes & FILE_FLAG_OVERLAPPED) != 0)) {
+				ut_a(CreateIoCompletionPort(file, completion_port, 0, 0));
+			}
 		}
 
 	} while (retry);
@@ -1933,7 +1949,7 @@ os_file_create_func(
 #endif /* USE_FILE_LOCK */
 
 	if (srv_use_atomic_writes && type == OS_DATA_FILE
-	    && !os_file_set_atomic_writes(name, file)) {
+	    && file != -1 && !os_file_set_atomic_writes(name, file)) {
 
 		*success = FALSE;
 		close(file);

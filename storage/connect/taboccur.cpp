@@ -106,7 +106,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
       } // endif m
 
     for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
-      n = max(n, (signed)strlen(pn));
+      n = MY_MAX(n, (signed)strlen(pn));
 
     } // endif k
              
@@ -199,7 +199,7 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
 
   if ((rk = (rank && *rank)))
     for (k = 0, pn = colist; k < m; k++, pn += (strlen(pn) + 1))
-      n = max(n, (signed)strlen(pn));
+      n = MY_MAX(n, (signed)strlen(pn));
              
   // Default occur column name is the 1st colist column name
   if (!ocr || !*ocr)

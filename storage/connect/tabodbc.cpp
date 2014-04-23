@@ -178,7 +178,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qrystr = tdp->Qrystr;
     Sep = tdp->GetSep();
     Options = tdp->Options;
-    Quoted = max(0, tdp->GetQuoted());
+    Quoted = MY_MAX(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
   } else {

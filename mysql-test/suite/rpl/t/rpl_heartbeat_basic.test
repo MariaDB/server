@@ -367,7 +367,7 @@ DROP EVENT e1;
 
 
 
-
+--sync_slave_with_master
 # Check received heartbeat events while logs flushed on slave
 --connection slave
 --echo *** Flush logs on slave ***

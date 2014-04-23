@@ -37,6 +37,7 @@ static const LEX_STRING metadata_lock_info_lock_mode[] = {
   { C_STRING_WITH_LEN("MDL_SHARED_HIGH_PRIO") },
   { C_STRING_WITH_LEN("MDL_SHARED_READ") },
   { C_STRING_WITH_LEN("MDL_SHARED_WRITE") },
+  { C_STRING_WITH_LEN("MDL_SHARED_UPGRADABLE") },
   { C_STRING_WITH_LEN("MDL_SHARED_NO_WRITE") },
   { C_STRING_WITH_LEN("MDL_SHARED_NO_READ_WRITE") },
   { C_STRING_WITH_LEN("MDL_EXCLUSIVE") },
@@ -162,7 +163,7 @@ maria_declare_plugin(metadata_lock_info)
   NULL,
   NULL,
   NULL,
-  MariaDB_PLUGIN_MATURITY_ALPHA,
+  MariaDB_PLUGIN_MATURITY_BETA,
 }
 maria_declare_plugin_end;
 #else

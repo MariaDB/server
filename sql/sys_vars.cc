@@ -364,7 +364,7 @@ static Sys_var_ulong Sys_back_log(
        "MySQL can have. This comes into play when the main MySQL thread "
        "gets very many connection requests in a very short time",
        READ_ONLY GLOBAL_VAR(back_log), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, 65535), DEFAULT(50), BLOCK_SIZE(1));
+       VALID_RANGE(1, 65535), DEFAULT(150), BLOCK_SIZE(1));
 
 static Sys_var_charptr Sys_basedir(
        "basedir", "Path to installation directory. All paths are "
@@ -593,7 +593,7 @@ static bool check_charset_db(sys_var *self, THD *thd, set_var *var)
 }
 static Sys_var_struct Sys_character_set_database(
        "character_set_database",
-       " The character set used by the default database",
+       "The character set used by the default database",
        SESSION_VAR(collation_database), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_db));
@@ -1062,7 +1062,7 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
        "Whether mysqld was compiled with options for large file support",
-       READ_ONLY GLOBAL_VAR(opt_large_files),
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(opt_large_files),
        NO_CMD_LINE, DEFAULT(sizeof(my_off_t) > 4));
 
 static Sys_var_uint Sys_large_page_size(
@@ -1184,7 +1184,8 @@ static Sys_var_mybool Sys_lower_case_file_system(
        "lower_case_file_system",
        "Case sensitivity of file names on the file system where the "
        "data directory is located",
-       READ_ONLY GLOBAL_VAR(lower_case_file_system), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(lower_case_file_system),
+       NO_CMD_LINE,
        DEFAULT(FALSE));
 
 static Sys_var_uint Sys_lower_case_table_names(
@@ -1695,6 +1696,33 @@ static Sys_var_gtid_binlog_state Sys_gtid_binlog_state(
        GLOBAL_VAR(opt_gtid_binlog_state_dummy), NO_CMD_LINE);
 
 
+static Sys_var_last_gtid Sys_last_gtid(
+       "last_gtid", "The GTID of the last commit (if binlogging was enabled), "
+       "or the empty string if none.",
+       READ_ONLY sys_var::ONLY_SESSION, NO_CMD_LINE);
+
+
+uchar *
+Sys_var_last_gtid::session_value_ptr(THD *thd, LEX_STRING *base)
+{
+  char buf[10+1+10+1+20+1];
+  String str(buf, sizeof(buf), system_charset_info);
+  char *p;
+  bool first= true;
+
+  str.length(0);
+  if ((thd->last_commit_gtid.seq_no > 0 &&
+       rpl_slave_state_tostring_helper(&str, &thd->last_commit_gtid, &first)) ||
+      !(p= thd->strmake(str.ptr(), str.length())))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return NULL;
+  }
+
+  return (uchar *)p;
+}
+
+
 static bool
 check_slave_parallel_threads(sys_var *self, THD *thd, set_var *var)
 {
@@ -1730,14 +1758,58 @@ fix_slave_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_ulong Sys_slave_parallel_threads(
        "slave_parallel_threads",
-       "Alpha feature, to only be used by developers doing testing! "
        "If non-zero, number of threads to spawn to apply in parallel events "
        "on the slave that were group-committed on the master or were logged "
-       "with GTID in different replication domains.",
+       "with GTID in different replication domains. Note that these threads "
+       "are in addition to the IO and SQL threads, which are always created "
+       "by a replication slave",
        GLOBAL_VAR(opt_slave_parallel_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_slave_parallel_threads),
        ON_UPDATE(fix_slave_parallel_threads));
+
+
+static bool
+check_slave_domain_parallel_threads(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_slave_domain_parallel_threads(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return running ? true : false;
+}
+
+
+static Sys_var_ulong Sys_slave_domain_parallel_threads(
+       "slave_domain_parallel_threads",
+       "Maximum number of parallel threads to use on slave for events in a "
+       "single replication domain. When using multiple domains, this can be "
+       "used to limit a single domain from grabbing all threads and thus "
+       "stalling other domains. The default of 0 means to allow a domain to "
+       "grab as many threads as it wants, up to the value of "
+       "slave_parallel_threads.",
+       GLOBAL_VAR(opt_slave_domain_parallel_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0,16383), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_slave_domain_parallel_threads),
+       ON_UPDATE(fix_slave_domain_parallel_threads));
 
 
 static Sys_var_ulong Sys_slave_parallel_max_queued(
@@ -1748,6 +1820,50 @@ static Sys_var_ulong Sys_slave_parallel_max_queued(
        "--slave-parallel-threads > 0.",
        GLOBAL_VAR(opt_slave_parallel_max_queued), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
+
+
+static bool
+check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
+{
+  bool running;
+
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (running)
+    return true;
+
+  return false;
+}
+
+static bool
+fix_gtid_ignore_duplicates(sys_var *self, THD *thd, enum_var_type type)
+{
+  bool running;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+  running= master_info_index->give_error_if_slave_running();
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  return running ? true : false;
+}
+
+
+static Sys_var_mybool Sys_gtid_ignore_duplicates(
+       "gtid_ignore_duplicates",
+       "When set, different master connections in multi-source replication are "
+       "allowed to receive and process event groups with the same GTID (when "
+       "using GTID mode). Only one will be applied, any others will be "
+       "ignored. Within a given replication domain, just the sequence number "
+       "will be used to decide whether a given GTID has been already applied; "
+       "this means it is the responsibility of the user to ensure that GTID "
+       "sequence numbers are strictly increasing.",
+       GLOBAL_VAR(opt_gtid_ignore_duplicates), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(check_gtid_ignore_duplicates),
+       ON_UPDATE(fix_gtid_ignore_duplicates));
 #endif
 
 
@@ -2074,7 +2190,7 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
 {
   SV *sv= (type == OPT_GLOBAL) ? &global_system_variables : &thd->variables;
   sv->engine_condition_pushdown=
-    test(sv->optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
+    MY_TEST(sv->optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
   return false;
 }
 static Sys_var_flagset Sys_optimizer_switch(
@@ -2145,7 +2261,7 @@ static Sys_var_ulong Sys_preload_buff_size(
 static Sys_var_uint Sys_protocol_version(
        "protocol_version",
        "The version of the client/server protocol used by the MySQL server",
-       READ_ONLY GLOBAL_VAR(protocol_version), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(protocol_version), NO_CMD_LINE,
        VALID_RANGE(0, ~0), DEFAULT(PROTOCOL_VERSION), BLOCK_SIZE(1));
 
 static Sys_var_proxy_user Sys_proxy_user(
@@ -2601,13 +2717,42 @@ static Sys_var_mybool Sys_slave_compressed_protocol(
 static const char *slave_exec_mode_names[]= {"STRICT", "IDEMPOTENT", 0};
 static Sys_var_enum Slave_exec_mode(
        "slave_exec_mode",
-       "Modes for how replication events should be executed. Legal values "
+       "How replication events should be executed. Legal values "
        "are STRICT (default) and IDEMPOTENT. In IDEMPOTENT mode, "
        "replication will not stop for operations that are idempotent. "
+       "For example, in row based replication attempts to delete rows that "
+       "doesn't exist will be ignored. "
        "In STRICT mode, replication will stop on any unexpected difference "
        "between the master and the slave",
        GLOBAL_VAR(slave_exec_mode_options), CMD_LINE(REQUIRED_ARG),
        slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_STRICT));
+
+static Sys_var_enum Slave_ddl_exec_mode(
+       "slave_ddl_exec_mode",
+       "How replication events should be executed. Legal values "
+       "are STRICT and IDEMPOTENT (default). In IDEMPOTENT mode, "
+       "replication will not stop for DDL operations that are idempotent. "
+       "This means that CREATE TABLE is treated as CREATE TABLE OR REPLACE and "
+       "DROP TABLE is treated as DROP TABLE IF EXISTS.",
+       GLOBAL_VAR(slave_ddl_exec_mode_options), CMD_LINE(REQUIRED_ARG),
+       slave_exec_mode_names, DEFAULT(SLAVE_EXEC_MODE_IDEMPOTENT));
+
+#ifdef RBR_TRIGGERS
+static const char *slave_run_triggers_for_rbr_names[]=
+  {"NO", "YES", "LOGGING", 0};
+static Sys_var_enum Slave_run_triggers_for_rbr(
+       "slave_run_triggers_for_rbr",
+       "Modes for how triggers in row-base replication on slave side will be "
+       "executed. Legal values are NO (default), YES and LOGGING. NO means "
+       "that trigger for RBR will not be running on slave. YES and LOGGING "
+       "means that triggers will be running on slave, if there was not "
+       "triggers running on the master for the statement. LOGGING also means "
+       "results of that the executed triggers work will be written to "
+       "the binlog.",
+       GLOBAL_VAR(slave_run_triggers_for_rbr), CMD_LINE(REQUIRED_ARG),
+       slave_run_triggers_for_rbr_names,
+       DEFAULT(SLAVE_RUN_TRIGGERS_FOR_RBR_NO));
+#endif //RBR_TRIGGERS
 
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
@@ -2793,7 +2938,9 @@ static Sys_var_set Sys_sql_mode(
 
 static const char *old_mode_names[]=
 {
-  "NO_DUP_KEY_WARNINGS_WITH_IGNORE", "NO_PROGRESS_INFO",
+  "NO_DUP_KEY_WARNINGS_WITH_IGNORE",
+  "NO_PROGRESS_INFO",
+  "ZERO_DATE_TIME_CAST",
   0
 };
 
@@ -2881,7 +3028,8 @@ static Sys_var_mybool Sys_sync_frm(
 static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
-       READ_ONLY GLOBAL_VAR(system_time_zone_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(system_time_zone_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
 static Sys_var_ulong Sys_table_def_size(
@@ -3091,26 +3239,36 @@ static Sys_var_mybool Sys_timed_mutexes(
 static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
        "version", "Server version",
-       READ_ONLY GLOBAL_VAR(server_version_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(server_version));
 
 static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
        "version_comment", "version_comment",
-       READ_ONLY GLOBAL_VAR(server_version_comment_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_comment_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
 
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
-       READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP
+       GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
        "version_compile_os", "version_compile_os",
-       READ_ONLY GLOBAL_VAR(server_version_compile_os_ptr), NO_CMD_LINE,
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_compile_os_ptr),
+       NO_CMD_LINE,
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
+
+static char *malloc_library;
+static Sys_var_charptr Sys_malloc_library(
+       "version_malloc_library", "Version of the used malloc library",
+       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(malloc_library), NO_CMD_LINE,
+       IN_SYSTEM_CHARSET, DEFAULT(MALLOC_LIBRARY));
 
 static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
@@ -3190,10 +3348,10 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     return false;
   }
 
-  if (thd->variables.option_bits & OPTION_AUTOCOMMIT &&
-      thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT)
-  { // activating autocommit
-
+  if (test_all_bits(thd->variables.option_bits,
+                    (OPTION_AUTOCOMMIT | OPTION_NOT_AUTOCOMMIT)))
+  {
+    // activating autocommit
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
@@ -3210,16 +3368,17 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
       transaction implicitly at the end (@sa stmt_causes_implicitcommit()).
     */
     thd->variables.option_bits&=
-                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT);
+                 ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
+                   OPTION_GTID_BEGIN);
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
 
-  if (!(thd->variables.option_bits & OPTION_AUTOCOMMIT) &&
-      !(thd->variables.option_bits & OPTION_NOT_AUTOCOMMIT))
-  { // disabling autocommit
-
+  if ((thd->variables.option_bits &
+       (OPTION_AUTOCOMMIT |OPTION_NOT_AUTOCOMMIT)) == 0)
+  {
+    // disabling autocommit
     thd->transaction.all.modified_non_trans_table= false;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
@@ -3228,6 +3387,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 
   return false; // autocommit value wasn't changed
 }
+
 static Sys_var_bit Sys_autocommit(
        "autocommit", "autocommit",
        SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTOCOMMIT, DEFAULT(TRUE),
@@ -4126,13 +4286,18 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
 
 static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
+  if (mi->using_gtid != Master_info::USE_GTID_NO)
+  {
+    my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
+    return true;
+  }
   if (mi->rli.slave_running)
   {
     my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
              mi->connection_name.str);
     return true;
   }
-  /* The value was stored temporarly in thd */
+  /* The value was stored temporarily in thd */
   mi->rli.slave_skip_counter= thd->variables.slave_skip_counter;
   return false;
 }
@@ -4476,14 +4641,14 @@ static Sys_var_ulong Sys_progress_report_time(
        "Seconds between sending progress reports to the client for "
        "time-consuming statements. Set to 0 to disable progress reporting.",
        SESSION_VAR(progress_report_time), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(56), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(5), BLOCK_SIZE(1));
 
 const char *use_stat_tables_modes[] =
            {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
        "Specifies how to use system statistics tables. Possible values are "
-       "NEVER, COMPLEMENTARY, PREVERABLY",
+       "NEVER, COMPLEMENTARY, PREFERABLY",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
        use_stat_tables_modes, DEFAULT(0));
 
@@ -4520,7 +4685,7 @@ static Sys_var_mybool Sys_query_cache_strip_comments(
 
 static ulonglong in_transaction(THD *thd)
 {
-  return test(thd->in_active_multi_stmt_transaction());
+  return MY_TEST(thd->in_active_multi_stmt_transaction());
 }
 static Sys_var_session_special Sys_in_transaction(
        "in_transaction", "Whether there is an active transaction",

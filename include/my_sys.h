@@ -782,8 +782,9 @@ extern my_bool real_open_cached_file(IO_CACHE *cache);
 extern void close_cached_file(IO_CACHE *cache);
 File create_temp_file(char *to, const char *dir, const char *pfx,
 		      int mode, myf MyFlags);
-#define my_init_dynamic_array(A,B,C,D,E) my_init_dynamic_array2(A,B,NULL,C,D,E)
-extern my_bool my_init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
+#define my_init_dynamic_array(A,B,C,D,E) init_dynamic_array2(A,B,NULL,C,D,E)
+#define my_init_dynamic_array2(A,B,C,D,E,F) init_dynamic_array2(A,B,C,D,E,F)
+extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
                                    void *init_buffer, uint init_alloc,
                                    uint alloc_increment, myf my_flags);
 extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);

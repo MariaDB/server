@@ -1175,6 +1175,15 @@ inline ulonglong char_prefix_to_ulonglong(uchar *src)
   return uint8korr(src); 
 }
 
+/*
+  Compute res = a - b, without losing precision and taking care that these are
+  unsigned numbers.
+*/
+static inline double safe_substract(ulonglong a, ulonglong b)
+{
+  return (a > b)? double(a - b) : -double(b - a);
+}
+
 
 /**
   @brief
@@ -1227,10 +1236,10 @@ double Field::pos_in_interval_val_str(Field *min, Field *max, uint data_offset)
   minp= char_prefix_to_ulonglong(minp_prefix);
   maxp= char_prefix_to_ulonglong(maxp_prefix);
   double n, d;
-  n= mp - minp;
+  n= safe_substract(mp, minp);
   if (n < 0)
     return 0.0;
-  d= maxp - minp;
+  d= safe_substract(maxp, minp);
   if (d <= 0)
     return 1.0;
   return MY_MIN(n/d, 1.0);
@@ -1774,7 +1783,7 @@ int Field_num::store_decimal(const my_decimal *val)
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int err= 0;
   longlong i= convert_decimal2longlong(val, unsigned_flag, &err);
-  return test(err | store(i, unsigned_flag));
+  return MY_TEST(err | store(i, unsigned_flag));
 }
 
 
@@ -1926,7 +1935,7 @@ int Field::store_time_dec(MYSQL_TIME *ltime, uint dec)
 
 bool Field::optimize_range(uint idx, uint part)
 {
-  return test(table->file->index_flags(idx, part, 1) & HA_READ_RANGE);
+  return MY_TEST(table->file->index_flags(idx, part, 1) & HA_READ_RANGE);
 }
 
 
@@ -4636,14 +4645,24 @@ int Field_timestamp::store_TIME_with_warning(THD *thd, MYSQL_TIME *l_time,
 }
 
 
+static bool
+copy_or_convert_to_datetime(THD *thd, const MYSQL_TIME *from, MYSQL_TIME *to)
+{
+  if (from->time_type == MYSQL_TIMESTAMP_TIME)
+    return time_to_datetime(thd, from, to);
+  *to= *from;
+  return false;
+}
+
+
 int Field_timestamp::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
   int unused;
-  MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
   THD *thd= get_thd();
-
-  bool valid= !check_date(&l_time, pack_time(&l_time) != 0,
+  MYSQL_TIME l_time;
+  bool valid= !copy_or_convert_to_datetime(thd, ltime, &l_time) &&
+              !check_date(&l_time, pack_time(&l_time) != 0,
                           (thd->variables.sql_mode & MODE_NO_ZERO_DATE) |
                                        MODE_NO_ZERO_IN_DATE, &unused);
 
@@ -5201,15 +5220,28 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
 
 int Field_temporal_with_date::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
-  int error = 0, have_smth_to_conv= 1;
-  MYSQL_TIME l_time= *ltime;
+  int error= 0, have_smth_to_conv= 1;
   ErrConvTime str(ltime);
+  MYSQL_TIME l_time;
+
+  if (copy_or_convert_to_datetime(get_thd(), ltime, &l_time))
+  {
+    /*
+      Set have_smth_to_conv and error in a way to have
+      store_TIME_with_warning do bzero().
+    */
+    have_smth_to_conv= false;
+    error= MYSQL_TIME_WARN_OUT_OF_RANGE;
+    goto store;
+  }
+
   /*
     We don't perform range checking here since values stored in TIME
     structure always fit into DATETIME range.
   */
   have_smth_to_conv= !check_date(&l_time, pack_time(&l_time) != 0,
                                  sql_mode_for_dates(current_thd), &error);
+store:
   return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
 }
 
@@ -8487,7 +8519,7 @@ int Field_bit::store_decimal(const my_decimal *val)
 {
   int err= 0;
   longlong i= convert_decimal2longlong(val, 1, &err);
-  return test(err | store(i, TRUE));
+  return MY_TEST(err | store(i, TRUE));
 }
 
 
@@ -8776,7 +8808,7 @@ Field_bit::unpack(uchar *to, const uchar *from, const uchar *from_end,
   if (param_data == 0 ||
       ((from_bit_len == bit_len) && (from_len == bytes_in_rec)))
   {
-    if (from + bytes_in_rec + test(bit_len) > from_end)
+    if (from + bytes_in_rec + MY_TEST(bit_len) > from_end)
       return 0;                                 // Error in data
 
     if (bit_len > 0)
@@ -8931,7 +8963,7 @@ void Create_field::create_length_to_internal_length(void)
     {
       pack_length= length / 8;
       /* We need one extra byte to store the bits we save among the null bits */
-      key_length= pack_length + test(length & 7);
+      key_length= pack_length + MY_TEST(length & 7);
     }
     break;
   case MYSQL_TYPE_NEWDECIMAL:

@@ -478,7 +478,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
       for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
         kcp->Move(i, Pof[i]);
 
-      MaxSame = max(MaxSame, Pof[i + 1] - Pof[i]);
+      MaxSame = MY_MAX(MaxSame, Pof[i + 1] - Pof[i]);
       } // endfor i
 
     for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
@@ -615,7 +615,7 @@ int XINDEX::ColMaxSame(PXCOL kp)
       ck2 = kof[ck2];
       } // endfor kcp
 
-    ckn = max(ckn, ck2 - ck1);
+    ckn = MY_MAX(ckn, ck2 - ck1);
     } // endfor i
 
   return ckn;

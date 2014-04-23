@@ -385,7 +385,7 @@ bool partition_info::can_prune_insert(THD* thd,
     DBUG_RETURN(true);
   }
   /* Also clears all bits. */
-  if (bitmap_init(used_partitions, bitmap_buf, num_partitions, false))
+  if (my_bitmap_init(used_partitions, bitmap_buf, num_partitions, false))
   {
     /* purecov: begin deadcode */
     /* Cannot happen, due to pre-alloc. */
@@ -1574,9 +1574,7 @@ end:
 */
 static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
 {
-#ifdef HAVE_READLINK
-  if (!my_use_symdir || (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
-#endif
+  if (thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE)
   {
     if (part_elem->data_file_name)
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,

@@ -204,7 +204,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
         PushWarning(g, thd);
         v = 'V';
       } else
-        len = min(len, 4096);
+        len = MY_MIN(len, 4096);
 
     } // endif type
 
@@ -764,7 +764,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
 
     crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
               ? fld->decimals : 0;
-    crp->Length = max(fld->length, fld->max_length);
+    crp->Length = MY_MAX(fld->length, fld->max_length);
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;
 

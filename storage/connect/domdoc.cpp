@@ -416,18 +416,24 @@ PXLIST DOMNODE::SelectNodes(PGLOBAL g, char *xp, PXLIST lp)
 /******************************************************************/
 PXNODE DOMNODE::SelectSingleNode(PGLOBAL g, char *xp, PXNODE np)
   {
-  MSXML2::IXMLDOMNodePtr dnp = Nodep->selectSingleNode(xp);
+  try {
+    MSXML2::IXMLDOMNodePtr dnp = Nodep->selectSingleNode(xp);
 
-  if (dnp) {
-    if (np) {
-      ((PDOMNODE)np)->Nodep = dnp;
-      return np;
-    } else
-      return new(g) DOMNODE(Doc, dnp);
+    if (dnp) {
+      if (np) {
+        ((PDOMNODE)np)->Nodep = dnp;
+        return np;
+      } else
+        return new(g) DOMNODE(Doc, dnp);
 
-  } else
-    return NULL;
+      } // endif dnp
 
+  } catch(_com_error e) {
+    sprintf(g->Message, "%s: %s", MSG(COM_ERROR), 
+            _com_util::ConvertBSTRToString(e.Description()));
+  } catch(...) {}
+
+  return NULL;
   } // end of SelectSingleNode
 
 /******************************************************************/

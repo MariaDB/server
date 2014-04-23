@@ -1,4 +1,3 @@
-
 /*************** Tabxml H Declares Source Code File (.H) ***************/
 /*  Name: TABXML.H    Version 1.6                                      */
 /*                                                                     */
@@ -169,15 +168,15 @@ class XMLCOL : public COLBLK {
   XMLCOL(void) : COLBLK(1) {}
 
   // Members
-  PXLIST  Nl;
-  PXLIST  Nlx;
-  PXNODE  ColNode;
-  PXNODE  ValNode;
-  PXNODE  Cxnp;
-  PXNODE  Vxnp;
-  PXATTR  Vxap;
-  PXATTR  AttNode;
-  PTDBXML Tdbp;
+  PXLIST  Nl;              
+  PXLIST  Nlx;            
+  PXNODE  ColNode;        
+  PXNODE  ValNode;        
+  PXNODE  Cxnp;            
+  PXNODE  Vxnp;            
+  PXATTR  Vxap;            
+  PXATTR  AttNode;            
+  PTDBXML Tdbp;                          
   char   *Valbuf;                 // To the node value buffer
   char   *Xname;                  // The node or attribute name
   char*  *Nodes;                  // The intermediate nodes
@@ -190,6 +189,7 @@ class XMLCOL : public COLBLK {
   int     Long;                   // Buffer length
   int     Nx;                     // The last read row
   int     Sx;                     // The last read sub-row
+  int     N;                      // The number of (multiple) values
   PVAL    To_Val;                 // To value used for Update/Insert
   }; // end of class XMLCOL
 

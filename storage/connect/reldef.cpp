@@ -242,7 +242,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       case TAB_VEC:
       case TAB_DBF:
         poff= loff + nof;				 // Default next offset
-				nlg= max(nlg, poff);		 // Default lrecl
+				nlg= MY_MAX(nlg, poff);		 // Default lrecl
         break;
       case TAB_CSV:
       case TAB_FMT:
@@ -367,7 +367,7 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
       } // endswitch tc
 
 		// lrecl must be at least recln to avoid buffer overflow
-		recln= max(recln, Hc->GetIntegerOption("Lrecl"));
+		recln= MY_MAX(recln, Hc->GetIntegerOption("Lrecl"));
 		Hc->SetIntegerOption("Lrecl", recln);
 		((PDOSDEF)this)->SetLrecl(recln);
 		} // endif Lrecl

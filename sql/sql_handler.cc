@@ -1115,8 +1115,6 @@ void mysql_ha_flush(THD *thd)
   SQL_HANDLER *hash_tables;
   DBUG_ENTER("mysql_ha_flush");
 
-  mysql_mutex_assert_not_owner(&LOCK_open);
-
   /*
     Don't try to flush open HANDLERs when we're working with
     system tables. The main MDL context is backed up and we can't
@@ -1135,7 +1133,7 @@ void mysql_ha_flush(THD *thd)
         ((hash_tables->table->mdl_ticket &&
          hash_tables->table->mdl_ticket->has_pending_conflicting_lock()) ||
          (!hash_tables->table->s->tmp_table &&
-          hash_tables->table->s->has_old_version())))
+          hash_tables->table->s->tdc.flushed)))
       mysql_ha_close_table(hash_tables);
   }
 

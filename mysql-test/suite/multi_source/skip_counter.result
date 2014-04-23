@@ -1,9 +1,11 @@
 drop database if exists db;
 create database db;
+create table db.this_will_not_be_replicated (i int) engine=MyISAM;
 create table db.t1 (i int) engine=MyISAM;
+create table db.t2 (i int) engine=MyISAM;
 drop database if exists db;
 create database db;
-create table db.t2 (i int) engine=MyISAM;
+create table db.t3 (i int) engine=MyISAM;
 change master 'master1' to
 master_port=MYPORT_1,
 master_host='127.0.0.1',
@@ -37,7 +39,7 @@ select @@global.sql_slave_skip_counter;
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
 0
-set global sql_slave_skip_counter= 5;
+set global sql_slave_skip_counter= 4;
 set default_master_connection = 'master1';
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
@@ -51,7 +53,7 @@ Warning	1617	There is no master connection 'qqq'
 set default_master_connection = 'master2';
 select @@session.sql_slave_skip_counter;
 @@session.sql_slave_skip_counter
-5
+4
 select @@global.max_relay_log_size;
 @@global.max_relay_log_size
 1073741824
@@ -102,6 +104,8 @@ show tables in db;
 Tables_in_db
 t1
 t2
+t3
+this_will_not_be_replicated
 drop database db;
 set global sql_slave_skip_counter = 0;
 set global max_relay_log_size = 1073741824;

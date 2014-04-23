@@ -1,6 +1,5 @@
-/* Copyright (c) 2001 Jan Pazdziora.
-   Copyright (c) 2002-2007 MySQL AB
-   Copyright (c) 2009-2011, Monty Program Ab
+/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -504,12 +503,12 @@ my_strnxfrm_win1250ch(CHARSET_INFO *cs  __attribute__((unused)),
   if (!(flags & 0x0F)) /* All levels by default */                              
     flags|= 0x0F;
 
-  for (;;)
+  while (totlen < len)
   {
     NEXT_CMP_VALUE(src, p, pass, value, (int)srclen);
     if (!value)
       break;
-    if (totlen <= len && ((1 << pass) & flags))
+    if ((1 << pass) & flags)
       dest[totlen++] = value;
   }
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && len > totlen)

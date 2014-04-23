@@ -167,10 +167,10 @@ static inline uint get_first_set(my_bitmap_map value, uint word_pos)
 }
 
 
-my_bool bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
-		    my_bool thread_safe __attribute__((unused)))
+my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
+                       my_bool thread_safe __attribute__((unused)))
 {
-  DBUG_ENTER("bitmap_init");
+  DBUG_ENTER("my_bitmap_init");
   if (!buf)
   {
     uint size_in_bytes= bitmap_buffer_size(n_bits);
@@ -202,9 +202,9 @@ my_bool bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
 }
 
 
-void bitmap_free(MY_BITMAP *map)
+void my_bitmap_free(MY_BITMAP *map)
 {
-  DBUG_ENTER("bitmap_free");
+  DBUG_ENTER("my_bitmap_free");
   if (map->bitmap)
   {
     if (map->mutex)

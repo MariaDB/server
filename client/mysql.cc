@@ -1,6 +1,7 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2013, 2014, SkySQL Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -915,6 +916,7 @@ static COMMANDS commands[] = {
   { "MAKE_SET", 0, 0, 0, ""},
   { "MAKEDATE", 0, 0, 0, ""},
   { "MAKETIME", 0, 0, 0, ""},
+  { "MASTER_GTID_WAIT", 0, 0, 0, ""},
   { "MASTER_POS_WAIT", 0, 0, 0, ""},
   { "MAX", 0, 0, 0, ""},
   { "MBRCONTAINS", 0, 0, 0, ""},
@@ -1175,12 +1177,9 @@ int main(int argc,char *argv[])
     exit(1);
   }
   defaults_argv=argv;
-  if (get_options(argc, (char **) argv))
-  {
-    free_defaults(defaults_argv);
-    my_end(0);
-    exit(1);
-  }
+  if ((status.exit_status= get_options(argc, (char **) argv)))
+    mysql_end(-1);
+
   if (status.batch && !status.line_buff &&
       !(status.line_buff= batch_readline_init(MAX_BATCH_BUFFER_SIZE, stdin)))
   {
@@ -1876,7 +1875,7 @@ static int get_options(int argc, char **argv)
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
 
   if ((ho_error=handle_options(&argc, &argv, my_long_options, get_one_option)))
-    exit(ho_error);
+    return(ho_error);
 
   *mysql_params->p_max_allowed_packet= opt_max_allowed_packet;
   *mysql_params->p_net_buffer_length= opt_net_buffer_length;

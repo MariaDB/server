@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -639,7 +639,8 @@ int spider_db_show_table_status(
 
 int spider_db_show_records(
   ha_spider *spider,
-  int link_idx
+  int link_idx,
+  bool pre_call
 );
 
 void spider_db_set_cardinarity(

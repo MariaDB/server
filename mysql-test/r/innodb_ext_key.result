@@ -327,7 +327,7 @@ from lineitem use index (i_l_shipdate, i_l_receiptdate)
 where l_shipdate='1992-07-01' and l_orderkey=130 
 or l_receiptdate='1992-07-01' and l_orderkey=5603;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	lineitem	index_merge	i_l_shipdate,i_l_receiptdate	i_l_shipdate,i_l_receiptdate	8,8	NULL	2	Using sort_union(i_l_shipdate,i_l_receiptdate); Using where
+1	SIMPLE	lineitem	index_merge	i_l_shipdate,i_l_receiptdate	i_l_shipdate,i_l_receiptdate	8,8	NULL	2	Using union(i_l_shipdate,i_l_receiptdate); Using where
 flush status;
 select l_orderkey, l_linenumber 
 from lineitem use index (i_l_shipdate, i_l_receiptdate)

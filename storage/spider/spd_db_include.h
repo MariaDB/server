@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -26,9 +26,18 @@
 #define SPIDER_HAS_SHOW_SIMPLE_FUNC
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100007
+#define SPIDER_HAS_DISCOVER_TABLE_STRUCTURE_COMMENT
+#define SPIDER_ITEM_HAS_CMP_TYPE
+#endif
+
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
 #define SPIDER_HAS_TIME_STATUS
 #define SPIDER_HAS_DECIMAL_OPERATION_RESULTS_VALUE_TYPE
+#endif
+
+#if defined(MARIADB_BASE_VERSION)
+#define SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
 #endif
 
 class spider_db_conn;
@@ -1120,7 +1129,8 @@ public:
     KEY_PART_INFO *key_part,
     const key_range *key,
     const uchar **ptr,
-    bool key_eq
+    bool key_eq,
+    bool tgt_final
   ) = 0;
   virtual int append_where_terminator_part(
     ulong sql_type,
@@ -1154,6 +1164,13 @@ public:
   virtual void set_order_to_pos(
     ulong sql_type
   ) = 0;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  virtual int append_group_by_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  ) = 0;
+#endif
   virtual int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,
@@ -1578,6 +1595,8 @@ typedef struct st_spider_result_list
   uint                    *sql_kind_backup;
   uint                    sql_kinds_backup;
   bool                    use_union;
+  bool                    use_both_key;
+  const key_range         *end_key;
   spider_string           *insert_sqls;
   spider_string           *update_sqls;
   TABLE                   **upd_tmp_tbls;
@@ -1624,6 +1643,7 @@ typedef struct st_spider_result_list
   longlong                first_read;
   longlong                second_read;
   int                     set_split_read_count;
+  int                     *casual_read;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   /* 0:nomal 1:store 2:store end */
   volatile

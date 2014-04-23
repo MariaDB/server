@@ -487,7 +487,7 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
         return true;
         } // endif
 
-    req = (size_t)min(n, Dbflen);
+    req = (size_t)MY_MIN(n, Dbflen);
     len = fread(DelBuf, Lrecl, req, Stream);
 
     if (trace > 1)
@@ -1345,7 +1345,7 @@ bool BGXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
       if (BigSeek(g, Hfile, (BIGINT)Spos * (BIGINT)Lrecl))
         return true;
 
-    req = min(n, Dbflen) * Lrecl;
+    req = MY_MIN(n, Dbflen) * Lrecl;
 
     if ((nbr = BigRead(g, Hfile, DelBuf, req)) != req) {
       sprintf(g->Message, MSG(DEL_READ_ERROR), req, nbr);

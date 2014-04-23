@@ -144,7 +144,7 @@ my_bool my_net_init(NET *net, Vio* vio, uint my_flags)
   net->net_skip_rest_factor= 0;
   net->last_errno=0;
   net->unused= 0;
-  net->thread_specific_malloc= test(my_flags & MY_THREAD_SPECIFIC);
+  net->thread_specific_malloc= MY_TEST(my_flags & MY_THREAD_SPECIFIC);
 #ifdef MYSQL_SERVER
   net->extension= NULL;
 #endif
@@ -267,7 +267,7 @@ static int net_data_is_ready(my_socket sd)
   if ((res= select((int) (sd + 1), &sfds, NULL, NULL, &tv)) < 0)
     return 0;
   else
-    return test(res ? FD_ISSET(sd, &sfds) : 0);
+    return MY_TEST(res ? FD_ISSET(sd, &sfds) : 0);
 #endif /* HAVE_POLL */
 }
 
@@ -360,8 +360,8 @@ my_bool net_flush(NET *net)
   DBUG_ENTER("net_flush");
   if (net->buff != net->write_pos)
   {
-    error=test(net_real_write(net, net->buff,
-			      (size_t) (net->write_pos - net->buff)));
+    error= MY_TEST(net_real_write(net, net->buff,
+                                  (size_t) (net->write_pos - net->buff)));
     net->write_pos= net->buff;
   }
   /* Sync packet number if using compression */
@@ -424,7 +424,7 @@ my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 #ifndef DEBUG_DATA_PACKETS
   DBUG_DUMP("packet_header", buff, NET_HEADER_SIZE);
 #endif
-  rc= test(net_write_buff(net,packet,len));
+  rc= MY_TEST(net_write_buff(net, packet, len));
   MYSQL_NET_WRITE_DONE(rc);
   return rc;
 }
@@ -498,9 +498,9 @@ net_write_command(NET *net,uchar command,
   }
   int3store(buff,length);
   buff[3]= (uchar) net->pkt_nr++;
-  rc= test(net_write_buff(net, buff, header_size) ||
-           (head_len && net_write_buff(net, header, head_len)) ||
-           net_write_buff(net, packet, len) || net_flush(net));
+  rc= MY_TEST(net_write_buff(net, buff, header_size) ||
+              (head_len && net_write_buff(net, header, head_len)) ||
+              net_write_buff(net, packet, len) || net_flush(net));
   MYSQL_NET_WRITE_DONE(rc);
   DBUG_RETURN(rc);
 }

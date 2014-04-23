@@ -118,7 +118,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
     } // endif fn
 
   imax = hmax = nerr = 0;
-  mxr = max(0, mxr);
+  mxr = MY_MAX(0, mxr);
 
   for (i = 0; i < MAXCOL; i++) {
     colname[i] = NULL;
@@ -190,7 +190,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
     imax = hmax = i;
 
     for (i = 0; i < hmax; i++)
-      length[0] = max(length[0], strlen(colname[i]));
+      length[0] = MY_MAX(length[0], strlen(colname[i]));
 
     } // endif hdr
 
@@ -228,11 +228,11 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
             } // endif i
 
           if (n) {
-            len[i] = max(len[i], n);
+            len[i] = MY_MAX(len[i], n);
             type = (digit || (dec && n == 1)) ? TYPE_STRING
                  : (dec) ? TYPE_DOUBLE : TYPE_INT;
-            typ[i] = min(type, typ[i]);
-            prc[i] = max((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
+            typ[i] = MY_MIN(type, typ[i]);
+            prc[i] = MY_MAX((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
             } // endif n
 
           i++;
@@ -308,14 +308,14 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
         goto skip;
 
     if (n) {
-      len[i] = max(len[i], n);
+      len[i] = MY_MAX(len[i], n);
       type = (digit || n == 0 || (dec && n == 1)) ? TYPE_STRING
            : (dec) ? TYPE_DOUBLE : TYPE_INT;
-      typ[i] = min(type, typ[i]);
-      prc[i]  = max((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
+      typ[i] = MY_MIN(type, typ[i]);
+      prc[i]  = MY_MAX((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
       } // endif n
 
-    imax = max(imax, i+1);
+    imax = MY_MAX(imax, i+1);
    skip: ;                  // Skip erroneous line
     } // endfor num_read
 
@@ -598,7 +598,7 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
       if (!colp->IsSpecial())  // Not a pseudo column
-        Fields = max(Fields, (int)colp->Fldnum);
+        Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
     if (Columns)
       Fields++;           // Fldnum was 0 based
@@ -641,7 +641,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
       if (Mode != MODE_UPDATE && Mode != MODE_INSERT) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
           if (!colp->IsSpecial())  // Not a pseudo column
-            Fields = max(Fields, (int)colp->Fldnum);
+            Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
         if (Columns)
           Fields++;           // Fldnum was 0 based
@@ -1101,7 +1101,7 @@ bool TDBFMT::OpenDB(PGLOBAL g)
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
       if (!colp->IsSpecial())  // Not a pseudo column
-        Fields = max(Fields, (int)colp->Fldnum);
+        Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
     if (Columns)
       Fields++;                // Fldnum was 0 based

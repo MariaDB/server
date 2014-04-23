@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2013 Kentoku Shiba
+/* Copyright (C) 2009-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -719,7 +719,7 @@ int spider_udf_copy_tables_create_table_list(
       &copy_tables->link_idxs[1],
         sizeof(int) * copy_tables->link_idx_count[1],
       &tmp_name_ptr, sizeof(char) * (
-        spider_table_name_length * 2 + copy_tables->database_length + 2
+        spider_table_name_length * 2 + copy_tables->database_length + 3
       ),
       NullS))
   ) {
@@ -849,6 +849,7 @@ long long spider_copy_tables_body(
   MEM_ROOT mem_root;
   longlong bulk_insert_rows;
   Reprepare_observer *reprepare_observer_backup;
+  uint tmp_conn_link_idx = 0;
   DBUG_ENTER("spider_copy_tables_body");
   if (
     thd->open_tables != 0 ||
@@ -989,6 +990,7 @@ long long spider_copy_tables_body(
     table_list->table_name_length));
   reprepare_observer_backup = thd->m_reprepare_observer;
   thd->m_reprepare_observer = NULL;
+  copy_tables->trx->trx_start = TRUE;
 #if MYSQL_VERSION_ID < 50500
   if (open_and_lock_tables(thd, table_list))
 #else
@@ -1003,12 +1005,14 @@ long long spider_copy_tables_body(
 #endif
   {
     thd->m_reprepare_observer = reprepare_observer_backup;
+    copy_tables->trx->trx_start = FALSE;
     my_printf_error(ER_SPIDER_UDF_CANT_OPEN_TABLE_NUM,
       ER_SPIDER_UDF_CANT_OPEN_TABLE_STR, MYF(0), table_list->db,
       table_list->table_name);
     goto error;
   }
   thd->m_reprepare_observer = reprepare_observer_backup;
+  copy_tables->trx->trx_start = FALSE;
 
   table = table_list->table;
   table_share = table->s;
@@ -1093,6 +1097,7 @@ long long spider_copy_tables_body(
   for (roop_count = 0; roop_count < all_link_cnt; roop_count++)
   {
     spider[roop_count].conns = NULL;
+    spider[roop_count].change_table_ptr(table, table_share);
   }
   for (roop_count = 0, table_conn = copy_tables->table_conn[0];
     table_conn; roop_count++, table_conn = table_conn->next)
@@ -1123,6 +1128,7 @@ long long spider_copy_tables_body(
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
     tmp_spider->lock_type = TL_READ;
+    tmp_spider->conn_link_idx = &tmp_conn_link_idx;
     uint dbton_id = tmp_spider->share->use_dbton_ids[0];
     if (!(tmp_spider->dbton_handler[dbton_id] =
       spider_dbton[dbton_id].create_db_handler(tmp_spider,
@@ -1166,6 +1172,7 @@ long long spider_copy_tables_body(
     tmp_spider->result_list.sqls = &tmp_sql[roop_count];
     tmp_spider->need_mons = &table_conn->need_mon;
     tmp_spider->lock_type = TL_WRITE;
+    tmp_spider->conn_link_idx = &tmp_conn_link_idx;
     uint dbton_id = tmp_spider->share->use_dbton_ids[0];
     if (!(tmp_spider->dbton_handler[dbton_id] =
       spider_dbton[dbton_id].create_db_handler(tmp_spider,
@@ -1293,7 +1300,9 @@ error:
     delete [] tmp_sql;
   }
   if (copy_tables)
+  {
     spider_udf_free_copy_tables_alloc(copy_tables);
+  }
   *error = 1;
   DBUG_RETURN(0);
 }
@@ -1338,6 +1347,6 @@ void spider_copy_tables_deinit_body(
     !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN) &&
     (trx = spider_get_trx(thd, TRUE, &error_num))
   )
-    spider_free_trx_conn(trx, FALSE);
+    spider_copy_table_free_trx_conn(trx);
   DBUG_VOID_RETURN;
 }

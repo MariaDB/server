@@ -639,7 +639,7 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 {
   TABTYPE type;
   
-  if (pos || (pos= GetTableOptionStruct(table))) {
+  if (pos || (pos= GetTableOptionStruct())) {
     type= GetTypeID(pos->type);
 
     if (type == TAB_UNDEF)
@@ -652,6 +652,50 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 } // end of GetRealType
 
 /** @brief
+  The name of the index type that will be used for display.
+  Don't implement this method unless you really have indexes.
+ */
+const char *ha_connect::index_type(uint inx) 
+{ 
+  switch (GetIndexType(GetRealType())) {
+    case 1: return "XPLUG";
+    case 2: return "REMOTE";
+    } // endswitch
+
+  return "Unknown";
+} // end of index_type
+
+/** @brief
+  This is a bitmap of flags that indicates how the storage engine
+  implements indexes. The current index flags are documented in
+  handler.h. If you do not implement indexes, just return zero here.
+
+    @details
+  part is the key part to check. First key part is 0.
+  If all_parts is set, MySQL wants to know the flags for the combined
+  index, up to and including 'part'.
+*/
+ulong ha_connect::index_flags(uint inx, uint part, bool all_parts) const
+{
+  ulong       flags= HA_READ_NEXT | HA_READ_RANGE |
+                     HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
+  ha_connect *hp= (ha_connect*)this;
+  PTOS        pos= hp->GetTableOptionStruct();
+
+  if (pos) {
+    TABTYPE type= hp->GetRealType(pos);
+
+    switch (GetIndexType(type)) {
+      case 1: flags|= (HA_READ_ORDER | HA_READ_PREV); break;
+      case 2: flags|= HA_READ_AFTER_KEY;              break;
+      } // endswitch
+
+    } // endif pos
+
+  return flags;
+} // end of index_flags
+
+/** @brief
   This is a list of flags that indicate what functionality the storage
   engine implements. The current table flags are documented in handler.h
 */
@@ -659,14 +703,14 @@ ulonglong ha_connect::table_flags() const
 {
   ulonglong   flags= HA_CAN_VIRTUAL_COLUMNS | HA_REC_NOT_IN_SEQ |
                      HA_NO_AUTO_INCREMENT | HA_NO_PREFIX_CHAR_KEYS |
-//                   HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
+                     HA_BINLOG_ROW_CAPABLE | HA_BINLOG_STMT_CAPABLE |
                      HA_PARTIAL_COLUMN_READ | HA_FILE_BASED |
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
                      HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN;
   ha_connect *hp= (ha_connect*)this;
-  PTOS        pos= hp->GetTableOptionStruct(table);
+  PTOS        pos= hp->GetTableOptionStruct();
 
   if (pos) {
     TABTYPE type= hp->GetRealType(pos);
@@ -716,7 +760,7 @@ char *GetListOption(PGLOBAL g, const char *opname,
 
     } else {
       if (pn) {
-        n= min(pn - pk, 15);
+        n= MY_MIN(pn - pk, 15);
         memcpy(key, pk, n);
         key[n]= 0;
       } else
@@ -740,10 +784,11 @@ char *GetListOption(PGLOBAL g, const char *opname,
 /****************************************************************************/
 /*  Return the table option structure.                                      */
 /****************************************************************************/
-PTOS ha_connect::GetTableOptionStruct(TABLE *tab)
+PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 {
-  return (tshp) ? tshp->option_struct :
-    (tab) ? tab->s->option_struct : NULL;
+  TABLE_SHARE *tsp= (tshp) ? tshp : (s) ? s : table_share;
+
+  return (tsp) ? tsp->option_struct : NULL;
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
@@ -752,7 +797,7 @@ PTOS ha_connect::GetTableOptionStruct(TABLE *tab)
 char *ha_connect::GetStringOption(char *opname, char *sdef)
 {
   char *opval= NULL;
-  PTOS  options= GetTableOptionStruct(table);
+  PTOS  options= GetTableOptionStruct();
 
   if (!options)
     ;
@@ -824,10 +869,10 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
 {
   bool  opval= bdef;
   char *pv;
-  PTOS  options= GetTableOptionStruct(table);
+  PTOS  options= GetTableOptionStruct();
 
   if (!stricmp(opname, "View"))
-    opval= (tshp) ? tshp->is_view : table->s->is_view;
+    opval= (tshp) ? tshp->is_view : table_share->is_view;
   else if (!options)
     ;
   else if (!stricmp(opname, "Mapped"))
@@ -855,7 +900,7 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
 /****************************************************************************/
 bool ha_connect::SetBooleanOption(char *opname, bool b)
 {
-  PTOS options= GetTableOptionStruct(table);
+  PTOS options= GetTableOptionStruct();
 
   if (!options)
     return true;
@@ -875,7 +920,7 @@ int ha_connect::GetIntegerOption(char *opname)
 {
   ulonglong opval= NO_IVAL;
   char     *pv;
-  PTOS      options= GetTableOptionStruct(table);
+  PTOS      options= GetTableOptionStruct();
 
   if (!options)
     ;
@@ -912,7 +957,7 @@ int ha_connect::GetIntegerOption(char *opname)
 /****************************************************************************/
 bool ha_connect::SetIntegerOption(char *opname, int n)
 {
-  PTOS options= GetTableOptionStruct(table);
+  PTOS options= GetTableOptionStruct();
 
   if (!options)
     return true;
@@ -1034,7 +1079,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
       break;
     case TYPE_DOUBLE:
-      pcf->Scale= max(min(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
+      pcf->Scale= MY_MAX(MY_MIN(fp->decimals(), ((unsigned)pcf->Length - 2)), 0);
       break;
     case TYPE_DECIM:
       pcf->Precision= ((Field_new_decimal*)fp)->precision;
@@ -1178,7 +1223,7 @@ const char *ha_connect::GetDBName(const char* name)
 
 const char *ha_connect::GetTableName(void)
 {
-  return (tshp) ? tshp->table_name.str : table->s->table_name.str;
+  return (tshp) ? tshp->table_name.str : table_share->table_name.str;
 } // end of GetTableName
 
 #if 0
@@ -1668,7 +1713,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
   for (kpart= kfp->key_part; rem; rem--, kpart++) {
     fp= kpart->field;
     stlen= kpart->store_length;
-//  prtlen= min(stlen, len);
+//  prtlen= MY_MIN(stlen, len);
     nq= fp->str_needs_quotes();
 
     if (b)
@@ -1717,7 +1762,7 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
     /* For nullable columns, null-byte is already skipped before, that is
       ptr was incremented by 1. Since store_length still counts null-byte,
       we need to subtract 1 from store_length. */
-    ptr+= stlen - test(kpart->null_bit);
+    ptr+= stlen - MY_TEST(kpart->null_bit);
     } // endfor kpart
 
   strcat(qry, ")");
@@ -3159,8 +3204,8 @@ int ha_connect::info(uint flag)
 
   if (flag & HA_STATUS_CONST) {
     // This is imported from the previous handler and must be reconsidered
-    stats.max_data_file_length= 4294967295;
-    stats.max_index_file_length= 4398046510080;
+    stats.max_data_file_length= 4294967295LL;
+    stats.max_index_file_length= 4398046510080LL;
     stats.create_time= 0;
     data_file_name= xinfo.data_file_name;
     index_file_name= NULL;
@@ -3527,7 +3572,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   int     rc= 0;
   bool    xcheck=false, cras= false;
   MODE    newmode;
-  PTOS    options= GetTableOptionStruct(table);
+  PTOS    options= GetTableOptionStruct();
   PGLOBAL g= GetPlug(thd, xp);
   DBUG_ENTER("ha_connect::external_lock");
 
@@ -4141,11 +4186,11 @@ static bool add_field(String *sql, const char *field_name, int typ,
     if (!strcmp(type, "DOUBLE")) {
       error|= sql->append(',');
       // dec must be < len and < 31
-      error|= sql->append_ulonglong(min(dec, (min(len, 31) - 1)));
+      error|= sql->append_ulonglong(MY_MIN(dec, (MY_MIN(len, 31) - 1)));
     } else if (dec > 0 && !strcmp(type, "DECIMAL")) {
       error|= sql->append(',');
       // dec must be < len
-      error|= sql->append_ulonglong(min(dec, len - 1));
+      error|= sql->append_ulonglong(MY_MIN(dec, len - 1));
     } // endif dec
 
     error|= sql->append(')');
@@ -4446,7 +4491,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *create_info)
 {
-  char        v, spc= ',', qch= 0;
+  char        v=0, spc= ',', qch= 0;
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
@@ -4513,7 +4558,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     cls= GetListOption(g, "class", topt->oplist);
 #endif   // WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
+#if defined(ODBC_SUPPORT)
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+#endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
     cop= atoi(GetListOption(g, "checkdsn", topt->oplist, "0"));
@@ -4991,7 +5038,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   DBUG_ENTER("ha_connect::create");
   int  sqlcom= thd_sql_command(table_arg->in_use);
-  PTOS options= GetTableOptionStruct(table_arg);
+  PTOS options= GetTableOptionStruct(table_arg->s);
 
   table= table_arg;         // Used by called functions
 
@@ -5325,8 +5372,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
     } else
       ::close(h);
-
-    if (type == TAB_FMT || options->readonly)
+    
+    if ((type == TAB_FMT || options->readonly) && sqlcom == SQLCOM_CREATE_TABLE)
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Congratulation, you just created a read-only void table!");
 
@@ -5564,7 +5611,6 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   int             sqlcom= thd_sql_command(thd);
   TABTYPE         newtyp, type= TAB_UNDEF;
   HA_CREATE_INFO *create_info= ha_alter_info->create_info;
-//PTOS            pos= GetTableOptionStruct(table);
   PTOS            newopt, oldopt;
   xp= GetUser(thd, xp);
   PGLOBAL         g= xp->g;
@@ -5772,7 +5818,7 @@ ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
   ds_mrr.init(this, table);
 
   // MMR is implemented for "local" file based tables only
-  if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
+  if (!IsFileType(GetRealType(GetTableOptionStruct())))
     *flags|= HA_MRR_USE_DEFAULT_IMPL;
 
   ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
@@ -5788,7 +5834,7 @@ ha_rows ha_connect::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
   ds_mrr.init(this, table);
 
   // MMR is implemented for "local" file based tables only
-  if (!IsFileType(GetRealType(GetTableOptionStruct(table))))
+  if (!IsFileType(GetRealType(GetTableOptionStruct())))
     *flags|= HA_MRR_USE_DEFAULT_IMPL;
 
   ha_rows rows= ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz,
