@@ -1,0 +1,56 @@
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** MDEV-6156: Parallel replication incorrectly caches charset between worker threads ***
+
+--connection server_2
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
+SHOW CREATE TABLE t1;
+SET character_set_client=latin1;
+INSERT INTO t1 VALUES (1, 'Rødgrød med fløde 1');
+INSERT INTO t1 VALUES (2, 'Rødgrød med fløde 2');
+INSERT INTO t1 VALUES (3, 'Rødgrød med fløde 3');
+INSERT INTO t1 VALUES (4, 'Rødgrød med fløde 4');
+INSERT INTO t1 VALUES (5, 'Rødgrød med fløde 5');
+INSERT INTO t1 VALUES (6, 'Rødgrød med fløde 6');
+INSERT INTO t1 VALUES (7, 'Rødgrød med fløde 7');
+INSERT INTO t1 VALUES (8, 'Rødgrød med fløde 8');
+INSERT INTO t1 VALUES (9, 'Rødgrød med fløde 9');
+INSERT INTO t1 VALUES (10, 'Rødgrød med fløde 10');
+SET character_set_client=utf8;
+INSERT INTO t1 VALUES (11, 'RÃ¸dgrÃ¸d med flÃ¸de 1');
+INSERT INTO t1 VALUES (12, 'RÃ¸dgrÃ¸d med flÃ¸de 2');
+INSERT INTO t1 VALUES (13, 'RÃ¸dgrÃ¸d med flÃ¸de 3');
+INSERT INTO t1 VALUES (14, 'RÃ¸dgrÃ¸d med flÃ¸de 4');
+INSERT INTO t1 VALUES (15, 'RÃ¸dgrÃ¸d med flÃ¸de 5');
+INSERT INTO t1 VALUES (16, 'RÃ¸dgrÃ¸d med flÃ¸de 6');
+INSERT INTO t1 VALUES (17, 'RÃ¸dgrÃ¸d med flÃ¸de 7');
+INSERT INTO t1 VALUES (18, 'RÃ¸dgrÃ¸d med flÃ¸de 8');
+INSERT INTO t1 VALUES (19, 'RÃ¸dgrÃ¸d med flÃ¸de 9');
+INSERT INTO t1 VALUES (20, 'RÃ¸dgrÃ¸d med flÃ¸de 10');
+SET character_set_results=utf8;
+SELECT * FROM t1 ORDER BY a;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+SET character_set_results=utf8;
+SELECT * FROM t1 ORDER BY a;
+
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc

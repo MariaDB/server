@@ -4153,7 +4153,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
                    (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
       if (charset_inited)
       {
-        if (rli->cached_charset_compare(charset))
+        if (rgi->cached_charset_compare(charset))
         {
           /* Verify that we support the charsets found in the event. */
           if (!(thd->variables.character_set_client=
@@ -4169,7 +4169,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
               stop with EE_UNKNOWN_CHARSET in compare_errors (unless set to
               ignore this error).
             */
-            set_slave_thread_default_charset(thd, rli);
+            set_slave_thread_default_charset(thd, rgi);
             goto compare_errors;
           }
           thd->update_charset(); // for the charset change to take effect
@@ -6211,7 +6211,7 @@ int Rotate_log_event::do_update_pos(rpl_group_info *rgi)
       master is 4.0 then the events are in the slave's format (conversion).
     */
     set_slave_thread_options(thd);
-    set_slave_thread_default_charset(thd, rli);
+    set_slave_thread_default_charset(thd, rgi);
     thd->variables.sql_mode= global_system_variables.sql_mode;
     thd->variables.auto_increment_increment=
       thd->variables.auto_increment_offset= 1;

@@ -295,7 +295,6 @@ public:
   /* Condition for UNTIL master_gtid_pos. */
   slave_connection_state until_gtid_pos;
 
-  char cached_charset[6];
   /*
     retried_trans is a cumulative counter: how many times the slave
     has retried a transaction (any) since slave started.
@@ -370,15 +369,6 @@ public:
     return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_pos :
 	    group_relay_log_pos);
   }
-
-  /*
-    Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
-    the thread save 3 get_charset() per Query_log_event if the charset is not
-    changing from event to event (common situation).
-    When the 6 bytes are equal to 0 is used to mean "cache is invalidated".
-  */
-  void cached_charset_invalidate();
-  bool cached_charset_compare(char *charset) const;
 
   /**
     Helper function to do after statement completion.
@@ -546,6 +536,8 @@ struct rpl_group_info
   mysql_mutex_t sleep_lock;
   mysql_cond_t sleep_cond;
 
+  char cached_charset[6];
+
   /*
     trans_retries varies between 0 to slave_transaction_retries and counts how
     many times the slave has retried the present transaction; gets reset to 0
@@ -678,6 +670,15 @@ struct rpl_group_info
       }
     return false;
   }
+
+  /*
+    Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
+    the thread save 3 get_charset() per Query_log_event if the charset is not
+    changing from event to event (common situation).
+    When the 6 bytes are equal to 0 is used to mean "cache is invalidated".
+  */
+  void cached_charset_invalidate();
+  bool cached_charset_compare(char *charset) const;
 
   void clear_tables_to_lock();
   void cleanup_context(THD *, bool);

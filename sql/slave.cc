@@ -2879,7 +2879,7 @@ void set_slave_thread_options(THD* thd)
   DBUG_VOID_RETURN;
 }
 
-void set_slave_thread_default_charset(THD* thd, Relay_log_info const *rli)
+void set_slave_thread_default_charset(THD* thd, rpl_group_info *rgi)
 {
   DBUG_ENTER("set_slave_thread_default_charset");
 
@@ -2891,13 +2891,7 @@ void set_slave_thread_default_charset(THD* thd, Relay_log_info const *rli)
     global_system_variables.collation_server;
   thd->update_charset();
 
-  /*
-    We use a const cast here since the conceptual (and externally
-    visible) behavior of the function is to set the default charset of
-    the thread.  That the cache has to be invalidated is a secondary
-    effect.
-   */
-  const_cast<Relay_log_info*>(rli)->cached_charset_invalidate();
+  rgi->cached_charset_invalidate();
   DBUG_VOID_RETURN;
 }
 
@@ -4682,7 +4676,7 @@ err_during_init:
   mysql_cond_broadcast(&rli->data_cond);
   rli->ignore_log_space_limit= 0; /* don't need any lock */
   /* we die so won't remember charset - re-update them on next thread start */
-  rli->cached_charset_invalidate();
+  serial_rgi->cached_charset_invalidate();
 
   /*
     TODO: see if we can do this conditionally in next_event() instead
