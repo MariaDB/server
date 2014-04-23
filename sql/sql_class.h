@@ -516,6 +516,7 @@ typedef struct system_variables
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
+  ulonglong default_regex_flags;
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;

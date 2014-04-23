@@ -5055,6 +5055,11 @@ bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
 }
 
 
+int Regexp_processor_pcre::default_regex_flags()
+{
+  return default_regex_flags_pcre(current_thd);
+}
+
 
 /**
   Convert string to lib_charset, if needed.

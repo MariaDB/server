@@ -1513,9 +1513,10 @@ public:
     m_library_charset(&my_charset_utf8_general_ci),
     m_subpatterns_needed(0)
   {}
+  int default_regex_flags();
   void init(CHARSET_INFO *data_charset, int extra_flags, uint nsubpatterns)
   {
-    m_library_flags= extra_flags |
+    m_library_flags= default_regex_flags() | extra_flags |
                     (data_charset != &my_charset_bin ?
                      (PCRE_UTF8 | PCRE_UCP) : 0) |
                     ((data_charset->state &

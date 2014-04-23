@@ -136,6 +136,10 @@ The following options may be given as the first argument:
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-regex-flags=name 
+ Default flags for the regex library. Syntax:
+ default-regex-flags='[flag[,flag[,flag...]]]'. See the
+ manual for the complete list of valid flags
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
@@ -1079,6 +1083,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-regex-flags 
 default-storage-engine myisam
 default-time-zone (No default value)
 default-week-format 0
