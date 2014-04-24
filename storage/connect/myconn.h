@@ -34,7 +34,7 @@ typedef class MYSQLC *PMYC;
 /***********************************************************************/
 /*  Prototypes of info functions.                                      */
 /***********************************************************************/
-PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info);
@@ -63,15 +63,10 @@ class DllItem MYSQLC {
   bool   Connected(void);
 
   // Methods
-//  int     GetCurPos(void) {return (m_Res) ? N : 0;}
-//  int     GetProgCur(void) {return N;}
   int     GetResultSize(PGLOBAL g, PSZ sql);
   int     Open(PGLOBAL g, const char *host, const char *db,
                           const char *user= "root", const char *pwd= "*",
                           int pt= 0);
-//ulong   GetThreadID(void);
-//ulong   ServerVersion(void);
-//const char *ServerInfo(void);
   int     KillQuery(ulong id);
   int     ExecSQL(PGLOBAL g, const char *query, int *w = NULL);
   int     ExecSQLcmd(PGLOBAL g, const char *query, int *w);
@@ -87,7 +82,6 @@ class DllItem MYSQLC {
   void    Rewind(void);
   void    FreeResult(void);
   void    Close(void);
-//void    DiscardResults(void);
 
  protected:
   MYSQL_FIELD *GetNextField(void);

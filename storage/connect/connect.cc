@@ -51,7 +51,7 @@
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
-extern int xtrace;
+extern "C" int trace;
 
 /***********************************************************************/
 /*  Routines called internally by semantic routines.                   */
@@ -110,14 +110,14 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   bool    rc= false;
   PDBUSER dbuserp= PlgGetUser(g);
 
-  if (xtrace) {
+  if (trace) {
     printf("CntCheckDB: dbuserp=%p\n", dbuserp);
-    } // endif xtrace
+    } // endif trace
 
   if (!dbuserp || !handler)
     return true;
 
-  if (xtrace)
+  if (trace)
     printf("cat=%p oldhandler=%p newhandler=%p\n", dbuserp->Catalog,
     (dbuserp->Catalog) ? ((MYCAT*)dbuserp->Catalog)->GetHandler() : NULL,
            handler);
@@ -149,7 +149,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   /*********************************************************************/
   sprintf(g->Message, MSG(DATABASE_LOADED), "???");
 
-  if (xtrace)
+  if (trace)
     printf("msg=%s\n", g->Message);
 
   return rc;
@@ -187,13 +187,13 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
 /***********************************************************************/
 PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
   {
-  int      rc;
+  int     rc;
   PTDB    tdbp;
   PTABLE  tabp;
   PDBUSER dup= PlgGetUser(g);
   PCATLG  cat= (dup) ? dup->Catalog : NULL;     // Safe over longjmp
 
-  if (xtrace)
+  if (trace)
     printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);
 
   if (!cat)
@@ -213,7 +213,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
   // Get table object from the catalog
   tabp= new(g) XTAB(name);
 
-  if (xtrace)
+  if (trace)
     printf("CntGetTDB: tabp=%p\n", tabp);
 
   // Perhaps this should be made thread safe
@@ -223,7 +223,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
     printf("CntGetTDB: %s\n", g->Message);
 
  err:
-  if (xtrace)
+  if (trace)
     printf("Returning tdbp=%p mode=%d\n", tdbp, mode);
 
   g->jump_level--;
@@ -237,12 +237,13 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
                                         bool del, PHC h)
   {
   char   *p;
-  int     i, n;
+  int     i, n, rc;
+  bool    rcop= true;
   PCOL    colp;
 //PCOLUMN cp;
   PDBUSER dup= PlgGetUser(g);
 
-  if (xtrace)
+  if (trace)
     printf("CntOpenTable: tdbp=%p mode=%d\n", tdbp, mode);
 
   if (!tdbp) {
@@ -251,7 +252,15 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     return true;
     } // endif tdbp
 
-//tdbp->SetMode(mode);      done in ha_connect::GetTDB
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return true;
+    } // endif jump_level
+
+  if ((rc= setjmp(g->jumper[++g->jump_level])) != 0) {
+    goto err;
+    } // endif rc
 
   if (!c1) {
     if (mode == MODE_INSERT)
@@ -260,7 +269,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
   } else for (p= c1; *p; p+= n) {
     // Allocate only used column blocks
-    if (xtrace)
+    if (trace)
       printf("Allocating column %s\n", p);
 
 //    if (*p == '*') {
@@ -273,7 +282,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     if (!colp) {
       sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
-      return true;
+      goto err;
       } // endif colp
 
     n= strlen(p) + 1;
@@ -281,12 +290,12 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
   for (i= 0, colp= tdbp->GetColumns(); colp; i++, colp= colp->GetNext()) {
     if (colp->InitValue(g))
-      return true;
+      goto err;
 
     if (mode == MODE_INSERT)
       // Allow type conversion
       if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        return true;
+        goto err;
 
     colp->AddColUse(U_P);           // For PLG tables
     } // endfor colp
@@ -301,7 +310,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     if (!(utp= (PTDBASE)tdbp->Duplicate(g))) {
       sprintf(g->Message, MSG(INV_UPDT_TABLE), tdbp->GetName());
-      return true;
+      goto err;
       } // endif tp
 
     if (!c2)
@@ -315,10 +324,10 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     for (i= 0, colp= utp->GetColumns(); colp; i++, colp= colp->GetNext()) {
       if (colp->InitValue(g))
-        return true;
+        goto err;
 
       if (colp->SetBuffer(g, colp->GetValue(), true, false))
-        return true;
+        goto err;
 
       } // endfor colp
 
@@ -328,7 +337,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     ((PTDBASE)tdbp)->SetSetCols(tdbp->GetColumns());
 
   // Now do open the physical table
-  if (xtrace)
+  if (trace)
     printf("Opening table %s in mode %d tdbp=%p\n",
            tdbp->GetName(), mode, tdbp);
 
@@ -344,19 +353,23 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     } // endif del
 
 
-  if (xtrace)
+  if (trace)
     printf("About to open the table: tdbp=%p\n", tdbp);
 
-  if (mode != MODE_ANY) {
+  if (mode != MODE_ANY && mode != MODE_ALTER) {
     if (tdbp->OpenDB(g)) {
       printf("%s\n", g->Message);
-      return true;
+      goto err;
     } else
       tdbp->SetNext(NULL);
 
   } // endif mode
 
-  return false;
+  rcop= false;
+
+ err:
+  g->jump_level--;
+  return rcop;
   } // end of CntOpenTable
 
 /***********************************************************************/
@@ -374,14 +387,14 @@ bool CntRewindTable(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 /*  Evaluate all columns after a record is read.                       */
 /***********************************************************************/
-RCODE  EvalColumns(PGLOBAL g, PTDB tdbp)
+RCODE EvalColumns(PGLOBAL g, PTDB tdbp)
   {
   RCODE rc= RC_OK;
   PCOL  colp;
 
   // Save stack and allocation environment and prepare error return
   if (g->jump_level == MAX_JUMP) {
-    if (xtrace) {
+    if (trace) {
       strcpy(g->Message, MSG(TOO_MANY_JUMPS));
       printf("EvalColumns: %s\n", g->Message);
       } // endif
@@ -390,7 +403,7 @@ RCODE  EvalColumns(PGLOBAL g, PTDB tdbp)
     } // endif jump_level
 
   if (setjmp(g->jumper[++g->jump_level]) != 0) {
-    if (xtrace)
+    if (trace)
       printf("Error reading columns: %s\n", g->Message);
 
     rc= RC_FX;
@@ -416,7 +429,7 @@ RCODE  EvalColumns(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 /*  ReadNext: Read next record sequentially.                           */
 /***********************************************************************/
-RCODE  CntReadNext(PGLOBAL g, PTDB tdbp)
+RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
   {
   RCODE rc;
 
@@ -432,8 +445,21 @@ RCODE  CntReadNext(PGLOBAL g, PTDB tdbp)
     ((PTDBASE)tdbp)->SetKindex(NULL);
     } // endif index
 
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return RC_FX;
+    } // endif jump_level
+
+  if ((setjmp(g->jumper[++g->jump_level])) != 0) {
+    rc= RC_FX;
+    goto err;
+    } // endif rc
+
   while ((rc= (RCODE)tdbp->ReadDB(g)) == RC_NF) ;
-  
+
+ err:
+  g->jump_level--;
   return (rc != RC_OK) ? rc : EvalColumns(g, tdbp);
   } // end of CntReadNext
 
@@ -521,7 +547,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
   if (!tdbp || tdbp->GetUse() != USE_OPEN)
     return rc;                           // Nothing to do
 
-  if (xtrace)
+  if (trace)
     printf("CntCloseTable: tdbp=%p mode=%d\n", tdbp, tdbp->GetMode());
 
   if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN)
@@ -545,7 +571,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 
   g->jump_level--;
 
-  if (xtrace > 1)
+  if (trace > 1)
     printf("Table %s closed\n", tdbp->GetName());
 
 //if (!((PTDBDOX)tdbp)->GetModified())
@@ -554,17 +580,17 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
   if (tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY) 
     return 0;
 
-  if (xtrace > 1)
-    printf("About to reset opt\n");
+  if (trace > 1)
+    printf("About to reset indexes\n");
 
   // Make all the eventual indexes
   tbxp= (TDBDOX*)tdbp;
   tbxp->SetKindex(NULL);
   tbxp->To_Key_Col= NULL;
-  rc= tbxp->ResetTableOpt(g, ((PTDBASE)tdbp)->GetDef()->Indexable());
+  rc= tbxp->ResetTableOpt(g, ((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
  err:
-  if (xtrace > 1)
+  if (trace > 1)
     printf("Done rc=%d\n", rc);
 
   return (rc == RC_OK || rc == RC_INFO) ? 0 : rc;
@@ -683,7 +709,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
                    const void *key, int len)
   {
   char   *kp= (char*)key;
-  int     n;
+  int     n, x;
   short   lg;
   bool    rcb;
   RCODE   rc;
@@ -694,9 +720,18 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
   if (!ptdb)
     return RC_FX;
-  if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
+  else
+    x= ((PTDBASE)ptdb)->GetDef()->Indexable();
+
+  if (!x) {
     sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
     return RC_FX;
+  } else if (x == 2) {
+    // Remote index
+    if (ptdb->ReadKey(g, op, key, len))
+      return RC_FX;
+
+    goto rnd;
   } else
     tdbp= (PTDBDOX)ptdb;
 
@@ -756,8 +791,9 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
   xbp->SetOp(op);
   xbp->SetNth(0);
 
-  if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
-    rc= EvalColumns(g, tdbp);
+ rnd:
+  if ((rc= (RCODE)ptdb->ReadDB(g)) == RC_OK)
+    rc= EvalColumns(g, ptdb);
 
   return rc;
   } // end of CntIndexRead
@@ -769,7 +805,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
                    bool *incl, key_part_map *kmap)
   {
   const uchar *p, *kp;
-  int     i, n, k[2];
+  int     i, n, x, k[2];
   short   lg;
   bool    b, rcb;
   PVAL    valp;
@@ -779,10 +815,16 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
   if (!ptdb)
     return -1;
-  else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
+
+  x= ((PTDBASE)ptdb)->GetDef()->Indexable();
+
+  if (!x) {
     sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
+  } else if (x == 2) {
+    // Remote index
+    return 2;
   } else
     tdbp= (PTDBDOX)ptdb;
 
@@ -833,10 +875,10 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
           } else
             valp->SetBinValue((void*)p);
 
-          if (xtrace) {
+          if (trace) {
             char bf[32];
             printf("i=%d n=%d key=%s\n", i, n, valp->GetCharString(bf));
-            } // endif xtrace
+            } // endif trace
 
           p+= valp->GetClen();
     
@@ -855,7 +897,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
       xbp->SetNval(n);
 
-      if (xtrace)
+      if (trace)
         printf("xbp=%p Nval=%d i=%d incl=%d\n", xbp, n, i, incl[i]);
 
       k[i]= xbp->Range(g, i + 1, incl[i]);
@@ -864,7 +906,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
 
     } // endfor i
 
-  if (xtrace)
+  if (trace)
     printf("k1=%d k0=%d\n", k[1], k[0]);
 
   return k[1] - k[0];

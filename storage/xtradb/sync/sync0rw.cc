@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -33,6 +33,7 @@ Created 9/11/1995 Heikki Tuuri
 #include "sync0rw.h"
 #ifdef UNIV_NONINL
 #include "sync0rw.ic"
+#include "sync0arr.ic"
 #endif
 
 #include "os0thread.h"
@@ -408,8 +409,6 @@ rw_lock_validate(
 /*=============*/
 	prio_rw_lock_t*	lock)	/*!< in: rw-lock */
 {
-	ut_ad(lock->high_priority_s_waiters < 2);
-	ut_ad(lock->high_priority_x_waiters < 2);
 	return(rw_lock_validate(&lock->base_lock));
 }
 
@@ -491,26 +490,32 @@ lock_loop:
 		return; /* Success */
 	} else {
 
+		prio_rw_lock_t*	prio_rw_lock = NULL;
+
 		if (i > 0 && i < SYNC_SPIN_ROUNDS) {
 			goto lock_loop;
 		}
 
 		rw_lock_stats.rw_s_spin_round_count.add(counter_index, i);
 
-		sync_arr = sync_array_get();
-
-		sync_array_reserve_cell(
-			sync_arr, lock,
-			high_priority ? PRIO_RW_LOCK_SHARED : RW_LOCK_SHARED,
-			file_name, line, &index);
+		sync_arr = sync_array_get_and_reserve_cell(lock,
+							   high_priority
+							   ? PRIO_RW_LOCK_SHARED
+							   : RW_LOCK_SHARED,
+							   file_name,
+							   line, &index);
 
 		/* Set waiters before checking lock_word to ensure wake-up
 		signal is sent. This may lead to some unnecessary signals. */
 		if (high_priority) {
-			prio_rw_lock_t*	prio_rw_lock
-				= (prio_rw_lock_t *) _lock;
-			prio_rw_lock->high_priority_s_waiters = 1;
+
+			prio_rw_lock = reinterpret_cast<prio_rw_lock_t *>
+				(_lock);
+			os_atomic_increment_ulint(
+				&prio_rw_lock->high_priority_s_waiters,
+				1);
 		} else {
+
 			rw_lock_set_waiter_flag(lock);
 		}
 
@@ -519,6 +524,12 @@ lock_loop:
 		    && (TRUE == rw_lock_s_lock_low(lock, pass,
 						   file_name, line))) {
 			sync_array_free_cell(sync_arr, index);
+			if (prio_rw_lock) {
+
+				os_atomic_decrement_ulint(
+					&prio_rw_lock->high_priority_s_waiters,
+					1);
+			}
 			return; /* Success */
 		}
 
@@ -535,6 +546,13 @@ lock_loop:
 		rw_lock_stats.rw_s_os_wait_count.add(counter_index, 1);
 
 		sync_array_wait_event(sync_arr, index);
+
+		if (prio_rw_lock) {
+
+			os_atomic_decrement_ulint(
+				&prio_rw_lock->high_priority_s_waiters,
+				1);
+		}
 
 		i = 0;
 		goto lock_loop;
@@ -584,6 +602,7 @@ rw_lock_x_lock_wait(
 	ulint		i = 0;
 	sync_array_t*	sync_arr;
 	size_t		counter_index;
+	prio_rw_lock_t*	prio_rw_lock = NULL;
 
 	/* We reuse the thread id to index into the counter, cache
 	it here for efficiency. */
@@ -604,15 +623,14 @@ rw_lock_x_lock_wait(
 		/* If there is still a reader, then go to sleep.*/
 		rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 
-		sync_arr = sync_array_get();
-
-		sync_array_reserve_cell(
-			sync_arr, lock, RW_LOCK_WAIT_EX,
-			file_name, line, &index);
+		sync_arr = sync_array_get_and_reserve_cell(lock,
+							   RW_LOCK_WAIT_EX,
+							   file_name,
+							   line, &index);
 
 		if (high_priority) {
 
-			prio_rw_lock_t*	prio_rw_lock
+			prio_rw_lock
 				= reinterpret_cast<prio_rw_lock_t *>(lock);
 			prio_rw_lock->high_priority_wait_ex_waiter = 1;
 		}
@@ -643,6 +661,10 @@ rw_lock_x_lock_wait(
 			We must pass the while-loop check to proceed.*/
 		} else {
 			sync_array_free_cell(sync_arr, index);
+			if (prio_rw_lock) {
+
+				prio_rw_lock->high_priority_wait_ex_waiter = 0;
+			}
 		}
 	}
 	rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
@@ -739,6 +761,7 @@ rw_lock_x_lock_func(
 	sync_array_t*	sync_arr;
 	ibool		spinning = FALSE;
 	size_t		counter_index;
+	prio_rw_lock_t*	prio_lock = NULL;
 
 	/* We reuse the thread id to index into the counter, cache
 	it here for efficiency. */
@@ -810,24 +833,31 @@ lock_loop:
 		}
 	}
 
-	sync_arr = sync_array_get();
-
-	sync_array_reserve_cell(
-		sync_arr, lock,
-		high_priority ? PRIO_RW_LOCK_EX : RW_LOCK_EX,
-		file_name, line, &index);
+	sync_arr = sync_array_get_and_reserve_cell(lock,
+						   high_priority
+						   ? PRIO_RW_LOCK_EX
+						   : RW_LOCK_EX,
+						   file_name, line, &index);
 
 	/* Waiters must be set before checking lock_word, to ensure signal
 	is sent. This could lead to a few unnecessary wake-up signals. */
 	if (high_priority) {
-		prio_rw_lock_t*	prio_lock = (prio_rw_lock_t *)lock;
-		prio_lock->high_priority_x_waiters = 1;
+
+		prio_lock = reinterpret_cast<prio_rw_lock_t *>(lock);
+		os_atomic_increment_ulint(&prio_lock->high_priority_x_waiters,
+					  1);
 	} else {
 		rw_lock_set_waiter_flag(lock);
 	}
 
 	if (rw_lock_x_lock_low(lock, high_priority, pass, file_name, line)) {
 		sync_array_free_cell(sync_arr, index);
+		if (prio_lock) {
+
+			os_atomic_decrement_ulint(
+				&prio_lock->high_priority_x_waiters,
+				1);
+		}
 		return; /* Locking succeeded */
 	}
 
@@ -844,6 +874,12 @@ lock_loop:
 	rw_lock_stats.rw_x_os_wait_count.add(counter_index, 1);
 
 	sync_array_wait_event(sync_arr, index);
+
+	if (prio_lock) {
+
+		os_atomic_decrement_ulint(&prio_lock->high_priority_x_waiters,
+					  1);
+	}
 
 	i = 0;
 	goto lock_loop;

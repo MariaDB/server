@@ -90,6 +90,7 @@ class TDBODBC : public TDBASE {
   virtual void ResetSize(void);
   virtual int  GetAffectedRows(void) {return AftRows;}
   virtual PSZ  GetServer(void) {return "ODBC";}
+  virtual int  Indexable(void) {return 2;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -100,6 +101,8 @@ class TDBODBC : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
+  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
+                      {return true;}
 
  protected:
   // Internal functions
@@ -158,7 +161,6 @@ class ODBCCOL : public COLBLK {
 //        PVBLK   GetBlkp(void) {return Blkp;}
 
   // Methods
-//virtual bool   CheckLocal(PTDB tdbp);
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);

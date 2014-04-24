@@ -27,7 +27,7 @@
                                // prepare_create_field
 #include "sql_acl.h"           // *_ACL
 #include "sql_array.h"         // Dynamic_array
-#include "log_event.h"         // append_query_string, Query_log_event
+#include "log_event.h"         // Query_log_event
 #include "sql_derived.h"       // mysql_handle_derived
 
 #ifdef USE_PRAGMA_IMPLEMENTATION
@@ -160,7 +160,8 @@ sp_get_item_value(THD *thd, Item *item, String *str)
         buf.append(result->charset()->csname);
         if (cs->escape_with_backslash_is_dangerous)
           buf.append(' ');
-        append_query_string(thd, cs, result, &buf);
+        append_query_string(cs, &buf, result->ptr(), result->length(),
+                           thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
         buf.append(" COLLATE '");
         buf.append(item->collation.collation->name);
         buf.append('\'');

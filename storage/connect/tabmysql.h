@@ -39,6 +39,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   inline  int  GetPortnumber(void) {return Portnumber;}
 
   // Methods
+  virtual int  Indexable(void) {return 2;}
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
           bool ParseURL(PGLOBAL g, char *url, bool b = true);
@@ -96,6 +97,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
+  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len);
 
   // Specific routines
           bool SetColumnRanks(PGLOBAL g);
@@ -104,7 +106,7 @@ class TDBMYSQL : public TDBASE {
 
  protected:
   // Internal functions
-  bool MakeSelect(PGLOBAL g);
+  bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
   int  BindColumns(PGLOBAL g);
   int  MakeCommand(PGLOBAL g);
@@ -185,14 +187,7 @@ class TDBMYEXC : public TDBMYSQL {
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
-//virtual int  GetAffectedRows(void) {return AftRows;}
-//virtual int  GetRecpos(void) {return N;}
-//virtual int  GetProgMax(PGLOBAL g);
-//virtual void ResetDB(void) {N = 0;}
-//virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
   virtual bool IsView(void) {return Isview;}
-//virtual PSZ  GetServer(void) {return Server;}
-//        void SetDatabase(LPCSTR db) {Database = (char*)db;}
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -200,20 +195,10 @@ class TDBMYEXC : public TDBMYSQL {
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
   virtual int  WriteDB(PGLOBAL g);
-//virtual int  DeleteDB(PGLOBAL g, int irc);
-//virtual void CloseDB(PGLOBAL g);
-
-  // Specific routines
-//        bool SetColumnRanks(PGLOBAL g);
-//        PCOL MakeFieldColumn(PGLOBAL g, char *name);
-//        PSZ  FindFieldColumn(char *name);
 
  protected:
   // Internal functions
   PCMD MakeCMD(PGLOBAL g);
-//bool MakeSelect(PGLOBAL g);
-//bool MakeInsert(PGLOBAL g);
-//int  BindColumns(PGLOBAL g);
 
   // Members
   PCMD     Cmdlist;           // The commands to execute
@@ -237,15 +222,9 @@ class MYXCOL : public MYSQLCOL {
   MYXCOL(MYSQL_FIELD *fld, PTDB tdbp, int i,  PSZ am = "MYSQL");
   MYXCOL(MYXCOL *colp, PTDB tdbp);   // Constructor used in copy process
 
-  // Implementation
-//virtual int  GetAmType(void) {return TYPE_AM_MYSQL;}
-//        void InitBind(PGLOBAL g);
-
   // Methods
-//virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-//        bool FindRank(PGLOBAL g);
 
  protected:
   // Default constructor not to be used

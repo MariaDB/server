@@ -481,3 +481,58 @@ drop table t1;
 
 
 set optimizer_switch=@subselect_innodb_tmp;
+
+--echo #
+--echo # MDEV-6041: ORDER BY+subqueries: subquery_table.key=outer_table.col is not recongized as binding
+--echo #
+create table t1(a int) engine=innodb;
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2(
+  id int primary key,
+  key1 int,
+  col1 int,
+  key(key1)
+) engine=innodb;
+
+insert into t2 
+  select 
+    A.a + B.a*10 + C.a*100 + D.a* 1000, 
+    A.a + 10*B.a, 
+    123456 
+from t1 A, t1 B, t1 C, t1 D;
+
+--echo # Table tsubq:
+--echo #   - must use 'ref' (not 'index'), and must not use 'Using filesort'
+--echo #   - shows a bad estimate for 'rows' (but I'm not sure if one can do better w/o histograms)
+explain select 
+   (SELECT 
+      concat(id, '-', key1, '-', col1)
+    FROM t2
+    WHERE t2.key1 = t1.a
+    ORDER BY t2.id ASC LIMIT 1)
+from 
+  t1;
+
+--echo #
+--echo # MDEV-6081: ORDER BY+ref(const): selectivity is very incorrect (MySQL Bug#14338686)
+--echo #
+
+alter table t2 add key2 int;
+update t2 set key2=key1;
+alter table t2 add key(key2);
+analyze table t2;
+flush tables;
+--echo # Table tsubq must use 'ref' + Using filesort (not 'index' w/o filesort)
+--replace_column 9 #
+explain select 
+   (SELECT 
+      concat(id, '-', key1, '-', col1)
+    FROM t2
+    WHERE t2.key1 = t1.a
+    ORDER BY t2.key2 ASC LIMIT 1)
+from 
+  t1;
+
+drop table t1,t2;
+

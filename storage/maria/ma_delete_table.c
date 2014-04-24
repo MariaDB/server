@@ -92,7 +92,14 @@ int maria_delete_table_files(const char *name, myf sync_dir)
                                      MYF(MY_WME | sync_dir)))
     DBUG_RETURN(my_errno);
   fn_format(from,name,"",MARIA_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  DBUG_RETURN(mysql_file_delete_with_symlink(key_file_dfile,
-                                             from, MYF(MY_WME | sync_dir)) ?
-              my_errno : 0);
+  if (mysql_file_delete_with_symlink(key_file_dfile, from,
+                                     MYF(MY_WME | sync_dir)))
+    DBUG_RETURN(my_errno);
+
+  // optional files from maria_pack:
+  fn_format(from,name,"",".TMD",MY_UNPACK_FILENAME|MY_APPEND_EXT);
+  mysql_file_delete_with_symlink(key_file_dfile, from, MYF(0));
+  fn_format(from,name,"",".OLD",MY_UNPACK_FILENAME|MY_APPEND_EXT);
+  mysql_file_delete_with_symlink(key_file_dfile, from, MYF(0));
+  DBUG_RETURN(0);
 }

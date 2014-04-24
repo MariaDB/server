@@ -195,6 +195,8 @@ static bool some_non_temp_table_to_be_updated(THD *thd, TABLE_LIST *tables)
   @param thd    Thread handle.
   @param mask   Bitmask used for the SQL command match.
 
+  @return 0     No implicit commit
+  @return 1     Do a commit
 */
 static bool stmt_causes_implicit_commit(THD *thd, uint mask)
 {
@@ -207,12 +209,22 @@ static bool stmt_causes_implicit_commit(THD *thd, uint mask)
 
   switch (lex->sql_command) {
   case SQLCOM_DROP_TABLE:
-    skip= lex->drop_temporary;
+    skip= (lex->drop_temporary ||
+           (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_ALTER_TABLE:
+    /* If ALTER TABLE of non-temporary table, do implicit commit */
+    skip= (lex->create_info.tmp_table());
+    break;
   case SQLCOM_CREATE_TABLE:
-    /* If CREATE TABLE of non-temporary table, do implicit commit */
-    skip= lex->create_info.tmp_table();
+    /*
+      If CREATE TABLE of non-temporary table and the table is not part
+      if a BEGIN GTID ... COMMIT group, do a implicit commit.
+      This ensures that CREATE ... SELECT will in the same GTID group on the
+      master and slave.
+    */
+    skip= (lex->create_info.tmp_table() ||
+           (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_SET_OPTION:
     skip= lex->autocommit ? FALSE : TRUE;
@@ -1423,7 +1435,10 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     lex_start(thd);
     /* Must be before we init the table list. */
     if (lower_case_table_names)
+    {
       table_name.length= my_casedn_str(files_charset_info, table_name.str);
+      db.length= my_casedn_str(files_charset_info, db.str);
+    }
     table_list.init_one_table(db.str, db.length, table_name.str,
                               table_name.length, table_name.str, TL_READ);
     /*
@@ -2404,8 +2419,8 @@ mysql_execute_command(THD *thd)
 #endif
 
   status_var_increment(thd->status_var.com_stat[lex->sql_command]);
-  thd->progress.report_to_client= test(sql_command_flags[lex->sql_command] &
-                                       CF_REPORT_PROGRESS);
+  thd->progress.report_to_client= MY_TEST(sql_command_flags[lex->sql_command] &
+                                          CF_REPORT_PROGRESS);
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
 
@@ -2440,11 +2455,14 @@ mysql_execute_command(THD *thd)
     DBUG_ASSERT(! thd->in_sub_stmt);
     /* Statement transaction still should not be started. */
     DBUG_ASSERT(thd->transaction.stmt.is_empty());
-    /* Commit the normal transaction if one is active. */
-    if (trans_commit_implicit(thd))
-      goto error;
-    /* Release metadata locks acquired in this transaction. */
-    thd->mdl_context.release_transactional_locks();
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      /* Commit the normal transaction if one is active. */
+      if (trans_commit_implicit(thd))
+        goto error;
+      /* Release metadata locks acquired in this transaction. */
+      thd->mdl_context.release_transactional_locks();
+    }
   }
   
 #ifndef DBUG_OFF
@@ -2829,20 +2847,20 @@ case SQLCOM_PREPARE:
       goto end_with_restore_list;
     }
 
+    /* Check privileges */
     if ((res= create_table_precheck(thd, select_tables, create_table)))
       goto end_with_restore_list;
 
     /* Might have been updated in create_table_precheck */
     create_info.alias= create_table->alias;
 
-#ifdef HAVE_READLINK
-    /* Fix names if symlinked tables */
+    /* Fix names if symlinked or relocated tables */
     if (append_file_to_dir(thd, &create_info.data_file_name,
 			   create_table->table_name) ||
 	append_file_to_dir(thd, &create_info.index_file_name,
 			   create_table->table_name))
       goto end_with_restore_list;
-#endif
+
     /*
       If no engine type was given, work out the default now
       rather than at parse-time.
@@ -2862,6 +2880,24 @@ case SQLCOM_PREPARE:
       create_info.default_table_charset= create_info.table_charset;
       create_info.table_charset= 0;
     }
+
+    /*
+      For CREATE TABLE we should not open the table even if it exists.
+      If the table exists, we should either not create it or replace it
+    */
+    lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+
+    /*
+      If we are a slave, we should add OR REPLACE if we don't have
+      IF EXISTS. This will help a slave to recover from
+      CREATE TABLE OR EXISTS failures by dropping the table and
+      retrying the create.
+    */
+    create_info.org_options= create_info.options;
+    if (thd->slave_thread &&
+        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
+        !(lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS))
+      create_info.options|= HA_LEX_CREATE_REPLACE;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
@@ -2951,28 +2987,25 @@ case SQLCOM_PREPARE:
         /* Got error or warning. Set res to 1 if error */
         if (!(res= thd->is_error()))
           my_ok(thd);                           // CREATE ... IF NOT EXISTS
+        goto end_with_restore_list;
       }
-      else
+
+      /* Ensure we don't try to create something from which we select from */
+      if ((create_info.options & HA_LEX_CREATE_REPLACE) &&
+          !create_info.tmp_table())
       {
-        /* The table already exists */
-        if (create_table->table)
+        TABLE_LIST *duplicate;
+        if ((duplicate= unique_table(thd, lex->query_tables,
+                                     lex->query_tables->next_global,
+                                     0)))
         {
-          if (create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
-          {
-            push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                                ER_TABLE_EXISTS_ERROR,
-                                ER(ER_TABLE_EXISTS_ERROR),
-                                create_info.alias);
-            my_ok(thd);
-          }
-          else
-          {
-            my_error(ER_TABLE_EXISTS_ERROR, MYF(0), create_info.alias);
-            res= 1;
-          }
+          update_non_unique_table_error(lex->query_tables, "CREATE",
+                                        duplicate);
+          res= TRUE;
           goto end_with_restore_list;
         }
-
+      }
+      {
         /*
           Remove target table from main select and name resolution
           context. This can't be done earlier as it will break view merging in
@@ -2980,9 +3013,8 @@ case SQLCOM_PREPARE:
         */
         lex->unlink_first_table(&link_to_local);
 
-        /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-        if (create_info.tmp_table())
-          thd->variables.option_bits|= OPTION_KEEP_LOG;
+        /* Store reference to table in case of LOCK TABLES */
+        create_info.table= create_table->table;
 
         /*
           select_create is currently not re-execution friendly and
@@ -3000,18 +3032,18 @@ case SQLCOM_PREPARE:
             CREATE from SELECT give its SELECT_LEX for SELECT,
             and item_list belong to SELECT
           */
-          res= handle_select(thd, lex, result, 0);
+          if (!(res= handle_select(thd, lex, result, 0)))
+          {
+            if (create_info.tmp_table())
+              thd->variables.option_bits|= OPTION_KEEP_LOG;
+          }
           delete result;
         }
-
         lex->link_first_table_back(create_table, link_to_local);
       }
     }
     else
     {
-      /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
-      if (create_info.tmp_table())
-        thd->variables.option_bits|= OPTION_KEEP_LOG;
       /* regular create */
       if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
       {
@@ -3026,7 +3058,12 @@ case SQLCOM_PREPARE:
                                 &create_info, &alter_info);
       }
       if (!res)
+      {
+        /* So that CREATE TEMPORARY TABLE gets to binlog at commit/rollback */
+        if (create_info.tmp_table())
+          thd->variables.option_bits|= OPTION_KEEP_LOG;
         my_ok(thd);
+      }
     }
 
 end_with_restore_list:
@@ -3466,7 +3503,7 @@ end_with_restore_list:
   case SQLCOM_INSERT_SELECT:
   {
     select_result *sel_result;
-    bool explain= test(lex->describe);
+    bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     if ((res= insert_precheck(thd, all_tables)))
       break;
@@ -3580,7 +3617,7 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
-    bool explain= test(lex->describe);
+    bool explain= MY_TEST(lex->describe);
     multi_delete *result;
 
     if ((res= multi_delete_precheck(thd, all_tables)))
@@ -3652,6 +3689,16 @@ end_with_restore_list:
       /* So that DROP TEMPORARY TABLE gets to binlog at commit/rollback */
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
+    /*
+      If we are a slave, we should add IF EXISTS if the query executed
+      on the master without an error. This will help a slave to
+      recover from multi-table DROP TABLE that was aborted in the
+      middle.
+    */
+    if (thd->slave_thread && !thd->slave_expected_error &&
+        slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
+      lex->check_exists= 1;
+
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->check_exists,
 			lex->drop_temporary);
@@ -3825,9 +3872,7 @@ end_with_restore_list:
       prepared statement- safe.
     */
     HA_CREATE_INFO create_info(lex->create_info);
-    char *alias;
-    if (!(alias=thd->strmake(lex->name.str, lex->name.length)) ||
-        check_db_name(&lex->name))
+    if (check_db_name(&lex->name))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
       break;
@@ -3850,8 +3895,7 @@ end_with_restore_list:
 #endif
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
-    res= mysql_create_db(thd,(lower_case_table_names == 2 ? alias :
-                              lex->name.str), &create_info, 0);
+    res= mysql_create_db(thd, lex->name.str, &create_info, 0);
     break;
   }
   case SQLCOM_DROP_DB:
@@ -3944,14 +3988,20 @@ end_with_restore_list:
   }
   case SQLCOM_SHOW_CREATE_DB:
   {
+    char db_name_buff[NAME_LEN+1];
+    LEX_STRING db_name;
     DBUG_EXECUTE_IF("4x_server_emul",
                     my_error(ER_UNKNOWN_ERROR, MYF(0)); goto error;);
-    if (check_db_name(&lex->name))
+
+    db_name.str= db_name_buff;
+    db_name.length= lex->name.length;
+    strmov(db_name.str, lex->name.str);
+    if (check_db_name(&db_name))
     {
-      my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
+      my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
       break;
     }
-    res= mysqld_show_create_db(thd, lex->name.str, &lex->create_info);
+    res= mysqld_show_create_db(thd, &db_name, &lex->name, &lex->create_info);
     break;
   }
   case SQLCOM_CREATE_EVENT:
@@ -4402,6 +4452,7 @@ end_with_restore_list:
     bool tx_release= (lex->tx_release == TVL_YES ||
                       (thd->variables.completion_type == 2 &&
                        lex->tx_release != TVL_NO));
+
     if (trans_rollback(thd))
       goto error;
     thd->mdl_context.release_transactional_locks();
@@ -4597,6 +4648,10 @@ create_sp_error:
           open_and_lock_tables(thd, all_tables, TRUE, 0))
        goto error;
 
+      if (check_routine_access(thd, EXECUTE_ACL, lex->spname->m_db.str,
+                               lex->spname->m_name.str, TRUE, FALSE))
+        goto error;
+
       /*
         By this moment all needed SPs should be in cache so no need to look 
         into DB. 
@@ -4646,11 +4701,6 @@ create_sp_error:
 	  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
 	}
 
-	if (check_routine_access(thd, EXECUTE_ACL,
-				 sp->m_db.str, sp->m_name.str, TRUE, FALSE))
-	{
-	  goto error;
-	}
 	select_limit= thd->variables.select_limit;
 	thd->variables.select_limit= HA_POS_ERROR;
 
@@ -5153,12 +5203,15 @@ finish:
   {
     /* No transaction control allowed in sub-statements. */
     DBUG_ASSERT(! thd->in_sub_stmt);
-    /* If commit fails, we should be able to reset the OK status. */
-    thd->get_stmt_da()->set_overwrite_status(true);
-    /* Commit the normal transaction if one is active. */
-    trans_commit_implicit(thd);
-    thd->get_stmt_da()->set_overwrite_status(false);
-    thd->mdl_context.release_transactional_locks();
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      /* If commit fails, we should be able to reset the OK status. */
+      thd->get_stmt_da()->set_overwrite_status(true);
+      /* Commit the normal transaction if one is active. */
+      trans_commit_implicit(thd);
+      thd->get_stmt_da()->set_overwrite_status(false);
+      thd->mdl_context.release_transactional_locks();
+    }
   }
   else if (! thd->in_sub_stmt && ! thd->in_multi_stmt_transaction_mode())
   {
@@ -6101,6 +6154,8 @@ void THD::reset_for_next_command()
   thd->query_start_used= 0;
   thd->query_start_sec_part_used= 0;
   thd->is_fatal_error= thd->time_zone_used= 0;
+  thd->log_current_statement= 0;
+
   /*
     Clear the status flag that are expected to be cleared at the
     beginning of each SQL statement.
@@ -6613,6 +6668,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
   order->free_me=0;
   order->used=0;
   order->counter_used= 0;
+  order->fast_field_copier_setup= 0; 
   list.link_in_list(order, &order->next);
   DBUG_RETURN(0);
 }
@@ -6658,7 +6714,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   if (!table)
     DBUG_RETURN(0);				// End of memory
   alias_str= alias ? alias->str : table->table.str;
-  if (!test(table_options & TL_OPTION_ALIAS) && 
+  if (!MY_TEST(table_options & TL_OPTION_ALIAS) &&
       check_table_name(table->table.str, table->table.length, FALSE))
   {
     my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
@@ -6698,15 +6754,21 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 
   ptr->alias= alias_str;
   ptr->is_alias= alias ? TRUE : FALSE;
-  if (lower_case_table_names && table->table.length)
-    table->table.length= my_casedn_str(files_charset_info, table->table.str);
+  if (lower_case_table_names)
+  {
+    if (table->table.length)
+      table->table.length= my_casedn_str(files_charset_info, table->table.str);
+    if (ptr->db_length && ptr->db != any_db)
+      ptr->db_length= my_casedn_str(files_charset_info, ptr->db);
+  }
+      
   ptr->table_name=table->table.str;
   ptr->table_name_length=table->table.length;
   ptr->lock_type=   lock_type;
-  ptr->updating=    test(table_options & TL_OPTION_UPDATING);
+  ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
-  ptr->force_index= test(table_options & TL_OPTION_FORCE_INDEX);
-  ptr->ignore_leaves= test(table_options & TL_OPTION_IGNORE_LEAVES);
+  ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
+  ptr->ignore_leaves= MY_TEST(table_options & TL_OPTION_IGNORE_LEAVES);
   ptr->derived=	    table->sel;
   if (!ptr->derived && is_infoschema_db(ptr->db, ptr->db_length))
   {
@@ -6801,7 +6863,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   lex->add_to_query_tables(ptr);
 
   // Pure table aliases do not need to be locked:
-  if (!test(table_options & TL_OPTION_ALIAS))
+  if (!MY_TEST(table_options & TL_OPTION_ALIAS))
   {
     ptr->mdl_request.init(MDL_key::TABLE, ptr->db, ptr->table_name, mdl_type,
                           MDL_TRANSACTION);
@@ -7624,6 +7686,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables)
               check_grant(thd, SELECT_ACL, table, FALSE, 1, FALSE)))
       DBUG_RETURN(TRUE);
 
+    table->grant.orig_want_privilege= 0;
     table->table_in_first_from_clause= 1;
   }
   /*
@@ -7961,6 +8024,11 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
   want_priv= lex->create_info.tmp_table() ?  CREATE_TMP_ACL :
              (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : 0));
 
+  /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
+  if ((lex->create_info.options & HA_LEX_CREATE_REPLACE) &&
+      !lex->create_info.tmp_table())
+    want_priv|= DROP_ACL;
+                          
   if (check_access(thd, want_priv, create_table->db,
                    &create_table->grant.privilege,
                    &create_table->grant.m_internal,
@@ -7997,8 +8065,8 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 
         - For temporary MERGE tables we do not track if their child tables are
           base or temporary. As result we can't guarantee that privilege check
-          which was done in presence of temporary child will stay relevant later
-          as this temporary table might be removed.
+          which was done in presence of temporary child will stay relevant
+          later as this temporary table might be removed.
 
       If SELECT_ACL | UPDATE_ACL | DELETE_ACL privileges were not checked for
       the underlying *base* tables, it would create a security breach as in
@@ -8028,6 +8096,12 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
       goto err;
   }
   error= FALSE;
+
+  /*
+    For CREATE TABLE we should not open the table even if it exists.
+    If the table exists, we should either not create it or replace it
+  */
+  lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
 
 err:
   DBUG_RETURN(error);

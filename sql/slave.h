@@ -51,6 +51,7 @@
 class Relay_log_info;
 class Master_info;
 class Master_info_index;
+struct rpl_group_info;
 struct rpl_parallel_thread;
 
 int init_intvar_from_file(int* var, IO_CACHE* f, int default_val);
@@ -226,7 +227,7 @@ int init_relay_log_pos(Relay_log_info* rli,const char* log,ulonglong pos,
 int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
 		     const char** errmsg);
 void set_slave_thread_options(THD* thd);
-void set_slave_thread_default_charset(THD *thd, Relay_log_info const *rli);
+void set_slave_thread_default_charset(THD *thd, rpl_group_info *rgi);
 int rotate_relay_log(Master_info* mi);
 int apply_event_and_update_pos(Log_event* ev, THD* thd,
                                struct rpl_group_info *rgi,

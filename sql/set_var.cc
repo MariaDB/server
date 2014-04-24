@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -668,7 +668,7 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list)
     if ((error= var->check(thd)))
       goto err;
   }
-  if (!(error= test(thd->is_error())))
+  if (!(error= MY_TEST(thd->is_error())))
   {
     it.rewind();
     while ((var= it++))

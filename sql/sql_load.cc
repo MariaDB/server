@@ -28,7 +28,6 @@
 #include <my_dir.h>
 #include "sql_view.h"                           // check_key_in_view
 #include "sql_insert.h" // check_that_all_fields_are_given_values,
-                        // prepare_triggers_for_insert_stmt,
                         // write_record
 #include "sql_acl.h"    // INSERT_ACL, UPDATE_ACL
 #include "log_event.h"  // Delete_file_log_event,
@@ -258,7 +257,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   */
   if (unique_table(thd, table_list, table_list->next_global, 0))
   {
-    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name);
+    my_error(ER_UPDATE_TABLE_USED, MYF(0), table_list->table_name,
+             "LOAD DATA");
     DBUG_RETURN(TRUE);
   }
 
@@ -297,7 +297,8 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
   }
 
-  prepare_triggers_for_insert_stmt(table);
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
 
   uint tot_length=0;
   bool use_blobs= 0, use_vars= 0;
@@ -461,7 +462,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   }
 
   thd_proc_info(thd, "reading file");
-  if (!(error=test(read_info.error)))
+  if (!(error= MY_TEST(read_info.error)))
   {
     table->next_number_field=table->found_next_number_field;
     if (ignore ||
@@ -904,7 +905,7 @@ read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
 continue_loop:;
   }
-  DBUG_RETURN(test(read_info.error));
+  DBUG_RETURN(MY_TEST(read_info.error));
 }
 
 
@@ -1129,7 +1130,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
 continue_loop:;
   }
-  DBUG_RETURN(test(read_info.error));
+  DBUG_RETURN(MY_TEST(read_info.error));
 }
 
 
@@ -1297,7 +1298,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     thd->get_stmt_da()->inc_current_row_for_warning();
     continue_loop:;
   }
-  DBUG_RETURN(test(read_info.error) || thd->is_error());
+  DBUG_RETURN(MY_TEST(read_info.error) || thd->is_error());
 } /* load xml end */
 
 

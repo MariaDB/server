@@ -754,3 +754,88 @@ DROP TABLE t1;
 SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*');
 REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*')
 https://mariadb.org
+#
+# MDEV-6027 RLIKE: "." no longer matching new line
+#
+SELECT  'cat and\ndog'  RLIKE 'cat.*dog';
+'cat and\ndog'  RLIKE 'cat.*dog'
+0
+SELECT  'cat and\r\ndog'  RLIKE 'cat.*dog';
+'cat and\r\ndog'  RLIKE 'cat.*dog'
+0
+SELECT 'a\nb' RLIKE 'a.b';
+'a\nb' RLIKE 'a.b'
+0
+SELECT 'a\nb' RLIKE '(?-s)a.b';
+'a\nb' RLIKE '(?-s)a.b'
+0
+SET default_regex_flags='DOTALL';
+SELECT @@default_regex_flags;
+@@default_regex_flags
+DOTALL
+SELECT  'cat and\ndog'  RLIKE 'cat.*dog';
+'cat and\ndog'  RLIKE 'cat.*dog'
+1
+SELECT  'cat and\r\ndog'  RLIKE 'cat.*dog';
+'cat and\r\ndog'  RLIKE 'cat.*dog'
+1
+SELECT 'a\nb' RLIKE 'a.b';
+'a\nb' RLIKE 'a.b'
+1
+SELECT 'a\nb' RLIKE '(?-s)a.b';
+'a\nb' RLIKE '(?-s)a.b'
+0
+SET default_regex_flags=DEFAULT;
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+ERROR 42000: Got error 'two named subpatterns have the same name at offset 29' from regexp
+SET default_regex_flags='DUPNAMES';
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$')
+Monday Mon
+SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$')
+Tuesday Tue
+SET default_regex_flags=DEFAULT;
+SELECT 'AB' RLIKE 'A B';
+'AB' RLIKE 'A B'
+0
+SELECT 'AB' RLIKE 'A# this is a comment\nB';
+'AB' RLIKE 'A# this is a comment\nB'
+0
+SET default_regex_flags='EXTENDED';
+SELECT 'AB' RLIKE 'A B';
+'AB' RLIKE 'A B'
+1
+SELECT 'AB' RLIKE 'A# this is a comment\nB';
+'AB' RLIKE 'A# this is a comment\nB'
+1
+SET default_regex_flags=DEFAULT;
+SELECT 'Aq' RLIKE 'A\\q';
+'Aq' RLIKE 'A\\q'
+1
+SET default_regex_flags='EXTRA';
+SELECT 'Aq' RLIKE 'A\\q';
+ERROR 42000: Got error 'unrecognized character follows \ at offset 2' from regexp
+SET default_regex_flags=DEFAULT;
+SELECT 'a\nb\nc' RLIKE '^b$';
+'a\nb\nc' RLIKE '^b$'
+0
+SET default_regex_flags='MULTILINE';
+SELECT 'a\nb\nc' RLIKE '^b$';
+'a\nb\nc' RLIKE '^b$'
+1
+SET default_regex_flags=DEFAULT;
+SELECT REGEXP_SUBSTR('abc','.+');
+REGEXP_SUBSTR('abc','.+')
+abc
+SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
+REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2')
+abc/
+SET default_regex_flags='UNGREEDY';
+SELECT REGEXP_SUBSTR('abc','.+');
+REGEXP_SUBSTR('abc','.+')
+a
+SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
+REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2')
+/abc
+SET default_regex_flags=DEFAULT;

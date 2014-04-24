@@ -9,16 +9,6 @@
 
 #define MB_OK  0x00000000
 
-#if !defined(__MINMAX_DEFINED)
-#define __MINMAX_DEFINED
-#ifndef max
-#define max(x,y)   (((x)>(y))?(x):(y))
-#endif
-#ifndef min
-#define min(x,y)   (((x)<(y))?(x):(y))
-#endif
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

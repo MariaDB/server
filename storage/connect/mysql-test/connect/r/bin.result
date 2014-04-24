@@ -50,8 +50,6 @@ dept INT(4) NOT NULL FIELD_FORMAT='S'
 INSERT INTO t1 VALUES (7777,'BILL','1973-06-30',4444,5555.555,777);
 ERROR HY000: Table 't1' is read only
 ALTER TABLE t1 READONLY=NO;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -71,8 +69,6 @@ fig	name	birth	id	salary	dept
 5555	RONALD	1980-02-26	3333	4444.44	555
 7777	BILL	1973-06-30	4444	5555.56	777
 ALTER TABLE t1 READONLY=YES;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (

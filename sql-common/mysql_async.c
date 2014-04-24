@@ -121,6 +121,12 @@ my_connect_async(struct mysql_async_context *b, my_socket fd,
   IF_WIN(WSAGetLastError() != WSAEWOULDBLOCK, \
          (errno != EAGAIN && errno != EINTR))
 
+#ifdef _AIX
+#ifndef MSG_DONTWAIT
+#define MSG_DONTWAIT 0
+#endif
+#endif
+
 ssize_t
 my_recv_async(struct mysql_async_context *b, int fd,
               unsigned char *buf, size_t size, int timeout)

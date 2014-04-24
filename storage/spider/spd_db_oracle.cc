@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2013 Kentoku Shiba
+/* Copyright (C) 2012-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -1311,7 +1311,8 @@ int spider_db_oracle::connect(
   this->connect_retry_interval = connect_retry_interval;
   if ((error_num = spider_create_conn_thread(conn)))
     DBUG_RETURN(error_num);
-  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_CONNECT);
+  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_CONNECT, TRUE, NULL,
+    0, NULL);
 
   if (stored_error_num)
   {
@@ -1401,7 +1402,8 @@ void spider_db_oracle::disconnect()
   DBUG_PRINT("info",("spider this=%p", this));
   if (!conn->bg_init)
     DBUG_VOID_RETURN;
-  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_DISCONNECT);
+  spider_bg_conn_simple_action(conn, SPIDER_BG_SIMPLE_DISCONNECT, TRUE, NULL,
+    0, NULL);
   DBUG_VOID_RETURN;
 }
 
@@ -3548,10 +3550,15 @@ int spider_db_oracle_util::open_item_func(
         func_name_length = strlen(func_name);
         DBUG_PRINT("info",("spider func_name = %s", func_name));
         DBUG_PRINT("info",("spider func_name_length = %d", func_name_length));
-        if (str->reserve(SPIDER_SQL_MBR_LEN + func_name_length +
-          SPIDER_SQL_OPEN_PAREN_LEN))
+        if (str->reserve(
+#ifndef SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
+          SPIDER_SQL_MBR_LEN +
+#endif
+          func_name_length + SPIDER_SQL_OPEN_PAREN_LEN))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+#ifndef SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
         str->q_append(SPIDER_SQL_MBR_STR, SPIDER_SQL_MBR_LEN);
+#endif
         str->q_append(func_name, func_name_length);
         str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
       }
@@ -4773,6 +4780,7 @@ int spider_oracle_handler::init()
   st_spider_share *share = spider->share;
   int init_sql_alloc_size =
     spider_param_init_sql_alloc_size(thd, share->init_sql_alloc_size);
+  TABLE *table = spider->get_table();
   DBUG_ENTER("spider_oracle_handler::init");
   DBUG_PRINT("info",("spider this=%p", this));
   sql.init_calc_mem(67);
@@ -4804,6 +4812,8 @@ int spider_oracle_handler::init()
       __func__, __FILE__, __LINE__, MYF(MY_WME | MY_ZEROFILL),
       &link_for_hash,
         sizeof(SPIDER_LINK_FOR_HASH) * share->link_count,
+      &minimum_select_bitmap,
+        table ? sizeof(uchar) * no_bytes_in_map(table->read_set) : 0,
       NullS))
   ) {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -5047,14 +5057,24 @@ int spider_oracle_handler::append_tmp_table_and_sql_for_bka(
       table_dot_aliases, table_dot_alias_lengths)) ||
     (error_num = append_condition_part(
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN,
-      SPIDER_SQL_TYPE_SELECT_SQL, FALSE)) ||
-    (
-      spider->result_list.direct_order_limit &&
-      (error_num = append_key_order_for_direct_order_limit_with_alias(&sql,
-        SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN))
-    )
+      SPIDER_SQL_TYPE_SELECT_SQL, FALSE))
   )
     DBUG_RETURN(error_num);
+  if (spider->result_list.direct_order_limit)
+  {
+    if ((error_num = append_key_order_for_direct_order_limit_with_alias(&sql,
+      SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  else if (spider->result_list.direct_aggregate)
+  {
+    if ((error_num =
+      append_group_by(&sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#endif
+
   DBUG_RETURN(0);
 }
 
@@ -5257,14 +5277,24 @@ int spider_oracle_handler::append_union_table_and_sql_for_bka(
       table_dot_aliases, table_dot_alias_lengths)) ||
     (error_num = append_condition_part(
       SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN,
-      SPIDER_SQL_TYPE_TMP_SQL, FALSE)) ||
-    (
-      spider->result_list.direct_order_limit &&
-      (error_num = append_key_order_for_direct_order_limit_with_alias(&tmp_sql,
-        SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN))
-    )
+      SPIDER_SQL_TYPE_TMP_SQL, FALSE))
   )
     DBUG_RETURN(error_num);
+  if (spider->result_list.direct_order_limit)
+  {
+    if ((error_num = append_key_order_for_direct_order_limit_with_alias(
+      &tmp_sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  else if (spider->result_list.direct_aggregate)
+  {
+    if ((error_num =
+      append_group_by(&tmp_sql, SPIDER_SQL_B_DOT_STR, SPIDER_SQL_B_DOT_LEN)))
+      DBUG_RETURN(error_num);
+  }
+#endif
+
   DBUG_RETURN(0);
 }
 
@@ -5694,10 +5724,12 @@ int spider_oracle_handler::append_direct_update_set_part()
 int spider_oracle_handler::append_direct_update_set(
   spider_string *str
 ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
   uint field_name_length;
   SPIDER_SHARE *share = spider->share;
 #ifndef DBUG_OFF
   TABLE *table = spider->get_table();
+#endif
 #endif
   DBUG_ENTER("spider_oracle_handler::append_direct_update_set");
   if (
@@ -5713,6 +5745,7 @@ int spider_oracle_handler::append_direct_update_set(
   if (
     (spider->direct_update_kinds & SPIDER_SQL_KIND_SQL)
   ) {
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
     size_t roop_count;
     Field *field;
     if (str->reserve(SPIDER_SQL_SET_LEN))
@@ -5764,6 +5797,9 @@ int spider_oracle_handler::append_direct_update_set(
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
     }
     str->length(str->length() - SPIDER_SQL_COMMA_LEN);
+#else
+    DBUG_ASSERT(0);
+#endif
   }
   DBUG_RETURN(0);
 }
@@ -5981,10 +6017,12 @@ int spider_oracle_handler::append_minimum_select(
   int field_length;
   bool appended = FALSE;
   DBUG_ENTER("spider_oracle_handler::append_minimum_select");
+  minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+      spider_set_bit(minimum_select_bitmap, (*field)->field_index);
       field_length =
         oracle_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length +
@@ -6066,10 +6104,12 @@ int spider_oracle_handler::append_minimum_select_with_alias(
   int field_length;
   bool appended = FALSE;
   DBUG_ENTER("spider_oracle_handler::append_minimum_select_with_alias");
+  minimum_select_bitmap_create();
   for (field = table->field; *field; field++)
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+      spider_set_bit(minimum_select_bitmap, (*field)->field_index);
       field_length =
         oracle_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(alias_length + field_length +
@@ -6592,7 +6632,8 @@ int spider_oracle_handler::append_is_null_part(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   int error_num;
   spider_string *str, *str_part = NULL, *str_part2 = NULL;
@@ -6619,7 +6660,7 @@ int spider_oracle_handler::append_is_null_part(
       DBUG_RETURN(0);
   }
   error_num = append_is_null(sql_type, str, str_part, str_part2,
-    key_part, key, ptr, key_eq);
+    key_part, key, ptr, key_eq, tgt_final);
   DBUG_RETURN(error_num);
 }
 
@@ -6631,7 +6672,8 @@ int spider_oracle_handler::append_is_null(
   KEY_PART_INFO *key_part,
   const key_range *key,
   const uchar **ptr,
-  bool key_eq
+  bool key_eq,
+  bool tgt_final
 ) {
   DBUG_ENTER("spider_oracle_handler::append_is_null");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -7272,6 +7314,37 @@ void spider_oracle_handler::set_order_to_pos(
 }
 
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
+int spider_oracle_handler::append_group_by_part(
+  const char *alias,
+  uint alias_length,
+  ulong sql_type
+) {
+  int error_num;
+  spider_string *str;
+  DBUG_ENTER("spider_oracle_handler::append_group_by_part");
+  DBUG_PRINT("info",("spider this=%p", this));
+  switch (sql_type)
+  {
+    case SPIDER_SQL_TYPE_SELECT_SQL:
+    case SPIDER_SQL_TYPE_TMP_SQL:
+      str = &sql;
+      break;
+    case SPIDER_SQL_TYPE_INSERT_SQL:
+    case SPIDER_SQL_TYPE_UPDATE_SQL:
+    case SPIDER_SQL_TYPE_DELETE_SQL:
+    case SPIDER_SQL_TYPE_BULK_UPDATE_SQL:
+      str = &update_sql;
+      break;
+    case SPIDER_SQL_TYPE_HANDLER:
+      str = &ha_sql;
+      break;
+    default:
+      DBUG_RETURN(0);
+  }
+  error_num = append_group_by(str, alias, alias_length);
+  DBUG_RETURN(error_num);
+}
+
 int spider_oracle_handler::append_group_by(
   spider_string *str,
   const char *alias,
@@ -10714,7 +10787,7 @@ int spider_oracle_handler::show_records(
   pthread_mutex_unlock(&conn->mta_conn_mutex);
   error_num = res->fetch_table_records(
     1,
-    share->records
+    spider->table_rows
   );
   res->free_result();
   delete res;
@@ -11538,16 +11611,68 @@ bool spider_oracle_handler::support_use_handler(
   DBUG_RETURN(FALSE);
 }
 
+void spider_oracle_handler::minimum_select_bitmap_create()
+{
+  TABLE *table = spider->get_table();
+  Field **field_p;
+  DBUG_ENTER("spider_oracle_handler::minimum_select_bitmap_create");
+  memset(minimum_select_bitmap, 0, no_bytes_in_map(table->read_set));
+  if (
+    spider->has_clone_for_merge ||
+#ifdef HA_CAN_BULK_ACCESS
+    (spider->is_clone && !spider->is_bulk_access_clone)
+#else
+    spider->is_clone
+#endif
+  ) {
+    /* need preparing for cmp_ref */
+    TABLE_SHARE *table_share = table->s;
+    if (
+      table_share->primary_key == MAX_KEY
+    ) {
+      /* need all columns */
+      memset(minimum_select_bitmap, 0xFF, no_bytes_in_map(table->read_set));
+      DBUG_VOID_RETURN;
+    } else {
+      /* need primary key columns */
+      uint roop_count;
+      KEY *key_info;
+      KEY_PART_INFO *key_part;
+      Field *field;
+      key_info = &table_share->key_info[table_share->primary_key];
+      key_part = key_info->key_part;
+      for (roop_count = 0;
+        roop_count < spider_user_defined_key_parts(key_info);
+        roop_count++)
+      {
+        field = key_part[roop_count].field;
+        spider_set_bit(minimum_select_bitmap, field->field_index);
+      }
+    }
+  }
+  for (field_p = table->field; *field_p; field_p++)
+  {
+    uint field_index = (*field_p)->field_index;
+    if (
+      spider_bit_is_set(spider->searched_bitmap, field_index) |
+      bitmap_is_set(table->read_set, field_index) |
+      bitmap_is_set(table->write_set, field_index)
+    ) {
+      spider_set_bit(minimum_select_bitmap, field_index);
+    }
+  }
+  DBUG_VOID_RETURN;
+}
+
 bool spider_oracle_handler::minimum_select_bit_is_set(
   uint field_index
 ) {
-  TABLE *table = spider->get_table();
   DBUG_ENTER("spider_oracle_handler::minimum_select_bit_is_set");
-  DBUG_RETURN(
-    spider_bit_is_set(spider->searched_bitmap, field_index) |
-    bitmap_is_set(table->read_set, field_index) |
-    bitmap_is_set(table->write_set, field_index)
-  );
+  DBUG_PRINT("info",("spider field_index=%u", field_index));
+  DBUG_PRINT("info",("spider minimum_select_bitmap=%s",
+    spider_bit_is_set(minimum_select_bitmap, field_index) ?
+      "TRUE" : "FALSE"));
+  DBUG_RETURN(spider_bit_is_set(minimum_select_bitmap, field_index));
 }
 
 void spider_oracle_handler::copy_minimum_select_bitmap(
@@ -11561,18 +11686,10 @@ void spider_oracle_handler::copy_minimum_select_bitmap(
     roop_count++)
   {
     bitmap[roop_count] =
-      spider->searched_bitmap[roop_count] |
-      ((uchar *) table->read_set->bitmap)[roop_count] |
-      ((uchar *) table->write_set->bitmap)[roop_count];
+      minimum_select_bitmap[roop_count];
     DBUG_PRINT("info",("spider roop_count=%d", roop_count));
     DBUG_PRINT("info",("spider bitmap=%d",
       bitmap[roop_count]));
-    DBUG_PRINT("info",("spider searched_bitmap=%d",
-      spider->searched_bitmap[roop_count]));
-    DBUG_PRINT("info",("spider read_set=%d",
-      ((uchar *) table->read_set->bitmap)[roop_count]));
-    DBUG_PRINT("info",("spider write_set=%d",
-      ((uchar *) table->write_set->bitmap)[roop_count]));
   }
   DBUG_VOID_RETURN;
 }

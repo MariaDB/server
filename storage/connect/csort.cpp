@@ -295,7 +295,7 @@ int CSORT::Qsortx(void)
       /*****************************************************************/
       /*  Call conservative insertion sort not using/setting offset.   */
       /*****************************************************************/
-      Istc(Pex, Pex + min(Nitem, Thresh), top);
+      Istc(Pex, Pex + MY_MIN(Nitem, Thresh), top);
 
     } // endif Thresh
 
@@ -669,7 +669,7 @@ int CSORT::Qsortc(void)
       /*****************************************************************/
       /*  Call conservative insertion sort not using/setting offset.   */
       /*****************************************************************/
-      Istc(Pex, Pex + min(Nitem, Thresh), max);
+      Istc(Pex, Pex + MY_MIN(Nitem, Thresh), max);
 
     } // endif Thresh
 

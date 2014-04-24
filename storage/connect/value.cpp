@@ -1,7 +1,7 @@
 /************* Value C++ Functions Source Code File (.CPP) *************/
-/*  Name: VALUE.CPP  Version 2.3                                       */
+/*  Name: VALUE.CPP  Version 2.5                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes family functions. */
 /*  These classes contain values of different types. They are used so  */
@@ -83,6 +83,7 @@ int DTVAL::Shift = 0;
 /*  Routines called externally.                                        */
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
+
 #if !defined(WIN32)
 extern "C" {
 PSZ strupr(PSZ s);
@@ -156,6 +157,7 @@ PSZ GetTypeName(int type)
     case TYPE_DOUBLE: name = "DOUBLE";   break;
     case TYPE_TINY:   name = "TINY";     break;
     case TYPE_DECIM:  name = "DECIMAL";  break;
+    case TYPE_BIN:    name = "BINARY";   break;
     default:          name = "UNKNOWN";  break;
     } // endswitch type
 
@@ -169,6 +171,7 @@ int GetTypeSize(int type, int len)
   {
   switch (type) {
     case TYPE_DECIM:
+    case TYPE_BIN:
     case TYPE_STRING: len = len * sizeof(char); break;
     case TYPE_SHORT:  len = sizeof(short);      break;
     case TYPE_INT:    len = sizeof(int);        break;
@@ -198,6 +201,7 @@ char *GetFormatType(int type)
     case TYPE_DATE:   c = "D"; break;
     case TYPE_TINY:   c = "T"; break;
     case TYPE_DECIM:  c = "M"; break;
+    case TYPE_BIN:    c = "B"; break;
     } // endswitch type
 
   return c;
@@ -219,6 +223,7 @@ int GetFormatType(char c)
     case 'D': type = TYPE_DATE;   break;
     case 'T': type = TYPE_TINY;   break;
     case 'M': type = TYPE_DECIM;  break;
+    case 'B': type = TYPE_BIN;    break;
     } // endswitch type
 
   return type;
@@ -271,60 +276,12 @@ const char *GetFmt(int type, bool un)
     case TYPE_SHORT:  fmt = (un) ? "%hu" : "%hd";   break;
     case TYPE_BIGINT: fmt = (un) ? "%llu" : "%lld"; break;
     case TYPE_DOUBLE: fmt = "%.*lf";                break;
+    case TYPE_BIN:    fmt = "%*x";                  break;
     default:          fmt = (un) ? "%u" : "%d";     break;
     } // endswitch Type
 
   return fmt;
   } // end of GetFmt
-
-#if 0
-/***********************************************************************/
-/*  ConvertType: what this function does is to determine the type to   */
-/*  which should be converted a value so no precision would be lost.   */
-/*  This can be a numeric type if num is true or non numeric if false. */
-/*  Note: this is an ultra simplified version of this function that    */
-/*  should become more and more complex as new types are added.        */
-/*  Not evaluated types (TYPE_VOID or TYPE_UNDEF) return false from    */
-/*  IsType... functions so match does not prevent correct setting.     */
-/***********************************************************************/
-int ConvertType(int target, int type, CONV kind, bool match)
-  {
-  switch (kind) {
-    case CNV_CHAR:
-      if (match && (!IsTypeChar(target) || !IsTypeChar(type)))
-        return TYPE_ERROR;
-
-      return TYPE_STRING;
-    case CNV_NUM:
-      if (match && (!IsTypeNum(target) || !IsTypeNum(type)))
-        return TYPE_ERROR;
-
-      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
-           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
-           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
-           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
-           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
-                                                            : TYPE_TINY;
-    default:
-      if (target == TYPE_ERROR || target == type)
-        return type;
-
-      if (match && ((IsTypeChar(target) && !IsTypeChar(type)) ||
-                    (IsTypeNum(target) && !IsTypeNum(type))))
-        return TYPE_ERROR;
-
-      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
-           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
-           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
-           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
-           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
-           : (target == TYPE_STRING || type == TYPE_STRING) ? TYPE_STRING
-           : (target == TYPE_TINY   || type == TYPE_TINY)   ? TYPE_TINY
-                                                            : TYPE_ERROR;
-    } // endswitch kind
-
-  } // end of ConvertType
-#endif // 0
 
 /***********************************************************************/
 /*  AllocateConstant: allocates a constant Value.                      */
@@ -413,6 +370,9 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
     case TYPE_DECIM:
       valp = new(g) DECVAL(g, (PSZ)NULL, len, prec, uns);
       break;
+    case TYPE_BIN:
+      valp = new(g) BINVAL(g, (void*)NULL, len, prec);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), type);
       return NULL;
@@ -421,76 +381,6 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
   valp->SetGlobal(g);
   return valp;
   } // end of AllocateValue
-
-#if 0
-/***********************************************************************/
-/*  Allocate a constant Value converted to newtype.                    */
-/*  Can also be used to copy a Value eventually converted.             */
-/***********************************************************************/
-PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
-  {
-  PSZ  p, sp;
-  bool un = (uns < 0) ? false : (uns > 0) ? true : valp->IsUnsigned();
-
-  if (newtype == TYPE_VOID)  // Means allocate a value of the same type
-    newtype = valp->GetType();
-
-  switch (newtype) {
-    case TYPE_STRING:
-      p = (PSZ)PlugSubAlloc(g, NULL, 1 + valp->GetValLen());
-
-      if ((sp = valp->GetCharString(p)) != p)
-        strcpy (p, sp);
-
-      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
-      break;
-    case TYPE_SHORT:
-      if (un)
-        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(), 
-                                     TYPE_SHORT, 0, true);
-      else
-        valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
-
-      break;
-    case TYPE_INT: 
-      if (un)
-        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
-      else
-        valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
-
-      break;
-    case TYPE_BIGINT: 
-      if (un)
-        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(), 
-                                        TYPE_BIGINT, 0, true);
-      else
-        valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
-
-      break;
-    case TYPE_DATE:
-      valp = new(g) DTVAL(g, valp->GetIntValue());
-      break;
-    case TYPE_DOUBLE:
-      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
-                                   valp->GetValPrec());
-      break;
-    case TYPE_TINY:  
-      if (un)
-        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(), 
-                                    TYPE_TINY, 0, true);
-      else
-        valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
-
-      break;
-    default:
-      sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
-      return NULL;
-    } // endswitch type
-
-  valp->SetGlobal(g);
-  return valp;
-  } // end of AllocateValue
-#endif // 0
 
 /* -------------------------- Class VALUE ---------------------------- */
 
@@ -521,6 +411,7 @@ const char *VALUE::GetXfmt(void)
     case TYPE_SHORT:  fmt = (Unsigned) ? "%*hu" : "%*hd";   break;
     case TYPE_BIGINT: fmt = (Unsigned) ? "%*llu" : "%*lld"; break;
     case TYPE_DOUBLE: fmt = "%*.*lf";                       break;
+    case TYPE_BIN:    fmt = "%*x";                          break;
     default:          fmt = (Unsigned) ? "%*u" : "%*d";     break;
     } // endswitch Type
 
@@ -673,12 +564,12 @@ template <>
 bool TYPVAL<double>::SetValue_char(char *p, int n)
   {
   if (p) {
-    char buf[32];
+    char buf[64];
 
     for (; n > 0 && *p == ' '; p++) 
       n--;
 
-    memcpy(buf, p, min(n, 31));
+    memcpy(buf, p, MY_MIN(n, 31));
     buf[n] = '\0';
     Tval = atof(buf);
 
@@ -1075,7 +966,7 @@ bool TYPVAL<PSZ>::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
     return true;
 
-  char buf[32];
+  char buf[64];
 
   if (!(Null = valp->IsNull() && Nullable))
     strncpy(Strp, valp->GetCharString(buf), Len);
@@ -1095,7 +986,7 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
   if (p) {
     rc = n > Len;
 
-    if ((n = min(n, Len))) {
+    if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
 
 //	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
@@ -1142,7 +1033,11 @@ void TYPVAL<PSZ>::SetValue_psz(PSZ s)
 void TYPVAL<PSZ>::SetValue_pvblk(PVBLK blk, int n)
   {
   // STRBLK's can return a NULL pointer
-  SetValue_psz(blk->GetCharValue(n));
+  PSZ vp = blk->GetCharString(Strp, n);
+
+  if (vp != Strp)
+    SetValue_psz(vp);
+
   } // end of SetValue_pvblk
 
 /***********************************************************************/
@@ -1240,7 +1135,7 @@ void TYPVAL<PSZ>::SetValue(ulonglong n)
 /***********************************************************************/
 void TYPVAL<PSZ>::SetValue(double f)
   {
-  char    *p, buf[32];
+  char    *p, buf[64];
   PGLOBAL& g = Global;
   int      k = sprintf(buf, "%lf", f);
 
@@ -1334,7 +1229,7 @@ bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
   else if (Null || vp->IsNull())
     return false;
 
-  char buf[32];
+  char buf[64];
 
   if (Ci || vp->IsCi())
     return !stricmp(Strp, vp->GetCharString(buf));
@@ -1465,7 +1360,7 @@ bool DECVAL::SetValue_pval(PVAL valp, bool chktype)
   if (chktype && (valp->GetType() != Type || valp->GetSize() > Len))
     return true;
 
-  char buf[32];
+  char buf[64];
 
   if (!(Null = valp->IsNull() && Nullable))
     strncpy(Strp, valp->GetCharString(buf), Len);
@@ -1485,7 +1380,7 @@ bool DECVAL::SetValue_char(char *p, int n)
   if (p) {
     rc = n > Len;
 
-    if ((n = min(n, Len))) {
+    if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
 
 //	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
@@ -1564,7 +1459,7 @@ bool DECVAL::IsEqual(PVAL vp, bool chktype)
   else if (Null || vp->IsNull())
     return false;
 
-  char buf[32];
+  char buf[64];
 
   return !strcmp(Strp, vp->GetCharString(buf));
   } // end of IsEqual
@@ -1594,6 +1489,426 @@ bool DECVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
   return false;
   } // end of SetConstFormat
 #endif // 0
+
+/* -------------------------- Class BINVAL --------------------------- */
+
+/***********************************************************************/
+/*  BINVAL public constructor from bytes.                              */
+/***********************************************************************/
+BINVAL::BINVAL(PGLOBAL g, void *p, int cl, int n) : VALUE(TYPE_BIN)
+  {
+  assert(g);
+  Len = n;
+  Clen = cl;
+	Binp = PlugSubAlloc(g, NULL, Clen + 1);
+  memset(Binp, 0, Clen + 1);
+
+  if (p)
+    memcpy(Binp, p, Len);
+
+  Chrp = NULL;
+  } // end of BINVAL constructor
+
+/***********************************************************************/
+/*  BINVAL: Check whether the hexadecimal value is equal to 0.         */
+/***********************************************************************/
+bool BINVAL::IsZero(void)
+  {
+  for (int i = 0; i < Len; i++)
+    if (((char*)Binp)[i] != 0)
+      return false;
+
+  return true;
+  } // end of IsZero
+
+/***********************************************************************/
+/*  BINVAL: Reset value to zero.                                       */
+/***********************************************************************/
+void BINVAL::Reset(void) 
+{
+  memset(Binp, 0, Clen);
+  Len = 0;
+} // end of Reset
+
+/***********************************************************************/
+/*  Get the tiny value pointed by Binp.                                */
+/***********************************************************************/
+char BINVAL::GetTinyValue(void)
+  {
+  return *(char*)Binp;
+  } // end of GetTinyValue
+
+/***********************************************************************/
+/*  Get the unsigned tiny value pointed by Binp.                       */
+/***********************************************************************/
+uchar BINVAL::GetUTinyValue(void)
+  {
+  return *(uchar*)Binp;
+  } // end of GetUTinyValue
+
+/***********************************************************************/
+/*  Get the short value pointed by Binp.                               */
+/***********************************************************************/
+short BINVAL::GetShortValue(void)
+  {
+  if (Len >= 2)
+    return *(short*)Binp;
+  else
+    return (short)GetTinyValue();
+
+  } // end of GetShortValue
+
+/***********************************************************************/
+/*  Get the unsigned short value pointed by Binp.                      */
+/***********************************************************************/
+ushort BINVAL::GetUShortValue(void)
+  {
+  return (ushort)GetShortValue(); 
+  } // end of GetUshortValue
+
+/***********************************************************************/
+/*  Get the integer value pointed by Binp.                             */
+/***********************************************************************/
+int BINVAL::GetIntValue(void)
+  {
+  if (Len >= 4)
+    return *(int*)Binp;
+  else
+    return (int)GetShortValue();
+
+  } // end of GetIntValue
+
+/***********************************************************************/
+/*  Get the unsigned integer value pointed by Binp.                    */
+/***********************************************************************/
+uint BINVAL::GetUIntValue(void)
+  {
+  return (uint)GetIntValue(); 
+  } // end of GetUintValue
+
+/***********************************************************************/
+/*  Get the big integer value pointed by Binp.                         */
+/***********************************************************************/
+longlong BINVAL::GetBigintValue(void)
+  {
+  if (Len >= 8)
+    return *(longlong*)Binp;
+  else
+    return (longlong)GetIntValue();
+
+  } // end of GetBigintValue
+
+/***********************************************************************/
+/*  Get the unsigned big integer value pointed by Binp.                */
+/***********************************************************************/
+ulonglong BINVAL::GetUBigintValue(void)
+  {
+  return (ulonglong)GetBigintValue(); 
+  } // end of GetUBigintValue
+
+/***********************************************************************/
+/*  Get the double value pointed by Binp.                              */
+/***********************************************************************/
+double BINVAL::GetFloatValue(void)
+{
+  if (Len >= 8) 
+    return *(double*)Binp;
+  else if (Len >= 4)
+    return (double)(*(float*)Binp);
+  else
+    return 0.0;
+
+} // end of GetFloatValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: copy the value of another Value object.           */
+/***********************************************************************/
+bool BINVAL::SetValue_pval(PVAL valp, bool chktype)
+  {
+  if (chktype && (valp->GetType() != Type || valp->GetSize() > Clen))
+    return true;
+
+  bool rc = false;
+    
+  if (!(Null = valp->IsNull() && Nullable)) {
+    if ((rc = (Len = valp->GetSize()) > Clen))
+      Len = Clen;
+
+    memcpy(Binp, valp->GetTo_Val(), Len);
+  } else
+    Reset();
+
+  return rc;
+  } // end of SetValue_pval
+
+/***********************************************************************/
+/*  BINVAL SetValue: fill value with chars extracted from a line.      */
+/***********************************************************************/
+bool BINVAL::SetValue_char(char *p, int n)
+  {
+  bool rc;
+
+  if (p) {
+    rc = n > Clen;
+    Len = MY_MIN(n, Clen);
+    memcpy(Binp, p, Len);
+    Null = false;
+  } else {
+    rc = false;
+    Reset();
+    Null = Nullable;
+  } // endif p
+
+  return rc;
+  } // end of SetValue_char
+
+/***********************************************************************/
+/*  BINVAL SetValue: fill value with another string.                   */
+/***********************************************************************/
+void BINVAL::SetValue_psz(PSZ s)
+  {
+  if (s) {
+    Len = MY_MIN(Clen, (signed)strlen(s));
+    memcpy(Binp, s, Len);
+    Null = false;
+  } else {
+    Reset();
+    Null = Nullable;
+  } // endif s
+
+  } // end of SetValue_psz
+
+/***********************************************************************/
+/*  BINVAL SetValue: fill value with bytes extracted from a block.     */
+/***********************************************************************/
+void BINVAL::SetValue_pvblk(PVBLK blk, int n)
+  {
+  // STRBLK's can return a NULL pointer
+  void *vp = blk->GetValPtrEx(n);
+
+  if (!vp || blk->IsNull(n)) {
+    Reset();
+    Null = Nullable;
+  } else if (vp != Binp) {
+    if (blk->GetType() == TYPE_STRING)
+      Len = strlen((char*)vp);
+    else
+      Len = blk->GetVlen();
+
+    Len = MY_MIN(Clen, Len);
+    memcpy(Binp, vp, Len);
+    Null = false;
+  } // endif vp
+
+  } // end of SetValue_pvblk
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of an integer.      */
+/***********************************************************************/
+void BINVAL::SetValue(int n)
+  {
+  if (Clen >= 4) {
+    *((int*)Binp) = n;
+    Len = 4;
+  } else
+    SetValue((short)n);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of an uint.         */
+/***********************************************************************/
+void BINVAL::SetValue(uint n)
+  {
+  if (Clen >= 4) {
+    *((uint*)Binp) = n;
+    Len = 4;
+  } else
+    SetValue((ushort)n);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of a short int.     */
+/***********************************************************************/
+void BINVAL::SetValue(short i)
+  {
+  if (Clen >= 2) {
+    *((int*)Binp) = i;
+    Len = 2;
+  } else
+    SetValue((char)i);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of a ushort int.    */
+/***********************************************************************/
+void BINVAL::SetValue(ushort i)
+  {
+  if (Clen >= 2) {
+    *((uint*)Binp) = i;
+    Len = 2;
+  } else
+    SetValue((uchar)i);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of a big integer.   */
+/***********************************************************************/
+void BINVAL::SetValue(longlong n)
+  {
+  if (Clen >= 8) {
+    *((longlong*)Binp) = n;
+    Len = 8;
+  } else
+    SetValue((int)n);
+
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of a big integer.   */
+/***********************************************************************/
+void BINVAL::SetValue(ulonglong n)
+  {
+  if (Clen >= 8) {
+    *((ulonglong*)Binp) = n;
+    Len = 8;
+  } else
+    SetValue((uint)n);
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of a double.        */
+/***********************************************************************/
+void BINVAL::SetValue(double n)
+  {
+  if (Clen >= 8) {
+    *((double*)Binp) = n;
+    Len = 8;
+  } else if (Clen >= 4) {
+    *((float*)Binp) = (float)n;
+    Len = 4;
+  } else
+    Len = 0;
+  
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the character binary of a tiny int.           */
+/***********************************************************************/
+void BINVAL::SetValue(char c)
+  {
+  *((char*)Binp) = c;
+  Len = 1;
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetValue: get the binary representation of a tiny int.      */
+/***********************************************************************/
+void BINVAL::SetValue(uchar c)
+  {
+  *((uchar*)Binp) = c;
+  Len = 1;
+  } // end of SetValue
+
+/***********************************************************************/
+/*  BINVAL SetBinValue: fill string with bytes extracted from a line.  */
+/***********************************************************************/
+void BINVAL::SetBinValue(void *p)
+  {
+  memcpy(Binp, p, Clen);
+  } // end of SetBinValue
+
+/***********************************************************************/
+/*  GetBinValue: fill a buffer with the internal binary value.         */
+/*  This function checks whether the buffer length is enough and       */
+/*  returns true if not. Actual filling occurs only if go is true.     */
+/*  Currently used by WriteColumn of binary files.                     */
+/***********************************************************************/
+bool BINVAL::GetBinValue(void *buf, int buflen, bool go)
+  {
+  if (Len > buflen)
+    return true;
+  else if (go) {
+    memset(buf, 0, buflen);
+    memcpy(buf, Binp, Len);
+  } // endif go
+
+  return false;
+  } // end of GetBinValue
+
+/***********************************************************************/
+/*  BINVAL ShowValue: get string representation of a binary value.     */
+/***********************************************************************/
+char *BINVAL::ShowValue(char *buf, int len)
+  {
+  int n = MY_MIN(Len, len / 2);
+
+  sprintf(buf, GetXfmt(), n, Binp);
+  return buf;
+  } // end of ShowValue
+
+/***********************************************************************/
+/*  BINVAL GetCharString: get string representation of a binary value. */
+/***********************************************************************/
+char *BINVAL::GetCharString(char *p)
+  {
+  if (!Chrp)
+    Chrp = (char*)PlugSubAlloc(Global, NULL, Clen * 2 + 1);
+
+  sprintf(Chrp, GetXfmt(), Len, Binp); 
+  return Chrp;
+  } // end of GetCharString
+
+/***********************************************************************/
+/*  BINVAL compare value with another Value.                           */
+/***********************************************************************/
+bool BINVAL::IsEqual(PVAL vp, bool chktype)
+  {
+  if (this == vp)
+    return true;
+  else if (chktype && Type != vp->GetType())
+    return false;
+  else if (Null || vp->IsNull())
+    return false;
+  else if (Len != vp->GetSize())
+    return false;
+
+  char *v1 = (char*)Binp;
+  char *v2 = (char*)vp->GetTo_Val();
+
+  for (int i = 0; i < Len; i++)
+    if (v1[i] != v2[i])
+      return false;
+
+  return true;
+  } // end of IsEqual
+
+/***********************************************************************/
+/*  FormatValue: This function set vp (a STRING value) to the string   */
+/*  constructed from its own value formated using the fmt format.      */
+/*  This function assumes that the format matches the value type.      */
+/***********************************************************************/
+bool BINVAL::FormatValue(PVAL vp, char *fmt)
+  {
+  char *buf = (char*)vp->GetTo_Val();        // Should be big enough
+  int   n = sprintf(buf, fmt, Len, Binp);
+
+  return (n > vp->GetValLen());
+  } // end of FormatValue
+
+/***********************************************************************/
+/*  BINVAL SetFormat function (used to set SELECT output format).      */
+/***********************************************************************/
+bool BINVAL::SetConstFormat(PGLOBAL g, FORMAT& fmt)
+  {
+  fmt.Type[0] = 'B';
+  fmt.Length = Clen;
+  fmt.Prec = 0;
+  return false;
+  } // end of SetConstFormat
 
 /* -------------------------- Class DTVAL ---------------------------- */
 
@@ -2087,13 +2402,13 @@ bool DTVAL::FormatValue(PVAL vp, char *fmt)
   char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
   struct tm tm, *ptm = GetGmTime(&tm);
 
-  if (trace)
+  if (trace > 1)
     htrc("FormatValue: ptm=%p len=%d\n", ptm, vp->GetValLen());
 
   if (ptm) {
     size_t n = strftime(buf, vp->GetValLen(), fmt, ptm);
 
-    if (trace)
+    if (trace > 1)
       htrc("strftime: n=%d buf=%s\n", n, (n) ? buf : "???");
 
     return (n == 0);

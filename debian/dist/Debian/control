@@ -14,7 +14,7 @@ Package: libmariadbclient18
 Section: libs
 Architecture: any
 Depends: mariadb-common, libmysqlclient18 (= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
-Breaks: mariadb-server-10.0 (<< 10.0.5), mariadb-galera-server-10.0 (<< 10.0.5),
+Conflicts: mariadb-server-10.0 (<< 10.0.5), mariadb-galera-server-10.0 (<< 10.0.5),
            mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33),
            mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3
 Description: MariaDB database client library
@@ -45,7 +45,7 @@ Architecture: any
 Section: libdevel
 Depends: libmariadbclient-dev (>= ${source:Version}), ${misc:Depends}
 Provides: libmysqld-dev
-Breaks: libmysqld-dev
+Conflicts: libmysqld-dev
 Replaces: libmysqld-dev
 Description: MariaDB embedded database development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -60,7 +60,7 @@ Architecture: any
 Section: libdevel
 Depends: libmariadbclient18 (>= ${source:Version}), zlib1g-dev, , ${shlibs:Depends}, ${misc:Depends}
 Replaces: libmariadbclient16-dev, libmysqlclient16-dev
-Breaks: libmysqlclient-dev, libmariadbclient16-dev, libmysqlclient14-dev, libmysqlclient12-dev, libmysqlclient10-dev, libmysqlclient15-dev, libmysqlclient16-dev
+Conflicts: libmysqlclient-dev, libmariadbclient16-dev, libmysqlclient14-dev, libmysqlclient12-dev, libmysqlclient10-dev, libmysqlclient15-dev, libmysqlclient16-dev
 Provides: libmysqlclient-dev
 Description: MariaDB database development files
  MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
@@ -100,7 +100,7 @@ Package: mariadb-client-core-10.0
 Architecture: any
 Depends: mariadb-common, libmariadbclient18 (>= ${source:Version}), ${shlibs:Depends}, ${misc:Depends}
 Provides: mysql-client-core, mysql-client-core-5.1, mysql-client-core-5.5
-Breaks: mysql-client (<< 5.0.51), mysql-client-5.0,
+Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0,
     mysql-client-5.1 (<< ${source:Version}), mysql-client-5.5 (<< ${source:Version}),
     mysql-client-core-5.1, mysql-client-core-5.5,
     mariadb-client-5.1, mariadb-client-core-5.1,
@@ -125,7 +125,7 @@ Architecture: any
 Depends: debianutils (>=1.6), libdbi-perl, libdbd-mysql-perl (>= 1.2202), mariadb-common, libmariadbclient18 (>= ${source:Version}), mariadb-client-core-10.0 (>= ${source:Version}), ${perl:Depends}, ${shlibs:Depends}, ${misc:Depends}
 Provides: virtual-mysql-client, mysql-client,
     mysql-client-4.1, mysql-client-5.1, mysql-client-5.5
-Breaks: mysql-client (<< 5.0.51), mysql-client-5.0, mysql-client-5.1,
+Conflicts: mysql-client (<< 5.0.51), mysql-client-5.0, mysql-client-5.1,
     mariadb-client (<< ${source:Version}),
     mariadb-client-5.1, mariadb-client-5.2, mariadb-client-5.3, mysql-client-5.5
 Replaces: mysql-client (<< 5.0.51), mysql-client-5.0, mysql-client-5.1,
@@ -145,7 +145,7 @@ Package: mariadb-server-core-10.0
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, libmariadbclient18 (>= ${binary:Version})
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5
-Breaks: mariadb-server-5.1 (<< 5.1.60),
+Conflicts: mariadb-server-5.1 (<< 5.1.60),
     mariadb-server-5.2 (<< 5.2.10),
     mariadb-server-5.3 (<< 5.3.3),
     mysql-server-5.0,
@@ -169,7 +169,7 @@ Package: mariadb-test-10.0
 Section: database
 Architecture: any
 Depends: mariadb-server-10.0 (= ${source:Version}), mariadb-client-10.0 (= ${source:Version})
-Breaks: mariadb-test (<< ${source:Version}),
+Conflicts: mariadb-test (<< ${source:Version}),
     mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3,
     mariadb-server-5.5 (<< 5.5.33), mariadb-galera-server-5.5 (<< 5.5.33)
 Suggests: patch
@@ -190,7 +190,7 @@ Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl, perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc, passwd, lsb-base (>= 3.0-10), mariadb-server-core-10.0 (>= ${binary:Version})
 Provides: mariadb-server, mysql-server, virtual-mysql-server
-Breaks: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}),
+Conflicts: mariadb-server (<< ${source:Version}), mysql-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
     mariadb-server-5.1, mariadb-server-5.2, mariadb-server-5.3,
     mariadb-tokudb-engine-5.5, mariadb-tokudb-engine-10.0

@@ -96,7 +96,9 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !WIN32
 
-extern int xtrace;
+extern "C" int trace;
+
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
@@ -166,6 +168,29 @@ bool IsFileType(TABTYPE type)
   } // end of IsFileType
 
 /***********************************************************************/
+/*  Return true for table types returning exact row count.             */
+/***********************************************************************/
+bool IsExactType(TABTYPE type)
+  {
+  bool exact;
+
+  switch (type) {                      
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_DBF:
+//  case TAB_XML:     depends on Multiple || Xpand || Coltype
+    case TAB_VEC:
+      exact= true;
+      break;
+    default:
+      exact= false;
+      break;
+    } // endswitch type
+
+  return exact;
+  } // end of IsExactType
+
+/***********************************************************************/
 /*  Return true for table types accepting null fields.                 */
 /***********************************************************************/
 bool IsTypeNullable(TABTYPE type)
@@ -186,7 +211,7 @@ bool IsTypeNullable(TABTYPE type)
   } // end of IsTypeNullable
 
 /***********************************************************************/
-/*  Return true for table types with fix length records.               */
+/*  Return true for indexable table by XINDEX.                         */
 /***********************************************************************/
 bool IsTypeFixed(TABTYPE type)
   {
@@ -208,7 +233,7 @@ bool IsTypeFixed(TABTYPE type)
   } // end of IsTypeFixed
 
 /***********************************************************************/
-/*  Return true for table types with fix length records.               */
+/*  Return true for table indexable by XINDEX.                         */
 /***********************************************************************/
 bool IsTypeIndexable(TABTYPE type)
   {
@@ -231,6 +256,36 @@ bool IsTypeIndexable(TABTYPE type)
 
   return idx;
   } // end of IsTypeIndexable
+
+/***********************************************************************/
+/*  Return index type: 0 NO, 1 XINDEX, 2 REMOTE.                       */
+/***********************************************************************/
+int GetIndexType(TABTYPE type)
+  {
+  int xtyp;
+
+  switch (type) {                      
+    case TAB_DOS:
+    case TAB_CSV:
+    case TAB_FMT:
+    case TAB_FIX:
+    case TAB_BIN:
+    case TAB_VEC:
+    case TAB_DBF:
+      xtyp= 1;
+      break;
+    case TAB_MYSQL:
+//  case TAB_ODBC:
+      xtyp= 2;
+      break;
+    case TAB_ODBC:
+    default:
+      xtyp= 0;
+      break;
+    } // endswitch type
+
+  return xtyp;
+  } // end of GetIndexType
 
 /***********************************************************************/
 /*  Get a unique enum catalog function ID.                             */
@@ -258,6 +313,89 @@ uint GetFuncID(const char *func)
 
   return fnc;
   } // end of GetFuncID
+
+/***********************************************************************/
+/*  OEMColumn: Get table column info for an OEM table.                 */
+/***********************************************************************/
+PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
+  {
+  typedef PQRYRES (__stdcall *XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
+  const char *module, *subtype;
+  char    c, getname[40] = "Col";
+#if defined(WIN32)
+  HANDLE  hdll;               /* Handle to the external DLL            */
+#else   // !WIN32
+  void   *hdll;               /* Handle for the loaded shared library  */
+#endif  // !WIN32
+  XCOLDEF coldef = NULL;
+  PQRYRES qrp = NULL;
+
+  module = topt->module;
+  subtype = topt->subtype;
+
+  if (!module || !subtype)
+    return NULL;
+
+  // The exported name is always in uppercase
+  for (int i = 0; ; i++) {
+    c = subtype[i];
+    getname[i + 3] = toupper(c);
+    if (!c) break;
+    } // endfor i
+
+#if defined(WIN32)
+  // Load the Dll implementing the table
+  if (!(hdll = LoadLibrary(module))) {
+    char  buf[256];
+    DWORD rc = GetLastError();
+
+    sprintf(g->Message, MSG(DLL_LOAD_ERROR), rc, module);
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                  FORMAT_MESSAGE_IGNORE_INSERTS, NULL, rc, 0,
+                  (LPTSTR)buf, sizeof(buf), NULL);
+    strcat(strcat(g->Message, ": "), buf);
+    return NULL;
+    } // endif hDll
+
+  // Get the function returning an instance of the external DEF class
+  if (!(coldef = (XCOLDEF)GetProcAddress((HINSTANCE)hdll, getname))) {
+    sprintf(g->Message, MSG(PROCADD_ERROR), GetLastError(), getname);
+    FreeLibrary((HMODULE)hdll);
+    return NULL;
+    } // endif coldef
+#else   // !WIN32
+  const char *error = NULL;
+
+  // Load the desired shared library
+  if (!(hdll = dlopen(module, RTLD_LAZY))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(SHARED_LIB_ERR), module, SVP(error));
+    return NULL;
+    } // endif Hdll
+
+  // Get the function returning an instance of the external DEF class
+  if (!(coldef = (XCOLDEF)dlsym(hdll, getname))) {
+    error = dlerror();
+    sprintf(g->Message, MSG(GET_FUNC_ERR), getname, SVP(error));
+    dlclose(hdll);
+    return NULL;
+    } // endif coldef
+#endif  // !WIN32
+
+  // Just in case the external Get function does not set error messages
+  sprintf(g->Message, "Error getting column info from %s", subtype);
+
+  // Get the table column definition
+  qrp = coldef(g, topt, tab, db, info);
+
+#if defined(WIN32)
+  FreeLibrary((HMODULE)hdll);
+#else   // !WIN32
+  dlclose(hdll);
+#endif  // !WIN32
+
+  return qrp;
+  } // end of OEMColumns
 
 /* ------------------------- Class CATALOG --------------------------- */
 
@@ -327,288 +465,13 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 	} // end of SetDataPath
 
 /***********************************************************************/
-/*  This function sets an integer MYCAT information.                   */
-/***********************************************************************/
-bool MYCAT::SetIntCatInfo(PSZ what, int n)
-	{
-	return Hc->SetIntegerOption(what, n);
-	} // end of SetIntCatInfo
-
-/***********************************************************************/
-/*  This function returns integer MYCAT information.                   */
-/***********************************************************************/
-int MYCAT::GetIntCatInfo(PSZ what, int idef)
-	{
-	int n= Hc->GetIntegerOption(what);
-
-	return (n == NO_IVAL) ? idef : n;
-	} // end of GetIntCatInfo
-
-/***********************************************************************/
-/*  This function returns Boolean MYCAT information.                   */
-/***********************************************************************/
-bool MYCAT::GetBoolCatInfo(PSZ what, bool bdef)
-	{
-	bool b= Hc->GetBooleanOption(what, bdef);
-
-	return b;
-	} // end of GetBoolCatInfo
-
-/***********************************************************************/
-/*  This function returns size catalog information.                    */
-/***********************************************************************/
-int MYCAT::GetSizeCatInfo(PSZ what, PSZ sdef)
-	{
-	char * s, c;
-  int  i, n= 0;
-
-	if (!(s= Hc->GetStringOption(what)))
-		s= sdef;
-
-	if ((i= sscanf(s, " %d %c ", &n, &c)) == 2)
-    switch (toupper(c)) {
-      case 'M':
-        n *= 1024;
-      case 'K':
-        n *= 1024;
-      } // endswitch c
-
-  return n;
-} // end of GetSizeCatInfo
-
-/***********************************************************************/
-/*  This function sets char MYCAT information in buf.                  */
-/***********************************************************************/
-int MYCAT::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
-	{
-	char *s= Hc->GetStringOption(what);
-
-	strncpy(buf, ((s) ? s : sdef), size);
-	return size;
-	} // end of GetCharCatInfo
-
-/***********************************************************************/
-/*  This function returns string MYCAT information.                    */
-/*  Default parameter is "*" to get the handler default.               */
-/***********************************************************************/
-char *MYCAT::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
-	{
-	char *sval= NULL, *s= Hc->GetStringOption(what, sdef);
-	
-	if (s) {
-		sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
-		strcpy(sval, s);
-  } else if (!stricmp(what, "filename")) {
-    // Return default file name
-    char *ftype= Hc->GetStringOption("Type", "*");
-    int   i, n;
-
-    if (IsFileType(GetTypeID(ftype))) {
-      sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
-      strcat(strcpy(sval, Hc->GetTableName()), ".");
-      n= strlen(sval);
-  
-      // Fold ftype to lower case
-      for (i= 0; i < 12; i++)
-        if (!ftype[i]) {
-          sval[n+i]= 0;
-          break;
-        } else
-          sval[n+i]= tolower(ftype[i]);
-
-      } // endif FileType
-
-  } // endif s
-
-	return sval;
-	}	// end of GetStringCatInfo
-
-/***********************************************************************/
-/*  This function returns column MYCAT information.                    */
-/***********************************************************************/
-int MYCAT::GetColCatInfo(PGLOBAL g, PTABDEF defp)
-	{
-	char		*type= GetStringCatInfo(g, "Type", "*");
-	int      i, loff, poff, nof, nlg;
-	void    *field= NULL;
-  TABTYPE  tc;
-  PCOLDEF  cdp, lcdp= NULL, tocols= NULL;
-	PCOLINFO pcf= (PCOLINFO)PlugSubAlloc(g, NULL, sizeof(COLINFO));
-
-  memset(pcf, 0, sizeof(COLINFO));
-
-  // Get a unique char identifier for type
-  tc= (defp->Catfunc == FNC_NO) ? GetTypeID(type) : TAB_PRX;
-
-  // Take care of the column definitions
-	i= poff= nof= nlg= 0;
-
-	// Offsets of HTML and DIR tables start from 0, DBF at 1
-	loff= (tc == TAB_DBF) ? 1 : (tc == TAB_XML || tc == TAB_DIR) ? -1 : 0; 
-
-  while (true) {
-		// Default Offset depends on table type
-		switch (tc) {
-      case TAB_DOS:
-      case TAB_FIX:
-      case TAB_BIN:
-      case TAB_VEC:
-      case TAB_DBF:
-        poff= loff + nof;				 // Default next offset
-				nlg= max(nlg, poff);		 // Default lrecl
-        break;
-      case TAB_CSV:
-      case TAB_FMT:
-				nlg+= nof;
-      case TAB_DIR:
-      case TAB_XML:
-        poff= loff + 1;
-        break;
-      case TAB_INI:
-      case TAB_MAC:
-      case TAB_TBL:
-      case TAB_XCL:
-      case TAB_OCCUR:
-      case TAB_PRX:
-      case TAB_OEM:
-        poff = 0;      // Offset represents an independant flag
-        break;
-      default:         // VCT PLG ODBC MYSQL WMI...
-        poff = 0;			 // NA
-        break;
-			} // endswitch tc
-
-//		do {
-			field= Hc->GetColumnOption(g, field, pcf);
-//    } while (field && (*pcf->Name =='*' /*|| pcf->Flags & U_VIRTUAL*/));
-
-		if (tc == TAB_DBF && pcf->Type == TYPE_DATE && !pcf->Datefmt) {
-			// DBF date format defaults to 'YYYMMDD'
-			pcf->Datefmt= "YYYYMMDD";
-			pcf->Length= 8;
-			} // endif tc
-
-		if (!field)
-			break;
-
-    // Allocate the column description block
-    cdp= new(g) COLDEF;
-
-    if ((nof= cdp->Define(g, NULL, pcf, poff)) < 0)
-      return -1;						 // Error, probably unhandled type
-		else if (nof)
-			loff= cdp->GetOffset();
-
-		switch (tc) {
-			case TAB_VEC:
-				cdp->SetOffset(0);		 // Not to have shift
-			case TAB_BIN:
-				// BIN/VEC are packed by default
-				if (nof)
-					// Field width is the internal representation width
-					// that can also depend on the column format
-					switch (cdp->Fmt ? *cdp->Fmt : 'X') {
-						case 'C':         break;
-						case 'R':
-						case 'F':
-						case 'L':
-						case 'I':	nof= 4; break;
-						case 'D':	nof= 8; break;
-						case 'S':	nof= 2; break;
-						case 'T':	nof= 1; break;
-						default:  nof= cdp->Clen;
-						} // endswitch Fmt
-
-      default:
-				break;
-			} // endswitch tc
-
-		if (lcdp)
-	    lcdp->SetNext(cdp);
-		else
-			tocols= cdp;
-
-		lcdp= cdp;
-    i++;
-    } // endwhile
-
-  // Degree is the the number of defined columns (informational)
-  if (i != defp->GetDegree())
-    defp->SetDegree(i);
-
-	if (defp->GetDefType() == TYPE_AM_DOS) {
-		int			ending, recln= 0;
-		PDOSDEF ddp= (PDOSDEF)defp;
-
-		// Was commented because sometimes ending is 0 even when
-		// not specified (for instance if quoted is specified)
-//	if ((ending= Hc->GetIntegerOption("Ending")) < 0) {
-		if ((ending= Hc->GetIntegerOption("Ending")) <= 0) {
-#if defined(WIN32)
-			ending= 2;
-#else
-			ending= 1;
-#endif
-			Hc->SetIntegerOption("Ending", ending);
-			} // endif ending
-
-		// Calculate the default record size
-		switch (tc) {
-      case TAB_FIX:
-        recln= nlg + ending;     // + length of line ending
-        break;
-      case TAB_BIN:
-      case TAB_VEC:
-        recln= nlg;
-	
-//      if ((k= (pak < 0) ? 8 : pak) > 1)
-          // See above for detailed comment
-          // Round up lrecl to multiple of 8 or pak
-//        recln= ((recln + k - 1) / k) * k;
-	
-        break;
-      case TAB_DOS:
-      case TAB_DBF:
-        recln= nlg;
-        break;
-      case TAB_CSV:
-      case TAB_FMT:
-        // The number of separators (assuming an extra one can exist)
-//      recln= poff * ((qotd) ? 3 : 1);	 to be investigated
-				recln= nlg + poff * 3;     // To be safe
-      default:
-        break;
-      } // endswitch tc
-
-		// lrecl must be at least recln to avoid buffer overflow
-		recln= max(recln, Hc->GetIntegerOption("Lrecl"));
-		Hc->SetIntegerOption("Lrecl", recln);
-		ddp->SetLrecl(recln);
-		} // endif Lrecl
-
-	// Attach the column definition to the tabdef
-	defp->SetCols(tocols);
-	return poff;
-	} // end of GetColCatInfo
-
-/***********************************************************************/
-/*  GetIndexInfo: retrieve index description from the table structure. */
-/***********************************************************************/
-bool MYCAT::GetIndexInfo(PGLOBAL g, PTABDEF defp)
-  {
-  // Attach new index(es)
-  defp->SetIndx(Hc->GetIndexInfo());
-	return false;
-  } // end of GetIndexInfo
-
-/***********************************************************************/
 /*  GetTableDesc: retrieve a table descriptor.                         */
 /*  Look for a table descriptor matching the name and type.            */
 /***********************************************************************/
 PRELDEF MYCAT::GetTableDesc(PGLOBAL g, LPCSTR name,
                                        LPCSTR type, PRELDEF *prp)
   {
-	if (xtrace)
+	if (trace)
 		printf("GetTableDesc: name=%s am=%s\n", name, SVP(type));
 
  	// If not specified get the type of this table
@@ -627,7 +490,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
   TABTYPE tc;
   PRELDEF tdp= NULL;
 
-	if (xtrace)
+	if (trace)
 		printf("MakeTableDesc: name=%s am=%s\n", name, SVP(am));
 
   /*********************************************************************/
@@ -686,14 +549,14 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
   PTDB    tdbp= NULL;
   LPCSTR  name= tablep->GetName();
 
-	if (xtrace)
+	if (trace)
 		printf("GetTableDB: name=%s\n", name);
 
   // Look for the description of the requested table
   tdp= GetTableDesc(g, name, type);
 
   if (tdp) {
-		if (xtrace)
+		if (trace)
 			printf("tdb=%p type=%s\n", tdp, tdp->GetType());
 
 		if (tablep->GetQualifier())
@@ -703,7 +566,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 		} // endif tdp
 
   if (tdbp) {
-		if (xtrace)
+		if (trace)
 			printf("tdbp=%p name=%s amtype=%d\n", tdbp, tdbp->GetName(),
 																						tdbp->GetAmType());
     tablep->SetTo_Tdb(tdbp);

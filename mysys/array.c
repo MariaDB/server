@@ -22,7 +22,7 @@
   Initiate dynamic array
 
   SYNOPSIS
-    my_init_dynamic_array2()
+    init_dynamic_array2()
       array		Pointer to an array
       element_size	Size of element
       init_buffer       Initial buffer pointer
@@ -31,7 +31,7 @@
       my_flags		Flags to my_malloc
 
   DESCRIPTION
-    my_init_dynamic_array2() initiates array and allocate space for
+    init_dynamic_array() initiates array and allocate space for
     init_alloc eilements.
     Array is usable even if space allocation failed, hence, the
     function never returns TRUE.
@@ -41,11 +41,11 @@
     FALSE	Ok
 */
 
-my_bool my_init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
+my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
                             void *init_buffer, uint init_alloc, 
                             uint alloc_increment, myf my_flags)
 {
-  DBUG_ENTER("my_init_dynamic_array2");
+  DBUG_ENTER("init_dynamic_array2");
   if (!alloc_increment)
   {
     alloc_increment=MY_MAX((8192-MALLOC_OVERHEAD)/element_size,16);

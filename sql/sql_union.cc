@@ -243,7 +243,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
   bool is_union_select;
   DBUG_ENTER("st_select_lex_unit::prepare");
 
-  describe= test(additional_options & SELECT_DESCRIBE);
+  describe= MY_TEST(additional_options & SELECT_DESCRIBE);
 
   /*
     result object should be reassigned even if preparing already done for
@@ -450,7 +450,7 @@ bool st_select_lex_unit::prepare(THD *thd_arg, select_result *sel_result,
     if (global_parameters->ftfunc_list->elements)
       create_options= create_options | TMP_TABLE_FORCE_MYISAM;
 
-    if (union_result->create_result_table(thd, &types, test(union_distinct),
+    if (union_result->create_result_table(thd, &types, MY_TEST(union_distinct),
                                           create_options, "", FALSE, TRUE))
       goto err;
     if (fake_select_lex && !fake_select_lex->first_cond_optimization)
@@ -646,6 +646,9 @@ bool st_select_lex_unit::exec()
 
   if (!saved_error && !was_executed)
     save_union_explain(thd->lex->explain);
+
+  if (saved_error)
+    DBUG_RETURN(saved_error);
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
@@ -988,7 +991,7 @@ bool st_select_lex_unit::change_result(select_result_interceptor *new_result,
 List<Item> *st_select_lex_unit::get_unit_column_types()
 {
   SELECT_LEX *sl= first_select();
-  bool is_procedure= test(sl->join->procedure);
+  bool is_procedure= MY_TEST(sl->join->procedure);
 
   if (is_procedure)
   {

@@ -1,4 +1,5 @@
--- Copyright (c) 2008, 2011, Oracle and/or its affiliates
+-- Copyright (c) 2008, 2013, Oracle and/or its affiliates
+-- Copyright (c) 2009, 2013, SkySQL Ab
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -57,6 +58,16 @@ BEGIN
       WHERE table_schema='mysql' AND table_name != 'ndb_apply_status'
         ORDER BY columns_in_mysql;
 
+  -- Dump all events, there should be none
+  SELECT * FROM INFORMATION_SCHEMA.EVENTS;
+  -- Dump all triggers	 except mtr internals, there should be none
+  SELECT * FROM INFORMATION_SCHEMA.TRIGGERS
+         WHERE TRIGGER_NAME NOT IN ('gs_insert', 'ts_insert');
+  -- Dump all created procedures, there should be none
+  SELECT * FROM INFORMATION_SCHEMA.ROUTINES;
+
+  SHOW STATUS LIKE 'slave_open_temp_tables';
+
   -- Checksum system tables to make sure they have been properly
   -- restored after test
   checksum table
@@ -84,8 +95,6 @@ BEGIN
 
   select * from information_schema.session_variables
     where variable_name = 'debug_sync';
-
- show status like 'slave_open_temp_tables';
 
 END||
 

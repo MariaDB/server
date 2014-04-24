@@ -37,6 +37,8 @@ static int count_relay_log_space(Relay_log_info* rli);
    domain).
 */
 rpl_slave_state rpl_global_gtid_slave_state;
+/* Object used for MASTER_GTID_WAIT(). */
+gtid_waiting rpl_global_gtid_waiting;
 
 
 // Defined in slave.cc
@@ -56,9 +58,10 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    is_fake(FALSE),
 #endif
    group_master_log_pos(0), log_space_total(0), ignore_log_space_limit(0),
-   last_master_timestamp(0), slave_skip_counter(0),
+   last_master_timestamp(0), sql_thread_caught_up(true), slave_skip_counter(0),
    abort_pos_wait(0), slave_run_id(0), sql_driver_thd(),
-   inited(0), abort_slave(0), slave_running(0), until_condition(UNTIL_NONE),
+   inited(0), abort_slave(0), stop_for_until(0),
+   slave_running(0), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
    m_flags(0)
 {
@@ -79,7 +82,6 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   max_relay_log_size= global_system_variables.max_relay_log_size;
   bzero((char*) &info_file, sizeof(info_file));
   bzero((char*) &cache_buf, sizeof(cache_buf));
-  cached_charset_invalidate();
   mysql_mutex_init(key_relay_log_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_relay_log_info_data_lock,
                    &data_lock, MY_MUTEX_INIT_FAST);
@@ -1197,29 +1199,6 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
 }
 
 
-void Relay_log_info::cached_charset_invalidate()
-{
-  DBUG_ENTER("Relay_log_info::cached_charset_invalidate");
-
-  /* Full of zeroes means uninitialized. */
-  bzero(cached_charset, sizeof(cached_charset));
-  DBUG_VOID_RETURN;
-}
-
-
-bool Relay_log_info::cached_charset_compare(char *charset) const
-{
-  DBUG_ENTER("Relay_log_info::cached_charset_compare");
-
-  if (memcmp(cached_charset, charset, sizeof(cached_charset)))
-  {
-    memcpy(const_cast<char*>(cached_charset), charset, sizeof(cached_charset));
-    DBUG_RETURN(1);
-  }
-  DBUG_RETURN(0);
-}
-
-
 void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
                                time_t event_creation_time, THD *thd,
                                rpl_group_info *rgi)
@@ -1287,9 +1266,14 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
       (probably ok - except in some very rare cases, only consequence
       is that value may take some time to display in
       Seconds_Behind_Master - not critical).
+
+      In parallel replication, we take care to not set last_master_timestamp
+      backwards, in case of out-of-order calls here.
     */
     if (!(event_creation_time == 0 &&
-          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)))
+          IF_DBUG(debug_not_change_ts_if_art_event > 0, 1)) &&
+        !(rgi->is_parallel_exec && event_creation_time <= last_master_timestamp)
+        )
         last_master_timestamp= event_creation_time;
   }
   DBUG_VOID_RETURN;
@@ -1312,9 +1296,9 @@ rpl_load_gtid_slave_state(THD *thd)
   uint32 i;
   DBUG_ENTER("rpl_load_gtid_slave_state");
 
-  rpl_global_gtid_slave_state.lock();
+  mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   bool loaded= rpl_global_gtid_slave_state.loaded;
-  rpl_global_gtid_slave_state.unlock();
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   if (loaded)
     DBUG_RETURN(0);
 
@@ -1414,10 +1398,10 @@ rpl_load_gtid_slave_state(THD *thd)
     }
   }
 
-  rpl_global_gtid_slave_state.lock();
+  mysql_mutex_lock(&rpl_global_gtid_slave_state.LOCK_slave_state);
   if (rpl_global_gtid_slave_state.loaded)
   {
-    rpl_global_gtid_slave_state.unlock();
+    mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
     goto end;
   }
 
@@ -1427,9 +1411,10 @@ rpl_load_gtid_slave_state(THD *thd)
     if ((err= rpl_global_gtid_slave_state.update(tmp_entry.gtid.domain_id,
                                                  tmp_entry.gtid.server_id,
                                                  tmp_entry.sub_id,
-                                                 tmp_entry.gtid.seq_no)))
+                                                 tmp_entry.gtid.seq_no,
+                                                 NULL)))
     {
-      rpl_global_gtid_slave_state.unlock();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
@@ -1442,14 +1427,14 @@ rpl_load_gtid_slave_state(THD *thd)
         mysql_bin_log.bump_seq_no_counter_if_needed(entry->gtid.domain_id,
                                                     entry->gtid.seq_no))
     {
-      rpl_global_gtid_slave_state.unlock();
+      mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto end;
     }
   }
 
   rpl_global_gtid_slave_state.loaded= true;
-  rpl_global_gtid_slave_state.unlock();
+  mysql_mutex_unlock(&rpl_global_gtid_slave_state.LOCK_slave_state);
 
   err= 0;                                       /* Clear HA_ERR_END_OF_FILE */
 
@@ -1472,14 +1457,29 @@ end:
 }
 
 
-rpl_group_info::rpl_group_info(Relay_log_info *rli_)
-  : rli(rli_), thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
-    wait_commit_group_info(0), wait_start_sub_id(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), tables_to_lock(0),
-    tables_to_lock_count(0), trans_retries(0), last_event_start_time(0),
-    is_parallel_exec(false), is_error(false),
-    row_stmt_start_timestamp(0), long_find_row_note_printed(false)
+void
+rpl_group_info::reinit(Relay_log_info *rli)
 {
+  this->rli= rli;
+  tables_to_lock= NULL;
+  tables_to_lock_count= 0;
+  trans_retries= 0;
+  last_event_start_time= 0;
+  worker_error= 0;
+  row_stmt_start_timestamp= 0;
+  long_find_row_note_printed= false;
+  did_mark_start_commit= false;
+  gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
+  commit_orderer.reinit();
+}
+
+rpl_group_info::rpl_group_info(Relay_log_info *rli)
+  : thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
+    wait_commit_group_info(0), parallel_entry(0),
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+{
+  reinit(rli);
+  cached_charset_invalidate();
   bzero(&current_gtid, sizeof(current_gtid));
   mysql_mutex_init(key_rpl_group_info_sleep_lock, &sleep_lock,
                    MY_MUTEX_INIT_FAST);
@@ -1562,6 +1562,29 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 }
 
 
+void rpl_group_info::cached_charset_invalidate()
+{
+  DBUG_ENTER("rpl_group_info::cached_charset_invalidate");
+
+  /* Full of zeroes means uninitialized. */
+  bzero(cached_charset, sizeof(cached_charset));
+  DBUG_VOID_RETURN;
+}
+
+
+bool rpl_group_info::cached_charset_compare(char *charset) const
+{
+  DBUG_ENTER("rpl_group_info::cached_charset_compare");
+
+  if (memcmp(cached_charset, charset, sizeof(cached_charset)))
+  {
+    memcpy(const_cast<char*>(cached_charset), charset, sizeof(cached_charset));
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
+
+
 void rpl_group_info::cleanup_context(THD *thd, bool error)
 {
   DBUG_ENTER("Relay_log_info::cleanup_context");
@@ -1583,6 +1606,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   if (error)
   {
     trans_rollback_stmt(thd); // if a "statement transaction"
+    /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
   }
   m_table_map.clear_tables();
@@ -1607,6 +1631,13 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
   */
   thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
   thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+  /*
+    Ensure we always release the domain for others to process, when using
+    --gtid-ignore-duplicates.
+  */
+  if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    rpl_global_gtid_slave_state.release_domain_owner(this);
 
   /*
     Reset state related to long_find_row notes in the error log:
@@ -1699,6 +1730,42 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
 
   clear_tables_to_lock();
   DBUG_VOID_RETURN;
+}
+
+
+
+static void
+mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco)
+{
+  uint64 count= ++e->count_committing_event_groups;
+  if (gco->next_gco && gco->next_gco->wait_count == count)
+    mysql_cond_broadcast(&gco->next_gco->COND_group_commit_orderer);
+}
+
+
+void
+rpl_group_info::mark_start_commit_no_lock()
+{
+  if (did_mark_start_commit)
+    return;
+  mark_start_commit_inner(parallel_entry, gco);
+  did_mark_start_commit= true;
+}
+
+
+void
+rpl_group_info::mark_start_commit()
+{
+  rpl_parallel_entry *e;
+
+  if (did_mark_start_commit)
+    return;
+
+  e= this->parallel_entry;
+  mysql_mutex_lock(&e->LOCK_parallel_entry);
+  mark_start_commit_inner(e, gco);
+  mysql_mutex_unlock(&e->LOCK_parallel_entry);
+  did_mark_start_commit= true;
 }
 
 

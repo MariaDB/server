@@ -49,7 +49,7 @@
 
 #define MAX_DROP_TABLE_Q_LEN      1024
 
-const char *del_exts[]= {".BAK", ".TMD",".opt", NullS};
+const char *del_exts[]= {".BAK", ".opt", NullS};
 static TYPELIB deletable_extentions=
 {array_elements(del_exts)-1,"del_exts", del_exts, NULL};
 
@@ -76,6 +76,29 @@ typedef struct my_dbopt_st
   uint name_length;		/* Database length name           */
   CHARSET_INFO *charset;	/* Database default character set */
 } my_dbopt_t;
+
+
+/**
+  Return TRUE if db1_name is equal to db2_name, FALSE otherwise.
+
+  The function allows to compare database names according to the MariaDB
+  rules. The database names db1 and db2 are equal if:
+     - db1 is NULL and db2 is NULL;
+     or
+     - db1 is not-NULL, db2 is not-NULL, db1 is equal to db2 in
+     table_alias_charset
+
+  This is the same rules as we use for filenames.
+*/
+
+static inline bool
+cmp_db_names(const char *db1_name,
+             const char *db2_name)
+{
+  return ((!db1_name && !db2_name) ||
+          (db1_name && db2_name &&
+           my_strcasecmp(table_alias_charset, db1_name, db2_name) == 0));
+}
 
 
 /*
@@ -159,8 +182,7 @@ bool my_dboptions_cache_init(void)
   if (!dboptions_init)
   {
     dboptions_init= 1;
-    error= my_hash_init(&dboptions, lower_case_table_names ?
-                        &my_charset_bin : system_charset_info,
+    error= my_hash_init(&dboptions, table_alias_charset,
                         32, 0, 0, (my_hash_get_key) dboptions_get_key,
                         free_dbopt,0);
   }
@@ -192,8 +214,7 @@ void my_dbopt_cleanup(void)
 {
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
-  my_hash_init(&dboptions, lower_case_table_names ? 
-               &my_charset_bin : system_charset_info,
+  my_hash_init(&dboptions, table_alias_charset,
                32, 0, 0, (my_hash_get_key) dboptions_get_key,
                free_dbopt,0);
   mysql_rwlock_unlock(&LOCK_dboptions);
@@ -558,7 +579,17 @@ int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create_info,
     DBUG_RETURN(-1);
   }
 
-  if (lock_schema_name(thd, db))
+  char db_tmp[SAFE_NAME_LEN], *dbnorm;
+  if (lower_case_table_names)
+  {
+    strmake_buf(db_tmp, db);
+    my_casedn_str(system_charset_info, db_tmp);
+    dbnorm= db_tmp;
+  }
+  else
+    dbnorm= db;
+
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(-1);
 
   /* Check directory */
@@ -762,8 +793,17 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   Drop_table_error_handler err_handler;
   DBUG_ENTER("mysql_rm_db");
 
+  char db_tmp[SAFE_NAME_LEN], *dbnorm;
+  if (lower_case_table_names)
+  {
+    strmake_buf(db_tmp, db);
+    my_casedn_str(system_charset_info, db_tmp);
+    dbnorm= db_tmp;
+  }
+  else
+    dbnorm= db;
 
-  if (lock_schema_name(thd, db))
+  if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
 
   length= build_table_filename(path, sizeof(path) - 1, db, "", "", 0);
@@ -788,7 +828,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
     }
   }
 
-  if (find_db_tables_and_rm_known_files(thd, dirp, db, path, &tables))
+  if (find_db_tables_and_rm_known_files(thd, dirp, dbnorm, path, &tables))
     goto exit;
 
   /*
@@ -798,20 +838,14 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   if ((my_strcasecmp(system_charset_info, MYSQL_SCHEMA_NAME.str, db) == 0))
   {
     for (table= tables; table; table= table->next_local)
-    {
-      if (check_if_log_table(table->db_length, table->db,
-                             table->table_name_length, table->table_name, true))
-      {
-        my_error(ER_BAD_LOG_STATEMENT, MYF(0), "DROP");
+      if (check_if_log_table(table, TRUE, "DROP"))
         goto exit;
-      }
-    }
   }
 
   /* Lock all tables and stored routines about to be dropped. */
   if (lock_table_names(thd, tables, NULL, thd->variables.lock_wait_timeout,
                        0) ||
-      lock_db_routines(thd, db))
+      lock_db_routines(thd, dbnorm))
     goto exit;
 
   if (!in_bootstrap)
@@ -835,7 +869,7 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, true, false, true, true)))
+        mysql_rm_table_no_locks(thd, tables, true, false, true, true, false)))
   {
     /*
       We temporarily disable the binary log while dropping the objects
@@ -858,10 +892,10 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
 
     ha_drop_database(path);
     tmp_disable_binlog(thd);
-    query_cache_invalidate1(thd, db);
-    (void) sp_drop_db_routines(thd, db); /* @todo Do not ignore errors */
+    query_cache_invalidate1(thd, dbnorm);
+    (void) sp_drop_db_routines(thd, dbnorm); /* @todo Do not ignore errors */
 #ifdef HAVE_EVENT_SCHEDULER
-    Events::drop_schema_events(thd, db);
+    Events::drop_schema_events(thd, dbnorm);
 #endif
     reenable_binlog(thd);
 
@@ -972,7 +1006,7 @@ exit:
     SELECT DATABASE() in the future). For this we free() thd->db and set
     it to 0.
   */
-  if (thd->db && !strcmp(thd->db, db) && !error)
+  if (thd->db && cmp_db_names(thd->db, db) && !error)
     mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
   my_dirend(dirp);
   DBUG_RETURN(error);
@@ -1302,27 +1336,6 @@ static void backup_current_db_name(THD *thd,
     strmake(saved_db_name->str, thd->db, saved_db_name->length - 1);
     saved_db_name->length= thd->db_length;
   }
-}
-
-
-/**
-  Return TRUE if db1_name is equal to db2_name, FALSE otherwise.
-
-  The function allows to compare database names according to the MySQL
-  rules. The database names db1 and db2 are equal if:
-     - db1 is NULL and db2 is NULL;
-     or
-     - db1 is not-NULL, db2 is not-NULL, db1 is equal (ignoring case) to
-       db2 in system character set (UTF8).
-*/
-
-static inline bool
-cmp_db_names(const char *db1_name,
-             const char *db2_name)
-{
-  return ((!db1_name && !db2_name) ||
-          (db1_name && db2_name &&
-           my_strcasecmp(system_charset_info, db1_name, db2_name) == 0));
 }
 
 

@@ -22,9 +22,7 @@
 #define  THRESH    4                /* Threshold for insertion (was 4) */
 #define  MTHRESH   6                /* Threshold for median            */
 
-#ifdef DEBTRACE
-extern  FILE   *debug;              /* Debug file                      */
-#endif
+//extern  FILE   *debug;              /* Debug file                      */
 
 typedef int* const    CPINT;
 

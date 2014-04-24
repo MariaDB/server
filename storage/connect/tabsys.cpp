@@ -76,8 +76,8 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char   buf[8];
 
-  Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
-  Cat->GetCharCatInfo("Layout", "C", buf, sizeof(buf));
+  Fn = GetStringCatInfo(g, "Filename", NULL);
+  GetCharCatInfo("Layout", "C", buf, sizeof(buf));
   Layout = toupper(*buf);
 
   if (Fn) {
@@ -90,7 +90,7 @@ bool INIDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     return true;
   } // endif Fn
 
-  Ln = Cat->GetSizeCatInfo("Secsize", "8K");
+  Ln = GetSizeCatInfo("Secsize", "8K");
   Desc = Fn;
   return false;
   } // end of DefineAM
@@ -113,6 +113,7 @@ PTDB INIDEF::GetTable(PGLOBAL g, MODE m)
   return tdbp;
   } // end of GetTable
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete INI table files using platform API.        */
 /***********************************************************************/
@@ -134,6 +135,7 @@ bool INIDEF::DeleteTableFile(PGLOBAL g)
 
   return rc;                                  // Return true if error
   } // end of DeleteTableFile
+#endif // 0
 
 /* ------------------------------------------------------------------- */
 

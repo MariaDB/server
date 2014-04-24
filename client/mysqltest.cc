@@ -528,6 +528,7 @@ struct st_command
 {
   char *query, *query_buf,*first_argument,*last_argument,*end;
   DYNAMIC_STRING content;
+  DYNAMIC_STRING eval_query;
   int first_word_len, query_len;
   my_bool abort_on_error, used_replace;
   struct st_expected_errors expected_errors;
@@ -1399,6 +1400,8 @@ void free_used_memory()
   {
     struct st_command **q= dynamic_element(&q_lines, i, struct st_command**);
     my_free((*q)->query_buf);
+    if ((*q)->eval_query.str)
+      dynstr_free(&(*q)->eval_query);
     if ((*q)->content.str)
       dynstr_free(&(*q)->content);
     my_free((*q));
@@ -7940,6 +7943,7 @@ void handle_error(struct st_command *command,
 
   DBUG_ENTER("handle_error");
 
+  command->used_replace= 1;
   if (command->require_file)
   {
     /*
@@ -8342,7 +8346,6 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   DYNAMIC_STRING ds_result;
   DYNAMIC_STRING ds_sorted;
   DYNAMIC_STRING ds_warnings;
-  DYNAMIC_STRING eval_query;
   char *query;
   int query_len;
   my_bool view_created= 0, sp_created= 0;
@@ -8365,10 +8368,14 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   if (command->type == Q_EVAL || command->type == Q_SEND_EVAL || 
       command->type == Q_EVALP)
   {
-    init_dynamic_string(&eval_query, "", command->query_len+256, 1024);
-    do_eval(&eval_query, command->query, command->end, FALSE);
-    query = eval_query.str;
-    query_len = eval_query.length;
+    if (!command->eval_query.str)
+      init_dynamic_string(&command->eval_query, "", command->query_len + 256,
+                          1024);
+    else
+      dynstr_set(&command->eval_query, 0);
+    do_eval(&command->eval_query, command->query, command->end, FALSE);
+    query= command->eval_query.str;
+    query_len= command->eval_query.length;
   }
   else
   {
@@ -8536,8 +8543,6 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
 
   dynstr_free(&ds_warnings);
   ds_warn= 0;
-  if (command->type == Q_EVAL || command->type == Q_SEND_EVAL)
-    dynstr_free(&eval_query);
 
   if (display_result_sorted)
   {
@@ -8941,7 +8946,7 @@ int main(int argc, char **argv)
   my_init_dynamic_array(&q_lines, sizeof(struct st_command*), 1024, 1024, MYF(0));
 
   if (my_hash_init2(&var_hash, 64, charset_info,
-                 128, 0, 0, get_var_key, var_free, MYF(0)))
+                 128, 0, 0, get_var_key, 0, var_free, MYF(0)))
     die("Variable hash initialization failed");
 
   var_set_string("MYSQL_SERVER_VERSION", MYSQL_SERVER_VERSION);

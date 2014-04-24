@@ -1,0 +1,20 @@
+#
+# Tests that requires lower_case_table_names to be 0
+# (Normal case on Unix)
+#
+--source include/have_lowercase0.inc
+--source include/have_case_sensitive_file_system.inc
+
+#
+# Check caching of database options
+#
+
+CREATE DATABASE mysql_TEST CHARACTER SET utf8;
+SHOW CREATE DATABASE mysql_TEST;
+CREATE DATABASE mysql_test CHARACTER SET latin2;
+SHOW CREATE DATABASE mysql_test;
+SHOW CREATE DATABASE mysql_TEST;
+DROP DATABASE mysql_test;
+DROP DATABASE mysql_TEST;
+
+# End of 10.0 tests

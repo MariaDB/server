@@ -353,7 +353,7 @@ int decimal2string(const decimal_t *from, char *to, int *to_len,
   if (!(intg_len= fixed_precision ? fixed_intg : intg))
     intg_len= 1;
   frac_len= fixed_precision ? fixed_decimals : frac;
-  len= from->sign + intg_len + test(frac) + frac_len;
+  len= from->sign + intg_len + MY_TEST(frac) + frac_len;
   if (fixed_precision)
   {
     if (frac > fixed_decimals)
@@ -379,7 +379,7 @@ int decimal2string(const decimal_t *from, char *to, int *to_len,
     }
     else
       frac-=j;
-    len= from->sign + intg_len + test(frac) + frac_len;
+    len= from->sign + intg_len + MY_TEST(frac) + frac_len;
   }
   *to_len=len;
   s[len]=0;
@@ -1594,24 +1594,6 @@ decimal_round(const decimal_t *from, decimal_t *to, int scale,
       x+=10;
     *buf1=powers10[pos]*(x-y);
   }
-  /*
-    In case we're rounding e.g. 1.5e9 to 2.0e9, the decimal_digit_t's inside
-    the buffer are as follows.
-
-    Before <1, 5e8>
-    After  <2, 5e8>
-
-    Hence we need to set the 2nd field to 0.
-    The same holds if we round 1.5e-9 to 2e-9.
-   */
-  if (frac0 < frac1)
-  {
-    dec1 *buf= to->buf + ((scale == 0 && intg0 == 0) ? 1 : intg0 + frac0);
-    dec1 *end= to->buf + len;
-
-    while (buf < end)
-      *buf++=0;
-  }
   if (*buf1 >= DIG_BASE)
   {
     carry=1;
@@ -1633,6 +1615,7 @@ decimal_round(const decimal_t *from, decimal_t *to, int scale,
       }
       *buf1=1;
       to->intg++;
+      intg0++;
     }
   }
   else
@@ -1653,6 +1636,24 @@ decimal_round(const decimal_t *from, decimal_t *to, int scale,
         return E_DEC_OK;
       }
     }
+  }
+  /*
+    In case we're rounding e.g. 1.5e9 to 2.0e9, the decimal_digit_t's inside
+    the buffer are as follows.
+
+    Before <1, 5e8>
+    After  <2, 5e8>
+
+    Hence we need to set the 2nd field to 0.
+    The same holds if we round 1.5e-9 to 2e-9.
+   */
+  if (frac0 < frac1)
+  {
+    dec1 *buf= to->buf + ((scale == 0 && intg0 == 0) ? 1 : intg0 + frac0);
+    dec1 *end= to->buf + len;
+
+    while (buf < end)
+      *buf++=0;
   }
 
   /* Here we  check 999.9 -> 1000 case when we need to increase intg */

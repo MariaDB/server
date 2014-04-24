@@ -123,7 +123,7 @@ IF(WIN32)
   # /MP option of the Microsoft compiler does not work well with COM #import
   string(REPLACE "/MP" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
   string(REPLACE "/MP" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-  
+
   OPTION(CONNECT_WITH_MSXML "Compile CONNECT storage engine with MSXML support" ON)
   IF(CONNECT_WITH_MSXML)
     find_library(MSXML_LIBRARY
@@ -264,6 +264,17 @@ int main() {
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
 
+
+#
+# XMAP
+#
+
+OPTION(CONNECT_WITH_XMAP "Compile CONNECT storage engine with index file mapping support" ON)
+
+IF(CONNECT_WITH_XMAP)
+  add_definitions(-DXMAP)
+ENDIF(CONNECT_WITH_XMAP)
+
 #
 # Plugin definition
 #
@@ -271,6 +282,7 @@ ENDIF(CONNECT_WITH_ODBC)
 MYSQL_ADD_PLUGIN(connect ${CONNECT_SOURCES}
   STORAGE_ENGINE
   COMPONENT connect-engine
+  RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES ${ZLIB_LIBRARY} ${XML_LIBRARY} ${ICONV_LIBRARY}
                  ${ODBC_LIBRARY} ${IPHLPAPI_LIBRARY})
 

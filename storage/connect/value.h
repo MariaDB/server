@@ -1,7 +1,7 @@
 /**************** Value H Declares Source Code File (.H) ***************/
-/*  Name: VALUE.H    Version 2.0                                       */
+/*  Name: VALUE.H    Version 2.1                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
 /*                                                                     */
 /*  This file contains the VALUE and derived classes declares.         */
 /***********************************************************************/
@@ -46,8 +46,6 @@ DllExport char *GetFormatType(int);
 DllExport int   GetFormatType(char);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
-//lExport int   ConvertType(int, int, CONV, bool match = false);
-//lExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
                               bool uns = false, PSZ fmt = NULL);
 DllExport ulonglong CharToNumber(char *, int, ulonglong, bool, 
@@ -271,20 +269,68 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
   virtual int    GetValPrec() {return Prec;}
 
   // Methods
-//virtual bool   SetValue_pval(PVAL valp, bool chktype);
-//virtual bool   SetValue_char(char *p, int n);
-//virtual void   SetValue_psz(PSZ s);
-//virtual void   SetValue_pvblk(PVBLK blk, int n);
-//virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual char  *ShowValue(char *buf, int);
-//virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
-//virtual bool   FormatValue(PVAL vp, char *fmt);
-//virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
 
   // Members
   }; // end of class DECVAL
+
+/***********************************************************************/
+/*  Specific BINARY class.                                             */
+/***********************************************************************/
+class DllExport BINVAL: public VALUE { 
+ public:
+  // Constructors
+//BINVAL(void *p);
+  BINVAL(PGLOBAL g, void *p, int cl, int n);
+
+  // Implementation
+  virtual bool   IsTypeNum(void) {return false;}
+  virtual bool   IsZero(void);
+  virtual void   Reset(void);
+  virtual int    GetValLen(void) {return Clen;};
+  virtual int    GetValPrec() {return 0;}
+  virtual int    GetSize(void) {return Len;}
+  virtual PSZ    GetCharValue(void) {return (PSZ)Binp;}
+  virtual char   GetTinyValue(void);
+  virtual uchar  GetUTinyValue(void);
+  virtual short  GetShortValue(void);
+  virtual ushort GetUShortValue(void);
+  virtual int    GetIntValue(void);
+  virtual uint   GetUIntValue(void);
+  virtual longlong GetBigintValue(void);
+  virtual ulonglong GetUBigintValue(void);
+  virtual double GetFloatValue(void);
+  virtual void  *GetTo_Val(void) {return Binp;}
+
+  // Methods
+  virtual bool   SetValue_pval(PVAL valp, bool chktype);
+  virtual bool   SetValue_char(char *p, int n);
+  virtual void   SetValue_psz(PSZ s);
+  virtual void   SetValue_pvblk(PVBLK blk, int n);
+  virtual void   SetValue(char c);
+  virtual void   SetValue(uchar c);
+  virtual void   SetValue(short i);
+  virtual void   SetValue(ushort i);
+  virtual void   SetValue(int n);
+  virtual void   SetValue(uint n);
+  virtual void   SetValue(longlong n);
+  virtual void   SetValue(ulonglong n);
+  virtual void   SetValue(double f);
+  virtual void   SetBinValue(void *p);
+  virtual bool   GetBinValue(void *buf, int buflen, bool go);
+  virtual char  *ShowValue(char *buf, int);
+  virtual char  *GetCharString(char *p);
+  virtual bool   IsEqual(PVAL vp, bool chktype);
+  virtual bool   FormatValue(PVAL vp, char *fmt);
+  virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
+
+  // Members
+  void       *Binp;
+  char       *Chrp;
+  int         Len;
+  }; // end of class BINVAL
 
 /***********************************************************************/
 /*  Class DTVAL: represents a time stamp value.                        */
@@ -310,15 +356,12 @@ class DllExport DTVAL : public TYPVAL<int> {
           bool   SetFormat(PGLOBAL g, PSZ fmt, int len, int year = 0);
           bool   SetFormat(PGLOBAL g, PVAL valp);
           bool   IsFormatted(void) {return Pdtp != NULL;}
-//        bool   GetTmMember(OPVAL op, int& mval);
-//        bool   DateDiff(DTVAL *dtp, OPVAL op, int& tdif);
           bool   MakeTime(struct tm *ptm);
   static  void   SetTimeShift(void);
   static  int    GetShift(void) {return Shift;}
 
   // Methods
           bool   MakeDate(PGLOBAL g, int *val, int nval);
-//        bool   WeekNum(PGLOBAL g, int& nval);
 
   struct  tm    *GetGmTime(struct tm *);
 

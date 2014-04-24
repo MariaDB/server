@@ -1,5 +1,5 @@
-/* Copyright (c) 2004, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab
+/* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2011, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1652,7 +1652,7 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
       {
         if (non_existant_views.length())
           non_existant_views.append(',');
-        non_existant_views.append(String(view->table_name,system_charset_info));
+        non_existant_views.append(name);
       }
       else
       {

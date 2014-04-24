@@ -118,7 +118,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
     } // endif fn
 
   imax = hmax = nerr = 0;
-  mxr = max(0, mxr);
+  mxr = MY_MAX(0, mxr);
 
   for (i = 0; i < MAXCOL; i++) {
     colname[i] = NULL;
@@ -190,7 +190,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
     imax = hmax = i;
 
     for (i = 0; i < hmax; i++)
-      length[0] = max(length[0], strlen(colname[i]));
+      length[0] = MY_MAX(length[0], strlen(colname[i]));
 
     } // endif hdr
 
@@ -228,11 +228,11 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
             } // endif i
 
           if (n) {
-            len[i] = max(len[i], n);
+            len[i] = MY_MAX(len[i], n);
             type = (digit || (dec && n == 1)) ? TYPE_STRING
                  : (dec) ? TYPE_DOUBLE : TYPE_INT;
-            typ[i] = min(type, typ[i]);
-            prc[i] = max((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
+            typ[i] = MY_MIN(type, typ[i]);
+            prc[i] = MY_MAX((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
             } // endif n
 
           i++;
@@ -308,14 +308,14 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
         goto skip;
 
     if (n) {
-      len[i] = max(len[i], n);
+      len[i] = MY_MAX(len[i], n);
       type = (digit || n == 0 || (dec && n == 1)) ? TYPE_STRING
            : (dec) ? TYPE_DOUBLE : TYPE_INT;
-      typ[i] = min(type, typ[i]);
-      prc[i]  = max((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
+      typ[i] = MY_MIN(type, typ[i]);
+      prc[i]  = MY_MAX((typ[i] == TYPE_DOUBLE) ? (dec - 1) : 0, prc[i]);
       } // endif n
 
-    imax = max(imax, i+1);
+    imax = MY_MAX(imax, i+1);
    skip: ;                  // Skip erroneous line
     } // endfor num_read
 
@@ -415,10 +415,10 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (DOSDEF::DefineAM(g, "CSV", poff))
     return true;
 
-  Cat->GetCharCatInfo("Separator", ",", buf, sizeof(buf));
+  GetCharCatInfo("Separator", ",", buf, sizeof(buf));
   Sep = (strlen(buf) == 2 && buf[0] == '\\' && buf[1] == 't') ? '\t' : *buf;
-  Quoted = Cat->GetIntCatInfo("Quoted", -1);
-  Cat->GetCharCatInfo("Qchar", "", buf, sizeof(buf));
+  Quoted = GetIntCatInfo("Quoted", -1);
+  GetCharCatInfo("Qchar", "", buf, sizeof(buf));
   Qot = *buf;
 
   if (Qot && Quoted < 0)
@@ -427,9 +427,9 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Qot = '"';
 
   Fmtd = (!Sep || (am && (*am == 'F' || *am == 'f')));
-  Header = (Cat->GetIntCatInfo("Header", 0) != 0);
-  Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
-  Accept = (Cat->GetIntCatInfo("Accept", 0) != 0);
+  Header = (GetIntCatInfo("Header", 0) != 0);
+  Maxerr = GetIntCatInfo("Maxerr", 0);
+  Accept = (GetIntCatInfo("Accept", 0) != 0);
   return false;
   } // end of DefineAM
 
@@ -460,7 +460,6 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
         txfp = new(g) ZIPFAM(this);
       else {
         strcpy(g->Message, "Compress 2 not supported yet");
-//      txfp = new(g) ZLBFAM(defp);
         return NULL;
         } // endelse
 #else   // !ZIP_SUPPORT
@@ -600,7 +599,7 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
       if (!colp->IsSpecial())  // Not a pseudo column
-        Fields = max(Fields, (int)colp->Fldnum);
+        Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
     if (Columns)
       Fields++;           // Fldnum was 0 based
@@ -643,7 +642,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
       if (Mode != MODE_UPDATE && Mode != MODE_INSERT) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
           if (!colp->IsSpecial())  // Not a pseudo column
-            Fields = max(Fields, (int)colp->Fldnum);
+            Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
         if (Columns)
           Fields++;           // Fldnum was 0 based
@@ -1103,7 +1102,7 @@ bool TDBFMT::OpenDB(PGLOBAL g)
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
       if (!colp->IsSpecial())  // Not a pseudo column
-        Fields = max(Fields, (int)colp->Fldnum);
+        Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
     if (Columns)
       Fields++;                // Fldnum was 0 based
@@ -1273,25 +1272,6 @@ CSVCOL::CSVCOL(CSVCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   } // end of CSVCOL copy constructor
 
 /***********************************************************************/
-/*  VarSize: This function tells UpdateDB whether or not the block     */
-/*  optimization file must be redone if this column is updated, even   */
-/*  it is not sorted or clustered. This applies to a blocked table,    */
-/*  because if it is updated using a temporary file, the block size    */
-/*  may be modified.                                                   */
-/***********************************************************************/
-bool CSVCOL::VarSize(void)
-  {
-  PTXF txfp = ((PTDBCSV)To_Tdb)->Txfp;
-
-  if (txfp->IsBlocked() && txfp->GetUseTemp())
-    // Blocked table using a temporary file
-    return true;
-  else
-    return false;
-
-  } // end VarSize
-
-/***********************************************************************/
 /*  ReadColumn: call DOSCOL::ReadColumn after having set the offet     */
 /*  and length of the field to read as calculated by TDBCSV::ReadDB.   */
 /***********************************************************************/
@@ -1353,7 +1333,7 @@ void CSVCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 void CSVCOL::WriteColumn(PGLOBAL g)
   {
-  char   *p, buf[32];
+  char   *p, buf[64];
   int     flen;
   PTDBCSV tdbp = (PTDBCSV)To_Tdb;
 

@@ -973,7 +973,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
 {
   int error,lock_type,recreate;
   uint warning_printed_by_chk_status;
-  my_bool rep_quick= test(param->testflag & (T_QUICK | T_FORCE_UNIQUENESS));
+  my_bool rep_quick= MY_TEST(param->testflag & (T_QUICK | T_FORCE_UNIQUENESS));
   MARIA_HA *info;
   File datafile;
   char llbuff[22],llbuff2[22];
@@ -1366,7 +1366,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
       if ((info->s->data_file_type != STATIC_RECORD) ||
           (param->testflag & (T_EXTEND | T_MEDIUM)))
         error|=maria_chk_data_link(param, info,
-                                   test(param->testflag & T_EXTEND));
+                                   MY_TEST(param->testflag & T_EXTEND));
       end_io_cache(&param->read_cache);
     }
     if (!error)
@@ -1391,7 +1391,8 @@ static int maria_chk(HA_CHECK *param, char *filename)
   if ((param->testflag & T_AUTO_INC) ||
       ((param->testflag & T_REP_ANY) && info->s->base.auto_key))
     _ma_update_auto_increment_key(param, info,
-                                  (my_bool) !test(param->testflag & T_AUTO_INC));
+                                  (my_bool)
+                                  !MY_TEST(param->testflag & T_AUTO_INC));
 
   if (info->update & HA_STATE_CHANGED && ! (param->testflag & T_READONLY))
   {

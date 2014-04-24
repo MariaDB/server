@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 #define SPIDER_BG_SIMPLE_NO_ACTION           0
 #define SPIDER_BG_SIMPLE_CONNECT             1
 #define SPIDER_BG_SIMPLE_DISCONNECT          2
+#define SPIDER_BG_SIMPLE_RECORDS             3
 
 uchar *spider_conn_get_key(
   SPIDER_CONN *conn,
@@ -67,6 +68,18 @@ SPIDER_CONN *spider_get_conn(
 
 int spider_free_conn(
   SPIDER_CONN *conn
+);
+
+int spider_check_and_get_casual_read_conn(
+  THD *thd,
+  ha_spider *spider,
+  int link_idx
+);
+
+int spider_check_and_init_casual_read(
+  THD *thd,
+  ha_spider *spider,
+  int link_idx
 );
 
 void spider_conn_queue_connect(
@@ -220,7 +233,11 @@ int spider_bg_conn_search(
 
 void spider_bg_conn_simple_action(
   SPIDER_CONN *conn,
-  uint simple_action
+  uint simple_action,
+  bool caller_wait,
+  void *target,
+  uint link_idx,
+  int *error_num
 );
 
 void *spider_bg_conn_action(

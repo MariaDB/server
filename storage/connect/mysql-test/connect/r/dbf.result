@@ -69,8 +69,6 @@ a
 10
 20
 ALTER TABLE t1 READONLY=Yes;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -85,8 +83,6 @@ ERROR HY000: Table 't1' is read only
 TRUNCATE TABLE t1;
 ERROR HY000: Table 't1' is read only
 ALTER TABLE t1 READONLY=NO;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -394,22 +390,22 @@ CREATE TABLE t1
 (
 a BLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 CREATE TABLE t1
 (
 a TINYBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 CREATE TABLE t1
 (
 a MEDIUMBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 CREATE TABLE t1
 (
 a LONGBLOB
 ) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
-ERROR HY000: Unsupported type for column a
+ERROR 42000: Storage engine CONNECT doesn't support BLOB/TEXT columns
 #
 # Testing DATE
 #
@@ -508,12 +504,12 @@ DROP TABLE IF EXISTS t1;
 CREATE TABLE t1
 (
 a VARCHAR(10) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1.dbf';
+) ENGINE=CONNECT TABLE_TYPE=DBF FILE_NAME='t1c.dbf';
 INSERT INTO t1 VALUES ('10');
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03
@@ -532,17 +528,15 @@ Dec	0
 Flags	00
 --------	--------
 ALTER TABLE t1 MODIFY a VARCHAR(10) NOT NULL;
-Warnings:
-Warning	1105	The current version of CONNECT did not check what you changed in ALTER. Use at your own risk
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1c.dbf'
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03
@@ -561,15 +555,17 @@ Dec	0
 Flags	00
 --------	--------
 ALTER TABLE t1 MODIFY a INT(10) NOT NULL;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1.dbf'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 `TABLE_TYPE`=DBF `FILE_NAME`='t1c.dbf'
 SELECT * FROM t1;
 a
 10
-CALL dbf_header('MYSQLD_DATADIR/test/t1.dbf');
+CALL dbf_header('MYSQLD_DATADIR/test/t1c.dbf');
 --------	--------
 FileSize	77
 DBF_Version	03

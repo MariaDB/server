@@ -75,7 +75,8 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_EXTRA               37
 
 int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO  *create_info_arg, bool show_database);
+                      HA_CREATE_INFO  *create_info_arg, bool show_database,
+                      bool create_or_replace);
 int view_store_create_info(THD *thd, TABLE_LIST *table, String *buff);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
@@ -85,7 +86,9 @@ bool append_identifier(THD *thd, String *packet, const char *name,
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
-bool mysqld_show_create_db(THD *thd, char *dbname, HA_CREATE_INFO *create);
+bool mysqld_show_create_db(THD *thd, LEX_STRING *db_name,
+                           LEX_STRING *orig_db_name,
+                           HA_CREATE_INFO *create);
 
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
 int mysqld_show_status(THD *thd);

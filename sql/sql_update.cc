@@ -191,7 +191,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
     DBUG_VOID_RETURN;
 
   /* Create unique_map with all fields used by that index. */
-  bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
+  my_bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
   table->mark_columns_used_by_index_no_reset(keynr, &unique_map);
 
   /* Subtract read_set and write_set. */
@@ -255,7 +255,7 @@ int mysql_update(THD *thd,
                  ha_rows *found_return, ha_rows *updated_return)
 {
   bool		using_limit= limit != HA_POS_ERROR;
-  bool		safe_update= test(thd->variables.option_bits & OPTION_SAFE_UPDATES);
+  bool safe_update= MY_TEST(thd->variables.option_bits & OPTION_SAFE_UPDATES);
   bool          used_key_is_modified= FALSE, transactional_table, will_batch;
   bool		can_compare_record;
   int           res;
@@ -314,7 +314,7 @@ int mysql_update(THD *thd,
     my_error(ER_NON_UPDATABLE_TABLE, MYF(0), table_list->alias, "UPDATE");
     DBUG_RETURN(1);
   }
-  query_plan.updating_a_view= test(table_list->view);
+  query_plan.updating_a_view= MY_TEST(table_list->view);
   
   /* Calculate "table->covering_keys" based on the WHERE */
   table->covering_keys= table->s->keys_in_use;
@@ -502,7 +502,7 @@ int mysql_update(THD *thd,
   if (used_key_is_modified || order ||
       partition_key_modified(table, table->write_set))
   {
-    if (order && (need_sort || used_key_is_modified))
+    if (order && need_sort)
       query_plan.using_filesort= true;
     else
       query_plan.using_io_buffer= true;
@@ -703,16 +703,8 @@ int mysql_update(THD *thd,
 
   transactional_table= table->file->has_transactions();
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
-  if (table->triggers &&
-      table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                    TRG_ACTION_AFTER))
+  if (table->prepare_triggers_for_update_stmt_or_event())
   {
-    /*
-      The table has AFTER UPDATE triggers that might access to subject 
-      table and therefore might need update to be done immediately. 
-      So we turn-off the batching.
-    */ 
-    (void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
     will_batch= FALSE;
   }
   else
@@ -1225,6 +1217,87 @@ bool unsafe_key_update(List<TABLE_LIST> leaves, table_map tables_for_update)
   return false;
 }
 
+/**
+  Check if there is enough privilege on specific table used by the
+  main select list of multi-update directly or indirectly (through
+  a view).
+
+  @param[in]      thd                Thread context.
+  @param[in]      table              Table list element for the table.
+  @param[in]      tables_for_update  Bitmap with tables being updated.
+  @param[in/out]  updated_arg        Set to true if table in question is
+                                     updated, also set to true if it is
+                                     a view and one of its underlying
+                                     tables is updated. Should be
+                                     initialized to false by the caller
+                                     before a sequence of calls to this
+                                     function.
+
+  @note To determine which tables/views are updated we have to go from
+        leaves to root since tables_for_update contains map of leaf
+        tables being updated and doesn't include non-leaf tables
+        (fields are already resolved to leaf tables).
+
+  @retval false - Success, all necessary privileges on all tables are
+                  present or might be present on column-level.
+  @retval true  - Failure, some necessary privilege on some table is
+                  missing.
+*/
+
+static bool multi_update_check_table_access(THD *thd, TABLE_LIST *table,
+                                            table_map tables_for_update,
+                                            bool *updated_arg)
+{
+  if (table->view)
+  {
+    bool updated= false;
+    /*
+      If it is a mergeable view then we need to check privileges on its
+      underlying tables being merged (including views). We also need to
+      check if any of them is updated in order to find if this view is
+      updated.
+      If it is a non-mergeable view then it can't be updated.
+    */
+    DBUG_ASSERT(table->merge_underlying_list ||
+                (!table->updatable &&
+                 !(table->table->map & tables_for_update)));
+
+    for (TABLE_LIST *tbl= table->merge_underlying_list; tbl;
+         tbl= tbl->next_local)
+    {
+      if (multi_update_check_table_access(thd, tbl, tables_for_update,
+                                          &updated))
+      {
+        tbl->hide_view_error(thd);
+        return true;
+      }
+    }
+    if (check_table_access(thd, updated ? UPDATE_ACL: SELECT_ACL, table,
+                           FALSE, 1, FALSE))
+      return true;
+    *updated_arg|= updated;
+    /* We only need SELECT privilege for columns in the values list. */
+    table->grant.want_privilege= SELECT_ACL & ~table->grant.privilege;
+  }
+  else
+  {
+    /* Must be a base or derived table. */
+    const bool updated= table->table->map & tables_for_update;
+    if (check_table_access(thd, updated ? UPDATE_ACL : SELECT_ACL, table,
+                           FALSE, 1, FALSE))
+      return true;
+    *updated_arg|= updated;
+    /* We only need SELECT privilege for columns in the values list. */
+    if (!table->derived)
+    {
+      table->grant.want_privilege= SELECT_ACL & ~table->grant.privilege;
+      table->table->grant.want_privilege= (SELECT_ACL &
+                                           ~table->table->grant.privilege);
+    }
+  }
+  return false;
+}
+
 
 /*
   make update specific preparation and checks after opening tables
@@ -1359,19 +1432,17 @@ int mysql_multi_update_prepare(THD *thd)
         tl->table->reginfo.lock_type= tl->lock_type;
     }
   }
+
+  /*
+    Check access privileges for tables being updated or read.
+    Note that unlike in the above loop we need to iterate here not only
+    through all leaf tables but also through all view hierarchy.
+  */
   for (tl= table_list; tl; tl= tl->next_local)
   {
-    /* Check access privileges for table */
-    if (!tl->is_derived())
-    {
-      uint want_privilege= tl->updating ? UPDATE_ACL : SELECT_ACL;
-      if (check_access(thd, want_privilege, tl->db,
-                       &tl->grant.privilege,
-                       &tl->grant.m_internal,
-                       0, 0) ||
-          check_grant(thd, want_privilege, tl, FALSE, 1, FALSE))
-        DBUG_RETURN(TRUE);
-    }
+    bool not_used= false;
+    if (multi_update_check_table_access(thd, tl, tables_for_update, &not_used))
+      DBUG_RETURN(TRUE);
   }
 
   /* check single table update for view compound from several tables */
@@ -1610,17 +1681,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       table->no_keyread=1;
       table->covering_keys.clear_all();
       table->pos_in_table_list= tl;
-      if (table->triggers &&
-          table->triggers->has_triggers(TRG_EVENT_UPDATE,
-                                        TRG_ACTION_AFTER))
-      {
-	/*
-           The table has AFTER UPDATE triggers that might access to subject 
-           table and therefore might need update to be done immediately. 
-           So we turn-off the batching.
-	*/ 
-	(void) table->file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
-      }
+      table->prepare_triggers_for_update_stmt_or_event();
     }
   }
 
@@ -1856,6 +1917,13 @@ loop_end:
     TABLE *tbl= table;
     do
     {
+      /*
+        Signal each table (including tables referenced by WITH CHECK OPTION
+        clause) for which we will store row position in the temporary table
+        that we need a position to be read first.
+      */
+      tbl->prepare_for_position();
+
       Field_string *field= new Field_string(tbl->file->ref_length, 0,
                                             tbl->alias.c_ptr(),
                                             &my_charset_bin);
@@ -2092,13 +2160,6 @@ int multi_update::send_data(List<Item> &not_used_values)
     }
   }
   DBUG_RETURN(0);
-}
-
-
-void multi_update::send_error(uint errcode,const char *err)
-{
-  /* First send error what ever it is ... */
-  my_error(errcode, MYF(0), err);
 }
 
 
@@ -2424,7 +2485,7 @@ bool multi_update::send_eof()
               thd->transaction.stmt.modified_non_trans_table);
 
   if (local_error != 0)
-    error_handled= TRUE; // to force early leave from ::send_error()
+    error_handled= TRUE; // to force early leave from ::abort_result_set()
 
   if (local_error > 0) // if the above log write did not fail ...
   {

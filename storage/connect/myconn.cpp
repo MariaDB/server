@@ -1,11 +1,11 @@
 /************** MyConn C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: MYCONN                                                 */
 /* -------------                                                        */
-/*  Version 1.7                                                         */
+/*  Version 1.8                                                         */
 /*                                                                      */
 /* COPYRIGHT:                                                           */
 /* ----------                                                           */
-/*  (C) Copyright to the author Olivier BERTRAND          2007-2013     */
+/*  (C) Copyright to the author Olivier BERTRAND          2007-2014     */
 /*                                                                      */
 /* WHAT THIS PROGRAM DOES:                                              */
 /* -----------------------                                              */
@@ -47,7 +47,11 @@
 #include "myconn.h"
 
 extern "C" int   trace;
-extern MYSQL_PLUGIN_IMPORT uint mysqld_port;
+extern "C" int   zconv;
+extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
+extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+
+DllExport void PushWarning(PGLOBAL, THD*, int level = 1);
 
 // Returns the current used port
 uint GetDefaultPort(void)
@@ -60,7 +64,7 @@ uint GetDefaultPort(void)
 /*  of a MySQL table or view.                                           */
 /*  info = TRUE to get catalog column informations.                     */
 /************************************************************************/
-PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info)
@@ -74,7 +78,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                    FLD_REM,  FLD_NO,    FLD_DEFAULT,  FLD_EXTRA,
                    FLD_CHARSET};
   unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
-  char   *fld, *fmt, v, cmd[128], uns[16], zero[16];
+  char   *fld, *colname, *chset, *fmt, v, cmd[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
@@ -143,23 +147,24 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /**********************************************************************/
   /*  Now get the results into blocks.                                  */
   /**********************************************************************/
-  for (i = 0; i < n; i++) {
-    if ((rc = myc.Fetch(g, -1) == RC_FX)) {
+  for (i = 0; i < n; /*i++*/) {
+    if ((rc = myc.Fetch(g, -1)) == RC_FX) {
       myc.Close();
       return NULL;
-    } else if (rc == RC_NF)
+    } else if (rc == RC_EF)
       break;
 
     // Get column name
-    fld = myc.GetCharField(0);
+    colname = myc.GetCharField(0);
     crp = qrp->Colresp;                    // Column_Name
-    crp->Kdata->SetValue(fld, i);
+    crp->Kdata->SetValue(colname, i);
 
     // Get type, type name, precision, unsigned and zerofill
+    chset = myc.GetCharField(2);
     fld = myc.GetCharField(1);
     prec = 0;
     len = 0;
-    v = 0;
+    v = (chset && !strcmp(chset, "binary")) ? 'B' : 0;
     *uns = 0;
     *zero = 0;
 
@@ -180,11 +185,28 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
       } // endswitch nf
 
     if ((type = MYSQLtoPLG(cmd, &v)) == TYPE_ERROR) {
-      sprintf(g->Message, "Unsupported column type %s", cmd);
+      if (v == 'K') {
+        // Skip this column
+        sprintf(g->Message, "Column %s skipped (unsupported type %s)",
+                colname, cmd);
+        PushWarning(g, thd);
+        continue;
+        } // endif v
+
+      sprintf(g->Message, "Column %s unsupported type %s", colname, cmd);
       myc.Close();
       return NULL;
-    } else if (type == TYPE_STRING)
-      len = min(len, 4096);
+    } else if (type == TYPE_STRING) {
+      if (v == 'X') {
+        len = zconv;
+        sprintf(g->Message, "Column %s converted to varchar(%d)",
+                colname, len);
+        PushWarning(g, thd);
+        v = 'V';
+      } else
+        len = MY_MIN(len, 4096);
+
+    } // endif type
 
     qrp->Nblin++;
     crp = crp->Next;                       // Data_Type
@@ -240,8 +262,10 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     crp->Kdata->SetValue(fld, i);
 
     crp = crp->Next;                       // New (charset)
-    fld = myc.GetCharField(2);
+    fld = chset;
     crp->Kdata->SetValue(fld, i);
+
+    i++;                                   // Can be skipped
     } // endfor i
 
 #if 0
@@ -283,8 +307,11 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
   if (!port)
     port = mysqld_port;
 
-  query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
-  strcat(strcpy(query, srcdef), " LIMIT 0");
+  if (!strnicmp(srcdef, "select ", 7)) { 
+    query = (char *)PlugSubAlloc(g, NULL, strlen(srcdef) + 9);
+    strcat(strcpy(query, srcdef), " LIMIT 0");
+  } else
+    query = (char *)srcdef;
 
   // Open a MySQL connection for this table
   if (myc.Open(g, host, db, user, pwd, port))
@@ -292,7 +319,7 @@ PQRYRES SrcColumns(PGLOBAL g, const char *host, const char *db,
 
   // Send the source command to MySQL
   if (myc.ExecSQL(g, query, &w) == RC_OK)
-    qrp = myc.GetResult(g);
+    qrp = myc.GetResult(g, true);
 
   myc.Close();
   return qrp;
@@ -337,7 +364,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             const char *user, const char *pwd,
                             int pt)
   {
-  uint cto = 60, nrt = 120;
+  const char *pipe = NULL;
+  uint cto = 6000, nrt = 12000;
 
   m_DB = mysql_init(NULL);
 
@@ -353,6 +381,16 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   mysql_options(m_DB, MYSQL_OPT_READ_TIMEOUT, &nrt);
 //mysql_options(m_DB, MYSQL_OPT_WRITE_TIMEOUT, ...);
 
+#if defined(WIN32)
+  if (!strcmp(host, ".")) {
+    mysql_options(m_DB, MYSQL_OPT_NAMED_PIPE, NULL);
+    pipe = mysqld_unix_port;
+    } // endif host
+#else   // !WIN32
+  if (!strcmp(host, "localhost"))
+    pipe = mysqld_unix_port;
+#endif  // !WIN32
+
 #if 0
   if (pwd && !strcmp(pwd, "*")) {
     if (GetPromptAnswer(g, "*Enter password:")) {
@@ -364,7 +402,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     } // endif pwd
 #endif // 0
 
-  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, NULL, CLIENT_MULTI_RESULTS)) {
+  if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
 #if defined(_DEBUG)
     sprintf(g->Message, "mysql_real_connect failed: (%d) %s",
                         mysql_errno(m_DB), mysql_error(m_DB));
@@ -673,7 +711,7 @@ MYSQL_FIELD *MYSQLC::GetNextField(void)
 /***********************************************************************/
 PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   {
-  char        *fmt;
+  char        *fmt, v;
   int          n;
   bool         uns;
   PCOLRES     *pcrp, crp;
@@ -702,7 +740,6 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
   qrp->Nblin = 0;
   qrp->Cursor = 0;
 
-
 //for (fld = mysql_fetch_field(m_Res); fld;
 //     fld = mysql_fetch_field(m_Res)) {
   for (fld = GetNextField(); fld; fld = GetNextField()) {
@@ -715,17 +752,19 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
     crp->Name = (char*)PlugSubAlloc(g, NULL, fld->name_length + 1);
     strcpy(crp->Name, fld->name);
 
-    if ((crp->Type = MYSQLtoPLG(fld->type)) == TYPE_ERROR) {
+    if ((crp->Type = MYSQLtoPLG(fld->type, &v)) == TYPE_ERROR) {
       sprintf(g->Message, "Type %d not supported for column %s",
                           fld->type, crp->Name);
       return NULL;
     } else if (crp->Type == TYPE_DATE && !pdb)
       // For direct MySQL connection, display the MySQL date string
       crp->Type = TYPE_STRING;
+    else
+      crp->Var = v;
 
     crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
               ? fld->decimals : 0;
-    crp->Length = fld->max_length;
+    crp->Length = MY_MAX(fld->length, fld->max_length);
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;
 

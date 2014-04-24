@@ -60,6 +60,10 @@
 /*  DB static external variables.                                      */
 /***********************************************************************/
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
+extern "C" int  trace;
+#if defined(XMAP)
+extern     bool xmap;
+#endif   // XMAP
 
 /***********************************************************************/
 /*  Last two parameters are true to enable type checking, and last one */
@@ -75,7 +79,7 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   {
   int     rc;
   PTABLE  tablep;
-  PTDBDOS tdbp;
+  PTDBASE tdbp;
   PCATLG  cat = PlgGetCatalog(g, true);
 
   /*********************************************************************/
@@ -83,13 +87,13 @@ int PlgMakeIndex(PGLOBAL g, PSZ name, PIXDEF pxdf, bool add)
   /*********************************************************************/
   tablep = new(g) XTAB(name);
 
-  if (!(tdbp = (PTDBDOS)cat->GetTable(g, tablep)))
+  if (!(tdbp = (PTDBASE)cat->GetTable(g, tablep)))
     rc = RC_NF;
   else if (!tdbp->GetDef()->Indexable()) {
     sprintf(g->Message, MSG(TABLE_NO_INDEX), name);
     rc = RC_NF;
   } else if ((rc = tdbp->MakeIndex(g, pxdf, add)) == RC_INFO)
-    rc = RC_OK;            // No index
+    rc = RC_OK;            // No or remote index
 
   return rc;
   } // end of PlgMakeIndex
@@ -267,10 +271,7 @@ int XINDEX::Qcompare(int *i1, int *i2)
     if ((k = kcp->Compare(*i1, *i2)))
       break;
 
-#ifdef DEBTRACE
-  num_comp++;
-#endif
-
+//num_comp++;
   return k;
   } // end of Qcompare
 
@@ -477,7 +478,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
       for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
         kcp->Move(i, Pof[i]);
 
-      MaxSame = max(MaxSame, Pof[i + 1] - Pof[i]);
+      MaxSame = MY_MAX(MaxSame, Pof[i + 1] - Pof[i]);
       } // endfor i
 
     for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
@@ -614,7 +615,7 @@ int XINDEX::ColMaxSame(PXCOL kp)
       ck2 = kof[ck2];
       } // endfor kcp
 
-    ckn = max(ckn, ck2 - ck1);
+    ckn = MY_MAX(ckn, ck2 - ck1);
     } // endfor i
 
   return ckn;
@@ -722,7 +723,7 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
       return true;
     } // endswitch Ftype
 
-  if ((sep = dup->Catalog->GetBoolCatInfo("SepIndex", false))) {
+  if ((sep = defp->GetBoolCatInfo("SepIndex", false))) {
     // Index is saved in a separate file
 #if !defined(UNIX)
     char drive[_MAX_DRIVE];
@@ -813,12 +814,16 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   return rc;
   } // end of SaveIndex
 
-#if !defined(XMAP)
 /***********************************************************************/
 /*  Init: Open and Initialize a Key Index.                             */
 /***********************************************************************/
 bool XINDEX::Init(PGLOBAL g)
   {
+#if defined(XMAP)
+  if (xmap)
+    return MapInit(g);
+#endif   // XMAP
+
   /*********************************************************************/
   /*  Table will be accessed through an index table.                   */
   /*  If sorting is required, this will be done later.                 */
@@ -1055,11 +1060,11 @@ err:
   return true;
   } // end of Init
 
-#else    // XMAP
+#if defined(XMAP)
 /***********************************************************************/
 /*  Init: Open and Initialize a Key Index.                             */
 /***********************************************************************/
-bool XINDEX::Init(PGLOBAL g)
+bool XINDEX::MapInit(PGLOBAL g)
   {
   /*********************************************************************/
   /*  Table will be accessed through an index table.                   */
@@ -1261,7 +1266,7 @@ bool XINDEX::Init(PGLOBAL g)
 err:
   Close();
   return true;
-  } // end of Init
+  } // end of MapInit
 #endif   // XMAP
 
 /***********************************************************************/
@@ -1570,6 +1575,46 @@ bool XINDEX::NextVal(bool eq)
   } // end of NextVal
 
 /***********************************************************************/
+/*  XINDEX: Find Cur_K and Val_K's of previous index entry.            */
+/*  Returns false if Ok, true if there are no more values.             */
+/***********************************************************************/
+bool XINDEX::PrevVal(void)
+  {
+  int  n, neq = Nk + 1, curk;
+  PXCOL kcp;
+
+  if (Cur_K == 0)
+    return true;
+  else
+    curk = --Cur_K;
+
+  for (n = Nk, kcp = To_LastCol; kcp; n--, kcp = kcp->Previous) {
+    if (kcp->Kof) {
+      if (curk < kcp->Kof[kcp->Val_K])
+        neq = n;
+
+    } else {
+#ifdef _DEBUG
+      assert(curk == kcp->Val_K -1);
+#endif // _DEBUG
+      neq = n;
+    } // endif Kof
+
+#ifdef _DEBUG
+    assert(kcp->Val_K >= 0);
+#endif // _DEBUG
+
+    // If this is not a break...
+    if (neq > n)
+      break;                  // all previous columns have same value
+
+    curk = --kcp->Val_K;      // This is a break, get new column value
+    } // endfor kcp
+
+  return false;
+  } // end of PrevVal
+
+/***********************************************************************/
 /*  XINDEX: Fetch a physical or logical record.                        */
 /***********************************************************************/
 int XINDEX::Fetch(PGLOBAL g)
@@ -1586,7 +1631,7 @@ int XINDEX::Fetch(PGLOBAL g)
   switch (Op) {
     case OP_NEXT:                 // Read next
       if (NextVal(false))
-        return -1;               // End of indexed file
+        return -1;                // End of indexed file
 
       break;
     case OP_FIRST:                // Read first
@@ -1603,7 +1648,7 @@ int XINDEX::Fetch(PGLOBAL g)
 
       if (NextVal(true)) {
         Op = OP_EQ;
-        return -2;               // no more equal values
+        return -2;                // no more equal values
         } // endif NextVal
 
       break;
@@ -1611,9 +1656,9 @@ int XINDEX::Fetch(PGLOBAL g)
 //      while (!NextVal(true)) ;
 
 //      if (Cur_K >= Num_K)
-//        return -1;               // End of indexed file
+//        return -1;              // End of indexed file
       if (NextValDif())
-        return -1;               // End of indexed file
+        return -1;                // End of indexed file
 
       break;
     case OP_FSTDIF:               // Read first diff
@@ -1621,6 +1666,17 @@ int XINDEX::Fetch(PGLOBAL g)
         kp->Val_K = 0;
 
       Op = (Mul || Nval < Nk) ? OP_NXTDIF : OP_NEXT;
+      break;
+    case OP_LAST:                 // Read last key
+      for (Cur_K = Num_K - 1, kp = To_KeyCol; kp; kp = kp->Next)
+        kp->Val_K = kp->Kblp->GetNval() - 1;
+
+      Op = OP_NEXT;
+      break;
+    case OP_PREV:                 // Read previous
+      if (PrevVal())
+        return -1;                // End of indexed file
+
       break;
     default:                      // Should be OP_EQ
 //    if (Tbxp->Key_Rank < 0) {
@@ -1792,7 +1848,8 @@ int XINDEX::FastFind(int nv)
 XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
       : XINDEX(tdbp, xdp, pxp, cp, xp)
   {
-  Srtd = To_Cols[0]->GetOpt() < 0;          // ?????
+//Srtd = To_Cols[0]->GetOpt() < 0;          // ?????
+  Srtd = false;
   } // end of XINDXS constructor
 
 /***********************************************************************/
@@ -1800,10 +1857,7 @@ XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
 /***********************************************************************/
 int XINDXS::Qcompare(int *i1, int *i2)
   {
-#ifdef DEBTRACE
-  num_comp++;
-#endif
-
+//num_comp++;
   return To_KeyCol->Compare(*i1, *i2);
   } // end of Qcompare
 
@@ -1862,6 +1916,25 @@ int XINDXS::GroupSize(void)
   } // end of GroupSize
 
 /***********************************************************************/
+/*  XINDXS: Find Cur_K and Val_K of previous index value.              */
+/*  Returns false if Ok, true if there are no more values.             */
+/***********************************************************************/
+bool XINDXS::PrevVal(void)
+  {
+  if (--Cur_K < 0)
+    return true;
+
+  if (Mul) {
+    if (Cur_K < Pof[To_KeyCol->Val_K])
+      To_KeyCol->Val_K--;
+
+  } else
+    To_KeyCol->Val_K = Cur_K;
+
+  return false;
+  } // end of PrevVal
+
+/***********************************************************************/
 /*  XINDXS: Find Cur_K and Val_K of next index value.                  */
 /*  If b is true next value must be equal to last one.                 */
 /*  Returns false if Ok, true if there are no more (equal) values.     */
@@ -1905,16 +1978,16 @@ int XINDXS::Fetch(PGLOBAL g)
   /*  Table read through a sorted index.                               */
   /*********************************************************************/
   switch (Op) {
-    case OP_NEXT:                 // Read next
+    case OP_NEXT:                // Read next
       if (NextVal(false))
         return -1;               // End of indexed file
 
       break;
-    case OP_FIRST:                // Read first
+    case OP_FIRST:               // Read first
       To_KeyCol->Val_K = Cur_K = 0;
       Op = OP_NEXT;
       break;
-    case OP_SAME:                 // Read next same
+    case OP_SAME:                // Read next same
 #if defined(TRACE)
 //      printf("looking for next same value\n");
 #endif   // TRACE
@@ -1925,7 +1998,7 @@ int XINDXS::Fetch(PGLOBAL g)
         } // endif Mul
 
       break;
-    case OP_NXTDIF:               // Read next dif
+    case OP_NXTDIF:              // Read next dif
       if (++To_KeyCol->Val_K == Ndif)
         return -1;               // End of indexed file
 
@@ -1935,7 +2008,17 @@ int XINDXS::Fetch(PGLOBAL g)
       To_KeyCol->Val_K = Cur_K = 0;
       Op = (Mul) ? OP_NXTDIF : OP_NEXT;
       break;
-    default:                      // Should OP_EQ
+    case OP_LAST:                // Read first
+      Cur_K = Num_K - 1;
+      To_KeyCol->Val_K = Ndif - 1;
+      Op = OP_PREV;
+      break;
+    case OP_PREV:                // Read previous
+      if (PrevVal())
+        return -1;               // End of indexed file
+
+      break;
+    default:                     // Should be OP_EQ
       /*****************************************************************/
       /*  Look for the first key equal to the link column values       */
       /*  and return its rank whithin the index table.                 */
@@ -2319,11 +2402,9 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif Hfile
 
-#ifdef DEBTRACE
- fprintf(debug,
- " access=%p share=%p creation=%d handle=%p fn=%s\n",
-  access, share, creation, Hfile, filename);
-#endif
+  if (trace)
+    htrc(" access=%p share=%p creation=%d handle=%p fn=%s\n",
+         access, share, creation, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
@@ -2766,10 +2847,9 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     Prefix = true;
     } // endif kln
 
-#ifdef DEBTRACE
- htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
-  this, colp->GetName(), n, colp->GetResultType(), sm);
-#endif
+  if (trace)
+    htrc("KCOL(%p) Init: col=%s n=%d type=%d sm=%d\n",
+         this, colp->GetName(), n, colp->GetResultType(), sm);
 
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
@@ -2797,7 +2877,8 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 
   // Store this information to avoid sorting when already done
   if (Asc)
-    IsSorted = colp->GetOpt() < 0;
+//  IsSorted = colp->GetOpt() < 0;
+    IsSorted = false;
 
 //SetNulls(colp->IsNullable()); for when null columns will be indexable
   return false;
@@ -2820,10 +2901,9 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 
   Type = colp->GetResultType();
 
-#ifdef DEBTRACE
- htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
-  this, colp, Type, n[0], len, m);
-#endif
+ if (trace)
+   htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
+        this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
   Valp = AllocateValue(g, Type, len, prec, false, NULL);
@@ -2855,7 +2935,8 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
     } // endif n[1]
 
   Ndf = n[0];
-  IsSorted = colp->GetOpt() < 0;
+//IsSorted = colp->GetOpt() < 0;
+  IsSorted = false;
   return m + Bkeys.Size + Keys.Size + Koff.Size;
   } // end of MapInit
 #endif // XMAP

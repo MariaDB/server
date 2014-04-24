@@ -122,6 +122,8 @@ public:
   sp_name(LEX_STRING db, LEX_STRING name, bool use_explicit_name)
     : m_db(db), m_name(name), m_explicit_name(use_explicit_name)
   {
+    if (lower_case_table_names && m_db.str)
+      m_db.length= my_casedn_str(files_charset_info, m_db.str);
     m_qname.str= 0;
     m_qname.length= 0;
   }
@@ -462,9 +464,10 @@ public:
     else if (m_flags & HAS_SQLCOM_FLUSH)
       my_error(ER_STMT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0), "FLUSH");
 
-    return test(m_flags &
-		(CONTAINS_DYNAMIC_SQL|MULTI_RESULTS|HAS_SET_AUTOCOMMIT_STMT|
-                 HAS_COMMIT_OR_ROLLBACK|HAS_SQLCOM_RESET|HAS_SQLCOM_FLUSH));
+    return MY_TEST(m_flags &
+                  (CONTAINS_DYNAMIC_SQL | MULTI_RESULTS |
+                   HAS_SET_AUTOCOMMIT_STMT | HAS_COMMIT_OR_ROLLBACK |
+                   HAS_SQLCOM_RESET | HAS_SQLCOM_FLUSH));
   }
 
 #ifndef DBUG_OFF

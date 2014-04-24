@@ -35,6 +35,8 @@ struct show_table_authors_st {
   then, not active last.
 
   Names should be encoded using UTF-8.
+
+  See also https://mariadb.com/kb/en/log-of-mariadb-contributions/
 */
 
 struct show_table_authors_st show_table_authors[]= {
@@ -63,7 +65,14 @@ struct show_table_authors_st show_table_authors[]= {
   { "Georg Richter", "Heidelberg, Germany", "New LGPL C connector, PHP connector"},
   { "Jan Lindström", "Ylämylly, Finland", "Working on InnoDB"},
   { "Lixun Peng", "Hangzhou, China", "Multi Source replication" },
+  { "Olivier Bertrand", "Paris, France", "CONNECT storage engine"},
+  { "Kentoku Shiba", "Tokyo, Japan", "Spider storage engine, metadata_lock_info Information schema"},
   { "Percona", "CA, USA", "XtraDB, microslow patches, extensions to slow log"},
+  { "Vicentiu Ciorbaru", "Bucharest, Romania", "Roles"},
+  { "Sudheera Palihakkara", "", "PCRE Regular Expressions" },
+  { "Pavel Ivanov", "USA", "Some patches and bug fixes"},
+  { "Konstantin Osipov", "Moscow, Russia",
+    "Prepared statements (4.1), Cursors (5.0), GET_LOCK (10.0)" },
 
   /* People working on MySQL code base (not NDB) */
   { "Guilhem Bichot", "Bordeaux, France", "Replication (since 4.0)" },
@@ -82,8 +91,6 @@ struct show_table_authors_st show_table_authors[]= {
     "MySQL founder; Small stuff long time ago, Monty ripped it out!" },
   { "Brian (Krow) Aker", "Seattle, WA, USA",
     "Architecture, archive, blackhole, federated, bunch of little stuff :)" },
-  { "Konstantin Osipov", "Moscow, Russia",
-    "Prepared statements (4.1), Cursors (5.0)" },
   { "Venu Anuganti", "", "Client/server protocol (4.1)" },
   { "Omer BarNir", "Sunnyvale, CA, USA",
     "Testing (sometimes) and general QA stuff" },

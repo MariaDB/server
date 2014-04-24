@@ -1,6 +1,5 @@
-/*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -819,8 +818,8 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                                          keyinfo->comment.length);
       strpos+= keyinfo->comment.length;
     } 
-    DBUG_ASSERT(test(keyinfo->flags & HA_USES_COMMENT) == 
-               (keyinfo->comment.length > 0));
+    DBUG_ASSERT(MY_TEST(keyinfo->flags & HA_USES_COMMENT) ==
+                (keyinfo->comment.length > 0));
   }
 
   share->keys= keys; // do it *after* all key_info's are initialized
@@ -2010,7 +2009,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (!(bitmaps= (my_bitmap_map*) alloc_root(&share->mem_root,
                                              share->column_bitmap_size)))
     goto err;
-  bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
+  my_bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
   bitmap_set_all(&share->all_set);
 
   delete handler_file;
@@ -2818,17 +2817,17 @@ partititon_err:
   bitmap_size= share->column_bitmap_size;
   if (!(bitmaps= (uchar*) alloc_root(&outparam->mem_root, bitmap_size*6)))
     goto err;
-  bitmap_init(&outparam->def_read_set,
+  my_bitmap_init(&outparam->def_read_set,
               (my_bitmap_map*) bitmaps, share->fields, FALSE);
-  bitmap_init(&outparam->def_write_set,
+  my_bitmap_init(&outparam->def_write_set,
               (my_bitmap_map*) (bitmaps+bitmap_size), share->fields, FALSE);
-  bitmap_init(&outparam->def_vcol_set,
+  my_bitmap_init(&outparam->def_vcol_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*2), share->fields, FALSE);
-  bitmap_init(&outparam->tmp_set,
+  my_bitmap_init(&outparam->tmp_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*3), share->fields, FALSE);
-  bitmap_init(&outparam->eq_join_set,
+  my_bitmap_init(&outparam->eq_join_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*4), share->fields, FALSE);
-  bitmap_init(&outparam->cond_set,
+  my_bitmap_init(&outparam->cond_set,
               (my_bitmap_map*) (bitmaps+bitmap_size*5), share->fields, FALSE);
   outparam->default_column_bitmaps();
 
@@ -2889,9 +2888,9 @@ partititon_err:
   else if (outparam->file)
   {
     handler::Table_flags flags= outparam->file->ha_table_flags();
-    outparam->no_replicate= ! test(flags & (HA_BINLOG_STMT_CAPABLE
-                                            | HA_BINLOG_ROW_CAPABLE))
-                            || test(flags & HA_HAS_OWN_BINLOGGING);
+    outparam->no_replicate= ! MY_TEST(flags & (HA_BINLOG_STMT_CAPABLE
+                                               | HA_BINLOG_ROW_CAPABLE))
+                            || MY_TEST(flags & HA_HAS_OWN_BINLOGGING);
   }
   else
   {
@@ -3025,6 +3024,7 @@ void open_table_error(TABLE_SHARE *share, enum open_frm_error error,
   char buff[FN_REFLEN];
   const myf errortype= ME_ERROR+ME_WAITTANG;  // Write fatals error to log
   DBUG_ENTER("open_table_error");
+  DBUG_PRINT("info", ("error: %d  db_errno: %d", error, db_errno));
 
   switch (error) {
   case OPEN_FRM_OPEN_ERROR:
@@ -3253,7 +3253,7 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   /* header */
   fileinfo[0]=(uchar) 254;
   fileinfo[1]= 1;
-  fileinfo[2]= FRM_VER+3+ test(create_info->varchar);
+  fileinfo[2]= FRM_VER + 3 + MY_TEST(create_info->varchar);
 
   fileinfo[3]= (uchar) ha_legacy_type(
         ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
@@ -3272,8 +3272,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   */
   for (i= 0; i < keys; i++)
   {
-    DBUG_ASSERT(test(key_info[i].flags & HA_USES_COMMENT) == 
-               (key_info[i].comment.length > 0));
+    DBUG_ASSERT(MY_TEST(key_info[i].flags & HA_USES_COMMENT) ==
+                (key_info[i].comment.length > 0));
     if (key_info[i].flags & HA_USES_COMMENT)
       key_comment_total_bytes += 2 + key_info[i].comment.length;
   }
@@ -3441,10 +3441,11 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
 
   SYNPOSIS
     check_db_name()
-    org_name		Name of database and length
+    org_name		Name of database
 
   NOTES
-    If lower_case_table_names is set then database is converted to lower case
+    If lower_case_table_names is set to 1 then database name is converted
+    to lower case
 
   RETURN
     0	ok
@@ -3466,9 +3467,12 @@ bool check_db_name(LEX_STRING *org_name)
   if (!name_length || name_length > NAME_LEN)
     return 1;
 
-  if (lower_case_table_names && name != any_db)
-    my_casedn_str(files_charset_info, name);
-
+  if (lower_case_table_names == 1 && name != any_db)
+  {
+    org_name->length= name_length= my_casedn_str(files_charset_info, name);
+    if (check_for_path_chars)
+      org_name->length+= MYSQL50_TABLE_NAME_PREFIX_LENGTH;
+  }
   if (db_name_is_in_ignore_db_dirs_list(name))
     return 1;
 
@@ -3805,14 +3809,15 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   bool result= TRUE;
 
   /*
-    To protect used_tables list from being concurrently modified
-    while we are iterating through it we acquire LOCK_open.
+    To protect all_tables list from being concurrently modified
+    while we are iterating through it we increment tdc.all_tables_refs.
     This does not introduce deadlocks in the deadlock detector
-    because we won't try to acquire LOCK_open while
+    because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
-  if (gvisitor->m_lock_open_count++ == 0)
-    mysql_mutex_lock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  tdc.all_tables_refs++;
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   All_share_tables_list::Iterator tables_it(tdc.all_tables);
 
@@ -3832,7 +3837,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    if (table->in_use && gvisitor->inspect_edge(&table->in_use->mdl_context))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
     }
@@ -3841,7 +3847,8 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    if (table->in_use && table->in_use->mdl_context.visit_subgraph(gvisitor))
+    DBUG_ASSERT(table->in_use && tdc.flushed);
+    if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
     }
@@ -3853,8 +3860,10 @@ end_leave_node:
   gvisitor->leave_node(src_ctx);
 
 end:
-  if (gvisitor->m_lock_open_count-- == 1)
-    mysql_mutex_unlock(&LOCK_open);
+  mysql_mutex_lock(&tdc.LOCK_table_share);
+  if (!--tdc.all_tables_refs)
+    mysql_cond_broadcast(&tdc.COND_release);
+  mysql_mutex_unlock(&tdc.LOCK_table_share);
 
   return result;
 }
@@ -3890,7 +3899,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   MDL_wait::enum_wait_status wait_status;
 
   mysql_mutex_assert_owner(&tdc.LOCK_table_share);
-  DBUG_ASSERT(has_old_version());
+  DBUG_ASSERT(tdc.flushed);
 
   tdc.m_flush_tickets.push_front(&ticket);
 
@@ -3993,6 +4002,10 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   created= TRUE;
   cond_selectivity= 1.0;
   cond_selectivity_sampling_explain= NULL;
+#ifdef HAVE_REPLICATION
+  /* used in RBR Triggers */
+  master_had_triggers= 0;
+#endif
 
   /* Catch wrong handling of the auto_increment_field_not_null. */
   DBUG_ASSERT(!auto_increment_field_not_null);
@@ -6181,9 +6194,9 @@ bool TABLE::is_filled_at_execution()
     do not have a corresponding table reference. Such tables are filled
     during execution.
   */
-  return test(!pos_in_table_list ||
-              pos_in_table_list->jtbm_subselect || 
-              pos_in_table_list->is_active_sjm());
+  return MY_TEST(!pos_in_table_list ||
+                 pos_in_table_list->jtbm_subselect ||
+                 pos_in_table_list->is_active_sjm());
 }
 
 
@@ -6654,6 +6667,81 @@ int TABLE::update_default_fields()
   DBUG_RETURN(res);
 }
 
+
+/*
+  Prepare triggers  for INSERT-like statement.
+
+  SYNOPSIS
+    prepare_triggers_for_insert_stmt_or_event()
+
+  NOTE
+    Prepare triggers for INSERT-like statement by marking fields
+    used by triggers and inform handlers that batching of UPDATE/DELETE 
+    cannot be done if there are BEFORE UPDATE/DELETE triggers.
+*/
+
+void TABLE::prepare_triggers_for_insert_stmt_or_event()
+{
+  if (triggers)
+  {
+    if (triggers->has_triggers(TRG_EVENT_DELETE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER DELETE triggers that might access to
+        subject table and therefore might need delete to be done
+        immediately. So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    }
+    if (triggers->has_triggers(TRG_EVENT_UPDATE,
+                               TRG_ACTION_AFTER))
+    {
+      /*
+        The table has AFTER UPDATE triggers that might access to subject
+        table and therefore might need update to be done immediately.
+        So we turn-off the batching.
+      */
+      (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    }
+  }
+}
+
+
+bool TABLE::prepare_triggers_for_delete_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_DELETE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER DELETE triggers that might access to subject table
+      and therefore might need delete to be done immediately. So we turn-off
+      the batching.
+    */
+    (void) file->extra(HA_EXTRA_DELETE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
+
+
+bool TABLE::prepare_triggers_for_update_stmt_or_event()
+{
+  if (triggers &&
+      triggers->has_triggers(TRG_EVENT_UPDATE,
+                             TRG_ACTION_AFTER))
+  {
+    /*
+      The table has AFTER UPDATE triggers that might access to subject
+      table and therefore might need update to be done immediately.
+      So we turn-off the batching.
+    */ 
+    (void) file->extra(HA_EXTRA_UPDATE_CANNOT_BATCH);
+    return TRUE;
+  }
+  return FALSE;
+}
 
 /*
   @brief Reset const_table flag

@@ -1,9 +1,9 @@
 /************* Tabxml C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABXML                                                */
 /* -------------                                                       */
-/*  Version 2.6                                                        */
+/*  Version 2.7                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND          2007 - 2013                       */
+/*  Author Olivier BERTRAND          2007 - 2014                       */
 /*                                                                     */
 /*  This program are the XML tables classes using MS-DOM or libxml2.   */
 /***********************************************************************/
@@ -47,6 +47,7 @@
 #include "xindex.h"
 #include "plgxml.h"
 #include "tabxml.h"
+#include "tabmul.h"
 
 extern "C" {
 extern char version[];
@@ -94,21 +95,21 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 //void  *memp = Cat->GetDescp();
 //PSZ    dbfile = Cat->GetDescFile();
 
-  Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
-  Encoding = Cat->GetStringCatInfo(g, "Encoding", "UTF-8");
+  Fn = GetStringCatInfo(g, "Filename", NULL);
+  Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
 
   if (*Fn == '?') {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return true;
     } // endif fn
 
-  if ((signed)Cat->GetIntCatInfo("Flag", -1) != -1) {
+  if ((signed)GetIntCatInfo("Flag", -1) != -1) {
     strcpy(g->Message, MSG(DEPREC_FLAG));
     return true;
     } // endif flag
 
   defrow = defcol = "";
-  Cat->GetCharCatInfo("Coltype", "", buf, sizeof(buf));
+  GetCharCatInfo("Coltype", "", buf, sizeof(buf));
 
   switch (toupper(*buf)) {
     case 'A':                          // Attribute
@@ -135,24 +136,25 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       return true;
     } // endswitch typname
 
-  Tabname = Cat->GetStringCatInfo(g, "Name", Name);  // Deprecated
-  Tabname = Cat->GetStringCatInfo(g, "Table_name", Tabname);
-  Rowname = Cat->GetStringCatInfo(g, "Rownode", defrow);
-  Colname = Cat->GetStringCatInfo(g, "Colnode", defcol);
-  Mulnode = Cat->GetStringCatInfo(g, "Mulnode", "");
-  XmlDB = Cat->GetStringCatInfo(g, "XmlDB", "");
-  Nslist = Cat->GetStringCatInfo(g, "Nslist", "");
-  DefNs = Cat->GetStringCatInfo(g, "DefNs", "");
-  Limit = Cat->GetIntCatInfo("Limit", 2);
-  Xpand = (Cat->GetIntCatInfo("Expand", 0) != 0);
-  Header = Cat->GetIntCatInfo("Header", 0);
-  Cat->GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
+  Tabname = GetStringCatInfo(g, "Name", Name);  // Deprecated
+  Tabname = GetStringCatInfo(g, "Table_name", Tabname); // Deprecated
+  Tabname = GetStringCatInfo(g, "Tabname", Tabname);
+  Rowname = GetStringCatInfo(g, "Rownode", defrow);
+  Colname = GetStringCatInfo(g, "Colnode", defcol);
+  Mulnode = GetStringCatInfo(g, "Mulnode", "");
+  XmlDB = GetStringCatInfo(g, "XmlDB", "");
+  Nslist = GetStringCatInfo(g, "Nslist", "");
+  DefNs = GetStringCatInfo(g, "DefNs", "");
+  Limit = GetIntCatInfo("Limit", 2);
+  Xpand = (GetIntCatInfo("Expand", 0) != 0);
+  Header = GetIntCatInfo("Header", 0);
+  GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
 
 //if (*buf == '*')           // Try the old (deprecated) option
-//  Cat->GetCharCatInfo("Method", "*", buf, sizeof(buf));
+//  GetCharCatInfo("Method", "*", buf, sizeof(buf));
 
 //if (*buf == '*')           // Is there a default for the database?
-//  Cat->GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
+//  GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
 
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
@@ -166,8 +168,8 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
   // Get eventual table node attribute
-  Attrib = Cat->GetStringCatInfo(g, "Attribute", "");
-  Hdattr = Cat->GetStringCatInfo(g, "HeadAttr", "");
+  Attrib = GetStringCatInfo(g, "Attribute", "");
+  Hdattr = GetStringCatInfo(g, "HeadAttr", "");
 
   return false;
   } // end of DefineAM
@@ -177,9 +179,15 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 /***********************************************************************/
 PTDB XMLDEF::GetTable(PGLOBAL g, MODE m)
   {
-  return new(g) TDBXML(this);
+  PTDBASE tdbp = new(g) TDBXML(this);
+
+  if (Multiple)
+    tdbp = new(g) TDBMUL(tdbp);
+
+  return tdbp;
   } // end of GetTable
 
+#if 0
 /***********************************************************************/
 /*  DeleteTableFile: Delete XML table files using platform API.        */
 /***********************************************************************/
@@ -201,6 +209,7 @@ bool XMLDEF::DeleteTableFile(PGLOBAL g)
 
   return rc;                                  // Return true if error
   } // end of DeleteTableFile
+#endif // 0
 
 /* ------------------------- TDBXML Class ---------------------------- */
 
@@ -245,6 +254,7 @@ TDBXML::TDBXML(PXMLDEF tdp) : TDBASE(tdp)
   Void = false;
   Usedom = tdp->Usedom;
   Header = tdp->Header;
+  Multiple = tdp->Multiple;
   Nrow = -1;
   Irow = Header - 1;
   Nsub = 0;
@@ -287,6 +297,7 @@ TDBXML::TDBXML(PTDBXML tdbp) : TDBASE(tdbp)
   Void = tdbp->Void;
   Usedom = tdbp->Usedom;
   Header = tdbp->Header;
+  Multiple = tdbp->Multiple;
   Nrow = tdbp->Nrow;
   Irow = tdbp->Irow;
   Nsub = tdbp->Nsub;
@@ -578,7 +589,7 @@ bool TDBXML::Initialize(PGLOBAL g)
 #endif
   } // end of try-catches
 
-  if (Root && Columns && !Nodedone) {
+  if (Root && Columns && (Multiple || !Nodedone)) {
     // Allocate class nodes to avoid dynamic allocation
     for (colp = (PXMLCOL)Columns; colp; colp = (PXMLCOL)colp->GetNext())
       if (!colp->IsSpecial())            // Not a pseudo column
@@ -671,7 +682,10 @@ void TDBXML::SetNodeAttr(PGLOBAL g, char *attr, PXNODE node)
 int TDBXML::Cardinality(PGLOBAL g)
   {
   if (!g)
-    return (Xpand || Coltype == 2) ? 0 : 1;
+    return (Multiple || Xpand || Coltype == 2) ? 0 : 1;
+
+  if (Multiple)
+    return 10;
 
   if (Nrow < 0)
     if (Initialize(g))
@@ -685,8 +699,13 @@ int TDBXML::Cardinality(PGLOBAL g)
 /***********************************************************************/
 int TDBXML::GetMaxSize(PGLOBAL g)
   {
-  if (MaxSize < 0)
-    MaxSize = Cardinality(g) * ((Xpand) ? Limit : 1);
+  if (MaxSize < 0) {
+    if (!Multiple)
+      MaxSize = Cardinality(g) * ((Xpand) ? Limit : 1);
+    else
+      MaxSize = 10;
+
+  } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
@@ -951,6 +970,34 @@ void TDBXML::CloseDB(PGLOBAL g)
     // Free the document and terminate XML processing
     Docp->CloseDoc(g, To_Xb);
     } // endif docp
+
+  if (Multiple) {
+    // Reset all constants to start a new parse
+    Docp = NULL;
+    Root = NULL;
+    Curp = NULL;
+    DBnode = NULL;
+    TabNode = NULL;
+    RowNode = NULL;
+    ColNode = NULL;
+    Nlist = NULL;
+    Clist = NULL;
+    To_Xb = NULL;
+    Colp = NULL;
+    Changed = false;
+    Checked = false;
+    NextSame = false;
+    NewRow = false;
+    Hasnod = false;
+    Write = false;
+//  Bufdone = false;
+    Nodedone = false;
+    Void = false;
+    Nrow = -1;
+    Irow = Header - 1;
+    Nsub = 0;
+    N = 0;
+    } // endif Multiple
 
   } // end of CloseDB
 
@@ -1269,7 +1316,7 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   PXNODE TopNode = NULL;
 //PXATTR AttNode = NULL;
 
-  if (trace)
+  if (trace > 1)
     htrc("XML WriteColumn: col %s R%d coluse=%.4X status=%.4X\n",
           Name, Tdbp->GetTdb_No(), ColUse, Status);
 
@@ -1279,14 +1326,11 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   if (Value != To_Val)
     Value->SetValue_pval(To_Val, false);    // Convert the updated value
 
-  if (Value->IsNull())
-    return;
-
   /*********************************************************************/
   /*  If a check pass was done while updating, all node contruction    */
   /*  has been already one.                                            */
   /*********************************************************************/
-  if (Status && Tdbp->Checked) {
+  if (Status && Tdbp->Checked && !Value->IsNull()) {
     assert (ColNode != NULL);
     assert ((Type ? (void *)ValNode : (void *)AttNode) != NULL);
     goto fin;
@@ -1298,6 +1342,12 @@ void XMLCOL::WriteColumn(PGLOBAL g)
   /*********************************************************************/
   if (Tdbp->CheckRow(g, Nod || Tdbp->Colname))
     longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+
+  /*********************************************************************/
+  /*  Null values are represented by no node.                          */
+  /*********************************************************************/
+  if (Value->IsNull())
+    return;
 
   /*********************************************************************/
   /*  Find the column and value nodes to update or insert.             */

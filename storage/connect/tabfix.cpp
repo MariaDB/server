@@ -1,11 +1,11 @@
 /************* TabFix C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFIX                                                */
 /* -------------                                                       */
-/*  Version 4.8                                                        */
+/*  Version 4.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -331,7 +331,7 @@ void BINCOL::ReadColumn(PGLOBAL g)
   int     rc;
   PTDBFIX tdbp = (PTDBFIX)To_Tdb;
 
-  if (trace)
+  if (trace > 1)
     htrc("BIN ReadColumn: col %s R%d coluse=%.4X status=%.4X buf_type=%d\n",
       Name, tdbp->GetTdb_No(), ColUse, Status, Buf_Type);
 

@@ -54,7 +54,6 @@ class DllExport PRXDEF : public TABDEF {  /* Logical table description */
 /*  This is the class declaration for the XCSV table.                  */
 /***********************************************************************/
 class DllExport TDBPRX : public TDBASE {
-//friend class MULINDX;
   friend class PRXDEF;
   friend class PRXCOL;
  public:
@@ -126,8 +125,6 @@ class TDBTBC : public TDBCAT {
  public:
   // Constructors
   TDBTBC(PPRXDEF tdp);
-//TDBTBC(PTBLDEF tdp);
-//TDBTBC(PXCLDEF tdp);
 
  protected:
 	// Specific routines

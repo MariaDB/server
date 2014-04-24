@@ -1,4 +1,4 @@
-/* Copyright (C) 2009-2013 Kentoku Shiba
+/* Copyright (C) 2009-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,6 +39,10 @@
 #include "spd_direct_sql.h"
 #include "spd_udf.h"
 #include "spd_malloc.h"
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100004
+#define SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
+#endif
 
 extern const char **spd_defaults_extra_file;
 extern const char **spd_defaults_file;
@@ -1604,8 +1608,16 @@ long long spider_direct_sql_body(
 #endif
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
   {
+#ifdef SPIDER_NEED_INIT_ONE_TABLE_FOR_FIND_TEMPORARY_TABLE
+    table_list.init_one_table(direct_sql->db_names[roop_count],
+      strlen(direct_sql->db_names[roop_count]),
+      direct_sql->table_names[roop_count],
+      strlen(direct_sql->table_names[roop_count]),
+      direct_sql->table_names[roop_count], TL_WRITE);
+#else
     table_list.db = direct_sql->db_names[roop_count];
     table_list.table_name = direct_sql->table_names[roop_count];
+#endif
     if (!(direct_sql->tables[roop_count] =
       find_temporary_table(thd, &table_list)))
     {

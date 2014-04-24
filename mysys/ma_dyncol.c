@@ -117,7 +117,7 @@ my_bool mariadb_dyncol_has_names(DYNAMIC_COLUMN *str)
 {
   if (str->length < 1)
     return FALSE;
-  return test(str->str[0] & DYNCOL_FLG_NAMES);
+  return MY_TEST(str->str[0] & DYNCOL_FLG_NAMES);
 }
 
 static enum enum_dyncol_func_result
@@ -1616,7 +1616,7 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
   enum enum_dyncol_func_result rc= ER_DYNCOL_RESOURCE;
   size_t all_headers_size;
 
-  if (!(columns_order= malloc(sizeof(void*)*column_count)))
+  if (column_count && !(columns_order= malloc(sizeof(void*)*column_count)))
     return ER_DYNCOL_RESOURCE;
   if (new_str || str->str == 0)
   {
@@ -3959,7 +3959,7 @@ mariadb_dyncol_val_long(longlong *ll, DYNAMIC_COLUMN_VALUE *val)
           {
             sign= -1;
             src++;
-          } else if (*src == '-')
+          } else if (*src == '+')
             src++;
           while(len && my_isdigit(&my_charset_latin1, *src))
           {
@@ -4032,7 +4032,7 @@ mariadb_dyncol_val_double(double *dbl, DYNAMIC_COLUMN_VALUE *val)
     case DYN_COL_STRING:
       {
         char *str, *end;
-        if ((str= malloc(val->x.string.value.length + 1)))
+        if (!(str= malloc(val->x.string.value.length + 1)))
           return ER_DYNCOL_RESOURCE;
         memcpy(str, val->x.string.value.str, val->x.string.value.length);
         str[val->x.string.value.length]= '\0';
@@ -4314,6 +4314,18 @@ err:
     *names= 0;
   }
   return rc;
+}
+
+/**
+  Free arrays allocated by mariadb_dyncol_unpack()
+
+  @param names           Where to put names (should be free by user)
+  @param vals            Where to put values (should be free by user)
+*/
+void mariadb_dyncol_unpack_free(LEX_STRING *names, DYNAMIC_COLUMN_VALUE *vals)
+{
+  my_free(names);
+  my_free(vals);
 }
 
 /**

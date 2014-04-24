@@ -41,9 +41,14 @@ typedef struct st_bitmap
 #ifdef	__cplusplus
 extern "C" {
 #endif
+
+/* compatibility functions */
+#define bitmap_init(A,B,C,D) my_bitmap_init(A,B,C,D)
+#define bitmap_free(A) my_bitmap_free(A)
+
 extern void create_last_word_mask(MY_BITMAP *map);
-extern my_bool bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
-                           my_bool thread_safe);
+extern my_bool my_bitmap_init(MY_BITMAP *map, my_bitmap_map *buf, uint n_bits,
+                              my_bool thread_safe);
 extern my_bool bitmap_is_clear_all(const MY_BITMAP *map);
 extern my_bool bitmap_is_prefix(const MY_BITMAP *map, uint prefix_size);
 extern my_bool bitmap_is_set_all(const MY_BITMAP *map);
@@ -64,7 +69,7 @@ extern uint bitmap_get_first(const MY_BITMAP *map);
 extern uint bitmap_get_first_set(const MY_BITMAP *map);
 extern uint bitmap_bits_set(const MY_BITMAP *map);
 extern uint bitmap_get_next_set(const MY_BITMAP *map, uint bitmap_bit);
-extern void bitmap_free(MY_BITMAP *map);
+extern void my_bitmap_free(MY_BITMAP *map);
 extern void bitmap_set_above(MY_BITMAP *map, uint from_byte, uint use_bit);
 extern void bitmap_set_prefix(MY_BITMAP *map, uint prefix_size);
 extern void bitmap_intersect(MY_BITMAP *map, const MY_BITMAP *map2);

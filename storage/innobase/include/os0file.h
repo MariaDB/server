@@ -1277,6 +1277,17 @@ os_aio_linux_handle(
 	ulint*	type);		/*!< out: OS_FILE_WRITE or ..._READ */
 #endif /* LINUX_NATIVE_AIO */
 
+/****************************************************************//**
+Does error handling when a file operation fails.
+@return	TRUE if we should retry the operation */
+ibool
+os_file_handle_error_no_exit(
+/*=========================*/
+	const char*	name,		/*!< in: name of a file or NULL */
+	const char*	operation,	/*!< in: operation */
+	ibool		on_error_silent);/*!< in: if TRUE then don't print
+					any message to the log. */
+
 #ifndef UNIV_NONINL
 #include "os0file.ic"
 #endif

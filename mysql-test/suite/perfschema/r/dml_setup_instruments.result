@@ -7,20 +7,19 @@ NAME	ENABLED	TIMED
 wait/synch/mutex/sql/Cversion_lock	YES	YES
 wait/synch/mutex/sql/Delayed_insert::mutex	YES	YES
 wait/synch/mutex/sql/Event_scheduler::LOCK_scheduler_state	YES	YES
+wait/synch/mutex/sql/gtid_waiting::LOCK_gtid_waiting	YES	YES
 wait/synch/mutex/sql/hash_filo::lock	YES	YES
 wait/synch/mutex/sql/HA_DATA_PARTITION::LOCK_auto_inc	YES	YES
 wait/synch/mutex/sql/LOCK_active_mi	YES	YES
 wait/synch/mutex/sql/LOCK_audit_mask	YES	YES
 wait/synch/mutex/sql/LOCK_binlog_state	YES	YES
 wait/synch/mutex/sql/LOCK_commit_ordered	YES	YES
-wait/synch/mutex/sql/LOCK_connection_count	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Rwlock/sql/%'
   and name not in ('wait/synch/rwlock/sql/CRYPTO_dynlock_value::lock')
 order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/rwlock/sql/LOCK_dboptions	YES	YES
-wait/synch/rwlock/sql/LOCK_flush	YES	YES
 wait/synch/rwlock/sql/LOCK_grant	YES	YES
 wait/synch/rwlock/sql/LOCK_system_variables_hash	YES	YES
 wait/synch/rwlock/sql/LOCK_sys_init_connect	YES	YES
@@ -29,6 +28,7 @@ wait/synch/rwlock/sql/LOCK_tdc	YES	YES
 wait/synch/rwlock/sql/LOGGER::LOCK_logger	YES	YES
 wait/synch/rwlock/sql/MDL_context::LOCK_waiting_for	YES	YES
 wait/synch/rwlock/sql/MDL_lock::rwlock	YES	YES
+wait/synch/rwlock/sql/Query_cache_query::lock	YES	YES
 select * from performance_schema.setup_instruments
 where name like 'Wait/Synch/Cond/sql/%'
   and name not in (
@@ -37,15 +37,15 @@ where name like 'Wait/Synch/Cond/sql/%'
 order by name limit 10;
 NAME	ENABLED	TIMED
 wait/synch/cond/sql/COND_flush_thread_cache	YES	YES
+wait/synch/cond/sql/COND_group_commit_orderer	YES	YES
+wait/synch/cond/sql/COND_gtid_ignore_duplicates	YES	YES
 wait/synch/cond/sql/COND_manager	YES	YES
 wait/synch/cond/sql/COND_parallel_entry	YES	YES
 wait/synch/cond/sql/COND_prepare_ordered	YES	YES
 wait/synch/cond/sql/COND_queue_state	YES	YES
 wait/synch/cond/sql/COND_rpl_thread	YES	YES
 wait/synch/cond/sql/COND_rpl_thread_pool	YES	YES
-wait/synch/cond/sql/COND_server_started	YES	YES
-wait/synch/cond/sql/COND_thread_cache	YES	YES
-wait/synch/cond/sql/COND_thread_count	YES	YES
+wait/synch/cond/sql/COND_rpl_thread_queue	YES	YES
 select * from performance_schema.setup_instruments
 where name='Wait';
 select * from performance_schema.setup_instruments

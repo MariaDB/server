@@ -1,6 +1,7 @@
 #ifndef SET_VAR_INCLUDED
 #define SET_VAR_INCLUDED
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -60,7 +61,7 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
+                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096, SHOW_VALUE_IN_HELP=8192 };
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.
@@ -142,8 +143,9 @@ public:
   }
   bool register_option(DYNAMIC_ARRAY *array, int parse_flags)
   {
-    return (option.id != -1) && ((flags & PARSE_EARLY) == parse_flags) &&
-           insert_dynamic(array, (uchar*)&option);
+    return ((((option.id != -1) && ((flags & PARSE_EARLY) == parse_flags)) ||
+             (flags & parse_flags)) &&
+            insert_dynamic(array, (uchar*)&option));
   }
   void do_deprecated_warning(THD *thd);
 
@@ -335,6 +337,7 @@ bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 
 ulonglong expand_sql_mode(ulonglong sql_mode);
 bool sql_mode_string_representation(THD *thd, ulonglong sql_mode, LEX_STRING *ls);
+int default_regex_flags_pcre(const THD *thd);
 
 extern sys_var *Sys_autocommit_ptr;
 

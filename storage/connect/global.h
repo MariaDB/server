@@ -84,6 +84,7 @@
 #define  TYPE_LIST         6
 #define  TYPE_INT          7
 #define  TYPE_DECIM        9
+#define  TYPE_BIN         10
 
 #if defined(OS32)
   #define  SYS_STAMP   "OS32"
@@ -219,9 +220,10 @@ typedef struct _global {            /* Global structure                */
   uint      Sarea_Size;             /* Work area size                  */
   PACTIVITY Activityp, ActivityStart;
   char      Message[MAX_STR];
-  short     Trace;
   int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
+  short     Alchecked;              /* Checked for ALTER               */
+  short     Trace;
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];
   } GLOBAL;

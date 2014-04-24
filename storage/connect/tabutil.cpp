@@ -55,6 +55,7 @@
 #include "ha_connect.h"
 
 extern "C" int trace;
+extern "C" int zconv;
 
 /************************************************************************/
 /*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
@@ -129,7 +130,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
                    FLD_LENGTH, FLD_SCALE, FLD_RADIX,    FLD_NULL,
                    FLD_REM,    FLD_NO,    FLD_CHARSET};
   unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 32, 32};
-  char        *fld, *fmt, v;
+  char        *fld, *colname, *chset, *fmt, v;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          prec, len, type, scale;
   bool         mysql;
@@ -176,20 +177,36 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   /**********************************************************************/
   /*  Now get the results into blocks.                                  */
   /**********************************************************************/
-  for (i = 0, field= s->field; *field; i++, field++) {
+  for (i = 0, field= s->field; *field; field++) {
     fp= *field;
 
     // Get column name
     crp = qrp->Colresp;                    // Column_Name
-    fld = (char *)fp->field_name;
-    crp->Kdata->SetValue(fld, i);
-    v = 0;
+    colname = (char *)fp->field_name;
+    crp->Kdata->SetValue(colname, i);
+
+    chset = (char *)fp->charset()->name;
+    v = (!strcmp(chset, "binary")) ? 'B' : 0;
 
     if ((type = MYSQLtoPLG(fp->type(), &v)) == TYPE_ERROR) {
-      sprintf(g->Message, "Unsupported column type %s", GetTypeName(type));
+      if (v == 'K') {
+        // Skip this column
+        sprintf(g->Message, "Column %s skipped (unsupported type)", colname);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        continue;
+        } // endif v
+
+      sprintf(g->Message, "Column %s unsupported type", colname);
       qrp = NULL;
       break;
       } // endif type
+
+      if (v == 'X') {
+        len = zconv;
+        sprintf(g->Message, "Column %s converted to varchar(%d)",
+                colname, len);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        } // endif v
 
     crp = crp->Next;                       // Data_Type
     crp->Kdata->SetValue(type, i);
@@ -198,11 +215,12 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
       crp->Nulls[i] = 'Z';
     else if (fp->flags & UNSIGNED_FLAG)
       crp->Nulls[i] = 'U';
-    else
-      crp->Nulls[i] = v;
+    else                  // X means TEXT field
+      crp->Nulls[i] = (v == 'X') ? 'V' : v;
 
     crp = crp->Next;                       // Type_Name
     crp->Kdata->SetValue(GetTypeName(type), i);
+    fmt = NULL;
 
     if (type == TYPE_DATE) {
       // When creating tables we do need info about date columns
@@ -214,7 +232,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
         prec = len = fp->field_length;
       } // endif mysql
 
-    } else {
+    } else if (v != 'X') {
       if (type == TYPE_DECIM)
         prec = ((Field_new_decimal*)fp)->precision;
       else
@@ -222,8 +240,8 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 //      prec = (prec(???) == NOT_FIXED_DEC) ? 0 : fp->field_length;
 
       len = fp->char_length();
-      fmt = NULL;
-    } // endif type
+    } else
+      prec = len = zconv;
 
     crp = crp->Next;                       // Precision
     crp->Kdata->SetValue(prec, i);
@@ -259,6 +277,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
 
     // Add this item
     qrp->Nblin++;
+    i++;                                   // Can be skipped
     } // endfor field
 
   /**********************************************************************/
@@ -288,10 +307,10 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   char *pn, *db, *tab, *def = NULL;
 
-  db = Cat->GetStringCatInfo(g, "Dbname", "*");
-  def = Cat->GetStringCatInfo(g, "Srcdef", NULL);
+  db = GetStringCatInfo(g, "Dbname", "*");
+  def = GetStringCatInfo(g, "Srcdef", NULL);
 
-  if (!(tab = Cat->GetStringCatInfo(g, "Tabname", NULL))) {
+  if (!(tab = GetStringCatInfo(g, "Tabname", NULL))) {
     if (!def) {
       strcpy(g->Message, "Missing object table definition");
       return TRUE;
@@ -625,7 +644,7 @@ void PRXCOL::Reset(void)
 /***********************************************************************/
 void PRXCOL::ReadColumn(PGLOBAL g)
   {
-  if (trace)
+  if (trace > 1)
     htrc("PRX ReadColumn: name=%s\n", Name);
 
   if (Colp) {

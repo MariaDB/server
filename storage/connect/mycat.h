@@ -36,9 +36,11 @@ typedef class ha_connect     *PHC;
 
 TABTYPE GetTypeID(const char *type);
 bool    IsFileType(TABTYPE type);
+bool    IsExactType(TABTYPE type);
 bool    IsTypeNullable(TABTYPE type);
 bool    IsTypeFixed(TABTYPE type);
 bool    IsTypeIndexable(TABTYPE type);
+int     GetIndexType(TABTYPE type);
 uint    GetFuncID(const char *func);
 
 /***********************************************************************/
@@ -56,14 +58,6 @@ class MYCAT : public CATALOG {
   void    Reset(void);
   void    SetDataPath(PGLOBAL g, const char *path) 
               {SetPath(g, &DataPath, path);}
-  bool    GetBoolCatInfo(PSZ what, bool bdef);
-  bool    SetIntCatInfo(PSZ what, int ival);
-  int     GetIntCatInfo(PSZ what, int idef);
-  int     GetSizeCatInfo(PSZ what, PSZ sdef);
-  int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);
-  char   *GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef);
-  int     GetColCatInfo(PGLOBAL g, PTABDEF defp); 
-  bool    GetIndexInfo(PGLOBAL g, PTABDEF defp);
   bool    StoreIndex(PGLOBAL g, PTABDEF defp) {return false;}  // Temporary
   PRELDEF GetTableDesc(PGLOBAL g, LPCSTR name,
                                   LPCSTR type, PRELDEF *prp = NULL);
