@@ -370,7 +370,7 @@ pattern	varchar(64)	NO
 INSERT INTO t1 VALUES (_utf8'2001÷01÷01',_utf8'%Y÷%m÷%d');
 SELECT HEX(subject),HEX(pattern),STR_TO_DATE(subject, pattern) FROM t1;
 HEX(subject)	HEX(pattern)	STR_TO_DATE(subject, pattern)
-32303031F73031F73031	2559F7256DF72564	2001-01-01 00:00:00
+32303031F73031F73031	2559F7256DF72564	2001-01-01 00:00:00.000000
 DROP TABLE t1;
 SET collation_connection='latin1_bin';
 create table t1 select repeat('a',4000) a;

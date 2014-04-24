@@ -3144,7 +3144,7 @@ void Item_func_str_to_date::fix_length_and_dec()
   }
 
   cached_field_type= MYSQL_TYPE_DATETIME;
-  decimals= NOT_FIXED_DEC;
+  decimals= TIME_SECOND_PART_DIGITS;
   if ((const_item= args[1]->const_item()))
   {
     char format_buff[64];
