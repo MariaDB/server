@@ -110,3 +110,4 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 107	sv_FI	Swedish - Finland	9	7	,	 	swedish
 108	zh_HK	Chinese - Hong Kong SAR	3	3	.	,	english
 109	el_GR	Greek - Greece	11	9	,	.	greek
+110	rm_CH	Romansh - Switzerland	9	9	,	'	english
