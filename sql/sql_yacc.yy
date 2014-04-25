@@ -11305,7 +11305,10 @@ opt_limit_clause:
 limit_clause:
           LIMIT limit_options
           {
-            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+            SELECT_LEX *sel= Select;
+            if (!sel->select_limit->basic_const_item() ||
+                sel->select_limit->val_int() > 0)
+              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
         | LIMIT limit_options ROWS_SYM EXAMINED_SYM limit_rows_option
           {

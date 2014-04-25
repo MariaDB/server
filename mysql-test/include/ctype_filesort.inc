@@ -24,3 +24,25 @@ INSERT INTO t1 VALUES (1),(2);
 SELECT * FROM t1 GROUP BY MID(CURRENT_USER,0) WITH ROLLUP;
 SELECT * FROM t1 GROUP BY MID('test',0) WITH ROLLUP; 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-6170 Incorrect ordering with utf8_bin and utf8mb4_bin collations
+--echo #
+SELECT @@collation_connection;
+CREATE TABLE t1 ENGINE=MEMORY AS SELECT REPEAT('a',5) AS a LIMIT 0;
+INSERT INTO t1 (a) VALUES ("a");
+INSERT INTO t1 (a) VALUES ("b");
+INSERT INTO t1 (a) VALUES ("c");
+INSERT INTO t1 (a) VALUES ("d");
+INSERT INTO t1 (a) VALUES ("e");
+INSERT INTO t1 (a) VALUES ("f");
+INSERT INTO t1 (a) VALUES ("g");
+INSERT INTO t1 (a) VALUES ("h");
+INSERT INTO t1 (a) VALUES ("i");
+INSERT INTO t1 (a) VALUES ("j");
+INSERT INTO t1 (a) VALUES ("k");
+INSERT INTO t1 (a) VALUES ("l");
+INSERT INTO t1 (a) VALUES ("m");
+SELECT * FROM t1 ORDER BY LOWER(a);
+SELECT * FROM t1 ORDER BY LOWER(a) DESC;
+DROP TABLE t1;
