@@ -651,6 +651,14 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
     return 0;
     } // endif xdp
 
+  if (xdp->IsDynamic()) {
+    // This is a dynamically created index (KINDEX)
+    // It cannot be created now, before cond_push is executed
+    tdbp->SetXdp(xdp);
+    return (xdp->IsUnique()) ? 1 : 2;
+    } // endif dynamic
+
+  // Static indexes must be initialized now for records_in_range
   // Allocate the key columns definition block
   tdbp->Knum= xdp->GetNparts();
   tdbp->To_Key_Col= (PCOL*)PlugSubAlloc(g, NULL, tdbp->Knum * sizeof(PCOL));
@@ -738,10 +746,23 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
   // Set reference values and index operator
   if (!tdbp->To_Link || !tdbp->To_Kindex) {
-    sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
-    return RC_FX;
-  } else
-    xbp= (XXBASE*)tdbp->To_Kindex;
+    if (!tdbp->To_Xdp) {
+      sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
+      return RC_FX;
+      } // endif !To_Xdp
+
+    // Now it's time to make the dynamic index
+    tdbp->SetFilter(tdbp->To_Def->GetHandler()->CheckFilter(g));
+
+    if (tdbp->MakeDynamicIndex(g)) {
+      sprintf(g->Message, "Fail to make dynamic index %s", 
+                          tdbp->To_Xdp->GetName());
+      return RC_FX;
+      } // endif MakeDynamicIndex
+
+    } // endif !To_Kindex
+
+  xbp= (XXBASE*)tdbp->To_Kindex;
 
   if (key) {
     for (n= 0; n < tdbp->Knum; n++) {
@@ -829,10 +850,14 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   } else
     tdbp= (PTDBDOX)ptdb;
 
-  if (!tdbp->To_Link || !tdbp->To_Kindex) {
-    sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
-    DBUG_PRINT("Range", ("%s", g->Message));
-    return -1;
+  if (!tdbp->To_Kindex || !tdbp->To_Link) {
+    if (!tdbp->To_Xdp) {
+      sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
+      DBUG_PRINT("Range", ("%s", g->Message));
+      return -1;
+    } else       // Dynamic index
+      return tdbp->To_Xdp->GetMaxSame();     // TODO a better estimate
+
   } else
     xbp= (XXBASE*)tdbp->To_Kindex;
 

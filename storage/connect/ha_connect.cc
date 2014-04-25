@@ -170,7 +170,7 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.02.0002 March 16, 2014";
+       char  version[]= "Version 1.03.0002 April 23, 2014";
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -324,7 +324,7 @@ ha_create_table_option connect_field_option_list[]=
 */
 ha_create_table_option connect_index_option_list[]=
 {
-  HA_IOPTION_BOOL("DYN", kindx, 0),
+  HA_IOPTION_BOOL("DYNAMIC", kindx, 0),
   HA_IOPTION_BOOL("MAPPED", mapped, 0),
 };
 
@@ -658,7 +658,7 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 const char *ha_connect::index_type(uint inx) 
 { 
   switch (GetIndexType(GetRealType())) {
-    case 1: return "XPLUG";
+    case 1: return "XINDEX";
     case 2: return "REMOTE";
     } // endswitch
 
@@ -1143,6 +1143,14 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 } // end of GetColumnOption
 
 /****************************************************************************/
+/*  Return an index option structure.                                       */
+/****************************************************************************/
+PXOS ha_connect::GetIndexOptionStruct(KEY *kp)
+{
+  return kp->option_struct;
+} // end of GetIndexOptionStruct
+
+/****************************************************************************/
 /*  Returns the index description structure used to make the index.         */
 /****************************************************************************/
 PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
@@ -1151,6 +1159,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
   bool     unique;
   PIXDEF   xdp, pxd=NULL, toidx= NULL;
   PKPDEF   kpp, pkp;
+  PXOS     xosp;
   KEY      kp;
   PGLOBAL& g= xp->g;
 
@@ -1163,6 +1172,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
     // Find the index to describe
     kp= s->key_info[n];
+    xosp= kp.option_struct;
 
     // Now get index information
     pn= (char*)s->keynames.type_names[n];
@@ -1204,6 +1214,20 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
       } // endfor k
 
     xdp->SetNParts(kp.user_defined_key_parts);
+
+    if (xosp) {
+      xdp->Dynamic= xosp->kindx;
+      xdp->Mapped= xosp->mapped;
+    } else if (kp.comment.str != NULL) {
+      char *pv, *oplist= kp.comment.str;
+
+      if ((pv= GetListOption(g, "Dynamic", oplist)))
+        xdp->Dynamic= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
+
+      if ((pv= GetListOption(g, "Mapped", oplist)))
+        xdp->Mapped= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
+
+    } // endif comment
 
     if (pxd)
       pxd->SetNext(xdp);
@@ -1842,6 +1866,15 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
 
   return val;
 } // end of GetValStr
+
+
+/***********************************************************************/
+/*  Check the WHERE condition and return a CONNECT filter.             */
+/***********************************************************************/
+PFIL ha_connect::CheckFilter(PGLOBAL g)
+{
+  return CondFilter(g, (Item *)pushed_cond);
+} // end of CheckFilter
 
 
 /***********************************************************************/
@@ -2680,7 +2713,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     htrc("index_init CONNECT: %s\n", g->Message);
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
-  } else {
+  } else if (((PTDBDOX)tdbp)->To_Kindex) {
     if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
       if (((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
         ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
@@ -2689,7 +2722,6 @@ int ha_connect::index_init(uint idx, bool sorted)
     } else        // Void table
       indexing= 0;
 
-    rc= 0;
   } // endif indexing
 
   if (xtrace)

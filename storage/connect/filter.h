@@ -26,7 +26,7 @@ PFIL MakeFilter(PGLOBAL g, PCOL *colp, POPER pop, PPARM pfirst, bool neg);
 /***********************************************************************/
 class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //friend PFIL PrepareFilter(PGLOBAL, PFIL, bool);
-  friend DllExport bool ApplyFilter(PGLOBAL, PFIL, PTDB = NULL);
+  friend DllExport bool ApplyFilter(PGLOBAL, PFIL);
  public:
   // Constructors
   FILTER(PGLOBAL g, POPER pop, PPARM *tp = NULL);

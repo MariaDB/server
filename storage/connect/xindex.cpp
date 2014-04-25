@@ -112,6 +112,8 @@ INDEXDEF::INDEXDEF(char *name, bool uniq, int n)
   Unique = uniq;
   Invalid = false;
   AutoInc = false;
+  Dynamic = false;
+  Mapped = false;
   Nparts = 0;
   ID = n;
 //Offset = 0;
@@ -242,7 +244,8 @@ void XINDEX::Reset(void)
 void XINDEX::Close(void)
   {
   // Close file or view of file
-  X->Close();
+  if (X)
+    X->Close();
 
   // De-allocate data
   PlgDBfree(Record);
@@ -286,7 +289,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   int     k, rc = RC_OK;
   int    *bof, i, j, n, ndf, nkey;
   PKPDEF  kdfp = Xdp->GetToKeyParts();
-  bool    brc = true;
+  bool    brc = false;
   PCOL    colp;
   PXCOL   kp, prev = NULL, kcp = NULL;
   PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
@@ -378,11 +381,14 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     // Check return code and do whatever must be done according to it
     switch (rc) {
       case RC_OK:
-        break;
-      case RC_EF:
-        goto end_of_file;
+        if (ApplyFilter(g, Tdbp->GetFilter()))
+          break;
+
+        // passthru
       case RC_NF:
         continue;
+      case RC_EF:
+        goto end_of_file;
       default:
         sprintf(g->Message, MSG(RC_READING), rc, Tdbp->Name);
         goto err;
@@ -579,14 +585,15 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   Cur_K = Num_K;
 
   /*********************************************************************/
-  /*  Save the index so it has not to be recalculated.                 */
+  /*  Save the xindex so it has not to be recalculated.                */
   /*********************************************************************/
-  if (!SaveIndex(g, sxp))
-    brc = false;
+  if (X && SaveIndex(g, sxp))
+    brc = true;
 
  err:
   // We don't need the index anymore
-  Close();
+  if (X || brc)
+    Close();
 
   if (brc)
     printf("%s\n", g->Message);

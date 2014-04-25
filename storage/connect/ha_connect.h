@@ -72,6 +72,7 @@ typedef class XCHK *PCHK;
 typedef class user_connect *PCONNECT;
 typedef struct ha_table_option_struct TOS, *PTOS;
 typedef struct ha_field_option_struct FOS, *PFOS;
+typedef struct ha_index_option_struct XOS, *PXOS;
 
 extern handlerton *connect_hton;
 
@@ -195,6 +196,7 @@ public:
   bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
+  PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
@@ -345,6 +347,7 @@ virtual const COND *cond_push(const COND *cond);
 PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
+PFIL  CheckFilter(PGLOBAL g);
 
  /**
    Number of rows in table. It will only be called if

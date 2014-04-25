@@ -145,6 +145,7 @@ class DllExport TDBASE : public TDB {
   inline  PKXBASE GetKindex(void) {return To_Kindex;}
   inline  PCOL    GetSetCols(void) {return To_SetCols;}
   inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
+  inline  void    SetXdp(PIXDEF xdp) {To_Xdp = xdp;}
 
   // Properties
   void    SetKindex(PKXBASE kxp);
@@ -191,8 +192,9 @@ class DllExport TDBASE : public TDB {
   PXOB    *To_Link;           // Points to column of previous relations
   PCOL    *To_Key_Col;        // Points to key columns in current file
   PKXBASE  To_Kindex;         // Points to table key index
+  PIXDEF   To_Xdp;            // To the index definition block
   PCOL     To_SetCols;        // Points to updated columns
-  int      MaxSize;            // Max size in number of lines
+  int      MaxSize;           // Max size in number of lines
   int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables
   const CHARSET_INFO *m_data_charset;

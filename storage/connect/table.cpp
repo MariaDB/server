@@ -139,6 +139,7 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   To_Link = NULL;
   To_Key_Col = NULL;
   To_Kindex = NULL;
+  To_Xdp = NULL;
   To_SetCols = NULL;
   MaxSize = -1;
   Knum = 0;
@@ -149,8 +150,13 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
 TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   {
   To_Def = tdbp->To_Def;
+  To_Link = tdbp->To_Link;
+  To_Key_Col = tdbp->To_Key_Col;
+  To_Kindex = tdbp->To_Kindex;
+  To_Xdp = tdbp->To_Xdp;
   To_SetCols = tdbp->To_SetCols;          // ???
   MaxSize = tdbp->MaxSize;
+  Knum = tdbp->Knum;
   Read_Only = tdbp->Read_Only;
   m_data_charset= tdbp->m_data_charset;
   } // end of TDBASE copy constructor

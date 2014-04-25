@@ -1711,7 +1711,7 @@ PFIL PrepareFilter(PGLOBAL g, PFIL fp, bool having)
 /*  New algorithm: evaluate from the root a de-linearized filter so    */
 /*  AND/OR clauses can be optimized throughout the whole tree.         */
 /***********************************************************************/
-DllExport bool ApplyFilter(PGLOBAL g, PFIL filp, PTDB tdbp)
+DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
   {
   if (!filp)
     return TRUE;

@@ -1477,12 +1477,17 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
   } // end of CheckBlockFilari
 
 /***********************************************************************/
-/*  ResetBlkFil: reset the block filter and restore filtering.         */
+/*  ResetBlkFil: reset the block filter and restore filtering, or make */
+/*  the block filter if To_Filter was not set when opening the table.  */
 /***********************************************************************/
 void TDBDOS::ResetBlockFilter(PGLOBAL g)
   {
-  if (!To_BlkFil)
+  if (!To_BlkFil) {
+    if (To_Filter)
+      To_BlkFil = InitBlockFilter(g, To_Filter);
+    
     return;
+    } // endif To_BlkFil
 
   To_BlkFil->Reset(g);
 
@@ -1590,7 +1595,7 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
 
   // Allocate all columns that will be used by indexes.
   // This must be done before opening the table so specific
-  // column initialization can be done ( in particular by TDBVCT)
+  // column initialization can be done (in particular by TDBVCT)
   for (n = 0, xdp = pxdf; xdp; xdp = xdp->GetNext())
     for (kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext()) {
       if (!(colp = ColDB(g, kdp->GetName(), 0))) {
@@ -1686,6 +1691,79 @@ err:
 
   return RC_FX;
   } // end of MakeIndex
+
+/***********************************************************************/
+/*  Make a dynamic index.                                              */
+/***********************************************************************/
+bool TDBDOS::MakeDynamicIndex(PGLOBAL g)
+  {
+  int     k, rc;
+  bool    brc;
+  PCOL    colp;
+  PCOLDEF cdp;
+  PVAL    valp;
+  PIXDEF  xdp;
+  PKXBASE kxp;
+  PKPDEF  kdp;
+
+  if (!(xdp = To_Xdp)) {
+    strcpy(g->Message, "NULL dynamic index");
+    return true;
+    } // endif To_Xdp
+
+  // Allocate the key columns definition block
+  Knum = xdp->GetNparts();
+  To_Key_Col = (PCOL*)PlugSubAlloc(g, NULL, Knum * sizeof(PCOL));
+
+  // Get the key column description list
+  for (k = 0, kdp = xdp->GetToKeyParts(); kdp; kdp = kdp->GetNext())
+    if (!(colp = ColDB(g, kdp->GetName(), 0)) || colp->InitValue(g)) {
+      sprintf(g->Message, "Wrong column %s", kdp->GetName());
+      return true;
+    } else
+      To_Key_Col[k++] = colp;
+
+#if defined(_DEBUG)
+  if (k != Knum) {
+    sprintf(g->Message, "Key part number mismatch for %s",
+                        xdp->GetName());
+    return 0;
+    } // endif k
+#endif   // _DEBUG
+
+  // Allocate the pseudo constants that will contain the key values
+  To_Link = (PXOB*)PlugSubAlloc(g, NULL, Knum * sizeof(PXOB));
+
+  for (k = 0, kdp = xdp->GetToKeyParts(); kdp; k++, kdp = kdp->GetNext()) {
+    cdp = Key(k)->GetCdp();
+    valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    To_Link[k]= new(g) CONSTANT(valp);
+    } // endfor k
+
+  // Make the index on xdp
+  if (!xdp->IsAuto()) {
+    if (Knum == 1)            // Single index
+      kxp= new(g) XINDXS(this, xdp, NULL, To_Key_Col, To_Link);
+    else                       // Multi-Column index
+      kxp= new(g) XINDEX(this, xdp, NULL, To_Key_Col, To_Link);
+
+  } else                      // Column contains same values as ROWID
+    kxp= new(g) XXROW(this);
+
+  //  Prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return true;
+    } // endif
+
+  if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+    brc = true;
+  } else if (!(brc = kxp->Make(g, xdp)))
+    To_Kindex= kxp;
+
+  g->jump_level--;
+  return brc;
+  } // end of MakeDynamicIndex
 
 /***********************************************************************/
 /*  DOS GetProgMax: get the max value for progress information.        */
