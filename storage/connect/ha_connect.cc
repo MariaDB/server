@@ -4864,7 +4864,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     if (!qrp) {
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       return HA_ERR_INTERNAL_ERROR;
-      } // endif qrp
+      } // endif !qrp
 
     if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
       // Catalog like table
@@ -4890,7 +4890,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif  // !NEW_WAY
       } // endfor crp
 
-    } else              // Not a catalog table
+    } else {            
+      // Not a catalog table
+      if (!qrp->Nblin) {
+        if (tab)
+          sprintf(g->Message, "Cannot get columns from %s", tab);
+        else
+          strcpy(g->Message, "Fail to retrieve columns");
+
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        return HA_ERR_INTERNAL_ERROR;
+        } // endif !nblin
+
       for (i= 0; !rc && i < qrp->Nblin; i++) {
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
@@ -4992,6 +5003,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
         } // endfor i
+
+    } // endif fnc
 
 #if defined(NEW_WAY)
     rc= init_table_share(thd, table_s, create_info, &alter_info);
@@ -5435,7 +5448,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     // Get the index definitions
     if (xdp= GetIndexInfo()) {
-      if (GetIndexType(type) == 1) {
+      if (options->multiple) {
+        strcpy(g->Message, "Multiple tables are not indexable");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_UNSUPPORTED;
+      } else if (options->compressed) {
+        strcpy(g->Message, "Compressed tables are not indexable");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_UNSUPPORTED;
+      } else if (GetIndexType(type) == 1) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
@@ -5688,7 +5709,15 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
   if (ha_alter_info->handler_flags & index_operations ||
       !SameString(altered_table, "optname") ||
       !SameBool(altered_table, "sepindex")) {
-    if (GetIndexType(type) == 1) {
+    if (newopt->multiple) {
+      strcpy(g->Message, "Multiple tables are not indexable");
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      DBUG_RETURN(HA_ALTER_ERROR);
+    } else if (newopt->compressed) {
+      strcpy(g->Message, "Compressed tables are not indexable");
+      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+      DBUG_RETURN(HA_ALTER_ERROR);
+    } else if (GetIndexType(type) == 1) {
       g->Xchk= new(g) XCHK;
       PCHK xcp= (PCHK)g->Xchk;
   
