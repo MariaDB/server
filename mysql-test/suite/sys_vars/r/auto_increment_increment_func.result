@@ -142,8 +142,8 @@ id	name
 116	Record_10
 117	Record_11
 119	Record_12
-120	Record_13
-121	Record_14
+121	Record_13
+123	Record_14
 ## Changing column's datatype to BigInt and verifying variable's behavior ##
 ALTER table t1 MODIFY id BIGINT NOT NULL auto_increment;
 INSERT into t1(name) values('Record_15');
@@ -159,10 +159,10 @@ id	name
 116	Record_10
 117	Record_11
 119	Record_12
-120	Record_13
-121	Record_14
-122	Record_15
-123	Record_16
+121	Record_13
+123	Record_14
+125	Record_15
+127	Record_16
 '#--------------------FN_DYNVARS_001_07-------------------------#'
 ## Verifying behavior of variable with negative value ##
 SET @@auto_increment_increment = -10;
@@ -181,12 +181,12 @@ id	name
 116	Record_10
 117	Record_11
 119	Record_12
-120	Record_13
-121	Record_14
-122	Record_15
-123	Record_16
-124	Record_17
-125	Record_18
+121	Record_13
+123	Record_14
+125	Record_15
+127	Record_16
+128	Record_17
+129	Record_18
 ## Disconnecting test_con2 ##
 ## Dropping table t1 ##
 DROP table if exists t1;
