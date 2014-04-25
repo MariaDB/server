@@ -38,6 +38,7 @@
 #include "records.h"              // READ_RECORD, read_record_info,
                                   // init_read_record, end_read_record
 #include "rpl_filter.h"           // rpl_filter
+#include "rpl_rli.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include "sp_head.h"
@@ -2558,7 +2559,7 @@ bool change_password(THD *thd, const char *host, const char *user,
 {
   TABLE_LIST tables;
   TABLE *table;
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   /* Buffer should be extended when password length is extended. */
   char buff[512];
   ulong query_length;
@@ -2580,7 +2581,8 @@ bool change_password(THD *thd, const char *host, const char *user,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -5393,7 +5395,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   TABLE_LIST tables[3];
   bool create_new_users=0;
   char *db_name, *table_name;
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("mysql_table_grant");
 
   if (!initialized)
@@ -5483,7 +5485,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -5670,7 +5673,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   TABLE_LIST tables[2];
   bool create_new_users=0, result=0;
   char *db_name, *table_name;
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("mysql_routine_grant");
 
   if (!initialized)
@@ -5705,7 +5708,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -6141,7 +6145,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   char tmp_db[SAFE_NAME_LEN+1];
   bool create_new_users=0;
   TABLE_LIST tables[2];
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("mysql_grant");
 
   if (!initialized)
@@ -6190,7 +6194,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -8223,7 +8228,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
 #define GRANT_TABLES 7
 static int open_grant_tables(THD *thd, TABLE_LIST *tables)
 {
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("open_grant_tables");
 
   if (!initialized)
@@ -8267,7 +8272,8 @@ static int open_grant_tables(THD *thd, TABLE_LIST *tables)
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into

@@ -171,8 +171,9 @@ const char *xa_state_names[]={
 */
 inline bool all_tables_not_ok(THD *thd, TABLE_LIST *tables)
 {
-  return thd->rpl_filter->is_on() && tables && !thd->spcont &&
-         !thd->rpl_filter->tables_ok(thd->db, tables);
+  Rpl_filter *rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+  return rpl_filter->is_on() && tables && !thd->spcont &&
+         !rpl_filter->tables_ok(thd->db, tables);
 }
 #endif
 
@@ -2233,7 +2234,7 @@ mysql_execute_command(THD *thd)
   /* have table map for update for multi-update statement (BUG#37051) */
   bool have_table_map_for_update= FALSE;
   /* */
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
 #endif
   DBUG_ENTER("mysql_execute_command");
 
@@ -3885,12 +3886,15 @@ end_with_restore_list:
       above was not called. So we have to check rules again here.
     */
 #ifdef HAVE_REPLICATION
-    if (thd->slave_thread && 
-	(!rpl_filter->db_ok(lex->name.str) ||
-	 !rpl_filter->db_ok_with_wild_table(lex->name.str)))
+    if (thd->slave_thread)
     {
-      my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
-      break;
+      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (!rpl_filter->db_ok(lex->name.str) ||
+          !rpl_filter->db_ok_with_wild_table(lex->name.str))
+      {
+        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        break;
+      }
     }
 #endif
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
@@ -3913,12 +3917,15 @@ end_with_restore_list:
       above was not called. So we have to check rules again here.
     */
 #ifdef HAVE_REPLICATION
-    if (thd->slave_thread && 
-	(!rpl_filter->db_ok(lex->name.str) ||
-	 !rpl_filter->db_ok_with_wild_table(lex->name.str)))
+    if (thd->slave_thread)
     {
-      my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
-      break;
+      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (!rpl_filter->db_ok(lex->name.str) ||
+          !rpl_filter->db_ok_with_wild_table(lex->name.str))
+      {
+        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        break;
+      }
     }
 #endif
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
@@ -3930,13 +3937,16 @@ end_with_restore_list:
   {
     LEX_STRING *db= & lex->name;
 #ifdef HAVE_REPLICATION
-    if (thd->slave_thread && 
-       (!rpl_filter->db_ok(db->str) ||
-        !rpl_filter->db_ok_with_wild_table(db->str)))
+    if (thd->slave_thread)
     {
-      res= 1;
-      my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
-      break;
+      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (!rpl_filter->db_ok(db->str) ||
+          !rpl_filter->db_ok_with_wild_table(db->str))
+      {
+        res= 1;
+        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        break;
+      }
     }
 #endif
     if (check_db_name(db))
@@ -3973,12 +3983,15 @@ end_with_restore_list:
       above was not called. So we have to check rules again here.
     */
 #ifdef HAVE_REPLICATION
-    if (thd->slave_thread &&
-	(!rpl_filter->db_ok(db->str) ||
-	 !rpl_filter->db_ok_with_wild_table(db->str)))
+    if (thd->slave_thread)
     {
-      my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
-      break;
+      rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter;
+      if (!rpl_filter->db_ok(db->str) ||
+          !rpl_filter->db_ok_with_wild_table(db->str))
+      {
+        my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
+        break;
+      }
     }
 #endif
     if (check_access(thd, ALTER_ACL, db->str, NULL, NULL, 1, 0))

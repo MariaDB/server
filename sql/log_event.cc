@@ -4153,7 +4153,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
                    (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
       if (charset_inited)
       {
-        if (rgi->cached_charset_compare(charset))
+        rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
+        if (sql_info->cached_charset_compare(charset))
         {
           /* Verify that we support the charsets found in the event. */
           if (!(thd->variables.character_set_client=
