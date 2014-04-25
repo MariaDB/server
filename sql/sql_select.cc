@@ -7287,18 +7287,74 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   if (pos->key != 0)
   {
     /* 
-      A ref access or hash join is used for this table.
+      A ref access or hash join is used for this table. ref access is created
+      from
 
-      It could have some parts with "t.key_part=const". Using ref access
-      means that we will only get records where the condition holds, so we
-      should remove its selectivity from the condition selectivity.
+        tbl.keypart1=expr1 AND tbl.keypart2=expr2 AND ...
       
+      and it will only return rows for which this condition is satisified.
+      Suppose, certain expr{i} is a constant. Since ref access only returns
+      rows that satisfy
+        
+         tbl.keypart{i}=const       (*)
+
+      then selectivity of this equality should not be counted in return value 
+      of this function. This function uses the value of 
+       
+         table->cond_selectivity=selectivity(COND(tbl)) (**)
+      
+      as a starting point. This value includes selectivity of equality (*). We
+      should somehow discount it. 
+      
+      Looking at calculate_cond_selectivity_for_table(), one can see that that
+      the value is not necessarily a direct multiplicand in 
+      table->cond_selectivity
+
+      There are three possible ways to discount
+      1. There is a potential range access on t.keypart{i}=const. 
+         (an important special case: the used ref access has a const prefix for
+          which a range estimate is available)
+      
+      2. The field has a histogram. field[x]->cond_selectivity has the data.
+      
+      3. Use index stats on this index:
+         rec_per_key[key_part+1]/rec_per_key[key_part]
+
       (TODO: more details about the "t.key=othertable.col" case)
     */
     KEYUSE *keyuse= pos->key;
     KEYUSE *prev_ref_keyuse= keyuse;
     uint key= keyuse->key;
-    do
+    
+    /*
+      Check if we have a prefix of key=const that matches a quick select.
+    */
+    if (!is_hash_join_key_no(key))
+    {
+      table_map quick_key_map= (table_map(1) << table->quick_key_parts[key]) - 1;
+      if (table->quick_rows[key] && 
+          !(quick_key_map & ~table->const_key_parts[key]))
+      {
+        /* 
+          Ok, there is an equality for each of the key parts used by the
+          quick select. This means, quick select's estimate can be reused to
+          discount the selectivity of a prefix of a ref access.
+        */
+        for (; quick_key_map & 1 ; quick_key_map>>= 1)
+        {
+          while (keyuse->keypart == keyparts)
+            keyuse++;
+          keyparts++;
+        }
+        sel /= table->quick_rows[key] / table->stat_records();
+      }
+    }
+    
+    /*
+      Go through the "keypart{N}=..." equalities and find those that were
+      already taken into account in table->cond_selectivity.
+    */
+    while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
       {
@@ -7312,22 +7368,35 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           else
 	  {
             if (keyparts == keyuse->keypart &&
-                !(~(keyuse->val->used_tables()) & pos->ref_depend_map) &&
+                !((keyuse->val->used_tables()) & ~pos->ref_depend_map) &&
                 !(found_part_ref_or_null & keyuse->optimize))
 	    {
+              /* Found a KEYUSE object that will be used by ref access */
               keyparts++;
               found_part_ref_or_null|= keyuse->optimize & ~KEY_OPTIMIZE_EQ;
             }
           }
+
           if (keyparts > keyuse->keypart)
 	  {
+            /* Ok this is the keyuse that will be used for ref access */
             uint fldno;
             if (is_hash_join_key_no(key))
 	      fldno= keyuse->keypart;
             else
               fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
             if (keyuse->val->const_item())
-              sel*= table->field[fldno]->cond_selectivity; 
+            {              
+              sel /= table->field[fldno]->cond_selectivity;
+              /* 
+               TODO: we could do better here:
+                 1. cond_selectivity might be =1 (the default) because quick 
+                    select on some index prevented us from analyzing 
+                    histogram for this column.
+                 2. we could get an estimate through this?
+                     rec_per_key[key_part-1] / rec_per_key[key_part]
+              */
+            }
             if (keyparts > 1)
 	    {
               ref_keyuse_steps[keyparts-2]= keyuse - prev_ref_keyuse;
@@ -7337,7 +7406,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 	}
       }
       keyuse++;
-    } while (keyuse->table == table && keyuse->key == key);
+    }
   }
   else
   {
