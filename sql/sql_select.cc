@@ -7135,6 +7135,15 @@ double JOIN::get_examined_rows()
   @param rem_tables The bitmap of tables to be joined later
   @param keyparts   The number of key parts to used when joining s
   @param ref_keyuse_steps Array of references to keyuses employed to join s 
+
+  @detail
+  Basic idea: if the WHERE clause has an equality in form
+
+    tbl.column= ...
+
+  then this condition will have selectivity 1/#distinct_values(tbl.column),
+  unless the equality was used by ref access. If the equality is used by ref
+  access, we only get rows that satisfy it, and so its selectivity=1.
 */
 
 static 
@@ -7302,13 +7311,14 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 {
   uint16 ref_keyuse_steps[MAX_REF_PARTS - 1];
   TABLE *table= s->table;
-  double sel= s->table->cond_selectivity;
+  double sel;
   POSITION *pos= &join->positions[idx];
   uint keyparts= 0;
   uint found_part_ref_or_null= 0;
 
   if (pos->key != 0)
   {
+    sel= s->table->cond_selectivity;
     /* 
       A ref access or hash join is used for this table. ref access is created
       from
@@ -7324,17 +7334,19 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       then selectivity of this equality should not be counted in return value 
       of this function. This function uses the value of 
        
-         table->cond_selectivity=selectivity(COND(tbl))
+         table->cond_selectivity=selectivity(COND(tbl)) (**)
       
       as a starting point. This value includes selectivity of equality (*). We
       should somehow discount it. 
       
       Looking at calculate_cond_selectivity_for_table(), one can see that that
-      value is not necessarily a direct multiplicand in table->cond_selectivity
+      the value is not necessarily a direct multiplicand in 
+      table->cond_selectivity
 
       There are three possible ways to discount
-      1. There is a range access on t.keypart{i}=const. 
-         (an important special case: multi-keypart ref(const) access)
+      1. There is a potential range access on t.keypart{i}=const. 
+         (an important special case: the used ref access has a const prefix for
+          which a range estimate is available)
       
       2. The field has a histogram. field[x]->cond_selectivity has the data.
       
@@ -7375,7 +7387,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       Go through the "keypart{N}=..." equalities and find those that were
       already taken into account in table->cond_selectivity.
     */
-    //do
     while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
@@ -7399,7 +7410,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
               found_part_ref_or_null|= keyuse->optimize & ~KEY_OPTIMIZE_EQ;
             }
           }
-
 
           if (keyparts > keyuse->keypart)
 	  {
@@ -7448,30 +7458,41 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     sel= 1;
   }
 
-  /* 
-    If the field f from the table is equal to a field from one the
-    earlier joined tables then the selectivity of the range conditions
-    over the field f must be discounted.
+  /*
+    Selectivity and multiple equalities. Consider an example:
 
-    psergey: I think this is wrong. Example:
-     
-      ## no keys used
       select * from t1, t2 where t1.col=t2.col and t2.col<5
+    
+    Suppose the join order is t1, t2. When equality propagation is used, we 
+    get:
+
+      t1:  t1.col<5
+      t2:  t2.col<5  // not generated: AND t2.col=t1.col
+
+    if we use ref access on table t2, we will not get records for which
+    "t2.col<5"
+    
+      when we get to table t2, we will not get records that have "t2.col < 5"
+
+     COND(t2) = "t2.col<5" 
 
       ## a variant with key:
       select * from t1, t2 where t1.col=t2.col and t2.col<5 and t2.key=t1.col2
 
-    suppose the join order is t1, t2. Attached conditions:
+    If the field f from the table is equal to a field from one the
+    earlier joined tables then the selectivity of the range conditions
+    over the field f must be discounted.
 
-      t1:  t2.col<3
-      t2:  [t2.col=t1.col] AND t2.col<3
+
 
     Suppose, we're now looking at selectivity for table t2.
     - in case t2 uses full table scan (or quick select): all selectivity is
-      already accounted for in matching_candidates_in_table(). [YES. CHECKED]
+      already accounted for in matching_candidates_in_table().
     - in case t2 uses ref access
        = if the equality is used for ref access, we have already 
-         discounted its selectivity above.
+         discounted its selectivity above
+         (However, we have not discounted selectivity of the induced
+         equalities)
        = if the equality is not used for ref access, we should still count its
          selectivity.
   */ 
