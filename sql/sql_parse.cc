@@ -860,8 +860,9 @@ bool do_command(THD *thd)
         command != COM_TIME         &&
         command != COM_END
     ) {
-      my_error(ER_UNKNOWN_COM_ERROR, MYF(0),
-	       "WSREP has not yet prepared node for application use");
+      my_message(ER_UNKNOWN_COM_ERROR,
+                 "WSREP has not yet prepared node for application use",
+                 MYF(0));
       thd->protocol->end_statement();
       return_value= FALSE;
       goto out;
@@ -2407,8 +2408,9 @@ mysql_execute_command(THD *thd)
           strncmp(thd->query(), mysqldump_magic_str, mysqldump_magic_str_len))
       {
 #endif /* DIRTY_HACK */
-      my_error(ER_UNKNOWN_COM_ERROR, MYF(0),
-	       "WSREP has not yet prepared node for application use");
+      my_message(ER_UNKNOWN_COM_ERROR,
+                 "WSREP has not yet prepared node for application use",
+                 MYF(0));
       goto error;
 #if DIRTY_HACK
       }
