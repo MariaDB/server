@@ -4407,7 +4407,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     if (!qrp) {
       my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
       return HA_ERR_INTERNAL_ERROR;
-      } // endif qrp
+      } // endif !qrp
 
     if (fnc != FNC_NO || src || ttp == TAB_PIVOT) {
       // Catalog like table
@@ -4429,7 +4429,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
       } // endfor crp
 
-    } else              // Not a catalog table
+    } else {            
+      // Not a catalog table
+      if (!qrp->Nblin) {
+        if (tab)
+          sprintf(g->Message, "Cannot get columns from %s", tab);
+        else
+          strcpy(g->Message, "Fail to retrieve columns");
+
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        return HA_ERR_INTERNAL_ERROR;
+        } // endif !nblin
+
       for (i= 0; !rc && i < qrp->Nblin; i++) {
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
@@ -4521,6 +4532,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                       0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
         } // endfor i
+
+    } // endif fnc
 
     if (!rc)
       rc= init_table_share(thd, table_s, create_info, &sql);
