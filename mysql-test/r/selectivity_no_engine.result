@@ -139,6 +139,32 @@ Warnings:
 Note	1003	select `test`.`t2`.`a` AS `a`,`test`.`t2`.`b` AS `b`,`test`.`t2`.`col1` AS `col1`,`test`.`t2`.`col2` AS `col2` from `test`.`t2` where ((`test`.`t2`.`a` in (1,2,3)) and (`test`.`t2`.`b` in (1,2,3)))
 drop table t2, t1;
 # 
+# MDEV-5980: EITS: if condition is used for REF access, its selectivity is still in filtered%
+# 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(key1 int, col1 int, key(key1));
+insert into t1 select A.a, A.a from t0 A, t0 B, t0 C;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+# 10% is ok
+explain extended select * from t1 where col1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1000	9.90	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from `test`.`t1` where (`test`.`t1`.`col1` = 2)
+# Must show 100%, not 10%
+explain extended select * from t1 where key1=2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	key1	key1	5	const	98	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`key1` AS `key1`,`test`.`t1`.`col1` AS `col1` from `test`.`t1` where (`test`.`t1`.`key1` = 2)
+drop table t0, t1;
 # MDEV-6003: EITS: ref access, keypart2=const vs keypart2=expr - inconsistent filtered% value
 # 
 create table t0(a int);
