@@ -380,6 +380,11 @@ ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
   SET(CMAKE_CXX_FLAGS_DEBUG "${MY_MAINTAINER_CXX_WARNINGS} ${CMAKE_CXX_FLAGS_DEBUG}")
 ENDIF()
 
+IF(CMAKE_CROSSCOMPILING)
+  SET(IMPORT_EXECUTABLES "IMPORT_EXECUTABLES_NOT_SET" CACHE FILEPATH "Path to import_executables.cmake from a native build")
+  INCLUDE(${IMPORT_EXECUTABLES})
+ENDIF()
+
 IF(WITH_UNIT_TESTS)
  ENABLE_TESTING()
  ADD_SUBDIRECTORY(unittest/mytap)
@@ -442,6 +447,11 @@ IF(WIN32)
   ADD_SUBDIRECTORY(win/packaging)
 ENDIF()
 ADD_SUBDIRECTORY(packaging/solaris)
+
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_CUSTOM_TARGET(IMPORT_EXECUTABLES DEPENDS comp_err comp_sql factorial gen_lex_hash)
+  EXPORT(TARGETS comp_err comp_sql factorial gen_lex_hash FILE ${CMAKE_BINARY_DIR}/import_executables.cmake)
+ENDIF()
 
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/my_config.h)
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/config.h)
