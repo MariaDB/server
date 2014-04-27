@@ -329,4 +329,65 @@ performance_schema
 test
 Phase 3/3: Running 'mysql_fix_privilege_tables'...
 OK
+#
+# MDEV-4332 Increase username length from 16 characters
+# MDEV-6068, MDEV-6178 mysql_upgrade breaks databases with long user names
+#
+GRANT SELECT ON mysql.* TO very_long_user_name_number_1;
+GRANT SELECT ON mysql.* TO very_long_user_name_number_2;
+GRANT ALL ON *.* TO even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost WITH GRANT OPTION;
+GRANT INSERT ON mysql.user TO very_long_user_name_number_1;
+GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
+GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
+CREATE PROCEDURE test.pr() BEGIN END;
+Phase 1/3: Fixing table and database names
+Phase 2/3: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.host                                         OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats                           OK
+mysql.innodb_table_stats                           OK
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.user                                         OK
+performance_schema
+test
+Phase 3/3: Running 'mysql_fix_privilege_tables'...
+OK
+SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
+definer
+even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
+SELECT grantor FROM mysql.tables_priv WHERE db = 'mysql' AND table_name = 'user';
+grantor
+even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
+even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost
+DROP USER very_long_user_name_number_1, very_long_user_name_number_2, even_longer_user_name_number_3_to_test_the_grantor_and_definer_field_length@localhost;
+DROP PROCEDURE test.pr;
 End of tests
