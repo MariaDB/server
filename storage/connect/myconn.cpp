@@ -31,6 +31,10 @@
 /*                                                                      */
 /************************************************************************/
 #include "my_global.h"
+#if !defined(MYSQL_PREPARED_STATEMENTS)
+#include "my_sys.h"
+#include "mysqld_error.h"
+#endif   // !MYSQL_PREPARED_STATEMENTS
 #if defined(WIN32)
 //#include <windows.h>
 #else   // !WIN32
@@ -58,6 +62,59 @@ uint GetDefaultPort(void)
 {
   return mysqld_port;
 } // end of GetDefaultPort
+
+#if !defined(MYSQL_PREPARED_STATEMENTS)
+/**************************************************************************
+  Alloc struct for use with unbuffered reads. Data is fetched by domand
+  when calling to mysql_fetch_row.
+  mysql_data_seek is a noop.
+
+  No other queries may be specified with the same MYSQL handle.
+  There shouldn't be much processing per row because mysql server shouldn't
+  have to wait for the client (and will not wait more than 30 sec/packet).
+  NOTE: copied from client.c cli_use_result
+**************************************************************************/
+static MYSQL_RES *connect_use_result(MYSQL *mysql)
+{
+  MYSQL_RES *result;
+  DBUG_ENTER("connect_use_result");
+
+  if (!mysql->fields)
+    DBUG_RETURN(NULL);
+
+  if (mysql->status != MYSQL_STATUS_GET_RESULT) {
+    my_message(ER_UNKNOWN_ERROR, "Command out of sync", MYF(0));
+    DBUG_RETURN(NULL);
+    } // endif status
+
+  if (!(result = (MYSQL_RES*) my_malloc(sizeof(*result) +
+				          sizeof(ulong) * mysql->field_count,
+				          MYF(MY_WME | MY_ZEROFILL))))
+    DBUG_RETURN(NULL);
+
+  result->lengths = (ulong*)(result+1);
+  result->methods = mysql->methods;
+
+  /* Ptrs: to one row */
+  if (!(result->row = (MYSQL_ROW)my_malloc(sizeof(result->row[0]) *
+                                (mysql->field_count+1), MYF(MY_WME)))) {
+    my_free(result);
+    DBUG_RETURN(NULL);
+    }  // endif row
+
+  result->fields =	mysql->fields;
+  result->field_alloc =	mysql->field_alloc;
+  result->field_count =	mysql->field_count;
+  result->current_field = 0;
+  result->handle =	mysql;
+  result->current_row =	0;
+  mysql->fields = 0;			/* fields is now in result */
+  clear_alloc_root(&mysql->field_alloc);
+  mysql->status = MYSQL_STATUS_USE_RESULT;
+  mysql->unbuffered_fetch_owner = &result->unbuffered_fetch_cancelled;
+  DBUG_RETURN(result);			/* Data is ready to be fetched */
+} // end of connect_use_result
+#endif   // !MYSQL_PREPARED_STATEMENTS
 
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
@@ -339,6 +396,7 @@ MYSQLC::MYSQLC(void)
   m_Row = NULL;
   m_Fields = -1;
   N = 0;
+  m_Use = false;
   } // end of MYSQLC constructor
 
 /***********************************************************************/
@@ -600,7 +658,16 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
     rc = RC_FX;
 //} else if (mysql_field_count(m_DB) > 0) {
   } else if (m_DB->field_count > 0) {
-    if (!(m_Res = mysql_store_result(m_DB))) {
+    if (m_Use)
+#if defined(MYSQL_PREPARED_STATEMENTS)
+      m_Res = mysql_use_result(m_DB);
+#else   // !MYSQL_PREPARED_STATEMENTS)
+      m_Res = connect_use_result(m_DB);
+#endif  // !MYSQL_PREPARED_STATEMENTS
+    else
+      m_Res = mysql_store_result(m_DB);
+
+    if (!m_Res) {
       char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
 
       sprintf(msg, "mysql_store_result failed: %s", mysql_error(m_DB));
@@ -609,7 +676,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
       rc = RC_FX;
     } else {
       m_Fields = mysql_num_fields(m_Res);
-      m_Rows = (int)mysql_num_rows(m_Res);
+      m_Rows = (!m_Use) ? (int)mysql_num_rows(m_Res) : 0;
     } // endif m_Res
 
   } else {
