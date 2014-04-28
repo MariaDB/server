@@ -144,8 +144,8 @@ id	name
 125	Record_12
 134	Record_13
 140	Record_14
-141	Record_15
-142	Record_16
+150	Record_15
+160	Record_16
 ## Changing datatype of column id with primary key to BigInt ##
 ALTER table t1 modify id BIGINT NOT NULL auto_increment;
 INSERT into t1(name) values('Record_17');
@@ -166,10 +166,10 @@ id	name
 125	Record_12
 134	Record_13
 140	Record_14
-141	Record_15
-142	Record_16
-143	Record_17
-144	Record_18
+150	Record_15
+160	Record_16
+170	Record_17
+180	Record_18
 '#--------------------FN_DYNVARS_002_07-------------------------#'
 ## Assigning -ve value to variable ## 
 SET @@auto_increment_offset = -10;
@@ -196,12 +196,12 @@ id	name
 125	Record_12
 134	Record_13
 140	Record_14
-141	Record_15
-142	Record_16
-143	Record_17
-144	Record_18
-145	Record_17
-146	Record_18
+150	Record_15
+160	Record_16
+170	Record_17
+180	Record_18
+181	Record_17
+191	Record_18
 ## Assigning value that is out of range of variable ##
 SET @@auto_increment_offset = 65536;
 Warnings:
@@ -229,16 +229,16 @@ id	name
 125	Record_12
 134	Record_13
 140	Record_14
-141	Record_15
-142	Record_16
-143	Record_17
-144	Record_18
-145	Record_17
-146	Record_18
-147	Record_17
-148	Record_18
-149	Record_19
-150	Record_20
+150	Record_15
+160	Record_16
+170	Record_17
+180	Record_18
+181	Record_17
+191	Record_18
+199	Record_17
+209	Record_18
+219	Record_19
+229	Record_20
 ## No effect of auto_increment_offset since value of this variable is greater ## 
 ## than auto_increment_increment ##
 ## Dropping table ##
