@@ -3406,10 +3406,6 @@ double records_in_column_ranges(PARAM *param, uint idx,
        selectivity (this is used for conditions like "column LIKE '%val%'" 
        where approaches #1 and #2 do not provide selectivity data).
 
-  SEE ALSO
-     table_cond_selectivity()
-     matching_candidates_in_table()
-
   NOTE
     Currently the selectivities of range conditions over different columns are
     considered independent. 

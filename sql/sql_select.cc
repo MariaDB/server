@@ -7135,15 +7135,6 @@ double JOIN::get_examined_rows()
   @param rem_tables The bitmap of tables to be joined later
   @param keyparts   The number of key parts to used when joining s
   @param ref_keyuse_steps Array of references to keyuses employed to join s 
-
-  @detail
-  Basic idea: if the WHERE clause has an equality in form
-
-    tbl.column= ...
-
-  then this condition will have selectivity 1/#distinct_values(tbl.column),
-  unless the equality was used by ref access. If the equality is used by ref
-  access, we only get rows that satisfy it, and so its selectivity=1.
 */
 
 static 
@@ -7174,18 +7165,8 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       the current value of sel by this selectivity
     */
     table_map used_tables= item_equal->used_tables();
-
-    /* 
-      Equalities that do not include fields in this table do not matter 
-    */
     if (!(used_tables & table_bit))
       continue;
-
-    /* 
-      Equalities that include a constant are taken into account in
-      table->cond_selectivity. Selectivity from there is taken into account 
-      in matching_candidates_in_table() and/or table_cond_selectivity(). 
-    */
     if (item_equal->get_const())
       continue;
 
@@ -7197,23 +7178,14 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       Field *fld= fi.get_curr_field();
       if (fld->table->map != table_bit)
         continue;
-
       if (pos->key == 0)
-      {
-        /* 
-          No ref access used (and no const in the multi-equality). We will
-          need to adjust the selectivity.
-        */
         adjust_sel= TRUE;
-      }
       else
       {
-        /* Ok, [eq]ref access is used */
         uint i;
         KEYUSE *keyuse= pos->key;
         uint key= keyuse->key;
 
-        /* Find which keypart participates in the equality */
         for (i= 0; i < keyparts; i++)
 	{
           uint fldno;
@@ -7224,7 +7196,6 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           if (fld->field_index == fldno)
             break;
         }
-
         if (i == keyparts)
 	{
           /* 
@@ -7250,7 +7221,6 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         }          
       }
     }
-
     if (adjust_sel)
     {
       /* 
@@ -7296,10 +7266,6 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 
     For other access methods, we need to calculate selectivity of the whole
     condition, "COND(this_table) AND COND(this_table, previous_tables)".
-  
-  @seealso
-    calculate_cond_selectivity_for_table()
-    matching_candidates_in_table()
 
   @retval
     selectivity of the conditions imposed on the rows of s
@@ -7310,90 +7276,34 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                               table_map rem_tables)
 {
   uint16 ref_keyuse_steps[MAX_REF_PARTS - 1];
+  Field *field;
   TABLE *table= s->table;
-  double sel;
+  MY_BITMAP *read_set= table->read_set;
+  double sel= s->table->cond_selectivity;
   POSITION *pos= &join->positions[idx];
   uint keyparts= 0;
   uint found_part_ref_or_null= 0;
 
   if (pos->key != 0)
   {
-    sel= s->table->cond_selectivity;
     /* 
-      A ref access or hash join is used for this table. ref access is created
-      from
+      A ref access or hash join is used for this table.
 
-        tbl.keypart1=expr1 AND tbl.keypart2=expr2 AND ...
+      It could have some parts with "t.key_part=const". Using ref access
+      means that we will only get records where the condition holds, so we
+      should remove its selectivity from the condition selectivity.
       
-      and it will only return rows for which this condition is satisified.
-      Suppose, certain expr{i} is a constant. Since ref access only returns
-      rows that satisfy
-        
-         tbl.keypart{i}=const       (*)
-
-      then selectivity of this equality should not be counted in return value 
-      of this function. This function uses the value of 
-       
-         table->cond_selectivity=selectivity(COND(tbl)) (**)
-      
-      as a starting point. This value includes selectivity of equality (*). We
-      should somehow discount it. 
-      
-      Looking at calculate_cond_selectivity_for_table(), one can see that that
-      the value is not necessarily a direct multiplicand in 
-      table->cond_selectivity
-
-      There are three possible ways to discount
-      1. There is a potential range access on t.keypart{i}=const. 
-         (an important special case: the used ref access has a const prefix for
-          which a range estimate is available)
-      
-      2. The field has a histogram. field[x]->cond_selectivity has the data.
-      
-      3. Use index stats on this index:
-         rec_per_key[key_part+1]/rec_per_key[key_part]
-
       (TODO: more details about the "t.key=othertable.col" case)
     */
     KEYUSE *keyuse= pos->key;
     KEYUSE *prev_ref_keyuse= keyuse;
     uint key= keyuse->key;
-    
-    /*
-      Check if we have a prefix of key=const that matches a quick select.
-    */
-    if (!is_hash_join_key_no(key))
-    {
-      table_map quick_key_map= (table_map(1) << table->quick_key_parts[key]) - 1;
-      if (table->quick_rows[key] && 
-          !(quick_key_map & ~table->const_key_parts[key]))
-      {
-        /* 
-          Ok, there is an equality for each of the key parts used by the
-          quick select. This means, quick select's estimate can be reused to
-          discount the selectivity of a prefix of a ref access.
-        */
-        for (; quick_key_map & 1 ; quick_key_map>>= 1)
-        {
-          while (keyuse->keypart == keyparts)
-            keyuse++;
-          keyparts++;
-        }
-        sel /= table->quick_rows[key] / table->stat_records();
-      }
-    }
-    
-    /*
-      Go through the "keypart{N}=..." equalities and find those that were
-      already taken into account in table->cond_selectivity.
-    */
-    while (keyuse->table == table && keyuse->key == key)
+    do
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
       {
         if (are_tables_local(s, keyuse->val->used_tables()))
-	{                            /// ^^ why val->used_tables here but just
-                                     ///       used_tables above?
+	{
           if (is_hash_join_key_no(key))
 	  {
             if (keyparts == keyuse->keypart)
@@ -7402,39 +7312,22 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           else
 	  {
             if (keyparts == keyuse->keypart &&
-                !((keyuse->val->used_tables()) & ~pos->ref_depend_map) &&
+                !(~(keyuse->val->used_tables()) & pos->ref_depend_map) &&
                 !(found_part_ref_or_null & keyuse->optimize))
 	    {
-              /* Found a KEYUSE object that will be used by ref access */
               keyparts++;
               found_part_ref_or_null|= keyuse->optimize & ~KEY_OPTIMIZE_EQ;
             }
           }
-
           if (keyparts > keyuse->keypart)
 	  {
-            /* Ok this is the keyuse that will be used for ref access */
             uint fldno;
             if (is_hash_join_key_no(key))
 	      fldno= keyuse->keypart;
             else
               fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
             if (keyuse->val->const_item())
-            {              
-              // psergey: not multiply, divide instead.
-              // before, we've had:
-              // sel*= table->field[fldno]->cond_selectivity; 
-
-              sel /= table->field[fldno]->cond_selectivity;
-              /* 
-               TODO: we could do better here:
-                 1. cond_selectivity might be =1 (the default) because quick 
-                    select on some index prevented us from analyzing 
-                    histogram for this column.
-                 2. we could get an estimate through this?
-                     rec_per_key[key_part-1] / rec_per_key[key_part]
-              */
-            }
+              sel*= table->field[fldno]->cond_selectivity; 
             if (keyparts > 1)
 	    {
               ref_keyuse_steps[keyparts-2]= keyuse - prev_ref_keyuse;
@@ -7444,59 +7337,23 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 	}
       }
       keyuse++;
-    }
+    } while (keyuse->table == table && keyuse->key == key);
   }
   else
   {
     /*
       The table is accessed with full table scan, or quick select.
-      Selectivity of COND(this_table) is already accounted for in 
+      Selectivity of COND(table) is already accounted for in 
       matching_candidates_in_table().
-      For COND(this_table, previous_tables) we don't have any meaningful
-      estimates.
     */
     sel= 1;
   }
 
-  /*
-    Selectivity and multiple equalities. Consider an example:
-
-      select * from t1, t2 where t1.col=t2.col and t2.col<5
-    
-    Suppose the join order is t1, t2. When equality propagation is used, we 
-    get:
-
-      t1:  t1.col<5
-      t2:  t2.col<5  // not generated: AND t2.col=t1.col
-
-    if we use ref access on table t2, we will not get records for which
-    "t2.col<5"
-    
-      when we get to table t2, we will not get records that have "t2.col < 5"
-
-     COND(t2) = "t2.col<5" 
-
-      ## a variant with key:
-      select * from t1, t2 where t1.col=t2.col and t2.col<5 and t2.key=t1.col2
-
+  /* 
     If the field f from the table is equal to a field from one the
     earlier joined tables then the selectivity of the range conditions
     over the field f must be discounted.
-
-
-
-    Suppose, we're now looking at selectivity for table t2.
-    - in case t2 uses full table scan (or quick select): all selectivity is
-      already accounted for in matching_candidates_in_table().
-    - in case t2 uses ref access
-       = if the equality is used for ref access, we have already 
-         discounted its selectivity above
-         (However, we have not discounted selectivity of the induced
-         equalities)
-       = if the equality is not used for ref access, we should still count its
-         selectivity.
   */ 
-#if 0
   for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
   {
     if (!bitmap_is_set(read_set, field->field_index) ||
@@ -7514,7 +7371,6 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       }
     }
   }
-#endif 
 
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
