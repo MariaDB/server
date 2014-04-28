@@ -149,7 +149,7 @@ fil_compress_page(
 
 		if (err != LZO_E_OK || write_size > UNIV_PAGE_SIZE-header_len) {
 			fprintf(stderr,
-				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu",
+				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
 				space_id, fil_space_name(space), len, err, write_size);
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
