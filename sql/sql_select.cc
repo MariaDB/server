@@ -7342,8 +7342,11 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         */
         for (; quick_key_map & 1 ; quick_key_map>>= 1)
         {
-          while (keyuse->keypart == keyparts)
+          while (keyuse->table == table && keyuse->key == key && 
+                 keyuse->keypart == keyparts)
+          {
             keyuse++;
+          }
           keyparts++;
         }
         sel /= table->quick_rows[key] / table->stat_records();
