@@ -1695,21 +1695,23 @@ err:
 /***********************************************************************/
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
-bool TDBDOS::MakeDynamicIndex(PGLOBAL g)
+bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp)
   {
   int     k, rc;
-  bool    brc;
+  bool    brc, dynamic;
   PCOL    colp;
   PCOLDEF cdp;
   PVAL    valp;
-  PIXDEF  xdp;
+  PXLOAD  pxp;
   PKXBASE kxp;
   PKPDEF  kdp;
 
-  if (!(xdp = To_Xdp)) {
+  if (!xdp && !(xdp = To_Xdp)) {
     strcpy(g->Message, "NULL dynamic index");
     return true;
-    } // endif To_Xdp
+  } else
+    dynamic = To_Filter && xdp->IsUnique() && xdp->IsDynamic();
+//  dynamic = To_Filter && xdp->IsDynamic();      NIY
 
   // Allocate the key columns definition block
   Knum = xdp->GetNparts();
@@ -1742,13 +1744,22 @@ bool TDBDOS::MakeDynamicIndex(PGLOBAL g)
 
   // Make the index on xdp
   if (!xdp->IsAuto()) {
+    if (!dynamic) {
+      if (((PDOSDEF)To_Def)->Huge)
+        pxp = new(g) XHUGE;
+      else
+        pxp = new(g) XFILE;
+
+    } else
+      pxp = NULL;
+
     if (Knum == 1)            // Single index
-      kxp= new(g) XINDXS(this, xdp, NULL, To_Key_Col, To_Link);
-    else                       // Multi-Column index
-      kxp= new(g) XINDEX(this, xdp, NULL, To_Key_Col, To_Link);
+      kxp = new(g) XINDXS(this, xdp, pxp, To_Key_Col, To_Link);
+    else                      // Multi-Column index
+      kxp = new(g) XINDEX(this, xdp, pxp, To_Key_Col, To_Link);
 
   } else                      // Column contains same values as ROWID
-    kxp= new(g) XXROW(this);
+    kxp = new(g) XXROW(this);
 
   //  Prepare error return
   if (g->jump_level == MAX_JUMP) {
@@ -1758,12 +1769,15 @@ bool TDBDOS::MakeDynamicIndex(PGLOBAL g)
 
   if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
     brc = true;
-  } else if (!(brc = kxp->Make(g, xdp)))
-    To_Kindex= kxp;
+  } else
+    if (!(brc = (dynamic) ? kxp->Make(g, xdp) : kxp->Init(g))) {
+      kxp->SetDynamic(dynamic);
+      To_Kindex= kxp;
+      } // endif brc
 
   g->jump_level--;
   return brc;
-  } // end of MakeDynamicIndex
+  } // end of InitialyzeIndex
 
 /***********************************************************************/
 /*  DOS GetProgMax: get the max value for progress information.        */

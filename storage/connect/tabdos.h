@@ -170,7 +170,7 @@ class DllExport TDBDOS : public TDBASE {
 
   // Optimization routines
   virtual int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
-          bool  MakeDynamicIndex(PGLOBAL g);
+          bool  InitialyzeIndex(PGLOBAL g, PIXDEF xdp);
           void  ResetBlockFilter(PGLOBAL g);
           bool  GetDistinctColumnValues(PGLOBAL g, int nrec);
 

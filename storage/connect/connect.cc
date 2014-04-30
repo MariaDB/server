@@ -604,15 +604,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
   {
-  int     k;
-  PCOL    colp;
-  PVAL    valp;
-  PKXBASE xp;
-  PXLOAD  pxp;
   PIXDEF  xdp;
-  XKPDEF *kdp;
   PTDBDOX tdbp;
-  PCOLDEF cdp;
   DOXDEF *dfp;
 
   if (!ptdb)
@@ -651,64 +644,20 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
     return 0;
     } // endif xdp
 
+#if 0
   if (xdp->IsDynamic()) {
     // This is a dynamically created index (KINDEX)
-    // It cannot be created now, before cond_push is executed
+    // It should not be created now, if called by index range
     tdbp->SetXdp(xdp);
     return (xdp->IsUnique()) ? 1 : 2;
     } // endif dynamic
+#endif // 0
 
   // Static indexes must be initialized now for records_in_range
-  // Allocate the key columns definition block
-  tdbp->Knum= xdp->GetNparts();
-  tdbp->To_Key_Col= (PCOL*)PlugSubAlloc(g, NULL, tdbp->Knum * sizeof(PCOL));
-
-  // Get the key column description list
-  for (k= 0, kdp= (XKPDEF*)xdp->GetToKeyParts(); kdp; kdp= (XKPDEF*)kdp->Next)
-    if (!(colp= tdbp->ColDB(g, kdp->Name, 0)) || colp->InitValue(g)) {
-      sprintf(g->Message, "Wrong column %s", kdp->Name);
-      return 0;
-    } else
-      tdbp->To_Key_Col[k++]= colp;
-
-#if defined(_DEBUG)
-  if (k != tdbp->Knum) {
-    sprintf(g->Message, "Key part number mismatch for %s",
-                        xdp->GetName());
-    return 0;
-    } // endif k
-#endif   // _DEBUG
-
-  // Allocate the pseudo constants that will contain the key values
-  tdbp->To_Link= (PXOB*)PlugSubAlloc(g, NULL, tdbp->Knum * sizeof(PXOB));
-
-  for (k= 0, kdp= (XKPDEF*)xdp->GetToKeyParts();
-       kdp; k++, kdp= (XKPDEF*)kdp->Next) {
-    cdp= tdbp->Key(k)->GetCdp();
-    valp= AllocateValue(g, cdp->GetType(), cdp->GetLength());
-    tdbp->To_Link[k]= new(g) CONSTANT(valp);
-    } // endfor k
-
-  // Make the index on xdp
-  if (!xdp->IsAuto()) {
-    if (dfp->Huge)
-      pxp= new(g) XHUGE;
-    else
-      pxp= new(g) XFILE;
-
-    if (tdbp->Knum == 1)            // Single index
-      xp= new(g) XINDXS(tdbp, xdp, pxp, tdbp->To_Key_Col, tdbp->To_Link);
-    else                       // Multi-Column index
-      xp= new(g) XINDEX(tdbp, xdp, pxp, tdbp->To_Key_Col, tdbp->To_Link);
-
-  } else                      // Column contains same values as ROWID
-    xp= new(g) XXROW(tdbp);
-
-  if (xp->Init(g))
+  if (tdbp->InitialyzeIndex(g, xdp))
     return 0;
 
-  tdbp->To_Kindex= xp;
-  return (xp->IsMul()) ? 2 : 1;
+  return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
   } // end of CntIndexInit
 
 /***********************************************************************/
@@ -746,20 +695,18 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 
   // Set reference values and index operator
   if (!tdbp->To_Link || !tdbp->To_Kindex) {
-    if (!tdbp->To_Xdp) {
+//  if (!tdbp->To_Xdp) {
       sprintf(g->Message, "Index not initialized for table %s", tdbp->Name);
       return RC_FX;
+#if 0
       } // endif !To_Xdp
-
     // Now it's time to make the dynamic index
-    tdbp->SetFilter(tdbp->To_Def->GetHandler()->CheckFilter(g));
-
-    if (tdbp->MakeDynamicIndex(g)) {
+    if (tdbp->InitialyzeIndex(g, NULL)) {
       sprintf(g->Message, "Fail to make dynamic index %s", 
                           tdbp->To_Xdp->GetName());
       return RC_FX;
       } // endif MakeDynamicIndex
-
+#endif // 0
     } // endif !To_Kindex
 
   xbp= (XXBASE*)tdbp->To_Kindex;

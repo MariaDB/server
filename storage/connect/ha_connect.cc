@@ -324,8 +324,10 @@ ha_create_table_option connect_field_option_list[]=
 */
 ha_create_table_option connect_index_option_list[]=
 {
-  HA_IOPTION_BOOL("DYNAMIC", kindx, 0),
+  HA_IOPTION_BOOL("DYNAMIC", dynamic, 0),
+  HA_IOPTION_BOOL("DYNAM", dynamic, 0),
   HA_IOPTION_BOOL("MAPPED", mapped, 0),
+  HA_IOPTION_END
 };
 
 /***********************************************************************/
@@ -435,6 +437,7 @@ static int connect_init_func(void *p)
   connect_hton->flags=   HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
+  connect_hton->index_options= connect_index_option_list;
   connect_hton->tablefile_extensions= ha_connect_exts;
   connect_hton->discover_table_structure= connect_assisted_discovery;
 
@@ -658,7 +661,13 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 const char *ha_connect::index_type(uint inx) 
 { 
   switch (GetIndexType(GetRealType())) {
-    case 1: return "XINDEX";
+    case 1:
+      if (table_share)
+        return (GetIndexOption(&table_share->key_info[inx], "Dynamic"))
+             ? "KINDEX" : "XINDEX";
+      else
+        return "XINDEX";
+
     case 2: return "REMOTE";
     } // endswitch
 
@@ -1151,6 +1160,31 @@ PXOS ha_connect::GetIndexOptionStruct(KEY *kp)
 } // end of GetIndexOptionStruct
 
 /****************************************************************************/
+/*  Return a Boolean index option or false if not specified.                */
+/****************************************************************************/
+bool ha_connect::GetIndexOption(KEY *kp, char *opname)
+{
+  bool opval= false;
+  PXOS options= GetIndexOptionStruct(kp);
+
+  if (options) {
+    if (!stricmp(opname, "Dynamic"))
+      opval= options->dynamic;
+    else if (!stricmp(opname, "Mapped"))
+      opval= options->mapped;
+
+  } else if (kp->comment.str != NULL) {
+    char *pv, *oplist= kp->comment.str;
+
+    if ((pv= GetListOption(xp->g, opname, oplist)))
+      opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
+
+  } // endif comment
+
+  return opval;
+} // end of GetIndexOption
+
+/****************************************************************************/
 /*  Returns the index description structure used to make the index.         */
 /****************************************************************************/
 PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
@@ -1159,7 +1193,6 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
   bool     unique;
   PIXDEF   xdp, pxd=NULL, toidx= NULL;
   PKPDEF   kpp, pkp;
-  PXOS     xosp;
   KEY      kp;
   PGLOBAL& g= xp->g;
 
@@ -1172,7 +1205,6 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
     // Find the index to describe
     kp= s->key_info[n];
-    xosp= kp.option_struct;
 
     // Now get index information
     pn= (char*)s->keynames.type_names[n];
@@ -1214,20 +1246,8 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
       } // endfor k
 
     xdp->SetNParts(kp.user_defined_key_parts);
-
-    if (xosp) {
-      xdp->Dynamic= xosp->kindx;
-      xdp->Mapped= xosp->mapped;
-    } else if (kp.comment.str != NULL) {
-      char *pv, *oplist= kp.comment.str;
-
-      if ((pv= GetListOption(g, "Dynamic", oplist)))
-        xdp->Dynamic= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
-
-      if ((pv= GetListOption(g, "Mapped", oplist)))
-        xdp->Mapped= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
-
-    } // endif comment
+    xdp->Dynamic= GetIndexOption(&kp, "Dynamic");
+    xdp->Mapped= GetIndexOption(&kp, "Mapped");
 
     if (pxd)
       pxd->SetNext(xdp);
@@ -1867,7 +1887,7 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
   return val;
 } // end of GetValStr
 
-
+#if 0
 /***********************************************************************/
 /*  Check the WHERE condition and return a CONNECT filter.             */
 /***********************************************************************/
@@ -1875,7 +1895,7 @@ PFIL ha_connect::CheckFilter(PGLOBAL g)
 {
   return CondFilter(g, (Item *)pushed_cond);
 } // end of CheckFilter
-
+#endif // 0
 
 /***********************************************************************/
 /*  Check the WHERE condition and return a CONNECT filter.             */

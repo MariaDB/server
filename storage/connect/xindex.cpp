@@ -45,6 +45,7 @@
 //nclude "array.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#include "tabvct.h"
 
 /***********************************************************************/
 /*  Macro or external routine definition                               */
@@ -167,6 +168,8 @@ XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
   Op = OP_EQ;
   To_KeyCol = NULL;
   Mul = false;
+  Srtd = false;
+  Dynamic = false;
   Val_K = -1;
   Nblk = Sblk = 0;
   Thresh = 7;
@@ -252,13 +255,14 @@ void XINDEX::Close(void)
   PlgDBfree(Index);
   PlgDBfree(Offset);
 
-  // De-allocate Key data
-  for (PXCOL kcp = To_KeyCol; kcp; kcp = kcp->Next)
-    kcp->FreeData();
+  for (PXCOL kcp = To_KeyCol; kcp; kcp = kcp->Next) {
+    // Column values cannot be retrieved from key anymore
+    if (kcp->Colp)
+      kcp->Colp->SetKcol(NULL);
 
-  // Column values cannot be retrieved from key anymore
-  for (int k = 0; k < Nk; k++)
-    To_Cols[k]->SetKcol(NULL);
+    // De-allocate Key data
+    kcp->FreeData();
+    } // endfor kcp
 
   } // end of Close
 
@@ -279,6 +283,25 @@ int XINDEX::Qcompare(int *i1, int *i2)
   } // end of Qcompare
 
 /***********************************************************************/
+/*  AddColumns: here we try to determine whether it is worthwhile to   */
+/*  add to the keys the values of the columns selected for this table. */
+/*  Sure enough, it is done while records are read and permit to avoid */
+/*  reading the table while doing the join (Dynamic index only)        */
+/***********************************************************************/
+bool XINDEX::AddColumns(void)
+  {
+  if (!Dynamic)
+    return false;     // Not applying to static index
+  else if (IsMul())
+    return false;     // Not done yet for multiple index
+  else if (Tbxp->GetAmType() == TYPE_AM_VCT && ((PTDBVCT)Tbxp)->IsSplit())
+    return false;     // This would require to read additional files
+  else
+    return true;
+
+  } // end of AddColumns
+
+/***********************************************************************/
 /*  Make: Make and index on key column(s).                             */
 /***********************************************************************/
 bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
@@ -291,8 +314,13 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   PKPDEF  kdfp = Xdp->GetToKeyParts();
   bool    brc = false;
   PCOL    colp;
-  PXCOL   kp, prev = NULL, kcp = NULL;
-  PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+  PFIL    filp = Tdbp->GetFilter();
+  PXCOL   kp, addcolp, prev = NULL, kcp = NULL;
+//PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+
+#if defined(_DEBUG)
+  assert(X || Nk == 1);
+#endif   // _DEBUG
 
   /*********************************************************************/
   /*  Allocate the storage that will contain the keys and the file     */
@@ -350,6 +378,50 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
   To_LastCol = prev;
 
+  if (AddColumns()) {
+    PCOL kolp = To_Cols[0];    // Temporary while imposing Nk = 1
+
+    i = 0;
+
+    // Allocate the accompanying
+    for (colp = Tbxp->GetColumns(); colp; colp = colp->GetNext()) {
+      // Count how many columns to add
+//    for (k = 0; k < Nk; k++)
+//      if (colp == To_Cols[k])
+//        break;
+
+//    if (k == nk)
+      if (colp != kolp)
+        i++;
+
+      } // endfor colp
+
+    if (i && i < 10)                  // Should be a parameter
+      for (colp = Tbxp->GetColumns(); colp; colp = colp->GetNext()) {
+//      for (k = 0; k < Nk; k++)
+//        if (colp == To_Cols[k])
+//          break;
+
+//      if (k < nk)
+        if (colp == kolp)
+          continue;                   // This is a key column
+
+        kcp = new(g) KXYCOL(this);
+
+        if (kcp->Init(g, colp, n, true, NULL))
+          return true;
+
+        if (trace)
+          htrc("Adding colp=%p Buf_Type=%d size=%d\n",
+                colp, colp->GetResultType(), n);
+
+        prev->Next = kcp;
+        prev = kcp;
+        } // endfor colp
+
+    } // endif AddColumns
+
+#if 0
   /*********************************************************************/
   /*  Get the starting information for progress.                       */
   /*********************************************************************/
@@ -357,18 +429,19 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   sprintf((char*)dup->Step, MSG(BUILD_INDEX), Xdp->GetName(), Tdbp->Name);
   dup->ProgMax = Tdbp->GetProgMax(g);
   dup->ProgCur = 0;
+#endif // 0
 
   /*********************************************************************/
   /*  Standard init: read the file and construct the index table.      */
   /*  Note: reading will be sequential as To_Kindex is not set.        */
   /*********************************************************************/
   for (i = nkey = 0; i < n && rc != RC_EF; i++) {
-#if defined(THREAD)
+#if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
       longjmp(g->jumper[g->jump_level], 99);
       } // endif Step
-#endif   // THREAD
+#endif // 0
 
     /*******************************************************************/
     /*  Read a valid record from table file.                           */
@@ -376,12 +449,12 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     rc = Tdbp->ReadDB(g);
 
     // Update progress information
-    dup->ProgCur = Tdbp->GetProgCur();
+//  dup->ProgCur = Tdbp->GetProgCur();
 
     // Check return code and do whatever must be done according to it
     switch (rc) {
       case RC_OK:
-        if (ApplyFilter(g, Tdbp->GetFilter()))
+        if (ApplyFilter(g, filp))
           break;
 
         // passthru
@@ -398,7 +471,11 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     /*  Get and Store the file position of the last read record for    */
     /*  future direct access.                                          */
     /*******************************************************************/
-    To_Rec[nkey] = Tdbp->GetRecpos();
+    if (nkey == n) {
+      sprintf(g->Message, MSG(TOO_MANY_KEYS), nkey);
+      return true;
+    } else
+      To_Rec[nkey] = Tdbp->GetRecpos();
 
     /*******************************************************************/
     /*  Get the keys and place them in the key blocks.                 */
@@ -407,11 +484,11 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
          k < Nk && kcp;
          k++, kcp = kcp->Next) {
       colp = To_Cols[k];
-      colp->Reset();
 
-      colp->ReadColumn(g);
-//    if (colp->ReadColumn(g))
-//      goto err;
+      if (!colp->GetStatus(BUF_READ))
+        colp->ReadColumn(g);
+      else
+        colp->Reset();
 
       kcp->SetValue(colp, nkey);
       } // endfor k
@@ -422,7 +499,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
  end_of_file:
 
   // Update progress information
-  dup->ProgCur = Tdbp->GetProgMax(g);
+//dup->ProgCur = Tdbp->GetProgMax(g);
 
   /*********************************************************************/
   /* Record the Index size and eventually resize memory allocation.    */
@@ -457,6 +534,10 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     goto err;    // Error
     } // endif alloc
 
+  // We must separate keys and added columns before sorting
+  addcolp = To_LastCol->Next;
+  To_LastCol->Next = NULL;
+
   // Call the sort program, it returns the number of distinct values
   if ((Ndif = Qsort(g, Num_K)) < 0)
     goto err;       // Error during sort
@@ -468,6 +549,9 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
       goto err;
     } else
       PlgDBfree(Offset);           // Not used anymore
+
+  // Restore kcp list
+  To_LastCol->Next = addcolp;
 
   // Use the index to physically reorder the xindex
   Srtd = Reorder(g);
@@ -493,7 +577,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   } else {
     Mul = false;                   // Current index is unique
     PlgDBfree(Offset);             // Not used anymore
-    MaxSame = 1;                  // Reset it when remaking an index
+    MaxSame = 1;                   // Reset it when remaking an index
   } // endif Ndif
 
   /*********************************************************************/
@@ -508,7 +592,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  except if the subset originally contains unique values.          */
   /*********************************************************************/
   // Update progress information
-  dup->Step = STEP(REDUCE_INDEX);
+//dup->Step = STEP(REDUCE_INDEX);
 
   ndf = Ndif;
   To_LastCol->Mxs = MaxSame;
@@ -558,7 +642,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  calculated, so the Record array can be discarted.                */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && Tdbp->Ftype != RECFM_VAR) {
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
     } // endif Srtd
@@ -587,8 +671,14 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*********************************************************************/
   /*  Save the xindex so it has not to be recalculated.                */
   /*********************************************************************/
-  if (X && SaveIndex(g, sxp))
-    brc = true;
+  if (X) {
+    if (SaveIndex(g, sxp))
+      brc = true;
+
+  } else // Dynamic index
+    // Indicate that key column values can be found from KEYCOL's
+    for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
+      kcp->Colp->SetKcol(kcp);
 
  err:
   // We don't need the index anymore
@@ -637,6 +727,7 @@ bool XINDEX::Reorder(PGLOBAL g)
   register int i, j, k, n;
   bool          sorted = true;
   PXCOL         kcp;
+#if 0
   PDBUSER       dup = (PDBUSER)g->Activityp->Aptr;
 
   if (Num_K > 500000) {
@@ -646,6 +737,7 @@ bool XINDEX::Reorder(PGLOBAL g)
     dup->ProgCur = 0;
   } else
     dup = NULL;
+#endif // 0
 
   if (!Pex)
     return Srtd;
@@ -654,8 +746,8 @@ bool XINDEX::Reorder(PGLOBAL g)
     if (Pex[i] == Num_K) {        // Already moved
       continue;
     } else if (Pex[i] == i) {     // Already placed
-      if (dup)
-        dup->ProgCur++;
+//    if (dup)
+//      dup->ProgCur++;
 
       continue;
     } // endif's Pex
@@ -684,8 +776,8 @@ bool XINDEX::Reorder(PGLOBAL g)
         To_Rec[j] = To_Rec[k];
       } // endif k
 
-      if (dup)
-        dup->ProgCur++;
+//    if (dup)
+//      dup->ProgCur++;
 
       } // endfor j
 
@@ -2834,7 +2926,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   int len = colp->GetLength(), prec = colp->GetScale();
 
   // Currently no indexing on NULL columns
-  if (colp->IsNullable()) {
+  if (colp->IsNullable() && kln) {
     sprintf(g->Message, "Cannot index nullable column %s", colp->GetName());
     return true;
     } // endif nullable
@@ -2877,6 +2969,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
     IsSorted = colp->GetOpt() == 2;
 
 //SetNulls(colp->IsNullable()); for when null columns will be indexable
+  Colp = colp;
   return false;
   } // end of Init
 

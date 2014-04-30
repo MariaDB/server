@@ -140,7 +140,7 @@ struct ha_field_option_struct
 */
 struct ha_index_option_struct
 {
-  bool kindx;
+  bool dynamic;
   bool mapped;
 };
 
@@ -187,6 +187,7 @@ public:
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
+  bool     GetIndexOption(KEY *kp, char *opname);
   bool     CheckString(const char *str1, const char *str2);
   bool     SameString(TABLE *tab, char *opn);
   bool     SetIntegerOption(char *opname, int n);
@@ -347,7 +348,7 @@ virtual const COND *cond_push(const COND *cond);
 PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
 PFIL  CondFilter(PGLOBAL g, Item *cond);
-PFIL  CheckFilter(PGLOBAL g);
+//PFIL  CheckFilter(PGLOBAL g);
 
  /**
    Number of rows in table. It will only be called if

@@ -177,6 +177,8 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   virtual void Reset(void) = 0;
   virtual bool IsMul(void) {return false;}
   virtual bool IsRandom(void) {return true;}
+  virtual bool IsDynamic(void) {return Dynamic;}
+  virtual void SetDynamic(bool dyn) {Dynamic = dyn;}
   virtual bool HaveSame(void) {return false;}
   virtual int  GetCurPos(void) {return Cur_K;}
   virtual void SetNval(int n) {assert(n == 1);}
@@ -227,6 +229,7 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   OPVAL   Op;               // Search operator
   bool    Mul;              // true if multiple
   bool    Srtd;             // true for sorted column
+  bool    Dynamic;          // true when dynamically made
   int     Val_K;            // Index of current value
   int     Nblk;             // Number of blocks
   int     Sblk;             // Block size
@@ -275,6 +278,7 @@ class DllExport XINDEX : public XXBASE {
           bool GetAllSizes(PGLOBAL g, int &ndif, int &numk);
 
  protected:
+          bool AddColumns(void);
           bool NextValDif(void);
 
   // Members
