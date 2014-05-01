@@ -2031,23 +2031,6 @@ bool alloc_query(THD *thd, const char *packet, uint packet_length)
   return FALSE;
 }
 
-static void reset_one_shot_variables(THD *thd) 
-{
-  thd->variables.character_set_client=
-    global_system_variables.character_set_client;
-  thd->variables.collation_connection=
-    global_system_variables.collation_connection;
-  thd->variables.collation_database=
-    global_system_variables.collation_database;
-  thd->variables.collation_server=
-    global_system_variables.collation_server;
-  thd->update_charset();
-  thd->variables.time_zone=
-    global_system_variables.time_zone;
-  thd->variables.lc_time_names= &my_locale_en_US;
-  thd->one_shot_set= 0;
-}
-
 
 bool sp_process_definer(THD *thd)
 {
@@ -2348,9 +2331,6 @@ mysql_execute_command(THD *thd)
       {
         /* we warn the slave SQL thread */
         my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
-        if (thd->one_shot_set)
-          reset_one_shot_variables(thd);
-        DBUG_RETURN(0);
       }
       
       for (table=all_tables; table; table=table->next_global)
@@ -2378,23 +2358,6 @@ mysql_execute_command(THD *thd)
     {
       /* we warn the slave SQL thread */
       my_message(ER_SLAVE_IGNORED_TABLE, ER(ER_SLAVE_IGNORED_TABLE), MYF(0));
-      if (thd->one_shot_set)
-      {
-        /*
-          It's ok to check thd->one_shot_set here:
-
-          The charsets in a MySQL 5.0 slave can change by both a binlogged
-          SET ONE_SHOT statement and the event-internal charset setting, 
-          and these two ways to change charsets do not seems to work
-          together.
-
-          At least there seems to be problems in the rli cache for
-          charsets if we are using ONE_SHOT.  Note that this is normally no
-          problem because either the >= 5.0 slave reads a 4.1 binlog (with
-          ONE_SHOT) *or* or 5.0 binlog (without ONE_SHOT) but never both."
-        */
-        reset_one_shot_variables(thd);
-      }
       DBUG_RETURN(0);
     }
     /* 
@@ -3782,11 +3745,6 @@ end_with_restore_list:
       goto error;
     if (!(res= sql_set_variables(thd, lex_var_list)))
     {
-      /*
-        If the previous command was a SET ONE_SHOT, we don't want to forget
-        about the ONE_SHOT property of that SET. So we use a |= instead of = .
-      */
-      thd->one_shot_set|= lex->one_shot_set;
       my_ok(thd);
     }
     else
@@ -5131,19 +5089,6 @@ create_sp_error:
   }
   THD_STAGE_INFO(thd, stage_query_end);
   thd->update_stats();
-
-  /*
-    Binlog-related cleanup:
-    Reset system variables temporarily modified by SET ONE SHOT.
-
-    Exception: If this is a SET, do nothing. This is to allow
-    mysqlbinlog to print many SET commands (in this case we want the
-    charset temp setting to live until the real query). This is also
-    needed so that SET CHARACTER_SET_CLIENT... does not cancel itself
-    immediately.
-  */
-  if (thd->one_shot_set && lex->sql_command != SQLCOM_SET_OPTION)
-    reset_one_shot_variables(thd);
 
   goto finish;
 

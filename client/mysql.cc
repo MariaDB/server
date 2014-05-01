@@ -606,7 +606,6 @@ static COMMANDS commands[] = {
   { "OLD_PASSWORD", 0, 0, 0, ""},
   { "ON", 0, 0, 0, ""},
   { "ONE", 0, 0, 0, ""},
-  { "ONE_SHOT", 0, 0, 0, ""},
   { "OPEN", 0, 0, 0, ""},
   { "OPTIMIZE", 0, 0, 0, ""},
   { "OPTION", 0, 0, 0, ""},

@@ -4471,18 +4471,7 @@ end:
 
 int Query_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  /*
-    Note that we will not increment group* positions if we are just
-    after a SET ONE_SHOT, because SET ONE_SHOT should not be separated
-    from its following updating query.
-  */
-  if (thd->one_shot_set)
-  {
-    rgi->inc_event_relay_log_pos();
-    return 0;
-  }
-  else
-    return Log_event::do_update_pos(rgi);
+  return Log_event::do_update_pos(rgi);
 }
 
 

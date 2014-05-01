@@ -810,7 +810,6 @@ static void sp_create_assignment_lex(THD *thd, bool no_lookahead)
     lex->sql_command= SQLCOM_SET_OPTION;
     mysql_init_select(lex);
     lex->var_list.empty();
-    lex->one_shot_set= 0;
     lex->autocommit= 0;
     /* get_ptr() is only correct with no lookahead. */
     DBUG_ASSERT(no_lookahead);
@@ -14424,7 +14423,6 @@ set:
             mysql_init_select(lex);
             lex->option_type=OPT_SESSION;
             lex->var_list.empty();
-            lex->one_shot_set= 0;
             lex->autocommit= 0;
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }

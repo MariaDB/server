@@ -2592,7 +2592,7 @@ public:
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
-  bool       slave_thread, one_shot_set;
+  bool       slave_thread;
   bool       extra_port;                        /* If extra connection */
 
   bool	     no_errors;
