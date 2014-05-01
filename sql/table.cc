@@ -3436,6 +3436,24 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
   return length;
 }
 
+#ifndef DBUG_OFF
+/**
+  Verifies that database/table name is in lowercase, when it should be
+
+  This is supposed to be used only inside DBUG_ASSERT()
+*/
+bool ok_for_lower_case_names(const char *name)
+{
+  if (!lower_case_table_names || !name)
+    return true;
+
+  char buf[SAFE_NAME_LEN];
+  strmake_buf(buf, name);
+  my_casedn_str(files_charset_info, buf);
+  return strcmp(name, buf) == 0;
+}
+#endif
+
 /*
   Check if database name is valid
 

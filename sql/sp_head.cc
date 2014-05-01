@@ -493,6 +493,7 @@ sp_name::init_qname(THD *thd)
           (int) m_db.length, (m_db.length ? m_db.str : ""),
           dot, ".",
           (int) m_name.length, m_name.str);
+  DBUG_ASSERT(ok_for_lower_case_names(m_db.str));
 }
 
 
