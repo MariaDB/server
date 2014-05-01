@@ -46,9 +46,14 @@ static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
 
+/*
+  write the length as
+  if (  0 < length <= 255)      one byte
+  if (256 < length <= 65535)    zero byte, then two bytes, low-endian
+*/
 static uchar *extra2_write_len(uchar *pos, size_t len)
 {
-  if (len < 255)
+  if (len <= 255)
     *pos++= len;
   else
   {
