@@ -3,12 +3,12 @@
 
 [mysqld.1]
 binlog-format=row
-wsrep_provider=/usr/lib/galera/libgalera_smm.so
+wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://'
 
 [mysqld.2]
 binlog-format=row
-wsrep_provider=/usr/lib/galera/libgalera_smm.so
+wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://127.0.0.1:4567'
 wsrep_provider_options='gmcast.listen_addr=tcp://127.0.0.1:4568'
 

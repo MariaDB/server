@@ -2394,6 +2394,22 @@ sub environment_setup {
   }
 
   # ----------------------------------------------------
+  # Setup env for wsrep
+  # ----------------------------------------------------
+  if (defined $ENV{'WSREP_PROVIDER'} )
+  {
+    # Nothing needs to be done! WSREP_PROVIDER env is already set and will be
+    # used.
+  } else {
+    my $file_wsrep_provider=
+      mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
+                      "/usr/lib64/galera/libgalera_smm.so");
+    $ENV{'WSREP_PROVIDER'}=  $file_wsrep_provider;
+  }
+  
+  mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
+
+  # ----------------------------------------------------
   # mysql clients
   # ----------------------------------------------------
   $ENV{'MYSQL_CHECK'}=              client_arguments("mysqlcheck");
