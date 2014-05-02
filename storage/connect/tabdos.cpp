@@ -1377,15 +1377,10 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
   if (n == 3 || n == 6) {
     if (conv) {
       // The constant has not the good type and will not match
-      // the block min/max values. What we can do here is either
-      // abort with an error message or simply not do the block
-      // optimization (as column values can be converted when
-      // evaluating the filter.) Currently we prefer aborting
-      // because the user may count on the performance enhancing
-      // and silently not doing it is probably worse than just
-      // telling him to fix his query.
+      // the block min/max values. Warn and abort.
       sprintf(g->Message, "Block opt: %s", MSG(VALTYPE_NOMATCH));
-      longjmp(g->jumper[g->jump_level], 99);
+      PushWarning(g, this);
+      return NULL;
       } // endif Conv
 
     if (type[0] == 1) {
@@ -1484,7 +1479,10 @@ void TDBDOS::ResetBlockFilter(PGLOBAL g)
   {
   if (!To_BlkFil) {
     if (To_Filter)
-      To_BlkFil = InitBlockFilter(g, To_Filter);
+      if ((To_BlkFil = InitBlockFilter(g, To_Filter))) {
+        htrc("BlkFil=%p\n", To_BlkFil);
+        MaxSize = -1;      // To be recalculated
+        } // endif To_BlkFil
     
     return;
     } // endif To_BlkFil
@@ -1767,13 +1765,19 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp)
     return true;
     } // endif
 
-  if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
-    brc = true;
-  } else
-    if (!(brc = (dynamic) ? kxp->Make(g, xdp) : kxp->Init(g))) {
+  if (!(rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+    if (dynamic) {
+      ResetBlockFilter(g);
       kxp->SetDynamic(dynamic);
+      brc = kxp->Make(g, xdp);
+    } else
+      brc = kxp->Init(g);
+
+    if (!brc)
       To_Kindex= kxp;
-      } // endif brc
+
+  } else
+    brc = true;
 
   g->jump_level--;
   return brc;

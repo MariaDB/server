@@ -148,7 +148,7 @@ class DllExport TDBASE : public TDB {
   inline  void    SetXdp(PIXDEF xdp) {To_Xdp = xdp;}
 
   // Properties
-  void    SetKindex(PKXBASE kxp);
+  void    SetKindex(PGLOBAL g, PKXBASE kxp);
   PCOL    Key(int i) {return (To_Key_Col) ? To_Key_Col[i] : NULL;}
 
   // Methods

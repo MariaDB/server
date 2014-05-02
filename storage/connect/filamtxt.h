@@ -65,7 +65,7 @@ class DllExport TXTFAM : public BLOCK {
   virtual bool  DeferReading(void) {IsRead = false; return true;}
   virtual int   ReadBuffer(PGLOBAL g) = 0;
   virtual int   WriteBuffer(PGLOBAL g) = 0;
-  virtual int    DeleteRecords(PGLOBAL g, int irc) = 0;
+  virtual int   DeleteRecords(PGLOBAL g, int irc) = 0;
   virtual void  CloseTableFile(PGLOBAL g) = 0;
   virtual void  Rewind(void) = 0;
 

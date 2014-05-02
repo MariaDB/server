@@ -133,8 +133,8 @@ int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 //To_BlkIdx = NULL;                     // and block filtering
   To_BlkFil = NULL;                     // and index filtering
   RestoreNrec();                        // May have been modified
-  MaxSize = -1;                        // Size must be recalculated
-  Cardinal = -1;                       // as well as Cardinality
+  MaxSize = -1;                         // Size must be recalculated
+  Cardinal = -1;                        // as well as Cardinality
 
   if (dop) {
     Columns = NULL;                     // Not used anymore
@@ -177,6 +177,9 @@ void TDBFIX::RestoreNrec(void)
     Txfp->Nrec = (To_Def && To_Def->GetElemt()) ? To_Def->GetElemt()
                                                 : DOS_BUFF_LEN;
     Txfp->Blksize = Txfp->Nrec * Txfp->Lrecl;
+    assert(Cardinal >= 0);
+    Txfp->Block = (Cardinal > 0) 
+                ? (Cardinal + Txfp->Nrec - 1) / Txfp->Nrec : 0;
     } // endif Padded
 
   } // end of RestoreNrec
@@ -332,7 +335,7 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   To_BlkFil = InitBlockFilter(g, To_Filter);
 
   if (trace)
-    htrc("OpenDos: R%hd mode=%d\n", Tdb_No, Mode);
+    htrc("OpenFix: R%hd mode=%d BlkFil=%p\n", Tdb_No, Mode, To_BlkFil);
 
   /*********************************************************************/
   /*  Reset buffer access according to indexing and to mode.           */

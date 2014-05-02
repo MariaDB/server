@@ -314,10 +314,14 @@ int TDBASE::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 /***********************************************************************/
 /*  SetKindex: set or reset the index pointer.                         */
 /***********************************************************************/
-void TDBASE::SetKindex(PKXBASE kxp)
+void TDBASE::SetKindex(PGLOBAL g, PKXBASE kxp)
   {
-  if (To_Kindex)
+  if (To_Kindex) {
+    int pos = GetRecpos();        // To be reset in Txfp
+
     To_Kindex->Close();           // Discard old index
+    SetRecpos(g, pos);            // Ignore return value
+    } // endif To_Kindex
 
   To_Kindex = kxp;
   } // end of SetKindex

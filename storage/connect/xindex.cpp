@@ -242,7 +242,7 @@ void XINDEX::Reset(void)
 
 /***********************************************************************/
 /*  XINDEX Close: terminate index and free all allocated data.         */
-/*  Do not reset other values that are used at return to make.         */
+/*  Do not reset values that are used at return to make.               */
 /***********************************************************************/
 void XINDEX::Close(void)
   {
@@ -263,6 +263,9 @@ void XINDEX::Close(void)
     // De-allocate Key data
     kcp->FreeData();
     } // endfor kcp
+
+  if (Tdbp)
+    Tdbp->RestoreNrec();
 
   } // end of Close
 
@@ -288,7 +291,7 @@ int XINDEX::Qcompare(int *i1, int *i2)
 /*  Sure enough, it is done while records are read and permit to avoid */
 /*  reading the table while doing the join (Dynamic index only)        */
 /***********************************************************************/
-bool XINDEX::AddColumns(void)
+bool XINDEX::AddColumns(PIXDEF xdp)
   {
   if (!Dynamic)
     return false;     // Not applying to static index
@@ -309,7 +312,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*********************************************************************/
   /*  Table can be accessed through an index.                          */
   /*********************************************************************/
-  int     k, rc = RC_OK;
+  int     k, nk = Nk, rc = RC_OK;
   int    *bof, i, j, n, ndf, nkey;
   PKPDEF  kdfp = Xdp->GetToKeyParts();
   bool    brc = false;
@@ -378,7 +381,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
   To_LastCol = prev;
 
-  if (AddColumns()) {
+  if (AddColumns(sxp)) {
     PCOL kolp = To_Cols[0];    // Temporary while imposing Nk = 1
 
     i = 0;
@@ -415,6 +418,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
           htrc("Adding colp=%p Buf_Type=%d size=%d\n",
                 colp, colp->GetResultType(), n);
 
+        nk++;
         prev->Next = kcp;
         prev = kcp;
         } // endfor colp
@@ -481,9 +485,10 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     /*  Get the keys and place them in the key blocks.                 */
     /*******************************************************************/
     for (k = 0, kcp = To_KeyCol;
-         k < Nk && kcp;
+         k < nk && kcp;
          k++, kcp = kcp->Next) {
-      colp = To_Cols[k];
+//    colp = To_Cols[k];
+      colp = kcp->Colp;
 
       if (!colp->GetStatus(BUF_READ))
         colp->ReadColumn(g);
@@ -541,6 +546,10 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   // Call the sort program, it returns the number of distinct values
   if ((Ndif = Qsort(g, Num_K)) < 0)
     goto err;       // Error during sort
+
+//  if (trace)
+    htrc("Make: Nk=%d n=%d Num_K=%d Ndif=%d addcolp=%p BlkFil=%p X=%p\n",
+          Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
   // Check whether the unique index is unique indeed
   if (!Mul)
@@ -2210,7 +2219,10 @@ int XINDXS::FastFind(int nk)
     n = 0;
   } // endif sup
 
-  kcp->Val_K = i;                 // Used by FillValue
+  // Loop on kcp because of dynamic indexing
+  for (; kcp; kcp = kcp->Next)
+    kcp->Val_K = i;                 // Used by FillValue
+
   return ((n) ? Num_K : (Mul) ? Pof[i] : i);
   } // end of FastFind
 

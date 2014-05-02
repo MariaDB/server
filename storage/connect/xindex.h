@@ -278,7 +278,7 @@ class DllExport XINDEX : public XXBASE {
           bool GetAllSizes(PGLOBAL g, int &ndif, int &numk);
 
  protected:
-          bool AddColumns(void);
+          bool AddColumns(PIXDEF xdp);
           bool NextValDif(void);
 
   // Members
