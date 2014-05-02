@@ -13755,15 +13755,21 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 {
   if (group_prefix) /* Already initialized. */
     return 0;
-
-  if (!(last_prefix= (uchar*) alloc_root(&alloc, group_prefix_len)))
+  
+  /*
+    We allocate one byte more to serve the case when the last field in
+    the buffer is compared using uint3korr (e.g. a Field_newdate field)
+  */
+  if (!(last_prefix= (uchar*) alloc_root(&alloc, group_prefix_len+1)))
       return 1;
   /*
     We may use group_prefix to store keys with all select fields, so allocate
     enough space for it.
+    We allocate one byte more to serve the case when the last field in
+    the buffer is compared using uint3korr (e.g. a Field_newdate field)
   */
   if (!(group_prefix= (uchar*) alloc_root(&alloc,
-                                         real_prefix_len + min_max_arg_len)))
+                                          real_prefix_len+min_max_arg_len+1)))
     return 1;
 
   if (key_infix_len > 0)
