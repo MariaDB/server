@@ -186,6 +186,8 @@ my @DEFAULT_SUITES= qw(
     sys_vars-
     unit-
     vcol-
+    galera-
+    wsrep-
   );
 my $opt_suites;
 
@@ -415,6 +417,7 @@ sub main {
   check_ndbcluster_support();
   check_ssl_support();
   check_debug_support();
+  check_wsrep_support();
 
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
@@ -2396,19 +2399,19 @@ sub environment_setup {
   # ----------------------------------------------------
   # Setup env for wsrep
   # ----------------------------------------------------
-  if (defined $ENV{'WSREP_PROVIDER'} )
-  {
-    # Nothing needs to be done! WSREP_PROVIDER env is already set and will be
-    # used.
-  } else {
-    my $file_wsrep_provider=
-      mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
-                      "/usr/lib64/galera/libgalera_smm.so");
-    $ENV{'WSREP_PROVIDER'}=  $file_wsrep_provider;
+  if (have_wsrep()) {
+    if (defined $ENV{'WSREP_PROVIDER'} ) {
+      # Nothing needs to be done! WSREP_PROVIDER env is already set and will be
+      # used.
+    } else {
+      my $file_wsrep_provider=
+        mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
+                        "/usr/lib64/galera/libgalera_smm.so");
+      $ENV{'WSREP_PROVIDER'}=  $file_wsrep_provider;
+    }
+    mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
   }
   
-  mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
-
   # ----------------------------------------------------
   # mysql clients
   # ----------------------------------------------------
@@ -3172,6 +3175,17 @@ sub ndbcluster_start ($) {
   return 0;
 }
 
+sub have_wsrep() {
+  my $wsrep_on= $mysqld_variables{'wsrep-on'};
+  return defined $wsrep_on
+}
+
+sub check_wsrep_support() {
+  if (have_wsrep())
+  {
+    mtr_report(" - binaries built with wsrep patch");
+  }
+}
 
 sub mysql_server_start($) {
   my ($mysqld, $tinfo) = @_;
