@@ -25,6 +25,9 @@ OS=$(uname)
 
 . $(dirname $0)/wsrep_sst_common
 
+# Setting the path for lsof on CentOS
+export PATH="/usr/sbin:/sbin:$PATH"
+
 cleanup_joiner()
 {
     wsrep_log_info "Joiner cleanup."
@@ -51,6 +54,11 @@ check_pid_and_port()
     local pid_file=$1
     local rsync_pid=$2
     local rsync_port=$3
+
+    if ! which lsof > /dev/null; then
+      wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+      exit 2 # ENOENT
+    fi
 
     local port_info=$(lsof -i :$rsync_port -Pn 2>/dev/null | \
         grep "(LISTEN)")
