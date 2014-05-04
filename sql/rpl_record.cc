@@ -320,6 +320,7 @@ unpack_row(Relay_log_info const *rli,
                              (int) (pack_ptr - old_pack_ptr)));
         if (!pack_ptr)
         {
+#if WITH_WSREP
           /*
             Debug message to troubleshoot bug
             https://mariadb.atlassian.net/browse/MDEV-4404
@@ -331,6 +332,7 @@ unpack_row(Relay_log_info const *rli,
                      (ulong) old_pack_ptr, conv_table, conv_field,
                      (table_found) ? "found" : "not found", (ulong)row_end
           );
+#endif
 
           rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
                       "Could not read field '%s' of table '%s.%s'",
