@@ -413,9 +413,9 @@ static int connect_init_func(void *p)
   init_connect_psi_keys();
 
   connect_hton= (handlerton *)p;
-  connect_hton->state=   SHOW_OPTION_YES;
-  connect_hton->create=  connect_create_handler;
-  connect_hton->flags=   HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
+  connect_hton->state= SHOW_OPTION_YES;
+  connect_hton->create= connect_create_handler;
+  connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
   connect_hton->tablefile_extensions= ha_connect_exts;
@@ -2449,7 +2449,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     } // endif index type
 
   if ((rc= rnd_init(0)))
-    return rc;
+    DBUG_RETURN(rc);
 
   if (locked == 2) {
     // Indexes are not updated in lock write mode
@@ -3816,7 +3816,8 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   DBUG_ENTER("ha_connect::records_in_range");
 
   if (indexing < 0 || inx != active_index)
-    index_init(inx, false);
+    if (index_init(inx, false))
+      DBUG_RETURN(HA_POS_ERROR);
 
   if (xtrace)
     htrc("records_in_range: inx=%d indexing=%d\n", inx, indexing);

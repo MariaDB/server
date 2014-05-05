@@ -442,7 +442,7 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
     for (PCOL colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
       colp->SetKcol(NULL);
 
-    ((PTDBASE)tdbp)->SetKindex(NULL);
+    ((PTDBASE)tdbp)->ResetKindex(g, NULL);
     } // endif index
 
   // Save stack and allocation environment and prepare error return
@@ -585,7 +585,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 
   // Make all the eventual indexes
   tbxp= (TDBDOX*)tdbp;
-  tbxp->SetKindex(NULL);
+  tbxp->ResetKindex(g, NULL);
   tbxp->To_Key_Col= NULL;
   rc= tbxp->ResetTableOpt(g, ((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
