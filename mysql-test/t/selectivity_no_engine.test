@@ -148,6 +148,19 @@ explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=t0.a+1;
 --echo # NOTE: t0: 10*100% is ok,  t1: 10*9.90% is bad. t1 should have 10*100%.
 explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=4;
 drop table t0, t1;
+
+--echo # 
+--echo # MDEV-6209: Assertion `join->best_read < double(1.79769313486231570815e+308L)' 
+--echo #            failed in bool greedy_search with optimizer_use_condition_selectivity>1
+--echo # 
+SET optimizer_use_condition_selectivity = 2;
+
+CREATE TABLE t1 (a CHAR(6), b INT, PRIMARY KEY (a,b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo',1),('bar',2);
+
+SELECT * FROM t1 AS t1_1, t1 AS t1_2 WHERE NOT ( t1_1.a <> 'baz');
+DROP TABLE t1;
+
 --echo # 
 --echo # End of the test file
 --echo # 

@@ -205,6 +205,16 @@ Warnings:
 Note	1003	select `test`.`t0`.`a` AS `a`,`test`.`t1`.`kp1` AS `kp1`,`test`.`t1`.`kp2` AS `kp2`,`test`.`t1`.`filler1` AS `filler1`,`test`.`t1`.`filler2` AS `filler2` from `test`.`t0` join `test`.`t1` where ((`test`.`t1`.`kp1` = `test`.`t0`.`a`) and (`test`.`t1`.`kp2` = 4))
 drop table t0, t1;
 # 
+# MDEV-6209: Assertion `join->best_read < double(1.79769313486231570815e+308L)' 
+#            failed in bool greedy_search with optimizer_use_condition_selectivity>1
+# 
+SET optimizer_use_condition_selectivity = 2;
+CREATE TABLE t1 (a CHAR(6), b INT, PRIMARY KEY (a,b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo',1),('bar',2);
+SELECT * FROM t1 AS t1_1, t1 AS t1_2 WHERE NOT ( t1_1.a <> 'baz');
+a	b	a	b
+DROP TABLE t1;
+# 
 # End of the test file
 # 
 set use_stat_tables= @save_use_stat_tables;

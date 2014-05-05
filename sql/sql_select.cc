@@ -7349,7 +7349,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           }
           keyparts++;
         }
-        sel /= table->quick_rows[key] / table->stat_records();
+        sel /= (double)table->quick_rows[key] / (double) table->stat_records();
       }
     }
     
