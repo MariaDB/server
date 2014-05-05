@@ -476,8 +476,10 @@ os_file_get_last_error_low(
 		return(OS_FILE_INSUFFICIENT_RESOURCE);
 	} else if (err == ERROR_OPERATION_ABORTED) {
 		return(OS_FILE_OPERATION_ABORTED);
+	} else if (err == ERROR_ACCESS_DENIED) {
+		return(OS_FILE_ACCESS_VIOLATION);
 	} else {
-		return(100 + err);
+		return(OS_FILE_ERROR_MAX + err);
 	}
 #else
 	int err = errno;
@@ -551,8 +553,10 @@ os_file_get_last_error_low(
 			return(OS_FILE_AIO_INTERRUPTED);
 		}
 		break;
+	case EACCES:
+		return(OS_FILE_ACCESS_VIOLATION);
 	}
-	return(100 + err);
+	return(OS_FILE_ERROR_MAX + err);
 #endif
 }
 
@@ -630,6 +634,7 @@ os_file_handle_error_cond_exit(
 
 	case OS_FILE_PATH_ERROR:
 	case OS_FILE_ALREADY_EXISTS:
+	case OS_FILE_ACCESS_VIOLATION:
 
 		return(FALSE);
 
@@ -2477,12 +2482,13 @@ os_file_pread(
 	os_mutex_exit(os_file_count_mutex);
 #endif /* HAVE_ATOMIC_BUILTINS && UNIV_WORD == 8 */
 
-	/* Handle signal interruptions correctly */
+	/* Handle partial reads and signal interruptions correctly */
 	for (n_bytes = 0; n_bytes < (ssize_t) n; ) {
-		n_read = pread(file, buf, (ssize_t)n, offs);
+		n_read = pread(file, buf, (ssize_t)n - n_bytes, offs);
 		if (n_read > 0) {
 			n_bytes += n_read;
 			offs += n_read;
+			buf = (char *)buf + n_read;
 		} else if (n_read == -1 && errno == EINTR) {
 			continue;
 		} else {
@@ -2624,12 +2630,13 @@ os_file_pwrite(
 	MONITOR_ATOMIC_INC(MONITOR_OS_PENDING_WRITES);
 #endif /* !HAVE_ATOMIC_BUILTINS || UNIV_WORD < 8 */
 
-	/* Handle signal interruptions correctly */
+	/* Handle partial writes and signal interruptions correctly */
 	for (ret = 0; ret < (ssize_t) n; ) {
-		n_written = pwrite(file, buf, (ssize_t)n, offs);
-		if (n_written > 0) {
+		n_written = pwrite(file, buf, (ssize_t)n - ret, offs);
+		if (n_written >= 0) {
 			ret += n_written;
 			offs += n_written;
+			buf = (char *)buf + n_written;
 		} else if (n_written == -1 && errno == EINTR) {
 			continue;
 		} else {
@@ -3316,30 +3323,41 @@ os_file_get_status(
 
 		return(DB_FAIL);
 
-	} else if (S_ISDIR(statinfo.st_mode)) {
+	}
+
+	switch (statinfo.st_mode & S_IFMT) {
+	case S_IFDIR:
 		stat_info->type = OS_FILE_TYPE_DIR;
-	} else if (S_ISLNK(statinfo.st_mode)) {
+		break;
+	case S_IFLNK:
 		stat_info->type = OS_FILE_TYPE_LINK;
-	} else if (S_ISREG(statinfo.st_mode)) {
+		break;
+	case S_IFBLK:
+		stat_info->type = OS_FILE_TYPE_BLOCK;
+		break;
+	case S_IFREG:
 		stat_info->type = OS_FILE_TYPE_FILE;
-
-		if (check_rw_perm) {
-			int	fh;
-			int	access;
-
-			access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
-
-			fh = ::open(path, access, os_innodb_umask);
-
-			if (fh == -1) {
-				stat_info->rw_perm = false;
-			} else {
-				stat_info->rw_perm = true;
-				close(fh);
-			}
-		}
-	} else {
+		break;
+	default:
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;
+	}
+
+
+	if (check_rw_perm && (stat_info->type == OS_FILE_TYPE_FILE
+			      || stat_info->type == OS_FILE_TYPE_BLOCK)) {
+		int	fh;
+		int	access;
+
+		access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
+
+		fh = ::open(path, access, os_innodb_umask);
+
+		if (fh == -1) {
+			stat_info->rw_perm = false;
+		} else {
+			stat_info->rw_perm = true;
+			close(fh);
+		}
 	}
 
 #endif /* _WIN_ */
@@ -5202,6 +5220,7 @@ os_aio_linux_handle(
 	segment = os_aio_get_array_and_local_segment(&array, global_seg);
 	n = array->n_slots / array->n_segments;
 
+ wait_for_event:
 	/* Loop until we have found a completed request. */
 	for (;;) {
 		ibool	any_reserved = FALSE;
@@ -5264,6 +5283,41 @@ found:
 	if (slot->ret == 0 && slot->n_bytes == (long) slot->len) {
 
 		ret = TRUE;
+	} else if ((slot->ret == 0) && (slot->n_bytes > 0)
+		   && (slot->n_bytes < (long) slot->len)) {
+		/* Partial read or write scenario */
+		int submit_ret;
+		struct iocb*    iocb;
+		slot->buf = (byte*)slot->buf + slot->n_bytes;
+		slot->offset = slot->offset + slot->n_bytes;
+		slot->len = slot->len - slot->n_bytes;
+		/* Resetting the bytes read/written */
+		slot->n_bytes = 0;
+		slot->io_already_done = FALSE;
+		iocb = &(slot->control);
+
+		if (slot->type == OS_FILE_READ) {
+			io_prep_pread(&slot->control, slot->file, slot->buf,
+				      slot->len, (off_t) slot->offset);
+		} else {
+			ut_a(slot->type == OS_FILE_WRITE);
+			io_prep_pwrite(&slot->control, slot->file, slot->buf,
+				       slot->len, (off_t) slot->offset);
+		}
+		/* Resubmit an I/O request */
+		submit_ret = io_submit(array->aio_ctx[segment], 1, &iocb);
+		if (submit_ret < 0 ) {
+			/* Aborting in case of submit failure */
+			ib_logf(IB_LOG_LEVEL_FATAL,
+				"Native Linux AIO interface. io_submit()"
+				" call failed when resubmitting a partial"
+				" I/O request on the file %s.",
+				slot->name);
+		} else {
+			ret = FALSE;
+			os_mutex_exit(array->mutex);
+			goto wait_for_event;
+		}
 	} else {
 		errno = -slot->ret;
 

@@ -316,6 +316,23 @@ mutex_enter_func(
 	mutex_spin_wait(mutex, high_priority, file_name, line);
 }
 
+/********************************************************************//**
+NOTE! Use the corresponding macro in the header file, not this function
+directly. Tries to lock the mutex for the current thread. If the lock is not
+acquired immediately, returns with return value 1.
+@return	0 if succeed, 1 if not */
+UNIV_INLINE
+ulint
+mutex_enter_nowait_func(
+/*====================*/
+	ib_prio_mutex_t*	mutex,		/*!< in: pointer to mutex */
+	const char*		file_name,	/*!< in: file name where mutex
+						requested */
+	ulint			line)		/*!< in: line where
+					       requested */
+{
+	return mutex_enter_nowait_func(&mutex->base_mutex, file_name, line);
+}
 
 #ifdef UNIV_PFS_MUTEX
 /******************************************************************//**

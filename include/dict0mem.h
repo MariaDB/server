@@ -198,7 +198,7 @@ ROW_FORMAT=REDUNDANT.  InnoDB engines do not check these flags
 for unknown bits in order to protect backward incompatibility. */
 /* @{ */
 /** Total number of bits in table->flags2. */
-#define DICT_TF2_BITS			6
+#define DICT_TF2_BITS			7
 #define DICT_TF2_BIT_MASK		~(~0 << DICT_TF2_BITS)
 
 /** TEMPORARY; TRUE for tables from CREATE TEMPORARY TABLE. */
@@ -216,6 +216,10 @@ use its own tablespace instead of the system tablespace. */
 
 /** Set when we discard/detach the tablespace */
 #define DICT_TF2_DISCARDED		32
+
+/** This bit is set if all aux table names (both common tables and
+index tables) of a FTS table are in HEX format. */
+#define DICT_TF2_FTS_AUX_HEX_NAME	64
 /* @} */
 
 #define DICT_TF2_FLAG_SET(table, flag)				\
@@ -255,7 +259,10 @@ dict_mem_table_create(
 					of the table is placed */
 	ulint		n_cols,		/*!< in: number of columns */
 	ulint		flags,		/*!< in: table flags */
-	ulint		flags2);	/*!< in: table flags2 */
+	ulint		flags2,		/*!< in: table flags2 */
+	bool		nonshared);/*!< in: whether the table object is a dummy
+				   one that does not need the initialization of
+				   locking-related fields. */
 /****************************************************************//**
 Free a table memory object. */
 UNIV_INTERN
@@ -728,6 +735,11 @@ a foreign key constraint is enforced, therefore RESTRICT just means no flag */
 #define DICT_FOREIGN_ON_UPDATE_NO_ACTION 32	/*!< ON UPDATE NO ACTION */
 /* @} */
 
+/* This flag is for sync SQL DDL and memcached DML.
+if table->memcached_sync_count == DICT_TABLE_IN_DDL means there's DDL running on
+the table, DML from memcached will be blocked. */
+#define DICT_TABLE_IN_DDL -1
+
 /** Data structure for a database table.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_table_create(). */
 struct dict_table_t{
@@ -841,9 +853,29 @@ struct dict_table_t{
 				initialized in dict_table_add_to_cache() */
 				/** Statistics for query optimization */
 				/* @{ */
+	rw_lock_t*	stats_latch; /*!< this latch protects:
+				dict_table_t::stat_initialized
+				dict_table_t::stat_n_rows (*)
+				dict_table_t::stat_clustered_index_size
+				dict_table_t::stat_sum_of_other_index_sizes
+				dict_table_t::stat_modified_counter (*)
+				dict_table_t::indexes*::stat_n_diff_key_vals[]
+				dict_table_t::indexes*::stat_index_size
+				dict_table_t::indexes*::stat_n_leaf_pages
+				(*) those are not always protected for
+				performance reasons. NULL for dumy table
+				objects. */
 	unsigned	stat_initialized:1; /*!< TRUE if statistics have
 				been calculated the first time
 				after database startup or table creation */
+#define DICT_TABLE_IN_USED      -1
+	lint		memcached_sync_count;
+				/*!< count of how many handles are opened
+				to this table from memcached; DDL on the
+				table is NOT allowed until this count
+				goes to zero. If it's -1, means there's DDL
+		                on the table, DML from memcached will be
+				blocked. */
 	ib_time_t	stats_last_recalc;
 				/*!< Timestamp of last recalc of the stats */
 	ib_uint32_t	stat_persistent;
@@ -954,10 +986,12 @@ struct dict_table_t{
 				and release it without a need to allocate
 				space from the lock heap of the trx:
 				otherwise the lock heap would grow rapidly
-				if we do a large insert from a select */
+				if we do a large insert from a select. NULL
+				for dummy table objects. */
 	ib_mutex_t		autoinc_mutex;
 				/*!< mutex protecting the autoincrement
-				counter */
+				counter. Not initialized for dummy table
+				objects */
 	ib_uint64_t	autoinc;/*!< autoinc counter value to give to the
 				next inserted row */
 	ulong		n_waiting_or_granted_auto_inc_locks;
