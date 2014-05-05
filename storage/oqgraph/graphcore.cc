@@ -1122,7 +1122,12 @@ int edges_cursor::fetch_row(const row &row_info, row &result,
     // but origid and destid can be -1 indicating no such record, NULL? but oqgraph3::vertex_id
     // seems to resolve to VertexID (unsigned) in row
     // in any case we should check for errors (-1) in origid... because all edges have at least one vertex by definition
-    assert( ! ((size_t)orig == (size_t)-1 && (size_t)dest == (size_t)-1)); // indicates we havent handle a HA_ERR_RECORD_DELETED somewhere
+    if (orig == (oqgraph3::vertex_id)-1 && dest == (oqgraph3::vertex_id)-1) {
+      // Select * from graph; -- when backing store is empty (bug MDEV-5891)
+      return oqgraph::NO_MORE_DATA;
+    }
+    //    assert( ! ((size_t)orig == (size_t)-1 && (size_t)dest == (size_t)-1)); 
+    // indicates we havent handle a HA_ERR_RECORD_DELETED somewhere
 
     result.orig= orig;
     result.dest= dest;
