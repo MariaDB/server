@@ -611,7 +611,8 @@ ibuf_init_at_db_start(void)
 	heap = mem_heap_create(450);
 
 	/* Use old-style record format for the insert buffer. */
-	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0);
+	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0,
+				      false);
 
 	dict_mem_table_add_col(table, heap, "DUMMY_COLUMN", DATA_BINARY, 0, 0);
 
@@ -1572,7 +1573,7 @@ ibuf_dummy_index_create(
 
 	table = dict_mem_table_create("IBUF_DUMMY",
 				      DICT_HDR_SPACE, n,
-				      comp ? DICT_TF_COMPACT : 0, 0);
+				      comp ? DICT_TF_COMPACT : 0, 0, true);
 
 	index = dict_mem_index_create("IBUF_DUMMY", "IBUF_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
