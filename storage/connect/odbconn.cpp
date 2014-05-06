@@ -2135,7 +2135,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   PSZ      fnc = "Unknown";
   UWORD    n;
   SWORD    ncol, len, tp;
-  SQLULEN  crow;
+  SQLULEN  crow = 0;
   PQRYRES  qrp = cap->Qrp;
   PCOLRES  crp;
   RETCODE  rc = 0;
