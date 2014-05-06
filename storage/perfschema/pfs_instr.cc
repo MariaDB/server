@@ -180,7 +180,6 @@ int init_instruments(const PFS_global_param *param)
   uint thread_statements_stack_sizing;
   uint thread_session_connect_attrs_sizing;
   uint index;
-  DBUG_ENTER("init_instruments");
 
   /* Make sure init_event_name_sizing is called */
   DBUG_ASSERT(wait_class_max != 0);
@@ -252,56 +251,56 @@ int init_instruments(const PFS_global_param *param)
   {
     mutex_array= PFS_MALLOC_ARRAY(mutex_max, PFS_mutex, MYF(MY_ZEROFILL));
     if (unlikely(mutex_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (rwlock_max > 0)
   {
     rwlock_array= PFS_MALLOC_ARRAY(rwlock_max, PFS_rwlock, MYF(MY_ZEROFILL));
     if (unlikely(rwlock_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (cond_max > 0)
   {
     cond_array= PFS_MALLOC_ARRAY(cond_max, PFS_cond, MYF(MY_ZEROFILL));
     if (unlikely(cond_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (file_max > 0)
   {
     file_array= PFS_MALLOC_ARRAY(file_max, PFS_file, MYF(MY_ZEROFILL));
     if (unlikely(file_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (file_handle_max > 0)
   {
     file_handle_array= PFS_MALLOC_ARRAY(file_handle_max, PFS_file*, MYF(MY_ZEROFILL));
     if (unlikely(file_handle_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (table_max > 0)
   {
     table_array= PFS_MALLOC_ARRAY(table_max, PFS_table, MYF(MY_ZEROFILL));
     if (unlikely(table_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (socket_max > 0)
   {
     socket_array= PFS_MALLOC_ARRAY(socket_max, PFS_socket, MYF(MY_ZEROFILL));
     if (unlikely(socket_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (thread_max > 0)
   {
     thread_array= PFS_MALLOC_ARRAY(thread_max, PFS_thread, MYF(MY_ZEROFILL));
     if (unlikely(thread_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (thread_waits_history_sizing > 0)
@@ -310,7 +309,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_waits_history_sizing, PFS_events_waits,
                        MYF(MY_ZEROFILL));
     if (unlikely(thread_waits_history_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (thread_instr_class_waits_sizing > 0)
@@ -319,7 +318,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_instr_class_waits_sizing,
                        PFS_single_stat, MYF(MY_ZEROFILL));
     if (unlikely(thread_instr_class_waits_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
 
     for (index= 0; index < thread_instr_class_waits_sizing; index++)
       thread_instr_class_waits_array[index].reset();
@@ -331,7 +330,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_stages_history_sizing, PFS_events_stages,
                        MYF(MY_ZEROFILL));
     if (unlikely(thread_stages_history_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (thread_instr_class_stages_sizing > 0)
@@ -340,7 +339,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_instr_class_stages_sizing,
                        PFS_stage_stat, MYF(MY_ZEROFILL));
     if (unlikely(thread_instr_class_stages_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
 
     for (index= 0; index < thread_instr_class_stages_sizing; index++)
       thread_instr_class_stages_array[index].reset();
@@ -352,7 +351,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_statements_history_sizing, PFS_events_statements,
                        MYF(MY_ZEROFILL));
     if (unlikely(thread_statements_history_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (thread_statements_stack_sizing > 0)
@@ -361,7 +360,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_statements_stack_sizing, PFS_events_statements,
                        MYF(MY_ZEROFILL));
     if (unlikely(thread_statements_stack_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
   }
 
   if (thread_instr_class_statements_sizing > 0)
@@ -370,7 +369,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(thread_instr_class_statements_sizing,
                        PFS_statement_stat, MYF(MY_ZEROFILL));
     if (unlikely(thread_instr_class_statements_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
 
     for (index= 0; index < thread_instr_class_statements_sizing; index++)
       thread_instr_class_statements_array[index].reset();
@@ -410,7 +409,7 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(stage_class_max,
                        PFS_stage_stat, MYF(MY_ZEROFILL));
     if (unlikely(global_instr_class_stages_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
 
     for (index= 0; index < stage_class_max; index++)
       global_instr_class_stages_array[index].reset();
@@ -422,19 +421,18 @@ int init_instruments(const PFS_global_param *param)
       PFS_MALLOC_ARRAY(statement_class_max,
                        PFS_statement_stat, MYF(MY_ZEROFILL));
     if (unlikely(global_instr_class_statements_array == NULL))
-      DBUG_RETURN(1);
+      return 1;
 
     for (index= 0; index < statement_class_max; index++)
       global_instr_class_statements_array[index].reset();
   }
 
-  DBUG_RETURN(0);
+  return 0;
 }
 
 /** Cleanup all the instruments buffers. */
 void cleanup_instruments(void)
 {
-  DBUG_ENTER("cleanup_instruments");
   pfs_free(mutex_array);
   mutex_array= NULL;
   mutex_max= 0;
@@ -479,8 +477,6 @@ void cleanup_instruments(void)
   thread_instr_class_stages_array= NULL;
   pfs_free(thread_session_connect_attrs_array);
   thread_session_connect_attrs_array=NULL;
-
-  DBUG_VOID_RETURN;
 }
 
 C_MODE_START
@@ -491,15 +487,13 @@ static uchar *filename_hash_get_key(const uchar *entry, size_t *length,
   const PFS_file * const *typed_entry;
   const PFS_file *file;
   const void *result;
-  DBUG_ENTER("filename_hash_get_key");
-
   typed_entry= reinterpret_cast<const PFS_file* const *> (entry);
   DBUG_ASSERT(typed_entry != NULL);
   file= *typed_entry;
   DBUG_ASSERT(file != NULL);
   *length= file->m_filename_length;
   result= file->m_filename;
-  DBUG_RETURN(const_cast<uchar*> (reinterpret_cast<const uchar*> (result)));
+  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
 }
 C_MODE_END
 
@@ -509,8 +503,6 @@ C_MODE_END
 */
 int init_file_hash(void)
 {
-  DBUG_ENTER("init_file_hash");
-
   if ((! filename_hash_inited) && (file_max > 0))
   {
     lf_hash_init(&filename_hash, sizeof(PFS_file*), LF_HASH_UNIQUE,
@@ -518,33 +510,28 @@ int init_file_hash(void)
     /* filename_hash.size= file_max; */
     filename_hash_inited= true;
   }
-  DBUG_RETURN(0);
+  return 0;
 }
 
 /** Cleanup the file name hash. */
 void cleanup_file_hash(void)
 {
-  DBUG_ENTER("cleanup_file_hash");
-
   if (filename_hash_inited)
   {
     lf_hash_destroy(&filename_hash);
     filename_hash_inited= false;
   }
-  DBUG_VOID_RETURN;
 }
 
 void PFS_scan::init(uint random, uint max_size)
 {
-  DBUG_ENTER("PFS_scan::init");
-
   m_pass= 0;
 
   if (max_size == 0)
   {
     /* Degenerated case, no buffer */
     m_pass_max= 0;
-    DBUG_VOID_RETURN;
+    return;
   }
 
   DBUG_ASSERT(random < max_size);
@@ -603,7 +590,6 @@ void PFS_scan::init(uint random, uint max_size)
   /* The combined length of all passes should not exceed PFS_MAX_ALLOC_RETRY. */
   DBUG_ASSERT((m_last[0] - m_first[0]) +
               (m_last[1] - m_first[1]) <= PFS_MAX_ALLOC_RETRY);
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -618,7 +604,6 @@ PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
   uint index;
   uint attempts= 0;
   PFS_mutex *pfs;
-  DBUG_ENTER("create_mutex");
 
   while (++attempts <= mutex_max)
   {
@@ -658,13 +643,13 @@ PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
         pfs->m_lock.dirty_to_allocated();
         if (klass->is_singleton())
           klass->m_singleton= pfs;
-        DBUG_RETURN(pfs);
+        return pfs;
       }
     }
   }
 
   mutex_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 /**
@@ -673,7 +658,6 @@ PFS_mutex* create_mutex(PFS_mutex_class *klass, const void *identity)
 */
 void destroy_mutex(PFS_mutex *pfs)
 {
-  DBUG_ENTER("destroy_mutex");
   DBUG_ASSERT(pfs != NULL);
   PFS_mutex_class *klass= pfs->m_class;
   /* Aggregate to EVENTS_WAITS_SUMMARY_GLOBAL_BY_EVENT_NAME */
@@ -682,7 +666,6 @@ void destroy_mutex(PFS_mutex *pfs)
   if (klass->is_singleton())
     klass->m_singleton= NULL;
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -697,7 +680,6 @@ PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
   uint index;
   uint attempts= 0;
   PFS_rwlock *pfs;
-  DBUG_ENTER("create_rwlock");
 
   while (++attempts <= rwlock_max)
   {
@@ -721,13 +703,13 @@ PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
         pfs->m_last_read= 0;
         if (klass->is_singleton())
           klass->m_singleton= pfs;
-        DBUG_RETURN(pfs);
+        return pfs;
       }
     }
   }
 
   rwlock_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 /**
@@ -736,7 +718,6 @@ PFS_rwlock* create_rwlock(PFS_rwlock_class *klass, const void *identity)
 */
 void destroy_rwlock(PFS_rwlock *pfs)
 {
-  DBUG_ENTER("destroy_rwlock");
   DBUG_ASSERT(pfs != NULL);
   PFS_rwlock_class *klass= pfs->m_class;
   /* Aggregate to EVENTS_WAITS_SUMMARY_GLOBAL_BY_EVENT_NAME */
@@ -745,7 +726,6 @@ void destroy_rwlock(PFS_rwlock *pfs)
   if (klass->is_singleton())
     klass->m_singleton= NULL;
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -760,7 +740,6 @@ PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
   uint index;
   uint attempts= 0;
   PFS_cond *pfs;
-  DBUG_ENTER("create_cond");
 
   while (++attempts <= cond_max)
   {
@@ -782,13 +761,13 @@ PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
         pfs->m_lock.dirty_to_allocated();
         if (klass->is_singleton())
           klass->m_singleton= pfs;
-        DBUG_RETURN(pfs);
+        return pfs;
       }
     }
   }
 
   cond_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 /**
@@ -797,8 +776,6 @@ PFS_cond* create_cond(PFS_cond_class *klass, const void *identity)
 */
 void destroy_cond(PFS_cond *pfs)
 {
-  DBUG_ENTER("destroy_cond");
-
   DBUG_ASSERT(pfs != NULL);
   PFS_cond_class *klass= pfs->m_class;
   /* Aggregate to EVENTS_WAITS_SUMMARY_GLOBAL_BY_EVENT_NAME */
@@ -807,7 +784,6 @@ void destroy_cond(PFS_cond *pfs)
   if (klass->is_singleton())
     klass->m_singleton= NULL;
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 PFS_thread* PFS_thread::get_current_thread()
@@ -845,7 +821,6 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
   uint index;
   uint attempts= 0;
   PFS_thread *pfs;
-  DBUG_ENTER("create_thread");
 
   while (++attempts <= thread_max)
   {
@@ -965,13 +940,13 @@ PFS_thread* create_thread(PFS_thread_class *klass, const void *identity,
         pfs->m_events_statements_count= 0;
 
         pfs->m_lock.dirty_to_allocated();
-        DBUG_RETURN(pfs);
+        return pfs;
       }
     }
   }
 
   thread_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 PFS_mutex *sanitize_mutex(PFS_mutex *unsafe)
@@ -1114,19 +1089,18 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
                     const char *filename, uint len, bool create)
 {
   PFS_file *pfs;
-  LF_PINS *pins;
-  char safe_buffer[FN_REFLEN];
-  const char *safe_filename;
-  DBUG_ENTER("find_or_create_file");
 
   DBUG_ASSERT(klass != NULL || ! create);
 
-  pins= get_filename_hash_pins(thread);
+  LF_PINS *pins= get_filename_hash_pins(thread);
   if (unlikely(pins == NULL))
   {
     file_lost++;
-    DBUG_RETURN(NULL);
+    return NULL;
   }
+
+  char safe_buffer[FN_REFLEN];
+  const char *safe_filename;
 
   if (len >= FN_REFLEN)
   {
@@ -1190,7 +1164,7 @@ find_or_create_file(PFS_thread *thread, PFS_file_class *klass,
   if (my_realpath(buffer, dirbuffer, MYF(0)) != 0)
   {
     file_lost++;
-    DBUG_RETURN(NULL);
+    return NULL;
   }
 
   /* Append the unresolved file name to the resolved path */
@@ -1222,7 +1196,7 @@ search:
     pfs= *entry;
     pfs->m_file_stat.m_open_count++;
     lf_hash_search_unpin(pins);
-    DBUG_RETURN(pfs);
+    return pfs;
   }
 
   lf_hash_search_unpin(pins);
@@ -1230,7 +1204,7 @@ search:
   if (! create)
   {
     /* No lost counter, just looking for the file existence. */
-    DBUG_RETURN(NULL);
+    return NULL;
   }
 
   while (++attempts <= file_max)
@@ -1261,7 +1235,7 @@ search:
           pfs->m_lock.dirty_to_allocated();
           if (klass->is_singleton())
             klass->m_singleton= pfs;
-          DBUG_RETURN(pfs);
+          return pfs;
         }
 
         pfs->m_lock.dirty_to_free();
@@ -1273,20 +1247,20 @@ search:
           {
             /* Avoid infinite loops */
             file_lost++;
-            DBUG_RETURN(NULL);
+            return NULL;
           }
           goto search;
         }
 
         /* OOM in lf_hash_insert */
         file_lost++;
-        DBUG_RETURN(NULL);
+        return NULL;
       }
     }
   }
 
   file_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 /**
@@ -1295,11 +1269,8 @@ search:
 */
 void release_file(PFS_file *pfs)
 {
-  DBUG_ENTER("release_file");
-
   DBUG_ASSERT(pfs != NULL);
   pfs->m_file_stat.m_open_count--;
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -1309,8 +1280,6 @@ void release_file(PFS_file *pfs)
 */
 void destroy_file(PFS_thread *thread, PFS_file *pfs)
 {
-  DBUG_ENTER("destroy_file");
-
   DBUG_ASSERT(thread != NULL);
   DBUG_ASSERT(pfs != NULL);
   PFS_file_class *klass= pfs->m_class;
@@ -1330,7 +1299,6 @@ void destroy_file(PFS_thread *thread, PFS_file *pfs)
   if (klass->is_singleton())
     klass->m_singleton= NULL;
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -1347,7 +1315,6 @@ PFS_table* create_table(PFS_table_share *share, PFS_thread *opening_thread,
   uint index;
   uint attempts= 0;
   PFS_table *pfs;
-  DBUG_ENTER("create_table");
 
   while (++attempts <= table_max)
   {
@@ -1373,13 +1340,13 @@ PFS_table* create_table(PFS_table_share *share, PFS_thread *opening_thread,
         pfs->m_table_stat.fast_reset();
         pfs->m_thread_owner= opening_thread;
         pfs->m_lock.dirty_to_allocated();
-        DBUG_RETURN(pfs);
+        return pfs;
       }
     }
   }
 
   table_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 void PFS_table::sanitized_aggregate(void)
@@ -1473,12 +1440,9 @@ void PFS_table::safe_aggregate_lock(PFS_table_stat *table_stat,
 */
 void destroy_table(PFS_table *pfs)
 {
-  DBUG_ENTER("destroy_table");
-
   DBUG_ASSERT(pfs != NULL);
   pfs->m_share->dec_refcount();
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 /**
@@ -1494,7 +1458,6 @@ PFS_socket* create_socket(PFS_socket_class *klass, const my_socket *fd,
   uint index;
   uint attempts= 0;
   PFS_socket *pfs;
-  DBUG_ENTER("create_socket");
 
   uint fd_used= 0;
   uint addr_len_used= addr_len;
@@ -1539,13 +1502,13 @@ PFS_socket* create_socket(PFS_socket_class *klass, const my_socket *fd,
 
         if (klass->is_singleton())
           klass->m_singleton= pfs;
-        DBUG_RETURN(pfs);
+        return pfs;
       }
     }
   }
 
   socket_lost++;
-  DBUG_RETURN(NULL);
+  return NULL;
 }
 
 /**
@@ -1556,7 +1519,6 @@ void destroy_socket(PFS_socket *pfs)
 {
   DBUG_ASSERT(pfs != NULL);
   PFS_socket_class *klass= pfs->m_class;
-  DBUG_ENTER("destroy_socket");
 
   /* Aggregate to SOCKET_SUMMARY_BY_EVENT_NAME */
   klass->m_socket_stat.m_io_stat.aggregate(&pfs->m_socket_stat.m_io_stat);
@@ -1583,51 +1545,42 @@ void destroy_socket(PFS_socket *pfs)
   pfs->m_fd= 0;
   pfs->m_addr_len= 0;
   pfs->m_lock.allocated_to_free();
-  DBUG_VOID_RETURN;
 }
 
 static void reset_mutex_waits_by_instance(void)
 {
   PFS_mutex *pfs= mutex_array;
   PFS_mutex *pfs_last= mutex_array + mutex_max;
-  DBUG_ENTER("reset_mutex_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_mutex_stat.reset();
-  DBUG_VOID_RETURN;
 }
 
 static void reset_rwlock_waits_by_instance(void)
 {
   PFS_rwlock *pfs= rwlock_array;
   PFS_rwlock *pfs_last= rwlock_array + rwlock_max;
-  DBUG_ENTER("reset_rwlock_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_rwlock_stat.reset();
-  DBUG_VOID_RETURN;
 }
 
 static void reset_cond_waits_by_instance(void)
 {
   PFS_cond *pfs= cond_array;
   PFS_cond *pfs_last= cond_array + cond_max;
-  DBUG_ENTER("reset_cond_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_cond_stat.reset();
-  DBUG_VOID_RETURN;
 }
 
 static void reset_file_waits_by_instance(void)
 {
   PFS_file *pfs= file_array;
   PFS_file *pfs_last= file_array + file_max;
-  DBUG_ENTER("reset_file_waits_by_instance");
 
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_file_stat.reset();
-  DBUG_VOID_RETURN;
 }
 
 static void reset_socket_waits_by_instance(void)
@@ -1654,11 +1607,9 @@ void reset_file_instance_io(void)
 {
   PFS_file *pfs= file_array;
   PFS_file *pfs_last= file_array + file_max;
-  DBUG_ENTER("reset_file_instance_io");
 
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_file_stat.m_io_stat.reset();
-  DBUG_VOID_RETURN;
 }
 
 /** Reset the io statistics per socket instance. */
@@ -1666,11 +1617,9 @@ void reset_socket_instance_io(void)
 {
   PFS_socket *pfs= socket_array;
   PFS_socket *pfs_last= socket_array + socket_max;
-  DBUG_ENTER("reset_socket_instance_io");
 
   for ( ; pfs < pfs_last; pfs++)
     pfs->m_socket_stat.m_io_stat.reset();
-  DBUG_VOID_RETURN;
 }
 
 void aggregate_all_event_names(PFS_single_stat *from_array,
