@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA */
 
 #ifndef PFS_TABLE_HELPER_H
 #define PFS_TABLE_HELPER_H
@@ -222,7 +222,7 @@ struct PFS_stat_row
   {
     m_count= stat->m_count;
 
-    if (m_count)
+    if ((m_count != 0) && stat->has_timed_stats())
     {
       m_sum= normalizer->wait_to_pico(stat->m_sum);
       m_min= normalizer->wait_to_pico(stat->m_min);
@@ -437,7 +437,7 @@ struct PFS_statement_stat_row
     m_select_range= stat->m_select_range;
     m_select_range_check= stat->m_select_range_check;
     m_select_scan= stat->m_select_scan;
-    m_sort_merge_passes= stat->m_sort_range;
+    m_sort_merge_passes= stat->m_sort_merge_passes;
     m_sort_range= stat->m_sort_range;
     m_sort_rows= stat->m_sort_rows;
     m_sort_scan= stat->m_sort_scan;

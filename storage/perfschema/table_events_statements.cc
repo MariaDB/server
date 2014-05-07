@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2013, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -301,7 +301,8 @@ table_events_statements_common::table_events_statements_common
   Build a row.
   @param statement                      the statement the cursor is reading
 */
-void table_events_statements_common::make_row(PFS_events_statements *statement)
+void table_events_statements_common::make_row_part_1(PFS_events_statements *statement,
+                                                     PSI_digest_storage *digest)
 {
   const char *base;
   const char *safe_source_file;
@@ -367,15 +368,28 @@ void table_events_statements_common::make_row(PFS_events_statements *statement)
   m_row.m_no_index_used= statement->m_no_index_used;
   m_row.m_no_good_index_used= statement->m_no_good_index_used;
   /* 
+    Making a copy of digest storage.
+  */
+  digest_copy(digest, & statement->m_digest_storage);
+
+  m_row_exists= true;
+  return;
+}
+
+
+void table_events_statements_common::make_row_part_2(PSI_digest_storage *digest)
+{
+  /*
     Filling up statement digest information.
   */
-  PSI_digest_storage *digest= & statement->m_digest_storage;
-  if (digest->m_byte_count > 0)
+  int safe_byte_count= digest->m_byte_count;
+  if (safe_byte_count > 0 &&
+      safe_byte_count <= PSI_MAX_DIGEST_STORAGE_SIZE)
   {
     PFS_digest_key md5;
     compute_md5_hash((char *) md5.m_md5,
                      (char *) digest->m_token_array,
-                     digest->m_byte_count);
+                     safe_byte_count);
 
     /* Generate the DIGEST string from the MD5 digest  */
     MD5_HASH_TO_STRING(md5.m_md5,
@@ -385,6 +399,9 @@ void table_events_statements_common::make_row(PFS_events_statements *statement)
     /* Generate the DIGEST_TEXT string from the token array */
     get_digest_text(m_row.m_digest.m_digest_text, digest);
     m_row.m_digest.m_digest_text_length= strlen(m_row.m_digest.m_digest_text);
+
+    if (m_row.m_digest.m_digest_text_length == 0)
+      m_row.m_digest.m_digest_length= 0;
   }
   else
   {
@@ -392,7 +409,6 @@ void table_events_statements_common::make_row(PFS_events_statements *statement)
     m_row.m_digest.m_digest_text_length= 0;
   }
 
-  m_row_exists= true;
   return;
 }
 
@@ -645,7 +661,7 @@ int table_events_statements_current::rnd_next(void)
 
     statement= &pfs_thread->m_statement_stack[m_pos.m_index_2];
 
-    make_row(statement);
+    make_row(pfs_thread, statement);
     m_next_pos.set_after(&m_pos);
     return 0;
   }
@@ -687,8 +703,33 @@ int table_events_statements_current::rnd_pos(const void *pos)
   if (statement->m_class == NULL)
     return HA_ERR_RECORD_DELETED;
 
-  make_row(statement);
+  make_row(pfs_thread, statement);
   return 0;
+}
+
+void table_events_statements_current::make_row(PFS_thread *pfs_thread,
+                                               PFS_events_statements *statement)
+{
+  PSI_digest_storage digest;
+  pfs_lock lock;
+  pfs_lock stmt_lock;
+
+  digest_reset(&digest);
+  /* Protect this reader against thread termination. */
+  pfs_thread->m_lock.begin_optimistic_lock(&lock);
+  /* Protect this reader against writing on statement information. */
+  pfs_thread->m_stmt_lock.begin_optimistic_lock(&stmt_lock);
+
+  table_events_statements_common::make_row_part_1(statement, &digest);
+
+  if (!pfs_thread->m_stmt_lock.end_optimistic_lock(&stmt_lock) ||
+      !pfs_thread->m_lock.end_optimistic_lock(&lock))
+  {
+    m_row_exists= false;
+    return;
+  }
+  table_events_statements_common::make_row_part_2(&digest);
+  return;
 }
 
 int table_events_statements_current::delete_all_rows(void)
@@ -756,7 +797,7 @@ int table_events_statements_history::rnd_next(void)
 
     if (statement->m_class != NULL)
     {
-      make_row(statement);
+      make_row(pfs_thread, statement);
       /* Next iteration, look for the next history in this thread */
       m_next_pos.set_after(&m_pos);
       return 0;
@@ -790,8 +831,29 @@ int table_events_statements_history::rnd_pos(const void *pos)
   if (statement->m_class == NULL)
     return HA_ERR_RECORD_DELETED;
 
-  make_row(statement);
+  make_row(pfs_thread, statement);
   return 0;
+}
+
+void table_events_statements_history::make_row(PFS_thread *pfs_thread,
+                                               PFS_events_statements *statement)
+{
+  PSI_digest_storage digest;
+  pfs_lock lock;
+
+  digest_reset(&digest);
+  /* Protect this reader against thread termination. */
+  pfs_thread->m_lock.begin_optimistic_lock(&lock);
+
+  table_events_statements_common::make_row_part_1(statement, &digest);
+
+  if (!pfs_thread->m_lock.end_optimistic_lock(&lock))
+  {
+    m_row_exists= false;
+    return;
+  }
+  table_events_statements_common::make_row_part_2(&digest);
+  return; 
 }
 
 int table_events_statements_history::delete_all_rows(void)
@@ -876,6 +938,17 @@ int table_events_statements_history_long::rnd_pos(const void *pos)
 
   make_row(statement);
   return 0;
+}
+
+void table_events_statements_history_long::make_row(PFS_events_statements *statement)
+{
+  PSI_digest_storage digest;
+
+  digest_reset(&digest);
+  table_events_statements_common::make_row_part_1(statement, &digest);
+
+  table_events_statements_common::make_row_part_2(&digest);
+  return;
 }
 
 int table_events_statements_history_long::delete_all_rows(void)
