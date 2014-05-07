@@ -1,5 +1,5 @@
-/* Copyright (c) 2010, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2013, Monty Program Ab.
+/* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
   result_code= (open_temporary_tables(thd, table_list) ||
-                mysql_recreate_table(thd, table_list));
+                mysql_recreate_table(thd, table_list, false));
   reenable_binlog(thd);
   /*
     mysql_recreate_table() can push OK or ERROR.
@@ -1196,7 +1196,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
-    mysql_recreate_table(thd, first_table) :
+    mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       "optimize", TL_WRITE, 1, 0, 0, 0,
                       &handler::ha_optimize, 0);
