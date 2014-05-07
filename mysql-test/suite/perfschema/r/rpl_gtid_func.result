@@ -1,7 +1,4 @@
 include/master-slave.inc
-Warnings:
-Note	####	Sending passwords in plain text without SSL/TLS is extremely insecure.
-Note	####	Storing MySQL user name or password information in the master.info repository is not secure and is therefore not recommended. Please see the MySQL Manual for more about this issue and possible alternatives.
 [connection master]
 **** On Master ****
 drop table if exists test.marker;
@@ -40,7 +37,7 @@ select digest, digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest	digest_text	count_star
-8d588d616712c7d8dfabf22ce262662b	SELECT ? AS in_master_digest 	1
+e315485f9cbc06befb4e59970905a034	SELECT ? AS in_master_digest 	1
 insert into test.marker values (2);
 **** On Slave ****
 select * from test.marker;
@@ -67,7 +64,7 @@ select digest, digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
 digest	digest_text	count_star
-02e25175edc3b2834b9b41d58f5a8a6a	SELECT ? AS in_slave_digest 	1
+bd2f53b41efcd037df41a3dd8bf3312a	SELECT ? AS in_slave_digest 	1
 **** On Master ****
 delete from performance_schema.setup_objects
 where object_schema='master';
