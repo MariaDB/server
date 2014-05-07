@@ -359,6 +359,7 @@ int ha_init_errors(void)
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
+  SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
