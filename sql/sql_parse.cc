@@ -1224,7 +1224,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       auth_rc= 1;
     }
     else
-      auth_rc= acl_authenticate(thd, 0, packet_length);
+      auth_rc= acl_authenticate(thd, packet_length);
 
     mysql_audit_notify_connection_change_user(thd);
     if (auth_rc)
