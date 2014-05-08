@@ -32,6 +32,7 @@ BEGIN
      AND variable_name not like "Last_IO_Err*"
      AND variable_name != 'INNODB_IBUF_MAX_SIZE'
      AND variable_name != 'INNODB_USE_NATIVE_AIO'
+     AND variable_name != 'WSREP_DATA_HOME_DIR'
    ORDER BY variable_name;
 
   -- Dump all databases, there should be none

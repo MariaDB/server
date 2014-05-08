@@ -16,4 +16,48 @@ SET GLOBAL wsrep_replicate_myisam= ON;
 # Reset it back.
 SET GLOBAL wsrep_replicate_myisam= OFF;
 
+--echo
+--echo #
+--echo # MDEV#6206: wsrep_slave_threads subtracts from max_connections
+--echo #
+call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_slave_threads' and 'LOCK_global_system_variables'");
+call mtr.add_suppression("WSREP: Failed to get provider options");
+SELECT @@global.wsrep_provider;
+SELECT @@global.wsrep_slave_threads;
+SELECT @@global.wsrep_cluster_address;
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+--echo
+
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+SELECT @@global.wsrep_provider;
+SELECT @@global.wsrep_cluster_address;
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+--echo
+
+--echo # Setting wsrep_cluster_address triggers the creation of
+--echo # applier/rollbacker threads.
+SET GLOBAL wsrep_cluster_address= 'gcomm://';
+--echo # Wait for applier threads to get created.
+sleep 3; 
+SELECT @@global.wsrep_provider;
+SELECT @@global.wsrep_cluster_address;
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+--echo
+
+SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
+SET GLOBAL wsrep_slave_threads= 10;
+--echo # Wait for applier threads to get created.
+sleep 3; 
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+
+# reset (for mtr internal checks)
+SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SET GLOBAL wsrep_cluster_address= '';
+SET GLOBAL wsrep_provider= 'none';
+
 --echo # End of test.
+

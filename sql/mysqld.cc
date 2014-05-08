@@ -2604,9 +2604,19 @@ void thd_cleanup(THD *thd)
 
 void dec_connection_count(THD *thd)
 {
-  mysql_mutex_lock(&LOCK_connection_count);
-  (*thd->scheduler->connection_count)--;
-  mysql_mutex_unlock(&LOCK_connection_count);
+#ifdef WITH_WSREP
+  /*
+    Do not decrement when its wsrep system thread. wsrep_applier is set for
+    applier as well as rollbacker threads.
+  */
+  if (!thd->wsrep_applier)
+#endif /* WITH_WSREP */
+  {
+    DBUG_ASSERT(*thd->scheduler->connection_count > 0);
+    mysql_mutex_lock(&LOCK_connection_count);
+    (*thd->scheduler->connection_count)--;
+    mysql_mutex_unlock(&LOCK_connection_count);
+  }
 }
 
 
@@ -4878,10 +4888,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->command= COM_SLEEP;
   thd->set_time();
   thd->init_for_queries();
-
-  mysql_mutex_lock(&LOCK_connection_count);
-  ++connection_count;
-  mysql_mutex_unlock(&LOCK_connection_count);
 
   mysql_mutex_lock(&LOCK_thread_count);
   wsrep_running_threads++;
@@ -7938,6 +7944,7 @@ SHOW_VAR status_vars[]= {
   {"wsrep_provider_name",      (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
   {"wsrep_provider_version",   (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
   {"wsrep_provider_vendor",    (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
+  {"wsrep_thread_count",       (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
   {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
 #endif
   {NullS, NullS, SHOW_LONG}
