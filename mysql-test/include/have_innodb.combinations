@@ -9,6 +9,7 @@ innodb-buffer-page
 innodb-buffer-page-lru
 innodb-sys-foreign
 innodb-sys-foreign-col
+innodb-sys-tables
 innodb-metrics
 
 [xtradb_plugin]
@@ -22,6 +23,7 @@ innodb-buffer-page
 innodb-buffer-page-lru
 innodb-sys-foreign
 innodb-sys-foreign-col
+innodb-sys-tables
 innodb-metrics
 
 [xtradb]
@@ -34,4 +36,5 @@ innodb-buffer-page
 innodb-buffer-page-lru
 innodb-sys-foreign
 innodb-sys-foreign-col
+innodb-sys-tables
 innodb-metrics
