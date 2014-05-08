@@ -61,6 +61,7 @@ enum {
 *****************************************************************************/
 
 struct rpl_group_info;
+struct inuse_relaylog;
 
 class Relay_log_info : public Slave_reporting_capability
 {
@@ -162,6 +163,13 @@ public:
   mysql_cond_t start_cond, stop_cond, data_cond;
   /* parent Master_info structure */
   Master_info *mi;
+
+  /*
+    List of active relay log files.
+    (This can be more than one in case of parallel replication).
+  */
+  inuse_relaylog *inuse_relaylog_list;
+  inuse_relaylog *last_inuse_relaylog;
 
   /*
     Needed to deal properly with cur_log getting closed and re-opened with
@@ -398,6 +406,7 @@ public:
   void stmt_done(my_off_t event_log_pos,
                  time_t event_creation_time, THD *thd,
                  rpl_group_info *rgi);
+  int alloc_inuse_relaylog(const char *name);
 
   /**
      Is the replication inside a group?
@@ -460,6 +469,25 @@ private:
     relay log.
   */
   uint32 m_flags;
+};
+
+
+/*
+  In parallel replication, if we need to re-try a transaction due to a
+  deadlock or other temporary error, we may need to go back and re-read events
+  out of an earlier relay log.
+
+  This structure keeps track of the relaylogs that are potentially in use.
+  Each rpl_group_info has a pointer to one of those, corresponding to the
+  first GTID event.
+
+  A reference count keeps track of how long a relay log is potentially in use.
+*/
+struct inuse_relaylog {
+  inuse_relaylog *next;
+  uint64 queued_count;
+  uint64 dequeued_count;
+  char name[FN_REFLEN];
 };
 
 
@@ -595,6 +623,14 @@ struct rpl_group_info
   bool long_find_row_note_printed;
   /* Needs room for "Gtid D-S-N\x00". */
   char gtid_info_buf[5+10+1+10+1+20+1];
+
+  /*
+    Information to be able to re-try an event group in case of a deadlock or
+    other temporary error.
+  */
+  inuse_relaylog *relay_log;
+  uint64 retry_start_offset;
+  uint64 retry_event_count;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();

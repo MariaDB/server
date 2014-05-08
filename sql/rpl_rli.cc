@@ -52,6 +52,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
    info_fd(-1), cur_log_fd(-1), relay_log(&sync_relaylog_period),
    sync_counter(0), is_relay_log_recovery(is_slave_recovery),
    save_temporary_tables(0), mi(0),
+   inuse_relaylog_list(0), last_inuse_relaylog(0),
    cur_log_old_open_count(0), group_relay_log_pos(0), 
    event_relay_log_pos(0),
 #if HAVE_valgrind
@@ -98,8 +99,17 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
 
 Relay_log_info::~Relay_log_info()
 {
+  inuse_relaylog *cur;
   DBUG_ENTER("Relay_log_info::~Relay_log_info");
 
+  cur= inuse_relaylog_list;
+  while (cur)
+  {
+    DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
+    inuse_relaylog *next= cur->next;
+    my_free(cur);
+    cur= next;
+  }
   mysql_mutex_destroy(&run_lock);
   mysql_mutex_destroy(&data_lock);
   mysql_mutex_destroy(&log_space_lock);
@@ -1339,6 +1349,29 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
   DBUG_VOID_RETURN;
 }
 
+
+int
+Relay_log_info::alloc_inuse_relaylog(const char *name)
+{
+  inuse_relaylog *ir;
+
+  if (!(ir= (inuse_relaylog *)my_malloc(sizeof(*ir), MYF(MY_WME|MY_ZEROFILL))))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
+    return 1;
+  }
+  strcpy(ir->name, name);
+
+  if (!inuse_relaylog_list)
+    inuse_relaylog_list= ir;
+  else
+    last_inuse_relaylog->next= ir;
+  last_inuse_relaylog= ir;
+
+  return 0;
+}
+
+
 #if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
 int
 rpl_load_gtid_slave_state(THD *thd)
@@ -1623,7 +1656,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 
 void rpl_group_info::cleanup_context(THD *thd, bool error)
 {
-  DBUG_ENTER("Relay_log_info::cleanup_context");
+  DBUG_ENTER("rpl_group_info::cleanup_context");
   DBUG_PRINT("enter", ("error: %d", (int) error));
   
   DBUG_ASSERT(this->thd == thd);
@@ -1689,7 +1722,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
 
 void rpl_group_info::clear_tables_to_lock()
 {
-  DBUG_ENTER("Relay_log_info::clear_tables_to_lock()");
+  DBUG_ENTER("rpl_group_info::clear_tables_to_lock()");
 #ifndef DBUG_OFF
   /**
     When replicating in RBR and MyISAM Merge tables are involved
@@ -1736,7 +1769,7 @@ void rpl_group_info::clear_tables_to_lock()
 
 void rpl_group_info::slave_close_thread_tables(THD *thd)
 {
-  DBUG_ENTER("Relay_log_info::slave_close_thread_tables(THD *thd)");
+  DBUG_ENTER("rpl_group_info::slave_close_thread_tables(THD *thd)");
   thd->get_stmt_da()->set_overwrite_status(true);
   thd->is_error() ? trans_rollback_stmt(thd) : trans_commit_stmt(thd);
   thd->get_stmt_da()->set_overwrite_status(false);

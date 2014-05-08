@@ -106,11 +106,15 @@ struct rpl_parallel_thread {
     queued_size-= dequeue_size;
   }
 
+  queued_event *get_qev_common(Log_event *ev, ulonglong event_size);
   queued_event *get_qev(Log_event *ev, ulonglong event_size,
                         Relay_log_info *rli);
+  queued_event *retry_get_qev(Log_event *ev, queued_event *orig_qev,
+                              const char *relay_log_name,
+                              ulonglong event_pos, ulonglong event_size);
   void free_qev(queued_event *qev);
   rpl_group_info *get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
-                          rpl_parallel_entry *e);
+                          rpl_parallel_entry *e, ulonglong event_size);
   void free_rgi(rpl_group_info *rgi);
   group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev);
   void free_gco(group_commit_orderer *gco);

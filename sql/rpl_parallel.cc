@@ -7,15 +7,6 @@
 
 /*
   Code for optional parallel execution of replicated events on the slave.
-
-  ToDo list:
-
-   - Retry of failed transactions is not yet implemented for the parallel case.
-
-   - All the waits (eg. in struct wait_for_commit and in
-     rpl_parallel_thread_pool::get_thread()) need to be killable. And on kill,
-     everything needs to be correctly rolled back and stopped in all threads,
-     to ensure a consistent slave replication state.
 */
 
 struct rpl_parallel_thread_pool global_rpl_thread_pool;
@@ -194,6 +185,105 @@ unlock_or_exit_cond(THD *thd, mysql_mutex_t *lock, bool *did_enter_cond,
   }
   else
     mysql_mutex_unlock(lock);
+}
+
+
+static int
+retry_handle_relay_log_rotate(Log_event *ev, IO_CACHE *rlog)
+{
+  /* ToDo */
+  return 0;
+}
+
+
+static int
+retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
+                  rpl_parallel_thread::queued_event *orig_qev)
+{
+  IO_CACHE rlog;
+  File fd;
+  const char *errmsg= NULL;
+  inuse_relaylog *ir= rgi->relay_log;
+  uint64 event_count= 0;
+  uint64 events_to_execute= rgi->retry_event_count;
+  Relay_log_info *rli= rgi->rli;
+  int err= 0;
+  ulonglong cur_offset, old_offset;
+  char log_name[FN_REFLEN];
+  THD *thd= rgi->thd;
+
+do_retry:
+  rgi->cleanup_context(thd, 1);
+
+  mysql_mutex_lock(&rli->data_lock);
+  ++rli->retried_trans;
+  statistic_increment(slave_retried_transactions, LOCK_status);
+  mysql_mutex_unlock(&rli->data_lock);
+
+  strcpy(log_name, ir->name);
+  if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
+    return 1;
+  cur_offset= rgi->retry_start_offset;
+  my_b_seek(&rlog, cur_offset);
+
+  do
+  {
+    Log_event_type event_type;
+    Log_event *ev;
+
+    old_offset= cur_offset;
+    ev= Log_event::read_log_event(&rlog, 0,
+                                  rli->relay_log.description_event_for_exec /* ToDo: this needs fixing */,
+                                  opt_slave_sql_verify_checksum);
+    cur_offset= my_b_tell(&rlog);
+
+    if (!ev)
+    {
+      err= 1;
+      goto err;
+    }
+    ev->thd= thd;
+    event_type= ev->get_type_code();
+    if (Log_event::is_group_event(event_type))
+    {
+      rpl_parallel_thread::queued_event *qev;
+
+      mysql_mutex_lock(&rpt->LOCK_rpl_thread);
+      qev= rpt->retry_get_qev(ev, orig_qev, log_name, cur_offset,
+                              cur_offset - old_offset);
+      mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+      if (!qev)
+      {
+        delete ev;
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+        err= 1;
+        goto err;
+      }
+      err= rpt_handle_event(qev, rpt);
+      ++event_count;
+      mysql_mutex_lock(&rpt->LOCK_rpl_thread);
+      rpt->free_qev(qev);
+      mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
+    }
+    else
+      err= retry_handle_relay_log_rotate(ev, &rlog);
+    delete_or_keep_event_post_apply(rgi, event_type, ev);
+
+    if (err)
+    {
+      /* ToDo: Need to here also handle second retry. */
+      goto err;
+    }
+
+    // ToDo: handle too many retries.
+
+  } while (event_count < events_to_execute);
+
+err:
+
+  end_io_cache(&rlog);
+  mysql_file_close(fd, MYF(MY_WME));
+  return err;
 }
 
 
@@ -499,7 +589,23 @@ handle_rpl_parallel_thread(void *arg)
         everything is stopped and cleaned up correctly.
       */
       if (likely(!rgi->worker_error) && !skip_event_group)
+      {
+        ++rgi->retry_event_count;
         err= rpt_handle_event(events, rpt);
+        DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_1_100",
+          if (rgi->current_gtid.domain_id == 0 &&
+              rgi->current_gtid.server_id == 1 &&
+              rgi->current_gtid.seq_no == 100 &&
+              rgi->retry_event_count == 4)
+          {
+            thd->clear_error();
+            thd->get_stmt_da()->reset_diagnostics_area();
+            my_error(ER_LOCK_DEADLOCK, MYF(0));
+            err= 1;
+          };);
+        if (err && has_temporary_error(thd))
+          err= retry_event_group(rgi, rpt, events);
+      }
       else
         err= thd->wait_for_prior_commit();
 
@@ -802,8 +908,7 @@ err:
 
 
 rpl_parallel_thread::queued_event *
-rpl_parallel_thread::get_qev(Log_event *ev, ulonglong event_size,
-                             Relay_log_info *rli)
+rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
 {
   queued_event *qev;
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
@@ -817,10 +922,39 @@ rpl_parallel_thread::get_qev(Log_event *ev, ulonglong event_size,
   qev->ev= ev;
   qev->event_size= event_size;
   qev->next= NULL;
+  return qev;
+}
+
+
+rpl_parallel_thread::queued_event *
+rpl_parallel_thread::get_qev(Log_event *ev, ulonglong event_size,
+                             Relay_log_info *rli)
+{
+  queued_event *qev= get_qev_common(ev, event_size);
+  if (!qev)
+    return NULL;
   strcpy(qev->event_relay_log_name, rli->event_relay_log_name);
   qev->event_relay_log_pos= rli->event_relay_log_pos;
   qev->future_event_relay_log_pos= rli->future_event_relay_log_pos;
   strcpy(qev->future_event_master_log_name, rli->future_event_master_log_name);
+  return qev;
+}
+
+
+rpl_parallel_thread::queued_event *
+rpl_parallel_thread::retry_get_qev(Log_event *ev, queued_event *orig_qev,
+                                   const char *relay_log_name,
+                                   ulonglong event_pos, ulonglong event_size)
+{
+  queued_event *qev= get_qev_common(ev, event_size);
+  if (!qev)
+    return NULL;
+  qev->rgi= orig_qev->rgi;
+  strcpy(qev->event_relay_log_name, relay_log_name);
+  qev->event_relay_log_pos= event_pos;
+  qev->future_event_relay_log_pos= event_pos+event_size;
+  strcpy(qev->future_event_master_log_name,
+         orig_qev->future_event_master_log_name);
   return qev;
 }
 
@@ -836,7 +970,7 @@ rpl_parallel_thread::free_qev(rpl_parallel_thread::queued_event *qev)
 
 rpl_group_info*
 rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
-                             rpl_parallel_entry *e)
+                             rpl_parallel_entry *e, ulonglong event_size)
 {
   rpl_group_info *rgi;
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
@@ -864,6 +998,9 @@ rpl_parallel_thread::get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
     return NULL;
   }
   rgi->parallel_entry= e;
+  rgi->relay_log= rli->last_inuse_relaylog;
+  rgi->retry_start_offset= rli->future_event_relay_log_pos-event_size;
+  rgi->retry_event_count= 0;
 
   return rgi;
 }
@@ -1439,7 +1576,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   {
     Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
 
-    if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e)))
+    if (!(rgi= cur_thread->get_rgi(rli, gtid_ev, e, event_size)))
     {
       cur_thread->free_qev(qev);
       abandon_worker_thread(rli->sql_driver_thd, cur_thread,
