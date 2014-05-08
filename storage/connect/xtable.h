@@ -142,9 +142,10 @@ class DllExport TDBASE : public TDB {
   inline  PKXBASE GetKindex(void) {return To_Kindex;}
   inline  PCOL    GetSetCols(void) {return To_SetCols;}
   inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
+  inline  void    SetKindex(PKXBASE kxp) {To_Kindex = kxp;}
 
   // Properties
-  void    SetKindex(PKXBASE kxp);
+  void    ResetKindex(PGLOBAL g, PKXBASE kxp);
   PCOL    Key(int i) {return (To_Key_Col) ? To_Key_Col[i] : NULL;}
 
   // Methods

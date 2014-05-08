@@ -49,7 +49,8 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int     GetEnding(void) {return Ending;}
 
   // Methods
-  virtual int  Indexable(void) {return (Compressed != 1) ? 1 : 0;}
+  virtual int  Indexable(void)
+          {return (!Multiple && Compressed != 1) ? 1 : 0;}
   virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE mode);

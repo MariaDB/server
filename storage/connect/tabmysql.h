@@ -58,10 +58,11 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   int     Portnumber;         /* MySQL port number (0 = default)       */
   int     Mxr;                /* Maxerr for an Exec table              */
   int     Quoted;             /* Identifier quoting level              */
-  bool    Isview;             /* TRUE if this table is a MySQL view    */
+  bool    Isview;             /* true if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
   bool    Xsrc;               /* Execution type                        */
+  bool    Huge;               /* True for big table                    */
   }; // end of MYSQLDEF
 
 /***********************************************************************/
@@ -84,7 +85,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgMax(PGLOBAL g);
   virtual void ResetDB(void) {N = 0;}
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+  virtual int  RowNumber(PGLOBAL g, bool b = false);
   virtual bool IsView(void) {return Isview;}
   virtual PSZ  GetServer(void) {return Server;}
           void SetDatabase(LPCSTR db) {Database = (char*)db;}

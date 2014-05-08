@@ -96,5 +96,6 @@ class DllItem MYSQLC {
   int         N;
   int         m_Fields;     // The number of result fields
   int         m_Afrw;       // The number of affected rows
+  bool        m_Use;        // Use or store result set
   }; // end of class MYSQLC
 
