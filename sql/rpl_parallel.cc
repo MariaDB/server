@@ -33,7 +33,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   THD *thd= rgi->thd;
 
   thd->rgi_slave= rgi;
-  thd->rpl_filter = rli->mi->rpl_filter;
+  thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
 
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
   mysql_mutex_lock(&rli->data_lock);
@@ -212,6 +212,7 @@ handle_rpl_parallel_thread(void *arg)
   rpl_parallel_thread::queued_event *qevs_to_free;
   rpl_group_info *rgis_to_free;
   group_commit_orderer *gcos_to_free;
+  rpl_sql_thread_info sql_info(NULL);
   size_t total_event_size;
   int err;
 
@@ -242,6 +243,7 @@ handle_rpl_parallel_thread(void *arg)
   thd_proc_info(thd, "Waiting for work from main SQL threads");
   thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
+  thd->system_thread_info.rpl_sql_info= &sql_info;
   /*
     For now, we need to run the replication parallel worker threads in
     READ COMMITTED. This is needed because gap locks are not symmetric.

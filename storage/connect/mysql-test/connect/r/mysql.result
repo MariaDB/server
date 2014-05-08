@@ -273,3 +273,26 @@ a	b	c	d	e
 255	65535	4294967295	18446744073709551615	Hello
 DROP TABLE t2;
 DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (10),(20),(30);
+CREATE TABLE t2 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@localhost:PORT/test/t1';
+SELECT * FROM t2;
+a
+10
+20
+30
+ALTER TABLE t2 MODIFY a TINYINT;
+Warnings:
+Warning	1105	This is an outward table, table data were not modified.
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` tinyint(4) DEFAULT NULL
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@localhost:PORT/test/t1' `TABLE_TYPE`='MYSQL'
+SELECT * FROM t2;
+a
+10
+20
+30
+DROP TABLE t2;
+DROP TABLE t1;

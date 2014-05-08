@@ -4153,7 +4153,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
                    (sql_mode & ~(ulong) MODE_NO_DIR_IN_CREATE));
       if (charset_inited)
       {
-        if (rgi->cached_charset_compare(charset))
+        rpl_sql_thread_info *sql_info= thd->system_thread_info.rpl_sql_info;
+        if (sql_info->cached_charset_compare(charset))
         {
           /* Verify that we support the charsets found in the event. */
           if (!(thd->variables.character_set_client=
@@ -4470,18 +4471,7 @@ end:
 
 int Query_log_event::do_update_pos(rpl_group_info *rgi)
 {
-  /*
-    Note that we will not increment group* positions if we are just
-    after a SET ONE_SHOT, because SET ONE_SHOT should not be separated
-    from its following updating query.
-  */
-  if (thd->one_shot_set)
-  {
-    rgi->inc_event_relay_log_pos();
-    return 0;
-  }
-  else
-    return Log_event::do_update_pos(rgi);
+  return Log_event::do_update_pos(rgi);
 }
 
 

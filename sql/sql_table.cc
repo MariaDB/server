@@ -7239,6 +7239,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   if (!(used_fields & HA_CREATE_USED_TRANSACTIONAL))
     create_info->transactional= table->s->transactional;
 
+  if (!(used_fields & HA_CREATE_USED_CONNECTION))
+    create_info->connect_string= table->s->connect_string;
+
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
   if ((create_info->fields_option_struct= (ha_field_option_struct**)

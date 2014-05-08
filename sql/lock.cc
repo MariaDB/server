@@ -860,6 +860,8 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
   MDL_request schema_request;
   MDL_request mdl_request;
 
+  DBUG_ASSERT(ok_for_lower_case_names(db));
+
   if (thd->locked_tables_mode)
   {
     my_message(ER_LOCK_OR_ACTIVE_TRANSACTION,

@@ -72,6 +72,8 @@ class Parser_state;
 class Rows_log_event;
 class Sroutine_hash_entry;
 class user_var_entry;
+class rpl_io_thread_info;
+class rpl_sql_thread_info;
 
 enum enum_ha_read_modes { RFIRST, RNEXT, RPREV, RLAST, RKEY, RNEXT_SAME };
 enum enum_duplicates { DUP_ERROR, DUP_REPLACE, DUP_UPDATE };
@@ -1810,8 +1812,10 @@ public:
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
 
-  /* Used to SLAVE SQL thread */
-  Rpl_filter* rpl_filter;
+  union {
+    rpl_io_thread_info *rpl_io_info;
+    rpl_sql_thread_info *rpl_sql_info;
+  } system_thread_info;
 
   void reset_for_next_command();
   /*
@@ -2588,7 +2592,7 @@ public:
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
-  bool       slave_thread, one_shot_set;
+  bool       slave_thread;
   bool       extra_port;                        /* If extra connection */
 
   bool	     no_errors;

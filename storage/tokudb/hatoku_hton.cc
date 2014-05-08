@@ -2399,7 +2399,7 @@ maria_declare_plugin(tokudb)
     toku_global_status_variables_export,  /* status variables */
     tokudb_system_variables,   /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
@@ -2414,7 +2414,7 @@ maria_declare_plugin(tokudb)
     NULL,                      /* status variables */
     NULL,                      /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
@@ -2429,7 +2429,7 @@ maria_declare_plugin(tokudb)
     NULL,                      /* status variables */
     NULL,                      /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
@@ -2444,7 +2444,7 @@ maria_declare_plugin(tokudb)
     NULL,                      /* status variables */
     NULL,                      /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
@@ -2459,7 +2459,7 @@ maria_declare_plugin(tokudb)
     NULL,                      /* status variables */
     NULL,                      /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
@@ -2474,7 +2474,7 @@ maria_declare_plugin(tokudb)
     NULL,                      /* status variables */
     NULL,                      /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 },
 {
     MYSQL_INFORMATION_SCHEMA_PLUGIN, 
@@ -2489,7 +2489,7 @@ maria_declare_plugin(tokudb)
     NULL,                      /* status variables */
     NULL,                      /* system variables */
     TOKUDB_PLUGIN_VERSION_STR, /* string version */
-    MariaDB_PLUGIN_MATURITY_GAMMA /* maturity */
+    MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
 

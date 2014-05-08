@@ -222,7 +222,8 @@ srv_file_check_mode(
 
 		/* Note: stat.rw_perm is only valid of files */
 
-		if (stat.type == OS_FILE_TYPE_FILE) {
+		if (stat.type == OS_FILE_TYPE_FILE
+		    || stat.type == OS_FILE_TYPE_BLOCK) {
 			if (!stat.rw_perm) {
 
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -1570,6 +1571,16 @@ innobase_start_or_create_for_mysql(void)
 # endif /* F_FULLFSYNC */
 #endif /* HAVE_DARWIN_THREADS */
 
+	ib_logf(IB_LOG_LEVEL_INFO,
+		"Using %s to ref count buffer pool pages",
+#ifdef PAGE_ATOMIC_REF_COUNT
+		"atomics"
+#else
+		"mutexes"
+#endif /* PAGE_ATOMIC_REF_COUNT */
+	);
+
+
 	if (sizeof(ulint) != sizeof(void*)) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
@@ -2729,6 +2740,7 @@ files_checked:
 	if (!srv_read_only_mode) {
 		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
 	}
+	os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
 
 #ifdef UNIV_DEBUG
 	/* buf_debug_prints = TRUE; */

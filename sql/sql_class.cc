@@ -956,7 +956,6 @@ THD::THD()
   connection_name.length= 0;
 
   bzero(&variables, sizeof(variables));
-  one_shot_set= 0;
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;

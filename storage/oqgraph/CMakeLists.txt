@@ -16,12 +16,12 @@ ENDIF()
 INCLUDE_DIRECTORIES(${Judy_INCLUDE_DIR})
 
 IF(MSVC)
-  # lp:756966 OQGRAPH on Win64 does not compile
-  IF (CMAKE_SIZEOF_VOID_P EQUAL 8)
-    SET(BOOST_OK 0)
-  ELSE()
+#  # lp:756966 OQGRAPH on Win64 does not compile
+#  IF (CMAKE_SIZEOF_VOID_P EQUAL 8)
+#    SET(BOOST_OK 0)
+#  ELSE()
     SET(BOOST_OK 1)
-  ENDIF()
+#  ENDIF()
 ELSE()
 # See if that works. On old gcc it'll fail because of -fno-rtti
 CHECK_CXX_SOURCE_COMPILES(
@@ -38,6 +38,8 @@ IF(BOOST_OK)
   ADD_DEFINITIONS(-DHAVE_OQGRAPH)
   IF(MSVC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
+    # Fix problem with judy not finding inttypes.h on Windows:
+    ADD_DEFINITIONS(-DJU_WIN)
   ELSE(MSVC)
     # Fix lp bug 1221555 with -fpermissive, so that errors in gcc 4.7 become warnings for the time being
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -fno-strict-aliasing -fpermissive")

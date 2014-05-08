@@ -663,7 +663,8 @@ enum Log_event_type
   PRE_GA_DELETE_ROWS_EVENT = 22,
 
   /*
-    These event numbers are used from 5.1.16 until mysql-trunk-xx
+    These event numbers are used from 5.1.16 until mysql-5.6.6,
+    and in MariaDB
    */
   WRITE_ROWS_EVENT_V1 = 23,
   UPDATE_ROWS_EVENT_V1 = 24,
@@ -685,11 +686,13 @@ enum Log_event_type
     data to the slave: data that a slave can handle in case there
     is code for handling it, but which can be ignored if it is not
     recognized.
+
+    These mysql-5.6 events are not recognized (and ignored) by MariaDB
   */
   IGNORABLE_LOG_EVENT= 28,
   ROWS_QUERY_LOG_EVENT= 29,
  
-  /* Version 2 of the Row events */
+  /* Version 2 of the Row events, generated only by mysql-5.6.6+ */
   WRITE_ROWS_EVENT = 30,
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,

@@ -5688,7 +5688,7 @@ struct charset_info_st my_charset_utf8_general_mysql500_ci=
 struct charset_info_st my_charset_utf8_bin=
 {
     83,0,0,             /* number       */
-    MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_UNICODE, /* state  */
+    MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_BINSORT|MY_CS_UNICODE, /* state  */
     "utf8",             /* cs name      */
     "utf8_bin",         /* name         */
     "",                 /* comment      */

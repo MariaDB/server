@@ -58,6 +58,7 @@ set @@global.debug_dbug= @old_slave_dbug;
 
 connection master;
 set @@global.binlog_checksum = CRC32;
+--source include/wait_for_binlog_checkpoint.inc
 TRUNCATE t1;
 let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1);
 let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);

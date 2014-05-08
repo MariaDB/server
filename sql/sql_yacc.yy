@@ -810,7 +810,6 @@ static void sp_create_assignment_lex(THD *thd, bool no_lookahead)
     lex->sql_command= SQLCOM_SET_OPTION;
     mysql_init_select(lex);
     lex->var_list.empty();
-    lex->one_shot_set= 0;
     lex->autocommit= 0;
     /* get_ptr() is only correct with no lookahead. */
     DBUG_ASSERT(no_lookahead);
@@ -11305,7 +11304,10 @@ opt_limit_clause:
 limit_clause:
           LIMIT limit_options
           {
-            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+            SELECT_LEX *sel= Select;
+            if (!sel->select_limit->basic_const_item() ||
+                sel->select_limit->val_int() > 0)
+              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
         | LIMIT limit_options ROWS_SYM EXAMINED_SYM limit_rows_option
           {
@@ -14421,7 +14423,6 @@ set:
             mysql_init_select(lex);
             lex->option_type=OPT_SESSION;
             lex->var_list.empty();
-            lex->one_shot_set= 0;
             lex->autocommit= 0;
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }
