@@ -5403,6 +5403,7 @@ ha_innobase::commit_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		DBUG_ASSERT(!ctx0);
 		MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
+		ha_alter_info->group_commit_ctx = NULL;
 		DBUG_RETURN(false);
 	}
 
@@ -5411,12 +5412,17 @@ ha_innobase::commit_inplace_alter_table(
 	inplace_alter_handler_ctx**	ctx_array;
 	inplace_alter_handler_ctx*	ctx_single[2];
 
+	if (ha_alter_info->group_commit_ctx) {
+		ctx_array = ha_alter_info->group_commit_ctx;
+	} else {
 	ctx_single[0] = ctx0;
 	ctx_single[1] = NULL;
 	ctx_array = ctx_single;
+	}
 
 	DBUG_ASSERT(ctx0 == ctx_array[0]);
 	ut_ad(prebuilt->table == ctx0->old_table);
+	ha_alter_info->group_commit_ctx = NULL;
 
 	/* Free the ctx->trx of other partitions, if any. We will only
 	use the ctx0->trx here. Others may have been allocated in
