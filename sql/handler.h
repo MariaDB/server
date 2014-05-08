@@ -1790,6 +1790,9 @@ public:
   // Virtual columns changed
   static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 30;
 
+  // ALTER TABLE for a partitioned table
+  static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
+
   /**
     Create options (like MAX_ROWS) for the new version of table.
 

@@ -8199,6 +8199,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   for (index= 0; index <= m_tot_parts; index++)
     part_inplace_ctx->handler_ctx_array[index]= NULL;
 
+  ha_alter_info->handler_flags |= Alter_inplace_info::ALTER_PARTITIONED;
   for (index= 0; index < m_tot_parts; index++)
   {
     enum_alter_inplace_result p_result=

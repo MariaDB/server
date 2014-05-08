@@ -79,6 +79,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_DATA
 /** Operations for altering a table that InnoDB does not care about */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_INPLACE_IGNORE
 	= Alter_inplace_info::ALTER_COLUMN_DEFAULT
+	| Alter_inplace_info::ALTER_PARTITIONED
 	| Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT
 	| Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE
 	| Alter_inplace_info::ALTER_RENAME;
