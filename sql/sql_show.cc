@@ -941,9 +941,12 @@ public:
       is_handled= TRUE;
       break;
 
+    case ER_BAD_FIELD_ERROR:
+    case ER_SP_DOES_NOT_EXIST:
     case ER_NO_SUCH_TABLE:
     case ER_NO_SUCH_TABLE_IN_ENGINE:
-      /* Established behavior: warn if underlying tables are missing. */
+      /* Established behavior: warn if underlying tables, columns, or functions
+         are missing. */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER(ER_VIEW_INVALID),
@@ -952,15 +955,6 @@ public:
       is_handled= TRUE;
       break;
 
-    case ER_SP_DOES_NOT_EXIST:
-      /* Established behavior: warn if underlying functions are missing. */
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
-                          ER_VIEW_INVALID,
-                          ER(ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
-      is_handled= TRUE;
-      break;
     default:
       is_handled= FALSE;
     }
@@ -3051,7 +3045,7 @@ static bool show_status_array(THD *thd, const char *wild,
           end= int10_to_str((long) *(uint*) value, buff, 10);
           break;
         case SHOW_SINT:
-          end= int10_to_str((long) *(uint*) value, buff, -10);
+          end= int10_to_str((long) *(int*) value, buff, -10);
           break;
         case SHOW_SLONG:
           end= int10_to_str(*(long*) value, buff, -10);
@@ -4599,25 +4593,7 @@ end:
 }
 
 
-/**
-  Trigger_error_handler is intended to intercept and silence SQL conditions
-  that might happen during trigger loading for SHOW statements.
-  The potential SQL conditions are:
-
-    - ER_PARSE_ERROR -- this error is thrown if a trigger definition file
-      is damaged or contains invalid CREATE TRIGGER statement. That should
-      not happen in normal life.
-
-    - ER_TRG_NO_DEFINER -- this warning is thrown when we're loading a
-      trigger created/imported in/from the version of MySQL, which does not
-      support trigger definers.
-
-    - ER_TRG_NO_CREATION_CTX -- this warning is thrown when we're loading a
-      trigger created/imported in/from the version of MySQL, which does not
-      support trigger creation contexts.
-*/
-
-class Trigger_error_handler : public Internal_error_handler
+class Warnings_only_error_handler : public Internal_error_handler
 {
 public:
   bool handle_condition(THD *thd,
@@ -4632,10 +4608,14 @@ public:
         sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
-    return false;
+    if (level != Sql_condition::WARN_LEVEL_ERROR)
+      return false;
+
+    if (!thd->get_stmt_da()->is_error())
+      thd->get_stmt_da()->set_error_status(sql_errno, msg, sqlstate, *cond_hdl);
+    return true; // handled!
   }
 };
-
 
 
 /**
@@ -4847,25 +4827,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
                 db_name != &INFORMATION_SCHEMA_NAME)
             {
-              /*
-                Here we need to filter out warnings, which can happen
-                during loading of triggers in fill_schema_table_from_frm(),
-                because we don't need those warnings to pollute output of
-                SELECT from I_S / SHOW-statements.
-              */
-
-              Trigger_error_handler err_handler;
-              thd->push_internal_handler(&err_handler);
-
-              int res= fill_schema_table_from_frm(thd, tables, schema_table,
-                                                  db_name, table_name,
-                                                  schema_table_idx,
-                                                  &open_tables_state_backup,
-                                                  can_deadlock);
-
-              thd->pop_internal_handler();
-
-              if (!res)
+              if (!fill_schema_table_from_frm(thd, tables, schema_table,
+                                              db_name, table_name,
+                                              schema_table_idx,
+                                              &open_tables_state_backup,
+                                              can_deadlock))
                 continue;
             }
 
@@ -8013,95 +7979,6 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
 }
 
 
-/**
-  Fill INFORMATION_SCHEMA-table, leave correct Diagnostics_area /
-  Warning_info state after itself.
-
-  This function is a wrapper around ST_SCHEMA_TABLE::fill_table(), which
-  may "partially silence" some errors. The thing is that during
-  fill_table() many errors might be emitted. These errors stem from the
-  nature of fill_table().
-
-  For example, SELECT ... FROM INFORMATION_SCHEMA.xxx WHERE TABLE_NAME = 'xxx'
-  results in a number of 'Table <db name>.xxx does not exist' errors,
-  because fill_table() tries to open the 'xxx' table in every possible
-  database.
-
-  Those errors are cleared (the error status is cleared from
-  Diagnostics_area) inside fill_table(), but they remain in Warning_info
-  (Warning_info is not cleared because it may contain useful warnings).
-
-  This function is responsible for making sure that Warning_info does not
-  contain warnings corresponding to the cleared errors.
-
-  @note: THD::no_warnings_for_error used to be set before calling
-  fill_table(), thus those errors didn't go to Warning_info. This is not
-  the case now (THD::no_warnings_for_error was eliminated as a hack), so we
-  need to take care of those warnings here.
-
-  @param thd            Thread context.
-  @param table_list     I_S table.
-  @param join_table     JOIN/SELECT table.
-
-  @return Error status.
-  @retval TRUE Error.
-  @retval FALSE Success.
-*/
-static bool do_fill_table(THD *thd,
-                          TABLE_LIST *table_list,
-                          JOIN_TAB *join_table)
-{
-  // NOTE: fill_table() may generate many "useless" warnings, which will be
-  // ignored afterwards. On the other hand, there might be "useful"
-  // warnings, which should be presented to the user. Warning_info usually
-  // stores no more than THD::variables.max_error_count warnings.
-  // The problem is that "useless warnings" may occupy all the slots in the
-  // Warning_info, so "useful warnings" get rejected. In order to avoid
-  // that problem we create a Warning_info instance, which is capable of
-  // storing "unlimited" number of warnings.
-  Diagnostics_area *da= thd->get_stmt_da();
-  Warning_info wi_tmp(thd->query_id, true, true);
-
-  da->push_warning_info(&wi_tmp);
-
-  Item *item= join_table->select_cond;
-  if (join_table->cache_select &&
-      join_table->cache_select->cond)
-  {
-    /*
-      If join buffering is used, we should use the condition that is attached
-      to the join cache. Cache condition has a part of WHERE that can be
-      checked when we're populating this table.
-      join_tab->select_cond is of no interest, because it only has conditions
-      that depend on both this table and previous tables in the join order.
-    */
-    item= join_table->cache_select->cond;
-  }
-  bool res= table_list->schema_table->fill_table(thd, table_list, item);
-
-  da->pop_warning_info();
-
-  // Pass an error if any.
-
-  if (da->is_error())
-  {
-    da->push_warning(thd,
-                     da->sql_errno(),
-                     da->get_sqlstate(),
-                     Sql_condition::WARN_LEVEL_ERROR,
-                     da->message());
-  }
-
-  // Pass warnings (if any).
-  //
-  // Filter out warnings with WARN_LEVEL_ERROR level, because they
-  // correspond to the errors which were filtered out in fill_table().
-  da->copy_non_errors_from_wi(thd, &wi_tmp);
-
-  return res;
-}
-
-
 /*
   Fill temporary schema tables before SELECT
 
@@ -8121,7 +7998,12 @@ bool get_schema_tables_result(JOIN *join,
   THD *thd= join->thd;
   LEX *lex= thd->lex;
   bool result= 0;
+  const char *old_proc_info;
   DBUG_ENTER("get_schema_tables_result");
+
+  Warnings_only_error_handler err_handler;
+  thd->push_internal_handler(&err_handler);
+  old_proc_info= thd_proc_info(thd, "Filling schema table");
 
   for (JOIN_TAB *tab= first_linear_tab(join, WITH_CONST_TABLES); 
        tab; 
@@ -8175,20 +8057,56 @@ bool get_schema_tables_result(JOIN *join,
       else
         table_list->table->file->stats.records= 0;
 
-      if (do_fill_table(thd, table_list, tab))
+  
+      Item *cond= tab->select_cond;
+      if (tab->cache_select && tab->cache_select->cond)
+      {
+        /*
+          If join buffering is used, we should use the condition that is
+          attached to the join cache. Cache condition has a part of WHERE that
+          can be checked when we're populating this table.
+          join_tab->select_cond is of no interest, because it only has
+          conditions that depend on both this table and previous tables in the
+          join order.
+        */
+        cond= tab->cache_select->cond;
+      }
+
+      if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
         join->error= 1;
         tab->read_record.table->file= table_list->table->file;
         table_list->schema_table_state= executed_place;
-        if (!thd->is_error())
-          my_error(ER_UNKNOWN_ERROR, MYF(0));
         break;
       }
       tab->read_record.table->file= table_list->table->file;
       table_list->schema_table_state= executed_place;
     }
   }
+  thd->pop_internal_handler();
+  if (thd->is_error())
+  {
+    /*
+      This hack is here, because I_S code uses thd->clear_error() a lot.
+      Which means, a Warnings_only_error_handler cannot handle the error
+      corectly as it does not know whether an error is real (e.g. caused
+      by tab->select_cond->val_int()) or will be cleared later.
+      Thus it ignores all errors, and the real one (that is, the error
+      that was not cleared) is pushed now.
+
+      It also means that an audit plugin cannot process the error correctly
+      either. See also thd->clear_error()
+    */
+    thd->get_stmt_da()->push_warning(thd,
+                                     thd->get_stmt_da()->sql_errno(),
+                                     thd->get_stmt_da()->get_sqlstate(),
+                                     Sql_condition::WARN_LEVEL_ERROR,
+                                     thd->get_stmt_da()->message());
+  }
+  else if (result)
+    my_error(ER_UNKNOWN_ERROR, MYF(0));
+  thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(result);
 }
 

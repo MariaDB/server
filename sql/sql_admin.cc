@@ -719,7 +719,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (result_code == HA_ADMIN_OK)
     {    
       DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
+      THD_STAGE_INFO(thd, stage_executing);
       result_code = (table->table->file->*operator_func)(thd, check_opt);
+      THD_STAGE_INFO(thd, stage_sending_data);
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
     }
 
@@ -862,7 +864,7 @@ send_result_message:
       }
       if (protocol->write())
         goto err;
-
+      THD_STAGE_INFO(thd, stage_recreating_table);
       DBUG_PRINT("info", ("HA_ADMIN_TRY_ALTER, trying analyze..."));
       TABLE_LIST *save_next_local= table->next_local,
                  *save_next_global= table->next_global;
@@ -1080,6 +1082,7 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
   KEY_CACHE *key_cache;
   DBUG_ENTER("mysql_assign_to_keycache");
 
+  THD_STAGE_INFO(thd, stage_finding_key_cache);
   check_opt.init();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (!(key_cache= get_key_cache(key_cache_name)))

@@ -5134,7 +5134,6 @@ finish:
   }
 
   /* Free tables */
-  THD_STAGE_INFO(thd, stage_closing_tables);
   close_thread_tables(thd);
 
 #ifndef DBUG_OFF

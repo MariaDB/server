@@ -323,6 +323,8 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
     (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
 
 end:
+  THD_STAGE_INFO(thd, stage_after_table_lock);
+
   if (thd->killed)
   {
     thd->send_kill_message();

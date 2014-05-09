@@ -643,7 +643,6 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
   edges->tablenr= thd->current_tablenr++;
   edges->status= STATUS_NO_RECORD;
-  edges->file->ha_start_of_new_statement();
   edges->file->ft_handler= 0;
   edges->pos_in_table_list= 0;
   edges->clear_column_bitmaps();
