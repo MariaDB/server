@@ -219,6 +219,9 @@ static bool change_type_is_supported(TABLE *table, TABLE *altered_table, Alter_i
 static ulong fix_handler_flags(THD *thd, TABLE *table, TABLE *altered_table, Alter_inplace_info *ha_alter_info) {
     ulong handler_flags = ha_alter_info->handler_flags;
 
+    // This is automatically supported, hide the flag from later checks
+    handler_flags &= ~Alter_inplace_info::ALTER_PARTITIONED;
+
     // workaround for fill_alter_inplace_info bug (#5193)
     // the function erroneously sets the ADD_INDEX and DROP_INDEX flags for a column addition that does not
     // change the keys.  the following code turns the ADD_INDEX and DROP_INDEX flags so that we can do hot
@@ -728,7 +731,8 @@ bool ha_tokudb::commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_i
 
     if (commit) {
 #if (50613 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699) || \
-    (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799)
+    (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799) || \
+    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099)
         if (ha_alter_info->group_commit_ctx) {
             ha_alter_info->group_commit_ctx = NULL;
         }
