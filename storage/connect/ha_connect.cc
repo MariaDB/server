@@ -2708,7 +2708,6 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
 */
 int ha_connect::rnd_init(bool scan)
 {
-  int     rc;
   PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
               (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
@@ -2742,8 +2741,8 @@ int ha_connect::rnd_init(bool scan)
   if (xmod == MODE_UPDATE)
     bitmap_union(table->read_set, table->write_set);
 
-  if ((rc= OpenTable(g, xmod == MODE_DELETE)))
-    DBUG_RETURN(rc);
+  if (OpenTable(g, xmod == MODE_DELETE))
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
 
   xp->nrd= xp->fnd= xp->nfd= 0;
   xp->tb1= my_interval_timer();

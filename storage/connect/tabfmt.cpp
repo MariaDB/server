@@ -406,7 +406,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Double check correctness of offset values
   if (Catfunc == FNC_NO)
     for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
-      if (cdp->GetOffset() < 1) {
+      if (cdp->GetOffset() < 1 && !cdp->IsSpecial()) {
         strcpy(g->Message, MSG(BAD_OFFSET_VAL));
         return true;
         } // endif Offset
