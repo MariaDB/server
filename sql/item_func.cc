@@ -6282,8 +6282,7 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     if (item->type() == Item::FIELD_ITEM)
       table= ((Item_field *)item)->field->table;
 
-    allows_multi_table_search &= 
-      allows_search_on_non_indexed_columns(((Item_field *)item)->field->table);
+    allows_multi_table_search &= allows_search_on_non_indexed_columns(table);
   }
 
   /*
