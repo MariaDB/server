@@ -684,10 +684,13 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     if (SaveIndex(g, sxp))
       brc = true;
 
-  } else // Dynamic index
+  } else {                     // Dynamic index
     // Indicate that key column values can be found from KEYCOL's
     for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
       kcp->Colp->SetKcol(kcp);
+
+    Tdbp->SetFilter(NULL);     // Not used anymore
+  } // endif X
 
  err:
   // We don't need the index anymore
@@ -2234,9 +2237,6 @@ int XINDXS::FastFind(int nk)
 XLOAD::XLOAD(void)
   {
   Hfile = INVALID_HANDLE_VALUE;
-#if defined(WIN32) && defined(XMAP)
-  ViewBase = NULL;
-#endif   // WIN32  &&         XMAP
   NewOff.Val = 0LL;
 } // end of XLOAD constructor
 
@@ -2250,15 +2250,6 @@ void XLOAD::Close(void)
     Hfile = INVALID_HANDLE_VALUE;
     } // endif Hfile
 
-#if defined(WIN32) && defined(XMAP)
-  if (ViewBase) {
-    if (!UnmapViewOfFile(ViewBase))
-      printf("Error %d closing Viewmap\n", GetLastError());
-
-    ViewBase = NULL;
-    } // endif ViewBase
-#endif   // WIN32 && XMAP
-
   } // end of Close
 
 /* --------------------------- XFILE Class --------------------------- */
@@ -2269,9 +2260,9 @@ void XLOAD::Close(void)
 XFILE::XFILE(void) : XLOAD()
   {
   Xfile = NULL;
-#if defined(XMAP) && !defined(WIN32)
+#if defined(XMAP)
   Mmp = NULL;
-#endif   // XMAP  &&         !WIN32
+#endif   // XMAP
   } // end of XFILE constructor
 
 /***********************************************************************/
@@ -2414,11 +2405,9 @@ void XFILE::Close(void)
     Xfile = NULL;
     } // endif Xfile
 
-#if defined(XMAP) && !defined(WIN32)
-  if (Mmp) {
-    CloseMemMap(Mmp->memory, Mmp->lenL);
-    Mmp = NULL;
-    } // endif Mmp
+#if defined(XMAP)
+  if (Mmp && CloseMemMap(Mmp->memory, Mmp->lenL))
+    printf("Error %d closing mapped index\n");
 #endif   // XMAP
   } // end of Close
 
@@ -2955,8 +2944,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
 
-  if (!(Valp = AllocateValue(g, Type, len, colp->GetScale(),
-                                           colp->IsUnsigned())))
+  if (!(Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned())))
     return true;
 
   Klen = Valp->GetClen();
@@ -2992,7 +2980,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 /***********************************************************************/
 BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   {
-  int len = colp->GetLength(), prec = colp->GetPrecision();
+  int len = colp->GetLength(), prec = colp->GetScale();
 
   if (n[3] && colp->GetLength() > n[3]
            && colp->GetResultType() == TYPE_STRING) {
@@ -3002,12 +2990,12 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 
   Type = colp->GetResultType();
 
- if (trace)
-   htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
-        this, colp, Type, n[0], len, m);
+  if (trace)
+    htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
+         this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
-  Valp = AllocateValue(g, Type, len, prec, false, NULL);
+  Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned());
   Klen = Valp->GetClen();
 
   if (n[2]) {
@@ -3027,7 +3015,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   // by blanks (if true) or keep the zero ending char (if false).
   // Currently we set it to true to be compatible with QRY blocks,
   // and last one to enable type checking (no conversion).
-  Kblp = AllocValBlock(g, To_Keys, Type, n[0], len, prec, true, true);
+  Kblp = AllocValBlock(g, To_Keys, Type, n[0], len, prec, !Prefix, true);
 
   if (n[1]) {
     Koff.Size = n[1] * sizeof(int);
@@ -3038,6 +3026,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   Ndf = n[0];
 //IsSorted = colp->GetOpt() < 0;
   IsSorted = false;
+  Colp = colp;
   return m + Bkeys.Size + Keys.Size + Koff.Size;
   } // end of MapInit
 #endif // XMAP

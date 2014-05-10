@@ -347,9 +347,6 @@ class DllExport XLOAD : public BLOCK {
   // Members
 #if defined(WIN32)
   HANDLE  Hfile;                // Handle to file or map
-#if defined(XMAP)
-  void   *ViewBase;             // Mapped view base address
-#endif   // XMAP
 #else    // UNIX
   int     Hfile;                // Descriptor to file or map
 #endif   // UNIX
@@ -377,9 +374,9 @@ class DllExport XFILE : public XLOAD {
 
  protected:
   // Members
-  FILE   *Xfile;            // Index stream file
+  FILE   *Xfile;                // Index stream file
 #if defined(XMAP)
-  MMP     Mmp;              // To mapped index file
+  MMP     Mmp;                  // Mapped view base address and length
 #endif   // XMAP
   }; // end of class XFILE
 

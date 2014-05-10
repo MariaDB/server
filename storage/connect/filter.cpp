@@ -1725,7 +1725,7 @@ DllExport bool ApplyFilter(PGLOBAL g, PFIL filp)
   if (filp->Eval(g))
     longjmp(g->jumper[g->jump_level], TYPE_FILTER);
 
-  if (trace)
+  if (trace > 1)
     htrc("PlugFilter filp=%p result=%d\n",
                      filp, filp->GetResult());
 

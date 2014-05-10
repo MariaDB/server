@@ -439,10 +439,10 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
     // Reading sequencially an indexed table. This happens after the
     // handler function records_in_range was called and MySQL decides
     // to quit using the index (!!!) Drop the index.
-    for (PCOL colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
-      colp->SetKcol(NULL);
+//  for (PCOL colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
+//    colp->SetKcol(NULL);
 
-    ((PTDBASE)tdbp)->SetKindex(g, NULL);
+    ((PTDBASE)tdbp)->ResetKindex(g, NULL);
     } // endif index
 
   // Save stack and allocation environment and prepare error return
@@ -456,7 +456,12 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
     goto err;
     } // endif rc
 
-  while ((rc= (RCODE)tdbp->ReadDB(g)) == RC_NF) ;
+  do {
+    if ((rc= (RCODE)tdbp->ReadDB(g)) == RC_OK)
+      if (!ApplyFilter(g, tdbp->GetFilter()))
+        rc= RC_NF;
+
+    } while (rc == RC_NF);
 
  err:
   g->jump_level--;
@@ -585,7 +590,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 
   // Make all the eventual indexes
   tbxp= (TDBDOX*)tdbp;
-  tbxp->SetKindex(g, NULL);
+  tbxp->ResetKindex(g, NULL);
   tbxp->To_Key_Col= NULL;
   rc= tbxp->ResetTableOpt(g, true, 
                            ((PTDBASE)tdbp)->GetDef()->Indexable() == 1);

@@ -80,7 +80,16 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR filename,
         } // endif hFileMap
       
       access = (mode == MODE_READ) ? FILE_MAP_READ : FILE_MAP_WRITE;
-      mm->memory = MapViewOfFile(hFileMap, access, 0, 0, 0);
+
+      if (!(mm->memory = MapViewOfFile(hFileMap, access, 0, 0, 0))) {
+        DWORD ler = GetLastError();
+      
+        sprintf(g->Message, "Error %ld in MapViewOfFile %s", 
+                ler, filename);
+        CloseHandle(hFile);
+        return INVALID_HANDLE_VALUE;
+        } // endif memory
+
       // lenH is the high-order word of the file size
       mm->lenL = GetFileSize(hFile, &mm->lenH);
       CloseHandle(hFileMap);                    // Not used anymore

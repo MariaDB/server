@@ -522,8 +522,8 @@ bool TDBXML::Initialize(PGLOBAL g)
         To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
 
         // Add a CONNECT comment node
-//      sprintf(buf, MSG(CREATED_PLUGDB), version);
-        sprintf(buf, " Created by CONNECT %s ", version);
+//      sprintf(buf, " Created by CONNECT %s ", version);
+        strcpy(buf, " Created by the MariaDB CONNECT Storage Engine");
         Docp->AddComment(g, buf);
 
         if (XmlDB) {

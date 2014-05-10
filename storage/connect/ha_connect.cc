@@ -170,7 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0002 April 23, 2014";
+       char  version[]= "Version 1.03.0002 May 03, 2014";
+       char  compver[]= "Version 1.03.0002 " __DATE__ " "  __TIME__;
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -420,7 +421,7 @@ static int connect_init_func(void *p)
 {
   DBUG_ENTER("connect_init_func");
 
-  sql_print_information("CONNECT: %s", version);
+  sql_print_information("CONNECT: %s", compver);
 
   // xtrace is now a system variable
   trace= xtrace;
@@ -432,9 +433,10 @@ static int connect_init_func(void *p)
   init_connect_psi_keys();
 
   connect_hton= (handlerton *)p;
-  connect_hton->state=   SHOW_OPTION_YES;
-  connect_hton->create=  connect_create_handler;
-  connect_hton->flags=   HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
+  connect_hton->state=  SHOW_OPTION_YES;
+  connect_hton->create= connect_create_handler;
+//connect_hton->flags=  HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
+  connect_hton->flags=  HTON_TEMPORARY_NOT_SUPPORTED;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
   connect_hton->index_options= connect_index_option_list;
@@ -446,7 +448,7 @@ static int connect_init_func(void *p)
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   DBUG_RETURN(0);
-}
+} // end of connect_init_func
 
 
 /**
@@ -476,13 +478,13 @@ static int connect_done_func(void *p)
     } // endfor pc
 
   DBUG_RETURN(error);
-}
+} // end of connect_done_func
 
 
 /**
   @brief
   Example of simple lock controls. The "share" it creates is a
-  structure we will pass to each example handler. Do you have to have
+  structure we will pass to each CONNECT handler. Do you have to have
   one of these? Well, you have pieces that are used for locking, and
   they are needed to function.
 */
@@ -490,20 +492,22 @@ static int connect_done_func(void *p)
 CONNECT_SHARE *ha_connect::get_share()
 {
   CONNECT_SHARE *tmp_share;
+
   lock_shared_ha_data();
-  if (!(tmp_share= static_cast<CONNECT_SHARE*>(get_ha_share_ptr())))
-  {
+
+  if (!(tmp_share= static_cast<CONNECT_SHARE*>(get_ha_share_ptr()))) {
     tmp_share= new CONNECT_SHARE;
     if (!tmp_share)
       goto err;
     mysql_mutex_init(con_key_mutex_CONNECT_SHARE_mutex,
                      &tmp_share->mutex, MY_MUTEX_INIT_FAST);
     set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
-  }
-err:
+    } // endif tmp_share
+
+ err:
   unlock_shared_ha_data();
   return tmp_share;
-}
+} // end of get_share
 
 
 static handler* connect_create_handler(handlerton *hton,
@@ -740,7 +744,7 @@ ulonglong ha_connect::table_flags() const
 } // end of table_flags
 
 /****************************************************************************/
-/*  Return the value of an option specified in the option list.             */
+/*  Return the value of an option specified in an option list.              */
 /****************************************************************************/
 char *GetListOption(PGLOBAL g, const char *opname,
                                const char *oplist, const char *def)
@@ -2717,7 +2721,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     } // endif index type
 
   if ((rc= rnd_init(0)))
-    return rc;
+    DBUG_RETURN(rc);
 
   if (locked == 2) {
     // Indexes are not updated in lock write mode
@@ -3133,6 +3137,10 @@ void ha_connect::position(const uchar *record)
   DBUG_ENTER("ha_connect::position");
 //if (((PTDBASE)tdbp)->GetDef()->Indexable())
     my_store_ptr(ref, ref_length, (my_off_t)((PTDBASE)tdbp)->GetRecpos());
+
+  if (trace)
+    htrc("position: pos=%d\n", ((PTDBASE)tdbp)->GetRecpos());
+
   DBUG_VOID_RETURN;
 } // end of position
 
@@ -3159,9 +3167,13 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
   PTDBASE tp= (PTDBASE)tdbp;
   DBUG_ENTER("ha_connect::rnd_pos");
 
-  if (!tp->SetRecpos(xp->g, (int)my_get_ptr(pos, ref_length)))
+  if (!tp->SetRecpos(xp->g, (int)my_get_ptr(pos, ref_length))) {
+    if (trace)
+      htrc("rnd_pos: %d\n", tp->GetRecpos());
+
+    tp->SetFilter(NULL);
     rc= rnd_next(buf);
-  else
+  } else
     rc= HA_ERR_KEY_NOT_FOUND;
 
   DBUG_RETURN(rc);
@@ -4085,7 +4097,8 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   DBUG_ENTER("ha_connect::records_in_range");
 
   if (indexing < 0 || inx != active_index)
-    index_init(inx, false);
+    if (index_init(inx, false))
+      DBUG_RETURN(HA_POS_ERROR);
 
   if (xtrace)
     htrc("records_in_range: inx=%d indexing=%d\n", inx, indexing);
