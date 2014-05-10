@@ -1643,6 +1643,18 @@ FROM t1 JOIN t2 ON c = b GROUP BY b WITH ROLLUP;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-6129: Server crashes during UNION with ORDER BY field IS NULL
+--echo #
+
+SET sql_mode='ONLY_FULL_GROUP_BY';
+SELECT 1 AS test UNION SELECT 2 AS test ORDER BY test IS NULL ASC;
+SET sql_mode='';
+
+#
+# End of MariaDB 5.5 tests
+#
+
+--echo #
 --echo # Bug #58782
 --echo # Missing rows with SELECT .. WHERE .. IN subquery 
 --echo # with full GROUP BY and no aggr
@@ -1690,3 +1702,4 @@ DROP TABLE t1;
 DROP TABLE where_subselect;
 
 --echo # End of Bug #58782
+

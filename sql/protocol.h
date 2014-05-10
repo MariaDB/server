@@ -44,8 +44,12 @@ protected:
   uint field_count;
 #ifndef EMBEDDED_LIBRARY
   bool net_store_data(const uchar *from, size_t length);
+  bool net_store_data_cs(const uchar *from, size_t length,
+                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
 #else
   virtual bool net_store_data(const uchar *from, size_t length);
+  virtual bool net_store_data_cs(const uchar *from, size_t length,
+                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   char **next_field;
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
@@ -54,8 +58,6 @@ protected:
     The following two are low-level functions that are invoked from
     higher-level store_xxx() funcs.  The data is stored into this->packet.
   */
-  bool net_store_data(const uchar *from, size_t length,
-                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
   bool store_string_aux(const char *from, size_t length,
                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
 
@@ -184,6 +186,8 @@ public:
 #ifdef EMBEDDED_LIBRARY
   virtual bool write();
   bool net_store_data(const uchar *from, size_t length);
+  bool net_store_data_cs(const uchar *from, size_t length,
+                      CHARSET_INFO *fromcs, CHARSET_INFO *tocs);
 #endif
   virtual bool store_null();
   virtual bool store_tiny(longlong from);

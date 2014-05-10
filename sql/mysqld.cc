@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
    Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -2237,7 +2237,7 @@ static struct passwd *check_user(const char *user)
   }
   if (!user)
   {
-    if (!opt_bootstrap)
+    if (!opt_bootstrap && !opt_help)
     {
       sql_print_error("Fatal error: Please read \"Security\" section of the manual to find out how to run mysqld as root!\n");
       unireg_abort(1);
@@ -9342,6 +9342,8 @@ static PSI_file_info all_server_files[]=
 #endif /* HAVE_PSI_INTERFACE */
 
 PSI_stage_info stage_after_create= { 0, "After create", 0};
+PSI_stage_info stage_after_opening_tables= { 0, "After opening tables", 0};
+PSI_stage_info stage_after_table_lock= { 0, "After table lock", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "allocating local table", 0};
 PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0};
 PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
@@ -9370,6 +9372,7 @@ PSI_stage_info stage_end= { 0, "end", 0};
 PSI_stage_info stage_executing= { 0, "executing", 0};
 PSI_stage_info stage_execution_of_init_command= { 0, "Execution of init_command", 0};
 PSI_stage_info stage_explaining= { 0, "explaining", 0};
+PSI_stage_info stage_finding_key_cache= { 0, "Finding key cache", 0};
 PSI_stage_info stage_finished_reading_one_binlog_switching_to_next_binlog= { 0, "Finished reading one binlog; switching to next binlog", 0};
 PSI_stage_info stage_flushing_relay_log_and_master_info_repository= { 0, "Flushing relay log and master info repository.", 0};
 PSI_stage_info stage_flushing_relay_log_info_file= { 0, "Flushing relay-log info file.", 0};
@@ -9394,6 +9397,7 @@ PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "query end", 0};
 PSI_stage_info stage_queueing_master_event_to_the_relay_log= { 0, "Queueing master event to the relay log", 0};
 PSI_stage_info stage_reading_event_from_the_relay_log= { 0, "Reading event from the relay log", 0};
+PSI_stage_info stage_recreating_table= { 0, "recreating table", 0};
 PSI_stage_info stage_registering_slave_on_master= { 0, "Registering slave on master", 0};
 PSI_stage_info stage_removing_duplicates= { 0, "Removing duplicates", 0};
 PSI_stage_info stage_removing_tmp_table= { 0, "removing tmp table", 0};
@@ -9462,6 +9466,8 @@ PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master 
 PSI_stage_info *all_server_stages[]=
 {
   & stage_after_create,
+  & stage_after_opening_tables,
+  & stage_after_table_lock,
   & stage_allocating_local_table,
   & stage_alter_inplace,
   & stage_alter_inplace_commit,
@@ -9493,6 +9499,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_executing,
   & stage_execution_of_init_command,
   & stage_explaining,
+  & stage_finding_key_cache,
   & stage_finished_reading_one_binlog_switching_to_next_binlog,
   & stage_flushing_relay_log_and_master_info_repository,
   & stage_flushing_relay_log_info_file,
@@ -9517,6 +9524,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_query_end,
   & stage_queueing_master_event_to_the_relay_log,
   & stage_reading_event_from_the_relay_log,
+  & stage_recreating_table,
   & stage_registering_slave_on_master,
   & stage_removing_duplicates,
   & stage_removing_tmp_table,

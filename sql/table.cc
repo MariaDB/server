@@ -4015,7 +4015,7 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   status= STATUS_NO_RECORD;
   insert_values= 0;
   fulltext_searched= 0;
-  file->ha_start_of_new_statement();
+  file->ft_handler= 0;
   reginfo.impossible_range= 0;
   created= TRUE;
   cond_selectivity= 1.0;
@@ -7060,6 +7060,27 @@ bool TABLE_LIST::change_refs_to_fields()
   return FALSE;
 }
 
+
+void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
+{
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar *)&lock))
+    return;
+  /* we call it only when table is opened and it is "leaf" table*/
+  DBUG_ASSERT(table);
+  lock_type= lock;
+  /* table->file->get_table() can be 0 for derived tables */
+  if (table->file && table->file->get_table())
+    table->file->set_lock_type(lock);
+  if (is_merged_derived())
+  {
+    for (TABLE_LIST *table= get_single_select()->get_table_list();
+         table;
+         table= table->next_local)
+    {
+      table->set_lock_type(thd, lock);
+    }
+  }
+}
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {
