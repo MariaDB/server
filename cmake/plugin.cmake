@@ -193,7 +193,15 @@ MACRO(MYSQL_ADD_PLUGIN)
       OUTPUT_NAME "${ARG_MODULE_OUTPUT_NAME}")  
     # Install dynamic library
     IF(ARG_COMPONENT)
-      IF(CPACK_COMPONENTS_ALL AND NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
+      # CPACK_COMPONENTS_ALL contains a list of components for which the
+      # packages would be generated (defined with the initial list under
+      # cpack_rpm.cmake and cpack_deb.cmake). The following lines would
+      # append the current component to this list if it is already not present.
+      # We should avoid this for wsrep builds (WITH_WSREP) as with wsrep build
+      # only server package is required to be generated.
+      IF(CPACK_COMPONENTS_ALL AND
+         NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT} AND
+         NOT WITH_WSREP)
         SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} PARENT_SCOPE)
         SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
 
