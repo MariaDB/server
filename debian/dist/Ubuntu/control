@@ -10,9 +10,28 @@ Homepage: http://mariadb.org/
 Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/5.5/files
 Vcs-Bzr: bzr://lp:maria
 
+Package: mariadb-galera-test-5.5
+Section: database
+Architecture: any
+Depends: mariadb-galera-server-5.5 (= ${source:Version}), mariadb-client-5.5 (>= ${source:Version})
+Suggests: patch
+Conflicts: mariadb-test, mariadb-galera-test (<< ${source:Version}),
+    mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3,
+    mariadb-test-5.5,
+    mariadb-server-5.5, mariadb-galera-server-5.5 (<< 5.5.33)
+Replaces: mariadb-test (<< ${source:Version}), mariadb-galera-test (<< ${source:Version}),
+    mariadb-test-5.1, mariadb-test-5.2, mariadb-test-5.3
+Description: MariaDB database regression test suite
+ MariaDB is a fast, stable and true multi-user, multi-threaded SQL database
+ server. SQL (Structured Query Language) is the most popular database query
+ language in the world. The main goals of MariaDB are speed, robustness and
+ ease of use.
+ .
+ This package includes the regression test suite.
+
 Package: mariadb-galera-server-5.5
 Architecture: any
-Suggests: tinyca, mailx, mariadb-test
+Suggests: tinyca, mailx, mariadb-galera-test
 Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-5.5 (>= ${source:Version}), libdbi-perl, perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc, passwd, lsb-base (>= 3.0-10), libmariadbclient18 (>= ${binary:Version}), galera (>=25.2)
@@ -64,11 +83,11 @@ Description: MariaDB database client (metapackage depending on the latest versio
  maintainers.  Install this package if in doubt about which MariaDB version
  you want, as this is the one we consider to be in the best shape.
 
-Package: mariadb-test
+Package: mariadb-galera-test
 Section: database
 Architecture: all
-Depends: mariadb-test-5.5 (= ${source:Version})
+Depends: mariadb-galera-test-5.5 (= ${source:Version})
 Description: MariaDB database regression test suite (metapackage depending on the latest version)
  This is an empty package that depends on the current "best" version of
- mariadb-test (currently mariadb-test-5.5), as determined by the MariaDB
+ mariadb-galera-test (currently mariadb-galera-test-5.5), as determined by the MariaDB
  maintainers.
