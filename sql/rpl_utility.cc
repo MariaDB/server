@@ -1229,7 +1229,7 @@ bool Deferred_log_events::execute(rpl_group_info *rgi)
 void Deferred_log_events::rewind()
 {
   /*
-    Reset preceeding Query log event events which execution was
+    Reset preceding Query log event events which execution was
     deferred because of slave side filtering.
   */
   if (!is_empty())

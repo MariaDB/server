@@ -14535,7 +14535,7 @@ opt_var_ident_type:
         | SESSION_SYM '.' { $$=OPT_SESSION; }
         ;
 
-// Option values with preceeding option_type.
+// Option values with preceding option_type.
 option_value_following_option_type:
           internal_variable_name equal set_expr_or_default
           {
@@ -14551,7 +14551,7 @@ option_value_following_option_type:
             {
               /*
                 Not in trigger assigning value to new row,
-                and option_type preceeding local variable is illegal.
+                and option_type preceding local variable is illegal.
               */
               my_parse_error(ER(ER_SYNTAX_ERROR));
               MYSQL_YYABORT;
@@ -14559,7 +14559,7 @@ option_value_following_option_type:
           }
         ;
 
-// Option values without preceeding option_type.
+// Option values without preceding option_type.
 option_value_no_option_type:
           internal_variable_name equal set_expr_or_default
           {

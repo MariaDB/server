@@ -1020,8 +1020,8 @@ insert into t2 values ("1", "1", "sup", "0"), ("2", "1", "sup", "1"),
 ("4", "1", "sup", "0");
 create table t3 (
 id int(11) not null default '0',
-preceeding_id int(11) not null default '0',
-primary key  (id,preceeding_id)
+preceding_id int(11) not null default '0',
+primary key  (id,preceding_id)
 );
 create table t4 (
 user_id varchar(50) not null,

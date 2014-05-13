@@ -4427,7 +4427,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   /*
     binlog_annotate_row_events must be TRUE only after an Annotate_rows event
-    has been recieved and only till the last corresponding rbr event has been
+    has been received and only till the last corresponding rbr event has been
     applied. In all other cases it must be FALSE.
   */
   thd->variables.binlog_annotate_row_events= 0;

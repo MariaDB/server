@@ -7097,7 +7097,7 @@ struct my_option my_long_options[]=
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load-add", OPT_PLUGIN_LOAD_ADD,
    "Optional semicolon-separated list of plugins to load. This option adds "
-   "to the list speficied by --plugin-load in an incremental way. "
+   "to the list specified by --plugin-load in an incremental way. "
    "It can be specified many times, adding more plugins every time.",
    0, 0, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},

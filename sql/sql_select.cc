@@ -21094,7 +21094,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
     Item *view_ref= NULL;
     /*
       If we have found field not by its alias in select list but by its
-      original field name, we should additionaly check if we have conflict
+      original field name, we should additionally check if we have conflict
       for this name (in case if we would perform lookup in all tables).
     */
     if (resolution == RESOLVED_BEHIND_ALIAS && !order_item->fixed &&
@@ -22117,7 +22117,7 @@ change_to_use_tmp_fields(THD *thd, Item **ref_pointer_array,
          We are replacing the argument of Item_func_set_user_var after its value
          has been read.  The argument's null_value should be set by now, so we
          must set it explicitly for the replacement argument since the null_value
-         may be read without any preceeding call to val_*().
+         may be read without any preceding call to val_*().
         */
         new_field->update_null_value();
         List<Item> list;

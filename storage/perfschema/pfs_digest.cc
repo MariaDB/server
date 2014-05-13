@@ -47,7 +47,7 @@
 
 /**
   Token array :
-  Token array is an array of bytes to store tokens recieved during parsing.
+  Token array is an array of bytes to store tokens received during parsing.
   Following is the way token array is formed.
 
       ...<non-id-token><non-id-token><id-token><id_len><id_text>...

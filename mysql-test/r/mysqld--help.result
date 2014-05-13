@@ -683,7 +683,7 @@ The following options may be given as the first argument:
  plugins from a given library_file will be loaded.
  --plugin-load-add=name 
  Optional semicolon-separated list of plugins to load.
- This option adds to the list speficied by --plugin-load
+ This option adds to the list specified by --plugin-load
  in an incremental way. It can be specified many times,
  adding more plugins every time.
  --plugin-maturity=name 
@@ -756,7 +756,7 @@ The following options may be given as the first argument:
  --relay-log-space-limit=# 
  Maximum space to use for all relay logs
  --replicate-annotate-row-events 
- Tells the slave to write annotate rows events recieved
+ Tells the slave to write annotate rows events received
  from the master to its own binary log. Ignored if
  log_slave_updates is not set
  --replicate-do-db=name 

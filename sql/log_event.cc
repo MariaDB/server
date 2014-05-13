@@ -4087,7 +4087,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     if ((error= rows_event_stmt_cleanup(rgi, thd)))
     {
       const_cast<Relay_log_info*>(rli)->report(ERROR_LEVEL, error,
-                  "Error in cleaning up after an event preceeding the commit; "
+                  "Error in cleaning up after an event preceding the commit; "
                   "the group log file/position: %s %s",
                   const_cast<Relay_log_info*>(rli)->group_master_log_name,
                   llstr(const_cast<Relay_log_info*>(rli)->group_master_log_pos,
