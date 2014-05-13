@@ -28,23 +28,21 @@ END IF;
 RETURN x;
 END
 ||
+SET sql_log_bin=1;
 include/stop_slave.inc
-SET @old_format= @@SESSION.binlog_format;
-SET binlog_format='statement';
 SET gtid_seq_no = 100;
 BEGIN;
 INSERT INTO t1 VALUES (2,1);
 UPDATE t1 SET b=b+1 WHERE a=1;
 INSERT INTO t1 VALUES (3,1);
 COMMIT;
-SET binlog_format=@old_format;
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2
 2	1
 3	1
 SET @old_dbug= @@GLOBAL.debug_dbug;
-SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_1_100";
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
 include/start_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 retries
@@ -54,6 +52,95 @@ a	b
 1	2
 2	1
 3	1
+*** Test that double retry works when the first retry also fails with temp error ***
+include/stop_slave.inc
+SET gtid_seq_no = 100;
+SET @old_server_id = @@server_id;
+SET server_id = 10;
+BEGIN;
+INSERT INTO t1 VALUES (4,1);
+UPDATE t1 SET b=b+1 WHERE a=1;
+INSERT INTO t1 VALUES (5,1);
+INSERT INTO t1 VALUES (6,1);
+COMMIT;
+SET server_id = @old_server_id;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	3
+2	1
+3	1
+4	1
+5	1
+6	1
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+2
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	3
+2	1
+3	1
+4	1
+5	1
+6	1
+*** Test too many retries, eventually causing failure. ***
+include/stop_slave.inc
+SET gtid_seq_no = 100;
+SET @old_server_id = @@server_id;
+SET server_id = 11;
+BEGIN;
+INSERT INTO t1 VALUES (7,1);
+UPDATE t1 SET b=b+1 WHERE a=1;
+INSERT INTO t1 VALUES (8,1);
+INSERT INTO t1 VALUES (9,1);
+COMMIT;
+SET server_id = @old_server_id;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	4
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave worker thread retried transaction 10 time\\(s\\) in vain, giving up");
+CALL mtr.add_suppression("Slave: Deadlock found when trying to get lock; try restarting transaction");
+SET sql_log_bin=1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_infinite_temp_err_gtid_0_x_100";
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1213]
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+10
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	3
+2	1
+3	1
+4	1
+5	1
+6	1
+STOP SLAVE IO_THREAD;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	4
+2	1
+3	1
+4	1
+5	1
+6	1
+7	1
+8	1
+9	1
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

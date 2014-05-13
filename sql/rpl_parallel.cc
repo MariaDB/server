@@ -188,6 +188,22 @@ unlock_or_exit_cond(THD *thd, mysql_mutex_t *lock, bool *did_enter_cond,
 }
 
 
+#ifndef DBUG_OFF
+static int
+dbug_simulate_tmp_error(rpl_group_info *rgi, THD *thd)
+{
+  if (rgi->current_gtid.domain_id == 0 && rgi->current_gtid.seq_no == 100 &&
+      rgi->retry_event_count == 4)
+  {
+    thd->clear_error();
+    thd->get_stmt_da()->reset_diagnostics_area();
+    my_error(ER_LOCK_DEADLOCK, MYF(0));
+    return 1;
+  }
+  return 0;
+}
+#endif
+
 static int
 retry_handle_relay_log_rotate(Log_event *ev, IO_CACHE *rlog)
 {
@@ -204,15 +220,18 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   File fd;
   const char *errmsg= NULL;
   inuse_relaylog *ir= rgi->relay_log;
-  uint64 event_count= 0;
+  uint64 event_count;
   uint64 events_to_execute= rgi->retry_event_count;
   Relay_log_info *rli= rgi->rli;
-  int err= 0;
+  int err;
   ulonglong cur_offset, old_offset;
   char log_name[FN_REFLEN];
   THD *thd= rgi->thd;
+  ulong retries= 0;
 
 do_retry:
+  event_count= 0;
+  err= 0;
   rgi->cleanup_context(thd, 1);
 
   mysql_mutex_lock(&rli->data_lock);
@@ -268,10 +287,26 @@ do_retry:
     else
       err= retry_handle_relay_log_rotate(ev, &rlog);
     delete_or_keep_event_post_apply(rgi, event_type, ev);
-
+    DBUG_EXECUTE_IF("rpl_parallel_simulate_double_temp_err_gtid_0_x_100",
+                    if (retries == 0) err= dbug_simulate_tmp_error(rgi, thd););
+    DBUG_EXECUTE_IF("rpl_parallel_simulate_infinite_temp_err_gtid_0_x_100",
+                    err= dbug_simulate_tmp_error(rgi, thd););
     if (err)
     {
-      /* ToDo: Need to here also handle second retry. */
+      if (has_temporary_error(thd))
+      {
+        ++retries;
+        if (retries < slave_trans_retries)
+        {
+          end_io_cache(&rlog);
+          mysql_file_close(fd, MYF(MY_WME));
+          goto do_retry;
+        }
+        sql_print_error("Slave worker thread retried transaction %lu time(s) "
+                        "in vain, giving up. Consider raising the value of "
+                        "the slave_transaction_retries variable.",
+                        slave_trans_retries);
+      }
       goto err;
     }
 
@@ -592,29 +627,23 @@ handle_rpl_parallel_thread(void *arg)
       {
         ++rgi->retry_event_count;
         err= rpt_handle_event(events, rpt);
-        DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_1_100",
-          if (rgi->current_gtid.domain_id == 0 &&
-              rgi->current_gtid.server_id == 1 &&
-              rgi->current_gtid.seq_no == 100 &&
-              rgi->retry_event_count == 4)
-          {
-            thd->clear_error();
-            thd->get_stmt_da()->reset_diagnostics_area();
-            my_error(ER_LOCK_DEADLOCK, MYF(0));
-            err= 1;
-          };);
+        delete_or_keep_event_post_apply(rgi, event_type, events->ev);
+        DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
+                        err= dbug_simulate_tmp_error(rgi, thd););
         if (err && has_temporary_error(thd))
           err= retry_event_group(rgi, rpt, events);
       }
       else
+      {
+        delete events->ev;
         err= thd->wait_for_prior_commit();
+      }
 
       end_of_group=
         in_event_group &&
         ((group_standalone && !Log_event::is_part_of_group(event_type)) ||
          group_ending);
 
-      delete_or_keep_event_post_apply(rgi, event_type, events->ev);
       events->next= qevs_to_free;
       qevs_to_free= events;
 
@@ -1528,15 +1557,9 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
   if (typ == GTID_EVENT)
   {
-    uint32 domain_id;
-    if (likely(typ == GTID_EVENT))
-    {
-      Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
-      domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ?
-                  0 : gtid_ev->domain_id);
-    }
-    else
-      domain_id= 0;
+    Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
+    uint32 domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ?
+                       0 : gtid_ev->domain_id);
     if (!(e= find(domain_id)))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(MY_WME));
