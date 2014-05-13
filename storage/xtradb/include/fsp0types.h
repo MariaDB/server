@@ -41,14 +41,17 @@ fseg_alloc_free_page) */
 #define	FSP_NO_DIR	((byte)113)	/*!< no order */
 /* @} */
 
-/** File space extent size (one megabyte) in pages */
-#define	FSP_EXTENT_SIZE		(1048576U / UNIV_PAGE_SIZE)
+/** File space extent size (one megabyte if default two or four if not) in pages */
+#define	FSP_EXTENT_SIZE		((UNIV_PAGE_SIZE <= (1 << 14) ?		\
+				(1048576U / UNIV_PAGE_SIZE) : \
+				((UNIV_PAGE_SIZE <= 1 << 15) ? \
+				(2097152U / UNIV_PAGE_SIZE) : (4194304U / UNIV_PAGE_SIZE))))
 
-/** File space extent size (one megabyte) in pages for MAX page size */
-#define	FSP_EXTENT_SIZE_MAX	(1048576 / UNIV_PAGE_SIZE_MAX)
+/** File space extent size (four megabytes) in pages for MAX page size */
+#define	FSP_EXTENT_SIZE_MAX	(4194304U / UNIV_PAGE_SIZE_MAX)
 
 /** File space extent size (one megabyte) in pages for MIN page size */
-#define	FSP_EXTENT_SIZE_MIN	(1048576 / UNIV_PAGE_SIZE_MIN)
+#define	FSP_EXTENT_SIZE_MIN	(1048576U / UNIV_PAGE_SIZE_MIN)
 
 /** On a page of any file segment, data may be put starting from this
 offset */

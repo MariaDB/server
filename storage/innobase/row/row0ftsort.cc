@@ -1405,8 +1405,9 @@ row_fts_merge_insert(
 		fd[i] = psort_info[i].merge_file[id]->fd;
 		foffs[i] = 0;
 
-		buf[i] = static_cast<unsigned char (*)[16384]>(
+		buf[i] = static_cast<unsigned char (*)[65536]>(
 			mem_heap_alloc(heap, sizeof *buf[i]));
+
 		count_diag += (int) psort_info[i].merge_file[id]->n_rec;
 	}
 

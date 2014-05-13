@@ -3284,6 +3284,23 @@ innobase_init(
 	} else {
 		srv_log_block_size = 512;
 	}
+
+	if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_DEF) {
+		fprintf(stderr,
+			"InnoDB: Warning: innodb_page_size has been "
+			"changed from default value %d to %ldd. (###EXPERIMENTAL### "
+			"operation)\n", UNIV_PAGE_SIZE_DEF, UNIV_PAGE_SIZE);
+
+		/* There is hang on buffer pool when trying to get a new
+		page if buffer pool size is too small for large page sizes */
+		if (innobase_buffer_pool_size < (24 * 1024 * 1024)) {
+			fprintf(stderr, "InnoDB: Error: innobase_page_size %lu requires "
+				"innodb_buffer_pool_size > 24M current %lld",
+				UNIV_PAGE_SIZE, innobase_buffer_pool_size);
+			goto error;
+		}
+	}
+
 	ut_ad (srv_log_block_size >= OS_MIN_LOG_BLOCK_SIZE);
 
 	if (!srv_log_block_size) {

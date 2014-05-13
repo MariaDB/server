@@ -3,6 +3,7 @@
 # columns are stored off-page.
 
 --source include/have_innodb.inc
+--source include/have_innodb_16k.inc
 
 # DEBUG_SYNC must be compiled in.
 --source include/have_debug_sync.inc

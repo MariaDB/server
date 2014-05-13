@@ -1,0 +1,1 @@
+--default_storage_engine=InnoDB --innodb-buffer-pool-size=24M

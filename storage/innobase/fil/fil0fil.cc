@@ -829,13 +829,17 @@ fil_node_open_file(
 			ut_error;
 		}
 
-		if (size_bytes >= 1024 * 1024) {
-			/* Truncate the size to whole megabytes. */
-			size_bytes = ut_2pow_round(size_bytes, 1024 * 1024);
+		if (size_bytes >= FSP_EXTENT_SIZE * UNIV_PAGE_SIZE) {
+			/* Truncate the size to whole extent size. */
+			size_bytes = ut_2pow_round(size_bytes,
+						   FSP_EXTENT_SIZE *
+						   UNIV_PAGE_SIZE);
 		}
 
 		if (!fsp_flags_is_compressed(flags)) {
-			node->size = (ulint) (size_bytes / UNIV_PAGE_SIZE);
+			node->size = (ulint)
+				(size_bytes
+				 / fsp_flags_get_page_size(flags));
 		} else {
 			node->size = (ulint)
 				(size_bytes
@@ -1987,6 +1991,9 @@ fil_check_first_page(
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
 	if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
+		fprintf(stderr, "InnoDB: Error: Current page size %lu != page size on page %lu\n",
+			UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
+
 		return("innodb-page-size mismatch");
 	}
 
