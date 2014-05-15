@@ -92,6 +92,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   mysql_cond_init(key_relay_log_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_relay_log_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_relay_log_info_log_space_cond, &log_space_cond, NULL);
+  my_atomic_rwlock_init(&inuse_relaylog_atomic_lock);
   relay_log.init_pthread_objects();
   DBUG_VOID_RETURN;
 }
@@ -117,6 +118,7 @@ Relay_log_info::~Relay_log_info()
   mysql_cond_destroy(&start_cond);
   mysql_cond_destroy(&stop_cond);
   mysql_cond_destroy(&log_space_cond);
+  my_atomic_rwlock_destroy(&inuse_relaylog_atomic_lock);
   relay_log.cleanup();
   DBUG_VOID_RETURN;
 }
@@ -1365,7 +1367,10 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
   if (!inuse_relaylog_list)
     inuse_relaylog_list= ir;
   else
+  {
+    last_inuse_relaylog->completed= true;
     last_inuse_relaylog->next= ir;
+  }
   last_inuse_relaylog= ir;
 
   return 0;

@@ -9,6 +9,7 @@ struct rpl_parallel_entry;
 struct rpl_parallel_thread_pool;
 
 class Relay_log_info;
+struct inuse_relaylog;
 
 
 /*
@@ -73,6 +74,7 @@ struct rpl_parallel_thread {
     queued_event *next;
     Log_event *ev;
     rpl_group_info *rgi;
+    inuse_relaylog *ir;
     ulonglong future_event_relay_log_pos;
     char event_relay_log_name[FN_REFLEN];
     char future_event_master_log_name[FN_REFLEN];

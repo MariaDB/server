@@ -4097,6 +4097,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 {
   int error;
   char *to_purge_if_included= NULL;
+  inuse_relaylog *ir;
   DBUG_ENTER("purge_first_log");
 
   DBUG_ASSERT(is_open());
@@ -4104,7 +4105,30 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   DBUG_ASSERT(!strcmp(rli->linfo.log_file_name,rli->event_relay_log_name));
 
   mysql_mutex_lock(&LOCK_index);
-  to_purge_if_included= my_strdup(rli->group_relay_log_name, MYF(0));
+
+  ir= rli->inuse_relaylog_list;
+  while (ir)
+  {
+    inuse_relaylog *next= ir->next;
+    if (!ir->completed || ir->dequeued_count < ir->queued_count)
+    {
+      included= false;
+      break;
+    }
+    if (!included && 0 == strcmp(ir->name, rli->group_relay_log_name))
+      break;
+    if (!next)
+    {
+      rli->last_inuse_relaylog= NULL;
+      included= 1;
+      to_purge_if_included= my_strdup(ir->name, MYF(0));
+    }
+    my_free(ir);
+    ir= next;
+  }
+  rli->inuse_relaylog_list= ir;
+  if (ir)
+    to_purge_if_included= my_strdup(ir->name, MYF(0));
 
   /*
     Read the next log file name from the index file and pass it back to

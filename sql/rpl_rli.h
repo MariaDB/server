@@ -170,6 +170,7 @@ public:
   */
   inuse_relaylog *inuse_relaylog_list;
   inuse_relaylog *last_inuse_relaylog;
+  my_atomic_rwlock_t inuse_relaylog_atomic_lock;
 
   /*
     Needed to deal properly with cur_log getting closed and re-opened with
@@ -481,12 +482,26 @@ private:
   Each rpl_group_info has a pointer to one of those, corresponding to the
   first GTID event.
 
-  A reference count keeps track of how long a relay log is potentially in use.
+  A pair of reference count keeps track of how long a relay log is potentially
+  in use. When the `completed' flag is set, all events have been read out of
+  the relay log, but the log might still be needed for retry in worker
+  threads.  As worker threads complete an event group, they increment
+  atomically the `dequeued_count' with number of events queued. Thus, when
+  completed is set and dequeued_count equals queued_count, the relay log file
+  is finally done with and can be purged.
+
+  By separating the queued and dequeued count, only the dequeued_count needs
+  multi-thread synchronisation; the completed flag and queued_count fields
+  are only accessed by the SQL driver thread and need no synchronisation.
 */
 struct inuse_relaylog {
   inuse_relaylog *next;
-  uint64 queued_count;
-  uint64 dequeued_count;
+  /* Number of events in this relay log queued for worker threads. */
+  int64 queued_count;
+  /* Number of events completed by worker threads. */
+  volatile int64 dequeued_count;
+  /* Set when all events have been read from a relaylog. */
+  bool completed;
   char name[FN_REFLEN];
 };
 
