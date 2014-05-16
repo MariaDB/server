@@ -113,7 +113,6 @@ typedef struct wrk_itm
         ulint		n_flushed; 	/*!< Flushed pages count  */
  	os_thread_id_t	id_usr;		/*!< Thread-id currently working */
     	wrk_status_t    wi_status;	/*!< Work item status */
- 	struct wrk_itm	*next;		/*!< Next work item */
 	mem_heap_t      *wheap;         /*!< Heap were to allocate memory
 					for queue nodes */
 	mem_heap_t      *rheap;
@@ -262,6 +261,9 @@ mtflush_service_io(
 		work_item->wi_status = WRK_ITEM_SET;
 	}
 
+#ifdef UNIV_MTFLUSH_DEBUG
+	ut_a(work_item->id_usr == 0);
+#endif
 	work_item->id_usr = os_thread_get_curr_id();
 
 	/*  This works as a producer/consumer model, where in tasks are
@@ -365,7 +367,6 @@ buf_mtflu_io_thread_exit(void)
 
 	/* Allocate work items for shutdown message */
 	work_item = (wrk_t*)mem_heap_alloc(mtflush_io->wheap, sizeof(wrk_t)*srv_mtflush_threads);
-	memset(work_item, 0, sizeof(wrk_t)*srv_mtflush_threads);
 
 	/* Confirm if the io-thread KILL is in progress, bailout */
 	if (mtflush_io->gwt_status == WTHR_KILL_IT) {
@@ -383,6 +384,7 @@ buf_mtflu_io_thread_exit(void)
 		work_item[i].wi_status = WRK_ITEM_EXIT;
 		work_item[i].wheap = mtflush_io->wheap;
 		work_item[i].rheap = mtflush_io->rheap;
+		work_item[i].id_usr = 0;
 
 		ib_wqueue_add(mtflush_io->wq,
 			(void *)&(work_item[i]),
@@ -518,7 +520,6 @@ buf_mtflu_flush_work_items(
 	node items areallocated */
 	work_heap = mem_heap_create(0);
 	reply_heap = mem_heap_create(0);
-	memset(work_item, 0, sizeof(wrk_t)*MTFLUSH_MAX_WORKER);
 
 
 	for(i=0;i<buf_pool_inst; i++) {
@@ -530,6 +531,8 @@ buf_mtflu_flush_work_items(
 		work_item[i].wi_status = WRK_ITEM_UNSET;
 		work_item[i].wheap = work_heap;
 		work_item[i].rheap = reply_heap;
+		work_item[i].n_flushed = 0;
+		work_item[i].id_usr = 0;
 
 		ib_wqueue_add(mtflush_ctx->wq,
 			(void *)(work_item + i),
@@ -544,7 +547,7 @@ buf_mtflu_flush_work_items(
 		if (done_wi != NULL) {
 			per_pool_pages_flushed[i] = done_wi->n_flushed;
 
-#if UNIV_DEBUG
+#ifdef UNIV_MTFLUSH_DEBUG
 			if((int)done_wi->id_usr == 0 &&
 				(done_wi->wi_status == WRK_ITEM_SET ||
 					done_wi->wi_status == WRK_ITEM_UNSET)) {
