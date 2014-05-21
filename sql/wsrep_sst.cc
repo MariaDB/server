@@ -113,7 +113,7 @@ bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
     return 0;
 }
 
-bool wsrep_sst_receive_address_update (sys_var *self, THD* thd, 
+bool wsrep_sst_receive_address_update (sys_var *self, THD* thd,
                                        enum_var_type type)
 {
     return 0;
@@ -138,7 +138,7 @@ static bool sst_auth_real_set (const char* value)
           {
             my_free ((void*)wsrep_sst_auth);
             wsrep_sst_auth = my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
-            //strncpy (wsrep_sst_auth, WSREP_SST_AUTH_MASK, 
+            //strncpy (wsrep_sst_auth, WSREP_SST_AUTH_MASK,
             //     sizeof(wsrep_sst_auth) - 1);
           }
           else
@@ -763,9 +763,11 @@ static int sst_donate_mysqldump (const char*         addr,
               WSREP_SST_OPT_PORT" '%s' "
               WSREP_SST_OPT_LPORT" '%u' "
               WSREP_SST_OPT_SOCKET" '%s' "
+              WSREP_SST_OPT_CONF" '%s' "
               WSREP_SST_OPT_GTID" '%s:%lld'"
               "%s",
-              user, pswd, host, port, mysqld_port, mysqld_unix_port, uuid_str,
+              user, pswd, host, port, mysqld_port, mysqld_unix_port,
+              wsrep_defaults_file, uuid_str,
               (long long)seqno, bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
     WSREP_DEBUG("Running: '%s'", cmd_str);
@@ -799,7 +801,7 @@ static int run_sql_command(THD *thd, const char *query)
     int const err= thd->get_stmt_da()->sql_errno();
     WSREP_WARN ("error executing '%s': %d (%s)%s",
                 query, err, thd->get_stmt_da()->message(),
-                err == ER_UNKNOWN_SYSTEM_VARIABLE ? 
+                err == ER_UNKNOWN_SYSTEM_VARIABLE ?
                 ". Was mysqld built with --with-innodb-disallow-writes ?" : "");
     thd->clear_error();
     return -1;

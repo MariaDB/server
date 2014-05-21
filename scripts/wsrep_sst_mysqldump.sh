@@ -1,15 +1,15 @@
-#!/bin/sh -e
+#!/bin/bash -e
 # Copyright (C) 2009 Codership Oy
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
@@ -65,6 +65,11 @@ then
     exit $EINVAL
 fi
 
+# For Bug:1293798
+if [ -z "$WSREP_SST_OPT_PSWD" -a -n "$WSREP_SST_OPT_AUTH" ]; then
+    WSREP_SST_OPT_USER=$(echo $WSREP_SST_OPT_AUTH | cut -d: -f1)
+    WSREP_SST_OPT_PSWD=$(echo $WSREP_SST_OPT_AUTH | cut -d: -f2)
+fi
 AUTH="-u$WSREP_SST_OPT_USER"
 if test -n "$WSREP_SST_OPT_PSWD"; then AUTH="$AUTH -p$WSREP_SST_OPT_PSWD"; fi
 
@@ -123,4 +128,5 @@ else
     wsrep_log_info "Bypassing state dump."
     echo $SET_START_POSITION | $MYSQL
 fi
-
+wsrep_cleanup_progress_file
+#

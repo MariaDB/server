@@ -513,11 +513,17 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
 
     DBUG_RETURN(WSREP_TRX_CERT_FAIL);
 
+  case WSREP_SIZE_EXCEEDED:
+    WSREP_ERROR("transaction size exceeded");
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    DBUG_RETURN(WSREP_TRX_SIZE_EXCEEDED);
   case WSREP_CONN_FAIL:
     WSREP_ERROR("connection failure");
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     DBUG_RETURN(WSREP_TRX_ERROR);
   default:
     WSREP_ERROR("unknown connection failure");
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
     DBUG_RETURN(WSREP_TRX_ERROR);
   }
 

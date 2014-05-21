@@ -75,15 +75,18 @@ void wsrep_notify_status (wsrep_member_status_t    status,
     cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off,
                          " --index %d", view->my_idx);
 
-    cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off, " --members");
-
-    for (int i = 0; i < view->memb_num; i++)
+    if (view->memb_num)
     {
-      wsrep_uuid_print (&view->members[i].id, uuid_str, sizeof(uuid_str));
-      cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off,
-                           "%c%s/%s/%s", i > 0 ? ',' : ' ',
-                           uuid_str, view->members[i].name,
-                           view->members[i].incoming);
+        cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off, " --members");
+
+        for (int i = 0; i < view->memb_num; i++)
+        {
+            wsrep_uuid_print (&view->members[i].id, uuid_str, sizeof(uuid_str));
+            cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off,
+                                 "%c%s/%s/%s", i > 0 ? ',' : ' ',
+                                 uuid_str, view->members[i].name,
+                                 view->members[i].incoming);
+        }
     }
   }
 
