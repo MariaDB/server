@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
 
 
-# Handle/create the "INFO_*" files describing a MySQL (server) binary.
+# Handle/create the "INFO_*" files describing a MariaDB (server) binary.
 # This is part of the fix for bug#42969.
 
 
@@ -28,6 +28,7 @@ SET(CMAKE_BINARY_DIR "@CMAKE_BINARY_DIR@")
 SET(CMAKE_GENERATOR "@CMAKE_GENERATOR@")
 SET(CMAKE_SIZEOF_VOID_P "@CMAKE_SIZEOF_VOID_P@")
 SET(BZR_EXECUTABLE "@BZR_EXECUTABLE@")
+SET(GIT_EXECUTABLE "@GIT_EXECUTABLE@")
 SET(CMAKE_CROSSCOMPILING "@CMAKE_CROSSCOMPILING@")
 SET(CMAKE_HOST_SYSTEM "@CMAKE_HOST_SYSTEM@")
 SET(CMAKE_HOST_SYSTEM_PROCESSOR "@CMAKE_HOST_SYSTEM_PROCESSOR@")
@@ -54,7 +55,19 @@ MACRO(CREATE_INFO_SRC target_dir)
     FILE(WRITE ${INFO_SRC} "${VERSION_INFO}\n")
     # to debug, add: FILE(APPEND ${INFO_SRC} "\nResult ${RESULT}\n")
     # For better readability ...
-    FILE(APPEND ${INFO_SRC} "\nMySQL source ${VERSION}\n")
+    FILE(APPEND ${INFO_SRC} "\nMariaDB source ${VERSION}\n")
+  ELSEIF(EXISTS ${CMAKE_SOURCE_DIR}/.git)
+    # Sources are in a GIT repository: Always update.
+    EXECUTE_PROCESS(
+      COMMAND ${GIT_EXECUTABLE} log -1 "--format=commit: %H%nauthor: %an <%ae>%ndate: %aD%nbranch: %d"
+      WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+      OUTPUT_VARIABLE VERSION_INFO
+      RESULT_VARIABLE RESULT
+    )
+    FILE(WRITE ${INFO_SRC} "${VERSION_INFO}\n")
+    # to debug, add: FILE(APPEND ${INFO_SRC} "\nResult ${RESULT}\n")
+    # For better readability ...
+    FILE(APPEND ${INFO_SRC} "\nMariaDB source ${VERSION}\n")
   ELSEIF(EXISTS ${INFO_SRC})
     # Outside a BZR tree, there is no need to change an existing "INFO_SRC",
     # it cannot be improved.
@@ -69,7 +82,7 @@ MACRO(CREATE_INFO_SRC target_dir)
     FILE(WRITE ${INFO_SRC} "${SOURCE_INFO}\n")
   ELSE()
     # This is a fall-back.
-    FILE(WRITE ${INFO_SRC} "\nMySQL source ${VERSION}\n")
+    FILE(WRITE ${INFO_SRC} "\nMariaDB source ${VERSION}\n")
   ENDIF()
 ENDMACRO(CREATE_INFO_SRC)
 

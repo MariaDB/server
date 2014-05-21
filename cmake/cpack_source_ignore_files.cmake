@@ -17,6 +17,8 @@ SET(CPACK_SOURCE_IGNORE_FILES
 \\\\.bzr/
 \\\\.bzr-mysql
 \\\\.bzrignore
+\\\\.git/
+\\\\.gitignore
 CMakeCache\\\\.txt
 cmake_dist\\\\.cmake
 CPackSourceConfig\\\\.cmake
