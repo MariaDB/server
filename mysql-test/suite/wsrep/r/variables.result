@@ -52,6 +52,7 @@ wsrep_local_state	#
 wsrep_local_state_comment	#
 wsrep_cert_index_size	#
 wsrep_causal_reads	#
+wsrep_cert_interval	#
 wsrep_incoming_addresses	#
 wsrep_cluster_conf_id	#
 wsrep_cluster_size	#
@@ -101,6 +102,7 @@ wsrep_local_state	#
 wsrep_local_state_comment	#
 wsrep_cert_index_size	#
 wsrep_causal_reads	#
+wsrep_cert_interval	#
 wsrep_incoming_addresses	#
 wsrep_cluster_conf_id	#
 wsrep_cluster_size	#
