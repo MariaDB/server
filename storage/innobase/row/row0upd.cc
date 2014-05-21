@@ -365,6 +365,7 @@ wsrep_row_upd_check_foreign_constraints(
 	ulint		n_ext;
 	dberr_t		err;
 	ibool		got_s_lock	= FALSE;
+	ibool		opened     	= FALSE;
 
 	if (UT_LIST_GET_FIRST(table->foreign_list) == NULL) {
 
@@ -412,6 +413,7 @@ wsrep_row_upd_check_foreign_constraints(
 					dict_table_open_on_name(
 					  foreign->referenced_table_name_lookup,
 					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+				opened = TRUE;
 			}
 
 			if (foreign->referenced_table) {
@@ -440,6 +442,11 @@ wsrep_row_upd_check_foreign_constraints(
 				(foreign->referenced_table
 				 ->n_foreign_key_checks_running)--;
 
+				if (opened == TRUE) {
+					dict_table_close(foreign->referenced_table, TRUE, FALSE);
+					opened = FALSE;
+				}
+				
 				mutex_exit(&(dict_sys->mutex));
 			}
 

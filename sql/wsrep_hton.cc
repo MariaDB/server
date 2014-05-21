@@ -77,10 +77,10 @@ void wsrep_register_hton(THD* thd, bool all)
         trans_register_ha(thd, all, wsrep_hton);
 
         /* follow innodb read/write settting
-         * but, as an exception: CTAS with empty result set will not be 
+         * but, as an exception: CTAS with empty result set will not be
          * replicated unless we declare wsrep hton as read/write here
 	 */
-        if (i->is_trx_read_write() || 
+        if (i->is_trx_read_write() ||
             (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
              thd->wsrep_exec_mode == LOCAL_STATE))
         {
@@ -104,7 +104,7 @@ void wsrep_post_commit(THD* thd, bool all)
     if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
     {
         DBUG_PRINT("wsrep", ("set committed fail"));
-        WSREP_WARN("set committed fail: %llu %d", 
+        WSREP_WARN("set committed fail: %llu %d",
                    (long long)thd->real_id, thd->get_stmt_da()->status());
     }
     wsrep_cleanup_transaction(thd);
@@ -202,7 +202,7 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   switch (thd->wsrep_exec_mode)
   {
   case TOTAL_ORDER:
-  case REPL_RECV: 
+  case REPL_RECV:
       mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
       WSREP_DEBUG("Avoiding wsrep rollback for failed DDL: %s", thd->query());
       DBUG_RETURN(0);
@@ -280,7 +280,7 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
   int replay_round= 0;
 
   if (thd->get_stmt_da()->is_error()) {
-    WSREP_ERROR("commit issue, error: %d %s", 
+    WSREP_ERROR("commit issue, error: %d %s",
                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
 

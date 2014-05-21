@@ -443,7 +443,7 @@ static void wsrep_synced_cb(void* app_ctx)
                             active_mi,
                             master_info_file,
                             relay_log_info_file,
-                       	    SLAVE_SQL)))
+                            SLAVE_SQL)))
     {
       WSREP_WARN("Failed to create slave threads: %d", rcode);
     }
@@ -1008,8 +1008,8 @@ static bool wsrep_prepare_keys_for_isolation(THD*              thd,
         memset(&tmp_table, 0, sizeof(tmp_table));
         tmp_table.table_name= (char*)table;
         tmp_table.db= (char*)db;
-	tmp_table.mdl_request.init(MDL_key::GLOBAL, (db) ? db :  "", 
-				   (table) ? table : "", 
+	tmp_table.mdl_request.init(MDL_key::GLOBAL, (db) ? db :  "",
+				   (table) ? table : "",
 				   MDL_INTENTION_EXCLUSIVE, MDL_STATEMENT);
 
         if (!table || !find_temporary_table(thd, &tmp_table))
@@ -1149,8 +1149,8 @@ int wsrep_to_buf_helper(
   /* if there is prepare query, add event for it */
   if (!ret && thd->wsrep_TOI_pre_query)
   {
-    Query_log_event ev(thd, thd->wsrep_TOI_pre_query, 
-		       thd->wsrep_TOI_pre_query_len, 
+    Query_log_event ev(thd, thd->wsrep_TOI_pre_query,
+		       thd->wsrep_TOI_pre_query_len,
 		       FALSE, FALSE, FALSE, 0);
     if (ev.write(&tmp_io_cache)) ret= 1;
   }

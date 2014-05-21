@@ -860,10 +860,27 @@ then
             fi
         fi
 
+
+        if  [[ ! -z $WSREP_SST_OPT_BINLOG ]];then
+
+            BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
+            BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+
+            # To avoid comparing data directory and BINLOG_DIRNAME 
+            mv $DATA/${BINLOG_FILENAME}.* $BINLOG_DIRNAME/ 2>/dev/null || true
+
+            pushd $BINLOG_DIRNAME &>/dev/null
+            for bfiles in $(ls -1 ${BINLOG_FILENAME}.*);do
+                echo ${BINLOG_DIRNAME}/${bfiles} >> ${BINLOG_FILENAME}.index
+            done
+            popd &> /dev/null
+
+        fi
+
         if [[ $incremental -eq 1 ]];then 
             # Added --ibbackup=xtrabackup_55 because it fails otherwise citing connection issues.
             INNOAPPLY="${INNOBACKUPEX_BIN} $disver --defaults-file=${WSREP_SST_OPT_CONF} \
-                --ibbackup=xtrabackup_55 --apply-log $rebuildcmd --redo-only $BDATA --incremental-dir=${DATA} &>>${BDATA}/innobackup.prepare.log"
+                --ibbackup=xtrabackup_56 --apply-log $rebuildcmd --redo-only $BDATA --incremental-dir=${DATA} &>>${BDATA}/innobackup.prepare.log"
         fi
 
         wsrep_log_info "Preparing the backup at ${DATA}"

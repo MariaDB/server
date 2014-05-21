@@ -62,7 +62,6 @@ err:
 #include "rpl_rli.h"     // class Relay_log_info;
 #include "sql_base.h"    // close_temporary_table()
 
-
 static inline void
 wsrep_set_apply_format(THD* thd, Format_description_log_event* ev)
 {
@@ -94,7 +93,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
   int rcode= 0;
   int event= 1;
 
-  DBUG_ENTER("wsrep_apply_rbr");
+  DBUG_ENTER("wsrep_apply_events");
 
   if (thd->killed == KILL_CONNECTION)
   {
@@ -118,7 +117,6 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
     Log_event* ev= wsrep_read_log_event(&buf, &buf_len,
                                         wsrep_get_apply_format(thd));
 
-
     if (!ev)
     {
       WSREP_ERROR("applier could not read binlog event, seqno: %lld, len: %zu",
@@ -126,6 +124,7 @@ static wsrep_cb_status_t wsrep_apply_events(THD*        thd,
       rcode= 1;
       goto error;
     }
+
     switch (ev->get_type_code()) {
     case FORMAT_DESCRIPTION_EVENT:
       wsrep_set_apply_format(thd, (Format_description_log_event*)ev);
@@ -367,6 +366,7 @@ wsrep_cb_status_t wsrep_commit_cb(void*         const     ctx,
 
   return rcode;
 }
+
 
 wsrep_cb_status_t wsrep_unordered_cb(void*       const ctx,
                                      const void* const data,
