@@ -4626,6 +4626,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       {
         slave_output_error_info(rli, thd);
 #ifdef WITH_WSREP
+        uint32 const last_errno= rli->last_error().number;
         if (WSREP_ON && last_errno == ER_UNKNOWN_COM_ERROR)
         {
 	  wsrep_node_dropped= TRUE;
