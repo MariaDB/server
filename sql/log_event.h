@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -663,7 +663,8 @@ enum Log_event_type
   PRE_GA_DELETE_ROWS_EVENT = 22,
 
   /*
-    These event numbers are used from 5.1.16 until mysql-trunk-xx
+    These event numbers are used from 5.1.16 until mysql-5.6.6,
+    and in MariaDB
    */
   WRITE_ROWS_EVENT_V1 = 23,
   UPDATE_ROWS_EVENT_V1 = 24,
@@ -685,11 +686,13 @@ enum Log_event_type
     data to the slave: data that a slave can handle in case there
     is code for handling it, but which can be ignored if it is not
     recognized.
+
+    These mysql-5.6 events are not recognized (and ignored) by MariaDB
   */
   IGNORABLE_LOG_EVENT= 28,
   ROWS_QUERY_LOG_EVENT= 29,
  
-  /* Version 2 of the Row events */
+  /* Version 2 of the Row events, generated only by mysql-5.6.6+ */
   WRITE_ROWS_EVENT = 30,
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,
@@ -4340,7 +4343,21 @@ protected:
   bool process_triggers(trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
-#endif //defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+
+  /**
+    Helper function to check whether there is an auto increment
+    column on the table where the event is to be applied.
+
+    @return true if there is an autoincrement field on the extra
+            columns, false otherwise.
+   */
+  inline bool is_auto_inc_in_extra_columns()
+  {
+    DBUG_ASSERT(m_table);
+    return (m_table->next_number_field &&
+            m_table->next_number_field->field_index >= m_width);
+  }
+#endif
 
 private:
 

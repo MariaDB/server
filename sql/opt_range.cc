@@ -2181,7 +2181,7 @@ int QUICK_ROR_INTERSECT_SELECT::init_ror_merged_scan(bool reuse_handler,
     quick->record= head->record[0];
   }
 
-  if (need_to_fetch_row && head->file->ha_rnd_init_with_error(1))
+  if (need_to_fetch_row && head->file->ha_rnd_init_with_error(false))
   {
     DBUG_PRINT("error", ("ROR index_merge rnd_init call failed"));
     DBUG_RETURN(1);
@@ -2363,8 +2363,13 @@ int QUICK_ROR_UNION_SELECT::reset()
     quick->save_last_pos();
     queue_insert(&queue, (uchar*)quick);
   }
-
-  if ((error= head->file->ha_rnd_init(1)))
+  /* Prepare for ha_rnd_pos calls. */
+  if (head->file->inited && (error= head->file->ha_rnd_end()))
+  {
+    DBUG_PRINT("error", ("ROR index_merge rnd_end call failed"));
+    DBUG_RETURN(error);
+  }
+  if ((error= head->file->ha_rnd_init(false)))
   {
     DBUG_PRINT("error", ("ROR index_merge rnd_init call failed"));
     DBUG_RETURN(error);
@@ -3390,6 +3395,17 @@ double records_in_column_ranges(PARAM *param, uint idx,
     on the rows of 'table' in the processed query.
     The calculated selectivity is assigned to the field table->cond_selectivity.
     
+    Selectivity is calculated as a product of selectivities imposed by:
+
+    1. possible range accesses. (if multiple range accesses use the same
+       restrictions on the same field, we make adjustments for that)
+    2. Sargable conditions on fields for which we have column statistics (if 
+       a field is used in a possible range access, we assume that selectivity
+       is already provided by the range access' estimates)
+    3. Reading a few records from the table pages and checking the condition
+       selectivity (this is used for conditions like "column LIKE '%val%'" 
+       where approaches #1 and #2 do not provide selectivity data).
+
   NOTE
     Currently the selectivities of range conditions over different columns are
     considered independent. 
@@ -3415,14 +3431,90 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   if (table->pos_in_table_list->schema_table)
     DBUG_RETURN(FALSE);
   
+  MY_BITMAP handled_columns;
+  my_bitmap_map* buf;
+  if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
+    DBUG_RETURN(TRUE);
+  my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
+
+  /*
+    First, take into account possible range accesses. 
+    range access estimates are the most precise, we prefer them to any other
+    estimate sources.
+  */
+
+  for (keynr= 0;  keynr < table->s->keys; keynr++)
+  {
+    if (table->quick_keys.is_set(keynr))
+      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
+  }
+
+  /* 
+    Walk through all indexes, indexes where range access uses more keyparts 
+    go first.
+  */
+  for (uint quick_key_parts= max_quick_key_parts;
+       quick_key_parts; quick_key_parts--)
+  {
+    for (keynr= 0;  keynr < table->s->keys; keynr++)
+    {
+      if (table->quick_keys.is_set(keynr) &&
+          table->quick_key_parts[keynr] == quick_key_parts)
+      {
+        uint i;
+        uint used_key_parts= table->quick_key_parts[keynr];
+        double quick_cond_selectivity= table->quick_rows[keynr] / 
+	                               table_records;
+        KEY *key_info= table->key_info + keynr;
+        KEY_PART_INFO* key_part= key_info->key_part;
+        /*
+          Suppose, there are range conditions on two keys
+            KEY1 (col1, col2)
+            KEY2 (col3, col2)
+          
+          we don't want to count selectivity of condition on col2 twice.
+          
+          First, find the longest key prefix that's made of columns whose
+          selectivity wasn't already accounted for.
+        */
+        for (i= 0; i < used_key_parts; i++, key_part++)
+        {
+          if (bitmap_is_set(&handled_columns, key_part->fieldnr-1))
+	    break; 
+          bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
+        }
+        if (i)
+        {
+          /* 
+            There is at least 1-column prefix of columns whose selectivity has
+            not yet been accounted for.
+          */
+          table->cond_selectivity*= quick_cond_selectivity;
+          if (i != used_key_parts)
+	  {
+            /*
+              Range access got us estimate for #used_key_parts.
+              We need estimate for #(i-1) key parts.
+            */
+            double f1= key_info->actual_rec_per_key(i-1);
+            double f2= key_info->actual_rec_per_key(i);
+            table->cond_selectivity*= f1 / f2;
+          }
+        }
+      }
+    }
+  }
+   
+  /* 
+    Second step: calculate the selectivity of the range conditions not 
+    supported by any index
+  */
+  bitmap_subtract(used_fields, &handled_columns);
+  /* no need to do: my_bitmap_free(&handled_columns); */
+
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
   {
-    /* 
-      Calculate the selectivity of the range conditions not supported
-      by any index
-    */
-
     PARAM param;
     MEM_ROOT alloc;
     SEL_TREE *tree;
@@ -3509,47 +3601,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   bitmap_clear_all(used_fields);
 
-  for (keynr= 0;  keynr < table->s->keys; keynr++)
-  {
-    if (table->quick_keys.is_set(keynr))
-      set_if_bigger(max_quick_key_parts, table->quick_key_parts[keynr]);
-  }
 
-  for (uint quick_key_parts= max_quick_key_parts;
-       quick_key_parts; quick_key_parts--)
-  {
-    for (keynr= 0;  keynr < table->s->keys; keynr++)
-    {
-      if (table->quick_keys.is_set(keynr) &&
-          table->quick_key_parts[keynr] == quick_key_parts)
-      {
-        uint i;
-        uint used_key_parts= table->quick_key_parts[keynr];
-        double quick_cond_selectivity= table->quick_rows[keynr] / 
-	                               table_records;
-        KEY *key_info= table->key_info + keynr;
-        KEY_PART_INFO* key_part= key_info->key_part;
-        for (i= 0; i < used_key_parts; i++, key_part++)
-        {
-          if (bitmap_is_set(used_fields, key_part->fieldnr-1))
-	    break; 
-          bitmap_set_bit(used_fields, key_part->fieldnr-1);
-        }
-        if (i)
-        {
-          table->cond_selectivity*= quick_cond_selectivity;
-          if (i != used_key_parts)
-	  {
-            double f1= key_info->actual_rec_per_key(i-1);
-            double f2= key_info->actual_rec_per_key(i);
-            table->cond_selectivity*= f1 / f2;
-          }
-        }
-      } 
-    }
-  }
-
-  /* Calculate selectivity of probably highly selective predicates */
+  /* Check if we can improve selectivity estimates by using sampling */
   ulong check_rows=
     MY_MIN(thd->variables.optimizer_selectivity_sampling_limit,
         (ulong) (table_records * SELECTIVITY_SAMPLING_SHARE));
@@ -13376,7 +13429,7 @@ SEL_ARG * get_index_range_tree(uint index, SEL_TREE* range_tree, PARAM *param,
 
   DESCRIPTION
     This method computes the access cost of a TRP_GROUP_MIN_MAX instance and
-    the number of rows returned. It updates this->read_cost and this->records.
+    the number of rows returned.
 
   NOTES
     The cost computation distinguishes several cases:
@@ -13432,7 +13485,6 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
   double p_overlap; /* Probability that a sub-group overlaps two blocks. */
   double quick_prefix_selectivity;
   double io_cost;
-  double cpu_cost= 0; /* TODO: CPU cost of index_read calls? */
   DBUG_ENTER("cost_group_min_max");
 
   table_records= table->stat_records();
@@ -13480,11 +13532,25 @@ void cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
              (double) num_blocks;
 
   /*
-    TODO: If there is no WHERE clause and no other expressions, there should be
-    no CPU cost. We leave it here to make this cost comparable to that of index
-    scan as computed in SQL_SELECT::test_quick_select().
+    CPU cost must be comparable to that of an index scan as computed
+    in SQL_SELECT::test_quick_select(). When the groups are small,
+    e.g. for a unique index, using index scan will be cheaper since it
+    reads the next record without having to re-position to it on every
+    group. To make the CPU cost reflect this, we estimate the CPU cost
+    as the sum of:
+    1. Cost for evaluating the condition (similarly as for index scan).
+    2. Cost for navigating the index structure (assuming a b-tree).
+       Note: We only add the cost for one comparision per block. For a
+             b-tree the number of comparisons will be larger.
+       TODO: This cost should be provided by the storage engine.
   */
-  cpu_cost= (double) num_groups / TIME_FOR_COMPARE;
+  const double tree_traversal_cost= 
+    ceil(log(static_cast<double>(table_records))/
+         log(static_cast<double>(keys_per_block))) * 
+    1/double(2*TIME_FOR_COMPARE); 
+
+  const double cpu_cost= num_groups *
+                         (tree_traversal_cost + 1/double(TIME_FOR_COMPARE));
 
   *read_cost= io_cost + cpu_cost;
   *records= num_groups;
@@ -13689,15 +13755,21 @@ int QUICK_GROUP_MIN_MAX_SELECT::init()
 {
   if (group_prefix) /* Already initialized. */
     return 0;
-
-  if (!(last_prefix= (uchar*) alloc_root(&alloc, group_prefix_len)))
+  
+  /*
+    We allocate one byte more to serve the case when the last field in
+    the buffer is compared using uint3korr (e.g. a Field_newdate field)
+  */
+  if (!(last_prefix= (uchar*) alloc_root(&alloc, group_prefix_len+1)))
       return 1;
   /*
     We may use group_prefix to store keys with all select fields, so allocate
     enough space for it.
+    We allocate one byte more to serve the case when the last field in
+    the buffer is compared using uint3korr (e.g. a Field_newdate field)
   */
   if (!(group_prefix= (uchar*) alloc_root(&alloc,
-                                         real_prefix_len + min_max_arg_len)))
+                                          real_prefix_len+min_max_arg_len+1)))
     return 1;
 
   if (key_infix_len > 0)

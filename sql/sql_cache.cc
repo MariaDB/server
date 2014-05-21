@@ -2306,6 +2306,8 @@ void Query_cache::invalidate(THD *thd, char *db)
   if (is_disabled())
     DBUG_VOID_RETURN;
 
+  DBUG_ASSERT(ok_for_lower_case_names(db));
+
   bool restart= FALSE;
   /*
     Lock the query cache and queue all invalidation attempts to avoid

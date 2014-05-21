@@ -1144,7 +1144,6 @@ THD::THD()
   connection_name.length= 0;
 
   bzero(&variables, sizeof(variables));
-  one_shot_set= 0;
   file_id = 0;
   query_id= 0;
   query_name_consts= 0;
@@ -1450,7 +1449,6 @@ Sql_condition* THD::raise_condition(uint sql_errno,
     got_warning= 1;
     break;
   case Sql_condition::WARN_LEVEL_ERROR:
-    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
     break;
   default:
     DBUG_ASSERT(FALSE);
@@ -1461,6 +1459,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 
   if (level == Sql_condition::WARN_LEVEL_ERROR)
   {
+    mysql_audit_general(this, MYSQL_AUDIT_GENERAL_ERROR, sql_errno, msg);
+
     is_slave_error=  1; // needed to catch query errors during replication
 
     if (!da->is_error())

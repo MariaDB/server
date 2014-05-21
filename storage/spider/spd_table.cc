@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -43,6 +43,9 @@
 #include "spd_malloc.h"
 
 ulong *spd_db_att_thread_id;
+#ifdef XID_CACHE_IS_SPLITTED
+uint *spd_db_att_xid_cache_split_num;
+#endif
 pthread_mutex_t *spd_db_att_LOCK_xid_cache;
 HASH *spd_db_att_xid_cache;
 struct charset_info_st *spd_charset_utf8_bin;
@@ -1789,6 +1792,8 @@ int spider_parse_connect_info(
 #ifdef HA_CAN_FORCE_BULK_DELETE
   share->force_bulk_delete = -1;
 #endif
+  share->casual_read = -1;
+  share->delete_all_rows_type = -1;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   for (roop_count = 4; roop_count > 0; roop_count--)
@@ -1918,6 +1923,7 @@ int spider_parse_connect_info(
 #endif
           SPIDER_PARAM_DOUBLE("civ", crd_interval, 0);
           SPIDER_PARAM_INT_WITH_MAX("cmd", crd_mode, 0, 3);
+          SPIDER_PARAM_INT_WITH_MAX("csr", casual_read, 0, 63);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
           SPIDER_PARAM_INT_WITH_MAX("csy", crd_sync, 0, 2);
 #endif
@@ -1925,6 +1931,7 @@ int spider_parse_connect_info(
             2147483647);
           SPIDER_PARAM_INT_WITH_MAX("ctp", crd_type, 0, 2);
           SPIDER_PARAM_DOUBLE("cwg", crd_weight, 1);
+          SPIDER_PARAM_INT_WITH_MAX("dat", delete_all_rows_type, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("ddi", direct_dup_insert, 0, 1);
           SPIDER_PARAM_STR_LIST("dff", tgt_default_files);
           SPIDER_PARAM_STR_LIST("dfg", tgt_default_groups);
@@ -2108,6 +2115,7 @@ int spider_parse_connect_info(
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
           SPIDER_PARAM_LONG_LIST_WITH_MAX("use_hs_read", use_hs_reads, 0, 1);
 #endif
+          SPIDER_PARAM_INT_WITH_MAX("casual_read", casual_read, 0, 63);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -2256,6 +2264,8 @@ int spider_parse_connect_info(
         case 20:
           SPIDER_PARAM_LONGLONG_LIST_WITH_MAX(
             "monitoring_server_id", monitoring_sid, 0, 4294967295LL);
+          SPIDER_PARAM_INT_WITH_MAX(
+            "delete_all_rows_type", delete_all_rows_type, 0, 1);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -3433,6 +3443,16 @@ int spider_set_connect_info_default(
   if (share->force_bulk_delete == -1)
     share->force_bulk_delete = 0;
 #endif
+  if (share->casual_read == -1)
+    share->casual_read = 0;
+  if (share->delete_all_rows_type == -1)
+  {
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+    share->delete_all_rows_type = 1;
+#else
+    share->delete_all_rows_type = 0;
+#endif
+  }
   if (share->bka_mode == -1)
     share->bka_mode = 1;
   if (!share->bka_engine)
@@ -4320,12 +4340,15 @@ SPIDER_SHARE *spider_get_share(
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
 #ifdef HA_CAN_BULK_ACCESS
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         &result_list->hs_r_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
         &result_list->hs_w_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
 #endif
+#endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
+        &result_list->casual_read, sizeof(int) * share->link_count,
         &spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
         NullS))
@@ -4759,12 +4782,15 @@ SPIDER_SHARE *spider_get_share(
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
 #ifdef HA_CAN_BULK_ACCESS
+#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
         &result_list->hs_r_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
         &result_list->hs_w_bulk_open_index,
           sizeof(uchar) * share->link_bitmap_size,
 #endif
+#endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
+        &result_list->casual_read, sizeof(int) * share->link_count,
         &spider->dbton_handler,
           sizeof(spider_db_handler *) * SPIDER_DBTON_SIZE,
         NullS))
@@ -5669,21 +5695,14 @@ int spider_close_connection(
   handlerton* hton,
   THD* thd
 ) {
-  int roop_count = 0, need_mon = 0;
+  int roop_count = 0;
   SPIDER_CONN *conn;
   SPIDER_TRX *trx;
-  ha_spider tmp_spider;
-  char buf[MAX_FIELD_WIDTH];
-  spider_string tmp_str(buf, MAX_FIELD_WIDTH, &my_charset_bin);
   DBUG_ENTER("spider_close_connection");
-  tmp_str.init_calc_mem(121);
   if (!(trx = (SPIDER_TRX*) *thd_ha_data(thd, spider_hton_ptr)))
     DBUG_RETURN(0); /* transaction is not started */
 
-  tmp_spider.conns = &conn;
-  tmp_spider.need_mons = &need_mon;
-  tmp_spider.trx = trx;
-  tmp_spider.result_list.sqls = &tmp_str;
+  trx->tmp_spider->conns = &conn;
   while ((conn = (SPIDER_CONN*) my_hash_element(&trx->trx_conn_hash,
     roop_count)))
   {
@@ -5695,7 +5714,7 @@ int spider_close_connection(
         conn->disable_reconnect = FALSE;
       if (conn->table_lock != 2)
       {
-        spider_db_unlock_tables(&tmp_spider, 0);
+        spider_db_unlock_tables(trx->tmp_spider, 0);
       }
       conn->table_lock = 0;
     }
@@ -6000,6 +6019,16 @@ int spider_db_init(
   HMODULE current_module = GetModuleHandle(NULL);
   spd_db_att_thread_id = (ulong *)
     GetProcAddress(current_module, "?thread_id@@3KA");
+#ifdef XID_CACHE_IS_SPLITTED
+  spd_db_att_xid_cache_split_num = (uint *)
+    GetProcAddress(current_module,
+      "?opt_xid_cache_split_num@@3IA");
+  spd_db_att_LOCK_xid_cache = *((pthread_mutex_t **)
+    GetProcAddress(current_module,
+      "?LOCK_xid_cache@@3PAUst_mysql_mutex@@A"));
+  spd_db_att_xid_cache = *((HASH **)
+    GetProcAddress(current_module, "?xid_cache@@3PAUst_hash@@A"));
+#else
   spd_db_att_LOCK_xid_cache = (pthread_mutex_t *)
 #if MYSQL_VERSION_ID < 50500
     GetProcAddress(current_module,
@@ -6010,6 +6039,7 @@ int spider_db_init(
 #endif
   spd_db_att_xid_cache = (HASH *)
     GetProcAddress(current_module, "?xid_cache@@3Ust_hash@@A");
+#endif
   spd_charset_utf8_bin = (struct charset_info_st *)
     GetProcAddress(current_module, "my_charset_utf8_bin");
   spd_defaults_extra_file = (const char **)
@@ -6018,8 +6048,14 @@ int spider_db_init(
     GetProcAddress(current_module, "my_defaults_file");
 #else
   spd_db_att_thread_id = &thread_id;
+#ifdef XID_CACHE_IS_SPLITTED
+  spd_db_att_xid_cache_split_num = &opt_xid_cache_split_num;
+  spd_db_att_LOCK_xid_cache = LOCK_xid_cache;
+  spd_db_att_xid_cache = xid_cache;
+#else
   spd_db_att_LOCK_xid_cache = &LOCK_xid_cache;
   spd_db_att_xid_cache = &xid_cache;
+#endif
   spd_charset_utf8_bin = &my_charset_utf8_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;
   spd_defaults_file = &my_defaults_file;
@@ -7489,7 +7525,7 @@ longlong spider_split_read_param(
       /* This case must select by one shot */
       DBUG_PRINT("info",("spider cancel split read"));
       result_list->split_read_base = 9223372036854775807LL;
-      result_list->semi_split_read = 9223372036854775807LL;
+      result_list->semi_split_read = 0;
       result_list->semi_split_read_limit = 9223372036854775807LL;
       result_list->first_read = 9223372036854775807LL;
       result_list->second_read = 9223372036854775807LL;
@@ -7596,8 +7632,25 @@ bool spider_check_direct_order_limit(
   longlong select_limit;
   longlong offset_limit;
   DBUG_ENTER("spider_check_direct_order_limit");
-  if (spider->sql_command != SQLCOM_HA_READ)
-  {
+  DBUG_PRINT("info",("spider SQLCOM_HA_READ=%s",
+    (spider->sql_command == SQLCOM_HA_READ) ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider has_clone_for_merge=%s",
+    spider->has_clone_for_merge ? "TRUE" : "FALSE"));
+  DBUG_PRINT("info",("spider is_clone=%s",
+    spider->is_clone ? "TRUE" : "FALSE"));
+#ifdef HA_CAN_BULK_ACCESS
+  DBUG_PRINT("info",("spider is_bulk_access_clone=%s",
+    spider->is_bulk_access_clone ? "TRUE" : "FALSE"));
+#endif
+  if (
+    spider->sql_command != SQLCOM_HA_READ &&
+    !spider->has_clone_for_merge &&
+#ifdef HA_CAN_BULK_ACCESS
+    (!spider->is_clone || spider->is_bulk_access_clone)
+#else
+    !spider->is_clone
+#endif
+  ) {
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
     bool first_check = TRUE;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
@@ -7660,8 +7713,25 @@ bool spider_check_direct_order_limit(
 
     longlong direct_order_limit = spider_param_direct_order_limit(thd,
       share->direct_order_limit);
+    DBUG_PRINT("info",("spider direct_order_limit=%lld", direct_order_limit));
     if (direct_order_limit)
     {
+      DBUG_PRINT("info",("spider first_check=%s",
+        first_check ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider (select_lex->options & OPTION_FOUND_ROWS)=%s",
+        (select_lex->options & OPTION_FOUND_ROWS) ? "TRUE" : "FALSE"));
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+      DBUG_PRINT("info",("spider direct_aggregate=%s",
+        spider->result_list.direct_aggregate ? "TRUE" : "FALSE"));
+#endif
+      DBUG_PRINT("info",("spider select_lex->group_list.elements=%u",
+        select_lex->group_list.elements));
+      DBUG_PRINT("info",("spider select_lex->with_sum_func=%s",
+        select_lex->with_sum_func ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider select_lex->having=%s",
+        select_lex->having ? "TRUE" : "FALSE"));
+      DBUG_PRINT("info",("spider select_lex->order_list.elements=%u",
+        select_lex->order_list.elements));
       if (
         !first_check ||
         !select_lex->explicit_limit ||
@@ -7989,8 +8059,13 @@ int spider_discover_table_structure(
     {
       DBUG_RETURN(ER_SPIDER_UNKNOWN_NUM);
     }
+#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE_COMMENT
     if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
       FALSE, TRUE, info, NULL, NULL)))
+#else
+    if (!(part_syntax = generate_partition_syntax(part_info, &part_syntax_len,
+      FALSE, TRUE, info, NULL)))
+#endif
     {
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }

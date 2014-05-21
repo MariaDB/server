@@ -1,5 +1,5 @@
-/* Copyright (c) 2010, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2013, Monty Program Ab.
+/* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2012, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,7 +55,7 @@ static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
   DEBUG_SYNC(thd, "ha_admin_try_alter");
   tmp_disable_binlog(thd); // binlogging is done by caller if wanted
   result_code= (open_temporary_tables(thd, table_list) ||
-                mysql_recreate_table(thd, table_list));
+                mysql_recreate_table(thd, table_list, false));
   reenable_binlog(thd);
   /*
     mysql_recreate_table() can push OK or ERROR.
@@ -719,7 +719,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     if (result_code == HA_ADMIN_OK)
     {    
       DBUG_PRINT("admin", ("calling operator_func '%s'", operator_name));
+      THD_STAGE_INFO(thd, stage_executing);
       result_code = (table->table->file->*operator_func)(thd, check_opt);
+      THD_STAGE_INFO(thd, stage_sending_data);
       DBUG_PRINT("admin", ("operator_func returned: %d", result_code));
     }
 
@@ -862,7 +864,7 @@ send_result_message:
       }
       if (protocol->write())
         goto err;
-
+      THD_STAGE_INFO(thd, stage_recreating_table);
       DBUG_PRINT("info", ("HA_ADMIN_TRY_ALTER, trying analyze..."));
       TABLE_LIST *save_next_local= table->next_local,
                  *save_next_global= table->next_global;
@@ -1080,6 +1082,7 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
   KEY_CACHE *key_cache;
   DBUG_ENTER("mysql_assign_to_keycache");
 
+  THD_STAGE_INFO(thd, stage_finding_key_cache);
   check_opt.init();
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (!(key_cache= get_key_cache(key_cache_name)))
@@ -1199,8 +1202,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
     goto error; /* purecov: inspected */
   thd->enable_slow_log= opt_log_slow_admin_statements;
   res= (specialflag & SPECIAL_NO_NEW_FUNC) ?
- 
-    mysql_recreate_table(thd, first_table) :
+    mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       "optimize", TL_WRITE, 1, 0, 0, 0,
                       &handler::ha_optimize, 0);

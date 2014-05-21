@@ -1,0 +1,10 @@
+--- suite/perfschema/r/threads_innodb.result	2013-12-20 20:19:06.000000000 +0100
++++ suite/perfschema/r/threads_innodb.reject	2014-05-06 13:08:05.000000000 +0200
+@@ -6,6 +6,7 @@
+ GROUP BY name;
+ name	type	processlist_user	processlist_host	processlist_db	processlist_command	processlist_time	processlist_state	processlist_info	parent_thread_id	role	instrumented
+ thread/innodb/io_handler_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
++thread/innodb/lru_manager_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
+ thread/innodb/page_cleaner_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
+ thread/innodb/srv_error_monitor_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES
+ thread/innodb/srv_lock_timeout_thread	BACKGROUND	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	YES

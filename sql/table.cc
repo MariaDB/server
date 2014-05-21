@@ -3439,6 +3439,24 @@ uint calculate_key_len(TABLE *table, uint key, const uchar *buf,
   return length;
 }
 
+#ifndef DBUG_OFF
+/**
+  Verifies that database/table name is in lowercase, when it should be
+
+  This is supposed to be used only inside DBUG_ASSERT()
+*/
+bool ok_for_lower_case_names(const char *name)
+{
+  if (!lower_case_table_names || !name)
+    return true;
+
+  char buf[SAFE_NAME_LEN];
+  strmake_buf(buf, name);
+  my_casedn_str(files_charset_info, buf);
+  return strcmp(name, buf) == 0;
+}
+#endif
+
 /*
   Check if database name is valid
 
@@ -4000,12 +4018,14 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   status= STATUS_NO_RECORD;
   insert_values= 0;
   fulltext_searched= 0;
-  file->ha_start_of_new_statement();
+  file->ft_handler= 0;
+#if 0
 #ifdef WITH_WSREP
   if (file->ht->db_type == DB_TYPE_PARTITION_DB)
   {
     ((ha_partition*)file)->wsrep_reset_files();
   }
+#endif
 #endif
   reginfo.impossible_range= 0;
   created= TRUE;
@@ -7051,6 +7071,27 @@ bool TABLE_LIST::change_refs_to_fields()
   return FALSE;
 }
 
+
+void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
+{
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar *)&lock))
+    return;
+  /* we call it only when table is opened and it is "leaf" table*/
+  DBUG_ASSERT(table);
+  lock_type= lock;
+  /* table->file->get_table() can be 0 for derived tables */
+  if (table->file && table->file->get_table())
+    table->file->set_lock_type(lock);
+  if (is_merged_derived())
+  {
+    for (TABLE_LIST *table= get_single_select()->get_table_list();
+         table;
+         table= table->next_local)
+    {
+      table->set_lock_type(thd, lock);
+    }
+  }
+}
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {

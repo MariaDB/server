@@ -26,6 +26,7 @@
 
 struct RPL_TABLE_LIST;
 class Master_info;
+class Rpl_filter;
 
 /****************************************************************************
 
@@ -295,7 +296,6 @@ public:
   /* Condition for UNTIL master_gtid_pos. */
   slave_connection_state until_gtid_pos;
 
-  char cached_charset[6];
   /*
     retried_trans is a cumulative counter: how many times the slave
     has retried a transaction (any) since slave started.
@@ -370,15 +370,6 @@ public:
     return ((until_condition == UNTIL_MASTER_POS) ? group_master_log_pos :
 	    group_relay_log_pos);
   }
-
-  /*
-    Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
-    the thread save 3 get_charset() per Query_log_event if the charset is not
-    changing from event to event (common situation).
-    When the 6 bytes are equal to 0 is used to mean "cache is invalidated".
-  */
-  void cached_charset_invalidate();
-  bool cached_charset_compare(char *charset) const;
 
   /**
     Helper function to do after statement completion.
@@ -723,6 +714,30 @@ struct rpl_group_info
     if (!is_parallel_exec)
       rli->event_relay_log_pos= future_event_relay_log_pos;
   }
+};
+
+
+/*
+  The class rpl_sql_thread_info is the THD::system_thread_info for an SQL
+  thread; this is either the driver SQL thread or a worker thread for parallel
+  replication.
+*/
+class rpl_sql_thread_info
+{
+public:
+  char cached_charset[6];
+  Rpl_filter* rpl_filter;
+
+  rpl_sql_thread_info(Rpl_filter *filter);
+
+  /*
+    Last charset (6 bytes) seen by slave SQL thread is cached here; it helps
+    the thread save 3 get_charset() per Query_log_event if the charset is not
+    changing from event to event (common situation).
+    When the 6 bytes are equal to 0 is used to mean "cache is invalidated".
+  */
+  void cached_charset_invalidate();
+  bool cached_charset_compare(char *charset) const;
 };
 
 

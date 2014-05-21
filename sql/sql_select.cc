@@ -549,6 +549,7 @@ fix_inner_refs(THD *thd, List<Item> &all_fields, SELECT_LEX *select,
 static
 void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
 {
+  DBUG_ENTER("remove_redundant_subquery_clauses");
   Item_subselect *subq_predicate= subq_select_lex->master_unit()->item;
   /*
     The removal should happen for IN, ALL, ANY and EXISTS subqueries,
@@ -558,7 +559,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
        b) SELECT a, (<single row subquery) FROM t1
    */
   if (subq_predicate->substype() == Item_subselect::SINGLEROW_SUBS)
-    return;
+    DBUG_VOID_RETURN;
 
   /* A subquery that is not single row should be one of IN/ALL/ANY/EXISTS. */
   DBUG_ASSERT (subq_predicate->substype() == Item_subselect::EXISTS_SUBS ||
@@ -568,6 +569,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   {
     subq_select_lex->join->select_distinct= false;
     subq_select_lex->options&= ~SELECT_DISTINCT;
+    DBUG_PRINT("info", ("DISTINCT removed"));
   }
 
   /*
@@ -577,8 +579,13 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
   if (subq_select_lex->group_list.elements &&
       !subq_select_lex->with_sum_func && !subq_select_lex->join->having)
   {
+    for (ORDER *ord= subq_select_lex->group_list.first; ord; ord= ord->next)
+    {
+      (*ord->item)->walk(&Item::eliminate_subselect_processor, FALSE, NULL);
+    }
     subq_select_lex->join->group_list= NULL;
     subq_select_lex->group_list.empty();
+    DBUG_PRINT("info", ("GROUP BY removed"));
   }
 
   /*
@@ -593,6 +600,7 @@ void remove_redundant_subquery_clauses(st_select_lex *subq_select_lex)
     subq_select_lex->group_list.empty();
   }
   */
+  DBUG_VOID_RETURN;
 }
 
 
@@ -700,7 +708,9 @@ JOIN::prepare(Item ***rref_pointer_array,
   if (!(select_options & OPTION_SETUP_TABLES_DONE) &&
       setup_tables_and_check_access(thd, &select_lex->context, join_list,
                                     tables_list, select_lex->leaf_tables,
-                                    FALSE, SELECT_ACL, SELECT_ACL, FALSE))
+                                    FALSE, SELECT_ACL, SELECT_ACL,
+                                    (thd->lex->sql_command ==
+                                     SQLCOM_UPDATE_MULTI)))
       DBUG_RETURN(-1);
 
   /*
@@ -5274,7 +5284,8 @@ static bool sort_and_filter_keyuse(THD *thd, DYNAMIC_ARRAY *keyuse,
   {
     if (!use->is_for_hash_join())
     {
-      if (!use->used_tables && use->optimize != KEY_OPTIMIZE_REF_OR_NULL)
+      if (!(use->used_tables & ~OUTER_REF_TABLE_BIT) && 
+          use->optimize != KEY_OPTIMIZE_REF_OR_NULL)
         use->table->const_key_parts[use->key]|= use->keypart_map;
       if (use->keypart != FT_KEYPART)
       {
@@ -5557,7 +5568,20 @@ void set_position(JOIN *join,uint idx,JOIN_TAB *table,KEYUSE *key)
 }
 
 
-/* Estimate of the number matching candidates in the joined table */
+/*
+  Estimate how many records we will get if we read just this table and apply
+  a part of WHERE that can be checked for it.
+
+  @detail
+  Estimate how many records we will get if we
+   - read the given table with its "independent" access method (either quick 
+     select or full table/index scan),
+   - apply the part of WHERE that refers only to this table.
+
+  @seealso
+    table_cond_selectivity() produces selectivity of condition that is checked
+    after joining rows from this table to rows from preceding tables.
+*/
 
 inline
 double matching_candidates_in_table(JOIN_TAB *s, bool with_found_constraint,
@@ -7236,14 +7260,25 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 
 /**
   @brief
-  Get the selectivity of conditions when joining a table
+    Get the selectivity of conditions when joining a table
 
   @param join       The optimized join
   @param s          The table to be joined for evaluation
   @param rem_tables The bitmap of tables to be joined later
 
+  @detail
+    Get selectivity of conditions that can be applied when joining this table
+    with previous tables.
+
+    For quick selects and full table scans, selectivity of COND(this_table)
+    is accounted for in matching_candidates_in_table(). Here, we only count
+    selectivity of COND(this_table, previous_tables). 
+
+    For other access methods, we need to calculate selectivity of the whole
+    condition, "COND(this_table) AND COND(this_table, previous_tables)".
+
   @retval
-  selectivity of the conditions imposed on the rows of s
+    selectivity of the conditions imposed on the rows of s
 */
 
 static
@@ -7255,26 +7290,84 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
   TABLE *table= s->table;
   MY_BITMAP *read_set= table->read_set;
   double sel= s->table->cond_selectivity;
-  double table_records= table->stat_records();
   POSITION *pos= &join->positions[idx];
   uint keyparts= 0;
   uint found_part_ref_or_null= 0;
 
-  /* Discount the selectivity of the access method used to join table s */
-  if (s->quick && s->quick->index != MAX_KEY)
+  if (pos->key != 0)
   {
-    if (pos->key == 0 && table_records > 0)
-    {
-      sel/= table->quick_rows[s->quick->index]/table_records;
-    }
-  }
-  else if (pos->key != 0)
-  {
-    /* A ref/ access or hash join is used to join table */
+    /* 
+      A ref access or hash join is used for this table. ref access is created
+      from
+
+        tbl.keypart1=expr1 AND tbl.keypart2=expr2 AND ...
+      
+      and it will only return rows for which this condition is satisified.
+      Suppose, certain expr{i} is a constant. Since ref access only returns
+      rows that satisfy
+        
+         tbl.keypart{i}=const       (*)
+
+      then selectivity of this equality should not be counted in return value 
+      of this function. This function uses the value of 
+       
+         table->cond_selectivity=selectivity(COND(tbl)) (**)
+      
+      as a starting point. This value includes selectivity of equality (*). We
+      should somehow discount it. 
+      
+      Looking at calculate_cond_selectivity_for_table(), one can see that that
+      the value is not necessarily a direct multiplicand in 
+      table->cond_selectivity
+
+      There are three possible ways to discount
+      1. There is a potential range access on t.keypart{i}=const. 
+         (an important special case: the used ref access has a const prefix for
+          which a range estimate is available)
+      
+      2. The field has a histogram. field[x]->cond_selectivity has the data.
+      
+      3. Use index stats on this index:
+         rec_per_key[key_part+1]/rec_per_key[key_part]
+
+      (TODO: more details about the "t.key=othertable.col" case)
+    */
     KEYUSE *keyuse= pos->key;
     KEYUSE *prev_ref_keyuse= keyuse;
     uint key= keyuse->key;
-    do
+    
+    /*
+      Check if we have a prefix of key=const that matches a quick select.
+    */
+    if (!is_hash_join_key_no(key))
+    {
+      table_map quick_key_map= (table_map(1) << table->quick_key_parts[key]) - 1;
+      if (table->quick_rows[key] && 
+          !(quick_key_map & ~table->const_key_parts[key]))
+      {
+        /* 
+          Ok, there is an equality for each of the key parts used by the
+          quick select. This means, quick select's estimate can be reused to
+          discount the selectivity of a prefix of a ref access.
+        */
+        for (; quick_key_map & 1 ; quick_key_map>>= 1)
+        {
+          while (keyuse->table == table && keyuse->key == key && 
+                 keyuse->keypart == keyparts)
+          {
+            keyuse++;
+          }
+          keyparts++;
+        }
+        sel /= (double)table->quick_rows[key] / (double) table->stat_records();
+      }
+    }
+    
+    /*
+      Go through the "keypart{N}=..." equalities and find those that were
+      already taken into account in table->cond_selectivity.
+    */
+    while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
       {
@@ -7288,22 +7381,35 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
           else
 	  {
             if (keyparts == keyuse->keypart &&
-                !(~(keyuse->val->used_tables()) & pos->ref_depend_map) &&
+                !((keyuse->val->used_tables()) & ~pos->ref_depend_map) &&
                 !(found_part_ref_or_null & keyuse->optimize))
 	    {
+              /* Found a KEYUSE object that will be used by ref access */
               keyparts++;
               found_part_ref_or_null|= keyuse->optimize & ~KEY_OPTIMIZE_EQ;
             }
           }
+
           if (keyparts > keyuse->keypart)
 	  {
+            /* Ok this is the keyuse that will be used for ref access */
             uint fldno;
             if (is_hash_join_key_no(key))
 	      fldno= keyuse->keypart;
             else
               fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
             if (keyuse->val->const_item())
-              sel*= table->field[fldno]->cond_selectivity; 
+            {              
+              sel /= table->field[fldno]->cond_selectivity;
+              /* 
+               TODO: we could do better here:
+                 1. cond_selectivity might be =1 (the default) because quick 
+                    select on some index prevented us from analyzing 
+                    histogram for this column.
+                 2. we could get an estimate through this?
+                     rec_per_key[key_part-1] / rec_per_key[key_part]
+              */
+            }
             if (keyparts > 1)
 	    {
               ref_keyuse_steps[keyparts-2]= keyuse - prev_ref_keyuse;
@@ -7313,13 +7419,18 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 	}
       }
       keyuse++;
-    } while (keyuse->table == table && keyuse->key == key);
+    }
   }
   else
   {
+    /*
+      The table is accessed with full table scan, or quick select.
+      Selectivity of COND(table) is already accounted for in 
+      matching_candidates_in_table().
+    */
     sel= 1;
   }
-    
+
   /* 
     If the field f from the table is equal to a field from one the
     earlier joined tables then the selectivity of the range conditions
@@ -14267,7 +14378,7 @@ optimize_cond(JOIN *join, COND *conds,
     conds= remove_eq_conds(thd, conds, cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
-      join->cond_equal= &((Item_cond_and*) conds)->cond_equal;
+      *cond_equal= &((Item_cond_and*) conds)->cond_equal;
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
   }
   DBUG_RETURN(conds);
@@ -14884,7 +14995,7 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
 static bool
 test_if_equality_guarantees_uniqueness(Item *l, Item *r)
 {
-  return r->const_item() &&
+  return (r->const_item() || !(r->used_tables() & ~OUTER_REF_TABLE_BIT)) &&
     item_cmp_type(l->cmp_type(), r->cmp_type()) == l->cmp_type() &&
     (l->cmp_type() != STRING_RESULT ||
      l->collation.collation == r->collation.collation);
@@ -24498,7 +24609,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   double fanout= 1;
   ha_rows table_records= table->stat_records();
   bool group= join && join->group && order == join->group_list;
-  ha_rows ref_key_quick_rows= HA_POS_ERROR;
+  ha_rows refkey_rows_estimate= table->quick_condition_rows;
   const bool has_limit= (select_limit_arg != HA_POS_ERROR);
 
   /*
@@ -24524,10 +24635,6 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   else
     keys= usable_keys;
 
-  if (ref_key >= 0 && ref_key != MAX_KEY &&
-      table->covering_keys.is_set(ref_key))
-    ref_key_quick_rows= table->quick_rows[ref_key];
-
   if (join)
   {
     uint tablenr= tab - join->join_tab;
@@ -24537,6 +24644,22 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   }
   else
     read_time= table->file->scan_time();
+
+  /*
+    Calculate the selectivity of the ref_key for REF_ACCESS. For
+    RANGE_ACCESS we use table->quick_condition_rows.
+  */
+  if (ref_key >= 0 && tab->type == JT_REF)
+  {
+    if (table->quick_keys.is_set(ref_key))
+      refkey_rows_estimate= table->quick_rows[ref_key];
+    else
+    {
+      const KEY *ref_keyinfo= table->key_info + ref_key;
+      refkey_rows_estimate= ref_keyinfo->rec_per_key[tab->ref.key_parts - 1];
+    }
+    set_if_bigger(refkey_rows_estimate, 1);
+  }
 
   for (nr=0; nr < table->s->keys ; nr++)
   {
@@ -24654,17 +24777,17 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           with ref_key. Thus, to select first N records we have to scan
           N/selectivity(ref_key) index entries. 
           selectivity(ref_key) = #scanned_records/#table_records =
-          table->quick_condition_rows/table_records.
+          refkey_rows_estimate/table_records.
           In any case we can't select more than #table_records.
-          N/(table->quick_condition_rows/table_records) > table_records 
-          <=> N > table->quick_condition_rows.
-        */ 
-        if (select_limit > table->quick_condition_rows)
+          N/(refkey_rows_estimate/table_records) > table_records
+          <=> N > refkey_rows_estimate.
+         */
+        if (select_limit > refkey_rows_estimate)
           select_limit= table_records;
         else
           select_limit= (ha_rows) (select_limit *
                                    (double) table_records /
-                                    table->quick_condition_rows);
+                                    refkey_rows_estimate);
         rec_per_key= keyinfo->actual_rec_per_key(keyinfo->user_defined_key_parts-1);
         set_if_bigger(rec_per_key, 1);
         /*
@@ -24684,8 +24807,12 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
             index_scan_time < read_time)
         {
           ha_rows quick_records= table_records;
+          ha_rows refkey_select_limit= (ref_key >= 0 &&
+                                        table->covering_keys.is_set(ref_key)) ?
+                                        refkey_rows_estimate :
+                                        HA_POS_ERROR;
           if ((is_best_covering && !is_covering) ||
-              (is_covering && ref_key_quick_rows < select_limit))
+              (is_covering && refkey_select_limit < select_limit))
             continue;
           if (table->quick_keys.is_set(nr))
             quick_records= table->quick_rows[nr];

@@ -121,19 +121,6 @@ UNIV_INTERN mysql_pfs_key_t	dict_foreign_err_mutex_key;
 /** Identifies generated InnoDB foreign key names */
 static char	dict_ibfk[] = "_ibfk_";
 
-/** array of rw locks protecting
-dict_table_t::stat_initialized
-dict_table_t::stat_n_rows (*)
-dict_table_t::stat_clustered_index_size
-dict_table_t::stat_sum_of_other_index_sizes
-dict_table_t::stat_modified_counter (*)
-dict_table_t::indexes*::stat_n_diff_key_vals[]
-dict_table_t::indexes*::stat_index_size
-dict_table_t::indexes*::stat_n_leaf_pages
-(*) those are not always protected for performance reasons */
-#define DICT_TABLE_STATS_LATCHES_SIZE	64
-static rw_lock_t	dict_table_stats_latches[DICT_TABLE_STATS_LATCHES_SIZE];
-
 /*******************************************************************//**
 Tries to find column names for the index and sets the col field of the
 index.
@@ -332,32 +319,31 @@ dict_mutex_exit_for_mysql(void)
 	mutex_exit(&(dict_sys->mutex));
 }
 
-/** Get the latch that protects the stats of a given table */
-#define GET_TABLE_STATS_LATCH(table) \
-	(&dict_table_stats_latches[ut_fold_ull((ib_uint64_t) table) \
-				   % DICT_TABLE_STATS_LATCHES_SIZE])
-
 /**********************************************************************//**
-Lock the appropriate latch to protect a given table's statistics.
-table->id is used to pick the corresponding latch from a global array of
-latches. */
+Lock the appropriate latch to protect a given table's statistics. */
 UNIV_INTERN
 void
 dict_table_stats_lock(
 /*==================*/
-	const dict_table_t*	table,		/*!< in: table */
-	ulint			latch_mode)	/*!< in: RW_S_LATCH or
-						RW_X_LATCH */
+	dict_table_t*	table,		/*!< in: table */
+	ulint		latch_mode)	/*!< in: RW_S_LATCH or RW_X_LATCH */
 {
 	ut_ad(table != NULL);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
+	if (table->stats_latch == NULL) {
+		/* This is a dummy table object that is private in the current
+		thread and is not shared between multiple threads, thus we
+		skip any locking. */
+		return;
+	}
+
 	switch (latch_mode) {
 	case RW_S_LATCH:
-		rw_lock_s_lock(GET_TABLE_STATS_LATCH(table));
+		rw_lock_s_lock(table->stats_latch);
 		break;
 	case RW_X_LATCH:
-		rw_lock_x_lock(GET_TABLE_STATS_LATCH(table));
+		rw_lock_x_lock(table->stats_latch);
 		break;
 	case RW_NO_LATCH:
 		/* fall through */
@@ -372,19 +358,26 @@ UNIV_INTERN
 void
 dict_table_stats_unlock(
 /*====================*/
-	const dict_table_t*	table,		/*!< in: table */
-	ulint			latch_mode)	/*!< in: RW_S_LATCH or
+	dict_table_t*	table,		/*!< in: table */
+	ulint		latch_mode)	/*!< in: RW_S_LATCH or
 						RW_X_LATCH */
 {
 	ut_ad(table != NULL);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
+	if (table->stats_latch == NULL) {
+		/* This is a dummy table object that is private in the current
+		thread and is not shared between multiple threads, thus we
+		skip any locking. */
+		return;
+	}
+
 	switch (latch_mode) {
 	case RW_S_LATCH:
-		rw_lock_s_unlock(GET_TABLE_STATS_LATCH(table));
+		rw_lock_s_unlock(table->stats_latch);
 		break;
 	case RW_X_LATCH:
-		rw_lock_x_unlock(GET_TABLE_STATS_LATCH(table));
+		rw_lock_x_unlock(table->stats_latch);
 		break;
 	case RW_NO_LATCH:
 		/* fall through */
@@ -880,8 +873,6 @@ void
 dict_init(void)
 /*===========*/
 {
-	int	i;
-
 	dict_sys = static_cast<dict_sys_t*>(mem_zalloc(sizeof(*dict_sys)));
 
 	mutex_create(dict_sys_mutex_key, &dict_sys->mutex, SYNC_DICT);
@@ -901,11 +892,6 @@ dict_init(void)
 
 		mutex_create(dict_foreign_err_mutex_key,
 			     &dict_foreign_err_mutex, SYNC_NO_ORDER_CHECK);
-	}
-
-	for (i = 0; i < DICT_TABLE_STATS_LATCHES_SIZE; i++) {
-		rw_lock_create(dict_table_stats_latch_key,
-			       &dict_table_stats_latches[i], SYNC_INDEX_TREE);
 	}
 }
 
@@ -5792,7 +5778,8 @@ dict_ind_init(void)
 	dict_table_t*		table;
 
 	/* create dummy table and index for REDUNDANT infimum and supremum */
-	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0);
+	table = dict_mem_table_create("SYS_DUMMY1", DICT_HDR_SPACE, 1, 0, 0,
+				      true);
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 
@@ -5805,7 +5792,7 @@ dict_ind_init(void)
 	/* create dummy table and index for COMPACT infimum and supremum */
 	table = dict_mem_table_create("SYS_DUMMY2",
 				      DICT_HDR_SPACE, 1,
-				      DICT_TF_COMPACT, 0);
+				      DICT_TF_COMPACT, 0, true);
 	dict_mem_table_add_col(table, NULL, NULL, DATA_CHAR,
 			       DATA_ENGLISH | DATA_NOT_NULL, 8);
 	dict_ind_compact = dict_mem_index_create("SYS_DUMMY2", "SYS_DUMMY2",
@@ -6032,6 +6019,17 @@ dict_table_check_for_dup_indexes(
 }
 #endif /* UNIV_DEBUG */
 
+/** Auxiliary macro used inside dict_table_schema_check(). */
+#define CREATE_TYPES_NAMES() \
+	dtype_sql_name((unsigned) req_schema->columns[i].mtype, \
+		       (unsigned) req_schema->columns[i].prtype_mask, \
+		       (unsigned) req_schema->columns[i].len, \
+		       req_type, sizeof(req_type)); \
+	dtype_sql_name(table->cols[j].mtype, \
+		       table->cols[j].prtype, \
+		       table->cols[j].len, \
+		       actual_type, sizeof(actual_type))
+
 /*********************************************************************//**
 Checks whether a table exists and whether it has the given structure.
 The table must have the same number of columns with the same names and
@@ -6051,6 +6049,8 @@ dict_table_schema_check(
 	size_t			errstr_sz)	/*!< in: errstr size */
 {
 	char		buf[MAX_FULL_NAME_LEN];
+	char		req_type[64];
+	char		actual_type[64];
 	dict_table_t*	table;
 	ulint		i;
 
@@ -6102,9 +6102,6 @@ dict_table_schema_check(
 	for (i = 0; i < req_schema->n_cols; i++) {
 		ulint	j;
 
-		char	req_type[64];
-		char	actual_type[64];
-
 		/* check if i'th column is the same in both arrays */
 		if (innobase_strcasecmp(req_schema->columns[i].name,
 			       dict_table_get_col_name(table, i)) == 0) {
@@ -6146,18 +6143,10 @@ dict_table_schema_check(
 		/* we found a column with the same name on j'th position,
 		compare column types and flags */
 
-		dtype_sql_name(req_schema->columns[i].mtype,
-			       req_schema->columns[i].prtype_mask,
-			       req_schema->columns[i].len,
-			       req_type, sizeof(req_type));
-
-		dtype_sql_name(table->cols[j].mtype,
-			       table->cols[j].prtype,
-			       table->cols[j].len,
-			       actual_type, sizeof(actual_type));
-
 		/* check length for exact match */
 		if (req_schema->columns[i].len != table->cols[j].len) {
+
+			CREATE_TYPES_NAMES();
 
 			ut_snprintf(errstr, errstr_sz,
 				    "Column %s in table %s is %s "
@@ -6172,6 +6161,8 @@ dict_table_schema_check(
 
 		/* check mtype for exact match */
 		if (req_schema->columns[i].mtype != table->cols[j].mtype) {
+
+			CREATE_TYPES_NAMES();
 
 			ut_snprintf(errstr, errstr_sz,
 				    "Column %s in table %s is %s "
@@ -6189,6 +6180,8 @@ dict_table_schema_check(
 		    && (table->cols[j].prtype
 			& req_schema->columns[i].prtype_mask)
 		       != req_schema->columns[i].prtype_mask) {
+
+			CREATE_TYPES_NAMES();
 
 			ut_snprintf(errstr, errstr_sz,
 				    "Column %s in table %s is %s "
@@ -6258,9 +6251,8 @@ dict_fs2utf8(
 	db[db_len] = '\0';
 
 	strconvert(
-		&my_charset_filename, db, db_len,
-		system_charset_info, db_utf8, db_utf8_size,
-		&errors);
+		&my_charset_filename, db, db_len, system_charset_info,
+		db_utf8, static_cast<uint>(db_utf8_size), &errors);
 
 	/* convert each # to @0023 in table name and store the result in buf */
 	const char*	table = dict_remove_db_name(db_and_table);
@@ -6285,8 +6277,8 @@ dict_fs2utf8(
 
 	errors = 0;
 	strconvert(
-		&my_charset_filename, buf, buf_p - buf,
-		system_charset_info, table_utf8, table_utf8_size,
+		&my_charset_filename, buf, buf_p - buf, system_charset_info,
+		table_utf8, static_cast<uint>(table_utf8_size),
 		&errors);
 
 	if (errors != 0) {
@@ -6348,10 +6340,6 @@ dict_close(void)
 
 	mem_free(dict_sys);
 	dict_sys = NULL;
-
-	for (i = 0; i < DICT_TABLE_STATS_LATCHES_SIZE; i++) {
-		rw_lock_free(&dict_table_stats_latches[i]);
-	}
 }
 
 #ifdef UNIV_DEBUG

@@ -31,6 +31,10 @@
 /*                                                                      */
 /************************************************************************/
 #include "my_global.h"
+#if !defined(MYSQL_PREPARED_STATEMENTS)
+#include "my_sys.h"
+#include "mysqld_error.h"
+#endif   // !MYSQL_PREPARED_STATEMENTS
 #if defined(WIN32)
 //#include <windows.h>
 #else   // !WIN32
@@ -47,8 +51,11 @@
 #include "myconn.h"
 
 extern "C" int   trace;
+extern "C" int   zconv;
 extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
+
+DllExport void PushWarning(PGLOBAL, THD*, int level = 1);
 
 // Returns the current used port
 uint GetDefaultPort(void)
@@ -56,12 +63,65 @@ uint GetDefaultPort(void)
   return mysqld_port;
 } // end of GetDefaultPort
 
+#if !defined(MYSQL_PREPARED_STATEMENTS)
+/**************************************************************************
+  Alloc struct for use with unbuffered reads. Data is fetched by domand
+  when calling to mysql_fetch_row.
+  mysql_data_seek is a noop.
+
+  No other queries may be specified with the same MYSQL handle.
+  There shouldn't be much processing per row because mysql server shouldn't
+  have to wait for the client (and will not wait more than 30 sec/packet).
+  NOTE: copied from client.c cli_use_result
+**************************************************************************/
+static MYSQL_RES *connect_use_result(MYSQL *mysql)
+{
+  MYSQL_RES *result;
+  DBUG_ENTER("connect_use_result");
+
+  if (!mysql->fields)
+    DBUG_RETURN(NULL);
+
+  if (mysql->status != MYSQL_STATUS_GET_RESULT) {
+    my_message(ER_UNKNOWN_ERROR, "Command out of sync", MYF(0));
+    DBUG_RETURN(NULL);
+    } // endif status
+
+  if (!(result = (MYSQL_RES*) my_malloc(sizeof(*result) +
+				          sizeof(ulong) * mysql->field_count,
+				          MYF(MY_WME | MY_ZEROFILL))))
+    DBUG_RETURN(NULL);
+
+  result->lengths = (ulong*)(result+1);
+  result->methods = mysql->methods;
+
+  /* Ptrs: to one row */
+  if (!(result->row = (MYSQL_ROW)my_malloc(sizeof(result->row[0]) *
+                                (mysql->field_count+1), MYF(MY_WME)))) {
+    my_free(result);
+    DBUG_RETURN(NULL);
+    }  // endif row
+
+  result->fields =	mysql->fields;
+  result->field_alloc =	mysql->field_alloc;
+  result->field_count =	mysql->field_count;
+  result->current_field = 0;
+  result->handle =	mysql;
+  result->current_row =	0;
+  mysql->fields = 0;			/* fields is now in result */
+  clear_alloc_root(&mysql->field_alloc);
+  mysql->status = MYSQL_STATUS_USE_RESULT;
+  mysql->unbuffered_fetch_owner = &result->unbuffered_fetch_cancelled;
+  DBUG_RETURN(result);			/* Data is ready to be fetched */
+} // end of connect_use_result
+#endif   // !MYSQL_PREPARED_STATEMENTS
+
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table or view.                                           */
 /*  info = TRUE to get catalog column informations.                     */
 /************************************************************************/
-PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info)
@@ -75,7 +135,7 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
                    FLD_REM,  FLD_NO,    FLD_DEFAULT,  FLD_EXTRA,
                    FLD_CHARSET};
   unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
-  char   *fld, *fmt, v, cmd[128], uns[16], zero[16];
+  char   *fld, *colname, *chset, *fmt, v, cmd[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
@@ -144,23 +204,24 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
   /**********************************************************************/
   /*  Now get the results into blocks.                                  */
   /**********************************************************************/
-  for (i = 0; i < n; i++) {
-    if ((rc = myc.Fetch(g, -1) == RC_FX)) {
+  for (i = 0; i < n; /*i++*/) {
+    if ((rc = myc.Fetch(g, -1)) == RC_FX) {
       myc.Close();
       return NULL;
-    } else if (rc == RC_NF)
+    } else if (rc == RC_EF)
       break;
 
     // Get column name
-    fld = myc.GetCharField(0);
+    colname = myc.GetCharField(0);
     crp = qrp->Colresp;                    // Column_Name
-    crp->Kdata->SetValue(fld, i);
+    crp->Kdata->SetValue(colname, i);
 
     // Get type, type name, precision, unsigned and zerofill
+    chset = myc.GetCharField(2);
     fld = myc.GetCharField(1);
     prec = 0;
     len = 0;
-    v = 0;
+    v = (chset && !strcmp(chset, "binary")) ? 'B' : 0;
     *uns = 0;
     *zero = 0;
 
@@ -181,11 +242,28 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
       } // endswitch nf
 
     if ((type = MYSQLtoPLG(cmd, &v)) == TYPE_ERROR) {
-      sprintf(g->Message, "Unsupported column type %s", cmd);
+      if (v == 'K') {
+        // Skip this column
+        sprintf(g->Message, "Column %s skipped (unsupported type %s)",
+                colname, cmd);
+        PushWarning(g, thd);
+        continue;
+        } // endif v
+
+      sprintf(g->Message, "Column %s unsupported type %s", colname, cmd);
       myc.Close();
       return NULL;
-    } else if (type == TYPE_STRING)
-      len = min(len, 4096);
+    } else if (type == TYPE_STRING) {
+      if (v == 'X') {
+        len = zconv;
+        sprintf(g->Message, "Column %s converted to varchar(%d)",
+                colname, len);
+        PushWarning(g, thd);
+        v = 'V';
+      } else
+        len = MY_MIN(len, 4096);
+
+    } // endif type
 
     qrp->Nblin++;
     crp = crp->Next;                       // Data_Type
@@ -241,8 +319,10 @@ PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
     crp->Kdata->SetValue(fld, i);
 
     crp = crp->Next;                       // New (charset)
-    fld = myc.GetCharField(2);
+    fld = chset;
     crp->Kdata->SetValue(fld, i);
+
+    i++;                                   // Can be skipped
     } // endfor i
 
 #if 0
@@ -316,6 +396,7 @@ MYSQLC::MYSQLC(void)
   m_Row = NULL;
   m_Fields = -1;
   N = 0;
+  m_Use = false;
   } // end of MYSQLC constructor
 
 /***********************************************************************/
@@ -342,7 +423,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             int pt)
   {
   const char *pipe = NULL;
-  uint cto = 60, nrt = 120;
+  uint cto = 6000, nrt = 12000;
 
   m_DB = mysql_init(NULL);
 
@@ -577,7 +658,16 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
     rc = RC_FX;
 //} else if (mysql_field_count(m_DB) > 0) {
   } else if (m_DB->field_count > 0) {
-    if (!(m_Res = mysql_store_result(m_DB))) {
+    if (m_Use)
+#if defined(MYSQL_PREPARED_STATEMENTS)
+      m_Res = mysql_use_result(m_DB);
+#else   // !MYSQL_PREPARED_STATEMENTS)
+      m_Res = connect_use_result(m_DB);
+#endif  // !MYSQL_PREPARED_STATEMENTS
+    else
+      m_Res = mysql_store_result(m_DB);
+
+    if (!m_Res) {
       char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
 
       sprintf(msg, "mysql_store_result failed: %s", mysql_error(m_DB));
@@ -586,7 +676,7 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
       rc = RC_FX;
     } else {
       m_Fields = mysql_num_fields(m_Res);
-      m_Rows = (int)mysql_num_rows(m_Res);
+      m_Rows = (!m_Use) ? (int)mysql_num_rows(m_Res) : 0;
     } // endif m_Res
 
   } else {
@@ -741,7 +831,7 @@ PQRYRES MYSQLC::GetResult(PGLOBAL g, bool pdb)
 
     crp->Prec = (crp->Type == TYPE_DOUBLE || crp->Type == TYPE_DECIM)
               ? fld->decimals : 0;
-    crp->Length = max(fld->length, fld->max_length);
+    crp->Length = MY_MAX(fld->length, fld->max_length);
     crp->Clen = GetTypeSize(crp->Type, crp->Length);
     uns = (fld->flags & (UNSIGNED_FLAG | ZEROFILL_FLAG)) ? true : false;
 

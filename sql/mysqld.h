@@ -338,6 +338,8 @@ void init_server_psi_keys();
   Hint: grep PSI_stage_info | sort -u
 */
 extern PSI_stage_info stage_after_create;
+extern PSI_stage_info stage_after_opening_tables;
+extern PSI_stage_info stage_after_table_lock;
 extern PSI_stage_info stage_allocating_local_table;
 extern PSI_stage_info stage_alter_inplace_prepare;
 extern PSI_stage_info stage_alter_inplace;
@@ -366,6 +368,7 @@ extern PSI_stage_info stage_enabling_keys;
 extern PSI_stage_info stage_executing;
 extern PSI_stage_info stage_execution_of_init_command;
 extern PSI_stage_info stage_explaining;
+extern PSI_stage_info stage_finding_key_cache;
 extern PSI_stage_info stage_finished_reading_one_binlog_switching_to_next_binlog;
 extern PSI_stage_info stage_flushing_relay_log_and_master_info_repository;
 extern PSI_stage_info stage_flushing_relay_log_info_file;
@@ -390,6 +393,7 @@ extern PSI_stage_info stage_purging_old_relay_logs;
 extern PSI_stage_info stage_query_end;
 extern PSI_stage_info stage_queueing_master_event_to_the_relay_log;
 extern PSI_stage_info stage_reading_event_from_the_relay_log;
+extern PSI_stage_info stage_recreating_table;
 extern PSI_stage_info stage_registering_slave_on_master;
 extern PSI_stage_info stage_removing_duplicates;
 extern PSI_stage_info stage_removing_tmp_table;
@@ -465,6 +469,11 @@ extern PSI_statement_info sql_statement_info[(uint) SQLCOM_END + 1];
   The last entry, at [COM_END], is for packet errors.
 */
 extern PSI_statement_info com_statement_info[(uint) COM_END + 1];
+
+/**
+  Statement instrumentation key for replication.
+*/
+extern PSI_statement_info stmt_info_rpl;
 
 void init_sql_statement_info();
 void init_com_statement_info();
@@ -632,7 +641,7 @@ extern my_atomic_rwlock_t statistics_lock;
 void unireg_end(void) __attribute__((noreturn));
 
 /* increment query_id and return it.  */
-inline query_id_t next_query_id()
+inline __attribute__((warn_unused_result)) query_id_t next_query_id()
 {
   query_id_t id;
   my_atomic_rwlock_wrlock(&global_query_id_lock);

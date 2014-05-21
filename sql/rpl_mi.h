@@ -216,6 +216,16 @@ public:
   bool stop_all_slaves(THD *thd);
 };
 
+
+/*
+  The class rpl_io_thread_info is the THD::system_thread_info for the IO thread.
+*/
+class rpl_io_thread_info
+{
+public:
+};
+
+
 bool check_master_connection_name(LEX_STRING *name);
 void create_logfile_name_with_suffix(char *res_file_name, size_t length,
                              const char *info_file, 

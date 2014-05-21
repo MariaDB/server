@@ -503,10 +503,7 @@ buf_flush_or_remove_page(
 		yet; maybe the system is currently reading it
 		in, or flushing the modifications to the file */
 		return(false);
-
 	}
-
-	bool		processed = false;
 
 	buf_flush_list_mutex_exit(buf_pool);
 
@@ -514,6 +511,7 @@ buf_flush_or_remove_page(
 	pointer by a compressed page flush list relocation because
 	buf_page_get_gen() won't be called for pages from this
 	tablespace.  */
+	bool		processed;
 
 	mutex_enter(block_mutex);
 
@@ -529,6 +527,7 @@ buf_flush_or_remove_page(
 		mutex_exit(block_mutex);
 
 		*must_restart = TRUE;
+		processed = false;
 
 	} else if (!flush) {
 
@@ -538,29 +537,29 @@ buf_flush_or_remove_page(
 
 		processed = true;
 
-	} else if (buf_flush_ready_for_flush(bpage,
-					     BUF_FLUSH_SINGLE_PAGE)) {
+	} else if (buf_flush_ready_for_flush(bpage, BUF_FLUSH_SINGLE_PAGE)) {
 
-		mutex_exit(&buf_pool->LRU_list_mutex);
+		if (buf_flush_page(
+			    buf_pool, bpage, BUF_FLUSH_SINGLE_PAGE, false)) {
 
-		/* The following call will release the buf_page_get_mutex()
-		mutex. */
-		buf_flush_page(buf_pool, bpage, BUF_FLUSH_SINGLE_PAGE, false);
-		ut_ad(!mutex_own(block_mutex));
+			/* Wake possible simulated aio thread to actually
+			post the writes to the operating system */
+			os_aio_simulated_wake_handler_threads();
 
-		/* Wake possible simulated aio thread to actually
-		post the writes to the operating system */
-		os_aio_simulated_wake_handler_threads();
+			mutex_enter(&buf_pool->LRU_list_mutex);
 
-		mutex_enter(&buf_pool->LRU_list_mutex);
+			processed = true;
 
-		processed = true;
+		} else {
+			mutex_exit(block_mutex);
+
+			processed = false;
+		}
+
 	} else {
-		/* Not ready for flush. It can't be IO fixed because we
-		checked for that at the start of the function. It must
-		be buffer fixed. */
-		ut_ad(bpage->buf_fix_count > 0);
 		mutex_exit(block_mutex);
+
+		processed = false;
 	}
 
 	buf_flush_list_mutex_enter(buf_pool);
@@ -1358,15 +1357,17 @@ loop:
 		memset(&block->page.zip, 0, sizeof block->page.zip);
 
 		if (started_monitor) {
-			srv_print_innodb_monitor = mon_value_was;
+			srv_print_innodb_monitor =
+				static_cast<my_bool>(mon_value_was);
 		}
 
 		return(block);
 	}
 
 	if (srv_empty_free_list_algorithm == SRV_EMPTY_FREE_LIST_BACKOFF
-	    && buf_page_cleaner_is_active
-	    && srv_shutdown_state == SRV_SHUTDOWN_NONE) {
+	    && buf_lru_manager_is_active
+	    && (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		|| srv_shutdown_state == SRV_SHUTDOWN_CLEANUP)) {
 
 		/* Backoff to minimize the free list mutex contention while the
 		free list is empty */
@@ -1408,12 +1409,13 @@ loop:
 		goto loop;
 	} else {
 
-		/* The cleaner is not running or Oracle MySQL 5.6 algorithm was
-		requested, will perform a single page flush  */
+		/* The LRU manager is not running or Oracle MySQL 5.6 algorithm
+		was requested, will perform a single page flush  */
 		ut_ad((srv_empty_free_list_algorithm
 		       == SRV_EMPTY_FREE_LIST_LEGACY)
-		      || !buf_page_cleaner_is_active
-		      || (srv_shutdown_state != SRV_SHUTDOWN_NONE));
+		      || !buf_lru_manager_is_active
+		      || (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			  && srv_shutdown_state != SRV_SHUTDOWN_CLEANUP));
 	}
 
 	mutex_enter(&buf_pool->flush_state_mutex);
@@ -1829,8 +1831,6 @@ buf_LRU_add_block_low(
 {
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
 
-	ut_ad(buf_pool);
-	ut_ad(bpage);
 	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
 	ut_a(buf_page_in_file(bpage));
@@ -1980,7 +1980,7 @@ buf_LRU_free_page(
 
 	if (!buf_page_can_relocate(bpage)) {
 
-		/* Do not free buffer-fixed or I/O-fixed blocks. */
+		/* Do not free buffer fixed or I/O-fixed blocks. */
 		return(false);
 	}
 
@@ -1995,12 +1995,10 @@ buf_LRU_free_page(
 		if (bpage->oldest_modification) {
 			return(false);
 		}
-	} else if ((bpage->oldest_modification)
-		   && (buf_page_get_state(bpage)
-		       != BUF_BLOCK_FILE_PAGE)) {
+	} else if (bpage->oldest_modification > 0
+		   && buf_page_get_state(bpage) != BUF_BLOCK_FILE_PAGE) {
 
-		ut_ad(buf_page_get_state(bpage)
-		      == BUF_BLOCK_ZIP_DIRTY);
+		ut_ad(buf_page_get_state(bpage) == BUF_BLOCK_ZIP_DIRTY);
 
 		return(false);
 
@@ -2088,10 +2086,8 @@ not_freed:
 		rw_lock_x_lock(hash_lock);
 		mutex_enter(block_mutex);
 
-		ut_a(!buf_page_hash_get_low(buf_pool,
-					    bpage->space,
-					    bpage->offset,
-					    fold));
+		ut_a(!buf_page_hash_get_low(
+				buf_pool, b->space, b->offset, fold));
 
 		b->state = b->oldest_modification
 			? BUF_BLOCK_ZIP_DIRTY
@@ -2215,11 +2211,12 @@ not_freed:
 		buf_pool->page_hash, thus inaccessible by any
 		other thread. */
 
-		checksum = page_zip_calc_checksum(
-			b->zip.data,
-			page_zip_get_size(&b->zip),
-			static_cast<srv_checksum_algorithm_t>(
-				srv_checksum_algorithm));
+		checksum = static_cast<ib_uint32_t>(
+			page_zip_calc_checksum(
+				b->zip.data,
+				page_zip_get_size(&b->zip),
+				static_cast<srv_checksum_algorithm_t>(
+					srv_checksum_algorithm)));
 
 		mach_write_to_4(b->zip.data + FIL_PAGE_SPACE_OR_CHKSUM,
 				checksum);
@@ -2488,6 +2485,11 @@ buf_LRU_block_remove_hashed(
 		UNIV_MEM_INVALID(((buf_block_t*) bpage)->frame,
 				 UNIV_PAGE_SIZE);
 		buf_page_set_state(bpage, BUF_BLOCK_REMOVE_HASH);
+
+		if (buf_pool->flush_rbt == NULL) {
+			bpage->space = ULINT32_UNDEFINED;
+			bpage->offset = ULINT32_UNDEFINED;
+		}
 
 		/* Question: If we release bpage and hash mutex here
 		then what protects us against:

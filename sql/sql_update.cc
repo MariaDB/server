@@ -1429,11 +1429,11 @@ int mysql_multi_update_prepare(THD *thd)
         be write-locked (for example, trigger to be invoked might try
         to update this table).
       */
-      tl->lock_type= read_lock_type_for_table(thd, lex, tl);
+      if (using_lock_tables)
+        tl->lock_type= read_lock_type_for_table(thd, lex, tl);
+      else
+        tl->set_lock_type(thd, read_lock_type_for_table(thd, lex, tl));
       tl->updating= 0;
-      /* Update TABLE::lock_type accordingly. */
-      if (!tl->placeholder() && !using_lock_tables)
-        tl->table->reginfo.lock_type= tl->lock_type;
     }
   }
 
@@ -1921,6 +1921,13 @@ loop_end:
     TABLE *tbl= table;
     do
     {
+      /*
+        Signal each table (including tables referenced by WITH CHECK OPTION
+        clause) for which we will store row position in the temporary table
+        that we need a position to be read first.
+      */
+      tbl->prepare_for_position();
+
       Field_string *field= new Field_string(tbl->file->ref_length, 0,
                                             tbl->alias.c_ptr(),
                                             &my_charset_bin);

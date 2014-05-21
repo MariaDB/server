@@ -45,7 +45,7 @@ class VALBLK : public BLOCK {
   virtual bool   IsNull(int n) {return To_Nulls && To_Nulls[n];}
   virtual void   SetNullable(bool b);
   virtual bool   IsUnsigned(void) {return Unsigned;}
-  virtual void   Init(PGLOBAL g, bool check) = 0;
+  virtual bool   Init(PGLOBAL g, bool check) = 0;
   virtual int    GetVlen(void) = 0;
   virtual PSZ    GetCharValue(int n);
   virtual char   GetTinyValue(int n) = 0;
@@ -88,12 +88,14 @@ class VALBLK : public BLOCK {
           bool   Locate(PVAL vp, int& i);
 
  protected:
+  bool AllocBuff(PGLOBAL g, size_t size);
   void ChkIndx(int n);
   void ChkTyp(PVAL v);
   void ChkTyp(PVBLK vb);
 
   // Members
   PGLOBAL Global;           // Used for messages and allocation
+  MBLOCK  Mblk;             // Used to allocate buffer
   char   *To_Nulls;         // Null values array
   void   *Blkp;             // To value block
   bool    Check;            // If true SetValue types must match
@@ -114,7 +116,7 @@ class TYPBLK : public VALBLK {
   TYPBLK(void *mp, int size, int type, int prec = 0, bool un = false);
 
   // Implementation
-  virtual void   Init(PGLOBAL g, bool check);
+  virtual bool   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(TYPE);}
   virtual char   GetTinyValue(int n) {return (char)Typp[n];}
   virtual uchar  GetUTinyValue(int n) {return (uchar)Typp[n];}
@@ -179,7 +181,7 @@ class CHRBLK : public VALBLK {
   CHRBLK(void *mp, int size, int len, int prec, bool b);
 
   // Implementation
-  virtual void   Init(PGLOBAL g, bool check);
+  virtual bool   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return Long;}
   virtual PSZ    GetCharValue(int n);
   virtual char   GetTinyValue(int n);
@@ -211,11 +213,11 @@ class CHRBLK : public VALBLK {
 
  protected:
   // Members
-  char* const &Chrp;             // Pointer to char buffer
-  PSZ   Valp;                    // Used to make a zero ended value
-  bool  Blanks;                  // True for right filling with blanks
-  bool  Ci;                      // True if case insensitive
-  int   Long;                    // Length of each string
+  char*  const &Chrp;            // Pointer to char buffer
+  PSZ    Valp;                   // Used to make a zero ended value
+  bool   Blanks;                 // True for right filling with blanks
+  bool   Ci;                     // True if case insensitive
+  int    Long;                   // Length of each string
   }; // end of class CHRBLK
 
 /***********************************************************************/
@@ -232,7 +234,7 @@ class STRBLK : public VALBLK {
   virtual void   SetNull(int n, bool b) {if (b) {Strp[n] = NULL;}}
   virtual bool   IsNull(int n) {return Strp[n] == NULL;}
   virtual void   SetNullable(bool b) {}    // Always nullable
-  virtual void   Init(PGLOBAL g, bool check);
+  virtual bool   Init(PGLOBAL g, bool check);
   virtual int    GetVlen(void) {return sizeof(PSZ);}
   virtual PSZ    GetCharValue(int n) {return Strp[n];}
   virtual char   GetTinyValue(int n);

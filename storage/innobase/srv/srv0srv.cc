@@ -386,8 +386,8 @@ UNIV_INTERN ulint	srv_available_undo_logs         = 0;
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
 UNIV_INTERN ibool	srv_print_verbose_log		= TRUE;
-UNIV_INTERN ibool	srv_print_innodb_monitor	= FALSE;
-UNIV_INTERN ibool	srv_print_innodb_lock_monitor	= FALSE;
+UNIV_INTERN my_bool	srv_print_innodb_monitor	= FALSE;
+UNIV_INTERN my_bool	srv_print_innodb_lock_monitor	= FALSE;
 UNIV_INTERN ibool	srv_print_innodb_tablespace_monitor = FALSE;
 UNIV_INTERN ibool	srv_print_innodb_table_monitor = FALSE;
 
@@ -2691,7 +2691,8 @@ srv_purge_coordinator_suspend(
 
 		rw_lock_x_lock(&purge_sys->latch);
 
-		stop = (purge_sys->state == PURGE_STATE_STOP);
+		stop = (srv_shutdown_state == SRV_SHUTDOWN_NONE
+			&& purge_sys->state == PURGE_STATE_STOP);
 
 		if (!stop) {
 			ut_a(purge_sys->n_stop == 0);
@@ -2776,8 +2777,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		/* If there are no records to purge or the last
 		purge didn't purge any records then wait for activity. */
 
-		if (purge_sys->state == PURGE_STATE_STOP
-		    || n_total_purged == 0) {
+		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		    && (purge_sys->state == PURGE_STATE_STOP
+			|| n_total_purged == 0)) {
 
 			srv_purge_coordinator_suspend(slot, rseg_history_len);
 		}

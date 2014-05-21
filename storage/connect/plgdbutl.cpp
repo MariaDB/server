@@ -383,7 +383,7 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
   } // end of PlgGetCatalog
 
 /***********************************************************************/
-/*  PlgGetCatalog: returns CATALOG class pointer.                      */
+/*  PlgGetDataPath: returns the default data path.                     */
 /***********************************************************************/
 char *PlgGetDataPath(PGLOBAL g)
   {
@@ -721,7 +721,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
           n += 100;
 
         val[0] = n;
-        numval = max(numval, 1);
+        numval = MY_MAX(numval, 1);
         break;
       case 1:
       case 2:
@@ -729,7 +729,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
       case 4:
       case 5:
         val[k] = n;
-        numval = max(numval, k + 1);
+        numval = MY_MAX(numval, k + 1);
         break;
       case -1:
         c = toupper(W[i][0]);
@@ -753,7 +753,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
           } /* endswitch c */
 
         val[1] = n;
-        numval = max(numval, 2);
+        numval = MY_MAX(numval, 2);
         break;
       case -6:
         c = toupper(W[i][0]);
@@ -1225,7 +1225,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
 
     if ((mp.Sub = (newsize <= (maxsub >> 2)))) {
       mp.Memp = PlugSubAlloc(g, area, newsize);
-      memcpy(mp.Memp, m.Memp, min(m.Size, newsize));
+      memcpy(mp.Memp, m.Memp, MY_MIN(m.Size, newsize));
       PlgDBfree(m);    // Free the old block
     } else if (!(mp.Memp = realloc(mp.Memp, newsize))) {
       mp = m;          // Possible only if newsize > Size
@@ -1241,7 +1241,7 @@ void *PlgDBrealloc(PGLOBAL g, void *area, MBLOCK& mp, size_t newsize)
     mp.Size = newsize;
 
     if (PlgDBalloc(g, area, mp)) {
-      memcpy(mp.Memp, m.Memp, min(m.Size, newsize));
+      memcpy(mp.Memp, m.Memp, MY_MIN(m.Size, newsize));
       PlgDBfree(m);    // Free the old block
     } else {
       mp = m;          // No space to realloc, do nothing

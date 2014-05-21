@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -596,6 +596,23 @@ buf_block_buf_fix_inc_func(
 # endif /* UNIV_SYNC_DEBUG */
 	buf_block_t*	block)	/*!< in/out: block to bufferfix */
 	__attribute__((nonnull));
+
+/*******************************************************************//**
+Increments the bufferfix count. */
+UNIV_INLINE
+void
+buf_block_fix(
+/*===========*/
+	buf_block_t*	block);	/*!< in/out: block to bufferfix */
+
+/*******************************************************************//**
+Increments the bufferfix count. */
+UNIV_INLINE
+void
+buf_block_unfix(
+/*===========*/
+	buf_block_t*	block);	/*!< in/out: block to bufferfix */
+
 # ifdef UNIV_SYNC_DEBUG
 /** Increments the bufferfix count.
 @param b	in/out: block to bufferfix
@@ -625,6 +642,15 @@ buf_page_is_corrupted(
 	ulint		zip_size)	/*!< in: size of compressed page;
 					0 for uncompressed pages */
 	__attribute__((nonnull, warn_unused_result));
+/********************************************************************//**
+Checks if a page is all zeroes.
+@return	TRUE if the page is all zeroes */
+bool
+buf_page_is_zeroes(
+/*===============*/
+	const byte*	read_buf,	/*!< in: a database page */
+	const ulint	zip_size);	/*!< in: size of compressed page;
+					0 for uncompressed pages */
 #ifndef UNIV_HOTBACKUP
 /**********************************************************************//**
 Gets the space id, page offset, and byte offset within page of a
@@ -1437,25 +1463,39 @@ struct buf_page_t{
 	machine word.  */
 	/* @{ */
 
-	unsigned	space:32;	/*!< tablespace id. */
-	unsigned	offset:32;	/*!< page number. */
+	ib_uint32_t	space;		/*!< tablespace id. */
+	ib_uint32_t	offset;		/*!< page number. */
+	/** count of how manyfold this block is currently bufferfixed */
+#ifdef PAGE_ATOMIC_REF_COUNT
+	ib_uint32_t	buf_fix_count;
 
+	/** type of pending I/O operation; Transitions from BUF_IO_NONE to
+	BUF_IO_WRITE and back are protected by the buf_page_get_mutex() mutex
+	and the corresponding flush state mutex. The flush state mutex
+	protection for io_fix and flush_type is not strictly required, but it
+	ensures consistent buffer pool instance state snapshots in
+	buf_pool_validate_instance(). @see enum buf_io_fix */
+	byte		io_fix;
+
+	byte		state;
+#else
+	unsigned	buf_fix_count:19;
+
+	/** type of pending I/O operation; also protected by
+	buf_pool->mutex for writes only @see enum buf_io_fix */
+	unsigned	io_fix:2;
+
+	/*!< state of the control block.
+	State transitions from BUF_BLOCK_READY_FOR_USE to BUF_BLOCK_MEMORY
+	need not be protected by buf_page_get_mutex(). @see enum buf_page_state.
+	State changes that are relevant to page_hash are additionally protected
+	by the appropriate page_hash mutex i.e.: if a page is in page_hash or
+	is being added to/removed from page_hash then the corresponding changes
+	must also be protected by page_hash mutex. */
 	unsigned	state:BUF_PAGE_STATE_BITS;
-					/*!< state of the control block.
-					State transitions from
-					BUF_BLOCK_READY_FOR_USE to
-					BUF_BLOCK_MEMORY need not be
-					protected by buf_page_get_mutex().
-					@see enum buf_page_state.
-					State changes that are relevant
-					to page_hash are additionally
-					protected by the appropriate
-					page_hash mutex i.e.: if a page
-					is in page_hash or is being
-					added to/removed from page_hash
-					then the corresponding changes
-					must also be protected by
-					page_hash mutex. */
+
+#endif /* PAGE_ATOMIC_REF_COUNT */
+
 #ifndef UNIV_HOTBACKUP
 	unsigned	flush_type:2;	/*!< if this block is currently being
 					flushed to disk, this tells the
@@ -1464,18 +1504,6 @@ struct buf_page_t{
 					mutex and the corresponding flush state
 					mutex.
 					@see buf_flush_t */
-	unsigned	io_fix:2;	/*!< type of pending I/O operation.
-					Transitions from BUF_IO_NONE to
-					BUF_IO_WRITE and back are protected by
-					the buf_page_get_mutex() mutex and the
-					corresponding flush state mutex.  The
-					flush state mutex protection for io_fix
-					and flush_type is not strictly
-					required, but it ensures consistent
-					buffer pool instance state snapshots in
-					buf_pool_validate_instance(). */
-	unsigned	buf_fix_count:19;/*!< count of how manyfold this block
-					is currently bufferfixed */
 	unsigned	buf_pool_index:6;/*!< index number of the buffer pool
 					that this block belongs to */
 # if MAX_BUFFER_POOLS > 64
@@ -1630,7 +1658,7 @@ struct buf_block_t{
 					decompressed LRU list;
 					used in debugging */
 #endif /* UNIV_DEBUG */
-	ib_mutex_t		mutex;		/*!< mutex protecting this block:
+	ib_mutex_t	mutex;		/*!< mutex protecting this block:
 					state, io_fix, buf_fix_count,
 					and accessed; we introduce this new
 					mutex in InnoDB-5.1 to relieve
@@ -1816,7 +1844,7 @@ struct buf_pool_t{
 
 	/** @name General fields */
 	/* @{ */
-	ib_mutex_t		zip_mutex;	/*!< Zip mutex of this buffer
+	ib_mutex_t	zip_mutex;	/*!< Zip mutex of this buffer
 					pool instance, protects compressed
 					only pages (of type buf_page_t, not
 					buf_block_t */
@@ -1873,7 +1901,7 @@ struct buf_pool_t{
 
 	/* @{ */
 
-	ib_mutex_t		flush_list_mutex;/*!< mutex protecting the
+	ib_mutex_t	flush_list_mutex;/*!< mutex protecting the
 					flush list access. This mutex
 					protects flush_list, flush_rbt
 					and bpage::list pointers when
@@ -1994,18 +2022,30 @@ Use these instead of accessing buffer pool mutexes directly. */
 #define buf_flush_list_mutex_own(b) mutex_own(&b->flush_list_mutex)
 
 /** Acquire the flush list mutex. */
-#define buf_flush_list_mutex_enter(b) do {	\
-	mutex_enter(&b->flush_list_mutex);	\
+#define buf_flush_list_mutex_enter(b) do {		\
+	mutex_enter(&b->flush_list_mutex);		\
 } while (0)
 /** Release the flush list mutex. */
-# define buf_flush_list_mutex_exit(b) do {	\
-	mutex_exit(&b->flush_list_mutex);	\
+# define buf_flush_list_mutex_exit(b) do {		\
+	mutex_exit(&b->flush_list_mutex);		\
 } while (0)
 
+/** Test if block->mutex is owned. */
+#define buf_block_mutex_own(b)	mutex_own(&(b)->mutex)
+
+/** Acquire the block->mutex. */
+#define buf_block_mutex_enter(b) do {			\
+	mutex_enter(&(b)->mutex);			\
+} while (0)
+
+/** Release the trx->mutex. */
+#define buf_block_mutex_exit(b) do {			\
+	mutex_exit(&(b)->mutex);				\
+} while (0)
 
 
 /** Get appropriate page_hash_lock. */
-# define buf_page_hash_lock_get(b, f)		\
+# define buf_page_hash_lock_get(b, f)			\
 	hash_get_lock(b->page_hash, f)
 
 #ifdef UNIV_SYNC_DEBUG

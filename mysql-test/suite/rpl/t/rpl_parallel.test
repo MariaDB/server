@@ -1250,6 +1250,47 @@ SET debug_sync='RESET';
 SELECT * FROM t4 ORDER BY a;
 
 
+--echo *** MDEV-5938: Exec_master_log_pos not updated at log rotate in parallel replication ***
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=1;
+SET DEBUG_SYNC= 'RESET';
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t5 (a INT PRIMARY KEY, b INT);
+INSERT INTO t5 VALUES (1,1);
+INSERT INTO t5 VALUES (2,2), (3,8);
+INSERT INTO t5 VALUES (4,16);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+let $io_file= query_get_value(SHOW SLAVE STATUS, Master_Log_File, 1);
+let $io_pos= query_get_value(SHOW SLAVE STATUS, Read_Master_Log_Pos, 1);
+let $sql_file= query_get_value(SHOW SLAVE STATUS, Relay_Master_Log_File, 1);
+let $sql_pos= query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1);
+--disable_query_log
+eval SELECT IF('$io_file' = '$sql_file', "OK", "Not ok, $io_file <> $sql_file") AS test_check;
+eval SELECT IF('$io_pos' = '$sql_pos', "OK", "Not ok, $io_pos <> $sql_pos") AS test_check;
+--enable_query_log
+
+--connection server_1
+FLUSH LOGS;
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+let $io_file= query_get_value(SHOW SLAVE STATUS, Master_Log_File, 1);
+let $io_pos= query_get_value(SHOW SLAVE STATUS, Read_Master_Log_Pos, 1);
+let $sql_file= query_get_value(SHOW SLAVE STATUS, Relay_Master_Log_File, 1);
+let $sql_pos= query_get_value(SHOW SLAVE STATUS, Exec_Master_Log_Pos, 1);
+--disable_query_log
+eval SELECT IF('$io_file' = '$sql_file', "OK", "Not ok, $io_file <> $sql_file") AS test_check;
+eval SELECT IF('$io_pos' = '$sql_pos', "OK", "Not ok, $io_pos <> $sql_pos") AS test_check;
+--enable_query_log
+
+
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
@@ -1258,7 +1299,7 @@ SET DEBUG_SYNC= 'RESET';
 
 --connection server_1
 DROP function foo;
-DROP TABLE t1,t2,t3,t4;
+DROP TABLE t1,t2,t3,t4,t5;
 SET DEBUG_SYNC= 'RESET';
 
 --source include/rpl_end.inc

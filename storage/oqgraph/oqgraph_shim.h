@@ -184,6 +184,10 @@ namespace oqgraph3
     typedef edge_info key_type;
     typedef boost::readable_property_map_tag category;
     edge_weight_property_map(const graph& g) : _g(g) { }
+    friend inline reference
+    get(const edge_weight_property_map& p, const key_type& key)
+    { return key.weight(); }
+
     const graph& _g;
   };
 
@@ -435,16 +439,6 @@ namespace boost
   get(edge_weight_t,
       const oqgraph3::graph& g)
   { return property_map<oqgraph3::graph, edge_weight_t>::const_type(g); }
-
-  inline property_map<
-      oqgraph3::graph,
-      edge_weight_t>::const_type::reference
-  get(const property_map<oqgraph3::graph,
-          edge_weight_t>::const_type& p,
-      const property_map<
-          oqgraph3::graph,
-          edge_weight_t>::const_type::key_type& key)
-  { return key.weight(); }
 
   inline property_map<
       oqgraph3::graph,

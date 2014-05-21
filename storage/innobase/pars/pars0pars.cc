@@ -1988,6 +1988,12 @@ pars_create_table(
 		}
 	}
 
+	/* Set the flags2 when create table or alter tables */
+	flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
+	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
+			flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
+
+
 	n_cols = que_node_list_get_len(column_defs);
 
 	table = dict_mem_table_create(
@@ -2154,8 +2160,9 @@ pars_get_lex_chars(
 {
 	int	len;
 
-	len = pars_sym_tab_global->string_len
-		- pars_sym_tab_global->next_char_pos;
+	len = static_cast<int>(
+		pars_sym_tab_global->string_len
+		- pars_sym_tab_global->next_char_pos);
 	if (len == 0) {
 #ifdef YYDEBUG
 		/* fputs("SQL string ends\n", stderr); */

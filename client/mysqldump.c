@@ -604,12 +604,12 @@ static void print_version(void)
 } /* print_version */
 
 
-static void short_usage_sub(void)
+static void short_usage_sub(FILE *f)
 {
-  printf("Usage: %s [OPTIONS] database [tables]\n", my_progname_short);
-  printf("OR     %s [OPTIONS] --databases [OPTIONS] DB1 [DB2 DB3...]\n",
-         my_progname_short);
-  printf("OR     %s [OPTIONS] --all-databases [OPTIONS]\n", my_progname_short);
+  fprintf(f, "Usage: %s [OPTIONS] database [tables]\n", my_progname_short);
+  fprintf(f, "OR     %s [OPTIONS] --databases [OPTIONS] DB1 [DB2 DB3...]\n",
+          my_progname_short);
+  fprintf(f, "OR     %s [OPTIONS] --all-databases [OPTIONS]\n", my_progname_short);
 }
 
 
@@ -618,18 +618,18 @@ static void usage(void)
   print_version();
   puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
   puts("Dumping structure and contents of MySQL databases and tables.");
-  short_usage_sub();
+  short_usage_sub(stdout);
   print_defaults("my",load_default_groups);
   puts("");
-my_print_help(my_long_options);
+  my_print_help(my_long_options);
   my_print_variables(my_long_options);
 } /* usage */
 
 
-static void short_usage(void)
+static void short_usage(FILE *f)
 {
-  short_usage_sub();
-  printf("For more options, use %s --help\n", my_progname_short);
+  short_usage_sub(f);
+  fprintf(f, "For more options, use %s --help\n", my_progname_short);
 }
 
 
@@ -1002,7 +1002,7 @@ static int get_options(int *argc, char ***argv)
     exit(1);
   if ((*argc < 1 && !opt_alldbs) || (*argc > 0 && opt_alldbs))
   {
-    short_usage();
+    short_usage(stderr);
     return EX_USAGE;
   }
   if (tty_password)
@@ -1502,12 +1502,13 @@ static void free_resources()
 
 static void maybe_exit(int error)
 {
-  if (opt_slave_data)
-    do_start_slave_sql(mysql);
   if (!first_error)
     first_error= error;
   if (ignore_errors)
     return;
+  ignore_errors= 1; /* don't want to recurse, if something fails below */
+  if (opt_slave_data)
+    do_start_slave_sql(mysql);
   if (mysql)
     mysql_close(mysql);
   free_resources();
@@ -4406,6 +4407,12 @@ static int dump_all_tables_in_db(char *database)
     else
       verbose_msg("-- dump_all_tables_in_db : logs flushed successfully!\n");
   }
+  if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
+  {
+    verbose_msg("-- Setting savepoint...\n");
+    if (mysql_query_with_error_report(mysql, 0, "SAVEPOINT sp"))
+      DBUG_RETURN(1);
+  }
   while ((table= getTableName(0)))
   {
     char *end= strmov(afterdot, table);
@@ -4422,6 +4429,23 @@ static int dump_all_tables_in_db(char *database)
             my_fclose(md_result_file, MYF(MY_WME));
           maybe_exit(EX_MYSQLERR);
         }
+      }
+
+      /**
+        ROLLBACK TO SAVEPOINT in --single-transaction mode to release metadata
+        lock on table which was already dumped. This allows to avoid blocking
+        concurrent DDL on this table without sacrificing correctness, as we
+        won't access table second time and dumps created by --single-transaction
+        mode have validity point at the start of transaction anyway.
+        Note that this doesn't make --single-transaction mode with concurrent
+        DDL safe in general case. It just improves situation for people for whom
+        it might be working.
+      */
+      if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
+      {
+        verbose_msg("-- Rolling back to savepoint sp...\n");
+        if (mysql_query_with_error_report(mysql, 0, "ROLLBACK TO SAVEPOINT sp"))
+          maybe_exit(EX_MYSQLERR);
       }
     }
     else
@@ -4445,6 +4469,14 @@ static int dump_all_tables_in_db(char *database)
       }
     }
   }
+
+  if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
+  {
+    verbose_msg("-- Releasing savepoint...\n");
+    if (mysql_query_with_error_report(mysql, 0, "RELEASE SAVEPOINT sp"))
+      DBUG_RETURN(1);
+  }
+
   if (opt_events && mysql_get_server_version(mysql) >= 50106)
   {
     DBUG_PRINT("info", ("Dumping events for database %s", database));
@@ -4687,6 +4719,13 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
   if (opt_xml)
     print_xml_tag(md_result_file, "", "\n", "database", "name=", db, NullS);
 
+  if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
+  {
+    verbose_msg("-- Setting savepoint...\n");
+    if (mysql_query_with_error_report(mysql, 0, "SAVEPOINT sp"))
+      DBUG_RETURN(1);
+  }
+
   /* Dump each selected table */
   for (pos= dump_tables; pos < end; pos++)
   {
@@ -4702,6 +4741,31 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
         maybe_exit(EX_MYSQLERR);
       }
     }
+
+    /**
+      ROLLBACK TO SAVEPOINT in --single-transaction mode to release metadata
+      lock on table which was already dumped. This allows to avoid blocking
+      concurrent DDL on this table without sacrificing correctness, as we
+      won't access table second time and dumps created by --single-transaction
+      mode have validity point at the start of transaction anyway.
+      Note that this doesn't make --single-transaction mode with concurrent
+      DDL safe in general case. It just improves situation for people for whom
+      it might be working.
+    */
+    if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
+    {
+      verbose_msg("-- Rolling back to savepoint sp...\n");
+      if (mysql_query_with_error_report(mysql, 0, "ROLLBACK TO SAVEPOINT sp"))
+        maybe_exit(EX_MYSQLERR);
+    }
+  }
+
+  if (opt_single_transaction && mysql_get_server_version(mysql) >= 50500)
+  {
+    verbose_msg("-- Releasing savepoint...\n");
+    if (mysql_query_with_error_report(mysql, 0, "RELEASE SAVEPOINT sp"))
+      DBUG_RETURN(1);
+
   }
 
   /* Dump each selected view */
@@ -5736,8 +5800,8 @@ int main(int argc, char **argv)
   */
 err:
   /* if --dump-slave , start the slave sql thread */
-  if (opt_slave_data && do_start_slave_sql(mysql))
-    goto err;
+  if (opt_slave_data)
+    do_start_slave_sql(mysql);
 
 #ifdef HAVE_SMEM
   my_free(shared_memory_base_name);

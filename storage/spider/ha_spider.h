@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -125,6 +125,7 @@ public:
   bool               clone_bitmap_init;
   ha_spider          *pt_clone_source_handler;
   ha_spider          *pt_clone_last_searcher;
+  bool               has_clone_for_merge;
 
   bool               init_index_handler;
   bool               init_rnd_handler;
@@ -165,6 +166,7 @@ public:
   bool               high_priority;
   bool               insert_delayed;
   bool               use_pre_call;
+  bool               use_pre_records;
   enum thr_lock_type lock_type;
   int                lock_mode;
   uint               sql_command;
@@ -172,6 +174,9 @@ public:
   bool               bulk_insert;
 #ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool               info_auto_called;
+#endif
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+  bool               auto_inc_temporary;
 #endif
   int                bulk_size;
   int                direct_dup_insert;
@@ -232,6 +237,7 @@ public:
   SPIDER_ITEM_HLD    *direct_aggregate_item_first;
   SPIDER_ITEM_HLD    *direct_aggregate_item_current;
 #endif
+  ha_rows            table_rows;
 
   /* for fulltext search */
   bool               ft_init_and_first;
@@ -463,6 +469,9 @@ public:
     bool use_parallel
   );
 #ifdef HA_MRR_USE_DEFAULT_IMPL
+  int pre_multi_range_read_next(
+    bool use_parallel
+  );
 #else
   int pre_read_multi_range_first(
     KEY_MULTI_RANGE **found_range_p,
@@ -491,6 +500,7 @@ public:
     key_range *end_key
   );
   int check_crd();
+  int pre_records();
   ha_rows records();
   const char *table_type() const;
   ulonglong table_flags() const;
@@ -510,6 +520,9 @@ public:
   uint8 table_cache_type();
 #ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool need_info_for_auto_inc();
+#endif
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+  bool can_use_for_auto_inc_init();
 #endif
   int update_auto_increment();
   void get_auto_increment(
@@ -540,6 +553,12 @@ public:
 #ifdef HA_CAN_BULK_ACCESS
   int pre_write_row(
     uchar *buf
+  );
+#endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  void direct_update_init(
+    THD *thd,
+    bool hs_request
   );
 #endif
   bool start_bulk_update();
@@ -721,6 +740,7 @@ public:
   );
   uint check_partitioned();
   void check_direct_order_limit();
+  int check_ha_range_eof();
   int drop_tmp_tables();
   bool handler_opened(
     int link_idx,
@@ -845,7 +865,7 @@ public:
   int append_direct_update_set_hs_part();
 #endif
 #endif
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_dup_update_pushdown_sql_part(
     const char *alias,
     uint alias_length
@@ -944,6 +964,13 @@ public:
   void set_order_to_pos_sql(
     ulong sql_type
   );
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+  int append_group_by_sql_part(
+    const char *alias,
+    uint alias_length,
+    ulong sql_type
+  );
+#endif
   int append_key_order_for_merge_with_alias_sql_part(
     const char *alias,
     uint alias_length,

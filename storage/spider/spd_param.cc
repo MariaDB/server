@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -32,7 +32,10 @@
 #include "spd_table.h"
 #include "spd_trx.h"
 
-extern struct st_maria_plugin spider_i_s_alloc_mem;
+extern struct st_mysql_plugin spider_i_s_alloc_mem;
+#ifdef MARIADB_BASE_VERSION
+extern struct st_maria_plugin spider_i_s_alloc_mem_maria;
+#endif
 
 extern volatile ulonglong spider_mon_table_cache_version;
 extern volatile ulonglong spider_mon_table_cache_version_req;
@@ -2827,6 +2830,136 @@ uint spider_param_log_result_errors()
   DBUG_RETURN(spider_log_result_errors);
 }
 
+static uint spider_log_result_error_with_sql;
+/*
+  0: no log
+  1: log spider sql at logging result errors
+  2: log user sql at logging result errors
+  3: log both sql at logging result errors
+ */
+static MYSQL_SYSVAR_UINT(
+  log_result_error_with_sql,
+  spider_log_result_error_with_sql,
+  PLUGIN_VAR_RQCMDARG,
+  "Log sql at logging result errors",
+  NULL,
+  NULL,
+  0,
+  0,
+  3,
+  0
+);
+
+uint spider_param_log_result_error_with_sql()
+{
+  DBUG_ENTER("spider_param_log_result_error_with_sql");
+  DBUG_RETURN(spider_log_result_error_with_sql);
+}
+
+static char *spider_version = (char *) SPIDER_DETAIL_VERSION;
+static MYSQL_SYSVAR_STR(
+  version,
+  spider_version,
+  PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_READONLY,
+  "The version of Spider",
+  NULL,
+  NULL,
+  SPIDER_DETAIL_VERSION
+);
+
+/*
+  0: server_id + thread_id
+  1: server_id + thread_id + query_id
+ */
+static MYSQL_THDVAR_UINT(
+  internal_xa_id_type, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The type of internal_xa id", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  0, /* def */
+  0, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+uint spider_param_internal_xa_id_type(
+  THD *thd
+) {
+  DBUG_ENTER("spider_param_internal_xa_id_type");
+  DBUG_RETURN(THDVAR(thd, internal_xa_id_type));
+}
+
+/*
+ -1 :use table parameter
+  0 :OFF
+  1 :automatic channel
+  2-63 :use custom channel
+ */
+static MYSQL_THDVAR_INT(
+  casual_read, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "Read casually if it is possible", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  63, /* max */
+  0 /* blk */
+);
+
+int spider_param_casual_read(
+  THD *thd,
+  int casual_read
+) {
+  DBUG_ENTER("spider_param_casual_read");
+  DBUG_RETURN(THDVAR(thd, casual_read) == -1 ?
+    casual_read : THDVAR(thd, casual_read));
+}
+
+static my_bool spider_dry_access;
+static MYSQL_SYSVAR_BOOL(
+  dry_access,
+  spider_dry_access,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "dry access",
+  NULL,
+  NULL,
+  FALSE
+);
+
+my_bool spider_param_dry_access()
+{
+  DBUG_ENTER("spider_param_dry_access");
+  DBUG_RETURN(spider_dry_access);
+}
+
+/*
+ -1 :use table parameter
+  0 :fast
+  1 :correct delete row number
+ */
+static MYSQL_THDVAR_INT(
+  delete_all_rows_type, /* name */
+  PLUGIN_VAR_RQCMDARG, /* opt */
+  "The type of delete_all_rows", /* comment */
+  NULL, /* check */
+  NULL, /* update */
+  -1, /* def */
+  -1, /* min */
+  1, /* max */
+  0 /* blk */
+);
+
+int spider_param_delete_all_rows_type(
+  THD *thd,
+  int delete_all_rows_type
+) {
+  DBUG_ENTER("spider_param_delete_all_rows_type");
+  DBUG_RETURN(THDVAR(thd, delete_all_rows_type) == -1 ?
+    delete_all_rows_type : THDVAR(thd, delete_all_rows_type));
+}
+
 static struct st_mysql_storage_engine spider_storage_engine =
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
@@ -2954,9 +3087,37 @@ static struct st_mysql_sys_var* spider_system_variables[] = {
 #endif
   MYSQL_SYSVAR(general_log),
   MYSQL_SYSVAR(log_result_errors),
+  MYSQL_SYSVAR(log_result_error_with_sql),
+  MYSQL_SYSVAR(version),
+  MYSQL_SYSVAR(internal_xa_id_type),
+  MYSQL_SYSVAR(casual_read),
+  MYSQL_SYSVAR(dry_access),
+  MYSQL_SYSVAR(delete_all_rows_type),
   NULL
 };
 
+mysql_declare_plugin(spider)
+{
+  MYSQL_STORAGE_ENGINE_PLUGIN,
+  &spider_storage_engine,
+  "SPIDER",
+  "Kentoku Shiba",
+  "Spider storage engine",
+  PLUGIN_LICENSE_GPL,
+  spider_db_init,
+  spider_db_done,
+  SPIDER_HEX_VERSION,
+  spider_status_variables,
+  spider_system_variables,
+  NULL,
+#if MYSQL_VERSION_ID >= 50600
+  0,
+#endif
+},
+spider_i_s_alloc_mem
+mysql_declare_plugin_end;
+
+#ifdef MARIADB_BASE_VERSION
 maria_declare_plugin(spider)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
@@ -2967,11 +3128,12 @@ maria_declare_plugin(spider)
   PLUGIN_LICENSE_GPL,
   spider_db_init,
   spider_db_done,
-  0x0300,
+  SPIDER_HEX_VERSION,
   spider_status_variables,
   spider_system_variables,
-  "3.0",
-  MariaDB_PLUGIN_MATURITY_BETA
+  SPIDER_DETAIL_VERSION,
+  MariaDB_PLUGIN_MATURITY_GAMMA
 },
-spider_i_s_alloc_mem
+spider_i_s_alloc_mem_maria
 maria_declare_plugin_end;
+#endif

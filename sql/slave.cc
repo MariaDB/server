@@ -321,7 +321,7 @@ handle_slave_init(void *arg __attribute__((unused)))
 
   mysql_mutex_lock(&LOCK_thread_count);
   slave_init_thread_running= false;
-  mysql_cond_signal(&COND_thread_count);
+  mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
   return 0;
@@ -2882,7 +2882,7 @@ void set_slave_thread_options(THD* thd)
   DBUG_VOID_RETURN;
 }
 
-void set_slave_thread_default_charset(THD* thd, Relay_log_info const *rli)
+void set_slave_thread_default_charset(THD* thd, rpl_group_info *rgi)
 {
   DBUG_ENTER("set_slave_thread_default_charset");
 
@@ -2894,13 +2894,7 @@ void set_slave_thread_default_charset(THD* thd, Relay_log_info const *rli)
     global_system_variables.collation_server;
   thd->update_charset();
 
-  /*
-    We use a const cast here since the conceptual (and externally
-    visible) behavior of the function is to set the default charset of
-    the thread.  That the cache has to be invalidated is a secondary
-    effect.
-   */
-  const_cast<Relay_log_info*>(rli)->cached_charset_invalidate();
+  thd->system_thread_info.rpl_sql_info->cached_charset_invalidate();
   DBUG_VOID_RETURN;
 }
 
@@ -3777,6 +3771,7 @@ pthread_handler_t handle_slave_io(void *arg)
   uint retry_count;
   bool suppress_warnings;
   int ret;
+  rpl_io_thread_info io_info;
 #ifndef DBUG_OFF
   uint retry_count_reg= 0, retry_count_dump= 0, retry_count_event= 0;
 #endif
@@ -3810,6 +3805,7 @@ pthread_handler_t handle_slave_io(void *arg)
     sql_print_error("Failed during slave I/O thread initialization");
     goto err_during_init;
   }
+  thd->system_thread_info.rpl_io_info= &io_info;
   mysql_mutex_lock(&LOCK_thread_count);
   threads.append(thd);
   mysql_mutex_unlock(&LOCK_thread_count);
@@ -4376,6 +4372,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   Relay_log_info* rli = &mi->rli;
   const char *errmsg;
   rpl_group_info *serial_rgi;
+  rpl_sql_thread_info sql_info(mi->rpl_filter);
 
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
@@ -4387,7 +4384,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !
   thd->thread_stack = (char*)&thd; // remember where our stack is
-  thd->rpl_filter = mi->rpl_filter;
+  thd->system_thread_info.rpl_sql_info= &sql_info;
 
   DBUG_ASSERT(rli->inited);
   DBUG_ASSERT(rli->mi == mi);
@@ -4690,7 +4687,7 @@ err_during_init:
   mysql_cond_broadcast(&rli->data_cond);
   rli->ignore_log_space_limit= 0; /* don't need any lock */
   /* we die so won't remember charset - re-update them on next thread start */
-  rli->cached_charset_invalidate();
+  thd->system_thread_info.rpl_sql_info->cached_charset_invalidate();
 
   /*
     TODO: see if we can do this conditionally in next_event() instead

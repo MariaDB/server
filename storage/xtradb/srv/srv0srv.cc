@@ -369,6 +369,9 @@ UNIV_INTERN ulong	srv_flushing_avg_loops		= 30;
 /* The tid of the cleaner thread */
 UNIV_INTERN os_tid_t	srv_cleaner_tid;
 
+/* The tid of the LRU manager thread */
+UNIV_INTERN os_tid_t	srv_lru_manager_tid;
+
 /* The tids of the purge threads */
 UNIV_INTERN os_tid_t	srv_purge_tids[SRV_MAX_N_PURGE_THREADS];
 
@@ -378,7 +381,7 @@ UNIV_INTERN os_tid_t	srv_io_tids[SRV_MAX_N_IO_THREADS];
 /* The tid of the master thread */
 UNIV_INTERN os_tid_t	srv_master_tid;
 
-/* The relative scheduling priority of the cleaner thread */
+/* The relative scheduling priority of the cleaner and LRU manager threads */
 UNIV_INTERN ulint	srv_sched_priority_cleaner	= 19;
 
 /* The relative scheduling priority of the purge threads */
@@ -520,8 +523,8 @@ counters_pad_end[CACHE_LINE_SIZE] __attribute__((unused)) = {0};
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
 UNIV_INTERN ibool	srv_print_verbose_log		= TRUE;
-UNIV_INTERN ibool	srv_print_innodb_monitor	= FALSE;
-UNIV_INTERN ibool	srv_print_innodb_lock_monitor	= FALSE;
+UNIV_INTERN my_bool	srv_print_innodb_monitor	= FALSE;
+UNIV_INTERN my_bool	srv_print_innodb_lock_monitor	= FALSE;
 UNIV_INTERN ibool	srv_print_innodb_tablespace_monitor = FALSE;
 UNIV_INTERN ibool	srv_print_innodb_table_monitor = FALSE;
 
@@ -3294,7 +3297,8 @@ srv_purge_coordinator_suspend(
 
 		rw_lock_x_lock(&purge_sys->latch);
 
-		stop = (purge_sys->state == PURGE_STATE_STOP);
+		stop = (srv_shutdown_state == SRV_SHUTDOWN_NONE
+			&& purge_sys->state == PURGE_STATE_STOP);
 
 		if (!stop) {
 			ut_a(purge_sys->n_stop == 0);
@@ -3382,8 +3386,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		/* If there are no records to purge or the last
 		purge didn't purge any records then wait for activity. */
 
-		if (purge_sys->state == PURGE_STATE_STOP
-		    || n_total_purged == 0) {
+		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		    && (purge_sys->state == PURGE_STATE_STOP
+			|| n_total_purged == 0)) {
 
 			srv_purge_coordinator_suspend(slot, rseg_history_len);
 		}

@@ -124,7 +124,7 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
     case SQL_LONGVARCHAR:                   //  (-1)
       v = 'V';
       type = TYPE_STRING;
-      len = min(abs(len), 256);
+      len = MY_MIN(abs(len), 256);
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
@@ -312,7 +312,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
     if (table && !strchr(table, '%')) {
       // We fix a MySQL limit because some data sources return 32767
       n = ocp->GetMaxValue(SQL_MAX_COLUMNS_IN_TABLE);
-      maxres = (n) ? min(n, 4096) : 4096;
+      maxres = (n) ? MY_MIN(n, 4096) : 4096;
     } else if (!maxres)
       maxres = 20000;
 
@@ -1858,7 +1858,7 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
       if (!Check(rc))
         ThrowDBX(rc, "SQLDescribeCol", hstmt);
 
-      length[0] = max(length[0], (UINT)nl);
+      length[0] = MY_MAX(length[0], (UINT)nl);
       } // endfor i
 
   } catch(DBX *x) {
@@ -2135,7 +2135,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   PSZ      fnc = "Unknown";
   UWORD    n;
   SWORD    ncol, len, tp;
-  SQLULEN  crow;
+  SQLULEN  crow = 0;
   PQRYRES  qrp = cap->Qrp;
   PCOLRES  crp;
   RETCODE  rc = 0;
@@ -2287,6 +2287,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
       } // endfor i
 
+#if 0
     if ((crow = i) && (rc == SQL_NO_DATA || rc == SQL_SUCCESS_WITH_INFO))
       rc = SQL_SUCCESS;
 
@@ -2301,6 +2302,15 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       if ((rc = SQLFetch(hstmt)) != SQL_NO_DATA_FOUND)
         qrp->Truncated = true; 
 
+    } else
+      ThrowDBX(rc, fnc, hstmt);
+#endif // 0
+
+    if (!rc || rc == SQL_NO_DATA || rc == SQL_SUCCESS_WITH_INFO) {
+      if ((rc = SQLFetch(hstmt)) != SQL_NO_DATA_FOUND)
+        qrp->Truncated = true; 
+
+      crow = i;
     } else
       ThrowDBX(rc, fnc, hstmt);
 

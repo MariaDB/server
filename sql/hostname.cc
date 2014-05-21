@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
    Copyright (c) 2011, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -457,12 +457,12 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
     if (entry)
     {
       entry->m_last_seen= now;
+      *connect_errors= entry->m_errors.m_connect;
 
-      if (entry->m_errors.m_connect > max_connect_errors)
+      if (entry->m_errors.m_connect >= max_connect_errors)
       {
         entry->m_errors.m_host_blocked++;
         entry->set_error_timestamps(now);
-        *connect_errors= entry->m_errors.m_connect;
         mysql_mutex_unlock(&hostname_cache->lock);
         DBUG_RETURN(RC_BLOCKED_HOST);
       }

@@ -1,4 +1,4 @@
-/* Copyright (C) 2008-2013 Kentoku Shiba
+/* Copyright (C) 2008-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -206,6 +206,10 @@ int spider_xa_commit_by_xid(
 int spider_xa_rollback_by_xid(
   handlerton *hton,
   XID* xid
+);
+
+void spider_copy_table_free_trx_conn(
+  SPIDER_TRX *trx
 );
 
 int spider_end_trx(

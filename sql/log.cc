@@ -76,6 +76,8 @@ static int binlog_init(void *p);
 static int binlog_close_connection(handlerton *hton, THD *thd);
 static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv);
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv);
+static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
+                                                      THD *thd);
 static int binlog_commit(handlerton *hton, THD *thd, bool all);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
@@ -1770,6 +1772,8 @@ int binlog_init(void *p)
   binlog_hton->close_connection= binlog_close_connection;
   binlog_hton->savepoint_set= binlog_savepoint_set;
   binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
+  binlog_hton->savepoint_rollback_can_release_mdl=
+                                     binlog_savepoint_rollback_can_release_mdl;
   binlog_hton->commit= binlog_commit;
   binlog_hton->rollback= binlog_rollback;
   binlog_hton->prepare= binlog_prepare;
@@ -2028,6 +2032,32 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
   return 0;
 }
 
+/*
+  We flush the cache wrapped in a beging/rollback if:
+    . aborting a single or multi-statement transaction and;
+    . the OPTION_KEEP_LOG is active or;
+    . the format is STMT and a non-trans table was updated or;
+    . the format is MIXED and a temporary non-trans table was
+      updated or;
+    . the format is MIXED, non-trans table was updated and
+      aborting a single statement transaction;
+*/
+static bool trans_cannot_safely_rollback(THD *thd, bool all)
+{
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+
+  return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
+          (trans_has_updated_non_trans_table(thd) &&
+           WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_STMT) ||
+          (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
+           WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_MIXED) ||
+          (trans_has_updated_non_trans_table(thd) &&
+           ending_single_stmt_trans(thd,all) &&
+           WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_MIXED));
+}
+
+
 /**
   This function is called once after each statement.
 
@@ -2157,26 +2187,8 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     error |= binlog_truncate_trx_cache(thd, cache_mngr, all);
   }
   else if (!error)
-  {  
-    /*
-      We flush the cache wrapped in a beging/rollback if:
-        . aborting a single or multi-statement transaction and;
-        . the OPTION_KEEP_LOG is active or;
-        . the format is STMT and a non-trans table was updated or;
-        . the format is MIXED and a temporary non-trans table was
-          updated or;
-        . the format is MIXED, non-trans table was updated and
-          aborting a single statement transaction;
-    */
-    if (ending_trans(thd, all) &&
-        ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
-         (trans_has_updated_non_trans_table(thd) &&
-          WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_STMT) ||
-         (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
-          WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_MIXED) ||
-         (trans_has_updated_non_trans_table(thd) &&
-          ending_single_stmt_trans(thd,all) &&
-          WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_MIXED)))
+  {
+    if (ending_trans(thd, all) && trans_cannot_safely_rollback(thd, all))
       error= binlog_rollback_flush_trx_cache(thd, all, cache_mngr);
     /*
       Truncate the cache if:
@@ -2363,6 +2375,30 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
 #endif
       binlog_trans_log_truncate(thd, *(my_off_t*)sv);
   DBUG_RETURN(0);
+}
+
+
+/**
+  Check whether binlog state allows to safely release MDL locks after
+  rollback to savepoint.
+
+  @param hton  The binlog handlerton.
+  @param thd   The client thread that executes the transaction.
+
+  @return true  - It is safe to release MDL locks.
+          false - If it is not.
+*/
+static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
+                                                      THD *thd)
+{
+  DBUG_ENTER("binlog_savepoint_rollback_can_release_mdl");
+  /*
+    If we have not updated any non-transactional tables rollback
+    to savepoint will simply truncate binlog cache starting from
+    SAVEPOINT command. So it should be safe to release MDL acquired
+    after SAVEPOINT command in this case.
+  */
+  DBUG_RETURN(!trans_cannot_safely_rollback(thd, true));
 }
 
 

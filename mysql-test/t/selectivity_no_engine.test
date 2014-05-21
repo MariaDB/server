@@ -84,6 +84,82 @@ explain extended select * from t1 where col1 in (-1,-2,-3);
 explain extended select * from t1 where col1<=-1;
 drop table t1, t2;
 
+--echo # 
+--echo # MDEV-5984: EITS: Incorrect filtered% value for single-table select with range access
+--echo # 
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (a int, b int, col1 varchar(64), col2 varchar(64), key(a,b));
+insert into t2 select A.a+10*B.a, C.a+10*D.a, 'filler-data1', 'filler-data2' from t1 A, t1 B, t1 C, t1 D;
+
+set histogram_size=100;
+set optimizer_use_condition_selectivity=4;
+set use_stat_tables='preferably';
+analyze table t2 persistent for all;
+--echo # This must show filtered=100%:
+explain extended select * from t2 where a in (1,2,3) and b in (1,2,3);
+
+drop table t2, t1;
+
+--echo # 
+--echo # MDEV-5980: EITS: if condition is used for REF access, its selectivity is still in filtered%
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(key1 int, col1 int, key(key1));
+insert into t1 select A.a, A.a from t0 A, t0 B, t0 C;
+
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+--echo # 10% is ok
+explain extended select * from t1 where col1=2;
+--echo # Must show 100%, not 10%
+explain extended select * from t1 where key1=2;
+drop table t0, t1;
+
+--echo # MDEV-6003: EITS: ref access, keypart2=const vs keypart2=expr - inconsistent filtered% value
+--echo # 
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (
+  kp1 int, kp2 int, 
+  filler1 char(100),
+  filler2 char(100),
+  key(kp1, kp2)
+);
+
+insert into t1 
+select 
+  A.a,
+  B.a,
+  'filler-data-1',
+  'filler-data-2'
+from t0 A, t0 B, t0 C;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+--echo # NOTE: 10*100%, 10*100% rows is ok
+explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=t0.a+1;
+
+--echo # NOTE: t0: 10*100% is ok,  t1: 10*9.90% is bad. t1 should have 10*100%.
+explain extended select * from t0, t1 where t1.kp1=t0.a and t1.kp2=4;
+drop table t0, t1;
+
+--echo # 
+--echo # MDEV-6209: Assertion `join->best_read < double(1.79769313486231570815e+308L)' 
+--echo #            failed in bool greedy_search with optimizer_use_condition_selectivity>1
+--echo # 
+SET optimizer_use_condition_selectivity = 2;
+
+CREATE TABLE t1 (a CHAR(6), b INT, PRIMARY KEY (a,b)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES ('foo',1),('bar',2);
+
+SELECT * FROM t1 AS t1_1, t1 AS t1_2 WHERE NOT ( t1_1.a <> 'baz');
+DROP TABLE t1;
 
 --echo # 
 --echo # End of the test file

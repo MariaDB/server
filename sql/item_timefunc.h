@@ -809,7 +809,7 @@ public:
   bool get_date(MYSQL_TIME *res, ulonglong fuzzy_date);
   void fix_length_and_dec()
   {
-    decimals= args[0]->decimals;
+    decimals= MY_MIN(args[0]->decimals, TIME_SECOND_PART_DIGITS);
     Item_timefunc::fix_length_and_dec();
   }
   const char *func_name() const { return "sec_to_time"; }

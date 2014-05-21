@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
    Copyright (c) 2009, 2013, Monty Program Ab.
    Copyright (c) 2013, 2014, SkySQL Ab
 
@@ -606,7 +606,6 @@ static COMMANDS commands[] = {
   { "OLD_PASSWORD", 0, 0, 0, ""},
   { "ON", 0, 0, 0, ""},
   { "ONE", 0, 0, 0, ""},
-  { "ONE_SHOT", 0, 0, 0, ""},
   { "OPEN", 0, 0, 0, ""},
   { "OPTIMIZE", 0, 0, 0, ""},
   { "OPTION", 0, 0, 0, ""},

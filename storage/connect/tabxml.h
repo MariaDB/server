@@ -190,6 +190,7 @@ class XMLCOL : public COLBLK {
   int     Long;                   // Buffer length
   int     Nx;                     // The last read row
   int     Sx;                     // The last read sub-row
+  int     N;                      // The number of (multiple) values
   PVAL    To_Val;                 // To value used for Update/Insert
   }; // end of class XMLCOL
 

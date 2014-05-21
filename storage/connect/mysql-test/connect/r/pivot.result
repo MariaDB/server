@@ -229,7 +229,7 @@ DROP TABLE pets;
 #
 CREATE TABLE fruit (
 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-`name` varchar(32) DEFAULT NULL,
+`name` varchar(32) NOT NULL,
 `cnt` int(11) DEFAULT NULL,
 PRIMARY KEY (`id`)
 ) ENGINE=MyISAM AUTO_INCREMENT=6 DEFAULT CHARSET=latin1;

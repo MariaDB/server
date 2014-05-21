@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2383,27 +2383,21 @@ fil_op_log_parse_or_replay(
 		break;
 
 	case MLOG_FILE_RENAME:
-		/* We do the rename based on space id, not old file name;
-		this should guarantee that after the log replay each .ibd file
-		has the correct name for the latest log sequence number; the
-		proof is left as an exercise :) */
+		/* In order to replay the rename, the following must hold:
+		* The new name is not already used.
+		* A tablespace is open in memory with the old name.
+		* The space ID for that tablepace matches this log entry.
+		This will prevent unintended renames during recovery. */
 
-		if (fil_tablespace_exists_in_mem(space_id)) {
+		if (fil_get_space_id_for_table(new_name) == ULINT_UNDEFINED
+		    && space_id == fil_get_space_id_for_table(name)) {
 			/* Create the database directory for the new name, if
 			it does not exist yet */
 			fil_create_directory_for_tablename(new_name);
 
-			/* Rename the table if there is not yet a tablespace
-			with the same name */
-
-			if (fil_get_space_id_for_table(new_name)
-			    == ULINT_UNDEFINED) {
-				/* We do not care about the old name, that
-				is why we pass NULL as the first argument. */
-				if (!fil_rename_tablespace(NULL, space_id,
-							   new_name, NULL)) {
-					ut_error;
-				}
+			if (!fil_rename_tablespace(name, space_id,
+						   new_name, NULL)) {
+				ut_error;
 			}
 		}
 
@@ -3605,20 +3599,6 @@ fil_report_bad_tablespace(
 		(ulong) expected_id, (ulong) expected_flags);
 }
 
-struct fsp_open_info {
-	ibool		success;	/*!< Has the tablespace been opened? */
-	const char*	check_msg;	/*!< fil_check_first_page() message */
-	ibool		valid;		/*!< Is the tablespace valid? */
-	os_file_t	file;		/*!< File handle */
-	char*		filepath;	/*!< File path to open */
-	lsn_t		lsn;		/*!< Flushed LSN from header page */
-	ulint		id;		/*!< Space ID */
-	ulint		flags;		/*!< Tablespace flags */
-#ifdef UNIV_LOG_ARCHIVE
-	ulint		arch_log_no;	/*!< latest archived log file number */
-#endif /* UNIV_LOG_ARCHIVE */
-};
-
 /********************************************************************//**
 Tries to open a single-table tablespace and optionally checks that the
 space id in it is correct. If this does not succeed, print an error message
@@ -4021,6 +4001,175 @@ fil_make_ibbackup_old_name(
 }
 #endif /* UNIV_HOTBACKUP */
 
+
+/*******************************************************************//**
+Determine the space id of the given file descriptor by reading a few
+pages from the beginning of the .ibd file.
+@return true if space id was successfully identified, or false. */
+static
+bool
+fil_user_tablespace_find_space_id(
+/*==============================*/
+	fsp_open_info*	fsp)	/* in/out: contains file descriptor, which is
+				used as input.  contains space_id, which is
+				the output */
+{
+	bool		st;
+	os_offset_t	file_size;
+
+	file_size = os_file_get_size(fsp->file);
+
+	if (file_size == (os_offset_t) -1) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "Could not get file size: %s",
+			fsp->filepath);
+		return(false);
+	}
+
+	/* Assuming a page size, read the space_id from each page and store it
+	in a map.  Find out which space_id is agreed on by majority of the
+	pages.  Choose that space_id. */
+	for (ulint page_size = UNIV_ZIP_SIZE_MIN;
+	     page_size <= UNIV_PAGE_SIZE_MAX; page_size <<= 1) {
+
+		/* map[space_id] = count of pages */
+		std::map<ulint, ulint> verify;
+
+		ulint page_count = 64;
+		ulint valid_pages = 0;
+
+		/* Adjust the number of pages to analyze based on file size */
+		while ((page_count * page_size) > file_size) {
+			--page_count;
+		}
+
+		ib_logf(IB_LOG_LEVEL_INFO, "Page size:%lu Pages to analyze:"
+			"%lu", page_size, page_count);
+
+		byte* buf = static_cast<byte*>(ut_malloc(2*page_size));
+		byte* page = static_cast<byte*>(ut_align(buf, page_size));
+
+		for (ulint j = 0; j < page_count; ++j) {
+
+			st = os_file_read(fsp->file, page, (j* page_size), page_size);
+
+			if (!st) {
+				ib_logf(IB_LOG_LEVEL_INFO,
+					"READ FAIL: page_no:%lu", j);
+				continue;
+			}
+
+			bool uncompressed_ok = false;
+
+			/* For uncompressed pages, the page size must be equal
+			to UNIV_PAGE_SIZE. */
+			if (page_size == UNIV_PAGE_SIZE) {
+				uncompressed_ok = !buf_page_is_corrupted(
+					false, page, 0);
+			}
+
+			bool compressed_ok = !buf_page_is_corrupted(
+				false, page, page_size);
+
+			if (uncompressed_ok || compressed_ok) {
+
+				ulint space_id = mach_read_from_4(page
+					+ FIL_PAGE_SPACE_ID);
+
+				if (space_id > 0) {
+					ib_logf(IB_LOG_LEVEL_INFO,
+						"VALID: space:%lu "
+						"page_no:%lu page_size:%lu",
+						space_id, j, page_size);
+					verify[space_id]++;
+					++valid_pages;
+				}
+			}
+		}
+
+		ut_free(buf);
+
+		ib_logf(IB_LOG_LEVEL_INFO, "Page size: %lu, Possible space_id "
+			"count:%lu", page_size, (ulint) verify.size());
+
+		const ulint pages_corrupted = 3;
+		for (ulint missed = 0; missed <= pages_corrupted; ++missed) {
+
+			for (std::map<ulint, ulint>::iterator
+			     m = verify.begin(); m != verify.end(); ++m ) {
+
+				ib_logf(IB_LOG_LEVEL_INFO, "space_id:%lu, "
+					"Number of pages matched: %lu/%lu "
+					"(%lu)", m->first, m->second,
+					valid_pages, page_size);
+
+				if (m->second == (valid_pages - missed)) {
+
+					ib_logf(IB_LOG_LEVEL_INFO,
+						"Chosen space:%lu\n", m->first);
+
+					fsp->id = m->first;
+					return(true);
+				}
+			}
+
+		}
+	}
+
+	return(false);
+}
+
+/*******************************************************************//**
+Finds the given page_no of the given space id from the double write buffer,
+and copies it to the corresponding .ibd file.
+@return true if copy was successful, or false. */
+bool
+fil_user_tablespace_restore_page(
+/*==============================*/
+	fsp_open_info*	fsp,		/* in: contains space id and .ibd
+					file information */
+	ulint		page_no)	/* in: page_no to obtain from double
+					write buffer */
+{
+	bool	err;
+	ulint	flags;
+	ulint	zip_size;
+	ulint	page_size;
+	ulint	buflen;
+	byte*	page;
+
+	ib_logf(IB_LOG_LEVEL_INFO, "Restoring page %lu of tablespace %lu",
+		page_no, fsp->id);
+
+	// find if double write buffer has page_no of given space id
+	page = recv_sys->dblwr.find_page(fsp->id, page_no);
+
+	if (!page) {
+                ib_logf(IB_LOG_LEVEL_WARN, "Doublewrite does not have "
+			"page_no=%lu of space: %lu", page_no, fsp->id);
+		err = false;
+		goto out;
+	}
+
+        flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+	zip_size = fsp_flags_get_zip_size(flags);
+	page_size = fsp_flags_get_page_size(flags);
+
+	ut_ad(page_no == page_get_page_no(page));
+
+	buflen = zip_size ? zip_size: page_size;
+
+	ib_logf(IB_LOG_LEVEL_INFO, "Writing %lu bytes into file: %s",
+		buflen, fsp->filepath);
+
+	err = os_file_write(fsp->filepath, fsp->file, page,
+			    (zip_size ? zip_size : page_size) * page_no,
+			    buflen);
+
+	os_file_flush(fsp->file);
+out:
+	return(err);
+}
+
 /********************************************************************//**
 Opens an .ibd file and adds the associated single-table tablespace to the
 InnoDB fil0fil.cc data structures.
@@ -4032,6 +4181,10 @@ fil_validate_single_table_tablespace(
 	const char*	tablename,	/*!< in: database/tablename */
 	fsp_open_info*	fsp)		/*!< in/out: tablespace info */
 {
+	bool restore_attempted = false;
+
+check_first_page:
+	fsp->success = TRUE;
 	if (const char* check_msg = fil_read_first_page(
 		    fsp->file, FALSE, &fsp->flags, &fsp->id,
 #ifdef UNIV_LOG_ARCHIVE
@@ -4042,6 +4195,21 @@ fil_validate_single_table_tablespace(
 			"%s in tablespace %s (table %s)",
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
+	}
+
+	if (!fsp->success) {
+		if (!restore_attempted) {
+			if (!fil_user_tablespace_find_space_id(fsp)) {
+				return;
+			}
+			restore_attempted = true;
+
+			if (fsp->id > 0
+			    && !fil_user_tablespace_restore_page(fsp, 0)) {
+				return;
+			}
+			goto check_first_page;
+		}
 		return;
 	}
 
@@ -4159,7 +4327,7 @@ fil_load_single_table_tablespace(
 	/* Try to open the tablespace in the datadir. */
 	def.file = os_file_create_simple_no_error_handling(
 		innodb_file_data_key, def.filepath, OS_FILE_OPEN,
-		OS_FILE_READ_ONLY, &def.success);
+		OS_FILE_READ_WRITE, &def.success);
 
 	/* Read the first page of the remote tablespace */
 	if (def.success) {

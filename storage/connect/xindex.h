@@ -192,9 +192,13 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   virtual void Print(PGLOBAL g, FILE *f, uint n);
   virtual void Print(PGLOBAL g, char *ps, uint z);
   virtual bool Init(PGLOBAL g) = 0;
+#if defined(XMAP)
+  virtual bool MapInit(PGLOBAL g) = 0;
+#endif   // XMAP
   virtual int  MaxRange(void) {return 1;}
   virtual int  Fetch(PGLOBAL g) = 0;
   virtual bool NextVal(bool eq) {return true;}
+  virtual bool PrevVal(void) {return true;}
   virtual int  FastFind(int nk) = 0;
   virtual bool Reorder(PGLOBAL g) {return true;}
   virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true)
@@ -206,22 +210,22 @@ class DllExport XXBASE : public CSORT, public BLOCK {
  protected:
   // Members
   PTDBASE Tbxp;             // Points to calling table TDB
-  PXCOL    To_KeyCol;        // To KeyCol class list
+  PXCOL   To_KeyCol;        // To KeyCol class list
   MBLOCK  Record;           // Record allocation block
   int*   &To_Rec;           // We are using ftell, fseek
   int     Cur_K;            // Index of current record
   int     Old_K;            // Index of last record
   int     Num_K;            // Size of Rec_K pointer array
-  int     Ndif;              // Number of distinct values
+  int     Ndif;             // Number of distinct values
   int     Bot;              // Bottom of research index
   int     Top;              // Top    of research index
   int     Inf, Sup;         // Used for block optimization
-  OPVAL   Op;                // Search operator
+  OPVAL   Op;               // Search operator
   bool    Mul;              // true if multiple
   bool    Srtd;             // true for sorted column
   int     Val_K;            // Index of current value
-  int     Nblk;              // Number of blocks
-  int     Sblk;              // Block size
+  int     Nblk;             // Number of blocks
+  int     Sblk;             // Block size
   int     Thresh;           // Thresh for sorting join indexes
   int     ID;               // Index ID number
   int     Nth;              // Nth constant to fetch
@@ -248,6 +252,9 @@ class DllExport XINDEX : public XXBASE {
   // Methods
   virtual void Reset(void);
   virtual bool Init(PGLOBAL g);
+#if defined(XMAP)
+  virtual bool MapInit(PGLOBAL g);
+#endif   // XMAP
   virtual int  Qcompare(int *, int *);
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
@@ -257,6 +264,7 @@ class DllExport XINDEX : public XXBASE {
   virtual int  ColMaxSame(PXCOL kp);
   virtual void Close(void);
   virtual bool NextVal(bool eq);
+  virtual bool PrevVal(void);
   virtual bool Make(PGLOBAL g, PIXDEF sxp);
   virtual bool SaveIndex(PGLOBAL g, PIXDEF sxp);
   virtual bool Reorder(PGLOBAL g);
@@ -296,6 +304,7 @@ class DllExport XINDXS : public XINDEX {
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
   virtual bool NextVal(bool eq);
+  virtual bool PrevVal(void);
   virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
   virtual int  GroupSize(void);
 
@@ -330,9 +339,6 @@ class DllExport XLOAD : public BLOCK {
   // Members
 #if defined(WIN32)
   HANDLE  Hfile;                // Handle to file or map
-#if defined(XMAP)
-  void   *ViewBase;             // Mapped view base address
-#endif   // XMAP
 #else    // UNIX
   int     Hfile;                // Descriptor to file or map
 #endif   // UNIX
@@ -360,9 +366,9 @@ class DllExport XFILE : public XLOAD {
 
  protected:
   // Members
-  FILE   *Xfile;            // Index stream file
+  FILE   *Xfile;                // Index stream file
 #if defined(XMAP)
-  MMP     Mmp;              // To mapped index file
+  MMP     Mmp;                  // Mapped view base address and length
 #endif   // XMAP
   }; // end of class XFILE
 
@@ -403,6 +409,9 @@ class DllExport XXROW : public XXBASE {
 
   // Methods
   virtual bool Init(PGLOBAL g);
+#if defined(XMAP)
+  virtual bool MapInit(PGLOBAL g) {return true;}
+#endif   // XMAP
   virtual int  Fetch(PGLOBAL g);
   virtual int  FastFind(int nk);
   virtual int  MaxRange(void) {return 1;}

@@ -111,9 +111,9 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   char   *tablist, *dbname, *def = NULL;
 
   Desc = "Table list table";
-  tablist = Cat->GetStringCatInfo(g, "Tablist", "");
-  dbname = Cat->GetStringCatInfo(g, "Dbname", "*");
-  def = Cat->GetStringCatInfo(g, "Srcdef", NULL);
+  tablist = GetStringCatInfo(g, "Tablist", "");
+  dbname = GetStringCatInfo(g, "Dbname", "*");
+  def = GetStringCatInfo(g, "Srcdef", NULL);
   Ntables = 0;
 
   if (*tablist) {
@@ -155,9 +155,9 @@ bool TBLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
       } // endfor pdb
 
-    Maxerr = Cat->GetIntCatInfo("Maxerr", 0);
-    Accept = Cat->GetBoolCatInfo("Accept", false);
-    Thread = Cat->GetBoolCatInfo("Thread", false);
+    Maxerr = GetIntCatInfo("Maxerr", 0);
+    Accept = GetBoolCatInfo("Accept", false);
+    Thread = GetBoolCatInfo("Thread", false);
     } // endif tablist
 
   return FALSE;

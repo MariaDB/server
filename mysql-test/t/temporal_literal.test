@@ -326,3 +326,21 @@ CREATE TABLE t1 AS SELECT
   TIMESTAMP'2001-01-00 00:00:00';
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-5975 Prepared statements with DATE literals do not honor NO_ZERO_IN_DATE
+--echo #
+SET sql_mode=DEFAULT;
+PREPARE stmt FROM "SELECT (SELECT DATE'2001-00-00') AS c";
+EXECUTE stmt;
+SET sql_mode='no_zero_in_date';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET sql_mode=DEFAULT;
+PREPARE stmt FROM "SELECT (SELECT TIMESTAMP'2001-00-00 10:20:30') AS c";
+EXECUTE stmt;
+SET sql_mode='no_zero_in_date';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+SET sql_mode=DEFAULT;

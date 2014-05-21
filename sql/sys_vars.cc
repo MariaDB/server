@@ -287,14 +287,15 @@ static Sys_var_long Sys_pfs_events_stages_history_size(
   - 1 for "statement/com/new_packet", for unknown enum_server_command
   - 1 for "statement/com/Error", for invalid enum_server_command
   - SQLCOM_END for all regular "statement/sql/...",
-  - 1 for "statement/sql/error", for invalid enum_sql_command.
+  - 1 for "statement/sql/error", for invalid enum_sql_command
+  - 1 for "statement/rpl/relay_log", for replicated statements.
 */
 static Sys_var_ulong Sys_pfs_max_statement_classes(
        "performance_schema_max_statement_classes",
        "Maximum number of statement instruments.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_statement_class_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
-       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 3),
+       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 4),
        BLOCK_SIZE(1));
 
 static Sys_var_long Sys_pfs_events_statements_history_long_size(
@@ -4832,6 +4833,46 @@ static Sys_var_set Sys_log_slow_filter(
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
+
+static const char *default_regex_flags_names[]= 
+{
+  "DOTALL",    // (?s)  . matches anything including NL
+  "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
+  "EXTENDED",  // (?x)  Ignore white space and # comments
+  "EXTRA",     // (?X)  extra features (e.g. error on unknown escape character)
+  "MULTILINE", // (?m)  ^ and $ match newlines within data
+  "UNGREEDY",  // (?U)  Invert greediness of quantifiers
+  0
+};
+static const int default_regex_flags_to_pcre[]=
+{
+  PCRE_DOTALL,
+  PCRE_DUPNAMES,
+  PCRE_EXTENDED,
+  PCRE_EXTRA,
+  PCRE_MULTILINE,
+  PCRE_UNGREEDY,
+  0
+};
+int default_regex_flags_pcre(const THD *thd)
+{
+  ulonglong src= thd->variables.default_regex_flags;
+  int i, res;
+  for (i= res= 0; default_regex_flags_to_pcre[i]; i++)
+  {
+    if (src & (1 << i))
+      res|= default_regex_flags_to_pcre[i];
+  }
+  return res;
+}
+static Sys_var_set Sys_default_regex_flags(
+       "default_regex_flags",
+       "Default flags for the regex library. "
+       "Syntax: default-regex-flags='[flag[,flag[,flag...]]]'. "
+       "See the manual for the complete list of valid flags",
+       SESSION_VAR(default_regex_flags), CMD_LINE(REQUIRED_ARG),
+       default_regex_flags_names,
+       DEFAULT(0));
 
 static Sys_var_ulong Sys_log_slow_rate_limit(
        "log_slow_rate_limit",

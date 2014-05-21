@@ -1,4 +1,4 @@
-/* Copyright (C) 2012-2013 Kentoku Shiba
+/* Copyright (C) 2012-2014 Kentoku Shiba
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -128,7 +128,7 @@ static int spider_i_s_alloc_mem_deinit(
   DBUG_RETURN(0);
 }
 
-struct st_maria_plugin spider_i_s_alloc_mem =
+struct st_mysql_plugin spider_i_s_alloc_mem =
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &spider_i_s_info,
@@ -141,6 +141,27 @@ struct st_maria_plugin spider_i_s_alloc_mem =
   0x0001,
   NULL,
   NULL,
-  "0.1",
-  MariaDB_PLUGIN_MATURITY_BETA
+  NULL,
+#if MYSQL_VERSION_ID >= 50600
+  0,
+#endif
 };
+
+#ifdef MARIADB_BASE_VERSION
+struct st_maria_plugin spider_i_s_alloc_mem_maria =
+{
+  MYSQL_INFORMATION_SCHEMA_PLUGIN,
+  &spider_i_s_info,
+  "SPIDER_ALLOC_MEM",
+  "Kentoku Shiba",
+  "Spider memory allocating viewer",
+  PLUGIN_LICENSE_GPL,
+  spider_i_s_alloc_mem_init,
+  spider_i_s_alloc_mem_deinit,
+  0x0100,
+  NULL,
+  NULL,
+  "1.0",
+  MariaDB_PLUGIN_MATURITY_GAMMA,
+};
+#endif

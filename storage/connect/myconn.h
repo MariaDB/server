@@ -34,7 +34,7 @@ typedef class MYSQLC *PMYC;
 /***********************************************************************/
 /*  Prototypes of info functions.                                      */
 /***********************************************************************/
-PQRYRES MyColumns(PGLOBAL g, const char *host, const char *db,
+PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,
                   const char *table, const char *colpat,
                   int port, bool info);
@@ -96,5 +96,6 @@ class DllItem MYSQLC {
   int         N;
   int         m_Fields;     // The number of result fields
   int         m_Afrw;       // The number of affected rows
+  bool        m_Use;        // Use or store result set
   }; // end of class MYSQLC
 

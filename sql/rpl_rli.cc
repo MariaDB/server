@@ -82,7 +82,6 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   max_relay_log_size= global_system_variables.max_relay_log_size;
   bzero((char*) &info_file, sizeof(info_file));
   bzero((char*) &cache_buf, sizeof(cache_buf));
-  cached_charset_invalidate();
   mysql_mutex_init(key_relay_log_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_relay_log_info_data_lock,
                    &data_lock, MY_MUTEX_INIT_FAST);
@@ -1200,29 +1199,6 @@ bool Relay_log_info::is_until_satisfied(THD *thd, Log_event *ev)
 }
 
 
-void Relay_log_info::cached_charset_invalidate()
-{
-  DBUG_ENTER("Relay_log_info::cached_charset_invalidate");
-
-  /* Full of zeroes means uninitialized. */
-  bzero(cached_charset, sizeof(cached_charset));
-  DBUG_VOID_RETURN;
-}
-
-
-bool Relay_log_info::cached_charset_compare(char *charset) const
-{
-  DBUG_ENTER("Relay_log_info::cached_charset_compare");
-
-  if (memcmp(cached_charset, charset, sizeof(cached_charset)))
-  {
-    memcpy(const_cast<char*>(cached_charset), charset, sizeof(cached_charset));
-    DBUG_RETURN(1);
-  }
-  DBUG_RETURN(0);
-}
-
-
 void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
                                time_t event_creation_time, THD *thd,
                                rpl_group_info *rgi)
@@ -1768,5 +1744,34 @@ rpl_group_info::mark_start_commit()
   did_mark_start_commit= true;
 }
 
+
+rpl_sql_thread_info::rpl_sql_thread_info(Rpl_filter *filter)
+  : rpl_filter(filter)
+{
+  cached_charset_invalidate();
+}
+
+
+void rpl_sql_thread_info::cached_charset_invalidate()
+{
+  DBUG_ENTER("rpl_group_info::cached_charset_invalidate");
+
+  /* Full of zeroes means uninitialized. */
+  bzero(cached_charset, sizeof(cached_charset));
+  DBUG_VOID_RETURN;
+}
+
+
+bool rpl_sql_thread_info::cached_charset_compare(char *charset) const
+{
+  DBUG_ENTER("rpl_group_info::cached_charset_compare");
+
+  if (memcmp(cached_charset, charset, sizeof(cached_charset)))
+  {
+    memcpy(const_cast<char*>(cached_charset), charset, sizeof(cached_charset));
+    DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
 
 #endif

@@ -39,6 +39,7 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   inline  int  GetPortnumber(void) {return Portnumber;}
 
   // Methods
+  virtual int  Indexable(void) {return 2;}
   virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
   virtual PTDB GetTable(PGLOBAL g, MODE m);
           bool ParseURL(PGLOBAL g, char *url, bool b = true);
@@ -57,10 +58,11 @@ class MYSQLDEF : public TABDEF           {/* Logical table description */
   int     Portnumber;         /* MySQL port number (0 = default)       */
   int     Mxr;                /* Maxerr for an Exec table              */
   int     Quoted;             /* Identifier quoting level              */
-  bool    Isview;             /* TRUE if this table is a MySQL view    */
+  bool    Isview;             /* true if this table is a MySQL view    */
   bool    Bind;               /* Use prepared statement on insert      */
   bool    Delayed;            /* Delayed insert                        */
   bool    Xsrc;               /* Execution type                        */
+  bool    Huge;               /* True for big table                    */
   }; // end of MYSQLDEF
 
 /***********************************************************************/
@@ -83,7 +85,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgMax(PGLOBAL g);
   virtual void ResetDB(void) {N = 0;}
-  virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
+  virtual int  RowNumber(PGLOBAL g, bool b = false);
   virtual bool IsView(void) {return Isview;}
   virtual PSZ  GetServer(void) {return Server;}
           void SetDatabase(LPCSTR db) {Database = (char*)db;}
@@ -96,6 +98,7 @@ class TDBMYSQL : public TDBASE {
   virtual int  WriteDB(PGLOBAL g);
   virtual int  DeleteDB(PGLOBAL g, int irc);
   virtual void CloseDB(PGLOBAL g);
+  virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len);
 
   // Specific routines
           bool SetColumnRanks(PGLOBAL g);
@@ -104,7 +107,7 @@ class TDBMYSQL : public TDBASE {
 
  protected:
   // Internal functions
-  bool MakeSelect(PGLOBAL g);
+  bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
   int  BindColumns(PGLOBAL g);
   int  MakeCommand(PGLOBAL g);

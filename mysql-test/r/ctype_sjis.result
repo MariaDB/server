@@ -98,6 +98,57 @@ i
 1
 1
 DROP TABLE t1;
+#
+# MDEV-6170 Incorrect ordering with utf8_bin and utf8mb4_bin collations
+#
+SELECT @@collation_connection;
+@@collation_connection
+sjis_japanese_ci
+CREATE TABLE t1 ENGINE=MEMORY AS SELECT REPEAT('a',5) AS a LIMIT 0;
+INSERT INTO t1 (a) VALUES ("a");
+INSERT INTO t1 (a) VALUES ("b");
+INSERT INTO t1 (a) VALUES ("c");
+INSERT INTO t1 (a) VALUES ("d");
+INSERT INTO t1 (a) VALUES ("e");
+INSERT INTO t1 (a) VALUES ("f");
+INSERT INTO t1 (a) VALUES ("g");
+INSERT INTO t1 (a) VALUES ("h");
+INSERT INTO t1 (a) VALUES ("i");
+INSERT INTO t1 (a) VALUES ("j");
+INSERT INTO t1 (a) VALUES ("k");
+INSERT INTO t1 (a) VALUES ("l");
+INSERT INTO t1 (a) VALUES ("m");
+SELECT * FROM t1 ORDER BY LOWER(a);
+a
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+SELECT * FROM t1 ORDER BY LOWER(a) DESC;
+a
+m
+l
+k
+j
+i
+h
+g
+f
+e
+d
+c
+b
+a
+DROP TABLE t1;
 create table t1 engine=innodb select repeat('a',50) as c1;
 alter table t1 add index(c1(5));
 insert into t1 values ('abcdefg'),('abcde100'),('abcde110'),('abcde111');
@@ -172,7 +223,7 @@ pattern	varchar(64)	NO
 INSERT INTO t1 VALUES (_utf8'2001÷01÷01',_utf8'%Y÷%m÷%d');
 SELECT HEX(subject),HEX(pattern),STR_TO_DATE(subject, pattern) FROM t1;
 HEX(subject)	HEX(pattern)	STR_TO_DATE(subject, pattern)
-323030318180303181803031	25598180256D81802564	2001-01-01 00:00:00
+323030318180303181803031	25598180256D81802564	2001-01-01 00:00:00.000000
 DROP TABLE t1;
 SET collation_connection='sjis_bin';
 create table t1 select repeat('a',4000) a;
@@ -200,6 +251,57 @@ SELECT * FROM t1 GROUP BY MID('test',0) WITH ROLLUP;
 i
 1
 1
+DROP TABLE t1;
+#
+# MDEV-6170 Incorrect ordering with utf8_bin and utf8mb4_bin collations
+#
+SELECT @@collation_connection;
+@@collation_connection
+sjis_bin
+CREATE TABLE t1 ENGINE=MEMORY AS SELECT REPEAT('a',5) AS a LIMIT 0;
+INSERT INTO t1 (a) VALUES ("a");
+INSERT INTO t1 (a) VALUES ("b");
+INSERT INTO t1 (a) VALUES ("c");
+INSERT INTO t1 (a) VALUES ("d");
+INSERT INTO t1 (a) VALUES ("e");
+INSERT INTO t1 (a) VALUES ("f");
+INSERT INTO t1 (a) VALUES ("g");
+INSERT INTO t1 (a) VALUES ("h");
+INSERT INTO t1 (a) VALUES ("i");
+INSERT INTO t1 (a) VALUES ("j");
+INSERT INTO t1 (a) VALUES ("k");
+INSERT INTO t1 (a) VALUES ("l");
+INSERT INTO t1 (a) VALUES ("m");
+SELECT * FROM t1 ORDER BY LOWER(a);
+a
+a
+b
+c
+d
+e
+f
+g
+h
+i
+j
+k
+l
+m
+SELECT * FROM t1 ORDER BY LOWER(a) DESC;
+a
+m
+l
+k
+j
+i
+h
+g
+f
+e
+d
+c
+b
+a
 DROP TABLE t1;
 create table t1 engine=innodb select repeat('a',50) as c1;
 alter table t1 add index(c1(5));

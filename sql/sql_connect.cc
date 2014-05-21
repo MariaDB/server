@@ -1070,7 +1070,7 @@ static int check_connection(THD *thd)
     return 1; /* The error is set by alloc(). */
   }
 
-  auth_rc= acl_authenticate(thd, connect_errors, 0);
+  auth_rc= acl_authenticate(thd, 0);
   if (auth_rc == 0 && connect_errors != 0)
   {
     /*

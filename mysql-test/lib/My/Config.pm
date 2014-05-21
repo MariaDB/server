@@ -47,7 +47,7 @@ sub option {
   my $value= $self->{value};
 
   my $opt= $name;
-  $opt= "$name=$value" if ($value);
+  $opt= "$name=$value" if (defined $value);
   $opt= "--$opt" unless ($opt =~ /^--/);
   return $opt;
 }

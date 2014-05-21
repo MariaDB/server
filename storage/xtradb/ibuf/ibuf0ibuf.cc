@@ -611,7 +611,8 @@ ibuf_init_at_db_start(void)
 	heap = mem_heap_create(450);
 
 	/* Use old-style record format for the insert buffer. */
-	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0);
+	table = dict_mem_table_create(IBUF_TABLE_NAME, IBUF_SPACE_ID, 1, 0, 0,
+				      false);
 
 	dict_mem_table_add_col(table, heap, "DUMMY_COLUMN", DATA_BINARY, 0, 0);
 
@@ -1572,7 +1573,7 @@ ibuf_dummy_index_create(
 
 	table = dict_mem_table_create("IBUF_DUMMY",
 				      DICT_HDR_SPACE, n,
-				      comp ? DICT_TF_COMPACT : 0, 0);
+				      comp ? DICT_TF_COMPACT : 0, 0, true);
 
 	index = dict_mem_index_create("IBUF_DUMMY", "IBUF_DUMMY",
 				      DICT_HDR_SPACE, 0, n);
@@ -2962,7 +2963,8 @@ ibuf_get_volume_buffered_hash(
 	fold = ut_fold_binary(data, len);
 
 	hash += (fold / (CHAR_BIT * sizeof *hash)) % size;
-	bitmask = 1 << (fold % (CHAR_BIT * sizeof *hash));
+	bitmask = static_cast<ulint>(
+		1 << (fold % (CHAR_BIT * sizeof(*hash))));
 
 	if (*hash & bitmask) {
 
@@ -3977,7 +3979,7 @@ skip_watch:
 
 /********************************************************************//**
 During merge, inserts to an index page a secondary index entry extracted
-from the insert buffer. 
+from the insert buffer.
 @return	newly inserted record */
 static __attribute__((nonnull))
 rec_t*

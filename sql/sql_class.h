@@ -84,6 +84,8 @@ class Parser_state;
 class Rows_log_event;
 class Sroutine_hash_entry;
 class user_var_entry;
+class rpl_io_thread_info;
+class rpl_sql_thread_info;
 
 enum enum_ha_read_modes { RFIRST, RNEXT, RPREV, RLAST, RKEY, RNEXT_SAME };
 enum enum_duplicates { DUP_ERROR, DUP_REPLACE, DUP_UPDATE };
@@ -528,6 +530,7 @@ typedef struct system_variables
   ulonglong join_buff_size;
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
+  ulonglong default_regex_flags;
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
@@ -1826,8 +1829,10 @@ public:
   /* Slave applier execution context */
   rpl_group_info* rgi_slave;
 
-  /* Used to SLAVE SQL thread */
-  Rpl_filter* rpl_filter;
+  union {
+    rpl_io_thread_info *rpl_io_info;
+    rpl_sql_thread_info *rpl_sql_info;
+  } system_thread_info;
 
   void reset_for_next_command();
   /*
@@ -2604,7 +2609,7 @@ public:
   char       default_master_connection_buff[MAX_CONNECTION_NAME+1];
   uint8      password; /* 0, 1 or 2 */
   uint8      failed_com_change_user;
-  bool       slave_thread, one_shot_set;
+  bool       slave_thread;
   bool       extra_port;                        /* If extra connection */
 
   bool	     no_errors;
@@ -3121,8 +3126,11 @@ public:
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we
     assume this is never called if the fatal error is set.
+
     @todo: To silence an error, one should use Internal_error_handler
-    mechanism. In future this function will be removed.
+    mechanism. Issuing an error that can be possibly later "cleared" is not
+    compatible with other installed error handlers and audit plugins.
+    In future this function will be removed.
   */
   inline void clear_error()
   {

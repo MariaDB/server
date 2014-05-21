@@ -1114,7 +1114,11 @@ public:
   */
   ha_rows	quick_rows[MAX_KEY];
 
-  /* Bitmaps of key parts that =const for the entire join. */
+  /* 
+    Bitmaps of key parts that =const for the duration of join execution. If
+    we're in a subquery, then the constant may be different across subquery
+    re-executions.
+  */
   key_part_map  const_key_parts[MAX_KEY];
 
   uint		quick_key_parts[MAX_KEY];
@@ -2241,6 +2245,7 @@ struct TABLE_LIST
     }
     return false;
   } 
+  void set_lock_type(THD* thd, enum thr_lock_type lock);
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
@@ -2506,6 +2511,8 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
   tmp_restore_column_map(write_set, old[1]);
 #endif
 }
+
+bool ok_for_lower_case_names(const char *names);
 
 enum get_table_share_flags {
   GTS_TABLE                = 1,

@@ -4750,6 +4750,7 @@ INSERT INTO t2 VALUES (3), (4);
 
 connect(con1, localhost, root);
 connect(con2, localhost, root);
+connect(con3, localhost, root);
 
 --echo # Connection con1
 connection con1;
@@ -4769,7 +4770,7 @@ SET DEBUG_SYNC= 'now WAIT_FOR upgrade';
 --send DELETE FROM t2 WHERE a = 3
 
 --echo # Connection default
-connection default;
+connection con3;
 --echo # Check that DELETE is waiting on a metadata lock and not a table lock.
 let $wait_condition=
   SELECT COUNT(*) = 1 FROM information_schema.processlist
@@ -4779,7 +4780,9 @@ let $wait_condition=
 --echo # Now that DELETE blocks on a metadata lock, we should be able to do
 --echo # SELECT * FROM m1 here. SELECT used to be blocked by a DELETE table
 --echo # lock request.
-SELECT * FROM m1;
+--send SELECT * FROM m1 WHERE a < 3
+
+connection default;
 --echo # Resuming ALTER TABLE
 SET DEBUG_SYNC= 'now SIGNAL continue';
 
@@ -4791,12 +4794,16 @@ connection con1;
 connection con2;
 --echo # Reaping: DELETE FROM t2 WHERE a = 3
 --reap
+connection con3;
+--echo # Reaping: SELECT * FROM m1 WHERE a < 3
+--reap
 --echo # Connection default
 connection default;
 DROP TABLE m1, t1, t2;
 SET DEBUG_SYNC= 'RESET';
 disconnect con1;
 disconnect con2;
+disconnect con3;
 
 
 # Check that all connections opened by test cases in this file are really

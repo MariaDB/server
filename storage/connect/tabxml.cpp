@@ -95,21 +95,21 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 //void  *memp = Cat->GetDescp();
 //PSZ    dbfile = Cat->GetDescFile();
 
-  Fn = Cat->GetStringCatInfo(g, "Filename", NULL);
-  Encoding = Cat->GetStringCatInfo(g, "Encoding", "UTF-8");
+  Fn = GetStringCatInfo(g, "Filename", NULL);
+  Encoding = GetStringCatInfo(g, "Encoding", "UTF-8");
 
   if (*Fn == '?') {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return true;
     } // endif fn
 
-  if ((signed)Cat->GetIntCatInfo("Flag", -1) != -1) {
+  if ((signed)GetIntCatInfo("Flag", -1) != -1) {
     strcpy(g->Message, MSG(DEPREC_FLAG));
     return true;
     } // endif flag
 
   defrow = defcol = "";
-  Cat->GetCharCatInfo("Coltype", "", buf, sizeof(buf));
+  GetCharCatInfo("Coltype", "", buf, sizeof(buf));
 
   switch (toupper(*buf)) {
     case 'A':                          // Attribute
@@ -136,25 +136,25 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
       return true;
     } // endswitch typname
 
-  Tabname = Cat->GetStringCatInfo(g, "Name", Name);  // Deprecated
-  Tabname = Cat->GetStringCatInfo(g, "Table_name", Tabname); // Deprecated
-  Tabname = Cat->GetStringCatInfo(g, "Tabname", Tabname);
-  Rowname = Cat->GetStringCatInfo(g, "Rownode", defrow);
-  Colname = Cat->GetStringCatInfo(g, "Colnode", defcol);
-  Mulnode = Cat->GetStringCatInfo(g, "Mulnode", "");
-  XmlDB = Cat->GetStringCatInfo(g, "XmlDB", "");
-  Nslist = Cat->GetStringCatInfo(g, "Nslist", "");
-  DefNs = Cat->GetStringCatInfo(g, "DefNs", "");
-  Limit = Cat->GetIntCatInfo("Limit", 2);
-  Xpand = (Cat->GetIntCatInfo("Expand", 0) != 0);
-  Header = Cat->GetIntCatInfo("Header", 0);
-  Cat->GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
+  Tabname = GetStringCatInfo(g, "Name", Name);  // Deprecated
+  Tabname = GetStringCatInfo(g, "Table_name", Tabname); // Deprecated
+  Tabname = GetStringCatInfo(g, "Tabname", Tabname);
+  Rowname = GetStringCatInfo(g, "Rownode", defrow);
+  Colname = GetStringCatInfo(g, "Colnode", defcol);
+  Mulnode = GetStringCatInfo(g, "Mulnode", "");
+  XmlDB = GetStringCatInfo(g, "XmlDB", "");
+  Nslist = GetStringCatInfo(g, "Nslist", "");
+  DefNs = GetStringCatInfo(g, "DefNs", "");
+  Limit = GetIntCatInfo("Limit", 10);
+  Xpand = (GetIntCatInfo("Expand", 0) != 0);
+  Header = GetIntCatInfo("Header", 0);
+  GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));
 
 //if (*buf == '*')           // Try the old (deprecated) option
-//  Cat->GetCharCatInfo("Method", "*", buf, sizeof(buf));
+//  GetCharCatInfo("Method", "*", buf, sizeof(buf));
 
 //if (*buf == '*')           // Is there a default for the database?
-//  Cat->GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
+//  GetCharCatInfo("Defxml", XMLSUP, buf, sizeof(buf));
 
   // Note that if no support is specified, the default is MS-DOM
   // on Windows and libxml2 otherwise
@@ -168,8 +168,8 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Usedom = (toupper(*buf) == 'M' || toupper(*buf) == 'D');
 
   // Get eventual table node attribute
-  Attrib = Cat->GetStringCatInfo(g, "Attribute", "");
-  Hdattr = Cat->GetStringCatInfo(g, "HeadAttr", "");
+  Attrib = GetStringCatInfo(g, "Attribute", "");
+  Hdattr = GetStringCatInfo(g, "HeadAttr", "");
 
   return false;
   } // end of DefineAM
@@ -1038,12 +1038,13 @@ XMLCOL::XMLCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   Type = Tdbp->Coltype;
   Nx = -1;
   Sx = -1;
+  N = 0;
   Valbuf = NULL;
   To_Val = NULL;
   } // end of XMLCOL constructor
 
 /***********************************************************************/
-/*  XMLCOL constructor used for copying columns.                      */
+/*  XMLCOL constructor used for copying columns.                       */
 /*  tdbp is the pointer to the new table descriptor.                   */
 /***********************************************************************/
 XMLCOL::XMLCOL(XMLCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
@@ -1068,6 +1069,7 @@ XMLCOL::XMLCOL(XMLCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   Rank = col1->Rank;
   Nx = col1->Nx;
   Sx = col1->Sx;
+  N = col1->N;
   Type = col1->Type;
   To_Val = col1->To_Val;
   } // end of XMLCOL copy constructor
@@ -1080,8 +1082,8 @@ bool XMLCOL::AllocBuf(PGLOBAL g, bool mode)
   if (Valbuf)
     return false;                       // Already done
 
-  Valbuf = (char*)PlugSubAlloc(g, NULL, Long + 1);
-  Valbuf[Long] = '\0';
+//Valbuf = (char*)PlugSubAlloc(g, NULL, Long + 1);
+//Valbuf[Long] = '\0';
   return ParseXpath(g, mode);
   } // end of AllocBuf
 
@@ -1095,7 +1097,7 @@ bool XMLCOL::AllocBuf(PGLOBAL g, bool mode)
 bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
   {
   char *p, *p2, *pbuf = NULL;
-  int   i, len = strlen(Name);
+  int   i, n = 1, len = strlen(Name);
 
   len += ((Tdbp->Colname) ? strlen(Tdbp->Colname) : 0);
   len += ((Xname) ? strlen(Xname) : 0);
@@ -1122,7 +1124,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
     // For Update or Insert the Xpath must be analyzed
     if (mode) {
       for (i = 0, p = pbuf; (p = strchr(p, '/')); i++, p++)
-        Nod++;                         // One path node found
+        Nod++;                       // One path node found
 
       if (Nod)
         Nodes = (char**)PlugSubAlloc(g, NULL, Nod * sizeof(char*));
@@ -1136,7 +1138,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
           strcpy(g->Message, MSG(CONCAT_SUBNODE));
           return true;
         } else
-          Inod = i;                // Index of multiple node
+          Inod = i;                  // Index of multiple node
 
       if (mode) {
         // For Update or Insert the Xpath must be explicit
@@ -1171,7 +1173,7 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
 
   } else if (Type == 2) {
     // HTML like table, columns are retrieved by position
-    new(this) XPOSCOL(Value);       // Change the class of this column
+    new(this) XPOSCOL(Value);        // Change the class of this column
     Tdbp->Hasnod = true;
     return false;
   } else if (Type == 0 && !mode) {
@@ -1185,8 +1187,17 @@ bool XMLCOL::ParseXpath(PGLOBAL g, bool mode)
 
   if (Inod >= 0) {
     Tdbp->Colp = this;               // To force expand
-    new(this) XMULCOL(Value);       // Change the class of this column
+
+    if (Tdbp->Xpand)
+      n = Tdbp->Limit;
+
+    new(this) XMULCOL(Value);        // Change the class of this column
     } // endif Inod
+
+  Valbuf = (char*)PlugSubAlloc(g, NULL, n * (Long + 1));
+
+  for (i = 0; i < n; i++)
+    Valbuf[Long + (i * (Long + 1))] = '\0';
 
   if (Type || Nod)
     Tdbp->Hasnod = true;
@@ -1470,60 +1481,72 @@ void XMLCOL::WriteColumn(PGLOBAL g)
 void XMULCOL::ReadColumn(PGLOBAL g)
   {
   char *p;
-  int   i, n, len;
+  int   i, len;
+  bool  b = Tdbp->Xpand;
 
-  if (Nx != Tdbp->Irow)                     // New row
+  if (Nx != Tdbp->Irow) {                     // New row
     Nl = Tdbp->RowNode->SelectNodes(g, Xname, Nl);
-  else if (Sx == Tdbp->Nsub)
-    return;                                 // Same row
 
-  if ((n = Nl->GetLength())) {
-    *(p = Valbuf) = '\0';
-    len = Long;
+    if ((N = Nl->GetLength())) {
+      *(p = Valbuf) = '\0';
+      len = Long;
 
-    for (i = Tdbp->Nsub; i < n; i++) {
-      ValNode = Nl->GetItem(g, i, Vxnp);
+      if (N > Tdbp->Limit) {
+        N = Tdbp->Limit;
+        sprintf(g->Message, "Mutiple values limited to %d", Tdbp->Limit);
+        PushWarning(g, Tdbp);
+        } // endif N
 
-      if (ValNode->GetType() != XML_ELEMENT_NODE &&
-          ValNode->GetType() != XML_ATTRIBUTE_NODE) {
-        sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
-        longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-        } // endif type
+      for (i = 0; i < N; i++) {
+        ValNode = Nl->GetItem(g, i, Vxnp);
 
-      // Get the Xname value from the XML file
-      switch (ValNode->GetContent(g, p, len + 1)) {
-        case RC_OK:
-          break;
-        case RC_INFO:
-          PushWarning(g, Tdbp);
-          break;
-        default:
+        if (ValNode->GetType() != XML_ELEMENT_NODE &&
+            ValNode->GetType() != XML_ATTRIBUTE_NODE) {
+          sprintf(g->Message, MSG(BAD_VALNODE), ValNode->GetType(), Name);
           longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
-        } // endswitch
+          } // endif type
 
-      if (!Tdbp->Xpand) {
-        // Concatenate all values
-        if (n - i > 1)
-          strncat(Valbuf, ", ", Long + 1);
+        // Get the Xname value from the XML file
+        switch (ValNode->GetContent(g, p, (b ? Long : len))) {
+          case RC_OK:
+            break;
+          case RC_INFO:
+            PushWarning(g, Tdbp);
+            break;
+          default:
+            longjmp(g->jumper[g->jump_level], TYPE_AM_XML);
+          } // endswitch
 
-        len -= strlen(p);
-        p += strlen(p);
-      } else
-        break;
+        if (!b) {
+          // Concatenate all values
+          if (N - i > 1)
+            strncat(Valbuf, ", ", len - strlen(p));
 
-      } // endfor i
+          if ((len -= strlen(p)) <= 0)
+            break;
 
-    Value->SetValue_psz(Valbuf);
-  } else {
-    if (Nullable)
-      Value->SetNull(true);
+          p += strlen(p);
+        } else            // Xpand
+          p += (Long + 1);
 
-    Value->Reset();              // Null value
-  } // endif ValNode
+        } // endfor i
+
+      Value->SetValue_psz(Valbuf);
+    } else {
+      if (Nullable)
+        Value->SetNull(true);
+
+      Value->Reset();              // Null value
+    } // endif ValNode
+
+  } else if (Sx == Tdbp->Nsub)
+    return;                        // Same row
+  else                             // Expanded value
+    Value->SetValue_psz(Valbuf + (Tdbp->Nsub * (Long + 1)));
 
   Nx = Tdbp->Irow;
   Sx = Tdbp->Nsub;
-  Tdbp->NextSame = (Tdbp->Xpand && Nl->GetLength() - Sx > 1);
+  Tdbp->NextSame = (Tdbp->Xpand && N - Sx > 1);
   } // end of ReadColumn
 
 /***********************************************************************/

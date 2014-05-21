@@ -2763,13 +2763,13 @@ Item_func_nullif::fix_length_and_dec()
   maybe_null=1;
   if (args[0])					// Only false if EOM
   {
-    max_length=args[0]->max_length;
     decimals=args[0]->decimals;
     unsigned_flag= args[0]->unsigned_flag;
     cached_result_type= args[0]->result_type();
     if (cached_result_type == STRING_RESULT &&
         agg_arg_charsets_for_comparison(collation, args, arg_count))
       return;
+    fix_char_length(args[0]->max_char_length());
   }
 }
 
@@ -5054,6 +5054,11 @@ bool Item_func_like::find_selective_predicates_list_processor(uchar *arg)
   return FALSE;
 }
 
+
+int Regexp_processor_pcre::default_regex_flags()
+{
+  return default_regex_flags_pcre(current_thd);
+}
 
 
 /**

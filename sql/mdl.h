@@ -37,6 +37,7 @@ class THD;
 class MDL_context;
 class MDL_lock;
 class MDL_ticket;
+bool  ok_for_lower_case_names(const char *name);
 
 /**
   @def ENTER_COND(C, M, S, O)
@@ -350,6 +351,7 @@ public:
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
+    DBUG_ASSERT(ok_for_lower_case_names(db));
   }
   void mdl_key_init(const MDL_key *rhs)
   {

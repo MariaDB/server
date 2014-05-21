@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2010, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -869,7 +869,9 @@ func_exit:
 	mutex_exit(&psort_info->mutex);
 
 	if (UT_LIST_GET_LEN(psort_info->fts_doc_list) > 0) {
-		ut_ad(error != DB_SUCCESS);
+		/* child can exit either with error or told by parent. */
+		ut_ad(error != DB_SUCCESS
+		      || psort_info->state == FTS_PARENT_EXITING);
 	}
 
 	/* Free fts doc list in case of error. */
@@ -1191,7 +1193,7 @@ row_fts_sel_tree_propagate(
 
 	sel_tree[parent] = selected;
 
-	return(parent);
+	return(static_cast<int>(parent));
 }
 
 /*********************************************************************//**
@@ -1211,8 +1213,8 @@ row_fts_sel_tree_update(
 	ulint	i;
 
 	for (i = 1; i <= height; i++) {
-		propagated = row_fts_sel_tree_propagate(
-			propagated, sel_tree, mrec, offsets, index);
+		propagated = static_cast<ulint>(row_fts_sel_tree_propagate(
+			static_cast<int>(propagated), sel_tree, mrec, offsets, index));
 	}
 
 	return(sel_tree[0]);
@@ -1236,8 +1238,8 @@ row_fts_build_sel_tree_level(
 	ulint	i;
 	ulint	num_item;
 
-	start = (1 << level) - 1;
-	num_item = (1 << level);
+	start = static_cast<ulint>((1 << level) - 1);
+	num_item = static_cast<ulint>(1 << level);
 
 	for (i = 0; i < num_item;  i++) {
 		child_left = sel_tree[(start + i) * 2 + 1];
@@ -1312,8 +1314,9 @@ row_fts_build_sel_tree(
 		sel_tree[i + start] = i;
 	}
 
-	for (i = treelevel - 1; i >=0; i--) {
-		row_fts_build_sel_tree_level(sel_tree, i, mrec, offsets, index);
+	for (i = static_cast<int>(treelevel) - 1; i >= 0; i--) {
+		row_fts_build_sel_tree_level(
+			sel_tree, static_cast<ulint>(i), mrec, offsets, index);
 	}
 
 	return(treelevel);
@@ -1431,11 +1434,17 @@ row_fts_merge_insert(
 	ins_ctx.ins_graph = static_cast<que_t**>(mem_heap_alloc(heap, n_bytes));
 	memset(ins_ctx.ins_graph, 0x0, n_bytes);
 
+	/* We should set the flags2 with aux_table_name here,
+	in order to get the correct aux table names. */
+	index->table->flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
+	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
+			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
+
 	ins_ctx.fts_table.type = FTS_INDEX_TABLE;
 	ins_ctx.fts_table.index_id = index->id;
 	ins_ctx.fts_table.table_id = table->id;
 	ins_ctx.fts_table.parent = index->table->name;
-	ins_ctx.fts_table.table = NULL;
+	ins_ctx.fts_table.table = index->table;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		if (psort_info[i].merge_file[id]->n_rec == 0) {
@@ -1492,7 +1501,7 @@ row_fts_merge_insert(
 					    mrec[i], mrec[min_rec],
 					    offsets[i], offsets[min_rec],
 					    index, NULL) < 0) {
-					min_rec = i;
+					min_rec = static_cast<int>(i);
 				}
 			}
 		} else {
