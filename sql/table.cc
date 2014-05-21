@@ -4019,14 +4019,6 @@ void TABLE::init(THD *thd, TABLE_LIST *tl)
   insert_values= 0;
   fulltext_searched= 0;
   file->ft_handler= 0;
-#if 0
-#ifdef WITH_WSREP
-  if (file->ht->db_type == DB_TYPE_PARTITION_DB)
-  {
-    ((ha_partition*)file)->wsrep_reset_files();
-  }
-#endif
-#endif
   reginfo.impossible_range= 0;
   created= TRUE;
   cond_selectivity= 1.0;

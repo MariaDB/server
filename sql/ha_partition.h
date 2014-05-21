@@ -1284,16 +1284,7 @@ public:
   }
 #ifdef WITH_WSREP
   virtual int wsrep_db_type() const;
-#if 0
-  // TODO: Verify : https://mariadb.atlassian.net/browse/MDEV-4953
-  void wsrep_reset_files()
-  {
-    for (uint i=0; i < m_tot_parts; i++)
-      m_file[i]->ha_start_of_new_statement();
-  }
-#endif
 #endif /* WITH_WSREP */
-
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 };
