@@ -5260,6 +5260,7 @@ typedef void (*wsrep_thd_processor_fun)(THD *);
 pthread_handler_t start_wsrep_THD(void *arg)
 {
   THD *thd;
+  rpl_sql_thread_info sql_info(NULL);
   wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
   if (my_thread_init())
@@ -5290,6 +5291,7 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->bootstrap=1;
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
+  thd->system_thread_info.rpl_sql_info= &sql_info;
 
   /* from handle_one_connection... */
   pthread_detach_this_thread();
