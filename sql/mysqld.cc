@@ -2990,9 +2990,14 @@ static bool cache_thread()
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
 {
   DBUG_ENTER("one_thread_per_connection_end");
+#ifdef WITH_WSREP
+  const bool wsrep_applier(thd->wsrep_applier);
+#endif
+
   unlink_thd(thd);
   /* Mark that current_thd is not valid anymore */
   set_current_thd(0);
+
 #ifdef WITH_WSREP
   if (put_in_cache && cache_thread() && !thd->wsrep_applier)
 #else

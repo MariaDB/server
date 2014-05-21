@@ -531,9 +531,9 @@ int wsrep_init()
     wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
     wsrep_init_args args;
+    args.logger_cb = wsrep_log_cb;
     args.options = (wsrep_provider_options) ?
             wsrep_provider_options : "";
-    args.logger_cb= wsrep_log_cb;
     rcode = wsrep->init(wsrep, &args);
     if (rcode)
     {

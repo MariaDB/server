@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Codership Oy
+# Copyright (C) 2012-2014 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -124,4 +124,28 @@ wsrep_log_info()
 wsrep_cleanup_progress_file()
 {
     [ -n "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null
+}
+
+wsrep_check_program()
+{
+    local prog=$1
+
+    if ! which $prog >/dev/null
+    then
+        echo "'$prog' not found in PATH"
+        return 2 # no such file or directory
+    fi
+}
+
+wsrep_check_programs()
+{
+    local ret=0
+
+    while [ $# -gt 0 ]
+    do
+        wsrep_check_program $1 || ret=$?
+        shift
+    done
+
+    return $ret
 }

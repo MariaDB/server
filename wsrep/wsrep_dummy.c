@@ -20,11 +20,13 @@
 
 #include <errno.h>
 #include <stdbool.h>
+#include <string.h>
 
 /*! Dummy backend context. */
 typedef struct wsrep_dummy
 {
     wsrep_log_cb_t log_fn;
+    char* options;
 } wsrep_dummy_t;
 
 /* Get pointer to wsrep_dummy context from wsrep_t pointer */
@@ -43,6 +45,10 @@ static void dummy_free(wsrep_t *w)
 {
     WSREP_DBUG_ENTER(w);
     free(w->ctx);
+    if (WSREP_DUMMY(w)->options) {
+        free(WSREP_DUMMY(w)->options);
+        WSREP_DUMMY(w)->options = NULL;
+    }
     w->ctx = NULL;
 }
 
@@ -51,6 +57,9 @@ static wsrep_status_t dummy_init (wsrep_t* w,
 {
     WSREP_DUMMY(w)->log_fn = args->logger_cb;
     WSREP_DBUG_ENTER(w);
+    if (args->options) {
+        WSREP_DUMMY(w)->options = strdup(args->options);
+    }
     return WSREP_OK;
 }
 
@@ -61,16 +70,23 @@ static uint64_t dummy_capabilities (wsrep_t* w __attribute__((unused)))
 
 static wsrep_status_t dummy_options_set(
     wsrep_t* w,
-    const char* conf __attribute__((unused)))
+    const char* conf)
 {
     WSREP_DBUG_ENTER(w);
+    if (WSREP_DUMMY(w)->options) {
+        free(WSREP_DUMMY(w)->options);
+        WSREP_DUMMY(w)->options = NULL;
+    }
+    if (conf) {
+        WSREP_DUMMY(w)->options = strdup(conf);
+    }
     return WSREP_OK;
 }
 
 static char* dummy_options_get (wsrep_t* w)
 {
     WSREP_DBUG_ENTER(w);
-    return NULL;
+    return WSREP_DUMMY(w)->options;
 }
 
 static wsrep_status_t dummy_connect(
@@ -385,6 +401,7 @@ int wsrep_dummy_loader(wsrep_t* w)
 
     // initialize private context
     WSREP_DUMMY(w)->log_fn = NULL;
+    WSREP_DUMMY(w)->options = NULL;
 
     return 0;
 }
