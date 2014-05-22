@@ -17324,6 +17324,9 @@ ib_senderrf(
 	case IB_LOG_LEVEL_FATAL:
 		l = 0;
 		break;
+	default:
+		l = 0;
+		break;
 	}
 
         my_printv_error(code, format, MYF(l), args);

@@ -22,12 +22,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fsp0fsp.h"
 #include "fsp0pagecompress.h"
 
-#define PAGE_UNCOMPRESSED   0
-#define PAGE_ZLIB_ALGORITHM 1
-#define PAGE_LZ4_ALGORITHM  2
-#define PAGE_LZO_ALGORITHM  3
-#define PAGE_ALGORITHM_LAST PAGE_LZO_ALGORITHM
-
 /******************************************************************//**
 @file include/fil0pagecompress.h
 Helper functions for extracting/storing page compression and

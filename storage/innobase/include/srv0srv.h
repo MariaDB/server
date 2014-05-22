@@ -244,7 +244,9 @@ extern my_bool	srv_use_native_aio;
 extern my_bool srv_use_trim;
 
 /* Use posix fallocate */
+#ifdef HAVE_POSIX_FALLOCATE
 extern my_bool srv_use_posix_fallocate;
+#endif
 
 /* Use atomic writes i.e disable doublewrite buffer */
 extern my_bool srv_use_atomic_writes;

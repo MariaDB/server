@@ -325,7 +325,7 @@ fil_decompress_page(
 		if (err != (int)actual_size) {
 			fprintf(stderr,
 				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %d bytes.\n"
+				"InnoDB: but decompression read only %ld bytes.\n"
 				"InnoDB: size %lu len %lu\n",
 				err, actual_size, len);
 			fflush(stderr);
@@ -342,7 +342,7 @@ fil_decompress_page(
 		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
 			fprintf(stderr,
 				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %d bytes.\n"
+				"InnoDB: but decompression read only %ld bytes.\n"
 				"InnoDB: size %lu len %lu\n",
 				olen, actual_size, len);
 			fflush(stderr);

@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013 SkySQL Ab. All Rights Reserved.
+Copyright (C) 2013, 2014 SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,6 +26,12 @@ Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
 
 #ifndef fsp0pagecompress_h
 #define fsp0pagecompress_h
+
+#define PAGE_UNCOMPRESSED   0
+#define PAGE_ZLIB_ALGORITHM 1
+#define PAGE_LZ4_ALGORITHM  2
+#define PAGE_LZO_ALGORITHM  3
+#define PAGE_ALGORITHM_LAST PAGE_LZO_ALGORITHM
 
 /**********************************************************************//**
 Reads the page compression level from the first page of a tablespace.

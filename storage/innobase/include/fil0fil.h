@@ -133,9 +133,6 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
  					actual payload data size on
  					compressed pages. */
-#define FIL_PAGE_COMPRESSION_ZLIB 1    /*!< Compressin algorithm ZLIB. */
-#define FIL_PAGE_COMPRESSION_LZ4  2    /*!< Compressin algorithm LZ4. */
-
 /* @} */
 /** File page trailer @{ */
 #define FIL_PAGE_END_LSN_OLD_CHKSUM 8	/*!< the low 4 bytes of this are used

@@ -152,6 +152,7 @@ enum os_file_create_t {
 #define	OS_FILE_AIO_INTERRUPTED		79
 #define	OS_FILE_OPERATION_ABORTED	80
 #define	OS_FILE_OPERATION_NOT_SUPPORTED	125
+#define	OS_FILE_ERROR_MAX		200
 /* @} */
 
 /** Types for aio operations @{ */
