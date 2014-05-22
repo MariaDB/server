@@ -17963,9 +17963,9 @@ static MYSQL_SYSVAR_LONG(compression_algorithm, innodb_compression_algorithm,
 #if defined(HAVE_LZO) && defined(HAVE_LZ4)
   PAGE_ALGORITHM_LAST,
 #elif defined(HAVE_LZ4) && !defined(HAVE_LZO)
-  PAGE_ALGORITHM_LZ4,
+  PAGE_LZ4_ALGORITHM,
 #else
-  PAGE_ALGORITHM_ZLIB,
+  PAGE_ZLIB_ALGORITHM,
 #endif
   0);
 
