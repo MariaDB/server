@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -130,6 +131,10 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_PAGE_SPACE_ID  FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
 
 #define FIL_PAGE_DATA		38	/*!< start of the data on the page */
+/* Following are used when page compression is used */
+#define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
+ 					actual payload data size on
+ 					compressed pages. */
 /* @} */
 /** File page trailer @{ */
 #define FIL_PAGE_END_LSN_OLD_CHKSUM 8	/*!< the low 4 bytes of this are used
@@ -142,6 +147,7 @@ extern fil_addr_t	fil_addr_null;
 #ifndef UNIV_INNOCHECKSUM
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
+#define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< page compressed page */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
 #define FIL_PAGE_INODE		3	/*!< Index node */
@@ -204,6 +210,7 @@ ulint
 fil_space_get_type(
 /*===============*/
 	ulint	id);	/*!< in: space id */
+
 #endif /* !UNIV_HOTBACKUP */
 /*******************************************************************//**
 Appends a new file to the chain of files of a space. File must be closed.
@@ -747,8 +754,13 @@ fil_io(
 	void*	buf,		/*!< in/out: buffer where to store read data
 				or from where to write; in aio this must be
 				appropriately aligned */
-	void*	message)	/*!< in: message for aio handler if non-sync
+	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
+	ulint*	write_size)	/*!< in/out: Actual write size initialized
+			       after fist successfull trim
+			       operation for this page and if
+			       initialized we do not trim again if
+			       actual page size does not decrease. */
 	__attribute__((nonnull(8)));
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
@@ -988,4 +1000,30 @@ fil_mtr_rename_log(
 	__attribute__((nonnull));
 
 #endif /* !UNIV_INNOCHECKSUM */
+
+/****************************************************************//**
+Acquire fil_system mutex */
+void
+fil_system_enter(void);
+/*==================*/
+/****************************************************************//**
+Release fil_system mutex */
+void
+fil_system_exit(void);
+/*==================*/
+
+#ifndef UNIV_INNOCHECKSUM
+/*******************************************************************//**
+Returns the table space by a given id, NULL if not found. */
+fil_space_t*
+fil_space_get_by_id(
+/*================*/
+	ulint	id);	/*!< in: space id */
+/*******************************************************************//**
+Return space name */
+char*
+fil_space_name(
+/*===========*/
+	fil_space_t*	space);	/*!< in: space */
+#endif
 #endif /* fil0fil_h */

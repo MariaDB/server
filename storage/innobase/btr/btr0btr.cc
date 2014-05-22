@@ -2031,7 +2031,7 @@ btr_parse_page_reorganize(
 	buf_block_t*	block,	/*!< in: page to be reorganized, or NULL */
 	mtr_t*		mtr)	/*!< in: mtr or NULL */
 {
-	ulint	level;
+	ulint	level = page_zip_level;
 
 	ut_ad(ptr && end_ptr);
 

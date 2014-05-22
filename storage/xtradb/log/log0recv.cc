@@ -2,6 +2,7 @@
 
 Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2149,7 +2150,7 @@ recv_apply_log_recs_for_backup(void)
 				error = fil_io(OS_FILE_READ, true,
 					       recv_addr->space, zip_size,
 					       recv_addr->page_no, 0, zip_size,
-					       block->page.zip.data, NULL);
+					       block->page.zip.data, NULL, 0);
 				if (error == DB_SUCCESS
 				    && !buf_zip_decompress(block, TRUE)) {
 					exit(1);
@@ -2159,7 +2160,7 @@ recv_apply_log_recs_for_backup(void)
 					       recv_addr->space, 0,
 					       recv_addr->page_no, 0,
 					       UNIV_PAGE_SIZE,
-					       block->frame, NULL);
+					       block->frame, NULL, 0);
 			}
 
 			if (error != DB_SUCCESS) {
@@ -2188,13 +2189,13 @@ recv_apply_log_recs_for_backup(void)
 					       recv_addr->space, zip_size,
 					       recv_addr->page_no, 0,
 					       zip_size,
-					       block->page.zip.data, NULL);
+					       block->page.zip.data, NULL, 0);
 			} else {
 				error = fil_io(OS_FILE_WRITE, true,
 					       recv_addr->space, 0,
 					       recv_addr->page_no, 0,
 					       UNIV_PAGE_SIZE,
-					       block->frame, NULL);
+					       block->frame, NULL, 0);
 			}
 skip_this_recv_addr:
 			recv_addr = HASH_GET_NEXT(addr_hash, recv_addr);
@@ -3164,7 +3165,7 @@ recv_recovery_from_checkpoint_start_func(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, max_cp_group->space_id, 0,
 	       0, 0, LOG_FILE_HDR_SIZE,
-	       log_hdr_buf, max_cp_group);
+	       log_hdr_buf, max_cp_group, 0);
 
 	if (0 == ut_memcmp(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 			   (byte*)"ibbackup", (sizeof "ibbackup") - 1)) {
@@ -3195,7 +3196,7 @@ recv_recovery_from_checkpoint_start_func(
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true,
 		       max_cp_group->space_id, 0,
 		       0, 0, OS_FILE_LOG_BLOCK_SIZE,
-		       log_hdr_buf, max_cp_group);
+		       log_hdr_buf, max_cp_group, 0);
 	}
 
 	log_hdr_log_block_size
@@ -3795,7 +3796,7 @@ try_open_again:
 
 	file_handle = os_file_create(innodb_file_log_key,
 				     name, OS_FILE_OPEN,
-				     OS_FILE_LOG, OS_FILE_AIO, &ret);
+				     OS_FILE_LOG, OS_FILE_AIO, &ret, FALSE);
 
 	if (ret == FALSE) {
 ask_again:
@@ -3847,7 +3848,7 @@ ask_again:
 	/* Read the archive file header */
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, group->archive_space_id, 0,
 	       0, 0,
-	       LOG_FILE_HDR_SIZE, buf, NULL);
+	       LOG_FILE_HDR_SIZE, buf, NULL, 0);
 
 	/* Check if the archive file header is consistent */
 
@@ -3921,7 +3922,7 @@ ask_again:
 		fil_io(OS_FILE_READ | OS_FILE_LOG, true,
 		       group->archive_space_id, 0,
 		       read_offset / UNIV_PAGE_SIZE,
-		       read_offset % UNIV_PAGE_SIZE, len, buf, NULL);
+		       read_offset % UNIV_PAGE_SIZE, len, buf, NULL, 0);
 
 		ret = recv_scan_log_recs(
 			(buf_pool_get_n_pages()

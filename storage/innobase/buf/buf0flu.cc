@@ -1,6 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, Fusion-io. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +32,7 @@ Created 11/11/1995 Heikki Tuuri
 #endif
 
 #include "buf0buf.h"
+#include "buf0mtflu.h"
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
@@ -44,10 +47,12 @@ Created 11/11/1995 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "os0file.h"
+#include "os0sync.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0pagecompress.h"
 
 /** Number of pages flushed through non flush_list flushes. */
 static ulint buf_lru_flush_page_count = 0;
@@ -723,8 +728,10 @@ buf_flush_write_complete(
 	flush_type = buf_page_get_flush_type(bpage);
 	buf_pool->n_flush[flush_type]--;
 
+#ifdef UNIV_DEBUG
 	/* fprintf(stderr, "n pending flush %lu\n",
 	buf_pool->n_flush[flush_type]); */
+#endif
 
 	if (buf_pool->n_flush[flush_type] == 0
 	    && buf_pool->init_flush[flush_type] == FALSE) {
@@ -880,6 +887,8 @@ buf_flush_write_block_low(
 {
 	ulint	zip_size	= buf_page_get_zip_size(bpage);
 	page_t*	frame		= NULL;
+	ulint space_id          = buf_page_get_space(bpage);
+	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -956,12 +965,28 @@ buf_flush_write_block_low(
 		       sync, buf_page_get_space(bpage), zip_size,
 		       buf_page_get_page_no(bpage), 0,
 		       zip_size ? zip_size : UNIV_PAGE_SIZE,
-		       frame, bpage);
-	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
-		buf_dblwr_write_single_page(bpage, sync);
+		       frame, bpage, &bpage->write_size);
 	} else {
-		ut_ad(!sync);
-		buf_dblwr_add_to_batch(bpage);
+
+		/* InnoDB uses doublewrite buffer and doublewrite buffer
+		is initialized. User can define do we use atomic writes
+		on a file space (table) or not. If atomic writes are
+		not used we should use doublewrite buffer and if
+		atomic writes should be used, no doublewrite buffer
+		is used. */
+
+		if (awrites == ATOMIC_WRITES_ON) {
+			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
+				FALSE, buf_page_get_space(bpage), zip_size,
+				buf_page_get_page_no(bpage), 0,
+				zip_size ? zip_size : UNIV_PAGE_SIZE,
+				frame, bpage, &bpage->write_size);
+		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
+			buf_dblwr_write_single_page(bpage, sync);
+		} else {
+			ut_ad(!sync);
+			buf_dblwr_add_to_batch(bpage);
+		}
 	}
 
 	/* When doing single page flushing the IO is done synchronously
@@ -1221,7 +1246,9 @@ buf_flush_try_neighbors(
 		}
 	}
 
+#ifdef UNIV_DEBUG
 	/* fprintf(stderr, "Flush area: low %lu high %lu\n", low, high); */
+#endif
 
 	if (high > fil_space_get_size(space)) {
 		high = fil_space_get_size(space);
@@ -1664,7 +1691,6 @@ pages: to avoid deadlocks, this function must be written so that it cannot
 end up waiting for these latches! NOTE 2: in the case of a flush list flush,
 the calling thread is not allowed to own any latches on pages!
 @return number of blocks for which the write request was queued */
-static
 ulint
 buf_flush_batch(
 /*============*/
@@ -1721,7 +1747,6 @@ buf_flush_batch(
 
 /******************************************************************//**
 Gather the aggregated stats for both flush list and LRU list flushing */
-static
 void
 buf_flush_common(
 /*=============*/
@@ -1746,7 +1771,6 @@ buf_flush_common(
 
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */
-static
 ibool
 buf_flush_start(
 /*============*/
@@ -1775,7 +1799,6 @@ buf_flush_start(
 
 /******************************************************************//**
 End a buffer flush batch for LRU or flush list */
-static
 void
 buf_flush_end(
 /*==========*/
@@ -1898,6 +1921,10 @@ buf_flush_list(
 {
 	ulint		i;
 	bool		success = true;
+
+	if (buf_mtflu_init_done()) {
+		return(buf_mtflu_flush_list(min_n, lsn_limit, n_processed));
+	}
 
 	if (n_processed) {
 		*n_processed = 0;
@@ -2068,6 +2095,11 @@ buf_flush_LRU_tail(void)
 /*====================*/
 {
 	ulint	total_flushed = 0;
+
+	if(buf_mtflu_init_done())
+	{
+		return(buf_mtflu_flush_LRU_tail());
+	}
 
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 
@@ -2374,6 +2406,8 @@ page_cleaner_sleep_if_needed(
 	}
 }
 
+
+
 /******************************************************************//**
 page_cleaner thread tasked with flushing dirty pages from the buffer
 pools. As of now we'll have only one instance of this thread.
@@ -2400,7 +2434,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	fprintf(stderr, "InnoDB: page_cleaner thread running, id %lu\n",
 		os_thread_pf(os_thread_get_curr_id()));
 #endif /* UNIV_DEBUG_THREAD_CREATION */
-
 	buf_page_cleaner_is_active = TRUE;
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
@@ -2424,10 +2457,11 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 
 			/* Flush pages from flush_list if required */
 			n_flushed += page_cleaner_flush_pages_if_needed();
+
 		} else {
 			n_flushed = page_cleaner_do_flush_batch(
-							PCT_IO(100),
-							LSN_MAX);
+				PCT_IO(100),
+				LSN_MAX);
 
 			if (n_flushed) {
 				MONITOR_INC_VALUE_CUMULATIVE(
@@ -2440,6 +2474,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	}
 
 	ut_ad(srv_shutdown_state > 0);
+
 	if (srv_fast_shutdown == 2) {
 		/* In very fast shutdown we simulate a crash of
 		buffer pool. We are not required to do any flushing */
@@ -2605,8 +2640,10 @@ buf_flush_validate(
 
 	return(ret);
 }
+
 #endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
 #endif /* !UNIV_HOTBACKUP */
+
 
 #ifdef UNIV_DEBUG
 /******************************************************************//**

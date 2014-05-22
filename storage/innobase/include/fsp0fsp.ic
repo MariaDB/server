@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -63,12 +64,17 @@ fsp_flags_is_valid(
 	ulint	atomic_blobs = FSP_FLAGS_HAS_ATOMIC_BLOBS(flags);
 	ulint	page_ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
+	ulint	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
+	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
+	ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
 
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return(false););
 
 	/* fsp_flags is zero unless atomic_blobs is set. */
 	/* Make sure there are no bits that we do not know about. */
 	if (unused != 0 || flags == 1) {
+		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted unused %lu\n",
+			flags, unused);
 		return(false);
 	} else if (post_antelope) {
 		/* The Antelope row formats REDUNDANT and COMPACT did
@@ -76,6 +82,8 @@ fsp_flags_is_valid(
 		4-byte field is zero for Antelope row formats. */
 
 		if (!atomic_blobs) {
+			fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted atomic_blobs %lu\n",
+				flags, atomic_blobs);
 			return(false);
 		}
 	}
@@ -87,10 +95,14 @@ fsp_flags_is_valid(
 		externally stored parts. */
 
 		if (post_antelope || zip_ssize != 0) {
+			fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted zip_ssize %lu atomic_blobs %lu\n",
+				flags, zip_ssize, atomic_blobs);
 			return(false);
 		}
 
 	} else if (!post_antelope || zip_ssize > PAGE_ZIP_SSIZE_MAX) {
+		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted zip_ssize %lu max %d\n",
+			flags, zip_ssize, PAGE_ZIP_SSIZE_MAX);
 		return(false);
 	} else if (page_ssize > UNIV_PAGE_SSIZE_MAX) {
 
@@ -98,10 +110,31 @@ fsp_flags_is_valid(
 		be zero for an original 16k page size.
 		Validate the page shift size is within allowed range. */
 
+		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted page_ssize %lu max %lu\n",
+			flags, page_ssize, UNIV_PAGE_SSIZE_MAX);
 		return(false);
 
 	} else if (UNIV_PAGE_SIZE != UNIV_PAGE_SIZE_ORIG && !page_ssize) {
+		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted page_ssize %lu max %lu:%d\n",
+			flags, page_ssize, UNIV_PAGE_SIZE, UNIV_PAGE_SIZE_ORIG);
 		return(false);
+	}
+
+	/* Page compression level requires page compression and atomic blobs
+	to be set */
+        if (page_compression_level || page_compression) {
+		if (!page_compression || !atomic_blobs) {
+			fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted page_compression %lu\n"
+				"InnoDB: Error: page_compression_level %lu atomic_blobs %lu\n",
+				flags, page_compression, page_compression_level, atomic_blobs);
+			return(false);
+		}
+	}
+
+	if (atomic_writes < 0 || atomic_writes > ATOMIC_WRITES_OFF) {
+		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted atomic_writes %lu\n",
+			flags, atomic_writes);
+		return (false);
 	}
 
 #if UNIV_FORMAT_MAX != UNIV_FORMAT_B
@@ -312,3 +345,4 @@ xdes_calc_descriptor_page(
 }
 
 #endif /* !UNIV_INNOCHECKSUM */
+

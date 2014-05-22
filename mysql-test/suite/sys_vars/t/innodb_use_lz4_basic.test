@@ -1,0 +1,5 @@
+--source include/have_innodb.inc
+# bool readonly
+# not on all compilations
+select @@global.innodb_use_fallocate;
+

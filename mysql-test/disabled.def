@@ -20,3 +20,5 @@ mysql_embedded           : Bug#12561297 2011-05-14 Anitha Dependent on PB2 chang
 ssl_crl_clients_valid    : broken upstream
 ssl_crl                  : broken upstream
 ssl_crl_clrpath          : broken upstream
+innodb-wl5522-debug-zip  : broken upstream
+innodb_bug12902967       : broken upstream

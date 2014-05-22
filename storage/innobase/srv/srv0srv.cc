@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -70,6 +71,7 @@ Created 10/8/1995 Heikki Tuuri
 
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0pagecompress.h"
 
 /* The following is the maximum allowed duration of a lock wait. */
 UNIV_INTERN ulint	srv_fatal_semaphore_wait_threshold = 600;
@@ -144,6 +146,20 @@ OS (provided we compiled Innobase with it in), otherwise we will
 use simulated aio we build below with threads.
 Currently we support native aio on windows and linux */
 UNIV_INTERN my_bool	srv_use_native_aio = TRUE;
+
+/* If this flag is TRUE, then we will use fallocate(PUCH_HOLE)
+to the pages */
+UNIV_INTERN my_bool	srv_use_trim = FALSE;
+/* If this flag is TRUE, then we will use posix fallocate for file extentsion */
+UNIV_INTERN my_bool	srv_use_posix_fallocate = FALSE;
+/* If this flag is TRUE, then we disable doublewrite buffer */
+UNIV_INTERN my_bool	srv_use_atomic_writes = FALSE;
+/* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
+UNIV_INTERN long	innodb_compression_algorithm = PAGE_ZLIB_ALGORITHM;
+/* Number of threads used for multi-threaded flush */
+UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;
+/* If this flag is TRUE, then we will use multi threaded flush. */
+UNIV_INTERN my_bool	srv_use_mtflush                 = FALSE;
 
 #ifdef __WIN__
 /* Windows native condition variables. We use runtime loading / function
@@ -347,11 +363,6 @@ batch flushing i.e.: LRU flushing and flush_list flushing. The rest
 of the pages are used for single page flushing. */
 UNIV_INTERN ulong	srv_doublewrite_batch_size	= 120;
 
-UNIV_INTERN ibool	srv_use_atomic_writes = FALSE;
-#ifdef HAVE_POSIX_FALLOCATE
-UNIV_INTERN ibool	srv_use_posix_fallocate = TRUE;
-#endif
-
 UNIV_INTERN ulong	srv_replication_delay		= 0;
 
 /*-------------------------------------------*/
@@ -374,6 +385,17 @@ static ulint		srv_n_rows_read_old		= 0;
 
 UNIV_INTERN ulint	srv_truncated_status_writes	= 0;
 UNIV_INTERN ulint	srv_available_undo_logs         = 0;
+
+UNIV_INTERN ib_uint64_t srv_page_compression_saved      = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect512       = 0;
+UNIV_INTERN ib_uint64_t srv_page_compression_trim_sect4096      = 0;
+UNIV_INTERN ib_uint64_t srv_index_pages_written         = 0;
+UNIV_INTERN ib_uint64_t srv_non_index_pages_written     = 0;
+UNIV_INTERN ib_uint64_t srv_pages_page_compressed       = 0;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
+UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
+UNIV_INTERN ib_uint64_t srv_index_page_decompressed     = 0;
+
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
@@ -1460,6 +1482,15 @@ srv_export_innodb_status(void)
 		srv_truncated_status_writes;
 
 	export_vars.innodb_available_undo_logs = srv_available_undo_logs;
+	export_vars.innodb_page_compression_saved = srv_stats.page_compression_saved;
+	export_vars.innodb_page_compression_trim_sect512 = srv_stats.page_compression_trim_sect512;
+	export_vars.innodb_page_compression_trim_sect4096 = srv_stats.page_compression_trim_sect4096;
+	export_vars.innodb_index_pages_written = srv_stats.index_pages_written;
+	export_vars.innodb_non_index_pages_written = srv_stats.non_index_pages_written;
+	export_vars.innodb_pages_page_compressed = srv_stats.pages_page_compressed;
+	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
+	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
+	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);

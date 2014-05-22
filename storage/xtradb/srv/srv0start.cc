@@ -3,6 +3,7 @@
 Copyright (c) 1996, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -67,11 +68,14 @@ Created 2/16/1996 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "buf0flu.h"
+
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
 # include "os0proc.h"
 # include "sync0sync.h"
 # include "buf0flu.h"
+# include "buf0mtflu.h"
 # include "buf0rea.h"
 # include "dict0boot.h"
 # include "dict0load.h"
@@ -131,8 +135,11 @@ static os_file_t	files[1000];
 /** io_handler_thread parameters for thread identification */
 static ulint		n[SRV_MAX_N_IO_THREADS + 6];
 /** io_handler_thread identifiers, 32 is the maximum number of purge threads  */
-static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6
-				   + SRV_MAX_N_PURGE_THREADS];
+/** 6 is the ? */
+#define	START_OLD_THREAD_CNT	(SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS)
+static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS + MTFLUSH_MAX_WORKER];
+/* Thread contex data for multi-threaded flush */
+void *mtflush_ctx=NULL;
 
 /** We use this mutex to test the return value of pthread_mutex_trylock
    on successful locking. HP-UX does NOT return 0, though Linux et al do. */
@@ -541,7 +548,7 @@ create_log_file(
 	*file = os_file_create(
 		innodb_file_log_key, name,
 		OS_FILE_CREATE|OS_FILE_ON_ERROR_NO_EXIT, OS_FILE_NORMAL,
-		OS_LOG_FILE, &ret);
+		OS_LOG_FILE, &ret, FALSE);
 
 	if (!ret) {
 		ib_logf(IB_LOG_LEVEL_ERROR, "Cannot create %s", name);
@@ -758,7 +765,7 @@ open_log_file(
 
 	*file = os_file_create(innodb_file_log_key, name,
 			       OS_FILE_OPEN, OS_FILE_AIO,
-			       OS_LOG_FILE, &ret);
+			       OS_LOG_FILE, &ret, FALSE);
 	if (!ret) {
 		ib_logf(IB_LOG_LEVEL_ERROR, "Unable to open '%s'", name);
 		return(DB_ERROR);
@@ -849,7 +856,7 @@ open_or_create_data_files(
 
 			files[i] = os_file_create(
 				innodb_file_data_key, name, OS_FILE_CREATE,
-				OS_FILE_NORMAL, OS_DATA_FILE, &ret);
+				OS_FILE_NORMAL, OS_DATA_FILE, &ret, FALSE);
 
 			if (srv_read_only_mode) {
 
@@ -892,7 +899,7 @@ open_or_create_data_files(
 
 			files[i] = os_file_create(
 				innodb_file_data_key, name, OS_FILE_OPEN_RAW,
-				OS_FILE_NORMAL, OS_DATA_FILE, &ret);
+				OS_FILE_NORMAL, OS_DATA_FILE, &ret, FALSE);
 
 			if (!ret) {
 				ib_logf(IB_LOG_LEVEL_ERROR,
@@ -925,17 +932,17 @@ open_or_create_data_files(
 				files[i] = os_file_create(
 					innodb_file_data_key,
 					name, OS_FILE_OPEN_RAW,
-					OS_FILE_NORMAL, OS_DATA_FILE, &ret);
+					OS_FILE_NORMAL, OS_DATA_FILE, &ret, FALSE);
 			} else if (i == 0) {
 				files[i] = os_file_create(
 					innodb_file_data_key,
 					name, OS_FILE_OPEN_RETRY,
-					OS_FILE_NORMAL, OS_DATA_FILE, &ret);
+					OS_FILE_NORMAL, OS_DATA_FILE, &ret, FALSE);
 			} else {
 				files[i] = os_file_create(
 					innodb_file_data_key,
 					name, OS_FILE_OPEN, OS_FILE_NORMAL,
-					OS_DATA_FILE, &ret);
+					OS_DATA_FILE, &ret, FALSE);
 			}
 
 			if (!ret) {
@@ -1126,7 +1133,7 @@ srv_undo_tablespace_create(
 		innodb_file_data_key,
 		name,
 		srv_read_only_mode ? OS_FILE_OPEN : OS_FILE_CREATE,
-		OS_FILE_NORMAL, OS_DATA_FILE, &ret);
+		OS_FILE_NORMAL, OS_DATA_FILE, &ret, FALSE);
 
 	if (srv_read_only_mode && ret) {
 		ib_logf(IB_LOG_LEVEL_INFO,
@@ -1213,7 +1220,8 @@ srv_undo_tablespace_open(
 		| OS_FILE_ON_ERROR_SILENT,
 		OS_FILE_NORMAL,
 		OS_DATA_FILE,
-		&ret);
+		&ret,
+		FALSE);
 
 	/* If the file open was successful then load the tablespace. */
 
@@ -2738,6 +2746,25 @@ files_checked:
 	}
 
 	if (!srv_read_only_mode) {
+
+		if (srv_use_mtflush) {
+			/* Start multi-threaded flush threads */
+			mtflush_ctx = buf_mtflu_handler_init(
+				srv_mtflush_threads,
+				srv_buf_pool_instances);
+
+			/* Set up the thread ids */
+			buf_mtflu_set_thread_ids(
+				srv_mtflush_threads,
+				mtflush_ctx,
+				(thread_ids + 6 + SRV_MAX_N_PURGE_THREADS));
+#if UNIV_DEBUG
+			fprintf(stderr, "InnoDB: Note: %s:%d buf-pool-instances:%lu mtflush_threads %lu\n",
+				__FILE__, __LINE__, srv_buf_pool_instances, srv_mtflush_threads);
+#endif
+		}
+
+
 		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
 	}
 	os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
@@ -3010,7 +3037,18 @@ innobase_shutdown_for_mysql(void)
 		logs_empty_and_mark_files_at_shutdown() and should have
 		already quit or is quitting right now. */
 
+
+		if (srv_use_mtflush) {
+			/* g. Exit the multi threaded flush threads */
+
+			buf_mtflu_io_thread_exit();
+		}
+
+#ifdef UNIV_DEBUG
+		fprintf(stderr, "InnoDB: Note: %s:%d os_thread_count:%lu \n", __FUNCTION__, __LINE__, os_thread_count);
+#endif
 		os_mutex_enter(os_sync_mutex);
+
 
 		if (os_thread_count == 0) {
 			/* All the threads have exited or are just exiting;

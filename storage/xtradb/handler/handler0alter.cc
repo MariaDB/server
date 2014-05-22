@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -258,6 +259,22 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 	trx_search_latch_release_if_reserved(prebuilt->trx);
+
+	/* Change on engine specific table options require rebuild of the
+	table */
+	if (ha_alter_info->handler_flags
+		== Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		ha_table_option_struct *new_options= ha_alter_info->create_info->option_struct;
+		ha_table_option_struct *old_options= table->s->option_struct;
+
+		if (new_options->page_compressed != old_options->page_compressed ||
+		    new_options->page_compression_level != old_options->page_compression_level ||
+			new_options->atomic_writes != old_options->atomic_writes) {
+			ha_alter_info->unsupported_reason = innobase_get_err_msg(
+				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON);
+			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+		}
+	}
 
 	if (ha_alter_info->handler_flags
 	    & ~(INNOBASE_INPLACE_IGNORE
@@ -3395,6 +3412,17 @@ ha_innobase::prepare_inplace_alter_table(
 
 	if (ha_alter_info->handler_flags
 	    & Alter_inplace_info::CHANGE_CREATE_OPTION) {
+		/* Check engine specific table options */
+		if (const char* invalid_tbopt = check_table_options(
+				user_thd, altered_table,
+				ha_alter_info->create_info,
+				prebuilt->table->space != 0,
+				srv_file_format)) {
+			my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0),
+				 table_type(), invalid_tbopt);
+			goto err_exit_no_heap;
+		}
+
 		if (const char* invalid_opt = create_options_are_invalid(
 			    user_thd, altered_table,
 			    ha_alter_info->create_info,

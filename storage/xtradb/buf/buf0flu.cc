@@ -1,6 +1,8 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, Fusion-io. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -30,6 +32,7 @@ Created 11/11/1995 Heikki Tuuri
 #endif
 
 #include "buf0buf.h"
+#include "buf0mtflu.h"
 #include "buf0checksum.h"
 #include "srv0start.h"
 #include "srv0srv.h"
@@ -44,10 +47,12 @@ Created 11/11/1995 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "os0file.h"
+#include "os0sync.h"
 #include "trx0sys.h"
 #include "srv0mon.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0pagecompress.h"
 
 /** Number of pages flushed through non flush_list flushes. */
 // static ulint buf_lru_flush_page_count = 0;
@@ -75,11 +80,6 @@ in thrashing. */
 
 /* @} */
 
-/** Handled page counters for a single flush */
-struct flush_counters_t {
-	ulint	flushed;	/*!< number of dirty pages flushed */
-	ulint	evicted;	/*!< number of clean pages evicted */
-};
 
 /******************************************************************//**
 Increases flush_list size in bytes with zip_size for compressed page,
@@ -720,8 +720,10 @@ buf_flush_write_complete(
 
 	buf_pool->n_flush[flush_type]--;
 
-	/* fprintf(stderr, "n pending flush %lu\n",
-	buf_pool->n_flush[flush_type]); */
+#ifdef UNIV_MTFLUSH_DEBUG
+	fprintf(stderr, "n pending flush %lu\n",
+		buf_pool->n_flush[flush_type]);
+#endif
 
 	if (buf_pool->n_flush[flush_type] == 0
 	    && buf_pool->init_flush[flush_type] == FALSE) {
@@ -879,6 +881,8 @@ buf_flush_write_block_low(
 {
 	ulint	zip_size	= buf_page_get_zip_size(bpage);
 	page_t*	frame		= NULL;
+	ulint space_id          = buf_page_get_space(bpage);
+	atomic_writes_t awrites = fil_space_get_atomic_writes(space_id);
 
 #ifdef UNIV_DEBUG
 	buf_pool_t*	buf_pool = buf_pool_from_bpage(bpage);
@@ -954,12 +958,26 @@ buf_flush_write_block_low(
 		       sync, buf_page_get_space(bpage), zip_size,
 		       buf_page_get_page_no(bpage), 0,
 		       zip_size ? zip_size : UNIV_PAGE_SIZE,
-		       frame, bpage);
-	} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
-		buf_dblwr_write_single_page(bpage, sync);
+		       frame, bpage, &bpage->write_size);
 	} else {
-		ut_ad(!sync);
-		buf_dblwr_add_to_batch(bpage);
+		/* InnoDB uses doublewrite buffer and doublewrite buffer
+		is initialized. User can define do we use atomic writes
+		on a file space (table) or not. If atomic writes are
+		not used we should use doublewrite buffer and if
+		atomic writes should be used, no doublewrite buffer
+		is used. */
+
+		if (awrites == ATOMIC_WRITES_ON) {
+			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
+				FALSE, buf_page_get_space(bpage), zip_size,
+				buf_page_get_page_no(bpage), 0,
+				zip_size ? zip_size : UNIV_PAGE_SIZE,
+				frame, bpage, &bpage->write_size);
+		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
+			buf_dblwr_write_single_page(bpage, sync);
+		} else {
+			buf_dblwr_add_to_batch(bpage);
+		}
 	}
 
 	/* When doing single page flushing the IO is done synchronously
@@ -1506,6 +1524,7 @@ buf_flush_LRU_list_batch(
 
 	n->flushed = 0;
 	n->evicted = 0;
+	n->unzip_LRU_evicted = 0;
 
 	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
@@ -1641,21 +1660,22 @@ buf_do_LRU_batch(
 	flush_counters_t*	n)	/*!< out: flushed/evicted page
 					counts */
 {
-	ulint	count = 0;
-
 	if (buf_LRU_evict_from_unzip_LRU(buf_pool)) {
-		count += buf_free_from_unzip_LRU_list_batch(buf_pool, max);
+		n->unzip_LRU_evicted
+			+= buf_free_from_unzip_LRU_list_batch(buf_pool, max);
+	} else {
+		n->unzip_LRU_evicted = 0;
 	}
 
-	if (max > count) {
-		buf_flush_LRU_list_batch(buf_pool, max - count, limited_scan,
-					 n);
+	if (max > n->unzip_LRU_evicted) {
+		buf_flush_LRU_list_batch(buf_pool, max - n->unzip_LRU_evicted,
+					 limited_scan, n);
 	} else {
 		n->evicted = 0;
 		n->flushed = 0;
 	}
 
-	n->flushed += count;
+	n->flushed += n->unzip_LRU_evicted;
 }
 
 /*******************************************************************//**
@@ -1746,7 +1766,6 @@ end up waiting for these latches! NOTE 2: in the case of a flush list flush,
 the calling thread is not allowed to own any latches on pages!
 @return number of blocks for which the write request was queued */
 __attribute__((nonnull))
-static
 void
 buf_flush_batch(
 /*============*/
@@ -1805,7 +1824,6 @@ buf_flush_batch(
 
 /******************************************************************//**
 Gather the aggregated stats for both flush list and LRU list flushing */
-static
 void
 buf_flush_common(
 /*=============*/
@@ -1832,7 +1850,6 @@ buf_flush_common(
 
 /******************************************************************//**
 Start a buffer flush batch for LRU or flush list */
-static
 ibool
 buf_flush_start(
 /*============*/
@@ -1846,6 +1863,11 @@ buf_flush_start(
 	    || buf_pool->init_flush[flush_type] == TRUE) {
 
 		/* There is already a flush batch of the same type running */
+
+#ifdef UNIV_PAGECOMPRESS_DEBUG
+		fprintf(stderr, "Error: flush_type %d n_flush %lu init_flush %lu\n",
+			flush_type, buf_pool->n_flush[flush_type], buf_pool->init_flush[flush_type]);
+#endif
 
 		mutex_exit(&buf_pool->flush_state_mutex);
 
@@ -1861,7 +1883,6 @@ buf_flush_start(
 
 /******************************************************************//**
 End a buffer flush batch for LRU or flush list */
-static
 void
 buf_flush_end(
 /*==========*/
@@ -1915,6 +1936,24 @@ buf_flush_wait_batch_end(
 		thd_wait_end(NULL);
 	}
 }
+
+/* JAN: TODO: */
+
+void buf_pool_enter_LRU_mutex(
+	buf_pool_t*    buf_pool)
+{
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_enter(&buf_pool->LRU_list_mutex);
+}
+
+void buf_pool_exit_LRU_mutex(
+	buf_pool_t*    buf_pool)
+{
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_exit(&buf_pool->LRU_list_mutex);
+}
+
+/* JAN: TODO: END: */
 
 /*******************************************************************//**
 This utility flushes dirty blocks from the end of the LRU list and also
@@ -1984,6 +2023,10 @@ buf_flush_list(
 	ulint		remaining_instances = srv_buf_pool_instances;
 	bool		timeout = false;
 	ulint		flush_start_time = 0;
+
+	if (buf_mtflu_init_done()) {
+		return(buf_mtflu_flush_list(min_n, lsn_limit, n_processed));
+	}
 
 	for (i = 0; i < srv_buf_pool_instances; i++) {
 		requested_pages[i] = 0;
@@ -2212,6 +2255,11 @@ buf_flush_LRU_tail(void)
 	ulint	free_list_lwm = srv_LRU_scan_depth / 100
 		* srv_cleaner_free_list_lwm;
 
+	if(buf_mtflu_init_done())
+	{
+		return(buf_mtflu_flush_LRU_tail());
+	}
+
 	for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 
 		const buf_pool_t* buf_pool = buf_pool_from_array(i);
@@ -2269,9 +2317,15 @@ buf_flush_LRU_tail(void)
 
 				requested_pages[i] += lru_chunk_size;
 
+				/* If we failed to flush or evict this
+				instance, do not bother anymore. But take into
+			        account that we might have zero flushed pages
+				because the flushing request was fully
+				satisfied by unzip_LRU evictions. */
 				if (requested_pages[i] >= scan_depth[i]
 				    || !(srv_cleaner_eviction_factor
-					 ? n.evicted : n.flushed)) {
+					? n.evicted
+					: (n.flushed + n.unzip_LRU_evicted))) {
 
 					active_instance[i] = false;
 					remaining_instances--;

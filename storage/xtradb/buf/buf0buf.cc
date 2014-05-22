@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3481,6 +3482,7 @@ buf_page_init_low(
 	bpage->access_time = 0;
 	bpage->newest_modification = 0;
 	bpage->oldest_modification = 0;
+	bpage->write_size = 0;
 	HASH_INVALIDATE(bpage, hash);
 	bpage->is_corrupt = FALSE;
 #if defined UNIV_DEBUG_FILE_ACCESSES || defined UNIV_DEBUG
@@ -5636,3 +5638,24 @@ buf_page_init_for_backup_restore(
 	}
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/*********************************************************************//**
+Aquire LRU list mutex */
+void
+buf_pool_mutex_enter(
+/*=================*/
+	buf_pool_t*	buf_pool) /*!< in: buffer pool */
+{
+	ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_enter(&buf_pool->LRU_list_mutex);
+}
+/*********************************************************************//**
+Exit LRU list mutex */
+void
+buf_pool_mutex_exit(
+/*================*/
+	buf_pool_t*	buf_pool) /*!< in: buffer pool */
+{
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+	mutex_exit(&buf_pool->LRU_list_mutex);
+}

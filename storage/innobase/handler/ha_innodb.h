@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -55,6 +56,22 @@ typedef struct st_innobase_share {
 
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
+
+/** Engine specific table options are definined using this struct */
+struct ha_table_option_struct
+{
+	bool  page_compressed;		/*!< Table is using page compression
+					if this option is true. */
+	int   page_compression_level;	/*!< Table page compression level
+					or UNIV_UNSPECIFIED. */
+	uint  atomic_writes;		/*!< Use atomic writes for this
+					table if this options is ON or
+					in DEFAULT if
+					srv_use_atomic_writes=1.
+					Atomic writes are not used if
+					value OFF.*/
+};
+
 
 /** The class defining a handle to an Innodb table */
 class ha_innobase: public handler
@@ -182,6 +199,8 @@ class ha_innobase: public handler
 			     char* norm_name,
 			     char* temp_path,
 			     char* remote_path);
+	const char* check_table_options(THD *thd, TABLE* table,
+		HA_CREATE_INFO*	create_info, const bool use_tablespace, const ulint file_format);
 	int create(const char *name, register TABLE *form,
 					HA_CREATE_INFO *create_info);
 	int truncate();

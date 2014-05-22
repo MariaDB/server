@@ -95,6 +95,23 @@ ib_wqueue_timedwait(
 	ib_wqueue_t*	wq,		/* in: work queue */
 	ib_time_t	wait_in_usecs); /* in: wait time in micro seconds */
 
+/********************************************************************
+Return first item on work queue or NULL if queue is empty
+@return work item or NULL */
+void*
+ib_wqueue_nowait(
+/*=============*/
+	ib_wqueue_t*	wq);		/*<! in: work queue */
+
+/********************************************************************
+Get number of items on queue.
+@return number of items on queue */
+ulint
+ib_wqueue_len(
+/*==========*/
+	ib_wqueue_t*	wq);		/*<! in: work queue */
+
+
 /* Work queue. */
 struct ib_wqueue_t {
 	ib_mutex_t		mutex;	/*!< mutex protecting everything */

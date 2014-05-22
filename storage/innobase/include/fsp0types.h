@@ -29,6 +29,7 @@ Created May 26, 2009 Vasil Dimov
 #include "univ.i"
 
 #include "fil0fil.h" /* for FIL_PAGE_DATA */
+#include "ut0byte.h"
 
 /** @name Flags for inserting records in order
 If records are inserted in order, there are the following

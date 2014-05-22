@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -381,7 +382,8 @@ buf_dblwr_init_or_load_pages(
 	buffer */
 
 	fil_io(OS_FILE_READ, true, TRX_SYS_SPACE, 0, TRX_SYS_PAGE_NO, 0,
-	       UNIV_PAGE_SIZE, read_buf, NULL);
+	       UNIV_PAGE_SIZE, read_buf, NULL, 0);
+
 	doublewrite = read_buf + TRX_SYS_DOUBLEWRITE;
 
 	if (mach_read_from_4(doublewrite + TRX_SYS_DOUBLEWRITE_MAGIC)
@@ -417,11 +419,12 @@ buf_dblwr_init_or_load_pages(
 
 	fil_io(OS_FILE_READ, true, TRX_SYS_SPACE, 0, block1, 0,
 	       TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE,
-	       buf, NULL);
+	       buf, NULL, 0);
+
 	fil_io(OS_FILE_READ, true, TRX_SYS_SPACE, 0, block2, 0,
 	       TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE,
 	       buf + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE,
-	       NULL);
+	       NULL, 0);
 	/* Check if any of these pages is half-written in data files, in the
 	intended position */
 
@@ -448,7 +451,7 @@ buf_dblwr_init_or_load_pages(
 			}
 
 			fil_io(OS_FILE_WRITE, true, space_id, 0, source_page_no, 0,
-			       UNIV_PAGE_SIZE, page, NULL);
+				UNIV_PAGE_SIZE, page, NULL, 0);
 
 		} else if (load_corrupt_pages) {
 
@@ -510,7 +513,7 @@ buf_dblwr_process()
 			fil_io(OS_FILE_READ, true, space_id, zip_size,
 			       page_no, 0,
 			       zip_size ? zip_size : UNIV_PAGE_SIZE,
-			       read_buf, NULL);
+			       read_buf, NULL, 0);
 
 			/* Check if the page is corrupt */
 
@@ -562,7 +565,7 @@ buf_dblwr_process()
 				fil_io(OS_FILE_WRITE, true, space_id,
 				       zip_size, page_no, 0,
 				       zip_size ? zip_size : UNIV_PAGE_SIZE,
-				       page, NULL);
+				       page, NULL, 0);
 
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"Recovered the page from"
@@ -778,7 +781,7 @@ buf_dblwr_write_block_to_datafile(
 		       buf_page_get_page_no(bpage), 0,
 		       buf_page_get_zip_size(bpage),
 		       (void*) bpage->zip.data,
-		       (void*) bpage);
+		       (void*) bpage, 0);
 
 		return;
 	}
@@ -790,8 +793,7 @@ buf_dblwr_write_block_to_datafile(
 
 	fil_io(flags, sync, buf_block_get_space(block), 0,
 	       buf_block_get_page_no(block), 0, UNIV_PAGE_SIZE,
-	       (void*) block->frame, (void*) block);
-
+		(void*) block->frame, (void*) block, (ulint *)&bpage->write_size);
 }
 
 /********************************************************************//**
@@ -885,7 +887,7 @@ try_again:
 
 	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 	       buf_dblwr->block1, 0, len,
-	       (void*) write_buf, NULL);
+	       (void*) write_buf, NULL, 0);
 
 	if (buf_dblwr->first_free <= TRX_SYS_DOUBLEWRITE_BLOCK_SIZE) {
 		/* No unwritten pages in the second block. */
@@ -901,7 +903,7 @@ try_again:
 
 	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 	       buf_dblwr->block2, 0, len,
-	       (void*) write_buf, NULL);
+	       (void*) write_buf, NULL, 0);
 
 flush:
 	/* increment the doublewrite flushed pages counter */
@@ -1130,14 +1132,14 @@ retry:
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 		       offset, 0, UNIV_PAGE_SIZE,
 		       (void*) (buf_dblwr->write_buf
-				+ UNIV_PAGE_SIZE * i), NULL);
+			        + UNIV_PAGE_SIZE * i), NULL, 0);
 	} else {
 		/* It is a regular page. Write it directly to the
 		doublewrite buffer */
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 		       offset, 0, UNIV_PAGE_SIZE,
 		       (void*) ((buf_block_t*) bpage)->frame,
-		       NULL);
+		       NULL, 0);
 	}
 
 	/* Now flush the doublewrite buffer data to disk */

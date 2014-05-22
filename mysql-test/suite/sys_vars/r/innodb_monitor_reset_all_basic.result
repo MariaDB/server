@@ -37,6 +37,8 @@ buffer_pool_bytes_dirty	disabled
 buffer_pool_pages_free	disabled
 buffer_pages_created	disabled
 buffer_pages_written	disabled
+buffer_index_pages_written	disabled
+buffer_non_index_pages_written	disabled
 buffer_pages_read	disabled
 buffer_data_reads	disabled
 buffer_data_written	disabled
@@ -160,6 +162,14 @@ compress_pages_compressed	disabled
 compress_pages_decompressed	disabled
 compression_pad_increments	disabled
 compression_pad_decrements	disabled
+compress_saved	disabled
+compress_trim_sect512	disabled
+compress_trim_sect4096	disabled
+compress_pages_page_compressed	disabled
+compress_page_compressed_trim_op	disabled
+compress_page_compressed_trim_op_saved	disabled
+compress_pages_page_decompressed	disabled
+compress_pages_page_compression_error	disabled
 index_page_splits	disabled
 index_page_merge_attempts	disabled
 index_page_merge_successful	disabled

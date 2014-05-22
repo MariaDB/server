@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -229,14 +230,14 @@ not_to_recover:
 		*err = _fil_io(OS_FILE_READ | wake_later
 			       | ignore_nonexistent_pages,
 			       sync, space, zip_size, offset, 0, zip_size,
-			       bpage->zip.data, bpage, trx);
+			       bpage->zip.data, bpage, 0, trx);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
 		*err = _fil_io(OS_FILE_READ | wake_later
 			      | ignore_nonexistent_pages,
 			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      ((buf_block_t*) bpage)->frame, bpage, trx);
+			      ((buf_block_t*) bpage)->frame, bpage, &bpage->write_size, trx);
 	}
 
 	if (sync) {

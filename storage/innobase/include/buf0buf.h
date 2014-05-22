@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1489,6 +1490,11 @@ struct buf_page_t{
 					state == BUF_BLOCK_ZIP_PAGE and
 					zip.data == NULL means an active
 					buf_pool->watch */
+
+	ulint           write_size;     /* Write size is set when this
+					page is first time written and then
+					if written again we check is TRIM
+					operation needed. */
 #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
 					buf_pool->page_hash or

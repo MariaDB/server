@@ -1860,9 +1860,14 @@ btr_cur_update_alloc_zip_func(
 				false=update-in-place */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+
+	/* Have a local copy of the variables as these can change
+	dynamically. */
+	ulint	compression_level = page_zip_level;
 	const page_t*	page = page_cur_get_page(cursor);
 
 	ut_ad(page_zip == page_cur_get_page_zip(cursor));
+
 	ut_ad(page_zip);
 	ut_ad(!dict_index_is_ibuf(index));
 	ut_ad(rec_offs_validate(page_cur_get_rec(cursor), index, offsets));

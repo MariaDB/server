@@ -150,6 +150,15 @@ ib_list_is_empty(
 					/* out: TRUE if empty else  */
 	const ib_list_t*	list);	/* in: list */
 
+/********************************************************************
+Get number of items on list.
+@return number of items on list */
+UNIV_INLINE
+ulint
+ib_list_len(
+/*========*/
+	const ib_list_t*	list);		/*<! in: list */
+
 /* List. */
 struct ib_list_t {
 	ib_list_node_t*		first;		/*!< first node */
