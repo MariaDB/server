@@ -76,6 +76,7 @@
 #include "wsrep_var.h"
 #include "wsrep_thd.h"
 #include "wsrep_sst.h"
+ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 #endif
 #include "sql_callback.h"
 #include "threadpool.h"
@@ -2820,9 +2821,19 @@ void thd_cleanup(THD *thd)
 
 void dec_connection_count(THD *thd)
 {
-  mysql_mutex_lock(&LOCK_connection_count);
-  (*thd->scheduler->connection_count)--;
-  mysql_mutex_unlock(&LOCK_connection_count);
+#ifdef WITH_WSREP
+  /*
+    Do not decrement when its wsrep system thread. wsrep_applier is set for
+    applier as well as rollbacker threads.
+  */
+  if (!thd->wsrep_applier)
+#endif /* WITH_WSREP */
+  {
+    DBUG_ASSERT(*thd->scheduler->connection_count > 0);
+    mysql_mutex_lock(&LOCK_connection_count);
+    (*thd->scheduler->connection_count)--;
+    mysql_mutex_unlock(&LOCK_connection_count);
+  }
 }
 
 
@@ -2999,7 +3010,7 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   set_current_thd(0);
 
 #ifdef WITH_WSREP
-  if (put_in_cache && cache_thread() && !thd->wsrep_applier)
+  if (put_in_cache && cache_thread() && !wsrep_applier)
 #else
   if (put_in_cache && cache_thread())
 #endif /* WITH_WSREP */
@@ -5346,13 +5357,20 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->set_time();
   thd->init_for_queries();
 
-  mysql_mutex_lock(&LOCK_connection_count);
-  ++connection_count;
-  mysql_mutex_unlock(&LOCK_connection_count);
+  mysql_mutex_lock(&LOCK_thread_count);
+  wsrep_running_threads++;
+  mysql_cond_broadcast(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   processor(thd);
 
   close_connection(thd, 0);
+
+  mysql_mutex_lock(&LOCK_thread_count);
+  wsrep_running_threads--;
+  WSREP_DEBUG("wsrep running threads now: %lu", wsrep_running_threads);
+  mysql_cond_broadcast(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
 
   // Note: We can't call THD destructor without crashing
   // if plugins have not been initialized. However, in most of the
@@ -8723,6 +8741,7 @@ SHOW_VAR status_vars[]= {
   {"wsrep_provider_name",      (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
   {"wsrep_provider_version",   (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
   {"wsrep_provider_vendor",    (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
+  {"wsrep_thread_count",       (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
   {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
 #endif
   {NullS, NullS, SHOW_LONG}

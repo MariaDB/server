@@ -1,1 +1,0 @@
---binlog-format=row --wsrep-provider=/usr/lib/galera/libgalera_smm.so  --wsrep-cluster-address=gcomm://
