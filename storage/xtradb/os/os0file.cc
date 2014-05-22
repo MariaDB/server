@@ -237,7 +237,7 @@ struct os_aio_slot_t{
 #ifdef HAVE_LZO
 	byte		lzo_mem[LZO1X_1_15_MEM_COMPRESS];
 #else
-	byte		lzo_mem;	/* Temporal memory used by LZO */
+	byte		lzo_mem[1];	/* Temporal memory used by LZO */
 #endif
 
 };
