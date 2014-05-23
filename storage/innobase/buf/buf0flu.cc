@@ -2429,7 +2429,6 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 	ulint	next_loop_time = ut_time_ms() + 1000;
 	ulint	n_flushed = 0;
 	ulint	last_activity = srv_get_activity_count();
-	ulint	n_lru=0;
 
 	ut_ad(!srv_read_only_mode);
 
@@ -2460,13 +2459,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 			last_activity = srv_get_activity_count();
 
 			/* Flush pages from end of LRU if required */
-			n_lru = n_flushed = buf_flush_LRU_tail();
-#ifdef UNIV_MTFLUSH_DEBUG
-			if (n_lru) {
-				fprintf(stderr,"n_lru:%lu ",n_lru);
-			}
-#endif
-
+			n_flushed = buf_flush_LRU_tail();
 			/* Flush pages from flush_list if required */
 			n_flushed += page_cleaner_flush_pages_if_needed();
 

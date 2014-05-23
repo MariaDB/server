@@ -195,7 +195,7 @@ fil_compress_page(
 	ut_ad(fil_page_is_compressed(out_buf));
 	ut_ad(mach_read_from_4(out_buf+FIL_PAGE_SPACE_OR_CHKSUM) == BUF_NO_CHECKSUM_MAGIC);
 	ut_ad(mach_read_from_2(out_buf+FIL_PAGE_DATA) == write_size);
-	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN) == innodb_compression_algorithm);
+	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN) == (ulint)innodb_compression_algorithm);
 #endif /* UNIV_DEBUG */
 
 	write_size+=header_len;
@@ -325,7 +325,7 @@ fil_decompress_page(
 		if (err != (int)actual_size) {
 			fprintf(stderr,
 				"InnoDB: Corruption: Page is marked as compressed\n"
-				"InnoDB: but decompression read only %ld bytes.\n"
+				"InnoDB: but decompression read only %d bytes.\n"
 				"InnoDB: size %lu len %lu\n",
 				err, actual_size, len);
 			fflush(stderr);

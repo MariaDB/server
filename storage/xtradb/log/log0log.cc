@@ -3043,7 +3043,7 @@ log_archive_do(
 {
 	ibool		calc_new_limit;
 	ib_uint64_t	start_lsn;
-	ib_uint64_t	limit_lsn;
+	ib_uint64_t	limit_lsn=0;
 
 	calc_new_limit = TRUE;
 loop:

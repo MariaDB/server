@@ -740,8 +740,6 @@ pfs_os_file_read_func(
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
 	trx_t*		trx,
-	ulint		atomic_writes,/*!< in: atomic writes table option
-				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 

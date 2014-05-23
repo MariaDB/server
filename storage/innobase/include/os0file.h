@@ -731,8 +731,6 @@ pfs_os_file_read_no_error_handling_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	ulint		atomic_writes,/*!< in: atomic writes table option
-				value */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
