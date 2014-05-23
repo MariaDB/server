@@ -1863,7 +1863,6 @@ btr_cur_update_alloc_zip_func(
 
 	/* Have a local copy of the variables as these can change
 	dynamically. */
-	ulint	compression_level = page_zip_level;
 	const page_t*	page = page_cur_get_page(cursor);
 
 	ut_ad(page_zip == page_cur_get_page_zip(cursor));
