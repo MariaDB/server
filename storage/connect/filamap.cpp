@@ -382,7 +382,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 
   if (Tpos == Spos)
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceeding lines is     */
+    /*  First line to delete. Move of eventual preceding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Fpos;                               // Spos is set below

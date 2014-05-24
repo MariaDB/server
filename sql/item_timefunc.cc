@@ -2523,10 +2523,10 @@ bool Item_date_typecast::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   if (get_arg0_date(ltime, fuzzy_date & ~TIME_TIME_ONLY))
     return 1;
 
-  ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
-  ltime->time_type= MYSQL_TIMESTAMP_DATE;
-  return (null_value= check_date_with_warn(ltime, fuzzy_date,
-                                           MYSQL_TIMESTAMP_DATE));
+  if (make_date_with_warn(ltime, fuzzy_date, MYSQL_TIMESTAMP_DATE))
+    return (null_value= 1);
+
+  return 0;
 }
 
 

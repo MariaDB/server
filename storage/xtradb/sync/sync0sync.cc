@@ -209,7 +209,10 @@ UNIV_INTERN mysql_pfs_key_t	sync_thread_mutex_key;
 /** Global list of database mutexes (not OS mutexes) created. */
 UNIV_INTERN ut_list_base_node_t  mutex_list;
 
-/** Mutex protecting the mutex_list variable */
+/** Global list of priority mutexes. A subset of mutex_list */
+UNIV_INTERN UT_LIST_BASE_NODE_T(ib_prio_mutex_t)  prio_mutex_list;
+
+/** Mutex protecting the mutex_list and prio_mutex_list variables */
 UNIV_INTERN ib_mutex_t mutex_list_mutex;
 
 #ifdef UNIV_PFS_MUTEX
@@ -353,6 +356,10 @@ mutex_create_func(
 			  cmutex_name);
 	mutex->high_priority_waiters = 0;
 	mutex->high_priority_event = os_event_create();
+
+	mutex_enter(&mutex_list_mutex);
+	UT_LIST_ADD_FIRST(list, prio_mutex_list, mutex);
+	mutex_exit(&mutex_list_mutex);
 }
 
 /******************************************************************//**
@@ -426,6 +433,10 @@ mutex_free_func(
 /*============*/
 	ib_prio_mutex_t*	mutex)	/*!< in: mutex */
 {
+	mutex_enter(&mutex_list_mutex);
+	UT_LIST_REMOVE(list, prio_mutex_list, mutex);
+	mutex_exit(&mutex_list_mutex);
+
 	ut_a(mutex->high_priority_waiters == 0);
 	os_event_free(mutex->high_priority_event);
 	mutex_free_func(&mutex->base_mutex);
@@ -1572,6 +1583,7 @@ sync_init(void)
 	/* Init the mutex list and create the mutex to protect it. */
 
 	UT_LIST_INIT(mutex_list);
+	UT_LIST_INIT(prio_mutex_list);
 	mutex_create(mutex_list_mutex_key, &mutex_list_mutex,
 		     SYNC_NO_ORDER_CHECK);
 #ifdef UNIV_SYNC_DEBUG
@@ -1630,9 +1642,15 @@ void
 sync_close(void)
 /*===========*/
 {
-	ib_mutex_t*	mutex;
+	ib_mutex_t*		mutex;
+	ib_prio_mutex_t*	prio_mutex;
 
 	sync_array_close();
+
+	for (prio_mutex = UT_LIST_GET_FIRST(prio_mutex_list); prio_mutex;) {
+		mutex_free(prio_mutex);
+		prio_mutex = UT_LIST_GET_FIRST(prio_mutex_list);
+	}
 
 	for (mutex = UT_LIST_GET_FIRST(mutex_list);
 	     mutex != NULL;

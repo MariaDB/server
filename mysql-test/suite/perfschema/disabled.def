@@ -9,3 +9,16 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
+sizing_off: not updated for 10.0 yet
+sizing_med: not updated for 10.0 yet
+sizing_low: not updated for 10.0 yet
+sizing_high: not updated for 10.0 yet
+sizing_growth: not updated for 10.0 yet
+sizing_default: not updated for 10.0 yet
+
+binlog_edge_mix: needs slave_relay_log_info
+binlog_edge_row: needs slave_relay_log_info
+binlog_edge_stmt: needs slave_relay_log_info
+binlog_ok_mix: needs slave_relay_log_info
+binlog_ok_row: needs slave_relay_log_info
+binlog_ok_stmt: needs slave_relay_log_info

@@ -57,8 +57,6 @@ void check_performance_schema()
 
   thd->reset_globals();
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

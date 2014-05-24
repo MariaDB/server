@@ -1,8 +1,8 @@
 #ifndef HANDLER_INCLUDED
 #define HANDLER_INCLUDED
 /*
-   Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or
    modify it under the terms of the GNU General Public License
@@ -1610,7 +1610,7 @@ struct HA_CREATE_INFO
     For ALTER TABLE defaults to ROW_TYPE_NOT_USED (means "keep the current").
 
     Can be changed either explicitly by the parser.
-    If nothing speficied inherits the value of the original table (if present).
+    If nothing specified inherits the value of the original table (if present).
   */
   enum row_type row_type;
   enum ha_choice transactional;
@@ -1677,8 +1677,7 @@ public:
      All these operations are supported as in-place operations by the
      SQL layer. This means that operations that by their nature must
      be performed by copying the table to a temporary table, will not
-     have their own flags here (e.g. ALTER TABLE FORCE, ALTER TABLE
-     ENGINE).
+     have their own flags here.
 
      We generally try to specify handler flags only if there are real
      changes. But in cases when it is cumbersome to determine if some
@@ -1782,8 +1781,17 @@ public:
   // Partition operation with ALL keyword
   static const HA_ALTER_FLAGS ALTER_ALL_PARTITION        = 1L << 28;
 
+  /**
+    Recreate the table for ALTER TABLE FORCE, ALTER TABLE ENGINE
+    and OPTIMIZE TABLE operations.
+  */
+  static const HA_ALTER_FLAGS RECREATE_TABLE             = 1L << 29;
+
   // Virtual columns changed
-  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 29;
+  static const HA_ALTER_FLAGS ALTER_COLUMN_VCOL          = 1L << 30;
+
+  // ALTER TABLE for a partitioned table
+  static const HA_ALTER_FLAGS ALTER_PARTITIONED          = 1L << 31;
 
   /**
     Create options (like MAX_ROWS) for the new version of table.
@@ -1856,6 +1864,18 @@ public:
   inplace_alter_handler_ctx *handler_ctx;
 
   /**
+    If the table uses several handlers, like ha_partition uses one handler
+    per partition, this contains a Null terminated array of ctx pointers
+    that should all be committed together.
+    Or NULL if only handler_ctx should be committed.
+    Set to NULL if the low level handler::commit_inplace_alter_table uses it,
+    to signal to the main handler that everything was committed as atomically.
+
+    @see inplace_alter_handler_ctx for information about object lifecycle.
+  */
+  inplace_alter_handler_ctx **group_commit_ctx;
+
+  /**
      Flags describing in detail which operations the storage engine is to execute.
   */
   HA_ALTER_FLAGS handler_flags;
@@ -1903,6 +1923,7 @@ public:
     index_add_count(0),
     index_add_buffer(NULL),
     handler_ctx(NULL),
+    group_commit_ctx(NULL),
     handler_flags(0),
     modified_part_info(modified_part_info_arg),
     ignore(ignore_arg),
@@ -2450,7 +2471,6 @@ public:
   FT_INFO *ft_handler;
   enum {NONE=0, INDEX, RND} inited;
   bool implicit_emptied;                /* Can be !=0 only if HEAP */
-  bool mark_trx_done;
   const COND *pushed_cond;
   /**
     next_insert_id is the next value which should be inserted into the
@@ -2531,7 +2551,7 @@ public:
     in_range_check_pushed_down(FALSE),
     ref_length(sizeof(my_off_t)),
     ft_handler(0), inited(NONE),
-    implicit_emptied(0), mark_trx_done(FALSE),
+    implicit_emptied(0),
     pushed_cond(0), next_insert_id(0), insert_id_for_cur_row(0),
     pushed_idx_cond(NULL),
     pushed_idx_cond_keyno(MAX_KEY),
@@ -2612,13 +2632,6 @@ public:
   }
   int ha_rnd_init_with_error(bool scan) __attribute__ ((warn_unused_result));
   int ha_reset();
-  /* Tell handler (not storage engine) this is start of a new statement */
-  void ha_start_of_new_statement()
-  {
-    ft_handler= 0;
-    mark_trx_done= FALSE;
-  }
-
   /* this is necessary in many places, e.g. in HANDLER command */
   int ha_index_or_rnd_end()
   {
@@ -3622,6 +3635,10 @@ protected:
 
     @note In case of partitioning, this function might be called for rollback
     without prepare_inplace_alter_table() having been called first.
+    Also partitioned tables sets ha_alter_info->group_commit_ctx to a NULL
+    terminated array of the partitions handlers and if all of them are
+    committed as one, then group_commit_ctx should be set to NULL to indicate
+    to the partitioning handler that all partitions handlers are committed.
     @see prepare_inplace_alter_table().
 
     @param    altered_table     TABLE object for new version of table.
@@ -3636,7 +3653,11 @@ protected:
  virtual bool commit_inplace_alter_table(TABLE *altered_table,
                                          Alter_inplace_info *ha_alter_info,
                                          bool commit)
- { return false; }
+{
+  /* Nothing to commit/rollback, mark all handlers committed! */
+  ha_alter_info->group_commit_ctx= NULL;
+  return false;
+}
 
 
  /**
@@ -3709,12 +3730,8 @@ protected:
 
 private:
   /* Private helpers */
-  void mark_trx_read_write_part2();
-  inline void mark_trx_read_write()
-  {
-    if (!mark_trx_done)
-      mark_trx_read_write_part2();
-  }
+  inline void mark_trx_read_write();
+private:
   inline void increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;
 
@@ -3919,6 +3936,8 @@ public:
   { return ht; }
   inline int ha_write_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
+
+  virtual void set_lock_type(enum thr_lock_type lock);
 
   friend enum icp_result handler_index_cond_check(void* h_arg);
 protected:

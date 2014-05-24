@@ -111,7 +111,7 @@ enum enum_server_command
 #define MYSQL_TYPE_VIRTUAL 245
 /*
   Length of random string sent by server on handshake; this is also length of
-  obfuscated password, recieved from client
+  obfuscated password, received from client
 */
 #define SCRAMBLE_LENGTH 20
 #define SCRAMBLE_LENGTH_323 8

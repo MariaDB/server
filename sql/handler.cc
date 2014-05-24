@@ -359,6 +359,7 @@ int ha_init_errors(void)
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
+  SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -3888,14 +3889,11 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   if it is started.
 */
 
+inline
 void
-handler::mark_trx_read_write_part2()
+handler::mark_trx_read_write()
 {
   Ha_trx_info *ha_info= &ha_thd()->ha_data[ht->slot].ha_info[0];
-
-  /* Don't call this function again for this statement */
-  mark_trx_done= TRUE;
-
   /*
     When a storage engine method is called, the transaction must
     have been started, unless it's a DDL call, for which the
@@ -6114,6 +6112,10 @@ void signal_log_not_needed(struct handlerton, char *log_file)
   DBUG_VOID_RETURN;
 }
 
+void handler::set_lock_type(enum thr_lock_type lock)
+{
+  table->reginfo.lock_type= lock;
+}
 
 #ifdef TRANS_LOG_MGM_EXAMPLE_CODE
 /*

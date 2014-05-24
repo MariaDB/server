@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2004,7 +2004,7 @@ public:
   bool is_valid() const { return query != 0; }
 
   /*
-    Returns number of bytes additionaly written to post header by derived
+    Returns number of bytes additionally written to post header by derived
     events (so far it is only Execute_load_query event).
   */
   virtual ulong get_post_header_size_for_derived() { return 0; }
@@ -4343,7 +4343,21 @@ protected:
   bool process_triggers(trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
-#endif //defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+
+  /**
+    Helper function to check whether there is an auto increment
+    column on the table where the event is to be applied.
+
+    @return true if there is an autoincrement field on the extra
+            columns, false otherwise.
+   */
+  inline bool is_auto_inc_in_extra_columns()
+  {
+    DBUG_ASSERT(m_table);
+    return (m_table->next_number_field &&
+            m_table->next_number_field->field_index >= m_width);
+  }
+#endif
 
 private:
 

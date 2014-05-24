@@ -80,7 +80,6 @@ in thrashing. */
 
 /* @} */
 
-
 /******************************************************************//**
 Increases flush_list size in bytes with zip_size for compressed page,
 UNIV_PAGE_SIZE for uncompressed page in inline function */
@@ -751,9 +750,11 @@ buf_flush_update_zip_checksum(
 {
 	ut_a(zip_size > 0);
 
-	ib_uint32_t	checksum = page_zip_calc_checksum(
-		page, zip_size,
-		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm));
+	ib_uint32_t	checksum = static_cast<ib_uint32_t>(
+		page_zip_calc_checksum(
+			page, zip_size,
+			static_cast<srv_checksum_algorithm_t>(
+				srv_checksum_algorithm)));
 
 	mach_write_to_8(page + FIL_PAGE_LSN, lsn);
 	memset(page + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
@@ -1675,7 +1676,7 @@ buf_do_LRU_batch(
 		n->flushed = 0;
 	}
 
-	n->flushed += n->unzip_LRU_evicted;
+	n->evicted += n->unzip_LRU_evicted;
 }
 
 /*******************************************************************//**
@@ -2561,7 +2562,7 @@ page_cleaner_flush_pages_if_needed(void)
 	}
 
 	if (last_pages && cur_lsn - last_lsn > lsn_avg_rate / 2) {
-		age_factor = prev_pages / last_pages;
+		age_factor = static_cast<int>(prev_pages / last_pages);
 	}
 
 	MONITOR_SET(MONITOR_FLUSH_N_TO_FLUSH_REQUESTED, n_pages);
