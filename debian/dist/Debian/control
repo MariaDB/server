@@ -10,7 +10,7 @@ Build-Depends: libtool (>= 1.4.2-7), procps | hurd,  debhelper, file (>= 3.28),
     libpam0g-dev, psmisc, po-debconf, chrpath, automake1.9, doxygen,
     texlive-latex-base, ghostscript | gs-gpl, dpatch, gawk, bison, lsb-release,
     hardening-wrapper, ${CMAKE_DEP}libaio-dev, rsync
-Standards-Version: 3.8.2
+Standards-Version: 3.8.3
 Homepage: http://mariadb.org/
 Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/5.5/files
 Vcs-Bzr: bzr://lp:maria
