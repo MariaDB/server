@@ -714,7 +714,7 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else {
       /*****************************************************************/
-      /*  Move of eventual preceeding lines is not required here.      */
+      /*  Move of eventual preceding lines is not required here.      */
       /*  Set the target file as being the source file itself.         */
       /*  Set the future Tpos, and give Spos a value to block copying. */
       /*****************************************************************/

@@ -2131,9 +2131,6 @@ int XINDXS::FastFind(int nk)
 XLOAD::XLOAD(void)
   {
   Hfile = INVALID_HANDLE_VALUE;
-#if defined(WIN32) && defined(XMAP)    
-  ViewBase = NULL;
-#endif   // WIN32  &&         XMAP
   NewOff.Val = 0LL;
 } // end of XLOAD constructor
 
@@ -2147,15 +2144,6 @@ void XLOAD::Close(void)
     Hfile = INVALID_HANDLE_VALUE;
     } // endif Hfile
 
-#if defined(WIN32) && defined(XMAP)
-  if (ViewBase) {
-    if (!UnmapViewOfFile(ViewBase))
-      printf("Error %d closing Viewmap\n", GetLastError());
-
-    ViewBase = NULL;
-    } // endif ViewBase
-#endif   // WIN32 && XMAP
-
   } // end of Close
 
 /* --------------------------- XFILE Class --------------------------- */
@@ -2166,9 +2154,9 @@ void XLOAD::Close(void)
 XFILE::XFILE(void) : XLOAD()
   {
   Xfile = NULL;
-#if defined(XMAP) && !defined(WIN32)
+#if defined(XMAP)
   Mmp = NULL;
-#endif   // XMAP  &&         !WIN32
+#endif   // XMAP
   } // end of XFILE constructor
 
 /***********************************************************************/
@@ -2193,9 +2181,9 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     } // endswitch mode
 
   if (!(Xfile= global_fopen(g, MSGID_OPEN_ERROR_AND_STRERROR, filename, pmod))) {
-#if defined(TRACE)
-    printf("Open: %s\n", g->Message);
-#endif   // TRACE
+    if (trace)
+      htrc("Open: %s\n", g->Message);
+
     return true;
     } // endif Xfile
 
@@ -2311,11 +2299,9 @@ void XFILE::Close(void)
     Xfile = NULL;
     } // endif Xfile
 
-#if defined(XMAP) && !defined(WIN32)
-  if (Mmp) {
-    CloseMemMap(Mmp->memory, Mmp->lenL);
-    Mmp = NULL;
-    } // endif Mmp
+#if defined(XMAP)
+  if (Mmp && CloseMemMap(Mmp->memory, Mmp->lenL))
+    printf("Error closing mapped index\n");
 #endif   // XMAP
   } // end of Close
 
@@ -2357,9 +2343,8 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     return true;
     } // endif
 
-#if defined(TRACE)
- printf( "Xopen: filename=%s mode=%d\n", filename, mode);
-#endif   // TRACE
+  if (trace)
+    htrc(" Xopen: filename=%s mode=%d\n", filename, mode);
 
 #if defined(WIN32)
   LONG  high = 0;
@@ -2476,16 +2461,15 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
   if (Hfile == INVALID_HANDLE_VALUE) {
     /*rc = errno;*/
-#if defined(TRACE)
-    printf("Open: %s\n", g->Message);
-#endif   // TRACE
+    if (trace)
+      htrc("Open: %s\n", g->Message);
+
     return true;
     } // endif Hfile
 
-#if defined(TRACE)
-  printf(" rc=%d oflag=%p mode=%d handle=%d fn=%s\n",
-           rc, oflag, mode, Hfile, filename);
-#endif   // TRACE
+  if (trace)
+    htrc(" oflag=%p mode=%d handle=%d fn=%s\n", 
+           oflag, mode, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/
@@ -2588,15 +2572,15 @@ bool XHUGE::Read(PGLOBAL g, void *buf, int n, int size)
 #else    // UNIX
   ssize_t count = (ssize_t)(n * size);
 
-#if defined(TRACE)
-  printf("Hfile=%d n=%d size=%d count=%d\n", Hfile, n, size, count);
-#endif   // TRACE
+  if (trace)
+    htrc("Hfile=%d n=%d size=%d count=%d\n", Hfile, n, size, count);
 
   if (read(Hfile, buf, count) != count) {
     sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
-#if defined(TRACE)
-    printf("read error %d\n", errno);
-#endif   // TRACE
+
+    if (trace)
+      htrc("read error %d\n", errno);
+
     rc = true;
     } // endif nbr
 #endif   // UNIX
@@ -2854,8 +2838,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   // Allocate the Value object used when moving items
   Type = colp->GetResultType();
 
-  if (!(Valp = AllocateValue(g, Type, len, colp->GetScale(),
-                                           colp->IsUnsigned())))
+  if (!(Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned())))
     return true;
 
   Klen = Valp->GetClen();
@@ -2877,10 +2860,11 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 
   // Store this information to avoid sorting when already done
   if (Asc)
-//  IsSorted = colp->GetOpt() < 0;
+//  IsSorted = colp->GetOpt() == 2;
     IsSorted = false;
 
 //SetNulls(colp->IsNullable()); for when null columns will be indexable
+  Colp = colp;
   return false;
   } // end of Init
 
@@ -2891,7 +2875,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 /***********************************************************************/
 BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   {
-  int len = colp->GetLength(), prec = colp->GetPrecision();
+  int len = colp->GetLength(), prec = colp->GetScale();
 
   if (n[3] && colp->GetLength() > n[3]
            && colp->GetResultType() == TYPE_STRING) {
@@ -2906,7 +2890,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
         this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
-  Valp = AllocateValue(g, Type, len, prec, false, NULL);
+  Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned());
   Klen = Valp->GetClen();
 
   if (n[2]) {
@@ -2926,7 +2910,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   // by blanks (if true) or keep the zero ending char (if false).
   // Currently we set it to true to be compatible with QRY blocks,
   // and last one to enable type checking (no conversion).
-  Kblp = AllocValBlock(g, To_Keys, Type, n[0], len, prec, true, true);
+  Kblp = AllocValBlock(g, To_Keys, Type, n[0], len, prec, !Prefix, true);
 
   if (n[1]) {
     Koff.Size = n[1] * sizeof(int);
@@ -2937,6 +2921,7 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
   Ndf = n[0];
 //IsSorted = colp->GetOpt() < 0;
   IsSorted = false;
+  Colp = colp;
   return m + Bkeys.Size + Keys.Size + Koff.Size;
   } // end of MapInit
 #endif // XMAP
@@ -3054,9 +3039,8 @@ int KXYCOL::Compare(int i1, int i2)
   // Do the actual comparison between values.
   register int k = Kblp->CompVal(i1, i2);
 
-#ifdef DEBUG2
- htrc("Compare done result=%d\n", k);
-#endif
+  if (trace > 2)
+    htrc("Compare done result=%d\n", k);
 
   return (Asc) ? k : -k;
   } // end of Compare
@@ -3067,13 +3051,14 @@ int KXYCOL::Compare(int i1, int i2)
 int KXYCOL::CompVal(int i)
   {
   // Do the actual comparison between numerical values.
-#ifdef DEBUG2
-  register int k = (int)Kblp->CompVal(Valp, (int)i);
+  if (trace > 2) {
+    register int k = (int)Kblp->CompVal(Valp, (int)i);
 
-  htrc("Compare done result=%d\n", k);
-  return k;
-#endif
-  return Kblp->CompVal(Valp, i);
+    htrc("Compare done result=%d\n", k);
+    return k;
+  } else
+    return Kblp->CompVal(Valp, i);
+
   } // end of CompVal
 
 /***********************************************************************/

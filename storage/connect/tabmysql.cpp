@@ -84,10 +84,11 @@ MYSQLDEF::MYSQLDEF(void)
   Username = NULL;
   Password = NULL;
   Portnumber = 0;
-  Isview = FALSE;
-  Bind = FALSE;
-  Delayed = FALSE;
-  Xsrc = FALSE;
+  Isview = false;
+  Bind = false;
+  Delayed = false;
+  Xsrc = false;
+  Huge = false;
   } // end of MYSQLDEF constructor
 
 /***********************************************************************/
@@ -329,7 +330,7 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   } else {
     // MYSQL access from a PROXY table 
     Database = GetStringCatInfo(g, "Database", "*");
-    Isview = GetBoolCatInfo("View", FALSE);
+    Isview = GetBoolCatInfo("View", false);
 
     // We must get other connection parms from the calling table
     Remove_tshp(Cat);
@@ -363,7 +364,8 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Specific for command executing tables
   Xsrc = GetBoolCatInfo("Execsrc", false);
   Mxr = GetIntCatInfo("Maxerr", 0);
-  return FALSE;
+  Huge = GetBoolCatInfo("Huge", false);
+  return false;
   } // end of DefineAM
 
 /***********************************************************************/
@@ -401,6 +403,7 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     Isview = tdp->Isview;
     Prep = tdp->Bind;
     Delayed = tdp->Delayed;
+    Myc.m_Use = tdp->Huge;
   } else {
     Host = NULL;
     Database = NULL;
@@ -412,15 +415,15 @@ TDBMYSQL::TDBMYSQL(PMYDEF tdp) : TDBASE(tdp)
     Qrystr = NULL;
     Quoted = 0;
     Port = 0;
-    Isview = FALSE;
-    Prep = FALSE;
-    Delayed = FALSE;
+    Isview = false;
+    Prep = false;
+    Delayed = false;
   } // endif tdp
 
   Bind = NULL;
   Query = NULL;
   Qbuf = NULL;
-  Fetched = FALSE;
+  Fetched = false;
   m_Rc = RC_FX;
   AftRows = 0;
   N = -1;
@@ -555,17 +558,17 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
   char *colist, *valist = NULL;
   char *tk = "`";
   int   len = 0, qlen = 0;
-  bool  b = FALSE;
+  bool  b = false;
   PCOL  colp;
 
   if (Query)
-    return FALSE;        // already done
+    return false;        // already done
 
   for (colp = Columns; colp; colp = colp->GetNext())
     if (!colp->IsSpecial()) {
 //    if (colp->IsSpecial()) {
 //      strcpy(g->Message, MSG(NO_SPEC_COL));
-//      return TRUE;
+//      return true;
 //    } else {
       len += (strlen(colp->GetName()) + 4);
       ((PMYCOL)colp)->Rank = Nparm++;
@@ -581,7 +584,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
 #else   // !MYSQL_PREPARED_STATEMENTS
     strcpy(g->Message, "Prepared statements not used (not supported)");
     PushWarning(g, this);
-    Prep = FALSE;
+    Prep = false;
 #endif  // !MYSQL_PREPARED_STATEMENTS 
     } // endif Prep
 
@@ -590,7 +593,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
       strcat(colist, ", ");
       if (Prep) strcat(valist, ",");
     } else
-      b = TRUE;
+      b = true;
 
     strcat(strcat(strcat(colist, tk), colp->GetName()), tk);
 
@@ -628,7 +631,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
     Qbuf = (char *)PlugSubAlloc(g, NULL, qlen);
     } // endelse Prep
 
-  return FALSE;
+  return false;
   } // end of MakeInsert
 
 /***********************************************************************/
@@ -906,9 +909,9 @@ bool TDBMYSQL::SetColumnRanks(PGLOBAL g)
   {
   for (PCOL colp = Columns; colp; colp = colp->GetNext())
     if (((PMYCOL)colp)->FindRank(g))
-      return TRUE;
+      return true;
 
-  return FALSE;
+  return false;
   } // end of SetColumnRanks
 
 /***********************************************************************/
@@ -1233,7 +1236,7 @@ bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   {
   if (!(To_Val = value)) {
     sprintf(g->Message, MSG(VALUE_ERROR), Name);
-    return TRUE;
+    return true;
   } else if (Buf_Type == value->GetType()) {
     // Values are of the (good) column type
     if (Buf_Type == TYPE_DATE) {
@@ -1253,12 +1256,12 @@ bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
     if (check) {
       sprintf(g->Message, MSG(TYPE_VALUE_ERR), Name,
               GetTypeName(Buf_Type), GetTypeName(value->GetType()));
-      return TRUE;
+      return true;
       } // endif check
 
  newval:
     if (InitValue(g))         // Allocate the matching value block
-      return TRUE;
+      return true;
 
   } // endif's Value, Buf_Type
 
@@ -1269,7 +1272,7 @@ bool MYSQLCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 
   // Set the Column
   Status = (ok) ? BUF_EMPTY : BUF_NO;
-  return FALSE;
+  return false;
   } // end of SetBuffer
 
 /***********************************************************************/
@@ -1317,7 +1320,7 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
 
       longjmp(g->jumper[g->jump_level], 11);
     } else
-      tdbp->Fetched = TRUE;
+      tdbp->Fetched = true;
 
   if ((buf = ((PTDBMY)To_Tdb)->Myc.GetCharField(Rank))) {
     if (trace > 1)
@@ -1354,7 +1357,7 @@ void MYSQLCOL::WriteColumn(PGLOBAL g)
   /*  Do convert the column value if necessary.                        */
   /*********************************************************************/
   if (Value != To_Val)
-    Value->SetValue_pval(To_Val, FALSE);   // Convert the inserted value
+    Value->SetValue_pval(To_Val, false);   // Convert the inserted value
 
 #if defined(MYSQL_PREPARED_STATEMENTS)
   if (((PTDBMY)To_Tdb)->Prep) {

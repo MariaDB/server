@@ -10841,7 +10841,6 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
     uint pkt_len;
   } cached_server_packet;
   int packets_read, packets_written; ///< counters for send/received packets
-  uint connect_errors;      ///< if there were connect errors for this host
   bool make_it_fail;
   /** when plugin returns a failure this tells us what really happened */
   enum { SUCCESS, FAILURE, RESTART } status;
@@ -11391,9 +11390,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     As the code below depends on this, lets check that.
   */
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
-
-  if (mpvio->connect_errors)
-    reset_host_connect_errors(thd->main_security_ctx.ip);
 
   ulong client_capabilities= uint2korr(net->read_pos);
   if (client_capabilities & CLIENT_PROTOCOL_41)
@@ -11972,8 +11968,6 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   Perform the handshake, authorize the client and update thd sctx variables.
 
   @param thd                     thread handle
-  @param connect_errors          number of previous failed connect attemps
-                                 from this host
   @param com_change_user_pkt_len size of the COM_CHANGE_USER packet
                                  (without the first, command, byte) or 0
                                  if it's not a COM_CHANGE_USER (that is, if
@@ -11982,8 +11976,7 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   @retval 0  success, thd is updated.
   @retval 1  error
 */
-bool acl_authenticate(THD *thd, uint connect_errors,
-                      uint com_change_user_pkt_len)
+bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 {
   int res= CR_OK;
   MPVIO_EXT mpvio;
@@ -11997,7 +11990,6 @@ bool acl_authenticate(THD *thd, uint connect_errors,
   mpvio.write_packet= server_mpvio_write_packet;
   mpvio.info= server_mpvio_info;
   mpvio.thd= thd;
-  mpvio.connect_errors= connect_errors;
   mpvio.status= MPVIO_EXT::FAILURE;
   mpvio.make_it_fail= false;
   mpvio.auth_info.host_or_ip= thd->security_ctx->host_or_ip;

@@ -3043,8 +3043,6 @@ recv_init_crash_recovery(void)
 	ib_logf(IB_LOG_LEVEL_INFO,
 		"Reading tablespace information from the .ibd files...");
 
-	buf_dblwr_init_or_load_pages(true);
-
 	fil_load_single_table_tablespaces();
 
 	/* If we are using the doublewrite method, we will
@@ -3102,6 +3100,7 @@ recv_recovery_from_checkpoint_start_func(
 	byte*		log_hdr_buf;
 	byte*		log_hdr_buf_base = (byte*)alloca(LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE);
 	dberr_t		err;
+	ut_when_dtor<recv_dblwr_t> tmp(recv_sys->dblwr);
 
 	log_hdr_buf = static_cast<byte *>
 		(ut_align(log_hdr_buf_base, OS_FILE_LOG_BLOCK_SIZE));
@@ -3118,11 +3117,6 @@ recv_recovery_from_checkpoint_start_func(
 /** Recover up to this log sequence number */
 # define LIMIT_LSN		LSN_MAX
 #endif /* UNIV_LOG_ARCHIVE */
-
-	if (TYPE_CHECKPOINT) {
-		recv_sys_create();
-		recv_sys_init(buf_pool_get_curr_size());
-	}
 
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
 
@@ -3372,11 +3366,6 @@ recv_recovery_from_checkpoint_start_func(
 					return(DB_READ_ONLY);
 				}
 			}
-		}
-
-		if (!recv_needed_recovery && !srv_read_only_mode) {
-			/* Init the doublewrite buffer memory structure */
-			buf_dblwr_init_or_load_pages(false);
 		}
 	}
 
@@ -4087,7 +4076,7 @@ void recv_dblwr_t::add(byte* page)
 	pages.push_back(page);
 }
 
-byte* recv_dblwr_t::find_first_page(ulint space_id)
+byte* recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 {
 	std::vector<byte*> matches;
 	byte*	result = 0;
@@ -4096,7 +4085,7 @@ byte* recv_dblwr_t::find_first_page(ulint space_id)
 	     i != pages.end(); ++i) {
 
 		if ((page_get_space_id(*i) == space_id)
-		    && (page_get_page_no(*i) == 0)) {
+		    && (page_get_page_no(*i) == page_no)) {
 			matches.push_back(*i);
 		}
 	}

@@ -846,6 +846,24 @@ Warnings:
 Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 drop view v1;
 drop table t1;
+create table t1 (a varchar(20));
+create view v1 as select a from t1;
+alter table t1 change a aa int;
+select * from v1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
+t1	MyISAM	10	Fixed	0	0	0	#	1024	0	NULL	#	#	NULL	latin1_swedish_ci	NULL		
+v1	NULL	NULL	NULL	NULL	NULL	NULL	#	NULL	NULL	NULL	#	#	NULL	NULL	NULL	NULL	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+Warnings:
+Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
+Warnings:
+Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+drop view v1;
+drop table t1;
 create view v1 as select 99999999999999999999999999999999999999999999999999999 as col1;
 show create view v1;
 View	Create View	character_set_client	collation_connection
@@ -5016,6 +5034,24 @@ id	test
 1	0
 drop view v1;
 drop table t1;
+#
+# MDEV-5981: name resolution issues with views and multi-update
+# in ps-protocol
+#
+create table t1 (id1 int primary key, val1 varchar(20));
+insert into t1 values (1, 'test1');
+create table t2 (id2 int primary key, val2 varchar(20));
+insert into t2 values (1, 'test2');
+create algorithm=merge view v1 as select id1 as id1v1, val1 as val1v1 from t1;
+create algorithm=merge view v2 as
+select t2.id2 as id2v2, t2.val2 as val2v2
+from t2, v1
+where t2.id2 = v1.id1v1;
+prepare stmt1 from "update v2 set val2v2 = 'test19' where 1 = id2v2";
+execute stmt1;
+deallocate prepare stmt1;
+drop view v1,v2;
+drop table t1,t2;
 # -----------------------------------------------------------------
 # -- End of 5.3 tests.
 # -----------------------------------------------------------------

@@ -984,6 +984,7 @@ struct ib_prio_mutex_t {
 					priority in the global wait array
 					waiting for this mutex to be
 					released. */
+	UT_LIST_NODE_T(ib_prio_mutex_t)	list;
 };
 
 /** Constant determining how long spin wait is continued before suspending

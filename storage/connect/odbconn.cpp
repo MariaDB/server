@@ -2135,7 +2135,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   PSZ      fnc = "Unknown";
   UWORD    n;
   SWORD    ncol, len, tp;
-  SQLULEN  crow;
+  SQLULEN  crow = 0;
   PQRYRES  qrp = cap->Qrp;
   PCOLRES  crp;
   RETCODE  rc = 0;
@@ -2287,6 +2287,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
       } // endfor i
 
+#if 0
     if ((crow = i) && (rc == SQL_NO_DATA || rc == SQL_SUCCESS_WITH_INFO))
       rc = SQL_SUCCESS;
 
@@ -2301,6 +2302,15 @@ int ODBConn::GetCatInfo(CATPARM *cap)
       if ((rc = SQLFetch(hstmt)) != SQL_NO_DATA_FOUND)
         qrp->Truncated = true; 
 
+    } else
+      ThrowDBX(rc, fnc, hstmt);
+#endif // 0
+
+    if (!rc || rc == SQL_NO_DATA || rc == SQL_SUCCESS_WITH_INFO) {
+      if ((rc = SQLFetch(hstmt)) != SQL_NO_DATA_FOUND)
+        qrp->Truncated = true; 
+
+      crow = i;
     } else
       ThrowDBX(rc, fnc, hstmt);
 

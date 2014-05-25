@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2005, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2005, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -66,6 +66,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_REBUILD
 	| Alter_inplace_info::ALTER_COLUMN_ORDER
 	| Alter_inplace_info::DROP_COLUMN
 	| Alter_inplace_info::ADD_COLUMN
+	| Alter_inplace_info::RECREATE_TABLE
 	/*
 	| Alter_inplace_info::ALTER_COLUMN_TYPE
 	| Alter_inplace_info::ALTER_COLUMN_EQUAL_PACK_LENGTH
@@ -79,6 +80,7 @@ static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ALTER_DATA
 /** Operations for altering a table that InnoDB does not care about */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_INPLACE_IGNORE
 	= Alter_inplace_info::ALTER_COLUMN_DEFAULT
+	| Alter_inplace_info::ALTER_PARTITIONED
 	| Alter_inplace_info::ALTER_COLUMN_COLUMN_FORMAT
 	| Alter_inplace_info::ALTER_COLUMN_STORAGE_TYPE
 	| Alter_inplace_info::ALTER_RENAME;
@@ -914,7 +916,7 @@ innobase_get_foreign_key_info(
 			/* Check whether there exist such
 			index in the the index create clause */
 			if (!index && !innobase_find_equiv_index(
-				    column_names, i,
+				    column_names, static_cast<uint>(i),
 				    ha_alter_info->key_info_buffer,
 				    ha_alter_info->index_add_buffer,
 				    ha_alter_info->index_add_count)) {
@@ -1021,6 +1023,12 @@ innobase_get_foreign_key_info(
 			}
 
 			referenced_num_col = i;
+		} else {
+			/* Not possible to add a foreign key without a
+			referenced column */
+			mutex_exit(&dict_sys->mutex);
+			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0), tbl_namep);
+			goto err_exit;
 		}
 
 		if (!innobase_init_foreign(
@@ -1140,16 +1148,16 @@ innobase_col_to_mysql(
 		/* These column types should never be shipped to MySQL. */
 		ut_ad(0);
 
-	case DATA_FIXBINARY:
 	case DATA_FLOAT:
 	case DATA_DOUBLE:
 	case DATA_DECIMAL:
 		/* Above are the valid column types for MySQL data. */
 		ut_ad(flen == len);
 		/* fall through */
+	case DATA_FIXBINARY:
 	case DATA_CHAR:
 		/* We may have flen > len when there is a shorter
-		prefix on a CHAR column. */
+		prefix on the CHAR and BINARY column. */
 		ut_ad(flen >= len);
 #else /* UNIV_DEBUG */
 	default:
@@ -5409,6 +5417,7 @@ ha_innobase::commit_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		DBUG_ASSERT(!ctx0);
 		MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
+		ha_alter_info->group_commit_ctx = NULL;
 		DBUG_RETURN(false);
 	}
 
@@ -5417,12 +5426,17 @@ ha_innobase::commit_inplace_alter_table(
 	inplace_alter_handler_ctx**	ctx_array;
 	inplace_alter_handler_ctx*	ctx_single[2];
 
+	if (ha_alter_info->group_commit_ctx) {
+		ctx_array = ha_alter_info->group_commit_ctx;
+	} else {
 	ctx_single[0] = ctx0;
 	ctx_single[1] = NULL;
 	ctx_array = ctx_single;
+	}
 
 	DBUG_ASSERT(ctx0 == ctx_array[0]);
 	ut_ad(prebuilt->table == ctx0->old_table);
+	ha_alter_info->group_commit_ctx = NULL;
 
 	/* Free the ctx->trx of other partitions, if any. We will only
 	use the ctx0->trx here. Others may have been allocated in

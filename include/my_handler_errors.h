@@ -93,7 +93,8 @@ static const char *handler_error_messages[]=
   "Row is not visible by the current transaction",
   "Operation was interrupted by end user (probably kill command?)",
   "Disk full",
-  "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump and restore the table to fix this"
+  "Incompatible key or row definition between the MariaDB .frm file and the information in the storage engine. You have to dump and restore the table to fix this",
+  "Too many words in a FTS phrase or proximity search"
 };
 
 #endif /* MYSYS_MY_HANDLER_ERRORS_INCLUDED */
