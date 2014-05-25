@@ -7,6 +7,7 @@
 *.spec
 *~
 .*.swp
+.gdb_history
 CMakeCache.txt
 CMakeFiles/
 CPackConfig.cmake
@@ -16,6 +17,7 @@ Docs/INFO_BIN
 Docs/INFO_SRC
 Makefile
 TAGS
+Testing/
 VERSION.dep
 client/async_example
 client/mysql
