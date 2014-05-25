@@ -732,13 +732,13 @@ bool ha_tokudb::commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_i
     if (commit) {
 #if (50613 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50699) || \
     (50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799) || \
-    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099)
+    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199)
         if (ha_alter_info->group_commit_ctx) {
             ha_alter_info->group_commit_ctx = NULL;
         }
 #endif
 #if (50500 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50599) || \
-    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099)
+    (100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199)
 #if WITH_PARTITION_STORAGE_ENGINE
         if (TOKU_PARTITION_WRITE_FRM_DATA || altered_table->part_info == NULL) {
 #else

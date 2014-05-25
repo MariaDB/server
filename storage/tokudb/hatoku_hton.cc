@@ -167,7 +167,7 @@ static int tokudb_rollback_by_xid(handlerton* hton, XID*  xid);
 static int tokudb_rollback_to_savepoint(handlerton * hton, THD * thd, void *savepoint);
 static int tokudb_savepoint(handlerton * hton, THD * thd, void *savepoint);
 static int tokudb_release_savepoint(handlerton * hton, THD * thd, void *savepoint);
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
 static int tokudb_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *ts);
 static int tokudb_discover_table_existence(handlerton *hton, const char *db, const char *name);
 #endif
@@ -376,7 +376,7 @@ static int tokudb_init_func(void *p) {
     tokudb_hton->savepoint_rollback = tokudb_rollback_to_savepoint;
     tokudb_hton->savepoint_release = tokudb_release_savepoint;
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
     tokudb_hton->discover_table = tokudb_discover_table;
     tokudb_hton->discover_table_existence = tokudb_discover_table_existence;
 #else
@@ -931,7 +931,7 @@ static int tokudb_release_savepoint(handlerton * hton, THD * thd, void *savepoin
     TOKUDB_DBUG_RETURN(error);
 }
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
 static int tokudb_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *ts) {
     uchar *frmblob = 0;
     size_t frmlen;
@@ -976,7 +976,7 @@ static int tokudb_discover3(handlerton *hton, THD* thd, const char *db, const ch
     DBT value = {};
     bool do_commit;
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
     tokudb_trx_data *trx = (tokudb_trx_data *) thd_data_get(thd, tokudb_hton->slot);
     if (thd_sql_command(thd) == SQLCOM_CREATE_TABLE && trx && trx->sub_sp_level) {
         do_commit = false;

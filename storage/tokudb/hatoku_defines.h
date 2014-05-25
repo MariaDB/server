@@ -96,7 +96,7 @@ PATENT RIGHTS GRANT:
 #pragma interface               /* gcc class implementation */
 #endif
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
 // mariadb 10.0
 #define TOKU_USE_DB_TYPE_TOKUDB 1
 #define TOKU_INCLUDE_ALTER_56 1

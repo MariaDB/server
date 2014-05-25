@@ -457,8 +457,8 @@ CONFIGURE_FILE(
 
 IF(DEB)
   CONFIGURE_FILE(
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.0.files.in
-    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.0.files)
+    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.1.files.in
+    ${CMAKE_SOURCE_DIR}/debian/mariadb-server-10.1.files)
 ENDIF(DEB)
 
 # Handle the "INFO_*" files.
