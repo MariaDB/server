@@ -232,7 +232,7 @@ fil_decompress_page(
 	byte*           page_buf,      /*!< in: preallocated buffer or NULL */
 	byte*           buf,           /*!< out: buffer from which to read; in aio
 				       this must be appropriately aligned */
-        ulint           len,           /*!< in: length of output buffer.*/
+        ulong           len,           /*!< in: length of output buffer.*/
 	ulint*		write_size)    /*!< in/out: Actual payload size of
 				       the compressed data. */
 {
