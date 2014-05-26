@@ -16804,14 +16804,17 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
 #else
 #define default_compression_algorithm PAGE_ZLIB_ALGORITHM
 #endif
-static MYSQL_SYSVAR_LONG(compression_algorithm, innodb_compression_algorithm,
+static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", 0 };
+static TYPELIB page_compression_algorithms_typelib=
+{
+  array_elements(page_compression_algorithms) - 1, 0,
+  page_compression_algorithms, 0
+};
+static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
-  "Compression algorithm used on page compression. 1 for zlib, 2 for lz3, 3 for lzo",
-  NULL, NULL,
-  PAGE_ZLIB_ALGORITHM,
-  0,
-  default_compression_algorithm,
-  0);
+  "Compression algorithm used on page compression. One of: none, zlib, lz4, or lzo",
+  NULL, NULL, default_compression_algorithm,
+  &page_compression_algorithms_typelib);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

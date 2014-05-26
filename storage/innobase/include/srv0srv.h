@@ -252,7 +252,7 @@ extern my_bool srv_use_posix_fallocate;
 extern my_bool srv_use_atomic_writes;
 
 /* Compression algorithm*/
-extern long innodb_compression_algorithm;
+extern ulong innodb_compression_algorithm;
 
 /* Number of flush threads */
 #define MTFLUSH_MAX_WORKER       64
