@@ -63,7 +63,6 @@ static ulint srv_data_read, srv_data_written;
 #include <linux/fs.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
-#include <linux/falloc.h>
 #endif
 #include "row0mysql.h"
 

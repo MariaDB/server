@@ -1558,7 +1558,7 @@ innobase_start_or_create_for_mysql(void)
 	lsn_t		min_flushed_lsn;
 	lsn_t		max_flushed_lsn;
 #ifdef UNIV_LOG_ARCHIVE
-	lsn_t		min_arch_log_no;
+	lsn_t		min_arch_log_no=0;
 	lsn_t		max_arch_log_no;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint		sum_of_new_sizes;
