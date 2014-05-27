@@ -1,0 +1,31 @@
+#
+#  Tests for "ANALYZE $statement" feature (PostgreSQL's analog is called EXPLAIN ANALYZE)
+#
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+create table t0 (a int) engine=myisam;
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1 (a int) engine=myisam;
+INSERT INTO t1 select * from t0;
+
+--echo # Try a few basic selects to see that r_rows and r_filtered columns work
+analyze select * from t1;
+analyze select * from t1 where a<5;
+analyze select * from t1 where a>100;
+
+--echo # ANALYZE DELETE will delete rows:
+analyze delete from t1 where a in (2,3,4);
+select * from t1;
+drop table t1;
+
+--echo # ANALYZE UPDATE will make updates:
+create table t1(a int, b int);
+insert into t1 select a,a from t0;
+analyze update t1 set b=100+b where a in (6,7,8);
+select * from t1;
+drop table t1;
+
+drop table t0;
