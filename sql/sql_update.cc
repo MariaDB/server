@@ -277,6 +277,7 @@ int mysql_update(THD *thd,
   List<Item> all_fields;
   killed_state killed_status= NOT_KILLED;
   Update_plan query_plan(thd->mem_root);
+  Explain_update *explain;
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
   DBUG_ENTER("mysql_update");
@@ -717,15 +718,16 @@ int mysql_update(THD *thd,
   if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ)
     table->prepare_for_position();
 
+  explain= thd->lex->explain->get_upd_del_plan();
   /*
     We can use compare_record() to optimize away updates if
     the table handler is returning all columns OR if
     if all updated columns are read
   */
   can_compare_record= records_are_comparable(table);
-
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
+    explain->on_record_read();
     if (table->vfield)
       update_virtual_fields(thd, table,
                             table->triggers ? VCOL_UPDATE_ALL :
@@ -736,6 +738,7 @@ int mysql_update(THD *thd,
       if (table->file->was_semi_consistent_read())
         continue;  /* repeat the read of the same row if it still exists */
 
+      explain->on_record_after_where();
       store_record(table,record[1]);
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
@@ -993,7 +996,11 @@ int mysql_update(THD *thd,
   id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
 
-  if (error < 0)
+  if (thd->lex->analyze_stmt)
+  {
+    error= thd->lex->explain->send_explain(thd);
+  }
+  else if (error < 0)
   {
     char buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO), (ulong) found,

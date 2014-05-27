@@ -17532,6 +17532,8 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       (*join_tab->next_select)(join,join_tab+1,end_of_records);
     DBUG_RETURN(nls);
   }
+  join_tab->explain->r_scans++;
+
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   READ_RECORD *info= &join_tab->read_record;
@@ -17667,6 +17669,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
   }
 
+  join_tab->explain->r_rows++;
+
   if (join_tab->table->vfield)
     update_virtual_fields(join->thd, join_tab->table);
 
@@ -17685,6 +17689,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       There is no select condition or the attached pushed down
       condition is true => a match is found.
     */
+    join_tab->explain->r_rows_after_table_cond++;
     bool found= 1;
     while (join_tab->first_unmatched && found)
     {
@@ -22908,10 +22913,11 @@ void JOIN::clear()
 
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
+  TODO: is_analyze
 */
 
 int print_explain_message_line(select_result_sink *result, 
-                               uint8 options,
+                               uint8 options, bool is_analyze,
                                uint select_number,
                                const char *select_type,
                                ha_rows *rows,
@@ -22944,8 +22950,16 @@ int print_explain_message_line(select_result_sink *result,
   else
     item_list.push_back(item_null);
 
+  /* `r_rows` */
+  if (is_analyze)
+    item_list.push_back(item_null);
+
   /* `filtered` */
-  if (options & DESCRIBE_EXTENDED)
+  if (is_analyze || options & DESCRIBE_EXTENDED)
+    item_list.push_back(item_null);
+  
+  /* `r_filtered` */
+  if (is_analyze)
     item_list.push_back(item_null);
 
   /* `Extra` */
@@ -22996,7 +23010,7 @@ void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line)
 */
 
 int print_explain_row(select_result_sink *result,
-                      uint8 options,
+                      uint8 options, bool is_analyze,
                       uint select_number,
                       const char *select_type,
                       const char *table_name,
@@ -23007,6 +23021,8 @@ int print_explain_row(select_result_sink *result,
                       const char *key_len,
                       const char *ref,
                       ha_rows *rows,
+                      ha_rows *r_rows,
+                      double r_filtered,
                       const char *extra)
 {
   const CHARSET_INFO *cs= system_charset_info;
@@ -23058,11 +23074,19 @@ int print_explain_row(select_result_sink *result,
   }
   else
     item_list.push_back(item_null);
+  
+  /* 'r_rows' */
+  if (is_analyze)
+    item_list.push_back(item_null);
 
   /* 'filtered' */
   const double filtered=100.0;
-  if (options & DESCRIBE_EXTENDED)
+  if (options & DESCRIBE_EXTENDED || is_analyze)
     item_list.push_back(new Item_float(filtered, 2));
+  
+  /* 'r_filtered' */
+  if (is_analyze)
+    item_list.push_back(new Item_float(r_filtered, 2));
   
   /* 'Extra' */
   if (extra)
@@ -23290,6 +23314,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       xpl_sel->add_table(eta);
       eta->key.set(thd->mem_root, NULL, (uint)-1);
       eta->quick_info= NULL;
+      
+      tab->explain= eta;
       
       /* id */
       if (tab->bush_root_tab)

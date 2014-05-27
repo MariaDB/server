@@ -5233,7 +5233,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           top-level LIMIT
         */        
         result->reset_offset_limit(); 
-        thd->lex->explain->print_explain(result, thd->lex->describe);
+        thd->lex->explain->print_explain(result, thd->lex->describe,
+                                         thd->lex->analyze_stmt);
         if (lex->describe & DESCRIBE_EXTENDED)
         {
           char buff[1024];
@@ -5257,12 +5258,33 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
     else
     {
-      if (!result && !(result= new select_send()))
-        return 1;                               /* purecov: inspected */
+      //psergey-todo: ANALYZE should hook in here...
+      select_result *save_result;
+      if (lex->analyze_stmt)
+      {
+        save_result= result;
+        result= new select_send_analyze();
+      }
+      else
+      {
+        if (!result && !(result= new select_send()))
+          return 1;                               /* purecov: inspected */
+      }
       query_cache_store_query(thd, all_tables);
       res= handle_select(thd, lex, result, 0);
       if (result != lex->result)
         delete result;
+
+      if (lex->analyze_stmt)
+      {
+        result= save_result;
+        if (!result && !(result= new select_send()))
+          return 1;
+        thd->lex->explain->send_explain(thd);
+
+        if (result != lex->result)
+          delete result;
+      }
     }
   }
   /* Count number of empty select queries */

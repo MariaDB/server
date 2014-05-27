@@ -60,10 +60,10 @@ public:
   }
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags)=0;
+                            uint8 explain_flags, bool is_analyze)=0;
   
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
-                                 uint8 explain_flags);
+                                 uint8 explain_flags, bool is_analyze);
   virtual ~Explain_node(){}
 };
 
@@ -134,7 +134,7 @@ public:
   bool using_filesort;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags);
+                    uint8 explain_flags, bool is_analyze);
 };
 
 
@@ -172,7 +172,7 @@ public:
     union_members.append(select_no);
   }
   int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags);
+                    uint8 explain_flags, bool is_analyze);
 
   const char *fake_select_type;
   bool using_filesort;
@@ -238,13 +238,14 @@ public:
   Explain_union *get_union(uint select_id);
  
   /* Produce a tabular EXPLAIN output */
-  int print_explain(select_result_sink *output, uint8 explain_flags);
+  int print_explain(select_result_sink *output, uint8 explain_flags, 
+                    bool is_analyze);
   
   /* Send tabular EXPLAIN to the client */
   int send_explain(THD *thd);
   
   /* Return tabular EXPLAIN output as a text string */
-  bool print_explain_str(THD *thd, String *out_str);
+  bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
@@ -252,6 +253,8 @@ public:
   void query_plan_ready();
 
   MEM_ROOT *mem_root;
+
+  Explain_update *get_upd_del_plan() { return upd_del_plan; }
 private:
   /* Explain_delete inherits from Explain_update */
   Explain_update *upd_del_plan;
@@ -459,8 +462,21 @@ public:
   StringBuffer<32> firstmatch_table_name;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
+                    bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
+
+  /* ANALYZE members*/
+  ha_rows r_scans; /* How many scans were ran on this join_tab */
+  ha_rows r_rows; /* How many rows we've got after that */
+  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
+  ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
+
+  Explain_table_access():
+    r_scans(0), r_rows(0), r_rows_after_table_cond(0),
+    r_rows_after_where(0)
+  {}
+
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
 };
@@ -502,8 +518,17 @@ public:
   bool using_filesort;
   bool using_io_buffer;
 
+  /* ANALYZE members and methods */
+  ha_rows r_rows;
+  ha_rows r_rows_after_where;
+  inline void on_record_read() { r_rows++; }
+  inline void on_record_after_where() { r_rows_after_where++; }
+
+  Explain_update() : 
+    r_rows(0), r_rows_after_where(0)
+  {}
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags);
+                            uint8 explain_flags, bool is_analyze);
 };
 
 
@@ -523,7 +548,7 @@ public:
   int get_select_id() { return 1; /* always root */ }
 
   int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags);
+                    uint8 explain_flags, bool is_analyze);
 };
 
 
@@ -544,7 +569,7 @@ public:
   virtual int get_select_id() { return 1; /* always root */ }
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags);
+                            uint8 explain_flags, bool is_analyze);
 };
 
 

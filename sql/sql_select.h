@@ -250,7 +250,8 @@ typedef struct st_join_table {
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
   enum explain_extra_tag info;
-
+  
+  Explain_table_access *explain;
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -1854,14 +1855,14 @@ void push_index_cond(JOIN_TAB *tab, uint keyno);
 
 /* EXPLAIN-related utility functions */
 int print_explain_message_line(select_result_sink *result, 
-                               uint8 options,
+                               uint8 options, bool is_analyze,
                                uint select_number,
                                const char *select_type,
                                ha_rows *rows,
                                const char *message);
 void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
 int print_explain_row(select_result_sink *result,
-                      uint8 options,
+                      uint8 options, bool is_analyze,
                       uint select_number,
                       const char *select_type,
                       const char *table_name,
@@ -1872,6 +1873,8 @@ int print_explain_row(select_result_sink *result,
                       const char *key_len,
                       const char *ref,
                       ha_rows *rows,
+                      ha_rows *r_rows,
+                      double r_filtered,
                       const char *extra);
 void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
 

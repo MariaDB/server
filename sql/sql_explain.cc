@@ -140,7 +140,7 @@ int Explain_query::send_explain(THD *thd)
     return 1;
 
   int res;
-  if ((res= print_explain(result, lex->describe)))
+  if ((res= print_explain(result, lex->describe, lex->analyze_stmt)))
     result->abort_result_set();
   else
     result->send_eof();
@@ -154,16 +154,16 @@ int Explain_query::send_explain(THD *thd)
 */
 
 int Explain_query::print_explain(select_result_sink *output, 
-                                 uint8 explain_flags)
+                                 uint8 explain_flags, bool is_analyze)
 {
   if (upd_del_plan)
   {
-    upd_del_plan->print_explain(this, output, explain_flags);
+    upd_del_plan->print_explain(this, output, explain_flags, is_analyze);
     return 0;
   }
   else if (insert_plan)
   {
-    insert_plan->print_explain(this, output, explain_flags);
+    insert_plan->print_explain(this, output, explain_flags, is_analyze);
     return 0;
   }
   else
@@ -172,14 +172,14 @@ int Explain_query::print_explain(select_result_sink *output,
     Explain_node *node= get_node(1);
     if (!node)
       return 1; /* No query plan */
-    return node->print_explain(this, output, explain_flags);
+    return node->print_explain(this, output, explain_flags, is_analyze);
   }
 }
 
 
 bool print_explain_query(LEX *lex, THD *thd, String *str)
 {
-  return lex->explain->print_explain_str(thd, str);
+  return lex->explain->print_explain_str(thd, str, false);
 }
 
 
@@ -187,14 +187,14 @@ bool print_explain_query(LEX *lex, THD *thd, String *str)
   Return tabular EXPLAIN output as a text string
 */
 
-bool Explain_query::print_explain_str(THD *thd, String *out_str)
+bool Explain_query::print_explain_str(THD *thd, String *out_str,  bool is_analyze)
 {
   List<Item> fields;
   thd->make_explain_field_list(fields);
 
   select_result_text_buffer output_buf(thd);
   output_buf.send_result_set_metadata(fields, thd->lex->describe);
-  if (print_explain(&output_buf, thd->lex->describe))
+  if (print_explain(&output_buf, thd->lex->describe, is_analyze))
     return true;
   output_buf.save_to(out_str);
   return false;
@@ -217,7 +217,8 @@ static void push_string(List<Item> *item_list, String *str)
 
 int Explain_union::print_explain(Explain_query *query, 
                                  select_result_sink *output,
-                                 uint8 explain_flags)
+                                 uint8 explain_flags, 
+                                 bool is_analyze)
 {
   char table_name_buffer[SAFE_NAME_LEN];
 
@@ -225,7 +226,7 @@ int Explain_union::print_explain(Explain_query *query,
   for (int i= 0; i < (int) union_members.elements(); i++)
   {
     Explain_select *sel= query->get_select(union_members.at(i));
-    sel->print_explain(query, output, explain_flags);
+    sel->print_explain(query, output, explain_flags, is_analyze);
   }
 
   /* Print a line with "UNION RESULT" */
@@ -287,9 +288,17 @@ int Explain_union::print_explain(Explain_query *query,
  
   /* `rows` */
   item_list.push_back(item_null);
+  
+  /* `r_rows` */
+  if (is_analyze)
+    item_list.push_back(item_null);
 
   /* `filtered` */
-  if (explain_flags & DESCRIBE_EXTENDED)
+  if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
+    item_list.push_back(item_null);
+
+  /* `r_filtered` */
+  if (is_analyze)
     item_list.push_back(item_null);
 
   /* `Extra` */
@@ -309,7 +318,7 @@ int Explain_union::print_explain(Explain_query *query,
     Print all subquery children (UNION children have already been printed at
     the start of this function)
   */
-  return print_explain_for_children(query, output, explain_flags);
+  return print_explain_for_children(query, output, explain_flags, is_analyze);
 }
 
 
@@ -319,12 +328,13 @@ int Explain_union::print_explain(Explain_query *query,
 
 int Explain_node::print_explain_for_children(Explain_query *query, 
                                          select_result_sink *output,
-                                         uint8 explain_flags)
+                                         uint8 explain_flags, 
+                                         bool is_analyze)
 {
   for (int i= 0; i < (int) children.elements(); i++)
   {
     Explain_node *node= query->get_node(children.at(i));
-    if (node->print_explain(query, output, explain_flags))
+    if (node->print_explain(query, output, explain_flags, is_analyze))
       return 1;
   }
   return 0;
@@ -344,7 +354,7 @@ Explain_select::~Explain_select()
 
 int Explain_select::print_explain(Explain_query *query, 
                                   select_result_sink *output,
-                                  uint8 explain_flags)
+                                  uint8 explain_flags, bool is_analyze)
 {
   if (message)
   {
@@ -359,8 +369,17 @@ int Explain_select::print_explain(Explain_query *query,
       item_list.push_back(item_null);
     if (explain_flags & DESCRIBE_PARTITIONS)
       item_list.push_back(item_null);
-    if (explain_flags & DESCRIBE_EXTENDED)
+
+    /* filtered */
+    if (is_analyze || explain_flags & DESCRIBE_EXTENDED)
       item_list.push_back(item_null);
+    
+    if (is_analyze)
+    {
+      /* r_rows, r_filtered */
+      item_list.push_back(item_null);
+      item_list.push_back(item_null);
+    }
 
     item_list.push_back(new Item_string(message,strlen(message),cs));
 
@@ -373,7 +392,7 @@ int Explain_select::print_explain(Explain_query *query,
     bool using_fs= using_filesort;
     for (uint i=0; i< n_join_tabs; i++)
     {
-      join_tabs[i]->print_explain(output, explain_flags, select_id,
+      join_tabs[i]->print_explain(output, explain_flags, is_analyze, select_id,
                                   select_type, using_tmp, using_fs);
       if (i == 0)
       {
@@ -387,7 +406,7 @@ int Explain_select::print_explain(Explain_query *query,
     }
   }
 
-  return print_explain_for_children(query, output, explain_flags);
+  return print_explain_for_children(query, output, explain_flags, is_analyze);
 }
 
 
@@ -398,8 +417,9 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 
 
 int Explain_table_access::print_explain(select_result_sink *output, uint8 explain_flags, 
-                                    uint select_id, const char *select_type,
-                                    bool using_temporary, bool using_filesort)
+                                        bool is_analyze,
+                                        uint select_id, const char *select_type,
+                                        bool using_temporary, bool using_filesort)
 {
   const CHARSET_INFO *cs= system_charset_info;
   const char *hash_key_prefix= "#hash#";
@@ -519,8 +539,16 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   else
     item_list.push_back(item_null);
 
+  /* `r_rows` */
+  if (is_analyze)
+  {
+    ha_rows avg_rows= r_scans ? round((double) r_rows / r_scans): 0;
+    item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows, 
+                                      MY_INT64_NUM_DECIMAL_DIGITS));
+  }
+
   /* `filtered` */
-  if (explain_flags & DESCRIBE_EXTENDED)
+  if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
   {
     if (filtered_set)
     {
@@ -528,6 +556,17 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     }
     else
       item_list.push_back(item_null);
+  }
+
+  /* `r_filtered` */
+  if (is_analyze)
+  {
+    double r_filtered;
+    if (r_rows > 0)
+      r_filtered= 100.0 * (double)r_rows_after_table_cond / r_rows;
+    else
+      r_filtered= 100.0;
+    item_list.push_back(new Item_float(r_filtered, 2));
   }
 
   /* `Extra` */
@@ -802,12 +841,13 @@ void Explain_quick_select::print_key_len(String *str)
 
 int Explain_delete::print_explain(Explain_query *query, 
                                   select_result_sink *output,
-                                  uint8 explain_flags)
+                                  uint8 explain_flags,
+                                  bool is_analyze)
 {
   if (deleting_all_rows)
   {
     const char *msg= "Deleting all rows";
-    int res= print_explain_message_line(output, explain_flags,
+    int res= print_explain_message_line(output, explain_flags, is_analyze,
                                         1 /*select number*/,
                                         select_type, &rows, msg);
     return res;
@@ -815,14 +855,16 @@ int Explain_delete::print_explain(Explain_query *query,
   }
   else
   {
-    return Explain_update::print_explain(query, output, explain_flags);
+    return Explain_update::print_explain(query, output, explain_flags,
+                                         is_analyze);
   }
 }
 
 
 int Explain_update::print_explain(Explain_query *query, 
                                   select_result_sink *output,
-                                  uint8 explain_flags)
+                                  uint8 explain_flags,
+                                  bool is_analyze)
 {
   StringBuffer<64> key_buf;
   StringBuffer<64> key_len_buf;
@@ -832,7 +874,7 @@ int Explain_update::print_explain(Explain_query *query,
     const char *msg= impossible_where ? 
                      "Impossible WHERE" : 
                      "No matching rows after partition pruning";
-    int res= print_explain_message_line(output, explain_flags,
+    int res= print_explain_message_line(output, explain_flags, is_analyze,
                                         1 /*select number*/,
                                         select_type, 
                                         NULL, /* rows */
@@ -892,8 +934,9 @@ int Explain_update::print_explain(Explain_query *query,
     Single-table DELETE commands do not do "Using temporary".
     "Using index condition" is also not possible (which is an unjustified limitation)
   */
+  double r_filtered= 100 * (r_rows?((double)r_rows_after_where/r_rows):1.0); 
 
-  print_explain_row(output, explain_flags, 
+  print_explain_row(output, explain_flags, is_analyze,
                     1, /* id */
                     select_type,
                     table_name.c_ptr(), 
@@ -904,18 +947,21 @@ int Explain_update::print_explain(Explain_query *query,
                     key_len_buf.length() ? key_len_buf.c_ptr() : NULL,
                     NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
                     &rows,
+                    &r_rows,
+                    r_filtered,
                     extra_str.c_ptr_safe());
 
-  return print_explain_for_children(query, output, explain_flags);
+  return print_explain_for_children(query, output, explain_flags, is_analyze);
 }
 
 
 int Explain_insert::print_explain(Explain_query *query, 
                                   select_result_sink *output, 
-                                  uint8 explain_flags)
+                                  uint8 explain_flags,
+                                  bool is_analyze)
 {
   const char *select_type="INSERT";
-  print_explain_row(output, explain_flags, 
+  print_explain_row(output, explain_flags, is_analyze,
                     1, /* id */
                     select_type,
                     table_name.c_ptr(), 
@@ -926,9 +972,11 @@ int Explain_insert::print_explain(Explain_query *query,
                     NULL, // key_len
                     NULL, // ref
                     NULL, // rows
+                    NULL, // r_rows
+                    100.0, // r_filtered
                     NULL);
 
-  return print_explain_for_children(query, output, explain_flags);
+  return print_explain_for_children(query, output, explain_flags, is_analyze);
 }
 
 

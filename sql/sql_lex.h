@@ -2268,6 +2268,7 @@ public:
 
   void save_explain_data(Explain_query *query);
   void save_explain_data_intern(Explain_query *query, Explain_update *eu);
+
   virtual ~Update_plan() {}
 
   Update_plan(MEM_ROOT *mem_root_arg) : 
@@ -2459,6 +2460,7 @@ struct LEX: public Query_tables_list
   */
   uint table_count;
   uint8 describe;
+  bool  analyze_stmt; /* TRUE<=> this is "ANALYZE $stmt" */
   /*
     A flag that indicates what kinds of derived tables are present in the
     query (0 if no derived tables, otherwise a combination of flags
@@ -2735,7 +2737,7 @@ struct LEX: public Query_tables_list
   }
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
-                    bool *printed_anything);
+                    bool is_analyze, bool *printed_anything);
 };
 
 

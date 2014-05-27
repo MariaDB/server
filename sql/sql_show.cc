@@ -2366,7 +2366,7 @@ void Show_explain_request::call_in_target_thread()
   DBUG_ASSERT(current_thd == target_thd);
   set_current_thd(request_thd);
   if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
-                                     &printed_anything))
+                                     false /*TODO: analyze? */, &printed_anything))
   {
     failed_to_produce= TRUE;
   }
