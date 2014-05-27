@@ -51,7 +51,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0srv.h"
 #ifdef HAVE_POSIX_FALLOCATE
 #include "fcntl.h"
-#include "linux/falloc.h"
 #endif
 #ifndef UNIV_HOTBACKUP
 # include "os0sync.h"
