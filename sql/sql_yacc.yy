@@ -1178,6 +1178,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  FORCE_SYM
 %token  FOREIGN                       /* SQL-2003-R */
 %token  FOR_SYM                       /* SQL-2003-R */
+%token  FORMAT_SYM
 %token  FOUND_SYM                     /* SQL-2003-R */
 %token  FROM
 %token  FULL                          /* SQL-2003-R */
@@ -1847,6 +1848,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         subselect_end select_var_list select_var_list_init help 
         field_length opt_field_length
         opt_extended_describe shutdown
+        opt_format_json
         prepare prepare_src execute deallocate
         statement sp_suid
         sp_c_chistics sp_a_chistics sp_chistic sp_c_chistic xa
@@ -9756,6 +9758,18 @@ function_call_conflict:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
+        | FORMAT_SYM '(' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_format($3, $5);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
+        | FORMAT_SYM '(' expr ',' expr ',' expr ')'
+          {
+            $$= new (thd->mem_root) Item_func_format($3, $5, $7);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+          }
         | LAST_VALUE '(' expr_list ')'
           {
             $$= new (thd->mem_root) Item_func_last_value(* $3);
@@ -12768,16 +12782,34 @@ describe_command:
         ;
 
 analyze_stmt_command:
-          ANALYZE_SYM explainable_command
+          ANALYZE_SYM opt_format_json explainable_command
           {
             Lex->analyze_stmt= true;
           }
         ;
 
 opt_extended_describe:
-          /* empty */ {}
-        | EXTENDED_SYM   { Lex->describe|= DESCRIBE_EXTENDED; }
+          EXTENDED_SYM   { Lex->describe|= DESCRIBE_EXTENDED; }
         | PARTITIONS_SYM { Lex->describe|= DESCRIBE_PARTITIONS; }
+        | opt_format_json {}
+        ;
+
+opt_format_json:
+          /* empty */ {}
+        | FORMAT_SYM EQ ident_or_text
+          {
+            if (!my_strcasecmp(system_charset_info, $3.str, "JSON"))
+              Lex->explain_json= true;
+            else if (!my_strcasecmp(system_charset_info, $3.str, "TRADITIONAL"))
+            {
+              DBUG_ASSERT(Lex->explain_json==false);
+            }
+            else
+            {
+              my_error(ER_UNKNOWN_EXPLAIN_FORMAT, MYF(0), $3.str);
+              MYSQL_YYABORT;
+            }
+          }
         ;
 
 opt_describe_column:
@@ -14063,6 +14095,7 @@ keyword:
         | EXAMINED_SYM          {}
         | EXECUTE_SYM           {}
         | FLUSH_SYM             {}
+        | FORMAT_SYM            {}
         | GET_SYM               {}
         | HANDLER_SYM           {}
         | HELP_SYM              {}

@@ -31,6 +31,7 @@ const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 
 class Explain_query;
 
+class Json_writer;
 /* 
   A node can be either a SELECT, or a UNION.
 */
@@ -61,7 +62,9 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze)=0;
-  
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, 
+                                  bool is_analyze)= 0;
+
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
   virtual ~Explain_node(){}
@@ -135,6 +138,8 @@ public:
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
 };
 
 
@@ -173,9 +178,13 @@ public:
   }
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
 
   const char *fake_select_type;
   bool using_filesort;
+private:
+  uint make_union_table_name(char *buf);
 };
 
 
@@ -246,6 +255,8 @@ public:
   
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
+
+  void print_explain_json(select_result_sink *output, bool is_analyze);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
@@ -411,7 +422,8 @@ public:
   bool used_partitions_set;
   
   /* Empty string means "NULL" will be printed */
-  StringBuffer<32> possible_keys_str;
+  List<char> possible_keys;
+  //StringBuffer<32> possible_keys_str;
   
   /*
     Index use: key name and length.
@@ -460,11 +472,19 @@ public:
   EXPLAIN_BKA_TYPE bka_type;
   
   StringBuffer<32> firstmatch_table_name;
+  
+  /*
+    Note: lifespan of WHERE condition is less than lifespan of this object.
+    THe below is valid if tags include "ET_USING_WHERE".
+  */
+  Item *where_cond;
+  Item *pushed_index_cond;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
+  void print_explain_json(Json_writer *writer, bool is_analyze);
 
   /* ANALYZE members*/
   ha_rows r_scans; /* How many scans were ran on this join_tab */
@@ -479,6 +499,10 @@ public:
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
+  void fill_key_str(String *key_str);
+  void fill_key_len_str(String *key_len_str);
+  double get_r_filtered();
+  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
 };
 
 
@@ -529,6 +553,8 @@ public:
   {}
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, bool is_analyze)
+  { /* EXPLAIN_JSON_NOT_IMPL */}
 };
 
 
@@ -549,6 +575,9 @@ public:
 
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze)
+  { /* EXPLAIN_JSON_NOT_IMPL */}
 };
 
 
@@ -570,6 +599,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, bool is_analyze)
+  { /* EXPLAIN_JSON_NOT_IMPL */}
 };
 
 

@@ -22913,7 +22913,6 @@ void JOIN::clear()
 
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
-  TODO: is_analyze
 */
 
 int print_explain_message_line(select_result_sink *result, 
@@ -23201,20 +23200,24 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TODO: join with make_possible_keys_line ?
-void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
+int append_possible_keys(MEM_ROOT *alloc, List<char> &list, TABLE *table, 
+                         key_map possible_keys)
 {
   uint j;
   for (j=0 ; j < table->s->keys ; j++)
   {
     if (possible_keys.is_set(j))
     {
-      if (str->length())
-        str->append(',');
-      str->append(table->key_info[j].name, 
-                  strlen(table->key_info[j].name),
-                  system_charset_info);
+      const char *key_name= table->key_info[j].name;
+      size_t len= strlen(key_name);
+      char *cp;
+      if (!(cp = (char*)alloc_root(alloc, len)))
+        return 1;
+      memcpy(cp, key_name, len+1);
+      list.push_back(cp);
     }
   }
+  return 0;
 }
 
 
@@ -23387,7 +23390,9 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       eta->type= tab_type;
 
       /* Build "possible_keys" value */
-      append_possible_keys(&eta->possible_keys_str, table, tab->keys);
+      if (append_possible_keys(thd->mem_root, eta->possible_keys, table,
+                               tab->keys))
+        DBUG_RETURN(1);
 
       /* Build "key", "key_len", and "ref" */
       if (tab_type == JT_NEXT)
@@ -23544,7 +23549,10 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 
         if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
             table->file->pushed_idx_cond)
+        {
           eta->push_extra(ET_USING_INDEX_CONDITION);
+          eta->pushed_index_cond= table->file->pushed_idx_cond;
+        }
         else if (tab->cache_idx_cond)
           eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
 
@@ -23585,7 +23593,11 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
               */
             }
             else
+            {
+              eta->where_cond= tab->select->cond? tab->select->cond:
+                               tab->cache_select->cond;
               eta->push_extra(ET_USING_WHERE);
+            }
           }
 	}
         if (table_list /* SJM bushes don't have table_list */ &&

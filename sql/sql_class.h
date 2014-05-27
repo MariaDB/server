@@ -3059,6 +3059,7 @@ public:
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
   int send_explain_fields(select_result *result);
   void make_explain_field_list(List<Item> &field_list);
+  void make_explain_json_field_list(List<Item> &field_list);
   /**
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we
