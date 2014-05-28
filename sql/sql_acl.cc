@@ -2512,7 +2512,13 @@ int check_change_password(THD *thd, const char *host, const char *user,
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
     return(1);
   }
-  if (!thd->slave_thread && !thd->security_ctx->priv_user[0])
+
+#ifdef WITH_WSREP
+  if ((!WSREP(thd) || !thd->wsrep_applier) &&
+      !thd->slave_thread && !thd->security_ctx->user[0])
+#else
+  if (!thd->slave_thread && !thd->security_ctx->user[0])
+#endif /* WITH_WSREP */
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
                MYF(0));
@@ -2523,6 +2529,7 @@ int check_change_password(THD *thd, const char *host, const char *user,
     my_error(ER_PASSWORD_NO_MATCH, MYF(0));
     return 1;
   }
+
   if (!thd->slave_thread &&
 #ifdef WITH_WSREP
       (!WSREP(thd) || !thd->wsrep_applier) &&
