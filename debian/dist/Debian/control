@@ -1,3 +1,4 @@
+ls
 Source: mariadb-10.0
 Section: misc
 Priority: optional
@@ -44,7 +45,7 @@ Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl, perl (>= 5.6),
     ${shlibs:Depends}, ${misc:Depends}, psmisc, passwd, lsb-base (>= 3.0-10),
     libmariadbclient18 (>= ${binary:Version}), galera (>=25.2),
-    lsof, socat, grep, gawk, iproute, coreutils, findutils
+    rsync, lsof, socat, grep, gawk, iproute, coreutils, findutils
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5, mysql-server-core-10.0, mariadb-server, mysql-server, virtual-mysql-server, mariadb-galera-server
 Conflicts: mariadb-server, mysql-server, mariadb-galera-server (<< ${source:Version}),
     mysql-server-4.1, mysql-server-5.0, mysql-server-5.1, mysql-server-5.5,
