@@ -1058,6 +1058,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     case TYPE_DECIM:
       pcf->Precision= ((Field_new_decimal*)fp)->precision;
+      pcf->Length= pcf->Precision;
       pcf->Scale= fp->decimals();
       break;
     case TYPE_DATE:
