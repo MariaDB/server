@@ -190,9 +190,8 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
         return true;
 
     } else
-      // Otherwise, straight server name,
-      // use tablename of federatedx table as remote table name
-      Tabname= Name;
+      // Otherwise, straight server name, 
+      Tabname = (b) ? GetStringCatInfo(g, "Tabname", Name) : NULL;
 
     if (trace)
       htrc("server: %s  Tabname: %s", url, Tabname);

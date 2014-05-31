@@ -214,6 +214,7 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   int     Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff);
   void    Define(PGLOBAL g, PCOL colp);
   bool    IsSpecial(void) {return (Flags & U_SPECIAL) ? true : false;} 
+  bool    IsVirtual(void) {return (Flags & U_VIRTUAL) ? true : false;} 
 
  protected:
   void   *To_Min;              /* Point to array of block min values   */

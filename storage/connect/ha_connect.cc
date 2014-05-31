@@ -1103,6 +1103,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     case TYPE_DECIM:
       pcf->Precision= ((Field_new_decimal*)fp)->precision;
+      pcf->Length= pcf->Precision;
       pcf->Scale= fp->decimals();
       break;
     case TYPE_DATE:
@@ -4752,7 +4753,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         strncpy(dsn, create_info->connect_string.str, len);
         dsn[len]= 0;
         mydef->SetName(create_info->alias);
-        mydef->SetCat(cat);
 
         if (!mydef->ParseURL(g, dsn, false)) {
           if (mydef->GetHostname())
@@ -5231,21 +5231,18 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         int   port;
 
         host= GetListOption(g, "host", options->oplist, NULL);
-        db= GetListOption(g, "database", options->oplist, NULL);
+        db= GetStringOption("database", NULL);
         port= atoi(GetListOption(g, "port", options->oplist, "0"));
 
         if (create_info->connect_string.str) {
           char   *dsn;
           int     len= create_info->connect_string.length;
           PMYDEF  mydef= new(g) MYSQLDEF();
-          PDBUSER dup= PlgGetUser(g);
-          PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
           dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
           strncpy(dsn, create_info->connect_string.str, len);
           dsn[len]= 0;
           mydef->SetName(create_info->alias);
-          mydef->SetCat(cat);
 
           if (!mydef->ParseURL(g, dsn, false)) {
             if (mydef->GetHostname())
