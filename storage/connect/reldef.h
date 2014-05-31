@@ -213,6 +213,7 @@ class DllExport COLDEF : public COLCRT { /* Column description block            
   void    SetNbm(int nbm) {Nbm = nbm;}
   int     Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff);
   void    Define(PGLOBAL g, PCOL colp);
+  bool    IsSpecial(void) {return (Flags & U_SPECIAL) ? true : false;} 
 
  protected:
   void   *To_Min;              /* Point to array of block min values   */

@@ -313,7 +313,7 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (!(tab = GetStringCatInfo(g, "Tabname", NULL))) {
     if (!def) {
       strcpy(g->Message, "Missing object table definition");
-      return TRUE;
+      return true;
     } else
       tab = "Noname";
 
@@ -327,7 +327,7 @@ bool PRXDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   Tablep = new(g) XTAB(tab, def);
   Tablep->SetQualifier(db);
-  return FALSE;
+  return false;
   } // end of DefineAM
 
 /***********************************************************************/
@@ -351,6 +351,28 @@ TDBPRX::TDBPRX(PPRXDEF tdp) : TDBASE(tdp)
   {
   Tdbp = NULL;                    // The object table
   } // end of TDBPRX constructor
+
+TDBPRX::TDBPRX(PGLOBAL g, PTDBPRX tdbp) : TDBASE(tdbp)
+  {
+  Tdbp = tdbp->Tdbp;
+  } // end of TDBPRX copy constructor
+
+// Method
+PTDB TDBPRX::CopyOne(PTABS t)
+  {
+  PTDB    tp;
+  PPRXCOL cp1, cp2;
+  PGLOBAL g = t->G;
+
+  tp = new(g) TDBPRX(g, this);
+
+  for (cp1 = (PPRXCOL)Columns; cp1; cp1 = (PPRXCOL)cp1->GetNext()) {
+    cp2 = new(g) PRXCOL(cp1, tp);  // Make a copy
+    NewPointer(t, cp1, cp2);
+    } // endfor cp1
+
+  return tp;
+  } // end of CopyOne
 
 /***********************************************************************/
 /*  Get the PTDB of the sub-table.                                     */
@@ -423,7 +445,7 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   } else {
     // Sub-table is a CONNECT table
     tabp->Next = To_Table;          // For loop checking
-    tdbp = cat->GetTable(g, tabp);
+    tdbp = cat->GetTable(g, tabp, Mode);
   } // endif mysql
 
   if (s) {
@@ -456,11 +478,12 @@ bool TDBPRX::InitTable(PGLOBAL g)
   if (!Tdbp) {
     // Get the table description block of this table
     if (!(Tdbp = GetSubTable(g, ((PPRXDEF)To_Def)->Tablep)))
-      return TRUE;
+      return true;
 
+    Tdbp->SetMode(Mode);
     } // endif Tdbp
 
-  return FALSE;
+  return false;
   } // end of InitTable
 
 /***********************************************************************/
@@ -507,32 +530,51 @@ bool TDBPRX::OpenDB(PGLOBAL g)
 		return Tdbp->OpenDB(g);
     } // endif use
 
-  if (Mode != MODE_READ) {
+  if (Mode == MODE_DELETE) {
     /*******************************************************************/
     /* Currently XCOL tables cannot be modified.                       */
     /*******************************************************************/
-    strcpy(g->Message, "PROXY tables are read only");
-    return TRUE;
+    strcpy(g->Message, "No DELETE for PROXY tables");
+    return true;
     } // endif Mode
 
   if (InitTable(g))
-    return TRUE;
+    return true;
   
   /*********************************************************************/
   /*  Check and initialize the subtable columns.                       */
   /*********************************************************************/
   for (PCOL cp = Columns; cp; cp = cp->GetNext())
-    if (((PPRXCOL)cp)->Init(g))
-      return TRUE;
+    if (((PPRXCOL)cp)->Init(g, Tdbp))
+      return true;
+
+  /*********************************************************************/
+  /*  In Update mode, the updated column blocks must be distinct from  */
+  /*  the read column blocks. So make a copy of the TDB and allocate   */
+  /*  its column blocks in mode write (required by XML tables).        */
+  /*********************************************************************/
+  if (Mode == MODE_UPDATE) {
+    PTDBASE utp;
+
+    if (!(utp= (PTDBASE)Tdbp->Duplicate(g))) {
+      sprintf(g->Message, MSG(INV_UPDT_TABLE), Tdbp->GetName());
+      return true;
+      } // endif tp
+
+    for (PCOL cp = To_SetCols; cp; cp = cp->GetNext())
+      if (((PPRXCOL)cp)->Init(g, utp))
+        return true;
+
+    } // endif MODE_UPDATE
 
   /*********************************************************************/
   /*  Physically open the object table.                                */
   /*********************************************************************/
 	if (Tdbp->OpenDB(g))
-		return TRUE;
+		return true;
 
   Use = USE_OPEN;
-	return FALSE;
+	return false;
   } // end of OpenDB
 
 /***********************************************************************/
@@ -551,8 +593,9 @@ int TDBPRX::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBPRX::WriteDB(PGLOBAL g)
   {
-	sprintf(g->Message, "%s tables are read only", To_Def->GetType());
-  return RC_FX;
+//sprintf(g->Message, "%s tables are read only", To_Def->GetType());
+//return RC_FX;
+  return Tdbp->WriteDB(g);
   } // end of WriteDB
 
 /***********************************************************************/
@@ -594,7 +637,7 @@ PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 //strcpy(F_Date, cdp->F_Date);
   Colp = NULL;
   To_Val = NULL;
-  Pseudo = FALSE;
+  Pseudo = false;
   Colnum = cdp->GetOffset();     // If columns are retrieved by number
 
   if (trace)
@@ -603,29 +646,48 @@ PRXCOL::PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   } // end of PRXCOL constructor
 
 /***********************************************************************/
+/*  PRXCOL constructor used for copying columns.                       */
+/*  tdbp is the pointer to the new table descriptor.                   */
+/***********************************************************************/
+PRXCOL::PRXCOL(PRXCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
+  {
+  Colp = col1->Colp;
+  To_Val = col1->To_Val;
+  Pseudo = col1->Pseudo;
+  Colnum = col1->Colnum;
+  } // end of PRXCOL copy constructor
+
+/***********************************************************************/
 /*  PRXCOL initialization routine.                                     */
 /*  Look for the matching column in the object table.                  */
 /***********************************************************************/
-bool PRXCOL::Init(PGLOBAL g)
+bool PRXCOL::Init(PGLOBAL g, PTDBASE tp)
   {
-  PTDBPRX tdbp = (PTDBPRX)To_Tdb;
+  if (!tp)
+    tp = ((PTDBPRX)To_Tdb)->Tdbp;
 
-  if (!(Colp = tdbp->Tdbp->ColDB(g, Name, 0)) && Colnum)
-    Colp = tdbp->Tdbp->ColDB(g, NULL, Colnum);
+  if (!(Colp = tp->ColDB(g, Name, 0)) && Colnum)
+    Colp = tp->ColDB(g, NULL, Colnum);
 
   if (Colp) {
+    MODE mode = To_Tdb->GetMode();
+
     // May not have been done elsewhere
     Colp->InitValue(g);        
     To_Val = Colp->GetValue();
 
+    if (mode == MODE_INSERT || mode == MODE_UPDATE)
+      if (Colp->SetBuffer(g, Colp->GetValue(), true, false))
+        return true;
+
     // this may be needed by some tables (which?)
     Colp->SetColUse(ColUse);
   } else {
-    sprintf(g->Message, MSG(NO_MATCHING_COL), Name, tdbp->Tdbp->GetName());
-    return TRUE;
+    sprintf(g->Message, MSG(NO_MATCHING_COL), Name, tp->GetName());
+    return true;
   } // endif Colp
 
-  return FALSE;
+  return false;
   } // end of Init
 
 /***********************************************************************/
@@ -658,6 +720,21 @@ void PRXCOL::ReadColumn(PGLOBAL g)
     } // endif Colp
 
   } // end of ReadColumn
+
+/***********************************************************************/
+/*  WriteColumn:                                                       */
+/***********************************************************************/
+void PRXCOL::WriteColumn(PGLOBAL g)
+  {
+  if (trace > 1)
+    htrc("PRX WriteColumn: name=%s\n", Name);
+
+  if (Colp) {
+    To_Val->SetValue_pval(Value);
+    Colp->WriteColumn(g);
+    } // endif Colp
+
+  } // end of WriteColumn
 
 /* ---------------------------TDBTBC class --------------------------- */
 

@@ -119,6 +119,7 @@
 #if defined(NEW_WAY)
 #include "sql_table.h"
 #endif   // NEW_WAY
+#include "sql_partition.h"
 #undef  OFFSET
 
 #define NOPARSE
@@ -172,6 +173,12 @@
 extern "C" {
        char  version[]= "Version 1.03.0002 May 03, 2014";
        char  compver[]= "Version 1.03.0002 " __DATE__ " "  __TIME__;
+
+#if defined(WIN32)
+       char slash= '\\';
+#else   // !WIN32
+       char slash= '/';
+#endif  // !WIN32
 
 #if defined(XMSG)
        char  msglang[];            // Default message language
@@ -433,10 +440,10 @@ static int connect_init_func(void *p)
   init_connect_psi_keys();
 
   connect_hton= (handlerton *)p;
-  connect_hton->state=  SHOW_OPTION_YES;
+  connect_hton->state= SHOW_OPTION_YES;
   connect_hton->create= connect_create_handler;
-//connect_hton->flags=  HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
-  connect_hton->flags=  HTON_TEMPORARY_NOT_SUPPORTED;
+//connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
+  connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
   connect_hton->index_options= connect_index_option_list;
@@ -538,7 +545,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
-//*tname= '\0';
+  *partname= 0;
   bzero((char*) &xinfo, sizeof(XINFO));
   valid_info= false;
   valid_query_id= 0;
@@ -1264,6 +1271,16 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
   return toidx;
 } // end of GetIndexInfo
 
+bool ha_connect::IsPartitioned(void)
+{
+  if (tshp)
+    return tshp->partition_info_str_len > 0;
+  else if (table && table->part_info)
+    return true;
+  else
+    return false;
+} // end of IsPartitioned
+
 const char *ha_connect::GetDBName(const char* name)
 {
   return (name) ? name : table->s->db.str;
@@ -1272,6 +1289,11 @@ const char *ha_connect::GetDBName(const char* name)
 const char *ha_connect::GetTableName(void)
 {
   return (tshp) ? tshp->table_name.str : table_share->table_name.str;
+} // end of GetTableName
+
+char *ha_connect::GetPartName(void)
+{
+  return (IsPartitioned()) ? partname : (char*)GetTableName();
 } // end of GetTableName
 
 #if 0
@@ -2474,6 +2496,15 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
     } else
       mrr= false;
 
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    if (table->part_info) {
+      if (GetStringOption("Filename") || GetStringOption("Tabname"))
+        strcpy(partname, strrchr(name, '#') + 1);
+      else       // Inward table
+        strcpy(partname, strrchr(name, slash) + 1);
+
+      } // endif part_info
+#endif   // WITH_PARTITION_STORAGE_ENGINE
   } else
     rc= HA_ERR_INTERNAL_ERROR;
 
@@ -2487,6 +2518,7 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 {
   int      rc= 0;
+  bool     dop= (check_opt != NULL);
   PGLOBAL& g= xp->g;
   PDBUSER  dup= PlgGetUser(g);
 
@@ -2498,7 +2530,7 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   if (tdbp) {
     bool b= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
-    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true, b))) {
+    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, b))) {
       if (rc == RC_INFO) {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         rc= 0;
@@ -2980,7 +3012,6 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
 */
 int ha_connect::rnd_init(bool scan)
 {
-  int     rc;
   PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
               (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
@@ -3014,8 +3045,8 @@ int ha_connect::rnd_init(bool scan)
   if (xmod == MODE_UPDATE)
     bitmap_union(table->read_set, table->write_set);
 
-  if ((rc= OpenTable(g, xmod == MODE_DELETE)))
-    DBUG_RETURN(rc);
+  if (OpenTable(g, xmod == MODE_DELETE))
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
 
   xp->nrd= xp->fnd= xp->nfd= 0;
   xp->tb1= my_interval_timer();
@@ -3934,11 +3965,6 @@ filename_to_dbname_and_tablename(const char *filename,
                                  char *database, size_t database_size,
                                  char *table, size_t table_size)
 {
-#if defined(WIN32)
-  char slash= '\\';
-#else   // !WIN32
-  char slash= '/';
-#endif  // !WIN32
   LEX_CSTRING d, t;
   size_t length= strlen(filename);
 
@@ -4013,28 +4039,26 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   // If a temporary file exists, all the tests below were passed
   // successfully when making it, so they are not needed anymore
   // in particular because they sometimes cause DBUG_ASSERT crash.
-  if (*tabname != '#') {
+  // Also, for partitioned tables, no test can be done because when
+  // this function is called, the .par file is already deleted and
+  // this causes the open_table_def function to fail.
+  // Not having any other clues (table and table_share are NULL)
+  // the only mean we have to test for partitioning is this:
+  if (*tabname != '#' && !strstr(tabname, "#P#")) {
     // We have to retrieve the information about this table options.
     ha_table_option_struct *pos;
     char         key[MAX_DBKEY_LENGTH];
     uint         key_length;
     TABLE_SHARE *share;
 
+//  if ((p= strstr(tabname, "#P#")))   won't work, see above
+//    *p= 0;             // Get the main the table name
+
     key_length= tdc_create_key(key, db, tabname);
 
     // share contains the option struct that we need
     if (!(share= alloc_table_share(db, tabname, key, key_length)))
       DBUG_RETURN(rc);
-
-#if 0
-    if (*tabname == '#') {
-      // These are in ???? charset after renaming
-      char *p= strchr(share->path.str, '@');
-      strcpy(p, share->table_name.str);
-      share->path.length= strlen(share->path.str);
-      share->normalized_path.length= share->path.length;
-      } // endif tabname
-#endif // 0
 
     // Get the share info from the .frm file
     if (!open_table_def(thd, share)) {
@@ -5111,12 +5135,16 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+  partition_info *part_info= table_arg->part_info;
+#endif   // WITH_PARTITION_STORAGE_ENGINE
   xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
   int  sqlcom= thd_sql_command(table_arg->in_use);
   PTOS options= GetTableOptionStruct(table_arg->s);
+  bool inward= !options->filename; 
 
   table= table_arg;         // Used by called functions
 
@@ -5395,15 +5423,13 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     } // endfor field
 
   if ((sqlcom == SQLCOM_CREATE_TABLE || *GetTableName() == '#')
-        && IsFileType(type) && !options->filename) {
+        && IsFileType(type) && inward) {
     // The file name is not specified, create a default file in
     // the database directory named table_name.table_type.
     // (temporarily not done for XML because a void file causes
     // the XML parsers to report an error on the first Insert)
     char buf[256], fn[_MAX_PATH], dbpath[128], lwt[12];
     int  h;
-
-    strcpy(buf, GetTableName());
 
     // Check for incompatible options
     if (options->sepindex) {
@@ -5432,13 +5458,28 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else
         lwt[i]= tolower(options->type[i]);
 
-    strcat(strcat(buf, "."), lwt);
-    sprintf(g->Message, "No file name. Table will use %s", buf);
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    if (part_info) {
+      char *p;
 
-    if (sqlcom == SQLCOM_CREATE_TABLE)
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      strcpy(dbpath, name);
+      p= strrchr(dbpath, slash);
+      strcpy(partname, ++p);
+      strcat(strcat(strcpy(buf, p), "."), lwt);
+      *p= 0;
+    } else {
+#endif   // WITH_PARTITION_STORAGE_ENGINE
+      strcat(strcat(strcpy(buf, GetTableName()), "."), lwt);
+      sprintf(g->Message, "No file name. Table will use %s", buf);
+  
+      if (sqlcom == SQLCOM_CREATE_TABLE)
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+  
+      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    } // endif part_info
+#endif   // WITH_PARTITION_STORAGE_ENGINE
 
-    strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
     PlugSetPath(fn, buf, dbpath);
 
     if ((h= ::open(fn, O_CREAT | O_EXCL, 0666)) == -1) {
@@ -5455,19 +5496,21 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Congratulation, you just created a read-only void table!");
 
-    } // endif
+    } // endif sqlcom
 
   if (xtrace)
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
-  // To check whether indices have to be made or remade
+  // To check whether indexes have to be made or remade
   if (!g->Xchk) {
     PIXDEF xdp;
 
-    // We should be in CREATE TABLE or ALTER_TABLE
-    if (sqlcom != SQLCOM_CREATE_TABLE && sqlcom != SQLCOM_ALTER_TABLE)
+    // We should be in CREATE TABLE, ALTER_TABLE or CREATE INDEX
+    if (!(sqlcom == SQLCOM_CREATE_TABLE || sqlcom == SQLCOM_ALTER_TABLE ||
+         (sqlcom == SQLCOM_CREATE_INDEX && part_info) ||  
+         (sqlcom == SQLCOM_DROP_INDEX && part_info)))  
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
-        "Wrong command in create, please contact CONNECT team");
+        "Unexpected command in create, please contact CONNECT team");
 
     if (sqlcom == SQLCOM_ALTER_TABLE && g->Alchecked == 0 &&
         (!IsFileType(type) || FileExists(options->filename))) {
@@ -5480,7 +5523,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } // endif outward
 
     // Get the index definitions
-    if (xdp= GetIndexInfo()) {
+    if ((xdp= GetIndexInfo()) || sqlcom == SQLCOM_DROP_INDEX) {
       if (options->multiple) {
         strcpy(g->Message, "Multiple tables are not indexable");
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -5495,6 +5538,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
         if (cat) {
           cat->SetDataPath(g, table_arg->s->db.str);
+
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+          if (part_info)
+            strcpy(partname, strrchr(name, (inward ? slash : '#')) + 1);
+#endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
             htrc("Create rc=%d %s\n", rc, g->Message);

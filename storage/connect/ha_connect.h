@@ -201,11 +201,13 @@ public:
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
+  char    *GetPartName(void);
 //int      GetColNameLen(Field *fp);
 //char    *GetColName(Field *fp);
 //void     AddColName(char *cp, Field *fp);
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
+  bool     IsPartitioned(void);
 
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
@@ -520,7 +522,7 @@ protected:
   PVAL          sdvalin;              // Used to convert date values
   PVAL          sdvalout;             // Used to convert date values
   bool          istable;              // True for table handler
-//char          tname[64];            // The table name
+  char          partname[64];         // The partition name
   MODE          xmod;                 // Table mode
   XINFO         xinfo;                // The table info structure
   bool          valid_info;           // True if xinfo is valid

@@ -132,19 +132,28 @@ int RELDEF::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
 /***********************************************************************/
 char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	{
-	char *sval= NULL, *s= Hc->GetStringOption(what, sdef);
+	char *name, *sval= NULL, *s= Hc->GetStringOption(what, sdef);
 	
 	if (s) {
-		sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
-		strcpy(sval, s);
+    if (Hc->IsPartitioned() &&
+        (!stricmp(what, "filename") || !stricmp(what, "tabname"))) {
+      name= Hc->GetPartName();
+      sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + strlen(name));
+      sprintf(sval, s, name);
+    } else {
+		  sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
+		  strcpy(sval, s);
+    } // endif partitioned
+
   } else if (!stricmp(what, "filename")) {
     // Return default file name
     char *ftype= Hc->GetStringOption("Type", "*");
     int   i, n;
 
     if (IsFileType(GetTypeID(ftype))) {
-      sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
-      strcat(strcpy(sval, Hc->GetTableName()), ".");
+      name= Hc->GetPartName();
+      sval= (char*)PlugSubAlloc(g, NULL, strlen(name) + 12);
+      strcat(strcpy(sval, name), ".");
       n= strlen(sval);
   
       // Fold ftype to lower case

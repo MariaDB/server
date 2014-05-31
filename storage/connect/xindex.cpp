@@ -2407,7 +2407,7 @@ void XFILE::Close(void)
 
 #if defined(XMAP)
   if (Mmp && CloseMemMap(Mmp->memory, Mmp->lenL))
-    printf("Error %d closing mapped index\n");
+    printf("Error closing mapped index\n");
 #endif   // XMAP
   } // end of Close
 
@@ -2574,8 +2574,8 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     } // endif Hfile
 
   if (trace)
-    htrc(" rc=%d oflag=%p mode=%d handle=%d fn=%s\n",
-           rc, oflag, mode, Hfile, filename);
+    htrc(" oflag=%p mode=%d handle=%d fn=%s\n", 
+           oflag, mode, Hfile, filename);
 
   if (mode == MODE_INSERT) {
     /*******************************************************************/

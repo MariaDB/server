@@ -132,6 +132,7 @@ int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   To_Filter = NULL;                     // Disable filtering
 //To_BlkIdx = NULL;                     // and block filtering
   To_BlkFil = NULL;                     // and index filtering
+  Cardinality(g);                       // If called by create
   RestoreNrec();                        // May have been modified
   MaxSize = -1;                         // Size must be recalculated
   Cardinal = -1;                        // as well as Cardinality
