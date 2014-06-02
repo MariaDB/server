@@ -11,10 +11,10 @@ Warnings:
 Note	1265	Data truncated for column 'a' at row 1
 insert t1 values (20101211010203.45678);
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 insert t1 values (20101211030405.789e0);
 Warnings:
-Warning	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 1
 insert t1 values (99991231235959e1);
 Warnings:
 Warning	1265	Data truncated for column 'a' at row 1

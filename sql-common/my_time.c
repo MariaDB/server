@@ -1317,7 +1317,7 @@ int number_to_time(my_bool neg, longlong nr, ulong sec_part,
 
     ltime->year= ltime->month= ltime->day= 0;
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
-    *was_cut= MYSQL_TIME_WARN_TRUNCATED;
+    *was_cut= MYSQL_TIME_NOTE_TRUNCATED;
     return 0;
   }
 
