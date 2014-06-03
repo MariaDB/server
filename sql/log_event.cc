@@ -216,7 +216,18 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
     thd->get_stmt_da()->sql_conditions();
   Relay_log_info const *rli= rgi->rli;
   const Sql_condition *err;
+  Relay_log_info const *rli= rgi->rli;
   buff[0]= 0;
+
+  /*
+    In parallel replication, deadlocks or other temporary errors can happen
+    occasionally in normal operation, they will be handled correctly and
+    automatically by re-trying the transactions. So do not pollute the error
+    log with messages about them.
+  */
+  if (rgi->is_parallel_exec &&
+      (rgi->killed_for_retry || has_temporary_error(thd)))
+    return;
 
   for (err= it++, slider= buff; err && slider < buff_end - 1;
        slider += len, err= it++)
@@ -7306,6 +7317,13 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
     if (err)
     {
+      /*
+        Do not report an error if this is really a kill due to a deadlock.
+        In this case, the transaction will be re-tried instead.
+      */
+      if (rgi->killed_for_retry &&
+          thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED)
+        return err;
       rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
                   "Error during XID COMMIT: failed to update GTID state in "
                   "%s.%s: %d: %s",
@@ -9631,7 +9649,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0))
     {
       uint actual_error= thd->get_stmt_da()->sql_errno();
-      if (thd->is_slave_error || thd->is_fatal_error)
+      if ((thd->is_slave_error || thd->is_fatal_error) &&
+          !(rgi->killed_for_retry && actual_error == ER_QUERY_INTERRUPTED))
       {
         /*
           Error reporting borrowed from Query_log_event with many excessive

@@ -1843,6 +1843,7 @@ rpl_group_info::mark_start_commit()
 }
 
 
+<<<<<<< TREE
 /*
   Format the current GTID as a string suitable for printing in error messages.
 
@@ -1863,6 +1864,36 @@ rpl_group_info::gtid_info()
 }
 
 
+=======
+/*
+  Undo the effect of a prior mark_start_commit().
+
+  This is only used for retrying a transaction in parallel replication, after
+  we have encountered a deadlock or other temporary error.
+
+  When we get such a deadlock, it means that the current group of transactions
+  did not yet all start committing (else they would not have deadlocked). So
+  we will not yet have woken up anything in the next group, our rgi->gco is
+  still live, and we can simply decrement the counter (to be incremented again
+  later, when the retry succeeds and reaches the commit step).
+*/
+void
+rpl_group_info::unmark_start_commit()
+{
+  rpl_parallel_entry *e;
+
+  if (!did_mark_start_commit)
+    return;
+
+  e= this->parallel_entry;
+  mysql_mutex_lock(&e->LOCK_parallel_entry);
+  --e->count_committing_event_groups;
+  mysql_mutex_unlock(&e->LOCK_parallel_entry);
+  did_mark_start_commit= false;
+}
+
+
+>>>>>>> MERGE-SOURCE
 rpl_sql_thread_info::rpl_sql_thread_info(Rpl_filter *filter)
   : rpl_filter(filter)
 {

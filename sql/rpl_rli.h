@@ -646,6 +646,7 @@ struct rpl_group_info
   inuse_relaylog *relay_log;
   uint64 retry_start_offset;
   uint64 retry_event_count;
+  bool killed_for_retry;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -735,6 +736,7 @@ struct rpl_group_info
   void mark_start_commit_no_lock();
   void mark_start_commit();
   char *gtid_info();
+  void unmark_start_commit();
 
   time_t get_row_stmt_start_timestamp()
   {

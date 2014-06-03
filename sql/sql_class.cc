@@ -4217,6 +4217,70 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
+extern "C" int
+thd_need_wait_for(const MYSQL_THD thd)
+{
+  return thd && thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
+}
+
+extern "C" void
+thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi;
+  rpl_group_info *other_rgi;
+
+  if (!thd || !other_thd)
+    return;
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return;
+  if (!rgi->is_parallel_exec)
+    return;
+  if (rgi->rli != other_rgi->rli)
+    return;
+  if (!rgi->gtid_sub_id)
+    return;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return;
+  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    return;
+  /*
+    This transaction is about to wait for another transaction that is required
+    by replication binlog order to commit after. This would cause a deadlock.
+
+    So send a kill to the other transaction, with a temporary error; this will
+    cause replication to rollback (and later re-try) the other transaction,
+    releasing the lock for this transaction so replication can proceed.
+  */
+
+#ifdef HAVE_REPLICATION
+  slave_background_kill_request(other_thd, ER_LOCK_DEADLOCK);
+#endif
+}
+
+extern "C" int
+thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi= thd->rgi_slave;
+  rpl_group_info *other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return 1;
+  if (!rgi->is_parallel_exec)
+    return 1;
+  if (rgi->rli != other_rgi->rli)
+    return 1;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return 1;
+  /*
+    These two threads are doing parallel replication within the same
+    replication domain. Their commit order is already fixed, so we do not need
+    gap locks or similar to otherwise enforce ordering (and in fact such locks
+    could lead to unnecessary deadlocks and transaction retry).
+  */
+  return 0;
+}
+
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction.all.modified_non_trans_table);

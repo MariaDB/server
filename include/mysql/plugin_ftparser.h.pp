@@ -267,6 +267,9 @@ void *thd_get_ha_data(const void* thd, const struct handlerton *hton);
 void thd_set_ha_data(void* thd, const struct handlerton *hton,
                      const void *ha_data);
 void thd_wakeup_subsequent_commits(void* thd, int wakeup_error);
+void thd_report_wait_for(const void* thd, void *other_thd);
+int thd_need_wait_for(const void* thd);
+int thd_need_ordering_with(const void* thd, const void* other_thd);
 enum enum_ftparser_mode
 {
   MYSQL_FTPARSER_SIMPLE_MODE= 0,

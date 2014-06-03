@@ -6847,12 +6847,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
   }
-  if (wfc && wfc->wakeup_error)
-  {
-    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-    DBUG_RETURN(-1);
-  }
-
   /*
     If the transaction we were waiting for has already put us into the group
     commit queue (and possibly already done the entire binlog commit for us),
@@ -6860,6 +6854,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   */
   if (orig_entry->queued_by_other)
     DBUG_RETURN(0);
+
+  if (wfc && wfc->wakeup_error)
+  {
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    DBUG_RETURN(-1);
+  }
 
   /* Now enqueue ourselves in the group commit queue. */
   DEBUG_SYNC(orig_entry->thd, "commit_before_enqueue");
@@ -9064,6 +9064,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->store_globals();
+  thd->security_ctx->skip_grants();
+  thd->set_command(COM_DAEMON);
 
   /*
     Load the slave replication GTID state from the mysql.gtid_slave_pos

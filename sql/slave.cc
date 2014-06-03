@@ -287,13 +287,22 @@ static void init_slave_psi_keys(void)
 #endif /* HAVE_PSI_INTERFACE */
 
 
-static bool slave_init_thread_running;
+static bool slave_background_thread_running;
+static bool slave_background_thread_gtid_loaded;
+
+struct slave_background_kill_t {
+  slave_background_kill_t *next;
+  THD *to_kill;
+  int errcode;
+} *slave_background_kill_list;
 
 
 pthread_handler_t
-handle_slave_init(void *arg __attribute__((unused)))
+handle_slave_background(void *arg __attribute__((unused)))
 {
   THD *thd;
+  PSI_stage_info old_stage;
+  bool stop;
 
   my_thread_init();
   thd= new THD;
@@ -301,7 +310,10 @@ handle_slave_init(void *arg __attribute__((unused)))
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
+  thd->system_thread = SYSTEM_THREAD_SLAVE_BACKGROUND;
   thd->store_globals();
+  thd->security_ctx->skip_grants();
+  thd->set_command(COM_DAEMON);
 
   thd_proc_info(thd, "Loading slave GTID position from table");
   if (rpl_load_gtid_slave_state(thd))
@@ -312,12 +324,52 @@ handle_slave_init(void *arg __attribute__((unused)))
                       thd->get_stmt_da()->message());
 
   mysql_mutex_lock(&LOCK_thread_count);
+  threads.append(thd);
+  slave_background_thread_gtid_loaded= true;
+  mysql_cond_broadcast(&COND_thread_count);
+  mysql_mutex_unlock(&LOCK_thread_count);
+
+  THD_STAGE_INFO(thd, stage_slave_background_process_request);
+  do
+  {
+    slave_background_kill_t *kill_list;
+
+    mysql_mutex_lock(&LOCK_slave_background);
+    thd->ENTER_COND(&COND_slave_background, &LOCK_slave_background,
+                    &stage_slave_background_wait_request,
+                    &old_stage);
+    for (;;)
+    {
+      stop= abort_loop || thd->killed;
+      kill_list= slave_background_kill_list;
+      if (stop || kill_list)
+        break;
+      mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
+    }
+
+    slave_background_kill_list= NULL;
+    thd->EXIT_COND(&old_stage);
+
+    while (kill_list)
+    {
+      slave_background_kill_t *p = kill_list;
+      kill_list= p->next;
+
+      mysql_mutex_lock(&p->to_kill->LOCK_thd_data);
+      /* ToDo: mark the p->errcode error code somehow ... ? */
+      p->to_kill->awake(KILL_QUERY);
+      mysql_mutex_unlock(&p->to_kill->LOCK_thd_data);
+      my_free(p);
+    }
+  } while (!stop);
+
+  mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
   my_thread_end();
 
   mysql_mutex_lock(&LOCK_thread_count);
-  slave_init_thread_running= false;
+  slave_background_thread_running= false;
   mysql_cond_broadcast(&COND_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -325,21 +377,57 @@ handle_slave_init(void *arg __attribute__((unused)))
 }
 
 
+void
+slave_background_kill_request(THD *to_kill, int errcode)
+{
+  slave_background_kill_t *p=
+    (slave_background_kill_t *)my_malloc(sizeof(*p), MYF(MY_WME));
+  if (p)
+  {
+    p->to_kill= to_kill;
+    p->errcode= errcode;
+    to_kill->rgi_slave->killed_for_retry= true;
+    mysql_mutex_lock(&LOCK_slave_background);
+    p->next= slave_background_kill_list;
+    slave_background_kill_list= p;
+    mysql_mutex_unlock(&LOCK_slave_background);
+    mysql_cond_signal(&COND_slave_background);
+  }
+}
+
+
+/*
+  Start the slave background thread.
+
+  This thread is currently used for two purposes:
+
+  1. To load the GTID state from mysql.gtid_slave_pos at server start; reading
+     from table requires valid THD, which is otherwise not available during
+     server init.
+
+  2. To kill worker thread transactions during parallel replication, when a
+     storage engine attempts to take an errorneous conflicting lock that would
+     cause a deadlock. Killing is done asynchroneously, as the kill may not
+     be safe within the context of a callback from inside storage engine
+     locking code.
+*/
 static int
-run_slave_init_thread()
+start_slave_background_thread()
 {
   pthread_t th;
 
-  slave_init_thread_running= true;
-  if (mysql_thread_create(key_thread_slave_init, &th, &connection_attrib,
-                          handle_slave_init, NULL))
+  slave_background_thread_running= true;
+  slave_background_thread_gtid_loaded= false;
+  if (mysql_thread_create(key_thread_slave_background,
+                          &th, &connection_attrib, handle_slave_background,
+                          NULL))
   {
     sql_print_error("Failed to create thread while initialising slave");
     return 1;
   }
 
   mysql_mutex_lock(&LOCK_thread_count);
-  while (slave_init_thread_running)
+  while (!slave_background_thread_gtid_loaded)
     mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
   mysql_mutex_unlock(&LOCK_thread_count);
 
@@ -358,7 +446,7 @@ int init_slave()
   init_slave_psi_keys();
 #endif
 
-  if (run_slave_init_thread())
+  if (start_slave_background_thread())
     return 1;
 
   /*

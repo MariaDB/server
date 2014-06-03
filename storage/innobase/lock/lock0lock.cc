@@ -49,6 +49,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "btr0btr.h"
 #include "dict0boot.h"
 #include <set>
+#include "mysql/plugin.h"
 
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
@@ -3873,7 +3874,15 @@ lock_deadlock_search(
 			/* Select the joining transaction as the victim. */
 			return(ctx->start->id);
 
-		} else if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+		} else {
+		    /* We do not need to report autoinc locks to the upper
+		    layer. These locks are released before commit, so they can
+		    not cause deadlocks with binlog-fixed commit order. */
+		    if (lock_get_type_low(lock) != LOCK_TABLE ||
+			lock_get_mode(lock) != LOCK_AUTO_INC)
+			    thd_report_wait_for(ctx->start->mysql_thd,
+						lock->trx->mysql_thd);
+		    if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			/* Another trx ahead has requested a lock in an
 			incompatible mode, and is itself waiting for a lock. */
@@ -3898,8 +3907,9 @@ lock_deadlock_search(
 				lock = lock_get_next_lock(ctx, lock, heap_no);
 			}
 
-		} else {
+		    } else {
 			lock = lock_get_next_lock(ctx, lock, heap_no);
+		    }
 		}
 	}
 
