@@ -351,10 +351,14 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	  Don't do online ALTER if mtype/unsigned_flag are wrong.
 	*/
-	for (ulint i = 0; i < table->s->fields; i++) {
+	for (ulint i = 0, icol= 0; i < table->s->fields; i++) {
 		const Field*		field = table->field[i];
-		const dict_col_t*	col = dict_table_get_nth_col(prebuilt->table, i);
+		const dict_col_t*	col = dict_table_get_nth_col(prebuilt->table, icol);
 		ulint		unsigned_flag;
+		if (!field->stored_in_db)
+			continue;
+		icol++;
+
 		if (col->mtype != get_innobase_type_from_mysql_type(&unsigned_flag, field)) {
 
 			DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
