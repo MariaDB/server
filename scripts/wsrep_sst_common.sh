@@ -19,6 +19,7 @@
 set -u
 
 WSREP_SST_OPT_BYPASS=0
+WSREP_SST_OPT_BINLOG=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=""
 
@@ -79,6 +80,10 @@ case "$1" in
         readonly WSREP_SST_OPT_GTID="$2"
         shift
         ;;
+    '--binlog')
+        WSREP_SST_OPT_BINLOG="$2"
+        shift
+        ;;
     *) # must be command
        # usage
        # exit 1
@@ -87,6 +92,7 @@ esac
 shift
 done
 readonly WSREP_SST_OPT_BYPASS
+readonly WSREP_SST_OPT_BINLOG
 
 # For Bug:1200727
 if my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then
