@@ -14,6 +14,21 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+/* Data structures for ANALYZE */
+class Table_access_tracker 
+{
+public:
+  Table_access_tracker() :
+    r_scans(0), r_rows(0), r_rows_after_table_cond(0),
+    r_rows_after_where(0)
+  {}
+
+  ha_rows r_scans; /* How many scans were ran on this join_tab */
+  ha_rows r_rows; /* How many rows we've got after that */
+  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
+  ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
+};
+
 
 /**************************************************************************************
  
@@ -135,6 +150,13 @@ public:
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  
+  Table_access_tracker *get_using_temporary_read_tracker()
+  {
+    return &using_temporary_read_tracker;
+  }
+private:
+  Table_access_tracker using_temporary_read_tracker;
 };
 
 
@@ -176,12 +198,26 @@ public:
 
   const char *fake_select_type;
   bool using_filesort;
+
+  Table_access_tracker *get_fake_select_lex_tracker()
+  {
+    return &fake_select_lex_tracker;
+  }
+  Table_access_tracker *get_tmptable_read_tracker()
+  {
+    return &tmptable_read_tracker;
+  }
+private:
+  Table_access_tracker fake_select_lex_tracker;
+  /* This one is for reading after ORDER BY */
+  Table_access_tracker tmptable_read_tracker; 
 };
 
 
 class Explain_update;
 class Explain_delete;
 class Explain_insert;
+
 
 /*
   Explain structure for a query (i.e. a statement).
@@ -389,6 +425,7 @@ private:
 /*
   EXPLAIN data structure for a single JOIN_TAB.
 */
+
 class Explain_table_access : public Sql_alloc
 {
 public:
@@ -467,15 +504,7 @@ public:
                     bool using_temporary, bool using_filesort);
 
   /* ANALYZE members*/
-  ha_rows r_scans; /* How many scans were ran on this join_tab */
-  ha_rows r_rows; /* How many rows we've got after that */
-  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
-  ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
-
-  Explain_table_access():
-    r_scans(0), r_rows(0), r_rows_after_table_cond(0),
-    r_rows_after_where(0)
-  {}
+  Table_access_tracker tracker;
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);

@@ -542,7 +542,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `r_rows` */
   if (is_analyze)
   {
-    ha_rows avg_rows= r_scans ? round((double) r_rows / r_scans): 0;
+    ha_rows avg_rows= tracker.r_scans ? round((double) tracker.r_rows / tracker.r_scans): 0;
     item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows, 
                                       MY_INT64_NUM_DECIMAL_DIGITS));
   }
@@ -562,8 +562,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   if (is_analyze)
   {
     double r_filtered;
-    if (r_rows > 0)
-      r_filtered= 100.0 * (double)r_rows_after_table_cond / r_rows;
+    if (tracker.r_rows > 0)
+      r_filtered= 100.0 * (double)tracker.r_rows_after_table_cond / tracker.r_rows;
     else
       r_filtered= 100.0;
     item_list.push_back(new Item_float(r_filtered, 2));

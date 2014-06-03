@@ -251,7 +251,7 @@ typedef struct st_join_table {
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
   enum explain_extra_tag info;
   
-  Explain_table_access *explain;
+  Table_access_tracker *tracker;
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.

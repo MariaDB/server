@@ -1032,6 +1032,9 @@ int JOIN::optimize()
         subquery), returns 1
       - another JOIN::optimize() call made, and now join->optimize() will
         return 0, even though we never had a query plan.
+
+    Can have QEP_NOT_PRESENT_YET for degenerate queries (for example,
+    SELECT * FROM tbl LIMIT 0)
   */
   if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
   {
@@ -2350,6 +2353,20 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     }
     save_explain_data_intern(thd->lex->explain, need_tmp_table, need_order,
                              distinct, message);
+    return;
+  }
+  
+  /*
+    Can have join_tab==NULL for degenerate cases (e.g. SELECT .. UNION ... SELECT LIMIT 0)
+  */
+  if (select_lex == select_lex->master_unit()->fake_select_lex && join_tab)
+  {
+    /* 
+      This is fake_select_lex. It has no query plan, but we need to set up a
+      tracker for ANALYZE 
+    */
+    Explain_union *eu= output->get_union(select_lex->master_unit()->first_select()->select_number);
+    join_tab[0].tracker= eu->get_fake_select_lex_tracker();
   }
 }
 
@@ -8958,6 +8975,20 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
   join_tab->read_first_record= join_init_read_record;
   join_tab->join= this;
   join_tab->ref.key_parts= 0;
+  
+  uint select_nr= select_lex->select_number;
+  if (select_nr == INT_MAX) 
+  {
+    /* this is a fake_select_lex of a union */
+    select_nr= select_lex->master_unit()->first_select()->select_number;
+    join_tab->tracker= thd->lex->explain->get_union(select_nr)->
+                       get_tmptable_read_tracker();
+  }
+  else
+  {
+    join_tab->tracker= thd->lex->explain->get_select(select_nr)->
+                       get_using_temporary_read_tracker();
+  }
   bzero((char*) &join_tab->read_record,sizeof(join_tab->read_record));
   temp_table->status=0;
   temp_table->null_row=0;
@@ -17532,7 +17563,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       (*join_tab->next_select)(join,join_tab+1,end_of_records);
     DBUG_RETURN(nls);
   }
-  join_tab->explain->r_scans++;
+  join_tab->tracker->r_scans++;
 
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
@@ -17669,7 +17700,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
   }
 
-  join_tab->explain->r_rows++;
+  join_tab->tracker->r_rows++;
 
   if (join_tab->table->vfield)
     update_virtual_fields(join->thd, join_tab->table);
@@ -17689,7 +17720,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       There is no select condition or the attached pushed down
       condition is true => a match is found.
     */
-    join_tab->explain->r_rows_after_table_cond++;
+    join_tab->tracker->r_rows_after_table_cond++;
     bool found= 1;
     while (join_tab->first_unmatched && found)
     {
@@ -23315,7 +23346,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       eta->key.set(thd->mem_root, NULL, (uint)-1);
       eta->quick_info= NULL;
       
-      tab->explain= eta;
+      tab->tracker= &eta->tracker;
       
       /* id */
       if (tab->bush_root_tab)
