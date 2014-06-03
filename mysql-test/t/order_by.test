@@ -1947,4 +1947,14 @@ drop table t1,t2,t3;
 
 --echo End of 5.5 tests
 
-
+--echo #
+--echo # MDEV-5884: EXPLAIN UPDATE ... ORDER BY LIMIT shows wrong #rows
+--echo #
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1 (key1 int, col1 int, key(key1));
+insert into t1
+select A.a + 10 * B.a + 100 * C.a, 1234 from t2 A, t2 B, t2 C;
+--echo # Should show rows=2, not rows=100
+explain update t1 set key1=key1+1 where key1 between 10 and 110 order by key1 limit 2;
+drop table t1,t2;

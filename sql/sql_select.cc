@@ -24905,7 +24905,8 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     switch (test_if_order_by_key(order, table, select->quick->index,
                                  &used_key_parts)) {
     case 1: // desired order
-      *need_sort= FALSE;
+      *need_sort= FALSE; 
+      *scanned_limit= MY_MIN(limit, select->quick->records);
       return select->quick->index;
     case 0: // unacceptable order
       *need_sort= TRUE;
@@ -24918,7 +24919,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
         {
           select->set_quick(reverse_quick);
           *need_sort= FALSE;
-          *scanned_limit= select->quick->records;
+          *scanned_limit= MY_MIN(limit, select->quick->records);
           return select->quick->index;
         }
         else
