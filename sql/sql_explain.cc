@@ -291,7 +291,11 @@ int Explain_union::print_explain(Explain_query *query,
   
   /* `r_rows` */
   if (is_analyze)
-    item_list.push_back(item_null);
+  {
+    ha_rows avg_rows= fake_select_lex_tracker.get_avg_rows();
+    item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows,
+                                      MY_INT64_NUM_DECIMAL_DIGITS));
+  }
 
   /* `filtered` */
   if (explain_flags & DESCRIBE_EXTENDED || is_analyze)
@@ -542,8 +546,8 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `r_rows` */
   if (is_analyze)
   {
-    ha_rows avg_rows= tracker.r_scans ? round((double) tracker.r_rows / tracker.r_scans): 0;
-    item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows, 
+    ha_rows avg_rows= tracker.get_avg_rows();
+    item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows,
                                       MY_INT64_NUM_DECIMAL_DIGITS));
   }
 

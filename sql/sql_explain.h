@@ -27,6 +27,11 @@ public:
   ha_rows r_rows; /* How many rows we've got after that */
   ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
+
+  ha_rows get_avg_rows()
+  {
+    return r_scans ? round((double) r_rows / r_scans): 0;
+  }
 };
 
 
