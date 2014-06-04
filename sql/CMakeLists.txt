@@ -273,6 +273,7 @@ ADD_CUSTOM_TARGET(distclean
   COMMAND ${CMAKE_COMMAND} -E echo  WARNING: distclean target is not functional
   COMMAND ${CMAKE_COMMAND} -E echo  Use 'bzr clean-tree' with --unknown and/or
     --ignored parameter instead
+  COMMAND ${CMAKE_COMMAND} -E echo  For git repositories, use 'git clean -Xdf'
   VERBATIM
   )
 
