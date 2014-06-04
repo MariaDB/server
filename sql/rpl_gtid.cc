@@ -326,7 +326,9 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   {
     if (rgi->gtid_ignore_duplicate_state==rpl_group_info::GTID_DUPLICATE_OWNER)
     {
+#ifndef DBUG_OFF
       Relay_log_info *rli= rgi->rli;
+#endif
       uint32 count= elem->owner_count;
       DBUG_ASSERT(count > 0);
       DBUG_ASSERT(elem->owner_rli == rli);

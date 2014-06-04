@@ -972,8 +972,8 @@ static int tokudb_discover3(handlerton *hton, THD* thd, const char *db, const ch
     DB* status_db = NULL;
     DB_TXN* txn = NULL;
     HA_METADATA_KEY curr_key = hatoku_frm_data;
-    DBT key = {};
-    DBT value = {};
+    DBT key; LINT_INIT_STRUCT(key);
+    DBT value; LINT_INIT_STRUCT(value);
     bool do_commit;
 
 #if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
@@ -1713,7 +1713,8 @@ static int tokudb_report_fractal_tree_block_map_iterator(uint64_t checkpoint_cou
 static int tokudb_report_fractal_tree_block_map_for_db(const DBT *dname, const DBT *iname, TABLE *table, THD *thd) {
     int error;
     DB *db;
-    struct tokudb_report_fractal_tree_block_map_iterator_extra e = {}; // avoid struct initializers so that we can compile with older gcc versions
+    struct tokudb_report_fractal_tree_block_map_iterator_extra e; // avoid struct initializers so that we can compile with older gcc versions
+    LINT_INIT_STRUCT(e);
 
     error = db_create(&db, db_env, 0);
     if (error) {

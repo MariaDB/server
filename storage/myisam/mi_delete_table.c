@@ -27,7 +27,8 @@
 #endif
 
 static int delete_one_file(const char *name, const char *ext,
-                           PSI_file_key pskey, myf flags)
+                           PSI_file_key pskey __attribute__((unused)),
+                           myf flags)
 {
   char from[FN_REFLEN];
   DBUG_ENTER("delete_one_file");

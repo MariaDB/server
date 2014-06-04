@@ -191,7 +191,7 @@ PTDB CntGetTDB(PGLOBAL g, LPCSTR name, MODE mode, PHC h)
   PTDB    tdbp;
   PTABLE  tabp;
   PDBUSER dup= PlgGetUser(g);
-  PCATLG  cat= (dup) ? dup->Catalog : NULL;     // Safe over longjmp
+  volatile PCATLG  cat= (dup) ? dup->Catalog : NULL;     // Safe over longjmp
 
   if (trace)
     printf("CntGetTDB: name=%s mode=%d cat=%p\n", name, mode, cat);

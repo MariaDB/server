@@ -2110,8 +2110,8 @@ int ha_tokudb::verify_frm_data(const char* frm_name, DB_TXN* txn) {
     TOKUDB_HANDLER_DBUG_ENTER("%s", frm_name);
     uchar* mysql_frm_data = NULL;
     size_t mysql_frm_len = 0;
-    DBT key = {};
-    DBT stored_frm = {};
+    DBT key; LINT_INIT_STRUCT(key);
+    DBT stored_frm; LINT_INIT_STRUCT(stored_frm);
     int error = 0;
     HA_METADATA_KEY curr_key = hatoku_frm_data;
 

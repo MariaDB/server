@@ -1459,7 +1459,7 @@ bool VCMFAM::AllocateBuffer(PGLOBAL g)
 bool VCMFAM::InitInsert(PGLOBAL g)
   {
   int     rc;
-  PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
+  volatile PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
 
   // We come here in MODE_INSERT only
   if (Last == Nrec) {

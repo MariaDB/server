@@ -233,8 +233,8 @@ namespace tokudb {
                 for (uint64_t i = 0; i < num_key_parts; i++)
                     unique_rows[i] = 1;
                 // stop looking when the entire dictionary was analyzed, or a cap on execution time was reached, or the analyze was killed.
-                DBT key = {}; key.flags = DB_DBT_REALLOC;
-                DBT prev_key = {}; prev_key.flags = DB_DBT_REALLOC;
+                DBT key; LINT_INIT_STRUCT(key); key.flags = DB_DBT_REALLOC;
+                DBT prev_key; LINT_INIT_STRUCT(prev_key); prev_key.flags = DB_DBT_REALLOC;
                 while (1) {
                     error = cursor->c_get(cursor, &key, 0, DB_NEXT);
                     if (error != 0) {
