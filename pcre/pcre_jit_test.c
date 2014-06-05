@@ -75,9 +75,14 @@ POSSIBILITY OF SUCH DAMAGE.
       \xe1\xbf\xb8 = 0x1ff8 = 8184
    \xf0\x90\x90\x80 = 0x10400 = 66560
       \xf0\x90\x90\xa8 = 0x10428 = 66600
+   \xc7\x84 = 0x1c4 = 452
+     \xc7\x85 = 0x1c5 = 453
+     \xc7\x86 = 0x1c6 = 454
+
  Mark property:
    \xcc\x8d = 0x30d = 781
  Special:
+   \xc2\x80 = 0x80 = 128 (lowest 2 byte character)
    \xdf\xbf = 0x7ff = 2047 (highest 2 byte character)
    \xe0\xa0\x80 = 0x800 = 2048 (lowest 2 byte character)
    \xef\xbf\xbf = 0xffff = 65535 (highest 3 byte character)
@@ -326,6 +331,22 @@ static struct regression_test_case regression_test_cases[] = {
 	{ MUA, 0, "\\w(\\s|(?:\\d)*,)+\\w\\wb", "a 5, 4,, bb 5, 4,, aab" },
 	{ MUA, 0, "(\\v+)(\\V+)", "\x0e\xc2\x85\xe2\x80\xa8\x0b\x09\xe2\x80\xa9" },
 	{ MUA, 0, "(\\h+)(\\H+)", "\xe2\x80\xa8\xe2\x80\x80\x20\xe2\x80\x8a\xe2\x81\x9f\xe3\x80\x80\x09\x20\xc2\xa0\x0a" },
+	{ MUA, 0, "x[bcef]+", "xaxdxecbfg" },
+	{ MUA, 0, "x[bcdghij]+", "xaxexfxdgbjk" },
+	{ MUA, 0, "x[^befg]+", "xbxexacdhg" },
+	{ MUA, 0, "x[^bcdl]+", "xlxbxaekmd" },
+	{ MUA, 0, "x[^bcdghi]+", "xbxdxgxaefji" },
+	{ MUA, 0, "x[B-Fb-f]+", "xaxAxgxbfBFG" },
+	{ CMUA, 0, "\\x{e9}+", "#\xf0\x90\x90\xa8\xc3\xa8\xc3\xa9\xc3\x89\xc3\x88" },
+	{ CMUA, 0, "[^\\x{e9}]+", "\xc3\xa9#\xf0\x90\x90\xa8\xc3\xa8\xc3\x88\xc3\x89" },
+	{ MUA, 0, "[\\x02\\x7e]+", "\xc3\x81\xe1\xbf\xb8\xf0\x90\x90\xa8\x01\x02\x7e\x7f" },
+	{ MUA, 0, "[^\\x02\\x7e]+", "\x02\xc3\x81\xe1\xbf\xb8\xf0\x90\x90\xa8\x01\x7f\x7e" },
+	{ MUA, 0, "[\\x{81}-\\x{7fe}]+", "#\xe1\xbf\xb8\xf0\x90\x90\xa8\xc2\x80\xc2\x81\xdf\xbe\xdf\xbf" },
+	{ MUA, 0, "[^\\x{81}-\\x{7fe}]+", "\xc2\x81#\xe1\xbf\xb8\xf0\x90\x90\xa8\xc2\x80\xdf\xbf\xdf\xbe" },
+	{ MUA, 0, "[\\x{801}-\\x{fffe}]+", "#\xc3\xa9\xf0\x90\x90\x80\xe0\xa0\x80\xe0\xa0\x81\xef\xbf\xbe\xef\xbf\xbf" },
+	{ MUA, 0, "[^\\x{801}-\\x{fffe}]+", "\xe0\xa0\x81#\xc3\xa9\xf0\x90\x90\x80\xe0\xa0\x80\xef\xbf\xbf\xef\xbf\xbe" },
+	{ MUA, 0, "[\\x{10001}-\\x{10fffe}]+", "#\xc3\xa9\xe2\xb1\xa5\xf0\x90\x80\x80\xf0\x90\x80\x81\xf4\x8f\xbf\xbe\xf4\x8f\xbf\xbf" },
+	{ MUA, 0, "[^\\x{10001}-\\x{10fffe}]+", "\xf0\x90\x80\x81#\xc3\xa9\xe2\xb1\xa5\xf0\x90\x80\x80\xf4\x8f\xbf\xbf\xf4\x8f\xbf\xbe" },
 
 	/* Unicode properties. */
 	{ MUAP, 0, "[1-5\xc3\xa9\\w]", "\xc3\xa1_" },
@@ -371,6 +392,10 @@ static struct regression_test_case regression_test_cases[] = {
 	{ PCRE_MULTILINE | PCRE_NEWLINE_CRLF, 0, "\\W{0,2}[^#]{3}", "\r\n#....." },
 	{ PCRE_MULTILINE | PCRE_NEWLINE_CR, 0, "\\W{0,2}[^#]{3}", "\r\n#....." },
 	{ PCRE_MULTILINE | PCRE_NEWLINE_CRLF, 0, "\\W{1,3}[^#]", "\r\n##...." },
+	{ MUA | PCRE_NO_UTF8_CHECK, 1, "^.a", "\n\x80\nxa" },
+	{ MUA, 1, "^", "\r\n" },
+	{ PCRE_MULTILINE | PCRE_NEWLINE_CRLF, 1 | F_NOMATCH, "^", "\r\n" },
+	{ PCRE_MULTILINE | PCRE_NEWLINE_CRLF, 1, "^", "\r\na" },
 
 	/* Any character except newline or any newline. */
 	{ PCRE_NEWLINE_CRLF, 0, ".", "\r" },
@@ -629,6 +654,7 @@ static struct regression_test_case regression_test_cases[] = {
 	{ PCRE_MULTILINE | PCRE_UTF8 | PCRE_NEWLINE_CRLF | PCRE_FIRSTLINE, 0 | F_NOMATCH | F_PROPERTY, "\\p{Any}{4}|a", "\r\na" },
 	{ PCRE_MULTILINE | PCRE_UTF8 | PCRE_NEWLINE_CRLF | PCRE_FIRSTLINE, 1, ".", "\r\n" },
 	{ PCRE_FIRSTLINE | PCRE_NEWLINE_LF | PCRE_DOTALL, 0 | F_NOMATCH, "ab.", "ab" },
+	{ MUA | PCRE_FIRSTLINE, 1 | F_NOMATCH, "^[a-d0-9]", "\nxx\nd" },
 
 	/* Recurse. */
 	{ MUA, 0, "(a)(?1)", "aa" },
@@ -959,7 +985,7 @@ static int convert_utf8_to_utf16(const char *input, PCRE_UCHAR16 *output, int *o
 		if (offsetmap)
 			*offsetmap++ = (int)(iptr - (unsigned char*)input);
 
-		if (!(*iptr & 0x80))
+		if (*iptr < 0xc0)
 			c = *iptr++;
 		else if (!(*iptr & 0x20)) {
 			c = ((iptr[0] & 0x1f) << 6) | (iptr[1] & 0x3f);
@@ -1031,7 +1057,7 @@ static int convert_utf8_to_utf32(const char *input, PCRE_UCHAR32 *output, int *o
 		if (offsetmap)
 			*offsetmap++ = (int)(iptr - (unsigned char*)input);
 
-		if (!(*iptr & 0x80))
+		if (*iptr < 0xc0)
 			c = *iptr++;
 		else if (!(*iptr & 0x20)) {
 			c = ((iptr[0] & 0x1f) << 6) | (iptr[1] & 0x3f);
@@ -1092,7 +1118,7 @@ static int regression_tests(void)
 	const char *error;
 	char *cpu_info;
 	int i, err_offs;
-	int is_successful, is_ascii_pattern, is_ascii_input;
+	int is_successful, is_ascii;
 	int total = 0;
 	int successful = 0;
 	int successful_row = 0;
@@ -1173,13 +1199,9 @@ static int regression_tests(void)
 	while (current->pattern) {
 		/* printf("\nPattern: %s :\n", current->pattern); */
 		total++;
-		if (current->start_offset & F_PROPERTY) {
-			is_ascii_pattern = 0;
-			is_ascii_input = 0;
-		} else {
-			is_ascii_pattern = check_ascii(current->pattern);
-			is_ascii_input = check_ascii(current->input);
-		}
+		is_ascii = 0;
+		if (!(current->start_offset & F_PROPERTY))
+			is_ascii = check_ascii(current->pattern) && check_ascii(current->input);
 
 		if (current->flags & PCRE_PARTIAL_SOFT)
 			study_mode = PCRE_STUDY_JIT_PARTIAL_SOFT_COMPILE;
@@ -1211,7 +1233,7 @@ static int regression_tests(void)
 				re8 = NULL;
 			}
 			extra8->flags |= PCRE_EXTRA_MARK;
-		} else if (((utf && ucp) || is_ascii_pattern) && !(current->start_offset & F_NO8))
+		} else if (((utf && ucp) || is_ascii) && !(current->start_offset & F_NO8))
 			printf("\n8 bit: Cannot compile pattern \"%s\": %s\n", current->pattern, error);
 #endif
 #ifdef SUPPORT_PCRE16
@@ -1242,7 +1264,7 @@ static int regression_tests(void)
 				re16 = NULL;
 			}
 			extra16->flags |= PCRE_EXTRA_MARK;
-		} else if (((utf && ucp) || is_ascii_pattern) && !(current->start_offset & F_NO16))
+		} else if (((utf && ucp) || is_ascii) && !(current->start_offset & F_NO16))
 			printf("\n16 bit: Cannot compile pattern \"%s\": %s\n", current->pattern, error);
 #endif
 #ifdef SUPPORT_PCRE32
@@ -1273,7 +1295,7 @@ static int regression_tests(void)
 				re32 = NULL;
 			}
 			extra32->flags |= PCRE_EXTRA_MARK;
-		} else if (((utf && ucp) || is_ascii_pattern) && !(current->start_offset & F_NO32))
+		} else if (((utf && ucp) || is_ascii) && !(current->start_offset & F_NO32))
 			printf("\n32 bit: Cannot compile pattern \"%s\": %s\n", current->pattern, error);
 #endif
 
@@ -1305,10 +1327,10 @@ static int regression_tests(void)
 			if ((counter & 0x1) != 0) {
 				setstack8(extra8);
 				return_value8[0] = pcre_exec(re8, extra8, current->input, strlen(current->input), current->start_offset & OFFSET_MASK,
-					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector8_1, 32);
+					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector8_1, 32);
 			} else
 				return_value8[0] = pcre_jit_exec(re8, extra8, current->input, strlen(current->input), current->start_offset & OFFSET_MASK,
-					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector8_1, 32, getstack8());
+					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector8_1, 32, getstack8());
 			memset(&dummy_extra8, 0, sizeof(pcre_extra));
 			dummy_extra8.flags = PCRE_EXTRA_MARK;
 			if (current->start_offset & F_STUDY) {
@@ -1317,7 +1339,7 @@ static int regression_tests(void)
 			}
 			dummy_extra8.mark = &mark8_2;
 			return_value8[1] = pcre_exec(re8, &dummy_extra8, current->input, strlen(current->input), current->start_offset & OFFSET_MASK,
-				current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector8_2, 32);
+				current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector8_2, 32);
 		}
 #endif
 
@@ -1339,10 +1361,10 @@ static int regression_tests(void)
 			if ((counter & 0x1) != 0) {
 				setstack16(extra16);
 				return_value16[0] = pcre16_exec(re16, extra16, regtest_buf16, length16, current->start_offset & OFFSET_MASK,
-					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector16_1, 32);
+					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector16_1, 32);
 			} else
 				return_value16[0] = pcre16_jit_exec(re16, extra16, regtest_buf16, length16, current->start_offset & OFFSET_MASK,
-					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector16_1, 32, getstack16());
+					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector16_1, 32, getstack16());
 			memset(&dummy_extra16, 0, sizeof(pcre16_extra));
 			dummy_extra16.flags = PCRE_EXTRA_MARK;
 			if (current->start_offset & F_STUDY) {
@@ -1351,7 +1373,7 @@ static int regression_tests(void)
 			}
 			dummy_extra16.mark = &mark16_2;
 			return_value16[1] = pcre16_exec(re16, &dummy_extra16, regtest_buf16, length16, current->start_offset & OFFSET_MASK,
-				current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector16_2, 32);
+				current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector16_2, 32);
 		}
 #endif
 
@@ -1373,10 +1395,10 @@ static int regression_tests(void)
 			if ((counter & 0x1) != 0) {
 				setstack32(extra32);
 				return_value32[0] = pcre32_exec(re32, extra32, regtest_buf32, length32, current->start_offset & OFFSET_MASK,
-					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector32_1, 32);
+					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector32_1, 32);
 			} else
 				return_value32[0] = pcre32_jit_exec(re32, extra32, regtest_buf32, length32, current->start_offset & OFFSET_MASK,
-					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector32_1, 32, getstack32());
+					current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector32_1, 32, getstack32());
 			memset(&dummy_extra32, 0, sizeof(pcre32_extra));
 			dummy_extra32.flags = PCRE_EXTRA_MARK;
 			if (current->start_offset & F_STUDY) {
@@ -1385,7 +1407,7 @@ static int regression_tests(void)
 			}
 			dummy_extra32.mark = &mark32_2;
 			return_value32[1] = pcre32_exec(re32, &dummy_extra32, regtest_buf32, length32, current->start_offset & OFFSET_MASK,
-				current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD), ovector32_2, 32);
+				current->flags & (PCRE_NOTBOL | PCRE_NOTEOL | PCRE_NOTEMPTY | PCRE_NOTEMPTY_ATSTART | PCRE_PARTIAL_SOFT | PCRE_PARTIAL_HARD | PCRE_NO_UTF8_CHECK), ovector32_2, 32);
 		}
 #endif
 
@@ -1581,7 +1603,7 @@ static int regression_tests(void)
 
 		if (is_successful) {
 #ifdef SUPPORT_PCRE8
-			if (!(current->start_offset & F_NO8) && ((utf && ucp) || is_ascii_input)) {
+			if (!(current->start_offset & F_NO8) && ((utf && ucp) || is_ascii)) {
 				if (return_value8[0] < 0 && !(current->start_offset & F_NOMATCH)) {
 					printf("8 bit: Test should match: [%d] '%s' @ '%s'\n",
 						total, current->pattern, current->input);
@@ -1596,7 +1618,7 @@ static int regression_tests(void)
 			}
 #endif
 #ifdef SUPPORT_PCRE16
-			if (!(current->start_offset & F_NO16) && ((utf && ucp) || is_ascii_input)) {
+			if (!(current->start_offset & F_NO16) && ((utf && ucp) || is_ascii)) {
 				if (return_value16[0] < 0 && !(current->start_offset & F_NOMATCH)) {
 					printf("16 bit: Test should match: [%d] '%s' @ '%s'\n",
 						total, current->pattern, current->input);
@@ -1611,7 +1633,7 @@ static int regression_tests(void)
 			}
 #endif
 #ifdef SUPPORT_PCRE32
-			if (!(current->start_offset & F_NO32) && ((utf && ucp) || is_ascii_input)) {
+			if (!(current->start_offset & F_NO32) && ((utf && ucp) || is_ascii)) {
 				if (return_value32[0] < 0 && !(current->start_offset & F_NOMATCH)) {
 					printf("32 bit: Test should match: [%d] '%s' @ '%s'\n",
 						total, current->pattern, current->input);
