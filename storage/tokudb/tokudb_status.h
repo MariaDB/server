@@ -112,8 +112,8 @@ namespace tokudb {
     // get the value for a given key in the status dictionary. copy the value to the supplied buffer.
     // returns 0 if successful.
     int get_status(DB *status_db, DB_TXN *txn, HA_METADATA_KEY k, void *p, size_t s, size_t *sp) {
-        DBT key; LINT_INIT_STRUCT(key); key.data = &k; key.size = sizeof k;
-        DBT val; LINT_INIT_STRUCT(val); val.data = p; val.ulen = (uint32_t) s; val.flags = DB_DBT_USERMEM;
+        DBT key = {}; key.data = &k; key.size = sizeof k;
+        DBT val = {}; val.data = p; val.ulen = (uint32_t) s; val.flags = DB_DBT_USERMEM;
         int error = status_db->get(status_db, txn, &key, &val, 0);
         if (error == 0) {
             *sp = val.size;
@@ -124,8 +124,8 @@ namespace tokudb {
     // get the value for a given key in the status dictionary. put the value in a realloced buffer.
     // returns 0 if successful.
     int get_status_realloc(DB *status_db, DB_TXN *txn, HA_METADATA_KEY k, void **pp, size_t *sp) {
-        DBT key; LINT_INIT_STRUCT(key); key.data = &k; key.size = sizeof k;
-        DBT val; LINT_INIT_STRUCT(val); val.data = *pp; val.size = (uint32_t) *sp; val.flags = DB_DBT_REALLOC;
+        DBT key = {}; key.data = &k; key.size = sizeof k;
+        DBT val = {}; val.data = *pp; val.size = (uint32_t) *sp; val.flags = DB_DBT_REALLOC;
         int error = status_db->get(status_db, txn, &key, &val, 0);
         if (error == 0) {
             *pp = val.data;
@@ -138,8 +138,8 @@ namespace tokudb {
     // auto create a txn if necessary.
     // returns 0 if successful.
     int write_metadata(DB *status_db, void *key_data, uint key_size, void* val_data, uint val_size, DB_TXN *txn) {
-        DBT key; LINT_INIT_STRUCT(key); key.data = key_data; key.size = key_size;
-        DBT value; LINT_INIT_STRUCT(value); value.data = val_data; value.size = val_size;
+        DBT key = {}; key.data = key_data; key.size = key_size;
+        DBT value = {}; value.data = val_data; value.size = val_size;
         int error = status_db->put(status_db, txn, &key, &value, 0);
         return error;
     }
@@ -155,7 +155,7 @@ namespace tokudb {
     // auto create a txn if necessary.
     // returns 0 if successful.
     int remove_metadata(DB *status_db, void *key_data, uint key_size, DB_TXN *txn) {
-        DBT key; LINT_INIT_STRUCT(key); key.data = key_data; key.size = key_size;
+        DBT key = {}; key.data = key_data; key.size = key_size;
         int error = status_db->del(status_db, txn, &key, DB_DELETE_ANY);
         return error;
     }
