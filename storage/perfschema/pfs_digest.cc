@@ -207,7 +207,7 @@ find_or_create_digest(PFS_thread *thread,
   PFS_statements_digest_stat **entry;
   PFS_statements_digest_stat *pfs= NULL;
 
-  ulonglong now= microsecond_interval_timer();
+  ulonglong now= my_hrtime().val;
 
 search:
 
