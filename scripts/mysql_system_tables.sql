@@ -23,6 +23,9 @@ set sql_mode='';
 set @orig_storage_engine=@@storage_engine;
 set storage_engine=myisam;
 
+set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
+SET @innodb_or_myisam=IF(@have_innodb <> 0, 'InnoDB', 'MyISAM');
+
 CREATE TABLE IF NOT EXISTS db (   Host char(60) binary DEFAULT '' NOT NULL, Db char(64) binary DEFAULT '' NOT NULL, User char(80) binary DEFAULT '' NOT NULL, Select_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Insert_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Update_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Delete_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Create_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Drop_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Grant_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, References_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Index_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Alter_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Create_tmp_table_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Lock_tables_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Create_view_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Show_view_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Create_routine_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Alter_routine_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Execute_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Event_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, Trigger_priv enum('N','Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL, PRIMARY KEY Host (Host,Db,User), KEY User (User) ) engine=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Database privileges';
 
 -- Remember for later if db table already existed
@@ -126,8 +129,6 @@ SET @create_innodb_index_stats="CREATE TABLE IF NOT EXISTS innodb_index_stats (
 	PRIMARY KEY (database_name, table_name, index_name, stat_name)
 ) ENGINE=INNODB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0";
 
-set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
-
 SET @str=IF(@have_innodb <> 0, @create_innodb_table_stats, "SET @dummy = 0");
 PREPARE stmt FROM @str;
 EXECUTE stmt;
@@ -149,7 +150,7 @@ SET @cmd="CREATE TABLE IF NOT EXISTS slave_relay_log_info (
   Id INTEGER UNSIGNED NOT NULL COMMENT 'Internal Id that uniquely identifies this record.',  
   PRIMARY KEY(Id)) DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT 'Relay Log Information'";
 
-SET @str=IF(@have_innodb <> 0, CONCAT(@cmd, ' ENGINE= INNODB;'), CONCAT(@cmd, ' ENGINE= MYISAM;'));
+SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_myisam);
 -- Don't create the table; MariaDB will have another implementation
 #PREPARE stmt FROM @str;
 #EXECUTE stmt;
@@ -181,7 +182,7 @@ SET @cmd= "CREATE TABLE IF NOT EXISTS slave_master_info (
   Enabled_auto_position BOOLEAN NOT NULL COMMENT 'Indicates whether GTIDs will be used to retrieve events from the master.', 
   PRIMARY KEY(Host, Port)) DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT 'Master Information'";
 
-SET @str=IF(@have_innodb <> 0, CONCAT(@cmd, ' ENGINE= INNODB;'), CONCAT(@cmd, ' ENGINE= MYISAM;'));
+SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_myisam);
 -- Don't create the table; MariaDB will have another implementation
 #PREPARE stmt FROM @str;
 #EXECUTE stmt;
@@ -202,7 +203,7 @@ SET @cmd= "CREATE TABLE IF NOT EXISTS slave_worker_info (
   Checkpoint_group_bitmap BLOB NOT NULL, 
   PRIMARY KEY(Id)) DEFAULT CHARSET=utf8 STATS_PERSISTENT=0 COMMENT 'Worker Information'";
 
-SET @str=IF(@have_innodb <> 0, CONCAT(@cmd, ' ENGINE= INNODB;'), CONCAT(@cmd, ' ENGINE= MYISAM;'));
+SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_myisam);
 -- Don't create the table; MariaDB will have another implementation
 #PREPARE stmt FROM @str;
 #EXECUTE stmt;
@@ -223,9 +224,16 @@ CREATE TABLE IF NOT EXISTS column_stats (db_name varchar(64) NOT NULL, table_nam
 
 CREATE TABLE IF NOT EXISTS index_stats (db_name varchar(64) NOT NULL, table_name varchar(64) NOT NULL, index_name varchar(64) NOT NULL, prefix_arity int(11) unsigned NOT NULL, avg_frequency decimal(12,4) DEFAULT NULL, PRIMARY KEY (db_name,table_name,index_name,prefix_arity) ) ENGINE=MyISAM CHARACTER SET utf8 COLLATE utf8_bin comment='Statistics on Indexes';
 
--- GTID table.
--- We want this to be created with the default storage engine.
--- This way, if InnoDB is used we get crash safety, and if MyISAM is used
--- we avoid mixed-engine transactions.
+SET @cmd= "CREATE TABLE IF NOT EXISTS gtid_slave_pos (
+  domain_id INT UNSIGNED NOT NULL,
+  sub_id BIGINT UNSIGNED NOT NULL,
+  server_id INT UNSIGNED NOT NULL,
+  seq_no BIGINT UNSIGNED NOT NULL,
+  PRIMARY KEY (domain_id, sub_id))
+COMMENT='Replication slave GTID position'";
+SET @str=CONCAT(@cmd, ' ENGINE=', @innodb_or_myisam);
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt;
+
 set storage_engine=@orig_storage_engine;
-CREATE TABLE IF NOT EXISTS gtid_slave_pos (domain_id INT UNSIGNED NOT NULL, sub_id BIGINT UNSIGNED NOT NULL, server_id INT UNSIGNED NOT NULL, seq_no BIGINT UNSIGNED NOT NULL, PRIMARY KEY (domain_id, sub_id)) comment='Replication slave GTID position';

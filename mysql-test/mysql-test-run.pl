@@ -3600,6 +3600,9 @@ sub mysql_install_db {
     mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
 			   $bootstrap_sql_file);
 
+    # mysql.gtid_slave_pos was created in InnoDB, but many tests
+    # run without InnoDB. Alter it to MyISAM now
+    mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
   }
   else
   {
