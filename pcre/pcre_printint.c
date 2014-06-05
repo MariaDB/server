@@ -644,7 +644,9 @@ for(;;)
       int i;
       unsigned int min, max;
       BOOL printmap;
+      BOOL invertmap = FALSE;
       pcre_uint8 *map;
+      pcre_uint8 inverted_map[32];
 
       fprintf(f, "    [");
 
@@ -653,7 +655,12 @@ for(;;)
         extra = GET(code, 1);
         ccode = code + LINK_SIZE + 1;
         printmap = (*ccode & XCL_MAP) != 0;
-        if ((*ccode++ & XCL_NOT) != 0) fprintf(f, "^");
+        if ((*ccode & XCL_NOT) != 0)
+          {
+          invertmap = (*ccode & XCL_HASPROP) == 0;
+          fprintf(f, "^");
+          }
+        ccode++;
         }
       else
         {
@@ -666,6 +673,12 @@ for(;;)
       if (printmap)
         {
         map = (pcre_uint8 *)ccode;
+        if (invertmap)
+          {
+          for (i = 0; i < 32; i++) inverted_map[i] = ~map[i];
+          map = inverted_map;
+          }
+
         for (i = 0; i < 256; i++)
           {
           if ((map[i/8] & (1 << (i&7))) != 0)

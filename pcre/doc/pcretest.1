@@ -1,4 +1,4 @@
-.TH PCRETEST 1 "12 November 2013" "PCRE 8.34"
+.TH PCRETEST 1 "09 February 2014" "PCRE 8.35"
 .SH NAME
 pcretest - a program for testing Perl-compatible regular expressions.
 .SH SYNOPSIS
@@ -112,6 +112,9 @@ following options output the value and set the exit code as indicated:
                exit code is set to the link size
   newline    the default newline setting:
                CR, LF, CRLF, ANYCRLF, or ANY
+               exit code is always 0
+  bsr        the default setting for what \eR matches:
+               ANYCRLF or ANY
                exit code is always 0
 .sp
 The following options output 1 for true or 0 for false, and set the exit code
@@ -330,6 +333,7 @@ sections.
   \fB/N\fP              set PCRE_NO_AUTO_CAPTURE
   \fB/O\fP              set PCRE_NO_AUTO_POSSESS
   \fB/P\fP              use the POSIX wrapper
+  \fB/Q\fP              test external stack check function
   \fB/S\fP              study the pattern after compilation
   \fB/s\fP              set PCRE_DOTALL
   \fB/T\fP              select character tables
@@ -483,7 +487,10 @@ below.
 The \fB/I\fP modifier requests that \fBpcretest\fP output information about the
 compiled pattern (whether it is anchored, has a fixed first character, and
 so on). It does this by calling \fBpcre[16|32]_fullinfo()\fP after compiling a
-pattern. If the pattern is studied, the results of that are also output.
+pattern. If the pattern is studied, the results of that are also output. In
+this output, the word "char" means a non-UTF character, that is, the value of a
+single data item (8-bit, 16-bit, or 32-bit, depending on the library that is
+being tested).
 .P
 The \fB/K\fP modifier requests \fBpcretest\fP to show names from backtracking
 control verbs that are returned from calls to \fBpcre[16|32]_exec()\fP. It causes
@@ -512,6 +519,15 @@ the compiled pattern to be output. This does not include the size of the
 \fBpcre[16|32]\fP block; it is just the actual compiled data. If the pattern is
 successfully studied with the PCRE_STUDY_JIT_COMPILE option, the size of the
 JIT compiled code is also output.
+.P
+The \fB/Q\fP modifier is used to test the use of \fBpcre_stack_guard\fP. It
+must be followed by '0' or '1', specifying the return code to be given from an
+external function that is passed to PCRE and used for stack checking during
+compilation (see the
+.\" HREF
+\fBpcreapi\fP
+.\"
+documentation for details).
 .P
 The \fB/S\fP modifier causes \fBpcre[16|32]_study()\fP to be called after the
 expression has been compiled, and the results used when the expression is
@@ -1135,6 +1151,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 12 November 2013
-Copyright (c) 1997-2013 University of Cambridge.
+Last updated: 09 February 2014
+Copyright (c) 1997-2014 University of Cambridge.
 .fi

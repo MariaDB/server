@@ -1,4 +1,4 @@
-.TH PCREPATTERN 3 "03 December 2013" "PCRE 8.34"
+.TH PCREPATTERN 3 "08 January 2014" "PCRE 8.35"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PCRE REGULAR EXPRESSION DETAILS"
@@ -1004,7 +1004,9 @@ matches "foobar", the first substring is still set to "foo".
 .P
 Perl documents that the use of \eK within assertions is "not well defined". In
 PCRE, \eK is acted upon when it occurs inside positive assertions, but is
-ignored in negative assertions.
+ignored in negative assertions. Note that when a pattern such as (?=ab\eK)
+matches, the reported start of the match can be greater than the end of the
+match.
 .
 .
 .\" HTML <a name="smallassertions"></a>
@@ -3028,19 +3030,22 @@ match does not always guarantee that a match must be at this starting point.
 .P
 Note that (*COMMIT) at the start of a pattern is not the same as an anchor,
 unless PCRE's start-of-match optimizations are turned off, as shown in this
-\fBpcretest\fP example:
+output from \fBpcretest\fP:
 .sp
     re> /(*COMMIT)abc/
   data> xyzabc
    0: abc
-  xyzabc\eY
+  data> xyzabc\eY
   No match
 .sp
-PCRE knows that any match must start with "a", so the optimization skips along
-the subject to "a" before running the first match attempt, which succeeds. When
-the optimization is disabled by the \eY escape in the second subject, the match
-starts at "x" and so the (*COMMIT) causes it to fail without trying any other
-starting points.
+For this pattern, PCRE knows that any match must start with "a", so the
+optimization skips along the subject to "a" before applying the pattern to the
+first set of data. The match attempt then succeeds. In the second set of data,
+the escape sequence \eY is interpreted by the \fBpcretest\fP program. It causes
+the PCRE_NO_START_OPTIMIZE option to be set when \fBpcre_exec()\fP is called.
+This disables the optimization that skips along to the first character. The
+pattern is now applied starting at "x", and so the (*COMMIT) causes the match
+to fail without trying any other starting points.
 .sp
   (*PRUNE) or (*PRUNE:NAME)
 .sp
@@ -3255,6 +3260,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 03 December 2013
-Copyright (c) 1997-2013 University of Cambridge.
+Last updated: 08 January 2014
+Copyright (c) 1997-2014 University of Cambridge.
 .fi

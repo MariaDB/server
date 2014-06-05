@@ -29,13 +29,13 @@ man page, in case the conversion went wrong.
 <li><a name="TOC14" href="#SEC14">ATOMIC GROUPS</a>
 <li><a name="TOC15" href="#SEC15">COMMENT</a>
 <li><a name="TOC16" href="#SEC16">OPTION SETTING</a>
-<li><a name="TOC17" href="#SEC17">LOOKAHEAD AND LOOKBEHIND ASSERTIONS</a>
-<li><a name="TOC18" href="#SEC18">BACKREFERENCES</a>
-<li><a name="TOC19" href="#SEC19">SUBROUTINE REFERENCES (POSSIBLY RECURSIVE)</a>
-<li><a name="TOC20" href="#SEC20">CONDITIONAL PATTERNS</a>
-<li><a name="TOC21" href="#SEC21">BACKTRACKING CONTROL</a>
-<li><a name="TOC22" href="#SEC22">NEWLINE CONVENTIONS</a>
-<li><a name="TOC23" href="#SEC23">WHAT \R MATCHES</a>
+<li><a name="TOC17" href="#SEC17">NEWLINE CONVENTION</a>
+<li><a name="TOC18" href="#SEC18">WHAT \R MATCHES</a>
+<li><a name="TOC19" href="#SEC19">LOOKAHEAD AND LOOKBEHIND ASSERTIONS</a>
+<li><a name="TOC20" href="#SEC20">BACKREFERENCES</a>
+<li><a name="TOC21" href="#SEC21">SUBROUTINE REFERENCES (POSSIBLY RECURSIVE)</a>
+<li><a name="TOC22" href="#SEC22">CONDITIONAL PATTERNS</a>
+<li><a name="TOC23" href="#SEC23">BACKTRACKING CONTROL</a>
 <li><a name="TOC24" href="#SEC24">CALLOUTS</a>
 <li><a name="TOC25" href="#SEC25">SEE ALSO</a>
 <li><a name="TOC26" href="#SEC26">AUTHOR</a>
@@ -339,7 +339,8 @@ but some of them use Unicode properties if PCRE_UCP is set. You can use
 <P>
 <pre>
   \K          reset start of match
-</PRE>
+</pre>
+\K is honoured in positive assertions, but ignored in negative ones.
 </P>
 <br><a name="SEC12" href="#TOC1">ALTERNATION</a><br>
 <P>
@@ -382,11 +383,13 @@ but some of them use Unicode properties if PCRE_UCP is set. You can use
   (?x)            extended (ignore white space)
   (?-...)         unset option(s)
 </pre>
-The following are recognized only at the start of a pattern or after one of the
-newline-setting options with similar syntax:
+The following are recognized only at the very start of a pattern or after one
+of the newline or \R options with similar syntax. More than one of them may
+appear.
 <pre>
   (*LIMIT_MATCH=d) set the match limit to d (decimal number)
   (*LIMIT_RECURSION=d) set the recursion limit to d (decimal number)
+  (*NO_AUTO_POSSESS) no auto-possessification (PCRE_NO_AUTO_POSSESS)
   (*NO_START_OPT) no start-match optimization (PCRE_NO_START_OPTIMIZE)
   (*UTF8)         set UTF-8 mode: 8-bit library (PCRE_UTF8)
   (*UTF16)        set UTF-16 mode: 16-bit library (PCRE_UTF16)
@@ -397,7 +400,28 @@ newline-setting options with similar syntax:
 Note that LIMIT_MATCH and LIMIT_RECURSION can only reduce the value of the
 limits set by the caller of pcre_exec(), not increase them.
 </P>
-<br><a name="SEC17" href="#TOC1">LOOKAHEAD AND LOOKBEHIND ASSERTIONS</a><br>
+<br><a name="SEC17" href="#TOC1">NEWLINE CONVENTION</a><br>
+<P>
+These are recognized only at the very start of the pattern or after option
+settings with a similar syntax.
+<pre>
+  (*CR)           carriage return only
+  (*LF)           linefeed only
+  (*CRLF)         carriage return followed by linefeed
+  (*ANYCRLF)      all three of the above
+  (*ANY)          any Unicode newline sequence
+</PRE>
+</P>
+<br><a name="SEC18" href="#TOC1">WHAT \R MATCHES</a><br>
+<P>
+These are recognized only at the very start of the pattern or after option
+setting with a similar syntax.
+<pre>
+  (*BSR_ANYCRLF)  CR, LF, or CRLF
+  (*BSR_UNICODE)  any Unicode newline sequence
+</PRE>
+</P>
+<br><a name="SEC19" href="#TOC1">LOOKAHEAD AND LOOKBEHIND ASSERTIONS</a><br>
 <P>
 <pre>
   (?=...)         positive look ahead
@@ -407,7 +431,7 @@ limits set by the caller of pcre_exec(), not increase them.
 </pre>
 Each top-level branch of a look behind must be of a fixed length.
 </P>
-<br><a name="SEC18" href="#TOC1">BACKREFERENCES</a><br>
+<br><a name="SEC20" href="#TOC1">BACKREFERENCES</a><br>
 <P>
 <pre>
   \n              reference by number (can be ambiguous)
@@ -421,7 +445,7 @@ Each top-level branch of a look behind must be of a fixed length.
   (?P=name)       reference by name (Python)
 </PRE>
 </P>
-<br><a name="SEC19" href="#TOC1">SUBROUTINE REFERENCES (POSSIBLY RECURSIVE)</a><br>
+<br><a name="SEC21" href="#TOC1">SUBROUTINE REFERENCES (POSSIBLY RECURSIVE)</a><br>
 <P>
 <pre>
   (?R)            recurse whole pattern
@@ -440,7 +464,7 @@ Each top-level branch of a look behind must be of a fixed length.
   \g'-n'          call subpattern by relative number (PCRE extension)
 </PRE>
 </P>
-<br><a name="SEC20" href="#TOC1">CONDITIONAL PATTERNS</a><br>
+<br><a name="SEC22" href="#TOC1">CONDITIONAL PATTERNS</a><br>
 <P>
 <pre>
   (?(condition)yes-pattern)
@@ -459,7 +483,7 @@ Each top-level branch of a look behind must be of a fixed length.
   (?(assert)...   assertion condition
 </PRE>
 </P>
-<br><a name="SEC21" href="#TOC1">BACKTRACKING CONTROL</a><br>
+<br><a name="SEC23" href="#TOC1">BACKTRACKING CONTROL</a><br>
 <P>
 The following act immediately they are reached:
 <pre>
@@ -480,27 +504,6 @@ pattern is not anchored.
                   (*MARK:NAME); if not found, the (*SKIP) is ignored
   (*THEN)         local failure, backtrack to next alternation
   (*THEN:NAME)    equivalent to (*MARK:NAME)(*THEN)
-</PRE>
-</P>
-<br><a name="SEC22" href="#TOC1">NEWLINE CONVENTIONS</a><br>
-<P>
-These are recognized only at the very start of the pattern or after a
-(*BSR_...), (*UTF8), (*UTF16), (*UTF32) or (*UCP) option.
-<pre>
-  (*CR)           carriage return only
-  (*LF)           linefeed only
-  (*CRLF)         carriage return followed by linefeed
-  (*ANYCRLF)      all three of the above
-  (*ANY)          any Unicode newline sequence
-</PRE>
-</P>
-<br><a name="SEC23" href="#TOC1">WHAT \R MATCHES</a><br>
-<P>
-These are recognized only at the very start of the pattern or after a
-(*...) option that sets the newline convention or a UTF or UCP mode.
-<pre>
-  (*BSR_ANYCRLF)  CR, LF, or CRLF
-  (*BSR_UNICODE)  any Unicode newline sequence
 </PRE>
 </P>
 <br><a name="SEC24" href="#TOC1">CALLOUTS</a><br>
@@ -526,9 +529,9 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC27" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 12 November 2013
+Last updated: 08 January 2014
 <br>
-Copyright &copy; 1997-2013 University of Cambridge.
+Copyright &copy; 1997-2014 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

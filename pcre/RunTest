@@ -31,6 +31,11 @@
 # except test 10. Whatever order the arguments are in, the tests are always run
 # in numerical order.
 #
+# The special argument "3S" runs test 3, stopping if it fails. Test 3 is the
+# locale test, and failure usually means there's an issue with the locale
+# rather than a bug in PCRE, so normally subsequent tests are run. "3S" is
+# useful when you want to debug or update the test.
+#
 # Inappropriate tests are automatically skipped (with a comment to say so): for
 # example, if JIT support is not compiled, test 12 is skipped, whereas if JIT
 # support is compiled, test 13 is skipped.
@@ -458,8 +463,9 @@ fi
 
 # Locale-specific tests, provided that either the "fr_FR" or the "french"
 # locale is available. The former is the Unix-like standard; the latter is
-# for Windows. Another possibility is "fr", which needs to be run against
-# the Windows-specific input and output files.
+# for Windows. Another possibility is "fr". Unfortunately, different versions
+# of the French locale give different outputs for some items. This test passes
+# if the output matches any one of the alternative output files.
 
 if [ $do3 = yes ] ; then
   locale -a | grep '^fr_FR$' >/dev/null
@@ -467,20 +473,28 @@ if [ $do3 = yes ] ; then
     locale=fr_FR
     infile=$testdata/testinput3
     outfile=$testdata/testoutput3
+    outfile2=$testdata/testoutput3A
+    outfile3=$testdata/testoutput3B
   else
     infile=test3input
     outfile=test3output
+    outfile2=test3outputA
+    outfile3=test3outputB
     locale -a | grep '^french$' >/dev/null
     if [ $? -eq 0 ] ; then
       locale=french
       sed 's/fr_FR/french/' $testdata/testinput3 >test3input
       sed 's/fr_FR/french/' $testdata/testoutput3 >test3output
+      sed 's/fr_FR/french/' $testdata/testoutput3A >test3outputA
+      sed 's/fr_FR/french/' $testdata/testoutput3B >test3outputB
     else
       locale -a | grep '^fr$' >/dev/null
       if [ $? -eq 0 ] ; then
         locale=fr
-        sed 's/fr_FR/fr/' $testdata/wintestinput3 >test3input
-        sed 's/fr_FR/fr/' $testdata/wintestoutput3 >test3output
+        sed 's/fr_FR/fr/' $testdata/intestinput3 >test3input
+        sed 's/fr_FR/fr/' $testdata/intestoutput3 >test3output
+        sed 's/fr_FR/fr/' $testdata/intestoutput3A >test3outputA
+        sed 's/fr_FR/fr/' $testdata/intestoutput3B >test3outputB
       else
         locale=
       fi
@@ -492,18 +506,20 @@ if [ $do3 = yes ] ; then
     for opt in "" "-s" $jitopt; do
       $sim $valgrind ./pcretest -q $bmode $opt $infile testtry
       if [ $? = 0 ] ; then
-        $cf $outfile testtry
-        if [ $? != 0 ] ; then
-          echo " "
-          echo "Locale test did not run entirely successfully."
-          echo "This usually means that there is a problem with the locale"
-          echo "settings rather than a bug in PCRE."
-          break;
-        else
+        if $cf $outfile testtry >teststdout || \
+           $cf $outfile2 testtry >teststdout || \
+           $cf $outfile3 testtry >teststdout
+        then
           if [ "$opt" = "-s" ] ; then echo "  OK with study"
           elif [ "$opt" = "-s+" ] ; then echo "  OK with JIT study"
           else echo "  OK"
           fi
+        else
+          echo "** Locale test did not run successfully. The output did not match"
+          echo "   $outfile, $outfile2 or $outfile3."
+          echo "   This may mean that there is a problem with the locale settings rather"
+          echo "   than a bug in PCRE."
+          exit 1
         fi
       else exit 1
       fi
@@ -989,6 +1005,6 @@ fi
 done
 
 # Clean up local working files
-rm -f test3input test3output testNinput testsaved* teststderr teststdout testtry
+rm -f test3input test3output test3outputA testNinput testsaved* teststderr teststdout testtry
 
 # End

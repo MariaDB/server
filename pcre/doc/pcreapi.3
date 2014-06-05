@@ -1,4 +1,4 @@
-.TH PCREAPI 3 "12 November 2013" "PCRE 8.34"
+.TH PCREAPI 3 "09 February 2014" "PCRE 8.35"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .sp
@@ -116,6 +116,8 @@ PCRE - Perl-compatible regular expressions
 .B void (*pcre_stack_free)(void *);
 .sp
 .B int (*pcre_callout)(pcre_callout_block *);
+.sp
+.B int (*pcre_stack_guard)(void);
 .fi
 .
 .
@@ -286,6 +288,14 @@ points during a matching operation. Details are given in the
 \fBpcrecallout\fP
 .\"
 documentation.
+.P
+The global variable \fBpcre_stack_guard\fP initially contains NULL. It can be
+set by the caller to a function that is called by PCRE whenever it starts
+to compile a parenthesized part of a pattern. When parentheses are nested, PCRE
+uses recursive function calls, which use up the system stack. This function is
+provided so that applications with restricted stacks can force a compilation
+error if the stack runs out. The function should return zero if all is well, or
+non-zero to force an error.
 .
 .
 .\" HTML <a name="newlines"></a>
@@ -337,7 +347,8 @@ controlled in a similar way, but by separate options.
 The PCRE functions can be used in multi-threading applications, with the
 proviso that the memory management functions pointed to by \fBpcre_malloc\fP,
 \fBpcre_free\fP, \fBpcre_stack_malloc\fP, and \fBpcre_stack_free\fP, and the
-callout function pointed to by \fBpcre_callout\fP, are shared by all threads.
+callout and stack-checking functions pointed to by \fBpcre_callout\fP and
+\fBpcre_stack_guard\fP, are shared by all threads.
 .P
 The compiled form of a regular expression is not altered during matching, so
 the same compiled pattern can safely be used by several threads at once.
@@ -465,7 +476,10 @@ documentation.
 The output is a long integer that gives the maximum depth of nesting of
 parentheses (of any kind) in a pattern. This limit is imposed to cap the amount
 of system stack used when a pattern is compiled. It is specified when PCRE is
-built; the default is 250.
+built; the default is 250. This limit does not take into account the stack that
+may already be used by the calling application. For finer control over
+compilation stack usage, you can set a pointer to an external checking function
+in \fBpcre_stack_guard\fP.
 .sp
   PCRE_CONFIG_MATCH_LIMIT
 .sp
@@ -991,6 +1005,8 @@ have fallen out of use. To avoid confusion, they have not been re-used.
   81  missing opening brace after \eo
   82  parentheses are too deeply nested
   83  invalid range in character class
+  84  group name must start with a non-digit
+  85  parentheses are too deeply nested (stack check)
 .sp
 The numbers 32 and 10000 in errors 48 and 49 are defaults; different values may
 be used if the limits were changed when PCRE was built.
@@ -1248,12 +1264,15 @@ information call is provided for internal use by the \fBpcre_study()\fP
 function. External callers can cause PCRE to use its internal tables by passing
 a NULL table pointer.
 .sp
-  PCRE_INFO_FIRSTBYTE
+  PCRE_INFO_FIRSTBYTE (deprecated)
 .sp
 Return information about the first data unit of any matched string, for a
-non-anchored pattern. (The name of this option refers to the 8-bit library,
-where data units are bytes.) The fourth argument should point to an \fBint\fP
-variable.
+non-anchored pattern. The name of this option refers to the 8-bit library,
+where data units are bytes. The fourth argument should point to an \fBint\fP
+variable. Negative values are used for special cases. However, this means that
+when the 32-bit library is in non-UTF-32 mode, the full 32-bit range of
+characters cannot be returned. For this reason, this value is deprecated; use
+PCRE_INFO_FIRSTCHARACTERFLAGS and PCRE_INFO_FIRSTCHARACTER instead.
 .P
 If there is a fixed first value, for example, the letter "c" from a pattern
 such as (cat|cow|coyote), its value is returned. In the 8-bit library, the
@@ -1271,11 +1290,38 @@ starts with "^", or
 -1 is returned, indicating that the pattern matches only at the start of a
 subject string or after any newline within the string. Otherwise -2 is
 returned. For anchored patterns, -2 is returned.
+.sp
+  PCRE_INFO_FIRSTCHARACTER
+.sp
+Return the value of the first data unit (non-UTF character) of any matched
+string in the situation where PCRE_INFO_FIRSTCHARACTERFLAGS returns 1;
+otherwise return 0. The fourth argument should point to an \fBuint_t\fP
+variable.
 .P
-Since for the 32-bit library using the non-UTF-32 mode, this function is unable
-to return the full 32-bit range of the character, this value is deprecated;
-instead the PCRE_INFO_FIRSTCHARACTERFLAGS and PCRE_INFO_FIRSTCHARACTER values
-should be used.
+In the 8-bit library, the value is always less than 256. In the 16-bit library
+the value can be up to 0xffff. In the 32-bit library in UTF-32 mode the value
+can be up to 0x10ffff, and up to 0xffffffff when not using UTF-32 mode.
+.sp
+  PCRE_INFO_FIRSTCHARACTERFLAGS
+.sp
+Return information about the first data unit of any matched string, for a
+non-anchored pattern. The fourth argument should point to an \fBint\fP
+variable.
+.P
+If there is a fixed first value, for example, the letter "c" from a pattern
+such as (cat|cow|coyote), 1 is returned, and the character value can be
+retrieved using PCRE_INFO_FIRSTCHARACTER. If there is no fixed first value, and
+if either
+.sp
+(a) the pattern was compiled with the PCRE_MULTILINE option, and every branch
+starts with "^", or
+.sp
+(b) every branch of the pattern starts with ".*" and PCRE_DOTALL is not set
+(if it were set, the pattern would be anchored),
+.sp
+2 is returned, indicating that the pattern matches only at the start of a
+subject string or after any newline within the string. Otherwise 0 is
+returned. For anchored patterns, 0 is returned.
 .sp
   PCRE_INFO_FIRSTTABLE
 .sp
@@ -1498,38 +1544,6 @@ is made available via this option so that it can be saved and restored (see the
 \fBpcreprecompile\fP
 .\"
 documentation for details).
-.sp
-  PCRE_INFO_FIRSTCHARACTERFLAGS
-.sp
-Return information about the first data unit of any matched string, for a
-non-anchored pattern. The fourth argument should point to an \fBint\fP
-variable.
-.P
-If there is a fixed first value, for example, the letter "c" from a pattern
-such as (cat|cow|coyote), 1 is returned, and the character value can be
-retrieved using PCRE_INFO_FIRSTCHARACTER.
-.P
-If there is no fixed first value, and if either
-.sp
-(a) the pattern was compiled with the PCRE_MULTILINE option, and every branch
-starts with "^", or
-.sp
-(b) every branch of the pattern starts with ".*" and PCRE_DOTALL is not set
-(if it were set, the pattern would be anchored),
-.sp
-2 is returned, indicating that the pattern matches only at the start of a
-subject string or after any newline within the string. Otherwise 0 is
-returned. For anchored patterns, 0 is returned.
-.sp
-  PCRE_INFO_FIRSTCHARACTER
-.sp
-Return the fixed first character value in the situation where
-PCRE_INFO_FIRSTCHARACTERFLAGS returns 1; otherwise return 0. The fourth
-argument should point to an \fBuint_t\fP variable.
-.P
-In the 8-bit library, the value is always less than 256. In the 16-bit library
-the value can be up to 0xffff. In the 32-bit library in UTF-32 mode the value
-can be up to 0x10ffff, and up to 0xffffffff when not using UTF-32 mode.
 .sp
   PCRE_INFO_REQUIREDCHARFLAGS
 .sp
@@ -2900,6 +2914,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 12 November 2013
-Copyright (c) 1997-2013 University of Cambridge.
+Last updated: 09 February 2014
+Copyright (c) 1997-2014 University of Cambridge.
 .fi

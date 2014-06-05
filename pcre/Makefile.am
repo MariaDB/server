@@ -350,15 +350,19 @@ EXTRA_DIST += \
   sljit/sljitExecAllocator.c \
   sljit/sljitLir.c \
   sljit/sljitLir.h \
-  sljit/sljitNativeARM_Thumb2.c \
-  sljit/sljitNativeARM_v5.c \
+  sljit/sljitNativeARM_32.c \
+  sljit/sljitNativeARM_64.c \
+  sljit/sljitNativeARM_T2_32.c \
   sljit/sljitNativeMIPS_32.c \
+  sljit/sljitNativeMIPS_64.c \
   sljit/sljitNativeMIPS_common.c \
   sljit/sljitNativePPC_32.c \
   sljit/sljitNativePPC_64.c \
   sljit/sljitNativePPC_common.c \
   sljit/sljitNativeSPARC_32.c \
   sljit/sljitNativeSPARC_common.c \
+  sljit/sljitNativeTILEGX_64.c \
+  sljit/sljitNativeTILEGX-encoder.c \
   sljit/sljitNativeX86_32.c \
   sljit/sljitNativeX86_64.c \
   sljit/sljitNativeX86_common.c \
@@ -578,6 +582,8 @@ EXTRA_DIST += \
   testdata/testoutput1 \
   testdata/testoutput2 \
   testdata/testoutput3 \
+  testdata/testoutput3A \
+  testdata/testoutput3B \
   testdata/testoutput4 \
   testdata/testoutput5 \
   testdata/testoutput6 \
@@ -616,8 +622,10 @@ CLEANFILES += \
 	teststderr \
         testtemp* \
 	testtry \
-        testNinput
-
+        testNinput \
+        testtrygrep \
+        teststderrgrep \
+        testNinputgrep
 
 # PCRE demonstration program. No longer built automatcally. The point is that
 # the users should build it themselves. So just distribute the source.
