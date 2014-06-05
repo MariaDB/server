@@ -315,3 +315,20 @@ select found_rows();
 found_rows()
 128
 drop table t1, t2;
+create table t1 (i1 int, v1 int, primary key(i1,v1));
+insert into t1 values (1,1),(2,2),(3,3);
+create table t2 (i2 int primary key, v2 int);
+insert into t2 values (1,5),(2,5),(3,10);
+select 1 as res from t1 left join t2 on i1 = i2 where v2 = 5 or v1 = 5 or v1 = 10 order by v1;
+res
+1
+1
+select sql_calc_found_rows 1 as res from t1 left join t2 on i1 = i2 where v2 = 5 or v1 = 5 or v1 = 10 order by v1 limit 1;
+select found_rows() as count;
+count
+2
+select sql_calc_found_rows 1 as res from t1 left join t2 on i1 = i2 where v2 = 5 order by v1 limit 1;
+select found_rows() as count;
+count
+2
+drop table t1, t2;

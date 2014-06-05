@@ -18724,8 +18724,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	  TABLE *table=jt->table;
 
           join->select_options ^= OPTION_FOUND_ROWS;
-	  if (table->sort.record_pointers ||
-	      (table->sort.io_cache && my_b_inited(table->sort.io_cache)))
+          if (join->filesort_found_rows)
 	  {
 	    /* Using filesort */
 	    join->send_records= table->sort.found_records;
