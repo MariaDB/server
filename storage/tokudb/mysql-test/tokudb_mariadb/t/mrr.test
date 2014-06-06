@@ -1,0 +1,62 @@
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+--echo #
+--echo # MDEV-5976: TokuDB: Wrong query result using mrr=on
+--echo #
+
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+CREATE TABLE t2 (
+  task_id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `type` tinyint(3) DEFAULT NULL,
+  filler1 varchar(256),
+  filler2 varchar(256),
+  PRIMARY KEY (`task_id`),
+  KEY `ymtasks_type` (`type`)
+) ENGINE=TokuDB AUTO_INCREMENT=3 DEFAULT CHARSET=latin1 `COMPRESSION`=TOKUDB_LZMA;
+
+INSERT INTO t2 VALUES 
+  (1,1,'filler-data1','filler-data2'),
+  (2,1,'filler-data1','filler-data2');
+
+CREATE TABLE t3 (
+  `task_id` int(10) unsigned NOT NULL DEFAULT '0',
+  `field` varchar(256) NOT NULL DEFAULT '',
+  `value` varchar(4096) DEFAULT NULL,
+  KEY `ymtasksoptions_task` (`task_id`),
+  KEY `ymtasksoptions_field` (`field`)
+) ENGINE=TokuDB DEFAULT CHARSET=latin1 `COMPRESSION`=TOKUDB_LZMA;
+
+INSERT INTO t3
+select 1, 
+       concat('field-data-', A.a*10 + B.a), 
+       concat('field-data-', A.a*10 + B.a)
+from t1 A, t1 B 
+where 
+  A.a*10 + B.a < 38;
+
+explain
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+
+set @tmp5976_jcl=@@join_cache_level;
+set @tmp5976_os=@@optimizer_switch;
+
+set join_cache_level= 6;
+set optimizer_switch='mrr=on,mrr_sort_keys=on';
+
+explain
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+SELECT t3.task_id, t3.field  FROM
+t3,t2 WHERE    t3.task_id=t2.task_id AND   t2.type NOT IN (8,11);
+
+drop table t1,t2,t3;
+set join_cache_level=@tmp5976_jcl;
+set optimizer_switch=@tmp5976_os;
+
