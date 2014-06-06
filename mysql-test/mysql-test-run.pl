@@ -135,6 +135,7 @@ my $opt_start;
 my $opt_start_dirty;
 my $opt_start_exit;
 my $start_only;
+my $file_wsrep_provider;
 
 END {
   if ( defined $opt_tmpdir_pid and $opt_tmpdir_pid == $$ )
@@ -187,8 +188,6 @@ my @DEFAULT_SUITES= qw(
     sys_vars-
     unit-
     vcol-
-    galera-
-    wsrep-
   );
 my $opt_suites;
 
@@ -2405,17 +2404,19 @@ sub environment_setup {
   # ----------------------------------------------------
   if (have_wsrep()) {
     if (defined $ENV{'WSREP_PROVIDER'} ) {
-      # Nothing needs to be done! WSREP_PROVIDER env is already set and will be
-      # used.
+      # Nothing needs to be done! WSREP_PROVIDER env is already set & checked;
+      # will be used.
     } else {
-      my $file_wsrep_provider=
-        mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
-                        "/usr/lib64/galera/libgalera_smm.so");
       $ENV{'WSREP_PROVIDER'}=  $file_wsrep_provider;
     }
-    mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
+
+    if ($ENV{'WSREP_PROVIDER'} ne "") {
+      mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
+    } else {
+      mtr_verbose("WSREP_PROVIDER isn't available");
+    }
   }
-  
+
   # ----------------------------------------------------
   # mysql clients
   # ----------------------------------------------------
@@ -3198,10 +3199,33 @@ sub have_wsrep() {
   return defined $wsrep_on
 }
 
+sub check_wsrep_provider_env {
+  if (defined $ENV{'WSREP_PROVIDER'}) {
+      if (mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "") {
+        mtr_error("WSREP_PROVIDER env set to an invalid path");
+        return 0; # error
+      }
+      # Ok, WSREP_PROVIDER set to a valid path.
+      return 1;
+  }
+  # Ok, WSREP_PROVIDER not defined.
+  return 2;
+}
+
 sub check_wsrep_support() {
   if (have_wsrep())
   {
     mtr_report(" - binaries built with wsrep patch");
+
+    $file_wsrep_provider=
+      mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
+                      "/usr/lib64/galera/libgalera_smm.so");
+
+    if ((check_wsrep_provider_env() == 1) || ($file_wsrep_provider ne "")) {
+      # Add galera test suites
+      mtr_report(" - adding wsrep, galera to default test suites");
+      push @DEFAULT_SUITES, qw(wsrep galera);
+    }
   }
 }
 
