@@ -23,10 +23,10 @@ RSYNC_CONF=
 OS=$(uname)
 [ "$OS" == "Darwin" ] && export -n LD_LIBRARY_PATH
 
-. $(dirname $0)/wsrep_sst_common
-
 # Setting the path for lsof on CentOS
 export PATH="/usr/sbin:/sbin:$PATH"
+
+. $(dirname $0)/wsrep_sst_common
 
 cleanup_joiner()
 {
@@ -83,7 +83,7 @@ WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 if [ -z "$WSREP_LOG_DIR" ]; then
     SCRIPT_DIR="$(cd $(dirname "$0"); pwd -P)"
     WSREP_LOG_DIR=$($SCRIPT_DIR/my_print_defaults --defaults-file \
-                   "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 \
+                   "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 mariadb mariadb-5.5 \
                     | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
                     | cut -b 29- )
 fi
