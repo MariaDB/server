@@ -1300,13 +1300,11 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
     interval->neg= my_decimal2seconds(val, &second, &second_part);
     if (second == LONGLONG_MAX)
     {
-      char buff[DECIMAL_MAX_STR_LENGTH];
-      int length= sizeof(buff);
-      decimal2string(val, buff, &length, 0, 0, 0);
+      ErrConvDecimal err(val);
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_TRUNCATED_WRONG_VALUE,
                           ER(ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
-                          buff);
+                          err.ptr());
       return true;
     }
 

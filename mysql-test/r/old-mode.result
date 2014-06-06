@@ -95,8 +95,9 @@ INSERT INTO t1 VALUES (NULL, '00:20:12');
 INSERT INTO t1 VALUES (NULL, '-00:20:12');
 SELECT IF(1,ADDDATE(IFNULL(a,b),0),1) FROM t1;
 IF(1,ADDDATE(IFNULL(a,b),0),1)
-0000-00-00 00:20:12
+NULL
 NULL
 Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00 00:20:12'
 Warning	1292	Truncated incorrect datetime value: '-00:20:12'
 DROP TABLE t1;

@@ -163,12 +163,26 @@ create table t1 (f1 time , f2 varchar(5), key(f1));
 insert into t1 values ('00:20:01','a'),('00:20:03','b');
 select * from t1 force key (f1) where f1 < curdate();
 f1	f2
-00:20:01	a
-00:20:03	b
 select * from t1 ignore key (f1) where f1 < curdate();
+f1	f2
+select * from t1 force key (f1) where f1 > curdate();
 f1	f2
 00:20:01	a
 00:20:03	b
+select * from t1 ignore key (f1) where f1 > curdate();
+f1	f2
+00:20:01	a
+00:20:03	b
+delete from t1;
+insert into t1 values ('-00:20:01','a'),('-00:20:03','b');
+select * from t1 force key (f1) where f1 < curdate();
+f1	f2
+-00:20:01	a
+-00:20:03	b
+select * from t1 ignore key (f1) where f1 < curdate();
+f1	f2
+-00:20:01	a
+-00:20:03	b
 drop table t1;
 create table t1(f1 time);
 insert into t1 values ('23:38:57');
@@ -354,3 +368,17 @@ SELECT '-24:00:00' = (SELECT f1 FROM t1);
 '-24:00:00' = (SELECT f1 FROM t1)
 1
 DROP TABLE t1;
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-6102 Comparison between TIME and DATETIME does not use CURRENT_DATE
+#
+SET timestamp=UNIX_TIMESTAMP('2014-04-14 01:02:03');
+SELECT CAST(TIME'10:20:30' AS DATETIME), TIME'10:20:30'=TIMESTAMP'2014-04-14 10:20:30' AS cmp;
+CAST(TIME'10:20:30' AS DATETIME)	cmp
+2014-04-14 10:20:30	1
+SET timestamp=DEFAULT;
+#
+# End of 10.0 tests
+#

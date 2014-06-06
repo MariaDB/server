@@ -94,6 +94,31 @@ inline uint get_set_pack_length(int elements)
 
 
 /**
+  Tests if field type is temporal and has date part,
+  i.e. represents DATE, DATETIME or TIMESTAMP types in SQL.
+
+  @param type    Field type, as returned by field->type().
+  @retval true   If field type is temporal type with date part.
+  @retval false  If field type is not temporal type with date part.
+*/
+inline bool is_temporal_type_with_date(enum_field_types type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIMESTAMP:
+    return true;
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIMESTAMP2:
+    DBUG_ASSERT(0); // field->real_type() should not get to here.
+  default:
+    return false;
+  }
+}
+
+
+/**
    Recognizer for concrete data type (called real_type for some reason),
    returning true if it is one of the TIMESTAMP types.
 */
