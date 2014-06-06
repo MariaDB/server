@@ -28,9 +28,6 @@ export PATH="/usr/sbin:/sbin:$PATH"
 
 . $(dirname $0)/wsrep_sst_common
 
-# Setting the path for lsof on CentOS
-export PATH="/usr/sbin:/sbin:$PATH"
-
 wsrep_check_programs rsync
 
 cleanup_joiner()
@@ -82,13 +79,22 @@ check_pid_and_port()
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
 rm -rf "$MAGIC_FILE"
 
-WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
+BINLOG_TAR_FILE="$WSREP_SST_OPT_DATA/wsrep_sst_binlog.tar"
+BINLOG_N_FILES=1
+rm -f "$BINLOG_TAR_FILE" || :
 
+if ! [ -z $WSREP_SST_OPT_BINLOG ]
+then
+    BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
+    BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+fi
+
+WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$WSREP_LOG_DIR" ]; then
     SCRIPT_DIR="$(cd $(dirname "$0"); pwd -P)"
     WSREP_LOG_DIR=$($SCRIPT_DIR/my_print_defaults --defaults-file \
-                   "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 \
+                   "$WSREP_SST_OPT_CONF" mysqld server mysqld-10.0 mariadb mariadb-10.0 \
                     | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
                     | cut -b 29- )
 fi
@@ -109,7 +115,7 @@ fi
 
 # New filter - exclude everything except dirs (schemas) and innodb files
 FILTER=(-f '- /lost+found' -f '- /.fseventsd' -f '- /.Trashes'
-        -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*')
+        -f '+ /wsrep_sst_binlog.tar' -f '+ /ib_lru_dump' -f '+ /ibdata*' -f '+ /*/' -f '- /*')
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -137,6 +143,24 @@ then
         rm -rf "$FLUSHED"
 
         sync
+
+        if ! [ -z $WSREP_SST_OPT_BINLOG ]
+        then
+            # Prepare binlog files
+            pushd $BINLOG_DIRNAME &> /dev/null
+            binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
+            binlog_files=""
+            for ii in $binlog_files_full
+            do
+                binlog_files="$binlog_files $(basename $ii)"
+            done
+            if ! [ -z "$binlog_files" ]
+            then
+                wsrep_log_info "Preparing binlog files for transfer:"
+                tar -cvf $BINLOG_TAR_FILE $binlog_files >&2
+            fi
+            popd &> /dev/null
+        fi
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
@@ -275,6 +299,23 @@ EOF
         exit 32
     fi
 
+    if ! [ -z $WSREP_SST_OPT_BINLOG ]
+    then
+
+        pushd $BINLOG_DIRNAME &> /dev/null
+        if [ -f $BINLOG_TAR_FILE ]
+        then
+            # Clean up old binlog files first
+            rm -f ${BINLOG_FILENAME}.*
+            wsrep_log_info "Extracting binlog files:"
+            tar -xvf $BINLOG_TAR_FILE >&2
+            for ii in $(ls -1 ${BINLOG_FILENAME}.*)
+            do
+                echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
+            done
+        fi
+        popd &> /dev/null
+    fi
     if [ -r "$MAGIC_FILE" ]
     then
         cat "$MAGIC_FILE" # output UUID:seqno
@@ -288,5 +329,7 @@ else
     wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
     exit 22 # EINVAL
 fi
+
+rm -f $BINLOG_TAR_FILE || :
 
 exit 0

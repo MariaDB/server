@@ -15,25 +15,6 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1301  USA.
 
-#############################################################################################################
-#     This is a reference script for Percona XtraBackup-based state snapshot transfer                       #
-#     Dependencies:  (depending on configuration)                                                           #
-#     xbcrypt for encryption/decryption.                                                                    #
-#     qpress for decompression. Download from http://www.quicklz.com/qpress-11-linux-x64.tar till           #
-#     https://blueprints.launchpad.net/percona-xtrabackup/+spec/package-qpress is fixed.                    #
-#     my_print_defaults to extract values from my.cnf.                                                      #
-#     netcat for transfer.                                                                                  #
-#     xbstream/tar for streaming. (and xtrabackup ofc)                                                      #
-#                                                                                                           #
-#     Currently only option in cnf is read specifically for SST                                             #
-#     [sst]                                                                                                 #
-#     streamfmt=tar|xbstream                                                                                #
-#                                                                                                           #
-#     Default is tar till lp:1193240 is fixed                                                               #
-#     You need to use xbstream for encryption, compression etc., however,                                   #
-#     lp:1193240 requires you to manually cleanup the directory prior to SST                                #
-#                                                                                                           #
-#############################################################################################################
 # Optional dependencies and options documented here: http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html 
 # Make sure to read that before proceeding!
 
