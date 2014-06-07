@@ -162,6 +162,34 @@ SELECT * FROM t1 AS t1_1, t1 AS t1_2 WHERE NOT ( t1_1.a <> 'baz');
 DROP TABLE t1;
 
 --echo # 
+--echo # MDEV-6308: Server crashes in table_multi_eq_cond_selectivity with ...
+--echo #
+CREATE TABLE t1 (
+  id varchar(40) COLLATE utf8_bin,
+  dt datetime,
+  PRIMARY KEY (id)
+);
+
+INSERT INTO t1 VALUES ('foo','2011-04-12 05:18:08'),
+                      ('bar','2013-09-19 11:37:03');
+
+CREATE TABLE t2 (
+  t1_id varchar(40) COLLATE utf8_bin,
+  f1 varchar(64),
+  f2 varchar(1024),
+  KEY (f1,f2(255))
+);
+
+INSERT INTO t2 VALUES ('foo','baz','qux'),('bar','baz','qux');
+
+set optimizer_use_condition_selectivity=2;
+explain
+select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
+select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
+
+drop table t1,t2;
+
+--echo # 
 --echo # End of the test file
 --echo # 
 
