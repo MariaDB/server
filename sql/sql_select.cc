@@ -7367,6 +7367,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       Go through the "keypart{N}=..." equalities and find those that were
       already taken into account in table->cond_selectivity.
     */
+    keyuse= pos->key;
     while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
