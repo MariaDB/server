@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.2.0"
+#define SPIDER_DETAIL_VERSION "3.2.4"
 #define SPIDER_HEX_VERSION 0x0302
 
 #if MYSQL_VERSION_ID < 50500
@@ -47,6 +47,10 @@
 #undef pthread_cond_wait
 #endif
 #define pthread_cond_wait mysql_cond_wait
+#ifdef pthread_cond_timedwait
+#undef pthread_cond_timedwait
+#endif
+#define pthread_cond_timedwait mysql_cond_timedwait
 #ifdef pthread_cond_signal
 #undef pthread_cond_signal
 #endif
@@ -75,6 +79,7 @@
 #define SPIDER_ALTER_REBUILD_PARTITION    Alter_info::ALTER_REBUILD_PARTITION
 #define SPIDER_WARN_LEVEL_WARN            Sql_condition::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            Sql_condition::WARN_LEVEL_NOTE
+#define SPIDER_THD_KILL_CONNECTION        KILL_CONNECTION
 #else
 #if MYSQL_VERSION_ID < 50500
 #define spider_stmt_da_message(A) (A)->main_da.message()
@@ -97,6 +102,7 @@
 #define SPIDER_ALTER_REBUILD_PARTITION    ALTER_REBUILD_PARTITION
 #define SPIDER_WARN_LEVEL_WARN            MYSQL_ERROR::WARN_LEVEL_WARN
 #define SPIDER_WARN_LEVEL_NOTE            MYSQL_ERROR::WARN_LEVEL_NOTE
+#define SPIDER_THD_KILL_CONNECTION        THD::KILL_CONNECTION
 #endif
 
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100009
@@ -132,7 +138,7 @@
 #define SPIDER_TMP_SHARE_LONG_COUNT         15
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           244
+#define SPIDER_MEM_CALC_LIST_NUM           246
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;
@@ -426,6 +432,19 @@ typedef struct st_spider_conn
 #endif
 } SPIDER_CONN;
 
+typedef struct st_spider_lgtm_tblhnd_share
+{
+  char               *table_name;
+  uint               table_name_length;
+#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  my_hash_value_type table_path_hash_value;
+#endif
+  pthread_mutex_t    auto_increment_mutex;
+  volatile bool      auto_increment_init;
+  volatile ulonglong auto_increment_lclval;
+  ulonglong          auto_increment_value;
+} SPIDER_LGTM_TBLHND_SHARE;
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 typedef struct st_spider_patition_handler_share
 {
@@ -614,9 +633,12 @@ typedef struct st_spider_share
   pthread_mutex_t    mutex;
   pthread_mutex_t    sts_mutex;
   pthread_mutex_t    crd_mutex;
+/*
   pthread_mutex_t    auto_increment_mutex;
+*/
   THR_LOCK           lock;
   TABLE_SHARE        *table_share;
+  SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
 #ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -669,13 +691,18 @@ typedef struct st_spider_share
   pthread_t          *bg_mon_threads;
   pthread_mutex_t    *bg_mon_mutexes;
   pthread_cond_t     *bg_mon_conds;
+  pthread_cond_t     *bg_mon_sleep_conds;
 #endif
+/*
   volatile bool      auto_increment_init;
   volatile ulonglong auto_increment_lclval;
+*/
   ulonglong          data_file_length;
   ulonglong          max_data_file_length;
   ulonglong          index_file_length;
+/*
   ulonglong          auto_increment_value;
+*/
   ha_rows            records;
   ulong              mean_rec_length;
   time_t             check_time;
@@ -721,6 +748,7 @@ typedef struct st_spider_share
   int                semi_table_lock_conn;
   int                selupd_lock_mode;
   int                query_cache;
+  int                query_cache_sync;
   int                internal_delayed;
   int                bulk_size;
   int                bulk_update_mode;

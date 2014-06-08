@@ -167,6 +167,7 @@ public:
   bool               insert_delayed;
   bool               use_pre_call;
   bool               use_pre_records;
+  bool               pre_bitmap_checked;
   enum thr_lock_type lock_type;
   int                lock_mode;
   uint               sql_command;
