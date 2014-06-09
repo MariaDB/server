@@ -1288,7 +1288,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 3	DEPENDENT SUBQUERY	t3	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 't.a' of SELECT #3 was resolved in SELECT #1
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <expr_cache><`test`.`t1`.`a`>(exists(select 28 from `test`.`t3` where ('j' < `test`.`t1`.`a`)))
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where <in_optimizer>(1,<expr_cache><`test`.`t1`.`a`>(exists(select 28 from `test`.`t3` where ('j' < `test`.`t1`.`a`))))
 SELECT * FROM (SELECT * FROM t1) AS t
 WHERE EXISTS (SELECT t2.a FROM t3 RIGHT JOIN t2 ON (t3.a = t2.a)
 WHERE t2.b < t.a);
