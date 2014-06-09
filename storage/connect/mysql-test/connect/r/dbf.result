@@ -77,9 +77,9 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 VALUES (30);
 ERROR HY000: Table 't1' is read only
 UPDATE t1 SET a=30 WHERE a=10;
-ERROR HY000: Table 't1' is read only
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 DELETE FROM t1 WHERE a=10;
-ERROR HY000: Table 't1' is read only
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 TRUNCATE TABLE t1;
 ERROR HY000: Table 't1' is read only
 ALTER TABLE t1 READONLY=NO;

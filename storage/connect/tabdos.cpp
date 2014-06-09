@@ -924,10 +924,12 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Long = cdp->GetLong();
   To_Val = NULL;
   OldVal = NULL;                  // Currently used only in MinMax
+  Dsp = 0;
   Ldz = false;
   Nod = false;
   Dcm = -1;
   p = cdp->GetFmt();
+  Buf = NULL;
 
   if (p && IsTypeNum(Buf_Type)) {
     // Formatted numeric value
@@ -938,6 +940,9 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
           break;
         case 'N':                 // Have no decimal point
           Nod = true;
+          break;
+        case 'D':                 // Decimal separator
+          Dsp = *(++p);
           break;
         } // endswitch p
 
@@ -960,6 +965,7 @@ DOSCOL::DOSCOL(DOSCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   Long = col1->Long;
   To_Val = col1->To_Val;
   Ldz = col1->Ldz;
+  Dsp = col1->Dsp;
   Nod = col1->Nod;
   Dcm = col1->Dcm;
   OldVal = col1->OldVal;
@@ -1003,7 +1009,7 @@ bool DOSCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
   } // endif's Value, Buf_Type
 
   // Allocate the buffer used in WriteColumn for numeric columns
-  if (IsTypeNum(Buf_Type))
+  if (!Buf && IsTypeNum(Buf_Type))
     Buf = (char*)PlugSubAlloc(g, NULL, MY_MAX(32, Long + Dcm + 1));
 
   // Because Colblk's have been made from a copy of the original TDB in
@@ -1048,14 +1054,18 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   p = tdbp->To_Line + Deplac;
   field = Long;
 
+  /*********************************************************************/
+  /*  For a variable length file, check if the field exists.           */
+  /*********************************************************************/
+  if (tdbp->Ftype == RECFM_VAR && strlen(tdbp->To_Line) < (unsigned)Deplac)
+    field = 0;
+  else if (Dsp)
+    for(i = 0; i < field; i++)
+      if (p[i] == Dsp)
+        p[i] = '.';
+
   switch (tdbp->Ftype) {
     case RECFM_VAR:
-      /*****************************************************************/
-      /*  For a variable length file, check if the field exists.       */
-      /*****************************************************************/
-      if (strlen(tdbp->To_Line) < (unsigned)Deplac)
-        field = 0;
-
     case RECFM_FIX:            // Fixed length text file
     case RECFM_DBF:            // Fixed length DBase file
       if (Nod) switch (Buf_Type) {
@@ -1184,6 +1194,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           len = sprintf(Buf, fmt, field - i, Value->GetTinyValue());
           break;
         case TYPE_DOUBLE:
+        case TYPE_DECIM:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
           sprintf(Buf, fmt, field + ((Nod && Dcm) ? 1 : 0),
                   Dcm, Value->GetFloatValue());
@@ -1192,7 +1203,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
           if (Nod && Dcm)
             for (i = k = 0; i < len; i++, k++)
               if (Buf[i] != ' ') {
-                if (Buf[i] == '.' || Buf[i] == ',')
+                if (Buf[i] == '.')
                   k++;
 
                 Buf[i] = Buf[k];
@@ -1200,10 +1211,13 @@ void DOSCOL::WriteColumn(PGLOBAL g)
 
           len = strlen(Buf);
           break;
+        default:
+          sprintf(g->Message, "Invalid field format for column %s", Name);
+          longjmp(g->jumper[g->jump_level], 31);
         } // endswitch BufType
 
       p2 = Buf;
-    } else                 // Standard PlugDB format
+    } else                 // Standard CONNECT format
       p2 = Value->ShowValue(Buf, field);
 
     if (trace)
@@ -1212,7 +1226,10 @@ void DOSCOL::WriteColumn(PGLOBAL g)
     if ((len = strlen(p2)) > field) {
       sprintf(g->Message, MSG(VALUE_TOO_LONG), p2, Name, field);
       longjmp(g->jumper[g->jump_level], 31);
-      } // endif
+    } else if (Dsp)
+      for (i = 0; i < len; i++)
+        if (p2[i] == '.')
+          p2[i] = Dsp; 
 
     if (trace > 1)
       htrc("buffer=%s\n", p2);

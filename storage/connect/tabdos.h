@@ -193,7 +193,8 @@ class DllExport DOSCOL : public COLBLK {
   // Members
   PVAL  To_Val;       // To value used for Update/Insert
   PVAL  OldVal;       // The previous value of the object.
-  char *Buf;          // Buffer used in write operations
+  char *Buf;          // Buffer used in read/write operations
+  char  Dsp;          // The decimal separator
   bool  Ldz;          // True if field contains leading zeros
   bool  Nod;          // True if no decimal point
   int   Dcm;          // Last Dcm digits are decimals
