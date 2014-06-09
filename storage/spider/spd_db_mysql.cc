@@ -46,6 +46,7 @@
 #include "spd_table.h"
 
 extern struct charset_info_st *spd_charset_utf8_bin;
+extern bool volatile *spd_abort_loop;
 
 extern handlerton *spider_hton_ptr;
 extern pthread_mutex_t spider_open_conn_mutex;
@@ -1504,10 +1505,10 @@ int spider_db_mysql::connect(
     DBUG_PRINT("info",("spider thd->killed=%s",
       thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
     DBUG_PRINT("info",("spider abort_loop=%s",
-      abort_loop ? "TRUE" : "FALSE"));
+      *spd_abort_loop ? "TRUE" : "FALSE"));
     if (
       (thd && thd->killed) ||
-      abort_loop
+      *spd_abort_loop
     ) {
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
     }
@@ -1581,10 +1582,10 @@ int spider_db_mysql::connect(
       DBUG_PRINT("info",("spider thd->killed=%s",
         thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
       DBUG_PRINT("info",("spider abort_loop=%s",
-        abort_loop ? "TRUE" : "FALSE"));
+        *spd_abort_loop ? "TRUE" : "FALSE"));
       if (
         (thd && thd->killed) ||
-        abort_loop
+        *spd_abort_loop
       ) {
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       }

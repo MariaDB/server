@@ -40,6 +40,8 @@
 #include "spd_udf.h"
 #include "spd_malloc.h"
 
+extern bool volatile *spd_abort_loop;
+
 extern handlerton *spider_hton_ptr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -1276,10 +1278,10 @@ int spider_ping_table_mon_from_table(
   DBUG_PRINT("info",("spider thd->killed=%s",
     thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
   DBUG_PRINT("info",("spider abort_loop=%s",
-    abort_loop ? "TRUE" : "FALSE"));
+    *spd_abort_loop ? "TRUE" : "FALSE"));
   if (
     (thd && thd->killed) ||
-    abort_loop
+    *spd_abort_loop
   ) {
     DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
   }
@@ -1338,10 +1340,10 @@ int spider_ping_table_mon_from_table(
       DBUG_PRINT("info",("spider thd->killed=%s",
         thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
       DBUG_PRINT("info",("spider abort_loop=%s",
-        abort_loop ? "TRUE" : "FALSE"));
+        *spd_abort_loop ? "TRUE" : "FALSE"));
       if (
         (thd && thd->killed) ||
-        abort_loop
+        *spd_abort_loop
       ) {
         error_num = ER_SPIDER_COND_SKIP_NUM;
         break;
@@ -1449,10 +1451,10 @@ int spider_ping_table_mon_from_table(
     DBUG_PRINT("info",("spider thd->killed=%s",
       thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
     DBUG_PRINT("info",("spider abort_loop=%s",
-      abort_loop ? "TRUE" : "FALSE"));
+      *spd_abort_loop ? "TRUE" : "FALSE"));
     if (
       (thd && thd->killed) ||
-      abort_loop
+      *spd_abort_loop
     ) {
       error_num = ER_SPIDER_COND_SKIP_NUM;
     } else {
