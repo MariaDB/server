@@ -253,9 +253,13 @@ class Field
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
 public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
   static void *operator new(size_t size) throw ()
   { return sql_alloc(size); }
   static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
+  static void operator delete(void *ptr, MEM_ROOT *mem_root)
+  { DBUG_ASSERT(0); }
 
   uchar		*ptr;			// Position to field in record
   /**
@@ -709,8 +713,8 @@ public:
   virtual Field *new_field(MEM_ROOT *root, TABLE *new_table,
                            bool keep_type);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                               uchar *new_ptr, uchar *new_null_ptr,
-                               uint new_null_bit);
+                               uchar *new_ptr, uint32 length,
+                               uchar *new_null_ptr, uint new_null_bit);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
                bool stat_flag= FALSE);
@@ -2323,8 +2327,8 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                       uchar *new_ptr, uchar *new_null_ptr,
-                       uint new_null_bit);
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
   uint is_equal(Create_field *new_field);
   void hash(ulong *nr, ulong *nr2);
   uint length_size() { return length_bytes; }
@@ -2457,6 +2461,9 @@ public:
   }
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
+  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
   void sql_type(String &str) const;
   inline bool copy()
   {
@@ -2727,8 +2734,8 @@ public:
   virtual void set_default();
 
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                       uchar *new_ptr, uchar *new_null_ptr,
-                       uint new_null_bit);
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
   void set_bit_ptr(uchar *bit_ptr_arg, uchar bit_ofs_arg)
   {
     bit_ptr= bit_ptr_arg;

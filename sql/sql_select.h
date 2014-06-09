@@ -1548,21 +1548,8 @@ public:
   store_key(THD *thd, Field *field_arg, uchar *ptr, uchar *null, uint length)
     :null_key(0), null_ptr(null), err(0)
   {
-    if (field_arg->type() == MYSQL_TYPE_BLOB
-        || field_arg->type() == MYSQL_TYPE_GEOMETRY)
-    {
-      /* 
-        Key segments are always packed with a 2 byte length prefix.
-        See mi_rkey for details.
-      */
-      to_field= new Field_varstring(ptr, length, 2, null, 1, 
-                                    Field::NONE, field_arg->field_name,
-                                    field_arg->table->s, field_arg->charset());
-      to_field->init(field_arg->table);
-    }
-    else
-      to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
-                                        ptr, null, 1);
+    to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
+                                      ptr, length, null, 1);
   }
   store_key(store_key &arg)
     :Sql_alloc(), null_key(arg.null_key), to_field(arg.to_field),

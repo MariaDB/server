@@ -1965,8 +1965,8 @@ Field *Field::new_field(MEM_ROOT *root, TABLE *new_table,
 
 
 Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
-                            uchar *new_ptr, uchar *new_null_ptr,
-                            uint new_null_bit)
+                            uchar *new_ptr, uint32 length,
+                            uchar *new_null_ptr, uint new_null_bit)
 {
   Field *tmp;
   if ((tmp= new_field(root, new_table, table == new_table)))
@@ -7204,24 +7204,20 @@ Field *Field_varstring::new_field(MEM_ROOT *root, TABLE *new_table,
 }
 
 
-Field *Field_varstring::new_key_field(MEM_ROOT *root,
-                                      TABLE *new_table,
-                                      uchar *new_ptr, uchar *new_null_ptr,
-                                      uint new_null_bit)
+Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                      uchar *new_ptr, uint32 length,
+                                      uchar *new_null_ptr, uint new_null_bit)
 {
   Field_varstring *res;
-  if ((res= (Field_varstring*) Field::new_key_field(root,
-                                                    new_table,
-                                                    new_ptr,
-                                                    new_null_ptr,
-                                                    new_null_bit)))
+  if ((res= (Field_varstring*) Field::new_key_field(root, new_table,
+                                                    new_ptr, length,
+                                                    new_null_ptr, new_null_bit)))
   {
     /* Keys length prefixes are always packed with 2 bytes */
     res->length_bytes= 2;
   }
   return res;
 }
-
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
@@ -7576,6 +7572,18 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b)
 {
   return Field_blob::cmp(a+HA_KEY_BLOB_LENGTH, uint2korr(a),
 			 b+HA_KEY_BLOB_LENGTH, uint2korr(b));
+}
+
+
+Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                 uchar *new_ptr, uint32 length,
+                                 uchar *new_null_ptr, uint new_null_bit)
+{
+  Field_varstring *res= new (root) Field_varstring(new_ptr, length, 2,
+                                      new_null_ptr, new_null_bit, Field::NONE,
+                                      field_name, table->s, charset());
+  res->init(new_table);
+  return res;
 }
 
 
@@ -8426,15 +8434,13 @@ Field_bit::do_last_null_byte() const
 }
 
 
-Field *Field_bit::new_key_field(MEM_ROOT *root,
-                                TABLE *new_table,
-                                uchar *new_ptr, uchar *new_null_ptr,
-                                uint new_null_bit)
+Field *Field_bit::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                uchar *new_ptr, uint32 length, 
+                                uchar *new_null_ptr, uint new_null_bit)
 {
   Field_bit *res;
-  if ((res= (Field_bit*) Field::new_key_field(root, new_table,
-                                              new_ptr, new_null_ptr,
-                                              new_null_bit)))
+  if ((res= (Field_bit*) Field::new_key_field(root, new_table, new_ptr, length,
+                                              new_null_ptr, new_null_bit)))
   {
     /* Move bits normally stored in null_pointer to new_ptr */
     res->bit_ptr= new_ptr;
