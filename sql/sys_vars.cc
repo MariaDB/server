@@ -77,7 +77,7 @@ static Sys_var_mybool Sys_pfs_enabled(
        "performance_schema",
        "Enable the performance schema.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_long Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",

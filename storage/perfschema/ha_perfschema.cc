@@ -206,7 +206,7 @@ maria_declare_plugin(perfschema)
   pfs_status_vars,
   NULL,
   "0.1",
-  MariaDB_PLUGIN_MATURITY_GAMMA /* because MySQL-5.5 is RC */
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 
