@@ -51,6 +51,7 @@ HASH *spd_db_att_xid_cache;
 struct charset_info_st *spd_charset_utf8_bin;
 const char **spd_defaults_extra_file;
 const char **spd_defaults_file;
+bool volatile *spd_abort_loop;
 
 handlerton *spider_hton_ptr;
 SPIDER_DBTON spider_dbton[SPIDER_DBTON_SIZE];
@@ -6215,6 +6216,8 @@ int spider_db_init(
     GetProcAddress(current_module, "my_defaults_extra_file");
   spd_defaults_file = (const char **)
     GetProcAddress(current_module, "my_defaults_file");
+  spd_abort_loop = (bool volatile *)
+    GetProcAddress(current_module, "?abort_loop@@3_NC");
 #else
   spd_db_att_thread_id = &thread_id;
 #ifdef XID_CACHE_IS_SPLITTED
@@ -6228,6 +6231,7 @@ int spider_db_init(
   spd_charset_utf8_bin = &my_charset_utf8_bin;
   spd_defaults_extra_file = &my_defaults_extra_file;
   spd_defaults_file = &my_defaults_file;
+  spd_abort_loop = &abort_loop;
 #endif
 
 #ifdef HAVE_PSI_INTERFACE
