@@ -190,6 +190,27 @@ select * from t1,t2 where t1.id = t2.t1_id and t2.f2='qux' and t2.f1='baz';
 drop table t1,t2;
 
 --echo # 
+--echo # MDEV-5985: EITS: selectivity estimates look illogical for join and non-key equalities
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 as select * from t1;
+set histogram_size=100;
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+--echo # Filtered will be 4.95, 9.90
+explain extended select * from t1 A, t2 B where A.a < 40 and B.a < 100;
+--echo # Here, B.filtered should not become 100%:
+explain extended select * from t1 A, t2 B where A.a < 40 and B.a < 100 and B.a=A.a;
+
+drop table t0,t1,t2;
+
+--echo # 
 --echo # End of the test file
 --echo # 
 
