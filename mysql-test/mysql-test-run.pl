@@ -2406,7 +2406,7 @@ sub environment_setup {
       $ENV{'WSREP_PROVIDER'}=  $file_wsrep_provider;
     }
 
-    if ($ENV{'WSREP_PROVIDER'} ne "") {
+    if ((defined $ENV{'WSREP_PROVIDER'}) && ($ENV{'WSREP_PROVIDER'} ne "")) {
       mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
     } else {
       mtr_verbose("WSREP_PROVIDER isn't available");
