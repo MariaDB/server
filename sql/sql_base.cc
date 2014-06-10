@@ -1470,6 +1470,8 @@ void close_thread_tables(THD *thd)
   TABLE *table;
   DBUG_ENTER("close_thread_tables");
 
+  thd_proc_info(thd, "closing tables");
+
 #ifdef EXTRA_DEBUG
   DBUG_PRINT("tcache", ("open tables:"));
   for (table= thd->open_tables; table; table= table->next)
@@ -5190,14 +5192,7 @@ restart:
 #endif
 
 err:
-#ifdef WITH_WSREP
-  if (WSREP(thd)) 
-    thd_proc_info(thd, "exit open_tables()");
-  else
-    thd_proc_info(thd, 0);
-#else /* WITH_WSREP */
-  thd_proc_info(thd, 0);
-#endif /* WITH_WSREP */
+  thd_proc_info(thd, "After opening tables");
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
@@ -5646,14 +5641,7 @@ end:
       trans_rollback_stmt(thd);
     close_thread_tables(thd);
   }
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-    thd_proc_info(thd, "End opening table");
-  else
-  thd_proc_info(thd, 0);
-#else /* WITH_WSREP */
-  thd_proc_info(thd, 0);
-#endif /* WITH_WSREP */
+  thd_proc_info(thd, "After opening table");
   DBUG_RETURN(table);
 }
 
@@ -8779,6 +8767,75 @@ void wrap_ident(THD *thd, Item **conds)
     thd->restore_active_arena(arena, &backup);
 }
 
+/**
+  Prepare ON expression
+
+  @param thd             Thread handle
+  @param table           Pointer to table list
+  @param is_update       Update flag
+
+  @retval TRUE error.
+  @retval FALSE OK.
+*/
+
+bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
+{
+  uchar buff[STACK_BUFF_ALLOC];			// Max argument in function
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, buff))
+    return TRUE;				// Fatal error flag is set!
+  for(; table; table= table->next_local)
+  {
+    TABLE_LIST *embedded; /* The table at the current level of nesting. */
+    TABLE_LIST *embedding= table; /* The parent nested table reference. */
+    do
+    {
+      embedded= embedding;
+      DBUG_PRINT("XXX", ("check: %s", table->alias));
+      if (embedded->on_expr)
+      {
+        thd->where="on clause";
+        embedded->on_expr->mark_as_condition_AND_part(embedded);
+        if ((!embedded->on_expr->fixed &&
+             embedded->on_expr->fix_fields(thd, &embedded->on_expr)) ||
+            embedded->on_expr->check_cols(1))
+          return TRUE;
+      }
+      /*
+        If it's a semi-join nest, fix its "left expression", as it is used by
+        the SJ-Materialization
+      */
+      if (embedded->sj_subq_pred)
+      {
+        Item **left_expr= &embedded->sj_subq_pred->left_expr;
+        if (!(*left_expr)->fixed && (*left_expr)->fix_fields(thd, left_expr))
+          return TRUE;
+      }
+
+      embedding= embedded->embedding;
+    }
+    while (embedding &&
+           embedding->nested_join->join_list.head() == embedded);
+
+    if (table->is_merged_derived())
+    {
+      SELECT_LEX *select_lex= table->get_single_select();
+      setup_on_expr(thd, select_lex->get_table_list(), is_update);
+    }
+
+    /* process CHECK OPTION */
+    if (is_update)
+    {
+      TABLE_LIST *view= table->top_table();
+      if (view->effective_with_check)
+      {
+        if (view->prepare_check_option(thd))
+          return TRUE;
+        thd->change_item_tree(&table->check_option, view->check_option);
+      }
+    }
+  }
+  return FALSE;
+}
 
 /*
   Fix all conditions and outer join expressions.
@@ -8803,7 +8860,6 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
 {
   SELECT_LEX *select_lex= thd->lex->current_select;
   TABLE_LIST *table= NULL;	// For HP compilers
-  List_iterator<TABLE_LIST> ti(leaves);
   /*
     it_is_update set to TRUE when tables of primary SELECT_LEX (SELECT_LEX
     which belong to LEX, i.e. most up SELECT) will be updated by
@@ -8862,51 +8918,8 @@ int setup_conds(THD *thd, TABLE_LIST *tables, List<TABLE_LIST> &leaves,
     Apply fix_fields() to all ON clauses at all levels of nesting,
     including the ones inside view definitions.
   */
-  while ((table= ti++))
-  {
-    TABLE_LIST *embedded; /* The table at the current level of nesting. */
-    TABLE_LIST *embedding= table; /* The parent nested table reference. */
-    do
-    {
-      embedded= embedding;
-      if (embedded->on_expr)
-      {
-        /* Make a join an a expression */
-        thd->where="on clause";
-        embedded->on_expr->mark_as_condition_AND_part(embedded);
-        if ((!embedded->on_expr->fixed &&
-             embedded->on_expr->fix_fields(thd, &embedded->on_expr)) ||
-	    embedded->on_expr->check_cols(1))
-	  goto err_no_arena;
-      }
-      /*
-        If it's a semi-join nest, fix its "left expression", as it is used by
-        the SJ-Materialization
-      */
-      if (embedded->sj_subq_pred)
-      {
-        Item **left_expr= &embedded->sj_subq_pred->left_expr;
-        if (!(*left_expr)->fixed && (*left_expr)->fix_fields(thd, left_expr))
-          goto err_no_arena;
-      }
-
-      embedding= embedded->embedding;
-    }
-    while (embedding &&
-           embedding->nested_join->join_list.head() == embedded);
-
-    /* process CHECK OPTION */
-    if (it_is_update)
-    {
-      TABLE_LIST *view= table->top_table();
-      if (view->effective_with_check)
-      {
-        if (view->prepare_check_option(thd))
-          goto err_no_arena;
-        thd->change_item_tree(&table->check_option, view->check_option);
-      }
-    }
-  }
+  if (setup_on_expr(thd, tables, it_is_update))
+    goto err_no_arena;
 
   if (!thd->stmt_arena->is_conventional())
   {

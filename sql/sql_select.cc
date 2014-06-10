@@ -646,7 +646,9 @@ JOIN::prepare(Item ***rref_pointer_array,
   if (!(select_options & OPTION_SETUP_TABLES_DONE) &&
       setup_tables_and_check_access(thd, &select_lex->context, join_list,
                                     tables_list, select_lex->leaf_tables,
-                                    FALSE, SELECT_ACL, SELECT_ACL, FALSE))
+                                    FALSE, SELECT_ACL, SELECT_ACL,
+                                    (thd->lex->sql_command ==
+                                     SQLCOM_UPDATE_MULTI)))
       DBUG_RETURN(-1);
 
   /*
@@ -1138,7 +1140,8 @@ JOIN::optimize()
         part of the nested outer join, and we can't do partition pruning
         (TODO: check if this limitation can be lifted)
       */
-      if (!tbl->embedding)
+      if (!tbl->embedding ||
+          (tbl->embedding && tbl->embedding->sj_on_expr))
       {
         Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
         tbl->table->no_partitions_used= prune_partitions(thd, tbl->table,
@@ -10268,20 +10271,25 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	  else if (!table->covering_keys.is_clear_all() &&
 		   !(tab->select && tab->select->quick))
 	  {					// Only read index tree
+            if (tab->loosescan_match_tab)
+              tab->index= tab->loosescan_key;
+            else 
+            {
 #ifdef BAD_OPTIMIZATION
-	    /*
-              It has turned out that the below change, while speeding things
-              up for disk-bound loads, slows them down for cases when the data
-              is in disk cache (see BUG#35850):
-              See bug #26447: "Using the clustered index for a table scan
-              is always faster than using a secondary index".
-            */
-            if (table->s->primary_key != MAX_KEY &&
-                table->file->primary_key_is_clustered())
-              tab->index= table->s->primary_key;
-            else
+              /*
+                It has turned out that the below change, while speeding things
+                up for disk-bound loads, slows them down for cases when the data
+                is in disk cache (see BUG#35850):
+                See bug #26447: "Using the clustered index for a table scan
+                is always faster than using a secondary index".
+              */
+              if (table->s->primary_key != MAX_KEY &&
+                  table->file->primary_key_is_clustered())
+                tab->index= table->s->primary_key;
+              else
 #endif
-              tab->index=find_shortest_key(table, & table->covering_keys);
+                tab->index=find_shortest_key(table, & table->covering_keys);
+            }
 	    tab->read_first_record= join_read_first;
             /* Read with index_first / index_next */
 	    tab->type= tab->type == JT_ALL ? JT_NEXT : JT_HASH_NEXT;		
@@ -13608,7 +13616,7 @@ optimize_cond(JOIN *join, COND *conds,
     conds= remove_eq_conds(thd, conds, cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
         ((Item_cond*) conds)->functype() == Item_func::COND_AND_FUNC)
-      join->cond_equal= &((Item_cond_and*) conds)->cond_equal;
+      *cond_equal= &((Item_cond_and*) conds)->cond_equal;
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
   }
   DBUG_RETURN(conds);

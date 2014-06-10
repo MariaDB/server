@@ -4984,6 +4984,10 @@ void TABLE_LIST::set_check_merged()
 
 void TABLE_LIST::set_check_materialized()
 {
+  DBUG_ENTER("TABLE_LIST::set_check_materialized");
+  SELECT_LEX_UNIT *derived= this->derived;
+  if (view)
+    derived= &view->unit;
   DBUG_ASSERT(derived);
   if (!derived->first_select()->exclude_from_table_unique_test)
     derived->set_unique_exclude();
@@ -4996,6 +5000,7 @@ void TABLE_LIST::set_check_materialized()
                 derived->first_select()->first_inner_unit()->first_select()->
                 exclude_from_table_unique_test);
   }
+  DBUG_VOID_RETURN;
 }
 
 TABLE *TABLE_LIST::get_real_join_table()
@@ -6819,6 +6824,27 @@ bool TABLE_LIST::change_refs_to_fields()
   return FALSE;
 }
 
+
+void TABLE_LIST::set_lock_type(THD *thd, enum thr_lock_type lock)
+{
+  if (check_stack_overrun(thd, STACK_MIN_SIZE, (uchar *)&lock))
+    return;
+  /* we call it only when table is opened and it is "leaf" table*/
+  DBUG_ASSERT(table);
+  lock_type= lock;
+  /* table->file->get_table() can be 0 for derived tables */
+  if (table->file && table->file->get_table())
+    table->file->set_lock_type(lock);
+  if (is_merged_derived())
+  {
+    for (TABLE_LIST *table= get_single_select()->get_table_list();
+         table;
+         table= table->next_local)
+    {
+      table->set_lock_type(thd, lock);
+    }
+  }
+}
 
 uint TABLE_SHARE::actual_n_key_parts(THD *thd)
 {

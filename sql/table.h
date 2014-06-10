@@ -2096,7 +2096,7 @@ struct TABLE_LIST
   void set_materialized_derived()
   {
     DBUG_ENTER("set_materialized_derived");
-    derived_type= ((derived_type & DTYPE_MASK) |
+    derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
     DBUG_VOID_RETURN;
@@ -2151,6 +2151,7 @@ struct TABLE_LIST
     }
     return false;
   } 
+  void set_lock_type(THD* thd, enum thr_lock_type lock);
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);

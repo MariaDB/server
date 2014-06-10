@@ -330,11 +330,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
     (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
 
 end:
-#ifdef WITH_WSREP
-  thd_proc_info(thd, "mysql_lock_tables(): unlocking tables II");
-#else /* WITH_WSREP */
-  thd_proc_info(thd, 0);
-#endif /* WITH_WSREP */
+  thd_proc_info(thd, "After table lock");
 
   if (thd->killed)
   {

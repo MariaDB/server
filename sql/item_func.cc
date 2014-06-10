@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1118,7 +1118,9 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
   case INT_RESULT:
   {
     longlong value= int_op();
-    if (null_value || int_to_datetime_with_warn(value, ltime, fuzzydate,
+    bool neg= !unsigned_flag && value < 0;
+    if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+                                                ltime, fuzzydate,
                                                 field_name_or_null()))
       goto err;
     break;
@@ -1965,9 +1967,11 @@ void Item_func_int_div::fix_length_and_dec()
 {
   Item_result argtype= args[0]->result_type();
   /* use precision ony for the data type it is applicable for and valid */
-  max_length=args[0]->max_length -
-    (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
-     args[0]->decimals : 0);
+  uint32 char_length= args[0]->max_char_length() -
+                      (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
+                       args[0]->decimals : 0);
+  fix_char_length(char_length > MY_INT64_NUM_DECIMAL_DIGITS ?
+                  MY_INT64_NUM_DECIMAL_DIGITS : char_length);
   maybe_null=1;
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
@@ -6276,16 +6280,37 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
   }
 
   const_item_cache=0;
+  table= 0;
   for (uint i=1 ; i < arg_count ; i++)
   {
     item=args[i];
     if (item->type() == Item::REF_ITEM)
       args[i]= item= *((Item_ref *)item)->ref;
-    if (item->type() != Item::FIELD_ITEM)
+    /*
+      When running in PS mode, some Item_field's can already be replaced
+      to Item_func_conv_charset during PREPARE time. This is possible
+      in case of "MATCH (f1,..,fN) AGAINST (... IN BOOLEAN MODE)"
+      when running without any fulltext indexes and when fields f1..fN
+      have different character sets.
+      So we check for FIELD_ITEM only during prepare time and in non-PS mode,
+      and do not check in PS execute time.
+    */
+    if (!thd->stmt_arena->is_stmt_execute() &&
+        item->type() != Item::FIELD_ITEM)
     {
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "AGAINST");
       return TRUE;
     }
+    /*
+      During the prepare-time execution of fix_fields() of a PS query some
+      Item_fields's could have been already replaced to Item_func_conv_charset
+      (by the call for agg_arg_charsets_for_comparison below()).
+      But agg_arg_charsets_for_comparison() is written in a way that
+      at least *one* of the Item_field's is not replaced.
+      This makes sure that "table" gets initialized during PS execution time.
+    */
+    if (item->type() == Item::FIELD_ITEM)
+      table= ((Item_field *)item)->field->table;
   }
   /*
     Check that all columns come from the same table.
@@ -6300,15 +6325,13 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"MATCH");
     return TRUE;
   }
-  table=((Item_field *)item)->field->table;
   if (!(table->file->ha_table_flags() & HA_CAN_FULLTEXT))
   {
     my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0));
     return 1;
   }
   table->fulltext_searched=1;
-  return agg_item_collations_for_comparison(cmp_collation, func_name(),
-                                            args+1, arg_count-1, 0);
+  return agg_arg_charsets_for_comparison(cmp_collation, args+1, arg_count-1);
 }
 
 bool Item_func_match::fix_index()

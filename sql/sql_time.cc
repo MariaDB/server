@@ -360,20 +360,30 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
   int was_cut;
   longlong res;
   enum_field_types f_type;
+  bool have_warnings;
 
   if (fuzzydate & TIME_TIME_ONLY)
   {
     fuzzydate= TIME_TIME_ONLY; // clear other flags
     f_type= MYSQL_TYPE_TIME;
     res= number_to_time(neg, nr, sec_part, ltime, &was_cut);
+    have_warnings= MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut);
   }
   else
   {
     f_type= MYSQL_TYPE_DATETIME;
-    res= neg ? -1 : number_to_datetime(nr, sec_part, ltime, fuzzydate, &was_cut);
+    if (neg)
+    {
+      res= -1;
+    }
+    else
+    {
+      res= number_to_datetime(nr, sec_part, ltime, fuzzydate, &was_cut);
+      have_warnings= was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE);
+    }
   }
 
-  if (res < 0 || (was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE)))
+  if (res < 0 || have_warnings)
   {
     make_truncated_value_warning(current_thd,
                                  MYSQL_ERROR::WARN_LEVEL_WARN, str,
@@ -416,12 +426,11 @@ bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
 }
 
 
-bool int_to_datetime_with_warn(longlong value, MYSQL_TIME *ltime,
+bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate, const char *field_name)
 {
-  const ErrConvInteger str(value);
-  bool neg= value < 0;
-  return number_to_time_with_warn(neg, neg ? -value : value, 0, ltime,
+  const ErrConvInteger str(neg ? -value : value, !neg);
+  return number_to_time_with_warn(neg, value, 0, ltime,
                                   fuzzydate, &str, field_name);
 }
 
@@ -1097,6 +1106,57 @@ int my_time_compare(MYSQL_TIME *a, MYSQL_TIME *b)
     return 1;
 
   return 0;
+}
+
+
+/**
+  Convert TIME to DATETIME.
+  @param   ltime    The value to convert.
+  @return  false on success, true of error (negative time).
+*/
+bool time_to_datetime(MYSQL_TIME *ltime)
+{
+  DBUG_ASSERT(ltime->time_type == MYSQL_TIMESTAMP_TIME);
+  DBUG_ASSERT(ltime->year == 0);
+  DBUG_ASSERT(ltime->month == 0);
+  DBUG_ASSERT(ltime->day == 0);
+  if (ltime->neg)
+    return true;
+  uint day= ltime->hour / 24;
+  ltime->hour%= 24;
+  ltime->month= day / 31;
+  ltime->day= day % 31;  
+  return false;
+}
+
+
+/**
+  Return a valid DATE or DATETIME value from an arbitrary MYSQL_TIME.
+  If ltime is TIME, it's first converted to DATETIME.
+  If ts_type is DATE, hhmmss is set to zero.
+  The date part of the result is checked against fuzzy_date.
+
+  @param   ltime       The value to convert.
+  @param   fuzzy_date  Flags to check date.
+  @param   ts_type     The type to convert to.
+  @return  false on success, true of error (negative time).*/
+bool
+make_date_with_warn(MYSQL_TIME *ltime, ulonglong fuzzy_date,
+                    timestamp_type ts_type)
+{
+  DBUG_ASSERT(ts_type == MYSQL_TIMESTAMP_DATE ||
+              ts_type == MYSQL_TIMESTAMP_DATETIME);
+  if (ltime->time_type == MYSQL_TIMESTAMP_TIME && time_to_datetime(ltime))
+  {
+    /* e.g. negative time */
+    ErrConvTime str(ltime);
+    make_truncated_value_warning(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN,
+                                 &str, ts_type, 0);
+    return true;
+  }
+  if ((ltime->time_type= ts_type) == MYSQL_TIMESTAMP_DATE)
+    ltime->hour= ltime->minute= ltime->second= ltime->second_part= 0;
+  return check_date_with_warn(ltime, fuzzy_date, ts_type);
 }
 
 

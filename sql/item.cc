@@ -1302,6 +1302,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   case INT_RESULT:
   {
     longlong value= val_int();
+    bool neg= !unsigned_flag && value < 0;
     if (field_type() == MYSQL_TYPE_YEAR)
     {
       if (max_length == 2)
@@ -1313,7 +1314,8 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
       }
       value*= 10000; /* make it YYYYMMHH */
     }
-    if (null_value || int_to_datetime_with_warn(value, ltime, fuzzydate,
+    if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+                                                ltime, fuzzydate,
                                                 field_name_or_null()))
       goto err;
     break;
@@ -4697,6 +4699,10 @@ bool is_outer_table(TABLE_LIST *table, SELECT_LEX *select)
   DBUG_ASSERT(table->select_lex != select);
   TABLE_LIST *tl;
 
+  if (table->belong_to_view &&
+      table->belong_to_view->select_lex == select)
+    return FALSE;
+
   for (tl= select->master_unit()->derived;
        tl && tl->is_merged_derived();
        select= tl->select_lex, tl= select->master_unit()->derived)
@@ -5273,15 +5279,23 @@ mark_non_agg_field:
     /*
       Mark selects according to presence of non aggregated fields.
       Fields from outer selects added to the aggregate function
-      outer_fields list as its unknown at the moment whether it's
+      outer_fields list as it's unknown at the moment whether it's
       aggregated or not.
-      We're using either the select lex of the cached table (if present)
-      or the field's resolution context. context->select_lex is 
-      safe for use because it's either the SELECT we want to use 
-      (the current level) or a stub added by non-SELECT queries.
+      We're using the select lex of the cached table (if present).
     */
-    SELECT_LEX *select_lex= cached_table ? 
-      cached_table->select_lex : field->table->pos_in_table_list->select_lex;
+    SELECT_LEX *select_lex;
+    if (cached_table)
+      select_lex= cached_table->select_lex;
+    else if (!(select_lex= field->table->pos_in_table_list->select_lex))
+    {
+      /*
+        This can only happen when there is no real table in the query.
+        We are using the field's resolution context. context->select_lex is eee
+        safe for use because it's either the SELECT we want to use 
+        (the current level) or a stub added by non-SELECT queries.
+      */
+      select_lex= context->select_lex;
+    }
     if (!thd->lex->in_sum_func)
       select_lex->set_non_agg_field_used(true);
     else

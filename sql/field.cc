@@ -4576,7 +4576,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 {
   MYSQL_TIME l_time;
   int error;
-  ErrConvInteger str(nr);
+  ErrConvInteger str(nr, unsigned_val);
   THD *thd= table->in_use;
 
   /* We don't want to store invalid or fuzzy datetime values in TIMESTAMP */
@@ -4952,6 +4952,17 @@ int Field_temporal::store_TIME_with_warning(MYSQL_TIME *ltime,
   
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
 
+#if MARIADB_VERSION_ID < 1000000
+  /*
+    Check if the YYYYMMDD part was truncated.
+    Translate a note into a warning.
+    In MariaDB-10.0 we have a better warnings/notes handling,
+    so this code is not needed. 
+  */
+  if (was_cut & MYSQL_TIME_NOTE_TRUNCATED)
+    was_cut|= MYSQL_TIME_WARN_TRUNCATED;
+#endif
+
   if (was_cut == 0 &&
       have_smth_to_conv == 0 &&
       mysql_type_to_time_type(type()) != MYSQL_TIMESTAMP_TIME) // special case: zero date
@@ -5042,7 +5053,7 @@ int Field_temporal::store(longlong nr, bool unsigned_val)
   MYSQL_TIME ltime;
   longlong tmp;
   THD *thd= table->in_use;
-  ErrConvInteger str(nr);
+  ErrConvInteger str(nr, unsigned_val);
 
   tmp= number_to_datetime(nr, 0, &ltime, (thd->variables.sql_mode &
                                        (MODE_NO_ZERO_IN_DATE |
@@ -5058,6 +5069,13 @@ int Field_temporal::store_time_dec(MYSQL_TIME *ltime, uint dec)
   int error = 0, have_smth_to_conv= 1;
   MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
+
+  if (l_time.time_type == MYSQL_TIMESTAMP_TIME && time_to_datetime(&l_time))
+  {
+    have_smth_to_conv= 0;
+    error= 1;
+    goto store;
+  }
   /*
     We don't perform range checking here since values stored in TIME
     structure always fit into DATETIME range.
@@ -5066,6 +5084,7 @@ int Field_temporal::store_time_dec(MYSQL_TIME *ltime, uint dec)
                                  (current_thd->variables.sql_mode &
                                    (MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE |
                                     MODE_INVALID_DATES)), &error);
+store:
   return store_TIME_with_warning(&l_time, &str, error, have_smth_to_conv);
 }
 
@@ -5132,7 +5151,7 @@ int Field_time::store(double nr)
   bool neg= nr < 0;
   if (neg)
     nr= -nr;
-  int have_smth_to_conv= !number_to_time(neg, (longlong)nr,
+  int have_smth_to_conv= !number_to_time(neg, (ulonglong) nr,
                                          (ulong)((nr - floor(nr)) * TIME_SECOND_PART_FACTOR),
                                          &ltime, &was_cut);
 
@@ -5143,9 +5162,12 @@ int Field_time::store(double nr)
 int Field_time::store(longlong nr, bool unsigned_val)
 {
   MYSQL_TIME ltime;
-  ErrConvInteger str(nr);
+  ErrConvInteger str(nr, unsigned_val);
   int was_cut;
-  int have_smth_to_conv= !number_to_time(nr < 0, nr < 0 ? -nr : nr,
+  if (nr < 0 && unsigned_val)
+    nr= 99991231235959LL + 1;
+  int have_smth_to_conv= !number_to_time(nr < 0,
+                                         (ulonglong) (nr < 0 ? -nr : nr),
                                          0, &ltime, &was_cut);
 
   return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
@@ -5512,7 +5534,8 @@ bool Field_year::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   int tmp= (int) ptr[0];
   if (tmp || field_length != 4)
     tmp+= 1900;
-  return int_to_datetime_with_warn(tmp * 10000, ltime, fuzzydate, field_name);
+  return int_to_datetime_with_warn(false, tmp * 10000,
+                                    ltime, fuzzydate, field_name);
 }
 
 
@@ -7073,8 +7096,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
       If content of the 'from'-address is cached in the 'value'-object
       it is possible that the content needs a character conversion.
     */
-    uint32 dummy_offset;
-    if (!String::needs_conversion(length, cs, field_charset, &dummy_offset))
+    if (!String::needs_conversion_on_storage(length, cs, field_charset))
     {
       Field_blob::store_length(length);
       bmove(ptr + packlength, &from, sizeof(char*));
@@ -7642,12 +7664,11 @@ int Field_enum::store(const char *from,uint length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int err= 0;
-  uint32 not_used;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   /* Convert character set if necessary */
-  if (String::needs_conversion(length, cs, field_charset, &not_used))
+  if (String::needs_conversion_on_storage(length, cs, field_charset))
   { 
     uint dummy_errors;
     tmpstr.copy(from, length, cs, field_charset, &dummy_errors);
@@ -7824,12 +7845,11 @@ int Field_set::store(const char *from,uint length,CHARSET_INFO *cs)
   int err= 0;
   char *not_used;
   uint not_used2;
-  uint32 not_used_offset;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   /* Convert character set if necessary */
-  if (String::needs_conversion(length, cs, field_charset, &not_used_offset))
+  if (String::needs_conversion_on_storage(length, cs, field_charset))
   { 
     uint dummy_errors;
     tmpstr.copy(from, length, cs, field_charset, &dummy_errors);

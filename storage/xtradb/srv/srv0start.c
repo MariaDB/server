@@ -154,7 +154,7 @@ UNIV_INTERN mysql_pfs_key_t	srv_log_tracking_thread_key;
 #endif /* UNIV_PFS_THREAD */
 
 /*********************************************************************//**
-Convert a numeric string that optionally ends in G or M, to a number
+Convert a numeric string that optionally ends in G or M or K, to a number
 containing megabytes.
 @return	next character in string */
 static
@@ -176,6 +176,10 @@ srv_parse_megabytes(
 		size *= 1024;
 		/* fall through */
 	case 'M': case 'm':
+		str++;
+		break;
+	case 'K': case 'k':
+		size /= 1024;
 		str++;
 		break;
 	default:
@@ -621,14 +625,23 @@ open_or_create_log_file(
 		if (size != srv_calc_low32(srv_log_file_size)
 		    || size_high != srv_calc_high32(srv_log_file_size)) {
 
-			fprintf(stderr,
+			/* By default 5.6 based InnoDB will create 48M log
+			file but 5.5 only 5M. Thus give hint to user. */
+ 			fprintf(stderr,
 				"InnoDB: Error: log file %s is"
-				" of different size %lu %lu bytes\n"
-				"InnoDB: than specified in the .cnf"
-				" file %lu %lu bytes!\n",
-				name, (ulong) size_high, (ulong) size,
-				(ulong) srv_calc_high32(srv_log_file_size),
-				(ulong) srv_calc_low32(srv_log_file_size));
+ 				" of different size %lu %lu bytes\n"
+ 				"InnoDB: than specified in the .cnf"
+ 				" file %lu %lu bytes!\n",
+ 				name, (ulong) size_high, (ulong) size,
+ 				(ulong) srv_calc_high32(srv_log_file_size),
+ 				(ulong) srv_calc_low32(srv_log_file_size));
+
+			fprintf(stderr,
+				"InnoDB: Possible causes for this error:\n"
+				" (a) Incorrect log file is used or log file size is changed\n"
+				" (b) In case default size is used this log file is from 10.0\n"
+				" (c) Log file is corrupted or there was not enough disk space\n"
+				" In case (b) you need to set innodb_log_file_size = 48M\n");
 
 			return(DB_ERROR);
 		}

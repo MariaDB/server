@@ -5010,7 +5010,6 @@ finish:
   }
 
   /* Free tables */
-  thd_proc_info(thd, "closing tables");
   close_thread_tables(thd);
 #ifdef WITH_WSREP
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
