@@ -44,11 +44,11 @@ typedef struct wsrep_dummy
 static void dummy_free(wsrep_t *w)
 {
     WSREP_DBUG_ENTER(w);
-    free(w->ctx);
     if (WSREP_DUMMY(w)->options) {
         free(WSREP_DUMMY(w)->options);
         WSREP_DUMMY(w)->options = NULL;
     }
+    free(w->ctx);
     w->ctx = NULL;
 }
 
