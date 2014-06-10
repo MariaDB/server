@@ -10542,7 +10542,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     if (cache_level == 1)
       prev_cache= 0;
     if ((tab->cache= new JOIN_CACHE_BNL(join, tab, prev_cache)) &&
-        ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+         !tab->cache->init(options & SELECT_DESCRIBE))
     {
       tab->icp_other_tables_ok= FALSE;
       return (2 - MY_TEST(!prev_cache));
@@ -10577,7 +10577,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       if (cache_level == 3)
         prev_cache= 0;
       if ((tab->cache= new JOIN_CACHE_BNLH(join, tab, prev_cache)) &&
-          ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+          !tab->cache->init(options & SELECT_DESCRIBE))
       {
         tab->icp_other_tables_ok= FALSE;        
         return (4 - MY_TEST(!prev_cache));
@@ -10598,7 +10598,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         if (cache_level == 5)
           prev_cache= 0;
         if ((tab->cache= new JOIN_CACHE_BKA(join, tab, flags, prev_cache)) &&
-            ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+            !tab->cache->init(options & SELECT_DESCRIBE))
           return (6 - MY_TEST(!prev_cache));
         goto no_join_cache;
       }
@@ -10607,7 +10607,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         if (cache_level == 7)
           prev_cache= 0;
         if ((tab->cache= new JOIN_CACHE_BKAH(join, tab, flags, prev_cache)) &&
-            ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+            !tab->cache->init(options & SELECT_DESCRIBE))
 	{
          tab->idx_cond_fact_out= FALSE;
           return (8 - MY_TEST(!prev_cache));
