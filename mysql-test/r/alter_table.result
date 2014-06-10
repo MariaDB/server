@@ -1460,6 +1460,33 @@ t2	CREATE TABLE `t2` (
   KEY `id` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t2;
+CREATE TABLE t2 (
+id INT(11) NOT NULL);
+ALTER TABLE t2 ADD COLUMN a INT, ADD COLUMN IF NOT EXISTS a INT;
+Warnings:
+Note	1060	Duplicate column name 'a'
+ALTER TABLE t2 ADD KEY k_id(id), ADD KEY IF NOT EXISTS k_id(id);
+Warnings:
+Note	1061	Duplicate key name 'k_id'
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL,
+  `a` int(11) DEFAULT NULL,
+  KEY `k_id` (`id`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t2 DROP KEY k_id, DROP KEY IF EXISTS k_id;
+Warnings:
+Note	1091	Can't DROP 'k_id'; check that column/key exists
+ALTER TABLE t2 DROP COLUMN a, DROP COLUMN IF EXISTS a;
+Warnings:
+Note	1091	Can't DROP 'a'; check that column/key exists
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `id` int(11) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
 DROP TABLE t1;
 # Bug#11748057 (formerly known as 34972): ALTER TABLE statement doesn't
 #                                         identify correct column name.
