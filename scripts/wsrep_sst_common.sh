@@ -1,4 +1,4 @@
-# Copyright (C) 2012 Codership Oy
+# Copyright (C) 2012-2014 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@ set -u
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_DATA=""
+WSREP_SST_OPT_AUTH=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -55,7 +56,7 @@ case "$1" in
         shift
         ;;
     '--password')
-        readonly WSREP_SST_OPT_PSWD="$2"
+        WSREP_SST_OPT_PSWD="$2"
         shift
         ;;
     '--port')
@@ -71,7 +72,7 @@ case "$1" in
         shift
         ;;
     '--user')
-        readonly WSREP_SST_OPT_USER="$2"
+        WSREP_SST_OPT_USER="$2"
         shift
         ;;
     '--gtid')
@@ -88,8 +89,8 @@ done
 readonly WSREP_SST_OPT_BYPASS
 
 # For Bug:1200727
-if my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then 
-    if [ -z $WSREP_SST_OPT_AUTH -o $WSREP_SST_OPT_AUTH = "(null)" ];then 
+if my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then
+    if [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ];then
             WSREP_SST_OPT_AUTH=$(my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
@@ -125,3 +126,26 @@ wsrep_cleanup_progress_file()
     [ -n "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null
 }
 
+wsrep_check_program()
+{
+    local prog=$1
+
+    if ! which $prog >/dev/null
+    then
+        echo "'$prog' not found in PATH"
+        return 2 # no such file or directory
+    fi
+}
+
+wsrep_check_programs()
+{
+    local ret=0
+
+    while [ $# -gt 0 ]
+    do
+        wsrep_check_program $1 || ret=$?
+        shift
+    done
+
+    return $ret
+}

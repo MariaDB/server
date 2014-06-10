@@ -5,6 +5,10 @@
 --echo #
 --echo # Testing wsrep_replicate_myisam variable.
 
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
+
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.wsrep_replicate_myisam;
 SELECT @@global.wsrep_replicate_myisam;
@@ -22,6 +26,7 @@ SET GLOBAL wsrep_replicate_myisam= OFF;
 --echo #
 call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_slave_threads' and 'LOCK_global_system_variables'");
 call mtr.add_suppression("WSREP: Failed to get provider options");
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_slave_threads;
 SELECT @@global.wsrep_cluster_address;
@@ -29,7 +34,11 @@ SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 --echo
 
+--disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
 SHOW STATUS LIKE 'threads_connected';
@@ -41,6 +50,8 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
 --echo # Wait for applier threads to get created.
 sleep 3; 
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
 SHOW STATUS LIKE 'threads_connected';
@@ -56,8 +67,9 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 
 # reset (for mtr internal checks)
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SET GLOBAL wsrep_provider= none;
 SET GLOBAL wsrep_cluster_address= '';
-SET GLOBAL wsrep_provider= 'none';
+SET GLOBAL wsrep_provider_options= '';
 
 --echo # End of test.
 

@@ -1761,8 +1761,11 @@ row_ins_scan_sec_index_for_duplicate(
 		} else {
 
 #ifdef WITH_WSREP
-		  /* appliers don't need dupkey checks */
-		  if (!wsrep_thd_is_BF(thr_get_trx(thr)->mysql_thd, 0))
+			if (wsrep_thd_is_BF(thr_get_trx(thr)->mysql_thd, 0)) {
+				if (!(lock_type & LOCK_REC_NOT_GAP)) {
+					lock_type |= LOCK_REC_NOT_GAP;
+				}
+			}
 #endif /* WITH_WSREP */
 			err = row_ins_set_shared_rec_lock(
 				lock_type, block, rec, index, offsets, thr);

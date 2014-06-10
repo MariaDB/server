@@ -304,7 +304,7 @@ Version:        %{mysql_version}
 Summary:        MySQL: a very fast and reliable SQL database server
 Group:          Applications/Databases
 %if %{defined with_wsrep}
-Requires:       %{distro_requires} rsync
+Requires:       %{distro_requires} rsync lsof
 %else
 Requires:       %{distro_requires}
 %endif

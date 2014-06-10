@@ -509,7 +509,20 @@ int wsrep_init()
     wsrep_ready_set(TRUE);
     wsrep_inited= 1;
     global_system_variables.wsrep_on = 0;
-    return 0;
+    wsrep_init_args args;
+    args.logger_cb = wsrep_log_cb;
+    args.options = (wsrep_provider_options) ?
+            wsrep_provider_options : "";
+    rcode = wsrep->init(wsrep, &args);
+    if (rcode)
+    {
+      DBUG_PRINT("wsrep",("wsrep::init() failed: %d", rcode));
+      WSREP_ERROR("wsrep::init() failed: %d, must shutdown", rcode);
+      wsrep->free(wsrep);
+      free(wsrep);
+      wsrep = NULL;
+    }
+    return rcode;
   }
   else
   {
@@ -1215,6 +1228,9 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
     break;
   case SQLCOM_CREATE_EVENT:
     buf_err= wsrep_create_event_query(thd, &buf, &buf_len);
+    break;
+  case SQLCOM_ALTER_EVENT:
+    buf_err= wsrep_alter_event_query(thd, &buf, &buf_len);
     break;
   default:
     buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(), &buf,
