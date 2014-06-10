@@ -1017,6 +1017,28 @@ lock_rec_has_to_wait(
 			return(FALSE);
 		}
 
+		if ((type_mode & LOCK_GAP || lock_rec_get_gap(lock2)) &&
+		    !thd_need_ordering_with(trx->mysql_thd,
+					    lock2->trx->mysql_thd)) {
+			/* If the upper server layer has already decided on the
+			commit order between the transaction requesting the
+			lock and the transaction owning the lock, we do not
+			need to wait for gap locks. Such ordeering by the upper
+			server layer happens in parallel replication, where the
+			commit order is fixed to match the original order on the
+			master.
+
+			Such gap locks are mainly needed to get serialisability
+			between transactions so that they will be binlogged in
+			the correct order so that statement-based replication
+			will give the correct results. Since the right order
+			was already determined on the master, we do not need
+			to enforce it again here (and doing so could lead to
+			occasional deadlocks). */
+
+			return (FALSE);
+		}
+
 		return(TRUE);
 	}
 

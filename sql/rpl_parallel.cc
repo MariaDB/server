@@ -23,7 +23,6 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   Relay_log_info *rli= rgi->rli;
   THD *thd= rgi->thd;
 
-  thd->rgi_slave= rgi;
   thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
 
   /* ToDo: Access to thd, and what about rli, split out a parallel part? */
@@ -35,7 +34,6 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
   strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
   err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
-  thd->rgi_slave= NULL;
 
   thread_safe_increment64(&rli->executed_entries,
                           &slave_executed_entries_lock);
@@ -236,8 +234,9 @@ static void
 convert_kill_to_deadlock_error(rpl_group_info *rgi)
 {
   THD *thd= rgi->thd;
+  int err_code= thd->get_stmt_da()->sql_errno();
 
-  if (thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED &&
+  if ((err_code == ER_QUERY_INTERRUPTED || err_code == ER_CONNECTION_KILLED) &&
       rgi->killed_for_retry)
   {
     thd->clear_error();
@@ -510,39 +509,6 @@ handle_rpl_parallel_thread(void *arg)
   thd->set_time();
   thd->variables.lock_wait_timeout= LONG_TIMEOUT;
   thd->system_thread_info.rpl_sql_info= &sql_info;
-  /*
-    For now, we need to run the replication parallel worker threads in
-    READ COMMITTED. This is needed because gap locks are not symmetric.
-    For example, a gap lock from a DELETE blocks an insert intention lock,
-    but not vice versa. So an INSERT followed by DELETE can group commit
-    on the master, but if we are unlucky with thread scheduling we can
-    then deadlock on the slave because the INSERT ends up waiting for a
-    gap lock from the DELETE (and the DELETE in turn waits for the INSERT
-    in wait_for_prior_commit()). See also MDEV-5914.
-
-    It should be mostly safe to run in READ COMMITTED in the slave anyway.
-    The commit order is already fixed from on the master, so we do not
-    risk logging into the binlog in an incorrect order between worker
-    threads (one that would cause different results if executed on a
-    lower-level slave that uses this slave as a master). The only
-    potential problem is with transactions run in a different master
-    connection (using multi-source replication), or run directly on the
-    slave by an application; when using READ COMMITTED we are not
-    guaranteed serialisability of binlogged statements.
-
-    In practice, this is unlikely to be an issue. In GTID mode, such
-    parallel transactions from multi-source or application must in any
-    case use a different replication domain, in which case binlog order
-    by definition must be independent between the different domain. Even
-    in non-GTID mode, normally one will assume that the external
-    transactions are not conflicting with those applied by the slave, so
-    that isolation level should make no difference. It would be rather
-    strange if the result of applying query events from one master would
-    depend on the timing and nature of other queries executed from
-    different multi-source connections or done directly on the slave by
-    an application. Still, something to be aware of.
-  */
-  thd->variables.tx_isolation= ISO_READ_COMMITTED;
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->thd= thd;
@@ -598,7 +564,7 @@ handle_rpl_parallel_thread(void *arg)
         continue;
       }
 
-      group_rgi= rgi;
+      thd->rgi_slave= group_rgi= rgi;
       gco= rgi->gco;
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= events->ev->get_type_code()) == GTID_EVENT)
@@ -607,7 +573,6 @@ handle_rpl_parallel_thread(void *arg)
         PSI_stage_info old_stage;
         uint64 wait_count;
 
-        thd->tx_isolation= (enum_tx_isolation)thd->variables.tx_isolation;
         in_event_group= true;
         /*
           If the standalone flag is set, then this event group consists of a
@@ -618,9 +583,7 @@ handle_rpl_parallel_thread(void *arg)
           (0 != (static_cast<Gtid_log_event *>(events->ev)->flags2 &
                  Gtid_log_event::FL_STANDALONE));
 
-        /* Save this, as it gets cleared when the event group commits. */
         event_gtid_sub_id= rgi->gtid_sub_id;
-
         rgi->thd= thd;
 
         /*
@@ -796,7 +759,7 @@ handle_rpl_parallel_thread(void *arg)
         finish_event_group(thd, event_gtid_sub_id, entry, rgi);
         rgi->next= rgis_to_free;
         rgis_to_free= rgi;
-        group_rgi= rgi= NULL;
+        thd->rgi_slave= group_rgi= rgi= NULL;
         skip_event_group= false;
         DEBUG_SYNC(thd, "rpl_parallel_end_of_group");
       }
@@ -879,7 +842,7 @@ handle_rpl_parallel_thread(void *arg)
       in_event_group= false;
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
       rpt->free_rgi(group_rgi);
-      group_rgi= NULL;
+      thd->rgi_slave= group_rgi= NULL;
       skip_event_group= false;
     }
     if (!in_event_group)

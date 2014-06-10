@@ -1741,6 +1741,8 @@ struct wait_for_commit
   {
     if (waitee)
       unregister_wait_for_prior_commit2();
+    else
+      wakeup_error= 0;
   }
   /*
     Remove a waiter from the list in the waitee. Used to unregister a wait.

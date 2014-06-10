@@ -182,7 +182,7 @@ struct rpl_parallel_entry {
 
     Event groups commit in order, so the rpl_group_info for an event group
     will be alive (at least) as long as
-    rpl_grou_info::gtid_sub_id > last_committed_sub_id. This can be used to
+    rpl_group_info::gtid_sub_id > last_committed_sub_id. This can be used to
     safely refer back to previous event groups if they are still executing,
     and ignore them if they completed, without requiring explicit
     synchronisation between the threads.

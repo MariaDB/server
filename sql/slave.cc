@@ -288,12 +288,12 @@ static void init_slave_psi_keys(void)
 
 
 static bool slave_background_thread_running;
+static bool slave_background_thread_stop;
 static bool slave_background_thread_gtid_loaded;
 
 struct slave_background_kill_t {
   slave_background_kill_t *next;
   THD *to_kill;
-  int errcode;
 } *slave_background_kill_list;
 
 
@@ -323,24 +323,21 @@ handle_slave_background(void *arg __attribute__((unused)))
                       thd->get_stmt_da()->sql_errno(),
                       thd->get_stmt_da()->message());
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  threads.append(thd);
+  mysql_mutex_lock(&LOCK_slave_background);
   slave_background_thread_gtid_loaded= true;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_slave_background);
 
   THD_STAGE_INFO(thd, stage_slave_background_process_request);
   do
   {
     slave_background_kill_t *kill_list;
 
-    mysql_mutex_lock(&LOCK_slave_background);
     thd->ENTER_COND(&COND_slave_background, &LOCK_slave_background,
                     &stage_slave_background_wait_request,
                     &old_stage);
     for (;;)
     {
-      stop= abort_loop || thd->killed;
+      stop= abort_loop || thd->killed || slave_background_thread_stop;
       kill_list= slave_background_kill_list;
       if (stop || kill_list)
         break;
@@ -356,36 +353,34 @@ handle_slave_background(void *arg __attribute__((unused)))
       kill_list= p->next;
 
       mysql_mutex_lock(&p->to_kill->LOCK_thd_data);
-      /* ToDo: mark the p->errcode error code somehow ... ? */
-      p->to_kill->awake(KILL_QUERY);
+      p->to_kill->awake(KILL_CONNECTION);
       mysql_mutex_unlock(&p->to_kill->LOCK_thd_data);
       my_free(p);
     }
+    mysql_mutex_lock(&LOCK_slave_background);
   } while (!stop);
+
+  slave_background_thread_running= false;
+  mysql_cond_broadcast(&COND_slave_background);
+  mysql_mutex_unlock(&LOCK_slave_background);
 
   mysql_mutex_lock(&LOCK_thread_count);
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
   my_thread_end();
 
-  mysql_mutex_lock(&LOCK_thread_count);
-  slave_background_thread_running= false;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
-
   return 0;
 }
 
 
 void
-slave_background_kill_request(THD *to_kill, int errcode)
+slave_background_kill_request(THD *to_kill)
 {
   slave_background_kill_t *p=
     (slave_background_kill_t *)my_malloc(sizeof(*p), MYF(MY_WME));
   if (p)
   {
     p->to_kill= to_kill;
-    p->errcode= errcode;
     to_kill->rgi_slave->killed_for_retry= true;
     mysql_mutex_lock(&LOCK_slave_background);
     p->next= slave_background_kill_list;
@@ -417,6 +412,7 @@ start_slave_background_thread()
   pthread_t th;
 
   slave_background_thread_running= true;
+  slave_background_thread_stop= false;
   slave_background_thread_gtid_loaded= false;
   if (mysql_thread_create(key_thread_slave_background,
                           &th, &connection_attrib, handle_slave_background,
@@ -426,12 +422,24 @@ start_slave_background_thread()
     return 1;
   }
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_slave_background);
   while (!slave_background_thread_gtid_loaded)
-    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+    mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
+  mysql_mutex_unlock(&LOCK_slave_background);
 
   return 0;
+}
+
+
+static void
+stop_slave_background_thread()
+{
+  mysql_mutex_lock(&LOCK_slave_background);
+  slave_background_thread_stop= true;
+  mysql_cond_broadcast(&COND_slave_background);
+  while (slave_background_thread_running)
+    mysql_cond_wait(&COND_slave_background, &LOCK_slave_background);
+  mysql_mutex_unlock(&LOCK_slave_background);
 }
 
 
@@ -1076,6 +1084,9 @@ void end_slave()
   master_info_index= 0;
   active_mi= 0;
   mysql_mutex_unlock(&LOCK_active_mi);
+
+  stop_slave_background_thread();
+
   global_rpl_thread_pool.destroy();
   free_all_rpl_filters();
   DBUG_VOID_RETURN;
@@ -3399,7 +3410,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
       Make sure we do not errorneously update gtid_slave_pos with a lingering
       GTID from this failed event group (MDEV-4906).
     */
-    rgi->gtid_sub_id= 0;
+    rgi->gtid_pending= false;
   }
 
   DBUG_RETURN(exec_res ? 1 : 0);
@@ -4557,6 +4568,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->log_space_lock);
 
   serial_rgi->gtid_sub_id= 0;
+  serial_rgi->gtid_pending= false;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,

@@ -438,7 +438,7 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1964
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
@@ -573,7 +573,7 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1964
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 
 # Now we have to disable the debug_sync statements, so they do not trigger
@@ -712,7 +712,7 @@ SET debug_sync='now WAIT_FOR t2_killed';
 # Now we can allow T1 to proceed.
 SET debug_sync='now SIGNAL t1_cont';
 
---let $slave_sql_errno= 1317,1964
+--let $slave_sql_errno= 1317,1927,1964
 --source include/wait_for_slave_sql_error.inc
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 
@@ -1277,6 +1277,7 @@ eval SELECT IF('$io_pos' = '$sql_pos', "OK", "Not ok, $io_pos <> $sql_pos") AS t
 
 --connection server_1
 FLUSH LOGS;
+--source include/wait_for_binlog_checkpoint.inc
 --save_master_pos
 
 --connection server_2

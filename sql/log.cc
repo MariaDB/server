@@ -6836,7 +6836,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           /* Interrupted by kill. */
           DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior_killed");
           wfc->wakeup_error= orig_entry->thd->killed_errno();
-          if (wfc->wakeup_error)
+          if (!wfc->wakeup_error)
             wfc->wakeup_error= ER_QUERY_INTERRUPTED;
           my_message(wfc->wakeup_error, ER(wfc->wakeup_error), MYF(0));
           DBUG_RETURN(-1);

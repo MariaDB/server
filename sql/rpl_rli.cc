@@ -1563,6 +1563,8 @@ rpl_group_info::reinit(Relay_log_info *rli)
   tables_to_lock_count= 0;
   trans_retries= 0;
   last_event_start_time= 0;
+  gtid_sub_id= 0;
+  gtid_pending= false;
   worker_error= 0;
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
@@ -1572,7 +1574,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
 }
 
 rpl_group_info::rpl_group_info(Relay_log_info *rli)
-  : thd(0), gtid_sub_id(0), wait_commit_sub_id(0),
+  : thd(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
     deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
 {
@@ -1606,6 +1608,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   rgi->current_gtid.server_id= gev->server_id;
   rgi->current_gtid.domain_id= gev->domain_id;
   rgi->current_gtid.seq_no= gev->seq_no;
+  rgi->gtid_pending= true;
   return 0;
 }
 

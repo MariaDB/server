@@ -622,7 +622,6 @@ void **thd_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
 void thd_storage_lock_wait(MYSQL_THD thd, long long value);
 int thd_tx_isolation(const MYSQL_THD thd);
 int thd_tx_is_read_only(const MYSQL_THD thd);
-int thd_rpl_is_parallel(const MYSQL_THD thd);
 /**
   Create a temporary file.
 
@@ -781,6 +780,28 @@ int thd_need_wait_for(const MYSQL_THD thd);
   the binlogging and transaction isolation level in effect.
 */
 int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+
+/*
+  If the storage engine detects a deadlock, and needs to choose a victim
+  transaction to roll back, it can call this function to ask the upper
+  server layer for which of two possible transactions is prefered to be
+  aborted and rolled back.
+
+  In parallel replication, if two transactions are running in parallel and
+  one is fixed to commit before the other, then the one that commits later
+  will be prefered as the victim - chosing the early transaction as a victim
+  will not resolve the deadlock anyway, as the later transaction still needs
+  to wait for the earlier to commit.
+
+  Otherwise, a transaction that uses only transactional tables, and can thus
+  be safely rolled back, will be prefered as a deadlock victim over a
+  transaction that also modified non-transactional (eg. MyISAM) tables.
+
+  The return value is -1 if the first transaction is prefered as a deadlock
+  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  which case the storage engine can make the choice as it prefers).
+*/
+int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 
 #ifdef __cplusplus
 }

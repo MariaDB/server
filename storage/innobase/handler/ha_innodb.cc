@@ -4274,14 +4274,11 @@ handler::Table_flags
 ha_innobase::table_flags() const
 /*============================*/
 {
-	THD *thd = ha_thd();
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
-	ulong const tx_isolation = thd_tx_isolation(thd);
+	ulong const tx_isolation = thd_tx_isolation(ha_thd());
 
-	if (tx_isolation <= ISO_READ_COMMITTED &&
-	    !(tx_isolation == ISO_READ_COMMITTED &&
-	      thd_rpl_is_parallel(thd))) {
+	if (tx_isolation <= ISO_READ_COMMITTED) {
 		return(int_table_flags);
 	}
 

@@ -4211,16 +4211,17 @@ extern "C" int thd_slave_thread(const MYSQL_THD thd)
   return(thd->slave_thread);
 }
 
-/* Returns true for a worker thread in parallel replication. */
-extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
-{
-  return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
-}
-
 extern "C" int
 thd_need_wait_for(const MYSQL_THD thd)
 {
-  return thd && thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
+  rpl_group_info *rgi;
+
+  if (!thd)
+    return false;
+  rgi= thd->rgi_slave;
+  if (!rgi)
+    return false;
+  return rgi->is_parallel_exec;
 }
 
 extern "C" void
@@ -4239,7 +4240,7 @@ thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
     return;
   if (rgi->rli != other_rgi->rli)
     return;
-  if (!rgi->gtid_sub_id)
+  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
     return;
   if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
     return;
@@ -4255,15 +4256,19 @@ thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
   */
 
 #ifdef HAVE_REPLICATION
-  slave_background_kill_request(other_thd, ER_LOCK_DEADLOCK);
+  slave_background_kill_request(other_thd);
 #endif
 }
 
 extern "C" int
 thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 {
-  rpl_group_info *rgi= thd->rgi_slave;
-  rpl_group_info *other_rgi= other_thd->rgi_slave;
+  rpl_group_info *rgi, *other_rgi;
+
+  if (!thd || !other_thd)
+    return 1;
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)
     return 1;
   if (!rgi->is_parallel_exec)
@@ -4280,6 +4285,46 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   */
   return 0;
 }
+
+
+extern "C" int
+thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
+{
+  rpl_group_info *rgi1, *rgi2;
+  bool nontrans1, nontrans2;
+
+  if (!thd1 || !thd2)
+    return 0;
+
+  /*
+    If the transactions are participating in the same replication domain in
+    parallel replication, then request to select the one that will commit
+    later (in the fixed commit order from the master) as the deadlock victim.
+  */
+  rgi1= thd1->rgi_slave;
+  rgi2= thd2->rgi_slave;
+  if (rgi1 && rgi2 &&
+      rgi1->is_parallel_exec &&
+      rgi1->rli == rgi2->rli &&
+      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
+    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
+
+  /*
+    If one transaction has modified non-transactional tables (so that it
+    cannot be safely rolled back), and the other has not, then prefer to
+    select the purely transactional one as the victim.
+  */
+  nontrans1= thd1->transaction.all.modified_non_trans_table;
+  nontrans2= thd2->transaction.all.modified_non_trans_table;
+  if (nontrans1 && !nontrans2)
+    return 1;
+  else if (!nontrans1 && nontrans2)
+    return -1;
+
+  /* No preferences, let the storage engine decide. */
+  return 0;
+}
+
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
@@ -6457,6 +6502,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
       this->waitee= NULL;
     }
   }
+  wakeup_error= 0;
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
 

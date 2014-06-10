@@ -314,7 +314,7 @@ SET debug_sync='now WAIT_FOR t1_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR t2_killed';
 SET debug_sync='now SIGNAL t1_cont';
-include/wait_for_slave_sql_error.inc [errno=1317,1964]
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
@@ -398,7 +398,7 @@ SET debug_sync='now WAIT_FOR t1_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR t2_killed';
 SET debug_sync='now SIGNAL t1_cont';
-include/wait_for_slave_sql_error.inc [errno=1317,1964]
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -481,7 +481,7 @@ SET debug_sync='now WAIT_FOR t1_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR t2_killed';
 SET debug_sync='now SIGNAL t1_cont';
-include/wait_for_slave_sql_error.inc [errno=1317,1964]
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 a	b
 51	51
