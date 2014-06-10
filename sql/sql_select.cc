@@ -7436,21 +7436,28 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     If the field f from the table is equal to a field from one the
     earlier joined tables then the selectivity of the range conditions
     over the field f must be discounted.
-  */ 
-  for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
+
+    We need to discount selectivity only if we're using ref-based 
+    access method (and have sel!=1).
+    If we use ALL/range/index_merge, then sel==1, and no need to discount.
+  */
+  if (pos->key != NULL)
   {
-    if (!bitmap_is_set(read_set, field->field_index) ||
-        !field->next_equal_field)
-      continue; 
-    for (Field *next_field= field->next_equal_field; 
-         next_field != field; 
-         next_field= next_field->next_equal_field)
+    for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
     {
-      if (!(next_field->table->map & rem_tables) && next_field->table != table)
-      { 
-        if (field->cond_selectivity > 0)
-          sel/= field->cond_selectivity;
-        break;
+      if (!bitmap_is_set(read_set, field->field_index) ||
+          !field->next_equal_field)
+        continue; 
+      for (Field *next_field= field->next_equal_field; 
+           next_field != field; 
+           next_field= next_field->next_equal_field)
+      {
+        if (!(next_field->table->map & rem_tables) && next_field->table != table)
+        { 
+          if (field->cond_selectivity > 0)
+            sel/= field->cond_selectivity;
+          break;
+        }
       }
     }
   }
