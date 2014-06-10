@@ -929,6 +929,9 @@ int JOIN_CACHE::alloc_buffer()
         join->shrink_join_buffers(join_tab, curr_buff_space_sz,
                                   join_buff_space_limit))))
     goto fail;
+
+  if (for_explain_only)
+    return 0;
                                
   for (ulong buff_size_decr= (buff_size-min_buff_size)/4 + 1; ; )
   {
@@ -1023,6 +1026,7 @@ int JOIN_CACHE::realloc_buffer()
 
   SYNOPSIS
     init()
+      for_explain       join buffer is initialized for explain only
 
   DESCRIPTION
     The function initializes the join cache structure. It supposed to be called
@@ -1044,9 +1048,11 @@ int JOIN_CACHE::realloc_buffer()
     1   otherwise
 */
 
-int JOIN_CACHE::init()
+int JOIN_CACHE::init(bool for_explain)
 {
   DBUG_ENTER("JOIN_CACHE::init");
+
+  for_explain_only= for_explain; 
 
   calc_record_fields();
 
@@ -2632,6 +2638,7 @@ void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *explain)
 
   SYNOPSIS
     init()
+      for_explain       join buffer is initialized for explain only
 
   DESCRIPTION
     The function initializes the cache structure with a hash table in it.
@@ -2651,7 +2658,7 @@ void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *explain)
     1   otherwise
 */
 
-int JOIN_CACHE_HASHED::init()
+int JOIN_CACHE_HASHED::init(bool for_explain)
 {
   int rc= 0;
   TABLE_REF *ref= &join_tab->ref;
@@ -2663,8 +2670,8 @@ int JOIN_CACHE_HASHED::init()
 
   key_length= ref->key_length;
 
-  if ((rc= JOIN_CACHE::init()))
-    DBUG_RETURN (rc);
+  if ((rc= JOIN_CACHE::init(for_explain)) || for_explain)
+    DBUG_RETURN (rc); 
 
   if (!(key_buff= (uchar*) sql_alloc(key_length)))
     DBUG_RETURN(1);
@@ -3572,6 +3579,7 @@ void JOIN_CACHE_BNL::read_next_candidate_for_match(uchar *rec_ptr)
 
   SYNOPSIS
     init
+      for_explain       join buffer is initialized for explain only
 
   DESCRIPTION
     The function initializes the cache structure. It is supposed to be called
@@ -3586,14 +3594,14 @@ void JOIN_CACHE_BNL::read_next_candidate_for_match(uchar *rec_ptr)
     1   otherwise
 */
 
-int JOIN_CACHE_BNL::init()
+int JOIN_CACHE_BNL::init(bool for_explain)
 {
   DBUG_ENTER("JOIN_CACHE_BNL::init");
 
   if (!(join_tab_scan= new JOIN_TAB_SCAN(join, join_tab)))
     DBUG_RETURN(1);
 
-  DBUG_RETURN(JOIN_CACHE::init());
+  DBUG_RETURN(JOIN_CACHE::init(for_explain));
 }
 
 
@@ -3758,6 +3766,7 @@ void JOIN_CACHE_BNLH::read_next_candidate_for_match(uchar *rec_ptr)
 
   SYNOPSIS
     init
+      for_explain       join buffer is initialized for explain only
 
   DESCRIPTION
     The function initializes the cache structure. It is supposed to be called
@@ -3772,14 +3781,14 @@ void JOIN_CACHE_BNLH::read_next_candidate_for_match(uchar *rec_ptr)
     1   otherwise
 */
 
-int JOIN_CACHE_BNLH::init()
+int JOIN_CACHE_BNLH::init(bool for_explain)
 {
   DBUG_ENTER("JOIN_CACHE_BNLH::init");
 
   if (!(join_tab_scan= new JOIN_TAB_SCAN(join, join_tab)))
     DBUG_RETURN(1);
 
-  DBUG_RETURN(JOIN_CACHE_HASHED::init());
+  DBUG_RETURN(JOIN_CACHE_HASHED::init(for_explain));
 }
 
 
@@ -4176,6 +4185,8 @@ Initialize the BKA join cache
 
 SYNOPSIS
   init
+    for_explain       join buffer is initialized for explain only
+
 
 DESCRIPTION
   The function initializes the cache structure. It is supposed to be called
@@ -4190,7 +4201,7 @@ RETURN VALUE
   1   otherwise
 */
 
-int JOIN_CACHE_BKA::init()
+int JOIN_CACHE_BKA::init(bool for_explain)
 {
 int res;
 bool check_only_first_match= join_tab->check_only_first_match();
@@ -4209,7 +4220,7 @@ if (!(join_tab_scan= jsm= new JOIN_TAB_SCAN_MRR(join, join_tab,
                                                 mrr_mode, rs_funcs)))
   DBUG_RETURN(1);
 
-if ((res= JOIN_CACHE::init()))
+if ((res= JOIN_CACHE::init(for_explain)))
   DBUG_RETURN(res);
 
 if (use_emb_key)
@@ -4570,6 +4581,7 @@ if (no_association &&
 
   SYNOPSIS
     init
+      for_explain       join buffer is initialized for explain only
 
   DESCRIPTION
     The function initializes the cache structure. It is supposed to be called
@@ -4584,7 +4596,7 @@ if (no_association &&
     1   otherwise
 */
 
-int JOIN_CACHE_BKAH::init()
+int JOIN_CACHE_BKAH::init(bool for_explain)
 {
   bool check_only_first_match= join_tab->check_only_first_match();
 
@@ -4603,7 +4615,7 @@ int JOIN_CACHE_BKAH::init()
                                              mrr_mode, rs_funcs)))
     DBUG_RETURN(1);
 
-  DBUG_RETURN(JOIN_CACHE_HASHED::init());
+  DBUG_RETURN(JOIN_CACHE_HASHED::init(for_explain));
 }
 
 
