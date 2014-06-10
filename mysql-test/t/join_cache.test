@@ -3700,5 +3700,26 @@ select @counter;
 drop table t1,t2,t3;
 set expensive_subquery_limit=default;
 
+--echo # 
+--echo # mdev-6071: EXPLAIN chooses to use join buffer while execution turns it down
+--echo # 
+
+create table t1 (a int);
+insert into t1 values
+(7), (9), (1), (4), (2), (3), (5), (8), (11), (6), (10);
+
+explain select count(*) from t1, t1 t2 where t1.a=t2.a;
+
+set join_buffer_space_limit=1024*8;
+select @@join_buffer_space_limit;
+select @@join_buffer_size;
+
+explain select count(*) from t1, t1 t2 where t1.a=t2.a;
+
+set join_buffer_space_limit=default;
+
+drop table t1;
+
+# The following command must be the last one the file 
 # this must be the last command in the file
 set @@optimizer_switch=@save_optimizer_switch;
