@@ -514,39 +514,42 @@ void Item_func_from_base64::fix_length_and_dec()
 String *Item_func_from_base64::val_str(String *str)
 {
   String *res= args[0]->val_str_ascii(str);
-  bool too_long= false;
   int length;
   const char *end_ptr;
 
-  if (!res ||
-      res->length() > (uint) base64_decode_max_arg_length() ||
-      (too_long=
-       ((uint) (length= base64_needed_decoded_length((int) res->length())) >
-        current_thd->variables.max_allowed_packet)) ||
-      tmp_value.alloc((uint) length) ||
-      (length= base64_decode(res->ptr(), (int) res->length(),
+  if (!res)
+    goto err;
+
+  if (res->length() > (uint) base64_decode_max_arg_length() ||
+      ((uint) (length= base64_needed_decoded_length((int) res->length())) >
+       current_thd->variables.max_allowed_packet))
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                        current_thd->variables.max_allowed_packet);
+    goto err;
+  }
+
+  if (tmp_value.alloc((uint) length))
+    goto err;
+
+  if ((length= base64_decode(res->ptr(), (int) res->length(),
                              (char *) tmp_value.ptr(), &end_ptr, 0)) < 0 ||
       end_ptr < res->ptr() + res->length())
   {
-    null_value= 1; // NULL input, too long input, OOM, or badly formed input
-    if (too_long)
-    {
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
-                          current_thd->variables.max_allowed_packet);
-    }
-    else if (res && length < 0)
-    {
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
-                          end_ptr - res->ptr());
-    }
-    return 0;
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
+                        end_ptr - res->ptr());
+    goto err;
   }
+
   tmp_value.length((uint) length);
   null_value= 0;
   return &tmp_value;
+err:
+  null_value= 1; // NULL input, too long input, OOM, or badly formed input
+  return 0;
 }
 ///////////////////////////////////////////////////////////////////////////////
 

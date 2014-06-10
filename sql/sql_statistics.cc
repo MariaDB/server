@@ -1550,6 +1550,7 @@ public:
     uint key_parts= table->actual_n_key_parts(key_info);
     empty= TRUE;
     prefixes= 0;
+    LINT_INIT(calc_state);
 
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;

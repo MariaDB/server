@@ -120,7 +120,7 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
   uint32 seq_no= gtid->seq_no;
   rpl_slave_state::element *elem;
   int res;
-  bool did_enter_cond;
+  bool did_enter_cond= false;
   PSI_stage_info old_stage;
   THD *thd;
   Relay_log_info *rli= rgi->rli;
@@ -138,7 +138,6 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
     each lock release and re-take.
   */
 
-  did_enter_cond= false;
   for (;;)
   {
     if (elem->highest_seq_no >= seq_no)
