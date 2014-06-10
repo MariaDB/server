@@ -63,6 +63,10 @@ STATDIR=""
 uextra=0
 disver=""
 
+tmpopts=""
+itmpdir=""
+xtmpdir=""
+
 scomp=""
 sdecomp=""
 
@@ -236,7 +240,7 @@ parse_cnf()
 get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
-    payload=$(du --block-size=1 -c  **/*.ibd **/*.MYI **/*.MYI ibdata1  | awk 'END { print $1 }')
+    payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | xargs -0 du --block-size=1 -c | awk 'END { print $1 }')
     if my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
@@ -299,6 +303,7 @@ read_cnf()
     iopts=$(parse_cnf sst inno-backup-opts "")
     iapts=$(parse_cnf sst inno-apply-opts "")
     impts=$(parse_cnf sst inno-move-opts "")
+    stimeout=$(parse_cnf sst sst-initial-timeout 100)
 }
 
 get_stream()
@@ -370,20 +375,29 @@ cleanup_donor()
         wsrep_log_error "Cleanup after exit with status:$estatus"
     fi
 
-    if [[ -n $XTRABACKUP_PID ]];then 
+    if [[ -n ${XTRABACKUP_PID:-} ]];then 
         if check_pid $XTRABACKUP_PID
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
             kill_xtrabackup
         fi
 
-        rm -f $XTRABACKUP_PID 
     fi
-    rm -f ${DATA}/${IST_FILE}
+    rm -f ${DATA}/${IST_FILE} || true
 
     if [[ -n $progress && -p $progress ]];then 
         wsrep_log_info "Cleaning up fifo file $progress"
-        rm $progress
+        rm -f $progress || true
+    fi
+
+    wsrep_log_info "Cleaning up temporary directories"
+
+    if [[ -n $xtmpdir ]];then 
+       [[ -d $xtmpdir ]] &&  rm -rf $xtmpdir || true
+    fi
+
+    if [[ -n $itmpdir ]];then 
+       [[ -d $itmpdir ]] &&  rm -rf $itmpdir || true
     fi
 }
 
@@ -391,7 +405,8 @@ kill_xtrabackup()
 {
     local PID=$(cat $XTRABACKUP_PID)
     [ -n "$PID" -a "0" != "$PID" ] && kill $PID && (kill $PID && kill -9 $PID) || :
-    rm -f "$XTRABACKUP_PID"
+    wsrep_log_info "Removing xtrabackup pid file $XTRABACKUP_PID"
+    rm -f "$XTRABACKUP_PID" || true
 }
 
 setup_ports()
@@ -453,13 +468,30 @@ recv_joiner()
 {
     local dir=$1
     local msg=$2 
+    local tmt=$3
+    local ltcmd
 
     pushd ${dir} 1>/dev/null
     set +e
-    timeit "$msg" "$tcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
+
+    if [[ $tmt -gt 0 && -x `which timeout` ]];then 
+        if timeout --help | grep -q -- '-k';then 
+            ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
+        else 
+            ltcmd="timeout $tmt $tcmd"
+        fi
+        timeit "$msg" "$ltcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
+    else 
+        timeit "$msg" "$tcmd | $strmcmd; RC=( "\${PIPESTATUS[@]}" )"
+    fi
+
     set -e
     popd 1>/dev/null 
 
+    if [[ ${RC[0]} -eq 124 ]];then 
+        wsrep_log_error "Possible timeout in receving first data from donor in gtid stage"
+        exit 32
+    fi
 
     for ecode in "${RC[@]}";do 
         if [[ $ecode -ne 0 ]];then 
@@ -501,7 +533,7 @@ send_donor()
 
 }
 
-if [[ ! -x `which innobackupex` ]];then 
+if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then 
     wsrep_log_error "innobackupex not in path: $PATH"
     exit 2
 fi
@@ -526,7 +558,7 @@ fi
 INNOEXTRA=""
 INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
 INNOMOVE="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
-INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $iopts \$INNOEXTRA --galera-info --stream=\$sfmt \${TMPDIR} 2>\${DATA}/innobackup.backup.log"
+INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -535,7 +567,14 @@ then
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
 
-        TMPDIR="${TMPDIR:-/tmp}"
+        if [[ -z $(parse_cnf mysqld tmpdir "") && -z $(parse_cnf xtrabackup tmpdir "") ]];then 
+            xtmpdir=$(mktemp -d)
+            tmpopts=" --tmpdir=$xtmpdir "
+            wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
+        fi
+
+        itmpdir=$(mktemp -d)
+        wsrep_log_info "Using $itmpdir as innobackupex temporary directory"
 
         if [ "${AUTH[0]}" != "(null)" ]; then
            INNOEXTRA+=" --user=${AUTH[0]}"
@@ -613,8 +652,8 @@ then
           exit 22
         fi
 
-        # innobackupex implicitly writes PID to fixed location in ${TMPDIR}
-        XTRABACKUP_PID="${TMPDIR}/xtrabackup_pid"
+        # innobackupex implicitly writes PID to fixed location in $xtmpdir
+        XTRABACKUP_PID="$xtmpdir/xtrabackup_pid"
 
 
     else # BYPASS FOR IST
@@ -717,7 +756,7 @@ then
 
     STATDIR=$(mktemp -d)
     MAGIC_FILE="${STATDIR}/${INFO_FILE}"
-    recv_joiner $STATDIR  "${stagemsg}-gtid" 1 
+    recv_joiner $STATDIR  "${stagemsg}-gtid" $stimeout
 
     if ! ps -p ${WSREP_SST_OPT_PARENT} &>/dev/null
     then
@@ -767,7 +806,7 @@ then
 
 
         MAGIC_FILE="${DATA}/${INFO_FILE}"
-        recv_joiner $DATA "${stagemsg}-SST" 0 
+        recv_joiner $DATA "${stagemsg}-SST" 0
 
         get_proc
 
@@ -867,11 +906,10 @@ then
         wsrep_log_info "${IST_FILE} received from donor: Running IST"
     fi
 
-    if [[ ! -r ${MAGIC_FILE} ]];then
+    if [[ ! -r ${MAGIC_FILE} ]];then 
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
-
     cat "${MAGIC_FILE}" # output UUID:seqno
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi

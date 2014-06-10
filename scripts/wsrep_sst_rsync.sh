@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 
-# Copyright (C) 2010 Codership Oy
+# Copyright (C) 2010-2014 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@ OS=$(uname)
 export PATH="/usr/sbin:/sbin:$PATH"
 
 . $(dirname $0)/wsrep_sst_common
+
+wsrep_check_programs rsync
 
 cleanup_joiner()
 {
@@ -202,6 +204,8 @@ then
 
 elif [ "$WSREP_SST_OPT_ROLE" = "joiner" ]
 then
+    wsrep_check_programs lsof
+
     touch $SST_PROGRESS_FILE
     MYSQLD_PID=$WSREP_SST_OPT_PARENT
 

@@ -2761,7 +2761,8 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   /* Mark that current_thd is not valid anymore */
   my_pthread_setspecific_ptr(THR_THD,  0);
 #ifdef WITH_WSREP
-  if (put_in_cache && !thd->wsrep_applier)
+  const bool wsrep_applier(thd->wsrep_applier);
+  if (put_in_cache && !wsrep_applier)
 #else
   if (put_in_cache)
 #endif /* WITH_WSREP */
