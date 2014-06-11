@@ -59,6 +59,7 @@ static MYSQL *mysql= 0;
 static char current_db[]= "client_test_db";
 static unsigned int test_count= 0;
 static unsigned int opt_count= 0;
+static unsigned int opt_count_read= 0;
 static unsigned int iter_count= 0;
 static my_bool have_innodb= FALSE;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -69,6 +70,9 @@ static const char *opt_vardir= "mysql-test/var";
 
 static longlong opt_getopt_ll_test= 0;
 
+static char **defaults_argv;
+static int   original_argc;
+static char **original_argv;
 static int embedded_server_arg_count= 0;
 static char *embedded_server_args[MAX_SERVER_ARGS];
 
@@ -112,6 +116,7 @@ DBUG_PRINT("test", ("name: %s", str));					\
 static void print_error(const char *msg);
 static void print_st_error(MYSQL_STMT *stmt, const char *msg);
 static void client_disconnect(MYSQL* mysql);
+static void get_options(int *argc, char ***argv);
 
 
 /*
@@ -273,7 +278,7 @@ static my_bool check_have_innodb(MYSQL *conn)
   MYSQL_RES *res;
   MYSQL_ROW row;
   int rc;
-  my_bool result;
+  my_bool result= FALSE;
 
   rc= mysql_query(conn, 
                   "SELECT (support = 'YES' or support = 'DEFAULT' or support = 'ENABLED') "
@@ -285,7 +290,8 @@ static my_bool check_have_innodb(MYSQL *conn)
   row= mysql_fetch_row(res);
   DIE_UNLESS(row);
 
-  result= strcmp(row[1], "1") == 0;
+  if (row[0] && row[1])
+    result= strcmp(row[1], "1") == 0;
   mysql_free_result(res);
   return result;
 }
@@ -1181,8 +1187,8 @@ static struct my_option client_test_long_options[] =
 {
   {"basedir", 'b', "Basedir for tests.", &opt_basedir,
    &opt_basedir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"count", 't', "Number of times test to be executed", &opt_count,
-   &opt_count, 0, GET_UINT, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
+  {"count", 't', "Number of times test to be executed", &opt_count_read,
+   &opt_count_read, 0, GET_UINT, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
   {"database", 'D', "Database to use", &opt_db, &opt_db,
    0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"do-not-drop-database", 'd', "Do not drop database while disconnecting",
@@ -1338,6 +1344,10 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
 static void get_options(int *argc, char ***argv)
 {
   int ho_error;
+  /* Copy argv from load_defaults, so we can free it when done. */
+  defaults_argv= *argv;
+  /* reset --silent option */
+  opt_silent= 0;
 
   if ((ho_error= handle_options(argc, argv, client_test_long_options,
                                 get_one_option)))
@@ -1359,9 +1369,12 @@ static void print_test_output()
     fprintf(stdout, "\n\n");
     fprintf(stdout, "All '%d' tests were successful (in '%d' iterations)",
             test_count-1, opt_count);
-    fprintf(stdout, "\n  Total execution time: %g SECS", total_time);
-    if (opt_count > 1)
-      fprintf(stdout, " (Avg: %g SECS)", total_time/opt_count);
+    if (!opt_silent)
+    {
+      fprintf(stdout, "\n  Total execution time: %g SECS", total_time);
+      if (opt_count > 1)
+        fprintf(stdout, " (Avg: %g SECS)", total_time/opt_count);
+    }
 
     fprintf(stdout, "\n\n!!! SUCCESS !!!\n");
   }
@@ -1374,16 +1387,37 @@ static void print_test_output()
 
 int main(int argc, char **argv)
 {
+  int i;
+  char **tests_to_run= NULL, **curr_test;
   struct my_tests_st *fptr;
   my_testlist= get_my_tests();
 
   MY_INIT(argv[0]);
+  /* Copy the original arguments, so it can be reused for restarting. */
+  original_argc= argc;
+  original_argv= malloc(argc * sizeof(char*));
+  if (argc && !original_argv)
+    exit(1);
+  for (i= 0; i < argc; i++)
+    original_argv[i]= strdup(argv[i]);
 
   if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
     exit(1);
 
-  defaults_argv= argv;
   get_options(&argc, &argv);
+  /* Set main opt_count. */
+  opt_count= opt_count_read;
+
+  /* If there are any arguments left (named tests), save them. */
+  if (argc)
+  {
+    tests_to_run= malloc((argc + 1) * sizeof(char*));
+    if (!tests_to_run)
+      exit(1);
+    for (i= 0; i < argc; i++)
+      tests_to_run[i]= strdup(argv[i]);
+    tests_to_run[i]= NULL;
+  }
 
   if (mysql_server_init(embedded_server_arg_count,
                         embedded_server_args,
@@ -1399,18 +1433,18 @@ int main(int argc, char **argv)
     /* Start of tests */
     test_count= 1;
     start_time= time((time_t *)0);
-    if (!argc)
+    if (!tests_to_run)
     {
       for (fptr= my_testlist; fptr->name; fptr++)
         (*fptr->function)();	
     }
     else
     {
-      for ( ; *argv ; argv++)
+      for (curr_test= tests_to_run ; *curr_test ; curr_test++)
       {
         for (fptr= my_testlist; fptr->name; fptr++)
         {
-          if (!strcmp(fptr->name, *argv))
+          if (!strcmp(fptr->name, *curr_test))
           {
             (*fptr->function)();
             break;
@@ -1423,6 +1457,7 @@ int main(int argc, char **argv)
                   my_progname);
           client_disconnect(mysql);
           free_defaults(defaults_argv);
+          mysql_server_end();
           exit(1);
         }
       }
@@ -1445,6 +1480,19 @@ int main(int argc, char **argv)
   mysql_server_end();
 
   my_end(0);
+
+  for (i= 0; i < original_argc; i++)
+    free(original_argv[i]);
+  if (original_argc)
+    free(original_argv);
+  if (tests_to_run)
+  {
+    for (curr_test= tests_to_run ; *curr_test ; curr_test++)
+      free(*curr_test);
+    free(tests_to_run);
+  }
+  my_free(opt_password);
+  my_free(opt_host);
 
   exit(0);
 }

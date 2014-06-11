@@ -6996,6 +6996,118 @@ static void test_set_option()
   mysql_stmt_close(stmt);
 }
 
+#ifdef EMBEDDED_LIBRARY
+static void test_embedded_start_stop()
+{
+  MYSQL *mysql_emb=NULL;
+  int i, j;
+  int argc= original_argc;                    // Start with the original args
+  char **argv, **my_argv;
+  char test_name[]= "test_embedded_start_stop";
+#define EMBEDDED_RESTARTS 64
+
+  myheader("test_embedded_start_stop");
+
+  /* Must stop the main embedded server, since we use the same config. */
+  client_disconnect(mysql);    /* disconnect from server */
+  free_defaults(defaults_argv);
+  mysql_server_end();
+  /* Free everything allocated by my_once_alloc */
+  my_end(0);
+
+  /*
+    Use a copy of the original arguments.
+    The arguments will be altered when reading the configs and parsing
+    options.
+  */
+  my_argv= malloc((argc + 1) * sizeof(char*));
+  if (!my_argv)
+    exit(1);
+
+  /* Test restarting the embedded library many times. */
+  for (i= 1; i <= EMBEDDED_RESTARTS; i++)
+  {
+    argv= my_argv;
+    argv[0]= test_name;
+    for (j= 1; j < argc; j++)
+      argv[j]= original_argv[j];
+
+    /* Initialize everything again. */
+    MY_INIT(argv[0]);
+
+    /* Load the client defaults from the .cnf file[s]. */
+    if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
+    {
+      myerror("load_defaults failed"); 
+      exit(1);
+    }
+
+    /* Parse the options (including the ones given from defaults files). */
+    get_options(&argc, &argv);
+
+    /* mysql_library_init is the same as mysql_server_init. */
+    if (mysql_library_init(embedded_server_arg_count,
+                           embedded_server_args,
+                           (char**) embedded_server_groups))
+    {
+      myerror("mysql_library_init failed"); 
+      exit(1);
+    }
+
+    /* Create a client connection. */
+    if (!(mysql_emb= mysql_client_init(NULL)))
+    {
+      myerror("mysql_client_init failed");
+      exit(1);
+    }
+
+    /* Connect it and see if we can use the database. */
+    if (!(mysql_real_connect(mysql_emb, opt_host, opt_user,
+                             opt_password, current_db, 0,
+                             NULL, 0)))
+    {
+      myerror("mysql_real_connect failed");
+    }
+
+    /* Close the client connection */
+    mysql_close(mysql_emb);
+    mysql_emb = NULL;
+    /* Free arguments allocated for defaults files. */
+    free_defaults(defaults_argv);
+    /* mysql_library_end is a define for mysql_server_end. */
+    mysql_library_end();
+    /* Free everything allocated by my_once_alloc */
+    my_end(0);
+  }
+
+  argc= original_argc;
+  argv= my_argv;
+  argv[0]= test_name;
+  for (j= 1; j < argc; j++)
+    argv[j]= original_argv[j];
+
+  MY_INIT(argv[0]);
+
+  if (load_defaults("my", client_test_load_default_groups, &argc, &argv))
+  {
+    myerror("load_defaults failed \n "); 
+    exit(1);
+  }
+
+  get_options(&argc, &argv);
+
+  /* Must start the main embedded server again after the test. */
+  if (mysql_server_init(embedded_server_arg_count,
+                        embedded_server_args,
+                        (char**) embedded_server_groups))
+    DIE("Can't initialize MySQL server");
+
+  /* connect to server with no flags, default protocol, auto reconnect true */
+  mysql= client_connect(0, MYSQL_PROTOCOL_DEFAULT, 1);
+  free(my_argv);
+}
+#endif /* EMBEDDED_LIBRARY */
+
 
 /*
   Test a misc GRANT option
@@ -19148,6 +19260,9 @@ static struct my_tests_st my_tests[]= {
   { "test_view_sp_list_fields", test_view_sp_list_fields },
   { "client_query", client_query },
   { "test_prepare_insert_update", test_prepare_insert_update},
+#ifdef EMBEDDED_LIBRARY
+  { "test_embedded_start_stop", test_embedded_start_stop },
+#endif
 #if NOT_YET_WORKING
   { "test_drop_temp", test_drop_temp },
 #endif
@@ -19226,6 +19341,7 @@ static struct my_tests_st my_tests[]= {
   { "test_set_option", test_set_option },
 #ifndef EMBEDDED_LIBRARY
   { "test_prepare_grant", test_prepare_grant },
+
 #endif
   { "test_frm_bug", test_frm_bug },
   { "test_explain_bug", test_explain_bug },
