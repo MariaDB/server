@@ -5316,11 +5316,40 @@ int Field_time::store(const char *from,uint len,CHARSET_INFO *cs)
 }
 
 
+/**
+  subtract a given number of days from DATETIME, return TIME
+
+  optimized version of calc_time_diff()
+
+  @note it might generate TIME values outside of the valid TIME range!
+*/
+static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
+{
+  long daydiff= calc_daynr(ltime->year, ltime->month, ltime->day) - days;
+  ltime->year= ltime->month= 0;
+  if (daydiff >=0 )
+    ltime->day= daydiff;
+  else
+  {
+    longlong timediff= ((((daydiff        * 24LL +
+                           ltime->hour)   * 60LL +
+                           ltime->minute) * 60LL +
+                           ltime->second) * 1000000LL +
+                           ltime->second_part);
+    unpack_time(timediff, ltime);
+  }
+  ltime->time_type= MYSQL_TIMESTAMP_TIME;
+}
+
+
 int Field_time::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
   MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
   int was_cut= 0;
+
+  if (curdays && l_time.time_type != MYSQL_TIMESTAMP_TIME)
+    calc_datetime_days_diff(&l_time, curdays);
 
   int have_smth_to_conv= !check_time_range(&l_time, decimals(), &was_cut);
   return store_TIME_with_warning(&l_time, &str, was_cut, have_smth_to_conv);
@@ -5356,8 +5385,30 @@ int Field_time::store(longlong nr, bool unsigned_val)
 
   return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
 }
-  
-  
+
+
+void Field_time::set_curdays(THD *thd)
+{
+  MYSQL_TIME ltime;
+  set_current_date(thd, &ltime);
+  curdays= calc_daynr(ltime.year, ltime.month, ltime.day);
+}
+
+
+Field *Field_time::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                 uchar *new_ptr, uint32 length,
+                                 uchar *new_null_ptr, uint new_null_bit)
+{
+  THD *thd= get_thd();
+  Field_time *res=
+    (Field_time*) Field::new_key_field(root, new_table, new_ptr, length,
+                                       new_null_ptr, new_null_bit);
+  if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) && res)
+    res->set_curdays(thd);
+  return res;
+}
+
+
 double Field_time::val_real(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;

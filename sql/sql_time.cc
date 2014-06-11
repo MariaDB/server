@@ -1259,8 +1259,7 @@ mix_date_and_time(MYSQL_TIME *to, const MYSQL_TIME *from)
 /**
   Get current date in DATE format
 */
-static void
-set_current_date(THD *thd, MYSQL_TIME *to)
+void set_current_date(THD *thd, MYSQL_TIME *to)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(to, thd->query_start());
   thd->time_zone_used= 1;

@@ -1852,6 +1852,12 @@ public:
 
 
 class Field_time :public Field_temporal {
+  /*
+    when this Field_time instance is used for storing values for index lookups
+    (see class store_key, Field::new_key_field(), etc), the following
+    might be set to TO_DAYS(CURDATE()). See also Field_time::store_time_dec()
+  */
+  long curdays;
 protected:
   virtual void store_TIME(MYSQL_TIME *ltime);
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
@@ -1861,7 +1867,7 @@ public:
              uchar null_bit_arg, enum utype unireg_check_arg,
              const char *field_name_arg)
     :Field_temporal(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
-                    unireg_check_arg, field_name_arg)
+                    unireg_check_arg, field_name_arg), curdays(0)
     {}
   enum_field_types type() const { return MYSQL_TYPE_TIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
@@ -1880,6 +1886,10 @@ public:
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
+  void set_curdays(THD *thd);
+  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
 };
 
 
