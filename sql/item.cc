@@ -8850,7 +8850,7 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   */
   if (field->cmp_type() == TIME_RESULT)
   {
-    MYSQL_TIME field_time, item_time;
+    MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
     if (field->type() == MYSQL_TYPE_TIME)
     {
       field->get_time(&field_time);
@@ -8860,8 +8860,11 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
     {
       field->get_date(&field_time, TIME_INVALID_DATES);
       item->get_date(&item_time, TIME_INVALID_DATES);
+      if (item_time.time_type == MYSQL_TIMESTAMP_TIME)
+        if (time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
+          return 1;
     }
-    return my_time_compare(&field_time, &item_time);
+    return my_time_compare(&field_time, item_time_cmp);
   }
   if (res_type == STRING_RESULT)
   {
