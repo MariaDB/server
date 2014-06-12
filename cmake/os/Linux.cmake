@@ -20,7 +20,6 @@ INCLUDE(CheckSymbolExists)
 
 # Something that needs to be set on legacy reasons
 SET(TARGET_OS_LINUX 1)
-SET(HAVE_NPTL 1)
 SET(_GNU_SOURCE 1)
 SET(CMAKE_REQUIRED_DEFINITIONS ${CMAKE_REQUIRED_DEFINITIONS} -D_GNU_SOURCE=1)
 

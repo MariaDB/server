@@ -438,8 +438,8 @@ void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
 		      :"r"(pc));
 #endif  /* __alpha__ */
 
-  /* We are 1 frame above signal frame with NPTL and 2 frames above with LT */
-  sigreturn_frame_count = thd_lib_detected == THD_LIB_LT ? 2 : 1;
+  /* We are 1 frame above signal frame with NPTL */
+  sigreturn_frame_count = 1;
 
   while (fp < (uchar**) stack_bottom)
   {
