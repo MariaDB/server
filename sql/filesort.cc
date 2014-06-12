@@ -166,6 +166,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   TABLE_LIST *tab= table->pos_in_table_list;
   Item_subselect *subselect= tab ? tab->containing_subselect() : 0;
 
+  *found_rows= HA_POS_ERROR;
+
   MYSQL_FILESORT_START(table->s->db.str, table->s->table_name.str);
   DEBUG_SYNC(thd, "filesort_start");
 
@@ -686,7 +688,8 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   ref_pos= ref_buff;
   quick_select=select && select->quick;
   record=0;
-  *found_rows= pq ? 0 : HA_POS_ERROR; // don't count unless pq is used
+  if (pq) // don't count unless pq is used
+    *found_rows= 0;
   flag= ((file->ha_table_flags() & HA_REC_NOT_IN_SEQ) || quick_select);
   if (flag)
     ref_pos= &file->ref[0];
