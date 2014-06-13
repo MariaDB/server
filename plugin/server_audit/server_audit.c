@@ -1653,7 +1653,7 @@ maria_declare_plugin(server_audit)
   audit_status,
   vars,
   PLUGIN_STR_VERSION,
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

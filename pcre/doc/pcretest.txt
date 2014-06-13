@@ -99,6 +99,9 @@ COMMAND LINE OPTIONS
                    newline    the default newline setting:
                                 CR, LF, CRLF, ANYCRLF, or ANY
                                 exit code is always 0
+                   bsr        the default setting for what \R matches:
+                                ANYCRLF or ANY
+                                exit code is always 0
 
                  The  following  options output 1 for true or 0 for false, and
                  set the exit code to the same value:
@@ -316,6 +319,7 @@ PATTERN MODIFIERS
          /N              set PCRE_NO_AUTO_CAPTURE
          /O              set PCRE_NO_AUTO_POSSESS
          /P              use the POSIX wrapper
+         /Q              test external stack check function
          /S              study the pattern after compilation
          /s              set PCRE_DOTALL
          /T              select character tables
@@ -462,7 +466,9 @@ PATTERN MODIFIERS
        compiled pattern (whether it is anchored, has a fixed first  character,
        and  so  on). It does this by calling pcre[16|32]_fullinfo() after com-
        piling a pattern. If the pattern is studied, the results  of  that  are
-       also output.
+       also output. In this output, the word "char" means a non-UTF character,
+       that is, the value of a single data item  (8-bit,  16-bit,  or  32-bit,
+       depending on the library that is being tested).
 
        The  /K modifier requests pcretest to show names from backtracking con-
        trol verbs that are  returned  from  calls  to  pcre[16|32]_exec().  It
@@ -493,26 +499,31 @@ PATTERN MODIFIERS
        pattern is successfully studied with the PCRE_STUDY_JIT_COMPILE option,
        the size of the JIT compiled code is also output.
 
-       The /S modifier causes  pcre[16|32]_study()  to  be  called  after  the
-       expression  has been compiled, and the results used when the expression
+       The /Q modifier is used to test the use of pcre_stack_guard. It must be
+       followed  by '0' or '1', specifying the return code to be given from an
+       external function that is passed to PCRE and used  for  stack  checking
+       during compilation (see the pcreapi documentation for details).
+
+       The  /S  modifier  causes  pcre[16|32]_study()  to  be called after the
+       expression has been compiled, and the results used when the  expression
        is matched. There are a number of qualifying characters that may follow
        /S.  They may appear in any order.
 
        If /S is followed by an exclamation mark, pcre[16|32]_study() is called
-       with the PCRE_STUDY_EXTRA_NEEDED option, causing it always to return  a
+       with  the PCRE_STUDY_EXTRA_NEEDED option, causing it always to return a
        pcre_extra block, even when studying discovers no useful information.
 
        If /S is followed by a second S character, it suppresses studying, even
-       if it was requested externally by the  -s  command  line  option.  This
-       makes  it possible to specify that certain patterns are always studied,
+       if  it  was  requested  externally  by the -s command line option. This
+       makes it possible to specify that certain patterns are always  studied,
        and others are never studied, independently of -s. This feature is used
        in the test files in a few cases where the output is different when the
        pattern is studied.
 
-       If the  /S  modifier  is  followed  by  a  +  character,  the  call  to
-       pcre[16|32]_study()  is made with all the JIT study options, requesting
-       just-in-time optimization support if it is available, for  both  normal
-       and  partial matching. If you want to restrict the JIT compiling modes,
+       If  the  /S  modifier  is  followed  by  a  +  character,  the  call to
+       pcre[16|32]_study() is made with all the JIT study options,  requesting
+       just-in-time  optimization  support if it is available, for both normal
+       and partial matching. If you want to restrict the JIT compiling  modes,
        you can follow /S+ with a digit in the range 1 to 7:
 
          1  normal match only
@@ -523,40 +534,40 @@ PATTERN MODIFIERS
          7  all three modes (default)
 
        If /S++ is used instead of /S+ (with or without a following digit), the
-       text  "(JIT)"  is  added  to  the first output line after a match or no
+       text "(JIT)" is added to the first output line  after  a  match  or  no
        match when JIT-compiled code was actually used.
 
-       Note that there is also an independent /+  modifier;  it  must  not  be
+       Note  that  there  is  also  an independent /+ modifier; it must not be
        given immediately after /S or /S+ because this will be misinterpreted.
 
        If JIT studying is successful, the compiled JIT code will automatically
-       be used when pcre[16|32]_exec() is run, except when  incompatible  run-
-       time  options are specified. For more details, see the pcrejit documen-
-       tation. See also the \J escape sequence below for a way of setting  the
+       be  used  when pcre[16|32]_exec() is run, except when incompatible run-
+       time options are specified. For more details, see the pcrejit  documen-
+       tation.  See also the \J escape sequence below for a way of setting the
        size of the JIT stack.
 
-       Finally,  if  /S  is  followed by a minus character, JIT compilation is
-       suppressed, even if it was requested externally by the -s command  line
-       option.  This makes it possible to specify that JIT is never to be used
+       Finally, if /S is followed by a minus  character,  JIT  compilation  is
+       suppressed,  even if it was requested externally by the -s command line
+       option. This makes it possible to specify that JIT is never to be  used
        for certain patterns.
 
-       The /T modifier must be followed by a single digit. It  causes  a  spe-
+       The  /T  modifier  must be followed by a single digit. It causes a spe-
        cific set of built-in character tables to be passed to pcre[16|32]_com-
-       pile(). It is used in the standard PCRE tests to check  behaviour  with
+       pile().  It  is used in the standard PCRE tests to check behaviour with
        different character tables. The digit specifies the tables as follows:
 
          0   the default ASCII tables, as distributed in
                pcre_chartables.c.dist
          1   a set of tables defining ISO 8859 characters
 
-       In  table 1, some characters whose codes are greater than 128 are iden-
+       In table 1, some characters whose codes are greater than 128 are  iden-
        tified as letters, digits, spaces, etc.
 
    Using the POSIX wrapper API
 
-       The /P modifier causes pcretest to call PCRE via the POSIX wrapper  API
-       rather  than its native API. This supports only the 8-bit library. When
-       /P is set, the following modifiers set options for the regcomp()  func-
+       The  /P modifier causes pcretest to call PCRE via the POSIX wrapper API
+       rather than its native API. This supports only the 8-bit library.  When
+       /P  is set, the following modifiers set options for the regcomp() func-
        tion:
 
          /i    REG_ICASE
@@ -567,48 +578,48 @@ PATTERN MODIFIERS
          /W    REG_UCP        )   the POSIX standard
          /8    REG_UTF8       )
 
-       The  /+  modifier  works  as  described  above. All other modifiers are
+       The /+ modifier works as  described  above.  All  other  modifiers  are
        ignored.
 
    Locking out certain modifiers
 
-       PCRE can be compiled with or without support for certain features  such
-       as  UTF-8/16/32  or Unicode properties. Accordingly, the standard tests
-       are split up into a number of different files  that  are  selected  for
-       running  depending  on  which features are available. When updating the
+       PCRE  can be compiled with or without support for certain features such
+       as UTF-8/16/32 or Unicode properties. Accordingly, the  standard  tests
+       are  split  up  into  a number of different files that are selected for
+       running depending on which features are available.  When  updating  the
        tests, it is all too easy to put a new test into the wrong file by mis-
-       take;  for example, to put a test that requires UTF support into a file
-       that is used when it is not available. To help detect such mistakes  as
-       early  as  possible, there is a facility for locking out specific modi-
+       take; for example, to put a test that requires UTF support into a  file
+       that  is used when it is not available. To help detect such mistakes as
+       early as possible, there is a facility for locking out  specific  modi-
        fiers. If an input line for pcretest starts with the string "< forbid "
-       the  following  sequence  of characters is taken as a list of forbidden
+       the following sequence of characters is taken as a  list  of  forbidden
        modifiers. For example, in the test files that must not use UTF or Uni-
        code property support, this line appears:
 
          < forbid 8W
 
-       This  locks out the /8 and /W modifiers. An immediate error is given if
-       they are subsequently encountered. If the character string  contains  <
-       but  not  >,  all  the  multi-character modifiers that begin with < are
-       locked out. Otherwise, such modifiers must be  explicitly  listed,  for
+       This locks out the /8 and /W modifiers. An immediate error is given  if
+       they  are  subsequently encountered. If the character string contains <
+       but not >, all the multi-character modifiers  that  begin  with  <  are
+       locked  out.  Otherwise,  such modifiers must be explicitly listed, for
        example:
 
          < forbid <JS><cr>
 
        There must be a single space between < and "forbid" for this feature to
-       be recognised. If there is not, the line is  interpreted  either  as  a
-       request  to  re-load  a pre-compiled pattern (see "SAVING AND RELOADING
-       COMPILED PATTERNS" below) or, if there is a another < character,  as  a
+       be  recognised.  If  there  is not, the line is interpreted either as a
+       request to re-load a pre-compiled pattern (see  "SAVING  AND  RELOADING
+       COMPILED  PATTERNS"  below) or, if there is a another < character, as a
        pattern that uses < as its delimiter.
 
 
 DATA LINES
 
-       Before  each  data  line  is  passed to pcre[16|32]_exec(), leading and
-       trailing white space is removed, and it is then scanned for \  escapes.
-       Some  of  these are pretty esoteric features, intended for checking out
-       some of the more complicated features of PCRE. If you are just  testing
-       "ordinary"  regular  expressions, you probably don't need any of these.
+       Before each data line is  passed  to  pcre[16|32]_exec(),  leading  and
+       trailing  white space is removed, and it is then scanned for \ escapes.
+       Some of these are pretty esoteric features, intended for  checking  out
+       some  of the more complicated features of PCRE. If you are just testing
+       "ordinary" regular expressions, you probably don't need any  of  these.
        The following escapes are recognized:
 
          \a         alarm (BEL, \x07)
@@ -669,7 +680,7 @@ DATA LINES
                       (any number of digits)
          \R         pass the PCRE_DFA_RESTART option to pcre[16|32]_dfa_exec()
          \S         output details of memory get/free calls during matching
-         \Y            pass    the    PCRE_NO_START_OPTIMIZE     option     to
+         \Y             pass     the    PCRE_NO_START_OPTIMIZE    option    to
        pcre[16|32]_exec()
                       or pcre[16|32]_dfa_exec()
          \Z         pass the PCRE_NOTEOL option to pcre[16|32]_exec()
@@ -678,7 +689,7 @@ DATA LINES
                       pcre[16|32]_exec() or pcre[16|32]_dfa_exec()
          \>dd       start the match at offset dd (optional "-"; then
                       any number of digits); this sets the startoffset
-                      argument         for        pcre[16|32]_exec()        or
+                      argument        for        pcre[16|32]_exec()         or
        pcre[16|32]_dfa_exec()
          \<cr>      pass the PCRE_NEWLINE_CR option to pcre[16|32]_exec()
                       or pcre[16|32]_dfa_exec()
@@ -691,102 +702,102 @@ DATA LINES
          \<any>     pass the PCRE_NEWLINE_ANY option to pcre[16|32]_exec()
                       or pcre[16|32]_dfa_exec()
 
-       The use of \x{hh...} is not dependent on the use of the /8 modifier  on
-       the  pattern. It is recognized always. There may be any number of hexa-
-       decimal digits inside the braces; invalid  values  provoke  error  mes-
+       The  use of \x{hh...} is not dependent on the use of the /8 modifier on
+       the pattern. It is recognized always. There may be any number of  hexa-
+       decimal  digits  inside  the  braces; invalid values provoke error mes-
        sages.
 
-       Note  that  \xhh  specifies one byte rather than one character in UTF-8
-       mode; this makes it possible to construct invalid UTF-8  sequences  for
-       testing  purposes.  On the other hand, \x{hh} is interpreted as a UTF-8
-       character in UTF-8 mode, generating more than one byte if the value  is
-       greater  than  127.   When testing the 8-bit library not in UTF-8 mode,
+       Note that \xhh specifies one byte rather than one  character  in  UTF-8
+       mode;  this  makes it possible to construct invalid UTF-8 sequences for
+       testing purposes. On the other hand, \x{hh} is interpreted as  a  UTF-8
+       character  in UTF-8 mode, generating more than one byte if the value is
+       greater than 127.  When testing the 8-bit library not  in  UTF-8  mode,
        \x{hh} generates one byte for values less than 256, and causes an error
        for greater values.
 
        In UTF-16 mode, all 4-digit \x{hhhh} values are accepted. This makes it
        possible to construct invalid UTF-16 sequences for testing purposes.
 
-       In UTF-32 mode, all 4- to 8-digit \x{...}  values  are  accepted.  This
-       makes  it  possible  to  construct invalid UTF-32 sequences for testing
+       In  UTF-32  mode,  all  4- to 8-digit \x{...} values are accepted. This
+       makes it possible to construct invalid  UTF-32  sequences  for  testing
        purposes.
 
-       The escapes that specify line ending  sequences  are  literal  strings,
+       The  escapes  that  specify  line ending sequences are literal strings,
        exactly as shown. No more than one newline setting should be present in
        any data line.
 
-       A backslash followed by anything else just escapes the  anything  else.
-       If  the very last character is a backslash, it is ignored. This gives a
-       way of passing an empty line as data, since a real  empty  line  termi-
+       A  backslash  followed by anything else just escapes the anything else.
+       If the very last character is a backslash, it is ignored. This gives  a
+       way  of  passing  an empty line as data, since a real empty line termi-
        nates the data input.
 
-       The  \J escape provides a way of setting the maximum stack size that is
-       used by the just-in-time optimization code. It is ignored if JIT  opti-
-       mization  is  not being used. Providing a stack that is larger than the
+       The \J escape provides a way of setting the maximum stack size that  is
+       used  by the just-in-time optimization code. It is ignored if JIT opti-
+       mization is not being used. Providing a stack that is larger  than  the
        default 32K is necessary only for very complicated patterns.
 
        If \M is present, pcretest calls pcre[16|32]_exec() several times, with
        different values in the match_limit and match_limit_recursion fields of
-       the pcre[16|32]_extra data structure, until it finds the  minimum  num-
+       the  pcre[16|32]_extra  data structure, until it finds the minimum num-
        bers for each parameter that allow pcre[16|32]_exec() to complete with-
-       out error. Because this is testing a specific  feature  of  the  normal
+       out  error.  Because  this  is testing a specific feature of the normal
        interpretive pcre[16|32]_exec() execution, the use of any JIT optimiza-
-       tion that might have been set up by the /S+ qualifier of -s+ option  is
+       tion  that might have been set up by the /S+ qualifier of -s+ option is
        disabled.
 
-       The  match_limit number is a measure of the amount of backtracking that
-       takes place, and checking it out can be instructive.  For  most  simple
-       matches,  the  number  is quite small, but for patterns with very large
-       numbers of matching possibilities, it can  become  large  very  quickly
-       with  increasing  length  of  subject string. The match_limit_recursion
-       number is a measure of how much stack (or, if  PCRE  is  compiled  with
-       NO_RECURSE,  how  much  heap)  memory  is  needed to complete the match
+       The match_limit number is a measure of the amount of backtracking  that
+       takes  place,  and  checking it out can be instructive. For most simple
+       matches, the number is quite small, but for patterns  with  very  large
+       numbers  of  matching  possibilities,  it can become large very quickly
+       with increasing length of  subject  string.  The  match_limit_recursion
+       number  is  a  measure  of how much stack (or, if PCRE is compiled with
+       NO_RECURSE, how much heap) memory  is  needed  to  complete  the  match
        attempt.
 
-       When \O is used, the value specified may be higher or  lower  than  the
+       When  \O  is  used, the value specified may be higher or lower than the
        size set by the -O command line option (or defaulted to 45); \O applies
-       only to the call  of  pcre[16|32]_exec()  for  the  line  in  which  it
+       only  to  the  call  of  pcre[16|32]_exec()  for  the  line in which it
        appears.
 
-       If  the /P modifier was present on the pattern, causing the POSIX wrap-
-       per API to be used, the only option-setting  sequences  that  have  any
-       effect  are  \B,  \N,  and  \Z,  causing  REG_NOTBOL, REG_NOTEMPTY, and
+       If the /P modifier was present on the pattern, causing the POSIX  wrap-
+       per  API  to  be  used, the only option-setting sequences that have any
+       effect are \B,  \N,  and  \Z,  causing  REG_NOTBOL,  REG_NOTEMPTY,  and
        REG_NOTEOL, respectively, to be passed to regexec().
 
 
 THE ALTERNATIVE MATCHING FUNCTION
 
-       By  default,  pcretest  uses  the  standard  PCRE  matching   function,
-       pcre[16|32]_exec()  to  match  each  data  line.  PCRE also supports an
-       alternative matching function, pcre[16|32]_dfa_test(),  which  operates
-       in  a different way, and has some restrictions. The differences between
+       By   default,  pcretest  uses  the  standard  PCRE  matching  function,
+       pcre[16|32]_exec() to match each  data  line.  PCRE  also  supports  an
+       alternative  matching  function, pcre[16|32]_dfa_test(), which operates
+       in a different way, and has some restrictions. The differences  between
        the two functions are described in the pcrematching documentation.
 
-       If a data line contains the \D escape sequence, or if the command  line
-       contains  the  -dfa  option, the alternative matching function is used.
+       If  a data line contains the \D escape sequence, or if the command line
+       contains the -dfa option, the alternative matching  function  is  used.
        This function finds all possible matches at a given point. If, however,
-       the  \F escape sequence is present in the data line, it stops after the
+       the \F escape sequence is present in the data line, it stops after  the
        first match is found. This is always the shortest possible match.
 
 
 DEFAULT OUTPUT FROM PCRETEST
 
-       This section describes the output when the  normal  matching  function,
+       This  section  describes  the output when the normal matching function,
        pcre[16|32]_exec(), is being used.
 
        When a match succeeds, pcretest outputs the list of captured substrings
-       that pcre[16|32]_exec() returns, starting with number 0 for the  string
-       that  matched  the whole pattern. Otherwise, it outputs "No match" when
-       the return is PCRE_ERROR_NOMATCH, and "Partial match:" followed by  the
-       partially    matching   substring   when   pcre[16|32]_exec()   returns
-       PCRE_ERROR_PARTIAL. (Note that this is the entire  substring  that  was
-       inspected  during  the  partial match; it may include characters before
-       the actual match start if a lookbehind assertion, \K,  \b,  or  \B  was
-       involved.)  For  any  other  return, pcretest outputs the PCRE negative
-       error number and a short descriptive phrase. If the error is  a  failed
-       UTF  string check, the offset of the start of the failing character and
-       the reason code are also output, provided that the size of  the  output
-       vector  is  at least two. Here is an example of an interactive pcretest
+       that  pcre[16|32]_exec() returns, starting with number 0 for the string
+       that matched the whole pattern. Otherwise, it outputs "No  match"  when
+       the  return is PCRE_ERROR_NOMATCH, and "Partial match:" followed by the
+       partially   matching   substring   when   pcre[16|32]_exec()    returns
+       PCRE_ERROR_PARTIAL.  (Note  that  this is the entire substring that was
+       inspected during the partial match; it may  include  characters  before
+       the  actual  match  start  if a lookbehind assertion, \K, \b, or \B was
+       involved.) For any other return, pcretest  outputs  the  PCRE  negative
+       error  number  and a short descriptive phrase. If the error is a failed
+       UTF string check, the offset of the start of the failing character  and
+       the  reason  code are also output, provided that the size of the output
+       vector is at least two. Here is an example of an  interactive  pcretest
        run.
 
          $ pcretest
@@ -800,10 +811,10 @@ DEFAULT OUTPUT FROM PCRETEST
          No match
 
        Unset capturing substrings that are not followed by one that is set are
-       not  returned  by pcre[16|32]_exec(), and are not shown by pcretest. In
+       not returned by pcre[16|32]_exec(), and are not shown by  pcretest.  In
        the following example, there are two capturing substrings, but when the
-       first  data  line is matched, the second, unset substring is not shown.
-       An "internal" unset substring is shown as "<unset>", as for the  second
+       first data line is matched, the second, unset substring is  not  shown.
+       An  "internal" unset substring is shown as "<unset>", as for the second
        data line.
 
            re> /(a)|(b)/
@@ -815,11 +826,11 @@ DEFAULT OUTPUT FROM PCRETEST
           1: <unset>
           2: b
 
-       If  the strings contain any non-printing characters, they are output as
-       \xhh escapes if the value is less than 256 and UTF  mode  is  not  set.
+       If the strings contain any non-printing characters, they are output  as
+       \xhh  escapes  if  the  value is less than 256 and UTF mode is not set.
        Otherwise they are output as \x{hh...} escapes. See below for the defi-
-       nition of non-printing characters. If the pattern has the /+  modifier,
-       the  output  for substring 0 is followed by the the rest of the subject
+       nition  of non-printing characters. If the pattern has the /+ modifier,
+       the output for substring 0 is followed by the the rest of  the  subject
        string, identified by "0+" like this:
 
            re> /cat/+
@@ -827,7 +838,7 @@ DEFAULT OUTPUT FROM PCRETEST
           0: cat
           0+ aract
 
-       If the pattern has the /g or /G modifier,  the  results  of  successive
+       If  the  pattern  has  the /g or /G modifier, the results of successive
        matching attempts are output in sequence, like this:
 
            re> /\Bi(\w\w)/g
@@ -839,32 +850,32 @@ DEFAULT OUTPUT FROM PCRETEST
           0: ipp
           1: pp
 
-       "No  match" is output only if the first match attempt fails. Here is an
-       example of a failure message (the offset 4 that is specified by \>4  is
+       "No match" is output only if the first match attempt fails. Here is  an
+       example  of a failure message (the offset 4 that is specified by \>4 is
        past the end of the subject string):
 
            re> /xyz/
          data> xyz\>4
          Error -24 (bad offset value)
 
-       If  any  of the sequences \C, \G, or \L are present in a data line that
-       is successfully matched, the substrings extracted  by  the  convenience
+       If any of the sequences \C, \G, or \L are present in a data  line  that
+       is  successfully  matched,  the substrings extracted by the convenience
        functions are output with C, G, or L after the string number instead of
        a colon. This is in addition to the normal full list. The string length
-       (that  is,  the return from the extraction function) is given in paren-
+       (that is, the return from the extraction function) is given  in  paren-
        theses after each string for \C and \G.
 
        Note that whereas patterns can be continued over several lines (a plain
        ">" prompt is used for continuations), data lines may not. However new-
-       lines can be included in data by means of the \n escape (or  \r,  \r\n,
+       lines  can  be included in data by means of the \n escape (or \r, \r\n,
        etc., depending on the newline sequence setting).
 
 
 OUTPUT FROM THE ALTERNATIVE MATCHING FUNCTION
 
        When the alternative matching function, pcre[16|32]_dfa_exec(), is used
-       (by means of the \D escape sequence or the -dfa command  line  option),
-       the  output  consists  of  a  list of all the matches that start at the
+       (by  means  of the \D escape sequence or the -dfa command line option),
+       the output consists of a list of all the  matches  that  start  at  the
        first point in the subject where there is at least one match. For exam-
        ple:
 
@@ -874,11 +885,11 @@ OUTPUT FROM THE ALTERNATIVE MATCHING FUNCTION
           1: tang
           2: tan
 
-       (Using  the  normal  matching function on this data finds only "tang".)
-       The longest matching string is always given first (and numbered  zero).
+       (Using the normal matching function on this data  finds  only  "tang".)
+       The  longest matching string is always given first (and numbered zero).
        After a PCRE_ERROR_PARTIAL return, the output is "Partial match:", fol-
-       lowed by the partially matching  substring.  (Note  that  this  is  the
-       entire  substring  that  was inspected during the partial match; it may
+       lowed  by  the  partially  matching  substring.  (Note that this is the
+       entire substring that was inspected during the partial  match;  it  may
        include characters before the actual match start if a lookbehind asser-
        tion, \K, \b, or \B was involved.)
 
@@ -894,16 +905,16 @@ OUTPUT FROM THE ALTERNATIVE MATCHING FUNCTION
           1: tan
           0: tan
 
-       Since the matching function does not  support  substring  capture,  the
-       escape  sequences  that  are concerned with captured substrings are not
+       Since  the  matching  function  does not support substring capture, the
+       escape sequences that are concerned with captured  substrings  are  not
        relevant.
 
 
 RESTARTING AFTER A PARTIAL MATCH
 
        When the alternative matching function has given the PCRE_ERROR_PARTIAL
-       return,  indicating that the subject partially matched the pattern, you
-       can restart the match with additional subject data by means of  the  \R
+       return, indicating that the subject partially matched the pattern,  you
+       can  restart  the match with additional subject data by means of the \R
        escape sequence. For example:
 
            re> /^\d?\d(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\d\d$/
@@ -912,30 +923,30 @@ RESTARTING AFTER A PARTIAL MATCH
          data> n05\R\D
           0: n05
 
-       For  further  information  about  partial matching, see the pcrepartial
+       For further information about partial  matching,  see  the  pcrepartial
        documentation.
 
 
 CALLOUTS
 
-       If the pattern contains any callout requests, pcretest's callout  func-
-       tion  is  called  during  matching. This works with both matching func-
+       If  the pattern contains any callout requests, pcretest's callout func-
+       tion is called during matching. This works  with  both  matching  func-
        tions. By default, the called function displays the callout number, the
-       start  and  current  positions in the text at the callout time, and the
+       start and current positions in the text at the callout  time,  and  the
        next pattern item to be tested. For example:
 
          --->pqrabcdef
            0    ^  ^     \d
 
-       This output indicates that  callout  number  0  occurred  for  a  match
-       attempt  starting  at  the fourth character of the subject string, when
+       This  output  indicates  that  callout  number  0  occurred for a match
+       attempt starting at the fourth character of the  subject  string,  when
        the pointer was at the seventh character of the data, and when the next
-       pattern  item  was  \d.  Just one circumflex is output if the start and
+       pattern item was \d. Just one circumflex is output  if  the  start  and
        current positions are the same.
 
        Callouts numbered 255 are assumed to be automatic callouts, inserted as
-       a  result  of the /C pattern modifier. In this case, instead of showing
-       the callout number, the offset in the pattern, preceded by a  plus,  is
+       a result of the /C pattern modifier. In this case, instead  of  showing
+       the  callout  number, the offset in the pattern, preceded by a plus, is
        output. For example:
 
            re> /\d?[A-E]\*/C
@@ -948,7 +959,7 @@ CALLOUTS
           0: E*
 
        If a pattern contains (*MARK) items, an additional line is output when-
-       ever a change of latest mark is passed to  the  callout  function.  For
+       ever  a  change  of  latest mark is passed to the callout function. For
        example:
 
            re> /a(*MARK:X)bc/C
@@ -962,104 +973,104 @@ CALLOUTS
          +12 ^  ^
           0: abc
 
-       The  mark  changes between matching "a" and "b", but stays the same for
-       the rest of the match, so nothing more is output. If, as  a  result  of
-       backtracking,  the  mark  reverts to being unset, the text "<unset>" is
+       The mark changes between matching "a" and "b", but stays the  same  for
+       the  rest  of  the match, so nothing more is output. If, as a result of
+       backtracking, the mark reverts to being unset, the  text  "<unset>"  is
        output.
 
-       The callout function in pcretest returns zero (carry  on  matching)  by
-       default,  but you can use a \C item in a data line (as described above)
+       The  callout  function  in pcretest returns zero (carry on matching) by
+       default, but you can use a \C item in a data line (as described  above)
        to change this and other parameters of the callout.
 
-       Inserting callouts can be helpful when using pcretest to check  compli-
-       cated  regular expressions. For further information about callouts, see
+       Inserting  callouts can be helpful when using pcretest to check compli-
+       cated regular expressions. For further information about callouts,  see
        the pcrecallout documentation.
 
 
 NON-PRINTING CHARACTERS
 
-       When pcretest is outputting text in the compiled version of a  pattern,
-       bytes  other  than 32-126 are always treated as non-printing characters
+       When  pcretest is outputting text in the compiled version of a pattern,
+       bytes other than 32-126 are always treated as  non-printing  characters
        are are therefore shown as hex escapes.
 
-       When pcretest is outputting text that is a matched part  of  a  subject
-       string,  it behaves in the same way, unless a different locale has been
-       set for the  pattern  (using  the  /L  modifier).  In  this  case,  the
+       When  pcretest  is  outputting text that is a matched part of a subject
+       string, it behaves in the same way, unless a different locale has  been
+       set  for  the  pattern  (using  the  /L  modifier).  In  this case, the
        isprint() function to distinguish printing and non-printing characters.
 
 
 SAVING AND RELOADING COMPILED PATTERNS
 
-       The  facilities  described  in  this section are not available when the
-       POSIX interface to PCRE is being used, that is,  when  the  /P  pattern
+       The facilities described in this section are  not  available  when  the
+       POSIX  interface  to  PCRE  is being used, that is, when the /P pattern
        modifier is specified.
 
        When the POSIX interface is not in use, you can cause pcretest to write
-       a compiled pattern to a file, by following the modifiers with >  and  a
+       a  compiled  pattern to a file, by following the modifiers with > and a
        file name.  For example:
 
          /pattern/im >/some/file
 
-       See  the pcreprecompile documentation for a discussion about saving and
-       re-using compiled patterns.  Note that if the pattern was  successfully
+       See the pcreprecompile documentation for a discussion about saving  and
+       re-using  compiled patterns.  Note that if the pattern was successfully
        studied with JIT optimization, the JIT data cannot be saved.
 
-       The  data  that  is  written  is  binary. The first eight bytes are the
-       length of the compiled pattern data  followed  by  the  length  of  the
-       optional  study  data,  each  written as four bytes in big-endian order
-       (most significant byte first). If there is no study  data  (either  the
+       The data that is written is binary.  The  first  eight  bytes  are  the
+       length  of  the  compiled  pattern  data  followed by the length of the
+       optional study data, each written as four  bytes  in  big-endian  order
+       (most  significant  byte  first). If there is no study data (either the
        pattern was not studied, or studying did not return any data), the sec-
-       ond length is zero. The lengths are followed by an exact  copy  of  the
-       compiled  pattern.  If  there is additional study data, this (excluding
-       any JIT data) follows immediately after  the  compiled  pattern.  After
+       ond  length  is  zero. The lengths are followed by an exact copy of the
+       compiled pattern. If there is additional study  data,  this  (excluding
+       any  JIT  data)  follows  immediately after the compiled pattern. After
        writing the file, pcretest expects to read a new pattern.
 
-       A  saved  pattern  can  be reloaded into pcretest by specifying < and a
-       file name instead of a pattern. There must be no space  between  <  and
-       the  file  name,  which  must  not  contain a < character, as otherwise
-       pcretest will interpret the line as a pattern delimited  by  <  charac-
+       A saved pattern can be reloaded into pcretest by  specifying  <  and  a
+       file  name  instead  of a pattern. There must be no space between < and
+       the file name, which must not  contain  a  <  character,  as  otherwise
+       pcretest  will  interpret  the line as a pattern delimited by < charac-
        ters. For example:
 
           re> </some/file
          Compiled pattern loaded from /some/file
          No study data
 
-       If  the  pattern  was previously studied with the JIT optimization, the
-       JIT information cannot be saved and restored, and so is lost. When  the
-       pattern  has  been  loaded, pcretest proceeds to read data lines in the
+       If the pattern was previously studied with the  JIT  optimization,  the
+       JIT  information cannot be saved and restored, and so is lost. When the
+       pattern has been loaded, pcretest proceeds to read data  lines  in  the
        usual way.
 
-       You can copy a file written by pcretest to a different host and  reload
-       it  there,  even  if the new host has opposite endianness to the one on
-       which the pattern was compiled. For example, you can compile on an  i86
-       machine  and  run  on  a SPARC machine. When a pattern is reloaded on a
+       You  can copy a file written by pcretest to a different host and reload
+       it there, even if the new host has opposite endianness to  the  one  on
+       which  the pattern was compiled. For example, you can compile on an i86
+       machine and run on a SPARC machine. When a pattern  is  reloaded  on  a
        host with different endianness, the confirmation message is changed to:
 
          Compiled pattern (byte-inverted) loaded from /some/file
 
        The test suite contains some saved pre-compiled patterns with different
-       endianness.  These  are  reloaded  using "<!" instead of just "<". This
+       endianness. These are reloaded using "<!" instead  of  just  "<".  This
        suppresses the "(byte-inverted)" text so that the output is the same on
-       all  hosts.  It  also forces debugging output once the pattern has been
+       all hosts. It also forces debugging output once the  pattern  has  been
        reloaded.
 
-       File names for saving and reloading can be absolute  or  relative,  but
-       note  that the shell facility of expanding a file name that starts with
+       File  names  for  saving and reloading can be absolute or relative, but
+       note that the shell facility of expanding a file name that starts  with
        a tilde (~) is not available.
 
-       The ability to save and reload files in pcretest is intended for  test-
-       ing  and experimentation. It is not intended for production use because
-       only a single pattern can be written to a file. Furthermore,  there  is
-       no  facility  for  supplying  custom  character  tables  for use with a
-       reloaded pattern. If the original  pattern  was  compiled  with  custom
-       tables,  an  attempt to match a subject string using a reloaded pattern
-       is likely to cause pcretest to crash.  Finally, if you attempt to  load
+       The  ability to save and reload files in pcretest is intended for test-
+       ing and experimentation. It is not intended for production use  because
+       only  a  single pattern can be written to a file. Furthermore, there is
+       no facility for supplying  custom  character  tables  for  use  with  a
+       reloaded  pattern.  If  the  original  pattern was compiled with custom
+       tables, an attempt to match a subject string using a  reloaded  pattern
+       is  likely to cause pcretest to crash.  Finally, if you attempt to load
        a file that is not in the correct format, the result is undefined.
 
 
 SEE ALSO
 
-       pcre(3),  pcre16(3),  pcre32(3),  pcreapi(3),  pcrecallout(3), pcrejit,
+       pcre(3), pcre16(3),  pcre32(3),  pcreapi(3),  pcrecallout(3),  pcrejit,
        pcrematching(3), pcrepartial(d), pcrepattern(3), pcreprecompile(3).
 
 
@@ -1072,5 +1083,5 @@ AUTHOR
 
 REVISION
 
-       Last updated: 12 November 2013
-       Copyright (c) 1997-2013 University of Cambridge.
+       Last updated: 09 February 2014
+       Copyright (c) 1997-2014 University of Cambridge.

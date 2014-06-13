@@ -820,6 +820,16 @@ int spider_db_handlersocket_result::fetch_index_for_discover_table_structure(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
+
+int spider_db_handlersocket_result::fetch_table_for_discover_table_structure(
+  spider_string *str,
+  SPIDER_SHARE *spider_share,
+  CHARSET_INFO *access_charset
+) {
+  DBUG_ENTER("spider_db_handlersocket_result::fetch_table_for_discover_table_structure");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+}
 #endif
 
 spider_db_handlersocket::spider_db_handlersocket(
@@ -963,8 +973,11 @@ int spider_db_handlersocket::connect(
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   while (hs_conn->get_error_code())
   {
-    if (!connect_retry_count)
-    {
+    THD *thd = current_thd;
+    if (
+      !connect_retry_count ||
+      (thd && thd->killed)
+    ) {
       my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0),
         conn->tgt_host);
       DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
@@ -3481,8 +3494,8 @@ int spider_db_handlersocket_util::append_escaped_util(
 ) {
   DBUG_ENTER("spider_db_handlersocket_util::append_escaped_util");
   DBUG_PRINT("info",("spider this=%p", this));
-  append_escaped(to->get_str(), from);
-  to->mem_calc();
+  if (to->append_for_single_quote(from))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   DBUG_RETURN(0);
 }
 
@@ -4088,7 +4101,9 @@ int spider_handlersocket_handler::append_minimum_select_without_quote(
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+/*
       spider_set_bit(minimum_select_bitmap, (*field)->field_index);
+*/
       field_length =
         handlersocket_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length + SPIDER_SQL_COMMA_LEN))
@@ -5283,6 +5298,7 @@ int spider_handlersocket_handler::show_table_status(
 ) {
   spider_db_handlersocket_result res;
   SPIDER_SHARE *share = spider->share;
+  ulonglong auto_increment_value = 0;
   DBUG_ENTER("spider_handlersocket_show_table_status");
   res.fetch_table_status(
     sts_mode,
@@ -5291,11 +5307,17 @@ int spider_handlersocket_handler::show_table_status(
     share->data_file_length,
     share->max_data_file_length,
     share->index_file_length,
-    share->auto_increment_value,
+    auto_increment_value,
     share->create_time,
     share->update_time,
     share->check_time
   );
+  if (auto_increment_value > share->lgtm_tblhnd_share->auto_increment_value)
+  {
+    share->lgtm_tblhnd_share->auto_increment_value = auto_increment_value;
+    DBUG_PRINT("info",("spider auto_increment_value=%llu",
+      share->lgtm_tblhnd_share->auto_increment_value));
+  }
   DBUG_RETURN(0);
 }
 

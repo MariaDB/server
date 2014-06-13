@@ -1341,8 +1341,14 @@ int Key_value_records_iterator::get_next(range_id_t *range_info)
     }
     
     handler *h= owner->file;
+    uchar *lookup_key;
+    if (owner->keypar.use_key_pointers)
+      memcpy(&lookup_key, identical_key_it.read_ptr1, sizeof(void*));
+    else
+      lookup_key= identical_key_it.read_ptr1;
+
     if ((res= h->ha_index_next_same(h->get_table()->record[0], 
-                                    identical_key_it.read_ptr1, 
+                                    lookup_key,
                                     owner->keypar.key_tuple_length)))
     {
       /* It's either HA_ERR_END_OF_FILE or some other error */

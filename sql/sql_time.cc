@@ -358,20 +358,30 @@ static bool number_to_time_with_warn(bool neg, ulonglong nr, ulong sec_part,
   int was_cut;
   longlong res;
   enum_field_types f_type;
+  bool have_warnings;
 
   if (fuzzydate & TIME_TIME_ONLY)
   {
     fuzzydate= TIME_TIME_ONLY; // clear other flags
     f_type= MYSQL_TYPE_TIME;
     res= number_to_time(neg, nr, sec_part, ltime, &was_cut);
+    have_warnings= MYSQL_TIME_WARN_HAVE_WARNINGS(was_cut);
   }
   else
   {
     f_type= MYSQL_TYPE_DATETIME;
-    res= neg ? -1 : number_to_datetime(nr, sec_part, ltime, fuzzydate, &was_cut);
+    if (neg)
+    {
+      res= -1;
+    }
+    else
+    {
+      res= number_to_datetime(nr, sec_part, ltime, fuzzydate, &was_cut);
+      have_warnings= was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE);
+    }
   }
 
-  if (res < 0 || (was_cut && (fuzzydate & TIME_NO_ZERO_IN_DATE)))
+  if (res < 0 || have_warnings)
   {
     make_truncated_value_warning(current_thd,
                                  Sql_condition::WARN_LEVEL_WARN, str,
@@ -414,12 +424,11 @@ bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
 }
 
 
-bool int_to_datetime_with_warn(longlong value, MYSQL_TIME *ltime,
+bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate, const char *field_name)
 {
-  const ErrConvInteger str(value);
-  bool neg= value < 0;
-  return number_to_time_with_warn(neg, neg ? -value : value, 0, ltime,
+  const ErrConvInteger str(neg ? -value : value, !neg);
+  return number_to_time_with_warn(neg, value, 0, ltime,
                                   fuzzydate, &str, field_name);
 }
 
@@ -1250,8 +1259,7 @@ mix_date_and_time(MYSQL_TIME *to, const MYSQL_TIME *from)
 /**
   Get current date in DATE format
 */
-static void
-set_current_date(THD *thd, MYSQL_TIME *to)
+void set_current_date(THD *thd, MYSQL_TIME *to)
 {
   thd->variables.time_zone->gmt_sec_to_TIME(to, thd->query_start());
   thd->time_zone_used= 1;

@@ -125,7 +125,7 @@ longlong double_to_datetime(double nr, MYSQL_TIME *ltime, uint flags, int *cut)
                             ltime, flags, cut);
 }
 
-int number_to_time(my_bool neg, longlong nr, ulong sec_part,
+int number_to_time(my_bool neg, ulonglong nr, ulong sec_part,
                    MYSQL_TIME *ltime, int *was_cut);
 ulonglong TIME_to_ulonglong_datetime(const MYSQL_TIME *);
 ulonglong TIME_to_ulonglong_date(const MYSQL_TIME *);

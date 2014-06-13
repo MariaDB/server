@@ -1,4 +1,4 @@
-.TH PCRESYNTAX 3 "12 November 2013" "PCRE 8.34"
+.TH PCRESYNTAX 3 "08 January 2014" "PCRE 8.35"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH "PCRE REGULAR EXPRESSION SYNTAX SUMMARY"
@@ -309,6 +309,8 @@ but some of them use Unicode properties if PCRE_UCP is set. You can use
 .rs
 .sp
   \eK          reset start of match
+.sp
+\eK is honoured in positive assertions, but ignored in negative ones.
 .
 .
 .SH "ALTERNATION"
@@ -354,11 +356,13 @@ but some of them use Unicode properties if PCRE_UCP is set. You can use
   (?x)            extended (ignore white space)
   (?-...)         unset option(s)
 .sp
-The following are recognized only at the start of a pattern or after one of the
-newline-setting options with similar syntax:
+The following are recognized only at the very start of a pattern or after one
+of the newline or \eR options with similar syntax. More than one of them may
+appear.
 .sp
   (*LIMIT_MATCH=d) set the match limit to d (decimal number)
   (*LIMIT_RECURSION=d) set the recursion limit to d (decimal number)
+  (*NO_AUTO_POSSESS) no auto-possessification (PCRE_NO_AUTO_POSSESS)
   (*NO_START_OPT) no start-match optimization (PCRE_NO_START_OPTIMIZE)
   (*UTF8)         set UTF-8 mode: 8-bit library (PCRE_UTF8)
   (*UTF16)        set UTF-16 mode: 16-bit library (PCRE_UTF16)
@@ -368,6 +372,29 @@ newline-setting options with similar syntax:
 .sp
 Note that LIMIT_MATCH and LIMIT_RECURSION can only reduce the value of the
 limits set by the caller of pcre_exec(), not increase them.
+.
+.
+.SH "NEWLINE CONVENTION"
+.rs
+.sp
+These are recognized only at the very start of the pattern or after option
+settings with a similar syntax.
+.sp
+  (*CR)           carriage return only
+  (*LF)           linefeed only
+  (*CRLF)         carriage return followed by linefeed
+  (*ANYCRLF)      all three of the above
+  (*ANY)          any Unicode newline sequence
+.
+.
+.SH "WHAT \eR MATCHES"
+.rs
+.sp
+These are recognized only at the very start of the pattern or after option
+setting with a similar syntax.
+.sp
+  (*BSR_ANYCRLF)  CR, LF, or CRLF
+  (*BSR_UNICODE)  any Unicode newline sequence
 .
 .
 .SH "LOOKAHEAD AND LOOKBEHIND ASSERTIONS"
@@ -457,29 +484,6 @@ pattern is not anchored.
   (*THEN:NAME)    equivalent to (*MARK:NAME)(*THEN)
 .
 .
-.SH "NEWLINE CONVENTIONS"
-.rs
-.sp
-These are recognized only at the very start of the pattern or after a
-(*BSR_...), (*UTF8), (*UTF16), (*UTF32) or (*UCP) option.
-.sp
-  (*CR)           carriage return only
-  (*LF)           linefeed only
-  (*CRLF)         carriage return followed by linefeed
-  (*ANYCRLF)      all three of the above
-  (*ANY)          any Unicode newline sequence
-.
-.
-.SH "WHAT \eR MATCHES"
-.rs
-.sp
-These are recognized only at the very start of the pattern or after a
-(*...) option that sets the newline convention or a UTF or UCP mode.
-.sp
-  (*BSR_ANYCRLF)  CR, LF, or CRLF
-  (*BSR_UNICODE)  any Unicode newline sequence
-.
-.
 .SH "CALLOUTS"
 .rs
 .sp
@@ -508,6 +512,6 @@ Cambridge CB2 3QH, England.
 .rs
 .sp
 .nf
-Last updated: 12 November 2013
-Copyright (c) 1997-2013 University of Cambridge.
+Last updated: 08 January 2014
+Copyright (c) 1997-2014 University of Cambridge.
 .fi

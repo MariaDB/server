@@ -5,7 +5,7 @@
 /* This is the public header file for the PCRE library, to be #included by
 applications that call the PCRE functions.
 
-           Copyright (c) 1997-2013 University of Cambridge
+           Copyright (c) 1997-2014 University of Cambridge
 
 -----------------------------------------------------------------------------
 Redistribution and use in source and binary forms, with or without
@@ -498,12 +498,14 @@ PCRE_EXP_DECL void  (*pcre16_free)(void *);
 PCRE_EXP_DECL void *(*pcre16_stack_malloc)(size_t);
 PCRE_EXP_DECL void  (*pcre16_stack_free)(void *);
 PCRE_EXP_DECL int   (*pcre16_callout)(pcre16_callout_block *);
+PCRE_EXP_DECL int   (*pcre16_stack_guard)(void);
 
 PCRE_EXP_DECL void *(*pcre32_malloc)(size_t);
 PCRE_EXP_DECL void  (*pcre32_free)(void *);
 PCRE_EXP_DECL void *(*pcre32_stack_malloc)(size_t);
 PCRE_EXP_DECL void  (*pcre32_stack_free)(void *);
 PCRE_EXP_DECL int   (*pcre32_callout)(pcre32_callout_block *);
+PCRE_EXP_DECL int   (*pcre32_stack_guard)(void);
 #else   /* VPCOMPAT */
 PCRE_EXP_DECL void *pcre_malloc(size_t);
 PCRE_EXP_DECL void  pcre_free(void *);
@@ -517,12 +519,14 @@ PCRE_EXP_DECL void  pcre16_free(void *);
 PCRE_EXP_DECL void *pcre16_stack_malloc(size_t);
 PCRE_EXP_DECL void  pcre16_stack_free(void *);
 PCRE_EXP_DECL int   pcre16_callout(pcre16_callout_block *);
+PCRE_EXP_DECL int   pcre16_stack_guard(void);
 
 PCRE_EXP_DECL void *pcre32_malloc(size_t);
 PCRE_EXP_DECL void  pcre32_free(void *);
 PCRE_EXP_DECL void *pcre32_stack_malloc(size_t);
 PCRE_EXP_DECL void  pcre32_stack_free(void *);
 PCRE_EXP_DECL int   pcre32_callout(pcre32_callout_block *);
+PCRE_EXP_DECL int   pcre32_stack_guard(void);
 #endif  /* VPCOMPAT */
 
 /* User defined callback which provides a stack just before the match starts. */

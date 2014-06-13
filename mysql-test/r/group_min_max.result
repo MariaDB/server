@@ -1358,8 +1358,9 @@ explain select a1,a2,b,min(c),max(c) from t1
 where exists ( select * from t2 where t2.c = t1.c )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
-2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	16	func	1	
+2	MATERIALIZED	t2	index	NULL	idx_t2_1	163	NULL	164	Using index
 select a1,a2,b,min(c),max(c) from t1
 where exists ( select * from t2 where t2.c = t1.c )
 group by a1,a2,b;
@@ -1384,7 +1385,7 @@ explain select a1,a2,b,min(c),max(c) from t1
 where exists ( select * from t2 where t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using index
 2	SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 select a1,a2,b,min(c),max(c) from t1
 where exists ( select * from t2 where t2.c > 'b1' )
@@ -1410,20 +1411,20 @@ explain select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.b > 'a' and t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.b > 'a' and t2.c > 'b1' )
 group by a1,a2,b;
 a1	a2	b	c	min(c)	max(c)
-a	a	b	h112	e112	h112
-a	b	b	p122	m122	p122
-b	a	b	h212	e212	h212
-b	b	b	p222	m222	p222
-c	a	b	h312	e312	h312
-c	b	b	p322	m322	p322
-d	a	b	h412	e412	h412
-d	b	b	p422	m422	p422
+a	a	b	e112	e112	h112
+a	b	b	m122	m122	p122
+b	a	b	e212	e212	h212
+b	b	b	m222	m222	p222
+c	a	b	e312	e312	h312
+c	b	b	m322	m322	p322
+d	a	b	e412	e412	h412
+d	b	b	m422	m422	p422
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='semijoin_with_cache=off';
 explain select a1,a2,b,c,min(c), max(c) from t1
@@ -1432,7 +1433,7 @@ where t2.c in (select c from t3 where t3.c > t1.b) and
 t2.c > 'b1' )
 group by a1,a2,b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
+1	PRIMARY	t1	index	NULL	idx_t1_1	163	NULL	128	Using where; Using index
 2	DEPENDENT SUBQUERY	t2	index	NULL	idx_t2_1	163	NULL	164	Using where; Using index
 2	DEPENDENT SUBQUERY	t3	index	NULL	idx_t3_1	10	NULL	192	Using where; Using index; FirstMatch(t2)
 select a1,a2,b,c,min(c), max(c) from t1
@@ -1441,22 +1442,22 @@ where t2.c in (select c from t3 where t3.c > t1.b) and
 t2.c > 'b1' )
 group by a1,a2,b;
 a1	a2	b	c	min(c)	max(c)
-a	a	a	d111	a111	d111
-a	a	b	h112	e112	h112
-a	b	a	l121	i121	l121
-a	b	b	p122	m122	p122
-b	a	a	d211	a211	d211
-b	a	b	h212	e212	h212
-b	b	a	l221	i221	l221
-b	b	b	p222	m222	p222
-c	a	a	d311	a311	d311
-c	a	b	h312	e312	h312
-c	b	a	l321	i321	l321
-c	b	b	p322	m322	p322
-d	a	a	d411	a411	d411
-d	a	b	h412	e412	h412
-d	b	a	l421	i421	l421
-d	b	b	p422	m422	p422
+a	a	a	a111	a111	d111
+a	a	b	e112	e112	h112
+a	b	a	i121	i121	l121
+a	b	b	m122	m122	p122
+b	a	a	a211	a211	d211
+b	a	b	e212	e212	h212
+b	b	a	i221	i221	l221
+b	b	b	m222	m222	p222
+c	a	a	a311	a311	d311
+c	a	b	e312	e312	h312
+c	b	a	i321	i321	l321
+c	b	b	m322	m322	p322
+d	a	a	a411	a411	d411
+d	a	b	e412	e412	h412
+d	b	a	i421	i421	l421
+d	b	b	m422	m422	p422
 SET optimizer_switch=@save_optimizer_switch;
 explain select a1,a2,b,c,min(c), max(c) from t1
 where exists ( select * from t2 where t1.c > 'a' and t2.c > 'b1' )

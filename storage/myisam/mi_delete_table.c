@@ -20,8 +20,15 @@
 
 #include "fulltext.h"
 
+#ifndef HAVE_PSI_INTERFACE
+#define PSI_file_key int
+#define mi_key_file_kfile 0
+#define mi_key_file_dfile 0
+#endif
+
 static int delete_one_file(const char *name, const char *ext,
-                           PSI_file_key pskey, myf flags)
+                           PSI_file_key pskey __attribute__((unused)),
+                           myf flags)
 {
   char from[FN_REFLEN];
   DBUG_ENTER("delete_one_file");

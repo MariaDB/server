@@ -32,6 +32,7 @@
 #include "set_var.h"
 #include "sp_head.h"
 #include "sp.h"
+#include "item_inetfunc.h"
 #include "sql_time.h"
 
 /*
@@ -1340,6 +1341,84 @@ public:
 protected:
   Create_func_inet_aton() {}
   virtual ~Create_func_inet_aton() {}
+};
+
+
+class Create_func_inet6_aton : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_inet6_aton s_singleton;
+
+protected:
+  Create_func_inet6_aton() {}
+  virtual ~Create_func_inet6_aton() {}
+};
+
+
+class Create_func_inet6_ntoa : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_inet6_ntoa s_singleton;
+
+protected:
+  Create_func_inet6_ntoa() {}
+  virtual ~Create_func_inet6_ntoa() {}
+};
+
+
+class Create_func_is_ipv4 : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_is_ipv4 s_singleton;
+
+protected:
+  Create_func_is_ipv4() {}
+  virtual ~Create_func_is_ipv4() {}
+};
+
+
+class Create_func_is_ipv6 : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_is_ipv6 s_singleton;
+
+protected:
+  Create_func_is_ipv6() {}
+  virtual ~Create_func_is_ipv6() {}
+};
+
+
+class Create_func_is_ipv4_compat : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_is_ipv4_compat s_singleton;
+
+protected:
+  Create_func_is_ipv4_compat() {}
+  virtual ~Create_func_is_ipv4_compat() {}
+};
+
+
+class Create_func_is_ipv4_mapped : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_is_ipv4_mapped s_singleton;
+
+protected:
+  Create_func_is_ipv4_mapped() {}
+  virtual ~Create_func_is_ipv4_mapped() {}
 };
 
 
@@ -4139,12 +4218,66 @@ Create_func_inet_ntoa::create_1_arg(THD *thd, Item *arg1)
 }
 
 
+Create_func_inet6_aton Create_func_inet6_aton::s_singleton;
+
+Item*
+Create_func_inet6_aton::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_inet6_aton(arg1);
+}
+
+
+Create_func_inet6_ntoa Create_func_inet6_ntoa::s_singleton;
+
+Item*
+Create_func_inet6_ntoa::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_inet6_ntoa(arg1);
+}
+
+
 Create_func_inet_aton Create_func_inet_aton::s_singleton;
 
 Item*
 Create_func_inet_aton::create_1_arg(THD *thd, Item *arg1)
 {
   return new (thd->mem_root) Item_func_inet_aton(arg1);
+}
+
+
+Create_func_is_ipv4 Create_func_is_ipv4::s_singleton;
+
+Item*
+Create_func_is_ipv4::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_is_ipv4(arg1);
+}
+
+
+Create_func_is_ipv6 Create_func_is_ipv6::s_singleton;
+
+Item*
+Create_func_is_ipv6::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_is_ipv6(arg1);
+}
+
+
+Create_func_is_ipv4_compat Create_func_is_ipv4_compat::s_singleton;
+
+Item*
+Create_func_is_ipv4_compat::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_is_ipv4_compat(arg1);
+}
+
+
+Create_func_is_ipv4_mapped Create_func_is_ipv4_mapped::s_singleton;
+
+Item*
+Create_func_is_ipv4_mapped::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_is_ipv4_mapped(arg1);
 }
 
 
@@ -5585,6 +5718,12 @@ static Native_func_registry func_array[] =
   { { C_STRING_WITH_LEN("IFNULL") }, BUILDER(Create_func_ifnull)},
   { { C_STRING_WITH_LEN("INET_ATON") }, BUILDER(Create_func_inet_aton)},
   { { C_STRING_WITH_LEN("INET_NTOA") }, BUILDER(Create_func_inet_ntoa)},
+  { { C_STRING_WITH_LEN("INET6_ATON") }, BUILDER(Create_func_inet6_aton)},
+  { { C_STRING_WITH_LEN("INET6_NTOA") }, BUILDER(Create_func_inet6_ntoa)},
+  { { C_STRING_WITH_LEN("IS_IPV4") }, BUILDER(Create_func_is_ipv4)},
+  { { C_STRING_WITH_LEN("IS_IPV6") }, BUILDER(Create_func_is_ipv6)},
+  { { C_STRING_WITH_LEN("IS_IPV4_COMPAT") }, BUILDER(Create_func_is_ipv4_compat)},
+  { { C_STRING_WITH_LEN("IS_IPV4_MAPPED") }, BUILDER(Create_func_is_ipv4_mapped)},
   { { C_STRING_WITH_LEN("INSTR") }, BUILDER(Create_func_instr)},
   { { C_STRING_WITH_LEN("INTERIORRINGN") }, GEOM_BUILDER(Create_func_interiorringn)},
   { { C_STRING_WITH_LEN("INTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},

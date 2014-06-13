@@ -253,7 +253,8 @@ template <class T> bool valid_buffer_range(T jump,
                                     OPTIMIZER_SWITCH_SUBQUERY_CACHE | \
                                     OPTIMIZER_SWITCH_SEMIJOIN | \
                                     OPTIMIZER_SWITCH_FIRSTMATCH | \
-                                    OPTIMIZER_SWITCH_LOOSE_SCAN )
+                                    OPTIMIZER_SWITCH_LOOSE_SCAN | \
+                                    OPTIMIZER_SWITCH_EXISTS_TO_IN)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should

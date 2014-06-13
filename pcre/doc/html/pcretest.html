@@ -138,6 +138,9 @@ following options output the value and set the exit code as indicated:
   newline    the default newline setting:
                CR, LF, CRLF, ANYCRLF, or ANY
                exit code is always 0
+  bsr        the default setting for what \R matches:
+               ANYCRLF or ANY
+               exit code is always 0
 </pre>
 The following options output 1 for true or 0 for false, and set the exit code
 to the same value:
@@ -373,6 +376,7 @@ sections.
   <b>/N</b>              set PCRE_NO_AUTO_CAPTURE
   <b>/O</b>              set PCRE_NO_AUTO_POSSESS
   <b>/P</b>              use the POSIX wrapper
+  <b>/Q</b>              test external stack check function
   <b>/S</b>              study the pattern after compilation
   <b>/s</b>              set PCRE_DOTALL
   <b>/T</b>              select character tables
@@ -534,7 +538,10 @@ below.
 The <b>/I</b> modifier requests that <b>pcretest</b> output information about the
 compiled pattern (whether it is anchored, has a fixed first character, and
 so on). It does this by calling <b>pcre[16|32]_fullinfo()</b> after compiling a
-pattern. If the pattern is studied, the results of that are also output.
+pattern. If the pattern is studied, the results of that are also output. In
+this output, the word "char" means a non-UTF character, that is, the value of a
+single data item (8-bit, 16-bit, or 32-bit, depending on the library that is
+being tested).
 </P>
 <P>
 The <b>/K</b> modifier requests <b>pcretest</b> to show names from backtracking
@@ -566,6 +573,14 @@ the compiled pattern to be output. This does not include the size of the
 <b>pcre[16|32]</b> block; it is just the actual compiled data. If the pattern is
 successfully studied with the PCRE_STUDY_JIT_COMPILE option, the size of the
 JIT compiled code is also output.
+</P>
+<P>
+The <b>/Q</b> modifier is used to test the use of <b>pcre_stack_guard</b>. It
+must be followed by '0' or '1', specifying the return code to be given from an
+external function that is passed to PCRE and used for stack checking during
+compilation (see the
+<a href="pcreapi.html"><b>pcreapi</b></a>
+documentation for details).
 </P>
 <P>
 The <b>/S</b> modifier causes <b>pcre[16|32]_study()</b> to be called after the
@@ -1134,9 +1149,9 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC17" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 12 November 2013
+Last updated: 09 February 2014
 <br>
-Copyright &copy; 1997-2013 University of Cambridge.
+Copyright &copy; 1997-2014 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

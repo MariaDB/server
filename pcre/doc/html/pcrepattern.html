@@ -1003,7 +1003,9 @@ matches "foobar", the first substring is still set to "foo".
 <P>
 Perl documents that the use of \K within assertions is "not well defined". In
 PCRE, \K is acted upon when it occurs inside positive assertions, but is
-ignored in negative assertions.
+ignored in negative assertions. Note that when a pattern such as (?=ab\K)
+matches, the reported start of the match can be greater than the end of the
+match.
 <a name="smallassertions"></a></P>
 <br><b>
 Simple assertions
@@ -2990,19 +2992,22 @@ match does not always guarantee that a match must be at this starting point.
 <P>
 Note that (*COMMIT) at the start of a pattern is not the same as an anchor,
 unless PCRE's start-of-match optimizations are turned off, as shown in this
-<b>pcretest</b> example:
+output from <b>pcretest</b>:
 <pre>
     re&#62; /(*COMMIT)abc/
   data&#62; xyzabc
    0: abc
-  xyzabc\Y
+  data&#62; xyzabc\Y
   No match
 </pre>
-PCRE knows that any match must start with "a", so the optimization skips along
-the subject to "a" before running the first match attempt, which succeeds. When
-the optimization is disabled by the \Y escape in the second subject, the match
-starts at "x" and so the (*COMMIT) causes it to fail without trying any other
-starting points.
+For this pattern, PCRE knows that any match must start with "a", so the
+optimization skips along the subject to "a" before applying the pattern to the
+first set of data. The match attempt then succeeds. In the second set of data,
+the escape sequence \Y is interpreted by the <b>pcretest</b> program. It causes
+the PCRE_NO_START_OPTIMIZE option to be set when <b>pcre_exec()</b> is called.
+This disables the optimization that skips along to the first character. The
+pattern is now applied starting at "x", and so the (*COMMIT) causes the match
+to fail without trying any other starting points.
 <pre>
   (*PRUNE) or (*PRUNE:NAME)
 </pre>
@@ -3221,9 +3226,9 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC30" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 03 December 2013
+Last updated: 08 January 2014
 <br>
-Copyright &copy; 1997-2013 University of Cambridge.
+Copyright &copy; 1997-2014 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

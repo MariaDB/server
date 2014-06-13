@@ -4120,6 +4120,7 @@ SJ_TMP_TABLE::create_sj_weedout_tmp_table(THD *thd)
       {
 	if (!(key_field= field->new_key_field(thd->mem_root, table,
                                               group_buff,
+                                              key_part_info->length,
                                               field->null_ptr,
                                               field->null_bit)))
 	  goto err;

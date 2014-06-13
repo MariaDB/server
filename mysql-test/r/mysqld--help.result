@@ -553,7 +553,6 @@ The following options may be given as the first argument:
  record samples
  --performance-schema 
  Enable the performance schema.
- (Defaults to on; use --skip-performance-schema to disable.)
  --performance-schema-accounts-size=# 
  Maximum number of instrumented user@host accounts. Use 0
  to disable, -1 for automated sizing.
@@ -1207,10 +1206,10 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on
 optimizer-use-condition-selectivity 1
-performance-schema TRUE
-performance-schema-accounts-size 10
+performance-schema FALSE
+performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE
 performance-schema-consumer-events-stages-history FALSE
 performance-schema-consumer-events-stages-history-long FALSE
@@ -1223,36 +1222,36 @@ performance-schema-consumer-events-waits-history-long FALSE
 performance-schema-consumer-global-instrumentation TRUE
 performance-schema-consumer-statements-digest TRUE
 performance-schema-consumer-thread-instrumentation TRUE
-performance-schema-digests-size 1000
-performance-schema-events-stages-history-long-size 100
-performance-schema-events-stages-history-size 5
-performance-schema-events-statements-history-long-size 100
-performance-schema-events-statements-history-size 5
-performance-schema-events-waits-history-long-size 100
-performance-schema-events-waits-history-size 5
-performance-schema-hosts-size 20
+performance-schema-digests-size -1
+performance-schema-events-stages-history-long-size -1
+performance-schema-events-stages-history-size -1
+performance-schema-events-statements-history-long-size -1
+performance-schema-events-statements-history-size -1
+performance-schema-events-waits-history-long-size -1
+performance-schema-events-waits-history-size -1
+performance-schema-hosts-size -1
 performance-schema-instrument 
 performance-schema-max-cond-classes 80
-performance-schema-max-cond-instances 836
+performance-schema-max-cond-instances -1
 performance-schema-max-file-classes 50
 performance-schema-max-file-handles 32768
-performance-schema-max-file-instances 1556
+performance-schema-max-file-instances -1
 performance-schema-max-mutex-classes 200
-performance-schema-max-mutex-instances 3282
+performance-schema-max-mutex-instances -1
 performance-schema-max-rwlock-classes 40
-performance-schema-max-rwlock-instances 1724
+performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
-performance-schema-max-socket-instances 179
+performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
 performance-schema-max-statement-classes 180
-performance-schema-max-table-handles 445
-performance-schema-max-table-instances 445
+performance-schema-max-table-handles -1
+performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
-performance-schema-max-thread-instances 224
-performance-schema-session-connect-attrs-size 512
+performance-schema-max-thread-instances -1
+performance-schema-session-connect-attrs-size -1
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
-performance-schema-users-size 5
+performance-schema-users-size -1
 plugin-maturity unknown
 port 3306
 port-open-timeout 0

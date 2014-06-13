@@ -546,10 +546,11 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       PDOSDEF     tdp = (PDOSDEF)Tdbp->GetDef();
 
       // Count the number of columns
-      for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext()) {
-        reclen += cdp->GetLong();
-        n++;
-        } // endfor cdp
+      for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
+        if (!(cdp->Flags & U_SPECIAL)) {
+          reclen += cdp->GetLong();
+          n++;
+          } // endif Flags
 
       if (Lrecl != reclen) {
         sprintf(g->Message, MSG(BAD_LRECL), Lrecl, reclen);
@@ -570,30 +571,31 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
       descp = (DESCRIPTOR*)header;
 
       // Currently only standard Xbase types are supported
-      for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext()) {
-        descp++;
-
-        switch ((c = *GetFormatType(cdp->GetType()))) {
-          case 'S':           // Short integer
-          case 'L':           // Large (big) integer
-          case 'T':           // Tiny integer
-            c = 'N';          // Numeric
-          case 'N':           // Numeric (integer)
-          case 'F':           // Float (double)
-            descp->Decimals = (uchar)cdp->F.Prec;
-          case 'C':           // Char
-          case 'D':           // Date
-            break;
-          default:            // Should never happen
-            sprintf(g->Message, "Unsupported DBF type %c for column %s",
-                                c, cdp->GetName());
-            return true;
-          } // endswitch c
-
-        strncpy(descp->Name, cdp->GetName(), 11);
-        descp->Type = c;
-        descp->Length = (uchar)cdp->GetLong();
-        } // endfor cdp
+      for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
+        if (!(cdp->Flags & U_SPECIAL)) {
+          descp++;
+      
+          switch ((c = *GetFormatType(cdp->GetType()))) {
+            case 'S':           // Short integer
+            case 'L':           // Large (big) integer
+            case 'T':           // Tiny integer
+              c = 'N';          // Numeric
+            case 'N':           // Numeric (integer)
+            case 'F':           // Float (double)
+              descp->Decimals = (uchar)cdp->F.Prec;
+            case 'C':           // Char
+            case 'D':           // Date
+              break;
+            default:            // Should never happen
+              sprintf(g->Message, "Unsupported DBF type %c for column %s",
+                                  c, cdp->GetName());
+              return true;
+            } // endswitch c
+      
+          strncpy(descp->Name, cdp->GetName(), 11);
+          descp->Type = c;
+          descp->Length = (uchar)cdp->GetLong();
+          } // endif Flags
 
       *(char*)(++descp) = EOH;
 

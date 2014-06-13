@@ -1298,6 +1298,16 @@ bool get_interval_value(Item *args,interval_type int_type, INTERVAL *interval)
     if (!(val= args->val_decimal(&decimal_value)))
       return true;
     interval->neg= my_decimal2seconds(val, &second, &second_part);
+    if (second == LONGLONG_MAX)
+    {
+      ErrConvDecimal err(val);
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_TRUNCATED_WRONG_VALUE,
+                          ER(ER_TRUNCATED_WRONG_VALUE), "DECIMAL",
+                          err.ptr());
+      return true;
+    }
+
     interval->second= second;
     interval->second_part= second_part;
     return false;

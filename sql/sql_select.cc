@@ -1248,7 +1248,8 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
         part of the nested outer join, and we can't do partition pruning
         (TODO: check if this limitation can be lifted)
       */
-      if (!tbl->embedding)
+      if (!tbl->embedding ||
+          (tbl->embedding && tbl->embedding->sj_on_expr))
       {
         Item *prune_cond= tbl->on_expr? tbl->on_expr : conds;
         tbl->table->all_partitions_pruned_away= prune_partitions(thd,
@@ -3074,8 +3075,7 @@ void JOIN::exec_inner()
                                    Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
   error= do_select(curr_join, curr_fields_list, NULL, procedure);
   thd->limit_found_rows= curr_join->send_records;
-  if (curr_join->order && curr_join->sortorder &&
-      curr_join->select_options & OPTION_FOUND_ROWS)
+  if (curr_join->order && curr_join->filesort_found_rows)
   {
     /* Use info provided by filesort. */
     DBUG_ASSERT(curr_join->table_count > curr_join->const_tables);
@@ -7367,6 +7367,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       Go through the "keypart{N}=..." equalities and find those that were
       already taken into account in table->cond_selectivity.
     */
+    keyuse= pos->key;
     while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
@@ -7435,21 +7436,28 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
     If the field f from the table is equal to a field from one the
     earlier joined tables then the selectivity of the range conditions
     over the field f must be discounted.
-  */ 
-  for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
+
+    We need to discount selectivity only if we're using ref-based 
+    access method (and have sel!=1).
+    If we use ALL/range/index_merge, then sel==1, and no need to discount.
+  */
+  if (pos->key != NULL)
   {
-    if (!bitmap_is_set(read_set, field->field_index) ||
-        !field->next_equal_field)
-      continue; 
-    for (Field *next_field= field->next_equal_field; 
-         next_field != field; 
-         next_field= next_field->next_equal_field)
+    for (Field **f_ptr=table->field ; (field= *f_ptr) ; f_ptr++)
     {
-      if (!(next_field->table->map & rem_tables) && next_field->table != table)
-      { 
-        if (field->cond_selectivity > 0)
-          sel/= field->cond_selectivity;
-        break;
+      if (!bitmap_is_set(read_set, field->field_index) ||
+          !field->next_equal_field)
+        continue; 
+      for (Field *next_field= field->next_equal_field; 
+           next_field != field; 
+           next_field= next_field->next_equal_field)
+      {
+        if (!(next_field->table->map & rem_tables) && next_field->table != table)
+        { 
+          if (field->cond_selectivity > 0)
+            sel/= field->cond_selectivity;
+          break;
+        }
       }
     }
   }
@@ -10541,7 +10549,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
     if (cache_level == 1)
       prev_cache= 0;
     if ((tab->cache= new JOIN_CACHE_BNL(join, tab, prev_cache)) &&
-        ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+         !tab->cache->init(options & SELECT_DESCRIBE))
     {
       tab->icp_other_tables_ok= FALSE;
       return (2 - MY_TEST(!prev_cache));
@@ -10576,7 +10584,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       if (cache_level == 3)
         prev_cache= 0;
       if ((tab->cache= new JOIN_CACHE_BNLH(join, tab, prev_cache)) &&
-          ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+          !tab->cache->init(options & SELECT_DESCRIBE))
       {
         tab->icp_other_tables_ok= FALSE;        
         return (4 - MY_TEST(!prev_cache));
@@ -10597,7 +10605,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         if (cache_level == 5)
           prev_cache= 0;
         if ((tab->cache= new JOIN_CACHE_BKA(join, tab, flags, prev_cache)) &&
-            ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+            !tab->cache->init(options & SELECT_DESCRIBE))
           return (6 - MY_TEST(!prev_cache));
         goto no_join_cache;
       }
@@ -10606,7 +10614,7 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         if (cache_level == 7)
           prev_cache= 0;
         if ((tab->cache= new JOIN_CACHE_BKAH(join, tab, flags, prev_cache)) &&
-            ((options & SELECT_DESCRIBE) || !tab->cache->init()))
+            !tab->cache->init(options & SELECT_DESCRIBE))
 	{
          tab->idx_cond_fact_out= FALSE;
           return (8 - MY_TEST(!prev_cache));
@@ -11018,20 +11026,25 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
 	  else if (!table->covering_keys.is_clear_all() &&
 		   !(tab->select && tab->select->quick))
 	  {					// Only read index tree
+            if (tab->loosescan_match_tab)
+              tab->index= tab->loosescan_key;
+            else 
+            {
 #ifdef BAD_OPTIMIZATION
-	    /*
-              It has turned out that the below change, while speeding things
-              up for disk-bound loads, slows them down for cases when the data
-              is in disk cache (see BUG#35850):
-              See bug #26447: "Using the clustered index for a table scan
-              is always faster than using a secondary index".
-            */
-            if (table->s->primary_key != MAX_KEY &&
-                table->file->primary_key_is_clustered())
-              tab->index= table->s->primary_key;
-            else
+              /*
+                It has turned out that the below change, while speeding things
+                up for disk-bound loads, slows them down for cases when the data
+                is in disk cache (see BUG#35850):
+                See bug #26447: "Using the clustered index for a table scan
+                is always faster than using a secondary index".
+              */
+              if (table->s->primary_key != MAX_KEY &&
+                  table->file->primary_key_is_clustered())
+                tab->index= table->s->primary_key;
+              else
 #endif
-              tab->index=find_shortest_key(table, & table->covering_keys);
+                tab->index=find_shortest_key(table, & table->covering_keys);
+            }
 	    tab->read_first_record= join_read_first;
             /* Read with index_first / index_next */
 	    tab->type= tab->type == JT_ALL ? JT_NEXT : JT_HASH_NEXT;		
@@ -16191,6 +16204,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
 	if (!(cur_group->field= field->new_key_field(thd->mem_root,table,
                                                      group_buff +
                                                      MY_TEST(maybe_null),
+                                                     key_part_info->length,
                                                      field->null_ptr,
                                                      field->null_bit)))
 	  goto err; /* purecov: inspected */
@@ -18702,7 +18716,7 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         records are read. Because of optimization in some cases it can
         provide only select_limit_cnt+1 records.
       */
-      if (join->order && join->sortorder &&
+      if (join->order && join->filesort_found_rows &&
           join->select_options & OPTION_FOUND_ROWS)
       {
         DBUG_PRINT("info", ("filesort NESTED_LOOP_QUERY_LIMIT"));
@@ -18724,8 +18738,8 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	  /* Join over all rows in table;  Return number of found rows */
 	  TABLE *table=jt->table;
 
-	  if (table->sort.record_pointers ||
-	      (table->sort.io_cache && my_b_inited(table->sort.io_cache)))
+          join->select_options ^= OPTION_FOUND_ROWS;
+          if (join->filesort_found_rows)
 	  {
 	    /* Using filesort */
 	    join->send_records= table->sort.found_records;
@@ -20556,7 +20570,11 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
                             select, filesort_limit, 0,
                             &examined_rows, &found_rows);
   table->sort.found_records= filesort_retval;
-  tab->records= found_rows;                     // For SQL_CALC_ROWS
+  if (found_rows != HA_POS_ERROR)
+  {
+    tab->records= found_rows;                     // For SQL_CALC_ROWS
+    join->filesort_found_rows= true;
+  }
 
   if (quick_created)
   {
@@ -24905,7 +24923,8 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     switch (test_if_order_by_key(order, table, select->quick->index,
                                  &used_key_parts)) {
     case 1: // desired order
-      *need_sort= FALSE;
+      *need_sort= FALSE; 
+      *scanned_limit= MY_MIN(limit, select->quick->records);
       return select->quick->index;
     case 0: // unacceptable order
       *need_sort= TRUE;
@@ -24918,7 +24937,7 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
         {
           select->set_quick(reverse_quick);
           *need_sort= FALSE;
-          *scanned_limit= select->quick->records;
+          *scanned_limit= MY_MIN(limit, select->quick->records);
           return select->quick->index;
         }
         else

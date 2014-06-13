@@ -1075,6 +1075,16 @@ int spider_db_oracle_result::fetch_index_for_discover_table_structure(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
+
+int spider_db_oracle_result::fetch_table_for_discover_table_structure(
+  spider_string *str,
+  SPIDER_SHARE *spider_share,
+  CHARSET_INFO *access_charset
+) {
+  DBUG_ENTER("spider_db_oracle_result::fetch_table_for_discover_table_structure");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+}
 #endif
 
 spider_db_oracle::spider_db_oracle(
@@ -6022,7 +6032,9 @@ int spider_oracle_handler::append_minimum_select(
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+/*
       spider_set_bit(minimum_select_bitmap, (*field)->field_index);
+*/
       field_length =
         oracle_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(field_length +
@@ -6109,7 +6121,9 @@ int spider_oracle_handler::append_minimum_select_with_alias(
   {
     if (minimum_select_bit_is_set((*field)->field_index))
     {
+/*
       spider_set_bit(minimum_select_bitmap, (*field)->field_index);
+*/
       field_length =
         oracle_share->column_name_str[(*field)->field_index].length();
       if (str->reserve(alias_length + field_length +
@@ -10193,6 +10207,7 @@ int spider_oracle_handler::show_table_status(
   SPIDER_DB_RESULT *res;
   SPIDER_SHARE *share = spider->share;
   uint pos = (2 * spider->conn_link_idx[link_idx]);
+  ulonglong auto_increment_value = 0;
   DBUG_ENTER("spider_oracle_handler::show_table_status");
   DBUG_PRINT("info",("spider sts_mode=%d", sts_mode));
   if (
@@ -10301,7 +10316,7 @@ int spider_oracle_handler::show_table_status(
       share->data_file_length,
       share->max_data_file_length,
       share->index_file_length,
-      share->auto_increment_value,
+      auto_increment_value,
       share->create_time,
       share->update_time,
       share->check_time
@@ -10317,9 +10332,6 @@ int spider_oracle_handler::show_table_status(
     share->data_file_length = 65535;
     share->max_data_file_length = 65535;
     share->index_file_length = 65535;
-/*
-    share->auto_increment_value = 0;
-*/
     share->create_time = (time_t) 0;
     share->update_time = (time_t) 0;
     share->check_time = (time_t) 0;
@@ -10412,7 +10424,7 @@ int spider_oracle_handler::show_table_status(
       share->data_file_length,
       share->max_data_file_length,
       share->index_file_length,
-      share->auto_increment_value,
+      auto_increment_value,
       share->create_time,
       share->update_time,
       share->check_time
@@ -10421,6 +10433,12 @@ int spider_oracle_handler::show_table_status(
     delete res;
     if (error_num)
       DBUG_RETURN(error_num);
+  }
+  if (auto_increment_value > share->lgtm_tblhnd_share->auto_increment_value)
+  {
+    share->lgtm_tblhnd_share->auto_increment_value = auto_increment_value;
+    DBUG_PRINT("info",("spider auto_increment_value=%llu",
+      share->lgtm_tblhnd_share->auto_increment_value));
   }
   DBUG_RETURN(0);
 }
@@ -10914,9 +10932,13 @@ int spider_oracle_handler::show_autoinc(
     DBUG_PRINT("info", ("spider error_num=%d 7", error_num));
     DBUG_RETURN(error_num);
   }
-  if (auto_increment_value >= share->auto_increment_value)
+  if (auto_increment_value >=
+    share->lgtm_tblhnd_share->auto_increment_value)
   {
-    share->auto_increment_value = auto_increment_value + 1;
+    share->lgtm_tblhnd_share->auto_increment_value =
+      auto_increment_value + 1;
+    DBUG_PRINT("info",("spider auto_increment_value=%llu",
+      share->lgtm_tblhnd_share->auto_increment_value));
   }
   DBUG_RETURN(0);
 }

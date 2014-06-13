@@ -406,7 +406,7 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   // Double check correctness of offset values
   if (Catfunc == FNC_NO)
     for (PCOLDEF cdp = To_Cols; cdp; cdp = cdp->GetNext())
-      if (cdp->GetOffset() < 1) {
+      if (cdp->GetOffset() < 1 && !cdp->IsSpecial()) {
         strcpy(g->Message, MSG(BAD_OFFSET_VAL));
         return true;
         } // endif Offset
@@ -598,7 +598,7 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
     PCSVCOL colp;
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
-      if (!colp->IsSpecial())  // Not a pseudo column
+      if (!colp->IsSpecial() && !colp->IsVirtual())  // A true column
         Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
     if (Columns)
@@ -641,7 +641,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
     if (!Fields)              // May have been set in TABFMT::OpenDB
       if (Mode != MODE_UPDATE && Mode != MODE_INSERT) {
         for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
-          if (!colp->IsSpecial())  // Not a pseudo column
+          if (!colp->IsSpecial() && !colp->IsVirtual())
             Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
         if (Columns)
@@ -649,7 +649,8 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } else
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-          Fields++;
+          if (!cdp->IsVirtual())
+            Fields++;
 
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
     Fldlen = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
@@ -672,25 +673,27 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
     if (Field)
       // Prepare writing fields
-      if (Mode != MODE_UPDATE)
-        for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next) {
-          i = colp->Fldnum;
-          len = colp->GetLength();
-          Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
-          Field[i][len] = '\0';
-          Fldlen[i] = len;
-          Fldtyp[i] = IsTypeNum(colp->GetResultType());
-          } // endfor colp
+      if (Mode != MODE_UPDATE) {
+        for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
+          if (!colp->IsSpecial() && !colp->IsVirtual()) {
+            i = colp->Fldnum;
+            len = colp->GetLength();
+            Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
+            Field[i][len] = '\0';
+            Fldlen[i] = len;
+            Fldtyp[i] = IsTypeNum(colp->GetResultType());
+            } // endif colp
 
-      else     // MODE_UPDATE
-        for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext()) {
-          i = cdp->GetOffset() - 1;
-          len = cdp->GetLength();
-          Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
-          Field[i][len] = '\0';
-          Fldlen[i] = len;
-          Fldtyp[i] = IsTypeNum(cdp->GetType());
-          } // endfor colp
+      } else     // MODE_UPDATE
+        for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
+          if (!cdp->IsVirtual()) {
+            i = cdp->GetOffset() - 1;
+            len = cdp->GetLength();
+            Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
+            Field[i][len] = '\0';
+            Fldlen[i] = len;
+            Fldtyp[i] = IsTypeNum(cdp->GetType());
+            } // endif cdp
 
     } // endif Use
 
@@ -1101,7 +1104,7 @@ bool TDBFMT::OpenDB(PGLOBAL g)
     PDOSDEF tdp = (PDOSDEF)To_Def;
 
     for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
-      if (!colp->IsSpecial())  // Not a pseudo column
+      if (!colp->IsSpecial() && !colp->IsVirtual())  // a true column
         Fields = MY_MAX(Fields, (int)colp->Fldnum);
 
     if (Columns)
@@ -1115,7 +1118,7 @@ bool TDBFMT::OpenDB(PGLOBAL g)
 
     // Get the column formats
     for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-      if ((i = cdp->GetOffset() - 1) < Fields) {
+      if (!cdp->IsVirtual() && (i = cdp->GetOffset() - 1) < Fields) {
         if (!(pfm = cdp->GetFmt())) {
           sprintf(g->Message, MSG(NO_FLD_FORMAT), i + 1, Name);
           return true;
@@ -1318,6 +1321,11 @@ void CSVCOL::ReadColumn(PGLOBAL g)
     // Field have been copied in TDB Field array
     PSZ fp = tdbp->Field[Fldnum];
 
+    if (Dsp)
+      for (int i = 0; fp[i]; i++)
+        if (fp[i] == Dsp)
+          fp[i] = '.';
+
     Value->SetValue_psz(fp);
 
     // Set null when applicable
@@ -1365,7 +1373,10 @@ void CSVCOL::WriteColumn(PGLOBAL g)
     sprintf(g->Message, MSG(BAD_FLD_LENGTH), Name, p, flen,
                         tdbp->RowNumber(g), tdbp->GetFile(g));
     longjmp(g->jumper[g->jump_level], 34);
-    } // endif
+  } else if (Dsp)
+    for (int i = 0; p[i]; i++)
+      if (p[i] == '.')
+        p[i] = Dsp; 
 
   if (trace > 1)
     htrc("buffer=%s\n", p);
