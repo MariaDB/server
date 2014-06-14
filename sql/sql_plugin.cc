@@ -3072,13 +3072,15 @@ static double *mysql_sys_var_double(THD* thd, int offset)
 void plugin_thdvar_init(THD *thd)
 {
   plugin_ref old_table_plugin= thd->variables.table_plugin;
+  plugin_ref old_tmp_table_plugin= thd->variables.tmp_table_plugin;
   DBUG_ENTER("plugin_thdvar_init");
   
+  // This function may be called many times per THD (e.g. on COM_CHANGE_USER)
   thd->variables.table_plugin= NULL;
+  thd->variables.tmp_table_plugin= NULL;
   cleanup_variables(thd, &thd->variables);
   
   thd->variables= global_system_variables;
-  thd->variables.table_plugin= NULL;
 
   /* we are going to allocate these lazily */
   thd->variables.dynamic_variables_version= 0;
@@ -3088,7 +3090,11 @@ void plugin_thdvar_init(THD *thd)
   mysql_mutex_lock(&LOCK_plugin);
   thd->variables.table_plugin=
         intern_plugin_lock(NULL, global_system_variables.table_plugin);
+  if (global_system_variables.tmp_table_plugin)
+    thd->variables.tmp_table_plugin=
+            intern_plugin_lock(NULL, global_system_variables.tmp_table_plugin);
   intern_plugin_unlock(NULL, old_table_plugin);
+  intern_plugin_unlock(NULL, old_tmp_table_plugin);
   mysql_mutex_unlock(&LOCK_plugin);
   DBUG_VOID_RETURN;
 }
@@ -3100,7 +3106,8 @@ void plugin_thdvar_init(THD *thd)
 static void unlock_variables(THD *thd, struct system_variables *vars)
 {
   intern_plugin_unlock(NULL, vars->table_plugin);
-  vars->table_plugin= NULL;
+  intern_plugin_unlock(NULL, vars->tmp_table_plugin);
+  vars->table_plugin= vars->tmp_table_plugin= NULL;
 }
 
 
@@ -3136,6 +3143,7 @@ static void cleanup_variables(THD *thd, struct system_variables *vars)
   mysql_rwlock_unlock(&LOCK_system_variables_hash);
 
   DBUG_ASSERT(vars->table_plugin == NULL);
+  DBUG_ASSERT(vars->tmp_table_plugin == NULL);
 
   my_free(vars->dynamic_variables_ptr);
   vars->dynamic_variables_ptr= NULL;

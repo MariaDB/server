@@ -107,6 +107,14 @@ static plugin_ref ha_default_plugin(THD *thd)
   return my_plugin_lock(thd, global_system_variables.table_plugin);
 }
 
+static plugin_ref ha_default_tmp_plugin(THD *thd)
+{
+  if (thd->variables.tmp_table_plugin)
+    return thd->variables.tmp_table_plugin;
+  if (global_system_variables.tmp_table_plugin)
+    return my_plugin_lock(thd, global_system_variables.tmp_table_plugin);
+  return ha_default_plugin(thd);
+}
 
 /** @brief
   Return the default storage engine handlerton for thread
@@ -128,6 +136,16 @@ handlerton *ha_default_handlerton(THD *thd)
 }
 
 
+handlerton *ha_default_tmp_handlerton(THD *thd)
+{
+  plugin_ref plugin= ha_default_tmp_plugin(thd);
+  DBUG_ASSERT(plugin);
+  handlerton *hton= plugin_hton(plugin);
+  DBUG_ASSERT(hton);
+  return hton;
+}
+
+
 /** @brief
   Return the storage engine handlerton for the supplied name
   
@@ -139,7 +157,7 @@ handlerton *ha_default_handlerton(THD *thd)
   RETURN
     pointer to storage engine plugin handle
 */
-plugin_ref ha_resolve_by_name(THD *thd, const LEX_STRING *name)
+plugin_ref ha_resolve_by_name(THD *thd, const LEX_STRING *name, bool tmp_table)
 {
   const LEX_STRING *table_alias;
   plugin_ref plugin;
@@ -149,7 +167,7 @@ redo:
   if (thd && !my_charset_latin1.coll->strnncoll(&my_charset_latin1,
                            (const uchar *)name->str, name->length,
                            (const uchar *)STRING_WITH_LEN("DEFAULT"), 0))
-    return ha_default_plugin(thd);
+    return tmp_table ?  ha_default_tmp_plugin(thd) : ha_default_plugin(thd);
 
   if ((plugin= my_plugin_lock_by_name(thd, name, MYSQL_STORAGE_ENGINE_PLUGIN)))
   {
@@ -253,7 +271,8 @@ handler *get_new_handler(TABLE_SHARE *share, MEM_ROOT *alloc,
     Here the call to current_thd() is ok as we call this function a lot of
     times but we enter this branch very seldom.
   */
-  DBUG_RETURN(get_new_handler(share, alloc, ha_default_handlerton(current_thd)));
+  file= get_new_handler(share, alloc, ha_default_handlerton(current_thd));
+  DBUG_RETURN(file);
 }
 
 

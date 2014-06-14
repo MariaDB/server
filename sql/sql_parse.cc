@@ -2830,7 +2830,7 @@ case SQLCOM_PREPARE:
       rather than at parse-time.
     */
     if (!(create_info.used_fields & HA_CREATE_USED_ENGINE))
-      create_info.db_type= ha_default_handlerton(thd);
+      create_info.use_default_db_type(thd);
     /*
       If we are using SET CHARSET without DEFAULT, add an implicit
       DEFAULT to not confuse old users. (This may change).

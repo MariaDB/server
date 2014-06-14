@@ -36,7 +36,6 @@ our $do_test;
 our $skip_test;
 our $binlog_format;
 our $enable_disabled;
-our $default_storage_engine;
 our $opt_with_ndbcluster_only;
 
 sub collect_option {

@@ -2382,7 +2382,7 @@ create:
             if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
                 !lex->create_info.db_type)
             {
-              lex->create_info.db_type= ha_default_handlerton(thd);
+              lex->create_info.use_default_db_type(thd);
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_WARN_USING_OTHER_HANDLER,
                                   ER(ER_WARN_USING_OTHER_HANDLER),
@@ -5835,7 +5835,8 @@ default_collation:
 storage_engines:
           ident_or_text
           {
-            plugin_ref plugin= ha_resolve_by_name(thd, &$1);
+            plugin_ref plugin= ha_resolve_by_name(thd, &$1,
+                                            thd->lex->create_info.tmp_table());
 
             if (plugin)
               $$= plugin_hton(plugin);
@@ -5859,7 +5860,7 @@ known_storage_engines:
           ident_or_text
           {
             plugin_ref plugin;
-            if ((plugin= ha_resolve_by_name(thd, &$1)))
+            if ((plugin= ha_resolve_by_name(thd, &$1, false)))
               $$= plugin_hton(plugin);
             else
             {
