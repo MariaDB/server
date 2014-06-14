@@ -1833,7 +1833,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_attribute opt_attribute_list attribute column_list column_list_id
         opt_column_list grant_privileges grant_ident grant_list grant_option
         object_privilege object_privilege_list user_list user_and_role_list
-        rename_list
+        rename_list table_or_tables
         clear_privileges flush_options flush_option
         opt_flush_lock flush_lock flush_options_list
         equal optional_braces
@@ -12839,7 +12839,7 @@ flush_lock:
               MYSQL_YYABORT;
             } 
             Lex->type|= REFRESH_FOR_EXPORT;
-          } EXPORT_SYM
+          } EXPORT_SYM {}
         ;
 
 flush_options_list:
@@ -14899,8 +14899,8 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM
-        | TABLES
+          TABLE_SYM {}
+        | TABLES    {}
         ;
 
 table_lock_list:
