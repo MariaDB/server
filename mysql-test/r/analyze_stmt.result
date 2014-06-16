@@ -46,4 +46,18 @@ a	b
 8	108
 9	9
 drop table t1;
+# Check that UNION works
+create table t1(a int, b int);
+insert into t1 select a,a from t0;
+analyze (select * from t1 A where a<5) union (select * from t1 B where a in (5,6));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	10	100.00	50.00	Using where
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	10	100.00	20.00	Using where
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	7	NULL	NULL	
+analyze (select * from t1 A where a<5) union (select * from t1 B where a in (1,2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	A	ALL	NULL	NULL	NULL	NULL	10	10	100.00	50.00	Using where
+2	UNION	B	ALL	NULL	NULL	NULL	NULL	10	10	100.00	20.00	Using where
+NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	5	NULL	NULL	
+drop table t1;
 drop table t0;
