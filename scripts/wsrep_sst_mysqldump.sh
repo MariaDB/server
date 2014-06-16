@@ -79,7 +79,7 @@ STOP_WSREP="SET wsrep_on=OFF;"
 MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
---skip-comments --flush-privileges --all-databases"
+--skip-comments --flush-privileges --all-databases --galera-sst-mode"
 
 # mysqldump cannot restore CSV tables, fix this issue
 CSV_TABLES_FIX="
@@ -118,8 +118,13 @@ $MYSQL -e"$STOP_WSREP SET GLOBAL SLOW_QUERY_LOG=OFF"
 RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"
 RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
 
+# reset master for 10.0 to clear gtid state
+RESET_MASTER="RESET MASTER;"
+
+
 if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
 then
+    (echo $STOP_WSREP && echo $RESET_MASTER) | $MYSQL || true
     (echo $STOP_WSREP && $MYSQLDUMP && echo $CSV_TABLES_FIX \
     && echo $RESTORE_GENERAL_LOG && echo $RESTORE_SLOW_QUERY_LOG \
     && echo $SET_START_POSITION \
