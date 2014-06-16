@@ -199,6 +199,20 @@ IF (WITH_ASAN)
   ENDIF()
 ENDIF()
 
+OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
+IF(SECURITY_HARDENED)
+  # security-enhancing flags
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
+
+  # sometimes _FORTIFY_SOURCE is predefined
+  INCLUDE(CheckSymbolExists)
+  CHECK_SYMBOL_EXISTS(_FORTIFY_SOURCE "" HAVE_FORTIFY_SOURCE)
+  IF(NOT HAVE_FORTIFY_SOURCE)
+    ADD_DEFINITIONS(-D_FORTIFY_SOURCE=2)
+  ENDIF()
+ENDIF()
 
 OPTION(ENABLE_DEBUG_SYNC "Enable debug sync (debug builds only)" ON) 
 IF(ENABLE_DEBUG_SYNC) 
