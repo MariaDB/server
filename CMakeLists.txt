@@ -175,72 +175,21 @@ OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
 MARK_AS_ADVANCED(CYBOZU)
 
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
- 
-include(CheckCSourceCompiles)
-include(CheckCXXSourceCompiles)
-# We need some extra FAIL_REGEX patterns
-# Note that CHECK_C_SOURCE_COMPILES is a misnomer, it will also link.
-MACRO (MY_CHECK_C_COMPILER_FLAG FLAG RESULT)
-  SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
-  CHECK_C_SOURCE_COMPILES("int main(void) { return 0; }" ${RESULT}
-    FAIL_REGEX "argument unused during compilation"
-    FAIL_REGEX "unsupported .*option"
-    FAIL_REGEX "unknown .*option"
-    FAIL_REGEX "unrecognized .*option"
-    FAIL_REGEX "ignoring unknown option"
-    FAIL_REGEX "[Ww]arning: [Oo]ption"
-    )
-  SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
-ENDMACRO()
 
-MACRO (MY_CHECK_CXX_COMPILER_FLAG FLAG RESULT)
-  SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
-  CHECK_CXX_SOURCE_COMPILES("int main(void) { return 0; }" ${RESULT}
-    FAIL_REGEX "argument unused during compilation"
-    FAIL_REGEX "unsupported .*option"
-    FAIL_REGEX "unknown .*option"
-    FAIL_REGEX "unrecognized .*option"
-    FAIL_REGEX "ignoring unknown option"
-    FAIL_REGEX "[Ww]arning: [Oo]ption"
-    )
-  SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
-ENDMACRO()
+INCLUDE(check_compiler_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN)
   # gcc 4.8.1 and new versions of clang
-  MY_CHECK_C_COMPILER_FLAG("-fsanitize=address" HAVE_C_FSANITIZE)
-  MY_CHECK_CXX_COMPILER_FLAG("-fsanitize=address" HAVE_CXX_FSANITIZE)
-
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -O1 -Wno-error -fPIC"
+    DEBUG RELWITHDEBINFO)
   IF(HAVE_C_FSANITIZE AND HAVE_CXX_FSANITIZE)
-    # We switch on basic optimization also for debug builds.
-    # With optimization we may get some warnings, so we switch off -Werror
-    SET(CMAKE_C_FLAGS_DEBUG
-      "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address -O1 -Wno-error -fPIC")
-    SET(CMAKE_C_FLAGS_RELWITHDEBINFO
-      "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fsanitize=address -fPIC")
-    SET(CMAKE_CXX_FLAGS_DEBUG
-      "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -O1 -Wno-error -fPIC")
-    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO
-      "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -fsanitize=address -fPIC")
     SET(WITH_ASAN_OK 1)
   ELSE()
     # older versions of clang
-    MY_CHECK_C_COMPILER_FLAG("-faddress-sanitizer" HAVE_C_FADDRESS)
-    MY_CHECK_CXX_COMPILER_FLAG("-faddress-sanitizer" HAVE_CXX_FFADDRESS)
-
-    IF(HAVE_C_FADDRESS AND HAVE_CXX_FFADDRESS)
-      # We switch on basic optimization also for debug builds.
-      SET(CMAKE_C_FLAGS_DEBUG
-        "${CMAKE_C_FLAGS_DEBUG} -faddress-sanitizer -O1 -fPIC")
-      SET(CMAKE_C_FLAGS_RELWITHDEBINFO
-        "${CMAKE_C_FLAGS_RELWITHDEBINFO} -faddress-sanitizer -fPIC")
-      SET(CMAKE_CXX_FLAGS_DEBUG
-        "${CMAKE_CXX_FLAGS_DEBUG} -faddress-sanitizer -O1 -fPIC")
-      SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO
-        "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -faddress-sanitizer -fPIC")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-faddress-sanitizer -O1 -fPIC"
+      DEBUG RELWITHDEBINFO)
+    IF(HAVE_C_FADDRESS AND HAVE_CXX_FADDRESS)
       SET(WITH_ASAN_OK 1)
     ENDIF()
   ENDIF()
@@ -258,15 +207,11 @@ IF(ENABLE_DEBUG_SYNC)
 ENDIF() 
  
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
-IF (ENABLE_GCOV AND NOT WIN32 AND NOT APPLE)
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fprofile-arcs -ftest-coverage")
-  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fprofile-arcs -ftest-coverage")
-  SET(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fprofile-arcs -ftest-coverage -lgcov")
+IF (ENABLE_GCOV)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
 ENDIF()
 
-MY_CHECK_C_COMPILER_FLAG(-ggdb3 HAVE_GGDB3)
-SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb3")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
+MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
 
 OPTION(ENABLED_LOCAL_INFILE
  "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
