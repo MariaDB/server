@@ -526,7 +526,6 @@
 #cmakedefine ENABLED_LOCAL_INFILE 1
 #cmakedefine ENABLED_PROFILING 1
 #cmakedefine EXTRA_DEBUG 1
-#cmakedefine BACKUP_TEST 1
 #cmakedefine CYBOZU 1
 #cmakedefine USE_SYMDIR 1
 

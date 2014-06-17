@@ -114,7 +114,6 @@ ENDIF()
 INCLUDE(maintainer)
 
 SET(MYSQL_MAINTAINER_MODE "OFF" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
-MARK_AS_ADVANCED(MYSQL_MAINTAINER_MODE)
 
 # Whether the maintainer mode compiler options should be enabled.
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
@@ -168,13 +167,12 @@ IF(DISABLE_SHARED)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
 OPTION(CYBOZU "" OFF)
-OPTION(BACKUP_TEST "" OFF)
-OPTION(WITHOUT_SERVER OFF)
+OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
 ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
-MARK_AS_ADVANCED(CYBOZU BACKUP_TEST WITHOUT_SERVER DISABLE_SHARED)
+MARK_AS_ADVANCED(CYBOZU)
 
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
  
@@ -272,7 +270,6 @@ SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
 
 OPTION(ENABLED_LOCAL_INFILE
  "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
-MARK_AS_ADVANCED(ENABLED_LOCAL_INFILE)
 
 OPTION(WITH_FAST_MUTEXES "Compile with fast mutexes" OFF)
 MARK_AS_ADVANCED(WITH_FAST_MUTEXES)

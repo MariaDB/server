@@ -12,6 +12,9 @@ ${Thrift_INCLUDE_DIR}     # this may be set
 # Verify that thrift linking library is found
 SET(Thrift_LIB_PATHS ${Thrift_LIB_PATHS} /usr/local/lib /opt/local/lib /opt/lib)
 FIND_LIBRARY(Thrift_LIBS NAMES thrift PATHS ${Thrift_LIB_PATHS} ${Thrift_LIB})
+
+MARK_AS_ADVANCED(Thrift_LIBS Thrift_INCLUDE_DIRS)
+
 IF(EXISTS ${Thrift_LIBS})
   GET_FILENAME_COMPONENT(LINK_DIR ${Thrift_LIBS} PATH ABSOLUTE)
 ELSE()
