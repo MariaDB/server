@@ -1,3 +1,0 @@
-select @@global.innodb_use_fallocate;
-@@global.innodb_use_fallocate
-0
