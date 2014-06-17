@@ -108,7 +108,7 @@ MACRO(MYSQL_ADD_PLUGIN)
   # Build either static library or module
   IF (WITH_${plugin} AND NOT ARG_MODULE_ONLY)
 
-    IF(CMAKE_GENERATOR MATCHES "Makefiles")
+    IF(CMAKE_GENERATOR MATCHES "Makefiles|Ninja")
       # If there is a shared library from previous shared build,
       # remove it. This is done just for mysql-test-run.pl 
       # so it does not try to use stale shared lib as plugin 
