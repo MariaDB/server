@@ -1344,7 +1344,7 @@ public:
 
       // special code for storage engines (e.g. to handle historical aliases)
       if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
-        plugin= ha_resolve_by_name(thd, &pname);
+        plugin= ha_resolve_by_name(thd, &pname, false);
       else
         plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
       if (!plugin)
@@ -1366,7 +1366,7 @@ public:
     plugin_ref oldval= *valptr;
     if (oldval != newval)
     {
-      *valptr= my_plugin_lock(NULL, newval);
+      *valptr= newval ? my_plugin_lock(NULL, newval) : 0;
       plugin_unlock(NULL, oldval);
     }
   }
@@ -1385,23 +1385,28 @@ public:
   void session_save_default(THD *thd, set_var *var)
   {
     plugin_ref plugin= global_var(plugin_ref);
-    var->save_result.plugin= my_plugin_lock(thd, plugin);
+    var->save_result.plugin= plugin ? my_plugin_lock(thd, plugin) : 0;
   }
   void global_save_default(THD *thd, set_var *var)
   {
     LEX_STRING pname;
-    char **default_value= reinterpret_cast<char**>(option.def_value);
-    pname.str= *default_value;
-    pname.length= strlen(pname.str);
-
-    plugin_ref plugin;
-    if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
-      plugin= ha_resolve_by_name(thd, &pname);
+    char *default_value= *reinterpret_cast<char**>(option.def_value);
+    if (!default_value)
+      var->save_result.plugin= 0;
     else
-      plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
-    DBUG_ASSERT(plugin);
+    {
+      pname.str= default_value;
+      pname.length= strlen(pname.str);
 
-    var->save_result.plugin= my_plugin_lock(thd, plugin);
+      plugin_ref plugin;
+      if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
+        plugin= ha_resolve_by_name(thd, &pname, false);
+      else
+        plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
+      DBUG_ASSERT(plugin);
+
+      var->save_result.plugin= my_plugin_lock(thd, plugin);
+    }
   }
   bool check_update_type(Item_result type)
   { return type != STRING_RESULT; }

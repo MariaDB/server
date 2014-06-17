@@ -362,7 +362,7 @@ static char *lc_messages;
 static char *lc_time_names_name;
 static char *my_bind_addr_str;
 static char *default_collation_name;
-char *default_storage_engine;
+char *default_storage_engine, *default_tmp_storage_engine;
 static char compiled_default_collation_name[]= MYSQL_DEFAULT_COLLATION_NAME;
 static I_List<THD> thread_cache;
 static bool binlog_format_used= false;
@@ -4001,6 +4001,7 @@ static int init_common_variables()
 #else
   default_storage_engine= const_cast<char *>("MyISAM");
 #endif
+  default_tmp_storage_engine= NULL;
 
   /*
     Add server status variables to the dynamic list of
@@ -4576,6 +4577,52 @@ static void add_file_to_crash_report(char *file)
 }
 #endif
 
+#define init_default_storage_engine(X,Y) \
+  init_default_storage_engine_impl(#X, X, &global_system_variables.Y)
+
+static int init_default_storage_engine_impl(const char *opt_name,
+                                            char *engine_name, plugin_ref *res)
+{
+  if (!engine_name)
+  {
+    *res= 0;
+    return 0;
+  }
+
+  LEX_STRING name= { engine_name, strlen(engine_name) };
+  plugin_ref plugin;
+  handlerton *hton;
+  if ((plugin= ha_resolve_by_name(0, &name, false)))
+    hton= plugin_hton(plugin);
+  else
+  {
+    sql_print_error("Unknown/unsupported storage engine: %s", engine_name);
+    return 1;
+  }
+  if (!ha_storage_engine_is_enabled(hton))
+  {
+    if (!opt_bootstrap)
+    {
+      sql_print_error("%s (%s) is not available", opt_name, engine_name);
+      return 1;
+    }
+    DBUG_ASSERT(*res);
+  }
+  else
+  {
+    /*
+      Need to unlock as global_system_variables.table_plugin
+      was acquired during plugin_init()
+    */
+    mysql_mutex_lock(&LOCK_global_system_variables);
+    if (*res)
+      plugin_unlock(0, *res);
+    *res= plugin;
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+  }
+  return 0;
+}
+
 static int init_server_components()
 {
   DBUG_ENTER("init_server_components");
@@ -4863,41 +4910,15 @@ a file name for --log-bin-index option", opt_binlog_index_name);
                         opt_log ? log_output_options:LOG_NONE);
   }
 
-  /*
-    Set the default storage engine
-  */
-  LEX_STRING name= { default_storage_engine, strlen(default_storage_engine) };
-  plugin_ref plugin;
-  handlerton *hton;
-  if ((plugin= ha_resolve_by_name(0, &name)))
-    hton= plugin_hton(plugin);
-  else
-  {
-    sql_print_error("Unknown/unsupported storage engine: %s",
-                    default_storage_engine);
+  if (init_default_storage_engine(default_storage_engine, table_plugin))
     unireg_abort(1);
-  }
-  if (!ha_storage_engine_is_enabled(hton))
-  {
-    if (!opt_bootstrap)
-    {
-      sql_print_error("Default storage engine (%s) is not available",
-                      default_storage_engine);
-      unireg_abort(1);
-    }
-    DBUG_ASSERT(global_system_variables.table_plugin);
-  }
-  else
-  {
-    /*
-      Need to unlock as global_system_variables.table_plugin
-      was acquired during plugin_init()
-    */
-    mysql_mutex_lock(&LOCK_global_system_variables);
-    plugin_unlock(0, global_system_variables.table_plugin);
-    global_system_variables.table_plugin= plugin;
-    mysql_mutex_unlock(&LOCK_global_system_variables);
-  }
+
+  if (default_tmp_storage_engine && !*default_tmp_storage_engine)
+    default_tmp_storage_engine= NULL;
+
+  if (init_default_storage_engine(default_tmp_storage_engine, tmp_table_plugin))
+    unireg_abort(1);
+
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
@@ -6770,9 +6791,6 @@ struct my_option my_long_options[]=
    0, 0, 0},
   {"core-file", OPT_WANT_CORE, "Write core on errors.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  /* default-storage-engine should have "MyISAM" as def_value. Instead
-     of initializing it here it is done in init_common_variables() due
-     to a compiler bug in Sun Studio compiler. */
 #ifdef DBUG_OFF
   {"debug", '#', "Built in DBUG debugger. Disabled in this build.",
    &current_dbug_option, &current_dbug_option, 0, GET_STR, OPT_ARG,
@@ -6829,8 +6847,15 @@ struct my_option my_long_options[]=
    &opt_sporadic_binlog_dump_fail, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
 #endif /* HAVE_REPLICATION */
+  /* default-storage-engine should have "MyISAM" as def_value. Instead
+     of initializing it here it is done in init_common_variables() due
+     to a compiler bug in Sun Studio compiler. */
   {"default-storage-engine", 0, "The default storage engine for new tables",
    &default_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
+   0, 0, 0, 0, 0, 0 },
+  {"default-tmp-storage-engine", 0,
+    "The default storage engine for user-created temporary tables",
+   &default_tmp_storage_engine, 0, 0, GET_STR, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0 },
   {"default-time-zone", 0, "Set the default time zone.",
    &default_tz_name, &default_tz_name,

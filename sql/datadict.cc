@@ -113,7 +113,7 @@ frm_type_enum dd_frm_type(THD *thd, char *path, enum legacy_db_type *dbt)
         LEX_STRING name;
         name.str= (char*) next_chunk + 2;
         name.length= str_db_type_length;
-        plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name);
+        plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name, false);
         if (tmp_plugin)
           *dbt= plugin_data(tmp_plugin, handlerton *)->db_type;
         else

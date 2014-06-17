@@ -7,6 +7,8 @@
 *.spec
 *~
 .*.swp
+*.ninja
+.ninja_*
 .gdb_history
 CMakeCache.txt
 CMakeFiles/

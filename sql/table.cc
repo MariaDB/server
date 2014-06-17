@@ -982,7 +982,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         {
           LEX_STRING name= { (char*)extra2, length };
-          share->default_part_plugin= ha_resolve_by_name(NULL, &name);
+          share->default_part_plugin= ha_resolve_by_name(NULL, &name, false);
           if (!share->default_part_plugin)
             goto err;
         }
@@ -1136,7 +1136,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       name.str= (char*) next_chunk + 2;
       name.length= str_db_type_length;
 
-      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name);
+      plugin_ref tmp_plugin= ha_resolve_by_name(thd, &name, false);
       if (tmp_plugin != NULL && !plugin_equals(tmp_plugin, se_plugin))
       {
         if (se_plugin)

@@ -1360,6 +1360,8 @@ static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
   return find_plugin_sysvar(hton2plugin[hton->slot], var);
 }
 
+handlerton *ha_default_handlerton(THD *thd);
+handlerton *ha_default_tmp_handlerton(THD *thd);
 
 /* Possible flags of a handlerton (there can be 32 of them) */
 #define HTON_NO_FLAGS                 0
@@ -1632,6 +1634,11 @@ struct HA_CREATE_INFO
   bool table_was_deleted;
 
   bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
+  void use_default_db_type(THD *thd)
+  {
+    db_type= tmp_table() ? ha_default_tmp_handlerton(thd)
+                         : ha_default_handlerton(thd);
+  }
 };
 
 
@@ -3961,8 +3968,7 @@ extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;
 
 /* lookups */
-handlerton *ha_default_handlerton(THD *thd);
-plugin_ref ha_resolve_by_name(THD *thd, const LEX_STRING *name);
+plugin_ref ha_resolve_by_name(THD *thd, const LEX_STRING *name, bool tmp_table);
 plugin_ref ha_lock_engine(THD *thd, const handlerton *hton);
 handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type);
 handler *get_new_handler(TABLE_SHARE *share, MEM_ROOT *alloc,

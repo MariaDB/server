@@ -1833,7 +1833,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_attribute opt_attribute_list attribute column_list column_list_id
         opt_column_list grant_privileges grant_ident grant_list grant_option
         object_privilege object_privilege_list user_list user_and_role_list
-        rename_list
+        rename_list table_or_tables
         clear_privileges flush_options flush_option
         opt_flush_lock flush_lock flush_options_list
         equal optional_braces
@@ -2382,7 +2382,7 @@ create:
             if ((lex->create_info.used_fields & HA_CREATE_USED_ENGINE) &&
                 !lex->create_info.db_type)
             {
-              lex->create_info.db_type= ha_default_handlerton(thd);
+              lex->create_info.use_default_db_type(thd);
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_WARN_USING_OTHER_HANDLER,
                                   ER(ER_WARN_USING_OTHER_HANDLER),
@@ -5835,7 +5835,8 @@ default_collation:
 storage_engines:
           ident_or_text
           {
-            plugin_ref plugin= ha_resolve_by_name(thd, &$1);
+            plugin_ref plugin= ha_resolve_by_name(thd, &$1,
+                                            thd->lex->create_info.tmp_table());
 
             if (plugin)
               $$= plugin_hton(plugin);
@@ -5859,7 +5860,7 @@ known_storage_engines:
           ident_or_text
           {
             plugin_ref plugin;
-            if ((plugin= ha_resolve_by_name(thd, &$1)))
+            if ((plugin= ha_resolve_by_name(thd, &$1, false)))
               $$= plugin_hton(plugin);
             else
             {
@@ -12839,7 +12840,7 @@ flush_lock:
               MYSQL_YYABORT;
             } 
             Lex->type|= REFRESH_FOR_EXPORT;
-          } EXPORT_SYM
+          } EXPORT_SYM {}
         ;
 
 flush_options_list:
@@ -14899,8 +14900,8 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM
-        | TABLES
+          TABLE_SYM {}
+        | TABLES    {}
         ;
 
 table_lock_list:
