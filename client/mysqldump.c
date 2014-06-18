@@ -4821,7 +4821,7 @@ static int wsrep_add_sst_mode_cmds(MYSQL *mysql) {
   MYSQL_ROW row;
 
   if (mysql_get_server_version(mysql) < 100005) {
-    // @@gtid_binlog_state does not exist.
+    /* @@gtid_binlog_state does not exist. */
     return 0;
   }
 
@@ -4830,16 +4830,16 @@ static int wsrep_add_sst_mode_cmds(MYSQL *mysql) {
     return 1;
 
   if (mysql_num_rows(res) != 1)
-    // No entry for @@global.gtid_binlog_state, nothing needs to be done.
+    /* No entry for @@global.gtid_binlog_state, nothing needs to be done. */
     return 0;
 
   if (!(row= mysql_fetch_row(res)) || !(char *)row[0])
     return 1;
 
-  // first, add a command to turn off binary logging,
+  /* first, add a command to turn off binary logging, */
   fprintf(md_result_file, "SET @@session.sql_log_bin=OFF;\n");
 
-  // followed by, a command to set global gtid_binlog_state.
+  /* followed by, a command to set global gtid_binlog_state. */
   fprintf(md_result_file, "SET @@global.gtid_binlog_state='%s';\n",
           (char*)row[0]);
 
