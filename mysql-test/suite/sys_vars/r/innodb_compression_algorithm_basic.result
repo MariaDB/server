@@ -1,30 +1,24 @@
 SET @start_global_value = @@global.innodb_compression_algorithm;
 SELECT @start_global_value;
 @start_global_value
-lz4
-Valid value 0-3
-select @@global.innodb_compression_algorithm <= 3;
-@@global.innodb_compression_algorithm <= 3
-1
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'lz4'
+zlib
 select @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
-lz4
+zlib
 select @@session.innodb_compression_algorithm;
 ERROR HY000: Variable 'innodb_compression_algorithm' is a GLOBAL variable
 show global variables like 'innodb_compression_algorithm';
 Variable_name	Value
-innodb_compression_algorithm	lz4
+innodb_compression_algorithm	zlib
 show session variables like 'innodb_compression_algorithm';
 Variable_name	Value
-innodb_compression_algorithm	lz4
+innodb_compression_algorithm	zlib
 select * from information_schema.global_variables where variable_name='innodb_compression_algorithm';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_COMPRESSION_ALGORITHM	lz4
+INNODB_COMPRESSION_ALGORITHM	zlib
 select * from information_schema.session_variables where variable_name='innodb_compression_algorithm';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_COMPRESSION_ALGORITHM	lz4
+INNODB_COMPRESSION_ALGORITHM	zlib
 set global innodb_compression_algorithm=1;
 select @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
@@ -47,11 +41,12 @@ set global innodb_compression_algorithm=0;
 select @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
 none
-set global innodb_compression_algorithm=1;
+BUG! This should've failed (lzo is not compiled in)
+set global innodb_compression_algorithm=3;
 select @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
-zlib
+lzo
 SET @@global.innodb_compression_algorithm = @start_global_value;
 SELECT @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
-lz4
+zlib
