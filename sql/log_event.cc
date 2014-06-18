@@ -12529,6 +12529,13 @@ Incident_log_event::do_apply_event(rpl_group_info *rgi)
 {
   Relay_log_info const *rli= rgi->rli;
   DBUG_ENTER("Incident_log_event::do_apply_event");
+
+  if (ignored_error_code(ER_SLAVE_INCIDENT))
+  {
+    DBUG_PRINT("info", ("Ignoring Incident"));
+    DBUG_RETURN(0);
+  }
+   
   rli->report(ERROR_LEVEL, ER_SLAVE_INCIDENT,
               ER(ER_SLAVE_INCIDENT),
               description(),
