@@ -231,12 +231,12 @@ static TYPELIB innodb_stats_method_typelib = {
 /** Possible values for system variables "innodb_checksum_algorithm" and
 "innodb_log_checksum_algorithm". */
 static const char* innodb_checksum_algorithm_names[] = {
-	"crc32",
-	"strict_crc32",
-	"innodb",
-	"strict_innodb",
-	"none",
-	"strict_none",
+	"CRC32",
+	"STRICT_CRC32",
+	"INNODB",
+	"STRICT_INNODB",
+	"NONE",
+	"STRICT_NONE",
 	NullS
 };
 
@@ -251,8 +251,8 @@ static TYPELIB innodb_checksum_algorithm_typelib = {
 
 /** Possible values for system variable "innodb_cleaner_lsn_age_factor".  */
 static const char* innodb_cleaner_lsn_age_factor_names[] = {
-	"legacy",
-	"high_checkpoint",
+	"LEGACY",
+	"HIGH_CHECKPOINT",
 	NullS
 };
 
@@ -266,8 +266,8 @@ static TYPELIB innodb_cleaner_lsn_age_factor_typelib = {
 
 /** Possible values for system variable "innodb_foreground_preflush".  */
 static const char* innodb_foreground_preflush_names[] = {
-	"sync_preflush",
-	"exponential_backoff",
+	"SYNC_PREFLUSH",
+	"EXPONENTIAL_BACKOFF",
 	NullS
 };
 
@@ -281,8 +281,8 @@ static TYPELIB innodb_foreground_preflush_typelib = {
 
 /** Possible values for system variable "innodb_empty_free_list_algorithm".  */
 static const char* innodb_empty_free_list_algorithm_names[] = {
-	"legacy",
-	"backoff",
+	"LEGACY",
+	"BACKOFF",
 	NullS
 };
 
@@ -17149,9 +17149,7 @@ static MYSQL_SYSVAR_ENUM(log_checksum_algorithm, srv_log_checksum_algorithm,
 static MYSQL_SYSVAR_BOOL(checksums, innobase_use_checksums,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "DEPRECATED. Use innodb_checksum_algorithm=NONE instead of setting "
-  "this to OFF. "
-  "Enable InnoDB checksums validation (enabled by default). "
-  "Disable with --skip-innodb-checksums.",
+  "this to OFF",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_ULONG(log_block_size, innobase_log_block_size,
@@ -17992,8 +17990,7 @@ static MYSQL_SYSVAR_UINT(change_buffer_max_size,
 static MYSQL_SYSVAR_ENUM(stats_method, srv_innodb_stats_method,
    PLUGIN_VAR_RQCMDARG,
   "Specifies how InnoDB index statistics collection code should "
-  "treat NULLs. Possible values are NULLS_EQUAL (default), "
-  "NULLS_UNEQUAL and NULLS_IGNORED",
+  "treat NULLs",
    NULL, NULL, SRV_STATS_NULLS_EQUAL, &innodb_stats_method_typelib);
 
 #ifdef UNIV_DEBUG
@@ -18158,7 +18155,7 @@ static	MYSQL_SYSVAR_ENUM(corrupt_table_action, srv_pass_corrupt_table,
   "Warn corruptions of user tables as 'corrupt table' instead of not crashing itself, "
   "when used with file_per_table. "
   "All file io for the datafile after detected as corrupt are disabled, "
-  "except for the deletion. Possible options are 'assert', 'warn' & 'salvage'",
+  "except for the deletion",
   NULL, NULL, 0, &corrupt_table_action_typelib);
 
 static MYSQL_SYSVAR_BOOL(locking_fake_changes, srv_fake_changes_locks,
@@ -18199,7 +18196,7 @@ static TYPELIB page_compression_algorithms_typelib=
 };
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
-  "Compression algorithm used on page compression. One of: none, zlib, lz4, or lzo",
+  "Compression algorithm used on page compression",
   NULL, NULL, default_compression_algorithm,
   &page_compression_algorithms_typelib);
 

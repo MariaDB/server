@@ -4,7 +4,7 @@
 SET @save_replicate_events_marked_for_skip = @@GLOBAL.replicate_events_marked_for_skip;
 SELECT @save_replicate_events_marked_for_skip;
 @save_replicate_events_marked_for_skip
-replicate
+REPLICATE
 # Scope.
 SET @@SESSION.replicate_events_marked_for_skip = "";
 ERROR HY000: Variable 'replicate_events_marked_for_skip' is a GLOBAL variable and should be set with SET GLOBAL
@@ -14,22 +14,22 @@ ERROR HY000: Variable 'replicate_events_marked_for_skip' is a GLOBAL variable
 SET @@GLOBAL.replicate_events_marked_for_skip=filter_on_master;
 SELECT @@GLOBAL.replicate_events_marked_for_skip;
 @@GLOBAL.replicate_events_marked_for_skip
-filter_on_master
+FILTER_ON_MASTER
 SET @@GLOBAL.replicate_events_marked_for_skip=filter_on_slave;
 SELECT @@GLOBAL.replicate_events_marked_for_skip;
 @@GLOBAL.replicate_events_marked_for_skip
-filter_on_slave
+FILTER_ON_SLAVE
 SET @@GLOBAL.replicate_events_marked_for_skip=replicate;
 SELECT @@GLOBAL.replicate_events_marked_for_skip;
 @@GLOBAL.replicate_events_marked_for_skip
-replicate
+REPLICATE
 SET @@GLOBAL.replicate_events_marked_for_skip=filter;
 ERROR 42000: Variable 'replicate_events_marked_for_skip' can't be set to the value of 'filter'
 SELECT @@GLOBAL.replicate_events_marked_for_skip;
 @@GLOBAL.replicate_events_marked_for_skip
-replicate
+REPLICATE
 SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_events_marked_for_skip';
 VARIABLE_NAME	VARIABLE_VALUE
-REPLICATE_EVENTS_MARKED_FOR_SKIP	replicate
+REPLICATE_EVENTS_MARKED_FOR_SKIP	REPLICATE
 # Cleanup.
 SET @@GLOBAL.replicate_events_marked_for_skip = @save_replicate_events_marked_for_skip;

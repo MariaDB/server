@@ -42,8 +42,8 @@ const char *myisam_recover_names[] =
 TYPELIB myisam_recover_typelib= {array_elements(myisam_recover_names)-1,"",
 				 myisam_recover_names, NULL};
 
-const char *myisam_stats_method_names[] = {"nulls_unequal", "nulls_equal",
-                                           "nulls_ignored", NullS};
+const char *myisam_stats_method_names[] = {"NULLS_UNEQUAL", "NULLS_EQUAL",
+                                           "NULLS_IGNORED", NullS};
 TYPELIB myisam_stats_method_typelib= {
   array_elements(myisam_stats_method_names) - 1, "",
   myisam_stats_method_names, NULL};
@@ -66,8 +66,7 @@ static MYSQL_SYSVAR_ULONGLONG(max_sort_file_size, myisam_max_temp_length,
 
 static MYSQL_SYSVAR_SET(recover_options, myisam_recover_options,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_READONLY,
-  "Syntax: myisam-recover-options[=option[,option...]], where option can be "
-  "DEFAULT, BACKUP, BACKUP_ALL, FORCE, QUICK, or OFF",
+  "Specifies how corrupted tables should be automatically repaired",
   NULL, NULL, 1, &myisam_recover_typelib);
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
