@@ -166,6 +166,9 @@ man page, in case the conversion went wrong.
 <br>
 <br>
 <b>int (*pcre_callout)(pcre_callout_block *);</b>
+<br>
+<br>
+<b>int (*pcre_stack_guard)(void);</b>
 </P>
 <br><a name="SEC5" href="#TOC1">PCRE 8-BIT, 16-BIT, AND 32-BIT LIBRARIES</a><br>
 <P>
@@ -324,6 +327,15 @@ by the caller to a "callout" function, which PCRE will then call at specified
 points during a matching operation. Details are given in the
 <a href="pcrecallout.html"><b>pcrecallout</b></a>
 documentation.
+</P>
+<P>
+The global variable <b>pcre_stack_guard</b> initially contains NULL. It can be
+set by the caller to a function that is called by PCRE whenever it starts
+to compile a parenthesized part of a pattern. When parentheses are nested, PCRE
+uses recursive function calls, which use up the system stack. This function is
+provided so that applications with restricted stacks can force a compilation
+error if the stack runs out. The function should return zero if all is well, or
+non-zero to force an error.
 <a name="newlines"></a></P>
 <br><a name="SEC7" href="#TOC1">NEWLINES</a><br>
 <P>
@@ -369,7 +381,8 @@ controlled in a similar way, but by separate options.
 The PCRE functions can be used in multi-threading applications, with the
 proviso that the memory management functions pointed to by <b>pcre_malloc</b>,
 <b>pcre_free</b>, <b>pcre_stack_malloc</b>, and <b>pcre_stack_free</b>, and the
-callout function pointed to by <b>pcre_callout</b>, are shared by all threads.
+callout and stack-checking functions pointed to by <b>pcre_callout</b> and
+<b>pcre_stack_guard</b>, are shared by all threads.
 </P>
 <P>
 The compiled form of a regular expression is not altered during matching, so
@@ -489,7 +502,10 @@ documentation.
 The output is a long integer that gives the maximum depth of nesting of
 parentheses (of any kind) in a pattern. This limit is imposed to cap the amount
 of system stack used when a pattern is compiled. It is specified when PCRE is
-built; the default is 250.
+built; the default is 250. This limit does not take into account the stack that
+may already be used by the calling application. For finer control over
+compilation stack usage, you can set a pointer to an external checking function
+in <b>pcre_stack_guard</b>.
 <pre>
   PCRE_CONFIG_MATCH_LIMIT
 </pre>
@@ -1008,6 +1024,8 @@ have fallen out of use. To avoid confusion, they have not been re-used.
   81  missing opening brace after \o
   82  parentheses are too deeply nested
   83  invalid range in character class
+  84  group name must start with a non-digit
+  85  parentheses are too deeply nested (stack check)
 </pre>
 The numbers 32 and 10000 in errors 48 and 49 are defaults; different values may
 be used if the limits were changed when PCRE was built.
@@ -1265,12 +1283,15 @@ information call is provided for internal use by the <b>pcre_study()</b>
 function. External callers can cause PCRE to use its internal tables by passing
 a NULL table pointer.
 <pre>
-  PCRE_INFO_FIRSTBYTE
+  PCRE_INFO_FIRSTBYTE (deprecated)
 </pre>
 Return information about the first data unit of any matched string, for a
-non-anchored pattern. (The name of this option refers to the 8-bit library,
-where data units are bytes.) The fourth argument should point to an <b>int</b>
-variable.
+non-anchored pattern. The name of this option refers to the 8-bit library,
+where data units are bytes. The fourth argument should point to an <b>int</b>
+variable. Negative values are used for special cases. However, this means that
+when the 32-bit library is in non-UTF-32 mode, the full 32-bit range of
+characters cannot be returned. For this reason, this value is deprecated; use
+PCRE_INFO_FIRSTCHARACTERFLAGS and PCRE_INFO_FIRSTCHARACTER instead.
 </P>
 <P>
 If there is a fixed first value, for example, the letter "c" from a pattern
@@ -1293,12 +1314,43 @@ starts with "^", or
 -1 is returned, indicating that the pattern matches only at the start of a
 subject string or after any newline within the string. Otherwise -2 is
 returned. For anchored patterns, -2 is returned.
+<pre>
+  PCRE_INFO_FIRSTCHARACTER
+</pre>
+Return the value of the first data unit (non-UTF character) of any matched
+string in the situation where PCRE_INFO_FIRSTCHARACTERFLAGS returns 1;
+otherwise return 0. The fourth argument should point to an <b>uint_t</b>
+variable.
 </P>
 <P>
-Since for the 32-bit library using the non-UTF-32 mode, this function is unable
-to return the full 32-bit range of the character, this value is deprecated;
-instead the PCRE_INFO_FIRSTCHARACTERFLAGS and PCRE_INFO_FIRSTCHARACTER values
-should be used.
+In the 8-bit library, the value is always less than 256. In the 16-bit library
+the value can be up to 0xffff. In the 32-bit library in UTF-32 mode the value
+can be up to 0x10ffff, and up to 0xffffffff when not using UTF-32 mode.
+<pre>
+  PCRE_INFO_FIRSTCHARACTERFLAGS
+</pre>
+Return information about the first data unit of any matched string, for a
+non-anchored pattern. The fourth argument should point to an <b>int</b>
+variable.
+</P>
+<P>
+If there is a fixed first value, for example, the letter "c" from a pattern
+such as (cat|cow|coyote), 1 is returned, and the character value can be
+retrieved using PCRE_INFO_FIRSTCHARACTER. If there is no fixed first value, and
+if either
+<br>
+<br>
+(a) the pattern was compiled with the PCRE_MULTILINE option, and every branch
+starts with "^", or
+<br>
+<br>
+(b) every branch of the pattern starts with ".*" and PCRE_DOTALL is not set
+(if it were set, the pattern would be anchored),
+<br>
+<br>
+2 is returned, indicating that the pattern matches only at the start of a
+subject string or after any newline within the string. Otherwise 0 is
+returned. For anchored patterns, 0 is returned.
 <pre>
   PCRE_INFO_FIRSTTABLE
 </pre>
@@ -1508,44 +1560,6 @@ above). The format of the <i>study_data</i> block is private, but its length
 is made available via this option so that it can be saved and restored (see the
 <a href="pcreprecompile.html"><b>pcreprecompile</b></a>
 documentation for details).
-<pre>
-  PCRE_INFO_FIRSTCHARACTERFLAGS
-</pre>
-Return information about the first data unit of any matched string, for a
-non-anchored pattern. The fourth argument should point to an <b>int</b>
-variable.
-</P>
-<P>
-If there is a fixed first value, for example, the letter "c" from a pattern
-such as (cat|cow|coyote), 1 is returned, and the character value can be
-retrieved using PCRE_INFO_FIRSTCHARACTER.
-</P>
-<P>
-If there is no fixed first value, and if either
-<br>
-<br>
-(a) the pattern was compiled with the PCRE_MULTILINE option, and every branch
-starts with "^", or
-<br>
-<br>
-(b) every branch of the pattern starts with ".*" and PCRE_DOTALL is not set
-(if it were set, the pattern would be anchored),
-<br>
-<br>
-2 is returned, indicating that the pattern matches only at the start of a
-subject string or after any newline within the string. Otherwise 0 is
-returned. For anchored patterns, 0 is returned.
-<pre>
-  PCRE_INFO_FIRSTCHARACTER
-</pre>
-Return the fixed first character value in the situation where
-PCRE_INFO_FIRSTCHARACTERFLAGS returns 1; otherwise return 0. The fourth
-argument should point to an <b>uint_t</b> variable.
-</P>
-<P>
-In the 8-bit library, the value is always less than 256. In the 16-bit library
-the value can be up to 0xffff. In the 32-bit library in UTF-32 mode the value
-can be up to 0x10ffff, and up to 0xffffffff when not using UTF-32 mode.
 <pre>
   PCRE_INFO_REQUIREDCHARFLAGS
 </pre>
@@ -2899,9 +2913,9 @@ Cambridge CB2 3QH, England.
 </P>
 <br><a name="SEC26" href="#TOC1">REVISION</a><br>
 <P>
-Last updated: 12 November 2013
+Last updated: 09 February 2014
 <br>
-Copyright &copy; 1997-2013 University of Cambridge.
+Copyright &copy; 1997-2014 University of Cambridge.
 <br>
 <p>
 Return to the <a href="index.html">PCRE index page</a>.

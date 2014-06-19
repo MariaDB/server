@@ -3176,7 +3176,7 @@ values
 ( 50, 1.0e+10, 1.0e+10, 1.0e+10, 1.0e+10, 1.0e+10 ) ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 insert into t9
 ( c1, c13, c14, c15, c16, c17 )
@@ -3184,7 +3184,7 @@ values
 ( 51, @arg00, @arg00, @arg00, @arg00, @arg00) ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 prepare stmt1 from "insert into t9
   ( c1, c13, c14, c15, c16, c17 )
@@ -3193,7 +3193,7 @@ values
 execute stmt1 ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 prepare stmt2 from "insert into t9
   ( c1, c13, c14, c15, c16, c17 )
@@ -3202,7 +3202,7 @@ values
 execute stmt2 using @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 set @arg00= 'abc' ;
 set @arg00= NULL ;
@@ -6530,7 +6530,7 @@ values
 ( 50, 1.0e+10, 1.0e+10, 1.0e+10, 1.0e+10, 1.0e+10 ) ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 insert into t9
 ( c1, c13, c14, c15, c16, c17 )
@@ -6538,7 +6538,7 @@ values
 ( 51, @arg00, @arg00, @arg00, @arg00, @arg00) ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 prepare stmt1 from "insert into t9
   ( c1, c13, c14, c15, c16, c17 )
@@ -6547,7 +6547,7 @@ values
 execute stmt1 ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 prepare stmt2 from "insert into t9
   ( c1, c13, c14, c15, c16, c17 )
@@ -6556,7 +6556,7 @@ values
 execute stmt2 using @arg00, @arg00, @arg00, @arg00, @arg00 ;
 Warnings:
 Warning	1265	Data truncated for column 'c15' at row 1
-Warning	1265	Data truncated for column 'c16' at row 1
+Note	1265	Data truncated for column 'c16' at row 1
 Warning	1264	Out of range value for column 'c17' at row 1
 set @arg00= 'abc' ;
 set @arg00= NULL ;

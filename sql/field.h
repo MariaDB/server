@@ -94,6 +94,31 @@ inline uint get_set_pack_length(int elements)
 
 
 /**
+  Tests if field type is temporal and has date part,
+  i.e. represents DATE, DATETIME or TIMESTAMP types in SQL.
+
+  @param type    Field type, as returned by field->type().
+  @retval true   If field type is temporal type with date part.
+  @retval false  If field type is not temporal type with date part.
+*/
+inline bool is_temporal_type_with_date(enum_field_types type)
+{
+  switch (type)
+  {
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIMESTAMP:
+    return true;
+  case MYSQL_TYPE_DATETIME2:
+  case MYSQL_TYPE_TIMESTAMP2:
+    DBUG_ASSERT(0); // field->real_type() should not get to here.
+  default:
+    return false;
+  }
+}
+
+
+/**
    Recognizer for concrete data type (called real_type for some reason),
    returning true if it is one of the TIMESTAMP types.
 */
@@ -228,9 +253,13 @@ class Field
   Field(const Item &);				/* Prevent use of these */
   void operator=(Field &);
 public:
+  static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
+  { return alloc_root(mem_root, size); }
   static void *operator new(size_t size) throw ()
   { return sql_alloc(size); }
   static void operator delete(void *ptr_arg, size_t size) { TRASH(ptr_arg, size); }
+  static void operator delete(void *ptr, MEM_ROOT *mem_root)
+  { DBUG_ASSERT(0); }
 
   uchar		*ptr;			// Position to field in record
   /**
@@ -684,8 +713,8 @@ public:
   virtual Field *new_field(MEM_ROOT *root, TABLE *new_table,
                            bool keep_type);
   virtual Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                               uchar *new_ptr, uchar *new_null_ptr,
-                               uint new_null_bit);
+                               uchar *new_ptr, uint32 length,
+                               uchar *new_null_ptr, uint new_null_bit);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table);
   Field *clone(MEM_ROOT *mem_root, TABLE *new_table, my_ptrdiff_t diff,
                bool stat_flag= FALSE);
@@ -1823,6 +1852,12 @@ public:
 
 
 class Field_time :public Field_temporal {
+  /*
+    when this Field_time instance is used for storing values for index lookups
+    (see class store_key, Field::new_key_field(), etc), the following
+    might be set to TO_DAYS(CURDATE()). See also Field_time::store_time_dec()
+  */
+  long curdays;
 protected:
   virtual void store_TIME(MYSQL_TIME *ltime);
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
@@ -1832,7 +1867,7 @@ public:
              uchar null_bit_arg, enum utype unireg_check_arg,
              const char *field_name_arg)
     :Field_temporal(ptr_arg, length_arg, null_ptr_arg, null_bit_arg,
-                    unireg_check_arg, field_name_arg)
+                    unireg_check_arg, field_name_arg), curdays(0)
     {}
   enum_field_types type() const { return MYSQL_TYPE_TIME;}
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_INT24; }
@@ -1851,6 +1886,10 @@ public:
   uint32 pack_length() const { return 3; }
   void sql_type(String &str) const;
   uint size_of() const { return sizeof(*this); }
+  void set_curdays(THD *thd);
+  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
 };
 
 
@@ -2298,8 +2337,8 @@ public:
   { return charset() == &my_charset_bin ? FALSE : TRUE; }
   Field *new_field(MEM_ROOT *root, TABLE *new_table, bool keep_type);
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                       uchar *new_ptr, uchar *new_null_ptr,
-                       uint new_null_bit);
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
   uint is_equal(Create_field *new_field);
   void hash(ulong *nr, ulong *nr2);
   uint length_size() { return length_bytes; }
@@ -2432,6 +2471,9 @@ public:
   }
   uint get_key_image(uchar *buff,uint length, imagetype type);
   void set_key_image(const uchar *buff,uint length);
+  Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
   void sql_type(String &str) const;
   inline bool copy()
   {
@@ -2702,8 +2744,8 @@ public:
   virtual void set_default();
 
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
-                       uchar *new_ptr, uchar *new_null_ptr,
-                       uint new_null_bit);
+                       uchar *new_ptr, uint32 length,
+                       uchar *new_null_ptr, uint new_null_bit);
   void set_bit_ptr(uchar *bit_ptr_arg, uchar bit_ofs_arg)
   {
     bit_ptr= bit_ptr_arg;

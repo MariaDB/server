@@ -160,3 +160,15 @@ select * from t1;
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-6103 - Adding/removing non-materialized virtual column triggers
+--echo #             table recreation
+--echo #
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1),(1),(1),(1),(1),(1),(1),(1),(1),(1);
+enable_info;
+ALTER TABLE t1 ADD COLUMN b INT AS (a + 1) VIRTUAL;
+ALTER TABLE t1 DROP COLUMN b;
+disable_info;
+CHECK TABLE t1;
+DROP TABLE t1;

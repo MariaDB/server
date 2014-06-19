@@ -55,6 +55,7 @@ class DllExport COLBLK : public XOBJECT {
           PSZ     GetFmt(void) {return (Cdp) ? Cdp->Fmt : NULL;}
           bool    IsUnsigned(void) {return Unsigned;}
           bool    IsNullable(void) {return Nullable;}
+          bool    IsVirtual(void) {return Cdp->IsVirtual();}
           void    SetNullable(bool b) {Nullable = b;}
                   
   // Methods      

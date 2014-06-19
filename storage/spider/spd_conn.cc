@@ -62,6 +62,7 @@ extern PSI_cond_key spd_key_cond_bg_sts_sync;
 extern PSI_cond_key spd_key_cond_bg_crd;
 extern PSI_cond_key spd_key_cond_bg_crd_sync;
 extern PSI_cond_key spd_key_cond_bg_mon;
+extern PSI_cond_key spd_key_cond_bg_mon_sleep;
 extern PSI_thread_key spd_key_thd_bg;
 extern PSI_thread_key spd_key_thd_bg_sts;
 extern PSI_thread_key spd_key_thd_bg_crd;
@@ -3425,6 +3426,8 @@ int spider_create_mon_threads(
           &share->bg_mon_mutexes, sizeof(pthread_mutex_t) *
             share->all_link_count,
           &share->bg_mon_conds, sizeof(pthread_cond_t) * share->all_link_count,
+          &share->bg_mon_sleep_conds,
+            sizeof(pthread_cond_t) * share->all_link_count,
           NullS))
       ) {
         error_num = HA_ERR_OUT_OF_MEM;
@@ -3461,6 +3464,22 @@ int spider_create_mon_threads(
         ) {
           error_num = HA_ERR_OUT_OF_MEM;
           goto error_cond_init;
+        }
+      }
+      for (roop_count = 0; roop_count < (int) share->all_link_count;
+        roop_count++)
+      {
+        if (
+          share->monitoring_bg_kind[roop_count] &&
+#if MYSQL_VERSION_ID < 50500
+          pthread_cond_init(&share->bg_mon_sleep_conds[roop_count], NULL)
+#else
+          mysql_cond_init(spd_key_cond_bg_mon_sleep,
+            &share->bg_mon_sleep_conds[roop_count], NULL)
+#endif
+        ) {
+          error_num = HA_ERR_OUT_OF_MEM;
+          goto error_sleep_cond_init;
         }
       }
       link_pack.share = share;
@@ -3514,6 +3533,13 @@ error_thread_create:
   }
   share->bg_mon_kill = FALSE;
   roop_count = share->all_link_count;
+error_sleep_cond_init:
+  for (roop_count--; roop_count >= 0; roop_count--)
+  {
+    if (share->monitoring_bg_kind[roop_count])
+      pthread_cond_destroy(&share->bg_mon_sleep_conds[roop_count]);
+  }
+  roop_count = share->all_link_count;
 error_cond_init:
   for (roop_count--; roop_count >= 0; roop_count--)
   {
@@ -3543,6 +3569,16 @@ void spider_free_mon_threads(
     for (roop_count = 0; roop_count < (int) share->all_link_count;
       roop_count++)
     {
+      if (
+        share->monitoring_bg_kind[roop_count] &&
+        share->bg_mon_thds[roop_count]
+      ) {
+        share->bg_mon_thds[roop_count]->killed = SPIDER_THD_KILL_CONNECTION;
+      }
+    }
+    for (roop_count = 0; roop_count < (int) share->all_link_count;
+      roop_count++)
+    {
       if (share->monitoring_bg_kind[roop_count])
         pthread_mutex_lock(&share->bg_mon_mutexes[roop_count]);
     }
@@ -3552,11 +3588,13 @@ void spider_free_mon_threads(
     {
       if (share->monitoring_bg_kind[roop_count])
       {
+        pthread_cond_signal(&share->bg_mon_sleep_conds[roop_count]);
         pthread_cond_wait(&share->bg_mon_conds[roop_count],
           &share->bg_mon_mutexes[roop_count]);
         pthread_mutex_unlock(&share->bg_mon_mutexes[roop_count]);
         pthread_join(share->bg_mon_threads[roop_count], NULL);
         pthread_cond_destroy(&share->bg_mon_conds[roop_count]);
+        pthread_cond_destroy(&share->bg_mon_sleep_conds[roop_count]);
         pthread_mutex_destroy(&share->bg_mon_mutexes[roop_count]);
       }
     }
@@ -3614,7 +3652,9 @@ void *spider_bg_mon_action(
   }
   share->bg_mon_thds[link_idx] = thd;
   pthread_cond_signal(&share->bg_mon_conds[link_idx]);
+/*
   pthread_mutex_unlock(&share->bg_mon_mutexes[link_idx]);
+*/
   /* init end */
 
   while (TRUE)
@@ -3622,12 +3662,23 @@ void *spider_bg_mon_action(
     DBUG_PRINT("info",("spider bg mon sleep %lld",
       share->monitoring_bg_interval[link_idx]));
     if (!share->bg_mon_kill)
+    {
+      struct timespec abstime;
+      set_timespec_nsec(abstime,
+        share->monitoring_bg_interval[link_idx] * 1000);
+      pthread_cond_timedwait(&share->bg_mon_sleep_conds[link_idx],
+        &share->bg_mon_mutexes[link_idx], &abstime);
+/*
       my_sleep((ulong) share->monitoring_bg_interval[link_idx]);
+*/
+    }
     DBUG_PRINT("info",("spider bg mon roop start"));
     if (share->bg_mon_kill)
     {
       DBUG_PRINT("info",("spider bg mon kill start"));
+/*
       pthread_mutex_lock(&share->bg_mon_mutexes[link_idx]);
+*/
       pthread_cond_signal(&share->bg_mon_conds[link_idx]);
       pthread_mutex_unlock(&share->bg_mon_mutexes[link_idx]);
       spider_free_trx(trx, TRUE);

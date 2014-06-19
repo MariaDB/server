@@ -378,8 +378,8 @@ select user(), current_user();
 disconnect pcon4;
 
 #
-# lpbug#683112 Maria 5.2 incorrectly reports "(using password: NO)"
-#              even when password is specified
+# lp:683112 Maria 5.2 incorrectly reports "(using password: NO)"
+#           even when password is specified
 #
 # test "access denied" error for nonexisting user with and without a password
 #
@@ -391,6 +391,31 @@ connect(pcon5,localhost,mysqltest_nouser,newpw,,$MASTER_MYPORT,);
 connect(pcon5,localhost,mysqltest_nouser,,,$MASTER_MYPORT,);
 
 connection default;
+
+#
+# MDEV-6253 MySQL Users Break when Migrating from MySQL 5.1 to MariaDB 10.0.10
+#
+# cannot connect when password is set and plugin=mysql_native_password
+#
+update mysql.user set password=authentication_string, authentication_string=''
+                  where user like 'mysqltest_up_';
+select user, password, plugin, authentication_string from mysql.user
+                  where user like 'mysqltest_up_';
+flush privileges;                  
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect(pcon6,localhost,mysqltest_up1,bar,,$MASTER_MYPORT,);
+connection pcon6;
+select user(), current_user();
+disconnect pcon6;
+
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+connect(pcon7,localhost,mysqltest_up2,oldpw,,$MASTER_MYPORT,);
+connection pcon7;
+select user(), current_user();
+disconnect pcon7;
+connection default;
+
 DROP USER mysqltest_up1@'%';
 DROP USER mysqltest_up2@'%';
 

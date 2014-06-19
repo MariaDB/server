@@ -1058,6 +1058,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       break;
     case TYPE_DECIM:
       pcf->Precision= ((Field_new_decimal*)fp)->precision;
+      pcf->Length= pcf->Precision;
       pcf->Scale= fp->decimals();
       break;
     case TYPE_DATE:
@@ -2708,7 +2709,6 @@ int ha_connect::index_next_same(uchar *buf, const uchar *key, uint keylen)
 */
 int ha_connect::rnd_init(bool scan)
 {
-  int     rc;
   PGLOBAL g= ((table && table->in_use) ? GetPlug(table->in_use, xp) :
               (xp) ? xp->g : NULL);
   DBUG_ENTER("ha_connect::rnd_init");
@@ -2742,8 +2742,8 @@ int ha_connect::rnd_init(bool scan)
   if (xmod == MODE_UPDATE)
     bitmap_union(table->read_set, table->write_set);
 
-  if ((rc= OpenTable(g, xmod == MODE_DELETE)))
-    DBUG_RETURN(rc);
+  if (OpenTable(g, xmod == MODE_DELETE))
+    DBUG_RETURN(HA_ERR_INITIALIZATION);
 
   xp->nrd= xp->fnd= xp->nfd= 0;
   xp->tb1= my_interval_timer();
@@ -4239,7 +4239,6 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         strncpy(dsn, create_info->connect_string.str, len);
         dsn[len]= 0;
         mydef->SetName(create_info->alias);
-        mydef->SetCat(cat);
 
         if (!mydef->ParseURL(g, dsn, false)) {
           if (mydef->GetHostname())
@@ -4696,21 +4695,18 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         int   port;
 
         host= GetListOption(g, "host", options->oplist, NULL);
-        db= GetListOption(g, "database", options->oplist, NULL);
+        db= GetStringOption("database", NULL);
         port= atoi(GetListOption(g, "port", options->oplist, "0"));
 
         if (create_info->connect_string.str) {
           char   *dsn;
           int     len= create_info->connect_string.length;
           PMYDEF  mydef= new(g) MYSQLDEF();
-          PDBUSER dup= PlgGetUser(g);
-          PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
           dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
           strncpy(dsn, create_info->connect_string.str, len);
           dsn[len]= 0;
           mydef->SetName(create_info->alias);
-          mydef->SetCat(cat);
 
           if (!mydef->ParseURL(g, dsn, false)) {
             if (mydef->GetHostname())

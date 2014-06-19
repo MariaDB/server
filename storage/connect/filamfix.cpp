@@ -367,7 +367,7 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else {
       /*****************************************************************/
-      /*  Move of eventual preceeding lines is not required here.      */
+      /*  Move of eventual preceding lines is not required here.      */
       /*  Set the target file as being the source file itself.         */
       /*  Set the future Tpos, and give Spos a value to block moving.  */
       /*****************************************************************/
@@ -1165,7 +1165,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
 
   if (Tpos == Spos) {
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceeding lines is     */
+    /*  First line to delete. Move of eventual preceding lines is     */
     /*  not required here if a temporary file is not used, just the    */
     /*  setting of future Spos and Tpos.                               */
     /*******************************************************************/
@@ -1178,7 +1178,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else {
       /*****************************************************************/
-      /*  Move of eventual preceeding lines is not required here.      */
+      /*  Move of eventual preceding lines is not required here.      */
       /*  Set the target file as being the source file itself.         */
       /*  Set the future Tpos, and give Spos a value to block copying. */
       /*****************************************************************/

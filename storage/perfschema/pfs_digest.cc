@@ -47,7 +47,7 @@
 
 /**
   Token array :
-  Token array is an array of bytes to store tokens recieved during parsing.
+  Token array is an array of bytes to store tokens received during parsing.
   Following is the way token array is formed.
 
       ...<non-id-token><non-id-token><id-token><id_len><id_text>...
@@ -207,7 +207,7 @@ find_or_create_digest(PFS_thread *thread,
   PFS_statements_digest_stat **entry;
   PFS_statements_digest_stat *pfs= NULL;
 
-  ulonglong now= microsecond_interval_timer();
+  ulonglong now= my_hrtime().val;
 
 search:
 

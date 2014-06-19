@@ -900,9 +900,11 @@ get_datetime_value(THD *thd, Item ***item_arg, Item **cache_arg,
   {
     MYSQL_TIME ltime;
     uint fuzzydate= TIME_FUZZY_DATES | TIME_INVALID_DATES;
-    if (f_type == MYSQL_TYPE_TIME)
-      fuzzydate|= TIME_TIME_ONLY;
-    if (item->get_date(&ltime, fuzzydate))
+    if ((item->field_type() == MYSQL_TYPE_TIME &&
+        is_temporal_type_with_date(warn_item->field_type())) ?
+        item->get_date_with_conversion(&ltime, fuzzydate) :
+        item->get_date(&ltime, fuzzydate |
+                               (f_type == MYSQL_TYPE_TIME ? TIME_TIME_ONLY : 0)))
       value= 0; /* invalid date */
     else
       value= pack_time(&ltime);
@@ -2559,9 +2561,9 @@ Item_func_ifnull::str_op(String *str)
 bool Item_func_ifnull::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
-  if (!args[0]->get_date(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+  if (!args[0]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
     return (null_value= false);
-  if (!args[1]->get_date(ltime, fuzzydate & ~TIME_FUZZY_DATES))
+  if (!args[1]->get_date_with_conversion(ltime, fuzzydate & ~TIME_FUZZY_DATES))
     return (null_value= false);
   bzero((char*) ltime,sizeof(*ltime));
   return null_value= !(fuzzydate & TIME_FUZZY_DATES);
@@ -2752,7 +2754,7 @@ bool Item_func_if::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   Item *arg= args[0]->val_bool() ? args[1] : args[2];
-  return (null_value= arg->get_date(ltime, fuzzydate));
+  return (null_value= arg->get_date_with_conversion(ltime, fuzzydate));
 }
 
 
@@ -2997,7 +2999,7 @@ bool Item_func_case::date_op(MYSQL_TIME *ltime, uint fuzzydate)
   Item *item= find_item(&dummy_str);
   if (!item)
     return (null_value= true);
-  return (null_value= item->get_date(ltime, fuzzydate));
+  return (null_value= item->get_date_with_conversion(ltime, fuzzydate));
 }
 
 
@@ -3315,7 +3317,8 @@ bool Item_func_coalesce::date_op(MYSQL_TIME *ltime,uint fuzzydate)
   null_value= 0;
   for (uint i= 0; i < arg_count; i++)
   {
-    bool res= args[i]->get_date(ltime, fuzzydate & ~TIME_FUZZY_DATES);
+    bool res= args[i]->get_date_with_conversion(ltime,
+                                                fuzzydate & ~TIME_FUZZY_DATES);
     if (!args[i]->null_value)
       return res;
   }
@@ -4896,21 +4899,20 @@ longlong Item_func_like::val_int()
 
 Item_func::optimize_type Item_func_like::select_optimize() const
 {
-  if (args[1]->const_item() && !args[1]->is_expensive())
-  {
-    String* res2= args[1]->val_str((String *)&cmp.value2);
-    const char *ptr2;
+  if (!args[1]->const_item() || args[1]->is_expensive())
+    return OPTIMIZE_NONE;
 
-    if (!res2 || !(ptr2= res2->ptr()))
-      return OPTIMIZE_NONE;
+  String* res2= args[1]->val_str((String *)&cmp.value2);
+  if (!res2)
+    return OPTIMIZE_NONE;
 
-    if (*ptr2 != wild_many)
-    {
-      if (args[0]->result_type() != STRING_RESULT || *ptr2 != wild_one)
-	return OPTIMIZE_OP;
-    }
-  }
-  return OPTIMIZE_NONE;
+  if (!res2->length()) // Can optimize empty wildcard: column LIKE ''
+    return OPTIMIZE_OP;
+
+  DBUG_ASSERT(res2->ptr());
+  char first= res2->ptr()[0];
+  return (first == wild_many || first == wild_one) ?
+    OPTIMIZE_NONE : OPTIMIZE_OP;
 }
 
 

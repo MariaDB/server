@@ -1352,6 +1352,7 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   case INT_RESULT:
   {
     longlong value= val_int();
+    bool neg= !unsigned_flag && value < 0;
     if (field_type() == MYSQL_TYPE_YEAR)
     {
       if (max_length == 2)
@@ -1363,7 +1364,8 @@ bool Item::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
       }
       value*= 10000; /* make it YYYYMMHH */
     }
-    if (null_value || int_to_datetime_with_warn(value, ltime, fuzzydate,
+    if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+                                                ltime, fuzzydate,
                                                 field_name_or_null()))
       goto err;
     break;
@@ -8848,7 +8850,7 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
   */
   if (field->cmp_type() == TIME_RESULT)
   {
-    MYSQL_TIME field_time, item_time;
+    MYSQL_TIME field_time, item_time, item_time2, *item_time_cmp= &item_time;
     if (field->type() == MYSQL_TYPE_TIME)
     {
       field->get_time(&field_time);
@@ -8858,8 +8860,11 @@ int stored_field_cmp_to_item(THD *thd, Field *field, Item *item)
     {
       field->get_date(&field_time, TIME_INVALID_DATES);
       item->get_date(&item_time, TIME_INVALID_DATES);
+      if (item_time.time_type == MYSQL_TIMESTAMP_TIME)
+        if (time_to_datetime(thd, &item_time, item_time_cmp= &item_time2))
+          return 1;
     }
-    return my_time_compare(&field_time, &item_time);
+    return my_time_compare(&field_time, item_time_cmp);
   }
   if (res_type == STRING_RESULT)
   {

@@ -1965,8 +1965,8 @@ Field *Field::new_field(MEM_ROOT *root, TABLE *new_table,
 
 
 Field *Field::new_key_field(MEM_ROOT *root, TABLE *new_table,
-                            uchar *new_ptr, uchar *new_null_ptr,
-                            uint new_null_bit)
+                            uchar *new_ptr, uint32 length,
+                            uchar *new_null_ptr, uint new_null_bit)
 {
   Field *tmp;
   if ((tmp= new_field(root, new_table, table == new_table)))
@@ -4706,7 +4706,7 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 {
   MYSQL_TIME l_time;
   int error;
-  ErrConvInteger str(nr);
+  ErrConvInteger str(nr, unsigned_val);
   THD *thd= get_thd();
 
   /* We don't want to store invalid or fuzzy datetime values in TIMESTAMP */
@@ -5210,7 +5210,7 @@ int Field_temporal_with_date::store(longlong nr, bool unsigned_val)
   MYSQL_TIME ltime;
   longlong tmp;
   THD *thd= get_thd();
-  ErrConvInteger str(nr);
+  ErrConvInteger str(nr, unsigned_val);
 
   tmp= number_to_datetime(nr, 0, &ltime, sql_mode_for_dates(thd), &error);
 
@@ -5316,11 +5316,40 @@ int Field_time::store(const char *from,uint len,CHARSET_INFO *cs)
 }
 
 
+/**
+  subtract a given number of days from DATETIME, return TIME
+
+  optimized version of calc_time_diff()
+
+  @note it might generate TIME values outside of the valid TIME range!
+*/
+static void calc_datetime_days_diff(MYSQL_TIME *ltime, long days)
+{
+  long daydiff= calc_daynr(ltime->year, ltime->month, ltime->day) - days;
+  ltime->year= ltime->month= 0;
+  if (daydiff >=0 )
+    ltime->day= daydiff;
+  else
+  {
+    longlong timediff= ((((daydiff        * 24LL +
+                           ltime->hour)   * 60LL +
+                           ltime->minute) * 60LL +
+                           ltime->second) * 1000000LL +
+                           ltime->second_part);
+    unpack_time(timediff, ltime);
+  }
+  ltime->time_type= MYSQL_TIMESTAMP_TIME;
+}
+
+
 int Field_time::store_time_dec(MYSQL_TIME *ltime, uint dec)
 {
   MYSQL_TIME l_time= *ltime;
   ErrConvTime str(ltime);
   int was_cut= 0;
+
+  if (curdays && l_time.time_type != MYSQL_TIMESTAMP_TIME)
+    calc_datetime_days_diff(&l_time, curdays);
 
   int have_smth_to_conv= !check_time_range(&l_time, decimals(), &was_cut);
   return store_TIME_with_warning(&l_time, &str, was_cut, have_smth_to_conv);
@@ -5335,7 +5364,7 @@ int Field_time::store(double nr)
   bool neg= nr < 0;
   if (neg)
     nr= -nr;
-  int have_smth_to_conv= !number_to_time(neg, (longlong)nr,
+  int have_smth_to_conv= !number_to_time(neg, (ulonglong) nr,
                                          (ulong)((nr - floor(nr)) * TIME_SECOND_PART_FACTOR),
                                          &ltime, &was_cut);
 
@@ -5346,15 +5375,40 @@ int Field_time::store(double nr)
 int Field_time::store(longlong nr, bool unsigned_val)
 {
   MYSQL_TIME ltime;
-  ErrConvInteger str(nr);
+  ErrConvInteger str(nr, unsigned_val);
   int was_cut;
-  int have_smth_to_conv= !number_to_time(nr < 0, nr < 0 ? -nr : nr,
+  if (nr < 0 && unsigned_val)
+    nr= 99991231235959LL + 1;
+  int have_smth_to_conv= !number_to_time(nr < 0,
+                                         (ulonglong) (nr < 0 ? -nr : nr),
                                          0, &ltime, &was_cut);
 
   return store_TIME_with_warning(&ltime, &str, was_cut, have_smth_to_conv);
 }
-  
-  
+
+
+void Field_time::set_curdays(THD *thd)
+{
+  MYSQL_TIME ltime;
+  set_current_date(thd, &ltime);
+  curdays= calc_daynr(ltime.year, ltime.month, ltime.day);
+}
+
+
+Field *Field_time::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                 uchar *new_ptr, uint32 length,
+                                 uchar *new_null_ptr, uint new_null_bit)
+{
+  THD *thd= get_thd();
+  Field_time *res=
+    (Field_time*) Field::new_key_field(root, new_table, new_ptr, length,
+                                       new_null_ptr, new_null_bit);
+  if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST) && res)
+    res->set_curdays(thd);
+  return res;
+}
+
+
 double Field_time::val_real(void)
 {
   ASSERT_COLUMN_MARKED_FOR_READ;
@@ -5705,7 +5759,8 @@ bool Field_year::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   int tmp= (int) ptr[0];
   if (tmp || field_length != 4)
     tmp+= 1900;
-  return int_to_datetime_with_warn(tmp * 10000, ltime, fuzzydate, field_name);
+  return int_to_datetime_with_warn(false, tmp * 10000,
+                                    ltime, fuzzydate, field_name);
 }
 
 
@@ -7200,24 +7255,20 @@ Field *Field_varstring::new_field(MEM_ROOT *root, TABLE *new_table,
 }
 
 
-Field *Field_varstring::new_key_field(MEM_ROOT *root,
-                                      TABLE *new_table,
-                                      uchar *new_ptr, uchar *new_null_ptr,
-                                      uint new_null_bit)
+Field *Field_varstring::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                      uchar *new_ptr, uint32 length,
+                                      uchar *new_null_ptr, uint new_null_bit)
 {
   Field_varstring *res;
-  if ((res= (Field_varstring*) Field::new_key_field(root,
-                                                    new_table,
-                                                    new_ptr,
-                                                    new_null_ptr,
-                                                    new_null_bit)))
+  if ((res= (Field_varstring*) Field::new_key_field(root, new_table,
+                                                    new_ptr, length,
+                                                    new_null_ptr, new_null_bit)))
   {
     /* Keys length prefixes are always packed with 2 bytes */
     res->length_bytes= 2;
   }
   return res;
 }
-
 
 uint Field_varstring::is_equal(Create_field *new_field)
 {
@@ -7312,8 +7363,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
       If content of the 'from'-address is cached in the 'value'-object
       it is possible that the content needs a character conversion.
     */
-    uint32 dummy_offset;
-    if (!String::needs_conversion(length, cs, field_charset, &dummy_offset))
+    if (!String::needs_conversion_on_storage(length, cs, field_charset))
     {
       Field_blob::store_length(length);
       bmove(ptr + packlength, &from, sizeof(char*));
@@ -7573,6 +7623,18 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b)
 {
   return Field_blob::cmp(a+HA_KEY_BLOB_LENGTH, uint2korr(a),
 			 b+HA_KEY_BLOB_LENGTH, uint2korr(b));
+}
+
+
+Field *Field_blob::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                 uchar *new_ptr, uint32 length,
+                                 uchar *new_null_ptr, uint new_null_bit)
+{
+  Field_varstring *res= new (root) Field_varstring(new_ptr, length, 2,
+                                      new_null_ptr, new_null_bit, Field::NONE,
+                                      field_name, table->s, charset());
+  res->init(new_table);
+  return res;
 }
 
 
@@ -7885,12 +7947,11 @@ int Field_enum::store(const char *from,uint length,CHARSET_INFO *cs)
 {
   ASSERT_COLUMN_MARKED_FOR_WRITE_OR_COMPUTED;
   int err= 0;
-  uint32 not_used;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   /* Convert character set if necessary */
-  if (String::needs_conversion(length, cs, field_charset, &not_used))
+  if (String::needs_conversion_on_storage(length, cs, field_charset))
   { 
     uint dummy_errors;
     tmpstr.copy(from, length, cs, field_charset, &dummy_errors);
@@ -8067,12 +8128,11 @@ int Field_set::store(const char *from,uint length,CHARSET_INFO *cs)
   int err= 0;
   char *not_used;
   uint not_used2;
-  uint32 not_used_offset;
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmpstr(buff,sizeof(buff), &my_charset_bin);
 
   /* Convert character set if necessary */
-  if (String::needs_conversion(length, cs, field_charset, &not_used_offset))
+  if (String::needs_conversion_on_storage(length, cs, field_charset))
   { 
     uint dummy_errors;
     tmpstr.copy(from, length, cs, field_charset, &dummy_errors);
@@ -8425,15 +8485,13 @@ Field_bit::do_last_null_byte() const
 }
 
 
-Field *Field_bit::new_key_field(MEM_ROOT *root,
-                                TABLE *new_table,
-                                uchar *new_ptr, uchar *new_null_ptr,
-                                uint new_null_bit)
+Field *Field_bit::new_key_field(MEM_ROOT *root, TABLE *new_table,
+                                uchar *new_ptr, uint32 length, 
+                                uchar *new_null_ptr, uint new_null_bit)
 {
   Field_bit *res;
-  if ((res= (Field_bit*) Field::new_key_field(root, new_table,
-                                              new_ptr, new_null_ptr,
-                                              new_null_bit)))
+  if ((res= (Field_bit*) Field::new_key_field(root, new_table, new_ptr, length,
+                                              new_null_ptr, new_null_bit)))
   {
     /* Move bits normally stored in null_pointer to new_ptr */
     res->bit_ptr= new_ptr;

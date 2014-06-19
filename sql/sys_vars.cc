@@ -77,7 +77,7 @@ static Sys_var_mybool Sys_pfs_enabled(
        "performance_schema",
        "Enable the performance schema.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_long Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",
@@ -4929,7 +4929,7 @@ static Sys_var_mybool Sys_binlog_annotate_row_events(
 #ifdef HAVE_REPLICATION
 static Sys_var_mybool Sys_replicate_annotate_row_events(
        "replicate_annotate_row_events",
-       "Tells the slave to write annotate rows events recieved from the master "
+       "Tells the slave to write annotate rows events received from the master "
        "to its own binary log. Ignored if log_slave_updates is not set",
        READ_ONLY GLOBAL_VAR(opt_replicate_annotate_row_events),
        CMD_LINE(OPT_ARG), DEFAULT(0));

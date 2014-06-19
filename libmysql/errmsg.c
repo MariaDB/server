@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates. All rights reserved.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -81,7 +81,7 @@ const char *client_errors[]=
   "Attempt to read a row while there is no result set associated with the statement",
   "This feature is not implemented yet",
   "Lost connection to MySQL server at '%s', system error: %M",
-  "Statement closed indirectly because of a preceeding %s() call",
+  "Statement closed indirectly because of a preceding %s() call",
   "The number of columns in the result set differs from the number of bound buffers. You must reset the statement, rebind the result set columns, and execute the statement again",
   "This handle is already connected. Use a separate handle for each connection.",
   "Authentication plugin '%s' cannot be loaded: %s",
@@ -107,6 +107,8 @@ const char** get_client_errmsgs()
 
 void init_client_errs(void)
 {
+  compile_time_assert(array_elements(client_errors) ==
+                      (CR_ERROR_LAST - CR_ERROR_FIRST + 2));
   (void) my_error_register(get_client_errmsgs, CR_ERROR_FIRST, CR_ERROR_LAST);
 }
 

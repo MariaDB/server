@@ -236,7 +236,7 @@ static void set_thread_state_noop(const char* state NNN)
   return;
 }
 
-static void set_thread_info_noop(const char* info NNN, int info_len NNN)
+static void set_thread_info_noop(const char* info NNN, uint info_len NNN)
 {
   return;
 }

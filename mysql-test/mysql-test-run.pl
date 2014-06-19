@@ -3654,6 +3654,9 @@ sub mysql_install_db {
     mtr_appendfile_to_file("$sql_dir/fill_help_tables.sql",
 			   $bootstrap_sql_file);
 
+    # mysql.gtid_slave_pos was created in InnoDB, but many tests
+    # run without InnoDB. Alter it to MyISAM now
+    mtr_tofile($bootstrap_sql_file, "ALTER TABLE gtid_slave_pos ENGINE=MyISAM;\n");
   }
   else
   {
@@ -6582,7 +6585,7 @@ Misc options
   start-dirty           Only start the servers (without initialization) for
                         the first specified test case
   user-args             In combination with start* and no test name, drops
-                        arguments to mysqld except those speficied with
+                        arguments to mysqld except those specified with
                         --mysqld (if any)
   wait-all              If --start or --start-dirty option is used, wait for all
                         servers to exit before finishing the process

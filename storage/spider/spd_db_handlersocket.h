@@ -220,6 +220,11 @@ public:
     spider_string *str,
     CHARSET_INFO *access_charset
   );
+  int fetch_table_for_discover_table_structure(
+    spider_string *str,
+    SPIDER_SHARE *spider_share,
+    CHARSET_INFO *access_charset
+  );
 #endif
 };
 

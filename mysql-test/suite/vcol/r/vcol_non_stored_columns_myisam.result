@@ -240,3 +240,19 @@ t1	CREATE TABLE `t1` (
   `c` int(11) AS (week(b,1)) VIRTUAL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# MDEV-6103 - Adding/removing non-materialized virtual column triggers
+#             table recreation
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1),(1),(1),(1),(1),(1),(1),(1),(1),(1);
+ALTER TABLE t1 ADD COLUMN b INT AS (a + 1) VIRTUAL;
+affected rows: 10
+info: Records: 10  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 DROP COLUMN b;
+affected rows: 10
+info: Records: 10  Duplicates: 0  Warnings: 0
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

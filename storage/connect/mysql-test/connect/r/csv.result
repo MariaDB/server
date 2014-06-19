@@ -52,9 +52,9 @@ children SMALLINT(2) NOT NULL
 INSERT INTO t1 VALUES ('BILL','1973-06-30',5);
 ERROR HY000: Table 't1' is read only
 UPDATE t1 SET children=6 WHERE name='BILL';
-ERROR HY000: Table 't1' is read only
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 DELETE FROM t1 WHERE name='BILL';
-ERROR HY000: Table 't1' is read only
+ERROR HY000: Got error 174 'Cannot modify this read/only protected table' from CONNECT
 TRUNCATE TABLE t1;
 ERROR HY000: Table 't1' is read only
 SELECT * FROM t1;

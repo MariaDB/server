@@ -291,11 +291,7 @@ select found_rows();
 found_rows()
 1
 drop table t1, t2;
-create table t1 (
-a1 int auto_increment primary key,
-b1  datetime,
-c1 int
-);
+create table t1 (a1 int auto_increment primary key, c1 int);
 insert t1 (a1) values (null);
 insert t1 (a1) select null from t1;
 insert t1 (a1) select null from t1;
@@ -307,20 +303,32 @@ insert t1 (a1) select null from t1;
 insert t1 (a1) select null from t1;
 insert t1 (a1) select null from t1;
 update t1 set c1=a1 % 2;
-create table t2 (
-a2 int,
-b2 int,
-c2  char(16) default '',
-primary key (a2, b2)
-);
+create table t2 (a2 int, b2 int, c2  char(16) default '', primary key (a2, b2));
 insert t2 select a1, 1, 'ok' from t1;
 insert t2 select a1, 2, 'ko' from t1;
 insert t2 select a1, 3, 'ko' from t1;
 insert t2 select a1, 4, 'ok' from t1;
 insert t2 select a1, 5, 'ok' from t1;
-select sql_calc_found_rows distinct a1,b1,c2 from t1 join t2 on a2=a1 
-where a1 <= 256 and c1=0 and c2='ok' order by b1 desc, a1 desc limit 46;
+select sql_calc_found_rows distinct a1,c2 from t1 join t2 on a2=a1 
+where a1 <= 256 and c1=0 and c2='ok' order by a1 desc limit 46;
 select found_rows();
 found_rows()
 128
+drop table t1, t2;
+create table t1 (i1 int, v1 int, primary key(i1,v1));
+insert into t1 values (1,1),(2,2),(3,3);
+create table t2 (i2 int primary key, v2 int);
+insert into t2 values (1,5),(2,5),(3,10);
+select 1 as res from t1 left join t2 on i1 = i2 where v2 = 5 or v1 = 5 or v1 = 10 order by v1;
+res
+1
+1
+select sql_calc_found_rows 1 as res from t1 left join t2 on i1 = i2 where v2 = 5 or v1 = 5 or v1 = 10 order by v1 limit 1;
+select found_rows() as count;
+count
+2
+select sql_calc_found_rows 1 as res from t1 left join t2 on i1 = i2 where v2 = 5 order by v1 limit 1;
+select found_rows() as count;
+count
+2
 drop table t1, t2;

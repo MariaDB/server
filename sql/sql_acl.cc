@@ -877,7 +877,6 @@ static char *fix_plugin_ptr(char *name)
 */
 static bool fix_user_plugin_ptr(ACL_USER *user)
 {
-  user->salt_len= 0;
   if (my_strcasecmp(system_charset_info, user->plugin.str,
                     native_password_plugin_name.str) == 0)
     user->plugin= native_password_plugin_name;
@@ -888,7 +887,8 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   else
     return true;
 
-  set_user_salt(user, user->auth_string.str, user->auth_string.length);
+  if (user->auth_string.length)
+    set_user_salt(user, user->auth_string.str, user->auth_string.length);
   return false;
 }
 
@@ -1259,7 +1259,11 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
           {
             user.plugin.str= tmpstr;
             user.plugin.length= strlen(user.plugin.str);
-            if (user.auth_string.length)
+            user.auth_string.str=
+              safe_str(get_field(&acl_memroot, table->field[next_field++]));
+            user.auth_string.length= strlen(user.auth_string.str);
+
+            if (user.auth_string.length && password_len)
             {
               sql_print_warning("'user' entry '%s@%s' has both a password "
                                 "and an authentication plugin specified. The "
@@ -1267,9 +1271,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
                                 safe_str(user.user.str),
                                 safe_str(user.host.hostname));
             }
-            user.auth_string.str=
-              safe_str(get_field(&acl_memroot, table->field[next_field++]));
-            user.auth_string.length= strlen(user.auth_string.str);
 
             fix_user_plugin_ptr(&user);
           }

@@ -159,6 +159,8 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_CREATE_TABLE_LEN (sizeof(SPIDER_SQL_CREATE_TABLE_STR) - 1)
 #define SPIDER_SQL_DEFAULT_CHARSET_STR " default charset "
 #define SPIDER_SQL_DEFAULT_CHARSET_LEN (sizeof(SPIDER_SQL_DEFAULT_CHARSET_STR) - 1)
+#define SPIDER_SQL_CHARACTER_SET_STR " character set "
+#define SPIDER_SQL_CHARACTER_SET_LEN (sizeof(SPIDER_SQL_CHARACTER_SET_STR) - 1)
 #define SPIDER_SQL_COLLATE_STR " collate "
 #define SPIDER_SQL_COLLATE_LEN (sizeof(SPIDER_SQL_COLLATE_STR) - 1)
 #define SPIDER_SQL_COMMENT_STR " comment "
@@ -496,6 +498,12 @@ public:
     const char *st,
     uint len
   );
+  bool append_for_single_quote(
+    const String *s
+  );
+  bool append_for_single_quote(
+    const char *st
+  );
 #endif
   void print(
     String *print
@@ -776,6 +784,11 @@ public:
   ) = 0;
   virtual int fetch_index_for_discover_table_structure(
     spider_string *str,
+    CHARSET_INFO *access_charset
+  ) = 0;
+  virtual int fetch_table_for_discover_table_structure(
+    spider_string *str,
+    SPIDER_SHARE *spider_share,
     CHARSET_INFO *access_charset
   ) = 0;
 #endif
@@ -1538,6 +1551,7 @@ typedef struct st_spider_condition
 
 typedef struct st_spider_result
 {
+  uint                 dbton_id;
   SPIDER_DB_RESULT     *result;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile

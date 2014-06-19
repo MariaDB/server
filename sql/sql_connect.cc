@@ -718,7 +718,7 @@ static void update_global_user_stats_with_user(THD *thd,
   user_stats->cpu_time+=   (thd->status_var.cpu_time -
                             thd->org_status_var.cpu_time); 
   /*
-    This is handle specially as bytes_recieved is incremented BEFORE
+    This is handle specially as bytes_received is incremented BEFORE
     org_status_var is copied.
   */
   user_stats->bytes_received+= (thd->org_status_var.bytes_received-

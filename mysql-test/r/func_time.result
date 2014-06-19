@@ -1091,9 +1091,9 @@ NULL
 select isnull(week(now() + 0)), isnull(week(now() + 0.2)),
 week(20061108), week(20061108.01), week(20061108085411.000002);
 isnull(week(now() + 0))	isnull(week(now() + 0.2))	week(20061108)	week(20061108.01)	week(20061108085411.000002)
-0	0	45	NULL	45
+0	0	45	45	45
 Warnings:
-Warning	1292	Incorrect datetime value: '20061108.01'
+Warning	1292	Truncated incorrect datetime value: '20061108.01'
 End of 4.1 tests
 select time_format('100:00:00', '%H %k %h %I %l');
 time_format('100:00:00', '%H %k %h %I %l')
@@ -1878,9 +1878,15 @@ least(1, f1)
 Warnings:
 Warning	1292	Incorrect datetime value: '1'
 drop table t1;
+SET timestamp=UNIX_TIMESTAMP('2014-04-14 10:10:10');
+select now() > coalesce(time('21:43:24'), date('2010-05-03'));
+now() > coalesce(time('21:43:24'), date('2010-05-03'))
+0
+SET timestamp=UNIX_TIMESTAMP('2014-04-14 22:22:22');
 select now() > coalesce(time('21:43:24'), date('2010-05-03'));
 now() > coalesce(time('21:43:24'), date('2010-05-03'))
 1
+SET timestamp=DEFAULT;
 create table t1 (f1 timestamp);
 select * from t1 where f1 > f1 and f1 <=> timestampadd(hour, 9 , '2010-01-01 16:55:35');
 f1
@@ -1918,15 +1924,20 @@ select cast(f1 AS time) from t1;
 cast(f1 AS time)
 00:00:00
 drop table t1;
+SET timestamp=UNIX_TIMESTAMP('2014-06-01 10:20:30');
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time));
 greatest(cast("0-0-0" as date), cast("10:20:05" as time))
-0000-00-00
+2014-06-01
 select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00';
 greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '0000-00-00'
+0
+select greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01';
+greatest(cast("0-0-0" as date), cast("10:20:05" as time)) = '2014-06-01'
 1
 select cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6));
 cast(greatest(cast("0-0-0" as date), cast("10:20:05" as time)) as datetime(6))
-0000-00-00 00:00:00.000000
+2014-06-01 00:00:00.000000
+SET timestamp=DEFAULT;
 select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010');
 microsecond('12:00:00.123456')	microsecond('2009-12-31 23:59:59.000010')
 123456	10
@@ -2134,15 +2145,16 @@ DROP TABLE t1;
 #
 # MDEV-4870 Wrong values of CASE, COALESCE, IFNULL on a combination of different temporal types
 #
+SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 CREATE TABLE t1 (dt2 DATETIME(2), t3 TIME(3), d DATE);
 INSERT INTO t1 VALUES ('2001-01-01 00:00:00.12', '00:00:00.567', '2002-01-01');
 SELECT CASE WHEN 0 THEN dt2 ELSE t3 END FROM t1;
 CASE WHEN 0 THEN dt2 ELSE t3 END
-0000-00-00 00:00:00.567
+2001-01-01 00:00:00.567
 CREATE TABLE t2 AS SELECT CASE WHEN 0 THEN dt2 ELSE t3 END FROM t1;
 SELECT * FROM t2;
 CASE WHEN 0 THEN dt2 ELSE t3 END
-0000-00-00 00:00:00.567
+2001-01-01 00:00:00.567
 SHOW COLUMNS FROM t2;
 Field	Type	Null	Key	Default	Extra
 CASE WHEN 0 THEN dt2 ELSE t3 END	datetime(3)	YES		NULL	
@@ -2161,7 +2173,7 @@ CONCAT(CASE WHEN 1 THEN d ELSE t3 END)
 2002-01-01 00:00:00.000
 SELECT CASE WHEN 1 THEN t3 ELSE d END FROM t1;
 CASE WHEN 1 THEN t3 ELSE d END
-0000-00-00 00:00:00.567
+2001-01-01 00:00:00.567
 SELECT COALESCE(d, t3) FROM t1;
 COALESCE(d, t3)
 2002-01-01 00:00:00.000
@@ -2181,6 +2193,7 @@ SELECT IFNULL(d, t3), CONCAT(IFNULL(d, t3)) FROM t1;
 IFNULL(d, t3)	CONCAT(IFNULL(d, t3))
 2002-01-01 00:00:00.000	2002-01-01 00:00:00.000
 DROP TABLE t1;
+SET timestamp=DEFAULT;
 #
 # MDEV-4724 Some temporal functions do not preserve microseconds
 #
@@ -2483,6 +2496,14 @@ SELECT 1 FROM t1 GROUP BY MONTHNAME(0) WITH ROLLUP;
 1
 DROP TABLE t1;
 #
+# MDEV-6099 Bad results for DATE_ADD(.., INTERVAL 2000000000000000000.0 SECOND)
+#
+SELECT DATE_ADD('2001-01-01 10:20:30',INTERVAL 250000000000.0 SECOND) AS c1, DATE_ADD('2001-01-01 10:20:30',INTERVAL 2000000000000000000.0 SECOND) AS c2;
+c1	c2
+9923-03-10 22:47:10.0	NULL
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2000000000000000000.0'
+#
 # MDEV-4838 Wrong metadata for DATE_ADD('string', INVERVAL)
 #
 SELECT DATE_ADD('2011-01-02 12:13:14', INTERVAL 1 MINUTE);
@@ -2562,3 +2583,20 @@ Warnings:
 Warning	1441	Datetime function: datetime field overflow
 Warning	1441	Datetime function: datetime field overflow
 DROP TABLE t1;
+#
+# MDEV-6101 Hybrid functions do not add CURRENT_DATE when converting TIME to DATETIME
+#
+SET timestamp=UNIX_TIMESTAMP('2014-04-15 01:02:03');
+SELECT IF(1,TIME'10:20:30',DATE'2001-01-01');
+IF(1,TIME'10:20:30',DATE'2001-01-01')
+2014-04-15 10:20:30
+SELECT IFNULL(TIME'10:20:30',DATE'2001-01-01');
+IFNULL(TIME'10:20:30',DATE'2001-01-01')
+2014-04-15 10:20:30
+SELECT CASE WHEN 1 THEN TIME'10:20:30' ELSE DATE'2001-01-01' END;
+CASE WHEN 1 THEN TIME'10:20:30' ELSE DATE'2001-01-01' END
+2014-04-15 10:20:30
+SELECT COALESCE(TIME'10:20:30',DATE'2001-01-01');
+COALESCE(TIME'10:20:30',DATE'2001-01-01')
+2014-04-15 10:20:30
+SET timestamp=DEFAULT;
