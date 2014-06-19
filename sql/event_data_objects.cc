@@ -1472,8 +1472,21 @@ end:
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 
+#ifdef WITH_WSREP
+      // sql_print_information("sizeof(LEX) = %d", sizeof(struct LEX));
+      // sizeof(LEX) = 4512, so it's relatively safe to allocate it on stack.
+      LEX lex;
+      lex.sql_command = SQLCOM_DROP_EVENT;
+      thd->lex = &lex;
+      WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+#endif
+     
       ret= Events::drop_event(thd, dbname, name, FALSE);
 
+#ifdef WITH_WSREP      
+      WSREP_TO_ISOLATION_END;
+  error:
+#endif      
       thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }

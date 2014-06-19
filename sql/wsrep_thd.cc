@@ -480,6 +480,29 @@ void wsrep_create_rollbacker()
   }
 }
 
+void wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe)
+{ 
+  if (thd_ptr) 
+  {
+    THD* thd = (THD*)thd_ptr;
+    thd->wsrep_PA_safe = safe;
+  }
+}
+
+int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync)
+{ 
+  int state = -1;
+  if (thd_ptr) 
+  {
+    THD* thd = (THD*)thd_ptr;
+    if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    
+    state = thd->wsrep_conflict_state;
+    if (sync) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
+  return state;
+}
+
 my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
 { 
   my_bool status = FALSE;

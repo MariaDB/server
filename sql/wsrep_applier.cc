@@ -227,6 +227,17 @@ wsrep_cb_status_t wsrep_apply_cb(void* const             ctx,
   thd_proc_info(thd, "applying write set");
 #endif /* WSREP_PROC_INFO */
 
+  /* tune FK and UK checking policy */
+  if (wsrep_slave_UK_checks == FALSE) 
+    thd->variables.option_bits|= OPTION_RELAXED_UNIQUE_CHECKS;
+  else
+    thd->variables.option_bits&= ~OPTION_RELAXED_UNIQUE_CHECKS;
+
+  if (wsrep_slave_FK_checks == FALSE) 
+    thd->variables.option_bits|= OPTION_NO_FOREIGN_KEY_CHECKS;
+  else
+    thd->variables.option_bits&= ~OPTION_NO_FOREIGN_KEY_CHECKS;
+
   if (flags & WSREP_FLAG_ISOLATION)
   {
     thd->wsrep_apply_toi= true;

@@ -1949,10 +1949,6 @@ row_ins_scan_sec_index_for_duplicate(
 #ifdef UNIV_SYNC_DEBUG
 	ut_ad(s_latch == rw_lock_own(&index->lock, RW_LOCK_SHARED));
 #endif /* UNIV_SYNC_DEBUG */
-#ifdef WITH_WSREP
-	/* appliers don't need dupkey checks */
-	if (wsrep_thd_is_BF(thr_get_trx(thr)->mysql_thd, 0)) return(DB_SUCCESS);
-#endif /* WITH_WSREP */
 
 	n_unique = dict_index_get_n_unique(index);
 

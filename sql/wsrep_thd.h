@@ -27,7 +27,9 @@ void wsrep_create_rollbacker();
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
                                 my_bool signal);
 
+extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
 extern my_bool  wsrep_thd_is_BF(void *thd_ptr, my_bool sync);
+extern int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync);
 //extern "C" my_bool  wsrep_thd_is_BF(void *thd_ptr, my_bool sync);
 extern "C" my_bool  wsrep_thd_is_BF_or_commit(void *thd_ptr, my_bool sync);
 extern "C" my_bool  wsrep_thd_is_local(void *thd_ptr, my_bool sync);

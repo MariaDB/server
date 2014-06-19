@@ -5598,18 +5598,21 @@ get_field_offset(
 
 #ifdef WITH_WSREP
 UNIV_INTERN
-void
+int
 wsrep_innobase_mysql_sort(
 /*===============*/
 					/* out: str contains sort string */
 	int		mysql_type,	/* in: MySQL type */
 	uint		charset_number,	/* in: number of the charset */
 	unsigned char*	str,		/* in: data field */
-	unsigned int	str_length)	/* in: data field length,
+	unsigned int	str_length,	/* in: data field length,
 					not UNIV_SQL_NULL */
+	unsigned int	buf_length)	/* in: total str buffer length */
+
 {
 	CHARSET_INFO*		charset;
 	enum_field_types	mysql_tp;
+	int ret_length =	str_length;
 
 	DBUG_ASSERT(str_length != UNIV_SQL_NULL);
 
@@ -5653,14 +5656,26 @@ wsrep_innobase_mysql_sort(
 		ut_a(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
-		//tmp_length = charset->coll->strnxfrm(charset, str, str_length,
-		//				     tmp_str, str_length);
-		/* Note: in MySQL 5.6:
-		 */
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
-				     str_length, tmp_str, tmp_length, 0);
-		/**/
+                                             str_length, tmp_str,
+                                             tmp_length, 0);
 		DBUG_ASSERT(tmp_length <= str_length);
+		if (wsrep_protocol_version < 3) {
+			tmp_length = charset->coll->strnxfrm(
+				charset, str, str_length,
+				str_length, tmp_str, tmp_length, 0);
+			DBUG_ASSERT(tmp_length <= str_length);
+		} else {
+			/* strnxfrm will expand the destination string,
+			   protocols < 3 truncated the sorted sring
+			   protocols > 3 gets full sorted sring
+			*/
+			tmp_length = charset->coll->strnxfrm(
+				charset, str, buf_length,
+				str_length, tmp_str, tmp_length, 0);
+			DBUG_ASSERT(tmp_length <= buf_length);
+			ret_length = tmp_length;
+		}
  
 		break;
 	}
@@ -5688,7 +5703,7 @@ wsrep_innobase_mysql_sort(
 		break;
 	}
 
-	return;
+	return ret_length;
 }
 #endif /* WITH_WSREP */
 
@@ -6246,6 +6261,7 @@ wsrep_store_key_val_for_row(
 			const byte*	data;
 			ulint		key_len;
 			ulint		true_len;
+			ulint		sort_len;
 			const CHARSET_INFO* cs;
 			int		error=0;
 
@@ -6288,11 +6304,12 @@ wsrep_store_key_val_for_row(
 			}
 
 			memcpy(sorted, data, true_len);
-			wsrep_innobase_mysql_sort(
-			       mysql_type, cs->number, sorted, true_len);
+			sort_len = wsrep_innobase_mysql_sort(
+				mysql_type, cs->number, sorted, true_len, 
+				REC_VERSION_56_MAX_INDEX_COL_LEN);
 
 			if (wsrep_protocol_version > 1) {
-				memcpy(buff, sorted, true_len);
+				memcpy(buff, sorted, sort_len);
                         /* Note that we always reserve the maximum possible
 			length of the true VARCHAR in the key value, though
 			only len first bytes after the 2 length bytes contain
@@ -6313,6 +6330,7 @@ wsrep_store_key_val_for_row(
 			const CHARSET_INFO* cs;
 			ulint		key_len;
 			ulint		true_len;
+			ulint		sort_len;
 			int		error=0;
 			ulint		blob_len;
 			const byte*	blob_data;
@@ -6361,10 +6379,11 @@ wsrep_store_key_val_for_row(
 			}
 
 			memcpy(sorted, blob_data, true_len);
-			wsrep_innobase_mysql_sort(
-			       mysql_type, cs->number, sorted, true_len);
+			sort_len = wsrep_innobase_mysql_sort(
+				mysql_type, cs->number, sorted, true_len,
+				REC_VERSION_56_MAX_INDEX_COL_LEN);
 
-			memcpy(buff, sorted, true_len);
+			memcpy(buff, sorted, sort_len);
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -6381,6 +6400,7 @@ wsrep_store_key_val_for_row(
 
 			const CHARSET_INFO*	cs = NULL;
 			ulint			true_len;
+			ulint			sort_len;
 			ulint			key_len;
 			const uchar*		src_start;
 			int			error=0;
@@ -6425,9 +6445,11 @@ wsrep_store_key_val_for_row(
 							&error);
 				}
 				memcpy(sorted, src_start, true_len);
-				wsrep_innobase_mysql_sort(
-					mysql_type, cs->number, sorted, true_len);
-				memcpy(buff, sorted, true_len);
+				sort_len = wsrep_innobase_mysql_sort(
+					mysql_type, cs->number, sorted, true_len,
+					REC_VERSION_56_MAX_INDEX_COL_LEN);
+
+				memcpy(buff, sorted, sort_len);
 			} else {
 				memcpy(buff, src_start, true_len);
 			}
@@ -9470,7 +9492,7 @@ wsrep_append_foreign_key(
 			   wsrep_thd_query(thd) : "void");
 		return DB_ERROR;
 	}
-	byte  key[WSREP_MAX_SUPPORTED_KEY_LENGTH+1];
+	byte  key[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
 	dict_index_t *idx_target = (referenced) ?
@@ -9665,10 +9687,15 @@ ha_innobase::wsrep_append_keys(
 		uint i;
                 bool hasPK= false;
 
-                for (i=0; i<table->s->keys && !hasPK; ++i) {
-                       KEY*  key_info  = table->key_info + i;
-                       if (key_info->flags & HA_NOSAME) hasPK = true;
-                }
+		for (i=0; i<table->s->keys; ++i) {
+			KEY*  key_info	= table->key_info + i;
+			if (key_info->flags & HA_NOSAME) {
+				hasPK = true;
+				if (i != table->s->primary_key) {
+					wsrep_thd_set_PA_safe(thd, FALSE);
+				}
+			}
+		}
 
 		for (i=0; i<table->s->keys; ++i) {
 			uint  len;
@@ -9690,6 +9717,7 @@ ha_innobase::wsrep_append_keys(
 					   table->s->table_name.str, 
 					   key_info->name);
 			}
+			/* !hasPK == table with no PK, must append all non-unique keys */
 			if (!hasPK || key_info->flags & HA_NOSAME ||
 			    ((tab &&
 			      dict_table_get_referenced_constraint(tab, idx)) ||
@@ -17281,6 +17309,7 @@ static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid)
                 trx_sysf_t* sys_header = trx_sysf_get(&mtr);
                 trx_sys_update_wsrep_checkpoint(xid, sys_header, &mtr);
                 mtr_commit(&mtr);
+                innobase_flush_logs(hton);
                 return 0;
         } else {
                 return 1;

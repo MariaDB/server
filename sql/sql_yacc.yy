@@ -7153,7 +7153,7 @@ alter:
           }
           view_tail
           {}
-        | ALTER definer_opt EVENT_SYM sp_name
+        | ALTER definer_opt remember_name EVENT_SYM sp_name
           {
             /* 
               It is safe to use Lex->spname because
@@ -7165,9 +7165,12 @@ alter:
 
             if (!(Lex->event_parse_data= Event_parse_data::new_instance(thd)))
               MYSQL_YYABORT;
-            Lex->event_parse_data->identifier= $4;
+            Lex->event_parse_data->identifier= $5;
 
             Lex->sql_command= SQLCOM_ALTER_EVENT;
+#ifdef WITH_WSREP
+            Lex->stmt_definition_begin= $3;
+#endif
           }
           ev_alter_on_schedule_completion
           opt_ev_rename_to
@@ -7175,7 +7178,7 @@ alter:
           opt_ev_comment
           opt_ev_sql_stmt
           {
-            if (!($6 || $7 || $8 || $9 || $10))
+            if (!($7 || $8 || $9 || $10 || $11))
             {
               my_parse_error(ER(ER_SYNTAX_ERROR));
               MYSQL_YYABORT;
@@ -7185,6 +7188,9 @@ alter:
               can overwrite it
             */
             Lex->sql_command= SQLCOM_ALTER_EVENT;
+#ifdef WITH_WSREP
+            Lex->stmt_definition_end= (char*)YYLIP->get_cpp_ptr();
+#endif
           }
         | ALTER TABLESPACE alter_tablespace_info
           {

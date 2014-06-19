@@ -1042,7 +1042,12 @@ lock_rec_has_to_wait(
 			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
 			{
 				/* exclusive lock conflicts are not accepted */
-				fprintf(stderr, "BF-BF X lock conflict\n");
+				fprintf(stderr, "BF-BF X lock conflict," 
+					"type_mode: %lu supremum: %lu\n", 
+					type_mode, lock_is_on_supremum);
+				fprintf(stderr, "conflicts states: my %d locked %d\n", 
+					wsrep_thd_conflict_state(trx->mysql_thd, FALSE), 
+					wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE) );
 				lock_rec_print(stderr, lock2);
 				abort();
 			} else {
@@ -1623,6 +1628,7 @@ wsrep_kill_victim(const trx_t * const trx, const lock_t *lock) {
         ut_ad(trx_mutex_own(lock->trx));
 	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
 	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE);
+
 	if ((bf_this && !bf_other) ||
 		(bf_this && bf_other && wsrep_trx_order_before(
 			trx->mysql_thd, lock->trx->mysql_thd))) {
@@ -4314,8 +4320,9 @@ lock_deadlock_check_and_resolve(
 					lock_deadlock_joining_trx_print(trx, lock);
 				}
 #ifdef WITH_WSREP
-			} else
+			} else {
 			  /* BF processor */;
+			}
 #endif /* WITH_WSREP */
 
 			MONITOR_INC(MONITOR_DEADLOCK);
