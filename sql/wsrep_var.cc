@@ -453,7 +453,7 @@ void wsrep_node_address_init (const char* value)
 bool wsrep_slave_threads_check (sys_var *self, THD* thd, set_var* var)
 {
   mysql_mutex_lock(&LOCK_wsrep_slave_threads);
-  wsrep_slave_count_change = var->value->val_int() - wsrep_slave_threads;
+  wsrep_slave_count_change += (var->value->val_int() - wsrep_slave_threads);
   mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
 
   return 0;
