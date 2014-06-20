@@ -354,8 +354,7 @@ int rea_create_table(THD *thd, LEX_CUSTRING *frm,
 {
   DBUG_ENTER("rea_create_table");
 
-  // TODO don't write frm for temp tables
-  if (no_ha_create_table || create_info->tmp_table())
+  if (no_ha_create_table)
   {
     if (writefrm(path, db, table_name, true, frm->str, frm->length))
       goto err_frm;
