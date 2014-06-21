@@ -1012,7 +1012,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 {
   int  oldlen = strlen(Query);
 
-  if (op == OP_NEXT)
+  if (!key || op == OP_NEXT)
     return false;
   else if (op == OP_FIRST) {
     if (To_CondFil)

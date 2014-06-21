@@ -1674,7 +1674,11 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
   KEY_PART_INFO *kpart;
 
   if (active_index == MAX_KEY)
-    return 0;
+    return false;
+  else if (!key) {
+    strcpy(g->Message, "MakeKeyWhere: No key");
+    return true;
+  } // endif key
 
   strcat(qry, " WHERE (");
   kfp= &table->key_info[active_index];
@@ -2438,12 +2442,13 @@ int ha_connect::index_init(uint idx, bool sorted)
     htrc("index_init: this=%p idx=%u sorted=%d\n", this, idx, sorted);
 
   if (GetIndexType(GetRealType()) == 2) {
-    // This is a remote index
-    xmod= MODE_READX;
+    if (xmod == MODE_READ)
+      // This is a remote index
+      xmod= MODE_READX;
 
     if (!(rc= rnd_init(0))) {
-      active_index= idx;
-      indexing= 2;         // TO DO: mul?
+      active_index= (xmod == MODE_READX) ? idx : MAX_KEY;
+      indexing= (xmod == MODE_READX) ? 2 : 0;         // TO DO: mul?
       } //endif rc
 
     DBUG_RETURN(rc);
