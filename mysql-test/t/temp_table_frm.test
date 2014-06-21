@@ -6,7 +6,7 @@ create temporary table t2 (a int) engine=memory;
 select variable_name, session_status.variable_value - t1.variable_value
 from information_schema.session_status join t1 using (variable_name);
 let $tmpdir= `select @@tmpdir`;
---list_files $tmpdir/
+--list_files $tmpdir/ #sql*
 truncate table t2;
 select variable_name, session_status.variable_value - t1.variable_value
 from information_schema.session_status join t1 using (variable_name);
