@@ -72,7 +72,7 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
 ENDIF()
 ENDIF()
 
-IF(WITH_INNOBASE_STORAGE_ENGINE)
+IF(WITH_INNOBASE_STORAGE_ENGINE OR WITH_XTRADB_STORAGE_ENGINE)
   # Add path to the InnoDB headers
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include)
   # We use the InnoDB code directly in case the code changes.

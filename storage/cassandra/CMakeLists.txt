@@ -17,18 +17,14 @@ MARK_AS_ADVANCED(Thrift_LIBS Thrift_INCLUDE_DIRS)
 
 IF(EXISTS ${Thrift_LIBS})
   GET_FILENAME_COMPONENT(LINK_DIR ${Thrift_LIBS} PATH ABSOLUTE)
-ELSE()
-  RETURN()
-ENDIF()
+  INCLUDE_DIRECTORIES(AFTER ${Thrift_INCLUDE_DIRS}/..)
+  SET(CMAKE_REQUIRED_INCLUDES ${Thrift_INCLUDE_DIRS})
 
-INCLUDE_DIRECTORIES(AFTER ${Thrift_INCLUDE_DIRS}/..) 
-SET(CMAKE_REQUIRED_INCLUDES ${Thrift_INCLUDE_DIRS})
+  STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
+  STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
-STRING(REPLACE "-fno-exceptions" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-STRING(REPLACE "-fno-implicit-templates" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-
-SET(CMAKE_REQUIRED_INCLUDES "${Thrift_INCLUDE_DIRS}/..")
-CHECK_CXX_SOURCE_COMPILES(
+  SET(CMAKE_REQUIRED_INCLUDES "${Thrift_INCLUDE_DIRS}/..")
+  CHECK_CXX_SOURCE_COMPILES(
 "
 #include <thrift/Thrift.h>
 #include <boost/shared_ptr.hpp>
@@ -37,24 +33,25 @@ int main() {
   return 0;
 }
 " CASSANDRASE_OK)
+ENDIF()
 
-IF(CASSANDRASE_OK)
-  SET(cassandra_sources 
-      ha_cassandra.cc 
-      ha_cassandra.h 
-      cassandra_se.h
-      cassandra_se.cc
-      gen-cpp/Cassandra.cpp
-      gen-cpp/cassandra_types.h 
-      gen-cpp/cassandra_types.cpp
-      gen-cpp/cassandra_constants.h 
-      gen-cpp/cassandra_constants.cpp
-      gen-cpp/Cassandra.h)
+SET(cassandra_sources
+    ha_cassandra.cc
+    ha_cassandra.h
+    cassandra_se.h
+    cassandra_se.cc
+    gen-cpp/Cassandra.cpp
+    gen-cpp/cassandra_types.h
+    gen-cpp/cassandra_types.cpp
+    gen-cpp/cassandra_constants.h
+    gen-cpp/cassandra_constants.cpp
+    gen-cpp/Cassandra.h)
 
-  LINK_DIRECTORIES(${LINK_DIR})
+LINK_DIRECTORIES(${LINK_DIR})
 
-  SET(CASSANDRA_DEB_FILES "usr/lib/mysql/plugin/ha_cassandra.so" PARENT_SCOPE)
+SET(CASSANDRA_DEB_FILES "usr/lib/mysql/plugin/ha_cassandra.so" PARENT_SCOPE)
 
-  MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE MODULE_ONLY LINK_LIBRARIES thrift COMPONENT cassandra-engine)
+MYSQL_ADD_PLUGIN(cassandra ${cassandra_sources} STORAGE_ENGINE
+  ONLY_IF CASSANDRASE_OK
+  MODULE_ONLY LINK_LIBRARIES thrift COMPONENT cassandra-engine)
 
-ENDIF(CASSANDRASE_OK)
