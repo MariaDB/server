@@ -556,7 +556,11 @@ int mysql_del_sys_var_chain(sys_var *first)
 
 static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
 {
+#ifdef WITH_WSREP
+  return my_strcasecmp(system_charset_info, a->name, b->name);
+#else
   return strcmp(a->name, b->name);
+#endif /* WITH_WSREP */
 }
 
 
