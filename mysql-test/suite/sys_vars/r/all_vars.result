@@ -39,7 +39,9 @@ wsrep_recover
 wsrep_replicate_myisam
 wsrep_restart_slave
 wsrep_retry_autocommit
+wsrep_slave_fk_checks
 wsrep_slave_threads
+wsrep_slave_uk_checks
 wsrep_sst_auth
 wsrep_sst_donor
 wsrep_sst_donor_rejects_queries
