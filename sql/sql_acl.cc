@@ -12440,7 +12440,7 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 },
 {
   MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
@@ -12455,7 +12455,7 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
 maria_declare_plugin_end;
 
