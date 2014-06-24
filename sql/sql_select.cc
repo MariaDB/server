@@ -23268,7 +23268,7 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
 // join tab. 
 void JOIN_TAB::update_explain_data(uint idx)
 {
-  if (this == first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS) &&
+  if (this == first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS) + join->const_tables &&
       join->select_lex->select_number != INT_MAX &&
       join->select_lex->select_number != UINT_MAX)
   {
@@ -23277,6 +23277,7 @@ void JOIN_TAB::update_explain_data(uint idx)
     save_explain_data(eta, join->const_table_map, join->select_distinct, first_top_tab);
 
     Explain_select *sel= join->thd->lex->explain->get_select(join->select_lex->select_number);
+    idx -= my_count_bits(join->eliminated_tables);
     sel->replace_table(idx, eta);
   }
 }
