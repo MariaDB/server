@@ -30,7 +30,7 @@ public:
 
   ha_rows get_avg_rows()
   {
-    return r_scans ? round((double) r_rows / r_scans): 0;
+    return r_scans ? (ha_rows)rint((double) r_rows / r_scans): 0;
   }
 };
 
