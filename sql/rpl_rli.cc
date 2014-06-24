@@ -305,20 +305,80 @@ Failed to open the existing relay log info file '%s' (errno %d)",
     }
 
     rli->info_fd = info_fd;
-    int relay_log_pos, master_log_pos;
+    int relay_log_pos, master_log_pos, lines;
+    char *first_non_digit;
+    /*
+      In MySQL 5.6, there is a MASTER_DELAY option to CHANGE MASTER. This is
+      not yet merged into MariaDB (as of 10.0.13). However, we detect the
+      presense of the new option in relay-log.info, as a placeholder for
+      possible later merge of the feature, and to maintain file format
+      compatibility with MySQL 5.6+.
+    */
+    int dummy_sql_delay;
+
+    /*
+      Starting from MySQL 5.6.x, relay-log.info has a new format.
+      Now, its first line contains the number of lines in the file.
+      By reading this number we can determine which version our master.info
+      comes from. We can't simply count the lines in the file, since
+      versions before 5.6.x could generate files with more lines than
+      needed. If first line doesn't contain a number, or if it
+      contains a number less than LINES_IN_RELAY_LOG_INFO_WITH_DELAY,
+      then the file is treated like a file from pre-5.6.x version.
+      There is no ambiguity when reading an old master.info: before
+      5.6.x, the first line contained the binlog's name, which is
+      either empty or has an extension (contains a '.'), so can't be
+      confused with an integer.
+
+      So we're just reading first line and trying to figure which
+      version is this.
+    */
+
+    /*
+      The first row is temporarily stored in mi->master_log_name, if
+      it is line count and not binlog name (new format) it will be
+      overwritten by the second row later.
+    */
     if (init_strvar_from_file(rli->group_relay_log_name,
                               sizeof(rli->group_relay_log_name),
-                              &rli->info_file, "") ||
-       init_intvar_from_file(&relay_log_pos,
-                             &rli->info_file, BIN_LOG_HEADER_SIZE) ||
-       init_strvar_from_file(rli->group_master_log_name,
-                             sizeof(rli->group_master_log_name),
-                             &rli->info_file, "") ||
-       init_intvar_from_file(&master_log_pos, &rli->info_file, 0))
+                              &rli->info_file, ""))
     {
       msg="Error reading slave log configuration";
       goto err;
     }
+
+    lines= strtoul(rli->group_relay_log_name, &first_non_digit, 10);
+
+    if (rli->group_relay_log_name[0] != '\0' &&
+        *first_non_digit == '\0' &&
+        lines >= LINES_IN_RELAY_LOG_INFO_WITH_DELAY)
+    {
+      DBUG_PRINT("info", ("relay_log_info file is in new format."));
+      /* Seems to be new format => read relay log name from next line */
+      if (init_strvar_from_file(rli->group_relay_log_name,
+                                sizeof(rli->group_relay_log_name),
+                                &rli->info_file, ""))
+      {
+        msg="Error reading slave log configuration";
+        goto err;
+      }
+    }
+    else
+      DBUG_PRINT("info", ("relay_log_info file is in old format."));
+
+    if (init_intvar_from_file(&relay_log_pos,
+                              &rli->info_file, BIN_LOG_HEADER_SIZE) ||
+        init_strvar_from_file(rli->group_master_log_name,
+                              sizeof(rli->group_master_log_name),
+                              &rli->info_file, "") ||
+        init_intvar_from_file(&master_log_pos, &rli->info_file, 0) ||
+        (lines >= LINES_IN_RELAY_LOG_INFO_WITH_DELAY &&
+         init_intvar_from_file(&dummy_sql_delay, &rli->info_file, 0)))
+    {
+      msg="Error reading slave log configuration";
+      goto err;
+    }
+
     strmake_buf(rli->event_relay_log_name,rli->group_relay_log_name);
     rli->group_relay_log_pos= rli->event_relay_log_pos= relay_log_pos;
     rli->group_master_log_pos= master_log_pos;

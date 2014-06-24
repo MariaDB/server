@@ -28,6 +28,12 @@ struct RPL_TABLE_LIST;
 class Master_info;
 class Rpl_filter;
 
+
+enum {
+  LINES_IN_RELAY_LOG_INFO_WITH_DELAY= 5
+};
+
+
 /****************************************************************************
 
   Replication SQL Thread
