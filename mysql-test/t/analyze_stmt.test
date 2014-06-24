@@ -58,5 +58,8 @@ insert into t1 values (1,1),(2,2),(3,3);
 --echo # See .test file for the right values of r_rows and r_filtered.
 analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
 
+--echo # Try a subquery that is never executed
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1 where t1.a > 5;
+
 drop table t0,t1;
 

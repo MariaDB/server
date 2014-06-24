@@ -553,9 +553,16 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `r_rows` */
   if (is_analyze)
   {
-    ha_rows avg_rows= tracker.get_avg_rows();
-    item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows,
-                                      MY_INT64_NUM_DECIMAL_DIGITS));
+    if (!tracker.has_scans())
+    {
+      item_list.push_back(item_null);
+    }
+    else
+    {
+      ha_rows avg_rows= tracker.get_avg_rows();
+      item_list.push_back(new Item_int((longlong) (ulonglong) avg_rows,
+                                        MY_INT64_NUM_DECIMAL_DIGITS));
+    }
   }
 
   /* `filtered` */
@@ -572,12 +579,19 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `r_filtered` */
   if (is_analyze)
   {
-    double r_filtered;
-    if (tracker.r_rows > 0)
-      r_filtered= 100.0 * (double)tracker.r_rows_after_table_cond / tracker.r_rows;
+    if (!tracker.has_scans())
+    {
+      item_list.push_back(item_null);
+    }
     else
-      r_filtered= 100.0;
-    item_list.push_back(new Item_float(r_filtered, 2));
+    {
+      double r_filtered;
+      if (tracker.r_rows > 0)
+        r_filtered= 100.0 * (double)tracker.r_rows_after_table_cond / tracker.r_rows;
+      else
+        r_filtered= 100.0;
+      item_list.push_back(new Item_float(r_filtered, 2));
+    }
   }
 
   /* `Extra` */

@@ -74,4 +74,9 @@ analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3	100.00	100.00	
 2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	3	100.00	33.33	Using where
+# Try a subquery that is never executed
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1 where t1.a > 5;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3	100.00	0.00	Using where
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	NULL	100.00	NULL	Using where
 drop table t0,t1;
