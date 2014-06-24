@@ -537,6 +537,11 @@ typedef struct st_join_table {
   }
 
   void remove_redundant_bnl_scan_conds();
+
+  void save_explain_data(Explain_table_access *eta, table_map prefix_tables, 
+                         bool distinct, struct st_join_table *first_top_tab);
+
+  void update_explain_data(uint idx);
 } JOIN_TAB;
 
 

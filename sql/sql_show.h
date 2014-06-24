@@ -150,6 +150,41 @@ public:
   void call_in_target_thread();
 };
 
+typedef struct st_lookup_field_values
+{
+  LEX_STRING db_value, table_value;
+  bool wild_db_value, wild_table_value;
+} LOOKUP_FIELD_VALUES;
+
+
+/*
+  INFORMATION_SCHEMA: Execution plan for get_all_tables() call
+*/
+
+class IS_table_read_plan : public Sql_alloc
+{
+public:
+  IS_table_read_plan() : no_rows(false) {}
+
+  bool no_rows;
+
+  LOOKUP_FIELD_VALUES lookup_field_vals;
+  Item *partial_cond;
+
+  bool has_db_lookup_value()
+  {
+    return (lookup_field_vals.db_value.length &&
+           !lookup_field_vals.wild_db_value);
+  }
+  bool has_table_lookup_value()
+  {
+    return (lookup_field_vals.table_value.length &&
+            !lookup_field_vals.wild_table_value);
+  }
+};
+
+bool optimize_schema_tables_reads(JOIN *join);
+
 /* Handle the ignored database directories list for SHOW/I_S. */
 bool ignore_db_dirs_init();
 void ignore_db_dirs_free();

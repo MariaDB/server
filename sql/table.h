@@ -1499,6 +1499,7 @@ typedef struct st_schema_table
   uint i_s_requested_object;  /* the object we need to open(TABLE | VIEW) */
 } ST_SCHEMA_TABLE;
 
+class IS_table_read_plan;
 
 /*
   Types of derived tables. The ending part is a bitmap of phases that are
@@ -2044,11 +2045,22 @@ struct TABLE_LIST
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
+  /* I_S: Flags to open_table (e.g. OPEN_TABLE_ONLY or OPEN_VIEW_ONLY) */
   uint i_s_requested_object;
-  bool has_db_lookup_value;
-  bool has_table_lookup_value;
+
+  /*
+    I_S: how to read the tables (SKIP_OPEN_TABLE/OPEN_FRM_ONLY/OPEN_FULL_TABLE)
+  */
   uint table_open_method;
+  /*
+    I_S: where the schema table was filled
+    (this is a hack. The code should be able to figure out whether reading
+    from I_S should be done by create_sort_index() or by JOIN::exec.)
+  */
   enum enum_schema_table_state schema_table_state;
+
+  /* Something like a "query plan" for reading INFORMATION_SCHEMA table */
+  IS_table_read_plan *is_table_read_plan;
 
   MDL_request mdl_request;
 

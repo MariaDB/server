@@ -3959,18 +3959,20 @@ public:
   virtual void cleanup();
 };
 
+
+/*
+  We need this class, because select_send::send_eof() will call ::my_eof.
+
+  See also class Protocol_discard.
+*/
+
 class select_send_analyze : public select_send
 {
-bool discard_data;
   bool send_result_set_metadata(List<Item> &list, uint flags) { return 0; }
-  /* 
-    ANALYZE-todo: we should call val_int() (or val_str() or whatever) to
-    compute the columns. If we don't, it's not full execution.
-  */
-  int send_data(List<Item> &items) { return 0; }
   bool send_eof() { return 0; }
   void abort_result_set() {}
 };
+
 
 class select_to_file :public select_result_interceptor {
 protected:

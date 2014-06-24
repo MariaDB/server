@@ -34,5 +34,29 @@ insert into t1 select a,a from t0;
 analyze (select * from t1 A where a<5) union (select * from t1 B where a in (5,6));
 analyze (select * from t1 A where a<5) union (select * from t1 B where a in (1,2));
 drop table t1;
-
 drop table t0;
+
+--echo # 
+--echo # Try a subquery.
+--echo # 
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+
+#
+#   t1      t0
+#   a=1     (0,1)       2 rows
+#   a=2     (0,1,2)     3 rows
+#   a=3     (0,1,2,3)   4 rows
+#
+#  TOTAL    TOTAL= 9 rows.  3 executions, avg=3 rows.
+#  WHERE is satisfied for 1 row per query, which gives filtered=33.3
+
+--echo # See .test file for the right values of r_rows and r_filtered.
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
+
+drop table t0,t1;
+

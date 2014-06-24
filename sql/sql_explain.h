@@ -129,6 +129,12 @@ public:
     join_tabs[n_join_tabs++]= tab;
     return false;
   }
+  
+  /*
+    This is used to save the results of "late" test_if_skip_sort_order() calls
+    that are made from JOIN::exec
+  */
+  void replace_table(uint idx, Explain_table_access *new_tab);
 
 public:
   int select_id;

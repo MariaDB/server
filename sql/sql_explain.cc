@@ -345,6 +345,13 @@ int Explain_node::print_explain_for_children(Explain_query *query,
 }
 
 
+void Explain_select::replace_table(uint idx, Explain_table_access *new_tab)
+{
+  delete join_tabs[idx];
+  join_tabs[idx]= new_tab;
+}
+
+
 Explain_select::~Explain_select()
 {
   if (join_tabs)

@@ -61,3 +61,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	5	NULL	NULL	
 drop table t1;
 drop table t0;
+# 
+# Try a subquery.
+# 
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+# See .test file for the right values of r_rows and r_filtered.
+analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	3	100.00	100.00	
+2	DEPENDENT SUBQUERY	t0	ALL	NULL	NULL	NULL	NULL	10	3	100.00	33.33	Using where
+drop table t0,t1;

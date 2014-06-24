@@ -5260,10 +5260,13 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     {
       //psergey-todo: ANALYZE should hook in here...
       select_result *save_result;
+      Protocol *save_protocol;
       if (lex->analyze_stmt)
       {
         save_result= result;
         result= new select_send_analyze();
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
       }
       else
       {
@@ -5280,6 +5283,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         result= save_result;
         if (!result && !(result= new select_send()))
           return 1;
+        thd->protocol= save_protocol;
         thd->lex->explain->send_explain(thd);
 
         if (result != lex->result)
