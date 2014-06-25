@@ -41,11 +41,6 @@ set global innodb_compression_algorithm=0;
 select @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
 none
-BUG! This should've failed (lzo is not compiled in)
-set global innodb_compression_algorithm=3;
-select @@global.innodb_compression_algorithm;
-@@global.innodb_compression_algorithm
-lzo
 SET @@global.innodb_compression_algorithm = @start_global_value;
 SELECT @@global.innodb_compression_algorithm;
 @@global.innodb_compression_algorithm
