@@ -173,6 +173,10 @@ fil_compress_page(
 		}
 		break;
 
+	case PAGE_UNCOMPRESSED:
+		*out_len = len;
+		return (buf);
+		break;
 	default:
 		ut_error;
 		break;

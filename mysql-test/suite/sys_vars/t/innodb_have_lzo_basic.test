@@ -1,0 +1,5 @@
+--source include/have_innodb.inc
+
+--let $inno= `select @@global.innodb_have_lzo`
+--replace_result $inno 0
+select @@global.innodb_have_lzo;

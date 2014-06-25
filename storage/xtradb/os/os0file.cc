@@ -233,12 +233,7 @@ struct os_aio_slot_t{
 	int		n_bytes;	/* bytes written/read. */
 	int		ret;		/* AIO return code */
 #endif /* WIN_ASYNC_IO */
-#ifdef HAVE_LZO
-	byte		lzo_mem[LZO1X_1_15_MEM_COMPRESS];
-#else
-	byte		lzo_mem[1];	/* Temporal memory used by LZO */
-#endif
-
+	byte		*lzo_mem;	/* Temporal memory used by LZO */
 };
 
 /** The asynchronous i/o array structure */
@@ -365,6 +360,17 @@ void
 os_slot_alloc_page_buf(
 /*===================*/
 	os_aio_slot_t*	slot); /*!< in: slot structure     */
+
+#ifdef HAVE_LZO
+/**********************************************************************//**
+Allocate memory for temporal memory used for page compression when
+LZO compression method is used */
+UNIV_INTERN
+void
+os_slot_alloc_lzo_mem(
+/*===================*/
+	os_aio_slot_t*   slot); /*!< in: slot structure     */
+#endif
 
 /****************************************************************//**
 Does error handling when a file operation fails.
@@ -4202,6 +4208,11 @@ os_aio_array_free(
 			ut_free(slot->page_compression_page);
 			slot->page_compression_page = NULL;
 		}
+
+		if (slot->lzo_mem) {
+			ut_free(slot->lzo_mem);
+			slot->lzo_mem = NULL;
+		}
 	}
 
 	ut_free(array->slots);
@@ -4669,7 +4680,11 @@ found:
 			os_slot_alloc_page_buf(slot);
 		}
 
-		ut_ad(slot->page_buf);
+#ifdef HAVE_LZO
+		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+			os_slot_alloc_lzo_mem(slot);
+		}
+#endif
 
 		/* Call page compression */
 		tmp = fil_compress_page(fil_node_get_space_id(slot->message1),
@@ -5299,8 +5314,12 @@ os_aio_windows_handle(
 		if (slot->page_buf == NULL) {
 			os_slot_alloc_page_buf(slot);
 		}
-		ut_ad(slot->page_buf);
 
+#ifdef HAVE_LZO
+		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+			os_slot_alloc_lzo_mem(slot);
+		}
+#endif
 	        if (slot->type == OS_FILE_READ) {
 			if (fil_page_is_compressed(slot->buf)) {
 				fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
@@ -5413,8 +5432,12 @@ retry:
 				if (slot->page_buf == NULL) {
 					os_slot_alloc_page_buf(slot);
 				}
-				ut_ad(slot->page_buf);
 
+#ifdef HAVE_LZO
+				if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+					os_slot_alloc_lzo_mem(slot);
+				}
+#endif
 				if (slot->type == OS_FILE_READ) {
 					if (fil_page_is_compressed(slot->buf)) {
 						fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
@@ -6459,9 +6482,27 @@ os_slot_alloc_page_buf(
 	byte*           cbuf2;
 	byte*           cbuf;
 
+	ut_a(slot != NULL);
 	/* We allocate extra to avoid memory overwrite on compression */
 	cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
 	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 	slot->page_compression_page = static_cast<byte *>(cbuf2);
 	slot->page_buf = static_cast<byte *>(cbuf);
+	ut_a(slot->page_buf != NULL);
 }
+
+#ifdef HAVE_LZO
+/**********************************************************************//**
+Allocate memory for temporal memory used for page compression when
+LZO compression method is used */
+UNIV_INTERN
+void
+os_slot_alloc_lzo_mem(
+/*===================*/
+	os_aio_slot_t*   slot) /*!< in: slot structure     */
+{
+	ut_a(slot != NULL);
+	slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
+	ut_a(slot->lzo_mem != NULL);
+}
+#endif

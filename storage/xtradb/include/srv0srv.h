@@ -282,6 +282,9 @@ extern long    srv_mtflush_threads;
 /* If this flag is TRUE, then we will use multi threaded flush. */
 extern my_bool	srv_use_mtflush;
 
+extern ulong srv_have_lz4;
+extern ulong srv_have_lzo;
+
 /** Server undo tablespaces directory, can be absolute path. */
 extern char*	srv_undo_dir;
 
@@ -1127,6 +1130,8 @@ struct export_var_t{
 						compression */
 	ib_int64_t innodb_pages_page_compression_error;/*!< Number of page
 						compression errors */
+	ulint innodb_have_lz4;                  /*!< HAVE_LZ4 */
+	ulint innodb_have_lzo;                  /*!< HAVE_LZO */
 };
 
 /** Thread slot in the thread table.  */

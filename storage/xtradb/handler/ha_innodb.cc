@@ -654,6 +654,20 @@ static int innobase_checkpoint_state(handlerton *hton, bool disable)
   return 0;
 }
 
+/*************************************************************//**
+Check for a valid value of innobase_compression_algorithm.
+@return	0 for valid innodb_compression_algorithm. */
+static
+int
+innodb_compression_algorithm_validate(
+/*==================================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
+						variable */
+	void*				save,	/*!< out: immediate result
+						for update function */
+	struct st_mysql_value*		value);	/*!< in: incoming string */
+
 static const char innobase_hton_name[]= "InnoDB";
 
 static MYSQL_THDVAR_BOOL(support_xa, PLUGIN_VAR_OPCMDARG,
@@ -919,6 +933,10 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_page_compressed_trim_op_saved,     SHOW_LONGLONG},
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
+  {"have_lz4",
+  (char*) &export_vars.innodb_have_lz4,                  SHOW_LONG},
+  {"have_lzo",
+  (char*) &export_vars.innodb_have_lzo,                  SHOW_LONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -3372,6 +3390,24 @@ innobase_init(
 			goto error;
 		}
 	}
+
+#ifndef HAVE_LZ4
+	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
+		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				"InnoDB: liblz4 is not installed. \n",
+				innodb_compression_algorithm);
+	        goto error;
+	}
+#endif
+
+#ifndef HAVE_LZO
+	if (innodb_compression_algorithm == PAGE_LZO_ALGORITHM) {
+		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				"InnoDB: liblzo is not installed. \n",
+				innodb_compression_algorithm);
+		goto error;
+	}
+#endif
 
 	os_innodb_umask = (ulint) my_umask;
 
@@ -18200,8 +18236,20 @@ static TYPELIB page_compression_algorithms_typelib=
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
   "Compression algorithm used on page compression. One of: none, zlib, lz4, or lzo",
-  NULL, NULL, default_compression_algorithm,
+  innodb_compression_algorithm_validate, NULL, default_compression_algorithm,
   &page_compression_algorithms_typelib);
+
+static MYSQL_SYSVAR_ULONG(have_lz4, srv_have_lz4,
+  PLUGIN_VAR_READONLY,
+  "InnoDB compiled support with liblz4",
+  NULL, NULL, srv_have_lz4,
+  0, 1, 0);
+
+static MYSQL_SYSVAR_ULONG(have_lzo, srv_have_lzo,
+  PLUGIN_VAR_READONLY,
+  "InnoDB compiled support with liblzo",
+  NULL, NULL, srv_have_lzo,
+  0, 1, 0);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -18417,6 +18465,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
+  MYSQL_SYSVAR(have_lz4),
+  MYSQL_SYSVAR(have_lzo),
+
   NULL
 };
 
@@ -18917,12 +18968,83 @@ int ha_innobase::multi_range_read_explain_info(uint mrr_mode, char *str, size_t 
   return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
 }
 
-/* 
+/*
   A helper function used only in index_cond_func_innodb
 */
 
 bool ha_innobase::is_thd_killed()
-{ 
+{
   return thd_kill_level(user_thd);
 }
+
+/*************************************************************//**
+Check for a valid value of innobase_compression_algorithm.
+@return	0 for valid innodb_compression_algorithm. */
+static
+int
+innodb_compression_algorithm_validate(
+/*==================================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to system
+						variable */
+	void*				save,	/*!< out: immediate result
+						for update function */
+	struct st_mysql_value*		value)	/*!< in: incoming string */
+{
+	long		compression_algorithm;
+	DBUG_ENTER("innobase_compression_algorithm_validate");
+
+	if (value->value_type(value) == MYSQL_VALUE_TYPE_STRING) {
+		char buff[STRING_BUFFER_USUAL_SIZE];
+		const char *str;
+		int length= sizeof(buff);
+
+		if (!(str= value->val_str(value, buff, &length))) {
+			DBUG_RETURN(1);
+		}
+
+		if ((compression_algorithm= (long)find_type(str, &page_compression_algorithms_typelib, 0) - 1) < 0) {
+			DBUG_RETURN(1);
+		}
+	} else {
+		long long tmp;
+
+		if (value->val_int(value, &tmp)) {
+			DBUG_RETURN(1);
+		}
+
+		if (tmp < 0 || tmp >= page_compression_algorithms_typelib.count) {
+			DBUG_RETURN(1);
+		}
+
+		compression_algorithm= (long) tmp;
+	}
+
+	*reinterpret_cast<ulong*>(save) = compression_algorithm;
+
+#ifndef HAVE_LZ4
+	if (compression_algorithm == PAGE_LZ4_ALGORITHM) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				    "InnoDB: liblz4 is not installed. \n",
+				    compression_algorithm);
+		DBUG_RETURN(1);
+	}
+#endif
+
+#ifndef HAVE_LZO
+	if (compression_algorithm == PAGE_LZO_ALGORITHM) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				    "InnoDB: liblzo is not installed. \n",
+				    compression_algorithm);
+		DBUG_RETURN(1);
+	}
+#endif
+
+	DBUG_RETURN(0);
+}
+
 

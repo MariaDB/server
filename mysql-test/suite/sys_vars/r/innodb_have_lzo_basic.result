@@ -1,0 +1,3 @@
+select @@global.innodb_have_lzo;
+@@global.innodb_have_lzo
+0
