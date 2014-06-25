@@ -23361,6 +23361,26 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   else
   {
     TABLE_LIST *real_table= table->pos_in_table_list;
+    /*
+      When multi-table UPDATE/DELETE does updates/deletes to a VIEW, the view
+      is merged in a certain particular way (grep for DT_MERGE_FOR_INSERT).
+
+      As a result, view's underlying tables have $tbl->pos_in_table_list={view}.
+      We don't want to print view name in EXPLAIN, we want underlying table's
+      alias (like specified in the view definition).
+    */
+    if (real_table->merged_for_insert)
+    {
+      TABLE_LIST *view_child= real_table->view->select_lex.table_list.first;
+      for (;view_child; view_child= view_child->next_local)
+      {
+        if (view_child->table == table)
+        {
+          real_table= view_child;
+          break;
+        }
+      }
+    }
     eta->table_name.copy(real_table->alias, strlen(real_table->alias), cs);
   }
 
