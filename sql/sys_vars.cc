@@ -4720,7 +4720,7 @@ static Sys_var_mybool Sys_wsrep_slave_FK_checks(
 
 static Sys_var_mybool Sys_wsrep_slave_UK_checks(
        "wsrep_slave_UK_checks", "Should slave thread do "
-       "secondary index uniqueness chesks",
+       "secondary index uniqueness checks",
        GLOBAL_VAR(wsrep_slave_UK_checks), 
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
