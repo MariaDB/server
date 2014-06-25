@@ -1303,7 +1303,7 @@ void Relay_log_info::stmt_done(my_off_t event_master_log_pos,
     inc_group_relay_log_pos(event_master_log_pos, rgi);
     if (rpl_global_gtid_slave_state.record_and_update_gtid(thd, rgi))
     {
-      report(WARNING_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+      report(WARNING_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
              "Failed to update GTID state in %s.%s, slave state may become "
              "inconsistent: %d: %s",
              "mysql", rpl_gtid_slave_state_table_name.str,
@@ -1802,6 +1802,26 @@ rpl_group_info::mark_start_commit()
   mark_start_commit_inner(e, gco);
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
   did_mark_start_commit= true;
+}
+
+
+/*
+  Format the current GTID as a string suitable for printing in error messages.
+
+  The string is stored in a buffer inside rpl_group_info, so remains valid
+  until next call to gtid_info() or until destruction of rpl_group_info.
+
+  If no GTID is available, then NULL is returned.
+*/
+char *
+rpl_group_info::gtid_info()
+{
+  if (!gtid_sub_id || !current_gtid.seq_no)
+    return NULL;
+  my_snprintf(gtid_info_buf, sizeof(gtid_info_buf), "Gtid %u-%u-%llu",
+              current_gtid.domain_id, current_gtid.server_id,
+              current_gtid.seq_no);
+  return gtid_info_buf;
 }
 
 

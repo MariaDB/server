@@ -204,7 +204,7 @@ static const char *HA_ERR(int i)
 
 */
 static void inline slave_rows_error_report(enum loglevel level, int ha_error,
-                                           Relay_log_info const *rli, THD *thd,
+                                           rpl_group_info *rgi, THD *thd,
                                            TABLE *table, const char * type,
                                            const char *log_name, ulong pos)
 {
@@ -214,6 +214,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
   uint len;
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
+  Relay_log_info const *rli= rgi->rli;
   const Sql_condition *err;
   buff[0]= 0;
 
@@ -227,6 +228,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
 
   if (ha_error != 0)
     rli->report(level, thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0,
+                rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s handler error %s; "
                 "the event's master log %s, end_log_pos %lu",
@@ -235,6 +237,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
                 log_name, pos);
   else
     rli->report(level, thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0,
+                rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s the event's master log %s, end_log_pos %lu",
                 type, table->s->db.str, table->s->table_name.str,
@@ -4086,7 +4089,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     char llbuff[22];
     if ((error= rows_event_stmt_cleanup(rgi, thd)))
     {
-      const_cast<Relay_log_info*>(rli)->report(ERROR_LEVEL, error,
+      rli->report(ERROR_LEVEL, error, rgi->gtid_info(),
                   "Error in cleaning up after an event preceding the commit; "
                   "the group log file/position: %s %s",
                   const_cast<Relay_log_info*>(rli)->group_master_log_name,
@@ -4241,6 +4244,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
         {
           rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                      rgi->gtid_info(),
                       "Error during COMMIT: failed to update GTID state in "
                     "%s.%s: %d: %s",
                       "mysql", rpl_gtid_slave_state_table_name.str,
@@ -4313,7 +4317,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         clear_all_errors(thd, const_cast<Relay_log_info*>(rli)); /* Can ignore query */
       else
       {
-        rli->report(ERROR_LEVEL, expected_error, 
+        rli->report(ERROR_LEVEL, expected_error, rgi->gtid_info(),
                           "\
 Query partially completed on the master (error on master: %d) \
 and was aborted. There is a chance that your master is inconsistent at this \
@@ -4369,7 +4373,7 @@ compare_errors:
         !ignored_error_code(actual_error) &&
         !ignored_error_code(expected_error))
     {
-      rli->report(ERROR_LEVEL, 0,
+      rli->report(ERROR_LEVEL, 0, rgi->gtid_info(),
                       "\
 Query caused different errors on master and slave.     \
 Error on master: message (format)='%s' error code=%d ; \
@@ -4399,7 +4403,7 @@ Default database: '%s'. Query: '%s'",
     */
     else if (thd->is_slave_error || thd->is_fatal_error)
     {
-      rli->report(ERROR_LEVEL, actual_error,
+      rli->report(ERROR_LEVEL, actual_error, rgi->gtid_info(),
                       "Error '%s' on query. Default database: '%s'. Query: '%s'",
                       (actual_error ? thd->get_stmt_da()->message() :
                        "unexpected success or fatal error"),
@@ -5055,7 +5059,7 @@ int Format_description_log_event::do_apply_event(rpl_group_info *rgi)
   if (!is_artificial_event() && created && thd->transaction.all.ha_list)
   {
     /* This is not an error (XA is safe), just an information */
-    rli->report(INFORMATION_LEVEL, 0,
+    rli->report(INFORMATION_LEVEL, 0, NULL,
                 "Rolling back unfinished transaction (no COMMIT "
                 "or ROLLBACK in relay log). A probable cause is that "
                 "the master died while writing the transaction to "
@@ -5996,7 +6000,7 @@ error:
       sql_errno=ER_UNKNOWN_ERROR;
       err=ER(sql_errno);       
     }
-    rli->report(ERROR_LEVEL, sql_errno,"\
+    rli->report(ERROR_LEVEL, sql_errno, rgi->gtid_info(), "\
 Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
                     err, (char*)table_name, print_slave_db_safe(remember_db));
     free_root(thd->mem_root,MYF(MY_KEEP_PREALLOC));
@@ -6013,7 +6017,7 @@ Error '%s' running LOAD DATA INFILE on table '%s'. Default database: '%s'",
                 (char*)table_name,
                 print_slave_db_safe(remember_db));
 
-    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
                 ER(ER_SLAVE_FATAL_ERROR), buf);
     DBUG_RETURN(1);
   }
@@ -7302,7 +7306,7 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
     err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
     if (err)
     {
-      rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+      rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
                   "Error during XID COMMIT: failed to update GTID state in "
                   "%s.%s: %d: %s",
                   "mysql", rpl_gtid_slave_state_table_name.str,
@@ -8323,7 +8327,7 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
       init_io_cache(&file, fd, IO_SIZE, WRITE_CACHE, (my_off_t)0, 0,
 		    MYF(MY_WME|MY_NABP)))
   {
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in Create_file event: could not open file '%s'",
                 fname_buf);
     goto err;
@@ -8335,7 +8339,7 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
   if (write_base(&file))
   {
     strmov(ext, ".info"); // to have it right in the error message
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in Create_file event: could not write to file '%s'",
                 fname_buf);
     goto err;
@@ -8351,14 +8355,14 @@ int Create_file_log_event::do_apply_event(rpl_group_info *rgi)
                              O_WRONLY | O_BINARY | O_EXCL | O_NOFOLLOW,
                              MYF(MY_WME))) < 0)
   {
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in Create_file event: could not open file '%s'",
                 fname_buf);
     goto err;
   }
   if (mysql_file_write(fd, (uchar*) block, block_len, MYF(MY_WME+MY_NABP)))
   {
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in Create_file event: write to '%s' failed",
                 fname_buf);
     goto err;
@@ -8507,7 +8511,7 @@ int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
                                O_WRONLY | O_BINARY | O_EXCL | O_NOFOLLOW,
                                MYF(MY_WME))) < 0)
     {
-      rli->report(ERROR_LEVEL, my_errno,
+      rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                   "Error in %s event: could not create file '%s'",
                   get_type_str(), fname);
       goto err;
@@ -8518,7 +8522,7 @@ int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
                                 O_WRONLY | O_APPEND | O_BINARY | O_NOFOLLOW,
                                 MYF(MY_WME))) < 0)
   {
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in %s event: could not open file '%s'",
                 get_type_str(), fname);
     goto err;
@@ -8531,7 +8535,7 @@ int Append_block_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (mysql_file_write(fd, (uchar*) block, block_len, MYF(MY_WME+MY_NABP)))
   {
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in %s event: write to '%s' failed",
                 get_type_str(), fname);
     goto err;
@@ -8748,7 +8752,7 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
       init_io_cache(&file, fd, IO_SIZE, READ_CACHE, (my_off_t)0, 0,
 		    MYF(MY_WME|MY_NABP)))
   {
-    rli->report(ERROR_LEVEL, my_errno,
+    rli->report(ERROR_LEVEL, my_errno, rgi->gtid_info(),
                 "Error in Exec_load event: could not open file '%s'",
                 fname);
     goto err;
@@ -8760,7 +8764,7 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
                                   opt_slave_sql_verify_checksum)) ||
       lev->get_type_code() != NEW_LOAD_EVENT)
   {
-    rli->report(ERROR_LEVEL, 0, "Error in Exec_load event: "
+    rli->report(ERROR_LEVEL, 0, rgi->gtid_info(), "Error in Exec_load event: "
                     "file '%s' appears corrupted", fname);
     goto err;
   }
@@ -8786,7 +8790,7 @@ int Execute_load_log_event::do_apply_event(rpl_group_info *rgi)
     char *tmp= my_strdup(rli->last_error().message, MYF(MY_WME));
     if (tmp)
     {
-      rli->report(ERROR_LEVEL, rli->last_error().number,
+      rli->report(ERROR_LEVEL, rli->last_error().number, rgi->gtid_info(),
                   "%s. Failed executing load from '%s'", tmp, fname);
       my_free(tmp);
     }
@@ -9019,7 +9023,7 @@ Execute_load_query_log_event::do_apply_event(rpl_group_info *rgi)
   /* Replace filename and LOCAL keyword in query before executing it */
   if (buf == NULL)
   {
-    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR,
+    rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
                 ER(ER_SLAVE_FATAL_ERROR), "Not enough memory");
     return 1;
   }
@@ -9635,7 +9639,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
           We should not honour --slave-skip-errors at this point as we are
           having severe errors which should not be skiped.
         */
-        rli->report(ERROR_LEVEL, actual_error,
+        rli->report(ERROR_LEVEL, actual_error, rgi->gtid_info(),
                     "Error executing row event: '%s'",
                     (actual_error ? thd->get_stmt_da()->message() :
                      "unexpected success or fatal error"));
@@ -9676,8 +9680,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
       {
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                             ptr->table, &conv_table))
+        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           DBUG_PRINT("debug", ("Table: %s.%s is not compatible with master",
                                ptr->table->s->db.str,
@@ -9833,7 +9836,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
         if (idempotent_error || ignored_error)
         {
           if (global_system_variables.log_warnings)
-            slave_rows_error_report(WARNING_LEVEL, error, rli, thd, table,
+            slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                     get_type_str(),
                                     RPL_LOG_NAME, (ulong) log_pos);
           clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
@@ -9889,7 +9892,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     {
 
       if (global_system_variables.log_warnings)
-        slave_rows_error_report(WARNING_LEVEL, error, rli, thd, table,
+        slave_rows_error_report(WARNING_LEVEL, error, rgi, thd, table,
                                 get_type_str(),
                                 RPL_LOG_NAME, (ulong) log_pos);
       clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
@@ -9900,7 +9903,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   
   if (error)
   {
-    slave_rows_error_report(ERROR_LEVEL, error, rli, thd, table,
+    slave_rows_error_report(ERROR_LEVEL, error, rgi, thd, table,
                              get_type_str(),
                              RPL_LOG_NAME, (ulong) log_pos);
     /*
@@ -9922,7 +9925,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rgi, thd)))
     slave_rows_error_report(ERROR_LEVEL,
                             thd->is_error() ? 0 : error,
-                            rli, thd, table,
+                            rgi, thd, table,
                             get_type_str(),
                             RPL_LOG_NAME, (ulong) log_pos);
   DBUG_RETURN(error);
@@ -10905,7 +10908,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
                   table_list->table_id);
 
       if (thd->slave_thread)
-        rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, 
+        rli->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, rgi->gtid_info(),
                     ER(ER_SLAVE_FATAL_ERROR), buf);
       else
         /* 
@@ -12546,7 +12549,7 @@ Incident_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_RETURN(0);
   }
    
-  rli->report(ERROR_LEVEL, ER_SLAVE_INCIDENT,
+  rli->report(ERROR_LEVEL, ER_SLAVE_INCIDENT, NULL,
               ER(ER_SLAVE_INCIDENT),
               description(),
               m_message.length > 0 ? m_message.str : "<none>");

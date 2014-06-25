@@ -388,7 +388,7 @@ handle_rpl_parallel_thread(void *arg)
             {
               DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
               thd->send_kill_message();
-              slave_output_error_info(rgi->rli, thd);
+              slave_output_error_info(rgi, thd);
               signal_error_to_sql_driver_thread(thd, rgi, 1);
               /*
                 Even though we were killed, we need to continue waiting for the
@@ -467,7 +467,7 @@ handle_rpl_parallel_thread(void *arg)
           if (res < 0)
           {
             /* Error. */
-            slave_output_error_info(rgi->rli, thd);
+            slave_output_error_info(rgi, thd);
             signal_error_to_sql_driver_thread(thd, rgi, 1);
           }
           else if (!res)
@@ -514,7 +514,7 @@ handle_rpl_parallel_thread(void *arg)
 
       if (unlikely(err) && !rgi->worker_error)
       {
-        slave_output_error_info(rgi->rli, thd);
+        slave_output_error_info(rgi, thd);
         signal_error_to_sql_driver_thread(thd, rgi, err);
       }
       if (end_of_group)
@@ -1018,10 +1018,11 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
   if it is still available. Otherwise a new worker thread is allocated.
 */
 rpl_parallel_thread *
-rpl_parallel_entry::choose_thread(Relay_log_info *rli, bool *did_enter_cond,
+rpl_parallel_entry::choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                   PSI_stage_info *old_stage, bool reuse)
 {
   uint32 idx;
+  Relay_log_info *rli= rgi->rli;
   rpl_parallel_thread *thr;
 
   idx= rpl_thread_idx;
@@ -1066,7 +1067,7 @@ rpl_parallel_entry::choose_thread(Relay_log_info *rli, bool *did_enter_cond,
             debug_sync_set_action(rli->sql_driver_thd,
                       STRING_WITH_LEN("now SIGNAL wait_queue_killed"));
           };);
-        slave_output_error_info(rli, rli->sql_driver_thd);
+        slave_output_error_info(rgi, rli->sql_driver_thd);
         return NULL;
       }
       else
@@ -1417,7 +1418,8 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     instead re-use a thread that we queued for previously.
   */
   cur_thread=
-    e->choose_thread(rli, &did_enter_cond, &old_stage, typ != GTID_EVENT);
+    e->choose_thread(serial_rgi, &did_enter_cond, &old_stage,
+                     typ != GTID_EVENT);
   if (!cur_thread)
   {
     /* This means we were killed. The error is already signalled. */

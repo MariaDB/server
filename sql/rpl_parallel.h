@@ -208,7 +208,7 @@ struct rpl_parallel_entry {
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
 
-  rpl_parallel_thread * choose_thread(Relay_log_info *rli, bool *did_enter_cond,
+  rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage, bool reuse);
   group_commit_orderer *get_gco();
   void free_gco(group_commit_orderer *gco);

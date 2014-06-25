@@ -593,6 +593,8 @@ struct rpl_group_info
    */
   time_t row_stmt_start_timestamp;
   bool long_find_row_note_printed;
+  /* Needs room for "Gtid D-S-N\x00". */
+  char gtid_info_buf[5+10+1+10+1+20+1];
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -681,6 +683,7 @@ struct rpl_group_info
   void slave_close_thread_tables(THD *);
   void mark_start_commit_no_lock();
   void mark_start_commit();
+  char *gtid_info();
 
   time_t get_row_stmt_start_timestamp()
   {

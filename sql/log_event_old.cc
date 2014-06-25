@@ -133,8 +133,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
       {
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                             ptr->table, &conv_table))
+        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           ev_thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(ev_thd);
@@ -1530,8 +1529,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
            ptr= static_cast<RPL_TABLE_LIST*>(ptr->next_global), i++)
       {
         TABLE *conv_table;
-        if (ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                            ptr->table, &conv_table))
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(thd);
