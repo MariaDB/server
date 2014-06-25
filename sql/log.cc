@@ -2646,7 +2646,8 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name)
   {
     if (!fn_ext(log_name)[0])
     {
-      if (find_uniq_filename(new_name))
+      if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
+          find_uniq_filename(new_name))
       {
         my_printf_error(ER_NO_UNIQUE_LOGFILE, ER(ER_NO_UNIQUE_LOGFILE),
                         MYF(ME_FATALERROR), log_name);

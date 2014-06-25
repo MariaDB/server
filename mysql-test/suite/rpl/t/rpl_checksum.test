@@ -260,9 +260,66 @@ AAAAAAAAAAAAAAAAAAAx+apMEzgNAAgAEgAEBAQEEgAAVAAEGggAAAAICAgCAA==
 
 #connection slave;
 sync_slave_with_master;
+
+
+--echo *** Bug#59123 / MDEV-5799: INCIDENT_EVENT checksum written to error log as garbage characters ***
+
+--connection master
+
+--source include/wait_for_binlog_checkpoint.inc
+CREATE TABLE t4 (a INT PRIMARY KEY);
+INSERT INTO t4 VALUES (1);
+
+SET sql_log_bin=0;
+CALL mtr.add_suppression("\\[ERROR\\] Can't generate a unique log-filename");
+SET sql_log_bin=1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET debug_dbug= '+d,binlog_inject_new_name_error';
+--error ER_NO_UNIQUE_LOGFILE
+FLUSH LOGS;
+SET debug_dbug= @old_dbug;
+
+INSERT INTO t4 VALUES (2);
+
+--connection slave
+--let $slave_sql_errno= 1590
+--source include/wait_for_slave_sql_error.inc
+
+# Search the error log for the error message.
+# The bug was that 4 garbage bytes were output in the middle of the error
+# message; by searching for a pattern that spans that location, we can
+# catch the error.
+let $log_error_= `SELECT @@GLOBAL.log_error`;
+if(!$log_error_)
+{
+    # MySQL Server on windows is started with --console and thus
+    # does not know the location of its .err log, use default location
+    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.2.err;
+}
+--let SEARCH_FILE= $log_error_
+--let SEARCH_PATTERN= Slave SQL: The incident LOST_EVENTS occured on the master\. Message: error writing to the binary log, Internal MariaDB error code: 1590
+--source include/search_pattern_in_file.inc
+
+SELECT * FROM t4 ORDER BY a;
+STOP SLAVE IO_THREAD;
+SET sql_slave_skip_counter= 1;
+--source include/start_slave.inc
+
+--connection master
+--save_master_pos
+
+--connection slave
+--sync_with_master
+SELECT * FROM t4 ORDER BY a;
+
+
+--connection slave
 set @@global.binlog_checksum = @slave_save_binlog_checksum;
 set @@global.slave_sql_verify_checksum = @save_slave_sql_verify_checksum;
 
 --echo End of tests
+
+--connection master
+DROP TABLE t4;
 
 --source include/rpl_end.inc
