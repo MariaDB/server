@@ -115,5 +115,35 @@ analyze select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10	100.00	50.00	Using where
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10	100.00	10.00	Using where; Using join buffer (flat, BNL join)
-drop table t0,t1;
 # TODO: Check what is counted for "range checked for each record".
+#
+# Test for joins
+#
+create table t2 (key1 int, key2x int, col1 int, key(key1), key(key2x));
+insert into t2 select A.a + 10 *B.a +100 * C.a, 
+(A.a + 10 *B.a +100 * C.a)*2,
+A.a + 10 *B.a +100 * C.a 
+from t0 A, t0 B, t0 C;
+# This always has matches, filtered=100%.
+analyze select * from t1,t2 where t2.key1=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10	100.00	100.00	Using where
+1	SIMPLE	t2	ref	key1	key1	5	test.t1.a	1	1	100.00	100.00	
+# This shows r_rows=0. It is actually 0.5 (should r_rows be changed to double?)
+analyze select * from t1,t2 where t2.key2x=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10	100.00	100.00	Using where
+1	SIMPLE	t2	ref	key2x	key2x	5	test.t1.a	1	0	100.00	100.00	
+select * from t1,t2 where t2.key2x=t1.a;
+a	b	key1	key2x	col1
+0	0	0	0	0
+2	2	1	2	1
+4	4	2	4	2
+6	6	3	6	3
+8	8	4	8	4
+# This has t2.filtered=40% (there are 5 values: {0,1,2,3,4}. two of them have mod=0)
+analyze select * from t1,t2 where t2.key2x=t1.a and mod(t2.col1,4)=0;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10	100.00	100.00	Using where
+1	SIMPLE	t2	ref	key2x	key2x	5	test.t1.a	1	0	100.00	40.00	Using where
+drop table t0,t1,t2;
