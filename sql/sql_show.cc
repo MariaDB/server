@@ -121,41 +121,6 @@ append_algorithm(TABLE_LIST *table, String *buff);
 
 static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
-/**
-  Condition pushdown used for INFORMATION_SCHEMA / SHOW queries.
-  This structure is to implement an optimization when
-  accessing data dictionary data in the INFORMATION_SCHEMA
-  or SHOW commands.
-  When the query contain a TABLE_SCHEMA or TABLE_NAME clause,
-  narrow the search for data based on the constraints given.
-*/
-typedef struct st_lookup_field_values
-{
-  /**
-    Value of a TABLE_SCHEMA clause.
-    Note that this value length may exceed @c NAME_LEN.
-    @sa wild_db_value
-  */
-  LEX_STRING db_value;
-  /**
-    Value of a TABLE_NAME clause.
-    Note that this value length may exceed @c NAME_LEN.
-    @sa wild_table_value
-  */
-  LEX_STRING table_value;
-  /**
-    True when @c db_value is a LIKE clause,
-    false when @c db_value is an '=' clause.
-  */
-  bool wild_db_value;
-  /**
-    True when @c table_value is a LIKE clause,
-    false when @c table_value is an '=' clause.
-  */
-  bool wild_table_value;
-} LOOKUP_FIELD_VALUES;
-
-
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
 /***************************************************************************
@@ -2395,7 +2360,7 @@ void Show_explain_request::call_in_target_thread()
   DBUG_ASSERT(current_thd == target_thd);
   set_current_thd(request_thd);
   if (target_thd->lex->print_explain(explain_buf, 0 /* explain flags*/,
-                                     &printed_anything))
+                                     false /*TODO: analyze? */, &printed_anything))
   {
     failed_to_produce= TRUE;
   }
@@ -4676,6 +4641,10 @@ public:
                   from frm files and storage engine are filled by the function
                   get_all_tables().
 
+  @note           This function assumes optimize_for_get_all_tables() has been
+                  run for the table and produced a "read plan" in 
+                  tables->is_table_read_plan.
+
   @param[in]      thd                      thread handler
   @param[in]      tables                   I_S table
   @param[in]      cond                     'WHERE' condition
@@ -4692,16 +4661,16 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
-  LOOKUP_FIELD_VALUES lookup_field_vals;
+  IS_table_read_plan *plan= tables->is_table_read_plan;
   enum enum_schema_tables schema_table_idx;
   Dynamic_array<LEX_STRING*> db_names;
-  COND *partial_cond= 0;
+  Item *partial_cond= plan->partial_cond;
   int error= 1;
   Open_tables_backup open_tables_state_backup;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;
 #endif
-  uint table_open_method;
+  uint table_open_method= tables->table_open_method;
   bool can_deadlock;
   DBUG_ENTER("get_all_tables");
 
@@ -4725,9 +4694,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
 
   schema_table_idx= get_schema_table_idx(schema_table);
-  tables->table_open_method= table_open_method=
-    get_table_open_method(tables, schema_table, schema_table_idx);
-  DBUG_PRINT("open_method", ("%d", tables->table_open_method));
   /* 
     this branch processes SHOW FIELDS, SHOW INDEXES commands.
     see sql_parse.cc, prepare_schema_table() function where
@@ -4751,43 +4717,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  if (get_lookup_field_values(thd, cond, tables, &lookup_field_vals))
+  if (plan->no_rows)
   {
     error= 0;
     goto err;
   }
-
-  DBUG_PRINT("info",("db_name='%s', table_name='%s'",
-                     lookup_field_vals.db_value.str,
-                     lookup_field_vals.table_value.str));
-
-  if (!lookup_field_vals.wild_db_value && !lookup_field_vals.wild_table_value)
-  {
-    /*
-      if lookup value is empty string then
-      it's impossible table name or db name
-    */
-    if ((lookup_field_vals.db_value.str &&
-         !lookup_field_vals.db_value.str[0]) ||
-        (lookup_field_vals.table_value.str &&
-         !lookup_field_vals.table_value.str[0]))
-    {
-      error= 0;
-      goto err;
-    }
-  }
-
-  if (lookup_field_vals.db_value.length &&
-      !lookup_field_vals.wild_db_value)
-    tables->has_db_lookup_value= TRUE;
-  if (lookup_field_vals.table_value.length &&
-      !lookup_field_vals.wild_table_value)
-    tables->has_table_lookup_value= TRUE;
-
-  if (tables->has_db_lookup_value && tables->has_table_lookup_value)
-    partial_cond= 0;
-  else
-    partial_cond= make_cond_for_info_schema(cond, tables);
 
   if (lex->describe)
   {
@@ -4798,7 +4732,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 
   bzero((char*) &table_acl_check, sizeof(table_acl_check));
 
-  if (make_db_list(thd, &db_names, &lookup_field_vals))
+  if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
   for (size_t i=0; i < db_names.elements(); i++)
   {
@@ -4814,7 +4748,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       Dynamic_array<LEX_STRING*> table_names;
       int res= make_table_name_list(thd, &table_names, lex,
-                                    &lookup_field_vals, db_name);
+                                    &plan->lookup_field_vals, db_name);
       if (res == 2)   /* Not fatal error, continue */
         continue;
       if (res)
@@ -4852,8 +4786,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             already created by make_table_name_list() function).
           */
           if (!table_open_method && schema_table_idx == SCH_TABLES &&
-              (!lookup_field_vals.table_value.length ||
-               lookup_field_vals.wild_table_value))
+              (!plan->lookup_field_vals.table_value.length ||
+               plan->lookup_field_vals.wild_table_value))
           {
             table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
             if (schema_table_store_record(thd, table))
@@ -8031,12 +7965,147 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
 
 
 /*
+  Optimize reading from an I_S table.
+
+  @detail
+    This function prepares a plan for populating an I_S table with 
+    get_all_tables().
+
+    The plan is in IS_table_read_plan structure, it is saved in
+    tables->is_table_read_plan.
+
+  @return
+    false - Ok
+    true  - Out Of Memory
+    
+*/
+
+static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  SELECT_LEX *lsel= tables->schema_select_lex;
+  ST_SCHEMA_TABLE *schema_table= tables->schema_table;
+  enum enum_schema_tables schema_table_idx;
+  IS_table_read_plan *plan;
+  DBUG_ENTER("get_all_tables");
+
+  if (!(plan= new IS_table_read_plan()))
+    DBUG_RETURN(1);
+
+  tables->is_table_read_plan= plan;
+
+  schema_table_idx= get_schema_table_idx(schema_table);
+  tables->table_open_method= get_table_open_method(tables, schema_table, 
+                                                   schema_table_idx);
+  DBUG_PRINT("open_method", ("%d", tables->table_open_method));
+
+  /* 
+    this branch processes SHOW FIELDS, SHOW INDEXES commands.
+    see sql_parse.cc, prepare_schema_table() function where
+    this values are initialized
+  */
+  if (lsel && lsel->table_list.first)
+  {
+    /* These do not need to have a query plan */
+    goto end;
+  }
+
+  if (get_lookup_field_values(thd, cond, tables, &plan->lookup_field_vals))
+  {
+    plan->no_rows= true;
+    goto end;
+  }
+
+  DBUG_PRINT("info",("db_name='%s', table_name='%s'",
+                     plan->lookup_field_vals.db_value.str,
+                     plan->lookup_field_vals.table_value.str));
+
+  if (!plan->lookup_field_vals.wild_db_value && 
+      !plan->lookup_field_vals.wild_table_value)
+  {
+    /*
+      if lookup value is empty string then
+      it's impossible table name or db name
+    */
+    if ((plan->lookup_field_vals.db_value.str &&
+         !plan->lookup_field_vals.db_value.str[0]) ||
+        (plan->lookup_field_vals.table_value.str &&
+         !plan->lookup_field_vals.table_value.str[0]))
+    {
+      plan->no_rows= true;
+      goto end;
+    }
+  }
+
+  if (plan->has_db_lookup_value() && plan->has_table_lookup_value())
+    plan->partial_cond= 0;
+  else
+    plan->partial_cond= make_cond_for_info_schema(cond, tables);
+  
+end:
+  DBUG_RETURN(0);
+}
+
+
+/*
+  This is the optimizer part of get_schema_tables_result().
+*/
+
+bool optimize_schema_tables_reads(JOIN *join)
+{
+  THD *thd= join->thd;
+  bool result= 0;
+  DBUG_ENTER("optimize_schema_tables_reads");
+
+  for (JOIN_TAB *tab= first_linear_tab(join, WITH_CONST_TABLES); 
+       tab; 
+       tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
+  {
+    if (!tab->table || !tab->table->pos_in_table_list)
+      continue;
+
+    TABLE_LIST *table_list= tab->table->pos_in_table_list;
+    if (table_list->schema_table && thd->fill_information_schema_tables())
+    {
+      /* A value of 0 indicates a dummy implementation */
+      if (table_list->schema_table->fill_table == 0)
+        continue;
+
+      /* skip I_S optimizations specific to get_all_tables */
+      if (table_list->schema_table->fill_table != get_all_tables)
+        continue;
+
+      Item *cond= tab->select_cond;
+      if (tab->cache_select && tab->cache_select->cond)
+      {
+        /*
+          If join buffering is used, we should use the condition that is
+          attached to the join cache. Cache condition has a part of WHERE that
+          can be checked when we're populating this table.
+          join_tab->select_cond is of no interest, because it only has
+          conditions that depend on both this table and previous tables in the
+          join order.
+        */
+        cond= tab->cache_select->cond;
+      }
+
+      optimize_for_get_all_tables(thd, table_list, cond);
+    }
+  }
+  DBUG_RETURN(result);
+}
+
+
+/*
   Fill temporary schema tables before SELECT
 
   SYNOPSIS
     get_schema_tables_result()
     join  join which use schema tables
     executed_place place where I_S table processed
+
+  SEE ALSO
+    The optimization part is done by get_schema_tables_result(). This function
+    is run on query execution.
 
   RETURN
     FALSE success
@@ -8058,7 +8127,7 @@ bool get_schema_tables_result(JOIN *join,
 
   for (JOIN_TAB *tab= first_linear_tab(join, WITH_CONST_TABLES); 
        tab; 
-       tab= next_linear_tab(join, tab, WITHOUT_BUSH_ROOTS))
+       tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
   {
     if (!tab->table || !tab->table->pos_in_table_list)
       break;

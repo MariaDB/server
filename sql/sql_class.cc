@@ -2282,6 +2282,9 @@ int THD::send_explain_fields(select_result *result)
 /*
   Populate the provided field_list with EXPLAIN output columns.
   this->lex->describe has the EXPLAIN flags
+
+  The set/order of columns must be kept in sync with 
+  Explain_query::print_explain and co.
 */
 
 void THD::make_explain_field_list(List<Item> &field_list)
@@ -2317,11 +2320,25 @@ void THD::make_explain_field_list(List<Item> &field_list)
   item->maybe_null=1;
   field_list.push_back(item= new Item_return_int("rows", 10,
                                                  MYSQL_TYPE_LONGLONG));
-  if (lex->describe & DESCRIBE_EXTENDED)
+  if (lex->analyze_stmt)
+  {
+    field_list.push_back(item= new Item_return_int("r_rows", 10,
+                                                   MYSQL_TYPE_LONGLONG));
+    item->maybe_null=1;
+  }
+
+  if (lex->analyze_stmt || lex->describe & DESCRIBE_EXTENDED)
   {
     field_list.push_back(item= new Item_float("filtered", 0.1234, 2, 4));
     item->maybe_null=1;
   }
+
+  if (lex->analyze_stmt)
+  {
+    field_list.push_back(item= new Item_float("r_filtered", 0.1234, 2, 4));
+    item->maybe_null=1;
+  }
+
   item->maybe_null= 1;
   field_list.push_back(new Item_empty_string("Extra", 255, cs));
 }

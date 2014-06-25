@@ -1032,6 +1032,9 @@ int JOIN::optimize()
         subquery), returns 1
       - another JOIN::optimize() call made, and now join->optimize() will
         return 0, even though we never had a query plan.
+
+    Can have QEP_NOT_PRESENT_YET for degenerate queries (for example,
+    SELECT * FROM tbl LIMIT 0)
   */
   if (was_optimized != optimized && !res && have_query_plan != QEP_DELETED)
   {
@@ -1871,6 +1874,9 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
     }
   }
 
+  if ((select_lex->options & OPTION_SCHEMA_TABLE))
+    optimize_schema_tables_reads(this);
+
   tmp_having= having;
   if (select_options & SELECT_DESCRIBE)
   {
@@ -1917,6 +1923,7 @@ setup_subq_exit:
   error= 0;
 
 derived_exit:
+
   select_lex->mark_const_derived(zero_result_cause);
   DBUG_RETURN(0);
 }
@@ -2057,6 +2064,7 @@ int JOIN::init_execution()
                                     &join_tab[const_tables].table->
                                       keys_in_use_for_order_by))
 	  order=0;
+        join_tab[const_tables].update_explain_data(const_tables);
       }
     }
 
@@ -2351,6 +2359,20 @@ void JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     }
     save_explain_data_intern(thd->lex->explain, need_tmp_table, need_order,
                              distinct, message);
+    return;
+  }
+  
+  /*
+    Can have join_tab==NULL for degenerate cases (e.g. SELECT .. UNION ... SELECT LIMIT 0)
+  */
+  if (select_lex == select_lex->master_unit()->fake_select_lex && join_tab)
+  {
+    /* 
+      This is fake_select_lex. It has no query plan, but we need to set up a
+      tracker for ANALYZE 
+    */
+    Explain_union *eu= output->get_union(select_lex->master_unit()->first_select()->select_number);
+    join_tab[0].tracker= eu->get_fake_select_lex_tracker();
   }
 }
 
@@ -2367,10 +2389,12 @@ void JOIN::exec()
 
   if (!exec_saved_explain)
   {
+#if 0
     save_explain_data(thd->lex->explain, true /* can overwrite */,
                       need_tmp,
                       order != 0 && !skip_sort_order,
                       select_distinct);
+#endif    
     exec_saved_explain= true;
   }
 
@@ -2548,15 +2572,19 @@ void JOIN::exec_inner()
       simple_order= simple_group;
       skip_sort_order= 0;
     }
+    bool made_call= false;
     if (order && 
         (order != group_list || !(select_options & SELECT_BIG_RESULT)) &&
 	(const_tables == table_count ||
  	 ((simple_order || skip_sort_order) &&
-	  test_if_skip_sort_order(&join_tab[const_tables], order,
+	  (made_call=true) &&
+          test_if_skip_sort_order(&join_tab[const_tables], order,
 				  select_limit, 0, 
                                   &join_tab[const_tables].table->
                                     keys_in_use_for_query))))
       order=0;
+    if (made_call)
+      join_tab[const_tables].update_explain_data(const_tables);
     having= tmp_having;
     select_describe(this, need_tmp,
 		    order != 0 && !skip_sort_order,
@@ -8966,6 +8994,20 @@ JOIN::make_simple_join(JOIN *parent, TABLE *temp_table)
   join_tab->read_first_record= join_init_read_record;
   join_tab->join= this;
   join_tab->ref.key_parts= 0;
+  
+  uint select_nr= select_lex->select_number;
+  if (select_nr == INT_MAX) 
+  {
+    /* this is a fake_select_lex of a union */
+    select_nr= select_lex->master_unit()->first_select()->select_number;
+    join_tab->tracker= thd->lex->explain->get_union(select_nr)->
+                       get_tmptable_read_tracker();
+  }
+  else
+  {
+    join_tab->tracker= thd->lex->explain->get_select(select_nr)->
+                       get_using_temporary_read_tracker();
+  }
   bzero((char*) &join_tab->read_record,sizeof(join_tab->read_record));
   temp_table->status=0;
   temp_table->null_row=0;
@@ -17546,6 +17588,8 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
       (*join_tab->next_select)(join,join_tab+1,end_of_records);
     DBUG_RETURN(nls);
   }
+  join_tab->tracker->r_scans++;
+
   int error;
   enum_nested_loop_state rc= NESTED_LOOP_OK;
   READ_RECORD *info= &join_tab->read_record;
@@ -17681,6 +17725,8 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
     DBUG_RETURN(NESTED_LOOP_KILLED);            /* purecov: inspected */
   }
 
+  join_tab->tracker->r_rows++;
+
   if (join_tab->table->vfield)
     update_virtual_fields(join->thd, join_tab->table);
 
@@ -17699,6 +17745,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       There is no select condition or the attached pushed down
       condition is true => a match is found.
     */
+    join_tab->tracker->r_rows_after_where++;
     bool found= 1;
     while (join_tab->first_unmatched && found)
     {
@@ -20513,7 +20560,12 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
       test_if_skip_sort_order(tab,order,select_limit,0, 
                               is_order_by ?  &table->keys_in_use_for_order_by :
                               &table->keys_in_use_for_group_by))
+  {
+    tab->update_explain_data(join->const_tables);
     DBUG_RETURN(0);
+  }
+  tab->update_explain_data(join->const_tables);
+
   for (ORDER *ord= join->order; ord; ord= ord->next)
     length++;
   if (!(join->sortorder= 
@@ -22926,10 +22978,11 @@ void JOIN::clear()
 
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
+  TODO: is_analyze
 */
 
 int print_explain_message_line(select_result_sink *result, 
-                               uint8 options,
+                               uint8 options, bool is_analyze,
                                uint select_number,
                                const char *select_type,
                                ha_rows *rows,
@@ -22962,8 +23015,16 @@ int print_explain_message_line(select_result_sink *result,
   else
     item_list.push_back(item_null);
 
+  /* `r_rows` */
+  if (is_analyze)
+    item_list.push_back(item_null);
+
   /* `filtered` */
-  if (options & DESCRIBE_EXTENDED)
+  if (is_analyze || options & DESCRIBE_EXTENDED)
+    item_list.push_back(item_null);
+  
+  /* `r_filtered` */
+  if (is_analyze)
     item_list.push_back(item_null);
 
   /* `Extra` */
@@ -23014,7 +23075,7 @@ void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line)
 */
 
 int print_explain_row(select_result_sink *result,
-                      uint8 options,
+                      uint8 options, bool is_analyze,
                       uint select_number,
                       const char *select_type,
                       const char *table_name,
@@ -23025,6 +23086,8 @@ int print_explain_row(select_result_sink *result,
                       const char *key_len,
                       const char *ref,
                       ha_rows *rows,
+                      ha_rows *r_rows,
+                      double r_filtered,
                       const char *extra)
 {
   const CHARSET_INFO *cs= system_charset_info;
@@ -23076,11 +23139,19 @@ int print_explain_row(select_result_sink *result,
   }
   else
     item_list.push_back(item_null);
+  
+  /* 'r_rows' */
+  if (is_analyze)
+    item_list.push_back(item_null);
 
   /* 'filtered' */
   const double filtered=100.0;
-  if (options & DESCRIBE_EXTENDED)
+  if (options & DESCRIBE_EXTENDED || is_analyze)
     item_list.push_back(new Item_float(filtered, 2));
+  
+  /* 'r_filtered' */
+  if (is_analyze)
+    item_list.push_back(new Item_float(r_filtered, 2));
   
   /* 'Extra' */
   if (extra)
@@ -23211,6 +23282,418 @@ void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
   }
 }
 
+// TODO: this function is only applicable for the first non-const optimization
+// join tab. 
+void JOIN_TAB::update_explain_data(uint idx)
+{
+  if (this == first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS) + join->const_tables &&
+      join->select_lex->select_number != INT_MAX &&
+      join->select_lex->select_number != UINT_MAX)
+  {
+    Explain_table_access *eta= new Explain_table_access();
+    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
+    save_explain_data(eta, join->const_table_map, join->select_distinct, first_top_tab);
+
+    Explain_select *sel= join->thd->lex->explain->get_select(join->select_lex->select_number);
+    idx -= my_count_bits(join->eliminated_tables);
+    sel->replace_table(idx, eta);
+  }
+}
+
+
+void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tables, 
+                                 bool distinct, JOIN_TAB *first_top_tab)
+{
+  int quick_type;
+  const CHARSET_INFO *cs= system_charset_info;
+
+  JOIN_TAB *tab= this;
+  THD *thd=join->thd;
+
+  TABLE *table=tab->table;
+  TABLE_LIST *table_list= tab->table->pos_in_table_list;
+  char buff4[512];
+  my_bool key_read;
+  char table_name_buffer[SAFE_NAME_LEN];
+  String tmp4(buff4,sizeof(buff4),cs);
+  KEY *key_info= 0;
+  uint key_len= 0;
+  tmp4.length(0);
+  quick_type= -1;
+  QUICK_SELECT_I *quick= NULL;
+
+  eta->key.set(thd->mem_root, NULL, (uint)-1);
+  eta->quick_info= NULL;
+  
+  tab->tracker= &eta->tracker;
+  tab->jbuf_tracker= &eta->jbuf_tracker;
+  
+  /* id */
+  if (tab->bush_root_tab)
+  {
+    JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
+    eta->sjm_nest_select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
+  }
+  else
+    eta->sjm_nest_select_id= 0;
+
+  /* select_type is kept in Explain_select */
+
+  /* table */
+  if (table->derived_select_number)
+  {
+    /* Derived table name generation */
+    int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
+                         "<derived%u>",
+                         table->derived_select_number);
+    eta->table_name.copy(table_name_buffer, len, cs);
+  }
+  else if (tab->bush_children)
+  {
+    JOIN_TAB *ctab= tab->bush_children->start;
+    /* table */
+    int len= my_snprintf(table_name_buffer, 
+                         sizeof(table_name_buffer)-1,
+                         "<subquery%d>", 
+                         ctab->emb_sj_nest->sj_subq_pred->get_identifier());
+    eta->table_name.copy(table_name_buffer, len, cs);
+  }
+  else
+  {
+    TABLE_LIST *real_table= table->pos_in_table_list;
+    eta->table_name.copy(real_table->alias, strlen(real_table->alias), cs);
+  }
+
+  /* "partitions" column */
+  {
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    partition_info *part_info;
+    if (!table->derived_select_number && 
+        (part_info= table->part_info))
+    {          
+      make_used_partitions_str(part_info, &eta->used_partitions);
+      eta->used_partitions_set= true;
+    }
+    else
+      eta->used_partitions_set= false;
+#else
+    /* just produce empty column if partitioning is not compiled in */
+    eta->used_partitions_set= false;
+#endif
+  }
+
+  /* "type" column */
+  enum join_type tab_type= tab->type;
+  if ((tab->type == JT_ALL || tab->type == JT_HASH) &&
+       tab->select && tab->select->quick && tab->use_quick != 2)
+  {
+    quick= tab->select->quick;
+    quick_type= tab->select->quick->get_type();
+    if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
+        (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
+        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
+        (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
+      tab_type= tab->type == JT_ALL ? JT_INDEX_MERGE : JT_HASH_INDEX_MERGE;
+    else
+      tab_type= tab->type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
+  }
+  eta->type= tab_type;
+
+  /* Build "possible_keys" value */
+  append_possible_keys(&eta->possible_keys_str, table, tab->keys);
+
+  /* Build "key", "key_len", and "ref" */
+  if (tab_type == JT_NEXT)
+  {
+    key_info= table->key_info+tab->index;
+    key_len= key_info->key_length;
+  }
+  else if (tab->ref.key_parts)
+  {
+    key_info= tab->get_keyinfo_by_key_no(tab->ref.key);
+    key_len= tab->ref.key_length;
+  }
+  
+  /*
+    In STRAIGHT_JOIN queries, there can be join tabs with JT_CONST type
+    that still have quick selects.
+  */
+  if (tab->select && tab->select->quick && tab_type != JT_CONST)
+  {
+    eta->quick_info= tab->select->quick->get_explain(thd->mem_root);
+  }
+
+  if (key_info) /* 'index' or 'ref' access */
+  {
+    eta->key.set(thd->mem_root, key_info->name, key_len);
+
+    if (tab->ref.key_parts && tab_type != JT_FT)
+    {
+      store_key **ref=tab->ref.key_copy;
+      for (uint kp= 0; kp < tab->ref.key_parts; kp++)
+      {
+        if (tmp4.length())
+          tmp4.append(',');
+
+        if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
+          tmp4.append("const");
+        else
+        {
+          tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
+          ref++;
+        }
+      }
+    }
+  }
+
+  if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
+  {
+    eta->hash_next_key.set(thd->mem_root, 
+                           table->key_info[tab->index].name, 
+                           table->key_info[tab->index].key_length);
+  }
+
+  if (key_info)
+  {
+    if (key_info && tab_type != JT_NEXT)
+    {
+      eta->ref.copy(tmp4);
+      eta->ref_set= true;
+    }
+    else
+      eta->ref_set= false;
+  }
+  else
+  {
+    if (table_list && /* SJM bushes don't have table_list */
+        table_list->schema_table &&
+        table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
+    {
+      IS_table_read_plan *is_table_read_plan= table_list->is_table_read_plan;
+      const char *tmp_buff;
+      int f_idx;
+      StringBuffer<64> key_name_buf;
+      if (is_table_read_plan->has_db_lookup_value())
+      {
+        /* The "key" has the name of the column referring to the database */
+        f_idx= table_list->schema_table->idx_field1;
+        tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
+        key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
+      }          
+      if (is_table_read_plan->has_table_lookup_value())
+      {
+        if (is_table_read_plan->has_db_lookup_value())
+          key_name_buf.append(',');
+
+        f_idx= table_list->schema_table->idx_field2;
+        tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
+        key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
+      }
+
+      if (key_name_buf.length())
+        eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
+    }
+    eta->ref_set= false;
+  }
+  
+  /* "rows" */
+  if (table_list /* SJM bushes don't have table_list */ &&
+      table_list->schema_table)
+  {
+    /* I_S tables have rows=extra=NULL */
+    eta->rows_set= false;
+    eta->filtered_set= false;
+  }
+  else
+  {
+    double examined_rows= tab->get_examined_rows();
+
+    eta->rows_set= true;
+    eta->rows= (ha_rows) examined_rows;
+
+    /* "filtered"  */
+    float f= 0.0; 
+    if (examined_rows)
+    {
+      double pushdown_cond_selectivity= tab->cond_selectivity;	      
+      if (pushdown_cond_selectivity == 1.0)
+        f= (float) (100.0 * tab->records_read / examined_rows);
+      else
+        f= (float) (100.0 * pushdown_cond_selectivity);
+    }
+    set_if_smaller(f, 100.0);
+    eta->filtered_set= true;
+    eta->filtered= f;
+  }
+
+  /* Build "Extra" field and save it */
+  key_read=table->key_read;
+  if ((tab_type == JT_NEXT || tab_type == JT_CONST) &&
+      table->covering_keys.is_set(tab->index))
+    key_read=1;
+  if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT &&
+      !((QUICK_ROR_INTERSECT_SELECT*)quick)->need_to_fetch_row)
+    key_read=1;
+    
+  if (tab->info)
+  {
+    eta->push_extra(tab->info);
+  }
+  else if (tab->packed_info & TAB_INFO_HAVE_VALUE)
+  {
+    if (tab->packed_info & TAB_INFO_USING_INDEX)
+      eta->push_extra(ET_USING_INDEX);
+    if (tab->packed_info & TAB_INFO_USING_WHERE)
+      eta->push_extra(ET_USING_WHERE);
+    if (tab->packed_info & TAB_INFO_FULL_SCAN_ON_NULL)
+      eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
+  }
+  else
+  {
+    uint keyno= MAX_KEY;
+    if (tab->ref.key_parts)
+      keyno= tab->ref.key;
+    else if (tab->select && quick)
+      keyno = quick->index;
+
+    if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
+        table->file->pushed_idx_cond)
+      eta->push_extra(ET_USING_INDEX_CONDITION);
+    else if (tab->cache_idx_cond)
+      eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
+
+    if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
+        quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
+        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
+        quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
+    {
+      eta->push_extra(ET_USING);
+    }
+    if (tab->select)
+    {
+      if (tab->use_quick == 2)
+      {
+        eta->push_extra(ET_RANGE_CHECKED_FOR_EACH_RECORD);
+        eta->range_checked_map= tab->keys;
+      }
+      else if (tab->select->cond ||
+               (tab->cache_select && tab->cache_select->cond))
+      {
+        const COND *pushed_cond= tab->table->file->pushed_cond;
+
+        if (((thd->variables.optimizer_switch &
+             OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
+             (tab->table->file->ha_table_flags() &
+              HA_MUST_USE_TABLE_CONDITION_PUSHDOWN)) &&
+            pushed_cond)
+        {
+          eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
+          /*
+          psergey-todo: what to do? This was useful with NDB only.
+
+          if (explain_flags & DESCRIBE_EXTENDED)
+          {
+            extra.append(STRING_WITH_LEN(": "));
+            ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
+          }
+          */
+        }
+        else
+          eta->push_extra(ET_USING_WHERE);
+      }
+    }
+    if (table_list /* SJM bushes don't have table_list */ &&
+        table_list->schema_table &&
+        table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
+    {
+      if (!table_list->table_open_method)
+        eta->push_extra(ET_SKIP_OPEN_TABLE);
+      else if (table_list->table_open_method == OPEN_FRM_ONLY)
+        eta->push_extra(ET_OPEN_FRM_ONLY);
+      else
+        eta->push_extra(ET_OPEN_FULL_TABLE);
+      /* psergey-note: the following has a bug.*/
+      if (table_list->is_table_read_plan->has_db_lookup_value() &&
+          table_list->is_table_read_plan->has_table_lookup_value())
+        eta->push_extra(ET_SCANNED_0_DATABASES);
+      else if (table_list->is_table_read_plan->has_db_lookup_value() ||
+               table_list->is_table_read_plan->has_table_lookup_value())
+        eta->push_extra(ET_SCANNED_1_DATABASE);
+      else
+        eta->push_extra(ET_SCANNED_ALL_DATABASES);
+    }
+    if (key_read)
+    {
+      if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
+      {
+        QUICK_GROUP_MIN_MAX_SELECT *qgs= 
+          (QUICK_GROUP_MIN_MAX_SELECT *) tab->select->quick;
+        eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
+        eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
+      }
+      else
+        eta->push_extra(ET_USING_INDEX);
+    }
+    if (table->reginfo.not_exists_optimize)
+      eta->push_extra(ET_NOT_EXISTS);
+
+    if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
+    {
+      explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
+                              &eta->mrr_type);
+      if (eta->mrr_type.length() > 0)
+        eta->push_extra(ET_USING_MRR);
+    }
+
+    if (distinct & test_all_bits(prefix_tables, join->select_list_used_tables))
+      eta->push_extra(ET_DISTINCT);
+    if (tab->loosescan_match_tab)
+    {
+      eta->push_extra(ET_LOOSESCAN);
+    }
+
+    if (tab->first_weedout_table)
+      eta->push_extra(ET_START_TEMPORARY);
+    if (tab->check_weed_out_table)
+      eta->push_extra(ET_END_TEMPORARY);
+    else if (tab->do_firstmatch)
+    {
+      if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
+        eta->push_extra(ET_FIRST_MATCH);
+      else
+      {
+        eta->push_extra(ET_FIRST_MATCH);
+        TABLE *prev_table=tab->do_firstmatch->table;
+        if (prev_table->derived_select_number)
+        {
+          char namebuf[NAME_LEN];
+          /* Derived table name generation */
+          int len= my_snprintf(namebuf, sizeof(namebuf)-1,
+                               "<derived%u>",
+                               prev_table->derived_select_number);
+          eta->firstmatch_table_name.append(namebuf, len);
+        }
+        else
+          eta->firstmatch_table_name.append(prev_table->pos_in_table_list->alias);
+      }
+    }
+
+    for (uint part= 0; part < tab->ref.key_parts; part++)
+    {
+      if (tab->ref.cond_guards[part])
+      {
+        eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
+        break;
+      }
+    }
+
+    if (tab->cache)
+    {
+      eta->push_extra(ET_USING_JOIN_BUFFER);
+      tab->cache->save_explain_data(&eta->bka_type);
+    }
+  }
+}
 
 /*
   Save Query Plan Footprint
@@ -23225,9 +23708,6 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 {
   Explain_node *explain_node;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
-  THD *thd=join->thd;
-  const CHARSET_INFO *cs= system_charset_info;
-  int quick_type;
   int error= 0;
   DBUG_ENTER("JOIN::save_explain_data_intern");
   DBUG_PRINT("info", ("Select 0x%lx, type %s, message %s",
@@ -23268,27 +23748,9 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
          tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
-      uint select_id;
-      if (tab->bush_root_tab)
-      {
-        JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
-        select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-      }
-      else
-        select_id= join->select_lex->select_number;
       
-      TABLE *table=tab->table;
-      TABLE_LIST *table_list= tab->table->pos_in_table_list;
-      char buff4[512];
-      my_bool key_read;
-      char table_name_buffer[SAFE_NAME_LEN];
-      String tmp4(buff4,sizeof(buff4),cs);
-      KEY *key_info= 0;
-      uint key_len= 0;
-      tmp4.length(0);
-      quick_type= -1;
-      QUICK_SELECT_I *quick= NULL;
       JOIN_TAB *saved_join_tab= NULL;
+      TABLE *table=tab->table;
 
       /* Don't show eliminated tables */
       if (table->map & join->eliminated_tables)
@@ -23306,383 +23768,20 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
 
       Explain_table_access *eta= new (output->mem_root) Explain_table_access;
       xpl_sel->add_table(eta);
-      eta->key.set(thd->mem_root, NULL, (uint)-1);
-      eta->quick_info= NULL;
-      
-      /* id */
-      if (tab->bush_root_tab)
-        eta->sjm_nest_select_id= select_id;
-      else
-        eta->sjm_nest_select_id= 0;
 
-      /* select_type */
-      xpl_sel->select_type= join->select_lex->type;
+      tab->save_explain_data(eta, used_tables, distinct, first_top_tab);
 
-      /* table */
-      if (table->derived_select_number)
+      if (need_tmp_table)
       {
-	/* Derived table name generation */
-	int len= my_snprintf(table_name_buffer, sizeof(table_name_buffer)-1,
-			     "<derived%u>",
-			     table->derived_select_number);
-	eta->table_name.copy(table_name_buffer, len, cs);
+        need_tmp_table=0;
+        xpl_sel->using_temporary= true;
       }
-      else if (tab->bush_children)
+      if (need_order)
       {
-        JOIN_TAB *ctab= tab->bush_children->start;
-        /* table */
-        int len= my_snprintf(table_name_buffer, 
-                             sizeof(table_name_buffer)-1,
-                             "<subquery%d>", 
-                             ctab->emb_sj_nest->sj_subq_pred->get_identifier());
-	eta->table_name.copy(table_name_buffer, len, cs);
-      }
-      else
-      {
-        TABLE_LIST *real_table= table->pos_in_table_list;
-	eta->table_name.copy(real_table->alias, strlen(real_table->alias), cs);
+        need_order=0;
+        xpl_sel->using_filesort= true;
       }
 
-      /* "partitions" column */
-      {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-        partition_info *part_info;
-        if (!table->derived_select_number && 
-            (part_info= table->part_info))
-        {          
-          make_used_partitions_str(part_info, &eta->used_partitions);
-          eta->used_partitions_set= true;
-        }
-        else
-          eta->used_partitions_set= false;
-#else
-        /* just produce empty column if partitioning is not compiled in */
-        eta->used_partitions_set= false;
-#endif
-      }
-
-      /* "type" column */
-      enum join_type tab_type= tab->type;
-      if ((tab->type == JT_ALL || tab->type == JT_HASH) &&
-           tab->select && tab->select->quick && tab->use_quick != 2)
-      {
-        quick= tab->select->quick;
-        quick_type= tab->select->quick->get_type();
-        if ((quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE) ||
-            (quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT) ||
-            (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT) ||
-            (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION))
-          tab_type= tab->type == JT_ALL ? JT_INDEX_MERGE : JT_HASH_INDEX_MERGE;
-        else
-	  tab_type= tab->type == JT_ALL ? JT_RANGE : JT_HASH_RANGE;
-      }
-      eta->type= tab_type;
-
-      /* Build "possible_keys" value */
-      append_possible_keys(&eta->possible_keys_str, table, tab->keys);
-
-      /* Build "key", "key_len", and "ref" */
-      if (tab_type == JT_NEXT)
-      {
-	key_info= table->key_info+tab->index;
-        key_len= key_info->key_length;
-      }
-      else if (tab->ref.key_parts)
-      {
-	key_info= tab->get_keyinfo_by_key_no(tab->ref.key);
-        key_len= tab->ref.key_length;
-      }
-      
-      /*
-        In STRAIGHT_JOIN queries, there can be join tabs with JT_CONST type
-        that still have quick selects.
-      */
-      if (tab->select && tab->select->quick && tab_type != JT_CONST)
-      {
-        eta->quick_info= tab->select->quick->get_explain(thd->mem_root);
-      }
-
-      if (key_info) /* 'index' or 'ref' access */
-      {
-        eta->key.set(thd->mem_root, key_info->name, key_len);
-
-        if (tab->ref.key_parts && tab_type != JT_FT)
-	{
-          store_key **ref=tab->ref.key_copy;
-          for (uint kp= 0; kp < tab->ref.key_parts; kp++)
-	  {
-	    if (tmp4.length())
-	      tmp4.append(',');
-
-            if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
-              tmp4.append("const");
-            else
-            {
-              tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
-              ref++;
-            }
-          }
-        }
-      }
-  
-      if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
-      {
-        eta->hash_next_key.set(thd->mem_root, 
-                               table->key_info[tab->index].name, 
-                               table->key_info[tab->index].key_length);
-      }
-
-      if (key_info)
-      {
-        if (key_info && tab_type != JT_NEXT)
-        {
-          eta->ref.copy(tmp4);
-          eta->ref_set= true;
-        }
-        else
-          eta->ref_set= false;
-      }
-      else
-      {
-        if (table_list && /* SJM bushes don't have table_list */
-            table_list->schema_table &&
-            table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
-        {
-          const char *tmp_buff;
-          int f_idx;
-          StringBuffer<64> key_name_buf;
-          if (table_list->has_db_lookup_value)
-          {
-            /* The "key" has the name of the column referring to the database */
-            f_idx= table_list->schema_table->idx_field1;
-            tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
-          }          
-          if (table_list->has_table_lookup_value)
-          {
-            if (table_list->has_db_lookup_value)
-              key_name_buf.append(',');
-
-            f_idx= table_list->schema_table->idx_field2;
-            tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
-            key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
-          }
-
-          if (key_name_buf.length())
-            eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
-        }
-	eta->ref_set= false;
-      }
-      
-      /* "rows" */
-      if (table_list /* SJM bushes don't have table_list */ &&
-          table_list->schema_table)
-      {
-        /* I_S tables have rows=extra=NULL */
-        eta->rows_set= false;
-        eta->filtered_set= false;
-      }
-      else
-      {
-        double examined_rows= tab->get_examined_rows();
-
-        eta->rows_set= true;
-        eta->rows= (ha_rows) examined_rows;
-
-        /* "filtered"  */
-        float f= 0.0; 
-        if (examined_rows)
-        {
-          double pushdown_cond_selectivity= tab->cond_selectivity;	      
-          if (pushdown_cond_selectivity == 1.0)
-            f= (float) (100.0 * tab->records_read / examined_rows);
-          else
-            f= (float) (100.0 * pushdown_cond_selectivity);
-        }
-        set_if_smaller(f, 100.0);
-        eta->filtered_set= true;
-        eta->filtered= f;
-      }
-
-      /* Build "Extra" field and save it */
-      key_read=table->key_read;
-      if ((tab_type == JT_NEXT || tab_type == JT_CONST) &&
-          table->covering_keys.is_set(tab->index))
-	key_read=1;
-      if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT &&
-          !((QUICK_ROR_INTERSECT_SELECT*)quick)->need_to_fetch_row)
-        key_read=1;
-        
-      if (tab->info)
-      {
-        eta->push_extra(tab->info);
-      }
-      else if (tab->packed_info & TAB_INFO_HAVE_VALUE)
-      {
-        if (tab->packed_info & TAB_INFO_USING_INDEX)
-          eta->push_extra(ET_USING_INDEX);
-        if (tab->packed_info & TAB_INFO_USING_WHERE)
-          eta->push_extra(ET_USING_WHERE);
-        if (tab->packed_info & TAB_INFO_FULL_SCAN_ON_NULL)
-          eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
-      }
-      else
-      {
-        uint keyno= MAX_KEY;
-        if (tab->ref.key_parts)
-          keyno= tab->ref.key;
-        else if (tab->select && quick)
-          keyno = quick->index;
-
-        if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
-            table->file->pushed_idx_cond)
-          eta->push_extra(ET_USING_INDEX_CONDITION);
-        else if (tab->cache_idx_cond)
-          eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
-
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_ROR_UNION || 
-            quick_type == QUICK_SELECT_I::QS_TYPE_ROR_INTERSECT ||
-            quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_INTERSECT ||
-            quick_type == QUICK_SELECT_I::QS_TYPE_INDEX_MERGE)
-        {
-          eta->push_extra(ET_USING);
-        }
-	if (tab->select)
-	{
-	  if (tab->use_quick == 2)
-	  {
-            eta->push_extra(ET_RANGE_CHECKED_FOR_EACH_RECORD);
-            eta->range_checked_map= tab->keys;
-	  }
-	  else if (tab->select->cond ||
-                   (tab->cache_select && tab->cache_select->cond))
-          {
-            const COND *pushed_cond= tab->table->file->pushed_cond;
-
-            if (((thd->variables.optimizer_switch &
-                 OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-                 (tab->table->file->ha_table_flags() &
-                  HA_MUST_USE_TABLE_CONDITION_PUSHDOWN)) &&
-                pushed_cond)
-            {
-              eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
-              /*
-              psergey-todo: what to do? This was useful with NDB only.
-
-              if (explain_flags & DESCRIBE_EXTENDED)
-              {
-                extra.append(STRING_WITH_LEN(": "));
-                ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
-              }
-              */
-            }
-            else
-              eta->push_extra(ET_USING_WHERE);
-          }
-	}
-        if (table_list /* SJM bushes don't have table_list */ &&
-            table_list->schema_table &&
-            table_list->schema_table->i_s_requested_object & OPTIMIZE_I_S_TABLE)
-        {
-          if (!table_list->table_open_method)
-            eta->push_extra(ET_SKIP_OPEN_TABLE);
-          else if (table_list->table_open_method == OPEN_FRM_ONLY)
-            eta->push_extra(ET_OPEN_FRM_ONLY);
-          else
-            eta->push_extra(ET_OPEN_FULL_TABLE);
-          /* psergey-note: the following has a bug.*/
-          if (table_list->has_db_lookup_value &&
-              table_list->has_table_lookup_value)
-            eta->push_extra(ET_SCANNED_0_DATABASES);
-          else if (table_list->has_db_lookup_value ||
-                   table_list->has_table_lookup_value)
-            eta->push_extra(ET_SCANNED_1_DATABASE);
-          else
-            eta->push_extra(ET_SCANNED_ALL_DATABASES);
-        }
-	if (key_read)
-        {
-          if (quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX)
-          {
-            QUICK_GROUP_MIN_MAX_SELECT *qgs= 
-              (QUICK_GROUP_MIN_MAX_SELECT *) tab->select->quick;
-            eta->push_extra(ET_USING_INDEX_FOR_GROUP_BY);
-            eta->loose_scan_is_scanning= qgs->loose_scan_is_scanning();
-          }
-          else
-            eta->push_extra(ET_USING_INDEX);
-        }
-	if (table->reginfo.not_exists_optimize)
-          eta->push_extra(ET_NOT_EXISTS);
-
-        if (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE)
-        {
-          explain_append_mrr_info((QUICK_RANGE_SELECT*)(tab->select->quick),
-                                  &eta->mrr_type);
-          if (eta->mrr_type.length() > 0)
-            eta->push_extra(ET_USING_MRR);
-        }
-
-	if (need_tmp_table)
-	{
-	  need_tmp_table=0;
-          xpl_sel->using_temporary= true;
-	}
-	if (need_order)
-	{
-	  need_order=0;
-          xpl_sel->using_filesort= true;
-	}
-	if (distinct & test_all_bits(used_tables,
-                                     join->select_list_used_tables))
-          eta->push_extra(ET_DISTINCT);
-        if (tab->loosescan_match_tab)
-        {
-          eta->push_extra(ET_LOOSESCAN);
-        }
-
-        if (tab->first_weedout_table)
-          eta->push_extra(ET_START_TEMPORARY);
-        if (tab->check_weed_out_table)
-          eta->push_extra(ET_END_TEMPORARY);
-        else if (tab->do_firstmatch)
-        {
-          if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
-            eta->push_extra(ET_FIRST_MATCH);
-          else
-          {
-            eta->push_extra(ET_FIRST_MATCH);
-            TABLE *prev_table=tab->do_firstmatch->table;
-            if (prev_table->derived_select_number)
-            {
-              char namebuf[NAME_LEN];
-              /* Derived table name generation */
-              int len= my_snprintf(namebuf, sizeof(namebuf)-1,
-                                   "<derived%u>",
-                                   prev_table->derived_select_number);
-              eta->firstmatch_table_name.append(namebuf, len);
-            }
-            else
-              eta->firstmatch_table_name.append(prev_table->pos_in_table_list->alias);
-          }
-        }
-
-        for (uint part= 0; part < tab->ref.key_parts; part++)
-        {
-          if (tab->ref.cond_guards[part])
-          {
-            eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
-            break;
-          }
-        }
-
-        if (tab->cache)
-	{
-          eta->push_extra(ET_USING_JOIN_BUFFER);
-          tab->cache->save_explain_data(&eta->bka_type);
-        }
-      }
-      
       if (saved_join_tab)
         tab= saved_join_tab;
 

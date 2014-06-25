@@ -223,6 +223,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   killed_state killed_status= NOT_KILLED;
   THD::enum_binlog_query_type query_type= THD::ROW_QUERY_TYPE;
   bool with_select= !select_lex->item_list.is_empty();
+  Explain_delete *explain;
   Delete_plan query_plan(thd->mem_root);
   query_plan.index= MAX_KEY;
   query_plan.using_filesort= FALSE;
@@ -538,9 +539,11 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       goto cleanup;
   }
 
+  explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
   {
+    explain->on_record_read();
     if (table->vfield)
       update_virtual_fields(thd, table,
                             table->triggers ? VCOL_UPDATE_ALL :
@@ -549,6 +552,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     // thd->is_error() is tested to disallow delete row on error
     if (!select || select->skip_record(thd) > 0)
     {
+      explain->on_record_after_where();
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
@@ -666,6 +670,11 @@ cleanup:
   }
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction.stmt.modified_non_trans_table);
   free_underlaid_joins(thd, select_lex);
+  if (thd->lex->analyze_stmt)
+  {
+    error= thd->lex->explain->send_explain(thd);
+  }
+  else
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
