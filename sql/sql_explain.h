@@ -19,19 +19,30 @@ class Table_access_tracker
 {
 public:
   Table_access_tracker() :
-    r_scans(0), r_rows(0), r_rows_after_table_cond(0),
+    r_scans(0), r_rows(0), /*r_rows_after_table_cond(0),*/
     r_rows_after_where(0)
   {}
 
   ha_rows r_scans; /* How many scans were ran on this join_tab */
   ha_rows r_rows; /* How many rows we've got after that */
-  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
+//  ha_rows r_rows_after_table_cond; /* Rows after applying the table condition */
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
   bool has_scans() { return (r_scans != 0); }
   ha_rows get_avg_rows()
   {
     return r_scans ? (ha_rows)rint((double) r_rows / r_scans): 0;
+  }
+
+  double get_filtered_after_where()
+  {
+    double r_filtered;
+    if (r_rows > 0)
+      r_filtered= (double)r_rows_after_where / r_rows;
+    else
+      r_filtered= 1.0;
+
+    return r_filtered;
   }
 };
 
@@ -371,13 +382,17 @@ enum explain_extra_tag
 };
 
 
-typedef struct st_explain_bka_type
+class EXPLAIN_BKA_TYPE
 {
+public:
+  EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
+
   bool incremental;
   const char *join_alg;
   StringBuffer<64> mrr_type;
-
-} EXPLAIN_BKA_TYPE;
+  
+  bool is_using_jbuf() { return (join_alg != NULL); }
+};
 
 
 /*
@@ -517,6 +532,7 @@ public:
 
   /* ANALYZE members*/
   Table_access_tracker tracker;
+  Table_access_tracker jbuf_tracker;
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);

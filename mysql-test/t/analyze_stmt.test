@@ -61,5 +61,30 @@ analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1;
 --echo # Try a subquery that is never executed
 analyze select a, a in (select t0.b from t0 where t0.b+1=t1.b+1) from t1 where t1.a > 5;
 
+drop table t0, t1;
+
+--echo #
+--echo # Tests for join buffering
+--echo #
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+create table t1 like t0;
+insert into t1 select * from t0;
+
+explain select * from t0, t1 where t0.a<5 and t1.a<5;
+--echo # These should have filtered=50
+analyze select * from t0, t1 where t0.a<5 and t1.a<5;
+
+explain select * from t0, t1 where t0.a<5 and t1.b=t0.b;
+--echo # Now, t1 should have filtered=10
+analyze select * from t0, t1 where t0.a<5 and t1.b=t0.b;
+
+explain select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
+--echo # Now, t1 should have filtered=10
+analyze select * from t0, t1 where t0.a<5 and t1.a<5 and t1.b=t0.b;
+
 drop table t0,t1;
+
+--echo # TODO: Check what is counted for "range checked for each record".
 

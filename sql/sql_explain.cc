@@ -585,12 +585,10 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     }
     else
     {
-      double r_filtered;
-      if (tracker.r_rows > 0)
-        r_filtered= 100.0 * (double)tracker.r_rows_after_table_cond / tracker.r_rows;
-      else
-        r_filtered= 100.0;
-      item_list.push_back(new Item_float(r_filtered, 2));
+      double r_filtered= tracker.get_filtered_after_where();
+      if (bka_type.is_using_jbuf())
+        r_filtered *= jbuf_tracker.get_filtered_after_where();
+      item_list.push_back(new Item_float(r_filtered*100.0, 2));
     }
   }
 

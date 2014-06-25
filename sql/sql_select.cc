@@ -17731,7 +17731,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
       There is no select condition or the attached pushed down
       condition is true => a match is found.
     */
-    join_tab->tracker->r_rows_after_table_cond++;
+    join_tab->tracker->r_rows_after_where++;
     bool found= 1;
     while (join_tab->first_unmatched && found)
     {
@@ -23308,6 +23308,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   eta->quick_info= NULL;
   
   tab->tracker= &eta->tracker;
+  tab->jbuf_tracker= &eta->jbuf_tracker;
   
   /* id */
   if (tab->bush_root_tab)
