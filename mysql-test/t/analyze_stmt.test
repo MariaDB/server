@@ -107,3 +107,23 @@ analyze select * from t1,t2 where t2.key2x=t1.a and mod(t2.col1,4)=0;
 
 drop table t0,t1,t2;
 
+--echo #
+--echo # Check non-merged derived tables
+--echo #
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+update t0 set b=b/3;
+analyze select * from (select count(*),max(a),b from t0 group by b) T;
+drop table t0;
+
+--echo #
+--echo # Check ORDER/GROUP BY
+--echo #
+create table t0 (a int, b int);
+insert into t0 values
+  (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+
+analyze select count(*),max(a),b from t0 where a<7 group by b;
+drop table t0;

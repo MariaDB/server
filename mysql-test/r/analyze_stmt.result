@@ -147,3 +147,25 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10	100.00	100.00	Using where
 1	SIMPLE	t2	ref	key2x	key2x	5	test.t1.a	1	0	100.00	40.00	Using where
 drop table t0,t1,t2;
+#
+# Check non-merged derived tables
+#
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+update t0 set b=b/3;
+analyze select * from (select count(*),max(a),b from t0 group by b) T;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	10	4	100.00	100.00	
+2	DERIVED	t0	ALL	NULL	NULL	NULL	NULL	10	10	100.00	100.00	Using temporary; Using filesort
+drop table t0;
+#
+# Check ORDER/GROUP BY
+#
+create table t0 (a int, b int);
+insert into t0 values
+(0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
+analyze select count(*),max(a),b from t0 where a<7 group by b;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10	100.00	70.00	Using where; Using temporary; Using filesort
+drop table t0;
