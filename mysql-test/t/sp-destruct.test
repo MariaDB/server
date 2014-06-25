@@ -214,7 +214,6 @@ RENAME TABLE mysql.procs_priv TO procs_priv_backup;
 FLUSH TABLE mysql.procs_priv;
 
 # DROP FUNCTION used to cause an assert.
---error ER_NO_SUCH_TABLE
 DROP FUNCTION f1;
 SHOW WARNINGS;
 

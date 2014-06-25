@@ -4847,7 +4847,7 @@ int create_table_impl(THD *thd,
       THD::temporary_tables list.
     */
 
-    TABLE *table= open_table_uncached(thd, create_info->db_type, path,
+    TABLE *table= open_table_uncached(thd, create_info->db_type, frm, path,
                                       db, table_name, true, true);
 
     if (!table)
@@ -8691,7 +8691,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     // We assume that the table is non-temporary.
     DBUG_ASSERT(!table->s->tmp_table);
 
-    if (!(altered_table= open_table_uncached(thd, new_db_type,
+    if (!(altered_table= open_table_uncached(thd, new_db_type, &frm,
                                              alter_ctx.get_tmp_path(),
                                              alter_ctx.new_db,
                                              alter_ctx.tmp_name,
@@ -8845,7 +8845,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
 
   if (create_info->tmp_table())
   {
-    if (!open_table_uncached(thd, new_db_type,
+    if (!open_table_uncached(thd, new_db_type, &frm,
                              alter_ctx.get_tmp_path(),
                              alter_ctx.new_db, alter_ctx.tmp_name,
                              true, true))
@@ -8867,7 +8867,8 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   {
     /* table is a normal table: Create temporary table in same directory */
     /* Open our intermediate table. */
-    new_table= open_table_uncached(thd, new_db_type, alter_ctx.get_tmp_path(),
+    new_table= open_table_uncached(thd, new_db_type, &frm,
+                                   alter_ctx.get_tmp_path(),
                                    alter_ctx.new_db, alter_ctx.tmp_name,
                                    true, true);
   }
@@ -9073,24 +9074,6 @@ end_inplace:
   if (write_bin_log(thd, true, thd->query(), thd->query_length()))
     DBUG_RETURN(true);
 
-  if (ha_check_storage_engine_flag(old_db_type, HTON_FLUSH_AFTER_RENAME))
-  {
-    /*
-      For the alter table to be properly flushed to the logs, we
-      have to open the new table.  If not, we get a problem on server
-      shutdown. But we do not need to attach MERGE children.
-    */
-    TABLE *t_table;
-    t_table= open_table_uncached(thd, new_db_type, alter_ctx.get_new_path(),
-                                 alter_ctx.new_db, alter_ctx.new_name,
-                                 false, true);
-    if (t_table)
-      intern_close_table(t_table);
-    else
-      sql_print_warning("Could not open table %s.%s after rename\n",
-                        alter_ctx.new_db, alter_ctx.table_name);
-    ha_flush_logs(old_db_type);
-  }
   table_list->table= NULL;			// For query cache
   query_cache_invalidate3(thd, table_list, false);
 

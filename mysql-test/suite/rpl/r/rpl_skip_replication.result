@@ -8,22 +8,22 @@ ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) fo
 DROP USER'nonsuperuser'@'127.0.0.1';
 SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
-replicate
+REPLICATE
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_SLAVE;
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
-replicate
+REPLICATE
 STOP SLAVE;
 SET SESSION replicate_events_marked_for_skip=FILTER_ON_MASTER;
 ERROR HY000: Variable 'replicate_events_marked_for_skip' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
-replicate
+REPLICATE
 SET GLOBAL replicate_events_marked_for_skip=FILTER_ON_MASTER;
 SELECT @@global.replicate_events_marked_for_skip;
 @@global.replicate_events_marked_for_skip
-filter_on_master
+FILTER_ON_MASTER
 START SLAVE;
 SELECT @@skip_replication;
 @@skip_replication

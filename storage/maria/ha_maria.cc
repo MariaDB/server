@@ -217,9 +217,7 @@ static MYSQL_SYSVAR_ULONG(group_commit_interval, maria_group_commit_interval,
 
 static MYSQL_SYSVAR_ENUM(log_purge_type, log_purge_type,
        PLUGIN_VAR_RQCMDARG,
-       "Specifies how Aria transactional log will be purged. "
-       "Possible values of name are \"immediate\", \"external\" "
-       "and \"at_flush\"",
+       "Specifies how Aria transactional log will be purged",
        NULL, NULL, TRANSLOG_PURGE_IMMIDIATE,
        &maria_translog_purge_type_typelib);
 
@@ -251,9 +249,7 @@ static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
        100,  1, 100, 1);
 
 static MYSQL_SYSVAR_SET(recover, maria_recover_options, PLUGIN_VAR_OPCMDARG,
-       "Specifies how corrupted tables should be automatically repaired."
-       " Possible values are one or more of \"NORMAL\" (the default), "
-       "\"BACKUP\", \"FORCE\", or \"QUICK\".",
+       "Specifies how corrupted tables should be automatically repaired",
        NULL, NULL, HA_RECOVER_DEFAULT, &maria_recover_typelib);
 
 static MYSQL_THDVAR_ULONG(repair_threads, PLUGIN_VAR_RQCMDARG,
@@ -268,13 +264,11 @@ static MYSQL_THDVAR_ULONGLONG(sort_buffer_size, PLUGIN_VAR_RQCMDARG,
 
 static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
        "Specifies how Aria index statistics collection code should treat "
-       "NULLs. Possible values are \"nulls_unequal\", \"nulls_equal\", "
-       "and \"nulls_ignored\".", 0, 0, 0, &maria_stats_method_typelib);
+       "NULLs", 0, 0, 0, &maria_stats_method_typelib);
 
 static MYSQL_SYSVAR_ENUM(sync_log_dir, sync_log_dir, PLUGIN_VAR_RQCMDARG,
        "Controls syncing directory after log file growth and new file "
-       "creation. Possible values are \"never\", \"newfile\" and "
-       "\"always\").", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
+       "creation", NULL, NULL, TRANSLOG_SYNC_DIR_NEWFILE,
        &maria_sync_log_dir_typelib);
 
 #ifdef USE_ARIA_FOR_TMP_TABLES

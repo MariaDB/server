@@ -3597,7 +3597,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     options[0].typelib= options[1].typelib= &global_plugin_typelib;
 
     strxnmov(comment, max_comment_len, "Enable or disable ", plugin_name,
-            " plugin. Possible values are ON, OFF, FORCE (don't start "
+            " plugin. One of: ON, OFF, FORCE (don't start "
             "if the plugin fails to load).", NullS);
     options[0].comment= comment;
     /*

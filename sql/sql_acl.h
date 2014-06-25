@@ -197,8 +197,8 @@ static inline int access_denied_error_code(int passwd_used)
 /* prototypes */
 
 bool hostname_requires_resolving(const char *hostname);
-my_bool  acl_init(bool dont_read_acl_tables);
-my_bool acl_reload(THD *thd);
+bool  acl_init(bool dont_read_acl_tables);
+bool acl_reload(THD *thd);
 void acl_free(bool end=0);
 ulong acl_get(const char *host, const char *ip,
               const char *user, const char *db, my_bool db_is_pattern);
@@ -220,9 +220,9 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table, List <LEX_USER> &user_list,
 bool mysql_routine_grant(THD *thd, TABLE_LIST *table, bool is_proc,
                          List <LEX_USER> &user_list, ulong rights,
                          bool revoke, bool write_to_binlog);
-my_bool grant_init();
+bool grant_init();
 void grant_free(void);
-my_bool grant_reload(THD *thd);
+bool grant_reload(THD *thd);
 bool check_grant(THD *thd, ulong want_access, TABLE_LIST *tables,
                  bool any_combination_will_do, uint number, bool no_errors);
 bool check_grant_column (THD *thd, GRANT_INFO *grant,

@@ -1,17 +1,17 @@
 SET @start_value = @@GLOBAL.innodb_foreground_preflush;
 SELECT @@GLOBAL.innodb_foreground_preflush;
 @@GLOBAL.innodb_foreground_preflush
-exponential_backoff
+EXPONENTIAL_BACKOFF
 SELECT @@SESSION.innodb_foreground_preflush;
 ERROR HY000: Variable 'innodb_foreground_preflush' is a GLOBAL variable
 SET GLOBAL innodb_foreground_preflush='sync_preflush';
 SELECT @@GLOBAL.innodb_foreground_preflush;
 @@GLOBAL.innodb_foreground_preflush
-sync_preflush
+SYNC_PREFLUSH
 SET GLOBAL innodb_foreground_preflush='exponential_backoff';
 SELECT @@GLOBAL.innodb_foreground_preflush;
 @@GLOBAL.innodb_foreground_preflush
-exponential_backoff
+EXPONENTIAL_BACKOFF
 SET GLOBAL innodb_foreground_preflush=1.1;
 ERROR 42000: Incorrect argument type to variable 'innodb_foreground_preflush'
 SET GLOBAL innodb_foreground_preflush=1e1;

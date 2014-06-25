@@ -39,8 +39,7 @@ The following options may be given as the first argument:
  increase this to get more performance
  --binlog-checksum=name 
  Type of BINLOG_CHECKSUM_ALG. Include checksum for log
- events in the binary log. Possible values are NONE and
- CRC32; default is NONE.
+ events in the binary log. One of: NONE, CRC32
  --binlog-commit-wait-count=# 
  If non-zero, binlog write will wait at most
  binlog_commit_wait_usec microseconds for at least this
@@ -71,10 +70,7 @@ The following options may be given as the first argument:
  statements where only row-based is correct: those which
  involve user-defined functions (i.e. UDFs) or the UUID()
  function; for those, row-based binary logging is
- automatically used. If NDBCLUSTER is enabled and
- binlog-format is MIXED, the format switches to row-based
- and back implicitly per each query accessing an
- NDBCLUSTER table
+ automatically used.
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log.
@@ -114,11 +110,11 @@ The following options may be given as the first argument:
  --collation-server=name 
  Set the default collation.
  --completion-type=name 
- The transaction completion type, one of NO_CHAIN, CHAIN,
+ The transaction completion type. One of: NO_CHAIN, CHAIN,
  RELEASE
  --concurrent-insert[=name] 
- Use concurrent insert with MyISAM. Possible values are
- NEVER, AUTO, ALWAYS
+ Use concurrent insert with MyISAM. One of: NEVER, AUTO, 
+ ALWAYS
  --console           Write error output on screen; don't remove the console
  window on windows.
  --core-file         Write core on errors.
@@ -137,9 +133,8 @@ The following options may be given as the first argument:
  Short timeout for the two-step deadlock detection (in
  microseconds)
  --default-regex-flags=name 
- Default flags for the regex library. Syntax:
- default-regex-flags='[flag[,flag[,flag...]]]'. See the
- manual for the complete list of valid flags
+ Default flags for the regex library. Any combination of: 
+ DOTALL, DUPNAMES, EXTENDED, EXTRA, MULTILINE, UNGREEDY
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
@@ -150,7 +145,7 @@ The following options may be given as the first argument:
  --default-week-format=# 
  The default week format used by WEEK() functions
  --delay-key-write[=name] 
- Type of DELAY_KEY_WRITE
+ Type of DELAY_KEY_WRITE. One of: OFF, ON, ALL
  --delayed-insert-limit=# 
  After inserting delayed_insert_limit rows, the INSERT
  DELAYED handler will check if there are any SELECT
@@ -252,7 +247,7 @@ The following options may be given as the first argument:
  (unless the user has SUPER privilege)
  --init-file=name    Read SQL commands from this file at startup
  --init-rpl-role=name 
- Set the replication role.
+ Set the replication role. One of: MASTER, SLAVE
  --init-slave=name   Command(s) that are executed by a slave server each time
  the SQL thread starts
  --interactive-timeout=# 
@@ -329,8 +324,8 @@ The following options may be given as the first argument:
  not specified then 'datadir'/'log-basename'.err or the
  'pid-file' path with extension .err is used
  --log-isam[=name]   Log all MyISAM changes to file.
- --log-output=name   Syntax: log-output=value[,value...], where "value" could
- be TABLE, FILE or NONE
+ --log-output=name   How logs should be written. Any combination of: NONE, 
+ FILE, TABLE
  --log-queries-not-using-indexes 
  Log queries that are executed without benefit of any
  index to the slow log if it is open
@@ -343,10 +338,9 @@ The following options may be given as the first argument:
  Log slow OPTIMIZE, ANALYZE, ALTER and other
  administrative statements to the slow log if it is open.
  --log-slow-filter=name 
- Log only certain types of queries. Multiple flags can be
- specified, separated by commas. Valid values are admin,
- slave, filesort, filesort_on_disk, full_join, full_scan,
- query_cache, query_cache_miss, tmp_table,
+ Log only certain types of queries. Any combination of: 
+ admin, filesort, filesort_on_disk, full_join, full_scan, 
+ query_cache, query_cache_miss, tmp_table, 
  tmp_table_on_disk
  --log-slow-rate-limit=# 
  Write to slow log every #th slow query. Set to 1 to log
@@ -356,8 +350,8 @@ The following options may be given as the first argument:
  Log slow statements executed by slave thread to the slow
  log if it is open.
  --log-slow-verbosity=name 
- log-slow-verbosity=[value[,value ...]] where value is one
- of 'innodb', 'query_plan', 'explain' 
+ Verbosity level for the slow log. Any combination of: 
+ innodb, query_plan, explain
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled).
@@ -458,9 +452,9 @@ The following options may be given as the first argument:
  Restricts the total memory used for memory mapping of
  MySQL tables
  --myisam-recover-options[=name] 
- Syntax: myisam-recover-options[=option[,option...]],
- where option can be DEFAULT, BACKUP, BACKUP_ALL, FORCE,
- QUICK, or OFF
+ Specifies how corrupted tables should be automatically
+ repaired. Any combination of: DEFAULT, BACKUP, FORCE, 
+ QUICK, BACKUP_ALL, OFF
  --myisam-repair-threads=# 
  If larger than 1, when repairing a MyISAM table all
  indexes will be created in parallel, with one thread per
@@ -489,8 +483,9 @@ The following options may be given as the first argument:
  See also --old-mode
  --old-alter-table   Use old, non-optimized alter table
  --old-mode=name     Used to emulate old behavior from earlier MariaDB or
- MySQL versions. Syntax: old_mode=mode[,mode[,mode...]].
- See the manual for the complete list of valid old modes
+ MySQL versions. Any combination of: 
+ NO_DUP_KEY_WARNINGS_WITH_IGNORE, NO_PROGRESS_INFO, 
+ ZERO_DATE_TIME_CAST
  --old-passwords     Use old password encryption method (needed for 4.0 and
  older clients)
  --old-style-user-limits 
@@ -524,19 +519,20 @@ The following options may be given as the first argument:
  Controls number of record samples to check condition
  selectivity
  --optimizer-switch=name 
- optimizer_switch=option=val[,option=val...], where option
- is one of {derived_merge, derived_with_keys, firstmatch,
- in_to_exists, engine_condition_pushdown,
- index_condition_pushdown, index_merge,
- index_merge_intersection, index_merge_sort_intersection,
- index_merge_sort_union, index_merge_union,
- join_cache_bka, join_cache_hashed,
- join_cache_incremental, loosescan, materialization, mrr,
- mrr_cost_based, mrr_sort_keys, optimize_join_buffer_size,
- outer_join_with_cache, partial_match_rowid_merge,
- partial_match_table_scan, semijoin, semijoin_with_cache,
- subquery_cache, table_elimination, extended_keys,
- exists_to_in } and val is one of {on, off, default}
+ Fine-tune the optimizer behavior. Takes a comma-separated
+ list of option=value pairs, where value is on, off, or
+ default, and options are: index_merge, index_merge_union,
+ index_merge_sort_union, index_merge_intersection, 
+ index_merge_sort_intersection, engine_condition_pushdown,
+ index_condition_pushdown, derived_merge, 
+ derived_with_keys, firstmatch, loosescan, materialization,
+ in_to_exists, semijoin, partial_match_rowid_merge, 
+ partial_match_table_scan, subquery_cache, mrr, 
+ mrr_cost_based, mrr_sort_keys, outer_join_with_cache, 
+ semijoin_with_cache, join_cache_incremental, 
+ join_cache_hashed, join_cache_bka, 
+ optimize_join_buffer_size, table_elimination, 
+ extended_keys, exists_to_in
  --optimizer-use-condition-selectivity=# 
  Controls selectivity of which conditions the optimizer
  takes into account to calculate cardinality of a partial
@@ -689,9 +685,9 @@ The following options may be given as the first argument:
  in an incremental way. It can be specified many times,
  adding more plugins every time.
  --plugin-maturity=name 
- The lowest desirable plugin maturity (unknown,
- experimental, alpha, beta, gamma, or stable). Plugins
- less mature than that will not be installed or loaded.
+ The lowest desirable plugin maturity. Plugins less mature
+ than that will not be installed or loaded. One of: 
+ unknown, experimental, alpha, beta, gamma, stable
  -P, --port=#        Port number to use for connection or 0 to default to,
  my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default
  (3306), whatever comes first
@@ -934,11 +930,10 @@ The following options may be given as the first argument:
  transaction in case it failed with a deadlock or elapsed
  lock wait timeout, before giving up and stopping
  --slave-type-conversions=name 
- Set of slave type conversions that are enabled. Legal
- values are: ALL_LOSSY to enable lossy conversions and
- ALL_NON_LOSSY to enable non-lossy conversions. If the
- variable is assigned the empty set, no conversions are
- allowed and it is expected that the types match exactly.
+ Set of slave type conversions that are enabled. If the
+ variable is empty, no conversions are allowed and it is
+ expected that the types match exactly. Any combination
+ of: ALL_LOSSY, ALL_NON_LOSSY
  --slow-launch-time=# 
  If creating the thread takes longer than this value (in
  seconds), the Slow_launch_threads counter will be
@@ -955,8 +950,18 @@ The following options may be given as the first argument:
  --sort-buffer-size=# 
  Each thread that needs to do a sort allocates a buffer of
  this size
- --sql-mode=name     Syntax: sql-mode=mode[,mode[,mode...]]. See the manual
- for the complete list of valid sql modes
+ --sql-mode=name     Sets the sql mode. Any combination of: REAL_AS_FLOAT, 
+ PIPES_AS_CONCAT, ANSI_QUOTES, IGNORE_SPACE, 
+ IGNORE_BAD_TABLE_OPTIONS, ONLY_FULL_GROUP_BY, 
+ NO_UNSIGNED_SUBTRACTION, NO_DIR_IN_CREATE, POSTGRESQL, 
+ ORACLE, MSSQL, DB2, MAXDB, NO_KEY_OPTIONS, 
+ NO_TABLE_OPTIONS, NO_FIELD_OPTIONS, MYSQL323, MYSQL40, 
+ ANSI, NO_AUTO_VALUE_ON_ZERO, NO_BACKSLASH_ESCAPES, 
+ STRICT_TRANS_TABLES, STRICT_ALL_TABLES, NO_ZERO_IN_DATE, 
+ NO_ZERO_DATE, ALLOW_INVALID_DATES, 
+ ERROR_FOR_DIVISION_BY_ZERO, TRADITIONAL, 
+ NO_AUTO_CREATE_USER, HIGH_NOT_PRECEDENCE, 
+ NO_ENGINE_SUBSTITUTION, PAD_CHAR_TO_FULL_LENGTH
  --stack-trace       Print a symbolic stack trace on failure
  (Defaults to on; use --skip-stack-trace to disable.)
  --stored-program-cache=# 
@@ -987,8 +992,8 @@ The following options may be given as the first argument:
  --table-open-cache=# 
  The number of cached open tables
  --tc-heuristic-recover=name 
- Decision to use in heuristic recover process. Possible
- values are COMMIT or ROLLBACK.
+ Decision to use in heuristic recover process. One of: 
+ COMMIT, ROLLBACK
  --thread-cache-size=# 
  How many threads we should keep in a cache for reuse
  --thread-pool-idle-timeout=# 
@@ -1024,7 +1029,9 @@ The following options may be given as the first argument:
  Allocation block size for transactions to be stored in
  binary log
  --transaction-isolation=name 
- Default transaction isolation level.
+ Default transaction isolation level. One of: 
+ READ-UNCOMMITTED, READ-COMMITTED, REPEATABLE-READ, 
+ SERIALIZABLE
  --transaction-prealloc-size=# 
  Persistent buffer for transactions to be stored in binary
  log
@@ -1039,8 +1046,8 @@ The following options may be given as the first argument:
  of the underlying table and the query uses a LIMIT clause
  (usually get from GUI tools)
  --use-stat-tables=name 
- Specifies how to use system statistics tables. Possible
- values are NEVER, COMPLEMENTARY, PREFERABLY
+ Specifies how to use system statistics tables. One of: 
+ NEVER, COMPLEMENTARY, PREFERABLY
  -u, --user=name     Run mysqld daemon as user.
  --userstat          Enables statistics gathering for USER_STATISTICS,
  CLIENT_STATISTICS, INDEX_STATISTICS and TABLE_STATISTICS
@@ -1196,7 +1203,7 @@ myisam-mmap-size 18446744073709551615
 myisam-recover-options DEFAULT
 myisam-repair-threads 1
 myisam-sort-buffer-size 134216704
-myisam-stats-method nulls_unequal
+myisam-stats-method NULLS_UNEQUAL
 myisam-use-mmap FALSE
 net-buffer-length 16384
 net-read-timeout 30
@@ -1282,7 +1289,7 @@ relay-log-purge TRUE
 relay-log-recovery FALSE
 relay-log-space-limit 0
 replicate-annotate-row-events FALSE
-replicate-events-marked-for-skip replicate
+replicate-events-marked-for-skip REPLICATE
 replicate-same-server-id FALSE
 report-host (No default value)
 report-password (No default value)

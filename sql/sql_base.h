@@ -127,7 +127,8 @@ bool open_new_frm(THD *thd, TABLE_SHARE *share, const char *alias,
 
 bool get_key_map_from_key_list(key_map *map, TABLE *table,
                                List<String> *index_list);
-TABLE *open_table_uncached(THD *thd, handlerton *hton, const char *path,
+TABLE *open_table_uncached(THD *thd, handlerton *hton,
+                           LEX_CUSTRING *frm, const char *path,
                            const char *db, const char *table_name,
                            bool add_to_temporary_tables_list,
                            bool open_in_engine);

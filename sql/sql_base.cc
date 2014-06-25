@@ -5508,6 +5508,7 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
   @param thd                          Thread context.
   @param hton                         Storage engine of the table, if known,
                                       or NULL otherwise.
+  @param frm                          frm image
   @param path                         Path (without .frm)
   @param db                           Database name.
   @param table_name                   Table name.
@@ -5527,6 +5528,7 @@ void close_tables_for_reopen(THD *thd, TABLE_LIST **tables,
 */
 
 TABLE *open_table_uncached(THD *thd, handlerton *hton,
+                           LEX_CUSTRING *frm,
                            const char *path, const char *db,
                            const char *table_name,
                            bool add_to_temporary_tables_list,
@@ -5561,7 +5563,17 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
                        strend(saved_cache_key)+1, tmp_path);
   share->db_plugin= ha_lock_engine(thd, hton);
 
-  if (open_table_def(thd, share, GTS_TABLE | GTS_USE_DISCOVERY))
+  /*
+    Use the frm image, if possible, open the file otherwise.
+
+    The image might be unavailable in ALTER TABLE, when the discovering
+    engine took over the ownership (see TABLE::read_frm_image).
+  */
+  int res= frm->str
+    ? share->init_from_binary_frm_image(thd, false, frm->str, frm->length)
+    : open_table_def(thd, share, GTS_TABLE | GTS_USE_DISCOVERY);
+
+  if (res)
   {
     /* No need to lock share->mutex as this is not needed for tmp tables */
     free_table_share(share);

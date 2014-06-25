@@ -5,10 +5,10 @@ SET @@global.myisam_stats_method = nulls_equal;
 'connection con1'
 SELECT @@global.myisam_stats_method;
 @@global.myisam_stats_method
-nulls_equal
+NULLS_EQUAL
 SELECT @@session.myisam_stats_method;
 @@session.myisam_stats_method
-nulls_equal
+NULLS_EQUAL
 '#--------------------FN_DYNVARS_097_02-------------------------#'
 'connection default'
 DROP TABLE IF EXISTS t1;
@@ -53,7 +53,7 @@ t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE
 SET myisam_stats_method = nulls_ignored;
 SHOW VARIABLES LIKE 'myisam_stats_method';
 Variable_name	Value
-myisam_stats_method	nulls_ignored
+myisam_stats_method	NULLS_IGNORED
 DROP TABLE t1;
 CREATE TABLE t1 (
 a CHAR(3), b CHAR(4), c CHAR(5), d CHAR(6),

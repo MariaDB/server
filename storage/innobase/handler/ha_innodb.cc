@@ -225,12 +225,12 @@ static TYPELIB innodb_stats_method_typelib = {
 
 /** Possible values for system variable "innodb_checksum_algorithm". */
 static const char* innodb_checksum_algorithm_names[] = {
-	"crc32",
-	"strict_crc32",
-	"innodb",
-	"strict_innodb",
-	"none",
-	"strict_none",
+	"CRC32",
+	"STRICT_CRC32",
+	"INNODB",
+	"STRICT_INNODB",
+	"NONE",
+	"STRICT_NONE",
 	NullS
 };
 

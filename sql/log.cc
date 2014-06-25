@@ -9569,8 +9569,7 @@ static MYSQL_SYSVAR_ENUM(
   binlog_checksum_options,
   PLUGIN_VAR_RQCMDARG,
   "Type of BINLOG_CHECKSUM_ALG. Include checksum for "
-  "log events in the binary log. Possible values are NONE and CRC32; "
-  "default is NONE.",
+  "log events in the binary log",
   NULL,
   binlog_checksum_update,
   BINLOG_CHECKSUM_ALG_OFF,

@@ -483,9 +483,7 @@ static Sys_var_enum Sys_binlog_format(
        "based binary logging except for those statements where only row-"
        "based is correct: those which involve user-defined functions (i.e. "
        "UDFs) or the UUID() function; for those, row-based binary logging is "
-       "automatically used. If NDBCLUSTER is enabled and binlog-format is "
-       "MIXED, the format switches to row-based and back implicitly per each "
-       "query accessing an NDBCLUSTER table",
+       "automatically used.",
        SESSION_VAR(binlog_format), CMD_LINE(REQUIRED_ARG, OPT_BINLOG_FORMAT),
        binlog_format_names, DEFAULT(BINLOG_FORMAT_STMT),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(binlog_format_check),
@@ -649,8 +647,7 @@ static Sys_var_struct Sys_character_set_filesystem(
 
 static const char *completion_type_names[]= {"NO_CHAIN", "CHAIN", "RELEASE", 0};
 static Sys_var_enum Sys_completion_type(
-       "completion_type", "The transaction completion type, one of "
-       "NO_CHAIN, CHAIN, RELEASE",
+       "completion_type", "The transaction completion type",
        SESSION_VAR(completion_type), CMD_LINE(REQUIRED_ARG),
        completion_type_names, DEFAULT(0));
 
@@ -717,8 +714,7 @@ static Sys_var_struct Sys_collation_server(
 
 static const char *concurrent_insert_names[]= {"NEVER", "AUTO", "ALWAYS", 0};
 static Sys_var_enum Sys_concurrent_insert(
-       "concurrent_insert", "Use concurrent insert with MyISAM. Possible "
-       "values are NEVER, AUTO, ALWAYS",
+       "concurrent_insert", "Use concurrent insert with MyISAM",
        GLOBAL_VAR(myisam_concurrent_insert), CMD_LINE(OPT_ARG),
        concurrent_insert_names, DEFAULT(1));
 
@@ -2196,37 +2192,7 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
 }
 static Sys_var_flagset Sys_optimizer_switch(
        "optimizer_switch",
-       "optimizer_switch=option=val[,option=val...], where option is one of {"
-        "derived_merge, "
-        "derived_with_keys, "
-        "firstmatch, "
-        "in_to_exists, "
-        "engine_condition_pushdown, "
-        "index_condition_pushdown, "
-        "index_merge, "
-        "index_merge_intersection, "
-        "index_merge_sort_intersection, "
-        "index_merge_sort_union, "
-        "index_merge_union, "
-        "join_cache_bka, "
-        "join_cache_hashed, "
-        "join_cache_incremental, "
-        "loosescan, "
-        "materialization, "
-        "mrr, "
-        "mrr_cost_based, "
-        "mrr_sort_keys, "
-        "optimize_join_buffer_size, "
-        "outer_join_with_cache, "
-        "partial_match_rowid_merge, "
-        "partial_match_table_scan, "
-        "semijoin, "
-        "semijoin_with_cache, "
-        "subquery_cache, "
-        "table_elimination, "
-        "extended_keys, "
-        "exists_to_in "
-       "} and val is one of {on, off, default}",
+       "Fine-tune the optimizer behavior",
        SESSION_VAR(optimizer_switch), CMD_LINE(REQUIRED_ARG),
        optimizer_switch_names, DEFAULT(OPTIMIZER_SWITCH_DEFAULT),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL),
@@ -2546,12 +2512,8 @@ static const char *thread_handling_names[]=
 
 static Sys_var_enum Sys_thread_handling(
        "thread_handling",
-       "Define threads usage for handling queries, one of "
-       "one-thread-per-connection, no-threads"
-#ifdef HAVE_POOL_OF_THREADS
-       ", pool-of-threads"
-#endif
-       , READ_ONLY GLOBAL_VAR(thread_handling), CMD_LINE(REQUIRED_ARG),
+       "Define threads usage for handling queries",
+       READ_ONLY GLOBAL_VAR(thread_handling), CMD_LINE(REQUIRED_ARG),
        thread_handling_names, 
        DEFAULT(DEFAULT_THREAD_HANDLING)
  );
@@ -2758,11 +2720,9 @@ static Sys_var_enum Slave_run_triggers_for_rbr(
 static const char *slave_type_conversions_name[]= {"ALL_LOSSY", "ALL_NON_LOSSY", 0};
 static Sys_var_set Slave_type_conversions(
        "slave_type_conversions",
-       "Set of slave type conversions that are enabled. Legal values are:"
-       " ALL_LOSSY to enable lossy conversions and"
-       " ALL_NON_LOSSY to enable non-lossy conversions."
-       " If the variable is assigned the empty set, no conversions are"
-       " allowed and it is expected that the types match exactly.",
+       "Set of slave type conversions that are enabled."
+       " If the variable is empty, no conversions are"
+       " allowed and it is expected that the types match exactly",
        GLOBAL_VAR(slave_type_conversions_options), CMD_LINE(REQUIRED_ARG),
        slave_type_conversions_name,
        DEFAULT(0));
@@ -2785,7 +2745,7 @@ static Sys_var_mybool Sys_master_verify_checksum(
 
 /* These names must match RPL_SKIP_XXX #defines in slave.h. */
 static const char *replicate_events_marked_for_skip_names[]= {
-  "replicate", "filter_on_slave", "filter_on_master", 0
+  "REPLICATE", "FILTER_ON_SLAVE", "FILTER_ON_MASTER", 0
 };
 
 bool
@@ -2931,8 +2891,7 @@ export bool sql_mode_string_representation(THD *thd, ulonglong sql_mode,
 */
 static Sys_var_set Sys_sql_mode(
        "sql_mode",
-       "Syntax: sql-mode=mode[,mode[,mode...]]. See the manual for the "
-       "complete list of valid sql modes",
+       "Sets the sql mode",
        SESSION_VAR(sql_mode), CMD_LINE(REQUIRED_ARG),
        sql_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_sql_mode), ON_UPDATE(fix_sql_mode));
@@ -2957,9 +2916,7 @@ export bool old_mode_string_representation(THD *thd, ulonglong sql_mode,
 */
 static Sys_var_set Sys_old_behavior(
        "old_mode",
-       "Used to emulate old behavior from earlier MariaDB or MySQL versions. "
-       "Syntax: old_mode=mode[,mode[,mode...]]. "
-       "See the manual for the complete list of valid old modes",
+       "Used to emulate old behavior from earlier MariaDB or MySQL versions",
        SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
        old_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
@@ -4009,8 +3966,7 @@ static bool fix_log_output(sys_var *self, THD *thd, enum_var_type type)
 static const char *log_output_names[] = { "NONE", "FILE", "TABLE", NULL};
 
 static Sys_var_set Sys_log_output(
-       "log_output", "Syntax: log-output=value[,value...], "
-       "where \"value\" could be TABLE, FILE or NONE",
+       "log_output", "How logs should be written",
        GLOBAL_VAR(log_output_options), CMD_LINE(REQUIRED_ARG),
        log_output_names, DEFAULT(LOG_FILE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_not_empty_set), ON_UPDATE(fix_log_output));
@@ -4494,9 +4450,8 @@ export const char *plugin_maturity_names[]=
 { "unknown", "experimental", "alpha", "beta", "gamma", "stable", 0 };
 static Sys_var_enum Sys_plugin_maturity(
        "plugin_maturity",
-       "The lowest desirable plugin maturity "
-       "(unknown, experimental, alpha, beta, gamma, or stable). "
-       "Plugins less mature than that will not be installed or loaded.",
+       "The lowest desirable plugin maturity. "
+       "Plugins less mature than that will not be installed or loaded",
        READ_ONLY GLOBAL_VAR(plugin_maturity), CMD_LINE(REQUIRED_ARG),
        plugin_maturity_names, DEFAULT(MariaDB_PLUGIN_MATURITY_UNKNOWN));
 
@@ -4567,10 +4522,7 @@ static const char *log_slow_filter_names[]=
 };
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries. Multiple "
-       "flags can be specified, separated by commas. Valid values are admin, "
-       "slave, filesort, filesort_on_disk, full_join, full_scan, query_cache, "
-       "query_cache_miss, tmp_table, tmp_table_on_disk",
+       "Log only certain types of queries",
        SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
@@ -4608,9 +4560,7 @@ int default_regex_flags_pcre(const THD *thd)
 }
 static Sys_var_set Sys_default_regex_flags(
        "default_regex_flags",
-       "Default flags for the regex library. "
-       "Syntax: default-regex-flags='[flag[,flag[,flag...]]]'. "
-       "See the manual for the complete list of valid flags",
+       "Default flags for the regex library",
        SESSION_VAR(default_regex_flags), CMD_LINE(REQUIRED_ARG),
        default_regex_flags_names,
        DEFAULT(0));
@@ -4627,8 +4577,7 @@ static const char *log_slow_verbosity_names[]= { "innodb", "query_plan",
                                                  "explain", 0 };
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
-       "log-slow-verbosity=[value[,value ...]] where value is one of "
-       "'innodb', 'query_plan', 'explain' ",
+       "Verbosity level for the slow log",
        SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
 
@@ -4694,8 +4643,7 @@ const char *use_stat_tables_modes[] =
            {"NEVER", "COMPLEMENTARY", "PREFERABLY", 0};
 static Sys_var_enum Sys_optimizer_use_stat_tables(
        "use_stat_tables",
-       "Specifies how to use system statistics tables. Possible values are "
-       "NEVER, COMPLEMENTARY, PREFERABLY",
+       "Specifies how to use system statistics tables",
        SESSION_VAR(use_stat_tables), CMD_LINE(REQUIRED_ARG),
        use_stat_tables_modes, DEFAULT(0));
 

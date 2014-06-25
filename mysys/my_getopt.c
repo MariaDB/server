@@ -1300,6 +1300,48 @@ static uint print_name(const struct my_option *optp)
   return s - optp->name;
 }
 
+/** prints option comment with indentation and wrapping.
+
+  The comment column starts at startpos, and has width of width
+  Current cursor position is curpos, returns new cursor position
+
+  @note can print one character beyond width!
+*/
+static uint print_comment(const char *comment,
+                          int curpos, int startpos, int width)
+{
+  const char *end= strend(comment);
+  int endpos= startpos + width;
+
+  for (; curpos < startpos; curpos++)
+    putchar(' ');
+
+  if (*comment == '.' || *comment == ',')
+  {
+    putchar(*comment);
+    comment++;
+    curpos++;
+  }
+
+  while (end - comment > endpos - curpos)
+  {
+    const char *line_end;
+    for (line_end= comment + endpos - curpos;
+         line_end > comment && *line_end != ' ';
+         line_end--);
+    for (; comment < line_end; comment++)
+      putchar(*comment);
+    while (*comment == ' ')
+      comment++; /* skip the space, as a newline will take it's place now */
+    putchar('\n');
+    for (curpos= 0; curpos < startpos; curpos++)
+      putchar(' ');
+  }
+  printf("%s", comment);
+  return curpos + (end - comment);
+}
+
+
 /*
   function: my_print_options
 
@@ -1309,12 +1351,12 @@ static uint print_name(const struct my_option *optp)
 void my_print_help(const struct my_option *options)
 {
   uint col, name_space= 22, comment_space= 57;
-  const char *line_end;
   const struct my_option *optp;
   DBUG_ENTER("my_print_help");
 
   for (optp= options; optp->name; optp++)
   {
+    const char *typelib_help= 0;
     if (!optp->comment)
       continue;
     if (optp->id && optp->id < 256)
@@ -1353,29 +1395,46 @@ void my_print_help(const struct my_option *options)
 	       optp->arg_type == OPT_ARG ? "]" : "");
 	col+= (optp->arg_type == OPT_ARG) ? 5 : 3;
       }
-      if (col > name_space && optp->comment && *optp->comment)
+    }
+    if (optp->comment && *optp->comment)
+    {
+      uint count;
+
+      if (col > name_space)
       {
 	putchar('\n');
 	col= 0;
       }
-    }
-    for (; col < name_space; col++)
-      putchar(' ');
-    if (optp->comment && *optp->comment)
-    {
-      const char *comment= optp->comment, *end= strend(comment);
 
-      while ((uint) (end - comment) > comment_space)
-      {
-	for (line_end= comment + comment_space; *line_end != ' '; line_end--);
-	for (; comment != line_end; comment++)
-	  putchar(*comment);
-	comment++; /* skip the space, as a newline will take it's place now */
-	putchar('\n');
-	for (col= 0; col < name_space; col++)
-	  putchar(' ');
+      col= print_comment(optp->comment, col, name_space, comment_space);
+
+      switch (optp->var_type & GET_TYPE_MASK) {
+      case GET_ENUM:
+        typelib_help= ". One of: ";
+        count= optp->typelib->count;
+        break;
+      case GET_SET: 
+        typelib_help= ". Any combination of: ";
+        count= optp->typelib->count;
+        break;
+      case GET_FLAGSET:
+        typelib_help= ". Takes a comma-separated list of option=value pairs, "
+          "where value is on, off, or default, and options are: ";
+        count= optp->typelib->count - 1;
+        break;
       }
-      printf("%s", comment);
+      if (typelib_help &&
+          strstr(optp->comment, optp->typelib->type_names[0]) == NULL)
+      {
+        int i;
+        col= print_comment(typelib_help, col, name_space, comment_space);
+        col= print_comment(optp->typelib->type_names[0], col, name_space, comment_space);
+        for (i= 1; i < count; i++)
+        {
+          col= print_comment(", ", col, name_space, comment_space);
+          col= print_comment(optp->typelib->type_names[i], col, name_space, comment_space);
+        }
+      }
     }
     putchar('\n');
     if ((optp->var_type & GET_TYPE_MASK) == GET_BOOL)

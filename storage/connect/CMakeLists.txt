@@ -232,6 +232,8 @@ IF(CONNECT_WITH_ODBC)
     DOC "Specify the ODBC driver manager library here."
     )
 
+    mark_as_advanced(ODBC_LIBRARY ODBC_INCLUDE_DIR)
+
     IF(ODBC_INCLUDE_DIR AND ODBC_LIBRARY)
       set(CMAKE_REQUIRED_LIBRARIES ${ODBC_LIBRARY})
       set(CMAKE_REQUIRED_INCLUDES ${ODBC_INCLUDE_DIR})
