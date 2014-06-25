@@ -1084,7 +1084,6 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
   DBUG_ASSERT(rli->slave_running == 0);
   DBUG_ASSERT(rli->mi->slave_running == 0);
 
-  rli->slave_skip_counter=0;
   mysql_mutex_lock(&rli->data_lock);
 
   /*
@@ -1565,8 +1564,8 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
     return 1;
   }
   rgi->gtid_sub_id= sub_id;
-  rgi->current_gtid.server_id= gev->server_id;
   rgi->current_gtid.domain_id= gev->domain_id;
+  rgi->current_gtid.server_id= gev->server_id;
   rgi->current_gtid.seq_no= gev->seq_no;
   return 0;
 }

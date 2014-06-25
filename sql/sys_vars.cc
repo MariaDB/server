@@ -4287,11 +4287,6 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
 
 static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
-  {
-    my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
-    return true;
-  }
   if (mi->rli.slave_running)
   {
     my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,

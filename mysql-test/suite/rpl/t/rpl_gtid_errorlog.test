@@ -46,15 +46,10 @@ SET debug_dbug= @dbug_save;
 --connection slave
 --let $slave_sql_errno=1590
 --source include/wait_for_slave_sql_error.inc
-# ToDo no need to switch off GTID once MDEV-4937 is fixed
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=no;
 SET sql_slave_skip_counter=1;
 --source include/start_slave.inc
 --sync_with_master
---source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=slave_pos;
---source include/start_slave.inc
 
 SELECT * FROM t1 ORDER BY a;
 

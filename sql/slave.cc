@@ -3521,9 +3521,6 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
       if (opt_gtid_ignore_duplicates)
       {
-        serial_rgi->current_gtid.domain_id= gev->domain_id;
-        serial_rgi->current_gtid.server_id= gev->server_id;
-        serial_rgi->current_gtid.seq_no= gev->seq_no;
         int res= rpl_global_gtid_slave_state.check_duplicate_gtid
           (&serial_rgi->current_gtid, serial_rgi);
         if (res < 0)
@@ -4366,6 +4363,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   char saved_master_log_name[FN_REFLEN];
   my_off_t UNINIT_VAR(saved_log_pos);
   my_off_t UNINIT_VAR(saved_master_log_pos);
+  String saved_skip_gtid_pos;
   my_off_t saved_skip= 0;
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
@@ -4571,6 +4569,12 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     strmake_buf(saved_master_log_name, rli->group_master_log_name);
     saved_log_pos= rli->group_relay_log_pos;
     saved_master_log_pos= rli->group_master_log_pos;
+    if (mi->using_gtid != Master_info::USE_GTID_NO)
+    {
+      saved_skip_gtid_pos.append(STRING_WITH_LEN(", GTID '"));
+      rpl_append_gtid_state(&saved_skip_gtid_pos, false);
+      saved_skip_gtid_pos.append(STRING_WITH_LEN("'; "));
+    }
     saved_skip= rli->slave_skip_counter;
   }
   if ((rli->until_condition == Relay_log_info::UNTIL_MASTER_POS ||
@@ -4594,16 +4598,27 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
 
     if (saved_skip && rli->slave_skip_counter == 0)
     {
+      String tmp;
+      if (mi->using_gtid != Master_info::USE_GTID_NO)
+      {
+        tmp.append(STRING_WITH_LEN(", GTID '"));
+        rpl_append_gtid_state(&tmp, false);
+        tmp.append(STRING_WITH_LEN("'; "));
+      }
+
       sql_print_information("'SQL_SLAVE_SKIP_COUNTER=%ld' executed at "
         "relay_log_file='%s', relay_log_pos='%ld', master_log_name='%s', "
-        "master_log_pos='%ld' and new position at "
+        "master_log_pos='%ld'%s and new position at "
         "relay_log_file='%s', relay_log_pos='%ld', master_log_name='%s', "
-        "master_log_pos='%ld' ",
+        "master_log_pos='%ld'%s ",
         (ulong) saved_skip, saved_log_name, (ulong) saved_log_pos,
         saved_master_log_name, (ulong) saved_master_log_pos,
+        saved_skip_gtid_pos.c_ptr_safe(),
         rli->group_relay_log_name, (ulong) rli->group_relay_log_pos,
-        rli->group_master_log_name, (ulong) rli->group_master_log_pos);
+        rli->group_master_log_name, (ulong) rli->group_master_log_pos,
+        tmp.c_ptr_safe());
       saved_skip= 0;
+      saved_skip_gtid_pos.free();
     }
     
     if (exec_relay_log_event(thd, rli, serial_rgi))

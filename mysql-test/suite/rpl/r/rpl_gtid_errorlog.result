@@ -29,11 +29,7 @@ REPLACE INTO t1 VALUES (5);
 SET debug_dbug= @dbug_save;
 include/wait_for_slave_sql_error.inc [errno=1590]
 include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=no;
 SET sql_slave_skip_counter=1;
-include/start_slave.inc
-include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=slave_pos;
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a
