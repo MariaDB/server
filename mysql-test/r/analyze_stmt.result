@@ -169,3 +169,31 @@ analyze select count(*),max(a),b from t0 where a<7 group by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	10	10	100.00	70.00	Using where; Using temporary; Using filesort
 drop table t0;
+#
+# Check multi-table UPDATE/DELETE.
+#
+create table t0 (a int, b int);
+create table t1 (a int, b int);
+insert into t0 values (0,0),(2,2),(4,4),     (8,8);
+insert into t1 values (0,0),(2,2),      (6,6);
+analyze select * from t0,t1 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3	100.00	100.00	
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	4	100.00	16.67	Using where; Using join buffer (flat, BNL join)
+analyze update t0,t1 set t1.b=5555 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3	100.00	100.00	
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	4	100.00	16.67	Using where
+select * from t1;
+a	b
+0	5555
+2	5555
+6	6
+analyze delete t1 from t1, t0 where t0.a=t1.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	3	100.00	100.00	
+1	SIMPLE	t0	ALL	NULL	NULL	NULL	NULL	4	4	100.00	16.67	Using where
+select * from t1;
+a	b
+6	6
+drop table t0, t1;

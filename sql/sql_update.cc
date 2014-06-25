@@ -1570,7 +1570,7 @@ bool mysql_multi_update(THD *thd,
     (*result)->abort_result_set();
   else
   {
-    if (thd->lex->describe)
+    if (thd->lex->describe || thd->lex->analyze_stmt)
       res= thd->lex->explain->send_explain(thd);
   }
   thd->abort_on_warning= 0;
@@ -2509,11 +2509,14 @@ bool multi_update::send_eof()
     DBUG_RETURN(TRUE);
   }
 
-  id= thd->arg_of_last_insert_id_function ?
+  if (!thd->lex->analyze_stmt)
+  {
+    id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
-  my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO),
-              (ulong) found, (ulong) updated, (ulong) thd->cuted_fields);
-  ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
-          id, buff);
+    my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO),
+                (ulong) found, (ulong) updated, (ulong) thd->cuted_fields);
+    ::my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
+            id, buff);
+  }
   DBUG_RETURN(FALSE);
 }

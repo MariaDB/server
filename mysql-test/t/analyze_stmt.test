@@ -127,3 +127,22 @@ insert into t0 values
 
 analyze select count(*),max(a),b from t0 where a<7 group by b;
 drop table t0;
+
+--echo #
+--echo # Check multi-table UPDATE/DELETE.
+--echo #
+create table t0 (a int, b int);
+create table t1 (a int, b int);
+insert into t0 values (0,0),(2,2),(4,4),     (8,8);
+insert into t1 values (0,0),(2,2),      (6,6);
+
+analyze select * from t0,t1 where t0.a=t1.a;
+
+analyze update t0,t1 set t1.b=5555 where t0.a=t1.a;
+select * from t1;
+
+analyze delete t1 from t1, t0 where t0.a=t1.a;
+select * from t1;
+
+drop table t0, t1;
+

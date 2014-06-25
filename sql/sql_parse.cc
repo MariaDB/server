@@ -3581,7 +3581,6 @@ end_with_restore_list:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
-    bool explain= MY_TEST(lex->describe);
     multi_delete *result;
 
     if ((res= multi_delete_precheck(thd, all_tables)))
@@ -3627,7 +3626,7 @@ end_with_restore_list:
           result->abort_result_set(); /* for both DELETE and EXPLAIN DELETE */
         else
         {
-          if (explain)
+          if (lex->describe || lex->analyze_stmt)
             res= thd->lex->explain->send_explain(thd);
         }
         delete result;
@@ -5223,7 +5222,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
         This will call optimize() for all parts of query. The query plan is
         printed out below.
       */
-      res= mysql_explain_union(thd, &thd->lex->unit, result);
+      res= mysql_explain_union(thd, &lex->unit, result);
       
       /* Print EXPLAIN only if we don't have an error */
       if (!res)
@@ -5233,8 +5232,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           top-level LIMIT
         */        
         result->reset_offset_limit(); 
-        thd->lex->explain->print_explain(result, thd->lex->describe,
-                                         thd->lex->analyze_stmt);
+        lex->explain->print_explain(result, lex->describe, lex->analyze_stmt);
         if (lex->describe & DESCRIBE_EXTENDED)
         {
           char buff[1024];
@@ -5244,7 +5242,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
             The warnings system requires input in utf8, @see
             mysqld_show_warnings().
           */
-          thd->lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
+          lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
           push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
                        ER_YES, str.c_ptr_safe());
         }
@@ -5258,7 +5256,6 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
     else
     {
-      //psergey-todo: ANALYZE should hook in here...
       select_result *save_result;
       Protocol *save_protocol;
       if (lex->analyze_stmt)

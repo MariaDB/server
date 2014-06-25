@@ -1292,7 +1292,7 @@ bool multi_delete::send_eof()
   if (local_error != 0)
     error_handled= TRUE; // to force early leave from ::abort_result_set()
 
-  if (!local_error)
+  if (!local_error && !thd->lex->analyze_stmt)
   {
     ::my_ok(thd, deleted);
   }
