@@ -183,4 +183,11 @@ analyze update t1 set b=12345 where 1 > 2;
 analyze update t1 set b=12345 where a > 30 and a < 10;
 
 drop table t1;
+--echo #
+--echo # MDEV-6398: ANALYZE UPDATE does not populate r_rows
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+analyze update t1 set i=8;
+drop table t1;
 

@@ -725,9 +725,11 @@ int mysql_update(THD *thd,
     if all updated columns are read
   */
   can_compare_record= records_are_comparable(table);
+  explain->tracker.on_scan_init();
+
   while (!(error=info.read_record(&info)) && !thd->killed)
   {
-    explain->on_record_read();
+    explain->tracker.on_record_read();
     if (table->vfield)
       update_virtual_fields(thd, table,
                             table->triggers ? VCOL_UPDATE_ALL :
@@ -738,7 +740,7 @@ int mysql_update(THD *thd,
       if (table->file->was_semi_consistent_read())
         continue;  /* repeat the read of the same row if it still exists */
 
-      explain->on_record_after_where();
+      explain->tracker.on_record_after_where();
       store_record(table,record[1]);
       if (fill_record_n_invoke_before_triggers(thd, table, fields, values, 0,
                                                TRG_EVENT_UPDATE))
@@ -947,6 +949,7 @@ int mysql_update(THD *thd,
 
   end_read_record(&info);
   delete select;
+  select= NULL;
   THD_STAGE_INFO(thd, stage_end);
   (void) table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
@@ -996,11 +999,7 @@ int mysql_update(THD *thd,
   id= thd->arg_of_last_insert_id_function ?
     thd->first_successful_insert_id_in_prev_stmt : 0;
 
-  if (thd->lex->analyze_stmt)
-  {
-    error= thd->lex->explain->send_explain(thd);
-  }
-  else if (error < 0)
+  if (error < 0 && !thd->lex->analyze_stmt)
   {
     char buff[MYSQL_ERRMSG_SIZE];
     my_snprintf(buff, sizeof(buff), ER(ER_UPDATE_INFO), (ulong) found,
@@ -1019,10 +1018,14 @@ int mysql_update(THD *thd,
   }
   *found_return= found;
   *updated_return= updated;
+  
+  
+  if (thd->lex->analyze_stmt)
+    goto emit_explain_and_leave;
+
   DBUG_RETURN((error >= 0 || thd->is_error()) ? 1 : 0);
 
 err:
-
   delete select;
   free_underlaid_joins(thd, select_lex);
   table->disable_keyread();
@@ -1036,6 +1039,7 @@ produce_explain_and_leave:
   */
   query_plan.save_explain_data(thd->lex->explain);
 
+emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);
 
   delete select;

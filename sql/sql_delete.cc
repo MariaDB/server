@@ -539,10 +539,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   }
 
   explain= (Explain_delete*)thd->lex->explain->get_upd_del_plan();
+  explain->tracker.on_scan_init();
+
   while (!(error=info.read_record(&info)) && !thd->killed &&
 	 ! thd->is_error())
   {
-    explain->on_record_read();
+    explain->tracker.on_record_read();
     if (table->vfield)
       update_virtual_fields(thd, table,
                             table->triggers ? VCOL_UPDATE_ALL :
@@ -551,7 +553,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     // thd->is_error() is tested to disallow delete row on error
     if (!select || select->skip_record(thd) > 0)
     {
-      explain->on_record_after_where();
+      explain->tracker.on_record_after_where();
       if (table->triggers &&
           table->triggers->process_triggers(thd, TRG_EVENT_DELETE,
                                             TRG_ACTION_BEFORE, FALSE))
