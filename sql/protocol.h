@@ -210,6 +210,42 @@ public:
   virtual enum enum_protocol_type type() { return PROTOCOL_BINARY; };
 };
 
+
+/*
+  A helper for "ANALYZE $stmt" which looks a real network procotol but doesn't
+  write results to the network.
+
+  At first glance, class select_send looks like a more appropriate place to
+  implement the "write nothing" hook. This is not true, because
+    - we need to evaluate the value of every item, and do it the way
+      select_send does it (i.e. call item->val_int() or val_real() or...)
+    - select_send::send_data() has some other code, like telling the storage
+      engine that the row can be unlocked. We want to keep that also.
+  as a result, "ANALYZE $stmt" uses a select_send_analyze which still uses 
+  select_send::send_data() & co., and also uses  Protocol_discard object.
+*/
+
+class Protocol_discard : public Protocol_text
+{
+public:
+  Protocol_discard(THD *thd_arg) : Protocol_text(thd_arg) {}
+  /* The real writing is done only in write() */
+  virtual bool write() { return 0; }
+  virtual bool send_result_set_metadata(List<Item> *list, uint flags)
+  {
+    // Don't pas Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF flags 
+    return Protocol_text::send_result_set_metadata(list, 0);
+  }
+
+  // send_error is intentionally not overloaded.
+  virtual bool send_eof(uint server_status, uint statement_warn_count)
+  {
+    return 0;
+  }
+
+};
+
+
 void send_warning(THD *thd, uint sql_errno, const char *err=0);
 bool net_send_error(THD *thd, uint sql_errno, const char *err,
                     const char* sqlstate);

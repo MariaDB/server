@@ -641,7 +641,7 @@ set debug_dbug='+d,show_explain_probe_join_exec_start';
 SHOW INDEX FROM t1;
 show explain for $thr2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	STATISTICS	ALL	NULL	NULL	NULL	NULL	NULL	Skip_open_table; Scanned all databases
+1	SIMPLE	STATISTICS	ALL	NULL	TABLE_SCHEMA,TABLE_NAME	NULL	NULL	NULL	Open_full_table; Scanned 0 databases
 Warnings:
 Note	1003	SHOW INDEX FROM t1
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment

@@ -982,7 +982,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
    This makes the code grep-able, and helps maintenance.
 */
-
+ 
 %token  ABORT_SYM                     /* INTERNAL (used in lex) */
 %token  ACCESSIBLE_SYM
 %token  ACTION                        /* SQL-2003-N */
@@ -1804,6 +1804,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <dyncol_def_list> dyncall_create_list
 
 %type <NONE>
+        analyze_stmt_command
         query verb_clause create change select do drop insert replace insert2
         insert_values update delete truncate rename
         show describe load alter optimize keycache preload flush
@@ -1990,6 +1991,7 @@ verb_clause:
 statement:
           alter
         | analyze
+        | analyze_stmt_command
         | binlog_base64_event
         | call
         | change
@@ -12764,6 +12766,13 @@ explainable_command:
 describe_command:
           DESC
         | DESCRIBE
+        ;
+
+analyze_stmt_command:
+          ANALYZE_SYM explainable_command
+          {
+            Lex->analyze_stmt= true;
+          }
         ;
 
 opt_extended_describe:

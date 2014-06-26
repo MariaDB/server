@@ -483,6 +483,7 @@ void lex_start(THD *thd)
   if (lex->select_lex.group_list_ptrs)
     lex->select_lex.group_list_ptrs->clear();
   lex->describe= 0;
+  lex->analyze_stmt= 0;
   lex->subqueries= FALSE;
   lex->context_analysis_only= 0;
   lex->derived_tables= 0;
@@ -4181,12 +4182,12 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 */
 
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
-                       bool *printed_anything)
+                       bool is_analyze, bool *printed_anything)
 {
   int res;
   if (explain && explain->have_query_plan())
   {
-    res= explain->print_explain(output, explain_flags);
+    res= explain->print_explain(output, explain_flags, is_analyze);
     *printed_anything= true;
   }
   else

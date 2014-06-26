@@ -3961,6 +3961,20 @@ public:
 };
 
 
+/*
+  We need this class, because select_send::send_eof() will call ::my_eof.
+
+  See also class Protocol_discard.
+*/
+
+class select_send_analyze : public select_send
+{
+  bool send_result_set_metadata(List<Item> &list, uint flags) { return 0; }
+  bool send_eof() { return 0; }
+  void abort_result_set() {}
+};
+
+
 class select_to_file :public select_result_interceptor {
 protected:
   sql_exchange *exchange;

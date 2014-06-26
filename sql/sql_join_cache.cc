@@ -2260,7 +2260,7 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
     */
     goto finish;
   }
-  
+
   while (!(error= join_tab_scan->next()))   
   {
     if (join->thd->check_killed())
@@ -2277,11 +2277,13 @@ enum_nested_loop_state JOIN_CACHE::join_matching_records(bool skip_last)
     /* Prepare to read matching candidates from the join buffer */
     if (prepare_look_for_matches(skip_last))
       continue;
+    join_tab->jbuf_tracker->r_scans++;
 
     uchar *rec_ptr;
     /* Read each possible candidate from the buffer and look for matches */
     while ((rec_ptr= get_next_candidate_for_match()))
-    { 
+    {
+      join_tab->jbuf_tracker->r_rows++;
       /* 
         If only the first match is needed, and, it has been already found for
         the next record read from the join buffer, then the record is skipped.
@@ -2451,6 +2453,8 @@ inline bool JOIN_CACHE::check_match(uchar *rec_ptr)
 
   if (join_tab->select && join_tab->select->skip_record(join->thd) <= 0)
     DBUG_RETURN(FALSE);
+  
+  join_tab->jbuf_tracker->r_rows_after_where++;
 
   if (!join_tab->is_last_inner_table())
     DBUG_RETURN(TRUE);
@@ -2574,7 +2578,7 @@ finish:
     none
 */ 
 
-void JOIN_CACHE::save_explain_data(struct st_explain_bka_type *explain)
+void JOIN_CACHE::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 {
   explain->incremental= MY_TEST(prev_cache);
 
@@ -2619,14 +2623,14 @@ static void add_mrr_explain_info(String *str, uint mrr_mode, handler *file)
   }
 }
 
-void JOIN_CACHE_BKA::save_explain_data(struct st_explain_bka_type *explain)
+void JOIN_CACHE_BKA::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 {
   JOIN_CACHE::save_explain_data(explain); 
   add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
 }
 
 
-void JOIN_CACHE_BKAH::save_explain_data(struct st_explain_bka_type *explain)
+void JOIN_CACHE_BKAH::save_explain_data(EXPLAIN_BKA_TYPE *explain)
 {
   JOIN_CACHE::save_explain_data(explain); 
   add_mrr_explain_info(&explain->mrr_type, mrr_mode, join_tab->table->file);
@@ -3333,6 +3337,7 @@ int JOIN_TAB_SCAN::open()
 {
   save_or_restore_used_tabs(join_tab, FALSE);
   is_first_record= TRUE;
+  join_tab->tracker->r_scans++;
   return join_init_read_record(join_tab);
 }
 
@@ -3371,8 +3376,14 @@ int JOIN_TAB_SCAN::next()
     is_first_record= FALSE;
   else
     err= info->read_record(info);
-  if (!err && table->vfield)
-    update_virtual_fields(thd, table);
+
+  if (!err)
+  {
+    join_tab->tracker->r_rows++;
+    if (table->vfield)
+      update_virtual_fields(thd, table);
+  }
+
   while (!err && select && (skip_rc= select->skip_record(thd)) <= 0)
   {
     if (thd->check_killed() || skip_rc < 0) 
@@ -3382,9 +3393,16 @@ int JOIN_TAB_SCAN::next()
       meet the condition pushed to the table join_tab.
     */
     err= info->read_record(info);
-    if (!err && table->vfield)
-      update_virtual_fields(thd, table);
-  } 
+    if (!err)
+    {
+      join_tab->tracker->r_rows++;
+      if (table->vfield)
+        update_virtual_fields(thd, table);
+    }
+  }
+
+  if (!err)
+    join_tab->tracker->r_rows_after_where++;
   return err; 
 }
 
