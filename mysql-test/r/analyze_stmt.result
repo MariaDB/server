@@ -242,3 +242,12 @@ analyze update t1 set i=8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	4	100.00	100.00	
 drop table t1;
+#
+# Check ANALYZE SELECT INTO
+#
+create table t1 (i int);
+insert into t1 values (1);
+analyze select * from t1 into @var;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
+drop table t1;

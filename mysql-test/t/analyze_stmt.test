@@ -191,3 +191,10 @@ insert into t1 values (1),(2),(3),(4);
 analyze update t1 set i=8;
 drop table t1;
 
+--echo #
+--echo # Check ANALYZE SELECT INTO
+--echo #
+create table t1 (i int);
+insert into t1 values (1);
+analyze select * from t1 into @var;
+drop table t1;

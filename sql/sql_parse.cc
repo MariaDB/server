@@ -5256,11 +5256,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
     else
     {
-      select_result *save_result;
       Protocol *save_protocol;
       if (lex->analyze_stmt)
       {
-        save_result= result;
         result= new select_send_analyze();
         save_protocol= thd->protocol;
         thd->protocol= new Protocol_discard(thd);
@@ -5277,16 +5275,10 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
       if (lex->analyze_stmt)
       {
-        result= save_result;
-        if (!result && !(result= new select_send()))
-          return 1;
         delete thd->protocol;
         thd->protocol= save_protocol;
         if (!res)
-          thd->lex->explain->send_explain(thd);
-
-        if (result != lex->result)
-          delete result;
+          res= thd->lex->explain->send_explain(thd);
       }
     }
   }
