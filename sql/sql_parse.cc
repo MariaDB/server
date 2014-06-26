@@ -3567,12 +3567,47 @@ end_with_restore_list:
     unit->set_limit(select_lex);
 
     MYSQL_DELETE_START(thd->query());
-    if (!(sel_result= lex->result) && !(sel_result= new select_send()))
-      return 1;                       
+    Protocol *save_protocol;
+    bool replaced_protocol= false;
+
+    if (!select_lex->item_list.is_empty())
+    {
+      /* This is DELETE ... RETURNING.  It will return output to the client */
+      if (thd->lex->analyze_stmt)
+      {
+        /* 
+          Actually, it is ANALYZE .. DELETE .. RETURNING. We need to produce
+          output and then discard it.
+        */
+        sel_result= new select_send_analyze();
+        replaced_protocol= true;
+        save_protocol= thd->protocol;
+        thd->protocol= new Protocol_discard(thd);
+      }
+      else
+      {
+        if (!(sel_result= lex->result) && !(sel_result= new select_send()))
+          return 1;
+      }
+    }
+
     res = mysql_delete(thd, all_tables, 
                        select_lex->where, &select_lex->order_list,
                        unit->select_limit_cnt, select_lex->options,
                        sel_result);
+
+    if (replaced_protocol)
+    {
+      delete thd->protocol;
+      thd->protocol= save_protocol;
+    }
+
+    if (thd->lex->analyze_stmt || thd->lex->describe)
+    {
+      if (!res)
+        res= thd->lex->explain->send_explain(thd);
+    }
+
     delete sel_result;
     MYSQL_DELETE_DONE(res, (ulong) thd->get_row_count_func());
     break;

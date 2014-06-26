@@ -258,8 +258,9 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                                             select_lex->item_list, &conds))
     DBUG_RETURN(TRUE);
-
-  (void) result->prepare(select_lex->item_list, NULL);
+  
+  if (with_select)
+    (void) result->prepare(select_lex->item_list, NULL);
 
   if (thd->lex->current_select->first_cond_optimization)
   {
@@ -672,17 +673,21 @@ cleanup:
   }
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction.stmt.modified_non_trans_table);
   
-  if (thd->lex->analyze_stmt)
-    goto emit_explain_and_leave;
 
   free_underlaid_joins(thd, select_lex);
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
-    if (!with_select)
-      my_ok(thd, deleted);
-    else
+    if (thd->lex->analyze_stmt)
+    {
+      error= 0;
+      goto send_nothing_and_leave;
+    }
+
+    if (with_select)
       result->send_eof();
+    else
+      my_ok(thd, deleted);
     DBUG_PRINT("info",("%ld records deleted",(long) deleted));
   }
   DBUG_RETURN(error >= 0 || thd->is_error());
@@ -695,13 +700,17 @@ produce_explain_and_leave:
   */
   query_plan.save_explain_data(thd->lex->explain);
 
-emit_explain_and_leave:
-  int err2= thd->lex->explain->send_explain(thd);
+send_nothing_and_leave:
+  /* 
+    ANALYZE DELETE jumps here. We can't send explain right here, because
+    we might be using ANALYZE DELETE ...RETURNING, in which case we have 
+    Protocol_discard active.
+  */
 
   delete select;
   free_underlaid_joins(thd, select_lex);
   //table->set_keyread(false);
-  DBUG_RETURN((err2 || thd->is_error() || thd->killed) ? 1 : 0);
+  DBUG_RETURN((thd->is_error() || thd->killed) ? 1 : 0);
 }
 
 
