@@ -199,6 +199,8 @@ IF (WITH_ASAN)
   ENDIF()
 ENDIF()
 
+# enable security hardening features, like most distributions do
+# in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
 IF(SECURITY_HARDENED)
   # security-enhancing flags
