@@ -957,7 +957,8 @@ int Explain_update::print_explain(Explain_query *query,
     Single-table DELETE commands do not do "Using temporary".
     "Using index condition" is also not possible (which is an unjustified limitation)
   */
-  double r_filtered= 100 * (r_rows?((double)r_rows_after_where/r_rows):1.0); 
+  double r_filtered= 100 * tracker.get_filtered_after_where();
+  ha_rows r_rows= tracker.get_avg_rows();
 
   print_explain_row(output, explain_flags, is_analyze,
                     1, /* id */
@@ -970,7 +971,7 @@ int Explain_update::print_explain(Explain_query *query,
                     key_len_buf.length() ? key_len_buf.c_ptr() : NULL,
                     NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
                     &rows,
-                    &r_rows,
+                    tracker.has_scans()? &r_rows : NULL,
                     r_filtered,
                     extra_str.c_ptr_safe());
 

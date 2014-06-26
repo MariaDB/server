@@ -44,6 +44,10 @@ public:
 
     return r_filtered;
   }
+  
+  inline void on_scan_init() { r_scans++; }
+  inline void on_record_read() { r_rows++; }
+  inline void on_record_after_where() { r_rows_after_where++; }
 };
 
 
@@ -576,14 +580,8 @@ public:
   bool using_io_buffer;
 
   /* ANALYZE members and methods */
-  ha_rows r_rows;
-  ha_rows r_rows_after_where;
-  inline void on_record_read() { r_rows++; }
-  inline void on_record_after_where() { r_rows_after_where++; }
+  Table_access_tracker tracker;
 
-  Explain_update() : 
-    r_rows(0), r_rows_after_where(0)
-  {}
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
 };

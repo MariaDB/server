@@ -1,5 +1,5 @@
 #
-#  Tests for "ANALYZE $statement" feature (PostgreSQL's analog is called EXPLAIN ANALYZE)
+#  Tests for "ANALYZE $statement" feature
 #
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -146,3 +146,55 @@ select * from t1;
 
 drop table t0, t1;
 
+--echo #
+--echo # MDEV-6393: ANALYZE SELECT crashes in Explain_query::print_explain with a non-existing column
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2);
+--error ER_BAD_FIELD_ERROR
+analyze select a from t1;
+
+--error ER_BAD_FIELD_ERROR
+analyze delete from t1 where a=2;
+
+--error ER_BAD_FIELD_ERROR
+analyze update t1 set a=2;
+
+create table t2 like t1;
+insert into t2 select * from t1;
+
+--error ER_BAD_FIELD_ERROR
+analyze update t2,t1 set t2.i=5 where t2.a=t1.a;
+
+--error ER_BAD_FIELD_ERROR
+analyze delete t1 from t2,t1 where t2.a=t1.a;
+
+drop table t1, t2;
+--echo #
+--echo # MDEV-6395: ANALYZE UPDATE/DELETE with impossible where does not produce any output
+--echo #
+create table t1 (a int, b int, key(a));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+
+analyze delete from t1 where 1 > 2;
+analyze delete from t1 where a > 30 and a < 10;
+
+analyze update t1 set b=12345 where 1 > 2;
+analyze update t1 set b=12345 where a > 30 and a < 10;
+
+drop table t1;
+--echo #
+--echo # MDEV-6398: ANALYZE UPDATE does not populate r_rows
+--echo #
+create table t1 (i int);
+insert into t1 values (1),(2),(3),(4);
+analyze update t1 set i=8;
+drop table t1;
+
+--echo #
+--echo # Check ANALYZE SELECT INTO
+--echo #
+create table t1 (i int);
+insert into t1 values (1);
+analyze select * from t1 into @var;
+drop table t1;

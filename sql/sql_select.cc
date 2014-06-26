@@ -23131,7 +23131,15 @@ int print_explain_row(select_result_sink *result,
   
   /* 'r_rows' */
   if (is_analyze)
-    item_list.push_back(item_null);
+  {
+    if (r_rows)
+    {
+      item_list.push_back(new Item_int(*r_rows, 
+                                       MY_INT64_NUM_DECIMAL_DIGITS));
+    }
+    else
+      item_list.push_back(item_null);
+  }
 
   /* 'filtered' */
   const double filtered=100.0;
