@@ -3224,7 +3224,8 @@ sub check_wsrep_support() {
     if ((check_wsrep_provider_env() == 1) || ($file_wsrep_provider ne "")) {
       # Add galera test suites
       mtr_report(" - adding wsrep, galera to default test suites");
-      push @DEFAULT_SUITES, qw(wsrep galera);
+      #push @DEFAULT_SUITES, qw(wsrep galera);
+      push @DEFAULT_SUITES, qw(wsrep);
     }
   }
 }

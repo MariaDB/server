@@ -2516,9 +2516,9 @@ int check_change_password(THD *thd, const char *host, const char *user,
 
 #ifdef WITH_WSREP
   if ((!WSREP(thd) || !thd->wsrep_applier) &&
-      !thd->slave_thread && !thd->security_ctx->user[0])
+      !thd->slave_thread && !thd->security_ctx->priv_user[0])
 #else
-  if (!thd->slave_thread && !thd->security_ctx->user[0])
+  if (!thd->slave_thread && !thd->security_ctx->priv_user[0])
 #endif /* WITH_WSREP */
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),

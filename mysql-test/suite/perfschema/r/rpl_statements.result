@@ -14,6 +14,7 @@ include/master-slave.inc
 show variables like '%binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
+wsrep_forced_binlog_format	NONE
 drop table if exists test.marker;
 select thread_id into @my_thread_id
 from performance_schema.threads
@@ -58,6 +59,7 @@ Expect 1
 show variables like '%binlog_format%';
 Variable_name	Value
 binlog_format	MIXED
+wsrep_forced_binlog_format	NONE
 *** Clear statement events
 
 *** Create/drop table, create/drop database
