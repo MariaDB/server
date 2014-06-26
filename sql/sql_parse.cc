@@ -5282,7 +5282,8 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           return 1;
         delete thd->protocol;
         thd->protocol= save_protocol;
-        thd->lex->explain->send_explain(thd);
+        if (!res)
+          thd->lex->explain->send_explain(thd);
 
         if (result != lex->result)
           delete result;
