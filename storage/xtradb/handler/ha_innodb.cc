@@ -717,6 +717,8 @@ static MYSQL_THDVAR_BOOL(fake_changes, PLUGIN_VAR_OPCMDARG,
   "This is to cause replication prefetch IO. ATTENTION: the transaction started after enabled is affected.",
   NULL, NULL, FALSE);
 
+static ibool innodb_have_lzo=IF_LZO(1, 0);
+static ibool innodb_have_lz4=IF_LZ4(1, 0);
 
 static SHOW_VAR innodb_status_variables[]= {
   {"available_undo_logs",
@@ -934,9 +936,9 @@ static SHOW_VAR innodb_status_variables[]= {
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
   {"have_lz4",
-  (char*) &export_vars.innodb_have_lz4,                  SHOW_LONG},
+  (char*) &innodb_have_lz4,                  SHOW_BOOL},
   {"have_lzo",
-  (char*) &export_vars.innodb_have_lzo,                  SHOW_LONG},
+  (char*) &innodb_have_lzo,                  SHOW_BOOL},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -18217,13 +18219,6 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   "Use trim. Default FALSE.",
   NULL, NULL, FALSE);
 
-#if defined(HAVE_LZO)
-#define default_compression_algorithm  PAGE_LZO_ALGORITHM
-#elif defined(HAVE_LZ4)
-#define default_compression_algorithm PAGE_LZ4_ALGORITHM
-#else
-#define default_compression_algorithm PAGE_ZLIB_ALGORITHM
-#endif
 static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
@@ -18233,20 +18228,9 @@ static TYPELIB page_compression_algorithms_typelib=
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
   "Compression algorithm used on page compression. One of: none, zlib, lz4, or lzo",
-  innodb_compression_algorithm_validate, NULL, default_compression_algorithm,
+  innodb_compression_algorithm_validate, NULL,
+  IF_LZO(PAGE_LZO_ALGORITHM, IF_LZ4(PAGE_LZ4_ALGORITHM, PAGE_ZLIB_ALGORITHM)),
   &page_compression_algorithms_typelib);
-
-static MYSQL_SYSVAR_ULONG(have_lz4, srv_have_lz4,
-  PLUGIN_VAR_READONLY,
-  "InnoDB compiled support with liblz4",
-  NULL, NULL, srv_have_lz4,
-  0, 1, 0);
-
-static MYSQL_SYSVAR_ULONG(have_lzo, srv_have_lzo,
-  PLUGIN_VAR_READONLY,
-  "InnoDB compiled support with liblzo",
-  NULL, NULL, srv_have_lzo,
-  0, 1, 0);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -18462,8 +18446,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
-  MYSQL_SYSVAR(have_lz4),
-  MYSQL_SYSVAR(have_lzo),
 
   NULL
 };

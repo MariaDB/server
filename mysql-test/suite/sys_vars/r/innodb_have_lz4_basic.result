@@ -1,3 +1,0 @@
-select @@global.innodb_have_lz4;
-@@global.innodb_have_lz4
-0

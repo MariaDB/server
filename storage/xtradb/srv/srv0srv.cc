@@ -237,18 +237,6 @@ UNIV_INTERN ulong	srv_page_size		= UNIV_PAGE_SIZE_DEF;
 UNIV_INTERN ulong	srv_page_size_shift	= UNIV_PAGE_SIZE_SHIFT_DEF;
 UNIV_INTERN char	srv_use_global_flush_log_at_trx_commit	= TRUE;
 
-#ifdef HAVE_LZ4
-UNIV_INTERN ulong      srv_have_lz4 = 1;
-#else
-UNIV_INTERN ulong      srv_have_lz4 = 0;
-#endif
-
-#ifdef HAVE_LZO
-UNIV_INTERN ulong      srv_have_lzo = 1;
-#else
-UNIV_INTERN ulong      srv_have_lzo = 0;
-#endif
-
 /* Try to flush dirty pages so as to avoid IO bursts at
 the checkpoints. */
 UNIV_INTERN char	srv_adaptive_flushing	= TRUE;
@@ -1812,9 +1800,6 @@ srv_export_innodb_status(void)
 	export_vars.innodb_have_atomic_builtins = 0;
 #endif
 	export_vars.innodb_page_size = UNIV_PAGE_SIZE;
-
-	export_vars.innodb_have_lz4  = srv_have_lz4;
-	export_vars.innodb_have_lzo  = srv_have_lzo;
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 
