@@ -2387,17 +2387,6 @@ void JOIN::exec()
                  );
   exec_inner();
 
-  if (!exec_saved_explain)
-  {
-#if 0
-    save_explain_data(thd->lex->explain, true /* can overwrite */,
-                      need_tmp,
-                      order != 0 && !skip_sort_order,
-                      select_distinct);
-#endif    
-    exec_saved_explain= true;
-  }
-
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
                   if (dbug_user_var_equals_int(thd, 
                                                "show_explain_probe_select_id", 

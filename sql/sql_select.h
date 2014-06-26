@@ -1349,7 +1349,6 @@ public:
     sjm_lookup_tables= 0;
 
     filesort_found_rows= false;
-    exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
       joins for which JOIN::optimize was aborted with an error before a proper
@@ -1357,13 +1356,6 @@ public:
     */
     table_access_tabs= NULL; 
   }
-
-  /*
-    TRUE <=> There was a JOIN::exec() call, which saved this JOIN's EXPLAIN.
-    The idea is that we also save at the end of JOIN::optimize(), but that
-    might not be the final plan.
-  */
-  bool exec_saved_explain;
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
