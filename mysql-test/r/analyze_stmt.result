@@ -251,3 +251,11 @@ analyze select * from t1 into @var;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	NULL	100.00	NULL	
 drop table t1;
+#
+# MDEV-6394: ANALYZE DELETE .. RETURNING fails with ERROR 2027 Malformed packet
+#
+create table t1 (i int);
+analyze delete from t1 returning *;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	0	0	100.00	100.00	
+drop table t1;

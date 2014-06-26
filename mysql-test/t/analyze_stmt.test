@@ -198,3 +198,11 @@ create table t1 (i int);
 insert into t1 values (1);
 analyze select * from t1 into @var;
 drop table t1;
+
+--echo #
+--echo # MDEV-6394: ANALYZE DELETE .. RETURNING fails with ERROR 2027 Malformed packet
+--echo #
+create table t1 (i int);
+analyze delete from t1 returning *;
+drop table t1;
+
