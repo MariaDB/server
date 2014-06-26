@@ -281,7 +281,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
 	  setup_order(thd, select_lex->ref_pointer_array, &tables,
                     fields, all_fields, order))
     {
-      delete select;
       free_underlaid_joins(thd, &thd->lex->select_lex);
       DBUG_RETURN(TRUE);
     }
@@ -332,8 +331,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     DBUG_PRINT("debug", ("Trying to use delete_all_rows()"));
 
     query_plan.set_delete_all_rows(maybe_deleted);
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     if (!(error=table->file->ha_delete_all_rows()))
     {
@@ -362,8 +361,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     {
       limit= 0;
       query_plan.set_impossible_where();
-      if (thd->lex->describe)
-        goto exit_without_my_ok;
+      if (thd->lex->describe || thd->lex->analyze_stmt)
+        goto produce_explain_and_leave;
     }
   }
 
@@ -373,8 +372,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     free_underlaid_joins(thd, select_lex);
 
     query_plan.set_no_partitions();
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     my_ok(thd, 0);
     DBUG_RETURN(0);
@@ -393,8 +392,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if ((select && select->check_quick(thd, safe_update, limit)) || !limit)
   {
     query_plan.set_impossible_where();
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     delete select;
     free_underlaid_joins(thd, select_lex);
@@ -458,7 +457,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
      - otherwise, execute the query plan
   */
   if (thd->lex->describe)
-    goto exit_without_my_ok;
+    goto produce_explain_and_leave;
   
   query_plan.save_explain_data(thd->lex->explain);
 
@@ -634,6 +633,7 @@ cleanup:
   }
 
   delete select;
+  select= NULL;
   transactional_table= table->file->has_transactions();
 
   if (!transactional_table && deleted > 0)
@@ -669,12 +669,11 @@ cleanup:
     }
   }
   DBUG_ASSERT(transactional_table || !deleted || thd->transaction.stmt.modified_non_trans_table);
-  free_underlaid_joins(thd, select_lex);
+  
   if (thd->lex->analyze_stmt)
-  {
-    error= thd->lex->explain->send_explain(thd);
-  }
-  else
+    goto emit_explain_and_leave;
+
+  free_underlaid_joins(thd, select_lex);
   if (error < 0 || 
       (thd->lex->ignore && !thd->is_error() && !thd->is_fatal_error))
   {
@@ -687,8 +686,14 @@ cleanup:
   DBUG_RETURN(error >= 0 || thd->is_error());
   
   /* Special exits */
-exit_without_my_ok:
+produce_explain_and_leave:
+  /* 
+    We come here for various "degenerate" query plans: impossible WHERE,
+    no-partitions-used, impossible-range, etc.
+  */
   query_plan.save_explain_data(thd->lex->explain);
+
+emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);
 
   delete select;

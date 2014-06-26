@@ -382,8 +382,8 @@ int mysql_update(THD *thd,
     {
       limit= 0;                                   // Impossible WHERE
       query_plan.set_impossible_where();
-      if (thd->lex->describe)
-        goto exit_without_my_ok;
+      if (thd->lex->describe || thd->lex->analyze_stmt)
+        goto produce_explain_and_leave;
     }
   }
 
@@ -404,8 +404,8 @@ int mysql_update(THD *thd,
     free_underlaid_joins(thd, select_lex);
 
     query_plan.set_no_partitions();
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
@@ -420,8 +420,8 @@ int mysql_update(THD *thd,
       (select && select->check_quick(thd, safe_update, limit)))
   {
     query_plan.set_impossible_where();
-    if (thd->lex->describe)
-      goto exit_without_my_ok;
+    if (thd->lex->describe || thd->lex->analyze_stmt)
+      goto produce_explain_and_leave;
 
     delete select;
     free_underlaid_joins(thd, select_lex);
@@ -516,7 +516,7 @@ int mysql_update(THD *thd,
      - otherwise, execute the query plan
   */
   if (thd->lex->describe)
-    goto exit_without_my_ok;
+    goto produce_explain_and_leave;
   query_plan.save_explain_data(thd->lex->explain);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
@@ -1029,7 +1029,11 @@ err:
   thd->abort_on_warning= 0;
   DBUG_RETURN(1);
 
-exit_without_my_ok:
+produce_explain_and_leave:
+  /* 
+    We come here for various "degenerate" query plans: impossible WHERE,
+    no-partitions-used, impossible-range, etc.
+  */
   query_plan.save_explain_data(thd->lex->explain);
 
   int err2= thd->lex->explain->send_explain(thd);

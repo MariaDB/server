@@ -1,5 +1,5 @@
 #
-#  Tests for "ANALYZE $statement" feature (PostgreSQL's analog is called EXPLAIN ANALYZE)
+#  Tests for "ANALYZE $statement" feature
 #
 --disable_warnings
 drop table if exists t0,t1,t2,t3;
@@ -169,5 +169,18 @@ analyze update t2,t1 set t2.i=5 where t2.a=t1.a;
 --error ER_BAD_FIELD_ERROR
 analyze delete t1 from t2,t1 where t2.a=t1.a;
 
-drop table t1,t2;
+drop table t1, t2;
+--echo #
+--echo # MDEV-6395: ANALYZE UPDATE/DELETE with impossible where does not produce any output
+--echo #
+create table t1 (a int, b int, key(a));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+
+analyze delete from t1 where 1 > 2;
+analyze delete from t1 where a > 30 and a < 10;
+
+analyze update t1 set b=12345 where 1 > 2;
+analyze update t1 set b=12345 where a > 30 and a < 10;
+
+drop table t1;
 

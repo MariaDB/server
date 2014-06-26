@@ -214,4 +214,22 @@ analyze update t2,t1 set t2.i=5 where t2.a=t1.a;
 ERROR 42S22: Unknown column 't2.a' in 'where clause'
 analyze delete t1 from t2,t1 where t2.a=t1.a;
 ERROR 42S22: Unknown column 't2.a' in 'where clause'
-drop table t1,t2;
+drop table t1, t2;
+#
+# MDEV-6395: ANALYZE UPDATE/DELETE with impossible where does not produce any output
+#
+create table t1 (a int, b int, key(a));
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+analyze delete from t1 where 1 > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+analyze delete from t1 where a > 30 and a < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+analyze update t1 set b=12345 where 1 > 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+analyze update t1 set b=12345 where a > 30 and a < 10;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+drop table t1;
