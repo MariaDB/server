@@ -486,7 +486,7 @@ handle_rpl_parallel_thread(void *arg)
          (event_type == QUERY_EVENT &&
           (((Query_log_event *)events->ev)->is_commit() ||
            ((Query_log_event *)events->ev)->is_rollback()));
-      if (group_ending)
+      if (group_ending && likely(!rgi->worker_error))
       {
         DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
         rgi->mark_start_commit();
@@ -498,7 +498,7 @@ handle_rpl_parallel_thread(void *arg)
         processing between the event groups as a simple way to ensure that
         everything is stopped and cleaned up correctly.
       */
-      if (!rgi->worker_error && !skip_event_group)
+      if (likely(!rgi->worker_error) && !skip_event_group)
         err= rpt_handle_event(events, rpt);
       else
         err= thd->wait_for_prior_commit();

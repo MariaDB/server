@@ -666,7 +666,7 @@ end:
 
   if (table_opened)
   {
-    if (err)
+    if (err || (err= ha_commit_trans(thd, FALSE)))
     {
       /*
         If error, we need to put any remaining elist back into the HASH so we
@@ -680,13 +680,8 @@ end:
       }
 
       ha_rollback_trans(thd, FALSE);
-      close_thread_tables(thd);
     }
-    else
-    {
-      ha_commit_trans(thd, FALSE);
-      close_thread_tables(thd);
-    }
+    close_thread_tables(thd);
     if (in_transaction)
       thd->mdl_context.release_statement_locks();
     else
