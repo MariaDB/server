@@ -300,7 +300,7 @@ public:
 
   bool eq(const char *user2, const char *host2) { return !cmp(user2, host2); }
 
-  bool wild_eq(const char *user2, const char *host2, const char *ip2 = 0)
+  bool wild_eq(const char *user2, const char *host2, const char *ip2)
   {
     if (strcmp(safe_str(user.str), safe_str(user2)))
       return false;
@@ -1883,7 +1883,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
     acl_user= (ACL_USER *)acl_user_base;
     /* Yes! priv_user@host. Don't ask why - that's what check_access() does. */
     if (acl_user->wild_eq(thd->security_ctx->priv_user,
-                          thd->security_ctx->host))
+                          thd->security_ctx->host, thd->security_ctx->ip))
     {
       is_granted= TRUE;
       break;
