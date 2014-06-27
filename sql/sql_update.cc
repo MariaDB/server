@@ -673,7 +673,7 @@ int mysql_update(THD *thd,
 	select= new SQL_SELECT;
 	select->head=table;
       }
-      //psergey-todo: disable SHOW EXPLAIN because the plan was deleted? 
+
       if (reinit_io_cache(&tempfile,READ_CACHE,0L,0,0))
 	error=1; /* purecov: inspected */
       select->file=tempfile;			// Read row ptrs from this file
