@@ -378,6 +378,20 @@ buf_mtflu_io_thread_exit(void)
 	fprintf(stderr, "InnoDB: [Note]: Signal mtflush_io_threads to exit [%lu]\n",
 		srv_mtflush_threads);
 
+	/* This lock is to safequard against timing bug: flush request take
+	this mutex before sending work items to be processed by flush
+	threads. Inside flush thread we assume that work queue contains only
+	a constant number of items. Thus, we may not install new work items
+	below before all previous ones are processed. This mutex is released
+	by flush request after all work items sent to flush threads have
+	been processed. Thus, we can get this mutex if and only if work
+	queue is empty. */
+
+	os_fast_mutex_lock(&mtflush_mtx);
+
+	/* Make sure the work queue is empty */
+	ut_a(ib_wqueue_is_empty(mtflush_io->wq));
+
 	/* Send one exit work item/thread */
 	for (i=0; i < srv_mtflush_threads; i++) {
 		work_item[i].tsk = MT_WRK_NONE;
@@ -398,6 +412,9 @@ buf_mtflu_io_thread_exit(void)
 	}
 
 	ut_a(ib_wqueue_is_empty(mtflush_io->wq));
+
+	/* Requests sent */
+	os_fast_mutex_unlock(&mtflush_mtx);
 
 	/* Collect all work done items */
 	for (i=0; i < srv_mtflush_threads;) {
