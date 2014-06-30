@@ -496,6 +496,18 @@ public:
   const char *func_name() const { return "st_distance"; }
 };
 
+
+#ifndef DBUG_OFF
+class Item_func_gis_debug: public Item_int_func
+{
+  public:
+    Item_func_gis_debug(Item *a) :Item_int_func(a) { null_value= false; }
+    const char *func_name() const  { return "st_gis_debug"; }
+    longlong val_int();
+};
+#endif
+
+
 #define GEOM_NEW(thd, obj_constructor) new (thd->mem_root) obj_constructor
 
 #else /*HAVE_SPATIAL*/

@@ -200,6 +200,31 @@ result
 SELECT ST_Equals(PointFromText('POINT (12 13)'),PointFromText('POINT (12 13)')) as result;
 result
 1
+#
+# BUG#11755628/47429: INTERSECTION FUNCTION CRASHED MYSQLD 
+# BUG#11759650/51979: UNION/INTERSECTION OF POLYGONS CRASHES MYSQL 
+#
+SELECT ASTEXT(ST_UNION(GEOMFROMTEXT('POLYGON((525000 183300,525400
+183300,525400 18370, 525000 183700,525000 183300))'),
+geomfromtext('POLYGON((525298.67 183511.53,525296.57
+183510.39,525296.42 183510.31,525289.11 183506.62,525283.17
+183503.47,525280.98 183502.26,525278.63 183500.97,525278.39
+183500.84,525276.79 183500,525260.7 183491.55,525263.95
+183484.75,525265.58 183481.95,525278.97 183488.73,525276.5
+183493.45,525275.5 183495.7,525280.35 183498.2,525282.3
+183499.1,525282.2 183499.3,525283.55 183500,525301.75
+183509.35,525304.45 183504.25,525307.85 183504.95,525304.5
+183510.83,525302.81 183513.8,525298.67 183511.53),(525275.06
+183489.89,525272.06 183488.37,525268.94 183494.51,525271.94
+183496.03,525275.06 183489.89),(525263.26 183491.55,525266.15
+183493.04,525269.88 183485.82,525266.99 183484.33,525263.26
+183491.55))'))) st_u;
+st_u
+MULTIPOLYGON(((525400 18370,525000.9677614468 183300,525400 183300,525400 18370)),((525000 183300,525000 183700,525000.9677614468 183300,525000 183300)),((525265.58 183481.95,525263.95 183484.75,525260.7 183491.55,525276.79 183500,525278.39 183500.84,525278.63 183500.97,525280.98 183502.26,525283.17 183503.47,525289.11 183506.62,525296.42 183510.31,525296.57 183510.39,525298.67 183511.53,525302.81 183513.8,525304.5 183510.83,525307.85 183504.95,525304.45 183504.25,525301.75 183509.35,525283.55 183500,525282.2 183499.3,525282.3 183499.1,525280.35 183498.2,525275.5 183495.7,525276.5 183493.45,525278.97 183488.73,525265.58 183481.95),(525266.99 183484.33,525263.26 183491.55,525266.15 183493.04,525269.88 183485.82,525266.99 183484.33),(525272.06 183488.37,525268.94 183494.51,525271.94 183496.03,525275.06 183489.89,525272.06 183488.37)))
+SET @a=0x0000000001030000000200000005000000000000000000000000000000000000000000000000002440000000000000000000000000000024400000000000002440000000000000000000000000000024400000000000000000000000000000000000000000000000000000F03F000000000000F03F0000000000000040000000000000F03F00000000000000400000000000000040000000000000F03F0000000000000040000000000000F03F000000000000F03F;
+SELECT ASTEXT(TOUCHES(@a, GEOMFROMTEXT('point(0 0)'))) t;
+t
+NULL
 SELECT astext(ST_UNION (
 PolyFromText('POLYGON(( 2 2 ,3 2,2 7,2 2),( 0 0,8 2,1 9,0 0))'),
 ExteriorRing( Envelope( MultiLineStringFromText('MULTILINESTRING((3 4,5 3),(3 0,0 5))')))));
@@ -455,3 +480,296 @@ ST_NUMPOINTS(ST_EXTERIORRING(ST_BUFFER( POLYGONFROMTEXT( 'POLYGON( ( 0.0 -3.0,
 select astext(buffer(st_linestringfromwkb(linestring(point(-1,1), point(-1,-2))),-1));
 astext(buffer(st_linestringfromwkb(linestring(point(-1,1), point(-1,-2))),-1))
 GEOMETRYCOLLECTION EMPTY
+DROP TABLE IF EXISTS p1;
+CREATE PROCEDURE p1(dist DOUBLE, geom TEXT)
+BEGIN
+DECLARE g GEOMETRY;
+SET g=GeomFromText(geom);
+SELECT geom AS `-----`;
+SELECT dist, GeometryType(@buf:=ST_Buffer(g, dist)) AS `buffer`, ROUND(ST_AREA(@buf),2) AS buf_area;
+END|
+#
+# Testing ST_BUFFER with positive distance
+#
+-----
+POINT(0 0))
+dist	buffer	buf_area
+1	POLYGON	3.14
+-----
+LineString(0 1, 1 1))
+dist	buffer	buf_area
+1	POLYGON	5.14
+-----
+LineString(9 9,8 1,1 5,0 0)
+dist	buffer	buf_area
+1	POLYGON	44.63
+-----
+Polygon((2 2,2 8,8 8,8 2,2 2))
+dist	buffer	buf_area
+1	POLYGON	63.14
+-----
+Polygon((0 0,0 8,8 8,8 0,0 0),(2 2,6 2,6 6,2 6,2 2))
+dist	buffer	buf_area
+1	POLYGON	95.14
+-----
+Polygon((0 0, 0 8, 8 8, 8 10, -10 10, -10 0, 0 0))
+dist	buffer	buf_area
+1	POLYGON	174.93
+-----
+MultiPoint(9 9,8 1,1 5)
+dist	buffer	buf_area
+1	MULTIPOLYGON	9.42
+-----
+MultiLineString((0 0,2 2))
+dist	buffer	buf_area
+1	POLYGON	8.80
+-----
+MultiLineString((0 0,2 2,0 4))
+dist	buffer	buf_area
+1	POLYGON	14.24
+-----
+MultiLineString((0 0,2 2),(0 2,2 0))
+dist	buffer	buf_area
+1	POLYGON	13.59
+-----
+MultiLineString((2 2,2 8,-2 8),(-6 -6, 6 6),(10 10, 14 14))
+dist	buffer	buf_area
+1	MULTIPOLYGON	70.06
+-----
+MultiPolygon(((2 2,2 8,8 8,8 2,2 2)), ((9 9,8 1,1 5,9 9)))
+dist	buffer	buf_area
+1	POLYGON	73.18
+-----
+MultiPolygon(((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)),((9 9,8 1,1 5,9 9)))
+dist	buffer	buf_area
+1	POLYGON	73.18
+-----
+GeometryCollection(Point(0 0))
+dist	buffer	buf_area
+1	POLYGON	3.14
+-----
+GeometryCollection(LineString(0 0, 2 2)))
+dist	buffer	buf_area
+1	POLYGON	8.80
+-----
+GeometryCollection(Polygon((2 2,2 8,8 8,8 2,2 2))))
+dist	buffer	buf_area
+1	POLYGON	63.14
+-----
+GeometryCollection(MultiPoint(9 9,8 1,1 5))
+dist	buffer	buf_area
+1	MULTIPOLYGON	9.42
+-----
+GeometryCollection(MultiLineString((0 0,0 1),(3 0,3 1)))
+dist	buffer	buf_area
+1	MULTIPOLYGON	10.28
+-----
+GeometryCollection(MultiPolygon(((0 0, 3 0, 3 3, 0 3, 0 0)),((6 6,6 9,9 9,9 6,6 6))))
+dist	buffer	buf_area
+1	MULTIPOLYGON	48.28
+-----
+GeometryCollection(Point(9 9),LineString(1 5,0 0),Polygon((2 2,2 8,8 8,8 2,2 2)))
+dist	buffer	buf_area
+1	POLYGON	75.92
+#
+# Testing ST_BUFFER with zero distance
+#
+-----
+POINT(0 0))
+dist	buffer	buf_area
+0	POINT	0.00
+-----
+LineString(0 1, 1 1))
+dist	buffer	buf_area
+0	LINESTRING	0.00
+-----
+LineString(9 9,8 1,1 5,0 0)
+dist	buffer	buf_area
+0	LINESTRING	0.00
+-----
+Polygon((2 2,2 8,8 8,8 2,2 2))
+dist	buffer	buf_area
+0	POLYGON	36.00
+-----
+Polygon((0 0,0 8,8 8,8 0,0 0),(2 2,6 2,6 6,2 6,2 2))
+dist	buffer	buf_area
+0	POLYGON	48.00
+-----
+Polygon((0 0, 0 8, 8 8, 8 10, -10 10, -10 0, 0 0))
+dist	buffer	buf_area
+0	POLYGON	116.00
+-----
+MultiPoint(9 9,8 1,1 5)
+dist	buffer	buf_area
+0	MULTIPOINT	NULL
+-----
+MultiLineString((0 0,2 2))
+dist	buffer	buf_area
+0	MULTILINESTRING	NULL
+-----
+MultiLineString((0 0,2 2,0 4))
+dist	buffer	buf_area
+0	MULTILINESTRING	NULL
+-----
+MultiLineString((0 0,2 2),(0 2,2 0))
+dist	buffer	buf_area
+0	MULTILINESTRING	NULL
+-----
+MultiLineString((2 2,2 8,-2 8),(-6 -6, 6 6),(10 10, 14 14))
+dist	buffer	buf_area
+0	MULTILINESTRING	NULL
+-----
+MultiPolygon(((2 2,2 8,8 8,8 2,2 2)), ((9 9,8 1,1 5,9 9)))
+dist	buffer	buf_area
+0	MULTIPOLYGON	66.00
+-----
+MultiPolygon(((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)),((9 9,8 1,1 5,9 9)))
+dist	buffer	buf_area
+0	MULTIPOLYGON	62.00
+-----
+GeometryCollection(Point(0 0))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(LineString(0 0, 2 2)))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(Polygon((2 2,2 8,8 8,8 2,2 2))))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	36.00
+-----
+GeometryCollection(MultiPoint(9 9,8 1,1 5))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	NULL
+-----
+GeometryCollection(MultiLineString((0 0,0 1),(3 0,3 1)))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	NULL
+-----
+GeometryCollection(MultiPolygon(((0 0, 3 0, 3 3, 0 3, 0 0)),((6 6,6 9,9 9,9 6,6 6))))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	18.00
+-----
+GeometryCollection(Point(9 9),LineString(1 5,0 0),Polygon((2 2,2 8,8 8,8 2,2 2)))
+dist	buffer	buf_area
+0	GEOMETRYCOLLECTION	36.00
+#
+# Testing ST_BUFFER with negative distance
+#
+-----
+POINT(0 0))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+LineString(0 1, 1 1))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+LineString(9 9,8 1,1 5,0 0)
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+Polygon((2 2,2 8,8 8,8 2,2 2))
+dist	buffer	buf_area
+-1	POLYGON	16.00
+-----
+MultiPoint(9 9,8 1,1 5)
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+MultiLineString((0 0,2 2))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+MultiLineString((0 0,2 2,0 4))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+MultiLineString((0 0,2 2),(0 2,2 0))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+MultiLineString((2 2,2 8,-2 8),(-6 -6, 6 6),(10 10, 14 14))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(Point(0 0))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(LineString(0 0, 2 2)))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(Polygon((2 2,2 8,8 8,8 2,2 2))))
+dist	buffer	buf_area
+-1	POLYGON	16.00
+-----
+GeometryCollection(MultiPoint(9 9,8 1,1 5))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(MultiLineString((0 0,0 1),(3 0,3 1)))
+dist	buffer	buf_area
+-1	GEOMETRYCOLLECTION	0.00
+-----
+GeometryCollection(Point(9 9),LineString(1 5,0 0),Polygon((2 2,2 8,8 8,8 2,2 2)))
+dist	buffer	buf_area
+-1	POLYGON	16.00
+SELECT ST_CONTAINS(
+GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
+GeomFromText('POINT(5 10)'));
+ST_CONTAINS(
+GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
+GeomFromText('POINT(5 10)'))
+0
+SELECT AsText(ST_UNION(
+GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
+GeomFromText('POINT(5 10)')));
+AsText(ST_UNION(
+GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
+GeomFromText('POINT(5 10)')))
+GEOMETRYCOLLECTION(POLYGON((0 0,0 5,5 5,5 0,0 0)),POLYGON((6 6,6 11,11 11,11 6,6 6)),POINT(5 10))
+DROP PROCEDURE p1;
+#
+# Bug #13833019 ASSERTION `T1->RESULT_RANGE' FAILED IN GCALC_OPERATION_REDUCER::END_COUPLE
+#
+SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((0 0,9 4,3 3,0 0)),((2 2,2 2,8 8,2 3,2 2)))'), 3));
+GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((0 0,9 4,3 3,0 0)),((2 2,2 2,8 8,2 3,2 2)))'), 3))
+POLYGON
+#
+# Bug #13832749 	HANDLE_FATAL_SIGNAL IN GCALC_FUNCTION::COUNT_INTERNAL
+#
+SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)), ((9 9,8 1,1 5,9 9)))'),1));
+GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)), ((9 9,8 1,1 5,9 9)))'),1))
+POLYGON
+#
+# Bug#13358363 - ASSERTION: N > 0 && N < SINUSES_CALCULATED*2+1 | GET_N_SINCOS/ADD_EDGE_BUFFER
+#
+DO ST_BUFFER(ST_GEOMCOLLFROMTEXT('linestring(1 1,2 2)'),'');
+SELECT ST_WITHIN(
+LINESTRINGFROMTEXT(' LINESTRING(3 8,9 2,3 8,3 3,7 6,4 7,4 7,8 1) '),
+ST_BUFFER(MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2),(4 4,4 6,6 6,6 4,4 4)),((0 5,3 5,3 2,1 2,1 1,3 1,3 0,0 0,0 3,2 3,2 4,0 4,0 5))) '),
+ST_NUMINTERIORRINGS(POLYGONFROMTEXT('POLYGON((3 5,2 4,2 5,3 5)) '))));
+ST_WITHIN(
+LINESTRINGFROMTEXT(' LINESTRING(3 8,9 2,3 8,3 3,7 6,4 7,4 7,8 1) '),
+ST_BUFFER(MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2),(4 4,4 6,6 6,6 4,4 4)),((0 5,3 5,3 2,1 2,1 1,3 1,3 0,0 0,0 3,2 3,2 4,0 4,0 5))) ')
+0
+SELECT ST_DIMENSION(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((3 5,2 5,2 4,3 4,3 5)) '),
+ST_NUMINTERIORRINGS(POLYGONFROMTEXT(' POLYGON((0 0,9 3,4 2,0 0))'))));
+ST_DIMENSION(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((3 5,2 5,2 4,3 4,3 5)) '),
+ST_NUMINTERIORRINGS(POLYGONFROMTEXT(' POLYGON((0 0,9 3,4 2,0 0))'))))
+2
+SELECT ST_NUMINTERIORRINGS(
+ST_ENVELOPE(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5))) '),
+SRID(MULTILINESTRINGFROMTEXT('MULTILINESTRING((2 2,4 2,1 2,2 4,2 2)) ')))));
+ST_NUMINTERIORRINGS(
+ST_ENVELOPE(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5))) '),
+SRID(MULTILINESTRINGFROMTEXT('MULTILINESTRING((2 2,4 2,1 2,2 4,2 2)) ')))))
+0
+SELECT ASTEXT(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((9 9,5 2,4 5,9 9))'),
+SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))));
+ASTEXT(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((9 9,5 2,4 5,9 9))'),
+SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))))
+POLYGON((9 9,5 2,4 5,9 9))
