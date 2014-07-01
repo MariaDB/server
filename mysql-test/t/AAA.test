@@ -1,0 +1,66 @@
+#delimiter |;
+#create procedure p0(x int)
+#while x do
+#  set x = x-1;
+#end while|
+#delimiter ;|
+#call p0(100000000);
+#drop procedure p0;
+#
+#disable_query_log;
+#disable_result_log;
+#let $1= 100000000;
+#while ($1)
+#{
+#  SELECT 1;
+#  dec $1;
+#}
+#enable_query_log;
+#enable_result_log;
+#SELECT 'done';
+
+--source include/have_innodb.inc
+--source include/have_partition.inc
+
+--enable_connect_log
+
+SET GLOBAL innodb_lock_wait_timeout = 3;
+
+CREATE TABLE t1 (pk int auto_increment primary key) ENGINE=InnoDB 
+  PARTITION BY key (pk) partitions 2;
+
+CREATE TABLE t2 (pk int auto_increment primary key) ENGINE=InnoDB;
+
+CREATE TABLE t3 (f int) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1),(2);
+
+--connect (con1,localhost,root,,test)
+--connect (con2,localhost,root,,test)
+--send ALTER TABLE t1 FORCE;
+
+--connect (con3,localhost,root,,test)
+START TRANSACTION;
+INSERT INTO t2 VALUES (1),(2);
+
+--connection con1
+send UPDATE t3 SET f = 5;
+
+--connection con3
+SELECT f FROM t3;
+
+--connection con1
+reap;
+--error ER_LOCK_WAIT_TIMEOUT
+DELETE FROM t2;
+
+--connection con3
+--error 0,ER_TABLE_DEF_CHANGED
+REPLACE INTO t2 (pk) SELECT NULL FROM t1;
+
+SELECT * FROM t1;
+
+disconnect con1;
+disconnect con2;
+disconnect con3;
+connection default;
+DROP TABLES t1, t2, t3;
