@@ -9510,12 +9510,10 @@ int Rows_log_event::do_add_row_data(uchar *row_data, size_t length)
 */
 static void restore_empty_query_table_list(LEX *lex)
 {
-#ifdef RBR_TRIGGERS
   if (lex->first_not_own_table())
       (*lex->first_not_own_table()->prev_global)= NULL;
   lex->query_tables= NULL;
   lex->query_tables_last= &lex->query_tables;
-#endif //RBR_TRIGGERS
 }
 
 
@@ -10074,7 +10072,7 @@ Rows_log_event::do_update_pos(rpl_group_info *rgi)
   DBUG_RETURN(error);
 }
 
-#endif //defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+#endif /* !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION) */
 
 #ifndef MYSQL_CLIENT
 bool Rows_log_event::write_data_header(IO_CACHE *file)
@@ -10426,10 +10424,8 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
   DBUG_ASSERT(static_cast<size_t>(cbuf_end - cbuf) <= sizeof(cbuf));
   m_data_size+= (cbuf_end - cbuf) + m_colcnt;	// COLCNT and column types
 
-#ifdef RBR_TRIGGERS
   if (tbl->triggers)
     m_flags|= TM_BIT_HAS_TRIGGERS_F;
-#endif //RBR_TRIGGERS
 
   /* If malloc fails, caught in is_valid() */
   if ((m_memory= (uchar*) my_malloc(m_colcnt, MYF(MY_WME))))
@@ -10841,11 +10837,9 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
   DBUG_PRINT("debug", ("table: %s is mapped to %u", table_list->table_name, 
                                                     table_list->table_id));
-#ifdef RBR_TRIGGERS
   table_list->master_had_triggers= ((m_flags & TM_BIT_HAS_TRIGGERS_F) ? 1 : 0);
   DBUG_PRINT("debug", ("table->master_had_triggers=%d", 
                        (int)table_list->master_had_triggers));
-#endif //RBR_TRIGGERS
 
   enum_tbl_map_status tblmap_status= check_table_map(rgi, table_list);
   if (tblmap_status == OK_TO_PROCESS)
@@ -11196,7 +11190,6 @@ bool Rows_log_event::process_triggers(trg_event_type event,
                                       trg_action_time_type time_type,
                                       bool old_row_is_record1)
 {
-#ifdef RBR_TRIGGERS
   bool result;
   DBUG_ENTER("Rows_log_event::process_triggers");
   if (slave_run_triggers_for_rbr == SLAVE_RUN_TRIGGERS_FOR_RBR_YES)
@@ -11211,9 +11204,6 @@ bool Rows_log_event::process_triggers(trg_event_type event,
                                               time_type, old_row_is_record1);
 
   DBUG_RETURN(result);
-#else
-  return TRUE;
-#endif //RBR_TRIGGERS
 }
 /*
   Check if there are more UNIQUE keys after the given key.
@@ -12186,10 +12176,8 @@ Delete_rows_log_event::do_before_row_operations(const Slave_reporting_capability
     */
     return 0;
   }
-#ifdef RBR_TRIGGERS
   if (slave_run_triggers_for_rbr && !master_had_triggers)
     m_table->prepare_triggers_for_delete_stmt_or_event();
-#endif //RBR_TRIGGERS
 
   return find_key();
 }

@@ -916,6 +916,15 @@ The following options may be given as the first argument:
  replication domains. Note that these threads are in
  addition to the IO and SQL threads, which are always
  created by a replication slave
+ --slave-run-triggers-for-rbr=name 
+ Modes for how triggers in row-base replication on slave
+ side will be executed. Legal values are NO (default), YES
+ and LOGGING. NO means that trigger for RBR will not be
+ running on slave. YES and LOGGING means that triggers
+ will be running on slave, if there was not triggers
+ running on the master for the statement. LOGGING also
+ means results of that the executed triggers work will be
+ written to the binlog.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -1315,6 +1324,7 @@ slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
 slave-parallel-max-queued 131072
 slave-parallel-threads 0
+slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10
