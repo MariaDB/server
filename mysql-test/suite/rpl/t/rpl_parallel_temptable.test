@@ -1,0 +1,143 @@
+--source include/have_binlog_format_statement.inc
+--let $rpl_topology=1->2
+--source include/rpl_init.inc
+
+--echo *** MDEV-6321: close_temporary_tables() in format description event not serialised correctly ***
+
+--connection server_2
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=5;
+CHANGE MASTER TO master_use_gtid= current_pos;
+--source include/start_slave.inc
+
+--connection server_1
+CREATE TABLE t1 (a INT PRIMARY KEY, b VARCHAR(100) CHARACTER SET utf8);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+
+
+--connection server_1
+SET gtid_domain_id= 1;
+INSERT INTO t1 VALUES (1, 0);
+
+CREATE TEMPORARY TABLE t2 (a int);
+
+--connection default
+SET gtid_domain_id= 2;
+CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY);
+CREATE TEMPORARY TABLE t4 (a int);
+INSERT INTO t3 VALUES (100);
+INSERT INTO t4 SELECT a+1 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (2), (4), (6), (8), (10), (12), (14), (16), (18), (20);
+INSERT INTO t2 VALUES (3), (6), (9), (12), (15), (18);
+INSERT INTO t2 VALUES (4), (8), (12), (16), (20);
+
+--connection default
+INSERT INTO t3 SELECT a+2 FROM t4;
+INSERT INTO t4 SELECT a+4 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (5), (10), (15), (20);
+INSERT INTO t2 VALUES (6), (12), (18);
+INSERT INTO t2 VALUES (7), (14);
+INSERT INTO t2 VALUES (8), (16);
+INSERT INTO t2 VALUES (9), (18);
+INSERT INTO t2 VALUES (10), (20);
+
+--connection default
+INSERT INTO t3 SELECT a+8 FROM t4;
+INSERT INTO t4 SELECT a+16 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (11);
+INSERT INTO t2 VALUES (12);
+INSERT INTO t2 VALUES (13);
+
+--connection default
+INSERT INTO t3 SELECT a+32 FROM t4;
+
+--connection server_1
+INSERT INTO t2 VALUES (14);
+INSERT INTO t2 VALUES (15);
+INSERT INTO t2 VALUES (16);
+
+--connection default
+INSERT INTO t4 SELECT a+64 FROM t3;
+
+--connection server_1
+INSERT INTO t2 VALUES (17);
+INSERT INTO t2 VALUES (18);
+INSERT INTO t2 VALUES (19);
+
+--connection default
+INSERT INTO t3 SELECT a+128 FROM t4;
+
+--connection server_1
+INSERT INTO t2 VALUES (20);
+
+--connection default
+INSERT INTO t1 SELECT a, a MOD 7 FROM t3;
+INSERT INTO t1 SELECT a, a MOD 7 FROM t4;
+
+--connection server_1
+INSERT INTO t1 SELECT a, COUNT(*) FROM t2 GROUP BY a;
+
+# Crash the master server, so that temporary tables are implicitly dropped.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+FLUSH TABLES;
+SET SESSION debug_dbug="+d,crash_dispatch_command_before";
+--error 2006,2013
+SELECT 1;
+
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (0, 1);
+--save_master_pos
+
+--connection server_2
+# Start the slave replicating the events.
+# The bug was that the format description event written after the crash could
+# be fetched ahead of the execution of the temporary table events and executed
+# out-of-band. This would cause drop of all temporary tables and thus failure
+# for execution of remaining events.
+
+--source include/start_slave.inc
+--sync_with_master
+
+SELECT * FROM t1 WHERE a <= 20 ORDER BY a;
+SELECT COUNT(*) FROM t1 WHERE a BETWEEN 100+0 AND 100+256;
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+
+
+--connection server_2
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+--connection server_1
+DROP TABLE t1;
+
+--source include/rpl_end.inc

@@ -1617,6 +1617,36 @@ rpl_parallel::workers_idle()
 }
 
 
+void
+rpl_parallel::wait_for_workers_idle(THD *thd)
+{
+  uint32 i, max_i;
+
+  max_i= domain_hash.records;
+  for (i= 0; i < max_i; ++i)
+  {
+    bool active;
+    wait_for_commit my_orderer;
+    struct rpl_parallel_entry *e;
+
+    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
+    mysql_mutex_lock(&e->LOCK_parallel_entry);
+    if ((active= (e->current_sub_id > e->last_committed_sub_id)))
+    {
+      wait_for_commit *waitee= &e->current_group_info->commit_orderer;
+      my_orderer.register_wait_for_prior_commit(waitee);
+      thd->wait_for_commit_ptr= &my_orderer;
+    }
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
+    if (active)
+    {
+      my_orderer.wait_for_prior_commit(thd);
+      thd->wait_for_commit_ptr= NULL;
+    }
+  }
+}
+
+
 /*
   This is used when we get an error during processing in do_event();
   We will not queue any event to the thread, but we still need to wake it up
@@ -1683,6 +1713,24 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
   /* ToDo: what to do with this lock?!? */
   mysql_mutex_unlock(&rli->data_lock);
+
+  if (typ == FORMAT_DESCRIPTION_EVENT)
+  {
+    Format_description_log_event *fdev=
+      static_cast<Format_description_log_event *>(ev);
+    if (fdev->created)
+    {
+      /*
+        This format description event marks a new binlog after a master server
+        restart. We are going to close all temporary tables to clean up any
+        possible left-overs after a prior master crash.
+
+        Thus we need to wait for all prior events to execute to completion,
+        in case they need access to any of the temporary tables.
+      */
+      wait_for_workers_idle(rli->sql_driver_thd);
+    }
+  }
 
   /*
     Stop queueing additional event groups once the SQL thread is requested to
