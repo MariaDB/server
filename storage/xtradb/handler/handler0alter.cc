@@ -3167,6 +3167,9 @@ error_handling:
 	case DB_DUPLICATE_KEY:
 		my_error(ER_DUP_KEY, MYF(0), "SYS_INDEXES");
 		break;
+        case DB_OUT_OF_FILE_SPACE:
+		my_error_innodb(error, table_name, user_table->flags);
+		break;
 	default:
 		my_error_innodb(error, table_name, user_table->flags);
 	}

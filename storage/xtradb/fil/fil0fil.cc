@@ -5543,7 +5543,7 @@ _fil_io(
 	ulint		mode;
 	fil_space_t*	space;
 	fil_node_t*	node;
-	ibool		ret;
+	ibool		ret=TRUE;
 	ulint		is_log;
 	ulint		wake_later;
 	os_offset_t	offset;
@@ -5767,7 +5767,6 @@ _fil_io(
 				    offset, len);
 	}
 #endif /* !UNIV_HOTBACKUP */
-	ut_a(ret);
 
 	if (mode == OS_AIO_SYNC) {
 		/* The i/o operation is already completed when we return from
@@ -5782,7 +5781,11 @@ _fil_io(
 		ut_ad(fil_validate_skip());
 	}
 
-	return(DB_SUCCESS);
+	if (!ret) {
+		return(DB_OUT_OF_FILE_SPACE);
+	} else {
+		return(DB_SUCCESS);
+	}
 }
 
 #ifndef UNIV_HOTBACKUP

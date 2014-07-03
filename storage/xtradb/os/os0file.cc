@@ -4720,8 +4720,10 @@ os_aio_func(
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
-	if (mode == OS_AIO_SYNC) 
-	{
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			mode = OS_AIO_SYNC;);
+
+	if (mode == OS_AIO_SYNC) {
 		ibool ret;
 		/* This is actually an ordinary synchronous read or write:
 		no need to use an i/o-handler thread */
@@ -4735,7 +4737,18 @@ os_aio_func(
 
 			ret = os_file_write(name, file, buf, offset, n);
 		}
-		ut_a(ret);
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			ret = 0;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			errno = 28;);
+
+		if (!ret) {
+			fprintf(stderr, "FAIL");
+		}
+
 		return ret;
 	}
 
@@ -5564,7 +5577,13 @@ consecutive_loop:
 			aio_slot->offset, total_len);
 	}
 
-	ut_a(ret);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+		os_has_said_disk_full = FALSE;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			ret = 0;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			errno = 28;);
+
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
 	if (aio_slot->type == OS_FILE_READ && n_consecutive > 1) {
