@@ -4277,6 +4277,8 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
     return 1;
   if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
     return 1;
+  if (rgi->commit_id != other_rgi->commit_id)
+    return 1;
   /*
     These two threads are doing parallel replication within the same
     replication domain. Their commit order is already fixed, so we do not need
