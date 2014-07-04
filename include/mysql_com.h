@@ -352,9 +352,6 @@ enum enum_server_command
 #define NET_WRITE_TIMEOUT	60		/* Timeout on write */
 #define NET_WAIT_TIMEOUT	8*60*60		/* Wait for new query */
 
-#define ONLY_KILL_QUERY         1
-
-
 struct st_vio;					/* Only C */
 typedef struct st_vio Vio;
 
@@ -501,12 +498,6 @@ enum mysql_enum_shutdown_level {
   /* don't flush InnoDB buffers, flush other storage engines' buffers*/
   SHUTDOWN_WAIT_CRITICAL_BUFFERS= (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1) + 1
 };
-
-/* Compatibility */
-#if !defined(MYSQL_SERVER) && defined(USE_OLD_FUNCTIONS)
-#define KILL_QUERY SHUTDOWN_KILL_QUERY
-#define KILL_CONNECTION SHUTDOWN_KILL_CONNECTION
-#endif
 
 enum enum_cursor_type
 {
