@@ -2016,7 +2016,7 @@ wsrep_rec_get_foreign_key(
 			case DATA_MYSQL:
 				/* Copy the actual data */
 				ut_memcpy(buf, data, len);
-				*buf_len = wsrep_innobase_mysql_sort(
+				len = wsrep_innobase_mysql_sort(
 					(int)
 					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 					(uint)

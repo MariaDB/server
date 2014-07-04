@@ -6261,7 +6261,6 @@ wsrep_store_key_val_for_row(
 			const byte*	data;
 			ulint		key_len;
 			ulint		true_len;
-			ulint		sort_len;
 			const CHARSET_INFO* cs;
 			int		error=0;
 
@@ -6304,12 +6303,12 @@ wsrep_store_key_val_for_row(
 			}
 
 			memcpy(sorted, data, true_len);
-			sort_len = wsrep_innobase_mysql_sort(
+			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len, 
 				REC_VERSION_56_MAX_INDEX_COL_LEN);
 
 			if (wsrep_protocol_version > 1) {
-				memcpy(buff, sorted, sort_len);
+				memcpy(buff, sorted, true_len);
                         /* Note that we always reserve the maximum possible
 			length of the true VARCHAR in the key value, though
 			only len first bytes after the 2 length bytes contain
@@ -6330,7 +6329,6 @@ wsrep_store_key_val_for_row(
 			const CHARSET_INFO* cs;
 			ulint		key_len;
 			ulint		true_len;
-			ulint		sort_len;
 			int		error=0;
 			ulint		blob_len;
 			const byte*	blob_data;
@@ -6379,11 +6377,11 @@ wsrep_store_key_val_for_row(
 			}
 
 			memcpy(sorted, blob_data, true_len);
-			sort_len = wsrep_innobase_mysql_sort(
+			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
 				REC_VERSION_56_MAX_INDEX_COL_LEN);
 
-			memcpy(buff, sorted, sort_len);
+			memcpy(buff, sorted, true_len);
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -6400,7 +6398,6 @@ wsrep_store_key_val_for_row(
 
 			const CHARSET_INFO*	cs = NULL;
 			ulint			true_len;
-			ulint			sort_len;
 			ulint			key_len;
 			const uchar*		src_start;
 			int			error=0;
@@ -6445,28 +6442,16 @@ wsrep_store_key_val_for_row(
 							&error);
 				}
 				memcpy(sorted, src_start, true_len);
-				sort_len = wsrep_innobase_mysql_sort(
+				true_len = wsrep_innobase_mysql_sort(
 					mysql_type, cs->number, sorted, true_len,
 					REC_VERSION_56_MAX_INDEX_COL_LEN);
 
-				memcpy(buff, sorted, sort_len);
+				memcpy(buff, sorted, true_len);
 			} else {
 				memcpy(buff, src_start, true_len);
 			}
 			buff += true_len;
 
-			/* Pad the unused space with spaces. */
-
-#ifdef REMOVED
-			if (true_len < key_len) {
-				ulint	pad_len = key_len - true_len;
-				ut_a(!(pad_len % cs->mbminlen));
-
-				cs->cset->fill(cs, buff, pad_len,
-					       0x20 /* space */);
-				buff += pad_len;
-			}
-#endif /* REMOVED */
 		}
 	}
 
