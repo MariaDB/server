@@ -380,7 +380,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   }
 
 out:
-  wsrep_startup= FALSE;
+  if (view->status == WSREP_VIEW_PRIMARY) wsrep_startup= FALSE;
   local_status.set(new_status, view);
 
   return WSREP_CB_SUCCESS;
