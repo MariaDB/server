@@ -1,5 +1,5 @@
 # MDEV-6288: Innodb causes server crash after disk full, then can't ALTER TABLE any more
---source include/have_xtradb.inc
+--source include/have_innodb.inc
 
 # DEBUG_SYNC must be compiled in.
 --source include/have_debug_sync.inc

@@ -4571,11 +4571,16 @@ os_aio_func(
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			mode = OS_AIO_SYNC;);
+
 	if (mode == OS_AIO_SYNC
 #ifdef WIN_ASYNC_IO
 	    && !srv_use_native_aio
 #endif /* WIN_ASYNC_IO */
 	    ) {
+		ibool ret;
+
 		/* This is actually an ordinary synchronous read or write:
 		no need to use an i/o-handler thread. NOTE that if we use
 		Windows async i/o, Windows does not allow us to use
@@ -4590,13 +4595,23 @@ os_aio_func(
 		and os_file_write_func() */
 
 		if (type == OS_FILE_READ) {
-			return(os_file_read_func(file, buf, offset, n));
+			ret = os_file_read_func(file, buf, offset, n);
+		} else {
+
+			ut_ad(!srv_read_only_mode);
+			ut_a(type == OS_FILE_WRITE);
+
+			ret = os_file_write_func(name, file, buf, offset, n);
 		}
 
-		ut_ad(!srv_read_only_mode);
-		ut_a(type == OS_FILE_WRITE);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			ret = 0;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			errno = 28;);
 
-		return(os_file_write_func(name, file, buf, offset, n));
+		return ret;
 	}
 
 try_again:
@@ -5421,7 +5436,13 @@ consecutive_loop:
 			aio_slot->offset, total_len);
 	}
 
-	ut_a(ret);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+		os_has_said_disk_full = FALSE;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			ret = 0;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			errno = 28;);
+
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
 	if (aio_slot->type == OS_FILE_READ && n_consecutive > 1) {

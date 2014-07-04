@@ -5725,7 +5725,7 @@ fil_io(
 	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
 		     offset, len, node, message);
 #endif /* UNIV_HOTBACKUP */
-	ut_a(ret);
+
 
 	if (mode == OS_AIO_SYNC) {
 		/* The i/o operation is already completed when we return from
@@ -5740,7 +5740,10 @@ fil_io(
 		ut_ad(fil_validate_skip());
 	}
 
-	return(DB_SUCCESS);
+	if (!ret) {
+		return(DB_OUT_OF_FILE_SPACE);
+	} else {
+	}	return(DB_SUCCESS);
 }
 
 #ifndef UNIV_HOTBACKUP
