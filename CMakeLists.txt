@@ -303,16 +303,11 @@ ENDIF()
 # safemalloc can be enabled and disabled independently
 SET(WITH_SAFEMALLOC "AUTO" CACHE STRING "Use safemalloc memory debugger. Will result in slower execution. Options are: ON OFF AUTO.")
 
-# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
-IF(HAVE_CXX_NEW)
-  SET(DUSE_MYSYS_NEW "-DUSE_MYSYS_NEW")
-ENDIF()
-
 IF(WITH_SAFEMALLOC MATCHES "ON")
-  ADD_DEFINITIONS( -DSAFEMALLOC ${DUSE_MYSYS_NEW})
+  ADD_DEFINITIONS( -DSAFEMALLOC)
 ELSEIF(WITH_SAFEMALLOC MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND)
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DSAFEMALLOC")
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC ${DUSE_MYSYS_NEW}")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC")
 ENDIF()
 
 # Set commonly used variables
@@ -349,6 +344,11 @@ ENDIF()
 
 # Run platform tests
 INCLUDE(configure.cmake)
+
+# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
+IF(NOT HAVE_CXX_NEW)
+  ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
+ENDIF()
 
 # Find header files from the bundled libraries
 # (jemalloc, yassl, readline, pcre, etc)
