@@ -775,3 +775,20 @@ engine_option_value *merge_engine_table_options(engine_option_value *first,
                                    &first, &end);
   DBUG_RETURN(first);
 }
+
+bool is_engine_option_known(engine_option_value *opt,
+                            ha_create_table_option *rules)
+{
+  if (!rules)
+    return false;
+
+  for (; rules->name; rules++)
+  {
+      if (!my_strnncoll(system_charset_info,
+                        (uchar*)rules->name, rules->name_length,
+                        (uchar*)opt->name.str, opt->name.length))
+        return true;
+  }
+  return false;
+}
+

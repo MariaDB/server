@@ -218,13 +218,22 @@ Three	3
 # Changing to another engine is Ok
 # However, the data file is not deleted.
 #
-ALTER TABLE t1 ENGINE=MARIA;
+ALTER TABLE t1 ENGINE=ARIA;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `d` char(10) NOT NULL /* `FLAG`=11 */,
+  `c` int(11) NOT NULL /* `FLAG`=0 */
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 /* `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1 */
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ignore_bad_table_options;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL `FLAG`=11,
   `c` int(11) NOT NULL `FLAG`=0
 ) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `TABLE_TYPE`=fix `FILE_NAME`='tf1.txt' `ENDING`=1
+set sql_mode=@old_sql_mode;
 SELECT * from t1;
 d	c
 One	1

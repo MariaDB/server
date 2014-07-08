@@ -1519,13 +1519,34 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   @param thd             thread handler
   @param packet          string to append
   @param opt             list of options
+  @param check_options   only print known options
+  @param rules           list of known options
 */
 
 static void append_create_options(THD *thd, String *packet,
-				  engine_option_value *opt)
+				  engine_option_value *opt,
+                                  bool check_options,
+                                  ha_create_table_option *rules)
 {
+  bool in_comment= false;
   for(; opt; opt= opt->next)
   {
+    if (check_options)
+    {
+      if (is_engine_option_known(opt, rules))
+      {
+        if (in_comment)
+          packet->append(STRING_WITH_LEN(" */"));
+        in_comment= false;
+      }
+      else
+      {
+        if (!in_comment)
+          packet->append(STRING_WITH_LEN(" /*"));
+        in_comment= true;
+      }
+    }
+
     DBUG_ASSERT(opt->value.str);
     packet->append(' ');
     append_identifier(thd, packet, opt->name.str, opt->name.length);
@@ -1535,6 +1556,8 @@ static void append_create_options(THD *thd, String *packet,
     else
       packet->append(opt->value.str, opt->value.length);
   }
+  if (in_comment)
+    packet->append(STRING_WITH_LEN(" */"));
 }
 
 /*
@@ -1585,6 +1608,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                                        MODE_MYSQL40);
   bool show_table_options= !(sql_mode & MODE_NO_TABLE_OPTIONS) &&
                            !foreign_db_mode;
+  bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
+                      !create_info_arg;
   handlerton *hton;
   my_bitmap_map *old_map;
   int error= 0;
@@ -1734,7 +1759,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(" COMMENT "));
       append_unescaped(packet, field->comment.str, field->comment.length);
     }
-    append_create_options(thd, packet, field->option_list);
+    append_create_options(thd, packet, field->option_list, check_options,
+                          hton->field_options);
   }
 
   key_info= table->key_info;
@@ -1801,7 +1827,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       append_identifier(thd, packet, parser_name->str, parser_name->length);
       packet->append(STRING_WITH_LEN(" */ "));
     }
-    append_create_options(thd, packet, key_info->option_list);
+    append_create_options(thd, packet, key_info->option_list, check_options,
+                          hton->index_options);
   }
 
   /*
@@ -1952,7 +1979,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(" CONNECTION="));
       append_unescaped(packet, share->connect_string.str, share->connect_string.length);
     }
-    append_create_options(thd, packet, share->option_list);
+    append_create_options(thd, packet, share->option_list, check_options,
+                          hton->table_options);
     append_directory(thd, packet, "DATA",  create_info.data_file_name);
     append_directory(thd, packet, "INDEX", create_info.index_file_name);
   }
@@ -5129,7 +5157,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       str.qs_append(STRING_WITH_LEN(" transactional="));
       str.qs_append(ha_choice_values[(uint) share->transactional]);
     }
-    append_create_options(thd, &str, share->option_list);
+    append_create_options(thd, &str, share->option_list, false, 0);
 
     if (str.length())
       table->field[19]->store(str.ptr()+1, str.length()-1, cs);
