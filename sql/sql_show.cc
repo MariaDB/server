@@ -116,8 +116,9 @@ static void get_cs_converted_string_value(THD *thd,
                                           bool use_hex);
 #endif
 
-static void
-append_algorithm(TABLE_LIST *table, String *buff);
+static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
+
+static void append_algorithm(TABLE_LIST *table, String *buff);
 
 static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
@@ -1063,9 +1064,8 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
 
   if ((table_list->view ?
-       view_store_create_info(thd, table_list, &buffer) :
-       store_create_info(thd, table_list, &buffer, NULL,
-                         FALSE /* show_database */, FALSE)))
+       show_create_view(thd, table_list, &buffer) :
+       show_create_table(thd, table_list, &buffer, NULL, WITHOUT_DB_NAME)))
     goto exit;
 
   if (table_list->view)
@@ -1541,7 +1541,7 @@ static void append_create_options(THD *thd, String *packet,
   Build a CREATE TABLE statement for a table.
 
   SYNOPSIS
-    store_create_info()
+    show_create_table()
     thd               The thread
     table_list        A list containing one table to write statement
                       for.
@@ -1551,8 +1551,7 @@ static void append_create_options(THD *thd, String *packet,
                       to tailor the format of the statement.  Can be
                       NULL, in which case only SQL_MODE is considered
                       when building the statement.
-    show_database     Add database name to table name
-    create_or_replace Use CREATE OR REPLACE syntax
+    with_db_name     Add database name to table name
 
   NOTE
     Currently always return 0, but might return error code in the
@@ -1562,9 +1561,9 @@ static void append_create_options(THD *thd, String *packet,
     0       OK
  */
 
-int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO *create_info_arg, bool show_database,
-                      bool create_or_replace)
+int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
+                      HA_CREATE_INFO *create_info_arg,
+                      enum_with_db_name with_db_name)
 {
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
@@ -1578,27 +1577,33 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   handler *file= table->file;
   TABLE_SHARE *share= table->s;
   HA_CREATE_INFO create_info;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  bool show_table_options= FALSE;
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
-  bool foreign_db_mode=  (thd->variables.sql_mode & (MODE_POSTGRESQL |
-                                                     MODE_ORACLE |
-                                                     MODE_MSSQL |
-                                                     MODE_DB2 |
-                                                     MODE_MAXDB |
-                                                     MODE_ANSI)) != 0;
-  bool limited_mysql_mode= (thd->variables.sql_mode & (MODE_NO_FIELD_OPTIONS |
-                                                       MODE_MYSQL323 |
-                                                       MODE_MYSQL40)) != 0;
+  sql_mode_t sql_mode= thd->variables.sql_mode;
+  bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
+                                     MODE_MSSQL | MODE_DB2 |
+                                     MODE_MAXDB | MODE_ANSI);
+  bool limited_mysql_mode= sql_mode & (MODE_NO_FIELD_OPTIONS | MODE_MYSQL323 |
+                                       MODE_MYSQL40);
+  bool show_table_options= !(sql_mode & MODE_NO_TABLE_OPTIONS) &&
+                           !foreign_db_mode;
+  handlerton *hton;
   my_bitmap_map *old_map;
   int error= 0;
-  DBUG_ENTER("store_create_info");
+  DBUG_ENTER("show_create_table");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (table->part_info)
+    hton= table->part_info->default_engine_type;
+  else
+#endif
+    hton= file->ht;
 
   restore_record(table, s->default_values); // Get empty record
 
   packet->append(STRING_WITH_LEN("CREATE "));
-  if (create_or_replace)
+  if (create_info_arg &&
+      (create_info_arg->org_options & HA_LEX_CREATE_REPLACE ||
+       create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
   if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
@@ -1625,7 +1630,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     avoid having to update gazillions of tests and result files, but
     it also saves a few bytes of the binary log.
    */
-  if (show_database)
+  if (with_db_name == WITH_DB_NAME)
   {
     const LEX_STRING *const db=
       table_list->schema_table ? &INFORMATION_SCHEMA_NAME : &table->s->db;
@@ -1664,8 +1669,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
-    if (field->has_charset() &&
-        !(thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
+    if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
     {
       if (field->charset() != share->table_charset)
       {
@@ -1722,7 +1726,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
 
 
     if (field->unireg_check == Field::NEXT_NUMBER &&
-        !(thd->variables.sql_mode & MODE_NO_FIELD_OPTIONS))
+        !(sql_mode & MODE_NO_FIELD_OPTIONS))
       packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
 
     if (field->comment.length)
@@ -1812,12 +1816,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   }
 
   packet->append(STRING_WITH_LEN("\n)"));
-  if (!(thd->variables.sql_mode & MODE_NO_TABLE_OPTIONS) && !foreign_db_mode)
+  if (show_table_options)
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    show_table_options= TRUE;
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
-
     /*
       IF   check_create_info
       THEN add ENGINE only if it was used when creating the table
@@ -1825,19 +1825,11 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     if (!create_info_arg ||
         (create_info_arg->used_fields & HA_CREATE_USED_ENGINE))
     {
-      if (thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
+      if (sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
         packet->append(STRING_WITH_LEN(" TYPE="));
       else
         packet->append(STRING_WITH_LEN(" ENGINE="));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (table->part_info)
-      packet->append(ha_resolve_storage_engine_name(
-                        table->part_info->default_engine_type));
-    else
-      packet->append(file->table_type());
-#else
-      packet->append(file->table_type());
-#endif
+      packet->append(hton_name(hton));
     }
 
     /*
@@ -1859,9 +1851,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(buff, (uint) (end - buff));
     }
     
-    if (share->table_charset &&
-	!(thd->variables.sql_mode & MODE_MYSQL323) &&
-	!(thd->variables.sql_mode & MODE_MYSQL40))
+    if (share->table_charset && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
     {
       /*
         IF   check_create_info
@@ -2114,8 +2104,7 @@ void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
 }
 
 
-int
-view_store_create_info(THD *thd, TABLE_LIST *table, String *buff)
+static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
 {
   my_bool compact_view_name= TRUE;
   my_bool foreign_db_mode= (thd->variables.sql_mode & (MODE_POSTGRESQL |

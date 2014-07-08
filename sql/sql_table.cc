@@ -5434,7 +5434,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           table->open_strategy= TABLE_LIST::OPEN_NORMAL;
 
           /*
-            In order for store_create_info() to work we need to open
+            In order for show_create_table() to work we need to open
             destination table if it is not already open (i.e. if it
             has not existed before). We don't need acquire metadata
             lock in order to do this as we already hold exclusive
@@ -5458,13 +5458,9 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         if (!table->view)
         {
           int result __attribute__((unused))=
-            store_create_info(thd, table, &query,
-                              create_info, FALSE /* show_database */,
-                              MY_TEST(create_info->org_options &
-                                      HA_LEX_CREATE_REPLACE) ||
-                              create_info->table_was_deleted);
+            show_create_table(thd, table, &query, create_info, WITHOUT_DB_NAME);
 
-          DBUG_ASSERT(result == 0); // store_create_info() always return 0
+          DBUG_ASSERT(result == 0); // show_create_table() always return 0
           do_logging= FALSE;
           if (write_bin_log(thd, TRUE, query.ptr(), query.length()))
           {

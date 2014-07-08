@@ -4135,15 +4135,14 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 {
   /*
     Note 1: In RBR mode, we generate a CREATE TABLE statement for the
-    created table by calling store_create_info() (behaves as SHOW
-    CREATE TABLE).  In the event of an error, nothing should be
-    written to the binary log, even if the table is non-transactional;
-    therefore we pretend that the generated CREATE TABLE statement is
-    for a transactional table.  The event will then be put in the
-    transaction cache, and any subsequent events (e.g., table-map
-    events and binrow events) will also be put there.  We can then use
-    ha_autocommit_or_rollback() to either throw away the entire
-    kaboodle of events, or write them to the binary log.
+    created table by calling show_create_table().  In the event of an error,
+    nothing should be written to the binary log, even if the table is
+    non-transactional; therefore we pretend that the generated CREATE TABLE
+    statement is for a transactional table.  The event will then be put in the
+    transaction cache, and any subsequent events (e.g., table-map events and
+    binrow events) will also be put there.  We can then use
+    ha_autocommit_or_rollback() to either throw away the entire kaboodle of
+    events, or write them to the binary log.
 
     We write the CREATE TABLE statement here and not in prepare()
     since there potentially are sub-selects or accesses to information
@@ -4162,12 +4161,9 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   tmp_table_list.table = *tables;
   query.length(0);      // Have to zero it since constructor doesn't
 
-  result= store_create_info(thd, &tmp_table_list, &query, create_info,
-                            /* show_database */ TRUE,
-                            MY_TEST(create_info->org_options &
-                                    HA_LEX_CREATE_REPLACE) ||
-                            create_info->table_was_deleted);
-  DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
+  result= show_create_table(thd, &tmp_table_list, &query, create_info,
+                            WITH_DB_NAME);
+  DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
 
   if (mysql_bin_log.is_open())
   {
