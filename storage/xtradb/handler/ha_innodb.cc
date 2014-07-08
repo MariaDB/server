@@ -4,6 +4,7 @@ Copyright (c) 2000, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, 2014 SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -97,6 +98,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "fts0types.h"
 #include "row0import.h"
 #include "row0quiesce.h"
+#include "row0mysql.h"
 #ifdef UNIV_DEBUG
 #include "trx0purge.h"
 #endif /* UNIV_DEBUG */
@@ -12008,6 +12010,35 @@ ha_innobase::info_low(
 						(unsigned long)
 						index->n_uniq, j + 1);
 					break;
+				}
+
+				DBUG_EXECUTE_IF("ib_ha_innodb_stat_not_initialized",
+					index->table->stat_initialized = FALSE;);
+
+				if (!ib_table->stat_initialized ||
+					(index->table != ib_table ||
+						!index->table->stat_initialized)) {
+					fprintf(stderr,
+						"InnoDB: Warning: Index %s points to table %s"
+					        " and ib_table %s statistics is initialized %d "
+						" but index table %s initialized %d "
+					        " mysql table is %s. Have you mixed "
+						"up .frm files from different "
+					       	"installations? "
+						"See " REFMAN
+						"innodb-troubleshooting.html\n",
+						index->name,
+						index->table->name,
+						ib_table->name,
+						ib_table->stat_initialized,
+						index->table->name,
+						index->table->stat_initialized,
+						table->s->table_name.str
+						);
+
+					/* This is better than
+					assert on below function */
+					dict_stats_init(index->table);
 				}
 
 				rec_per_key = innodb_rec_per_key(
