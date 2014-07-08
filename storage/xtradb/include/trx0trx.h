@@ -1019,6 +1019,11 @@ struct trx_t{
 					count of tables being flushed. */
 
 	/*------------------------------*/
+	THD*		current_lock_mutex_owner;
+					/*!< If this is equal to current_thd,
+					then in innobase_kill_query() we know we
+					already hold the lock_sys->mutex. */
+	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	ulint		start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */

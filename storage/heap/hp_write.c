@@ -156,7 +156,7 @@ static uchar *next_free_record_pos(HP_SHARE *info)
                  ("record file full. records: %lu  max_records: %lu  "
                   "data_length: %llu  index_length: %llu  "
                   "max_table_size: %llu",
-                  (unsigned long)info->records, info->max_records,
+                  info->records, info->max_records,
                   info->data_length, info->index_length,
                   info->max_table_size));
       my_errno=HA_ERR_RECORD_FILE_FULL;

@@ -170,6 +170,7 @@ public:
   */
   inuse_relaylog *inuse_relaylog_list;
   inuse_relaylog *last_inuse_relaylog;
+  /* Lock used to protect inuse_relaylog::dequeued_count */
   my_atomic_rwlock_t inuse_relaylog_atomic_lock;
 
   /*
@@ -532,6 +533,7 @@ struct rpl_group_info
   */
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
+  uint64 commit_id;
   /*
     This is used to keep transaction commit order.
     We will signal this when we commit, and can register it to wait for the

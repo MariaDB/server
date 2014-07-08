@@ -51,6 +51,9 @@ Created 3/26/1996 Heikki Tuuri
 
 #include<set>
 
+extern "C"
+int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+
 /** Set of table_id */
 typedef std::set<table_id_t>	table_id_set;
 

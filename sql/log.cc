@@ -4115,7 +4115,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
       included= false;
       break;
     }
-    if (!included && 0 == strcmp(ir->name, rli->group_relay_log_name))
+    if (!included && !strcmp(ir->name, rli->group_relay_log_name))
       break;
     if (!next)
     {
@@ -9369,7 +9369,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       file= -1;
     }
 
-    if (0 == strcmp(linfo->log_file_name, last_log_name))
+    if (!strcmp(linfo->log_file_name, last_log_name))
       break;                                    // No more files to do
     if ((file= open_binlog(&log, linfo->log_file_name, &errmsg)) < 0)
     {

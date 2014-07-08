@@ -44,16 +44,6 @@ processlist_info	NULL
 unified_parent_thread_id	unified parent_thread_id
 role	NULL
 instrumented	YES
-name	thread/sql/slave_background
-type	BACKGROUND
-processlist_user	NULL
-processlist_host	NULL
-processlist_db	NULL
-processlist_command	NULL
-processlist_info	NULL
-unified_parent_thread_id	unified parent_thread_id
-role	NULL
-instrumented	YES
 CREATE TEMPORARY TABLE t1 AS
 SELECT thread_id FROM performance_schema.threads
 WHERE name LIKE 'thread/sql%';
@@ -115,5 +105,4 @@ parent_thread_name	child_thread_name
 thread/sql/event_scheduler	thread/sql/event_worker
 thread/sql/main	thread/sql/one_connection
 thread/sql/main	thread/sql/signal_handler
-thread/sql/main	thread/sql/slave_background
 thread/sql/one_connection	thread/sql/event_scheduler

@@ -4702,12 +4702,15 @@ innobase_kill_connection(
 	DBUG_ENTER("innobase_kill_connection");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	lock_mutex_enter();
-
 	trx = thd_to_trx(thd);
 
 	if (trx)
 	{
+		THD *cur = current_thd;
+		THD *owner = trx->current_lock_mutex_owner;
+
+		if (owner != cur)
+			lock_mutex_enter();
 		trx_mutex_enter(trx);
 
 		/* Cancel a pending lock request. */
@@ -4715,9 +4718,9 @@ innobase_kill_connection(
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 
 		trx_mutex_exit(trx);
+		if (owner != cur)
+			lock_mutex_exit();
 	}
-
-	lock_mutex_exit();
 
 	DBUG_VOID_RETURN;
 }

@@ -622,6 +622,7 @@ void **thd_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
 void thd_storage_lock_wait(MYSQL_THD thd, long long value);
 int thd_tx_isolation(const MYSQL_THD thd);
 int thd_tx_is_read_only(const MYSQL_THD thd);
+int thd_rpl_is_parallel(const MYSQL_THD thd);
 /**
   Create a temporary file.
 
@@ -728,80 +729,6 @@ void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
   coordinator is used, meaning a single storage engine and no binary log.
 */
 void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
-
-/*
-  Used by a storage engine to report that one transaction THD is about to
-  go to wait for a transactional lock held by another transactions OTHER_THD.
-
-  This is used for parallel replication, where transactions are required to
-  commit in the same order on the slave as they did on the master. If the
-  transactions on the slave can encounter lock conflicts on the slave that did
-  not exist on the master, this can cause deadlocks.
-
-  The storage engine can report such conflicting locks using this call. This
-  will allow parallel replication to detect such conflicts and resolve the
-  deadlock (by killing the second transaction to release the locks that the
-  first is waiting for, and then later re-try the second killed transaction).
-
-  The storage engine should not report false positives. That is, it should not
-  report any lock waits that do not actually require one transaction to wait
-  for the other. Nor should it report waits for locks that will be released
-  before the commit of the other transactions.
-*/
-void thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd);
-
-/*
-  This function can optionally be called to check if thd_report_wait_for()
-  needs to be called for waits done by a given transaction.
-
-  If this function returns false for a given thd, there is no need to do any
-  calls to thd_report_wait_for() on that thd.
-
-  This call is optional; it is safe to call thd_report_wait_for() in any case.
-  This call can be used to save some redundant calls to thd_report_wait_for()
-  if desired. (This is unlikely to matter much unless there are _lots_ of
-  waits to report, as the overhead of thd_report_wait_for() is small).
-*/
-int thd_need_wait_for(const MYSQL_THD thd);
-
-/*
-  This function can be called by storage engines to check if the commit order
-  of two transactions has already been decided by the upper layer. This
-  happens in parallel replication, where the commit order is forced to be the
-  same on the slave as it was originally on the master.
-
-  If this function returns false, it means that such commit order will be
-  enforced. This allows the storage engine to optionally omit gap lock waitss
-  or similar measures that would otherwise be needed to ensure that
-  transactions would be serialised in a way that would cause a commit order
-  that is correct for binlogging for statement-based replication.
-
-  If this function returns true, normal locking should be done as required by
-  the binlogging and transaction isolation level in effect.
-*/
-int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
-
-/*
-  If the storage engine detects a deadlock, and needs to choose a victim
-  transaction to roll back, it can call this function to ask the upper
-  server layer for which of two possible transactions is prefered to be
-  aborted and rolled back.
-
-  In parallel replication, if two transactions are running in parallel and
-  one is fixed to commit before the other, then the one that commits later
-  will be prefered as the victim - chosing the early transaction as a victim
-  will not resolve the deadlock anyway, as the later transaction still needs
-  to wait for the earlier to commit.
-
-  Otherwise, a transaction that uses only transactional tables, and can thus
-  be safely rolled back, will be prefered as a deadlock victim over a
-  transaction that also modified non-transactional (eg. MyISAM) tables.
-
-  The return value is -1 if the first transaction is prefered as a deadlock
-  victim, 1 if the second transaction is prefered, or 0 for no preference (in
-  which case the storage engine can make the choice as it prefers).
-*/
-int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
 
 #ifdef __cplusplus
 }

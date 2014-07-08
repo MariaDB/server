@@ -374,6 +374,11 @@ struct lock_stack_t {
 	ulint		heap_no;		/*!< heap number if rec lock */
 };
 
+extern "C" void thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd);
+extern "C" int thd_need_wait_for(const MYSQL_THD thd);
+extern "C"
+int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
+
 /** Stack to use during DFS search. Currently only a single stack is required
 because there is no parallel deadlock check. This stack is protected by
 the lock_sys_t::mutex. */
@@ -391,6 +396,14 @@ UNIV_INTERN mysql_pfs_key_t	lock_sys_wait_mutex_key;
 
 #ifdef UNIV_DEBUG
 UNIV_INTERN ibool	lock_print_waits	= FALSE;
+
+/* Buffer to collect THDs to report waits for. */
+struct thd_wait_reports {
+	struct thd_wait_reports *next;
+	ulint used;
+	trx_t *waitees[64];
+};
+
 
 /*********************************************************************//**
 Validates the lock system.
@@ -1033,8 +1046,12 @@ lock_rec_has_to_wait(
 			the correct order so that statement-based replication
 			will give the correct results. Since the right order
 			was already determined on the master, we do not need
-			to enforce it again here (and doing so could lead to
-			occasional deadlocks). */
+			to enforce it again here.
+
+			Skipping the locks is not essential for correctness,
+			since in case of deadlock we will just kill the later
+			transaction and retry it. But it can save some
+			unnecessary rollbacks and retries. */
 
 			return (FALSE);
 		}
@@ -3844,7 +3861,8 @@ static
 trx_id_t
 lock_deadlock_search(
 /*=================*/
-	lock_deadlock_ctx_t*	ctx)	/*!< in/out: deadlock context */
+	lock_deadlock_ctx_t*	ctx,	/*!< in/out: deadlock context */
+	struct thd_wait_reports*waitee_ptr) /*!< in/out: list of waitees */
 {
 	const lock_t*	lock;
 	ulint		heap_no;
@@ -3923,10 +3941,24 @@ lock_deadlock_search(
 		    /* We do not need to report autoinc locks to the upper
 		    layer. These locks are released before commit, so they can
 		    not cause deadlocks with binlog-fixed commit order. */
-		    if (lock_get_type_low(lock) != LOCK_TABLE ||
-			lock_get_mode(lock) != LOCK_AUTO_INC)
-			    thd_report_wait_for(ctx->start->mysql_thd,
-						lock->trx->mysql_thd);
+		    if (waitee_ptr && (lock_get_type_low(lock) != LOCK_TABLE ||
+				       lock_get_mode(lock) != LOCK_AUTO_INC)) {
+			    if (waitee_ptr->used == sizeof(waitee_ptr->waitees)/
+				sizeof(waitee_ptr->waitees[0])) {
+				    waitee_ptr->next =
+					    (struct thd_wait_reports *)
+					    mem_alloc(sizeof(*waitee_ptr));
+				    waitee_ptr = waitee_ptr->next;
+				    if (!waitee_ptr) {
+					    ctx->too_deep = TRUE;
+					    return(ctx->start->id);
+				    }
+				    waitee_ptr->next = NULL;
+				    waitee_ptr->used = 0;
+			    }
+			    waitee_ptr->waitees[waitee_ptr->used++] = lock->trx;
+		    }
+
 		    if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
 			/* Another trx ahead has requested a lock in an
@@ -4019,6 +4051,41 @@ lock_deadlock_trx_rollback(
 	trx_mutex_exit(trx);
 }
 
+static void
+mysql_report_waiters(struct thd_wait_reports *waitee_buf_ptr,
+		     THD *mysql_thd,
+		     trx_id_t victim_trx_id)
+{
+	struct thd_wait_reports *p = waitee_buf_ptr;
+	while (p) {
+		struct thd_wait_reports *q;
+		ulint i = 0;
+
+		while (i < p->used) {
+			trx_t *w_trx = p->waitees[i];
+			/*  There is no need to report waits to a trx already
+			selected as a victim. */
+			if (w_trx->id != victim_trx_id)
+			{
+				/* If thd_report_wait_for() decides to kill the
+				transaction, then we will get a call back into
+				innobase_kill_query. We mark this by setting
+				current_lock_mutex_owner, so we can avoid trying
+				to recursively take lock_sys->mutex. */
+				w_trx->current_lock_mutex_owner = mysql_thd;
+				thd_report_wait_for(mysql_thd, w_trx->mysql_thd);
+				w_trx->current_lock_mutex_owner = NULL;
+			}
+			++i;
+		}
+		q = p->next;
+		if (p != waitee_buf_ptr)
+			mem_free(q);
+		p = q;
+	}
+}
+
+
 /********************************************************************//**
 Checks if a joining lock request results in a deadlock. If a deadlock is
 found this function will resolve the dadlock by choosing a victim transaction
@@ -4035,11 +4102,19 @@ lock_deadlock_check_and_resolve(
 	const trx_t*	trx)	/*!< in: transaction */
 {
 	trx_id_t	victim_trx_id;
+	struct thd_wait_reports	waitee_buf, *waitee_buf_ptr;
+	THD*		start_mysql_thd;
 
 	ut_ad(trx != NULL);
 	ut_ad(lock != NULL);
 	ut_ad(lock_mutex_own());
 	assert_trx_in_list(trx);
+
+	start_mysql_thd = trx->mysql_thd;
+	if (start_mysql_thd && thd_need_wait_for(start_mysql_thd))
+		waitee_buf_ptr = &waitee_buf;
+	else
+		waitee_buf_ptr = NULL;
 
 	/* Try and resolve as many deadlocks as possible. */
 	do {
@@ -4053,7 +4128,17 @@ lock_deadlock_check_and_resolve(
 		ctx.wait_lock = lock;
 		ctx.mark_start = lock_mark_counter;
 
-		victim_trx_id = lock_deadlock_search(&ctx);
+		if (waitee_buf_ptr) {
+			waitee_buf_ptr->next = NULL;
+			waitee_buf_ptr->used = 0;
+		}
+
+		victim_trx_id = lock_deadlock_search(&ctx, waitee_buf_ptr);
+
+		/* Report waits to upper layer, as needed. */
+		if (waitee_buf_ptr)
+			mysql_report_waiters(waitee_buf_ptr, start_mysql_thd,
+					     victim_trx_id);
 
 		/* Search too deep, we rollback the joining transaction. */
 		if (ctx.too_deep) {

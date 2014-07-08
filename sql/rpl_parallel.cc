@@ -240,7 +240,6 @@ convert_kill_to_deadlock_error(rpl_group_info *rgi)
       rgi->killed_for_retry)
   {
     thd->clear_error();
-    thd->get_stmt_da()->reset_diagnostics_area();
     my_error(ER_LOCK_DEADLOCK, MYF(0));
     rgi->killed_for_retry= false;
     thd->reset_killed();
@@ -325,7 +324,7 @@ do_retry:
   register_wait_for_prior_event_group_commit(rgi, entry);
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 
-  strcpy(log_name, ir->name);
+  strmake_buf(log_name, ir->name);
   if ((fd= open_binlog(&rlog, log_name, &errmsg)) <0)
   {
     err= 1;

@@ -7328,6 +7328,13 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   uint64 sub_id= 0;
   Relay_log_info const *rli= rgi->rli;
 
+  /*
+    XID_EVENT works like a COMMIT statement. And it also updates the
+    mysql.gtid_slave_pos table with the GTID of the current transaction.
+
+    Therefore, it acts much like a normal SQL statement, so we need to do
+    mysql_reset_thd_for_next_command() as if starting a new statement.
+  */
   mysql_reset_thd_for_next_command(thd);
   /*
     Record any GTID in the same transaction, so slave state is transactionally

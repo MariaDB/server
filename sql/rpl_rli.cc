@@ -1362,7 +1362,7 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
     return 1;
   }
-  strcpy(ir->name, name);
+  strmake_buf(ir->name, name);
 
   if (!inuse_relaylog_list)
     inuse_relaylog_list= ir;
@@ -1564,6 +1564,7 @@ rpl_group_info::reinit(Relay_log_info *rli)
   trans_retries= 0;
   last_event_start_time= 0;
   gtid_sub_id= 0;
+  commit_id= 0;
   gtid_pending= false;
   worker_error= 0;
   row_stmt_start_timestamp= 0;
@@ -1608,6 +1609,7 @@ event_group_new_gtid(rpl_group_info *rgi, Gtid_log_event *gev)
   rgi->current_gtid.server_id= gev->server_id;
   rgi->current_gtid.domain_id= gev->domain_id;
   rgi->current_gtid.seq_no= gev->seq_no;
+  rgi->commit_id= gev->commit_id;
   rgi->gtid_pending= true;
   return 0;
 }
