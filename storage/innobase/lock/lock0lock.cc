@@ -4057,7 +4057,7 @@ mysql_report_waiters(struct thd_wait_reports *waitee_buf_ptr,
 		}
 		q = p->next;
 		if (p != waitee_buf_ptr)
-			mem_free(q);
+			mem_free(p);
 		p = q;
 	}
 }
