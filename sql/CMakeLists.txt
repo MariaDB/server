@@ -218,7 +218,9 @@ RUN_BISON(
 )
 
 # Gen_lex_hash
-ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
+ENDIF()
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
