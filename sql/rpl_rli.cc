@@ -1848,7 +1848,6 @@ rpl_group_info::mark_start_commit()
 }
 
 
-<<<<<<< TREE
 /*
   Format the current GTID as a string suitable for printing in error messages.
 
@@ -1869,7 +1868,6 @@ rpl_group_info::gtid_info()
 }
 
 
-=======
 /*
   Undo the effect of a prior mark_start_commit().
 
@@ -1898,7 +1896,6 @@ rpl_group_info::unmark_start_commit()
 }
 
 
->>>>>>> MERGE-SOURCE
 rpl_sql_thread_info::rpl_sql_thread_info(Rpl_filter *filter)
   : rpl_filter(filter)
 {

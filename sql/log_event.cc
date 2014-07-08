@@ -238,7 +238,6 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
     thd->get_stmt_da()->sql_conditions();
   Relay_log_info const *rli= rgi->rli;
   const Sql_condition *err;
-  Relay_log_info const *rli= rgi->rli;
   buff[0]= 0;
   int errcode= thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0;
 
