@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -618,6 +619,9 @@ current_time % 5 != 0. */
 	((trx)->lock.allowed_to_wait			\
 	 ? thd_lock_wait_timeout((trx)->mysql_thd)	\
 	 : 0)
+
+/** Simulate compression failures. */
+UNIV_INTERN uint srv_simulate_comp_failures = 0;
 
 /*
 	IMPLEMENTATION OF THE SERVER MAIN PROGRAM

@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -460,16 +461,9 @@ sync_array_cell_print(
 		innobase_basename(cell->file), (ulong) cell->line,
 		difftime(time(NULL), cell->reservation_time));
 
-	/* If stacktrace feature is enabled we will send a SIGUSR2
-	signal to thread waiting for the semaphore. Signal handler
-	will then dump the current stack to error log. */
-	if (srv_use_stacktrace) {
-#ifdef __linux__
-		pthread_kill(cell->thread, SIGUSR2);
-#endif
-	}
 
 	if (type == SYNC_MUTEX || type == SYNC_PRIO_MUTEX) {
+
 		/* We use old_wait_mutex in case the cell has already
 		been freed meanwhile */
 		if (type == SYNC_MUTEX) {
@@ -483,18 +477,29 @@ sync_array_cell_print(
 		}
 
 
-		fprintf(file,
-			"Mutex at %p '%s', lock var %lu\n"
+		if (mutex) {
+			fprintf(file,
+				"Mutex at %p '%s', lock var %lu\n"
 #ifdef UNIV_SYNC_DEBUG
-			"Last time reserved in file %s line %lu, "
+				"Last time reserved in file %s line %lu, "
 #endif /* UNIV_SYNC_DEBUG */
-			"waiters flag %lu\n",
-			(void*) mutex, mutex->cmutex_name,
-			(ulong) mutex->lock_word,
+				"waiters flag %lu\n",
+				(void*) mutex, mutex->cmutex_name,
+				(ulong) mutex->lock_word,
 #ifdef UNIV_SYNC_DEBUG
-			mutex->file_name, (ulong) mutex->line,
+				mutex->file_name, (ulong) mutex->line,
 #endif /* UNIV_SYNC_DEBUG */
-			(ulong) mutex->waiters);
+				(ulong) mutex->waiters);
+		}
+
+		/* If stacktrace feature is enabled we will send a SIGUSR2
+		signal to thread waiting for the semaphore. Signal handler
+		will then dump the current stack to error log. */
+		if (srv_use_stacktrace && cell && cell->thread) {
+#ifdef __linux__
+			pthread_kill(cell->thread, SIGUSR2);
+#endif
+		}
 
 		if (type == SYNC_PRIO_MUTEX) {
 
@@ -529,40 +534,45 @@ sync_array_cell_print(
 			rwlock = &prio_rwlock->base_lock;
 		}
 
-		fprintf(file,
-			" RW-latch at %p '%s'\n",
-			(void*) rwlock, rwlock->lock_name);
-		writer = rw_lock_get_writer(rwlock);
-		if (writer != RW_LOCK_NOT_LOCKED) {
+		if (rwlock) {
 			fprintf(file,
-				"a writer (thread id %lu) has"
-				" reserved it in mode %s",
-				(ulong) os_thread_pf(rwlock->writer_thread),
-				writer == RW_LOCK_EX
-				? " exclusive\n"
-				: " wait exclusive\n");
-		}
+				" RW-latch at %p '%s'\n",
+				(void*) rwlock, rwlock->lock_name);
 
-		fprintf(file,
-			"number of readers %lu, waiters flag %lu, "
-                        "lock_word: %lx\n"
-			"Last time read locked in file %s line %lu\n"
-			"Last time write locked in file %s line %lu\n",
-			(ulong) rw_lock_get_reader_count(rwlock),
-			(ulong) rwlock->waiters,
-			rwlock->lock_word,
-			innobase_basename(rwlock->last_s_file_name),
-			(ulong) rwlock->last_s_line,
-			rwlock->last_x_file_name,
-			(ulong) rwlock->last_x_line);
+			writer = rw_lock_get_writer(rwlock);
 
-		/* If stacktrace feature is enabled we will send a SIGUSR2
-		signal to thread that has locked RW-latch with write mode.
-		Signal handler will then dump the current stack to error log. */
-		if (writer != RW_LOCK_NOT_LOCKED && srv_use_stacktrace) {
+			if (writer && writer != RW_LOCK_NOT_LOCKED) {
+				fprintf(file,
+					"a writer (thread id %lu) has"
+					" reserved it in mode %s",
+					(ulong) os_thread_pf(rwlock->writer_thread),
+					writer == RW_LOCK_EX
+					? " exclusive\n"
+					: " wait exclusive\n");
+			}
+
+			fprintf(file,
+				"number of readers %lu, waiters flag %lu, "
+				"lock_word: %lx\n"
+				"Last time read locked in file %s line %lu\n"
+				"Last time write locked in file %s line %lu\n",
+				(ulong) rw_lock_get_reader_count(rwlock),
+				(ulong) rwlock->waiters,
+				rwlock->lock_word,
+				innobase_basename(rwlock->last_s_file_name),
+				(ulong) rwlock->last_s_line,
+				rwlock->last_x_file_name,
+				(ulong) rwlock->last_x_line);
+
+			/* If stacktrace feature is enabled we will send a SIGUSR2
+			signal to thread that has locked RW-latch with write mode.
+			Signal handler will then dump the current stack to error log. */
+			if (writer != RW_LOCK_NOT_LOCKED && srv_use_stacktrace &&
+				rwlock && rwlock->writer_thread) {
 #ifdef __linux__
-			pthread_kill(rwlock->writer_thread, SIGUSR2);
+				pthread_kill(rwlock->writer_thread, SIGUSR2);
 #endif
+			}
 		}
 
 		if (prio_rwlock) {

@@ -454,19 +454,21 @@ sync_array_cell_print(
 		been freed meanwhile */
 		mutex = cell->old_wait_mutex;
 
-		fprintf(file,
-			"Mutex at %p created file %s line %lu, lock var %lu\n"
+		if (mutex) {
+			fprintf(file,
+				"Mutex at %p created file %s line %lu, lock var %lu\n"
 #ifdef UNIV_SYNC_DEBUG
-			"Last time reserved in file %s line %lu, "
+				"Last time reserved in file %s line %lu, "
 #endif /* UNIV_SYNC_DEBUG */
-			"waiters flag %lu\n",
-			(void*) mutex, innobase_basename(mutex->cfile_name),
-			(ulong) mutex->cline,
-			(ulong) mutex->lock_word,
+				"waiters flag %lu\n",
+				(void*) mutex, innobase_basename(mutex->cfile_name),
+				(ulong) mutex->cline,
+				(ulong) mutex->lock_word,
 #ifdef UNIV_SYNC_DEBUG
-			mutex->file_name, (ulong) mutex->line,
+				mutex->file_name, (ulong) mutex->line,
 #endif /* UNIV_SYNC_DEBUG */
-			(ulong) mutex->waiters);
+				(ulong) mutex->waiters);
+		}
 
 	} else if (type == RW_LOCK_EX
 		   || type == RW_LOCK_WAIT_EX
@@ -478,33 +480,35 @@ sync_array_cell_print(
 
 		rwlock = cell->old_wait_rw_lock;
 
-		fprintf(file,
-			" RW-latch at %p created in file %s line %lu\n",
-			(void*) rwlock, innobase_basename(rwlock->cfile_name),
-			(ulong) rwlock->cline);
-		writer = rw_lock_get_writer(rwlock);
-		if (writer != RW_LOCK_NOT_LOCKED) {
+		if (rwlock) {
 			fprintf(file,
-				"a writer (thread id %lu) has"
-				" reserved it in mode %s",
-				(ulong) os_thread_pf(rwlock->writer_thread),
-				writer == RW_LOCK_EX
-				? " exclusive\n"
-				: " wait exclusive\n");
-		}
+				" RW-latch at %p created in file %s line %lu\n",
+				(void*) rwlock, innobase_basename(rwlock->cfile_name),
+				(ulong) rwlock->cline);
+			writer = rw_lock_get_writer(rwlock);
+			if (writer != RW_LOCK_NOT_LOCKED) {
+				fprintf(file,
+					"a writer (thread id %lu) has"
+					" reserved it in mode %s",
+					(ulong) os_thread_pf(rwlock->writer_thread),
+					writer == RW_LOCK_EX
+					? " exclusive\n"
+					: " wait exclusive\n");
+			}
 
-		fprintf(file,
-			"number of readers %lu, waiters flag %lu, "
-                        "lock_word: %lx\n"
-			"Last time read locked in file %s line %lu\n"
-			"Last time write locked in file %s line %lu\n",
-			(ulong) rw_lock_get_reader_count(rwlock),
-			(ulong) rwlock->waiters,
-			rwlock->lock_word,
-			innobase_basename(rwlock->last_s_file_name),
-			(ulong) rwlock->last_s_line,
-			rwlock->last_x_file_name,
-			(ulong) rwlock->last_x_line);
+			fprintf(file,
+				"number of readers %lu, waiters flag %lu, "
+				"lock_word: %lx\n"
+				"Last time read locked in file %s line %lu\n"
+				"Last time write locked in file %s line %lu\n",
+				(ulong) rw_lock_get_reader_count(rwlock),
+				(ulong) rwlock->waiters,
+				rwlock->lock_word,
+				innobase_basename(rwlock->last_s_file_name),
+				(ulong) rwlock->last_s_line,
+				rwlock->last_x_file_name,
+				(ulong) rwlock->last_x_line);
+		}
 	} else {
 		ut_error;
 	}
