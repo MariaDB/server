@@ -3073,10 +3073,10 @@ void plugin_thdvar_init(THD *thd)
 {
   plugin_ref old_table_plugin= thd->variables.table_plugin;
   DBUG_ENTER("plugin_thdvar_init");
-  
+
   thd->variables.table_plugin= NULL;
   cleanup_variables(thd, &thd->variables);
-  
+
   thd->variables= global_system_variables;
   thd->variables.table_plugin= NULL;
 
@@ -3333,7 +3333,7 @@ bool sys_var_pluginvar::session_update(THD *thd, set_var *var)
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
   plugin_var->update(thd, plugin_var, tgt, src);
- 
+
   return false;
 }
 
@@ -3757,7 +3757,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
       if (opt->flags & PLUGIN_VAR_NOCMDOPT)
         continue;
 
-      optname= (char*) memdup_root(mem_root, v->key + 1, 
+      optname= (char*) memdup_root(mem_root, v->key + 1,
                                    (optnamelen= v->name_len) + 1);
     }
 
@@ -4007,7 +4007,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   }
 
   DBUG_RETURN(0);
-  
+
 err:
   if (tmp_backup)
     my_afree(tmp_backup);
