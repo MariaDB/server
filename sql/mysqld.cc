@@ -7893,6 +7893,7 @@ SHOW_VAR status_vars[]= {
   {"Sort_range",	       (char*) offsetof(STATUS_VAR, filesort_range_count_), SHOW_LONG_STATUS},
   {"Sort_rows",		       (char*) offsetof(STATUS_VAR, filesort_rows_), SHOW_LONG_STATUS},
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
+  {"Sort_priority_queue_sorts",(char*) offsetof(STATUS_VAR, filesort_pq_sorts_), SHOW_LONG_STATUS}, 
 #ifdef HAVE_OPENSSL
 #ifndef EMBEDDED_LIBRARY
   {"Ssl_accept_renegotiates",  (char*) &show_ssl_ctx_sess_accept_renegotiate, SHOW_SIMPLE_FUNC},

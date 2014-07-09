@@ -704,6 +704,7 @@ typedef struct system_status_var
   ulong filesort_range_count_;
   ulong filesort_rows_;
   ulong filesort_scan_count_;
+  ulong filesort_pq_sorts_;
   /* Prepared statements and binary protocol */
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
