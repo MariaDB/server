@@ -399,9 +399,9 @@ UNIV_INTERN ibool	lock_print_waits	= FALSE;
 
 /* Buffer to collect THDs to report waits for. */
 struct thd_wait_reports {
-	struct thd_wait_reports *next;
-	ulint used;
-	trx_t *waitees[64];
+	struct thd_wait_reports *next;	/*!< List link */
+	ulint used;			/*!< How many elements in waitees[] */
+	trx_t *waitees[64];		/*!< Trxs for thd_report_wait_for() */
 };
 
 
@@ -3938,55 +3938,58 @@ lock_deadlock_search(
 			return(ctx->start->id);
 
 		} else {
-		    /* We do not need to report autoinc locks to the upper
-		    layer. These locks are released before commit, so they can
-		    not cause deadlocks with binlog-fixed commit order. */
-		    if (waitee_ptr && (lock_get_type_low(lock) != LOCK_TABLE ||
-				       lock_get_mode(lock) != LOCK_AUTO_INC)) {
-			    if (waitee_ptr->used == sizeof(waitee_ptr->waitees)/
-				sizeof(waitee_ptr->waitees[0])) {
-				    waitee_ptr->next =
-					    (struct thd_wait_reports *)
-					    mem_alloc(sizeof(*waitee_ptr));
-				    waitee_ptr = waitee_ptr->next;
-				    if (!waitee_ptr) {
-					    ctx->too_deep = TRUE;
-					    return(ctx->start->id);
-				    }
-				    waitee_ptr->next = NULL;
-				    waitee_ptr->used = 0;
-			    }
-			    waitee_ptr->waitees[waitee_ptr->used++] = lock->trx;
-		    }
-
-		    if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-
-			/* Another trx ahead has requested a lock in an
-			incompatible mode, and is itself waiting for a lock. */
-
-			++ctx->cost;
-
-			/* Save current search state. */
-			if (!lock_deadlock_push(ctx, lock, heap_no)) {
-
-				/* Unable to save current search state, stack
-				size not big enough. */
-
-				ctx->too_deep = TRUE;
-
-				return(ctx->start->id);
+			/* We do not need to report autoinc locks to the upper
+			layer. These locks are released before commit, so they
+			can not cause deadlocks with binlog-fixed commit
+			order. */
+			if (waitee_ptr &&
+			    (lock_get_type_low(lock) != LOCK_TABLE ||
+			     lock_get_mode(lock) != LOCK_AUTO_INC)) {
+				if (waitee_ptr->used ==
+				    sizeof(waitee_ptr->waitees) /
+				    sizeof(waitee_ptr->waitees[0])) {
+					waitee_ptr->next =
+						(struct thd_wait_reports *)
+						mem_alloc(sizeof(*waitee_ptr));
+					waitee_ptr = waitee_ptr->next;
+					if (!waitee_ptr) {
+						ctx->too_deep = TRUE;
+						return(ctx->start->id);
+					}
+					waitee_ptr->next = NULL;
+					waitee_ptr->used = 0;
+				}
+				waitee_ptr->waitees[waitee_ptr->used++] = lock->trx;
 			}
 
-			ctx->wait_lock = lock->trx->lock.wait_lock;
-			lock = lock_get_first_lock(ctx, &heap_no);
+			if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
 
-			if (lock->trx->lock.deadlock_mark > ctx->mark_start) {
+				/* Another trx ahead has requested a lock in an
+				incompatible mode, and is itself waiting for a lock. */
+
+				++ctx->cost;
+
+				/* Save current search state. */
+				if (!lock_deadlock_push(ctx, lock, heap_no)) {
+
+					/* Unable to save current search state, stack
+					size not big enough. */
+
+					ctx->too_deep = TRUE;
+
+					return(ctx->start->id);
+				}
+
+				ctx->wait_lock = lock->trx->lock.wait_lock;
+				lock = lock_get_first_lock(ctx, &heap_no);
+
+				if (lock->trx->lock.deadlock_mark > ctx->mark_start) {
+					lock = lock_get_next_lock(ctx, lock, heap_no);
+				}
+
+			} else {
 				lock = lock_get_next_lock(ctx, lock, heap_no);
 			}
-
-		    } else {
-			lock = lock_get_next_lock(ctx, lock, heap_no);
-		    }
 		}
 	}
 
@@ -4051,22 +4054,28 @@ lock_deadlock_trx_rollback(
 	trx_mutex_exit(trx);
 }
 
-static void
-mysql_report_waiters(struct thd_wait_reports *waitee_buf_ptr,
-		     THD *mysql_thd,
-		     trx_id_t victim_trx_id)
+static
+void
+lock_report_waiters_to_mysql(
+/*=======================*/
+	struct thd_wait_reports*	waitee_buf_ptr,	/*!< in: set of trxs */
+	THD*				mysql_thd,	/*!< in: THD */
+	trx_id_t			victim_trx_id)	/*!< in: Trx selected
+							as deadlock victim, if
+							any */
 {
-	struct thd_wait_reports *p = waitee_buf_ptr;
-	while (p) {
-		struct thd_wait_reports *q;
-		ulint i = 0;
+	struct thd_wait_reports*	p;
+	struct thd_wait_reports*	q;
+	ulint				i;
 
+	p = waitee_buf_ptr;
+	while (p) {
+		i = 0;
 		while (i < p->used) {
 			trx_t *w_trx = p->waitees[i];
 			/*  There is no need to report waits to a trx already
 			selected as a victim. */
-			if (w_trx->id != victim_trx_id)
-			{
+			if (w_trx->id != victim_trx_id) {
 				/* If thd_report_wait_for() decides to kill the
 				transaction, then we will get a call back into
 				innobase_kill_query. We mark this by setting
@@ -4079,8 +4088,9 @@ mysql_report_waiters(struct thd_wait_reports *waitee_buf_ptr,
 			++i;
 		}
 		q = p->next;
-		if (p != waitee_buf_ptr)
+		if (p != waitee_buf_ptr) {
 			mem_free(p);
+		}
 		p = q;
 	}
 }
@@ -4101,9 +4111,10 @@ lock_deadlock_check_and_resolve(
 	const lock_t*	lock,	/*!< in: lock the transaction is requesting */
 	const trx_t*	trx)	/*!< in: transaction */
 {
-	trx_id_t	victim_trx_id;
-	struct thd_wait_reports	waitee_buf, *waitee_buf_ptr;
-	THD*		start_mysql_thd;
+	trx_id_t		victim_trx_id;
+	struct thd_wait_reports	waitee_buf;
+	struct thd_wait_reports*waitee_buf_ptr;
+	THD*			start_mysql_thd;
 
 	ut_ad(trx != NULL);
 	ut_ad(lock != NULL);
@@ -4111,10 +4122,11 @@ lock_deadlock_check_and_resolve(
 	assert_trx_in_list(trx);
 
 	start_mysql_thd = trx->mysql_thd;
-	if (start_mysql_thd && thd_need_wait_for(start_mysql_thd))
+	if (start_mysql_thd && thd_need_wait_for(start_mysql_thd)) {
 		waitee_buf_ptr = &waitee_buf;
-	else
+	} else {
 		waitee_buf_ptr = NULL;
+	}
 
 	/* Try and resolve as many deadlocks as possible. */
 	do {
@@ -4136,9 +4148,11 @@ lock_deadlock_check_and_resolve(
 		victim_trx_id = lock_deadlock_search(&ctx, waitee_buf_ptr);
 
 		/* Report waits to upper layer, as needed. */
-		if (waitee_buf_ptr)
-			mysql_report_waiters(waitee_buf_ptr, start_mysql_thd,
-					     victim_trx_id);
+		if (waitee_buf_ptr) {
+			lock_report_waiters_to_mysql(waitee_buf_ptr,
+						     start_mysql_thd,
+						     victim_trx_id);
+		}
 
 		/* Search too deep, we rollback the joining transaction. */
 		if (ctx.too_deep) {

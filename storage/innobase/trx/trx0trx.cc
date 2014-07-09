@@ -1921,10 +1921,11 @@ trx_weight_ge(
 	/* First ask the upper server layer if it has any preference for which
 	to prefer as a deadlock victim. */
 	pref= thd_deadlock_victim_preference(a->mysql_thd, b->mysql_thd);
-	if (pref < 0)
+	if (pref < 0) {
 		return FALSE;
-	else if (pref > 0)
+	} else if (pref > 0) {
 		return TRUE;
+	}
 
 	/* Upper server layer had no preference, we fall back to comparing the
 	number of altered/locked rows. */

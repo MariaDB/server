@@ -4218,21 +4218,23 @@ innobase_kill_query(
 
 	trx = thd_to_trx(thd);
 
-        if (trx)
-        {
-	  THD *cur = current_thd;
-	  THD *owner = trx->current_lock_mutex_owner;
+	if (trx) {
+		THD *cur = current_thd;
+		THD *owner = trx->current_lock_mutex_owner;
 
-          /* Cancel a pending lock request. */
-	  if (owner != cur)
-	    lock_mutex_enter();
-          trx_mutex_enter(trx);
-          if (trx->lock.wait_lock)
-            lock_cancel_waiting_and_release(trx->lock.wait_lock);
-          trx_mutex_exit(trx);
-	  if (owner != cur)
-            lock_mutex_exit();
-        }
+		/* Cancel a pending lock request. */
+		if (owner != cur) {
+			lock_mutex_enter();
+		}
+		trx_mutex_enter(trx);
+		if (trx->lock.wait_lock) {
+			lock_cancel_waiting_and_release(trx->lock.wait_lock);
+		}
+		trx_mutex_exit(trx);
+		if (owner != cur) {
+			lock_mutex_exit();
+		}
+	}
 
 	DBUG_VOID_RETURN;
 }

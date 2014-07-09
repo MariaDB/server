@@ -2142,9 +2142,8 @@ trx_assert_started(
 #endif /* UNIV_DEBUG */
 
 /*******************************************************************//**
-Compares the "weight" (or size) of two transactions. Transactions that
-have edited non-transactional tables are considered heavier than ones
-that have not.
+Compares the "weight" (or size) of two transactions. The heavier the weight,
+the more reluctant we will be to choose the transaction as a deadlock victim.
 @return	TRUE if weight(a) >= weight(b) */
 UNIV_INTERN
 ibool
@@ -2158,10 +2157,11 @@ trx_weight_ge(
 	/* First ask the upper server layer if it has any preference for which
 	to prefer as a deadlock victim. */
 	pref= thd_deadlock_victim_preference(a->mysql_thd, b->mysql_thd);
-	if (pref < 0)
+	if (pref < 0) {
 		return FALSE;
-	else if (pref > 0)
+	} else if (pref > 0) {
 		return TRUE;
+	}
 
 	/* Upper server layer had no preference, we fall back to comparing the
 	number of altered/locked rows. */
