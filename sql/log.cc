@@ -2904,7 +2904,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
          my_b_printf(&log_file,
                      "# Full_scan: %s  Full_join: %s  "
                      "Tmp_table: %s  Tmp_table_on_disk: %s\n"
-                     "# Filesort: %s  Filesort_on_disk: %s  Merge_passes: %lu\n",
+                     "# Filesort: %s  Filesort_on_disk: %s  Merge_passes: %lu  "
+                     "Priority_queue: %s\n",
                      ((thd->query_plan_flags & QPLAN_FULL_SCAN) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FULL_JOIN) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_TMP_TABLE) ? "Yes" : "No"),
@@ -2912,7 +2913,10 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                      ((thd->query_plan_flags & QPLAN_FILESORT) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FILESORT_DISK) ?
                       "Yes" : "No"),
-                     thd->query_plan_fsort_passes) == (size_t) -1)
+                     thd->query_plan_fsort_passes,
+                     ((thd->query_plan_flags & QPLAN_FILESORT_PRIORITY_QUEUE) ? 
+                       "Yes" : "No")
+                     ) == (size_t) -1)
        tmp_errno= errno;
     if (thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN &&
         thd->lex->explain)

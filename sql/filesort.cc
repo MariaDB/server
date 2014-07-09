@@ -225,6 +225,7 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                              table, num_rows, memory_available))
   {
     DBUG_PRINT("info", ("filesort PQ is applicable"));
+    thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
     const size_t compare_length= param.sort_length;
     if (pq.init(param.max_rows,
                 true,                           // max_at_top
