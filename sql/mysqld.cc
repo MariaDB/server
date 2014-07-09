@@ -1759,7 +1759,7 @@ static void __cdecl kill_server(int sig_ptr)
   close_connections();
 #ifdef WITH_WSREP
   if (wsrep_inited == 1)
-    wsrep_deinit();
+    wsrep_deinit(true);
 #endif
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
@@ -1871,7 +1871,7 @@ extern "C" void unireg_abort(int exit_code)
 
     /* In bootstrap mode we deinitialize wsrep here. */
     if (opt_bootstrap && wsrep_inited)
-      wsrep_deinit();
+      wsrep_deinit(true);
   }
 #endif // WITH_WSREP
 

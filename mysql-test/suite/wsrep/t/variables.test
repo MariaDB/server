@@ -19,6 +19,7 @@ SET GLOBAL wsrep_replicate_myisam= ON;
 
 # Reset it back.
 SET GLOBAL wsrep_replicate_myisam= OFF;
+SET GLOBAL wsrep_provider=none;
 
 --echo
 --echo #
@@ -26,6 +27,11 @@ SET GLOBAL wsrep_replicate_myisam= OFF;
 --echo #
 call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_slave_threads' and 'LOCK_global_system_variables'");
 call mtr.add_suppression("WSREP: Failed to get provider options");
+
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
+
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_slave_threads;
@@ -70,6 +76,18 @@ SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
 SET GLOBAL wsrep_provider= none;
 SET GLOBAL wsrep_cluster_address= '';
 SET GLOBAL wsrep_provider_options= '';
+
+--echo #
+--echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
+--echo #
+SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= 'user:pass';
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= '';
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= NULL;
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 
 --echo # End of test.
 

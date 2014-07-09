@@ -124,7 +124,7 @@ void wsrep_free_status(THD *thd);
 void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
 int  wsrep_init();
-void wsrep_deinit();
+void wsrep_deinit(bool free_options);
 void wsrep_recover();
 bool wsrep_before_SE(); // initialize wsrep before storage
                         // engines (true) or after (false)
