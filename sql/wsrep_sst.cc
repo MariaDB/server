@@ -123,31 +123,44 @@ bool wsrep_sst_auth_check (sys_var *self, THD* thd, set_var* var)
 {
     return 0;
 }
+
 static bool sst_auth_real_set (const char* value)
 {
-    const char* v = strdup (value);
+  const char* v= NULL;
 
-    if (v)
+  if (value)
+  {
+    v= my_strdup(value, MYF(0));
+  }
+  else                                          // its NULL
+  {
+    wsrep_sst_auth_free();
+    return 0;
+  }
+
+  if (v)
+  {
+    // set sst_auth_real
+    if (sst_auth_real) { my_free((void *) sst_auth_real); }
+    sst_auth_real = v;
+
+    // mask wsrep_sst_auth
+    if (strlen(sst_auth_real))
     {
-        if (sst_auth_real) free (const_cast<char*>(sst_auth_real));
-        sst_auth_real = v;
-
-        if (strlen(sst_auth_real))
-        {
-          if (wsrep_sst_auth)
-          {
-            my_free ((void*)wsrep_sst_auth);
-            wsrep_sst_auth = my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
-            //strncpy (wsrep_sst_auth, WSREP_SST_AUTH_MASK,
-            //     sizeof(wsrep_sst_auth) - 1);
-          }
-          else
-            wsrep_sst_auth = my_strdup (WSREP_SST_AUTH_MASK, MYF(0));
-        }
-        return 0;
+      if (wsrep_sst_auth) { my_free((void*) wsrep_sst_auth); }
+      wsrep_sst_auth= my_strdup(WSREP_SST_AUTH_MASK, MYF(0));
     }
+    return 0;
+  }
+  return 1;
+}
 
-    return 1;
+void wsrep_sst_auth_free()
+{
+  if (wsrep_sst_auth) { my_free((void *) wsrep_sst_auth); }
+  if (sst_auth_real) { my_free((void *) sst_auth_real); }
+  wsrep_sst_auth= NULL;
+  sst_auth_real= NULL;
 }
 
 bool wsrep_sst_auth_update (sys_var *self, THD* thd, enum_var_type type)

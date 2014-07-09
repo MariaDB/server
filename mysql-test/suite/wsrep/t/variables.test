@@ -19,6 +19,7 @@ SET GLOBAL wsrep_replicate_myisam= ON;
 
 # Reset it back.
 SET GLOBAL wsrep_replicate_myisam= OFF;
+SET GLOBAL wsrep_provider=none;
 
 --echo #
 --echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
@@ -26,6 +27,10 @@ SET GLOBAL wsrep_replicate_myisam= OFF;
 --echo #
 
 CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
+
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep%';
@@ -40,6 +45,7 @@ SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 --echo # Should show nothing.
 SHOW STATUS LIKE 'x';
 
+# Reset it back.
 SET GLOBAL wsrep_provider=none;
 
 --echo #
@@ -59,6 +65,7 @@ SHOW STATUS LIKE 'wsrep_local_state_uuid';
 --replace_column 2 #
 SHOW STATUS LIKE 'wsrep_last_committed';
 
+# Reset it back.
 SET GLOBAL wsrep_provider=none;
 
 --echo
@@ -67,6 +74,12 @@ SET GLOBAL wsrep_provider=none;
 --echo #
 call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_slave_threads' and 'LOCK_global_system_variables'");
 call mtr.add_suppression("WSREP: Failed to get provider options");
+
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_slave_threads;
 SELECT @@global.wsrep_cluster_address;
@@ -77,6 +90,8 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 --disable_query_log
 eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --enable_query_log
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
 SHOW STATUS LIKE 'threads_connected';
@@ -88,6 +103,8 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 SET GLOBAL wsrep_cluster_address= 'gcomm://';
 --echo # Wait for applier threads to get created.
 sleep 3; 
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
 SELECT @@global.wsrep_cluster_address;
 SHOW STATUS LIKE 'threads_connected';
@@ -107,4 +124,17 @@ SET GLOBAL wsrep_provider= none;
 SET GLOBAL wsrep_cluster_address= '';
 SET GLOBAL wsrep_provider_options= '';
 
+--echo #
+--echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
+--echo #
+SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= 'user:pass';
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= '';
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= NULL;
+SELECT @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
+
 --echo # End of test.
+

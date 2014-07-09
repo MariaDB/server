@@ -11,6 +11,7 @@ SET SESSION wsrep_replicate_myisam= ON;
 ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable and should be set with SET GLOBAL
 SET GLOBAL wsrep_replicate_myisam= ON;
 SET GLOBAL wsrep_replicate_myisam= OFF;
+SET GLOBAL wsrep_provider=none;
 #
 # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 # variables when using "_"
@@ -144,7 +145,7 @@ call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_sla
 call mtr.add_suppression("WSREP: Failed to get provider options");
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
-none
+libgalera_smm.so
 SELECT @@global.wsrep_slave_threads;
 @@global.wsrep_slave_threads
 1
@@ -160,7 +161,7 @@ wsrep_thread_count	0
 
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
-/usr/lib/galera/libgalera_smm.so
+libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 NULL
@@ -177,7 +178,7 @@ SET GLOBAL wsrep_cluster_address= 'gcomm://';
 # Wait for applier threads to get created.
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
-/usr/lib/galera/libgalera_smm.so
+libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 gcomm://
@@ -201,4 +202,21 @@ SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
 SET GLOBAL wsrep_provider= none;
 SET GLOBAL wsrep_cluster_address= '';
 SET GLOBAL wsrep_provider_options= '';
+#
+# MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
+#
+SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
+SET @@global.wsrep_sst_auth= 'user:pass';
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
+SET @@global.wsrep_sst_auth= '';
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+
+SET @@global.wsrep_sst_auth= NULL;
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+NULL
+SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
 # End of test.

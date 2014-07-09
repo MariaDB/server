@@ -720,7 +720,7 @@ void wsrep_init_startup (bool first)
 }
 
 
-void wsrep_deinit()
+void wsrep_deinit(bool free_options)
 {
   DBUG_ASSERT(wsrep_inited == 1);
   wsrep_unload(wsrep);
@@ -729,6 +729,11 @@ void wsrep_deinit()
   provider_version[0]= '\0';
   provider_vendor[0]=  '\0';
   wsrep_inited= 0;
+
+  if (free_options)
+  {
+    wsrep_sst_auth_free();
+  }
 }
 
 void wsrep_recover()
