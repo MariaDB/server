@@ -523,7 +523,12 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   int ret;
   File fd;
   char query_file_path[FN_REFLEN];
+#ifdef WITH_WSREP
+  /* Note: wsrep_on=ON implicitly enables binary logging. */
+  const uchar sql_log_bin[]= "SET SQL_LOG_BIN=0, WSREP_ON=OFF;";
+#else
   const uchar sql_log_bin[]= "SET SQL_LOG_BIN=0;";
+#endif /* WITH_WSREP */
 
   DBUG_ENTER("run_query");
   DBUG_PRINT("enter", ("query: %s", query));
