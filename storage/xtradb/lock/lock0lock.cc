@@ -394,9 +394,6 @@ UNIV_INTERN mysql_pfs_key_t	lock_sys_mutex_key;
 UNIV_INTERN mysql_pfs_key_t	lock_sys_wait_mutex_key;
 #endif /* UNIV_PFS_MUTEX */
 
-#ifdef UNIV_DEBUG
-UNIV_INTERN ibool	lock_print_waits	= FALSE;
-
 /* Buffer to collect THDs to report waits for. */
 struct thd_wait_reports {
 	struct thd_wait_reports *next;	/*!< List link */
@@ -404,6 +401,9 @@ struct thd_wait_reports {
 	trx_t *waitees[64];		/*!< Trxs for thd_report_wait_for() */
 };
 
+
+#ifdef UNIV_DEBUG
+UNIV_INTERN ibool	lock_print_waits	= FALSE;
 
 /*********************************************************************//**
 Validates the lock system.
