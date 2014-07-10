@@ -234,8 +234,11 @@ static void
 convert_kill_to_deadlock_error(rpl_group_info *rgi)
 {
   THD *thd= rgi->thd;
-  int err_code= thd->get_stmt_da()->sql_errno();
+  int err_code;
 
+  if (!thd->get_stmt_da()->is_error())
+    return;
+  err_code= thd->get_stmt_da()->sql_errno();
   if ((err_code == ER_QUERY_INTERRUPTED || err_code == ER_CONNECTION_KILLED) &&
       rgi->killed_for_retry)
   {

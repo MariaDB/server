@@ -819,11 +819,37 @@ test_check
 OK
 test_check
 OK
+*** MDEV_6435: Incorrect error handling when query binlogged partially on master with "killed" error ***
+CREATE TABLE t6 (a INT) ENGINE=MyISAM;
+CREATE TRIGGER tr AFTER INSERT ON t6 FOR EACH ROW SET @a = 1;
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='sp_head_execute_before_loop SIGNAL ready WAIT_FOR cont';
+INSERT INTO t6 VALUES (1), (2), (3);
+SET debug_sync='now WAIT_FOR ready';
+KILL QUERY CONID;
+SET debug_sync='now SIGNAL cont';
+ERROR 70100: Query execution was interrupted
+SET binlog_format= @old_format;
+SET debug_sync='RESET';
+SET debug_sync='RESET';
+include/wait_for_slave_sql_error.inc [errno=1317]
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_slave_pos= 'AFTER_ERROR_GTID_POS';
+include/start_slave.inc
+INSERT INTO t6 VALUES (4);
+SELECT * FROM t6 ORDER BY a;
+a
+1
+4
+SELECT * FROM t6 ORDER BY a;
+a
+4
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 DROP function foo;
-DROP TABLE t1,t2,t3,t4,t5;
+DROP TABLE t1,t2,t3,t4,t5,t6;
 SET DEBUG_SYNC= 'RESET';
 include/rpl_end.inc

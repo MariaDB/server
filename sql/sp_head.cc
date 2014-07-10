@@ -43,6 +43,7 @@
 #include "sql_base.h"                           // close_thread_tables
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
+#include "debug_sync.h"
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -1309,6 +1310,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Discard the initial part of executing routines. */
   thd->profiling.discard_current_query();
 #endif
+  DEBUG_SYNC(thd, "sp_head_execute_before_loop");
   do
   {
     sp_instr *i;
