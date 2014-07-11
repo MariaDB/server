@@ -65,16 +65,16 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid,
 int
 rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 {
-  uint64 sub_id;
   DBUG_ENTER("rpl_slave_state::record_and_update_gtid");
 
   /*
     Update the GTID position, if we have it and did not already update
     it in a GTID transaction.
   */
-  if ((sub_id= rgi->gtid_sub_id))
+  if (rgi->gtid_pending)
   {
-    rgi->gtid_sub_id= 0;
+    uint64 sub_id= rgi->gtid_sub_id;
+    rgi->gtid_pending= false;
     if (rgi->gtid_ignore_duplicate_state!=rpl_group_info::GTID_DUPLICATE_IGNORE)
     {
       if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))

@@ -301,7 +301,10 @@ handle_slave_init(void *arg __attribute__((unused)))
   mysql_mutex_lock(&LOCK_thread_count);
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
+  thd->system_thread = SYSTEM_THREAD_SLAVE_INIT;
   thd->store_globals();
+  thd->security_ctx->skip_grants();
+  thd->set_command(COM_DAEMON);
 
   thd_proc_info(thd, "Loading slave GTID position from table");
   if (rpl_load_gtid_slave_state(thd))
@@ -316,15 +319,22 @@ handle_slave_init(void *arg __attribute__((unused)))
   mysql_mutex_unlock(&LOCK_thread_count);
   my_thread_end();
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_slave_init);
   slave_init_thread_running= false;
-  mysql_cond_broadcast(&COND_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+  mysql_cond_broadcast(&COND_slave_init);
+  mysql_mutex_unlock(&LOCK_slave_init);
 
   return 0;
 }
 
 
+/*
+  Start the slave init thread.
+
+  This thread is used to load the GTID state from mysql.gtid_slave_pos at
+  server start; reading from table requires valid THD, which is otherwise not
+  available during server init.
+*/
 static int
 run_slave_init_thread()
 {
@@ -338,10 +348,10 @@ run_slave_init_thread()
     return 1;
   }
 
-  mysql_mutex_lock(&LOCK_thread_count);
+  mysql_mutex_lock(&LOCK_slave_init);
   while (slave_init_thread_running)
-    mysql_cond_wait(&COND_thread_count, &LOCK_thread_count);
-  mysql_mutex_unlock(&LOCK_thread_count);
+    mysql_cond_wait(&COND_slave_init, &LOCK_slave_init);
+  mysql_mutex_unlock(&LOCK_slave_init);
 
   return 0;
 }
@@ -3094,7 +3104,8 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings)
   that the error is temporary by pushing a warning with the error code
   ER_GET_TEMPORARY_ERRMSG, if the originating error is temporary.
 */
-static int has_temporary_error(THD *thd)
+int
+has_temporary_error(THD *thd)
 {
   DBUG_ENTER("has_temporary_error");
 
@@ -3310,7 +3321,7 @@ int apply_event_and_update_pos(Log_event* ev, THD* thd,
       Make sure we do not errorneously update gtid_slave_pos with a lingering
       GTID from this failed event group (MDEV-4906).
     */
-    rgi->gtid_sub_id= 0;
+    rgi->gtid_pending= false;
   }
 
   DBUG_RETURN(exec_res ? 1 : 0);
@@ -4466,6 +4477,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   mysql_mutex_unlock(&rli->log_space_lock);
 
   serial_rgi->gtid_sub_id= 0;
+  serial_rgi->gtid_pending= false;
   if (init_relay_log_pos(rli,
                          rli->group_relay_log_name,
                          rli->group_relay_log_pos,
@@ -4476,6 +4488,9 @@ pthread_handler_t handle_slave_sql(void *arg)
                 "Error initializing relay log position: %s", errmsg);
     goto err;
   }
+  if (rli->alloc_inuse_relaylog(rli->group_relay_log_name))
+    goto err;
+
   strcpy(rli->future_event_master_log_name, rli->group_master_log_name);
   THD_CHECK_SENTRY(thd);
 #ifndef DBUG_OFF
@@ -6408,6 +6423,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       DBUG_ASSERT(rli->cur_log_fd >= 0);
       mysql_file_close(rli->cur_log_fd, MYF(MY_WME));
       rli->cur_log_fd = -1;
+      rli->last_inuse_relaylog->completed= true;
 
       if (relay_log_purge)
       {
@@ -6536,6 +6552,12 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
             mysql_mutex_unlock(log_lock);
           goto err;
         }
+        if (rli->alloc_inuse_relaylog(rli->linfo.log_file_name))
+        {
+          if (!hot_log)
+            mysql_mutex_unlock(log_lock);
+          goto err;
+        }
         if (!hot_log)
           mysql_mutex_unlock(log_lock);
         continue;
@@ -6550,6 +6572,8 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
       // open_binlog() will check the magic header
       if ((rli->cur_log_fd=open_binlog(cur_log,rli->linfo.log_file_name,
                                        &errmsg)) <0)
+        goto err;
+      if (rli->alloc_inuse_relaylog(rli->linfo.log_file_name))
         goto err;
     }
     else

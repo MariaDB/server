@@ -9,6 +9,7 @@ struct rpl_parallel_entry;
 struct rpl_parallel_thread_pool;
 
 class Relay_log_info;
+struct inuse_relaylog;
 
 
 /*
@@ -73,6 +74,7 @@ struct rpl_parallel_thread {
     queued_event *next;
     Log_event *ev;
     rpl_group_info *rgi;
+    inuse_relaylog *ir;
     ulonglong future_event_relay_log_pos;
     char event_relay_log_name[FN_REFLEN];
     char future_event_master_log_name[FN_REFLEN];
@@ -106,11 +108,15 @@ struct rpl_parallel_thread {
     queued_size-= dequeue_size;
   }
 
+  queued_event *get_qev_common(Log_event *ev, ulonglong event_size);
   queued_event *get_qev(Log_event *ev, ulonglong event_size,
                         Relay_log_info *rli);
+  queued_event *retry_get_qev(Log_event *ev, queued_event *orig_qev,
+                              const char *relay_log_name,
+                              ulonglong event_pos, ulonglong event_size);
   void free_qev(queued_event *qev);
   rpl_group_info *get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
-                          rpl_parallel_entry *e);
+                          rpl_parallel_entry *e, ulonglong event_size);
   void free_rgi(rpl_group_info *rgi);
   group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev);
   void free_gco(group_commit_orderer *gco);
@@ -176,7 +182,7 @@ struct rpl_parallel_entry {
 
     Event groups commit in order, so the rpl_group_info for an event group
     will be alive (at least) as long as
-    rpl_grou_info::gtid_sub_id > last_committed_sub_id. This can be used to
+    rpl_group_info::gtid_sub_id > last_committed_sub_id. This can be used to
     safely refer back to previous event groups if they are still executing,
     and ignore them if they completed, without requiring explicit
     synchronisation between the threads.

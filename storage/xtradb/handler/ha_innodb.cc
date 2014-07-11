@@ -4704,12 +4704,15 @@ innobase_kill_connection(
 	DBUG_ENTER("innobase_kill_connection");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	lock_mutex_enter();
-
 	trx = thd_to_trx(thd);
 
-	if (trx)
-	{
+	if (trx) {
+		THD *cur = current_thd;
+		THD *owner = trx->current_lock_mutex_owner;
+
+		if (owner != cur) {
+			lock_mutex_enter();
+		}
 		trx_mutex_enter(trx);
 
 		/* Cancel a pending lock request. */
@@ -4717,9 +4720,10 @@ innobase_kill_connection(
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 
 		trx_mutex_exit(trx);
+		if (owner != cur) {
+			lock_mutex_exit();
+		}
 	}
-
-	lock_mutex_exit();
 
 	DBUG_VOID_RETURN;
 }
@@ -4734,14 +4738,11 @@ handler::Table_flags
 ha_innobase::table_flags() const
 /*============================*/
 {
-	THD *thd = ha_thd();
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
-	ulong const tx_isolation = thd_tx_isolation(thd);
+	ulong const tx_isolation = thd_tx_isolation(ha_thd());
 
-	if (tx_isolation <= ISO_READ_COMMITTED &&
-	    !(tx_isolation == ISO_READ_COMMITTED &&
-	      thd_rpl_is_parallel(thd))) {
+	if (tx_isolation <= ISO_READ_COMMITTED) {
 		return(int_table_flags);
 	}
 

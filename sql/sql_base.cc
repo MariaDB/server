@@ -2084,7 +2084,10 @@ bool open_table(THD *thd, TABLE_LIST *table_list, MEM_ROOT *mem_root,
     DBUG_RETURN(TRUE);
 
   if (!(flags & MYSQL_OPEN_IGNORE_KILLED) && thd->killed)
+  {
+    thd->send_kill_message();
     DBUG_RETURN(TRUE);
+  }
 
   /*
     Check if we're trying to take a write lock in a read only transaction.

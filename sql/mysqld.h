@@ -518,7 +518,8 @@ extern mysql_mutex_t
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
+       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
+       LOCK_slave_init;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern mysql_mutex_t LOCK_des_key_file;
@@ -529,6 +530,7 @@ extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_rwlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
+extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
 extern int32 thread_count;
 extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;

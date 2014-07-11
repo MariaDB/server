@@ -50,6 +50,9 @@ Created 3/26/1996 Heikki Tuuri
 
 #include<set>
 
+extern "C"
+int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+
 /** Set of table_id */
 typedef std::set<table_id_t>	table_id_set;
 
@@ -1903,9 +1906,8 @@ trx_assert_started(
 #endif /* UNIV_DEBUG */
 
 /*******************************************************************//**
-Compares the "weight" (or size) of two transactions. Transactions that
-have edited non-transactional tables are considered heavier than ones
-that have not.
+Compares the "weight" (or size) of two transactions. The heavier the weight,
+the more reluctant we will be to choose the transaction as a deadlock victim.
 @return	TRUE if weight(a) >= weight(b) */
 UNIV_INTERN
 ibool
@@ -1914,26 +1916,19 @@ trx_weight_ge(
 	const trx_t*	a,	/*!< in: the first transaction to be compared */
 	const trx_t*	b)	/*!< in: the second transaction to be compared */
 {
-	ibool	a_notrans_edit;
-	ibool	b_notrans_edit;
+	int pref;
 
-	/* If mysql_thd is NULL for a transaction we assume that it has
-	not edited non-transactional tables. */
-
-	a_notrans_edit = a->mysql_thd != NULL
-		&& thd_has_edited_nontrans_tables(a->mysql_thd);
-
-	b_notrans_edit = b->mysql_thd != NULL
-		&& thd_has_edited_nontrans_tables(b->mysql_thd);
-
-	if (a_notrans_edit != b_notrans_edit) {
-
-		return(a_notrans_edit);
+	/* First ask the upper server layer if it has any preference for which
+	to prefer as a deadlock victim. */
+	pref= thd_deadlock_victim_preference(a->mysql_thd, b->mysql_thd);
+	if (pref < 0) {
+		return FALSE;
+	} else if (pref > 0) {
+		return TRUE;
 	}
 
-	/* Either both had edited non-transactional tables or both had
-	not, we fall back to comparing the number of altered/locked
-	rows. */
+	/* Upper server layer had no preference, we fall back to comparing the
+	number of altered/locked rows. */
 
 #if 0
 	fprintf(stderr,

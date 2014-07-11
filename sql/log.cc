@@ -4101,6 +4101,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 {
   int error;
   char *to_purge_if_included= NULL;
+  inuse_relaylog *ir;
   DBUG_ENTER("purge_first_log");
 
   DBUG_ASSERT(is_open());
@@ -4108,7 +4109,30 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   DBUG_ASSERT(!strcmp(rli->linfo.log_file_name,rli->event_relay_log_name));
 
   mysql_mutex_lock(&LOCK_index);
-  to_purge_if_included= my_strdup(rli->group_relay_log_name, MYF(0));
+
+  ir= rli->inuse_relaylog_list;
+  while (ir)
+  {
+    inuse_relaylog *next= ir->next;
+    if (!ir->completed || ir->dequeued_count < ir->queued_count)
+    {
+      included= false;
+      break;
+    }
+    if (!included && !strcmp(ir->name, rli->group_relay_log_name))
+      break;
+    if (!next)
+    {
+      rli->last_inuse_relaylog= NULL;
+      included= 1;
+      to_purge_if_included= my_strdup(ir->name, MYF(0));
+    }
+    my_free(ir);
+    ir= next;
+  }
+  rli->inuse_relaylog_list= ir;
+  if (ir)
+    to_purge_if_included= my_strdup(ir->name, MYF(0));
 
   /*
     Read the next log file name from the index file and pass it back to
@@ -6816,7 +6840,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           /* Interrupted by kill. */
           DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior_killed");
           wfc->wakeup_error= orig_entry->thd->killed_errno();
-          if (wfc->wakeup_error)
+          if (!wfc->wakeup_error)
             wfc->wakeup_error= ER_QUERY_INTERRUPTED;
           my_message(wfc->wakeup_error, ER(wfc->wakeup_error), MYF(0));
           DBUG_RETURN(-1);
@@ -6827,12 +6851,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
   }
-  if (wfc && wfc->wakeup_error)
-  {
-    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-    DBUG_RETURN(-1);
-  }
-
   /*
     If the transaction we were waiting for has already put us into the group
     commit queue (and possibly already done the entire binlog commit for us),
@@ -6840,6 +6858,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   */
   if (orig_entry->queued_by_other)
     DBUG_RETURN(0);
+
+  if (wfc && wfc->wakeup_error)
+  {
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    DBUG_RETURN(-1);
+  }
 
   /* Now enqueue ourselves in the group commit queue. */
   DEBUG_SYNC(orig_entry->thd, "commit_before_enqueue");
@@ -9044,6 +9068,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->store_globals();
+  thd->security_ctx->skip_grants();
+  thd->set_command(COM_DAEMON);
 
   /*
     Load the slave replication GTID state from the mysql.gtid_slave_pos
@@ -9347,7 +9373,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       file= -1;
     }
 
-    if (0 == strcmp(linfo->log_file_name, last_log_name))
+    if (!strcmp(linfo->log_file_name, last_log_name))
       break;                                    // No more files to do
     if ((file= open_binlog(&log, linfo->log_file_name, &errmsg)) < 0)
     {

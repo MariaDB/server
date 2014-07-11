@@ -1358,7 +1358,8 @@ enum enum_thread_type
   SYSTEM_THREAD_NDBCLUSTER_BINLOG= 8,
   SYSTEM_THREAD_EVENT_SCHEDULER= 16,
   SYSTEM_THREAD_EVENT_WORKER= 32,
-  SYSTEM_THREAD_BINLOG_BACKGROUND= 64
+  SYSTEM_THREAD_BINLOG_BACKGROUND= 64,
+  SYSTEM_THREAD_SLAVE_INIT= 128,
 };
 
 inline char const *
@@ -1741,6 +1742,8 @@ struct wait_for_commit
   {
     if (waitee)
       unregister_wait_for_prior_commit2();
+    else
+      wakeup_error= 0;
   }
   /*
     Remove a waiter from the list in the waitee. Used to unregister a wait.

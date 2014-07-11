@@ -190,6 +190,28 @@ static const char *HA_ERR(int i)
   return "No Error!";
 }
 
+
+/*
+  Return true if an error caught during event execution is a temporary error
+  that will cause automatic retry of the event group during parallel
+  replication, false otherwise.
+
+  In parallel replication, conflicting transactions can occasionally cause
+  deadlocks; such errors are handled automatically by rolling back re-trying
+  the transactions, so should not pollute the error log.
+*/
+static bool
+is_parallel_retry_error(rpl_group_info *rgi, int err)
+{
+  if (!rgi->is_parallel_exec)
+    return false;
+  if (rgi->killed_for_retry &&
+      (err == ER_QUERY_INTERRUPTED || err == ER_CONNECTION_KILLED))
+    return true;
+  return has_temporary_error(rgi->thd);
+}
+
+
 /**
    Error reporting facility for Rows_log_event::do_apply_event
 
@@ -217,6 +239,16 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
   Relay_log_info const *rli= rgi->rli;
   const Sql_condition *err;
   buff[0]= 0;
+  int errcode= thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0;
+
+  /*
+    In parallel replication, deadlocks or other temporary errors can happen
+    occasionally in normal operation, they will be handled correctly and
+    automatically by re-trying the transactions. So do not pollute the error
+    log with messages about them.
+  */
+  if (is_parallel_retry_error(rgi, errcode))
+    return;
 
   for (err= it++, slider= buff; err && slider < buff_end - 1;
        slider += len, err= it++)
@@ -227,8 +259,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
   }
 
   if (ha_error != 0)
-    rli->report(level, thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0,
-                rgi->gtid_info(),
+    rli->report(level, errcode, rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s handler error %s; "
                 "the event's master log %s, end_log_pos %lu",
@@ -236,8 +267,7 @@ static void inline slave_rows_error_report(enum loglevel level, int ha_error,
                 buff, handler_error == NULL ? "<unknown>" : handler_error,
                 log_name, pos);
   else
-    rli->report(level, thd->is_error() ? thd->get_stmt_da()->sql_errno() : 0,
-                rgi->gtid_info(),
+    rli->report(level, errcode, rgi->gtid_info(),
                 "Could not execute %s event on table %s.%s;"
                 "%s the event's master log %s, end_log_pos %lu",
                 type, table->s->db.str, table->s->table_name.str,
@@ -4087,7 +4117,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
     */
     int error;
     char llbuff[22];
-    if ((error= rows_event_stmt_cleanup(rgi, thd)))
+    if ((error= rows_event_stmt_cleanup(rgi, thd)) &&
+        !is_parallel_retry_error(rgi, error))
     {
       rli->report(ERROR_LEVEL, error, rgi->gtid_info(),
                   "Error in cleaning up after an event preceding the commit; "
@@ -4234,22 +4265,24 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.
       */
-      if (current_stmt_is_commit && (sub_id= rgi->gtid_sub_id))
+      if (current_stmt_is_commit && rgi->gtid_pending)
       {
-        /* Clear the GTID from the RLI so we don't accidentally reuse it. */
-        rgi->gtid_sub_id= 0;
+        sub_id= rgi->gtid_sub_id;
+        rgi->gtid_pending= false;
 
         gtid= rgi->current_gtid;
         thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
         if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
         {
-          rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
-                      rgi->gtid_info(),
-                      "Error during COMMIT: failed to update GTID state in "
-                    "%s.%s: %d: %s",
-                      "mysql", rpl_gtid_slave_state_table_name.str,
-                      thd->get_stmt_da()->sql_errno(),
-                      thd->get_stmt_da()->message());
+          int errcode= thd->get_stmt_da()->sql_errno();
+          if (!is_parallel_retry_error(rgi, errcode))
+            rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                        rgi->gtid_info(),
+                        "Error during COMMIT: failed to update GTID state in "
+                      "%s.%s: %d: %s",
+                        "mysql", rpl_gtid_slave_state_table_name.str,
+                        errcode,
+                        thd->get_stmt_da()->message());
           trans_rollback(thd);
           sub_id= 0;
           thd->is_slave_error= 1;
@@ -4396,18 +4429,21 @@ Default database: '%s'. Query: '%s'",
     {
       DBUG_PRINT("info",("error ignored"));
       clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
-      thd->reset_killed();
+      if (actual_error == ER_QUERY_INTERRUPTED ||
+          actual_error == ER_CONNECTION_KILLED)
+        thd->reset_killed();
     }
     /*
       Other cases: mostly we expected no error and get one.
     */
     else if (thd->is_slave_error || thd->is_fatal_error)
     {
-      rli->report(ERROR_LEVEL, actual_error, rgi->gtid_info(),
-                      "Error '%s' on query. Default database: '%s'. Query: '%s'",
-                      (actual_error ? thd->get_stmt_da()->message() :
-                       "unexpected success or fatal error"),
-                      print_slave_db_safe(thd->db), query_arg);
+      if (!is_parallel_retry_error(rgi, actual_error))
+        rli->report(ERROR_LEVEL, actual_error, rgi->gtid_info(),
+                    "Error '%s' on query. Default database: '%s'. Query: '%s'",
+                    (actual_error ? thd->get_stmt_da()->message() :
+                     "unexpected success or fatal error"),
+                    print_slave_db_safe(thd->db), query_arg);
       thd->is_slave_error= 1;
     }
 
@@ -6507,12 +6543,10 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   thd->variables.server_id= this->server_id;
   thd->variables.gtid_domain_id= this->domain_id;
   thd->variables.gtid_seq_no= this->seq_no;
+  mysql_reset_thd_for_next_command(thd);
 
   if (opt_gtid_strict_mode && opt_bin_log && opt_log_slave_updates)
   {
-    /* Need to reset prior "ok" status to give an error. */
-    thd->clear_error();
-    thd->get_stmt_da()->reset_diagnostics_area();
     if (mysql_bin_log.check_strict_gtid_sequence(this->domain_id,
                                                  this->server_id, this->seq_no))
       return 1;
@@ -7290,28 +7324,41 @@ int Xid_log_event::do_apply_event(rpl_group_info *rgi)
   bool res;
   int err;
   rpl_gtid gtid;
-  uint64 sub_id;
+  uint64 sub_id= 0;
   Relay_log_info const *rli= rgi->rli;
 
+  /*
+    XID_EVENT works like a COMMIT statement. And it also updates the
+    mysql.gtid_slave_pos table with the GTID of the current transaction.
+
+    Therefore, it acts much like a normal SQL statement, so we need to do
+    mysql_reset_thd_for_next_command() as if starting a new statement.
+  */
+  mysql_reset_thd_for_next_command(thd);
   /*
     Record any GTID in the same transaction, so slave state is transactionally
     consistent.
   */
-  if ((sub_id= rgi->gtid_sub_id))
+  if (rgi->gtid_pending)
   {
-    /* Clear the GTID from the RLI so we don't accidentally reuse it. */
-    rgi->gtid_sub_id= 0;
+    sub_id= rgi->gtid_sub_id;
+    rgi->gtid_pending= false;
 
     gtid= rgi->current_gtid;
     err= rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false);
     if (err)
     {
-      rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
-                  "Error during XID COMMIT: failed to update GTID state in "
-                  "%s.%s: %d: %s",
-                  "mysql", rpl_gtid_slave_state_table_name.str,
-                  thd->get_stmt_da()->sql_errno(),
-                  thd->get_stmt_da()->message());
+      int ec= thd->get_stmt_da()->sql_errno();
+      /*
+        Do not report an error if this is really a kill due to a deadlock.
+        In this case, the transaction will be re-tried instead.
+      */
+      if (!is_parallel_retry_error(rgi, ec))
+        rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE, rgi->gtid_info(),
+                    "Error during XID COMMIT: failed to update GTID state in "
+                    "%s.%s: %d: %s",
+                    "mysql", rpl_gtid_slave_state_table_name.str, ec,
+                    thd->get_stmt_da()->message());
       trans_rollback(thd);
       thd->is_slave_error= 1;
       return err;
@@ -9631,7 +9678,8 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     if (open_and_lock_tables(thd, rgi->tables_to_lock, FALSE, 0))
     {
       uint actual_error= thd->get_stmt_da()->sql_errno();
-      if (thd->is_slave_error || thd->is_fatal_error)
+      if ((thd->is_slave_error || thd->is_fatal_error) &&
+          !is_parallel_retry_error(rgi, actual_error))
       {
         /*
           Error reporting borrowed from Query_log_event with many excessive
