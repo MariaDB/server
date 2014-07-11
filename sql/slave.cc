@@ -349,7 +349,7 @@ run_slave_init_thread()
   }
 
   mysql_mutex_lock(&LOCK_slave_init);
-  while (!slave_init_thread_running)
+  while (slave_init_thread_running)
     mysql_cond_wait(&COND_slave_init, &LOCK_slave_init);
   mysql_mutex_unlock(&LOCK_slave_init);
 
