@@ -175,6 +175,7 @@ DROP TABLE t3;
 --save_master_pos
 
 --connection server_2
+--replace_result $until_condition UNTIL_CONDITION
 eval START SLAVE UNTIL master_gtid_pos='$until_condition';
 --source include/wait_for_slave_to_stop.inc
 SHOW CREATE TABLE t3;
