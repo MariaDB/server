@@ -3224,8 +3224,7 @@ sub check_wsrep_support() {
     if ((check_wsrep_provider_env() == 1) || ($file_wsrep_provider ne "")) {
       # Add galera test suites
       mtr_report(" - adding wsrep, galera to default test suites");
-      #push @DEFAULT_SUITES, qw(wsrep galera);
-      push @DEFAULT_SUITES, qw(wsrep);
+      push @DEFAULT_SUITES, qw(wsrep galera);
     }
   }
 }
@@ -4895,6 +4894,7 @@ sub extract_warning_lines ($$) {
      # Galera-related warnings.
      qr|WSREP:.*down context.*|,
      qr|WSREP: Failed to send state UUID:.*|,
+     qr|WSREP: wsrep_sst_receive_address.*|,
     );
 
   my $matched_lines= [];

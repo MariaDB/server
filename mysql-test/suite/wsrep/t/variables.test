@@ -1,5 +1,11 @@
 --source include/have_wsrep.inc
 
+# Set galera's base_port so that test can run in parallel with other galera
+# tests.
+--disable_query_log
+eval SET GLOBAL wsrep_provider_options='base_port=$GALERA_BASE_PORT';
+--enable_query_log
+
 --echo
 --echo # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
 --echo #
