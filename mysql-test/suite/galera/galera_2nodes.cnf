@@ -5,12 +5,15 @@
 binlog-format=row
 wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://'
+wsrep_provider_options='base_port=@mysqld.1.#galera_port'
+wsrep_sst_receive_address='127.0.0.1:@mysqld.1.#sst_port'
 
 [mysqld.2]
 binlog-format=row
 wsrep_provider=@ENV.WSREP_PROVIDER
-wsrep_cluster_address='gcomm://127.0.0.1:4567'
-wsrep_provider_options='gmcast.listen_addr=tcp://127.0.0.1:4568'
+wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
+wsrep_provider_options='base_port=@mysqld.2.#galera_port'
+wsrep_sst_receive_address='127.0.0.1:@mysqld.2.#sst_port'
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

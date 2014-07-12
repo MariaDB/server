@@ -4859,6 +4859,7 @@ sub extract_warning_lines ($$) {
      # Galera-related warnings.
      qr|WSREP:.*down context.*|,
      qr|WSREP: Failed to send state UUID:.*|,
+     qr|WSREP: wsrep_sst_receive_address.*|,
     );
 
   my $matched_lines= [];
