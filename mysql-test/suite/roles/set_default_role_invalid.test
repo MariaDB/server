@@ -1,0 +1,62 @@
+source include/not_embedded.inc;
+
+# This test checks the error paths possible during set default role.
+
+# Create a user with no privileges
+create user test_user@localhost;
+
+create role test_role;
+create role not_granted_role;
+
+grant select on *.* to test_role;
+grant test_role to test_user@localhost;
+
+change_user 'test_user';
+show grants;
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user;
+
+# A user can not set a default role that does not exist in the database.
+--error ER_INVALID_ROLE
+set default role invalid_role;
+
+# A user can not set a default role if he can not call set role <role>.
+--error ER_INVALID_ROLE
+set default role not_granted_role;
+
+set default role test_role;
+
+# Even though a user has the default role set, without reconnecting, we should
+# not already have the roles privileges.
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user;
+
+change_user 'root';
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'test_user';
+# This should show that the new test_user has the role's grants enabled.
+show grants;
+select user, host, default_role from mysql.user where user='test_user';
+
+# If we have a failed set default role attempt, don't change the already set
+# default role.
+--error ER_INVALID_ROLE
+set default role invalid_role;
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'root';
+# Now, even though a default role is still set for test_user, make sure the
+# user does not get the rights, if he can not set the role.
+revoke test_role from test_user@localhost;
+
+change_user 'test_user';
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'root';
+
+# Cleanup
+drop role test_role;
+drop role not_granted_role;
+drop user test_user@localhost;

@@ -1,0 +1,52 @@
+source include/not_embedded.inc;
+
+# This test checks clearing a default role from a user.
+
+# Create a user with no privileges
+create user test_user@localhost;
+
+create role test_role;
+
+grant select on *.* to test_role;
+grant test_role to test_user@localhost;
+
+change_user 'test_user';
+show grants;
+set default role test_role;
+
+# Even though a user has the default role set, without reconnecting, we should
+# not already have the roles privileges.
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user;
+
+change_user 'root';
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'test_user';
+# This should show that the new test_user has the role's grants enabled.
+show grants;
+select user, host, default_role from mysql.user where user='test_user';
+
+set default role NONE;
+
+# We should still have the role set right now.
+select user, host, default_role from mysql.user where user='test_user';
+
+# Make sure we do not somehow get privileges to set an invalid role
+--error ER_INVALID_ROLE
+set default role invalid_role;
+
+change_user 'root';
+select user, host, default_role from mysql.user where user='test_user';
+
+change_user 'test_user';
+# The user does not have a default role set anymore. Make sure we don't still
+# get the privileges.
+--error ER_TABLEACCESS_DENIED_ERROR
+select user, host, default_role from mysql.user;
+
+change_user 'root';
+
+# Cleanup
+drop role test_role;
+drop user test_user@localhost;
