@@ -14667,10 +14667,39 @@ option_value_no_option_type:
               MYSQL_YYABORT;
             lex->var_list.push_back(var);
           }
+        | DEFAULT ROLE_SYM grant_role
+          {
+            LEX *lex = Lex;
+            LEX_USER *user;
+            if (!(user=(LEX_USER *) thd->calloc(sizeof(LEX_USER))))
+              MYSQL_YYABORT;
+            user->user= current_user;
+            set_var_default_role *var= new set_var_default_role(user,
+                                                                $3->user);
+            if (var == NULL)
+              MYSQL_YYABORT;
+            lex->var_list.push_back(var);
+            thd->lex->autocommit= TRUE;
+            if (lex->sphead)
+              lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
+          }
+        | DEFAULT ROLE_SYM grant_role FOR_SYM user
+          {
+            LEX *lex = Lex;
+            set_var_default_role *var= new set_var_default_role($5, $3->user);
+            if (var == NULL)
+              MYSQL_YYABORT;
+            lex->var_list.push_back(var);
+            thd->lex->autocommit= TRUE;
+            if (lex->sphead)
+              lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
+          }
         | ROLE_SYM ident_or_text
           {
             LEX *lex = Lex;
             set_var_role *var= new set_var_role($2);
+            if (var == NULL)
+              MYSQL_YYABORT;
             lex->var_list.push_back(var);
           }
         | PASSWORD equal text_or_password
@@ -14709,6 +14738,7 @@ option_value_no_option_type:
               Lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
           }
         ;
+
 
 internal_variable_name:
           ident

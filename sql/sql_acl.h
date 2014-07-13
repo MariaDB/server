@@ -401,6 +401,9 @@ bool acl_check_proxy_grant_access (THD *thd, const char *host, const char *user,
                                    bool with_grant);
 int acl_setrole(THD *thd, char *rolename, ulonglong access);
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access);
+int acl_check_set_default_role(THD *thd, const char *host, const char *user);
+int acl_set_default_role(THD *thd, const char *host, const char *user,
+                         const char *rolename);
 
 #ifndef DBUG_OFF
 extern ulong role_global_merges, role_db_merges, role_table_merges,

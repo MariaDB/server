@@ -2936,7 +2936,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         cze "Používáte MySQL jako anonymní uživatel a anonymní uživatelé nemají povoleno měnit hesla"
         dan "Du bruger MariaDB som anonym bruger. Anonyme brugere må ikke ændre adgangskoder"
         nla "U gebruikt MariaDB als anonieme gebruiker en deze mogen geen wachtwoorden wijzigen"
-        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to change passwords"
+        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings"
         est "Te kasutate MariaDB-i anonüümse kasutajana, kelledel pole parooli muutmise õigust"
         fre "Vous utilisez un utilisateur anonyme et les utilisateurs anonymes ne sont pas autorisés à changer les mots de passe"
         ger "Sie benutzen MariaDB als anonymer Benutzer und dürfen daher keine Passwörter ändern"
@@ -2946,7 +2946,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe parolele"
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor."
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
         spa "Tu estás usando MariaDB como un usuario anonimo y usuarios anonimos no tienen permiso para cambiar las claves"
@@ -7110,9 +7110,3 @@ ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
-ER_DEFAULT_ROLE_ANONYMOUS_USER
-        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to change default roles."
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe rolurile implicite."
-ER_NO_SUCH_ROLE
-        eng "The role specified '%-.64s' does not exist."
-        rum "Rolul specificat '%-.64s' nu există."
