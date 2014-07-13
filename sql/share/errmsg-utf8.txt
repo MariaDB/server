@@ -2946,7 +2946,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schime parolele"
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe parolele"
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
         spa "Tu estás usando MariaDB como un usuario anonimo y usuarios anonimos no tienen permiso para cambiar las claves"
@@ -5541,8 +5541,8 @@ ER_VIEW_OTHER_USER
         eng "You need the SUPER privilege for creation view with '%-.192s'@'%-.192s' definer"
         ger "Sie brauchen die SUPER-Berechtigung, um einen View mit dem Definierer '%-.192s'@'%-.192s' zu erzeugen"
 ER_NO_SUCH_USER
-  eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
-  ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
+        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
 ER_FORBID_SCHEMA_CHANGE
         eng "Changing schema from '%-.192s' to '%-.192s' is not allowed."
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"
@@ -7110,3 +7110,9 @@ ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
+ER_DEFAULT_ROLE_ANONYMOUS_USER
+        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to change default roles."
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe rolurile implicite."
+ER_NO_SUCH_ROLE
+        eng "The role specified '%-.64s' does not exist."
+        rum "Rolul specificat '%-.64s' nu există."
