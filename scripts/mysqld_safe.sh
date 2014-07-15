@@ -229,8 +229,19 @@ wsrep_recover_position() {
 
   local wr_logfile=$(mktemp $DATADIR/wsrep_recovery.XXXXXX)
 
-  [ "$euid" = "0" ] && chown $user $wr_logfile
-  chmod 600 $wr_logfile
+  # safety checks
+  if [ -z $wr_logfile ]; then
+    log_error "WSREP: mktemp failed"
+    return 1
+  fi
+
+  if [ -f $wr_logfile ]; then
+    [ "$euid" = "0" ] && chown $user $wr_logfile
+    chmod 600 $wr_logfile
+  else
+    log_error "WSREP: mktemp failed"
+    return 1
+  fi
 
   local wr_pidfile="$DATADIR/"`@HOSTNAME@`"-recover.pid"
 
