@@ -107,7 +107,7 @@ class DllExport SPCBLK : public COLBLK {
 
   // Implementation
   virtual int  GetAmType(void) = 0;
-  virtual  bool GetRnm(void) {return false;}
+  virtual bool GetRnm(void) {return false;}
 
   // Methods
   virtual bool IsSpecial(void) {return true;}
@@ -129,7 +129,7 @@ class DllExport RIDBLK : public SPCBLK {
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_ROWID;}
-  virtual  bool GetRnm(void) {return Rnm;}
+  virtual bool GetRnm(void) {return Rnm;}
 
   // Methods
   virtual void ReadColumn(PGLOBAL g);
@@ -144,7 +144,7 @@ class DllExport RIDBLK : public SPCBLK {
 class DllExport FIDBLK : public SPCBLK {
  public:
   // Constructor
-  FIDBLK(PCOLUMN cp);
+  FIDBLK(PCOLUMN cp, OPVAL op);
 
   // Implementation
   virtual int  GetAmType(void) {return TYPE_AM_FILID;}
@@ -154,7 +154,8 @@ class DllExport FIDBLK : public SPCBLK {
   virtual void ReadColumn(PGLOBAL g);
 
  protected:
-  PSZ  Fn;                         // The current To_File of the table
+  PSZ   Fn;                         // The current To_File of the table
+  OPVAL Op;                         // The file part operator
   }; // end of class FIDBLK
 
 /***********************************************************************/
@@ -179,6 +180,29 @@ class DllExport TIDBLK : public SPCBLK {
   // Members
   PSZ  Tname;                       // The current table name
   }; // end of class TIDBLK
+
+/***********************************************************************/
+/*  Class PRTBLK: PARTID special column descriptor.                    */
+/***********************************************************************/
+class DllExport PRTBLK : public SPCBLK {
+ public:
+  // Constructor
+  PRTBLK(PCOLUMN cp);
+
+  // Implementation
+  virtual int  GetAmType(void) {return TYPE_AM_PRTID;}
+
+  // Methods
+  virtual void Reset(void) {}       // This is a pseudo constant column
+  virtual void ReadColumn(PGLOBAL g);
+
+ protected:
+  // Default constructor not to be used
+  PRTBLK(void) {}
+
+  // Members
+  PSZ  Pname;                       // The current partition name
+  }; // end of class PRTBLK
 
 /***********************************************************************/
 /*  Class SIDBLK: SERVID special column descriptor.                    */

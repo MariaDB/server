@@ -1380,16 +1380,19 @@ err:
 /***********************************************************************/
 /*  Get Ndif and Num_K from the index file.                            */
 /***********************************************************************/
-bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
+bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   {
   char   *ftype;
   char    fn[_MAX_PATH];
-  int     n, nv[NZ], id = -1;
-  bool    estim = false;
+  int     nv[NZ], id = -1; // n
+//bool    estim = false;
+  bool    rc = true;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
 
-  ndif = numk = 0;
+//  ndif = numk = 0;
+  numk = 0;
 
+#if 0
   /*********************************************************************/
   /*  Get the estimated table size.                                    */
   /*  Note: for fixed tables we must use cardinality to avoid the call */
@@ -1417,6 +1420,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
     strcpy(g->Message, MSG(NO_KEY_COL));
     return true;    // Error
     } // endif Nk
+#endif // 0
 
   switch (Tdbp->Ftype) {
     case RECFM_VAR: ftype = ".dnx"; break;
@@ -1480,6 +1484,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
     goto err;
     } // endif
 
+#if 0
   if (nv[2]) {
     Mul = true;
     Ndif = nv[2] - 1;  // nv[2] is offset size, equal to Ndif + 1
@@ -1495,9 +1500,11 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
     sprintf(g->Message, MSG(OPT_NOT_MATCH), fn);
     goto err;
     } // endif
+#endif // 0
 
   Num_K = nv[3];
 
+#if 0
   if (Nk > 1) {
     if (nv[2] && X->Seek(g, nv[2] * sizeof(int), 0, SEEK_CUR))
       goto err;
@@ -1518,17 +1525,18 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
 
     Ndif = nv[0];
     } // endif Nk
+#endif // 0
 
   /*********************************************************************/
   /*  Set size values.                                                 */
   /*********************************************************************/
-  ndif = Ndif;
+//ndif = Ndif;
   numk = Num_K;
-  return false;
+  rc = false;
 
 err:
   X->Close();
-  return true;
+  return rc;
   } // end of GetAllSizes
 
 /***********************************************************************/

@@ -791,7 +791,7 @@ void DBFFAM::Rewind(void)
 /***********************************************************************/
 /*  Table file close routine for DBF access method.                    */
 /***********************************************************************/
-void DBFFAM::CloseTableFile(PGLOBAL g)
+void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -810,17 +810,17 @@ void DBFFAM::CloseTableFile(PGLOBAL g)
       } // endif Modif
 
     if (UseTemp && T_Stream && wrc == RC_OK) {
-      // Copy any remaining lines
-      bool b;
+      if (!abort) {
+        // Copy any remaining lines
+        bool b;
+    
+        Fpos = Tdbp->Cardinality(g);
+        abort = MoveIntermediateLines(g, &b) != RC_OK;
+        } // endif abort
 
-      Fpos = Tdbp->Cardinality(g);
-
-      if ((rc = MoveIntermediateLines(g, &b)) == RC_OK) {
-        // Delete the old file and rename the new temp file.
-        RenameTempFile(g);
-        goto fin;
-        } // endif rc
-
+      // Delete the old file and rename the new temp file.
+      RenameTempFile(g, abort);
+      goto fin;
       } // endif UseTemp
 
   } // endif's mode

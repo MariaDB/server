@@ -142,7 +142,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
     return true;
 
   ((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
-  dbuserp->UseTemp= TMP_YES;   // Must use temporary file
+  dbuserp->UseTemp= TMP_AUTO;
 
   /*********************************************************************/
   /*  All is correct.                                                  */
@@ -167,7 +167,12 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
   if (tdbp) {
     b= tdbp->GetFtype() != RECFM_NAF;
     info->data_file_length= (b) ? (ulonglong)tdbp->GetFileLength(g) : 0;
-    info->records= (unsigned)tdbp->GetMaxSize(g);
+
+    if (!b || info->data_file_length)
+      info->records= (unsigned)tdbp->GetMaxSize(g);
+    else
+      info->records= 0;
+
 //  info->mean_rec_length= tdbp->GetLrecl();
     info->mean_rec_length= 0;
     info->data_file_name= (b) ? tdbp->GetFile(g) : NULL;
@@ -343,12 +348,12 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
 //tdbp->SetMode(mode);
 
-  if (del && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF) {
+  if (del/* && ((PTDBASE)tdbp)->GetFtype() != RECFM_NAF*/) {
     // To avoid erasing the table when doing a partial delete
     // make a fake Next
-    PDOSDEF ddp= new(g) DOSDEF;
-    PTDB tp= new(g) TDBDOS(ddp, NULL);
-    tdbp->SetNext(tp);
+//    PDOSDEF ddp= new(g) DOSDEF;
+//    PTDB tp= new(g) TDBDOS(ddp, NULL);
+    tdbp->SetNext((PTDB)1);
     dup->Check &= ~CHK_DELETE;
     } // endif del
 
@@ -544,16 +549,23 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 /***********************************************************************/
 /*  CLOSETAB: Close a table.                                           */
 /***********************************************************************/
-int CntCloseTable(PGLOBAL g, PTDB tdbp)
+int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
   {
   int     rc= RC_OK;
   TDBDOX *tbxp= NULL;
 
-  if (!tdbp || tdbp->GetUse() != USE_OPEN)
+  if (!tdbp)
     return rc;                           // Nothing to do
+  else if (tdbp->GetUse() != USE_OPEN) {
+    if (tdbp->GetAmType() == TYPE_AM_XML)
+      tdbp->CloseDB(g);                  // Opened by GetMaxSize
+
+    return rc;
+  } // endif !USE_OPEN
 
   if (trace)
-    printf("CntCloseTable: tdbp=%p mode=%d\n", tdbp, tdbp->GetMode());
+    printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n", 
+                           tdbp, tdbp->GetMode(), nox, abort);
 
   if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN)
     rc= tdbp->DeleteDB(g, RC_EF);        // Specific A.M. delete routine
@@ -572,8 +584,9 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 
   //  This will close the table file(s) and also finalize write
   //  operations such as Insert, Update, or Delete.
+  tdbp->SetAbort(abort);
   tdbp->CloseDB(g);
-
+  tdbp->SetAbort(false);
   g->jump_level--;
 
   if (trace > 1)
@@ -582,7 +595,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp)
 //if (!((PTDBDOX)tdbp)->GetModified())
 //  return 0;
 
-  if (tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY)
+  if (nox || tdbp->GetMode() == MODE_READ || tdbp->GetMode() == MODE_ANY)
     return 0;
 
   if (trace > 1)

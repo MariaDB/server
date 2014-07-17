@@ -127,6 +127,14 @@ int RELDEF::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
 	} // end of GetCharCatInfo
 
 /***********************************************************************/
+/*  To be used by any TDB's.                                           */
+/***********************************************************************/
+bool RELDEF::Partitioned(void)
+	{
+	return Hc->IsPartitioned();
+	} // end of Partitioned
+
+/***********************************************************************/
 /*  This function returns string table information.                    */
 /*  Default parameter is "*" to get the handler default.               */
 /***********************************************************************/
@@ -136,7 +144,8 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	
 	if (s) {
     if (Hc->IsPartitioned() &&
-        (!stricmp(what, "filename") || !stricmp(what, "tabname"))) {
+        (!stricmp(what, "filename") || !stricmp(what, "tabname")
+                                    || !stricmp(what, "connect"))) {
       name= Hc->GetPartName();
       sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + strlen(name));
       sprintf(sval, s, name);

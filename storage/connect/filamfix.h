@@ -38,7 +38,7 @@ class DllExport FIXFAM : public BLKFAM {
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
   virtual bool CopyHeader(PGLOBAL g) {return false;}
@@ -69,7 +69,7 @@ class BGXFAM : public FIXFAM {
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
   virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:

@@ -1,7 +1,7 @@
 /************* TabMySQL C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABMYSQL                                               */
 /* -------------                                                        */
-/*  Version 1.8                                                         */
+/*  Version 1.9                                                         */
 /*                                                                      */
 /* AUTHOR:                                                              */
 /* -------                                                              */
@@ -68,6 +68,10 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 #endif   // _CONSOLE
 
 extern "C" int   trace;
+
+// Used to check whether a MYSQL table is created on itself
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                      const char *db, char *tab, const char *src, int port);
 
 /* -------------- Implementation of the MYSQLDEF class --------------- */
 
@@ -353,8 +357,12 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Tabname = Name;
   } // endif am
 
-  if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL)))
+  if ((Srcdef = GetStringCatInfo(g, "Srcdef", NULL))) {
+    Read_Only = true;
     Isview = true;
+  } else if (CheckSelf(g, Hc->GetTable()->s, Hostname, Database,
+                       Tabname, Srcdef, Portnumber))
+    return true;
 
   // Used for Update and Delete
   Qrystr = GetStringCatInfo(g, "Query_String", "?");
@@ -603,9 +611,7 @@ bool TDBMYSQL::MakeInsert(PGLOBAL g)
       else
         qlen += colp->GetLength();
 
-    } // endif Prep
-
-    if (Prep)
+    } else    // Prep
       strcat(valist, "?");
 
     } // endfor colp
@@ -740,33 +746,49 @@ int TDBMYSQL::MakeDelete(PGLOBAL g)
 #endif // 0
 
 /***********************************************************************/
-/*  XCV GetMaxSize: returns the maximum number of rows in the table.   */
+/*  MYSQL Cardinality: returns the number of rows in the table.        */
+/***********************************************************************/
+int TDBMYSQL::Cardinality(PGLOBAL g)
+{
+  if (!g)
+    return (Mode == MODE_ANY && !Srcdef) ? 1 : 0;
+
+  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef) {
+    // Info command, we must return the exact table row number
+    char   query[96];
+    MYSQLC myc;
+
+    if (myc.Open(g, Host, Database, User, Pwd, Port))
+      return -1;
+
+    strcpy(query, "SELECT COUNT(*) FROM ");
+
+    if (Quoted > 0)
+      strcat(strcat(strcat(query, "`"), Tabname), "`");
+    else
+      strcat(query, Tabname);
+
+    Cardinal = myc.GetTableSize(g, query);
+    myc.Close();
+    } // endif Cardinal
+
+  return Cardinal;
+} // end of Cardinality
+
+/***********************************************************************/
+/*  MYSQL GetMaxSize: returns the maximum number of rows in the table. */
 /***********************************************************************/
 int TDBMYSQL::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
-#if 0
-    if (MakeSelect(g))
-      return -2;
+    if (Mode == MODE_DELETE)
+      // Return 0 in mode DELETE in case of delete all.
+      MaxSize = 0;
+    else if (!Cardinality(NULL))
+      MaxSize = 10;   // To make MySQL happy
+    else if ((MaxSize = Cardinality(g)) < 0)
+      MaxSize = 12;   // So we can see an error occured
 
-    if (!Myc.Connected()) {
-      if (Myc.Open(g, Host, Database, User, Pwd, Port))
-        return -1;
-
-      } // endif connected
-
-    if ((MaxSize = Myc.GetResultSize(g, Query)) < 0) {
-      Myc.Close();
-      return -3;
-      } // endif MaxSize
-
-    // FIXME: Columns should be known when Info calls GetMaxSize
-    if (!Columns)
-      Query = NULL;     // Must be remade when columns are known
-#endif // 0
-
-    // Return 0 in mode DELETE in case of delete all.
-    MaxSize = (Mode == MODE_DELETE) ? 0 : 10;   // To make MySQL happy
     } // endif MaxSize
 
   return MaxSize;
@@ -881,11 +903,12 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       } // endif MakeInsert
 
     if (m_Rc != RC_FX) {
+      int  rc;
       char cmd[64];
       int  w;
 
       sprintf(cmd, "ALTER TABLE `%s` DISABLE KEYS", Tabname);
-      m_Rc = Myc.ExecSQL(g, cmd, &w);
+      rc = Myc.ExecSQL(g, cmd, &w);   // may fail for some engines
       } // endif m_Rc
 
   } else
@@ -1012,7 +1035,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 {
   int  oldlen = strlen(Query);
 
-  if (op == OP_NEXT)
+  if (!key || op == OP_NEXT)
     return false;
   else if (op == OP_FIRST) {
     if (To_CondFil)
@@ -1129,7 +1152,7 @@ void TDBMYSQL::CloseDB(PGLOBAL g)
       dup->Step = "Enabling indexes";
       sprintf(cmd, "ALTER TABLE `%s` ENABLE KEYS", Tabname);
       Myc.m_Rows = -1;      // To execute the query
-      m_Rc = Myc.ExecSQL(g, cmd, &w);
+      m_Rc = Myc.ExecSQL(g, cmd, &w);  // May fail for some engines
       } // endif m_Rc
 
     Myc.Close();

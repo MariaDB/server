@@ -388,7 +388,7 @@ void TDBVCT::CloseDB(PGLOBAL g)
     To_Kindex = NULL;
     } // endif
 
-  Txfp->CloseTableFile(g);
+  Txfp->CloseTableFile(g, false);
   } // end of CloseDB
 
 // ------------------------ VCTCOL functions ----------------------------

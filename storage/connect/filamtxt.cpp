@@ -552,7 +552,7 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
 
     CurBlk = (int)Rows++;
 
-     if (trace > 1)
+    if (trace > 1)
       htrc("ReadBuffer: CurBlk=%d\n", CurBlk);
 
    /********************************************************************/
@@ -922,13 +922,16 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
 /***********************************************************************/
 /*  Delete the old file and rename the new temp file.                  */
+/*  If aborting just delete the new temp file.                         */
 /***********************************************************************/
-int DOSFAM::RenameTempFile(PGLOBAL g)
+int DOSFAM::RenameTempFile(PGLOBAL g, bool abort)
   {
   char *tempname, filetemp[_MAX_PATH], filename[_MAX_PATH];
-  int   rc;
+  int   rc = RC_OK;
 
-  if (!To_Fbt)
+  if (To_Fbt)
+    tempname = (char*)To_Fbt->Fname;
+  else
     return RC_INFO;               // Nothing to do ???
 
   // This loop is necessary because, in case of join,
@@ -937,26 +940,28 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
     if (fb == To_Fb || fb == To_Fbt)
       rc = PlugCloseFile(g, fb);
 
-  tempname = (char*)To_Fbt->Fname;
-  PlugSetPath(filename, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(filetemp, filename), ".ttt");
-  remove(filetemp);   // May still be there from previous error
+  if (!abort) {
+    PlugSetPath(filename, To_File, Tdbp->GetPath());
+    strcat(PlugRemoveType(filetemp, filename), ".ttt");
+    remove(filetemp);   // May still be there from previous error
 
-  if (rename(filename, filetemp)) {    // Save file for security
-    sprintf(g->Message, MSG(RENAME_ERROR),
-            filename, filetemp, strerror(errno));
-    rc = RC_FX;
-  } else if (rename(tempname, filename)) {
-    sprintf(g->Message, MSG(RENAME_ERROR),
-            tempname, filename, strerror(errno));
-    rc = rename(filetemp, filename);   // Restore saved file
-    rc = RC_FX;
-  } else if (remove(filetemp)) {
-    sprintf(g->Message, MSG(REMOVE_ERROR),
-            filetemp, strerror(errno));
-    rc = RC_INFO;                      // Acceptable
+    if (rename(filename, filetemp)) {    // Save file for security
+      sprintf(g->Message, MSG(RENAME_ERROR),
+              filename, filetemp, strerror(errno));
+      rc = RC_FX;
+    } else if (rename(tempname, filename)) {
+      sprintf(g->Message, MSG(RENAME_ERROR),
+              tempname, filename, strerror(errno));
+      rc = rename(filetemp, filename);   // Restore saved file
+      rc = RC_FX;
+    } else if (remove(filetemp)) {
+      sprintf(g->Message, MSG(REMOVE_ERROR),
+              filetemp, strerror(errno));
+      rc = RC_INFO;                      // Acceptable
+    } // endif's
+
   } else
-    rc = RC_OK;
+    remove(tempname);
 
   return rc;
   } // end of RenameTempFile
@@ -964,22 +969,22 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
 /***********************************************************************/
-void DOSFAM::CloseTableFile(PGLOBAL g)
+void DOSFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc;
 
   if (UseTemp && T_Stream) {
-    if (Tdbp->Mode == MODE_UPDATE) {
+    if (Tdbp->Mode == MODE_UPDATE && !abort) {
       // Copy eventually remaining lines
       bool b;
 
       fseek(Stream, 0, SEEK_END);
       Fpos = ftell(Stream);
-      rc = MoveIntermediateLines(g, &b);
-      } // endif Mode
+      abort = MoveIntermediateLines(g, &b) != RC_OK;
+      } // endif abort
 
     // Delete the old file and rename the new temp file.
-    RenameTempFile(g);     // Also close all files
+    RenameTempFile(g, abort);     // Also close all files
   } else {
     rc = PlugCloseFile(g, To_Fb);
 
@@ -1045,9 +1050,7 @@ void BLKFAM::Reset(void)
 /***********************************************************************/
 int BLKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -1382,27 +1385,22 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
 /***********************************************************************/
-void BLKFAM::CloseTableFile(PGLOBAL g)
+void BLKFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc, wrc = RC_OK;
 
   if (UseTemp && T_Stream) {
-    if (Tdbp->GetMode() == MODE_UPDATE) {
+    if (Tdbp->GetMode() == MODE_UPDATE && !abort) {
       // Copy eventually remaining lines
       bool b;
 
       fseek(Stream, 0, SEEK_END);
       Fpos = ftell(Stream);
-      rc = MoveIntermediateLines(g, &b);
-    } else
-      rc = RC_OK;
+      abort = MoveIntermediateLines(g, &b) != RC_OK;
+      } // endif abort
 
-    if (rc == RC_OK)
-      // Delete the old file and rename the new temp file.
-      rc = RenameTempFile(g);    // Also close all files
-    else
-      rc = PlugCloseFile(g, To_Fb);
-
+    // Delete the old file and rename the new temp file.
+    rc = RenameTempFile(g, abort);    // Also close all files
   } else {
     // Closing is True if last Write was in error
     if (Tdbp->GetMode() == MODE_INSERT && CurNum && !Closing) {

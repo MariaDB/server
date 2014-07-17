@@ -275,7 +275,7 @@ class DllExport XINDEX : public XXBASE {
   virtual bool Make(PGLOBAL g, PIXDEF sxp);
   virtual bool SaveIndex(PGLOBAL g, PIXDEF sxp);
   virtual bool Reorder(PGLOBAL g);
-          bool GetAllSizes(PGLOBAL g, int &ndif, int &numk);
+          bool GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk);
 
  protected:
           bool AddColumns(PIXDEF xdp);

@@ -124,8 +124,8 @@ struct ha_field_option_struct
 {
   ulonglong offset;
   ulonglong freq;
-  ulonglong opt;
   ulonglong fldlen;
+  uint opt;
   const char *dateformat;
   const char *fieldformat;
   char *special;
@@ -208,9 +208,11 @@ public:
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
   bool     IsPartitioned(void);
+  bool     IsUnique(uint n);
 
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
+  bool     CheckColumnList(PGLOBAL g);
   bool     IsOpened(void);
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);
@@ -529,8 +531,12 @@ protected:
   bool          stop;                 // Used when creating index
   bool          alter;                // True when converting to other engine
   bool          mrr;                  // True when getting index positions
+  bool          nox;                  // True when index should not be made
+  bool          abort;                // True after error in UPDATE/DELETE
   int           indexing;             // Type of indexing for CONNECT
+  int           only;                 // If only one action is accepted
   int           locked;               // Table lock
+  MY_BITMAP    *part_id;              // Columns used for partition func
   THR_LOCK_DATA lock_data;
 
 public:

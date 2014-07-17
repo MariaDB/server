@@ -686,19 +686,48 @@ int MYSQLC::ExecSQL(PGLOBAL g, const char *query, int *w)
     rc = RC_NF;
   } // endif field count
 
-if (w)
-//*w = mysql_warning_count(m_DB);
-  *w = m_DB->warning_count;
+  if (w)
+//  *w = mysql_warning_count(m_DB);
+    *w = m_DB->warning_count;
 
   return rc;
   } // end of ExecSQL
+
+/***********************************************************************/
+/*  Get table size by executing "select count(*) from table_name".     */
+/***********************************************************************/
+int MYSQLC::GetTableSize(PGLOBAL g, PSZ query)
+  {
+  if (mysql_real_query(m_DB, query, strlen(query))) {
+#if defined(_DEBUG)
+    char *msg = (char*)PlugSubAlloc(g, NULL, 512 + strlen(query));
+
+    sprintf(msg, "(%d) %s [%s]", mysql_errno(m_DB),
+                                 mysql_error(m_DB), query);
+    strncpy(g->Message, msg, sizeof(g->Message) - 1);
+    g->Message[sizeof(g->Message) - 1] = 0;
+#endif   // _DEBUG
+    return -2;
+    } // endif mysql_real_query
+
+  if (!(m_Res = mysql_store_result(m_DB)))
+    return -3;
+
+  // Get the resulting count value
+  m_Rows = (int)mysql_num_rows(m_Res);     // Should be 1
+
+  if (m_Rows && (m_Row = mysql_fetch_row(m_Res)))
+    return atoi(*m_Row);
+
+  return -4;
+  } // end of GetTableSize
 
 /***********************************************************************/
 /*  Move to a specific row and column                                  */
 /***********************************************************************/
 void MYSQLC::DataSeek(my_ulonglong row)
   {
-  MYSQL_ROWS  *tmp=0;
+  MYSQL_ROWS *tmp = 0;
 //DBUG_PRINT("info",("mysql_data_seek(%ld)",(long) row));
 
   if (m_Res->data)

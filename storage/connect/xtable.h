@@ -79,6 +79,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual int    GetTdb_No(void) {return Tdb_No;}
   virtual PTDB   GetNext(void) {return Next;}
   virtual PCATLG GetCat(void) {return NULL;}
+  virtual void   SetAbort(bool b) {;}
 
   // Methods
   virtual bool   IsSame(PTDB tp) {return tp == this;}
@@ -125,6 +126,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   PCOL   Columns;      // Points to the first column of the table
   MODE   Mode;         // 10 Read, 30 Update, 40 Insert, 50 Delete
   int    Degree;       // Number of columns
+  int    Cardinal;     // Table number of rows
   }; // end of class TDB
 
 /***********************************************************************/

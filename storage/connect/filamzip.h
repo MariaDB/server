@@ -48,7 +48,7 @@ class DllExport ZIPFAM : public TXTFAM {
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:
@@ -86,7 +86,7 @@ class DllExport ZBKFAM : public ZIPFAM {
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:
@@ -152,7 +152,7 @@ class DllExport ZLBFAM : public BLKFAM {
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:

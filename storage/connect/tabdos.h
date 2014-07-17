@@ -125,6 +125,7 @@ class DllExport TDBDOS : public TDBASE {
   virtual AMT   GetAmType(void) {return Txfp->GetAmType();}
   virtual PSZ   GetFile(PGLOBAL g) {return Txfp->To_File;}
   virtual void  SetFile(PGLOBAL g, PSZ fn) {Txfp->To_File = fn;}
+  virtual void  SetAbort(bool b) {Abort = b;}
   virtual RECFM GetFtype(void) {return Ftype;}
   virtual bool  SkipHeader(PGLOBAL g) {return false;}
   virtual void  RestoreNrec(void) {Txfp->SetNrec(1);}
@@ -183,8 +184,8 @@ class DllExport TDBDOS : public TDBASE {
   PBF     To_BlkFil;         // To evaluation block filter
   PFIL    SavFil;            // Saved hidden filter
   char   *To_Line;           // Points to current processed line
-  int     Cardinal;          // Table Cardinality
   RECFM   Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
+  bool    Abort;             // TRUE when aborting UPDATE/DELETE
   int     Lrecl;             // Logical Record Length
   int     AvgLen;            // Logical Record Average Length
 //int     Xeval;             // BlockTest return value

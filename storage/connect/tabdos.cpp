@@ -414,12 +414,12 @@ TDBDOS::TDBDOS(PDOSDEF tdp, PTXF txfp) : TDBASE(tdp)
   AvgLen = tdp->AvgLen;
   Ftype = tdp->Recfm;
   To_Line = NULL;
-  Cardinal = -1;
 //To_BlkIdx = NULL;
   To_BlkFil = NULL;
   SavFil = NULL;
 //Xeval = 0;
   Beval = 0;
+  Abort = false;
   } // end of TDBDOS standard constructor
 
 TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
@@ -429,7 +429,6 @@ TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
   AvgLen = tdbp->AvgLen;
   Ftype = tdbp->Ftype;
   To_Line = tdbp->To_Line;
-  Cardinal = tdbp->Cardinal;
 //To_BlkIdx = tdbp->To_BlkIdx;
   To_BlkFil = tdbp->To_BlkFil;
   SavFil = tdbp->SavFil;
@@ -561,8 +560,13 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
 //void      *memp = cat->GetDescp();
 
   if ((nrec = defp->GetElemt()) < 2) {
-    strcpy(g->Message, MSG(TABLE_NOT_OPT));
-    return RC_INFO;                     // Not to be optimized
+    if (!To_Def->Partitioned()) {
+      // This may be wrong to do in some cases
+      strcpy(g->Message, MSG(TABLE_NOT_OPT));
+      return RC_INFO;                   // Not to be optimized
+    } else
+      return RC_OK;
+
   } else if (GetMaxSize(g) == 0 || !(dup->Check & CHK_OPT)) {
     // Suppress the opt file firstly if the table is void,
     // secondly when it was modified with OPTIMIZATION unchecked
@@ -1565,7 +1569,13 @@ int TDBDOS::MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
   Mode = MODE_READ;
   Use = USE_READY;
   dfp = (PDOSDEF)To_Def;
-  fixed = Cardinality(g) >= 0;
+
+  if (!Cardinality(g)) {
+    // Void table erase eventual index file(s)
+    (void)dfp->DeleteIndexFile(g, NULL);
+    return RC_OK;
+  } else
+    fixed = Cardinality(g) >= 0;
 
   // Are we are called from CreateTable or CreateIndex?
   if (pxdf) {
@@ -1823,11 +1833,50 @@ int TDBDOS::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 int TDBDOS::Cardinality(PGLOBAL g)
   {
-  if (!g)
-    return Txfp->Cardinality(g);
+  int n = Txfp->Cardinality(NULL);
 
-  if (Cardinal < 0)
-    Cardinal = Txfp->Cardinality(g);
+  if (!g)
+    return (Mode == MODE_ANY) ? 1 : n;
+
+  if (Cardinal < 0) {
+    if (Mode == MODE_ANY && n == 0) {
+      // Info command, we must return exact row number
+      PDOSDEF dfp = (PDOSDEF)To_Def;
+      PIXDEF  xdp = dfp->To_Indx;
+
+      if (xdp) {
+        // Cardinality can be retreived from one index
+        PXLOAD  pxp;
+    
+        if (dfp->Huge)
+          pxp = new(g) XHUGE;
+        else
+          pxp = new(g) XFILE;
+    
+        PXINDEX kxp = new(g) XINDEX(this, xdp, pxp, NULL, NULL);
+    
+        if (!(kxp->GetAllSizes(g, Cardinal)))
+          return Cardinal;
+    
+        } // endif Mode
+
+      // Using index impossible or failed, do it the hard way
+      Mode = MODE_READ;
+      To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+
+      if (Txfp->OpenTableFile(g))
+        return (Cardinal = Txfp->Cardinality(g));
+
+      for (Cardinal = 0; n != RC_EF;)
+        if (!(n = Txfp->ReadBuffer(g)))
+          Cardinal++;
+
+      Txfp->CloseTableFile(g, false);
+      Mode = MODE_ANY;
+    } else
+      Cardinal = Txfp->Cardinality(g);
+
+    } // endif Cardinal
 
   return Cardinal;
   } // end of Cardinality
@@ -2104,7 +2153,7 @@ void TDBDOS::CloseDB(PGLOBAL g)
     To_Kindex = NULL;
     } // endif
 
-  Txfp->CloseTableFile(g);
+  Txfp->CloseTableFile(g, Abort);
   } // end of CloseDB
 
 // ------------------------ DOSCOL functions ----------------------------

@@ -52,7 +52,8 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   To_Table = NULL;
   Columns = NULL;
   Degree = (tdp) ? tdp->GetDegree() : 0;
-  Mode = MODE_READ;
+  Mode = MODE_ANY;
+  Cardinal = -1;
   } // end of TDB standard constructor
 
 TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
@@ -67,6 +68,7 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   Columns = NULL;
   Degree = tdbp->Degree;
   Mode = tdbp->Mode;
+  Cardinal = tdbp->Cardinal;
   } // end of TDB copy constructor
 
 // Methods
@@ -227,7 +229,7 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
         colp = cp;
       else if (!(cdp->Flags & U_SPECIAL))
         colp = MakeCol(g, cdp, cprec, i);
-      else if (Mode == MODE_READ)
+      else if (Mode != MODE_INSERT)
         colp = InsertSpcBlk(g, cdp);
 
       if (trace)
@@ -267,22 +269,38 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
   PCOL    colp;
 
   cp= new(g) COLUMN(cdp->GetName());
-  cp->SetTo_Table(To_Table);
 
-  if (!stricmp(name, "FILEID") ||
-      !stricmp(name, "SERVID")) {
+  if (! To_Table) {
+    strcpy(g->Message, "Cannot make special column: To_Table is NULL");
+    return NULL;
+  } else
+    cp->SetTo_Table(To_Table);
+
+  if (!stricmp(name, "FILEID") || !stricmp(name, "FDISK") ||
+      !stricmp(name, "FPATH")  || !stricmp(name, "FNAME") ||
+      !stricmp(name, "FTYPE")  || !stricmp(name, "SERVID")) {
     if (!To_Def || !(To_Def->GetPseudo() & 2)) {
       sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
       return NULL;
       } // endif Pseudo
 
     if (!stricmp(name, "FILEID"))
-      colp = new(g) FIDBLK(cp);
+      colp = new(g) FIDBLK(cp, OP_XX);
+    else if (!stricmp(name, "FDISK"))
+      colp = new(g) FIDBLK(cp, OP_FDISK);
+    else if (!stricmp(name, "FPATH"))
+      colp = new(g) FIDBLK(cp, OP_FPATH);
+    else if (!stricmp(name, "FNAME"))
+      colp = new(g) FIDBLK(cp, OP_FNAME);
+    else if (!stricmp(name, "FTYPE"))
+      colp = new(g) FIDBLK(cp, OP_FTYPE);
     else
       colp = new(g) SIDBLK(cp);
 
   } else if (!stricmp(name, "TABID")) {
     colp = new(g) TIDBLK(cp);
+  } else if (!stricmp(name, "PARTID")) {
+    colp = new(g) PRTBLK(cp);
 //} else if (!stricmp(name, "CONID")) {
 //  colp = new(g) CIDBLK(cp);
   } else if (!stricmp(name, "ROWID")) {

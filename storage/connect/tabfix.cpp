@@ -63,12 +63,10 @@ static const longlong M4G = (longlong)2 * M2G;
 /***********************************************************************/
 TDBFIX::TDBFIX(PDOSDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   {
-//Cardinal = -1;
   } // end of TDBFIX standard constructor
 
 TDBFIX::TDBFIX(PGLOBAL g, PTDBFIX tdbp) : TDBDOS(g, tdbp)
   {
-//Cardinal = tdbp->Cardinal;
   } // end of TDBFIX copy constructor
 
 // Method

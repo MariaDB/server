@@ -425,7 +425,7 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
   if (mysql) {
 #if defined(MYSQL_SUPPORT)
     // Access sub-table via MySQL API
-    if (!(tdbp= cat->GetTable(g, tabp, MODE_READ, "MYPRX"))) {
+    if (!(tdbp= cat->GetTable(g, tabp, Mode, "MYPRX"))) {
       char buf[MAX_STR];
 
       strcpy(buf, g->Message);
@@ -436,6 +436,9 @@ PTDBASE TDBPRX::GetSubTable(PGLOBAL g, PTABLE tabp, bool b)
 
     if (db)
       ((PTDBMY)tdbp)->SetDatabase(tabp->GetQualifier());
+
+    if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
+      tdbp->SetName(Name);      // For Make_Command
 
 #else   // !MYSQL_SUPPORT
       sprintf(g->Message, "%s.%s is not a CONNECT table",
@@ -480,7 +483,7 @@ bool TDBPRX::InitTable(PGLOBAL g)
     if (!(Tdbp = GetSubTable(g, ((PPRXDEF)To_Def)->Tablep)))
       return true;
 
-    Tdbp->SetMode(Mode);
+//  Tdbp->SetMode(Mode);
     } // endif Tdbp
 
   return false;
@@ -530,16 +533,12 @@ bool TDBPRX::OpenDB(PGLOBAL g)
 		return Tdbp->OpenDB(g);
     } // endif use
 
-  if (Mode == MODE_DELETE) {
-    /*******************************************************************/
-    /* Currently XCOL tables cannot be modified.                       */
-    /*******************************************************************/
-    strcpy(g->Message, "No DELETE for PROXY tables");
-    return true;
-    } // endif Mode
-
   if (InitTable(g))
     return true;
+  else if (Mode != MODE_READ && (Read_Only || Tdbp->IsReadOnly())) {
+    strcpy(g->Message, "Cannot modify a read only table");
+    return true;
+    } // endif tp
   
   /*********************************************************************/
   /*  Check and initialize the subtable columns.                       */
@@ -565,7 +564,8 @@ bool TDBPRX::OpenDB(PGLOBAL g)
       if (((PPRXCOL)cp)->Init(g, utp))
         return true;
 
-    } // endif MODE_UPDATE
+  } else if (Mode == MODE_DELETE)
+    Tdbp->SetNext(Next);
 
   /*********************************************************************/
   /*  Physically open the object table.                                */
@@ -573,6 +573,7 @@ bool TDBPRX::OpenDB(PGLOBAL g)
 	if (Tdbp->OpenDB(g))
 		return true;
 
+  Tdbp->SetNext(NULL);
   Use = USE_OPEN;
 	return false;
   } // end of OpenDB
@@ -593,8 +594,6 @@ int TDBPRX::ReadDB(PGLOBAL g)
 /***********************************************************************/
 int TDBPRX::WriteDB(PGLOBAL g)
   {
-//sprintf(g->Message, "%s tables are read only", To_Def->GetType());
-//return RC_FX;
   return Tdbp->WriteDB(g);
   } // end of WriteDB
 
@@ -603,9 +602,7 @@ int TDBPRX::WriteDB(PGLOBAL g)
 /***********************************************************************/
 int TDBPRX::DeleteDB(PGLOBAL g, int irc)
   {
-  sprintf(g->Message, "Delete not enabled for %s tables",
-                      To_Def->GetType());
-  return RC_FX;
+  return Tdbp->DeleteDB(g, irc);
   } // end of DeleteDB
 
 /***********************************************************************/

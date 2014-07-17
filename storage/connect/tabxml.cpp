@@ -366,7 +366,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   /*********************************************************************/
   /*  Firstly we check whether this file have been already loaded.     */
   /*********************************************************************/
-  if (Mode == MODE_READ)
+  if (Mode == MODE_READ || Mode == MODE_ANY)
     for (fp = dup->Openlist; fp; fp = fp->Next)
       if (fp->Type == type && fp->Length && fp->Count)
         if (!stricmp(fp->Fname, filename))

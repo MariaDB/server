@@ -386,7 +386,7 @@ int ZIPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for DOS access method.                     */
 /***********************************************************************/
-void ZIPFAM::CloseTableFile(PGLOBAL g)
+void ZIPFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = gzclose(Zfile);
 
@@ -456,9 +456,7 @@ int ZBKFAM::MaxBlkSize(PGLOBAL g, int s)
 /***********************************************************************/
 int ZBKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -671,7 +669,7 @@ int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for ZBK access method.                     */
 /***********************************************************************/
-void ZBKFAM::CloseTableFile(PGLOBAL g)
+void ZBKFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK;
 
@@ -1328,7 +1326,7 @@ bool ZLBFAM::WriteCompressedBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
 /***********************************************************************/
-void ZLBFAM::CloseTableFile(PGLOBAL g)
+void ZLBFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK;
 

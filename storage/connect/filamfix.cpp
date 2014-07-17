@@ -315,8 +315,7 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
 
   } else {                           // Mode == MODE_UPDATE
     // T_Stream is the temporary stream or the table file stream itself
-    if (!T_Stream)
-    {
+    if (!T_Stream) {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
@@ -326,7 +325,9 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
 
       } else
         T_Stream = Stream;
-    }
+
+      } // endif T_Stream
+
     Modif++;                         // Modified line in Update mode
   } // endif Mode
 
@@ -420,7 +421,7 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Ok, now delete old file and rename new temp file.            */
       /*****************************************************************/
-      if (RenameTempFile(g))
+      if (RenameTempFile(g, false))
         return RC_FX;
 
     } else {
@@ -527,7 +528,7 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 /*  Table file close routine for FIX access method.                    */
 /***********************************************************************/
-void FIXFAM::CloseTableFile(PGLOBAL g)
+void FIXFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -546,17 +547,17 @@ void FIXFAM::CloseTableFile(PGLOBAL g)
       } // endif Modif
 
     if (UseTemp && T_Stream && wrc == RC_OK) {
-      // Copy any remaining lines
-      bool b;
+      if (!abort) {
+        // Copy any remaining lines
+        bool b;
+    
+        Fpos = Tdbp->Cardinality(g);
+        abort = MoveIntermediateLines(g, &b) != RC_OK;
+        } // endif // abort
 
-      Fpos = Tdbp->Cardinality(g);
-
-      if ((rc = MoveIntermediateLines(g, &b)) == RC_OK) {
-        // Delete the old file and rename the new temp file.
-        RenameTempFile(g);
-        goto fin;
-        } // endif rc
-
+      // Delete the old file and rename the new temp file.
+      RenameTempFile(g, abort);
+      goto fin;
       } // endif UseTemp
 
   } // endif's mode
@@ -1245,7 +1246,7 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       /*  Ok, now delete old file and rename new temp file.            */
       /*****************************************************************/
-      if (RenameTempFile(g))
+      if (RenameTempFile(g, false))
         return RC_FX;
 
     } else {
@@ -1375,7 +1376,7 @@ bool BGXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 /*  Data Base close routine for BIGFIX access method.                  */
 /***********************************************************************/
-void BGXFAM::CloseTableFile(PGLOBAL g)
+void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -1393,17 +1394,17 @@ void BGXFAM::CloseTableFile(PGLOBAL g)
       } // endif Modif
 
     if (UseTemp && Tfile && wrc == RC_OK) {
-      // Copy any remaining lines
-      bool b;
+      if (!abort) {
+        // Copy any remaining lines
+        bool b;
+    
+        Fpos = Tdbp->Cardinality(g);
+        abort = MoveIntermediateLines(g, &b) != RC_OK;
+        } // endif abort
 
-      Fpos = Tdbp->Cardinality(g);
-
-      if ((rc = MoveIntermediateLines(g, &b)) == RC_OK) {
-        // Delete the old file and rename the new temp file.
-        RenameTempFile(g);
-        goto fin;
-        } // endif rc
-
+      // Delete the old file and rename the new temp file.
+      RenameTempFile(g, abort);
+      goto fin;
       } // endif UseTemp
 
   } // endif's mode

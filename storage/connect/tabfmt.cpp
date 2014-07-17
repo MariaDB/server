@@ -648,7 +648,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } else
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!cdp->IsVirtual())
+          if (!cdp->IsSpecial() && !cdp->IsVirtual())
             Fields++;
 
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
@@ -685,7 +685,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } else     // MODE_UPDATE
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!cdp->IsVirtual()) {
+          if (!cdp->IsSpecial() && !cdp->IsVirtual()) {
             i = cdp->GetOffset() - 1;
             len = cdp->GetLength();
             Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
@@ -1117,7 +1117,8 @@ bool TDBFMT::OpenDB(PGLOBAL g)
 
     // Get the column formats
     for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-      if (!cdp->IsVirtual() && (i = cdp->GetOffset() - 1) < Fields) {
+      if (!cdp->IsSpecial() && !cdp->IsVirtual() 
+                            && (i = cdp->GetOffset() - 1) < Fields) {
         if (!(pfm = cdp->GetFmt())) {
           sprintf(g->Message, MSG(NO_FLD_FORMAT), i + 1, Name);
           return true;

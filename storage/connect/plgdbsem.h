@@ -85,6 +85,7 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_SRVID =   5,        /* SERVID type (special column)  */
           TYPE_AM_TABID =   6,        /* TABID  type (special column)  */
           TYPE_AM_CNSID =   7,        /* CONSTID type (special column) */
+          TYPE_AM_PRTID =   8,        /* PARTID type (special column)  */
           TYPE_AM_COUNT =  10,        /* CPT AM type no (count table)  */
           TYPE_AM_DCD   =  20,        /* Decode access method type no  */
           TYPE_AM_CMS   =  30,        /* CMS access method type no     */
@@ -549,6 +550,7 @@ PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
 char    *PlgGetDataPath(PGLOBAL g);
+char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);

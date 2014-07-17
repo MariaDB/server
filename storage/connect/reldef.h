@@ -42,6 +42,7 @@ class DllExport RELDEF : public BLOCK {      // Relation definition block
   // Methods
   bool    GetBoolCatInfo(PSZ what, bool bdef);
   bool    SetIntCatInfo(PSZ what, int ival);
+  bool    Partitioned(void);
   int     GetIntCatInfo(PSZ what, int idef);
   int     GetSizeCatInfo(PSZ what, PSZ sdef);
   int     GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size);

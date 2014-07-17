@@ -476,7 +476,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Table file close routine for MAP access method.                    */
 /***********************************************************************/
-void MAPFAM::CloseTableFile(PGLOBAL g)
+void MAPFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   PlugCloseFile(g, To_Fb);
   To_Fb = NULL;              // To get correct file size in Cardinality

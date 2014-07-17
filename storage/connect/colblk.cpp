@@ -292,7 +292,7 @@ void RIDBLK::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 /*  FIDBLK constructor for the FILEID special column.                  */
 /***********************************************************************/
-FIDBLK::FIDBLK(PCOLUMN cp) : SPCBLK(cp)
+FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
   {
 //Is_Key = 2; for when the MUL table indexed reading will be implemented.
   Precision = Long = _MAX_PATH;
@@ -319,7 +319,14 @@ void FIDBLK::ReadColumn(PGLOBAL g)
 
     Fn = ((PTDBASE)To_Tdb)->GetFile(g);
     PlugSetPath(filename, Fn, ((PTDBASE)To_Tdb)->GetPath());
-    Value->SetValue_psz(filename);
+
+    if (Op != OP_XX) {
+      char buff[_MAX_PATH];
+
+      Value->SetValue_psz(ExtractFromPath(g, buff, filename, Op));
+    } else
+      Value->SetValue_psz(filename);
+
     } // endif Fn
 
   } // end of ReadColumn
@@ -348,6 +355,38 @@ void TIDBLK::ReadColumn(PGLOBAL g)
     Tname = (char*)To_Tdb->GetName();
     Value->SetValue_psz(Tname);
     } // endif Tname
+
+  } // end of ReadColumn
+
+/***********************************************************************/
+/*  PRTBLK constructor for the PARTID special column.                  */
+/***********************************************************************/
+PRTBLK::PRTBLK(PCOLUMN cp) : SPCBLK(cp)
+  {
+//Is_Key = 2; for when the MUL table indexed reading will be implemented.
+  Precision = Long = 64;
+  Buf_Type = TYPE_STRING;
+  *Format.Type = 'C';
+  Format.Length = Long;
+  Format.Prec = 1;          // Case insensitive
+  Constant = true;          // TODO: check whether this is true indeed
+  Pname = NULL;
+  } // end of PRTBLK constructor
+
+/***********************************************************************/
+/*  ReadColumn: what this routine does is to return the partition ID.  */
+/***********************************************************************/
+void PRTBLK::ReadColumn(PGLOBAL g)
+  {
+  if (Pname == NULL) {
+    char   *p;
+    PTDBASE tdbp = (PTDBASE)To_Tdb;
+
+    Pname = tdbp->GetDef()->GetStringCatInfo(g, "partname", "?");
+
+    p = strrchr(Pname, '#');
+    Value->SetValue_psz((p) ? p + 1 : Pname);
+    } // endif Pname
 
   } // end of ReadColumn
 
