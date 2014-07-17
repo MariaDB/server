@@ -240,7 +240,7 @@ line
 # Sure enough, the data file was not deleted.
 #
 ALTER TABLE t1 ENGINE=CONNECT;
-ERROR HY000: Operation denied. Table data would be lost.
+ERROR HY000: Operation denied. Table data would be modified.
 #
 # But changing back to CONNECT succeed
 # if the data file does not exist.
