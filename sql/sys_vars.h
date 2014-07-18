@@ -2012,7 +2012,7 @@ public:
                              ptrdiff_t off, size_t size,
                              CMD_LINE getopt,
                              ptrdiff_t master_info_offset_arg,
-                             uint min_val, uint max_val, uint def_val,
+                             ulong min_val, ulong max_val, ulong def_val,
                              uint block_size,
                              on_multi_source_update_function on_update_func)
     :Sys_var_ulong(name_arg, comment, flag_args, off, size,
@@ -2024,7 +2024,7 @@ public:
   }
   bool session_update(THD *thd, set_var *var)
   {
-    session_var(thd, uint)= (uint) (var->save_result.ulonglong_value);
+    session_var(thd, ulong)= (ulong) (var->save_result.ulonglong_value);
     /* Value should be moved to multi_master in on_update_func */
     return false;
   }
@@ -2039,9 +2039,9 @@ public:
   }
   uchar *session_value_ptr(THD *thd,LEX_STRING *base)
   {
-    uint *tmp, res;
-    tmp= (uint*) (((uchar*)&(thd->variables)) + offset);
-    res= get_master_info_uint_value(thd, master_info_offset);
+    ulong *tmp, res;
+    tmp= (ulong*) (((uchar*)&(thd->variables)) + offset);
+    res= get_master_info_ulong_value(thd, master_info_offset);
     *tmp= res;
     return (uchar*) tmp;
   }
@@ -2049,7 +2049,7 @@ public:
   {
     return session_value_ptr(thd, base);
   }
-  uint get_master_info_uint_value(THD *thd, ptrdiff_t offset);
+  ulong get_master_info_ulong_value(THD *thd, ptrdiff_t offset);
   bool update_variable(THD *thd, Master_info *mi)
   {
     return update_multi_source_variable_func(this, thd, mi);

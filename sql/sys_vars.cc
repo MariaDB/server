@@ -4236,11 +4236,11 @@ static Sys_var_uint Sys_slave_net_timeout(
   Return 0 + warning if it doesn't exist
 */
 
-uint Sys_var_multi_source_ulong::
-get_master_info_uint_value(THD *thd, ptrdiff_t offset)
+ulong Sys_var_multi_source_ulong::
+get_master_info_ulong_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
-  uint res= 0;                                  // Default value
+  ulong res= 0;                                  // Default value
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
@@ -4249,7 +4249,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
-    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    res= *((ulong*) (((uchar*) mi) + master_info_offset));
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
