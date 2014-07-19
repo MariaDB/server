@@ -67,11 +67,13 @@ typedef enum key_cache_type
 typedef
   int    (*INIT_KEY_CACHE)  
            (void *, uint key_cache_block_size,
-            size_t use_mem, uint division_limit, uint age_threshold);
+            size_t use_mem, uint division_limit, uint age_threshold,
+            uint changed_blocks_hash_size);
 typedef
   int    (*RESIZE_KEY_CACHE)
            (void *, uint key_cache_block_size,
-            size_t use_mem, uint division_limit, uint age_threshold);
+            size_t use_mem, uint division_limit, uint age_threshold,
+            uint changed_blocks_hash_size);
 typedef
   void   (*CHANGE_KEY_CACHE_PARAM)
            (void *keycache_cb,
@@ -146,6 +148,7 @@ typedef struct st_key_cache
   ulonglong param_division_limit;/* min. percentage of warm blocks           */
   ulonglong param_age_threshold; /* determines when hot block is downgraded  */
   ulonglong param_partitions;    /* number of the key cache partitions       */
+  ulonglong changed_blocks_hash_size; /* number of hash buckets for changed files */
   my_bool key_cache_inited;      /* <=> key cache has been created           */
   my_bool can_be_used;           /* usage of cache for read/write is allowed */
   my_bool in_init;               /* set to 1 in MySQL during init/resize     */
@@ -160,10 +163,11 @@ extern KEY_CACHE dflt_key_cache_var, *dflt_key_cache;
 
 extern int init_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 			  size_t use_mem, uint division_limit,
-			  uint age_threshold, uint partitions);
+			  uint age_threshold, uint changed_blocks_hash_size,
+                          uint partitions);
 extern int resize_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 			    size_t use_mem, uint division_limit,
-			    uint age_threshold);
+			    uint age_threshold, uint changed_blocks_hash_size);
 extern void change_key_cache_param(KEY_CACHE *keycache, uint division_limit,
 				   uint age_threshold);
 extern uchar *key_cache_read(KEY_CACHE *keycache,
@@ -202,6 +206,7 @@ extern int repartition_key_cache(KEY_CACHE *keycache,
 			         size_t use_mem, 
                                  uint division_limit,
 			         uint age_threshold,
+                                 uint changed_blocks_hash_size,
                                  uint partitions);
 C_MODE_END
 #endif /* _keycache_h */

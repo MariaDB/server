@@ -2,6 +2,7 @@ drop table if exists t1, t2, t3;
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
+SET @save_key_cache_file_hash_size=@@key_cache_file_hash_size;
 SELECT @@key_buffer_size, @@small.key_buffer_size;
 @@key_buffer_size	@@small.key_buffer_size
 2097152	131072
@@ -84,15 +85,15 @@ select @@key_buffer_size;
 select @@key_cache_block_size;
 @@key_cache_block_size
 1024
+select @@key_cache_file_hash_size;
+@@key_cache_file_hash_size
+512
 set global keycache1.key_buffer_size=1024*1024;
 create table t1 (p int primary key, a char(10)) delay_key_write=1;
 create table t2 (p int primary key, i int, a char(10), key k1(i), key k2(a));
-show status like 'key_blocks_used';
-Variable_name	Value
-Key_blocks_used	0
-show status like 'key_blocks_unused';
-Variable_name	Value
-Key_blocks_unused	KEY_BLOCKS_UNUSED
+select @org_key_blocks_unused-unused_blocks as key_blocks_unused, used_blocks as key_blocks_used from information_schema.key_caches where key_cache_name="default";
+key_blocks_unused	key_blocks_used
+0	0
 insert into t1 values (1, 'qqqq'), (11, 'yyyy');
 insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
 (3, 1, 'yyyy'), (4, 3, 'zzzz');
@@ -108,12 +109,9 @@ p	i	a
 4	3	zzzz
 update t1 set p=2 where p=1;
 update t2 set i=2 where i=1;
-show status like 'key_blocks_used';
-Variable_name	Value
-Key_blocks_used	4
-show status like 'key_blocks_unused';
-Variable_name	Value
-Key_blocks_unused	KEY_BLOCKS_UNUSED
+select @org_key_blocks_unused-unused_blocks as key_blocks_unused, used_blocks as key_blocks_used from information_schema.key_caches where key_cache_name="default";
+key_blocks_unused	key_blocks_used
+4	4
 cache index t1 key (`primary`) in keycache1;
 Table	Op	Msg_type	Msg_text
 test.t1	assign_to_keycache	status	OK
@@ -270,12 +268,9 @@ Table	Op	Msg_type	Msg_text
 test.t1	assign_to_keycache	status	OK
 test.t2	assign_to_keycache	status	OK
 drop table t1,t2,t3;
-show status like 'key_blocks_used';
-Variable_name	Value
-Key_blocks_used	4
-show status like 'key_blocks_unused';
-Variable_name	Value
-Key_blocks_unused	KEY_BLOCKS_UNUSED
+select @org_key_blocks_unused-unused_blocks as key_blocks_unused, used_blocks as key_blocks_used from information_schema.key_caches where key_cache_name="default";
+key_blocks_unused	key_blocks_used
+0	4
 create table t1 (a int primary key);
 cache index t1 in keycache2;
 Table	Op	Msg_type	Msg_text
@@ -558,6 +553,7 @@ KEY_CACHE_NAME	SEGMENTS	SEGMENT_NUMBER	FULL_SIZE	BLOCK_SIZE	USED_BLOCKS	UNUSED_B
 default	1	NULL	2097152	1024	4	#	0	0	0	0	0
 small	NULL	NULL	1048576	1024	1	#	0	0	0	0	0
 set global key_buffer_size=32*1024;
+set global key_cache_file_hash_size=128;
 select @@key_buffer_size;
 @@key_buffer_size
 32768
@@ -833,3 +829,4 @@ set global keycache1.key_buffer_size=0;
 set global keycache2.key_buffer_size=0;
 set global key_buffer_size=@save_key_buffer_size;
 set global key_cache_segments=@save_key_cache_segments;
+set global key_cache_file_hash_size=@save_key_cache_file_hash_size;

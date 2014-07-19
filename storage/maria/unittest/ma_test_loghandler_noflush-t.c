@@ -34,7 +34,6 @@ static const char *default_dbug_option;
 
 int main(int argc __attribute__((unused)), char *argv[])
 {
-  uint pagen;
   int rc= 1;
   uchar long_tr_id[6];
   PAGECACHE pagecache;
@@ -71,8 +70,8 @@ int main(int argc __attribute__((unused)), char *argv[])
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);
   }
-  if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
-                             PCACHE_PAGE, 0)) == 0)
+  if (init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
+                     PCACHE_PAGE, 0, 0) == 0)
   {
     fprintf(stderr, "Got error: init_pagecache() (errno: %d)\n", errno);
     exit(1);

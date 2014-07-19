@@ -517,6 +517,7 @@ ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
 ulong slave_retried_transactions;
+ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
@@ -7820,6 +7821,7 @@ SHOW_VAR status_vars[]= {
   {"Feature_timezone",         (char*) offsetof(STATUS_VAR, feature_timezone), SHOW_LONG_STATUS},
   {"Feature_trigger",          (char*) offsetof(STATUS_VAR, feature_trigger), SHOW_LONG_STATUS},
   {"Feature_xml",              (char*) offsetof(STATUS_VAR, feature_xml), SHOW_LONG_STATUS},
+  {"Feature_delay_key_write",  (char*) &feature_files_opened_with_delayed_keys, SHOW_LONG },
   {"Flush_commands",           (char*) &show_flush_commands, SHOW_SIMPLE_FUNC},
   {"Handler_commit",           (char*) offsetof(STATUS_VAR, ha_commit_count), SHOW_LONG_STATUS},
   {"Handler_delete",           (char*) offsetof(STATUS_VAR, ha_delete_count), SHOW_LONG_STATUS},
@@ -8693,6 +8695,7 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_KEY_CACHE_DIVISION_LIMIT:
   case OPT_KEY_CACHE_AGE_THRESHOLD:
   case OPT_KEY_CACHE_PARTITIONS:
+  case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
   {
     KEY_CACHE *key_cache;
     if (!(key_cache= get_or_create_key_cache(name, length)))
@@ -8712,6 +8715,8 @@ mysql_getopt_value(const char *name, uint length,
       return &key_cache->param_age_threshold;
     case OPT_KEY_CACHE_PARTITIONS:
       return (uchar**) &key_cache->param_partitions;
+    case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
+      return (uchar**) &key_cache->changed_blocks_hash_size;
     }
   }
   case OPT_REPLICATE_DO_DB:

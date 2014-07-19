@@ -100,11 +100,11 @@ int main(int argc, char *argv[])
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
       (init_pagecache(maria_pagecache, maria_block_size * 16, 0, 0,
-                      maria_block_size, MY_WME) == 0) ||
+                      maria_block_size, 0, MY_WME) == 0) ||
       ma_control_file_open(TRUE, TRUE) ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
-                      TRANSLOG_PAGE_SIZE, MY_WME) == 0) ||
+                      TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
       translog_init(maria_data_root, TRANSLOG_FILE_SIZE,
                     0, 0, maria_log_pagecache,
                     TRANSLOG_DEFAULT_FLAGS, 0) ||

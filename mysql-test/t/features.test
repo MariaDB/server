@@ -6,6 +6,8 @@
 drop table if exists t1;
 --enable_warnings
 
+flush status;
+
 show status like "feature%";
 
 --echo #
@@ -109,3 +111,20 @@ select updatexml('<div><div><span>1</span><span>2</span></div></div>',
                  '/','<tr><td>1</td><td>2</td></tr>') as upd1;
 --replace_result 4 2
 show status like "feature_xml";
+
+
+--echo #
+--echo # Feature delayed_keys
+--echo #
+
+create table t1 (a int, key(a)) engine=myisam delay_key_write=1;
+insert into t1 values(1);
+insert into t1 values(2);
+drop table t1;
+
+create table t1 (a int, key(a)) engine=aria delay_key_write=1;
+insert into t1 values(1);
+insert into t1 values(2);
+drop table t1;
+
+show status like "feature_delay_key_write";
