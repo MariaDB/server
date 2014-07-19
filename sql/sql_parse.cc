@@ -934,9 +934,7 @@ bool do_command(THD *thd)
   */
   DEBUG_SYNC(thd, "before_do_command_net_read");
 
-  thd->m_server_idle= TRUE;
-  packet_length= my_net_read(net);
-  thd->m_server_idle= FALSE;
+  packet_length= my_net_read_packet(net, 1);
 
   if (packet_length == packet_error)
   {

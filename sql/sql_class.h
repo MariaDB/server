@@ -2501,8 +2501,6 @@ public:
   /** Idle instrumentation state. */
   PSI_idle_locker_state m_idle_state;
 #endif /* HAVE_PSI_IDLE_INTERFACE */
-  /** True if the server code is IDLE for this connection. */
-  bool m_server_idle;
 
   /*
     Id of current query. Statement can be reused to execute several queries
