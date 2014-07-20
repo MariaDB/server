@@ -16,6 +16,17 @@ drop role test_role;
 alter table user add column is_role enum('N', 'Y') default 'N' not null
                                                    COLLATE utf8_general_ci
 after password_expired;
+
+# Test default role column
+create role test_role;
+create user test_user@localhost;
+grant test_role to test_user@localhost;
+--replace_regex /10\d\d\d\d/MYSQL_VERSION_ID/
+--error ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
+set default role test_role for root@localhost;
+drop role test_role;
+drop user test_user@localhost;
+
 alter table user add column default_role char(80) binary default '' not null
                                                    COLLATE utf8_general_ci
 after is_role;
