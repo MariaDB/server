@@ -143,16 +143,13 @@ char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	char *name, *sval= NULL, *s= Hc->GetStringOption(what, sdef);
 	
 	if (s) {
-    if (Hc->IsPartitioned() &&
-        (!stricmp(what, "filename") || !stricmp(what, "tabname")
-                                    || !stricmp(what, "connect"))) {
-      name= Hc->GetPartName();
-      sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + strlen(name));
-      sprintf(sval, s, name);
-    } else {
+    if (!Hc->IsPartitioned() ||
+        (stricmp(what, "filename") && stricmp(what, "tabname")
+                                   && stricmp(what, "connect"))) {
 		  sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
 		  strcpy(sval, s);
-    } // endif partitioned
+    } else
+      sval= s;
 
   } else if (!stricmp(what, "filename")) {
     // Return default file name

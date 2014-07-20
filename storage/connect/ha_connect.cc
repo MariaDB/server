@@ -170,7 +170,7 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0002 May 03, 2014";
+       char  version[]= "Version 1.03.0002 July 17, 2014";
        char  compver[]= "Version 1.03.0002 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
@@ -745,7 +745,7 @@ ulonglong ha_connect::table_flags() const
       flags|= (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT);
 
     // No data change on ALTER for outward tables
-    if (!IsFileType(type) || hp->FileExists(pos->filename))
+    if (!IsFileType(type) || hp->FileExists(pos->filename, true))
       flags|= HA_NO_COPY_ON_ALTER;
 
     } // endif pos
@@ -815,6 +815,22 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
+/*  Return the string eventually formatted with partition name.             */
+/****************************************************************************/
+char *ha_connect::GetRealString(const char *s)
+{
+  char *sv;
+
+  if (IsPartitioned() && s) {
+    sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
+    sprintf(sv, s, partname);
+  } else
+    sv= (char*)s;
+
+  return sv;
+} // end of GetRealString
+
+/****************************************************************************/
 /*  Return the value of a string option or NULL if not specified.           */
 /****************************************************************************/
 char *ha_connect::GetStringOption(char *opname, char *sdef)
@@ -826,7 +842,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     LEX_STRING cnc= (tshp) ? tshp->connect_string : table->s->connect_string;
 
     if (cnc.length)
-      opval= cnc.str;
+      opval= GetRealString(cnc.str);
 
   } else if (!stricmp(opname, "Query_String"))
     opval= thd_query_string(table->in_use)->str;
@@ -837,11 +853,11 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
   else if (!stricmp(opname, "Type"))
     opval= (char*)options->type;
   else if (!stricmp(opname, "Filename"))
-    opval= (char*)options->filename;
+    opval= GetRealString(options->filename);
   else if (!stricmp(opname, "Optname"))
     opval= (char*)options->optname;
   else if (!stricmp(opname, "Tabname"))
-    opval= (char*)options->tabname;
+    opval= GetRealString(options->tabname);
   else if (!stricmp(opname, "Tablist"))
     opval= (char*)options->tablist;
   else if (!stricmp(opname, "Database") ||
@@ -5665,7 +5681,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
     if (g->Alchecked == 0 &&
-        (!IsFileType(type) || FileExists(options->filename))) {
+        (!IsFileType(type) || FileExists(options->filename, false))) {
       if (part_info) {
         sprintf(g->Message, "Data repartition in %s is unchecked", partname); 
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
@@ -5699,7 +5715,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
-            strcpy(partname, strrchr(name, (inward ? slash : '#')) + 1);
+            strcpy(partname, 
+                   decode(g, strrchr(name, (inward ? slash : '#')) + 1));
 #endif   // WITH_PARTITION_STORAGE_ENGINE
 
           if ((rc= optimize(table->in_use, NULL))) {
@@ -5736,10 +5753,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   - file does not exist or is void
   - user has file privilege
 */
-bool ha_connect::FileExists(const char *fn)
+bool ha_connect::FileExists(const char *fn, bool bf)
 {
   if (!fn || !*fn)
     return false;
+  else if (IsPartitioned() && bf)
+    return true;
 
   if (table) {
     char *s, tfn[_MAX_PATH], filename[_MAX_PATH], path[128];
@@ -5904,7 +5923,7 @@ bool ha_connect::NoFieldOptionChange(TABLE *tab)
  */
 enum_alter_inplace_result
 ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
-                                          Alter_inplace_info *ha_alter_info)
+                                Alter_inplace_info *ha_alter_info)
 {
   DBUG_ENTER("check_if_supported_alter");
 
@@ -6007,7 +6026,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
       char *fn= GetStringOption("filename");
       tshp= NULL;
 
-      if (FileExists(fn)) {
+      if (FileExists(fn, false)) {
         strcpy(g->Message, "Operation denied. Table data would be lost.");
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         DBUG_RETURN(HA_ALTER_ERROR);
@@ -6067,8 +6086,10 @@ fin:
       "Alter operations not supported together by CONNECT", MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
   } else if (outward) {
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
-      "This is an outward table, table data were not modified.");
+    if (IsFileType(type))
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+        "This is an outward table, table data were not modified.");
+
     DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
   } else
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);

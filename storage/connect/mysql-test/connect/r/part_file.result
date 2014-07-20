@@ -88,8 +88,6 @@ FNAME	FTYPE
 # Testing partitioning on a void outward table
 #
 ALTER TABLE dr1 file_name='part*.*';
-Warnings:
-Warning	1105	This is an outward table, table data were not modified.
 CREATE TABLE t1 (
 rwid INT(6) DEFAULT 0 SPECIAL=ROWID,
 rnum INT(6) DEFAULT 0 SPECIAL=ROWNUM,
@@ -104,8 +102,6 @@ PARTITION by range columns(id) (
 PARTITION `1` VALUES LESS THAN(10),
 PARTITION `2` VALUES LESS THAN(50),
 PARTITION `3` VALUES LESS THAN(MAXVALUE));
-Warnings:
-Warning	1105	Open(rb) error 2 on DATADIR/test/part%s.txt: No such file or directory
 SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX		

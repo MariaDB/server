@@ -182,6 +182,7 @@ public:
   static   bool connect_init(void);
   static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
+  char    *GetRealString(const char *s);
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE_SHARE *s= NULL);
   bool     GetBooleanOption(char *opname, bool bdef);
@@ -193,7 +194,7 @@ public:
   bool     SetIntegerOption(char *opname, int n);
   bool     SameInt(TABLE *tab, char *opn);
   bool     SameBool(TABLE *tab, char *opn);
-  bool     FileExists(const char *fn);
+  bool     FileExists(const char *fn, bool bf);
   bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
