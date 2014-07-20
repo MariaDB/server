@@ -79,6 +79,6 @@ change_user 'root';
 
 drop role role_a;
 drop role role_b;
-drop user someuser@somehost;
+delete from mysql.user where user = 'someuser' && host = 'somehost';
 drop user user_a@localhost;
 drop user user_b@localhost;

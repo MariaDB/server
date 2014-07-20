@@ -60,6 +60,6 @@ select user, host, default_role from mysql.user where user like 'user_%';
 ERROR 42000: SELECT command denied to user 'user_a'@'localhost' for table 'user'
 drop role role_a;
 drop role role_b;
-drop user someuser@somehost;
+delete from mysql.user where user = 'someuser' && host = 'somehost';
 drop user user_a@localhost;
 drop user user_b@localhost;
