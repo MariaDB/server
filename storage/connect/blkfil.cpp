@@ -61,7 +61,7 @@ BLOCKFILTER::BLOCKFILTER(PTDBDOS tdbp, int op)
 /***********************************************************************/
 /*  Make file output of BLOCKFILTER contents.                          */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL g, FILE *f, UINT n)
+void BLOCKFILTER::Print(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
 
@@ -75,7 +75,7 @@ void BLOCKFILTER::Print(PGLOBAL g, FILE *f, UINT n)
 /***********************************************************************/
 /*  Make string output of BLOCKFILTER contents.                        */
 /***********************************************************************/
-void BLOCKFILTER::Print(PGLOBAL g, char *ps, UINT z)
+void BLOCKFILTER::Print(PGLOBAL g, char *ps, uint z)
   {
   strncat(ps, "BlockFilter(s)", z);
   } // end of Print
@@ -131,10 +131,10 @@ int BLKFILLOG::BlockEval(PGLOBAL g)
       Result = (Opc == OP_NOT) ? -rc : rc;
     else switch (Opc) {
       case OP_AND:
-        Result = min(Result, rc);
+        Result = MY_MIN(Result, rc);
         break;
       case OP_OR:
-        Result = max(Result, rc);
+        Result = MY_MAX(Result, rc);
         break;
       default:
         // Should never happen
@@ -318,8 +318,8 @@ int BLKFILAR2::BlockEval(PGLOBAL g)
 #endif
 
   int   n = ((PTDBDOS)Colp->GetTo_Tdb())->GetCurBlk();
-  ULONG bkmp = *(PULONG)Colp->GetBmap()->GetValPtr(n);
-  ULONG bres = Bmp & bkmp;
+  uint  bkmp = *(uint*)Colp->GetBmap()->GetValPtr(n);
+  uint  bres = Bmp & bkmp;
 
   // Set result as if Opc were OP_EQ, OP_LT, or OP_LE
   if (!bres) {
@@ -358,8 +358,8 @@ BLKFILMR2::BLKFILMR2(PGLOBAL g, PTDBDOS tdbp, int op, PXOB *xp)
          : BLKFILARI(g, tdbp, op, xp)
   {
   Nbm = Colp->GetNbm();
-  Bmp = (PULONG)PlugSubAlloc(g, NULL, Nbm * sizeof(ULONG));
-  Bxp = (PULONG)PlugSubAlloc(g, NULL, Nbm * sizeof(ULONG));
+  Bmp = (uint*)PlugSubAlloc(g, NULL, Nbm * sizeof(uint));
+  Bxp = (uint*)PlugSubAlloc(g, NULL, Nbm * sizeof(uint));
   MakeValueBitmap();
   } // end of BLKFILMR2 constructor
 
@@ -441,8 +441,8 @@ int BLKFILMR2::BlockEval(PGLOBAL g)
 
   int    i, n = ((PTDBDOS)Colp->GetTo_Tdb())->GetCurBlk();
   bool   fnd = FALSE, all = TRUE, gt = TRUE;
-  ULONG  bres;
-  PULONG bkmp = (PULONG)Colp->GetBmap()->GetValPtr(n * Nbm);
+  uint   bres;
+  uint  *bkmp = (uint*)Colp->GetBmap()->GetValPtr(n * Nbm);
 
   // Set result as if Opc were OP_EQ, OP_LT, or OP_LE
   for (i = 0; i < Nbm; i++)
@@ -645,8 +645,8 @@ BLKFILIN2::BLKFILIN2(PGLOBAL g, PTDBDOS tdbp, int op, int opm, PXOB *xp)
   Nbm = Colp->GetNbm();
   Valp = AllocateValue(g, Colp->GetValue());
   Invert = (Opc == OP_NE || Opc == OP_GE || Opc ==OP_GT);
-  Bmp = (PULONG)PlugSubAlloc(g, NULL, Nbm * sizeof(ULONG));
-  Bxp = (PULONG)PlugSubAlloc(g, NULL, Nbm * sizeof(ULONG));
+  Bmp = (uint*)PlugSubAlloc(g, NULL, Nbm * sizeof(uint));
+  Bxp = (uint*)PlugSubAlloc(g, NULL, Nbm * sizeof(uint));
   MakeValueBitmap();
   } // end of BLKFILIN2 constructor
 
@@ -662,7 +662,7 @@ void BLKFILIN2::MakeValueBitmap(void)
   int   i, k, n, ndv = Colp->GetNdv();
   bool  found, noteq = !(Opc == OP_EQ || Opc == OP_NE);
   bool  all = (!Invert) ? (Opm == 2) : (Opm != 2);
-  ULONG btp;
+  uint  btp;
   PVBLK dval = Colp->GetDval();
 
   N = -1;
@@ -748,8 +748,8 @@ int BLKFILIN2::BlockEval(PGLOBAL g)
 
   int    i, n = ((PTDBDOS)Colp->GetTo_Tdb())->GetCurBlk();
   bool   fnd = FALSE, all = TRUE, gt = TRUE;
-  ULONG  bres;
-  PULONG bkmp = (PULONG)Colp->GetBmap()->GetValPtr(n * Nbm);
+  uint   bres;
+  uint  *bkmp = (uint*)Colp->GetBmap()->GetValPtr(n * Nbm);
 
   // Set result as if Opc were OP_EQ, OP_LT, or OP_LE
   // The difference between ALL or ANY was handled in MakeValueBitmap

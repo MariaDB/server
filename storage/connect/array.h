@@ -52,12 +52,12 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
   virtual bool  Compare(PXOB) {assert(FALSE); return FALSE;}
   virtual bool  SetFormat(PGLOBAL, FORMAT&) {assert(FALSE); return FALSE;}
 //virtual int   CheckSpcCol(PTDB, int) {return 0;}
-  virtual void  Print(PGLOBAL g, FILE *f, UINT n);
-  virtual void  Print(PGLOBAL g, char *ps, UINT z);
+  virtual void  Print(PGLOBAL g, FILE *f, uint n);
+  virtual void  Print(PGLOBAL g, char *ps, uint z);
           void  Empty(void);
           void  SetPrecision(PGLOBAL g, int p);
           bool  AddValue(PGLOBAL g, PSZ sp);
-          bool  AddValue(PGLOBAL g, SHORT n);
+          bool  AddValue(PGLOBAL g, short n);
           bool  AddValue(PGLOBAL g, int n);
           bool  AddValue(PGLOBAL g, double f);
           bool  AddValue(PGLOBAL g, PXOB xp);

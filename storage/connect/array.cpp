@@ -23,6 +23,8 @@
 //#include <windows.h>
 #else   // !WIN32
 #include <string.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #endif  // !WIN32
 
 /***********************************************************************/
@@ -63,6 +65,7 @@ extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 /***********************************************************************/
 BYTE OpBmp(PGLOBAL g, OPVAL opc);
 void EncodeValue(int *lp, char *strp, int n);
+PARRAY MakeValueArray(PGLOBAL g, PPARM pp);  // avoid gcc warning
 
 /***********************************************************************/
 /*  MakeValueArray: Makes a value array from a value list.             */
@@ -94,7 +97,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
       sprintf(g->Message, MSG(BAD_PARAM_TYPE), "MakeValueArray", parmp->Type);
       return NULL;
     } else if (valtyp == TYPE_STRING)
-      len = max(len, strlen((char*)parmp->Value));
+      len = MY_MAX(len, strlen((char*)parmp->Value));
 
   /*********************************************************************/
   /*  Make an array object with one block of the proper size.          */
@@ -113,7 +116,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
         par->AddValue(g, (PSZ)parmp->Value);
         break;
       case TYPE_SHORT:
-        par->AddValue(g, *(SHORT*)parmp->Value);
+        par->AddValue(g, *(short*)parmp->Value);
         break;
       case TYPE_INT:
         par->AddValue(g, *(int*)parmp->Value);
@@ -287,7 +290,7 @@ bool ARRAY::AddValue(PGLOBAL g, PSZ strp)
 /***********************************************************************/
 /*  Add a SHORT integer element to an array.                           */
 /***********************************************************************/
-bool ARRAY::AddValue(PGLOBAL g, SHORT n)
+bool ARRAY::AddValue(PGLOBAL g, short n)
   {
   if (Type != TYPE_SHORT) {
     sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "SHORT");
@@ -539,14 +542,14 @@ bool ARRAY::CanBeShort(void)
 /***********************************************************************/
 /*  Convert an array to new numeric type k.                            */
 /*  Note: conversion is always made in ascending order from STRING to  */
-/*  SHORT to int to double so no precision is lost in the conversion.  */
-/*  One exception is converting from int to SHORT compatible arrays.   */
+/*  short to int to double so no precision is lost in the conversion.  */
+/*  One exception is converting from int to short compatible arrays.   */
 /***********************************************************************/
 int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
   {
-  int  i, prec = 0;
-  bool b = FALSE;
-  PMBV ovblk = Valblk;
+  int   i, prec = 0;
+  bool  b = FALSE;
+  PMBV  ovblk = Valblk;
   PVBLK ovblp = Vblp;
 
   Type = k;                    // k is the new type
@@ -796,8 +799,8 @@ int ARRAY::BlockTest(PGLOBAL g, int opc, int opm,
     case TYPE_STRING: veq = (Vblp->IsCi())
                       ? !stricmp((char*)minp, (char*)maxp)
                       : !strcmp((char*)minp, (char*)maxp);     break;
-    case TYPE_SHORT:  veq = *(SHORT*)minp == *(SHORT*)maxp;    break;
-    case TYPE_INT:    veq = *(PINT)minp == *(PINT)maxp;        break;
+    case TYPE_SHORT:  veq = *(short*)minp == *(short*)maxp;    break;
+    case TYPE_INT:    veq = *(int*)minp == *(int*)maxp;        break;
     case TYPE_DOUBLE: veq = *(double*)minp == *(double*)maxp;  break;
     default: veq = FALSE;   // Error ?
     } // endswitch type
@@ -904,7 +907,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
   if (Type == TYPE_LIST)
     return "(???)";             // To be implemented
 
-  z = max(24, GetTypeSize(Type, Len) + 4);
+  z = MY_MAX(24, GetTypeSize(Type, Len) + 4);
   tp = (char*)PlugSubAlloc(g, NULL, z);
 
   for (i = 0; i < Nval; i++) {
@@ -935,10 +938,10 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
 /***********************************************************************/
 /*  Make file output of ARRAY  contents.                               */
 /***********************************************************************/
-void ARRAY::Print(PGLOBAL g, FILE *f, UINT n)
+void ARRAY::Print(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
-  int  lim = min(Nval,10);
+  int  lim = MY_MIN(Nval,10);
 
   memset(m, ' ', n);     // Make margin string
   m[n] = '\0';
@@ -963,7 +966,7 @@ void ARRAY::Print(PGLOBAL g, FILE *f, UINT n)
 /***********************************************************************/
 /*  Make string output of ARRAY  contents.                             */
 /***********************************************************************/
-void ARRAY::Print(PGLOBAL g, char *ps, UINT z)
+void ARRAY::Print(PGLOBAL g, char *ps, uint z)
   {
   if (z < 16)
     return;

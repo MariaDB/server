@@ -47,12 +47,12 @@ extern "C" int  trace;
 /***********************************************************************/
 /*  Utility routines.                                                  */
 /***********************************************************************/
-void  PlugConvertConstant(PGLOBAL, PVOID&, SHORT&);
-PVOID PlugCopyDB(PTABS, PVOID, INT);
-void  NewPointer(PTABS, PVOID, PVOID);
-void  AddPointer(PTABS, PVOID);
+void  PlugConvertConstant(PGLOBAL, void* &, short&);
+//void *PlugCopyDB(PTABS, void*, INT);
+void  NewPointer(PTABS, void*, void*);
+void  AddPointer(PTABS, void*);
 
-PPARM MakeParm(PGLOBAL g, PXOB xp)
+static PPARM MakeParm(PGLOBAL g, PXOB xp)
   {
   PPARM pp = (PPARM)PlugSubAlloc(g, NULL, sizeof(PARM));
   pp->Type = TYPE_XOBJECT;
@@ -1387,7 +1387,7 @@ PFIL FILTER::Copy(PTABS t)
 /*********************************************************************/
 /*  Make file output of FILTER contents.                             */
 /*********************************************************************/
-void FILTER::Print(PGLOBAL g, FILE *f, UINT n)
+void FILTER::Print(PGLOBAL g, FILE *f, uint n)
   {
   char m[64];
 
@@ -1420,7 +1420,7 @@ void FILTER::Print(PGLOBAL g, FILE *f, UINT n)
 /***********************************************************************/
 /*  Make string output of TABLE contents (z should be checked).        */
 /***********************************************************************/
-void FILTER::Print(PGLOBAL g, char *ps, UINT z)
+void FILTER::Print(PGLOBAL g, char *ps, uint z)
   {
   #define FLEN 100
 
@@ -1510,14 +1510,14 @@ void FILTER::Print(PGLOBAL g, char *ps, UINT z)
             bcp = bxp;
             break;
           case OP_NOT:                    // Filter NOT operator
-            for (n = min((int)strlen(bcp->Cold), FLEN-3); n >= 0; n--)
+            for (n = MY_MIN((int)strlen(bcp->Cold), FLEN-3); n >= 0; n--)
               bcp->Cold[n+2] = bcp->Cold[n];
             bcp->Cold[0] = '^';
             bcp->Cold[1] = '(';
             strcat(bcp->Cold, ")");
             break;
           default:
-            for (n = min((int)strlen(bcp->Cold), FLEN-4); n >= 0; n--)
+            for (n = MY_MIN((int)strlen(bcp->Cold), FLEN-4); n >= 0; n--)
               bcp->Cold[n+3] = bcp->Cold[n];
             bcp->Cold[0] = ')';
             switch (fp->Opc) {
@@ -1528,7 +1528,7 @@ void FILTER::Print(PGLOBAL g, char *ps, UINT z)
             bcp->Cold[2] = '(';
             strcat(bcp->Cold, ")");
             bxp = bcp->Next;
-            for (n = min((int)strlen(bxp->Cold), FLEN-1); n >= 0; n--)
+            for (n = MY_MIN((int)strlen(bxp->Cold), FLEN-1); n >= 0; n--)
               bxp->Cold[n+1] = bxp->Cold[n];
             bxp->Cold[0] = '(';
             strncat(bxp->Cold, bcp->Cold, FLEN-strlen(bxp->Cold));
@@ -1546,7 +1546,7 @@ void FILTER::Print(PGLOBAL g, char *ps, UINT z)
     if (z > 0) {
       if (n++ > 0) {
         strncat(ps, "*?*", z);
-        z = max(0, (int)z-3);
+        z = MY_MAX(0, (int)z-3);
         } // endif
       strncat(ps, bcp->Cold, z);
       z -= strlen(bcp->Cold);

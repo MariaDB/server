@@ -933,7 +933,7 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
         int flen = -1;
 
         PlugSetPath(filename, defp->Fn, GetPath());
-        h = open(filename, _O_RDONLY);
+        h = open(filename, O_RDONLY);
         flen = (h == -1 && errno == ENOENT) ? 0 : _filelength(h);
         defp->SetOptimized((flen) ? 0 : 1);
 
@@ -2615,12 +2615,12 @@ bool DOSCOL::SetMinMax(PGLOBAL g)
 bool DOSCOL::SetBitMap(PGLOBAL g)
   {
   int     i, m, n;
-  PULONG  bmp;
+  uint   *bmp;
   PTDBDOS tp = (PTDBDOS)To_Tdb;
   PDBUSER dup = PlgGetUser(g);
 
   n = tp->Txfp->CurNum;
-  bmp = (PULONG)Bmap->GetValPtr(Nbm * tp->Txfp->CurBlk);
+  bmp = (uint*)Bmap->GetValPtr(Nbm * tp->Txfp->CurBlk);
 
   // Extract column value from current line
   ReadColumn(g);

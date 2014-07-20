@@ -209,6 +209,9 @@ static my_bool indx_map= 0;
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 void PushWarning(PGLOBAL g, THD *thd, int level);
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                   const char *db, char *tab, const char *src, int port);
+
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);

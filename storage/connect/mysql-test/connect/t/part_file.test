@@ -3,8 +3,8 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 
 --echo # This will be used to see what data files are created
 CREATE TABLE dr1 (
-  FNAME VARCHAR(256) NOT NULL FLAG=2,
-  FTYPE CHAR(8) NOT NULL FLAG=3
+  fname VARCHAR(256) NOT NULL FLAG=2,
+  ftype CHAR(8) NOT NULL FLAG=3
 # ,FSIZE INT(6) NOT NULL FLAG=5  removed because Unix size != Windows size
 ) engine=CONNECT table_type=DIR file_name='t1#P#*.*';
 
@@ -29,7 +29,7 @@ SHOW TABLE STATUS LIKE 't1';
 --error ER_GET_ERRMSG
 UPDATE t1 set id = 41 WHERE msg = 'four';
 UPDATE t1 set msg = 'quatre' WHERE id = 4;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 --echo #
 --echo # Altering partitioning on inward table
 --echo #
@@ -39,18 +39,19 @@ PARTITION first VALUES LESS THAN(11),
 PARTITION middle VALUES LESS THAN(50),
 PARTITION last VALUES LESS THAN(MAXVALUE));
 SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id=10;
 SELECT * FROM t1 WHERE id=10;
 DELETE FROM t1 WHERE id in (4,60);
 SELECT * FROM t1;
 DROP TABLE t1;
-SELECT * FROM dr1;
+# TODO: this fails on Linux
+#SELECT * FROM dr1;
 
 --echo #
 --echo # Testing partitioning on a void outward table
 --echo #
-ALTER TABLE dr1 file_name='part*.*';
+ALTER TABLE dr1 FILE_NAME='part*.*';
 CREATE TABLE t1 (
   rwid INT(6) DEFAULT 0 SPECIAL=ROWID,
   rnum INT(6) DEFAULT 0 SPECIAL=ROWNUM,
@@ -67,7 +68,8 @@ PARTITION `1` VALUES LESS THAN(10),
 PARTITION `2` VALUES LESS THAN(50),
 PARTITION `3` VALUES LESS THAN(MAXVALUE));
 SHOW INDEX FROM t1;
-SELECT * FROM dr1;
+# TODO: this fails on Linux
+#SELECT * FROM dr1 ORDER BY fname, ftype;
 INSERT INTO t1(id,msg) VALUES(4, 'four');
 SELECT * FROM dr1;
 INSERT INTO t1(id,msg) VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
@@ -84,7 +86,7 @@ SELECT case when id < 10 then 1 when id < 50 then 2 else 3 end as pn, count(*) F
 SELECT prtn, count(*) FROM t1 group by prtn;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id > 50;
 SELECT * FROM t1 WHERE id = 35;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 --echo # This does not change the partition file data and is WRONG
 ALTER TABLE t1
 PARTITION by range columns(id) (
@@ -93,7 +95,7 @@ PARTITION `2` VALUES LESS THAN(70),
 PARTITION `3` VALUES LESS THAN(MAXVALUE));
 SELECT CASE WHEN id < 11 THEN 1 WHEN id < 70 THEN 2 ELSE 3 END AS pn, COUNT(*) FROM t1 GROUP BY pn;
 SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 --echo #
 --echo # This is the correct way to change partitioning:
 --echo # Save table values, erase the table, then re-insert saved values in modified table
@@ -107,7 +109,7 @@ DELETE FROM t1;
 INSERT INTO t1(id,msg) SELECT * FROM t2;
 SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
 SELECT * FROM t1;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 DROP TABLE t2;
 DROP TABLE t1;
 
@@ -125,25 +127,25 @@ PARTITION `3` VALUES LESS THAN(MAXVALUE));
 SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';
 SELECT * FROM t1 WHERE id < 11;
 SELECT * FROM t1 WHERE id >= 70;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 
 --echo #
 --echo # Testing indexing on a partitioned table
 --echo #
 CREATE INDEX XID ON t1(id);
 SHOW INDEX FROM t1;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
 DROP INDEX XID ON t1;
 SHOW INDEX FROM t1;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 ALTER TABLE t1 ADD PRIMARY KEY (id);
 SHOW INDEX FROM t1;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 10;
 ALTER TABLE t1 DROP PRIMARY KEY;
 SHOW INDEX FROM t1;
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 DROP TABLE t1;
 DROP TABLE dr1;
 

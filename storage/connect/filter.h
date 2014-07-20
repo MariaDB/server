@@ -61,8 +61,8 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 //virtual PXOB   CheckSubQuery(PGLOBAL, PSQL);
 //virtual bool   CheckLocal(PTDB);
 //virtual int    CheckSpcCol(PTDB tdbp, int n);
-  virtual void   Print(PGLOBAL g, FILE *f, UINT n);
-  virtual void   Print(PGLOBAL g, char *ps, UINT z);
+  virtual void   Print(PGLOBAL g, FILE *f, uint n);
+  virtual void   Print(PGLOBAL g, char *ps, uint z);
 //        PFIL   Linearize(bool nosep);
 //        PFIL   Link(PGLOBAL g, PFIL fil2);
 //        PFIL   RemoveLastSep(void);
@@ -106,9 +106,11 @@ class FILTERX : public FILTER {
 
   // Fake operator new used to change a filter into a derived filter
   void * operator new(size_t size, PFIL filp) {return filp;}
-#if !defined(__BORLANDC__)
+#if defined(WIN32)
   // Avoid warning C4291 by defining a matching dummy delete operator
   void operator delete(void *, PFIL) {}
+#else
+  void operator delete(void *) {}
 #endif
   }; // end of class FILTERX
 

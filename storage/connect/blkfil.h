@@ -27,8 +27,8 @@ class DllExport BLOCKFILTER : public BLOCK {           /* Block Filter */
   // Methods
   virtual void Reset(PGLOBAL) = 0;
   virtual int  BlockEval(PGLOBAL) = 0;
-  virtual void Print(PGLOBAL g, FILE *f, UINT n);
-  virtual void Print(PGLOBAL g, char *ps, UINT z);
+  virtual void Print(PGLOBAL g, FILE *f, uint n);
+  virtual void Print(PGLOBAL g, char *ps, uint z);
 
  protected:
   BLOCKFILTER(void) {}       // Standard constructor not to be used
@@ -100,8 +100,8 @@ class DllExport BLKFILAR2 : public BLKFILARI { /* Arithm. Op Block Filter */
   BLKFILAR2(void) {}       // Standard constructor not to be used
 
   // Members
-  ULONG Bmp;               // The value bitmap used to test blocks
-  ULONG Bxp;               // Bitmap used when Opc = OP_EQ
+  uint Bmp;                // The value bitmap used to test blocks
+  uint Bxp;                // Bitmap used when Opc = OP_EQ
   }; // end of class BLKFILAR2
 
 /***********************************************************************/
@@ -124,8 +124,8 @@ class DllExport BLKFILMR2 : public BLKFILARI { /* Arithm. Op Block Filter */
   int    Nbm;              // The number of ULONG bitmaps
   int    N;                // The position of the leftmost ULONG
   bool   Void;             // True if all file blocks can be skipped
-  PULONG Bmp;              // The values bitmaps used to test blocks
-  PULONG Bxp;              // Bit of values <= max value
+  uint  *Bmp;              // The values bitmaps used to test blocks
+  uint  *Bxp;              // Bit of values <= max value
   }; // end of class BLKFILMR2
 
 /***********************************************************************/
@@ -191,8 +191,8 @@ class DllExport BLKFILIN2 : public BLKFILIN {  // With array arguments.
 //bool   Bitmap;           // True for IN operator (temporary)
   bool   Void;             // True if all file blocks can be skipped
   bool   Invert;           // True when Result must be inverted
-  PULONG Bmp;              // The values bitmaps used to test blocks
-  PULONG Bxp;              // Bit of values <= max value
+  uint  *Bmp;              // The values bitmaps used to test blocks
+  uint  *Bxp;              // Bit of values <= max value
   PVAL   Valp;             // Used while building the bitmaps
   }; // end of class BLKFILIN2
 
