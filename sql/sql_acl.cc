@@ -2546,11 +2546,7 @@ bool acl_check_host(const char *host, const char *ip)
 
  @return Error status
    @retval 0 OK
-   @retval 1 skip grant tables error
-   @retval 2 ANONYMOUS user error
-   @retval 3 the entry to change is a role, not a user
-   @retval 4 no UPDATE_ACL error
-
+   @retval 1 Error
 */
 
 int check_alter_user(THD *thd, const char *host, const char *user)
