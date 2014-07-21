@@ -578,6 +578,8 @@ innodb_compression_algorithm_validate(
 
 static ibool innodb_have_lzo=IF_LZO(1, 0);
 static ibool innodb_have_lz4=IF_LZ4(1, 0);
+static ibool innodb_have_lzma=IF_LZMA(1, 0);
+static ibool innodb_have_bzip2=IF_BZIP2(1, 0);
 
 static const char innobase_hton_name[]= "InnoDB";
 
@@ -745,6 +747,10 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &innodb_have_lz4,		  SHOW_BOOL},
   {"have_lzo",
   (char*) &innodb_have_lzo,		  SHOW_BOOL},
+  {"have_lzma",
+  (char*) &innodb_have_lzma,		  SHOW_BOOL},
+  {"have_bzip2",
+  (char*) &innodb_have_bzip2,		  SHOW_BOOL},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -3021,6 +3027,24 @@ innobase_init(
 	if (innodb_compression_algorithm == PAGE_LZO_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				"InnoDB: liblzo is not installed. \n",
+				innodb_compression_algorithm);
+		goto error;
+	}
+#endif
+
+#ifndef HAVE_LZMA
+	if (innodb_compression_algorithm == PAGE_LZMA_ALGORITHM) {
+		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				"InnoDB: liblzma is not installed. \n",
+				innodb_compression_algorithm);
+		goto error;
+	}
+#endif
+
+#ifndef HAVE_BZIP2
+	if (innodb_compression_algorithm == PAGE_BZIP2_ALGORITHM) {
+		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				"InnoDB: libbz2 is not installed. \n",
 				innodb_compression_algorithm);
 		goto error;
 	}
@@ -17046,7 +17070,7 @@ static MYSQL_SYSVAR_BOOL(use_trim, srv_use_trim,
   "Use trim. Default FALSE.",
   NULL, NULL, FALSE);
 
-static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", 0 };
+static const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
   array_elements(page_compression_algorithms) - 1, 0,
@@ -17054,9 +17078,12 @@ static TYPELIB page_compression_algorithms_typelib=
 };
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
-  "Compression algorithm used on page compression. One of: none, zlib, lz4, or lzo",
+  "Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, or bzip2",
   innodb_compression_algorithm_validate, NULL,
-  IF_LZO(PAGE_LZO_ALGORITHM, IF_LZ4(PAGE_LZ4_ALGORITHM, PAGE_ZLIB_ALGORITHM)),
+  /* We use here the largest number of supported compression method to
+  enable all those methods that are available. Availability of compression
+  method is verified on innodb_compression_algorithm_validate function. */
+  PAGE_ALGORITHM_LAST,
   &page_compression_algorithms_typelib);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
@@ -17799,6 +17826,28 @@ innodb_compression_algorithm_validate(
 				    HA_ERR_UNSUPPORTED,
 				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
 				    "InnoDB: liblzo is not installed. \n",
+				    compression_algorithm);
+		DBUG_RETURN(1);
+	}
+#endif
+
+#ifndef HAVE_LZMA
+	if (compression_algorithm == PAGE_LZMA_ALGORITHM) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				    "InnoDB: liblzma is not installed. \n",
+				    compression_algorithm);
+		DBUG_RETURN(1);
+	}
+#endif
+
+#ifndef HAVE_BZIP2
+	if (compression_algorithm == PAGE_BZIP2_ALGORITHM) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
+				    "InnoDB: libbz2 is not installed. \n",
 				    compression_algorithm);
 		DBUG_RETURN(1);
 	}

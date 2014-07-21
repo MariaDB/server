@@ -2885,9 +2885,8 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
-		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, len, NULL);
-		}
+		fil_decompress_page(NULL, (byte *)buf, len, NULL);
+
 		return(TRUE);
 	}
 #else /* __WIN__ */
@@ -2900,9 +2899,7 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset);
 
 	if ((ulint) ret == n) {
-		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, n, NULL);
-		}
+		fil_decompress_page(NULL, (byte *)buf, n, NULL);
 
 		return(TRUE);
 	}
@@ -5254,9 +5251,7 @@ os_aio_windows_handle(
 #endif
 
 	        if (slot->type == OS_FILE_READ) {
-			if (fil_page_is_compressed(slot->buf)) {
-				fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-			}
+			fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 		} else {
 			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
 				if (srv_use_trim && os_fallocate_failed == FALSE) {
@@ -5373,9 +5368,7 @@ retry:
 #endif
 
 				if (slot->type == OS_FILE_READ) {
-					if (fil_page_is_compressed(slot->buf)) {
-						fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-					}
+					fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 				} else {
 					if (slot->page_compress_success &&
 					    fil_page_is_compressed(slot->page_buf)) {

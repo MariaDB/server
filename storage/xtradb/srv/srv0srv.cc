@@ -172,7 +172,7 @@ UNIV_INTERN my_bool     srv_use_trim                    = FALSE;
 UNIV_INTERN my_bool     srv_use_posix_fallocate         = FALSE;
 /* If this flag is TRUE, then we disable doublewrite buffer */
 UNIV_INTERN my_bool     srv_use_atomic_writes           = FALSE;
-/* If this flag IS TRUE, then we use lz4 to compress/decompress pages */
+/* If this flag IS TRUE, then we use this algorithm for page compressing the pages */
 UNIV_INTERN ulong	innodb_compression_algorithm = PAGE_ZLIB_ALGORITHM;
 /* Number of threads used for multi-threaded flush */
 UNIV_INTERN long srv_mtflush_threads = MTFLUSH_DEFAULT_WORKER;

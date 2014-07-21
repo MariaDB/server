@@ -27,11 +27,15 @@ Created 11/12/2013 Jan Lindström jan.lindstrom@skysql.com
 #ifndef fsp0pagecompress_h
 #define fsp0pagecompress_h
 
-#define PAGE_UNCOMPRESSED   0
-#define PAGE_ZLIB_ALGORITHM 1
-#define PAGE_LZ4_ALGORITHM  2
-#define PAGE_LZO_ALGORITHM  3
-#define PAGE_ALGORITHM_LAST PAGE_LZO_ALGORITHM
+/* Supported page compression methods */
+
+#define PAGE_UNCOMPRESSED	0
+#define PAGE_ZLIB_ALGORITHM	1
+#define PAGE_LZ4_ALGORITHM	2
+#define PAGE_LZO_ALGORITHM	3
+#define PAGE_LZMA_ALGORITHM	4
+#define PAGE_BZIP2_ALGORITHM	5
+#define PAGE_ALGORITHM_LAST	PAGE_BZIP2_ALGORITHM
 
 /**********************************************************************//**
 Reads the page compression level from the first page of a tablespace.

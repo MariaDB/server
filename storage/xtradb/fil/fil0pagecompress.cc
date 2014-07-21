@@ -68,9 +68,183 @@ static ulint srv_data_read, srv_data_written;
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
+#ifdef HAVE_LZMA
+#include "lzma.h"
+#endif
+#ifdef HAVE_BZIP2
+#include "bzlib.h"
+#endif
 
 /* Used for debugging */
 //#define UNIV_PAGECOMPRESS_DEBUG 1
+
+/****************************************************************//**
+For page compressed pages decompress the page after actual read
+operation. */
+static
+void
+fil_decompress_page_2(
+/*==================*/
+	byte*           page_buf,      /*!< out: destination buffer for
+				       uncompressed data */
+	byte*           buf,           /*!< in: source compressed data */
+        ulong           len,           /*!< in: length of output buffer.*/
+	ulint*		write_size)    /*!< in/out: Actual payload size of
+				       the compressed data. */
+{
+	ulint	page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
+
+	if (page_type != FIL_PAGE_COMPRESSED) {
+		/* It is not a compressed page */
+		return;
+	}
+
+	ulint	olen = 0;
+	byte*   ptr = buf + FIL_PAGE_DATA;
+	ulint   version = mach_read_from_1(buf + FIL_PAGE_VERSION);
+	int err = 0;
+
+	ut_a(version == 1);
+
+	/* Read the original page type, before we compressed the data. */
+	page_type = mach_read_from_2(buf + FIL_PAGE_ORIGINAL_TYPE_V1);
+
+	ulint   original_len = mach_read_from_2(buf + FIL_PAGE_ORIGINAL_SIZE_V1);
+
+	if (original_len < UNIV_PAGE_SIZE_MIN - (FIL_PAGE_DATA + 8)
+	     || original_len > UNIV_PAGE_SIZE_MAX - FIL_PAGE_DATA
+	     || len < original_len + FIL_PAGE_DATA) {
+		fprintf(stderr,
+			"InnoDB: Corruption: We try to uncompress corrupted page\n"
+			"InnoDB: Original len %lu len %lu.\n",
+			original_len, len);
+
+		fflush(stderr);
+		ut_error;
+
+	}
+
+	ulint   algorithm = mach_read_from_1(buf + FIL_PAGE_ALGORITHM_V1);
+
+	switch(algorithm) {
+	case PAGE_ZLIB_ALGORITHM: {
+
+		fprintf(stderr, "InnoDB: [Note]: zlib\n");
+
+		err = uncompress(page_buf, &len, ptr, original_len);
+		/* If uncompress fails it means that page is corrupted */
+		if (err != Z_OK) {
+
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but uncompress failed with error %d.\n"
+				"InnoDB: size %lu len %lu\n",
+				err, original_len, len);
+
+			fflush(stderr);
+
+			ut_error;
+		}
+
+		break;
+	}
+#ifdef HAVE_LZ4
+	case PAGE_LZ4_ALGORITHM: {
+		fprintf(stderr, "InnoDB: [Note]: lz4\n");
+		err = LZ4_decompress_fast(
+			(const char*) ptr, (char*) (page_buf), original_len);
+
+		if (err < 0) {
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but decompression read only %d bytes.\n"
+				"InnoDB: size %lu len %lu\n",
+				err, original_len, len);
+			fflush(stderr);
+
+			ut_error;
+		}
+		break;
+	}
+#endif /* HAVE_LZ4 */
+
+#ifdef HAVE_LZMA
+	case PAGE_LZMA_ALGORITHM: {
+
+		lzma_ret	ret;
+		size_t		src_pos = 0;
+		size_t		dst_pos = 0;
+		uint64_t 	memlimit = UINT64_MAX;
+
+		fprintf(stderr, "InnoDB: [Note]: lzma\n");
+		ret = lzma_stream_buffer_decode(
+			&memlimit,
+			0,
+			NULL,
+			ptr,
+			&src_pos,
+			original_len,
+			(page_buf),
+			&dst_pos,
+			len);
+
+
+		if (ret != LZMA_OK || (dst_pos <= 0 || dst_pos > len)) {
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but decompression read only %ld bytes.\n"
+				"InnoDB: size %lu len %lu\n",
+				dst_pos, original_len, len);
+			fflush(stderr);
+
+			ut_error;
+		}
+
+		break;
+	}
+#endif /* HAVE_LZMA */
+
+#ifdef HAVE_LZO
+	case PAGE_LZO_ALGORITHM: {
+		fprintf(stderr, "InnoDB: [Note]: lzo \n");
+		err = lzo1x_decompress((const unsigned char *)ptr,
+			original_len,(unsigned char *)(page_buf), &olen, NULL);
+
+		if (err != LZO_E_OK || (olen == 0 || olen > UNIV_PAGE_SIZE)) {
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but decompression read only %ld bytes.\n"
+				"InnoDB: size %lu len %lu\n",
+				olen, original_len, len);
+			fflush(stderr);
+
+			ut_error;
+		}
+		break;
+	}
+#endif /* HAVE_LZO */
+
+	default:
+		fprintf(stderr,
+			"InnoDB: Corruption: Page is marked as compressed\n"
+			"InnoDB: but compression algorithm %s\n"
+			"InnoDB: is not known.\n"
+			,fil_get_compression_alg_name(algorithm));
+
+		fflush(stderr);
+		ut_error;
+		break;
+	}
+
+	/* Leave the header alone */
+	memmove(buf+FIL_PAGE_DATA, page_buf, original_len);
+
+	mach_write_to_2(buf + FIL_PAGE_TYPE, page_type);
+
+	ut_ad(memcmp(buf + FIL_PAGE_LSN + 4,
+		     buf + (original_len + FIL_PAGE_DATA)
+		     - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4) == 0);
+}
 
 /****************************************************************//**
 For page compressed pages compress the page before actual write
@@ -157,6 +331,50 @@ fil_compress_page(
 
 		break;
 #endif /* HAVE_LZO */
+#ifdef HAVE_LZMA
+	case PAGE_LZMA_ALGORITHM: {
+		size_t out_pos=0;
+
+		err = lzma_easy_buffer_encode(
+			compression_level,
+			LZMA_CHECK_NONE,
+			NULL, 	/* No custom allocator, use malloc/free */
+			reinterpret_cast<uint8_t*>(buf),
+			len,
+			reinterpret_cast<uint8_t*>(out_buf + header_len),
+			&out_pos,
+			(size_t)&write_size);
+
+		if (err != LZMA_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+			srv_stats.pages_page_compression_error.inc();
+			*out_len = len;
+			return (buf);
+		}
+		break;
+	}
+#endif /* HAVE_LZMA */
+
+#ifdef HAVE_BZIP2
+	case PAGE_BZIP2_ALGORITHM: {
+
+		err = BZ2_bzBuffToBuffCompress(
+			(char *)(out_buf + header_len),
+			(unsigned int *)&write_size,
+			(char *)buf,
+			len,
+			1,
+			0,
+			0);
+
+		if (err != BZ_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+			srv_stats.pages_page_compression_error.inc();
+			*out_len = len;
+			return (buf);
+		}
+		break;
+	}
+#endif /* HAVE_BZIP2 */
+
 	case PAGE_ZLIB_ALGORITHM:
 		err = compress2(out_buf+header_len, (ulong*)&write_size, buf, len, level);
 
@@ -244,9 +462,38 @@ fil_decompress_page(
 	ulint compression_alg = 0;
 	byte *in_buf;
 	ulint olen=0;
+	ulint ptype;
 
 	ut_ad(buf);
 	ut_ad(len);
+
+	ptype = mach_read_from_2(buf+FIL_PAGE_TYPE);
+
+	/* Do not try to uncompressed pages that are not compressed */
+	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED && ptype != FIL_PAGE_COMPRESSED) {
+		return;
+	}
+
+	// If no buffer was given, we need to allocate temporal buffer
+	if (page_buf == NULL) {
+#ifdef UNIV_PAGECOMPRESS_DEBUG
+		fprintf(stderr,
+			"InnoDB: Note: FIL: Compression buffer not given, allocating...\n");
+#endif /* UNIV_PAGECOMPRESS_DEBUG */
+		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+	} else {
+		in_buf = page_buf;
+	}
+
+	if (ptype == FIL_PAGE_COMPRESSED) {
+
+		fil_decompress_page_2(in_buf, buf, len, write_size);
+		// Need to free temporal buffer if no buffer was given
+		if (page_buf == NULL) {
+			ut_free(in_buf);
+		}
+		return;
+	}
 
 	/* Before actual decompress, make sure that page type is correct */
 
@@ -265,17 +512,6 @@ fil_decompress_page(
 
 	/* Get compression algorithm */
 	compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN);
-
-	// If no buffer was given, we need to allocate temporal buffer
-	if (page_buf == NULL) {
-#ifdef UNIV_PAGECOMPRESS_DEBUG
-		fprintf(stderr,
-			"InnoDB: Note: FIL: Compression buffer not given, allocating...\n");
-#endif /* UNIV_PAGECOMPRESS_DEBUG */
-		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
-	} else {
-		in_buf = page_buf;
-	}
 
 	/* Get the actual size of compressed page */
 	actual_size = mach_read_from_2(buf+FIL_PAGE_DATA);
@@ -323,7 +559,7 @@ fil_decompress_page(
 
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
-		err = LZ4_decompress_fast((const char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (char *)in_buf, UNIV_PAGE_SIZE);
+		err = LZ4_decompress_fast((const char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE, (char *)in_buf, len);
 
 		if (err != (int)actual_size) {
 			fprintf(stderr,
@@ -353,7 +589,67 @@ fil_decompress_page(
 			ut_error;
 		}
 		break;
-#endif
+#endif /* HAVE_LZO */
+#ifdef HAVE_LZMA
+	case PAGE_LZMA_ALGORITHM: {
+
+		lzma_ret	ret;
+		size_t		src_pos = 0;
+		size_t		dst_pos = 0;
+		uint64_t 	memlimit = UINT64_MAX;
+
+		ret = lzma_stream_buffer_decode(
+			&memlimit,
+			0,
+			NULL,
+			buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE,
+			&src_pos,
+			actual_size,
+			in_buf,
+			&dst_pos,
+			len);
+
+
+		if (ret != LZMA_OK || (dst_pos == 0 || dst_pos > UNIV_PAGE_SIZE)) {
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but decompression read only %ld bytes.\n"
+				"InnoDB: size %lu len %lu\n",
+				olen, actual_size, len);
+			fflush(stderr);
+
+			ut_error;
+		}
+
+		break;
+	}
+#endif /* HAVE_LZMA */
+#ifdef HAVE_BZIP2
+	case PAGE_BZIP2_ALGORITHM: {
+		unsigned int dst_pos = UNIV_PAGE_SIZE;
+
+		err = BZ2_bzBuffToBuffDecompress(
+			(char *)in_buf,
+			&dst_pos,
+			(char *)(buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE),
+			actual_size,
+			1,
+			0);
+
+		if (err != BZ_OK || (dst_pos == 0 || dst_pos > UNIV_PAGE_SIZE)) {
+			fprintf(stderr,
+				"InnoDB: Corruption: Page is marked as compressed\n"
+				"InnoDB: but decompression read only %du bytes.\n"
+				"InnoDB: size %lu len %lu err %d\n",
+				dst_pos, actual_size, len, err);
+			fflush(stderr);
+
+			ut_error;
+		}
+		break;
+	}
+#endif /* HAVE_BZIP2 */
+
 	default:
 		fprintf(stderr,
 			"InnoDB: Corruption: Page is marked as compressed\n"

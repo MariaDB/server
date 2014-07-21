@@ -151,6 +151,9 @@ fil_get_compression_alg_name(
 	case PAGE_LZO_ALGORITHM:
 		return ("LZO");
 		break;
+	case PAGE_LZMA_ALGORITHM:
+		return ("LZMA");
+		break;
 	default:
 		return("UNKNOWN");
 		ut_error;
