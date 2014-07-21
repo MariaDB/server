@@ -11,6 +11,22 @@
 # this is only for the mysqld standalone daemon
 [mysqld]
 
+#
+# * Galera-related settings
+#
+[galera]
+# Mandatory settings
+#wsrep_provider=
+#wsrep_cluster_address=
+#wsrep_slave_threads=1
+#binlog_format=row
+#default_storage_engine=InnoDB
+#innodb_autoinc_lock_mode=2
+#query_cache_size=0
+#
+# Optional setting
+#innodb_flush_log_at_trx_commit=2
+
 # this is only for embedded server
 [embedded]
 
