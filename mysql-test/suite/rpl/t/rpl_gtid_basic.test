@@ -175,9 +175,9 @@ SET GLOBAL gtid_binlog_state = '0-1-10,1-2-20,0-3-30';
 --source include/show_binary_logs.inc
 --let $binlog_file= master-bin.000001
 --let $binlog_start= 4
---source include/show_binlog_events.inc
-SELECT @@GLOBAL.gtid_binlog_pos;
-SELECT @@GLOBAL.gtid_binlog_state;
+#--source include/show_binlog_events.inc
+#SELECT @@GLOBAL.gtid_binlog_pos;
+#SELECT @@GLOBAL.gtid_binlog_state;
 --error ER_BINLOG_MUST_BE_EMPTY
 SET GLOBAL gtid_binlog_state = @old_state;
 RESET MASTER;
@@ -254,6 +254,7 @@ INSERT INTO t1 VALUES (3);
 --let $pos= `SELECT @@gtid_binlog_pos`
 
 --connection s1
+--replace_result $pos POS
 eval SET @pos= '$pos';
 SELECT master_gtid_wait(@pos, 0);
 SELECT * FROM t1 WHERE a >= 3;
