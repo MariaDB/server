@@ -121,6 +121,11 @@ UNIV_INTERN mysql_pfs_key_t	dict_foreign_err_mutex_key;
 /** Identifies generated InnoDB foreign key names */
 static char	dict_ibfk[] = "_ibfk_";
 
+bool		innodb_table_stats_not_found = false;
+bool		innodb_index_stats_not_found = false;
+static bool	innodb_table_stats_not_found_reported = false;
+static bool	innodb_index_stats_not_found_reported = false;
+
 /*******************************************************************//**
 Tries to find column names for the index and sets the col field of the
 index.
@@ -5994,14 +5999,34 @@ dict_table_schema_check(
 	table = dict_table_get_low(req_schema->table_name);
 
 	if (table == NULL) {
+		bool should_print=true;
 		/* no such table */
 
-		ut_snprintf(errstr, errstr_sz,
-			    "Table %s not found.",
-			    ut_format_name(req_schema->table_name,
-					   TRUE, buf, sizeof(buf)));
+		if (innobase_strcasecmp(req_schema->table_name, "mysql/innodb_table_stats") == 0) {
+			if (innodb_table_stats_not_found_reported == false) {
+				innodb_table_stats_not_found = true;
+				innodb_table_stats_not_found_reported = true;
+			} else {
+				should_print = false;
+			}
+		} else if (innobase_strcasecmp(req_schema->table_name, "mysql/innodb_index_stats") == 0 ) {
+			if (innodb_index_stats_not_found_reported == false) {
+				innodb_index_stats_not_found = true;
+				innodb_index_stats_not_found_reported = true;
+			} else {
+				should_print = false;
+			}
+		}
 
-		return(DB_TABLE_NOT_FOUND);
+		if (should_print) {
+			ut_snprintf(errstr, errstr_sz,
+				"Table %s not found.",
+				ut_format_name(req_schema->table_name,
+					TRUE, buf, sizeof(buf)));
+			return(DB_TABLE_NOT_FOUND);
+		} else {
+			return(DB_STATS_DO_NOT_EXIST);
+		}
 	}
 
 	if (table->ibd_file_missing) {

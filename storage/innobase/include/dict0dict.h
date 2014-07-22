@@ -43,6 +43,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "row0types.h"
 
+extern bool innodb_table_stats_not_found;
+extern bool innodb_index_stats_not_found;
+
 #ifndef UNIV_HOTBACKUP
 # include "sync0sync.h"
 # include "sync0rw.h"

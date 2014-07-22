@@ -268,10 +268,12 @@ dict_stats_persistent_storage_check(
 		mutex_exit(&(dict_sys->mutex));
 	}
 
-	if (ret != DB_SUCCESS) {
+	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr, " InnoDB: Error: %s\n", errstr);
 		return(false);
+	} else if (ret == DB_STATS_DO_NOT_EXIST) {
+		return false;
 	}
 	/* else */
 
@@ -2201,17 +2203,21 @@ dict_stats_save_index_stat(
 		"END;", trx);
 
 	if (ret != DB_SUCCESS) {
-		char	buf_table[MAX_FULL_NAME_LEN];
-		char	buf_index[MAX_FULL_NAME_LEN];
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Cannot save index statistics for table "
-			"%s, index %s, stat name \"%s\": %s\n",
-			ut_format_name(index->table->name, TRUE,
-				       buf_table, sizeof(buf_table)),
-			ut_format_name(index->name, FALSE,
-				       buf_index, sizeof(buf_index)),
-			stat_name, ut_strerr(ret));
+		if (innodb_index_stats_not_found == false &&
+		    index->stats_error_printed == false) {
+			char	buf_table[MAX_FULL_NAME_LEN];
+			char	buf_index[MAX_FULL_NAME_LEN];
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				" InnoDB: Cannot save index statistics for table "
+				"%s, index %s, stat name \"%s\": %s\n",
+				ut_format_name(index->table->name, TRUE,
+					buf_table, sizeof(buf_table)),
+				ut_format_name(index->name, FALSE,
+					buf_index, sizeof(buf_index)),
+				stat_name, ut_strerr(ret));
+			index->stats_error_printed = true;
+		}
 	}
 
 	return(ret);
@@ -2900,20 +2906,24 @@ dict_stats_update_for_index(
 		}
 		/* else */
 
-		/* Fall back to transient stats since the persistent
-		storage is not present or is corrupted */
-		char	buf_table[MAX_FULL_NAME_LEN];
-		char	buf_index[MAX_FULL_NAME_LEN];
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Recalculation of persistent statistics "
-			"requested for table %s index %s but the required "
-			"persistent statistics storage is not present or is "
-			"corrupted. Using transient stats instead.\n",
-			ut_format_name(index->table->name, TRUE,
-				       buf_table, sizeof(buf_table)),
-			ut_format_name(index->name, FALSE,
-				       buf_index, sizeof(buf_index)));
+		if (innodb_index_stats_not_found == false &&
+		    index->stats_error_printed == false) {
+			/* Fall back to transient stats since the persistent
+			storage is not present or is corrupted */
+			char	buf_table[MAX_FULL_NAME_LEN];
+			char	buf_index[MAX_FULL_NAME_LEN];
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				" InnoDB: Recalculation of persistent statistics "
+				"requested for table %s index %s but the required "
+				"persistent statistics storage is not present or is "
+				"corrupted. Using transient stats instead.\n",
+				ut_format_name(index->table->name, TRUE,
+					buf_table, sizeof(buf_table)),
+				ut_format_name(index->name, FALSE,
+					buf_index, sizeof(buf_index)));
+			index->stats_error_printed = false;
+		}
 	}
 
 	dict_table_stats_lock(index->table, RW_X_LATCH);
@@ -2998,13 +3008,17 @@ dict_stats_update(
 		/* Fall back to transient stats since the persistent
 		storage is not present or is corrupted */
 
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Recalculation of persistent statistics "
-			"requested for table %s but the required persistent "
-			"statistics storage is not present or is corrupted. "
-			"Using transient stats instead.\n",
-			ut_format_name(table->name, TRUE, buf, sizeof(buf)));
+		if (innodb_table_stats_not_found == false &&
+		    table->stats_error_printed == false) {
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				" InnoDB: Recalculation of persistent statistics "
+				"requested for table %s but the required persistent "
+				"statistics storage is not present or is corrupted. "
+				"Using transient stats instead.\n",
+				ut_format_name(table->name, TRUE, buf, sizeof(buf)));
+			table->stats_error_printed = true;
+		}
 
 		goto transient;
 
@@ -3048,17 +3062,21 @@ dict_stats_update(
 			/* persistent statistics storage does not exist
 			or is corrupted, calculate the transient stats */
 
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Error: Fetch of persistent "
-				"statistics requested for table %s but the "
-				"required system tables %s and %s are not "
-				"present or have unexpected structure. "
-				"Using transient stats instead.\n",
-				ut_format_name(table->name, TRUE,
-					       buf, sizeof(buf)),
-				TABLE_STATS_NAME_PRINT,
-				INDEX_STATS_NAME_PRINT);
+			if (innodb_table_stats_not_found == false &&
+			    table->stats_error_printed == false) {
+				ut_print_timestamp(stderr);
+				fprintf(stderr,
+					" InnoDB: Error: Fetch of persistent "
+					"statistics requested for table %s but the "
+					"required system tables %s and %s are not "
+					"present or have unexpected structure. "
+					"Using transient stats instead.\n",
+					ut_format_name(table->name, TRUE,
+						buf, sizeof(buf)),
+					TABLE_STATS_NAME_PRINT,
+					INDEX_STATS_NAME_PRINT);
+				table->stats_error_printed = true;
+			}
 
 			goto transient;
 		}
@@ -3128,16 +3146,19 @@ dict_stats_update(
 
 			dict_stats_table_clone_free(t);
 
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Error fetching persistent statistics "
-				"for table %s from %s and %s: %s. "
-				"Using transient stats method instead.\n",
-				ut_format_name(table->name, TRUE, buf,
-					       sizeof(buf)),
-				TABLE_STATS_NAME,
-				INDEX_STATS_NAME,
-				ut_strerr(err));
+			if (innodb_table_stats_not_found == false &&
+			    table->stats_error_printed == false) {
+				ut_print_timestamp(stderr);
+				fprintf(stderr,
+					" InnoDB: Error fetching persistent statistics "
+					"for table %s from %s and %s: %s. "
+					"Using transient stats method instead.\n",
+					ut_format_name(table->name, TRUE, buf,
+						sizeof(buf)),
+					TABLE_STATS_NAME,
+					INDEX_STATS_NAME,
+					ut_strerr(err));
+			}
 
 			goto transient;
 		}

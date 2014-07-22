@@ -624,6 +624,9 @@ struct dict_index_t{
 	ulint		stat_n_leaf_pages;
 				/*!< approximate number of leaf pages in the
 				index tree */
+	bool		stats_error_printed;
+				/*!< has persistent statistics error printed
+				for this index ? */
 	/* @} */
 	rw_lock_t	lock;	/*!< read-write lock protecting the
 				upper levels of the index tree */
@@ -947,6 +950,9 @@ struct dict_table_t{
 				/*!< see BG_STAT_* above.
 				Writes are covered by dict_sys->mutex.
 				Dirty reads are possible. */
+	bool		stats_error_printed;
+				/*!< Has persistent stats error beein
+				already printed for this table ? */
 				/* @} */
 	/*----------------------*/
 				/**!< The following fields are used by the
