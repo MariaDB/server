@@ -2846,6 +2846,7 @@ os_file_write_func(
 	DWORD		high;
 	ulint		n_retries	= 0;
 	ulint		err;
+	DWORD		saved_error = 0;
 #ifndef UNIV_HOTBACKUP
 	ulint		i;
 #endif /* !UNIV_HOTBACKUP */
@@ -2935,8 +2936,10 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
+		char *winmsg = NULL;
 
-		err = (ulint) GetLastError();
+		saved_error = GetLastError();
+		err = (ulint) saved_error;
 
 		ut_print_timestamp(stderr);
 
@@ -2952,6 +2955,23 @@ retry:
 			" or a disk quota exceeded.\n",
 			name, offset,
 			(ulong) n, (ulong) len, (ulong) err);
+
+		/* Ask Windows to prepare a standard message for a
+		GetLastError() */
+
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, saved_error,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPSTR)&winmsg, 0, NULL);
+
+		if (winmsg) {
+			fprintf(stderr,
+				"InnoDB: FormatMessage: Error number %lu means '%s'.\n",
+				(ulong) saved_error, winmsg);
+			LocalFree(winmsg);
+		}
 
 		if (strerror((int) err) != NULL) {
 			fprintf(stderr,
@@ -2980,7 +3000,6 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
-
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,

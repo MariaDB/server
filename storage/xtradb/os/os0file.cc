@@ -3049,7 +3049,8 @@ os_file_write_func(
 	DWORD		len;
 	ulint		n_retries	= 0;
 	ulint		err;
-	OVERLAPPED overlapped;
+	OVERLAPPED	overlapped;
+	DWORD		saved_error = 0;
 
 	/* On 64-bit Windows, ulint is 64 bits. But offset and n should be
 	no more than 32 bits. */
@@ -3076,7 +3077,7 @@ retry:
 	if (ret) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
 	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
+	else if ( GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
 	}
 
@@ -3104,8 +3105,10 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
+		char *winmsg = NULL;
 
-		err = (ulint) GetLastError();
+		saved_error = GetLastError();
+		err = (ulint) saved_error;
 
 		ut_print_timestamp(stderr);
 
@@ -3121,6 +3124,23 @@ retry:
 			" or a disk quota exceeded.\n",
 			name, offset,
 			(ulong) n, (ulong) len, (ulong) err);
+
+		/* Ask Windows to prepare a standard message for a
+		GetLastError() */
+
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, saved_error,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPSTR)&winmsg, 0, NULL);
+
+		if (winmsg) {
+			fprintf(stderr,
+				"InnoDB: FormatMessage: Error number %lu means '%s'.\n",
+				(ulong) saved_error, winmsg);
+			LocalFree(winmsg);
+		}
 
 		if (strerror((int) err) != NULL) {
 			fprintf(stderr,
