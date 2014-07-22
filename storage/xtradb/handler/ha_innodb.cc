@@ -8480,6 +8480,20 @@ ha_innobase::innobase_get_index(
 					keynr, key ? key->name : "NULL",
 					index->name,
 					prebuilt->table->name);
+
+				for(ulint i=0; i < table->s->keys; i++) {
+					index = innobase_index_lookup(share, i);
+					key = table->key_info + keynr;
+
+					if (index) {
+
+						fprintf(stderr, "InnoDB: [Note] Index for key no %u"
+							" mysql name %s , InnoDB name %s for table %s\n",
+							keynr, key ? key->name : "NULL",
+							index->name,
+							prebuilt->table->name);
+					}
+				}
 			}
 
 			ut_a(ut_strcmp(index->name, key->name) == 0);
@@ -18490,7 +18504,7 @@ ib_senderrf(
 
 	va_start(args, code);
 
-	myf	l;
+	myf	l=0;
 
 	switch(level) {
 	case IB_LOG_LEVEL_INFO:
