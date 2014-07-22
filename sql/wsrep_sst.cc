@@ -31,35 +31,6 @@
 
 extern const char wsrep_defaults_file[];
 
-#define WSREP_SST_OPT_ROLE     "--role"
-#define WSREP_SST_OPT_ADDR     "--address"
-#define WSREP_SST_OPT_AUTH     "--auth"
-#define WSREP_SST_OPT_DATA     "--datadir"
-#define WSREP_SST_OPT_CONF     "--defaults-file"
-#define WSREP_SST_OPT_PARENT   "--parent"
-#define WSREP_SST_OPT_BINLOG   "--binlog"
-
-// mysqldump-specific options
-#define WSREP_SST_OPT_USER     "--user"
-#define WSREP_SST_OPT_PSWD     "--password"
-#define WSREP_SST_OPT_HOST     "--host"
-#define WSREP_SST_OPT_PORT     "--port"
-#define WSREP_SST_OPT_LPORT    "--local-port"
-
-// donor-specific
-#define WSREP_SST_OPT_SOCKET   "--socket"
-#define WSREP_SST_OPT_GTID     "--gtid"
-#define WSREP_SST_OPT_BYPASS   "--bypass"
-
-#define WSREP_SST_MYSQLDUMP       "mysqldump"
-#define WSREP_SST_RSYNC           "rsync"
-#define WSREP_SST_SKIP            "skip"
-#define WSREP_SST_XTRABACKUP      "xtrabackup"
-#define WSREP_SST_XTRABACKUP_V2   "xtrabackup-v2"
-#define WSREP_SST_DEFAULT      WSREP_SST_RSYNC
-#define WSREP_SST_ADDRESS_AUTO "AUTO"
-#define WSREP_SST_AUTH_MASK    "********"
-
 const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
 const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
 const char* wsrep_sst_donor           = "";
@@ -71,17 +42,16 @@ my_bool wsrep_sst_donor_rejects_queries = FALSE;
 
 bool wsrep_sst_method_check (sys_var *self, THD* thd, set_var* var)
 {
-    char   buff[FN_REFLEN];
-    String str(buff, sizeof(buff), system_charset_info), *res;
-    const char* c_str = NULL;
-
-    if ((res   = var->value->val_str(&str)) &&
-        (c_str = res->c_ptr()) &&
-        strlen(c_str) > 0)
-        return 0;
-
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "wsrep_sst_method", c_str ? c_str : "NULL");
+  if ((! var->save_result.string_value.str) ||
+      (var->save_result.string_value.length == 0 ))
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+             var->save_result.string_value.str ?
+             var->save_result.string_value.str : "NULL");
     return 1;
+  }
+
+  return 0;
 }
 
 bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
@@ -89,6 +59,7 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
     return 0;
 }
 
+// TODO: Improve address verification.
 static bool sst_receive_address_check (const char* str)
 {
     if (!strncasecmp(str, "127.0.0.1", strlen("127.0.0.1")) ||
@@ -102,15 +73,30 @@ static bool sst_receive_address_check (const char* str)
 
 bool  wsrep_sst_receive_address_check (sys_var *self, THD* thd, set_var* var)
 {
-    const char* c_str = var->value->str_value.c_ptr();
+  char addr_buf[FN_REFLEN];
 
-    if (sst_receive_address_check (c_str))
-    {
-        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "wsrep_sst_receive_address", c_str ? c_str : "NULL");
-        return 1;
-    }
+  if ((! var->save_result.string_value.str) ||
+      (var->save_result.string_value.length > (FN_REFLEN - 1))) // safety
+  {
+    goto err;
+  }
 
-    return 0;
+  memcpy(addr_buf, var->save_result.string_value.str,
+         var->save_result.string_value.length);
+  addr_buf[var->save_result.string_value.length]= 0;
+
+  if (sst_receive_address_check(addr_buf))
+  {
+    goto err;
+  }
+
+  return 0;
+
+err:
+  my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), var->var->name.str,
+           var->save_result.string_value.str ?
+           var->save_result.string_value.str : "NULL");
+  return 1;
 }
 
 bool wsrep_sst_receive_address_update (sys_var *self, THD* thd,

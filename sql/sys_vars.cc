@@ -4484,8 +4484,7 @@ static Sys_var_tz Sys_time_zone(
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
        PREALLOCATED GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER),
-       IN_FS_CHARSET, DEFAULT(wsrep_provider), 
-       //       IN_FS_CHARSET, DEFAULT(wsrep_provider_default), 
+       IN_FS_CHARSET, DEFAULT(WSREP_NONE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_provider_check), ON_UPDATE(wsrep_provider_update));
 
@@ -4493,8 +4492,7 @@ static Sys_var_charptr Sys_wsrep_provider_options(
        "wsrep_provider_options", "provider specific options",
        PREALLOCATED GLOBAL_VAR(wsrep_provider_options), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER_OPTIONS),
-       IN_FS_CHARSET, DEFAULT(wsrep_provider_options), 
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_provider_options_check), 
        ON_UPDATE(wsrep_provider_options_update));
 
@@ -4507,7 +4505,7 @@ static Sys_var_charptr Sys_wsrep_data_home_dir(
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_name), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(wsrep_cluster_name), 
+       IN_FS_CHARSET, DEFAULT(WSREP_CLUSTER_NAME),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_name_check),
        ON_UPDATE(wsrep_cluster_name_update));
@@ -4517,7 +4515,7 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_CLUSTER_ADDRESS),
-       IN_FS_CHARSET, DEFAULT(wsrep_cluster_address),
+       IN_FS_CHARSET, DEFAULT(""),
        &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_address_check), 
        ON_UPDATE(wsrep_cluster_address_update));
@@ -4525,21 +4523,21 @@ static Sys_var_charptr Sys_wsrep_cluster_address (
 static Sys_var_charptr Sys_wsrep_node_name (
        "wsrep_node_name", "Node name",
        PREALLOCATED GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(wsrep_node_name), 
-       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       wsrep_node_name_check, wsrep_node_name_update);
 
 static Sys_var_charptr Sys_wsrep_node_address (
        "wsrep_node_address", "Node address",
        PREALLOCATED GLOBAL_VAR(wsrep_node_address), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(wsrep_node_address), 
+       IN_FS_CHARSET, DEFAULT(""),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(wsrep_node_address_check), 
+       ON_CHECK(wsrep_node_address_check),
        ON_UPDATE(wsrep_node_address_update));
 
 static Sys_var_charptr Sys_wsrep_node_incoming_address(
        "wsrep_node_incoming_address", "Client connection address",
        PREALLOCATED GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(wsrep_node_incoming_address), 
+       IN_FS_CHARSET, DEFAULT(WSREP_NODE_INCOMING_AUTO),
        NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 static Sys_var_ulong Sys_wsrep_slave_threads(
@@ -4587,7 +4585,7 @@ static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
 static Sys_var_charptr sys_wsrep_sst_method(
        "wsrep_sst_method", "State snapshot transfer method",
        GLOBAL_VAR(wsrep_sst_method),CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(wsrep_sst_method), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       IN_FS_CHARSET, DEFAULT(WSREP_SST_DEFAULT), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_method_check),
        ON_UPDATE(wsrep_sst_method_update)); 
 
@@ -4595,7 +4593,7 @@ static Sys_var_charptr Sys_wsrep_sst_receive_address(
        "wsrep_sst_receive_address", "Address where node is waiting for "
        "SST contact", 
        GLOBAL_VAR(wsrep_sst_receive_address),CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(wsrep_sst_receive_address), NO_MUTEX_GUARD, 
+       IN_FS_CHARSET, DEFAULT(WSREP_SST_ADDRESS_AUTO), NO_MUTEX_GUARD,
        NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_receive_address_check),
        ON_UPDATE(wsrep_sst_receive_address_update)); 
@@ -4603,7 +4601,7 @@ static Sys_var_charptr Sys_wsrep_sst_receive_address(
 static Sys_var_charptr Sys_wsrep_sst_auth(
        "wsrep_sst_auth", "Authentication for SST connection",
        PREALLOCATED GLOBAL_VAR(wsrep_sst_auth), CMD_LINE(REQUIRED_ARG, OPT_WSREP_SST_AUTH),
-       IN_FS_CHARSET, DEFAULT(wsrep_sst_auth), NO_MUTEX_GUARD, 
+       IN_FS_CHARSET, DEFAULT(NULL), NO_MUTEX_GUARD,
        NOT_IN_BINLOG,
        ON_CHECK(wsrep_sst_auth_check),
        ON_UPDATE(wsrep_sst_auth_update)); 
@@ -4632,7 +4630,7 @@ static Sys_var_charptr Sys_wsrep_start_position (
        "wsrep_start_position", "global transaction position to start from ",
        PREALLOCATED GLOBAL_VAR(wsrep_start_position), 
        CMD_LINE(REQUIRED_ARG, OPT_WSREP_START_POSITION),
-       IN_FS_CHARSET, DEFAULT(wsrep_start_position),
+       IN_FS_CHARSET, DEFAULT(WSREP_START_POSITION_ZERO),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_start_position_check), 
        ON_UPDATE(wsrep_start_position_update));
