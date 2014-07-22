@@ -7963,6 +7963,14 @@ ha_innobase::innobase_get_index(
 		index = innobase_index_lookup(share, keynr);
 
 		if (index) {
+			if (!key || ut_strcmp(index->name, key->name) != 0) {
+				fprintf(stderr, "InnoDB: [Error] Index for key no %u"
+					" mysql name %s , InnoDB name %s for table %s\n",
+					keynr, key ? key->name : "NULL",
+					index->name,
+					prebuilt->table->name);
+			}
+
 			ut_a(ut_strcmp(index->name, key->name) == 0);
 		} else {
 			/* Can't find index with keynr in the translation
