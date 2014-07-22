@@ -1,0 +1,45 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_causal_reads
+--echo #
+
+--echo # save the initial values
+SET @wsrep_causal_reads_global_saved = @@global.wsrep_causal_reads;
+SET @wsrep_causal_reads_session_saved = @@session.wsrep_causal_reads;
+
+--echo # default
+SELECT @@global.wsrep_causal_reads;
+SELECT @@session.wsrep_causal_reads;
+
+--echo
+--echo # scope and valid values
+SET @@global.wsrep_causal_reads=OFF;
+SELECT @@global.wsrep_causal_reads;
+SET @@global.wsrep_causal_reads=ON;
+SELECT @@global.wsrep_causal_reads;
+
+SET @@session.wsrep_causal_reads=OFF;
+SELECT @@session.wsrep_causal_reads;
+SET @@session.wsrep_causal_reads=ON;
+SELECT @@session.wsrep_causal_reads;
+SET @@session.wsrep_causal_reads=default;
+SELECT @@session.wsrep_causal_reads;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_causal_reads=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_causal_reads='junk';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.wsrep_causal_reads=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@session.wsrep_causal_reads='junk';
+
+--echo
+--echo # restore the initial values
+SET @@global.wsrep_causal_reads = @wsrep_causal_reads_global_saved;
+SET @@session.wsrep_causal_reads = @wsrep_causal_reads_session_saved;
+
+--echo # End of test

@@ -1,0 +1,42 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_dbug_option
+--echo #
+
+--echo # save the initial value
+SET @wsrep_dbug_option_global_saved = @@global.wsrep_dbug_option;
+
+--echo # default
+SELECT @@global.wsrep_dbug_option;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_dbug_option;
+SET @@global.wsrep_dbug_option='test-dbug-string';
+SELECT @@global.wsrep_dbug_option;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_dbug_option='quoted-dbug-string';
+SELECT @@global.wsrep_dbug_option;
+SET @@global.wsrep_dbug_option=unquoted_dbug_string;
+SELECT @@global.wsrep_dbug_option;
+SET @@global.wsrep_dbug_option=OFF;
+SELECT @@global.wsrep_dbug_option;
+SET @@global.wsrep_dbug_option=NULL;
+SELECT @@global.wsrep_dbug_option;
+SET @@global.wsrep_dbug_option=default;
+SELECT @@global.wsrep_dbug_option;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_dbug_option=1;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_dbug_option = @wsrep_dbug_option_global_saved;
+
+--echo # End of test

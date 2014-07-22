@@ -1,0 +1,47 @@
+#
+# wsrep_dbug_option
+#
+# save the initial value
+SET @wsrep_dbug_option_global_saved = @@global.wsrep_dbug_option;
+# default
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+
+
+# scope
+SELECT @@session.wsrep_dbug_option;
+ERROR HY000: Variable 'wsrep_dbug_option' is a GLOBAL variable
+SET @@global.wsrep_dbug_option='test-dbug-string';
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+test-dbug-string
+
+# valid values
+SET @@global.wsrep_dbug_option='quoted-dbug-string';
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+quoted-dbug-string
+SET @@global.wsrep_dbug_option=unquoted_dbug_string;
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+unquoted_dbug_string
+SET @@global.wsrep_dbug_option=OFF;
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+OFF
+SET @@global.wsrep_dbug_option=NULL;
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+NULL
+SET @@global.wsrep_dbug_option=default;
+SELECT @@global.wsrep_dbug_option;
+@@global.wsrep_dbug_option
+
+
+# invalid values
+SET @@global.wsrep_dbug_option=1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_dbug_option'
+
+# restore the initial value
+SET @@global.wsrep_dbug_option = @wsrep_dbug_option_global_saved;
+# End of test

@@ -11,41 +11,5 @@ select distinct variable_name as `there should be *no* variables listed below:` 
 left join t1 on variable_name=test_name where test_name is null;
 there should be *no* variables listed below:
 innodb_disallow_writes
-wsrep_auto_increment_control
-wsrep_causal_reads
-wsrep_certify_nonpk
-wsrep_cluster_address
-wsrep_cluster_name
-wsrep_convert_lock_to_trx
-wsrep_data_home_dir
-wsrep_dbug_option
-wsrep_debug
-wsrep_desync
-wsrep_drupal_282555_workaround
-wsrep_forced_binlog_format
-wsrep_load_data_splitting
-wsrep_log_conflicts
-wsrep_max_ws_rows
-wsrep_max_ws_size
-wsrep_mysql_replication_bundle
-wsrep_node_address
-wsrep_node_incoming_address
-wsrep_node_name
-wsrep_notify_cmd
-wsrep_on
-wsrep_osu_method
-wsrep_provider
-wsrep_provider_options
-wsrep_recover
-wsrep_replicate_myisam
-wsrep_restart_slave
-wsrep_retry_autocommit
-wsrep_slave_threads
-wsrep_sst_auth
-wsrep_sst_donor
-wsrep_sst_donor_rejects_queries
-wsrep_sst_method
-wsrep_sst_receive_address
-wsrep_start_position
 drop table t1;
 drop table t2;

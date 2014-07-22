@@ -1,0 +1,51 @@
+#
+# wsrep_forced_binlog_format
+#
+# save the initial value
+SET @wsrep_forced_binlog_format_global_saved = @@global.wsrep_forced_binlog_format;
+# default
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+NONE
+
+# scope
+SELECT @@session.wsrep_forced_binlog_format;
+ERROR HY000: Variable 'wsrep_forced_binlog_format' is a GLOBAL variable
+SET @@global.wsrep_forced_binlog_format=STATEMENT;
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+STATEMENT
+
+# valid values
+SET @@global.wsrep_forced_binlog_format=STATEMENT;
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+STATEMENT
+SET @@global.wsrep_forced_binlog_format=ROW;
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+ROW
+SET @@global.wsrep_forced_binlog_format=MIXED;
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+MIXED
+SET @@global.wsrep_forced_binlog_format=NONE;
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+NONE
+SET @@global.wsrep_forced_binlog_format=default;
+SELECT @@global.wsrep_forced_binlog_format;
+@@global.wsrep_forced_binlog_format
+NONE
+
+# invalid values
+SET @@global.wsrep_forced_binlog_format=NULL;
+ERROR 42000: Variable 'wsrep_forced_binlog_format' can't be set to the value of 'NULL'
+SET @@global.wsrep_forced_binlog_format='junk';
+ERROR 42000: Variable 'wsrep_forced_binlog_format' can't be set to the value of 'junk'
+SET @@global.wsrep_forced_binlog_format=ON;
+ERROR 42000: Variable 'wsrep_forced_binlog_format' can't be set to the value of 'ON'
+
+# restore the initial value
+SET @@global.wsrep_forced_binlog_format = @wsrep_forced_binlog_format_global_saved;
+# End of test
