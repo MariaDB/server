@@ -2936,7 +2936,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         cze "Používáte MySQL jako anonymní uživatel a anonymní uživatelé nemají povoleno měnit hesla"
         dan "Du bruger MariaDB som anonym bruger. Anonyme brugere må ikke ændre adgangskoder"
         nla "U gebruikt MariaDB als anonieme gebruiker en deze mogen geen wachtwoorden wijzigen"
-        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to change passwords"
+        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings"
         est "Te kasutate MariaDB-i anonüümse kasutajana, kelledel pole parooli muutmise õigust"
         fre "Vous utilisez un utilisateur anonyme et les utilisateurs anonymes ne sont pas autorisés à changer les mots de passe"
         ger "Sie benutzen MariaDB als anonymer Benutzer und dürfen daher keine Passwörter ändern"
@@ -2946,7 +2946,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schime parolele"
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor."
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
         spa "Tu estás usando MariaDB como un usuario anonimo y usuarios anonimos no tienen permiso para cambiar las claves"
@@ -5541,8 +5541,8 @@ ER_VIEW_OTHER_USER
         eng "You need the SUPER privilege for creation view with '%-.192s'@'%-.192s' definer"
         ger "Sie brauchen die SUPER-Berechtigung, um einen View mit dem Definierer '%-.192s'@'%-.192s' zu erzeugen"
 ER_NO_SUCH_USER
-  eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
-  ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
+        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
 ER_FORBID_SCHEMA_CHANGE
         eng "Changing schema from '%-.192s' to '%-.192s' is not allowed."
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"

@@ -1,0 +1,40 @@
+create user test_user@localhost;
+create role test_role;
+create role not_granted_role;
+grant select on *.* to test_role;
+grant test_role to test_user@localhost;
+show grants;
+Grants for test_user@localhost
+GRANT test_role TO 'test_user'@'localhost'
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+select user, host, default_role from mysql.user;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+set default role invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`.
+set default role not_granted_role;
+ERROR OP000: Invalid role specification `not_granted_role`.
+set default role test_role;
+select user, host, default_role from mysql.user;
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+select user, host, default_role from mysql.user where user='test_user';
+user	host	default_role
+test_user	localhost	test_role
+show grants;
+Grants for test_user@localhost
+GRANT test_role TO 'test_user'@'localhost'
+GRANT USAGE ON *.* TO 'test_user'@'localhost'
+GRANT SELECT ON *.* TO 'test_role'
+select user, host, default_role from mysql.user where user='test_user';
+user	host	default_role
+test_user	localhost	test_role
+set default role invalid_role;
+ERROR OP000: Invalid role specification `invalid_role`.
+select user, host, default_role from mysql.user where user='test_user';
+user	host	default_role
+test_user	localhost	test_role
+revoke test_role from test_user@localhost;
+select user, host, default_role from mysql.user where user='test_user';
+ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'user'
+drop role test_role;
+drop role not_granted_role;
+drop user test_user@localhost;

@@ -291,6 +291,18 @@ public:
   int update(THD *thd);
 };
 
+/* For SET DEFAULT ROLE */
+
+class set_var_default_role: public set_var_base
+{
+  LEX_USER *user;
+  LEX_STRING role;
+public:
+  set_var_default_role(LEX_USER *user_arg, LEX_STRING role_arg) :
+    user(user_arg), role(role_arg) {}
+  int check(THD *thd);
+  int update(THD *thd);
+};
 
 /* For SET NAMES and SET CHARACTER SET */
 

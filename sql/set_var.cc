@@ -852,6 +852,7 @@ int set_var_password::update(THD *thd)
 /*****************************************************************************
   Functions to handle SET ROLE
 *****************************************************************************/
+
 int set_var_role::check(THD *thd)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
@@ -871,6 +872,29 @@ int set_var_role::update(THD *thd)
 #endif
 }
 
+/*****************************************************************************
+  Functions to handle SET DEFAULT ROLE
+*****************************************************************************/
+
+int set_var_default_role::check(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  user= get_current_user(thd, user);
+  int status= acl_check_set_default_role(thd, user->host.str, user->user.str);
+  return status;
+#else
+  return 0;
+#endif
+}
+
+int set_var_default_role::update(THD *thd)
+{
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
+  return acl_set_default_role(thd, user->host.str, user->user.str, role.str);
+#else
+  return 0;
+#endif
+}
 
 /*****************************************************************************
   Functions to handle SET NAMES and SET CHARACTER SET
