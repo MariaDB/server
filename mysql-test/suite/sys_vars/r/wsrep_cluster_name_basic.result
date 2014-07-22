@@ -1,0 +1,43 @@
+#
+# wsrep_cluster_name
+#
+# save the initial value
+SET @wsrep_cluster_name_global_saved = @@global.wsrep_cluster_name;
+# default
+SELECT @@global.wsrep_cluster_name;
+@@global.wsrep_cluster_name
+my_wsrep_cluster
+
+# scope
+SELECT @@session.wsrep_cluster_name;
+ERROR HY000: Variable 'wsrep_cluster_name' is a GLOBAL variable
+SET @@global.wsrep_cluster_name='my_galera_cluster';
+SELECT @@global.wsrep_cluster_name;
+@@global.wsrep_cluster_name
+my_galera_cluster
+
+# valid values
+SET @@global.wsrep_cluster_name='my_quoted_galera_cluster';
+SELECT @@global.wsrep_cluster_name;
+@@global.wsrep_cluster_name
+my_quoted_galera_cluster
+SET @@global.wsrep_cluster_name=my_unquoted_cluster;
+SELECT @@global.wsrep_cluster_name;
+@@global.wsrep_cluster_name
+my_unquoted_cluster
+SET @@global.wsrep_cluster_name=OFF;
+SELECT @@global.wsrep_cluster_name;
+@@global.wsrep_cluster_name
+OFF
+SET @@global.wsrep_cluster_name=default;
+SELECT @@global.wsrep_cluster_name;
+@@global.wsrep_cluster_name
+my_wsrep_cluster
+
+# invalid values
+SET @@global.wsrep_cluster_name=NULL;
+ERROR 42000: Variable 'wsrep_cluster_name' can't be set to the value of 'NULL'
+
+# restore the initial value
+SET @@global.wsrep_cluster_name = @wsrep_cluster_name_global_saved;
+# End of test

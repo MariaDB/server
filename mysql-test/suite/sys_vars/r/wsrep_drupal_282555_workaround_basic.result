@@ -1,0 +1,45 @@
+#
+# wsrep_drupal_282555_workaround
+#
+# save the initial value
+SET @wsrep_drupal_282555_workaround_global_saved = @@global.wsrep_drupal_282555_workaround;
+# default
+SELECT @@global.wsrep_drupal_282555_workaround;
+@@global.wsrep_drupal_282555_workaround
+0
+
+# scope
+SELECT @@session.wsrep_drupal_282555_workaround;
+ERROR HY000: Variable 'wsrep_drupal_282555_workaround' is a GLOBAL variable
+SET @@global.wsrep_drupal_282555_workaround=OFF;
+SELECT @@global.wsrep_drupal_282555_workaround;
+@@global.wsrep_drupal_282555_workaround
+0
+SET @@global.wsrep_drupal_282555_workaround=ON;
+SELECT @@global.wsrep_drupal_282555_workaround;
+@@global.wsrep_drupal_282555_workaround
+1
+
+# valid values
+SET @@global.wsrep_drupal_282555_workaround='OFF';
+SELECT @@global.wsrep_drupal_282555_workaround;
+@@global.wsrep_drupal_282555_workaround
+0
+SET @@global.wsrep_drupal_282555_workaround=ON;
+SELECT @@global.wsrep_drupal_282555_workaround;
+@@global.wsrep_drupal_282555_workaround
+1
+SET @@global.wsrep_drupal_282555_workaround=default;
+SELECT @@global.wsrep_drupal_282555_workaround;
+@@global.wsrep_drupal_282555_workaround
+0
+
+# invalid values
+SET @@global.wsrep_drupal_282555_workaround=NULL;
+ERROR 42000: Variable 'wsrep_drupal_282555_workaround' can't be set to the value of 'NULL'
+SET @@global.wsrep_drupal_282555_workaround='junk';
+ERROR 42000: Variable 'wsrep_drupal_282555_workaround' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_drupal_282555_workaround = @wsrep_drupal_282555_workaround_global_saved;
+# End of test

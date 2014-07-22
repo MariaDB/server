@@ -1,0 +1,49 @@
+#
+# wsrep_node_address
+#
+# save the initial value
+SET @wsrep_node_address_global_saved = @@global.wsrep_node_address;
+# default
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+
+# scope
+SELECT @@session.wsrep_node_address;
+ERROR HY000: Variable 'wsrep_node_address' is a GLOBAL variable
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+
+# valid values
+SET @@global.wsrep_node_address='127.0.0.1';
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+127.0.0.1
+SET @@global.wsrep_node_address=default;
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+
+# invalid values
+SET @@global.wsrep_node_address=NULL;
+ERROR 42000: Variable 'wsrep_node_address' can't be set to the value of 'NULL'
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+
+SET @@global.wsrep_node_address=ON;
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+ON
+SET @@global.wsrep_node_address='OFF';
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+OFF
+SET @@global.wsrep_node_address='junk';
+SELECT @@global.wsrep_node_address;
+@@global.wsrep_node_address
+junk
+
+# restore the initial value
+SET @@global.wsrep_node_address = @wsrep_node_address_global_saved;
+# End of test

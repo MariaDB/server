@@ -1,0 +1,57 @@
+#
+# wsrep_start_position
+#
+# save the initial value
+SET @wsrep_start_position_global_saved = @@global.wsrep_start_position;
+# default
+SELECT @@global.wsrep_start_position;
+@@global.wsrep_start_position
+00000000-0000-0000-0000-000000000000:-1
+
+# scope
+SELECT @@session.wsrep_start_position;
+ERROR HY000: Variable 'wsrep_start_position' is a GLOBAL variable
+SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-1';
+SELECT @@global.wsrep_start_position;
+@@global.wsrep_start_position
+00000000-0000-0000-0000-000000000000:-1
+
+# valid values
+SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-2';
+SELECT @@global.wsrep_start_position;
+@@global.wsrep_start_position
+00000000-0000-0000-0000-000000000000:-2
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:100';
+SELECT @@global.wsrep_start_position;
+@@global.wsrep_start_position
+12345678-1234-1234-1234-123456789012:100
+SET @@global.wsrep_start_position=default;
+SELECT @@global.wsrep_start_position;
+@@global.wsrep_start_position
+00000000-0000-0000-0000-000000000000:-1
+
+# invalid values
+SET @@global.wsrep_start_position='000000000000000-0000-0000-0000-000000000000:-1';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '000000000000000-0000-0000-0000-000000000000:-1'
+SET @@global.wsrep_start_position='12345678-1234-1234-12345-123456789012:100';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '12345678-1234-1234-12345-123456789012:100'
+SET @@global.wsrep_start_position='12345678-1234-123-12345-123456789012:0';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '12345678-1234-123-12345-123456789012:0'
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:_99999';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '12345678-1234-1234-1234-123456789012:_99999'
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:a';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of '12345678-1234-1234-1234-123456789012:a'
+SET @@global.wsrep_start_position='OFF';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of 'OFF'
+SET @@global.wsrep_start_position=ON;
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of 'ON'
+SET @@global.wsrep_start_position='';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of ''
+SET @@global.wsrep_start_position=NULL;
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of 'NULL'
+SET @@global.wsrep_start_position='junk';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_start_position = @wsrep_start_position_global_saved;
+# End of test

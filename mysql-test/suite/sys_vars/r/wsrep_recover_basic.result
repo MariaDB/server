@@ -1,0 +1,22 @@
+#
+# wsrep_recover
+#
+# default
+SELECT @@global.wsrep_recover;
+@@global.wsrep_recover
+0
+SELECT @@session.wsrep_recover;
+ERROR HY000: Variable 'wsrep_recover' is a GLOBAL variable
+
+# scope and valid values
+SET @@global.wsrep_recover=OFF;
+ERROR HY000: Variable 'wsrep_recover' is a read only variable
+SET @@global.wsrep_recover=ON;
+ERROR HY000: Variable 'wsrep_recover' is a read only variable
+
+# invalid values
+SET @@global.wsrep_recover=NULL;
+ERROR HY000: Variable 'wsrep_recover' is a read only variable
+SET @@global.wsrep_recover='junk';
+ERROR HY000: Variable 'wsrep_recover' is a read only variable
+# End of test

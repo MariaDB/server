@@ -1,0 +1,56 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_start_position
+--echo #
+
+--echo # save the initial value
+SET @wsrep_start_position_global_saved = @@global.wsrep_start_position;
+
+--echo # default
+SELECT @@global.wsrep_start_position;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_start_position;
+SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-1';
+SELECT @@global.wsrep_start_position;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_start_position='00000000-0000-0000-0000-000000000000:-2';
+SELECT @@global.wsrep_start_position;
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:100';
+SELECT @@global.wsrep_start_position;
+SET @@global.wsrep_start_position=default;
+SELECT @@global.wsrep_start_position;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='000000000000000-0000-0000-0000-000000000000:-1';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='12345678-1234-1234-12345-123456789012:100';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='12345678-1234-123-12345-123456789012:0';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:_99999';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='12345678-1234-1234-1234-123456789012:a';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='OFF';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position=ON;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_start_position='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_start_position = @wsrep_start_position_global_saved;
+
+--echo # End of test
