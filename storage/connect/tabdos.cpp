@@ -1904,10 +1904,12 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
       /*  Estimate the number of lines in the table (if not known) by  */
       /*  dividing the file length by average record length.           */
       /*****************************************************************/
+      rec = ((PDOSDEF)To_Def)->Ending;
+
       if (AvgLen <= 0)          // No given average estimate
-        rec = EstimatedLength(g) + ((PDOSDEF)To_Def)->Ending;
+        rec += EstimatedLength(g);
       else   // An estimate was given for the average record length
-        rec = (int)AvgLen;      // Including line ending
+        rec += AvgLen;
 
       MaxSize = (len + rec - 1) / rec;
 
