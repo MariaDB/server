@@ -16,7 +16,33 @@
 #ifndef WSREP_SST_H
 #define WSREP_SST_H
 
-#include <mysql.h> // my_bool
+#include <mysql.h>                    // my_bool
+
+#define WSREP_SST_OPT_ROLE     "--role"
+#define WSREP_SST_OPT_ADDR     "--address"
+#define WSREP_SST_OPT_AUTH     "--auth"
+#define WSREP_SST_OPT_DATA     "--datadir"
+#define WSREP_SST_OPT_CONF     "--defaults-file"
+#define WSREP_SST_OPT_PARENT   "--parent"
+
+// mysqldump-specific options
+#define WSREP_SST_OPT_USER     "--user"
+#define WSREP_SST_OPT_PSWD     "--password"
+#define WSREP_SST_OPT_HOST     "--host"
+#define WSREP_SST_OPT_PORT     "--port"
+#define WSREP_SST_OPT_LPORT    "--local-port"
+
+// donor-specific
+#define WSREP_SST_OPT_SOCKET   "--socket"
+#define WSREP_SST_OPT_GTID     "--gtid"
+#define WSREP_SST_OPT_BYPASS   "--bypass"
+
+#define WSREP_SST_MYSQLDUMP    "mysqldump"
+#define WSREP_SST_RSYNC        "rsync"
+#define WSREP_SST_SKIP         "skip"
+#define WSREP_SST_DEFAULT      WSREP_SST_RSYNC
+#define WSREP_SST_ADDRESS_AUTO "AUTO"
+#define WSREP_SST_AUTH_MASK    "********"
 
 /* system variables */
 extern const char* wsrep_sst_method;

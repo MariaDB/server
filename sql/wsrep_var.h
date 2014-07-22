@@ -16,7 +16,9 @@
 #ifndef WSREP_VAR_H
 #define WSREP_VAR_H
 
-#define WSREP_NODE_INCOMING_AUTO "AUTO"
+#define WSREP_CLUSTER_NAME        "my_wsrep_cluster"
+#define WSREP_NODE_INCOMING_AUTO  "AUTO"
+#define WSREP_START_POSITION_ZERO "00000000-0000-0000-0000-000000000000:-1"
 
 // MySQL variables funcs
 
