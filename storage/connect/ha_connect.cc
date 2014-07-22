@@ -966,21 +966,21 @@ bool ha_connect::SetBooleanOption(char *opname, bool b)
 /****************************************************************************/
 int ha_connect::GetIntegerOption(char *opname)
 {
-  ulonglong opval= NO_IVAL;
-  char     *pv;
-  PTOS      options= GetTableOptionStruct();
+  ulonglong    opval= NO_IVAL;
+  char        *pv;
+  PTOS         options= GetTableOptionStruct();
+  TABLE_SHARE *tsp= (tshp) ? tshp : table_share;
 
-  if (!options)
+  if (!stricmp(opname, "Avglen"))
+    opval= (ulonglong)tsp->avg_row_length;
+  else if (!stricmp(opname, "Estimate"))
+    opval= (ulonglong)tsp->max_rows;
+  else if (!options)
     ;
   else if (!stricmp(opname, "Lrecl"))
     opval= options->lrecl;
   else if (!stricmp(opname, "Elements"))
     opval= options->elements;
-  else if (!stricmp(opname, "Estimate"))
-//  opval= options->estimate;
-    opval= (int)table->s->max_rows;
-  else if (!stricmp(opname, "Avglen"))
-    opval= (int)table->s->avg_row_length;
   else if (!stricmp(opname, "Multiple"))
     opval= options->multiple;
   else if (!stricmp(opname, "Header"))

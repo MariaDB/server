@@ -10,7 +10,7 @@ ftype CHAR(8) NOT NULL FLAG=3
 CREATE TABLE t1 (
 id INT NOT NULL,
 msg VARCHAR(32)
-) ENGINE=CONNECT TABLE_TYPE=CSV
+) ENGINE=CONNECT TABLE_TYPE=CSV AVG_ROW_LENGTH=8
 PARTITION BY RANGE(id) (
 PARTITION first VALUES LESS THAN(10),
 PARTITION middle VALUES LESS THAN(50),
@@ -33,14 +33,14 @@ id	msg
 81	eighty one
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id > 50;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	last	ALL	NULL	NULL	NULL	NULL	23	Using where
+1	SIMPLE	t1	last	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT * FROM t1 WHERE id > 50;
 id	msg
 60	sixty
 81	eighty one
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
-t1	CONNECT	10	Dynamic	7	9	69	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	partitioned `TABLE_TYPE`=CSV	
+t1	CONNECT	10	Dynamic	7	10	76	0	0	0	NULL	NULL	NULL	NULL	latin1_swedish_ci	NULL	avg_row_length=8 partitioned `TABLE_TYPE`=CSV	
 UPDATE t1 set id = 41 WHERE msg = 'four';
 ERROR HY000: Got error 174 'Cannot update column id because it is used for partitioning' from CONNECT
 UPDATE t1 set msg = 'quatre' WHERE id = 4;
@@ -69,7 +69,7 @@ t1#P#last	.csv
 t1#P#middle	.csv
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id=10;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	first	ALL	NULL	NULL	NULL	NULL	24	Using where
+1	SIMPLE	t1	first	ALL	NULL	NULL	NULL	NULL	4	Using where
 SELECT * FROM t1 WHERE id=10;
 id	msg
 10	ten

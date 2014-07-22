@@ -590,22 +590,17 @@ bool TDBCSV::CheckErr(void)
 /***********************************************************************/
 int TDBCSV::EstimatedLength(PGLOBAL g)
   {
+  int     n = 0;
+  PCOLDEF cdp;
+
   if (trace)
     htrc("EstimatedLength: Fields=%d Columns=%p\n", Fields, Columns);
 
-  if (!Fields) {
-    PCSVCOL colp;
+  for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
+    if (!cdp->IsSpecial() && !cdp->IsVirtual())  // A true column
+      n++;
 
-    for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
-      if (!colp->IsSpecial() && !colp->IsVirtual())  // A true column
-        Fields = MY_MAX(Fields, (int)colp->Fldnum);
-
-    if (Columns)
-      Fields++;           // Fldnum was 0 based
-
-    } // endif Fields
-
-  return (int)Fields;   // Number of separators if all fields are null
+  return --n;   // Number of separators if all fields are null
   } // end of Estimated Length
 
 #if 0

@@ -653,7 +653,7 @@ int TDBMYSQL::MakeCommand(PGLOBAL g)
 
 
     // Make a lower case copy of the originale query
-    qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
+    qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 5);
     strlwr(strcpy(qrystr, Qrystr));
 
     // Check whether the table name is equal to a keyword
@@ -673,6 +673,7 @@ int TDBMYSQL::MakeCommand(PGLOBAL g)
         strcat(Query, Tabname);
 
       strcat(Query, Qrystr + (p - qrystr) + strlen(name));
+      strlwr(strcpy(qrystr, Query));
     } else {
       sprintf(g->Message, "Cannot use this %s command",
                    (Mode == MODE_UPDATE) ? "UPDATE" : "DELETE");
@@ -1035,7 +1036,8 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 {
   int  oldlen = strlen(Query);
 
-  if (!key || op == OP_NEXT)
+  if (!key || op == OP_NEXT ||
+        Mode == MODE_UPDATE || Mode == MODE_DELETE)
     return false;
   else if (op == OP_FIRST) {
     if (To_CondFil)
@@ -1054,7 +1056,7 @@ bool TDBMYSQL::ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
 
   m_Rc = Myc.ExecSQL(g, Query);
   Query[oldlen] = 0;
-  return false;
+  return (m_Rc == RC_FX) ? true : false;
 } // end of ReadKey
 
 /***********************************************************************/

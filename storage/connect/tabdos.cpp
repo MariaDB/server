@@ -1894,30 +1894,25 @@ int TDBDOS::GetMaxSize(PGLOBAL g)
     int len = GetFileLength(g);
 
     if (len >= 0) {
+      int rec;
+
       if (trace)
-        htrc("Estimating lines len=%d ending=%d\n",
+        htrc("Estimating lines len=%d ending=%d/n",
               len, ((PDOSDEF)To_Def)->Ending);
 
       /*****************************************************************/
       /*  Estimate the number of lines in the table (if not known) by  */
-      /*  dividing the file length by the minimum line length assuming */
-      /*  only the last column can be of variable length. This will be */
-      /*  a ceiling estimate (as last column is never totally absent). */
+      /*  dividing the file length by average record length.           */
       /*****************************************************************/
-      int rec = ((PDOSDEF)To_Def)->Ending;     // +2: CRLF +1: LF
-
-      if (AvgLen <= 0)     // No given average estimate
-        rec += EstimatedLength(g);
-      else   // A lower estimate was given for the average record length
-        rec += (int)AvgLen;
-
-      if (trace)
-        htrc(" Filen=%d min_rec=%d\n", len, rec);
+      if (AvgLen <= 0)          // No given average estimate
+        rec = EstimatedLength(g) + ((PDOSDEF)To_Def)->Ending;
+      else   // An estimate was given for the average record length
+        rec = (int)AvgLen;      // Including line ending
 
       MaxSize = (len + rec - 1) / rec;
 
       if (trace)
-        htrc(" Estimated max_K=%d\n", MaxSize);
+        htrc("avglen=%d MaxSize%d\n", rec, MaxSize);
 
       } // endif len
 
