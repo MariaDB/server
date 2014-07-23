@@ -4677,6 +4677,7 @@ fil_file_readdir_next_file(
 	return(-1);
 }
 
+#define CHECK_TIME_EVERY_N_FILES   10
 /********************************************************************//**
 At the server startup, if we need crash recovery, scans the database
 directories under the MySQL datadir, looking for .ibd files. Those files are
@@ -4693,6 +4694,9 @@ fil_load_single_table_tablespaces(void)
 	int		ret;
 	char*		dbpath		= NULL;
 	ulint		dbpath_len	= 100;
+        ulint 		files_read	= 0;
+        ulint 		files_read_at_last_check	= 0;
+        ib_time_t 	prev_report_time = ut_time();
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
 	os_file_stat_t	dbinfo;
@@ -4771,6 +4775,20 @@ fil_load_single_table_tablespaces(void)
 					try opening the file */
 					fil_load_single_table_tablespace(
 						dbinfo.name, fileinfo.name);
+					files_read++;
+					if (files_read - files_read_at_last_check >
+					    CHECK_TIME_EVERY_N_FILES) {
+						ib_time_t cur_time= ut_time();
+						files_read_at_last_check= files_read;
+						double time_elapsed= ut_difftime(cur_time, 
+						                                 prev_report_time);
+						if (time_elapsed > 15) {
+							ib_logf(IB_LOG_LEVEL_INFO, 
+								"Processed %ld .ibd/.isl files",
+								files_read);
+							prev_report_time= cur_time;
+						}
+                                        }
 				}
 next_file_item:
 				ret = fil_file_readdir_next_file(&err,
