@@ -131,6 +131,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -175,6 +176,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -219,6 +221,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 #
 # Add GRANT OPTION db_datadict.* to testuser1;
 GRANT UPDATE ON db_datadict.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
@@ -287,6 +290,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -331,6 +335,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -375,6 +380,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 # Establish connection testuser1 (user=testuser1)
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -429,6 +435,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -473,6 +480,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -517,6 +525,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
@@ -593,6 +602,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -637,6 +647,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -681,6 +692,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION;
 #
 # Here <SELECT YES> is shown correctly for testuser1;
@@ -749,6 +761,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -793,6 +806,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -837,6 +851,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 # Switch to connection testuser1
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -891,6 +906,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -935,6 +951,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -979,6 +996,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT SELECT ON *.* TO 'testuser1'@'localhost' WITH GRANT OPTION
@@ -1085,6 +1103,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -1129,6 +1148,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -1173,6 +1193,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 # Switch to connection testuser1
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1274,6 +1295,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -1318,6 +1340,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -1362,6 +1385,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 # Switch to connection testuser1
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
@@ -1416,6 +1440,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -1460,6 +1485,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -1504,6 +1530,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
@@ -1565,6 +1592,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -1609,6 +1637,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -1653,6 +1682,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 SHOW GRANTS;
 Grants for testuser1@localhost
 GRANT USAGE ON *.* TO 'testuser1'@'localhost'
@@ -1729,6 +1759,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser2
 Password	
@@ -1773,6 +1804,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 Host	localhost
 User	testuser3
 Password	
@@ -1817,6 +1849,7 @@ plugin
 authentication_string	
 password_expired	N
 is_role	N
+default_role	
 # Switch to connection testuser1
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''

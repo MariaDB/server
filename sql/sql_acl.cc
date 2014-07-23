@@ -211,6 +211,9 @@ static char *safe_str(char *str)
 static const char *safe_str(const char *str)
 { return str ? str : ""; }
 
+static size_t safe_strlen(const char *str)
+{ return str ? strlen(str) : 0; }
+
 /* Classes */
 
 struct acl_host_and_ip
@@ -640,9 +643,9 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
   if (!this)
     return true;
 
-  size_t uname_l = username ? strlen(username) : 0;
-  size_t hname_l = hostname ? strlen(hostname) : 0;
-  size_t rname_l = rolename ? strlen(rolename) : 0;
+  size_t uname_l = safe_strlen(username);
+  size_t hname_l = safe_strlen(hostname);
+  size_t rname_l = safe_strlen(rolename);
   /*
     Create a buffer that holds all 3 NULL terminated strings in succession
     To save memory space, the same buffer is used as the hashkey
@@ -1195,7 +1198,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
     update_hostname(&user.host, get_field(&acl_memroot, table->field[0]));
     char *username= get_field(&acl_memroot, table->field[1]);
     user.user.str= username;
-    user.user.length= username? strlen(username) : 0;
+    user.user.length= safe_strlen(username);
 
     /*
        If the user entry is a role, skip password and hostname checks
@@ -1220,7 +1223,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
     }
 
     char *password= get_field(&acl_memroot, table->field[2]);
-    uint password_len= password ? strlen(password) : 0;
+    uint password_len= safe_strlen(password);
     user.auth_string.str= safe_str(password);
     user.auth_string.length= password_len;
     set_user_salt(&user, password, password_len);
@@ -1268,8 +1271,7 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
         user.access|= TRIGGER_ACL;
 
       user.sort= get_sort(2, user.host.hostname, user.user.str);
-      user.hostname_length= (user.host.hostname ?
-                             (uint) strlen(user.host.hostname) : 0);
+      user.hostname_length= safe_strlen(user.host.hostname);
 
       /* Starting from 4.0.2 we have more fields */
       if (table->s->fields >= 31)
@@ -1352,11 +1354,11 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
                                    8, 8, MYF(0));
 
       /* check default role, if any */
-      if (!is_role && table->s->fields >= 45)
+      if (!is_role && table->s->fields > DEFAULT_ROLE_COLUMN_IDX)
       {
-        user.default_rolename.str= get_field(&acl_memroot, table->field[44]);
-        user.default_rolename.length= user.default_rolename.str ?
-                                        strlen(user.default_rolename.str) : 0;
+        user.default_rolename.str=
+          get_field(&acl_memroot, table->field[DEFAULT_ROLE_COLUMN_IDX]);
+        user.default_rolename.length= safe_strlen(user.default_rolename.str);
       }
 
       if (is_role)
@@ -2719,13 +2721,12 @@ int acl_check_set_default_role(THD *thd, const char *host, const char *user)
 int acl_set_default_role(THD *thd, const char *host, const char *user,
                          const char *rolename)
 {
-  TABLE_LIST tables;
+  TABLE_LIST tables[TABLES_MAX];
   TABLE *table;
   char user_key[MAX_KEY_LENGTH];
   int result= 1;
   int error;
   bool clear_role= FALSE;
-  Rpl_filter *rpl_filter;
   enum_binlog_format save_binlog_format;
 
 
@@ -2746,29 +2747,11 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   if (!strcasecmp(rolename, "NONE"))
     clear_role= TRUE;
 
-  tables.init_one_table("mysql", 5, "user", 4, "user", TL_WRITE);
+  if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
+    DBUG_RETURN(result != 1);
 
-#ifdef HAVE_REPLICATION
-  /*
-    GRANT and REVOKE are applied the slave in/exclusion rules as they are
-    some kind of updates to the mysql.% tables.
-  */
-  if (thd->slave_thread &&
-      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
-  {
-    /*
-      The tables must be marked "updating" so that tables_ok() takes them into
-      account in tests.  It's ok to leave 'updating' set after tables_ok.
-    */
-    tables.updating= 1;
-    /* Thanks to bzero, tables.next==0 */
-    if (!(thd->spcont || rpl_filter->tables_ok(0, &tables)))
-      DBUG_RETURN(0);
-  }
-#endif
-
-  if (!(table= open_ltable(thd, &tables, TL_WRITE, MYSQL_LOCK_IGNORE_TIMEOUT)))
-    DBUG_RETURN(1);
+  table= tables[USER_TABLE].table;
+  result= 1;
 
   /*
     This statement will be replicated as a statement, even when using
@@ -2802,7 +2785,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
   /* update the mysql.user table with the new default role */
   table->use_all_columns();
-  if (table->s->fields < 45)
+  if (table->s->fields <= DEFAULT_ROLE_COLUMN_IDX)
   {
     my_error(ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE, MYF(0),
              table->alias.c_ptr(), DEFAULT_ROLE_COLUMN_IDX + 1, table->s->fields,
@@ -2959,7 +2942,7 @@ static ACL_ROLE *find_acl_role(const char *role)
   mysql_mutex_assert_owner(&acl_cache->lock);
 
   ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)role,
-                                          role ? strlen(role) : 0);
+                                          safe_strlen(role));
   DBUG_RETURN(r);
 }
 
@@ -4037,8 +4020,7 @@ GRANT_TABLE::GRANT_TABLE(TABLE *form, TABLE *col_privs)
     uint key_prefix_len;
     KEY_PART_INFO *key_part= col_privs->key_info->key_part;
     col_privs->field[0]->store(host.hostname,
-                               host.hostname ? (uint) strlen(host.hostname) :
-                               0,
+                               (uint) safe_strlen(host.hostname),
                                system_charset_info);
     col_privs->field[1]->store(db,(uint) strlen(db), system_charset_info);
     col_privs->field[2]->store(user,(uint) strlen(user), system_charset_info);
@@ -11528,7 +11510,7 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     return packet_error;
 
   /* strlen() can't be easily deleted without changing protocol */
-  db_len= db ? strlen(db) : 0;
+  db_len= safe_strlen(db);
 
   char *next_field;
   char *client_plugin= next_field= passwd + passwd_len + (db ? db_len + 1 : 0);
@@ -12267,7 +12249,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   /*
     In case the user has a default role set, attempt to set that role
   */
-  if (acl_user->default_rolename.length) {
+  if (initialized && acl_user->default_rolename.length) {
     ulonglong access= 0;
     int result;
     result= acl_check_setrole(thd, acl_user->default_rolename.str, &access);
