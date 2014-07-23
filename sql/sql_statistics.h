@@ -147,7 +147,7 @@ private:
     case SINGLE_PREC_HB:
       return (uint) (((uint8 *) values)[i]);
     case DOUBLE_PREC_HB:
-      return (uint) (((uint16 *) values)[i]);
+      return (uint) uint2korr(values + i * 2);
     }
     return 0;
   }
@@ -214,7 +214,7 @@ public:
       ((uint8 *) values)[i]= (uint8) (val * prec_factor());
       return;
     case DOUBLE_PREC_HB:
-      ((uint16 *) values)[i]= (uint16) (val * prec_factor());
+      int2store(values + i * 2, val * prec_factor());
       return;
     }
   }
@@ -226,7 +226,7 @@ public:
       ((uint8 *) values)[i]= ((uint8 *) values)[i-1];
       return;
     case DOUBLE_PREC_HB:
-      ((uint16 *) values)[i]= ((uint16 *) values)[i-1];
+      int2store(values + i * 2, uint2korr(values + i * 2 - 2));
       return;
     }
   }

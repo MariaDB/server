@@ -602,7 +602,7 @@ String *Item_func_decode_histogram::val_str(String *str)
       val= p[i] / ((double)((1 << 8) - 1));
       break;
     case DOUBLE_PREC_HB:
-      val= ((uint16 *)(p + i))[0] / ((double)((1 << 16) - 1));
+      val= uint2korr(p + i) / ((double)((1 << 16) - 1));
       i++;
       break;
     default:
