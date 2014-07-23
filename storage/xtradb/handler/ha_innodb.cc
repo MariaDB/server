@@ -18256,7 +18256,7 @@ static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   /* We use here the largest number of supported compression method to
   enable all those methods that are available. Availability of compression
   method is verified on innodb_compression_algorithm_validate function. */
-  PAGE_ALGORITHM_LAST,
+  PAGE_UNCOMPRESSED,
   &page_compression_algorithms_typelib);
 
 static MYSQL_SYSVAR_LONG(mtflush_threads, srv_mtflush_threads,
