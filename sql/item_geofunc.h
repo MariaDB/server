@@ -20,6 +20,11 @@
 
 /* This file defines all spatial functions */
 
+#ifdef USE_PRAGMA_INTERFACE
+#pragma interface			/* gcc class implementation */
+#endif
+
+#include <bitset>
 #include "sql_type_geom.h"
 #include "item.h"
 #include "gstream.h"
@@ -1220,6 +1225,33 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
+};
+
+
+class Item_func_geohash: public Item_geometry_func
+{
+  void encode_geohash(String *str, double longitude, double latitude,
+                      uint length);
+  void set_bit(double &max_value, double &min_value, const double &target_value,
+               std::bitset<5> &base_set, const uint &bit_index);
+  bool is_invalid_length_field(enum_field_types field_type);
+  bool is_invalid_longitude_field(enum_field_types field_type);
+  bool is_invalid_latitude_field(enum_field_types field_type);
+
+public:
+  Item_func_geohash(THD *thd, Item *point, Item *max_length):
+    Item_geometry_func(thd, point, max_length) {}
+  Item_func_geohash(THD *thd, Item *longitude, Item *latitude,
+                    Item *max_length):
+    Item_geometry_func(thd, longitude, latitude, max_length) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geohash") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_geohash>(thd, this); }
 };
 
 
