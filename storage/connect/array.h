@@ -44,7 +44,7 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
           int   GetSize(void) {return Size;}
 //        PVAL  GetValp(void) {return Valp;}
           void  SetType(int atype) {Type = atype;}
-          void  SetCorrel(bool b) {Correlated = b;}
+//        void  SetCorrel(bool b) {Correlated = b;}
 
   // Methods
   virtual void  Reset(void) {Bot = -1;}
@@ -54,7 +54,7 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
 //virtual int   CheckSpcCol(PTDB, int) {return 0;}
   virtual void  Print(PGLOBAL g, FILE *f, uint n);
   virtual void  Print(PGLOBAL g, char *ps, uint z);
-          void  Empty(void);
+//        void  Empty(void);
           void  SetPrecision(PGLOBAL g, int p);
           bool  AddValue(PGLOBAL g, PSZ sp);
           bool  AddValue(PGLOBAL g, short n);
@@ -92,7 +92,7 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
   int    Bot;           // Bottom of research index
   int    Top;           // Top    of research index
   int    X, Inf, Sup;   // Used for block optimization
-  bool   Correlated;    // -----------> Temporary
+//bool   Correlated;    // -----------> Temporary
   }; // end of class ARRAY
 
 /***********************************************************************/

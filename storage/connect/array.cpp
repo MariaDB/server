@@ -254,7 +254,6 @@ ARRAY::ARRAY(PGLOBAL g, PARRAY par, int k) : CSORT(FALSE)
   Value = AllocateValue(g, Type, Len, prec, NULL);
   Constant = TRUE;
   } // end of ARRAY constructor
-#endif // 0
 
 /***********************************************************************/
 /*  Empty: reset the array for a new use (correlated queries).         */
@@ -267,6 +266,7 @@ void ARRAY::Empty(void)
   Nval = Ndif = 0;
   Bot = Top = X = Inf = Sup = 0;
   } // end of Empty
+#endif // 0
 
 /***********************************************************************/
 /*  Add a string element to an array.                                  */
@@ -741,7 +741,7 @@ bool ARRAY::Sort(PGLOBAL g)
     Nval = Ndif;
     } // endif ndif
 
-  if (!Correlated) {
+//if (!Correlated) {
     if (Size > Nval) {
       Size = Nval;
       Valblk->ReAllocate(g, Size);
@@ -751,7 +751,7 @@ bool ARRAY::Sort(PGLOBAL g)
     PlgDBfree(Index);
     PlgDBfree(Offset);
     Xsize = -1;
-    } // endif Correlated
+//  } // endif Correlated
 
   Bot = -1;                // For non optimized search
   Top = Ndif;              //   Find searches the whole array.
