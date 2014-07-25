@@ -94,7 +94,7 @@ fil_decompress_page_2(
 {
 	ulint	page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
 
-	if (page_type != FIL_PAGE_COMPRESSED) {
+	if (page_type != FIL_PAGE_TYPE_COMPRESSED) {
 		/* It is not a compressed page */
 		return;
 	}
@@ -470,7 +470,7 @@ fil_decompress_page(
 	ptype = mach_read_from_2(buf+FIL_PAGE_TYPE);
 
 	/* Do not try to uncompressed pages that are not compressed */
-	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED && ptype != FIL_PAGE_COMPRESSED) {
+	if (ptype !=  FIL_PAGE_PAGE_COMPRESSED && ptype != FIL_PAGE_TYPE_COMPRESSED) {
 		return;
 	}
 
@@ -485,7 +485,7 @@ fil_decompress_page(
 		in_buf = page_buf;
 	}
 
-	if (ptype == FIL_PAGE_COMPRESSED) {
+	if (ptype == FIL_PAGE_TYPE_COMPRESSED) {
 
 		fil_decompress_page_2(in_buf, buf, len, write_size);
 		// Need to free temporal buffer if no buffer was given

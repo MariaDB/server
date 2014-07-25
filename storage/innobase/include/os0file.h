@@ -317,12 +317,12 @@ The wrapper functions have the prefix of "innodb_". */
 			n, message1, message2, write_size,              \
 		page_compression, page_compression_level, __FILE__, __LINE__)
 
-# define os_file_read(file, buf, offset, n)				\
-	pfs_os_file_read_func(file, buf, offset, n, __FILE__, __LINE__)
+# define os_file_read(file, buf, offset, n, compressed)			\
+	pfs_os_file_read_func(file, buf, offset, n, compressed, __FILE__, __LINE__)
 
-# define os_file_read_no_error_handling(file, buf, offset, n)		\
+# define os_file_read_no_error_handling(file, buf, offset, n, compressed) \
 	pfs_os_file_read_no_error_handling_func(file, buf, offset, n,	\
-						__FILE__, __LINE__)
+		                                compressed, __FILE__, __LINE__)
 
 # define os_file_write(name, file, buf, offset, n)	\
 	pfs_os_file_write_func(name, file, buf, offset,	\
@@ -360,11 +360,11 @@ to original un-instrumented file I/O APIs */
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
 		message1, message2, write_size, page_compression, page_compression_level)
 
-# define os_file_read(file, buf, offset, n)	\
-	os_file_read_func(file, buf, offset, n)
+# define os_file_read(file, buf, offset, n, compressed)	\
+	os_file_read_func(file, buf, offset, n, compressed)
 
-# define os_file_read_no_error_handling(file, buf, offset, n)		\
-	os_file_read_no_error_handling_func(file, buf, offset, n)
+# define os_file_read_no_error_handling(file, buf, offset, n, compressed) \
+	os_file_read_no_error_handling_func(file, buf, offset, n, compressed)
 
 # define os_file_write(name, file, buf, offset, n)			\
 	os_file_write_func(name, file, buf, offset, n)
@@ -715,6 +715,8 @@ pfs_os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed, /*!< in: is this file space
+				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -733,6 +735,8 @@ pfs_os_file_read_no_error_handling_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed, /*!< in: is this file space
+				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -928,7 +932,9 @@ os_file_read_func(
 	os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
-	ulint		n);	/*!< in: number of bytes to read */
+	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed); /*!< in: is this file space
+				    compressed ? */
 /*******************************************************************//**
 Rewind file to its start, read at most size - 1 bytes from it to str, and
 NUL-terminate str. All errors are silently ignored. This function is
@@ -953,7 +959,9 @@ os_file_read_no_error_handling_func(
 	os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
-	ulint		n);	/*!< in: number of bytes to read */
+	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed); /*!< in: is this file space
+				     compressed ? */
 
 /*******************************************************************//**
 NOTE! Use the corresponding macro os_file_write(), not directly this
@@ -970,6 +978,7 @@ os_file_write_func(
 	const void*	buf,	/*!< in: buffer from which to write */
 	os_offset_t	offset,	/*!< in: file offset where to write */
 	ulint		n);	/*!< in: number of bytes to write */
+
 /*******************************************************************//**
 Check the existence and type of the given file.
 @return	TRUE if call succeeded */

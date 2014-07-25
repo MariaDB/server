@@ -182,8 +182,8 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 #define FIL_PAGE_TYPE_BLOB	10	/*!< Uncompressed BLOB page */
 #define FIL_PAGE_TYPE_ZBLOB	11	/*!< First compressed BLOB page */
 #define FIL_PAGE_TYPE_ZBLOB2	12	/*!< Subsequent compressed BLOB page */
-#define FIL_PAGE_COMPRESSED	13	/*!< Compressed page */
-#define FIL_PAGE_TYPE_LAST	FIL_PAGE_COMPRESSED
+#define FIL_PAGE_TYPE_COMPRESSED	13	/*!< Compressed page */
+#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_COMPRESSED
 					/*!< Last page type */
 /* @} */
 
@@ -425,8 +425,10 @@ fil_read_first_page(
 	ulint*		space_id,		/*!< out: tablespace ID */
 	lsn_t*		min_flushed_lsn,	/*!< out: min of flushed
 						lsn values in data files */
-	lsn_t*		max_flushed_lsn)	/*!< out: max of flushed
+	lsn_t*		max_flushed_lsn,	/*!< out: max of flushed
 						lsn values in data files */
+	ulint		orig_space_id)		/*!< in: file space id or
+						ULINT_UNDEFINED */
 	__attribute__((warn_unused_result));
 /*******************************************************************//**
 Increments the count of pending operation, if space is not being deleted.

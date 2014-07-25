@@ -283,7 +283,7 @@ log_online_read_bitmap_page(
 	ut_a(bitmap_file->offset % MODIFIED_PAGE_BLOCK_SIZE == 0);
 
 	success = os_file_read(bitmap_file->file, page, bitmap_file->offset,
-			       MODIFIED_PAGE_BLOCK_SIZE);
+		               MODIFIED_PAGE_BLOCK_SIZE, FALSE);
 
 	if (UNIV_UNLIKELY(!success)) {
 
@@ -1104,7 +1104,7 @@ log_online_write_bitmap_page(
 
 	success = os_file_write(log_bmp_sys->out.name, log_bmp_sys->out.file,
 				block, log_bmp_sys->out.offset,
-				MODIFIED_PAGE_BLOCK_SIZE);
+		                MODIFIED_PAGE_BLOCK_SIZE);
 	if (UNIV_UNLIKELY(!success)) {
 
 		/* The following call prints an error message */

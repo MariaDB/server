@@ -1028,7 +1028,7 @@ skip_size_check:
 check_first_page:
 			check_msg = fil_read_first_page(
 				files[i], one_opened, &flags, &space,
-				min_flushed_lsn, max_flushed_lsn);
+				min_flushed_lsn, max_flushed_lsn, ULINT_UNDEFINED);
 
 			if (check_msg) {
 

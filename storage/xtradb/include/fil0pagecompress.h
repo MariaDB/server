@@ -47,6 +47,14 @@ fil_space_is_page_compressed(
 /*=========================*/
 	ulint   id);	/*!< in: space id */
 /*******************************************************************//**
+Returns the page compression flag of the space, or false if the space
+is not compressed. The tablespace must be cached in the memory cache.
+@return	true if page compressed, false if not or space not found */
+ibool
+fil_space_get_page_compressed(
+/*=========================*/
+	fil_space_t*	space);	/*!< in: space id */
+/*******************************************************************//**
 Returns the atomic writes flag of the space, or false if the space
 is not using atomic writes. The tablespace must be cached in the memory cache.
 @return	atomic write table option value */
