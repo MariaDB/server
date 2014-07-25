@@ -184,6 +184,33 @@ sync_array_get_nth_cell(
 }
 
 /******************************************************************//**
+Looks for a cell with the given thread id.
+@return	pointer to cell or NULL if not found */
+static
+sync_cell_t*
+sync_array_find_thread(
+/*===================*/
+	sync_array_t*	arr,	/*!< in: wait array */
+	os_thread_id_t	thread)	/*!< in: thread id */
+{
+	ulint		i;
+	sync_cell_t*	cell;
+
+	for (i = 0; i < arr->n_cells; i++) {
+
+		cell = sync_array_get_nth_cell(arr, i);
+
+		if (cell->wait_object != NULL
+		    && os_thread_eq(cell->thread, thread)) {
+
+			return(cell);	/* Found */
+		}
+	}
+
+	return(NULL);	/* Not found */
+}
+
+/******************************************************************//**
 Reserves the mutex semaphore protecting a sync array. */
 static
 void
@@ -442,8 +469,10 @@ static
 void
 sync_array_cell_print(
 /*==================*/
-	FILE*		file,	/*!< in: file where to print */
-	sync_cell_t*	cell)	/*!< in: sync cell */
+	FILE*		file,		/*!< in: file where to print */
+	sync_cell_t*	cell,		/*!< in: sync cell */
+	os_thread_id_t* reserver)	/*!< out: write reserver or
+					0 */
 {
 	ib_mutex_t*	mutex;
 	ib_prio_mutex_t*	prio_mutex;
@@ -549,6 +578,8 @@ sync_array_cell_print(
 					writer == RW_LOCK_EX
 					? " exclusive\n"
 					: " wait exclusive\n");
+
+				*reserver = rwlock->writer_thread;
 			}
 
 			fprintf(file,
@@ -594,32 +625,6 @@ sync_array_cell_print(
 }
 
 #ifdef UNIV_SYNC_DEBUG
-/******************************************************************//**
-Looks for a cell with the given thread id.
-@return	pointer to cell or NULL if not found */
-static
-sync_cell_t*
-sync_array_find_thread(
-/*===================*/
-	sync_array_t*	arr,	/*!< in: wait array */
-	os_thread_id_t	thread)	/*!< in: thread id */
-{
-	ulint		i;
-	sync_cell_t*	cell;
-
-	for (i = 0; i < arr->n_cells; i++) {
-
-		cell = sync_array_get_nth_cell(arr, i);
-
-		if (cell->wait_object != NULL
-		    && os_thread_eq(cell->thread, thread)) {
-
-			return(cell);	/* Found */
-		}
-	}
-
-	return(NULL);	/* Not found */
-}
 
 /******************************************************************//**
 Recursion step for deadlock detection.
@@ -681,6 +686,7 @@ sync_array_detect_deadlock(
 	os_thread_id_t	thread;
 	ibool		ret;
 	rw_lock_debug_t*debug;
+	os_thread_id_t  r = 0;
 
 	ut_a(arr);
 	ut_a(start);
@@ -725,7 +731,7 @@ sync_array_detect_deadlock(
 			"Mutex %p owned by thread %lu file %s line %lu\n",
 					mutex, (ulong) os_thread_pf(mutex->thread_id),
 					mutex->file_name, (ulong) mutex->line);
-				sync_array_cell_print(stderr, cell);
+				sync_array_cell_print(stderr, cell, &r);
 
 				return(TRUE);
 			}
@@ -764,7 +770,7 @@ sync_array_detect_deadlock(
 print:
 					fprintf(stderr, "rw-lock %p ",
 						(void*) lock);
-					sync_array_cell_print(stderr, cell);
+					sync_array_cell_print(stderr, cell, &r);
 					rw_lock_debug_print(stderr, debug);
 					return(TRUE);
 				}
@@ -1019,6 +1025,7 @@ sync_array_print_long_waits_low(
 		double		diff;
 		sync_cell_t*	cell;
 		void*		wait_object;
+		os_thread_id_t  reserver=0;
 
 		cell = sync_array_get_nth_cell(arr, i);
 
@@ -1034,7 +1041,7 @@ sync_array_print_long_waits_low(
 		if (diff > SYNC_ARRAY_TIMEOUT) {
 			fputs("InnoDB: Warning: a long semaphore wait:\n",
 			      stderr);
-			sync_array_cell_print(stderr, cell);
+			sync_array_cell_print(stderr, cell, &reserver);
 			*noticed = TRUE;
 		}
 
@@ -1046,6 +1053,54 @@ sync_array_print_long_waits_low(
 			longest_diff = diff;
 			*sema = wait_object;
 			*waiter = cell->thread;
+		}
+	}
+
+	/* We found a long semaphore wait, wait all threads that are
+	waiting for a semaphore. */
+	if (*noticed) {
+		for (i = 0; i < arr->n_cells; i++) {
+			void*	wait_object;
+			sync_cell_t*	cell;
+			os_thread_id_t reserver=0;
+			ulint loop=0;
+
+			cell = sync_array_get_nth_cell(arr, i);
+
+			wait_object = cell->wait_object;
+
+			if (wait_object == NULL || !cell->waiting) {
+
+				continue;
+			}
+
+			fputs("InnoDB: Warning: semaphore wait:\n",
+			      stderr);
+			sync_array_cell_print(stderr, cell, &reserver);
+
+			/* Try to output cell information for writer recursive way */
+			while (reserver != 0) {
+				sync_cell_t* reserver_wait;
+
+				reserver_wait = sync_array_find_thread(arr, reserver);
+
+				if (reserver_wait &&
+					reserver_wait->wait_object != NULL &&
+					reserver_wait->waiting) {
+					fputs("InnoDB: Warning: Writer thread is waiting this semaphore:\n",
+						stderr);
+					sync_array_cell_print(stderr, reserver_wait, &reserver);
+					loop++;
+				} else {
+					reserver = 0;
+				}
+
+				/* This is protection against loop */
+				if (loop > 100) {
+					fputs("InnoDB: Warning: Too many waiting threads.\n", stderr);
+					break;
+				}
+			}
 		}
 	}
 
@@ -1135,12 +1190,13 @@ sync_array_print_info_low(
 
 	for (i = 0; count < arr->n_reserved; ++i) {
 		sync_cell_t*	cell;
+		os_thread_id_t  r = 0;
 
 		cell = sync_array_get_nth_cell(arr, i);
 
 		if (cell->wait_object != NULL) {
 			count++;
-			sync_array_cell_print(file, cell);
+			sync_array_cell_print(file, cell, &r);
 		}
 	}
 }
