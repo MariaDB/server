@@ -5303,16 +5303,16 @@ os_aio_windows_handle(
 		case OS_FILE_WRITE:
 			if (slot->message1 && slot->page_compression && slot->page_buf) {
 				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
-					slot->offset, slot->len);
+					                slot->offset, slot->len);
 			} else {
 
 				ret_val = os_file_write(slot->name, slot->file, slot->buf,
-					slot->offset, slot->len);
+					                slot->offset, slot->len);
 			}
 			break;
 		case OS_FILE_READ:
 			ret_val = os_file_read(slot->file, slot->buf,
-				slot->offset, slot->len);
+				               slot->offset, slot->len, slot->page_compression);
 			break;
 		default:
 			ut_error;
