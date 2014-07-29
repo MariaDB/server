@@ -5345,16 +5345,12 @@ os_aio_windows_handle(
 		}
 
 #ifdef HAVE_LZO
-		if (slot->page_compressed &&
-		    innodb_compression_algorithm == 3 &&
-		    slot->lzo_mem == NULL) {
+		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
 			os_slot_alloc_lzo_mem(slot);
 		}
 #endif
 	        if (slot->type == OS_FILE_READ) {
-			if (slot->page_compressed) {
-				fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-			}
+			fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 		} else {
 			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
 				if (srv_use_trim && os_fallocate_failed == FALSE) {
