@@ -758,6 +758,13 @@ typedef struct system_status_var
 #define last_system_status_var questions
 #define last_cleared_system_status_var memory_used
 
+/*
+  Global status variables
+*/
+
+extern ulong feature_files_opened_with_delayed_keys;
+
+
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
@@ -2501,8 +2508,6 @@ public:
   /** Idle instrumentation state. */
   PSI_idle_locker_state m_idle_state;
 #endif /* HAVE_PSI_IDLE_INTERFACE */
-  /** True if the server code is IDLE for this connection. */
-  bool m_server_idle;
 
   /*
     Id of current query. Statement can be reused to execute several queries

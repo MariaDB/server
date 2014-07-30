@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     goto err;
   }
   if (init_pagecache(maria_pagecache, opt_page_buffer_size, 0, 0,
-                     maria_block_size, MY_WME) == 0)
+                     maria_block_size, 0, MY_WME) == 0)
   {
     fprintf(stderr, "Got error in init_pagecache() (errno: %d)\n", errno);
     goto err;
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     which is useless. TODO: start log handler in read-only mode.
   */
   if (init_pagecache(maria_log_pagecache, opt_translog_buffer_size,
-                     0, 0, TRANSLOG_PAGE_SIZE, MY_WME) == 0 ||
+                     0, 0, TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0 ||
       translog_init(maria_data_root, TRANSLOG_FILE_SIZE,
                     0, 0, maria_log_pagecache, TRANSLOG_DEFAULT_FLAGS,
                     opt_display_only))

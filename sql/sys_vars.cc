@@ -1060,6 +1060,17 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
        BLOCK_SIZE(100), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(change_keycache_param));
 
+static Sys_var_keycache Sys_key_cache_file_hash_size(
+       "key_cache_file_hash_size",
+       "Number of hash buckets for open and changed files.  If you have a lot of MyISAM "
+       "files open you should increase this for faster flush of changes. A good "
+       "value is probably 1/10 of number of possible open MyISAM files.",
+       KEYCACHE_VAR(changed_blocks_hash_size),
+       CMD_LINE(REQUIRED_ARG, OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE),
+       VALID_RANGE(128, 16384), DEFAULT(512),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(resize_keycache));
+
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
        "Whether mysqld was compiled with options for large file support",

@@ -104,7 +104,9 @@ typedef struct st_pagecache_hash_link PAGECACHE_HASH_LINK;
 
 #include <wqueue.h>
 
-#define PAGECACHE_CHANGED_BLOCKS_HASH 128  /* must be power of 2 */
+/* Default size of hash for changed files */
+#define MIN_PAGECACHE_CHANGED_BLOCKS_HASH_SIZE 512
+
 #define PAGECACHE_PRIORITY_LOW 0
 #define PAGECACHE_PRIORITY_DEFAULT 3
 #define PAGECACHE_PRIORITY_HIGH 6
@@ -121,6 +123,7 @@ typedef struct st_pagecache
   ulong age_threshold;           /* age threshold for hot blocks             */
   ulonglong time;                /* total number of block link operations    */
   ulong hash_entries;            /* max number of entries in the hash table  */
+  ulong changed_blocks_hash_size; /* Number of hash buckets for file blocks   */
   long hash_links;               /* max number of hash links                 */
   long hash_links_used;   /* number of hash links taken from free links pool */
   long disk_blocks;              /* max number of blocks in the cache        */
@@ -145,9 +148,9 @@ typedef struct st_pagecache
   WQUEUE waiting_for_hash_link;/* waiting for a free hash link     */
   WQUEUE waiting_for_block;   /* requests waiting for a free block */
   /* hash for dirty file bl.*/
-  PAGECACHE_BLOCK_LINK *changed_blocks[PAGECACHE_CHANGED_BLOCKS_HASH];
+  PAGECACHE_BLOCK_LINK **changed_blocks;
   /* hash for other file bl.*/
-  PAGECACHE_BLOCK_LINK *file_blocks[PAGECACHE_CHANGED_BLOCKS_HASH];
+  PAGECACHE_BLOCK_LINK **file_blocks;
 
   /*
     The following variables are and variables used to hold parameters for
@@ -195,10 +198,11 @@ extern PAGECACHE dflt_pagecache_var, *dflt_pagecache;
 
 extern ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                             uint division_limit, uint age_threshold,
-                            uint block_size, myf my_read_flags);
+                            uint block_size, uint changed_blocks_hash_size,
+                            myf my_read_flags);
 extern ulong resize_pagecache(PAGECACHE *pagecache,
                               size_t use_mem, uint division_limit,
-                              uint age_threshold);
+                              uint age_threshold, uint changed_blocks_hash_size);
 extern void change_pagecache_param(PAGECACHE *pagecache, uint division_limit,
                                    uint age_threshold);
 

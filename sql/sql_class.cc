@@ -876,7 +876,6 @@ THD::THD()
    accessed_rows_and_keys(0),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
-   m_server_idle(false),
    thread_id(0),
    global_disable_checkpoint(0),
    failed_com_change_user(0),
