@@ -4971,7 +4971,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   const char *db= create_table->db;
   const char *table_name= create_table->table_name;
   bool is_trans= FALSE;
-  bool result= 0;
+  bool result;
   int create_table_mode;
   TABLE_LIST *pos_in_locked_tables= 0;
   MDL_ticket *mdl_ticket= 0;
@@ -4979,8 +4979,16 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   DBUG_ASSERT(create_table == thd->lex->query_tables);
 
+  /* Copy temporarily the statement flags to thd for lock_table_names() */
+  uint save_thd_create_info_options= thd->lex->create_info.options;
+  thd->lex->create_info.options|= create_info->options;
+
   /* Open or obtain an exclusive metadata lock on table being created  */
-  if (open_and_lock_tables(thd, create_table, FALSE, 0))
+  result= open_and_lock_tables(thd, create_table, FALSE, 0);
+
+  thd->lex->create_info.options= save_thd_create_info_options;
+
+  if (result)
   {
     /* is_error() may be 0 if table existed and we generated a warning */
     DBUG_RETURN(thd->is_error());
@@ -5275,7 +5283,14 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     Thus by holding both these locks we ensure that our statement is
     properly isolated from all concurrent operations which matter.
   */
-  if (open_tables(thd, &thd->lex->query_tables, &not_used, 0))
+
+  /* Copy temporarily the statement flags to thd for lock_table_names() */
+  uint save_thd_create_info_options= thd->lex->create_info.options;
+  thd->lex->create_info.options|= create_info->options;
+  res= open_tables(thd, &thd->lex->query_tables, &not_used, 0);
+  thd->lex->create_info.options= save_thd_create_info_options;
+
+  if (res)
   {
     res= thd->is_error();
     goto err;
