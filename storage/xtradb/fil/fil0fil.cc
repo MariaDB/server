@@ -6823,3 +6823,46 @@ fil_space_name(
 {
 	return (space->name);
 }
+
+/*******************************************************************//**
+Return page type name */
+char*
+fil_get_page_type_name(
+/*===================*/
+	ulint	page_type)	/*!< in: FIL_PAGE_TYPE */
+{
+	switch(page_type) {
+	case FIL_PAGE_PAGE_COMPRESSED:
+		return "PAGE_COMPRESSED";
+	case FIL_PAGE_INDEX:
+		return "INDEX";
+	case FIL_PAGE_UNDO_LOG:
+		return "UNDO LOG";
+	case FIL_PAGE_INODE:
+		return "INODE";
+	case FIL_PAGE_IBUF_FREE_LIST:
+		return "IBUF_FREE_LIST";
+	case FIL_PAGE_TYPE_ALLOCATED:
+		return "ALLOCATED";
+	case FIL_PAGE_IBUF_BITMAP:
+		return "IBUF_BITMAP";
+	case FIL_PAGE_TYPE_SYS:
+		return "SYS";
+	case FIL_PAGE_TYPE_TRX_SYS:
+		return "TRX_SYS";
+	case FIL_PAGE_TYPE_FSP_HDR:
+		return "FSP_HDR";
+	case FIL_PAGE_TYPE_XDES:
+		return "XDES";
+	case FIL_PAGE_TYPE_BLOB:
+		return "BLOB";
+	case FIL_PAGE_TYPE_ZBLOB:
+		return "ZBLOB";
+	case FIL_PAGE_TYPE_ZBLOB2:
+		return "ZBLOB2";
+	case FIL_PAGE_TYPE_COMPRESSED:
+		return "ORACLE PAGE COMPRESSED";
+	default:
+		return "PAGE TYPE CORRUPTED";
+	}
+}

@@ -1117,4 +1117,11 @@ os_file_handle_error_no_exit(
 	const char*	file,		/*!< in: file name */
 	const ulint	line);		/*!< in: line */
 
+/*******************************************************************//**
+Return page type name */
+char*
+fil_get_page_type_name(
+/*===================*/
+	ulint	page_type);	/*!< in: FIL_PAGE_TYPE */
+
 #endif /* fil0fil_h */

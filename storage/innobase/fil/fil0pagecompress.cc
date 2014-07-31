@@ -268,6 +268,9 @@ fil_compress_page(
         int level = 0;
         ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
+	ulint comp_method = innodb_compression_algorithm; /* Cache to avoid
+							  change during
+							  function execution */
 
 	ut_ad(buf);
 	ut_ad(out_buf);
@@ -295,7 +298,7 @@ fil_compress_page(
 
 	write_size = UNIV_PAGE_SIZE - header_len;
 
-	switch(innodb_compression_algorithm) {
+	switch(comp_method) {
 #ifdef HAVE_LZ4
 	case PAGE_LZ4_ALGORITHM:
 		err = LZ4_compress_limitedOutput((const char *)buf,
@@ -346,6 +349,10 @@ fil_compress_page(
 			(size_t)&write_size);
 
 		if (err != LZMA_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+			fprintf(stderr,
+				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+				space_id, fil_space_name(space), len, err, write_size);
+
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
@@ -367,6 +374,9 @@ fil_compress_page(
 			0);
 
 		if (err != BZ_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+			fprintf(stderr,
+				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
+				space_id, fil_space_name(space), len, err, write_size);
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
@@ -408,7 +418,7 @@ fil_compress_page(
 	/* Set up the correct page type */
 	mach_write_to_2(out_buf+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED);
 	/* Set up the flush lsn to be compression algorithm */
-	mach_write_to_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN, innodb_compression_algorithm);
+	mach_write_to_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN, comp_method);
 	/* Set up the actual payload lenght */
 	mach_write_to_2(out_buf+FIL_PAGE_DATA, write_size);
 
@@ -417,7 +427,25 @@ fil_compress_page(
 	ut_ad(fil_page_is_compressed(out_buf));
 	ut_ad(mach_read_from_4(out_buf+FIL_PAGE_SPACE_OR_CHKSUM) == BUF_NO_CHECKSUM_MAGIC);
 	ut_ad(mach_read_from_2(out_buf+FIL_PAGE_DATA) == write_size);
-	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN) == (ulint)innodb_compression_algorithm);
+	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN) == (ulint)comp_method);
+
+	/* Verify that page can be decompressed */
+	{
+		byte *comp_page;
+		byte *uncomp_page;
+
+		comp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		uncomp_page = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		memcpy(comp_page, out_buf, UNIV_PAGE_SIZE);
+
+		fil_decompress_page(uncomp_page, comp_page, len, NULL);
+		if(buf_page_is_corrupted(false, uncomp_page, 0)) {
+			buf_page_print(uncomp_page, 0, BUF_PAGE_PRINT_NO_CRASH);
+			ut_error;
+		}
+		ut_free(comp_page);
+		ut_free(uncomp_page);
+	}
 #endif /* UNIV_DEBUG */
 
 	write_size+=header_len;
@@ -481,7 +509,7 @@ fil_decompress_page(
 		fprintf(stderr,
 			"InnoDB: Note: FIL: Compression buffer not given, allocating...\n");
 #endif /* UNIV_PAGECOMPRESS_DEBUG */
-		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+		in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
 	} else {
 		in_buf = page_buf;
 	}

@@ -1073,4 +1073,12 @@ fil_space_name(
 /*===========*/
 	fil_space_t*	space);	/*!< in: space */
 #endif
+
+/*******************************************************************//**
+Return page type name */
+char*
+fil_get_page_type_name(
+/*===================*/
+	ulint	page_type);	/*!< in: FIL_PAGE_TYPE */
+
 #endif /* fil0fil_h */
