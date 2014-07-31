@@ -3517,9 +3517,12 @@ Open_table_context::recover_from_failed_open()
 /*
   Return a appropriate read lock type given a table object.
 
-  @param thd Thread context
-  @param prelocking_ctx Prelocking context.
-  @param table_list     Table list element for table to be locked.
+  @param thd              Thread context
+  @param prelocking_ctx   Prelocking context.
+  @param table_list       Table list element for table to be locked.
+  @param routine_modifies_data 
+                          Some routine that is invoked by statement 
+                          modifies data.
 
   @remark Due to a statement-based replication limitation, statements such as
           INSERT INTO .. SELECT FROM .. and CREATE TABLE .. SELECT FROM need
@@ -3532,9 +3535,13 @@ Open_table_context::recover_from_failed_open()
           This also applies to SELECT/SET/DO statements which use stored
           functions. Calls to such functions are going to be logged as a
           whole and thus should be serialized against concurrent changes
-          to tables used by those functions. This can be avoided if functions
-          only read data but doing so requires more complex analysis than it
-          is done now.
+          to tables used by those functions. This is avoided when functions
+          do not modify data but only read it, since in this case nothing is
+          written to the binary log. Argument routine_modifies_data
+          denotes the same. So effectively, if the statement is not a
+          update query and routine_modifies_data is false, then
+          prelocking_placeholder does not take importance.
+
           Furthermore, this does not apply to I_S and log tables as it's
           always unsafe to replicate such tables under statement-based
           replication as the table on the slave might contain other data
@@ -3549,7 +3556,8 @@ Open_table_context::recover_from_failed_open()
 
 thr_lock_type read_lock_type_for_table(THD *thd,
                                        Query_tables_list *prelocking_ctx,
-                                       TABLE_LIST *table_list)
+                                       TABLE_LIST *table_list,
+                                       bool routine_modifies_data)
 {
   /*
     In cases when this function is called for a sub-statement executed in
@@ -3564,7 +3572,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_PERFORMANCE) ||
       !(is_update_query(prelocking_ctx->sql_command) ||
-        table_list->prelocking_placeholder ||
+        (routine_modifies_data && table_list->prelocking_placeholder) ||
         (thd->locked_tables_mode > LTM_LOCK_TABLES)))
     return TL_READ;
   else
@@ -3577,19 +3585,21 @@ thr_lock_type read_lock_type_for_table(THD *thd,
   and, if prelocking strategy prescribes so, extend the prelocking set
   with tables and routines used by it.
 
-  @param[in]  thd                  Thread context.
-  @param[in]  prelocking_ctx       Prelocking context.
-  @param[in]  rt                   Element of prelocking set to be processed.
-  @param[in]  prelocking_strategy  Strategy which specifies how the
-                                   prelocking set should be extended when
-                                   one of its elements is processed.
-  @param[in]  has_prelocking_list  Indicates that prelocking set/list for
-                                   this statement has already been built.
-  @param[in]  ot_ctx               Context of open_table used to recover from
-                                   locking failures.
-  @param[out] need_prelocking      Set to TRUE if it was detected that this
-                                   statement will require prelocked mode for
-                                   its execution, not touched otherwise.
+  @param[in]  thd                   Thread context.
+  @param[in]  prelocking_ctx        Prelocking context.
+  @param[in]  rt                    Element of prelocking set to be processed.
+  @param[in]  prelocking_strategy   Strategy which specifies how the
+                                    prelocking set should be extended when
+                                    one of its elements is processed.
+  @param[in]  has_prelocking_list   Indicates that prelocking set/list for
+                                    this statement has already been built.
+  @param[in]  ot_ctx                Context of open_table used to recover from
+                                    locking failures.
+  @param[out] need_prelocking       Set to TRUE if it was detected that this
+                                    statement will require prelocked mode for
+                                    its execution, not touched otherwise.
+  @param[out] routine_modifies_data Set to TRUE if it was detected that this
+                                    routine does modify table data.
 
   @retval FALSE  Success.
   @retval TRUE   Failure (Conflicting metadata lock, OOM, other errors).
@@ -3601,10 +3611,12 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
                          Prelocking_strategy *prelocking_strategy,
                          bool has_prelocking_list,
                          Open_table_context *ot_ctx,
-                         bool *need_prelocking)
+                         bool *need_prelocking, bool *routine_modifies_data)
 {
   MDL_key::enum_mdl_namespace mdl_type= rt->mdl_request.key.mdl_namespace();
   DBUG_ENTER("open_and_process_routine");
+
+  *routine_modifies_data= false;
 
   switch (mdl_type)
   {
@@ -3658,10 +3670,13 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           DBUG_RETURN(TRUE);
 
         /* 'sp' is NULL when there is no such routine. */
-        if (sp && !has_prelocking_list)
+        if (sp)
         {
-          prelocking_strategy->handle_routine(thd, prelocking_ctx, rt, sp,
-                                              need_prelocking);
+          *routine_modifies_data= sp->modifies_data();
+
+          if (!has_prelocking_list)
+            prelocking_strategy->handle_routine(thd, prelocking_ctx, rt, sp,
+                                                need_prelocking);
         }
       }
       else
@@ -4006,16 +4021,7 @@ open_and_process_table(THD *thd, LEX *lex, TABLE_LIST *tables,
       goto end;
   }
 
-  if (tables->lock_type != TL_UNLOCK && ! thd->locked_tables_mode)
-  {
-    if (tables->lock_type == TL_WRITE_DEFAULT)
-      tables->table->reginfo.lock_type= thd->update_lock_default;
-    else if (tables->lock_type == TL_READ_DEFAULT)
-      tables->table->reginfo.lock_type=
-        read_lock_type_for_table(thd, lex, tables);
-    else
-      tables->table->reginfo.lock_type= tables->lock_type;
-  }
+  /* Copy grant information from TABLE_LIST instance to TABLE one. */
   tables->table->grant= tables->grant;
 
   /* Check and update metadata version of a base table. */
@@ -4354,6 +4360,7 @@ bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
   Open_table_context ot_ctx(thd, flags);
   bool error= FALSE;
   MEM_ROOT new_frm_mem;
+  bool some_routine_modifies_data= FALSE;
   bool has_prelocking_list;
   DBUG_ENTER("open_tables");
 
@@ -4526,11 +4533,16 @@ restart:
            sroutine_to_open= &rt->next, rt= rt->next)
       {
         bool need_prelocking= false;
+        bool routine_modifies_data;
         TABLE_LIST **save_query_tables_last= thd->lex->query_tables_last;
 
         error= open_and_process_routine(thd, thd->lex, rt, prelocking_strategy,
                                         has_prelocking_list, &ot_ctx,
-                                        &need_prelocking);
+                                        &need_prelocking,
+                                        &routine_modifies_data);
+
+        // Remember if any of SF modifies data.
+        some_routine_modifies_data|= routine_modifies_data;
 
         if (need_prelocking && ! thd->lex->requires_prelocking())
           thd->lex->mark_as_requiring_prelocking(save_query_tables_last);
@@ -4570,6 +4582,10 @@ restart:
     children, attach the children to their parents. At end of statement,
     the children are detached. Attaching and detaching are always done,
     even under LOCK TABLES.
+
+    We also convert all TL_WRITE_DEFAULT and TL_READ_DEFAULT locks to
+    appropriate "real" lock types to be used for locking and to be passed
+    to storage engine.
   */
   for (tables= *start; tables; tables= tables->next_global)
   {
@@ -4585,6 +4601,19 @@ restart:
         error= TRUE;
         goto err;
       }
+    }
+
+    /* Set appropriate TABLE::lock_type. */
+    if (tbl && tables->lock_type != TL_UNLOCK && !thd->locked_tables_mode)
+    {
+      if (tables->lock_type == TL_WRITE_DEFAULT)
+        tbl->reginfo.lock_type= thd->update_lock_default;
+      else if (tables->lock_type == TL_READ_DEFAULT)
+          tbl->reginfo.lock_type=
+            read_lock_type_for_table(thd, thd->lex, tables,
+                                     some_routine_modifies_data);
+      else
+        tbl->reginfo.lock_type= tables->lock_type;
     }
   }
 
@@ -4847,11 +4876,15 @@ static bool check_lock_and_start_stmt(THD *thd,
     engine is important as, for example, InnoDB uses it to determine
     what kind of row locks should be acquired when executing statement
     in prelocked mode or under LOCK TABLES with @@innodb_table_locks = 0.
+
+    Last argument routine_modifies_data for read_lock_type_for_table()
+    is ignored, as prelocking placeholder will never be set here.
   */
+  DBUG_ASSERT(table_list->prelocking_placeholder == false);
   if (table_list->lock_type == TL_WRITE_DEFAULT)
     lock_type= thd->update_lock_default;
   else if (table_list->lock_type == TL_READ_DEFAULT)
-    lock_type= read_lock_type_for_table(thd, prelocking_ctx, table_list);
+    lock_type= read_lock_type_for_table(thd, prelocking_ctx, table_list, true);
   else
     lock_type= table_list->lock_type;
 
