@@ -2135,6 +2135,9 @@ int
 innobase_mysql_tmpfile(void)
 /*========================*/
 {
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_wait(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 	int	fd2 = -1;
 	File	fd;
 
@@ -19194,6 +19197,40 @@ static MYSQL_SYSVAR_BOOL(disable_background_merge,
   NULL, NULL, FALSE);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/*******************************************************
+ *    innobase_disallow_writes variable definition     *
+ *******************************************************/
+ 
+/* Must always init to FALSE. */
+static my_bool	innobase_disallow_writes	= FALSE;
+
+/**************************************************************************
+An "update" method for innobase_disallow_writes variable. */
+static
+void
+innobase_disallow_writes_update(
+/*============================*/
+	THD*			thd,		/* in: thread handle */
+	st_mysql_sys_var*	var,		/* in: pointer to system
+						variable */
+	void*			var_ptr,	/* out: pointer to dynamic
+						variable */
+	const void*		save)		/* in: temporary storage */
+{
+	*(my_bool*)var_ptr = *(my_bool*)save;
+	ut_a(srv_allow_writes_event);
+	if (*(my_bool*)var_ptr)
+		os_event_reset(srv_allow_writes_event);
+	else
+		os_event_set(srv_allow_writes_event);
+}
+
+static MYSQL_SYSVAR_BOOL(disallow_writes, innobase_disallow_writes,
+  PLUGIN_VAR_NOCMDOPT,
+  "Tell InnoDB to stop any writes to disk",
+  NULL, innobase_disallow_writes_update, FALSE);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 static MYSQL_SYSVAR_BOOL(random_read_ahead, srv_random_read_ahead,
   PLUGIN_VAR_NOCMDARG,
   "Whether to use read ahead for random access within an extent.",
@@ -19458,6 +19495,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(change_buffering_debug),
   MYSQL_SYSVAR(disable_background_merge),
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+#ifdef WITH_INNODB_DISALLOW_WRITES
+  MYSQL_SYSVAR(disallow_writes),
+#endif /* WITH_INNODB_DISALLOW_WRITES */
   MYSQL_SYSVAR(random_read_ahead),
   MYSQL_SYSVAR(read_ahead_threshold),
   MYSQL_SYSVAR(read_only),

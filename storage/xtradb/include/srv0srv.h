@@ -279,6 +279,10 @@ extern uint	srv_flush_log_at_timeout;
 extern char	srv_use_global_flush_log_at_trx_commit;
 extern char	srv_adaptive_flushing;
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/* When this event is reset we do not allow any file writes to take place. */
+extern os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
 even if they are marked as "corrupted". Mostly it is for DBA to process
 corrupted index and table */

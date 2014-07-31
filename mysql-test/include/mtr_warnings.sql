@@ -234,8 +234,6 @@ INSERT INTO global_suppressions VALUES
  ("WSREP: last inactive check more than .* skipping check"),
  ("WSREP: Gap in state sequence. Need state transfer."),
  ("WSREP: Failed to prepare for incremental state transfer: .*"),
- ("WSREP: error executing 'SET GLOBAL innodb_disallow_writes=.*"),
- ("WSREP: Failed to disallow InnoDB writes"),
  ("THE_LAST_SUPPRESSION")||
 
 
