@@ -966,7 +966,7 @@ sync_array_print_long_waits_low(
 	if (*noticed) {
 		for (i = 0; i < arr->n_cells; i++) {
 			void*	wait_object;
-			os_thread_id_t reserver=ULINT_UNDEFINED;
+			os_thread_id_t reserver=(os_thread_id_t)ULINT_UNDEFINED;
 			sync_cell_t*	cell;
 			ulint loop = 0;
 
@@ -984,7 +984,7 @@ sync_array_print_long_waits_low(
 			sync_array_cell_print(stderr, cell, &reserver);
 
 			/* Try to output cell information for writer recursive way */
-			while (reserver != ULINT_UNDEFINED) {
+			while (reserver != (os_thread_id_t)ULINT_UNDEFINED) {
 				sync_cell_t* reserver_wait;
 
 				reserver_wait = sync_array_find_thread(arr, reserver);
@@ -999,11 +999,12 @@ sync_array_print_long_waits_low(
 					loop++;
 
 					if (reserver_wait->thread == reserver) {
-						reserver = ULINT_UNDEFINED;
+						reserver = (os_thread_id_t)ULINT_UNDEFINED;
 					}
 				} else {
-					reserver = ULINT_UNDEFINED;
+					reserver = (os_thread_id_t)ULINT_UNDEFINED;
 				}
+
 				/* This is protection against loop */
 				if (loop > 100) {
 					fputs("InnoDB: Warning: Too many waiting threads.\n", stderr);
