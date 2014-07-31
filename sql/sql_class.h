@@ -2894,6 +2894,11 @@ public:
 
   // End implementation of MDL_context_owner interface.
 
+  inline bool use_cond_push(handler *file)
+  {
+    return (variables.optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN)
+        || (file->ha_table_flags() & HA_MUST_USE_TABLE_CONDITION_PUSHDOWN);
+  }
   inline bool is_strict_mode() const
   {
     return (bool) (variables.sql_mode & (MODE_STRICT_TRANS_TABLES |

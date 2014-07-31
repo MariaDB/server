@@ -9530,11 +9530,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           if (tab->table)
           {
             tab->table->file->pushed_cond= NULL;
-            if (((thd->variables.optimizer_switch &
-                               OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-                 (tab->table->file->ha_table_flags() &
-                  HA_MUST_USE_TABLE_CONDITION_PUSHDOWN)) &&
-                !first_inner_tab)
+            if (thd->use_cond_push(tab->table->file) && !first_inner_tab)
             {
               COND *push_cond= 
               make_cond_for_table(thd, tmp, current_map, current_map,
@@ -23559,11 +23555,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
           {
             const COND *pushed_cond= tab->table->file->pushed_cond;
 
-            if (((thd->variables.optimizer_switch &
-                 OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-                 (tab->table->file->ha_table_flags() &
-                  HA_MUST_USE_TABLE_CONDITION_PUSHDOWN)) &&
-                pushed_cond)
+            if (thd->use_cond_push(tab->table->file) && pushed_cond)
             {
               eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
               /*
