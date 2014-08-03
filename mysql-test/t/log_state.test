@@ -52,12 +52,18 @@ select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
 connection default;
 
 set global slow_query_log= ON;
+set local slow_query_log= ON;
 --echo # Switch to connection con1
 connection con1;
 set session long_query_time = @long_query_time;
 select sleep(@long_query_time + 1);
 --replace_column 1 TIMESTAMP 2 USER_HOST 3 QUERY_TIME 12 THREAD_ID
 select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
+set local slow_query_log= ON;
+select sleep(@long_query_time + 2);
+--replace_column 1 TIMESTAMP 2 USER_HOST 3 QUERY_TIME 12 THREAD_ID
+select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
+
 --echo # Switch to connection default
 connection default;
 show global variables
@@ -69,6 +75,7 @@ set global general_log= OFF;
 set global slow_query_log= ON;
 set global slow_query_log= OFF;
 set global slow_query_log= OFF;
+set local slow_query_log= ON;
 
 set global general_log= ON;
 truncate table mysql.general_log;
@@ -127,6 +134,7 @@ set global general_log_file= default;
 set global slow_query_log_file= default;
 show variables like 'general_log';
 show variables like 'slow_query_log';
+show global variables like 'slow_query_log';
 set global general_log=ON;
 set global log_output=default;
 show variables like 'log_output';

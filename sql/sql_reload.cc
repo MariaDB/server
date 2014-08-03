@@ -130,7 +130,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       result= 1;
     }
 
-  if ((options & REFRESH_SLOW_LOG) && opt_slow_log)
+  if ((options & REFRESH_SLOW_LOG) && global_system_variables.sql_log_slow)
     logger.flush_slow_log();
 
   if ((options & REFRESH_GENERAL_LOG) && opt_log)

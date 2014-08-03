@@ -1006,8 +1006,10 @@ int Explain_insert::print_explain(Explain_query *query,
 
 void delete_explain_query(LEX *lex)
 {
+  DBUG_ENTER("delete_explain_query");
   delete lex->explain;
   lex->explain= NULL;
+  DBUG_VOID_RETURN;
 }
 
 

@@ -517,7 +517,7 @@ bool LOGGER::is_log_table_enabled(uint log_table_type)
 {
   switch (log_table_type) {
   case QUERY_LOG_SLOW:
-    return (table_log_handler != NULL) && opt_slow_log;
+    return (table_log_handler != NULL) && global_system_variables.sql_log_slow;
   case QUERY_LOG_GENERAL:
     return (table_log_handler != NULL) && opt_log ;
   default:
@@ -1048,7 +1048,7 @@ bool Log_to_file_event_handler::init()
 {
   if (!is_initialized)
   {
-    if (opt_slow_log)
+    if (global_system_variables.sql_log_slow)
       mysql_slow_log.open_slow_log(opt_slow_logname);
 
     if (opt_log)
@@ -1072,7 +1072,7 @@ void Log_to_file_event_handler::flush()
   /* reopen log files */
   if (opt_log)
     mysql_log.reopen_file();
-  if (opt_slow_log)
+  if (global_system_variables.sql_log_slow)
     mysql_slow_log.reopen_file();
 }
 
@@ -1200,7 +1200,7 @@ bool LOGGER::flush_slow_log()
   logger.lock_exclusive();
 
   /* Reopen slow log file */
-  if (opt_slow_log)
+  if (global_system_variables.sql_log_slow)
     file_log_handler->get_mysql_slow_log()->reopen_file();
 
   /* End of log flush */
@@ -1270,11 +1270,11 @@ bool LOGGER::slow_log_print(THD *thd, const char *query, uint query_length,
   if (*slow_log_handler_list)
   {
     /* do not log slow queries from replication threads */
-    if (thd->slave_thread && !opt_log_slow_slave_statements)
+    if (!thd->variables.sql_log_slow)
       return 0;
 
     lock_shared();
-    if (!opt_slow_log)
+    if (!global_system_variables.sql_log_slow)
     {
       unlock();
       return 0;
@@ -1448,7 +1448,7 @@ bool LOGGER::activate_log_handler(THD* thd, uint log_type)
   lock_exclusive();
   switch (log_type) {
   case QUERY_LOG_SLOW:
-    if (!opt_slow_log)
+    if (!global_system_variables.sql_log_slow)
     {
       file_log= file_log_handler->get_mysql_slow_log();
 
@@ -1462,7 +1462,7 @@ bool LOGGER::activate_log_handler(THD* thd, uint log_type)
       else
       {
         init_slow_log(log_output_options);
-        opt_slow_log= TRUE;
+        global_system_variables.sql_log_slow= TRUE;
       }
     }
     break;
@@ -1501,7 +1501,7 @@ void LOGGER::deactivate_log_handler(THD *thd, uint log_type)
 
   switch (log_type) {
   case QUERY_LOG_SLOW:
-    tmp_opt= &opt_slow_log;
+    tmp_opt= &global_system_variables.sql_log_slow;
     file_log= file_log_handler->get_mysql_slow_log();
     break;
   case QUERY_LOG_GENERAL:

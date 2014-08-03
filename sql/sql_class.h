@@ -567,9 +567,6 @@ typedef struct system_variables
   ulong log_slow_rate_limit; 
   ulong binlog_format; ///< binlog format for this thd (see enum_binlog_format)
   ulong progress_report_time;
-  my_bool binlog_annotate_row_events;
-  my_bool binlog_direct_non_trans_update;
-  my_bool sql_log_bin;
   ulong completion_type;
   ulong query_cache_type;
   ulong tx_isolation;
@@ -608,6 +605,10 @@ typedef struct system_variables
   my_bool old_passwords;
   my_bool big_tables;
   my_bool query_cache_strip_comments;
+  my_bool sql_log_slow;
+  my_bool sql_log_bin;
+  my_bool binlog_annotate_row_events;
+  my_bool binlog_direct_non_trans_update;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;

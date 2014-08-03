@@ -1131,7 +1131,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     Commands which always take a long time are logged into
     the slow log only if opt_log_slow_admin_statements is set.
   */
-  thd->enable_slow_log= TRUE;
+  thd->enable_slow_log= thd->variables.sql_log_slow;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
 
@@ -1516,7 +1516,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
 
       status_var_increment(thd->status_var.com_other);
 
-      thd->enable_slow_log= opt_log_slow_admin_statements;
+      thd->enable_slow_log&= opt_log_slow_admin_statements;
       thd->query_plan_flags|= QPLAN_ADMIN;
       if (check_global_access(thd, REPL_SLAVE_ACL))
 	break;
@@ -1784,7 +1784,6 @@ void log_slow_statement(THD *thd)
 {
   DBUG_ENTER("log_slow_statement");
 
-
   /*
     The following should never be true with our current code base,
     but better to keep this here so we don't accidently try to log a
@@ -1795,12 +1794,10 @@ void log_slow_statement(THD *thd)
 
 
   /* Follow the slow log filter configuration. */ 
-  if (!thd->enable_slow_log ||
+  if (!thd->enable_slow_log || !global_system_variables.sql_log_slow ||
       (thd->variables.log_slow_filter
         && !(thd->variables.log_slow_filter & thd->query_plan_flags)))
-  {
     goto end; 
-  }
  
   if (((thd->server_status & SERVER_QUERY_WAS_SLOW) ||
        ((thd->server_status &
@@ -3060,7 +3057,7 @@ end_with_restore_list:
       and thus classify as slow administrative statements just like
       ALTER TABLE.
     */
-    thd->enable_slow_log= opt_log_slow_admin_statements;
+    thd->enable_slow_log&= opt_log_slow_admin_statements;
     thd->query_plan_flags|= QPLAN_ADMIN;
 
     bzero((char*) &create_info, sizeof(create_info));

@@ -3205,7 +3205,7 @@ void Prepared_statement::setup_set_params()
     because we want to look it up in the query cache) or not.
   */
   if ((mysql_bin_log.is_open() && is_update_query(lex->sql_command)) ||
-      opt_log || opt_slow_log ||
+      opt_log || thd->variables.sql_log_slow ||
       query_cache_is_cacheable_query(lex))
   {
     set_params_from_vars= insert_params_from_vars_with_log;

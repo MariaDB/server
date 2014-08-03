@@ -373,7 +373,7 @@ static DYNAMIC_ARRAY all_options;
 /* Global variables */
 
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
-my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0;
+my_bool opt_log, debug_assert_if_crashed_table= 0, opt_help= 0;
 static my_bool opt_abort;
 ulonglong log_output_options;
 my_bool opt_userstat_running;
@@ -3329,7 +3329,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       sql_print_information("Got signal %d to shutdown mysqld",sig);
 #endif
       /* switch to the old log message processing */
-      logger.set_handlers(LOG_FILE, opt_slow_log ? LOG_FILE:LOG_NONE,
+      logger.set_handlers(LOG_FILE, global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
       if (!abort_loop)
@@ -3367,13 +3367,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       if (log_output_options & LOG_NONE)
       {
         logger.set_handlers(LOG_FILE,
-                            opt_slow_log ? LOG_TABLE : LOG_NONE,
+                            global_system_variables.sql_log_slow ?
+                            LOG_TABLE : LOG_NONE,
                             opt_log ? LOG_TABLE : LOG_NONE);
       }
       else
       {
         logger.set_handlers(LOG_FILE,
-                            opt_slow_log ? log_output_options : LOG_NONE,
+                            global_system_variables.sql_log_slow ?
+                            log_output_options : LOG_NONE,
                             opt_log ? log_output_options : LOG_NONE);
       }
       break;
@@ -4263,7 +4265,8 @@ static int init_common_variables()
                       "--log option, log tables are used. "
                       "To enable logging to files use the --log-output option.");
 
-  if (opt_slow_log && opt_slow_logname && *opt_slow_logname &&
+  if (global_system_variables.sql_log_slow && opt_slow_logname &&
+      *opt_slow_logname &&
       !(log_output_options & (LOG_FILE | LOG_NONE)))
     sql_print_warning("Although a path was specified for the "
                       "--log-slow-queries option, log tables are used. "
@@ -4904,7 +4907,9 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       /* purecov: end */
     }
 
-    logger.set_handlers(LOG_FILE, opt_slow_log ? log_output_options:LOG_NONE,
+    logger.set_handlers(LOG_FILE,
+                        global_system_variables.sql_log_slow ?
+                        log_output_options:LOG_NONE,
                         opt_log ? log_output_options:LOG_NONE);
   }
 
@@ -8123,7 +8128,7 @@ static int mysql_init_variables(void)
   /*  We can only test for sub paths if my_symlink.c is using realpath */
   myisam_test_invalid_symlink= test_if_data_home_dir;
 #endif
-  opt_log= opt_slow_log= 0;
+  opt_log= 0;
   opt_bin_log= opt_bin_log_used= 0;
   opt_disable_networking= opt_skip_show_db=0;
   opt_skip_name_resolve= 0;
@@ -8818,7 +8823,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   if ((opt_log_slow_admin_statements || opt_log_queries_not_using_indexes ||
        opt_log_slow_slave_statements) &&
-      !opt_slow_log)
+      !global_system_variables.sql_log_slow)
     sql_print_warning("options --log-slow-admin-statements, --log-queries-not-using-indexes and --log-slow-slave-statements have no effect if --log_slow_queries is not set");
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
@@ -9033,7 +9038,7 @@ void set_server_version(void)
   if (!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"))
     end= strmov(end, "-debug");
 #endif
-  if (opt_log || opt_slow_log || opt_bin_log)
+  if (opt_log || global_system_variables.sql_log_slow || opt_bin_log)
     strmov(end, "-log");                        // This may slow down system
 }
 

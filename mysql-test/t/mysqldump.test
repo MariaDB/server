@@ -2473,3 +2473,18 @@ drop table t1, t2;
 --exec $MYSQL_DUMP --user=foo 2>&1 > $MYSQLTEST_VARDIR/tmp/bug6056.out
 --exec $MYSQL_DUMP --help > $MYSQLTEST_VARDIR/tmp/bug6056.out
 
+--echo #
+--echo # Test mysqldump with --disable-query-logs
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1);
+
+--exec $MYSQL_DUMP --hex-blob --character-sets-dir=$MYSQL_SHAREDIR/charsets --tab=$MYSQLTEST_VARDIR/tmp/ test t1
+--exec $MYSQL_DUMP --disable-log-queries --skip-comments test t1 >$MYSQLTEST_VARDIR/tmp/mysqldump-test.out
+drop table t1;
+
+--exec $MYSQL test < $MYSQLTEST_VARDIR/tmp/mysqldump-test.out
+select * from t1;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqldump-test.out

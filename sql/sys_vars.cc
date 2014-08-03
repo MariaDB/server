@@ -3841,7 +3841,7 @@ static void reopen_slow_log(char* name)
 static bool fix_slow_log_file(sys_var *self, THD *thd, enum_var_type type)
 {
   return fix_log(&opt_slow_logname, opt_log_basename, "-slow.log",
-                 opt_slow_log, reopen_slow_log);
+                 global_system_variables.sql_log_slow, reopen_slow_log);
 }
 static Sys_var_charptr Sys_slow_log_path(
        "slow_query_log_file", "Log slow queries to given log file. "
@@ -3892,6 +3892,7 @@ static Sys_var_have Sys_have_symlink(
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
+
 static Sys_var_mybool Sys_general_log(
        "general_log", "Log connections and queries to a table or log file. "
        "Defaults logging to a file 'hostname'.log or a table mysql.general_log"
@@ -3905,15 +3906,18 @@ static Sys_var_mybool Sys_slow_query_log(
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options",
-       GLOBAL_VAR(opt_slow_log), CMD_LINE(OPT_ARG),
-       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_log_state));
+       SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(0), ON_UPDATE(fix_log_state));
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
 {
   bool res;
   my_bool *UNINIT_VAR(newvalptr), newval, UNINIT_VAR(oldval);
   uint UNINIT_VAR(log_type);
+
+  if (type != OPT_GLOBAL)
+    return 0;
 
   if (self == &Sys_general_log)
   {
@@ -3923,7 +3927,7 @@ static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type)
   }
   else if (self == &Sys_slow_query_log)
   {
-    newvalptr= &opt_slow_log;
+    newvalptr= &global_system_variables.sql_log_slow;
     oldval=    logger.get_slow_log_file_handler()->is_open();
     log_type=  QUERY_LOG_SLOW;
   }
