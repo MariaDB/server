@@ -270,6 +270,7 @@ common_1_lev_code:
 static int
 create_query_string(THD *thd, String *buf)
 {
+  buf->length(0);
   /* Append the "CREATE" part of the query */
   if (buf->append(STRING_WITH_LEN("CREATE ")))
     return 1;
@@ -380,7 +381,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data,
     {
       /* Binlog the create event. */
       DBUG_ASSERT(thd->query() && thd->query_length());
-      String log_query;
+      char buffer[1024];
+      String log_query(buffer, sizeof(buffer), &my_charset_bin);
       if (create_query_string(thd, &log_query))
       {
         sql_print_error("Event Error: An error occurred while creating query "

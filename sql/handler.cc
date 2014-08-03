@@ -1414,11 +1414,10 @@ int ha_commit_trans(THD *thd, bool all)
     err= ht->prepare(ht, thd, all);
     status_var_increment(thd->status_var.ha_prepare_count);
     if (err)
+    {
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-
-    if (err)
       goto err;
-
+    }
     need_prepare_ordered|= (ht->prepare_ordered != NULL);
     need_commit_ordered|= (ht->commit_ordered != NULL);
   }

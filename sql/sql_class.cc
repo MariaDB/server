@@ -1355,8 +1355,8 @@ void THD::init(void)
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
-    variables= global_system_variables above has reset
-    variables.pseudo_thread_id to 0. We need to correct it here to
+    plugin_thd_var_init() sets variables= global_system_variables, which
+    has reset variables.pseudo_thread_id to 0. We need to correct it here to
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;

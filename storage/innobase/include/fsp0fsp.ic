@@ -131,7 +131,7 @@ fsp_flags_is_valid(
 		}
 	}
 
-	if (atomic_writes < 0 || atomic_writes > ATOMIC_WRITES_OFF) {
+	if (atomic_writes > ATOMIC_WRITES_OFF) {
 		fprintf(stderr, "InnoDB: Error: Tablespace flags %lu corrupted atomic_writes %lu\n",
 			flags, atomic_writes);
 		return (false);
