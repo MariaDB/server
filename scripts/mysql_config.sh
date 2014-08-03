@@ -176,10 +176,10 @@ Options:
                 pkglibdir     [$pkglibdir]
                 plugindir     [$plugindir]
 EOF
-        exit 0
+  exit $1
 }
 
-if test $# -le 0; then usage; fi
+if test $# -le 0; then usage 0 ; fi
 
 while test $# -gt 0; do
         case $1 in
@@ -198,10 +198,10 @@ while test $# -gt 0; do
             pkgincludedir) echo "$pkgincludedir" ;;
             pkglibdir) echo "$pkglibdir" ;;
             plugindir) echo "$plugindir" ;;
-            *) usage ;;
+            *) usage 1 >&2 ;;
           esac
           ;;
-        *)         usage ;;
+        *) usage 1 >&2 ;;
         esac
 
         shift
