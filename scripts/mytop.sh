@@ -70,7 +70,6 @@ sub GetShowStatus();
 sub cmd_s;
 sub cmd_S;
 sub cmd_q;
-sub FindProg($);
 
 ## Default Config Values
 
@@ -1366,9 +1365,9 @@ sub GetInnoDBStatus()
 {
     if (not $config{pager})
     {
-        if (not $config{pager} = FindProg('less'))
+        if (not $config{pager} = my_which('less'))
         {
-            $config{pager} = FindProg('more');
+            $config{pager} = my_which('more');
         }
     }
 
@@ -1467,9 +1466,9 @@ sub GetShowVariables()
 {
     if (not $config{pager})
     {
-        if (not $config{pager} = FindProg('less'))
+        if (not $config{pager} = my_which('less'))
         {
-            $config{pager} = FindProg('more');
+            $config{pager} = my_which('more');
         }
     }
 
@@ -1823,25 +1822,6 @@ sub Execute($)
     }
 
     return $sth;
-}
-
-sub FindProg($)
-{
-    my $prog  = shift;
-    my $found = undef;
-    my @search_dirs = ("/bin", "/usr/bin", "/usr/sbin",
-                       "/usr/local/bin", "/usr/local/sbin");
-
-    for (@search_dirs)
-    {
-        my $loc = "$_/$prog";
-        if (-e $loc)
-        {
-            $found = $loc;
-            last;
-        }
-    }
-    return $found;
 }
 
 ####

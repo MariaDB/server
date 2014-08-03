@@ -221,7 +221,11 @@ INSTALL_SCRIPT(
 ENDIF()
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
-SET(sysconfdir ${prefix})
+IF(INSTALL_SYSCONFDIR)
+  SET(sysconfdir ${DEFAULT_SYSCONFDIR})
+ELSE()
+  SET(sysconfdir "/etc")
+ENDIF()
 SET(bindir ${prefix}/${INSTALL_BINDIR})
 SET(libexecdir ${prefix}/${INSTALL_SBINDIR})
 SET(scriptdir ${prefix}/${INSTALL_BINDIR})

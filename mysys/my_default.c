@@ -138,9 +138,8 @@ static int search_default_file_with_ext(Process_option_func func,
   - Windows:     GetWindowsDirectory()
   - Windows:     C:/
   - Windows:     Directory above where the executable is located
-  - Unix:        /etc/
-  - Unix:        /etc/mysql/
-  - Unix:        --sysconfdir=<path> (compile-time option)
+  - Unix:        /etc/ or the value of DEFAULT_SYSCONFDIR, if defined
+  - Unix:        /etc/mysql/ unless DEFAULT_SYSCONFDIR is defined
   - ALL:         getenv("MYSQL_HOME")
   - ALL:         --defaults-extra-file=<path> (run-time option)
   - Unix:        ~/
@@ -1224,12 +1223,12 @@ static const char **init_default_directories(MEM_ROOT *alloc)
 
 #else
 
-  errors += add_directory(alloc, "/etc/", dirs);
-  errors += add_directory(alloc, "/etc/mysql/", dirs);
-
 #if defined(DEFAULT_SYSCONFDIR)
   if (DEFAULT_SYSCONFDIR[0])
     errors += add_directory(alloc, DEFAULT_SYSCONFDIR, dirs);
+#else
+  errors += add_directory(alloc, "/etc/", dirs);
+  errors += add_directory(alloc, "/etc/mysql/", dirs);
 #endif /* DEFAULT_SYSCONFDIR */
 
 #endif
