@@ -2384,6 +2384,21 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
     unireg_abort(1);				/* purecov: tested */
   }
 
+  /*
+    special case: for wildcard addresses prefer ipv6 over ipv4,
+    because we later switch off IPV6_V6ONLY, so ipv6 wildcard
+    addresses will work for ipv4 too
+  */
+  if ((my_bind_addr_str == NULL || strcmp(my_bind_addr_str, "*") == 0)
+      && ai->ai_family == AF_INET && ai->ai_next
+      && ai->ai_next->ai_family == AF_INET6)
+  {
+    a= ai;
+    ai= ai->ai_next;
+    a->ai_next= ai->ai_next;
+    ai->ai_next= a;
+  }
+
   for (a= ai; a != NULL; a= a->ai_next)
   {
     ip_sock= mysql_socket_socket(key_socket_tcpip, a->ai_family,
