@@ -21,6 +21,7 @@ Makefile
 TAGS
 Testing/
 VERSION.dep
+configure
 client/async_example
 client/mysql
 client/mysql_plugin
