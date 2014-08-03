@@ -6727,7 +6727,7 @@ struct my_option my_long_options[]=
   {"autocommit", 0, "Set default value for autocommit (0 or 1)",
    &opt_autocommit, &opt_autocommit, 0,
    GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, NULL},
-  {"bind-address", OPT_BIND_ADDRESS, "IP address to bind to.",
+  {"bind-address", 0, "IP address to bind to.",
    &my_bind_addr_str, &my_bind_addr_str, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binlog-do-db", OPT_BINLOG_DO_DB,
@@ -8561,18 +8561,6 @@ mysqld_get_one_option(int optid,
     }
     break;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  case OPT_ENGINE_CONDITION_PUSHDOWN:
-    /*
-      The last of --engine-condition-pushdown and --optimizer_switch on
-      command line wins (see get_options().
-    */
-    if (global_system_variables.engine_condition_pushdown)
-      global_system_variables.optimizer_switch|=
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN;
-    else
-      global_system_variables.optimizer_switch&=
-        ~OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN;
-    break;
   case OPT_LOG_ERROR:
     /*
       "No --log-error" == "write errors to stderr",
