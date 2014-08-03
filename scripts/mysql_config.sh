@@ -15,7 +15,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
 # This script reports various configuration settings that may be needed
-# when using the MySQL client library.
+# when using the MariaDB client library.
 
 which ()
 {
@@ -39,7 +39,7 @@ which ()
 #
 # If we can find the given directory relatively to where mysql_config is
 # we should use this instead of the incompiled one.
-# This is to ensure that this script also works with the binary MySQL
+# This is to ensure that this script also works with the binary MariaDB
 # version
 
 fix_path ()

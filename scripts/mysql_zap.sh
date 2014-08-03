@@ -15,8 +15,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
-# This is a utility for MySQL. It is not needed by any standard part
-# of MySQL.
+# This is a utility for MariaDB. It is not needed by any standard part
+# of MariaDB.
 
 # Usage: mysql_zap [-signal] [-f] [-t] pattern
 

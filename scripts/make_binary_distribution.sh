@@ -234,8 +234,8 @@ set -e
 if test -f ./client/.libs/mysql
 then
   echo ""
-  echo "The MySQL clients are compiled dynamicly, which is not allowed for"
-  echo "a MySQL binary tar file.  Please configure with"
+  echo "The MariaDB clients are compiled dynamically, which is not allowed for"
+  echo "a MariaDB binary tar file.  Please configure with"
   echo "--with-client-ldflags=-all-static and try again"
   exit 1;
 fi
