@@ -92,6 +92,32 @@ PSZ strlwr(PSZ s);
 #endif   // !WIN32
 
 /***********************************************************************/
+/*  Returns the bitmap representing the conditions that must not be    */
+/*  met when returning from TestValue for a given operator.            */
+/*  Bit one is EQ, bit 2 is LT, and bit 3 is GT.                       */
+/***********************************************************************/
+BYTE OpBmp(PGLOBAL g, OPVAL opc)
+  {
+  BYTE bt;
+
+  switch (opc) {
+    case OP_IN:
+    case OP_EQ: bt = 0x06; break;
+    case OP_NE: bt = 0x01; break;
+    case OP_GT: bt = 0x03; break;
+    case OP_GE: bt = 0x02; break;
+    case OP_LT: bt = 0x05; break;
+    case OP_LE: bt = 0x04; break;
+    case OP_EXIST: bt = 0x00; break;
+    default:
+      sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
+      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
+    } // endswitch opc
+
+  return bt;
+  } // end of OpBmp
+
+/***********************************************************************/
 /*  Get a long long number from its character representation.          */
 /*  IN  p: Pointer to the numeric string                               */
 /*  IN  n: The string length                                           */
@@ -101,7 +127,7 @@ PSZ strlwr(PSZ s);
 /*  OUT minus: Set to true if the number is negative                   */
 /*  Returned val: The resulting number                                 */
 /***********************************************************************/
-ulonglong CharToNumber(char *p, int n, ulonglong maxval, 
+ulonglong CharToNumber(char *p, int n, ulonglong maxval,
                        bool un, bool *minus, bool *rc)
 {
   char     *p2;
@@ -110,7 +136,7 @@ ulonglong CharToNumber(char *p, int n, ulonglong maxval,
 
   if (minus) *minus = false;
   if (rc) *rc = false;
-  
+
   // Eliminate leading blanks or 0
   for (p2 = p + n; p < p2 && (*p == ' ' || *p == '0'); p++) ;
 
@@ -284,6 +310,53 @@ const char *GetFmt(int type, bool un)
   } // end of GetFmt
 
 /***********************************************************************/
+/*  ConvertType: what this function does is to determine the type to   */
+/*  which should be converted a value so no precision would be lost.   */
+/*  This can be a numeric type if num is true or non numeric if false. */
+/*  Note: this is an ultra simplified version of this function that    */
+/*  should become more and more complex as new types are added.        */
+/*  Not evaluated types (TYPE_VOID or TYPE_UNDEF) return false from    */
+/*  IsType... functions so match does not prevent correct setting.     */
+/***********************************************************************/
+int ConvertType(int target, int type, CONV kind, bool match)
+  {
+  switch (kind) {
+    case CNV_CHAR:
+      if (match && (!IsTypeChar(target) || !IsTypeChar(type)))
+        return TYPE_ERROR;
+
+      return TYPE_STRING;
+    case CNV_NUM:
+      if (match && (!IsTypeNum(target) || !IsTypeNum(type)))
+        return TYPE_ERROR;
+
+      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
+           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
+           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
+           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
+           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
+                                                            : TYPE_TINY;
+    default:
+      if (target == TYPE_ERROR || target == type)
+        return type;
+
+      if (match && ((IsTypeChar(target) && !IsTypeChar(type)) ||
+                    (IsTypeNum(target) && !IsTypeNum(type))))
+        return TYPE_ERROR;
+
+      return (target == TYPE_DOUBLE || type == TYPE_DOUBLE) ? TYPE_DOUBLE
+           : (target == TYPE_DATE   || type == TYPE_DATE)   ? TYPE_DATE
+           : (target == TYPE_BIGINT || type == TYPE_BIGINT) ? TYPE_BIGINT
+           : (target == TYPE_INT    || type == TYPE_INT)    ? TYPE_INT
+           : (target == TYPE_SHORT  || type == TYPE_SHORT)  ? TYPE_SHORT
+           : (target == TYPE_STRING || type == TYPE_STRING) ? TYPE_STRING
+           : (target == TYPE_TINY   || type == TYPE_TINY)   ? TYPE_TINY
+                                                            : TYPE_ERROR;
+    } // endswitch kind
+
+  } // end of ConvertType
+
+/***********************************************************************/
 /*  AllocateConstant: allocates a constant Value.                      */
 /***********************************************************************/
 PVAL AllocateValue(PGLOBAL g, void *value, short type)
@@ -300,7 +373,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
     case TYPE_SHORT:
       valp = new(g) TYPVAL<short>(*(short*)value, TYPE_SHORT);
       break;
-    case TYPE_INT: 
+    case TYPE_INT:
       valp = new(g) TYPVAL<int>(*(int*)value, TYPE_INT);
       break;
     case TYPE_BIGINT:
@@ -333,10 +406,10 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
     case TYPE_STRING:
       valp = new(g) TYPVAL<PSZ>(g, (PSZ)NULL, len, prec);
       break;
-    case TYPE_DATE: 
+    case TYPE_DATE:
       valp = new(g) DTVAL(g, len, prec, fmt);
       break;
-    case TYPE_INT: 
+    case TYPE_INT:
       if (uns)
         valp = new(g) TYPVAL<uint>((uint)0, TYPE_INT, 0, true);
       else
@@ -382,6 +455,74 @@ PVAL AllocateValue(PGLOBAL g, int type, int len, int prec,
   return valp;
   } // end of AllocateValue
 
+/***********************************************************************/
+/*  Allocate a constant Value converted to newtype.                    */
+/*  Can also be used to copy a Value eventually converted.             */
+/***********************************************************************/
+PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
+  {
+  PSZ  p, sp;
+  bool un = (uns < 0) ? false : (uns > 0) ? true : valp->IsUnsigned();
+
+  if (newtype == TYPE_VOID)  // Means allocate a value of the same type
+    newtype = valp->GetType();
+
+  switch (newtype) {
+    case TYPE_STRING:
+      p = (PSZ)PlugSubAlloc(g, NULL, 1 + valp->GetValLen());
+
+      if ((sp = valp->GetCharString(p)) != p)
+        strcpy (p, sp);
+
+      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
+      break;
+    case TYPE_SHORT:
+      if (un)
+        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(),
+                                     TYPE_SHORT, 0, true);
+      else
+        valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
+
+      break;
+    case TYPE_INT:
+      if (un)
+        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
+      else
+        valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
+
+      break;
+    case TYPE_BIGINT:
+      if (un)
+        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(),
+                                        TYPE_BIGINT, 0, true);
+      else
+        valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
+
+      break;
+    case TYPE_DATE:
+      valp = new(g) DTVAL(g, valp->GetIntValue());
+      break;
+    case TYPE_DOUBLE:
+      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
+                                   valp->GetValPrec());
+      break;
+    case TYPE_TINY:
+      if (un)
+        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(),
+                                    TYPE_TINY, 0, true);
+      else
+        valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
+
+      break;
+    default:
+      sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
+      return NULL;
+    } // endswitch type
+
+  valp->SetGlobal(g);
+  return valp;
+  } // end of AllocateValue
+
 /* -------------------------- Class VALUE ---------------------------- */
 
 /***********************************************************************/
@@ -417,6 +558,18 @@ const char *VALUE::GetXfmt(void)
 
   return fmt;
   } // end of GetFmt
+
+/***********************************************************************/
+/*  Returns a BYTE indicating the comparison between two values.       */
+/*  Bit 1 indicates equality, Bit 2 less than, and Bit3 greater than.  */
+/*  More than 1 bit can be set only in the case of TYPE_LIST.          */
+/***********************************************************************/
+BYTE VALUE::TestValue(PVAL vp)
+  {
+  int n = CompareValue(vp);
+
+  return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
+  } // end of TestValue
 
 /* -------------------------- Class TYPVAL ---------------------------- */
 
@@ -543,8 +696,8 @@ bool TYPVAL<TYPE>::SetValue_char(char *p, int n)
   {
   bool      rc, minus;
   ulonglong maxval = MaxVal();
-  ulonglong val = CharToNumber(p, n, maxval, Unsigned, &minus, &rc); 
-    
+  ulonglong val = CharToNumber(p, n, maxval, Unsigned, &minus, &rc);
+
   if (minus && val < maxval)
     Tval = (TYPE)(-(signed)val);
   else
@@ -566,7 +719,7 @@ bool TYPVAL<double>::SetValue_char(char *p, int n)
   if (p) {
     char buf[64];
 
-    for (; n > 0 && *p == ' '; p++) 
+    for (; n > 0 && *p == ' '; p++)
       n--;
 
     memcpy(buf, p, MY_MIN(n, 31));
@@ -789,6 +942,24 @@ bool TYPVAL<TYPE>::IsEqual(PVAL vp, bool chktype)
   } // end of IsEqual
 
 /***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of numeric filters.           */
+/***********************************************************************/
+template <class TYPE>
+int TYPVAL<TYPE>::CompareValue(PVAL vp)
+  {
+//assert(vp->GetType() == Type);
+
+  // Process filtering on numeric values.
+  TYPE n = GetTypedValue(vp);
+
+//if (trace)
+//  htrc(" Comparing: val=%d,%d\n", Tval, n);
+
+  return (Tval > n) ? 1 : (Tval < n) ? (-1) : 0;
+  } // end of CompareValue
+
+/***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
 /*  constructed from its own value formated using the fmt format.      */
 /*  This function assumes that the format matches the value type.      */
@@ -870,11 +1041,11 @@ TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
 
   if (!s) {
     if (g) {
-	    Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
-  	  Strp[Len] = '\0';
-  	} else
-  	  assert(false);
-  	  
+      Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
+      Strp[Len] = '\0';
+    } else
+      assert(false);
+
   } else
     Strp = s;
 
@@ -888,8 +1059,8 @@ TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
 char TYPVAL<PSZ>::GetTinyValue(void)
   {
   bool      m;
-  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX8, false, &m); 
-    
+  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX8, false, &m);
+
   return (m && val < INT_MAX8) ? (char)(-(signed)val) : (char)val;
   } // end of GetTinyValue
 
@@ -898,7 +1069,7 @@ char TYPVAL<PSZ>::GetTinyValue(void)
 /***********************************************************************/
 uchar TYPVAL<PSZ>::GetUTinyValue(void)
   {
-  return (uchar)CharToNumber(Strp, strlen(Strp), UINT_MAX8, true); 
+  return (uchar)CharToNumber(Strp, strlen(Strp), UINT_MAX8, true);
   } // end of GetUTinyValue
 
 /***********************************************************************/
@@ -907,8 +1078,8 @@ uchar TYPVAL<PSZ>::GetUTinyValue(void)
 short TYPVAL<PSZ>::GetShortValue(void)
   {
   bool      m;
-  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX16, false, &m); 
-    
+  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX16, false, &m);
+
   return (m && val < INT_MAX16) ? (short)(-(signed)val) : (short)val;
   } // end of GetShortValue
 
@@ -917,7 +1088,7 @@ short TYPVAL<PSZ>::GetShortValue(void)
 /***********************************************************************/
 ushort TYPVAL<PSZ>::GetUShortValue(void)
   {
-  return (ushort)CharToNumber(Strp, strlen(Strp), UINT_MAX16, true); 
+  return (ushort)CharToNumber(Strp, strlen(Strp), UINT_MAX16, true);
   } // end of GetUshortValue
 
 /***********************************************************************/
@@ -926,8 +1097,8 @@ ushort TYPVAL<PSZ>::GetUShortValue(void)
 int TYPVAL<PSZ>::GetIntValue(void)
   {
   bool      m;
-  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX32, false, &m); 
-    
+  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX32, false, &m);
+
   return (m && val < INT_MAX32) ? (int)(-(signed)val) : (int)val;
   } // end of GetIntValue
 
@@ -936,7 +1107,7 @@ int TYPVAL<PSZ>::GetIntValue(void)
 /***********************************************************************/
 uint TYPVAL<PSZ>::GetUIntValue(void)
   {
-  return (uint)CharToNumber(Strp, strlen(Strp), UINT_MAX32, true); 
+  return (uint)CharToNumber(Strp, strlen(Strp), UINT_MAX32, true);
   } // end of GetUintValue
 
 /***********************************************************************/
@@ -945,8 +1116,8 @@ uint TYPVAL<PSZ>::GetUIntValue(void)
 longlong TYPVAL<PSZ>::GetBigintValue(void)
   {
   bool      m;
-  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX64, false, &m); 
-    
+  ulonglong val = CharToNumber(Strp, strlen(Strp), INT_MAX64, false, &m);
+
   return (m && val < INT_MAX64) ? (-(signed)val) : (longlong)val;
   } // end of GetBigintValue
 
@@ -955,7 +1126,7 @@ longlong TYPVAL<PSZ>::GetBigintValue(void)
 /***********************************************************************/
 ulonglong TYPVAL<PSZ>::GetUBigintValue(void)
   {
-  return CharToNumber(Strp, strlen(Strp), ULONGLONG_MAX, true); 
+  return CharToNumber(Strp, strlen(Strp), ULONGLONG_MAX, true);
   } // end of GetUBigintValue
 
 /***********************************************************************/
@@ -989,18 +1160,18 @@ bool TYPVAL<PSZ>::SetValue_char(char *p, int n)
     if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
 
-//	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
+//    for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
       for (p = Strp + n - 1; p >= Strp; p--)
         if (*p && *p != ' ')
           break;
 
-	    *(++p) = '\0';
+      *(++p) = '\0';
 
-	    if (trace > 1)
-	      htrc(" Setting string to: '%s'\n", Strp);
-	      
-	  } else
-	  	Reset();
+      if (trace > 1)
+        htrc(" Setting string to: '%s'\n", Strp);
+
+    } else
+      Reset();
 
     Null = false;
   } else {
@@ -1239,6 +1410,32 @@ bool TYPVAL<PSZ>::IsEqual(PVAL vp, bool chktype)
   } // end of IsEqual
 
 /***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of numeric filters.           */
+/***********************************************************************/
+int TYPVAL<PSZ>::CompareValue(PVAL vp)
+  {
+  int n;
+//assert(vp->GetType() == Type);
+
+  if (trace)
+    htrc(" Comparing: val='%s','%s'\n", Strp, vp->GetCharValue());
+
+  // Process filtering on character strings.
+  if (Ci || vp->IsCi())
+    n = stricmp(Strp, vp->GetCharValue());
+  else
+    n = strcmp(Strp, vp->GetCharValue());
+
+#if defined(WIN32)
+  if (n == _NLSCMPERROR)
+    return n;                        // Here we should raise an error
+#endif   // WIN32
+
+  return (n > 0) ? 1 : (n < 0) ? -1 : 0;
+  } // end of CompareValue
+
+/***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
 /*  constructed from its own value formated using the fmt format.      */
 /*  This function assumes that the format matches the value type.      */
@@ -1304,7 +1501,7 @@ bool DECVAL::IsZero(void)
 /***********************************************************************/
 /*  DECIMAL: Reset value to zero.                                      */
 /***********************************************************************/
-void DECVAL::Reset(void) 
+void DECVAL::Reset(void)
 {
   int i = 0;
 
@@ -1383,18 +1580,18 @@ bool DECVAL::SetValue_char(char *p, int n)
     if ((n = MY_MIN(n, Len))) {
     	strncpy(Strp, p, n);
 
-//	  for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
+//    for (p = Strp + n - 1; p >= Strp && (*p == ' ' || *p == '\0'); p--) ;
       for (p = Strp + n - 1; p >= Strp; p--)
         if (*p && *p != ' ')
           break;
 
-	    *(++p) = '\0';
+      *(++p) = '\0';
 
-	    if (trace > 1)
-	      htrc(" Setting string to: '%s'\n", Strp);
-	      
-	  } else
-	  	Reset();
+      if (trace > 1)
+        htrc(" Setting string to: '%s'\n", Strp);
+
+    } else
+      Reset();
 
     Null = false;
   } else {
@@ -1463,6 +1660,23 @@ bool DECVAL::IsEqual(PVAL vp, bool chktype)
 
   return !strcmp(Strp, vp->GetCharString(buf));
   } // end of IsEqual
+
+/***********************************************************************/
+/*  Compare values and returns 1, 0 or -1 according to comparison.     */
+/*  This function is used for evaluation of numeric filters.           */
+/***********************************************************************/
+int DECVAL::CompareValue(PVAL vp)
+  {
+//assert(vp->GetType() == Type);
+
+  // Process filtering on numeric values.
+  double f = atof(Strp), n = vp->GetFloatValue();
+
+//if (trace)
+//  htrc(" Comparing: val=%d,%d\n", f, n);
+
+  return (f > n) ? 1 : (f < n) ? (-1) : 0;
+  } // end of CompareValue
 
 #if 0
 /***********************************************************************/
@@ -2062,7 +2276,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   time_t t = mktime_mysql(ptm);
 
   if (trace > 1)
-    htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n", 
+    htrc("MakeTime from (%d,%d,%d,%d,%d,%d)\n",
           ptm->tm_year, ptm->tm_mon, ptm->tm_mday,
           ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
 
@@ -2085,7 +2299,7 @@ bool DTVAL::MakeTime(struct tm *ptm)
   Tval= (int) t;
 
   if (trace > 1)
-    htrc("MakeTime Ival=%d\n", Tval); 
+    htrc("MakeTime Ival=%d\n", Tval);
 
   return false;
   } // end of MakeTime
@@ -2169,7 +2383,7 @@ bool DTVAL::MakeDate(PGLOBAL g, int *val, int nval)
     } // endfor i
 
   if (trace > 1)
-    htrc("MakeDate datm=(%d,%d,%d,%d,%d,%d)\n", 
+    htrc("MakeDate datm=(%d,%d,%d,%d,%d,%d)\n",
     datm.tm_year, datm.tm_mon, datm.tm_mday,
     datm.tm_hour, datm.tm_min, datm.tm_sec);
 

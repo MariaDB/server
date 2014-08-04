@@ -18,9 +18,39 @@
 /***********************************************************************/
 /*  Utility used to allocate value blocks.                             */
 /***********************************************************************/
-DllExport PVBLK AllocValBlock(PGLOBAL, void*, int, int, int, int, 
+DllExport PVBLK AllocValBlock(PGLOBAL, void*, int, int, int, int,
                                               bool, bool, bool);
 const char *GetFmt(int type, bool un = false);
+
+/***********************************************************************/
+/*  DB static external variables.                                      */
+/***********************************************************************/
+extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
+
+/***********************************************************************/
+/*  Class MBVALS is a utility class for (re)allocating VALBLK's.       */
+/***********************************************************************/
+class MBVALS : public BLOCK {
+//friend class LSTBLK;
+  friend class ARRAY;
+ public:
+  // Constructors
+  MBVALS(void) {Vblk = NULL; Mblk = Nmblk;}
+
+  // Methods
+  void  *GetMemp(void) {return Mblk.Memp;}
+  PVBLK  Allocate(PGLOBAL g, int type, int len, int prec,
+                             int n, bool sub = FALSE);
+  bool   ReAllocate(PGLOBAL g, int n);
+  void   Free(void);
+
+ protected:
+  // Members
+  PVBLK  Vblk;                    // Pointer to VALBLK
+  MBLOCK Mblk;                    // The memory block
+  }; // end of class MBVALS
+
+typedef class MBVALS *PMBV;
 
 /***********************************************************************/
 /*  Class VALBLK represent a base class for variable blocks.           */
@@ -78,6 +108,8 @@ class VALBLK : public BLOCK {
   virtual void   SetValue(char *sp, uint len, int n) {assert(false);}
   virtual void   SetValue(PVAL valp, int n) = 0;
   virtual void   SetValue(PVBLK pv, int n1, int n2) = 0;
+  virtual void   SetMin(PVAL valp, int n) = 0;
+  virtual void   SetMax(PVAL valp, int n) = 0;
   virtual void   Move(int i, int j) = 0;
   virtual int    CompVal(PVAL vp, int n) = 0;
   virtual int    CompVal(int i1, int i2) = 0;
@@ -153,6 +185,8 @@ class TYPBLK : public VALBLK {
                   {Typp[n] = (TYPE)cval; SetNull(n, false);}
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
+  virtual void   SetMin(PVAL valp, int n);
+  virtual void   SetMax(PVAL valp, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -203,6 +237,8 @@ class CHRBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
+  virtual void   SetMin(PVAL valp, int n);
+  virtual void   SetMax(PVAL valp, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);
@@ -213,11 +249,11 @@ class CHRBLK : public VALBLK {
 
  protected:
   // Members
-  char*  const &Chrp;            // Pointer to char buffer
-  PSZ    Valp;                   // Used to make a zero ended value
-  bool   Blanks;                 // True for right filling with blanks
-  bool   Ci;                     // True if case insensitive
-  int    Long;                   // Length of each string
+  char* const &Chrp;             // Pointer to char buffer
+  PSZ   Valp;                    // Used to make a zero ended value
+  bool  Blanks;                  // True for right filling with blanks
+  bool  Ci;                      // True if case insensitive
+  int   Long;                    // Length of each string
   }; // end of class CHRBLK
 
 /***********************************************************************/
@@ -254,6 +290,8 @@ class STRBLK : public VALBLK {
   virtual void   SetValue(char *sp, uint len, int n);
   virtual void   SetValue(PVAL valp, int n);
   virtual void   SetValue(PVBLK pv, int n1, int n2);
+  virtual void   SetMin(PVAL valp, int n);
+  virtual void   SetMax(PVAL valp, int n);
   virtual void   Move(int i, int j);
   virtual int    CompVal(PVAL vp, int n);
   virtual int    CompVal(int i1, int i2);

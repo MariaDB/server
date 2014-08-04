@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2013
+/* Copyright (C) Olivier Bertrand 2004 - 2014
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -50,7 +50,7 @@ typedef struct _xinfo {
 
 class XCHK : public BLOCK {
 public:
-  XCHK(void) {oldsep= newsep= false; 
+  XCHK(void) {oldsep= newsep= false;
               oldopn= newopn= NULL;
               oldpix= newpix= NULL;}
 
@@ -71,7 +71,8 @@ public:
 typedef class XCHK *PCHK;
 typedef class user_connect *PCONNECT;
 typedef struct ha_table_option_struct TOS, *PTOS;
-typedef struct ha_field_option_struct FOS, *PFOS; 
+typedef struct ha_field_option_struct FOS, *PFOS;
+typedef struct ha_index_option_struct XOS, *PXOS;
 
 extern handlerton *connect_hton;
 
@@ -122,10 +123,25 @@ struct ha_table_option_struct {
 struct ha_field_option_struct
 {
   ulonglong offset;
+  ulonglong freq;
   ulonglong fldlen;
+  uint opt;
   const char *dateformat;
   const char *fieldformat;
   char *special;
+};
+
+/*
+  index options can be declared similarly
+  using the ha_index_option_struct structure.
+
+  Their values can be specified in the CREATE TABLE per index:
+  CREATE TABLE ( field ..., .., INDEX .... *here*, ... )
+*/
+struct ha_index_option_struct
+{
+  bool dynamic;
+  bool mapped;
 };
 
 /** @brief
@@ -166,32 +182,39 @@ public:
   static   bool connect_init(void);
   static   bool connect_end(void);
   TABTYPE  GetRealType(PTOS pos= NULL);
+  char    *GetRealString(const char *s);
   char    *GetStringOption(char *opname, char *sdef= NULL);
   PTOS     GetTableOptionStruct(TABLE_SHARE *s= NULL);
   bool     GetBooleanOption(char *opname, bool bdef);
   bool     SetBooleanOption(char *opname, bool b);
   int      GetIntegerOption(char *opname);
+  bool     GetIndexOption(KEY *kp, char *opname);
   bool     CheckString(const char *str1, const char *str2);
   bool     SameString(TABLE *tab, char *opn);
   bool     SetIntegerOption(char *opname, int n);
   bool     SameInt(TABLE *tab, char *opn);
   bool     SameBool(TABLE *tab, char *opn);
-  bool     FileExists(const char *fn);
+  bool     FileExists(const char *fn, bool bf);
   bool     NoFieldOptionChange(TABLE *tab);
   PFOS     GetFieldOptionStruct(Field *fp);
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
+  PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
+  char    *GetPartName(void);
 //int      GetColNameLen(Field *fp);
 //char    *GetColName(Field *fp);
 //void     AddColName(char *cp, Field *fp);
   TABLE   *GetTable(void) {return table;}
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
+  bool     IsPartitioned(void);
+  bool     IsUnique(uint n);
 
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
-  bool     IsOpened(void); 
+  bool     CheckColumnList(PGLOBAL g);
+  bool     IsOpened(void);
   int      CloseTable(PGLOBAL g);
   int      MakeRecord(char *buf);
   int      ScanRecord(PGLOBAL g, uchar *buf);
@@ -318,17 +341,19 @@ public:
    @note
    The pushed conditions form a stack (from which one can remove the
    last pushed condition using cond_pop).
-   The table handler filters out rows using (pushed_cond1 AND pushed_cond2 
+   The table handler filters out rows using (pushed_cond1 AND pushed_cond2
    AND ... AND pushed_condN)
    or less restrictive condition, depending on handler's capabilities.
 
    handler->ha_reset() call empties the condition stack.
    Calls to rnd_init/rnd_end, index_init/index_end etc do not affect the
    condition stack.
- */ 
+ */
 virtual const COND *cond_push(const COND *cond);
 PCFIL CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond);
 const char *GetValStr(OPVAL vop, bool neg);
+PFIL  CondFilter(PGLOBAL g, Item *cond);
+//PFIL  CheckFilter(PGLOBAL g);
 
  /**
    Number of rows in table. It will only be called if
@@ -336,7 +361,7 @@ const char *GetValStr(OPVAL vop, bool neg);
  */
  virtual ha_rows records();
 
- /** 
+ /**
    Type of table for caching query
    CONNECT should not use caching because its tables are external
    data prone to me modified out of MariaDB
@@ -463,6 +488,28 @@ int index_prev(uchar *buf);
                              enum thr_lock_type lock_type);     ///< required
   int optimize(THD* thd, HA_CHECK_OPT* check_opt);
 
+  /**
+   * Multi Range Read interface
+   */
+  int multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                            uint n_ranges, uint mode, HANDLER_BUFFER *buf);
+  int multi_range_read_next(range_id_t *range_info);
+  ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                      void *seq_init_param,
+                                      uint n_ranges, uint *bufsz,
+                                      uint *flags, Cost_estimate *cost);
+  ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                uint key_parts, uint *bufsz,
+                                uint *flags, Cost_estimate *cost);
+  int multi_range_read_explain_info(uint mrr_mode, char *str, size_t size);
+
+  int reset(void) {ds_mrr.dsmrr_close(); return 0;}
+
+  /* Index condition pushdown implementation */
+//  Item *idx_cond_push(uint keyno, Item* idx_cond);
+private:
+  DsMrr_impl ds_mrr;
+
 protected:
   bool check_privileges(THD *thd, PTOS options, char *dbn);
   MODE CheckMode(PGLOBAL g, THD *thd, MODE newmode, bool *chk, bool *cras);
@@ -478,18 +525,23 @@ protected:
   PVAL          sdvalin;              // Used to convert date values
   PVAL          sdvalout;             // Used to convert date values
   bool          istable;              // True for table handler
-//char          tname[64];            // The table name
+  char          partname[64];         // The partition name
   MODE          xmod;                 // Table mode
   XINFO         xinfo;                // The table info structure
   bool          valid_info;           // True if xinfo is valid
   bool          stop;                 // Used when creating index
   bool          alter;                // True when converting to other engine
+  bool          mrr;                  // True when getting index positions
+  bool          nox;                  // True when index should not be made
+  bool          abort;                // True after error in UPDATE/DELETE
   int           indexing;             // Type of indexing for CONNECT
+  int           only;                 // If only one action is accepted
   int           locked;               // Table lock
+  MY_BITMAP    *part_id;              // Columns used for partition func
   THR_LOCK_DATA lock_data;
 
 public:
-  TABLE_SHARE  *tshp;                 // Used by called tables 
+  TABLE_SHARE  *tshp;                 // Used by called tables
   char   *data_file_name;
   char   *index_file_name;
   uint    int_table_flags;            // Inherited from MyISAM

@@ -1,11 +1,11 @@
 /************* RelDef CPP Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: REFDEF                                                */
 /* -------------                                                       */
-/*  Version 1.3                                                        */
+/*  Version 1.4                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -127,24 +127,39 @@ int RELDEF::GetCharCatInfo(PSZ what, PSZ sdef, char *buf, int size)
 	} // end of GetCharCatInfo
 
 /***********************************************************************/
+/*  To be used by any TDB's.                                           */
+/***********************************************************************/
+bool RELDEF::Partitioned(void)
+	{
+	return Hc->IsPartitioned();
+	} // end of Partitioned
+
+/***********************************************************************/
 /*  This function returns string table information.                    */
 /*  Default parameter is "*" to get the handler default.               */
 /***********************************************************************/
 char *RELDEF::GetStringCatInfo(PGLOBAL g, PSZ what, PSZ sdef)
 	{
-	char *sval= NULL, *s= Hc->GetStringOption(what, sdef);
+	char *name, *sval= NULL, *s= Hc->GetStringOption(what, sdef);
 	
 	if (s) {
-		sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
-		strcpy(sval, s);
+    if (!Hc->IsPartitioned() ||
+        (stricmp(what, "filename") && stricmp(what, "tabname")
+                                   && stricmp(what, "connect"))) {
+		  sval= (char*)PlugSubAlloc(g, NULL, strlen(s) + 1);
+		  strcpy(sval, s);
+    } else
+      sval= s;
+
   } else if (!stricmp(what, "filename")) {
     // Return default file name
     char *ftype= Hc->GetStringOption("Type", "*");
     int   i, n;
 
     if (IsFileType(GetTypeID(ftype))) {
-      sval= (char*)PlugSubAlloc(g, NULL, strlen(Hc->GetTableName()) + 12);
-      strcat(strcpy(sval, Hc->GetTableName()), ".");
+      name= Hc->GetPartName();
+      sval= (char*)PlugSubAlloc(g, NULL, strlen(name) + 12);
+      strcat(strcpy(sval, name), ".");
       n= strlen(sval);
   
       // Fold ftype to lower case
@@ -559,10 +574,8 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
       if (cmpr == 1)
         txfp = new(g) ZIPFAM(defp);
-      else {
-        strcpy(g->Message, "Compress 2 not supported yet");
-        return NULL;
-      } // endelse
+      else
+        txfp = new(g) ZLBFAM(defp);
 #else   // !ZIP_SUPPORT
       strcpy(g->Message, "Compress not supported");
       return NULL;
@@ -613,8 +626,10 @@ COLCRT::COLCRT(PSZ name)
   Offset = -1;
   Long = -1;
   Precision = -1;
+  Freq = -1;
   Key = -1;
   Scale = -1;
+  Opt = -1;
   DataType = '*';
   } // end of COLCRT constructor for table creation
 
@@ -628,8 +643,10 @@ COLCRT::COLCRT(void)
   Offset = 0;
   Long = 0;
   Precision = 0;
+  Freq = 0;
   Key = 0;
   Scale = 0;
+  Opt = 0;
   DataType = '*';
   } // end of COLCRT constructor for table & view definition
 
@@ -640,6 +657,14 @@ COLCRT::COLCRT(void)
 /***********************************************************************/
 COLDEF::COLDEF(void) : COLCRT()
   {
+  To_Min = NULL;
+  To_Max = NULL;
+  To_Pos = NULL;
+  Xdb2 = FALSE;
+  To_Bmap = NULL;
+  To_Dval = NULL;
+  Ndv = 0;
+  Nbm = 0;
   Buf_Type = TYPE_ERROR;
   Clen = 0;
   Poff = 0;
@@ -671,7 +696,9 @@ int COLDEF::Define(PGLOBAL g, void *memp, PCOLINFO cfp, int poff)
     Precision = cfp->Precision;
     Scale = cfp->Scale;
     Long = cfp->Length;
+    Opt = cfp->Opt;
     Key = cfp->Key;
+    Freq = cfp->Freq;
 
     if (cfp->Remark && *cfp->Remark) {
       Desc = (PSZ)PlugSubAlloc(g, memp, strlen(cfp->Remark) + 1);

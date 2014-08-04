@@ -20,6 +20,7 @@ typedef class VCTCOL *PVCTCOL;
 /*  VCT table.                                                         */
 /***********************************************************************/
 class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
+  friend class TDBVCT;
   friend class VCTFAM;
   friend class VECFAM;
   friend class VMPFAM;
@@ -64,6 +65,7 @@ class DllExport TDBVCT : public TDBFIX {
   virtual AMT  GetAmType(void) {return TYPE_AM_VCT;}
   virtual PTDB Duplicate(PGLOBAL g)
                 {return (PTDB)new(g) TDBVCT(g, this);}
+          bool IsSplit(void) {return ((VCTDEF*)To_Def)->Split;}
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
@@ -101,7 +103,7 @@ class DllExport VCTCOL : public DOSCOL {
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
   virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void SetOk(void); 
+  virtual void SetOk(void);
 
  protected:
   virtual void ReadBlock(PGLOBAL g);

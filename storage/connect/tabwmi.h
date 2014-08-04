@@ -141,8 +141,8 @@ class TDBWCL : public TDBCAT {
   TDBWCL(PWMIDEF tdp);
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
   char   *Nsp;                         // Name space

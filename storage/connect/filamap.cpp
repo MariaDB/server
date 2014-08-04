@@ -1,11 +1,11 @@
 /*********** File AM Map C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMAP                                               */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -129,9 +129,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-    if (trace)
-      htrc("Mapping file, fp=%p\n", fp);
-
+#ifdef DEBTRACE
+ htrc("Mapping file, fp=%p\n", fp);
+#endif
   } else
     fp = NULL;
 
@@ -322,8 +322,26 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-		Fpos = Mempos;
-		CurBlk = (int)Rows++;
+    int rc;
+
+   next:
+    Fpos = Mempos;
+    CurBlk = (int)Rows++;
+
+    /*******************************************************************/
+    /*  Check whether optimization on ROWID                            */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        // Skip this record
+        if ((rc = SkipRecord(g, FALSE)) != RC_OK)
+          return rc;
+
+        goto next;
+      } // endswitch rc
   } else
     Placed = false;
 
@@ -382,7 +400,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 
   if (Tpos == Spos)
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceding lines is     */
+    /*  First line to delete. Move of eventual preceeding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Fpos;                               // Spos is set below
@@ -458,10 +476,10 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Table file close routine for MAP access method.                    */
 /***********************************************************************/
-void MAPFAM::CloseTableFile(PGLOBAL g)
+void MAPFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   PlugCloseFile(g, To_Fb);
-  To_Fb = NULL;              // To get correct file size in Cardinality 
+  To_Fb = NULL;              // To get correct file size in Cardinality
 
   if (trace)
     htrc("MAP Close: closing %s count=%d\n",
@@ -488,7 +506,7 @@ MBKFAM::MBKFAM(PDOSDEF tdp) : MAPFAM(tdp)
   Block = tdp->GetBlock();
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
-  BlkPos = NULL;
+  BlkPos = tdp->GetTo_Pos();
   CurNum = Nrec;
   } // end of MBKFAM standard constructor
 
@@ -508,9 +526,7 @@ void MBKFAM::Reset(void)
 /***********************************************************************/
 int MBKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -534,8 +550,49 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
+  int len;
+
+  /*********************************************************************/
+  /*  Sequential block reading when Placed is not true.                */
+  /*********************************************************************/
+  if (Placed) {
+    Placed = false;
+  } else if (Mempos >= Top) {        // Are we at the end of the memory
+    return RC_EF;
+  } else if (++CurNum < Nrec) {
+    Fpos = Mempos;
+  } else {
+    /*******************************************************************/
+    /*  New block.                                                     */
+    /*******************************************************************/
+    CurNum = 0;
+
+   next:
+    if (++CurBlk >= Block)
+      return RC_EF;
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+
+    Fpos = Mempos = Memory + BlkPos[CurBlk];
+  } // endif's
+
+  // Immediately calculate next position (Used by DeleteDB)
+  while (*Mempos++ != '\n') ;        // What about Unix ???
+
+  // Set caller line buffer
+  len = (Mempos - Fpos) - Ending;
+  memcpy(Tdbp->GetLine(), Fpos, len);
+  Tdbp->GetLine()[len] = '\0';
+  return RC_OK;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -618,17 +675,29 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     Placed = false;
   } else if (Mempos >= Top) {        // Are we at the end of the memory
     return RC_EF;
-  } else if (++CurNum < Nrec) {                                           
+  } else if (++CurNum < Nrec) {
     Fpos = Mempos;
-  } else {                                                            
+  } else {
     /*******************************************************************/
     /*  New block.                                                     */
     /*******************************************************************/
-    CurNum = 0;                                                       
+    CurNum = 0;
 
-    if (++CurBlk >= Block)                                           
-      return RC_EF;                                                   
-                                                                       
+   next:
+    if (++CurBlk >= Block)
+      return RC_EF;
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+
     Fpos = Mempos = Headlen + Memory + CurBlk * Blksize;
   } // endif's
 

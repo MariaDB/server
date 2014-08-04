@@ -53,19 +53,20 @@ class DllExport TXTFAM : public BLOCK {
   virtual void  Reset(void);
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g);
+  virtual int   MaxBlkSize(PGLOBAL g, int s);
   virtual bool  AllocateBuffer(PGLOBAL g) {return false;}
   virtual void  ResetBuffer(PGLOBAL g) {}
   virtual int   GetNerr(void) {return 0;}
   virtual int   GetRowID(void) = 0;
   virtual bool  RecordPos(PGLOBAL g) = 0;
-  virtual bool  SetPos(PGLOBAL g, int recpos) = 0; 
+  virtual bool  SetPos(PGLOBAL g, int recpos) = 0;
   virtual int   SkipRecord(PGLOBAL g, bool header) = 0;
   virtual bool  OpenTableFile(PGLOBAL g) = 0;
   virtual bool  DeferReading(void) {IsRead = false; return true;}
   virtual int   ReadBuffer(PGLOBAL g) = 0;
   virtual int   WriteBuffer(PGLOBAL g) = 0;
-  virtual int    DeleteRecords(PGLOBAL g, int irc) = 0;
-  virtual void  CloseTableFile(PGLOBAL g) = 0;
+  virtual int   DeleteRecords(PGLOBAL g, int irc) = 0;
+  virtual void  CloseTableFile(PGLOBAL g, bool abort) = 0;
   virtual void  Rewind(void) = 0;
 
  protected:
@@ -124,22 +125,23 @@ class DllExport DOSFAM : public TXTFAM {
   virtual void  Reset(void);
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g);
+  virtual int   MaxBlkSize(PGLOBAL g, int s);
   virtual bool  AllocateBuffer(PGLOBAL g);
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
   virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:
   virtual bool  OpenTempFile(PGLOBAL g);
   virtual bool  MoveIntermediateLines(PGLOBAL g, bool *b);
-  virtual int   RenameTempFile(PGLOBAL g);
+  virtual int   RenameTempFile(PGLOBAL g, bool abort);
 
   // Members
   FILE   *Stream;             // Points to Dos file structure
@@ -172,14 +174,15 @@ class DllExport BLKFAM : public DOSFAM {
   // Methods
   virtual void  Reset(void);
   virtual int   Cardinality(PGLOBAL g);
+  virtual int   MaxBlkSize(PGLOBAL g, int s);
   virtual bool  AllocateBuffer(PGLOBAL g);
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:

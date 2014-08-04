@@ -571,6 +571,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 																						tdbp->GetAmType());
     tablep->SetTo_Tdb(tdbp);
     tdbp->SetTable(tablep);
+    tdbp->SetMode(mode);
     } // endif tdbp
 
   return (tdbp);

@@ -43,6 +43,8 @@ typedef struct _colinfo {
   int    Key;
   int    Precision;
   int    Scale;
+  int    Opt;
+  int    Freq;
   char  *Remark;
   char  *Datefmt;
   char  *Fieldfmt;
@@ -82,7 +84,7 @@ class DllExport CATALOG {
   virtual bool    TestCond(PGLOBAL g, const char *name, const char *type)
                                 {return true;}
   virtual bool    DropTable(PGLOBAL g, PSZ name, bool erase) {return true;}
-  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
+  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep,
                            MODE mode = MODE_READ, LPCSTR type = NULL)
                                 {return NULL;}
   virtual void    TableNames(PGLOBAL g, char *buffer, int maxbuf, int info[]) {}

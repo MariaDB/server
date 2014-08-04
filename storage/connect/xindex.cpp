@@ -1,7 +1,7 @@
 /***************** Xindex C++ Class Xindex Code (.CPP) *****************/
-/*  Name: XINDEX.CPP  Version 2.8                                      */
+/*  Name: XINDEX.CPP  Version 2.9                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
 /*  This file contains the class XINDEX implementation code.           */
 /***********************************************************************/
@@ -45,6 +45,7 @@
 //nclude "array.h"
 #include "filamtxt.h"
 #include "tabdos.h"
+#include "tabvct.h"
 
 /***********************************************************************/
 /*  Macro or external routine definition                               */
@@ -112,6 +113,8 @@ INDEXDEF::INDEXDEF(char *name, bool uniq, int n)
   Unique = uniq;
   Invalid = false;
   AutoInc = false;
+  Dynamic = false;
+  Mapped = false;
   Nparts = 0;
   ID = n;
 //Offset = 0;
@@ -165,6 +168,8 @@ XXBASE::XXBASE(PTDBDOS tbxp, bool b) : CSORT(b),
   Op = OP_EQ;
   To_KeyCol = NULL;
   Mul = false;
+  Srtd = false;
+  Dynamic = false;
   Val_K = -1;
   Nblk = Sblk = 0;
   Thresh = 7;
@@ -237,25 +242,30 @@ void XINDEX::Reset(void)
 
 /***********************************************************************/
 /*  XINDEX Close: terminate index and free all allocated data.         */
-/*  Do not reset other values that are used at return to make.         */
+/*  Do not reset values that are used at return to make.               */
 /***********************************************************************/
 void XINDEX::Close(void)
   {
   // Close file or view of file
-  X->Close();
+  if (X)
+    X->Close();
 
   // De-allocate data
   PlgDBfree(Record);
   PlgDBfree(Index);
   PlgDBfree(Offset);
 
-  // De-allocate Key data
-  for (PXCOL kcp = To_KeyCol; kcp; kcp = kcp->Next)
-    kcp->FreeData();
+  for (PXCOL kcp = To_KeyCol; kcp; kcp = kcp->Next) {
+    // Column values cannot be retrieved from key anymore
+    if (kcp->Colp)
+      kcp->Colp->SetKcol(NULL);
 
-  // Column values cannot be retrieved from key anymore
-  for (int k = 0; k < Nk; k++)
-    To_Cols[k]->SetKcol(NULL);
+    // De-allocate Key data
+    kcp->FreeData();
+    } // endfor kcp
+
+  if (Tdbp)
+    Tdbp->RestoreNrec();
 
   } // end of Close
 
@@ -276,6 +286,25 @@ int XINDEX::Qcompare(int *i1, int *i2)
   } // end of Qcompare
 
 /***********************************************************************/
+/*  AddColumns: here we try to determine whether it is worthwhile to   */
+/*  add to the keys the values of the columns selected for this table. */
+/*  Sure enough, it is done while records are read and permit to avoid */
+/*  reading the table while doing the join (Dynamic index only)        */
+/***********************************************************************/
+bool XINDEX::AddColumns(PIXDEF xdp)
+  {
+  if (!Dynamic)
+    return false;     // Not applying to static index
+  else if (IsMul())
+    return false;     // Not done yet for multiple index
+  else if (Tbxp->GetAmType() == TYPE_AM_VCT && ((PTDBVCT)Tbxp)->IsSplit())
+    return false;     // This would require to read additional files
+  else
+    return true;
+
+  } // end of AddColumns
+
+/***********************************************************************/
 /*  Make: Make and index on key column(s).                             */
 /***********************************************************************/
 bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
@@ -283,13 +312,18 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*********************************************************************/
   /*  Table can be accessed through an index.                          */
   /*********************************************************************/
-  int     k, rc = RC_OK;
+  int     k, nk = Nk, rc = RC_OK;
   int    *bof, i, j, n, ndf, nkey;
   PKPDEF  kdfp = Xdp->GetToKeyParts();
-  bool    brc = true;
+  bool    brc = false;
   PCOL    colp;
-  PXCOL   kp, prev = NULL, kcp = NULL;
-  PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+  PFIL    filp = Tdbp->GetFilter();
+  PXCOL   kp, addcolp, prev = NULL, kcp = NULL;
+//PDBUSER dup = (PDBUSER)g->Activityp->Aptr;
+
+#if defined(_DEBUG)
+  assert(X || Nk == 1);
+#endif   // _DEBUG
 
   /*********************************************************************/
   /*  Allocate the storage that will contain the keys and the file     */
@@ -347,6 +381,51 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
   To_LastCol = prev;
 
+  if (AddColumns(sxp)) {
+    PCOL kolp = To_Cols[0];    // Temporary while imposing Nk = 1
+
+    i = 0;
+
+    // Allocate the accompanying
+    for (colp = Tbxp->GetColumns(); colp; colp = colp->GetNext()) {
+      // Count how many columns to add
+//    for (k = 0; k < Nk; k++)
+//      if (colp == To_Cols[k])
+//        break;
+
+//    if (k == nk)
+      if (colp != kolp)
+        i++;
+
+      } // endfor colp
+
+    if (i && i < 10)                  // Should be a parameter
+      for (colp = Tbxp->GetColumns(); colp; colp = colp->GetNext()) {
+//      for (k = 0; k < Nk; k++)
+//        if (colp == To_Cols[k])
+//          break;
+
+//      if (k < nk)
+        if (colp == kolp)
+          continue;                   // This is a key column
+
+        kcp = new(g) KXYCOL(this);
+
+        if (kcp->Init(g, colp, n, true, NULL))
+          return true;
+
+        if (trace)
+          htrc("Adding colp=%p Buf_Type=%d size=%d\n",
+                colp, colp->GetResultType(), n);
+
+        nk++;
+        prev->Next = kcp;
+        prev = kcp;
+        } // endfor colp
+
+    } // endif AddColumns
+
+#if 0
   /*********************************************************************/
   /*  Get the starting information for progress.                       */
   /*********************************************************************/
@@ -354,18 +433,19 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   sprintf((char*)dup->Step, MSG(BUILD_INDEX), Xdp->GetName(), Tdbp->Name);
   dup->ProgMax = Tdbp->GetProgMax(g);
   dup->ProgCur = 0;
+#endif // 0
 
   /*********************************************************************/
   /*  Standard init: read the file and construct the index table.      */
   /*  Note: reading will be sequential as To_Kindex is not set.        */
   /*********************************************************************/
   for (i = nkey = 0; i < n && rc != RC_EF; i++) {
-#if defined(THREAD)
+#if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
       longjmp(g->jumper[g->jump_level], 99);
       } // endif Step
-#endif   // THREAD
+#endif // 0
 
     /*******************************************************************/
     /*  Read a valid record from table file.                           */
@@ -373,16 +453,19 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     rc = Tdbp->ReadDB(g);
 
     // Update progress information
-    dup->ProgCur = Tdbp->GetProgCur();
+//  dup->ProgCur = Tdbp->GetProgCur();
 
     // Check return code and do whatever must be done according to it
     switch (rc) {
       case RC_OK:
-        break;
-      case RC_EF:
-        goto end_of_file;
+        if (ApplyFilter(g, filp))
+          break;
+
+        // passthru
       case RC_NF:
         continue;
+      case RC_EF:
+        goto end_of_file;
       default:
         sprintf(g->Message, MSG(RC_READING), rc, Tdbp->Name);
         goto err;
@@ -392,20 +475,25 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     /*  Get and Store the file position of the last read record for    */
     /*  future direct access.                                          */
     /*******************************************************************/
-    To_Rec[nkey] = Tdbp->GetRecpos();
+    if (nkey == n) {
+      sprintf(g->Message, MSG(TOO_MANY_KEYS), nkey);
+      return true;
+    } else
+      To_Rec[nkey] = Tdbp->GetRecpos();
 
     /*******************************************************************/
     /*  Get the keys and place them in the key blocks.                 */
     /*******************************************************************/
     for (k = 0, kcp = To_KeyCol;
-         k < Nk && kcp;
+         k < nk && kcp;
          k++, kcp = kcp->Next) {
-      colp = To_Cols[k];
-      colp->Reset();
+//    colp = To_Cols[k];
+      colp = kcp->Colp;
 
-      colp->ReadColumn(g);
-//    if (colp->ReadColumn(g))
-//      goto err;
+      if (!colp->GetStatus(BUF_READ))
+        colp->ReadColumn(g);
+      else
+        colp->Reset();
 
       kcp->SetValue(colp, nkey);
       } // endfor k
@@ -416,7 +504,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
  end_of_file:
 
   // Update progress information
-  dup->ProgCur = Tdbp->GetProgMax(g);
+//dup->ProgCur = Tdbp->GetProgMax(g);
 
   /*********************************************************************/
   /* Record the Index size and eventually resize memory allocation.    */
@@ -451,9 +539,17 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
     goto err;    // Error
     } // endif alloc
 
+  // We must separate keys and added columns before sorting
+  addcolp = To_LastCol->Next;
+  To_LastCol->Next = NULL;
+
   // Call the sort program, it returns the number of distinct values
   if ((Ndif = Qsort(g, Num_K)) < 0)
     goto err;       // Error during sort
+
+//  if (trace)
+    htrc("Make: Nk=%d n=%d Num_K=%d Ndif=%d addcolp=%p BlkFil=%p X=%p\n",
+          Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
   // Check whether the unique index is unique indeed
   if (!Mul)
@@ -462,6 +558,9 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
       goto err;
     } else
       PlgDBfree(Offset);           // Not used anymore
+
+  // Restore kcp list
+  To_LastCol->Next = addcolp;
 
   // Use the index to physically reorder the xindex
   Srtd = Reorder(g);
@@ -487,7 +586,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   } else {
     Mul = false;                   // Current index is unique
     PlgDBfree(Offset);             // Not used anymore
-    MaxSame = 1;                  // Reset it when remaking an index
+    MaxSame = 1;                   // Reset it when remaking an index
   } // endif Ndif
 
   /*********************************************************************/
@@ -502,7 +601,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  except if the subset originally contains unique values.          */
   /*********************************************************************/
   // Update progress information
-  dup->Step = STEP(REDUCE_INDEX);
+//dup->Step = STEP(REDUCE_INDEX);
 
   ndf = Ndif;
   To_LastCol->Mxs = MaxSame;
@@ -552,7 +651,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  calculated, so the Record array can be discarted.                */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && Tdbp->Ftype != RECFM_VAR) {
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
     } // endif Srtd
@@ -579,14 +678,24 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   Cur_K = Num_K;
 
   /*********************************************************************/
-  /*  Save the index so it has not to be recalculated.                 */
+  /*  Save the xindex so it has not to be recalculated.                */
   /*********************************************************************/
-  if (!SaveIndex(g, sxp))
-    brc = false;
+  if (X) {
+    if (SaveIndex(g, sxp))
+      brc = true;
+
+  } else {                     // Dynamic index
+    // Indicate that key column values can be found from KEYCOL's
+    for (kcp = To_KeyCol; kcp; kcp = kcp->Next)
+      kcp->Colp->SetKcol(kcp);
+
+    Tdbp->SetFilter(NULL);     // Not used anymore
+  } // endif X
 
  err:
   // We don't need the index anymore
-  Close();
+  if (X || brc)
+    Close();
 
   if (brc)
     printf("%s\n", g->Message);
@@ -630,6 +739,7 @@ bool XINDEX::Reorder(PGLOBAL g)
   register int i, j, k, n;
   bool          sorted = true;
   PXCOL         kcp;
+#if 0
   PDBUSER       dup = (PDBUSER)g->Activityp->Aptr;
 
   if (Num_K > 500000) {
@@ -639,6 +749,7 @@ bool XINDEX::Reorder(PGLOBAL g)
     dup->ProgCur = 0;
   } else
     dup = NULL;
+#endif // 0
 
   if (!Pex)
     return Srtd;
@@ -647,8 +758,8 @@ bool XINDEX::Reorder(PGLOBAL g)
     if (Pex[i] == Num_K) {        // Already moved
       continue;
     } else if (Pex[i] == i) {     // Already placed
-      if (dup)
-        dup->ProgCur++;
+//    if (dup)
+//      dup->ProgCur++;
 
       continue;
     } // endif's Pex
@@ -677,8 +788,8 @@ bool XINDEX::Reorder(PGLOBAL g)
         To_Rec[j] = To_Rec[k];
       } // endif k
 
-      if (dup)
-        dup->ProgCur++;
+//    if (dup)
+//      dup->ProgCur++;
 
       } // endfor j
 
@@ -762,11 +873,11 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   n[4] = Incr;                // Increment of record positions
   n[5] = Nblk; n[6] = Sblk;
 
-#if defined(TRACE)
-  printf("Saving index %s\n", Xdp->GetName());
-  printf("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d\n",
-    ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
-#endif   // TRACE
+  if (trace) {
+    htrc("Saving index %s\n", Xdp->GetName());
+    htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d\n",
+          ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
+    } // endif trace
 
   size = X->Write(g, n, NZ, sizeof(int), rc);
   dup->ProgCur = 1;
@@ -805,9 +916,8 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     dup->ProgCur += 5;
     } // endfor kcp
 
-#if defined(TRACE)
-  printf("Index %s saved, Size=%d\n", Xdp->GetName(), Size);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s saved, Size=%d\n", Xdp->GetName(), size);
 
  end:
   X->Close(fn, id);
@@ -896,9 +1006,8 @@ bool XINDEX::Init(PGLOBAL g)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-#if defined(TRACE)
-  printf("Index %s file: %s\n", Xdp->GetName(), fn);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
   /*  Open the index file and check its validity.                      */
@@ -910,18 +1019,18 @@ bool XINDEX::Init(PGLOBAL g)
   if (X->Read(g, nv, NZ, sizeof(int)))
     goto err;
 
-#if defined(TRACE)
-  printf("nv=%d %d %d %d %d %d %d\n",
-    nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
-#endif   // TRACE
+  if (trace)
+    htrc("nv=%d %d %d %d %d %d %d\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
-  // when other indexes are added or deleted 
+  // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
-#if defined(TRACE)
-    printf("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
-#endif   // TRACE
+
+    if (trace)
+      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+
     goto err;
     } // endif
 
@@ -1140,9 +1249,8 @@ bool XINDEX::MapInit(PGLOBAL g)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-#if defined(TRACE)
-  printf("Index %s file: %s\n", Xdp->GetName(), fn);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
   /*  Get a view on the part of the index file containing this index.  */
@@ -1157,24 +1265,24 @@ bool XINDEX::MapInit(PGLOBAL g)
     // Position the memory base at the offset of this index
     mbase += noff[id].Low;
     } // endif id
-    
+
   //  Now start the mapping process.
   nv = (int*)mbase;
   mbase += NZ * sizeof(int);
 
-#if defined(TRACE)
-  printf("nv=%d %d %d %d %d %d %d\n",
-    nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
-#endif   // TRACE
+  if (trace)
+    htrc("nv=%d %d %d %d %d %d %d\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
-  // when other indexes are added or deleted 
+  // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     // Not this index
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
-#if defined(TRACE)
-    printf("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
-#endif   // TRACE
+
+    if (trace)
+      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+
     goto err;
     } // endif nv
 
@@ -1272,16 +1380,19 @@ err:
 /***********************************************************************/
 /*  Get Ndif and Num_K from the index file.                            */
 /***********************************************************************/
-bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
+bool XINDEX::GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk)
   {
   char   *ftype;
   char    fn[_MAX_PATH];
-  int     n, nv[NZ], id = -1;
-  bool    estim = false;
+  int     nv[NZ], id = -1; // n
+//bool    estim = false;
+  bool    rc = true;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
 
-  ndif = numk = 0;
+//  ndif = numk = 0;
+  numk = 0;
 
+#if 0
   /*********************************************************************/
   /*  Get the estimated table size.                                    */
   /*  Note: for fixed tables we must use cardinality to avoid the call */
@@ -1309,6 +1420,7 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
     strcpy(g->Message, MSG(NO_KEY_COL));
     return true;    // Error
     } // endif Nk
+#endif // 0
 
   switch (Tdbp->Ftype) {
     case RECFM_VAR: ftype = ".dnx"; break;
@@ -1341,9 +1453,8 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
 
   PlugSetPath(fn, fn, Tdbp->GetPath());
 
-#if defined(TRACE)
-  printf("Index %s file: %s\n", Xdp->GetName(), fn);
-#endif   // TRACE
+  if (trace)
+    htrc("Index %s file: %s\n", Xdp->GetName(), fn);
 
   /*********************************************************************/
   /*  Open the index file and check its validity.                      */
@@ -1359,20 +1470,21 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
   if (X->Read(g, nv, NZ, sizeof(int)))
     goto err;
 
-#if defined(TRACE)
-  printf("nv=%d %d %d %d\n", nv[0], nv[1], nv[2], nv[3]);
-#endif   // TRACE
+  if (trace)
+    htrc("nv=%d %d %d %d\n", nv[0], nv[1], nv[2], nv[3]);
 
   // The test on ID was suppressed because MariaDB can change an index ID
-  // when other indexes are added or deleted 
+  // when other indexes are added or deleted
   if (/*nv[0] != ID ||*/ nv[1] != Nk) {
     sprintf(g->Message, MSG(BAD_INDEX_FILE), fn);
-#if defined(TRACE)
-    printf("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
-#endif   // TRACE
+
+    if (trace)
+      htrc("nv[0]=%d ID=%d nv[1]=%d Nk=%d\n", nv[0], ID, nv[1], Nk);
+
     goto err;
     } // endif
 
+#if 0
   if (nv[2]) {
     Mul = true;
     Ndif = nv[2] - 1;  // nv[2] is offset size, equal to Ndif + 1
@@ -1388,9 +1500,11 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
     sprintf(g->Message, MSG(OPT_NOT_MATCH), fn);
     goto err;
     } // endif
+#endif // 0
 
   Num_K = nv[3];
 
+#if 0
   if (Nk > 1) {
     if (nv[2] && X->Seek(g, nv[2] * sizeof(int), 0, SEEK_CUR))
       goto err;
@@ -1411,17 +1525,18 @@ bool XINDEX::GetAllSizes(PGLOBAL g, int &ndif, int &numk)
 
     Ndif = nv[0];
     } // endif Nk
+#endif // 0
 
   /*********************************************************************/
   /*  Set size values.                                                 */
   /*********************************************************************/
-  ndif = Ndif;
+//ndif = Ndif;
   numk = Num_K;
-  return false;
+  rc = false;
 
 err:
   X->Close();
-  return true;
+  return rc;
   } // end of GetAllSizes
 
 /***********************************************************************/
@@ -1455,7 +1570,7 @@ int XINDEX::Range(PGLOBAL g, int limit, bool incl)
       n = k;
 //      if (limit)
 //        n = (Mul) ? k : kp->Val_K;
-//      else 
+//      else
 //        n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
@@ -1642,9 +1757,8 @@ int XINDEX::Fetch(PGLOBAL g)
       break;
     case OP_SAME:                 // Read next same
       // Logically the key values should be the same as before
-#if defined(TRACE)
-      printf("looking for next same value\n");
-#endif   // TRACE
+      if (trace > 1)
+        htrc("looking for next same value\n");
 
       if (NextVal(true)) {
         Op = OP_EQ;
@@ -1690,9 +1804,9 @@ int XINDEX::Fetch(PGLOBAL g)
 
         Nth++;
 
-#if defined(TRACE)
-        printf("Fetch: Looking for new value\n");
-#endif   // TRACE
+        if (trace > 1)
+          htrc("Fetch: Looking for new value\n");
+
         Cur_K = FastFind(Nval);
 
         if (Cur_K >= Num_K)
@@ -1848,8 +1962,7 @@ int XINDEX::FastFind(int nv)
 XINDXS::XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp)
       : XINDEX(tdbp, xdp, pxp, cp, xp)
   {
-//Srtd = To_Cols[0]->GetOpt() < 0;          // ?????
-  Srtd = false;
+  Srtd = To_Cols[0]->GetOpt() == 2;
   } // end of XINDXS constructor
 
 /***********************************************************************/
@@ -1891,7 +2004,7 @@ int XINDXS::Range(PGLOBAL g, int limit, bool incl)
     if (k < Num_K || Op != OP_EQ)
       if (limit)
         n = (Mul) ? k : kp->Val_K;
-      else 
+      else
         n = (Mul) ? Pof[kp->Val_K + 1] - k : 1;
 
   } else {
@@ -1987,10 +2100,9 @@ int XINDXS::Fetch(PGLOBAL g)
       To_KeyCol->Val_K = Cur_K = 0;
       Op = OP_NEXT;
       break;
-    case OP_SAME:                // Read next same
-#if defined(TRACE)
-//      printf("looking for next same value\n");
-#endif   // TRACE
+    case OP_SAME:                 // Read next same
+      if (trace > 1)
+        htrc("looking for next same value\n");
 
       if (!Mul || NextVal(true)) {
         Op = OP_EQ;
@@ -2023,18 +2135,17 @@ int XINDXS::Fetch(PGLOBAL g)
       /*  Look for the first key equal to the link column values       */
       /*  and return its rank whithin the index table.                 */
       /*****************************************************************/
-      if (To_KeyCol->InitFind(g, To_Vals[0]))                       
-        return -1;                 // No more constant values     
-      else                                                         
-        Nth++;                                                     
-                                                                   
-#if defined(TRACE)                                                 
-        printf("Fetch: Looking for new value\n");                   
-#endif   // TRACE                                                   
-                                                                   
-      Cur_K = FastFind(1);                                         
-                                                                   
-      if (Cur_K >= Num_K)                                           
+      if (To_KeyCol->InitFind(g, To_Vals[0]))
+        return -1;                 // No more constant values
+      else
+        Nth++;
+
+      if (trace > 1)
+        htrc("Fetch: Looking for new value\n");
+
+      Cur_K = FastFind(1);
+
+      if (Cur_K >= Num_K)
         // Rank not whithin index table, signal record not found
         return -2;
       else if (Mul)
@@ -2119,7 +2230,10 @@ int XINDXS::FastFind(int nk)
     n = 0;
   } // endif sup
 
-  kcp->Val_K = i;                 // Used by FillValue
+  // Loop on kcp because of dynamic indexing
+  for (; kcp; kcp = kcp->Next)
+    kcp->Val_K = i;                 // Used by FillValue
+
   return ((n) ? Num_K : (Mul) ? Pof[i] : i);
   } // end of FastFind
 
@@ -2195,7 +2309,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
-    
+
     NewOff.Low = (int)ftell(Xfile);
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
@@ -2218,7 +2332,7 @@ bool XFILE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Xseek");
       return true;
       } // endif
-    
+
   } // endif mode
 
   return false;
@@ -2424,14 +2538,14 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       } // endif rc
 
     // Position the cursor at the offset of this index
-    rc = SetFilePointer(Hfile, noff[id].Low, 
+    rc = SetFilePointer(Hfile, noff[id].Low,
                        (PLONG)&noff[id].High, FILE_BEGIN);
 
     if (rc == INVALID_SET_FILE_POINTER) {
       sprintf(g->Message, MSG(FUNC_ERRNO), GetLastError(), "SetFilePointer");
       return true;
       } // endif
-    
+
   } // endif Mode
 
 #else   // UNIX
@@ -2479,7 +2593,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Seek");
       return true;
       } // endif
-    
+
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
       // New not sep index file. Write the header.
@@ -2499,7 +2613,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
       return true;
       } // endif
-    
+
   } // endif mode
 #endif  // UNIX
 
@@ -2526,15 +2640,15 @@ bool XHUGE::Seek(PGLOBAL g, int low, int high, int origin)
 
   if (lseek64(Hfile, pos, origin) < 0) {
     sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
-#if defined(TRACE)
-    printf("lseek64 error %d\n", errno);
-#endif   // TRACE
+
+    if (trace)
+      htrc("lseek64 error %d\n", errno);
+
     return true;
     } // endif lseek64
 
-#if defined(TRACE)
-  printf("Seek: low=%d high=%d\n", low, high);
-#endif   // TRACE
+  if (trace)
+    htrc("Seek: low=%d high=%d\n", low, high);
 #endif // UNIX
 
   return false;
@@ -2637,7 +2751,7 @@ void XHUGE::Close(char *fn, int id)
     CloseFileHandle(Hfile);
     Hfile = CreateFile(fn, GENERIC_READ | GENERIC_WRITE, 0, NULL,
                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-                       
+
     if (Hfile != INVALID_HANDLE_VALUE)
       if (SetFilePointer(Hfile, id * sizeof(IOFF), NULL, FILE_BEGIN)
               != INVALID_SET_FILE_POINTER) {
@@ -2650,7 +2764,7 @@ void XHUGE::Close(char *fn, int id)
 #else   // !WIN32
   if (id >= 0 && fn) {
     fcntl(Hfile, F_SETFD, O_WRONLY);
-    
+
     if (lseek(Hfile, id * sizeof(IOFF), SEEK_SET))
       write(Hfile, &NewOff, sizeof(IOFF));
 
@@ -2788,7 +2902,7 @@ int XXROW::FastFind(int nk)
 /***********************************************************************/
 /*  KXYCOL public constructor.                                         */
 /***********************************************************************/
-KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp), 
+KXYCOL::KXYCOL(PKXBASE kp) : To_Keys(Keys.Memp),
         To_Bkeys(Bkeys.Memp), Kof((CPINT&)Koff.Memp)
   {
   Next = NULL;
@@ -2821,7 +2935,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
   int len = colp->GetLength(), prec = colp->GetScale();
 
   // Currently no indexing on NULL columns
-  if (colp->IsNullable()) {
+  if (colp->IsNullable() && kln) {
     sprintf(g->Message, "Cannot index nullable column %s", colp->GetName());
     return true;
     } // endif nullable
@@ -2860,8 +2974,7 @@ bool KXYCOL::Init(PGLOBAL g, PCOL colp, int n, bool sm, int kln)
 
   // Store this information to avoid sorting when already done
   if (Asc)
-//  IsSorted = colp->GetOpt() == 2;
-    IsSorted = false;
+    IsSorted = colp->GetOpt() == 2;
 
 //SetNulls(colp->IsNullable()); for when null columns will be indexable
   Colp = colp;
@@ -2885,9 +2998,9 @@ BYTE* KXYCOL::MapInit(PGLOBAL g, PCOL colp, int *n, BYTE *m)
 
   Type = colp->GetResultType();
 
- if (trace)
-   htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
-        this, colp, Type, n[0], len, m);
+  if (trace)
+    htrc("MapInit(%p): colp=%p type=%d n=%d len=%d m=%p\n",
+         this, colp, Type, n[0], len, m);
 
   // Allocate the Value object used when moving items
   Valp = AllocateValue(g, Type, len, prec, colp->IsUnsigned());

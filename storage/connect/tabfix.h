@@ -38,7 +38,7 @@ class DllExport TDBFIX : public TDBDOS {
   virtual void ResetDB(void);
   virtual bool IsUsingTemp(PGLOBAL g);
   virtual int  RowNumber(PGLOBAL g, bool b = false);
-  virtual int  ResetTableOpt(PGLOBAL g, bool dox);
+  virtual int  ResetTableOpt(PGLOBAL g, bool dop, bool dox);
   virtual void ResetSize(void);
   virtual int  GetBadLines(void) {return Txfp->GetNerr();}
 

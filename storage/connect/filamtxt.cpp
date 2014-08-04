@@ -1,11 +1,11 @@
 /*********** File AM Txt C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMTXT                                              */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -214,7 +214,7 @@ int TXTFAM::Cardinality(PGLOBAL g)
       } // endif Padded
 
       if (trace)
-        htrc(" Computed max_K=%d Filen=%d lrecl=%d\n", 
+        htrc(" Computed max_K=%d Filen=%d lrecl=%d\n",
               card, len, Lrecl);
 
     } else
@@ -227,6 +227,28 @@ int TXTFAM::Cardinality(PGLOBAL g)
     return 1;
 
   } // end of Cardinality
+
+/***********************************************************************/
+/*  Use BlockTest to reduce the table estimated size.                  */
+/*  Note: This function is meant only for fixed length files but is    */
+/*  placed here to be available to FIXFAM and MPXFAM classes.          */
+/***********************************************************************/
+int TXTFAM::MaxBlkSize(PGLOBAL g, int s)
+  {
+  int rc = RC_OK, savcur = CurBlk, blm1 = Block - 1;
+  int size, last = s - blm1 * Nrec;
+
+  // Roughly estimate the table size as the sum of blocks
+  // that can contain good rows
+  for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
+    if ((rc = Tdbp->TestBlock(g)) == RC_OK)
+      size += (CurBlk == blm1) ? last : Nrec;
+    else if (rc == RC_EF)
+      break;
+
+  CurBlk = savcur;
+  return size;
+  } // end of MaxBlkSize
 
 /* --------------------------- Class DOSFAM -------------------------- */
 
@@ -293,6 +315,15 @@ int DOSFAM::Cardinality(PGLOBAL g)
   {
   return (g) ? -1 : 0;
   } // end of Cardinality
+
+/***********************************************************************/
+/*  Use BlockTest to reduce the table estimated size.                  */
+/*  Note: This function is not really implemented yet.                 */
+/***********************************************************************/
+int DOSFAM::MaxBlkSize(PGLOBAL g, int s)
+  {
+  return s;
+  } // end of MaxBlkSize
 
 /***********************************************************************/
 /*  OpenTableFile: Open a DOS/UNIX table file using C standard I/Os.   */
@@ -509,19 +540,35 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
 
   if (trace > 1)
     htrc("ReadBuffer: Tdbp=%p To_Line=%p Placed=%d\n",
-                      Tdbp, Tdbp->To_Line, Placed); 
+                      Tdbp, Tdbp->To_Line, Placed);
 
   if (!Placed) {
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
+   next:
     if (RecordPos(g))
       return RC_FX;
 
     CurBlk = (int)Rows++;
 
-     if (trace > 1)
-      htrc("ReadBuffer: CurBlk=%d\n", CurBlk); 
+    if (trace > 1)
+      htrc("ReadBuffer: CurBlk=%d\n", CurBlk);
+
+   /********************************************************************/
+    /*  Check whether optimization on ROWID                            */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        // Skip this record
+        if ((rc = SkipRecord(g, FALSE)) != RC_OK)
+          return rc;
+
+        goto next;
+      } // endswitch rc
 
   } else
     Placed = false;
@@ -875,13 +922,16 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 
 /***********************************************************************/
 /*  Delete the old file and rename the new temp file.                  */
+/*  If aborting just delete the new temp file.                         */
 /***********************************************************************/
-int DOSFAM::RenameTempFile(PGLOBAL g)
+int DOSFAM::RenameTempFile(PGLOBAL g, bool abort)
   {
   char *tempname, filetemp[_MAX_PATH], filename[_MAX_PATH];
-  int   rc;
+  int   rc = RC_OK;
 
-  if (!To_Fbt)
+  if (To_Fbt)
+    tempname = (char*)To_Fbt->Fname;
+  else
     return RC_INFO;               // Nothing to do ???
 
   // This loop is necessary because, in case of join,
@@ -890,26 +940,28 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
     if (fb == To_Fb || fb == To_Fbt)
       rc = PlugCloseFile(g, fb);
 
-  tempname = (char*)To_Fbt->Fname;
-  PlugSetPath(filename, To_File, Tdbp->GetPath());
-  strcat(PlugRemoveType(filetemp, filename), ".ttt");
-  remove(filetemp);   // May still be there from previous error
+  if (!abort) {
+    PlugSetPath(filename, To_File, Tdbp->GetPath());
+    strcat(PlugRemoveType(filetemp, filename), ".ttt");
+    remove(filetemp);   // May still be there from previous error
 
-  if (rename(filename, filetemp)) {    // Save file for security
-    sprintf(g->Message, MSG(RENAME_ERROR),
-            filename, filetemp, strerror(errno));
-    rc = RC_FX;
-  } else if (rename(tempname, filename)) {
-    sprintf(g->Message, MSG(RENAME_ERROR),
-            tempname, filename, strerror(errno));
-    rc = rename(filetemp, filename);   // Restore saved file
-    rc = RC_FX;
-  } else if (remove(filetemp)) {
-    sprintf(g->Message, MSG(REMOVE_ERROR),
-            filetemp, strerror(errno));
-    rc = RC_INFO;                      // Acceptable
+    if (rename(filename, filetemp)) {    // Save file for security
+      sprintf(g->Message, MSG(RENAME_ERROR),
+              filename, filetemp, strerror(errno));
+      rc = RC_FX;
+    } else if (rename(tempname, filename)) {
+      sprintf(g->Message, MSG(RENAME_ERROR),
+              tempname, filename, strerror(errno));
+      rc = rename(filetemp, filename);   // Restore saved file
+      rc = RC_FX;
+    } else if (remove(filetemp)) {
+      sprintf(g->Message, MSG(REMOVE_ERROR),
+              filetemp, strerror(errno));
+      rc = RC_INFO;                      // Acceptable
+    } // endif's
+
   } else
-    rc = RC_OK;
+    remove(tempname);
 
   return rc;
   } // end of RenameTempFile
@@ -917,22 +969,22 @@ int DOSFAM::RenameTempFile(PGLOBAL g)
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
 /***********************************************************************/
-void DOSFAM::CloseTableFile(PGLOBAL g)
+void DOSFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc;
 
   if (UseTemp && T_Stream) {
-    if (Tdbp->Mode == MODE_UPDATE) {
+    if (Tdbp->Mode == MODE_UPDATE && !abort) {
       // Copy eventually remaining lines
       bool b;
 
       fseek(Stream, 0, SEEK_END);
       Fpos = ftell(Stream);
-      rc = MoveIntermediateLines(g, &b);
-      } // endif Mode
+      abort = MoveIntermediateLines(g, &b) != RC_OK;
+      } // endif abort
 
     // Delete the old file and rename the new temp file.
-    RenameTempFile(g);     // Also close all files
+    RenameTempFile(g, abort);     // Also close all files
   } else {
     rc = PlugCloseFile(g, To_Fb);
 
@@ -968,7 +1020,7 @@ BLKFAM::BLKFAM(PDOSDEF tdp) : DOSFAM(tdp)
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
   Closing = false;
-  BlkPos = NULL;
+  BlkPos = tdp->GetTo_Pos();
   CurLine = NULL;
   NxtLine = NULL;
   OutBuf = NULL;
@@ -998,10 +1050,28 @@ void BLKFAM::Reset(void)
 /***********************************************************************/
 int BLKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
+
+/***********************************************************************/
+/*  Use BlockTest to reduce the table estimated size.                  */
+/***********************************************************************/
+int BLKFAM::MaxBlkSize(PGLOBAL g, int s)
+  {
+  int rc = RC_OK, savcur = CurBlk;
+  int size;
+
+  // Roughly estimate the table size as the sum of blocks
+  // that can contain good rows
+  for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
+    if ((rc = Tdbp->TestBlock(g)) == RC_OK)
+      size += (CurBlk == Block - 1) ? Last : Nrec;
+    else if (rc == RC_EF)
+      break;
+
+  CurBlk = savcur;
+  return size;
+  } // end of MaxBlkSize
 
 /***********************************************************************/
 /*  Allocate the line buffer. For mode Delete or when a temp file is   */
@@ -1108,8 +1178,109 @@ int BLKFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int BLKFAM::ReadBuffer(PGLOBAL g)
   {
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
+  int i, n, rc = RC_OK;
+
+  /*********************************************************************/
+  /*  Sequential reading when Placed is not true.                      */
+  /*********************************************************************/
+  if (Placed) {
+    Placed = false;
+  } else if (++CurNum < Rbuf) {
+    CurLine = NxtLine;
+
+    // Get the position of the next line in the buffer
+    while (*NxtLine++ != '\n') ;
+
+    // Set caller line buffer
+    n = NxtLine - CurLine - Ending;
+    memcpy(Tdbp->GetLine(), CurLine, n);
+    Tdbp->GetLine()[n] = '\0';
+    goto fin;
+  } else if (Rbuf < Nrec && CurBlk != -1) {
+    return RC_EF;
+  } else {
+    /*******************************************************************/
+    /*  New block.                                                     */
+    /*******************************************************************/
+    CurNum = 0;
+
+   next:
+    if (++CurBlk >= Block)
+      return RC_EF;
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+
+  } // endif's
+
+  if (OldBlk == CurBlk)
+    goto ok;         // Block is already there
+
+  // fseek is required only in non sequential reading
+  if (CurBlk != OldBlk + 1)
+    if (fseek(Stream, BlkPos[CurBlk], SEEK_SET)) {
+      sprintf(g->Message, MSG(FSETPOS_ERROR), BlkPos[CurBlk]);
+      return RC_FX;
+      } // endif fseek
+
+  // Calculate the length of block to read
+  BlkLen = BlkPos[CurBlk + 1] - BlkPos[CurBlk];
+
+  if (trace)
+    htrc("File position is now %d\n", ftell(Stream));
+
+  // Read the entire next block
+  n = fread(To_Buf, 1, (size_t)BlkLen, Stream);
+
+  if (n == BlkLen) {
+//  ReadBlks++;
+    num_read++;
+    Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
+
+   ok:
+    rc = RC_OK;
+
+    // Get the position of the current line
+    for (i = 0, CurLine = To_Buf; i < CurNum; i++)
+      while (*CurLine++ != '\n') ;      // What about Unix ???
+
+    // Now get the position of the next line
+    for (NxtLine = CurLine; *NxtLine++ != '\n';) ;
+
+    // Set caller line buffer
+    n = NxtLine - CurLine - Ending;
+    memcpy(Tdbp->GetLine(), CurLine, n);
+    Tdbp->GetLine()[n] = '\0';
+  } else if (feof(Stream)) {
+    rc = RC_EF;
+  } else {
+#if defined(UNIX)
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
+#else
+    sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#endif
+
+    if (trace)
+      htrc("%s\n", g->Message);
+
+    return RC_FX;
+  } // endelse
+
+  OldBlk = CurBlk;         // Last block actually read
+  IsRead = true;           // Is read indeed
+
+ fin:
+  // Store the current record file position for Delete and Update
+  Fpos = BlkPos[CurBlk] + CurLine - To_Buf;
+  return rc;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -1214,27 +1385,22 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Table file close routine for DOS access method.                    */
 /***********************************************************************/
-void BLKFAM::CloseTableFile(PGLOBAL g)
+void BLKFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc, wrc = RC_OK;
 
   if (UseTemp && T_Stream) {
-    if (Tdbp->GetMode() == MODE_UPDATE) {
+    if (Tdbp->GetMode() == MODE_UPDATE && !abort) {
       // Copy eventually remaining lines
       bool b;
 
       fseek(Stream, 0, SEEK_END);
       Fpos = ftell(Stream);
-      rc = MoveIntermediateLines(g, &b);
-    } else
-      rc = RC_OK;
+      abort = MoveIntermediateLines(g, &b) != RC_OK;
+      } // endif abort
 
-    if (rc == RC_OK)
-      // Delete the old file and rename the new temp file.
-      rc = RenameTempFile(g);    // Also close all files
-    else
-      rc = PlugCloseFile(g, To_Fb);
-
+    // Delete the old file and rename the new temp file.
+    rc = RenameTempFile(g, abort);    // Also close all files
   } else {
     // Closing is True if last Write was in error
     if (Tdbp->GetMode() == MODE_INSERT && CurNum && !Closing) {

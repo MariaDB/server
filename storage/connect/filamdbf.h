@@ -67,7 +67,7 @@ class DllExport DBFFAM : public FIXFAM, public DBFBASE {
   virtual void ResetBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:

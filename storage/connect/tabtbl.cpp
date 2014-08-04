@@ -435,7 +435,7 @@ bool TDBTBL::OpenDB(PGLOBAL g)
 
   if ((CurTable = Tablist)) {
     Tdbp = (PTDBASE)CurTable->GetTo_Tdb();
-    Tdbp->SetMode(Mode);
+//  Tdbp->SetMode(Mode);
 //  Tdbp->ResetDB();
 //  Tdbp->ResetSize();
 
@@ -685,7 +685,7 @@ bool TDBTBM::OpenDB(PGLOBAL g)
   /*********************************************************************/
   if ((CurTable = Tablist)) {
     Tdbp = (PTDBASE)CurTable->GetTo_Tdb();
-    Tdbp->SetMode(Mode);
+//  Tdbp->SetMode(Mode);
 
     // Check and initialize the subtable columns
     for (PCOL cp = Columns; cp; cp = cp->GetNext())

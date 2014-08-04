@@ -336,16 +336,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
     } // endif dbuserp
 
   memset(dbuserp, 0, sizeof(DBUSERBLK));
-//dbuserp->Act2 = g->Activityp;
-//#if defined(UNIX)
-//  dbuserp->LineLen = 160;
-//#else
-//  dbuserp->LineLen = 78;
-//#endif
-//dbuserp->Maxres = MAXRES;
-//dbuserp->Maxlin = MAXLIN;
-//dbuserp->Maxbmp = MAXBMP;
-//dbuserp->AlgChoice = AMOD_AUTO;
+  dbuserp->Maxbmp = MAXBMP;
   dbuserp->UseTemp = TMP_AUTO;
   dbuserp->Check = CHK_ALL;
   strcpy(dbuserp->Server, "CONNECT");
@@ -391,6 +382,31 @@ char *PlgGetDataPath(PGLOBAL g)
 
   return (cat) ? cat->GetDataPath() : NULL;
   } // end of PlgGetDataPath
+
+/***********************************************************************/
+/*  Extract from a path name the required component.                   */
+/*  This function assumes there is enough space in the buffer.         */
+/***********************************************************************/
+char *ExtractFromPath(PGLOBAL g, char *pBuff, char *FileName, OPVAL op)
+  {
+  char *drive = NULL, *direc = NULL, *fname = NULL, *ftype = NULL;
+
+  switch (op) {           // Determine which part to extract
+#if !defined(UNIX)
+    case OP_FDISK: drive = pBuff; break;
+#endif   // !UNIX
+    case OP_FPATH: direc = pBuff; break;
+    case OP_FNAME: fname = pBuff; break;
+    case OP_FTYPE: ftype = pBuff; break;
+    default:
+      sprintf(g->Message, MSG(INVALID_OPER), op, "ExtractFromPath");
+      return NULL;
+    } // endswitch op
+
+  // Now do the extraction
+  _splitpath(FileName, drive, direc, fname, ftype);
+  return pBuff;
+  } // end of PlgExtractFromPath
 
 /***********************************************************************/
 /*  Check the occurence and matching of a pattern against a string.    */

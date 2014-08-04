@@ -1,7 +1,7 @@
 /************** FilAmZip H Declares Source Code File (.H) **************/
-/*  Name: FILAMZIP.H    Version 1.1                                    */
+/*  Name: FILAMZIP.H    Version 1.2                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the GZIP access method classes declares.        */
 /***********************************************************************/
@@ -38,6 +38,7 @@ class DllExport ZIPFAM : public TXTFAM {
   virtual void Reset(void);
   virtual int  GetFileLength(PGLOBAL g);
   virtual int  Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
+  virtual int  MaxBlkSize(PGLOBAL g, int s) {return s;}
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  GetRowID(void);
   virtual bool RecordPos(PGLOBAL g);
@@ -47,7 +48,7 @@ class DllExport ZIPFAM : public TXTFAM {
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:
@@ -77,6 +78,7 @@ class DllExport ZBKFAM : public ZIPFAM {
 
   // Methods
   virtual int  Cardinality(PGLOBAL g);
+  virtual int  MaxBlkSize(PGLOBAL g, int s);
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  GetRowID(void);
   virtual bool RecordPos(PGLOBAL g);
@@ -84,7 +86,7 @@ class DllExport ZBKFAM : public ZIPFAM {
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:
@@ -120,7 +122,6 @@ class DllExport ZIXFAM : public ZBKFAM {
   // No additional Members
   }; // end of class ZIXFAM
 
-#if 0
 /***********************************************************************/
 /*  This is the DOS/UNIX Access Method class declaration for PlugDB    */
 /*  fixed/variable files compressed using the zlib library functions.  */
@@ -151,7 +152,7 @@ class DllExport ZLBFAM : public BLKFAM {
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:
@@ -164,6 +165,5 @@ class DllExport ZLBFAM : public BLKFAM {
   int      *Zlenp;            // Pointer to block length
   bool      Optimized;        // true when opt file is available
   }; // end of class ZLBFAM
-#endif // 0
 
 #endif // __FILAMZIP_H

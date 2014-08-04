@@ -97,7 +97,7 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
 /***********************************************************************/
 /*  Definition of class SPCCOL with all its method functions.          */
 /*  Note: Currently the special columns are ROWID, ROWNUM, FILEID,     */
-/*  SERVID, TABID, and CONID.                                          */
+/*  SERVID, TABID, PARTID, and CONID.                                  */
 /***********************************************************************/
 class SPCCOL: public COLUMN {  // Special Column Name/Qualifier block.
  public:

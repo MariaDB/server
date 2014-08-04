@@ -1,11 +1,11 @@
 /*********** File AM Vct C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMVCT                                              */
 /* -------------                                                       */
-/*  Version 2.4                                                        */
+/*  Version 2.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -137,6 +137,39 @@ VCTFAM::VCTFAM(PVCTFAM txfp) : FIXFAM(txfp)
   } // end of VCTFAM copy constructor
 
 /***********************************************************************/
+/*  VCT GetFileLength: returns file size in number of bytes.           */
+/*  This function is here to be accessible by VECFAM and VMPFAM.       */
+/***********************************************************************/
+int VCTFAM::GetFileLength(PGLOBAL g)
+  {
+  if (Split) {
+    // Get the total file length
+    char    filename[_MAX_PATH];
+    char   *savfile = To_File;
+    int     i, len = 0;
+
+    //  Initialize the array of file structures
+    if (!Colfn) {
+      // Prepare the column file name pattern and set Ncol
+      Colfn = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
+      Ncol = ((PVCTDEF)Tdbp->GetDef())->MakeFnPattern(Colfn);
+      } // endif Colfn
+
+    To_File = filename;
+
+    for (i = 0; i < Ncol; i++) {
+      sprintf(filename, Colfn, i+1);
+      len += TXTFAM::GetFileLength(g);
+      } // endfor i
+
+    To_File = savfile;
+    return len;
+  } else
+    return TXTFAM::GetFileLength(g);
+
+  } // end of GetFileLength
+
+/***********************************************************************/
 /*  Reset read/write position values.                                  */
 /***********************************************************************/
 void VCTFAM::Reset(void)
@@ -170,7 +203,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
   if ((h = global_open(g, MSGID_CANNOT_OPEN, filename, O_RDONLY)) == -1
       || !_filelength(h)) {
     // Consider this is a void table
-    Last = Nrec; 
+    Last = Nrec;
     Block = 0;
 
     if (h != -1)
@@ -179,7 +212,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
     return n;
   } else if (Header == 3)
     k = lseek(h, -(int)sizeof(VECHEADER), SEEK_END);
-    
+
   if ((k = read(h, &vh, sizeof(vh))) != sizeof(vh)) {
     sprintf(g->Message, "Error reading header file %s", filename);
     n = -1;
@@ -187,7 +220,7 @@ int VCTFAM::GetBlockInfo(PGLOBAL g)
     sprintf(g->Message, "MaxRec=%d doesn't match MaxBlk=%d Nrec=%d",
                         vh.MaxRec, MaxBlk, Nrec);
     n = -1;
-  } else {     
+  } else {
     Block = (vh.NumRec > 0) ? (vh.NumRec + Nrec - 1) / Nrec : 0;
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
   } // endif s
@@ -245,6 +278,26 @@ bool VCTFAM::SetBlockInfo(PGLOBAL g)
   } // end of SetBlockInfo
 
 /***********************************************************************/
+/*  Use BlockTest to reduce the table estimated size.                  */
+/***********************************************************************/
+int VCTFAM::MaxBlkSize(PGLOBAL g, int s)
+  {
+  int rc = RC_OK, savcur = CurBlk;
+  int size;
+
+  // Roughly estimate the table size as the sum of blocks
+  // that can contain good rows
+  for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
+    if ((rc = Tdbp->TestBlock(g)) == RC_OK)
+      size += (CurBlk == Block - 1) ? Last : Nrec;
+    else if (rc == RC_EF)
+      break;
+
+  CurBlk = savcur;
+  return size;
+  } // end of MaxBlkSize
+
+/***********************************************************************/
 /*  VCT Cardinality: returns table cardinality in number of rows.      */
 /*  This function can be called with a null argument to test the       */
 /*  availability of Cardinality implementation (1 yes, 0 no).          */
@@ -264,20 +317,20 @@ int VCTFAM::Cardinality(PGLOBAL g)
       PSZ     savfn = To_File;
       int    len, clen, card = -1;
       PCOLDEF cdp = Tdbp->GetDef()->GetCols();
- 
+
       if (!Colfn) {
         // Prepare the column file name pattern
         Colfn = (char*)PlugSubAlloc(g, NULL, _MAX_PATH);
         Ncol = ((VCTDEF*)Tdbp->GetDef())->MakeFnPattern(Colfn);
         } // endif Colfn
- 
+
       // Use the first column file to calculate the cardinality
       clen = cdp->GetClen();
       sprintf(filename, Colfn, 1);
       To_File = filename;
-      len = GetFileLength(g);
+      len = TXTFAM::GetFileLength(g);
       To_File = savfn;
- 
+
       if (len >= 0) {
         if (!(len % clen))
           card = len / clen;           // Fixed length file
@@ -289,7 +342,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
       } else
         card = 0;
-  
+
       // Set number of blocks for later use
       Block = (card > 0) ? (card + Nrec - 1) / Nrec : 0;
       Last = (card + Nrec - 1) % Nrec + 1;
@@ -429,7 +482,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
     return ResetTableSize(g, 0, Nrec);
 
   num_read = num_there = num_write = 0;
-  
+
   //  Allocate the table and column block buffer
   return AllocateBuffer(g);
   } // end of OpenTableFile
@@ -555,8 +608,20 @@ int VCTFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     CurNum = 0;
 
+   next:
     if (++CurBlk == Block)
       return RC_EF;                        // End of file
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimizing     */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
 
     num_there++;
     } // endif CurNum
@@ -684,7 +749,7 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
 int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   bool eof = false;
-  
+
   if (trace)
     htrc("VCT DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
           irc, UseTemp, Fpos, Tpos, Spos);
@@ -694,7 +759,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file end=%d\n", Fpos);
 
@@ -1010,7 +1075,7 @@ bool VCTFAM::CleanUnusedSpace(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base close routine for VCT access method.                     */
 /***********************************************************************/
-void VCTFAM::CloseTableFile(PGLOBAL g)
+void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -1046,7 +1111,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g)
       colp->WriteBlock(g);
 
     if (UseTemp && T_Stream) {
-      rc = RenameTempFile(g);
+      rc = RenameTempFile(g, abort);
 
       if (Header) {
         // Header must be set because it was not set in temp file
@@ -1060,7 +1125,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g)
     if (MaxBlk)
       rc = CleanUnusedSpace(g);
 
-    if ((rc = RenameTempFile(g)) != RC_FX) {
+    if ((rc = RenameTempFile(g, abort)) != RC_FX) {
       Stream = T_Stream = NULL;      // For SetBlockInfo
       rc = ResetTableSize(g, Block, Last);
       } // endif rc
@@ -1093,10 +1158,10 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
       // Update catalog values for Block and Last
       PVCTDEF defp = (PVCTDEF)Tdbp->GetDef();
       LPCSTR  name = Tdbp->GetName();
-  
+
       defp->SetBlock(Block);
       defp->SetLast(Last);
-  
+
       if (!defp->SetIntCatInfo("Blocks", Block) ||
           !defp->SetIntCatInfo("Last", Last)) {
         sprintf(g->Message, MSG(UPDATE_ERROR), "Header");
@@ -1189,7 +1254,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
   /*  Calculate the offset and size of the block to write.             */
   /*********************************************************************/
   if (MaxBlk)                               // File has Vector format
-    len = Headlen 
+    len = Headlen
         + Nrec * (colp->Deplac * MaxBlk + colp->Clen * colp->ColBlk);
   else                                      // Old VCT format
     len = Nrec * (colp->Deplac + Lrecl * colp->ColBlk);
@@ -1212,7 +1277,7 @@ bool VCTFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
                             (size_t)colp->Clen, n, T_Stream)) {
     sprintf(g->Message, MSG(WRITE_STRERROR),
             (UseTemp) ? To_Fbt->Fname : To_File, strerror(errno));
-            
+
     if (trace)
       htrc("Write error: %s\n", strerror(errno));
 
@@ -1549,7 +1614,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file top=%p\n", Fpos);
 
@@ -1683,7 +1748,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
 /***********************************************************************/
-void VCMFAM::CloseTableFile(PGLOBAL g)
+void VCMFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int  wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -2135,7 +2200,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = Cardinality(g);
-    
+
     if (trace)
       htrc("Fpos placed at file end=%d\n", Fpos);
 
@@ -2220,7 +2285,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else        // UseTemp
       // Ok, now delete old files and rename new temp files
-      if (RenameTempFile(g) == RC_FX)
+      if (RenameTempFile(g, false) == RC_FX)
         return RC_FX;
 
     // Reset these values for TDBVCT::MakeBlockValues
@@ -2350,7 +2415,7 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
 /***********************************************************************/
 /*  Delete the old files and rename the new temporary files.           */
 /***********************************************************************/
-int VECFAM::RenameTempFile(PGLOBAL g)
+int VECFAM::RenameTempFile(PGLOBAL g, bool abort)
   {
   char *tempname, filetemp[_MAX_PATH], filename[_MAX_PATH];
   int   rc = RC_OK;
@@ -2366,25 +2431,30 @@ int VECFAM::RenameTempFile(PGLOBAL g)
       continue;
 
     tempname = (char*)T_Fbs[i]->Fname;
-    sprintf(filename, Colfn, i+1);
-    PlugSetPath(filename, filename, Tdbp->GetPath());
-    strcat(PlugRemoveType(filetemp, filename), ".ttt");
-    remove(filetemp);   // May still be there from previous error
 
-    if (rename(filename, filetemp)) {    // Save file for security
-      sprintf(g->Message, MSG(RENAME_ERROR),
-              filename, filetemp, strerror(errno));
-      rc = RC_FX;
-    } else if (rename(tempname, filename)) {
-      sprintf(g->Message, MSG(RENAME_ERROR),
-              tempname, filename, strerror(errno));
-      rc = rename(filetemp, filename);   // Restore saved file
-      rc = RC_FX;
-    } else if (remove(filetemp)) {
-      sprintf(g->Message, MSG(REMOVE_ERROR),
-              filetemp, strerror(errno));
-      rc = RC_INFO;                      // Acceptable
-    } // endif's
+    if (!abort) {
+      sprintf(filename, Colfn, i+1);
+      PlugSetPath(filename, filename, Tdbp->GetPath());
+      strcat(PlugRemoveType(filetemp, filename), ".ttt");
+      remove(filetemp);   // May still be there from previous error
+  
+      if (rename(filename, filetemp)) {    // Save file for security
+        sprintf(g->Message, MSG(RENAME_ERROR),
+                filename, filetemp, strerror(errno));
+        rc = RC_FX;
+      } else if (rename(tempname, filename)) {
+        sprintf(g->Message, MSG(RENAME_ERROR),
+                tempname, filename, strerror(errno));
+        rc = rename(filetemp, filename);   // Restore saved file
+        rc = RC_FX;
+      } else if (remove(filetemp)) {
+        sprintf(g->Message, MSG(REMOVE_ERROR),
+                filetemp, strerror(errno));
+        rc = RC_INFO;                      // Acceptable
+      } // endif's
+
+    } else
+      remove(tempname);
 
     } // endfor i
 
@@ -2394,7 +2464,7 @@ int VECFAM::RenameTempFile(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base close routine for VEC access method.                     */
 /***********************************************************************/
-void VECFAM::CloseTableFile(PGLOBAL g)
+void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -2421,10 +2491,10 @@ void VECFAM::CloseTableFile(PGLOBAL g)
       longjmp(g->jumper[g->jump_level], 44);
 
   } else if (mode == MODE_UPDATE) {
-    if (UseTemp && !InitUpdate) {
+    if (UseTemp && !InitUpdate && !abort) {
       // Write any intermediate lines to temp file
       Fpos = OldBlk * Nrec;
-      wrc = MoveIntermediateLines(g);
+      abort = MoveIntermediateLines(g) != RC_OK;
 //    Spos = Fpos + Nrec;
       } // endif UseTemp
 
@@ -2434,20 +2504,17 @@ void VECFAM::CloseTableFile(PGLOBAL g)
                    colp; colp = (PVCTCOL)colp->Next)
         colp->WriteBlock(g);
 
-    if (wrc == RC_OK && UseTemp && !InitUpdate) {
+    if (wrc == RC_OK && UseTemp && !InitUpdate && !abort) {
       // Write any intermediate lines to temp file
       Fpos = (Block - 1) * Nrec + Last;
-      wrc = MoveIntermediateLines(g);
+      abort = MoveIntermediateLines(g) != RC_OK;
       } // endif UseTemp
 
   } // endif's mode
 
   if (UseTemp && !InitUpdate) {
     // If they are errors, leave files unchanged
-    if (wrc == RC_OK)
-      rc = RenameTempFile(g);
-    else
-      longjmp(g->jumper[g->jump_level], 44);
+    rc = RenameTempFile(g, abort);
 
   } else if (Streams)
     for (int i = 0; i < Ncol; i++)
@@ -2553,7 +2620,7 @@ bool VECFAM::WriteBlock(PGLOBAL g, PVCTCOL colp)
 
     sprintf(fn, (UseTemp) ? Tempat : Colfn, colp->Index);
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
-    
+
     if (trace)
       htrc("Write error: %s\n", strerror(errno));
 
@@ -2825,7 +2892,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the top of map position.                 */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file top=%p\n", Fpos);
 
@@ -2918,7 +2985,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
 /***********************************************************************/
-void VMPFAM::CloseTableFile(PGLOBAL g)
+void VMPFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   if (Tdbp->GetMode() == MODE_DELETE) {
     // Set Block and Nrec values for TDBVCT::MakeBlockValues
@@ -3011,7 +3078,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
       } // endelse brc
 
     sprintf(g->Message, MSG(READ_ERROR), To_File, buf);
-    
+
     if (trace)
       htrc("BIGREAD: %s\n", g->Message);
 
@@ -3025,7 +3092,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
     sprintf(g->Message, MSG(READ_ERROR), fn, strerror(errno));
-    
+
     if (trace)
       htrc("BIGREAD: nbr=%d len=%d errno=%d %s\n",
                      nbr, len, errno, g->Message);
@@ -3079,7 +3146,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
     const char *fn = (h == Hfile) ? To_File : "Tempfile";
 
     sprintf(g->Message, MSG(WRITE_STRERROR), fn, strerror(errno));
-    
+
     if (trace)
       htrc("BIGWRITE: nbw=%d len=%d errno=%d %s\n",
                       nbw, len, errno, g->Message);
@@ -3132,17 +3199,17 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     // Consider this is a void table
     if (trace)
       htrc("Void table h=%d\n", h);
-      
-    Last = Nrec; 
+
+    Last = Nrec;
     Block = 0;
 
     if (h != INVALID_HANDLE_VALUE)
       CloseFileHandle(h);
 
     return n;
-  } else if (Header == 3) 
+  } else if (Header == 3)
     /*b = */ BigSeek(g, h, -(BIGINT)sizeof(vh), true);
-    
+
   if (BigRead(g, h, &vh, sizeof(vh))) {
     sprintf(g->Message, "Error reading header file %s", filename);
     n = -1;
@@ -3153,10 +3220,10 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   } else {
     Block = (vh.NumRec > 0) ? (vh.NumRec + Nrec - 1) / Nrec : 0;
     Last  = (vh.NumRec + Nrec - 1) % Nrec + 1;
-    
+
     if (trace)
       htrc("Block=%d Last=%d\n", Block, Last);
-      
+
   } // endif's
 
   CloseFileHandle(h);
@@ -3297,7 +3364,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   if (h == -1)
     return true;
-    
+
   pos = (BIGINT)n + (BIGINT)MaxBlk * (BIGINT)Blksize - (BIGINT)1;
 
   if (trace)
@@ -3738,7 +3805,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  EOF: position Fpos at the end-of-file position.                */
     /*******************************************************************/
     Fpos = (Block - 1) * Nrec + Last;
-    
+
     if (trace)
       htrc("Fpos placed at file end=%d\n", Fpos);
 
@@ -4040,7 +4107,7 @@ bool BGVFAM::CleanUnusedSpace(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base close routine for huge VEC access method.                */
 /***********************************************************************/
-void BGVFAM::CloseTableFile(PGLOBAL g)
+void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
@@ -4076,7 +4143,7 @@ void BGVFAM::CloseTableFile(PGLOBAL g)
       colp->WriteBlock(g);
 
     if (UseTemp && Tfile) {
-      rc = RenameTempFile(g);
+      rc = RenameTempFile(g, abort);
       Hfile = Tfile = INVALID_HANDLE_VALUE;
 
       if (Header)
@@ -4089,7 +4156,7 @@ void BGVFAM::CloseTableFile(PGLOBAL g)
     if (MaxBlk)
       rc = CleanUnusedSpace(g);
 
-    if ((rc = RenameTempFile(g)) != RC_FX) {
+    if ((rc = RenameTempFile(g, abort)) != RC_FX) {
       Hfile = Tfile = INVALID_HANDLE_VALUE;    // For SetBlockInfo
       rc = ResetTableSize(g, Block, Last);
       } // endif rc

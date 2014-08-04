@@ -32,7 +32,7 @@
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -302,6 +302,7 @@ bool TDBVCT::OpenDB(PGLOBAL g)
       To_Kindex->Reset();
 
     Txfp->Rewind();
+    ResetBlockFilter(g);
     return false;
     } // endif Use
 
@@ -322,6 +323,11 @@ bool TDBVCT::OpenDB(PGLOBAL g)
 
   // This was not done in previous version
   Use = USE_OPEN;       // Do it now in case we are recursively called
+
+  /*********************************************************************/
+  /*  Allocate the block filter tree if evaluation is possible.        */
+  /*********************************************************************/
+  To_BlkFil = InitBlockFilter(g, To_Filter);
 
   /*********************************************************************/
   /*  Reset buffer access according to indexing and to mode.           */
@@ -382,7 +388,7 @@ void TDBVCT::CloseDB(PGLOBAL g)
     To_Kindex = NULL;
     } // endif
 
-  Txfp->CloseTableFile(g);
+  Txfp->CloseTableFile(g, false);
   } // end of CloseDB
 
 // ------------------------ VCTCOL functions ----------------------------

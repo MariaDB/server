@@ -33,16 +33,17 @@ class DllExport MAPFAM : public TXTFAM {
   virtual void  Reset(void);
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
+  virtual int   MaxBlkSize(PGLOBAL g, int s) {return s;}
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual bool  DeferReading(void) {return false;}
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
-  virtual int    DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual int   DeleteRecords(PGLOBAL g, int irc);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:
@@ -71,6 +72,8 @@ class DllExport MBKFAM : public MAPFAM {
   // Methods
   virtual void Reset(void);
   virtual int  Cardinality(PGLOBAL g);
+  virtual int  MaxBlkSize(PGLOBAL g, int s)
+                {return TXTFAM::MaxBlkSize(g, s);}
   virtual int  GetRowID(void);
   virtual int  SkipRecord(PGLOBAL g, bool header);
   virtual int  ReadBuffer(PGLOBAL g);
@@ -96,7 +99,9 @@ class DllExport MPXFAM : public MBKFAM {
 
   // Methods
   virtual int   Cardinality(PGLOBAL g) {return TXTFAM::Cardinality(g);}
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual int   MaxBlkSize(PGLOBAL g, int s)
+                {return TXTFAM::MaxBlkSize(g, s);}
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual bool  DeferReading(void) {return false;}
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
