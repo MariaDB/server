@@ -638,13 +638,13 @@ InterlockedExchange() operates on LONG, and the LONG will be
 clobbered */
 
 # define os_atomic_test_and_set_byte(ptr, new_val) \
-	((byte) InterlockedExchangeAcquire(ptr, new_val))
+	((byte) InterlockedExchange(ptr, new_val))
 
 # define os_atomic_test_and_set_ulong(ptr, new_val) \
-	InterlockedExchangeAcquire(ptr, new_val)
+	InterlockedExchange(ptr, new_val)
 
 # define os_atomic_lock_release_byte(ptr) \
-	(void) InterlockedAndRelease(ptr, 0)
+	(void) InterlockedExchange(ptr, 0)
 
 #else
 # define IB_ATOMICS_STARTUP_MSG \
