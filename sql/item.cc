@@ -6389,8 +6389,6 @@ int Item_hex_hybrid::save_in_field(Field *field, bool no_conversions)
 
   ulonglong nr;
   uint32 length= str_value.length();
-  if (!length)
-    return 1;
 
   if (length > 8)
   {
