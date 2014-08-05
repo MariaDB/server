@@ -3887,6 +3887,6 @@ maria_declare_plugin(aria)
   status_variables,             /* status variables */
   system_variables,             /* system variables */
   "1.5",                        /* string version   */
-  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity         */
 }
 maria_declare_plugin_end;
