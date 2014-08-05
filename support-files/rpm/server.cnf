@@ -25,7 +25,7 @@
 #query_cache_size=0
 #
 # Optional setting
-#innodb_flush_log_at_trx_commit=2
+#innodb_flush_log_at_trx_commit=0
 
 # this is only for embedded server
 [embedded]
