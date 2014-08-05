@@ -648,6 +648,16 @@ DROP TABLE tmp_proxies_priv;
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
 
+# update timestamp fields in the innodb stat tables
+set @str="alter table mysql.innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp";
+set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
+prepare stmt from @str;
+execute stmt;
+
+set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
+prepare stmt from @str;
+execute stmt;
+
 SET @innodb_index_stats_fk= (select count(*) from information_schema.referential_constraints where constraint_schema='mysql' and table_name = 'innodb_index_stats' and referenced_table_name = 'innodb_table_stats' and constraint_name = 'innodb_index_stats_ibfk_1');
 SET @str=IF(@innodb_index_stats_fk > 0 and @have_innodb > 0, "ALTER TABLE mysql.innodb_index_stats DROP FOREIGN KEY `innodb_index_stats_ibfk_1`", "SET @dummy = 0");
 PREPARE stmt FROM @str;
