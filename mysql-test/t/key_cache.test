@@ -301,7 +301,7 @@ select * from t2;
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
---replace_result 1801 KEY_BLOCKS_UNUSED 1663 KEY_BLOCKS_UNUSED 1782 KEY_BLOCKS_UNUSED
+--replace_result 1804 KEY_BLOCKS_UNUSED 1801 KEY_BLOCKS_UNUSED 1663 KEY_BLOCKS_UNUSED 1782 KEY_BLOCKS_UNUSED
 show status like 'key_%';
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -334,7 +334,7 @@ update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
 
---replace_result 1794 KEY_BLOCKS_UNUSED 1656 KEY_BLOCKS_UNUSED 1775 KEY_BLOCKS_UNUSED
+--replace_result 1800 KEY_BLOCKS_UNUSED 1794 KEY_BLOCKS_UNUSED 1656 KEY_BLOCKS_UNUSED 1775 KEY_BLOCKS_UNUSED
 show status like 'key_%';
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -359,7 +359,7 @@ select * from t2;
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
---replace_result 1801 KEY_BLOCKS_UNUSED 1663 KEY_BLOCKS_UNUSED 1782 KEY_BLOCKS_UNUSED
+--replace_result 1804 KEY_BLOCKS_UNUSED 1801 KEY_BLOCKS_UNUSED 1663 KEY_BLOCKS_UNUSED 1782 KEY_BLOCKS_UNUSED
 show status like 'key_%';
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
