@@ -105,6 +105,8 @@ class ha_innobase: public handler
 					or undefined */
 	uint		num_write_row;	/*!< number of write_row() calls */
 
+	ha_statistics*	ha_partition_stats; /*!< stats of the partition owner
+					handler (if there is one) */
 	uint store_key_val_for_row(uint keynr, char* buff, uint buff_len,
                                    const uchar* record);
 	inline void update_thd(THD* thd);
@@ -206,6 +208,8 @@ class ha_innobase: public handler
 	int truncate();
 	int delete_table(const char *name);
 	int rename_table(const char* from, const char* to);
+	int defragment_table(const char* name, const char* index_name,
+						bool async);
 	int check(THD* thd, HA_CHECK_OPT* check_opt);
 	char* update_table_comment(const char* comment);
 	char* get_foreign_key_create_info();
@@ -309,6 +313,7 @@ class ha_innobase: public handler
 		Alter_inplace_info*	ha_alter_info,
 		bool			commit);
 	/** @} */
+	void set_partition_owner_stats(ha_statistics *stats);
 	bool check_if_incompatible_data(HA_CREATE_INFO *info,
 					uint table_changes);
 private:

@@ -397,6 +397,15 @@ extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
 extern ulint	srv_n_read_io_threads;
 extern ulint	srv_n_write_io_threads;
+/* Defragmentation, Origianlly facebook default value is 100, but it's too high */
+#define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
+extern my_bool	srv_defragment;
+extern uint	srv_defragment_n_pages;
+extern uint	srv_defragment_stats_accuracy;
+extern uint	srv_defragment_fill_factor_n_recs;
+extern double	srv_defragment_fill_factor;
+extern uint	srv_defragment_frequency;
+extern ulonglong	srv_defragment_interval;
 
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
@@ -1099,6 +1108,9 @@ struct export_var_t{
 	ib_int64_t innodb_x_lock_os_waits;
 	ib_int64_t innodb_x_lock_spin_rounds;
 	ib_int64_t innodb_x_lock_spin_waits;
+	ulint innodb_defragment_compression_failures;
+	ulint innodb_defragment_failures;
+	ulint innodb_defragment_count;
 #ifdef UNIV_DEBUG
 	ulint innodb_purge_trx_id_age;		/*!< rw_max_trx_id - purged trx_id */
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id

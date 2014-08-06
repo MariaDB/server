@@ -43,6 +43,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "pars0pars.h"
 #include "row0ftsort.h"
 #include "ut0mem.h"
+#include "ut0timer.h"
 #include "mem0mem.h"
 #include "data0data.h"
 #include "data0type.h"
@@ -67,6 +68,8 @@ Created 2/16/1996 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "srv0start.h"
 #include "srv0srv.h"
+#include "btr0defragment.h"
+
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
 # include "os0proc.h"
@@ -1531,6 +1534,9 @@ innobase_start_or_create_for_mysql(void)
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
 
+	/* This should be initialized early */
+	ut_init_timer();
+
 	if (srv_force_recovery > SRV_FORCE_NO_TRX_UNDO) {
 		srv_read_only_mode = true;
 	}
@@ -2876,6 +2882,9 @@ files_checked:
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 	}
+
+	/* Initialize online defragmentation. */
+	btr_defragment_init();
 
 	srv_was_started = TRUE;
 

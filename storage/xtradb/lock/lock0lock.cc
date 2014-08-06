@@ -3291,6 +3291,47 @@ lock_update_merge_left(
 }
 
 /*************************************************************//**
+Updates the lock table when a page is split and merged to
+two pages. */
+UNIV_INTERN
+void
+lock_update_split_and_merge(
+	const buf_block_t* left_block,	/*!< in: left page to which merged */
+	const rec_t* orig_pred,		/*!< in: original predecessor of
+					supremum on the left page before merge*/
+	const buf_block_t* right_block)	/*!< in: right page from which merged */
+{
+	const rec_t* left_next_rec;
+
+	ut_a(left_block && right_block);
+	ut_a(orig_pred);
+
+	lock_mutex_enter();
+
+	left_next_rec = page_rec_get_next_const(orig_pred);
+
+	/* Inherit the locks on the supremum of the left page to the
+	first record which was moved from the right page */
+	lock_rec_inherit_to_gap(
+		left_block, left_block,
+		page_rec_get_heap_no(left_next_rec),
+		PAGE_HEAP_NO_SUPREMUM);
+
+	/* Reset the locks on the supremum of the left page,
+	releasing waiting transactions */
+	lock_rec_reset_and_release_wait(left_block,
+					PAGE_HEAP_NO_SUPREMUM);
+
+	/* Inherit the locks to the supremum of the left page from the
+	successor of the infimum on the right page */
+	lock_rec_inherit_to_gap(left_block, right_block,
+				PAGE_HEAP_NO_SUPREMUM,
+				lock_get_min_heap_no(right_block));
+
+	lock_mutex_exit();
+}
+
+/*************************************************************//**
 Resets the original locks on heir and replaces them with gap type locks
 inherited from rec. */
 UNIV_INTERN

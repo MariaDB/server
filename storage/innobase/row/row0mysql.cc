@@ -54,6 +54,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "rem0cmp.h"
 #include "log0log.h"
 #include "btr0sea.h"
+#include "btr0defragment.h"
 #include "fil0fil.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
@@ -3843,6 +3844,8 @@ row_drop_table_for_mysql(
 	if (!dict_table_is_temporary(table)) {
 
 		dict_stats_recalc_pool_del(table);
+		dict_stats_defrag_pool_del(table, NULL);
+		btr_defragment_remove_table(table);
 
 		/* Remove stats for this table and all of its indexes from the
 		persistent storage if it exists and if there are stats for this
@@ -5128,18 +5131,6 @@ end:
 			trx->error_state = DB_SUCCESS;
 			trx_rollback_to_savepoint(trx, NULL);
 			trx->error_state = DB_SUCCESS;
-		} else {
-			if (old_is_tmp && !new_is_tmp) {
-				/* After ALTER TABLE the table statistics
-				needs to be rebuilt.  Even if we close
-				table below there could be other
-				transactions using this table (e.g.
-				SELECT * FROM INFORMATION_SCHEMA.`TABLE_CONSTRAINTS`),
-				thus we can't remove table from dictionary cache
-				here. Therefore, we initialize the
-				transient statistics here. */
-				dict_stats_update_transient(table);
-			}
 		}
 	}
 

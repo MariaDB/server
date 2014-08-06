@@ -70,10 +70,11 @@ Created 10/8/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "ut0crc32.h"
 #include "os0file.h"
-
+#include "btr0defragment.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
 #include "fil0pagecompress.h"
+#include <my_rdtsc.h>
 
 /* prototypes of new functions added to ha_innodb.cc for kill_idle_transaction */
 ibool		innobase_thd_is_idle(const void* thd);
@@ -279,6 +280,16 @@ UNIV_INTERN ulint	srv_buf_pool_curr_size	= 0;
 /* size in bytes */
 UNIV_INTERN ulint	srv_mem_pool_size	= ULINT_MAX;
 UNIV_INTERN ulint	srv_lock_table_size	= ULINT_MAX;
+
+/* Defragmentation */
+UNIV_INTERN my_bool	srv_defragment = FALSE;
+UNIV_INTERN uint	srv_defragment_n_pages = 7;
+UNIV_INTERN uint	srv_defragment_stats_accuracy = 0;
+UNIV_INTERN uint	srv_defragment_fill_factor_n_recs = 20;
+UNIV_INTERN double	srv_defragment_fill_factor = 0.9;
+UNIV_INTERN uint	srv_defragment_frequency =
+	SRV_DEFRAGMENT_FREQUENCY_DEFAULT;
+UNIV_INTERN ulonglong	srv_defragment_interval = 0;
 
 /** Query thread preflush algorithm */
 UNIV_INTERN ulong	srv_foreground_preflush
@@ -1875,6 +1886,11 @@ srv_export_innodb_status(void)
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
+
+	export_vars.innodb_defragment_compression_failures =
+		btr_defragment_compression_failures;
+	export_vars.innodb_defragment_failures = btr_defragment_failures;
+	export_vars.innodb_defragment_count = btr_defragment_count;
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);

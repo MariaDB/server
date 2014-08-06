@@ -1,0 +1,37 @@
+--source include/have_innodb.inc
+
+SET @start_innodb_defragment_frequency = @@global.innodb_defragment_frequency;
+SELECT @start_innodb_defragment_frequency;
+
+SELECT COUNT(@@global.innodb_defragment_frequency);
+
+# test valid value
+SET @@global.innodb_defragment_frequency = 200;
+SELECT @@global.innodb_defragment_frequency;
+
+# test valid min
+SET @@global.innodb_defragment_frequency = 1;
+SELECT @@global.innodb_defragment_frequency;
+
+# test valid max
+SET @@global.innodb_defragment_frequency = 1000;
+SELECT @@global.innodb_defragment_frequency;
+
+# test invalid value < min
+SET @@global.innodb_defragment_frequency = -1;
+SELECT @@global.innodb_defragment_frequency;
+
+# test invalid value > max
+SET @@global.innodb_defragment_frequency = 10000;
+SELECT @@global.innodb_defragment_frequency;
+
+# test wrong type
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_defragment_frequency = 10.5;
+SELECT @@global.innodb_defragment_frequency;
+
+--Error ER_WRONG_TYPE_FOR_VAR
+SET @@global.innodb_defragment_frequency = "abc";
+SELECT @@global.innodb_defragment_frequency;
+
+SET @@global.innodb_defragment_frequency = @start_innodb_defragment_frequency;

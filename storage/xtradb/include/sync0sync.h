@@ -864,6 +864,7 @@ or row lock! */
 #define SYNC_EXTERN_STORAGE	500
 #define	SYNC_FSP		400
 #define	SYNC_FSP_PAGE		395
+#define SYNC_STATS_DEFRAG	390
 /*------------------------------------- Change buffer headers */
 #define SYNC_IBUF_MUTEX		370	/* ibuf_mutex */
 /*------------------------------------- Change buffer tree */

@@ -120,7 +120,9 @@ enum dict_table_op_t {
 	DICT_TABLE_OP_DROP_ORPHAN,
 	/** Silently load the tablespace if it does not exist,
 	and do not load the definitions of incomplete indexes. */
-	DICT_TABLE_OP_LOAD_TABLESPACE
+	DICT_TABLE_OP_LOAD_TABLESPACE,
+	/** Open the table only if it's in table cache. */
+	DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
 };
 
 /**********************************************************************//**
@@ -1494,6 +1496,16 @@ dict_table_get_index_on_name(
 /*=========================*/
 	dict_table_t*	table,	/*!< in: table */
 	const char*	name)	/*!< in: name of the index to find */
+	__attribute__((nonnull, warn_unused_result));
+/**********************************************************************//**
+Looks for an index with the given id given a table instance.
+@return	index or NULL */
+UNIV_INTERN
+dict_index_t*
+dict_table_find_index_on_id(
+/*========================*/
+	const dict_table_t*	table,	/*!< in: table instance */
+	index_id_t		id)	/*!< in: index id */
 	__attribute__((nonnull, warn_unused_result));
 /**********************************************************************//**
 In case there is more than one index with the same name return the index

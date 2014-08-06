@@ -1,0 +1,19 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+create table t1(a int not null primary key auto_increment, b varchar(256), key second(b)) engine=innodb;
+
+insert into t1 values (1, REPEAT("a", 256));
+insert into t1 values (2, REPEAT("a", 256));
+optimize table t1;
+
+drop table t1;
+
+--replace_regex /\/\*.*//
+show binlog events in 'master-bin.000001' from 313;
+
+--source include/rpl_end.inc

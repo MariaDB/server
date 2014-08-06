@@ -492,6 +492,9 @@ dict_stats_table_clone_create(
 			heap,
 			idx->n_uniq * sizeof(idx->stat_n_non_null_key_vals[0]));
 		ut_d(idx->magic_n = DICT_INDEX_MAGIC_N);
+
+		idx->stat_defrag_n_page_split = 0;
+		idx->stat_defrag_n_pages_freed = 0;
 	}
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
@@ -520,7 +523,9 @@ static
 void
 dict_stats_empty_index(
 /*===================*/
-	dict_index_t*	index)	/*!< in/out: index */
+	dict_index_t*	index,	/*!< in/out: index */
+	bool		empty_defrag_stats)
+				/*!< in: whether to empty defrag stats */
 {
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_univ(index));
@@ -535,6 +540,34 @@ dict_stats_empty_index(
 
 	index->stat_index_size = 1;
 	index->stat_n_leaf_pages = 1;
+
+	if (empty_defrag_stats) {
+		dict_stats_empty_defrag_stats(index);
+		dict_stats_empty_defrag_summary(index);
+	}
+}
+
+/**********************************************************************//**
+Clear defragmentation summary. */
+UNIV_INTERN
+void
+dict_stats_empty_defrag_summary(
+/*==================*/
+	dict_index_t* index)	/*!< in: index to clear defragmentation stats */
+{
+	index->stat_defrag_n_pages_freed = 0;
+}
+
+/**********************************************************************//**
+Clear defragmentation related index stats. */
+UNIV_INTERN
+void
+dict_stats_empty_defrag_stats(
+/*==================*/
+	dict_index_t* index)	/*!< in: index to clear defragmentation stats */
+{
+	index->stat_defrag_modified_counter = 0;
+	index->stat_defrag_n_page_split = 0;
 }
 
 /*********************************************************************//**
@@ -544,7 +577,9 @@ static
 void
 dict_stats_empty_table(
 /*===================*/
-	dict_table_t*	table)	/*!< in/out: table */
+	dict_table_t*	table,	/*!< in/out: table */
+	bool		empty_defrag_stats)
+				/*!< in: whether to empty defrag stats */
 {
 	/* Zero the stats members */
 
@@ -569,7 +604,7 @@ dict_stats_empty_table(
 
 		ut_ad(!dict_index_is_univ(index));
 
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, empty_defrag_stats);
 	}
 
 	table->stat_initialized = TRUE;
@@ -704,7 +739,7 @@ dict_stats_copy(
 		}
 
 		if (!INDEX_EQ(src_idx, dst_idx)) {
-			dict_stats_empty_index(dst_idx);
+			dict_stats_empty_index(dst_idx, true);
 			continue;
 		}
 
@@ -715,7 +750,7 @@ dict_stats_copy(
 			/* Since src is smaller some elements in dst
 			will remain untouched by the following memmove(),
 			thus we init all of them here. */
-			dict_stats_empty_index(dst_idx);
+			dict_stats_empty_index(dst_idx, true);
 		} else {
 			n_copy_el = dst_idx->n_uniq;
 		}
@@ -735,6 +770,13 @@ dict_stats_copy(
 		dst_idx->stat_index_size = src_idx->stat_index_size;
 
 		dst_idx->stat_n_leaf_pages = src_idx->stat_n_leaf_pages;
+
+		dst_idx->stat_defrag_modified_counter =
+			src_idx->stat_defrag_modified_counter;
+		dst_idx->stat_defrag_n_pages_freed =
+			src_idx->stat_defrag_n_pages_freed;
+		dst_idx->stat_defrag_n_page_split =
+			src_idx->stat_defrag_n_page_split;
 	}
 
 	dst->stat_initialized = TRUE;
@@ -758,6 +800,9 @@ dict_index_t::stat_n_sample_sizes[]
 dict_index_t::stat_n_non_null_key_vals[]
 dict_index_t::stat_index_size
 dict_index_t::stat_n_leaf_pages
+dict_index_t::stat_defrag_modified_counter
+dict_index_t::stat_defrag_n_pages_freed
+dict_index_t::stat_defrag_n_page_split
 The returned object should be freed with dict_stats_snapshot_free()
 when no longer needed.
 @return incomplete table object */
@@ -807,7 +852,9 @@ dict_stats_snapshot_free(
 Calculates new estimates for index statistics. This function is
 relatively quick and is used to calculate transient statistics that
 are not saved on disk. This was the only way to calculate statistics
-before the Persistent Statistics feature was introduced. */
+before the Persistent Statistics feature was introduced.
+This function doesn't update the defragmentation related stats.
+Only persistent statistics supports defragmentation stats. */
 static
 void
 dict_stats_update_transient_for_index(
@@ -823,10 +870,10 @@ dict_stats_update_transient_for_index(
 		Initialize some bogus index cardinality
 		statistics, so that the data can be queried in
 		various means, also via secondary indexes. */
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else {
 		mtr_t	mtr;
@@ -847,7 +894,7 @@ dict_stats_update_transient_for_index(
 
 		switch (size) {
 		case ULINT_UNDEFINED:
-			dict_stats_empty_index(index);
+			dict_stats_empty_index(index, false);
 			return;
 		case 0:
 			/* The root node of the tree is a leaf */
@@ -882,7 +929,7 @@ dict_stats_update_transient(
 
 	if (dict_table_is_discarded(table)) {
 		/* Nothing to do. */
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, false);
 		return;
 	} else if (index == NULL) {
 		/* Table definition is corrupt */
@@ -892,7 +939,7 @@ dict_stats_update_transient(
 		fprintf(stderr, " InnoDB: table %s has no indexes. "
 			"Cannot calculate statistics.\n",
 			ut_format_name(table->name, TRUE, buf, sizeof(buf)));
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, false);
 		return;
 	}
 
@@ -904,7 +951,7 @@ dict_stats_update_transient(
 			continue;
 		}
 
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
@@ -1794,7 +1841,7 @@ dict_stats_analyze_index(
 
 	DEBUG_PRINTF("  %s(index=%s)\n", __func__, index->name);
 
-	dict_stats_empty_index(index);
+	dict_stats_empty_index(index, false);
 
 	mtr_start(&mtr);
 
@@ -2059,7 +2106,7 @@ dict_stats_update_persistent(
 
 		/* Table definition is corrupt */
 		dict_table_stats_unlock(table, RW_X_LATCH);
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, true);
 
 		return(DB_CORRUPTION);
 	}
@@ -2088,7 +2135,7 @@ dict_stats_update_persistent(
 			continue;
 		}
 
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
@@ -2657,6 +2704,16 @@ dict_stats_fetch_index_stats_step(
 		   == 0) {
 		index->stat_n_leaf_pages = (ulint) stat_value;
 		arg->stats_were_modified = true;
+	} else if (stat_name_len == 12 /* strlen("n_page_split") */
+		   && strncasecmp("n_page_split", stat_name, stat_name_len)
+		      == 0) {
+		index->stat_defrag_n_page_split = (ulint) stat_value;
+		arg->stats_were_modified = true;
+	} else if (stat_name_len == 13 /* strlen("n_pages_freed") */
+		   && strncasecmp("n_pages_freed", stat_name, stat_name_len)
+		      == 0) {
+		index->stat_defrag_n_pages_freed = (ulint) stat_value;
+		arg->stats_were_modified = true;
 	} else if (stat_name_len > PFX_LEN /* e.g. stat_name=="n_diff_pfx01" */
 		   && strncasecmp(PFX, stat_name, PFX_LEN) == 0) {
 
@@ -2776,7 +2833,7 @@ dict_stats_fetch_from_ps(
 	the persistent storage contains incomplete stats (e.g. missing stats
 	for some index) then we would end up with (partially) uninitialized
 	stats. */
-	dict_stats_empty_table(table);
+	dict_stats_empty_table(table, true);
 
 	trx = trx_allocate_for_background();
 
@@ -2878,6 +2935,22 @@ dict_stats_fetch_from_ps(
 }
 
 /*********************************************************************//**
+Clear defragmentation stats modified counter for all indices in table. */
+static
+void
+dict_stats_empty_defrag_modified_counter(
+	dict_table_t*	table)	/*!< in: table */
+{
+	dict_index_t*	index;
+	ut_a(table);
+	for (index = dict_table_get_first_index(table);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		index->stat_defrag_modified_counter = 0;
+	}
+}
+
+/*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */
 UNIV_INTERN
 void
@@ -2949,13 +3022,13 @@ dict_stats_update(
 			"because the .ibd file is missing. For help, please "
 			"refer to " REFMAN "innodb-troubleshooting.html\n",
 			ut_format_name(table->name, TRUE, buf, sizeof(buf)));
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, true);
 		return(DB_TABLESPACE_DELETED);
 	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can
 		cause a crash in it. */
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, false);
 		return(DB_SUCCESS);
 	}
 
@@ -3014,7 +3087,7 @@ dict_stats_update(
 
 	case DICT_STATS_EMPTY_TABLE:
 
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, true);
 
 		/* If table is using persistent stats,
 		then save the stats on disk */
@@ -3073,6 +3146,7 @@ dict_stats_update(
 
 		t->stats_last_recalc = table->stats_last_recalc;
 		t->stat_modified_counter = 0;
+		dict_stats_empty_defrag_modified_counter(t);
 
 		switch (err) {
 		case DB_SUCCESS:
@@ -3083,7 +3157,7 @@ dict_stats_update(
 			copying because dict_stats_table_clone_create() does
 			skip corrupted indexes so our dummy object 't' may
 			have less indexes than the real object 'table'. */
-			dict_stats_empty_table(table);
+			dict_stats_empty_table(table, true);
 
 			dict_stats_copy(table, t);
 
@@ -3648,6 +3722,117 @@ dict_stats_rename_table(
 	}
 
 	return(ret);
+}
+
+/*********************************************************************//**
+Save defragmentation result.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_stats_save_defrag_summary(
+	dict_index_t*	index)	/*!< in: index */
+{
+	dberr_t	ret;
+	lint	now = (lint) ut_time();
+	if (dict_index_is_univ(index)) {
+		return DB_SUCCESS;
+	}
+	rw_lock_x_lock(&dict_operation_lock);
+	mutex_enter(&dict_sys->mutex);
+	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
+					 index->stat_defrag_n_pages_freed,
+					 NULL,
+					 "Number of pages freed during"
+					 " last defragmentation run.",
+					 NULL);
+
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(&dict_operation_lock);
+	return (ret);
+}
+
+/*********************************************************************//**
+Save defragmentation stats for a given index.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_stats_save_defrag_stats(
+	dict_index_t*	index)	/*!< in: index */
+{
+	dberr_t	ret;
+
+	if (index->table->ibd_file_missing) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			" InnoDB: Cannot save defragment stats because "
+			".ibd file is missing.\n");
+		return (DB_TABLESPACE_DELETED);
+	}
+	if (dict_index_is_corrupted(index)) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			" InnoDB: Cannot save defragment stats because "
+			"index is corrupted.\n");
+		return(DB_CORRUPTION);
+	}
+
+	if (dict_index_is_univ(index)) {
+		return DB_SUCCESS;
+	}
+
+	lint	now = (lint) ut_time();
+	mtr_t	mtr;
+	ulint	n_leaf_pages;
+	ulint	n_leaf_reserved;
+	mtr_start(&mtr);
+	mtr_s_lock(dict_index_get_lock(index), &mtr);
+	n_leaf_reserved = btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
+						    &n_leaf_pages, &mtr);
+	mtr_commit(&mtr);
+
+	if (n_leaf_reserved == ULINT_UNDEFINED) {
+		// The index name is different during fast index creation,
+		// so the stats won't be associated with the right index
+		// for later use. We just return without saving.
+		return DB_SUCCESS;
+	}
+
+	rw_lock_x_lock(&dict_operation_lock);
+
+	mutex_enter(&dict_sys->mutex);
+	ret = dict_stats_save_index_stat(index, now, "n_page_split",
+					 index->stat_defrag_n_page_split,
+					 NULL,
+					 "Number of new page splits on leaves"
+					 " since last defragmentation.",
+					 NULL);
+	if (ret != DB_SUCCESS) {
+		goto end;
+	}
+
+	ret = dict_stats_save_index_stat(
+		index, now, "n_leaf_pages_defrag",
+		n_leaf_pages,
+		NULL,
+		"Number of leaf pages when this stat is saved to disk",
+		NULL);
+	if (ret != DB_SUCCESS) {
+		goto end;
+	}
+
+	ret = dict_stats_save_index_stat(
+		index, now, "n_leaf_pages_reserved",
+		n_leaf_reserved,
+		NULL,
+		"Number of pages reserved for this index leaves when this stat "
+		"is saved to disk",
+		NULL);
+
+end:
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(&dict_operation_lock);
+
+	return (ret);
 }
 
 /* tests @{ */

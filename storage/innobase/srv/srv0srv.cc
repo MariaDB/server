@@ -68,6 +68,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "os0sync.h" /* for HAVE_ATOMIC_BUILTINS */
 #include "srv0mon.h"
 #include "ut0crc32.h"
+#include "btr0defragment.h"
 
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
@@ -396,6 +397,15 @@ UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op     = 0;
 UNIV_INTERN ib_uint64_t srv_page_compressed_trim_op_saved     = 0;
 UNIV_INTERN ib_uint64_t srv_index_page_decompressed     = 0;
 
+/* Defragmentation */
+UNIV_INTERN my_bool	srv_defragment = FALSE;
+UNIV_INTERN uint	srv_defragment_n_pages = 7;
+UNIV_INTERN uint	srv_defragment_stats_accuracy = 0;
+UNIV_INTERN uint	srv_defragment_fill_factor_n_recs = 20;
+UNIV_INTERN double	srv_defragment_fill_factor = 0.9;
+UNIV_INTERN uint	srv_defragment_frequency =
+	SRV_DEFRAGMENT_FREQUENCY_DEFAULT;
+UNIV_INTERN ulonglong	srv_defragment_interval = 0;
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
@@ -1491,6 +1501,11 @@ srv_export_innodb_status(void)
 	export_vars.innodb_page_compressed_trim_op = srv_stats.page_compressed_trim_op;
 	export_vars.innodb_page_compressed_trim_op_saved = srv_stats.page_compressed_trim_op_saved;
 	export_vars.innodb_pages_page_decompressed = srv_stats.pages_page_decompressed;
+
+	export_vars.innodb_defragment_compression_failures =
+		btr_defragment_compression_failures;
+	export_vars.innodb_defragment_failures = btr_defragment_failures;
+	export_vars.innodb_defragment_count = btr_defragment_count;
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);

@@ -53,6 +53,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "rem0cmp.h"
 #include "log0log.h"
 #include "btr0sea.h"
+#include "btr0defragment.h"
 #include "fil0fil.h"
 #include "ibuf0ibuf.h"
 #include "fts0fts.h"
@@ -3857,6 +3858,8 @@ row_drop_table_for_mysql(
 	if (!dict_table_is_temporary(table)) {
 
 		dict_stats_recalc_pool_del(table);
+		dict_stats_defrag_pool_del(table, NULL);
+		btr_defragment_remove_table(table);
 
 		/* Remove stats for this table and all of its indexes from the
 		persistent storage if it exists and if there are stats for this
