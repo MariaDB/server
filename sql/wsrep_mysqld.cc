@@ -51,7 +51,7 @@ ulong   wsrep_max_ws_size              = 1073741824UL;//max ws (RBR buffer) size
 ulong   wsrep_max_ws_rows              = 65536; // max number of rows in ws
 int     wsrep_to_isolation             = 0; // # of active TO isolation threads
 my_bool wsrep_certify_nonPK            = 1; // certify, even when no primary key
-long    wsrep_max_protocol_version     = 2; // maximum protocol version to use
+long    wsrep_max_protocol_version     = 3; // maximum protocol version to use
 ulong   wsrep_forced_binlog_format     = BINLOG_FORMAT_UNSPEC;
 my_bool wsrep_recovery                 = 0; // recovery
 my_bool wsrep_replicate_myisam         = 0; // enable myisam replication
@@ -64,6 +64,8 @@ my_bool wsrep_restart_slave            = 0; // should mysql slave thread be
                                             // restarted, if node joins back
 my_bool wsrep_restart_slave_activated  = 0; // node has dropped, and slave
                                             // restart will be needed
+my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
+my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 /*
  * End configuration options
  */
@@ -109,7 +111,7 @@ const char* wsrep_provider_vendor    = provider_vendor;
 wsrep_uuid_t     local_uuid   = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t    local_seqno  = WSREP_SEQNO_UNDEFINED;
 wsp::node_status local_status;
-long             wsrep_protocol_version = 2;
+long             wsrep_protocol_version = 3;
 
 // Boolean denoting if server is in initial startup phase. This is needed
 // to make sure that main thread waiting in wsrep_sst_wait() is signaled
@@ -130,7 +132,7 @@ static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
     sql_print_error("WSREP: %s", msg);
     break;
   case WSREP_LOG_DEBUG:
-    sql_print_information ("[Debug] WSREP: %s", msg);
+    if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
   default:
     break;
   }
@@ -252,6 +254,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   case 0:
   case 1:
   case 2:
+  case 3:
       // version change
       if (view->proto_ver != wsrep_protocol_version)
       {
@@ -356,7 +359,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   }
 
 out:
-  wsrep_startup= FALSE;
+  if (view->status == WSREP_VIEW_PRIMARY) wsrep_startup= FALSE;
   local_status.set(new_status, view);
 
   return WSREP_CB_SUCCESS;
@@ -948,6 +951,7 @@ static bool wsrep_prepare_key_for_isolation(const char* db,
         break;
     case 1:
     case 2:
+    case 3:
     {
         *key_len= 0;
         if (db)
@@ -1079,6 +1083,7 @@ bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
     }
     case 1:
     case 2:
+    case 3:
     {
         key[0].ptr = cache_key;
         key[0].len = strlen( (char*)cache_key );
@@ -1279,6 +1284,14 @@ static void wsrep_TOI_end(THD *thd) {
 
   WSREP_DEBUG("TO END: %lld, %d : %s", (long long)wsrep_thd_trx_seqno(thd),
               thd->wsrep_exec_mode, (thd->query()) ? thd->query() : "void");
+  
+  XID xid;
+  wsrep_xid_init(&xid, &thd->wsrep_trx_meta.gtid.uuid,
+                 thd->wsrep_trx_meta.gtid.seqno);
+  wsrep_set_SE_checkpoint(&xid);
+  WSREP_DEBUG("TO END: %lld, update seqno",
+              (long long)wsrep_thd_trx_seqno(thd));
+  
   if (WSREP_OK == (ret = wsrep->to_execute_end(wsrep, thd->thread_id))) {
     WSREP_DEBUG("TO END: %lld", (long long)wsrep_thd_trx_seqno(thd));
   }

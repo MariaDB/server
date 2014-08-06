@@ -3918,6 +3918,18 @@ static Sys_var_mybool Sys_wsrep_load_data_splitting(
        GLOBAL_VAR(wsrep_load_data_splitting), 
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
+static Sys_var_mybool Sys_wsrep_slave_FK_checks(
+       "wsrep_slave_FK_checks", "Should slave thread do "
+       "foreign key constraint checks",
+       GLOBAL_VAR(wsrep_slave_FK_checks), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_wsrep_slave_UK_checks(
+       "wsrep_slave_UK_checks", "Should slave thread do "
+       "secondary index uniqueness chesks",
+       GLOBAL_VAR(wsrep_slave_UK_checks), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
 static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MySQL slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));

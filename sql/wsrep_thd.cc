@@ -414,6 +414,17 @@ void wsrep_create_rollbacker()
   }
 }
 
+
+extern "C"
+void wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe)
+{ 
+  if (thd_ptr) 
+  {
+    THD* thd = (THD*)thd_ptr;
+    thd->wsrep_PA_safe = safe;
+  }
+}
+
 extern "C"
 my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
 { 
