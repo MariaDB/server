@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -7307,7 +7307,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    if (tmp->command == COM_DAEMON)
+    if (!tmp->security_ctx->user)
       continue;
     /*
       Check that hostname (if given) and user name matches.

@@ -39,8 +39,7 @@
 
 const LEX_STRING view_type= { C_STRING_WITH_LEN("VIEW") };
 
-static int mysql_register_view(THD *thd, TABLE_LIST *view,
-			       enum_view_create_mode mode);
+static int mysql_register_view(THD *, TABLE_LIST *, enum_view_create_mode);
 
 /*
   Make a unique name for an anonymous view column
@@ -405,9 +404,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   TABLE_LIST *tables= lex->query_tables;
   TABLE_LIST *tbl;
   SELECT_LEX *select_lex= &lex->select_lex;
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
   SELECT_LEX *sl;
-#endif
   SELECT_LEX_UNIT *unit= &lex->unit;
   bool res= FALSE;
   DBUG_ENTER("mysql_create_view");
@@ -602,7 +599,8 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 
   /* Check if the auto generated column names are conforming. */
-  make_valid_column_names(select_lex->item_list);
+  for (sl= select_lex; sl; sl= sl->next_select())
+    make_valid_column_names(sl->item_list);
 
   if (check_duplicate_names(select_lex->item_list, 1))
   {
@@ -670,7 +668,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   res= mysql_register_view(thd, view, mode);
 
-  if (mysql_bin_log.is_open())
+  if (!res && mysql_bin_log.is_open())
   {
     String buff;
     const LEX_STRING command[3]=

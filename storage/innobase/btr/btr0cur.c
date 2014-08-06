@@ -282,6 +282,7 @@ btr_cur_latch_leaves(
 	case BTR_MODIFY_TREE:
 		/* x-latch also brothers from left to right */
 		left_page_no = btr_page_get_prev(page, mtr);
+		mode = latch_mode;
 
 		if (left_page_no != FIL_NULL) {
 			get_block = btr_block_get(
@@ -5488,12 +5489,12 @@ btr_pages_info(
 	ulint	space_id,	/*!< in: space id */
 	ulint	zip_size,	/*!< in: zip size */
 	ulint	page_no,	/*!< in: Page id where travelsed */
-	ulint	latch_mode,	/*!< in: Used latch mode */
+	ulint	latch_mode __attribute__((unused)),	/*!< in: Used latch mode */
 	dict_index_t* index,	/*!< in: Used index */
 	ulint	old_next_page_no, /*!< in: Next page number from old page */
 	ulint	old_prev_page_no, /*!< in: Prev page number from old page */
 	ulint	new_space_id,	  /*!< in: Space id of new page */
-	ulint	new_zip_size,	  /*!< in: Zip size of new page */
+	ulint	new_zip_size __attribute__((unused)),	  /*!< in: Zip size of new page */
 	ulint	new_next_page_no, /*!< in: Next page number from new page */
 	ulint	new_prev_page_no, /*!< in: Prev page number from new page */
 	mtr_t*  mtr,		/*!< in: mini transaction */

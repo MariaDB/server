@@ -3338,6 +3338,14 @@ innobase_end(
 
 	if (innodb_inited) {
 
+		THD *thd= current_thd;
+		if (thd) { // may be UNINSTALL PLUGIN statement
+		 	trx_t* trx = thd_to_trx(thd);
+		 	if (trx) {
+		 		trx_free_for_mysql(trx);
+		 	}
+		}
+
 		srv_fast_shutdown = (ulint) innobase_fast_shutdown;
 		innodb_inited = 0;
 		hash_table_free(innobase_open_tables);
@@ -13696,9 +13704,9 @@ innodb_buffer_pool_evict_update(
 
 			for (ulint i = 0; i < srv_buf_pool_instances; i++) {
 				buf_pool_t*	buf_pool = &buf_pool_ptr[i];
-				ibool have_LRU_mutex = TRUE;
 
 				//buf_pool_mutex_enter(buf_pool);
+				ut_ad(!mutex_own(&buf_pool->LRU_list_mutex));
 				mutex_enter(&buf_pool->LRU_list_mutex);
 
 				for (buf_block_t* block = UT_LIST_GET_LAST(
@@ -13714,15 +13722,15 @@ innodb_buffer_pool_evict_update(
 					ut_ad(block->page.in_LRU_list);
 
 					mutex_enter(&block->mutex);
+					ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 					buf_LRU_free_block(&block->page,
-						(void *)&block->mutex,FALSE, &have_LRU_mutex);
+						           FALSE, TRUE);
 					mutex_exit(&block->mutex);
 					block = prev_block;
 				}
 
-				if (have_LRU_mutex) {
-					mutex_exit(&buf_pool->LRU_list_mutex);
-				}
+				ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+				mutex_exit(&buf_pool->LRU_list_mutex);
 				//buf_pool_mutex_exit(buf_pool);
 			}
 		}
@@ -14772,6 +14780,11 @@ static MYSQL_SYSVAR_ULINT(checkpoint_age_target, srv_checkpoint_age_target,
   "Control soft limit of checkpoint age. (0 : not control)",
   NULL, NULL, 0, 0, ~0UL, 0);
 
+static MYSQL_SYSVAR_UINT(simulate_comp_failures, srv_simulate_comp_failures,
+  PLUGIN_VAR_NOCMDARG,
+  "Simulate compression failures.",
+  NULL, NULL, 0, 0, 99, 0);
+
 static
 void
 innodb_flush_neighbor_pages_update(
@@ -15081,6 +15094,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_checkpoint_now),
   MYSQL_SYSVAR(track_redo_log_now),
 #endif /* UNIV_DEBUG */
+  MYSQL_SYSVAR(simulate_comp_failures),
   NULL
 };
 

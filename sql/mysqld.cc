@@ -4566,6 +4566,8 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   if (ha_init_errors())
     DBUG_RETURN(1);
 
+  tc_log= 0; // ha_initialize_handlerton() needs that
+
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
                   (opt_abort ? PLUGIN_INIT_SKIP_INITIALIZATION : 0)))
@@ -4715,23 +4717,13 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
 #endif
 
-  tc_log= (total_ha_2pc > 1 ? (opt_bin_log  ?
-                               (TC_LOG *) &mysql_bin_log :
+  tc_log= get_tc_log_implementation();
+
 #ifdef WITH_WSREP
-                               (WSREP_ON ? 
-                                (TC_LOG *) &tc_log_dummy : 
-                                (TC_LOG *) &tc_log_mmap)) :
-#else
-                               (TC_LOG *) &tc_log_mmap) :
+  if (WSREP_ON && tc_log == &tc_log_mmap)
+    tc_log= &tc_log_dummy;
 #endif
-    (TC_LOG *) &tc_log_dummy);
-#ifdef WITH_WSREP
-  WSREP_DEBUG("Initial TC log open: %s", 
-              (tc_log == &mysql_bin_log) ? "binlog" :
-              (tc_log == &tc_log_mmap) ? "mmap" :
-              (tc_log == &tc_log_dummy) ? "dummy" : "unknown"
-              );
-#endif
+
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
   {
     sql_print_error("Can't init tc log");

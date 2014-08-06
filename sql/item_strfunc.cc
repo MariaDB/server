@@ -193,16 +193,27 @@ String *Item_func_md5::val_str_ascii(String *str)
 }
 
 
+/*
+  The MD5()/SHA() functions treat their parameter as being a case sensitive.
+  Thus we set binary collation on it so different instances of MD5() will be
+  compared properly.
+*/
+static CHARSET_INFO *get_checksum_charset(const char *csname)
+{
+  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
+  if (!cs)
+  {
+    // Charset has no binary collation: use my_charset_bin.
+    cs= &my_charset_bin;
+  }
+  return cs;
+}
+
+
 void Item_func_md5::fix_length_and_dec()
 {
-  /*
-    The MD5() function treats its parameter as being a case sensitive. Thus
-    we set binary collation on it so different instances of MD5() will be
-    compared properly.
-  */
-  args[0]->collation.set(
-      get_charset_by_csname(args[0]->collation.collation->csname,
-                            MY_CS_BINSORT,MYF(0)), DERIVATION_COERCIBLE);
+  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
+  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
   fix_length_and_charset(32, default_charset());
 }
 
@@ -238,14 +249,8 @@ String *Item_func_sha::val_str_ascii(String *str)
 
 void Item_func_sha::fix_length_and_dec()
 {
-  /*
-    The SHA() function treats its parameter as being a case sensitive. Thus
-    we set binary collation on it so different instances of MD5() will be
-    compared properly.
-  */
-  args[0]->collation.set(
-      get_charset_by_csname(args[0]->collation.collation->csname,
-                            MY_CS_BINSORT,MYF(0)), DERIVATION_COERCIBLE);
+  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
+  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
   // size of hex representation of hash
   fix_length_and_charset(SHA1_HASH_SIZE * 2, default_charset());
 }
@@ -368,18 +373,9 @@ void Item_func_sha2::fix_length_and_dec()
       ER(ER_WRONG_PARAMETERS_TO_NATIVE_FCT), "sha2");
   }
 
-  /*
-    The SHA2() function treats its parameter as being a case sensitive.
-    Thus we set binary collation on it so different instances of SHA2()
-    will be compared properly.
-  */
+  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
+  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
 
-  args[0]->collation.set(
-      get_charset_by_csname(
-        args[0]->collation.collation->csname,
-        MY_CS_BINSORT,
-        MYF(0)),
-      DERIVATION_COERCIBLE);
 #else
   push_warning_printf(current_thd,
     MYSQL_ERROR::WARN_LEVEL_WARN,
@@ -1624,7 +1620,7 @@ String *Item_func_ltrim::val_str(String *str)
 
   if ((remove_length= remove_str->length()) == 0 ||
       remove_length > res->length())
-    return res;
+    return non_trimmed_value(res);
 
   ptr= (char*) res->ptr();
   end= ptr+res->length();
@@ -1643,9 +1639,8 @@ String *Item_func_ltrim::val_str(String *str)
     end+=remove_length;
   }
   if (ptr == res->ptr())
-    return res;
-  tmp_value.set(*res,(uint) (ptr - res->ptr()),(uint) (end-ptr));
-  return &tmp_value;
+    return non_trimmed_value(res);
+  return trimmed_value(res, (uint32) (ptr - res->ptr()), (uint32) (end - ptr));
 }
 
 
@@ -1671,7 +1666,7 @@ String *Item_func_rtrim::val_str(String *str)
 
   if ((remove_length= remove_str->length()) == 0 ||
       remove_length > res->length())
-    return res;
+    return non_trimmed_value(res);
 
   ptr= (char*) res->ptr();
   end= ptr+res->length();
@@ -1683,11 +1678,11 @@ String *Item_func_rtrim::val_str(String *str)
   {
     char chr=(*remove_str)[0];
 #ifdef USE_MB
-    if (use_mb(res->charset()))
+    if (use_mb(collation.collation))
     {
       while (ptr < end)
       {
-	if ((l=my_ismbchar(res->charset(), ptr,end))) ptr+=l,p=ptr;
+	if ((l= my_ismbchar(collation.collation, ptr, end))) ptr+= l, p=ptr;
 	else ++ptr;
       }
       ptr=p;
@@ -1700,12 +1695,12 @@ String *Item_func_rtrim::val_str(String *str)
   {
     const char *r_ptr=remove_str->ptr();
 #ifdef USE_MB
-    if (use_mb(res->charset()))
+    if (use_mb(collation.collation))
     {
   loop:
       while (ptr + remove_length < end)
       {
-	if ((l=my_ismbchar(res->charset(), ptr,end))) ptr+=l;
+	if ((l= my_ismbchar(collation.collation, ptr, end))) ptr+= l;
 	else ++ptr;
       }
       if (ptr + remove_length == end && !memcmp(ptr,r_ptr,remove_length))
@@ -1724,9 +1719,8 @@ String *Item_func_rtrim::val_str(String *str)
     }
   }
   if (end == res->ptr()+res->length())
-    return res;
-  tmp_value.set(*res,0,(uint) (end-res->ptr()));
-  return &tmp_value;
+    return non_trimmed_value(res);
+  return trimmed_value(res, 0, (uint32) (end - res->ptr()));
 }
 
 
@@ -1753,37 +1747,22 @@ String *Item_func_trim::val_str(String *str)
 
   if ((remove_length= remove_str->length()) == 0 ||
       remove_length > res->length())
-    return res;
+    return non_trimmed_value(res);
 
   ptr= (char*) res->ptr();
   end= ptr+res->length();
   r_ptr= remove_str->ptr();
+  while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
+    ptr+=remove_length;
 #ifdef USE_MB
-  if (use_mb(res->charset()))
+  if (use_mb(collation.collation))
   {
-    while (ptr + remove_length <= end)
-    {
-      uint num_bytes= 0;
-      while (num_bytes < remove_length)
-      {
-        uint len;
-        if ((len= my_ismbchar(res->charset(), ptr + num_bytes, end)))
-          num_bytes+= len;
-        else
-          ++num_bytes;
-      }
-      if (num_bytes != remove_length)
-        break;
-      if (memcmp(ptr, r_ptr, remove_length))
-        break;
-      ptr+= remove_length;
-    }
     char *p=ptr;
     register uint32 l;
  loop:
     while (ptr + remove_length < end)
     {
-      if ((l= my_ismbchar(res->charset(), ptr,end)))
+      if ((l= my_ismbchar(collation.collation, ptr, end)))
         ptr+= l;
       else
         ++ptr;
@@ -1799,16 +1778,13 @@ String *Item_func_trim::val_str(String *str)
   else
 #endif /* USE_MB */
   {
-    while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
-      ptr+=remove_length;
     while (ptr + remove_length <= end &&
 	   !memcmp(end-remove_length,r_ptr,remove_length))
       end-=remove_length;
   }
   if (ptr == res->ptr() && end == ptr+res->length())
-    return res;
-  tmp_value.set(*res,(uint) (ptr - res->ptr()),(uint) (end-ptr));
-  return &tmp_value;
+    return non_trimmed_value(res);
+  return trimmed_value(res, (uint32) (ptr - res->ptr()), (uint32) (end - ptr));
 }
 
 void Item_func_trim::fix_length_and_dec()

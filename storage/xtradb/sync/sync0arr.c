@@ -2,6 +2,7 @@
 
 Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -466,11 +467,13 @@ static
 void
 sync_array_cell_print(
 /*==================*/
-	FILE*		file,	/*!< in: file where to print */
-	sync_cell_t*	cell)	/*!< in: sync cell */
+	FILE*		file,		/*!< in: file where to print */
+	sync_cell_t*	cell,		/*!< in: sync cell */
+	os_thread_id_t* reserver)	/*!< out: write reserver or
+					0 */
 {
-	mutex_t*	mutex;
-	rw_lock_t*	rwlock;
+	mutex_t*	mutex = NULL;
+	rw_lock_t*	rwlock = NULL;
 	ulint		type;
 	ulint		writer;
 
@@ -483,32 +486,34 @@ sync_array_cell_print(
 		innobase_basename(cell->file), (ulong) cell->line,
 		difftime(time(NULL), cell->reservation_time));
 
-	/* If stacktrace feature is enabled we will send a SIGUSR2
-	signal to thread waiting for the semaphore. Signal handler
-	will then dump the current stack to error log. */
-	if (srv_use_stacktrace) {
-#ifdef __linux__
-		pthread_kill(cell->thread, SIGUSR2);
-#endif
-	}
-
 	if (type == SYNC_MUTEX) {
 		/* We use old_wait_mutex in case the cell has already
 		been freed meanwhile */
 		mutex = cell->old_wait_mutex;
 
-		fprintf(file,
-			"Mutex at %p '%s', lock var %lu\n"
+		if (mutex) {
+			fprintf(file,
+				"Mutex at %p '%s', lock var %lu\n"
 #ifdef UNIV_SYNC_DEBUG
-			"Last time reserved in file %s line %lu, "
+				"Last time reserved in file %s line %lu, "
 #endif /* UNIV_SYNC_DEBUG */
-			"waiters flag %lu\n",
-			(void*) mutex, mutex->cmutex_name,
-			(ulong) mutex->lock_word,
+				"waiters flag %lu\n",
+				(void*) mutex, mutex->cmutex_name,
+				(ulong) mutex->lock_word,
 #ifdef UNIV_SYNC_DEBUG
-			mutex->file_name, (ulong) mutex->line,
+				mutex->file_name, (ulong) mutex->line,
 #endif /* UNIV_SYNC_DEBUG */
-			(ulong) mutex->waiters);
+				(ulong) mutex->waiters);
+		}
+
+		/* If stacktrace feature is enabled we will send a SIGUSR2
+		signal to thread waiting for the semaphore. Signal handler
+		will then dump the current stack to error log. */
+		if (srv_use_stacktrace && cell && cell->thread) {
+#ifdef __linux__
+			pthread_kill(cell->thread, SIGUSR2);
+#endif
+		}
 
 	} else if (type == RW_LOCK_EX
 		   || type == RW_LOCK_WAIT_EX
@@ -520,40 +525,47 @@ sync_array_cell_print(
 
 		rwlock = cell->old_wait_rw_lock;
 
-		fprintf(file,
-			" RW-latch at %p '%s'\n",
-			(void*) rwlock, rwlock->lock_name);
-		writer = rw_lock_get_writer(rwlock);
-		if (writer != RW_LOCK_NOT_LOCKED) {
+		if (rwlock) {
 			fprintf(file,
-				"a writer (thread id %lu) has"
-				" reserved it in mode %s",
-				(ulong) os_thread_pf(rwlock->writer_thread),
-				writer == RW_LOCK_EX
-				? " exclusive\n"
-				: " wait exclusive\n");
-		}
+				" RW-latch at %p '%s'\n",
+				(void*) rwlock, rwlock->lock_name);
 
-		fprintf(file,
-			"number of readers %lu, waiters flag %lu, "
-                        "lock_word: %lx\n"
-			"Last time read locked in file %s line %lu\n"
-			"Last time write locked in file %s line %lu\n",
-			(ulong) rw_lock_get_reader_count(rwlock),
-			(ulong) rwlock->waiters,
-			rwlock->lock_word,
-			innobase_basename(rwlock->last_s_file_name),
-			(ulong) rwlock->last_s_line,
-			rwlock->last_x_file_name,
-			(ulong) rwlock->last_x_line);
+			writer = rw_lock_get_writer(rwlock);
 
-		/* If stacktrace feature is enabled we will send a SIGUSR2
-		signal to thread that has locked RW-latch with write mode.
-		Signal handler will then dump the current stack to error log. */
-		if (writer != RW_LOCK_NOT_LOCKED && srv_use_stacktrace) {
+			if (writer && writer != RW_LOCK_NOT_LOCKED) {
+				fprintf(file,
+					"a writer (thread id %lu) has"
+					" reserved it in mode %s",
+					(ulong) os_thread_pf(rwlock->writer_thread),
+					writer == RW_LOCK_EX
+					? " exclusive\n"
+					: " wait exclusive\n");
+
+				*reserver = rwlock->writer_thread;
+			}
+
+			fprintf(file,
+				"number of readers %lu, waiters flag %lu, "
+				"lock_word: %lx\n"
+				"Last time read locked in file %s line %lu\n"
+				"Last time write locked in file %s line %lu\n",
+				(ulong) rw_lock_get_reader_count(rwlock),
+				(ulong) rwlock->waiters,
+				rwlock->lock_word,
+				innobase_basename(rwlock->last_s_file_name),
+				(ulong) rwlock->last_s_line,
+				rwlock->last_x_file_name,
+				(ulong) rwlock->last_x_line);
+
+			/* If stacktrace feature is enabled we will send a SIGUSR2
+			signal to thread that has locked RW-latch with write mode.
+			Signal handler will then dump the current stack to error log. */
+			if (writer != RW_LOCK_NOT_LOCKED && srv_use_stacktrace &&
+				rwlock && rwlock->writer_thread) {
 #ifdef __linux__
-			pthread_kill(rwlock->writer_thread, SIGUSR2);
+				pthread_kill(rwlock->writer_thread, SIGUSR2);
 #endif
+			}
 		}
 
 	} else {
@@ -565,7 +577,6 @@ sync_array_cell_print(
 	}
 }
 
-#ifdef UNIV_SYNC_DEBUG
 /******************************************************************//**
 Looks for a cell with the given thread id.
 @return	pointer to cell or NULL if not found */
@@ -592,6 +603,8 @@ sync_array_find_thread(
 
 	return(NULL);	/* Not found */
 }
+
+#ifdef UNIV_SYNC_DEBUG
 
 /******************************************************************//**
 Recursion step for deadlock detection.
@@ -964,6 +977,7 @@ sync_array_print_long_waits(
 
 		double	diff;
 		void*	wait_object;
+		os_thread_id_t reserver=0;
 
 		cell = sync_array_get_nth_cell(sync_primary_wait_array, i);
 
@@ -979,7 +993,7 @@ sync_array_print_long_waits(
 		if (diff > SYNC_ARRAY_TIMEOUT) {
 			fputs("InnoDB: Warning: a long semaphore wait:\n",
 			      stderr);
-			sync_array_cell_print(stderr, cell);
+			sync_array_cell_print(stderr, cell, &reserver);
 			noticed = TRUE;
 		}
 
@@ -991,6 +1005,58 @@ sync_array_print_long_waits(
 			longest_diff = diff;
 			*sema = wait_object;
 			*waiter = cell->thread;
+		}
+	}
+
+	/* We found a long semaphore wait, wait all threads that are
+	waiting for a semaphore. */
+	if (noticed) {
+		for (i = 0; i < sync_primary_wait_array->n_cells; i++) {
+			void*	wait_object;
+			os_thread_id_t reserver=ULINT_UNDEFINED;
+			ulint loop=0;
+
+			cell = sync_array_get_nth_cell(sync_primary_wait_array, i);
+
+			wait_object = cell->wait_object;
+
+			if (wait_object == NULL || !cell->waiting) {
+
+				continue;
+			}
+
+			fputs("InnoDB: Warning: semaphore wait:\n",
+			      stderr);
+			sync_array_cell_print(stderr, cell, &reserver);
+			noticed = TRUE;
+
+			/* Try to output cell information for writer recursive way */
+			while (reserver != ULINT_UNDEFINED) {
+				sync_cell_t* reserver_wait;
+
+				reserver_wait = sync_array_find_thread(sync_primary_wait_array, reserver);
+
+				if (reserver_wait &&
+					reserver_wait->wait_object != NULL &&
+					reserver_wait->waiting) {
+					fputs("InnoDB: Warning: Writer thread is waiting this semaphore:\n",
+						stderr);
+					reserver = ULINT_UNDEFINED;
+					sync_array_cell_print(stderr, reserver_wait, &reserver);
+					loop++;
+
+					if (reserver_wait->thread == reserver) {
+						reserver = ULINT_UNDEFINED;
+					}
+				} else {
+					reserver = ULINT_UNDEFINED;
+				}
+				/* This is protection against loop */
+				if (loop > 100) {
+					fputs("InnoDB: Warning: Too many waiting threads.\n", stderr);
+					break;
+				}
+			}
 		}
 	}
 
@@ -1042,6 +1108,7 @@ sync_array_output_info(
 	sync_cell_t*	cell;
 	ulint		count;
 	ulint		i;
+	os_thread_id_t  r;
 
 	fprintf(file,
 		"OS WAIT ARRAY INFO: reservation count %ld, signal count %ld\n",
@@ -1053,9 +1120,9 @@ sync_array_output_info(
 
 		cell = sync_array_get_nth_cell(arr, i);
 
-	if (cell->wait_object != NULL) {
-		count++;
-			sync_array_cell_print(file, cell);
+		if (cell->wait_object != NULL) {
+			count++;
+			sync_array_cell_print(file, cell, &r);
 		}
 
 		i++;

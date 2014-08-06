@@ -1,0 +1,61 @@
+include/master-slave.inc
+[connection master]
+INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master';
+[connection slave]
+INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave';
+UNINSTALL PLUGIN rpl_semi_sync_slave;
+[connection master]
+UNINSTALL PLUGIN rpl_semi_sync_master;
+CREATE TABLE t1(i int);
+INSERT INTO t1 values (1);
+DROP TABLE t1;
+[connection slave]
+include/install_semisync.inc
+[connection slave]
+UNINSTALL PLUGIN rpl_semi_sync_slave;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
+plugin_name	plugin_status
+rpl_semi_sync_slave	DELETED
+[connection master]
+UNINSTALL PLUGIN rpl_semi_sync_master;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
+plugin_name	plugin_status
+rpl_semi_sync_master	DELETED
+CREATE TABLE t1(i int);
+INSERT INTO t1 values (2);
+DROP TABLE t1;
+[connection slave]
+show status like "Rpl_semi_sync_slave_status";
+Variable_name	Value
+Rpl_semi_sync_slave_status	ON
+[connection master]
+show status like "Rpl_semi_sync_master_status";
+Variable_name	Value
+Rpl_semi_sync_master_status	ON
+show status like "Rpl_semi_sync_master_clients";
+Variable_name	Value
+Rpl_semi_sync_master_clients	1
+select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
+plugin_name	plugin_status
+rpl_semi_sync_master	DELETED
+[connection slave]
+include/stop_slave.inc
+select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
+plugin_name	plugin_status
+include/start_slave.inc
+select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
+plugin_name	plugin_status
+[connection master]
+show status like "Rpl_semi_sync_master_clients";
+Variable_name	Value
+select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
+plugin_name	plugin_status
+CREATE TABLE t1(i int);
+INSERT INTO t1 values (3);
+DROP TABLE t1;
+[connection slave]
+include/rpl_end.inc

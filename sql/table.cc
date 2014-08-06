@@ -1752,13 +1752,25 @@ static int open_binary_frm(THD *thd, TABLE_SHARE *share, uchar *head,
         key_part= keyinfo->key_part;
 	for (i=0 ; i < keyinfo->key_parts ;i++)
 	{
-	  uint fieldnr= key_part[i].fieldnr;
-	  if (!fieldnr ||
-	      share->field[fieldnr-1]->null_ptr ||
-	      share->field[fieldnr-1]->key_length() !=
-	      key_part[i].length)
+          DBUG_ASSERT(key_part[i].fieldnr > 0);
+          // Table field corresponding to the i'th key part.
+          Field *table_field= share->field[key_part[i].fieldnr - 1];
+
+          /*
+            If the key column is of NOT NULL BLOB type, then it
+            will definitly have key prefix. And if key part prefix size
+            is equal to the BLOB column max size, then we can promote
+            it to primary key.
+          */
+          if (!table_field->real_maybe_null() &&
+              table_field->type() == MYSQL_TYPE_BLOB &&
+              table_field->field_length == key_part[i].length)
+            continue;
+
+	  if (table_field->real_maybe_null() ||
+	      table_field->key_length() != key_part[i].length)
 	  {
-	    primary_key=MAX_KEY;		// Can't be used
+	    primary_key= MAX_KEY;		// Can't be used
 	    break;
 	  }
 	}
@@ -4149,7 +4161,8 @@ bool TABLE_LIST::create_field_translation(THD *thd)
 
   while ((item= it++))
   {
-    transl[field_count].name= item->name;
+    DBUG_ASSERT(item->name && item->name[0]);
+    transl[field_count].name= thd->strdup(item->name);
     transl[field_count++].item= item;
   }
   field_translation= transl;
