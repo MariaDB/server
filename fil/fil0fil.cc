@@ -761,7 +761,7 @@ fil_node_open_file(
 			fprintf(stderr,
 				"InnoDB: Error: the size of single-table"
 				" tablespace file %s\n"
-				"InnoDB: is only "UINT64PF","
+				"InnoDB: is only " UINT64PF ","
 				" should be at least %lu!\n",
 				node->name,
 				size_bytes,
@@ -1815,6 +1815,9 @@ fil_close_all_files(void)
 {
 	fil_space_t*	space;
 
+	if (srv_track_changed_pages && srv_redo_log_thread_started)
+		os_event_wait(srv_redo_log_tracked_event);
+
 	mutex_enter(&fil_system->mutex);
 
 	space = UT_LIST_GET_FIRST(fil_system->space_list);
@@ -1850,6 +1853,9 @@ fil_close_log_files(
 	bool	free)	/*!< in: whether to free the memory object */
 {
 	fil_space_t*	space;
+
+	if (srv_track_changed_pages && srv_redo_log_thread_started)
+		os_event_wait(srv_redo_log_tracked_event);
 
 	mutex_enter(&fil_system->mutex);
 

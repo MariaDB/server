@@ -161,9 +161,12 @@ extern char		srv_disable_sort_file_cache;
 thread */
 extern os_event_t	srv_checkpoint_completed_event;
 
-/* This event is set on the online redo log following thread exit to signal
-that the (slow) shutdown may proceed */
-extern os_event_t	srv_redo_log_thread_finished_event;
+/* This event is set on the online redo log following thread after a successful
+log tracking iteration */
+extern os_event_t	srv_redo_log_tracked_event;
+
+/** srv_redo_log_follow_thread spawn flag */
+extern bool srv_redo_log_thread_started;
 
 /* If the last data file is auto-extended, we add this many pages to it
 at a time */

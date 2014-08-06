@@ -275,6 +275,17 @@ read_view_t*
 trx_assign_read_view(
 /*=================*/
 	trx_t*	trx);	/*!< in: active transaction */
+/********************************************************************//**
+Clones the read view from another transaction. All the consistent reads within
+the receiver transaction will get the same read view as the donor transaction
+@return read view clone */
+UNIV_INTERN
+read_view_t*
+trx_clone_read_view(
+/*================*/
+	trx_t*	trx,		/*!< in: receiver transaction */
+	trx_t*	from_trx)	/*!< in: donor transaction */
+	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
 Prepares a transaction for commit/rollback. */
 UNIV_INTERN

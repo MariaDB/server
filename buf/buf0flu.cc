@@ -546,7 +546,12 @@ buf_flush_ready_for_flush(
 	ut_ad(flush_type < BUF_FLUSH_N_TYPES);
 	ut_ad(mutex_own(buf_page_get_mutex(bpage))
 	      || flush_type == BUF_FLUSH_LIST);
-	ut_a(buf_page_in_file(bpage));
+	ut_a(buf_page_in_file(bpage)
+	     || (buf_page_get_state(bpage) == BUF_BLOCK_REMOVE_HASH
+#ifdef UNIV_DEBUG
+		 && !mutex_own(&buf_pool_from_bpage(bpage)->LRU_list_mutex)
+#endif
+		     ));
 
 	if (bpage->oldest_modification == 0
 	    || buf_page_get_io_fix_unlocked(bpage) != BUF_IO_NONE) {
@@ -557,6 +562,7 @@ buf_flush_ready_for_flush(
 
 	switch (flush_type) {
 	case BUF_FLUSH_LIST:
+		return(buf_page_get_state(bpage) != BUF_BLOCK_REMOVE_HASH);
 	case BUF_FLUSH_LRU:
 	case BUF_FLUSH_SINGLE_PAGE:
 		return(true);
@@ -1363,7 +1369,11 @@ buf_flush_page_and_try_neighbors(
 	}
 
 	ut_a(buf_page_in_file(bpage)
-	     || buf_page_get_state(bpage) == BUF_BLOCK_REMOVE_HASH);
+	     || (buf_page_get_state(bpage) == BUF_BLOCK_REMOVE_HASH
+#ifdef UNIV_DEBUG
+		 && !mutex_own(&buf_pool->LRU_list_mutex)
+#endif
+		 ));
 
 	if (buf_flush_ready_for_flush(bpage, flush_type)) {
 		buf_pool_t*	buf_pool;
@@ -1649,7 +1659,7 @@ buf_do_LRU_batch(
 {
 	if (buf_LRU_evict_from_unzip_LRU(buf_pool)) {
 		n->unzip_LRU_evicted
-			+= buf_free_from_unzip_LRU_list_batch(buf_pool, max);
+			= buf_free_from_unzip_LRU_list_batch(buf_pool, max);
 	} else {
 		n->unzip_LRU_evicted = 0;
 	}
@@ -1948,6 +1958,7 @@ buf_flush_LRU(
 	if (!buf_flush_start(buf_pool, BUF_FLUSH_LRU)) {
 		n->flushed = 0;
 		n->evicted = 0;
+		n->unzip_LRU_evicted = 0;
 		return(false);
 	}
 
@@ -2364,6 +2375,10 @@ af_get_pct_for_dirty()
 /*==================*/
 {
 	ulint dirty_pct = buf_get_modified_ratio_pct();
+
+	if (dirty_pct > 0 && srv_max_buf_pool_modified_pct == 0) {
+		return(100);
+	}
 
 	ut_a(srv_max_dirty_pages_pct_lwm
 	     <= srv_max_buf_pool_modified_pct);
