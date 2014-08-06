@@ -1,0 +1,17 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_sst_method;
+
+set @@global.wsrep_sst_method='xtrabackup';
+set @@global.wsrep_sst_method='xtrabackup-v2';
+set @@global.wsrep_sst_method='rsync';
+set @@global.wsrep_sst_method='mysqldump';
+set @@global.wsrep_sst_method='myscript';
+set @@global.wsrep_sst_method='skip';
+--error 1231
+set @@global.wsrep_sst_method=NULL;
+--Error 1232
+SET @@global.wsrep_sst_method = -1;
+
+set @@global.wsrep_sst_method = @start_value;

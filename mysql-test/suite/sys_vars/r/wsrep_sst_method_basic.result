@@ -1,0 +1,12 @@
+set @start_value = @@wsrep_sst_method;
+set @@global.wsrep_sst_method='xtrabackup';
+set @@global.wsrep_sst_method='xtrabackup-v2';
+set @@global.wsrep_sst_method='rsync';
+set @@global.wsrep_sst_method='mysqldump';
+set @@global.wsrep_sst_method='myscript';
+set @@global.wsrep_sst_method='skip';
+set @@global.wsrep_sst_method=NULL;
+ERROR 42000: Variable 'wsrep_sst_method' can't be set to the value of 'NULL'
+SET @@global.wsrep_sst_method = -1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_sst_method'
+set @@global.wsrep_sst_method = @start_value;

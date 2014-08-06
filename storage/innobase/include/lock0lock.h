@@ -972,6 +972,16 @@ extern lock_sys_t*	lock_sys;
 	mutex_exit(&lock_sys->wait_mutex);	\
 } while (0)
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+Cancels a waiting lock request and releases possible other transactions
+waiting behind it. */
+UNIV_INTERN
+void
+lock_cancel_waiting_and_release(
+/*============================*/
+	lock_t*	lock);	/*!< in/out: waiting lock request */
+#endif /* WITH_WSREP */
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"
 #endif

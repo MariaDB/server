@@ -24,6 +24,7 @@
 #include "sql_acl.h"     // DROP_ACL
 #include "sql_parse.h"   // check_one_table_access()
 #include "sql_truncate.h"
+#include "wsrep_mysqld.h"
 #include "sql_show.h"    //append_identifier()
 
 
@@ -411,6 +412,12 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   {
     bool hton_can_recreate;
 
+#ifdef WITH_WSREP
+    if (WSREP(thd) && wsrep_to_isolation_begin(thd, 
+                                                table_ref->db, 
+                                                table_ref->table_name, NULL))
+        DBUG_RETURN(TRUE);
+#endif /* WITH_WSREP */
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 

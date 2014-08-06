@@ -1,0 +1,47 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT COUNT(@@GLOBAL.wsrep_recover);
+--echo 1 Expected
+
+--Error 1238
+set @@global.wsrep_recover=ON;
+--echo Expected error 'Readonly variable'
+--Error 1238
+set @@global.wsrep_recover=OFF;
+--echo Expected error 'Readonly variable'
+
+SELECT @@GLOBAL.wsrep_recover = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='wsrep_recover';
+--echo 1 Expected
+
+SELECT COUNT(@@GLOBAL.wsrep_recover);
+--echo 1 Expected
+
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='wsrep_recover';
+--echo 1 Expected
+
+SELECT @@wsrep_recover = @@GLOBAL.wsrep_recover;
+--echo 1 Expected
+
+SELECT COUNT(@@wsrep_recover);
+--echo 1 Expected
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.wsrep_recover);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.wsrep_recover);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+SELECT COUNT(@@GLOBAL.wsrep_recover);
+--echo 1 Expected
+
+--Error ER_BAD_FIELD_ERROR
+SELECT wsrep_recover = @@SESSION.wsrep_recover;
+--echo Expected error 'Readonly variable'
+

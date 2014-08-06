@@ -5264,6 +5264,12 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   int create_res;
   DBUG_ENTER("mysql_create_like_table");
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && !thd->wsrep_applier &&
+      wsrep_create_like_table(thd, table, src_table, create_info))
+    goto end;
+#endif
+
   /*
     We the open source table to get its description in HA_CREATE_INFO
     and Alter_info objects. This also acquires a shared metadata lock
@@ -5525,6 +5531,8 @@ err:
                            thd->query_length(), is_trans))
       res= 1;
   }
+
+end:
   DBUG_RETURN(res);
 }
 
@@ -8117,6 +8125,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   if (!error)
   {
     error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+
     if (!error)
       my_ok(thd);
   }

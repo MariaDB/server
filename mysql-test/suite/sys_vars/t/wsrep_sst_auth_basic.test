@@ -1,0 +1,12 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT COUNT(@@wsrep_sst_auth);
+
+# Cause crash, fix later
+#set @start_value = @@wsrep_sst_auth;
+#set @@global.wsrep_sst_auth='root:pass';
+#set @@global.wsrep_sst_auth=NULL;
+#set @@global.wsrep_sst_auth=r;
+#set @@global.wsrep_sst_auth=1;
+#set @@global.wsrep_sst_auth = @start_value;

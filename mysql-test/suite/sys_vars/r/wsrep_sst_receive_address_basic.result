@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_sst_receive_address;
+set @@global.wsrep_sst_receive_address='128.0.2.1';
+set @@global.wsrep_sst_receive_address=AUTO;
+set @@global.wsrep_sst_receive_address='AUTO';
+set @@global.wsrep_sst_receive_address=NULL;
+SET @@global.wsrep_sst_receive_address = -1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_sst_receive_address'
+set @@global.wsrep_sst_receive_address = @start_value;

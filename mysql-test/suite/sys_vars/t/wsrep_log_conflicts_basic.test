@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_log_conflicts;
+
+set @@global.wsrep_log_conflicts=ON;
+set @@global.wsrep_log_conflicts=OFF;
+set @@global.wsrep_log_conflicts=1;
+set @@global.wsrep_log_conflicts=0;
+--Error 1231
+SET @@global.wsrep_log_conflicts = -1;
+
+set @@global.wsrep_log_conflicts = @start_value;

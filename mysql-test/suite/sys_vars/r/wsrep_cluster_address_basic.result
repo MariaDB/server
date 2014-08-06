@@ -1,0 +1,45 @@
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+COUNT(@@GLOBAL.wsrep_cluster_address)
+1
+1 Expected
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+COUNT(@@GLOBAL.wsrep_cluster_address)
+1
+1 Expected
+SELECT @@GLOBAL.wsrep_cluster_address = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='wsrep_cluster_address';
+@@GLOBAL.wsrep_cluster_address = VARIABLE_VALUE
+1
+1 Expected
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+COUNT(@@GLOBAL.wsrep_cluster_address)
+1
+1 Expected
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='wsrep_cluster_address';
+COUNT(VARIABLE_VALUE)
+1
+1 Expected
+SELECT @@wsrep_cluster_address = @@GLOBAL.wsrep_cluster_address;
+@@wsrep_cluster_address = @@GLOBAL.wsrep_cluster_address
+1
+1 Expected
+SELECT COUNT(@@wsrep_cluster_address);
+COUNT(@@wsrep_cluster_address)
+1
+1 Expected
+SELECT COUNT(@@local.wsrep_cluster_address);
+ERROR HY000: Variable 'wsrep_cluster_address' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@SESSION.wsrep_cluster_address);
+ERROR HY000: Variable 'wsrep_cluster_address' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+COUNT(@@GLOBAL.wsrep_cluster_address)
+1
+1 Expected
+SELECT wsrep_cluster_address = @@SESSION.wsrep_cluster_address;
+ERROR 42S22: Unknown column 'wsrep_cluster_address' in 'field list'
+Expected error 'Readonly variable'

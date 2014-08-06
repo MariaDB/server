@@ -1230,6 +1230,11 @@ struct handlerton
    enum handler_create_iterator_result
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
+   int (*abort_transaction)(handlerton *hton, THD *bf_thd,
+			    THD *victim_thd, my_bool signal);
+   int (*set_checkpoint)(handlerton *hton, const XID* xid);
+   int (*get_checkpoint)(handlerton *hton, XID* xid);
+   void (*fake_trx_id)(handlerton *hton, THD *thd);
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -3962,6 +3967,9 @@ bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 extern const char *ha_row_type[];
 extern MYSQL_PLUGIN_IMPORT const char *tx_isolation_names[];
 extern MYSQL_PLUGIN_IMPORT const char *binlog_format_names[];
+#ifdef WITH_WSREP
+extern MYSQL_PLUGIN_IMPORT const char *wsrep_binlog_format_names[];
+#endif /* WITH_WSREP */
 extern TYPELIB tx_isolation_typelib;
 extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;
@@ -4080,6 +4088,10 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv);
 bool ha_rollback_to_savepoint_can_release_mdl(THD *thd);
 int ha_savepoint(THD *thd, SAVEPOINT *sv);
 int ha_release_savepoint(THD *thd, SAVEPOINT *sv);
+#ifdef WITH_WSREP
+int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
+void ha_fake_trx_id(THD *thd);
+#endif /* WITH_WSREP */
 
 /* these are called by storage engines */
 void trans_register_ha(THD *thd, bool all, handlerton *ht);
@@ -4109,6 +4121,9 @@ int ha_binlog_end(THD *thd);
 #define ha_binlog_log_query(a,b,c,d,e,f,g) do {} while (0)
 #define ha_binlog_wait(a) do {} while (0)
 #define ha_binlog_end(a)  do {} while (0)
+#endif
+#ifdef WITH_WSREP
+void wsrep_brute_force_aborts();
 #endif
 
 const char *get_canonical_filename(handler *file, const char *path,

@@ -1,0 +1,20 @@
+set @start_value = @@wsrep_slave_threads;
+set @@global.wsrep_slave_threads=1;
+set @@global.wsrep_slave_threads=4;
+show warnings;
+Level	Code	Message
+set @@global.wsrep_slave_threads=0;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+show warnings;
+Level	Code	Message
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '0'
+set @@global.wsrep_slave_threads=-1;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '-1'
+show warnings;
+Level	Code	Message
+Warning	1292	Truncated incorrect wsrep_slave_threads value: '-1'
+SET @@global.wsrep_slave_threads = r;
+ERROR 42000: Incorrect argument type to variable 'wsrep_slave_threads'
+set @@global.wsrep_slave_threads = @start_value;

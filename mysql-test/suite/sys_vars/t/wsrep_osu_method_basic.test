@@ -1,0 +1,18 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_osu_method;
+
+set @@global.wsrep_osu_method='TOI';
+set @@global.wsrep_osu_method='RSU';
+set @@global.wsrep_osu_method=TOI;
+set @@global.wsrep_osu_method=RSU;
+
+--Error 1231
+set @@global.wsrep_osu_method=TSU;
+--Error 1231
+set @@global.wsrep_osu_method='TSU';
+--Error 1231
+SET @@global.wsrep_on = -1;
+
+set @@global.wsrep_osu_method = @start_value;

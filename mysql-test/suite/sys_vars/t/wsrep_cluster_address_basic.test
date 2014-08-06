@@ -1,0 +1,44 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+--echo 1 Expected
+
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+--echo 1 Expected
+
+SELECT @@GLOBAL.wsrep_cluster_address = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='wsrep_cluster_address';
+--echo 1 Expected
+
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+--echo 1 Expected
+
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='wsrep_cluster_address';
+--echo 1 Expected
+
+SELECT @@wsrep_cluster_address = @@GLOBAL.wsrep_cluster_address;
+--echo 1 Expected
+
+SELECT COUNT(@@wsrep_cluster_address);
+--echo 1 Expected
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@local.wsrep_cluster_address);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+--Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT COUNT(@@SESSION.wsrep_cluster_address);
+--echo Expected error 'Variable is a GLOBAL variable'
+
+SELECT COUNT(@@GLOBAL.wsrep_cluster_address);
+--echo 1 Expected
+
+--Error ER_BAD_FIELD_ERROR
+SELECT wsrep_cluster_address = @@SESSION.wsrep_cluster_address;
+--echo Expected error 'Readonly variable'
+
+

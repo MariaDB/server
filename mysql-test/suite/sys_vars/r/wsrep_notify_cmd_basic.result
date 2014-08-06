@@ -1,0 +1,6 @@
+set @start_value = @@wsrep_notify_cmd;
+set @@global.wsrep_notify_cmd='test';
+set @@global.wsrep_notify_cmd=NULL;
+SET @@global.wsrep_notify_cmd = 1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_notify_cmd'
+set @@global.wsrep_notify_cmd = @start_value;

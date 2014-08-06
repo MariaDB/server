@@ -88,6 +88,12 @@ static char my_defaults_extra_file_buffer[FN_REFLEN];
 
 static my_bool defaults_already_read= FALSE;
 
+#ifdef WITH_WSREP
+/* The only purpose of this global array is to hold full name of my.cnf
+ * which seems to be otherwise unavailable */
+char wsrep_defaults_file[FN_REFLEN + 10]={0,};
+#endif /* WITH_WREP */
+
 /* Which directories are searched for options (and in which order) */
 
 #define MAX_DEFAULT_DIRS 6
@@ -803,6 +809,12 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 #endif
   if (!(fp= mysql_file_fopen(key_file_cnf, name, O_RDONLY, MYF(0))))
     return 1;					/* Ignore wrong files */
+
+#ifdef WITH_WSREP
+  /* make sure we do this only once - for top-level file */
+  if ('\0' == wsrep_defaults_file[0])
+    strmake(wsrep_defaults_file, name, sizeof(wsrep_defaults_file) - 1);
+#endif /* WITH_WSREP */
 
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {

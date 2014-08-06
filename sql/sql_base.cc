@@ -61,7 +61,8 @@
 #ifdef  __WIN__
 #include <io.h>
 #endif
-
+#include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -3557,7 +3558,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
   */
   bool log_on= mysql_bin_log.is_open() && thd->variables.sql_log_bin;
   ulong binlog_format= thd->variables.binlog_format;
-  if ((log_on == FALSE) || (binlog_format == BINLOG_FORMAT_ROW) ||
+  if ((log_on == FALSE) || (WSREP_FORMAT(binlog_format) == BINLOG_FORMAT_ROW) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_PERFORMANCE) ||
       !(is_update_query(prelocking_ctx->sql_command) ||
@@ -4585,8 +4586,29 @@ restart:
     }
   }
 
+#ifdef WITH_WSREP
+  if (WSREP_ON &&
+      (thd->lex->sql_command== SQLCOM_INSERT         ||
+       thd->lex->sql_command== SQLCOM_INSERT_SELECT  ||
+       thd->lex->sql_command== SQLCOM_REPLACE        ||
+       thd->lex->sql_command== SQLCOM_REPLACE_SELECT ||
+       thd->lex->sql_command== SQLCOM_UPDATE         ||
+       thd->lex->sql_command== SQLCOM_UPDATE_MULTI   ||
+       thd->lex->sql_command== SQLCOM_LOAD           ||
+       thd->lex->sql_command== SQLCOM_DELETE)        &&
+      wsrep_replicate_myisam                         &&
+      (*start)                                       &&
+      (*start)->table && (*start)->table->file->ht->db_type == DB_TYPE_MYISAM)
+    {
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
+    }
+ error:
+#endif
+
 err:
   THD_STAGE_INFO(thd, stage_after_opening_tables);
+  thd_proc_info(thd, 0);
+
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
@@ -5040,6 +5062,8 @@ end:
     close_thread_tables(thd);
   }
   THD_STAGE_INFO(thd, stage_after_opening_tables);
+
+  thd_proc_info(thd, 0);
   DBUG_RETURN(table);
 }
 
@@ -5303,7 +5327,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
         We can solve these problems in mixed mode by switching to binlogging 
         if at least one updated table is used by sub-statement
       */
-      if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables && 
+      if (WSREP_FORMAT(thd->variables.binlog_format) != BINLOG_FORMAT_ROW && tables && 
           has_write_table_with_auto_increment(thd->lex->first_not_own_table()))
         thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
@@ -8993,7 +9017,17 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
-        signalled|= mysql_lock_abort_for_thread(thd, thd_table);
+      {
+	signalled|= mysql_lock_abort_for_thread(thd, thd_table);
+#ifdef WITH_WSREP
+	if (thd && WSREP(thd) && wsrep_thd_is_BF((void *)thd, true))
+	{
+	  WSREP_DEBUG("remove_table_from_cache: %llu",
+		      (unsigned long long) thd->real_id);
+	  wsrep_abort_thd((void *)thd, (void *)in_use, FALSE);
+	}
+#endif
+      }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }

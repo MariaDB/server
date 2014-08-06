@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_replicate_myisam;
+set @@global.wsrep_replicate_myisam=ON;
+set @@global.wsrep_replicate_myisam=OFF;
+set @@global.wsrep_replicate_myisam=1;
+set @@global.wsrep_replicate_myisam=0;
+SET @@global.wsrep_replicate_myisam = -1;
+ERROR 42000: Variable 'wsrep_replicate_myisam' can't be set to the value of '-1'
+set @@global.wsrep_replicate_myisam = @start_value;

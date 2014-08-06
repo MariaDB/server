@@ -1,0 +1,14 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_forced_binlog_format;
+
+set @@global.wsrep_forced_binlog_format = ROW;
+set @@global.wsrep_forced_binlog_format = MIXED;
+set @@global.wsrep_forced_binlog_format = STATEMENT;
+set @@global.wsrep_forced_binlog_format = NONE;
+
+--error 1231
+set @@global.wsrep_forced_binlog_format = FOO;
+
+set @@global.wsrep_forced_binlog_format = @start_value;

@@ -6833,36 +6833,36 @@ fil_get_page_type_name(
 {
 	switch(page_type) {
 	case FIL_PAGE_PAGE_COMPRESSED:
-		return "PAGE_COMPRESSED";
+		return (char *)"PAGE_COMPRESSED";
 	case FIL_PAGE_INDEX:
-		return "INDEX";
+		return (char *)"INDEX";
 	case FIL_PAGE_UNDO_LOG:
-		return "UNDO LOG";
+		return (char *)"UNDO LOG";
 	case FIL_PAGE_INODE:
-		return "INODE";
+		return (char *)"INODE";
 	case FIL_PAGE_IBUF_FREE_LIST:
-		return "IBUF_FREE_LIST";
+		return (char *)"IBUF_FREE_LIST";
 	case FIL_PAGE_TYPE_ALLOCATED:
-		return "ALLOCATED";
+		return (char *)"ALLOCATED";
 	case FIL_PAGE_IBUF_BITMAP:
-		return "IBUF_BITMAP";
+		return (char *)"IBUF_BITMAP";
 	case FIL_PAGE_TYPE_SYS:
-		return "SYS";
+		return (char *)"SYS";
 	case FIL_PAGE_TYPE_TRX_SYS:
-		return "TRX_SYS";
+		return (char *)"TRX_SYS";
 	case FIL_PAGE_TYPE_FSP_HDR:
-		return "FSP_HDR";
+		return (char *)"FSP_HDR";
 	case FIL_PAGE_TYPE_XDES:
-		return "XDES";
+		return (char *)"XDES";
 	case FIL_PAGE_TYPE_BLOB:
-		return "BLOB";
+		return (char *)"BLOB";
 	case FIL_PAGE_TYPE_ZBLOB:
-		return "ZBLOB";
+		return (char *)"ZBLOB";
 	case FIL_PAGE_TYPE_ZBLOB2:
-		return "ZBLOB2";
+		return (char *)"ZBLOB2";
 	case FIL_PAGE_TYPE_COMPRESSED:
-		return "ORACLE PAGE COMPRESSED";
+		return (char *)"ORACLE PAGE COMPRESSED";
 	default:
-		return "PAGE TYPE CORRUPTED";
+		return (char *)"PAGE TYPE CORRUPTED";
 	}
 }

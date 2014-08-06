@@ -1,0 +1,11 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_dbug_option;
+
+set @@global.wsrep_dbug_option='foo:bar';
+set @@global.wsrep_dbug_option=NULL;
+--Error 1232
+SET @@global.wsrep_dbug_option = -1;
+
+set @@global.wsrep_dbug_option = @start_value;

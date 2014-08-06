@@ -22,6 +22,8 @@
 #include <mysql/plugin.h>
 #include <mysql/service_thd_wait.h>
 #include <mysql/psi/mysql_stage.h>
+#include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_MDL_map_mutex;
@@ -1497,11 +1499,53 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
     called by other threads.
   */
   DBUG_ASSERT(ticket->get_lock());
-  /*
-    Add ticket to the *back* of the queue to ensure fairness
-    among requests with the same priority.
-  */
-  m_list.push_back(ticket);
+#ifdef WITH_WSREP
+  if ((this == &(ticket->get_lock()->m_waiting)) &&
+      wsrep_thd_is_BF((void *)(ticket->get_ctx()->get_thd()), false))
+  {
+    Ticket_iterator itw(ticket->get_lock()->m_waiting);
+    Ticket_iterator itg(ticket->get_lock()->m_granted);
+
+    DBUG_ASSERT(WSREP_ON);
+    MDL_ticket *waiting, *granted;
+    MDL_ticket *prev=NULL;
+    bool added= false;
+
+    while ((waiting= itw++) && !added)
+    {
+      if (!wsrep_thd_is_BF((void *)(waiting->get_ctx()->get_thd()), true))
+      {
+        WSREP_DEBUG("MDL add_ticket inserted before: %lu %s",
+                    wsrep_thd_thread_id(waiting->get_ctx()->get_thd()),
+                    wsrep_thd_query(waiting->get_ctx()->get_thd()));
+        m_list.insert_after(prev, ticket);
+        added= true;
+      }
+      prev= waiting;
+    }
+    if (!added)   m_list.push_back(ticket);
+
+    while ((granted= itg++))
+    {
+      if (granted->get_ctx() != ticket->get_ctx() &&
+          granted->is_incompatible_when_granted(ticket->get_type()))
+      {
+        if (!wsrep_grant_mdl_exception(ticket->get_ctx(), granted))
+        {
+          WSREP_DEBUG("MDL victim killed at add_ticket");
+        }
+      }
+    }
+  }
+  else
+#endif /* WITH_WSREP */
+  {
+    /*
+      Add ticket to the *back* of the queue to ensure fairness
+      among requests with the same priority.
+    */
+    m_list.push_back(ticket);
+  }
   m_bitmap|= MDL_BIT(ticket->get_type());
 }
 
@@ -1842,6 +1886,7 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   bool can_grant= FALSE;
   bitmap_t waiting_incompat_map= incompatible_waiting_types_bitmap()[type_arg];
   bitmap_t granted_incompat_map= incompatible_granted_types_bitmap()[type_arg];
+  bool  wsrep_can_grant= TRUE;
 
   /*
     New lock request can be satisfied iff:
@@ -1864,12 +1909,53 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
       {
         if (ticket->get_ctx() != requestor_ctx &&
             ticket->is_incompatible_when_granted(type_arg))
+        {
+#ifdef WITH_WSREP
+          if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()),false) &&
+              key.mdl_namespace() == MDL_key::GLOBAL)
+          {
+            WSREP_DEBUG("global lock granted for BF: %lu %s",
+                        wsrep_thd_thread_id(requestor_ctx->get_thd()),
+                        wsrep_thd_query(requestor_ctx->get_thd()));
+            can_grant = true;
+          }
+          else if (!wsrep_grant_mdl_exception(requestor_ctx, ticket))
+          {
+            wsrep_can_grant= FALSE;
+            if (wsrep_log_conflicts)
+            {
+              MDL_lock * lock = ticket->get_lock();
+              WSREP_INFO(
+                         "MDL conflict db=%s table=%s ticket=%d solved by %s",
+                         lock->key.db_name(), lock->key.name(), ticket->get_type(),
+                         "abort" );
+            }
+          }
+          else
+            can_grant= TRUE;
+          /* Continue loop */
+#else
           break;
+#endif /* WITH_WSREP */
+        }
       }
-      if (ticket == NULL)             /* Incompatible locks are our own. */
-        can_grant= TRUE;
+      if ((ticket == NULL) && IF_WSREP(wsrep_can_grant, 1))
+        can_grant= TRUE; /* Incompatible locks are our own. */
     }
   }
+#ifdef WITH_WSREP
+  else
+  {
+    if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()), false) &&
+	key.mdl_namespace() == MDL_key::GLOBAL)
+    {
+      WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
+		  wsrep_thd_thread_id(requestor_ctx->get_thd()), 
+		  wsrep_thd_query(requestor_ctx->get_thd()));
+      can_grant = true;
+    }
+  }
+#endif /* WITH_WSREP */
   return can_grant;
 }
 
@@ -3222,3 +3308,44 @@ void MDL_context::set_transaction_duration_for_all_locks()
     ticket->m_duration= MDL_TRANSACTION;
 #endif
 }
+
+
+#ifdef WITH_WSREP
+
+void MDL_context::release_explicit_locks()
+{
+  release_locks_stored_before(MDL_EXPLICIT, NULL);
+}
+
+
+void MDL_ticket::wsrep_report(bool debug)
+{
+  if (debug)
+  {
+      const PSI_stage_info *psi_stage = m_lock->key.get_wait_state_name();
+
+      WSREP_DEBUG("MDL ticket: type: %s space: %s db: %s name: %s (%s)",
+       	 (get_type()  == MDL_INTENTION_EXCLUSIVE)  ? "intention exclusive"  :
+       	 ((get_type() == MDL_SHARED)               ? "shared"               :
+       	 ((get_type() == MDL_SHARED_HIGH_PRIO      ? "shared high prio"     :
+       	 ((get_type() == MDL_SHARED_READ)          ? "shared read"          :
+       	 ((get_type() == MDL_SHARED_WRITE)         ? "shared write"         :
+       	 ((get_type() == MDL_SHARED_NO_WRITE)      ? "shared no write"      :
+         ((get_type() == MDL_SHARED_NO_READ_WRITE) ? "shared no read write" :
+       	 ((get_type() == MDL_EXCLUSIVE)            ? "exclusive"            :
+          "UNKNOWN")))))))),
+         (m_lock->key.mdl_namespace()  == MDL_key::GLOBAL) ? "GLOBAL"       :
+         ((m_lock->key.mdl_namespace() == MDL_key::SCHEMA) ? "SCHEMA"       :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TABLE"        :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "FUNCTION"     :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "PROCEDURE"    :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "TRIGGER"      :
+         ((m_lock->key.mdl_namespace() == MDL_key::TABLE)  ? "EVENT"        :
+         ((m_lock->key.mdl_namespace() == MDL_key::COMMIT) ? "COMMIT"       :
+         (char *)"UNKNOWN"))))))),
+         m_lock->key.db_name(),
+       	 m_lock->key.name(),
+         psi_stage->m_name);
+    }
+}
+#endif /* WITH_WSREP */

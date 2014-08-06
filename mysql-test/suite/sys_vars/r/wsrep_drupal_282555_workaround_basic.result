@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_drupal_282555_workaround;
+set @@global.wsrep_drupal_282555_workaround=ON;
+set @@global.wsrep_drupal_282555_workaround=OFF;
+set @@global.wsrep_drupal_282555_workaround=1;
+set @@global.wsrep_drupal_282555_workaround=0;
+SET @@global.wsrep_drupal_282555_workaround = -1;
+ERROR 42000: Variable 'wsrep_drupal_282555_workaround' can't be set to the value of '-1'
+set @@global.wsrep_drupal_282555_workaround = @start_value;
