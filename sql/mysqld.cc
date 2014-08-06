@@ -2366,6 +2366,7 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
   int error;
   int	arg;
   char port_buf[NI_MAXSERV];
+  const char *real_bind_addr_str;
   MYSQL_SOCKET ip_sock= MYSQL_INVALID_SOCKET;
   DBUG_ENTER("activate_tcp_port");
   DBUG_PRINT("general",("IP Socket is %d",port));
@@ -2374,13 +2375,19 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
   hints.ai_flags= AI_PASSIVE;
   hints.ai_socktype= SOCK_STREAM;
   hints.ai_family= AF_UNSPEC;
+  
+  if (my_bind_addr_str && strcmp(my_bind_addr_str, "*") == 0)
+    real_bind_addr_str= NULL; // windows doesn't seem to support * here
+  else
+    real_bind_addr_str= my_bind_addr_str;
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
-  error= getaddrinfo(my_bind_addr_str, port_buf, &hints, &ai);
+  error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
   if (error != 0)
   {
     DBUG_PRINT("error",("Got error: %d from getaddrinfo()", error));
-    sql_perror(ER_DEFAULT(ER_IPSOCK_ERROR));  /* purecov: tested */
+
+    sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR), gai_strerror(error));
     unireg_abort(1);				/* purecov: tested */
   }
 
@@ -2389,8 +2396,7 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
     because we later switch off IPV6_V6ONLY, so ipv6 wildcard
     addresses will work for ipv4 too
   */
-  if ((my_bind_addr_str == NULL || strcmp(my_bind_addr_str, "*") == 0)
-      && ai->ai_family == AF_INET && ai->ai_next
+  if (!real_bind_addr_str && ai->ai_family == AF_INET && ai->ai_next
       && ai->ai_next->ai_family == AF_INET6)
   {
     a= ai;
