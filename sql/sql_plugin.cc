@@ -1040,7 +1040,7 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
 static bool plugin_add(MEM_ROOT *tmp_root,
                        const LEX_STRING *name, LEX_STRING *dl, int report)
 {
-  struct st_plugin_int tmp;
+  struct st_plugin_int tmp, *maybe_dupe;
   struct st_maria_plugin *plugin;
   uint oks= 0, errs= 0, dupes= 0;
   DBUG_ENTER("plugin_add");
@@ -1070,8 +1070,14 @@ static bool plugin_add(MEM_ROOT *tmp_root,
                                   (const uchar *)tmp.name.str, tmp.name.length))
       continue; // plugin name doesn't match
 
-    if (!name->str && plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN))
+    if (!name->str &&
+        (maybe_dupe= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)))
     {
+      if (plugin->name != maybe_dupe->plugin->name)
+      {
+        report_error(report, ER_UDF_EXISTS, plugin->name);
+        DBUG_RETURN(TRUE);
+      }
       dupes++;
       continue; // already installed
     }
