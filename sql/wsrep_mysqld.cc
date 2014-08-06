@@ -776,10 +776,10 @@ void wsrep_filter_new_cluster (int* argc, char* argv[])
   {
     /* make a copy of the argument to convert possible underscores to hyphens.
      * the copy need not to be longer than WSREP_NEW_CLUSTER option */
-    char arg[sizeof(WSREP_NEW_CLUSTER) + 2]= { 0, };
+    char arg[sizeof(WSREP_NEW_CLUSTER) + 1]= { 0, };
     strncpy(arg, argv[i], sizeof(arg) - 1);
-    char* underscore;
-    while (NULL != (underscore= strchr(arg, '_'))) *underscore= '-';
+    char* underscore(arg);
+    while (NULL != (underscore= strchr(underscore, '_'))) *underscore= '-';
 
     if (!strcmp(arg, WSREP_NEW_CLUSTER))
     {
@@ -886,7 +886,7 @@ wsrep_causal_wait (THD* thd)
       switch (ret)
       {
       case WSREP_NOT_IMPLEMENTED:
-        msg= "consistent reads by wsrep backend. "
+        msg= "synchronous reads by wsrep backend. "
              "Please unset wsrep_causal_reads variable.";
         err= ER_NOT_SUPPORTED_YET;
         break;

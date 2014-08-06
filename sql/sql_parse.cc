@@ -3339,8 +3339,7 @@ end_with_restore_list:
     if ((res= insert_precheck(thd, all_tables)))
       break;
 #ifdef WITH_WSREP
-    if (lex->sql_command == SQLCOM_INSERT_SELECT &&
-	thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    if (thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
       WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL);
