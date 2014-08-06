@@ -206,12 +206,12 @@ static void die(const char *fmt, ...)
 }
 
 
-static void verbose(const char *fmt, ...)
+static int verbose(const char *fmt, ...)
 {
   va_list args;
 
   if (opt_silent)
-    return;
+    return 0;
 
   /* Print the verbose message */
   va_start(args, fmt);
@@ -222,6 +222,7 @@ static void verbose(const char *fmt, ...)
     fflush(stdout);
   }
   va_end(args);
+  return 0;
 }
 
 
@@ -736,20 +737,19 @@ static void print_conn_args(const char *tool_name)
   in the server using "mysqlcheck --check-upgrade .."
 */
 
-static int run_mysqlcheck_upgrade(void)
+static int run_mysqlcheck_upgrade(const char *arg1, const char *arg2)
 {
-  verbose("Phase 2/3: Checking and upgrading tables");
   print_conn_args("mysqlcheck");
   return run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
                   "--no-defaults",
                   ds_args.str,
                   "--check-upgrade",
-                  "--all-databases",
                   "--auto-repair",
                   !opt_silent || opt_verbose ? "--verbose": "",
                   opt_silent ? "--silent": "",
                   opt_write_binlog ? "--write-binlog" : "--skip-write-binlog",
+                  arg1, arg2,
                   "2>&1",
                   NULL);
 }
@@ -757,7 +757,7 @@ static int run_mysqlcheck_upgrade(void)
 
 static int run_mysqlcheck_fixnames(void)
 {
-  verbose("Phase 1/3: Fixing table and database names");
+  verbose("Phase 2/3: Fixing table and database names");
   print_conn_args("mysqlcheck");
   return run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
@@ -843,7 +843,6 @@ static int run_sql_fix_privilege_tables(void)
   if (init_dynamic_string(&ds_result, "", 512, 512))
     die("Out of memory");
 
-  verbose("Phase 3/3: Running 'mysql_fix_privilege_tables'...");
   /*
     Individual queries can not be executed independently by invoking
     a forked mysql client, because the script uses session variables
@@ -990,16 +989,12 @@ int main(int argc, char **argv)
   /* Find mysql */
   find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
 
-  if (!opt_systables_only)
-  {
-    /* Find mysqlcheck */
-    find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
-  }
-  else
-  {
-    if (!opt_silent)
-      printf("The --upgrade-system-tables option was used, databases won't be touched.\n");
-  }
+  /* Find mysqlcheck */
+  find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
+
+  if (opt_systables_only && !opt_silent)
+    printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
+
 
   /*
     Read the mysql_upgrade_info file to check if mysql_upgrade
@@ -1019,16 +1014,16 @@ int main(int argc, char **argv)
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
-  if ((!opt_systables_only &&
-       (run_mysqlcheck_fixnames() || run_mysqlcheck_upgrade())) ||
+  verbose("Phase 1/3: Running 'mysql_fix_privilege_tables'...");
+  if (run_mysqlcheck_upgrade("--databases", "mysql") ||
       run_sql_fix_privilege_tables())
-  {
-    /*
-      The upgrade failed to complete in some way or another,
-      significant error message should have been printed to the screen
-    */
     die("Upgrade failed" );
-  }
+  if (!opt_systables_only &&
+      (run_mysqlcheck_fixnames() ||
+       verbose("Phase 3/3: Checking and upgrading tables") ||
+       run_mysqlcheck_upgrade("--all-databases","--skip-database=mysql")))
+    die("Upgrade failed" );
+
   verbose("OK");
 
   /* Create a file indicating upgrade has been performed */

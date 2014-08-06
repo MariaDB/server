@@ -51,6 +51,7 @@ static char *opt_password = 0, *current_user = 0,
 	    *default_charset= 0, *current_host= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static int first_error = 0;
+static char *opt_skip_database;
 DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
 static char *shared_memory_base_name=0;
 static uint opt_protocol=0;
@@ -178,6 +179,9 @@ static struct my_option my_long_options[] =
 #endif
   {"silent", 's', "Print only error messages.", &opt_silent,
    &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"skip_database", 0, "Don't process the database specified as argument", 
+   &opt_skip_database, &opt_skip_database, 0, GET_STR, REQUIRED_ARG, 
+   0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -246,6 +250,9 @@ static void usage(void)
   puts("mysqlrepair:   The default option will be -r");
   puts("mysqlanalyze:  The default option will be -a");
   puts("mysqloptimize: The default option will be -o\n");
+  printf("Usage: %s [OPTIONS] database [tables]\n", my_progname);
+  printf("OR     %s [OPTIONS] --databases DB1 [DB2 DB3...]\n",
+	 my_progname);
   puts("Please consult the MariaDB/MySQL knowledgebase at");
   puts("http://kb.askmonty.org/v/mysqlcheck for latest information about");
   puts("this program.");
@@ -695,6 +702,9 @@ static int rebuild_table(char *name)
 static int process_one_db(char *database)
 {
   DBUG_ENTER("process_one_db");
+
+  if (opt_skip_database && !strcmp(database, opt_skip_database))
+    DBUG_RETURN(0);
 
   if (verbose)
     puts(database);

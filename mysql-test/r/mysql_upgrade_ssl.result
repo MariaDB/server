@@ -1,13 +1,8 @@
 #
 # Bug#55672 mysql_upgrade dies with internal error 
 #
-Phase 1/3: Fixing table and database names
-Phase 2/3: Checking and upgrading tables
+Phase 1/3: Running 'mysql_fix_privilege_tables'...
 Processing databases
-information_schema
-mtr
-mtr.global_suppressions                            OK
-mtr.test_suppressions                              OK
 mysql
 mysql.column_stats                                 OK
 mysql.columns_priv                                 OK
@@ -37,7 +32,13 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.user                                         OK
+Phase 2/3: Fixing table and database names
+Phase 3/3: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
 performance_schema
 test
-Phase 3/3: Running 'mysql_fix_privilege_tables'...
 OK
