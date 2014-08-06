@@ -49,6 +49,10 @@ Smart ALTER TABLE
 #include "pars0pars.h"
 #include "row0sel.h"
 #include "ha_innodb.h"
+#ifdef WITH_WSREP
+//#include "wsrep_api.h"
+#include <sql_acl.h>	// PROCESS_ACL
+#endif
 
 /** Operations for creating secondary indexes (no rebuild needed) */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ONLINE_CREATE

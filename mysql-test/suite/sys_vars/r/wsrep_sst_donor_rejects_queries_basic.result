@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_sst_donor_rejects_queries;
+set @@global.wsrep_sst_donor_rejects_queries=ON;
+set @@global.wsrep_sst_donor_rejects_queries=OFF;
+set @@global.wsrep_sst_donor_rejects_queries=1;
+set @@global.wsrep_sst_donor_rejects_queries=0;
+SET @@global.wsrep_sst_donor_rejects_queries = -1;
+ERROR 42000: Variable 'wsrep_sst_donor_rejects_queries' can't be set to the value of '-1'
+set @@global.wsrep_sst_donor_rejects_queries = @start_value;

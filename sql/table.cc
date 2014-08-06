@@ -40,6 +40,9 @@
 #include "sql_statistics.h"
 #include "discover.h"
 #include "mdl.h"                 // MDL_wait_for_graph_visitor
+#ifdef WITH_WSREP
+#include "ha_partition.h"
+#endif /* WITH_WSREP */
 
 /* INFORMATION_SCHEMA name */
 LEX_STRING INFORMATION_SCHEMA_NAME= {C_STRING_WITH_LEN("information_schema")};

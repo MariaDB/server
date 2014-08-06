@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_load_data_splitting;
+set @@global.wsrep_load_data_splitting=ON;
+set @@global.wsrep_load_data_splitting=OFF;
+set @@global.wsrep_load_data_splitting=1;
+set @@global.wsrep_load_data_splitting=0;
+SET @@global.wsrep_load_data_splitting = -1;
+ERROR 42000: Variable 'wsrep_load_data_splitting' can't be set to the value of '-1'
+set @@global.wsrep_load_data_splitting = @start_value;

@@ -1,0 +1,14 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_start_position;
+
+--error 1231
+set @@global.wsrep_start_position='foo:bar';
+--error 1231
+set @@global.wsrep_start_position=NULL;
+--Error 1232
+SET @@global.wsrep_start_position = -1;
+
+set @@global.wsrep_start_position = @start_value;
+

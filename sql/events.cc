@@ -1128,7 +1128,20 @@ Events::load_events_from_db(THD *thd)
       delete et;
       goto end;
     }
-
+#ifdef WITH_WSREP
+    // when SST from master node who initials event, the event status is ENABLED
+    // this is problematic because there are two nodes with same events and both enabled.
+    if (et->originator != thd->variables.server_id)
+    {
+        store_record(table, record[1]);
+        table->field[ET_FIELD_STATUS]->
+                store((longlong) Event_parse_data::SLAVESIDE_DISABLED,
+                      TRUE);
+        (void) table->file->ha_update_row(table->record[1], table->record[0]);
+        delete et;
+        continue;
+    }
+#endif
     /**
       Since the Event_queue_element object could be deleted inside
       Event_queue::create_event we should save the value of dropped flag
@@ -1174,6 +1187,46 @@ end:
   DBUG_RETURN(ret);
 }
 
+#ifdef WITH_WSREP
+int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len)
+{
+  String log_query;
+
+  if (create_query_string(thd, &log_query))
+  {
+    WSREP_WARN("events create string failed: %s", thd->query());
+    return 1;
+  }
+  return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
+}
+static int
+wsrep_alter_query_string(THD *thd, String *buf)
+{
+  /* Append the "ALTER" part of the query */
+  if (buf->append(STRING_WITH_LEN("ALTER ")))
+    return 1;
+  /* Append definer */
+  append_definer(thd, buf, &(thd->lex->definer->user), &(thd->lex->definer->host));
+  /* Append the left part of thd->query after event name part */
+  if (buf->append(thd->lex->stmt_definition_begin,
+                  thd->lex->stmt_definition_end -
+                  thd->lex->stmt_definition_begin))
+    return 1;
+ 
+  return 0;
+}
+int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
+{
+  String log_query;
+
+  if (wsrep_alter_query_string(thd, &log_query))
+  {
+    WSREP_WARN("events alter string failed: %s", thd->query());
+    return 1;
+  }
+  return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
+}
+#endif /* WITH_WSREP */
 /**
   @} (End of group Event_Scheduler)
 */

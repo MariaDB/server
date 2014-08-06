@@ -44,6 +44,9 @@ HASH global_index_stats;
 extern mysql_mutex_t LOCK_global_user_client_stats;
 extern mysql_mutex_t LOCK_global_table_stats;
 extern mysql_mutex_t LOCK_global_index_stats;
+#ifdef WITH_WSREP
+#include "wsrep_mysqld.h"
+#endif
 
 /*
   Get structure for logging connection data for the current user
@@ -1172,6 +1175,17 @@ bool login_connection(THD *thd)
 void end_connection(THD *thd)
 {
   NET *net= &thd->net;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    wsrep_status_t rcode= wsrep->free_connection(wsrep, thd->thread_id);
+    if (rcode) {
+      WSREP_WARN("wsrep failed to free connection context: %lu, code: %d",
+                 thd->thread_id, rcode);
+    }
+  }
+  thd->wsrep_client_thread= 0;
+#endif
   plugin_thdvar_cleanup(thd);
 
   if (thd->user_connect)
@@ -1307,6 +1321,9 @@ bool thd_prepare_connection(THD *thd)
                          (char *) thd->security_ctx->host_or_ip);
 
   prepare_new_connection_state(thd);
+#ifdef WITH_WSREP
+  thd->wsrep_client_thread= 1;
+#endif /* WITH_WSREP */
   return FALSE;
 }
 
@@ -1381,6 +1398,14 @@ void do_handle_one_connection(THD *thd_arg)
     }
     end_connection(thd);
    
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->wsrep_query_state= QUERY_EXITING;
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
+#endif
 end_thread:
     close_connection(thd);
 

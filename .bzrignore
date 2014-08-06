@@ -12,6 +12,7 @@
 *.dll
 *.dsp
 *.dylib
+*.diff
 *.exe
 *.exp
 *.gcda

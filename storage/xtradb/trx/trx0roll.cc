@@ -45,6 +45,9 @@ Created 3/26/1996 Heikki Tuuri
 #include "pars0pars.h"
 #include "srv0mon.h"
 #include "trx0sys.h"
+#ifdef WITH_WSREP
+#include "ha_prototypes.h"
+#endif /* WITH_WSREP */
 
 /** This many pages must be undone before a truncate is tried within
 rollback */
@@ -381,6 +384,13 @@ trx_rollback_to_savepoint_for_mysql_low(
 	trx_mark_sql_stat_end(trx);
 
 	trx->op_info = "";
+
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd) &&
+	    trx->lock.was_chosen_as_deadlock_victim) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 
 	return(err);
 }
@@ -1020,6 +1030,12 @@ trx_roll_try_truncate(
 	if (trx->update_undo) {
 		trx_undo_truncate_end(trx, trx->update_undo, limit);
 	}
+
+#ifdef WITH_WSREP_OUT
+	if (wsrep_on(trx->mysql_thd)) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif /* WITH_WSREP */
 }
 
 /***********************************************************************//**

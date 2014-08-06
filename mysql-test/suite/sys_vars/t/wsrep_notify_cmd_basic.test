@@ -1,0 +1,11 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_notify_cmd;
+
+set @@global.wsrep_notify_cmd='test';
+set @@global.wsrep_notify_cmd=NULL;
+--Error 1232
+SET @@global.wsrep_notify_cmd = 1;
+
+set @@global.wsrep_notify_cmd = @start_value;

@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_sst_donor_rejects_queries;
+
+set @@global.wsrep_sst_donor_rejects_queries=ON;
+set @@global.wsrep_sst_donor_rejects_queries=OFF;
+set @@global.wsrep_sst_donor_rejects_queries=1;
+set @@global.wsrep_sst_donor_rejects_queries=0;
+--Error 1231
+SET @@global.wsrep_sst_donor_rejects_queries = -1;
+
+set @@global.wsrep_sst_donor_rejects_queries = @start_value;

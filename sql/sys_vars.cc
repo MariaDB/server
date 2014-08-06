@@ -465,6 +465,26 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT))
     return true;
 
+#ifdef WITH_WSREP
+  /* MariaDB Galera does not support STATEMENT or MIXED binlog
+  format currently */
+  if (WSREP(thd) &&
+     (var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ||
+      var->save_result.ulonglong_value == BINLOG_FORMAT_MIXED))
+  {
+    WSREP_DEBUG("MariaDB Galera does not support binlog format : %s",
+                var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
+                "STATEMENT" : "MIXED");
+    /* Push also warning, because error message is general */
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_UNKNOWN_ERROR,
+                        "MariaDB Galera does not support binlog format: %s",
+                        var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
+                        "STATEMENT" : "MIXED");
+    return true;
+  }
+#endif
+
   return false;
 }
 
@@ -3317,6 +3337,10 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
     if (trans_commit_stmt(thd) || trans_commit(thd))
     {
       thd->variables.option_bits&= ~OPTION_AUTOCOMMIT;
+      thd->mdl_context.release_transactional_locks();
+#ifdef WITH_WSREP
+      WSREP_DEBUG("autocommit, MDL TRX lock released: %lu", thd->thread_id);
+#endif /* WITH_WSREP */
       return true;
     }
     /*
@@ -4411,6 +4435,257 @@ static Sys_var_tz Sys_time_zone(
        "time_zone", "time_zone",
        SESSION_VAR(time_zone), NO_CMD_LINE,
        DEFAULT(&default_tz), NO_MUTEX_GUARD, IN_BINLOG);
+
+#ifdef WITH_WSREP
+#include "wsrep_var.h"
+#include "wsrep_sst.h"
+#include "wsrep_binlog.h"
+
+static Sys_var_charptr Sys_wsrep_provider(
+       "wsrep_provider", "Path to replication provider library",
+       PREALLOCATED GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER),
+       IN_FS_CHARSET, DEFAULT(WSREP_NONE),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_provider_check), ON_UPDATE(wsrep_provider_update));
+
+static Sys_var_charptr Sys_wsrep_provider_options(
+       "wsrep_provider_options", "provider specific options",
+       PREALLOCATED GLOBAL_VAR(wsrep_provider_options), 
+       CMD_LINE(REQUIRED_ARG, OPT_WSREP_PROVIDER_OPTIONS),
+       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_provider_options_check), 
+       ON_UPDATE(wsrep_provider_options_update));
+
+static Sys_var_charptr Sys_wsrep_data_home_dir(
+       "wsrep_data_home_dir", "home directory for wsrep provider",
+       READ_ONLY GLOBAL_VAR(wsrep_data_home_dir), CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(""), 
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_charptr Sys_wsrep_cluster_name(
+       "wsrep_cluster_name", "Name for the cluster",
+       PREALLOCATED GLOBAL_VAR(wsrep_cluster_name), CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(WSREP_CLUSTER_NAME),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_cluster_name_check),
+       ON_UPDATE(wsrep_cluster_name_update));
+
+static PolyLock_mutex PLock_wsrep_slave_threads(&LOCK_wsrep_slave_threads);
+static Sys_var_charptr Sys_wsrep_cluster_address (
+       "wsrep_cluster_address", "Address to initially connect to cluster",
+       PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
+       CMD_LINE(REQUIRED_ARG, OPT_WSREP_CLUSTER_ADDRESS),
+       IN_FS_CHARSET, DEFAULT(""),
+       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_cluster_address_check), 
+       ON_UPDATE(wsrep_cluster_address_update));
+
+static Sys_var_charptr Sys_wsrep_node_name (
+       "wsrep_node_name", "Node name",
+       PREALLOCATED GLOBAL_VAR(wsrep_node_name), CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       wsrep_node_name_check, wsrep_node_name_update);
+
+static Sys_var_charptr Sys_wsrep_node_address (
+       "wsrep_node_address", "Node address",
+       PREALLOCATED GLOBAL_VAR(wsrep_node_address), CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(""),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_node_address_check),
+       ON_UPDATE(wsrep_node_address_update));
+
+static Sys_var_charptr Sys_wsrep_node_incoming_address(
+       "wsrep_node_incoming_address", "Client connection address",
+       PREALLOCATED GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(WSREP_NODE_INCOMING_AUTO),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_ulong Sys_wsrep_slave_threads(
+       "wsrep_slave_threads", "Number of slave appliers to launch",
+       GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
+       &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_slave_threads_check), 
+       ON_UPDATE(wsrep_slave_threads_update));
+
+static Sys_var_charptr Sys_wsrep_dbug_option(
+       "wsrep_dbug_option", "DBUG options to provider library",
+       GLOBAL_VAR(wsrep_dbug_option),CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(""),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_mybool Sys_wsrep_debug(
+       "wsrep_debug", "To enable debug level logging",
+       GLOBAL_VAR(wsrep_debug), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_convert_LOCK_to_trx(
+       "wsrep_convert_LOCK_to_trx", "To convert locking sessions "
+       "into transactions",
+       GLOBAL_VAR(wsrep_convert_LOCK_to_trx), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_ulong Sys_wsrep_retry_autocommit(
+      "wsrep_retry_autocommit", "Max number of times to retry "
+      "a failed autocommit statement",
+       SESSION_VAR(wsrep_retry_autocommit), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 10000), DEFAULT(1), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_wsrep_auto_increment_control(
+       "wsrep_auto_increment_control", "To automatically control the "
+       "assignment of autoincrement variables",
+       GLOBAL_VAR(wsrep_auto_increment_control), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_wsrep_drupal_282555_workaround(
+       "wsrep_drupal_282555_workaround", "To use a workaround for"
+       "bad autoincrement value", 
+       GLOBAL_VAR(wsrep_drupal_282555_workaround), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_charptr sys_wsrep_sst_method(
+       "wsrep_sst_method", "State snapshot transfer method",
+       GLOBAL_VAR(wsrep_sst_method),CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(WSREP_SST_DEFAULT), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_sst_method_check),
+       ON_UPDATE(wsrep_sst_method_update)); 
+
+static Sys_var_charptr Sys_wsrep_sst_receive_address( 
+       "wsrep_sst_receive_address", "Address where node is waiting for "
+       "SST contact", 
+       GLOBAL_VAR(wsrep_sst_receive_address),CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(WSREP_SST_ADDRESS_AUTO), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG,
+       ON_CHECK(wsrep_sst_receive_address_check),
+       ON_UPDATE(wsrep_sst_receive_address_update)); 
+
+static Sys_var_charptr Sys_wsrep_sst_auth(
+       "wsrep_sst_auth", "Authentication for SST connection",
+       PREALLOCATED GLOBAL_VAR(wsrep_sst_auth), CMD_LINE(REQUIRED_ARG, OPT_WSREP_SST_AUTH),
+       IN_FS_CHARSET, DEFAULT(NULL), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG,
+       ON_CHECK(wsrep_sst_auth_check),
+       ON_UPDATE(wsrep_sst_auth_update)); 
+
+static Sys_var_charptr Sys_wsrep_sst_donor(
+       "wsrep_sst_donor", "preferred donor node for the SST",
+       GLOBAL_VAR(wsrep_sst_donor),CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_sst_donor_check),
+       ON_UPDATE(wsrep_sst_donor_update)); 
+
+static Sys_var_mybool Sys_wsrep_sst_donor_rejects_queries(
+       "wsrep_sst_donor_rejects_queries", "Reject client queries "
+       "when donating state snapshot transfer", 
+       GLOBAL_VAR(wsrep_sst_donor_rejects_queries), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_on (
+       "wsrep_on", "To enable wsrep replication ",
+       SESSION_VAR(wsrep_on), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE), 
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(wsrep_on_update));
+
+static Sys_var_charptr Sys_wsrep_start_position (
+       "wsrep_start_position", "global transaction position to start from ",
+       PREALLOCATED GLOBAL_VAR(wsrep_start_position), 
+       CMD_LINE(REQUIRED_ARG, OPT_WSREP_START_POSITION),
+       IN_FS_CHARSET, DEFAULT(WSREP_START_POSITION_ZERO),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_start_position_check), 
+       ON_UPDATE(wsrep_start_position_update));
+
+static Sys_var_ulong Sys_wsrep_max_ws_size (
+       "wsrep_max_ws_size", "Max write set size (bytes)",
+       GLOBAL_VAR(wsrep_max_ws_size), CMD_LINE(REQUIRED_ARG),
+       /* Upper limit is 65K short of 4G to avoid overlows on 32-bit systems */
+       VALID_RANGE(1024, WSREP_MAX_WS_SIZE), DEFAULT(1073741824UL), BLOCK_SIZE(1));
+
+static Sys_var_ulong Sys_wsrep_max_ws_rows (
+       "wsrep_max_ws_rows", "Max number of rows in write set",
+       GLOBAL_VAR(wsrep_max_ws_rows), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(1, 1048576), DEFAULT(131072), BLOCK_SIZE(1));
+
+static Sys_var_charptr Sys_wsrep_notify_cmd(
+       "wsrep_notify_cmd", "",
+       GLOBAL_VAR(wsrep_notify_cmd),CMD_LINE(REQUIRED_ARG),
+       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+static Sys_var_mybool Sys_wsrep_certify_nonPK(
+       "wsrep_certify_nonPK", "Certify tables with no primary key",
+       GLOBAL_VAR(wsrep_certify_nonPK), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_wsrep_causal_reads(
+       "wsrep_causal_reads", "Enable \"strictly synchronous\" semantics for read operations",
+       SESSION_VAR(wsrep_causal_reads), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
+static Sys_var_enum Sys_wsrep_OSU_method(
+       "wsrep_OSU_method", "Method for Online Schema Upgrade",
+       GLOBAL_VAR(wsrep_OSU_method_options), CMD_LINE(OPT_ARG),
+       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(0));
+
+static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
+static Sys_var_mybool Sys_wsrep_desync (
+       "wsrep_desync", "To desynchronize the node from the cluster",
+       GLOBAL_VAR(wsrep_desync), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       &PLock_wsrep_desync, NOT_IN_BINLOG,
+       ON_CHECK(wsrep_desync_check),
+       ON_UPDATE(wsrep_desync_update));
+
+static Sys_var_enum Sys_wsrep_forced_binlog_format(
+       "wsrep_forced_binlog_format", "binlog format to take effect over user's choice",
+       GLOBAL_VAR(wsrep_forced_binlog_format), 
+       CMD_LINE(REQUIRED_ARG, OPT_BINLOG_FORMAT),
+       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(0));
+
+static Sys_var_mybool Sys_wsrep_recover_datadir(
+       "wsrep_recover", "Recover database state after crash and exit",
+       READ_ONLY GLOBAL_VAR(wsrep_recovery),
+       CMD_LINE(OPT_ARG, OPT_WSREP_RECOVER), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_replicate_myisam(
+       "wsrep_replicate_myisam", "To enable myisam replication",
+       GLOBAL_VAR(wsrep_replicate_myisam), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_log_conflicts(
+       "wsrep_log_conflicts", "To log multi-master conflicts",
+       GLOBAL_VAR(wsrep_log_conflicts), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_ulong Sys_wsrep_mysql_replication_bundle(
+      "wsrep_mysql_replication_bundle", "mysql replication group commit ",
+       GLOBAL_VAR(wsrep_mysql_replication_bundle), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1000), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_wsrep_load_data_splitting(
+       "wsrep_load_data_splitting", "To commit LOAD DATA "
+       "transaction after every 10K rows inserted",
+       GLOBAL_VAR(wsrep_load_data_splitting), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_wsrep_slave_FK_checks(
+       "wsrep_slave_FK_checks", "Should slave thread do "
+       "foreign key constraint checks",
+       GLOBAL_VAR(wsrep_slave_FK_checks), 
+       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+
+static Sys_var_mybool Sys_wsrep_slave_UK_checks(
+       "wsrep_slave_UK_checks", "Should slave thread do "
+       "secondary index uniqueness checks",
+       GLOBAL_VAR(wsrep_slave_UK_checks), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_restart_slave(
+       "wsrep_restart_slave", "Should MySQL slave be restarted automatically, when node joins back to cluster",
+       GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+#endif /* WITH_WSREP */
 
 static bool fix_host_cache_size(sys_var *, THD *, enum_var_type)
 {

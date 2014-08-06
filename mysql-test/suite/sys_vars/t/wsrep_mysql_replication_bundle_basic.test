@@ -1,0 +1,16 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_mysql_replication_bundle;
+
+set @@global.wsrep_mysql_replication_bundle=0;
+set @@global.wsrep_mysql_replication_bundle=1000;
+
+set @@global.wsrep_mysql_replication_bundle=-1;
+show warnings;
+set @@global.wsrep_mysql_replication_bundle=1001;
+show warnings;
+--Error 1232
+SET @@global.wsrep_mysql_replication_bundle = r;
+
+set @@global.wsrep_mysql_replication_bundle = @start_value;

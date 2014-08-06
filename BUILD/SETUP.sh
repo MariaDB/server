@@ -215,7 +215,7 @@ all_configs="$SSL_LIBRARY --with-plugins=max --with-plugin-ndbcluster --with-emb
 alpha_cflags="$check_cpu_cflags -Wa,-m$cpu_flag"
 amd64_cflags="$check_cpu_cflags"
 amd64_cxxflags=""  # If dropping '--with-big-tables', add here  "-DBIG_TABLES"
-pentium_cflags="$check_cpu_cflags"
+pentium_cflags="$check_cpu_cflags -m32"
 pentium64_cflags="$check_cpu_cflags -m64"
 ppc_cflags="$check_cpu_cflags"
 sparc_cflags=""

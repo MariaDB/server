@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_auto_increment_control;
+set @@global.wsrep_auto_increment_control=ON;
+set @@global.wsrep_auto_increment_control=OFF;
+set @@global.wsrep_auto_increment_control=1;
+set @@global.wsrep_auto_increment_control=0;
+SET @@global.wsrep_auto_increment_control = -1;
+ERROR 42000: Variable 'wsrep_auto_increment_control' can't be set to the value of '-1'
+set @@global.wsrep_auto_increment_control = @start_value;

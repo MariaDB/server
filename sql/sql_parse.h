@@ -202,6 +202,22 @@ inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
   return MY_TEST(cs->mbminlen == 1);
 }
+#ifdef WITH_WSREP
+
+#define WSREP_MYSQL_DB (char *)"mysql"
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
+  if (WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto error;
+
+#define WSREP_TO_ISOLATION_END                                              \
+  if (WSREP(thd) || (thd && thd->wsrep_exec_mode==TOTAL_ORDER))             \
+    wsrep_to_isolation_end(thd);
+
+#else
+
+#define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
+#define WSREP_TO_ISOLATION_END 
+
+#endif /* WITH_WSREP */
 
 
 #endif /* SQL_PARSE_INCLUDED */

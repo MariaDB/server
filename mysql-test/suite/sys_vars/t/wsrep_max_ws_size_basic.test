@@ -1,0 +1,14 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_max_ws_size;
+
+set @@global.wsrep_max_ws_size=256000;
+set @@global.wsrep_max_ws_size=0;
+show warnings;
+set @@global.wsrep_max_ws_size=-1;
+show warnings;
+--Error 1232
+SET @@global.wsrep_max_ws_size = r;
+
+set @@global.wsrep_max_ws_size = @start_value;

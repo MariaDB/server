@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_restart_slave;
+set @@global.wsrep_restart_slave=ON;
+set @@global.wsrep_restart_slave=OFF;
+set @@global.wsrep_restart_slave=1;
+set @@global.wsrep_restart_slave=0;
+SET @@global.wsrep_restart_slave = -1;
+ERROR 42000: Variable 'wsrep_restart_slave' can't be set to the value of '-1'
+set @@global.wsrep_restart_slave = @start_value;

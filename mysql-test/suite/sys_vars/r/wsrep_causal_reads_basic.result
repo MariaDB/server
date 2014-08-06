@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_causal_reads;
+set @@global.wsrep_causal_reads=ON;
+set @@global.wsrep_causal_reads=OFF;
+set @@global.wsrep_causal_reads=1;
+set @@global.wsrep_causal_reads=0;
+SET @@global.wsrep_causal_reads = -1;
+ERROR 42000: Variable 'wsrep_causal_reads' can't be set to the value of '-1'
+set @@global.wsrep_causal_reads = @start_value;

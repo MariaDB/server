@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_on;
+set @@global.wsrep_on=ON;
+set @@global.wsrep_on=OFF;
+set @@global.wsrep_on=1;
+set @@global.wsrep_on=0;
+SET @@global.wsrep_on = -1;
+ERROR 42000: Variable 'wsrep_on' can't be set to the value of '-1'
+set @@global.wsrep_on = @start_value;

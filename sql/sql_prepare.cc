@@ -3547,7 +3547,9 @@ Prepared_statement::set_parameters(String *expanded_query,
   return res;
 }
 
-
+#ifdef WITH_WSREP
+void wsrep_replay_transaction(THD *thd);
+#endif /* WITH_WSREP */
 /**
   Execute a prepared statement. Re-prepare it a limited number
   of times if necessary.
@@ -3626,6 +3628,22 @@ reexecute:
   error= execute(expanded_query, open_cursor) || thd->is_error();
 
   thd->m_reprepare_observer= NULL;
+#ifdef WITH_WSREP
+  mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+  switch (thd->wsrep_conflict_state)
+  {
+  case CERT_FAILURE:
+    WSREP_DEBUG("PS execute fail for CERT_FAILURE: thd: %ld err: %d",
+	    thd->thread_id, thd->get_stmt_da()->sql_errno() );
+    thd->wsrep_conflict_state = NO_CONFLICT;
+    break;
+
+  case MUST_REPLAY:
+    (void)wsrep_replay_transaction(thd);
+  default: break;
+  }
+  mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+#endif /* WITH_WSREP */
 
   if ((sql_command_flags[lex->sql_command] & CF_REEXECUTION_FRAGILE) &&
       error && !thd->is_fatal_error && !thd->killed &&
