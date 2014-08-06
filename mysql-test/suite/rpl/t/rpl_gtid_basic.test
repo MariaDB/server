@@ -175,7 +175,7 @@ SET GLOBAL gtid_binlog_state = '0-1-10,1-2-20,0-3-30';
 --source include/show_binary_logs.inc
 --let $binlog_file= master-bin.000001
 --let $binlog_start= 4
-#--source include/show_binlog_events.inc
+--source include/show_binlog_events.inc
 #SELECT @@GLOBAL.gtid_binlog_pos;
 #SELECT @@GLOBAL.gtid_binlog_state;
 --error ER_BINLOG_MUST_BE_EMPTY

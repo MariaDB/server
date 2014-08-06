@@ -182,6 +182,11 @@ SET GLOBAL gtid_binlog_state = '0-1-10,1-2-20,0-3-30';
 show binary logs;
 Log_name	File_size
 master-bin.000001	#
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
+master-bin.000001	#	Gtid_list	#	#	[#-#-#]
+master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
 SET GLOBAL gtid_binlog_state = @old_state;
 ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
 RESET MASTER;
