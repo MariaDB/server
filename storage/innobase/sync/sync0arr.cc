@@ -994,7 +994,7 @@ sync_array_print_long_waits_low(
 					reserver_wait->waiting) {
 					fputs("InnoDB: Warning: Writer thread is waiting this semaphore:\n",
 						stderr);
-					reserver = ULINT_UNDEFINED;
+					reserver = (os_thread_id_t)ULINT_UNDEFINED;
 					sync_array_cell_print(stderr, reserver_wait, &reserver);
 					loop++;
 
