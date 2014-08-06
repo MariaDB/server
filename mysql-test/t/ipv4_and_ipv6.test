@@ -11,8 +11,3 @@ let $IPv6= 127.0.0.1;
 --source include/ipv6_clients.inc
 --source include/ipv6.inc
 
-echo =============Test of '0:0:0:0:0:FFFF:127.0.0.1' ===================;
-let $IPv6= 0:0:0:0:0:FFFF:127.0.0.1;
---source include/ipv6_clients.inc
---source include/ipv6.inc
-
