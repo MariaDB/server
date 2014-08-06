@@ -1,0 +1,49 @@
+# Embedded server doesn't support external clients
+--source include/not_embedded.inc
+# Binlog is required
+--source include/have_log_bin.inc
+
+--echo #
+--echo # Test for mysqldump's galera-sst-mode option
+--echo #
+
+--echo #
+--echo # MDEV-6490: mysqldump unknown option --galera-sst-mode
+--echo #
+CREATE DATABASE bug6490;
+USE bug6490;
+CREATE TABLE t1(c1 INT);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+
+--echo # @@global.gtid_binlog_state - after
+SELECT @@global.gtid_binlog_state;
+
+--echo # Save the current gtid_binlog_state.
+--let $before= `SELECT @@global.gtid_binlog_state`
+
+--echo # Take a dump of bug6490 database
+--exec $MYSQL_DUMP --galera-sst-mode bug6490 > $MYSQLTEST_VARDIR/tmp/bug6490.sql
+DROP TABLE t1;
+
+--echo # Load the dump
+RESET MASTER;
+--exec $MYSQL -uroot bug6490 < $MYSQLTEST_VARDIR/tmp/bug6490.sql
+
+SELECT * from t1;
+
+--echo # @@global.gtid_binlog_state - after
+SELECT @@global.gtid_binlog_state;
+
+--echo # Compare the two gtid_binlog_state's
+--let $after= `SELECT @@global.gtid_binlog_state`
+if (`SELECT STRCMP($before, $after)`)
+{
+  --die ERROR: The two gtid_binlog_state's did not match.
+}
+
+--echo # Cleanup
+--remove_file $MYSQLTEST_VARDIR/tmp/bug6490.sql
+DROP DATABASE bug6490;
+
+--echo # End of test
