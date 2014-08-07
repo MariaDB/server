@@ -1,5 +1,7 @@
 include/master-slave.inc
 [connection master]
+call mtr.add_suppression("Read semi-sync reply network error");
+call mtr.add_suppression("Timeout waiting for reply of binlog");
 INSTALL PLUGIN rpl_semi_sync_master SONAME 'semisync_master';
 [connection slave]
 INSTALL PLUGIN rpl_semi_sync_slave SONAME 'semisync_slave';
@@ -46,14 +48,14 @@ rpl_semi_sync_master	DELETED
 include/stop_slave.inc
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 plugin_name	plugin_status
+[connection master]
+create table t2 (a int);
+drop table t2;
+[connection slave]
 include/start_slave.inc
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 plugin_name	plugin_status
 [connection master]
-show status like "Rpl_semi_sync_master_clients";
-Variable_name	Value
-select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
-plugin_name	plugin_status
 CREATE TABLE t1(i int);
 INSERT INTO t1 values (3);
 DROP TABLE t1;

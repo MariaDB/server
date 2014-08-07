@@ -16,6 +16,9 @@
 --source include/have_binlog_format_statement.inc
 --source include/master-slave.inc
 
+call mtr.add_suppression("Read semi-sync reply network error");
+call mtr.add_suppression("Timeout waiting for reply of binlog");
+
 ###############################################################################
 # Case 1: Uninstallation of semi sync plugins should be allowed when it is
 #  not in use i.e., when asynchronous replication is active.
@@ -105,21 +108,26 @@ select plugin_name,plugin_status from information_schema.plugins where plugin_na
 # Step 4.2: Disable semi sync on slave.
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 
+--connection master
+--echo [connection master]
+# Send something to the slave so that the master would notice that nobody's listening.
+create table t2 (a int); drop table t2;
+# and wait for plugin to be unloaded automatically
+let $wait_condition=select count(*) = 0 from information_schema.plugins where plugin_name like 'rpl_%';
+--source include/wait_condition.inc
+
+--connection slave
+--echo [connection slave]
+
 # Step 4.3: Start IO thread on slave.
 --source include/start_slave.inc
 
 # Step 4.4: Uninstall semi sync plugin, it should be successful now.
 select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
 
-# Step 4.5: On Master, check that semi sync slaves are now '0'.
+# Step 4.7: Check that replication is working fine at the end of the test case
 --connection master
 --echo [connection master]
-show status like "Rpl_semi_sync_master_clients";
-
-# Step 4.6: So uninstalling semi sync plugin should be allowed
-select plugin_name,plugin_status from information_schema.plugins where plugin_name like 'rpl_%';
-
-# Step 4.7: Check that replication is working fine at the end of the test case
 CREATE TABLE t1(i int);
 INSERT INTO t1 values (3);
 DROP TABLE t1;
