@@ -595,6 +595,8 @@ buf_flush_or_remove_pages(
 	buf_page_t*	bpage;
 	ulint		processed = 0;
 
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
 	buf_flush_list_mutex_enter(buf_pool);
 
 rescan:

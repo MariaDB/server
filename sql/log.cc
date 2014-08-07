@@ -2369,7 +2369,7 @@ static int find_uniq_filename(char *name)
   file_info= dir_info->dir_entry;
   for (i= dir_info->number_of_files ; i-- ; file_info++)
   {
-    if (memcmp(file_info->name, start, length) == 0 &&
+    if (strncmp(file_info->name, start, length) == 0 &&
 	test_if_number(file_info->name+length, &number,0))
     {
       set_if_bigger(max_found,(ulong) number);
@@ -2649,9 +2649,10 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name)
       if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
           find_uniq_filename(new_name))
       {
-        my_printf_error(ER_NO_UNIQUE_LOGFILE, ER(ER_NO_UNIQUE_LOGFILE),
-                        MYF(ME_FATALERROR), log_name);
-	sql_print_error(ER(ER_NO_UNIQUE_LOGFILE), log_name);
+        if (current_thd)
+          my_printf_error(ER_NO_UNIQUE_LOGFILE, ER(ER_NO_UNIQUE_LOGFILE),
+                          MYF(ME_FATALERROR), log_name);
+        sql_print_error(ER_DEFAULT(ER_NO_UNIQUE_LOGFILE), log_name);
 	return 1;
       }
     }

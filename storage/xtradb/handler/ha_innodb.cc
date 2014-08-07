@@ -453,7 +453,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	{&trx_purge_latch_key, "trx_purge_latch", 0},
 	{&index_tree_rw_lock_key, "index_tree_rw_lock", 0},
 	{&index_online_log_key, "index_online_log", 0},
-	{&dict_table_stats_latch_key, "dict_table_stats", 0},
+	{&dict_table_stats_key, "dict_table_stats", 0},
 	{&hash_table_rw_lock_key, "hash_table_locks", 0}
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -1179,6 +1179,22 @@ innobase_start_trx_and_assign_read_view(
 	THD*		thd);		/* in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
+/*****************************************************************//**
+Creates an InnoDB transaction struct for the thd if it does not yet have one.
+Starts a new InnoDB transaction if a transaction is not yet started. And
+clones snapshot for a consistent read from another session, if it has one.
+@return	0 */
+static
+int
+innobase_start_trx_and_clone_read_view(
+/*====================================*/
+	handlerton*	hton,		/* in: Innodb handlerton */
+	THD*		thd,		/* in: MySQL thread handle of the
+					user for whom the transaction should
+					be committed */
+	THD*		from_thd);	/* in: MySQL thread handle of the
+					user session from which the consistent
+					read should be cloned */
 /****************************************************************//**
 Flushes InnoDB logs to disk and makes a checkpoint. Really, a commit flushes
 the logs, and the name of this function should be innobase_checkpoint.
@@ -3831,6 +3847,14 @@ innobase_end(
 
 	if (innodb_inited) {
 
+		THD *thd= current_thd;
+		if (thd) { // may be UNINSTALL PLUGIN statement
+		 	trx_t* trx = thd_to_trx(thd);
+		 	if (trx) {
+		 		trx_free_for_mysql(trx);
+		 	}
+		}
+
 		srv_fast_shutdown = (ulint) innobase_fast_shutdown;
 
 		innodb_inited = 0;
@@ -4101,6 +4125,102 @@ innobase_commit_ordered(
 	trx_set_active_commit_ordered(trx);
 
 	DBUG_VOID_RETURN;
+}
+
+/*****************************************************************//**
+Creates an InnoDB transaction struct for the thd if it does not yet have one.
+Starts a new InnoDB transaction if a transaction is not yet started. And
+clones snapshot for a consistent read from another session, if it has one.
+@return	0 */
+static
+int
+innobase_start_trx_and_clone_read_view(
+/*====================================*/
+	handlerton*	hton,		/* in: Innodb handlerton */
+	THD*		thd,		/* in: MySQL thread handle of the
+					user for whom the transaction should
+					be committed */
+	THD*		from_thd)	/* in: MySQL thread handle of the
+					user session from which the consistent
+					read should be cloned */
+{
+	trx_t*	trx;
+	trx_t*	from_trx;
+
+	DBUG_ENTER("innobase_start_trx_and_clone_read_view");
+	DBUG_ASSERT(hton == innodb_hton_ptr);
+
+	/* Get transaction handle from the donor session */
+
+	from_trx = thd_to_trx(from_thd);
+
+	if (!from_trx) {
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: WITH CONSISTENT SNAPSHOT "
+				    "FROM SESSION was ignored because the "
+				    "specified session does not have an open "
+				    "transaction inside InnoDB.");
+
+		DBUG_RETURN(0);
+	}
+
+	/* Create a new trx struct for thd, if it does not yet have one */
+
+	trx = check_trx_exists(thd);
+
+	/* This is just to play safe: release a possible FIFO ticket and
+	search latch. Since we can potentially reserve the trx_sys->mutex,
+	we have to release the search system latch first to obey the latching
+	order. */
+
+	trx_search_latch_release_if_reserved(trx);
+
+	innobase_srv_conc_force_exit_innodb(trx);
+
+	/* If the transaction is not started yet, start it */
+
+	trx_start_if_not_started_xa(trx);
+
+	/* Clone the read view from the donor transaction.  Do this only if
+	transaction is using REPEATABLE READ isolation level. */
+	trx->isolation_level = innobase_map_isolation_level(
+		thd_get_trx_isolation(thd));
+
+	if (trx->isolation_level != TRX_ISO_REPEATABLE_READ) {
+
+		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				    HA_ERR_UNSUPPORTED,
+				    "InnoDB: WITH CONSISTENT SNAPSHOT "
+				    "was ignored because this phrase "
+				    "can only be used with "
+				    "REPEATABLE READ isolation level.");
+	} else {
+
+		lock_mutex_enter();
+		mutex_enter(&trx_sys->mutex);
+		trx_mutex_enter(from_trx);
+
+		if (!trx_clone_read_view(trx, from_trx)) {
+
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+					    HA_ERR_UNSUPPORTED,
+					    "InnoDB: WITH CONSISTENT SNAPSHOT "
+					    "FROM SESSION was ignored because "
+					    "the target transaction has not been "
+					    "assigned a read view.");
+		}
+
+		trx_mutex_exit(from_trx);
+		mutex_exit(&trx_sys->mutex);
+		lock_mutex_exit();
+	}
+
+	/* Set the MySQL flag to mark that there is an active transaction */
+
+	innobase_register_trx(hton, current_thd, trx);
+
+	DBUG_RETURN(0);
 }
 
 /*****************************************************************//**
@@ -4627,7 +4747,7 @@ innobase_close_connection(
 
 		sql_print_warning(
 			"MySQL is closing a connection that has an active "
-			"InnoDB transaction.  "TRX_ID_FMT" row modifications "
+			"InnoDB transaction.  " TRX_ID_FMT " row modifications "
 			"will roll back.",
 			trx->undo_no);
 	}
@@ -7787,7 +7907,7 @@ calc_row_difference(
 			if (doc_id < prebuilt->table->fts->cache->next_doc_id) {
 				fprintf(stderr,
 					"InnoDB: FTS Doc ID must be larger than"
-					" "IB_ID_FMT" for table",
+					" " IB_ID_FMT " for table",
 					innodb_table->fts->cache->next_doc_id
 					- 1);
 				ut_print_name(stderr, trx,
@@ -7799,9 +7919,9 @@ calc_row_difference(
 				    - prebuilt->table->fts->cache->next_doc_id)
 				   >= FTS_DOC_ID_MAX_STEP) {
 				fprintf(stderr,
-					"InnoDB: Doc ID "UINT64PF" is too"
+					"InnoDB: Doc ID " UINT64PF " is too"
 					" big. Its difference with largest"
-					" Doc ID used "UINT64PF" cannot"
+					" Doc ID used " UINT64PF " cannot"
 					" exceed or equal to %d\n",
 					doc_id,
 					prebuilt->table->fts->cache->next_doc_id - 1,

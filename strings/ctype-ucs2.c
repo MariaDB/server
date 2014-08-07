@@ -2202,10 +2202,10 @@ my_strnncollsp_utf32(CHARSET_INFO *cs,
 
 static uint
 my_ismbchar_utf32(CHARSET_INFO *cs __attribute__((unused)),
-                  const char *b __attribute__((unused)),
-                  const char *e __attribute__((unused)))
+                  const char *b,
+                  const char *e)
 {
-  return 4;
+  return b + 4 > e ? 0 : 4;
 }
 
 
@@ -3159,10 +3159,10 @@ static int my_strnncollsp_ucs2(CHARSET_INFO *cs __attribute__((unused)),
 
 
 static uint my_ismbchar_ucs2(CHARSET_INFO *cs __attribute__((unused)),
-                             const char *b __attribute__((unused)),
-                             const char *e __attribute__((unused)))
+                             const char *b,
+                             const char *e)
 {
-  return 2;
+  return b + 2 > e ? 0 : 2;
 }
 
 

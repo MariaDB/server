@@ -1772,15 +1772,35 @@ when it try to get the value of TIME_ZONE global variable from master.";
     llstr((ulonglong) (mi->heartbeat_period*1000000000UL), llbuf);
     sprintf(query, query_format, llbuf);
 
-    if (mysql_real_query(mysql, query, strlen(query))
-        && !check_io_slave_killed(mi, NULL))
+    DBUG_EXECUTE_IF("simulate_slave_heartbeat_network_error",
+                    { static ulong dbug_count= 0;
+                      if (++dbug_count < 3)
+                        goto heartbeat_network_error;
+                    });
+    if (mysql_real_query(mysql, query, strlen(query)))
     {
-      errmsg= "The slave I/O thread stops because SET @master_heartbeat_period "
-        "on master failed.";
-      err_code= ER_SLAVE_FATAL_ERROR;
-      sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
-      mysql_free_result(mysql_store_result(mysql));
-      goto err;
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
+      if (is_network_error(mysql_errno(mysql)))
+      {
+      IF_DBUG(heartbeat_network_error: , )
+        mi->report(WARNING_LEVEL, mysql_errno(mysql),
+                   "SET @master_heartbeat_period to master failed with error: %s",
+                   mysql_error(mysql));
+        mysql_free_result(mysql_store_result(mysql));
+        goto network_err;
+      }
+      else
+      {
+        /* Fatal error */
+        errmsg= "The slave I/O thread stops because a fatal error is encountered "
+          "when it tries to SET @master_heartbeat_period on master.";
+        err_code= ER_SLAVE_FATAL_ERROR;
+        sprintf(err_buff, "%s Error: %s", errmsg, mysql_error(mysql));
+        mysql_free_result(mysql_store_result(mysql));
+        goto err;
+      }
     }
     mysql_free_result(mysql_store_result(mysql));
   }
@@ -4179,9 +4199,10 @@ err_during_init:
   // TODO: make rpl_status part of Master_info
   change_rpl_status(RPL_ACTIVE_SLAVE,RPL_IDLE_SLAVE);
   mysql_mutex_lock(&LOCK_thread_count);
+  thd->unlink();
+  mysql_mutex_unlock(&LOCK_thread_count);
   THD_CHECK_SENTRY(thd);
   delete thd;
-  mysql_mutex_unlock(&LOCK_thread_count);
   mi->abort_slave= 0;
   mi->slave_running= MYSQL_SLAVE_NOT_RUN;
   mi->io_thd= 0;

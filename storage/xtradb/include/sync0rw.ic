@@ -916,8 +916,9 @@ pfs_rw_lock_x_lock_func(
 
 		rw_lock_x_lock_func(lock, pass, file_name, line);
 
-		if (locker != NULL)
+		if (locker != NULL) {
 			PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, 0);
+		}
 	}
 	else
 	{
@@ -1072,8 +1073,9 @@ pfs_rw_lock_s_lock_func(
 
 		rw_lock_s_lock_func(lock, pass, file_name, line);
 
-		if (locker != NULL)
+		if (locker != NULL) {
 			PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, 0);
+		}
 	}
 	else
 	{

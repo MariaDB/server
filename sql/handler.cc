@@ -588,7 +588,19 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
       savepoint_alloc_size+= tmp;
       hton2plugin[hton->slot]=plugin;
       if (hton->prepare)
+      {
         total_ha_2pc++;
+        if (tc_log && tc_log != get_tc_log_implementation())
+        {
+          total_ha_2pc--;
+          hton->prepare= 0;
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_UNKNOWN_ERROR,
+                              "Cannot enable tc-log at run-time. "
+                              "XA features of %s are disabled",
+                              plugin->name.str);
+        }
+      }
       break;
     }
     /* fall through */
