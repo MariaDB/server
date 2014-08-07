@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #include "sp.h"
 #include "sql_select.h"
 
-static int lex_one_token(void *arg, THD *thd);
+static int lex_one_token(YYSTYPE *yylval, THD *thd);
 
 /*
   We are using pointer to this variable for distinguishing between assignment
@@ -958,15 +958,17 @@ bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
 /*
   MYSQLlex remember the following states from the following MYSQLlex()
 
+  @param yylval         [out]  semantic value of the token being parsed (yylval)
+  @param thd            THD
+
   - MY_LEX_EOQ			Found end of query
   - MY_LEX_OPERATOR_OR_IDENT	Last state was an ident, text or number
 				(which can't be followed by a signed number)
 */
 
-int MYSQLlex(void *arg, THD *thd)
+int MYSQLlex(YYSTYPE *yylval, THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-  YYSTYPE *yylval=(YYSTYPE*) arg;
   int token;
 
   if (lip->lookahead_token >= 0)
@@ -983,7 +985,7 @@ int MYSQLlex(void *arg, THD *thd)
     return token;
   }
 
-  token= lex_one_token(arg, thd);
+  token= lex_one_token(yylval, thd);
 
   switch(token) {
   case WITH:
@@ -994,7 +996,7 @@ int MYSQLlex(void *arg, THD *thd)
       to transform the grammar into a LALR(1) grammar,
       which sql_yacc.yy can process.
     */
-    token= lex_one_token(arg, thd);
+    token= lex_one_token(yylval, thd);
     switch(token) {
     case CUBE_SYM:
       lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_CUBE_SYM,
@@ -1023,7 +1025,7 @@ int MYSQLlex(void *arg, THD *thd)
   return token;
 }
 
-int lex_one_token(void *arg, THD *thd)
+static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
   reg1	uchar c;
   bool comment_closed;
@@ -1032,7 +1034,6 @@ int lex_one_token(void *arg, THD *thd)
   enum my_lex_states state;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   LEX *lex= thd->lex;
-  YYSTYPE *yylval=(YYSTYPE*) arg;
   CHARSET_INFO *const cs= thd->charset();
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
@@ -3281,7 +3282,7 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 {
   for (; tbl; tbl= tbl->next_local)
   {
-    if (tbl->on_expr)
+    if (tbl->on_expr && !tbl->prep_on_expr)
     {
       thd->check_and_register_item_tree(&tbl->prep_on_expr, &tbl->on_expr);
       tbl->on_expr= tbl->on_expr->copy_andor_structure(thd);
