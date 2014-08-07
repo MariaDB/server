@@ -535,7 +535,6 @@ protected:
   bool          nox;                  // True when index should not be made
   bool          abort;                // True after error in UPDATE/DELETE
   int           indexing;             // Type of indexing for CONNECT
-  int           only;                 // If only one action is accepted
   int           locked;               // Table lock
   MY_BITMAP    *part_id;              // Columns used for partition func
   THR_LOCK_DATA lock_data;

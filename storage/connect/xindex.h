@@ -89,6 +89,7 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   bool    IsUnique(void) {return Unique;}
   bool    IsDynamic(void) {return Dynamic;}
   bool    IsAuto(void) {return AutoInc;}
+  bool    IsValid(void) {return !Invalid;}
   void    SetAuto(bool b) {AutoInc = b;}
   void    SetInvalid(bool b) {Invalid = b;}
   int     GetNparts(void) {return Nparts;}

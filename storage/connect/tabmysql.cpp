@@ -771,7 +771,8 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
 
     Cardinal = myc.GetTableSize(g, query);
     myc.Close();
-    } // endif Cardinal
+  } else
+    Cardinal = 10;    // To make MySQL happy
 
   return Cardinal;
 } // end of Cardinality

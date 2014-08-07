@@ -149,6 +149,7 @@ class DllExport ZLBFAM : public BLKFAM {
 
   // Methods
   virtual int  GetFileLength(PGLOBAL g);
+  virtual bool SetPos(PGLOBAL g, int recpos);
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);

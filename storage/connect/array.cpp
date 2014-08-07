@@ -124,6 +124,9 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
       case TYPE_DOUBLE:
         par->AddValue(g, *(double*)parmp->Value);
         break;
+      case TYPE_PCHAR:
+        par->AddValue(g, parmp->Value);
+        break;
       } // endswitch valtyp
 
   /*********************************************************************/
@@ -156,6 +159,7 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_DOUBLE:
+    case TYPE_PCHAR:
       break;
 #if 0
     case TYPE_TOKEN:
@@ -172,12 +176,13 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
     } // endswitch type
 
   Valblk = new(g) MBVALS;
-  Vblp = Valblk->Allocate(g, Type, Len, prec, Size);
 
-  if (!Valblk->GetMemp() && Type != TYPE_LIST)
+  if (!(Vblp = Valblk->Allocate(g, Type, Len, prec, Size)))
+    Type = TYPE_ERROR;
+  else if (!Valblk->GetMemp() && Type != TYPE_LIST)
     // The error message was built by PlgDBalloc
     Type = TYPE_ERROR;
-  else
+  else if (type != TYPE_PCHAR)
     Value = AllocateValue(g, type, Len, prec, NULL);
 
   Constant = TRUE;
@@ -288,7 +293,24 @@ bool ARRAY::AddValue(PGLOBAL g, PSZ strp)
   } // end of AddValue
 
 /***********************************************************************/
-/*  Add a SHORT integer element to an array.                           */
+/*  Add a char pointer element to an array.                            */
+/***********************************************************************/
+bool ARRAY::AddValue(PGLOBAL g, void *p)
+  {
+  if (Type != TYPE_PCHAR) {
+    sprintf(g->Message, MSG(ADD_BAD_TYPE), GetTypeName(Type), "PCHAR");
+    return TRUE;
+    } // endif Type
+
+  if (trace)
+    htrc(" adding pointer(%d): %p\n", Nval, p);
+
+  Vblp->SetValue((PSZ)p, Nval++);
+  return FALSE;
+  } // end of AddValue
+
+/***********************************************************************/
+/*  Add a short integer element to an array.                           */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, short n)
   {
@@ -307,7 +329,7 @@ bool ARRAY::AddValue(PGLOBAL g, short n)
   } // end of AddValue
 
 /***********************************************************************/
-/*  Add a int integer element to an array.                            */
+/*  Add an integer element to an array.                                */
 /***********************************************************************/
 bool ARRAY::AddValue(PGLOBAL g, int n)
   {
@@ -404,15 +426,24 @@ bool ARRAY::GetSubValue(PGLOBAL g, PVAL valp, int *kp)
   vblp = ((LSTBLK*)Vblp)->Mbvk[kp[0]]->Vblk;
   valp->SetValue_pvblk(vblp, kp[1]);
   return FALSE;
-  } // end of GetNthValue
+  } // end of GetSubValue
 #endif // 0
+
+/***********************************************************************/
+/*  Return the nth value of an integer array.                          */
+/***********************************************************************/
+int ARRAY::GetIntValue(int n)
+  {
+  assert (Type == TYPE_INT);
+  return Vblp->GetIntValue(n);
+  } // end of GetIntValue
 
 /***********************************************************************/
 /*  Return the nth value of a STRING array.                            */
 /***********************************************************************/
 char *ARRAY::GetStringValue(int n)
   {
-  assert (Type == TYPE_STRING);
+  assert (Type == TYPE_STRING || Type == TYPE_PCHAR);
   return Vblp->GetCharValue(n);
   } // end of GetStringValue
 
@@ -764,6 +795,44 @@ bool ARRAY::Sort(PGLOBAL g)
   PlgDBfree(Offset);
   return TRUE;
   } // end of Sort
+
+/***********************************************************************/
+/*  Sort and return the sort index.                                    */
+/*  Note: This is meant if the array contains unique values.           */
+/*  Returns Index.Memp if Ok or NULL in case of error.                 */
+/***********************************************************************/
+void *ARRAY::GetSortIndex(PGLOBAL g)
+  {
+  // Prepare non conservative sort with offet values
+  Index.Size = Nval * sizeof(int);
+
+  if (!PlgDBalloc(g, NULL, Index))
+    goto error;
+
+  Offset.Size = (Nval + 1) * sizeof(int);
+
+  if (!PlgDBalloc(g, NULL, Offset))
+    goto error;
+
+  // Call the sort program, it returns the number of distinct values
+  Ndif = Qsort(g, Nval);
+
+  if (Ndif < 0)
+    goto error;
+
+  if (Ndif < Nval)
+    goto error;
+
+  PlgDBfree(Offset);
+  return Index.Memp;
+
+ error:
+  Nval = Ndif = 0;
+  Valblk->Free();
+  PlgDBfree(Index);
+  PlgDBfree(Offset);
+  return NULL;
+  } // end of GetSortIndex
 
 /***********************************************************************/
 /*  Block filter testing for IN operator on Column/Array operands.     */

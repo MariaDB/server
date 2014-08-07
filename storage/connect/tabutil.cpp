@@ -498,6 +498,21 @@ PCOL TDBPRX::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   } // end of MakeCol
 
 /***********************************************************************/
+/*  PRX Cardinality: returns the number of rows in the table.          */
+/***********************************************************************/
+int TDBPRX::Cardinality(PGLOBAL g)
+  {
+  if (Cardinal < 0) {
+    if (InitTable(g))
+      return 0;
+  
+  	Cardinal = Tdbp->Cardinality(g);
+    } // endif MaxSize
+
+  return Cardinal;
+  } // end of GetMaxSize
+
+/***********************************************************************/
 /*  PRX GetMaxSize: returns the maximum number of rows in the table.   */
 /***********************************************************************/
 int TDBPRX::GetMaxSize(PGLOBAL g)

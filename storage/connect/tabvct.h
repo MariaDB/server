@@ -26,7 +26,7 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
   friend class VMPFAM;
  public:
   // Constructor
-  VCTDEF(void) {Split = Estimate = Header = 0;}
+  VCTDEF(void) {Split = false; Estimate = Header = 0;}
 
   // Implementation
   virtual const char *GetType(void) {return "VCT";}
@@ -40,9 +40,9 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
           int  MakeFnPattern(char *fpat);
 
   // Members
-  int     Split;              /* Columns in separate files             */
+  bool    Split;              /* Columns in separate files             */
   int     Estimate;           /* Estimated maximum size of table       */
-  int     Header;              /* 0: no, 1: separate, 2: in data file   */
+  int     Header;             /* 0: no, 1: separate, 2: in data file   */
   }; // end of VCTDEF
 
 /***********************************************************************/

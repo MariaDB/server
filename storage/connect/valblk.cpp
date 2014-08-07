@@ -101,6 +101,9 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
         blkp = new(g) TYPBLK<char>(mp, nval, type);
 
       break;
+    case TYPE_PCHAR:
+      blkp = new(g) PTRBLK(g, mp, nval);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
       return NULL;
@@ -1352,6 +1355,18 @@ void DATBLK::SetValue(PSZ p, int n)
     TYPBLK<int>::SetValue(p, n);
 
   } // end of SetValue
+
+
+/* -------------------------- Class PTRBLK --------------------------- */
+
+/***********************************************************************/
+/*  Compare two values of the block.                                   */
+/***********************************************************************/
+int PTRBLK::CompVal(int i1, int i2)
+  {
+  return (Strp[i1] > Strp[i2]) ? 1 : (Strp[i1] < Strp[i2]) ? (-1) : 0;
+  } // end of CompVal
+
 
 /* -------------------------- Class MBVALS --------------------------- */
 

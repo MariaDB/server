@@ -81,7 +81,7 @@ class TDBMYSQL : public TDBASE {
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
-  virtual int  GetAffectedRows(void) {return AftRows;}
+//virtual int  GetAffectedRows(void) {return AftRows;}
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgMax(PGLOBAL g);
   virtual void ResetDB(void) {N = 0;}

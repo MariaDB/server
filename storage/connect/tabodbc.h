@@ -88,7 +88,7 @@ class TDBODBC : public TDBASE {
   virtual PSZ  GetFile(PGLOBAL g);
   virtual void SetFile(PGLOBAL g, PSZ fn);
   virtual void ResetSize(void);
-  virtual int  GetAffectedRows(void) {return AftRows;}
+//virtual int  GetAffectedRows(void) {return AftRows;}
   virtual PSZ  GetServer(void) {return "ODBC";}
   virtual int  Indexable(void) {return 2;}
 

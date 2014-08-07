@@ -1,7 +1,7 @@
 /*********** File AM Vct C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMVCT                                              */
 /* -------------                                                       */
-/*  Version 2.5                                                        */
+/*  Version 2.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -10,7 +10,7 @@
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
 /*  This program are the VCT file access method classes.               */
-/*  Added in version 2:      F                                         */
+/*  Added in version 2:                                                */
 /*  - Split Vec format.                                                */
 /*  - Partial delete.                                                  */
 /*  - Use of tempfile for update.                                      */
@@ -29,7 +29,7 @@
 #endif   // __BORLAND__
 //#include <windows.h>
 #include <sys/stat.h>
-#else   // !WIN32              F
+#else   // !WIN32
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -92,6 +92,11 @@ typedef struct _vecheader {
 /***********************************************************************/
 PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
                     bool check = true, bool blank = true, bool un = false);
+
+/***********************************************************************/
+/*  Routine called externally by VCTFAM MakeUpdatedFile function.      */
+/***********************************************************************/
+PARRAY MakeValueArray(PGLOBAL g, PPARM pp);
 
 /* -------------------------- Class VCTFAM --------------------------- */
 
@@ -354,7 +359,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 
     } // endif split
 
-  return (int)((Block - 1) * Nrec + Last);
+    return (Block) ? ((Block - 1) * Nrec + Last) : 0;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -363,7 +368,7 @@ int VCTFAM::Cardinality(PGLOBAL g)
 int VCTFAM::GetRowID(void)
   {
   return 1 + ((CurBlk < Block) ? CurNum + Nrec * CurBlk
-                                : (Block - 1) * Nrec + Last);
+                               : (Block - 1) * Nrec + Last);
   } // end of GetRowID
 
 /***********************************************************************/
@@ -447,7 +452,7 @@ bool VCTFAM::OpenTableFile(PGLOBAL g)
             return true;
 
         strcpy(opmode, "r+b");   // Required to update empty blocks
-      } else if (Last == Nrec)
+      } else if (!Block || Last == Nrec)
         strcpy(opmode, "ab");
       else
         strcpy(opmode, "r+b");   // Required to update the last block
@@ -665,7 +670,10 @@ int VCTFAM::WriteBuffer(PGLOBAL g)
     // Mode Update is done in ReadDB, we just initialize it here
     if (!T_Stream) {
       if (UseTemp) {
-        if (OpenTempFile(g))
+        if ((Indxd = Tdbp->GetKindex() != NULL)) {
+          strcpy(g->Message, "VCT indexed udate using temp file NIY");
+          return RC_FX;
+        } else if (OpenTempFile(g))
           return RC_FX;
 
         // Most of the time, not all table columns are updated.
@@ -784,12 +792,17 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
       Spos = Tpos = Fpos;
     } // endif UseTemp
 
+    Indxd = Tdbp->GetKindex() != NULL;
     } // endif Tpos == Spos
 
   /*********************************************************************/
   /*  Move any intermediate lines.                                     */
   /*********************************************************************/
-  if (MoveIntermediateLines(g, &eof))
+  if (Indxd) {
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
+    Spos = Fpos;
+  } else if (MoveIntermediateLines(g, &eof))
     return RC_FX;
 
   if (irc == RC_OK) {
@@ -809,6 +822,11 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  Last call after EOF has been reached.                          */
     /*  Update the Block and Last values.                              */
     /*******************************************************************/
+    if (Indxd && (Abort = MakeDeletedFile(g)))
+      return RC_FX;
+    else
+      Indxd = false;     // Not to be redone by RenameTempFile
+
     Block = (Tpos > 0) ? (Tpos + Nrec - 1) / Nrec : 0;
     Last = (Tpos + Nrec - 1) % Nrec + 1;
 
@@ -908,7 +926,7 @@ bool VCTFAM::OpenTempFile(PGLOBAL g)
 bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
   {
   int    i, dep, off;
-  int   n;
+  int    n;
   bool   eof = (b) ? *b : false;
   size_t req, len;
 
@@ -1009,6 +1027,63 @@ bool VCTFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
   } // end of MoveIntermediateLines
 
 /***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleing them because       */
+/*  this can cause extra wrong records to be included in the new file. */
+/*  What we do here is to reorder the deleted record and make the new  */
+/*  deleted file from the ordered deleted records.                     */
+/***********************************************************************/
+bool VCTFAM::MakeDeletedFile(PGLOBAL g)
+  {
+//char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  int  *ix, i, n;
+  bool  eof = false;
+
+  /*********************************************************************/
+  /*  Open the temporary file, Spos is at the beginning of file.       */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  n = Posar->GetNval();
+  Spos = 0;
+
+  for (i = 0; i < n; i++) {
+    if (i == n - 1 && !MaxBlk && UseTemp)
+      eof = true;
+
+    Fpos = Posar->GetIntValue(ix[i]);
+
+    if (i || UseTemp) {
+      // Copy all not updated lines preceding this one
+      if (MoveIntermediateLines(g, &eof))
+        goto err;
+
+    } else
+      Tpos = Fpos;
+
+    // New start position
+    Spos = Fpos + 1; 
+    } // endfor i
+
+  if (!PlugCloseFile(g, To_Fbt))
+    return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  PlugCloseFile(g, To_Fbt);
+  return true;
+  } // end of MakeDeletedFile
+
+/***********************************************************************/
 /*  Clean deleted space in a VCT or Vec table file.                    */
 /***********************************************************************/
 bool VCTFAM::CleanUnusedSpace(PGLOBAL g)
@@ -1080,6 +1155,8 @@ void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
   int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
+  Abort = abort;
+
   if (mode == MODE_INSERT) {
     if (Closing)
       wrc = RC_FX;                  // Last write was in error
@@ -1111,7 +1188,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
       colp->WriteBlock(g);
 
     if (UseTemp && T_Stream) {
-      rc = RenameTempFile(g, abort);
+      rc = RenameTempFile(g);
 
       if (Header) {
         // Header must be set because it was not set in temp file
@@ -1125,7 +1202,7 @@ void VCTFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (MaxBlk)
       rc = CleanUnusedSpace(g);
 
-    if ((rc = RenameTempFile(g, abort)) != RC_FX) {
+    if ((rc = RenameTempFile(g)) != RC_FX) {
       Stream = T_Stream = NULL;      // For SetBlockInfo
       rc = ResetTableSize(g, Block, Last);
       } // endif rc
@@ -1602,9 +1679,6 @@ int VCMFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
   {
-  int  i;
-  int m, n;
-
   if (trace)
     htrc("VCM DeleteDB: irc=%d tobuf=%p Tpos=%p Spos=%p\n",
                         irc, To_Buf, Tpos, Spos);
@@ -1621,52 +1695,20 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
 
-  if (Tpos == Spos)
+  if (Tpos == Spos) {
     /*******************************************************************/
     /*  First line to delete. Move of eventual preceeding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
-    Tpos = Fpos;                               // Spos is set below
-  else if (Fpos > Spos) {
-    /*******************************************************************/
-    /*  Non consecutive line to delete. Move intermediate lines.       */
-    /*******************************************************************/
-    if (!MaxBlk) {
-      // Old VCT format, moving must respect block limits
-      char *ps, *pt;
-      int   req, soff, toff;
+    Tpos = Spos = Fpos;
+    Indxd = Tdbp->GetKindex() != NULL;
+    } // endif Tpos
 
-      for (n = Fpos - Spos; n > 0; n -= req) {
-        soff = Spos % Nrec;
-        toff = Tpos % Nrec;
-        req = (size_t)MY_MIN(n, Nrec - MY_MAX(soff, toff));
-
-        for (i = 0; i < Ncol; i++) {
-          ps = Memcol[i] + (Spos / Nrec) * Blksize + soff * Clens[i];
-          pt = Memcol[i] + (Tpos / Nrec) * Blksize + toff * Clens[i];
-          memmove(pt, ps, req * Clens[i]);
-          } // endfor i
-
-        Tpos += req;
-        Spos += req;
-        } // endfor n
-
-    } else {
-      // True vector format, all is simple...
-      n = Fpos - Spos;
-
-      for (i = 0; i < Ncol; i++) {
-        m = Clens[i];
-        memmove(Memcol[i] + Tpos * m, Memcol[i] + Spos * m, n * m);
-        } // endfor i
-
-      Tpos += n;
-    } // endif MaxBlk
-
-    if (trace)
-      htrc("move %d bytes\n", n);
-
-    } // endif n
+  if (Indxd)
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
+  else 
+    (void)MoveIntermediateLines(g);
 
   if (irc == RC_OK) {
     Spos = Fpos + 1;                               // New start position
@@ -1674,10 +1716,14 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
     if (trace)
       htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
-  } else {
+  } else if (!(Abort = (Indxd && MakeDeletedFile(g)))) {
     /*******************************************************************/
-    /*  Last call after EOF has been reached. Reset the Block and      */
-    /*  Last values for TDBVCT::MakeBlockValues.                       */
+    /*  Last call after EOF has been reached.                          */
+    /*******************************************************************/
+    int i, m, n;
+
+    /*******************************************************************/
+    /*  Reset the Block and Last values for TDBVCT::MakeBlockValues.   */
     /*******************************************************************/
     Block = (Tpos > 0) ? (Tpos + Nrec - 1) / Nrec : 0;
     Last = (Tpos + Nrec - 1) % Nrec + 1;
@@ -1740,10 +1786,103 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
     // Reset Last and Block values in the catalog
     PlugCloseFile(g, To_Fb);      // in case of Header
     ResetTableSize(g, Block, Last);
-  } // endif irc
+  } else
+    return RC_FX;
 
   return RC_OK;                                      // All is correct
   } // end of DeleteRecords
+
+/***********************************************************************/
+/*  Move intermediate deleted or updated lines.                        */
+/***********************************************************************/
+bool VCMFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
+  {
+  int i, m, n;
+
+  if ((n = Fpos - Spos) > 0) {
+    /*******************************************************************/
+    /*  Non consecutive line to delete. Move intermediate lines.       */
+    /*******************************************************************/
+    if (!MaxBlk) {
+      // Old VCT format, moving must respect block limits
+      char *ps, *pt;
+      int   req, soff, toff;
+
+      for (; n > 0; n -= req) {
+        soff = Spos % Nrec;
+        toff = Tpos % Nrec;
+        req = (size_t)MY_MIN(n, Nrec - MY_MAX(soff, toff));
+
+        for (i = 0; i < Ncol; i++) {
+          ps = Memcol[i] + (Spos / Nrec) * Blksize + soff * Clens[i];
+          pt = Memcol[i] + (Tpos / Nrec) * Blksize + toff * Clens[i];
+          memmove(pt, ps, req * Clens[i]);
+          } // endfor i
+
+        Tpos += req;
+        Spos += req;
+        } // endfor n
+
+    } else {
+      // True vector format, all is simple...
+      for (i = 0; i < Ncol; i++) {
+        m = Clens[i];
+        memmove(Memcol[i] + Tpos * m, Memcol[i] + Spos * m, n * m);
+        } // endfor i
+
+      Tpos += n;
+    } // endif MaxBlk
+
+    if (trace)
+      htrc("move %d bytes\n", n);
+
+    } // endif n
+
+  return false;
+  } // end of MoveIntermediate Lines
+
+/***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleting them.             */
+/*  What we do here is to reorder the deleted records and move the     */
+/*  intermediate files from the ordered deleted record positions.      */
+/***********************************************************************/
+bool VCMFAM::MakeDeletedFile(PGLOBAL g)
+  {
+  int  *ix, i;
+
+  /*********************************************************************/
+  /*  Make and order the arrays from the saved values.                 */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  for (i = 0; i < Posar->GetNval(); i++) {
+    Fpos = Posar->GetIntValue(ix[i]);
+
+    if (!i) {
+      Tpos = Fpos;
+    } else
+      (void)MoveIntermediateLines(g);
+
+    // New start position
+    Spos = Fpos + 1; 
+    } // endfor i
+
+  return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  return true;
+  } // end of MakeDeletedFile
 
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
@@ -1775,7 +1914,7 @@ void VCMFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (wrc != RC_FX)
       /*rc =*/ ResetTableSize(g, Block, Last);
 
-  } else if (mode != MODE_DELETE)
+  } else if (mode != MODE_DELETE || Abort)
     PlugCloseFile(g, To_Fb);
 
   } // end of CloseTableFile
@@ -1903,7 +2042,7 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
       // Selective delete, pass thru
     case MODE_UPDATE:
       UseTemp = Tdbp->IsUsingTemp(g);
-      strcpy(opmode, (UseTemp) ? "r": "r+");
+      strcpy(opmode, (UseTemp) ? "rb": "r+b");
       break;
     case MODE_INSERT:
       strcpy(opmode, "ab");
@@ -1962,10 +2101,13 @@ bool VECFAM::OpenTableFile(PGLOBAL g)
     // Check for void table or missing columns
     for (i = 0, cp = (PVCTCOL)Tdbp->GetColumns(); cp;
                 cp = (PVCTCOL)cp->Next)
-      if (!i++)
-        b = !Streams[cp->Index - 1];
-      else if (b != !Streams[cp->Index - 1])
-        return true;
+      if (!cp->IsSpecial()) {
+        if (!i++)
+          b = !Streams[cp->Index - 1];
+        else if (b != !Streams[cp->Index - 1])
+          return true;
+    
+        } // endif Special
 
   } // endif mode
 
@@ -2167,7 +2309,10 @@ int VECFAM::WriteBuffer(PGLOBAL g)
   } else              // Mode Update
     // Writing updates being done in ReadDB we do initialization only.
     if (InitUpdate) {
-      if (OpenTempFile(g))
+      if ((Indxd = Tdbp->GetKindex() != NULL)) {
+        strcpy(g->Message, "VEC indexed udate using temp file NIY");
+        return RC_FX;
+      } else if (OpenTempFile(g))
         return RC_FX;
 
       InitUpdate = false;                 // Done
@@ -2179,18 +2324,10 @@ int VECFAM::WriteBuffer(PGLOBAL g)
 /***********************************************************************/
 /*  Data Base delete line routine for split vertical access methods.   */
 /*  Note: lines are moved directly in the files (ooops...)             */
+/*  Using temp file depends on the Check setting, false by default.    */
 /***********************************************************************/
 int VECFAM::DeleteRecords(PGLOBAL g, int irc)
   {
-  /*********************************************************************/
-  /*  There is an alternative here:                                    */
-  /*  1 - use a temporary file in which are copied all not deleted     */
-  /*      lines, at the end the original file will be deleted and      */
-  /*      the temporary file renamed to the original file name.        */
-  /*  2 - directly move the not deleted lines inside the original      */
-  /*      file, and at the end erase all trailing records.             */
-  /*  This depends on the Check setting, false by default.             */
-  /*********************************************************************/
   if (trace)
     htrc("VEC DeleteDB: rc=%d UseTemp=%d Fpos=%d Tpos=%d Spos=%d\n",
           irc, UseTemp, Fpos, Tpos, Spos);
@@ -2207,7 +2344,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
 
-  if (Tpos == Spos)
+  if (Tpos == Spos) {
     // First line to delete
     if (UseTemp) {
       /*****************************************************************/
@@ -2223,10 +2360,17 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       Spos = Tpos = Fpos;
 
+    Indxd = Tdbp->GetKindex() != NULL;
+    } // endif Tpos == Spos
+
   /*********************************************************************/
   /*  Move any intermediate lines.                                     */
   /*********************************************************************/
-  if (MoveIntermediateLines(g))
+  if (Indxd) {
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
+    Spos = Fpos;
+  } else if (MoveIntermediateLines(g))
     return RC_FX;
 
   if (irc == RC_OK) {
@@ -2242,10 +2386,15 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
     /*******************************************************************/
+    if (Indxd && (Abort = MakeDeletedFile(g)))
+      return RC_FX;
+//  else
+//    Indxd = false;     // Not to be redone by RenameTempFile
+
     if (!UseTemp) {
       /*****************************************************************/
       /* Because the chsize functionality is only accessible with a    */
-      /* system call we must close the file and reopen it with the     */
+      /* system call we must close the files and reopen them with the  */
       /* open function (_fopen for MS??) this is still to be checked   */
       /* for compatibility with other OS's.                            */
       /*****************************************************************/
@@ -2285,7 +2434,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else        // UseTemp
       // Ok, now delete old files and rename new temp files
-      if (RenameTempFile(g, false) == RC_FX)
+      if (RenameTempFile(g) == RC_FX)
         return RC_FX;
 
     // Reset these values for TDBVCT::MakeBlockValues
@@ -2353,8 +2502,7 @@ bool VECFAM::MoveLines(PGLOBAL g)
 /***********************************************************************/
 bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
   {
-  int    i;
-  int   n;
+  int    i, n;
   bool   b = false;
   size_t req, len;
 
@@ -2413,9 +2561,59 @@ bool VECFAM::MoveIntermediateLines(PGLOBAL g, bool *bn)
   } // end of MoveIntermediate Lines
 
 /***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleing them because       */
+/*  this can cause extra wrong records to be included in the new file. */
+/*  What we do here is to reorder the deleted record and make the new  */
+/*  deleted file from the ordered deleted records.                     */
+/***********************************************************************/
+bool VECFAM::MakeDeletedFile(PGLOBAL g)
+  {
+  int  *ix, i, n;
+
+  /*********************************************************************/
+  /*  Open the temporary file, Spos is at the beginning of file.       */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  n = Posar->GetNval();
+  Spos = 0;
+
+  for (i = 0; i < n; i++) {
+    Fpos = Posar->GetIntValue(ix[i]);
+
+    if (i || UseTemp) {
+      // Copy all not updated lines preceding this one
+      if (MoveIntermediateLines(g))
+        goto err;
+
+    } else
+      Tpos = Fpos;
+
+    // New start position
+    Spos = Fpos + 1; 
+    } // endfor i
+
+  return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  return true;
+  } // end of MakeDeletedFile
+
+/***********************************************************************/
 /*  Delete the old files and rename the new temporary files.           */
 /***********************************************************************/
-int VECFAM::RenameTempFile(PGLOBAL g, bool abort)
+int VECFAM::RenameTempFile(PGLOBAL g)
   {
   char *tempname, filetemp[_MAX_PATH], filename[_MAX_PATH];
   int   rc = RC_OK;
@@ -2432,7 +2630,7 @@ int VECFAM::RenameTempFile(PGLOBAL g, bool abort)
 
     tempname = (char*)T_Fbs[i]->Fname;
 
-    if (!abort) {
+    if (!Abort) {
       sprintf(filename, Colfn, i+1);
       PlugSetPath(filename, filename, Tdbp->GetPath());
       strcat(PlugRemoveType(filetemp, filename), ".ttt");
@@ -2469,6 +2667,8 @@ void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
   int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
+  Abort = abort;
+
   if (mode == MODE_INSERT) {
     if (Closing)
       wrc = RC_FX;                  // Last write was in error
@@ -2491,10 +2691,10 @@ void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
       longjmp(g->jumper[g->jump_level], 44);
 
   } else if (mode == MODE_UPDATE) {
-    if (UseTemp && !InitUpdate && !abort) {
+    if (UseTemp && !InitUpdate && !Abort) {
       // Write any intermediate lines to temp file
       Fpos = OldBlk * Nrec;
-      abort = MoveIntermediateLines(g) != RC_OK;
+      Abort = MoveIntermediateLines(g) != RC_OK;
 //    Spos = Fpos + Nrec;
       } // endif UseTemp
 
@@ -2504,17 +2704,17 @@ void VECFAM::CloseTableFile(PGLOBAL g, bool abort)
                    colp; colp = (PVCTCOL)colp->Next)
         colp->WriteBlock(g);
 
-    if (wrc == RC_OK && UseTemp && !InitUpdate && !abort) {
+    if (wrc == RC_OK && UseTemp && !InitUpdate && !Abort) {
       // Write any intermediate lines to temp file
       Fpos = (Block - 1) * Nrec + Last;
-      abort = MoveIntermediateLines(g) != RC_OK;
+      Abort = MoveIntermediateLines(g) != RC_OK;
       } // endif UseTemp
 
   } // endif's mode
 
   if (UseTemp && !InitUpdate) {
     // If they are errors, leave files unchanged
-    rc = RenameTempFile(g, abort);
+    rc = RenameTempFile(g);
 
   } else if (Streams)
     for (int i = 0; i < Ncol; i++)
@@ -2660,7 +2860,7 @@ VMPFAM::VMPFAM(PVMPFAM txfp) : VCMFAM(txfp)
 bool VMPFAM::OpenTableFile(PGLOBAL g)
   {
   int     i;
-  bool    b;
+  bool    b = false;
   MODE    mode = Tdbp->GetMode();
   PCOLDEF cdp;
   PVCTCOL cp;
@@ -2706,7 +2906,7 @@ bool VMPFAM::OpenTableFile(PGLOBAL g)
 
   } else {
     /*******************************************************************/
-    /*  Open the files corresponding updated columns of the query.     */
+    /*  Open the files corresponding to updated columns of the query.  */
     /*******************************************************************/
     for (cp = (PVCTCOL)((PTDBVCT)Tdbp)->To_SetCols; cp;
          cp = (PVCTCOL)cp->Next)
@@ -2721,14 +2921,18 @@ bool VMPFAM::OpenTableFile(PGLOBAL g)
         if (MapColumnFile(g, MODE_READ, cp->Index - 1))
           return true;
 
-  } // endif mode
+    // Check for void table or missing columns
+    for (i = 0, cp = (PVCTCOL)Tdbp->GetColumns(); cp;
+                cp = (PVCTCOL)cp->Next)
+      if (!cp->IsSpecial()) {
+        if (!i++)
+          b = !Memcol[cp->Index - 1];
+        else if (b != !Memcol[cp->Index - 1])
+          return true;
 
-  /*********************************************************************/
-  /* Check for void table or missing columns                           */
-  /*********************************************************************/
-  for (b = !Memcol[0], i = 1; i < Ncol; i++)
-    if (b != !Memcol[i])
-      return true;
+        } // endif Special
+
+  } // endif mode
 
   /*********************************************************************/
   /*  Allocate the table and column block buffer.                      */
@@ -2899,12 +3103,18 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
   } else     // Fpos is the Deleted line position
     Fpos = CurBlk * Nrec + CurNum;
 
-  if (Tpos == Spos)
+  if (Tpos == Spos) {
     /*******************************************************************/
     /*  First line to delete. Move of eventual preceeding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Fpos;                               // Spos is set below
+    Indxd = Tdbp->GetKindex() != NULL;
+    } // endif Tpos
+
+  if (Indxd)
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
   else if ((n = Fpos - Spos) > 0) {
     /*******************************************************************/
     /*  Non consecutive line to delete. Move intermediate lines.       */
@@ -2927,13 +3137,19 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
     if (trace)
       htrc("after: Tpos=%p Spos=%p\n", Tpos, Spos);
 
-  } else {
+  } else if (!(Abort = (Indxd && MakeDeletedFile(g)))) {
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
     /*  We must firstly Unmap the view and use the saved file handle   */
     /*  to put an EOF at the end of the copied part of the file.       */
     /*******************************************************************/
     PFBLOCK fp;
+
+    /*******************************************************************/
+    /*  Reset the Block and Last values for TDBVCT::MakeBlockValues.   */
+    /*******************************************************************/
+//  Block = (Tpos > 0) ? (Tpos + Nrec - 1) / Nrec : 0;
+//  Last = (Tpos + Nrec - 1) % Nrec + 1;
 
     for (i = 0; i < Ncol; i++) {
       fp = To_Fbs[i];
@@ -2981,6 +3197,55 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 
   return RC_OK;                                      // All is correct
   } // end of DeleteRecords
+
+/***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleting them.             */
+/*  What we do here is to reorder the deleted records and move the     */
+/*  intermediate files from the ordered deleted record positions.      */
+/***********************************************************************/
+bool VMPFAM::MakeDeletedFile(PGLOBAL g)
+  {
+  int  *ix, i, j, m, n;
+
+  /*********************************************************************/
+  /*  Make and order the arrays from the saved values.                 */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  for (i = 0; i < Posar->GetNval(); i++) {
+    Fpos = Posar->GetIntValue(ix[i]);
+
+    if (!i) {
+      Tpos = Fpos;
+    } else if ((n = Fpos - Spos) > 0) {
+      for (j = 0; j < Ncol; j++) {
+        m = Clens[j];
+        memmove(Memcol[j] + Tpos * m, Memcol[j] + Spos * m, m * n);
+        } // endif j
+  
+      Tpos += n;
+      } // endif n
+  
+      // New start position
+      Spos = Fpos + 1; 
+      } // endfor i
+
+  return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  return true;
+  } // end of MakeDeletedFile
 
 /***********************************************************************/
 /*  Data Base close routine for VMP access method.                     */
@@ -3704,7 +3969,10 @@ int BGVFAM::WriteBuffer(PGLOBAL g)
     // Mode Update is done in ReadDB, we just initialize it here
     if (Tfile == INVALID_HANDLE_VALUE) {
       if (UseTemp) {
-        if (OpenTempFile(g))
+        if ((Indxd = Tdbp->GetKindex() != NULL)) {
+          strcpy(g->Message, "VEC indexed udate using temp file NIY");
+          return RC_FX;
+        } else if (OpenTempFile(g))
           return RC_FX;
 
         // Most of the time, not all table columns are updated.
@@ -3831,12 +4099,17 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
       Spos = Tpos = Fpos;
     } // endif UseTemp
 
+    Indxd = Tdbp->GetKindex() != NULL;
     } // endif Tpos == Spos
 
   /*********************************************************************/
   /*  Move any intermediate lines.                                     */
   /*********************************************************************/
-  if (MoveIntermediateLines(g, &eof))
+  if (Indxd) {
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
+    Spos = Fpos;
+  } else if (MoveIntermediateLines(g, &eof))
     return RC_FX;
 
   if (irc == RC_OK) {
@@ -3852,6 +4125,11 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
     /*******************************************************************/
+    if (Indxd && (Abort = MakeDeletedFile(g)))
+      return RC_FX;
+    else
+      Indxd = false;     // Not to be redone by RenameTempFile
+
     Block = (Tpos > 0) ? (Tpos + Nrec - 1) / Nrec : 0;
     Last = (Tpos + Nrec - 1) % Nrec + 1;
 
@@ -4112,6 +4390,8 @@ void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
   int  rc = 0, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
 
+  Abort = abort;
+
   if (mode == MODE_INSERT) {
     if (Closing)
       wrc = RC_FX;                  // Last write was in error
@@ -4143,7 +4423,7 @@ void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
       colp->WriteBlock(g);
 
     if (UseTemp && Tfile) {
-      rc = RenameTempFile(g, abort);
+      rc = RenameTempFile(g);
       Hfile = Tfile = INVALID_HANDLE_VALUE;
 
       if (Header)
@@ -4156,7 +4436,7 @@ void BGVFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (MaxBlk)
       rc = CleanUnusedSpace(g);
 
-    if ((rc = RenameTempFile(g, abort)) != RC_FX) {
+    if ((rc = RenameTempFile(g)) != RC_FX) {
       Hfile = Tfile = INVALID_HANDLE_VALUE;    // For SetBlockInfo
       rc = ResetTableSize(g, Block, Last);
       } // endif rc

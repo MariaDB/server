@@ -696,7 +696,8 @@ int TDBODBC::Cardinality(PGLOBAL g)
       return -3;
 
     ocp->Close();
-    } // endif Cardinal
+  } else
+    Cardinal = 10;    // To make MySQL happy
 
   return Cardinal;
   } // end of Cardinality

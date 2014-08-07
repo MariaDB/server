@@ -439,7 +439,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*  Standard init: read the file and construct the index table.      */
   /*  Note: reading will be sequential as To_Kindex is not set.        */
   /*********************************************************************/
-  for (i = nkey = 0; i < n && rc != RC_EF; i++) {
+  for (i = nkey = 0; rc != RC_EF; i++) {
 #if 0
     if (!dup->Step) {
       strcpy(g->Message, MSG(QUERY_CANCELLED));
@@ -555,6 +555,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   if (!Mul)
     if (Ndif < Num_K) {
       strcpy(g->Message, MSG(INDEX_NOT_UNIQ));
+      brc = true;
       goto err;
     } else
       PlgDBfree(Offset);           // Not used anymore
@@ -649,9 +650,11 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   /*********************************************************************/
   /*  For sorted columns and fixed record size, file position can be   */
   /*  calculated, so the Record array can be discarted.                */
+  /*  Not true for DBF tables because of eventual soft deleted lines.  */
   /*  Note: for Num_K = 1 any non null value is Ok.                    */
   /*********************************************************************/
-  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR) {
+  if (Srtd && !filp && Tdbp->Ftype != RECFM_VAR 
+                    && Tdbp->Txfp->GetAmType() != TYPE_AM_DBF) {
     Incr = (Num_K > 1) ? To_Rec[1] : Num_K;
     PlgDBfree(Record);
     } // endif Srtd

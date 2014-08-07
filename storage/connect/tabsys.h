@@ -60,7 +60,7 @@ class TDBINI : public TDBASE {
   virtual PTDB  CopyOne(PTABS t);
   virtual int   GetRecpos(void) {return N;}
   virtual int   GetProgCur(void) {return N;}
-  virtual int   GetAffectedRows(void) {return 0;}
+//virtual int   GetAffectedRows(void) {return 0;}
   virtual PSZ   GetFile(PGLOBAL g) {return Ifile;}
   virtual void  SetFile(PGLOBAL g, PSZ fn) {Ifile = fn;}
   virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}

@@ -152,7 +152,7 @@ class DllExport TDBDOS : public TDBASE {
   virtual int   GetFileLength(PGLOBAL g) {return Txfp->GetFileLength(g);}
   virtual int   GetProgMax(PGLOBAL g);
   virtual int   GetProgCur(void);
-  virtual int   GetAffectedRows(void) {return Txfp->GetDelRows();}
+//virtual int   GetAffectedRows(void) {return Txfp->GetDelRows();}
   virtual int   GetRecpos(void) {return Txfp->GetPos();}
   virtual bool  SetRecpos(PGLOBAL g, int recpos)
                 {return Txfp->SetPos(g, recpos);}
@@ -184,7 +184,6 @@ class DllExport TDBDOS : public TDBASE {
   PBF     To_BlkFil;         // To evaluation block filter
   PFIL    SavFil;            // Saved hidden filter
   char   *To_Line;           // Points to current processed line
-  RECFM   Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
   bool    Abort;             // TRUE when aborting UPDATE/DELETE
   int     Lrecl;             // Logical Record Length
   int     AvgLen;            // Logical Record Average Length

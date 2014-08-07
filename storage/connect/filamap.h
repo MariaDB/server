@@ -1,7 +1,7 @@
 /*************** FilAMap H Declares Source Code File (.H) **************/
-/*  Name: FILAMAP.H     Version 1.2                                    */
+/*  Name: FILAMAP.H     Version 1.3                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the MAP file access method classes declares.    */
 /***********************************************************************/
@@ -47,10 +47,12 @@ class DllExport MAPFAM : public TXTFAM {
   virtual void  Rewind(void);
 
  protected:
+          bool  MakeDeletedFile(PGLOBAL g);
+
   // Members
   char *Memory;               // Pointer on file mapping view.
   char *Mempos;               // Position of next data to read
-  char *Fpos;                  // Position of last read record
+  char *Fpos;                 // Position of last read record
   char *Tpos;                 // Target Position for delete move
   char *Spos;                 // Start position for delete move
   char *Top;                  // Mark end of file mapping view

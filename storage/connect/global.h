@@ -85,6 +85,7 @@
 #define  TYPE_INT          7
 #define  TYPE_DECIM        9
 #define  TYPE_BIN         10
+#define  TYPE_PCHAR       11
 
 #if defined(OS32)
   #define  SYS_STAMP   "OS32"

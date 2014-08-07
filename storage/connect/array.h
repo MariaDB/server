@@ -5,6 +5,9 @@
 /*                                                                     */
 /*  This file contains the ARRAY and VALBASE derived classes declares. */
 /***********************************************************************/
+#ifndef __ARRAY_H
+#define __ARRAY_H
+
 
 /***********************************************************************/
 /*  Include required application header files                          */
@@ -57,18 +60,21 @@ class DllExport ARRAY : public XOBJECT, public CSORT { // Array descblock
 //        void  Empty(void);
           void  SetPrecision(PGLOBAL g, int p);
           bool  AddValue(PGLOBAL g, PSZ sp);
+          bool  AddValue(PGLOBAL g, void *p);
           bool  AddValue(PGLOBAL g, short n);
           bool  AddValue(PGLOBAL g, int n);
           bool  AddValue(PGLOBAL g, double f);
           bool  AddValue(PGLOBAL g, PXOB xp);
           bool  AddValue(PGLOBAL g, PVAL vp);
           void  GetNthValue(PVAL valp, int n);
+          int   GetIntValue(int n);
           char *GetStringValue(int n);
           BYTE  Vcompare(PVAL vp, int n);
           void  Save(int);
           void  Restore(int);
           void  Move(int, int);
           bool  Sort(PGLOBAL g);
+          void *GetSortIndex(PGLOBAL g);
           bool  Find(PVAL valp);
           bool  FilTest(PGLOBAL g, PVAL valp, OPVAL opc, int opm);
           int   Convert(PGLOBAL g, int k, PVAL vp = NULL);
@@ -120,3 +126,5 @@ class MULAR : public CSORT, public BLOCK {   // No need to be an XOBJECT
   int     Narray;         // The number of sub-arrays
   PARRAY *Pars;           // To the block of real arrays
   }; // end of class ARRAY
+
+#endif // __ARRAY_H

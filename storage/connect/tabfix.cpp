@@ -176,9 +176,11 @@ void TDBFIX::RestoreNrec(void)
     Txfp->Nrec = (To_Def && To_Def->GetElemt()) ? To_Def->GetElemt()
                                                 : DOS_BUFF_LEN;
     Txfp->Blksize = Txfp->Nrec * Txfp->Lrecl;
-    assert(Cardinal >= 0);
-    Txfp->Block = (Cardinal > 0) 
-                ? (Cardinal + Txfp->Nrec - 1) / Txfp->Nrec : 0;
+
+    if (Cardinal >= 0)
+      Txfp->Block = (Cardinal > 0) 
+                  ? (Cardinal + Txfp->Nrec - 1) / Txfp->Nrec : 0;
+
     } // endif Padded
 
   } // end of RestoreNrec

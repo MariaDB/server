@@ -71,15 +71,14 @@ SELECT * FROM t1;
 EXPLAIN PARTITIONS SELECT * FROM t1 WHERE id = 81;
 SELECT * FROM t1 WHERE id = 7;
 SELECT * FROM t1 WHERE id = 35;
---error ER_GET_ERRMSG
 UPDATE t1 SET msg = 'number' WHERE id in (60,72);
 UPDATE t1 SET msg = 'soixante' WHERE id = 60;
 SELECT * FROM t1 WHERE id > 50;
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 UPDATE t1 SET msg = 'sept' WHERE id = 7;
 SELECT * FROM t1;
---error ER_GET_ERRMSG
 DELETE FROM t1 WHERE id in (60,72);
+SELECT * FROM t1;
 DROP TABLE t1;
 DROP TABLE xt1;
 DROP TABLE xt2;

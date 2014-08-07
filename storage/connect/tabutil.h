@@ -76,6 +76,7 @@ class DllExport TDBPRX : public TDBASE {
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual bool  InitTable(PGLOBAL g);
+  virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);

@@ -169,7 +169,8 @@ bool CntInfo(PGLOBAL g, PTDB tp, PXF info)
     info->data_file_length= (b) ? (ulonglong)tdbp->GetFileLength(g) : 0;
 
     if (!b || info->data_file_length)
-      info->records= (unsigned)tdbp->GetMaxSize(g);
+      info->records= (unsigned)tdbp->Cardinality(g);
+//      info->records= (unsigned)tdbp->GetMaxSize(g);
     else
       info->records= 0;
 
@@ -578,6 +579,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
     } // endif
 
   if ((rc = setjmp(g->jumper[++g->jump_level])) != 0) {
+    rc= RC_FX;
     g->jump_level--;
     goto err;
     } // endif

@@ -144,14 +144,16 @@ SELECT * FROM t1 WHERE id = 35;
 id	msg
 35	thirty five
 UPDATE t1 SET msg = 'number' WHERE id in (60,72);
-ERROR HY000: Got error 122 'Remote: Got error 122 'Cannot use indexing for this command' from CONNECT' from CONNECT
+Warnings:
+Note	1105	xt3: 2 affected rows
+Note	1105	xt3: 0 affected rows
 UPDATE t1 SET msg = 'soixante' WHERE id = 60;
 Warnings:
 Note	1105	xt3: 1 affected rows
 SELECT * FROM t1 WHERE id > 50;
 id	msg
 60	soixante
-72	seventy two
+72	number
 81	eighty one
 UPDATE t1 SET msg = 'big' WHERE id > 50;
 Warnings:
@@ -173,7 +175,20 @@ id	msg
 60	big
 81	big
 DELETE FROM t1 WHERE id in (60,72);
-ERROR HY000: Got error 122 'Remote: Got error 122 'Cannot use indexing for this command' from CONNECT' from CONNECT
+Warnings:
+Note	1105	xt3: 2 affected rows
+Note	1105	xt3: 0 affected rows
+SELECT * FROM t1;
+id	msg
+4	four
+7	sept
+1	one
+8	eight
+40	forty
+10	ten
+11	eleven
+35	thirty five
+81	big
 DROP TABLE t1;
 DROP TABLE xt1;
 DROP TABLE xt2;

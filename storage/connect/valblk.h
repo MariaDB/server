@@ -329,5 +329,28 @@ class DATBLK : public TYPBLK<int> {
   PVAL Dvalp;                    // Date value used to convert string
   }; // end of class DATBLK
 
+/***********************************************************************/
+/*  Class PTRBLK: represent a block of char pointers.                  */
+/*  Currently this class is used only by the ARRAY class to make and   */
+/*  sort a list of char pointers.                                      */
+/***********************************************************************/
+class PTRBLK : public STRBLK {
+  friend class ARRAY;
+  friend PVBLK AllocValBlock(PGLOBAL, void *, int, int, int, int,
+                                              bool, bool, bool);
+ protected:
+  // Constructors
+  PTRBLK(PGLOBAL g, void *mp, int size) : STRBLK(g, mp, size) {}
+
+  // Implementation
+
+  // Methods
+  virtual void   SetValue(PSZ p, int n) {Strp[n] = p;}
+  virtual int    CompVal(int i1, int i2);
+
+ protected:
+  // Members
+  }; // end of class PTRBLK
+
 #endif // __VALBLK__H__
 

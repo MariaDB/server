@@ -1,7 +1,7 @@
 /*********** File AM Map C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMAP                                               */
 /* -------------                                                       */
-/*  Version 1.5                                                        */
+/*  Version 1.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -48,6 +48,11 @@
 
 extern "C" int  trace;
 
+/***********************************************************************/
+/*  Routine called externally by MAPFAM MakeDeletedFile function.      */
+/***********************************************************************/
+PARRAY MakeValueArray(PGLOBAL g, PPARM pp);
+
 /* --------------------------- Class MAPFAM -------------------------- */
 
 /***********************************************************************/
@@ -89,7 +94,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
   {
   int len;
 
-  len = (To_Fb) ? To_Fb->Length :  TXTFAM::GetFileLength(g);
+  len = (To_Fb) ? To_Fb->Length : TXTFAM::GetFileLength(g);
 
   if (trace)
     htrc("Mapped file length=%d\n", len);
@@ -398,23 +403,30 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } // endif irc
 
-  if (Tpos == Spos)
+  if (Tpos == Spos) {
     /*******************************************************************/
     /*  First line to delete. Move of eventual preceeding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
-    Tpos = Fpos;                               // Spos is set below
-  else if ((n = Fpos - Spos) > 0) {
-    /*******************************************************************/
-    /*  Non consecutive line to delete. Move intermediate lines.       */
-    /*******************************************************************/
+    Tpos = Spos = Fpos;
+    Indxd = Tdbp->GetKindex() != NULL;
+  } // endif Tpos
+
+  if (Indxd) {
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_PCHAR, Fpos, &To_Pos);
+    (void)AddListValue(g, TYPE_PCHAR, Mempos, &To_Sos);
+  } else if ((n = Fpos - Spos) > 0) {
+    /*****************************************************************/
+    /*  Non consecutive line to delete. Move intermediate lines.     */
+    /*****************************************************************/
     memmove(Tpos, Spos, n);
     Tpos += n;
 
     if (trace)
       htrc("move %d bytes\n", n);
 
-    } // endif n
+  } // endif n
 
   if (irc == RC_OK) {
     Spos = Mempos;                               // New start position
@@ -425,6 +437,10 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
   } else if (To_Fb) {                 // Can be NULL for deleted files
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
+    /*******************************************************************/
+    Abort = (Indxd && MakeDeletedFile(g));
+
+    /*******************************************************************/
     /*  We must firstly Unmap the view and use the saved file handle   */
     /*  to put an EOF at the end of the copied part of the file.       */
     /*******************************************************************/
@@ -433,45 +449,100 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     CloseMemMap(fp->Memory, (size_t)fp->Length);
     fp->Count = 0;                             // Avoid doing it twice
 
-    /*******************************************************************/
-    /*  Remove extra records.                                          */
-    /*******************************************************************/
-    n = Tpos - Memory;
+    if (!Abort) {
+      /*****************************************************************/
+      /*  Remove extra records.                                        */
+      /*****************************************************************/
+      n = Tpos - Memory;
 
 #if defined(WIN32)
-    DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
+      DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
-    if (drc == 0xFFFFFFFF) {
-      sprintf(g->Message, MSG(FUNCTION_ERROR),
-                          "SetFilePointer", GetLastError());
-      CloseHandle(fp->Handle);
-      return RC_FX;
-      } // endif
+      if (drc == 0xFFFFFFFF) {
+        sprintf(g->Message, MSG(FUNCTION_ERROR),
+                            "SetFilePointer", GetLastError());
+        CloseHandle(fp->Handle);
+        return RC_FX;
+        } // endif
 
-    if (trace)
-     htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
+      if (trace)
+       htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
-    if (!SetEndOfFile(fp->Handle)) {
-      sprintf(g->Message, MSG(FUNCTION_ERROR),
-                          "SetEndOfFile", GetLastError());
-      CloseHandle(fp->Handle);
-      return RC_FX;
-      } // endif
+      if (!SetEndOfFile(fp->Handle)) {
+        sprintf(g->Message, MSG(FUNCTION_ERROR),
+                            "SetEndOfFile", GetLastError());
+        CloseHandle(fp->Handle);
+        return RC_FX;
+        } // endif
 
-    CloseHandle(fp->Handle);
 #else    // UNIX
-    if (ftruncate(fp->Handle, (off_t)n)) {
-      sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
-      close(fp->Handle);
-      return RC_FX;
-      } // endif
+      if (ftruncate(fp->Handle, (off_t)n)) {
+        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        close(fp->Handle);
+        return RC_FX;
+        } // endif
 
-    close(fp->Handle);
+#endif   // UNIX
+    } // endif Abort
+
+#if defined(WIN32)
+  CloseHandle(fp->Handle);
+#else    // UNIX
+  close(fp->Handle);
 #endif   // UNIX
   } // endif irc
 
   return RC_OK;                                      // All is correct
   } // end of DeleteRecords
+
+/***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleting them.             */
+/*  What we do here is to reorder the deleted records and move the     */
+/*  intermediate files from the ordered deleted record positions.      */
+/***********************************************************************/
+bool MAPFAM::MakeDeletedFile(PGLOBAL g)
+  {
+  int  *ix, i, n;
+
+  /*********************************************************************/
+  /*  Make and order the arrays from the saved values.                 */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
+    strcpy(g->Message, "Start position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) {
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  for (i = 0; i < Posar->GetNval(); i++) {
+    Fpos = Posar->GetStringValue(ix[i]);
+
+    if (!i) {
+      Tpos = Fpos;
+    } else if ((n = Fpos - Spos) >= 0) {
+      // Move all not deleted lines preceding this one
+      memmove(Tpos, Spos, n);
+      Tpos += n;
+    } // endif n
+
+    // New start position
+    Spos = Sosar->GetStringValue(ix[i]);
+    } // endfor i
+
+  return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  return true;
+  } // end of MakeDeletedFile
 
 /***********************************************************************/
 /*  Table file close routine for MAP access method.                    */

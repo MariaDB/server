@@ -1,7 +1,7 @@
 /*********** File AM Txt C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMTXT                                              */
 /* -------------                                                       */
-/*  Version 1.5                                                        */
+/*  Version 1.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -58,6 +58,11 @@
 extern int num_read, num_there, num_eq[2];               // Statistics
 extern "C" int trace;
 
+/***********************************************************************/
+/*  Routine called externally by DOSFAM MakeUpdatedFile function.      */
+/***********************************************************************/
+PARRAY MakeValueArray(PGLOBAL g, PPARM pp);
+
 /* --------------------------- Class TXTFAM -------------------------- */
 
 /***********************************************************************/
@@ -75,6 +80,12 @@ TXTFAM::TXTFAM(PDOSDEF tdp)
   To_Buf = NULL;
   DelBuf = NULL;
   BlkPos = NULL;
+  To_Pos = NULL;
+  To_Sos = NULL;
+  To_Upd = NULL;
+  Posar = NULL;
+  Sosar = NULL;
+  Updar = NULL;
   BlkLen = 0;
   Buflen = 0;
   Dbflen = 0;
@@ -94,7 +105,9 @@ TXTFAM::TXTFAM(PDOSDEF tdp)
   Padded = false;
   Eof = tdp->Eof;
   Ending = tdp->Ending;
-  CrLf = (char*)(Ending == 2 ? "\r\n" : "\n");
+  Indxd = false;
+  Abort = false;
+  CrLf = (char*)(Ending == 1 ? "\n" : "\r\n");
   } // end of TXTFAM standard constructor
 
 TXTFAM::TXTFAM(PTXF txfp)
@@ -109,6 +122,12 @@ TXTFAM::TXTFAM(PTXF txfp)
   To_Buf = txfp->To_Buf;
   DelBuf = txfp->DelBuf;
   BlkPos = txfp->BlkPos;
+  To_Pos = txfp->To_Pos;
+  To_Sos = txfp->To_Sos;
+  To_Upd = txfp->To_Upd;
+  Posar = txfp->Posar;
+  Sosar = txfp->Sosar;
+  Updar = txfp->Updar;
   BlkLen = txfp->BlkLen;
   Buflen = txfp->Buflen;
   Dbflen = txfp->Dbflen;
@@ -128,6 +147,9 @@ TXTFAM::TXTFAM(PTXF txfp)
   Padded = txfp->Padded;
   Eof = txfp->Eof;
   Ending = txfp->Ending;
+  Indxd = txfp->Indxd;
+  Abort = txfp->Abort;
+  CrLf = txfp->CrLf;
   } // end of TXTFAM copy constructor
 
 /***********************************************************************/
@@ -151,9 +173,9 @@ void TXTFAM::Reset(void)
 /***********************************************************************/
 int TXTFAM::GetFileLength(PGLOBAL g)
   {
-  char    filename[_MAX_PATH];
-  int     h;
-  int    len;
+  char filename[_MAX_PATH];
+  int  h;
+  int  len;
 
   PlugSetPath(filename, To_File, Tdbp->GetPath());
   h= global_open(g, MSGID_OPEN_MODE_STRERROR, filename, _O_RDONLY);
@@ -165,13 +187,13 @@ int TXTFAM::GetFileLength(PGLOBAL g)
     if (errno != ENOENT) {
       if (trace)
         htrc("%s\n", g->Message);
+
       len = -1;
-    }
-    else
-    {
+    } else {
       len = 0;          // File does not exist yet
       g->Message[0]= '\0';
-    }
+    } // endif errno
+
   } else {
     if ((len = _filelength(h)) < 0)
       sprintf(g->Message, MSG(FILELEN_ERROR), "_filelength", filename);
@@ -250,6 +272,36 @@ int TXTFAM::MaxBlkSize(PGLOBAL g, int s)
   return size;
   } // end of MaxBlkSize
 
+/***********************************************************************/
+/*  AddListValue: Used when doing indexed update or delete.            */
+/***********************************************************************/
+bool TXTFAM::AddListValue(PGLOBAL g, int type, void *val, PPARM *top)
+  {
+  PPARM pp = (PPARM)PlugSubAlloc(g, NULL, sizeof(PARM));
+
+  switch (type) {
+    case TYPE_INT:
+      pp->Value = PlugSubAlloc(g, NULL, sizeof(int));
+      *((int*)pp->Value) = *((int*)val);
+      break;
+    case TYPE_STRING:
+      pp->Value = PlugSubAlloc(g, NULL, strlen((char*)val) + 1);
+      strcpy((char*)pp->Value, (char*)val);
+      break;
+    case TYPE_PCHAR:
+      pp->Value = val;
+      break;
+    default:
+      return true;
+  } // endswitch type
+
+  pp->Type = type;
+  pp->Domain = 0;
+  pp->Next = *top;
+  *top = pp;
+  return false;
+  } // end of AddListValue
+
 /* --------------------------- Class DOSFAM -------------------------- */
 
 /***********************************************************************/
@@ -276,6 +328,17 @@ DOSFAM::DOSFAM(PDOSFAM tdfp) : TXTFAM(tdfp)
   UseTemp = tdfp->UseTemp;
   Bin = tdfp->Bin;
   } // end of DOSFAM copy constructor
+
+DOSFAM::DOSFAM(PBLKFAM tdfp, PDOSDEF tdp) : TXTFAM(tdp)
+  {
+  Tdbp = tdfp->Tdbp;
+  To_Fb = tdfp->To_Fb;
+  To_Fbt = tdfp->To_Fbt;
+  Stream = tdfp->Stream;
+  T_Stream = tdfp->T_Stream;
+  UseTemp = tdfp->UseTemp;
+  Bin = tdfp->Bin;
+  } // end of DOSFAM constructor from BLKFAM
 
 /***********************************************************************/
 /*  Reset: reset position values at the beginning of file.             */
@@ -335,8 +398,8 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
   MODE    mode = Tdbp->Mode;
   PDBUSER dbuserp = PlgGetUser(g);
 
-  // This is required when using Unix files under Windows
-  Bin = (Ending == 1);
+  // This is required when using Unix files under Windows and vice versa
+  Bin = (Ending != CRLF);
 
   switch (mode) {
     case MODE_READ:
@@ -641,18 +704,20 @@ int DOSFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 int DOSFAM::WriteBuffer(PGLOBAL g)
   {
-  char *crlf = "\n";
-  int  curpos = 0;
+  int   curpos = 0;
   bool  moved = true;
 
   // T_Stream is the temporary stream or the table file stream itself
-  if (!T_Stream)
+  if (!T_Stream) {
     if (UseTemp && Tdbp->Mode == MODE_UPDATE) {
       if (OpenTempFile(g))
         return RC_FX;
 
+      Indxd = Tdbp->To_Kindex != NULL;
     } else
       T_Stream = Stream;
+
+    } // endif T_Stream
 
   if (Tdbp->Mode == MODE_UPDATE) {
     /*******************************************************************/
@@ -669,14 +734,21 @@ int DOSFAM::WriteBuffer(PGLOBAL g)
 
     if (UseTemp) {
       /*****************************************************************/
-      /*  We are using a temporary file. Before writing the updated    */
-      /*  record, we must eventually copy all the intermediate records */
-      /*  that have not been updated.                                  */
+      /*  We are using a temporary file.                               */
       /*****************************************************************/
-      if (MoveIntermediateLines(g, &moved))
-        return RC_FX;
+      if (Indxd) {
+        // Copying will be done later, must be done in sequential order
+        (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
+        (void)AddListValue(g, TYPE_INT, &curpos, &To_Sos);
+      } else {
+        // Before writing the updated record, we must eventually copy
+        // all the intermediate records that have not been updated.
+        if (MoveIntermediateLines(g, &moved))
+          return RC_FX;
 
-      Spos = curpos;                          // New start position
+        Spos = curpos;                          // New start position
+      } // endif Indxd
+
     } else
       // Update is directly written back into the file,
       //   with this (fast) method, record size cannot change.
@@ -688,30 +760,30 @@ int DOSFAM::WriteBuffer(PGLOBAL g)
     } // endif mode
 
   /*********************************************************************/
-  /*  Prepare the write buffer.                                        */
+  /*  Prepare the write the updated line.                              */
   /*********************************************************************/
-#if defined(WIN32)
-  if (Bin)
-    crlf = "\r\n";
-#endif   // WIN32
-  strcat(strcpy(To_Buf, Tdbp->To_Line), crlf);
+  if (!Indxd) {
+    strcat(strcpy(To_Buf, Tdbp->To_Line), (Bin) ? CrLf : "\n");
 
-  /*********************************************************************/
-  /*  Now start the writing process.                                   */
-  /*********************************************************************/
-  if ((fputs(To_Buf, T_Stream)) == EOF) {
-    sprintf(g->Message, MSG(FPUTS_ERROR), strerror(errno));
-    return RC_FX;
-    } // endif EOF
-
-  if (Tdbp->Mode == MODE_UPDATE && moved)
-    if (fseek(Stream, curpos, SEEK_SET)) {
-      sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+    /*******************************************************************/
+    /*  Now start the writing process.                                 */
+    /*******************************************************************/
+    if ((fputs(To_Buf, T_Stream)) == EOF) {
+      sprintf(g->Message, MSG(FPUTS_ERROR), strerror(errno));
       return RC_FX;
-      } // endif
+      } // endif EOF
 
-  if (trace)
-    htrc("write done\n");
+    if (Tdbp->Mode == MODE_UPDATE && moved)
+      if (fseek(Stream, curpos, SEEK_SET)) {
+        sprintf(g->Message, MSG(FSEEK_ERROR), strerror(errno));
+        return RC_FX;
+        } // endif
+
+    if (trace)
+      htrc("write done\n");
+
+  } else      // Add this updated line to the updated line list
+    (void)AddListValue(g, TYPE_STRING, Tdbp->To_Line, &To_Upd);
 
   return RC_OK;
   } // end of WriteBuffer
@@ -722,7 +794,7 @@ int DOSFAM::WriteBuffer(PGLOBAL g)
 int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
   {
   bool moved;
-  int curpos = ftell(Stream);
+  int  curpos = ftell(Stream);
 
   /*********************************************************************/
   /*  There is an alternative here:                                    */
@@ -731,8 +803,7 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
   /*      the temporary file renamed to the original file name.        */
   /*  2 - directly move the not deleted lines inside the original      */
   /*      file, and at the end erase all trailing records.             */
-  /*  This will be experimented, but method 1 must be used for Unix as */
-  /*  the function needed to erase trailing records is not available.  */
+  /*  This will be experimented.                                       */
   /*********************************************************************/
   if (trace)
     htrc(
@@ -769,12 +840,18 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
       Spos = Tpos = Fpos;
     } // endif UseTemp
 
+    Indxd = Tdbp->To_Kindex != NULL;
     } // endif Tpos == Spos
 
   /*********************************************************************/
   /*  Move any intermediate lines.                                     */
   /*********************************************************************/
-  if (MoveIntermediateLines(g, &moved))
+  if (Indxd) {
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
+    (void)AddListValue(g, TYPE_INT, &curpos, &To_Sos);
+    moved = false;
+  } else if (MoveIntermediateLines(g, &moved))
     return RC_FX;
 
   if (irc == RC_OK) {
@@ -797,7 +874,10 @@ int DOSFAM::DeleteRecords(PGLOBAL g, int irc)
     /*  Last call after EOF has been reached.                          */
     /*  The UseTemp case is treated in CloseTableFile.                 */
     /*******************************************************************/
-    if (!UseTemp) {
+    if (Indxd)
+      Abort = MakeDeletedFile(g);
+
+    if (!UseTemp & !Abort) {
       /*****************************************************************/
       /*  Because the chsize functionality is only accessible with a   */
       /*  system call we must close the file and reopen it with the    */
@@ -921,10 +1001,141 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
   } // end of MoveIntermediate Lines
 
 /***********************************************************************/
+/*  MakeUpdatedFile. When updating using indexing, the issue is that   */
+/*  record are not necessarily updated in sequential order.            */
+/*  Moving intermediate lines cannot be done while making them because */
+/*  this can cause extra wrong records to be included in the new file. */
+/*  What we do here is to reorder the updated record and make the new  */
+/*  updated file from the ordered updated records.                     */
+/***********************************************************************/
+bool DOSFAM::MakeUpdatedFile(PGLOBAL g)
+  {
+  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  int  *ix, i;
+  bool  moved, b = false;
+
+  /*********************************************************************/
+  /*  Open the temporary file, Spos is at the beginning of file.       */
+  /*********************************************************************/
+  if (!(Stream = PlugReopenFile(g, To_Fb, mode))) {
+    goto err;
+  } else if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
+    strcpy(g->Message, "Start position array is null");
+    goto err;
+  } else if (!(Updar = MakeValueArray(g, To_Upd))) {
+    strcpy(g->Message, "Updated line array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  Spos = 0;
+
+  for (i = 0; i < Posar->GetNval(); i++) {
+    Fpos = Posar->GetIntValue(ix[i]);
+
+    if (i || UseTemp) {
+      // Copy all not updated lines preceding this one
+      if (MoveIntermediateLines(g, &moved))
+        goto err;
+
+    } else
+      Tpos = Fpos;
+
+    // Now write the updated line.
+    strcat(strcpy(To_Buf, Updar->GetStringValue(ix[i])), CrLf);
+  
+    if ((fputs(To_Buf, T_Stream)) == EOF) {
+      sprintf(g->Message, MSG(FPUTS_ERROR), strerror(errno));
+      goto err;
+      } // endif EOF
+
+    // New start position
+    Spos = Sosar->GetIntValue(ix[i]); 
+    } // endfor i
+
+  // Copy eventually remaining lines
+  fseek(Stream, 0, SEEK_END);
+  Fpos = ftell(Stream);
+  b = MoveIntermediateLines(g, &moved) != RC_OK;
+
+  if (!PlugCloseFile(g, To_Fbt) && !PlugCloseFile(g, To_Fb) && !b)
+    return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  PlugCloseFile(g, To_Fbt);
+  return true;
+  } // end of MakeUpdatedFile
+
+/***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleing them because       */
+/*  this can cause extra wrong records to be included in the new file. */
+/*  What we do here is to reorder the deleted record and make the new  */
+/*  deleted file from the ordered deleted records.                     */
+/***********************************************************************/
+bool DOSFAM::MakeDeletedFile(PGLOBAL g)
+  {
+  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  int  *ix, i;
+  bool  moved;
+
+  /*********************************************************************/
+  /*  Open the temporary file, Spos is at the beginning of file.       */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
+    strcpy(g->Message, "Start position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  Spos = 0;
+
+  for (i = 0; i < Posar->GetNval(); i++) {
+    Fpos = Posar->GetIntValue(ix[i]);
+
+    if (i || UseTemp) {
+      // Copy all not updated lines preceding this one
+      if (MoveIntermediateLines(g, &moved))
+        goto err;
+
+    } else
+      Tpos = Fpos;
+
+    // New start position
+    Spos = Sosar->GetIntValue(ix[i]); 
+    } // endfor i
+
+  if (!PlugCloseFile(g, To_Fbt) && !PlugCloseFile(g, To_Fb))
+    return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  PlugCloseFile(g, To_Fbt);
+  return true;
+  } // end of MakeDeletedFile
+
+/***********************************************************************/
 /*  Delete the old file and rename the new temp file.                  */
 /*  If aborting just delete the new temp file.                         */
+/*  If indexed, make the temp file from the arrays.                    */
 /***********************************************************************/
-int DOSFAM::RenameTempFile(PGLOBAL g, bool abort)
+int DOSFAM::RenameTempFile(PGLOBAL g)
   {
   char *tempname, filetemp[_MAX_PATH], filename[_MAX_PATH];
   int   rc = RC_OK;
@@ -937,10 +1148,22 @@ int DOSFAM::RenameTempFile(PGLOBAL g, bool abort)
   // This loop is necessary because, in case of join,
   // To_File can have been open several times.
   for (PFBLOCK fb = PlgGetUser(g)->Openlist; fb; fb = fb->Next)
-    if (fb == To_Fb || fb == To_Fbt)
+    if (fb == To_Fb || (fb == To_Fbt && !Indxd))
       rc = PlugCloseFile(g, fb);
+  
+  if (!Abort) {
+    // If indexed the temp file must be made
+    if (Indxd) {
+      Abort = (Tdbp->Mode == MODE_UPDATE) ? MakeUpdatedFile(g)
+                                          : MakeDeletedFile(g);
 
-  if (!abort) {
+      if (Abort) {
+        remove(tempname);
+        return RC_FX;
+        } // endif Abort
+
+      } // endif Indxd
+
     PlugSetPath(filename, To_File, Tdbp->GetPath());
     strcat(PlugRemoveType(filetemp, filename), ".ttt");
     remove(filetemp);   // May still be there from previous error
@@ -948,12 +1171,12 @@ int DOSFAM::RenameTempFile(PGLOBAL g, bool abort)
     if (rename(filename, filetemp)) {    // Save file for security
       sprintf(g->Message, MSG(RENAME_ERROR),
               filename, filetemp, strerror(errno));
-      rc = RC_FX;
+      longjmp(g->jumper[g->jump_level], 51);
     } else if (rename(tempname, filename)) {
       sprintf(g->Message, MSG(RENAME_ERROR),
               tempname, filename, strerror(errno));
       rc = rename(filetemp, filename);   // Restore saved file
-      rc = RC_FX;
+      longjmp(g->jumper[g->jump_level], 52);
     } else if (remove(filetemp)) {
       sprintf(g->Message, MSG(REMOVE_ERROR),
               filetemp, strerror(errno));
@@ -973,18 +1196,20 @@ void DOSFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc;
 
+  Abort = abort;
+
   if (UseTemp && T_Stream) {
-    if (Tdbp->Mode == MODE_UPDATE && !abort) {
+    if (Tdbp->Mode == MODE_UPDATE && !Indxd && !Abort) {
       // Copy eventually remaining lines
       bool b;
 
       fseek(Stream, 0, SEEK_END);
       Fpos = ftell(Stream);
-      abort = MoveIntermediateLines(g, &b) != RC_OK;
-      } // endif abort
+      Abort = MoveIntermediateLines(g, &b) != RC_OK;
+      } // endif Abort
 
     // Delete the old file and rename the new temp file.
-    RenameTempFile(g, abort);     // Also close all files
+    rc = RenameTempFile(g);     // Also close all files
   } else {
     rc = PlugCloseFile(g, To_Fb);
 
@@ -994,6 +1219,7 @@ void DOSFAM::CloseTableFile(PGLOBAL g, bool abort)
   } // endif UseTemp
 
   Stream = NULL;           // So we can know whether table is open
+  T_Stream = NULL;
   } // end of CloseTableFile
 
 /***********************************************************************/
@@ -1050,7 +1276,7 @@ void BLKFAM::Reset(void)
 /***********************************************************************/
 int BLKFAM::Cardinality(PGLOBAL g)
   {
-  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? ((Block > 0) ? (int)((Block - 1) * Nrec + Last) : 0) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -1129,20 +1355,8 @@ int BLKFAM::GetNextPos(void)
 /***********************************************************************/
 bool BLKFAM::SetPos(PGLOBAL g, int pos)
   {
-  if (pos < 0) {
-    strcpy(g->Message, MSG(INV_REC_POS));
-    return true;
-    } // endif recpos
-
-  CurBlk = pos / Nrec;
-  CurNum = pos % Nrec;
-#if defined(_DEBUG)
-  num_eq[(CurBlk == OldBlk) ? 1 : 0]++;
-#endif
-
-  // Indicate the table position was externally set
-  Placed = true;
-  return false;
+  strcpy(g->Message, "Blocked variable tables cannot be used indexed");
+  return true;
   } // end of SetPos
 
 /***********************************************************************/
@@ -1389,18 +1603,20 @@ void BLKFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc, wrc = RC_OK;
 
+  Abort = abort;
+
   if (UseTemp && T_Stream) {
-    if (Tdbp->GetMode() == MODE_UPDATE && !abort) {
+    if (Tdbp->GetMode() == MODE_UPDATE && !Abort) {
       // Copy eventually remaining lines
       bool b;
 
       fseek(Stream, 0, SEEK_END);
       Fpos = ftell(Stream);
-      abort = MoveIntermediateLines(g, &b) != RC_OK;
-      } // endif abort
+      Abort = MoveIntermediateLines(g, &b) != RC_OK;
+      } // endif Abort
 
     // Delete the old file and rename the new temp file.
-    rc = RenameTempFile(g, abort);    // Also close all files
+    rc = RenameTempFile(g);    // Also close all files
   } else {
     // Closing is True if last Write was in error
     if (Tdbp->GetMode() == MODE_INSERT && CurNum && !Closing) {

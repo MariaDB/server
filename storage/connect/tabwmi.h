@@ -75,6 +75,7 @@ class TDBWMI : public TDBASE {
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  Cardinality(PGLOBAL g) {return GetMaxSize(g);}
   virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);

@@ -836,6 +836,23 @@ FILE *PlugOpenFile(PGLOBAL g, LPCSTR fname, LPCSTR ftype)
 /*  Close file routine: the purpose of this routine is to avoid        */
 /*  double closing that freeze the system on some Unix platforms.      */
 /***********************************************************************/
+FILE *PlugReopenFile(PGLOBAL g, PFBLOCK fp, LPCSTR md)
+  {
+  FILE *fop;
+
+  if ((fop = global_fopen(g, MSGID_OPEN_MODE_STRERROR, fp->Fname, md))) {
+    fp->Count = 1;
+    fp->Type = TYPE_FB_FILE;
+    fp->File = fop;
+    } /* endif fop */
+
+  return (fop);
+  } // end of PlugOpenFile
+
+/***********************************************************************/
+/*  Close file routine: the purpose of this routine is to avoid        */
+/*  double closing that freeze the system on some Unix platforms.      */
+/***********************************************************************/
 int PlugCloseFile(PGLOBAL g, PFBLOCK fp, bool all)
   {
   int rc = 0;

@@ -95,7 +95,10 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   DOSDEF::DefineAM(g, "BIN", poff);
 
-  Estimate = GetIntCatInfo("Estimate", 0);
+  if ((Estimate = GetIntCatInfo("Estimate", 0)))
+    Elemt = MY_MIN(Elemt, Estimate);
+
+  // Split treated as INT to get default value
   Split = GetIntCatInfo("Split", (Estimate) ? 0 : 1);
   Header = GetIntCatInfo("Header", 0);
 
@@ -103,7 +106,7 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (Estimate && !Split && !Header) {
     char *fn = GetStringCatInfo(g, "Filename", "?");
 
-    // No separate header file fo urbi tables
+    // No separate header file for urbi tables
     Header = (*fn == '?') ? 3 : 2;
     } // endif Estimate
 
@@ -309,8 +312,12 @@ bool TDBVCT::OpenDB(PGLOBAL g)
   /*********************************************************************/
   /*  Delete all is not handled using file mapping.                    */
   /*********************************************************************/
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_MAP) {
-    Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_VMP) {
+    if (IsSplit())
+      Txfp = new(g) VECFAM((PVCTDEF)To_Def);
+    else
+      Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
+
     Txfp->SetTdbp(this);
     } // endif Mode
 

@@ -184,6 +184,7 @@ PSZ GetTypeName(int type)
     case TYPE_TINY:   name = "TINY";     break;
     case TYPE_DECIM:  name = "DECIMAL";  break;
     case TYPE_BIN:    name = "BINARY";   break;
+    case TYPE_PCHAR:  name = "PCHAR";    break;
     default:          name = "UNKNOWN";  break;
     } // endswitch type
 
@@ -205,6 +206,7 @@ int GetTypeSize(int type, int len)
     case TYPE_DATE:   len = sizeof(int);        break;
     case TYPE_DOUBLE: len = sizeof(double);     break;
     case TYPE_TINY:   len = sizeof(char);       break;
+    case TYPE_PCHAR:  len = sizeof(char*);      break;
     default:          len = 0;
     } // endswitch type
 
@@ -228,6 +230,7 @@ char *GetFormatType(int type)
     case TYPE_TINY:   c = "T"; break;
     case TYPE_DECIM:  c = "M"; break;
     case TYPE_BIN:    c = "B"; break;
+    case TYPE_PCHAR:  c = "P"; break;
     } // endswitch type
 
   return c;
@@ -250,6 +253,7 @@ int GetFormatType(char c)
     case 'T': type = TYPE_TINY;   break;
     case 'M': type = TYPE_DECIM;  break;
     case 'B': type = TYPE_BIN;    break;
+    case 'P': type = TYPE_PCHAR;  break;
     } // endswitch type
 
   return type;

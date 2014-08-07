@@ -84,7 +84,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   // Methods
   virtual bool   IsSame(PTDB tp) {return tp == this;}
   virtual bool   GetBlockValues(PGLOBAL g) {return false;}
-  virtual int    Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
+  virtual int    Cardinality(PGLOBAL g) {return 0;}
   virtual int    GetMaxSize(PGLOBAL) = 0;
   virtual int    GetProgMax(PGLOBAL) = 0;
   virtual int    GetProgCur(void) = 0;
@@ -160,7 +160,7 @@ class DllExport TDBASE : public TDB {
   virtual PSZ    GetPath(void);
   virtual void   PrintAM(FILE *f, char *m);
   virtual RECFM  GetFtype(void) {return RECFM_NAF;}
-  virtual int    GetAffectedRows(void) {return -1;}
+//virtual int    GetAffectedRows(void) {return -1;}
   virtual int    GetRecpos(void) = 0;
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
@@ -197,6 +197,7 @@ class DllExport TDBASE : public TDB {
   PKXBASE  To_Kindex;         // Points to table key index
   PIXDEF   To_Xdp;            // To the index definition block
   PCOL     To_SetCols;        // Points to updated columns
+  RECFM    Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
   int      MaxSize;           // Max size in number of lines
   int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables

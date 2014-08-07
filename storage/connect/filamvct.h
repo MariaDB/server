@@ -66,6 +66,7 @@ class DllExport VCTFAM : public FIXFAM {
   virtual bool MoveLines(PGLOBAL g) {return false;}
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
   virtual bool CleanUnusedSpace(PGLOBAL g);
+  virtual bool MakeDeletedFile(PGLOBAL g);
   virtual int  GetBlockInfo(PGLOBAL g);
   virtual bool SetBlockInfo(PGLOBAL g);
           bool ResetTableSize(PGLOBAL g, int block, int last);
@@ -112,7 +113,10 @@ class DllExport VCMFAM : public VCTFAM {
   virtual int  DeleteRecords(PGLOBAL g, int irc);
   virtual void CloseTableFile(PGLOBAL g, bool abort);
 
+ protected:
   // Specific functions
+  virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
+  virtual bool MakeDeletedFile(PGLOBAL g);
   virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
   virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
 
@@ -157,7 +161,8 @@ class DllExport VECFAM : public VCTFAM {
   virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveLines(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
-  virtual int  RenameTempFile(PGLOBAL g, bool abort);
+  virtual int  RenameTempFile(PGLOBAL g);
+  virtual bool MakeDeletedFile(PGLOBAL g);
           bool OpenColumnFile(PGLOBAL g, char *opmode, int i);
 
   // Members
@@ -194,6 +199,7 @@ class DllExport VMPFAM : public VCMFAM {
   virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
+  virtual bool MakeDeletedFile(PGLOBAL g);
           bool MapColumnFile(PGLOBAL g, MODE mode, int i);
 
   // Members

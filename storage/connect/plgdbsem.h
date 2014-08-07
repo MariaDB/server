@@ -567,6 +567,7 @@ DllExport PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
 /*  Exported utility routines.                                         */
 /***********************************************************************/
 DllExport FILE   *PlugOpenFile(PGLOBAL, LPCSTR, LPCSTR);
+DllExport FILE   *PlugReopenFile(PGLOBAL, PFBLOCK, LPCSTR);
 DllExport int     PlugCloseFile(PGLOBAL, PFBLOCK, bool all = false);
 DllExport void    PlugCleanup(PGLOBAL, bool);
 DllExport bool    GetPromptAnswer(PGLOBAL, char *);

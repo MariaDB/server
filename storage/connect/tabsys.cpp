@@ -656,7 +656,7 @@ int TDBXIN::GetRecpos(void)
   {
   union {
     short X[2];                              // Section and Key offsets
-    int  Xpos;                              // File position
+    int   Xpos;                              // File position
     }; // end of union
 
   X[0] = (short)(Section - Seclist);
@@ -671,7 +671,7 @@ bool TDBXIN::SetRecpos(PGLOBAL g, int recpos)
   {
   union {
     short X[2];                              // Section and Key offsets
-    int  Xpos;                              // File position
+    int   Xpos;                              // File position
     }; // end of union
 
   Xpos = recpos;

@@ -1059,6 +1059,31 @@ int ZLBFAM::GetNextPos(void)
   } // end of GetNextPos
 
 /***********************************************************************/
+/*  SetPos: Replace the table at the specified position.               */
+/***********************************************************************/
+bool ZLBFAM::SetPos(PGLOBAL g, int pos)
+  {
+  sprintf(g->Message, MSG(NO_SETPOS_YET), "ZIP");
+  return true;
+#if 0 // All this must be checked
+  if (pos < 0) {
+    strcpy(g->Message, MSG(INV_REC_POS));
+    return true;
+    } // endif recpos
+
+  CurBlk = pos / Nrec;
+  CurNum = pos % Nrec;
+#if defined(_DEBUG)
+  num_eq[(CurBlk == OldBlk) ? 1 : 0]++;
+#endif
+
+  // Indicate the table position was externally set
+  Placed = true;
+  return false;
+#endif // 0
+  } // end of SetPos
+
+/***********************************************************************/
 /*  ReadBuffer: Read one line for a text file.                         */
 /***********************************************************************/
 int ZLBFAM::ReadBuffer(PGLOBAL g)

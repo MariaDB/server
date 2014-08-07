@@ -143,6 +143,7 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   To_Kindex = NULL;
   To_Xdp = NULL;
   To_SetCols = NULL;
+  Ftype = RECFM_NAF;
   MaxSize = -1;
   Knum = 0;
   Read_Only = (tdp) ? tdp->IsReadOnly() : false;
@@ -157,6 +158,7 @@ TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   To_Kindex = tdbp->To_Kindex;
   To_Xdp = tdbp->To_Xdp;
   To_SetCols = tdbp->To_SetCols;          // ???
+  Ftype = tdbp->Ftype;
   MaxSize = tdbp->MaxSize;
   Knum = tdbp->Knum;
   Read_Only = tdbp->Read_Only;

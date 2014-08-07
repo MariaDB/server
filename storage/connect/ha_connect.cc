@@ -558,7 +558,6 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   nox= false;
   abort= false;
   indexing= -1;
-  only= -1;
   locked= 0;
   part_id= NULL;
   data_file_name= NULL;
@@ -1593,7 +1592,6 @@ int ha_connect::CloseTable(PGLOBAL g)
   indexing= -1;
   nox= false;
   abort= false;
-  only= -1;
   return rc;
 } // end of CloseTable
 
@@ -2513,7 +2511,7 @@ ha_rows ha_connect::records()
   if (!valid_info)
     info(HA_STATUS_VARIABLE);
 
-  if (tdbp && tdbp->Cardinality(NULL))
+  if (tdbp)
     return stats.records;
   else
     return HA_POS_ERROR;
@@ -2877,13 +2875,13 @@ int ha_connect::index_init(uint idx, bool sorted)
       xmod= MODE_READX;
 
     if (!(rc= rnd_init(0))) {
-      if (xmod == MODE_READX) {
+//    if (xmod == MODE_READX) {
         active_index= idx;
         indexing= IsUnique(idx) ? 1 : 2;
-      } else {
-        active_index= MAX_KEY;
-        indexing= 0;
-      } // endif xmod
+//    } else {
+//      active_index= MAX_KEY;
+//      indexing= 0;
+//    } // endif xmod
 
       } //endif rc
 
@@ -2893,17 +2891,11 @@ int ha_connect::index_init(uint idx, bool sorted)
   if ((rc= rnd_init(0)))
     DBUG_RETURN(rc);
 
-  if ((xmod == MODE_UPDATE && ((TDBASE*)tdbp)->IsUsingTemp(g)) ||
-       xmod == MODE_DELETE || locked == 2) {
+  if (locked == 2) {
     // Indexes are not updated in lock write mode
-    // and cannot be used for DELETE or UPDATE using temp file.
-    if (locked  == 2 || xmod == MODE_DELETE || !IsUnique(idx)) {
-      active_index= MAX_KEY;
-      indexing= 0;
-      DBUG_RETURN(0);
-    } else
-      only= 1;   // Indexing acceptable for only one value
-
+    active_index= MAX_KEY;
+    indexing= 0;
+    DBUG_RETURN(0);
     } // endif locked
 
   indexing= CntIndexInit(g, tdbp, (signed)idx);
@@ -2922,6 +2914,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     } else        // Void table
       indexing= 0;
 
+    rc= 0;
   } // endif indexing
 
   if (xtrace)
@@ -3017,16 +3010,16 @@ int ha_connect::index_read(uchar * buf, const uchar * key, uint key_len,
   if (xtrace > 1)
     htrc("%p index_read: op=%d\n", this, op);
 
-  if ((indexing > 0 && (only < 0 || (only == 1 && op == OP_EQ))) 
-      || GetIndexType(GetRealType()) == 2) {
+  if (indexing > 0) {
     rc= ReadIndexed(buf, op, key, key_len);
-    only= (only == 1) ? 0 : -1; 
-  } else {
-    nox= true;                  // To block making indexes
-    abort= true;                // Don't rename temp file
-    strcpy(xp->g->Message, "Cannot use indexing for this command");
+
+    if (rc == HA_ERR_INTERNAL_ERROR) {
+      nox= true;                  // To block making indexes
+      abort= true;                // Don't rename temp file
+      } // endif rc
+
+  } else
     rc= HA_ERR_INTERNAL_ERROR;  // HA_ERR_KEY_NOT_FOUND ?
-  } // endelse
 
   DBUG_RETURN(rc);
 } // end of index_read
@@ -4291,7 +4284,7 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
   if (xtrace)
     htrc("records_in_range: inx=%d indexing=%d\n", inx, indexing);
 
-  if (indexing > 0 && only < 0) {
+  if (indexing > 0) {
     int          nval;
     uint         len[2];
     const uchar *key[2];
@@ -4312,10 +4305,9 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
     else
       rows= (ha_rows)nval;
 
-  } else if (indexing == 0) {
+  } else if (indexing == 0)
     rows= 100000000;        // Don't use missing index
-    only= -1;
-  } else
+  else
     rows= HA_POS_ERROR;
 
   DBUG_RETURN(rows);
