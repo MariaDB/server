@@ -111,9 +111,7 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0,
                 opt_slave_apply= 0, 
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
-#ifdef WITH_WSREP
                 opt_galera_sst_mode= 0,
-#endif
                 opt_alltspcs=0, opt_notspcs= 0;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
@@ -349,14 +347,14 @@ static struct my_option my_long_options[] =
   {"force", 'f', "Continue even if we get an SQL error.",
    &ignore_errors, &ignore_errors, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-#ifdef WITH_WSREP
-  {"galera-sst-mode", OPT_GALERA_SST_MODE, "This mode is normally used "
-   "in mysqldump snapshot-state transfer in a Galera cluster. If enabled, "
-   "mysqldump additionally emits statements to turn off binary logging and "
-   "set global gtid_binlog_state with the current value.",
+  {"galera-sst-mode", OPT_GALERA_SST_MODE,
+   "This mode should normally be used in mysqldump snapshot state transfer "
+   "(SST) in a Galera cluster. If enabled, mysqldump additionally dumps "
+   "commands to turn off binary logging and SET global gtid_binlog_state "
+   "with the current value. Note: RESET MASTER needs to be executed on the "
+   "server receiving the resulting dump.",
    &opt_galera_sst_mode, &opt_galera_sst_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-#endif
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"hex-blob", OPT_HEXBLOB, "Dump binary strings (BINARY, "
@@ -4810,13 +4808,12 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
 } /* dump_selected_tables */
 
 
-#ifdef WITH_WSREP
 /**
-  Additionally emit the following statements :
+  Add the following statements to the generated dump:
   a) SET @@session.sql_log_bin=OFF;
   b) SET @@global.gtid_binlog_state='[N-N-N,...]'
 */
-static int wsrep_add_sst_mode_cmds(MYSQL *mysql) {
+static int wsrep_set_sst_cmds(MYSQL *mysql) {
   MYSQL_RES *res;
   MYSQL_ROW row;
 
@@ -4846,7 +4843,6 @@ static int wsrep_add_sst_mode_cmds(MYSQL *mysql) {
   mysql_free_result(res);
   return 0;
 }
-#endif
 
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
 {
@@ -5793,10 +5789,8 @@ int main(int argc, char **argv)
   if (opt_slave_apply && add_stop_slave())
     goto err;
 
-#ifdef WITH_WSREP
-  if (opt_galera_sst_mode && wsrep_add_sst_mode_cmds(mysql))
+  if (opt_galera_sst_mode && wsrep_set_sst_cmds(mysql))
     goto err;
-#endif
 
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos))
     goto err;

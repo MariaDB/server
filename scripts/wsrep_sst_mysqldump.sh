@@ -75,12 +75,6 @@ if test -n "$WSREP_SST_OPT_PSWD"; then AUTH="$AUTH -p$WSREP_SST_OPT_PSWD"; fi
 
 STOP_WSREP="SET wsrep_on=OFF;"
 
-# NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
---add-drop-database --add-drop-table --skip-add-locks --create-options \
---disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
---skip-comments --flush-privileges --all-databases --galera-sst-mode"
-
 # mysqldump cannot restore CSV tables, fix this issue
 CSV_TABLES_FIX="
 set sql_mode='';
@@ -106,6 +100,39 @@ SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 MYSQL="mysql $AUTH -h$WSREP_SST_OPT_HOST -P$WSREP_SST_OPT_PORT "\
 "--disable-reconnect --connect_timeout=10"
 
+RESET_MASTER=""
+OPT_GALERA_SST_MODE=""
+# Check if binary logging is enabled on the joiner node.
+# Note: SELECT cannot be used at this point.
+LOG_BIN=$(echo "SHOW VARIABLES LIKE 'log_bin'" | $MYSQL)
+LOG_BIN=$(echo $LOG_BIN | awk -F ' ' '{ print $4 }')
+
+# Check the joiner node's server version.
+SERVER_VERSION=$(echo "SHOW VARIABLES LIKE 'version'" | $MYSQL)
+SERVER_VERSION=$(echo $SERVER_VERSION | awk -F ' ' '{ print $4 }')
+
+# Safety check
+if echo $SERVER_VERSION | grep '^10.0' > /dev/null
+then
+  # Check if binary logging is enabled on the Joiner node. If it is enabled,
+  # RESET MASTER needs to be executed on the Joiner node. Also, mysqldump
+  # should be executed with additional 'galera-sst-mode' option so that it
+  # adds a command to set gtid_binlog_state with that of Donor node in the
+  # dump, to be executed on the Joiner.
+  if [[ "$LOG_BIN" == 'ON' ]]; then
+    # Reset master for 10.0 to clear gtid state.
+    RESET_MASTER="RESET MASTER;"
+    # Set the galera-sst-mode option for mysqldump.
+    OPT_GALERA_SST_MODE="--galera-sst-mode"
+  fi
+fi
+
+# NOTE: we don't use --routines here because we're dumping mysql.proc table
+MYSQLDUMP="mysqldump $AUTH -S$WSREP_SST_OPT_SOCKET \
+--add-drop-database --add-drop-table --skip-add-locks --create-options \
+--disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
+--skip-comments --flush-privileges --all-databases $OPT_GALERA_SST_MODE"
+
 # need to disable logging when loading the dump
 # reason is that dump contains ALTER TABLE for log tables, and
 # this causes an error if logging is enabled
@@ -117,9 +144,6 @@ $MYSQL -e"$STOP_WSREP SET GLOBAL SLOW_QUERY_LOG=OFF"
 # commands to restore log settings
 RESTORE_GENERAL_LOG="SET GLOBAL GENERAL_LOG=$GENERAL_LOG_OPT;"
 RESTORE_SLOW_QUERY_LOG="SET GLOBAL SLOW_QUERY_LOG=$SLOW_LOG_OPT;"
-
-# reset master for 10.0 to clear gtid state
-RESET_MASTER="RESET MASTER;"
 
 
 if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
