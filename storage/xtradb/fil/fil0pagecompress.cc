@@ -345,16 +345,19 @@ fil_compress_page(
 			len,
 			reinterpret_cast<uint8_t*>(out_buf + header_len),
 			&out_pos,
-			(size_t)&write_size);
+			(size_t)write_size);
 
-		if (err != LZMA_OK || write_size > UNIV_PAGE_SIZE-header_len) {
+		if (err != LZMA_OK || out_pos > UNIV_PAGE_SIZE-header_len) {
 			fprintf(stderr,
 				"InnoDB: Warning: Compression failed for space %lu name %s len %lu err %d write_size %lu\n",
-				space_id, fil_space_name(space), len, err, write_size);
+				space_id, fil_space_name(space), len, err, out_pos);
 			srv_stats.pages_page_compression_error.inc();
 			*out_len = len;
 			return (buf);
 		}
+
+		write_size = out_pos;
+
 		break;
 	}
 #endif /* HAVE_LZMA */
