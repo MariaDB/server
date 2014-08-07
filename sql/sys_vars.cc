@@ -77,7 +77,7 @@ static Sys_var_mybool Sys_pfs_enabled(
        "performance_schema",
        "Enable the performance schema.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_enabled),
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE));
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 static Sys_var_long Sys_pfs_events_waits_history_long_size(
        "performance_schema_events_waits_history_long_size",
@@ -287,14 +287,15 @@ static Sys_var_long Sys_pfs_events_stages_history_size(
   - 1 for "statement/com/new_packet", for unknown enum_server_command
   - 1 for "statement/com/Error", for invalid enum_server_command
   - SQLCOM_END for all regular "statement/sql/...",
-  - 1 for "statement/sql/error", for invalid enum_sql_command.
+  - 1 for "statement/sql/error", for invalid enum_sql_command
+  - 1 for "statement/rpl/relay_log", for replicated statements.
 */
 static Sys_var_ulong Sys_pfs_max_statement_classes(
        "performance_schema_max_statement_classes",
        "Maximum number of statement instruments.",
        PARSED_EARLY READ_ONLY GLOBAL_VAR(pfs_param.m_statement_class_sizing),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 256),
-       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 3),
+       DEFAULT((ulong) SQLCOM_END + (ulong) COM_END + 4),
        BLOCK_SIZE(1));
 
 static Sys_var_long Sys_pfs_events_statements_history_long_size(
@@ -1058,6 +1059,17 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
        VALID_RANGE(100, UINT_MAX), DEFAULT(300),
        BLOCK_SIZE(100), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(change_keycache_param));
+
+static Sys_var_keycache Sys_key_cache_file_hash_size(
+       "key_cache_file_hash_size",
+       "Number of hash buckets for open and changed files.  If you have a lot of MyISAM "
+       "files open you should increase this for faster flush of changes. A good "
+       "value is probably 1/10 of number of possible open MyISAM files.",
+       KEYCACHE_VAR(changed_blocks_hash_size),
+       CMD_LINE(REQUIRED_ARG, OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE),
+       VALID_RANGE(128, 16384), DEFAULT(512),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(resize_keycache));
 
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
@@ -4235,11 +4247,11 @@ static Sys_var_uint Sys_slave_net_timeout(
   Return 0 + warning if it doesn't exist
 */
 
-uint Sys_var_multi_source_ulong::
-get_master_info_uint_value(THD *thd, ptrdiff_t offset)
+ulong Sys_var_multi_source_ulong::
+get_master_info_ulong_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
-  uint res= 0;                                  // Default value
+  ulong res= 0;                                  // Default value
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
@@ -4248,7 +4260,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
-    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    res= *((ulong*) (((uchar*) mi) + master_info_offset));
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
@@ -4286,11 +4298,6 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
 
 static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
-  {
-    my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
-    return true;
-  }
   if (mi->rli.slave_running)
   {
     my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
@@ -4568,6 +4575,46 @@ static Sys_var_set Sys_log_slow_filter(
        log_slow_filter_names,
        DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
 
+static const char *default_regex_flags_names[]= 
+{
+  "DOTALL",    // (?s)  . matches anything including NL
+  "DUPNAMES",  // (?J)  Allow duplicate names for subpatterns
+  "EXTENDED",  // (?x)  Ignore white space and # comments
+  "EXTRA",     // (?X)  extra features (e.g. error on unknown escape character)
+  "MULTILINE", // (?m)  ^ and $ match newlines within data
+  "UNGREEDY",  // (?U)  Invert greediness of quantifiers
+  0
+};
+static const int default_regex_flags_to_pcre[]=
+{
+  PCRE_DOTALL,
+  PCRE_DUPNAMES,
+  PCRE_EXTENDED,
+  PCRE_EXTRA,
+  PCRE_MULTILINE,
+  PCRE_UNGREEDY,
+  0
+};
+int default_regex_flags_pcre(const THD *thd)
+{
+  ulonglong src= thd->variables.default_regex_flags;
+  int i, res;
+  for (i= res= 0; default_regex_flags_to_pcre[i]; i++)
+  {
+    if (src & (1 << i))
+      res|= default_regex_flags_to_pcre[i];
+  }
+  return res;
+}
+static Sys_var_set Sys_default_regex_flags(
+       "default_regex_flags",
+       "Default flags for the regex library. "
+       "Syntax: default-regex-flags='[flag[,flag[,flag...]]]'. "
+       "See the manual for the complete list of valid flags",
+       SESSION_VAR(default_regex_flags), CMD_LINE(REQUIRED_ARG),
+       default_regex_flags_names,
+       DEFAULT(0));
+
 static Sys_var_ulong Sys_log_slow_rate_limit(
        "log_slow_rate_limit",
        "Write to slow log every #th slow query. Set to 1 to log everything. "
@@ -4623,7 +4670,7 @@ static Sys_var_mybool Sys_binlog_annotate_row_events(
 #ifdef HAVE_REPLICATION
 static Sys_var_mybool Sys_replicate_annotate_row_events(
        "replicate_annotate_row_events",
-       "Tells the slave to write annotate rows events recieved from the master "
+       "Tells the slave to write annotate rows events received from the master "
        "to its own binary log. Ignored if log_slave_updates is not set",
        READ_ONLY GLOBAL_VAR(opt_replicate_annotate_row_events),
        CMD_LINE(OPT_ARG), DEFAULT(0));

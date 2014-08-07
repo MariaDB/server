@@ -136,6 +136,10 @@ The following options may be given as the first argument:
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-regex-flags=name 
+ Default flags for the regex library. Syntax:
+ default-regex-flags='[flag[,flag[,flag...]]]'. See the
+ manual for the complete list of valid flags
  --default-storage-engine=name 
  The default storage engine for new tables
  --default-time-zone=name 
@@ -277,6 +281,11 @@ The following options may be given as the first argument:
  The default size of key cache blocks
  --key-cache-division-limit=# 
  The minimum percentage of warm blocks in key cache
+ --key-cache-file-hash-size=# 
+ Number of hash buckets for open and changed files.  If
+ you have a lot of MyISAM files open you should increase
+ this for faster flush of changes. A good value is
+ probably 1/10 of number of possible open MyISAM files.
  --key-cache-segments=# 
  The number of segments in a key cache
  -L, --language=name Client error messages in given language. May be given as
@@ -549,7 +558,6 @@ The following options may be given as the first argument:
  record samples
  --performance-schema 
  Enable the performance schema.
- (Defaults to on; use --skip-performance-schema to disable.)
  --performance-schema-accounts-size=# 
  Maximum number of instrumented user@host accounts. Use 0
  to disable, -1 for automated sizing.
@@ -679,7 +687,7 @@ The following options may be given as the first argument:
  plugins from a given library_file will be loaded.
  --plugin-load-add=name 
  Optional semicolon-separated list of plugins to load.
- This option adds to the list speficied by --plugin-load
+ This option adds to the list specified by --plugin-load
  in an incremental way. It can be specified many times,
  adding more plugins every time.
  --plugin-maturity=name 
@@ -752,7 +760,7 @@ The following options may be given as the first argument:
  --relay-log-space-limit=# 
  Maximum space to use for all relay logs
  --replicate-annotate-row-events 
- Tells the slave to write annotate rows events recieved
+ Tells the slave to write annotate rows events received
  from the master to its own binary log. Ignored if
  log_slave_updates is not set
  --replicate-do-db=name 
@@ -1079,6 +1087,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-regex-flags 
 default-storage-engine myisam
 default-time-zone (No default value)
 default-week-format 0
@@ -1125,6 +1134,7 @@ key-buffer-size 134217728
 key-cache-age-threshold 300
 key-cache-block-size 1024
 key-cache-division-limit 100
+key-cache-file-hash-size 512
 key-cache-segments 0
 large-pages FALSE
 lc-messages en_US
@@ -1202,10 +1212,10 @@ old-style-user-limits FALSE
 optimizer-prune-level 1
 optimizer-search-depth 62
 optimizer-selectivity-sampling-limit 100
-optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on
+optimizer-switch index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=on,exists_to_in=on
 optimizer-use-condition-selectivity 1
-performance-schema TRUE
-performance-schema-accounts-size 10
+performance-schema FALSE
+performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE
 performance-schema-consumer-events-stages-history FALSE
 performance-schema-consumer-events-stages-history-long FALSE
@@ -1218,36 +1228,36 @@ performance-schema-consumer-events-waits-history-long FALSE
 performance-schema-consumer-global-instrumentation TRUE
 performance-schema-consumer-statements-digest TRUE
 performance-schema-consumer-thread-instrumentation TRUE
-performance-schema-digests-size 1000
-performance-schema-events-stages-history-long-size 100
-performance-schema-events-stages-history-size 5
-performance-schema-events-statements-history-long-size 100
-performance-schema-events-statements-history-size 5
-performance-schema-events-waits-history-long-size 100
-performance-schema-events-waits-history-size 5
-performance-schema-hosts-size 20
+performance-schema-digests-size -1
+performance-schema-events-stages-history-long-size -1
+performance-schema-events-stages-history-size -1
+performance-schema-events-statements-history-long-size -1
+performance-schema-events-statements-history-size -1
+performance-schema-events-waits-history-long-size -1
+performance-schema-events-waits-history-size -1
+performance-schema-hosts-size -1
 performance-schema-instrument 
 performance-schema-max-cond-classes 80
-performance-schema-max-cond-instances 836
+performance-schema-max-cond-instances -1
 performance-schema-max-file-classes 50
 performance-schema-max-file-handles 32768
-performance-schema-max-file-instances 1556
+performance-schema-max-file-instances -1
 performance-schema-max-mutex-classes 200
-performance-schema-max-mutex-instances 3282
+performance-schema-max-mutex-instances -1
 performance-schema-max-rwlock-classes 40
-performance-schema-max-rwlock-instances 1724
+performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
-performance-schema-max-socket-instances 179
+performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 179
-performance-schema-max-table-handles 445
-performance-schema-max-table-instances 445
+performance-schema-max-statement-classes 180
+performance-schema-max-table-handles -1
+performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
-performance-schema-max-thread-instances 224
-performance-schema-session-connect-attrs-size 512
+performance-schema-max-thread-instances -1
+performance-schema-session-connect-attrs-size -1
 performance-schema-setup-actors-size 100
 performance-schema-setup-objects-size 100
-performance-schema-users-size 5
+performance-schema-users-size -1
 plugin-maturity unknown
 port 3306
 port-open-timeout 0

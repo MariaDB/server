@@ -1066,6 +1066,13 @@ bool mysql_prepare_update(THD *thd, TABLE_LIST *table_list,
 
   thd->lex->allow_sum_func= 0;
 
+  /*
+    We do not call DT_MERGE_FOR_INSERT because it has no sense for simple
+    (not multi-) update
+  */
+  if (mysql_handle_derived(thd->lex, DT_PREPARE))
+    DBUG_RETURN(TRUE);
+
   if (setup_tables_and_check_access(thd, &select_lex->context, 
                                     &select_lex->top_join_list,
                                     table_list,
@@ -1424,12 +1431,16 @@ int mysql_multi_update_prepare(THD *thd)
         another table instance used by this statement which is going to
         be write-locked (for example, trigger to be invoked might try
         to update this table).
+        Last argument routine_modifies_data for read_lock_type_for_table()
+        is ignored, as prelocking placeholder will never be set here.
       */
-      tl->lock_type= read_lock_type_for_table(thd, lex, tl);
+      DBUG_ASSERT(tl->prelocking_placeholder == false);
+      thr_lock_type lock_type= read_lock_type_for_table(thd, lex, tl, true);
+      if (using_lock_tables)
+        tl->lock_type= lock_type;
+      else
+        tl->set_lock_type(thd, lock_type);
       tl->updating= 0;
-      /* Update TABLE::lock_type accordingly. */
-      if (!tl->placeholder() && !using_lock_tables)
-        tl->table->reginfo.lock_type= tl->lock_type;
     }
   }
 

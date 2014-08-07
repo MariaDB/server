@@ -1,8 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2012, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -452,8 +453,8 @@ expected. */
 extern ulint	srv_read_views_memory;
 extern ulint	srv_descriptors_memory;
 
-extern ibool	srv_print_innodb_monitor;
-extern ibool	srv_print_innodb_lock_monitor;
+extern my_bool	srv_print_innodb_monitor;
+extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_innodb_tablespace_monitor;
 extern ibool	srv_print_verbose_log;
 #define DEPRECATED_MSG_INNODB_TABLE_MONITOR \
@@ -527,6 +528,9 @@ extern const char* srv_io_thread_function[];
 /* The tid of the cleaner thread */
 extern os_tid_t	srv_cleaner_tid;
 
+/* The tid of the LRU manager thread */
+extern os_tid_t srv_lru_manager_tid;
+
 /* The tids of the purge threads */
 extern os_tid_t srv_purge_tids[];
 
@@ -536,7 +540,7 @@ extern os_tid_t	srv_io_tids[];
 /* The tid of the master thread */
 extern os_tid_t	srv_master_tid;
 
-/* The relative scheduling priority of the cleaner thread */
+/* The relative scheduling priority of the cleaner and LRU manager threads */
 extern ulint	srv_sched_priority_cleaner;
 
 /* The relative scheduling priority of the purge threads */
@@ -584,10 +588,13 @@ extern srv_stats_t	srv_stats;
 When FALSE, row locks are not taken at all. */
 extern my_bool srv_fake_changes_locks;
 
+/** Simulate compression failures. */
+extern uint srv_simulate_comp_failures;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 extern mysql_pfs_key_t	buf_page_cleaner_thread_key;
+extern mysql_pfs_key_t	buf_lru_manager_thread_key;
 extern mysql_pfs_key_t	trx_rollback_clean_thread_key;
 extern mysql_pfs_key_t	io_handler_thread_key;
 extern mysql_pfs_key_t	srv_lock_timeout_thread_key;

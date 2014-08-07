@@ -57,7 +57,7 @@ int _my_b_net_read(register IO_CACHE *info, uchar *Buffer,
 
   if (!info->end_of_file)
     DBUG_RETURN(1);	/* because my_b_get (no _) takes 1 byte at a time */
-  read_length=my_net_read(net);
+  read_length= my_net_read_packet(net, 0);
   if (read_length == packet_error)
   {
     info->error= -1;

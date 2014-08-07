@@ -1334,7 +1334,7 @@ INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),
    (11),(12),(13),(14),(15),(16),(17),(18),(19),(20);
 
 let $query0=SELECT col1 AS field1, col1 AS field2
-            FROM t1 GROUP BY field1, field2+0;
+            FROM t1 GROUP BY field1, field2;
 
 # Needs to be range to exercise bug
 --eval EXPLAIN $query0;
@@ -1496,8 +1496,7 @@ CREATE TABLE t1 (
   b varchar(1),
   KEY (b,a)
 );
-
-INSERT INTO t1 VALUES (1,NULL),(0,'a');
+INSERT INTO t1 VALUES (1,NULL),(0,'a'),(1,NULL),(0,'a');
 
 let $query=
   SELECT SQL_BUFFER_RESULT MIN(a), b FROM t1 WHERE t1.b = 'a' GROUP BY b;
@@ -1644,6 +1643,18 @@ FROM t1 JOIN t2 ON c = b GROUP BY b WITH ROLLUP;
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-6129: Server crashes during UNION with ORDER BY field IS NULL
+--echo #
+
+SET sql_mode='ONLY_FULL_GROUP_BY';
+SELECT 1 AS test UNION SELECT 2 AS test ORDER BY test IS NULL ASC;
+SET sql_mode='';
+
+#
+# End of MariaDB 5.5 tests
+#
+
+--echo #
 --echo # Bug #58782
 --echo # Missing rows with SELECT .. WHERE .. IN subquery 
 --echo # with full GROUP BY and no aggr
@@ -1691,3 +1702,4 @@ DROP TABLE t1;
 DROP TABLE where_subselect;
 
 --echo # End of Bug #58782
+

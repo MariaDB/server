@@ -3962,7 +3962,7 @@ ER_NEW_ABORTING_CONNECTION 08S01
         spa "Abortada conexión %ld para db: '%-.192s' usuario: '%-.48s' servidor: '%-.64s' (%-.64s)"
         swe "Avbröt länken för tråd %ld till db '%-.192s', användare '%-.48s', host '%-.64s' (%-.64s)"
         ukr "Перервано з'єднання %ld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s' (%-.64s)"
-ER_unused_2
+ER_UNUSED_10
         eng "You should never see it"
 ER_FLUSH_MASTER_BINLOG_CLOSED  
         eng "Binlog closed, cannot RESET MASTER"
@@ -5196,8 +5196,8 @@ ER_FPARSER_EOF_IN_UNKNOWN_PARAMETER
 ER_VIEW_NO_EXPLAIN  
         eng "EXPLAIN/SHOW can not be issued; lacking privileges for underlying table"
         ger "EXPLAIN/SHOW kann nicht verlangt werden. Rechte für zugrunde liegende Tabelle fehlen"
-        rus "EXPLAIN/SHOW не может быть выполненно; недостаточно прав на такблицы запроса"
-        ukr "EXPLAIN/SHOW не може бути віконано; немає прав на тиблиці запиту"
+        rus "EXPLAIN/SHOW не может быть выполнено; недостаточно прав на таблицы запроса"
+        ukr "EXPLAIN/SHOW не може бути виконано; немає прав на таблиці запиту"
 ER_FRM_UNKNOWN_TYPE  
         eng "File '%-.192s' has unknown type '%-.64s' in its header"
         ger "Datei '%-.192s' hat unbekannten Typ '%-.64s' im Header"
@@ -5879,10 +5879,9 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         ger "Kein DATETIME-Ausdruck angegeben"
 
 ER_UNUSED_2
-        eng ""
-
+        eng "You should never see it"
 ER_UNUSED_3
-        eng ""
+        eng "You should never see it"
 ER_EVENT_CANNOT_DELETE
         eng "Failed to delete the event from mysql.event"
         ger "Löschen des Events aus mysql.event fehlgeschlagen"
@@ -5910,7 +5909,7 @@ ER_CANT_LOCK_LOG_TABLE
         eng "You can't use locks with log tables."
         ger "Log-Tabellen können nicht gesperrt werden."
 ER_UNUSED_4
-        eng ""
+        eng "You should never see it"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
         eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error."
         ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
@@ -6090,8 +6089,8 @@ ER_TRG_CANT_OPEN_TABLE
 ER_CANT_CREATE_SROUTINE
   eng "Cannot create stored routine `%-.64s`. Check warnings"
   ger "Kann gespeicherte Routine `%-.64s` nicht erzeugen. Beachten Sie die Warnungen"
-ER_UNUSED
-  eng ""
+ER_UNUSED_11
+        eng "You should never see it"
 ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT
   eng "The BINLOG statement of type `%s` was not preceded by a format description BINLOG statement."
   ger "Der BINLOG-Anweisung vom Typ `%s` ging keine BINLOG-Anweisung zur Formatbeschreibung voran."
@@ -6459,7 +6458,7 @@ ER_BINLOG_UNSAFE_INSERT_TWO_KEYS
 ER_TABLE_IN_FK_CHECK
   eng "Table is being used in foreign key check."
 
-ER_unused_1
+ER_UNUSED_1
   eng "You should never see it"
 
 ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST
@@ -6529,7 +6528,7 @@ ER_ROW_DOES_NOT_MATCH_GIVEN_PARTITION_SET
   swe "Hittade en rad som inte passar i någon given partition"
 
 ER_UNUSED_5
-  eng ""
+  eng "You should never see it"
 
 ER_CHANGE_RPL_INFO_REPOSITORY_FAILURE
   eng "Failure while changing the type of replication repository: %s."
@@ -6911,6 +6910,49 @@ ER_MTS_EVENT_BIGGER_PENDING_JOBS_SIZE_MAX
 
 ER_INNODB_NO_FT_USES_PARSER
   eng "Cannot CREATE FULLTEXT INDEX WITH PARSER on InnoDB table"
+ER_BINLOG_LOGICAL_CORRUPTION
+  eng "The binary log file '%s' is logically corrupted: %s"
+
+ER_WARN_PURGE_LOG_IN_USE
+  eng "file %s was not purged because it was being read by %d thread(s), purged only %d out of %d files."
+
+ER_WARN_PURGE_LOG_IS_ACTIVE
+  eng "file %s was not purged because it is the active log file."
+
+ER_AUTO_INCREMENT_CONFLICT
+  eng "Auto-increment value in UPDATE conflicts with internally generated values"
+
+WARN_ON_BLOCKHOLE_IN_RBR
+  eng "Row events are not logged for %s statements that modify BLACKHOLE tables in row format. Table(s): '%-.192s'"
+
+ER_SLAVE_MI_INIT_REPOSITORY
+  eng "Slave failed to initialize master info structure from the repository"
+
+ER_SLAVE_RLI_INIT_REPOSITORY
+  eng "Slave failed to initialize relay log info structure from the repository"
+
+ER_ACCESS_DENIED_CHANGE_USER_ERROR 28000 
+        eng "Access denied trying to change to user '%-.48s'@'%-.64s' (using password: %s). Disconnecting."
+        bgn "Отказан достъп при опит за смяна към потребител %-.48s'@'%-.64s' (използвана парола: %s). Затваряне на връзката."
+
+ER_INNODB_READ_ONLY
+  eng "InnoDB is in read only mode."
+
+ER_STOP_SLAVE_SQL_THREAD_TIMEOUT
+  eng "STOP SLAVE command execution is incomplete: Slave SQL thread got the stop signal, thread is busy, SQL thread will stop once the current task is complete."
+
+ER_STOP_SLAVE_IO_THREAD_TIMEOUT
+  eng "STOP SLAVE command execution is incomplete: Slave IO thread got the stop signal, thread is busy, IO thread will stop once the current task is complete."
+
+ER_TABLE_CORRUPT
+  eng "Operation cannot be performed. The table '%-.64s.%-.64s' is missing, corrupt or contains bad data."
+
+ER_TEMP_FILE_WRITE_FAILURE
+  eng "Temporary file write failure."
+
+ER_INNODB_FT_AUX_NOT_HEX_ID
+  eng "Upgrade index name failed, please use create index(alter table) algorithm copy to rebuild index."
+
 
 #
 # MariaDB error messages section starts here
@@ -6952,11 +6994,11 @@ ER_UNKNOWN_OPTION
 ER_BAD_OPTION_VALUE
   eng "Incorrect value '%-.64s' for option '%-.64s'"
 ER_UNUSED_6
-  eng ""
+  eng "You should never see it"
 ER_UNUSED_7
-  eng ""
+  eng "You should never see it"
 ER_UNUSED_8
-  eng ""
+  eng "You should never see it"
 ER_DATA_OVERFLOW 22003
         eng "Got overflow when converting '%-.128s' to %-.32s. Value truncated."
 ER_DATA_TRUNCATED 22003
@@ -6981,8 +7023,8 @@ ER_VIEW_ORDERBY_IGNORED
         eng "View '%-.192s'.'%-.192s' ORDER BY clause ignored because there is other ORDER BY clause already."
 ER_CONNECTION_KILLED 70100 
         eng "Connection was killed"
-ER_UNSED 
-        eng "Internal error: '%-.192s'"
+ER_UNUSED_12
+        eng "You should never see it"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
         eng "Cannot modify @@session.skip_replication inside a transaction"
 ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION
@@ -7067,3 +7109,5 @@ ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
+ER_TABLE_DEFINITION_TOO_BIG
+        eng "The definition for table %`s is too big"

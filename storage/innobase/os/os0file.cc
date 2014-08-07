@@ -465,8 +465,10 @@ os_file_get_last_error_low(
 		return(OS_FILE_INSUFFICIENT_RESOURCE);
 	} else if (err == ERROR_OPERATION_ABORTED) {
 		return(OS_FILE_OPERATION_ABORTED);
+	} else if (err == ERROR_ACCESS_DENIED) {
+		return(OS_FILE_ACCESS_VIOLATION);
 	} else {
-		return(100 + err);
+		return(OS_FILE_ERROR_MAX + err);
 	}
 #else
 	int err = errno;
@@ -540,8 +542,10 @@ os_file_get_last_error_low(
 			return(OS_FILE_AIO_INTERRUPTED);
 		}
 		break;
+	case EACCES:
+		return(OS_FILE_ACCESS_VIOLATION);
 	}
-	return(100 + err);
+	return(OS_FILE_ERROR_MAX + err);
 #endif
 }
 
@@ -619,6 +623,7 @@ os_file_handle_error_cond_exit(
 
 	case OS_FILE_PATH_ERROR:
 	case OS_FILE_ALREADY_EXISTS:
+	case OS_FILE_ACCESS_VIOLATION:
 
 		return(FALSE);
 
@@ -2841,6 +2846,7 @@ os_file_write_func(
 	DWORD		high;
 	ulint		n_retries	= 0;
 	ulint		err;
+	DWORD		saved_error = 0;
 #ifndef UNIV_HOTBACKUP
 	ulint		i;
 #endif /* !UNIV_HOTBACKUP */
@@ -2930,8 +2936,10 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
+		char *winmsg = NULL;
 
-		err = (ulint) GetLastError();
+		saved_error = GetLastError();
+		err = (ulint) saved_error;
 
 		ut_print_timestamp(stderr);
 
@@ -2947,6 +2955,23 @@ retry:
 			" or a disk quota exceeded.\n",
 			name, offset,
 			(ulong) n, (ulong) len, (ulong) err);
+
+		/* Ask Windows to prepare a standard message for a
+		GetLastError() */
+
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, saved_error,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPSTR)&winmsg, 0, NULL);
+
+		if (winmsg) {
+			fprintf(stderr,
+				"InnoDB: FormatMessage: Error number %lu means '%s'.\n",
+				(ulong) saved_error, winmsg);
+			LocalFree(winmsg);
+		}
 
 		if (strerror((int) err) != NULL) {
 			fprintf(stderr,
@@ -2975,7 +3000,6 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
-
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,
@@ -3166,30 +3190,41 @@ os_file_get_status(
 
 		return(DB_FAIL);
 
-	} else if (S_ISDIR(statinfo.st_mode)) {
+	}
+
+	switch (statinfo.st_mode & S_IFMT) {
+	case S_IFDIR:
 		stat_info->type = OS_FILE_TYPE_DIR;
-	} else if (S_ISLNK(statinfo.st_mode)) {
+		break;
+	case S_IFLNK:
 		stat_info->type = OS_FILE_TYPE_LINK;
-	} else if (S_ISREG(statinfo.st_mode)) {
+		break;
+	case S_IFBLK:
+		stat_info->type = OS_FILE_TYPE_BLOCK;
+		break;
+	case S_IFREG:
 		stat_info->type = OS_FILE_TYPE_FILE;
-
-		if (check_rw_perm) {
-			int	fh;
-			int	access;
-
-			access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
-
-			fh = ::open(path, access, os_innodb_umask);
-
-			if (fh == -1) {
-				stat_info->rw_perm = false;
-			} else {
-				stat_info->rw_perm = true;
-				close(fh);
-			}
-		}
-	} else {
+		break;
+	default:
 		stat_info->type = OS_FILE_TYPE_UNKNOWN;
+	}
+
+
+	if (check_rw_perm && (stat_info->type == OS_FILE_TYPE_FILE
+			      || stat_info->type == OS_FILE_TYPE_BLOCK)) {
+		int	fh;
+		int	access;
+
+		access = !srv_read_only_mode ? O_RDWR : O_RDONLY;
+
+		fh = ::open(path, access, os_innodb_umask);
+
+		if (fh == -1) {
+			stat_info->rw_perm = false;
+		} else {
+			stat_info->rw_perm = true;
+			close(fh);
+		}
 	}
 
 #endif /* _WIN_ */
@@ -4555,11 +4590,16 @@ os_aio_func(
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			mode = OS_AIO_SYNC;);
+
 	if (mode == OS_AIO_SYNC
 #ifdef WIN_ASYNC_IO
 	    && !srv_use_native_aio
 #endif /* WIN_ASYNC_IO */
 	    ) {
+		ibool ret;
+
 		/* This is actually an ordinary synchronous read or write:
 		no need to use an i/o-handler thread. NOTE that if we use
 		Windows async i/o, Windows does not allow us to use
@@ -4574,13 +4614,23 @@ os_aio_func(
 		and os_file_write_func() */
 
 		if (type == OS_FILE_READ) {
-			return(os_file_read_func(file, buf, offset, n));
+			ret = os_file_read_func(file, buf, offset, n);
+		} else {
+
+			ut_ad(!srv_read_only_mode);
+			ut_a(type == OS_FILE_WRITE);
+
+			ret = os_file_write_func(name, file, buf, offset, n);
 		}
 
-		ut_ad(!srv_read_only_mode);
-		ut_a(type == OS_FILE_WRITE);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			ret = 0;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			errno = 28;);
 
-		return(os_file_write_func(name, file, buf, offset, n));
+		return ret;
 	}
 
 try_again:
@@ -5405,7 +5455,13 @@ consecutive_loop:
 			aio_slot->offset, total_len);
 	}
 
-	ut_a(ret);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+		os_has_said_disk_full = FALSE;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			ret = 0;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			errno = 28;);
+
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
 	if (aio_slot->type == OS_FILE_READ && n_consecutive > 1) {

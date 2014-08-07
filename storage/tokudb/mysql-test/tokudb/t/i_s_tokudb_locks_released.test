@@ -1,6 +1,6 @@
-if (`select @@tokudb_version <= "7.1.0"`)
+if (`select @@tokudb_version <= "7.1.6"`)
 {
-  --skip Not fixed in TokuDB 7.1.0 or earlier
+  --skip Race condition in the test in TokuDB 7.1.6 or earlier
 }
 # verify that information_schema.tokudb_locks gets populated with locks for 2 clients
 
@@ -36,6 +36,8 @@ send insert into t values (1);
 connection default;
 let $wait_condition= select count(*)=1 from information_schema.processlist where info='insert into t values (1)' and state='update';
 source include/wait_condition.inc;
+real_sleep 1; # delay a little to shorten the update -> write row -> lock wait race
+
 replace_column 1 TRX_ID 2 MYSQL_ID;
 eval select * from information_schema.tokudb_locks; 
 

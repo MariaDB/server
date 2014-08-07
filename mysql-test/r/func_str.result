@@ -119,7 +119,7 @@ substring_index('aaaaaaaaa1','aaa',-3)
 aaaaaa1
 select substring_index('aaaaaaaaa1','aaa',-4);
 substring_index('aaaaaaaaa1','aaa',-4)
-
+aaaaaaaaa1
 select substring_index('the king of thethe hill','the',-2);
 substring_index('the king of thethe hill','the',-2)
 the hill
@@ -2658,7 +2658,47 @@ group_concat( i )	field
 NULL	NULL
 8	
 drop table t1;
+#
+# Bug#11766684 59851: UNINITIALISED VALUE IN ITEM_FUNC_LIKE::SELECT_OPTIMIZE WITH SUBQUERY AND
+#
+CREATE TABLE t2(a INT, KEY(a));
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t1(b INT, PRIMARY KEY(b));
+INSERT INTO t1 VALUES (0),(254);
+SELECT 1 FROM t2 WHERE a LIKE
+(SELECT  EXPORT_SET(1, b, b, b, b) FROM t1 LIMIT 1);
+1
+DROP TABLE t1, t2;
 End of 5.1 tests
+#
+# Start of 5.3 tests
+#
+#
+# Bug#11829861: SUBSTRING_INDEX() RESULTS IN MISSING CHARACTERS WHEN USED
+# INSIDE LOWER()
+#
+SET @user_at_host = 'root@mytinyhost-PC.local';
+SELECT LOWER(SUBSTRING_INDEX(@user_at_host, '@', -1));
+LOWER(SUBSTRING_INDEX(@user_at_host, '@', -1))
+mytinyhost-pc.local
+# End of test  BUG#11829861
+#
+# Bug#42404: SUBSTRING_INDEX() RESULTS ARE INCONSISTENT
+#
+CREATE TABLE t (i INT NOT NULL, c CHAR(255) NOT NULL);
+INSERT INTO t VALUES (0,'.www.mysql.com'),(1,'.wwwmysqlcom');
+SELECT i, SUBSTRING_INDEX(c, '.', -2) FROM t WHERE i = 1;
+i	SUBSTRING_INDEX(c, '.', -2)
+1	.wwwmysqlcom
+SELECT i, SUBSTRING_INDEX(c, '.', -2) FROM t;
+i	SUBSTRING_INDEX(c, '.', -2)
+0	mysql.com
+1	.wwwmysqlcom
+DROP TABLE t;
+# End of test  BUG#42404
+#
+# End of 5.3 tests
+#
 Start of 5.4 tests
 SELECT format(12345678901234567890.123, 3);
 format(12345678901234567890.123, 3)

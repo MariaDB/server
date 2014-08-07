@@ -514,39 +514,42 @@ void Item_func_from_base64::fix_length_and_dec()
 String *Item_func_from_base64::val_str(String *str)
 {
   String *res= args[0]->val_str_ascii(str);
-  bool too_long= false;
   int length;
   const char *end_ptr;
 
-  if (!res ||
-      res->length() > (uint) base64_decode_max_arg_length() ||
-      (too_long=
-       ((uint) (length= base64_needed_decoded_length((int) res->length())) >
-        current_thd->variables.max_allowed_packet)) ||
-      tmp_value.alloc((uint) length) ||
-      (length= base64_decode(res->ptr(), (int) res->length(),
+  if (!res)
+    goto err;
+
+  if (res->length() > (uint) base64_decode_max_arg_length() ||
+      ((uint) (length= base64_needed_decoded_length((int) res->length())) >
+       current_thd->variables.max_allowed_packet))
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                        current_thd->variables.max_allowed_packet);
+    goto err;
+  }
+
+  if (tmp_value.alloc((uint) length))
+    goto err;
+
+  if ((length= base64_decode(res->ptr(), (int) res->length(),
                              (char *) tmp_value.ptr(), &end_ptr, 0)) < 0 ||
       end_ptr < res->ptr() + res->length())
   {
-    null_value= 1; // NULL input, too long input, OOM, or badly formed input
-    if (too_long)
-    {
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
-                          current_thd->variables.max_allowed_packet);
-    }
-    else if (res && length < 0)
-    {
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
-                          end_ptr - res->ptr());
-    }
-    return 0;
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
+                        end_ptr - res->ptr());
+    goto err;
   }
+
   tmp_value.length((uint) length);
   null_value= 0;
   return &tmp_value;
+err:
+  null_value= 1; // NULL input, too long input, OOM, or badly formed input
+  return 0;
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -599,7 +602,7 @@ String *Item_func_decode_histogram::val_str(String *str)
       val= p[i] / ((double)((1 << 8) - 1));
       break;
     case DOUBLE_PREC_HB:
-      val= ((uint16 *)(p + i))[0] / ((double)((1 << 16) - 1));
+      val= uint2korr(p + i) / ((double)((1 << 16) - 1));
       i++;
       break;
     default:
@@ -1604,7 +1607,7 @@ String *Item_str_conv::val_str(String *str)
   if (multiply == 1)
   {
     uint len;
-    res= copy_if_not_alloced(str,res,res->length());
+    res= copy_if_not_alloced(&tmp_value, res, res->length());
     len= converter(collation.collation, (char*) res->ptr(), res->length(),
                                         (char*) res->ptr(), res->length());
     DBUG_ASSERT(len <= res->length());
@@ -1810,8 +1813,10 @@ void Item_func_substr_index::fix_length_and_dec()
 String *Item_func_substr_index::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
+  char buff[MAX_FIELD_WIDTH];
+  String tmp(buff,sizeof(buff),system_charset_info);
   String *res= args[0]->val_str(str);
-  String *delimiter= args[1]->val_str(&tmp_value);
+  String *delimiter= args[1]->val_str(&tmp);
   int32 count= (int32) args[2]->val_int();
   uint offset;
 
@@ -1918,6 +1923,8 @@ String *Item_func_substr_index::val_str(String *str)
 	  break;
 	}
       }
+      if (count)
+        return res;                     // Didn't find, return org string
     }
   }
   /*
@@ -3857,48 +3864,6 @@ void Item_func_export_set::fix_length_and_dec()
   fix_char_length(length * 64 + sep_length * 63);
 }
 
-String* Item_func_inet_ntoa::val_str(String* str)
-{
-  DBUG_ASSERT(fixed == 1);
-  uchar buf[8], *p;
-  ulonglong n = (ulonglong) args[0]->val_int();
-  char num[4];
-
-  /*
-    We do not know if args[0] is NULL until we have called
-    some val function on it if args[0] is not a constant!
-
-    Also return null if n > 255.255.255.255
-  */
-  if ((null_value= (args[0]->null_value || n > 0xffffffff)))
-    return 0;					// Null value
-
-  str->set_charset(collation.collation);
-  str->length(0);
-  int4store(buf,n);
-
-  /* Now we can assume little endian. */
-
-  num[3]='.';
-  for (p=buf+4 ; p-- > buf ; )
-  {
-    uint c = *p;
-    uint n1,n2;					// Try to avoid divisions
-    n1= c / 100;				// 100 digits
-    c-= n1*100;
-    n2= c / 10;					// 10 digits
-    c-=n2*10;					// last digit
-    num[0]=(char) n1+'0';
-    num[1]=(char) n2+'0';
-    num[2]=(char) c+'0';
-    uint length= (n1 ? 4 : n2 ? 3 : 2);         // Remove pre-zero
-    uint dot_length= (p <= buf) ? 1 : 0;
-    (void) str->append(num + 4 - length, length - dot_length,
-                       &my_charset_latin1);
-  }
-  return str;
-}
-
 
 #define get_esc_bit(mask, num) (1 & (*((mask) + ((num) >> 3))) >> ((num) & 7))
 
@@ -5094,8 +5059,10 @@ bool Item_dyncol_get::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   case DYN_COL_UINT:
     if (signed_value || val.x.ulong_value <= LONGLONG_MAX)
     {
-      if (int_to_datetime_with_warn(val.x.ulong_value, ltime, fuzzy_date,
-                                   0 /* TODO */))
+      bool neg= val.x.ulong_value > LONGLONG_MAX;
+      if (int_to_datetime_with_warn(neg, neg ? -val.x.ulong_value :
+                                                val.x.ulong_value,
+                                    ltime, fuzzy_date, 0 /* TODO */))
         goto null;
       return 0;
     }

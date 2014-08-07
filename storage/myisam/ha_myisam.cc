@@ -823,7 +823,15 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
   }
   my_errno= 0;
+
+  /* Count statistics of usage for newly open normal files */
+  if (file->s->reopen == 1 && ! (test_if_locked & HA_OPEN_TMP_TABLE))
+  {
+    if (file->s->delay_key_write)
+      feature_files_opened_with_delayed_keys++;
+  }
   goto end;
+
  err:
   this->close();
  end:
@@ -2186,7 +2194,8 @@ bool ha_myisam::check_if_incompatible_data(HA_CREATE_INFO *info,
 
 int ha_myisam::check_for_upgrade(HA_CHECK_OPT *check_opt)
 {
-  if (!(file->s->options & HA_OPTION_NULL_FIELDS) &&
+  if ((file->s->options & HA_OPTION_CHECKSUM) &&
+      !(file->s->options & HA_OPTION_NULL_FIELDS) &&
       !(file->s->options & HA_OPTION_PACK_RECORD) &&
       file->s->has_varchar_fields)
   {

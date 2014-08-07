@@ -828,7 +828,7 @@ int main(int argc __attribute__((unused)),
 #endif
 
   if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
-                             TEST_PAGE_SIZE, MYF(MY_WME))) == 0)
+                             TEST_PAGE_SIZE, 0, MYF(MY_WME))) == 0)
   {
     fprintf(stderr,"Got error: init_pagecache() (errno: %d)\n",
             errno);

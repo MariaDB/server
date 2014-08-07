@@ -99,6 +99,9 @@ private:
   /* Size of the offset of a field within a record in the cache */   
   uint size_of_fld_ofs;
 
+  /* This structure is used only for explain, not for execution */
+  bool for_explain_only;
+
 protected:
        
   /* 3 functions below actually do not use the hidden parameter 'this' */ 
@@ -595,7 +598,7 @@ public:
   JOIN_CACHE *next_cache;
 
   /* Shall initialize the join cache structure */ 
-  virtual int init();
+  virtual int init(bool for_explain);
 
   /* Get the current size of the cache join buffer */ 
   size_t get_join_buffer_size() { return buff_size; }
@@ -991,7 +994,7 @@ protected:
 public:
 
   /* Initialize a hashed join cache */       
-  int init();
+  int init(bool for_explain);
 
   /* Reset the buffer of a hashed join cache for reading/writing */
   void reset(bool for_writing);
@@ -1127,7 +1130,7 @@ public:
     :JOIN_CACHE(j, tab, prev) {}
 
   /* Initialize the BNL cache */       
-  int init();
+  int init(bool for_explain);
 
   enum Join_algorithm get_join_alg() { return BNL_JOIN_ALG; }
 
@@ -1194,7 +1197,7 @@ public:
     : JOIN_CACHE_HASHED(j, tab, prev) {}
 
   /* Initialize the BNLH cache */       
-  int init();
+  int init(bool for_explain);
 
   enum Join_algorithm get_join_alg() { return BNLH_JOIN_ALG; }
 
@@ -1325,7 +1328,7 @@ public:
   uchar **get_curr_association_ptr() { return &curr_association; }
 
   /* Initialize the BKA cache */       
-  int init();
+  int init(bool for_explain);
 
   enum Join_algorithm get_join_alg() { return BKA_JOIN_ALG; }
 
@@ -1421,7 +1424,7 @@ public:
   uchar **get_curr_association_ptr() { return &curr_matching_chain; }
 
   /* Initialize the BKAH cache */       
-  int init();
+  int init(bool for_explain);
 
   enum Join_algorithm get_join_alg() { return BKAH_JOIN_ALG; }
 

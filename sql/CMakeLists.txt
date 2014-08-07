@@ -30,7 +30,15 @@ ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED 1)
 
-ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER -DHAVE_POOL_OF_THREADS -DPARTITION_SUPPORTS_INPLACE_ALTER) 
+ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER) 
+
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
+    CMAKE_SYSTEM_NAME MATCHES "Windows" OR
+    CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
+    HAVE_KQUEUE)
+ ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS) 
+ENDIF()
+
 IF(SSL_DEFINES)
  ADD_DEFINITIONS(${SSL_DEFINES})
 ENDIF()
@@ -78,7 +86,7 @@ SET (SQL_SOURCE
                sql_profile.cc event_parse_data.cc sql_alter.cc
                sql_signal.cc rpl_handler.cc mdl.cc sql_admin.cc
                transaction.cc sys_vars.cc sql_truncate.cc datadict.cc
-               sql_reload.cc sql_cmd.h
+               sql_reload.cc sql_cmd.h item_inetfunc.cc
 
                # added in MariaDB:
                sql_explain.h sql_explain.cc
@@ -218,7 +226,9 @@ RUN_BISON(
 )
 
 # Gen_lex_hash
-ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
+ENDIF()
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
@@ -279,7 +289,7 @@ ADD_CUSTOM_TARGET(distclean
 IF(INSTALL_LAYOUT STREQUAL "STANDALONE")
 
 # Copy db.opt into data/test/
-SET(DBOPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/db.opt ) 
+SET(DBOPT_FILE ${CMAKE_SOURCE_DIR}/support-files/db.opt ) 
 INSTALL(FILES ${DBOPT_FILE} DESTINATION data/test COMPONENT DataFiles)
 
 # Install initial database on windows

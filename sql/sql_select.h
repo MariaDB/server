@@ -1119,6 +1119,12 @@ public:
     restore_no_rows_in_result() in ::reinit()
   */
   bool no_rows_in_result_called;
+
+  /**
+    This is set if SQL_CALC_ROWS was calculated by filesort()
+    and should be taken from the appropriate JOIN_TAB
+  */
+  bool filesort_found_rows;
   
   /**
     Copy of this JOIN to be used with temporary tables.
@@ -1335,6 +1341,7 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
+    filesort_found_rows= false;
     exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
@@ -1541,21 +1548,8 @@ public:
   store_key(THD *thd, Field *field_arg, uchar *ptr, uchar *null, uint length)
     :null_key(0), null_ptr(null), err(0)
   {
-    if (field_arg->type() == MYSQL_TYPE_BLOB
-        || field_arg->type() == MYSQL_TYPE_GEOMETRY)
-    {
-      /* 
-        Key segments are always packed with a 2 byte length prefix.
-        See mi_rkey for details.
-      */
-      to_field= new Field_varstring(ptr, length, 2, null, 1, 
-                                    Field::NONE, field_arg->field_name,
-                                    field_arg->table->s, field_arg->charset());
-      to_field->init(field_arg->table);
-    }
-    else
-      to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
-                                        ptr, null, 1);
+    to_field=field_arg->new_key_field(thd->mem_root, field_arg->table,
+                                      ptr, length, null, 1);
   }
   store_key(store_key &arg)
     :Sql_alloc(), null_key(arg.null_key), to_field(arg.to_field),

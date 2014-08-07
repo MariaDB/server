@@ -2190,7 +2190,7 @@ struct TABLE_LIST
   void set_materialized_derived()
   {
     DBUG_ENTER("set_materialized_derived");
-    derived_type= ((derived_type & DTYPE_MASK) |
+    derived_type= ((derived_type & (derived ? DTYPE_MASK : DTYPE_VIEW)) |
                    DTYPE_TABLE | DTYPE_MATERIALIZE);
     set_check_materialized();
     DBUG_VOID_RETURN;
@@ -2245,6 +2245,7 @@ struct TABLE_LIST
     }
     return false;
   } 
+  void set_lock_type(THD* thd, enum thr_lock_type lock);
 
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
@@ -2510,6 +2511,8 @@ static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
   tmp_restore_column_map(write_set, old[1]);
 #endif
 }
+
+bool ok_for_lower_case_names(const char *names);
 
 enum get_table_share_flags {
   GTS_TABLE                = 1,

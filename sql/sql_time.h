@@ -33,6 +33,8 @@ typedef struct st_known_date_time_format KNOWN_DATE_TIME_FORMAT;
 
 ulong convert_period_to_month(ulong period);
 ulong convert_month_to_period(ulong month);
+void set_current_date(THD *thd, MYSQL_TIME *to);
+bool time_to_datetime(MYSQL_TIME *ltime);
 void time_to_daytime_interval(MYSQL_TIME *l_time);
 bool get_date_from_daynr(long daynr,uint *year, uint *month, uint *day);
 my_time_t TIME_to_timestamp(THD *thd, const MYSQL_TIME *t, uint *error_code);
@@ -45,7 +47,7 @@ bool double_to_datetime_with_warn(double value, MYSQL_TIME *ltime,
 bool decimal_to_datetime_with_warn(const my_decimal *value, MYSQL_TIME *ltime,
                                    ulonglong fuzzydate,
                                    const char *name);
-bool int_to_datetime_with_warn(longlong value, MYSQL_TIME *ltime,
+bool int_to_datetime_with_warn(bool neg, ulonglong value, MYSQL_TIME *ltime,
                                ulonglong fuzzydate,
                                const char *name);
 
@@ -154,6 +156,8 @@ check_date(const MYSQL_TIME *ltime, ulonglong flags, int *was_cut)
 }
 bool check_date_with_warn(const MYSQL_TIME *ltime, ulonglong fuzzy_date,
                           timestamp_type ts_type);
+bool make_date_with_warn(MYSQL_TIME *ltime,
+                         ulonglong fuzzy_date, timestamp_type ts_type);
 bool adjust_time_range_with_warn(MYSQL_TIME *ltime, uint dec);
 
 #endif /* SQL_TIME_INCLUDED */

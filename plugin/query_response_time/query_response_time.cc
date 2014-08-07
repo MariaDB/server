@@ -227,7 +227,7 @@ public:
       char time[TIME_STRING_BUFFER_LENGTH];
       char total[TOTAL_STRING_BUFFER_LENGTH];
       if(i == bound_count())
-      {        
+      {
         assert(sizeof(TIME_OVERFLOW) <= TIME_STRING_BUFFER_LENGTH);
         assert(sizeof(TIME_OVERFLOW) <= TOTAL_STRING_BUFFER_LENGTH);
         memcpy(time,TIME_OVERFLOW,sizeof(TIME_OVERFLOW));

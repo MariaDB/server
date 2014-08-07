@@ -38,6 +38,7 @@
 #include "records.h"              // READ_RECORD, read_record_info,
                                   // init_read_record, end_read_record
 #include "rpl_filter.h"           // rpl_filter
+#include "rpl_rli.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include "sp_head.h"
@@ -299,7 +300,7 @@ public:
 
   bool eq(const char *user2, const char *host2) { return !cmp(user2, host2); }
 
-  bool wild_eq(const char *user2, const char *host2, const char *ip2 = 0)
+  bool wild_eq(const char *user2, const char *host2, const char *ip2)
   {
     if (strcmp(safe_str(user.str), safe_str(user2)))
       return false;
@@ -876,7 +877,6 @@ static char *fix_plugin_ptr(char *name)
 */
 static bool fix_user_plugin_ptr(ACL_USER *user)
 {
-  user->salt_len= 0;
   if (my_strcasecmp(system_charset_info, user->plugin.str,
                     native_password_plugin_name.str) == 0)
     user->plugin= native_password_plugin_name;
@@ -887,7 +887,8 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   else
     return true;
 
-  set_user_salt(user, user->auth_string.str, user->auth_string.length);
+  if (user->auth_string.length)
+    set_user_salt(user, user->auth_string.str, user->auth_string.length);
   return false;
 }
 
@@ -1258,7 +1259,11 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
           {
             user.plugin.str= tmpstr;
             user.plugin.length= strlen(user.plugin.str);
-            if (user.auth_string.length)
+            user.auth_string.str=
+              safe_str(get_field(&acl_memroot, table->field[next_field++]));
+            user.auth_string.length= strlen(user.auth_string.str);
+
+            if (user.auth_string.length && password_len)
             {
               sql_print_warning("'user' entry '%s@%s' has both a password "
                                 "and an authentication plugin specified. The "
@@ -1266,9 +1271,6 @@ static my_bool acl_load(THD *thd, TABLE_LIST *tables)
                                 safe_str(user.user.str),
                                 safe_str(user.host.hostname));
             }
-            user.auth_string.str=
-              safe_str(get_field(&acl_memroot, table->field[next_field++]));
-            user.auth_string.length= strlen(user.auth_string.str);
 
             fix_user_plugin_ptr(&user);
           }
@@ -1881,7 +1883,7 @@ int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
     acl_user= (ACL_USER *)acl_user_base;
     /* Yes! priv_user@host. Don't ask why - that's what check_access() does. */
     if (acl_user->wild_eq(thd->security_ctx->priv_user,
-                          thd->security_ctx->host))
+                          thd->security_ctx->host, thd->security_ctx->ip))
     {
       is_granted= TRUE;
       break;
@@ -2558,7 +2560,7 @@ bool change_password(THD *thd, const char *host, const char *user,
 {
   TABLE_LIST tables;
   TABLE *table;
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   /* Buffer should be extended when password length is extended. */
   char buff[512];
   ulong query_length;
@@ -2580,7 +2582,8 @@ bool change_password(THD *thd, const char *host, const char *user,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -5393,7 +5396,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   TABLE_LIST tables[3];
   bool create_new_users=0;
   char *db_name, *table_name;
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("mysql_table_grant");
 
   if (!initialized)
@@ -5483,7 +5486,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -5670,7 +5674,7 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
   TABLE_LIST tables[2];
   bool create_new_users=0, result=0;
   char *db_name, *table_name;
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("mysql_routine_grant");
 
   if (!initialized)
@@ -5705,7 +5709,8 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -6141,7 +6146,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   char tmp_db[SAFE_NAME_LEN+1];
   bool create_new_users=0;
   TABLE_LIST tables[2];
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("mysql_grant");
 
   if (!initialized)
@@ -6190,7 +6195,8 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -8223,7 +8229,7 @@ void get_mqh(const char *user, const char *host, USER_CONN *uc)
 #define GRANT_TABLES 7
 static int open_grant_tables(THD *thd, TABLE_LIST *tables)
 {
-  Rpl_filter *rpl_filter= thd->rpl_filter;
+  Rpl_filter *rpl_filter;
   DBUG_ENTER("open_grant_tables");
 
   if (!initialized)
@@ -8267,7 +8273,8 @@ static int open_grant_tables(THD *thd, TABLE_LIST *tables)
     GRANT and REVOKE are applied the slave in/exclusion rules as they are
     some kind of updates to the mysql.% tables.
   */
-  if (thd->slave_thread && rpl_filter->is_on())
+  if (thd->slave_thread &&
+      (rpl_filter= thd->system_thread_info.rpl_sql_info->rpl_filter)->is_on())
   {
     /*
       The tables must be marked "updating" so that tables_ok() takes them into
@@ -10835,7 +10842,6 @@ struct MPVIO_EXT :public MYSQL_PLUGIN_VIO
     uint pkt_len;
   } cached_server_packet;
   int packets_read, packets_written; ///< counters for send/received packets
-  uint connect_errors;      ///< if there were connect errors for this host
   bool make_it_fail;
   /** when plugin returns a failure this tells us what really happened */
   enum { SUCCESS, FAILURE, RESTART } status;
@@ -11385,9 +11391,6 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     As the code below depends on this, lets check that.
   */
   DBUG_ASSERT(net->read_pos[pkt_len] == 0);
-
-  if (mpvio->connect_errors)
-    reset_host_connect_errors(thd->main_security_ctx.ip);
 
   ulong client_capabilities= uint2korr(net->read_pos);
   if (client_capabilities & CLIENT_PROTOCOL_41)
@@ -11966,8 +11969,6 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   Perform the handshake, authorize the client and update thd sctx variables.
 
   @param thd                     thread handle
-  @param connect_errors          number of previous failed connect attemps
-                                 from this host
   @param com_change_user_pkt_len size of the COM_CHANGE_USER packet
                                  (without the first, command, byte) or 0
                                  if it's not a COM_CHANGE_USER (that is, if
@@ -11976,8 +11977,7 @@ static int do_auth_once(THD *thd, const LEX_STRING *auth_plugin_name,
   @retval 0  success, thd is updated.
   @retval 1  error
 */
-bool acl_authenticate(THD *thd, uint connect_errors,
-                      uint com_change_user_pkt_len)
+bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
 {
   int res= CR_OK;
   MPVIO_EXT mpvio;
@@ -11991,7 +11991,6 @@ bool acl_authenticate(THD *thd, uint connect_errors,
   mpvio.write_packet= server_mpvio_write_packet;
   mpvio.info= server_mpvio_info;
   mpvio.thd= thd;
-  mpvio.connect_errors= connect_errors;
   mpvio.status= MPVIO_EXT::FAILURE;
   mpvio.make_it_fail= false;
   mpvio.auth_info.host_or_ip= thd->security_ctx->host_or_ip;
@@ -12441,7 +12440,7 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 },
 {
   MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
@@ -12456,7 +12455,7 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
 maria_declare_plugin_end;
 

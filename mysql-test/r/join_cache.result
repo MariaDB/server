@@ -5577,8 +5577,8 @@ EXPLAIN
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	12	Using where; Using join buffer (flat, BNL join)
-1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where; Using join buffer (incremental, BNL join)
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	12	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT * FROM t1, t2 LEFT JOIN t3 ON t2.b=t3.b WHERE t1.a=t2.a;
 a	a	b	b	c
 3	3	30	30	300
@@ -5703,4 +5703,27 @@ select @counter;
 2
 drop table t1,t2,t3;
 set expensive_subquery_limit=default;
+# 
+# mdev-6071: EXPLAIN chooses to use join buffer while execution turns it down
+# 
+create table t1 (a int);
+insert into t1 values
+(7), (9), (1), (4), (2), (3), (5), (8), (11), (6), (10);
+explain select count(*) from t1, t1 t2 where t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	11	Using where; Using join buffer (flat, BNL join)
+set join_buffer_space_limit=1024*8;
+select @@join_buffer_space_limit;
+@@join_buffer_space_limit
+8192
+select @@join_buffer_size;
+@@join_buffer_size
+131072
+explain select count(*) from t1, t1 t2 where t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	11	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	11	Using where
+set join_buffer_space_limit=default;
+drop table t1;
 set @@optimizer_switch=@save_optimizer_switch;

@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Copyright (C) 2000, 2007 MySQL AB
+# Use is subject to license terms
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Library General Public
@@ -155,9 +156,9 @@ echo "mi_test2$suffix $silent -L -K -R1 -m2000 ;  Should give error 135"
 ./myisamchk$suffix -sm test2
 
 ./mi_test2$suffix $silent -L -K -W -P -m50 -l
-./myisamlog$suffix
+./myisamlog$suffix -P
 ./mi_test2$suffix $silent -L -K -W -P -m50 -l -b100
-./myisamlog$suffix
+./myisamlog$suffix -P
 time ./mi_test2$suffix $silent
 time ./mi_test2$suffix $silent -K -B
 time ./mi_test2$suffix $silent -L -B

@@ -857,8 +857,7 @@ struct trx_t{
 					when trx->in_rw_trx_list. Initially
 					set to TRX_ID_MAX. */
 
-	time_t		start_time;	/*!< time the trx object was created
-					or the state last time became
+	time_t		start_time;	/*!< time the trx state last time became
 					TRX_STATE_ACTIVE */
 	trx_id_t	id;		/*!< transaction id */
 	XID		xid;		/*!< X/Open XA transaction
@@ -1019,6 +1018,11 @@ struct trx_t{
 	ulint		flush_tables;	/*!< if "covering" the FLUSH TABLES",
 					count of tables being flushed. */
 
+	/*------------------------------*/
+	THD*		current_lock_mutex_owner;
+					/*!< If this is equal to current_thd,
+					then in innobase_kill_query() we know we
+					already hold the lock_sys->mutex. */
 	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	ulint		start_line;	/*!< Track where it was started from */

@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
    Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -338,6 +338,13 @@ static PSI_rwlock_key key_rwlock_openssl;
 volatile sig_atomic_t ld_assume_kernel_is_set= 0;
 #endif
 
+/**
+  Statement instrumentation key for replication.
+*/
+#ifdef HAVE_PSI_STATEMENT_INTERFACE
+PSI_statement_info stmt_info_rpl;
+#endif
+
 /* the default log output is log tables */
 static bool lower_case_table_names_used= 0;
 static bool max_long_data_size_used= false;
@@ -361,6 +368,7 @@ static I_List<THD> thread_cache;
 static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
 static mysql_cond_t COND_thread_cache, COND_flush_thread_cache;
+mysql_cond_t COND_slave_init;
 static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
@@ -509,6 +517,7 @@ ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
 ulong slave_retried_transactions;
+ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
@@ -699,7 +708,7 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn, LOCK_slave_list, LOCK_active_mi,
-  LOCK_connection_count, LOCK_error_messages;
+  LOCK_connection_count, LOCK_error_messages, LOCK_slave_init;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
@@ -873,7 +882,8 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_wakeup_ready, key_LOCK_wait_commit;
 PSI_mutex_key key_LOCK_gtid_waiting;
 
-PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
+  key_LOCK_slave_init;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
 static PSI_mutex_info all_server_mutexes[]=
@@ -936,6 +946,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
+  { &key_LOCK_slave_init, "LOCK_slave_init", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
@@ -990,7 +1001,7 @@ PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
-  key_COND_prepare_ordered;
+  key_COND_prepare_ordered, key_COND_slave_init;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
@@ -1039,6 +1050,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
+  { &key_COND_slave_init, "COND_slave_init", 0},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
 };
@@ -1104,65 +1116,60 @@ void net_before_header_psi(struct st_net *net, void *user_data, size_t /* unused
   thd= static_cast<THD*> (user_data);
   DBUG_ASSERT(thd != NULL);
 
-  if (thd->m_server_idle)
-  {
-    /*
-      The server is IDLE, waiting for the next command.
-      Technically, it is a wait on a socket, which may take a long time,
-      because the call is blocking.
-      Disable the socket instrumentation, to avoid recording a SOCKET event.
-      Instead, start explicitly an IDLE event.
-    */
-    MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
-    MYSQL_START_IDLE_WAIT(thd->m_idle_psi, &thd->m_idle_state);
-  }
+  /*
+    We only come where when the server is IDLE, waiting for the next command.
+    Technically, it is a wait on a socket, which may take a long time,
+    because the call is blocking.
+    Disable the socket instrumentation, to avoid recording a SOCKET event.
+    Instead, start explicitly an IDLE event.
+  */
+  MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
+  MYSQL_START_IDLE_WAIT(thd->m_idle_psi, &thd->m_idle_state);
 }
 
-void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused: count */, my_bool rc)
+void net_after_header_psi(struct st_net *net, void *user_data,
+                          size_t /* unused: count */, my_bool rc)
 {
   THD *thd;
   thd= static_cast<THD*> (user_data);
   DBUG_ASSERT(thd != NULL);
 
-  if (thd->m_server_idle)
+  /*
+    The server just got data for a network packet header,
+    from the network layer.
+    The IDLE event is now complete, since we now have a message to process.
+    We need to:
+    - start a new STATEMENT event
+    - start a new STAGE event, within this statement,
+    - start recording SOCKET WAITS events, within this stage.
+    The proper order is critical to get events numbered correctly,
+    and nested in the proper parent.
+  */
+  MYSQL_END_IDLE_WAIT(thd->m_idle_psi);
+
+  if (! rc)
   {
-    /*
-      The server just got data for a network packet header,
-      from the network layer.
-      The IDLE event is now complete, since we now have a message to process.
-      We need to:
-      - start a new STATEMENT event
-      - start a new STAGE event, within this statement,
-      - start recording SOCKET WAITS events, within this stage.
-      The proper order is critical to get events numbered correctly,
-      and nested in the proper parent.
-    */
-    MYSQL_END_IDLE_WAIT(thd->m_idle_psi);
+    thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
+                                                stmt_info_new_packet.m_key,
+                                                thd->db, thd->db_length,
+                                                thd->charset());
 
-    if (! rc)
-    {
-      thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
-                                                  stmt_info_new_packet.m_key,
-                                                  thd->db, thd->db_length,
-                                                  thd->charset());
-
-      THD_STAGE_INFO(thd, stage_init);
-    }
-
-    /*
-      TODO: consider recording a SOCKET event for the bytes just read,
-      by also passing count here.
-    */
-    MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_ACTIVE);
+    THD_STAGE_INFO(thd, stage_init);
   }
+
+  /*
+    TODO: consider recording a SOCKET event for the bytes just read,
+    by also passing count here.
+  */
+  MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_ACTIVE);
 }
+
 
 void init_net_server_extension(THD *thd)
 {
   /* Start with a clean state for connection events. */
   thd->m_idle_psi= NULL;
   thd->m_statement_psi= NULL;
-  thd->m_server_idle= false;
   /* Hook up the NET_SERVER callback in the net layer. */
   thd->m_net_server_extension.m_user_data= thd;
   thd->m_net_server_extension.m_before_header= net_before_header_psi;
@@ -2042,6 +2049,7 @@ void clean_up(bool print_message)
   free_global_table_stats();
   free_global_index_stats();
   delete_dynamic(&all_options);
+  free_all_rpl_filters();
 #ifdef HAVE_REPLICATION
   end_slave_list();
 #endif
@@ -2084,6 +2092,13 @@ void clean_up(bool print_message)
   mysql_mutex_unlock(&LOCK_thread_count);
 
   free_list(opt_plugin_load_list_ptr);
+
+  if (THR_THD)
+    (void) pthread_key_delete(THR_THD);
+
+  if (THR_MALLOC)
+    (void) pthread_key_delete(THR_MALLOC);
+
   /*
     The following lines may never be executed as the main thread may have
     killed us
@@ -2158,6 +2173,8 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_prepare_ordered);
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_commit_ordered);
+  mysql_mutex_destroy(&LOCK_slave_init);
+  mysql_cond_destroy(&COND_slave_init);
   DBUG_VOID_RETURN;
 }
 
@@ -2230,7 +2247,7 @@ static struct passwd *check_user(const char *user)
   }
   if (!user)
   {
-    if (!opt_bootstrap)
+    if (!opt_bootstrap && !opt_help)
     {
       sql_print_error("Fatal error: Please read \"Security\" section of the manual to find out how to run mysqld as root!\n");
       unireg_abort(1);
@@ -3791,7 +3808,7 @@ void init_com_statement_info()
     com_statement_info[index].m_flags= 0;
   }
 
-  /* "statement/com/query" can mutate into "statement/sql/..." */
+  /* "statement/abstract/query" can mutate into "statement/sql/..." */
   com_statement_info[(uint) COM_QUERY].m_flags= PSI_FLAG_MUTABLE;
 }
 #endif
@@ -4372,6 +4389,9 @@ static int init_thread_environment()
   mysql_cond_init(key_COND_prepare_ordered, &COND_prepare_ordered, NULL);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
+  mysql_mutex_init(key_LOCK_slave_init, &LOCK_slave_init,
+                   MY_MUTEX_INIT_SLOW);
+  mysql_cond_init(key_COND_slave_init, &COND_slave_init, NULL);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
@@ -6200,7 +6220,7 @@ void handle_connections_sockets()
             The connection was refused by TCP wrappers.
             There are no details (by client IP) available to update the host_cache.
           */
-          statistic_increment(connection_tcpwrap_errors, &LOCK_status);
+          statistic_increment(connection_errors_tcpwrap, &LOCK_status);
 	  continue;
 	}
       }
@@ -7090,7 +7110,7 @@ struct my_option my_long_options[]=
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"plugin-load-add", OPT_PLUGIN_LOAD_ADD,
    "Optional semicolon-separated list of plugins to load. This option adds "
-   "to the list speficied by --plugin-load in an incremental way. "
+   "to the list specified by --plugin-load in an incremental way. "
    "It can be specified many times, adding more plugins every time.",
    0, 0, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -7793,6 +7813,7 @@ SHOW_VAR status_vars[]= {
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
   {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
+  {"Feature_delay_key_write",  (char*) &feature_files_opened_with_delayed_keys, SHOW_LONG },
   {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
   {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
@@ -7875,6 +7896,7 @@ SHOW_VAR status_vars[]= {
   {"Slow_launch_threads",      (char*) &slow_launch_threads,    SHOW_LONG},
   {"Slow_queries",             (char*) offsetof(STATUS_VAR, long_query_count), SHOW_LONG_STATUS},
   {"Sort_merge_passes",	       (char*) offsetof(STATUS_VAR, filesort_merge_passes_), SHOW_LONG_STATUS},
+  {"Sort_priority_queue_sorts",(char*) offsetof(STATUS_VAR, filesort_pq_sorts_), SHOW_LONG_STATUS}, 
   {"Sort_range",	       (char*) offsetof(STATUS_VAR, filesort_range_count_), SHOW_LONG_STATUS},
   {"Sort_rows",		       (char*) offsetof(STATUS_VAR, filesort_rows_), SHOW_LONG_STATUS},
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
@@ -8673,6 +8695,7 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_KEY_CACHE_DIVISION_LIMIT:
   case OPT_KEY_CACHE_AGE_THRESHOLD:
   case OPT_KEY_CACHE_PARTITIONS:
+  case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
   {
     KEY_CACHE *key_cache;
     if (!(key_cache= get_or_create_key_cache(name, length)))
@@ -8692,6 +8715,8 @@ mysql_getopt_value(const char *name, uint length,
       return &key_cache->param_age_threshold;
     case OPT_KEY_CACHE_PARTITIONS:
       return (uchar**) &key_cache->param_partitions;
+    case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
+      return (uchar**) &key_cache->changed_blocks_hash_size;
     }
   }
   case OPT_REPLICATE_DO_DB:
@@ -9335,6 +9360,8 @@ static PSI_file_info all_server_files[]=
 #endif /* HAVE_PSI_INTERFACE */
 
 PSI_stage_info stage_after_create= { 0, "After create", 0};
+PSI_stage_info stage_after_opening_tables= { 0, "After opening tables", 0};
+PSI_stage_info stage_after_table_lock= { 0, "After table lock", 0};
 PSI_stage_info stage_allocating_local_table= { 0, "allocating local table", 0};
 PSI_stage_info stage_alter_inplace_prepare= { 0, "preparing for alter table", 0};
 PSI_stage_info stage_alter_inplace= { 0, "altering table", 0};
@@ -9363,6 +9390,7 @@ PSI_stage_info stage_end= { 0, "end", 0};
 PSI_stage_info stage_executing= { 0, "executing", 0};
 PSI_stage_info stage_execution_of_init_command= { 0, "Execution of init_command", 0};
 PSI_stage_info stage_explaining= { 0, "explaining", 0};
+PSI_stage_info stage_finding_key_cache= { 0, "Finding key cache", 0};
 PSI_stage_info stage_finished_reading_one_binlog_switching_to_next_binlog= { 0, "Finished reading one binlog; switching to next binlog", 0};
 PSI_stage_info stage_flushing_relay_log_and_master_info_repository= { 0, "Flushing relay log and master info repository.", 0};
 PSI_stage_info stage_flushing_relay_log_info_file= { 0, "Flushing relay-log info file.", 0};
@@ -9387,6 +9415,7 @@ PSI_stage_info stage_purging_old_relay_logs= { 0, "Purging old relay logs", 0};
 PSI_stage_info stage_query_end= { 0, "query end", 0};
 PSI_stage_info stage_queueing_master_event_to_the_relay_log= { 0, "Queueing master event to the relay log", 0};
 PSI_stage_info stage_reading_event_from_the_relay_log= { 0, "Reading event from the relay log", 0};
+PSI_stage_info stage_recreating_table= { 0, "recreating table", 0};
 PSI_stage_info stage_registering_slave_on_master= { 0, "Registering slave on master", 0};
 PSI_stage_info stage_removing_duplicates= { 0, "Removing duplicates", 0};
 PSI_stage_info stage_removing_tmp_table= { 0, "removing tmp table", 0};
@@ -9455,6 +9484,8 @@ PSI_stage_info stage_gtid_wait_other_connection= { 0, "Waiting for other master 
 PSI_stage_info *all_server_stages[]=
 {
   & stage_after_create,
+  & stage_after_opening_tables,
+  & stage_after_table_lock,
   & stage_allocating_local_table,
   & stage_alter_inplace,
   & stage_alter_inplace_commit,
@@ -9486,6 +9517,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_executing,
   & stage_execution_of_init_command,
   & stage_explaining,
+  & stage_finding_key_cache,
   & stage_finished_reading_one_binlog_switching_to_next_binlog,
   & stage_flushing_relay_log_and_master_info_repository,
   & stage_flushing_relay_log_info_file,
@@ -9510,6 +9542,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_query_end,
   & stage_queueing_master_event_to_the_relay_log,
   & stage_reading_event_from_the_relay_log,
+  & stage_recreating_table,
   & stage_registering_slave_on_master,
   & stage_removing_duplicates,
   & stage_removing_tmp_table,
@@ -9617,23 +9650,49 @@ void init_server_psi_keys(void)
 
   category= "com";
   init_com_statement_info();
-  count= array_elements(com_statement_info);
+
+  /*
+    Register [0 .. COM_QUERY - 1] as "statement/com/..."
+  */
+  count= (int) COM_QUERY;
   mysql_statement_register(category, com_statement_info, count);
 
   /*
+    Register [COM_QUERY + 1 .. COM_END] as "statement/com/..."
+  */
+  count= (int) COM_END - (int) COM_QUERY;
+  mysql_statement_register(category, & com_statement_info[(int) COM_QUERY + 1], count);
+
+  category= "abstract";
+  /*
+    Register [COM_QUERY] as "statement/abstract/com_query"
+  */
+  mysql_statement_register(category, & com_statement_info[(int) COM_QUERY], 1);
+
+  /*
     When a new packet is received,
-    it is instrumented as "statement/com/".
+    it is instrumented as "statement/abstract/new_packet".
     Based on the packet type found, it later mutates to the
     proper narrow type, for example
-    "statement/com/query" or "statement/com/ping".
-    In cases of "statement/com/query", SQL queries are given to
+    "statement/abstract/query" or "statement/com/ping".
+    In cases of "statement/abstract/query", SQL queries are given to
     the parser, which mutates the statement type to an even more
     narrow classification, for example "statement/sql/select".
   */
   stmt_info_new_packet.m_key= 0;
-  stmt_info_new_packet.m_name= "";
+  stmt_info_new_packet.m_name= "new_packet";
   stmt_info_new_packet.m_flags= PSI_FLAG_MUTABLE;
-  mysql_statement_register(category, & stmt_info_new_packet, 1);
+  mysql_statement_register(category, &stmt_info_new_packet, 1);
+
+  /*
+    Statements processed from the relay log are initially instrumented as
+    "statement/abstract/relay_log". The parser will mutate the statement type to
+    a more specific classification, for example "statement/sql/insert".
+  */
+  stmt_info_rpl.m_key= 0;
+  stmt_info_rpl.m_name= "relay_log";
+  stmt_info_rpl.m_flags= PSI_FLAG_MUTABLE;
+  mysql_statement_register(category, &stmt_info_rpl, 1);
 #endif
 }
 

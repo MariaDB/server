@@ -73,6 +73,8 @@ static int binlog_init(void *p);
 static int binlog_close_connection(handlerton *hton, THD *thd);
 static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv);
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv);
+static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
+                                                      THD *thd);
 static int binlog_commit(handlerton *hton, THD *thd, bool all);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
@@ -1629,6 +1631,8 @@ int binlog_init(void *p)
   binlog_hton->close_connection= binlog_close_connection;
   binlog_hton->savepoint_set= binlog_savepoint_set;
   binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
+  binlog_hton->savepoint_rollback_can_release_mdl=
+                                     binlog_savepoint_rollback_can_release_mdl;
   binlog_hton->commit= binlog_commit;
   binlog_hton->rollback= binlog_rollback;
   binlog_hton->prepare= binlog_prepare;
@@ -1879,6 +1883,32 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
   return 0;
 }
 
+/*
+  We flush the cache wrapped in a beging/rollback if:
+    . aborting a single or multi-statement transaction and;
+    . the OPTION_KEEP_LOG is active or;
+    . the format is STMT and a non-trans table was updated or;
+    . the format is MIXED and a temporary non-trans table was
+      updated or;
+    . the format is MIXED, non-trans table was updated and
+      aborting a single statement transaction;
+*/
+static bool trans_cannot_safely_rollback(THD *thd, bool all)
+{
+  binlog_cache_mngr *const cache_mngr=
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+
+  return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
+          (trans_has_updated_non_trans_table(thd) &&
+           thd->variables.binlog_format == BINLOG_FORMAT_STMT) ||
+          (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
+           thd->variables.binlog_format == BINLOG_FORMAT_MIXED) ||
+          (trans_has_updated_non_trans_table(thd) &&
+           ending_single_stmt_trans(thd,all) &&
+           thd->variables.binlog_format == BINLOG_FORMAT_MIXED));
+}
+
+
 /**
   This function is called once after each statement.
 
@@ -1999,25 +2029,7 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
   }
   else if (!error)
   {  
-    /*
-      We flush the cache wrapped in a beging/rollback if:
-        . aborting a single or multi-statement transaction and;
-        . the OPTION_KEEP_LOG is active or;
-        . the format is STMT and a non-trans table was updated or;
-        . the format is MIXED and a temporary non-trans table was
-          updated or;
-        . the format is MIXED, non-trans table was updated and
-          aborting a single statement transaction;
-    */
-    if (ending_trans(thd, all) &&
-        ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
-         (trans_has_updated_non_trans_table(thd) &&
-          thd->variables.binlog_format == BINLOG_FORMAT_STMT) ||
-         (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
-          thd->variables.binlog_format == BINLOG_FORMAT_MIXED) ||
-         (trans_has_updated_non_trans_table(thd) &&
-          ending_single_stmt_trans(thd,all) &&
-          thd->variables.binlog_format == BINLOG_FORMAT_MIXED)))
+    if (ending_trans(thd, all) && trans_cannot_safely_rollback(thd, all))
       error= binlog_rollback_flush_trx_cache(thd, all, cache_mngr);
     /*
       Truncate the cache if:
@@ -2194,6 +2206,30 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
   }
   binlog_trans_log_truncate(thd, *(my_off_t*)sv);
   DBUG_RETURN(0);
+}
+
+
+/**
+  Check whether binlog state allows to safely release MDL locks after
+  rollback to savepoint.
+
+  @param hton  The binlog handlerton.
+  @param thd   The client thread that executes the transaction.
+
+  @return true  - It is safe to release MDL locks.
+          false - If it is not.
+*/
+static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
+                                                      THD *thd)
+{
+  DBUG_ENTER("binlog_savepoint_rollback_can_release_mdl");
+  /*
+    If we have not updated any non-transactional tables rollback
+    to savepoint will simply truncate binlog cache starting from
+    SAVEPOINT command. So it should be safe to release MDL acquired
+    after SAVEPOINT command in this case.
+  */
+  DBUG_RETURN(!trans_cannot_safely_rollback(thd, true));
 }
 
 
@@ -2610,7 +2646,8 @@ int MYSQL_LOG::generate_new_name(char *new_name, const char *log_name)
   {
     if (!fn_ext(log_name)[0])
     {
-      if (find_uniq_filename(new_name))
+      if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
+          find_uniq_filename(new_name))
       {
         my_printf_error(ER_NO_UNIQUE_LOGFILE, ER(ER_NO_UNIQUE_LOGFILE),
                         MYF(ME_FATALERROR), log_name);
@@ -2867,7 +2904,8 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
          my_b_printf(&log_file,
                      "# Full_scan: %s  Full_join: %s  "
                      "Tmp_table: %s  Tmp_table_on_disk: %s\n"
-                     "# Filesort: %s  Filesort_on_disk: %s  Merge_passes: %lu\n",
+                     "# Filesort: %s  Filesort_on_disk: %s  Merge_passes: %lu  "
+                     "Priority_queue: %s\n",
                      ((thd->query_plan_flags & QPLAN_FULL_SCAN) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FULL_JOIN) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_TMP_TABLE) ? "Yes" : "No"),
@@ -2875,7 +2913,10 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
                      ((thd->query_plan_flags & QPLAN_FILESORT) ? "Yes" : "No"),
                      ((thd->query_plan_flags & QPLAN_FILESORT_DISK) ?
                       "Yes" : "No"),
-                     thd->query_plan_fsort_passes) == (size_t) -1)
+                     thd->query_plan_fsort_passes,
+                     ((thd->query_plan_flags & QPLAN_FILESORT_PRIORITY_QUEUE) ? 
+                       "Yes" : "No")
+                     ) == (size_t) -1)
        tmp_errno= errno;
     if (thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_EXPLAIN &&
         thd->lex->explain)
@@ -4060,6 +4101,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
 {
   int error;
   char *to_purge_if_included= NULL;
+  inuse_relaylog *ir;
   DBUG_ENTER("purge_first_log");
 
   DBUG_ASSERT(is_open());
@@ -4067,7 +4109,30 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
   DBUG_ASSERT(!strcmp(rli->linfo.log_file_name,rli->event_relay_log_name));
 
   mysql_mutex_lock(&LOCK_index);
-  to_purge_if_included= my_strdup(rli->group_relay_log_name, MYF(0));
+
+  ir= rli->inuse_relaylog_list;
+  while (ir)
+  {
+    inuse_relaylog *next= ir->next;
+    if (!ir->completed || ir->dequeued_count < ir->queued_count)
+    {
+      included= false;
+      break;
+    }
+    if (!included && !strcmp(ir->name, rli->group_relay_log_name))
+      break;
+    if (!next)
+    {
+      rli->last_inuse_relaylog= NULL;
+      included= 1;
+      to_purge_if_included= my_strdup(ir->name, MYF(0));
+    }
+    my_free(ir);
+    ir= next;
+  }
+  rli->inuse_relaylog_list= ir;
+  if (ir)
+    to_purge_if_included= my_strdup(ir->name, MYF(0));
 
   /*
     Read the next log file name from the index file and pass it back to
@@ -6775,7 +6840,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
           /* Interrupted by kill. */
           DEBUG_SYNC(orig_entry->thd, "group_commit_waiting_for_prior_killed");
           wfc->wakeup_error= orig_entry->thd->killed_errno();
-          if (wfc->wakeup_error)
+          if (!wfc->wakeup_error)
             wfc->wakeup_error= ER_QUERY_INTERRUPTED;
           my_message(wfc->wakeup_error, ER(wfc->wakeup_error), MYF(0));
           DBUG_RETURN(-1);
@@ -6786,12 +6851,6 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     else
       mysql_mutex_unlock(&wfc->LOCK_wait_commit);
   }
-  if (wfc && wfc->wakeup_error)
-  {
-    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
-    DBUG_RETURN(-1);
-  }
-
   /*
     If the transaction we were waiting for has already put us into the group
     commit queue (and possibly already done the entire binlog commit for us),
@@ -6799,6 +6858,12 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   */
   if (orig_entry->queued_by_other)
     DBUG_RETURN(0);
+
+  if (wfc && wfc->wakeup_error)
+  {
+    my_error(ER_PRIOR_COMMIT_FAILED, MYF(0));
+    DBUG_RETURN(-1);
+  }
 
   /* Now enqueue ourselves in the group commit queue. */
   DEBUG_SYNC(orig_entry->thd, "commit_before_enqueue");
@@ -9003,6 +9068,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
   thd->thread_id= thread_id++;
   mysql_mutex_unlock(&LOCK_thread_count);
   thd->store_globals();
+  thd->security_ctx->skip_grants();
+  thd->set_command(COM_DAEMON);
 
   /*
     Load the slave replication GTID state from the mysql.gtid_slave_pos
@@ -9306,7 +9373,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       file= -1;
     }
 
-    if (0 == strcmp(linfo->log_file_name, last_log_name))
+    if (!strcmp(linfo->log_file_name, last_log_name))
       break;                                    // No more files to do
     if ((file= open_binlog(&log, linfo->log_file_name, &errmsg)) < 0)
     {

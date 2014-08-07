@@ -1407,7 +1407,47 @@ insert into t1 values (null),(8);
 select group_concat( i ), make_set( i, 'a', 'b' ) field from t1 group by field;
 drop table t1;
 
+--echo #
+--echo # Bug#11766684 59851: UNINITIALISED VALUE IN ITEM_FUNC_LIKE::SELECT_OPTIMIZE WITH SUBQUERY AND
+--echo #
+
+CREATE TABLE t2(a INT, KEY(a));
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t1(b INT, PRIMARY KEY(b));
+INSERT INTO t1 VALUES (0),(254);
+SELECT 1 FROM t2 WHERE a LIKE
+(SELECT  EXPORT_SET(1, b, b, b, b) FROM t1 LIMIT 1);
+DROP TABLE t1, t2;
+
 --echo End of 5.1 tests
+
+--echo #
+--echo # Start of 5.3 tests
+--echo #
+
+--echo #
+--echo # Bug#11829861: SUBSTRING_INDEX() RESULTS IN MISSING CHARACTERS WHEN USED
+--echo # INSIDE LOWER()
+--echo #
+SET @user_at_host = 'root@mytinyhost-PC.local';
+SELECT LOWER(SUBSTRING_INDEX(@user_at_host, '@', -1));
+--echo # End of test  BUG#11829861
+
+--echo #
+--echo # Bug#42404: SUBSTRING_INDEX() RESULTS ARE INCONSISTENT
+--echo #
+
+CREATE TABLE t (i INT NOT NULL, c CHAR(255) NOT NULL);
+INSERT INTO t VALUES (0,'.www.mysql.com'),(1,'.wwwmysqlcom');
+SELECT i, SUBSTRING_INDEX(c, '.', -2) FROM t WHERE i = 1;
+SELECT i, SUBSTRING_INDEX(c, '.', -2) FROM t;
+DROP TABLE t;
+--echo # End of test  BUG#42404
+
+--echo #
+--echo # End of 5.3 tests
+--echo #
+
 
 --echo Start of 5.4 tests
 #

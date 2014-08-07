@@ -111,7 +111,7 @@ enum enum_server_command
 #define MYSQL_TYPE_VIRTUAL 245
 /*
   Length of random string sent by server on handshake; this is also length of
-  obfuscated password, recieved from client
+  obfuscated password, received from client
 */
 #define SCRAMBLE_LENGTH 20
 #define SCRAMBLE_LENGTH_323 8
@@ -541,7 +541,8 @@ my_bool	net_write_command(NET *net,unsigned char command,
 			  const unsigned char *header, size_t head_len,
 			  const unsigned char *packet, size_t len);
 int	net_real_write(NET *net,const unsigned char *packet, size_t len);
-unsigned long my_net_read(NET *net);
+unsigned long my_net_read_packet(NET *net, my_bool read_from_server);
+#define my_net_read(A) my_net_read_packet((A), 0)
 
 #ifdef MY_GLOBAL_INCLUDED
 void my_net_set_write_timeout(NET *net, uint timeout);

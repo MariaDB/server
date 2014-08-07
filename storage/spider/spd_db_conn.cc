@@ -2490,6 +2490,7 @@ int spider_db_fetch_for_item_sum_func(
 ) {
   int error_num;
   SPIDER_SHARE *share = spider->share;
+  THD *thd = spider->trx->thd;
   DBUG_ENTER("spider_db_fetch_for_item_sum_func");
   DBUG_PRINT("info",("spider Sumfunctype = %d", item_sum->sum_func()));
   switch (item_sum->sum_func())
@@ -2556,10 +2557,12 @@ int spider_db_fetch_for_item_sum_func(
         }
         if (!spider->direct_aggregate_item_current->item)
         {
+          Item *free_list = thd->free_list;
           spider->direct_aggregate_item_current->item =
             new Item_string(share->access_charset);
           if (!spider->direct_aggregate_item_current->item)
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          thd->free_list = free_list;
         }
 
         Item_sum_hybrid *item_hybrid = (Item_sum_hybrid *) item_sum;
@@ -3678,6 +3681,7 @@ int spider_db_store_result(
           pthread_mutex_unlock(&conn->mta_conn_mutex);
         }
         current->record_num = current->result->num_rows();
+        current->dbton_id = current->result->dbton_id;
         result_list->record_num += current->record_num;
         DBUG_PRINT("info",("spider current->record_num=%lld",
           current->record_num));
@@ -3754,6 +3758,7 @@ int spider_db_store_result(
           pthread_mutex_unlock(&conn->mta_conn_mutex);
         }
       }
+      current->dbton_id = current->result->dbton_id;
       SPIDER_DB_ROW *row;
       if (!(row = current->result->fetch_row()))
       {
@@ -5861,8 +5866,10 @@ int spider_db_update_auto_increment(
     }
 #endif
     DBUG_PRINT("info",("spider last_insert_id=%llu", last_insert_id));
-    share->auto_increment_value =
+    share->lgtm_tblhnd_share->auto_increment_value =
       last_insert_id + affected_rows;
+    DBUG_PRINT("info",("spider auto_increment_value=%llu",
+      share->lgtm_tblhnd_share->auto_increment_value));
 /*
     thd->record_first_successful_insert_id_in_cur_stmt(last_insert_id);
 */
@@ -8047,11 +8054,10 @@ int spider_db_open_item_string(
     tmp_str.mem_calc();
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
     if (
-      str->get_str()->append_for_single_quote(tmp_str2) ||
+      str->append_for_single_quote(tmp_str2) ||
       str->reserve(SPIDER_SQL_VALUE_QUOTE_LEN)
     )
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-    str->mem_calc();
     str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   }
   DBUG_RETURN(0);
@@ -9033,11 +9039,13 @@ int spider_db_udf_ping_table(
     uint tmp_conn_link_idx = 0;
     ha_spider spider;
     uchar db_request_phase = 0;
+    ulonglong db_request_id = 0;
     spider.share = share;
     spider.trx = trx;
     spider.need_mons = &need_mon;
     spider.conn_link_idx = &tmp_conn_link_idx;
     spider.db_request_phase = &db_request_phase;
+    spider.db_request_id = &db_request_id;
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &need_mon;
@@ -9192,8 +9200,7 @@ int spider_db_udf_ping_table_append_mon_next(
   str->q_append(SPIDER_SQL_SELECT_STR, SPIDER_SQL_SELECT_LEN);
   str->q_append(SPIDER_SQL_PING_TABLE_STR, SPIDER_SQL_PING_TABLE_LEN);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  str->get_str()->append_for_single_quote(child_table_name_str.get_str());
-  str->mem_calc();
+  str->append_for_single_quote(child_table_name_str.get_str());
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   str->qs_append(link_id);
@@ -9203,8 +9210,7 @@ int spider_db_udf_ping_table_append_mon_next(
   str->q_append(limit_str, limit_str_length);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
-  str->get_str()->append_for_single_quote(where_clause_str.get_str());
-  str->mem_calc();
+  str->append_for_single_quote(where_clause_str.get_str());
   str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
   str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
   str->q_append(sid_str, sid_str_length);
@@ -9255,9 +9261,11 @@ int spider_db_udf_ping_table_append_select(
     SPIDER_SQL_LIMIT_LEN + limit_str_length
   ))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  if (use_where)
-    str->get_str()->append_for_single_quote(where_str->get_str());
-  str->mem_calc();
+  if (
+    use_where &&
+    str->append_for_single_quote(where_str->get_str())
+  )
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_LIMIT_STR, SPIDER_SQL_LIMIT_LEN);
   str->q_append(limit_str, limit_str_length);
   DBUG_RETURN(0);

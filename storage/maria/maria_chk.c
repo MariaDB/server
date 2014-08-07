@@ -140,7 +140,7 @@ int main(int argc, char **argv)
   {
     if (init_pagecache(maria_log_pagecache,
                        TRANSLOG_PAGECACHE_SIZE, 0, 0,
-                       TRANSLOG_PAGE_SIZE, MY_WME) == 0 ||
+                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0 ||
         translog_init(opt_log_dir, TRANSLOG_FILE_SIZE,
                       0, 0, maria_log_pagecache,
                       TRANSLOG_DEFAULT_FLAGS, 0))
@@ -432,7 +432,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s  Ver 1.2 for %s at %s\n", my_progname, SYSTEM_TYPE,
+  printf("%s  Ver 1.2 for %s on %s\n", my_progname, SYSTEM_TYPE,
 	 MACHINE_TYPE);
 }
 
@@ -1178,7 +1178,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
   maria_lock_database(info, F_EXTRA_LCK);
   datafile= info->dfile.file;
   if (init_pagecache(maria_pagecache, (size_t) param->use_buffers, 0, 0,
-                     maria_block_size, MY_WME) == 0)
+                     maria_block_size, 0, MY_WME) == 0)
   {
     _ma_check_print_error(param, "Can't initialize page cache with %lu memory",
                           (ulong) param->use_buffers);

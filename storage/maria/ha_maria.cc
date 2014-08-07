@@ -57,7 +57,7 @@ C_MODE_END
 #endif
 #define THD_TRN (*(TRN **)thd_ha_data(thd, maria_hton))
 
-ulong pagecache_division_limit, pagecache_age_threshold;
+ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
   "Table is from another system and must be zerofilled or repaired to be "
@@ -249,6 +249,13 @@ static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
        PLUGIN_VAR_RQCMDARG,
        "The minimum percentage of warm blocks in key cache", 0, 0,
        100,  1, 100, 1);
+
+static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       "Number of hash buckets for open and changed files.  If you have a lot of Aria "
+       "files open you should increase this for faster flush of changes. A good "
+       "value is probably 1/10 of number of possible open Aria files.", 0,0,
+       512, 128, 16384, 1);
 
 static MYSQL_SYSVAR_SET(recover, maria_recover_options, PLUGIN_VAR_OPCMDARG,
        "Specifies how corrupted tables should be automatically repaired."
@@ -1236,6 +1243,14 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
   }
   my_errno= 0;
+
+  /* Count statistics of usage for newly open normal files */
+  if (file->s->reopen == 1 && ! (test_if_locked & HA_OPEN_TMP_TABLE))
+  {
+    if (file->s->delay_key_write)
+      feature_files_opened_with_delayed_keys++;
+  }
+
   return my_errno;
 }
 
@@ -3520,10 +3535,11 @@ static int ha_maria_init(void *p)
      mark_recovery_start(log_dir)) ||
     !init_pagecache(maria_pagecache,
                     (size_t) pagecache_buffer_size, pagecache_division_limit,
-                    pagecache_age_threshold, maria_block_size, 0) ||
+                    pagecache_age_threshold, maria_block_size, pagecache_file_hash_size,
+                    0) ||
     !init_pagecache(maria_log_pagecache,
                     TRANSLOG_PAGECACHE_SIZE, 0, 0,
-                    TRANSLOG_PAGE_SIZE, 0) ||
+                    TRANSLOG_PAGE_SIZE, 0, 0) ||
     translog_init(maria_data_root, log_file_size,
                   MYSQL_VERSION_ID, server_id, maria_log_pagecache,
                   TRANSLOG_DEFAULT_FLAGS, 0) ||
@@ -3639,6 +3655,7 @@ struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(pagecache_age_threshold),
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
+  MYSQL_SYSVAR(pagecache_file_hash_size),
   MYSQL_SYSVAR(recover),
   MYSQL_SYSVAR(repair_threads),
   MYSQL_SYSVAR(sort_buffer_size),

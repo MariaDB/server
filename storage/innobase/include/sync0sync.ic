@@ -108,10 +108,7 @@ mutex_reset_lock_word(
 	ib_mutex_t*	mutex)	/*!< in: mutex */
 {
 #if defined(HAVE_ATOMIC_BUILTINS)
-	/* In theory __sync_lock_release should be used to release the lock.
-	Unfortunately, it does not work properly alone. The workaround is
-	that more conservative __sync_lock_test_and_set is used instead. */
-	os_atomic_test_and_set_byte(&mutex->lock_word, 0);
+	os_atomic_lock_release_byte(&mutex->lock_word);
 #else
 	mutex->lock_word = 0;
 
@@ -240,7 +237,8 @@ pfs_mutex_enter_func(
 
 		locker = PSI_MUTEX_CALL(start_mutex_wait)(
 			&state, mutex->pfs_psi,
-			PSI_MUTEX_LOCK, file_name, line);
+			PSI_MUTEX_LOCK, file_name,
+			static_cast<uint>(line));
 
 		mutex_enter_func(mutex, file_name, line);
 
@@ -275,7 +273,8 @@ pfs_mutex_enter_nowait_func(
 
 		locker = PSI_MUTEX_CALL(start_mutex_wait)(
 			&state, mutex->pfs_psi,
-			PSI_MUTEX_TRYLOCK, file_name, line);
+			PSI_MUTEX_TRYLOCK, file_name,
+			static_cast<uint>(line));
 
 		ret = mutex_enter_nowait_func(mutex, file_name, line);
 

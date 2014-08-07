@@ -1,4 +1,5 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2013, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -181,12 +182,19 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   @param  table_ref     Table list element for the table to be truncated.
   @param  is_tmp_table  True if element refers to a temp table.
 
-  @retval  0    Success.
-  @retval  > 0  Error code.
+  @retval TRUNCATE_OK   Truncate was successful and statement can be safely
+                        binlogged.
+  @retval TRUNCATE_FAILED_BUT_BINLOG Truncate failed but still go ahead with
+                        binlogging as in case of non transactional tables
+                        partial truncation is possible.
+
+  @retval TRUNCATE_FAILED_SKIP_BINLOG Truncate was not successful hence donot
+                        binlong the statement.
 */
 
-int Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
-                                             bool is_tmp_table)
+enum Sql_cmd_truncate_table::truncate_result
+Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
+                                         bool is_tmp_table)
 {
   int error= 0;
   uint flags= 0;
@@ -226,16 +234,30 @@ int Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 
   /* Open the table as it will handle some required preparations. */
   if (open_and_lock_tables(thd, table_ref, FALSE, flags))
-    DBUG_RETURN(1);
+    DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
   /* Whether to truncate regardless of foreign keys. */
   if (! (thd->variables.option_bits & OPTION_NO_FOREIGN_KEY_CHECKS))
-    error= fk_truncate_illegal_if_parent(thd, table_ref->table);
+    if (fk_truncate_illegal_if_parent(thd, table_ref->table))
+      DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
-  if (!error && (error= table_ref->table->file->ha_truncate()))
+  error= table_ref->table->file->ha_truncate();
+  if (error)
+  {
     table_ref->table->file->print_error(error, MYF(0));
-
-  DBUG_RETURN(error);
+    /*
+      If truncate method is not implemented then we don't binlog the
+      statement. If truncation has failed in a transactional engine then also we
+      donot binlog the statment. Only in non transactional engine we binlog
+      inspite of errors.
+     */
+    if (error == HA_ERR_WRONG_COMMAND ||
+        table_ref->table->file->has_transactions())
+      DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
+    else
+      DBUG_RETURN(TRUNCATE_FAILED_BUT_BINLOG);
+  }
+  DBUG_RETURN(TRUNCATE_OK);
 }
 
 
@@ -482,10 +504,14 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       /*
         All effects of a TRUNCATE TABLE operation are committed even if
-        truncation fails. Thus, the query must be written to the binary
-        log. The only exception is a unimplemented truncate method.
+        truncation fails in the case of non transactional tables. Thus, the
+        query must be written to the binary log. The only exception is a
+        unimplemented truncate method.
       */
-      binlog_stmt= !error || error != HA_ERR_WRONG_COMMAND;
+      if (error == TRUNCATE_OK || error == TRUNCATE_FAILED_BUT_BINLOG)
+        binlog_stmt= true;
+      else
+        binlog_stmt= false;
     }
 
     /*

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -116,16 +116,46 @@ static void get_cs_converted_string_value(THD *thd,
                                           bool use_hex);
 #endif
 
-static void
-append_algorithm(TABLE_LIST *table, String *buff);
+static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
+
+static void append_algorithm(TABLE_LIST *table, String *buff);
 
 static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
+/**
+  Condition pushdown used for INFORMATION_SCHEMA / SHOW queries.
+  This structure is to implement an optimization when
+  accessing data dictionary data in the INFORMATION_SCHEMA
+  or SHOW commands.
+  When the query contain a TABLE_SCHEMA or TABLE_NAME clause,
+  narrow the search for data based on the constraints given.
+*/
 typedef struct st_lookup_field_values
 {
-  LEX_STRING db_value, table_value;
-  bool wild_db_value, wild_table_value;
+  /**
+    Value of a TABLE_SCHEMA clause.
+    Note that this value length may exceed @c NAME_LEN.
+    @sa wild_db_value
+  */
+  LEX_STRING db_value;
+  /**
+    Value of a TABLE_NAME clause.
+    Note that this value length may exceed @c NAME_LEN.
+    @sa wild_table_value
+  */
+  LEX_STRING table_value;
+  /**
+    True when @c db_value is a LIKE clause,
+    false when @c db_value is an '=' clause.
+  */
+  bool wild_db_value;
+  /**
+    True when @c table_value is a LIKE clause,
+    false when @c table_value is an '=' clause.
+  */
+  bool wild_table_value;
 } LOOKUP_FIELD_VALUES;
+
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
@@ -941,9 +971,12 @@ public:
       is_handled= TRUE;
       break;
 
+    case ER_BAD_FIELD_ERROR:
+    case ER_SP_DOES_NOT_EXIST:
     case ER_NO_SUCH_TABLE:
     case ER_NO_SUCH_TABLE_IN_ENGINE:
-      /* Established behavior: warn if underlying tables are missing. */
+      /* Established behavior: warn if underlying tables, columns, or functions
+         are missing. */
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
                           ER_VIEW_INVALID,
                           ER(ER_VIEW_INVALID),
@@ -952,15 +985,6 @@ public:
       is_handled= TRUE;
       break;
 
-    case ER_SP_DOES_NOT_EXIST:
-      /* Established behavior: warn if underlying functions are missing. */
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, 
-                          ER_VIEW_INVALID,
-                          ER(ER_VIEW_INVALID),
-                          m_top_view->get_db_name(),
-                          m_top_view->get_table_name());
-      is_handled= TRUE;
-      break;
     default:
       is_handled= FALSE;
     }
@@ -1040,9 +1064,8 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
     buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
 
   if ((table_list->view ?
-       view_store_create_info(thd, table_list, &buffer) :
-       store_create_info(thd, table_list, &buffer, NULL,
-                         FALSE /* show_database */, FALSE)))
+       show_create_view(thd, table_list, &buffer) :
+       show_create_table(thd, table_list, &buffer, NULL, WITHOUT_DB_NAME)))
     goto exit;
 
   if (table_list->view)
@@ -1496,13 +1519,34 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
   @param thd             thread handler
   @param packet          string to append
   @param opt             list of options
+  @param check_options   only print known options
+  @param rules           list of known options
 */
 
 static void append_create_options(THD *thd, String *packet,
-				  engine_option_value *opt)
+				  engine_option_value *opt,
+                                  bool check_options,
+                                  ha_create_table_option *rules)
 {
+  bool in_comment= false;
   for(; opt; opt= opt->next)
   {
+    if (check_options)
+    {
+      if (is_engine_option_known(opt, rules))
+      {
+        if (in_comment)
+          packet->append(STRING_WITH_LEN(" */"));
+        in_comment= false;
+      }
+      else
+      {
+        if (!in_comment)
+          packet->append(STRING_WITH_LEN(" /*"));
+        in_comment= true;
+      }
+    }
+
     DBUG_ASSERT(opt->value.str);
     packet->append(' ');
     append_identifier(thd, packet, opt->name.str, opt->name.length);
@@ -1512,13 +1556,15 @@ static void append_create_options(THD *thd, String *packet,
     else
       packet->append(opt->value.str, opt->value.length);
   }
+  if (in_comment)
+    packet->append(STRING_WITH_LEN(" */"));
 }
 
 /*
   Build a CREATE TABLE statement for a table.
 
   SYNOPSIS
-    store_create_info()
+    show_create_table()
     thd               The thread
     table_list        A list containing one table to write statement
                       for.
@@ -1528,8 +1574,7 @@ static void append_create_options(THD *thd, String *packet,
                       to tailor the format of the statement.  Can be
                       NULL, in which case only SQL_MODE is considered
                       when building the statement.
-    show_database     Add database name to table name
-    create_or_replace Use CREATE OR REPLACE syntax
+    with_db_name     Add database name to table name
 
   NOTE
     Currently always return 0, but might return error code in the
@@ -1539,9 +1584,9 @@ static void append_create_options(THD *thd, String *packet,
     0       OK
  */
 
-int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO *create_info_arg, bool show_database,
-                      bool create_or_replace)
+int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
+                      HA_CREATE_INFO *create_info_arg,
+                      enum_with_db_name with_db_name)
 {
   List<Item> field_list;
   char tmp[MAX_FIELD_WIDTH], *for_str, buff[128], def_value_buf[MAX_FIELD_WIDTH];
@@ -1555,27 +1600,35 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   handler *file= table->file;
   TABLE_SHARE *share= table->s;
   HA_CREATE_INFO create_info;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  bool show_table_options= FALSE;
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
-  bool foreign_db_mode=  (thd->variables.sql_mode & (MODE_POSTGRESQL |
-                                                     MODE_ORACLE |
-                                                     MODE_MSSQL |
-                                                     MODE_DB2 |
-                                                     MODE_MAXDB |
-                                                     MODE_ANSI)) != 0;
-  bool limited_mysql_mode= (thd->variables.sql_mode & (MODE_NO_FIELD_OPTIONS |
-                                                       MODE_MYSQL323 |
-                                                       MODE_MYSQL40)) != 0;
+  sql_mode_t sql_mode= thd->variables.sql_mode;
+  bool foreign_db_mode=  sql_mode & (MODE_POSTGRESQL | MODE_ORACLE |
+                                     MODE_MSSQL | MODE_DB2 |
+                                     MODE_MAXDB | MODE_ANSI);
+  bool limited_mysql_mode= sql_mode & (MODE_NO_FIELD_OPTIONS | MODE_MYSQL323 |
+                                       MODE_MYSQL40);
+  bool show_table_options= !(sql_mode & MODE_NO_TABLE_OPTIONS) &&
+                           !foreign_db_mode;
+  bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
+                      !create_info_arg;
+  handlerton *hton;
   my_bitmap_map *old_map;
   int error= 0;
-  DBUG_ENTER("store_create_info");
+  DBUG_ENTER("show_create_table");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (table->part_info)
+    hton= table->part_info->default_engine_type;
+  else
+#endif
+    hton= file->ht;
 
   restore_record(table, s->default_values); // Get empty record
 
   packet->append(STRING_WITH_LEN("CREATE "));
-  if (create_or_replace)
+  if (create_info_arg &&
+      (create_info_arg->org_options & HA_LEX_CREATE_REPLACE ||
+       create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
   if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
@@ -1602,7 +1655,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     avoid having to update gazillions of tests and result files, but
     it also saves a few bytes of the binary log.
    */
-  if (show_database)
+  if (with_db_name == WITH_DB_NAME)
   {
     const LEX_STRING *const db=
       table_list->schema_table ? &INFORMATION_SCHEMA_NAME : &table->s->db;
@@ -1641,8 +1694,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     field->sql_type(type);
     packet->append(type.ptr(), type.length(), system_charset_info);
 
-    if (field->has_charset() &&
-        !(thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
+    if (field->has_charset() && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
     {
       if (field->charset() != share->table_charset)
       {
@@ -1699,7 +1751,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
 
 
     if (field->unireg_check == Field::NEXT_NUMBER &&
-        !(thd->variables.sql_mode & MODE_NO_FIELD_OPTIONS))
+        !(sql_mode & MODE_NO_FIELD_OPTIONS))
       packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
 
     if (field->comment.length)
@@ -1707,7 +1759,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(" COMMENT "));
       append_unescaped(packet, field->comment.str, field->comment.length);
     }
-    append_create_options(thd, packet, field->option_list);
+    append_create_options(thd, packet, field->option_list, check_options,
+                          hton->field_options);
   }
 
   key_info= table->key_info;
@@ -1774,7 +1827,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
       append_identifier(thd, packet, parser_name->str, parser_name->length);
       packet->append(STRING_WITH_LEN(" */ "));
     }
-    append_create_options(thd, packet, key_info->option_list);
+    append_create_options(thd, packet, key_info->option_list, check_options,
+                          hton->index_options);
   }
 
   /*
@@ -1789,12 +1843,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
   }
 
   packet->append(STRING_WITH_LEN("\n)"));
-  if (!(thd->variables.sql_mode & MODE_NO_TABLE_OPTIONS) && !foreign_db_mode)
+  if (show_table_options)
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    show_table_options= TRUE;
-#endif /* WITH_PARTITION_STORAGE_ENGINE */
-
     /*
       IF   check_create_info
       THEN add ENGINE only if it was used when creating the table
@@ -1802,19 +1852,11 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
     if (!create_info_arg ||
         (create_info_arg->used_fields & HA_CREATE_USED_ENGINE))
     {
-      if (thd->variables.sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
+      if (sql_mode & (MODE_MYSQL323 | MODE_MYSQL40))
         packet->append(STRING_WITH_LEN(" TYPE="));
       else
         packet->append(STRING_WITH_LEN(" ENGINE="));
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-    if (table->part_info)
-      packet->append(ha_resolve_storage_engine_name(
-                        table->part_info->default_engine_type));
-    else
-      packet->append(file->table_type());
-#else
-      packet->append(file->table_type());
-#endif
+      packet->append(hton_name(hton));
     }
 
     /*
@@ -1836,9 +1878,7 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(buff, (uint) (end - buff));
     }
     
-    if (share->table_charset &&
-	!(thd->variables.sql_mode & MODE_MYSQL323) &&
-	!(thd->variables.sql_mode & MODE_MYSQL40))
+    if (share->table_charset && !(sql_mode & (MODE_MYSQL323 | MODE_MYSQL40)))
     {
       /*
         IF   check_create_info
@@ -1939,7 +1979,8 @@ int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
       packet->append(STRING_WITH_LEN(" CONNECTION="));
       append_unescaped(packet, share->connect_string.str, share->connect_string.length);
     }
-    append_create_options(thd, packet, share->option_list);
+    append_create_options(thd, packet, share->option_list, check_options,
+                          hton->table_options);
     append_directory(thd, packet, "DATA",  create_info.data_file_name);
     append_directory(thd, packet, "INDEX", create_info.index_file_name);
   }
@@ -2091,8 +2132,7 @@ void append_definer(THD *thd, String *buffer, const LEX_STRING *definer_user,
 }
 
 
-int
-view_store_create_info(THD *thd, TABLE_LIST *table, String *buff)
+static int show_create_view(THD *thd, TABLE_LIST *table, String *buff)
 {
   my_bool compact_view_name= TRUE;
   my_bool foreign_db_mode= (thd->variables.sql_mode & (MODE_POSTGRESQL |
@@ -3051,7 +3091,7 @@ static bool show_status_array(THD *thd, const char *wild,
           end= int10_to_str((long) *(uint*) value, buff, 10);
           break;
         case SHOW_SINT:
-          end= int10_to_str((long) *(uint*) value, buff, -10);
+          end= int10_to_str((long) *(int*) value, buff, -10);
           break;
         case SHOW_SLONG:
           end= int10_to_str(*(long*) value, buff, -10);
@@ -3870,14 +3910,22 @@ int make_db_list(THD *thd, Dynamic_array<LEX_STRING*> *files,
 
 
   /*
-    If we have db lookup vaule we just add it to list and
+    If we have db lookup value we just add it to list and
     exit from the function.
     We don't do this for database names longer than the maximum
-    path length.
+    name length.
   */
-  if (lookup_field_vals->db_value.str && 
-      lookup_field_vals->db_value.length < FN_REFLEN)
+  if (lookup_field_vals->db_value.str)
   {
+    if (lookup_field_vals->db_value.length > NAME_LEN)
+    {
+      /*
+        Impossible value for a database name,
+        found in a WHERE DATABASE_NAME = 'xxx' clause.
+      */
+      return 0;
+    }
+
     if (is_infoschema_db(lookup_field_vals->db_value.str,
                          lookup_field_vals->db_value.length))
     {
@@ -4010,6 +4058,14 @@ make_table_name_list(THD *thd, Dynamic_array<LEX_STRING*> *table_names,
   if (!lookup_field_vals->wild_table_value &&
       lookup_field_vals->table_value.str)
   {
+    if (lookup_field_vals->table_value.length > NAME_LEN)
+    {
+      /*
+        Impossible value for a table name,
+        found in a WHERE TABLE_NAME = 'xxx' clause.
+      */
+      return 0;
+    }
     if (db_name == &INFORMATION_SCHEMA_NAME)
     {
       LEX_STRING *name;
@@ -4454,6 +4510,9 @@ static int fill_schema_table_from_frm(THD *thd, TABLE_LIST *tables,
   bzero((char*) &table_list, sizeof(TABLE_LIST));
   bzero((char*) &tbl, sizeof(TABLE));
 
+  DBUG_ASSERT(db_name->length <= NAME_LEN);
+  DBUG_ASSERT(table_name->length <= NAME_LEN);
+
   if (lower_case_table_names)
   {
     /*
@@ -4599,25 +4658,7 @@ end:
 }
 
 
-/**
-  Trigger_error_handler is intended to intercept and silence SQL conditions
-  that might happen during trigger loading for SHOW statements.
-  The potential SQL conditions are:
-
-    - ER_PARSE_ERROR -- this error is thrown if a trigger definition file
-      is damaged or contains invalid CREATE TRIGGER statement. That should
-      not happen in normal life.
-
-    - ER_TRG_NO_DEFINER -- this warning is thrown when we're loading a
-      trigger created/imported in/from the version of MySQL, which does not
-      support trigger definers.
-
-    - ER_TRG_NO_CREATION_CTX -- this warning is thrown when we're loading a
-      trigger created/imported in/from the version of MySQL, which does not
-      support trigger creation contexts.
-*/
-
-class Trigger_error_handler : public Internal_error_handler
+class Warnings_only_error_handler : public Internal_error_handler
 {
 public:
   bool handle_condition(THD *thd,
@@ -4632,10 +4673,14 @@ public:
         sql_errno == ER_TRG_NO_CREATION_CTX)
       return true;
 
-    return false;
+    if (level != Sql_condition::WARN_LEVEL_ERROR)
+      return false;
+
+    if (!thd->get_stmt_da()->is_error())
+      thd->get_stmt_da()->set_error_status(sql_errno, msg, sqlstate, *cond_hdl);
+    return true; // handled!
   }
 };
-
 
 
 /**
@@ -4775,6 +4820,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
+    DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     if (!(check_access(thd, SELECT_ACL, db_name->str,
                        &thd->col_access, NULL, 0, 1) ||
@@ -4794,6 +4840,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
       for (size_t i=0; i < table_names.elements(); i++)
       {
         LEX_STRING *table_name= table_names.at(i);
+        DBUG_ASSERT(table_name->length <= NAME_LEN);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
@@ -4847,25 +4894,11 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
             if (!(table_open_method & ~OPEN_FRM_ONLY) &&
                 db_name != &INFORMATION_SCHEMA_NAME)
             {
-              /*
-                Here we need to filter out warnings, which can happen
-                during loading of triggers in fill_schema_table_from_frm(),
-                because we don't need those warnings to pollute output of
-                SELECT from I_S / SHOW-statements.
-              */
-
-              Trigger_error_handler err_handler;
-              thd->push_internal_handler(&err_handler);
-
-              int res= fill_schema_table_from_frm(thd, tables, schema_table,
-                                                  db_name, table_name,
-                                                  schema_table_idx,
-                                                  &open_tables_state_backup,
-                                                  can_deadlock);
-
-              thd->pop_internal_handler();
-
-              if (!res)
+              if (!fill_schema_table_from_frm(thd, tables, schema_table,
+                                              db_name, table_name,
+                                              schema_table_idx,
+                                              &open_tables_state_backup,
+                                              can_deadlock))
                 continue;
             }
 
@@ -4947,6 +4980,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
   for (size_t i=0; i < db_names.elements(); i++)
   {
     LEX_STRING *db_name= db_names.at(i);
+    DBUG_ASSERT(db_name->length <= NAME_LEN);
     if (db_name == &INFORMATION_SCHEMA_NAME)
     {
       if (store_schema_shemata(thd, table, db_name,
@@ -5123,7 +5157,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       str.qs_append(STRING_WITH_LEN(" transactional="));
       str.qs_append(ha_choice_values[(uint) share->transactional]);
     }
-    append_create_options(thd, &str, share->option_list);
+    append_create_options(thd, &str, share->option_list, false, 0);
 
     if (str.length())
       table->field[19]->store(str.ptr()+1, str.length()-1, cs);
@@ -8013,95 +8047,6 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
 }
 
 
-/**
-  Fill INFORMATION_SCHEMA-table, leave correct Diagnostics_area /
-  Warning_info state after itself.
-
-  This function is a wrapper around ST_SCHEMA_TABLE::fill_table(), which
-  may "partially silence" some errors. The thing is that during
-  fill_table() many errors might be emitted. These errors stem from the
-  nature of fill_table().
-
-  For example, SELECT ... FROM INFORMATION_SCHEMA.xxx WHERE TABLE_NAME = 'xxx'
-  results in a number of 'Table <db name>.xxx does not exist' errors,
-  because fill_table() tries to open the 'xxx' table in every possible
-  database.
-
-  Those errors are cleared (the error status is cleared from
-  Diagnostics_area) inside fill_table(), but they remain in Warning_info
-  (Warning_info is not cleared because it may contain useful warnings).
-
-  This function is responsible for making sure that Warning_info does not
-  contain warnings corresponding to the cleared errors.
-
-  @note: THD::no_warnings_for_error used to be set before calling
-  fill_table(), thus those errors didn't go to Warning_info. This is not
-  the case now (THD::no_warnings_for_error was eliminated as a hack), so we
-  need to take care of those warnings here.
-
-  @param thd            Thread context.
-  @param table_list     I_S table.
-  @param join_table     JOIN/SELECT table.
-
-  @return Error status.
-  @retval TRUE Error.
-  @retval FALSE Success.
-*/
-static bool do_fill_table(THD *thd,
-                          TABLE_LIST *table_list,
-                          JOIN_TAB *join_table)
-{
-  // NOTE: fill_table() may generate many "useless" warnings, which will be
-  // ignored afterwards. On the other hand, there might be "useful"
-  // warnings, which should be presented to the user. Warning_info usually
-  // stores no more than THD::variables.max_error_count warnings.
-  // The problem is that "useless warnings" may occupy all the slots in the
-  // Warning_info, so "useful warnings" get rejected. In order to avoid
-  // that problem we create a Warning_info instance, which is capable of
-  // storing "unlimited" number of warnings.
-  Diagnostics_area *da= thd->get_stmt_da();
-  Warning_info wi_tmp(thd->query_id, true, true);
-
-  da->push_warning_info(&wi_tmp);
-
-  Item *item= join_table->select_cond;
-  if (join_table->cache_select &&
-      join_table->cache_select->cond)
-  {
-    /*
-      If join buffering is used, we should use the condition that is attached
-      to the join cache. Cache condition has a part of WHERE that can be
-      checked when we're populating this table.
-      join_tab->select_cond is of no interest, because it only has conditions
-      that depend on both this table and previous tables in the join order.
-    */
-    item= join_table->cache_select->cond;
-  }
-  bool res= table_list->schema_table->fill_table(thd, table_list, item);
-
-  da->pop_warning_info();
-
-  // Pass an error if any.
-
-  if (da->is_error())
-  {
-    da->push_warning(thd,
-                     da->sql_errno(),
-                     da->get_sqlstate(),
-                     Sql_condition::WARN_LEVEL_ERROR,
-                     da->message());
-  }
-
-  // Pass warnings (if any).
-  //
-  // Filter out warnings with WARN_LEVEL_ERROR level, because they
-  // correspond to the errors which were filtered out in fill_table().
-  da->copy_non_errors_from_wi(thd, &wi_tmp);
-
-  return res;
-}
-
-
 /*
   Fill temporary schema tables before SELECT
 
@@ -8121,7 +8066,12 @@ bool get_schema_tables_result(JOIN *join,
   THD *thd= join->thd;
   LEX *lex= thd->lex;
   bool result= 0;
+  const char *old_proc_info;
   DBUG_ENTER("get_schema_tables_result");
+
+  Warnings_only_error_handler err_handler;
+  thd->push_internal_handler(&err_handler);
+  old_proc_info= thd_proc_info(thd, "Filling schema table");
 
   for (JOIN_TAB *tab= first_linear_tab(join, WITH_CONST_TABLES); 
        tab; 
@@ -8175,20 +8125,56 @@ bool get_schema_tables_result(JOIN *join,
       else
         table_list->table->file->stats.records= 0;
 
-      if (do_fill_table(thd, table_list, tab))
+  
+      Item *cond= tab->select_cond;
+      if (tab->cache_select && tab->cache_select->cond)
+      {
+        /*
+          If join buffering is used, we should use the condition that is
+          attached to the join cache. Cache condition has a part of WHERE that
+          can be checked when we're populating this table.
+          join_tab->select_cond is of no interest, because it only has
+          conditions that depend on both this table and previous tables in the
+          join order.
+        */
+        cond= tab->cache_select->cond;
+      }
+
+      if (table_list->schema_table->fill_table(thd, table_list, cond))
       {
         result= 1;
         join->error= 1;
         tab->read_record.table->file= table_list->table->file;
         table_list->schema_table_state= executed_place;
-        if (!thd->is_error())
-          my_error(ER_UNKNOWN_ERROR, MYF(0));
         break;
       }
       tab->read_record.table->file= table_list->table->file;
       table_list->schema_table_state= executed_place;
     }
   }
+  thd->pop_internal_handler();
+  if (thd->is_error())
+  {
+    /*
+      This hack is here, because I_S code uses thd->clear_error() a lot.
+      Which means, a Warnings_only_error_handler cannot handle the error
+      corectly as it does not know whether an error is real (e.g. caused
+      by tab->select_cond->val_int()) or will be cleared later.
+      Thus it ignores all errors, and the real one (that is, the error
+      that was not cleared) is pushed now.
+
+      It also means that an audit plugin cannot process the error correctly
+      either. See also thd->clear_error()
+    */
+    thd->get_stmt_da()->push_warning(thd,
+                                     thd->get_stmt_da()->sql_errno(),
+                                     thd->get_stmt_da()->get_sqlstate(),
+                                     Sql_condition::WARN_LEVEL_ERROR,
+                                     thd->get_stmt_da()->message());
+  }
+  else if (result)
+    my_error(ER_UNKNOWN_ERROR, MYF(0));
+  thd_proc_info(thd, old_proc_info);
   DBUG_RETURN(result);
 }
 

@@ -12,7 +12,7 @@ distribution because other apparatus is needed to compile pcregrep for z/OS.
 The header can be found in the special z/OS distribution, which is available
 from www.zaconsultants.net or from www.cbttape.org.
 
-           Copyright (c) 1997-2013 University of Cambridge
+           Copyright (c) 1997-2014 University of Cambridge
 
 -----------------------------------------------------------------------------
 Redistribution and use in source and binary forms, with or without
@@ -1298,7 +1298,7 @@ switch(endlinetype)
     while (p > startptr && p[-1] != '\n') p--;
     if (p <= startptr + 1 || p[-2] == '\r') return p;
     }
-  return p;   /* But control should never get here */
+  /* Control can never get here */
 
   case EL_ANY:
   case EL_ANYCRLF:

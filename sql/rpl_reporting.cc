@@ -28,6 +28,7 @@ Slave_reporting_capability::Slave_reporting_capability(char const *thread_name)
 
 void
 Slave_reporting_capability::report(loglevel level, int err_code,
+                                   const char *extra_info,
                                    const char *msg, ...) const
 {
   void (*report_function)(const char *, ...);
@@ -67,9 +68,10 @@ Slave_reporting_capability::report(loglevel level, int err_code,
   va_end(args);
 
   /* If the msg string ends with '.', do not add a ',' it would be ugly */
-  report_function("Slave %s: %s%s Internal MariaDB error code: %d",
+  report_function("Slave %s: %s%s %s%sInternal MariaDB error code: %d",
                   m_thread_name, pbuff,
                   (pbuff[0] && *(strend(pbuff)-1) == '.') ? "" : ",",
+                  (extra_info ? extra_info : ""), (extra_info ? ", " : ""),
                   err_code);
 }
 

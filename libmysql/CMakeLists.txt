@@ -138,7 +138,12 @@ my_print_help
 )
 
 SET(CLIENT_API_FUNCTIONS_5_5
+my_progname
 mysql_stmt_next_result
+# Charsets
+my_charset_bin
+my_charset_latin1
+my_charset_utf8_general_ci
 # Client plugins
 mysql_client_find_plugin
 mysql_client_register_plugin
@@ -442,6 +447,10 @@ IF(NOT DISABLE_SHARED)
       SOVERSION "${SHARED_LIB_MAJOR_VERSION}")
     IF(LINK_FLAG_NO_UNDEFINED OR VERSION_SCRIPT_LINK_FLAGS)
       GET_TARGET_PROPERTY(libmysql_link_flags libmysql LINK_FLAGS)
+      IF(NOT libmysql_link_flags)
+        # Avoid libmysql_link_flags-NOTFOUND
+        SET(libmysql_link_flags)
+      ENDIF()
       SET_TARGET_PROPERTIES(libmysql PROPERTIES LINK_FLAGS 
         "${libmysql_link_flags} ${LINK_FLAG_NO_UNDEFINED} ${VERSION_SCRIPT_LINK_FLAGS}")
     ENDIF() 

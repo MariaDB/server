@@ -349,3 +349,51 @@ DROP TABLE t1;
 
 
 SELECT REGEXP_SUBSTR('See https://mariadb.org/en/foundation/ for details', 'https?://[^/]*');
+
+
+--echo #
+--echo # MDEV-6027 RLIKE: "." no longer matching new line
+--echo #
+SELECT  'cat and\ndog'  RLIKE 'cat.*dog';
+SELECT  'cat and\r\ndog'  RLIKE 'cat.*dog';
+SELECT 'a\nb' RLIKE 'a.b';
+SELECT 'a\nb' RLIKE '(?-s)a.b';
+SET default_regex_flags='DOTALL';
+SELECT @@default_regex_flags;
+SELECT  'cat and\ndog'  RLIKE 'cat.*dog';
+SELECT  'cat and\r\ndog'  RLIKE 'cat.*dog';
+SELECT 'a\nb' RLIKE 'a.b';
+SELECT 'a\nb' RLIKE '(?-s)a.b';
+SET default_regex_flags=DEFAULT;
+
+--error ER_REGEXP_ERROR
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+SET default_regex_flags='DUPNAMES';
+SELECT REGEXP_SUBSTR('Monday Mon','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+SELECT REGEXP_SUBSTR('Tuesday Tue','^((?<DN>Mon|Fri|Sun)day|(?<DN>Tue)sday).*(?P=DN)$');
+SET default_regex_flags=DEFAULT;
+
+SELECT 'AB' RLIKE 'A B';
+SELECT 'AB' RLIKE 'A# this is a comment\nB';
+SET default_regex_flags='EXTENDED';
+SELECT 'AB' RLIKE 'A B';
+SELECT 'AB' RLIKE 'A# this is a comment\nB';
+SET default_regex_flags=DEFAULT;
+
+SELECT 'Aq' RLIKE 'A\\q';
+SET default_regex_flags='EXTRA';
+--error ER_REGEXP_ERROR
+SELECT 'Aq' RLIKE 'A\\q';
+SET default_regex_flags=DEFAULT;
+
+SELECT 'a\nb\nc' RLIKE '^b$';
+SET default_regex_flags='MULTILINE';
+SELECT 'a\nb\nc' RLIKE '^b$';
+SET default_regex_flags=DEFAULT;
+
+SELECT REGEXP_SUBSTR('abc','.+');
+SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
+SET default_regex_flags='UNGREEDY';
+SELECT REGEXP_SUBSTR('abc','.+');
+SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
+SET default_regex_flags=DEFAULT;

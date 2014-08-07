@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2012, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,6 +31,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "buf0types.h"
 #include "hash0hash.h"
 #include "log0log.h"
+#include <list>
 
 /******************************************************//**
 Checks the 4-byte checksum to the trailer checksum field of a log
@@ -404,6 +405,18 @@ struct recv_addr_t{
 	hash_node_t	addr_hash;/*!< hash node in the hash bucket chain */
 };
 
+struct recv_dblwr_t {
+	void add(byte* page);
+
+	byte* find_page(ulint space_id, ulint page_no);
+
+	std::list<byte *> pages; /* Pages from double write buffer */
+
+	void operator() () {
+		pages.clear();
+	}
+};
+
 /** Recovery system data structure */
 struct recv_sys_t{
 #ifndef UNIV_HOTBACKUP
@@ -468,6 +481,8 @@ struct recv_sys_t{
 	hash_table_t*	addr_hash;/*!< hash table of file addresses of pages */
 	ulint		n_addrs;/*!< number of not processed hashed file
 				addresses in the hash table */
+
+	recv_dblwr_t	dblwr;
 };
 
 /** The recovery system */

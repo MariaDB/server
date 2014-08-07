@@ -824,7 +824,8 @@ static my_bool my_net_skip_rest(NET *net, uint32 remain, thr_alarm_t *alarmed,
 */
 
 static ulong
-my_real_read(NET *net, size_t *complen)
+my_real_read(NET *net, size_t *complen,
+             my_bool header __attribute__((unused)))
 {
   uchar *pos;
   size_t length;
@@ -839,14 +840,16 @@ my_real_read(NET *net, size_t *complen)
 		  NET_HEADER_SIZE);
 #ifdef MYSQL_SERVER
   size_t count= remain;
-  struct st_net_server *server_extension;
-  server_extension= static_cast<st_net_server*> (net->extension);
-  if (server_extension != NULL)
+  struct st_net_server *server_extension= 0;
+
+  if (header)
   {
-    void *user_data= server_extension->m_user_data;
-    DBUG_ASSERT(server_extension->m_before_header != NULL);
-    DBUG_ASSERT(server_extension->m_after_header != NULL);
-    server_extension->m_before_header(net, user_data, count);
+    server_extension= static_cast<st_net_server*> (net->extension);
+    if (server_extension != NULL)
+    {
+      void *user_data= server_extension->m_user_data;
+      server_extension->m_before_header(net, user_data, count);
+    }
   }
 #endif
 
@@ -1042,6 +1045,16 @@ end:
 }
 
 
+/* Old interface. See my_net_read_packet() for function description */
+
+#undef my_net_read
+
+ulong my_net_read(NET *net)
+{
+  return my_net_read_packet(net, 0);
+}
+
+
 /**
   Read a packet from the client/server and return it without the internal
   package header.
@@ -1053,13 +1066,17 @@ end:
   If the packet was compressed, its uncompressed and the length of the
   uncompressed packet is returned.
 
+  read_from_server is set when the server is reading a new command
+  from the client.
+
   @return
   The function returns the length of the found packet or packet_error.
   net->read_pos points to the read data.
 */
 
+
 ulong
-my_net_read(NET *net)
+my_net_read_packet(NET *net, my_bool read_from_server)
 {
   size_t len, complen;
 
@@ -1069,7 +1086,7 @@ my_net_read(NET *net)
   if (!net->compress)
   {
 #endif
-    len = my_real_read(net,&complen);
+    len = my_real_read(net,&complen, read_from_server);
     if (len == MAX_PACKET_LENGTH)
     {
       /* First packet of a multi-packet.  Concatenate the packets */
@@ -1079,7 +1096,7 @@ my_net_read(NET *net)
       {
 	net->where_b += len;
 	total_length += len;
-	len = my_real_read(net,&complen);
+	len = my_real_read(net,&complen, 0);
       } while (len == MAX_PACKET_LENGTH);
       if (len != packet_error)
 	len+= total_length;
@@ -1171,11 +1188,13 @@ my_net_read(NET *net)
       }
 
       net->where_b=buf_length;
-      if ((packet_len = my_real_read(net,&complen)) == packet_error)
+      if ((packet_len = my_real_read(net,&complen, read_from_server))
+          == packet_error)
       {
         MYSQL_NET_READ_DONE(1, 0);
 	return packet_error;
       }
+      read_from_server= 0;
       if (my_uncompress(net->buff + net->where_b, packet_len,
 			&complen))
       {

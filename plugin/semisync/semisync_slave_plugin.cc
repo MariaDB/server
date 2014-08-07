@@ -1,5 +1,6 @@
 /* Copyright (C) 2007 Google Inc.
    Copyright (C) 2008 MySQL AB
+   Use is subject to license terms
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -226,7 +227,7 @@ maria_declare_plugin(semisync_slave)
   semi_sync_slave_status_vars,	/* status variables */
   semi_sync_slave_system_vars,	/* system variables */
   "1.0",
-  MariaDB_PLUGIN_MATURITY_UNKNOWN
+  MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
 

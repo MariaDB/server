@@ -40,6 +40,8 @@
 #include "spd_udf.h"
 #include "spd_malloc.h"
 
+extern bool volatile *spd_abort_loop;
+
 extern handlerton *spider_hton_ptr;
 
 #ifdef HAVE_PSI_INTERFACE
@@ -1273,6 +1275,16 @@ int spider_ping_table_mon_from_table(
       ER_SPIDER_MON_AT_ALTER_TABLE_STR, MYF(0));
     DBUG_RETURN(ER_SPIDER_MON_AT_ALTER_TABLE_NUM);
   }
+  DBUG_PRINT("info",("spider thd->killed=%s",
+    thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
+  DBUG_PRINT("info",("spider abort_loop=%s",
+    *spd_abort_loop ? "TRUE" : "FALSE"));
+  if (
+    (thd && thd->killed) ||
+    *spd_abort_loop
+  ) {
+    DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+  }
 
   link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
     link_idx));
@@ -1325,126 +1337,158 @@ int spider_ping_table_mon_from_table(
     current_mon_count = 1;
     while (TRUE)
     {
-      if (!table_mon)
-        table_mon = table_mon_list->first;
+      DBUG_PRINT("info",("spider thd->killed=%s",
+        thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
+      DBUG_PRINT("info",("spider abort_loop=%s",
+        *spd_abort_loop ? "TRUE" : "FALSE"));
       if (
-        current_mon_count > table_mon_list->list_size ||
-        (current_mon_count > 1 && table_mon->server_id == first_sid)
+        (thd && thd->killed) ||
+        *spd_abort_loop
       ) {
-        table_mon_list->last_caller_result = SPIDER_LINK_MON_DRAW_FEW_MON;
-        mon_table_result.result_status = SPIDER_LINK_MON_DRAW_FEW_MON;
-        DBUG_PRINT("info",(
-          "spider mon_table_result->result_status=SPIDER_LINK_MON_DRAW_FEW_MON 1"));
-        error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
-        my_printf_error(error_num,
-          ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
-          table_mon_list->share->tgt_dbs[0],
-          table_mon_list->share->tgt_table_names[0]);
+        error_num = ER_SPIDER_COND_SKIP_NUM;
         break;
-      }
-      thd->clear_error();
-      if ((mon_conn = spider_get_ping_table_tgt_conn(trx,
-        table_mon->share, &error_num))
-      ) {
-        if (!spider_db_udf_ping_table_mon_next(
-          thd, table_mon, mon_conn, &mon_table_result, conv_name,
-          conv_name_length, link_idx,
-          where_clause, where_clause_length, -1, table_mon_list->list_size,
-          0, 0, 0, flags, monitoring_limit))
+      } else {
+        if (!table_mon)
+          table_mon = table_mon_list->first;
+        if (
+          current_mon_count > table_mon_list->list_size ||
+          (current_mon_count > 1 && table_mon->server_id == first_sid)
+        ) {
+          table_mon_list->last_caller_result = SPIDER_LINK_MON_DRAW_FEW_MON;
+          mon_table_result.result_status = SPIDER_LINK_MON_DRAW_FEW_MON;
+          DBUG_PRINT("info",(
+            "spider mon_table_result->result_status=SPIDER_LINK_MON_DRAW_FEW_MON 1"));
+          error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
+          my_printf_error(error_num,
+            ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
+            table_mon_list->share->tgt_dbs[0],
+            table_mon_list->share->tgt_table_names[0]);
+          break;
+        }
+        int prev_error = 0;
+        char prev_error_msg[MYSQL_ERRMSG_SIZE];
+        if (thd->is_error())
         {
-          if (
-            mon_table_result.result_status == SPIDER_LINK_MON_NG &&
-            table_mon_list->mon_status != SPIDER_LINK_MON_NG
-          ) {
-            pthread_mutex_lock(&table_mon_list->update_status_mutex);
-            if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
-            {
-              table_mon_list->mon_status = SPIDER_LINK_MON_NG;
-              table_mon_list->share->link_statuses[0] = SPIDER_LINK_STATUS_NG;
-              DBUG_PRINT("info", (
-                "spider share->link_statuses[%d]=SPIDER_LINK_STATUS_NG",
-                link_idx));
-              share->link_statuses[link_idx] = SPIDER_LINK_STATUS_NG;
-              spider_sys_update_tables_link_status(thd, conv_name,
-                conv_name_length, link_idx, SPIDER_LINK_STATUS_NG, need_lock);
-              spider_sys_log_tables_link_failed(thd, conv_name,
-                conv_name_length, link_idx, need_lock);
+          prev_error = spider_stmt_da_sql_errno(thd);
+          strmov(prev_error_msg, spider_stmt_da_message(thd));
+          thd->clear_error();
+        }
+        if ((mon_conn = spider_get_ping_table_tgt_conn(trx,
+          table_mon->share, &error_num))
+        ) {
+          if (!spider_db_udf_ping_table_mon_next(
+            thd, table_mon, mon_conn, &mon_table_result, conv_name,
+            conv_name_length, link_idx,
+            where_clause, where_clause_length, -1, table_mon_list->list_size,
+            0, 0, 0, flags, monitoring_limit))
+          {
+            if (
+              mon_table_result.result_status == SPIDER_LINK_MON_NG &&
+              table_mon_list->mon_status != SPIDER_LINK_MON_NG
+            ) {
+              pthread_mutex_lock(&table_mon_list->update_status_mutex);
+              if (table_mon_list->mon_status != SPIDER_LINK_MON_NG)
+              {
+                table_mon_list->mon_status = SPIDER_LINK_MON_NG;
+                table_mon_list->share->link_statuses[0] = SPIDER_LINK_STATUS_NG;
+                DBUG_PRINT("info", (
+                  "spider share->link_statuses[%d]=SPIDER_LINK_STATUS_NG",
+                  link_idx));
+                share->link_statuses[link_idx] = SPIDER_LINK_STATUS_NG;
+                spider_sys_update_tables_link_status(thd, conv_name,
+                  conv_name_length, link_idx, SPIDER_LINK_STATUS_NG, need_lock);
+                spider_sys_log_tables_link_failed(thd, conv_name,
+                  conv_name_length, link_idx, need_lock);
+              }
+              pthread_mutex_unlock(&table_mon_list->update_status_mutex);
             }
-            pthread_mutex_unlock(&table_mon_list->update_status_mutex);
-          }
-          table_mon_list->last_caller_result = mon_table_result.result_status;
-          if (mon_table_result.result_status == SPIDER_LINK_MON_OK)
-          {
-            error_num = ER_SPIDER_LINK_MON_OK_NUM;
+            table_mon_list->last_caller_result = mon_table_result.result_status;
+            if (mon_table_result.result_status == SPIDER_LINK_MON_OK)
+            {
+              if (prev_error)
+                my_message(prev_error, prev_error_msg, MYF(0));
+              error_num = ER_SPIDER_LINK_MON_OK_NUM;
+              my_printf_error(error_num,
+                ER_SPIDER_LINK_MON_OK_STR, MYF(0),
+                table_mon_list->share->tgt_dbs[0],
+                table_mon_list->share->tgt_table_names[0]);
+              break;
+            }
+            if (mon_table_result.result_status == SPIDER_LINK_MON_NG)
+            {
+              error_num = ER_SPIDER_LINK_MON_NG_NUM;
+              my_printf_error(error_num,
+                ER_SPIDER_LINK_MON_NG_STR, MYF(0),
+                table_mon_list->share->tgt_dbs[0],
+                table_mon_list->share->tgt_table_names[0]);
+              break;
+            }
+            if (mon_table_result.result_status ==
+              SPIDER_LINK_MON_DRAW_FEW_MON)
+            {
+              error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
+              my_printf_error(error_num,
+                ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
+                table_mon_list->share->tgt_dbs[0],
+                table_mon_list->share->tgt_table_names[0]);
+              break;
+            }
+            error_num = ER_SPIDER_LINK_MON_DRAW_NUM;
             my_printf_error(error_num,
-              ER_SPIDER_LINK_MON_OK_STR, MYF(0),
+              ER_SPIDER_LINK_MON_DRAW_STR, MYF(0),
               table_mon_list->share->tgt_dbs[0],
               table_mon_list->share->tgt_table_names[0]);
             break;
           }
-          if (mon_table_result.result_status == SPIDER_LINK_MON_NG)
-          {
-            error_num = ER_SPIDER_LINK_MON_NG_NUM;
-            my_printf_error(error_num,
-              ER_SPIDER_LINK_MON_NG_STR, MYF(0),
-              table_mon_list->share->tgt_dbs[0],
-              table_mon_list->share->tgt_table_names[0]);
-            break;
-          }
-          if (mon_table_result.result_status ==
-            SPIDER_LINK_MON_DRAW_FEW_MON)
-          {
-            error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
-            my_printf_error(error_num,
-              ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
-              table_mon_list->share->tgt_dbs[0],
-              table_mon_list->share->tgt_table_names[0]);
-            break;
-          }
+        }
+        table_mon = table_mon->next;
+        current_mon_count++;
+      }
+    }
+    pthread_mutex_unlock(&table_mon_list->caller_mutex);
+  } else {
+    pthread_mutex_lock(&table_mon_list->caller_mutex);
+    DBUG_PRINT("info",("spider thd->killed=%s",
+      thd ? (thd->killed ? "TRUE" : "FALSE") : "NULL"));
+    DBUG_PRINT("info",("spider abort_loop=%s",
+      *spd_abort_loop ? "TRUE" : "FALSE"));
+    if (
+      (thd && thd->killed) ||
+      *spd_abort_loop
+    ) {
+      error_num = ER_SPIDER_COND_SKIP_NUM;
+    } else {
+      switch (table_mon_list->last_caller_result)
+      {
+        case SPIDER_LINK_MON_OK:
+          error_num = ER_SPIDER_LINK_MON_OK_NUM;
+          my_printf_error(error_num,
+            ER_SPIDER_LINK_MON_OK_STR, MYF(0),
+            table_mon_list->share->tgt_dbs[0],
+            table_mon_list->share->tgt_table_names[0]);
+          break;
+        case SPIDER_LINK_MON_NG:
+          error_num = ER_SPIDER_LINK_MON_NG_NUM;
+          my_printf_error(error_num,
+            ER_SPIDER_LINK_MON_NG_STR, MYF(0),
+            table_mon_list->share->tgt_dbs[0],
+            table_mon_list->share->tgt_table_names[0]);
+          break;
+        case SPIDER_LINK_MON_DRAW_FEW_MON:
+          error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
+          my_printf_error(error_num,
+            ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
+            table_mon_list->share->tgt_dbs[0],
+            table_mon_list->share->tgt_table_names[0]);
+          break;
+        default:
           error_num = ER_SPIDER_LINK_MON_DRAW_NUM;
           my_printf_error(error_num,
             ER_SPIDER_LINK_MON_DRAW_STR, MYF(0),
             table_mon_list->share->tgt_dbs[0],
             table_mon_list->share->tgt_table_names[0]);
           break;
-        }
       }
-      table_mon = table_mon->next;
-      current_mon_count++;
-    }
-    pthread_mutex_unlock(&table_mon_list->caller_mutex);
-  } else {
-    pthread_mutex_lock(&table_mon_list->caller_mutex);
-    switch (table_mon_list->last_caller_result)
-    {
-      case SPIDER_LINK_MON_OK:
-        error_num = ER_SPIDER_LINK_MON_OK_NUM;
-        my_printf_error(error_num,
-          ER_SPIDER_LINK_MON_OK_STR, MYF(0),
-          table_mon_list->share->tgt_dbs[0],
-          table_mon_list->share->tgt_table_names[0]);
-        break;
-      case SPIDER_LINK_MON_NG:
-        error_num = ER_SPIDER_LINK_MON_NG_NUM;
-        my_printf_error(error_num,
-          ER_SPIDER_LINK_MON_NG_STR, MYF(0),
-          table_mon_list->share->tgt_dbs[0],
-          table_mon_list->share->tgt_table_names[0]);
-        break;
-      case SPIDER_LINK_MON_DRAW_FEW_MON:
-        error_num = ER_SPIDER_LINK_MON_DRAW_FEW_MON_NUM;
-        my_printf_error(error_num,
-          ER_SPIDER_LINK_MON_DRAW_FEW_MON_STR, MYF(0),
-          table_mon_list->share->tgt_dbs[0],
-          table_mon_list->share->tgt_table_names[0]);
-        break;
-      default:
-        error_num = ER_SPIDER_LINK_MON_DRAW_NUM;
-        my_printf_error(error_num,
-          ER_SPIDER_LINK_MON_DRAW_STR, MYF(0),
-          table_mon_list->share->tgt_dbs[0],
-          table_mon_list->share->tgt_table_names[0]);
-        break;
     }
     pthread_mutex_unlock(&table_mon_list->caller_mutex);
   }

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -663,7 +663,8 @@ enum Log_event_type
   PRE_GA_DELETE_ROWS_EVENT = 22,
 
   /*
-    These event numbers are used from 5.1.16 until mysql-trunk-xx
+    These event numbers are used from 5.1.16 until mysql-5.6.6,
+    and in MariaDB
    */
   WRITE_ROWS_EVENT_V1 = 23,
   UPDATE_ROWS_EVENT_V1 = 24,
@@ -685,11 +686,13 @@ enum Log_event_type
     data to the slave: data that a slave can handle in case there
     is code for handling it, but which can be ignored if it is not
     recognized.
+
+    These mysql-5.6 events are not recognized (and ignored) by MariaDB
   */
   IGNORABLE_LOG_EVENT= 28,
   ROWS_QUERY_LOG_EVENT= 29,
  
-  /* Version 2 of the Row events */
+  /* Version 2 of the Row events, generated only by mysql-5.6.6+ */
   WRITE_ROWS_EVENT = 30,
   UPDATE_ROWS_EVENT = 31,
   DELETE_ROWS_EVENT = 32,
@@ -2001,7 +2004,7 @@ public:
   bool is_valid() const { return query != 0; }
 
   /*
-    Returns number of bytes additionaly written to post header by derived
+    Returns number of bytes additionally written to post header by derived
     events (so far it is only Execute_load_query event).
   */
   virtual ulong get_post_header_size_for_derived() { return 0; }
@@ -4340,7 +4343,21 @@ protected:
   bool process_triggers(trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
-#endif //defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
+
+  /**
+    Helper function to check whether there is an auto increment
+    column on the table where the event is to be applied.
+
+    @return true if there is an autoincrement field on the extra
+            columns, false otherwise.
+   */
+  inline bool is_auto_inc_in_extra_columns()
+  {
+    DBUG_ASSERT(m_table);
+    return (m_table->next_number_field &&
+            m_table->next_number_field->field_index >= m_width);
+  }
+#endif
 
 private:
 
@@ -4669,7 +4686,16 @@ public:
   {
     DBUG_ENTER("Incident_log_event::Incident_log_event");
     DBUG_PRINT("enter", ("m_incident: %d", m_incident));
-    m_message= msg;
+    m_message.str= NULL;
+    m_message.length= 0;
+    if (!(m_message.str= (char*) my_malloc(msg.length+1, MYF(MY_WME))))
+    {
+      /* Mark this event invalid */
+      m_incident= INCIDENT_NONE;
+      DBUG_VOID_RETURN;
+    }
+    strmake(m_message.str, msg.str, msg.length);
+    m_message.length= msg.length;
     set_direct_logging();
     /* Replicate the incident irregardless of @@skip_replication. */
     flags&= ~LOG_EVENT_SKIP_REPLICATION_F;

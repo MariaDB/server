@@ -785,7 +785,7 @@ int VCTFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else {
       /*****************************************************************/
-      /*  First line to delete. Move of eventual preceeding lines is   */
+      /*  First line to delete. Move of eventual preceding lines is   */
       /*  not required here, just the setting of future Spos and Tpos. */
       /*****************************************************************/
       T_Stream = Stream;
@@ -1601,7 +1601,7 @@ bool VCMFAM::AllocateBuffer(PGLOBAL g)
 bool VCMFAM::InitInsert(PGLOBAL g)
   {
   int     rc;
-  PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
+  volatile PVCTCOL cp = (PVCTCOL)Tdbp->GetColumns();
 
   // We come here in MODE_INSERT only
   if (Last == Nrec) {
@@ -1697,7 +1697,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
 
   if (Tpos == Spos) {
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceeding lines is     */
+    /*  First line to delete. Move of eventual preceding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Spos = Fpos;
@@ -2355,7 +2355,7 @@ int VECFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else
       /*****************************************************************/
-      /*  Move of eventual preceeding lines is not required here.      */
+      /*  Move of eventual preceding lines is not required here.      */
       /*  Set the future Tpos, and give Spos a value to block copying. */
       /*****************************************************************/
       Spos = Tpos = Fpos;
@@ -3105,7 +3105,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
 
   if (Tpos == Spos) {
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceeding lines is     */
+    /*  First line to delete. Move of eventual preceding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
     Tpos = Fpos;                               // Spos is set below
@@ -4091,7 +4091,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } else {
       /*****************************************************************/
-      /*  Move of eventual preceeding lines is not required here.      */
+      /*  Move of eventual preceding lines is not required here.      */
       /*  Set the target file as being the source file itself.         */
       /*  Set the future Tpos, and give Spos a value to block copying. */
       /*****************************************************************/

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -206,7 +206,7 @@ maria_declare_plugin(perfschema)
   pfs_status_vars,
   NULL,
   "0.1",
-  MariaDB_PLUGIN_MATURITY_GAMMA /* because MySQL-5.5 is RC */
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 
@@ -272,7 +272,10 @@ int ha_perfschema::update_row(const uchar *old_data, uchar *new_data)
   DBUG_ENTER("ha_perfschema::update_row");
   if (!pfs_initialized)
     DBUG_RETURN(HA_ERR_WRONG_COMMAND);
-  
+
+  if (is_executed_by_slave())
+    DBUG_RETURN(0);
+
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_update_count);
   int result= m_table->update_row(table, old_data, new_data, table->field);
@@ -325,7 +328,10 @@ int ha_perfschema::rnd_next(uchar *buf)
 {
   DBUG_ENTER("ha_perfschema::rnd_next");
   if (!pfs_initialized)
+  {
+    table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
 
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_read_rnd_next_count);
@@ -337,6 +343,7 @@ int ha_perfschema::rnd_next(uchar *buf)
     if (result == 0)
       stats.records++;
   }
+  table->status= (result ? STATUS_NOT_FOUND : 0);
   DBUG_RETURN(result);
 }
 
@@ -353,13 +360,17 @@ int ha_perfschema::rnd_pos(uchar *buf, uchar *pos)
 {
   DBUG_ENTER("ha_perfschema::rnd_pos");
   if (!pfs_initialized)
+  {
+    table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
+  }
 
   DBUG_ASSERT(m_table);
   ha_statistic_increment(&SSV::ha_read_rnd_count);
   int result= m_table->rnd_pos(pos);
   if (result == 0)
     result= m_table->read_row(table, buf, table->field);
+  table->status= (result ? STATUS_NOT_FOUND : 0);
   DBUG_RETURN(result);
 }
 
@@ -382,6 +393,9 @@ int ha_perfschema::delete_all_rows(void)
   if (!pfs_initialized)
     DBUG_RETURN(0);
 
+  if (is_executed_by_slave())
+    DBUG_RETURN(0);
+
   DBUG_ASSERT(m_table_share);
   if (m_table_share->m_delete_all_rows)
     result= m_table_share->m_delete_all_rows();
@@ -390,6 +404,11 @@ int ha_perfschema::delete_all_rows(void)
     result= HA_ERR_WRONG_COMMAND;
   }
   DBUG_RETURN(result);
+}
+
+int ha_perfschema::truncate()
+{
+  return delete_all_rows();
 }
 
 THR_LOCK_DATA **ha_perfschema::store_lock(THD *thd,

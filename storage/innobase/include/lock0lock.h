@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -289,7 +289,7 @@ lock_rec_insert_check_and_lock(
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,6,7), warn_unused_result));
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate modify (update,
 delete mark, or delete unmark) of a clustered index record. If they do,
@@ -892,21 +892,14 @@ lock_trx_has_rec_x_lock(
 				remains set when the waiting lock is granted,
 				or if the lock is inherited to a neighboring
 				record */
-#define LOCK_CONV_BY_OTHER 4096 /*!< this bit is set when the lock is created
-				by other transaction */
-#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_CONV_BY_OTHER)&LOCK_MODE_MASK
+
+#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION)&LOCK_MODE_MASK
 # error
 #endif
-#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION|LOCK_CONV_BY_OTHER)&LOCK_TYPE_MASK
+#if (LOCK_WAIT|LOCK_GAP|LOCK_REC_NOT_GAP|LOCK_INSERT_INTENTION)&LOCK_TYPE_MASK
 # error
 #endif
 /* @} */
-
-/** Checks if this is a waiting lock created by lock->trx itself.
-@param type_mode lock->type_mode
-@return whether it is a waiting lock belonging to lock->trx */
-#define lock_is_wait_not_by_other(type_mode) \
-	((type_mode & (LOCK_CONV_BY_OTHER | LOCK_WAIT)) == LOCK_WAIT)
 
 /** Lock operation struct */
 struct lock_op_t{

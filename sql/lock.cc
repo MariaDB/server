@@ -323,6 +323,8 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
     (void) unlock_external(thd, sql_lock->table, sql_lock->table_count);
 
 end:
+  THD_STAGE_INFO(thd, stage_after_table_lock);
+
   if (thd->killed)
   {
     thd->send_kill_message();
@@ -859,6 +861,8 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
   MDL_request global_request;
   MDL_request schema_request;
   MDL_request mdl_request;
+
+  DBUG_ASSERT(ok_for_lower_case_names(db));
 
   if (thd->locked_tables_mode)
   {

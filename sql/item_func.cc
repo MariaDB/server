@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1116,7 +1116,9 @@ bool Item_func_hybrid_result_type::get_date(MYSQL_TIME *ltime,
   case INT_RESULT:
   {
     longlong value= int_op();
-    if (null_value || int_to_datetime_with_warn(value, ltime, fuzzydate,
+    bool neg= !unsigned_flag && value < 0;
+    if (null_value || int_to_datetime_with_warn(neg, neg ? -value : value,
+                                                ltime, fuzzydate,
                                                 field_name_or_null()))
       goto err;
     break;
@@ -1961,9 +1963,11 @@ void Item_func_int_div::fix_length_and_dec()
 {
   Item_result argtype= args[0]->result_type();
   /* use precision ony for the data type it is applicable for and valid */
-  max_length=args[0]->max_length -
-    (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
-     args[0]->decimals : 0);
+  uint32 char_length= args[0]->max_char_length() -
+                      (argtype == DECIMAL_RESULT || argtype == INT_RESULT ?
+                       args[0]->decimals : 0);
+  fix_char_length(char_length > MY_INT64_NUM_DECIMAL_DIGITS ?
+                  MY_INT64_NUM_DECIMAL_DIGITS : char_length);
   maybe_null=1;
   unsigned_flag=args[0]->unsigned_flag | args[1]->unsigned_flag;
 }
@@ -6098,61 +6102,6 @@ void Item_func_get_system_var::cleanup()
 }
 
 
-longlong Item_func_inet_aton::val_int()
-{
-  DBUG_ASSERT(fixed == 1);
-  uint byte_result = 0;
-  ulonglong result = 0;			// We are ready for 64 bit addresses
-  const char *p,* end;
-  char c = '.'; // we mark c to indicate invalid IP in case length is 0
-  char buff[36];
-  int dot_count= 0;
-
-  String *s, tmp(buff, sizeof(buff), &my_charset_latin1);
-  if (!(s = args[0]->val_str_ascii(&tmp)))       // If null value
-    goto err;
-  null_value=0;
-
-  end= (p = s->ptr()) + s->length();
-  while (p < end)
-  {
-    c = *p++;
-    int digit = (int) (c - '0');
-    if (digit >= 0 && digit <= 9)
-    {
-      if ((byte_result = byte_result * 10 + digit) > 255)
-	goto err;				// Wrong address
-    }
-    else if (c == '.')
-    {
-      dot_count++;
-      result= (result << 8) + (ulonglong) byte_result;
-      byte_result = 0;
-    }
-    else
-      goto err;					// Invalid character
-  }
-  if (c != '.')					// IP number can't end on '.'
-  {
-    /*
-      Handle short-forms addresses according to standard. Examples:
-      127		-> 0.0.0.127
-      127.1		-> 127.0.0.1
-      127.2.1		-> 127.2.0.1
-    */
-    switch (dot_count) {
-    case 1: result<<= 8; /* Fall through */
-    case 2: result<<= 8; /* Fall through */
-    }
-    return (result << 8) + (ulonglong) byte_result;
-  }
-
-err:
-  null_value=1;
-  return 0;
-}
-
-
 void Item_func_match::init_search(bool no_order)
 {
   DBUG_ENTER("Item_func_match::init_search");
@@ -6250,18 +6199,39 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
 
   bool allows_multi_table_search= true;
   const_item_cache=0;
+  table= 0;
   for (uint i=1 ; i < arg_count ; i++)
   {
     item=args[i];
     if (item->type() == Item::REF_ITEM)
       args[i]= item= *((Item_ref *)item)->ref;
-    if (item->type() != Item::FIELD_ITEM)
+    /*
+      When running in PS mode, some Item_field's can already be replaced
+      to Item_func_conv_charset during PREPARE time. This is possible
+      in case of "MATCH (f1,..,fN) AGAINST (... IN BOOLEAN MODE)"
+      when running without any fulltext indexes and when fields f1..fN
+      have different character sets.
+      So we check for FIELD_ITEM only during prepare time and in non-PS mode,
+      and do not check in PS execute time.
+    */
+    if (!thd->stmt_arena->is_stmt_execute() &&
+        item->type() != Item::FIELD_ITEM)
     {
       my_error(ER_WRONG_ARGUMENTS, MYF(0), "AGAINST");
       return TRUE;
     }
-    allows_multi_table_search &= 
-      allows_search_on_non_indexed_columns(((Item_field *)item)->field->table);
+    /*
+      During the prepare-time execution of fix_fields() of a PS query some
+      Item_fields's could have been already replaced to Item_func_conv_charset
+      (by the call for agg_arg_charsets_for_comparison below()).
+      But agg_arg_charsets_for_comparison() is written in a way that
+      at least *one* of the Item_field's is not replaced.
+      This makes sure that "table" gets initialized during PS execution time.
+    */
+    if (item->type() == Item::FIELD_ITEM)
+      table= ((Item_field *)item)->field->table;
+
+    allows_multi_table_search &= allows_search_on_non_indexed_columns(table);
   }
 
   /*
@@ -6277,15 +6247,13 @@ bool Item_func_match::fix_fields(THD *thd, Item **ref)
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"MATCH");
     return TRUE;
   }
-  table=((Item_field *)item)->field->table;
   if (!(table->file->ha_table_flags() & HA_CAN_FULLTEXT))
   {
     my_error(ER_TABLE_CANT_HANDLE_FT, MYF(0), table->file->table_type());
     return 1;
   }
   table->fulltext_searched=1;
-  return agg_item_collations_for_comparison(cmp_collation, func_name(),
-                                            args+1, arg_count-1, 0);
+  return agg_arg_charsets_for_comparison(cmp_collation, args+1, arg_count-1);
 }
 
 bool Item_func_match::fix_index()

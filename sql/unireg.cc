@@ -46,9 +46,14 @@ static bool pack_fields(uchar *, List<Create_field> &, ulong);
 static size_t packed_fields_length(List<Create_field> &);
 static bool make_empty_rec(THD *, uchar *, uint, List<Create_field> &, uint, ulong);
 
+/*
+  write the length as
+  if (  0 < length <= 255)      one byte
+  if (256 < length <= 65535)    zero byte, then two bytes, low-endian
+*/
 static uchar *extra2_write_len(uchar *pos, size_t len)
 {
-  if (len < 255)
+  if (len <= 255)
     *pos++= len;
   else
   {
@@ -206,6 +211,12 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   filepos= frm.length;
   frm.length+= FRM_FORMINFO_SIZE;               // forminfo
   frm.length+= packed_fields_length(create_fields);
+
+  if (frm.length > FRM_MAX_SIZE)
+  {
+    my_error(ER_TABLE_DEFINITION_TOO_BIG, MYF(0), table);
+    DBUG_RETURN(frm);
+  }
   
   frm_ptr= (uchar*) my_malloc(frm.length, MYF(MY_WME | MY_ZEROFILL |
                                               MY_THREAD_SPECIFIC));

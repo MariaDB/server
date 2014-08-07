@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x101
-#define PLUGIN_STR_VERSION "1.1.5"
+#define PLUGIN_STR_VERSION "1.1.7"
 
 #include <stdio.h>
 #include <time.h>
@@ -135,6 +135,16 @@ static int my_strnncoll_binary(CHARSET_INFO * cs __attribute__((unused)),
 #undef MYSQL_SERVICE_LOGGER_INCLUDED
 #undef MYSQL_DYNAMIC_PLUGIN
 #define FLOGGER_NO_PSI
+
+/* How to access the pthread_mutex in mysql_mutex_t */
+#ifdef SAFE_MUTEX
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#elif defined(MY_PTHREAD_FASTMUTEX)
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex.mutex
+#else
+#define mysql_mutex_real_mutex(A) &(A)->m_mutex
+#endif
+
 #define flogger_mutex_init(A,B,C) pthread_mutex_init(mysql_mutex_real_mutex(B), C)
 #define flogger_mutex_destroy(A) pthread_mutex_destroy(mysql_mutex_real_mutex(A))
 #define flogger_mutex_lock(A) pthread_mutex_lock(mysql_mutex_real_mutex(A))
@@ -1643,7 +1653,7 @@ maria_declare_plugin(server_audit)
   audit_status,
   vars,
   PLUGIN_STR_VERSION,
-  MariaDB_PLUGIN_MATURITY_BETA
+  MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
 

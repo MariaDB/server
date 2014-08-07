@@ -108,14 +108,8 @@ extern ib_mutex_t		rw_lock_list_mutex;
 #ifdef UNIV_SYNC_DEBUG
 /* The global mutex which protects debug info lists of all rw-locks.
 To modify the debug info list of an rw-lock, this mutex has to be
-
 acquired in addition to the mutex protecting the lock. */
-extern ib_mutex_t		rw_lock_debug_mutex;
-extern os_event_t	rw_lock_debug_event;	/*!< If deadlock detection does
-					not get immediately the mutex it
-					may wait for this event */
-extern ibool		rw_lock_debug_waiters;	/*!< This is set to TRUE, if
-					there may be waiters for the event */
+extern os_fast_mutex_t		rw_lock_debug_mutex;
 #endif /* UNIV_SYNC_DEBUG */
 
 /** Counters for RW locks. */
@@ -181,6 +175,9 @@ unlocking, not the corresponding function. */
 # define rw_lock_s_lock_gen(M, P)				\
 	rw_lock_s_lock_func((M), (P), __FILE__, __LINE__)
 
+# define rw_lock_s_lock_gen_nowait(M, P)			\
+	rw_lock_s_lock_low((M), (P), __FILE__, __LINE__)
+
 # define rw_lock_s_lock_nowait(M, F, L)				\
 	rw_lock_s_lock_low((M), 0, (F), (L))
 
@@ -242,6 +239,9 @@ unlocking, not the corresponding function. */
 
 # define rw_lock_s_lock_gen(M, P)				\
 	pfs_rw_lock_s_lock_func((M), (P), __FILE__, __LINE__)
+
+# define rw_lock_s_lock_gen_nowait(M, P)			\
+	pfs_rw_lock_s_lock_low((M), (P), __FILE__, __LINE__)
 
 # define rw_lock_s_lock_nowait(M, F, L)				\
 	pfs_rw_lock_s_lock_low((M), 0, (F), (L))

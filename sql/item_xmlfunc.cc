@@ -2899,7 +2899,7 @@ bool Item_func_xml_update::collect_result(String *str,
   str->length(0);
   str->set_charset(collation.collation);
   return
-    /* Put the XML part preceeding the replaced piece */
+    /* Put the XML part preceding the replaced piece */
     str->append(xml.raw()->ptr(), cut->beg - xml.raw()->ptr() - offs) ||
     /* Put the replacement */
     str->append(replace->ptr(), replace->length()) ||

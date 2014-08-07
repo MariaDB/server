@@ -38,22 +38,6 @@ mysql_mutex_t LOCK_localtime_r;
 #ifdef _MSC_VER
 static void install_sigabrt_handler();
 #endif
-#ifdef TARGET_OS_LINUX
-
-/*
-  Dummy thread spawned in my_thread_global_init() below to avoid
-  race conditions in NPTL pthread_exit code.
-*/
-
-static pthread_handler_t
-nptl_pthread_exit_hack_handler(void *arg __attribute((unused)))
-{
-  /* Do nothing! */
-  pthread_exit(0);
-  return 0;
-}
-
-#endif /* TARGET_OS_LINUX */
 
 
 static uint get_thread_lib(void);
@@ -197,33 +181,6 @@ my_bool my_thread_global_init(void)
 
   thd_lib_detected= get_thread_lib();
 
-#ifdef TARGET_OS_LINUX
-  /*
-    BUG#24507: Race conditions inside current NPTL pthread_exit()
-    implementation.
-
-    To avoid a possible segmentation fault during concurrent
-    executions of pthread_exit(), a dummy thread is spawned which
-    initializes internal variables of pthread lib. See bug description
-    for a full explanation.
-
-    TODO: Remove this code when fixed versions of glibc6 are in common
-    use.
-  */
-  if (thd_lib_detected == THD_LIB_NPTL)
-  {
-    pthread_t       dummy_thread;
-    pthread_attr_t  dummy_thread_attr;
-
-    pthread_attr_init(&dummy_thread_attr);
-    pthread_attr_setdetachstate(&dummy_thread_attr, PTHREAD_CREATE_JOINABLE);
-
-    if (pthread_create(&dummy_thread,&dummy_thread_attr,
-                       nptl_pthread_exit_hack_handler, NULL) == 0)
-      (void)pthread_join(dummy_thread, NULL);
-  }
-#endif /* TARGET_OS_LINUX */
-
   my_thread_init_common_mutex();
 
   return 0;
@@ -303,6 +260,9 @@ my_bool my_thread_init(void)
 {
   struct st_my_thread_var *tmp;
   my_bool error=0;
+
+  if (!my_thread_global_init_done)
+    return 1; /* cannot proceed with unintialized library */
 
 #ifdef EXTRA_DEBUG_THREADS
   fprintf(stderr,"my_thread_init(): pthread_self: %p\n", pthread_self());

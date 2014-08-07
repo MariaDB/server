@@ -5967,7 +5967,8 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_COLUMN_NAME |
     Alter_inplace_info::ALTER_COLUMN_DEFAULT |
     Alter_inplace_info::CHANGE_CREATE_OPTION |
-    Alter_inplace_info::ALTER_RENAME | index_operations;
+    Alter_inplace_info::ALTER_RENAME |
+    Alter_inplace_info::ALTER_PARTITIONED | index_operations;
 
   if (ha_alter_info->handler_flags & index_operations ||
       !SameString(altered_table, "optname") ||

@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -378,8 +379,8 @@ UNIV_INTERN ulint	srv_available_undo_logs         = 0;
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. */
 UNIV_INTERN ibool	srv_print_verbose_log		= TRUE;
-UNIV_INTERN ibool	srv_print_innodb_monitor	= FALSE;
-UNIV_INTERN ibool	srv_print_innodb_lock_monitor	= FALSE;
+UNIV_INTERN my_bool	srv_print_innodb_monitor	= FALSE;
+UNIV_INTERN my_bool	srv_print_innodb_lock_monitor	= FALSE;
 UNIV_INTERN ibool	srv_print_innodb_tablespace_monitor = FALSE;
 UNIV_INTERN ibool	srv_print_innodb_table_monitor = FALSE;
 
@@ -464,6 +465,9 @@ current_time % 5 != 0. */
 # define	SRV_MASTER_MEM_VALIDATE_INTERVAL	(13)
 #endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
+
+/** Simulate compression failures. */
+UNIV_INTERN uint srv_simulate_comp_failures = 0;
 
 /** Acquire the system_mutex. */
 #define srv_sys_mutex_enter() do {			\
@@ -2662,7 +2666,8 @@ srv_purge_coordinator_suspend(
 
 		rw_lock_x_lock(&purge_sys->latch);
 
-		stop = (purge_sys->state == PURGE_STATE_STOP);
+		stop = (srv_shutdown_state == SRV_SHUTDOWN_NONE
+			&& purge_sys->state == PURGE_STATE_STOP);
 
 		if (!stop) {
 			ut_a(purge_sys->n_stop == 0);
@@ -2747,8 +2752,9 @@ DECLARE_THREAD(srv_purge_coordinator_thread)(
 		/* If there are no records to purge or the last
 		purge didn't purge any records then wait for activity. */
 
-		if (purge_sys->state == PURGE_STATE_STOP
-		    || n_total_purged == 0) {
+		if (srv_shutdown_state == SRV_SHUTDOWN_NONE
+		    && (purge_sys->state == PURGE_STATE_STOP
+			|| n_total_purged == 0)) {
 
 			srv_purge_coordinator_suspend(slot, rseg_history_len);
 		}

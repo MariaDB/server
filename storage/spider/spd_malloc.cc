@@ -1221,7 +1221,6 @@ bool spider_string::append(
   DBUG_RETURN(res);
 }
 
-#ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
 bool spider_string::append_for_single_quote(
   const char *st,
   uint len
@@ -1231,11 +1230,50 @@ bool spider_string::append_for_single_quote(
   DBUG_ASSERT(mem_calc_inited);
   DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
     current_alloc_mem == str.alloced_length());
+#ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
   bool res = str.append_for_single_quote(st, len);
+#else
+  String ststr(st, len, str.charset());
+  bool res = append_escaped(&str, &ststr);
+#endif
   SPIDER_STRING_CALC_MEM;
   DBUG_RETURN(res);
 }
+
+bool spider_string::append_for_single_quote(
+  const String *s
+) {
+  DBUG_ENTER("spider_string::append_for_single_quote");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(mem_calc_inited);
+  DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
+    current_alloc_mem == str.alloced_length());
+#ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
+  bool res = str.append_for_single_quote(s);
+#else
+  bool res = append_escaped(&str, s);
 #endif
+  SPIDER_STRING_CALC_MEM;
+  DBUG_RETURN(res);
+}
+
+bool spider_string::append_for_single_quote(
+  const char *st
+) {
+  DBUG_ENTER("spider_string::append_for_single_quote");
+  DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_ASSERT(mem_calc_inited);
+  DBUG_ASSERT((!current_alloc_mem && !str.is_alloced()) ||
+    current_alloc_mem == str.alloced_length());
+#ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
+  bool res = str.append_for_single_quote(st);
+#else
+  String ststr(st, str.charset());
+  bool res = append_escaped(&str, &ststr);
+#endif
+  SPIDER_STRING_CALC_MEM;
+  DBUG_RETURN(res);
+}
 
 void spider_string::swap(
   spider_string &s

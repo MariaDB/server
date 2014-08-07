@@ -1,6 +1,6 @@
 /*
-   Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2011, Monty Program Ab.
+   Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -442,6 +442,13 @@ set_system_variable(THD *thd, struct sys_var_with_base *tmp,
   if (lex->spcont && tmp->var == Sys_autocommit_ptr)
     lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
 
+  if (val && val->type() == Item::FIELD_ITEM &&
+      ((Item_field*)val)->table_name)
+  {
+    my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), tmp->var->name.str);
+    return TRUE;
+  }
+
   if (! (var= new set_var(var_type, tmp->var, &tmp->base_name, val)))
     return TRUE;
 
@@ -810,7 +817,6 @@ static void sp_create_assignment_lex(THD *thd, bool no_lookahead)
     lex->sql_command= SQLCOM_SET_OPTION;
     mysql_init_select(lex);
     lex->var_list.empty();
-    lex->one_shot_set= 0;
     lex->autocommit= 0;
     /* get_ptr() is only correct with no lookahead. */
     DBUG_ASSERT(no_lookahead);
@@ -11305,7 +11311,10 @@ opt_limit_clause:
 limit_clause:
           LIMIT limit_options
           {
-            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+            SELECT_LEX *sel= Select;
+            if (!sel->select_limit->basic_const_item() ||
+                sel->select_limit->val_int() > 0)
+              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
         | LIMIT limit_options ROWS_SYM EXAMINED_SYM limit_rows_option
           {
@@ -14421,7 +14430,6 @@ set:
             mysql_init_select(lex);
             lex->option_type=OPT_SESSION;
             lex->var_list.empty();
-            lex->one_shot_set= 0;
             lex->autocommit= 0;
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }
@@ -14527,7 +14535,7 @@ opt_var_ident_type:
         | SESSION_SYM '.' { $$=OPT_SESSION; }
         ;
 
-// Option values with preceeding option_type.
+// Option values with preceding option_type.
 option_value_following_option_type:
           internal_variable_name equal set_expr_or_default
           {
@@ -14543,7 +14551,7 @@ option_value_following_option_type:
             {
               /*
                 Not in trigger assigning value to new row,
-                and option_type preceeding local variable is illegal.
+                and option_type preceding local variable is illegal.
               */
               my_parse_error(ER(ER_SYNTAX_ERROR));
               MYSQL_YYABORT;
@@ -14551,7 +14559,7 @@ option_value_following_option_type:
           }
         ;
 
-// Option values without preceeding option_type.
+// Option values without preceding option_type.
 option_value_no_option_type:
           internal_variable_name equal set_expr_or_default
           {

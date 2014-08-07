@@ -65,16 +65,16 @@ rpl_slave_state::update_state_hash(uint64 sub_id, rpl_gtid *gtid,
 int
 rpl_slave_state::record_and_update_gtid(THD *thd, rpl_group_info *rgi)
 {
-  uint64 sub_id;
   DBUG_ENTER("rpl_slave_state::record_and_update_gtid");
 
   /*
     Update the GTID position, if we have it and did not already update
     it in a GTID transaction.
   */
-  if ((sub_id= rgi->gtid_sub_id))
+  if (rgi->gtid_pending)
   {
-    rgi->gtid_sub_id= 0;
+    uint64 sub_id= rgi->gtid_sub_id;
+    rgi->gtid_pending= false;
     if (rgi->gtid_ignore_duplicate_state!=rpl_group_info::GTID_DUPLICATE_IGNORE)
     {
       if (record_gtid(thd, &rgi->current_gtid, sub_id, false, false))
@@ -120,7 +120,7 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
   uint32 seq_no= gtid->seq_no;
   rpl_slave_state::element *elem;
   int res;
-  bool did_enter_cond;
+  bool did_enter_cond= false;
   PSI_stage_info old_stage;
   THD *thd;
   Relay_log_info *rli= rgi->rli;
@@ -138,7 +138,6 @@ rpl_slave_state::check_duplicate_gtid(rpl_gtid *gtid, rpl_group_info *rgi)
     each lock release and re-take.
   */
 
-  did_enter_cond= false;
   for (;;)
   {
     if (elem->highest_seq_no >= seq_no)
@@ -326,7 +325,9 @@ rpl_slave_state::update(uint32 domain_id, uint32 server_id, uint64 sub_id,
   {
     if (rgi->gtid_ignore_duplicate_state==rpl_group_info::GTID_DUPLICATE_OWNER)
     {
+#ifndef DBUG_OFF
       Relay_log_info *rli= rgi->rli;
+#endif
       uint32 count= elem->owner_count;
       DBUG_ASSERT(count > 0);
       DBUG_ASSERT(elem->owner_rli == rli);
@@ -665,7 +666,7 @@ end:
 
   if (table_opened)
   {
-    if (err)
+    if (err || (err= ha_commit_trans(thd, FALSE)))
     {
       /*
         If error, we need to put any remaining elist back into the HASH so we
@@ -679,13 +680,8 @@ end:
       }
 
       ha_rollback_trans(thd, FALSE);
-      close_thread_tables(thd);
     }
-    else
-    {
-      ha_commit_trans(thd, FALSE);
-      close_thread_tables(thd);
-    }
+    close_thread_tables(thd);
     if (in_transaction)
       thd->mdl_context.release_statement_locks();
     else

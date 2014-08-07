@@ -596,6 +596,8 @@ Events::drop_schema_events(THD *thd, char *db)
   DBUG_ENTER("Events::drop_schema_events");
   DBUG_PRINT("enter", ("dropping events from %s", db));
 
+  DBUG_ASSERT(ok_for_lower_case_names(db));
+
   /*
     Sic: no check if the scheduler is disabled or system tables
     are damaged, as intended.

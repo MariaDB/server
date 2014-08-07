@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1997, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1997, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -24,6 +24,11 @@ Recovery
 Created 9/20/1997 Heikki Tuuri
 *******************************************************/
 
+// First include (the generated) my_config.h, to get correct platform defines.
+#include "my_config.h"
+#include <stdio.h>                              // Solaris/x86 header file bug
+
+#include <vector>
 #include "log0recv.h"
 
 #ifdef UNIV_NONINL
@@ -58,6 +63,7 @@ Created 9/20/1997 Heikki Tuuri
 # include "row0merge.h"
 # include "sync0sync.h"
 #else /* !UNIV_HOTBACKUP */
+
 
 /** This is set to FALSE if the backup was originally taken with the
 ibbackup --include regexp option: then we do not want to create tables in
@@ -428,6 +434,9 @@ recv_sys_init(
 	recv_sys->found_corrupt_log = FALSE;
 
 	recv_max_page_lsn = 0;
+
+	/* Call the constructor for recv_sys_t::dblwr member */
+	new (&recv_sys->dblwr) recv_dblwr_t();
 
 	mutex_exit(&(recv_sys->mutex));
 }
@@ -1379,14 +1388,23 @@ recv_parse_or_apply_log_rec_body(
 		ptr = mlog_parse_string(ptr, end_ptr, page, page_zip);
 		break;
 	case MLOG_FILE_RENAME:
-		ptr = fil_op_log_parse_or_replay(ptr, end_ptr, type,
-						 (recv_recovery_is_on()
-						  ? space_id : 0), 0);
+		/* Do not rerun file-based log entries if this is
+		IO completion from a page read. */
+		if (page == NULL) {
+			ptr = fil_op_log_parse_or_replay(ptr, end_ptr, type,
+							 (recv_recovery_is_on()
+							  ? space_id : 0), 0);
+		}
 		break;
 	case MLOG_FILE_CREATE:
 	case MLOG_FILE_DELETE:
 	case MLOG_FILE_CREATE2:
-		ptr = fil_op_log_parse_or_replay(ptr, end_ptr, type, 0, 0);
+		/* Do not rerun file-based log entries if this is
+		IO completion from a page read. */
+		if (page == NULL) {
+			ptr = fil_op_log_parse_or_replay(ptr, end_ptr,
+							 type, 0, 0);
+		}
 		break;
 	case MLOG_ZIP_WRITE_NODE_PTR:
 		ut_ad(!page || page_type == FIL_PAGE_INDEX);
@@ -3039,7 +3057,7 @@ recv_init_crash_recovery(void)
 		ib_logf(IB_LOG_LEVEL_INFO,
 			"from the doublewrite buffer...");
 
-		buf_dblwr_init_or_restore_pages(TRUE);
+		buf_dblwr_process();
 
 		/* Spawn the background thread to flush dirty pages
 		from the buffer pools. */
@@ -3081,6 +3099,7 @@ recv_recovery_from_checkpoint_start_func(
 	byte*		log_hdr_buf;
 	byte*		log_hdr_buf_base = (byte*)alloca(LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE);
 	dberr_t		err;
+	ut_when_dtor<recv_dblwr_t> tmp(recv_sys->dblwr);
 
 	log_hdr_buf = static_cast<byte *>
 		(ut_align(log_hdr_buf_base, OS_FILE_LOG_BLOCK_SIZE));
@@ -3097,11 +3116,6 @@ recv_recovery_from_checkpoint_start_func(
 /** Recover up to this log sequence number */
 # define LIMIT_LSN		LSN_MAX
 #endif /* UNIV_LOG_ARCHIVE */
-
-	if (TYPE_CHECKPOINT) {
-		recv_sys_create();
-		recv_sys_init(buf_pool_get_curr_size());
-	}
 
 	if (srv_force_recovery >= SRV_FORCE_NO_LOG_REDO) {
 
@@ -3351,11 +3365,6 @@ recv_recovery_from_checkpoint_start_func(
 					return(DB_READ_ONLY);
 				}
 			}
-		}
-
-		if (!recv_needed_recovery && !srv_read_only_mode) {
-			/* Init the doublewrite buffer memory structure */
-			buf_dblwr_init_or_restore_pages(FALSE);
 		}
 	}
 
@@ -4059,3 +4068,46 @@ recv_recovery_from_archive_finish(void)
 	recv_recovery_from_backup_on = FALSE;
 }
 #endif /* UNIV_LOG_ARCHIVE */
+
+
+void recv_dblwr_t::add(byte* page)
+{
+	pages.push_back(page);
+}
+
+byte* recv_dblwr_t::find_page(ulint space_id, ulint page_no)
+{
+	std::vector<byte*> matches;
+	byte*	result = 0;
+
+	for (std::list<byte*>::iterator i = pages.begin();
+	     i != pages.end(); ++i) {
+
+		if ((page_get_space_id(*i) == space_id)
+		    && (page_get_page_no(*i) == page_no)) {
+			matches.push_back(*i);
+		}
+	}
+
+	if (matches.size() == 1) {
+		result = matches[0];
+	} else if (matches.size() > 1) {
+
+		lsn_t max_lsn	= 0;
+		lsn_t page_lsn	= 0;
+
+		for (std::vector<byte*>::iterator i = matches.begin();
+		     i != matches.end(); ++i) {
+
+			page_lsn = mach_read_from_8(*i + FIL_PAGE_LSN);
+
+			if (page_lsn > max_lsn) {
+				max_lsn = page_lsn;
+				result = *i;
+			}
+		}
+	}
+
+	return(result);
+}
+

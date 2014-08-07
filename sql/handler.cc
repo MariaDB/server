@@ -359,6 +359,7 @@ int ha_init_errors(void)
   SETMSG(HA_FTS_INVALID_DOCID,		"Invalid InnoDB FTS Doc ID");
   SETMSG(HA_ERR_TABLE_IN_FK_CHECK,	ER_DEFAULT(ER_TABLE_IN_FK_CHECK));
   SETMSG(HA_ERR_DISK_FULL,              ER_DEFAULT(ER_DISK_FULL));
+  SETMSG(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE,  "Too many words in a FTS phrase or proximity search");
 
   /* Register the error messages for use with my_error(). */
   return my_error_register(get_handler_errmsgs, HA_ERR_FIRST, HA_ERR_LAST);
@@ -1976,6 +1977,41 @@ int ha_release_temporary_latches(THD *thd)
         hton->release_temporary_latches(hton, thd);
   }
   return 0;
+}
+
+/**
+  Check if all storage engines used in transaction agree that after
+  rollback to savepoint it is safe to release MDL locks acquired after
+  savepoint creation.
+
+  @param thd   The client thread that executes the transaction.
+
+  @return true  - It is safe to release MDL locks.
+          false - If it is not.
+*/
+bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
+{
+  Ha_trx_info *ha_info;
+  THD_TRANS *trans= (thd->in_sub_stmt ? &thd->transaction.stmt :
+                                        &thd->transaction.all);
+
+  DBUG_ENTER("ha_rollback_to_savepoint_can_release_mdl");
+
+  /**
+    Checking whether it is safe to release metadata locks after rollback to
+    savepoint in all the storage engines that are part of the transaction.
+  */
+  for (ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())
+  {
+    handlerton *ht= ha_info->ht();
+    DBUG_ASSERT(ht);
+
+    if (ht->savepoint_rollback_can_release_mdl == 0 ||
+        ht->savepoint_rollback_can_release_mdl(ht, thd) == false)
+      DBUG_RETURN(false);
+  }
+
+  DBUG_RETURN(true);
 }
 
 int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
@@ -3853,14 +3889,11 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   if it is started.
 */
 
+inline
 void
-handler::mark_trx_read_write_part2()
+handler::mark_trx_read_write()
 {
   Ha_trx_info *ha_info= &ha_thd()->ha_data[ht->slot].ha_info[0];
-
-  /* Don't call this function again for this statement */
-  mark_trx_done= TRUE;
-
   /*
     When a storage engine method is called, the transaction must
     have been started, unless it's a DDL call, for which the
@@ -4661,11 +4694,13 @@ int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *unused
     uint division_limit= (uint)key_cache->param_division_limit;
     uint age_threshold=  (uint)key_cache->param_age_threshold;
     uint partitions=     (uint)key_cache->param_partitions;
+    uint changed_blocks_hash_size=  (uint)key_cache->changed_blocks_hash_size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
     DBUG_RETURN(!init_key_cache(key_cache,
 				tmp_block_size,
 				tmp_buff_size,
 				division_limit, age_threshold,
+                                changed_blocks_hash_size,
                                 partitions));
   }
   DBUG_RETURN(0);
@@ -4686,10 +4721,12 @@ int ha_resize_key_cache(KEY_CACHE *key_cache)
     long tmp_block_size= (long) key_cache->param_block_size;
     uint division_limit= (uint)key_cache->param_division_limit;
     uint age_threshold=  (uint)key_cache->param_age_threshold;
+    uint changed_blocks_hash_size=  (uint)key_cache->changed_blocks_hash_size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
     DBUG_RETURN(!resize_key_cache(key_cache, tmp_block_size,
 				  tmp_buff_size,
-				  division_limit, age_threshold));
+				  division_limit, age_threshold,
+                                  changed_blocks_hash_size));
   }
   DBUG_RETURN(0);
 }
@@ -4729,10 +4766,12 @@ int ha_repartition_key_cache(KEY_CACHE *key_cache)
     uint division_limit= (uint)key_cache->param_division_limit;
     uint age_threshold=  (uint)key_cache->param_age_threshold;
     uint partitions=     (uint)key_cache->param_partitions;
+    uint changed_blocks_hash_size=  (uint)key_cache->changed_blocks_hash_size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
     DBUG_RETURN(!repartition_key_cache(key_cache, tmp_block_size,
 				       tmp_buff_size,
 				       division_limit, age_threshold,
+                                       changed_blocks_hash_size,
                                        partitions));
   }
   DBUG_RETURN(0);
@@ -6079,6 +6118,10 @@ void signal_log_not_needed(struct handlerton, char *log_file)
   DBUG_VOID_RETURN;
 }
 
+void handler::set_lock_type(enum thr_lock_type lock)
+{
+  table->reginfo.lock_type= lock;
+}
 
 #ifdef TRANS_LOG_MGM_EXAMPLE_CODE
 /*

@@ -718,6 +718,7 @@ static inline int mdl_iterate_lock(MDL_lock *lock,
 
 int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
 {
+  DYNAMIC_ARRAY locks;
   uint i, j;
   int res;
   DBUG_ENTER("mdl_iterate");
@@ -726,18 +727,48 @@ int mdl_iterate(int (*callback)(MDL_ticket *ticket, void *arg), void *arg)
       (res= mdl_iterate_lock(mdl_locks.m_commit_lock, callback, arg)))
     DBUG_RETURN(res);
 
+  my_init_dynamic_array(&locks, sizeof(MDL_lock*), 512, 1, MYF(0));
+
   for (i= 0; i < mdl_locks.m_partitions.elements(); i++)
   {
     MDL_map_partition *part= mdl_locks.m_partitions.at(i);
+    /* Collect all locks first */
     mysql_mutex_lock(&part->m_mutex);
+    if (allocate_dynamic(&locks, part->m_locks.records))
+    {
+      res= 1;
+      mysql_mutex_unlock(&part->m_mutex);
+      break;
+    }
+    reset_dynamic(&locks);
     for (j= 0; j < part->m_locks.records; j++)
     {
-      if ((res= mdl_iterate_lock((MDL_lock*) my_hash_element(&part->m_locks, j),
-                                 callback, arg)))
-        break;
+      MDL_lock *lock= (MDL_lock*) my_hash_element(&part->m_locks, j);
+      lock->m_ref_usage++;
+      insert_dynamic(&locks, &lock);
     }
     mysql_mutex_unlock(&part->m_mutex);
+
+    /* Now show them */
+    for (j= 0; j < locks.elements; j++)
+    {
+      MDL_lock *lock= (MDL_lock*) *dynamic_element(&locks, j, MDL_lock**);
+      res= mdl_iterate_lock(lock, callback, arg);
+
+      mysql_prlock_wrlock(&lock->m_rwlock);
+      uint ref_usage= lock->m_ref_usage;
+      uint ref_release= ++lock->m_ref_release;
+      bool is_destroyed= lock->m_is_destroyed;
+      mysql_prlock_unlock(&lock->m_rwlock);
+
+      if (unlikely(is_destroyed && ref_usage == ref_release))
+        MDL_lock::destroy(lock);
+
+      if (res)
+        break;
+    }
   }
+  delete_dynamic(&locks);
   DBUG_RETURN(res);
 }
 

@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2012, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -166,6 +166,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
   TABLE_LIST *tab= table->pos_in_table_list;
   Item_subselect *subselect= tab ? tab->containing_subselect() : 0;
 
+  *found_rows= HA_POS_ERROR;
+
   MYSQL_FILESORT_START(table->s->db.str, table->s->table_name.str);
   DEBUG_SYNC(thd, "filesort_start");
 
@@ -223,6 +225,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                              table, num_rows, memory_available))
   {
     DBUG_PRINT("info", ("filesort PQ is applicable"));
+    thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
+    status_var_increment(thd->status_var.filesort_pq_sorts_);
     const size_t compare_length= param.sort_length;
     if (pq.init(param.max_rows,
                 true,                           // max_at_top
@@ -686,7 +690,8 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   ref_pos= ref_buff;
   quick_select=select && select->quick;
   record=0;
-  *found_rows= 0;
+  if (pq) // don't count unless pq is used
+    *found_rows= 0;
   flag= ((file->ha_table_flags() & HA_REC_NOT_IN_SEQ) || quick_select);
   if (flag)
     ref_pos= &file->ref[0];
@@ -806,9 +811,14 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
 
     if (write_record)
     {
-      (*found_rows)++;
       if (pq)
       {
+        /*
+          only count rows when pq is used - otherwise there might be
+          other filters *after* the filesort, we don't know the final row
+          count here
+        */
+        (*found_rows)++;
         pq->push(ref_pos);
         idx= pq->num_elements();
       }

@@ -31,6 +31,8 @@
 #define QPLAN_QC_NO           1 << 6
 #define QPLAN_TMP_DISK        1 << 7
 #define QPLAN_TMP_TABLE       1 << 8
+#define QPLAN_FILESORT_PRIORITY_QUEUE       1 << 9
+
 /* ... */
 #define QPLAN_MAX             ((ulong) 1) << 31 /* reserved as placeholder */
 
