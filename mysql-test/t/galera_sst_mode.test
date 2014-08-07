@@ -16,9 +16,6 @@ CREATE TABLE t1(c1 INT);
 INSERT INTO t1 values (1);
 INSERT INTO t1 values (2);
 
---echo # @@global.gtid_binlog_state - after
-SELECT @@global.gtid_binlog_state;
-
 --echo # Save the current gtid_binlog_state.
 --let $before= `SELECT @@global.gtid_binlog_state`
 
@@ -31,9 +28,6 @@ RESET MASTER;
 --exec $MYSQL -uroot bug6490 < $MYSQLTEST_VARDIR/tmp/bug6490.sql
 
 SELECT * from t1;
-
---echo # @@global.gtid_binlog_state - after
-SELECT @@global.gtid_binlog_state;
 
 --echo # Compare the two gtid_binlog_state's
 --let $after= `SELECT @@global.gtid_binlog_state`
