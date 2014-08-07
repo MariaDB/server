@@ -43,6 +43,7 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@skysql.com
 /**************************************************//**
 Custom nullptr implementation for under g++ 4.6
 *******************************************************/
+/*
 // #pragma once
 namespace std
 {
@@ -71,11 +72,11 @@ private:
  void operator &() const;
  template<typename any> void operator +(any) const
  {
- /*I Love MSVC 2005!*/
+ // I Love MSVC 2005!
  }
  template<typename any> void operator -(any) const
  {
- /*I Love MSVC 2005!*/
+ // I Love MSVC 2005!
  }
  };
 static const nullptr_t __nullptr = {};
@@ -84,6 +85,7 @@ static const nullptr_t __nullptr = {};
 #ifndef nullptr
 #define nullptr std::__nullptr
 #endif
+*/
 /**************************************************//**
 End of Custom nullptr implementation for under g++ 4.6
 *******************************************************/
@@ -324,7 +326,8 @@ btr_defragment_item_t*
 btr_defragment_get_item()
 {
 	if (btr_defragment_wq.empty()) {
-		return nullptr;
+		return NULL;
+		//return nullptr;
 	}
 	mutex_enter(&btr_defragment_mutex);
 	list< btr_defragment_item_t* >::iterator iter = btr_defragment_wq.begin();
