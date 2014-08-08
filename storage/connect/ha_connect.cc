@@ -2739,7 +2739,8 @@ int ha_connect::write_row(uchar *buf)
       DBUG_RETURN(0);     // Alter table on an outward partition table
 
     xmod= MODE_INSERT;
-    } // endif xmod
+  } else if (xmod == MODE_ANY)
+    DBUG_RETURN(0);       // Probably never met
 
   // Open the table if it was not opened yet (locked)
   if (!IsOpened() || xmod != tdbp->GetMode()) {
@@ -2750,9 +2751,6 @@ int ha_connect::write_row(uchar *buf)
       DBUG_RETURN(rc);
 
     } // endif isopened
-
-  if (tdbp->GetMode() == MODE_ANY)
-    DBUG_RETURN(0);
 
 #if 0                // AUTO_INCREMENT NIY
   if (table->next_number_field && buf == table->record[0]) {
@@ -4935,7 +4933,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       } else if (!user)
         user= "root";
 
-      if (CheckSelf(g, table_s, host, db, tab, src, port))
+      if (ok && CheckSelf(g, table_s, host, db, tab, src, port))
         ok= false;
 
       break;

@@ -475,7 +475,7 @@ bool DOSFAM::AllocateBuffer(PGLOBAL g)
   MODE mode = Tdbp->Mode;
 
   // Lrecl does not include line ending
-  Buflen = Lrecl + Ending + ((Bin) ? 1 : 0);
+  Buflen = Lrecl + Ending + ((Bin) ? 1 : 0) + 1;     // Sergei
 
   if (trace)
     htrc("SubAllocating a buffer of %d bytes\n", Buflen);
