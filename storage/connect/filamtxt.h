@@ -1,7 +1,7 @@
 /************** FilAMTxt H Declares Source Code File (.H) **************/
-/*  Name: FILAMTXT.H    Version 1.2                                    */
+/*  Name: FILAMTXT.H    Version 1.3                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the file access method classes declares.        */
 /***********************************************************************/
@@ -10,6 +10,7 @@
 #define __FILAMTXT_H
 
 #include "block.h"
+#include "array.h"
 
 typedef class TXTFAM *PTXF;
 typedef class DOSFAM *PDOSFAM;
@@ -53,26 +54,35 @@ class DllExport TXTFAM : public BLOCK {
   virtual void  Reset(void);
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g);
+  virtual int   MaxBlkSize(PGLOBAL g, int s);
   virtual bool  AllocateBuffer(PGLOBAL g) {return false;}
   virtual void  ResetBuffer(PGLOBAL g) {}
   virtual int   GetNerr(void) {return 0;}
   virtual int   GetRowID(void) = 0;
   virtual bool  RecordPos(PGLOBAL g) = 0;
-  virtual bool  SetPos(PGLOBAL g, int recpos) = 0; 
+  virtual bool  SetPos(PGLOBAL g, int recpos) = 0;
   virtual int   SkipRecord(PGLOBAL g, bool header) = 0;
   virtual bool  OpenTableFile(PGLOBAL g) = 0;
   virtual bool  DeferReading(void) {IsRead = false; return true;}
   virtual int   ReadBuffer(PGLOBAL g) = 0;
   virtual int   WriteBuffer(PGLOBAL g) = 0;
-  virtual int    DeleteRecords(PGLOBAL g, int irc) = 0;
-  virtual void  CloseTableFile(PGLOBAL g) = 0;
+  virtual int   DeleteRecords(PGLOBAL g, int irc) = 0;
+  virtual void  CloseTableFile(PGLOBAL g, bool abort) = 0;
   virtual void  Rewind(void) = 0;
 
  protected:
+          bool  AddListValue(PGLOBAL g, int type, void *val, PPARM *top);
+
   // Members
   PTDBDOS Tdbp;              // To table class
   PSZ     To_File;           // Points to table file name
   PFBLOCK To_Fb;             // Pointer to file block
+  PPARM   To_Pos;            // Pointer to position list
+  PPARM   To_Sos;            // Pointer to start position list
+  PPARM   To_Upd;            // Pointer to udated line list
+  PARRAY  Posar;             // Pointer to position array
+  PARRAY  Sosar;             // Pointer to start position array
+  PARRAY  Updar;             // Pointer to udated lines array
   bool    Placed;            // true if Recpos was externally set
   bool    IsRead;            // false for deferred reading
   bool    Blocked;           // true if using blocked I/O
@@ -99,6 +109,8 @@ class DllExport TXTFAM : public BLOCK {
   int     Ending;            // Length of line end
   bool    Padded;            // true if fixed size blocks are padded
   bool    Eof;               // true if an EOF (0xA) character exists
+  bool    Indxd;             // True for indexed UPDATE/DELETE
+  bool    Abort;             // To abort on error
   char   *CrLf;              // End of line character(s)
   }; // end of class TXTFAM
 
@@ -111,6 +123,7 @@ class DllExport DOSFAM : public TXTFAM {
   // Constructor
   DOSFAM(PDOSDEF tdp);
   DOSFAM(PDOSFAM txfp);
+  DOSFAM(PBLKFAM tdfp, PDOSDEF tdp);
 
   // Implementation
   virtual AMT   GetAmType(void) {return TYPE_AM_DOS;}
@@ -124,22 +137,25 @@ class DllExport DOSFAM : public TXTFAM {
   virtual void  Reset(void);
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g);
+  virtual int   MaxBlkSize(PGLOBAL g, int s);
   virtual bool  AllocateBuffer(PGLOBAL g);
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
   virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:
   virtual bool  OpenTempFile(PGLOBAL g);
   virtual bool  MoveIntermediateLines(PGLOBAL g, bool *b);
   virtual int   RenameTempFile(PGLOBAL g);
+  virtual bool  MakeUpdatedFile(PGLOBAL g);
+  virtual bool  MakeDeletedFile(PGLOBAL g);
 
   // Members
   FILE   *Stream;             // Points to Dos file structure
@@ -147,8 +163,8 @@ class DllExport DOSFAM : public TXTFAM {
   PFBLOCK To_Fbt;             // Pointer to temp file block
   int     Fpos;               // Position of last read record
   int     Tpos;               // Target Position for delete move
-  int     Spos;               // Start position for delete move
-  bool    UseTemp;            // True to use a temporary file in Delete
+  int     Spos;               // Start position for update/delete move
+  bool    UseTemp;            // True to use a temporary file in Upd/Del
   bool    Bin;                // True to force binary mode
   }; // end of class DOSFAM
 
@@ -172,14 +188,15 @@ class DllExport BLKFAM : public DOSFAM {
   // Methods
   virtual void  Reset(void);
   virtual int   Cardinality(PGLOBAL g);
+  virtual int   MaxBlkSize(PGLOBAL g, int s);
   virtual bool  AllocateBuffer(PGLOBAL g);
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:

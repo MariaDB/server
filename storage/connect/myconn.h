@@ -64,6 +64,7 @@ class DllItem MYSQLC {
 
   // Methods
   int     GetResultSize(PGLOBAL g, PSZ sql);
+  int     GetTableSize(PGLOBAL g, PSZ query);
   int     Open(PGLOBAL g, const char *host, const char *db,
                           const char *user= "root", const char *pwd= "*",
                           int pt= 0);

@@ -62,6 +62,8 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   inline  PCOL   GetColumns(void) {return Columns;}
   inline  int    GetDegree(void) {return Degree;}
   inline  MODE   GetMode(void) {return Mode;}
+  inline  PFIL   GetFilter(void) {return To_Filter;}
+  inline  void   SetFilter(PFIL fp) {To_Filter = fp;}
   inline  void   SetOrig(PTDB txp) {To_Orig = txp;}
   inline  void   SetUse(TUSE n) {Use = n;}
   inline  void   SetCondFil(PCFIL cfp) {To_CondFil = cfp;}
@@ -72,16 +74,17 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   inline  void   SetDegree(int degree) {Degree = degree;}
   inline  void   SetMode(MODE mode) {Mode = mode;}
 
-  //Properties
+  // Properties
   virtual AMT    GetAmType(void) {return TYPE_AM_ERROR;}
   virtual int    GetTdb_No(void) {return Tdb_No;}
   virtual PTDB   GetNext(void) {return Next;}
   virtual PCATLG GetCat(void) {return NULL;}
+  virtual void   SetAbort(bool b) {;}
 
   // Methods
   virtual bool   IsSame(PTDB tp) {return tp == this;}
   virtual bool   GetBlockValues(PGLOBAL g) {return false;}
-  virtual int    Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
+  virtual int    Cardinality(PGLOBAL g) {return 0;}
   virtual int    GetMaxSize(PGLOBAL) = 0;
   virtual int    GetProgMax(PGLOBAL) = 0;
   virtual int    GetProgCur(void) = 0;
@@ -91,7 +94,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   virtual PTDB   Duplicate(PGLOBAL g) {return NULL;}
   virtual PTDB   CopyOne(PTABS t) {return this;}
   virtual PTDB   Copy(PTABS t);
-  virtual void   PrintAM(FILE *f, char *m) 
+  virtual void   PrintAM(FILE *f, char *m)
                   {fprintf(f, "%s AM(%d)\n",  m, GetAmType());}
   virtual void   Print(PGLOBAL g, FILE *f, uint n);
   virtual void   Print(PGLOBAL g, char *ps, uint z);
@@ -113,6 +116,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   // Members
   PTDB   To_Orig;      // Pointer to original if it is a copy
   TUSE   Use;
+  PFIL   To_Filter;
   PCFIL  To_CondFil;   // To condition filter structure
   static int Tnum;     // Used to generate Tdb_no's
   const  int Tdb_No;   // GetTdb_No() is always 0 for OPJOIN
@@ -122,6 +126,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
   PCOL   Columns;      // Points to the first column of the table
   MODE   Mode;         // 10 Read, 30 Update, 40 Insert, 50 Delete
   int    Degree;       // Number of columns
+  int    Cardinal;     // Table number of rows
   }; // end of class TDB
 
 /***********************************************************************/
@@ -142,6 +147,7 @@ class DllExport TDBASE : public TDB {
   inline  PKXBASE GetKindex(void) {return To_Kindex;}
   inline  PCOL    GetSetCols(void) {return To_SetCols;}
   inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
+  inline  void    SetXdp(PIXDEF xdp) {To_Xdp = xdp;}
   inline  void    SetKindex(PKXBASE kxp) {To_Kindex = kxp;}
 
   // Properties
@@ -154,7 +160,7 @@ class DllExport TDBASE : public TDB {
   virtual PSZ    GetPath(void);
   virtual void   PrintAM(FILE *f, char *m);
   virtual RECFM  GetFtype(void) {return RECFM_NAF;}
-  virtual int    GetAffectedRows(void) {return -1;}
+//virtual int    GetAffectedRows(void) {return -1;}
   virtual int    GetRecpos(void) = 0;
   virtual bool   SetRecpos(PGLOBAL g, int recpos);
   virtual bool   IsReadOnly(void) {return Read_Only;}
@@ -168,7 +174,7 @@ class DllExport TDBASE : public TDB {
   virtual void   ResetDB(void) {}
   virtual void   ResetSize(void) {MaxSize = -1;}
   virtual void   RestoreNrec(void) {}
-  virtual int    ResetTableOpt(PGLOBAL g, bool dox);
+  virtual int    ResetTableOpt(PGLOBAL g, bool dop, bool dox);
   virtual PSZ    GetServer(void) {return "Current";}
 
   // Database routines
@@ -181,8 +187,7 @@ class DllExport TDBASE : public TDB {
   virtual int  MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add)
                 {strcpy(g->Message, "Remote index"); return RC_INFO;}
   virtual bool ReadKey(PGLOBAL g, OPVAL op, const void *key, int len)
-                      {assert(false); return true;} 
-
+                      {assert(false); return true;}
 
  protected:
   // Members
@@ -190,8 +195,10 @@ class DllExport TDBASE : public TDB {
   PXOB    *To_Link;           // Points to column of previous relations
   PCOL    *To_Key_Col;        // Points to key columns in current file
   PKXBASE  To_Kindex;         // Points to table key index
+  PIXDEF   To_Xdp;            // To the index definition block
   PCOL     To_SetCols;        // Points to updated columns
-  int      MaxSize;            // Max size in number of lines
+  RECFM    Ftype;             // File type: 0-var 1-fixed 2-binary (VCT)
+  int      MaxSize;           // Max size in number of lines
   int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables
   const CHARSET_INFO *m_data_charset;
@@ -213,7 +220,7 @@ class DllExport TDBCAT : public TDBASE {
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgCur(void) {return N;}
   virtual int  RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
-  virtual bool SetRecpos(PGLOBAL g, int recpos); 
+  virtual bool SetRecpos(PGLOBAL g, int recpos);
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
@@ -231,9 +238,9 @@ class DllExport TDBCAT : public TDBASE {
           bool InitCol(PGLOBAL g);
 
   // Members
-  PQRYRES Qrp;           
+  PQRYRES Qrp;
   int     N;                  // Row number
-  bool    Init;          
+  bool    Init;
   }; // end of class TDBCAT
 
 /***********************************************************************/

@@ -1,4 +1,4 @@
-// TDBMYSQL.H     Olivier Bertrand    2007-2013
+// TDBMYSQL.H     Olivier Bertrand    2007-2014
 #include "myconn.h"               // MySQL connection declares
 
 typedef class MYSQLDEF *PMYDEF;
@@ -81,7 +81,7 @@ class TDBMYSQL : public TDBASE {
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
-  virtual int  GetAffectedRows(void) {return AftRows;}
+//virtual int  GetAffectedRows(void) {return AftRows;}
   virtual int  GetRecpos(void) {return N;}
   virtual int  GetProgMax(PGLOBAL g);
   virtual void ResetDB(void) {N = 0;}
@@ -92,6 +92,7 @@ class TDBMYSQL : public TDBASE {
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);

@@ -87,7 +87,9 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   void    SetNext(PIXDEF pxdf) {Next = pxdf;}
   PSZ     GetName(void) {return (PSZ)Name;}
   bool    IsUnique(void) {return Unique;}
+  bool    IsDynamic(void) {return Dynamic;}
   bool    IsAuto(void) {return AutoInc;}
+  bool    IsValid(void) {return !Invalid;}
   void    SetAuto(bool b) {AutoInc = b;}
   void    SetInvalid(bool b) {Invalid = b;}
   int     GetNparts(void) {return Nparts;}
@@ -115,6 +117,8 @@ class DllExport INDEXDEF : public BLOCK { /* Index description block   */
   bool    Unique;             /* true if defined as unique             */
   bool    Invalid;            /* true if marked as Invalid             */
   bool    AutoInc;            /* true if unique key in auto increment  */
+  bool    Dynamic;            /* KINDEX style                          */
+  bool    Mapped;             /* Use file mapping                      */
   int     Nparts;             /* Number of key parts                   */
   int     ID;                 /* Index ID number                       */
   int     MaxSame;            /* Max number of same values             */
@@ -174,6 +178,8 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   virtual void Reset(void) = 0;
   virtual bool IsMul(void) {return false;}
   virtual bool IsRandom(void) {return true;}
+  virtual bool IsDynamic(void) {return Dynamic;}
+  virtual void SetDynamic(bool dyn) {Dynamic = dyn;}
   virtual bool HaveSame(void) {return false;}
   virtual int  GetCurPos(void) {return Cur_K;}
   virtual void SetNval(int n) {assert(n == 1);}
@@ -192,6 +198,7 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   virtual void Print(PGLOBAL g, FILE *f, uint n);
   virtual void Print(PGLOBAL g, char *ps, uint z);
   virtual bool Init(PGLOBAL g) = 0;
+  virtual bool Make(PGLOBAL g, PIXDEF sxp) = 0;
 #if defined(XMAP)
   virtual bool MapInit(PGLOBAL g) = 0;
 #endif   // XMAP
@@ -223,6 +230,7 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   OPVAL   Op;               // Search operator
   bool    Mul;              // true if multiple
   bool    Srtd;             // true for sorted column
+  bool    Dynamic;          // true when dynamically made
   int     Val_K;            // Index of current value
   int     Nblk;             // Number of blocks
   int     Sblk;             // Block size
@@ -268,9 +276,10 @@ class DllExport XINDEX : public XXBASE {
   virtual bool Make(PGLOBAL g, PIXDEF sxp);
   virtual bool SaveIndex(PGLOBAL g, PIXDEF sxp);
   virtual bool Reorder(PGLOBAL g);
-          bool GetAllSizes(PGLOBAL g, int &ndif, int &numk);
+          bool GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk);
 
  protected:
+          bool AddColumns(PIXDEF xdp);
           bool NextValDif(void);
 
   // Members
@@ -417,6 +426,7 @@ class DllExport XXROW : public XXBASE {
   virtual int  MaxRange(void) {return 1;}
   virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
   virtual int  Qcompare(int *, int *) {assert(false); return 0;}
+  virtual bool Make(PGLOBAL g, PIXDEF sxp) {return false;}
   virtual void Close(void) {}
 
  protected:

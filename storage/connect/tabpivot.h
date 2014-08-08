@@ -105,6 +105,7 @@ class TDBPIVOT : public TDBPRX {
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  Cardinality(PGLOBAL g) {return (g) ? 10 : 0;}
   virtual int  GetMaxSize(PGLOBAL g);
   virtual bool OpenDB(PGLOBAL g);
   virtual int  ReadDB(PGLOBAL g);
