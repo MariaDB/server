@@ -90,6 +90,7 @@ SET (SQL_SOURCE
 			   threadpool_common.cc 
 			   ../sql-common/mysql_async.c
                my_apc.cc my_apc.h
+               my_json_writer.cc my_json_writer.h
                rpl_gtid.cc rpl_parallel.cc
                table_cache.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc

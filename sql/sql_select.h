@@ -1912,4 +1912,5 @@ ulong check_selectivity(THD *thd,
                         TABLE *table,
                         List<COND_STATISTIC> *conds);
 
+
 #endif /* SQL_SELECT_INCLUDED */
