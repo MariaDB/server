@@ -72,7 +72,7 @@ SHOW INDEX FROM t1;
 # TODO: this fails on Linux
 #SELECT * FROM dr1 ORDER BY fname, ftype;
 INSERT INTO t1(id,msg) VALUES(4, 'four');
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 INSERT INTO t1(id,msg) VALUES(7,'seven'),(10,'ten'),(40,'forty'),(60,'sixty'),(81,'eighty one');
 INSERT INTO t1(id,msg) VALUES(72,'seventy two'),(20,'twenty'),(1,'one'),(35,'thirty five'),(8,'eight');
 SELECT partition_name, table_rows FROM information_schema.partitions WHERE table_name = 't1';

@@ -569,7 +569,7 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 bool FIXFAM::MakeDeletedFile(PGLOBAL g)
   {
-  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  const char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
   int  *ix, i;
   bool  moved;
 
@@ -1479,7 +1479,7 @@ bool BGXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 bool BGXFAM::MakeDeletedFile(PGLOBAL g)
   {
-  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  const char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
   int  *ix, i;
   bool  moved;
 

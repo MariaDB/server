@@ -475,7 +475,7 @@ bool DOSFAM::AllocateBuffer(PGLOBAL g)
   MODE mode = Tdbp->Mode;
 
   // Lrecl does not include line ending
-  Buflen = Lrecl + Ending + ((Bin) ? 1 : 0);
+  Buflen = Lrecl + Ending + ((Bin) ? 1 : 0) + 1;
 
   if (trace)
     htrc("SubAllocating a buffer of %d bytes\n", Buflen);
@@ -1010,7 +1010,7 @@ bool DOSFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 bool DOSFAM::MakeUpdatedFile(PGLOBAL g)
   {
-  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  const char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
   int  *ix, i;
   bool  moved, b = false;
 
@@ -1084,7 +1084,7 @@ err:
 /***********************************************************************/
 bool DOSFAM::MakeDeletedFile(PGLOBAL g)
   {
-  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
+  const char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
   int  *ix, i;
   bool  moved;
 
@@ -1535,7 +1535,7 @@ int BLKFAM::WriteBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Mode == MODE_UPDATE.                                           */
     /*******************************************************************/
-    char  *crlf;
+    const char  *crlf;
     size_t len;
     int   curpos = ftell(Stream);
     bool   moved = true;
