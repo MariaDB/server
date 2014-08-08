@@ -1785,7 +1785,7 @@ when it try to get the value of TIME_ZONE global variable from master.";
       if (is_network_error(mysql_errno(mysql)))
       {
       IF_DBUG(heartbeat_network_error: , )
-        mi->report(WARNING_LEVEL, mysql_errno(mysql),
+        mi->report(WARNING_LEVEL, mysql_errno(mysql), NULL,
                    "SET @master_heartbeat_period to master failed with error: %s",
                    mysql_error(mysql));
         mysql_free_result(mysql_store_result(mysql));
