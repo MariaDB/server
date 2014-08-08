@@ -101,7 +101,7 @@ SHOW INDEX FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
 t1	0	PRIMARY	1	id	A	NULL	NULL	NULL		XINDEX		
 INSERT INTO t1(id,msg) VALUES(4, 'four');
-SELECT * FROM dr1;
+SELECT * FROM dr1 ORDER BY fname, ftype;
 fname	ftype
 part1	.fnx
 part1	.txt
