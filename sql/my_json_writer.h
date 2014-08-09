@@ -1,5 +1,11 @@
 /* Todo: SkySQL copyrights */
 
+
+/*
+  A class to write well-formed JSON documents. The documents are also formatted
+  for human readability.
+*/
+
 class Json_writer
 {
 public:
@@ -25,7 +31,7 @@ public:
     first_child(true)
   {}
 private:
-  // stack of (name, bool is_object_or_array) elements.
+  // TODO: a stack of (name, bool is_object_or_array) elements.
   int indent_level;
   enum { INDENT_SIZE = 2 };
   

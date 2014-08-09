@@ -2583,7 +2583,13 @@ void Item_ident::print(String *str, enum_query_type query_type)
   }
   if (db_name && db_name[0] && !alias_name_used)
   {
-    if (!(cached_table && cached_table->belong_to_view &&
+    /* 
+      When printing EXPLAIN, don't print database name when it's the same as
+      current database.
+    */
+    bool skip_db= (query_type & QT_EXPLAIN) && !strcmp(thd->db, db_name);
+    if (!skip_db && 
+        !(cached_table && cached_table->belong_to_view &&
           cached_table->belong_to_view->compact_view_format))
     {
       append_identifier(thd, str, d_name, (uint)strlen(d_name));

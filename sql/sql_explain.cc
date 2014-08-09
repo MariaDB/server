@@ -774,10 +774,17 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 
 static void write_item(Json_writer *writer, Item *item)
 {
+  THD *thd= current_thd;
   char item_buf[256];
   String str(item_buf, sizeof(item_buf), &my_charset_bin);
   str.length(0);
-  item->print(&str ,QT_ORDINARY);
+
+  ulonglong save_option_bits= thd->variables.option_bits;
+  thd->variables.option_bits &= ~OPTION_QUOTE_SHOW_CREATE;
+
+  item->print(&str, QT_EXPLAIN);
+
+  thd->variables.option_bits= save_option_bits;
   writer->add_str(str.c_ptr_safe());
 }
 
@@ -848,7 +855,8 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
     writer->add_member("key").add_str(key_str);
 
   /* `used_key_parts` */
-  writer->add_member("used_key_parts").add_str("TODO");
+  if (key_str.length())
+    writer->add_member("used_key_parts").add_str("TODO");
 
   StringBuffer<64> key_len_str;
   fill_key_len_str(&key_len_str);

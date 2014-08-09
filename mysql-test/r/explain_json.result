@@ -1,0 +1,41 @@
+drop table if exists t0,t1;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain format=json select * from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100
+    }
+  }
+}
+explain format=json select * from t0 where 1>2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible WHERE"
+    }
+  }
+}
+explain format=json select * from t0 where a<3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(t0.a < 3)"
+    }
+  }
+}
+drop table t0;

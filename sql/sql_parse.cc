@@ -5269,21 +5269,9 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           top-level LIMIT
         */        
         result->reset_offset_limit(); 
-        if (thd->lex->explain_json)
+        if (lex->explain_json)
         {
-          /*
-          Json_writer writer;
-          writer.start_object();
-          thd->lex->explain->print_explain_json(&writer, thd->lex->analyze_stmt);
-          writer.end_object();
-
-          const CHARSET_INFO *cs= system_charset_info;
-          List<Item> item_list;
-          String *buf= &writer.output;
-          item_list.push_back(new Item_string(buf->ptr(), buf->length(), cs));
-          result->send_data(item_list);
-          */
-          thd->lex->explain->print_explain_json(result, thd->lex->analyze_stmt);
+          lex->explain->print_explain_json(result, lex->analyze_stmt);
         }
         else
         {

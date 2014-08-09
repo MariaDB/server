@@ -100,7 +100,7 @@ void Json_writer::add_double(double val)
     start_element();
 
   char buf[64];
-  my_snprintf(buf, sizeof(buf), "%lf", val);
+  my_snprintf(buf, sizeof(buf), "%lg", val);
   output.append(buf);
   element_started= false;
 }
