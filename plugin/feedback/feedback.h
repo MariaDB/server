@@ -22,6 +22,7 @@ int fill_feedback(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_plugin_version(THD *thd, TABLE_LIST *tables);
 int fill_misc_data(THD *thd, TABLE_LIST *tables);
 int fill_linux_info(THD *thd, TABLE_LIST *tables);
+int fill_collation_statistics(THD *thd, TABLE_LIST *tables);
 
 static const int SERVER_UID_SIZE= 29;
 extern char server_uid_buf[SERVER_UID_SIZE+1], *user_info;
