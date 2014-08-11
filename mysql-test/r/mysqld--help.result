@@ -917,6 +917,11 @@ The following options may be given as the first argument:
  --wsrep-retry-autocommit=# 
  Max number of times to retry a failed autocommit
  statement
+ --wsrep-slave-FK-checks 
+ Should slave thread do foreign key constraint checks
+ (Defaults to on; use --skip-wsrep-slave-FK-checks to disable.)
+ --wsrep-slave-UK-checks 
+ Should slave thread do secondary index uniqueness chesks
  --wsrep-slave-threads=# 
  Number of slave appliers to launch
  --wsrep-sst-auth=name 
@@ -1209,6 +1214,8 @@ wsrep-recover FALSE
 wsrep-replicate-myisam FALSE
 wsrep-restart-slave FALSE
 wsrep-retry-autocommit 1
+wsrep-slave-FK-checks TRUE
+wsrep-slave-UK-checks FALSE
 wsrep-slave-threads 1
 wsrep-sst-auth (No default value)
 wsrep-sst-donor 
