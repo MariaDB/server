@@ -144,6 +144,33 @@ do {\
 	}\
 } while (0)
 
+#ifdef WITH_WSREP
+/*******************************************************************//**
+Inserts a struct to the head of hash table. */
+
+#define HASH_PREPEND(TYPE, NAME, TABLE, FOLD, DATA)	\
+do {							\
+	hash_cell_t*	cell3333;			\
+	TYPE*		struct3333;			\
+							\
+	HASH_ASSERT_OWN(TABLE, FOLD)			\
+							\
+	(DATA)->NAME = NULL;				\
+							\
+	cell3333 = hash_get_nth_cell(TABLE, hash_calc_hash(FOLD, TABLE));\
+							\
+	if (cell3333->node == NULL) {			\
+		cell3333->node = DATA;			\
+		DATA->NAME = NULL;			\
+	} else {					\
+		struct3333 = (TYPE*) cell3333->node;	\
+							\
+		DATA->NAME = struct3333;		\
+							\
+		cell3333->node = DATA;			\
+	}						\
+} while (0)
+#endif /*WITH_WSREP */
 #ifdef UNIV_HASH_DEBUG
 # define HASH_ASSERT_VALID(DATA) ut_a((void*) (DATA) != (void*) -1)
 # define HASH_INVALIDATE(DATA, NAME) *(void**) (&DATA->NAME) = (void*) -1
