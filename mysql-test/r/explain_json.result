@@ -64,6 +64,7 @@ EXPLAIN
       "key": "a",
       "used_key_parts": "TODO",
       "key_length": "5",
+      "ref": ["test.t0.a"],
       "rows": 1,
       "filtered": 100
     }

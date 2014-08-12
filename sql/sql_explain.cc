@@ -253,7 +253,7 @@ static void push_string(List<Item> *item_list, String *str)
                        system_charset_info));
 }
 
-static void push_string_list(List<Item> *item_list, List<char> &lines, 
+static void push_string_list(List<Item> *item_list, String_list &lines, 
                              String *buf)
 {
   List_iterator_fast<char> it(lines);
@@ -677,10 +677,11 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     item_list.push_back(item_null);
 
   /* `ref` */
-  if (ref_set)
-    push_string(&item_list, &ref);
-  else
+  StringBuffer<64> ref_list_buf;
+  if (ref_list.is_empty())
     item_list.push_back(item_null);
+  else
+    push_string_list(&item_list, ref_list, &ref_list_buf);
  
   /* `rows` */
   if (rows_set)
@@ -772,6 +773,18 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 }
 
 
+bool String_list::append_str(MEM_ROOT *mem_root, const char *str)
+{
+  size_t len= strlen(str);
+  char *cp;
+  if (!(cp = (char*)alloc_root(mem_root, len)))
+    return 1;
+  memcpy(cp, str, len+1);
+  push_back(cp);
+  return 0;
+}
+
+
 static void write_item(Json_writer *writer, Item *item)
 {
   THD *thd= current_thd;
@@ -857,12 +870,26 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
   /* `used_key_parts` */
   if (key_str.length())
     writer->add_member("used_key_parts").add_str("TODO");
-
+  
+  /* `key_length` */
   StringBuffer<64> key_len_str;
   fill_key_len_str(&key_len_str);
   if (key_len_str.length())
     writer->add_member("key_length").add_str(key_len_str);
+  
+  /* `ref` */
+  // TODO: need to print this as an array.
+  if (!ref_list.is_empty())
+  {
+    List_iterator_fast<char> it(ref_list);
+    const char *str;
+    writer->add_member("ref").start_array();
+    while ((str= it++))
+      writer->add_str(str);
+    writer->end_array();
+  }
 
+  /* `rows` */
   if (rows_set)
     writer->add_member("rows").add_ll(rows);
 
@@ -873,6 +900,7 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
     writer->add_member("r_rows").add_ll(avg_rows);
   }
   
+  /* `filtered` */
   if (filtered_set)
     writer->add_member("filtered").add_double(filtered);
 

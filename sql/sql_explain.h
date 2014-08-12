@@ -464,6 +464,13 @@ private:
 };
 
 
+class String_list: public List<char>
+{
+public:
+  bool append_str(MEM_ROOT *mem_root, const char *str);
+};
+
+
 /*
   EXPLAIN data structure for a single JOIN_TAB.
 */
@@ -489,9 +496,8 @@ public:
   StringBuffer<32> used_partitions;
   bool used_partitions_set;
   
-  /* Empty string means "NULL" will be printed */
-  List<char> possible_keys;
-  //StringBuffer<32> possible_keys_str;
+  /* Empty means "NULL" will be printed */
+  String_list possible_keys;
   
   /*
     Index use: key name and length.
@@ -509,8 +515,7 @@ public:
   */
   Explain_index_use hash_next_key;
   
-  bool ref_set; /* not set means 'NULL' should be printed */
-  StringBuffer<32> ref;
+  String_list ref_list;
 
   bool rows_set; /* not set means 'NULL' should be printed */
   ha_rows rows;

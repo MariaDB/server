@@ -23261,23 +23261,14 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// TODO: join with make_possible_keys_line ?
-int append_possible_keys(MEM_ROOT *alloc, List<char> &list, TABLE *table, 
+int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table, 
                          key_map possible_keys)
 {
   uint j;
   for (j=0 ; j < table->s->keys ; j++)
   {
     if (possible_keys.is_set(j))
-    {
-      const char *key_name= table->key_info[j].name;
-      size_t len= strlen(key_name);
-      char *cp;
-      if (!(cp = (char*)alloc_root(alloc, len)))
-        return 1;
-      memcpy(cp, key_name, len+1);
-      list.push_back(cp);
-    }
+      list.append_str(alloc, table->key_info[j].name);
   }
   return 0;
 }
@@ -23312,13 +23303,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
   TABLE *table=tab->table;
   TABLE_LIST *table_list= tab->table->pos_in_table_list;
-  char buff4[512];
   my_bool key_read;
   char table_name_buffer[SAFE_NAME_LEN];
-  String tmp4(buff4,sizeof(buff4),cs);
   KEY *key_info= 0;
   uint key_len= 0;
-  tmp4.length(0);
   quick_type= -1;
   QUICK_SELECT_I *quick= NULL;
 
@@ -23456,14 +23444,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       store_key **ref=tab->ref.key_copy;
       for (uint kp= 0; kp < tab->ref.key_parts; kp++)
       {
-        if (tmp4.length())
-          tmp4.append(',');
-
         if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
-          tmp4.append("const");
+          eta->ref_list.append_str(thd->mem_root, "const");
         else
         {
-          tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
+          eta->ref_list.append_str(thd->mem_root, (*ref)->name());
           ref++;
         }
       }
@@ -23477,17 +23462,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
                            table->key_info[tab->index].key_length);
   }
 
-  if (key_info)
-  {
-    if (key_info && tab_type != JT_NEXT)
-    {
-      eta->ref.copy(tmp4);
-      eta->ref_set= true;
-    }
-    else
-      eta->ref_set= false;
-  }
-  else
+  if (!key_info)
   {
     if (table_list && /* SJM bushes don't have table_list */
         table_list->schema_table &&
@@ -23517,7 +23492,6 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       if (key_name_buf.length())
         eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
     }
-    eta->ref_set= false;
   }
   
   /* "rows" */
