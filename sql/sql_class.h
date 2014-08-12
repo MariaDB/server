@@ -652,6 +652,7 @@ typedef struct system_variables
 #ifdef WITH_WSREP
   my_bool wsrep_on;
   my_bool wsrep_causal_reads;
+  uint wsrep_sync_wait;
   ulong wsrep_retry_autocommit;
 #endif
   double long_query_time_double;

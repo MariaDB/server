@@ -192,7 +192,7 @@ bool trans_begin(THD *thd, uint flags)
 
 #ifdef WITH_WSREP
   thd->wsrep_PA_safe= true;
-  if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd))
+  if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
     DBUG_RETURN(TRUE);
 #endif /* WITH_WSREP */
 
