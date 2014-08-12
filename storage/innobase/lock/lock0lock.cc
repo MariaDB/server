@@ -1088,7 +1088,8 @@ lock_rec_has_to_wait(
 					wsrep_thd_conflict_state(trx->mysql_thd, FALSE), 
 					wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE) );
 				lock_rec_print(stderr, lock2);
-				abort();
+				return FALSE;
+				//abort();
 			} else {
 				/* if lock2->index->n_uniq <= 
 				   lock2->index->n_user_defined_cols
@@ -2037,7 +2038,8 @@ lock_rec_create(
 	ut_ad(index->table->n_ref_count > 0 || !index->table->can_be_evicted);
 
 #ifdef WITH_WSREP
-	  if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+	
+	if (c_lock && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
 		lock_t *hash	= (lock_t *)c_lock->hash;
 		lock_t *prev	= NULL;
 
@@ -2100,6 +2102,9 @@ lock_rec_create(
 			return(lock);
 		}
 		trx_mutex_exit(c_lock->trx);
+	} else if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+		HASH_PREPEND(lock_t, hash, lock_sys->rec_hash,
+			    lock_rec_fold(space, page_no), lock);
 	} else {
 		HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 			    lock_rec_fold(space, page_no), lock);
@@ -2115,7 +2120,6 @@ lock_rec_create(
 	ut_ad(trx_mutex_own(trx));
 
 	if (type_mode & LOCK_WAIT) {
-
 		lock_set_lock_and_trx_wait(lock, trx);
 	}
 
@@ -2127,7 +2131,6 @@ lock_rec_create(
 
 	MONITOR_INC(MONITOR_RECLOCK_CREATED);
 	MONITOR_INC(MONITOR_NUM_RECLOCK);
-
 	return(lock);
 }
 
@@ -2345,7 +2348,16 @@ lock_rec_add_to_queue(
 
 		if (lock_get_wait(lock)
 		    && lock_rec_get_nth_bit(lock, heap_no)) {
-
+#ifdef WITH_WSREP
+			if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
+				if (wsrep_debug) {
+					fprintf(stderr, 
+						"BF skipping wait: %lu\n", 
+						trx->id);
+					lock_rec_print(stderr, lock);
+				}
+		  } else
+#endif
 			goto somebody_waits;
 		}
 	}
@@ -2655,7 +2667,13 @@ lock_rec_has_to_wait_in_queue(
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
-
+#ifdef WITH_WSREP
+			if (wsrep_thd_is_BF(wait_lock->trx->mysql_thd, FALSE) &&
+			    wsrep_thd_is_BF(lock->trx->mysql_thd, TRUE)) {
+				/* don't wait for another BF lock */
+				continue;
+			}
+#endif
 			return(lock);
 		}
 	}

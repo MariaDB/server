@@ -417,12 +417,9 @@ wsrep_row_upd_check_foreign_constraints(
 			}
 
 			if (foreign->referenced_table) {
-				mutex_enter(&(dict_sys->mutex));
-
-				(foreign->referenced_table
-				 ->n_foreign_key_checks_running)++;
-
-				mutex_exit(&(dict_sys->mutex));
+				os_inc_counter(dict_sys->mutex,
+					       foreign->referenced_table
+					       ->n_foreign_key_checks_running);
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
@@ -434,20 +431,14 @@ wsrep_row_upd_check_foreign_constraints(
 				TRUE, foreign, table, entry, thr);
 
 			if (foreign->referenced_table) {
-				mutex_enter(&(dict_sys->mutex));
-
-				ut_a(foreign->referenced_table
-				     ->n_foreign_key_checks_running > 0);
-
-				(foreign->referenced_table
-				 ->n_foreign_key_checks_running)--;
+				os_dec_counter(dict_sys->mutex,
+					       foreign->referenced_table
+					       ->n_foreign_key_checks_running);
 
 				if (opened == TRUE) {
 					dict_table_close(foreign->referenced_table, TRUE, FALSE);
 					opened = FALSE;
 				}
-				
-				mutex_exit(&(dict_sys->mutex));
 			}
 
 			if (err != DB_SUCCESS) {

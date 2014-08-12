@@ -5555,7 +5555,6 @@ static my_bool have_committing_connections()
 
     if (is_committing_connection(tmp))
     {
-      mysql_mutex_unlock(&LOCK_thread_count);
       return TRUE;
     }
   }

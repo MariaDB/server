@@ -1211,6 +1211,9 @@ static void wsrep_copy_query(THD *thd)
 {
   thd->wsrep_retry_command   = thd->get_command();
   thd->wsrep_retry_query_len = thd->query_length();
+  if (thd->wsrep_retry_query) {
+      my_free(thd->wsrep_retry_query);
+  }
   thd->wsrep_retry_query     = (char *)my_malloc(
                                  thd->wsrep_retry_query_len + 1, MYF(0));
   strncpy(thd->wsrep_retry_query, thd->query(), thd->wsrep_retry_query_len);
@@ -3793,8 +3796,7 @@ end_with_restore_list:
     if ((res= insert_precheck(thd, all_tables)))
       break;
 #ifdef WITH_WSREP
-    if (lex->sql_command == SQLCOM_INSERT_SELECT &&
-	thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    if (thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
       WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL);
