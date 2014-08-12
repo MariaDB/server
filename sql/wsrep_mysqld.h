@@ -101,6 +101,14 @@ extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
+enum enum_wsrep_sync_wait {
+    WSREP_SYNC_WAIT_NONE = 0x0,
+    // show, select, begin
+    WSREP_SYNC_WAIT_BEFORE_READ = 0x1,
+    WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE = 0x2,
+    WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE = 0x4,
+    WSREP_SYNC_WAIT_MAX = 0x7
+};
 
 // MySQL status variables
 extern my_bool     wsrep_connected;
@@ -174,9 +182,10 @@ extern void wsrep_kill_mysql(THD *thd);
 /* new defines */
 extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication();
-extern bool wsrep_causal_wait(THD* thd);
+extern bool wsrep_sync_wait (THD* thd, uint mask = WSREP_SYNC_WAIT_BEFORE_READ);
 extern int  wsrep_check_opts (int argc, char* const* argv);
 extern void wsrep_prepend_PATH (const char* path);
+/* some inline functions are defined in wsrep_mysqld_inl.h */
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
