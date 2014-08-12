@@ -14,14 +14,14 @@ explain format=json select * from t0 where 1>2;
 
 explain format=json select * from t0 where a<3;
 
-#create table t1 (a int, b int, filler char(32), key(a));
-#insert into t1 
-#select 
-#  A.a + B.a* 10 + C.a * 100, 
-#  A.a + B.a* 10 + C.a * 100,
-#  'filler'
-#from t0 A, t0 B, t0 C;
-#
-#explain format=json select * from t0,t1 where t1.a=t0.a;
+create table t1 (a int, b int, filler char(32), key(a));
+insert into t1 
+select 
+  A.a + B.a* 10 + C.a * 100, 
+  A.a + B.a* 10 + C.a * 100,
+  'filler'
+from t0 A, t0 B, t0 C;
+
+explain format=json select * from t0,t1 where t1.a=t0.a;
 
 drop table t0;

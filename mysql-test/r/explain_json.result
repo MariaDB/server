@@ -38,4 +38,35 @@ EXPLAIN
     }
   }
 }
+create table t1 (a int, b int, filler char(32), key(a));
+insert into t1 
+select 
+A.a + B.a* 10 + C.a * 100, 
+A.a + B.a* 10 + C.a * 100,
+'filler'
+from t0 A, t0 B, t0 C;
+explain format=json select * from t0,t1 where t1.a=t0.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(t0.a is not null)"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "used_key_parts": "TODO",
+      "key_length": "5",
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
 drop table t0;
