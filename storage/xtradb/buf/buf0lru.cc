@@ -595,6 +595,8 @@ buf_flush_or_remove_pages(
 	buf_page_t*	bpage;
 	ulint		processed = 0;
 
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
 	buf_flush_list_mutex_enter(buf_pool);
 
 rescan:
@@ -2429,6 +2431,25 @@ buf_LRU_block_remove_hashed(
 			" in the hash table\n",
 			(ulong) bpage->space,
 			(ulong) bpage->offset);
+
+#ifdef UNIV_DEBUG
+		fprintf(stderr,
+			"InnoDB: in_page_hash %lu in_zip_hash %lu\n"
+			" in_free_list %lu in_flush_list %lu in_LRU_list %lu\n"
+			" zip.data %p zip_size %lu page_state %d\n",
+			bpage->in_page_hash, bpage->in_zip_hash,
+			bpage->in_free_list, bpage->in_flush_list,
+			bpage->in_LRU_list, bpage->zip.data,
+			buf_page_get_zip_size(bpage),
+			buf_page_get_state(bpage));
+#else
+		fprintf(stderr,
+			"InnoDB: zip.data %p zip_size %lu page_state %d\n",
+			bpage->zip.data,
+			buf_page_get_zip_size(bpage),
+			buf_page_get_state(bpage));
+#endif
+
 		if (hashed_bpage) {
 			fprintf(stderr,
 				"InnoDB: In hash table we find block"
@@ -2438,6 +2459,9 @@ buf_LRU_block_remove_hashed(
 				(ulong) hashed_bpage->offset,
 				(const void*) bpage);
 		}
+
+		ut_a(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
+		ut_a(bpage->buf_fix_count == 0);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		mutex_exit(buf_page_get_mutex(bpage));

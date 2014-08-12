@@ -43,6 +43,7 @@
 #include "sql_base.h"                           // close_thread_tables
 #include "transaction.h"       // trans_commit_stmt
 #include "sql_audit.h"
+#include "debug_sync.h"
 
 /*
   Sufficient max length of printed destinations and frame offsets (all uints).
@@ -1309,6 +1310,7 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
   /* Discard the initial part of executing routines. */
   thd->profiling.discard_current_query();
 #endif
+  DEBUG_SYNC(thd, "sp_head_execute_before_loop");
   do
   {
     sp_instr *i;
@@ -1885,9 +1887,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       as one select and not resetting THD::user_var_events before
       each invocation.
     */
-    mysql_mutex_lock(&LOCK_thread_count);
-    q= global_query_id;
-    mysql_mutex_unlock(&LOCK_thread_count);
+    q= get_query_id();
     mysql_bin_log.start_union_events(thd, q + 1);
     binlog_save_options= thd->variables.option_bits;
     thd->variables.option_bits&= ~OPTION_BIN_LOG;
@@ -2323,6 +2323,11 @@ sp_head::restore_lex(THD *thd)
   */
   if (sp_update_sp_used_routines(&m_sroutines, &sublex->sroutines))
     DBUG_RETURN(TRUE);
+
+  /* If this substatement is a update query, then mark MODIFIES_DATA */
+  if (is_update_query(sublex->sql_command))
+    m_flags|= MODIFIES_DATA;
+
   /*
     Merge tables used by this statement (but not by its functions or
     procedures) to multiset of tables used by this routine.

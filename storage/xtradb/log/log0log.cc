@@ -1950,6 +1950,7 @@ log_io_complete_checkpoint(void)
 	/* Wake the redo log watching thread to parse the log up to this
 	checkpoint. */
 	if (srv_track_changed_pages) {
+		os_event_reset(srv_redo_log_tracked_event);
 		os_event_set(srv_checkpoint_completed_event);
 	}
 }
@@ -3681,8 +3682,8 @@ loop:
 		/* Wake the log tracking thread which will then immediatelly
 		quit because of srv_shutdown_state value */
 		if (srv_track_changed_pages) {
+			os_event_reset(srv_redo_log_tracked_event);
 			os_event_set(srv_checkpoint_completed_event);
-			os_event_wait(srv_redo_log_thread_finished_event);
 		}
 
 		fil_close_all_files();
@@ -3759,6 +3760,7 @@ loop:
 
 	/* Signal the log following thread to quit */
 	if (srv_track_changed_pages) {
+		os_event_reset(srv_redo_log_tracked_event);
 		os_event_set(srv_checkpoint_completed_event);
 	}
 
@@ -3784,10 +3786,6 @@ loop:
 		fil_write_flushed_lsn_to_data_files(lsn, 0);
 
 		fil_flush_file_spaces(FIL_TABLESPACE);
-	}
-
-	if (srv_track_changed_pages) {
-		os_event_wait(srv_redo_log_thread_finished_event);
 	}
 
 	fil_close_all_files();

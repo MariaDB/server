@@ -1,7 +1,7 @@
 /*************** TabSys H Declares Source Code File (.H) ***************/
-/*  Name: TABSYS.H    Version 2.2                                      */
+/*  Name: TABSYS.H    Version 2.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2004-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
 /*  This file contains the XDB system tables classes declares.         */
 /***********************************************************************/
@@ -37,7 +37,7 @@ class DllExport INIDEF : public TABDEF {      /* INI table description */
   // Members
   char   *Fn;                 /* Path/Name of corresponding file       */
   char   *Xname;              /* The eventual table name               */
-  char    Layout;              /* R: Row, C: Column                     */
+  char    Layout;             /* R: Row, C: Column                     */
   int     Ln;                 /* Length of section list buffer         */
   }; // end of INIDEF
 
@@ -60,8 +60,8 @@ class TDBINI : public TDBASE {
   virtual PTDB  CopyOne(PTABS t);
   virtual int   GetRecpos(void) {return N;}
   virtual int   GetProgCur(void) {return N;}
-  virtual int   GetAffectedRows(void) {return 0;}
-  virtual PSZ    GetFile(PGLOBAL g) {return Ifile;}
+//virtual int   GetAffectedRows(void) {return 0;}
+  virtual PSZ   GetFile(PGLOBAL g) {return Ifile;}
   virtual void  SetFile(PGLOBAL g, PSZ fn) {Ifile = fn;}
   virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}
   virtual void  ResetSize(void) {MaxSize = -1; Seclist = NULL;}
@@ -70,6 +70,7 @@ class TDBINI : public TDBASE {
 
   // Database routines
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
@@ -144,7 +145,7 @@ class TDBXIN : public TDBINI {
 
   // Database routines
   virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int   GetMaxSize(PGLOBAL g);
+  virtual int   Cardinality(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
   virtual int   WriteDB(PGLOBAL g);

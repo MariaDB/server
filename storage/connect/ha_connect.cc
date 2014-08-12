@@ -28,7 +28,7 @@
   ha_connect will let you create/open/delete tables, the created table can be
   done specifying an already existing file, the drop table command will just
   suppress the table definition but not the eventual data file.
-  Indexes are not supported for all table types but data can be inserted, 
+  Indexes are not supported for all table types but data can be inserted,
   updated or deleted.
 
   You can enable the CONNECT storage engine in your build by doing the
@@ -108,7 +108,6 @@
 
 #define MYSQL_SERVER 1
 #define DONT_DEFINE_VOID
-//#include "sql_partition.h"
 #include "sql_class.h"
 #include "create_options.h"
 #include "mysql_com.h"
@@ -116,6 +115,10 @@
 #include "sql_parse.h"
 #include "sql_base.h"
 #include <sys/stat.h>
+#if defined(NEW_WAY)
+#include "sql_table.h"
+#endif   // NEW_WAY
+#include "sql_partition.h"
 #undef  OFFSET
 
 #define NOPARSE
@@ -167,10 +170,17 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char version[]= "Version 1.02.0002 March 16, 2014";
+       char  version[]= "Version 1.03.0002 July 17, 2014";
+       char  compver[]= "Version 1.03.0002 " __DATE__ " "  __TIME__;
+
+#if defined(WIN32)
+       char slash= '\\';
+#else   // !WIN32
+       char slash= '/';
+#endif  // !WIN32
 
 #if defined(XMSG)
-       char msglang[];             // Default message language
+       char  msglang[];            // Default message language
 #endif
        int  trace= 0;              // The general trace value
        int  xconv= 0;              // The type conversion option
@@ -185,7 +195,7 @@ extern "C" {
 ulong  ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
-/* CONNECT system variables */ 
+/* CONNECT system variables */
 static int     xtrace= 0;
 static int     conv_size= SZCONV;
 static uint    work_size= SZWORK;
@@ -199,13 +209,16 @@ static my_bool indx_map= 0;
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 void PushWarning(PGLOBAL g, THD *thd, int level);
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                   const char *db, char *tab, const char *src, int port);
+
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 
 static handler *connect_create_handler(handlerton *hton,
-                                       TABLE_SHARE *table,
-                                       MEM_ROOT *mem_root);
+                                   TABLE_SHARE *table,
+                                   MEM_ROOT *mem_root);
 
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
@@ -304,11 +317,27 @@ ha_create_table_option connect_table_option_list[]=
 ha_create_table_option connect_field_option_list[]=
 {
   HA_FOPTION_NUMBER("FLAG", offset, (ulonglong) -1, 0, INT_MAX32, 1),
+  HA_FOPTION_NUMBER("MAX_DIST", freq, 0, 0, INT_MAX32, 1), // BLK_INDX
+//HA_FOPTION_NUMBER("DISTRIB", opt, 0, 0, 2, 1),  // used for BLK_INDX
   HA_FOPTION_NUMBER("FIELD_LENGTH", fldlen, 0, 0, INT_MAX32, 1),
   HA_FOPTION_STRING("DATE_FORMAT", dateformat),
   HA_FOPTION_STRING("FIELD_FORMAT", fieldformat),
   HA_FOPTION_STRING("SPECIAL", special),
+  HA_FOPTION_ENUM("DISTRIB", opt, "scattered,clustered,sorted", 0),
   HA_FOPTION_END
+};
+
+/*
+  CREATE TABLE option list (index options)
+
+  These can be specified in the CREATE TABLE per index:
+  CREATE TABLE ( field ..., .., INDEX .... *here*, ... )
+*/
+ha_create_table_option connect_index_option_list[]=
+{
+  HA_IOPTION_BOOL("DYNAM", dynamic, 0),
+  HA_IOPTION_BOOL("MAPPED", mapped, 0),
+  HA_IOPTION_END
 };
 
 /***********************************************************************/
@@ -390,7 +419,7 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
 */
 static const char *ha_connect_exts[]= {
   ".dos", ".fix", ".csv", ".bin", ".fmt", ".dbf", ".xml", ".ini", ".vec",
-  ".dnx", ".fnx", ".bnx", ".vnx", ".dbx",
+  ".dnx", ".fnx", ".bnx", ".vnx", ".dbx", ".dop", ".fop", ".bop", ".vop",
   NULL};
 
 /**
@@ -401,7 +430,7 @@ static int connect_init_func(void *p)
 {
   DBUG_ENTER("connect_init_func");
 
-  sql_print_information("CONNECT: %s", version);
+  sql_print_information("CONNECT: %s", compver);
 
   // xtrace is now a system variable
   trace= xtrace;
@@ -415,9 +444,11 @@ static int connect_init_func(void *p)
   connect_hton= (handlerton *)p;
   connect_hton->state= SHOW_OPTION_YES;
   connect_hton->create= connect_create_handler;
-  connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
+//connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED | HTON_NO_PARTITION;
+  connect_hton->flags= HTON_TEMPORARY_NOT_SUPPORTED;
   connect_hton->table_options= connect_table_option_list;
   connect_hton->field_options= connect_field_option_list;
+  connect_hton->index_options= connect_index_option_list;
   connect_hton->tablefile_extensions= ha_connect_exts;
   connect_hton->discover_table_structure= connect_assisted_discovery;
 
@@ -426,7 +457,7 @@ static int connect_init_func(void *p)
 
   DTVAL::SetTimeShift();      // Initialize time zone shift once for all
   DBUG_RETURN(0);
-}
+} // end of connect_init_func
 
 
 /**
@@ -456,13 +487,13 @@ static int connect_done_func(void *p)
     } // endfor pc
 
   DBUG_RETURN(error);
-}
+} // end of connect_done_func
 
 
 /**
   @brief
   Example of simple lock controls. The "share" it creates is a
-  structure we will pass to each example handler. Do you have to have
+  structure we will pass to each CONNECT handler. Do you have to have
   one of these? Well, you have pieces that are used for locking, and
   they are needed to function.
 */
@@ -470,20 +501,22 @@ static int connect_done_func(void *p)
 CONNECT_SHARE *ha_connect::get_share()
 {
   CONNECT_SHARE *tmp_share;
+
   lock_shared_ha_data();
-  if (!(tmp_share= static_cast<CONNECT_SHARE*>(get_ha_share_ptr())))
-  {
+
+  if (!(tmp_share= static_cast<CONNECT_SHARE*>(get_ha_share_ptr()))) {
     tmp_share= new CONNECT_SHARE;
     if (!tmp_share)
       goto err;
     mysql_mutex_init(con_key_mutex_CONNECT_SHARE_mutex,
                      &tmp_share->mutex, MY_MUTEX_INIT_FAST);
     set_ha_share_ptr(static_cast<Handler_share*>(tmp_share));
-  }
-err:
+    } // endif tmp_share
+
+ err:
   unlock_shared_ha_data();
   return tmp_share;
-}
+} // end of get_share
 
 
 static handler* connect_create_handler(handlerton *hton,
@@ -514,15 +547,19 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
-//*tname= '\0';
+  *partname= 0;
   bzero((char*) &xinfo, sizeof(XINFO));
   valid_info= false;
   valid_query_id= 0;
   creat_query_id= (table && table->in_use) ? table->in_use->query_id : 0;
   stop= false;
   alter= false;
+  mrr= false;
+  nox= false;
+  abort= false;
   indexing= -1;
   locked= 0;
+  part_id= NULL;
   data_file_name= NULL;
   index_file_name= NULL;
   enable_activate_all_index= 0;
@@ -640,7 +677,13 @@ TABTYPE ha_connect::GetRealType(PTOS pos)
 const char *ha_connect::index_type(uint inx) 
 { 
   switch (GetIndexType(GetRealType())) {
-    case 1: return "XPLUG";
+    case 1:
+      if (table_share)
+        return (GetIndexOption(&table_share->key_info[inx], "Dynamic"))
+             ? "KINDEX" : "XINDEX";
+      else
+        return "XINDEX";
+
     case 2: return "REMOTE";
     } // endswitch
 
@@ -696,12 +739,15 @@ ulonglong ha_connect::table_flags() const
 
   if (pos) {
     TABTYPE type= hp->GetRealType(pos);
-    
+
+    if (IsFileType(type))
+      flags|= HA_FILE_BASED;
+
     if (IsExactType(type))
       flags|= (HA_HAS_RECORDS | HA_STATS_RECORDS_IS_EXACT);
 
     // No data change on ALTER for outward tables
-    if (!IsFileType(type) || hp->FileExists(pos->filename))
+    if (!IsFileType(type) || hp->FileExists(pos->filename, true))
       flags|= HA_NO_COPY_ON_ALTER;
 
     } // endif pos
@@ -710,7 +756,7 @@ ulonglong ha_connect::table_flags() const
 } // end of table_flags
 
 /****************************************************************************/
-/*  Return the value of an option specified in the option list.             */
+/*  Return the value of an option specified in an option list.              */
 /****************************************************************************/
 char *GetListOption(PGLOBAL g, const char *opname,
                                const char *oplist, const char *def)
@@ -771,6 +817,22 @@ PTOS ha_connect::GetTableOptionStruct(TABLE_SHARE *s)
 } // end of GetTableOptionStruct
 
 /****************************************************************************/
+/*  Return the string eventually formatted with partition name.             */
+/****************************************************************************/
+char *ha_connect::GetRealString(const char *s)
+{
+  char *sv;
+
+  if (IsPartitioned() && s) {
+    sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
+    sprintf(sv, s, partname);
+  } else
+    sv= (char*)s;
+
+  return sv;
+} // end of GetRealString
+
+/****************************************************************************/
 /*  Return the value of a string option or NULL if not specified.           */
 /****************************************************************************/
 char *ha_connect::GetStringOption(char *opname, char *sdef)
@@ -778,16 +840,26 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
   char *opval= NULL;
   PTOS  options= GetTableOptionStruct();
 
-  if (!options)
+  if (!stricmp(opname, "Connect")) {
+    LEX_STRING cnc= (tshp) ? tshp->connect_string : table->s->connect_string;
+
+    if (cnc.length)
+      opval= GetRealString(cnc.str);
+
+  } else if (!stricmp(opname, "Query_String"))
+    opval= thd_query_string(table->in_use)->str;
+  else if (!stricmp(opname, "Partname"))
+    opval= partname;
+  else if (!options)
     ;
   else if (!stricmp(opname, "Type"))
     opval= (char*)options->type;
   else if (!stricmp(opname, "Filename"))
-    opval= (char*)options->filename;
+    opval= GetRealString(options->filename);
   else if (!stricmp(opname, "Optname"))
     opval= (char*)options->optname;
   else if (!stricmp(opname, "Tabname"))
-    opval= (char*)options->tabname;
+    opval= GetRealString(options->tabname);
   else if (!stricmp(opname, "Tablist"))
     opval= (char*)options->tablist;
   else if (!stricmp(opname, "Database") ||
@@ -795,8 +867,6 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->dbname;
   else if (!stricmp(opname, "Separator"))
     opval= (char*)options->separator;
-  else if (!stricmp(opname, "Connect"))
-    opval= (tshp) ? tshp->connect_string.str : table->s->connect_string.str;
   else if (!stricmp(opname, "Qchar"))
     opval= (char*)options->qchar;
   else if (!stricmp(opname, "Module"))
@@ -811,8 +881,6 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->colist;
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
-  else if (!stricmp(opname, "Query_String"))
-    opval= thd_query_string(table->in_use)->str;
 
   if (!opval && options && options->oplist)
     opval= GetListOption(xp->g, opname, options->oplist);
@@ -823,7 +891,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
       if (!stricmp(opname, "Dbname") || !stricmp(opname, "Database"))
         opval= (char*)GetDBName(NULL);    // Current database
       else if (!stricmp(opname, "Type"))  // Default type
-        opval= (!options) ? NULL : 
+        opval= (!options) ? NULL :
                (options->srcdef)  ? (char*)"MYSQL" :
                (options->tabname) ? (char*)"PROXY" : (char*)"DOS";
       else if (!stricmp(opname, "User"))  // Connected user
@@ -897,21 +965,21 @@ bool ha_connect::SetBooleanOption(char *opname, bool b)
 /****************************************************************************/
 int ha_connect::GetIntegerOption(char *opname)
 {
-  ulonglong opval= NO_IVAL;
-  char     *pv;
-  PTOS      options= GetTableOptionStruct();
+  ulonglong    opval= NO_IVAL;
+  char        *pv;
+  PTOS         options= GetTableOptionStruct();
+  TABLE_SHARE *tsp= (tshp) ? tshp : table_share;
 
-  if (!options)
+  if (!stricmp(opname, "Avglen"))
+    opval= (ulonglong)tsp->avg_row_length;
+  else if (!stricmp(opname, "Estimate"))
+    opval= (ulonglong)tsp->max_rows;
+  else if (!options)
     ;
   else if (!stricmp(opname, "Lrecl"))
     opval= options->lrecl;
   else if (!stricmp(opname, "Elements"))
     opval= options->elements;
-  else if (!stricmp(opname, "Estimate"))
-//  opval= options->estimate;
-    opval= (int)table->s->max_rows;
-  else if (!stricmp(opname, "Avglen"))
-    opval= (int)table->s->avg_row_length;
   else if (!stricmp(opname, "Multiple"))
     opval= options->multiple;
   else if (!stricmp(opname, "Header"))
@@ -925,7 +993,7 @@ int ha_connect::GetIntegerOption(char *opname)
 
   if (opval == (ulonglong)NO_IVAL && options && options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
-      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true); 
+      opval= CharToNumber(pv, strlen(pv), ULONGLONG_MAX, true);
 
   return (int)opval;
 } // end of GetIntegerOption
@@ -1012,6 +1080,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     } // endif special
 
   pcf->Scale= 0;
+  pcf->Opt= (fop) ? (int)fop->opt : 0;
 
   if ((pcf->Length= fp->field_length) < 0)
     pcf->Length= 256;            // BLOB?
@@ -1020,10 +1089,12 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
   if (fop) {
     pcf->Offset= (int)fop->offset;
+    pcf->Freq= (int)fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
     pcf->Fieldfmt= (char*)fop->fieldformat;
   } else {
     pcf->Offset= -1;
+    pcf->Freq= 0;
     pcf->Datefmt= NULL;
     pcf->Fieldfmt= NULL;
   } // endif fop
@@ -1050,6 +1121,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       // Find if collation name ends by _ci
       if (!strcmp(cp + strlen(cp) - 3, "_ci")) {
         pcf->Scale= 1;     // Case insensitive
+        pcf->Opt= 0;       // Prevent index opt until it is safe
         } // endif ci
 
       break;
@@ -1065,7 +1137,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
       // Field_length is only used for DATE columns
       if (fop && fop->fldlen)
         pcf->Length= (int)fop->fldlen;
-      else { 
+      else {
         int len;
 
         if (pcf->Datefmt) {
@@ -1119,6 +1191,50 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 } // end of GetColumnOption
 
 /****************************************************************************/
+/*  Return an index option structure.                                       */
+/****************************************************************************/
+PXOS ha_connect::GetIndexOptionStruct(KEY *kp)
+{
+  return kp->option_struct;
+} // end of GetIndexOptionStruct
+
+/****************************************************************************/
+/*  Return a Boolean index option or false if not specified.                */
+/****************************************************************************/
+bool ha_connect::GetIndexOption(KEY *kp, char *opname)
+{
+  bool opval= false;
+  PXOS options= GetIndexOptionStruct(kp);
+
+  if (options) {
+    if (!stricmp(opname, "Dynamic"))
+      opval= options->dynamic;
+    else if (!stricmp(opname, "Mapped"))
+      opval= options->mapped;
+
+  } else if (kp->comment.str != NULL) {
+    char *pv, *oplist= kp->comment.str;
+
+    if ((pv= GetListOption(xp->g, opname, oplist)))
+      opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
+
+  } // endif comment
+
+  return opval;
+} // end of GetIndexOption
+
+/****************************************************************************/
+/*  Returns the index description structure used to make the index.         */
+/****************************************************************************/
+bool ha_connect::IsUnique(uint n)
+{
+  TABLE_SHARE *s= (table) ? table->s : NULL;
+  KEY          kp= s->key_info[n];
+
+  return (kp.flags & 1) != 0;
+} // end of IsUnique
+
+/****************************************************************************/
 /*  Returns the index description structure used to make the index.         */
 /****************************************************************************/
 PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
@@ -1162,7 +1278,7 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
 #if 0             // NIY
     // Index on auto increment column can be an XXROW index
-    if (kp.key_part[k].field->flags & AUTO_INCREMENT_FLAG && 
+    if (kp.key_part[k].field->flags & AUTO_INCREMENT_FLAG &&
         kp.uder_defined_key_parts == 1) {
       char   *type= GetStringOption("Type", "DOS");
       TABTYPE typ= GetTypeID(type);
@@ -1180,6 +1296,8 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
       } // endfor k
 
     xdp->SetNParts(kp.user_defined_key_parts);
+    xdp->Dynamic= GetIndexOption(&kp, "Dynamic");
+    xdp->Mapped= GetIndexOption(&kp, "Mapped");
 
     if (pxd)
       pxd->SetNext(xdp);
@@ -1192,6 +1310,17 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
   return toidx;
 } // end of GetIndexInfo
 
+bool ha_connect::IsPartitioned(void)
+{
+  if (tshp)
+    return tshp->partition_info_str_len > 0;
+  else if (table && table->part_info)
+    return true;
+  else
+    return false;
+
+} // end of IsPartitioned
+
 const char *ha_connect::GetDBName(const char* name)
 {
   return (name) ? name : table->s->db.str;
@@ -1200,6 +1329,11 @@ const char *ha_connect::GetDBName(const char* name)
 const char *ha_connect::GetTableName(void)
 {
   return (tshp) ? tshp->table_name.str : table_share->table_name.str;
+} // end of GetTableName
+
+char *ha_connect::GetPartName(void)
+{
+  return (IsPartitioned()) ? partname : (char*)GetTableName();
 } // end of GetTableName
 
 #if 0
@@ -1270,7 +1404,7 @@ PTDB ha_connect::GetTDB(PGLOBAL g)
     tp->SetMode(xmod);
   } else if ((tp= CntGetTDB(g, table_name, xmod, this))) {
     valid_query_id= xp->last_query_id;
-    tp->SetMode(xmod);
+//  tp->SetMode(xmod);
   } else
     htrc("GetTDB: %s\n", g->Message);
 
@@ -1349,6 +1483,17 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
       for (field= table->field; fp= *field; field++)
         if (bitmap_is_set(ump, fp->field_index)) {
           strcpy(p, (char*)fp->field_name);
+
+          if (part_id && bitmap_is_set(part_id, fp->field_index)) {
+            // Trying to update a column used for partitioning
+            // This cannot be currently done because it may require
+            // a row to be moved in another partition.
+            sprintf(g->Message, 
+              "Cannot update column %s because it is used for partitioning",
+              p);
+            return HA_ERR_INTERNAL_ERROR;
+            } // endif part_id
+
           p+= (strlen(p) + 1);
           } // endif used field
 
@@ -1381,6 +1526,50 @@ int ha_connect::OpenTable(PGLOBAL g, bool del)
 
 
 /****************************************************************************/
+/*  CheckColumnList: check that all bitmap columns do exist.                */
+/****************************************************************************/
+bool ha_connect::CheckColumnList(PGLOBAL g)
+{
+  // Check the list of used fields (columns)
+  int        rc;
+  bool       brc= false;
+  PCOL       colp;
+  Field*    *field;
+  Field*     fp;
+  MY_BITMAP *map= table->read_set;
+
+  // Save stack and allocation environment and prepare error return
+  if (g->jump_level == MAX_JUMP) {
+    strcpy(g->Message, MSG(TOO_MANY_JUMPS));
+    return true;
+    } // endif jump_level
+
+  if ((rc= setjmp(g->jumper[++g->jump_level])) == 0) {
+    for (field= table->field; fp= *field; field++)
+      if (bitmap_is_set(map, fp->field_index)) {
+        if (!(colp= tdbp->ColDB(g, (PSZ)fp->field_name, 0))) {
+          sprintf(g->Message, "Column %s not found in %s", 
+                  fp->field_name, tdbp->GetName());
+          brc= true;
+          goto fin;
+          } // endif colp
+
+        if ((brc= colp->InitValue(g)))
+          goto fin;
+
+        colp->AddColUse(U_P);           // For PLG tables
+        } // endif
+
+  } else
+    brc= true;
+
+ fin:
+  g->jump_level--;
+  return brc;
+} // end of CheckColumnList
+
+
+/****************************************************************************/
 /*  IsOpened: returns true if the table is already opened.                  */
 /****************************************************************************/
 bool ha_connect::IsOpened(void)
@@ -1395,12 +1584,14 @@ bool ha_connect::IsOpened(void)
 /****************************************************************************/
 int ha_connect::CloseTable(PGLOBAL g)
 {
-  int rc= CntCloseTable(g, tdbp);
+  int rc= CntCloseTable(g, tdbp, nox, abort);
   tdbp= NULL;
   sdvalin=NULL;
   sdvalout=NULL;
   valid_info= false;
   indexing= -1;
+  nox= false;
+  abort= false;
   return rc;
 } // end of CloseTable
 
@@ -1447,10 +1638,14 @@ int ha_connect::MakeRecord(char *buf)
     if (bitmap_is_set(map, fp->field_index) || alter) {
       // This is a used field, fill the buffer with value
       for (colp= tdbp->GetColumns(); colp; colp= colp->GetNext())
-        if (!stricmp(colp->GetName(), (char*)fp->field_name))
+        if ((!mrr || colp->GetKcol()) &&
+            !stricmp(colp->GetName(), (char*)fp->field_name))
           break;
 
       if (!colp) {
+        if (mrr)
+          continue;
+
         htrc("Column %s not found\n", fp->field_name);
         dbug_tmp_restore_column_map(table->write_set, org_bitmap);
         DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
@@ -1465,7 +1660,7 @@ int ha_connect::MakeRecord(char *buf)
           case TYPE_DATE:
             if (!sdvalout)
               sdvalout= AllocateValue(xp->g, TYPE_STRING, 20);
-      
+
             switch (fp->type()) {
               case MYSQL_TYPE_DATE:
                 fmt= "%Y-%m-%d";
@@ -1480,7 +1675,7 @@ int ha_connect::MakeRecord(char *buf)
                 fmt= "%Y-%m-%d %H:%M:%S";
                 break;
               } // endswitch type
-      
+
             // Get date in the format required by MySQL fields
             value->FormatValue(sdvalout, fmt);
             p= sdvalout->GetCharValue();
@@ -1523,6 +1718,11 @@ int ha_connect::MakeRecord(char *buf)
       } // endif bitmap
 
     } // endfor field
+
+  // This is sometimes required for partition tables because the buf
+  // can be different from the table->record[0] buffer
+  if (buf != (char*)table->record[0])
+    memcpy(buf, table->record[0], table->s->stored_rec_length);
 
   // This is copied from ha_tina and is necessary to avoid asserts
   dbug_tmp_restore_column_map(table->write_set, org_bitmap);
@@ -1674,7 +1874,11 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
   KEY_PART_INFO *kpart;
 
   if (active_index == MAX_KEY)
-    return 0;
+    return false;
+  else if (!key) {
+    strcpy(g->Message, "MakeKeyWhere: No key");
+    return true;
+  } // endif key
 
   strcat(qry, " WHERE (");
   kfp= &table->key_info[active_index];
@@ -1815,6 +2019,196 @@ const char *ha_connect::GetValStr(OPVAL vop, bool neg)
   return val;
 } // end of GetValStr
 
+#if 0
+/***********************************************************************/
+/*  Check the WHERE condition and return a CONNECT filter.             */
+/***********************************************************************/
+PFIL ha_connect::CheckFilter(PGLOBAL g)
+{
+  return CondFilter(g, (Item *)pushed_cond);
+} // end of CheckFilter
+#endif // 0
+
+/***********************************************************************/
+/*  Check the WHERE condition and return a CONNECT filter.             */
+/***********************************************************************/
+PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
+{
+  unsigned int i;
+  bool  ismul= false;
+  OPVAL vop= OP_XX;
+  PFIL  filp= NULL;
+
+  if (!cond)
+    return NULL;
+
+  if (xtrace)
+    htrc("Cond type=%d\n", cond->type());
+
+  if (cond->type() == COND::COND_ITEM) {
+    PFIL       fp;
+    Item_cond *cond_item= (Item_cond *)cond;
+
+    if (xtrace)
+      htrc("Cond: Ftype=%d name=%s\n", cond_item->functype(),
+                                       cond_item->func_name());
+
+    switch (cond_item->functype()) {
+      case Item_func::COND_AND_FUNC: vop= OP_AND; break;
+      case Item_func::COND_OR_FUNC:  vop= OP_OR;  break;
+      default: return NULL;
+      } // endswitch functype
+
+    List<Item>* arglist= cond_item->argument_list();
+    List_iterator<Item> li(*arglist);
+    Item *subitem;
+
+    for (i= 0; i < arglist->elements; i++)
+      if ((subitem= li++)) {
+        if (!(fp= CondFilter(g, subitem))) {
+          if (vop == OP_OR)
+            return NULL;
+        } else
+          filp= (filp) ? MakeFilter(g, filp, vop, fp) : fp;
+
+      } else
+        return NULL;
+
+  } else if (cond->type() == COND::FUNC_ITEM) {
+    unsigned int i;
+    bool       iscol, neg= FALSE;
+    PCOL       colp[2]= {NULL,NULL};
+    PPARM      pfirst= NULL, pprec= NULL;
+    POPER      pop;
+    Item_func *condf= (Item_func *)cond;
+    Item*     *args= condf->arguments();
+
+    if (xtrace)
+      htrc("Func type=%d argnum=%d\n", condf->functype(),
+                                         condf->argument_count());
+
+    switch (condf->functype()) {
+      case Item_func::EQUAL_FUNC:
+      case Item_func::EQ_FUNC: vop= OP_EQ;  break;
+      case Item_func::NE_FUNC: vop= OP_NE;  break;
+      case Item_func::LT_FUNC: vop= OP_LT;  break;
+      case Item_func::LE_FUNC: vop= OP_LE;  break;
+      case Item_func::GE_FUNC: vop= OP_GE;  break;
+      case Item_func::GT_FUNC: vop= OP_GT;  break;
+      case Item_func::IN_FUNC: vop= OP_IN;
+      case Item_func::BETWEEN:
+        ismul= true;
+        neg= ((Item_func_opt_neg *)condf)->negated;
+        break;
+      default: return NULL;
+      } // endswitch functype
+
+    pop= (POPER)PlugSubAlloc(g, NULL, sizeof(OPER));
+    pop->Name= NULL;
+    pop->Val=vop;
+    pop->Mod= 0;
+
+    if (condf->argument_count() < 2)
+      return NULL;
+
+    for (i= 0; i < condf->argument_count(); i++) {
+      if (xtrace)
+        htrc("Argtype(%d)=%d\n", i, args[i]->type());
+
+      if (i >= 2 && !ismul) {
+        if (xtrace)
+          htrc("Unexpected arg for vop=%d\n", vop);
+
+        continue;
+        } // endif i
+
+      if ((iscol= args[i]->type() == COND::FIELD_ITEM)) {
+        Item_field *pField= (Item_field *)args[i];
+
+        // IN and BETWEEN clauses should be col VOP list
+        if (i && ismul)
+          return NULL;
+
+        if (pField->field->table != table ||
+            !(colp[i]= tdbp->ColDB(g, (PSZ)pField->field->field_name, 0)))
+          return NULL;  // Column does not belong to this table
+
+        if (xtrace) {
+          htrc("Field index=%d\n", pField->field->field_index);
+          htrc("Field name=%s\n", pField->field->field_name);
+          } // endif xtrace
+
+      } else {
+        char    buff[256];
+        String *res, tmp(buff, sizeof(buff), &my_charset_bin);
+        Item_basic_constant *pval= (Item_basic_constant *)args[i];
+        PPARM pp= (PPARM)PlugSubAlloc(g, NULL, sizeof(PARM));
+
+        // IN and BETWEEN clauses should be col VOP list
+        if (!i && (ismul))
+          return NULL;
+
+        if ((res= pval->val_str(&tmp)) == NULL)
+          return NULL;                      // To be clarified
+
+        switch (args[i]->real_type()) {
+          case COND::STRING_ITEM:
+            pp->Type= TYPE_STRING;
+            pp->Value= PlugSubAlloc(g, NULL, res->length() + 1);
+            strncpy((char*)pp->Value, res->ptr(), res->length() + 1);
+            break;
+          case COND::INT_ITEM:
+            pp->Type= TYPE_INT;
+            pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
+            *((int*)pp->Value)= (int)pval->val_int();
+            break;
+          case COND::DATE_ITEM:
+            pp->Type= TYPE_DATE;
+            pp->Value= PlugSubAlloc(g, NULL, sizeof(int));
+            *((int*)pp->Value)= (int)pval->val_int_from_date();
+            break;
+          case COND::REAL_ITEM:
+            pp->Type= TYPE_DOUBLE;
+            pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
+            *((double*)pp->Value)= pval->val_real();
+            break;
+          case COND::DECIMAL_ITEM:
+            pp->Type= TYPE_DOUBLE;
+            pp->Value= PlugSubAlloc(g, NULL, sizeof(double));
+            *((double*)pp->Value)= pval->val_real_from_decimal();
+            break;
+          case COND::CACHE_ITEM:    // Possible ???
+          case COND::NULL_ITEM:     // TODO: handle this
+          default:
+            return NULL;
+          } // endswitch type
+
+        if (xtrace)
+          htrc("Value=%.*s\n", res->length(), res->ptr());
+
+        // Append the value to the argument list
+        if (pprec)
+          pprec->Next= pp;
+        else
+          pfirst= pp;
+
+        pp->Domain= i;
+        pp->Next= NULL;
+        pprec= pp;
+      } // endif type
+
+      } // endfor i
+
+    filp= MakeFilter(g, colp, pop, pfirst, neg);
+  } else {
+    if (xtrace)
+      htrc("Unsupported condition\n");
+
+    return NULL;
+  } // endif's type
+
+  return filp;
+} // end of CondFilter
 
 /***********************************************************************/
 /*  Check the WHERE condition and return a MYSQL/ODBC/WQL filter.      */
@@ -1901,7 +2295,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
       case Item_func::GE_FUNC: vop= OP_GE;  break;
       case Item_func::GT_FUNC: vop= OP_GT;  break;
       case Item_func::IN_FUNC: vop= OP_IN;
-      case Item_func::BETWEEN: 
+      case Item_func::BETWEEN:
         ismul= true;
         neg= ((Item_func_opt_neg *)condf)->negated;
         break;
@@ -2071,35 +2465,36 @@ const COND *ha_connect::cond_push(const COND *cond)
   DBUG_ENTER("ha_connect::cond_push");
 
   if (tdbp) {
-    AMT  tty= tdbp->GetAmType();
-    bool x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC); 
-    bool b= (tty == TYPE_AM_WMI || tty == TYPE_AM_ODBC  ||
-             tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL || 
-             tty == TYPE_AM_PLG || x);
+    PGLOBAL& g= xp->g;
+    AMT      tty= tdbp->GetAmType();
+    bool     x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
+    bool     b= (tty == TYPE_AM_WMI || tty == TYPE_AM_ODBC  ||
+                 tty == TYPE_AM_TBL || tty == TYPE_AM_MYSQL ||
+                 tty == TYPE_AM_PLG || x);
 
     if (b) {
-      PGLOBAL& g= xp->g;
       PCFIL    filp= (PCFIL)PlugSubAlloc(g, NULL, sizeof(CONDFIL));
 
       filp->Body= (char*)PlugSubAlloc(g, NULL, (x) ? 128 : 0);
       *filp->Body= 0;
       filp->Op= OP_XX;
       filp->Cmds= NULL;
-    
+
       if (CheckCond(g, filp, tty, (Item *)cond)) {
         if (xtrace)
           htrc("cond_push: %s\n", filp->Body);
-    
+
         if (!x)
           PlugSubAlloc(g, NULL, strlen(filp->Body) + 1);
         else
           cond= NULL;             // Does this work?
-    
+
         tdbp->SetCondFil(filp);
       } else if (x && cond)
         tdbp->SetCondFil(filp);   // Wrong filter
 
-      } // endif b
+    } else
+      tdbp->SetFilter(CondFilter(g, (Item *)cond));
 
     } // endif tdbp
 
@@ -2116,7 +2511,7 @@ ha_rows ha_connect::records()
   if (!valid_info)
     info(HA_STATUS_VARIABLE);
 
-  if (tdbp && tdbp->Cardinality(NULL))
+  if (tdbp)
     return stats.records;
   else
     return HA_POS_ERROR;
@@ -2158,6 +2553,21 @@ bool ha_connect::get_error_message(int error, String* buf)
   DBUG_RETURN(false);
 } // end of get_error_message
 
+/**
+  Convert a filename partition name to system
+*/
+static char *decode(PGLOBAL g, const char *pn)
+  {
+  char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(pn) + 1);
+  uint   dummy_errors;
+  uint32 len= copy_and_convert(buf, strlen(pn) + 1,
+                               system_charset_info,
+                               pn, strlen(pn),
+                               &my_charset_filename,
+                               &dummy_errors);
+  buf[len]= '\0';
+  return buf;
+  } // end of decode
 
 /**
   @brief
@@ -2197,9 +2607,29 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
   PGLOBAL g= (xp) ? xp->g : NULL;
 
   // Try to set the database environment
-  if (g)
+  if (g) {
     rc= (CntCheckDB(g, this, name)) ? (-2) : 0;
-  else
+
+    if (g->Mrr) {
+      // This should only happen for the mrr secondary handler
+      mrr= true;
+      g->Mrr= false;
+    } else
+      mrr= false;
+
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    if (table->part_info) {
+      if (GetStringOption("Filename") || GetStringOption("Tabname")
+          || GetStringOption("Connect")) {
+        strcpy(partname, decode(g, strrchr(name, '#') + 1));
+//      strcpy(partname, table->part_info->curr_part_elem->partition_name);
+        part_id= &table->part_info->full_part_field_set;
+      } else       // Inward table
+        strcpy(partname, strrchr(name, slash) + 1);
+        part_id= &table->part_info->full_part_field_set; // Temporary
+      } // endif part_info
+#endif   // WITH_PARTITION_STORAGE_ENGINE
+  } else
     rc= HA_ERR_INTERNAL_ERROR;
 
   DBUG_RETURN(rc);
@@ -2212,6 +2642,7 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 {
   int      rc= 0;
+  bool     dop= (check_opt != NULL);
   PGLOBAL& g= xp->g;
   PDBUSER  dup= PlgGetUser(g);
 
@@ -2221,20 +2652,16 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   dup->Check |= CHK_OPT;
 
   if (tdbp) {
-    if (((PTDBASE)tdbp)->GetDef()->Indexable() == 2) {
-      // Nothing to do for remote index
-    } else if (!((PTDBASE)tdbp)->GetDef()->Indexable()) {
-      sprintf(g->Message, "optimize: Table %s is not indexable", tdbp->GetName());
-      my_message(ER_INDEX_REBUILD, g->Message, MYF(0));
-      rc= HA_ERR_UNSUPPORTED;
-    } else if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, true))) {
+    bool b= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
+
+    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, b))) {
       if (rc == RC_INFO) {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         rc= 0;
       } else
         rc= HA_ERR_INTERNAL_ERROR;
 
-    } // endif's
+      } // endif rc
 
   } else
     rc= HA_ERR_INTERNAL_ERROR;
@@ -2306,8 +2733,13 @@ int ha_connect::write_row(uchar *buf)
   DBUG_ENTER("ha_connect::write_row");
 
   // This is not tested yet
-  if (xmod == MODE_ALTER)
+  if (xmod == MODE_ALTER) {
+    if (IsPartitioned() && GetStringOption("Filename", NULL))
+      // Why does this happen now that check_if_supported_inplace_alter is called?
+      DBUG_RETURN(0);     // Alter table on an outward partition table
+
     xmod= MODE_INSERT;
+    } // endif xmod
 
   // Open the table if it was not opened yet (locked)
   if (!IsOpened() || xmod != tdbp->GetMode()) {
@@ -2380,7 +2812,7 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
 
   // Check values for possible change in indexed column
   if ((rc= CheckRecord(g, old_data, new_data)))
-    return rc;
+    DBUG_RETURN(rc);
 
   if (CntUpdateRow(g, tdbp)) {
     DBUG_PRINT("update_row", ("%s", g->Message));
@@ -2438,12 +2870,19 @@ int ha_connect::index_init(uint idx, bool sorted)
     htrc("index_init: this=%p idx=%u sorted=%d\n", this, idx, sorted);
 
   if (GetIndexType(GetRealType()) == 2) {
-    // This is a remote index
-    xmod= MODE_READX;
+    if (xmod == MODE_READ)
+      // This is a remote index
+      xmod= MODE_READX;
 
     if (!(rc= rnd_init(0))) {
-      active_index= idx;
-      indexing= 2;         // TO DO: mul?
+//    if (xmod == MODE_READX) {
+        active_index= idx;
+        indexing= IsUnique(idx) ? 1 : 2;
+//    } else {
+//      active_index= MAX_KEY;
+//      indexing= 0;
+//    } // endif xmod
+
       } //endif rc
 
     DBUG_RETURN(rc);
@@ -2466,7 +2905,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     htrc("index_init CONNECT: %s\n", g->Message);
     active_index= MAX_KEY;
     rc= HA_ERR_INTERNAL_ERROR;
-  } else {
+  } else if (((PTDBDOX)tdbp)->To_Kindex) {
     if (((PTDBDOX)tdbp)->To_Kindex->GetNum_K()) {
       if (((PTDBASE)tdbp)->GetFtype() != RECFM_NAF)
         ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
@@ -2479,7 +2918,7 @@ int ha_connect::index_init(uint idx, bool sorted)
   } // endif indexing
 
   if (xtrace)
-    htrc("index_init: rc=%d indexing=%d active_index=%d\n", 
+    htrc("index_init: rc=%d indexing=%d active_index=%d\n",
             rc, indexing, active_index);
 
   DBUG_RETURN(rc);
@@ -2492,6 +2931,7 @@ int ha_connect::index_end()
 {
   DBUG_ENTER("index_end");
   active_index= MAX_KEY;
+  ds_mrr.dsmrr_close();
   DBUG_RETURN(rnd_end());
 } // end of index_end
 
@@ -2505,7 +2945,7 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
 
 //statistic_increment(ha_read_key_count, &LOCK_status);
 
-  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len)) {
+  switch (CntIndexRead(xp->g, tdbp, op, key, (int)key_len, mrr)) {
     case RC_OK:
       xp->fnd++;
       rc= MakeRecord((char*)buf);
@@ -2564,16 +3004,22 @@ int ha_connect::index_read(uchar * buf, const uchar * key, uint key_len,
     case HA_READ_KEY_EXACT:   op= OP_EQ; break;
     case HA_READ_AFTER_KEY:   op= OP_GT; break;
     case HA_READ_KEY_OR_NEXT: op= OP_GE; break;
-    default: DBUG_RETURN(-1);			 break;
+    default: DBUG_RETURN(-1);      break;
     } // endswitch find_flag
 
   if (xtrace > 1)
     htrc("%p index_read: op=%d\n", this, op);
 
-  if (indexing > 0)
+  if (indexing > 0) {
     rc= ReadIndexed(buf, op, key, key_len);
-  else
-    rc= HA_ERR_INTERNAL_ERROR;
+
+    if (rc == HA_ERR_INTERNAL_ERROR) {
+      nox= true;                  // To block making indexes
+      abort= true;                // Don't rename temp file
+      } // endif rc
+
+  } else
+    rc= HA_ERR_INTERNAL_ERROR;  // HA_ERR_KEY_NOT_FOUND ?
 
   DBUG_RETURN(rc);
 } // end of index_read
@@ -2668,7 +3114,7 @@ int ha_connect::index_last(uchar *buf)
     rc= ReadIndexed(buf, OP_LAST);
 
   DBUG_RETURN(rc);
-} // end of index_last
+}
 
 
 /****************************************************************************/
@@ -2720,7 +3166,7 @@ int ha_connect::rnd_init(bool scan)
     } // endif xmod
 
   if (xtrace)
-    htrc("rnd_init: this=%p scan=%d xmod=%d alter=%d\n", 
+    htrc("rnd_init: this=%p scan=%d xmod=%d alter=%d\n",
             this, scan, xmod, alter);
 
   if (!g || !table || xmod == MODE_INSERT)
@@ -2728,7 +3174,11 @@ int ha_connect::rnd_init(bool scan)
 
   // Do not close the table if it was opened yet (locked?)
   if (IsOpened()) {
-    if (tdbp->OpenDB(g))      // Rewind table 
+    if (IsPartitioned() && xmod != MODE_INSERT)
+      if (CheckColumnList(g)) // map can have been changed
+        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+    if (tdbp->OpenDB(g))      // Rewind table
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
     else
       DBUG_RETURN(0);
@@ -2737,7 +3187,7 @@ int ha_connect::rnd_init(bool scan)
     tdbp= NULL;       // Not valid anymore
 
   // When updating, to avoid skipped update, force the table
-  // handler to retrieve write-only fields to be able to compare 
+  // handler to retrieve write-only fields to be able to compare
   // records and detect data change.
   if (xmod == MODE_UPDATE)
     bitmap_union(table->read_set, table->write_set);
@@ -2770,6 +3220,7 @@ int ha_connect::rnd_end()
 //  if (tdbp && xp->last_query_id == valid_query_id)
 //    rc= CloseTable(xp->g);
 
+  ds_mrr.dsmrr_close();
   DBUG_RETURN(rc);
 } // end of rnd_end
 
@@ -2864,6 +3315,10 @@ void ha_connect::position(const uchar *record)
   DBUG_ENTER("ha_connect::position");
 //if (((PTDBASE)tdbp)->GetDef()->Indexable())
     my_store_ptr(ref, ref_length, (my_off_t)((PTDBASE)tdbp)->GetRecpos());
+
+  if (trace)
+    htrc("position: pos=%d\n", ((PTDBASE)tdbp)->GetRecpos());
+
   DBUG_VOID_RETURN;
 } // end of position
 
@@ -2890,9 +3345,13 @@ int ha_connect::rnd_pos(uchar *buf, uchar *pos)
   PTDBASE tp= (PTDBASE)tdbp;
   DBUG_ENTER("ha_connect::rnd_pos");
 
-  if (!tp->SetRecpos(xp->g, (int)my_get_ptr(pos, ref_length)))
+  if (!tp->SetRecpos(xp->g, (int)my_get_ptr(pos, ref_length))) {
+    if (trace)
+      htrc("rnd_pos: %d\n", tp->GetRecpos());
+
+    tp->SetFilter(NULL);
     rc= rnd_next(buf);
-  else
+  } else
     rc= HA_ERR_KEY_NOT_FOUND;
 
   DBUG_RETURN(rc);
@@ -2947,27 +3406,30 @@ int ha_connect::info(uint flag)
   if (xtrace)
     htrc("%p In info: flag=%u valid_info=%d\n", this, flag, valid_info);
 
+  // tdbp must be available to get updated info
+  if (xp->CheckQuery(valid_query_id) || !tdbp) {
+    PDBUSER dup= PlgGetUser(g);
+    PCATLG  cat= (dup) ? dup->Catalog : NULL;
+
+    if (xmod == MODE_ANY || xmod == MODE_ALTER) {
+      // Pure info, not a query
+      pure= true;
+      xp->CheckCleanup();
+      } // endif xmod
+
+    // This is necessary for getting file length
+    if (cat && table)
+      cat->SetDataPath(g, table->s->db.str);
+    else
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
+
+    if (!(tdbp= GetTDB(g)))
+      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
+
+    valid_info = false;
+    } // endif tdbp
+
   if (!valid_info) {
-    // tdbp must be available to get updated info
-    if (xp->CheckQuery(valid_query_id) || !tdbp) {
-      PDBUSER dup= PlgGetUser(g);
-      PCATLG  cat= (dup) ? dup->Catalog : NULL;
-
-      if (xmod == MODE_ANY || xmod == MODE_ALTER) {
-        // Pure info, not a query
-        pure= true;
-        xp->CheckCleanup();
-        } // endif xmod
-
-      // This is necessary for getting file length
-      if (cat && table)
-        cat->SetDataPath(g, table->s->db.str);
-      else
-        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
-
-      tdbp= GetTDB(g);
-      } // endif tdbp
-
     valid_info= CntInfo(g, tdbp, &xinfo);
 
     if (((signed)xinfo.records) < 0)
@@ -3109,15 +3571,15 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
       if (options->filename && *options->filename) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(WIN32)
-  		  s= "\\";
+        s= "\\";
 #else   // !WIN32
-  		  s= "/";
+        s= "/";
 #endif  // !WIN32
         strcpy(dbpath, mysql_real_data_home);
-    
+
         if (db)
           strcat(strcat(dbpath, db), s);
-    
+
         (void) fn_format(path, options->filename, dbpath, "",
                          MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
 
@@ -3151,7 +3613,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
   return true;
 } // end of check_privileges
 
-// Check that two indexes are equivalent 
+// Check that two indexes are equivalent
 bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
 {
   bool   b= true;
@@ -3176,7 +3638,7 @@ bool ha_connect::IsSameIndex(PIXDEF xp1, PIXDEF xp2)
   return b;
 } // end of IsSameIndex
 
-MODE ha_connect::CheckMode(PGLOBAL g, THD *thd, 
+MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
                            MODE newmode, bool *chk, bool *cras)
 {
   if ((trace= xtrace)) {
@@ -3219,11 +3681,6 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
       case SQLCOM_RENAME_TABLE:
         newmode= MODE_ANY;
         break;
-      case SQLCOM_DROP_INDEX:
-      case SQLCOM_CREATE_INDEX:
-        newmode= MODE_ANY;
-//      stop= true;
-        break;
       case SQLCOM_CREATE_VIEW:
       case SQLCOM_DROP_VIEW:
         newmode= MODE_ANY;
@@ -3231,6 +3688,13 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
       case SQLCOM_ALTER_TABLE:
         newmode= MODE_ALTER;
         break;
+      case SQLCOM_DROP_INDEX:
+      case SQLCOM_CREATE_INDEX:
+//      if (!IsPartitioned()) {
+          newmode= MODE_ANY;
+          break;
+//        } // endif partitioned
+
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
@@ -3260,10 +3724,6 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
       case SQLCOM_LOCK_TABLES:
         locked= 1;
         break;
-      case SQLCOM_DROP_INDEX:
-      case SQLCOM_CREATE_INDEX:
-        *chk= true;
-//      stop= true;
       case SQLCOM_DROP_TABLE:
       case SQLCOM_RENAME_TABLE:
         newmode= MODE_ANY;
@@ -3276,6 +3736,14 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
         *chk= true;
         newmode= MODE_ALTER;
         break;
+      case SQLCOM_DROP_INDEX:
+      case SQLCOM_CREATE_INDEX:
+//      if (!IsPartitioned()) {
+          *chk= true;
+          newmode= MODE_ANY;
+          break;
+//        } // endif partitioned
+
       default:
         htrc("Unsupported sql_command=%d\n", thd_sql_command(thd));
         strcpy(g->Message, "CONNECT Unsupported command");
@@ -3364,7 +3832,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
   if (xtrace)
     htrc("external_lock: this=%p thd=%p xp=%p g=%p lock_type=%d\n",
             this, thd, xp, g, lock_type);
-  
+
   if (!g)
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 
@@ -3392,7 +3860,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       sprintf(g->Message, "external_lock: unexpected command %d", sqlcom);
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
       DBUG_RETURN(0);
-    } else if (g->Xchk) { 
+    } else if (g->Xchk) {
       if (!tdbp) {
         if (!(tdbp= GetTDB(g)))
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -3496,6 +3964,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       } // endif Close
 
     locked= 0;
+    xmod= MODE_ANY;              // For info commands
     DBUG_RETURN(rc);
     } // endif MODE_ANY
 
@@ -3529,7 +3998,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
       } // endif Xchk
 
   } else
-  	g->Xchk= NULL;
+    g->Xchk= NULL;
 #endif // 0
 
   if (cras)
@@ -3653,11 +4122,6 @@ filename_to_dbname_and_tablename(const char *filename,
                                  char *database, size_t database_size,
                                  char *table, size_t table_size)
 {
-#if defined(WIN32)
-  char slash= '\\';
-#else   // !WIN32
-  char slash= '/';
-#endif  // !WIN32
   LEX_CSTRING d, t;
   size_t length= strlen(filename);
 
@@ -3682,10 +4146,10 @@ filename_to_dbname_and_tablename(const char *filename,
 /**
   @brief
   Used to delete or rename a table. By the time delete_table() has been
-  called all opened references to this table will have been closed 
+  called all opened references to this table will have been closed
   (and your globally shared references released) ===> too bad!!!
   The variable name will just be the name of the table.
-  You will need to remove or rename any files you have created at 
+  You will need to remove or rename any files you have created at
   this point.
 
     @details
@@ -3711,7 +4175,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
 
   if (xtrace) {
     if (to)
-      htrc("rename_table: this=%p thd=%p sqlcom=%d from=%s to=%s\n", 
+      htrc("rename_table: this=%p thd=%p sqlcom=%d from=%s to=%s\n",
               this, thd, sqlcom, name, to);
     else
       htrc("delete_table: this=%p thd=%p sqlcom=%d name=%s\n",
@@ -3732,28 +4196,26 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
   // If a temporary file exists, all the tests below were passed
   // successfully when making it, so they are not needed anymore
   // in particular because they sometimes cause DBUG_ASSERT crash.
-  if (*tabname != '#') {
+  // Also, for partitioned tables, no test can be done because when
+  // this function is called, the .par file is already deleted and
+  // this causes the open_table_def function to fail.
+  // Not having any other clues (table and table_share are NULL)
+  // the only mean we have to test for partitioning is this:
+  if (*tabname != '#' && !strstr(tabname, "#P#")) {
     // We have to retrieve the information about this table options.
     ha_table_option_struct *pos;
     char         key[MAX_DBKEY_LENGTH];
     uint         key_length;
     TABLE_SHARE *share;
 
+//  if ((p= strstr(tabname, "#P#")))   won't work, see above
+//    *p= 0;             // Get the main the table name
+
     key_length= tdc_create_key(key, db, tabname);
 
     // share contains the option struct that we need
     if (!(share= alloc_table_share(db, tabname, key, key_length)))
       DBUG_RETURN(rc);
-
-#if 0
-    if (*tabname == '#') {
-      // These are in ???? charset after renaming
-      char *p= strchr(share->path.str, '@');
-      strcpy(p, share->table_name.str);
-      share->path.length= strlen(share->path.str);
-      share->normalized_path.length= share->path.length; 
-      } // endif tabname
-#endif // 0
 
     // Get the share info from the .frm file
     if (!open_table_def(thd, share)) {
@@ -3764,7 +4226,7 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
         else
           if (IsFileType(GetRealType(pos)) && !pos->filename)
             ok= true;
-  
+
         } // endif pos
 
     } else       // Avoid infamous DBUG_ASSERT
@@ -3843,10 +4305,10 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
     else
       rows= (ha_rows)nval;
 
-  } else if (indexing < 0)
-    rows= HA_POS_ERROR;
-  else
+  } else if (indexing == 0)
     rows= 100000000;        // Don't use missing index
+  else
+    rows= HA_POS_ERROR;
 
   DBUG_RETURN(rows);
 } // end of records_in_range
@@ -3854,7 +4316,7 @@ ha_rows ha_connect::records_in_range(uint inx, key_range *min_key,
 /**
   Convert an ISO-8859-1 column name to UTF-8
 */
-static char *encode(PGLOBAL g, char *cnm)
+static char *encode(PGLOBAL g, const char *cnm)
   {
   char  *buf= (char*)PlugSubAlloc(g, NULL, strlen(cnm) * 3);
   uint   dummy_errors;
@@ -3865,7 +4327,7 @@ static char *encode(PGLOBAL g, char *cnm)
                                &dummy_errors);
   buf[len]= '\0';
   return buf;
-  } // end of Encode
+  } // end of encode
 
 /**
   Store field definition for create.
@@ -3873,6 +4335,83 @@ static char *encode(PGLOBAL g, char *cnm)
   @return
     Return 0 if ok
 */
+#if defined(NEW_WAY)
+static bool add_fields(PGLOBAL g,
+                       THD *thd,
+                       Alter_info *alter_info,
+                       char *name,
+                       int typ, int len, int dec,
+                       uint type_modifier,
+                       char *rem,
+//                     CHARSET_INFO *cs,
+//                     void *vcolinfo,
+//                     engine_option_value *create_options,
+                       int flg,
+                       bool dbf,
+                       char v)
+{
+  register Create_field *new_field;
+  char *length, *decimals= NULL;
+  enum_field_types type;
+//Virtual_column_info *vcol_info= (Virtual_column_info *)vcolinfo;
+  engine_option_value *crop;
+  LEX_STRING *comment;
+  LEX_STRING *field_name;
+
+  DBUG_ENTER("ha_connect::add_fields");
+
+  if (len) {
+    if (!v && typ == TYPE_STRING && len > 255)
+      v= 'V';     // Change CHAR to VARCHAR
+
+    length= (char*)PlugSubAlloc(g, NULL, 8);
+    sprintf(length, "%d", len);
+
+    if (typ == TYPE_DOUBLE) {
+      decimals= (char*)PlugSubAlloc(g, NULL, 8);
+      sprintf(decimals, "%d", min(dec, (min(len, 31) - 1)));
+      } // endif dec
+
+  } else
+    length= NULL;
+
+  if (!rem)
+    rem= "";
+
+  type= PLGtoMYSQL(typ, dbf, v);
+  comment= thd->make_lex_string(rem, strlen(rem));
+  field_name= thd->make_lex_string(name, strlen(name));
+
+  switch (v) {
+    case 'Z': type_modifier|= ZEROFILL_FLAG;
+    case 'U': type_modifier|= UNSIGNED_FLAG; break;
+    } // endswitch v
+
+  if (flg) {
+    engine_option_value *start= NULL, *end= NULL;
+    LEX_STRING *flag= thd->make_lex_string("flag", 4);
+
+    crop= new(thd->mem_root) engine_option_value(*flag, (ulonglong)flg,
+                                                 &start, &end, thd->mem_root);
+  } else
+    crop= NULL;
+
+  if (check_string_char_length(field_name, "", NAME_CHAR_LEN,
+                               system_charset_info, 1)) {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), field_name->str); /* purecov: inspected */
+    DBUG_RETURN(1);       /* purecov: inspected */
+    } // endif field_name
+
+  if (!(new_field= new Create_field()) ||
+        new_field->init(thd, field_name->str, type, length, decimals,
+                        type_modifier, NULL, NULL, comment, NULL,
+                        NULL, NULL, 0, NULL, crop, true))
+    DBUG_RETURN(1);
+
+  alter_info->create_list.push_back(new_field);
+  DBUG_RETURN(0);
+} // end of add_fields
+#else   // !NEW_WAY
 static bool add_field(String *sql, const char *field_name, int typ,
                       int len, int dec, uint tm, const char *rem,
                       char *dft, char *xtra, int flag, bool dbf, char v)
@@ -3902,7 +4441,7 @@ static bool add_field(String *sql, const char *field_name, int typ,
 
     error|= sql->append(')');
     } // endif len
-  
+
   if (v == 'U')
     error|= sql->append(" UNSIGNED");
   else if (v == 'Z')
@@ -3942,6 +4481,7 @@ static bool add_field(String *sql, const char *field_name, int typ,
   error|= sql->append(',');
   return error;
 } // end of add_field
+#endif  // !NEW_WAY
 
 /**
   Initialise the table share with the new columns.
@@ -3949,8 +4489,112 @@ static bool add_field(String *sql, const char *field_name, int typ,
   @return
     Return 0 if ok
 */
-static int init_table_share(THD* thd, 
-                            TABLE_SHARE *table_s, 
+#if defined(NEW_WAY)
+//static bool sql_unusable_for_discovery(THD *thd, const char *sql);
+
+static int init_table_share(THD *thd,
+                            TABLE_SHARE *table_s,
+                            HA_CREATE_INFO *create_info,
+                            Alter_info *alter_info)
+{
+  KEY         *not_used_1;
+  uint         not_used_2;
+  int          rc= 0;
+  handler     *file;
+  LEX_CUSTRING frm= {0,0};
+
+  DBUG_ENTER("init_table_share");
+
+#if 0
+  ulonglong saved_mode= thd->variables.sql_mode;
+  CHARSET_INFO *old_cs= thd->variables.character_set_client;
+  Parser_state parser_state;
+  char *sql_copy;
+  LEX *old_lex;
+  Query_arena *arena, backup;
+  LEX tmp_lex;
+
+  /*
+    Ouch. Parser may *change* the string it's working on.
+    Currently (2013-02-26) it is used to permanently disable
+    conditional comments.
+    Anyway, let's copy the caller's string...
+  */
+  if (!(sql_copy= thd->strmake(sql, sql_length)))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  if (parser_state.init(thd, sql_copy, sql_length))
+    DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+
+  thd->variables.sql_mode= MODE_NO_ENGINE_SUBSTITUTION | MODE_NO_DIR_IN_CREATE;
+  thd->variables.character_set_client= system_charset_info;
+  old_lex= thd->lex;
+  thd->lex= &tmp_lex;
+
+  arena= thd->stmt_arena;
+
+  if (arena->is_conventional())
+    arena= 0;
+  else
+    thd->set_n_backup_active_arena(arena, &backup);
+
+  lex_start(thd);
+
+  if ((error= parse_sql(thd, & parser_state, NULL)))
+    goto ret;
+
+  if (table_s->sql_unusable_for_discovery(thd, NULL)) {
+    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), plugin_name(db_plugin)->str,
+             db.str, table_name.str, sql_copy);
+    goto ret;
+    } // endif unusable
+
+  thd->lex->create_info.db_type= plugin_data(db_plugin, handlerton *);
+
+  if (tabledef_version.str)
+    thd->lex->create_info.tabledef_version= tabledef_version;
+#endif // 0
+
+  tmp_disable_binlog(thd);
+
+  file= mysql_create_frm_image(thd, table_s->db.str, table_s->table_name.str,
+                               create_info, alter_info, C_ORDINARY_CREATE,
+                               &not_used_1, &not_used_2, &frm);
+  if (file)
+    delete file;
+  else
+    rc= OPEN_FRM_CORRUPTED;
+
+  if (!rc && frm.str) {
+    table_s->option_list= 0;     // cleanup existing options ...
+    table_s->option_struct= 0;   // ... if it's an assisted discovery
+    rc= table_s->init_from_binary_frm_image(thd, true, frm.str, frm.length);
+    } // endif frm
+
+//ret:
+  my_free(const_cast<uchar*>(frm.str));
+  reenable_binlog(thd);
+#if 0
+  lex_end(thd->lex);
+  thd->lex= old_lex;
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+  thd->variables.sql_mode= saved_mode;
+  thd->variables.character_set_client= old_cs;
+#endif // 0
+
+  if (thd->is_error() || rc) {
+    thd->clear_error();
+    my_error(ER_NO_SUCH_TABLE, MYF(0), table_s->db.str,
+                                       table_s->table_name.str);
+    DBUG_RETURN(HA_ERR_NOT_A_TABLE);
+  } else
+    DBUG_RETURN(0);
+
+} // end of init_table_share
+#else   // !NEW_WAY
+static int init_table_share(THD* thd,
+                            TABLE_SHARE *table_s,
                             HA_CREATE_INFO *create_info,
 //                          char *dsn,
                             String *sql)
@@ -4040,9 +4684,26 @@ static int init_table_share(THD* thd,
   return table_s->init_from_sql_statement_string(thd, true,
                                                  sql->ptr(), sql->length());
 } // end of init_table_share
+#endif  // !NEW_WAY
+
+// Add an option to the create_info option list
+static void add_option(THD* thd, HA_CREATE_INFO *create_info,
+                       const char *opname, const char *opval)
+{
+#if defined(NEW_WAY)
+  LEX_STRING *opn= thd->make_lex_string(opname, strlen(opname));
+  LEX_STRING *val= thd->make_lex_string(opval, strlen(opval));
+  engine_option_value *pov, **start= &create_info->option_list, *end= NULL;
+
+  for (pov= *start; pov; pov= pov->next)
+    end= pov;
+
+  pov= new(thd->mem_root) engine_option_value(*opn, *val, false, start, &end);
+#endif   // NEW_WAY
+} // end of add_option
 
 // Used to check whether a MYSQL table is created on itself
-static bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host, 
+bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                       const char *db, char *tab, const char *src, int port)
 {
   if (src)
@@ -4096,10 +4757,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   PDBUSER     dup= PlgGetUser(g);
   PCATLG      cat= (dup) ? dup->Catalog : NULL;
   PTOS        topt= table_s->option_struct;
+#if defined(NEW_WAY)
+//CHARSET_INFO *cs;
+  Alter_info  alter_info;
+#else   // !NEW_WAY
   char        buf[1024];
   String      sql(buf, sizeof(buf), system_charset_info);
 
   sql.copy(STRING_WITH_LEN("CREATE TABLE whatever ("), system_charset_info);
+#endif  // !NEW_WAY
 
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
@@ -4159,6 +4825,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     ttp= GetTypeID(topt->type);
     sprintf(g->Message, "No table_type. Was set to %s", topt->type);
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+    add_option(thd, create_info, "table_type", topt->type);
   } else if (ttp == TAB_NIY) {
     sprintf(g->Message, "Unsupported table type %s", topt->type);
     my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -4191,6 +4858,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
       tab= table_s->table_name.str;              // Default value
 
+#if defined(NEW_WAY)
+//  add_option(thd, create_info, "tabname", tab);
+#endif   // NEW_WAY
     } // endif tab
 
   switch (ttp) {
@@ -4342,7 +5012,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             if (src) {
               qrp= ODBCSrcCols(g, dsn, (char*)src);
               src= NULL;     // for next tests
-            } else 
+            } else
               qrp= ODBCColumns(g, dsn, shm, tab, NULL, mxr, fnc == FNC_COL);
 
             break;
@@ -4364,7 +5034,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // ODBC_SUPPORT
 #if defined(MYSQL_SUPPORT)
       case TAB_MYSQL:
-        qrp= MyColumns(g, thd, host, db, user, pwd, tab, 
+        qrp= MyColumns(g, thd, host, db, user, pwd, tab,
                        NULL, port, fnc == FNC_COL);
         break;
 #endif   // MYSQL_SUPPORT
@@ -4418,15 +5088,19 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         dec= crp->Prec;
         flg= crp->Flag;
         v= crp->Var;
-     
+
         if (!len && typ == TYPE_STRING)
           len= 256;      // STRBLK's have 0 length
 
         // Now add the field
+#if defined(NEW_WAY)
+        rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
+                       NOT_NULL_FLAG, "", flg, dbf, v);
+#else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
                       NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
-
+#endif  // !NEW_WAY
       } // endfor crp
 
     } else {            
@@ -4446,7 +5120,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
         dft= xtra= NULL;
+#if defined(NEW_WAY)
+        rem= "";
+//      cs= NULL;
+#else   // !NEW_WAY
         rem= NULL;
+#endif  // !NEW_WAY
 
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
@@ -4475,7 +5154,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
             case FLD_REM:
               rem= crp->Kdata->GetCharValue(i);
               break;
-//          case FLD_CHARSET:    
+//          case FLD_CHARSET:
               // No good because remote table is already translated
 //            if (*(csn= crp->Kdata->GetCharValue(i)))
 //              cs= get_charset_by_name(csn, 0);
@@ -4528,16 +5207,25 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           prec= len;
 
         // Now add the field
+#if defined(NEW_WAY)
+        rc= add_fields(g, thd, &alter_info, cnm, typ, prec, dec,
+                       tm, rem, 0, dbf, v);
+#else   // !NEW_WAY
         if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, xtra,
                       0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
+#endif  // !NEW_WAY
         } // endfor i
 
     } // endif fnc
 
+#if defined(NEW_WAY)
+    rc= init_table_share(thd, table_s, create_info, &alter_info);
+#else   // !NEW_WAY
     if (!rc)
       rc= init_table_share(thd, table_s, create_info, &sql);
 //    rc= init_table_share(thd, table_s, create_info, dsn, &sql);
+#endif   // !NEW_WAY
 
     return rc;
     } // endif ok
@@ -4597,12 +5285,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
                        HA_CREATE_INFO *create_info)
 {
   int     rc= RC_OK;
-  bool    dbf;
+  bool    dbf, inward;
   Field* *field;
   Field  *fp;
   TABTYPE type;
   TABLE  *st= table;                       // Probably unuseful
-  THD    *thd= ha_thd(); 
+  THD    *thd= ha_thd();
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+  partition_info *part_info= table_arg->part_info;
+#endif   // WITH_PARTITION_STORAGE_ENGINE
   xp= GetUser(thd, xp);
   PGLOBAL g= xp->g;
 
@@ -4622,7 +5313,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   // Check table type
   if (type == TAB_UNDEF) {
-    options->type= (options->srcdef)  ? "MYSQL" : 
+    options->type= (options->srcdef)  ? "MYSQL" :
                    (options->tabname) ? "PROXY" : "DOS";
     type= GetTypeID(options->type);
     sprintf(g->Message, "No table_type. Will be set to %s", options->type);
@@ -4638,6 +5329,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
   if (check_privileges(thd, options, GetDBfromName(name)))
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+
+  inward= IsFileType(type) && !options->filename;
 
   if (options->data_charset) {
     const CHARSET_INFO *data_charset;
@@ -4690,6 +5383,9 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         } // endif tabname
 
       case TAB_MYSQL:
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+        if (!part_info)
+#endif   // WITH_PARTITION_STORAGE_ENGINE
        {const char *src= options->srcdef;
         char *host, *db, *tab= (char*)options->tabname;
         int   port;
@@ -4733,7 +5429,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
           } // endif CheckSelf
 
-       }break; 
+       }break;
       default: /* do nothing */;
         break;
      } // endswitch ttp
@@ -4829,8 +5525,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
           sprintf(g->Message, "Unsupported 0 length for column %s",
                               fp->field_name);
           rc= HA_ERR_INTERNAL_ERROR;
-          my_printf_error(ER_UNKNOWN_ERROR, 
-                          "Unsupported 0 length for column %s", 
+          my_printf_error(ER_UNKNOWN_ERROR,
+                          "Unsupported 0 length for column %s",
                           MYF(0), fp->field_name);
           DBUG_RETURN(rc);
           } // endif fp
@@ -4857,7 +5553,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } // endswitch type
 
     if ((fp)->real_maybe_null() && !IsTypeNullable(type)) {
-      my_printf_error(ER_UNKNOWN_ERROR, 
+      my_printf_error(ER_UNKNOWN_ERROR,
                       "Table type %s does not support nullable columns",
                       MYF(0), options->type);
       DBUG_RETURN(HA_ERR_UNSUPPORTED);
@@ -4883,16 +5579,13 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
     } // endfor field
 
-  if ((sqlcom == SQLCOM_CREATE_TABLE || *GetTableName() == '#') 
-        && IsFileType(type) && !options->filename) {
+  if ((sqlcom == SQLCOM_CREATE_TABLE || *GetTableName() == '#') && inward) {
     // The file name is not specified, create a default file in
     // the database directory named table_name.table_type.
     // (temporarily not done for XML because a void file causes
     // the XML parsers to report an error on the first Insert)
     char buf[256], fn[_MAX_PATH], dbpath[128], lwt[12];
     int  h;
-
-    strcpy(buf, GetTableName());
 
     // Check for incompatible options
     if (options->sepindex) {
@@ -4902,12 +5595,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(HA_ERR_UNSUPPORTED);
     } else if (GetTypeID(options->type) == TAB_VEC)
       if (!table->s->max_rows || options->split) {
-        my_printf_error(ER_UNKNOWN_ERROR, 
+        my_printf_error(ER_UNKNOWN_ERROR,
             "%s tables whose file name is unspecified cannot be split",
             MYF(0), options->type);
         DBUG_RETURN(HA_ERR_UNSUPPORTED);
       } else if (options->header == 2) {
-        my_printf_error(ER_UNKNOWN_ERROR, 
+        my_printf_error(ER_UNKNOWN_ERROR,
         "header=2 is not allowed for %s tables whose file name is unspecified",
             MYF(0), options->type);
         DBUG_RETURN(HA_ERR_UNSUPPORTED);
@@ -4920,16 +5613,31 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         break;
       } else
         lwt[i]= tolower(options->type[i]);
-    
-    strcat(strcat(buf, "."), lwt);
-    sprintf(g->Message, "No file name. Table will use %s", buf);
 
-    if (sqlcom == SQLCOM_CREATE_TABLE)
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    if (part_info) {
+      char *p;
 
-    strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+      strcpy(dbpath, name);
+      p= strrchr(dbpath, slash);
+      strcpy(partname, ++p);
+      strcat(strcat(strcpy(buf, p), "."), lwt);
+      *p= 0;
+    } else {
+#endif   // WITH_PARTITION_STORAGE_ENGINE
+      strcat(strcat(strcpy(buf, GetTableName()), "."), lwt);
+      sprintf(g->Message, "No file name. Table will use %s", buf);
+  
+      if (sqlcom == SQLCOM_CREATE_TABLE)
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+  
+      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    } // endif part_info
+#endif   // WITH_PARTITION_STORAGE_ENGINE
+
     PlugSetPath(fn, buf, dbpath);
-    
+
     if ((h= ::open(fn, O_CREAT | O_EXCL, 0666)) == -1) {
       if (errno == EEXIST)
         sprintf(g->Message, "Default file %s already exists", fn);
@@ -4944,32 +5652,47 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
         "Congratulation, you just created a read-only void table!");
 
-    } // endif
+    } // endif sqlcom
 
   if (xtrace)
     htrc("xchk=%p createas=%d\n", g->Xchk, g->Createas);
 
-  // To check whether indices have to be made or remade
+  // To check whether indexes have to be made or remade
   if (!g->Xchk) {
     PIXDEF xdp;
 
-    // We should be in CREATE TABLE or ALTER_TABLE
-    if (sqlcom != SQLCOM_CREATE_TABLE && sqlcom != SQLCOM_ALTER_TABLE)
+    // We should be in CREATE TABLE, ALTER_TABLE or CREATE INDEX
+    if (!(sqlcom == SQLCOM_CREATE_TABLE || sqlcom == SQLCOM_ALTER_TABLE ||
+          sqlcom == SQLCOM_CREATE_INDEX || sqlcom == SQLCOM_DROP_INDEX))  
+//         (sqlcom == SQLCOM_CREATE_INDEX && part_info) ||  
+//         (sqlcom == SQLCOM_DROP_INDEX && part_info)))  
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
-        "Wrong command in create, please contact CONNECT team");
+        "Unexpected command in create, please contact CONNECT team");
 
-    if (sqlcom == SQLCOM_ALTER_TABLE && g->Alchecked == 0 &&
-        (!IsFileType(type) || FileExists(options->filename))) {
-      // This is an ALTER to CONNECT from another engine.
-      // It cannot be accepted because the table data would be lost
-      // except when the target file does not exist.
-      strcpy(g->Message, "Operation denied. Table data would be lost.");
-      my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-      DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+    if (part_info && !inward)
+      strcpy(partname, decode(g, strrchr(name, '#') + 1));
+//    strcpy(partname, part_info->curr_part_elem->partition_name);
+#endif   // WITH_PARTITION_STORAGE_ENGINE
+
+    if (g->Alchecked == 0 &&
+        (!IsFileType(type) || FileExists(options->filename, false))) {
+      if (part_info) {
+        sprintf(g->Message, "Data repartition in %s is unchecked", partname); 
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+      } else if (sqlcom == SQLCOM_ALTER_TABLE) {
+        // This is an ALTER to CONNECT from another engine.
+        // It cannot be accepted because the table data would be modified
+        // except when the target file does not exist.
+        strcpy(g->Message, "Operation denied. Table data would be modified.");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
+      } // endif part_info
+
       } // endif outward
 
     // Get the index definitions
-    if (xdp= GetIndexInfo()) {
+    if ((xdp= GetIndexInfo()) || sqlcom == SQLCOM_DROP_INDEX) {
       if (options->multiple) {
         strcpy(g->Message, "Multiple tables are not indexable");
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -4981,17 +5704,23 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       } else if (GetIndexType(type) == 1) {
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
-    
+
         if (cat) {
           cat->SetDataPath(g, table_arg->s->db.str);
-    
+
+#if defined(WITH_PARTITION_STORAGE_ENGINE)
+          if (part_info)
+            strcpy(partname, 
+                   decode(g, strrchr(name, (inward ? slash : '#')) + 1));
+#endif   // WITH_PARTITION_STORAGE_ENGINE
+
           if ((rc= optimize(table->in_use, NULL))) {
             htrc("Create rc=%d %s\n", rc, g->Message);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
             rc= HA_ERR_INTERNAL_ERROR;
           } else
             CloseTable(g);
-    
+
           } // endif cat
     
       } else if (!GetIndexType(type)) {
@@ -5019,13 +5748,16 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   - file does not exist or is void
   - user has file privilege
 */
-bool ha_connect::FileExists(const char *fn)
+bool ha_connect::FileExists(const char *fn, bool bf)
 {
   if (!fn || !*fn)
     return false;
+  else if (IsPartitioned() && bf)
+    return true;
 
   if (table) {
-    char *s, filename[_MAX_PATH], path[128];
+    char *s, tfn[_MAX_PATH], filename[_MAX_PATH], path[128];
+    bool  b= false;
     int   n;
     struct stat info;
 
@@ -5034,13 +5766,22 @@ bool ha_connect::FileExists(const char *fn)
       return true;
 
 #if defined(WIN32)
-		s= "\\";
+    s= "\\";
 #else   // !WIN32
-		s= "/";
+    s= "/";
 #endif  // !WIN32
+    if (IsPartitioned()) {
+      sprintf(tfn, fn, GetPartName());
+
+      // This is to avoid an initialization error raised by the
+      // test on check_table_flags made in ha_partition::open
+      // that can fail if some partition files are empty.
+      b= true;
+    } else
+      strcpy(tfn, fn);
 
     strcat(strcat(strcat(strcpy(path, "."), s), table->s->db.str), s);
-    PlugSetPath(filename, fn, path);
+    PlugSetPath(filename, tfn, path);
     n= stat(filename, &info);
 
     if (n < 0) {
@@ -5054,7 +5795,7 @@ bool ha_connect::FileExists(const char *fn)
         return false;
 
     } else
-      return (info.st_size) ? true : false;
+      return (info.st_size || b) ? true : false;
 
     } // endif table
 
@@ -5177,7 +5918,7 @@ bool ha_connect::NoFieldOptionChange(TABLE *tab)
  */
 enum_alter_inplace_result
 ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
-                                          Alter_inplace_info *ha_alter_info)
+                                Alter_inplace_info *ha_alter_info)
 {
   DBUG_ENTER("check_if_supported_alter");
 
@@ -5214,11 +5955,11 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 
   // Index operations
   Alter_inplace_info::HA_ALTER_FLAGS index_operations=
-    Alter_inplace_info::ADD_INDEX | 
+    Alter_inplace_info::ADD_INDEX |
     Alter_inplace_info::DROP_INDEX |
-    Alter_inplace_info::ADD_UNIQUE_INDEX | 
+    Alter_inplace_info::ADD_UNIQUE_INDEX |
     Alter_inplace_info::DROP_UNIQUE_INDEX |
-    Alter_inplace_info::ADD_PK_INDEX | 
+    Alter_inplace_info::ADD_PK_INDEX |
     Alter_inplace_info::DROP_PK_INDEX;
 
   Alter_inplace_info::HA_ALTER_FLAGS inplace_offline_operations=
@@ -5226,7 +5967,8 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
     Alter_inplace_info::ALTER_COLUMN_NAME |
     Alter_inplace_info::ALTER_COLUMN_DEFAULT |
     Alter_inplace_info::CHANGE_CREATE_OPTION |
-    Alter_inplace_info::ALTER_RENAME | index_operations;
+    Alter_inplace_info::ALTER_RENAME |
+    Alter_inplace_info::ALTER_PARTITIONED | index_operations;
 
   if (ha_alter_info->handler_flags & index_operations ||
       !SameString(altered_table, "optname") ||
@@ -5280,7 +6022,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
       char *fn= GetStringOption("filename");
       tshp= NULL;
 
-      if (FileExists(fn)) {
+      if (FileExists(fn, false)) {
         strcpy(g->Message, "Operation denied. Table data would be lost.");
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
         DBUG_RETURN(HA_ALTER_ERROR);
@@ -5324,7 +6066,7 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 
   // This was in check_if_incompatible_data
   if (NoFieldOptionChange(altered_table) &&
-      type == newtyp && 
+      type == newtyp &&
       SameInt(altered_table, "lrecl") &&
       SameInt(altered_table, "elements") &&
       SameInt(altered_table, "header") &&
@@ -5336,12 +6078,14 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
 fin:
   if (idx) {
     // Indexing is only supported inplace
-    my_message(ER_ALTER_OPERATION_NOT_SUPPORTED, 
+    my_message(ER_ALTER_OPERATION_NOT_SUPPORTED,
       "Alter operations not supported together by CONNECT", MYF(0));
     DBUG_RETURN(HA_ALTER_ERROR);
   } else if (outward) {
-    push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, 
-      "This is an outward table, table data were not modified.");
+    if (IsFileType(type))
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0,
+        "This is an outward table, table data were not modified.");
+
     DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
   } else
     DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
@@ -5366,10 +6110,87 @@ bool ha_connect::check_if_incompatible_data(HA_CREATE_INFO *info,
 {
   DBUG_ENTER("ha_connect::check_if_incompatible_data");
   // TO DO: really implement and check it.
-  push_warning(ha_thd(), Sql_condition::WARN_LEVEL_WARN, 0, 
+  push_warning(ha_thd(), Sql_condition::WARN_LEVEL_WARN, 0,
       "Unexpected call to check_if_incompatible_data.");
   DBUG_RETURN(COMPATIBLE_DATA_NO);
 } // end of check_if_incompatible_data
+
+/****************************************************************************
+ * CONNECT MRR implementation: use DS-MRR
+   This is just copied from myisam
+ ***************************************************************************/
+
+int ha_connect::multi_range_read_init(RANGE_SEQ_IF *seq, void *seq_init_param,
+                                     uint n_ranges, uint mode,
+                                     HANDLER_BUFFER *buf)
+{
+  return ds_mrr.dsmrr_init(this, seq, seq_init_param, n_ranges, mode, buf);
+} // end of multi_range_read_init
+
+int ha_connect::multi_range_read_next(range_id_t *range_info)
+{
+  return ds_mrr.dsmrr_next(range_info);
+} // end of multi_range_read_next
+
+ha_rows ha_connect::multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
+                                               void *seq_init_param,
+                                               uint n_ranges, uint *bufsz,
+                                               uint *flags, Cost_estimate *cost)
+{
+  /*
+    This call is here because there is no location where this->table would
+    already be known.
+    TODO: consider moving it into some per-query initialization call.
+  */
+  ds_mrr.init(this, table);
+
+  // MMR is implemented for "local" file based tables only
+  if (!IsFileType(GetRealType(GetTableOptionStruct())))
+    *flags|= HA_MRR_USE_DEFAULT_IMPL;
+
+  ha_rows rows= ds_mrr.dsmrr_info_const(keyno, seq, seq_init_param, n_ranges,
+                                        bufsz, flags, cost);
+  xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
+  return rows;
+} // end of multi_range_read_info_const
+
+ha_rows ha_connect::multi_range_read_info(uint keyno, uint n_ranges, uint keys,
+                                         uint key_parts, uint *bufsz,
+                                         uint *flags, Cost_estimate *cost)
+{
+  ds_mrr.init(this, table);
+
+  // MMR is implemented for "local" file based tables only
+  if (!IsFileType(GetRealType(GetTableOptionStruct())))
+    *flags|= HA_MRR_USE_DEFAULT_IMPL;
+
+  ha_rows rows= ds_mrr.dsmrr_info(keyno, n_ranges, keys, key_parts, bufsz,
+                                  flags, cost);
+  xp->g->Mrr= !(*flags & HA_MRR_USE_DEFAULT_IMPL);
+  return rows;
+} // end of multi_range_read_info
+
+
+int ha_connect::multi_range_read_explain_info(uint mrr_mode, char *str,
+                                             size_t size)
+{
+  return ds_mrr.dsmrr_explain_info(mrr_mode, str, size);
+} // end of multi_range_read_explain_info
+
+/* CONNECT MRR implementation ends */
+
+#if 0
+// Does this make sens for CONNECT?
+Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
+{
+  pushed_idx_cond_keyno= keyno_arg;
+  pushed_idx_cond= idx_cond_arg;
+  in_range_check_pushed_down= TRUE;
+  if (active_index == pushed_idx_cond_keyno)
+    mi_set_index_cond_func(file, handler_index_cond_check, this);
+  return NULL;
+}
+#endif // 0
 
 
 struct st_mysql_storage_engine connect_storage_engine=
@@ -5445,10 +6266,10 @@ maria_declare_plugin(connect)
   PLUGIN_LICENSE_GPL,
   connect_init_func,                            /* Plugin Init */
   connect_done_func,                            /* Plugin Deinit */
-  0x0102,                                       /* version number (1.02) */
+  0x0103,                                       /* version number (1.03) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.02",                                       /* string version */
+  "1.03",                                       /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

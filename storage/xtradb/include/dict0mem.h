@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -49,6 +49,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "hash0hash.h"
 #include "trx0types.h"
 #include "fts0fts.h"
+#include "os0once.h"
 
 /* Forward declaration. */
 struct ib_rbt_t;
@@ -641,6 +642,9 @@ struct dict_index_t{
 	ulint		stat_n_leaf_pages;
 				/*!< approximate number of leaf pages in the
 				index tree */
+	bool		stats_error_printed;
+				/*!< has persistent statistics error printed
+				for this index ? */
 	/* @} */
 	prio_rw_lock_t	lock;	/*!< read-write lock protecting the
 				upper levels of the index tree */
@@ -856,6 +860,10 @@ struct dict_table_t{
 				initialized in dict_table_add_to_cache() */
 				/** Statistics for query optimization */
 				/* @{ */
+
+	volatile os_once::state_t	stats_latch_created;
+				/*!< Creation state of 'stats_latch'. */
+
 	rw_lock_t*	stats_latch; /*!< this latch protects:
 				dict_table_t::stat_initialized
 				dict_table_t::stat_n_rows (*)
@@ -965,6 +973,9 @@ struct dict_table_t{
 				/*!< see BG_STAT_* above.
 				Writes are covered by dict_sys->mutex.
 				Dirty reads are possible. */
+	bool		stats_error_printed;
+				/*!< Has persistent stats error beein
+				already printed for this table ? */
 				/* @} */
 	/*----------------------*/
 				/**!< The following fields are used by the

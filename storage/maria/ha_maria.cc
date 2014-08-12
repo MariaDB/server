@@ -57,7 +57,7 @@ C_MODE_END
 #endif
 #define THD_TRN (*(TRN **)thd_ha_data(thd, maria_hton))
 
-ulong pagecache_division_limit, pagecache_age_threshold;
+ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
   "Table is from another system and must be zerofilled or repaired to be "
@@ -249,6 +249,13 @@ static MYSQL_SYSVAR_ULONG(pagecache_division_limit, pagecache_division_limit,
        PLUGIN_VAR_RQCMDARG,
        "The minimum percentage of warm blocks in key cache", 0, 0,
        100,  1, 100, 1);
+
+static MYSQL_SYSVAR_ULONG(pagecache_file_hash_size, pagecache_file_hash_size,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       "Number of hash buckets for open and changed files.  If you have a lot of Aria "
+       "files open you should increase this for faster flush of changes. A good "
+       "value is probably 1/10 of number of possible open Aria files.", 0,0,
+       512, 128, 16384, 1);
 
 static MYSQL_SYSVAR_SET(recover, maria_recover_options, PLUGIN_VAR_OPCMDARG,
        "Specifies how corrupted tables should be automatically repaired."
@@ -1236,6 +1243,14 @@ int ha_maria::open(const char *name, int mode, uint test_if_locked)
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
   }
   my_errno= 0;
+
+  /* Count statistics of usage for newly open normal files */
+  if (file->s->reopen == 1 && ! (test_if_locked & HA_OPEN_TMP_TABLE))
+  {
+    if (file->s->delay_key_write)
+      feature_files_opened_with_delayed_keys++;
+  }
+
   return my_errno;
 }
 
@@ -2819,7 +2834,8 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   TRN *trn;
   int error;
   uint locked_tables;
-  TABLE *table;
+  DYNAMIC_ARRAY used_tables;
+  
   DBUG_ENTER("ha_maria::implicit_commit");
   if (!maria_hton || !(trn= THD_TRN))
     DBUG_RETURN(0);
@@ -2835,7 +2851,38 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     DBUG_PRINT("info", ("locked_tables, skipping"));
     DBUG_RETURN(0);
   }
+
   locked_tables= trnman_has_locked_tables(trn);
+
+  if (new_trn && trn && trn->used_tables)
+  {
+    MARIA_USED_TABLES *tables;
+    /*
+      Save locked tables so that we can move them to another transaction
+      We are using a dynamic array as locked_tables in some cases can be
+      smaller than the used_tables list (for example when the server does
+      early unlock of tables.
+    */
+
+    my_init_dynamic_array2(&used_tables, sizeof(MARIA_SHARE*), (void*) 0,
+                           locked_tables, 8, MYF(MY_THREAD_SPECIFIC));
+    for (tables= (MARIA_USED_TABLES*) trn->used_tables;
+         tables;
+         tables= tables->next)
+    {
+      if (tables->share->base.born_transactional)
+      {
+        if (insert_dynamic(&used_tables, (uchar*) &tables->share))
+        {
+          error= HA_ERR_OUT_OF_MEM;
+          goto end_and_free;
+        }
+      }
+    }
+  }
+  else
+    bzero(&used_tables, sizeof(used_tables));
+
   error= 0;
   if (unlikely(ma_commit(trn)))
     error= 1;
@@ -2859,7 +2906,7 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   if (unlikely(trn == NULL))
   {
     error= HA_ERR_OUT_OF_MEM;
-    goto end;
+    goto end_and_free;
   }
   /*
     Move all locked tables to the new transaction
@@ -2868,13 +2915,21 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
     when we should call _ma_setup_live_state() and in some cases, like
     in check table, we use the table without calling start_stmt().
   */
-  for (table=thd->open_tables; table ; table=table->next)
+
+  uint i;
+  for (i= 0 ; i < used_tables.elements ; i++)
   {
-    if (table->db_stat && table->file->ht == maria_hton)
+    MARIA_SHARE *share;
+    LIST *handlers;
+
+    share= *(dynamic_element(&used_tables, i, MARIA_SHARE**));
+    /* Find table instances that was used in this transaction */
+    for (handlers= share->open_list; handlers; handlers= handlers->next)
     {
-      MARIA_HA *handler= ((ha_maria*) table->file)->file;
-      if (handler->s->base.born_transactional)
-      {
+      MARIA_HA *handler= (MARIA_HA*) handlers->data;
+      if (handler->external_ref && 
+          ((TABLE*) handler->external_ref)->in_use == thd)
+      {        
         _ma_set_trn_for_table(handler, trn);
         /* If handler uses versioning */
         if (handler->s->lock_key_trees)
@@ -2888,6 +2943,8 @@ int ha_maria::implicit_commit(THD *thd, bool new_trn)
   /* This is just a commit, tables stay locked if they were: */
   trnman_reset_locked_tables(trn, locked_tables);
 
+end_and_free:
+  delete_dynamic(&used_tables);
 end:
   DBUG_RETURN(error);
 }
@@ -3520,10 +3577,11 @@ static int ha_maria_init(void *p)
      mark_recovery_start(log_dir)) ||
     !init_pagecache(maria_pagecache,
                     (size_t) pagecache_buffer_size, pagecache_division_limit,
-                    pagecache_age_threshold, maria_block_size, 0) ||
+                    pagecache_age_threshold, maria_block_size, pagecache_file_hash_size,
+                    0) ||
     !init_pagecache(maria_log_pagecache,
                     TRANSLOG_PAGECACHE_SIZE, 0, 0,
-                    TRANSLOG_PAGE_SIZE, 0) ||
+                    TRANSLOG_PAGE_SIZE, 0, 0) ||
     translog_init(maria_data_root, log_file_size,
                   MYSQL_VERSION_ID, server_id, maria_log_pagecache,
                   TRANSLOG_DEFAULT_FLAGS, 0) ||
@@ -3639,6 +3697,7 @@ struct st_mysql_sys_var* system_variables[]= {
   MYSQL_SYSVAR(pagecache_age_threshold),
   MYSQL_SYSVAR(pagecache_buffer_size),
   MYSQL_SYSVAR(pagecache_division_limit),
+  MYSQL_SYSVAR(pagecache_file_hash_size),
   MYSQL_SYSVAR(recover),
   MYSQL_SYSVAR(repair_threads),
   MYSQL_SYSVAR(sort_buffer_size),
@@ -3870,6 +3929,6 @@ maria_declare_plugin(aria)
   status_variables,             /* status variables */
   system_variables,             /* system variables */
   "1.5",                        /* string version   */
-  MariaDB_PLUGIN_MATURITY_GAMMA /* maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE /* maturity         */
 }
 maria_declare_plugin_end;

@@ -590,9 +590,9 @@ sub list_defaults_files
 
   my %seen;  # Don't list the same file more than once
   return grep { defined $_ and not $seen{$_}++ and -f $_ and -r $_ }
-              ('/etc/my.cnf',
-               '/etc/mysql/my.cnf',
-               '@sysconfdir@/my.cnf',
+              ('@sysconfdir@/my.cnf',
+               '@sysconfdir@/mysql/my.cnf',
+               '@prefix@/my.cnf',
                ($ENV{MYSQL_HOME} ? "$ENV{MYSQL_HOME}/my.cnf" : undef),
                $opt{'extra-file'},
                ($ENV{HOME} ? "$ENV{HOME}/.my.cnf" : undef));
@@ -725,7 +725,7 @@ sub example
 {
   print <<EOF;
 # This is an example of a my.cnf file for $my_progname.
-# Usually this file is located in home dir ~/.my.cnf or /etc/my.cnf
+# Usually this file is located in home dir ~/.my.cnf or @sysconfdir@/my.cnf
 #
 # SOME IMPORTANT NOTES FOLLOW:
 #
@@ -798,7 +798,7 @@ sub example
 #   (as per Linux/Unix standard). You may even replace the
 #   /etc/init.d/mysql.server script with it.
 #
-#   Before using, you must create a my.cnf file either in @sysconfdir@/my.cnf
+#   Before using, you must create a my.cnf file either in @prefix@/my.cnf
 #   or /root/.my.cnf and add the [mysqld_multi] and [mysqld#] groups.
 #
 #   The script can be found from support-files/mysqld_multi.server.sh

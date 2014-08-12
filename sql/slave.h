@@ -229,12 +229,13 @@ int purge_relay_logs(Relay_log_info* rli, THD *thd, bool just_reset,
 void set_slave_thread_options(THD* thd);
 void set_slave_thread_default_charset(THD *thd, rpl_group_info *rgi);
 int rotate_relay_log(Master_info* mi);
+int has_temporary_error(THD *thd);
 int apply_event_and_update_pos(Log_event* ev, THD* thd,
                                struct rpl_group_info *rgi,
                                rpl_parallel_thread *rpt);
 
 pthread_handler_t handle_slave_io(void *arg);
-void slave_output_error_info(Relay_log_info *rli, THD *thd);
+void slave_output_error_info(rpl_group_info *rgi, THD *thd);
 pthread_handler_t handle_slave_sql(void *arg);
 bool net_request_file(NET* net, const char* fname);
 

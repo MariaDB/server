@@ -291,7 +291,7 @@ lock_rec_insert_check_and_lock(
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,6,7), warn_unused_result));
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate modify (update,
 delete mark, or delete unmark) of a clustered index record. If they do,

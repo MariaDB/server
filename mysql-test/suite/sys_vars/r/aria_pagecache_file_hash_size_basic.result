@@ -1,0 +1,21 @@
+select @@global.aria_pagecache_file_hash_size;
+@@global.aria_pagecache_file_hash_size
+512
+select @@session.aria_pagecache_file_hash_size;
+ERROR HY000: Variable 'aria_pagecache_file_hash_size' is a GLOBAL variable
+show global variables like 'aria_pagecache_file_hash_size';
+Variable_name	Value
+aria_pagecache_file_hash_size	512
+show session variables like 'aria_pagecache_file_hash_size';
+Variable_name	Value
+aria_pagecache_file_hash_size	512
+select * from information_schema.global_variables where variable_name='aria_pagecache_file_hash_size';
+VARIABLE_NAME	VARIABLE_VALUE
+ARIA_PAGECACHE_FILE_HASH_SIZE	512
+select * from information_schema.session_variables where variable_name='aria_pagecache_file_hash_size';
+VARIABLE_NAME	VARIABLE_VALUE
+ARIA_PAGECACHE_FILE_HASH_SIZE	512
+set global aria_pagecache_file_hash_size=200;
+ERROR HY000: Variable 'aria_pagecache_file_hash_size' is a read only variable
+set session aria_pagecache_file_hash_size=200;
+ERROR HY000: Variable 'aria_pagecache_file_hash_size' is a read only variable

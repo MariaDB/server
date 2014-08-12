@@ -878,16 +878,15 @@ row_sel_get_clust_rec(
 
 	if (!node->read_view) {
 		/* Try to place a lock on the index record */
-
-		/* If innodb_locks_unsafe_for_binlog option is used
-		or this session is using READ COMMITTED isolation level
-		we lock only the record, i.e., next-key locking is
-		not used. */
 		ulint	lock_type;
 		trx_t*	trx;
 
 		trx = thr_get_trx(thr);
 
+		/* If innodb_locks_unsafe_for_binlog option is used
+		or this session is using READ COMMITTED or lower isolation level
+		we lock only the record, i.e., next-key locking is
+		not used. */
 		if (srv_locks_unsafe_for_binlog
 		    || trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 			lock_type = LOCK_REC_NOT_GAP;
@@ -1505,12 +1504,6 @@ rec_loop:
 		search result set, resulting in the phantom problem. */
 
 		if (!consistent_read) {
-
-			/* If innodb_locks_unsafe_for_binlog option is used
-			or this session is using READ COMMITTED isolation
-			level, we lock only the record, i.e., next-key
-			locking is not used. */
-
 			rec_t*	next_rec = page_rec_get_next(rec);
 			ulint	lock_type;
 			trx_t*	trx;
@@ -1520,6 +1513,10 @@ rec_loop:
 			offsets = rec_get_offsets(next_rec, index, offsets,
 						  ULINT_UNDEFINED, &heap);
 
+			/* If innodb_locks_unsafe_for_binlog option is used
+			or this session is using READ COMMITTED or lower isolation
+			level, we lock only the record, i.e., next-key
+			locking is not used. */
 			if (srv_locks_unsafe_for_binlog
 			    || trx->isolation_level
 			    <= TRX_ISO_READ_COMMITTED) {
@@ -1568,12 +1565,6 @@ skip_lock:
 
 	if (!consistent_read) {
 		/* Try to place a lock on the index record */
-
-		/* If innodb_locks_unsafe_for_binlog option is used
-		or this session is using READ COMMITTED isolation level,
-		we lock only the record, i.e., next-key locking is
-		not used. */
-
 		ulint	lock_type;
 		trx_t*	trx;
 
@@ -1582,6 +1573,10 @@ skip_lock:
 
 		trx = thr_get_trx(thr);
 
+		/* If innodb_locks_unsafe_for_binlog option is used
+		or this session is using READ COMMITTED or lower isolation level,
+		we lock only the record, i.e., next-key locking is
+		not used. */
 		if (srv_locks_unsafe_for_binlog
 		    || trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 
@@ -4228,7 +4223,7 @@ rec_loop:
 			/* Try to place a lock on the index record */
 
 			/* If innodb_locks_unsafe_for_binlog option is used
-			or this session is using a READ COMMITTED isolation
+			or this session is using a READ COMMITTED or lower isolation
 			level we do not lock gaps. Supremum record is really
 			a gap and therefore we do not set locks there. */
 
@@ -4379,7 +4374,7 @@ wrong_offs:
 				/* Try to place a gap lock on the index
 				record only if innodb_locks_unsafe_for_binlog
 				option is not set or this session is not
-				using a READ COMMITTED isolation level. */
+				using a READ COMMITTED or lower isolation level. */
 
 				err = sel_set_rec_lock(
 					btr_pcur_get_block(pcur),
@@ -4428,7 +4423,7 @@ wrong_offs:
 				/* Try to place a gap lock on the index
 				record only if innodb_locks_unsafe_for_binlog
 				option is not set or this session is not
-				using a READ COMMITTED isolation level. */
+				using a READ COMMITTED or lower isolation level. */
 
 				err = sel_set_rec_lock(
 					btr_pcur_get_block(pcur),

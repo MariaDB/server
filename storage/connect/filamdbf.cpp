@@ -1,11 +1,11 @@
 /*********** File AM Dbf C++ Program Source Code File (.CPP) ****************/
 /* PROGRAM NAME: FILAMDBF                                                   */
 /* -------------                                                            */
-/*  Version 1.6                                                             */
+/*  Version 1.7                                                             */
 /*                                                                          */
 /* COPYRIGHT:                                                               */
 /* ----------                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014         */
 /*                                                                          */
 /* WHAT THIS PROGRAM DOES:                                                  */
 /* -----------------------                                                  */
@@ -668,12 +668,9 @@ void DBFFAM::ResetBuffer(PGLOBAL g)
   /*********************************************************************/
   /*  If access is random, performances can be much better when the    */
   /*  reads are done on only one row, except for small tables that can */
-  /*  be entirely read in one block. If the index is just used as a    */
-  /*  bitmap filter, as for Update or delete, reading will be          */
-  /*  sequential and we better keep block reading.                     */
+  /*  be entirely read in one block.                                   */
   /*********************************************************************/
-  if (Tdbp->GetKindex() && Tdbp->GetMode() == MODE_READ &&
-      ReadBlks != 1) {
+  if (Tdbp->GetKindex() && ReadBlks != 1) {
     Nrec = 1;                       // Better for random access
     Rbuf = 0;
     Blksize = Lrecl;
@@ -763,12 +760,16 @@ int DBFFAM::DeleteRecords(PGLOBAL g, int irc)
     // T_Stream is the temporary stream or the table file stream itself
     if (!T_Stream)
       if (UseTemp) {
-        if (OpenTempFile(g))
+        if ((Indxd = Tdbp->GetKindex() != NULL)) {
+          strcpy(g->Message, "DBF indexed udate using temp file NIY");
+          return RC_FX;
+        } else if (OpenTempFile(g))
           return RC_FX;
 
         if (CopyHeader(g))           // For DBF tables
           return RC_FX;
 
+//      Indxd = Tdbp->GetKindex() != NULL;
       } else
         T_Stream = Stream;
 
@@ -791,10 +792,12 @@ void DBFFAM::Rewind(void)
 /***********************************************************************/
 /*  Table file close routine for DBF access method.                    */
 /***********************************************************************/
-void DBFFAM::CloseTableFile(PGLOBAL g)
+void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
+
+  Abort = abort;
 
   // Closing is True if last Write was in error
   if (mode == MODE_INSERT && CurNum && !Closing) {
@@ -810,17 +813,17 @@ void DBFFAM::CloseTableFile(PGLOBAL g)
       } // endif Modif
 
     if (UseTemp && T_Stream && wrc == RC_OK) {
-      // Copy any remaining lines
-      bool b;
+      if (!Abort) {
+        // Copy any remaining lines
+        bool b;
+    
+        Fpos = Tdbp->Cardinality(g);
+        Abort = MoveIntermediateLines(g, &b) != RC_OK;
+        } // endif Abort
 
-      Fpos = Tdbp->Cardinality(g);
-
-      if ((rc = MoveIntermediateLines(g, &b)) == RC_OK) {
-        // Delete the old file and rename the new temp file.
-        RenameTempFile(g);
-        goto fin;
-        } // endif rc
-
+      // Delete the old file and rename the new temp file.
+      RenameTempFile(g);
+      goto fin;
       } // endif UseTemp
 
   } // endif's mode

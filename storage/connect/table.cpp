@@ -45,19 +45,22 @@ TDB::TDB(PTABDEF tdp) : Tdb_No(++Tnum)
   {
   Use = USE_NO;
   To_Orig = NULL;
+  To_Filter = NULL;
   To_CondFil = NULL;
   Next = NULL;
   Name = (tdp) ? tdp->GetName() : NULL;
   To_Table = NULL;
   Columns = NULL;
   Degree = (tdp) ? tdp->GetDegree() : 0;
-  Mode = MODE_READ;
+  Mode = MODE_ANY;
+  Cardinal = -1;
   } // end of TDB standard constructor
 
 TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   {
   Use = tdbp->Use;
   To_Orig = tdbp;
+  To_Filter = NULL;
   To_CondFil = NULL;
   Next = NULL;
   Name = tdbp->Name;
@@ -65,6 +68,7 @@ TDB::TDB(PTDB tdbp) : Tdb_No(++Tnum)
   Columns = NULL;
   Degree = tdbp->Degree;
   Mode = tdbp->Mode;
+  Cardinal = tdbp->Cardinal;
   } // end of TDB copy constructor
 
 // Methods
@@ -137,7 +141,9 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   To_Link = NULL;
   To_Key_Col = NULL;
   To_Kindex = NULL;
+  To_Xdp = NULL;
   To_SetCols = NULL;
+  Ftype = RECFM_NAF;
   MaxSize = -1;
   Knum = 0;
   Read_Only = (tdp) ? tdp->IsReadOnly() : false;
@@ -147,8 +153,14 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
 TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   {
   To_Def = tdbp->To_Def;
+  To_Link = tdbp->To_Link;
+  To_Key_Col = tdbp->To_Key_Col;
+  To_Kindex = tdbp->To_Kindex;
+  To_Xdp = tdbp->To_Xdp;
   To_SetCols = tdbp->To_SetCols;          // ???
+  Ftype = tdbp->Ftype;
   MaxSize = tdbp->MaxSize;
+  Knum = tdbp->Knum;
   Read_Only = tdbp->Read_Only;
   m_data_charset= tdbp->m_data_charset;
   } // end of TDBASE copy constructor
@@ -167,7 +179,7 @@ PCATLG TDBASE::GetCat(void)
 CHARSET_INFO *TDBASE::data_charset(void)
   {
   // If no DATA_CHARSET is specified, we assume that character
-  // set of the remote data is the same with CHARACTER SET 
+  // set of the remote data is the same with CHARACTER SET
   // definition of the SQL column.
   return m_data_charset ? m_data_charset : &my_charset_bin;
   } // end of data_charset
@@ -219,12 +231,12 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
         colp = cp;
       else if (!(cdp->Flags & U_SPECIAL))
         colp = MakeCol(g, cdp, cprec, i);
-      else if (Mode == MODE_READ)
+      else if (Mode != MODE_INSERT)
         colp = InsertSpcBlk(g, cdp);
 
       if (trace)
         htrc("colp=%p\n", colp);
-      
+
       if (name || num)
         break;
       else if (colp && !colp->IsSpecial())
@@ -259,22 +271,38 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
   PCOL    colp;
 
   cp= new(g) COLUMN(cdp->GetName());
-  cp->SetTo_Table(To_Table);
 
-  if (!stricmp(name, "FILEID") ||
-      !stricmp(name, "SERVID")) {
+  if (! To_Table) {
+    strcpy(g->Message, "Cannot make special column: To_Table is NULL");
+    return NULL;
+  } else
+    cp->SetTo_Table(To_Table);
+
+  if (!stricmp(name, "FILEID") || !stricmp(name, "FDISK") ||
+      !stricmp(name, "FPATH")  || !stricmp(name, "FNAME") ||
+      !stricmp(name, "FTYPE")  || !stricmp(name, "SERVID")) {
     if (!To_Def || !(To_Def->GetPseudo() & 2)) {
       sprintf(g->Message, MSG(BAD_SPEC_COLUMN));
       return NULL;
       } // endif Pseudo
 
     if (!stricmp(name, "FILEID"))
-      colp = new(g) FIDBLK(cp);
+      colp = new(g) FIDBLK(cp, OP_XX);
+    else if (!stricmp(name, "FDISK"))
+      colp = new(g) FIDBLK(cp, OP_FDISK);
+    else if (!stricmp(name, "FPATH"))
+      colp = new(g) FIDBLK(cp, OP_FPATH);
+    else if (!stricmp(name, "FNAME"))
+      colp = new(g) FIDBLK(cp, OP_FNAME);
+    else if (!stricmp(name, "FTYPE"))
+      colp = new(g) FIDBLK(cp, OP_FTYPE);
     else
       colp = new(g) SIDBLK(cp);
 
   } else if (!stricmp(name, "TABID")) {
     colp = new(g) TIDBLK(cp);
+  } else if (!stricmp(name, "PARTID")) {
+    colp = new(g) PRTBLK(cp);
 //} else if (!stricmp(name, "CONID")) {
 //  colp = new(g) CIDBLK(cp);
   } else if (!stricmp(name, "ROWID")) {
@@ -297,7 +325,7 @@ PCOL TDBASE::InsertSpcBlk(PGLOBAL g, PCOLDEF cdp)
 /***********************************************************************/
 /*  ResetTableOpt: Wrong for this table type.                          */
 /***********************************************************************/
-int TDBASE::ResetTableOpt(PGLOBAL g, bool dox)
+int TDBASE::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 {
   strcpy(g->Message, "This table is not indexable");
   return RC_INFO;
@@ -324,7 +352,7 @@ void TDBASE::ResetKindex(PGLOBAL g, PKXBASE kxp)
 /***********************************************************************/
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
-bool TDBASE::SetRecpos(PGLOBAL g, int recpos) 
+bool TDBASE::SetRecpos(PGLOBAL g, int recpos)
   {
   strcpy(g->Message, MSG(SETRECPOS_NIY));
   return true;
@@ -389,8 +417,8 @@ PCOL TDBCAT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 bool TDBCAT::Initialize(PGLOBAL g)
   {
-	if (Init)
-		return false;
+  if (Init)
+    return false;
 
   if (!(Qrp = GetResult(g)))
     return true;
@@ -405,9 +433,9 @@ bool TDBCAT::Initialize(PGLOBAL g)
     PushWarning(g, this);
     } // endif Badlines
 
-	Init = true;
-	return false;
-	} // end of Initialize
+  Init = true;
+  return false;
+  } // end of Initialize
 
 /***********************************************************************/
 /*  CAT: Get the number of properties.                                 */
@@ -487,7 +515,7 @@ bool TDBCAT::InitCol(PGLOBAL g)
 /***********************************************************************/
 /*  SetRecpos: Replace the table at the specified position.            */
 /***********************************************************************/
-bool TDBCAT::SetRecpos(PGLOBAL g, int recpos) 
+bool TDBCAT::SetRecpos(PGLOBAL g, int recpos)
   {
   N = recpos - 1;
   return false;

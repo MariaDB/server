@@ -764,8 +764,8 @@ cli_safe_read(MYSQL *mysql)
 
 restart:
   if (net->vio != 0)
-    len=my_net_read(net);
-
+    len= my_net_read_packet(net, 0);
+  
   if (len == packet_error || len == 0)
   {
     DBUG_PRINT("error",("Wrong connection or packet. fd: %s  len: %lu",

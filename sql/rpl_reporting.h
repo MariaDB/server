@@ -52,8 +52,9 @@ public:
                         code, but can contain more information), in
                         printf() format.
   */
-  void report(loglevel level, int err_code, const char *msg, ...) const
-    ATTRIBUTE_FORMAT(printf, 4, 5);
+  void report(loglevel level, int err_code, const char *extra_info,
+              const char *msg, ...) const
+    ATTRIBUTE_FORMAT(printf, 5, 6);
 
   /**
      Clear errors. They will not show up under <code>SHOW SLAVE

@@ -202,15 +202,6 @@ btr_rec_free_externally_stored_fields(
 	mtr_t*		mtr);	/*!< in: mini-transaction handle which contains
 				an X-latch to record page and to the index
 				tree */
-/***********************************************************//**
-Gets the externally stored size of a record, in units of a database page.
-@return	externally stored part, in units of a database page */
-static
-ulint
-btr_rec_get_externally_stored_len(
-/*==============================*/
-	const rec_t*	rec,	/*!< in: record */
-	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
 #endif /* !UNIV_HOTBACKUP */
 
 /******************************************************//**
@@ -271,6 +262,7 @@ btr_cur_latch_leaves(
 	case BTR_MODIFY_TREE:
 		/* x-latch also brothers from left to right */
 		left_page_no = btr_page_get_prev(page, mtr);
+		mode = latch_mode;
 
 		if (left_page_no != FIL_NULL) {
 			get_block = btr_block_get(
@@ -4043,15 +4035,15 @@ btr_rec_get_field_ref_offs(
 #define btr_rec_get_field_ref(rec, offsets, n)			\
 	((rec) + btr_rec_get_field_ref_offs(offsets, n))
 
-/***********************************************************//**
-Gets the externally stored size of a record, in units of a database page.
+/** Gets the externally stored size of a record, in units of a database page.
+@param[in]	rec	record
+@param[in]	offsets	array returned by rec_get_offsets()
 @return	externally stored part, in units of a database page */
-static
+
 ulint
 btr_rec_get_externally_stored_len(
-/*==============================*/
-	const rec_t*	rec,	/*!< in: record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_t*	rec,
+	const ulint*	offsets)
 {
 	ulint	n_fields;
 	ulint	total_extern_len = 0;

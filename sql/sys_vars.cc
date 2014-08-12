@@ -1,4 +1,4 @@
-/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
    Copyright (c) 2012, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -1079,6 +1079,17 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
        VALID_RANGE(100, UINT_MAX), DEFAULT(300),
        BLOCK_SIZE(100), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(change_keycache_param));
+
+static Sys_var_keycache Sys_key_cache_file_hash_size(
+       "key_cache_file_hash_size",
+       "Number of hash buckets for open and changed files.  If you have a lot of MyISAM "
+       "files open you should increase this for faster flush of changes. A good "
+       "value is probably 1/10 of number of possible open MyISAM files.",
+       KEYCACHE_VAR(changed_blocks_hash_size),
+       CMD_LINE(REQUIRED_ARG, OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE),
+       VALID_RANGE(128, 16384), DEFAULT(512),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(resize_keycache));
 
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
@@ -3253,9 +3264,10 @@ static Sys_var_ulonglong Sys_tmp_table_size(
 
 static Sys_var_mybool Sys_timed_mutexes(
        "timed_mutexes",
-       "Specify whether to time mutexes (only InnoDB mutexes are currently "
-       "supported)",
-       GLOBAL_VAR(timed_mutexes), CMD_LINE(OPT_ARG), DEFAULT(0));
+       "Specify whether to time mutexes. Deprecated, has no effect.",
+       GLOBAL_VAR(timed_mutexes), CMD_LINE(OPT_ARG), DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL), ON_UPDATE(NULL),
+       DEPRECATED(""));
 
 static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
@@ -4260,11 +4272,11 @@ static Sys_var_uint Sys_slave_net_timeout(
   Return 0 + warning if it doesn't exist
 */
 
-uint Sys_var_multi_source_ulong::
-get_master_info_uint_value(THD *thd, ptrdiff_t offset)
+ulong Sys_var_multi_source_ulong::
+get_master_info_ulong_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
-  uint res= 0;                                  // Default value
+  ulong res= 0;                                  // Default value
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
@@ -4273,7 +4285,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
-    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    res= *((ulong*) (((uchar*) mi) + master_info_offset));
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
@@ -4311,11 +4323,6 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
 
 static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
-  {
-    my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
-    return true;
-  }
   if (mi->rli.slave_running)
   {
     my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,

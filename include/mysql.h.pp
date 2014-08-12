@@ -49,9 +49,9 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
    MYSQL_TYPE_DATETIME, MYSQL_TYPE_YEAR,
    MYSQL_TYPE_NEWDATE, MYSQL_TYPE_VARCHAR,
    MYSQL_TYPE_BIT,
-   MYSQL_TYPE_TIMESTAMP2,
-   MYSQL_TYPE_DATETIME2,
-   MYSQL_TYPE_TIME2,
+                        MYSQL_TYPE_TIMESTAMP2,
+                        MYSQL_TYPE_DATETIME2,
+                        MYSQL_TYPE_TIME2,
                         MYSQL_TYPE_NEWDECIMAL=246,
    MYSQL_TYPE_ENUM=247,
    MYSQL_TYPE_SET=248,
@@ -94,7 +94,7 @@ my_bool net_write_command(NET *net,unsigned char command,
      const unsigned char *header, size_t head_len,
      const unsigned char *packet, size_t len);
 int net_real_write(NET *net,const unsigned char *packet, size_t len);
-unsigned long my_net_read(NET *net);
+unsigned long my_net_read_packet(NET *net, my_bool read_from_server);
 struct sockaddr;
 int my_connect(my_socket s, const struct sockaddr *name, unsigned int namelen,
         unsigned int timeout);
@@ -553,7 +553,7 @@ int mysql_list_processes_cont(MYSQL_RES **ret, MYSQL *mysql,
 int mysql_options(MYSQL *mysql,enum mysql_option option,
           const void *arg);
 int mysql_options4(MYSQL *mysql,enum mysql_option option,
-                   const void *arg1, const void *arg2);
+                                       const void *arg1, const void *arg2);
 void mysql_free_result(MYSQL_RES *result);
 int mysql_free_result_start(MYSQL_RES *result);
 int mysql_free_result_cont(MYSQL_RES *result, int status);

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3084,6 +3084,7 @@ int reset_slave(THD *thd, Master_info* mi)
   mi->clear_error();
   mi->rli.clear_error();
   mi->rli.clear_until_condition();
+  mi->rli.slave_skip_counter= 0;
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
   end_master_info(mi);
@@ -3531,6 +3532,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   /* Clear the errors, for a clean start */
   mi->rli.clear_error();
   mi->rli.clear_until_condition();
+  mi->rli.slave_skip_counter= 0;
 
   sql_print_information("'CHANGE MASTER TO executed'. "
     "Previous state master_host='%s', master_port='%u', master_log_file='%s', "

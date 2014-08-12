@@ -1598,11 +1598,7 @@ sync_init(void)
 		     SYNC_NO_ORDER_CHECK);
 
 #ifdef UNIV_SYNC_DEBUG
-	mutex_create(rw_lock_debug_mutex_key, &rw_lock_debug_mutex,
-		     SYNC_NO_ORDER_CHECK);
-
-	rw_lock_debug_event = os_event_create();
-	rw_lock_debug_waiters = FALSE;
+	os_fast_mutex_init(rw_lock_debug_mutex_key, &rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
 }
 
@@ -1676,6 +1672,7 @@ sync_close(void)
 	sync_order_checks_on = FALSE;
 
 	sync_thread_level_arrays_free();
+	os_fast_mutex_free(&rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
 
 	sync_initialized = FALSE;
@@ -1690,12 +1687,12 @@ sync_print_wait_info(
 	FILE*	file)		/*!< in: file where to print */
 {
 	fprintf(file,
-		"Mutex spin waits "UINT64PF", rounds "UINT64PF", "
-		"OS waits "UINT64PF"\n"
-		"RW-shared spins "UINT64PF", rounds "UINT64PF", "
-		"OS waits "UINT64PF"\n"
-		"RW-excl spins "UINT64PF", rounds "UINT64PF", "
-		"OS waits "UINT64PF"\n",
+		"Mutex spin waits " UINT64PF ", rounds " UINT64PF ", "
+		"OS waits " UINT64PF "\n"
+		"RW-shared spins " UINT64PF ", rounds " UINT64PF ", "
+		"OS waits " UINT64PF "\n"
+		"RW-excl spins " UINT64PF ", rounds " UINT64PF ", "
+		"OS waits " UINT64PF "\n",
 		(ib_uint64_t) mutex_spin_wait_count,
 		(ib_uint64_t) mutex_spin_round_count,
 		(ib_uint64_t) mutex_os_wait_count,

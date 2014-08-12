@@ -335,6 +335,7 @@ unpack_row(rpl_group_info *rgi,
 #endif /* WITH_WSREP */
 
           rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+                      rgi->gtid_info(),
                       "Could not read field '%s' of table '%s.%s'",
                       f->field_name, table->s->db.str,
                       table->s->table_name.str);

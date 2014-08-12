@@ -523,7 +523,8 @@ extern mysql_mutex_t
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_slave_list, LOCK_active_mi, LOCK_manager,
        LOCK_global_system_variables, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count;
+       LOCK_prepared_stmt_count, LOCK_error_messages, LOCK_connection_count,
+       LOCK_slave_init;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_thread_count;
 #ifdef HAVE_OPENSSL
 extern mysql_mutex_t LOCK_des_key_file;
@@ -534,6 +535,7 @@ extern mysql_rwlock_t LOCK_grant, LOCK_sys_init_connect, LOCK_sys_init_slave;
 extern mysql_rwlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_thread_count;
 extern mysql_cond_t COND_manager;
+extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
 extern int32 thread_count;
 extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
@@ -553,7 +555,6 @@ extern MYSQL_PLUGIN_IMPORT pthread_key(THD*, THR_THD);
 enum options_mysqld
 {
   OPT_to_set_the_start_number=256,
-  OPT_BIND_ADDRESS,
   OPT_BINLOG_DO_DB,
   OPT_BINLOG_FORMAT,
   OPT_BINLOG_IGNORE_DB,
@@ -561,9 +562,7 @@ enum options_mysqld
   OPT_BOOTSTRAP,
   OPT_CONSOLE,
   OPT_DEBUG_SYNC_TIMEOUT,
-  OPT_DELAY_KEY_WRITE_ALL,
   OPT_DEPRECATED_OPTION,
-  OPT_ENGINE_CONDITION_PUSHDOWN,
   OPT_IGNORE_DB_DIRECTORY,
   OPT_ISAM_LOG,
   OPT_KEY_BUFFER_SIZE,
@@ -571,6 +570,7 @@ enum options_mysqld
   OPT_KEY_CACHE_BLOCK_SIZE,
   OPT_KEY_CACHE_DIVISION_LIMIT,
   OPT_KEY_CACHE_PARTITIONS,
+  OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE,
   OPT_LOG_BASENAME,
   OPT_LOG_ERROR,
   OPT_LOWER_CASE_TABLE_NAMES,
@@ -578,7 +578,6 @@ enum options_mysqld
   OPT_PLUGIN_LOAD,
   OPT_PLUGIN_LOAD_ADD,
   OPT_PFS_INSTRUMENT,
-  OPT_POOL_OF_THREADS,
   OPT_REPLICATE_DO_DB,
   OPT_REPLICATE_DO_TABLE,
   OPT_REPLICATE_IGNORE_DB,
@@ -589,10 +588,7 @@ enum options_mysqld
   OPT_SAFE,
   OPT_SERVER_ID,
   OPT_SKIP_HOST_CACHE,
-  OPT_SKIP_LOCK,
   OPT_SKIP_RESOLVE,
-  OPT_SKIP_STACK_TRACE,
-  OPT_SKIP_SYMLINKS,
   OPT_SSL_CA,
   OPT_SSL_CAPATH,
   OPT_SSL_CERT,
@@ -600,7 +596,6 @@ enum options_mysqld
   OPT_SSL_CRL,
   OPT_SSL_CRLPATH,
   OPT_SSL_KEY,
-  OPT_UPDATE_LOG,
   OPT_WANT_CORE,
   OPT_MYSQL_COMPATIBILITY,
   OPT_MYSQL_TO_BE_IMPLEMENTED,

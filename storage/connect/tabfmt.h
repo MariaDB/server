@@ -1,7 +1,7 @@
 /*************** TabFmt H Declares Source Code File (.H) ***************/
-/*  Name: TABFMT.H    Version 2.3                                      */
+/*  Name: TABFMT.H    Version 2.4                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2001-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2001-2014    */
 /*                                                                     */
 /*  This file contains the CSV and FMT classes declares.               */
 /***********************************************************************/
@@ -111,6 +111,7 @@ class CSVCOL : public DOSCOL {
   virtual int    GetAmType() {return TYPE_AM_CSV;}
 
   // Methods
+  virtual bool   VarSize(void);
   virtual void   ReadColumn(PGLOBAL g);
   virtual void   WriteColumn(PGLOBAL g);
 
@@ -173,15 +174,15 @@ class TDBCCL : public TDBCAT {
   TDBCCL(PCSVDEF tdp);
 
  protected:
-	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+  // Specific routines
+  virtual PQRYRES GetResult(PGLOBAL g);
 
   // Members
   char   *Fn;                     // The CSV file (path) name
   bool    Hdr;                    // true if first line contains headers
   int     Mxr;                    // Maximum number of bad records
   int     Qtd;                    // Quoting level for quoted fields
-  char    Sep;                    // Separator for standard CSV files 
+  char    Sep;                    // Separator for standard CSV files
   }; // end of class TDBCCL
 
 /* ------------------------- End of TabFmt.H ------------------------- */

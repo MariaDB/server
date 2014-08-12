@@ -8990,6 +8990,10 @@ int main(int argc, char **argv)
                  128, 0, 0, get_var_key, 0, var_free, MYF(0)))
     die("Variable hash initialization failed");
 
+  {
+    char path_separator[]= { FN_LIBCHAR, 0 };
+    var_set_string("SYSTEM_PATH_SEPARATOR", path_separator);
+  }
   var_set_string("MYSQL_SERVER_VERSION", MYSQL_SERVER_VERSION);
   var_set_string("MYSQL_SYSTEM_TYPE", SYSTEM_TYPE);
   var_set_string("MYSQL_MACHINE_TYPE", MACHINE_TYPE);
@@ -9910,36 +9914,34 @@ struct st_regex
 int reg_replace(char** buf_p, int* buf_len_p, char *pattern, char *replace,
                 char *string, int icase);
 
+bool parse_re_part(char *start_re, char *end_re,
+                   char **p, char *end, char **buf)
+{
+  if (*start_re != *end_re)
+  {
+    switch ((*start_re= *(*p)++)) {
+    case '(': *end_re= ')'; break;
+    case '[': *end_re= ']'; break;
+    case '{': *end_re= '}'; break;
+    case '<': *end_re= '>'; break;
+    default: *end_re= *start_re;
+    }
+  }
 
+  while (*p < end && **p != *end_re)
+  {
+    if ((*p)[0] == '\\' && *p + 1 < end && (*p)[1] == *end_re)
+      (*p)++;
 
-/*
-  Finds the next (non-escaped) '/' in the expression.
-  (If the character '/' is needed, it can be escaped using '\'.)
-*/
+    *(*buf)++= *(*p)++;
+  }
+  *(*buf)++= 0;
 
-#define PARSE_REGEX_ARG                         \
-  while (p < expr_end)                          \
-  {                                             \
-    char c= *p;                                 \
-    if (c == '/')                               \
-    {                                           \
-      if (last_c == '\\')                       \
-      {                                         \
-        buf_p[-1]= '/';                         \
-      }                                         \
-      else                                      \
-      {                                         \
-        *buf_p++ = 0;                           \
-        break;                                  \
-      }                                         \
-    }                                           \
-    else                                        \
-      *buf_p++ = c;                             \
-                                                \
-    last_c= c;                                  \
-    p++;                                        \
-  }                                             \
-                                                \
+  (*p)++;
+
+  return *p > end;
+}
+
 /*
   Initializes the regular substitution expression to be used in the
   result output of test.
@@ -9951,10 +9953,9 @@ struct st_replace_regex* init_replace_regex(char* expr)
 {
   struct st_replace_regex* res;
   char* buf,*expr_end;
-  char* p;
+  char* p, start_re, end_re= 1;
   char* buf_p;
   uint expr_len= strlen(expr);
-  char last_c = 0;
   struct st_regex reg;
 
   /* my_malloc() will die on fail with MY_FAE */
@@ -9972,44 +9973,32 @@ struct st_replace_regex* init_replace_regex(char* expr)
   {
     bzero(&reg,sizeof(reg));
     /* find the start of the statement */
-    while (p < expr_end)
-    {
-      if (*p == '/')
-        break;
+    while (my_isspace(charset_info, *p) && p < expr_end)
       p++;
-    }
 
-    if (p == expr_end || ++p == expr_end)
+    if (p >= expr_end)
     {
       if (res->regex_arr.elements)
         break;
       else
         goto err;
     }
-    /* we found the start */
+
+    start_re= 0;
     reg.pattern= buf_p;
+    if (parse_re_part(&start_re, &end_re, &p, expr_end, &buf_p))
+      goto err;
 
-    /* Find first argument -- pattern string to be removed */
-    PARSE_REGEX_ARG
-
-      if (p == expr_end || ++p == expr_end)
-        goto err;
-
-    /* buf_p now points to the replacement pattern terminated with \0 */
     reg.replace= buf_p;
-
-    /* Find second argument -- replace string to replace pattern */
-    PARSE_REGEX_ARG
-
-      if (p == expr_end)
-        goto err;
-
-    /* skip the ending '/' in the statement */
-    p++;
+    if (parse_re_part(&start_re, &end_re, &p, expr_end, &buf_p))
+      goto err;
 
     /* Check if we should do matching case insensitive */
     if (p < expr_end && *p == 'i')
+    {
+      p++;
       reg.icase= 1;
+    }
 
     /* done parsing the statement, now place it in regex_arr */
     if (insert_dynamic(&res->regex_arr,(uchar*) &reg))

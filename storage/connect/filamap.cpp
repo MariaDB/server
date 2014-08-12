@@ -1,11 +1,11 @@
 /*********** File AM Map C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMAP                                               */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -48,6 +48,11 @@
 
 extern "C" int  trace;
 
+/***********************************************************************/
+/*  Routine called externally by MAPFAM MakeDeletedFile function.      */
+/***********************************************************************/
+PARRAY MakeValueArray(PGLOBAL g, PPARM pp);
+
 /* --------------------------- Class MAPFAM -------------------------- */
 
 /***********************************************************************/
@@ -89,7 +94,7 @@ int MAPFAM::GetFileLength(PGLOBAL g)
   {
   int len;
 
-  len = (To_Fb) ? To_Fb->Length :  TXTFAM::GetFileLength(g);
+  len = (To_Fb) ? To_Fb->Length : TXTFAM::GetFileLength(g);
 
   if (trace)
     htrc("Mapped file length=%d\n", len);
@@ -129,9 +134,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-    if (trace)
-      htrc("Mapping file, fp=%p\n", fp);
-
+#ifdef DEBTRACE
+ htrc("Mapping file, fp=%p\n", fp);
+#endif
   } else
     fp = NULL;
 
@@ -322,8 +327,26 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
-		Fpos = Mempos;
-		CurBlk = (int)Rows++;
+    int rc;
+
+   next:
+    Fpos = Mempos;
+    CurBlk = (int)Rows++;
+
+    /*******************************************************************/
+    /*  Check whether optimization on ROWID                            */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        // Skip this record
+        if ((rc = SkipRecord(g, FALSE)) != RC_OK)
+          return rc;
+
+        goto next;
+      } // endswitch rc
   } else
     Placed = false;
 
@@ -380,23 +403,30 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 
     } // endif irc
 
-  if (Tpos == Spos)
+  if (Tpos == Spos) {
     /*******************************************************************/
-    /*  First line to delete. Move of eventual preceding lines is     */
+    /*  First line to delete. Move of eventual preceeding lines is     */
     /*  not required here, just setting of future Spos and Tpos.       */
     /*******************************************************************/
-    Tpos = Fpos;                               // Spos is set below
-  else if ((n = Fpos - Spos) > 0) {
-    /*******************************************************************/
-    /*  Non consecutive line to delete. Move intermediate lines.       */
-    /*******************************************************************/
+    Tpos = Spos = Fpos;
+    Indxd = Tdbp->GetKindex() != NULL;
+  } // endif Tpos
+
+  if (Indxd) {
+    // Moving will be done later, must be done in sequential order
+    (void)AddListValue(g, TYPE_PCHAR, Fpos, &To_Pos);
+    (void)AddListValue(g, TYPE_PCHAR, Mempos, &To_Sos);
+  } else if ((n = Fpos - Spos) > 0) {
+    /*****************************************************************/
+    /*  Non consecutive line to delete. Move intermediate lines.     */
+    /*****************************************************************/
     memmove(Tpos, Spos, n);
     Tpos += n;
 
     if (trace)
       htrc("move %d bytes\n", n);
 
-    } // endif n
+  } // endif n
 
   if (irc == RC_OK) {
     Spos = Mempos;                               // New start position
@@ -407,6 +437,10 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
   } else if (To_Fb) {                 // Can be NULL for deleted files
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
+    /*******************************************************************/
+    Abort = (Indxd && MakeDeletedFile(g));
+
+    /*******************************************************************/
     /*  We must firstly Unmap the view and use the saved file handle   */
     /*  to put an EOF at the end of the copied part of the file.       */
     /*******************************************************************/
@@ -415,40 +449,46 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     CloseMemMap(fp->Memory, (size_t)fp->Length);
     fp->Count = 0;                             // Avoid doing it twice
 
-    /*******************************************************************/
-    /*  Remove extra records.                                          */
-    /*******************************************************************/
-    n = Tpos - Memory;
+    if (!Abort) {
+      /*****************************************************************/
+      /*  Remove extra records.                                        */
+      /*****************************************************************/
+      n = Tpos - Memory;
 
 #if defined(WIN32)
-    DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
+      DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
-    if (drc == 0xFFFFFFFF) {
-      sprintf(g->Message, MSG(FUNCTION_ERROR),
-                          "SetFilePointer", GetLastError());
-      CloseHandle(fp->Handle);
-      return RC_FX;
-      } // endif
+      if (drc == 0xFFFFFFFF) {
+        sprintf(g->Message, MSG(FUNCTION_ERROR),
+                            "SetFilePointer", GetLastError());
+        CloseHandle(fp->Handle);
+        return RC_FX;
+        } // endif
 
-    if (trace)
-     htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
+      if (trace)
+       htrc("done, Tpos=%p newsize=%d drc=%d\n", Tpos, n, drc);
 
-    if (!SetEndOfFile(fp->Handle)) {
-      sprintf(g->Message, MSG(FUNCTION_ERROR),
-                          "SetEndOfFile", GetLastError());
-      CloseHandle(fp->Handle);
-      return RC_FX;
-      } // endif
+      if (!SetEndOfFile(fp->Handle)) {
+        sprintf(g->Message, MSG(FUNCTION_ERROR),
+                            "SetEndOfFile", GetLastError());
+        CloseHandle(fp->Handle);
+        return RC_FX;
+        } // endif
 
-    CloseHandle(fp->Handle);
 #else    // UNIX
-    if (ftruncate(fp->Handle, (off_t)n)) {
-      sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
-      close(fp->Handle);
-      return RC_FX;
-      } // endif
+      if (ftruncate(fp->Handle, (off_t)n)) {
+        sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
+        close(fp->Handle);
+        return RC_FX;
+        } // endif
 
-    close(fp->Handle);
+#endif   // UNIX
+    } // endif Abort
+
+#if defined(WIN32)
+  CloseHandle(fp->Handle);
+#else    // UNIX
+  close(fp->Handle);
 #endif   // UNIX
   } // endif irc
 
@@ -456,12 +496,61 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
   } // end of DeleteRecords
 
 /***********************************************************************/
+/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
+/*  record are not necessarily deleted in sequential order. Moving     */
+/*  intermediate lines cannot be done while deleting them.             */
+/*  What we do here is to reorder the deleted records and move the     */
+/*  intermediate files from the ordered deleted record positions.      */
+/***********************************************************************/
+bool MAPFAM::MakeDeletedFile(PGLOBAL g)
+  {
+  int  *ix, i, n;
+
+  /*********************************************************************/
+  /*  Make and order the arrays from the saved values.                 */
+  /*********************************************************************/
+  if (!(Posar = MakeValueArray(g, To_Pos))) {
+    strcpy(g->Message, "Position array is null");
+    goto err;
+  } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
+    strcpy(g->Message, "Start position array is null");
+    goto err;
+  } else if (!(ix = (int*)Posar->GetSortIndex(g))) {
+    strcpy(g->Message, "Error getting array sort index");
+    goto err;
+  } // endif's
+
+  for (i = 0; i < Posar->GetNval(); i++) {
+    Fpos = Posar->GetStringValue(ix[i]);
+
+    if (!i) {
+      Tpos = Fpos;
+    } else if ((n = Fpos - Spos) >= 0) {
+      // Move all not deleted lines preceding this one
+      memmove(Tpos, Spos, n);
+      Tpos += n;
+    } // endif n
+
+    // New start position
+    Spos = Sosar->GetStringValue(ix[i]);
+    } // endfor i
+
+  return false;
+
+err:
+  if (trace)
+    htrc("%s\n", g->Message);
+
+  return true;
+  } // end of MakeDeletedFile
+
+/***********************************************************************/
 /*  Table file close routine for MAP access method.                    */
 /***********************************************************************/
-void MAPFAM::CloseTableFile(PGLOBAL g)
+void MAPFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   PlugCloseFile(g, To_Fb);
-  To_Fb = NULL;              // To get correct file size in Cardinality 
+  To_Fb = NULL;              // To get correct file size in Cardinality
 
   if (trace)
     htrc("MAP Close: closing %s count=%d\n",
@@ -488,7 +577,7 @@ MBKFAM::MBKFAM(PDOSDEF tdp) : MAPFAM(tdp)
   Block = tdp->GetBlock();
   Last = tdp->GetLast();
   Nrec = tdp->GetElemt();
-  BlkPos = NULL;
+  BlkPos = tdp->GetTo_Pos();
   CurNum = Nrec;
   } // end of MBKFAM standard constructor
 
@@ -508,9 +597,7 @@ void MBKFAM::Reset(void)
 /***********************************************************************/
 int MBKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -534,8 +621,49 @@ int MBKFAM::GetRowID(void)
 /***********************************************************************/
 int MBKFAM::ReadBuffer(PGLOBAL g)
   {
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
+  int len;
+
+  /*********************************************************************/
+  /*  Sequential block reading when Placed is not true.                */
+  /*********************************************************************/
+  if (Placed) {
+    Placed = false;
+  } else if (Mempos >= Top) {        // Are we at the end of the memory
+    return RC_EF;
+  } else if (++CurNum < Nrec) {
+    Fpos = Mempos;
+  } else {
+    /*******************************************************************/
+    /*  New block.                                                     */
+    /*******************************************************************/
+    CurNum = 0;
+
+   next:
+    if (++CurBlk >= Block)
+      return RC_EF;
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+
+    Fpos = Mempos = Memory + BlkPos[CurBlk];
+  } // endif's
+
+  // Immediately calculate next position (Used by DeleteDB)
+  while (*Mempos++ != '\n') ;        // What about Unix ???
+
+  // Set caller line buffer
+  len = (Mempos - Fpos) - Ending;
+  memcpy(Tdbp->GetLine(), Fpos, len);
+  Tdbp->GetLine()[len] = '\0';
+  return RC_OK;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -618,17 +746,29 @@ int MPXFAM::ReadBuffer(PGLOBAL g)
     Placed = false;
   } else if (Mempos >= Top) {        // Are we at the end of the memory
     return RC_EF;
-  } else if (++CurNum < Nrec) {                                           
+  } else if (++CurNum < Nrec) {
     Fpos = Mempos;
-  } else {                                                            
+  } else {
     /*******************************************************************/
     /*  New block.                                                     */
     /*******************************************************************/
-    CurNum = 0;                                                       
+    CurNum = 0;
 
-    if (++CurBlk >= Block)                                           
-      return RC_EF;                                                   
-                                                                       
+   next:
+    if (++CurBlk >= Block)
+      return RC_EF;
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+
     Fpos = Mempos = Headlen + Memory + CurBlk * Blksize;
   } // endif's
 

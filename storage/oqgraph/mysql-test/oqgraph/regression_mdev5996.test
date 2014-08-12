@@ -2,6 +2,8 @@
 # MidSchipDB_unstable
 --let $oqgraph_table_name= 999999999
 
+call mtr.add_suppression("99999999 is open on delete");
+
 --let $oqgraph_database_name= 
 --source regression_mdev5996.inc
 

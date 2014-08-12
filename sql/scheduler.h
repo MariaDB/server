@@ -99,15 +99,13 @@ public:
   void *data;                  /* scheduler-specific data structure */
 };
 
-#undef HAVE_POOL_OF_THREADS
-#if !defined(EMBEDDED_LIBRARY) && !defined(_AIX)
-#define HAVE_POOL_OF_THREADS 1
+#ifdef HAVE_POOL_OF_THREADS
 void pool_of_threads_scheduler(scheduler_functions* func,
    ulong *arg_max_connections,
    uint *arg_connection_count);
 #else
 #define pool_of_threads_scheduler(A,B,C) \
   one_thread_per_connection_scheduler(A, B, C)
-#endif
+#endif /*HAVE_POOL_OF_THREADS*/
 
 #endif /* SCHEDULER_INCLUDED */

@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2012
+/* Copyright (C) Olivier Bertrand 2004 - 2014
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -68,7 +68,7 @@ user_connect::user_connect(THD *thd, const char *dbn)
   g= NULL;
   last_query_id= 0;
   count= 0;
-   
+
   // Statistics
   nrd= fnd= nfd= 0;
   tb1= 0;
@@ -95,9 +95,9 @@ bool user_connect::user_init()
   PDBUSER   dup= NULL;
 
   // Areasize= 64M because of VEC tables. Should be parameterisable
-//g= PlugInit(NULL, 67108864);       
-//g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests     
-  g= PlugInit(NULL, worksize);       
+//g= PlugInit(NULL, 67108864);
+//g= PlugInit(NULL, 134217728);  // 128M was because of old embedded tests
+  g= PlugInit(NULL, worksize);
 
   // Check whether the initialization is complete
   if (!g || !g->Sarea || PlugSubSet(g, g->Sarea, g->Sarea_Size)
@@ -162,6 +162,7 @@ bool user_connect::CheckCleanup(void)
     g->Xchk = NULL;
     g->Createas = 0;
     g->Alchecked = 0;
+    g->Mrr = 0;
     last_query_id= thdp->query_id;
 
     if (trace)

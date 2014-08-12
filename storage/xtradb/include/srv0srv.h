@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -161,9 +162,12 @@ extern char		srv_disable_sort_file_cache;
 thread */
 extern os_event_t	srv_checkpoint_completed_event;
 
-/* This event is set on the online redo log following thread exit to signal
-that the (slow) shutdown may proceed */
-extern os_event_t	srv_redo_log_thread_finished_event;
+/* This event is set on the online redo log following thread after a successful
+log tracking iteration */
+extern os_event_t	srv_redo_log_tracked_event;
+
+/** srv_redo_log_follow_thread spawn flag */
+extern bool srv_redo_log_thread_started;
 
 /* If the last data file is auto-extended, we add this many pages to it
 at a time */
@@ -591,6 +595,8 @@ extern srv_stats_t	srv_stats;
 When FALSE, row locks are not taken at all. */
 extern my_bool srv_fake_changes_locks;
 
+/** Simulate compression failures. */
+extern uint srv_simulate_comp_failures;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */

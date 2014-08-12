@@ -37,9 +37,11 @@ class DllExport VCTFAM : public FIXFAM {
   virtual AMT  GetAmType(void) {return TYPE_AM_VCT;}
   virtual PTXF Duplicate(PGLOBAL g)
                 {return (PTXF)new(g) VCTFAM(this);}
+  virtual int  GetFileLength(PGLOBAL g);
 
   // Methods
   virtual void Reset(void);
+  virtual int  MaxBlkSize(PGLOBAL g, int s);
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual bool InitInsert(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g) {}
@@ -50,8 +52,8 @@ class DllExport VCTFAM : public FIXFAM {
   virtual bool OpenTableFile(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
   // Specific functions
@@ -59,19 +61,20 @@ class DllExport VCTFAM : public FIXFAM {
   virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
 
  protected:
-  virtual  bool MakeEmptyFile(PGLOBAL g, char *fn);
+  virtual bool MakeEmptyFile(PGLOBAL g, char *fn);
   virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveLines(PGLOBAL g) {return false;}
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
   virtual bool CleanUnusedSpace(PGLOBAL g);
-  virtual  int  GetBlockInfo(PGLOBAL g);
-  virtual  bool SetBlockInfo(PGLOBAL g);
+  virtual bool MakeDeletedFile(PGLOBAL g);
+  virtual int  GetBlockInfo(PGLOBAL g);
+  virtual bool SetBlockInfo(PGLOBAL g);
           bool ResetTableSize(PGLOBAL g, int block, int last);
 
   // Members
   char   *NewBlock;         // To block written on Insert
-  char   *Colfn;            // Pattern for column file names (VER)
-  char   *Tempat;           // Pattern for temp file names (VER)
+  char   *Colfn;            // Pattern for column file names (VEC)
+  char   *Tempat;           // Pattern for temp file names (VEC)
   int    *Clens;            // Pointer to col size array
   int    *Deplac;           // Pointer to col start position array
   bool   *Isnum;            // Pointer to buffer type isnum result
@@ -107,10 +110,13 @@ class DllExport VCMFAM : public VCTFAM {
   // Database routines
   virtual bool OpenTableFile(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
 
+ protected:
   // Specific functions
+  virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
+  virtual bool MakeDeletedFile(PGLOBAL g);
   virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
   virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
 
@@ -144,18 +150,19 @@ class DllExport VECFAM : public VCTFAM {
   // Database routines
   virtual bool OpenTableFile(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
 
   // Specific functions
   virtual bool ReadBlock(PGLOBAL g, PVCTCOL colp);
   virtual bool WriteBlock(PGLOBAL g, PVCTCOL colp);
 
  protected:
-  virtual  bool OpenTempFile(PGLOBAL g);
+  virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveLines(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
   virtual int  RenameTempFile(PGLOBAL g);
+  virtual bool MakeDeletedFile(PGLOBAL g);
           bool OpenColumnFile(PGLOBAL g, char *opmode, int i);
 
   // Members
@@ -189,9 +196,10 @@ class DllExport VMPFAM : public VCMFAM {
   // Database routines
   virtual bool OpenTableFile(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
+  virtual bool MakeDeletedFile(PGLOBAL g);
           bool MapColumnFile(PGLOBAL g, MODE mode, int i);
 
   // Members
@@ -220,7 +228,7 @@ class BGVFAM : public VCTFAM {
   virtual bool OpenTableFile(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
   // Specific functions

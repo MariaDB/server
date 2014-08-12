@@ -3,6 +3,7 @@
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
+Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -633,6 +634,9 @@ current_time % 5 != 0. */
 	 ? thd_lock_wait_timeout((trx)->mysql_thd)	\
 	 : 0)
 
+/** Simulate compression failures. */
+UNIV_INTERN uint srv_simulate_comp_failures = 0;
+
 /*
 	IMPLEMENTATION OF THE SERVER MAIN PROGRAM
 	=========================================
@@ -760,7 +764,9 @@ static const ulint	SRV_MASTER_SLOT = 0;
 
 UNIV_INTERN os_event_t	srv_checkpoint_completed_event;
 
-UNIV_INTERN os_event_t	srv_redo_log_thread_finished_event;
+UNIV_INTERN os_event_t	srv_redo_log_tracked_event;
+
+UNIV_INTERN bool	srv_redo_log_thread_started = false;
 
 /*********************************************************************//**
 Prints counters for work done by srv_master_thread. */
@@ -1114,7 +1120,10 @@ srv_init(void)
 
 		srv_checkpoint_completed_event = os_event_create();
 
-		srv_redo_log_thread_finished_event = os_event_create();
+		if (srv_track_changed_pages) {
+			srv_redo_log_tracked_event = os_event_create();
+			os_event_set(srv_redo_log_tracked_event);
+		}
 
 		UT_LIST_INIT(srv_sys->tasks);
 	}
@@ -2334,6 +2343,7 @@ DECLARE_THREAD(srv_redo_log_follow_thread)(
 #endif
 
 	my_thread_init();
+	srv_redo_log_thread_started = true;
 
 	do {
 		os_event_wait(srv_checkpoint_completed_event);
@@ -2353,13 +2363,15 @@ DECLARE_THREAD(srv_redo_log_follow_thread)(
 					"stopping log tracking thread!\n");
 				break;
 			}
+			os_event_set(srv_redo_log_tracked_event);
 		}
 
 	} while (srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE);
 
 	srv_track_changed_pages = FALSE;
 	log_online_read_shutdown();
-	os_event_set(srv_redo_log_thread_finished_event);
+	os_event_set(srv_redo_log_tracked_event);
+	srv_redo_log_thread_started = false; /* Defensive, not required */
 
 	my_thread_end();
 	os_thread_exit(NULL);

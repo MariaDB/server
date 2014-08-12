@@ -2918,7 +2918,7 @@ try_again:
 	}
 
 	ib_logf(IB_LOG_LEVEL_ERROR,
-		"Tried to read "ULINTPF" bytes at offset " UINT64PF". "
+		"Tried to read " ULINTPF " bytes at offset " UINT64PF ". "
 		"Was only able to read %ld.", n, offset, (lint) ret);
 #endif /* __WIN__ */
 	retry = os_file_handle_error(NULL, "read");
@@ -3072,7 +3072,8 @@ os_file_write_func(
 	DWORD		len;
 	ulint		n_retries	= 0;
 	ulint		err;
-	OVERLAPPED overlapped;
+	OVERLAPPED	overlapped;
+	DWORD		saved_error = 0;
 
 	/* On 64-bit Windows, ulint is 64 bits. But offset and n should be
 	no more than 32 bits. */
@@ -3099,7 +3100,7 @@ retry:
 	if (ret) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
 	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
+	else if ( GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
 	}
 
@@ -3127,8 +3128,10 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
+		char *winmsg = NULL;
 
-		err = (ulint) GetLastError();
+		saved_error = GetLastError();
+		err = (ulint) saved_error;
 
 		ut_print_timestamp(stderr);
 
@@ -3144,6 +3147,23 @@ retry:
 			" or a disk quota exceeded.\n",
 			name, offset,
 			(ulong) n, (ulong) len, (ulong) err);
+
+		/* Ask Windows to prepare a standard message for a
+		GetLastError() */
+
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, saved_error,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPSTR)&winmsg, 0, NULL);
+
+		if (winmsg) {
+			fprintf(stderr,
+				"InnoDB: FormatMessage: Error number %lu means '%s'.\n",
+				(ulong) saved_error, winmsg);
+			LocalFree(winmsg);
+		}
 
 		if (strerror((int) err) != NULL) {
 			fprintf(stderr,
@@ -3178,7 +3198,7 @@ retry:
 
 		fprintf(stderr,
 			" InnoDB: Error: Write to file %s failed"
-			" at offset "UINT64PF".\n"
+			" at offset " UINT64PF ".\n"
 			"InnoDB: %lu bytes should have been written,"
 			" only %ld were written.\n"
 			"InnoDB: Operating system error number %lu.\n"
@@ -4744,8 +4764,10 @@ os_aio_func(
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
-	if (mode == OS_AIO_SYNC) 
-	{
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			mode = OS_AIO_SYNC;);
+
+	if (mode == OS_AIO_SYNC) {
 		ibool ret;
 		/* This is actually an ordinary synchronous read or write:
 		no need to use an i/o-handler thread */
@@ -4759,7 +4781,18 @@ os_aio_func(
 
 			ret = os_file_write(name, file, buf, offset, n);
 		}
-		ut_a(ret);
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			ret = 0;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			errno = 28;);
+
+		if (!ret) {
+			fprintf(stderr, "FAIL");
+		}
+
 		return ret;
 	}
 
@@ -5588,7 +5621,13 @@ consecutive_loop:
 			aio_slot->offset, total_len);
 	}
 
-	ut_a(ret);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+		os_has_said_disk_full = FALSE;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			ret = 0;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			errno = 28;);
+
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
 	if (aio_slot->type == OS_FILE_READ && n_consecutive > 1) {

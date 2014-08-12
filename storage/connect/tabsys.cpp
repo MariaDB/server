@@ -1,9 +1,9 @@
 /************* TabSys C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABSYS                                                */
 /* -------------                                                       */
-/*  Version 2.2                                                        */
+/*  Version 2.3                                                        */
 /*                                                                     */
-/*  Author Olivier BERTRAND                           2004-2013        */
+/*  Author Olivier BERTRAND                           2004-2014        */
 /*                                                                     */
 /*  This program are the INI/CFG tables classes.                       */
 /***********************************************************************/
@@ -203,18 +203,35 @@ PCOL TDBINI::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   } // end of MakeCol
 
 /***********************************************************************/
-/*  INI GetMaxSize: returns the number of sections in the INI file.    */
+/*  INI Cardinality: returns the number of sections in the INI file.   */
+/***********************************************************************/
+int TDBINI::Cardinality(PGLOBAL g)
+  {
+  if (!g)
+    return 1;
+
+  if (Cardinal < 0) {
+    // Count the number of sections from the section list
+    char *p = GetSeclist(g);
+
+    Cardinal = 0;
+
+    if (p)
+      for (; *p; p += (strlen(p) + 1))
+        Cardinal++;
+
+    } // endif Cardinal
+
+  return Cardinal;
+  } // end of Cardinality
+
+/***********************************************************************/
+/*  INI GetMaxSize: returns the table cardinality.                     */
 /***********************************************************************/
 int TDBINI::GetMaxSize(PGLOBAL g)
   {
-  if (MaxSize < 0 && GetSeclist(g)) {
-    // Count the number of sections from the section list
-    char *p;
-
-    for (MaxSize = 0, p = Seclist; *p; p += (strlen(p) + 1))
-      MaxSize++;
-
-    } // endif MaxSize
+  if (MaxSize < 0)
+    MaxSize = Cardinality(g);
 
   return MaxSize;
   } // end of GetMaxSize
@@ -609,22 +626,28 @@ PCOL TDBXIN::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   } // end of MakeCol
 
 /***********************************************************************/
-/*  XIN GetMaxSize: returns the number of sections in the XIN file.    */
+/*  XIN Cardinality: returns the number of keys in the XIN file.       */
 /***********************************************************************/
-int TDBXIN::GetMaxSize(PGLOBAL g)
+int TDBXIN::Cardinality(PGLOBAL g)
   {
-  if (MaxSize < 0 && GetSeclist(g)) {
+  if (!g)
+    return 1;
+
+  if (Cardinal < 0) {
     // Count the number of keys from the section list
-    char *p, *k;
+    char *k, *p = GetSeclist(g);
 
-    for (MaxSize = 0, p = Seclist; *p; p += (strlen(p) + 1))
-      for (k = GetKeylist(g, p); *k; k += (strlen(k) + 1))
-        MaxSize++;
+    Cardinal = 0;
 
-    } // endif MaxSize
+    if (p)
+      for (; *p; p += (strlen(p) + 1))
+        for (k = GetKeylist(g, p); *k; k += (strlen(k) + 1))
+          Cardinal++;
 
-  return MaxSize;
-  } // end of GetMaxSize
+    } // endif Cardinal
+
+  return Cardinal;
+  } // end of Cardinality
 
 /***********************************************************************/
 /*  Record position is Section+Key.                                    */
@@ -633,7 +656,7 @@ int TDBXIN::GetRecpos(void)
   {
   union {
     short X[2];                              // Section and Key offsets
-    int  Xpos;                              // File position
+    int   Xpos;                              // File position
     }; // end of union
 
   X[0] = (short)(Section - Seclist);
@@ -648,7 +671,7 @@ bool TDBXIN::SetRecpos(PGLOBAL g, int recpos)
   {
   union {
     short X[2];                              // Section and Key offsets
-    int  Xpos;                              // File position
+    int   Xpos;                              // File position
     }; // end of union
 
   Xpos = recpos;

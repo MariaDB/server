@@ -18616,7 +18616,7 @@ static void test_bug56976()
   const char*   query = "SELECT LENGTH(?)";
   char *long_buffer;
   unsigned long i, packet_len = 256 * 1024L;
-  unsigned long dos_len    = 2 * 1024 * 1024L;
+  unsigned long dos_len    = 35000000;
 
   DBUG_ENTER("test_bug56976");
   myheader("test_bug56976");
@@ -19255,6 +19255,106 @@ static void test_mdev4326()
   myquery(rc);
 }
 
+
+/*
+  Check compressed protocol
+*/
+
+static void test_compressed_protocol()
+{
+  MYSQL *mysql_local;
+  char query[4096], *end;
+  int i;
+  myheader("test_compressed_protocol");
+
+  if (!(mysql_local= mysql_client_init(NULL)))
+  {
+    fprintf(stderr, "\n mysql_client_init() failed");
+    exit(1);
+  }
+
+  if (!(mysql_real_connect(mysql_local, opt_host, opt_user,
+                           opt_password, current_db, opt_port,
+                           opt_unix_socket, CLIENT_COMPRESS)))
+  {
+    fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
+    exit(1);
+  }
+  mysql_options(mysql_local,MYSQL_OPT_COMPRESS,NullS);
+
+  end= strmov(strfill(strmov(query, "select length(\""),1000,'a'),"\")");
+
+  for (i=0 ; i < 2 ; i++)
+  {
+    MYSQL_RES *res;
+
+    int rc= mysql_real_query(mysql, query, (int) (end-query));
+    myquery(rc);
+    res= mysql_store_result(mysql);
+    DBUG_ASSERT(res != 0);
+    mysql_free_result(res);
+  }
+
+  mysql_close(mysql_local);
+}
+
+/*
+  Check big packets
+*/
+
+static void test_big_packet()
+{
+  MYSQL *mysql_local;
+  char *query, *end;
+  /* We run the tests with a server with max packet size of 3200000 */
+  size_t big_packet= 31000000L;
+  int i;
+  MYSQL_PARAMETERS *mysql_params= mysql_get_parameters();
+  long org_max_allowed_packet= *mysql_params->p_max_allowed_packet;
+  long opt_net_buffer_length= *mysql_params->p_net_buffer_length;
+
+  myheader("test_big_packet");
+
+  query= (char*) my_malloc(big_packet+1024, MYF(MY_WME));
+  DIE_UNLESS(query);
+  
+  if (!(mysql_local= mysql_client_init(NULL)))
+  {
+    fprintf(stderr, "\n mysql_client_init() failed");
+    exit(1);
+  }
+
+  if (!(mysql_real_connect(mysql_local, opt_host, opt_user,
+                           opt_password, current_db, opt_port,
+                           opt_unix_socket, 0)))
+  {
+    fprintf(stderr, "\n connection failed(%s)", mysql_error(mysql_local));
+    exit(1);
+  }
+
+  *mysql_params->p_max_allowed_packet= big_packet+1000;
+  *mysql_params->p_net_buffer_length=  8L*256L*256L;
+
+  end= strmov(strfill(strmov(query, "select length(\""), big_packet,'a'),"\")");
+
+  for (i=0 ; i < 2 ; i++)
+  {
+    MYSQL_RES *res;
+    int rc= mysql_real_query(mysql, query, (int) (end-query));
+    myquery(rc);
+    res= mysql_store_result(mysql);
+    DBUG_ASSERT(res != 0);
+    mysql_free_result(res);
+  }
+
+  mysql_close(mysql_local);
+  my_free(query);
+  
+  *mysql_params->p_max_allowed_packet= org_max_allowed_packet;
+  *mysql_params->p_net_buffer_length = opt_net_buffer_length;
+}
+
+
 static struct my_tests_st my_tests[]= {
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
@@ -19526,6 +19626,8 @@ static struct my_tests_st my_tests[]= {
   { "test_bug13001491", test_bug13001491 },
   { "test_mdev4326", test_mdev4326 },
   { "test_ps_sp_out_params", test_ps_sp_out_params },
+  { "test_compressed_protocol", test_compressed_protocol },
+  { "test_big_packet", test_big_packet },
   { 0, 0 }
 };
 

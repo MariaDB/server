@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2011, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
 
 Portions of this file contain modifications contributed and copyrighted by
@@ -434,6 +434,9 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 # define os_atomic_test_and_set_ulint(ptr, new_val) \
 	__sync_lock_test_and_set(ptr, new_val)
 
+# define os_atomic_lock_release_byte(ptr) \
+	__sync_lock_release(ptr)
+
 #elif defined(HAVE_IB_SOLARIS_ATOMICS)
 
 # define HAVE_ATOMIC_BUILTINS
@@ -515,6 +518,9 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 # define os_atomic_test_and_set_ulint(ptr, new_val) \
 	atomic_swap_ulong(ptr, new_val)
 
+# define os_atomic_lock_release_byte(ptr) \
+	(void) atomic_swap_uchar(ptr, 0)
+
 #elif defined(HAVE_WINDOWS_ATOMICS)
 
 # define HAVE_ATOMIC_BUILTINS
@@ -574,7 +580,8 @@ Returns true if swapped, ptr is pointer to target, old_val is value to
 compare to, new_val is the value to swap in. */
 
 # define os_compare_and_swap_uint32(ptr, old_val, new_val) \
-	(win_cmp_and_xchg_dword(ptr, new_val, old_val) == old_val)
+	(InterlockedCompareExchange(reinterpret_cast<volatile long*>(ptr), \
+				    new_val, old_val) == old_val)
 
 # define os_compare_and_swap_ulint(ptr, old_val, new_val) \
 	(win_cmp_and_xchg_ulint(ptr, new_val, old_val) == old_val)
@@ -636,6 +643,9 @@ clobbered */
 
 # define os_atomic_test_and_set_ulong(ptr, new_val) \
 	InterlockedExchange(ptr, new_val)
+
+# define os_atomic_lock_release_byte(ptr) \
+	(void) InterlockedExchange(ptr, 0)
 
 #else
 # define IB_ATOMICS_STARTUP_MSG \

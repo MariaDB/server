@@ -379,6 +379,7 @@ static I_List<THD> thread_cache;
 static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
 static mysql_cond_t COND_thread_cache, COND_flush_thread_cache;
+mysql_cond_t COND_slave_init;
 static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
@@ -534,6 +535,7 @@ ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
 ulong extra_max_connections;
 ulong slave_retried_transactions;
+ulong feature_files_opened_with_delayed_keys;
 ulonglong denied_connections;
 my_decimal decimal_zero;
 
@@ -724,7 +726,7 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn, LOCK_slave_list, LOCK_active_mi,
-  LOCK_connection_count, LOCK_error_messages;
+  LOCK_connection_count, LOCK_error_messages, LOCK_slave_init;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
@@ -921,7 +923,8 @@ PSI_mutex_key key_LOCK_stats,
   key_LOCK_wakeup_ready, key_LOCK_wait_commit;
 PSI_mutex_key key_LOCK_gtid_waiting;
 
-PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
+  key_LOCK_slave_init;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
 static PSI_mutex_info all_server_mutexes[]=
@@ -984,6 +987,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_error_messages, "LOCK_error_messages", PSI_FLAG_GLOBAL},
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
+  { &key_LOCK_slave_init, "LOCK_slave_init", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
 #ifdef WITH_WSREP
   { &key_LOCK_wsrep_ready, "LOCK_wsrep_ready", PSI_FLAG_GLOBAL},
@@ -1055,7 +1059,7 @@ PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
-  key_COND_prepare_ordered;
+  key_COND_prepare_ordered, key_COND_slave_init;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
@@ -1113,6 +1117,7 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
+  { &key_COND_slave_init, "COND_slave_init", 0},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
 };
@@ -1178,65 +1183,60 @@ void net_before_header_psi(struct st_net *net, void *user_data, size_t /* unused
   thd= static_cast<THD*> (user_data);
   DBUG_ASSERT(thd != NULL);
 
-  if (thd->m_server_idle)
-  {
-    /*
-      The server is IDLE, waiting for the next command.
-      Technically, it is a wait on a socket, which may take a long time,
-      because the call is blocking.
-      Disable the socket instrumentation, to avoid recording a SOCKET event.
-      Instead, start explicitly an IDLE event.
-    */
-    MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
-    MYSQL_START_IDLE_WAIT(thd->m_idle_psi, &thd->m_idle_state);
-  }
+  /*
+    We only come where when the server is IDLE, waiting for the next command.
+    Technically, it is a wait on a socket, which may take a long time,
+    because the call is blocking.
+    Disable the socket instrumentation, to avoid recording a SOCKET event.
+    Instead, start explicitly an IDLE event.
+  */
+  MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_IDLE);
+  MYSQL_START_IDLE_WAIT(thd->m_idle_psi, &thd->m_idle_state);
 }
 
-void net_after_header_psi(struct st_net *net, void *user_data, size_t /* unused: count */, my_bool rc)
+void net_after_header_psi(struct st_net *net, void *user_data,
+                          size_t /* unused: count */, my_bool rc)
 {
   THD *thd;
   thd= static_cast<THD*> (user_data);
   DBUG_ASSERT(thd != NULL);
 
-  if (thd->m_server_idle)
+  /*
+    The server just got data for a network packet header,
+    from the network layer.
+    The IDLE event is now complete, since we now have a message to process.
+    We need to:
+    - start a new STATEMENT event
+    - start a new STAGE event, within this statement,
+    - start recording SOCKET WAITS events, within this stage.
+    The proper order is critical to get events numbered correctly,
+    and nested in the proper parent.
+  */
+  MYSQL_END_IDLE_WAIT(thd->m_idle_psi);
+
+  if (! rc)
   {
-    /*
-      The server just got data for a network packet header,
-      from the network layer.
-      The IDLE event is now complete, since we now have a message to process.
-      We need to:
-      - start a new STATEMENT event
-      - start a new STAGE event, within this statement,
-      - start recording SOCKET WAITS events, within this stage.
-      The proper order is critical to get events numbered correctly,
-      and nested in the proper parent.
-    */
-    MYSQL_END_IDLE_WAIT(thd->m_idle_psi);
+    thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
+                                                stmt_info_new_packet.m_key,
+                                                thd->db, thd->db_length,
+                                                thd->charset());
 
-    if (! rc)
-    {
-      thd->m_statement_psi= MYSQL_START_STATEMENT(&thd->m_statement_state,
-                                                  stmt_info_new_packet.m_key,
-                                                  thd->db, thd->db_length,
-                                                  thd->charset());
-
-      THD_STAGE_INFO(thd, stage_init);
-    }
-
-    /*
-      TODO: consider recording a SOCKET event for the bytes just read,
-      by also passing count here.
-    */
-    MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_ACTIVE);
+    THD_STAGE_INFO(thd, stage_init);
   }
+
+  /*
+    TODO: consider recording a SOCKET event for the bytes just read,
+    by also passing count here.
+  */
+  MYSQL_SOCKET_SET_STATE(net->vio->mysql_socket, PSI_SOCKET_STATE_ACTIVE);
 }
+
 
 void init_net_server_extension(THD *thd)
 {
   /* Start with a clean state for connection events. */
   thd->m_idle_psi= NULL;
   thd->m_statement_psi= NULL;
-  thd->m_server_idle= false;
   /* Hook up the NET_SERVER callback in the net layer. */
   thd->m_net_server_extension.m_user_data= thd;
   thd->m_net_server_extension.m_before_header= net_before_header_psi;
@@ -2312,6 +2312,8 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_prepare_ordered);
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_commit_ordered);
+  mysql_mutex_destroy(&LOCK_slave_init);
+  mysql_cond_destroy(&COND_slave_init);
   DBUG_VOID_RETURN;
 }
 
@@ -2503,6 +2505,7 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
   int error;
   int	arg;
   char port_buf[NI_MAXSERV];
+  const char *real_bind_addr_str;
   MYSQL_SOCKET ip_sock= MYSQL_INVALID_SOCKET;
   DBUG_ENTER("activate_tcp_port");
   DBUG_PRINT("general",("IP Socket is %d",port));
@@ -2511,14 +2514,34 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
   hints.ai_flags= AI_PASSIVE;
   hints.ai_socktype= SOCK_STREAM;
   hints.ai_family= AF_UNSPEC;
+  
+  if (my_bind_addr_str && strcmp(my_bind_addr_str, "*") == 0)
+    real_bind_addr_str= NULL; // windows doesn't seem to support * here
+  else
+    real_bind_addr_str= my_bind_addr_str;
 
   my_snprintf(port_buf, NI_MAXSERV, "%d", port);
-  error= getaddrinfo(my_bind_addr_str, port_buf, &hints, &ai);
+  error= getaddrinfo(real_bind_addr_str, port_buf, &hints, &ai);
   if (error != 0)
   {
     DBUG_PRINT("error",("Got error: %d from getaddrinfo()", error));
-    sql_perror(ER_DEFAULT(ER_IPSOCK_ERROR));  /* purecov: tested */
+
+    sql_print_error("%s: %s", ER_DEFAULT(ER_IPSOCK_ERROR), gai_strerror(error));
     unireg_abort(1);				/* purecov: tested */
+  }
+
+  /*
+    special case: for wildcard addresses prefer ipv6 over ipv4,
+    because we later switch off IPV6_V6ONLY, so ipv6 wildcard
+    addresses will work for ipv4 too
+  */
+  if (!real_bind_addr_str && ai->ai_family == AF_INET && ai->ai_next
+      && ai->ai_next->ai_family == AF_INET6)
+  {
+    a= ai;
+    ai= ai->ai_next;
+    a->ai_next= ai->ai_next;
+    ai->ai_next= a;
   }
 
   for (a= ai; a != NULL; a= a->ai_next)
@@ -4562,6 +4585,9 @@ static int init_thread_environment()
   mysql_cond_init(key_COND_prepare_ordered, &COND_prepare_ordered, NULL);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
+  mysql_mutex_init(key_LOCK_slave_init, &LOCK_slave_init,
+                   MY_MUTEX_INIT_SLOW);
+  mysql_cond_init(key_COND_slave_init, &COND_slave_init, NULL);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
@@ -5038,6 +5064,8 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   if (ha_init_errors())
     DBUG_RETURN(1);
 
+  tc_log= 0; // ha_initialize_handlerton() needs that
+
   if (plugin_init(&remaining_argc, remaining_argv,
                   (opt_noacl ? PLUGIN_INIT_SKIP_PLUGIN_TABLE : 0) |
                   (opt_abort ? PLUGIN_INIT_SKIP_INITIALIZATION : 0)))
@@ -5179,18 +5207,14 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     wsrep_emulate_bin_log= 1;
   }
 #endif
-  tc_log= (total_ha_2pc > 1 ? (opt_bin_log  ?
-                               (TC_LOG *) &mysql_bin_log :
+
+  tc_log= get_tc_log_implementation();
+
 #ifdef WITH_WSREP
-                               (WSREP_ON ? 
-                                (TC_LOG *) &tc_log_dummy : 
-                                (TC_LOG *) &tc_log_mmap)) :
-#else
-                               (TC_LOG *) &tc_log_mmap) :
-#endif
-           (TC_LOG *) &tc_log_dummy);
-#ifdef WITH_WSREP
-  WSREP_DEBUG("Initial TC log open: %s", 
+  if (WSREP_ON && tc_log == &tc_log_mmap)
+    tc_log= &tc_log_dummy;
+
+  WSREP_DEBUG("Initial TC log open: %s",
               (tc_log == &mysql_bin_log) ? "binlog" :
               (tc_log == &tc_log_mmap) ? "mmap" :
               (tc_log == &tc_log_dummy) ? "dummy" : "unknown"
@@ -7511,7 +7535,7 @@ struct my_option my_long_options[]=
   {"autocommit", 0, "Set default value for autocommit (0 or 1)",
    &opt_autocommit, &opt_autocommit, 0,
    GET_BOOL, OPT_ARG, 1, 0, 0, 0, 0, NULL},
-  {"bind-address", OPT_BIND_ADDRESS, "IP address to bind to.",
+  {"bind-address", 0, "IP address to bind to.",
    &my_bind_addr_str, &my_bind_addr_str, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"binlog-do-db", OPT_BINLOG_DO_DB,
@@ -8597,6 +8621,7 @@ SHOW_VAR status_vars[]= {
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
   {"Executed_triggers",        (char*) offsetof(STATUS_VAR, executed_triggers), SHOW_LONG_STATUS},
+  {"Feature_delay_key_write",  (char*) &feature_files_opened_with_delayed_keys, SHOW_LONG },
   {"Feature_dynamic_columns",  (char*) offsetof(STATUS_VAR, feature_dynamic_columns), SHOW_LONG_STATUS},
   {"Feature_fulltext",         (char*) offsetof(STATUS_VAR, feature_fulltext), SHOW_LONG_STATUS},
   {"Feature_gis",              (char*) offsetof(STATUS_VAR, feature_gis), SHOW_LONG_STATUS},
@@ -8679,6 +8704,7 @@ SHOW_VAR status_vars[]= {
   {"Slow_launch_threads",      (char*) &slow_launch_threads,    SHOW_LONG},
   {"Slow_queries",             (char*) offsetof(STATUS_VAR, long_query_count), SHOW_LONG_STATUS},
   {"Sort_merge_passes",	       (char*) offsetof(STATUS_VAR, filesort_merge_passes_), SHOW_LONG_STATUS},
+  {"Sort_priority_queue_sorts",(char*) offsetof(STATUS_VAR, filesort_pq_sorts_), SHOW_LONG_STATUS}, 
   {"Sort_range",	       (char*) offsetof(STATUS_VAR, filesort_range_count_), SHOW_LONG_STATUS},
   {"Sort_rows",		       (char*) offsetof(STATUS_VAR, filesort_rows_), SHOW_LONG_STATUS},
   {"Sort_scan",		       (char*) offsetof(STATUS_VAR, filesort_scan_count_), SHOW_LONG_STATUS},
@@ -9370,18 +9396,6 @@ mysqld_get_one_option(int optid,
     }
     break;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  case OPT_ENGINE_CONDITION_PUSHDOWN:
-    /*
-      The last of --engine-condition-pushdown and --optimizer_switch on
-      command line wins (see get_options().
-    */
-    if (global_system_variables.engine_condition_pushdown)
-      global_system_variables.optimizer_switch|=
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN;
-    else
-      global_system_variables.optimizer_switch&=
-        ~OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN;
-    break;
   case OPT_LOG_ERROR:
     /*
       "No --log-error" == "write errors to stderr",
@@ -9504,6 +9518,7 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_KEY_CACHE_DIVISION_LIMIT:
   case OPT_KEY_CACHE_AGE_THRESHOLD:
   case OPT_KEY_CACHE_PARTITIONS:
+  case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
   {
     KEY_CACHE *key_cache;
     if (!(key_cache= get_or_create_key_cache(name, length)))
@@ -9523,6 +9538,8 @@ mysql_getopt_value(const char *name, uint length,
       return &key_cache->param_age_threshold;
     case OPT_KEY_CACHE_PARTITIONS:
       return (uchar**) &key_cache->param_partitions;
+    case OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE:
+      return (uchar**) &key_cache->changed_blocks_hash_size;
     }
   }
   case OPT_REPLICATE_DO_DB:

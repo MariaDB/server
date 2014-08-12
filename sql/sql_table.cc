@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2014, Monty Program Ab.
+   Copyright (c) 2010, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -75,6 +75,7 @@ static bool prepare_blob_field(THD *thd, Create_field *sql_field);
 static bool check_engine(THD *, const char *, const char *, HA_CREATE_INFO *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
                                       uint *, handler *, KEY **, uint *, int);
+static uint blob_length_by_type(enum_field_types type);
 
 /**
   @brief Helper function for explain_filename
@@ -3812,7 +3813,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     CHARSET_INFO *ft_key_charset=0;  // for FULLTEXT
     for (uint column_nr=0 ; (column=cols++) ; column_nr++)
     {
-      uint length;
       Key_part_spec *dup_column;
 
       it.rewind();
@@ -3890,7 +3890,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  }
           if (f_is_geom(sql_field->pack_flag) && sql_field->geom_type ==
               Field::GEOM_POINT)
-            column->length= 25;
+            column->length= MAX_LEN_GEOM_POINT_FIELD;
 	  if (!column->length)
 	  {
 	    my_error(ER_BLOB_KEY_WITHOUT_LENGTH, MYF(0), column->field_name.str);
@@ -3956,30 +3956,31 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       key_part_info->fieldnr= field;
       key_part_info->offset=  (uint16) sql_field->offset;
       key_part_info->key_type=sql_field->pack_flag;
-      length= sql_field->key_length;
+      uint key_part_length= sql_field->key_length;
 
       if (column->length)
       {
 	if (f_is_blob(sql_field->pack_flag))
 	{
-	  if ((length=column->length) > max_key_length ||
-	      length > file->max_key_part_length())
+	  key_part_length= MY_MIN(column->length,
+                               blob_length_by_type(sql_field->sql_type)
+                               * sql_field->charset->mbmaxlen);
+	  if (key_part_length > max_key_length ||
+	      key_part_length > file->max_key_part_length())
 	  {
-	    length=MY_MIN(max_key_length, file->max_key_part_length());
+	    key_part_length= MY_MIN(max_key_length, file->max_key_part_length());
 	    if (key->type == Key::MULTIPLE)
 	    {
 	      /* not a critical problem */
-	      char warn_buff[MYSQL_ERRMSG_SIZE];
-	      my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_KEY),
-			  length);
-	      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-			   ER_TOO_LONG_KEY, warn_buff);
+	      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		           ER_TOO_LONG_KEY, ER(ER_TOO_LONG_KEY),
+		           key_part_length);
               /* Align key length to multibyte char boundary */
-              length-= length % sql_field->charset->mbmaxlen;
+              key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
 	    }
 	    else
 	    {
-	      my_error(ER_TOO_LONG_KEY,MYF(0),length);
+	      my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
 	      DBUG_RETURN(TRUE);
 	    }
 	  }
@@ -3987,9 +3988,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
         // Catch invalid use of partial keys 
 	else if (!f_is_geom(sql_field->pack_flag) &&
                  // is the key partial? 
-                 column->length != length &&
+                 column->length != key_part_length &&
                  // is prefix length bigger than field length? 
-                 (column->length > length ||
+                 (column->length > key_part_length ||
                   // can the field have a partial key? 
                   !Field::type_can_have_key_part (sql_field->sql_type) ||
                   // a packed field can't be used in a partial key
@@ -3998,44 +3999,43 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                   ((file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS) &&
                    // and is this a 'unique' key?
                    (key_info->flags & HA_NOSAME))))
-        {         
+        {
 	  my_message(ER_WRONG_SUB_KEY, ER(ER_WRONG_SUB_KEY), MYF(0));
 	  DBUG_RETURN(TRUE);
 	}
 	else if (!(file->ha_table_flags() & HA_NO_PREFIX_CHAR_KEYS))
-	  length=column->length;
+	  key_part_length= column->length;
       }
-      else if (length == 0 && (sql_field->flags & NOT_NULL_FLAG))
+      else if (key_part_length == 0 && (sql_field->flags & NOT_NULL_FLAG))
       {
 	my_error(ER_WRONG_KEY_COLUMN, MYF(0), file->table_type(),
                  column->field_name.str);
 	  DBUG_RETURN(TRUE);
       }
-      if (length > file->max_key_part_length() && key->type != Key::FULLTEXT)
+      if (key_part_length > file->max_key_part_length() &&
+          key->type != Key::FULLTEXT)
       {
-        length= file->max_key_part_length();
+        key_part_length= file->max_key_part_length();
 	if (key->type == Key::MULTIPLE)
 	{
 	  /* not a critical problem */
-	  char warn_buff[MYSQL_ERRMSG_SIZE];
-	  my_snprintf(warn_buff, sizeof(warn_buff), ER(ER_TOO_LONG_KEY),
-		      length);
-	  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-		       ER_TOO_LONG_KEY, warn_buff);
+	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		       ER_TOO_LONG_KEY, ER(ER_TOO_LONG_KEY),
+		       key_part_length);
           /* Align key length to multibyte char boundary */
-          length-= length % sql_field->charset->mbmaxlen;
+          key_part_length-= key_part_length % sql_field->charset->mbmaxlen;
 	}
 	else
 	{
-	  my_error(ER_TOO_LONG_KEY,MYF(0),length);
+	  my_error(ER_TOO_LONG_KEY, MYF(0), key_part_length);
 	  DBUG_RETURN(TRUE);
 	}
       }
-      key_part_info->length=(uint16) length;
+      key_part_info->length= (uint16) key_part_length;
       /* Use packed keys for long strings on the first column */
       if (!((*db_options) & HA_OPTION_NO_PACK_KEYS) &&
           !((create_info->table_options & HA_OPTION_NO_PACK_KEYS)) &&
-	  (length >= KEY_DEFAULT_PACK_LENGTH &&
+	  (key_part_length >= KEY_DEFAULT_PACK_LENGTH &&
 	   (sql_field->sql_type == MYSQL_TYPE_STRING ||
 	    sql_field->sql_type == MYSQL_TYPE_VARCHAR ||
 	    sql_field->pack_flag & FIELDFLAG_BLOB)))
@@ -4047,10 +4047,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	  key_info->flags|= HA_PACK_KEY;
       }
       /* Check if the key segment is partial, set the key flag accordingly */
-      if (length != sql_field->key_length)
+      if (key_part_length != sql_field->key_length)
         key_info->flags|= HA_KEY_HAS_PART_KEY_SEG;
 
-      key_length+=length;
+      key_length+= key_part_length;
       key_part_info++;
 
       /* Create the key name based on the first column (if not given) */
@@ -4971,7 +4971,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   const char *db= create_table->db;
   const char *table_name= create_table->table_name;
   bool is_trans= FALSE;
-  bool result= 0;
+  bool result;
   int create_table_mode;
   TABLE_LIST *pos_in_locked_tables= 0;
   MDL_ticket *mdl_ticket= 0;
@@ -4979,8 +4979,16 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
   DBUG_ASSERT(create_table == thd->lex->query_tables);
 
+  /* Copy temporarily the statement flags to thd for lock_table_names() */
+  uint save_thd_create_info_options= thd->lex->create_info.options;
+  thd->lex->create_info.options|= create_info->options;
+
   /* Open or obtain an exclusive metadata lock on table being created  */
-  if (open_and_lock_tables(thd, create_table, FALSE, 0))
+  result= open_and_lock_tables(thd, create_table, FALSE, 0);
+
+  thd->lex->create_info.options= save_thd_create_info_options;
+
+  if (result)
   {
     /* is_error() may be 0 if table existed and we generated a warning */
     DBUG_RETURN(thd->is_error());
@@ -5262,6 +5270,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   bool do_logging= FALSE;
   uint not_used;
   int create_res;
+  uint save_thd_create_info_options;
   DBUG_ENTER("mysql_create_like_table");
 
 #ifdef WITH_WSREP
@@ -5305,7 +5314,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
       String query(buf, sizeof(buf), system_charset_info);
       query.length(0);  // Have to zero it since constructor doesn't
 
-      (void)  store_create_info(thd, &tbl, &query, NULL, TRUE, FALSE);
+      (void)  show_create_table(thd, &tbl, &query, NULL, WITH_DB_NAME);
       WSREP_DEBUG("TMP TABLE: %s", query.ptr());
 
       thd->wsrep_TOI_pre_query=     query.ptr();
@@ -5330,7 +5339,14 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     Thus by holding both these locks we ensure that our statement is
     properly isolated from all concurrent operations which matter.
   */
-  if (open_tables(thd, &thd->lex->query_tables, &not_used, 0))
+
+  /* Copy temporarily the statement flags to thd for lock_table_names() */
+  save_thd_create_info_options= thd->lex->create_info.options;
+  thd->lex->create_info.options|= create_info->options;
+  res= open_tables(thd, &thd->lex->query_tables, &not_used, 0);
+  thd->lex->create_info.options= save_thd_create_info_options;
+
+  if (res)
   {
     res= thd->is_error();
     goto err;
@@ -5489,7 +5505,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
           table->open_strategy= TABLE_LIST::OPEN_NORMAL;
 
           /*
-            In order for store_create_info() to work we need to open
+            In order for show_create_table() to work we need to open
             destination table if it is not already open (i.e. if it
             has not existed before). We don't need acquire metadata
             lock in order to do this as we already hold exclusive
@@ -5513,13 +5529,9 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         if (!table->view)
         {
           int result __attribute__((unused))=
-            store_create_info(thd, table, &query,
-                              create_info, FALSE /* show_database */,
-                              MY_TEST(create_info->org_options &
-                                      HA_LEX_CREATE_REPLACE) ||
-                              create_info->table_was_deleted);
+            show_create_table(thd, table, &query, create_info, WITHOUT_DB_NAME);
 
-          DBUG_ASSERT(result == 0); // store_create_info() always return 0
+          DBUG_ASSERT(result == 0); // show_create_table() always return 0
           do_logging= FALSE;
           if (write_bin_log(thd, TRUE, query.ptr(), query.length()))
           {

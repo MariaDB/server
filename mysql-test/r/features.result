@@ -1,6 +1,8 @@
 drop table if exists t1;
+flush status;
 show status like "feature%";
 Variable_name	Value
+Feature_delay_key_write	0
 Feature_dynamic_columns	0
 Feature_fulltext	0
 Feature_gis	0
@@ -138,3 +140,17 @@ upd1
 show status like "feature_xml";
 Variable_name	Value
 Feature_xml	2
+#
+# Feature delayed_keys
+#
+create table t1 (a int, key(a)) engine=myisam delay_key_write=1;
+insert into t1 values(1);
+insert into t1 values(2);
+drop table t1;
+create table t1 (a int, key(a)) engine=aria delay_key_write=1;
+insert into t1 values(1);
+insert into t1 values(2);
+drop table t1;
+show status like "feature_delay_key_write";
+Variable_name	Value
+Feature_delay_key_write	2

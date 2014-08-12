@@ -108,7 +108,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
           Error reporting borrowed from Query_log_event with many excessive
           simplifications (we don't honour --slave-skip-errors)
         */
-        rli->report(ERROR_LEVEL, actual_error,
+        rli->report(ERROR_LEVEL, actual_error, NULL,
                     "Error '%s' on opening tables",
                     (actual_error ? ev_thd->get_stmt_da()->message() :
                      "unexpected success or fatal error"));
@@ -133,8 +133,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
       {
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                             ptr->table, &conv_table))
+        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           ev_thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(ev_thd);
@@ -234,7 +233,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
   break;
 
       default:
-  rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(),
+  rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                     "Error in %s event: row application failed. %s",
                     ev->get_type_str(),
                     ev_thd->is_error() ? ev_thd->get_stmt_da()->message() : "");
@@ -251,7 +250,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
 
   if (error)
   {                     /* error has occured during the transaction */
-    rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(),
+    rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
                 ev->get_type_str(), table->s->db.str,
@@ -1499,7 +1498,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
           simplifications (we don't honour --slave-skip-errors)
         */
         uint actual_error= thd->net.last_errno;
-        rli->report(ERROR_LEVEL, actual_error,
+        rli->report(ERROR_LEVEL, actual_error, NULL,
                     "Error '%s' in %s event: when locking tables",
                     (actual_error ? thd->net.last_error :
                      "unexpected success or fatal error"),
@@ -1508,7 +1507,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       }
       else
       {
-        rli->report(ERROR_LEVEL, error,
+        rli->report(ERROR_LEVEL, error, NULL,
                     "Error in %s event: when locking tables",
                     get_type_str());
       }
@@ -1530,8 +1529,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
            ptr= static_cast<RPL_TABLE_LIST*>(ptr->next_global), i++)
       {
         TABLE *conv_table;
-        if (ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                            ptr->table, &conv_table))
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(thd);
@@ -1655,7 +1653,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
         break;
 
       default:
-	rli->report(ERROR_LEVEL, thd->net.last_errno,
+	rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                     "Error in %s event: row application failed. %s",
                     get_type_str(),
                     thd->net.last_error ? thd->net.last_error : "");
@@ -1693,7 +1691,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (error)
   {                     /* error has occured during the transaction */
-    rli->report(ERROR_LEVEL, thd->net.last_errno,
+    rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
                 get_type_str(), table->s->db.str,
@@ -1776,7 +1774,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     DBUG_ASSERT(! thd->transaction_rollback_request);
     if ((error= (binlog_error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd))))
-      rli->report(ERROR_LEVEL, error,
+      rli->report(ERROR_LEVEL, error, NULL,
                   "Error in %s event: commit of row events failed, "
                   "table `%s`.`%s`",
                   get_type_str(), m_table->s->db.str,

@@ -33,10 +33,10 @@ bool  CntCheckDB(PGLOBAL g, PHC handler, const char *pathname);
 PTDB  CntGetTDB(PGLOBAL g, const char *name, MODE xmod, PHC);
 bool  CntOpenTable(PGLOBAL g, PTDB tdbp, MODE, char *, char *, bool, PHC);
 bool  CntRewindTable(PGLOBAL g, PTDB tdbp);
-int   CntCloseTable(PGLOBAL g, PTDB tdbp);
+int   CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort);
 int   CntIndexInit(PGLOBAL g, PTDB tdbp, int id);
 RCODE CntReadNext(PGLOBAL g, PTDB tdbp);
-RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n); 
+RCODE CntIndexRead(PGLOBAL g, PTDB, OPVAL op, const void *k, int n, bool mrr); 
 RCODE CntWriteRow(PGLOBAL g, PTDB tdbp);
 RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp);
 RCODE CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all);
@@ -58,9 +58,9 @@ class DOXDEF: public DOSDEF {
 /***********************************************************************/
 class TDBDOX: public TDBDOS {
   friend int   MakeIndex(PGLOBAL, PTDB, PIXDEF);
-  friend int   CntCloseTable(PGLOBAL, PTDB);
+  friend int   CntCloseTable(PGLOBAL, PTDB, bool, bool);
   friend int   CntIndexInit(PGLOBAL, PTDB, int);
-  friend RCODE CntIndexRead(PGLOBAL, PTDB, OPVAL, const void*, int);
+  friend RCODE CntIndexRead(PGLOBAL, PTDB, OPVAL, const void*, int, bool);
   friend RCODE CntDeleteRow(PGLOBAL, PTDB, bool);
   friend int   CntIndexRange(PGLOBAL, PTDB, const uchar**, uint*,
                              bool*, key_part_map*);

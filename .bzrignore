@@ -1470,3 +1470,4 @@ libmysql/libmysql_versions.ld
 scripts/mysql_config.pl
 pcre/pcre_chartables.c
 pcre/test*grep
+import_executables.cmake

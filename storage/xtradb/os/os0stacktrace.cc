@@ -85,16 +85,16 @@ os_stacktrace_print(
 	caller_address = (void*) uc->uc_mcontext.gregs[REG_RIP] ;
 #elif defined(__hppa__)
 	ucontext_t* uc = (ucontext_t*) ucontext;
-	caller_address = (void*) uc->uc_mcontext.sc_iaoq[0] & ~0×3UL ;
+	caller_address = (void*) uc->uc_mcontext.sc_iaoq[0] & ~0x3UL ;
 #elif (defined (__ppc__)) || (defined (__powerpc__))
 	ucontext_t* uc = (ucontext_t*) ucontext;
 	caller_address = (void*) uc->uc_mcontext.regs->nip ;
 #elif defined(__sparc__)
 	struct sigcontext* sc = (struct sigcontext*) ucontext;
 #if __WORDSIZE == 64
-	caller_address = (void*) scp->sigc_regs.tpc ;
+	caller_address = (void*) sc->sigc_regs.tpc ;
 #else
-	pnt = (void*) scp->si_regs.pc ;
+	caller_address = (void*) sc->si_regs.pc ;
 #endif
 #elif defined(__i386__)
 	ucontext_t* uc = (ucontext_t*) ucontext;

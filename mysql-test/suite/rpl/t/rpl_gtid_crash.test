@@ -100,7 +100,7 @@ SET gtid_domain_id= 2;
 INSERT INTO t1 VALUES (3);
 FLUSH LOGS;
 --source include/show_binary_logs.inc
---replace_column 2 # 4 # 5 #
+--replace_column 2 # 4 # 5 # 6 #
 SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
 
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -120,7 +120,7 @@ EOF
 --source include/wait_until_connected_again.inc
 
 --source include/show_binary_logs.inc
---replace_column 2 # 4 # 5 #
+--replace_column 2 # 4 # 5 # 6 #
 SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
 --save_master_pos
 

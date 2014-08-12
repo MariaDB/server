@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1054,7 +1054,6 @@ THD::THD()
    accessed_rows_and_keys(0),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
-   m_server_idle(false),
    thread_id(0),
    global_disable_checkpoint(0),
    failed_com_change_user(0),
@@ -4482,6 +4481,219 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
+/*
+  This function can optionally be called to check if thd_report_wait_for()
+  needs to be called for waits done by a given transaction.
+
+  If this function returns false for a given thd, there is no need to do any
+  calls to thd_report_wait_for() on that thd.
+
+  This call is optional; it is safe to call thd_report_wait_for() in any case.
+  This call can be used to save some redundant calls to thd_report_wait_for()
+  if desired. (This is unlikely to matter much unless there are _lots_ of
+  waits to report, as the overhead of thd_report_wait_for() is small).
+*/
+extern "C" int
+thd_need_wait_for(const MYSQL_THD thd)
+{
+  rpl_group_info *rgi;
+
+  if (!thd)
+    return false;
+  rgi= thd->rgi_slave;
+  if (!rgi)
+    return false;
+  return rgi->is_parallel_exec;
+}
+
+/*
+  Used by InnoDB/XtraDB to report that one transaction THD is about to go to
+  wait for a transactional lock held by another transactions OTHER_THD.
+
+  This is used for parallel replication, where transactions are required to
+  commit in the same order on the slave as they did on the master. If the
+  transactions on the slave encounters lock conflicts on the slave that did
+  not exist on the master, this can cause deadlocks.
+
+  Normally, such conflicts will not occur, because the same conflict would
+  have prevented the two transactions from committing in parallel on the
+  master, thus preventing them from running in parallel on the slave in the
+  first place. However, it is possible in case when the optimizer chooses a
+  different plan on the slave than on the master (eg. table scan instead of
+  index scan).
+
+  InnoDB/XtraDB reports lock waits using this call. If a lock wait causes a
+  deadlock with the pre-determined commit order, we kill the later transaction,
+  and later re-try it, to resolve the deadlock.
+
+  This call need only receive reports about waits for locks that will remain
+  until the holding transaction commits. InnoDB/XtraDB auto-increment locks
+  are released earlier, and so need not be reported. (Such false positives are
+  not harmful, but could lead to unnecessary kill and retry, so best avoided).
+*/
+extern "C" void
+thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi;
+  rpl_group_info *other_rgi;
+
+  if (!thd || !other_thd)
+    return;
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return;
+  if (!rgi->is_parallel_exec)
+    return;
+  if (rgi->rli != other_rgi->rli)
+    return;
+  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
+    return;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return;
+  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    return;
+  /*
+    This transaction is about to wait for another transaction that is required
+    by replication binlog order to commit after. This would cause a deadlock.
+
+    So send a kill to the other transaction, with a temporary error; this will
+    cause replication to rollback (and later re-try) the other transaction,
+    releasing the lock for this transaction so replication can proceed.
+  */
+  other_rgi->killed_for_retry= true;
+  mysql_mutex_lock(&other_thd->LOCK_thd_data);
+  other_thd->awake(KILL_CONNECTION);
+  mysql_mutex_unlock(&other_thd->LOCK_thd_data);
+}
+
+/*
+  This function is called from InnoDB/XtraDB to check if the commit order of
+  two transactions has already been decided by the upper layer. This happens
+  in parallel replication, where the commit order is forced to be the same on
+  the slave as it was originally on the master.
+
+  If this function returns false, it means that such commit order will be
+  enforced. This allows the storage engine to optionally omit gap lock waits
+  or similar measures that would otherwise be needed to ensure that
+  transactions would be serialised in a way that would cause a commit order
+  that is correct for binlogging for statement-based replication.
+
+  Since transactions are only run in parallel on the slave if they ran without
+  lock conflicts on the master, normally no lock conflicts on the slave happen
+  during parallel replication. However, there are a couple of corner cases
+  where it can happen, like these secondary-index operations:
+
+    T1: INSERT INTO t1 VALUES (7, NULL);
+    T2: DELETE FROM t1 WHERE b <= 3;
+
+    T1: UPDATE t1 SET secondary=NULL WHERE primary=1
+    T2: DELETE t1 WHERE secondary <= 3
+
+  The DELETE takes a gap lock that can block the INSERT/UPDATE, but the row
+  locks set by INSERT/UPDATE do not block the DELETE. Thus, the execution
+  order of the transactions determine whether a lock conflict occurs or
+  not. Thus a lock conflict can occur on the slave where it did not on the
+  master.
+
+  If this function returns true, normal locking should be done as required by
+  the binlogging and transaction isolation level in effect. But if it returns
+  false, the correct order will be enforced anyway, and InnoDB/XtraDB can
+  avoid taking the gap lock, preventing the lock conflict.
+
+  Calling this function is just an optimisation to avoid unnecessary
+  deadlocks. If it was not used, a gap lock would be set that could eventually
+  cause a deadlock; the deadlock would be caught by thd_report_wait_for() and
+  the transaction T2 killed and rolled back (and later re-tried).
+*/
+extern "C" int
+thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi, *other_rgi;
+
+  if (!thd || !other_thd)
+    return 1;
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return 1;
+  if (!rgi->is_parallel_exec)
+    return 1;
+  if (rgi->rli != other_rgi->rli)
+    return 1;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return 1;
+  if (!rgi->commit_id || rgi->commit_id != other_rgi->commit_id)
+    return 1;
+  /*
+    These two threads are doing parallel replication within the same
+    replication domain. Their commit order is already fixed, so we do not need
+    gap locks or similar to otherwise enforce ordering (and in fact such locks
+    could lead to unnecessary deadlocks and transaction retry).
+  */
+  return 0;
+}
+
+
+/*
+  If the storage engine detects a deadlock, and needs to choose a victim
+  transaction to roll back, it can call this function to ask the upper
+  server layer for which of two possible transactions is prefered to be
+  aborted and rolled back.
+
+  In parallel replication, if two transactions are running in parallel and
+  one is fixed to commit before the other, then the one that commits later
+  will be prefered as the victim - chosing the early transaction as a victim
+  will not resolve the deadlock anyway, as the later transaction still needs
+  to wait for the earlier to commit.
+
+  Otherwise, a transaction that uses only transactional tables, and can thus
+  be safely rolled back, will be prefered as a deadlock victim over a
+  transaction that also modified non-transactional (eg. MyISAM) tables.
+
+  The return value is -1 if the first transaction is prefered as a deadlock
+  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  which case the storage engine can make the choice as it prefers).
+*/
+extern "C" int
+thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
+{
+  rpl_group_info *rgi1, *rgi2;
+  bool nontrans1, nontrans2;
+
+  if (!thd1 || !thd2)
+    return 0;
+
+  /*
+    If the transactions are participating in the same replication domain in
+    parallel replication, then request to select the one that will commit
+    later (in the fixed commit order from the master) as the deadlock victim.
+  */
+  rgi1= thd1->rgi_slave;
+  rgi2= thd2->rgi_slave;
+  if (rgi1 && rgi2 &&
+      rgi1->is_parallel_exec &&
+      rgi1->rli == rgi2->rli &&
+      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
+    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
+
+  /*
+    If one transaction has modified non-transactional tables (so that it
+    cannot be safely rolled back), and the other has not, then prefer to
+    select the purely transactional one as the victim.
+  */
+  nontrans1= thd1->transaction.all.modified_non_trans_table;
+  nontrans2= thd2->transaction.all.modified_non_trans_table;
+  if (nontrans1 && !nontrans2)
+    return 1;
+  else if (!nontrans1 && nontrans2)
+    return -1;
+
+  /* No preferences, let the storage engine decide. */
+  return 0;
+}
+
+
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction.all.modified_non_trans_table);
@@ -6700,6 +6912,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
       this->waitee= NULL;
     }
   }
+  wakeup_error= 0;
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
 

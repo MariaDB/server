@@ -225,6 +225,8 @@ ha_rows filesort(THD *thd, TABLE *table, SORT_FIELD *sortorder, uint s_length,
                              table, num_rows, memory_available))
   {
     DBUG_PRINT("info", ("filesort PQ is applicable"));
+    thd->query_plan_flags|= QPLAN_FILESORT_PRIORITY_QUEUE;
+    status_var_increment(thd->status_var.filesort_pq_sorts_);
     const size_t compare_length= param.sort_length;
     if (pq.init(param.max_rows,
                 true,                           // max_at_top
@@ -719,6 +721,9 @@ static ha_rows find_all_keys(Sort_param *param, SQL_SELECT *select,
   /* Temporary set for register_used_fields and register_field_in_read_map */
   sort_form->read_set= &sort_form->tmp_set;
   register_used_fields(param);
+  if (quick_select)
+    select->quick->add_used_key_part_to_set(sort_form->read_set);
+
   Item *sort_cond= !select ?  
                      0 : !select->pre_idx_push_select_cond ? 
                            select->cond : select->pre_idx_push_select_cond;
