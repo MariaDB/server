@@ -10,6 +10,8 @@
 *.ninja
 .ninja_*
 .gdb_history
+errmsg.sys
+typescript
 CMakeCache.txt
 CMakeFiles/
 CPackConfig.cmake
@@ -132,7 +134,6 @@ sql/gen_lex_hash
 sql/lex_hash.h
 sql/mysql_tzinfo_to_sql
 sql/mysqld
-sql/share/*/errmsg.sys
 sql/sql_builtin.cc
 sql/sql_yacc.cc
 sql/sql_yacc.h
