@@ -1476,11 +1476,12 @@ end:
       if (WSREP(thd)) {
         // sql_print_information("sizeof(LEX) = %d", sizeof(struct LEX));
         // sizeof(LEX) = 4512, so it's relatively safe to allocate it on stack.
-        LEX *old_lex= thd->lex, new_lex;
-        new_lex.sql_command= SQLCOM_DROP_EVENT;
-        thd->lex= &new_lex;
+        LEX lex;
+        LEX* saved = thd->lex;
+        lex.sql_command = SQLCOM_DROP_EVENT;
+        thd->lex = &lex;
         WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
-        thd->lex= old_lex;
+        thd->lex = saved;
       }
 #endif
 
