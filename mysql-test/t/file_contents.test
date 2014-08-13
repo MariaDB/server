@@ -30,7 +30,7 @@ if ($dir_bin eq '/usr/') {
     $dir_docs = glob "$dir_docs/packages/MySQL-server*";
   } else {
     # RedHat/Debian: version number in directory name
-    $dir_docs = glob "$dir_docs/mariadb-server-*";
+    $dir_docs = glob "$dir_docs/mariadb-galera-server-*";
     $dir_docs = glob "$dir_docs/MySQL-server*" unless -d $dir_docs;
   }
   # Slackware
