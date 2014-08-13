@@ -871,8 +871,11 @@ os_file_handle_error_cond_exit(
 		is better to ignore on_error_silent and print an error message
 		to the log. */
 
-		fprintf(stderr,
-			" InnoDB: at file %s and at line %ld\n", file, line);
+		if (should_exit || !on_error_silent) {
+			fprintf(stderr,
+				" InnoDB: Operation %s to file %s and at line %ld\n",
+				operation, file, line);
+		}
 
 		if (should_exit || !on_error_silent) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "File %s: '%s' returned OS "
