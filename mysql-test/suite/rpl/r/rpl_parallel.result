@@ -793,6 +793,7 @@ SET debug_sync='now WAIT_FOR master_queued2';
 SET debug_sync='now SIGNAL master_cont1';
 SET debug_sync='RESET';
 include/start_slave.inc
+include/stop_slave.inc
 SELECT * FROM t4 ORDER BY a;
 a	b
 1	NULL
@@ -801,6 +802,42 @@ a	b
 5	NULL
 6	6
 7	NULL
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+SET debug_sync='now WAIT_FOR master_queued1';
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+SET @old_format=@@GLOBAL.binlog_format;
+SET debug_sync='RESET';
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,disable_thd_need_ordering_with";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+2	2
+3	NULL
+4	4
+5	NULL
+6	NULL
+SET @last_gtid= 'GTID';
+SELECT IF(@@gtid_slave_pos LIKE CONCAT('%',@last_gtid,'%'), "GTID found ok",
+CONCAT("GTID ", @last_gtid, " not found in gtid_slave_pos=", @@gtid_slave_pos))
+AS result;
+result
+GTID found ok
+SELECT "ROW FOUND" AS `Is the row found?`
+  FROM mysql.gtid_slave_pos
+WHERE CONCAT(domain_id, "-", server_id, "-", seq_no) = @last_gtid;
+Is the row found?
+ROW FOUND
 *** MDEV-5938: Exec_master_log_pos not updated at log rotate in parallel replication ***
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=1;

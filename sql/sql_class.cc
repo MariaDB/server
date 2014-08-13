@@ -4346,6 +4346,7 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
 {
   rpl_group_info *rgi, *other_rgi;
 
+  DBUG_EXECUTE_IF("disable_thd_need_ordering_with", return 1;);
   if (!thd || !other_thd)
     return 1;
   rgi= thd->rgi_slave;
@@ -4361,7 +4362,7 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   if (!rgi->commit_id || rgi->commit_id != other_rgi->commit_id)
     return 1;
   /*
-    These two threads are doing parallel replication within the same
+    Otherwise, these two threads are doing parallel replication within the same
     replication domain. Their commit order is already fixed, so we do not need
     gap locks or similar to otherwise enforce ordering (and in fact such locks
     could lead to unnecessary deadlocks and transaction retry).

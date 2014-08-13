@@ -318,6 +318,15 @@ do_retry:
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
   rgi->cleanup_context(thd, 1);
 
+  /*
+    If we retry due to a deadlock kill that occured during the commit step, we
+    might have already updated (but not committed) an update of table
+    mysql.gtid_slave_pos, and cleared the gtid_pending flag. Now we have
+    rolled back any such update, so we must set the gtid_pending flag back to
+    true so that we will do a new update when/if we succeed with the retry.
+  */
+  rgi->gtid_pending= true;
+
   mysql_mutex_lock(&rli->data_lock);
   ++rli->retried_trans;
   statistic_increment(slave_retried_transactions, LOCK_status);
