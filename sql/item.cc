@@ -3230,7 +3230,7 @@ default_set_param_func(Item_param *param,
 
 
 Item_param::Item_param(uint pos_in_query_arg) :
-  state(NO_VALUE),
+  state(NO_VALUE), inout(IN_PARAM),
   item_result_type(STRING_RESULT),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),

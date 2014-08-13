@@ -11527,6 +11527,10 @@ select_outvar:
           {
             $$ = Lex->result ? new my_var_user($2) : NULL;
           }
+        | param_marker
+          {
+            $$ = Lex->result ? new my_var_param($1) : NULL;
+          }
         | ident_or_text
           {
             sp_variable *t;

@@ -256,9 +256,14 @@ execute stmt1 using @my_key ;
 execute full_info ;
 --disable_metadata
 
-# the next statement must fail
---error 1064
+# the next statement does not fail anymore
 prepare stmt1 from "select c1 into ? from t9 where c1= 1" ;
+execute stmt1 using @result;
+--enable_metadata
+execute full_info ;
+--disable_metadata
+select @result;
+
 
 
 

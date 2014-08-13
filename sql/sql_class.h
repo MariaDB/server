@@ -4781,6 +4781,17 @@ public:
   virtual bool set(THD *thd, Item *val) = 0;
 };
 
+class my_var_param: public my_var {
+public:
+  Settable_routine_parameter *param;
+  my_var_param(Item_param *p)
+    : my_var(null_lex_str, PARAM_VAR),
+      param(p->get_settable_routine_parameter())
+  { p->inout= Item_param::OUT_PARAM; }
+  ~my_var_param() { }
+  bool set(THD *thd, Item *val);
+};
+
 class my_var_sp: public my_var {
 public:
   uint offset;

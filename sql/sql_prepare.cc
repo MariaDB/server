@@ -1186,6 +1186,30 @@ static bool insert_params_from_vars(Prepared_statement *stmt,
   DBUG_RETURN(0);
 }
 
+static bool update_vars_from_params(Prepared_statement *stmt,
+                                    List<LEX_STRING>& varnames)
+{
+  Item_param **begin= stmt->param_array;
+  Item_param **end= begin + stmt->param_count;
+  LEX_STRING *varname;
+  List_iterator<LEX_STRING> var_it(varnames);
+  DBUG_ENTER("update_vars_from_params");
+
+  for (Item_param **it= begin; it < end; ++it)
+  {
+    Item_param *param= *it;
+    varname= var_it++;
+    if (param->inout != Item_param::OUT_PARAM)
+      continue;
+    Item_func_set_user_var *suv= new Item_func_set_user_var(*varname, param);
+    if (suv->fix_fields(stmt->thd, 0))
+      DBUG_RETURN(1);
+    suv->save_item_result(param);
+    if (suv->update())
+      DBUG_RETURN(1);
+  }
+  DBUG_RETURN(0);
+}
 
 /**
   Do the same as insert_params_from_vars but also construct query text for
@@ -3681,6 +3705,11 @@ reexecute:
     if (! error)                                /* Success */
       goto reexecute;
   }
+
+  /* Assign values for OUT-parameters (SELECT INTO) in the SQL PS */
+  if (!packet)
+    update_vars_from_params(this, thd->lex->prepared_stmt_params);
+
   reset_stmt_params(this);
 
   return error;

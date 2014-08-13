@@ -2242,6 +2242,7 @@ public:
     STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
     DECIMAL_VALUE
   } state;
+  enum { IN_PARAM, OUT_PARAM } inout;
 
   /*
     A buffer for string and long data values. Historically all allocated
