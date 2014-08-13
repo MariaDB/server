@@ -4664,19 +4664,20 @@ static Sys_var_mybool Sys_wsrep_certify_nonPK(
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 
 static Sys_var_mybool Sys_wsrep_causal_reads(
-       "wsrep_causal_reads", "(DEPRECATED) setting this variable is equivalent to setting wsrep_sync_wait READ flag",
-       SESSION_VAR(wsrep_causal_reads), 
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
+       "wsrep_causal_reads", "(DEPRECATED) Setting this variable is equivalent "
+       "to setting wsrep_sync_wait READ flag",
+       SESSION_VAR(wsrep_causal_reads), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(wsrep_causal_reads_update));
 
 static Sys_var_uint Sys_wsrep_sync_wait(
-       "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing an operation of the type specified by bitmask: 1 - READ(includes SELECT, SHOW and BEGIN/START TRANSACTION); 2 - UPDATE and DELETE; 4 - INSERT and REPLACE",
-       SESSION_VAR(wsrep_sync_wait),
-       CMD_LINE(OPT_ARG),
+       "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "
+       "an operation of the type specified by bitmask: 1 - READ(includes "
+       "SELECT, SHOW and BEGIN/START TRANSACTION); 2 - UPDATE and DELETE; 4 - "
+       "INSERT and REPLACE",
+       SESSION_VAR(wsrep_sync_wait), CMD_LINE(OPT_ARG),
        VALID_RANGE(WSREP_SYNC_WAIT_NONE, WSREP_SYNC_WAIT_MAX),
-       DEFAULT(WSREP_SYNC_WAIT_NONE),
-       BLOCK_SIZE(1),
+       DEFAULT(WSREP_SYNC_WAIT_NONE), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(wsrep_sync_wait_update));
 
