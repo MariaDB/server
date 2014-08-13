@@ -541,7 +541,7 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 }
 
 
-void Explain_table_access::fill_key_str(String *key_str)
+void Explain_table_access::fill_key_str(String *key_str, bool is_json)
 {
   const CHARSET_INFO *cs= system_charset_info;
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
@@ -562,13 +562,26 @@ void Explain_table_access::fill_key_str(String *key_str)
   if (quick_info)
   {
     StringBuffer<64> buf2;
-    quick_info->print_key(&buf2);
+    if (is_json)
+      quick_info->print_extra_recursive(&buf2);
+    else
+      quick_info->print_key(&buf2);
     key_str->append(buf2);
   }
   if (type == JT_HASH_NEXT)
     key_str->append(hash_next_key.get_key_name());
 }
 
+
+/*
+  Fill "key_length".
+   - this is just used key length for ref/range 
+   - for index_merge, it is a comma-separated list of lengths.
+   - for hash join, it is key_len:pseudo_key_len
+
+  The column looks identical in tabular and json forms. In JSON, we consider
+  the column legacy, it is superceded by used_key_parts.
+*/
 
 void Explain_table_access::fill_key_len_str(String *key_len_str)
 {
@@ -598,6 +611,35 @@ void Explain_table_access::fill_key_len_str(String *key_len_str)
     length= longlong10_to_str(hash_next_key.get_key_len(), buf, 10) - buf;
     key_len_str->append(buf, length);
   }
+}
+
+
+void Explain_index_use::set(MEM_ROOT *mem_root, KEY *key, uint key_len_arg)
+{
+  set_pseudo_key(mem_root, key->name);
+  key_len= key_len_arg;
+  uint len= 0;
+  for (uint i= 0; i < key->usable_key_parts; i++)
+  {
+    key_parts_list.append_str(mem_root, key->key_part[i].field->field_name);
+    len += key->key_part[i].store_length;
+    if (len >= key_len_arg)
+      break;
+  }
+}
+
+
+void Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
+{
+  if (key_name_arg)
+  {
+    size_t name_len= strlen(key_name_arg);
+    if ((key_name= (char*)alloc_root(root, name_len+1)))
+      memcpy(key_name, key_name_arg, name_len+1);
+  }
+  else
+    key_name= NULL;
+  key_len= -1;
 }
 
 
@@ -660,7 +702,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
 
   /* `key` */
   StringBuffer<64> key_str;
-  fill_key_str(&key_str);
+  fill_key_str(&key_str, false);
   
   if (key_str.length() > 0)
     push_string(&item_list, &key_str);
@@ -861,24 +903,51 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
       writer->add_str(name);
     writer->end_array();
   }
-  /* `key` */
-  StringBuffer<64> key_str;
-  fill_key_str(&key_str);
-  if (key_str.length())
-    writer->add_member("key").add_str(key_str);
 
-  /* `used_key_parts` */
-  if (key_str.length())
-    writer->add_member("used_key_parts").add_str("TODO");
-  
+  /* `key` */
+  /* For non-basic quick select, 'key' will not be present */
+  if (!quick_info || quick_info->is_basic())
+  {
+    StringBuffer<64> key_str;
+    fill_key_str(&key_str, true);
+    if (key_str.length())
+      writer->add_member("key").add_str(key_str);
+  }
+
   /* `key_length` */
   StringBuffer<64> key_len_str;
   fill_key_len_str(&key_len_str);
   if (key_len_str.length())
     writer->add_member("key_length").add_str(key_len_str);
+
+  /* `used_key_parts` */
+  String_list *parts_list= NULL;
+  if (quick_info && quick_info->is_basic())
+    parts_list= &quick_info->range.key_parts_list;
+  else
+    parts_list= &key.key_parts_list;
+
+  if (parts_list && !parts_list->is_empty())
+  {
+    List_iterator_fast<char> it(*parts_list);
+    const char *name;
+    writer->add_member("used_key_parts").start_array();
+    while ((name= it++))
+      writer->add_str(name);
+    writer->end_array();
+  }
+
+  if (quick_info && !quick_info->is_basic())
+  {
+    writer->add_member("index_merge").start_object();
+    quick_info->print_json(writer);
+    writer->end_object();
+  }
+  
+
+  // TODO: here, if quick select is not basic, print its nested form.
   
   /* `ref` */
-  // TODO: need to print this as an array.
   if (!ref_list.is_empty())
   {
     List_iterator_fast<char> it(ref_list);
@@ -1046,6 +1115,35 @@ void Explain_quick_select::print_extra(String *str)
     print_extra_recursive(str);
 }
 
+void Explain_quick_select::print_json(Json_writer *writer)
+{
+  if (is_basic())
+  {
+    writer->add_member("range").start_object();
+
+    writer->add_member("key").add_str(range.get_key_name());
+    
+    List_iterator_fast<char> it(range.key_parts_list);
+    const char *name;
+    writer->add_member("used_key_parts").start_array();
+    while ((name= it++))
+        writer->add_str(name);
+    writer->end_array();
+
+    writer->end_object();
+  }
+  else
+  {
+    writer->add_member(get_name_by_type()).start_object();
+
+    List_iterator_fast<Explain_quick_select> it (children);
+    Explain_quick_select* child;
+    while ((child = it++))
+      child->print_json(writer);
+
+    writer->end_object();
+  }
+}
 
 void Explain_quick_select::print_extra_recursive(String *str)
 {

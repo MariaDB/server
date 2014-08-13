@@ -14,6 +14,15 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+
+class String_list: public List<char>
+{
+public:
+  bool append_str(MEM_ROOT *mem_root, const char *str);
+};
+
+
+
 /* Data structures for ANALYZE */
 class Table_access_tracker 
 {
@@ -417,21 +426,16 @@ class Explain_index_use : public Sql_alloc
 {
   char *key_name;
   uint key_len;
-  /* will add #keyparts here if we implement EXPLAIN FORMAT=JSON */
 public:
-
-  void set(MEM_ROOT *root, const char *key_name_arg, uint key_len_arg)
+  String_list key_parts_list;
+  
+  void clear()
   {
-    if (key_name_arg)
-    {
-      size_t name_len= strlen(key_name_arg);
-      if ((key_name= (char*)alloc_root(root, name_len+1)))
-        memcpy(key_name, key_name_arg, name_len+1);
-    }
-    else
-      key_name= NULL;
-    key_len= key_len_arg;
+    key_name= NULL;
+    key_len= (uint)-1;
   }
+  void set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
+  void set_pseudo_key(MEM_ROOT *root, const char *key_name);
 
   inline const char *get_key_name() { return key_name; }
   inline uint get_key_len() { return key_len; }
@@ -448,6 +452,13 @@ public:
   {}
 
   const int quick_type;
+
+  bool is_basic() 
+  {
+    return (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+            quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
+            quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX);
+  }
   
   /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
   Explain_index_use range;
@@ -458,16 +469,12 @@ public:
   void print_extra(String *str);
   void print_key(String *str);
   void print_key_len(String *str);
-private:
+
+  void print_json(Json_writer *writer);
+
   void print_extra_recursive(String *str);
+private:
   const char *get_name_by_type();
-};
-
-
-class String_list: public List<char>
-{
-public:
-  bool append_str(MEM_ROOT *mem_root, const char *str);
 };
 
 
@@ -565,7 +572,7 @@ public:
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
-  void fill_key_str(String *key_str);
+  void fill_key_str(String *key_str, bool is_json);
   void fill_key_len_str(String *key_len_str);
   double get_r_filtered();
   void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);

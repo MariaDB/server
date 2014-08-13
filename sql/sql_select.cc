@@ -23310,7 +23310,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   quick_type= -1;
   QUICK_SELECT_I *quick= NULL;
 
-  eta->key.set(thd->mem_root, NULL, (uint)-1);
+  eta->key.clear();
   eta->quick_info= NULL;
   
   tab->tracker= &eta->tracker;
@@ -23437,7 +23437,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
   if (key_info) /* 'index' or 'ref' access */
   {
-    eta->key.set(thd->mem_root, key_info->name, key_len);
+    eta->key.set(thd->mem_root, key_info, key_len);
 
     if (tab->ref.key_parts && tab_type != JT_FT)
     {
@@ -23458,8 +23458,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
   {
     eta->hash_next_key.set(thd->mem_root, 
-                           table->key_info[tab->index].name, 
+                           & table->key_info[tab->index], 
                            table->key_info[tab->index].key_length);
+    // psergey-todo: ^ is the above correct? are we necessarily joining on all
+    // columns?
   }
 
   if (!key_info)
@@ -23490,7 +23492,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       }
 
       if (key_name_buf.length())
-        eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
+        eta->key.set_pseudo_key(thd->mem_root, key_name_buf.c_ptr_safe());
     }
   }
   
