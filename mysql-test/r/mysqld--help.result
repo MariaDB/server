@@ -862,8 +862,8 @@ The following options may be given as the first argument:
  variables
  (Defaults to on; use --skip-wsrep-auto-increment-control to disable.)
  --wsrep-causal-reads 
- Enable "strictly synchronous" semantics for read
- operations
+ (DEPRECATED) Setting this variable is equivalent to
+ setting wsrep_sync_wait READ flag
  --wsrep-certify-nonPK 
  Certify tables with no primary key
  (Defaults to on; use --skip-wsrep-certify-nonPK to disable.)
@@ -937,6 +937,11 @@ The following options may be given as the first argument:
  Address where node is waiting for SST contact
  --wsrep-start-position=name 
  global transaction position to start from 
+ --wsrep-sync-wait[=#] 
+ Ensure "synchronous" read view before executing an
+ operation of the type specified by bitmask: 1 -
+ READ(includes SELECT, SHOW and BEGIN/START TRANSACTION);
+ 2 - UPDATE and DELETE; 4 - INSERT and REPLACE
 
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
@@ -1223,6 +1228,7 @@ wsrep-sst-donor-rejects-queries FALSE
 wsrep-sst-method rsync
 wsrep-sst-receive-address AUTO
 wsrep-start-position 00000000-0000-0000-0000-000000000000:-1
+wsrep-sync-wait 0
 
 To see what values a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.
