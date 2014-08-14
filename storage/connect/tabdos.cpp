@@ -568,7 +568,8 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 int TDBDOS::MakeBlockValues(PGLOBAL g)
   {
   int        i, lg, nrec, rc, n = 0;
-  int        curnum, curblk, block, last, savndv, savnbm;
+  int        curnum, curblk, block, savndv, savnbm;
+  int        last __attribute__((unused));
   void      *savmin, *savmax;
   bool       blocked, xdb2 = false;
 //POOLHEADER save;
@@ -1336,7 +1337,8 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //int     i, n1, n2, ctype = TYPE_ERROR, n = 0, type[2] = {0,0};
 //bool    conv = false, xdb2 = false, ok = false, b[2];
 //PXOB   *xarg1, *xarg2 = NULL, xp[2];
-  int     i, ctype = TYPE_ERROR, n = 0, type[2] = {0,0};
+  int     i, n = 0, type[2] = {0,0};
+  int     ctype __attribute__((unused));
   bool    conv = false, xdb2 = false, ok = false;
   PXOB   *xarg2 = NULL, xp[2];
   PCOL    colp;
@@ -1344,6 +1346,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //SFROW  *sfr[2];
   PBF    *fp = NULL, bfp = NULL;
 
+  ctype= TYPE_ERROR;
   for (i = 0; i < 2; i++) {
     switch (arg[i]->GetType()) {
       case TYPE_CONST:
