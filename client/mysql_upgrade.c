@@ -22,7 +22,7 @@
 
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
-#define VER "1.3a"
+#define VER "1.4"
 
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
@@ -140,21 +140,21 @@ static struct my_option my_long_options[]=
 #include <sslopt-longopts.h>
   {"tmpdir", 't', "Directory for temporary files.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"upgrade-system-tables", 's', "Only upgrade the system tables "
-   "do not try to upgrade the data.",
+  {"upgrade-system-tables", 's', "Only upgrade the system tables in the mysql database. Tables in other databases are not checked or touched.",
    &opt_systables_only, &opt_systables_only, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"user", 'u', "User for login if not current user.", &opt_user,
    &opt_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"verbose", 'v', "Display more output about the process.",
+  {"verbose", 'v', "Display more output about the process; Using it twice will print connection argument; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
    &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"version-check", 'k', "Run this program only if its \'server version\' "
-   "matches the version of the server to which it's connecting, (enabled by "
-   "default); use --skip-version-check to avoid this check. Note: the \'server "
-   "version\' of the program is the version of the MySQL server with which it "
-   "was built/distributed.", &opt_version_check, &opt_version_check, 0,
+  {"version-check", 'k',
+   "Run this program only if its \'server version\' "
+   "matches the version of the server to which it's connecting. "
+   "Note: the \'server version\' of the program is the version of the MariaDB "
+   "server with which it was built/distributed.",
+   &opt_version_check, &opt_version_check, 0,
    GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"write-binlog", OPT_WRITE_BINLOG, "All commands including those, "
    "issued by mysqlcheck, are written to the binary log.",
@@ -370,6 +370,9 @@ static int run_command(char* cmd,
   char buf[512]= {0};
   FILE *res_file;
   int error;
+
+  if (opt_verbose >= 4)
+    puts(cmd);
 
   if (!(res_file= popen(cmd, "r")))
     die("popen(\"%s\", \"r\") failed", cmd);
@@ -746,7 +749,9 @@ static int run_mysqlcheck_upgrade(const char *arg1, const char *arg2)
                   ds_args.str,
                   "--check-upgrade",
                   "--auto-repair",
-                  !opt_silent || opt_verbose ? "--verbose": "",
+                  !opt_silent || opt_verbose >= 1 ? "--verbose" : "",
+                  opt_verbose >= 2 ? "--verbose" : "",
+                  opt_verbose >= 3 ? "--verbose" : "",
                   opt_silent ? "--silent": "",
                   opt_write_binlog ? "--write-binlog" : "--skip-write-binlog",
                   arg1, arg2,
@@ -757,7 +762,7 @@ static int run_mysqlcheck_upgrade(const char *arg1, const char *arg2)
 
 static int run_mysqlcheck_fixnames(void)
 {
-  verbose("Phase 2/3: Fixing table and database names");
+  verbose("Phase 3/4: Fixing table and database names");
   print_conn_args("mysqlcheck");
   return run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
@@ -766,7 +771,9 @@ static int run_mysqlcheck_fixnames(void)
                   "--all-databases",
                   "--fix-db-names",
                   "--fix-table-names",
-                  opt_verbose ? "--verbose": "",
+                  opt_verbose >= 1 ? "--verbose" : "",
+                  opt_verbose >= 2 ? "--verbose" : "",
+                  opt_verbose >= 3 ? "--verbose" : "",
                   opt_silent ? "--silent": "",
                   opt_write_binlog ? "--write-binlog" : "--skip-write-binlog",
                   "2>&1",
@@ -1014,13 +1021,16 @@ int main(int argc, char **argv)
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
-  verbose("Phase 1/3: Running 'mysql_fix_privilege_tables'...");
-  if (run_mysqlcheck_upgrade("--databases", "mysql") ||
-      run_sql_fix_privilege_tables())
+  verbose("Phase 1/4: Checking mysql database");
+  if (run_mysqlcheck_upgrade("--databases", "mysql"))
     die("Upgrade failed" );
+  verbose("Phase 2/4: Running 'mysql_fix_privilege_tables'...");
+  if (run_sql_fix_privilege_tables())
+    die("Upgrade failed" );
+
   if (!opt_systables_only &&
       (run_mysqlcheck_fixnames() ||
-       verbose("Phase 3/3: Checking and upgrading tables") ||
+       verbose("Phase 4/4: Checking and upgrading tables") ||
        run_mysqlcheck_upgrade("--all-databases","--skip-database=mysql")))
     die("Upgrade failed" );
 
