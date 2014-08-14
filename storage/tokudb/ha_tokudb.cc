@@ -168,7 +168,7 @@ static inline wsrep_ws_handle_t*
 //wsrep_ws_handle_t*
 //ha_tokudb::wsrep_ws_handle_t*
 wsrep_ws_handle(THD* thd) {
-	tokudb_trx_data* trx = (tokudb_trx_data *) thd_data_get(thd, tokudb_hton->slot);
+	tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
         DB_TXN* txn = (trx->all) ? trx->all :  trx->stmt;
         assert(txn);
         WSREP_DEBUG("txn->id: %lu", txn->id64(txn));
@@ -8337,7 +8337,7 @@ wsrep_append_key(
 )
 {
 	DBUG_ENTER("wsrep_append_key");
-        tokudb_trx_data* trx = (tokudb_trx_data *) thd_data_get(thd, tokudb_hton->slot);
+	tokudb_trx_data* trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
 	bool const copy = true;
 #ifdef WSREP_DEBUG_PRINT
 	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s ",
