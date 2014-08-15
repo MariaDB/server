@@ -468,7 +468,7 @@ ADD_SUBDIRECTORY(packaging/solaris)
 IF(NOT CMAKE_CROSSCOMPILING)
   SET(EXPORTED comp_err comp_sql factorial)
   IF(NOT WITHOUT_SERVER)
-    SET(EXPORTED ${EXPORTED} gen_lex_hash)
+    SET(EXPORTED ${EXPORTED} gen_lex_hash gen_pfs_lex_token)
   ENDIF()
   # minimal target to build only binaries for export
   ADD_CUSTOM_TARGET(import_executables DEPENDS ${EXPORTED})
