@@ -3746,7 +3746,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
 {
   derived->wrap_into_nested_join(subq_select->top_join_list);
 
-  ftfunc_list->concat(subq_select->ftfunc_list);
+  ftfunc_list->append(subq_select->ftfunc_list);
   if (join ||
       thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
       thd->lex->sql_command == SQLCOM_DELETE_MULTI)

@@ -7376,7 +7376,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   }
 
   if (non_join_columns->elements > 0)
-    natural_using_join->join_columns->concat(non_join_columns);
+    natural_using_join->join_columns->append(non_join_columns);
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;

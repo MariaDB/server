@@ -1457,7 +1457,7 @@ mem_err:
 
 inline void imerge_list_and_list(List<SEL_IMERGE> *im1, List<SEL_IMERGE> *im2)
 {
-  im1->concat(im2);
+  im1->append(im2);
 }
 
 
@@ -1633,7 +1633,7 @@ int imerge_list_or_tree(RANGE_OPT_PARAM *param,
       it.remove();
   }
 
-  merges->concat(&additional_merges);  
+  merges->append(&additional_merges);
   return merges->is_empty();
 }
 

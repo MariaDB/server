@@ -12711,8 +12711,8 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
     }
     if (and_level)
     {
-      args->concat(&eq_list);
-      args->concat((List<Item> *)&cond_equal.current_level);
+      args->append(&eq_list);
+      args->append((List<Item> *)&cond_equal.current_level);
     }
   }
   else if (cond->type() == Item::FUNC_ITEM ||
@@ -12767,7 +12767,7 @@ static COND *build_equal_items_for_cond(THD *thd, COND *cond,
         }
         and_cond->cond_equal.copy(cond_equal);
         cond_equal.current_level= and_cond->cond_equal.current_level;
-        args->concat((List<Item> *)&cond_equal.current_level);
+        args->append((List<Item> *)&cond_equal.current_level);
         
         return and_cond;
       }
@@ -13421,7 +13421,7 @@ static COND* substitute_for_best_equal_field(JOIN_TAB *context_tab,
           This is a fatal error now. However we bail out by returning the
           original condition that we had before we started the transformation. 
 	*/
-	cond_list->concat((List<Item> *) &cond_equal->current_level);
+	cond_list->append((List<Item> *) &cond_equal->current_level);
       }
     }	 
   }
@@ -14692,7 +14692,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
          if (eq_item->const_item() && eq_item->val_int())
            it.remove();
        }  
-       cond_arg_list->concat((List<Item> *) cond_equalities);       
+       cond_arg_list->append((List<Item> *) cond_equalities);
     }
 
     List<Item_equal> new_equalities;
@@ -14749,7 +14749,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
                 of cond_arg_list all together.
 	      */
               new_item_arg_list->disjoin((List<Item> *) new_item_equalities);
-              new_equalities.concat(new_item_equalities);
+              new_equalities.append(new_item_equalities);
             }
           }
           if (new_item_arg_list->is_empty())
@@ -14844,7 +14844,7 @@ internal_remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
           }
         }
       }
-      cond_arg_list->concat((List<Item> *) cond_equalities);
+      cond_arg_list->append((List<Item> *) cond_equalities);
       /* 
         Propagate the newly formed multiple equalities to
         the all AND/OR levels of cond 
@@ -22009,7 +22009,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
     Put elements from HAVING, ORDER BY and GROUP BY last to ensure that any
     reference used in these will resolve to a item that is already calculated
   */
-  param->copy_funcs.concat(&extra_funcs);
+  param->copy_funcs.append(&extra_funcs);
 
   DBUG_RETURN(0);
 

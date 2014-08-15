@@ -1965,7 +1965,7 @@ loop_end:
         DBUG_RETURN(1);
     } while ((tbl= tbl_it++));
 
-    temp_fields.concat(fields_for_table[cnt]);
+    temp_fields.append(fields_for_table[cnt]);
 
     /* Make an unique key over the first field to avoid duplicated updates */
     bzero((char*) &group, sizeof(group));

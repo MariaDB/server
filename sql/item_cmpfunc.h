@@ -1652,12 +1652,12 @@ public:
   void add_at_head(List<Item> *nlist)
   {
     DBUG_ASSERT(nlist->elements);
-    list.prepand(nlist);
+    list.prepend(nlist);
   }
   void add_at_end(List<Item> *nlist)
   {
     DBUG_ASSERT(nlist->elements);
-    list.concat(nlist);
+    list.append(nlist);
   }
   bool fix_fields(THD *, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
