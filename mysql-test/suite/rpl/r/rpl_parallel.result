@@ -882,6 +882,47 @@ a
 SELECT * FROM t6 ORDER BY a;
 a
 4
+*** MDEV-6551: Some replication errors are ignored if slave_parallel_threads > 0 ***
+INSERT INTO t2 VALUES (31);
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= 0;
+include/start_slave.inc
+SET sql_log_bin= 0;
+INSERT INTO t2 VALUES (32);
+SET sql_log_bin= 1;
+INSERT INTO t2 VALUES (32);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (33);
+INSERT INTO t2 VALUES (34);
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+include/save_master_gtid.inc
+include/wait_for_slave_sql_error.inc [errno=1062]
+include/stop_slave_io.inc
+SET GLOBAL slave_parallel_threads=10;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1062]
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+SET sql_slave_skip_counter= 1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

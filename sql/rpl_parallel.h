@@ -72,7 +72,15 @@ struct rpl_parallel_thread {
   rpl_parallel_entry *current_entry;
   struct queued_event {
     queued_event *next;
-    Log_event *ev;
+    /*
+      queued_event can hold either an event to be executed, or just a binlog
+      position to be updated without any associated event.
+    */
+    enum queued_event_t { QUEUED_EVENT, QUEUED_POS_UPDATE } typ;
+    union {
+      Log_event *ev;                            /* QUEUED_EVENT */
+      rpl_parallel_entry *entry_for_queued;     /* QUEUED_POS_UPDATE */
+    };
     rpl_group_info *rgi;
     inuse_relaylog *ir;
     ulonglong future_event_relay_log_pos;
