@@ -904,6 +904,7 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   Table_ident *table;
   char *simple_string;
   Item *item;
+  Item_param *item_param;
   Item_num *item_num;
   List<Item> *item_list;
   List<String> *string_list;
@@ -1720,7 +1721,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         predicate bit_expr
         table_wild simple_expr udf_expr
         expr_or_default set_expr_or_default
-        param_marker geometry_function
+        geometry_function
         signed_literal now_or_signed_literal opt_escape
         sp_opt_default
         simple_ident_nospvar simple_ident_q
@@ -1733,6 +1734,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         signal_allowed_expr
         simple_target_specification
         condition_number
+
+%type <item_param> param_marker
 
 %type <item_num>
         NUM_literal
@@ -9140,7 +9143,7 @@ simple_expr:
               MYSQL_YYABORT;
           }
         | literal
-        | param_marker
+        | param_marker { $$= $1; }
         | variable
         | sum_expr
         | simple_expr OR_OR_SYM simple_expr
