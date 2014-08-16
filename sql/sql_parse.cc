@@ -2367,6 +2367,54 @@ err:
 }
 
 
+static bool do_execute_sp(THD *thd, sp_head *sp)
+{
+  /* bits that should be cleared in thd->server_status */
+  uint bits_to_be_cleared= 0;
+  if (sp->m_flags & sp_head::MULTI_RESULTS)
+  {
+    if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
+    {
+      /* The client does not support multiple result sets being sent back */
+      my_error(ER_SP_BADSELECT, MYF(0), sp->m_qname.str);
+      return 1;
+    }
+    /*
+      If SERVER_MORE_RESULTS_EXISTS is not set,
+      then remember that it should be cleared
+    */
+    bits_to_be_cleared= (~thd->server_status &
+                         SERVER_MORE_RESULTS_EXISTS);
+    thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
+  }
+
+  ha_rows select_limit= thd->variables.select_limit;
+  thd->variables.select_limit= HA_POS_ERROR;
+
+  /*
+    We never write CALL statements into binlog:
+     - If the mode is non-prelocked, each statement will be logged
+       separately.
+     - If the mode is prelocked, the invoking statement will care
+       about writing into binlog.
+    So just execute the statement.
+  */
+  int res= sp->execute_procedure(thd, &thd->lex->value_list);
+
+  thd->variables.select_limit= select_limit;
+  thd->server_status&= ~bits_to_be_cleared;
+
+  if (res)
+  {
+    DBUG_ASSERT(thd->is_error() || thd->killed);
+    return 1;  		// Substatement should already have sent error
+  }
+
+  my_ok(thd, (thd->get_row_count_func() < 0) ? 0 : thd->get_row_count_func());
+  return 0;
+}
+
+
 /**
   Execute command saved in thd and lex->sql_command.
 
@@ -5009,9 +5057,6 @@ create_sp_error:
       }
       else
       {
-	ha_rows select_limit;
-        /* bits that should be cleared in thd->server_status */
-	uint bits_to_be_cleared= 0;
         /*
           Check that the stored procedure doesn't contain Dynamic SQL
           and doesn't return result sets: such stored procedures can't
@@ -5025,52 +5070,8 @@ create_sp_error:
             goto error;
         }
 
-	if (sp->m_flags & sp_head::MULTI_RESULTS)
-	{
-	  if (! (thd->client_capabilities & CLIENT_MULTI_RESULTS))
-	  {
-            /*
-              The client does not support multiple result sets being sent
-              back
-            */
-	    my_error(ER_SP_BADSELECT, MYF(0), sp->m_qname.str);
-	    goto error;
-	  }
-          /*
-            If SERVER_MORE_RESULTS_EXISTS is not set,
-            then remember that it should be cleared
-          */
-	  bits_to_be_cleared= (~thd->server_status &
-                               SERVER_MORE_RESULTS_EXISTS);
-	  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
-	}
-
-	select_limit= thd->variables.select_limit;
-	thd->variables.select_limit= HA_POS_ERROR;
-
-        /* 
-          We never write CALL statements into binlog:
-           - If the mode is non-prelocked, each statement will be logged
-             separately.
-           - If the mode is prelocked, the invoking statement will care
-             about writing into binlog.
-          So just execute the statement.
-        */
-	res= sp->execute_procedure(thd, &lex->value_list);
-
-	thd->variables.select_limit= select_limit;
-
-        thd->server_status&= ~bits_to_be_cleared;
-
-	if (!res)
-        {
-          my_ok(thd, (thd->get_row_count_func() < 0) ? 0 : thd->get_row_count_func());
-        }
-	else
-        {
-          DBUG_ASSERT(thd->is_error() || thd->killed);
-	  goto error;		// Substatement should already have sent error
-        }
+        if (do_execute_sp(thd, sp))
+          goto error;
       }
       break;
     }
