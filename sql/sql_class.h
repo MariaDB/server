@@ -4773,21 +4773,35 @@ public:
 
 class my_var : public Sql_alloc  {
 public:
-  LEX_STRING s;
-#ifndef DBUG_OFF
+  const LEX_STRING name;
+  enum type { SESSION_VAR, LOCAL_VAR, PARAM_VAR };
+  type scope;
+  my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
+  virtual ~my_var() {}
+  virtual bool set(THD *thd, Item *val) = 0;
+};
+
+class my_var_sp: public my_var {
+public:
+  uint offset;
+  enum_field_types type;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-#endif
-  bool local;
-  uint offset;
-  enum_field_types type;
-  my_var (LEX_STRING& j, bool i, uint o, enum_field_types t)
-    :s(j), local(i), offset(o), type(t)
-  {}
-  ~my_var() {}
+  my_var_sp(const LEX_STRING& j, uint o, enum_field_types t, sp_head *s)
+    : my_var(j, LOCAL_VAR), offset(o), type(t), sp(s) { }
+  ~my_var_sp() { }
+  bool set(THD *thd, Item *val);
+};
+
+class my_var_user: public my_var {
+public:
+  my_var_user(const LEX_STRING& j)
+    : my_var(j, SESSION_VAR) { }
+  ~my_var_user() { }
+  bool set(THD *thd, Item *val);
 };
 
 class select_dumpvar :public select_result_interceptor {

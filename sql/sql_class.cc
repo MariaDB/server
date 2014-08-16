@@ -3731,6 +3731,18 @@ Statement_map::~Statement_map()
   my_hash_free(&st_hash);
 }
 
+bool my_var_user::set(THD *thd, Item *item)
+{
+  Item_func_set_user_var *suv= new Item_func_set_user_var(name, item);
+  suv->save_item_result(item);
+  return suv->fix_fields(thd, 0) || suv->update();
+}
+
+bool my_var_sp::set(THD *thd, Item *item)
+{
+  return thd->spcont->set_variable(thd, offset, &item);
+}
+
 int select_dumpvar::send_data(List<Item> &items)
 {
   List_iterator_fast<my_var> var_li(var_list);
@@ -3751,20 +3763,8 @@ int select_dumpvar::send_data(List<Item> &items)
   }
   while ((mv= var_li++) && (item= it++))
   {
-    if (mv->local)
-    {
-      if (thd->spcont->set_variable(thd, mv->offset, &item))
-	    DBUG_RETURN(1);
-    }
-    else
-    {
-      Item_func_set_user_var *suv= new Item_func_set_user_var(mv->s, item);
-      suv->save_item_result(item);
-      if (suv->fix_fields(thd, 0))
-        DBUG_RETURN (1);
-      if (suv->update())
-        DBUG_RETURN (1);
-    }
+    if (mv->set(thd, item))
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(thd->is_error());
 }

@@ -933,6 +933,7 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   struct { int vars, conds, hndlrs, curs; } spblock;
   sp_name *spname;
   LEX *lex;
+  class my_var *myvar;
   sp_head *sphead;
   struct p_elem_val *p_elem_value;
   enum index_hint_type index_hint;
@@ -1803,6 +1804,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <dyncol_def> dyncall_create_element
 
 %type <dyncol_def_list> dyncall_create_list
+
+%type <myvar> select_outvar
 
 %type <NONE>
         analyze_stmt_command
@@ -11557,16 +11560,13 @@ select_var_list:
         | select_var_ident {}
         ;
 
-select_var_ident:  
-          '@' ident_or_text
+select_var_ident: select_outvar
           {
-            LEX *lex=Lex;
-            if (lex->result) 
+            if (Lex->result)
             {
-              my_var *var= new my_var($2,0,0,(enum_field_types)0);
-              if (var == NULL)
+              if ($1 == NULL)
                 MYSQL_YYABORT;
-              ((select_dumpvar *)lex->result)->var_list.push_back(var);
+              ((select_dumpvar *)Lex->result)->var_list.push_back($1);
             }
             else
             {
@@ -11574,37 +11574,27 @@ select_var_ident:
                 The parser won't create select_result instance only
                 if it's an EXPLAIN.
               */
-              DBUG_ASSERT(lex->describe);
+              DBUG_ASSERT(Lex->describe);
             }
+          }
+        ;
+
+select_outvar:
+          '@' ident_or_text
+          {
+            $$ = Lex->result ? new my_var_user($2) : NULL;
           }
         | ident_or_text
           {
-            LEX *lex=Lex;
             sp_variable *t;
 
-            if (!lex->spcont || !(t=lex->spcont->find_variable($1, false)))
+            if (!Lex->spcont || !(t= Lex->spcont->find_variable($1, false)))
             {
               my_error(ER_SP_UNDECLARED_VAR, MYF(0), $1.str);
               MYSQL_YYABORT;
             }
-            if (lex->result)
-            {
-              my_var *var= new my_var($1,1,t->offset,t->type);
-              if (var == NULL)
-                MYSQL_YYABORT;
-              ((select_dumpvar *)lex->result)->var_list.push_back(var);
-#ifndef DBUG_OFF
-              var->sp= lex->sphead;
-#endif
-            }
-            else
-            {
-              /*
-                The parser won't create select_result instance only
-                if it's an EXPLAIN.
-              */
-              DBUG_ASSERT(lex->describe);
-            }
+            $$ = Lex->result ? new my_var_sp($1, t->offset, t->type, Lex->sphead)
+                             : NULL;
           }
         ;
 
