@@ -50,7 +50,7 @@
 /***********************************************************************/
 /*  Macro or external routine definition                               */
 /***********************************************************************/
-#define NZ 7
+#define NZ 8
 #define NW 5
 #define MAX_INDX 10
 #ifndef INVALID_SET_FILE_POINTER
@@ -869,17 +869,18 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   /*********************************************************************/
   /*  Write the index values on the index file.                        */
   /*********************************************************************/
-  n[0] = ID;                  // To check validity
+  n[0] = ID + MAX_INDX;       // To check validity
   n[1] = Nk;                  // The number of indexed columns
   n[2] = nof;                 // The offset array size or 0
   n[3] = Num_K;               // The index size
   n[4] = Incr;                // Increment of record positions
   n[5] = Nblk; n[6] = Sblk;
+  n[7] = Srtd ? 1 : 0;        // Values are sorted in the file
 
   if (trace) {
     htrc("Saving index %s\n", Xdp->GetName());
-    htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d\n",
-          ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
+    htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d Srtd=%d\n",
+          ID, Nk, nof, Num_K, Incr, Nblk, Sblk, Srtd);
     } // endif trace
 
   size = X->Write(g, n, NZ, sizeof(int), rc);
@@ -1019,12 +1020,22 @@ bool XINDEX::Init(PGLOBAL g)
     goto err;               // No saved values
 
   //  Now start the reading process.
-  if (X->Read(g, nv, NZ, sizeof(int)))
+  if (X->Read(g, nv, NZ - 1, sizeof(int)))
     goto err;
 
+  if (nv[0] >= MAX_INDX) {
+    // New index format
+    if (X->Read(g, nv + 7, 1, sizeof(int)))
+      goto err;
+
+    Srtd = nv[7] != 0;
+    nv[0] -= MAX_INDX;
+  } else
+    Srtd = false;
+
   if (trace)
-    htrc("nv=%d %d %d %d %d %d %d\n",
-          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
+    htrc("nv=%d %d %d %d %d %d %d (%d)\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
@@ -1271,11 +1282,20 @@ bool XINDEX::MapInit(PGLOBAL g)
 
   //  Now start the mapping process.
   nv = (int*)mbase;
-  mbase += NZ * sizeof(int);
+
+  if (nv[0] >= MAX_INDX) {
+    // New index format
+    Srtd = nv[7] != 0;
+    nv[0] -= MAX_INDX;
+    mbase += NZ * sizeof(int);
+  } else {
+    Srtd = false;
+    mbase += (NZ - 1) * sizeof(int);
+  } // endif nv
 
   if (trace)
-    htrc("nv=%d %d %d %d %d %d %d\n",
-          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
+    htrc("nv=%d %d %d %d %d %d %d %d\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted

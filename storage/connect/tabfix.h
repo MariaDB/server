@@ -51,6 +51,8 @@ class DllExport TDBFIX : public TDBDOS {
   virtual int  WriteDB(PGLOBAL g);
 
  protected:
+  virtual bool PrepareWriting(PGLOBAL g) {return false;}
+
   // Members are inherited from TDBDOS
   }; // end of class TDBFIX
 

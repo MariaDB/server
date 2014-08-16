@@ -899,9 +899,9 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
   } // end of ReadBuffer
 
 /***********************************************************************/
-/*  Data Base write routine CSV file access method.                    */
+/*  Prepare the line to write.                                         */
 /***********************************************************************/
-int TDBCSV::WriteDB(PGLOBAL g)
+bool TDBCSV::PrepareWriting(PGLOBAL g)
   {
   char sep[2], qot[2];
   int  i, nlen, oldlen = strlen(To_Line);
@@ -912,7 +912,7 @@ int TDBCSV::WriteDB(PGLOBAL g)
 
   // Before writing the line we must check its length
   if ((nlen = CheckWrite(g)) < 0)
-    return RC_FX;
+    return true;
 
   // Before writing the line we must make it
   sep[0] = Sep;
@@ -974,6 +974,18 @@ int TDBCSV::WriteDB(PGLOBAL g)
 
   if (trace > 1)
     htrc("Write: line is=%s", To_Line);
+
+  return false;
+  } // end of PrepareWriting
+
+/***********************************************************************/
+/*  Data Base write routine CSV file access method.                    */
+/***********************************************************************/
+int TDBCSV::WriteDB(PGLOBAL g)
+  {
+  // Before writing the line we must check and prepare it
+  if (PrepareWriting(g))
+    return RC_FX;
 
   /*********************************************************************/
   /*  Now start the writing process.                                   */

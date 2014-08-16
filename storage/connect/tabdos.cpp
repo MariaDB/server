@@ -432,6 +432,7 @@ TDBDOS::TDBDOS(PDOSDEF tdp, PTXF txfp) : TDBASE(tdp)
 //Xeval = 0;
   Beval = 0;
   Abort = false;
+  Indxd = false;
   } // end of TDBDOS standard constructor
 
 TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
@@ -446,6 +447,8 @@ TDBDOS::TDBDOS(PGLOBAL g, PTDBDOS tdbp) : TDBASE(tdbp)
   SavFil = tdbp->SavFil;
 //Xeval = tdbp->Xeval;
   Beval = tdbp->Beval;
+  Abort = tdbp->Abort;
+  Indxd = tdbp->Indxd;
   } // end of TDBDOS copy constructor
 
 // Method
@@ -1807,7 +1810,11 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp)
         To_BlkFil = NULL;
         } // endif AmType
 
-      To_Kindex= kxp;
+      if (!(To_Kindex= kxp)->IsSorted() &&
+          ((Mode == MODE_UPDATE && IsUsingTemp(g)) ||
+           (Mode == MODE_DELETE && Txfp->GetAmType() != TYPE_AM_DBF)))
+        Indxd = true;
+
       } // endif brc
 
   } else
@@ -2153,13 +2160,10 @@ int TDBDOS::ReadDB(PGLOBAL g)
   } // end of ReadDB
 
 /***********************************************************************/
-/*  WriteDB: Data Base write routine for DOS access method.            */
+/*  PrepareWriting: Prepare the line to write.                         */
 /***********************************************************************/
-int TDBDOS::WriteDB(PGLOBAL g)
+bool TDBDOS::PrepareWriting(PGLOBAL g)
   {
-  if (trace > 1)
-    htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
-
   if (!Ftype && (Mode == MODE_INSERT || Txfp->GetUseTemp())) {
     char *p;
 
@@ -2173,6 +2177,20 @@ int TDBDOS::WriteDB(PGLOBAL g)
 
     *(++p) = '\0';
     } // endif Mode
+
+  return false;
+  } // end of WriteDB
+
+/***********************************************************************/
+/*  WriteDB: Data Base write routine for DOS access method.            */
+/***********************************************************************/
+int TDBDOS::WriteDB(PGLOBAL g)
+  {
+  if (trace > 1)
+    htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
+
+  // Make the line to write
+  (void)PrepareWriting(g);
 
   if (trace > 1)
     htrc("Write: line is='%s'\n", To_Line);

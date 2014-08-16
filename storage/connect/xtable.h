@@ -147,6 +147,7 @@ class DllExport TDBASE : public TDB {
   inline  PKXBASE GetKindex(void) {return To_Kindex;}
   inline  PCOL    GetSetCols(void) {return To_SetCols;}
   inline  void    SetSetCols(PCOL colp) {To_SetCols = colp;}
+  inline  void    SetKey_Col(PCOL *cpp) {To_Key_Col = cpp;}
   inline  void    SetXdp(PIXDEF xdp) {To_Xdp = xdp;}
   inline  void    SetKindex(PKXBASE kxp) {To_Kindex = kxp;}
 
@@ -156,6 +157,7 @@ class DllExport TDBASE : public TDB {
 
   // Methods
   virtual bool   IsUsingTemp(PGLOBAL g) {return false;}
+  virtual bool   IsIndexed(void) {return false;}
   virtual PCATLG GetCat(void);
   virtual PSZ    GetPath(void);
   virtual void   PrintAM(FILE *f, char *m);
@@ -190,6 +192,9 @@ class DllExport TDBASE : public TDB {
                       {assert(false); return true;}
 
  protected:
+  virtual bool PrepareWriting(PGLOBAL g) {strcpy(g->Message,
+    "This function should not be called for this table"); return true;}
+
   // Members
   PTABDEF  To_Def;            // Points to catalog description block
   PXOB    *To_Link;           // Points to column of previous relations

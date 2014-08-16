@@ -136,6 +136,7 @@ class DllExport TDBDOS : public TDBASE {
   virtual PTDB  CopyOne(PTABS t);
   virtual void  ResetDB(void) {Txfp->Reset();}
   virtual bool  IsUsingTemp(PGLOBAL g);
+  virtual bool  IsIndexed(void) {return Indxd;}
   virtual void  ResetSize(void) {MaxSize = Cardinal = -1;}
   virtual int   ResetTableOpt(PGLOBAL g, bool dop, bool dox);
   virtual int   MakeBlockValues(PGLOBAL g);
@@ -176,6 +177,7 @@ class DllExport TDBDOS : public TDBASE {
           bool  GetDistinctColumnValues(PGLOBAL g, int nrec);
 
  protected:
+  virtual bool  PrepareWriting(PGLOBAL g);
           PBF   CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv);
 
   // Members
@@ -185,6 +187,7 @@ class DllExport TDBDOS : public TDBASE {
   PFIL    SavFil;            // Saved hidden filter
   char   *To_Line;           // Points to current processed line
   bool    Abort;             // TRUE when aborting UPDATE/DELETE
+  bool    Indxd;             // TRUE for indexed UPDATE/DELETE
   int     Lrecl;             // Logical Record Length
   int     AvgLen;            // Logical Record Average Length
 //int     Xeval;             // BlockTest return value

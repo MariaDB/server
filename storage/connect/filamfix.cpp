@@ -55,11 +55,6 @@
 extern "C" int  trace;
 extern int num_read, num_there, num_eq[2];               // Statistics
 
-/***********************************************************************/
-/*  Routine called externally by BGXFAM MakeDeletedFile function.      */
-/***********************************************************************/
-PARRAY MakeValueArray(PGLOBAL g, PPARM pp);
-
 /* --------------------------- Class FIXFAM -------------------------- */
 
 /***********************************************************************/
@@ -104,6 +99,16 @@ bool FIXFAM::SetPos(PGLOBAL g, int pos)
   Placed = true;
   return false;
   } // end of SetPos
+
+/***********************************************************************/
+/*  Initialize CurBlk and CurNum for indexed DELETE.                   */
+/***********************************************************************/
+int FIXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+  {
+  CurBlk = fpos / Nrec;
+  CurNum = fpos % Nrec;
+  return RC_OK;
+  } // end of InitDelete
 
 /***********************************************************************/
 /*  Allocate the block buffer for the table.                           */
@@ -340,15 +345,11 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
     // T_Stream is the temporary stream or the table file stream itself
     if (!T_Stream) {
       if (UseTemp) {
-        if ((Indxd = Tdbp->GetKindex() != NULL)) {
-          strcpy(g->Message, "FIX indexed udate using temp file NIY");
-          return RC_FX;
-        } else if (OpenTempFile(g))
+        if (OpenTempFile(g))
           return RC_FX;
         else if (CopyHeader(g))           // For DBF tables
           return RC_FX;
 
-//      Indxd = Tdbp->GetKindex() != NULL;
       } else
         T_Stream = Stream;
 
@@ -413,17 +414,12 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
       Spos = Tpos = Fpos;
     } // endif UseTemp
 
-    Indxd = Tdbp->GetKindex() != NULL;
     } // endif Tpos == Spos
 
   /*********************************************************************/
   /*  Move any intermediate lines.                                     */
   /*********************************************************************/
-  if (Indxd) {
-    // Moving will be done later, must be done in sequential order
-    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
-    moved = false;
-  } else if (MoveIntermediateLines(g, &moved))
+  if (MoveIntermediateLines(g, &moved))
     return RC_FX;
 
   if (irc == RC_OK) {
@@ -456,9 +452,6 @@ int FIXFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
 
     } else {
-      if (Indxd && (Abort = MakeDeletedFile(g)))
-        return RC_FX;
-
       /*****************************************************************/
       /*  Because the chsize functionality is only accessible with a   */
       /*  system call we must close the file and reopen it with the    */
@@ -560,59 +553,6 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
   } // end of MoveIntermediate Lines
 
 /***********************************************************************/
-/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
-/*  record are not necessarily deleted in sequential order. Moving     */
-/*  intermediate lines cannot be done while deleing them because       */
-/*  this can cause extra wrong records to be included in the new file. */
-/*  What we do here is to reorder the deleted record and make the new  */
-/*  deleted file from the ordered deleted records.                     */
-/***********************************************************************/
-bool FIXFAM::MakeDeletedFile(PGLOBAL g)
-  {
-  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
-  int  *ix, i;
-  bool  moved;
-
-  /*********************************************************************/
-  /*  Open the temporary file, Spos is at the beginning of file.       */
-  /*********************************************************************/
-  if (!(Posar = MakeValueArray(g, To_Pos))) {
-    strcpy(g->Message, "Position array is null");
-    goto err;
-  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
-    strcpy(g->Message, "Error getting array sort index");
-    goto err;
-  } // endif's
-
-  Spos = 0;
-
-  for (i = 0; i < Posar->GetNval(); i++) {
-    Fpos = Posar->GetIntValue(ix[i]);
-
-    if (i || UseTemp) {
-      // Copy all not updated lines preceding this one
-      if (MoveIntermediateLines(g, &moved))
-        goto err;
-
-    } else
-      Tpos = Fpos;
-
-    // New start position
-    Spos = Fpos + 1; 
-    } // endfor i
-
-  if (!PlugCloseFile(g, To_Fbt) && !PlugCloseFile(g, To_Fb))
-    return false;
-
-err:
-  if (trace)
-    htrc("%s\n", g->Message);
-
-  PlugCloseFile(g, To_Fbt);
-  return true;
-  } // end of MakeDeletedFile
-
-/***********************************************************************/
 /*  Table file close routine for FIX access method.                    */
 /***********************************************************************/
 void FIXFAM::CloseTableFile(PGLOBAL g, bool abort)
@@ -640,7 +580,6 @@ void FIXFAM::CloseTableFile(PGLOBAL g, bool abort)
         // Copy any remaining lines
         bool b;
     
-        // Note: Indxd is not implemented yet
         Fpos = Tdbp->Cardinality(g);
         Abort = MoveIntermediateLines(g, &b) != RC_OK;
         } // endif Abort
@@ -1233,10 +1172,7 @@ int BGXFAM::WriteBuffer(PGLOBAL g)
     if (Tfile == INVALID_HANDLE_VALUE)
     {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
-        if ((Indxd = Tdbp->GetKindex() != NULL)) {
-          strcpy(g->Message, "FIX indexed udate using temp file NIY");
-          return RC_FX;
-        } else if (OpenTempFile(g))
+        if (OpenTempFile(g))
           return RC_FX;
 
       } else
@@ -1303,19 +1239,15 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
       Spos = Tpos = Fpos;
     } // endif UseTemp
 
-    Indxd = Tdbp->GetKindex() != NULL;
     } // endif Tpos == Spos
 
   /*********************************************************************/
   /*  Move any intermediate lines.                                     */
   /*********************************************************************/
-  if (Indxd)
-    // Moving will be done later, must be done in sequential order
-    (void)AddListValue(g, TYPE_INT, &Fpos, &To_Pos);
-  else if (MoveIntermediateLines(g, &moved))
+  if (MoveIntermediateLines(g, &moved))
     return RC_FX;
 
-  if (irc == RC_OK && !Indxd) {
+  if (irc == RC_OK) {
     if (trace)
       assert(Spos == Fpos);
 
@@ -1343,9 +1275,6 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
         return RC_FX;
 
     } else {
-      if (Indxd && (Abort = MakeDeletedFile(g)))
-        return RC_FX;
-
       /*****************************************************************/
       /*  Remove extra records.                                        */
       /*****************************************************************/
@@ -1470,59 +1399,6 @@ bool BGXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
   } // end of MoveIntermediateLines
 
 /***********************************************************************/
-/*  MakeDeletedFile. When deleting using indexing, the issue is that   */
-/*  record are not necessarily deleted in sequential order. Moving     */
-/*  intermediate lines cannot be done while deleing them because       */
-/*  this can cause extra wrong records to be included in the new file. */
-/*  What we do here is to reorder the deleted record and make the new  */
-/*  deleted file from the ordered deleted records.                     */
-/***********************************************************************/
-bool BGXFAM::MakeDeletedFile(PGLOBAL g)
-  {
-  char *crlf = "\n", *mode = UseTemp ? "rb" : "r+b";
-  int  *ix, i;
-  bool  moved;
-
-  /*********************************************************************/
-  /*  Open the temporary file, Spos is at the beginning of file.       */
-  /*********************************************************************/
-  if (!(Posar = MakeValueArray(g, To_Pos))) {
-    strcpy(g->Message, "Position array is null");
-    goto err;
-  } else if (!(ix = (int*)Posar->GetSortIndex(g))) { 
-    strcpy(g->Message, "Error getting array sort index");
-    goto err;
-  } // endif's
-
-  Spos = 0;
-
-  for (i = 0; i < Posar->GetNval(); i++) {
-    Fpos = Posar->GetIntValue(ix[i]);
-
-    if (i || UseTemp) {
-      // Copy all not updated lines preceding this one
-      if (MoveIntermediateLines(g, &moved))
-        goto err;
-
-    } else
-      Tpos = Fpos;
-
-    // New start position
-    Spos = Fpos + 1; 
-    } // endfor i
-
-  if (!PlugCloseFile(g, To_Fbt))
-    return false;
-
-err:
-  if (trace)
-    htrc("%s\n", g->Message);
-
-  PlugCloseFile(g, To_Fbt);
-  return true;
-  } // end of MakeDeletedFile
-
-/***********************************************************************/
 /*  Data Base close routine for BIGFIX access method.                  */
 /***********************************************************************/
 void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
@@ -1549,7 +1425,6 @@ void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
         // Copy any remaining lines
         bool b;
     
-        // Indxd is not implemented yet
         Fpos = Tdbp->Cardinality(g);
         Abort = MoveIntermediateLines(g, &b) != RC_OK;
         } // endif Abort

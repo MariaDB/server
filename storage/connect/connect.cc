@@ -479,7 +479,7 @@ RCODE CntReadNext(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
   {
-  RCODE    rc;
+  RCODE   rc;
   PCOL    colp;
   PTDBASE tp= (PTDBASE)tdbp;
 
@@ -503,11 +503,14 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
     if (!colp->GetColUse(U_VIRTUAL))
       colp->WriteColumn(g);
 
-//  if (tdbp->GetMode() == MODE_INSERT)
-//    tbxp->SetModified(true);
-
-  // Return result code from write operation
-  rc= (RCODE)tdbp->WriteDB(g);
+//if (tp->GetMode() == MODE_UPDATE && tp->IsUsingTemp(g) &&
+//    tp->GetKindex() && !tp->GetKindex()->IsSorted())
+  if (tp->IsIndexed())
+    // Index values must be sorted before updating
+    rc= (RCODE)((PTDBDOS)tp)->GetTxfp()->StoreValues(g, true);
+  else
+    // Return result code from write operation
+    rc= (RCODE)tdbp->WriteDB(g);
 
  err:
   g->jump_level--;
@@ -517,7 +520,7 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 /*  UpdateRow: Update a row into a table.                              */
 /***********************************************************************/
-RCODE  CntUpdateRow(PGLOBAL g, PTDB tdbp)
+RCODE CntUpdateRow(PGLOBAL g, PTDB tdbp)
   {
   if (!tdbp || tdbp->GetMode() != MODE_UPDATE)
     return RC_FX;
@@ -531,19 +534,28 @@ RCODE  CntUpdateRow(PGLOBAL g, PTDB tdbp)
 /***********************************************************************/
 RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
   {
-  RCODE rc;
+  RCODE   rc;
+  PTDBASE tp= (PTDBASE)tdbp;
 
   if (!tdbp || tdbp->GetMode() != MODE_DELETE)
     return RC_FX;
   else if (tdbp->IsReadOnly())
     return RC_NF;
 
-  if (((PTDBASE)tdbp)->GetDef()->Indexable() && all)
-    ((PTDBDOS)tdbp)->Cardinal= 0;
+  if (all) {
+    if (((PTDBASE)tdbp)->GetDef()->Indexable())
+      ((PTDBDOS)tdbp)->Cardinal= 0;
 
-  // Return result code from delete operation
-  // Note: if all, this call will be done when closing the table
-  rc= (RCODE)tdbp->DeleteDB(g, (all) ? RC_FX : RC_OK);
+    // Note: if all, this call will be done when closing the table
+    rc= (RCODE)tdbp->DeleteDB(g, RC_FX);
+//} else if (tp->GetKindex() && !tp->GetKindex()->IsSorted() &&
+//           tp->Txfp->GetAmType() != TYPE_AM_DBF) {
+  } else if(tp->IsIndexed()) {
+    // Index values must be sorted before updating
+    rc= (RCODE)((PTDBDOS)tp)->GetTxfp()->StoreValues(g, false);
+  } else // Return result code from delete operation
+    rc= (RCODE)tdbp->DeleteDB(g, RC_OK);
+
   return rc;
   } // end of CntDeleteRow
 
@@ -553,7 +565,7 @@ RCODE  CntDeleteRow(PGLOBAL g, PTDB tdbp, bool all)
 int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
   {
   int     rc= RC_OK;
-  TDBDOX *tbxp= NULL;
+  TDBASE *tbxp= (PTDBASE)tdbp;
 
   if (!tdbp)
     return rc;                           // Nothing to do
@@ -568,8 +580,30 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
     printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n", 
                            tdbp, tdbp->GetMode(), nox, abort);
 
-  if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN)
-    rc= tdbp->DeleteDB(g, RC_EF);        // Specific A.M. delete routine
+#if 0
+  if (tbxp->GetMode() == MODE_UPDATE && 
+      tbxp->GetKindex() && !tbxp->GetKindex()->IsSorted()) {
+    rc= tbxp->Txfp->UpdateSortedRows(g);
+  } else
+    if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
+      if (tbxp->GetKindex() && !tbxp->GetKindex()->IsSorted())
+        rc= tbxp->Txfp->DeleteSortedRows(g);
+
+      if (!rc)
+        rc= tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
+
+      } // endif Mode
+#endif // 0
+
+  if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
+    if (tbxp->IsIndexed())
+      rc= ((PTDBDOS)tdbp)->GetTxfp()->DeleteSortedRows(g);
+
+    if (!rc)
+      rc= tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
+
+  } else if (tbxp->GetMode() == MODE_UPDATE && tbxp->IsIndexed())
+    rc= ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
 
   //  Prepare error return
   if (g->jump_level == MAX_JUMP) {
@@ -606,9 +640,8 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
   // Make all the eventual indexes
   tbxp= (TDBDOX*)tdbp;
   tbxp->ResetKindex(g, NULL);
-  tbxp->To_Key_Col= NULL;
-  rc= tbxp->ResetTableOpt(g, true, 
-                           ((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
+  tbxp->SetKey_Col(NULL);
+  rc= tbxp->ResetTableOpt(g, true, tbxp->GetDef()->Indexable() == 1);
 
  err:
   if (trace > 1)

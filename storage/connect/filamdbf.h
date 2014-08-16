@@ -40,8 +40,8 @@ class DllExport DBFBASE {
   // Members
   int  Records;                     /*  records in the file                 */
   bool Accept;                      /*  true if bad lines are accepted      */
-  int  Nerr;                        /*  Number of bad records                */
-  int  Maxerr;                      /*  Maximum number of bad records        */
+  int  Nerr;                        /*  Number of bad records               */
+  int  Maxerr;                      /*  Maximum number of bad records       */
   int  ReadMode;                    /*  1: ALL 2: DEL 0: NOT DEL            */
   }; // end of class DBFBASE
 
@@ -72,6 +72,7 @@ class DllExport DBFFAM : public FIXFAM, public DBFBASE {
 
  protected:
   virtual bool CopyHeader(PGLOBAL g);
+//virtual int  InitDelete(PGLOBAL g, int fpos, int spos);
 
   // Members
   }; // end of class DBFFAM
