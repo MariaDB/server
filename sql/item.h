@@ -2366,13 +2366,12 @@ public:
   bool limit_clause_param;
   void set_param_type_and_swap_value(Item_param *from);
 
-private:
-  virtual inline Settable_routine_parameter *
-    get_settable_routine_parameter()
+  Settable_routine_parameter *get_settable_routine_parameter()
   {
     return this;
   }
 
+private:
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
   virtual void set_out_param_info(Send_field *info);
