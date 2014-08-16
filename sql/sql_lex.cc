@@ -515,8 +515,7 @@ void lex_start(THD *thd)
   lex->check_exists= FALSE;
   lex->verbose= 0;
 
-  lex->name.str= 0;
-  lex->name.length= 0;
+  lex->name= null_lex_str;
   lex->event_parse_data= NULL;
   lex->profile_options= PROFILE_NONE;
   lex->nest_level=0 ;

@@ -135,6 +135,9 @@ struct sys_var_with_base
 
 #ifdef MYSQL_SERVER
 
+extern const LEX_STRING null_lex_str;
+extern const LEX_STRING empty_lex_str;
+
 enum enum_sp_suid_behaviour
 {
   SP_IS_DEFAULT_SUID= 0,
@@ -242,8 +245,7 @@ struct LEX_MASTER_INFO
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;
-    gtid_pos_str.length= 0;
-    gtid_pos_str.str= NULL;
+    gtid_pos_str= null_lex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
   }
 };
@@ -1021,9 +1023,6 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
 };
 
-extern const LEX_STRING null_lex_str;
-extern const LEX_STRING empty_lex_str;
-
 struct st_trg_chistics
 {
   enum trg_action_time_type action_time;
@@ -1034,9 +1033,6 @@ extern sys_var *trg_new_row_fake_var;
 
 enum xa_option_words {XA_NONE, XA_JOIN, XA_RESUME, XA_ONE_PHASE,
                       XA_SUSPEND, XA_FOR_MIGRATE};
-
-extern const LEX_STRING null_lex_str;
-extern const LEX_STRING empty_lex_str;
 
 class Sroutine_hash_entry;
 

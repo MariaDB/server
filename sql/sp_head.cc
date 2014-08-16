@@ -582,8 +582,6 @@ sp_head::sp_head()
    m_next_cached_sp(0),
    m_cont_level(0)
 {
-  const LEX_STRING str_reset= { NULL, 0 };
-
   m_first_instance= this;
   m_first_free_instance= this;
   m_last_cached_sp= this;
@@ -594,7 +592,7 @@ sp_head::sp_head()
     be rewritten soon. Remove the else part and replace 'if' with
     an assert when this is done.
   */
-  m_db= m_name= m_qname= str_reset;
+  m_db= m_name= m_qname= null_lex_str;
 
   DBUG_ENTER("sp_head::sp_head");
 

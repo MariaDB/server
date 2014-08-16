@@ -1748,8 +1748,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     else
 #endif
     {
-      thd->lex->relay_log_connection_name.str= (char*) "";
-      thd->lex->relay_log_connection_name.length= 0;
+      thd->lex->relay_log_connection_name= empty_lex_str;
       if (reload_acl_and_cache(thd, options, (TABLE_LIST*) 0, &not_used))
         break;
     }
@@ -6721,7 +6720,7 @@ void create_select_for_variable(const char *var_name)
 {
   THD *thd;
   LEX *lex;
-  LEX_STRING tmp, null_lex_string;
+  LEX_STRING tmp;
   Item *var;
   char buff[MAX_SYS_VAR_LENGTH*2+4+8], *end;
   DBUG_ENTER("create_select_for_variable");
@@ -6732,12 +6731,11 @@ void create_select_for_variable(const char *var_name)
   lex->sql_command= SQLCOM_SELECT;
   tmp.str= (char*) var_name;
   tmp.length=strlen(var_name);
-  bzero((char*) &null_lex_string.str, sizeof(null_lex_string));
   /*
     We set the name of Item to @@session.var_name because that then is used
     as the column name in the output.
   */
-  if ((var= get_system_var(thd, OPT_SESSION, tmp, null_lex_string)))
+  if ((var= get_system_var(thd, OPT_SESSION, tmp, null_lex_str)))
   {
     end= strxmov(buff, "@@session.", var_name, NullS);
     var->set_name(buff, end-buff, system_charset_info);
@@ -8762,8 +8760,7 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
 
   definer->user= *user_name;
   definer->host= *host_name;
-  definer->password.str= NULL;
-  definer->password.length= 0;
+  definer->password= null_lex_str;
 
   return definer;
 }
