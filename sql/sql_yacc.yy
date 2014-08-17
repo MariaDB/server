@@ -12485,7 +12485,7 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_PROFILE;
             if (prepare_schema_table(thd, lex, NULL, SCH_PROFILES) != 0)
-              YYABORT;
+              MYSQL_YYABORT;
           }
         | opt_var_type STATUS_SYM wild_and_where
           {
