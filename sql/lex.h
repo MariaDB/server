@@ -271,7 +271,7 @@ static SYMBOL symbols[] = {
   { "HOUR_SECOND",	SYM(HOUR_SECOND_SYM)},
   { "ID",               SYM(ID_SYM)},
   { "IDENTIFIED",	SYM(IDENTIFIED_SYM)},
-  { "IF",		SYM(IF)},
+  { "IF",		SYM(IF_SYM)},
   { "IGNORE",		SYM(IGNORE_SYM)},
   { "IGNORE_SERVER_IDS", SYM(IGNORE_SERVER_IDS_SYM)},
   { "IMPORT",		SYM(IMPORT)},

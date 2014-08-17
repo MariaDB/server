@@ -1237,7 +1237,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  IDENT
 %token  IDENTIFIED_SYM
 %token  IDENT_QUOTED
-%token  IF
+%token  IF_SYM
 %token  IGNORE_SYM
 %token  IGNORE_SERVER_IDS_SYM
 %token  IMPORT
@@ -3655,9 +3655,9 @@ sp_proc_stmt:
         ;
 
 sp_proc_stmt_if:
-          IF
+          IF_SYM
           { Lex->sphead->new_cont_backpatch(NULL); }
-          sp_if END IF
+          sp_if END IF_SYM
           { Lex->sphead->do_cont_backpatch(); }
         ;
         
@@ -5531,7 +5531,7 @@ opt_if_not_exists:
             Lex->check_exists= FALSE;
             $$= 0;
           }
-        | IF not EXISTS
+        | IF_SYM not EXISTS
           {
             Lex->check_exists= TRUE;
             $$=HA_LEX_CREATE_IF_NOT_EXISTS;
@@ -9755,7 +9755,7 @@ function_call_conflict:
               MYSQL_YYABORT;
             Lex->safe_to_cache_query=0;
           }
-        | IF '(' expr ',' expr ',' expr ')'
+        | IF_SYM '(' expr ',' expr ',' expr ')'
           {
             $$= new (thd->mem_root) Item_func_if($3,$5,$7);
             if ($$ == NULL)
@@ -11851,7 +11851,7 @@ opt_if_exists:
           Lex->check_exists= FALSE;
           $$= 0;
         }
-        | IF EXISTS
+        | IF_SYM EXISTS
         {
           Lex->check_exists= TRUE;
           $$= 1;
