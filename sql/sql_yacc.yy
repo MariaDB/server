@@ -1878,7 +1878,7 @@ END_OF_INPUT
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
 %type <NONE> sp_proc_stmt_if
-%type <NONE> sp_labeled_control sp_proc_stmt_unlabeled
+%type <NONE> sp_labeled_control sp_unlabeled_control
 %type <NONE> sp_labeled_block sp_unlabeled_block
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
@@ -2705,7 +2705,7 @@ ev_sql_stmt_inner:
         | sp_labeled_block
         | sp_unlabeled_block
         | sp_labeled_control
-        | sp_proc_stmt_unlabeled
+        | sp_unlabeled_control
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
         | sp_proc_stmt_open
@@ -3633,7 +3633,7 @@ sp_proc_stmt:
         | sp_labeled_block
         | sp_unlabeled_block
         | sp_labeled_control
-        | sp_proc_stmt_unlabeled
+        | sp_unlabeled_control
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
         | sp_proc_stmt_open
@@ -3731,14 +3731,14 @@ sp_proc_stmt_return:
           }
         ;
 
-sp_proc_stmt_unlabeled:
+sp_unlabeled_control:
           { /* Unlabeled controls get a secret label. */
             LEX *lex= Lex;
 
             lex->spcont->push_label(thd, empty_lex_str,
                                     lex->sphead->instructions());
           }
-          sp_unlabeled_control
+          sp_control_content
           {
             LEX *lex= Lex;
 
@@ -4136,7 +4136,7 @@ sp_labeled_control:
               lab->type= sp_label::ITERATION;
             }
           }
-          sp_unlabeled_control sp_opt_label
+          sp_control_content sp_opt_label
           {
             LEX *lex= Lex;
             sp_label *lab= lex->spcont->pop_label();
@@ -4241,7 +4241,7 @@ sp_block_content:
           }
         ;
 
-sp_unlabeled_control:
+sp_control_content:
           LOOP_SYM
           sp_proc_stmts1 END LOOP_SYM
           {
