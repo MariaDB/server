@@ -952,7 +952,6 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   List<Condition_information_item> *cond_info_list;
   DYNCALL_CREATE_DEF *dyncol_def;
   List<DYNCALL_CREATE_DEF> *dyncol_def_list;
-  bool is_not_empty;
 }
 
 %{
@@ -1677,7 +1676,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_option opt_if_not_exists create_or_replace opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options spatial_type union_option
-        field_def opt_not
+        field_def opt_not opt_union_order_or_limit
         union_opt select_derived_init transaction_access_mode_types
         opt_natural_language_mode opt_query_expansion
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
@@ -1911,10 +1910,7 @@ END_OF_INPUT
         '-' '+' '*' '/' '%' '(' ')'
         ',' '!' '{' '}' '&' '|' AND_SYM OR_SYM OR_OR_SYM BETWEEN_SYM CASE_SYM
         THEN_SYM WHEN_SYM DIV_SYM MOD_SYM OR2_SYM AND_AND_SYM DELETE_SYM
-
-%type <is_not_empty> opt_union_order_or_limit
-
-%type <NONE> ROLE_SYM
+        ROLE_SYM
 
 %%
 
@@ -15728,14 +15724,13 @@ union_list:
         ;
 
 union_opt:
-          /* Empty */ { $$= 0; }
+          opt_union_order_or_limit
         | union_list { $$= 1; }
-        | union_order_or_limit { $$= 1; }
         ;
 
 opt_union_order_or_limit:
-          /* Empty */{ $$= false; }
-	| union_order_or_limit { $$= true; }
+          /* Empty */ { $$= 0; }
+	| union_order_or_limit { $$= 1; }
 	;
 
 union_order_or_limit:
