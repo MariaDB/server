@@ -2621,7 +2621,7 @@ ev_sql_stmt:
             lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
-          ev_sql_stmt_inner
+          sp_proc_stmt
           {
             LEX *lex= thd->lex;
 
@@ -2631,22 +2631,6 @@ ev_sql_stmt:
 
             lex->event_parse_data->body_changed= TRUE;
           }
-        ;
-
-ev_sql_stmt_inner:
-          sp_proc_stmt_statement
-        | sp_proc_stmt_return
-        | sp_proc_stmt_if
-        | case_stmt_specification
-        | sp_labeled_block
-        | sp_unlabeled_block
-        | sp_labeled_control
-        | sp_unlabeled_control
-        | sp_proc_stmt_leave
-        | sp_proc_stmt_iterate
-        | sp_proc_stmt_open
-        | sp_proc_stmt_fetch
-        | sp_proc_stmt_close
         ;
 
 clear_privileges:
