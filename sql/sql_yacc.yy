@@ -953,7 +953,8 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   chooser_compare_func_creator boolfunc2creator;
   class sp_condition_value *spcondvalue;
   struct { int vars, conds, hndlrs, curs; } spblock;
-  sp_name *spname;
+  class sp_name *spname;
+  class sp_label *splabel;
   LEX *lex;
   class my_var *myvar;
   sp_head *sphead;
@@ -1911,6 +1912,7 @@ END_OF_INPUT
 %type <spblock> sp_decls sp_decl
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
+%type <splabel> sp_block_content
 %type <index_hint> index_hint_type
 %type <num> index_hint_clause normal_join inner_join
 %type <filetype> data_or_xml
@@ -3743,7 +3745,7 @@ sp_proc_stmt_return:
         ;
 
 sp_unlabeled_control:
-          { /* Unlabeled controls get a secret label. */
+          { /* Unlabeled controls get an empty label. */
             LEX *lex= Lex;
 
             lex->spcont->push_label(thd, empty_lex_str,
@@ -4170,7 +4172,7 @@ sp_opt_label:
         ;
 
 sp_labeled_block:
-          label_ident ':'
+          label_ident ':' BEGIN_SYM
           {
             LEX *lex= Lex;
             sp_pcontext *ctx= lex->spcont;
@@ -4181,46 +4183,39 @@ sp_labeled_block:
               my_error(ER_SP_LABEL_REDEFINE, MYF(0), $1.str);
               MYSQL_YYABORT;
             }
-
-            lab= lex->spcont->push_label(thd, $1, lex->sphead->instructions());
-            lab->type= sp_label::BEGIN;
+            lex->name= $1;
           }
           sp_block_content sp_opt_label
           {
-            LEX *lex= Lex;
-            sp_label *lab= lex->spcont->pop_label();
-
-            if ($5.str)
+            if ($6.str)
             {
-              if (my_strcasecmp(system_charset_info, $5.str, lab->name.str) != 0)
+              if (my_strcasecmp(system_charset_info, $6.str, $5->name.str) != 0)
               {
-                my_error(ER_SP_LABEL_MISMATCH, MYF(0), $5.str);
+                my_error(ER_SP_LABEL_MISMATCH, MYF(0), $6.str);
                 MYSQL_YYABORT;
               }
             }
           }
         ;
 
+/* QQ This is just a dummy for grouping declarations and statements
+   together. No [[NOT] ATOMIC] yet, and we need to figure out how
+   make it coexist with the existing BEGIN COMMIT/ROLLBACK. */
 sp_unlabeled_block:
-          { /* Unlabeled blocks get a secret label. */
-            LEX *lex= Lex;
-            uint ip= lex->sphead->instructions();
-            sp_label *lab= lex->spcont->push_label(thd, empty_lex_str, ip);
-            lab->type= sp_label::BEGIN;
+          BEGIN_SYM
+          {
+            Lex->name= empty_lex_str; // Unlabeled blocks get an empty label
           }
           sp_block_content
-          {
-            LEX *lex= Lex;
-            lex->spcont->pop_label();
-          }
+          { }
         ;
 
 sp_block_content:
-          BEGIN_SYM
-          { /* QQ This is just a dummy for grouping declarations and statements
-              together. No [[NOT] ATOMIC] yet, and we need to figure out how
-              make it coexist with the existing BEGIN COMMIT/ROLLBACK. */
+          {
             LEX *lex= Lex;
+            sp_label *lab= lex->spcont->push_label(thd, lex->name,
+                                                   lex->sphead->instructions());
+            lab->type= sp_label::BEGIN;
             lex->spcont= lex->spcont->push_context(thd,
                                                    sp_pcontext::REGULAR_SCOPE);
           }
@@ -4234,21 +4229,22 @@ sp_block_content:
             sp_instr *i;
 
             sp->backpatch(ctx->last_label()); /* We always have a label */
-            if ($3.hndlrs)
+            if ($2.hndlrs)
             {
-              i= new sp_instr_hpop(sp->instructions(), ctx, $3.hndlrs);
+              i= new sp_instr_hpop(sp->instructions(), ctx, $2.hndlrs);
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
             }
-            if ($3.curs)
+            if ($2.curs)
             {
-              i= new sp_instr_cpop(sp->instructions(), ctx, $3.curs);
+              i= new sp_instr_cpop(sp->instructions(), ctx, $2.curs);
               if (i == NULL ||
                   sp->add_instr(i))
                 MYSQL_YYABORT;
             }
             lex->spcont= ctx->pop_context();
+            $$ = lex->spcont->pop_label();
           }
         ;
 
