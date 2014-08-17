@@ -246,61 +246,6 @@ static sp_head *make_sp_head(THD *thd, sp_name *name,
 
 
 /**
-  Helper action for a case statement (entering the CASE).
-  This helper is used for both 'simple' and 'searched' cases.
-  This helper, with the other case_stmt_action_..., is executed when
-  the following SQL code is parsed:
-<pre>
-CREATE PROCEDURE proc_19194_simple(i int)
-BEGIN
-  DECLARE str CHAR(10);
-
-  CASE i
-    WHEN 1 THEN SET str="1";
-    WHEN 2 THEN SET str="2";
-    WHEN 3 THEN SET str="3";
-    ELSE SET str="unknown";
-  END CASE;
-
-  SELECT str;
-END
-</pre>
-  The actions are used to generate the following code:
-<pre>
-SHOW PROCEDURE CODE proc_19194_simple;
-Pos     Instruction
-0       set str@1 NULL
-1       set_case_expr (12) 0 i@0
-2       jump_if_not 5(12) (case_expr@0 = 1)
-3       set str@1 _latin1'1'
-4       jump 12
-5       jump_if_not 8(12) (case_expr@0 = 2)
-6       set str@1 _latin1'2'
-7       jump 12
-8       jump_if_not 11(12) (case_expr@0 = 3)
-9       set str@1 _latin1'3'
-10      jump 12
-11      set str@1 _latin1'unknown'
-12      stmt 0 "SELECT str"
-</pre>
-
-  @param lex the parser lex context
-*/
-
-void case_stmt_action_case(LEX *lex)
-{
-  lex->sphead->new_cont_backpatch(NULL);
-
-  /*
-    BACKPATCH: Creating target label for the jump to
-    "case_stmt_action_end_case"
-    (Instruction 12 in the example)
-  */
-
-  lex->spcont->push_label(current_thd, empty_lex_str, lex->sphead->instructions());
-}
-
-/**
   Helper action for a case expression statement (the expr in 'CASE expr').
   This helper is used for 'searched' cases only.
   @param lex the parser lex context
@@ -396,35 +341,12 @@ int case_stmt_action_then(LEX *lex)
 
   /*
     BACKPATCH: Registering forward jump from
-    "case_stmt_action_then" to "case_stmt_action_end_case"
+    "case_stmt_action_then" to after END CASE
     (jump from instruction 4 to 12, 7 to 12 ... in the example)
   */
 
   return sp->push_backpatch(i, ctx->last_label());
 }
-
-/**
-  Helper action for an end case.
-  This helper is used for both 'simple' and 'searched' cases.
-  @param lex the parser lex context
-  @param simple true for simple cases, false for searched cases
-*/
-
-void case_stmt_action_end_case(LEX *lex, bool simple)
-{
-  /*
-    BACKPATCH: Resolving forward jump from
-    "case_stmt_action_then" to "case_stmt_action_end_case"
-    (jump from instruction 4 to 12, 7 to 12 ... in the example)
-  */
-  lex->sphead->backpatch(lex->spcont->pop_label());
-
-  if (simple)
-    lex->spcont->pop_case_expr_id();
-
-  lex->sphead->do_cont_backpatch();
-}
-
 
 static bool
 find_sys_var_null_base(THD *thd, struct sys_var_with_base *tmp)
@@ -1706,6 +1628,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         optional_flush_tables_arguments opt_dyncol_type dyncol_type
         opt_time_precision kill_type kill_option int_num
         opt_default_time_precision
+        case_stmt_body
 
 /*
   Bit field of MYSQL_START_TRANS_OPT_* flags.
@@ -1905,7 +1828,7 @@ END_OF_INPUT
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
-%type <NONE> case_stmt_specification simple_case_stmt searched_case_stmt
+%type <NONE> case_stmt_specification
 
 %type <num>  sp_decl_idents sp_opt_inout sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
@@ -4011,51 +3934,87 @@ sp_elseifs:
         ;
 
 case_stmt_specification:
-          simple_case_stmt
-        | searched_case_stmt
-        ;
-
-simple_case_stmt:
           CASE_SYM
           {
-            LEX *lex= Lex;
-            case_stmt_action_case(lex);
-            lex->sphead->reset_lex(thd); /* For expr $3 */
+
+            /**
+              An example of the CASE statement in use is
+            <pre>
+            CREATE PROCEDURE proc_19194_simple(i int)
+            BEGIN
+              DECLARE str CHAR(10);
+
+              CASE i
+                WHEN 1 THEN SET str="1";
+                WHEN 2 THEN SET str="2";
+                WHEN 3 THEN SET str="3";
+                ELSE SET str="unknown";
+              END CASE;
+
+              SELECT str;
+            END
+            </pre>
+              The actions are used to generate the following code:
+            <pre>
+            SHOW PROCEDURE CODE proc_19194_simple;
+            Pos     Instruction
+            0       set str@1 NULL
+            1       set_case_expr (12) 0 i@0
+            2       jump_if_not 5(12) (case_expr@0 = 1)
+            3       set str@1 _latin1'1'
+            4       jump 12
+            5       jump_if_not 8(12) (case_expr@0 = 2)
+            6       set str@1 _latin1'2'
+            7       jump 12
+            8       jump_if_not 11(12) (case_expr@0 = 3)
+            9       set str@1 _latin1'3'
+            10      jump 12
+            11      set str@1 _latin1'unknown'
+            12      stmt 0 "SELECT str"
+            </pre>
+            */
+
+            Lex->sphead->new_cont_backpatch(NULL);
+
+            /*
+              BACKPATCH: Creating target label for the jump to after END CASE
+              (instruction 12 in the example)
+            */
+            Lex->spcont->push_label(current_thd, empty_lex_str, Lex->sphead->instructions());
           }
+          case_stmt_body
+          else_clause_opt
+          END
+          CASE_SYM
+          {
+            /*
+              BACKPATCH: Resolving forward jump from
+              "case_stmt_action_then" to after END CASE
+              (jump from instruction 4 to 12, 7 to 12 ... in the example)
+            */
+            Lex->sphead->backpatch(Lex->spcont->pop_label());
+
+            if ($3)
+              Lex->spcont->pop_case_expr_id();
+
+            Lex->sphead->do_cont_backpatch();
+          }
+        ;
+
+case_stmt_body:
+          { Lex->sphead->reset_lex(thd); /* For expr $2 */ }
           expr
           {
-            LEX *lex= Lex;
-            if (case_stmt_action_expr(lex, $3))
+            if (case_stmt_action_expr(Lex, $2))
               MYSQL_YYABORT;
 
-            /* For expr $3 */
-            if (lex->sphead->restore_lex(thd))
+            if (Lex->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
           simple_when_clause_list
-          else_clause_opt
-          END
-          CASE_SYM
-          {
-            LEX *lex= Lex;
-            case_stmt_action_end_case(lex, true);
-          }
-        ;
-
-searched_case_stmt:
-          CASE_SYM
-          {
-            LEX *lex= Lex;
-            case_stmt_action_case(lex);
-          }
-          searched_when_clause_list
-          else_clause_opt
-          END
-          CASE_SYM
-          {
-            LEX *lex= Lex;
-            case_stmt_action_end_case(lex, false);
-          }
+          { $$= 1; }
+        | searched_when_clause_list
+          { $$= 0; }
         ;
 
 simple_when_clause_list:
