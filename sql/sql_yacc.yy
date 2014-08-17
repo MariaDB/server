@@ -224,6 +224,27 @@ static bool is_native_function(THD *thd, const LEX_STRING *name)
 }
 
 
+static sp_head *make_sp_head(THD *thd, sp_name *name,
+                             enum stored_procedure_type type)
+{
+  LEX *lex= thd->lex;
+  sp_head *sp;
+
+  /* Order is important here: new - reset - init */
+  if ((sp= new sp_head()))
+  {
+    sp->reset_thd_mem_root(thd);
+    sp->init(lex);
+    sp->m_type= type;
+    sp->init_sp_name(thd, name);
+    sp->m_chistics= &lex->sp_chistics;
+    lex->sphead= sp;
+  }
+  bzero(&lex->sp_chistics, sizeof(lex->sp_chistics));
+  return sp;
+}
+
+
 /**
   Helper action for a case statement (entering the CASE).
   This helper is used for both 'simple' and 'searched' cases.
@@ -2669,18 +2690,10 @@ ev_sql_stmt:
               MYSQL_YYABORT;
             }
               
-            if (!(lex->sphead= new sp_head()))
+            if (!make_sp_head(thd, lex->event_parse_data->identifier, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
 
-            lex->sphead->reset_thd_mem_root(thd);
-            lex->sphead->init(lex);
-            lex->sphead->init_sp_name(thd, lex->event_parse_data->identifier);
-
-            lex->sphead->m_type= TYPE_ENUM_PROCEDURE;
-
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
-            lex->sphead->m_chistics= &lex->sp_chistics;
-
+            lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
           ev_sql_stmt_inner
@@ -2690,8 +2703,6 @@ ev_sql_stmt:
             /* return back to the original memory root ASAP */
             lex->sphead->set_stmt_end(thd);
             lex->sphead->restore_thd_mem_root(thd);
-
-            lex->sp_chistics.suid= SP_IS_SUID;  //always the definer!
 
             lex->event_parse_data->body_changed= TRUE;
           }
@@ -16069,7 +16080,6 @@ trigger_tail:
           { /* $15 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
-            sp_head *sp;
 
             if (lex->sphead)
             {
@@ -16077,21 +16087,14 @@ trigger_tail:
               MYSQL_YYABORT;
             }
 
-            if (!(sp= new sp_head()))
-              MYSQL_YYABORT;
-            sp->reset_thd_mem_root(thd);
-            sp->init(lex);
-            sp->m_type= TYPE_ENUM_TRIGGER;
-            sp->init_sp_name(thd, $3);
             lex->stmt_definition_begin= $2;
             lex->ident.str= $7;
             lex->ident.length= $11 - $7;
-
-            lex->sphead= sp;
             lex->spname= $3;
 
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
-            lex->sphead->m_chistics= &lex->sp_chistics;
+            if (!make_sp_head(thd, $3, TYPE_ENUM_TRIGGER))
+              MYSQL_YYABORT;
+
             lex->sphead->set_body_start(thd, lip->get_cpp_ptr());
           }
           sp_proc_stmt /* $16 */
@@ -16169,9 +16172,8 @@ sf_tail:
           sp_name /* $3 */
           '(' /* $4 */
           { /* $5 */
-            LEX *lex= thd->lex;
+            LEX *lex= Lex;
             Lex_input_stream *lip= YYLIP;
-            sp_head *sp;
             const char* tmp_param_begin;
 
             lex->stmt_definition_begin= $1;
@@ -16182,16 +16184,9 @@ sf_tail:
               my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), "FUNCTION");
               MYSQL_YYABORT;
             }
-            /* Order is important here: new - reset - init */
-            sp= new sp_head();
-            if (sp == NULL)
-              MYSQL_YYABORT;
-            sp->reset_thd_mem_root(thd);
-            sp->init(lex);
-            sp->init_sp_name(thd, lex->spname);
 
-            sp->m_type= TYPE_ENUM_FUNCTION;
-            lex->sphead= sp;
+            if (!make_sp_head(thd, $3, TYPE_ENUM_FUNCTION))
+              MYSQL_YYABORT;
 
             tmp_param_begin= lip->get_cpp_tok_start();
             tmp_param_begin++;
@@ -16231,15 +16226,12 @@ sf_tail:
                                           (enum enum_field_types) $11,
                                           &sp->m_return_field_def))
               MYSQL_YYABORT;
-
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
           }
           sp_c_chistics /* $13 */
           { /* $14 */
             LEX *lex= thd->lex;
             Lex_input_stream *lip= YYLIP;
 
-            lex->sphead->m_chistics= &lex->sp_chistics;
             lex->sphead->set_body_start(thd, lip->get_cpp_tok_start());
           }
           sp_proc_stmt /* $15 */
@@ -16299,27 +16291,16 @@ sf_tail:
 sp_tail:
           PROCEDURE_SYM remember_name sp_name
           {
-            LEX *lex= Lex;
-            sp_head *sp;
-
-            if (lex->sphead)
+            if (Lex->sphead)
             {
               my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), "PROCEDURE");
               MYSQL_YYABORT;
             }
 
-            lex->stmt_definition_begin= $2;
+            Lex->stmt_definition_begin= $2;
 
-            /* Order is important here: new - reset - init */
-            sp= new sp_head();
-            if (sp == NULL)
+            if (!make_sp_head(thd, $3, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
-            sp->reset_thd_mem_root(thd);
-            sp->init(lex);
-            sp->m_type= TYPE_ENUM_PROCEDURE;
-            sp->init_sp_name(thd, $3);
-
-            lex->sphead= sp;
           }
           '('
           {
@@ -16332,17 +16313,11 @@ sp_tail:
           sp_pdparam_list
           ')'
           {
-            LEX *lex= thd->lex;
-
-            lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
-            bzero((char *)&lex->sp_chistics, sizeof(st_sp_chistics));
+            Lex->sphead->m_param_end= YYLIP->get_cpp_tok_start();
           }
           sp_c_chistics
           {
-            LEX *lex= thd->lex;
-
-            lex->sphead->m_chistics= &lex->sp_chistics;
-            lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
           }
           sp_proc_stmt
           {
