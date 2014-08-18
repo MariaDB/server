@@ -2100,6 +2100,7 @@ row_merge(
 	/* Copy the last blocks, if there are any. */
 
 	while (foffs0 < ihalf) {
+
 		if (UNIV_UNLIKELY(trx_is_interrupted(trx))) {
 			return(DB_INTERRUPTED);
 		}
@@ -2116,6 +2117,7 @@ row_merge(
 	ut_ad(foffs0 == ihalf);
 
 	while (foffs1 < file->offset) {
+
 		if (trx_is_interrupted(trx)) {
 			return(DB_INTERRUPTED);
 		}
@@ -2175,6 +2177,7 @@ row_merge_sort(
 {
 	const ulint	half	= file->offset / 2;
 	ulint		num_runs;
+	ulint		cur_run = 0;
 	ulint*		run_offset;
 	dberr_t		error	= DB_SUCCESS;
 	DBUG_ENTER("row_merge_sort");
@@ -2198,8 +2201,16 @@ row_merge_sort(
 	of file marker).  Thus, it must be at least one block. */
 	ut_ad(file->offset > 0);
 
+	thd_progress_init(trx->mysql_thd, num_runs);
+
 	/* Merge the runs until we have one big run */
 	do {
+		cur_run++;
+
+		/* Report progress of merge sort to MySQL for
+		show processlist progress field */
+		thd_progress_report(trx->mysql_thd, cur_run, num_runs);
+
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset);
 
@@ -2211,6 +2222,8 @@ row_merge_sort(
 	} while (num_runs > 1);
 
 	mem_free(run_offset);
+
+	thd_progress_end(trx->mysql_thd);
 
 	DBUG_RETURN(error);
 }
