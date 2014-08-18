@@ -577,6 +577,7 @@ sp_head::sp_head()
   :Query_arena(&main_mem_root, STMT_INITIALIZED_FOR_SP),
    m_flags(0),
    m_sp_cache_version(0),
+   m_creation_ctx(0),
    unsafe_flags(0),
    m_recursion_level(0),
    m_next_cached_sp(0),
@@ -1237,7 +1238,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
     Switch query context. This has to be done early as this is sometimes
     allocated trough sql_alloc
   */
-  saved_creation_ctx= m_creation_ctx->set_n_backup(thd);
+  if (m_creation_ctx)
+    saved_creation_ctx= m_creation_ctx->set_n_backup(thd);
 
   /*
     We have to save/restore this info when we are changing call level to
@@ -1401,7 +1403,8 @@ sp_head::execute(THD *thd, bool merge_da_on_success)
 
   /* Restore query context. */
 
-  m_creation_ctx->restore_env(thd, saved_creation_ctx);
+  if (m_creation_ctx)
+    m_creation_ctx->restore_env(thd, saved_creation_ctx);
 
   /* Restore arena. */
 
@@ -2326,6 +2329,9 @@ sp_head::restore_lex(THD *thd)
     procedures) to multiset of tables used by this routine.
   */
   merge_table_list(thd, sublex->query_tables, sublex);
+  /* Merge lists of PS parameters. */
+  oldlex->param_list.append(&sublex->param_list);
+
   if (! sublex->sp_lex_in_use)
   {
     sublex->sphead= NULL;

@@ -236,7 +236,8 @@ static sp_head *make_sp_head(THD *thd, sp_name *name,
     sp->reset_thd_mem_root(thd);
     sp->init(lex);
     sp->m_type= type;
-    sp->init_sp_name(thd, name);
+    if (name)
+      sp->init_sp_name(thd, name);
     sp->m_chistics= &lex->sp_chistics;
     lex->sphead= sp;
   }
@@ -244,6 +245,18 @@ static sp_head *make_sp_head(THD *thd, sp_name *name,
   return sp;
 }
 
+static bool maybe_start_compound_statement(THD *thd)
+{
+  if (!thd->lex->sphead)
+  {
+    if (!make_sp_head(thd, NULL, TYPE_ENUM_PROCEDURE))
+      return 1;
+
+    Lex->sp_chistics.suid= SP_IS_NOT_SUID;
+    Lex->sphead->set_body_start(thd, YYLIP->get_cpp_ptr());
+  }
+  return 0;
+}
 
 /**
   Helper action for a case expression statement (the expr in 'CASE expr').
@@ -950,6 +963,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  ASCII_SYM                     /* MYSQL-FUNC */
 %token  ASENSITIVE_SYM                /* FUTURE-USE */
 %token  AT_SYM                        /* SQL-2003-R */
+%token  ATOMIC_SYM                    /* SQL-2003-R */
 %token  AUTHORS_SYM
 %token  AUTOEXTEND_SIZE_SYM
 %token  AUTO_INC
@@ -1757,7 +1771,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <NONE>
         analyze_stmt_command
         query verb_clause create change select do drop insert replace insert2
-        insert_values update delete truncate rename
+        insert_values update delete truncate rename compound_statement
         show describe load alter optimize keycache preload flush
         reset purge begin commit rollback savepoint release
         slave master_def master_defs master_file_def slave_until_opts
@@ -1822,9 +1836,10 @@ END_OF_INPUT
 
 %type <NONE> call sp_proc_stmts sp_proc_stmts1 sp_proc_stmt
 %type <NONE> sp_proc_stmt_statement sp_proc_stmt_return
+%type <NONE> sp_proc_stmt_compound_ok
 %type <NONE> sp_proc_stmt_if
 %type <NONE> sp_labeled_control sp_unlabeled_control
-%type <NONE> sp_labeled_block sp_unlabeled_block
+%type <NONE> sp_labeled_block sp_unlabeled_block sp_unlabeled_block_not_atomic
 %type <NONE> sp_proc_stmt_leave
 %type <NONE> sp_proc_stmt_iterate
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
@@ -1934,9 +1949,10 @@ opt_end_of_input:
 verb_clause:
           statement
         | begin
+        | compound_statement
         ;
 
-/* Verb clauses, except begin */
+/* Verb clauses, except begin and compound_statement */
 statement:
           alter
         | analyze
@@ -3548,22 +3564,31 @@ sp_opt_default:
 sp_proc_stmt:
           sp_proc_stmt_statement
         | sp_proc_stmt_return
-        | sp_proc_stmt_if
-        | case_stmt_specification
         | sp_labeled_block
         | sp_unlabeled_block
         | sp_labeled_control
-        | sp_unlabeled_control
         | sp_proc_stmt_leave
         | sp_proc_stmt_iterate
         | sp_proc_stmt_open
         | sp_proc_stmt_fetch
         | sp_proc_stmt_close
+        | sp_proc_stmt_compound_ok
+        ;
+
+sp_proc_stmt_compound_ok:
+          sp_proc_stmt_if
+        | case_stmt_specification
+        | sp_unlabeled_block_not_atomic
+        | sp_unlabeled_control
         ;
 
 sp_proc_stmt_if:
           IF_SYM
-          { Lex->sphead->new_cont_backpatch(NULL); }
+          {
+            if (maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
+            Lex->sphead->new_cont_backpatch(NULL);
+          }
           sp_if END IF_SYM
           { Lex->sphead->do_cont_backpatch(); }
         ;
@@ -3652,17 +3677,16 @@ sp_proc_stmt_return:
         ;
 
 sp_unlabeled_control:
-          { /* Unlabeled controls get an empty label. */
-            LEX *lex= Lex;
-
-            lex->spcont->push_label(thd, empty_lex_str,
-                                    lex->sphead->instructions());
+          {
+            if (maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
+            /* Unlabeled controls get an empty label. */
+            Lex->spcont->push_label(thd, empty_lex_str,
+                                    Lex->sphead->instructions());
           }
           sp_control_content
           {
-            LEX *lex= Lex;
-
-            lex->sphead->backpatch(lex->spcont->pop_label());
+            Lex->sphead->backpatch(Lex->spcont->pop_label());
           }
         ;
 
@@ -3920,6 +3944,8 @@ sp_elseifs:
 case_stmt_specification:
           CASE_SYM
           {
+            if (maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
 
             /**
               An example of the CASE statement in use is
@@ -4141,12 +4167,20 @@ sp_labeled_block:
           }
         ;
 
-/* QQ This is just a dummy for grouping declarations and statements
-   together. No [[NOT] ATOMIC] yet, and we need to figure out how
-   make it coexist with the existing BEGIN COMMIT/ROLLBACK. */
 sp_unlabeled_block:
           BEGIN_SYM
           {
+            Lex->name= empty_lex_str; // Unlabeled blocks get an empty label
+          }
+          sp_block_content
+          { }
+        ;
+
+sp_unlabeled_block_not_atomic:
+          BEGIN_SYM not ATOMIC_SYM /* TODO: BEGIN ATOMIC (not -> opt_not) */
+          {
+            if (maybe_start_compound_statement(thd))
+              MYSQL_YYABORT;
             Lex->name= empty_lex_str; // Unlabeled blocks get an empty label
           }
           sp_block_content
@@ -14056,6 +14090,7 @@ keyword_sp:
         | ALWAYS_SYM               {}
         | ANY_SYM                  {}
         | AT_SYM                   {}
+        | ATOMIC_SYM               {}
         | AUTHORS_SYM              {}
         | AUTO_INC                 {}
         | AUTOEXTEND_SIZE_SYM      {}
@@ -15572,6 +15607,16 @@ begin:
             lex->start_transaction_opt= 0;
           }
           opt_work {}
+          ;
+
+compound_statement:
+          sp_proc_stmt_compound_ok
+          {
+            Lex->sql_command= SQLCOM_COMPOUND;
+            Lex->sphead->set_stmt_end(thd);
+            Lex->sphead->restore_thd_mem_root(thd);
+          }
+        ;
 
 opt_not:
         /* nothing */  { $$= 0; }

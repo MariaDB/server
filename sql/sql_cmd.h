@@ -94,6 +94,7 @@ enum enum_sql_command {
   SQLCOM_SLAVE_ALL_START, SQLCOM_SLAVE_ALL_STOP,
   SQLCOM_SHOW_EXPLAIN, SQLCOM_SHUTDOWN,
   SQLCOM_CREATE_ROLE, SQLCOM_DROP_ROLE, SQLCOM_GRANT_ROLE, SQLCOM_REVOKE_ROLE,
+  SQLCOM_COMPOUND,
 
   /*
     When a command is added here, be sure it's also added in mysqld.cc

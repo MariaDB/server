@@ -471,6 +471,7 @@ void init_update_queries(void)
                                        CF_CAN_GENERATE_ROW_EVENTS |
                                        CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+  sql_command_flags[SQLCOM_COMPOUND]=  CF_CAN_GENERATE_ROW_EVENTS;
 
   /*
     We don't want to change to statement based replication for these commands
@@ -5074,6 +5075,14 @@ create_sp_error:
       }
       break;
     }
+
+  case SQLCOM_COMPOUND:
+    DBUG_ASSERT(all_tables == 0);
+    DBUG_ASSERT(thd->in_sub_stmt == 0);
+    if (do_execute_sp(thd, lex->sphead))
+      goto error;
+    break;
+
   case SQLCOM_ALTER_PROCEDURE:
   case SQLCOM_ALTER_FUNCTION:
     {

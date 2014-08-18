@@ -2252,6 +2252,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   case SQLCOM_GRANT:
   case SQLCOM_REVOKE:
   case SQLCOM_KILL:
+  case SQLCOM_COMPOUND:
   case SQLCOM_SHUTDOWN:
     break;
 
@@ -3287,6 +3288,7 @@ Prepared_statement::~Prepared_statement()
   free_items();
   if (lex)
   {
+    delete lex->sphead;
     delete lex->result;
     delete (st_lex_local *) lex;
   }
@@ -3465,12 +3467,15 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   if (error == 0)
     error= check_prepared_statement(this);
 
-  /*
-    Currently CREATE PROCEDURE/TRIGGER/EVENT are prohibited in prepared
-    statements: ensure we have no memory leak here if by someone tries
-    to PREPARE stmt FROM "CREATE PROCEDURE ..."
-  */
-  DBUG_ASSERT(lex->sphead == NULL || error != 0);
+  if (error)
+  {
+    /*
+      let the following code know we're not in PS anymore,
+      the won't be any EXECUTE, so we need a full cleanup
+    */
+    lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
+  }
+
   /* The order is important */
   lex->unit.cleanup();
 

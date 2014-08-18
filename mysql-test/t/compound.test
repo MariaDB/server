@@ -1,0 +1,115 @@
+#
+# MDEV-5317 Compound statement / anonymous blocks
+#
+delimiter |;
+
+CREATE TABLE t1 (a INT PRIMARY KEY)|
+
+BEGIN NOT ATOMIC
+  INSERT INTO t1 VALUES (1);
+  INSERT INTO t1 VALUES (2);
+  INSERT INTO t1 VALUES (3);
+END|
+
+SELECT * FROM t1|
+PREPARE stmt FROM "BEGIN NOT ATOMIC
+  INSERT INTO t1 VALUES (4);
+  INSERT INTO t1 VALUES (5);
+  INSERT INTO t1 VALUES (?);
+END";
+SET @val = 6|
+EXECUTE stmt USING @val|
+SELECT * FROM t1|
+
+PREPARE stmt FROM "BEGIN NOT ATOMIC
+  DECLARE v_res INT;
+  SELECT COUNT(*) INTO v_res FROM t1;
+  SELECT 'Hello World', v_res INTO ?,?;
+END"|
+SET @val="", @val2=""|
+EXECUTE stmt USING @val, @val2|
+SELECT @val, @val2|
+DROP TABLE t1|
+
+#
+# test for default database
+#
+# * SP db is different from the current db
+CREATE DATABASE mysqltest1|
+CREATE PROCEDURE mysqltest1.sp1()
+BEGIN
+  PREPARE stmt FROM "BEGIN NOT ATOMIC CREATE TABLE t1 AS SELECT DATABASE(); END";
+  EXECUTE stmt;
+END|
+
+CALL mysqltest1.sp1()|
+SELECT * FROM mysqltest1.t1|
+
+USE mysqltest1|
+DROP DATABASE mysqltest1|
+
+# * no current db
+--error ER_NO_DB_ERROR
+BEGIN NOT ATOMIC CREATE TABLE t1(a int); END|
+
+BEGIN NOT ATOMIC SET @a=1; CREATE TABLE test.t1(a int); END|
+
+USE test|
+show tables|
+drop table t1|
+
+# IF (without /**/ mysqltest treats if as its own command)
+/**/ if (select count(*) from information_schema.tables
+    where table_schema='test' and table_name='t1') = 0
+  then
+    create table t1 (a int);
+end if|
+show tables|
+/**/ if (select count(*) from information_schema.tables
+    where table_schema='test' and table_name='t1') = 0
+  then
+    create table t1 (a int);
+end if|
+show tables|
+
+# CASE simple
+case (select table_name from information_schema.tables where table_schema='test')
+  when 't1' then create table t2 (b int);
+  when 't2' then create table t3 (b int);
+  else signal sqlstate '42S02';
+end case|
+show tables|
+
+# CASE searched
+case
+  when database() = 'test' then create table t3 (test text);
+  when now() < date'2001-02-03' then create table oops (machine time);
+end case|
+show tables|
+
+# LOOP
+--error ER_TABLE_EXISTS_ERROR
+loop
+  create table t4 (a int);
+end loop|
+show tables|
+
+# REPEAT
+set @a=0;
+repeat
+  set @a = @a + 1;
+until @a > 5
+end repeat|
+select @a|
+
+# WHILE
+--vertical_results
+/**/ while (select count(*) from information_schema.tables where table_schema='test')
+do
+  select concat('drop table ', table_name) into @a
+     from information_schema.tables where table_schema='test' limit 1;
+  select @a as 'executing:';
+  prepare dt from @a;
+  execute dt;
+end while|
+--horizontal_results
