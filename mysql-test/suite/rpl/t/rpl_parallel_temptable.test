@@ -1,3 +1,4 @@
+--source include/have_innodb.inc
 --source include/have_binlog_format_statement.inc
 --let $rpl_topology=1->2
 --source include/rpl_init.inc
@@ -130,6 +131,83 @@ INSERT INTO t1 VALUES (0, 1);
 SELECT * FROM t1 WHERE a <= 20 ORDER BY a;
 SELECT COUNT(*) FROM t1 WHERE a BETWEEN 100+0 AND 100+256;
 SHOW STATUS LIKE 'Slave_open_temp_tables';
+
+
+--echo *** Test that if master logged partial event group before crash, we finish that group correctly before executing format description event ***
+
+--source include/stop_slave.inc
+
+--connection server_1
+CALL mtr.add_suppression("Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them");
+SET gtid_domain_id= 1;
+DELETE FROM t1;
+ALTER TABLE t1 ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t2 VALUES (2);
+
+--connection default
+SET gtid_domain_id= 2;
+CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY);
+INSERT INTO t3 VALUES (10);
+INSERT INTO t3 VALUES (20);
+
+--connection server_1
+INSERT INTO t1 SELECT a, 'server_1' FROM t2;
+
+--connection default
+INSERT INTO t1 SELECT a, 'default' FROM t3;
+
+--connection server_1
+INSERT INTO t1 SELECT a+2, '+server_1' FROM t2;
+
+# Crash the master server in the middle of writing an event group.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait
+EOF
+
+FLUSH TABLES;
+SET SESSION debug_dbug="+d,crash_before_writing_xid";
+--error 2006,2013
+INSERT INTO t1 SELECT a+4, '++server_1' FROM t2;
+
+--source include/wait_until_disconnected.inc
+--connection default
+--source include/wait_until_disconnected.inc
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+--connection default
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection server_1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+INSERT INTO t1 VALUES (0, 1);
+#--save_master_pos
+--source include/save_master_gtid.inc
+
+--connection server_2
+# Start the slave replicating the events.
+# The main thing to test here is that the slave will know that it
+# needs to abort the partially received event group, so that the
+# execution of format_description event will not wait infinitely
+# for a commit of the incomplete group that never happens.
+
+--source include/start_slave.inc
+#--sync_with_master
+--source include/sync_with_master_gtid.inc
+
+SELECT * FROM t1 ORDER BY a;
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+
+--connection server_1
+# This FLUSH can be removed once MDEV-6608 is fixed.
+FLUSH LOGS;
 
 
 --connection server_2

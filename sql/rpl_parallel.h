@@ -76,10 +76,15 @@ struct rpl_parallel_thread {
       queued_event can hold either an event to be executed, or just a binlog
       position to be updated without any associated event.
     */
-    enum queued_event_t { QUEUED_EVENT, QUEUED_POS_UPDATE } typ;
+    enum queued_event_t {
+      QUEUED_EVENT,
+      QUEUED_POS_UPDATE,
+      QUEUED_MASTER_RESTART
+    } typ;
     union {
       Log_event *ev;                            /* QUEUED_EVENT */
-      rpl_parallel_entry *entry_for_queued;     /* QUEUED_POS_UPDATE */
+      rpl_parallel_entry *entry_for_queued;     /* QUEUED_POS_UPDATE and
+                                                   QUEUED_MASTER_RESTART */
     };
     rpl_group_info *rgi;
     inuse_relaylog *ir;
@@ -224,8 +229,8 @@ struct rpl_parallel_entry {
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
                                       PSI_stage_info *old_stage, bool reuse);
-  group_commit_orderer *get_gco();
-  void free_gco(group_commit_orderer *gco);
+  int queue_master_restart(rpl_group_info *rgi,
+                           Format_description_log_event *fdev);
 };
 struct rpl_parallel {
   HASH domain_hash;

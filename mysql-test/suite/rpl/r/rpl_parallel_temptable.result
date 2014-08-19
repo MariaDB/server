@@ -79,6 +79,43 @@ COUNT(*)
 SHOW STATUS LIKE 'Slave_open_temp_tables';
 Variable_name	Value
 Slave_open_temp_tables	0
+*** Test that if master logged partial event group before crash, we finish that group correctly before executing format description event ***
+include/stop_slave.inc
+CALL mtr.add_suppression("Statement accesses nontransactional table as well as transactional or temporary table, and writes to any of them");
+SET gtid_domain_id= 1;
+DELETE FROM t1;
+ALTER TABLE t1 ENGINE=InnoDB;
+CREATE TEMPORARY TABLE t2 (a INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1);
+INSERT INTO t2 VALUES (2);
+SET gtid_domain_id= 2;
+CREATE TEMPORARY TABLE t3 (a INT PRIMARY KEY);
+INSERT INTO t3 VALUES (10);
+INSERT INTO t3 VALUES (20);
+INSERT INTO t1 SELECT a, 'server_1' FROM t2;
+INSERT INTO t1 SELECT a, 'default' FROM t3;
+INSERT INTO t1 SELECT a+2, '+server_1' FROM t2;
+FLUSH TABLES;
+SET SESSION debug_dbug="+d,crash_before_writing_xid";
+INSERT INTO t1 SELECT a+4, '++server_1' FROM t2;
+Got one of the listed errors
+INSERT INTO t1 VALUES (0, 1);
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+0	1
+1	server_1
+2	server_1
+3	+server_1
+4	+server_1
+10	default
+20	default
+SHOW STATUS LIKE 'Slave_open_temp_tables';
+Variable_name	Value
+Slave_open_temp_tables	0
+FLUSH LOGS;
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

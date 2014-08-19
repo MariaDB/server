@@ -587,6 +587,30 @@ handle_rpl_parallel_thread(void *arg)
         events= next;
         continue;
       }
+      else if (events->typ ==
+               rpl_parallel_thread::queued_event::QUEUED_MASTER_RESTART)
+      {
+        if (in_event_group)
+        {
+          /*
+            Master restarted (crashed) in the middle of an event group.
+            So we need to roll back and discard that event group.
+          */
+          group_rgi->cleanup_context(thd, 1);
+          in_event_group= false;
+          finish_event_group(thd, group_rgi->gtid_sub_id,
+                             events->entry_for_queued, group_rgi);
+
+          group_rgi->next= rgis_to_free;
+          rgis_to_free= group_rgi;
+          thd->rgi_slave= group_rgi= NULL;
+        }
+
+        events->next= qevs_to_free;
+        qevs_to_free= events;
+        events= next;
+        continue;
+      }
       DBUG_ASSERT(events->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
       thd->rgi_slave= group_rgi= rgi;
@@ -1617,6 +1641,54 @@ rpl_parallel::workers_idle()
 }
 
 
+int
+rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
+                                         Format_description_log_event *fdev)
+{
+  uint32 idx;
+  rpl_parallel_thread *thr;
+  rpl_parallel_thread::queued_event *qev;
+  Relay_log_info *rli= rgi->rli;
+
+  /*
+    We only need to queue the server restart if we still have a thread working
+    on a (potentially partial) event group.
+
+    If the last thread we queued for has finished, then it cannot have any
+    partial event group that needs aborting.
+
+    Thus there is no need for the full complexity of choose_thread(). We only
+    need to check if we have a current worker thread, and queue for it if so.
+  */
+  idx= rpl_thread_idx;
+  thr= rpl_threads[idx];
+  if (!thr)
+    return 0;
+  mysql_mutex_lock(&thr->LOCK_rpl_thread);
+  if (thr->current_owner != &rpl_threads[idx])
+  {
+    /* No active worker thread, so no need to queue the master restart. */
+    mysql_mutex_unlock(&thr->LOCK_rpl_thread);
+    return 0;
+  }
+
+  if (!(qev= thr->get_qev(fdev, 0, rli)))
+  {
+    mysql_mutex_unlock(&thr->LOCK_rpl_thread);
+    return 1;
+  }
+
+  qev->rgi= rgi;
+  qev->typ= rpl_parallel_thread::queued_event::QUEUED_MASTER_RESTART;
+  qev->entry_for_queued= this;
+  qev->ir= rli->last_inuse_relaylog;
+  ++qev->ir->queued_count;
+  thr->enqueue(qev);
+  mysql_mutex_unlock(&thr->LOCK_rpl_thread);
+  return 0;
+}
+
+
 void
 rpl_parallel::wait_for_workers_idle(THD *thd)
 {
@@ -1727,7 +1799,16 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
         Thus we need to wait for all prior events to execute to completion,
         in case they need access to any of the temporary tables.
+
+        We also need to notify the worker thread running the prior incomplete
+        event group (if any), as such event group signifies an incompletely
+        written group cut short by a master crash, and must be rolled back.
       */
+      if (current->queue_master_restart(serial_rgi, fdev))
+      {
+        delete ev;
+        return 1;
+      }
       wait_for_workers_idle(rli->sql_driver_thd);
     }
   }
