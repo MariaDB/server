@@ -985,9 +985,9 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   /* Find all instances of Item_splocal used in this statement */
   for (Item *item= instr->free_list; item; item= item->next)
   {
-    if (item->is_splocal())
+    Item_splocal *item_spl= item->get_item_splocal();
+    if (item_spl)
     {
-      Item_splocal *item_spl= (Item_splocal*)item;
       if (item_spl->pos_in_query)
         sp_vars_uses.append(item_spl);
     }

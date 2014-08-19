@@ -3189,7 +3189,7 @@ mysql_execute_command(THD *thd)
         /* Count SP local vars in the top-level SELECT list */
         while ((item= it++))
         {
-          if (item->is_splocal())
+          if (item->get_item_splocal())
             splocal_refs++;
         }
         /*

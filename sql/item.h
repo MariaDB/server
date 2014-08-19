@@ -570,6 +570,7 @@ class COND_EQUAL;
 class st_select_lex_unit;
 
 class Item_func_not;
+class Item_splocal;
 
 class Item {
   Item(const Item &);			/* Prevent use of these */
@@ -1431,7 +1432,7 @@ public:
     delete this;
   }
 
-  virtual bool is_splocal() { return 0; } /* Needed for error checking */
+  virtual Item_splocal *get_item_splocal() { return 0; }
 
   /*
     Return Settable_routine_parameter interface of the Item.  Return 0
@@ -1729,8 +1730,6 @@ public:
                enum_field_types sp_var_type,
                uint pos_in_q= 0, uint len_in_q= 0);
 
-  bool is_splocal() { return 1; } /* Needed for error checking */
-
   Item *this_item();
   const Item *this_item() const;
   Item **this_item_addr(THD *thd, Item **);
@@ -1750,6 +1749,8 @@ private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
 public:
+  Item_splocal *get_item_splocal() { return this; }
+
   Settable_routine_parameter *get_settable_routine_parameter()
   {
     return this;

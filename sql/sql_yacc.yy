@@ -9230,9 +9230,9 @@ simple_expr:
           }
         | DEFAULT '(' simple_ident ')'
           {
-            if ($3->is_splocal())
+            Item_splocal *il= $3->get_item_splocal();
+            if (il)
             {
-              Item_splocal *il= static_cast<Item_splocal *>($3);
 
               my_error(ER_WRONG_COLUMN_NAME, MYF(0), il->my_name()->str);
               MYSQL_YYABORT;
