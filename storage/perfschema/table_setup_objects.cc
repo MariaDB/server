@@ -30,39 +30,6 @@
 
 THR_LOCK table_setup_objects::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("OBJECT_TYPE") },
-    { C_STRING_WITH_LEN("enum(\'TABLE\')") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_SCHEMA") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OBJECT_NAME") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ENABLED") },
-    { C_STRING_WITH_LEN("enum(\'YES\',\'NO\')") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMED") },
-    { C_STRING_WITH_LEN("enum(\'YES\',\'NO\')") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_setup_objects::m_field_def=
-{ 5, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_setup_objects::m_share=
 {
@@ -75,8 +42,12 @@ table_setup_objects::m_share=
   1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE setup_objects("
+                      "OBJECT_TYPE ENUM ('TABLE') not null default 'TABLE',"
+                      "OBJECT_SCHEMA VARCHAR(64) default '%',"
+                      "OBJECT_NAME VARCHAR(64) not null default '%',"
+                      "ENABLED ENUM ('YES', 'NO') not null default 'YES',"
+                      "TIMED ENUM ('YES', 'NO') not null default 'YES')") }
 };
 
 int update_derived_flags()

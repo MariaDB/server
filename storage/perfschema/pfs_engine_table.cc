@@ -151,91 +151,6 @@ static PFS_engine_table_share *all_shares[]=
   NULL
 };
 
-/**
-  Check all the tables structure.
-  @param thd              current thread
-*/
-void PFS_engine_table_share::check_all_tables(THD *thd)
-{
-  PFS_engine_table_share **current;
-
-  DBUG_EXECUTE_IF("tampered_perfschema_table1",
-                  {
-                    /* Hack SETUP_INSTRUMENT, incompatible change. */
-                    all_shares[20]->m_field_def->count++;
-                  });
-
-  for (current= &all_shares[0]; (*current) != NULL; current++)
-    (*current)->check_one_table(thd);
-}
-
-/** Error reporting for schema integrity checks. */
-class PFS_check_intact : public Table_check_intact
-{
-protected:
-  virtual void report_error(uint code, const char *fmt, ...);
-
-public:
-  PFS_check_intact()
-  {}
-
-  ~PFS_check_intact()
-  {}
-};
-
-void PFS_check_intact::report_error(uint code, const char *fmt, ...)
-{
-  va_list args;
-  char buff[MYSQL_ERRMSG_SIZE];
-
-  va_start(args, fmt);
-  my_vsnprintf(buff, sizeof(buff), fmt, args);
-  va_end(args);
-
-  /*
-    This is an install/upgrade issue:
-    - do not report it in the user connection, there is none in main(),
-    - report it in the server error log.
-  */
-  sql_print_error("%s", buff);
-}
-
-/**
-  Check integrity of the actual table schema.
-  The actual table schema (.frm) is compared to the expected schema.
-  @param thd              current thread
-*/
-void PFS_engine_table_share::check_one_table(THD *thd)
-{
-  TABLE_LIST tables;
-
-  tables.init_one_table(PERFORMANCE_SCHEMA_str.str,
-                        PERFORMANCE_SCHEMA_str.length,
-                        m_name.str, m_name.length,
-                        m_name.str, TL_READ);
-
-  /* Work around until Bug#32115 is backported. */
-  LEX dummy_lex;
-  LEX *old_lex= thd->lex;
-  thd->lex= &dummy_lex;
-  lex_start(thd);
-
-  if (! open_and_lock_tables(thd, &tables, FALSE, MYSQL_LOCK_IGNORE_TIMEOUT))
-  {
-    PFS_check_intact checker;
-
-    if (!checker.check(tables.table, m_field_def))
-      m_checked= true;
-    close_thread_tables(thd);
-  }
-  else
-    sql_print_error(ER(ER_WRONG_NATIVE_TABLE_STRUCTURE),
-                    PERFORMANCE_SCHEMA_str.str, m_name.str);
-
-  lex_end(&dummy_lex);
-  thd->lex= old_lex;
-}
-
 /** Initialize all the table share locks. */
 void PFS_engine_table_share::init_all_locks(void)
 {
@@ -267,15 +182,6 @@ int PFS_engine_table_share::write_row(TABLE *table, unsigned char *buf,
                                       Field **fields) const
 {
   my_bitmap_map *org_bitmap;
-
-  /*
-    Make sure the table structure is as expected before mapping
-    hard wired columns in m_write_row.
-  */
-  if (! m_checked)
-  {
-    return HA_ERR_TABLE_NEEDS_UPGRADE;
-  }
 
   if (m_write_row == NULL)
   {
@@ -347,15 +253,6 @@ int PFS_engine_table::read_row(TABLE *table,
   Field *f;
   Field **fields_reset;
 
-  /*
-    Make sure the table structure is as expected before mapping
-    hard wired columns in read_row_values.
-  */
-  if (! m_share_ptr->m_checked)
-  {
-    return HA_ERR_TABLE_NEEDS_UPGRADE;
-  }
-
   /* We must read all columns in case a table is opened for update */
   bool read_all= !bitmap_is_clear_all(table->write_set);
 
@@ -392,15 +289,6 @@ int PFS_engine_table::update_row(TABLE *table,
 {
   my_bitmap_map *org_bitmap;
 
-  /*
-    Make sure the table structure is as expected before mapping
-    hard wired columns in update_row_values.
-  */
-  if (! m_share_ptr->m_checked)
-  {
-    return HA_ERR_TABLE_NEEDS_UPGRADE;
-  }
-
   /* We internally read from Fields to support the write interface */
   org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
   int result= update_row_values(table, old_buf, new_buf, fields);
@@ -414,15 +302,6 @@ int PFS_engine_table::delete_row(TABLE *table,
                                  Field **fields)
 {
   my_bitmap_map *org_bitmap;
-
-  /*
-    Make sure the table structure is as expected before mapping
-    hard wired columns in delete_row_values.
-  */
-  if (! m_share_ptr->m_checked)
-  {
-    return HA_ERR_TABLE_NEEDS_UPGRADE;
-  }
 
   /* We internally read from Fields to support the delete interface */
   org_bitmap= dbug_tmp_use_all_columns(table, table->read_set);
@@ -1438,6 +1317,19 @@ bool pfs_show_status(handlerton *hton, THD *thd,
 
 end:
   DBUG_RETURN(false);
+}
+
+int pfs_discover_table_names(handlerton *hton __attribute__((unused)),
+                             LEX_STRING *db,
+                             MY_DIR *dir __attribute__((unused)),
+                             handlerton::discovered_list *result)
+{
+  if (compare_table_names(db->str, PERFORMANCE_SCHEMA_str.str))
+    return 0;
+  for (size_t i= 0; i < array_elements(all_shares) - 1; i++)
+    result->add_table(all_shares[i]->m_name.str,
+                      all_shares[i]->m_name.length);
+  return 0;
 }
 
 /** @} */

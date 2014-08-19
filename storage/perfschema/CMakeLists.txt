@@ -131,7 +131,6 @@ pfs.cc
 pfs_account.cc
 pfs_atomic.cc
 pfs_autosize.cc
-pfs_check.cc
 pfs_column_values.cc
 pfs_con_slice.cc
 pfs_defaults.cc

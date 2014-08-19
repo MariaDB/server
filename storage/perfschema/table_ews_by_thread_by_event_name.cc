@@ -29,49 +29,6 @@
 
 THR_LOCK table_ews_by_thread_by_event_name::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_STAR") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_ews_by_thread_by_event_name::m_field_def=
-{ 7, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_ews_by_thread_by_event_name::m_share=
 {
@@ -84,8 +41,14 @@ table_ews_by_thread_by_event_name::m_share=
   1000, /* records */
   sizeof(pos_ews_by_thread_by_event_name),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_thread_by_event_name("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "COUNT_STAR BIGINT unsigned not null,"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null)") }
 };
 
 PFS_engine_table*

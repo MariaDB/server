@@ -182,12 +182,6 @@ private:
 
   /** Table share lock. */
   static THR_LOCK m_table_lock;
-  /**
-    Fields definition.
-    Also used by table_events_waits_history
-    and table_events_waits_history_long.
-  */
-  static TABLE_FIELD_DEF m_field_def;
 
   /** Current position. */
   pos_events_waits_current m_pos;

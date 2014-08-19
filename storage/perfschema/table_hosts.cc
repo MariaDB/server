@@ -24,29 +24,6 @@
 
 THR_LOCK table_hosts::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("HOST") },
-    { C_STRING_WITH_LEN("char(60)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("CURRENT_CONNECTIONS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TOTAL_CONNECTIONS") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_hosts::m_field_def=
-{ 3, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_hosts::m_share=
 {
@@ -59,8 +36,10 @@ table_hosts::m_share=
   1000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE hosts("
+                      "HOST CHAR(60) collate utf8_bin default null,"
+                      "CURRENT_CONNECTIONS bigint not null,"
+                      "TOTAL_CONNECTIONS bigint not null)") }
 };
 
 PFS_engine_table* table_hosts::create()

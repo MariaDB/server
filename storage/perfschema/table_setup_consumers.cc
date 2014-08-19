@@ -92,24 +92,6 @@ static row_setup_consumers all_setup_consumers_data[COUNT_SETUP_CONSUMERS]=
 
 THR_LOCK table_setup_consumers::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("NAME") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ENABLED") },
-    { C_STRING_WITH_LEN("enum(\'YES\',\'NO\')") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_setup_consumers::m_field_def=
-{ 2, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_setup_consumers::m_share=
 {
@@ -122,8 +104,9 @@ table_setup_consumers::m_share=
   COUNT_SETUP_CONSUMERS, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE setup_consumers("
+                      "NAME VARCHAR(64) not null,"
+                      "ENABLED ENUM ('YES', 'NO') not null)") }
 };
 
 PFS_engine_table* table_setup_consumers::create(void)

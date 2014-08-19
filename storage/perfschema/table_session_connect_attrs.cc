@@ -29,8 +29,12 @@ table_session_connect_attrs::m_share=
   1000, /* records */
   sizeof(pos_connect_attr_by_thread_by_attr), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE session_connect_attrs("
+                      "PROCESSLIST_ID INT NOT NULL,"
+                      "ATTR_NAME VARCHAR(32) NOT NULL,"
+                      "ATTR_VALUE VARCHAR(1024),"
+                      "ORDINAL_POSITION INT"
+                      ") CHARACTER SET utf8 COLLATE utf8_bin") }
 };
 
 PFS_engine_table* table_session_connect_attrs::create()

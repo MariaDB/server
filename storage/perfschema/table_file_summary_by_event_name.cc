@@ -29,135 +29,6 @@
 
 THR_LOCK table_file_summary_by_event_name::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("COUNT_STAR") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-
-  /** Read */
-  {
-    { C_STRING_WITH_LEN("COUNT_READ") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_READ") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_READ") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_READ") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_READ") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_NUMBER_OF_BYTES_READ") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-
-  /** Write */
-  {
-    { C_STRING_WITH_LEN("COUNT_WRITE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_WRITE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_WRITE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_WRITE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_WRITE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_NUMBER_OF_BYTES_WRITE") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-
-  /** Misc */
-  {
-    { C_STRING_WITH_LEN("COUNT_MISC") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SUM_TIMER_MISC") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MIN_TIMER_MISC") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("AVG_TIMER_MISC") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("MAX_TIMER_MISC") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_file_summary_by_event_name::m_field_def=
-{ 23, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_file_summary_by_event_name::m_share=
 {
@@ -170,8 +41,30 @@ table_file_summary_by_event_name::m_share=
   1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE file_summary_by_event_name("
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "COUNT_STAR BIGINT unsigned not null,"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null,"
+                      "COUNT_READ BIGINT unsigned not null,"
+                      "SUM_TIMER_READ BIGINT unsigned not null,"
+                      "MIN_TIMER_READ BIGINT unsigned not null,"
+                      "AVG_TIMER_READ BIGINT unsigned not null,"
+                      "MAX_TIMER_READ BIGINT unsigned not null,"
+                      "SUM_NUMBER_OF_BYTES_READ BIGINT not null,"
+                      "COUNT_WRITE BIGINT unsigned not null,"
+                      "SUM_TIMER_WRITE BIGINT unsigned not null,"
+                      "MIN_TIMER_WRITE BIGINT unsigned not null,"
+                      "AVG_TIMER_WRITE BIGINT unsigned not null,"
+                      "MAX_TIMER_WRITE BIGINT unsigned not null,"
+                      "SUM_NUMBER_OF_BYTES_WRITE BIGINT not null,"
+                      "COUNT_MISC BIGINT unsigned not null,"
+                      "SUM_TIMER_MISC BIGINT unsigned not null,"
+                      "MIN_TIMER_MISC BIGINT unsigned not null,"
+                      "AVG_TIMER_MISC BIGINT unsigned not null,"
+                      "MAX_TIMER_MISC BIGINT unsigned not null)") }
 };
 
 PFS_engine_table* table_file_summary_by_event_name::create(void)

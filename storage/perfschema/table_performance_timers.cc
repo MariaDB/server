@@ -26,35 +26,6 @@
 
 THR_LOCK table_performance_timers::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("TIMER_NAME") },
-    { C_STRING_WITH_LEN("enum(\'CYCLE\',\'NANOSECOND\',\'MICROSECOND\',"
-                        "\'MILLISECOND\',\'TICK\')") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_FREQUENCY") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_RESOLUTION") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_OVERHEAD") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_performance_timers::m_field_def=
-{ 4, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_performance_timers::m_share=
 {
@@ -67,8 +38,11 @@ table_performance_timers::m_share=
   COUNT_TIMER_NAME, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE performance_timers("
+                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null,"
+                      "TIMER_FREQUENCY BIGINT,"
+                      "TIMER_RESOLUTION BIGINT,"
+                      "TIMER_OVERHEAD BIGINT)") }
 };
 
 PFS_engine_table* table_performance_timers::create(void)
