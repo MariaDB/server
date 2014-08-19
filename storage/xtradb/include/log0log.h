@@ -168,6 +168,13 @@ lsn_t
 log_get_lsn(void);
 /*=============*/
 /************************************************************//**
+Gets the current lsn.
+@return	current lsn */
+UNIV_INLINE
+lsn_t
+log_get_lsn_nowait(void);
+/*=============*/
+/************************************************************//**
 Gets the last lsn that is fully flushed to disk.
 @return	last flushed lsn */
 UNIV_INLINE

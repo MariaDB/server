@@ -46,6 +46,7 @@ Created 9/5/1995 Heikki Tuuri
 # include "srv0start.h" /* srv_is_being_started */
 #endif /* UNIV_SYNC_DEBUG */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
@@ -535,6 +536,8 @@ mutex_set_waiters(
 
 	ptr = &(mutex->waiters);
 
+        os_wmb;
+
 	*ptr = n;		/* Here we assume that the write of a single
 				word in memory is atomic */
 }
@@ -587,13 +590,15 @@ mutex_loop:
 
 spin_loop:
 
+        HMT_low();
 	while (mutex_get_lock_word(mutex) != 0 && i < SYNC_SPIN_ROUNDS) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
-
+                os_rmb;              // Ensure future reads sees new values
 		i++;
 	}
+        HMT_medium();
 
 	if (i == SYNC_SPIN_ROUNDS) {
 		os_thread_yield();

@@ -41,6 +41,7 @@ Created 9/11/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "os0sync.h" /* for INNODB_RW_LOCKS_USE_ATOMICS */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	IMPLEMENTATION OF THE RW_LOCK
@@ -448,6 +449,8 @@ lock_loop:
 					       lock)) {
 
 		/* Spin waiting for the writer field to become free */
+		os_rmb;
+		HMT_low();
 		while (i < SYNC_SPIN_ROUNDS && lock->lock_word <= 0) {
 			if (srv_spin_wait_delay) {
 				ut_delay(ut_rnd_interval(0,
@@ -455,9 +458,11 @@ lock_loop:
 			}
 
 			i++;
+			os_rmb;
 		}
 
-		if (i == SYNC_SPIN_ROUNDS) {
+		HMT_medium();
+		if (lock->lock_word <= 0) {
 			os_thread_yield();
 		}
 
@@ -605,14 +610,18 @@ rw_lock_x_lock_wait(
 
 	ut_ad(lock->lock_word <= 0);
 
+	os_rmb;
+        HMT_low();
 	while (lock->lock_word < 0) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
 		if(i < SYNC_SPIN_ROUNDS) {
 			i++;
+			os_rmb;
 			continue;
 		}
+		HMT_medium();
 
 		/* If there is still a reader, then go to sleep.*/
 		rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
@@ -660,7 +669,9 @@ rw_lock_x_lock_wait(
 				prio_rw_lock->high_priority_wait_ex_waiter = 0;
 			}
 		}
+		HMT_low();
 	}
+	HMT_medium();
 	rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 }
 
@@ -701,7 +712,8 @@ rw_lock_x_lock_low(
 
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
-
+		if (!pass)
+			os_rmb;
 		/* Decrement failed: relock or failed lock */
 		if (!pass && lock->recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
@@ -792,6 +804,8 @@ lock_loop:
 		}
 
 		/* Spin waiting for the lock_word to become free */
+		os_rmb;
+		HMT_low();
 		while (i < SYNC_SPIN_ROUNDS
 		       && lock->lock_word <= 0) {
 			if (srv_spin_wait_delay) {
@@ -800,7 +814,9 @@ lock_loop:
 			}
 
 			i++;
+			os_rmb;
 		}
+		HMT_medium();
 		if (i == SYNC_SPIN_ROUNDS) {
 			os_thread_yield();
 		} else {
