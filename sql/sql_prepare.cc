@@ -873,13 +873,8 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
   THD  *thd= stmt->thd;
   Item_param **begin= stmt->param_array;
   Item_param **end= begin + stmt->param_count;
-  uint32 length= 0;
-  String str;
-  const String *res;
+  Copy_query_with_rewrite acc(thd, stmt->query(), stmt->query_length(), query);
   DBUG_ENTER("insert_params_with_log");
-
-  if (query->copy(stmt->query(), stmt->query_length(), default_charset_info))
-    DBUG_RETURN(1);
 
   for (Item_param **it= begin; it < end; ++it)
   {
@@ -913,15 +908,16 @@ static bool insert_params_with_log(Prepared_statement *stmt, uchar *null_array,
     */
     else if (! is_param_long_data_type(param))
       DBUG_RETURN(1);
-    res= param->query_val_str(thd, &str);
-    if (param->convert_str_value(thd))
-      DBUG_RETURN(1);                           /* out of memory */
 
-    if (query->replace(param->pos_in_query+length, 1, *res))
+    if (acc.append(param))
       DBUG_RETURN(1);
 
-    length+= res->length()-1;
+    if (param->convert_str_value(thd))
+      DBUG_RETURN(1);                           /* out of memory */
   }
+  if (acc.finalize())
+    DBUG_RETURN(1);
+
   DBUG_RETURN(0);
 }
 
@@ -1050,22 +1046,14 @@ static bool emb_insert_params(Prepared_statement *stmt, String *expanded_query)
 }
 
 
-static bool emb_insert_params_with_log(Prepared_statement *stmt,
-                                       String *query)
+static bool emb_insert_params_with_log(Prepared_statement *stmt, String *query)
 {
   THD *thd= stmt->thd;
   Item_param **it= stmt->param_array;
   Item_param **end= it + stmt->param_count;
   MYSQL_BIND *client_param= thd->client_params;
-
-  String str;
-  const String *res;
-  uint32 length= 0;
-
+  Copy_query_with_rewrite acc(thd, stmt->query(), stmt->query_length(), query);
   DBUG_ENTER("emb_insert_params_with_log");
-
-  if (query->copy(stmt->query(), stmt->query_length(), default_charset_info))
-    DBUG_RETURN(1);
 
   for (; it < end; ++it, ++client_param)
   {
@@ -1087,15 +1075,15 @@ static bool emb_insert_params_with_log(Prepared_statement *stmt,
           DBUG_RETURN(1);
       }
     }
-    res= param->query_val_str(thd, &str);
-    if (param->convert_str_value(thd))
-      DBUG_RETURN(1);                           /* out of memory */
-
-    if (query->replace(param->pos_in_query+length, 1, *res))
+    if (acc.append(param))
       DBUG_RETURN(1);
 
-    length+= res->length()-1;
+    if (param->convert_str_value(thd))
+      DBUG_RETURN(1);                           /* out of memory */
   }
+  if (acc.finalize())
+    DBUG_RETURN(1);
+
   DBUG_RETURN(0);
 }
 
@@ -1232,15 +1220,10 @@ static bool insert_params_from_vars_with_log(Prepared_statement *stmt,
   user_var_entry *entry;
   LEX_STRING *varname;
   List_iterator<LEX_STRING> var_it(varnames);
-  String buf;
-  const String *val;
-  uint32 length= 0;
   THD *thd= stmt->thd;
+  Copy_query_with_rewrite acc(thd, stmt->query(), stmt->query_length(), query);
 
   DBUG_ENTER("insert_params_from_vars_with_log");
-
-  if (query->copy(stmt->query(), stmt->query_length(), default_charset_info))
-    DBUG_RETURN(1);
 
   for (Item_param **it= begin; it < end; ++it)
   {
@@ -1257,15 +1240,16 @@ static bool insert_params_from_vars_with_log(Prepared_statement *stmt,
     setup_one_conversion_function(thd, param, param->param_type);
     if (param->set_from_user_var(thd, entry))
       DBUG_RETURN(1);
-    val= param->query_val_str(thd, &buf);
+
+    if (acc.append(param))
+      DBUG_RETURN(1);
 
     if (param->convert_str_value(thd))
-      DBUG_RETURN(1);                           /* out of memory */
-
-    if (query->replace(param->pos_in_query+length, 1, *val))
       DBUG_RETURN(1);
-    length+= val->length()-1;
   }
+  if (acc.finalize())
+    DBUG_RETURN(1);
+
   DBUG_RETURN(0);
 }
 
@@ -3244,9 +3228,15 @@ void Prepared_statement::setup_set_params()
     Decide if we have to expand the query (because we must write it to logs or
     because we want to look it up in the query cache) or not.
   */
-  if ((mysql_bin_log.is_open() && is_update_query(lex->sql_command)) ||
-      opt_log || thd->variables.sql_log_slow ||
-      query_cache_is_cacheable_query(lex))
+  bool replace_params_with_values= false;
+  // binlog
+  replace_params_with_values|= mysql_bin_log.is_open() && is_update_query(lex->sql_command);
+  // general or slow log
+  replace_params_with_values|= opt_log || thd->variables.sql_log_slow;
+  // query cache
+  replace_params_with_values|= query_cache_is_cacheable_query(lex);
+
+  if (replace_params_with_values)
   {
     set_params_from_vars= insert_params_from_vars_with_log;
 #ifndef EMBEDDED_LIBRARY

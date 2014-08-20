@@ -149,12 +149,8 @@ sp_get_item_value(THD *thd, Item *item, String *str)
         return NULL;
 
       {
-        char buf_holder[STRING_BUFFER_USUAL_SIZE];
-        String buf(buf_holder, sizeof(buf_holder), result->charset());
+        StringBuffer<STRING_BUFFER_USUAL_SIZE> buf(result->charset());
         CHARSET_INFO *cs= thd->variables.character_set_client;
-
-        /* We must reset length of the buffer, because of String specificity. */
-        buf.length(0);
 
         buf.append('_');
         buf.append(result->charset()->csname);
@@ -175,6 +171,28 @@ sp_get_item_value(THD *thd, Item *item, String *str)
   default:
     return NULL;
   }
+}
+
+
+bool Item_splocal::append_for_log(THD *thd, String *str)
+{
+  if (fix_fields(thd, NULL))
+    return true;
+
+  if (limit_clause_param)
+    return str->append_ulonglong(val_uint());
+
+  if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
+      str->append(&m_name) ||
+      str->append(STRING_WITH_LEN("',")))
+    return true;
+
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str_value_holder(&my_charset_latin1);
+  String *str_value= sp_get_item_value(thd, this_item(), &str_value_holder);
+  if (str_value)
+    return str->append(*str_value) || str->append(')');
+  else
+    return str->append(STRING_WITH_LEN("NULL)"));
 }
 
 
@@ -979,19 +997,16 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   DBUG_ENTER("subst_spvars");
 
   Dynamic_array<Item_splocal*> sp_vars_uses;
-  char *pbuf, *cur, buffer[512];
-  String qbuf(buffer, sizeof(buffer), &my_charset_bin);
-  int prev_pos, res, buf_len;
+  char *pbuf;
+  StringBuffer<512> qbuf;
+  Copy_query_with_rewrite acc(thd, query_str->str, query_str->length, &qbuf);
 
   /* Find all instances of Item_splocal used in this statement */
   for (Item *item= instr->free_list; item; item= item->next)
   {
     Item_splocal *item_spl= item->get_item_splocal();
-    if (item_spl)
-    {
-      if (item_spl->pos_in_query)
-        sp_vars_uses.append(item_spl);
-    }
+    if (item_spl && item_spl->pos_in_query)
+      sp_vars_uses.append(item_spl);
   }
   if (!sp_vars_uses.elements())
     DBUG_RETURN(FALSE);
@@ -999,64 +1014,15 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
   /* Sort SP var refs by their occurences in the query */
   sp_vars_uses.sort(cmp_splocal_locations);
 
-  /*
-    Construct a statement string where SP local var refs are replaced
-    with "NAME_CONST(name, value)"
-  */
-  qbuf.length(0);
-  cur= query_str->str;
-  prev_pos= res= 0;
-  thd->query_name_consts= 0;
+  thd->query_name_consts= sp_vars_uses.elements();
 
   for (Item_splocal **splocal= sp_vars_uses.front(); 
        splocal <= sp_vars_uses.back(); splocal++)
   {
-    Item *val;
-
-    char str_buffer[STRING_BUFFER_USUAL_SIZE];
-    String str_value_holder(str_buffer, sizeof(str_buffer),
-                            &my_charset_latin1);
-    String *str_value;
-
-    /* append the text between sp ref occurences */
-    res|= qbuf.append(cur + prev_pos, (*splocal)->pos_in_query - prev_pos);
-    prev_pos= (*splocal)->pos_in_query + (*splocal)->len_in_query;
-
-    res|= (*splocal)->fix_fields(thd, (Item **) splocal);
-    if (res)
-      break;
-
-    if ((*splocal)->limit_clause_param)
-    {
-      res|= qbuf.append_ulonglong((*splocal)->val_uint());
-      if (res)
-        break;
-      continue;
-    }
-
-    /* append the spvar substitute */
-    res|= qbuf.append(STRING_WITH_LEN(" NAME_CONST('"));
-    res|= qbuf.append((*splocal)->m_name.str, (*splocal)->m_name.length);
-    res|= qbuf.append(STRING_WITH_LEN("',"));
-
-    if (res)
-      break;
-
-    val= (*splocal)->this_item();
-    DBUG_PRINT("info", ("print 0x%lx", (long) val));
-    str_value= sp_get_item_value(thd, val, &str_value_holder);
-    if (str_value)
-      res|= qbuf.append(*str_value);
-    else
-      res|= qbuf.append(STRING_WITH_LEN("NULL"));
-    res|= qbuf.append(')');
-    if (res)
-      break;
-
-    thd->query_name_consts++;
+    if (acc.append(*splocal))
+      DBUG_RETURN(TRUE);
   }
-  if (res ||
-      qbuf.append(cur + prev_pos, query_str->length - prev_pos))
+  if (acc.finalize())
     DBUG_RETURN(TRUE);
 
   /*
@@ -1071,8 +1037,8 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
             <db_name>     Name of current database
             <flags>       Flags struct
   */
-  buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE + thd->db_length +
-            QUERY_CACHE_FLAGS_SIZE + 1);
+  int buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+                thd->db_length + QUERY_CACHE_FLAGS_SIZE + 1);
   if ((pbuf= (char *) alloc_root(thd->mem_root, buf_len)))
   {
     char *ptr= pbuf + qbuf.length();

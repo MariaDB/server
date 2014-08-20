@@ -1579,9 +1579,8 @@ Item_splocal::Item_splocal(const LEX_STRING &sp_var_name,
                            enum_field_types sp_var_type,
                            uint pos_in_q, uint len_in_q)
   :Item_sp_variable(sp_var_name.str, sp_var_name.length),
-   m_var_idx(sp_var_idx),
-   limit_clause_param(FALSE),
-   pos_in_query(pos_in_q), len_in_query(len_in_q)
+   Rewritable_query_parameter(pos_in_q, len_in_q),
+   m_var_idx(sp_var_idx)
 {
   maybe_null= TRUE;
 
@@ -3230,14 +3229,13 @@ default_set_param_func(Item_param *param,
 
 
 Item_param::Item_param(uint pos_in_query_arg) :
+  Rewritable_query_parameter(pos_in_query_arg, 1),
   state(NO_VALUE), inout(IN_PARAM),
   item_result_type(STRING_RESULT),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),
   param_type(MYSQL_TYPE_VARCHAR),
-  pos_in_query(pos_in_query_arg),
   set_param_func(default_set_param_func),
-  limit_clause_param(FALSE),
   m_out_param_info(NULL)
 {
   name= (char*) "?";
@@ -4100,6 +4098,13 @@ void Item_param::make_field(Send_field *field)
   field->flags= m_out_param_info->flags;
   field->decimals= m_out_param_info->decimals;
   field->type= m_out_param_info->type;
+}
+
+bool Item_param::append_for_log(THD *thd, String *str)
+{
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buf;
+  const String *val= query_val_str(thd, &buf);
+  return str->append(*val);
 }
 
 /****************************************************************************
