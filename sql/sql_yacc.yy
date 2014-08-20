@@ -254,6 +254,7 @@ static bool maybe_start_compound_statement(THD *thd)
 
     Lex->sp_chistics.suid= SP_IS_NOT_SUID;
     Lex->sphead->set_body_start(thd, YYLIP->get_cpp_ptr());
+    Lex->sphead->m_sql_mode= thd->variables.sql_mode;
   }
   return 0;
 }

@@ -148,3 +148,13 @@ delimiter |;
 drop function fn|
 drop table t1|
 
+#
+# MDEV-6606 Server crashes in String::append on selecting sql_mode inside anonymous block
+# MDEV-6609 SQL inside an anonymous block is executed with wrong SQL_MODE
+#
+begin not atomic select @@sql_mode; end|
+create table t1 (a int)|
+select a from t1 having a > 1|
+begin not atomic select a from t1 having a > 1; end|
+drop table t1|
+
