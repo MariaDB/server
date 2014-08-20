@@ -1689,11 +1689,15 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
 }
 
 
-void
+int
 rpl_parallel::wait_for_workers_idle(THD *thd)
 {
   uint32 i, max_i;
 
+  /*
+    The domain_hash is only accessed by the SQL driver thread, so it is safe
+    to iterate over without a lock.
+  */
   max_i= domain_hash.records;
   for (i= 0; i < max_i; ++i)
   {
@@ -1712,10 +1716,13 @@ rpl_parallel::wait_for_workers_idle(THD *thd)
     mysql_mutex_unlock(&e->LOCK_parallel_entry);
     if (active)
     {
-      my_orderer.wait_for_prior_commit(thd);
+      int err= my_orderer.wait_for_prior_commit(thd);
       thd->wait_for_commit_ptr= NULL;
+      if (err)
+        return err;
     }
   }
+  return 0;
 }
 
 
@@ -1804,12 +1811,12 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         event group (if any), as such event group signifies an incompletely
         written group cut short by a master crash, and must be rolled back.
       */
-      if (current->queue_master_restart(serial_rgi, fdev))
+      if (current->queue_master_restart(serial_rgi, fdev) ||
+          wait_for_workers_idle(rli->sql_driver_thd))
       {
         delete ev;
         return 1;
       }
-      wait_for_workers_idle(rli->sql_driver_thd);
     }
   }
 
