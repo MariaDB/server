@@ -890,7 +890,8 @@ sp_head::create_result_field(uint field_max_length, const char *field_name,
 }
 
 
-int cmp_splocal_locations(Item_splocal * const *a, Item_splocal * const *b)
+int cmp_rqp_locations(Rewritable_query_parameter * const *a,
+                      Rewritable_query_parameter * const *b)
 {
   return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
@@ -996,30 +997,29 @@ subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
 {
   DBUG_ENTER("subst_spvars");
 
-  Dynamic_array<Item_splocal*> sp_vars_uses;
+  Dynamic_array<Rewritable_query_parameter*> rewritables;
   char *pbuf;
   StringBuffer<512> qbuf;
   Copy_query_with_rewrite acc(thd, query_str->str, query_str->length, &qbuf);
 
-  /* Find all instances of Item_splocal used in this statement */
+  /* Find rewritable Items used in this statement */
   for (Item *item= instr->free_list; item; item= item->next)
   {
-    Item_splocal *item_spl= item->get_item_splocal();
-    if (item_spl && item_spl->pos_in_query)
-      sp_vars_uses.append(item_spl);
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    if (rqp && rqp->pos_in_query)
+      rewritables.append(rqp);
   }
-  if (!sp_vars_uses.elements())
+  if (!rewritables.elements())
     DBUG_RETURN(FALSE);
 
-  /* Sort SP var refs by their occurences in the query */
-  sp_vars_uses.sort(cmp_splocal_locations);
+  rewritables.sort(cmp_rqp_locations);
 
-  thd->query_name_consts= sp_vars_uses.elements();
+  thd->query_name_consts= rewritables.elements();
 
-  for (Item_splocal **splocal= sp_vars_uses.front(); 
-       splocal <= sp_vars_uses.back(); splocal++)
+  for (Rewritable_query_parameter **rqp= rewritables.front();
+       rqp <= rewritables.back(); rqp++)
   {
-    if (acc.append(*splocal))
+    if (acc.append(*rqp))
       DBUG_RETURN(TRUE);
   }
   if (acc.finalize())

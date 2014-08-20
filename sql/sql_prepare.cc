@@ -3235,6 +3235,8 @@ void Prepared_statement::setup_set_params()
   replace_params_with_values|= opt_log || thd->variables.sql_log_slow;
   // query cache
   replace_params_with_values|= query_cache_is_cacheable_query(lex);
+  // but never for compound statements
+  replace_params_with_values&= lex->sql_command != SQLCOM_COMPOUND;
 
   if (replace_params_with_values)
   {

@@ -1,6 +1,7 @@
 #
 # MDEV-5317 Compound statement / anonymous blocks
 #
+source include/have_log_bin.inc;
 delimiter |;
 
 CREATE TABLE t1 (a INT PRIMARY KEY)|
@@ -18,8 +19,14 @@ PREPARE stmt FROM "BEGIN NOT ATOMIC
   INSERT INTO t1 VALUES (?);
 END";
 SET @val = 6|
+reset master|
 EXECUTE stmt USING @val|
 SELECT * FROM t1|
+
+# see how ?-placeholder was replaced with the value
+delimiter ;|
+source include/show_binlog_events.inc;
+delimiter |;
 
 PREPARE stmt FROM "BEGIN NOT ATOMIC
   DECLARE v_res INT;
@@ -113,3 +120,31 @@ do
   execute dt;
 end while|
 --horizontal_results
+
+# see how ?-placeholder and SP variables are replaced with values
+create table t1 (x int)|
+create function fn(a int) returns int
+begin
+  insert t1 values (a+7);
+  return a+8;
+end|
+reset master|
+/**/ if fn(9) > 5 then
+  select 1;
+end if|
+prepare stmt from "if fn(?) > 6 then
+ begin
+  declare a int;
+  set a=?*2;
+  insert t1 values(a+?);
+ end;
+end if"|
+set @a=1, @b=2, @c=3|
+execute stmt using @a, @b, @c|
+delimiter ;|
+source include/show_binlog_events.inc;
+delimiter |;
+
+drop function fn|
+drop table t1|
+
