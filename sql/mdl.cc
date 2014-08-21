@@ -1936,8 +1936,8 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
           else
             can_grant= TRUE;
           /* Continue loop */
-        }
 #endif /* WITH_WSREP */
+        }
       }
       if ((ticket == NULL) && IF_WSREP(wsrep_can_grant, 1))
         can_grant= TRUE;

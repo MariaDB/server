@@ -2751,7 +2751,6 @@ public:
   Relay_log_info*           wsrep_rli;
   rpl_group_info*           wsrep_rgi;
   wsrep_ws_handle_t         wsrep_ws_handle;
-  char                      wsrep_info[128]; /* string for dynamic proc info */
   ulong                     wsrep_retry_counter; // of autocommit
   char*                     wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
@@ -2770,6 +2769,7 @@ public:
 #endif /*  GTID_SUPPORT */
   void*                     wsrep_apply_format;
 #endif /* WITH_WSREP */
+  char                      wsrep_info[128]; /* string for dynamic proc info */
   /**
     Internal parser state.
     Note that since the parser is not re-entrant, we keep only one parser
