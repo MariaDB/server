@@ -94,7 +94,7 @@ done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
 
-# For Bug:1200727
+# State Snapshot Transfer authentication password was displayed in the ps output. Bug fixed #1200727.
 if my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then
     if [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ];then
             WSREP_SST_OPT_AUTH=$(my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
@@ -114,7 +114,7 @@ wsrep_log()
     # echo everything to stderr so that it gets into common error log
     # deliberately made to look different from the rest of the log
     local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
-    echo "WSREP_SST: $* ($tst)" >&2
+    echo "$tst WSREP_SST: " >&2
 }
 
 wsrep_log_error()

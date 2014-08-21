@@ -2972,13 +2972,9 @@ static bool show_status_array(THD *thd, const char *wild,
       DBUG_ASSERT(name_buffer[0] >= 'a');
       DBUG_ASSERT(name_buffer[0] <= 'z');
 
-#ifdef WITH_WSREP
-      // TODO: remove once lp:1306875 has been addressed.
-      if (status_var && (is_wsrep_var == FALSE))
-#else
-      /* traditionally status variables have a first letter uppercased */
-      if (status_var)
-#endif /* WITH_WSREP */
+      // WSREP_TODO: remove once lp:1306875 has been addressed.
+      if (IF_WSREP(WSREP_ON && is_wsrep_var == FALSE, 1) &&
+          status_var)
         name_buffer[0]-= 'a' - 'A';
     }
 

@@ -13,14 +13,18 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#ifndef WSREP_MYSQLD_H
+#include <wsrep.h>
+
+#if !defined(WSREP_MYSQLD_H) && defined(WITH_WSREP)
 #define WSREP_MYSQLD_H
 
-#include "mysqld.h"
 typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
 //#include "rpl_gtid.h"
 #include "../wsrep/wsrep_api.h"
+#include "mdl.h"
+#include "mysqld.h"
+#include "sql_table.h"
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -59,6 +63,15 @@ enum wsrep_consistency_check_mode {
     CONSISTENCY_CHECK_RUNNING,
 };
 
+struct wsrep_thd_shadow {
+  ulonglong            options;
+  uint                 server_status;
+  enum wsrep_exec_mode wsrep_exec_mode;
+  Vio                  *vio;
+  ulong                tx_isolation;
+  char                 *db;
+  size_t               db_length;
+};
 
 // Global wsrep parameters
 extern wsrep_t*    wsrep;
@@ -203,12 +216,6 @@ extern wsrep_seqno_t wsrep_locked_seqno;
         fun("WSREP: %s", msg);                                    \
     }
 
-#define WSREP_DEBUG(...)                                                \
-    if (wsrep_debug)     WSREP_LOG(sql_print_information, ##__VA_ARGS__)
-#define WSREP_INFO(...)  WSREP_LOG(sql_print_information, ##__VA_ARGS__)
-#define WSREP_WARN(...)  WSREP_LOG(sql_print_warning,     ##__VA_ARGS__)
-#define WSREP_ERROR(...) WSREP_LOG(sql_print_error,       ##__VA_ARGS__)
-
 #define WSREP_LOG_CONFLICT_THD(thd, role)                                      \
     WSREP_LOG(sql_print_information, 	                                       \
       "%s: \n "       	                                                       \
@@ -279,6 +286,7 @@ extern int           wsrep_to_isolation;
 extern rpl_sidno     wsrep_sidno;
 #endif /* GTID_SUPPORT */
 extern my_bool       wsrep_preordered_opt;
+extern handlerton    *wsrep_hton;
 
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_wsrep_ready;
@@ -317,4 +325,37 @@ const wsrep_uuid_t* wsrep_xid_uuid(const xid_t*);
 wsrep_seqno_t wsrep_xid_seqno(const xid_t*);
 extern "C" int wsrep_is_wsrep_xid(const void* xid);
 
+extern "C" my_thread_id wsrep_thd_thread_id(THD *thd);
+extern "C" char *wsrep_thd_query(THD *thd);
+
+extern bool
+wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
+                           MDL_ticket *ticket);
+IO_CACHE * get_trans_log(THD * thd);
+bool wsrep_trans_cache_is_empty(THD *thd);
+void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end);
+void thd_binlog_rollback_stmt(THD * thd);
+void thd_binlog_trx_reset(THD * thd);
+
+typedef void (*wsrep_thd_processor_fun)(THD *);
+pthread_handler_t start_wsrep_THD(void *arg);
+int wsrep_wait_committing_connections_close(int wait_time);
+void wsrep_close_client_connections(my_bool wait_to_end);
+void wsrep_close_applier(THD *thd);
+void wsrep_close_applier_threads(int count);
+void wsrep_wait_appliers_close(THD *thd);
+void wsrep_kill_mysql(THD *thd);
+void wsrep_close_threads(THD *thd);
+int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
+my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables);
+void wsrep_copy_query(THD *thd);
+bool wsrep_is_show_query(enum enum_sql_command command);
+void wsrep_replay_transaction(THD *thd);
+bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
+                             TABLE_LIST* src_table,
+	                     HA_CREATE_INFO *create_info);
+int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
+
+extern my_bool deny_updates_if_read_only_option(THD *thd,
+	TABLE_LIST *all_tables);
 #endif /* WSREP_MYSQLD_H */

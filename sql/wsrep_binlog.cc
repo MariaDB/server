@@ -15,7 +15,9 @@
 
 #include "wsrep_binlog.h"
 #include "wsrep_priv.h"
+#include "log.h"
 
+extern handlerton *binlog_hton;
 /*
   Write the contents of a cache to a memory buffer.
 
@@ -320,7 +322,6 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
                 filename, errno, strerror(errno));
   }
 }
-extern handlerton *binlog_hton;
 
 /*
   wsrep exploits binlog's caches even if binlogging itself is not
@@ -405,4 +406,9 @@ cleanup:
   }
   // close file
   if (of) fclose(of);
+}
+
+void thd_binlog_flush_pending_rows_event(THD *thd, bool stmt_end)
+{
+  thd->binlog_flush_pending_rows_event(stmt_end);
 }

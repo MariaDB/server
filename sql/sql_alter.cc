@@ -18,9 +18,8 @@
                                              // mysql_exchange_partition
 #include "sql_base.h"                        // open_temporary_tables
 #include "sql_alter.h"
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif /* WITH_WSREP */
+
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   :drop_list(rhs.drop_list, mem_root),
   alter_list(rhs.alter_list, mem_root),
@@ -320,6 +319,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     DBUG_RETURN(TRUE);
   }
 #endif /* WITH_WSREP */
+
   result= mysql_alter_table(thd, select_lex->db, lex->name.str,
                             &create_info,
                             first_table,
@@ -328,8 +328,6 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             select_lex->order_list.first,
                             lex->ignore);
 
-#ifdef WITH_WSREP
-#endif /* WITH_WSREP */
   DBUG_RETURN(result);
 }
 

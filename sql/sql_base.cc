@@ -61,11 +61,8 @@
 #ifdef  __WIN__
 #include <io.h>
 #endif
-
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
-#endif // WITH_WSREP
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -4588,8 +4585,10 @@ restart:
       }
     }
   }
+
 #ifdef WITH_WSREP
-  if ((thd->lex->sql_command== SQLCOM_INSERT         ||
+  if (WSREP_ON &&
+      (thd->lex->sql_command== SQLCOM_INSERT         ||
        thd->lex->sql_command== SQLCOM_INSERT_SELECT  ||
        thd->lex->sql_command== SQLCOM_REPLACE        ||
        thd->lex->sql_command== SQLCOM_REPLACE_SELECT ||
@@ -4608,15 +4607,7 @@ restart:
 
 err:
   THD_STAGE_INFO(thd, stage_after_opening_tables);
-
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-    thd_proc_info(thd, "exit open_tables()");
-  else
-    thd_proc_info(thd, 0);
-#else /* WITH_WSREP */
   thd_proc_info(thd, 0);
-#endif /* WITH_WSREP */
 
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
@@ -5072,15 +5063,7 @@ end:
   }
   THD_STAGE_INFO(thd, stage_after_opening_tables);
 
-#ifdef WITH_WSREP
-  if (WSREP(thd))
-    thd_proc_info(thd, "End opening table");
-  else
   thd_proc_info(thd, 0);
-#else /* WITH_WSREP */
-  thd_proc_info(thd, 0);
-#endif /* WITH_WSREP */
-
   DBUG_RETURN(table);
 }
 
@@ -9034,19 +9017,17 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
-#ifdef WITH_WSREP
       {
 	signalled|= mysql_lock_abort_for_thread(thd, thd_table);
-	if (thd && WSREP(thd) && wsrep_thd_is_BF((void *)thd, true)) 
+#ifdef WITH_WSREP
+	if (thd && WSREP(thd) && wsrep_thd_is_BF((void *)thd, true))
 	{
 	  WSREP_DEBUG("remove_table_from_cache: %llu",
 		      (unsigned long long) thd->real_id);
 	  wsrep_abort_thd((void *)thd, (void *)in_use, FALSE);
 	}
-      }
-#else
-        signalled|= mysql_lock_abort_for_thread(thd, thd_table);
 #endif
+      }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }

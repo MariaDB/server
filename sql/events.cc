@@ -1190,7 +1190,8 @@ end:
 #ifdef WITH_WSREP
 int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len)
 {
-  String log_query;
+  char buffer[1024];
+  String log_query(buffer, sizeof(buffer), &my_charset_bin);
 
   if (create_query_string(thd, &log_query))
   {

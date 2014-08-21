@@ -20,16 +20,6 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-#ifdef WITH_WSREP
-#include <my_sys.h>
-  typedef my_bool (* wsrep_thd_is_brute_force_fun)(void *, my_bool);
-  typedef int (* wsrep_abort_thd_fun)(void *, void *, my_bool);
-  typedef int (* wsrep_on_fun)(void *);
-  void wsrep_thr_lock_init(
-    wsrep_thd_is_brute_force_fun bf_fun, wsrep_abort_thd_fun abort_fun,
-    my_bool debug, my_bool convert_LOCK_to_trx, wsrep_on_fun on_fun);
-#endif
-
 #include <my_pthread.h>
 #include <my_list.h>
 
@@ -104,10 +94,7 @@ typedef struct st_thr_lock_info
 {
   pthread_t thread;
   my_thread_id thread_id;
-#ifdef WITH_WSREP
   void *mysql_thd;        // THD pointer
-  my_bool in_lock_tables; // true, if inside locking session
-#endif
 } THR_LOCK_INFO;
 
 
@@ -177,6 +164,17 @@ my_bool thr_reschedule_write_lock(THR_LOCK_DATA *data,
                                   ulong lock_wait_timeout);
 void thr_set_lock_wait_callback(void (*before_wait)(void),
                                 void (*after_wait)(void));
+
+#ifdef WITH_WSREP
+#include <my_sys.h>
+  typedef my_bool (* wsrep_thd_is_brute_force_fun)(void *, my_bool);
+  typedef int (* wsrep_abort_thd_fun)(void *, void *, my_bool);
+  typedef int (* wsrep_on_fun)(void *);
+  void wsrep_thr_lock_init(
+    wsrep_thd_is_brute_force_fun bf_fun, wsrep_abort_thd_fun abort_fun,
+    my_bool debug, my_bool convert_LOCK_to_trx, wsrep_on_fun on_fun);
+#endif
+
 #ifdef	__cplusplus
 }
 #endif

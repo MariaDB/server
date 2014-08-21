@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1580,7 +1580,7 @@ int lex_one_token(void *arg, THD *thd)
           else
           {
 #ifdef WITH_WSREP
-	    if (version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
+	    if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
 	    {
 	      WSREP_DEBUG("consistency check: %s", thd->query());
 	      thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;

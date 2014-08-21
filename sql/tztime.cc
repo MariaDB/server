@@ -2711,7 +2711,8 @@ main(int argc, char **argv)
 
 #ifdef WITH_WSREP
   // Replicate MyISAM DDL for this session, cf. lp:1161432
-  printf("SET GLOBAL wsrep_replicate_myisam= ON;\n");
+  // timezone info unfixable in XtraDB Cluster
+    printf("SET GLOBAL wsrep_replicate_myisam= ON;\n");
 #endif /* WITH_WSREP */
 
   if (argc == 1 && !opt_leap)

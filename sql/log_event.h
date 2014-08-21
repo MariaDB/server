@@ -1340,7 +1340,12 @@ public:
    */
   int apply_event(rpl_group_info *rgi)
   {
-    return do_apply_event(rgi);
+    int res;
+    THD_STAGE_INFO(thd, stage_apply_event);
+    res= do_apply_event(rgi);
+    THD_STAGE_INFO(thd, stage_after_apply_event);
+    res= 0;
+    return res;
   }
 
 

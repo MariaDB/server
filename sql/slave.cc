@@ -52,10 +52,8 @@
 #include "log_event.h"                          // Rotate_log_event,
                                                 // Create_file_log_event,
                                                 // Format_description_log_event
-
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif
+
 #ifdef HAVE_REPLICATION
 
 #include "rpl_tblmap.h"
@@ -4370,9 +4368,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   my_off_t saved_skip= 0;
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
-#ifdef WITH_WSREP
   my_bool wsrep_node_dropped= FALSE;
-#endif /* WITH_WSREP */
   const char *errmsg;
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
@@ -4380,9 +4376,8 @@ pthread_handler_t handle_slave_sql(void *arg)
   // needs to call my_thread_init(), otherwise we get a coredump in DBUG_ stuff
   my_thread_init();
   DBUG_ENTER("handle_slave_sql");
-#ifdef WITH_WSREP
+
  wsrep_restart_point:
-#endif /* WITH_WSREP */
 
   LINT_INIT(saved_master_log_pos);
   LINT_INIT(saved_log_pos);
@@ -4515,7 +4510,8 @@ pthread_handler_t handle_slave_sql(void *arg)
 #ifdef WITH_WSREP
   thd->wsrep_exec_mode= LOCAL_STATE;
   /* synchronize with wsrep replication */
-  if (WSREP_ON) wsrep_ready_wait();
+  if (WSREP_ON)
+    wsrep_ready_wait();
 #endif
   DBUG_PRINT("master_info",("log_file_name: %s  position: %s",
                             rli->group_master_log_name,
@@ -4617,7 +4613,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
         rli->group_master_log_name, (ulong) rli->group_master_log_pos);
       saved_skip= 0;
     }
-    
+
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
@@ -4626,8 +4622,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       {
         slave_output_error_info(rli, thd);
 #ifdef WITH_WSREP
-        uint32 const last_errno= rli->last_error().number;
-        if (WSREP_ON && last_errno == ER_UNKNOWN_COM_ERROR)
+        if (WSREP_ON && rli->last_error().number == ER_UNKNOWN_COM_ERROR)
         {
 	  wsrep_node_dropped= TRUE;
 	}
@@ -4721,7 +4716,7 @@ err_during_init:
   /* if slave stopped due to node going non primary, we set global flag to
      trigger automatic restart of slave when node joins back to cluster
   */
-   if (wsrep_node_dropped && wsrep_restart_slave)
+   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
    {
      if (wsrep_ready)
      {

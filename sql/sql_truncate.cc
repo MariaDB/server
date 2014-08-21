@@ -24,9 +24,7 @@
 #include "sql_acl.h"     // DROP_ACL
 #include "sql_parse.h"   // check_one_table_access()
 #include "sql_truncate.h"
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif /* WITH_WSREP */
 #include "sql_show.h"    //append_identifier()
 
 

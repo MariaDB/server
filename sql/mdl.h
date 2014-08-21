@@ -776,13 +776,10 @@ public:
              m_tickets[MDL_TRANSACTION].is_empty() &&
              m_tickets[MDL_EXPLICIT].is_empty());
   }
-
-#ifdef WITH_WSREP
   inline bool has_transactional_locks() const
   {
     return !m_tickets[MDL_TRANSACTION].is_empty();
   }
-#endif /* WITH_WSREP */
 
   MDL_savepoint mdl_savepoint()
   {
@@ -923,7 +920,6 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
 private:
-  THD *get_thd() const { return m_owner->get_thd(); }
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
@@ -932,9 +928,7 @@ private:
                              MDL_ticket **out_ticket);
 
 public:
-#ifdef WITH_WSREP
-  THD *wsrep_get_thd() const { return get_thd(); }
-#endif
+  THD *get_thd() const { return m_owner->get_thd(); }
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }

@@ -83,10 +83,7 @@
 #include "sql_acl.h"                       // SUPER_ACL
 #include <hash.h>
 #include <assert.h>
-
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-#endif /* WITH_WSREP */
 
 /**
   @defgroup Locking Locking
@@ -318,9 +315,6 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
   /* Copy the lock data array. thr_multi_lock() reorders its contents. */
   memmove(sql_lock->locks + sql_lock->lock_count, sql_lock->locks,
           sql_lock->lock_count * sizeof(*sql_lock->locks));
-#ifdef WITH_WSREP
-    thd->lock_info.in_lock_tables= thd->in_lock_tables;
-#endif
 
   /* Lock on the copied half of the lock data array. */
   rc= thr_lock_errno_to_mysql[(int) thr_multi_lock(sql_lock->locks +
@@ -332,26 +326,21 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
 
 end:
   THD_STAGE_INFO(thd, stage_after_table_lock);
-#ifdef WITH_WSREP
-  thd_proc_info(thd, "mysql_lock_tables(): unlocking tables II");
-#else /* WITH_WSREP */
-   thd_proc_info(thd, 0);
-#endif /* WITH_WSREP */
 
   if (thd->killed)
   {
     thd->send_kill_message();
     if (!rc)
+    {
       mysql_unlock_tables(thd, sql_lock, 0);
+      THD_STAGE_INFO(thd, stage_after_table_lock);
+    }
     rc= 1;
   }
   else if (rc > 1)
     my_error(rc, MYF(0));
 
   thd->set_time_after_lock();
-#ifdef WITH_WSREP
-  thd_proc_info(thd, "exit mysqld_lock_tables()");
-#endif /* WITH_WSREP */
   DBUG_RETURN(rc);
 }
 
@@ -396,6 +385,8 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
 {
   DBUG_ENTER("mysql_unlock_tables");
+  THD_STAGE_INFO(thd, stage_unlocking_tables);
+
   if (sql_lock->table_count)
     unlock_external(thd, sql_lock->table, sql_lock->table_count);
   if (sql_lock->lock_count)
@@ -1069,8 +1060,11 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
     thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
     m_mdl_blocks_commits_lock= NULL;
 #ifdef WITH_WSREP
-    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-    wsrep->resume(wsrep);
+    if (WSREP_ON)
+    {
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+      wsrep->resume(wsrep);
+    }
 #endif /* WITH_WSREP */
   }
   thd->mdl_context.release_lock(m_mdl_global_shared_lock);
@@ -1105,8 +1099,11 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     make_global_read_lock_block_commit(), do nothing.
   */
 
+  if (m_state != GRL_ACQUIRED)
+    DBUG_RETURN(0);
+
 #ifdef WITH_WSREP
-  if (m_mdl_blocks_commits_lock)
+  if (WSREP_ON && m_mdl_blocks_commits_lock)
   {
     WSREP_DEBUG("GRL was in block commit mode when entering "
 		"make_global_read_lock_block_commit");
@@ -1114,12 +1111,8 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     m_mdl_blocks_commits_lock= NULL;
     wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
     wsrep->resume(wsrep);
-    m_state= GRL_ACQUIRED;
   }
 #endif /* WITH_WSREP */
-
-  if (m_state != GRL_ACQUIRED)
-    DBUG_RETURN(0);
 
   mdl_request.init(MDL_key::COMMIT, "", "", MDL_SHARED, MDL_EXPLICIT);
 
@@ -1131,19 +1124,22 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 
 #ifdef WITH_WSREP
-  long long ret = wsrep->pause(wsrep);
-  if (ret >= 0)
+  if (WSREP_ON)
   {
-    wsrep_locked_seqno= ret;
-  }
-  else if (ret != -ENOSYS) /* -ENOSYS - no provider */
-  {
-    WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
+    long long ret = wsrep->pause(wsrep);
+    if (ret >= 0)
+    {
+      wsrep_locked_seqno= ret;
+    }
+    else if (ret != -ENOSYS) /* -ENOSYS - no provider */
+    {
+      WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
 
-    /* m_mdl_blocks_commits_lock is always NULL here */
-    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
-    my_error(ER_LOCK_DEADLOCK, MYF(0));
-    DBUG_RETURN(TRUE);
+      DBUG_ASSERT(m_mdl_blocks_commits_lock == NULL);
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      DBUG_RETURN(TRUE);
+     }
   }
 #endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);

@@ -13,7 +13,7 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#ifndef WSREP_SST_H
+#if !defined(WSREP_SST_H) && defined(WITH_WSREP)
 #define WSREP_SST_H
 
 #include <mysql.h>                    // my_bool

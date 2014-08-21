@@ -32,7 +32,7 @@
 
 #include <my_user.h>
 
-static bool
+bool
 create_string(THD *thd, String *buf,
 	      stored_procedure_type sp_type,
 	      const char *db, ulong dblen,
@@ -924,7 +924,7 @@ end:
 }
 
 
-static void
+void
 sp_returns_type(THD *thd, String &result, sp_head *sp)
 {
   TABLE table;
@@ -2126,7 +2126,7 @@ int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
   @return
     Returns TRUE on success, FALSE on (alloc) failure.
 */
-static bool
+bool
 create_string(THD *thd, String *buf,
               stored_procedure_type type,
               const char *db, ulong dblen,
@@ -2271,37 +2271,4 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   thd->lex= old_lex;
   return sp;
 }
-#ifdef WITH_WSREP
-int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
-{
-  String log_query;
-  sp_head *sp = thd->lex->sphead;
-  ulong saved_mode= thd->variables.sql_mode;
-  String retstr(64);
-  retstr.set_charset(system_charset_info);
 
-  log_query.set_charset(system_charset_info);
-
-  if (sp->m_type == TYPE_ENUM_FUNCTION)
-  {
-    sp_returns_type(thd, retstr, sp);
-  }
-
-  if (!create_string(thd, &log_query,
-                     sp->m_type,
-                     (sp->m_explicit_name ? sp->m_db.str : NULL), 
-                     (sp->m_explicit_name ? sp->m_db.length : 0), 
-                     sp->m_name.str, sp->m_name.length,
-                     sp->m_params.str, sp->m_params.length,
-                     retstr.c_ptr(), retstr.length(),
-                     sp->m_body.str, sp->m_body.length,
-                     sp->m_chistics, &(thd->lex->definer->user),
-                     &(thd->lex->definer->host),
-                     saved_mode))
-    {
-      WSREP_WARN("SP create string failed: %s", thd->query());
-      return 1;
-    }
-  return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
-}
-#endif /* WITH_WSREP */

@@ -539,7 +539,7 @@ static int wsrep_hton_init(void *p)
   wsrep_hton= (handlerton *)p;
   //wsrep_hton->state=opt_bin_log ? SHOW_OPTION_YES : SHOW_OPTION_NO;
   wsrep_hton->state= SHOW_OPTION_YES;
-  wsrep_hton->db_type=DB_TYPE_WSREP;
+  wsrep_hton->db_type=(legacy_db_type)0;
   wsrep_hton->savepoint_offset= sizeof(my_off_t);
   wsrep_hton->close_connection= wsrep_close_connection;
   wsrep_hton->savepoint_set= wsrep_savepoint_set;

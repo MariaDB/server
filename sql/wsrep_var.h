@@ -13,7 +13,7 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#ifndef WSREP_VAR_H
+#if !defined (WSREP_VAR_H) && defined(WITH_WSREP)
 #define WSREP_VAR_H
 
 #define WSREP_CLUSTER_NAME        "my_wsrep_cluster"

@@ -50,25 +50,14 @@ void set_thd_stage_info(void *thd,
                         const char *calling_func,
                         const char *calling_file,
                         const unsigned int calling_line);
-                        
+
 #define THD_STAGE_INFO(thd, stage) \
   (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
 
 #include "my_apc.h"
 #include "rpl_gtid.h"
-
-#ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
-struct wsrep_thd_shadow {
-  ulonglong            options;
-  uint                 server_status;
-  enum wsrep_exec_mode wsrep_exec_mode;
-  Vio                  *vio;
-  ulong                tx_isolation;
-  char                 *db;
-  size_t               db_length;
-};
-#endif
+
 class Reprepare_observer;
 class Relay_log_info;
 struct rpl_group_info;
@@ -2746,6 +2735,9 @@ public:
   const bool                wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
   bool                      wsrep_client_thread; /* to identify client threads*/
+  bool                      wsrep_PA_safe;
+  bool                      wsrep_converted_lock_session;
+  bool                      wsrep_apply_toi; /* applier processing in TOI */
   enum wsrep_exec_mode      wsrep_exec_mode;
   query_id_t                wsrep_last_query_id;
   enum wsrep_query_state    wsrep_query_state;
@@ -2758,17 +2750,13 @@ public:
   uint32                    wsrep_rand;
   Relay_log_info*           wsrep_rli;
   rpl_group_info*           wsrep_rgi;
-  bool                      wsrep_converted_lock_session;
   wsrep_ws_handle_t         wsrep_ws_handle;
-#ifdef WSREP_PROC_INFO
   char                      wsrep_info[128]; /* string for dynamic proc info */
-#endif /* WSREP_PROC_INFO */
   ulong                     wsrep_retry_counter; // of autocommit
-  bool                      wsrep_PA_safe;
   char*                     wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
   enum enum_server_command  wsrep_retry_command;
-  enum wsrep_consistency_check_mode 
+  enum wsrep_consistency_check_mode
                             wsrep_consistency_check;
   wsrep_stats_var*          wsrep_status_vars;
   int                       wsrep_mysql_replicated;
@@ -2777,12 +2765,10 @@ public:
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
-  my_bool                   wsrep_po_in_trans;
 #ifdef GTID_SUPPORT
   rpl_sid                   wsrep_po_sid;
 #endif /*  GTID_SUPPORT */
   void*                     wsrep_apply_format;
-  bool                      wsrep_apply_toi; /* applier processing in TOI */
 #endif /* WITH_WSREP */
   /**
     Internal parser state.

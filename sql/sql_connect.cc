@@ -37,6 +37,7 @@
                       // reset_host_errors
 #include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
+#include "wsrep_mysqld.h"
 
 HASH global_user_stats, global_client_stats, global_table_stats;
 HASH global_index_stats;
@@ -44,9 +45,6 @@ HASH global_index_stats;
 extern mysql_mutex_t LOCK_global_user_client_stats;
 extern mysql_mutex_t LOCK_global_table_stats;
 extern mysql_mutex_t LOCK_global_index_stats;
-#ifdef WITH_WSREP
-#include "wsrep_mysqld.h"
-#endif
 
 /*
   Get structure for logging connection data for the current user
@@ -1397,7 +1395,7 @@ void do_handle_one_connection(THD *thd_arg)
 	break;
     }
     end_connection(thd);
-   
+
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {

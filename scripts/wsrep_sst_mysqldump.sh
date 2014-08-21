@@ -24,11 +24,10 @@ WSREP_SST_OPT_CONF=""
 . $(dirname $0)/wsrep_sst_common
 
 EINVAL=22
+PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 local_ip()
 {
-    PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
-
     [ "$1" = "127.0.0.1" ]      && return 0
     [ "$1" = "localhost" ]      && return 0
     [ "$1" = "$(hostname -s)" ] && return 0
@@ -58,10 +57,10 @@ then
 fi
 
 # Check client version
-if ! mysql --version | grep 'Distrib 10.0' >/dev/null
+if ! mysql --version | grep 'Distrib 10' >/dev/null
 then
     mysql --version >&2
-    wsrep_log_error "this operation requires MySQL client version 10.0.x"
+    wsrep_log_error "this operation requires MySQL client version 10 or newer"
     exit $EINVAL
 fi
 

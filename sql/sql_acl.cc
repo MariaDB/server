@@ -2560,12 +2560,8 @@ int check_alter_user(THD *thd, const char *host, const char *user)
     goto end;
   }
 
-#ifdef WITH_WSREP
-  if ((!WSREP(thd) || !thd->wsrep_applier) &&
+  if (IF_WSREP((!WSREP(thd) || !thd->wsrep_applier), 1) &&
       !thd->slave_thread && !thd->security_ctx->priv_user[0])
-#else
-  if (!thd->slave_thread && !thd->security_ctx->priv_user[0])
-#endif /* WITH_WSREP */
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
                MYF(0));
@@ -2576,10 +2572,9 @@ int check_alter_user(THD *thd, const char *host, const char *user)
     my_error(ER_PASSWORD_NO_MATCH, MYF(0));
     goto end;
   }
+
   if (!thd->slave_thread &&
-#ifdef WITH_WSREP
-      (!WSREP(thd) || !thd->wsrep_applier) &&
-#endif /* WITH_WSREP */
+      IF_WSREP((!WSREP(thd) || !thd->wsrep_applier),1) &&
       (strcmp(thd->security_ctx->priv_user, user) ||
        my_strcasecmp(system_charset_info, host,
                      thd->security_ctx->priv_host)))
@@ -2648,9 +2643,8 @@ bool change_password(THD *thd, const char *host, const char *user,
   enum_binlog_format save_binlog_format;
   uint new_password_len= (uint) strlen(new_password);
   int result=0;
-#ifdef WITH_WSREP
   const CSET_STRING query_save = thd->query_string;
-#endif /* WITH_WSREP */
+
   DBUG_ENTER("change_password");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  new_password: '%s'",
 		      host,user,new_password));
@@ -2658,10 +2652,11 @@ bool change_password(THD *thd, const char *host, const char *user,
 
   if (check_change_password(thd, host, user, new_password, new_password_len))
     DBUG_RETURN(1);
+
 #ifdef WITH_WSREP
   if (WSREP(thd) && !thd->wsrep_applier)
   {
-      query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
+    query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
 			    user ? user : "",
 			    host ? host : "",
 			    new_password);
@@ -2736,11 +2731,10 @@ end:
 
   DBUG_RETURN(result);
 
-#ifdef WITH_WSREP
-  error:
-  WSREP_ERROR("Replication of SET PASSWORD failed: %s", buff);
+error:
+  WSREP_ERROR("Repliation of SET PASSWORD failed: %s", buff);
   DBUG_RETURN(result);
-#endif /* WITH_WSREP */
+
 }
 
 int acl_check_set_default_role(THD *thd, const char *host, const char *user)
@@ -2759,9 +2753,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   bool clear_role= FALSE;
   char buff[512];
   enum_binlog_format save_binlog_format;
-#ifdef WITH_WSREP
   const CSET_STRING query_save = thd->query_string;
-#endif /* WITH_WSREP */
 
   DBUG_ENTER("acl_set_default_role");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  rolename: '%s'",
@@ -2867,6 +2859,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   }
 end:
   close_mysql_tables(thd);
+
 #ifdef WITH_WSREP
   if (WSREP(thd) && !thd->wsrep_applier)
   {
@@ -2876,14 +2869,10 @@ end:
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
+
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
-#ifdef WITH_WSREP
-  error:
-  WSREP_ERROR("Replication of SET PASSWORD failed: %s", buff);
-  DBUG_RETURN(result);
-#endif /* WITH_WSREP */
 }
 
 
