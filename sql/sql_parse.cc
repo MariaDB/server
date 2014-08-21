@@ -4335,8 +4335,9 @@ end_with_restore_list:
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str &&
-        !strcmp(thd->security_ctx->priv_user, grant_user->user.str))
+    if (grant_user->user.str && grant_user->host.str &&
+        !strcmp(thd->security_ctx->priv_user, grant_user->user.str) &&
+        !strcmp(thd->security_ctx->priv_host, grant_user->host.str))
       grant_user->user= current_user;
 
     if (grant_user->user.str == current_user.str ||
