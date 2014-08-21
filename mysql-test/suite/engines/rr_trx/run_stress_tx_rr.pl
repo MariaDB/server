@@ -108,7 +108,7 @@ $engine_options="";
         add_engine_help(); 
      }
 
-# From this point forward there is no difference between the build in InnDB and the plugin
+# From this point forward there is no difference between the build in InnoDB and the plugin
 $opt_engine='InnoDB' if ($opt_engine eq 'InnoDB_plugin');
 
 # checking that custom files for that engine exist
@@ -141,7 +141,6 @@ $cmd="MTR_VERSION=1 " .
     "--mysqld=--log-output=file " .
     "--mysqld=--sql-mode=no_engine_substitution " .
     "--skip-im " .
-    "--skip-ndb " .
     $engine_options . 
     " > ".$runlog." 2>&1";
 

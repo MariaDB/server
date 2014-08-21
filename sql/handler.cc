@@ -77,7 +77,6 @@ ulong savepoint_alloc_size= 0;
 static const LEX_STRING sys_table_aliases[]=
 {
   { C_STRING_WITH_LEN("INNOBASE") },  { C_STRING_WITH_LEN("INNODB") },
-  { C_STRING_WITH_LEN("NDB") },       { C_STRING_WITH_LEN("NDBCLUSTER") },
   { C_STRING_WITH_LEN("HEAP") },      { C_STRING_WITH_LEN("MEMORY") },
   { C_STRING_WITH_LEN("MERGE") },     { C_STRING_WITH_LEN("MRG_MYISAM") },
   { C_STRING_WITH_LEN("Maria") },      { C_STRING_WITH_LEN("Aria") },
@@ -4411,10 +4410,10 @@ handler::ha_rename_partitions(const char *path)
 
 /**
   Tell the storage engine that it is allowed to "disable transaction" in the
-  handler. It is a hint that ACID is not required - it is used in NDB for
+  handler. It is a hint that ACID is not required - it was used in NDB for
   ALTER TABLE, for example, when data are copied to temporary table.
   A storage engine may treat this hint any way it likes. NDB for example
-  starts to commit every now and then automatically.
+  started to commit every now and then automatically.
   This hint can be safely ignored.
 */
 int ha_enable_transaction(THD *thd, bool on)
@@ -5225,145 +5224,6 @@ int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
 
   DBUG_RETURN(error);
 }
-
-
-#ifdef HAVE_NDB_BINLOG
-/*
-  TODO: change this into a dynamic struct
-  List<handlerton> does not work as
-  1. binlog_end is called when MEM_ROOT is gone
-  2. cannot work with thd MEM_ROOT as memory should be freed
-*/
-#define MAX_HTON_LIST_ST 63
-struct hton_list_st
-{
-  handlerton *hton[MAX_HTON_LIST_ST];
-  uint sz;
-};
-
-struct binlog_func_st
-{
-  enum_binlog_func fn;
-  void *arg;
-};
-
-/** @brief
-  Listing handlertons first to avoid recursive calls and deadlock
-*/
-static my_bool binlog_func_list(THD *thd, plugin_ref plugin, void *arg)
-{
-  hton_list_st *hton_list= (hton_list_st *)arg;
-  handlerton *hton= plugin_hton(plugin);
-  if (hton->state == SHOW_OPTION_YES && hton->binlog_func)
-  {
-    uint sz= hton_list->sz;
-    if (sz == MAX_HTON_LIST_ST-1)
-    {
-      /* list full */
-      return FALSE;
-    }
-    hton_list->hton[sz]= hton;
-    hton_list->sz= sz+1;
-  }
-  return FALSE;
-}
-
-static my_bool binlog_func_foreach(THD *thd, binlog_func_st *bfn)
-{
-  hton_list_st hton_list;
-  uint i, sz;
-
-  hton_list.sz= 0;
-  plugin_foreach(thd, binlog_func_list,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &hton_list);
-
-  for (i= 0, sz= hton_list.sz; i < sz ; i++)
-    hton_list.hton[i]->binlog_func(hton_list.hton[i], thd, bfn->fn, bfn->arg);
-  return FALSE;
-}
-
-int ha_reset_logs(THD *thd)
-{
-  binlog_func_st bfn= {BFN_RESET_LOGS, 0};
-  binlog_func_foreach(thd, &bfn);
-  return 0;
-}
-
-void ha_reset_slave(THD* thd)
-{
-  binlog_func_st bfn= {BFN_RESET_SLAVE, 0};
-  binlog_func_foreach(thd, &bfn);
-}
-
-void ha_binlog_wait(THD* thd)
-{
-  binlog_func_st bfn= {BFN_BINLOG_WAIT, 0};
-  binlog_func_foreach(thd, &bfn);
-}
-
-int ha_binlog_end(THD* thd)
-{
-  binlog_func_st bfn= {BFN_BINLOG_END, 0};
-  binlog_func_foreach(thd, &bfn);
-  return 0;
-}
-
-int ha_binlog_index_purge_file(THD *thd, const char *file)
-{
-  binlog_func_st bfn= {BFN_BINLOG_PURGE_FILE, (void *)file};
-  binlog_func_foreach(thd, &bfn);
-  return 0;
-}
-
-struct binlog_log_query_st
-{
-  enum_binlog_command binlog_command;
-  const char *query;
-  uint query_length;
-  const char *db;
-  const char *table_name;
-};
-
-static my_bool binlog_log_query_handlerton2(THD *thd,
-                                            handlerton *hton,
-                                            void *args)
-{
-  struct binlog_log_query_st *b= (struct binlog_log_query_st*)args;
-  if (hton->state == SHOW_OPTION_YES && hton->binlog_log_query)
-    hton->binlog_log_query(hton, thd,
-                           b->binlog_command,
-                           b->query,
-                           b->query_length,
-                           b->db,
-                           b->table_name);
-  return FALSE;
-}
-
-static my_bool binlog_log_query_handlerton(THD *thd,
-                                           plugin_ref plugin,
-                                           void *args)
-{
-  return binlog_log_query_handlerton2(thd, plugin_hton(plugin), args);
-}
-
-void ha_binlog_log_query(THD *thd, handlerton *hton,
-                         enum_binlog_command binlog_command,
-                         const char *query, uint query_length,
-                         const char *db, const char *table_name)
-{
-  struct binlog_log_query_st b;
-  b.binlog_command= binlog_command;
-  b.query= query;
-  b.query_length= query_length;
-  b.db= db;
-  b.table_name= table_name;
-  if (hton == 0)
-    plugin_foreach(thd, binlog_log_query_handlerton,
-                   MYSQL_STORAGE_ENGINE_PLUGIN, &b);
-  else
-    binlog_log_query_handlerton2(thd, hton, &b);
-}
-#endif
 
 
 /**

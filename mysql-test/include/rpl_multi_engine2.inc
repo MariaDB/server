@@ -72,10 +72,6 @@ ORDER BY id;
 
 connection master;
 --echo --- Remove a record from t1 on master ---
-# Note: there is an error in replication of Delete_row
-# from NDB to MyISAM (BUG#28538). However, if there is
-# only one row in Delete_row event then it works fine,
-# as this test demonstrates.
 DELETE FROM t1 WHERE id = 412;
 
 --echo --- Show current count on master for t1 ---

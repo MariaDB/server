@@ -343,9 +343,6 @@ enum enum_alter_inplace_result {
 
 /*
   Note: the following includes binlog and closing 0.
-  so: innodb + bdb + ndb + binlog + myisam + myisammrg + archive +
-      example + csv + heap + blackhole + federated + 0
-  (yes, the sum is deliberately inaccurate)
   TODO remove the limit, use dynarrays
 */
 #define MAX_HA 64
@@ -423,7 +420,6 @@ enum legacy_db_type
   DB_TYPE_MYISAM=9,
   DB_TYPE_MRG_MYISAM=10,
   DB_TYPE_INNODB=12,
-  DB_TYPE_NDBCLUSTER=14,
   DB_TYPE_EXAMPLE_DB=15,
   DB_TYPE_ARCHIVE_DB=16,
   DB_TYPE_CSV_DB=17,
@@ -4091,25 +4087,6 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht);
 */
 #define trans_need_2pc(thd, all)                   ((total_ha_2pc > 1) && \
         !((all ? &thd->transaction.all : &thd->transaction.stmt)->no_2pc))
-
-#ifdef HAVE_NDB_BINLOG
-int ha_reset_logs(THD *thd);
-int ha_binlog_index_purge_file(THD *thd, const char *file);
-void ha_reset_slave(THD *thd);
-void ha_binlog_log_query(THD *thd, handlerton *db_type,
-                         enum_binlog_command binlog_command,
-                         const char *query, uint query_length,
-                         const char *db, const char *table_name);
-void ha_binlog_wait(THD *thd);
-int ha_binlog_end(THD *thd);
-#else
-#define ha_reset_logs(a) do {} while (0)
-#define ha_binlog_index_purge_file(a,b) do {} while (0)
-#define ha_reset_slave(a) do {} while (0)
-#define ha_binlog_log_query(a,b,c,d,e,f,g) do {} while (0)
-#define ha_binlog_wait(a) do {} while (0)
-#define ha_binlog_end(a)  do {} while (0)
-#endif
 
 const char *get_canonical_filename(handler *file, const char *path,
                                    char *tmp_path);

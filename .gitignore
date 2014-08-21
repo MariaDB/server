@@ -205,7 +205,6 @@ support-files/mysql.10.0.11.spec
 support-files/mysql.server
 support-files/mysql.spec
 support-files/mysqld_multi.server
-support-files/ndb-config-2-node.ini
 support-files/wsrep.cnf
 support-files/wsrep_notify
 tags

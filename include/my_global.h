@@ -1231,9 +1231,6 @@ static inline double rint(double x)
 #undef HAVE_SMEM				/* No shared memory */
 
 #else
-#ifdef WITH_NDB_BINLOG
-#define HAVE_NDB_BINLOG 1
-#endif
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */

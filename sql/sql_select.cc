@@ -23634,15 +23634,6 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
             pushed_cond)
         {
           eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
-          /*
-          psergey-todo: what to do? This was useful with NDB only.
-
-          if (explain_flags & DESCRIBE_EXTENDED)
-          {
-            extra.append(STRING_WITH_LEN(": "));
-            ((COND *)pushed_cond)->print(&extra, QT_ORDINARY);
-          }
-          */
         }
         else
           eta->push_extra(ET_USING_WHERE);

@@ -35,9 +35,7 @@
 #    (It is allowed, but not required, to configure SERVER_MYPORT_1
 #    and SERVER_MYPORT_2 too. If these variables are not set, the
 #    variables MASTER_MYPORT and SLAVE_MYPORT, configured in the
-#    default my.cnf used by the rpl and rpl_ndb suites, are used
-#    instead.  In addition, in the rpl_ndb suite, SERVER_MYPORT_3 is
-#    not needed since MASTER_MYPORT1 can be used instead.)
+#    default my.cnf used by the rpl suite, are used instead.)
 #
 # 2. Execute the following near the top of the test:
 #
@@ -123,18 +121,6 @@ if (!$SERVER_MYPORT_1)
 if (!$SERVER_MYPORT_2)
 {
   --let SERVER_MYPORT_2= $SLAVE_MYPORT
-}
-# Allow $MASTER_MYPORT1 as alias for $SERVER_MYPORT_3
-# (this alias is used by rpl_ndb tests)
-if (!$SERVER_MYPORT_3)
-{
-  --let SERVER_MYPORT_3= $MASTER_MYPORT1
-}
-# Allow $SLAVE_MYPORT1 as alias for $SERVER_MYPORT_4
-# (this alias is used by rpl_ndb tests)
-if (!$SERVER_MYPORT_4)
-{
-  --let SERVER_MYPORT_4= $SLAVE_MYPORT1
 }
 # Check that $rpl_server_count is set
 if (!$rpl_server_count)

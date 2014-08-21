@@ -424,7 +424,6 @@ public:
     will be handled by any underlying handlers implementing transactions.
     There is only one call to each handler type involved per transaction
     and these go directly to the handlers supporting transactions
-    currently InnoDB, BDB and NDB).
     -------------------------------------------------------------------------
   */
   virtual THR_LOCK_DATA **store_lock(THD * thd, THR_LOCK_DATA ** to,
@@ -799,14 +798,14 @@ public:
     the handler always has a primary key (hidden if not defined) and this
     index is used for scanning rather than a full table scan in all
     situations.
-    (InnoDB, BDB, Federated)
+    (InnoDB, Federated)
 
     HA_REC_NOT_IN_SEQ:
     This flag is set for handlers that cannot guarantee that the rows are
     returned accroding to incremental positions (0, 1, 2, 3...).
     This also means that rnd_next() should return HA_ERR_RECORD_DELETED
     if it finds a deleted row.
-    (MyISAM (not fixed length row), BDB, HEAP, NDB, InooDB)
+    (MyISAM (not fixed length row), HEAP, InnoDB)
 
     HA_CAN_GEOMETRY:
     Can the storage engine handle spatial data.
@@ -819,13 +818,13 @@ public:
     finding a row by key as by position.
     This flag is used in a very special situation in conjunction with
     filesort's. For further explanation see intro to init_read_record.
-    (BDB, HEAP, InnoDB)
+    (HEAP, InnoDB)
 
     HA_NULL_IN_KEY:
     Is NULL values allowed in indexes.
     If this is not allowed then it is not possible to use an index on a
     NULLable field.
-    (BDB, HEAP, MyISAM, NDB, InnoDB)
+    (HEAP, MyISAM, InnoDB)
 
     HA_DUPLICATE_POS:
     Tells that we can the position for the conflicting duplicate key
@@ -836,12 +835,12 @@ public:
     HA_CAN_INDEX_BLOBS:
     Is the storage engine capable of defining an index of a prefix on
     a BLOB attribute.
-    (BDB, Federated, MyISAM, InnoDB)
+    (Federated, MyISAM, InnoDB)
 
     HA_AUTO_PART_KEY:
     Auto increment fields can be part of a multi-part key. For second part
     auto-increment keys, the auto_incrementing is done in handler.cc
-    (BDB, Federated, MyISAM, NDB)
+    (Federated, MyISAM)
 
     HA_REQUIRE_PRIMARY_KEY:
     Can't define a table without primary key (and cannot handle a table
@@ -871,7 +870,7 @@ public:
 
     HA_NO_PREFIX_CHAR_KEYS:
     Indexes on prefixes of character fields is not allowed.
-    (NDB)
+    (Federated)
 
     HA_CAN_FULLTEXT:
     Does the storage engine support fulltext indexes
@@ -896,11 +895,11 @@ public:
     Should file names always be in lower case (used by engines
     that map table names to file names.
     Since partition handler has a local file this flag is set.
-    (BDB, Federated, MyISAM)
+    (Federated, MyISAM)
 
     HA_CAN_BIT_FIELD:
     Is the storage engine capable of handling bit fields?
-    (MyISAM, NDB)
+    (MyISAM)
 
     HA_NEED_READ_RANGE_BUFFER:
     Is Read Multi-Range supported => need multi read range buffer
@@ -912,7 +911,7 @@ public:
     not handle this call. There are methods in handler.cc that will
     transfer those calls into index_read and other calls in the
     index scan module.
-    (NDB)
+    (No handler defines it)
 
     HA_PRIMARY_KEY_REQUIRED_FOR_POSITION:
     Does the storage engine need a PK for position?
@@ -942,11 +941,11 @@ public:
     Does the index support read next, this is assumed in the server
     code and never checked so all indexes must support this.
     Note that the handler can be used even if it doesn't have any index.
-    (BDB, HEAP, MyISAM, Federated, NDB, InnoDB)
+    (HEAP, MyISAM, Federated, InnoDB)
 
     HA_READ_PREV:
     Can the index be used to scan backwards.
-    (BDB, HEAP, MyISAM, NDB, InnoDB)
+    (HEAP, MyISAM, InnoDB)
 
     HA_READ_ORDER:
     Can the index deliver its record in index order. Typically true for
@@ -960,19 +959,19 @@ public:
     order all output started by index_read since most engines do this. With
     read_multi_range calls there is a specific flag setting order or not
     order so in those cases ordering of index output can be avoided.
-    (BDB, InnoDB, HEAP, MyISAM, NDB)
+    (InnoDB, HEAP, MyISAM)
 
     HA_READ_RANGE:
     Specify whether index can handle ranges, typically true for all
     ordered indexes and not true for hash indexes.
     Used by optimiser to check if ranges (as key >= 5) can be optimised
     by index.
-    (BDB, InnoDB, NDB, MyISAM, HEAP)
+    (InnoDB, MyISAM, HEAP)
 
     HA_ONLY_WHOLE_INDEX:
     Can't use part key searches. This is typically true for hash indexes
     and typically not true for ordered indexes.
-    (Federated, NDB, HEAP)
+    (Federated, HEAP)
 
     HA_KEYREAD_ONLY:
     Does the storage engine support index-only scans on this index.
@@ -982,7 +981,7 @@ public:
     only have to fill in the columns the key covers. If
     HA_PRIMARY_KEY_IN_READ_INDEX is set then also the PRIMARY KEY columns
     must be updated in the row.
-    (BDB, InnoDB, MyISAM)
+    (InnoDB, MyISAM)
   */
   virtual ulong index_flags(uint inx, uint part, bool all_parts) const
   {

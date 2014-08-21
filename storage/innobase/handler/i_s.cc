@@ -2885,7 +2885,7 @@ UNIV_INTERN struct st_maria_plugin	i_s_innodb_ft_default_stopword =
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Default stopword list for InnDB Full Text Search"),
+	STRUCT_FLD(descr, "Default stopword list for InnoDB Full Text Search"),
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */

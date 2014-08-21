@@ -575,7 +575,7 @@ INSERT INTO t1 VALUES (3, NULL), (2, 0), (2, NULL);
 INSERT INTO t1 VALUES (2, 2);
 if (!$mysql_errno)
 {
-  echo # ERROR (only OK if Blackhole/NDB) should give ER_DUP_KEY or ER_DUP_ENTRY;
+  echo # ERROR (only OK if Blackhole) should give ER_DUP_KEY or ER_DUP_ENTRY;
   echo # mysql_errno: $mysql_errno;
 }
 INSERT INTO t1 VALUES (2, 22), (2, NULL);

@@ -1853,27 +1853,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       goto end;
     }
   }
-  if (flags & WFRM_PACK_FRM)
-  {
-    /*
-      We need to pack the frm file and after packing it we delete the
-      frm file to ensure it doesn't get used. This is only used for
-      handlers that have the main version of the frm file stored in the
-      handler.
-    */
-    const uchar *data;
-    size_t length;
-    if (readfrm(shadow_path, &data, &length) ||
-        packfrm(data, length, &lpt->pack_frm_data, &lpt->pack_frm_len))
-    {
-      my_free(const_cast<uchar*>(data));
-      my_free(lpt->pack_frm_data);
-      mem_alloc_error(length);
-      error= 1;
-      goto end;
-    }
-    error= mysql_file_delete(key_file_frm, shadow_frm_name, MYF(MY_WME));
-  }
   if (flags & WFRM_INSTALL_SHADOW)
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE

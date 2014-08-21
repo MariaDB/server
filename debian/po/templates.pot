@@ -170,18 +170,3 @@ msgstr ""
 #: ../mariadb-server-10.1.templates:9001
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid "NDB Cluster seems to be in use"
-msgstr ""
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid ""
-"MySQL-5.1 no longer provides NDB Cluster support. Please migrate to the new "
-"mysql-cluster package and remove all lines starting with \"ndb\" from all "
-"config files below /etc/mysql/."
-msgstr ""

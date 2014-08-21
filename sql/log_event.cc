@@ -409,20 +409,6 @@ inline int idempotent_error_code(int err_code)
 
 inline int ignored_error_code(int err_code)
 {
-#ifdef HAVE_NDB_BINLOG
-  /*
-    The following error codes are hard-coded and will always be ignored.
-  */
-  switch (err_code)
-  {
-  case ER_DB_CREATE_EXISTS:
-  case ER_DB_DROP_EXISTS:
-    return 1;
-  default:
-    /* Nothing to do */
-    break;
-  }
-#endif
   return ((err_code == ER_SLAVE_IGNORED_TABLE) ||
           (use_slave_mask && bitmap_is_set(&slave_error_mask, err_code)));
 }
@@ -4085,36 +4071,8 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   clear_all_errors(thd, const_cast<Relay_log_info*>(rli));
   current_stmt_is_commit= is_commit();
 
-  if (current_stmt_is_commit && rgi->tables_to_lock)
-  {
-    /*
-      Cleaning-up the last statement context:
-      the terminal event of the current statement flagged with
-      STMT_END_F got filtered out in ndb circular replication.
-    */
-    int error;
-    char llbuff[22];
-    if ((error= rows_event_stmt_cleanup(rgi, thd)))
-    {
-      const_cast<Relay_log_info*>(rli)->report(ERROR_LEVEL, error,
-                  "Error in cleaning up after an event preceding the commit; "
-                  "the group log file/position: %s %s",
-                  const_cast<Relay_log_info*>(rli)->group_master_log_name,
-                  llstr(const_cast<Relay_log_info*>(rli)->group_master_log_pos,
-                        llbuff));
-    }
-    /*
-      Executing a part of rli->stmt_done() logics that does not deal
-      with group position change. The part is redundant now but is 
-      future-change-proof addon, e.g if COMMIT handling will start checking
-      invariants like IN_STMT flag must be off at committing the transaction.
-    */
-    rgi->inc_event_relay_log_pos();
-  }
-  else
-  {
-    rgi->slave_close_thread_tables(thd);
-  }
+  DBUG_ASSERT(!current_stmt_is_commit || !rgi->tables_to_lock);
+  rgi->slave_close_thread_tables(thd);
 
   /*
     Note:   We do not need to execute reset_one_shot_variables() if this
@@ -11108,8 +11066,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
      todo: to introduce a property for the event (handler?) which forces
      applying the event in the replace (idempotent) fashion.
   */
-  if ((slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT) ||
-      (m_table->s->db_type()->db_type == DB_TYPE_NDBCLUSTER))
+  if (slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT)
   {
     /*
       We are using REPLACE semantics and not INSERT IGNORE semantics
@@ -11122,8 +11079,7 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     
     /*
       Pretend we're executing a REPLACE command: this is needed for
-      InnoDB and NDB Cluster since they are not (properly) checking the
-      lex->duplicates flag.
+      InnoDB since it is not (properly) checking the lex->duplicates flag.
     */
     thd->lex->sql_command= SQLCOM_REPLACE;
     /* 
@@ -11131,23 +11087,10 @@ Write_rows_log_event::do_before_row_operations(const Slave_reporting_capability 
     */
     m_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
     /* 
-       NDB specific: update from ndb master wrapped as Write_rows
-       so that the event should be applied to replace slave's row
-
-       Also following is needed in case if we have AFTER DELETE triggers.
+       The following is needed in case if we have AFTER DELETE triggers.
     */
     m_table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
-    /* 
-       NDB specific: if update from ndb master wrapped as Write_rows
-       does not find the row it's assumed idempotent binlog applying
-       is taking place; don't raise the error.
-    */
     m_table->file->extra(HA_EXTRA_IGNORE_NO_KEY);
-    /*
-      TODO: the cluster team (Tomas?) says that it's better if the engine knows
-      how many rows are going to be inserted, then it can allocate needed memory
-      from the start.
-    */
   }
   if (slave_run_triggers_for_rbr && !master_had_triggers && m_table->triggers )
     m_table->prepare_triggers_for_insert_stmt_or_event();
@@ -11206,8 +11149,7 @@ Write_rows_log_event::do_after_row_operations(const Slave_reporting_capability *
   }
   m_table->next_number_field=0;
   m_table->auto_increment_field_not_null= FALSE;
-  if ((slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT) ||
-      m_table->s->db_type()->db_type == DB_TYPE_NDBCLUSTER)
+  if (slave_exec_mode == SLAVE_EXEC_MODE_IDEMPOTENT)
   {
     m_table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
     m_table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
@@ -11333,8 +11275,7 @@ Rows_log_event::write_row(rpl_group_info *rgi,
     slave_run_triggers_for_rbr && !master_had_triggers && table->triggers;
   auto_afree_ptr<char> key(NULL);
 
-  prepare_record(table, m_width,
-                 table->file->ht->db_type != DB_TYPE_NDBCLUSTER);
+  prepare_record(table, m_width, true);
 
   /* unpack row into table->record[0] */
   if ((error= unpack_current_row(rgi)))
@@ -11618,53 +11559,7 @@ uint8 Write_rows_log_event::get_trg_event_map()
 */
 static bool record_compare(TABLE *table)
 {
-  /*
-    Need to set the X bit and the filler bits in both records since
-    there are engines that do not set it correctly.
-
-    In addition, since MyISAM checks that one hasn't tampered with the
-    record, it is necessary to restore the old bytes into the record
-    after doing the comparison.
-
-    TODO[record format ndb]: Remove it once NDB returns correct
-    records. Check that the other engines also return correct records.
-   */
-
-  DBUG_DUMP("record[0]", table->record[0], table->s->reclength);
-  DBUG_DUMP("record[1]", table->record[1], table->s->reclength);
-
   bool result= FALSE;
-  uchar saved_x[2]= {0, 0}, saved_filler[2]= {0, 0};
-
-  if (table->s->null_bytes > 0)
-  {
-    for (int i = 0 ; i < 2 ; ++i)
-    {
-      /* 
-        If we have an X bit then we need to take care of it.
-      */
-      if (!(table->s->db_options_in_use & HA_OPTION_PACK_RECORD))
-      {
-        saved_x[i]= table->record[i][0];
-        table->record[i][0]|= 1U;
-      }
-
-      /*
-         If (last_null_bit_pos == 0 && null_bytes > 1), then:
-
-         X bit (if any) + N nullable fields + M Field_bit fields = 8 bits 
-
-         Ie, the entire byte is used.
-      */
-      if (table->s->last_null_bit_pos > 0)
-      {
-        saved_filler[i]= table->record[i][table->s->null_bytes - 1];
-        table->record[i][table->s->null_bytes - 1]|=
-          256U - (1U << table->s->last_null_bit_pos);
-      }
-    }
-  }
-
   /**
     Compare full record only if:
     - there are no blob fields (otherwise we would also need 
@@ -11712,24 +11607,6 @@ static bool record_compare(TABLE *table)
   }
 
 record_compare_exit:
-  /*
-    Restore the saved bytes.
-
-    TODO[record format ndb]: Remove this code once NDB returns the
-    correct record format.
-  */
-  if (table->s->null_bytes > 0)
-  {
-    for (int i = 0 ; i < 2 ; ++i)
-    {
-      if (!(table->s->db_options_in_use & HA_OPTION_PACK_RECORD))
-        table->record[i][0]= saved_x[i];
-
-      if (table->s->last_null_bit_pos)
-        table->record[i][table->s->null_bytes - 1]= saved_filler[i];
-    }
-  }
-
   return result;
 }
 
@@ -12089,21 +11966,6 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
 
     while (record_compare(table))
     {
-      /*
-        We need to set the null bytes to ensure that the filler bit
-        are all set when returning.  There are storage engines that
-        just set the necessary bits on the bytes and don't set the
-        filler bits correctly.
-
-        TODO[record format ndb]: Remove this code once NDB returns the
-        correct record format.
-      */
-      if (table->s->null_bytes > 0)
-      {
-        table->record[0][table->s->null_bytes - 1]|=
-          256U - (1U << table->s->last_null_bit_pos);
-      }
-
       while ((error= table->file->ha_index_next(table->record[0])))
       {
         /* We just skip records that has already been deleted */

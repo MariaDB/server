@@ -175,7 +175,6 @@ static struct
   { "performance_schema", PLUGIN_FORCE },
 
   /* we disable few other plugins by default */
-  { "ndbcluster", PLUGIN_OFF },
   { "feedback", PLUGIN_OFF }
 };
 
@@ -1137,7 +1136,7 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
       historical ndb behavior caused MySQL plugins to specify
       status var names in full, with the plugin name prefix.
       this was never fixed in MySQL.
-      MariaDB fixes that but support MySQL style too.
+      MariaDB fixes that but supports MySQL style too.
     */
     SHOW_VAR *show_vars= plugin->plugin->status_vars;
     SHOW_VAR tmp_array[2]= {
@@ -1169,10 +1168,6 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   }
   plugin->state= PLUGIN_IS_UNINITIALIZED;
 
-  /*
-    We do the check here because NDB has a worker THD which doesn't
-    exit until NDB is shut down.
-  */
   if (ref_check && plugin->ref_count)
     sql_print_error("Plugin '%s' has ref_count=%d after deinitialization.",
                     plugin->name.str, plugin->ref_count);
@@ -1379,7 +1374,7 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
       historical ndb behavior caused MySQL plugins to specify
       status var names in full, with the plugin name prefix.
       this was never fixed in MySQL.
-      MariaDB fixes that, but supports MySQL style too.
+      MariaDB fixes that but supports MySQL style too.
     */
     SHOW_VAR *show_vars= plugin->plugin->status_vars;
     SHOW_VAR tmp_array[2]= {
@@ -3590,12 +3585,6 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     options+= 2;
   }
 
-  if (!my_strcasecmp(&my_charset_latin1, plugin_name_ptr, "NDBCLUSTER"))
-  {
-    plugin_name_ptr= const_cast<char*>("ndb"); // Use legacy "ndb" prefix
-    plugin_name_len= 3;
-  }
-
   /*
     Two passes as the 2nd pass will take pointer addresses for use
     by my_getopt and register_var() in the first pass uses realloc
@@ -3927,10 +3916,6 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
       my_afree(tmp_backup);
     }
 
-    /*
-      We adjust the default value to account for the hardcoded exceptions
-      we have set for the federated and ndbcluster storage engines.
-    */
     if (tmp->load_option != PLUGIN_FORCE &&
         tmp->load_option != PLUGIN_FORCE_PLUS_PERMANENT)
       opts[0].def_value= opts[1].def_value= plugin_load_option;

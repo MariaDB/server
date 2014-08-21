@@ -77,22 +77,6 @@ OS error code  64:  Machine is not on the network
 .RE
 .\}
 .PP
-To obtain the error message for a MySQL Cluster error code, invoke
-\fBperror\fR
-with the
-\fB\-\-ndb\fR
-option:
-.sp
-.if n \{\
-.RS 4
-.\}
-.nf
-shell> \fBperror \-\-ndb \fR\fB\fIerrorcode\fR\fR
-.fi
-.if n \{\
-.RE
-.\}
-.PP
 Note that the meaning of system error messages may be dependent on your operating system\&. A given error code may mean different things on different operating systems\&.
 .PP
 \fBperror\fR
@@ -114,21 +98,6 @@ supports the following options\&.
 \fB\-?\fR
 .sp
 Display a help message and exit\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" perror: ndb option
-.\" ndb option: perror
-\fB\-\-ndb\fR
-.sp
-Print the error message for a MySQL Cluster error code\&.
 .RE
 .sp
 .RS 4

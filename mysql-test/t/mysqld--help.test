@@ -25,7 +25,7 @@ perl;
                version.*/;
 
   # Plugins which may or may not be there:
-  @plugins=qw/innodb ndb archive blackhole federated partition ndbcluster
+  @plugins=qw/innodb archive blackhole federated partition
               feedback debug temp-pool ssl des-key-file xtradb sequence
               thread-concurrency super-large-pages mutex-deadlock-detector
               connect null-audit aria oqgraph sphinx thread-handling

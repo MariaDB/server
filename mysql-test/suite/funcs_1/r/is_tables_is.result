@@ -2,11 +2,9 @@ DROP DATABASE IF EXISTS test1;
 CREATE DATABASE test1;
 SELECT *,
 LEFT( table_comment,
-IF(INSTR(table_comment,'InnoDB free') = 0
-AND INSTR(table_comment,'number_of_replicas') = 0,
+IF(INSTR(table_comment,'InnoDB free') = 0,
 LENGTH(table_comment),
-INSTR(table_comment,'InnoDB free')
-+ INSTR(table_comment,'number_of_replicas') - 1))
+INSTR(table_comment,'InnoDB free') - 1))
 AS "user_comment",
 '-----------------------------------------------------' AS "Separator"
 FROM information_schema.tables
@@ -894,11 +892,9 @@ GRANT SELECT ON test1.* TO testuser1@localhost;
 # Establish connection testuser1 (user=testuser1)
 SELECT *,
 LEFT( table_comment,
-IF(INSTR(table_comment,'InnoDB free') = 0
-AND INSTR(table_comment,'number_of_replicas') = 0,
+IF(INSTR(table_comment,'InnoDB free') = 0,
 LENGTH(table_comment),
-INSTR(table_comment,'InnoDB free')
-+ INSTR(table_comment,'number_of_replicas') - 1))
+INSTR(table_comment,'InnoDB free') - 1))
 AS "user_comment",
 '-----------------------------------------------------' AS "Separator"
 FROM information_schema.tables

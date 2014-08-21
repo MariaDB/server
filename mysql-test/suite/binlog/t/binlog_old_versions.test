@@ -11,7 +11,7 @@
 # The previous versions we currently test are:
 #  - version 5.1.17 and earlier trees
 #  - mysql-5.1-wl2325-xxx trees (AKA alcatel trees)
-#  - mysql-5.1-telco-6.1 trees (AKA ndb trees)
+#  - mysql-5.1-telco-6.1 trees
 # For completeness, we also test mysql-5.1-new_rpl, which is supposed
 # to be the "correct" version.
 
@@ -75,7 +75,7 @@ SELECT COUNT(*) FROM t3;
 DROP TABLE t1, t3;
 
 
---echo ==== Read binlog from ndb tree (mysql-5.1-telco-6.1) ====
+--echo ==== Read binlog from telco tree (mysql-5.1-telco-6.1) ====
 
 # Read binlog.
 --exec $MYSQL_BINLOG --local-load=$MYSQLTEST_VARDIR/tmp/ suite/binlog/std_data/ver_5_1-telco.001 | $MYSQL --local-infile=1

@@ -80,11 +80,6 @@ eval INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 VALUES(NULL,NULL,NULL,NULL,NULL);
 eval SELECT COUNT(*) = 1 FROM t1 WHERE f_char1 IS NULL;
 DROP TABLE t1;
-#
-# The NDB handler only supports 32 bit integers in VALUES
-# therefor we have to skip the next test for NDB.
-if (`SELECT @@session.storage_engine NOT IN('ndbcluster')`)
-{
 --echo #  3.   LIST(<check value>)
 eval CREATE TABLE t1 (
 $column_list
@@ -111,7 +106,6 @@ eval INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 VALUES(NULL,NULL,NULL,NULL,NULL);
 eval SELECT COUNT(*) = 1 FROM t1 WHERE f_char1 IS NULL;
 DROP TABLE t1;
-}
 #
 --echo #  4.   Partition by RANGE(...) subpartition by HASH(<check value>)
 eval CREATE TABLE t1 (

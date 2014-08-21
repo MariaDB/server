@@ -42,7 +42,7 @@ insert into t5 values (10);
 create view v1 (c) as
 SELECT table_name FROM information_schema.TABLES
 WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND
-table_name not like 'ndb_%' AND table_name not like 'innodb_%' AND
+table_name not like 'innodb_%' AND
 table_name not like 'xtradb_%';
 select * from v1;
 c

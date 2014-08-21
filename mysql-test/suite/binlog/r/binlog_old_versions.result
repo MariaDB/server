@@ -53,7 +53,7 @@ SELECT COUNT(*) FROM t3;
 COUNT(*)
 17920
 DROP TABLE t1, t3;
-==== Read binlog from ndb tree (mysql-5.1-telco-6.1) ====
+==== Read binlog from telco tree (mysql-5.1-telco-6.1) ====
 SELECT * FROM t1 ORDER BY a;
 a	b
 0	last_insert_id

@@ -2061,12 +2061,6 @@ void clean_up(bool print_message)
   stop_handle_manager();
   release_ddl_log();
 
-  /*
-    make sure that handlers finish up
-    what they have that is dependent on the binlog
-  */
-  ha_binlog_end(current_thd);
-
   logger.cleanup_base();
 
   injector::free_instance();

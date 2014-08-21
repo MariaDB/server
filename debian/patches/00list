@@ -1,6 +1,5 @@
 # 01_MAKEFILES__Docs_Images_Makefile.in.dpatch
 # 01_MAKEFILES__Docs_Makefile.in.dpatch
-# 02_no_builtin_ndbcluster_plugin.dpatch
 # 21_init__openquery_configtest.dpatch
 33_scripts__mysql_create_system_tables__no_test.dpatch
 38_scripts__mysqld_safe.sh__signals.dpatch

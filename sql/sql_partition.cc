@@ -6887,7 +6887,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       1) Write the new frm, pack it and then delete it
       2) Perform the change within the handler
     */
-    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW | WFRM_PACK_FRM) ||
+    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         mysql_change_partitions(lpt))
     {
       goto err;

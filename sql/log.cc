@@ -3889,8 +3889,6 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 
-  if (thd)
-    ha_reset_logs(thd);
   /*
     We need to get both locks to be sure that no one is trying to
     write to the index log file.
@@ -4528,13 +4526,6 @@ int MYSQL_BIN_LOG::purge_index_entry(THD *thd, ulonglong *decrease_log_space,
         }
            
         error= 0;
-        if (!need_mutex)
-        {
-          /*
-            This is to avoid triggering an error in NDB.
-          */
-          ha_binlog_index_purge_file(current_thd, log_info.log_file_name);
-        }
 
         DBUG_PRINT("info",("purging %s",log_info.log_file_name));
         if (!my_delete(log_info.log_file_name, MYF(0)))

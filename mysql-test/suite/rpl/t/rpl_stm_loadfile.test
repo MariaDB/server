@@ -6,7 +6,6 @@
 #############################################################################
 # Change Author: JBM
 # Change Date: 2006-01-16
-# Change: Added Order by for NDB
 # Change: Split the original test file. This one forces STATEMENT only because
 #         when in STATEMENT mode, the load_file will issue a warning, whereas
 #         in RBR or MIXED mode it does not (by lsoares).

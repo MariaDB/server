@@ -65,13 +65,11 @@ while ($run)
       }
       eval $drop_index;
       eval $insert_record;
-      # NDB: ER_DUP_UNIQUE, others: ER_DUP_ENTRY
-      --error 0,ER_DUP_ENTRY,ER_DUP_UNIQUE
+      --error 0,ER_DUP_ENTRY
       eval $create_index;
       if (!$mysql_errno)
       {
          --echo # Error: CREATE INDEX was successful though we expected ER_DUP_ENTRY
-         --echo # Error: or ER_DUP_UNIQUE (NDB only)
          --echo # abort
          exit;
       }

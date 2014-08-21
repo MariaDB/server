@@ -3091,9 +3091,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings)
 /*
   Check if the current error is of temporary nature of not.
   Some errors are temporary in nature, such as
-  ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT.  Ndb also signals
-  that the error is temporary by pushing a warning with the error code
-  ER_GET_TEMPORARY_ERRMSG, if the originating error is temporary.
+  ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT.
 */
 static int has_temporary_error(THD *thd)
 {
@@ -3123,25 +3121,6 @@ static int has_temporary_error(THD *thd)
       thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
     DBUG_RETURN(1);
 
-#ifdef HAVE_NDB_BINLOG
-  /*
-    currently temporary error set in ndbcluster
-  */
-  List_iterator_fast<Sql_condition> it(thd->warning_info->warn_list());
-  Sql_condition *err;
-  while ((err= it++))
-  {
-    DBUG_PRINT("info", ("has condition %d %s", err->get_sql_errno(),
-                        err->get_message_text()));
-    switch (err->get_sql_errno())
-    {
-    case ER_GET_TEMPORARY_ERRMSG:
-      DBUG_RETURN(1);
-    default:
-      break;
-    }
-  }
-#endif
   DBUG_RETURN(0);
 }
 

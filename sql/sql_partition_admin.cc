@@ -129,7 +129,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   {
     /*
       Only allowed on partitioned tables throught the generic ha_partition
-      handler, i.e not yet for native partitioning (NDB).
+      handler, i.e not yet for native partitioning.
     */
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
@@ -783,11 +783,6 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 
   if (open_tables(thd, &first_table, &table_counter, 0))
     DBUG_RETURN(true);
-
-  /*
-    TODO: Add support for TRUNCATE PARTITION for NDB and other
-          engines supporting native partitioning.
-  */
 
   if (!first_table->table || first_table->view ||
       first_table->table->s->db_type() != partition_hton)

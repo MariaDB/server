@@ -260,65 +260,6 @@ if (IS_WINDOWS)
   push(@mysqld_rules, {'shared-memory-base-name' => \&fix_socket});
 }
  
-sub fix_ndb_mgmd_port {
-  my ($self, $config, $group_name, $group)= @_;
-  my $hostname= $group->value('HostName');
-  return $self->{PORT}++;
-}
-
-
-sub fix_cluster_dir {
-  my ($self, $config, $group_name, $group)= @_;
-  my $vardir= $self->{ARGS}->{vardir};
-  my (undef, $process_type, $idx, $suffix)= split(/\./, $group_name);
-  return "$vardir/mysql_cluster.$suffix/$process_type.$idx";
-}
-
-
-sub fix_cluster_backup_dir {
-  my ($self, $config, $group_name, $group)= @_;
-  my $vardir= $self->{ARGS}->{vardir};
-  my (undef, $process_type, $idx, $suffix)= split(/\./, $group_name);
-  return "$vardir/mysql_cluster.$suffix/";
-}
-
-
-#
-# Rules to run for each ndb_mgmd in the config
-#  - will be run in order listed here
-#
-my @ndb_mgmd_rules=
-(
- { 'PortNumber' => \&fix_ndb_mgmd_port },
- { 'DataDir' => \&fix_cluster_dir },
-);
-
-
-#
-# Rules to run for each ndbd in the config
-#  - will be run in order listed here
-#
-my @ndbd_rules=
-(
- { 'HostName' => \&fix_host },
- { 'DataDir' => \&fix_cluster_dir },
- { 'BackupDataDir' => \&fix_cluster_backup_dir },
-);
-
-
-#
-# Rules to run for each cluster_config section
-#  - will be run in order listed here
-#
-my @cluster_config_rules=
-(
- { 'ndb_mgmd' => \&fix_host },
- { 'ndbd' => \&fix_host },
- { 'mysqld' => \&fix_host },
- { 'ndbapi' => \&fix_host },
-);
-
-
 #
 # Rules to run for [client] section
 #  - will be run in order listed here
@@ -496,49 +437,12 @@ sub post_fix_resolve_at_variables {
   }
 }
 
-sub post_fix_mysql_cluster_section {
-  my ($self, $config)= @_;
-
-  # Add a [mysl_cluster.<suffix>] section for each
-  # defined [cluster_config.<suffix>] section
-  foreach my $group ( $config->like('cluster_config\.\w*$') )
-  {
-    my @urls;
-    # Generate ndb_connectstring for this cluster
-    foreach my $ndb_mgmd ( $config->like('cluster_config.ndb_mgmd.')) {
-      if ($ndb_mgmd->suffix() eq $group->suffix()) {
-	my $host= $ndb_mgmd->value('HostName');
-	my $port= $ndb_mgmd->value('PortNumber');
-	push(@urls, "$host:$port");
-      }
-    }
-    croak "Could not generate valid ndb_connectstring for '$group'"
-      unless @urls > 0;
-    my $ndb_connectstring= join(";", @urls);
-
-    # Add ndb_connectstring to [mysql_cluster.<suffix>]
-    $config->insert('mysql_cluster'.$group->suffix(),
-		    'ndb_connectstring', $ndb_connectstring);
-
-    # Add ndb_connectstring to each mysqld connected to this
-    # cluster
-    foreach my $mysqld ( $config->like('cluster_config.mysqld.')) {
-      if ($mysqld->suffix() eq $group->suffix()) {
-	my $after= $mysqld->after('cluster_config.mysqld');
-	$config->insert("mysqld$after",
-			'ndb_connectstring', $ndb_connectstring);
-      }
-    }
-  }
-}
-
 #
 # Rules to run last of all
 #
 my @post_rules=
 (
  \&post_check_client_groups,
- \&post_fix_mysql_cluster_section,
  \&post_fix_resolve_at_variables,
  \&post_check_embedded_group,
 );
@@ -576,54 +480,6 @@ sub run_section_rules {
 }
 
 
-sub run_generate_sections_from_cluster_config {
-  my ($self, $config)= @_;
-
-  my @options= ('ndb_mgmd', 'ndbd',
-		'mysqld', 'ndbapi');
-
-  foreach my $group ( $config->like('cluster_config\.\w*$') ) {
-
-    # Keep track of current index per process type
-    my %idxes;
-    map { $idxes{$_}= 1; } @options;
-
-    foreach my $option_name ( @options ) {
-      my $value= $group->value($option_name);
-      my @hosts= split(/,/, $value, -1); # -1 => return also empty strings
-
-      # Add at least one host
-      push(@hosts, undef) unless scalar(@hosts);
-
-      # Assign hosts unless already fixed
-      @hosts= map { $self->fix_host() unless $_; } @hosts;
-
-      # Write the hosts value back
-      $group->insert($option_name, join(",", @hosts));
-
-      # Generate sections for each host
-      foreach my $host ( @hosts ){
-	my $idx= $idxes{$option_name}++;
-
-	my $suffix= $group->suffix();
-	# Generate a section for ndb_mgmd to read
-	$config->insert("cluster_config.$option_name.$idx$suffix",
-			"HostName", $host);
-
-	if ($option_name eq 'mysqld'){
-	  my $datadir=
-	    $self->fix_cluster_dir($config,
-				   "cluster_config.mysqld.$idx$suffix",
-				   $group);
-	  $config->insert("mysqld.$idx$suffix",
-			  'datadir', "$datadir/data");
-	}
-      }
-    }
-  }
-}
-
-
 sub new_config {
   my ($class, $args)= @_;
 
@@ -647,18 +503,6 @@ sub new_config {
   foreach my $rule ( @pre_rules ) {
     &$rule($self, $config);
   }
-
-  $self->run_section_rules($config,
-			   'cluster_config\.\w*$',
-			   @cluster_config_rules);
-  $self->run_generate_sections_from_cluster_config($config);
-
-  $self->run_section_rules($config,
-			   'cluster_config.ndb_mgmd.',
-			   @ndb_mgmd_rules);
-  $self->run_section_rules($config,
-			   'cluster_config.ndbd',
-			   @ndbd_rules);
 
   $self->run_section_rules($config,
 			   'mysqld.',
