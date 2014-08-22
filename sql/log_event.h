@@ -1344,7 +1344,6 @@ public:
     THD_STAGE_INFO(thd, stage_apply_event);
     res= do_apply_event(rgi);
     THD_STAGE_INFO(thd, stage_after_apply_event);
-    res= 0;
     return res;
   }
 

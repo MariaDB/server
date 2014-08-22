@@ -1953,7 +1953,7 @@ static void __cdecl kill_server(int sig_ptr)
   close_connections();
 
 #ifdef WITH_WSREP
-  if (WSREP_ON && wsrep_inited == 1)
+  if (wsrep_inited == 1)
     wsrep_deinit(true);
 #endif
 
@@ -2754,7 +2754,7 @@ static void network_init(void)
     if (mysql_socket_listen(unix_sock,(int) back_log) < 0)
       sql_print_warning("listen() on Unix socket failed with error %d",
 		      socket_errno);
-#if defined(WITH_WSREP) && defined(HAVE_FCNTL)
+#if defined(WITH_WSREP) && defined(HAVE_FCNTL) && defined(FD_CLOEXEC)
     if (WSREP_ON)
       (void) fcntl(mysql_socket_getfd(unix_sock), F_SETFD, FD_CLOEXEC);
 #endif /* WITH_WSREP */
@@ -2837,7 +2837,7 @@ void dec_connection_count(THD *thd)
     Do not decrement when its wsrep system thread. wsrep_applier is set for
     applier as well as rollbacker threads.
   */
-  if (!thd->wsrep_applier)
+  if (thd->wsrep_applier)
     return;
 #endif /* WITH_WSREP */
 

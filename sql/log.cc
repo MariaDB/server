@@ -5829,8 +5829,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
      could have changed since.
   */
   /* applier and replayer can skip writing binlog events */
-  if (IF_WSREP((WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV)), 0) ||
-      likely(is_open()))
+  if (IF_WSREP((WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV)) || is_open(), likely(is_open())))
   {
     my_off_t UNINIT_VAR(my_org_b_tell);
 #ifdef HAVE_REPLICATION

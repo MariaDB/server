@@ -2973,7 +2973,7 @@ static bool show_status_array(THD *thd, const char *wild,
       DBUG_ASSERT(name_buffer[0] <= 'z');
 
       // WSREP_TODO: remove once lp:1306875 has been addressed.
-      if (IF_WSREP(WSREP_ON && is_wsrep_var == FALSE, 1) &&
+      if (IF_WSREP(is_wsrep_var == FALSE, 1) &&
           status_var)
         name_buffer[0]-= 'a' - 'A';
     }

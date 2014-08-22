@@ -3136,7 +3136,7 @@ int handler::update_auto_increment()
                                           variables->auto_increment_increment);
     auto_inc_intervals_count++;
     /* Row-based replication does not need to store intervals in binlog */
-    if (IF_WSREP((WSREP(thd) && (wsrep_emulate_bin_log || mysql_bin_log.is_open())), mysql_bin_log.is_open())
+    if (IF_WSREP(((WSREP(thd) && wsrep_emulate_bin_log ) || mysql_bin_log.is_open()), mysql_bin_log.is_open())
         && !thd->is_current_stmt_binlog_format_row())
       thd->auto_inc_intervals_in_cur_stmt_for_binlog.
         append(auto_inc_interval_for_cur_row.minimum(),
@@ -5760,8 +5760,9 @@ static bool check_table_binlog_row_based(THD *thd, TABLE *table)
           table->s->cached_row_logging_check &&
           (thd->variables.option_bits & OPTION_BIN_LOG) &&
           /* applier and replayer should not binlog */
-          (IF_WSREP((WSREP_EMULATE_BINLOG(thd) && (thd->wsrep_exec_mode != REPL_RECV)),0) ||
-           mysql_bin_log.is_open()));
+          (IF_WSREP((WSREP_EMULATE_BINLOG(thd) &&
+		    (thd->wsrep_exec_mode != REPL_RECV)) ||
+		     mysql_bin_log.is_open(), mysql_bin_log.is_open())));
 }
 
 
@@ -5863,7 +5864,7 @@ static int binlog_log_row(TABLE* table,
 
 #ifdef WITH_WSREP
   /* only InnoDB tables will be replicated through binlog emulation */
-  if (WSREP_ON && WSREP_EMULATE_BINLOG(thd) &&
+  if (WSREP_EMULATE_BINLOG(thd) &&
       table->file->partition_ht()->db_type != DB_TYPE_INNODB)
     return 0;
 #endif /* WITH_WSREP */
