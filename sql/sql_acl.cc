@@ -2727,6 +2727,15 @@ bool change_password(THD *thd, const char *host, const char *user,
   }
 end:
   close_mysql_tables(thd);
+#ifdef WITH_WSREP
+  if (WSREP(thd) && !thd->wsrep_applier)
+  {
+    WSREP_TO_ISOLATION_END;
+
+    thd->query_string     = query_save;
+    thd->wsrep_exec_mode  = LOCAL_STATE;
+  }
+#endif /* WITH_WSREP */
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
