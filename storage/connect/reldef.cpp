@@ -49,6 +49,8 @@
 #include "tabmul.h"
 #include "ha_connect.h"
 
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /* --------------------------- Class RELDEF -------------------------- */
 
@@ -561,7 +563,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   PTXF    txfp = NULL;
   PDOSDEF defp = (PDOSDEF)Pxdef;
   bool    map = defp->Mapped && mode != MODE_INSERT &&
-                !(PlgGetUser(g)->UseTemp == TMP_FORCE &&
+                !(Use_Temp == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
   int     cmpr = defp->Compressed;
 

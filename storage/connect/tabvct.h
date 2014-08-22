@@ -69,6 +69,7 @@ class DllExport TDBVCT : public TDBFIX {
 
   // Methods
   virtual PTDB CopyOne(PTABS t);
+  virtual bool IsUsingTemp(PGLOBAL g);
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);

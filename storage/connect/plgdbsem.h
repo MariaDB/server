@@ -423,7 +423,7 @@ typedef struct {                       /* User application block       */
   int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
   int        Check;                    /* General level of checking    */
   int        Numlines;                 /* Number of lines involved     */
-  USETEMP    UseTemp;                  /* Use temporary file           */
+//USETEMP    UseTemp;                  /* Use temporary file           */
   int        Vtdbno;                   /* Used for TDB number setting  */
   bool       Remote;                   /* true: if remotely called     */
   bool       Proginfo;                 /* true: return progress info   */

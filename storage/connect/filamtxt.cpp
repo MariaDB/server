@@ -337,14 +337,14 @@ int TXTFAM::StoreValues(PGLOBAL g, bool upd)
 /***********************************************************************/
 int TXTFAM::UpdateSortedRows(PGLOBAL g)
   {
-  int  *ix, i, rc = RC_OK;
+  int  *ix, i;
 
   /*********************************************************************/
   /*  Get the stored update values and sort them.                      */
   /*********************************************************************/
   if (!(Posar = MakeValueArray(g, To_Pos))) {
     strcpy(g->Message, "Position array is null");
-    goto err;
+    return RC_INFO;
   } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
     strcpy(g->Message, "Start position array is null");
     goto err;
@@ -364,16 +364,18 @@ int TXTFAM::UpdateSortedRows(PGLOBAL g)
     strcpy(Tdbp->To_Line, Updar->GetStringValue(ix[i]));
 
     // Now write the updated line.
-    if ((rc = WriteBuffer(g)))
+    if (WriteBuffer(g))
       goto err;
 
     } // endfor i
 
+  return RC_OK;
+
 err:
-  if (trace && rc)
+  if (trace)
     htrc("%s\n", g->Message);
 
-  return rc;
+  return RC_FX;
   } // end of UpdateSortedRows
 
 /***********************************************************************/
@@ -386,14 +388,14 @@ err:
 /***********************************************************************/
 int TXTFAM::DeleteSortedRows(PGLOBAL g)
   {
-  int  *ix, i, irc, rc = RC_OK;
+  int  *ix, i, irc;
 
   /*********************************************************************/
   /*  Get the stored delete values and sort them.                      */
   /*********************************************************************/
   if (!(Posar = MakeValueArray(g, To_Pos))) {
     strcpy(g->Message, "Position array is null");
-    goto err;
+    return RC_INFO;
   } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
     strcpy(g->Message, "Start position array is null");
     goto err;
@@ -410,16 +412,18 @@ int TXTFAM::DeleteSortedRows(PGLOBAL g)
       goto err;
 
     // Now delete the sorted rows
-    if ((rc = DeleteRecords(g, irc)))
+    if (DeleteRecords(g, irc))
       goto err;
 
     } // endfor i
 
+  return RC_OK;
+
 err:
-  if (trace && rc)
+  if (trace)
     htrc("%s\n", g->Message);
 
-  return rc;
+  return RC_FX;
   } // end of DeleteSortedRows
 
 /***********************************************************************/

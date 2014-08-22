@@ -64,7 +64,10 @@
 /*  DB static variables.                                               */
 /***********************************************************************/
 int num_read, num_there, num_eq[2];                 // Statistics
-extern "C" int  trace;
+
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
+extern     bool    xinfo;
 
 /***********************************************************************/
 /*  Size of optimize file header.                                      */
@@ -75,8 +78,8 @@ extern "C" int  trace;
 /*  Min and Max blocks contains zero ended fields (blank = false).     */
 /*  No conversion of block values (check = true).                      */
 /***********************************************************************/
-PVBLK AllocValBlock(PGLOBAL, void *, int, int, int len = 0, int prec = 0,
-                    bool check = true, bool blank = false, bool un = false);
+PVBLK AllocValBlock(PGLOBAL, void *, int, int, int len= 0, int prec= 0,
+                    bool check= true, bool blank= false, bool un= false);
 
 /* --------------------------- Class DOSDEF -------------------------- */
 
@@ -313,7 +316,7 @@ bool DOSDEF::InvalidateIndex(PGLOBAL g)
 PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   {
   // Mapping not used for insert
-  USETEMP tmp = PlgGetUser(g)->UseTemp;
+  USETEMP tmp = Use_Temp;
   bool    map = Mapped && mode != MODE_INSERT &&
                 !(tmp != TMP_NO && Recfm == RECFM_VAR
                                 && mode == MODE_UPDATE) &&
@@ -545,8 +548,8 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 
   if (dox && (rc == RC_OK || rc == RC_INFO)) {
     // Remake eventual indexes
-    if (Mode != MODE_UPDATE)
-      To_SetCols = NULL;                // Only used on Update
+//  if (Mode != MODE_UPDATE)
+      To_SetCols = NULL;                // Positions are changed
 
     Columns = NULL;                     // Not used anymore
     Txfp->Reset();                      // New start
@@ -1722,7 +1725,7 @@ err:
 /***********************************************************************/
 /*  Make a dynamic index.                                              */
 /***********************************************************************/
-bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp)
+bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted)
   {
   int     k, rc;
   bool    brc, dynamic;
@@ -1810,7 +1813,9 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp)
         To_BlkFil = NULL;
         } // endif AmType
 
-      if (!(To_Kindex= kxp)->IsSorted() &&
+      To_Kindex= kxp;
+
+      if (!(sorted && To_Kindex->IsSorted()) &&
           ((Mode == MODE_UPDATE && IsUsingTemp(g)) ||
            (Mode == MODE_DELETE && Txfp->GetAmType() != TYPE_AM_DBF)))
         Indxd = true;
@@ -1891,7 +1896,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
     
         } // endif Mode
 
-      if (Mode == MODE_ANY) {
+      if (Mode == MODE_ANY && xinfo) {
         // Using index impossible or failed, do it the hard way
         Mode = MODE_READ;
         To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
@@ -2004,10 +2009,8 @@ int TDBDOS::EstimatedLength(PGLOBAL g)
 /***********************************************************************/
 bool TDBDOS::IsUsingTemp(PGLOBAL g)
   {
-  USETEMP usetemp = PlgGetUser(g)->UseTemp;
-
-  return (usetemp == TMP_YES || usetemp == TMP_FORCE ||
-         (usetemp == TMP_AUTO && Mode == MODE_UPDATE));
+  return (Use_Temp == TMP_YES || Use_Temp == TMP_FORCE ||
+         (Use_Temp == TMP_AUTO && Mode == MODE_UPDATE));
   } // end of IsUsingTemp
 
 /***********************************************************************/
@@ -2047,7 +2050,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
   } else if (Txfp->Blocked && (Mode == MODE_DELETE ||
-      (Mode == MODE_UPDATE && PlgGetUser(g)->UseTemp != TMP_NO))) {
+             (Mode == MODE_UPDATE && Use_Temp != TMP_NO))) {
     /*******************************************************************/
     /*  Delete is not currently handled in block mode neither Update   */
     /*  when using a temporary file.                                   */
@@ -2219,6 +2222,7 @@ void TDBDOS::CloseDB(PGLOBAL g)
     } // endif
 
   Txfp->CloseTableFile(g, Abort);
+  RestoreNrec();
   } // end of CloseDB
 
 // ------------------------ DOSCOL functions ----------------------------
@@ -2247,8 +2251,8 @@ DOSCOL::DOSCOL(PGLOBAL g, PCOLDEF cdp, PTDB tp, PCOL cp, int i, PSZ am)
   Deplac = cdp->GetOffset();
   Long = cdp->GetLong();
   To_Val = NULL;
-  Clustered = 0;
-  Sorted = 0;
+  Clustered = cdp->GetOpt();
+  Sorted = (cdp->GetOpt() == 2) ? 1 : 0;
   Ndv = 0;                // Currently used only for XDB2
   Nbm = 0;                // Currently used only for XDB2
   Min = NULL;

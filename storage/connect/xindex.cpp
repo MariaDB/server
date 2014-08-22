@@ -264,9 +264,6 @@ void XINDEX::Close(void)
     kcp->FreeData();
     } // endfor kcp
 
-  if (Tdbp)
-    Tdbp->RestoreNrec();
-
   } // end of Close
 
 /***********************************************************************/

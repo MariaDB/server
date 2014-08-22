@@ -66,7 +66,8 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     10        /* Must be greater than other types */
 
-extern "C" int trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /***********************************************************************/
 /* CSVColumns: constructs the result blocks containing the description */
@@ -441,7 +442,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   PTDBASE tdbp;
 
   if (Catfunc != FNC_COL) {
-    USETEMP tmp = PlgGetUser(g)->UseTemp;
+    USETEMP tmp = Use_Temp;
     bool    map = Mapped && mode != MODE_INSERT &&
                   !(tmp != TMP_NO && mode == MODE_UPDATE) &&
                   !(tmp == TMP_FORCE &&
@@ -479,6 +480,36 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 
     if (Multiple)
       tdbp = new(g) TDBMUL(tdbp);
+    else
+      /*****************************************************************/
+      /*  For block tables, get eventually saved optimization values.  */
+      /*****************************************************************/
+      if (tdbp->GetBlockValues(g)) {
+        PushWarning(g, tdbp);
+//      return NULL;          // causes a crash when deleting index
+      } else {
+        if (IsOptimized()) {
+          if (map) {
+            txfp = new(g) MBKFAM(this);
+          } else if (Compressed) {
+#if defined(ZIP_SUPPORT)
+            if (Compressed == 1)
+              txfp = new(g) ZBKFAM(this);
+            else {
+              txfp->SetBlkPos(To_Pos);
+              ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
+              } // endelse
+#else
+            sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+            return NULL;
+#endif
+          } else
+            txfp = new(g) BLKFAM(this);
+
+          ((PTDBDOS)tdbp)->SetTxfp(txfp);
+          } // endif Optimized
+
+      } // endelse
 
   } else
     tdbp = new(g)TDBCCL(this);
@@ -605,14 +636,12 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
 
 #if 0
 /***********************************************************************/
-/*  CSV tables favor the use temporary files for Update.               */
+/*  CSV tables needs the use temporary files for Update.               */
 /***********************************************************************/
 bool TDBCSV::IsUsingTemp(PGLOBAL g)
   {
-  USETEMP usetemp = PlgGetUser(g)->UseTemp;
-
-  return (usetemp == TMP_YES || usetemp == TMP_FORCE ||
-         (usetemp == TMP_AUTO && Mode == MODE_UPDATE));
+  return (Use_Temp == TMP_YES || Use_Temp == TMP_FORCE ||
+         (Use_Temp == TMP_AUTO && Mode == MODE_UPDATE));
   } // end of IsUsingTemp
 #endif // 0  (Same as TDBDOS one)
 

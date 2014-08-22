@@ -1,6 +1,8 @@
 --source include/not_embedded.inc
 --source include/have_partition.inc
 
+set @@global.connect_exact_info=ON;
+
 #
 # These will be used by the t1 table partition table
 #
@@ -83,3 +85,8 @@ DROP TABLE t1;
 DROP TABLE xt1;
 DROP TABLE xt2;
 DROP TABLE xt3;
+
+#
+# Clean up
+#
+set @@global.connect_exact_info=OFF;

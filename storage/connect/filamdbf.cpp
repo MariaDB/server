@@ -835,7 +835,7 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (Modif && !Closing) {
       // Last updated block remains to be written
       Closing = true;
-      wrc = ReadBuffer(g);
+      wrc = WriteModifiedBlock(g);
       } // endif Modif
 
     if (UseTemp && T_Stream && wrc == RC_OK) {

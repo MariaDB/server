@@ -170,8 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0002 July 17, 2014";
-       char  compver[]= "Version 1.03.0002 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0003 August 22, 2014";
+       char  compver[]= "Version 1.03.0003 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
        char slash= '\\';
@@ -185,11 +185,13 @@ extern "C" {
        int  trace= 0;              // The general trace value
        int  xconv= 0;              // The type conversion option
        int  zconv= SZCONV;         // The text conversion size
+       USETEMP Use_Temp= TMP_AUTO; // The temporary file use
 } // extern "C"
 
 #if defined(XMAP)
        bool xmap= false;
 #endif   // XMAP
+       bool xinfo= false;
 
        uint worksize= SZWORK;
 ulong  ha_connect::num= 0;
@@ -200,9 +202,11 @@ static int     xtrace= 0;
 static int     conv_size= SZCONV;
 static uint    work_size= SZWORK;
 static ulong   type_conv= 0;
+static ulong   use_tempfile= 1;
 #if defined(XMAP)
 static my_bool indx_map= 0;
 #endif   // XMAP
+static my_bool exact_info= 0;
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -224,11 +228,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *info);
 
+/***********************************************************************/
+/*  Global variables update functions.                                 */
+/***********************************************************************/
 static void update_connect_xtrace(MYSQL_THD thd,
                                   struct st_mysql_sys_var *var,
                                   void *var_ptr, const void *save)
 {
-  xtrace= *(int *)var_ptr= *(int *)save;
+  trace= *(int *)var_ptr= *(int *)save;
 } // end of update_connect_xtrace
 
 static void update_connect_zconv(MYSQL_THD thd,
@@ -252,6 +259,13 @@ static void update_connect_worksize(MYSQL_THD thd,
   worksize= (uint)(*(ulong *)var_ptr= *(ulong *)save);
 } // end of update_connect_worksize
 
+static void update_connect_usetemp(MYSQL_THD thd,
+                                   struct st_mysql_sys_var *var,
+                                   void *var_ptr, const void *save)
+{
+  Use_Temp= (USETEMP)(*(ulong *)var_ptr= *(ulong *)save);
+} // end of update_connect_usetemp
+
 #if defined(XMAP)
 static void update_connect_xmap(MYSQL_THD thd,
                                 struct st_mysql_sys_var *var,
@@ -260,6 +274,13 @@ static void update_connect_xmap(MYSQL_THD thd,
   xmap= (bool)(*(my_bool *)var_ptr= *(my_bool *)save);
 } // end of update_connect_xmap
 #endif   // XMAP
+
+static void update_connect_xinfo(MYSQL_THD thd,
+                                 struct st_mysql_sys_var *var,
+                                 void *var_ptr, const void *save)
+{
+  xinfo= (bool)(*(my_bool *)var_ptr= *(my_bool *)save);
+} // end of update_connect_xinfo
 
 /***********************************************************************/
 /*  The CONNECT handlerton object.                                     */
@@ -555,7 +576,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   stop= false;
   alter= false;
   mrr= false;
-  nox= false;
+  nox= true;
   abort= false;
   indexing= -1;
   locked= 0;
@@ -1590,7 +1611,7 @@ int ha_connect::CloseTable(PGLOBAL g)
   sdvalout=NULL;
   valid_info= false;
   indexing= -1;
-  nox= false;
+  nox= true;
   abort= false;
   return rc;
 } // end of CloseTable
@@ -2642,7 +2663,6 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 {
   int      rc= 0;
-  bool     dop= (check_opt != NULL);
   PGLOBAL& g= xp->g;
   PDBUSER  dup= PlgGetUser(g);
 
@@ -2652,9 +2672,10 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   dup->Check |= CHK_OPT;
 
   if (tdbp) {
-    bool b= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
+    bool dop= IsTypeIndexable(GetRealType(NULL));
+    bool dox= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
-    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, b))) {
+    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, dox))) {
       if (rc == RC_INFO) {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         rc= 0;
@@ -2771,7 +2792,8 @@ int ha_connect::write_row(uchar *buf)
     DBUG_PRINT("write_row", ("%s", g->Message));
     htrc("write_row: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
-    } // endif RC
+  } else                // Table is modified
+    nox= false;         // Indexes to be remade
 
   DBUG_RETURN(rc);
 } // end of write_row
@@ -2816,7 +2838,8 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
     DBUG_PRINT("update_row", ("%s", g->Message));
     htrc("update_row CONNECT: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
-    } // endif RC
+  } else
+    nox= false;               // Table is modified
 
   DBUG_RETURN(rc);
 } // end of update_row
@@ -2849,7 +2872,8 @@ int ha_connect::delete_row(const uchar *buf)
   if (CntDeleteRow(xp->g, tdbp, false)) {
     rc= HA_ERR_INTERNAL_ERROR;
     htrc("delete_row CONNECT: %s\n", xp->g->Message);
-    } // endif DeleteRow
+  } else
+    nox= false;             // To remake indexes
 
   DBUG_RETURN(rc);
 } // end of delete_row
@@ -2896,7 +2920,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     DBUG_RETURN(0);
     } // endif locked
 
-  indexing= CntIndexInit(g, tdbp, (signed)idx);
+  indexing= CntIndexInit(g, tdbp, (signed)idx, sorted);
 
   if (indexing <= 0) {
     DBUG_PRINT("index_init", ("%s", g->Message));
@@ -3533,7 +3557,8 @@ int ha_connect::delete_all_rows()
     if (CntDeleteRow(g, tdbp, true)) {
       htrc("%s\n", g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
-      } // endif
+    } else
+      nox= false;
 
     } // endif rc
 
@@ -6194,6 +6219,9 @@ Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+/***********************************************************************/
+/*  CONNECT global variables definitions.                              */
+/***********************************************************************/
 // Tracing: 0 no, 1 yes, >1 more tracing
 static MYSQL_SYSVAR_INT(xtrace, xtrace,
        PLUGIN_VAR_RQCMDARG, "Console trace value.",
@@ -6231,6 +6259,35 @@ static MYSQL_SYSVAR_ENUM(
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 
+/**
+  Temporary file usage:
+    no:    Not using temporary file
+    auto:  Using temporary file when needed
+    yes:   Allways using temporary file
+    force: Force using temporary file (no MAP)
+    test:  Reserved
+*/
+const char *usetemp_names[]=
+{
+  "NO", "AUTO", "YES", "FORCE", "TEST", NullS
+};
+
+TYPELIB usetemp_typelib=
+{
+  array_elements(usetemp_names) - 1, "usetemp_typelib",
+  usetemp_names, NULL
+};
+
+static MYSQL_SYSVAR_ENUM(
+  use_tempfile,                    // name
+  use_tempfile,                    // varname
+  PLUGIN_VAR_RQCMDARG,             // opt
+  "Temporary file use.",           // comment
+  NULL,                            // check
+  update_connect_usetemp,          // update function
+  1,                               // def (AUTO)
+  &usetemp_typelib);               // typelib
+
 #if defined(XMAP)
 // Using file mapping for indexes if true
 static MYSQL_SYSVAR_BOOL(indx_map, indx_map, PLUGIN_VAR_RQCMDARG,
@@ -6243,6 +6300,11 @@ static MYSQL_SYSVAR_UINT(work_size, work_size,
        PLUGIN_VAR_RQCMDARG, "Size of the CONNECT work area.",
        NULL, update_connect_worksize, SZWORK, SZWMIN, UINT_MAX, 1);
 
+// Getting exact info values
+static MYSQL_SYSVAR_BOOL(exact_info, exact_info, PLUGIN_VAR_RQCMDARG,
+       "Getting exact info values",
+       NULL, update_connect_xinfo, 0);
+
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
   MYSQL_SYSVAR(conv_size),
@@ -6251,6 +6313,8 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(indx_map),
 #endif   // XMAP
   MYSQL_SYSVAR(work_size),
+  MYSQL_SYSVAR(use_tempfile),
+  MYSQL_SYSVAR(exact_info),
   NULL
 };
 

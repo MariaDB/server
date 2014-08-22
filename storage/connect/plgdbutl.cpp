@@ -337,7 +337,7 @@ PDBUSER PlgMakeUser(PGLOBAL g)
 
   memset(dbuserp, 0, sizeof(DBUSERBLK));
   dbuserp->Maxbmp = MAXBMP;
-  dbuserp->UseTemp = TMP_AUTO;
+//dbuserp->UseTemp = TMP_AUTO;
   dbuserp->Check = CHK_ALL;
   strcpy(dbuserp->Server, "CONNECT");
   return dbuserp;

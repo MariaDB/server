@@ -1,3 +1,4 @@
+set @@global.connect_exact_info=ON;
 CREATE TABLE xt1 (
 id INT KEY NOT NULL,
 msg VARCHAR(32))
@@ -147,6 +148,7 @@ UPDATE t1 SET msg = 'number' WHERE id in (60,72);
 Warnings:
 Note	1105	xt3: 2 affected rows
 Note	1105	xt3: 0 affected rows
+Warning	1105	xt3: (1105) Position array is null
 UPDATE t1 SET msg = 'soixante' WHERE id = 60;
 Warnings:
 Note	1105	xt3: 1 affected rows
@@ -193,3 +195,4 @@ DROP TABLE t1;
 DROP TABLE xt1;
 DROP TABLE xt2;
 DROP TABLE xt3;
+set @@global.connect_exact_info=OFF;

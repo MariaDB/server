@@ -142,7 +142,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
     return true;
 
   ((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
-  dbuserp->UseTemp= TMP_AUTO;
+//dbuserp->UseTemp= TMP_AUTO;
 
   /*********************************************************************/
   /*  All is correct.                                                  */
@@ -503,8 +503,6 @@ RCODE  CntWriteRow(PGLOBAL g, PTDB tdbp)
     if (!colp->GetColUse(U_VIRTUAL))
       colp->WriteColumn(g);
 
-//if (tp->GetMode() == MODE_UPDATE && tp->IsUsingTemp(g) &&
-//    tp->GetKindex() && !tp->GetKindex()->IsSorted())
   if (tp->IsIndexed())
     // Index values must be sorted before updating
     rc= (RCODE)((PTDBDOS)tp)->GetTxfp()->StoreValues(g, true);
@@ -580,21 +578,6 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
     printf("CntCloseTable: tdbp=%p mode=%d nox=%d abort=%d\n", 
                            tdbp, tdbp->GetMode(), nox, abort);
 
-#if 0
-  if (tbxp->GetMode() == MODE_UPDATE && 
-      tbxp->GetKindex() && !tbxp->GetKindex()->IsSorted()) {
-    rc= tbxp->Txfp->UpdateSortedRows(g);
-  } else
-    if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
-      if (tbxp->GetKindex() && !tbxp->GetKindex()->IsSorted())
-        rc= tbxp->Txfp->DeleteSortedRows(g);
-
-      if (!rc)
-        rc= tdbp->DeleteDB(g, RC_EF);    // Specific A.M. delete routine
-
-      } // endif Mode
-#endif // 0
-
   if (tdbp->GetMode() == MODE_DELETE && tdbp->GetUse() == USE_OPEN) {
     if (tbxp->IsIndexed())
       rc= ((PTDBDOS)tdbp)->GetTxfp()->DeleteSortedRows(g);
@@ -604,6 +587,15 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 
   } else if (tbxp->GetMode() == MODE_UPDATE && tbxp->IsIndexed())
     rc= ((PTDBDOX)tdbp)->Txfp->UpdateSortedRows(g);
+
+  switch(rc) {
+    case RC_FX:
+      abort= true;
+      break;
+    case RC_INFO:
+      PushWarning(g, tbxp);
+      break;
+    } // endswitch rc
 
   //  Prepare error return
   if (g->jump_level == MAX_JUMP) {
@@ -655,7 +647,7 @@ int CntCloseTable(PGLOBAL g, PTDB tdbp, bool nox, bool abort)
 /*  This is the condition(s) for doing indexing.                       */
 /*  Note: FIX table are not reset here to Nrec= 1.                     */
 /***********************************************************************/
-int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
+int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   {
   PIXDEF  xdp;
   PTDBDOX tdbp;
@@ -707,7 +699,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id)
 #endif // 0
 
   // Static indexes must be initialized now for records_in_range
-  if (tdbp->InitialyzeIndex(g, xdp))
+  if (tdbp->InitialyzeIndex(g, xdp, sorted))
     return 0;
 
   return (tdbp->To_Kindex->IsMul()) ? 2 : 1;
@@ -754,7 +746,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
 #if 0
       } // endif !To_Xdp
     // Now it's time to make the dynamic index
-    if (tdbp->InitialyzeIndex(g, NULL)) {
+    if (tdbp->InitialyzeIndex(g, NULL, false)) {
       sprintf(g->Message, "Fail to make dynamic index %s", 
                           tdbp->To_Xdp->GetName());
       return RC_FX;

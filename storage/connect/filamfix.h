@@ -37,6 +37,7 @@ class DllExport FIXFAM : public BLKFAM {
   virtual int  GetNextPos(void) {return Fpos + 1;}
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g);
+  virtual int  WriteModifiedBlock(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
@@ -69,6 +70,7 @@ class BGXFAM : public FIXFAM {
   // Methods
   virtual int  Cardinality(PGLOBAL g);
   virtual bool OpenTableFile(PGLOBAL g);
+  virtual int  WriteModifiedBlock(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
