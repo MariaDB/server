@@ -549,7 +549,8 @@ typedef  struct _colres {
 PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
-char    *PlgGetDataPath(PGLOBAL g);
+//ar    *PlgGetDataPath(PGLOBAL g);
+char    *SetPath(PGLOBAL g, const char *path);
 char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);

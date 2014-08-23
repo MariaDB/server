@@ -76,8 +76,8 @@ extern "C" USETEMP Use_Temp;
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
-                   int hdr, int mxr, bool info)
+PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
+                   char q, int hdr, int mxr, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
@@ -131,7 +131,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  PlugSetPath(filename, fn, PlgGetDataPath(g));
+  PlugSetPath(filename, fn, dp);
 
   if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r")))
     return NULL;
@@ -1471,7 +1471,8 @@ TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBCCL::GetResult(PGLOBAL g)
   {
-  return CSVColumns(g, Fn, Sep, Qtd, Hdr, Mxr, false);
+  return CSVColumns(g, ((PTABDEF)To_Def)->GetPath(), 
+                    Fn, Sep, Qtd, Hdr, Mxr, false);
   } // end of GetResult
 
 /* ------------------------ End of TabFmt ---------------------------- */

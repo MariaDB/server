@@ -122,9 +122,12 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
     (dbuserp->Catalog) ? ((MYCAT*)dbuserp->Catalog)->GetHandler() : NULL,
            handler);
 
+  // Set the database path for this table
+  handler->SetDataPath(g, pathname);
+
   if (dbuserp->Catalog) {
 //  ((MYCAT *)dbuserp->Catalog)->SetHandler(handler);   done later
-    ((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
+//  ((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
     return false;                       // Nothing else to do
     } // endif Catalog
 
@@ -141,7 +144,7 @@ bool CntCheckDB(PGLOBAL g, PHC handler, const char *pathname)
   if (!(dbuserp->Catalog= new MYCAT(handler)))
     return true;
 
-  ((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
+//((MYCAT *)dbuserp->Catalog)->SetDataPath(g, pathname);
 //dbuserp->UseTemp= TMP_AUTO;
 
   /*********************************************************************/

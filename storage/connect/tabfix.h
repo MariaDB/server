@@ -91,7 +91,8 @@ class TDBDCL : public TDBCAT {
 
  protected:
 	// Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g) {return DBFColumns(g, Fn, false);}
+  virtual PQRYRES GetResult(PGLOBAL g) 
+      {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, false);}
 
   // Members
   char *Fn;                       // The DBF file (path) name

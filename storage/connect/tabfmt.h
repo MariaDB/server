@@ -13,8 +13,8 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
-                   int hdr, int mxr, bool info);
+PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
+                   char q, int hdr, int mxr, bool info);
 
 /***********************************************************************/
 /*  CSV table.                                                         */

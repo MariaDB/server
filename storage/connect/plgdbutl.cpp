@@ -373,6 +373,7 @@ PCATLG PlgGetCatalog(PGLOBAL g, bool jump)
   return cat;
   } // end of PlgGetCatalog
 
+#if 0
 /***********************************************************************/
 /*  PlgGetDataPath: returns the default data path.                     */
 /***********************************************************************/
@@ -382,6 +383,39 @@ char *PlgGetDataPath(PGLOBAL g)
 
   return (cat) ? cat->GetDataPath() : NULL;
   } // end of PlgGetDataPath
+#endif // 0
+
+/***********************************************************************/
+/*  This function returns a database path.                             */
+/***********************************************************************/
+char *SetPath(PGLOBAL g, const char *path)
+{
+  char *buf= NULL;
+
+	if (path) {
+		size_t len= strlen(path) + (*path != '.' ? 4 : 1);
+
+		buf= (char*)PlugSubAlloc(g, NULL, len);
+		
+		if (PlugIsAbsolutePath(path)) {
+		  strcpy(buf, path);
+		  return buf;
+		  } // endif path
+
+		if (*path != '.') {
+#if defined(WIN32)
+			char *s= "\\";
+#else   // !WIN32
+			char *s= "/";
+#endif  // !WIN32
+			strcat(strcat(strcat(strcpy(buf, "."), s), path), s);
+		} else
+			strcpy(buf, path);
+
+		} // endif path
+
+  return buf;
+} // end of SetPath
 
 /***********************************************************************/
 /*  Extract from a path name the required component.                   */

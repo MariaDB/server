@@ -563,6 +563,11 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
   if (xp)
     xp->SetHandler(this);
+#if defined(WIN32)
+  datapath= ".\\";
+#else   // !WIN32
+  datapath= "./";
+#endif  // !WIN32
   tdbp= NULL;
   sdvalin= NULL;
   sdvalout= NULL;
@@ -1401,6 +1406,14 @@ void ha_connect::AddColName(char *cp, Field *fp)
 
 } // end of AddColName
 #endif // 0
+
+/***********************************************************************/
+/*  This function sets the current database path.                      */
+/***********************************************************************/
+void ha_connect::SetDataPath(PGLOBAL g, const char *path) 
+{
+  datapath= SetPath(g, path);
+} // end of SetDataPath
 
 /****************************************************************************/
 /*  Get the table description block of a CONNECT table.                     */
@@ -3440,8 +3453,10 @@ int ha_connect::info(uint flag)
       } // endif xmod
 
     // This is necessary for getting file length
-    if (cat && table)
-      cat->SetDataPath(g, table->s->db.str);
+//  if (cat && table)
+//    cat->SetDataPath(g, table->s->db.str);
+    if (table)
+      SetDataPath(g, table->s->db.str);
     else
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
@@ -4764,7 +4779,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
-  char       *tab, *dsn, *shm; 
+  char       *tab, *dsn, *shm, *dpath; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
@@ -5009,10 +5024,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     char   *cnm, *rem, *dft, *xtra;
     int     i, len, prec, dec, typ, flg;
 
-    if (cat)
-      cat->SetDataPath(g, table_s->db.str);
-    else
-      return HA_ERR_INTERNAL_ERROR;           // Should never happen
+//  if (cat)
+//    cat->SetDataPath(g, table_s->db.str);
+//  else
+//    return HA_ERR_INTERNAL_ERROR;           // Should never happen
+
+    dpath= SetPath(g, table_s->db.str);
 
     if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC) {
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
@@ -5025,7 +5042,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
     } else switch (ttp) {
       case TAB_DBF:
-        qrp= DBFColumns(g, fn, fnc == FNC_COL);
+        qrp= DBFColumns(g, dpath, fn, fnc == FNC_COL);
         break;
 #if defined(ODBC_SUPPORT)
       case TAB_ODBC:
@@ -5062,7 +5079,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         break;
 #endif   // MYSQL_SUPPORT
       case TAB_CSV:
-        qrp= CSVColumns(g, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
+        qrp= CSVColumns(g, dpath, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
         break;
 #if defined(WIN32)
       case TAB_WMI:
@@ -5728,8 +5745,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
+        SetDataPath(g, table_arg->s->db.str);
+
         if (cat) {
-          cat->SetDataPath(g, table_arg->s->db.str);
+//        cat->SetDataPath(g, table_arg->s->db.str);
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)

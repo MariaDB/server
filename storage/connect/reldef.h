@@ -1,5 +1,5 @@
 /*************** RelDef H Declares Source Code File (.H) ***************/
-/*  Name: RELDEF.H  Version 1.4                                        */
+/*  Name: RELDEF.H  Version 1.5                                        */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2004-2014    */
 /*                                                                     */
@@ -79,8 +79,9 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   void    SetNext(PTABDEF tdfp) {Next = tdfp;}
   int     GetMultiple(void) {return Multiple;}
   int     GetPseudo(void) {return Pseudo;}
-  PSZ     GetPath(void)
-            {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
+  PSZ     GetPath(void);
+//PSZ     GetPath(void)
+//          {return (Database) ? (PSZ)Database : Cat->GetDataPath();}
   bool    SepIndex(void) {return GetBoolCatInfo("SepIndex", false);}
   bool    IsReadOnly(void) {return Read_Only;}
   virtual AMT    GetDefType(void) {return TYPE_AM_TAB;}

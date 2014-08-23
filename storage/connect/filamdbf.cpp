@@ -176,7 +176,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 /*  DBFColumns: constructs the result blocks containing the description     */
 /*  of all the columns of a DBF file that will be retrieved by #GetData.    */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
+PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, BOOL info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                    TYPE_INT,    TYPE_INT,   TYPE_SHORT};
@@ -205,7 +205,7 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
     /************************************************************************/
     /*  Open the input file.                                                */
     /************************************************************************/
-    PlugSetPath(filename, fn, PlgGetDataPath(g));
+    PlugSetPath(filename, fn, dp);
 
     if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
       return NULL;

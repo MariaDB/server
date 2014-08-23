@@ -1,7 +1,7 @@
 /***************** FilAmDbf H Declares Source Code File (.H) ****************/
-/*  Name: filamdbf.h    Version 1.3                                         */
+/*  Name: filamdbf.h    Version 1.4                                         */
 /*                                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014         */
 /*                                                                          */
 /*  This file contains the DBF file access method classes declares.         */
 /****************************************************************************/
@@ -19,7 +19,7 @@ typedef class DBMFAM  *PDBMFAM;
 /****************************************************************************/
 /*  Functions used externally.                                              */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info);
+PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, BOOL info);
 
 /****************************************************************************/
 /*  This is the base class for dBASE file access methods.                   */

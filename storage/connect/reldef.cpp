@@ -228,6 +228,14 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   } // end of Define
 
 /***********************************************************************/
+/*  This function returns the database data path.                      */
+/***********************************************************************/
+PSZ TABDEF::GetPath(void)
+  {
+  return (Database) ? (PSZ)Database : Hc->GetDataPath();
+  } // end of GetPath
+
+/***********************************************************************/
 /*  This function returns column table information.                    */
 /***********************************************************************/
 int TABDEF::GetColCatInfo(PGLOBAL g)

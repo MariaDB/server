@@ -680,7 +680,7 @@ char* TDBDIR::Path(PGLOBAL g)
 
 #if defined(WIN32)
   if (!*Drive) {
-    PlugSetPath(Fpath, To_File, cat->GetDataPath());
+    PlugSetPath(Fpath, To_File, ((PTABDEF)To_Def)->GetPath());
     _splitpath(Fpath, Drive, Direc, Fname, Ftype);
   } else
     _makepath(Fpath, Drive, Direc, Fname, Ftype);   // Usefull ???
