@@ -8132,8 +8132,15 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   param->thd->mem_root= param->old_root;
   if (!value)					// IS NULL or IS NOT NULL
   {
-    if (field->table->maybe_null)		// Can't use a key on this
-      goto end;
+    /*
+      No check for field->table->maybe_null. It's perfecly fine to use range
+      access for cases like 
+
+        SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
+
+      ON expression is evaluated before considering NULL-complemented rows, so
+      IS [NOT] NULL has regular semantics.
+    */
     if (!maybe_null)				// Not null field
     {
       if (type == Item_func::ISNULL_FUNC)

@@ -2222,4 +2222,32 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`i1` AS `i1`,`test`.`t2`.`i2` AS `i2`,`test`.`t3`.`i3` AS `i3`,`test`.`t3`.`d3` AS `d3` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(((`test`.`t2`.`i2` = `test`.`t1`.`i1`) and (`test`.`t3`.`i3` = `test`.`t1`.`i1`))) where ((`test`.`t3`.`d3` = 0) or isnull(`test`.`t3`.`d3`))
 DROP TABLE t1,t2,t3;
+#
+# MDEV-6634: Wrong estimates for ref(const) and key IS NULL predicate
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, b int, c int, key(b), key(c));
+insert into t2 select 
+@a:=A.a + 10*B.a+100*C.a,
+IF(@a<900, NULL, @a),
+IF(@a<500, NULL, @a)
+from t1 A, t1 B, t1 C;
+delete from t1 where a=0;
+# Check that there are different #rows of NULLs for b and c, both !=10:
+explain select * from t2 force index (b) where b is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	b	b	5	const	780	Using index condition
+explain select * from t2 force index (c) where c is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	c	c	5	const	393	Using index condition
+explain select * from t1 left join t2 on t2.b is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	
+1	SIMPLE	t2	ref	b	b	5	const	780	Using where
+explain select * from t1 left join t2 on t2.c is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	9	
+1	SIMPLE	t2	ref	c	c	5	const	393	Using where
+drop table t1,t2;
 SET optimizer_switch=@save_optimizer_switch;
