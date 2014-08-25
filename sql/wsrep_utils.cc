@@ -373,11 +373,8 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
     unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str);
 
     if (INADDR_NONE == ip_type) {
-      WSREP_ERROR("Networking not configured, cannot receive state transfer.");
-      return 0;
-    }
-
-    if (INADDR_ANY != ip_type) {;
+      WSREP_ERROR("Node IP address not obtained from bind_address, trying alternate methods");
+    } else if (INADDR_ANY != ip_type) {
       strncpy (buf, my_bind_addr_str, buf_len);
       return strlen(buf);
     }
@@ -404,8 +401,8 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
 
   // try to find the address of the first one
 #if (TARGET_OS_LINUX == 1)
-  const char cmd[] = "ip addr show | grep -E '^\\s*inet' | grep -m1 global |"
-                     " awk '{ print $2 }' | sed 's/\\/.*//'";
+  const char cmd[] = "ip addr show | grep -E '^[[:space:]]*inet' | grep -m1 global |"
+                     " awk '{ print $2 }' | sed -e 's/\\/.*//'";
 #elif defined(__sun__)
   const char cmd[] = "/sbin/ifconfig -a | "
       "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
