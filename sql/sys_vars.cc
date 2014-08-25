@@ -2222,13 +2222,15 @@ export const char *optimizer_switch_names[]=
   "exists_to_in",
   "default", NullS
 };
-/** propagates changes to @@engine_condition_pushdown */
 static bool fix_optimizer_switch(sys_var *self, THD *thd,
                                  enum_var_type type)
 {
   SV *sv= (type == OPT_GLOBAL) ? &global_system_variables : &thd->variables;
-  sv->engine_condition_pushdown=
-    MY_TEST(sv->optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
+  if (sv->optimizer_switch & deprecated_ENGINE_CONDITION_PUSHDOWN)
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+                        ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                        "engine_condition_pushdown=on");
   return false;
 }
 static Sys_var_flagset Sys_optimizer_switch(

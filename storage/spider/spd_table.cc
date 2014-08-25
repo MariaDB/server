@@ -7870,12 +7870,6 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
-      !(thd->variables.optimizer_switch &
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
       !select_lex ||
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||

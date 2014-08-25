@@ -287,8 +287,8 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 				  thd->variables.read_buff_size);
   }
   /* Condition pushdown to storage engine */
-  if ((thd->variables.optimizer_switch &
-       OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) && 
+  if ((table->file->ha_table_flags() &
+       HA_MUST_USE_TABLE_CONDITION_PUSHDOWN) &&
       select && select->cond && 
       (select->cond->used_tables() & table->map) &&
       !table->file->pushed_cond)

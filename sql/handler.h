@@ -197,17 +197,11 @@ enum enum_alter_inplace_result {
 #define HA_RECORD_MUST_BE_CLEAN_ON_WRITE (1ULL << 41)
 
 /*
-  Table condition pushdown must be performed regardless of
-  'engine_condition_pushdown' setting.
-
-  This flag is aimed at storage engines that come with "special" predicates
-  that can only be evaluated inside the storage engine.  
-  For example, when one does 
-    select * from sphinx_table where query='{fulltext_query}'
-  then the "query=..." condition must be always pushed down into storage
-  engine.
+  This storage engine supports condition pushdown
 */
-#define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN (1ULL << 42)
+#define HA_CAN_TABLE_CONDITION_PUSHDOWN (1ULL << 42)
+/* old name for the same flag */
+#define HA_MUST_USE_TABLE_CONDITION_PUSHDOWN HA_CAN_TABLE_CONDITION_PUSHDOWN
 
 /**
   The handler supports read before write removal optimization
