@@ -287,18 +287,18 @@ typedef struct st_user_stats
   uint total_connections;
   uint concurrent_connections;
   time_t connected_time;  // in seconds
-  double busy_time;       // in seconds
-  double cpu_time;        // in seconds
+  ha_rows rows_read, rows_sent;
+  ha_rows rows_updated, rows_deleted, rows_inserted;
   ulonglong bytes_received;
   ulonglong bytes_sent;
   ulonglong binlog_bytes_written;
-  ha_rows   rows_read, rows_sent;
-  ha_rows rows_updated, rows_deleted, rows_inserted;
   ulonglong select_commands, update_commands, other_commands;
   ulonglong commit_trans, rollback_trans;
   ulonglong denied_connections, lost_connections, max_statement_time_exceeded;
   ulonglong access_denied_errors;
   ulonglong empty_queries;
+  double busy_time;       // in seconds
+  double cpu_time;        // in seconds
 } USER_STATS;
 
 /* Lookup function for hash tables with USER_STATS entries */
