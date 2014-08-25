@@ -2569,10 +2569,9 @@ LEX::LEX()
     is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  my_init_dynamic_array2(&plugins, sizeof(plugin_ref),
-                         plugins_static_buffer,
-                         INITIAL_LEX_PLUGIN_LIST_SIZE, 
-                         INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
+  init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
 }

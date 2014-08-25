@@ -188,8 +188,8 @@ void delegates_destroy()
   } s;                                                                  \
   DYNAMIC_ARRAY *plugins= &s.plugins;                                   \
   plugin_ref *plugins_buffer= s.plugins_buffer;                         \
-  my_init_dynamic_array2(plugins, sizeof(plugin_ref),                   \
-                         plugins_buffer, 8, 8, MYF(0));                 \
+  init_dynamic_array2(plugins, sizeof(plugin_ref),                      \
+                      plugins_buffer, 8, 8, MYF(0));                    \
   read_lock();                                                          \
   Observer_info_iterator iter= observer_info_iter();                    \
   Observer_info *info= iter++;                                          \
