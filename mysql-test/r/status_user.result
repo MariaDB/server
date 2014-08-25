@@ -180,12 +180,9 @@ select * from information_schema.index_statistics;
 TABLE_SCHEMA	TABLE_NAME	INDEX_NAME	ROWS_READ
 select * from information_schema.table_statistics;
 TABLE_SCHEMA	TABLE_NAME	ROWS_READ	ROWS_CHANGED	ROWS_CHANGED_X_INDEXES
-show status like "%statistics%";
+show status like "%generic%";
 Variable_name	Value
-Com_show_client_statistics	0
-Com_show_index_statistics	1
-Com_show_table_statistics	1
-Com_show_user_statistics	0
+Com_show_generic	2
 select connected_time <> 0, busy_time <> 0, bytes_received <> 0,
 bytes_sent <> 0, binlog_bytes_written <> 0
 from information_schema.user_statistics;

@@ -3350,6 +3350,41 @@ int fill_schema_index_stats(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(0);
 }
 
+static int reset_schema_user_stats()
+{
+  mysql_mutex_lock(&LOCK_global_user_client_stats);
+  free_global_user_stats();
+  init_global_user_stats();
+  mysql_mutex_unlock(&LOCK_global_user_client_stats);
+  return 0;
+}
+
+static int reset_schema_client_stats()
+{
+  mysql_mutex_lock(&LOCK_global_user_client_stats);
+  free_global_client_stats();
+  init_global_client_stats();
+  mysql_mutex_unlock(&LOCK_global_user_client_stats);
+  return 0;
+}
+
+static int reset_schema_table_stats()
+{
+  mysql_mutex_lock(&LOCK_global_table_stats);
+  free_global_table_stats();
+  init_global_table_stats();
+  mysql_mutex_unlock(&LOCK_global_table_stats);
+  return 0;
+}
+
+static int reset_schema_index_stats()
+{
+  mysql_mutex_lock(&LOCK_global_index_stats);
+  free_global_index_stats();
+  init_global_index_stats();
+  mysql_mutex_unlock(&LOCK_global_index_stats);
+  return 0;
+}
 
 /* collect status for all running threads */
 
@@ -3677,6 +3712,15 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
 
   bzero((char*) lookup_field_values, sizeof(LOOKUP_FIELD_VALUES));
   switch (lex->sql_command) {
+  case SQLCOM_SHOW_PLUGINS:
+    if (lex->ident.str)
+    {
+      thd->make_lex_string(&lookup_field_values->db_value,
+                           lex->ident.str, lex->ident.length);
+      break;
+    }
+    /* fall through */
+  case SQLCOM_SHOW_GENERIC:
   case SQLCOM_SHOW_DATABASES:
     if (wild)
     {
@@ -3696,17 +3740,6 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
       thd->make_lex_string(&lookup_field_values->table_value, 
                            wild->ptr(), wild->length());
       lookup_field_values->wild_table_value= 1;
-    }
-    break;
-  case SQLCOM_SHOW_PLUGINS:
-    if (lex->ident.str)
-      thd->make_lex_string(&lookup_field_values->db_value, 
-                           lex->ident.str, lex->ident.length);
-    else if (lex->wild)
-    {
-      thd->make_lex_string(&lookup_field_values->db_value, 
-                           lex->wild->ptr(), lex->wild->length());
-      lookup_field_values->wild_db_value= 1;
     }
     break;
   default:
@@ -7593,7 +7626,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
    0	success
 */
 
-int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
+static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   ST_FIELD_INFO *field_info= schema_table->fields_info;
   Name_resolution_context *context= &thd->lex->select_lex.context;
@@ -7779,7 +7812,7 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
 {
   TABLE *table;
   DBUG_ENTER("mysql_schema_table");
-  if (!(table= table_list->schema_table->create_table(thd, table_list)))
+  if (!(table= create_schema_table(thd, table_list)))
     DBUG_RETURN(1);
   table->s->tmp_table= SYSTEM_TMP_TABLE;
   table->grant.privilege= SELECT_ACL;
@@ -7859,9 +7892,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
 */
 
 int make_schema_select(THD *thd, SELECT_LEX *sel,
-		       enum enum_schema_tables schema_table_idx)
+                       ST_SCHEMA_TABLE *schema_table)
 {
-  ST_SCHEMA_TABLE *schema_table= get_schema_table(schema_table_idx);
   LEX_STRING db, table;
   DBUG_ENTER("make_schema_select");
   DBUG_PRINT("enter", ("mysql_schema_select: %s", schema_table->table_name));
@@ -7878,13 +7910,13 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
     DBUG_RETURN(1);
 
   if (schema_table->old_format(thd, schema_table))
-
     DBUG_RETURN(1);
 
   if (!sel->add_table_to_list(thd, new Table_ident(thd, db, table, 0),
                               0, 0, TL_READ, MDL_SHARED_READ))
     DBUG_RETURN(1);
 
+  sel->table_list.first->schema_table_reformed= 1;
   DBUG_RETURN(0);
 }
 
@@ -9024,103 +9056,103 @@ ST_FIELD_INFO show_explain_fields_info[]=
 
 ST_SCHEMA_TABLE schema_tables[]=
 {
-  {"ALL_PLUGINS", plugin_fields_info, create_schema_table,
+  {"ALL_PLUGINS", plugin_fields_info, 0,
    fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
-  {"APPLICABLE_ROLES", applicable_roles_fields_info, create_schema_table,
+  {"APPLICABLE_ROLES", applicable_roles_fields_info, 0,
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
-  {"CHARACTER_SETS", charsets_fields_info, create_schema_table,
+  {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
-  {"CLIENT_STATISTICS", client_stats_fields_info, create_schema_table, 
+  {"CLIENT_STATISTICS", client_stats_fields_info, reset_schema_client_stats, 
    fill_schema_client_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"COLLATIONS", collation_fields_info, create_schema_table,
+  {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,
-   create_schema_table, fill_schema_coll_charset_app, 0, 0, -1, -1, 0, 0},
-  {"COLUMNS", columns_fields_info, create_schema_table,
+   0, fill_schema_coll_charset_app, 0, 0, -1, -1, 0, 0},
+  {"COLUMNS", columns_fields_info, 0,
    get_all_tables, make_columns_old_format, get_schema_column_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
-  {"COLUMN_PRIVILEGES", column_privileges_fields_info, create_schema_table,
+  {"COLUMN_PRIVILEGES", column_privileges_fields_info, 0,
    fill_schema_column_privileges, 0, 0, -1, -1, 0, 0},
-  {"ENABLED_ROLES", enabled_roles_fields_info, create_schema_table,
+  {"ENABLED_ROLES", enabled_roles_fields_info, 0,
    fill_schema_enabled_roles, 0, 0, -1, -1, 0, 0},
-  {"ENGINES", engines_fields_info, create_schema_table,
+  {"ENGINES", engines_fields_info, 0,
    fill_schema_engines, make_old_format, 0, -1, -1, 0, 0},
 #ifdef HAVE_EVENT_SCHEDULER
-  {"EVENTS", events_fields_info, create_schema_table,
+  {"EVENTS", events_fields_info, 0,
    Events::fill_schema_events, make_old_format, 0, -1, -1, 0, 0},
 #else
-  {"EVENTS", events_fields_info, create_schema_table,
+  {"EVENTS", events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
-  {"EXPLAIN", show_explain_fields_info, create_schema_table, fill_show_explain,
+  {"EXPLAIN", show_explain_fields_info, 0, fill_show_explain,
   make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
-  {"FILES", files_fields_info, create_schema_table,
+  {"FILES", files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"GLOBAL_STATUS", variables_fields_info, create_schema_table,
+  {"GLOBAL_STATUS", variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
-  {"GLOBAL_VARIABLES", variables_fields_info, create_schema_table,
+  {"GLOBAL_VARIABLES", variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
-  {"INDEX_STATISTICS", index_stats_fields_info, create_schema_table,
+  {"INDEX_STATISTICS", index_stats_fields_info, reset_schema_index_stats,
    fill_schema_index_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"KEY_CACHES", keycache_fields_info, create_schema_table,
-   fill_key_cache_tables, make_old_format, 0, -1,-1, 0, 0}, 
-  {"KEY_COLUMN_USAGE", key_column_usage_fields_info, create_schema_table,
+  {"KEY_CACHES", keycache_fields_info, 0,
+   fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
+  {"KEY_COLUMN_USAGE", key_column_usage_fields_info, 0,
    get_all_tables, 0, get_schema_key_column_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"OPEN_TABLES", open_tables_fields_info, create_schema_table,
+  {"OPEN_TABLES", open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
-  {"PARAMETERS", parameters_fields_info, create_schema_table,
+  {"PARAMETERS", parameters_fields_info, 0,
    fill_schema_proc, 0, 0, -1, -1, 0, 0},
-  {"PARTITIONS", partitions_fields_info, create_schema_table,
+  {"PARTITIONS", partitions_fields_info, 0,
    get_all_tables, 0, get_schema_partitions_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"PLUGINS", plugin_fields_info, create_schema_table,
+  {"PLUGINS", plugin_fields_info, 0,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
-  {"PROCESSLIST", processlist_fields_info, create_schema_table,
+  {"PROCESSLIST", processlist_fields_info, 0,
    fill_schema_processlist, make_old_format, 0, -1, -1, 0, 0},
-  {"PROFILING", query_profile_statistics_info, create_schema_table,
+  {"PROFILING", query_profile_statistics_info, 0,
     fill_query_profile_statistics_info, make_profile_table_for_show,
     NULL, -1, -1, false, 0},
   {"REFERENTIAL_CONSTRAINTS", referential_constraints_fields_info,
-   create_schema_table, get_all_tables, 0, get_referential_constraints_record,
+   0, get_all_tables, 0, get_referential_constraints_record,
    1, 9, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"ROUTINES", proc_fields_info, create_schema_table, 
+  {"ROUTINES", proc_fields_info, 0,
    fill_schema_proc, make_proc_old_format, 0, -1, -1, 0, 0},
-  {"SCHEMATA", schema_fields_info, create_schema_table,
+  {"SCHEMATA", schema_fields_info, 0,
    fill_schema_schemata, make_schemata_old_format, 0, 1, -1, 0, 0},
-  {"SCHEMA_PRIVILEGES", schema_privileges_fields_info, create_schema_table,
+  {"SCHEMA_PRIVILEGES", schema_privileges_fields_info, 0,
    fill_schema_schema_privileges, 0, 0, -1, -1, 0, 0},
-  {"SESSION_STATUS", variables_fields_info, create_schema_table,
+  {"SESSION_STATUS", variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
-  {"SESSION_VARIABLES", variables_fields_info, create_schema_table,
+  {"SESSION_VARIABLES", variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
-  {"STATISTICS", stat_fields_info, create_schema_table,
+  {"STATISTICS", stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
-  {"SYSTEM_VARIABLES", sysvars_fields_info, create_schema_table,
+  {"SYSTEM_VARIABLES", sysvars_fields_info, 0,
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
-  {"TABLES", tables_fields_info, create_schema_table,
+  {"TABLES", tables_fields_info, 0,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE},
-  {"TABLESPACES", tablespaces_fields_info, create_schema_table,
+  {"TABLESPACES", tablespaces_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"TABLE_CONSTRAINTS", table_constraints_fields_info, create_schema_table,
+  {"TABLE_CONSTRAINTS", table_constraints_fields_info, 0,
    get_all_tables, 0, get_schema_constraints_record, 3, 4, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"TABLE_NAMES", table_names_fields_info, create_schema_table,
+  {"TABLE_NAMES", table_names_fields_info, 0,
    get_all_tables, make_table_names_old_format, 0, 1, 2, 1, OPTIMIZE_I_S_TABLE},
-  {"TABLE_PRIVILEGES", table_privileges_fields_info, create_schema_table,
+  {"TABLE_PRIVILEGES", table_privileges_fields_info, 0,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
-  {"TABLE_STATISTICS", table_stats_fields_info, create_schema_table,
+  {"TABLE_STATISTICS", table_stats_fields_info, reset_schema_table_stats,
    fill_schema_table_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"TRIGGERS", triggers_fields_info, create_schema_table,
+  {"TRIGGERS", triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
-  {"USER_PRIVILEGES", user_privileges_fields_info, create_schema_table, 
+  {"USER_PRIVILEGES", user_privileges_fields_info, 0,
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
-  {"USER_STATISTICS", user_stats_fields_info, create_schema_table, 
+  {"USER_STATISTICS", user_stats_fields_info, reset_schema_user_stats, 
    fill_schema_user_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"VIEWS", view_fields_info, create_schema_table,
+  {"VIEWS", view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -9139,8 +9171,6 @@ int initialize_schema_table(st_plugin_int *plugin)
   plugin->data= schema_table; // shortcut for the future
   if (plugin->plugin->init)
   {
-    schema_table->create_table= create_schema_table;
-    schema_table->old_format= make_old_format;
     schema_table->idx_field1= -1,
     schema_table->idx_field2= -1;
 
@@ -9155,6 +9185,14 @@ int initialize_schema_table(st_plugin_int *plugin)
       my_free(schema_table);
       DBUG_RETURN(1);
     }
+
+    if (!schema_table->old_format)
+      for (ST_FIELD_INFO *f= schema_table->fields_info; f->field_name; f++)
+        if (f->old_name && f->old_name[0])
+        {
+          schema_table->old_format= make_old_format;
+          break;
+        }
 
     /* Make sure the plugin name is not set inside the init() function. */
     schema_table->table_name= plugin->name.str;

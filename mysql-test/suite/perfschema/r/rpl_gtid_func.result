@@ -36,13 +36,8 @@ TABLE	performance_schema	%	NO	NO
 select digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
-<<<<<<< HEAD
 digest_text	count_star
 SELECT ? AS in_master_digest 	1
-=======
-digest	digest_text	count_star
-22e44734c3711653c51372e129da5d7f	SELECT ? AS in_master_digest 	1
->>>>>>> MDEV-5317 Compound statement / anonymous blocks
 insert into test.marker values (2);
 **** On Slave ****
 select * from test.marker;
@@ -68,13 +63,8 @@ TABLE	slave	foo	YES	YES
 select digest_text, count_star
 from performance_schema.events_statements_summary_by_digest
 where digest_text like "%in_%_digest%";
-<<<<<<< HEAD
 digest_text	count_star
 SELECT ? AS in_slave_digest 	1
-=======
-digest	digest_text	count_star
-ddeda363aafcef928734dcf9afe60d76	SELECT ? AS in_slave_digest 	1
->>>>>>> MDEV-5317 Compound statement / anonymous blocks
 **** On Master ****
 delete from performance_schema.setup_objects
 where object_schema='master';

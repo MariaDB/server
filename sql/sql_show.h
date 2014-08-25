@@ -117,11 +117,12 @@ COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
-                       enum enum_schema_tables schema_table_idx);
+                       ST_SCHEMA_TABLE *schema_table);
 int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list);
 bool get_schema_tables_result(JOIN *join,
                               enum enum_schema_table_state executed_place);
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
+TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);

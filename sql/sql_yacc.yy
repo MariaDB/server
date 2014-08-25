@@ -48,6 +48,7 @@
 #include "sp_pcontext.h"
 #include "sp_rcontext.h"
 #include "sp.h"
+#include "sql_show.h"
 #include "sql_alter.h"                         // Sql_cmd_alter_table*
 #include "sql_truncate.h"                      // Sql_cmd_truncate_table
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
@@ -139,12 +140,13 @@ int yylex(void *yylval, void *yythd);
   parser.
 */
 
-void my_parse_error(const char *s)
+void my_parse_error(const char *s, const char *yytext=0)
 {
   THD *thd= current_thd;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
 
-  const char *yytext= lip->get_tok_start();
+  if (!yytext)
+    yytext= lip->get_tok_start();
   if (!yytext)
     yytext= "";
 
@@ -1009,7 +1011,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  CIPHER_SYM
 %token  CLASS_ORIGIN_SYM              /* SQL-2003-N */
 %token  CLIENT_SYM
-%token  CLIENT_STATS_SYM
 %token  CLOSE_SYM                     /* SQL-2003-R */
 %token  COALESCE                      /* SQL-2003-N */
 %token  CODE_SYM
@@ -1180,7 +1181,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  IMPORT
 %token  INDEXES
 %token  INDEX_SYM
-%token	INDEX_STATS_SYM
 %token  INFILE
 %token  INITIAL_SIZE_SYM
 %token  INNER_SYM                     /* SQL-2003-R */
@@ -1497,7 +1497,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  TABLES
 %token  TABLESPACE
 %token  TABLE_REF_PRIORITY
-%token  TABLE_STATS_SYM
 %token  TABLE_SYM                     /* SQL-2003-R */
 %token  TABLE_CHECKSUM_SYM
 %token  TABLE_NAME_SYM                /* SQL-2003-N */
@@ -1546,7 +1545,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  UPGRADE_SYM
 %token  USAGE                         /* SQL-2003-N */
 %token  USER                          /* SQL-2003-R */
-%token  USER_STATS_SYM
 %token  USE_FRM
 %token  USE_SYM
 %token  USING                         /* SQL-2003-R */
@@ -1624,7 +1622,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <simple_string>
-        remember_name remember_end opt_db text_or_password
+        remember_name remember_end opt_db text_or_password remember_tok_start
+        wild_and_where
 
 %type <string>
         text_string opt_gconcat_separator
@@ -2076,7 +2075,7 @@ execute_var_ident:
           '@' ident_or_text
           {
             LEX *lex=Lex;
-            LEX_STRING *lexstr= (LEX_STRING*)sql_memdup(&$2, sizeof(LEX_STRING));
+            LEX_STRING *lexstr= (LEX_STRING*)thd->memdup(&$2, sizeof(LEX_STRING));
             if (!lexstr || lex->prepared_stmt_params.push_back(lexstr))
               MYSQL_YYABORT;
           }
@@ -6093,7 +6092,7 @@ virtual_column_func:
               MYSQL_YYABORT;
             }
             uint expr_len= (uint)($3 - $1) - 1;
-            Lex->vcol_info->expr_str.str= (char* ) sql_memdup($1 + 1, expr_len);
+            Lex->vcol_info->expr_str.str= (char* ) thd->memdup($1 + 1, expr_len);
             Lex->vcol_info->expr_str.length= expr_len;
             Lex->vcol_info->expr_item= $2;
           }
@@ -8019,12 +8018,12 @@ table_column_list:
         | ident 
           {
             Lex->column_list->push_back((LEX_STRING*)
-            sql_memdup(&$1, sizeof(LEX_STRING)));
+                thd->memdup(&$1, sizeof(LEX_STRING)));
           }
         | table_column_list ',' ident
           {
             Lex->column_list->push_back((LEX_STRING*)
-            sql_memdup(&$3, sizeof(LEX_STRING)));
+                thd->memdup(&$3, sizeof(LEX_STRING)));
           }
         ;
 
@@ -8039,14 +8038,14 @@ table_index_name:
           ident
           {
             Lex->index_list->push_back(
-              (LEX_STRING*) sql_memdup(&$1, sizeof(LEX_STRING)));
+              (LEX_STRING*) thd->memdup(&$1, sizeof(LEX_STRING)));
           }
         |
           PRIMARY_SYM
           {
             LEX_STRING str= {(char*) "PRIMARY", 7};
             Lex->index_list->push_back(
-              (LEX_STRING*) sql_memdup(&str, sizeof(LEX_STRING)));
+              (LEX_STRING*) thd->memdup(&str, sizeof(LEX_STRING)));
           }  
         ;  
 
@@ -8524,6 +8523,12 @@ select_item:
             {
               $2->set_name($1, (uint) ($3 - $1), thd->charset());
             }
+          }
+        ;
+
+remember_tok_start:
+          {
+            $$= (char*) YYLIP->get_tok_start();
           }
         ;
 
@@ -11079,7 +11084,7 @@ opt_table_alias:
           /* empty */ { $$=0; }
         | table_alias ident
           {
-            $$= (LEX_STRING*) sql_memdup(&$2,sizeof(LEX_STRING));
+            $$= (LEX_STRING*) thd->memdup(&$2,sizeof(LEX_STRING));
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -12555,34 +12560,6 @@ show_param:
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
             Lex->verbose= 0;
           }
-        | CLIENT_STATS_SYM
-          {
-           LEX *lex= Lex;
-           lex->sql_command= SQLCOM_SHOW_CLIENT_STATS;
-           if (prepare_schema_table(thd, lex, 0, SCH_CLIENT_STATS))
-             MYSQL_YYABORT;
-          }
-        | USER_STATS_SYM
-          {
-             LEX *lex= Lex;
-             lex->sql_command= SQLCOM_SHOW_USER_STATS;
-             if (prepare_schema_table(thd, lex, 0, SCH_USER_STATS))
-               MYSQL_YYABORT;
-          }
-        | TABLE_STATS_SYM
-          {
-             LEX *lex= Lex;
-             lex->sql_command= SQLCOM_SHOW_TABLE_STATS;
-             if (prepare_schema_table(thd, lex, 0, SCH_TABLE_STATS))
-               MYSQL_YYABORT;
-          }
-        | INDEX_STATS_SYM
-          {
-             LEX *lex= Lex;
-             lex->sql_command= SQLCOM_SHOW_INDEX_STATS;
-             if (prepare_schema_table(thd, lex, 0, SCH_INDEX_STATS))
-               MYSQL_YYABORT;
-          }
         | CREATE PROCEDURE_SYM sp_name
           {
             LEX *lex= Lex;
@@ -12639,6 +12616,24 @@ show_param:
               MYSQL_YYABORT;
             add_value_to_list(thd, $3);
           }
+        | IDENT_sys remember_tok_start wild_and_where
+           {
+             LEX *lex= Lex;
+             lex->sql_command= SQLCOM_SHOW_GENERIC;
+             ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str);
+             if (!table || !table->old_format)
+             {
+               my_parse_error(ER(ER_SYNTAX_ERROR), $2);
+               MYSQL_YYABORT;
+             }
+             if (lex->wild && table->idx_field1 < 0)
+             {
+               my_parse_error(ER(ER_SYNTAX_ERROR), $3);
+               MYSQL_YYABORT;
+             }
+             if (make_schema_select(thd, Lex->current_select, table))
+               MYSQL_YYABORT;
+           }
         ;
 
 show_engine_param:
@@ -12686,19 +12681,21 @@ binlog_from:
         ;
 
 wild_and_where:
-          /* empty */
-        | LIKE TEXT_STRING_sys
+          /* empty */ { $$= 0; }
+        | LIKE remember_tok_start TEXT_STRING_sys
           {
-            Lex->wild= new (thd->mem_root) String($2.str, $2.length,
+            Lex->wild= new (thd->mem_root) String($3.str, $3.length,
                                                     system_charset_info);
             if (Lex->wild == NULL)
               MYSQL_YYABORT;
+            $$= $2;
           }
-        | WHERE expr
+        | WHERE remember_tok_start expr
           {
-            Select->where= normalize_cond($2);
-            if ($2)
-              $2->top_level_item();
+            Select->where= normalize_cond($3);
+            if ($3)
+              $3->top_level_item();
+            $$= $2;
           }
         ;
 
@@ -12877,20 +12874,24 @@ flush_option:
             lex->type|= REFRESH_SLAVE;
             lex->reset_slave_info.all= false;
           }
-  	| CLIENT_STATS_SYM
-          { Lex->type|= REFRESH_CLIENT_STATS; }
-  	| USER_STATS_SYM
-         { Lex->type|= REFRESH_USER_STATS; }
-  	| TABLE_STATS_SYM
-          { Lex->type|= REFRESH_TABLE_STATS; }
-  	| INDEX_STATS_SYM
-          { Lex->type|= REFRESH_INDEX_STATS; }
         | MASTER_SYM
           { Lex->type|= REFRESH_MASTER; }
         | DES_KEY_FILE
           { Lex->type|= REFRESH_DES_KEY_FILE; }
         | RESOURCES
           { Lex->type|= REFRESH_USER_RESOURCES; }
+        | IDENT_sys remember_tok_start
+           {
+             Lex->type|= REFRESH_GENERIC;
+             ST_SCHEMA_TABLE *table= find_schema_table(thd, $1.str);
+             if (!table || !table->reset_table)
+             {
+               my_parse_error(ER(ER_SYNTAX_ERROR), $2);
+               MYSQL_YYABORT;
+             }
+             Lex->view_list.push_back(
+                        (LEX_STRING*)thd->memdup(&$1, sizeof(LEX_STRING)));
+           }
         ;
 
 opt_table_list:
@@ -14111,7 +14112,6 @@ keyword_sp:
         | CHAIN_SYM                {}
         | CHANGED                  {}
         | CIPHER_SYM               {}
-        | CLIENT_STATS_SYM         {}
         | CLIENT_SYM               {}
         | CLASS_ORIGIN_SYM         {}
         | COALESCE                 {}
@@ -14193,7 +14193,6 @@ keyword_sp:
         | ID_SYM                   {}
         | IDENTIFIED_SYM           {}
         | IGNORE_SERVER_IDS_SYM    {}
-        | INDEX_STATS_SYM          {}
         | INVOKER_SYM              {}
         | IMPORT                   {}
         | INDEXES                  {}
@@ -14358,7 +14357,6 @@ keyword_sp:
         | SWAPS_SYM                {}
         | SWITCHES_SYM             {}
         | TABLE_NAME_SYM           {}
-        | TABLE_STATS_SYM          {}
         | TABLES                   {}
         | TABLE_CHECKSUM_SYM       {}
         | TABLESPACE               {}
@@ -14384,7 +14382,6 @@ keyword_sp:
         | UNKNOWN_SYM              {}
         | UNTIL_SYM                {}
         | USER                     {}
-        | USER_STATS_SYM           {}
         | USE_FRM                  {}
         | VARIABLES                {}
         | VIEW_SYM                 {}
@@ -15994,12 +15991,12 @@ view_list:
           ident 
             {
               Lex->view_list.push_back((LEX_STRING*)
-              sql_memdup(&$1, sizeof(LEX_STRING)));
+                      thd->memdup(&$1, sizeof(LEX_STRING)));
             }
         | view_list ',' ident
             {
               Lex->view_list.push_back((LEX_STRING*)
-              sql_memdup(&$3, sizeof(LEX_STRING)));
+                      thd->memdup(&$3, sizeof(LEX_STRING)));
             }
         ;
 

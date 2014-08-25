@@ -72,7 +72,7 @@ flush table_statistics;
 flush index_statistics;
 select * from information_schema.index_statistics;
 select * from information_schema.table_statistics;
-show status like "%statistics%";
+show status like "%generic%";
 
 #
 # Test that some variables are not 0

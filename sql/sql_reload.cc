@@ -25,6 +25,7 @@
 #include "hostname.h"    // hostname_cache_refresh
 #include "sql_repl.h"    // reset_master, reset_slave
 #include "rpl_mi.h"      // Master_info::data_lock
+#include "sql_show.h"
 #include "debug_sync.h"
 #include "rpl_mi.h"
 
@@ -377,35 +378,17 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
  if (options & REFRESH_USER_RESOURCES)
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
-  if (options & REFRESH_TABLE_STATS)
-  {
-    mysql_mutex_lock(&LOCK_global_table_stats);
-    free_global_table_stats();
-    init_global_table_stats();
-    mysql_mutex_unlock(&LOCK_global_table_stats);
-  }
-  if (options & REFRESH_INDEX_STATS)
-  {
-    mysql_mutex_lock(&LOCK_global_index_stats);
-    free_global_index_stats();
-    init_global_index_stats();
-    mysql_mutex_unlock(&LOCK_global_index_stats);
-  }
-  if (options & (REFRESH_USER_STATS | REFRESH_CLIENT_STATS))
-  {
-    mysql_mutex_lock(&LOCK_global_user_client_stats);
-    if (options & REFRESH_USER_STATS)
-    {
-      free_global_user_stats();
-      init_global_user_stats();
-    }
-    if (options & REFRESH_CLIENT_STATS)
-    {
-      free_global_client_stats();
-      init_global_client_stats();
-    }
-    mysql_mutex_unlock(&LOCK_global_user_client_stats);
-  }
+ if (options & REFRESH_GENERIC)
+ {
+   List_iterator_fast<LEX_STRING> li(thd->lex->view_list);
+   LEX_STRING *ls;
+   while ((ls= li++))
+   {
+     ST_SCHEMA_TABLE *table= find_schema_table(thd, ls->str);
+     if (table->reset_table())
+       result= 1;
+   }
+ }
  if (*write_to_binlog != -1)
    *write_to_binlog= tmp_write_to_binlog;
  /*
