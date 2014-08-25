@@ -282,14 +282,17 @@ bool TXTFAM::AddListValue(PGLOBAL g, int type, void *val, PPARM *top)
   PPARM pp = (PPARM)PlugSubAlloc(g, NULL, sizeof(PARM));
 
   switch (type) {
-    case TYPE_INT:
-      pp->Value = PlugSubAlloc(g, NULL, sizeof(int));
-      *((int*)pp->Value) = *((int*)val);
+//  case TYPE_INT:
+//    pp->Value = PlugSubAlloc(g, NULL, sizeof(int));
+//    *((int*)pp->Value) = *((int*)val);
+//    break;
+    case TYPE_VOID:
+      pp->Value = (void*)*(int*)val;
       break;
-    case TYPE_STRING:
-      pp->Value = PlugSubAlloc(g, NULL, strlen((char*)val) + 1);
-      strcpy((char*)pp->Value, (char*)val);
-      break;
+//  case TYPE_STRING:
+//    pp->Value = PlugSubAlloc(g, NULL, strlen((char*)val) + 1);
+//    strcpy((char*)pp->Value, (char*)val);
+//    break;
     case TYPE_PCHAR:
       pp->Value = val;
       break;
@@ -310,18 +313,22 @@ bool TXTFAM::AddListValue(PGLOBAL g, int type, void *val, PPARM *top)
 int TXTFAM::StoreValues(PGLOBAL g, bool upd)
 {
   int  pos = GetPos();
-  bool rc = AddListValue(g, TYPE_INT, &pos, &To_Pos);
+  bool rc = AddListValue(g, TYPE_VOID, &pos, &To_Pos);
 
   if (!rc) {
     pos = GetNextPos();
-    rc = AddListValue(g, TYPE_INT, &pos, &To_Sos);
+    rc = AddListValue(g, TYPE_VOID, &pos, &To_Sos);
     } // endif rc
 
   if (upd && !rc) {
+    char *buf;
+
     if (Tdbp->PrepareWriting(g))
       return RC_FX;
 
-    rc = AddListValue(g, TYPE_STRING, Tdbp->GetLine(), &To_Upd);
+    buf = (char*)PlugSubAlloc(g, NULL, strlen(Tdbp->GetLine()) + 1);
+    strcpy(buf, Tdbp->GetLine());
+    rc = AddListValue(g, TYPE_PCHAR, buf, &To_Upd);
     } // endif upd
 
   return rc ? RC_FX : RC_OK;
