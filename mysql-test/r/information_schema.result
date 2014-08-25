@@ -129,6 +129,11 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+t1	t1
+t2	t2
+t3	t3
+t4	t4
+t5	t5
 table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
@@ -136,11 +141,6 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
-t1	t1
-t4	t4
-t2	t2
-t3	t3
-t5	t5
 select c,table_name from v1 
 left join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
@@ -151,6 +151,11 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+t1	t1
+t2	t2
+t3	t3
+t4	t4
+t5	t5
 table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
@@ -158,11 +163,6 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
-t1	t1
-t4	t4
-t2	t2
-t3	t3
-t5	t5
 select c, v2.table_name from v1
 right join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
@@ -173,6 +173,11 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+t1	t1
+t2	t2
+t3	t3
+t4	t4
+t5	t5
 table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
@@ -180,11 +185,6 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
-t1	t1
-t4	t4
-t2	t2
-t3	t3
-t5	t5
 select table_name from information_schema.TABLES
 where table_schema = "mysqltest" and table_name like "t%";
 table_name

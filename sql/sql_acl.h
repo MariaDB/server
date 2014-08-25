@@ -235,6 +235,10 @@ bool check_grant_all_columns(THD *thd, ulong want_access,
 bool check_grant_routine(THD *thd, ulong want_access,
                          TABLE_LIST *procs, bool is_proc, bool no_error);
 bool check_grant_db(THD *thd,const char *db);
+bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
+bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
+                  GRANT_INTERNAL_INFO *grant_internal_info,
+                  bool dont_check_global_grants, bool no_errors);
 ulong get_table_grant(THD *thd, TABLE_LIST *table);
 ulong get_column_grant(THD *thd, GRANT_INFO *grant,
                        const char *db_name, const char *table_name,
@@ -263,10 +267,6 @@ int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr);
 int check_password_policy(String *password);
-#ifdef NO_EMBEDDED_ACCESS_CHECKS
-#define check_grant(A,B,C,D,E,F) 0
-#define check_grant_db(A,B) 0
-#endif
 
 /**
   Result of an access check for an internal schema or table.

@@ -10206,6 +10206,11 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   return 0;
 }
 
+#else
+bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
+{
+  return 0;
+}
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)

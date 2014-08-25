@@ -15,6 +15,7 @@ drop function if exists f2;
 --enable_warnings
 
 --replace_result 'Tables_in_INFORMATION_SCHEMA (T%)' 'Tables_in_information_schema (T%)'
+--sorted_result
 show tables from INFORMATION_SCHEMA like 'T%';
 create database `inf%`;
 create database mbase;
