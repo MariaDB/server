@@ -503,17 +503,35 @@ int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync)
   return state;
 }
 
-my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
-{ 
+my_bool wsrep_thd_is_wsrep(void *thd_ptr)
+{
   my_bool status = FALSE;
-  if (thd_ptr) 
+  if (thd_ptr)
   {
     THD* thd = (THD*)thd_ptr;
-    if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
-    
-    status = ((thd->wsrep_exec_mode == REPL_RECV)    ||
-	      (thd->wsrep_exec_mode == TOTAL_ORDER));
-    if (sync) mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+
+    status = (WSREP(thd) && WSREP_PROVIDER_EXISTS);
+  }
+  return status;
+}
+
+my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
+{
+  my_bool status = FALSE;
+  if (thd_ptr)
+  {
+    THD* thd = (THD*)thd_ptr;
+    // THD can be BF only if provider exists
+    if (wsrep_thd_is_wsrep(thd_ptr))
+    {
+      if (sync)
+	mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+
+      status = ((thd->wsrep_exec_mode == REPL_RECV)    ||
+      	        (thd->wsrep_exec_mode == TOTAL_ORDER));
+      if (sync)
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
   }
   return status;
 }
