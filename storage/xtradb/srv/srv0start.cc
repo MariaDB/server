@@ -1566,6 +1566,7 @@ innobase_start_or_create_for_mysql(void)
 	char		logfilename[10000];
 	char*		logfile0	= NULL;
 	size_t		dirnamelen;
+	bool		sys_datafiles_created = false;
 
 	if (srv_force_recovery > SRV_FORCE_NO_TRX_UNDO) {
 		srv_read_only_mode = true;
@@ -2515,6 +2516,15 @@ files_checked:
 				dict_check = DICT_CHECK_NONE_LOADED;
 			}
 
+			/* Create the SYS_TABLESPACES and SYS_DATAFILES system table */
+			err = dict_create_or_check_sys_tablespace();
+			if (err != DB_SUCCESS) {
+				return(err);
+			}
+
+			sys_datafiles_created = true;
+
+			/* This function assumes that SYS_DATAFILES exists */
 			dict_check_tablespaces_and_store_max_id(dict_check);
 		}
 
@@ -2727,10 +2737,13 @@ files_checked:
 		return(err);
 	}
 
-	/* Create the SYS_TABLESPACES system table */
-	err = dict_create_or_check_sys_tablespace();
-	if (err != DB_SUCCESS) {
-		return(err);
+	/* Create the SYS_TABLESPACES and SYS_DATAFILES system tables if we
+	have not done that already on crash recovery. */
+	if (sys_datafiles_created == false) {
+		err = dict_create_or_check_sys_tablespace();
+		if (err != DB_SUCCESS) {
+			return(err);
+		}
 	}
 
 	srv_is_being_started = FALSE;
