@@ -176,14 +176,14 @@ static my_bool set_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
 {
   XID* xid= reinterpret_cast<XID*>(arg);
   handlerton* hton= plugin_data(plugin, handlerton *);
-  if (hton->db_type == DB_TYPE_INNODB)
+  if (hton->set_checkpoint)
   {
     const wsrep_uuid_t* uuid(wsrep_xid_uuid(xid));
     char uuid_str[40] = {0, };
     wsrep_uuid_print(uuid, uuid_str, sizeof(uuid_str));
     WSREP_DEBUG("Set WSREPXid for InnoDB:  %s:%lld",
                 uuid_str, (long long)wsrep_xid_seqno(xid));
-    hton->wsrep_set_checkpoint(hton, xid);
+    hton->set_checkpoint(hton, xid);
   }
   return FALSE;
 }
@@ -197,15 +197,14 @@ static my_bool get_SE_checkpoint(THD* unused, plugin_ref plugin, void* arg)
 {
   XID* xid= reinterpret_cast<XID*>(arg);
   handlerton* hton= plugin_data(plugin, handlerton *);
-  if (hton->db_type == DB_TYPE_INNODB)
+  if (hton->get_checkpoint)
   {
-    hton->wsrep_get_checkpoint(hton, xid);
+    hton->get_checkpoint(hton, xid);
     const wsrep_uuid_t* uuid(wsrep_xid_uuid(xid));
     char uuid_str[40] = {0, };
     wsrep_uuid_print(uuid, uuid_str, sizeof(uuid_str));
     WSREP_DEBUG("Read WSREPXid from InnoDB:  %s:%lld",
                 uuid_str, (long long)wsrep_xid_seqno(xid));
-
   }
   return FALSE;
 }

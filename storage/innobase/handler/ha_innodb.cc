@@ -3018,10 +3018,10 @@ innobase_init(
 	innobase_hton->release_temporary_latches =
 		innobase_release_temporary_latches;
 #ifdef WITH_WSREP
-        innobase_hton->wsrep_abort_transaction=wsrep_abort_transaction;
-        innobase_hton->wsrep_set_checkpoint=innobase_wsrep_set_checkpoint;
-        innobase_hton->wsrep_get_checkpoint=innobase_wsrep_get_checkpoint;
-        innobase_hton->wsrep_fake_trx_id=wsrep_fake_trx_id;
+        innobase_hton->abort_transaction=wsrep_abort_transaction;
+        innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
+        innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+        innobase_hton->fake_trx_id=wsrep_fake_trx_id;
 #endif /* WITH_WSREP */
 	innobase_hton->kill_query = innobase_kill_query;
 
@@ -9830,7 +9830,6 @@ ha_innobase::wsrep_append_keys(
 		uint	len;
 		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 		char 	*key 		= &keyval[0];
-		KEY	*key_info	= table->key_info;
 		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(

@@ -1230,13 +1230,11 @@ struct handlerton
    enum handler_create_iterator_result
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
-#ifdef WITH_WSREP
-   int (*wsrep_abort_transaction)(handlerton *hton, THD *bf_thd, 
-				  THD *victim_thd, my_bool signal);
-   int (*wsrep_set_checkpoint)(handlerton *hton, const XID* xid);
-   int (*wsrep_get_checkpoint)(handlerton *hton, XID* xid);
-   void (*wsrep_fake_trx_id)(handlerton *hton, THD *thd);
-#endif /* WITH_WSREP */
+   int (*abort_transaction)(handlerton *hton, THD *bf_thd,
+			    THD *victim_thd, my_bool signal);
+   int (*set_checkpoint)(handlerton *hton, const XID* xid);
+   int (*get_checkpoint)(handlerton *hton, XID* xid);
+   void (*fake_trx_id)(handlerton *hton, THD *thd);
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -4091,8 +4089,8 @@ bool ha_rollback_to_savepoint_can_release_mdl(THD *thd);
 int ha_savepoint(THD *thd, SAVEPOINT *sv);
 int ha_release_savepoint(THD *thd, SAVEPOINT *sv);
 #ifdef WITH_WSREP
-int ha_wsrep_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
-void ha_wsrep_fake_trx_id(THD *thd);
+int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
+void ha_fake_trx_id(THD *thd);
 #endif /* WITH_WSREP */
 
 /* these are called by storage engines */

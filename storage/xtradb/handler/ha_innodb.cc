@@ -3373,10 +3373,10 @@ innobase_init(
 
 	innobase_hton->table_options = innodb_table_option_list;
 #ifdef WITH_WSREP
-        innobase_hton->wsrep_abort_transaction=wsrep_abort_transaction;
-        innobase_hton->wsrep_set_checkpoint=innobase_wsrep_set_checkpoint;
-        innobase_hton->wsrep_get_checkpoint=innobase_wsrep_get_checkpoint;
-        innobase_hton->wsrep_fake_trx_id=wsrep_fake_trx_id;
+        innobase_hton->abort_transaction=wsrep_abort_transaction;
+        innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
+        innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
+        innobase_hton->fake_trx_id=wsrep_fake_trx_id;
 #endif /* WITH_WSREP */
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);

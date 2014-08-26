@@ -4194,7 +4194,7 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               errcode);
   }
 
-  IF_WSREP(ha_wsrep_fake_trx_id(thd), );
+  IF_WSREP(ha_fake_trx_id(thd), );
 
   return result;
 }

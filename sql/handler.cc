@@ -6212,9 +6212,9 @@ void handler::set_lock_type(enum thr_lock_type lock)
     always 0
 */
 
-int ha_wsrep_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
+int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 {
-  DBUG_ENTER("ha_wsrep_abort_transaction");
+  DBUG_ENTER("ha_abort_transaction");
   if (!WSREP(bf_thd) &&
       !(wsrep_OSU_method_options == WSREP_OSU_RSU &&
         bf_thd->wsrep_exec_mode == TOTAL_ORDER)) {
@@ -6227,21 +6227,21 @@ int ha_wsrep_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   for (; ha_info; ha_info= ha_info_next)
   {
     handlerton *hton= ha_info->ht();
-    if (!hton->wsrep_abort_transaction)
+    if (!hton->abort_transaction)
     {
-        WSREP_WARN("cannot abort WRESP transaction");
+        WSREP_WARN("cannot abort transaction");
     }
     else
-	    hton->wsrep_abort_transaction(hton, bf_thd, victim_thd, signal);
+	    hton->abort_transaction(hton, bf_thd, victim_thd, signal);
     ha_info_next= ha_info->next();
     ha_info->reset(); /* keep it conveniently zero-filled */
   }
   DBUG_RETURN(0);
 }
 
-void ha_wsrep_fake_trx_id(THD *thd)
+void ha_fake_trx_id(THD *thd)
 {
-  DBUG_ENTER("ha_wsrep_fake_trx_id");
+  DBUG_ENTER("ha_fake_trx_id");
   if (!WSREP(thd))
   {
     DBUG_VOID_RETURN;
@@ -6253,12 +6253,12 @@ void ha_wsrep_fake_trx_id(THD *thd)
   for (; ha_info; ha_info= ha_info_next)
   {
     handlerton *hton= ha_info->ht();
-    if (!hton->wsrep_fake_trx_id)
+    if (!hton->fake_trx_id)
     {
       WSREP_WARN("cannot get fake InnoDB transaction ID");
     }
     else
-      hton->wsrep_fake_trx_id(hton, thd);
+      hton->fake_trx_id(hton, thd);
     ha_info_next= ha_info->next();
     ha_info->reset(); /* keep it conveniently zero-filled */
   }
