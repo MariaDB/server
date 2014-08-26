@@ -1614,6 +1614,14 @@ void THD::init(void)
 
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
+
+  /*
+    @@wsrep_causal_reads is now being handled via wsrep_sync_wait, update it
+    appropriately.
+  */
+  if (variables.wsrep_causal_reads)
+    variables.wsrep_sync_wait|= WSREP_SYNC_WAIT_BEFORE_READ;
+
 #endif
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
