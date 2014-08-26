@@ -55,7 +55,7 @@ ENDIF()
 
 # Always enable -Wall for gnu C/C++
 IF(CMAKE_COMPILER_IS_GNUCXX AND NOT CMAKE_CXX_FLAGS MATCHES ".*-Wall.*")
-  SET(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS} -Wall -Wno-unused-parameter")
+  SET(CMAKE_CXX_FLAGS "-Wall ${CMAKE_CXX_FLAGS} -Wall -Wno-unused-parameter -Wno-init-self")
 ENDIF()
 IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_C_FLAGS MATCHES ".*-Wall.*")
   SET(CMAKE_C_FLAGS "-Wall ${CMAKE_C_FLAGS} -Wall")
