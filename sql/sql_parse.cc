@@ -2719,7 +2719,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STATUS:
   {
 #ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd))
+    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
       goto error;
 #endif /* WITH_WSREP */
     execute_show_status(thd, all_tables);
@@ -2755,7 +2755,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STATUS_PROC:
   case SQLCOM_SHOW_STATUS_FUNC:
 #ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd))
+    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
       goto error;
 #endif /* WITH_WSREP */
 
@@ -2780,7 +2780,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_INDEX_STATS:
   case SQLCOM_SELECT:
 #ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd))
+    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
       goto error;
   case SQLCOM_SHOW_VARIABLES:
   case SQLCOM_SHOW_CHARSETS:
@@ -2788,7 +2788,7 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_STORAGE_ENGINES:
   case SQLCOM_SHOW_PROFILE:
 #endif /* WITH_WSREP */
-   {
+  {
     thd->status_var.last_query_cost= 0.0;
 
     /*
@@ -2811,7 +2811,7 @@ mysql_execute_command(THD *thd)
     res= execute_sqlcom_select(thd, all_tables);
     break;
   }
-case SQLCOM_PREPARE:
+  case SQLCOM_PREPARE:
   {
     mysql_sql_stmt_prepare(thd);
     break;
@@ -3460,15 +3460,16 @@ end_with_restore_list:
 #endif
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE:
+  {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 #ifdef DONT_ALLOW_SHOW_COMMANDS
     my_message(ER_NOT_ALLOWED_COMMAND, ER(ER_NOT_ALLOWED_COMMAND),
                MYF(0)); /* purecov: inspected */
     goto error;
 #else
-    {
+
 #ifdef WITH_WSREP
-      if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd))
+      if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
         goto error;
 #endif /* WITH_WSREP */
 
@@ -3529,13 +3530,13 @@ end_with_restore_list:
       /* Access is granted. Execute the command.  */
       res= mysqld_show_create(thd, first_table);
       break;
-    }
 #endif
+  }
   case SQLCOM_CHECKSUM:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
 #ifdef WITH_WSREP
-    if (WSREP_CLIENT(thd) && wsrep_causal_wait(thd))
+    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
       goto error;
 #endif /* WITH_WSREP */
 
@@ -3550,6 +3551,12 @@ end_with_restore_list:
   {
     ha_rows found= 0, updated= 0;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+#ifdef WITH_WSREP
+      if (WSREP_CLIENT(thd) &&
+          wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
+        goto error;
+#endif /* WITH_WSREP */
+
     if (update_precheck(thd, all_tables))
       break;
 
@@ -3586,6 +3593,11 @@ end_with_restore_list:
     /* if we switched from normal update, rights are checked */
     if (up_result != 2)
     {
+#ifdef WITH_WSREP
+      if (WSREP_CLIENT(thd) &&
+          wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
+        goto error;
+#endif /* WITH_WSREP */
       if ((res= multi_update_precheck(thd, all_tables)))
         break;
     }
@@ -3655,6 +3667,12 @@ end_with_restore_list:
     break;
   }
   case SQLCOM_REPLACE:
+  {
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) &&
+        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE))
+      goto error;
+#endif /* WITH_WSREP */
 #ifndef DBUG_OFF
     if (mysql_bin_log.is_open())
     {
@@ -3689,9 +3707,16 @@ end_with_restore_list:
       DBUG_PRINT("debug", ("Just after generate_incident()"));
     }
 #endif
+  }
   case SQLCOM_INSERT:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) &&
+        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE))
+      goto error;
+#endif /* WITH_WSREP */
 
     /*
       Since INSERT DELAYED doesn't support temporary tables, we could
@@ -3747,11 +3772,16 @@ end_with_restore_list:
     select_result *sel_result;
     bool explain= MY_TEST(lex->describe);
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) &&
+        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_INSERT_REPLACE))
+      goto error;
+#endif /* WITH_WSREP */
+
     if ((res= insert_precheck(thd, all_tables)))
       break;
 #ifdef WITH_WSREP
-    if (WSREP_ON && lex->sql_command == SQLCOM_INSERT_SELECT &&
-	thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
+    if (WSREP(thd) && thd->wsrep_consistency_check == CONSISTENCY_CHECK_DECLARED)
     {
       thd->wsrep_consistency_check = CONSISTENCY_CHECK_RUNNING;
       WSREP_TO_ISOLATION_BEGIN(first_table->db, first_table->table_name, NULL);
@@ -3848,6 +3878,12 @@ end_with_restore_list:
   {
     select_result *sel_result=lex->result;
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) &&
+        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
+      goto error;
+#endif /* WITH_WSREP */
+
     if ((res= delete_precheck(thd, all_tables)))
       break;
     DBUG_ASSERT(select_lex->offset_limit == 0);
@@ -3904,6 +3940,11 @@ end_with_restore_list:
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
     TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
     multi_delete *result;
+#ifdef WITH_WSREP
+    if (WSREP_CLIENT(thd) &&
+        wsrep_sync_wait(thd, WSREP_SYNC_WAIT_BEFORE_UPDATE_DELETE))
+      goto error;
+#endif /* WITH_WSREP */
 
     if ((res= multi_delete_precheck(thd, all_tables)))
       break;
@@ -3975,7 +4016,7 @@ end_with_restore_list:
       thd->variables.option_bits|= OPTION_KEEP_LOG;
     }
 #ifdef WITH_WSREP
-   if (WSREP_ON)
+   if (WSREP(thd))
    {
      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
      {
@@ -4002,8 +4043,8 @@ end_with_restore_list:
     /* DDL and binlog write order are protected by metadata locks. */
     res= mysql_rm_table(thd, first_table, lex->check_exists,
 			lex->drop_temporary);
+    break;
   }
-  break;
   case SQLCOM_SHOW_PROCESSLIST:
     if (!thd->security_ctx->priv_user[0] &&
         check_global_access(thd,PROCESS_ACL))

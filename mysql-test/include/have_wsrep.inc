@@ -3,6 +3,6 @@
 
 if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = 'wsrep' AND PLUGIN_STATUS='ACTIVE'`)
 {
-  --skip Test required wsrep plugin.
+  --skip Test requires wsrep plugin.
 }
 

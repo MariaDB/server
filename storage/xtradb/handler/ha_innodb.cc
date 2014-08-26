@@ -6204,7 +6204,7 @@ wsrep_innobase_mysql_sort(
 	case MYSQL_TYPE_LONG_BLOB:
 	case MYSQL_TYPE_VARCHAR:
 	{
-		uchar tmp_str[REC_VERSION_56_MAX_INDEX_COL_LEN];
+		uchar tmp_str[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
 		uint tmp_length = REC_VERSION_56_MAX_INDEX_COL_LEN;
 
 		/* Use the charset number to pick the right charset struct for
@@ -6243,11 +6243,11 @@ wsrep_innobase_mysql_sort(
 		} else {
 			/* strnxfrm will expand the destination string,
 			   protocols < 3 truncated the sorted sring
-			   protocols > 3 gets full sorted sring
+			   protocols >= 3 gets full sorted sring
 			*/
 			tmp_length = charset->coll->strnxfrm(
 				charset, str, buf_length,
-				str_length, tmp_str, tmp_length, 0);
+				str_length, tmp_str, str_length, 0);
 			DBUG_ASSERT(tmp_length <= buf_length);
 			ret_length = tmp_length;
 		}
@@ -6790,6 +6790,7 @@ UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
 /*===============================*/
+	THD* 		thd,
 	TABLE*		table,
 	uint		keynr,	/*!< in: key number */
 	char*		buff,	/*!< in/out: buffer for the key value (in MySQL
@@ -6804,25 +6805,33 @@ wsrep_store_key_val_for_row(
 	char*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
-	
+	uint buff_space = buff_len;
+
 	DBUG_ENTER("wsrep_store_key_val_for_row");
 
 	memset(buff, 0, buff_len);
 	*key_is_null = TRUE;
 
 	for (; key_part != end; key_part++) {
+
 		uchar sorted[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
 		ibool part_is_null = FALSE;
 
 		if (key_part->null_bit) {
-			if (record[key_part->null_offset] & 
-			    key_part->null_bit) {
-				*buff = 1;
-				part_is_null = TRUE;
+			if (buff_space > 0) {
+				if (record[key_part->null_offset] 
+				    & key_part->null_bit) {
+					*buff = 1;
+					part_is_null = TRUE;
+				} else {
+					*buff = 0;
+				}
+				buff++;
+				buff_space--;
 			} else {
-				*buff = 0;
+				fprintf (stderr, "WSREP: key truncated: %s\n",
+					 wsrep_thd_query(thd));
 			}
-			buff++;
 		}
 		if (!part_is_null)  *key_is_null = FALSE;
 
@@ -6842,8 +6851,15 @@ wsrep_store_key_val_for_row(
 			key_len = key_part->length;
 
 			if (part_is_null) {
-				buff += key_len + 2;
-
+				true_len = key_len + 2;
+				if (true_len > buff_space) {
+					fprintf (stderr,
+						 "WSREP: key truncated: %s\n",
+						 wsrep_thd_query(thd));
+					true_len = buff_space;
+				}
+				buff       += true_len;
+				buff_space -= true_len;
 				continue;
 			}
 			cs = field->charset();
@@ -6883,13 +6899,20 @@ wsrep_store_key_val_for_row(
 				REC_VERSION_56_MAX_INDEX_COL_LEN);
 
 			if (wsrep_protocol_version > 1) {
-				memcpy(buff, sorted, true_len);
-                        /* Note that we always reserve the maximum possible
-			length of the true VARCHAR in the key value, though
-			only len first bytes after the 2 length bytes contain
-			actual data. The rest of the space was reset to zero
-			in the bzero() call above. */
-                                buff += true_len;
+			/* Note that we always reserve the maximum possible
+			   length of the true VARCHAR in the key value, though
+			   only len first bytes after the 2 length bytes contain
+			   actual data. The rest of the space was reset to zero
+			   in the bzero() call above. */
+				if (true_len > buff_space) {
+					fprintf (stderr,
+						 "WSREP: key truncated: %s\n",
+						 wsrep_thd_query(thd));
+					true_len = buff_space;
+				}
+ 				memcpy(buff, sorted, true_len);
+                                buff       += true_len;
+				buff_space -= true_len;
                         } else {
                                 buff += key_len;
                         }
@@ -6913,7 +6936,15 @@ wsrep_store_key_val_for_row(
 			key_len = key_part->length;
 
 			if (part_is_null) {
-				buff += key_len + 2;
+				true_len = key_len + 2;
+				if (true_len > buff_space) {
+					fprintf (stderr,
+						 "WSREP: key truncated: %s\n",
+						 wsrep_thd_query(thd));
+					true_len = buff_space;
+				}
+				buff       += true_len;
+				buff_space -= true_len;
 
 				continue;
 			}
@@ -6956,15 +6987,22 @@ wsrep_store_key_val_for_row(
 				mysql_type, cs->number, sorted, true_len,
 				REC_VERSION_56_MAX_INDEX_COL_LEN);
 
-			memcpy(buff, sorted, true_len);
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
                         if (wsrep_protocol_version > 1) {
-                                buff += true_len;
-                        } else {
-                                buff += key_len;
-                        }
+				if (true_len > buff_space) {
+					fprintf (stderr,
+						 "WSREP: key truncated: %s\n",
+						 wsrep_thd_query(thd));
+					true_len = buff_space;
+				}
+				buff       += true_len;
+				buff_space -= true_len;
+			} else {
+				buff += key_len;
+			}
+			memcpy(buff, sorted, true_len);
 		} else {
 			/* Here we handle all other data types except the
 			true VARCHAR, BLOB and TEXT. Note that the column
@@ -6981,9 +7019,17 @@ wsrep_store_key_val_for_row(
 			key_len = key_part->length;
 
 			if (part_is_null) {
-				 buff += key_len;
+				true_len = key_len;
+				if (true_len > buff_space) {
+					fprintf (stderr,
+						 "WSREP: key truncated: %s\n",
+						 wsrep_thd_query(thd));
+					true_len = buff_space;
+				}
+				buff       += true_len;
+				buff_space -= true_len;
 
-				 continue;
+				continue;
 			}
 
 			src_start = record + key_part->offset;
@@ -7021,12 +7067,18 @@ wsrep_store_key_val_for_row(
 					mysql_type, cs->number, sorted, true_len,
 					REC_VERSION_56_MAX_INDEX_COL_LEN);
 
+				if (true_len > buff_space) {
+					fprintf (stderr,
+						 "WSREP: key truncated: %s\n",
+						 wsrep_thd_query(thd));
+					true_len   = buff_space;
+				}
 				memcpy(buff, sorted, true_len);
 			} else {
 				memcpy(buff, src_start, true_len);
 			}
-			buff += true_len;
-
+			buff       += true_len;
+			buff_space -= true_len;
 		}
 	}
 
@@ -10223,7 +10275,7 @@ wsrep_append_key(
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s ",
+	fprintf(stderr, "%s conn %ld, trx %lu, keylen %d, table %s ",
 		(shared) ? "Shared" : "Exclusive",
 		wsrep_thd_thread_id(thd), (long long)trx->id, key_len,
 		table_share->table_name.str);
@@ -10293,11 +10345,11 @@ ha_innobase::wsrep_append_keys(
 		uint	len;
 		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 		char 	*key 		= &keyval[0];
-		KEY	*key_info	= table->key_info;
 		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(
-			table, 0, key, key_info->key_length, record0, &is_null);
+			thd, table, 0, key, WSREP_MAX_SUPPORTED_KEY_LENGTH,
+			record0, &is_null);
 
 		if (!is_null) {
 			rcode = wsrep_append_key(
@@ -10319,9 +10371,6 @@ ha_innobase::wsrep_append_keys(
 			KEY*  key_info	= table->key_info + i;
 			if (key_info->flags & HA_NOSAME) {
 				hasPK = true;
-				if (i != table->s->primary_key) {
-					wsrep_thd_set_PA_safe(thd, FALSE);
-				}
 			}
 		}
 
@@ -10352,7 +10401,8 @@ ha_innobase::wsrep_append_keys(
 			     (!tab && referenced_by_foreign_key()))) {
 
 				len = wsrep_store_key_val_for_row(
-					table, i, key0, key_info->key_length, 
+					thd, table, i, key0, 
+					WSREP_MAX_SUPPORTED_KEY_LENGTH, 
 					record0, &is_null);
 				if (!is_null) {
 					rcode = wsrep_append_key(
@@ -10362,7 +10412,6 @@ ha_innobase::wsrep_append_keys(
 
 				if (key_info->flags & HA_NOSAME || shared)
 			  		key_appended = true;
-
 				}
 				else
 				{
@@ -10371,7 +10420,8 @@ ha_innobase::wsrep_append_keys(
 				}
 				if (record1) {
 					len = wsrep_store_key_val_for_row(
-						table, i, key1, key_info->key_length, 
+						thd, table, i, key1, 
+						WSREP_MAX_SUPPORTED_KEY_LENGTH,
 						record1, &is_null);
 					if (!is_null && memcmp(key0, key1, len)) {
 						rcode = wsrep_append_key(
@@ -18472,7 +18522,7 @@ wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
 		wsrep_thd_LOCK(victim_thd);
 		wsrep_thd_set_conflict_state(victim_thd, MUST_ABORT);
 		wsrep_thd_UNLOCK(victim_thd);
-		wsrep_thd_awake(victim_thd, signal); 
+		wsrep_thd_awake(victim_thd, signal);
 	}
 	DBUG_RETURN(-1);
 }

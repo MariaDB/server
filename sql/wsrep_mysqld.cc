@@ -146,7 +146,7 @@ static void wsrep_log_cb(wsrep_log_level_t level, const char *msg) {
     sql_print_error("WSREP: %s", msg);
     break;
   case WSREP_LOG_DEBUG:
-    sql_print_information ("[Debug] WSREP: %s", msg);
+    if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
   default:
     break;
   }
@@ -808,10 +808,10 @@ void wsrep_filter_new_cluster (int* argc, char* argv[])
   {
     /* make a copy of the argument to convert possible underscores to hyphens.
      * the copy need not to be longer than WSREP_NEW_CLUSTER option */
-    char arg[sizeof(WSREP_NEW_CLUSTER) + 2]= { 0, };
+    char arg[sizeof(WSREP_NEW_CLUSTER) + 1]= { 0, };
     strncpy(arg, argv[i], sizeof(arg) - 1);
-    char* underscore;
-    while (NULL != (underscore= strchr(arg, '_'))) *underscore= '-';
+    char* underscore(arg);
+    while (NULL != (underscore= strchr(underscore, '_'))) *underscore= '-';
 
     if (!strcmp(arg, WSREP_NEW_CLUSTER))
     {
@@ -893,13 +893,15 @@ bool wsrep_start_replication()
   return true;
 }
 
-bool
-wsrep_causal_wait (THD* thd)
+bool wsrep_sync_wait (THD* thd, uint mask)
 {
-  if (thd->variables.wsrep_causal_reads && thd->variables.wsrep_on &&
+  if ((thd->variables.wsrep_sync_wait & mask) &&
+      thd->variables.wsrep_on &&
       !thd->in_active_multi_stmt_transaction() &&
       thd->wsrep_conflict_state != REPLAYING)
   {
+    WSREP_DEBUG("wsrep_sync_wait: thd->variables.wsrep_sync_wait = %u, mask = %u",
+                thd->variables.wsrep_sync_wait, mask);
     // This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
     // TODO: modify to check if thd has locked any rows.
     wsrep_gtid_t  gtid;
@@ -918,12 +920,12 @@ wsrep_causal_wait (THD* thd)
       switch (ret)
       {
       case WSREP_NOT_IMPLEMENTED:
-        msg= "consistent reads by wsrep backend. "
+        msg= "synchronous reads by wsrep backend. "
              "Please unset wsrep_causal_reads variable.";
         err= ER_NOT_SUPPORTED_YET;
         break;
       default:
-        msg= "Causal wait failed.";
+        msg= "Synchronous wait failed.";
         err= ER_LOCK_WAIT_TIMEOUT; // NOTE: the above msg won't be displayed
                                    //       with ER_LOCK_WAIT_TIMEOUT
       }
@@ -1818,7 +1820,6 @@ static my_bool have_committing_connections()
 
     if (is_committing_connection(tmp))
     {
-      mysql_mutex_unlock(&LOCK_thread_count);
       return TRUE;
     }
   }
@@ -2302,6 +2303,9 @@ void wsrep_copy_query(THD *thd)
 {
   thd->wsrep_retry_command   = thd->get_command();
   thd->wsrep_retry_query_len = thd->query_length();
+  if (thd->wsrep_retry_query) {
+	  my_free(thd->wsrep_retry_query);
+  }
   thd->wsrep_retry_query     = (char *)my_malloc(
                                  thd->wsrep_retry_query_len + 1, MYF(0));
   strncpy(thd->wsrep_retry_query, thd->query(), thd->wsrep_retry_query_len);
