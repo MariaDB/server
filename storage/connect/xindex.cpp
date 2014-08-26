@@ -2470,7 +2470,7 @@ void *XFILE::FileView(PGLOBAL g, char *fn)
 /***********************************************************************/
 bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  IOFF  noff[MAX_INDX];
+  IOFF noff[MAX_INDX];
 
   if (Hfile != INVALID_HANDLE_VALUE) {
     sprintf(g->Message, MSG(FILE_OPEN_YET), filename);
@@ -2478,7 +2478,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     } // endif
 
   if (trace)
-    htrc(" Xopen: filename=%s mode=%d\n", filename, mode);
+    htrc(" Xopen: filename=%s id=%d mode=%d\n", filename, id, mode);
 
 #if defined(WIN32)
   LONG  high = 0;
@@ -2570,7 +2570,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
 #else   // UNIX
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
-  mode_t pmod = 0;
+  mode_t pmod = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 
   /*********************************************************************/
   /*  Create the file object according to access mode                  */
@@ -2581,7 +2581,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       break;
     case MODE_WRITE:
       oflag |= O_WRONLY | O_CREAT | O_TRUNC;
-      pmod = S_IREAD | S_IWRITE;
+//    pmod = S_IREAD | S_IWRITE;
       break;
     case MODE_INSERT:
       oflag |= (O_WRONLY | O_APPEND);
@@ -2614,6 +2614,9 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif
 
+    if (trace)
+      htrc("INSERT: NewOff=%lld\n", NewOff.Val);
+
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
       // New not sep index file. Write the header.
@@ -2621,18 +2624,26 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       NewOff.Low = write(Hfile, &noff, sizeof(noff));
       } // endif id
 
+    if (trace)
+      htrc("WRITE: NewOff=%lld\n", NewOff.Val);
+
   } else if (mode == MODE_READ && id >= 0) {
     // Get offset from the header
     if (read(Hfile, noff, sizeof(noff)) != sizeof(noff)) {
       sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
       return true;
-      } // endif MAX_INDX
+      } // endif read
+      
+	  if (trace)
+      htrc("noff[%d]=%lld\n", id, noff[id].Val);
 
     // Position the cursor at the offset of this index
-    if (!lseek64(Hfile, noff[id].Val, SEEK_SET)) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
+    if (lseek64(Hfile, noff[id].Val, SEEK_SET) < 0) {
+      sprintf(g->Message, "(XHUGE)lseek64: %s (%lld)", strerror(errno), noff[id].Val);
+      printf("%s\n", g->Message);
+//    sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
       return true;
-      } // endif
+      } // endif lseek64
 
   } // endif mode
 #endif  // UNIX
@@ -2766,6 +2777,9 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
 /***********************************************************************/
 void XHUGE::Close(char *fn, int id)
   {
+  if (trace)
+    htrc("XHUGE::Close: fn=%s id=%d NewOff=%lld\n", fn, id, NewOff.Val);
+
 #if defined(WIN32)
   if (id >= 0 && fn) {
     CloseFileHandle(Hfile);
@@ -2783,10 +2797,18 @@ void XHUGE::Close(char *fn, int id)
     } // endif id
 #else   // !WIN32
   if (id >= 0 && fn) {
-    fcntl(Hfile, F_SETFD, O_WRONLY);
-
-    if (lseek(Hfile, id * sizeof(IOFF), SEEK_SET))
-      write(Hfile, &NewOff, sizeof(IOFF));
+    if (Hfile != INVALID_HANDLE_VALUE) {
+      if (lseek64(Hfile, id * sizeof(IOFF), SEEK_SET) >= 0) {
+        ssize_t nbw = write(Hfile, &NewOff, sizeof(IOFF));
+			  
+        if (nbw != (signed)sizeof(IOFF))
+          htrc("Error writing index file header: %s\n", strerror(errno));
+		    
+      } else
+        htrc("(XHUGE::Close)lseek64: %s (%d)\n", strerror(errno), id);
+			
+    } else
+      htrc("(XHUGE)error reopening %s: %s\n", fn, strerror(errno));
 
     } // endif id
 #endif  // !WIN32

@@ -647,7 +647,9 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
     } // endif
 #else   // !WIN32
   if (lseek64(h, pos, org) < 0) {
-    sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
+//  sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
+    sprintf(g->Message, "lseek64: %s", strerror(errno));
+    printf("%s\n", g->Message);
     return true;
     } // endif
 #endif  // !WIN32
@@ -849,7 +851,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
 #else   // UNIX
   int    rc = 0;
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
-  mode_t tmode = 0;
+  mode_t tmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 
   /*********************************************************************/
   /*  Create the file object according to access mode                  */
@@ -874,7 +876,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
       break;
     case MODE_INSERT:
       oflag |= (O_WRONLY | O_CREAT | O_APPEND);
-      tmode = S_IREAD | S_IWRITE;
+ //   tmode = S_IREAD | S_IWRITE;
       break;
     default:
       sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);

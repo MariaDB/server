@@ -154,7 +154,7 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
    } // endswitch
 
   // Try to open the addressed file.
-   fd= global_open(g, MSGID_NONE, fileName, openMode);
+  fd= global_open(g, MSGID_NONE, fileName, openMode);
 
   if (fd != INVALID_HANDLE_VALUE && mode != MODE_INSERT) {
     /* We must know about the size of the file. */
@@ -164,17 +164,19 @@ HANDLE CreateFileMap(PGLOBAL g, LPCSTR fileName,
       return INVALID_HANDLE_VALUE;
       }  // endif fstat
     
-    filesize = st.st_size;
-    
-    // Now we are ready to load the file.  If mmap() is available we try
-    //   this first.  If not available or it failed we try to load it.
-    mm->memory = mmap(NULL, filesize, protmode, MAP_SHARED, fd, 0);
+    if ((filesize = st.st_size))
+      // Now we are ready to load the file.  If mmap() is available we try
+      //   this first.  If not available or it failed we try to load it.
+      mm->memory = mmap(NULL, filesize, protmode, MAP_SHARED, fd, 0);
+    else
+      mm->memory = 0;
 
     if (mm->memory != MAP_FAILED) {
       mm->lenL = (mm->memory != 0) ? filesize : 0;
       mm->lenH = 0;
     } else {
       strcpy(g->Message, "Memory mapping failed");
+      close(fd);
       return INVALID_HANDLE_VALUE;
     } // endif memory
 
