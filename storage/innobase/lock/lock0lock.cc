@@ -6072,7 +6072,6 @@ lock_rec_queue_validate(
 			}
 			ut_a(!lock_rec_other_has_expl_req(
 				mode, 0, 0, block, heap_no, lock->trx));
-			}
 #endif /* WITH_WSREP */
 
 		} else if (lock_get_wait(lock) && !lock_rec_get_gap(lock)) {
