@@ -3910,7 +3910,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     {
        sql_print_error("Parsing options for plugin '%s' failed.",
                        tmp->name.str);
-       goto err;
+       goto err1;
     }
     /*
      Set plugin loading policy from option value. First element in the option
@@ -3924,6 +3924,8 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   disable_plugin= (plugin_load_option == PLUGIN_OFF);
   tmp->load_option= plugin_load_option;
 
+  error= 1;
+
   /*
     If the plugin is disabled it should not be initialized.
   */
@@ -3932,9 +3934,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     if (global_system_variables.log_warnings)
       sql_print_information("Plugin '%s' is disabled.",
                             tmp->name.str);
-    if (opts)
-      my_cleanup_options(opts);
-    DBUG_RETURN(1);
+    goto err;
   }
 
   if (!my_strcasecmp(&my_charset_latin1, tmp->name.str, "NDBCLUSTER"))
@@ -3944,8 +3944,6 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   }
   else
     plugin_name= tmp->name;
-
-  error= 1;
 
   if (tmp->plugin->system_vars)
   {
@@ -4002,7 +4000,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
       if (!tmp->ptr_backup)
       {
         restore_ptr_backup(tmp->nbackups, tmp_backup);
-        goto err;
+        goto err1;
       }
       memcpy(tmp->ptr_backup, tmp_backup, bytes);
     }
@@ -4014,7 +4012,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
       {
         sql_print_error("Plugin '%s' has conflicting system variables",
                         tmp->name.str);
-        goto err;
+        goto err1;
       }
       tmp->system_vars= chain.first;
     }
@@ -4023,9 +4021,10 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
 
   DBUG_RETURN(0);
   
-err:
+err1:
   if (tmp_backup)
     my_afree(tmp_backup);
+err:
   if (opts)
     my_cleanup_options(opts);
   DBUG_RETURN(error);
