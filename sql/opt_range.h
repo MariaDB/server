@@ -994,7 +994,7 @@ class SQL_SELECT :public Sql_alloc {
   {
     key_map tmp;
     tmp.set_all();
-    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE) < 0;
+    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE, FALSE) < 0;
   }
   /* 
     RETURN
@@ -1011,7 +1011,7 @@ class SQL_SELECT :public Sql_alloc {
   }
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
-                        bool ordered_output);
+                        bool ordered_output, bool remove_false_parts_of_where);
 };
 
 
@@ -1036,7 +1036,7 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 			table_map read_tables, COND *conds,
                         bool allow_null_cond,  int *error);
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond);
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

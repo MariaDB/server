@@ -69,7 +69,7 @@ struct st_sargable_param;
 
 static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 static bool make_join_statistics(JOIN *join, List<TABLE_LIST> &leaves, 
-                                 COND *conds, DYNAMIC_ARRAY *keyuse);
+                                 DYNAMIC_ARRAY *keyuse);
 static bool update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,
                                 JOIN_TAB *join_tab,
                                 uint tables, COND *conds,
@@ -1338,7 +1338,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
 
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
-  if (make_join_statistics(this, select_lex->leaf_tables, conds, &keyuse) ||
+  if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
       thd->is_fatal_error)
   {
     DBUG_PRINT("error",("Error: make_join_statistics() failed"));
@@ -3355,7 +3355,8 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
     select->head=table;
     table->reginfo.impossible_range=0;
     if ((error= select->test_quick_select(thd, *(key_map *)keys,(table_map) 0,
-                                          limit, 0, FALSE)) == 1)
+                                          limit, 0, FALSE, 
+                                          TRUE /* remove_where_parts*/)) == 1)
       DBUG_RETURN(select->quick->records);
     if (error == -1)
     {
@@ -3393,7 +3394,7 @@ typedef struct st_sargable_param
 
 static bool
 make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
-                     COND *conds, DYNAMIC_ARRAY *keyuse_array)
+                     DYNAMIC_ARRAY *keyuse_array)
 {
   int error= 0;
   TABLE *table;
@@ -3597,10 +3598,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
-  if (conds || outer_join)
+  if (join->conds || outer_join)
   {
     if (update_ref_and_keys(join->thd, keyuse_array, stat, join->table_count,
-                            conds, ~outer_join, join->select_lex, &sargables))
+                            join->conds, ~outer_join, join->select_lex, &sargables))
       goto error;
     /*
       Keyparts without prefixes may be useful if this JOIN is a subquery, and
@@ -3844,8 +3845,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   }
 
   join->impossible_where= false;
-  if (conds && const_count)
-  { 
+  if (join->conds && const_count)
+  {
+    Item* &conds= join->conds;
     conds->update_used_tables();
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
@@ -3857,7 +3859,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       join->impossible_where= true;
       conds=new Item_int((longlong) 0,1);
     }
-    join->conds= conds;      
+
     join->cond_equal= NULL;
     if (conds) 
     { 
@@ -3942,12 +3944,18 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       {
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-			    *s->on_expr_ref ? *s->on_expr_ref : conds,
+			    *s->on_expr_ref ? *s->on_expr_ref : join->conds,
 			    1, &error);
         if (!select)
           goto error;
         records= get_quick_record_count(join->thd, select, s->table,
 				        &s->const_keys, join->row_limit);
+        /* Range analyzer could modify the condition. */
+        if (*s->on_expr_ref)
+          *s->on_expr_ref= select->cond;
+        else
+          join->conds= select->cond;
+
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
         select->quick=0;
@@ -3958,7 +3966,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (join->thd->variables.optimizer_use_condition_selectivity > 1)
           calculate_cond_selectivity_for_table(join->thd, s->table, 
                                                *s->on_expr_ref ?
-                                               *s->on_expr_ref : conds);
+                                               s->on_expr_ref : &join->conds);
         if (s->table->reginfo.impossible_range)
 	{
           impossible_range= TRUE;
@@ -9658,7 +9666,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 					OPTION_FOUND_ROWS ?
 					HA_POS_ERROR :
 					join->unit->select_limit_cnt), 0,
-                                        FALSE) < 0)
+                                        FALSE, FALSE) < 0)
             {
 	      /*
 		Before reporting "Impossible WHERE" for the whole query
@@ -9672,7 +9680,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           OPTION_FOUND_ROWS ?
                                           HA_POS_ERROR :
                                           join->unit->select_limit_cnt),0,
-                                          FALSE) < 0)
+                                          FALSE, FALSE) < 0)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
             else
@@ -18496,7 +18504,7 @@ test_if_quick_select(JOIN_TAB *tab)
   tab->select->quick=0;
   return tab->select->test_quick_select(tab->join->thd, tab->keys,
 					(table_map) 0, HA_POS_ERROR, 0,
-                                        FALSE);
+                                        FALSE, /*remove where parts*/FALSE);
 }
 
 
@@ -20169,7 +20177,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                           OPTION_FOUND_ROWS) ?
                                          HA_POS_ERROR :
                                          tab->join->unit->select_limit_cnt,0,
-                                         TRUE) <= 0;
+                                         TRUE, FALSE) <= 0;
           if (res)
           {
             select->cond= save_cond;
@@ -20227,7 +20235,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
                                 join->unit->select_limit_cnt,
-                                TRUE, FALSE);
+                                TRUE, FALSE, FALSE);
     }
     order_direction= best_key_direction;
     /*
