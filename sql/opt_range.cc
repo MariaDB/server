@@ -10690,6 +10690,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       param->table->quick_condition_rows=
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
+      param->table->quick_costs[keynr]= cost->total_cost();
     }
   }
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
