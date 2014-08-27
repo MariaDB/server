@@ -41,7 +41,8 @@
 #define GLOBAL_VAR(X) sys_var::GLOBAL, (((char*)&(X))-(char*)&global_system_variables), sizeof(X)
 #define SESSION_VAR(X) sys_var::SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
 #define SESSION_ONLY(X) sys_var::ONLY_SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
-#define NO_CMD_LINE CMD_LINE(NO_ARG, -1)
+#define NO_CMD_LINE CMD_LINE(NO_ARG, sys_var::NO_GETOPT)
+#define CMD_LINE_HELP_ONLY CMD_LINE(NO_ARG, sys_var::GETOPT_ONLY_HELP)
 /*
   the define below means that there's no *second* mutex guard,
   LOCK_global_system_variables always guards all system variables
@@ -56,7 +57,6 @@
 // this means that Sys_var_charptr initial value was malloc()ed
 #define PREALLOCATED sys_var::ALLOCATED+
 #define PARSED_EARLY sys_var::PARSE_EARLY+
-#define SHOW_VALUE_IN_HELP sys_var::SHOW_VALUE_IN_HELP+
 
 /*
   Sys_var_bit meaning is reversed, like in
@@ -84,8 +84,8 @@
 #define SYSVAR_ASSERT(X)                                                \
     while(!(X))                                                         \
     {                                                                   \
-      fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);           \
-      DBUG_ABORT();                                                    \
+      fprintf(stderr, "Sysvar '%s' failed '%s'\n", name_arg, #X);       \
+      DBUG_ABORT();                                                     \
       exit(255);                                                        \
     }
 
@@ -368,7 +368,7 @@ public:
     option.var_type= GET_BOOL;
     global_var(my_bool)= def_val;
     SYSVAR_ASSERT(def_val < 2);
-    SYSVAR_ASSERT(getopt.arg_type == OPT_ARG || getopt.id == -1);
+    SYSVAR_ASSERT(getopt.arg_type == OPT_ARG || getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(my_bool));
   }
   bool session_update(THD *thd, set_var *var)
@@ -510,7 +510,7 @@ public:
   Sys_var_proxy_user(const char *name_arg,
           const char *comment, enum charset_enum is_os_charset_arg)
     : sys_var(&all_sys_vars, name_arg, comment,
-              sys_var::READONLY+sys_var::ONLY_SESSION, 0, -1,
+              sys_var::READONLY+sys_var::ONLY_SESSION, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
@@ -569,7 +569,7 @@ private:
 
 public:
   Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment)
-    : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, -1,
+    : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL), opt_id(getopt_id)
   {
@@ -1329,7 +1329,7 @@ public:
   {
     option.var_type= GET_STR;
     SYSVAR_ASSERT(size == sizeof(plugin_ref));
-    SYSVAR_ASSERT(getopt.id == -1); // force NO_CMD_LINE
+    SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -1542,7 +1542,7 @@ public:
     bitmask= reverse_semantics ? ~bitmask_arg : bitmask_arg;
     set(global_var_ptr(), def_val);
     SYSVAR_ASSERT(def_val < 2);
-    SYSVAR_ASSERT(getopt.id == -1); // force NO_CMD_LINE
+    SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
   bool session_update(THD *thd, set_var *var)
@@ -1612,7 +1612,7 @@ public:
       read_func(read_func_arg), update_func(update_func_arg)
   {
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
-    SYSVAR_ASSERT(getopt.id == -1); // NO_CMD_LINE, because the offset is fake
+    SYSVAR_ASSERT(getopt.id < 0); // NO_CMD_LINE, because the offset is fake
   }
   bool session_update(THD *thd, set_var *var)
   { return update_func(thd, var); }
@@ -1662,7 +1662,7 @@ public:
       read_func(read_func_arg), update_func(update_func_arg)
   {
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
-    SYSVAR_ASSERT(getopt.id == -1); // NO_CMD_LINE, because the offset is fake
+    SYSVAR_ASSERT(getopt.id < 0); // NO_CMD_LINE, because the offset is fake
   }
   bool session_update(THD *thd, set_var *var)
   { return update_func(thd, var); }
@@ -1715,7 +1715,7 @@ public:
               substitute)
   {
     SYSVAR_ASSERT(scope() == GLOBAL);
-    SYSVAR_ASSERT(getopt.id == -1);
+    SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(lock == 0);
     SYSVAR_ASSERT(binlog_status_arg == VARIABLE_NOT_IN_BINLOG);
     SYSVAR_ASSERT(is_readonly());
@@ -1792,7 +1792,7 @@ public:
       thus all struct command-line options should be added manually
       to my_long_options in mysqld.cc
     */
-    SYSVAR_ASSERT(getopt.id == -1);
+    SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(void *));
   }
   bool do_check(THD *thd, set_var *var)
@@ -1854,7 +1854,7 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   {
-    SYSVAR_ASSERT(getopt.id == -1);
+    SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(Time_zone *));
   }
   bool do_check(THD *thd, set_var *var)

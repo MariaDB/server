@@ -8265,9 +8265,9 @@ static void print_help()
 
   my_print_help((my_option*) all_options.buffer);
 
-  /* Add variables that can be shown but not changed, like version numbers */
+  /* Add variables that must be shown but not changed, like version numbers */
   pop_dynamic(&all_options);
-  sys_var_add_options(&all_options, sys_var::SHOW_VALUE_IN_HELP);
+  sys_var_add_options(&all_options, sys_var::GETOPT_ONLY_HELP);
   sort_dynamic(&all_options, (qsort_cmp) option_cmp);
   add_terminator(&all_options);
   my_print_variables((my_option*) all_options.buffer);

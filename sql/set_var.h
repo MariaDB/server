@@ -61,7 +61,9 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096, SHOW_VALUE_IN_HELP=8192 };
+                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
+  enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
+
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.
@@ -143,9 +145,23 @@ public:
   }
   bool register_option(DYNAMIC_ARRAY *array, int parse_flags)
   {
-    return ((((option.id != -1) && ((flags & PARSE_EARLY) == parse_flags)) ||
-             (flags & parse_flags)) &&
-            insert_dynamic(array, (uchar*)&option));
+    DBUG_ASSERT(parse_flags == GETOPT_ONLY_HELP ||
+                parse_flags == PARSE_EARLY || parse_flags == 0);
+    if (option.id == NO_GETOPT)
+      return 0;
+    if (parse_flags == GETOPT_ONLY_HELP)
+    {
+      if (option.id != GETOPT_ONLY_HELP)
+        return 0;
+    }
+    else
+    {
+      if (option.id == GETOPT_ONLY_HELP)
+        return 0;
+      if ((flags & PARSE_EARLY) != parse_flags)
+        return 0;
+    }
+    return insert_dynamic(array, (uchar*)&option);
   }
   void do_deprecated_warning(THD *thd);
 
