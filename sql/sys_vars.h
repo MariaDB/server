@@ -208,8 +208,6 @@ public:
     global_var(T)= static_cast<T>(var->save_result.ulonglong_value);
     return false;
   }
-  bool check_update_type(Item_result type)
-  { return type != INT_RESULT; }
   void session_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= (ulonglong)*(T*)global_value_ptr(thd, 0); }
   void global_save_default(THD *thd, set_var *var)
@@ -284,8 +282,6 @@ public:
 
     return false;
   }
-  bool check_update_type(Item_result type)
-  { return type != INT_RESULT && type != STRING_RESULT; }
 };
 
 /**
@@ -499,8 +495,6 @@ public:
     var->save_result.string_value.str= ptr;
     var->save_result.string_value.length= ptr ? strlen(ptr) : 0;
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
 };
 
 
@@ -536,8 +530,6 @@ public:
   { DBUG_ASSERT(FALSE); }
   void global_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
-  bool check_update_type(Item_result type)
-  { return true; }
 protected:
   virtual uchar *session_value_ptr(THD *thd, LEX_STRING *base)
   {
@@ -580,9 +572,6 @@ public:
   {
     return Sys_var_charptr::do_string_check(thd, var, charset(thd));
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
-
   void session_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
 
@@ -665,7 +654,7 @@ public:
               0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func,
               0),max_length(max_length_arg)
   {
-    option.var_type= GET_NO_ARG;
+    option.var_type= GET_STR;
     SYSVAR_ASSERT(scope() == ONLY_SESSION)
     *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
   }
@@ -725,14 +714,12 @@ public:
     DBUG_ASSERT(FALSE);
     return NULL;
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
 };
 
 
 #ifndef DBUG_OFF
 /**
-  @@session.dbug and @@global.dbug variables.
+  @@session.debug_dbug and @@global.debug_dbug variables.
 
   @@dbug variable differs from other variables in one aspect:
   if its value is not assigned in the session, it "points" to the global
@@ -757,7 +744,7 @@ public:
               getopt.arg_type, SHOW_CHAR, (intptr)def_val,
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
-  { option.var_type= GET_NO_ARG; }
+  { option.var_type= GET_STR; }
   bool do_check(THD *thd, set_var *var)
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
@@ -803,8 +790,6 @@ public:
     DBUG_EXPLAIN_INITIAL(buf, sizeof(buf));
     return (uchar*) thd->strdup(buf);
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
 };
 #endif
 
@@ -1030,10 +1015,6 @@ public:
   {
     global_var(double)= var->save_result.double_value;
     return false;
-  }
-  bool check_update_type(Item_result type)
-  {
-    return type != INT_RESULT && type != REAL_RESULT && type != DECIMAL_RESULT;
   }
   void session_save_default(THD *thd, set_var *var)
   { var->save_result.double_value= global_var(double); }
@@ -1408,8 +1389,6 @@ public:
       var->save_result.plugin= my_plugin_lock(thd, plugin);
     }
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
   uchar *session_value_ptr(THD *thd, LEX_STRING *base)
   {
     plugin_ref plugin= session_var(thd, plugin_ref);
@@ -1445,7 +1424,7 @@ public:
               substitute)
   {
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
-    option.var_type= GET_NO_ARG;
+    option.var_type= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -1487,8 +1466,6 @@ public:
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
 };
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
@@ -1747,7 +1724,6 @@ public:
   {
     return (uchar*)show_comp_option_name[global_var(enum SHOW_COMP_OPTION)];
   }
-  bool check_update_type(Item_result type) { return false; }
 };
 
 /**
@@ -1783,7 +1759,7 @@ public:
               substitute),
       name_offset(name_off)
   {
-    option.var_type= GET_STR;
+    option.var_type= GET_ENUM; // because we accept INT and STRING here
     /*
       struct variables are special on the command line - often (e.g. for
       charsets) the name cannot be immediately resolved, but only after all
@@ -1814,8 +1790,6 @@ public:
     void **default_value= reinterpret_cast<void**>(option.def_value);
     var->save_result.ptr= *default_value;
   }
-  bool check_update_type(Item_result type)
-  { return type != INT_RESULT && type != STRING_RESULT; }
   uchar *session_value_ptr(THD *thd, LEX_STRING *base)
   {
     uchar *ptr= session_var(thd, uchar*);
@@ -1856,6 +1830,7 @@ public:
   {
     SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(Time_zone *));
+    option.var_type= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
   {
@@ -1910,8 +1885,6 @@ public:
   {
     return (uchar *)(global_var(Time_zone*)->get_name()->ptr());
   }
-  bool check_update_type(Item_result type)
-  { return type != STRING_RESULT; }
 };
 
 /**
@@ -2092,10 +2065,6 @@ public:
     DBUG_ASSERT(false);
     return true;
   }
-  bool check_update_type(Item_result type) {
-    DBUG_ASSERT(false);
-    return false;
-  }
   void session_save_default(THD *thd, set_var *var)
   {
     DBUG_ASSERT(false);
@@ -2143,10 +2112,6 @@ public:
     DBUG_ASSERT(false);
     return true;
   }
-  bool check_update_type(Item_result type) {
-    DBUG_ASSERT(false);
-    return false;
-  }
   void session_save_default(THD *thd, set_var *var)
   {
     DBUG_ASSERT(false);
@@ -2186,7 +2151,6 @@ public:
     return true;
   }
   bool global_update(THD *thd, set_var *var);
-  bool check_update_type(Item_result type) { return type != STRING_RESULT; }
   void session_save_default(THD *thd, set_var *var)
   {
     DBUG_ASSERT(false);
@@ -2227,7 +2191,6 @@ public:
     return true;
   }
   bool global_update(THD *thd, set_var *var);
-  bool check_update_type(Item_result type) { return type != STRING_RESULT; }
   void session_save_default(THD *thd, set_var *var)
   {
     DBUG_ASSERT(false);
@@ -2274,10 +2237,6 @@ public:
   {
     DBUG_ASSERT(false);
     return true;
-  }
-  bool check_update_type(Item_result type) {
-    DBUG_ASSERT(false);
-    return false;
   }
   void session_save_default(THD *thd, set_var *var)
   {

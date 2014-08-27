@@ -132,7 +132,31 @@ public:
   bool is_struct() { return option.var_type & GET_ASK_ADDR; }
   bool is_written_to_binlog(enum_var_type type)
   { return type != OPT_GLOBAL && binlog_status == SESSION_VARIABLE_IN_BINLOG; }
-  virtual bool check_update_type(Item_result type) = 0;
+  bool check_update_type(Item_result type)
+  {
+    switch (option.var_type & GET_TYPE_MASK) {
+    case GET_INT:
+    case GET_UINT:
+    case GET_LONG:
+    case GET_ULONG:
+    case GET_LL:
+    case GET_ULL:
+      return type != INT_RESULT;
+    case GET_STR:
+    case GET_STR_ALLOC:
+      return type != STRING_RESULT;
+    case GET_ENUM:
+    case GET_BOOL:
+    case GET_SET:
+    case GET_FLAGSET:
+      return type != STRING_RESULT && type != INT_RESULT;
+    case GET_DOUBLE:
+      return type != INT_RESULT && type != REAL_RESULT && type != DECIMAL_RESULT;
+    default:
+      return true;
+    }
+  }
+
   bool check_type(enum_var_type type)
   {
     switch (scope())

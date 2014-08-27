@@ -273,7 +273,6 @@ public:
     plugin_var(plugin_var_arg)
   { plugin_var->name= name_arg; }
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  bool check_update_type(Item_result type);
   SHOW_TYPE show_type();
   uchar* real_value_ptr(THD *thd, enum_var_type type);
   TYPELIB* plugin_var_typelib(void);
@@ -3247,27 +3246,6 @@ static SHOW_TYPE pluginvar_show_type(st_mysql_sys_var *plugin_var)
   default:
     DBUG_ASSERT(0);
     return SHOW_UNDEF;
-  }
-}
-
-
-bool sys_var_pluginvar::check_update_type(Item_result type)
-{
-  switch (plugin_var->flags & PLUGIN_VAR_TYPEMASK) {
-  case PLUGIN_VAR_INT:
-  case PLUGIN_VAR_LONG:
-  case PLUGIN_VAR_LONGLONG:
-    return type != INT_RESULT;
-  case PLUGIN_VAR_STR:
-    return type != STRING_RESULT;
-  case PLUGIN_VAR_ENUM:
-  case PLUGIN_VAR_BOOL:
-  case PLUGIN_VAR_SET:
-    return type != STRING_RESULT && type != INT_RESULT;
-  case PLUGIN_VAR_DOUBLE:
-    return type != INT_RESULT && type != REAL_RESULT && type != DECIMAL_RESULT;
-  default:
-    return true;
   }
 }
 
