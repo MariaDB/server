@@ -247,33 +247,18 @@ struct st_mysql_sys_var
   MYSQL_PLUGIN_VAR_HEADER;
 };
 
-static SHOW_TYPE pluginvar_show_type(st_mysql_sys_var *plugin_var);
-
-
 /*
   sys_var class for access to all plugin variables visible to the user
 */
-class sys_var_pluginvar: public sys_var
+class sys_var_pluginvar: public sys_var, public Sql_alloc
 {
 public:
   struct st_plugin_int *plugin;
   struct st_mysql_sys_var *plugin_var;
-  static void *operator new(size_t size, MEM_ROOT *mem_root)
-  { return (void*) alloc_root(mem_root, size); }
-  static void operator delete(void *ptr_arg,size_t size)
-  { TRASH(ptr_arg, size); }
 
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
-                    struct st_mysql_sys_var *plugin_var_arg)
-    :sys_var(chain, name_arg, plugin_var_arg->comment,
-             (plugin_var_arg->flags & PLUGIN_VAR_THDLOCAL ? SESSION : GLOBAL) |
-             (plugin_var_arg->flags & PLUGIN_VAR_READONLY ? READONLY : 0),
-             0, -1, NO_ARG, pluginvar_show_type(plugin_var_arg), 0, 0,
-             VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
-    plugin_var(plugin_var_arg)
-  { plugin_var->name= name_arg; }
+                    st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  SHOW_TYPE show_type();
   uchar* real_value_ptr(THD *thd, enum_var_type type);
   TYPELIB* plugin_var_typelib(void);
   uchar* do_value_ptr(THD *thd, enum_var_type type, LEX_STRING *base);
@@ -1404,22 +1389,6 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 
     if (add_status_vars(show_vars))
       goto err;
-  }
-
-  /*
-    set the plugin attribute of plugin's sys vars so they are pointing
-    to the active plugin
-  */
-  if (plugin->system_vars)
-  {
-    sys_var_pluginvar *var= plugin->system_vars->cast_pluginvar();
-    for (;;)
-    {
-      var->plugin= plugin;
-      if (!var->next)
-        break;
-      var= var->next->cast_pluginvar();
-    }
   }
 
   ret= 0;
@@ -3219,7 +3188,7 @@ static void plugin_vars_free_values(sys_var *vars)
   DBUG_VOID_RETURN;
 }
 
-static SHOW_TYPE pluginvar_show_type(st_mysql_sys_var *plugin_var)
+static SHOW_TYPE pluginvar_show_type(const st_mysql_sys_var *plugin_var)
 {
   switch (plugin_var->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_UNSIGNED)) {
   case PLUGIN_VAR_BOOL:
@@ -3249,6 +3218,24 @@ static SHOW_TYPE pluginvar_show_type(st_mysql_sys_var *plugin_var)
   }
 }
 
+
+static int pluginvar_sysvar_flags(const st_mysql_sys_var *p)
+{
+  return (p->flags & PLUGIN_VAR_THDLOCAL ? sys_var::SESSION : sys_var::GLOBAL)
+       | (p->flags & PLUGIN_VAR_READONLY ? sys_var::READONLY : 0);
+}
+
+sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
+        st_plugin_int *p, st_mysql_sys_var *pv)
+    : sys_var(chain, name_arg, pv->comment, pluginvar_sysvar_flags(pv),
+              0, pv->flags & PLUGIN_VAR_NOCMDOPT ? -1 : 0, NO_ARG,
+              pluginvar_show_type(pv), 0,
+              NULL, VARIABLE_NOT_IN_BINLOG, NULL, NULL, NULL),
+    plugin(p), plugin_var(pv)
+{
+  plugin_var->name= name_arg;
+  plugin_opt_set_limits(&option, pv);
+}
 
 uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
 {
@@ -3846,9 +3833,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   st_mysql_sys_var **opt;
   my_option *opts= NULL;
   LEX_STRING plugin_name;
-  char *varname;
   int error;
-  sys_var *v __attribute__((unused));
   struct st_bookmark *var;
   uint len, count= EXTRA_OPTIONS;
   st_ptr_backup *tmp_backup= 0;
@@ -3933,6 +3918,8 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
     for (opt= tmp->plugin->system_vars; *opt; opt++)
     {
       st_mysql_sys_var *o= *opt;
+      char *varname;
+      sys_var *v __attribute__((unused));
 
       /*
         PLUGIN_VAR_STR command-line options without PLUGIN_VAR_MEMALLOC, point
@@ -3958,7 +3945,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         continue;
       tmp_backup[tmp->nbackups++].save(&o->name);
       if ((var= find_bookmark(plugin_name.str, o->name, o->flags)))
-        v= new (mem_root) sys_var_pluginvar(&chain, var->key + 1, o);
+        varname= var->key + 1;
       else
       {
         len= plugin_name.length + strlen(o->name) + 2;
@@ -3966,8 +3953,8 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         strxmov(varname, plugin_name.str, "-", o->name, NullS);
         my_casedn_str(&my_charset_latin1, varname);
         convert_dash_to_underscore(varname, len-1);
-        v= new (mem_root) sys_var_pluginvar(&chain, varname, o);
       }
+      v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o);
       DBUG_ASSERT(v); /* check that an object was actually constructed */
     } /* end for */
 
