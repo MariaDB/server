@@ -1,0 +1,49 @@
+SELECT COUNT(@@GLOBAL.wsrep_recover);
+COUNT(@@GLOBAL.wsrep_recover)
+1
+1 Expected
+set @@global.wsrep_recover=ON;
+ERROR HY000: Variable 'wsrep_recover' is a read only variable
+Expected error 'Readonly variable'
+set @@global.wsrep_recover=OFF;
+ERROR HY000: Variable 'wsrep_recover' is a read only variable
+Expected error 'Readonly variable'
+SELECT @@GLOBAL.wsrep_recover = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='wsrep_recover';
+@@GLOBAL.wsrep_recover = VARIABLE_VALUE
+1
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: 'OFF'
+1 Expected
+SELECT COUNT(@@GLOBAL.wsrep_recover);
+COUNT(@@GLOBAL.wsrep_recover)
+1
+1 Expected
+SELECT COUNT(VARIABLE_VALUE)
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='wsrep_recover';
+COUNT(VARIABLE_VALUE)
+1
+1 Expected
+SELECT @@wsrep_recover = @@GLOBAL.wsrep_recover;
+@@wsrep_recover = @@GLOBAL.wsrep_recover
+1
+1 Expected
+SELECT COUNT(@@wsrep_recover);
+COUNT(@@wsrep_recover)
+1
+1 Expected
+SELECT COUNT(@@local.wsrep_recover);
+ERROR HY000: Variable 'wsrep_recover' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@SESSION.wsrep_recover);
+ERROR HY000: Variable 'wsrep_recover' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT COUNT(@@GLOBAL.wsrep_recover);
+COUNT(@@GLOBAL.wsrep_recover)
+1
+1 Expected
+SELECT wsrep_recover = @@SESSION.wsrep_recover;
+ERROR 42S22: Unknown column 'wsrep_recover' in 'field list'
+Expected error 'Readonly variable'

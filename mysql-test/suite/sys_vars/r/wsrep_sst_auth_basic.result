@@ -1,0 +1,3 @@
+SELECT COUNT(@@wsrep_sst_auth);
+COUNT(@@wsrep_sst_auth)
+0

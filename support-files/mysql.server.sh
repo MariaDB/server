@@ -253,12 +253,19 @@ wait_for_gone () {
 
 wait_for_ready () {
 
+  sst_progress_file=$datadir/sst_in_progress
+
   i=0
   while test $i -ne $service_startup_timeout ; do
 
     if $bindir/mysqladmin ping >/dev/null 2>&1; then
       log_success_msg
       return 0
+    fi
+
+    if test -e $sst_progress_file && [ $startup_sleep -ne 10 ];then
+      echo $echo_n "SST in progress, setting sleep higher"
+      startup_sleep=10
     fi
 
     echo $echo_n ".$echo_c"
@@ -349,7 +356,10 @@ case "$mode" in
     # Stop the service and regardless of whether it was
     # running or not, start it again.
     if $0 stop  $other_args; then
-      $0 start $other_args
+      if ! $0 start $other_args; then
+        log_failure_msg "Failed to restart server."
+        exit 1
+      fi
     else
       log_failure_msg "Failed to stop running server, so refusing to try to start."
       exit 1
@@ -426,10 +436,16 @@ case "$mode" in
     fi
     exit $r
     ;;
+  'bootstrap')
+      # Bootstrap the cluster, start the first node
+      # that initiate the cluster
+      echo $echo_n "Bootstrapping the cluster"
+      $0 start $other_args --wsrep-new-cluster
+      ;;
   *)
       # usage
       basename=`basename "$0"`
-      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest}  [ MySQL server options ]"
+      echo "Usage: $basename  {start|stop|restart|reload|force-reload|status|configtest|bootstrap}  [ MySQL server options ]"
       exit 1
     ;;
 esac

@@ -1,0 +1,11 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_node_name;
+
+set @@global.wsrep_node_name='test';
+set @@global.wsrep_node_name=NULL;
+--Error 1232
+SET @@global.wsrep_node_name = 1;
+
+set @@global.wsrep_node_name = @start_value;

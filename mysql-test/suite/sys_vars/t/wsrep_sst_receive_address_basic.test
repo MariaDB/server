@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_sst_receive_address;
+
+set @@global.wsrep_sst_receive_address='128.0.2.1';
+set @@global.wsrep_sst_receive_address=AUTO;
+set @@global.wsrep_sst_receive_address='AUTO';
+set @@global.wsrep_sst_receive_address=NULL;
+--Error 1232
+SET @@global.wsrep_sst_receive_address = -1;
+
+set @@global.wsrep_sst_receive_address = @start_value;

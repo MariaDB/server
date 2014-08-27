@@ -83,6 +83,7 @@
 #include "sql_acl.h"                       // SUPER_ACL
 #include <hash.h>
 #include <assert.h>
+#include "wsrep_mysqld.h"
 
 /**
   @defgroup Locking Locking
@@ -314,6 +315,7 @@ bool mysql_lock_tables(THD *thd, MYSQL_LOCK *sql_lock, uint flags)
   /* Copy the lock data array. thr_multi_lock() reorders its contents. */
   memmove(sql_lock->locks + sql_lock->lock_count, sql_lock->locks,
           sql_lock->lock_count * sizeof(*sql_lock->locks));
+
   /* Lock on the copied half of the lock data array. */
   rc= thr_lock_errno_to_mysql[(int) thr_multi_lock(sql_lock->locks +
                                                    sql_lock->lock_count,
@@ -329,7 +331,10 @@ end:
   {
     thd->send_kill_message();
     if (!rc)
+    {
       mysql_unlock_tables(thd, sql_lock, 0);
+      THD_STAGE_INFO(thd, stage_after_table_lock);
+    }
     rc= 1;
   }
   else if (rc > 1)
@@ -380,6 +385,8 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
 void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
 {
   DBUG_ENTER("mysql_unlock_tables");
+  THD_STAGE_INFO(thd, stage_unlocking_tables);
+
   if (sql_lock->table_count)
     unlock_external(thd, sql_lock->table, sql_lock->table_count);
   if (sql_lock->lock_count)
@@ -1052,6 +1059,13 @@ void Global_read_lock::unlock_global_read_lock(THD *thd)
   {
     thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
     m_mdl_blocks_commits_lock= NULL;
+#ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+      wsrep->resume(wsrep);
+    }
+#endif /* WITH_WSREP */
   }
   thd->mdl_context.release_lock(m_mdl_global_shared_lock);
   m_mdl_global_shared_lock= NULL;
@@ -1084,8 +1098,21 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
     If we didn't succeed lock_global_read_lock(), or if we already suceeded
     make_global_read_lock_block_commit(), do nothing.
   */
+
   if (m_state != GRL_ACQUIRED)
     DBUG_RETURN(0);
+
+#ifdef WITH_WSREP
+  if (WSREP_ON && m_mdl_blocks_commits_lock)
+  {
+    WSREP_DEBUG("GRL was in block commit mode when entering "
+		"make_global_read_lock_block_commit");
+    thd->mdl_context.release_lock(m_mdl_blocks_commits_lock);
+    m_mdl_blocks_commits_lock= NULL;
+    wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+    wsrep->resume(wsrep);
+  }
+#endif /* WITH_WSREP */
 
   mdl_request.init(MDL_key::COMMIT, "", "", MDL_SHARED, MDL_EXPLICIT);
 
@@ -1096,6 +1123,25 @@ bool Global_read_lock::make_global_read_lock_block_commit(THD *thd)
   m_mdl_blocks_commits_lock= mdl_request.ticket;
   m_state= GRL_ACQUIRED_AND_BLOCKS_COMMIT;
 
+#ifdef WITH_WSREP
+  if (WSREP_ON)
+  {
+    long long ret = wsrep->pause(wsrep);
+    if (ret >= 0)
+    {
+      wsrep_locked_seqno= ret;
+    }
+    else if (ret != -ENOSYS) /* -ENOSYS - no provider */
+    {
+      WSREP_ERROR("Failed to pause provider: %lld (%s)", -ret, strerror(-ret));
+
+      DBUG_ASSERT(m_mdl_blocks_commits_lock == NULL);
+      wsrep_locked_seqno= WSREP_SEQNO_UNDEFINED;
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      DBUG_RETURN(TRUE);
+     }
+  }
+#endif /* WITH_WSREP */
   DBUG_RETURN(FALSE);
 }
 

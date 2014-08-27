@@ -1,0 +1,25 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV#6266: Changing password fails on galera cluster
+--echo #
+
+--echo
+--echo # On node_1
+--connection node_1
+GRANT SELECT ON *.* TO 'user_6266'@'localhost' IDENTIFIED BY 'pass';
+--echo
+--echo # Now, try changing password for 'user_6266'. This command should also
+--echo # execute successfully on the other node.
+SET PASSWORD FOR 'user_6266'@'localhost' = PASSWORD('newpass');
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT user FROM mysql.user WHERE user='user_6266';
+# cleanup
+DROP USER 'user_6266'@'localhost';
+
+--source include/galera_end.inc
+--echo # End of test

@@ -1,0 +1,23 @@
+#
+# MDEV#4953 Galera: DELETE from a partitioned table is not replicated
+#
+USE test;
+CREATE TABLE t1 (pk INT PRIMARY KEY, i INT) ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
+INSERT INTO t1 VALUES (1,100), (2,200);
+SELECT * FROM t1;
+pk	i
+2	200
+1	100
+DELETE FROM t1;
+SELECT * FROM t1;
+pk	i
+
+# On node_1
+SELECT * FROM t1;
+pk	i
+
+# On node_2
+SELECT * FROM t1;
+pk	i
+DROP TABLE t1;
+# End of test

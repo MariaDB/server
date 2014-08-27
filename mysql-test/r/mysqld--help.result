@@ -1065,6 +1065,93 @@ The following options may be given as the first argument:
  -V, --version       Output version information and exit.
  --wait-timeout=#    The number of seconds the server waits for activity on a
  connection before closing it
+ --wsrep-OSU-method[=name] 
+ Method for Online Schema Upgrade
+ --wsrep-auto-increment-control 
+ To automatically control the assignment of autoincrement
+ variables
+ (Defaults to on; use --skip-wsrep-auto-increment-control to disable.)
+ --wsrep-causal-reads 
+ (DEPRECATED) Setting this variable is equivalent to
+ setting wsrep_sync_wait READ flag
+ --wsrep-certify-nonPK 
+ Certify tables with no primary key
+ (Defaults to on; use --skip-wsrep-certify-nonPK to disable.)
+ --wsrep-cluster-address=name 
+ Address to initially connect to cluster
+ --wsrep-cluster-name=name 
+ Name for the cluster
+ --wsrep-convert-LOCK-to-trx 
+ To convert locking sessions into transactions
+ --wsrep-data-home-dir=name 
+ home directory for wsrep provider
+ --wsrep-dbug-option=name 
+ DBUG options to provider library
+ --wsrep-debug       To enable debug level logging
+ --wsrep-desync      To desynchronize the node from the cluster
+ --wsrep-drupal-282555-workaround 
+ To use a workaround forbad autoincrement value
+ --wsrep-forced-binlog-format=name 
+ binlog format to take effect over user's choice
+ --wsrep-load-data-splitting 
+ To commit LOAD DATA transaction after every 10K rows
+ inserted
+ (Defaults to on; use --skip-wsrep-load-data-splitting to disable.)
+ --wsrep-log-conflicts 
+ To log multi-master conflicts
+ --wsrep-max-ws-rows=# 
+ Max number of rows in write set
+ --wsrep-max-ws-size=# 
+ Max write set size (bytes)
+ --wsrep-mysql-replication-bundle=# 
+ mysql replication group commit 
+ --wsrep-node-address=name 
+ Node address
+ --wsrep-node-incoming-address=name 
+ Client connection address
+ --wsrep-node-name=name 
+ Node name
+ --wsrep-notify-cmd=name 
+ --wsrep-on          To enable wsrep replication 
+ (Defaults to on; use --skip-wsrep-on to disable.)
+ --wsrep-provider=name 
+ Path to replication provider library
+ --wsrep-provider-options=name 
+ provider specific options
+ --wsrep-recover     Recover database state after crash and exit
+ --wsrep-replicate-myisam 
+ To enable myisam replication
+ --wsrep-restart-slave 
+ Should MySQL slave be restarted automatically, when node
+ joins back to cluster
+ --wsrep-retry-autocommit=# 
+ Max number of times to retry a failed autocommit
+ statement
+ --wsrep-slave-FK-checks 
+ Should slave thread do foreign key constraint checks
+ (Defaults to on; use --skip-wsrep-slave-FK-checks to disable.)
+ --wsrep-slave-UK-checks 
+ Should slave thread do secondary index uniqueness checks
+ --wsrep-slave-threads=# 
+ Number of slave appliers to launch
+ --wsrep-sst-auth=name 
+ Authentication for SST connection
+ --wsrep-sst-donor=name 
+ preferred donor node for the SST
+ --wsrep-sst-donor-rejects-queries 
+ Reject client queries when donating state snapshot
+ transfer
+ --wsrep-sst-method=name 
+ State snapshot transfer method
+ --wsrep-sst-receive-address=name 
+ Address where node is waiting for SST contact
+ --wsrep-start-position=name 
+ global transaction position to start from 
+ --wsrep-sync-wait[=#] 
+ Ensure "synchronous" read view before executing an
+ operation of the type specified by bitmask: 1 -
+ READ(includes SELECT, SHOW and BEGIN/START TRANSACTION);
+ 2 - UPDATE and DELETE; 4 - INSERT and REPLACE
 
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
@@ -1364,6 +1451,44 @@ use-stat-tables NEVER
 userstat FALSE
 verbose TRUE
 wait-timeout 28800
+wsrep-OSU-method TOI
+wsrep-auto-increment-control TRUE
+wsrep-causal-reads FALSE
+wsrep-certify-nonPK TRUE
+wsrep-cluster-address 
+wsrep-cluster-name my_wsrep_cluster
+wsrep-convert-LOCK-to-trx FALSE
+wsrep-data-home-dir 
+wsrep-dbug-option 
+wsrep-debug FALSE
+wsrep-desync FALSE
+wsrep-drupal-282555-workaround FALSE
+wsrep-forced-binlog-format NONE
+wsrep-load-data-splitting TRUE
+wsrep-log-conflicts FALSE
+wsrep-max-ws-rows 131072
+wsrep-max-ws-size 1073741824
+wsrep-mysql-replication-bundle 0
+wsrep-node-address 
+wsrep-node-incoming-address AUTO
+wsrep-notify-cmd 
+wsrep-on FALSE
+wsrep-provider none
+wsrep-provider-options 
+wsrep-recover FALSE
+wsrep-replicate-myisam FALSE
+wsrep-restart-slave FALSE
+wsrep-retry-autocommit 1
+wsrep-slave-FK-checks TRUE
+wsrep-slave-UK-checks FALSE
+wsrep-slave-threads 1
+wsrep-sst-auth (No default value)
+wsrep-sst-donor 
+wsrep-sst-donor-rejects-queries FALSE
+wsrep-sst-method rsync
+wsrep-sst-receive-address AUTO
+wsrep-start-position 00000000-0000-0000-0000-000000000000:-1
+wsrep-sync-wait 0
 
 To see what values a running MySQL server is using, type
 'mysqladmin variables' instead of 'mysqld --verbose --help'.

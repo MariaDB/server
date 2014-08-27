@@ -1,0 +1,3 @@
+select @@global.wsrep_desync;
+@@global.wsrep_desync
+0

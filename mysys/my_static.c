@@ -68,6 +68,10 @@ uint    my_large_page_size= 0;
 int volatile my_have_got_alarm=0;	/* declare variable to reset */
 ulong my_time_to_wait_for_lock=2;	/* In seconds */
 
+#ifdef WITH_WSREP
+my_bool mysys_wsrep= 0;
+#endif
+
 	/* from errors.c */
 #ifdef SHARED_LIBRARY
 const char *globerrs[GLOBERRS];		/* my_error_messages is here */

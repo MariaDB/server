@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_debug;
+set @@global.wsrep_debug=ON;
+set @@global.wsrep_debug=OFF;
+set @@global.wsrep_debug=1;
+set @@global.wsrep_debug=0;
+SET @@global.wsrep_debug = -1;
+ERROR 42000: Variable 'wsrep_debug' can't be set to the value of '-1'
+set @@global.wsrep_debug = @start_value;

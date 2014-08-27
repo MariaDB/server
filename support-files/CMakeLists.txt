@@ -41,7 +41,7 @@ ELSE()
   SET(inst_location ${INSTALL_SUPPORTFILESDIR})
 ENDIF()
 
-FOREACH(inifile my-huge my-innodb-heavy-4G my-large my-medium my-small)
+FOREACH(inifile my-huge my-innodb-heavy-4G my-large my-medium my-small wsrep)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${inifile}.cnf.sh 
                  ${CMAKE_CURRENT_BINARY_DIR}/${inifile}.${ini_file_extension} @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${inifile}.${ini_file_extension}
@@ -65,6 +65,7 @@ IF(UNIX)
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
     INSTALL(DIRECTORY RHEL4-SElinux/ DESTINATION ${inst_location}/SELinux/RHEL4 COMPONENT SupportFiles)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep_notify DESTINATION ${inst_location} COMPONENT SupportFiles)
   ENDIF()
 
   INSTALL(FILES mysql.m4 DESTINATION ${INSTALL_SHAREDIR}/aclocal COMPONENT Development)

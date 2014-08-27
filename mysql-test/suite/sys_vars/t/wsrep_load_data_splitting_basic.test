@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_load_data_splitting;
+
+set @@global.wsrep_load_data_splitting=ON;
+set @@global.wsrep_load_data_splitting=OFF;
+set @@global.wsrep_load_data_splitting=1;
+set @@global.wsrep_load_data_splitting=0;
+--Error 1231
+SET @@global.wsrep_load_data_splitting = -1;
+
+set @@global.wsrep_load_data_splitting = @start_value;

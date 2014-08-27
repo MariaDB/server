@@ -37,6 +37,7 @@
                       // reset_host_errors
 #include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
+#include "wsrep_mysqld.h"
 
 HASH global_user_stats, global_client_stats, global_table_stats;
 HASH global_index_stats;
@@ -1172,6 +1173,17 @@ bool login_connection(THD *thd)
 void end_connection(THD *thd)
 {
   NET *net= &thd->net;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    wsrep_status_t rcode= wsrep->free_connection(wsrep, thd->thread_id);
+    if (rcode) {
+      WSREP_WARN("wsrep failed to free connection context: %lu, code: %d",
+                 thd->thread_id, rcode);
+    }
+  }
+  thd->wsrep_client_thread= 0;
+#endif
   plugin_thdvar_cleanup(thd);
 
   if (thd->user_connect)
@@ -1307,6 +1319,9 @@ bool thd_prepare_connection(THD *thd)
                          (char *) thd->security_ctx->host_or_ip);
 
   prepare_new_connection_state(thd);
+#ifdef WITH_WSREP
+  thd->wsrep_client_thread= 1;
+#endif /* WITH_WSREP */
   return FALSE;
 }
 
@@ -1380,7 +1395,15 @@ void do_handle_one_connection(THD *thd_arg)
 	break;
     }
     end_connection(thd);
-   
+
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+    thd->wsrep_query_state= QUERY_EXITING;
+    mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+  }
+#endif
 end_thread:
     close_connection(thd);
 

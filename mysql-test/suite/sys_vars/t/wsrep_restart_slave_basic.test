@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_restart_slave;
+
+set @@global.wsrep_restart_slave=ON;
+set @@global.wsrep_restart_slave=OFF;
+set @@global.wsrep_restart_slave=1;
+set @@global.wsrep_restart_slave=0;
+--Error 1231
+SET @@global.wsrep_restart_slave = -1;
+
+set @@global.wsrep_restart_slave = @start_value;

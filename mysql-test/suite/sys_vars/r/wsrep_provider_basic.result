@@ -1,0 +1,4 @@
+SELECT COUNT(@@GLOBAL.wsrep_provider);
+COUNT(@@GLOBAL.wsrep_provider)
+1
+1 Expected

@@ -1,0 +1,6 @@
+set @start_value = @@wsrep_node_name;
+set @@global.wsrep_node_name='test';
+set @@global.wsrep_node_name=NULL;
+SET @@global.wsrep_node_name = 1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_node_name'
+set @@global.wsrep_node_name = @start_value;

@@ -37,7 +37,7 @@ DROP PROCEDURE test_p1;
 
 SET @save_autocommit= @@autocommit;
 SET @@autocommit= OFF;
-SHOW VARIABLES LIKE '%autocommit%';
+SHOW VARIABLES LIKE 'autocommit%';
 DELIMITER |;
 --error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
 CREATE TRIGGER test_trg_1 BEFORE UPDATE ON tp FOR EACH ROW

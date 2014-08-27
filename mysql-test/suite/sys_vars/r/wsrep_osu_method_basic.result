@@ -1,0 +1,12 @@
+set @start_value = @@wsrep_osu_method;
+set @@global.wsrep_osu_method='TOI';
+set @@global.wsrep_osu_method='RSU';
+set @@global.wsrep_osu_method=TOI;
+set @@global.wsrep_osu_method=RSU;
+set @@global.wsrep_osu_method=TSU;
+ERROR 42000: Variable 'wsrep_OSU_method' can't be set to the value of 'TSU'
+set @@global.wsrep_osu_method='TSU';
+ERROR 42000: Variable 'wsrep_OSU_method' can't be set to the value of 'TSU'
+SET @@global.wsrep_on = -1;
+ERROR 42000: Variable 'wsrep_on' can't be set to the value of '-1'
+set @@global.wsrep_osu_method = @start_value;

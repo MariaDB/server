@@ -527,6 +527,9 @@ be REC_VERSION_56_MAX_INDEX_COL_LEN (3072) bytes */
 
 /** Defines the maximum fixed length column size */
 #define DICT_MAX_FIXED_COL_LEN		DICT_ANTELOPE_MAX_INDEX_COL_LEN
+#ifdef WITH_WSREP
+#define WSREP_MAX_SUPPORTED_KEY_LENGTH 3500
+#endif /* WITH_WSREP */
 
 /** Data structure for a field in an index */
 struct dict_field_t{

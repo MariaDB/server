@@ -32,7 +32,7 @@
 
 #include <my_user.h>
 
-static bool
+bool
 create_string(THD *thd, String *buf,
 	      stored_procedure_type sp_type,
 	      const char *db, ulong dblen,
@@ -924,7 +924,7 @@ end:
 }
 
 
-static void
+void
 sp_returns_type(THD *thd, String &result, sp_head *sp)
 {
   TABLE table;
@@ -2126,7 +2126,7 @@ int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
   @return
     Returns TRUE on success, FALSE on (alloc) failure.
 */
-static bool
+bool
 create_string(THD *thd, String *buf,
               stored_procedure_type type,
               const char *db, ulong dblen,
@@ -2271,3 +2271,4 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   thd->lex= old_lex;
   return sp;
 }
+

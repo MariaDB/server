@@ -1,0 +1,16 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_slave_threads;
+
+set @@global.wsrep_slave_threads=1;
+set @@global.wsrep_slave_threads=4;
+show warnings;
+set @@global.wsrep_slave_threads=0;
+show warnings;
+set @@global.wsrep_slave_threads=-1;
+show warnings;
+--Error 1232
+SET @@global.wsrep_slave_threads = r;
+
+set @@global.wsrep_slave_threads = @start_value;

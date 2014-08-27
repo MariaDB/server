@@ -1,0 +1,8 @@
+set @start_value = @@wsrep_start_position;
+set @@global.wsrep_start_position='foo:bar';
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of 'foo:bar'
+set @@global.wsrep_start_position=NULL;
+ERROR 42000: Variable 'wsrep_start_position' can't be set to the value of 'NULL'
+SET @@global.wsrep_start_position = -1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_start_position'
+set @@global.wsrep_start_position = @start_value;

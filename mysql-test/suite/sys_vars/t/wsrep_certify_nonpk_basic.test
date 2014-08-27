@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_certify_nonpk;
+
+set @@global.wsrep_certify_nonpk=ON;
+set @@global.wsrep_certify_nonpk=OFF;
+set @@global.wsrep_certify_nonpk=1;
+set @@global.wsrep_certify_nonpk=0;
+--Error 1231
+SET @@global.wsrep_certify_nonpk = -1;
+
+set @@global.wsrep_certify_nonpk = @start_value;

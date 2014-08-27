@@ -1,0 +1,5 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT COUNT(@@GLOBAL.wsrep_provider);
+--echo 1 Expected

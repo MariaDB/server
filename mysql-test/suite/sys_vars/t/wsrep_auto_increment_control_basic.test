@@ -1,0 +1,13 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+set @start_value = @@wsrep_auto_increment_control;
+
+set @@global.wsrep_auto_increment_control=ON;
+set @@global.wsrep_auto_increment_control=OFF;
+set @@global.wsrep_auto_increment_control=1;
+set @@global.wsrep_auto_increment_control=0;
+--Error 1231
+SET @@global.wsrep_auto_increment_control = -1;
+
+set @@global.wsrep_auto_increment_control = @start_value;

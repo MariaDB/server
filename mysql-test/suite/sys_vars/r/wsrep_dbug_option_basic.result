@@ -1,0 +1,6 @@
+set @start_value = @@wsrep_dbug_option;
+set @@global.wsrep_dbug_option='foo:bar';
+set @@global.wsrep_dbug_option=NULL;
+SET @@global.wsrep_dbug_option = -1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_dbug_option'
+set @@global.wsrep_dbug_option = @start_value;

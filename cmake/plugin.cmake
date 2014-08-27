@@ -153,6 +153,14 @@ MACRO(MYSQL_ADD_PLUGIN)
         ADD_DEPENDENCIES(${target}_embedded GenError)
       ENDIF()
     ENDIF()
+
+    IF (WITH_WSREP)
+      # Set compile definitions for non-embedded plugins
+      LIST(APPEND wsrep_definitions "WITH_WSREP")
+      LIST(APPEND wsrep_definitions "WSREP_PROC_INFO")
+      SET_TARGET_PROPERTIES(${target} PROPERTIES
+        COMPILE_DEFINITIONS "${wsrep_definitions}")
+    ENDIF()
     
     IF(ARG_STATIC_OUTPUT_NAME)
       SET_TARGET_PROPERTIES(${target} PROPERTIES 
@@ -185,8 +193,17 @@ MACRO(MYSQL_ADD_PLUGIN)
     ADD_VERSION_INFO(${target} MODULE SOURCES)
     ADD_LIBRARY(${target} MODULE ${SOURCES}) 
     DTRACE_INSTRUMENT(${target})
+
+    LIST(APPEND dyn_compile_definitions "MYSQL_DYNAMIC_PLUGIN")
+
+    IF (WITH_WSREP)
+      LIST(APPEND dyn_compile_definitions "WITH_WSREP")
+      LIST(APPEND dyn_compile_definitions "WSREP_PROC_INFO")
+    ENDIF()
+
     SET_TARGET_PROPERTIES (${target} PROPERTIES PREFIX ""
-      COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
+      COMPILE_DEFINITIONS "${dyn_compile_definitions}")
+
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
 
     # Plugin uses symbols defined in mysqld executable.
@@ -207,7 +224,8 @@ MACRO(MYSQL_ADD_PLUGIN)
       OUTPUT_NAME "${ARG_MODULE_OUTPUT_NAME}")  
     # Install dynamic library
     IF(ARG_COMPONENT)
-      IF(CPACK_COMPONENTS_ALL AND NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
+      IF(CPACK_COMPONENTS_ALL AND
+         NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT})
         SET(CPACK_COMPONENTS_ALL ${CPACK_COMPONENTS_ALL} ${ARG_COMPONENT} PARENT_SCOPE)
         SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server" PARENT_SCOPE)
 

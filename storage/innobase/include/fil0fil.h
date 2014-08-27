@@ -1076,7 +1076,7 @@ fil_space_name(
 
 /*******************************************************************//**
 Return page type name */
-char*
+const char*
 fil_get_page_type_name(
 /*===================*/
 	ulint	page_type);	/*!< in: FIL_PAGE_TYPE */

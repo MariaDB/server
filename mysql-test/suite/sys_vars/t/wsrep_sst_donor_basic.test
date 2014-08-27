@@ -1,0 +1,12 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SELECT COUNT(@@wsrep_sst_donor);
+
+set @start_value = @@wsrep_sst_donor;
+set @@global.wsrep_sst_donor='foo';
+set @@global.wsrep_sst_donor=NULL;
+set @@global.wsrep_sst_donor=r;
+--error 1232
+set @@global.wsrep_sst_donor=1;
+set @@global.wsrep_sst_donor = @start_value;

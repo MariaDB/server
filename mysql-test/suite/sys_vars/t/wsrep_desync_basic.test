@@ -1,0 +1,4 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+select @@global.wsrep_desync;

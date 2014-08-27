@@ -1014,7 +1014,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         thd->transaction.stmt.modified_non_trans_table ||
 	was_insert_delayed)
     {
-      if (mysql_bin_log.is_open())
+      if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
+                  mysql_bin_log.is_open()))
       {
         int errcode= 0;
 	if (error <= 0)
@@ -3195,6 +3196,13 @@ bool Delayed_insert::handle_inserts(void)
         mysql_cond_broadcast(&cond_client);     // If waiting clients
     }
   }
+
+#ifdef WITH_WSREP
+  if (WSREP((&thd)))
+    thd_proc_info(&thd, "insert done");
+  else
+#endif /* WITH_WSREP */
+  thd_proc_info(&thd, 0);
   mysql_mutex_unlock(&mutex);
 
   /*
@@ -3647,8 +3655,11 @@ bool select_insert::send_eof()
   DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
                        trans_table, table->file->table_type()));
 
-  error= (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
-          table->file->ha_end_bulk_insert() : 0);
+  error = IF_WSREP((thd->wsrep_conflict_state == MUST_ABORT ||
+		  thd->wsrep_conflict_state == CERT_FAILURE) ? -1 :, )
+	  (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
+           table->file->ha_end_bulk_insert() : 0);
+
   if (!error && thd->is_error())
     error= thd->get_stmt_da()->sql_errno();
 
@@ -3676,8 +3687,9 @@ bool select_insert::send_eof()
     events are in the transaction cache and will be written when
     ha_autocommit_or_rollback() is issued below.
   */
-  if (mysql_bin_log.is_open() &&
-      (!error || thd->transaction.stmt.modified_non_trans_table))
+  if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
+              mysql_bin_log.is_open()) &&
+     (!error || thd->transaction.stmt.modified_non_trans_table))
   {
     int errcode= 0;
     if (!error)
@@ -3761,7 +3773,8 @@ void select_insert::abort_result_set() {
         if (!can_rollback_data())
           thd->transaction.all.modified_non_trans_table= TRUE;
 
-        if (mysql_bin_log.is_open())
+        if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
+		    mysql_bin_log.is_open()))
         {
           int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
           /* error of writing binary log is ignored */
@@ -4169,7 +4182,8 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                             create_info->table_was_deleted);
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
-  if (mysql_bin_log.is_open())
+  if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
+	      mysql_bin_log.is_open()))
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,
@@ -4179,6 +4193,9 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               /* suppress_use */ FALSE,
                               errcode);
   }
+
+  IF_WSREP(ha_fake_trx_id(thd), );
+
   return result;
 }
 
@@ -4208,6 +4225,21 @@ bool select_create::send_eof()
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
+#ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      {
+        WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s",
+                    thd->thread_id, thd->wsrep_conflict_state, thd->query());
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        abort_result_set();
+	return TRUE;
+      }
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
+#endif /* WITH_WSREP */
   }
   else if (!thd->is_current_stmt_binlog_format_row())
     table->s->table_creation_was_logged= 1;

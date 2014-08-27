@@ -490,7 +490,9 @@ fil_decompress_page(
         ulint actual_size = 0;
 	ulint compression_alg = 0;
 	byte *in_buf;
+#ifdef HAVE_LZO
 	ulint olen=0;
+#endif
 	ulint ptype;
 
 	ut_ad(buf);
