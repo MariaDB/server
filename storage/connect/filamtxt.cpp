@@ -536,7 +536,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
   PDBUSER dbuserp = PlgGetUser(g);
 
   // This is required when using Unix files under Windows and vice versa
-  Bin = (Ending != CRLF);
+  Bin = (Blocked || Ending != CRLF);
 
   switch (mode) {
     case MODE_READ:
@@ -578,7 +578,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
     } // endswitch Mode
 
   // For blocked I/O or for moving lines, open the table in binary
-  strcat(opmode, (Blocked || Bin) ? "b" : "t");
+  strcat(opmode, (Bin) ? "b" : "t");
 
   // Now open the file stream
   PlugSetPath(filename, To_File, Tdbp->GetPath());
