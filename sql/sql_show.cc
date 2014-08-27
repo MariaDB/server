@@ -7237,8 +7237,8 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
   enum enum_var_type option_type= OPT_SESSION;
-  bool upper_case_names= (schema_table_idx != SCH_VARIABLES);
-  bool sorted_vars= (schema_table_idx == SCH_VARIABLES);
+  bool upper_case_names= lex->sql_command != SQLCOM_SHOW_VARIABLES;
+  bool sorted_vars= lex->sql_command == SQLCOM_SHOW_VARIABLES;
 
   if (lex->option_type == OPT_GLOBAL ||
       schema_table_idx == SCH_GLOBAL_VARIABLES)
@@ -7265,9 +7265,9 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
   enum enum_var_type option_type;
-  bool upper_case_names= (schema_table_idx != SCH_STATUS);
+  bool upper_case_names= lex->sql_command != SQLCOM_SHOW_STATUS;
 
-  if (schema_table_idx == SCH_STATUS)
+  if (lex->sql_command == SQLCOM_SHOW_STATUS)
   {
     option_type= lex->option_type;
     if (option_type == OPT_GLOBAL)
@@ -9186,8 +9186,6 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"STATISTICS", stat_fields_info, create_schema_table,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
-  {"STATUS", variables_fields_info, create_schema_table, fill_status,
-   make_old_format, 0, 0, -1, 1, 0},
   {"TABLES", tables_fields_info, create_schema_table,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE},
@@ -9209,8 +9207,6 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
   {"USER_STATISTICS", user_stats_fields_info, create_schema_table, 
    fill_schema_user_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"VARIABLES", variables_fields_info, create_schema_table, fill_variables,
-   make_old_format, 0, 0, -1, 1, 0},
   {"VIEWS", view_fields_info, create_schema_table,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},

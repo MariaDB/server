@@ -2125,8 +2125,6 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
   case SCH_TABLE_STATS:
   case SCH_INDEX_STATS:
   case SCH_OPEN_TABLES:
-  case SCH_VARIABLES:
-  case SCH_STATUS:
   case SCH_PROCEDURES:
   case SCH_CHARSETS:
   case SCH_ENGINES:

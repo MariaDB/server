@@ -12471,7 +12471,7 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_STATUS;
             lex->option_type= $1;
-            if (prepare_schema_table(thd, lex, 0, SCH_STATUS))
+            if (prepare_schema_table(thd, lex, 0, SCH_SESSION_STATUS))
               MYSQL_YYABORT;
           }
         | opt_full PROCESSLIST_SYM
@@ -12481,7 +12481,7 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_VARIABLES;
             lex->option_type= $1;
-            if (prepare_schema_table(thd, lex, 0, SCH_VARIABLES))
+            if (prepare_schema_table(thd, lex, 0, SCH_SESSION_VARIABLES))
               MYSQL_YYABORT;
           }
         | charset wild_and_where
