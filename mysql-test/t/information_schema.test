@@ -1358,6 +1358,8 @@ drop table if exists t1;drop table if exists t1;\
 drop table if exists t1;drop table if exists t1;\
 drop table if exists t1;drop table if exists t1;";
 select * from information_schema.global_variables where variable_name='init_connect';
+--replace_regex /at row [123]/at row #/
+select * from information_schema.global_variables where variable_name like 'init%' order by variable_name;
 set global init_connect="";
 
 #

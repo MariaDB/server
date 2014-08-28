@@ -3111,7 +3111,6 @@ static bool show_status_array(THD *thd, const char *wild,
           break;
         }
         table->field[1]->store(pos, (uint32) (end - pos), charset);
-        thd->count_cuted_fields= CHECK_FIELD_IGNORE;
         table->field[1]->set_notnull();
 
         mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -3121,6 +3120,7 @@ static bool show_status_array(THD *thd, const char *wild,
           res= TRUE;
           goto end;
         }
+        thd->get_stmt_da()->inc_current_row_for_warning();
       }
     }
   }
