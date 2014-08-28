@@ -107,7 +107,7 @@ public:
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
   bool check(THD *thd, set_var *var);
-  uchar *value_ptr(THD *thd, enum_var_type type, LEX_STRING *base);
+  uchar *value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base);
 
   /**
      Update the system variable with the default value from either
@@ -208,8 +208,8 @@ protected:
     It must be of show_val_type type (bool for SHOW_BOOL, int for SHOW_INT,
     longlong for SHOW_LONGLONG, etc).
   */
-  virtual uchar *session_value_ptr(THD *thd, LEX_STRING *base);
-  virtual uchar *global_value_ptr(THD *thd, LEX_STRING *base);
+  virtual uchar *session_value_ptr(THD *thd, const LEX_STRING *base);
+  virtual uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
 
   /**
     A pointer to a storage area of the variable, to the raw data.

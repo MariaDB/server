@@ -200,12 +200,12 @@ bool sys_var::update(THD *thd, set_var *var)
       (on_update && on_update(this, thd, OPT_SESSION));
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, LEX_STRING *base)
+uchar *sys_var::session_value_ptr(THD *thd, const LEX_STRING *base)
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, LEX_STRING *base)
+uchar *sys_var::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   return global_var_ptr();
 }
@@ -238,7 +238,7 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type, LEX_STRING *base)
+uchar *sys_var::value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base)
 {
   if (type == OPT_GLOBAL || scope() == GLOBAL)
   {

@@ -261,10 +261,10 @@ public:
   sys_var_pluginvar *cast_pluginvar() { return this; }
   uchar* real_value_ptr(THD *thd, enum_var_type type);
   TYPELIB* plugin_var_typelib(void);
-  uchar* do_value_ptr(THD *thd, enum_var_type type, LEX_STRING *base);
-  uchar* session_value_ptr(THD *thd, LEX_STRING *base)
+  uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base);
+  uchar* session_value_ptr(THD *thd, const LEX_STRING *base)
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  uchar* global_value_ptr(THD *thd, LEX_STRING *base)
+  uchar* global_value_ptr(THD *thd, const LEX_STRING *base)
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
@@ -3270,7 +3270,7 @@ TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
 
 
 uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
-                                       LEX_STRING *base)
+                                       const LEX_STRING *base)
 {
   uchar* result;
 

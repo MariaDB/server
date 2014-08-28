@@ -1078,7 +1078,7 @@ bool Master_info_index::write_master_name_to_index_file(LEX_STRING *name,
 */
 
 Master_info *
-Master_info_index::get_master_info(LEX_STRING *connection_name,
+Master_info_index::get_master_info(const LEX_STRING *connection_name,
                                    Sql_condition::enum_warning_level warning)
 {
   Master_info *mi;
