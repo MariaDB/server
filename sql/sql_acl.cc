@@ -205,17 +205,6 @@ static plugin_ref old_password_plugin;
 #endif
 static plugin_ref native_password_plugin;
 
-static char *safe_str(char *str)
-{ return str ? str : const_cast<char*>(""); }
-
-static const char *safe_str(const char *str)
-{ return str ? str : ""; }
-
-#ifndef NO_EMBEDDED_ACCESS_CHECKS
-static size_t safe_strlen(const char *str)
-{ return str ? strlen(str) : 0; }
-#endif
-
 /* Classes */
 
 struct acl_host_and_ip
