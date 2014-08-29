@@ -120,9 +120,8 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
 --echo # Wait for applier threads to get created.
-sleep 3; 
+sleep 5; 
 SHOW STATUS LIKE 'threads_connected';
-SHOW STATUS LIKE 'wsrep_thread_count';
 
 # reset (for mtr internal checks)
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
