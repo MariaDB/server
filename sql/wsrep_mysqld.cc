@@ -1711,7 +1711,7 @@ static bool abort_replicated(THD *thd)
   bool ret_code= false;
   if (thd->wsrep_query_state== QUERY_COMMITTING)
   {
-    if (wsrep_debug) WSREP_INFO("aborting replicated trx: %lu", thd->real_id);
+    WSREP_DEBUG("aborting replicated trx: %lu", thd->real_id);
 
     (void)wsrep_abort_thd(thd, thd, TRUE);
     ret_code= true;
@@ -1768,24 +1768,6 @@ static bool have_client_connections()
   }
   return false;
 }
-
-/*
-   returns the number of wsrep appliers running.
-   However, the caller (thd parameter) is not taken in account
- */
-static int have_wsrep_appliers(THD *thd)
-{
-  int ret= 0;
-  THD *tmp;
-
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++))
-  {
-    ret+= (tmp != thd && tmp->wsrep_applier);
-  }
-  return ret;
-}
-
 
 static void wsrep_close_thread(THD *thd)
 {
@@ -1894,7 +1876,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
   while ((tmp=it2++))
   {
 #ifndef __bsdi__				// Bug in BSDI kernel
-    if (is_client_connection(tmp) && 
+    if (is_client_connection(tmp) &&
         !abort_replicated(tmp)    &&
 	!is_replaying_connection(tmp))
     {
@@ -1905,8 +1887,7 @@ void wsrep_close_client_connections(my_bool wait_to_end)
   }
 
   DBUG_PRINT("quit",("Waiting for threads to die (count=%u)",thread_count));
-  if (wsrep_debug)
-    WSREP_INFO("waiting for client connections to close: %u", thread_count);
+  WSREP_DEBUG("waiting for client connections to close: %u", thread_count);
 
   while (wait_to_end && have_client_connections())
   {
@@ -1950,35 +1931,11 @@ void wsrep_close_threads(THD *thd)
   mysql_mutex_unlock(&LOCK_thread_count);
 }
 
-
-void wsrep_close_applier_threads(int count)
-{
-  THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
-
-  I_List_iterator<THD> it(threads);
-  while ((tmp=it++) && count)
-  {
-    DBUG_PRINT("quit",("Informing thread %ld that it's time to die",
-                       tmp->thread_id));
-    /* We skip slave threads & scheduler on this first loop through. */
-    if (tmp->wsrep_applier)
-    {
-      WSREP_DEBUG("closing wsrep applier thread %ld", tmp->thread_id);
-      tmp->wsrep_applier_closing= TRUE;
-      count--;
-    }
-  }
-
-  mysql_mutex_unlock(&LOCK_thread_count);
-}
-
-
 void wsrep_wait_appliers_close(THD *thd)
 {
   /* Wait for wsrep appliers to gracefully exit */
   mysql_mutex_lock(&LOCK_thread_count);
-  while (have_wsrep_appliers(thd) > 1)
+  while (wsrep_running_threads > 1)
   // 1 is for rollbacker thread which needs to be killed explicitly.
   // This gotta be fixed in a more elegant manner if we gonna have arbitrary
   // number of non-applier wsrep threads.
@@ -1998,7 +1955,7 @@ void wsrep_wait_appliers_close(THD *thd)
   wsrep_close_threads (thd);
   /* and wait for them to die */
   mysql_mutex_lock(&LOCK_thread_count);
-  while (have_wsrep_appliers(thd) > 0)
+  while (wsrep_running_threads > 0)
   {
    if (thread_handling > SCHEDULER_ONE_THREAD_PER_CONNECTION)
     {

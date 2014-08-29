@@ -195,9 +195,6 @@ SET GLOBAL wsrep_slave_threads= 10;
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
-SHOW STATUS LIKE 'wsrep_thread_count';
-Variable_name	Value
-wsrep_thread_count	11
 SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
 SET GLOBAL wsrep_provider= none;
 SET GLOBAL wsrep_cluster_address= '';
