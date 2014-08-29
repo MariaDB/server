@@ -4467,7 +4467,7 @@ will be ignored as the --log-bin option is not defined.");
 #endif
 
 #ifdef WITH_WSREP /* WSREP BEFORE SE */
-  if (!wsrep_recovery)
+  if (!wsrep_recovery && !opt_help)
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
