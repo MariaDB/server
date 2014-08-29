@@ -1298,14 +1298,14 @@ preload-buffer-size 32768
 profiling-history-size 15
 progress-report-time 5
 protocol-version 10
-query-alloc-block-size 8192
+query-alloc-block-size 16384
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
 query-cache-size 0
 query-cache-strip-comments FALSE
 query-cache-type ON
 query-cache-wlock-invalidate FALSE
-query-prealloc-size 8192
+query-prealloc-size 24576
 range-alloc-block-size 4096
 read-buffer-size 131072
 read-only FALSE
