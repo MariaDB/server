@@ -2902,7 +2902,7 @@ void remove_status_vars(SHOW_VAR *list)
 
 static bool show_status_array(THD *thd, const char *wild,
                               SHOW_VAR *variables,
-                              enum enum_var_type value_type,
+                              enum enum_var_type scope,
                               struct system_status_var *status_var,
                               const char *prefix, TABLE *table,
                               bool ucase_names,
@@ -2911,8 +2911,7 @@ static bool show_status_array(THD *thd, const char *wild,
   my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
   char * const buff= buffer.data;
   char *prefix_end;
-  /* the variable name should not be longer than 64 characters */
-  char name_buffer[64];
+  char name_buffer[NAME_CHAR_LEN];
   int len;
   SHOW_VAR tmp, *var;
   enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
@@ -3002,7 +3001,7 @@ static bool show_status_array(THD *thd, const char *wild,
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
     {
-      show_status_array(thd, wild, (SHOW_VAR *) var->value, value_type,
+      show_status_array(thd, wild, (SHOW_VAR *) var->value, scope,
                         status_var, name_buffer, table, ucase_names, cond);
     }
     else
@@ -3021,7 +3020,7 @@ static bool show_status_array(THD *thd, const char *wild,
         {
           sys_var *var= ((sys_var *) value);
           show_type= var->show_type();
-          value= (char*) var->value_ptr(thd, value_type, &null_lex_str);
+          value= (char*) var->value_ptr(thd, scope, &null_lex_str);
           charset= var->charset(thd);
         }
 
@@ -7225,19 +7224,19 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   const char *wild= lex->wild ? lex->wild->ptr() : NullS;
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
-  enum enum_var_type option_type= OPT_SESSION;
+  enum enum_var_type scope= OPT_SESSION;
   bool upper_case_names= lex->sql_command != SQLCOM_SHOW_VARIABLES;
   bool sorted_vars= lex->sql_command == SQLCOM_SHOW_VARIABLES;
 
   if (lex->option_type == OPT_GLOBAL ||
       schema_table_idx == SCH_GLOBAL_VARIABLES)
-    option_type= OPT_GLOBAL;
+    scope= OPT_GLOBAL;
 
   COND *partial_cond= make_cond_for_info_schema(cond, tables);
 
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
-  res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, option_type),
-                         option_type, NULL, "", tables->table,
+  res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
+                         scope, NULL, "", tables->table,
                          upper_case_names, partial_cond);
   mysql_rwlock_unlock(&LOCK_system_variables_hash);
   DBUG_RETURN(res);
@@ -7253,25 +7252,25 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   STATUS_VAR *tmp1, tmp;
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
-  enum enum_var_type option_type;
+  enum enum_var_type scope;
   bool upper_case_names= lex->sql_command != SQLCOM_SHOW_STATUS;
 
   if (lex->sql_command == SQLCOM_SHOW_STATUS)
   {
-    option_type= lex->option_type;
-    if (option_type == OPT_GLOBAL)
+    scope= lex->option_type;
+    if (scope == OPT_GLOBAL)
       tmp1= &tmp;
     else
       tmp1= thd->initial_status_var;
   }
   else if (schema_table_idx == SCH_GLOBAL_STATUS)
   {
-    option_type= OPT_GLOBAL;
+    scope= OPT_GLOBAL;
     tmp1= &tmp;
   }
   else
   {
-    option_type= OPT_SESSION;
+    scope= OPT_SESSION;
     tmp1= &thd->status_var;
   }
 
@@ -7281,11 +7280,11 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
     partial_cond->val_int();
 
   mysql_mutex_lock(&LOCK_status);
-  if (option_type == OPT_GLOBAL)
+  if (scope == OPT_GLOBAL)
     calc_sum_of_all_status(&tmp);
   res= show_status_array(thd, wild,
                          (SHOW_VAR *)all_status_vars.buffer,
-                         option_type, tmp1, "", tables->table,
+                         scope, tmp1, "", tables->table,
                          upper_case_names, partial_cond);
   mysql_mutex_unlock(&LOCK_status);
   DBUG_RETURN(res);

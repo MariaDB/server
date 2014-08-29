@@ -565,7 +565,7 @@ static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
 
   @param thd       current thread
   @param sorted    If TRUE, the system variables should be sorted
-  @param type      OPT_GLOBAL or OPT_SESSION for SHOW GLOBAL|SESSION VARIABLES
+  @param scope     OPT_GLOBAL or OPT_SESSION for SHOW GLOBAL|SESSION VARIABLES
 
   @retval
     pointer     Array of SHOW_VAR elements for display
@@ -573,7 +573,7 @@ static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
     NULL        FAILURE
 */
 
-SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type)
+SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
 {
   int count= system_variable_hash.records, i;
   int size= sizeof(SHOW_VAR) * (count + 1);
@@ -588,7 +588,7 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type)
       sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
 
       // don't show session-only variables in SHOW GLOBAL VARIABLES
-      if (type == OPT_GLOBAL && var->check_type(type))
+      if (scope == OPT_GLOBAL && var->check_type(scope))
         continue;
 
       show->name= var->name.str;
