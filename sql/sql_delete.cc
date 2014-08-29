@@ -54,7 +54,7 @@
 
 void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
 {
-  Explain_delete* explain= new Explain_delete;
+  Explain_delete *explain= new (mem_root) Explain_delete(mem_root);
 
   if (deleting_all_rows)
   {
@@ -74,7 +74,7 @@ void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
 
 void Update_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
 {
-  Explain_update* explain= new Explain_update;
+  Explain_update* explain= new (mem_root) Explain_update(mem_root);
   save_explain_data_intern(mem_root, query, explain);
   query->add_upd_del_plan(explain);
 }

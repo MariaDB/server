@@ -785,7 +785,7 @@ public:
   Information about a position of table within a join order. Used in join
   optimization.
 */
-typedef struct st_position :public Sql_alloc
+typedef struct st_position
 {
   /* The table that's put into join order */
   JOIN_TAB *table;

@@ -612,7 +612,7 @@ create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
 
 static void save_insert_query_plan(THD* thd, TABLE_LIST *table_list)
 {
-  Explain_insert* explain= new Explain_insert;
+  Explain_insert* explain= new (thd->mem_root) Explain_insert(thd->mem_root);
   explain->table_name.append(table_list->table->alias);
 
   thd->lex->explain->add_insert_plan(explain);

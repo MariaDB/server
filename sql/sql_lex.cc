@@ -4253,7 +4253,7 @@ void LEX::restore_set_statement_var()
 int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
-  Explain_union *eu= new (output->mem_root) Explain_union;
+  Explain_union *eu= new (output->mem_root) Explain_union(output->mem_root);
 
   if (derived)
     eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
