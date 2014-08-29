@@ -842,6 +842,8 @@ bool TDBDOS::SaveBlockValues(PGLOBAL g)
     return true;
     } // endif opfile
 
+  memset(n, 0, sizeof(n));     // To avoid valgrind warning
+
   if (Ftype == RECFM_VAR || defp->Compressed == 2) {
     /*******************************************************************/
     /*  Write block starting positions into the opt file.              */
