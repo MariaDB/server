@@ -261,12 +261,10 @@ bool sys_var::set_default(THD *thd, set_var* var)
 }
 
 
-#define do_num_val(T,CMD)                               \
-do {                                                    \
-  mysql_mutex_lock(&LOCK_global_system_variables);      \
-  T val= *(T*) value_ptr(thd, type,  base);             \
-  mysql_mutex_unlock(&LOCK_global_system_variables);    \
-  CMD;                                                  \
+#define do_num_val(T,CMD)                           \
+do {                                                \
+  T val= *(T*) value;                               \
+  CMD;                                              \
 } while (0)
 
 #define case_for_integers(CMD)                      \
@@ -280,30 +278,30 @@ do {                                                    \
     case SHOW_BOOL:     do_num_val (bool,CMD);      \
     case SHOW_MY_BOOL:  do_num_val (my_bool,CMD)
 
-#define case_for_double(CMD)                            \
+#define case_for_double(CMD)                        \
     case SHOW_DOUBLE:   do_num_val (double,CMD)
 
-#define case_get_string_as_lex_string                   \
-    case SHOW_CHAR:                                     \
-      mysql_mutex_lock(&LOCK_global_system_variables);  \
-      sval.str= (char*) value_ptr(thd, type, base);     \
-      sval.length= sval.str ? strlen(sval.str) : 0;     \
-      break;                                            \
-    case SHOW_CHAR_PTR:                                 \
-      mysql_mutex_lock(&LOCK_global_system_variables);  \
-      sval.str= *(char**) value_ptr(thd, type, base);   \
-      sval.length= sval.str ? strlen(sval.str) : 0;     \
-      break;                                            \
-    case SHOW_LEX_STRING:                               \
-      mysql_mutex_lock(&LOCK_global_system_variables);  \
-      sval= *(LEX_STRING *) value_ptr(thd, type, base); \
+#define case_get_string_as_lex_string               \
+    case SHOW_CHAR:                                 \
+      sval.str= (char*) value;                      \
+      sval.length= sval.str ? strlen(sval.str) : 0; \
+      break;                                        \
+    case SHOW_CHAR_PTR:                             \
+      sval.str= *(char**) value;                    \
+      sval.length= sval.str ? strlen(sval.str) : 0; \
+      break;                                        \
+    case SHOW_LEX_STRING:                           \
+      sval= *(LEX_STRING *) value;                  \
       break
 
 longlong sys_var::val_int(bool *is_null,
-                          THD *thd, enum_var_type type, LEX_STRING *base)
+                          THD *thd, enum_var_type type, const LEX_STRING *base)
 {
   LEX_STRING sval;
+  AutoWLock lock(&PLock_global_system_variables);
+  const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
+
   switch (show_type())
   {
     case_get_string_as_lex_string;
@@ -318,13 +316,11 @@ longlong sys_var::val_int(bool *is_null,
   if (!(*is_null= !sval.str))
     ret= longlong_from_string_with_check(system_charset_info,
                                          sval.str, sval.str + sval.length);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
   return ret;
 }
 
 
-String *sys_var::val_str(String *str,
-                         THD *thd, enum_var_type type, LEX_STRING *base)
+String *sys_var::val_str_nolock(String *str, THD *thd, const uchar *value)
 {
   LEX_STRING sval;
   switch (show_type())
@@ -339,16 +335,27 @@ String *sys_var::val_str(String *str,
 
   if (!sval.str || str->copy(sval.str, sval.length, system_charset_info))
     str= NULL;
-  mysql_mutex_unlock(&LOCK_global_system_variables);
   return str;
 }
 
 
+String *sys_var::val_str(String *str,
+                         THD *thd, enum_var_type type, const LEX_STRING *base)
+{
+  AutoWLock lock(&PLock_global_system_variables);
+  const uchar *value= value_ptr(thd, type, base);
+  return val_str_nolock(str, thd, value);
+}
+
+
 double sys_var::val_real(bool *is_null,
-                         THD *thd, enum_var_type type, LEX_STRING *base)
+                         THD *thd, enum_var_type type, const LEX_STRING *base)
 {
   LEX_STRING sval;
+  AutoWLock lock(&PLock_global_system_variables);
+  const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
+
   switch (show_type())
   {
     case_get_string_as_lex_string;

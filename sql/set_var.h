@@ -117,9 +117,10 @@ public:
   bool set_default(THD *thd, set_var *var);
   bool update(THD *thd, set_var *var);
 
-  longlong val_int(bool *is_null, THD *thd, enum_var_type type, LEX_STRING *base);
-  String *val_str(String *str, THD *thd, enum_var_type type, LEX_STRING *base);
-  double val_real(bool *is_null, THD *thd, enum_var_type type, LEX_STRING *base);
+  String *val_str_nolock(String *str, THD *thd, const uchar *value);
+  longlong val_int(bool *is_null, THD *thd, enum_var_type type, const LEX_STRING *base);
+  String *val_str(String *str, THD *thd, enum_var_type type, const LEX_STRING *base);
+  double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_STRING *base);
 
   SHOW_TYPE show_type() { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
