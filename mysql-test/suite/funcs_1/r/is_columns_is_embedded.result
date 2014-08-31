@@ -152,9 +152,9 @@ def	information_schema	FILES	UPDATE_COUNT	13	NULL	YES	bigint	NULL	NULL	19	0	NULL
 def	information_schema	FILES	UPDATE_TIME	34	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime				
 def	information_schema	FILES	VERSION	25	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
 def	information_schema	GLOBAL_STATUS	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
-def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
+def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
-def	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	2	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
+def	information_schema	GLOBAL_VARIABLES	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
 def	information_schema	INDEX_STATISTICS	INDEX_NAME	3		NO	varchar	192	576	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(192)				
 def	information_schema	INDEX_STATISTICS	ROWS_READ	4	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)				
 def	information_schema	INDEX_STATISTICS	TABLE_NAME	2		NO	varchar	192	576	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(192)				
@@ -305,9 +305,9 @@ def	information_schema	SCHEMA_PRIVILEGES	PRIVILEGE_TYPE	4		NO	varchar	64	192	NUL
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_CATALOG	2		NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)				
 def	information_schema	SCHEMA_PRIVILEGES	TABLE_SCHEMA	3		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
 def	information_schema	SESSION_STATUS	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
-def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
+def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
-def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
+def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
 def	information_schema	STATISTICS	CARDINALITY	10	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)				
 def	information_schema	STATISTICS	COLLATION	9	NULL	YES	varchar	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1)				
 def	information_schema	STATISTICS	COLUMN_NAME	8		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
