@@ -129,9 +129,9 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
                      && fp->Count && fp->Mode == mode)
         break;
 
-#ifdef DEBTRACE
- htrc("Mapping file, fp=%p\n", fp);
-#endif
+		if (trace)
+      htrc("Mapping file, fp=%p\n", fp);
+
   } else
     fp = NULL;
 
@@ -347,11 +347,12 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
         return RC_EF;
       case RC_NF:
         // Skip this record
-        if ((rc = SkipRecord(g, FALSE)) != RC_OK)
+        if ((rc = SkipRecord(g, false)) != RC_OK)
           return rc;
 
         goto next;
       } // endswitch rc
+
   } else
     Placed = false;
 
@@ -415,9 +416,9 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
     /*******************************************************************/
     Tpos = Spos = Fpos;
   } else if ((n = Fpos - Spos) > 0) {
-    /*****************************************************************/
-    /*  Non consecutive line to delete. Move intermediate lines.     */
-    /*****************************************************************/
+    /*******************************************************************/
+    /*  Non consecutive line to delete. Move intermediate lines.       */
+    /*******************************************************************/
     memmove(Tpos, Spos, n);
     Tpos += n;
 

@@ -664,6 +664,13 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
         cdp->SetMin(PlugSubAlloc(g, NULL, block * lg));
         cdp->SetMax(PlugSubAlloc(g, NULL, block * lg));
 
+        // Valgrind complains if there are uninitialised bytes
+        // after the null character ending
+        if (IsTypeChar(cdp->GetType())) {
+          memset(cdp->GetMin(), 0, block * lg);
+          memset(cdp->GetMax(), 0, block * lg);
+          } // endif Type
+
         if (trace)
           htrc("min(%p) max(%p) col(%d) %s Block=%d lg=%d\n",
               cdp->GetMin(), cdp->GetMax(), i, cdp->GetName(), block, lg);

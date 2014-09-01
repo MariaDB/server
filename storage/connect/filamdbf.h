@@ -19,7 +19,7 @@ typedef class DBMFAM  *PDBMFAM;
 /****************************************************************************/
 /*  Functions used externally.                                              */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, BOOL info);
+PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info);
 
 /****************************************************************************/
 /*  This is the base class for dBASE file access methods.                   */

@@ -176,7 +176,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 /*  DBFColumns: constructs the result blocks containing the description     */
 /*  of all the columns of a DBF file that will be retrieved by #GetData.    */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, BOOL info)
+PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                    TYPE_INT,    TYPE_INT,   TYPE_SHORT};
@@ -186,7 +186,7 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, BOOL info)
   char       buf[2], filename[_MAX_PATH];
   int        ncol = sizeof(buftyp) / sizeof(int);
   int        rc, type, len, field, fields;
-  BOOL       bad;
+  bool       bad;
   DBFHEADER  mainhead;
   DESCRIPTOR thisfield;
   FILE      *infile = NULL;

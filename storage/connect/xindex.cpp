@@ -544,7 +544,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   if ((Ndif = Qsort(g, Num_K)) < 0)
     goto err;       // Error during sort
 
-//  if (trace)
+  if (trace)
     htrc("Make: Nk=%d n=%d Num_K=%d Ndif=%d addcolp=%p BlkFil=%p X=%p\n",
           Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
@@ -817,11 +817,11 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   bool    sep, rc = false;
   PXCOL   kcp = To_KeyCol;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
-  PDBUSER dup = PlgGetUser(g);
+//PDBUSER dup = PlgGetUser(g);
 
-  dup->Step = STEP(SAVING_INDEX);
-  dup->ProgMax = 15 + 16 * Nk;
-  dup->ProgCur = 0;
+//dup->Step = STEP(SAVING_INDEX);
+//dup->ProgMax = 15 + 16 * Nk;
+//dup->ProgCur = 0;
 
   switch (Tdbp->Ftype) {
     case RECFM_VAR: ftype = ".dnx"; break;
@@ -881,17 +881,17 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     } // endif trace
 
   size = X->Write(g, n, NZ, sizeof(int), rc);
-  dup->ProgCur = 1;
+//dup->ProgCur = 1;
 
   if (Mul)             // Write the offset array
     size += X->Write(g, Pof, nof, sizeof(int), rc);
 
-  dup->ProgCur = 5;
+//dup->ProgCur = 5;
 
   if (!Incr)           // Write the record position array(s)
     size += X->Write(g, To_Rec, Num_K, sizeof(int), rc);
 
-  dup->ProgCur = 15;
+//dup->ProgCur = 15;
 
   for (; kcp; kcp = kcp->Next) {
     n[0] = kcp->Ndf;                 // Number of distinct sub-values
@@ -901,20 +901,20 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     n[4] = kcp->Type;                // To be checked later
 
     size += X->Write(g, n, NW, sizeof(int), rc);
-    dup->ProgCur += 1;
+//  dup->ProgCur += 1;
 
     if (n[2])
       size += X->Write(g, kcp->To_Bkeys, Nblk, kcp->Klen, rc);
 
-    dup->ProgCur += 5;
+//  dup->ProgCur += 5;
 
     size += X->Write(g, kcp->To_Keys, n[0], kcp->Klen, rc);
-    dup->ProgCur += 5;
+//  dup->ProgCur += 5;
 
     if (n[1])
       size += X->Write(g, kcp->Kof, n[1], sizeof(int), rc);
 
-    dup->ProgCur += 5;
+//  dup->ProgCur += 5;
     } // endfor kcp
 
   if (trace)
@@ -2834,6 +2834,7 @@ void *XHUGE::FileView(PGLOBAL g, char *fn)
 /***********************************************************************/
 XXROW::XXROW(PTDBDOS tdbp) : XXBASE(tdbp, false)
   {
+  Srtd = true;
   Tdbp = tdbp;
   Valp = NULL;
   } // end of XXROW constructor
