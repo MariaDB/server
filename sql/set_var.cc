@@ -143,8 +143,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
                  on_check_function on_check_func,
                  on_update_function on_update_func,
                  const char *substitute) :
-  next(0),
-  binlog_status(binlog_status_arg),
+  next(0), binlog_status(binlog_status_arg), value_origin(COMPILE_TIME),
   flags(flags_arg), show_val_type(show_val_type_arg),
   guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
   deprecation_substitute(substitute),
@@ -172,6 +171,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.arg_type= getopt_arg_type;
   option.value= (uchar **)global_var_ptr();
   option.def_value= def_val;
+  option.app_type= this;
 
   if (chain->last)
     chain->last->next= this;
@@ -193,6 +193,7 @@ bool sys_var::update(THD *thd, set_var *var)
     */
     AutoWLock lock1(&PLock_global_system_variables);
     AutoWLock lock2(guard);
+    value_origin= SQL;
     return global_update(thd, var) ||
       (on_update && on_update(this, thd, OPT_GLOBAL));
   }
@@ -1003,14 +1004,26 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     // GLOBAL_VALUE
     store_var(fields[2], var, OPT_GLOBAL, &strbuf);
 
+    // GLOBAL_VALUE_ORIGIN
+    static const LEX_CSTRING origins[]=
+    {
+      { STRING_WITH_LEN("CONFIG") },
+      { STRING_WITH_LEN("AUTO") },
+      { STRING_WITH_LEN("SQL") },
+      { STRING_WITH_LEN("COMPILE-TIME") }
+    };
+    const LEX_CSTRING *origin= origins + var->value_origin;
+    fields[3]->store(origin->str, origin->length, scs);
+
     // DEFAULT_VALUE
     uchar *def= var->is_readonly() && var->option.id < 0
                 ? 0 : var->default_value_ptr(thd);
     if (def)
-      store_value_ptr(fields[3], var, &strbuf, def);
+      store_value_ptr(fields[4], var, &strbuf, def);
 
     mysql_mutex_unlock(&LOCK_global_system_variables);
 
+    // VARIABLE_SCOPE
     static const LEX_CSTRING scopes[]=
     {
       { STRING_WITH_LEN("GLOBAL") },
@@ -1018,8 +1031,9 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       { STRING_WITH_LEN("SESSION ONLY") }
     };
     const LEX_CSTRING *scope= scopes + var->scope();
-    fields[4]->store(scope->str, scope->length, scs);
+    fields[5]->store(scope->str, scope->length, scs);
 
+    // VARIABLE_TYPE
 #if SIZEOF_LONG == SIZEOF_INT
 #define LONG_TYPE "INT"
 #else
@@ -1046,11 +1060,15 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       { STRING_WITH_LEN("FLAGSET") },                // GET_FLAGSET   15
     };
     const LEX_CSTRING *type= types + (var->option.var_type & GET_TYPE_MASK);
-    fields[5]->store(type->str, type->length, scs);
+    fields[6]->store(type->str, type->length, scs);
 
-    fields[6]->store(var->option.comment, strlen(var->option.comment),
+    // VARIABLE_COMMENT
+    fields[7]->store(var->option.comment, strlen(var->option.comment),
                            scs);
 
+    // NUMERIC_MIN_VALUE
+    // NUMERIC_MAX_VALUE
+    // NUMERIC_BLOCK_SIZE
     bool is_unsigned= true;
     switch (var->option.var_type)
     {
@@ -1062,20 +1080,21 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     case GET_UINT:
     case GET_ULONG:
     case GET_ULL:
-      fields[7]->set_notnull();
       fields[8]->set_notnull();
       fields[9]->set_notnull();
-      fields[7]->store(var->option.min_value, is_unsigned);
-      fields[8]->store(var->option.max_value, is_unsigned);
-      fields[9]->store(var->option.block_size, is_unsigned);
+      fields[10]->set_notnull();
+      fields[8]->store(var->option.min_value, is_unsigned);
+      fields[9]->store(var->option.max_value, is_unsigned);
+      fields[10]->store(var->option.block_size, is_unsigned);
       break;
     case GET_DOUBLE:
-      fields[7]->set_notnull();
       fields[8]->set_notnull();
-      fields[7]->store(getopt_ulonglong2double(var->option.min_value));
-      fields[8]->store(getopt_ulonglong2double(var->option.max_value));
+      fields[9]->set_notnull();
+      fields[8]->store(getopt_ulonglong2double(var->option.min_value));
+      fields[9]->store(getopt_ulonglong2double(var->option.max_value));
     }
 
+    // ENUM_VALUE_LIST
     TYPELIB *tl= var->option.typelib;
     if (tl)
     {
@@ -1087,18 +1106,20 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
         strbuf.append(',');
       }
       strbuf.append(tl->type_names[i]);
-      fields[10]->set_notnull();
-      fields[10]->store(strbuf.ptr(), strbuf.length(), scs);
+      fields[11]->set_notnull();
+      fields[11]->store(strbuf.ptr(), strbuf.length(), scs);
     }
 
+    // READ_ONLY
     static const LEX_CSTRING yesno[]=
     {
       { STRING_WITH_LEN("NO") },
       { STRING_WITH_LEN("YES") }
     };
     const LEX_CSTRING *yn = yesno + var->is_readonly();
-    fields[11]->store(yn->str, yn->length, scs);
+    fields[12]->store(yn->str, yn->length, scs);
 
+    // COMMAND_LINE_ARGUMENT
     if (var->option.id >= 0)
     {
       static const LEX_CSTRING args[]=
@@ -1108,8 +1129,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
         { STRING_WITH_LEN("REQUIRED") }       // REQUIRED_ARG
       };
       const LEX_CSTRING *arg= args + var->option.arg_type;
-      fields[12]->set_notnull();
-      fields[12]->store(arg->str, arg->length, scs);
+      fields[13]->set_notnull();
+      fields[13]->store(arg->str, arg->length, scs);
     }
 
     if (schema_table_store_record(thd, tables->table))

@@ -8548,10 +8548,14 @@ static int mysql_init_variables(void)
 }
 
 my_bool
-mysqld_get_one_option(int optid,
-                      const struct my_option *opt __attribute__((unused)),
-                      char *argument)
+mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
 {
+  if (opt->app_type)
+  {
+    sys_var *var= (sys_var*) opt->app_type;
+    var->value_origin= sys_var::CONFIG;
+  }
+
   switch(optid) {
   case '#':
 #ifndef DBUG_OFF

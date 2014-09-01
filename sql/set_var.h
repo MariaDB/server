@@ -63,6 +63,7 @@ public:
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
+  enum where { CONFIG, AUTO, SQL, COMPILE_TIME };
 
   /**
     Enumeration type to indicate for a system variable whether
@@ -72,6 +73,7 @@ public:
                             SESSION_VARIABLE_IN_BINLOG } binlog_status;
 
   my_option option;     ///< min, max, default values are stored here
+  enum where value_origin;
 
 protected:
   typedef bool (*on_check_function)(sys_var *self, THD *thd, set_var *var);

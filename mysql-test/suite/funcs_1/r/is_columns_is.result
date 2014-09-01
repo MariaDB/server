@@ -324,19 +324,20 @@ def	information_schema	STATISTICS	SUB_PART	11	NULL	YES	bigint	NULL	NULL	19	0	NUL
 def	information_schema	STATISTICS	TABLE_CATALOG	1		NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select	
 def	information_schema	STATISTICS	TABLE_NAME	3		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
 def	information_schema	STATISTICS	TABLE_SCHEMA	2		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
-def	information_schema	SYSTEM_VARIABLES	COMMAND_LINE_ARGUMENT	13	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
-def	information_schema	SYSTEM_VARIABLES	DEFAULT_VALUE	4	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select	
-def	information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST	11	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select	
+def	information_schema	SYSTEM_VARIABLES	COMMAND_LINE_ARGUMENT	14	NULL	YES	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
+def	information_schema	SYSTEM_VARIABLES	DEFAULT_VALUE	5	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select	
+def	information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST	12	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8	utf8_general_ci	longtext			select	
 def	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE	3	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select	
-def	information_schema	SYSTEM_VARIABLES	NUMERIC_BLOCK_SIZE	10	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select	
-def	information_schema	SYSTEM_VARIABLES	NUMERIC_MAX_VALUE	9	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select	
-def	information_schema	SYSTEM_VARIABLES	NUMERIC_MIN_VALUE	8	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select	
-def	information_schema	SYSTEM_VARIABLES	READ_ONLY	12		NO	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)			select	
+def	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_ORIGIN	4		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
+def	information_schema	SYSTEM_VARIABLES	NUMERIC_BLOCK_SIZE	11	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select	
+def	information_schema	SYSTEM_VARIABLES	NUMERIC_MAX_VALUE	10	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select	
+def	information_schema	SYSTEM_VARIABLES	NUMERIC_MIN_VALUE	9	NULL	YES	varchar	21	63	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(21)			select	
+def	information_schema	SYSTEM_VARIABLES	READ_ONLY	13		NO	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)			select	
 def	information_schema	SYSTEM_VARIABLES	SESSION_VALUE	2	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select	
-def	information_schema	SYSTEM_VARIABLES	VARIABLE_COMMENT	7		NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select	
+def	information_schema	SYSTEM_VARIABLES	VARIABLE_COMMENT	8		NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)			select	
 def	information_schema	SYSTEM_VARIABLES	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
-def	information_schema	SYSTEM_VARIABLES	VARIABLE_SCOPE	5		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
-def	information_schema	SYSTEM_VARIABLES	VARIABLE_TYPE	6		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
+def	information_schema	SYSTEM_VARIABLES	VARIABLE_SCOPE	6		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
+def	information_schema	SYSTEM_VARIABLES	VARIABLE_TYPE	7		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select	
 def	information_schema	TABLES	AUTO_INCREMENT	14	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	TABLES	AVG_ROW_LENGTH	9	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	TABLES	CHECKSUM	19	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
@@ -829,6 +830,7 @@ NULL	information_schema	STATISTICS	SUB_PART	bigint	NULL	NULL	NULL	NULL	bigint(3)
 3.0000	information_schema	SYSTEM_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	SYSTEM_VARIABLES	SESSION_VALUE	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
 3.0000	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
+3.0000	information_schema	SYSTEM_VARIABLES	GLOBAL_VALUE_ORIGIN	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	SYSTEM_VARIABLES	DEFAULT_VALUE	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
 3.0000	information_schema	SYSTEM_VARIABLES	VARIABLE_SCOPE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	SYSTEM_VARIABLES	VARIABLE_TYPE	varchar	64	192	utf8	utf8_general_ci	varchar(64)
