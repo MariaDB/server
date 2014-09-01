@@ -542,7 +542,10 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst()
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true, fully_qualified_func_name());
+  }
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function

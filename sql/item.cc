@@ -1166,6 +1166,8 @@ bool Item::eq(const Item *item, bool binary_cmp) const
 
 Item *Item::safe_charset_converter(CHARSET_INFO *tocs)
 {
+  if (!needs_charset_converter(tocs))
+    return this;
   Item_func_conv_charset *conv= new Item_func_conv_charset(this, tocs, 1);
   return conv->safe ? conv : NULL;
 }
@@ -1192,77 +1194,55 @@ Item *Item_num::safe_charset_converter(CHARSET_INFO *tocs)
   if (!(tocs->state & MY_CS_NONASCII))
     return this;
   
-  Item_string *conv;
-  uint conv_errors;
-  char buf[64], buf2[64];
-  String tmp(buf, sizeof(buf), &my_charset_bin);
-  String cstr(buf2, sizeof(buf2), &my_charset_bin);
-  String *ostr= val_str(&tmp);
-  char *ptr;
-  cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
-  if (conv_errors || !(conv= new Item_string(cstr.ptr(), cstr.length(),
-                                             cstr.charset(),
-                                             collation.derivation)))
-  {
-    /*
-      Safe conversion is not possible (or EOM).
-      We could not convert a string into the requested character set
-      without data loss. The target charset does not cover all the
-      characters from the string. Operation cannot be done correctly.
-    */
-    return NULL;
-  }
-  if (!(ptr= current_thd->strmake(cstr.ptr(), cstr.length())))
-    return NULL;
-  conv->str_value.set(ptr, cstr.length(), cstr.charset());
-  /* Ensure that no one is going to change the result string */
-  conv->str_value.mark_as_const();
-  conv->fix_char_length(max_char_length());
+  Item *conv;
+  if ((conv= const_charset_converter(tocs, true)))
+    conv->fix_char_length(max_char_length());
   return conv;
-}
-
-
-Item *Item_static_float_func::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  Item_string *conv;
-  char buf[64];
-  String *s, tmp(buf, sizeof(buf), &my_charset_bin);
-  s= val_str(&tmp);
-  if ((conv= new Item_static_string_func(func_name, s->ptr(), s->length(),
-                                         s->charset())))
-  {
-    conv->str_value.copy();
-    conv->str_value.mark_as_const();
-  }
-  return conv;
-}
-
-
-Item *Item_string::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  return charset_converter(tocs, true);
 }
 
 
 /**
-  Convert a string item into the requested character set.
+  Create character set converter for constant items
+  using Item_null, Item_string or Item_static_string_func.
 
   @param tocs       Character set to to convert the string to.
   @param lossless   Whether data loss is acceptable.
-
-  @return A new item representing the converted string.
+  @param func_name  Function name, or NULL.
+  
+  @return           this, if conversion is not needed,
+                    NULL, if safe conversion is not possible, or
+                    a new item representing the converted constant.
 */
-Item *Item_string::charset_converter(CHARSET_INFO *tocs, bool lossless)
+Item *Item::const_charset_converter(CHARSET_INFO *tocs,
+                                    bool lossless,
+                                    const char *func_name)
 {
-  Item_string *conv;
+  DBUG_ASSERT(const_item());
+  DBUG_ASSERT(fixed);
+  StringBuffer<64>tmp;
+  String *s= val_str(&tmp);
+  if (!s)
+    return new Item_null((char *) func_name, tocs);
+
+  if (!needs_charset_converter(s->length(), tocs))
+  {
+    if (collation.collation == &my_charset_bin && tocs != &my_charset_bin &&
+        !this->check_well_formed_result(s, true))
+      return NULL;
+    return this;
+  }
+
   uint conv_errors;
-  char *ptr;
-  String tmp, cstr, *ostr= val_str(&tmp);
-  cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
-  conv_errors= lossless && conv_errors;
-  if (conv_errors || !(conv= new Item_string(cstr.ptr(), cstr.length(),
-                                             cstr.charset(),
-                                             collation.derivation)))
+  Item_string *conv= func_name ?
+                     new Item_static_string_func(func_name,
+                                                 s, tocs, &conv_errors,
+                                                 collation.derivation,
+                                                 collation.repertoire) :
+                     new Item_string(s, tocs, &conv_errors,
+                                     collation.derivation,
+                                     collation.repertoire);
+
+  if (!conv || (conv_errors && lossless))
   {
     /*
       Safe conversion is not possible (or EOM).
@@ -1272,56 +1252,44 @@ Item *Item_string::charset_converter(CHARSET_INFO *tocs, bool lossless)
     */
     return NULL;
   }
-  if (!(ptr= current_thd->strmake(cstr.ptr(), cstr.length())))
+  if (s->charset() == &my_charset_bin && tocs != &my_charset_bin &&
+      !conv->check_well_formed_result(true))
     return NULL;
-  conv->str_value.set(ptr, cstr.length(), cstr.charset());
-  /* Ensure that no one is going to change the result string */
-  conv->str_value.mark_as_const();
   return conv;
 }
 
+
 Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
 {
+  /*
+    Return "this" if in prepare. result_type may change at execition time,
+    to it's possible that the converter will not be needed at all:
+
+    PREPARE stmt FROM 'SELECT * FROM t1 WHERE field = ?';
+    SET @@arg= 1;
+    EXECUTE stms USING @arg;
+
+    result_type is STRING_RESULT at prepare time,
+    and INT_RESULT at execution time.
+  */
   if (const_item())
   {
     uint cnv_errors;
     String *ostr= val_str(&cnvstr);
+    if (!needs_charset_converter(tocs))
+      return this;
     cnvitem->str_value.copy(ostr->ptr(), ostr->length(),
                             ostr->charset(), tocs, &cnv_errors);
     if (cnv_errors)
        return NULL;
+    if (ostr->charset() == &my_charset_bin && tocs != &my_charset_bin &&
+        !cnvitem->check_well_formed_result(&cnvitem->str_value, true))
+      return NULL;
     cnvitem->str_value.mark_as_const();
     cnvitem->max_length= cnvitem->str_value.numchars() * tocs->mbmaxlen;
     return cnvitem;
   }
-  return Item::safe_charset_converter(tocs);
-}
-
-
-Item *Item_static_string_func::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  Item_string *conv;
-  uint conv_errors;
-  String tmp, cstr, *ostr= val_str(&tmp);
-  cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
-  if (conv_errors ||
-      !(conv= new Item_static_string_func(func_name,
-                                          cstr.ptr(), cstr.length(),
-                                          cstr.charset(),
-                                          collation.derivation)))
-  {
-    /*
-      Safe conversion is not possible (or EOM).
-      We could not convert a string into the requested character set
-      without data loss. The target charset does not cover all the
-      characters from the string. Operation cannot be done correctly.
-    */
-    return NULL;
-  }
-  conv->str_value.copy();
-  /* Ensure that no one is going to change the result string */
-  conv->str_value.mark_as_const();
-  return conv;
+  return this;
 }
 
 
@@ -2203,33 +2171,10 @@ bool agg_item_set_converter(DTCollation &coll, const char *fname,
 
   for (i= 0, arg= args; i < nargs; i++, arg+= item_sep)
   {
-    Item* conv;
-    uint32 dummy_offset;
-    if (!String::needs_conversion(1, (*arg)->collation.collation,
-                                  coll.collation,
-                                  &dummy_offset))
+    Item* conv= (*arg)->safe_charset_converter(coll.collation);
+    if (conv == *arg)
       continue;
-
-    /*
-      No needs to add converter if an "arg" is NUMERIC or DATETIME
-      value (which is pure ASCII) and at the same time target DTCollation
-      is ASCII-compatible. For example, no needs to rewrite:
-        SELECT * FROM t1 WHERE datetime_field = '2010-01-01';
-      to
-        SELECT * FROM t1 WHERE CONVERT(datetime_field USING cs) = '2010-01-01';
-      
-      TODO: avoid conversion of any values with
-      repertoire ASCII and 7bit-ASCII-compatible,
-      not only numeric/datetime origin.
-    */
-    if ((*arg)->collation.derivation == DERIVATION_NUMERIC &&
-        (*arg)->collation.repertoire == MY_REPERTOIRE_ASCII &&
-        !((*arg)->collation.collation->state & MY_CS_NONASCII) &&
-        !(coll.collation->state & MY_CS_NONASCII))
-      continue;
-
-    if (!(conv= (*arg)->safe_charset_converter(coll.collation)) &&
-        ((*arg)->collation.repertoire == MY_REPERTOIRE_ASCII))
+    if (!conv && ((*arg)->collation.repertoire == MY_REPERTOIRE_ASCII))
       conv= new Item_func_conv_charset(*arg, coll.collation, 1);
 
     if (!conv)
@@ -3015,7 +2960,7 @@ String *Item_float::val_str(String *str)
 {
   // following assert is redundant, because fixed=1 assigned in constructor
   DBUG_ASSERT(fixed == 1);
-  str->set_real(value,decimals,&my_charset_bin);
+  str->set_real(value, decimals, &my_charset_numeric);
   return str;
 }
 
@@ -5375,13 +5320,6 @@ bool Item_field::vcol_in_partition_func_processor(uchar *int_arg)
 }
 
 
-Item *Item_field::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  no_const_subst= 1;
-  return Item::safe_charset_converter(tocs);
-}
-
-
 void Item_field::cleanup()
 {
   DBUG_ENTER("Item_field::cleanup");
@@ -5687,10 +5625,7 @@ String *Item::check_well_formed_result(String *str, bool send_error)
 {
   /* Check whether we got a well-formed string */
   CHARSET_INFO *cs= str->charset();
-  int well_formed_error;
-  uint wlen= cs->cset->well_formed_len(cs,
-                                       str->ptr(), str->ptr() + str->length(),
-                                       str->length(), &well_formed_error);
+  uint wlen= str->well_formed_length();
   if (wlen < str->length())
   {
     THD *thd= current_thd;
@@ -6438,19 +6373,6 @@ bool Item_hex_constant::eq(const Item *arg, bool binary_cmp) const
     return !sortcmp(&str_value, &arg->str_value, collation.collation);
   }
   return FALSE;
-}
-
-
-Item *Item_hex_constant::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  Item_string *conv;
-  String tmp, *str= val_str(&tmp);
-
-  if (!(conv= new Item_string(str->ptr(), str->length(), tocs)))
-    return NULL;
-  conv->str_value.copy();
-  conv->str_value.mark_as_const();
-  return conv;
 }
 
 

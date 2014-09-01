@@ -1654,3 +1654,28 @@ set max_sort_length=default;
 --echo # End of 5.6 tests
 --echo #
 
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6666 Malformed result for CONCAT(utf8_column, binary_string)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('a');
+--error ER_INVALID_CHARACTER_STRING
+SELECT CONCAT(a,0xFF) FROM t1;
+SELECT CONCAT(a,0xC3BF) FROM t1;
+DROP TABLE t1;
+--error ER_INVALID_CHARACTER_STRING
+SELECT CONCAT('a' COLLATE utf8_unicode_ci, _binary 0xFF);
+PREPARE stmt FROM "SELECT CONCAT('a' COLLATE utf8_unicode_ci, ?)";
+SET @arg00=_binary 0xFF;
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE stmt USING @arg00;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

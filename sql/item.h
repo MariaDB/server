@@ -1463,6 +1463,48 @@ public:
   virtual Item *expr_cache_insert_transformer(uchar *thd_arg) { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
+  bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs)
+  {
+    /*
+      This will return "true" if conversion happens:
+      - between two non-binary different character sets
+      - from "binary" to "unsafe" character set
+        (those that can have non-well-formed string)
+      - from "binary" to UCS2-alike character set with mbminlen>1,
+        when prefix left-padding is needed for an incomplete character:
+        binary 0xFF -> ucs2 0x00FF)
+    */
+    if (!String::needs_conversion_on_storage(length,
+                                             collation.collation, tocs))
+      return false;
+    /*
+      No needs to add converter if an "arg" is NUMERIC or DATETIME
+      value (which is pure ASCII) and at the same time target DTCollation
+      is ASCII-compatible. For example, no needs to rewrite:
+        SELECT * FROM t1 WHERE datetime_field = '2010-01-01';
+      to
+        SELECT * FROM t1 WHERE CONVERT(datetime_field USING cs) = '2010-01-01';
+      
+      TODO: avoid conversion of any values with
+      repertoire ASCII and 7bit-ASCII-compatible,
+      not only numeric/datetime origin.
+    */
+    if (collation.derivation == DERIVATION_NUMERIC &&
+        collation.repertoire == MY_REPERTOIRE_ASCII &&
+        !(collation.collation->state & MY_CS_NONASCII) &&
+        !(tocs->state & MY_CS_NONASCII))
+      return false;
+    return true;
+  }
+  bool needs_charset_converter(CHARSET_INFO *tocs)
+  {
+    // Pass 1 as length to force conversion if tocs->mbminlen>1.
+    return needs_charset_converter(1, tocs);
+  }
+  Item *const_charset_converter(CHARSET_INFO *tocs, bool lossless,
+                                const char *func_name);
+  Item *const_charset_converter(CHARSET_INFO *tocs, bool lossless)
+  { return const_charset_converter(tocs, lossless, NULL); }
   void delete_self()
   {
     cleanup();
@@ -2189,7 +2231,6 @@ public:
   Item *replace_equal_field(uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *update_value_transformer(uchar *select_arg);
   virtual void print(String *str, enum_query_type query_type);
@@ -2213,13 +2254,13 @@ public:
 class Item_null :public Item_basic_constant
 {
 public:
-  Item_null(char *name_par=0)
+  Item_null(char *name_par=0, CHARSET_INFO *cs= &my_charset_bin)
   {
     maybe_null= null_value= TRUE;
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(&my_charset_bin, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE);
   }
   enum Type type() const { return NULL_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -2594,7 +2635,10 @@ public:
     str->append(func_name);
   }
 
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true, func_name);
+  }
 };
 
 
@@ -2619,6 +2663,19 @@ public:
     set_name(str, length, cs);
     decimals=NOT_FIXED_DEC;
     // it is constant => can be used without fix_fields (and frequently used)
+    fixed= 1;
+  }
+  Item_string(const String *str, CHARSET_INFO *tocs, uint *conv_errors,
+              Derivation dv, uint repertoire)
+    :m_cs_specified(false)
+  {
+    if (str_value.copy(str, tocs, conv_errors))
+      str_value.set("", 0, tocs); // EOM ?
+    str_value.mark_as_const();
+    collation.set(tocs, dv, repertoire);
+    fix_char_length(str_value.numchars());
+    set_name(str_value.ptr(), str_value.length(), tocs);
+    decimals= NOT_FIXED_DEC;
     fixed= 1;
   }
   /* Just create an item and do not fill string representation */
@@ -2678,8 +2735,10 @@ public:
     return new Item_string(name, str_value.ptr(), 
     			   str_value.length(), collation.collation);
   }
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
-  Item *charset_converter(CHARSET_INFO *tocs, bool lossless);
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true);
+  }
   inline void append(char *str, uint length)
   {
     str_value.append(str, length);
@@ -2728,6 +2787,9 @@ public:
     m_cs_specified= cs_specified;
   }
 
+  String *check_well_formed_result(bool send_error)
+  { return Item::check_well_formed_result(&str_value, send_error); }
+
 private:
   bool m_cs_specified;
 };
@@ -2749,7 +2811,17 @@ public:
                           Derivation dv= DERIVATION_COERCIBLE)
     :Item_string(NullS, str, length, cs, dv), func_name(name_par)
   {}
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
+  Item_static_string_func(const char *name_par,
+                          const String *str,
+                          CHARSET_INFO *tocs, uint *conv_errors,
+                          Derivation dv, uint repertoire)
+    :Item_string(str, tocs, conv_errors, dv, repertoire),
+     func_name(name_par)
+  {}
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true, func_name);
+  }
 
   virtual inline void print(String *str, enum_query_type query_type)
   {
@@ -2852,7 +2924,10 @@ public:
   enum Type type() const { return VARBIN_ITEM; }
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
-  virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
+  virtual Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true);
+  }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool basic_const_item() const { return 1; }

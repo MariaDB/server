@@ -351,6 +351,10 @@ public:
   bool set_or_copy_aligned(const char *s, uint32 arg_length, CHARSET_INFO *cs);
   bool copy(const char*s,uint32 arg_length, CHARSET_INFO *csfrom,
 	    CHARSET_INFO *csto, uint *errors);
+  bool copy(const String *str, CHARSET_INFO *tocs, uint *errors)
+  {
+    return copy(str->ptr(), str->length(), str->charset(), tocs, errors);
+  }
   void move(String &s)
   {
     free();
@@ -516,6 +520,12 @@ public:
   inline bool uses_buffer_owned_by(const String *s) const
   {
     return (s->alloced && Ptr >= s->Ptr && Ptr < s->Ptr + s->str_length);
+  }
+  uint well_formed_length() const
+  {
+    int dummy_error;
+    return charset()->cset->well_formed_len(charset(), ptr(), ptr() + length(),
+                                            length(), &dummy_error);
   }
   bool is_ascii() const
   {
