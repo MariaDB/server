@@ -1682,5 +1682,26 @@ DEALLOCATE PREPARE stmt;
 SET NAMES utf8;
 
 --echo #
+--echo # MDEV-6679 Different optimizer plan for "a BETWEEN 'string' AND ?" and "a BETWEEN ? AND 'string'"
+--echo #
+SET NAMES utf8, collation_connection=utf8_swedish_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, b INT NOT NULL DEFAULT 0, key(a));
+INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
+SET @arg='¢';
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
+EXECUTE stmt USING @arg;
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
+EXECUTE stmt USING @arg;
+DEALLOCATE PREPARE stmt;
+
+ALTER TABLE t1 CONVERT TO CHARACTER SET latin1;
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
+EXECUTE stmt USING @arg;
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
+EXECUTE stmt USING @arg;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

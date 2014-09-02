@@ -1295,19 +1295,6 @@ Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
 }
 
 
-bool Item_string::eq(const Item *item, bool binary_cmp) const
-{
-  if (type() == item->type() && item->basic_const_item())
-  {
-    if (binary_cmp)
-      return !stringcmp(&str_value, &item->str_value);
-    return (collation.collation == item->collation.collation &&
-	    !sortcmp(&str_value, &item->str_value, collation.collation));
-  }
-  return 0;
-}
-
-
 /**
   Get the value of the function as a MYSQL_TIME structure.
   As a extra convenience the time structure is reset on error or NULL values!
@@ -3121,10 +3108,6 @@ my_decimal *Item_string::val_decimal(my_decimal *decimal_value)
 }
 
 
-bool Item_null::eq(const Item *item, bool binary_cmp) const
-{ return item->type() == type(); }
-
-
 double Item_null::val_real()
 {
   // following assert is redundant, because fixed=1 assigned in constructor
@@ -3808,30 +3791,21 @@ Item_param::clone_item()
 
 
 bool
-Item_param::eq(const Item *arg, bool binary_cmp) const
+Item_param::eq(const Item *item, bool binary_cmp) const
 {
-  Item *item;
-  if (!basic_const_item() || !arg->basic_const_item() || arg->type() != type())
+  if (!basic_const_item())
     return FALSE;
-  /*
-    We need to cast off const to call val_int(). This should be OK for
-    a basic constant.
-  */
-  item= (Item*) arg;
 
   switch (state) {
   case NULL_VALUE:
-    return TRUE;
+    return null_eq(item);
   case INT_VALUE:
-    return value.integer == item->val_int() &&
-           unsigned_flag == item->unsigned_flag;
+    return int_eq(value.integer, item);
   case REAL_VALUE:
-    return value.real == item->val_real();
+    return real_eq(value.real, item);
   case STRING_VALUE:
   case LONG_DATA_VALUE:
-    if (binary_cmp)
-      return !stringcmp(&str_value, &item->str_value);
-    return !sortcmp(&str_value, &item->str_value, collation.collation);
+    return str_eq(&str_value, item, binary_cmp);
   default:
     break;
   }
@@ -6115,24 +6089,6 @@ int Item_decimal::save_in_field(Field *field, bool no_conversions)
 }
 
 
-bool Item_int::eq(const Item *arg, bool binary_cmp) const
-{
-  /* No need to check for null value as basic constant can't be NULL */
-  if (arg->basic_const_item() && arg->type() == type())
-  {
-    /*
-      We need to cast off const to call val_int(). This should be OK for
-      a basic constant.
-    */
-    Item *item= (Item*) arg;
-    return (item->val_int() == value &&
-            ((longlong) value >= 0 ||
-             (item->unsigned_flag == unsigned_flag)));
-  }
-  return FALSE;
-}
-
-
 Item *Item_int_with_ref::clone_item()
 {
   DBUG_ASSERT(ref->const_item());
@@ -6250,27 +6206,6 @@ void Item_float::print(String *str, enum_query_type query_type)
 }
 
 
-/*
-  hex item
-  In string context this is a binary string.
-  In number context this is a longlong value.
-*/
-
-bool Item_float::eq(const Item *arg, bool binary_cmp) const
-{
-  if (arg->basic_const_item() && arg->type() == type())
-  {
-    /*
-      We need to cast off const to call val_int(). This should be OK for
-      a basic constant.
-    */
-    Item *item= (Item*) arg;
-    return item->val_real() == value;
-  }
-  return FALSE;
-}
-
-
 inline uint char_val(char X)
 {
   return (uint) (X >= '0' && X <= '9' ? X-'0' :
@@ -6362,19 +6297,6 @@ void Item_hex_string::print(String *str, enum_query_type query_type)
   str->append("X'");
   str->append_hex(str_value.ptr(), str_value.length());
   str->append("'");
-}
-
-
-bool Item_hex_constant::eq(const Item *arg, bool binary_cmp) const
-{
-  if (arg->basic_const_item() && arg->type() == type() &&
-      arg->cast_to_int_type() == cast_to_int_type())
-  {
-    if (binary_cmp)
-      return !stringcmp(&str_value, &arg->str_value);
-    return !sortcmp(&str_value, &arg->str_value, collation.collation);
-  }
-  return FALSE;
 }
 
 

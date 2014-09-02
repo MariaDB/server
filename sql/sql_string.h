@@ -540,6 +540,15 @@ public:
     }
     return TRUE;
   }
+  bool bin_eq(const String *other) const
+  {
+    return length() == other->length() &&
+           !memcmp(ptr(), other->ptr(), length());
+  }
+  bool eq(const String *other, CHARSET_INFO *cs) const
+  {
+    return !sortcmp(this, other, cs);
+  }
 };
 
 

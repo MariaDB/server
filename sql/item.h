@@ -1663,11 +1663,66 @@ public:
 
 class sp_head;
 
-class Item_basic_constant :public Item
+
+/**
+  A common class for Item_basic_constant and Item_param
+*/
+class Item_basic_value :public Item
+{
+  bool is_basic_value(const Item *item, Type type_arg) const
+  {
+    return item->basic_const_item() && item->type() == type_arg;
+  }
+  bool is_basic_value(Type type_arg) const
+  {
+    return basic_const_item() && type() == type_arg;
+  }
+  bool str_eq(const String *value,
+              const String *other, CHARSET_INFO *cs, bool binary_cmp) const
+  {
+    return binary_cmp ?
+      value->bin_eq(other) :
+      collation.collation == cs && value->eq(other, collation.collation);
+  }
+protected:
+  Item_basic_value(): Item() {}
+  /*
+    In the xxx_eq() methods below we need to cast off "const" to
+    call val_xxx(). This is OK for Item_basic_constant and Item_param.
+  */
+  bool null_eq(const Item *item) const
+  {
+    DBUG_ASSERT(is_basic_value(NULL_ITEM));
+    return item->type() == NULL_ITEM;
+  }
+  bool str_eq(const String *value, const Item *item, bool binary_cmp) const
+  {
+    DBUG_ASSERT(is_basic_value(STRING_ITEM));
+    return is_basic_value(item, STRING_ITEM) &&
+           str_eq(value, ((Item_basic_value*)item)->val_str(NULL),
+                  item->collation.collation, binary_cmp);
+  }
+  bool real_eq(double value, const Item *item) const
+  {
+    DBUG_ASSERT(is_basic_value(REAL_ITEM));
+    return is_basic_value(item, REAL_ITEM) &&
+           value == ((Item_basic_value*)item)->val_real();
+  }
+  bool int_eq(longlong value, const Item *item) const
+  {
+    DBUG_ASSERT(is_basic_value(INT_ITEM));
+    return is_basic_value(item, INT_ITEM) &&
+           value == ((Item_basic_value*)item)->val_int() &&
+           (value >= 0 || item->unsigned_flag == unsigned_flag);
+  }
+};
+
+
+class Item_basic_constant :public Item_basic_value
 {
   table_map used_table_map;
 public:
-  Item_basic_constant(): Item(), used_table_map(0) {};
+  Item_basic_constant(): Item_basic_value(), used_table_map(0) {};
   void set_used_tables(table_map map) { used_table_map= map; }
   table_map used_tables() const { return used_table_map; }
   /* to prevent drop fixed flag (no need parent cleanup call) */
@@ -2263,7 +2318,7 @@ public:
     collation.set(cs, DERIVATION_IGNORABLE);
   }
   enum Type type() const { return NULL_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
   double val_real();
   longlong val_int();
   String *val_str(String *str);
@@ -2306,7 +2361,7 @@ public:
 
 /* Item represents one placeholder ('?') of prepared statement */
 
-class Item_param :public Item,
+class Item_param :public Item_basic_value,
                   private Settable_routine_parameter
 {
   char cnvbuf[MAX_FIELD_WIDTH];
@@ -2496,7 +2551,8 @@ public:
   Item_num *neg() { value= -value; return this; }
   uint decimal_precision() const
   { return (uint) (max_length - MY_TEST(value < 0)); }
-  bool eq(const Item *, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  { return int_eq(value, item); }
   bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
@@ -2617,7 +2673,8 @@ public:
   { return new Item_float(name, value, decimals, max_length); }
   Item_num *neg() { value= -value; return this; }
   virtual void print(String *str, enum_query_type query_type);
-  bool eq(const Item *, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  { return real_eq(value, item); }
 };
 
 
@@ -2729,7 +2786,10 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   bool basic_const_item() const { return 1; }
-  bool eq(const Item *item, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    return str_eq(&str_value, item, binary_cmp);
+  }
   Item *clone_item() 
   {
     return new Item_string(name, str_value.ptr(), 
@@ -2931,7 +2991,12 @@ public:
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool basic_const_item() const { return 1; }
-  bool eq(const Item *item, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    return item->basic_const_item() && item->type() == type() &&
+           item->cast_to_int_type() == cast_to_int_type() &&
+           str_value.bin_eq(&item->str_value);
+  }
   String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
 };
 
