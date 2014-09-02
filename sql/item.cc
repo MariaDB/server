@@ -1288,6 +1288,7 @@ Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
         !cnvitem->check_well_formed_result(&cnvitem->str_value, true))
       return NULL;
     cnvitem->str_value.mark_as_const();
+    cnvitem->collation.set(tocs);
     cnvitem->max_length= cnvitem->str_value.numchars() * tocs->mbmaxlen;
     return cnvitem;
   }

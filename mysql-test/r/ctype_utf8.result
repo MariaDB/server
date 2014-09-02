@@ -5977,15 +5977,22 @@ EXECUTE stmt USING @arg;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	33	NULL	1	Using index condition
 DEALLOCATE PREPARE stmt;
-ALTER TABLE t1 CONVERT TO CHARACTER SET latin1;
+DROP TABLE t1;
+#
+# MDEV-6683 A parameter and a string literal with the same values are not recognized as equal by the optimizer
+#
+SET NAMES utf8, collation_connection=utf8_swedish_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT NOT NULL DEFAULT 0, key(a));
+INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
+SET @arg='¢';
 PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
 EXECUTE stmt USING @arg;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	1	Using index condition
+1	SIMPLE	t1	ref	a	a	13	const	1	Using index condition
 PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
 EXECUTE stmt USING @arg;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	a	a	13	NULL	1	Using index condition
+1	SIMPLE	t1	ref	a	a	13	const	1	Using index condition
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 #

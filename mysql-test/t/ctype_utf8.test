@@ -1693,8 +1693,16 @@ EXECUTE stmt USING @arg;
 PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
 EXECUTE stmt USING @arg;
 DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
 
-ALTER TABLE t1 CONVERT TO CHARACTER SET latin1;
+-- echo #
+-- echo # MDEV-6683 A parameter and a string literal with the same values are not recognized as equal by the optimizer
+-- echo #
+
+SET NAMES utf8, collation_connection=utf8_swedish_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT NOT NULL DEFAULT 0, key(a));
+INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
+SET @arg='¢';
 PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
 EXECUTE stmt USING @arg;
 PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
