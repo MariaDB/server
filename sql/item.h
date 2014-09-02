@@ -614,11 +614,20 @@ public:
   /* Reuse size, only used by SP local variable assignment, otherwize 0 */
   uint rsize;
 
+protected:
   /*
     str_values's main purpose is to be used to cache the value in
     save_in_field
   */
   String str_value;
+
+public:
+  /*
+    Cache val_str() into the own buffer, e.g. to evaluate constant
+    expressions with subqueries in the ORDER/GROUP clauses.
+  */
+  String *val_str() { return val_str(&str_value); }
+
   char * name;			/* Name from select */
   /* Original item name (if it was renamed)*/
   char * orig_name;
@@ -1662,6 +1671,7 @@ public:
 };
 
 class sp_head;
+class Item_string;
 
 
 /**
@@ -2366,7 +2376,7 @@ class Item_param :public Item_basic_value,
 {
   char cnvbuf[MAX_FIELD_WIDTH];
   String cnvstr;
-  Item *cnvitem;
+  Item_string *cnvitem;
 
 public:
   enum enum_item_param_state
@@ -2758,6 +2768,24 @@ public:
     // it is constant => can be used without fix_fields (and frequently used)
     fixed= 1;
   }
+  void set_value(const String *str)
+  {
+    str_value= *str;
+    collation.set(str->charset());
+  }
+  void copy_value(const char *str, uint32 length, CHARSET_INFO *fromcs,
+                  CHARSET_INFO *tocs, uint *cnv_errors)
+  {
+    str_value.copy(str, length, fromcs, tocs, cnv_errors);
+    str_value.mark_as_const();
+    collation.set(tocs);
+    fix_char_length(str_value.numchars());
+  }
+  
+  void print_value(String *to) const
+  {
+    str_value.print(to);
+  }
   /*
     This is used in stored procedures to avoid memory leaks and
     does a deep copy of its argument.
@@ -2850,6 +2878,34 @@ public:
   String *check_well_formed_result(bool send_error)
   { return Item::check_well_formed_result(&str_value, send_error); }
 
+  enum_field_types odbc_temporal_literal_type(const LEX_STRING *type_str) const
+  {
+    /*
+      If string is a reasonably short pure ASCII string literal,
+      try to parse known ODBC style date, time or timestamp literals,
+      e.g:
+      SELECT {d'2001-01-01'};
+      SELECT {t'10:20:30'};
+      SELECT {ts'2001-01-01 10:20:30'};
+    */
+    if (collation.repertoire == MY_REPERTOIRE_ASCII &&
+        str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4)
+    {
+      if (type_str->length == 1)
+      {
+        if (type_str->str[0] == 'd')  /* {d'2001-01-01'} */
+          return MYSQL_TYPE_DATE;
+        else if (type_str->str[0] == 't') /* {t'10:20:30'} */
+          return MYSQL_TYPE_TIME;
+      }
+      else if (type_str->length == 2) /* {ts'2001-01-01 10:20:30'} */
+      {
+        if (type_str->str[0] == 't' && type_str->str[1] == 's')
+          return MYSQL_TYPE_DATETIME;
+      }
+    }
+    return MYSQL_TYPE_STRING; // Not a temporal literal
+  }
 private:
   bool m_cs_specified;
 };
@@ -2995,7 +3051,7 @@ public:
   {
     return item->basic_const_item() && item->type() == type() &&
            item->cast_to_int_type() == cast_to_int_type() &&
-           str_value.bin_eq(&item->str_value);
+           str_value.bin_eq(&((Item_hex_constant*)item)->str_value);
   }
   String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
 };

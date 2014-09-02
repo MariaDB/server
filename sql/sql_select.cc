@@ -2521,7 +2521,7 @@ void JOIN::exec_inner()
     Item *cur_const_item;
     while ((cur_const_item= const_item_it++))
     {
-      cur_const_item->val_str(&cur_const_item->str_value);
+      cur_const_item->val_str(); // This caches val_str() to Item::str_value
       if (thd->is_error())
       {
         error= thd->is_error();

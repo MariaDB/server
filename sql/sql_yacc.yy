@@ -9195,7 +9195,6 @@ simple_expr:
           }
         | '{' ident expr '}'
           {
-            Item_string *item;
             $$= NULL;
             /*
               If "expr" is reasonably short pure ASCII string literal,
@@ -9205,31 +9204,13 @@ simple_expr:
               SELECT {t'10:20:30'};
               SELECT {ts'2001-01-01 10:20:30'};
             */
-            if ($3->type() == Item::STRING_ITEM &&
-               (item= (Item_string *) $3) &&
-                item->collation.repertoire == MY_REPERTOIRE_ASCII &&
-                item->str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4)
+            if ($3->type() == Item::STRING_ITEM)
             {
-              enum_field_types type= MYSQL_TYPE_STRING;
-              LEX_STRING *ls= &$2;
-              if (ls->length == 1)
-              {
-                if (ls->str[0] == 'd')  /* {d'2001-01-01'} */
-                  type= MYSQL_TYPE_DATE;
-                else if (ls->str[0] == 't') /* {t'10:20:30'} */
-                  type= MYSQL_TYPE_TIME;
-              }
-              else if (ls->length == 2) /* {ts'2001-01-01 10:20:30'} */
-              {
-                if (ls->str[0] == 't' && ls->str[1] == 's')
-                  type= MYSQL_TYPE_DATETIME;
-              }
+              Item_string *item= (Item_string *) $3;
+              enum_field_types type= item->odbc_temporal_literal_type(&$2);
               if (type != MYSQL_TYPE_STRING)
               {
-                $$= create_temporal_literal(thd,
-                                            item->str_value.ptr(),
-                                            item->str_value.length(),
-                                            item->str_value.charset(),
+                $$= create_temporal_literal(thd, item->val_str(NULL),
                                             type, false);
               }
             }

@@ -1280,16 +1280,13 @@ Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
     String *ostr= val_str(&cnvstr);
     if (!needs_charset_converter(tocs))
       return this;
-    cnvitem->str_value.copy(ostr->ptr(), ostr->length(),
-                            ostr->charset(), tocs, &cnv_errors);
+    cnvitem->copy_value(ostr->ptr(), ostr->length(),
+                        ostr->charset(), tocs, &cnv_errors);
     if (cnv_errors)
        return NULL;
     if (ostr->charset() == &my_charset_bin && tocs != &my_charset_bin &&
-        !cnvitem->check_well_formed_result(&cnvitem->str_value, true))
+        !cnvitem->check_well_formed_result(true))
       return NULL;
-    cnvitem->str_value.mark_as_const();
-    cnvitem->collation.set(tocs);
-    cnvitem->max_length= cnvitem->str_value.numchars() * tocs->mbmaxlen;
     return cnvitem;
   }
   return this;

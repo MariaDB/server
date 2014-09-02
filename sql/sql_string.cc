@@ -1074,7 +1074,7 @@ bool String::append_for_single_quote(const char *st, uint len)
   return 0;
 }
 
-void String::print(String *str)
+void String::print(String *str) const
 {
   str->append_for_single_quote(Ptr, str_length);
 }

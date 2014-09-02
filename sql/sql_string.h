@@ -502,7 +502,7 @@ public:
     str_length+= arg_length;
     return FALSE;
   }
-  void print(String *print);
+  void print(String *print) const;
 
   bool append_for_single_quote(const char *st, uint len);
   bool append_for_single_quote(const String *s)

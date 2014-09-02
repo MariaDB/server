@@ -896,7 +896,7 @@ public:
   {    
     String *str=((String*) base)+pos;
     Item_string *to= (Item_string*)item;
-    to->str_value= *str;
+    to->set_value(str);
   }
   Item_result result_type() { return STRING_RESULT; }
 };
