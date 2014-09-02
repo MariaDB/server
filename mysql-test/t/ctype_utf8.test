@@ -1675,6 +1675,11 @@ SET @arg00=_binary 0xFF;
 --error ER_INVALID_CHARACTER_STRING
 EXECUTE stmt USING @arg00;
 DEALLOCATE PREPARE stmt;
+SET NAMES latin1;
+PREPARE stmt FROM "SELECT CONCAT(_utf8'a' COLLATE utf8_unicode_ci, ?)";
+EXECUTE stmt USING @no_such_var;
+DEALLOCATE PREPARE stmt;
+SET NAMES utf8;
 
 --echo #
 --echo # End of 10.0 tests

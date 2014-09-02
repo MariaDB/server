@@ -5954,6 +5954,13 @@ SET @arg00=_binary 0xFF;
 EXECUTE stmt USING @arg00;
 ERROR HY000: Invalid utf8 character string: 'FF'
 DEALLOCATE PREPARE stmt;
+SET NAMES latin1;
+PREPARE stmt FROM "SELECT CONCAT(_utf8'a' COLLATE utf8_unicode_ci, ?)";
+EXECUTE stmt USING @no_such_var;
+CONCAT(_utf8'a' COLLATE utf8_unicode_ci, ?)
+NULL
+DEALLOCATE PREPARE stmt;
+SET NAMES utf8;
 #
 # End of 10.0 tests
 #

@@ -1274,6 +1274,8 @@ Item *Item_param::safe_charset_converter(CHARSET_INFO *tocs)
   */
   if (const_item())
   {
+    if (state == NULL_VALUE)
+      return this;
     uint cnv_errors;
     String *ostr= val_str(&cnvstr);
     if (!needs_charset_converter(tocs))
