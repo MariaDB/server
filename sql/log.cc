@@ -7469,6 +7469,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     }
   }
 
+  DBUG_EXECUTE_IF("inject_error_writing_xid",
+                  {
+                    entry->error_cache= NULL;
+                    entry->commit_errno= 28;
+                    DBUG_RETURN(ER_ERROR_ON_WRITE);
+                  });
+
   if (entry->end_event->write(&log_file))
   {
     entry->error_cache= NULL;

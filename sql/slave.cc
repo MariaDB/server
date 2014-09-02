@@ -5265,6 +5265,86 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
                          event_len - BINLOG_CHECKSUM_LEN : event_len,
                          mi->rli.relay_log.description_event_for_queue);
 
+    if (unlikely(mi->gtid_reconnect_event_skip_count) &&
+        unlikely(!mi->gtid_event_seen) &&
+        rev.is_artificial_event() &&
+        (mi->prev_master_id != mi->master_id ||
+         strcmp(rev.new_log_ident, mi->master_log_name) != 0))
+    {
+      /*
+        Artificial Rotate_log_event is the first event we receive at the start
+        of each master binlog file. It gives the name of the new binlog file.
+
+        Normally, we already have this name from the real rotate event at the
+        end of the previous binlog file (unless we are making a new connection
+        using GTID). But if the master server restarted/crashed, there is no
+        rotate event at the end of the prior binlog file, so the name is new.
+
+        We use this fact to handle a special case of master crashing. If the
+        master crashed while writing the binlog, it might end with a partial
+        event group lacking the COMMIT/XID event, which must be rolled
+        back. If the slave IO thread happens to get a disconnect in the middle
+        of exactly this event group, it will try to reconnect at the same GTID
+        and skip already fetched events. However, that GTID did not commit on
+        the master before the crash, so it does not really exist, and the
+        master will connect the slave at the next following GTID starting in
+        the next binlog. This could confuse the slave and make it mix the
+        start of one event group with the end of another.
+
+        But we detect this case here, by noticing the change of binlog name
+        which detects the missing rotate event at the end of the previous
+        binlog file. In this case, we reset the counters to make us not skip
+        the next event group, and queue an artificial Format Description
+        event. The previously fetched incomplete event group will then be
+        rolled back when the Format Description event is executed by the SQL
+        thread.
+
+        A similar case is if the reconnect somehow connects to a different
+        master server (like due to a network proxy or IP address takeover).
+        We detect this case by noticing a change of server_id and in this
+        case likewise rollback the partially received event group.
+      */
+      Format_description_log_event fdle(4);
+
+      if (mi->prev_master_id != mi->master_id)
+        sql_print_warning("The server_id of master server changed in the "
+                          "middle of GTID %u-%u-%llu. Assuming a change of "
+                          "master server, so rolling back the previously "
+                          "received partial transaction. Expected: %lu, "
+                          "received: %lu", mi->last_queued_gtid.domain_id,
+                          mi->last_queued_gtid.server_id,
+                          mi->last_queued_gtid.seq_no,
+                          mi->prev_master_id, mi->master_id);
+      else if (strcmp(rev.new_log_ident, mi->master_log_name) != 0)
+        sql_print_warning("Unexpected change of master binlog file name in the "
+                          "middle of GTID %u-%u-%llu, assuming that master has "
+                          "crashed and rolling back the transaction. Expected: "
+                          "'%s', received: '%s'",
+                          mi->last_queued_gtid.domain_id,
+                          mi->last_queued_gtid.server_id,
+                          mi->last_queued_gtid.seq_no,
+                          mi->master_log_name, rev.new_log_ident);
+
+      mysql_mutex_lock(log_lock);
+      if (likely(!fdle.write(rli->relay_log.get_log_file()) &&
+                 !rli->relay_log.flush_and_sync(NULL)))
+      {
+        rli->relay_log.harvest_bytes_written(&rli->log_space_total);
+      }
+      else
+      {
+        error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
+        mysql_mutex_unlock(log_lock);
+        goto err;
+      }
+      rli->relay_log.signal_update();
+      mysql_mutex_unlock(log_lock);
+
+      mi->gtid_reconnect_event_skip_count= 0;
+      mi->events_queued_since_last_gtid= 0;
+    }
+    mi->prev_master_id= mi->master_id;
+
     if (unlikely(process_io_rotate(mi, &rev)))
     {
       error= ER_SLAVE_RELAY_LOG_WRITE_FAILURE;
