@@ -20168,7 +20168,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                          (tab->join->select_options &
                                           OPTION_FOUND_ROWS) ?
                                          HA_POS_ERROR :
-                                         tab->join->unit->select_limit_cnt,0,
+                                         tab->join->unit->select_limit_cnt,TRUE,
                                          TRUE) <= 0;
           if (res)
           {
@@ -20286,6 +20286,12 @@ check_reverse_order:
       */
       if (!table->covering_keys.is_set(best_key))
         table->disable_keyread();
+      else
+      {
+        if (!table->key_read)
+          table->enable_keyread();
+      }
+
       if (!quick_created)
       {
         if (select)                  // Throw any existing quick select
