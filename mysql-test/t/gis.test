@@ -1473,3 +1473,12 @@ insert into t1 values(Geomfromtext('POLYGON((1 1, 2 2, 2 1, 1 1))'));
 drop table t1;
 
 --echo End of 5.5 tests
+
+SHOW CREATE TABLE information_schema.geometry_columns;
+SHOW CREATE TABLE information_schema.spatial_ref_sys;
+
+create table t1(g GEOMETRY, pt POINT);
+create table t2(g LINESTRING, pl POLYGON);
+select * from information_schema.geometry_columns;
+drop table t1, t2;
+

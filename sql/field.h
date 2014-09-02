@@ -2571,6 +2571,7 @@ public:
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
 
   geometry_type get_geometry_type() { return geom_type; };
+  uint get_srid() { return 0; }
 };
 #endif /*HAVE_SPATIAL*/
 

@@ -331,6 +331,99 @@ int fill_all_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
 }
 
 
+#ifdef HAVE_SPATIAL
+static int fill_spatial_ref_sys(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_spatial_ref_sys");
+  TABLE *table= tables->table;
+  CHARSET_INFO *cs= system_charset_info;
+  int result= 1;
+
+  restore_record(table, s->default_values);
+
+  table->field[0]->store(-1, FALSE); /*SRID*/
+  table->field[1]->store(STRING_WITH_LEN("Not defined"), cs); /*AUTH_NAME*/
+  table->field[2]->store(-1, FALSE); /*AUTH_SRID*/
+  table->field[3]->store(STRING_WITH_LEN(""), cs);/*SRTEXT*/
+  if (schema_table_store_record(thd, table))
+    goto exit;
+
+  table->field[0]->store(0, TRUE); /*SRID*/
+  table->field[1]->store(STRING_WITH_LEN("Cartesian plane"), cs); /*AUTH_NAME*/
+  table->field[2]->store(0, TRUE); /*AUTH_SRID*/
+  table->field[3]->store(STRING_WITH_LEN(""), cs);/*SRTEXT*/
+  if (schema_table_store_record(thd, table))
+    goto exit;
+
+  result= 0;
+
+exit:
+  DBUG_RETURN(result);
+}
+
+
+static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
+                                      TABLE *table, bool res,
+                                      LEX_STRING *db_name,
+                                      LEX_STRING *table_name)
+{
+  CHARSET_INFO *cs= system_charset_info;
+  TABLE *show_table;
+  Field **ptr, *field;
+  DBUG_ENTER("get_geometry_column_record");
+
+  if (tables->schema_table)
+    goto exit;
+  show_table= tables->table;
+  ptr= show_table->field;
+  show_table->use_all_columns();               // Required for default
+  restore_record(show_table, s->default_values);
+
+  for (; (field= *ptr) ; ptr++)
+    if (field->type() == MYSQL_TYPE_GEOMETRY)
+    {
+      Field_geom *fg= (Field_geom *) field;
+
+      DEBUG_SYNC(thd, "get_schema_column");
+
+      /* Get default row, with all NULL fields set to NULL */
+      restore_record(table, s->default_values);
+
+      /*F_TABLE_CATALOG*/
+      table->field[0]->store(STRING_WITH_LEN("def"), cs);
+      /*F_TABLE_SCHEMA*/
+      table->field[1]->store(db_name->str, db_name->length, cs);
+      /*F_TABLE_NAME*/
+      table->field[2]->store(table_name->str, table_name->length, cs);
+      /*G_TABLE_CATALOG*/
+      table->field[3]->store(STRING_WITH_LEN("def"), cs);
+      /*G_TABLE_SCHEMA*/
+      table->field[4]->store(db_name->str, db_name->length, cs);
+      /*G_TABLE_NAME*/
+      table->field[5]->store(table_name->str, table_name->length, cs);
+      /*G_GEOMETRY_COLUMN*/
+      table->field[6]->store(field->field_name, strlen(field->field_name), cs);
+      /*STORAGE_TYPE*/
+      table->field[7]->store(1LL, TRUE); /*Always 1 (binary implementation)*/
+      /*GEOMETRY_TYPE*/
+      table->field[8]->store((longlong) (fg->get_geometry_type()), TRUE);
+      /*COORD_DIMENSION*/
+      table->field[9]->store(2LL, TRUE);
+      /*MAX_PPR*/
+      table->field[10]->set_null();
+      /*SRID*/
+      table->field[11]->store((longlong) (fg->get_srid()), TRUE);
+
+      if (schema_table_store_record(thd, table))
+        DBUG_RETURN(1);
+    }
+
+exit:
+  DBUG_RETURN(0);
+}
+#endif /*HAVE_SPATIAL*/
+
+
 /***************************************************************************
 ** List all Authors.
 ** If you can update it, you get to be in it :)
@@ -8747,6 +8840,39 @@ ST_FIELD_INFO show_explain_fields_info[]=
 };
 
 
+#ifdef HAVE_SPATIAL
+ST_FIELD_INFO geometry_columns_fields_info[]=
+{
+  {"F_TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"F_TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"F_TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"F_GEOMETRY_COLUMN", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Field",
+   OPEN_FRM_ONLY},
+  {"G_TABLE_CATALOG", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"G_TABLE_SCHEMA", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"G_TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
+  {"G_GEOMETRY_COLUMN", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Field",
+   OPEN_FRM_ONLY},
+  {"STORAGE_TYPE", 2, MYSQL_TYPE_TINY, 0, 0, 0, OPEN_FRM_ONLY},
+  {"GEOMETRY_TYPE", 7, MYSQL_TYPE_LONG, 0, 0, 0, OPEN_FRM_ONLY},
+  {"COORD_DIMENSION", 2, MYSQL_TYPE_TINY, 0, 0, 0, OPEN_FRM_ONLY},
+  {"MAX_PPR", 2, MYSQL_TYPE_TINY, 0, 0, 0, OPEN_FRM_ONLY},
+  {"SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, OPEN_FRM_ONLY},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+};
+
+
+ST_FIELD_INFO spatial_ref_sys_fields_info[]=
+{
+  {"SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"AUTH_NAME", FN_REFLEN, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"AUTH_SRID", 5, MYSQL_TYPE_SHORT, 0, 0, 0, SKIP_OPEN_TABLE},
+  {"SRTEXT", 2048, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+};
+#endif /*HAVE_SPATIAL*/
+
+
 /*
   Description of ST_FIELD_INFO in table.h
 
@@ -8847,6 +8973,13 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"VIEWS", view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
+#ifdef HAVE_SPATIAL
+  {"GEOMETRY_COLUMNS", geometry_columns_fields_info, 0,
+   get_all_tables, make_columns_old_format, get_geometry_column_record,
+   1, 2, 0, OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
+  {"SPATIAL_REF_SYS", spatial_ref_sys_fields_info, 0,
+   fill_spatial_ref_sys, make_old_format, 0, -1, -1, 0, 0},
+#endif /*HAVE_SPATIAL*/
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
