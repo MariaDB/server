@@ -206,8 +206,8 @@ private:
 protected:
   /**
     A pointer to a value of the variable for SHOW.
-    It must be of show_val_type type (bool for SHOW_BOOL, int for SHOW_INT,
-    longlong for SHOW_LONGLONG, etc).
+    It must be of show_val_type type (my_bool for SHOW_MY_BOOL,
+    int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
   virtual uchar *session_value_ptr(THD *thd, const LEX_STRING *base);
   virtual uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
