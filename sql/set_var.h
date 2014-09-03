@@ -63,7 +63,7 @@ public:
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
-  enum where { CONFIG, AUTO, SQL, COMPILE_TIME };
+  enum where { CONFIG, AUTO, SQL, COMPILE_TIME, ENV };
 
   /**
     Enumeration type to indicate for a system variable whether
@@ -391,6 +391,14 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
 sys_var *find_sys_var(THD *thd, const char *str, uint length=0);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list);
+
+#define SYSVAR_AUTOSIZE(VAR,VAL)                        \
+  do {                                                  \
+    VAR= (VAL);                                         \
+    mark_sys_var_value_origin(&VAR, sys_var::AUTO);     \
+  } while(0)
+
+void mark_sys_var_value_origin(void *ptr, enum sys_var::where here);
 
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 

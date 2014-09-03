@@ -1168,6 +1168,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       mysql_mutex_unlock(&LOCK_global_system_variables);
     else
     {
+      extern sys_var *Sys_old_passwords_ptr;
+      Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
       global_system_variables.old_passwords= 1;
       mysql_mutex_unlock(&LOCK_global_system_variables);
       sql_print_warning("mysql.user table is not updated to new password format; "

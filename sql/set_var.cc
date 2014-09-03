@@ -964,7 +964,6 @@ static void store_var(Field *field, sys_var *var, enum_var_type scope,
                   var->value_ptr(field->table->in_use, scope, &null_lex_str));
 }
 
-
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   char name_buffer[NAME_CHAR_LEN];
@@ -1010,7 +1009,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
       { STRING_WITH_LEN("CONFIG") },
       { STRING_WITH_LEN("AUTO") },
       { STRING_WITH_LEN("SQL") },
-      { STRING_WITH_LEN("COMPILE-TIME") }
+      { STRING_WITH_LEN("COMPILE-TIME") },
+      { STRING_WITH_LEN("ENVIRONMENT") }
     };
     const LEX_CSTRING *origin= origins + var->value_origin;
     fields[3]->store(origin->str, origin->length, scs);
@@ -1142,5 +1142,32 @@ end:
   mysql_rwlock_unlock(&LOCK_system_variables_hash);
   thd->count_cuted_fields= save_count_cuted_fields;
   return res;
+}
+
+/*
+  This is a simple and inefficient helper that sets sys_var::value_origin
+  for a specific sysvar.
+  It should *only* be used on server startup, if you need to do this later,
+  get yourself a pointer to your sysvar (see e.g. Sys_autocommit_ptr)
+  and update it directly.
+*/
+
+void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
+{
+  bool found= false;
+  DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
+
+  for (uint i= 0; i < system_variable_hash.records; i++)
+  {
+    sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
+    if (var->option.value == ptr)
+    {
+      found= true;
+      var->value_origin= here;
+      /* don't break early, search for all matches */
+    }
+  }
+
+  DBUG_ASSERT(found); // variable must have been found
 }
 

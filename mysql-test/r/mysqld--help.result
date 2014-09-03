@@ -412,7 +412,7 @@ The following options may be given as the first argument:
  Maximum number of prepared statements in the server
  --max-relay-log-size=# 
  relay log will be rotated automatically when the size
- exceeds this value.  If 0 are startup, it's set to
+ exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows

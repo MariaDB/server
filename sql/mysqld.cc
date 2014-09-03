@@ -2278,10 +2278,13 @@ static void set_ports()
 #if MYSQL_PORT_DEFAULT == 0
     struct  servent *serv_ptr;
     if ((serv_ptr= getservbyname("mysql", "tcp")))
-      mysqld_port= ntohs((u_short) serv_ptr->s_port); /* purecov: inspected */
+      SYSVAR_AUTOSIZE(mysqld_port, ntohs((u_short) serv_ptr->s_port));
 #endif
     if ((env = getenv("MYSQL_TCP_PORT")))
-      mysqld_port= (uint) atoi(env);		/* purecov: inspected */
+    {
+      mysqld_port= (uint) atoi(env);
+      mark_sys_var_value_origin(&mysqld_port, sys_var::ENV);
+    }
   }
   if (!mysqld_unix_port)
   {
@@ -2291,7 +2294,10 @@ static void set_ports()
     mysqld_unix_port= (char*) MYSQL_UNIX_ADDR;
 #endif
     if ((env = getenv("MYSQL_UNIX_PORT")))
-      mysqld_unix_port= env;			/* purecov: inspected */
+    {
+      mysqld_unix_port= env;
+      mark_sys_var_value_origin(&mysqld_unix_port, sys_var::ENV);
+    }
   }
 }
 
@@ -2582,7 +2588,7 @@ static void network_init(void)
 
   if (report_port == 0)
   {
-    report_port= mysqld_port;
+    SYSVAR_AUTOSIZE(report_port, mysqld_port);
   }
 #ifndef DBUG_OFF
   if (!opt_disable_networking)
@@ -4002,6 +4008,10 @@ static int init_common_variables()
     return 1;
   }
 
+#if defined(HAVE_POOL_OF_THREADS) && !defined(_WIN32)
+  SYSVAR_AUTOSIZE(threadpool_size, my_getncpus());
+#endif
+
   if (init_thread_environment() ||
       mysql_init_variables())
     return 1;
@@ -4086,11 +4096,9 @@ static int init_common_variables()
   }
 #endif /* WITH_WSREP */
 
-  if (!*pidfile_name)
-  {
-    strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
-    strmov(fn_ext(pidfile_name),".pid");		// Add proper extension
-  }
+  strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
+  strmov(fn_ext(pidfile_name),".pid");		// Add proper extension
+  SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
 
   /*
     The default-storage-engine entry in my_long_options should have a
@@ -4160,20 +4168,18 @@ static int init_common_variables()
 
 #ifdef HAVE_LARGE_PAGES
   /* Initialize large page size */
-  if (opt_large_pages && (opt_large_page_size= my_get_large_page_size()))
+  if (opt_large_pages)
   {
+    SYSVAR_AUTOSIZE(opt_large_page_size, my_get_large_page_size());
+    if (opt_large_page_size)
+    {
       DBUG_PRINT("info", ("Large page set, large_page_size = %d",
                  opt_large_page_size));
       my_use_large_pages= 1;
       my_large_page_size= opt_large_page_size;
-  }
-  else
-  {
-    opt_large_pages= 0;
-    /* 
-       Either not configured to use large pages or Linux haven't
-       been compiled with large page support
-    */
+    }
+    else
+      SYSVAR_AUTOSIZE(opt_large_pages, 0);
   }
 #endif /* HAVE_LARGE_PAGES */
 #ifdef HAVE_SOLARIS_LARGE_PAGES
@@ -4257,16 +4263,17 @@ static int init_common_variables()
           If we have requested too much file handles than we bring
           max_connections in supported bounds.
         */
-        max_connections= (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2,
-                                     max_connections);
+        SYSVAR_AUTOSIZE(max_connections,
+           (ulong) MY_MIN(files-10-TABLE_OPEN_CACHE_MIN*2, max_connections));
         /*
           Decrease tc_size according to max_connections, but
           not below TABLE_OPEN_CACHE_MIN.  Outer MY_MIN() ensures that we
           never increase tc_size automatically (that could
           happen if max_connections is decreased above).
         */
-        tc_size= (ulong) MY_MIN(MY_MAX((files - 10 - max_connections) / 2,
-                                       TABLE_OPEN_CACHE_MIN), tc_size);
+        SYSVAR_AUTOSIZE(tc_size, 
+                        (ulong) MY_MIN(MY_MAX((files - 10 - max_connections) / 2,
+                                              TABLE_OPEN_CACHE_MIN), tc_size));
 	DBUG_PRINT("warning",
 		   ("Changed limits: max_open_files: %u  max_connections: %ld  table_cache: %ld",
 		    files, max_connections, tc_size));
@@ -4277,7 +4284,7 @@ static int init_common_variables()
       else if (global_system_variables.log_warnings)
 	sql_print_warning("Could not increase number of max_open_files to more than %u (request: %u)", files, wanted_files);
     }
-    open_files_limit= files;
+    SYSVAR_AUTOSIZE(open_files_limit, files);
   }
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
@@ -4407,7 +4414,8 @@ static int init_common_variables()
     get corrupted if accesses with names of different case.
   */
   DBUG_PRINT("info", ("lower_case_table_names: %d", lower_case_table_names));
-  lower_case_file_system= test_if_case_insensitive(mysql_real_data_home);
+  SYSVAR_AUTOSIZE(lower_case_file_system,
+                  test_if_case_insensitive(mysql_real_data_home));
   if (!lower_case_table_names && lower_case_file_system == 1)
   {
     if (lower_case_table_names_used)
@@ -4423,8 +4431,9 @@ You should consider changing lower_case_table_names to 1 or 2",
     else
     {
       if (global_system_variables.log_warnings)
-	sql_print_warning("Setting lower_case_table_names=2 because file system for %s is case insensitive", mysql_real_data_home);
-      lower_case_table_names= 2;
+	sql_print_warning("Setting lower_case_table_names=2 because file "
+                  "system for %s is case insensitive", mysql_real_data_home);
+      SYSVAR_AUTOSIZE(lower_case_table_names, 2);
     }
   }
   else if (lower_case_table_names == 2 &&
@@ -4435,7 +4444,7 @@ You should consider changing lower_case_table_names to 1 or 2",
                         "the file system '%s' is case sensitive.  Now setting "
                         "lower_case_table_names to 0 to avoid future problems.",
 			mysql_real_data_home);
-    lower_case_table_names= 0;
+    SYSVAR_AUTOSIZE(lower_case_table_names, 0);
   }
   else
   {
@@ -4774,16 +4783,17 @@ static int init_server_components()
   if (opt_error_log && !opt_abort)
   {
     if (!log_error_file_ptr[0])
+    {
       fn_format(log_error_file, pidfile_name, mysql_data_home, ".err",
                 MY_REPLACE_EXT); /* replace '.<domain>' by '.err', bug#4997 */
+      SYSVAR_AUTOSIZE(log_error_file_ptr, log_error_file);
+    }
     else
+    {
       fn_format(log_error_file, log_error_file_ptr, mysql_data_home, ".err",
                 MY_UNPACK_FILENAME | MY_SAFE_PATH);
-    /*
-      _ptr may have been set to my_disabled_option or "" if no argument was
-      passed, but we need to show the real name in SHOW VARIABLES:
-    */
-    log_error_file_ptr= log_error_file;
+      log_error_file_ptr= log_error_file;
+    }
     if (!log_error_file[0])
       opt_error_log= 0;                         // Too long file name
     else
@@ -5068,7 +5078,8 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       /* purecov: begin inspected */
       sql_print_error("CSV engine is not present, falling back to the "
                       "log files");
-      log_output_options= (log_output_options & ~LOG_TABLE) | LOG_FILE;
+      SYSVAR_AUTOSIZE(log_output_options, 
+                      (log_output_options & ~LOG_TABLE) | LOG_FILE);
       /* purecov: end */
     }
 
@@ -5518,8 +5529,11 @@ int mysqld_main(int argc, char **argv)
 
   init_signals();
 
-  my_thread_stack_size= my_setstacksize(&connection_attrib,
-                                        my_thread_stack_size);
+  ulonglong new_thread_stack_size;
+  new_thread_stack_size= my_setstacksize(&connection_attrib,
+                                         my_thread_stack_size);
+  if (new_thread_stack_size != my_thread_stack_size)
+    SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
 
   (void) thr_setconcurrency(concurrency);	// 10 by default
 
@@ -5555,7 +5569,7 @@ int mysqld_main(int argc, char **argv)
 
   if (opt_bin_log && !global_system_variables.server_id)
   {
-    global_system_variables.server_id= ::server_id= 1;
+    SYSVAR_AUTOSIZE(global_system_variables.server_id, ::server_id= 1);
 #ifdef EXTRA_DEBUG
     sql_print_warning("You have enabled the binary log, but you haven't set "
                       "server-id to a non-zero value: we force server id to 1; "
@@ -8400,7 +8414,6 @@ static int mysql_init_variables(void)
   opt_specialflag= SPECIAL_ENGLISH;
   unix_sock= base_ip_sock= extra_ip_sock= MYSQL_INVALID_SOCKET;
   mysql_home_ptr= mysql_home;
-  pidfile_name_ptr= pidfile_name;
   log_error_file_ptr= log_error_file;
   protocol_version= PROTOCOL_VERSION;
   what_to_log= ~ (1L << (uint) COM_TIME);
@@ -8539,6 +8552,7 @@ static int mysql_init_variables(void)
   if (!(tmpenv = getenv("MY_BASEDIR_VERSION")))
     tmpenv = DEFAULT_MYSQL_HOME;
   strmake_buf(mysql_home, tmpenv);
+  mark_sys_var_value_origin(&mysql_home_ptr, sys_var::ENV);
 #endif
 
   if (wsrep_init_vars())
@@ -8589,8 +8603,8 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
                       "in later versions.", opt->name);
     break;
   case 'a':
-    global_system_variables.sql_mode= MODE_ANSI;
-    global_system_variables.tx_isolation= ISO_SERIALIZABLE;
+    SYSVAR_AUTOSIZE(global_system_variables.sql_mode, MODE_ANSI);
+    SYSVAR_AUTOSIZE(global_system_variables.tx_isolation, ISO_SERIALIZABLE);
     break;
   case 'b':
     strmake_buf(mysql_home, argument);
@@ -8651,22 +8665,33 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
       return 1;
     }
     if (log_error_file_ptr != disabled_my_option)
-      log_error_file_ptr= opt_log_basename;
+      SYSVAR_AUTOSIZE(log_error_file_ptr, opt_log_basename);
 
     make_default_log_name(&opt_logname, ".log", false);
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
     make_default_log_name(&opt_bin_logname, "-bin", true);
     make_default_log_name(&opt_binlog_index_name, "-bin.index", true);
+    mark_sys_var_value_origin(&opt_logname, sys_var::AUTO);
+    mark_sys_var_value_origin(&opt_slow_logname, sys_var::AUTO);
+    if (!opt_logname || !opt_slow_logname || !opt_bin_logname ||
+        !opt_binlog_index_name)
+      return 1;
+
+#ifdef HAVE_REPLICATION
     make_default_log_name(&opt_relay_logname, "-relay-bin", true);
     make_default_log_name(&opt_relaylog_index_name, "-relay-bin.index", true);
+    mark_sys_var_value_origin(&opt_relay_logname, sys_var::AUTO);
+    mark_sys_var_value_origin(&opt_relaylog_index_name, sys_var::AUTO);
+    if (!opt_relay_logname || !opt_relaylog_index_name)
+      return 1;
+#endif
 
-    pidfile_name_ptr= pidfile_name;
+    SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
     strmake(pidfile_name, argument, sizeof(pidfile_name)-5);
     strmov(fn_ext(pidfile_name),".pid");
 
     /* check for errors */
-    if (!opt_bin_logname || !opt_relaylog_index_name || ! opt_logname ||
-        ! opt_slow_logname || !pidfile_name_ptr)
+    if (!pidfile_name_ptr)
       return 1;                                 // out of memory error
     break;
   }
@@ -8762,11 +8787,11 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
 #endif /* HAVE_REPLICATION */
   case (int) OPT_SAFE:
     opt_specialflag|= SPECIAL_SAFE_MODE | SPECIAL_NO_NEW_FUNC;
-    delay_key_write_options= (uint) DELAY_KEY_WRITE_NONE;
-    myisam_recover_options= HA_RECOVER_DEFAULT;
+    SYSVAR_AUTOSIZE(delay_key_write_options, (uint) DELAY_KEY_WRITE_NONE);
+    SYSVAR_AUTOSIZE(myisam_recover_options, HA_RECOVER_DEFAULT);
     ha_open_options&= ~(HA_OPEN_DELAY_KEY_WRITE);
 #ifdef HAVE_QUERY_CACHE
-    query_cache_size=0;
+    SYSVAR_AUTOSIZE(query_cache_size, 0);
 #endif
     sql_print_warning("The syntax '--safe-mode' is deprecated and will be "
                       "removed in a future release.");
@@ -9122,7 +9147,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   if (mysqld_chroot)
     set_root(mysqld_chroot);
 #else
-  thread_handling = SCHEDULER_NO_THREADS;
+  SYSVAR_AUTOSIZE(thread_handling, SCHEDULER_NO_THREADS);
   max_allowed_packet= global_system_variables.max_allowed_packet;
   net_buffer_length= global_system_variables.net_buffer_length;
 #endif
@@ -9174,7 +9199,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   /* workaround: disable thread pool on XP */
   if (GetProcAddress(GetModuleHandle("kernel32"),"CreateThreadpool") == 0 &&
       thread_handling > SCHEDULER_NO_THREADS)
-    thread_handling = SCHEDULER_ONE_THREAD_PER_CONNECTION;
+    SYSVAR_AUTOSIZE(thread_handling, SCHEDULER_ONE_THREAD_PER_CONNECTION);
 #endif
 
   if (thread_handling <= SCHEDULER_ONE_THREAD_PER_CONNECTION)
@@ -9198,16 +9223,19 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     value of max_allowed_packet.
   */
   if (!max_long_data_size_used)
-    max_long_data_size= global_system_variables.max_allowed_packet;
+    SYSVAR_AUTOSIZE(max_long_data_size,
+                    global_system_variables.max_allowed_packet);
 
   /* Remember if max_user_connections was 0 at startup */
   max_user_connections_checking= global_system_variables.max_user_connections != 0;
 
+#ifdef HAVE_REPLICATION
   {
     sys_var *max_relay_log_size_var, *max_binlog_size_var;
     /* If max_relay_log_size is 0, then set it to max_binlog_size */
     if (!global_system_variables.max_relay_log_size)
-      global_system_variables.max_relay_log_size= max_binlog_size;
+      SYSVAR_AUTOSIZE(global_system_variables.max_relay_log_size,
+                      max_binlog_size);
 
     /*
       Fix so that DEFAULT and limit checking works with max_relay_log_size
@@ -9224,12 +9252,13 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
         max_binlog_size_var->option.def_value;
     }
   }
+#endif
 
   /* Ensure that some variables are not set higher than needed */
   if (back_log > max_connections)
-    back_log= max_connections;
+    SYSVAR_AUTOSIZE(back_log, max_connections);
   if (thread_cache_size > max_connections)
-    thread_cache_size= max_connections;
+    SYSVAR_AUTOSIZE(thread_cache_size, max_connections);
   
   return 0;
 }
@@ -9397,13 +9426,18 @@ static int fix_paths(void)
 
   /* If --character-sets-dir isn't given, use shared library dir */
   if (charsets_dir)
+  {
     strmake_buf(mysql_charsets_dir, charsets_dir);
+    charsets_dir= mysql_charsets_dir;
+  }
   else
+  {
     strxnmov(mysql_charsets_dir, sizeof(mysql_charsets_dir)-1, buff,
 	     CHARSET_DIR, NullS);
+    SYSVAR_AUTOSIZE(charsets_dir, mysql_charsets_dir);
+  }
   (void) my_load_path(mysql_charsets_dir, mysql_charsets_dir, buff);
   convert_dirname(mysql_charsets_dir, mysql_charsets_dir, NullS);
-  charsets_dir=mysql_charsets_dir;
 
   if (init_tmpdir(&mysql_tmpdir_list, opt_mysql_tmpdir))
     DBUG_RETURN(1);
@@ -9411,7 +9445,7 @@ static int fix_paths(void)
     opt_mysql_tmpdir= mysql_tmpdir;
 #ifdef HAVE_REPLICATION
   if (!slave_load_tmpdir)
-    slave_load_tmpdir= mysql_tmpdir;
+    SYSVAR_AUTOSIZE(slave_load_tmpdir, mysql_tmpdir);
 #endif /* HAVE_REPLICATION */
   /*
     Convert the secure-file-priv option to system format, allowing
