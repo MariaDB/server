@@ -2929,6 +2929,32 @@ public:
 };
 
 
+class Item_string_sys :public Item_string
+{
+public:
+  Item_string_sys(const char *str, uint length)
+    :Item_string(str, length, system_charset_info)
+  { }
+  Item_string_sys(const char *str)
+    :Item_string(str, strlen(str), system_charset_info)
+  { }
+};
+
+
+class Item_string_ascii :public Item_string
+{
+public:
+  Item_string_ascii(const char *str, uint length)
+    :Item_string(str, length, &my_charset_latin1,
+                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
+  { }
+  Item_string_ascii(const char *str)
+    :Item_string(str, strlen(str), &my_charset_latin1,
+                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
+  { }
+};
+
+
 longlong 
 longlong_from_string_with_check(CHARSET_INFO *cs, const char *cptr,
                                 const char *end);

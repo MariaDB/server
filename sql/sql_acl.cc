@@ -7551,7 +7551,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   DBUG_ASSERT(rolename || username);
 
-  Item_string *field=new Item_string("",0,&my_charset_latin1);
+  Item_string *field=new Item_string_ascii("", 0);
   List<Item> field_list;
   field->name=buff;
   field->max_length=1024;

@@ -11124,8 +11124,8 @@ opt_escape:
           {
             Lex->escape_used= FALSE;
             $$= ((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) ?
-                 new (thd->mem_root) Item_string("", 0, &my_charset_latin1) :
-                 new (thd->mem_root) Item_string("\\", 1, &my_charset_latin1));
+                 new (thd->mem_root) Item_string_ascii("", 0) :
+                 new (thd->mem_root) Item_string_ascii("\\", 1));
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -14792,19 +14792,19 @@ set_expr_or_default:
         | DEFAULT { $$=0; }
         | ON
           {
-            $$=new (thd->mem_root) Item_string("ON",  2, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("ON",  2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | ALL
           {
-            $$=new (thd->mem_root) Item_string("ALL", 3, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("ALL", 3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | BINARY
           {
-            $$=new (thd->mem_root) Item_string("binary", 6, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("binary", 6);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
