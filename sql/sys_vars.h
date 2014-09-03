@@ -333,10 +333,14 @@ public:
   { var->save_result.ulonglong_value= global_var(ulong); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
+  uchar *valptr(THD *thd, ulong val)
+  { return (uchar*)typelib.type_names[val]; }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  { return (uchar*)typelib.type_names[session_var(thd, ulong)]; }
+  { return valptr(thd, session_var(thd, ulong)); }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  { return (uchar*)typelib.type_names[global_var(ulong)]; }
+  { return valptr(thd, global_var(ulong)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, option.def_value); }
 };
 
 /**
@@ -547,7 +551,7 @@ public:
   {}
 
 protected:
-  virtual uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
   {
     return (uchar*)thd->security_ctx->external_user;
   }
@@ -705,10 +709,6 @@ public:
   {
     DBUG_ASSERT(FALSE);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    return (uchar*) &session_var(thd, LEX_STRING);
-  }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
   {
     DBUG_ASSERT(FALSE);
@@ -790,6 +790,8 @@ public:
     DBUG_EXPLAIN_INITIAL(buf, sizeof(buf));
     return (uchar*) thd->strdup(buf);
   }
+  uchar *default_value_ptr(THD *thd)
+  { return (uchar*)""; }
 };
 #endif
 
@@ -1164,16 +1166,14 @@ public:
   { var->save_result.ulonglong_value= global_var(ulonglong); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
+  uchar *valptr(THD *thd, ulonglong val)
+  { return (uchar*)flagset_to_string(thd, 0, val, typelib.type_names); }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    return (uchar*)flagset_to_string(thd, 0, session_var(thd, ulonglong),
-                                     typelib.type_names);
-  }
+  { return valptr(thd, session_var(thd, ulonglong)); }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    return (uchar*)flagset_to_string(thd, 0, global_var(ulonglong),
-                                     typelib.type_names);
-  }
+  { return valptr(thd, global_var(ulonglong)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, option.def_value); }
 };
 
 /**
@@ -1265,16 +1265,14 @@ public:
   { var->save_result.ulonglong_value= global_var(ulonglong); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
+  uchar *valptr(THD *thd, ulonglong val)
+  { return (uchar*)set_to_string(thd, 0, val, typelib.type_names); }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    return (uchar*)set_to_string(thd, 0, session_var(thd, ulonglong),
-                                 typelib.type_names);
-  }
+  { return valptr(thd, session_var(thd, ulonglong)); }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    return (uchar*)set_to_string(thd, 0, global_var(ulonglong),
-                                 typelib.type_names);
-  }
+  { return valptr(thd, global_var(ulonglong)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, option.def_value); }
 };
 
 /**
@@ -1368,39 +1366,39 @@ public:
     plugin_ref plugin= global_var(plugin_ref);
     var->save_result.plugin= plugin ? my_plugin_lock(thd, plugin) : 0;
   }
-  void global_save_default(THD *thd, set_var *var)
+  plugin_ref get_default(THD *thd)
   {
-    LEX_STRING pname;
     char *default_value= *reinterpret_cast<char**>(option.def_value);
     if (!default_value)
-      var->save_result.plugin= 0;
+      return 0;
+
+    LEX_STRING pname= { default_value, strlen(pname.str) };
+    plugin_ref plugin;
+
+    if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
+      plugin= ha_resolve_by_name(thd, &pname, false);
     else
-    {
-      pname.str= default_value;
-      pname.length= strlen(pname.str);
+      plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
+    DBUG_ASSERT(plugin);
+    return my_plugin_lock(thd, plugin);
+  }
 
-      plugin_ref plugin;
-      if (plugin_type == MYSQL_STORAGE_ENGINE_PLUGIN)
-        plugin= ha_resolve_by_name(thd, &pname, false);
-      else
-        plugin= my_plugin_lock_by_name(thd, &pname, plugin_type);
-      DBUG_ASSERT(plugin);
+  void global_save_default(THD *thd, set_var *var)
+  {
+    var->save_result.plugin= get_default(thd);
+  }
 
-      var->save_result.plugin= my_plugin_lock(thd, plugin);
-    }
+  uchar *valptr(THD *thd, plugin_ref plugin)
+  {
+    return (uchar*)(plugin ? thd->strmake(plugin_name(plugin)->str,
+                                          plugin_name(plugin)->length) : 0);
   }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    plugin_ref plugin= session_var(thd, plugin_ref);
-    return (uchar*)(plugin ? thd->strmake(plugin_name(plugin)->str,
-                                          plugin_name(plugin)->length) : 0);
-  }
+  { return valptr(thd, session_var(thd, plugin_ref)); }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    plugin_ref plugin= global_var(plugin_ref);
-    return (uchar*)(plugin ? thd->strmake(plugin_name(plugin)->str,
-                                          plugin_name(plugin)->length) : 0);
-  }
+  { return valptr(thd, global_var(plugin_ref)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, get_default(thd)); }
 };
 
 #if defined(ENABLED_DEBUG_SYNC)
@@ -1466,6 +1464,8 @@ public:
     DBUG_ASSERT(FALSE);
     return 0;
   }
+  uchar *default_value_ptr(THD *thd)
+  { return (uchar*)""; }
 };
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
@@ -1536,16 +1536,19 @@ public:
   { var->save_result.ulonglong_value= global_var(ulonglong) & bitmask; }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
-  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+
+  uchar *valptr(THD *thd, ulonglong val)
   {
-    thd->sys_var_tmp.my_bool_value= reverse_semantics ^
-      ((session_var(thd, ulonglong) & bitmask) != 0);
+    thd->sys_var_tmp.my_bool_value= reverse_semantics ^ ((val & bitmask) != 0);
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
+  uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
+  { return valptr(thd, session_var(thd, ulonglong)); }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
+  { return valptr(thd, global_var(ulonglong)); }
+  uchar *default_value_ptr(THD *thd)
   {
-    thd->sys_var_tmp.my_bool_value= reverse_semantics ^
-      ((global_var(ulonglong) & bitmask) != 0);
+    thd->sys_var_tmp.my_bool_value= option.def_value != 0;
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
 };
@@ -1612,6 +1615,11 @@ public:
     DBUG_ASSERT(FALSE);
     return 0;
   }
+  uchar *default_value_ptr(THD *thd)
+  {
+    thd->sys_var_tmp.ulonglong_value= 0;
+    return (uchar*) &thd->sys_var_tmp.ulonglong_value;
+  }
 };
 
 
@@ -1662,6 +1670,11 @@ public:
     DBUG_ASSERT(FALSE);
     return 0;
   }
+  uchar *default_value_ptr(THD *thd)
+  {
+    thd->sys_var_tmp.double_value= 0;
+    return (uchar*) &thd->sys_var_tmp.double_value;
+  }
 };
 
 
@@ -1698,6 +1711,7 @@ public:
     SYSVAR_ASSERT(is_readonly());
     SYSVAR_ASSERT(on_update == 0);
     SYSVAR_ASSERT(size == sizeof(enum SHOW_COMP_OPTION));
+    option.var_type= GET_STR;
   }
   bool do_check(THD *thd, set_var *var) {
     DBUG_ASSERT(FALSE);
@@ -1790,16 +1804,14 @@ public:
     void **default_value= reinterpret_cast<void**>(option.def_value);
     var->save_result.ptr= *default_value;
   }
+  uchar *valptr(THD *thd, uchar *val)
+  { return val ? *(uchar**)(val+name_offset) : 0; }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    uchar *ptr= session_var(thd, uchar*);
-    return ptr ? *(uchar**)(ptr+name_offset) : 0;
-  }
+  { return valptr(thd, session_var(thd, uchar*)); }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    uchar *ptr= global_var(uchar*);
-    return ptr ? *(uchar**)(ptr+name_offset) : 0;
-  }
+  { return valptr(thd, global_var(uchar*)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, *(uchar**)option.def_value); }
 };
 
 /**
@@ -1868,6 +1880,8 @@ public:
     var->save_result.time_zone=
       *(Time_zone**)(intptr)option.def_value;
   }
+  uchar *valptr(THD *thd, Time_zone *val)
+  { return (uchar *)(val->get_name()->ptr()); }
   uchar *session_value_ptr(THD *thd, const LEX_STRING *base)
   {
     /*
@@ -1879,12 +1893,12 @@ public:
       (binlog code stores session value only).
     */
     thd->time_zone_used= 1;
-    return (uchar *)(session_var(thd, Time_zone*)->get_name()->ptr());
+    return valptr(thd, session_var(thd, Time_zone *));
   }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base)
-  {
-    return (uchar *)(global_var(Time_zone*)->get_name()->ptr());
-  }
+  { return valptr(thd, global_var(Time_zone*)); }
+  uchar *default_value_ptr(THD *thd)
+  { return valptr(thd, *(Time_zone**)option.def_value); }
 };
 
 /**
@@ -2048,6 +2062,8 @@ public:
               getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
+    SYSVAR_ASSERT(getopt.id < 0);
+    SYSVAR_ASSERT(is_readonly());
     option.var_type= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
@@ -2095,6 +2111,8 @@ public:
               getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
+    SYSVAR_ASSERT(getopt.id < 0);
+    SYSVAR_ASSERT(is_readonly());
     option.var_type= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)
@@ -2166,6 +2184,8 @@ public:
     return NULL;
   }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
+  uchar *default_value_ptr(THD *thd)
+  { return 0; }
 };
 
 
@@ -2206,6 +2226,8 @@ public:
     return NULL;
   }
   uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
+  uchar *default_value_ptr(THD *thd)
+  { return 0; }
 };
 
 
@@ -2221,6 +2243,8 @@ public:
               getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
+    SYSVAR_ASSERT(getopt.id < 0);
+    SYSVAR_ASSERT(is_readonly());
     option.var_type= GET_STR;
   }
   bool do_check(THD *thd, set_var *var)

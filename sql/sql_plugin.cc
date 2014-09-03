@@ -266,6 +266,8 @@ public:
   { return do_value_ptr(thd, OPT_SESSION, base); }
   uchar* global_value_ptr(THD *thd, const LEX_STRING *base)
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
+  uchar *default_value_ptr(THD *thd)
+  { return do_value_ptr(thd, OPT_DEFAULT, 0); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
   virtual void global_save_default(THD *thd, set_var *var) {}
@@ -3239,6 +3241,9 @@ sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
 
 uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
 {
+  if (type == OPT_DEFAULT)
+    return (uchar*)&option.def_value;
+
   DBUG_ASSERT(thd || (type == OPT_GLOBAL));
   if (plugin_var->flags & PLUGIN_VAR_THDLOCAL)
   {
@@ -3307,7 +3312,7 @@ bool sys_var_pluginvar::session_update(THD *thd, set_var *var)
   DBUG_ASSERT(thd == current_thd);
 
   mysql_mutex_lock(&LOCK_global_system_variables);
-  void *tgt= real_value_ptr(thd, var->type);
+  void *tgt= real_value_ptr(thd, OPT_SESSION);
   const void *src= var->value ? (void*)&var->save_result
                               : (void*)real_value_ptr(thd, OPT_GLOBAL);
   mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -3322,7 +3327,7 @@ bool sys_var_pluginvar::global_update(THD *thd, set_var *var)
   DBUG_ASSERT(!is_readonly());
   mysql_mutex_assert_owner(&LOCK_global_system_variables);
 
-  void *tgt= real_value_ptr(thd, var->type);
+  void *tgt= real_value_ptr(thd, OPT_GLOBAL);
   const void *src= &var->save_result;
 
   if (!var->value)

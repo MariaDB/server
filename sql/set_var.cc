@@ -35,6 +35,7 @@
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "sql_acl.h"    // SUPER_ACL
 #include "sql_select.h" // free_underlaid_joins
+#include "sql_show.h"
 #include "sql_view.h"   // updatable_views_with_limit_typelib
 #include "lock.h"                               // lock_global_read_lock,
                                                 // make_global_read_lock_block_commit,
@@ -240,6 +241,7 @@ bool sys_var::check(THD *thd, set_var *var)
 
 uchar *sys_var::value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base)
 {
+  DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
   {
     mysql_mutex_assert_owner(&LOCK_global_system_variables);
@@ -467,6 +469,7 @@ CHARSET_INFO *sys_var::charset(THD *thd)
   return is_os_charset ? thd->variables.character_set_filesystem :
     system_charset_info;
 }
+
 
 typedef struct old_names_map_st
 {
@@ -936,5 +939,187 @@ int set_var_collation_client::update(THD *thd)
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
   return 0;
+}
+
+/*****************************************************************************
+ INFORMATION_SCHEMA.SYSTEM_VARIABLES
+*****************************************************************************/
+static void store_value_ptr(Field *field, sys_var *var, String *str,
+                            uchar *value_ptr)
+{
+  field->set_notnull();
+  str= var->val_str_nolock(str, field->table->in_use, value_ptr);
+  if (str)
+    field->store(str->ptr(), str->length(), str->charset());
+}
+
+static void store_var(Field *field, sys_var *var, enum_var_type scope,
+                      String *str)
+{
+  if (var->check_type(scope))
+    return;
+
+  store_value_ptr(field, var, str,
+                  var->value_ptr(field->table->in_use, scope, &null_lex_str));
+}
+
+
+int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  char name_buffer[NAME_CHAR_LEN];
+  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
+  bool res= 1;
+  CHARSET_INFO *scs= system_charset_info;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
+  const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : 0;
+  Field **fields=tables->table->field;
+
+  DBUG_ASSERT(tables->table->in_use == thd);
+
+  cond= make_cond_for_info_schema(cond, tables);
+  thd->count_cuted_fields= CHECK_FIELD_WARN;
+  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+
+  for (uint i= 0; i < system_variable_hash.records; i++)
+  {
+    sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
+
+    strmake_buf(name_buffer, var->name.str);
+    my_caseup_str(system_charset_info, name_buffer);
+
+    /* this must be done before evaluating cond */
+    restore_record(tables->table, s->default_values);
+    fields[0]->store(name_buffer, strlen(name_buffer), scs);
+
+    if ((wild && wild_case_compare(system_charset_info, name_buffer, wild))
+        || (cond && !cond->val_int()))
+      continue;
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+
+    // SESSION_VALUE
+    store_var(fields[1], var, OPT_SESSION, &strbuf);
+
+    // GLOBAL_VALUE
+    store_var(fields[2], var, OPT_GLOBAL, &strbuf);
+
+    // DEFAULT_VALUE
+    uchar *def= var->is_readonly() && var->option.id < 0
+                ? 0 : var->default_value_ptr(thd);
+    if (def)
+      store_value_ptr(fields[3], var, &strbuf, def);
+
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+    static const LEX_CSTRING scopes[]=
+    {
+      { STRING_WITH_LEN("GLOBAL") },
+      { STRING_WITH_LEN("SESSION") },
+      { STRING_WITH_LEN("SESSION ONLY") }
+    };
+    const LEX_CSTRING *scope= scopes + var->scope();
+    fields[4]->store(scope->str, scope->length, scs);
+
+#if SIZEOF_LONG == SIZEOF_INT
+#define LONG_TYPE "INT"
+#else
+#define LONG_TYPE "BIGINT"
+#endif
+
+    static const LEX_CSTRING types[]=
+    {
+      { 0, 0 },                                      // unused         0
+      { 0, 0 },                                      // GET_NO_ARG     1
+      { STRING_WITH_LEN("BOOLEAN") },                // GET_BOOL       2
+      { STRING_WITH_LEN("INT") },                    // GET_INT        3
+      { STRING_WITH_LEN("INT UNSIGNED") },           // GET_UINT       4
+      { STRING_WITH_LEN(LONG_TYPE) },                // GET_LONG       5
+      { STRING_WITH_LEN(LONG_TYPE " UNSIGNED") },    // GET_ULONG      6
+      { STRING_WITH_LEN("BIGINT") },                 // GET_LL         7
+      { STRING_WITH_LEN("BIGINT UNSIGNED") },        // GET_ULL        8
+      { STRING_WITH_LEN("VARCHAR") },                // GET_STR        9
+      { STRING_WITH_LEN("VARCHAR") },                // GET_STR_ALLOC 10
+      { 0, 0 },                                      // GET_DISABLED  11
+      { STRING_WITH_LEN("ENUM") },                   // GET_ENUM      12
+      { STRING_WITH_LEN("SET") },                    // GET_SET       13
+      { STRING_WITH_LEN("DOUBLE") },                 // GET_DOUBLE    14
+      { STRING_WITH_LEN("FLAGSET") },                // GET_FLAGSET   15
+    };
+    const LEX_CSTRING *type= types + (var->option.var_type & GET_TYPE_MASK);
+    fields[5]->store(type->str, type->length, scs);
+
+    fields[6]->store(var->option.comment, strlen(var->option.comment),
+                           scs);
+
+    bool is_unsigned= true;
+    switch (var->option.var_type)
+    {
+    case GET_INT:
+    case GET_LONG:
+    case GET_LL:
+      is_unsigned= false;
+      /* fall through */
+    case GET_UINT:
+    case GET_ULONG:
+    case GET_ULL:
+      fields[7]->set_notnull();
+      fields[8]->set_notnull();
+      fields[9]->set_notnull();
+      fields[7]->store(var->option.min_value, is_unsigned);
+      fields[8]->store(var->option.max_value, is_unsigned);
+      fields[9]->store(var->option.block_size, is_unsigned);
+      break;
+    case GET_DOUBLE:
+      fields[7]->set_notnull();
+      fields[8]->set_notnull();
+      fields[7]->store(getopt_ulonglong2double(var->option.min_value));
+      fields[8]->store(getopt_ulonglong2double(var->option.max_value));
+    }
+
+    TYPELIB *tl= var->option.typelib;
+    if (tl)
+    {
+      uint i;
+      strbuf.length(0);
+      for (i=0; i + 1 < tl->count; i++)
+      {
+        strbuf.append(tl->type_names[i]);
+        strbuf.append(',');
+      }
+      strbuf.append(tl->type_names[i]);
+      fields[10]->set_notnull();
+      fields[10]->store(strbuf.ptr(), strbuf.length(), scs);
+    }
+
+    static const LEX_CSTRING yesno[]=
+    {
+      { STRING_WITH_LEN("NO") },
+      { STRING_WITH_LEN("YES") }
+    };
+    const LEX_CSTRING *yn = yesno + var->is_readonly();
+    fields[11]->store(yn->str, yn->length, scs);
+
+    if (var->option.id >= 0)
+    {
+      static const LEX_CSTRING args[]=
+      {
+        { STRING_WITH_LEN("NONE") },          // NO_ARG
+        { STRING_WITH_LEN("OPTIONAL") },      // OPT_ARG
+        { STRING_WITH_LEN("REQUIRED") }       // REQUIRED_ARG
+      };
+      const LEX_CSTRING *arg= args + var->option.arg_type;
+      fields[12]->set_notnull();
+      fields[12]->store(arg->str, arg->length, scs);
+    }
+
+    if (schema_table_store_record(thd, tables->table))
+      goto end;
+    thd->get_stmt_da()->inc_current_row_for_warning();
+  }
+  res= 0;
+end:
+  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  thd->count_cuted_fields= save_count_cuted_fields;
+  return res;
 }
 

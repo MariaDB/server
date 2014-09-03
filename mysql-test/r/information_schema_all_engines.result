@@ -46,6 +46,7 @@ SCHEMA_PRIVILEGES
 SESSION_STATUS
 SESSION_VARIABLES
 STATISTICS
+SYSTEM_VARIABLES
 TABLES
 TABLESPACES
 TABLE_CONSTRAINTS
@@ -115,6 +116,7 @@ SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 STATISTICS	TABLE_SCHEMA
+SYSTEM_VARIABLES	VARIABLE_NAME
 TABLES	TABLE_SCHEMA
 TABLESPACES	TABLESPACE_NAME
 TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
@@ -184,6 +186,7 @@ SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 STATISTICS	TABLE_SCHEMA
+SYSTEM_VARIABLES	VARIABLE_NAME
 TABLES	TABLE_SCHEMA
 TABLESPACES	TABLESPACE_NAME
 TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
@@ -258,6 +261,7 @@ SCHEMA_PRIVILEGES	information_schema.SCHEMA_PRIVILEGES	1
 SESSION_STATUS	information_schema.SESSION_STATUS	1
 SESSION_VARIABLES	information_schema.SESSION_VARIABLES	1
 STATISTICS	information_schema.STATISTICS	1
+SYSTEM_VARIABLES	information_schema.SYSTEM_VARIABLES	1
 TABLES	information_schema.TABLES	1
 TABLESPACES	information_schema.TABLESPACES	1
 TABLE_CONSTRAINTS	information_schema.TABLE_CONSTRAINTS	1
@@ -317,6 +321,7 @@ Database: information_schema
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | STATISTICS                            |
+| SYSTEM_VARIABLES                      |
 | TABLES                                |
 | TABLESPACES                           |
 | TABLE_CONSTRAINTS                     |
@@ -376,6 +381,7 @@ Database: INFORMATION_SCHEMA
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | STATISTICS                            |
+| SYSTEM_VARIABLES                      |
 | TABLES                                |
 | TABLESPACES                           |
 | TABLE_CONSTRAINTS                     |
@@ -393,5 +399,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND table_name<>'ndb_binlog_index' AND table_name<>'ndb_apply_status' GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	54
+information_schema	55
 mysql	30

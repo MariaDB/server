@@ -116,10 +116,7 @@ static void get_cs_converted_string_value(THD *thd,
                                           bool use_hex);
 #endif
 
-static void
-append_algorithm(TABLE_LIST *table, String *buff);
-
-static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
+static void append_algorithm(TABLE_LIST *table, String *buff);
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
@@ -3691,7 +3688,7 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
 }
 
 
-static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
+COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
 {
   if (!cond)
     return (COND*) 0;
@@ -8855,6 +8852,25 @@ ST_FIELD_INFO variables_fields_info[]=
 };
 
 
+ST_FIELD_INFO sysvars_fields_info[]=
+{
+  {"VARIABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"SESSION_VALUE", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"GLOBAL_VALUE", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"DEFAULT_VALUE", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"VARIABLE_SCOPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"VARIABLE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"VARIABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"NUMERIC_MIN_VALUE", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"NUMERIC_MAX_VALUE",  MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"NUMERIC_BLOCK_SIZE",  MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"ENUM_VALUE_LIST", 65535, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"READ_ONLY", 3, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"COMMAND_LINE_ARGUMENT", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+};
+
+
 ST_FIELD_INFO processlist_fields_info[]=
 {
   {"ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Id", SKIP_OPEN_TABLE},
@@ -9174,6 +9190,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"STATISTICS", stat_fields_info, create_schema_table,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
+  {"SYSTEM_VARIABLES", sysvars_fields_info, create_schema_table,
+   fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", tables_fields_info, create_schema_table,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE},

@@ -1,0 +1,7 @@
+--source include/have_innodb.inc
+
+--vertical_results
+--replace_regex /^\/\S+/PATH/ /\.\//PATH/
+select * from information_schema.system_variables
+  where variable_name like 'innodb%' and not variable_name = 'innodb_disallow_writes'
+  order by variable_name;

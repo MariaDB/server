@@ -1,0 +1,44 @@
+--vertical_results
+
+# because its current value is printed below
+set timestamp=unix_timestamp('2014-09-01 13:40:23');
+# ditto
+set pseudo_thread_id=10;
+# to show session != global, and doesn't affect global_value_origin
+set sql_mode=ansi_quotes;
+# global_value_origin=SQL
+set global div_precision_increment=5;
+
+--replace_regex /^\/\S+/PATH/
+--replace_result $MASTER_MYPORT MASTER_MYPORT
+select * from information_schema.system_variables
+  where variable_name not like 'aria%' and
+        variable_name not like 'debug%' and
+        variable_name not like 'wsrep%' and
+        variable_name not in ('large_files_support',
+          'lower_case_file_system',
+          'open_files_limit',
+          'system_time_zone',
+          'version_comment',
+          'version_compile_machine', 'version_compile_os',
+          'version_malloc_library', 'version'
+        )
+  order by variable_name;
+
+# now various metadata but no values, for variables where
+# values change often
+select VARIABLE_NAME, VARIABLE_SCOPE, VARIABLE_TYPE, VARIABLE_COMMENT,
+       NUMERIC_MIN_VALUE, NUMERIC_MAX_VALUE, NUMERIC_BLOCK_SIZE,
+       ENUM_VALUE_LIST, READ_ONLY, COMMAND_LINE_ARGUMENT
+  from information_schema.system_variables
+  where variable_name in ('large_files_support',
+          'lower_case_file_system',
+          'open_files_limit',
+          'system_time_zone',
+          'version_comment',
+          'version_compile_machine', 'version_compile_os',
+          'version_malloc_library', 'version'
+        )
+  order by variable_name;
+
+set global div_precision_increment=default;

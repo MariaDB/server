@@ -1,0 +1,6 @@
+--source include/have_aria.inc
+
+--vertical_results
+select * from information_schema.system_variables
+  where variable_name like 'aria%'
+  order by variable_name;

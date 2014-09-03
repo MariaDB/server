@@ -331,7 +331,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
 
         char buf[256];
         String sbuf(buf, sizeof(buf), system_charset_info), *str;
-        if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, 0)))
+        if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, &null_lex_str)))
         {
           LEX_STRING name= { const_cast<char*>(opt->name), opt->name_length };
           default_val.str= strmake_root(root, str->ptr(), str->length());
