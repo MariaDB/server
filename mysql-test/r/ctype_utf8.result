@@ -5996,5 +5996,17 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 #
+# MDEV-6688 Illegal mix of collation with bit string B'01100001'
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT);
+INSERT INTO t1 VALUES ('a',1);
+SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 X'61')) FROM t1;
+CONCAT(a, IF(b>10, _utf8 X'61', _utf8 X'61'))
+aa
+SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001')) FROM t1;
+CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001'))
+aa
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #

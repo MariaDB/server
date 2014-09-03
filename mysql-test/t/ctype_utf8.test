@@ -1711,5 +1711,15 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-6688 Illegal mix of collation with bit string B'01100001'
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT);
+INSERT INTO t1 VALUES ('a',1);
+SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 X'61')) FROM t1;
+SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001')) FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

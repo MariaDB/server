@@ -2711,6 +2711,23 @@ public:
 
 class Item_string :public Item_basic_constant
 {
+  bool m_cs_specified;
+protected:
+  /**
+    Set the value of m_cs_specified attribute.
+
+    m_cs_specified attribute shows whether character-set-introducer was
+    explicitly specified in the original query for this text literal or
+    not. The attribute makes sense (is used) only for views.
+
+    This operation is to be called from the parser during parsing an input
+    query.
+  */
+  inline void set_cs_specified(bool cs_specified)
+  {
+    m_cs_specified= cs_specified;
+  }
+
 public:
   Item_string(const char *str,uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE,
@@ -2860,21 +2877,6 @@ public:
     return m_cs_specified;
   }
 
-  /**
-    Set the value of m_cs_specified attribute.
-
-    m_cs_specified attribute shows whether character-set-introducer was
-    explicitly specified in the original query for this text literal or
-    not. The attribute makes sense (is used) only for views.
-
-    This operation is to be called from the parser during parsing an input
-    query.
-  */
-  inline void set_cs_specified(bool cs_specified)
-  {
-    m_cs_specified= cs_specified;
-  }
-
   String *check_well_formed_result(bool send_error)
   { return Item::check_well_formed_result(&str_value, send_error); }
 
@@ -2906,8 +2908,24 @@ public:
     }
     return MYSQL_TYPE_STRING; // Not a temporal literal
   }
-private:
-  bool m_cs_specified;
+};
+
+
+class Item_string_with_introducer :public Item_string
+{
+public:
+  Item_string_with_introducer(const char *str, uint length, CHARSET_INFO *cs)
+    :Item_string(str, length, cs)
+  {
+     set_repertoire_from_value();
+     set_cs_specified(true);
+  }
+  Item_string_with_introducer(const String *str, CHARSET_INFO *tocs)
+    :Item_string(str->ptr(), str->length(), tocs)
+  {
+     set_repertoire_from_value();
+     set_cs_specified(true);
+  }
 };
 
 

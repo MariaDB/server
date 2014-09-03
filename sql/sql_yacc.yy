@@ -1648,7 +1648,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <lex_str>
         IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
-        HEX_NUM HEX_STRING hex_num_or_string
+        HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
@@ -1666,7 +1666,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         remember_name remember_end opt_db text_or_password
 
 %type <string>
-        text_string opt_gconcat_separator
+        text_string hex_or_bin_String opt_gconcat_separator
 
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
@@ -6515,11 +6515,6 @@ now_or_signed_literal:
           }
         | signed_literal
           { $$=$1; }
-        ;
-
-hex_num_or_string:
-          HEX_NUM {}
-        | HEX_STRING {}
         ;
 
 charset:
@@ -13253,14 +13248,10 @@ text_literal:
           }
         | UNDERSCORE_CHARSET TEXT_STRING
           {
-            Item_string *str= new (thd->mem_root) Item_string($2.str,
+            $$= new (thd->mem_root) Item_string_with_introducer($2.str,
                                                                 $2.length, $1);
-            if (str == NULL)
+            if ($$ == NULL)
               MYSQL_YYABORT;
-            str->set_repertoire_from_value();
-            str->set_cs_specified(TRUE);
-
-            $$= str;
           }
         | text_literal TEXT_STRING_literal
           {
@@ -13289,7 +13280,12 @@ text_string:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | HEX_NUM
+          | hex_or_bin_String { $$= $1; }
+          ;
+
+
+hex_or_bin_String:
+          HEX_NUM
           {
             Item *tmp= new (thd->mem_root) Item_hex_hybrid($1.str, $1.length);
             if (tmp == NULL)
@@ -13394,60 +13390,12 @@ literal:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | UNDERSCORE_CHARSET hex_num_or_string
+        | UNDERSCORE_CHARSET hex_or_bin_String
           {
-            Item *tmp= new (thd->mem_root) Item_hex_string($2.str, $2.length);
-            if (tmp == NULL)
+            Item_string_with_introducer *item_str;
+            item_str= new (thd->mem_root) Item_string_with_introducer($2, $1);
+            if (!item_str || !item_str->check_well_formed_result(true))
               MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fieds, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
-            String *str= tmp->val_str((String*) 0);
-
-            Item_string *item_str;
-            item_str= new (thd->mem_root)
-                        Item_string(NULL, /* name will be set in select_item */
-                                    str ? str->ptr() : "",
-                                    str ? str->length() : 0,
-                                    $1);
-            if (!item_str ||
-                !item_str->check_well_formed_result(true))
-            {
-              MYSQL_YYABORT;
-            }
-
-            item_str->set_repertoire_from_value();
-            item_str->set_cs_specified(TRUE);
-
-            $$= item_str;
-          }
-        | UNDERSCORE_CHARSET BIN_NUM
-          {
-            Item *tmp= new (thd->mem_root) Item_bin_string($2.str, $2.length);
-            if (tmp == NULL)
-              MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fieds, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
-            String *str= tmp->val_str((String*) 0);
-
-            Item_string *item_str;
-            item_str= new (thd->mem_root)
-                        Item_string(NULL, /* name will be set in select_item */
-                                    str ? str->ptr() : "",
-                                    str ? str->length() : 0,
-                                    $1);
-            if (!item_str ||
-                !item_str->check_well_formed_result(true))
-            {
-              MYSQL_YYABORT;
-            }
-
-            item_str->set_cs_specified(TRUE);
 
             $$= item_str;
           }
