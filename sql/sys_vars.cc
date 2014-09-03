@@ -4810,7 +4810,7 @@ static Sys_var_ulong Sys_extra_max_connections(
 
 #ifdef SAFE_MUTEX
 static Sys_var_mybool Sys_mutex_deadlock_detector(
-       "mutex_deadlock_detector", "Enable checking of wrong mutex usage",
+       "debug_mutex_deadlock_detector", "Enable checking of wrong mutex usage",
        READ_ONLY GLOBAL_VAR(safe_mutex_deadlock_detector),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 #endif
