@@ -2762,6 +2762,7 @@ public:
     decimals= NOT_FIXED_DEC;
     fixed= 1;
   }
+protected:
   /* Just create an item and do not fill string representation */
   Item_string(CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
     : m_cs_specified(FALSE)
@@ -2772,6 +2773,7 @@ public:
     decimals= NOT_FIXED_DEC;
     fixed= 1;
   }
+public:
   Item_string(const char *name_par, const char *str, uint length,
               CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE,
               uint repertoire= MY_REPERTOIRE_UNICODE30)
@@ -2784,11 +2786,6 @@ public:
     decimals=NOT_FIXED_DEC;
     // it is constant => can be used without fix_fields (and frequently used)
     fixed= 1;
-  }
-  void set_value(const String *str)
-  {
-    str_value= *str;
-    collation.set(str->charset());
   }
   void copy_value(const char *str, uint32 length, CHARSET_INFO *fromcs,
                   CHARSET_INFO *tocs, uint *cnv_errors)
