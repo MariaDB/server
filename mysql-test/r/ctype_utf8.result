@@ -6008,5 +6008,28 @@ CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001'))
 aa
 DROP TABLE t1;
 #
+#  MDEV-6694 Illegal mix of collation with a PS parameter
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a INT, b VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (1,'a');
+SELECT CONCAT(b,IF(a,'b','b')) FROM t1;
+CONCAT(b,IF(a,'b','b'))
+ab
+PREPARE stmt FROM "SELECT CONCAT(b,IF(a,?,?)) FROM t1";
+SET @b='b';
+EXECUTE stmt USING @b,@b;
+CONCAT(b,IF(a,?,?))
+ab
+SET @b='';
+EXECUTE stmt USING @b,@b;
+CONCAT(b,IF(a,?,?))
+a
+SET @b='я';
+EXECUTE stmt USING @b,@b;
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8_general_ci,COERCIBLE) for operation 'concat'
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
 # End of 10.0 tests
 #

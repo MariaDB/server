@@ -903,5 +903,12 @@ DROP TABLE t1;
 SELECT CONCAT(CONVERT('pi=' USING ucs2),PI()) AS PI;
 
 --echo #
+--echo # MDEV-6695 Bad column name for UCS2 string literals
+--echo #
+SET NAMES utf8, character_set_connection=ucs2;
+SELECT 'a','aa';
+
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

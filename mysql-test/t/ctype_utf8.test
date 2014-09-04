@@ -1719,6 +1719,24 @@ SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 X'61')) FROM t1;
 SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001')) FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo #  MDEV-6694 Illegal mix of collation with a PS parameter
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (a INT, b VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (1,'a');
+SELECT CONCAT(b,IF(a,'b','b')) FROM t1;
+PREPARE stmt FROM "SELECT CONCAT(b,IF(a,?,?)) FROM t1";
+SET @b='b';
+EXECUTE stmt USING @b,@b;
+SET @b='';
+EXECUTE stmt USING @b,@b;
+SET @b='я';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING @b,@b;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
 
 --echo #
 --echo # End of 10.0 tests

@@ -818,23 +818,102 @@ my_parse_charset_xml(MY_CHARSET_LOADER *loader, const char *buf, size_t len)
 }
 
 
+uint
+my_string_repertoire_8bit(CHARSET_INFO *cs, const char *str, ulong length)
+{
+  const char *strend;
+  if ((cs->state & MY_CS_NONASCII) && length > 0)
+    return MY_REPERTOIRE_UNICODE30;
+  for (strend= str + length; str < strend; str++)
+  {
+    if (((uchar) *str) > 0x7F)
+      return MY_REPERTOIRE_UNICODE30;
+  }
+  return MY_REPERTOIRE_ASCII;
+}
+
+
+static void
+my_string_metadata_init(MY_STRING_METADATA *metadata)
+{
+  metadata->repertoire= MY_REPERTOIRE_ASCII;
+  metadata->char_length= 0;
+}
+
+
+/**
+  This should probably eventually go as a virtual function into
+  MY_CHARSET_HANDLER or MY_COLLATION_HANDLER.
+*/
+static void
+my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
+                          CHARSET_INFO *cs, const char *str, ulong length)
+{
+  const char *strend= str + length;
+  for (my_string_metadata_init(metadata) ;
+       str < strend;
+       metadata->char_length++)
+  {
+    my_wc_t wc;
+    int mblen= cs->cset->mb_wc(cs, &wc, (const uchar *) str,
+                                        (const uchar *) strend);
+    if (mblen > 0) /* Assigned character */
+    {
+      if (wc > 0x7F)
+        metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      str+= mblen;
+    }
+    else if (mblen == MY_CS_ILSEQ) /* Bad byte sequence */
+    {
+      metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      str++;
+    }
+    else if (mblen > MY_CS_TOOSMALL) /* Unassigned character */ 
+    {
+      metadata->repertoire|= MY_REPERTOIRE_EXTENDED;
+      str+= (-mblen);
+    }
+    else /* Incomplete character, premature end-of-line */
+    {
+      metadata->repertoire|= MY_REPERTOIRE_EXTENDED; /* Just in case */
+      break;
+    }
+  }
+}
+
+
+/**
+  Collect string metadata: length in characters and repertoire.
+*/
+void
+my_string_metadata_get(MY_STRING_METADATA *metadata,
+                       CHARSET_INFO *cs, const char *str, ulong length)
+{
+  if (cs->mbmaxlen == 1 && !(cs->state & MY_CS_NONASCII))
+  {
+    metadata->char_length= length;
+    metadata->repertoire= my_string_repertoire_8bit(cs, str, length);
+  }
+  else
+  {
+    my_string_metadata_get_mb(metadata, cs, str, length);
+  }
+}
+
+
 /*
   Check repertoire: detect pure ascii strings
 */
 uint
 my_string_repertoire(CHARSET_INFO *cs, const char *str, ulong length)
 {
-  const char *strend= str + length;
-  if (cs->mbminlen == 1)
+  if (cs->mbminlen == 1 && !(cs->state & MY_CS_NONASCII))
   {
-    for ( ; str < strend; str++)
-    {
-      if (((uchar) *str) > 0x7F)
-        return MY_REPERTOIRE_UNICODE30;
-    }
+    return my_string_repertoire_8bit(cs, str, length);
   }
   else
   {
+    const char *strend= str + length;
     my_wc_t wc;
     int chlen;
     for (;

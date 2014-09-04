@@ -1694,7 +1694,41 @@ class Item_basic_value :public Item
       value->bin_eq(other) :
       collation.collation == cs && value->eq(other, collation.collation);
   }
+
 protected:
+  // Value metadata, e.g. to make string processing easier
+  class Metadata: private MY_STRING_METADATA
+  {
+  public:
+    Metadata(const String *str)
+    {
+      my_string_metadata_get(this, str->charset(), str->ptr(), str->length());
+    }
+    Metadata(const String *str, uint repertoire)
+    {
+      MY_STRING_METADATA::repertoire= repertoire;
+      MY_STRING_METADATA::char_length= str->numchars();
+    }
+    uint repertoire() const { return MY_STRING_METADATA::repertoire; }
+    size_t char_length() const { return MY_STRING_METADATA::char_length; }
+  };
+  void fix_charset_and_length_from_str_value(Derivation dv, Metadata metadata)
+  {
+    /*
+      We have to have a different max_length than 'length' here to
+      ensure that we get the right length if we do use the item
+      to create a new table. In this case max_length must be the maximum
+      number of chars for a string of this type because we in Create_field::
+      divide the max_length with mbmaxlen).
+    */
+    collation.set(str_value.charset(), dv, metadata.repertoire());
+    fix_char_length(metadata.char_length());
+    decimals= NOT_FIXED_DEC;
+  }
+  void fix_charset_and_length_from_str_value(Derivation dv)
+  {
+    fix_charset_and_length_from_str_value(dv, Metadata(&str_value));
+  }
   Item_basic_value(): Item() {}
   /*
     In the xxx_eq() methods below we need to cast off "const" to
@@ -2374,10 +2408,6 @@ public:
 class Item_param :public Item_basic_value,
                   private Settable_routine_parameter
 {
-  char cnvbuf[MAX_FIELD_WIDTH];
-  String cnvstr;
-  Item_string *cnvitem;
-
 public:
   enum enum_item_param_state
   {
@@ -2727,40 +2757,16 @@ protected:
   {
     m_cs_specified= cs_specified;
   }
-
-public:
-  Item_string(const char *str,uint length,
-              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE,
-              uint repertoire= MY_REPERTOIRE_UNICODE30)
-    : m_cs_specified(FALSE)
+  void fix_from_value(Derivation dv, const Metadata metadata)
   {
-    str_value.set_or_copy_aligned(str, length, cs);
-    collation.set(cs, dv, repertoire);
-    /*
-      We have to have a different max_length than 'length' here to
-      ensure that we get the right length if we do use the item
-      to create a new table. In this case max_length must be the maximum
-      number of chars for a string of this type because we in Create_field::
-      divide the max_length with mbmaxlen).
-    */
-    max_length= str_value.numchars()*cs->mbmaxlen;
-    set_name(str, length, cs);
-    decimals=NOT_FIXED_DEC;
+    fix_charset_and_length_from_str_value(dv, metadata);
     // it is constant => can be used without fix_fields (and frequently used)
     fixed= 1;
   }
-  Item_string(const String *str, CHARSET_INFO *tocs, uint *conv_errors,
-              Derivation dv, uint repertoire)
-    :m_cs_specified(false)
+  void fix_and_set_name_from_value(Derivation dv, const Metadata metadata)
   {
-    if (str_value.copy(str, tocs, conv_errors))
-      str_value.set("", 0, tocs); // EOM ?
-    str_value.mark_as_const();
-    collation.set(tocs, dv, repertoire);
-    fix_char_length(str_value.numchars());
-    set_name(str_value.ptr(), str_value.length(), tocs);
-    decimals= NOT_FIXED_DEC;
-    fixed= 1;
+    fix_from_value(dv, metadata);
+    set_name(str_value.ptr(), str_value.length(), str_value.charset());
   }
 protected:
   /* Just create an item and do not fill string representation */
@@ -2769,51 +2775,55 @@ protected:
   {
     collation.set(cs, dv);
     max_length= 0;
-    set_name(NULL, 0, cs);
+    set_name(NULL, 0, system_charset_info);
     decimals= NOT_FIXED_DEC;
     fixed= 1;
   }
 public:
-  Item_string(const char *name_par, const char *str, uint length,
-              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE,
-              uint repertoire= MY_REPERTOIRE_UNICODE30)
+  // Constructors with the item name set from its value
+  Item_string(const char *str, uint length, CHARSET_INFO *cs,
+              Derivation dv, uint repertoire)
     : m_cs_specified(FALSE)
   {
     str_value.set_or_copy_aligned(str, length, cs);
-    collation.set(cs, dv, repertoire);
-    max_length= str_value.numchars()*cs->mbmaxlen;
-    set_name(name_par, 0, cs);
-    decimals=NOT_FIXED_DEC;
-    // it is constant => can be used without fix_fields (and frequently used)
-    fixed= 1;
+    fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
   }
-  void copy_value(const char *str, uint32 length, CHARSET_INFO *fromcs,
-                  CHARSET_INFO *tocs, uint *cnv_errors)
+  Item_string(const char *str, uint length,
+              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
+    : m_cs_specified(FALSE)
   {
-    str_value.copy(str, length, fromcs, tocs, cnv_errors);
-    str_value.mark_as_const();
-    collation.set(tocs);
-    fix_char_length(str_value.numchars());
+    str_value.set_or_copy_aligned(str, length, cs);
+    fix_and_set_name_from_value(dv, Metadata(&str_value));
   }
-  
+  Item_string(const String *str, CHARSET_INFO *tocs, uint *conv_errors,
+              Derivation dv, uint repertoire)
+    :m_cs_specified(false)
+  {
+    if (str_value.copy(str, tocs, conv_errors))
+      str_value.set("", 0, tocs); // EOM ?
+    str_value.mark_as_const();
+    fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
+  }
+  // Constructors with an externally provided item name
+  Item_string(const char *name_par, const char *str, uint length,
+              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
+    :m_cs_specified(false)
+  {
+    str_value.set_or_copy_aligned(str, length, cs);
+    fix_from_value(dv, Metadata(&str_value));
+    set_name(name_par, 0, system_charset_info);
+  }
+  Item_string(const char *name_par, const char *str, uint length,
+              CHARSET_INFO *cs, Derivation dv, uint repertoire)
+    :m_cs_specified(false)
+  {
+    str_value.set_or_copy_aligned(str, length, cs);
+    fix_from_value(dv, Metadata(&str_value, repertoire));
+    set_name(name_par, 0, system_charset_info);
+  }
   void print_value(String *to) const
   {
     str_value.print(to);
-  }
-  /*
-    This is used in stored procedures to avoid memory leaks and
-    does a deep copy of its argument.
-  */
-  void set_str_with_copy(const char *str_arg, uint length_arg)
-  {
-    str_value.copy(str_arg, length_arg, collation.collation);
-    max_length= str_value.numchars() * collation.collation->mbmaxlen;
-  }
-  void set_repertoire_from_value()
-  {
-    collation.repertoire= my_string_repertoire(str_value.charset(),
-                                               str_value.ptr(),
-                                               str_value.length());
   }
   enum Type type() const { return STRING_ITEM; }
   double val_real();
@@ -2835,7 +2845,7 @@ public:
   Item *clone_item() 
   {
     return new Item_string(name, str_value.ptr(), 
-    			   str_value.length(), collation.collation);
+                           str_value.length(), collation.collation);
   }
   Item *safe_charset_converter(CHARSET_INFO *tocs)
   {
@@ -2914,14 +2924,12 @@ public:
   Item_string_with_introducer(const char *str, uint length, CHARSET_INFO *cs)
     :Item_string(str, length, cs)
   {
-     set_repertoire_from_value();
-     set_cs_specified(true);
+    set_cs_specified(true);
   }
   Item_string_with_introducer(const String *str, CHARSET_INFO *tocs)
     :Item_string(str->ptr(), str->length(), tocs)
   {
-     set_repertoire_from_value();
-     set_cs_specified(true);
+    set_cs_specified(true);
   }
 };
 
