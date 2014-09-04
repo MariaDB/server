@@ -862,7 +862,6 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
     {
       wsrep_lock_inserted= TRUE;
     }
-  wsrep_read_wait:
 #endif
 
     wait_queue= &lock->read_wait;
@@ -1011,8 +1010,6 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
     {
       wsrep_lock_inserted= TRUE;
     }
-  wsrep_write_wait:
-
 #endif
 
     wait_queue= &lock->write_wait;

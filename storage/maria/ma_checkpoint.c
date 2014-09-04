@@ -230,7 +230,7 @@ static int really_execute_checkpoint(void)
       sizeof(checkpoint_start_log_horizon_char);
     for (i= 0; i < (sizeof(record_pieces)/sizeof(record_pieces[0])); i++)
     {
-      log_array[TRANSLOG_INTERNAL_PARTS + 1 + i].str=    record_pieces[i].str;
+      log_array[TRANSLOG_INTERNAL_PARTS + 1 + i].str= (uchar*)record_pieces[i].str;
       log_array[TRANSLOG_INTERNAL_PARTS + 1 + i].length= record_pieces[i].length;
       total_rec_length+= (translog_size_t) record_pieces[i].length;
     }

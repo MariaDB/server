@@ -23,7 +23,7 @@
 #if !defined(EMBEDDED_LIBRARY)
 #define WSREP_FORMAT(my_format)                           \
   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ? \
-   wsrep_forced_binlog_format : my_format)
+   ((enum enum_binlog_format)wsrep_forced_binlog_format) : my_format)
 #else
 #define WSREP_FORMAT(my_format) my_format
 #endif /* && !EMBEDDED_LIBRARY */
