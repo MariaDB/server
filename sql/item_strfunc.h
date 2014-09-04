@@ -719,6 +719,16 @@ public:
 };
 
 
+class Item_func_space :public Item_str_func
+{
+public:
+  Item_func_space(Item *arg1):Item_str_func(arg1) {}
+  String *val_str(String *);
+  void fix_length_and_dec();
+  const char *func_name() const { return "space"; }
+};
+
+
 class Item_func_binlog_gtid_pos :public Item_str_func
 {
   String tmp_value;
