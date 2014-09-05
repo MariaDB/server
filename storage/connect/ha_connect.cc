@@ -1731,10 +1731,10 @@ int ha_connect::MakeRecord(char *buf)
 
         // Store functions returns 1 on overflow and -1 on fatal error
         if (rc > 0) {
-          char buf[128];
+          char buf[256];
           THD *thd= ha_thd();
 
-          sprintf(buf, "Out of range value %s for column '%s' at row %ld",
+          sprintf(buf, "Out of range value %.140s for column '%s' at row %ld",
             value->GetCharString(val),
             fp->field_name, 
             thd->get_stmt_da()->current_row_for_warning());
