@@ -3144,7 +3144,10 @@ sp_instr_stmt::execute(THD *thd, uint *nextp)
     thd->query_name_consts= 0;
 
     if (!thd->is_error())
+    {
+      res= 0;
       thd->get_stmt_da()->reset_diagnostics_area();
+    }
   }
   DBUG_RETURN(res || thd->is_error());
 }
