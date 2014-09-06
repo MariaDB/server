@@ -350,8 +350,9 @@ int TXTFAM::UpdateSortedRows(PGLOBAL g)
   /*  Get the stored update values and sort them.                      */
   /*********************************************************************/
   if (!(Posar = MakeValueArray(g, To_Pos))) {
-    strcpy(g->Message, "Position array is null");
-    return RC_INFO;
+//  strcpy(g->Message, "Position array is null");
+//  return RC_INFO;
+    return RC_OK;         // Nothing to do
   } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
     strcpy(g->Message, "Start position array is null");
     goto err;
@@ -401,8 +402,9 @@ int TXTFAM::DeleteSortedRows(PGLOBAL g)
   /*  Get the stored delete values and sort them.                      */
   /*********************************************************************/
   if (!(Posar = MakeValueArray(g, To_Pos))) {
-    strcpy(g->Message, "Position array is null");
-    return RC_INFO;
+//  strcpy(g->Message, "Position array is null");
+//  return RC_INFO;
+    return RC_OK;             // Nothing to do
   } else if (!(Sosar = MakeValueArray(g, To_Sos))) {
     strcpy(g->Message, "Start position array is null");
     goto err;

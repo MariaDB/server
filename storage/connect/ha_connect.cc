@@ -2946,8 +2946,10 @@ int ha_connect::index_init(uint idx, bool sorted)
         ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
 
       active_index= idx;
-    } else        // Void table
-      indexing= 0;
+//  } else {        // Void table
+//    active_index= MAX_KEY;
+//    indexing= 0;
+    } // endif Num
 
     rc= 0;
   } // endif indexing
