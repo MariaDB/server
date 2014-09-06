@@ -2858,7 +2858,8 @@ bool show_all_master_info(THD* thd)
   if (send_show_master_info_header(thd, 1, gtid_pos.length()))
     DBUG_RETURN(TRUE);
 
-  if (!(elements= master_info_index->master_info_hash.records))
+  if (!master_info_index ||
+      !(elements= master_info_index->master_info_hash.records))
     goto end;
 
   /*

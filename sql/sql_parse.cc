@@ -2693,6 +2693,9 @@ case SQLCOM_PREPARE:
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
 
+    if (!master_info_index)
+      goto error;
+
     mi= master_info_index->get_master_info(&lex_mi->connection_name,
                                            Sql_condition::WARN_LEVEL_NOTE);
 
@@ -3150,7 +3153,7 @@ end_with_restore_list:
   case SQLCOM_SLAVE_ALL_START:
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index->start_all_slaves(thd))
+    if (master_info_index && !master_info_index->start_all_slaves(thd))
       my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -3166,7 +3169,7 @@ end_with_restore_list:
       goto error;
     }
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index->stop_all_slaves(thd))
+    if (master_info_index && !master_info_index->stop_all_slaves(thd))
       my_ok(thd);      
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
