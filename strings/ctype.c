@@ -887,7 +887,7 @@ my_string_metadata_get_mb(MY_STRING_METADATA *metadata,
 */
 void
 my_string_metadata_get(MY_STRING_METADATA *metadata,
-                       CHARSET_INFO *cs, const char *str, ulong length)
+                       CHARSET_INFO *cs, const char *str, size_t length)
 {
   if (cs->mbmaxlen == 1 && !(cs->state & MY_CS_NONASCII))
   {
