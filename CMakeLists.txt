@@ -466,7 +466,10 @@ ENDIF()
 ADD_SUBDIRECTORY(packaging/solaris)
 
 IF(NOT CMAKE_CROSSCOMPILING)
-  SET(EXPORTED comp_err comp_sql factorial gen_lex_hash)
+  SET(EXPORTED comp_err comp_sql factorial)
+  IF(NOT WITHOUT_SERVER)
+    SET(EXPORTED ${EXPORTED} gen_lex_hash)
+  ENDIF()
   # minimal target to build only binaries for export
   ADD_CUSTOM_TARGET(import_executables DEPENDS ${EXPORTED})
   EXPORT(TARGETS ${EXPORTED} FILE ${CMAKE_BINARY_DIR}/import_executables.cmake)
