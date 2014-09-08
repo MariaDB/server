@@ -1,12 +1,43 @@
---source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_wsrep.inc
 
-SELECT COUNT(@@wsrep_sst_donor);
+--echo #
+--echo # wsrep_sst_donor
+--echo #
 
-set @start_value = @@wsrep_sst_donor;
-set @@global.wsrep_sst_donor='foo';
-set @@global.wsrep_sst_donor=NULL;
-set @@global.wsrep_sst_donor=r;
---error 1232
-set @@global.wsrep_sst_donor=1;
-set @@global.wsrep_sst_donor = @start_value;
+--echo # save the initial value
+SET @wsrep_sst_donor_global_saved = @@global.wsrep_sst_donor;
+
+--echo # default
+SELECT @@global.wsrep_sst_donor;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_sst_donor;
+SET @@global.wsrep_sst_donor=rsync;
+SELECT @@global.wsrep_sst_donor;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_sst_donor=node1;
+SELECT @@global.wsrep_sst_donor;
+SET @@global.wsrep_sst_donor='node1,node2';
+SELECT @@global.wsrep_sst_donor;
+SET @@global.wsrep_sst_donor='hyphenated-donor-name';
+SELECT @@global.wsrep_sst_donor;
+SET @@global.wsrep_sst_donor=default;
+SELECT @@global.wsrep_sst_donor;
+SET @@global.wsrep_sst_donor=NULL;
+SELECT @@global.wsrep_sst_donor;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_sst_donor=1;
+SELECT @@global.wsrep_sst_donor;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_sst_donor = @wsrep_sst_donor_global_saved;
+
+--echo # End of test

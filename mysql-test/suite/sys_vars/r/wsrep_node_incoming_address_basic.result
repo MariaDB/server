@@ -1,45 +1,56 @@
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
-COUNT(@@GLOBAL.wsrep_node_incoming_address)
-1
-1 Expected
-SET @@GLOBAL.wsrep_node_incoming_address=1;
-ERROR 42000: Incorrect argument type to variable 'wsrep_node_incoming_address'
-Expected error 'Read only variable'
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
-COUNT(@@GLOBAL.wsrep_node_incoming_address)
-1
-1 Expected
-SELECT @@GLOBAL.wsrep_node_incoming_address = VARIABLE_VALUE
-FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
-WHERE VARIABLE_NAME='wsrep_node_incoming_address';
-@@GLOBAL.wsrep_node_incoming_address = VARIABLE_VALUE
-1
-1 Expected
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
-COUNT(@@GLOBAL.wsrep_node_incoming_address)
-1
-1 Expected
-SELECT COUNT(VARIABLE_VALUE)
-FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
-WHERE VARIABLE_NAME='wsrep_node_incoming_address';
-COUNT(VARIABLE_VALUE)
-1
-1 Expected
-SELECT @@wsrep_node_incoming_address = @@GLOBAL.wsrep_node_incoming_address;
-@@wsrep_node_incoming_address = @@GLOBAL.wsrep_node_incoming_address
-1
-1 Expected
-SELECT COUNT(@@wsrep_node_incoming_address);
-COUNT(@@wsrep_node_incoming_address)
-1
-1 Expected
-SELECT COUNT(@@local.wsrep_node_incoming_address);
+#
+# wsrep_node_incoming_address
+#
+# save the initial value
+SET @wsrep_node_incoming_address_global_saved = @@global.wsrep_node_incoming_address;
+# default
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+AUTO
+
+# scope
+SELECT @@session.wsrep_node_incoming_address;
 ERROR HY000: Variable 'wsrep_node_incoming_address' is a GLOBAL variable
-Expected error 'Variable is a GLOBAL variable'
-SELECT COUNT(@@SESSION.wsrep_node_incoming_address);
-ERROR HY000: Variable 'wsrep_node_incoming_address' is a GLOBAL variable
-Expected error 'Variable is a GLOBAL variable'
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
-COUNT(@@GLOBAL.wsrep_node_incoming_address)
-1
-1 Expected
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+AUTO
+
+# valid values
+SET @@global.wsrep_node_incoming_address='127.0.0.1:4444';
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+127.0.0.1:4444
+SET @@global.wsrep_node_incoming_address='127.0.0.1';
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+127.0.0.1
+SET @@global.wsrep_node_incoming_address=AUTO;
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+AUTO
+SET @@global.wsrep_node_incoming_address=default;
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+AUTO
+
+# invalid values
+SET @@global.wsrep_node_incoming_address=ON;
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+ON
+SET @@global.wsrep_node_incoming_address='OFF';
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+OFF
+SET @@global.wsrep_node_incoming_address=NULL;
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+NULL
+SET @@global.wsrep_node_incoming_address='junk';
+SELECT @@global.wsrep_node_incoming_address;
+@@global.wsrep_node_incoming_address
+junk
+
+# restore the initial value
+SET @@global.wsrep_node_incoming_address = @wsrep_node_incoming_address_global_saved;
+# End of test

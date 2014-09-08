@@ -1,13 +1,42 @@
---source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_wsrep.inc
 
-set @start_value = @@wsrep_log_conflicts;
+--echo #
+--echo # wsrep_log_conflicts
+--echo #
 
-set @@global.wsrep_log_conflicts=ON;
-set @@global.wsrep_log_conflicts=OFF;
-set @@global.wsrep_log_conflicts=1;
-set @@global.wsrep_log_conflicts=0;
---Error 1231
-SET @@global.wsrep_log_conflicts = -1;
+--echo # save the initial value
+SET @wsrep_log_conflicts_global_saved = @@global.wsrep_log_conflicts;
 
-set @@global.wsrep_log_conflicts = @start_value;
+--echo # default
+SELECT @@global.wsrep_log_conflicts;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_log_conflicts;
+SET @@global.wsrep_log_conflicts=OFF;
+SELECT @@global.wsrep_log_conflicts;
+SET @@global.wsrep_log_conflicts=ON;
+SELECT @@global.wsrep_log_conflicts;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_log_conflicts='OFF';
+SELECT @@global.wsrep_log_conflicts;
+SET @@global.wsrep_log_conflicts=ON;
+SELECT @@global.wsrep_log_conflicts;
+SET @@global.wsrep_log_conflicts=default;
+SELECT @@global.wsrep_log_conflicts;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_log_conflicts=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_log_conflicts='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_log_conflicts = @wsrep_log_conflicts_global_saved;
+
+--echo # End of test

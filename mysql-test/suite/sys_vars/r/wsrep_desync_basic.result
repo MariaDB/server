@@ -1,3 +1,52 @@
-select @@global.wsrep_desync;
+#
+# wsrep_desync
+#
+call mtr.add_suppression("WSREP: SET desync failed 9 for SET @@global.wsrep_desync=ON");
+# save the initial value
+SET @wsrep_desync_global_saved = @@global.wsrep_desync;
+# default
+SELECT @@global.wsrep_desync;
 @@global.wsrep_desync
 0
+
+# scope
+SELECT @@session.wsrep_desync;
+ERROR HY000: Variable 'wsrep_desync' is a GLOBAL variable
+SET @@global.wsrep_desync=OFF;
+Warnings:
+Warning	1231	'wsrep_desync' is already OFF.
+SELECT @@global.wsrep_desync;
+@@global.wsrep_desync
+0
+SET @@global.wsrep_desync=ON;
+ERROR HY000: Operation 'desync' failed for SET @@global.wsrep_desync=ON
+SELECT @@global.wsrep_desync;
+@@global.wsrep_desync
+1
+
+# valid values
+SET @@global.wsrep_desync='OFF';
+SELECT @@global.wsrep_desync;
+@@global.wsrep_desync
+0
+SET @@global.wsrep_desync=ON;
+ERROR HY000: Operation 'desync' failed for SET @@global.wsrep_desync=ON
+SELECT @@global.wsrep_desync;
+@@global.wsrep_desync
+1
+SET @@global.wsrep_desync=default;
+SELECT @@global.wsrep_desync;
+@@global.wsrep_desync
+0
+
+# invalid values
+SET @@global.wsrep_desync=NULL;
+ERROR 42000: Variable 'wsrep_desync' can't be set to the value of 'NULL'
+SET @@global.wsrep_desync='junk';
+ERROR 42000: Variable 'wsrep_desync' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_desync = @wsrep_desync_global_saved;
+Warnings:
+Warning	1231	'wsrep_desync' is already OFF.
+# End of test
