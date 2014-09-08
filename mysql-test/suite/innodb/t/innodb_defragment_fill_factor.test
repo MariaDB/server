@@ -1,4 +1,8 @@
 --source include/have_innodb.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
 --disable_warnings
 DROP TABLE if exists t1;
 DROP TABLE if exists t2;
@@ -34,34 +38,44 @@ select count(*) from t1;
 select count(*) from t1 force index (second);
 # secondary index is slightly bigger than primary index so the number of pages should be similar.
 --let $second_before = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second', Value, 1)
+
 --echo # A few more insertions on the page should not cause a page split.
 insert into t1 values (81, REPEAT('A', 256));
 insert into t1 values (83, REPEAT('A', 256));
-insert into t1 values (87, REPEAT('A', 256));
-insert into t1 values (82, REPEAT('A', 256));
-insert into t1 values (86, REPEAT('A', 256));
+
 --let $primary_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY', Value, 1)
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second', Value, 1)
+
 if ($primary_before != $primary_after) {
    --echo Insertion caused page split on primary, which should be avoided by innodb_defragment_fill_factor.
 }
+
 if ($second_before != $second_after) {
    --echo Insertion caused page split on second, which should be avoided by innodb_defragment_fill_factor.
 }
+
 --echo # More insertions will cause page splits
 insert into t1 values (88, REPEAT('A', 50));
-#insert into t1 values (85, REPEAT('A', 256));
-#insert into t1 values (84, REPEAT('A', 256));
-#insert into t1 values (89, REPEAT('A', 256));
+insert into t1 values (85, REPEAT('A', 256));
+insert into t1 values (84, REPEAT('A', 256));
+insert into t1 values (87, REPEAT('A', 256));
+insert into t1 values (89, REPEAT('A', 256));
+insert into t1 values (82, REPEAT('A', 256));
+insert into t1 values (86, REPEAT('A', 256));
+
 --let $primary_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY', Value, 1)
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second', Value, 1)
+
 if ($primary_before == $primary_after) {
    --echo Too much space are reserved on primary index.
 }
+
 if ($second_before == $second_after) {
    --echo Too much space are reserved on second index.
 }
+
 DROP TABLE t1;
+
 --echo Testing table with small records
 CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARchar(16), KEY SECOND(a,b)) ENGINE=INNODB;
 # Populate table.
@@ -111,20 +125,30 @@ insert into t2 values(1197, REPEAT('A', 16));
 insert into t2 values(1188, REPEAT('A', 16));
 insert into t2 values(1198, REPEAT('A', 16));
 insert into t2 values(1189, REPEAT('A', 16));
-insert into t2 values(1199, REPEAT('A', 16));
-insert into t2 values(1190, REPEAT('A', 16));
-insert into t2 values(1180, REPEAT('A', 16));
+
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t2%' and index_name = 'second', Value, 1)
+
 if ($second_before != $second_after) {
    --echo Insertion caused page split on second, which should be avoided by innodb_defragment_fill_factor.
 }
+
 --echo More insertions will cause page split.
 insert into t2 values(1280, REPEAT('A', 16));
 insert into t2 values(1290, REPEAT('A', 16));
 insert into t2 values(1281, REPEAT('A', 16));
 insert into t2 values(1291, REPEAT('A', 16));
+insert into t2 values(1199, REPEAT('A', 16));
+insert into t2 values(1190, REPEAT('A', 16));
+insert into t2 values(1180, REPEAT('A', 16));
+insert into t2 values(1295, REPEAT('A', 16));
+insert into t2 values(1294, REPEAT('A', 16));
+insert into t2 values(1292, REPEAT('A', 16));
+insert into t2 values(1293, REPEAT('A', 16));
+
 --let $second_after = query_get_value(select count(*) as Value from information_schema.innodb_buffer_page where table_name like '%t2%' and index_name = 'second', Value, 1)
+
 if ($second_before == $second_after) {
    --echo Too much space are reserved on second index.
 }
+
 DROP TABLE t2;
