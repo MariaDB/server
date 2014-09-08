@@ -9570,7 +9570,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           {
             tab->table->file->pushed_cond= NULL;
             if ((tab->table->file->ha_table_flags() &
-                  HA_MUST_USE_TABLE_CONDITION_PUSHDOWN) &&
+                  HA_CAN_TABLE_CONDITION_PUSHDOWN) &&
                 !first_inner_tab)
             {
               COND *push_cond= 
@@ -23630,7 +23630,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
         const COND *pushed_cond= tab->table->file->pushed_cond;
 
         if ((tab->table->file->ha_table_flags() &
-              HA_MUST_USE_TABLE_CONDITION_PUSHDOWN) &&
+              HA_CAN_TABLE_CONDITION_PUSHDOWN) &&
             pushed_cond)
         {
           eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
