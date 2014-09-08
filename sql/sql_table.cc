@@ -5029,7 +5029,10 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
      */
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     if (thd->locked_tables_list.reopen_tables(thd))
+    {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      result= 1;
+    }
     else
     {
       TABLE *table= pos_in_locked_tables->table;
@@ -5292,6 +5295,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   if (res)
   {
+    /* is_error() may be 0 if table existed and we generated a warning */
     res= thd->is_error();
     goto err;
   }
@@ -5374,7 +5378,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
      */
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     if (thd->locked_tables_list.reopen_tables(thd))
+    {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      res= 1;                                   // We got an error
+    }
     else
     {
       /*
