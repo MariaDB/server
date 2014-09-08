@@ -4,7 +4,6 @@
 #include "rpl_mi.h"
 #include "debug_sync.h"
 
-
 /*
   Code for optional parallel execution of replicated events on the slave.
 */
@@ -844,9 +843,9 @@ handle_rpl_parallel_thread(void *arg)
       {
         if (last_ir)
         {
-          my_atomic_rwlock_wrlock(&rli->inuse_relaylog_atomic_lock);
+          my_atomic_rwlock_wrlock(&last_ir->inuse_relaylog_atomic_lock);
           my_atomic_add64(&last_ir->dequeued_count, accumulated_ir_count);
-          my_atomic_rwlock_wrunlock(&rli->inuse_relaylog_atomic_lock);
+          my_atomic_rwlock_wrunlock(&last_ir->inuse_relaylog_atomic_lock);
           accumulated_ir_count= 0;
         }
         last_ir= ir;
@@ -857,9 +856,9 @@ handle_rpl_parallel_thread(void *arg)
     }
     if (last_ir)
     {
-      my_atomic_rwlock_wrlock(&rli->inuse_relaylog_atomic_lock);
+      my_atomic_rwlock_wrlock(&last_ir->inuse_relaylog_atomic_lock);
       my_atomic_add64(&last_ir->dequeued_count, accumulated_ir_count);
-      my_atomic_rwlock_wrunlock(&rli->inuse_relaylog_atomic_lock);
+      my_atomic_rwlock_wrunlock(&last_ir->inuse_relaylog_atomic_lock);
     }
 
     if ((events= rpt->event_queue) != NULL)

@@ -170,8 +170,6 @@ public:
   */
   inuse_relaylog *inuse_relaylog_list;
   inuse_relaylog *last_inuse_relaylog;
-  /* Lock used to protect inuse_relaylog::dequeued_count */
-  my_atomic_rwlock_t inuse_relaylog_atomic_lock;
 
   /*
     Needed to deal properly with cur_log getting closed and re-opened with
@@ -504,6 +502,8 @@ struct inuse_relaylog {
   /* Set when all events have been read from a relaylog. */
   bool completed;
   char name[FN_REFLEN];
+  /* Lock used to protect inuse_relaylog::dequeued_count */
+  my_atomic_rwlock_t inuse_relaylog_atomic_lock;
 };
 
 
