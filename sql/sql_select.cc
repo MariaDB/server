@@ -23490,16 +23490,19 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       const char *tmp_buff;
       int f_idx;
       StringBuffer<64> key_name_buf;
-      if (is_table_read_plan->has_db_lookup_value())
+      if (is_table_read_plan->trivial_show_command ||
+          is_table_read_plan->has_db_lookup_value())
       {
         /* The "key" has the name of the column referring to the database */
         f_idx= table_list->schema_table->idx_field1;
         tmp_buff= table_list->schema_table->fields_info[f_idx].field_name;
         key_name_buf.append(tmp_buff, strlen(tmp_buff), cs);
       }          
-      if (is_table_read_plan->has_table_lookup_value())
+      if (is_table_read_plan->trivial_show_command ||
+          is_table_read_plan->has_table_lookup_value())
       {
-        if (is_table_read_plan->has_db_lookup_value())
+        if (is_table_read_plan->trivial_show_command ||
+            is_table_read_plan->has_db_lookup_value())
           key_name_buf.append(',');
 
         f_idx= table_list->schema_table->idx_field2;
@@ -23630,8 +23633,9 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       else
         eta->push_extra(ET_OPEN_FULL_TABLE);
       /* psergey-note: the following has a bug.*/
-      if (table_list->is_table_read_plan->has_db_lookup_value() &&
-          table_list->is_table_read_plan->has_table_lookup_value())
+      if (table_list->is_table_read_plan->trivial_show_command ||
+          (table_list->is_table_read_plan->has_db_lookup_value() &&
+           table_list->is_table_read_plan->has_table_lookup_value()))
         eta->push_extra(ET_SCANNED_0_DATABASES);
       else if (table_list->is_table_read_plan->has_db_lookup_value() ||
                table_list->is_table_read_plan->has_table_lookup_value())
