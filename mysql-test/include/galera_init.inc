@@ -11,6 +11,7 @@
 #   Number of nodes in the cluster.
 #
 
+--source include/have_wsrep_provider.inc
 --source include/have_wsrep_enabled.inc
 
 --let $_galera_node= $galera_cluster_size

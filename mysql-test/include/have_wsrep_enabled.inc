@@ -3,7 +3,7 @@
 
 --source include/have_wsrep.inc
 
---require r/have_wsrep.require
+--require r/have_wsrep_on.require
 disable_query_log;
 SHOW VARIABLES LIKE 'wsrep_on';
 enable_query_log;
