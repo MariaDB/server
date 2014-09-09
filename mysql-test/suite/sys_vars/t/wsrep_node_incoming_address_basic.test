@@ -1,42 +1,47 @@
---source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_wsrep.inc
 
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
---echo 1 Expected
+--echo #
+--echo # wsrep_node_incoming_address
+--echo #
 
---error 1232
-SET @@GLOBAL.wsrep_node_incoming_address=1;
---echo Expected error 'Read only variable'
+--echo # save the initial value
+SET @wsrep_node_incoming_address_global_saved = @@global.wsrep_node_incoming_address;
 
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
---echo 1 Expected
+--echo # default
+SELECT @@global.wsrep_node_incoming_address;
 
-SELECT @@GLOBAL.wsrep_node_incoming_address = VARIABLE_VALUE
-FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
-WHERE VARIABLE_NAME='wsrep_node_incoming_address';
---echo 1 Expected
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_node_incoming_address;
+SELECT @@global.wsrep_node_incoming_address;
 
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
---echo 1 Expected
+--echo
+--echo # valid values
+SET @@global.wsrep_node_incoming_address='127.0.0.1:4444';
+SELECT @@global.wsrep_node_incoming_address;
+SET @@global.wsrep_node_incoming_address='127.0.0.1';
+SELECT @@global.wsrep_node_incoming_address;
+SET @@global.wsrep_node_incoming_address=AUTO;
+SELECT @@global.wsrep_node_incoming_address;
+SET @@global.wsrep_node_incoming_address=default;
+SELECT @@global.wsrep_node_incoming_address;
 
-SELECT COUNT(VARIABLE_VALUE)
-FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
-WHERE VARIABLE_NAME='wsrep_node_incoming_address';
---echo 1 Expected
+--echo
+--echo # invalid values
+# The values being assigned to wsrep_node_incoming_address are not verified so
+# the following values are currently valid too.
+SET @@global.wsrep_node_incoming_address=ON;
+SELECT @@global.wsrep_node_incoming_address;
+SET @@global.wsrep_node_incoming_address='OFF';
+SELECT @@global.wsrep_node_incoming_address;
+SET @@global.wsrep_node_incoming_address=NULL;
+SELECT @@global.wsrep_node_incoming_address;
+SET @@global.wsrep_node_incoming_address='junk';
+SELECT @@global.wsrep_node_incoming_address;
 
-SELECT @@wsrep_node_incoming_address = @@GLOBAL.wsrep_node_incoming_address;
---echo 1 Expected
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_node_incoming_address = @wsrep_node_incoming_address_global_saved;
 
-SELECT COUNT(@@wsrep_node_incoming_address);
---echo 1 Expected
-
---Error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT COUNT(@@local.wsrep_node_incoming_address);
---echo Expected error 'Variable is a GLOBAL variable'
-
---Error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT COUNT(@@SESSION.wsrep_node_incoming_address);
---echo Expected error 'Variable is a GLOBAL variable'
-
-SELECT COUNT(@@GLOBAL.wsrep_node_incoming_address);
---echo 1 Expected
+--echo # End of test

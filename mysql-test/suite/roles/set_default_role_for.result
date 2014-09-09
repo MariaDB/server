@@ -21,17 +21,17 @@ Grants for user_a@localhost
 GRANT role_a TO 'user_a'@'localhost'
 GRANT USAGE ON *.* TO 'user_a'@'localhost'
 GRANT SELECT ON *.* TO 'role_a'
-select user, host, default_role from mysql.user where user like 'user_%';
+select user, host, default_role from mysql.user where user like 'user_%' order by user;
 user	host	default_role
 user_a	localhost	role_a
 user_b	localhost	role_b
 set default role NONE for current_user;
-select user, host, default_role from mysql.user where user like 'user_%';
+select user, host, default_role from mysql.user where user like 'user_%' order by user;
 user	host	default_role
 user_a	localhost	
 user_b	localhost	role_b
 set default role current_role for current_user;
-select user, host, default_role from mysql.user where user like 'user_%';
+select user, host, default_role from mysql.user where user like 'user_%' order by user;
 user	host	default_role
 user_a	localhost	role_a
 user_b	localhost	role_b
@@ -42,7 +42,7 @@ Grants for user_b@localhost
 GRANT role_b TO 'user_b'@'localhost'
 GRANT USAGE ON *.* TO 'user_b'@'localhost'
 GRANT INSERT, UPDATE ON *.* TO 'role_b'
-select user, host, default_role from mysql.user where user like 'user_%';
+select user, host, default_role from mysql.user where user like 'user_%' order by user;
 ERROR 42000: SELECT command denied to user 'user_b'@'localhost' for table 'user'
 insert into mysql.user (user, host) values ('someuser', 'somehost');
 Warnings:
@@ -56,10 +56,10 @@ Grants for user_a@localhost
 GRANT role_a TO 'user_a'@'localhost'
 GRANT USAGE ON *.* TO 'user_a'@'localhost'
 GRANT INSERT, UPDATE ON *.* TO 'role_b'
-select user, host, default_role from mysql.user where user like 'user_%';
+select user, host, default_role from mysql.user where user like 'user_%' order by user;
 ERROR 42000: SELECT command denied to user 'user_a'@'localhost' for table 'user'
 drop role role_a;
 drop role role_b;
-delete from mysql.user where user = 'someuser' && host = 'somehost';
+delete from mysql.user where user = 'someuser' && host = 'somehost' order by user;
 drop user user_a@localhost;
 drop user user_b@localhost;

@@ -1,48 +1,41 @@
---source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_wsrep.inc
 
-SELECT COUNT(@@GLOBAL.wsrep_data_home_dir);
---echo 1 Expected
+--echo #
+--echo # wsrep_data_home_dir (readonly)
+--echo #
 
+--echo # default
+SELECT @@global.wsrep_data_home_dir;
+
+--echo
+--echo # scope
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SET @@GLOBAL.wsrep_data_home_dir=1;
---echo Expected error 'Read only variable'
+SELECT @@session.wsrep_data_home_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir='/tmp/data';
+SELECT @@global.wsrep_data_home_dir;
 
-SELECT COUNT(@@GLOBAL.wsrep_data_home_dir);
---echo 1 Expected
+--echo
+--echo # valid values
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir='/tmp/data';
+SELECT @@global.wsrep_data_home_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir=junk-dir;
+SELECT @@global.wsrep_data_home_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir=junk/dir;
+SELECT @@global.wsrep_data_home_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir=OFF;
+SELECT @@global.wsrep_data_home_dir;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir=default;
+SELECT @@global.wsrep_data_home_dir;
 
-SELECT @@GLOBAL.wsrep_data_home_dir = VARIABLE_VALUE
-FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
-WHERE VARIABLE_NAME='wsrep_data_home_dir';
---echo 1 Expected
+--echo
+--echo # invalid values
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.wsrep_data_home_dir=NULL;
 
-SELECT COUNT(@@GLOBAL.wsrep_data_home_dir);
---echo 1 Expected
-
-SELECT COUNT(VARIABLE_VALUE)
-FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
-WHERE VARIABLE_NAME='wsrep_data_home_dir';
---echo 1 Expected
-
-SELECT @@wsrep_data_home_dir = @@GLOBAL.wsrep_data_home_dir;
---echo 1 Expected
-
-SELECT COUNT(@@wsrep_data_home_dir);
---echo 1 Expected
-
---Error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT COUNT(@@local.wsrep_data_home_dir);
---echo Expected error 'Variable is a GLOBAL variable'
-
---Error ER_INCORRECT_GLOBAL_LOCAL_VAR
-SELECT COUNT(@@SESSION.wsrep_data_home_dir);
---echo Expected error 'Variable is a GLOBAL variable'
-
-SELECT COUNT(@@GLOBAL.wsrep_data_home_dir);
---echo 1 Expected
-
---Error ER_BAD_FIELD_ERROR
-SELECT wsrep_data_home_dir = @@SESSION.wsrep_data_home_dir;
---echo Expected error 'Readonly variable'
-
-
+--echo # End of test

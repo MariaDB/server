@@ -3085,11 +3085,7 @@ innobase_shutdown_for_mysql(void)
 			buf_mtflu_io_thread_exit();
 		}
 
-#ifdef UNIV_DEBUG
-		fprintf(stderr, "InnoDB: Note: %s:%d os_thread_count:%lu \n", __FUNCTION__, __LINE__, os_thread_count);
-#endif
 		os_mutex_enter(os_sync_mutex);
-
 
 		if (os_thread_count == 0) {
 			/* All the threads have exited or are just exiting;

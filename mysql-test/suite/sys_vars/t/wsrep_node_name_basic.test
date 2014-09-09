@@ -1,11 +1,44 @@
---source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_wsrep.inc
 
-set @start_value = @@wsrep_node_name;
+--echo #
+--echo # wsrep_node_name
+--echo #
 
-set @@global.wsrep_node_name='test';
-set @@global.wsrep_node_name=NULL;
---Error 1232
-SET @@global.wsrep_node_name = 1;
+call mtr.add_suppression("WSREP: Failed to get provider options");
 
-set @@global.wsrep_node_name = @start_value;
+--echo # save the initial value
+SET @wsrep_node_name_global_saved = @@global.wsrep_node_name;
+
+--echo # default
+SELECT @@global.wsrep_node_name;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_node_name;
+SET @@global.wsrep_node_name='node_name';
+SELECT @@global.wsrep_node_name;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_node_name='my_node';
+SELECT @@global.wsrep_node_name;
+SET @@global.wsrep_node_name='hyphenated-node-name';
+SELECT @@global.wsrep_node_name;
+SET @@global.wsrep_node_name=default;
+SELECT @@global.wsrep_node_name;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_node_name=NULL;
+SELECT @@global.wsrep_node_name;
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@global.wsrep_node_name=1;
+SELECT @@global.wsrep_node_name;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_node_name = @wsrep_node_name_global_saved;
+
+--echo # End of test

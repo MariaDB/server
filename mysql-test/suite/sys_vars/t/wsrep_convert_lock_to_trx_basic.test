@@ -1,13 +1,42 @@
---source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_wsrep.inc
 
-set @start_value = @@wsrep_convert_lock_to_trx;
+--echo #
+--echo # wsrep_convert_lock_to_trx
+--echo #
 
-set @@global.wsrep_convert_lock_to_trx=ON;
-set @@global.wsrep_convert_lock_to_trx=OFF;
-set @@global.wsrep_convert_lock_to_trx=1;
-set @@global.wsrep_convert_lock_to_trx=0;
---Error 1231
-SET @@global.wsrep_convert_lock_to_trx = -1;
+--echo # save the initial value
+SET @wsrep_convert_lock_to_trx_global_saved = @@global.wsrep_convert_lock_to_trx;
 
-set @@global.wsrep_convert_lock_to_trx = @start_value;
+--echo # default
+SELECT @@global.wsrep_convert_lock_to_trx;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_convert_lock_to_trx;
+SET @@global.wsrep_convert_lock_to_trx=OFF;
+SELECT @@global.wsrep_convert_lock_to_trx;
+SET @@global.wsrep_convert_lock_to_trx=ON;
+SELECT @@global.wsrep_convert_lock_to_trx;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_convert_lock_to_trx='OFF';
+SELECT @@global.wsrep_convert_lock_to_trx;
+SET @@global.wsrep_convert_lock_to_trx=ON;
+SELECT @@global.wsrep_convert_lock_to_trx;
+SET @@global.wsrep_convert_lock_to_trx=default;
+SELECT @@global.wsrep_convert_lock_to_trx;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_convert_lock_to_trx=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_convert_lock_to_trx='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_convert_lock_to_trx = @wsrep_convert_lock_to_trx_global_saved;
+
+--echo # End of test

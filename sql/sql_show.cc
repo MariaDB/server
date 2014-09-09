@@ -8035,6 +8035,7 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
   if (lsel && lsel->table_list.first)
   {
     /* These do not need to have a query plan */
+    plan->trivial_show_command= true;
     goto end;
   }
 
