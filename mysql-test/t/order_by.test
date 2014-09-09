@@ -1958,3 +1958,42 @@ select A.a + 10 * B.a + 100 * C.a, 1234 from t2 A, t2 B, t2 C;
 --echo # Should show rows=2, not rows=100
 explain update t1 set key1=key1+1 where key1 between 10 and 110 order by key1 limit 2;
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-465: Optimizer : wrong index choice, leading to strong performances issues
+--echo #
+CREATE TABLE t1 (
+  id1 int(10) unsigned NOT NULL auto_increment,
+  id2 tinyint(3) unsigned NOT NULL default '0',
+  id3 tinyint(3) unsigned NOT NULL default '0',
+  id4 int(10) unsigned NOT NULL default '0',
+  date timestamp NOT NULL default CURRENT_TIMESTAMP,
+  PRIMARY KEY  (id1),
+  KEY id_234_date (id2,id3,id4,date),
+  KEY id_23_date (id2,id3,date)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+
+--echo # t1 has "bad" index declaration order..
+
+CREATE TABLE t2 (
+  id1 int(10) unsigned NOT NULL auto_increment,
+  id2 tinyint(3) unsigned NOT NULL default '0',
+  id3 tinyint(3) unsigned NOT NULL default '0',
+  id4 int(10) unsigned NOT NULL default '0',
+  date timestamp NOT NULL default CURRENT_TIMESTAMP,
+  PRIMARY KEY  (id1),
+  KEY id_23_date (id2,id3,date),
+  KEY id_234_date (id2,id3,id4,date)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+--echo # t2 has a "good" index declaration order
+
+INSERT INTO t1 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
+INSERT INTO t2 (id2,id3,id4) VALUES (1,1,1),(1,1,1),(1,1,1),(1,1,1),(1,0,1),(1,2,1),(1,3,1);
+
+--echo # The following two must both use id_23_date and no "using filesort":
+EXPLAIN SELECT id1 FROM t1 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
+--echo # See above query
+EXPLAIN SELECT id1 FROM t2 WHERE id2=1 AND id3=1 ORDER BY date DESC LIMIT 0,4;
+
+drop table t1,t2;
+
