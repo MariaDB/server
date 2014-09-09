@@ -538,9 +538,6 @@ int wsrep_init()
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
 
-  if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
-    wsrep_data_home_dir = mysql_real_data_home;
-
   char node_addr[512]= { 0, };
   size_t const node_addr_max= sizeof(node_addr) - 1;
   if (!wsrep_node_address || !strcmp(wsrep_node_address, ""))

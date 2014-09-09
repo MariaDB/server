@@ -2,47 +2,58 @@
 # wsrep_data_home_dir (readonly)
 #
 # default
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 
 # scope
 SELECT @@session.wsrep_data_home_dir;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a GLOBAL variable
 SET @@global.wsrep_data_home_dir='/tmp/data';
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 
 # valid values
 SET @@global.wsrep_data_home_dir='/tmp/data';
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 SET @@global.wsrep_data_home_dir=junk-dir;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 SET @@global.wsrep_data_home_dir=junk/dir;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 SET @@global.wsrep_data_home_dir=OFF;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 SET @@global.wsrep_data_home_dir=default;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+SELECT COUNT(@@global.wsrep_data_home_dir);
+COUNT(@@global.wsrep_data_home_dir)
+1
 
 # invalid values
 SET @@global.wsrep_data_home_dir=NULL;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
+#
+# MDEV-6717 : wsrep_data_home_dir should default to @@datadir
+#
+SELECT @@GLOBAL.wsrep_data_home_dir = VARIABLE_VALUE FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='datadir';
+@@GLOBAL.wsrep_data_home_dir = VARIABLE_VALUE
+1
+SELECT @@GLOBAL.wsrep_data_home_dir = VARIABLE_VALUE FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='wsrep_data_home_dir';
+@@GLOBAL.wsrep_data_home_dir = VARIABLE_VALUE
+1
 # End of test
