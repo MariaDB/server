@@ -69,7 +69,7 @@ struct st_sargable_param;
 
 static void optimize_keyuse(JOIN *join, DYNAMIC_ARRAY *keyuse_array);
 static bool make_join_statistics(JOIN *join, List<TABLE_LIST> &leaves, 
-                                 COND *conds, DYNAMIC_ARRAY *keyuse);
+                                 DYNAMIC_ARRAY *keyuse);
 static bool update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,
                                 JOIN_TAB *join_tab,
                                 uint tables, COND *conds,
@@ -1338,7 +1338,7 @@ TODO: make view to decide if it is possible to write to WHERE directly or make S
 
   /* Calculate how to do the join */
   THD_STAGE_INFO(thd, stage_statistics);
-  if (make_join_statistics(this, select_lex->leaf_tables, conds, &keyuse) ||
+  if (make_join_statistics(this, select_lex->leaf_tables, &keyuse) ||
       thd->is_fatal_error)
   {
     DBUG_PRINT("error",("Error: make_join_statistics() failed"));
@@ -3355,7 +3355,8 @@ static ha_rows get_quick_record_count(THD *thd, SQL_SELECT *select,
     select->head=table;
     table->reginfo.impossible_range=0;
     if ((error= select->test_quick_select(thd, *(key_map *)keys,(table_map) 0,
-                                          limit, 0, FALSE)) == 1)
+                                          limit, 0, FALSE, 
+                                          TRUE /* remove_where_parts*/)) == 1)
       DBUG_RETURN(select->quick->records);
     if (error == -1)
     {
@@ -3393,7 +3394,7 @@ typedef struct st_sargable_param
 
 static bool
 make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
-                     COND *conds, DYNAMIC_ARRAY *keyuse_array)
+                     DYNAMIC_ARRAY *keyuse_array)
 {
   int error= 0;
   TABLE *table;
@@ -3597,10 +3598,10 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     }
   }
 
-  if (conds || outer_join)
+  if (join->conds || outer_join)
   {
     if (update_ref_and_keys(join->thd, keyuse_array, stat, join->table_count,
-                            conds, ~outer_join, join->select_lex, &sargables))
+                            join->conds, ~outer_join, join->select_lex, &sargables))
       goto error;
     /*
       Keyparts without prefixes may be useful if this JOIN is a subquery, and
@@ -3844,8 +3845,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   }
 
   join->impossible_where= false;
-  if (conds && const_count)
-  { 
+  if (join->conds && const_count)
+  {
+    Item* &conds= join->conds;
     conds->update_used_tables();
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
@@ -3857,7 +3859,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       join->impossible_where= true;
       conds=new Item_int((longlong) 0,1);
     }
-    join->conds= conds;      
+
     join->cond_equal= NULL;
     if (conds) 
     { 
@@ -3942,12 +3944,18 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
       {
         select= make_select(s->table, found_const_table_map,
 			    found_const_table_map,
-			    *s->on_expr_ref ? *s->on_expr_ref : conds,
+			    *s->on_expr_ref ? *s->on_expr_ref : join->conds,
 			    1, &error);
         if (!select)
           goto error;
         records= get_quick_record_count(join->thd, select, s->table,
 				        &s->const_keys, join->row_limit);
+        /* Range analyzer could modify the condition. */
+        if (*s->on_expr_ref)
+          *s->on_expr_ref= select->cond;
+        else
+          join->conds= select->cond;
+
         s->quick=select->quick;
         s->needed_reg=select->needed_reg;
         select->quick=0;
@@ -3958,7 +3966,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         if (join->thd->variables.optimizer_use_condition_selectivity > 1)
           calculate_cond_selectivity_for_table(join->thd, s->table, 
                                                *s->on_expr_ref ?
-                                               *s->on_expr_ref : conds);
+                                               s->on_expr_ref : &join->conds);
         if (s->table->reginfo.impossible_range)
 	{
           impossible_range= TRUE;
@@ -9658,7 +9666,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 					OPTION_FOUND_ROWS ?
 					HA_POS_ERROR :
 					join->unit->select_limit_cnt), 0,
-                                        FALSE) < 0)
+                                        FALSE, FALSE) < 0)
             {
 	      /*
 		Before reporting "Impossible WHERE" for the whole query
@@ -9672,7 +9680,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
                                           OPTION_FOUND_ROWS ?
                                           HA_POS_ERROR :
                                           join->unit->select_limit_cnt),0,
-                                          FALSE) < 0)
+                                          FALSE, FALSE) < 0)
 		DBUG_RETURN(1);			// Impossible WHERE
             }
             else
@@ -18496,7 +18504,7 @@ test_if_quick_select(JOIN_TAB *tab)
   tab->select->quick=0;
   return tab->select->test_quick_select(tab->join->thd, tab->keys,
 					(table_map) 0, HA_POS_ERROR, 0,
-                                        FALSE);
+                                        FALSE, /*remove where parts*/FALSE);
 }
 
 
@@ -20169,7 +20177,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                           OPTION_FOUND_ROWS) ?
                                          HA_POS_ERROR :
                                          tab->join->unit->select_limit_cnt,0,
-                                         TRUE) <= 0;
+                                         TRUE, FALSE) <= 0;
           if (res)
           {
             select->cond= save_cond;
@@ -20216,7 +20224,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
          !(table->file->index_flags(best_key, 0, 1) & HA_CLUSTERED_INDEX)))
       goto use_filesort;
 
-    if (select &&
+    if (select && // psergey:  why doesn't this use a quick?
         table->quick_keys.is_set(best_key) && best_key != ref_key)
     {
       key_map map;
@@ -20227,7 +20235,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                 join->select_options & OPTION_FOUND_ROWS ?
                                 HA_POS_ERROR :
                                 join->unit->select_limit_cnt,
-                                TRUE, FALSE);
+                                TRUE, FALSE, FALSE);
     }
     order_direction= best_key_direction;
     /*
@@ -24689,6 +24697,109 @@ void JOIN::cache_const_exprs()
   }
 }
 
+ 
+/*
+  Get a cost of reading rows_limit rows through index keynr.
+
+  @detail
+   - If there is a quick select, we try to use it.
+   - if there is a ref(const) access, we try to use it, too.
+   - quick and ref(const) use different cost formulas, so if both are possible
+      we should make a cost-based choice.
+
+  @return 
+    true   There was a possible quick or ref access, its cost is in the OUT
+           parameters.
+    false  No quick or ref(const) possible (and so, the caller will attempt 
+           to use a full index scan on this index).
+*/
+
+static bool get_range_limit_read_cost(const JOIN_TAB *tab, 
+                                      const TABLE *table, 
+                                      uint keynr, 
+                                      ha_rows rows_limit,
+                                      double *read_time)
+{
+  bool res= false;
+  /* 
+    We need to adjust the estimates if we had a quick select (or ref(const)) on
+    index keynr.
+  */
+  if (table->quick_keys.is_set(keynr))
+  {
+    /*
+      Start from quick select's rows and cost. These are always cheaper than
+      full index scan/cost.
+    */
+    double best_rows= table->quick_rows[keynr];
+    double best_cost= table->quick_costs[keynr];
+    
+    /*
+      Check if ref(const) access was possible on this index. 
+    */
+    if (tab)
+    {
+      key_part_map const_parts= 0;
+      key_part_map map= 1;
+      uint kp;
+      /* Find how many key parts would be used by ref(const) */
+      for (kp=0; kp < MAX_REF_PARTS; map=map << 1, kp++)
+      {
+        if (!(table->const_key_parts[keynr] & map))
+          break;
+        const_parts |= map;
+      }
+      
+      if (kp > 0)
+      {
+        ha_rows ref_rows;
+        /*
+          Two possible cases:
+          1. ref(const) uses the same #key parts as range access. 
+          2. ref(const) uses fewer key parts, becasue there is a
+            range_cond(key_part+1).
+        */
+        if (kp == table->quick_key_parts[keynr])
+          ref_rows= table->quick_rows[keynr];
+        else
+          ref_rows= table->key_info[keynr].actual_rec_per_key(kp-1);
+
+        if (ref_rows > 0)
+        {
+          double tmp= ref_rows;
+          /* Reuse the cost formula from best_access_path: */
+          set_if_smaller(tmp, (double) tab->join->thd->variables.max_seeks_for_key);
+          if (table->covering_keys.is_set(keynr))
+            tmp= table->file->keyread_time(keynr, 1, (ha_rows) tmp);
+          else
+            tmp= table->file->read_time(keynr, 1,
+                                        (ha_rows) MY_MIN(tmp,tab->worst_seeks));
+          if (tmp < best_cost)
+          {
+            best_cost= tmp;
+            best_rows= ref_rows;
+          }
+        }
+      }
+    }
+ 
+    if (best_rows > rows_limit)
+    {
+      /*
+        LIMIT clause specifies that we will need to read fewer records than
+        quick select will return. Assume that quick select's cost is
+        proportional to the number of records we need to return (e.g. if we 
+        only need 1/3rd of records, it will cost us 1/3rd of quick select's
+        read time)
+      */
+      best_cost *= rows_limit / best_rows;
+    }
+    *read_time= best_cost;
+    res= true;
+  }
+  return res;
+}
+
 
 /**
   Find a cheaper access key than a given @a key
@@ -24782,6 +24893,11 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   }
   else
     read_time= table->file->scan_time();
+  
+  /*
+    TODO: add cost of sorting here.
+  */
+  read_time += COST_EPS;
 
   /*
     Calculate the selectivity of the ref_key for REF_ACCESS. For
@@ -24941,6 +25057,14 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         */
         index_scan_time= select_limit/rec_per_key *
                          MY_MIN(rec_per_key, table->file->scan_time());
+        double range_scan_time;
+        if (get_range_limit_read_cost(tab, table, nr, select_limit, 
+                                       &range_scan_time))
+        {
+          if (range_scan_time < index_scan_time)
+            index_scan_time= range_scan_time;
+        }
+
         if ((ref_key < 0 && (group || table->force_index || is_covering)) ||
             index_scan_time < read_time)
         {

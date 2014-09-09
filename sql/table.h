@@ -1113,6 +1113,7 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  double 	quick_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If

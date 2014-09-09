@@ -1745,3 +1745,35 @@ explain select * from t3, t2 where t2.a < t3.b  and t3.a=1;
 --echo # The second table should use 'range':
 explain select * from t3, t2 where t3.b > t2.a   and t3.a=1;
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-6480: Remove conditions for which range optimizer returned SEL_ARG::IMPOSSIBLE.
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, b int, c int, key(a), key(b));
+insert into t2
+select 
+  A.a + B.a* 10 + C.a * 100,
+  A.a + B.a* 10 + C.a * 100,
+  12345
+from 
+  t1 A, t1 B, t1 C;
+
+--echo # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
+explain extended select * from t2 where (b > 25 and b < 15) or a<44;
+
+--echo # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
+explain extended select * from t2 where a < 44 or (b > 25 and b < 15);
+
+--echo # Here, conditions b will not be removed, because "c<44" is not sargable
+--echo #   and hence (b.. and .. b) part is not analyzed at all:
+explain extended select * from t2 where c < 44 or (b > 25 and b < 15);
+
+--echo # EXPLAIN EXTENDED should show that 'b > 25 and b < 15' is removed from the WHERE:
+explain extended select * from t2 where (b > 25 and b < 15) or c < 44;
+
+--echo # Try a case where both OR parts produce SEL_ARG::IMPOSSIBLE:
+explain extended select * from t2 where (b > 25 and b < 15) or (a>55 and a<44);
+
+drop table t1,t2;
