@@ -4,10 +4,10 @@
 call mtr.add_suppression("WSREP: Failed to get provider options");
 # save the initial value
 SET @wsrep_node_name_global_saved = @@global.wsrep_node_name;
-# default
-SELECT @@global.wsrep_node_name;
-@@global.wsrep_node_name
-
+# default (expect 1)
+SELECT COUNT(@@global.wsrep_node_name);
+COUNT(@@global.wsrep_node_name)
+1
 
 # scope
 SELECT @@session.wsrep_node_name;
@@ -27,21 +27,34 @@ SELECT @@global.wsrep_node_name;
 @@global.wsrep_node_name
 hyphenated-node-name
 SET @@global.wsrep_node_name=default;
-SELECT @@global.wsrep_node_name;
-@@global.wsrep_node_name
-
+# default (expect 1)
+SELECT COUNT(@@global.wsrep_node_name);
+COUNT(@@global.wsrep_node_name)
+1
 
 # invalid values
 SET @@global.wsrep_node_name=NULL;
 ERROR 42000: Variable 'wsrep_node_name' can't be set to the value of 'NULL'
-SELECT @@global.wsrep_node_name;
-@@global.wsrep_node_name
-
+SELECT COUNT(@@global.wsrep_node_name);
+COUNT(@@global.wsrep_node_name)
+1
 SET @@global.wsrep_node_name=1;
 ERROR 42000: Incorrect argument type to variable 'wsrep_node_name'
-SELECT @@global.wsrep_node_name;
-@@global.wsrep_node_name
-
+SELECT COUNT(@@global.wsrep_node_name);
+COUNT(@@global.wsrep_node_name)
+1
+#
+# MDEV-6699 : wsrep_node_name not automaticly set to hostname
+#
+SET @@global.wsrep_node_name=default;
+SELECT @@GLOBAL.wsrep_node_name = VARIABLE_VALUE FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='hostname';
+@@GLOBAL.wsrep_node_name = VARIABLE_VALUE
+1
+SELECT @@GLOBAL.wsrep_node_name = VARIABLE_VALUE FROM
+INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='wsrep_node_name';
+@@GLOBAL.wsrep_node_name = VARIABLE_VALUE
+1
 
 # restore the initial value
 SET @@global.wsrep_node_name = @wsrep_node_name_global_saved;
