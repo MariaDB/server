@@ -3275,10 +3275,11 @@ mysql_execute_command(THD *thd)
         /* in STATEMENT format, we probably have to replicate also temporary
            tables, like mysql replication does
         */
-	  if (WSREP_ON && (!thd->is_current_stmt_binlog_format_row() ||
-	      !(create_info.options & HA_LEX_CREATE_TMP_TABLE)))
-          WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name,
-                                   NULL)
+        if (WSREP(thd) && (!thd->is_current_stmt_binlog_format_row() ||
+            !(create_info.options & HA_LEX_CREATE_TMP_TABLE)))
+        {
+	  WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name, NULL)
+        }
 #endif /* WITH_WSREP */
         /* Regular CREATE TABLE */
         res= mysql_create_table(thd, create_table,
