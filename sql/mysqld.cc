@@ -386,6 +386,7 @@ static DYNAMIC_ARRAY all_options;
 
 #ifdef WITH_WSREP
 ulong my_bind_addr;
+bool wsrep_new_cluster= false;
 #endif /* WITH_WSREP */
 bool opt_bin_log, opt_bin_log_used=0, opt_ignore_builtin_innodb= 0;
 my_bool opt_log, opt_slow_log, debug_assert_if_crashed_table= 0, opt_help= 0;
@@ -5899,9 +5900,6 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 #endif
-#ifdef WITH_WSREP
-  wsrep_filter_new_cluster (&argc, argv);
-#endif /* WITH_WSREP */
 
   orig_argc= argc;
   orig_argv= argv;
@@ -7884,6 +7882,13 @@ struct my_option my_long_options[]=
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &tc_size, &tc_size, 0, GET_ULONG,
    REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
+#ifdef WITH_WSREP
+  {"wsrep-new-cluster", 0, "Bootstrap a cluster. It works by overriding the "
+   "current value of wsrep_cluster_address. It is recommended not to add this "
+   "option to the config file as this will trigger bootstrap on every server "
+   "start.", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
+#endif
 
   /* The following options exist in 5.6 but not in 10.0 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),

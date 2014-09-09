@@ -1091,6 +1091,10 @@ The following options may be given as the first argument:
  Max write set size (bytes)
  --wsrep-mysql-replication-bundle=# 
  mysql replication group commit 
+ --wsrep-new-cluster Bootstrap a cluster. It works by overriding the current
+ value of wsrep_cluster_address. It is recommended not to
+ add this option to the config file as this will trigger
+ bootstrap on every server start.
  --wsrep-node-address=name 
  Node address
  --wsrep-node-incoming-address=name 
@@ -1454,6 +1458,7 @@ wsrep-log-conflicts FALSE
 wsrep-max-ws-rows 131072
 wsrep-max-ws-size 1073741824
 wsrep-mysql-replication-bundle 0
+wsrep-new-cluster FALSE
 wsrep-node-address 
 wsrep-node-incoming-address AUTO
 wsrep-notify-cmd 

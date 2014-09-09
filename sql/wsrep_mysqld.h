@@ -100,6 +100,7 @@ extern my_bool     wsrep_restart_slave;
 extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
+extern bool        wsrep_new_cluster;           // bootstrap the cluster ?
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 enum enum_wsrep_sync_wait {
@@ -126,10 +127,6 @@ extern const char* wsrep_provider_vendor;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
 void wsrep_free_status(THD *thd);
-
-/* Filters out --wsrep-new-cluster oprtion from argv[]
- * should be called in the very beginning of main() */
-void wsrep_filter_new_cluster (int* argc, char* argv[]);
 
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
