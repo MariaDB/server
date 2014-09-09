@@ -2230,6 +2230,7 @@ slave_killed_err:
 static bool wait_for_relay_log_space(Relay_log_info* rli)
 {
   bool slave_killed=0;
+  bool ignore_log_space_limit;
   Master_info* mi = rli->mi;
   PSI_stage_info old_stage;
   THD* thd = mi->io_thd;
@@ -2244,6 +2245,11 @@ static bool wait_for_relay_log_space(Relay_log_info* rli)
          !(slave_killed=io_slave_killed(mi)) &&
          !rli->ignore_log_space_limit)
     mysql_cond_wait(&rli->log_space_cond, &rli->log_space_lock);
+
+  ignore_log_space_limit= rli->ignore_log_space_limit;
+  rli->ignore_log_space_limit= 0;
+
+  thd->EXIT_COND(&old_stage);
 
   /* 
     Makes the IO thread read only one event at a time
@@ -2268,7 +2274,8 @@ static bool wait_for_relay_log_space(Relay_log_info* rli)
           thread sleeps waiting for events.
 
    */
-  if (rli->ignore_log_space_limit)
+
+  if (ignore_log_space_limit)
   {
 #ifndef DBUG_OFF
     {
@@ -2290,11 +2297,8 @@ static bool wait_for_relay_log_space(Relay_log_info* rli)
       mysql_mutex_unlock(&mi->data_lock);
       rli->sql_force_rotate_relay= false;
     }
-
-    rli->ignore_log_space_limit= false;
   }
 
-  thd->EXIT_COND(&old_stage);
   DBUG_RETURN(slave_killed);
 }
 
