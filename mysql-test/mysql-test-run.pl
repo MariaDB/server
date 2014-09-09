@@ -135,7 +135,6 @@ my $opt_start;
 my $opt_start_dirty;
 my $opt_start_exit;
 my $start_only;
-my $file_wsrep_provider;
 
 END {
   if ( defined $opt_tmpdir_pid and $opt_tmpdir_pid == $$ )
@@ -2400,24 +2399,6 @@ sub environment_setup {
   }
 
   # ----------------------------------------------------
-  # Setup env for wsrep
-  # ----------------------------------------------------
-  if (have_wsrep()) {
-    if (defined $ENV{'WSREP_PROVIDER'} ) {
-      # Nothing needs to be done! WSREP_PROVIDER env is already set & checked;
-      # will be used.
-    } else {
-      $ENV{'WSREP_PROVIDER'}=  $file_wsrep_provider;
-    }
-
-    if ($ENV{'WSREP_PROVIDER'} ne "") {
-      mtr_verbose("WSREP_PROVIDER set to $ENV{'WSREP_PROVIDER'}");
-    } else {
-      mtr_verbose("WSREP_PROVIDER isn't available");
-    }
-  }
-
-  # ----------------------------------------------------
   # mysql clients
   # ----------------------------------------------------
   $ENV{'MYSQL_CHECK'}=              client_arguments("mysqlcheck");
@@ -3199,32 +3180,38 @@ sub have_wsrep() {
   return defined $wsrep_on
 }
 
-sub check_wsrep_provider_env {
-  if (defined $ENV{'WSREP_PROVIDER'}) {
-      if (mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "") {
-        mtr_error("WSREP_PROVIDER env set to an invalid path");
-        return 0; # error
-      }
-      # Ok, WSREP_PROVIDER set to a valid path.
-      return 1;
-  }
-  # Ok, WSREP_PROVIDER not defined.
-  return 2;
-}
-
 sub check_wsrep_support() {
   if (have_wsrep())
   {
     mtr_report(" - binaries built with wsrep patch");
 
-    $file_wsrep_provider=
-      mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
-                      "/usr/lib64/galera/libgalera_smm.so");
+    # Add galera test suites
+    mtr_report(" - adding wsrep, galera to default test suites");
+    push @DEFAULT_SUITES, qw(wsrep galera);
 
-    if ((check_wsrep_provider_env() == 1) || ($file_wsrep_provider ne "")) {
-      # Add galera test suites
-      mtr_report(" - adding wsrep, galera to default test suites");
-      push @DEFAULT_SUITES, qw(wsrep galera);
+    # Check whether WSREP_PROVIDER environment variable is set.
+    if (defined $ENV{'WSREP_PROVIDER'}) {
+      if ((mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "")  &&
+          ($ENV{'WSREP_PROVIDER'} ne "none")) {
+        mtr_error("WSREP_PROVIDER env set to an invalid path");
+      }
+      # WSREP_PROVIDER is valid; set to a valid path or "none").
+      mtr_verbose("WSREP_PROVIDER env set to $ENV{'WSREP_PROVIDER'}");
+    } else {
+      # WSREP_PROVIDER env not defined. Lets try to locate the wsrep provider
+      # library.
+      my $file_wsrep_provider=
+        mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
+                        "/usr/lib64/galera/libgalera_smm.so");
+
+      if ($file_wsrep_provider ne "") {
+        # wsrep provider library found !
+        mtr_verbose("wsrep provider library found : $file_wsrep_provider");
+        $ENV{'WSREP_PROVIDER'}= $file_wsrep_provider;
+      } else {
+        mtr_verbose("Could not find wsrep provider library, setting it to 'none'");
+        $ENV{'WSREP_PROVIDER'}= "none";
+      }
     }
   }
 }

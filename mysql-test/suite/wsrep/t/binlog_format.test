@@ -1,4 +1,4 @@
---source include/have_wsrep_enabled.inc
+--source include/have_wsrep_provider.inc
 --source include/have_binlog_format_row.inc
 #
 # MDEV-4227: Galera server should stop crashing on setting binlog_format STATEMENT
