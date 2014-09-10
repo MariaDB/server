@@ -4372,9 +4372,6 @@ handler *mysql_create_frm_image(THD *thd,
     DBUG_RETURN(NULL);
   }
 
-  if (check_engine(thd, db, table_name, create_info))
-    DBUG_RETURN(NULL);
-
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
@@ -4779,6 +4776,9 @@ int create_table_impl(THD *thd,
   }
 
   THD_STAGE_INFO(thd, stage_creating_table);
+
+  if (check_engine(thd, orig_db, orig_table_name, create_info))
+    goto err;
 
   if (create_table_mode == C_ASSISTED_DISCOVERY)
   {
