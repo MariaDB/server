@@ -4248,11 +4248,11 @@ static Sys_var_uint Sys_slave_net_timeout(
   Return 0 + warning if it doesn't exist
 */
 
-ulong Sys_var_multi_source_ulong::
-get_master_info_ulong_value(THD *thd, ptrdiff_t offset)
+ulonglong Sys_var_multi_source_ulonglong::
+get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
-  ulong res= 0;                                  // Default value
+  ulonglong res= 0;                                  // Default value
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
@@ -4261,7 +4261,7 @@ get_master_info_ulong_value(THD *thd, ptrdiff_t offset)
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
-    res= *((ulong*) (((uchar*) mi) + master_info_offset));
+    res= *((ulonglong*) (((uchar*) mi) + master_info_offset));
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
@@ -4273,7 +4273,7 @@ get_master_info_ulong_value(THD *thd, ptrdiff_t offset)
 bool update_multi_source_variable(sys_var *self_var, THD *thd,
                                   enum_var_type type)
 {
-  Sys_var_multi_source_ulong *self= (Sys_var_multi_source_ulong*) self_var;
+  Sys_var_multi_source_ulonglong *self= (Sys_var_multi_source_ulonglong*) self_var;
   bool result= true;
   Master_info *mi;
 
@@ -4310,16 +4310,12 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
   return false;
 }
 
-
-static Sys_var_multi_source_ulong
-Sys_slave_skip_counter("sql_slave_skip_counter",
-                       "Skip the next N events from the master log",
-                       SESSION_VAR(slave_skip_counter),
-                       NO_CMD_LINE,
-                       my_offsetof(Master_info, rli.slave_skip_counter),
-                       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
-                       ON_UPDATE(update_slave_skip_counter));
-
+static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
+       "sql_slave_skip_counter", "Skip the next N events from the master log",
+       SESSION_VAR(slave_skip_counter), NO_CMD_LINE,
+       MASTER_INFO_VAR(rli.slave_skip_counter),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       ON_UPDATE(update_slave_skip_counter));
 
 static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
 {
@@ -4328,17 +4324,14 @@ static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
   return false;
 }
 
-static Sys_var_multi_source_ulong
-Sys_max_relay_log_size( "max_relay_log_size",
-                        "relay log will be rotated automatically when the "
-                        "size exceeds this value.  If 0 are startup, it's "
-                        "set to max_binlog_size",
-                        SESSION_VAR(max_relay_log_size),
-                        CMD_LINE(REQUIRED_ARG),
-                        my_offsetof(Master_info, rli.max_relay_log_size),
-                        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0),
-                        BLOCK_SIZE(IO_SIZE),
-                        ON_UPDATE(update_max_relay_log_size));
+static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
+       "max_relay_log_size",
+       "relay log will be rotated automatically when the size exceeds this "
+       "value.  If 0 are startup, it's set to max_binlog_size",
+       SESSION_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
+       MASTER_INFO_VAR(rli.max_relay_log_size),
+       VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
+       ON_UPDATE(update_max_relay_log_size));
 
 static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "
