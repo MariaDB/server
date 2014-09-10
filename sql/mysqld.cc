@@ -5204,27 +5204,12 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
 #endif
 
-  /* if total_ha_2pc <= 1
-       tc_log = tc_log_dummy
-     else
-       if opt_bin_log == true
-         tc_log = mysql_bin_log
-       else
-         if WITH_WSREP
-           if WSREP_ON
-             tc_log = tc_log_dummy
-           else
-             tc_log = tc_log_mmap
-         else
-           tc_log=tc_log_mmap
-  */
-  tc_log= (total_ha_2pc > 1 ? (opt_bin_log  ?
-                               (TC_LOG *) &mysql_bin_log :
-		  IF_WSREP((WSREP_ON ?  (TC_LOG *) &tc_log_dummy :
-			  (TC_LOG *) &tc_log_mmap), (TC_LOG *) &tc_log_mmap)) :
-	  (TC_LOG *) &tc_log_dummy);
+  tc_log= get_tc_log_implementation();
 
 #ifdef WITH_WSREP
+  if (WSREP_ON && tc_log == &tc_log_mmap)
+    tc_log= &tc_log_dummy;
+
   WSREP_DEBUG("Initial TC log open: %s",
               (tc_log == &mysql_bin_log) ? "binlog" :
               (tc_log == &tc_log_mmap) ? "mmap" :

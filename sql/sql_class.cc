@@ -5793,8 +5793,8 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
 {
   DBUG_ENTER("THD::binlog_remove_pending_rows_event");
 
-  IF_WSREP(!(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()),
-    !mysql_bin_log.is_open());
+  if(IF_WSREP(!(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()),
+	      !mysql_bin_log.is_open()))
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
