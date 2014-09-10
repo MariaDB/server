@@ -2486,12 +2486,6 @@ os_file_set_size(
 
 	current_size = 0;
 
-#ifdef UNIV_DEBUG
-	fprintf(stderr, "InnoDB: Note: File %s current_size %lu extended_size %lu\n",
-		name, os_file_get_size(file), size);
-#endif
-
-
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 
