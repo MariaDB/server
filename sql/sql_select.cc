@@ -19868,7 +19868,12 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
   uint best= MAX_KEY;
   KEY_PART_INFO *ref_key_part= table->key_info[ref].key_part;
   KEY_PART_INFO *ref_key_part_end= ref_key_part + ref_key_parts;
-
+  
+  /*
+    Find the shortest key that
+    - produces the required ordering
+    - has key #ref (up to ref_key_parts) as its subkey.
+  */
   for (nr= 0 ; nr < table->s->keys ; nr++)
   {
     if (usable_keys->is_set(nr) &&
@@ -20061,7 +20066,8 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     been taken into account.
   */
   usable_keys= *map;
-
+  
+  /* Find indexes that cover all ORDER/GROUP BY fields */
   for (ORDER *tmp_order=order; tmp_order ; tmp_order=tmp_order->next)
   {
     Item *item= (*tmp_order->item)->real_item();
@@ -20081,6 +20087,10 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   {
     ref_key=	   tab->ref.key;
     ref_key_parts= tab->ref.key_parts;
+    /* 
+      todo: why does JT_REF_OR_NULL mean filesort? We could find another index
+      that satisfies the ordering. I would just set ref_key=MAX_KEY here...
+    */
     if (tab->type == JT_REF_OR_NULL || tab->type == JT_FT)
       goto use_filesort;
   }
@@ -20107,15 +20117,12 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
 
   if (ref_key >= 0 && ref_key != MAX_KEY)
   {
-    /*
-      We come here when there is a REF key.
-    */
+    /* Current access method uses index ref_key with ref_key_parts parts */
     if (!usable_keys.is_set(ref_key))
     {
-      /*
-	We come here when ref_key is not among usable_keys
-      */
+      /* However, ref_key doesn't match the needed ordering */
       uint new_ref_key;
+
       /*
 	If using index only read, only consider other possible index only
 	keys
@@ -20131,27 +20138,23 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       if ((new_ref_key= test_if_subkey(order, table, ref_key, ref_key_parts,
 				       &usable_keys)) < MAX_KEY)
       {
-	if (tab->ref.key >= 0)
-	{
-          /*
-            We'll use ref access method on key new_ref_key. In general case 
-            the index search tuple for new_ref_key will be different (e.g.
-            when one index is defined as (part1, part2, ...) and another as
-            (part1, part2(N), ...) and the WHERE clause contains 
-            "part1 = const1 AND part2=const2". 
-            So we build tab->ref from scratch here.
-          */
-          KEYUSE *keyuse= tab->keyuse;
-          while (keyuse->key != new_ref_key && keyuse->table == tab->table)
-            keyuse++;
-          if (create_ref_for_key(tab->join, tab, keyuse, FALSE,
-                                 (tab->join->const_table_map |
-                                  OUTER_REF_TABLE_BIT)))
-            goto use_filesort;
+        /*
+          Index new_ref_key 
+          - produces the required ordering, 
+          - also has the same columns as ref_key for #ref_key_parts (this
+            means we will read the same number of rows as with ref_key).
+        */
 
-          pick_table_access_method(tab);
-	}
-	else
+        /*
+          If new_ref_key allows to construct a quick select which uses more key
+          parts than ref(new_ref_key) would, do that.
+
+          Otherwise, construct a ref access (todo: it's not clear what is the
+          win in using ref access when we could use quick select also?)
+        */
+        if ((table->quick_keys.is_set(new_ref_key) && 
+             table->quick_key_parts[new_ref_key] > ref_key_parts) ||
+             !(tab->ref.key >= 0))
 	{
           /*
             The range optimizer constructed QUICK_RANGE for ref_key, and
@@ -20183,12 +20186,39 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
             select->cond= save_cond;
             goto use_filesort;
           }
+          DBUG_ASSERT(tab->select->quick);
+          tab->type= JT_ALL;
+          tab->ref.key= -1;
+          tab->ref.key_parts= 0;
+          tab->use_quick= 1;
           /*
             We don't restore select->cond as we want to use the
             original condition as index condition pushdown is not
             active for the new index.
+            todo: why not perform index condition pushdown for the new index?
           */
 	}
+        else
+	{
+          /*
+            We'll use ref access method on key new_ref_key. In general case 
+            the index search tuple for new_ref_key will be different (e.g.
+            when one index is defined as (part1, part2, ...) and another as
+            (part1, part2(N), ...) and the WHERE clause contains 
+            "part1 = const1 AND part2=const2". 
+            So we build tab->ref from scratch here.
+          */
+          KEYUSE *keyuse= tab->keyuse;
+          while (keyuse->key != new_ref_key && keyuse->table == tab->table)
+            keyuse++;
+          if (create_ref_for_key(tab->join, tab, keyuse, FALSE,
+                                 (tab->join->const_table_map |
+                                  OUTER_REF_TABLE_BIT)))
+            goto use_filesort;
+
+          pick_table_access_method(tab);
+	}
+
         ref_key= new_ref_key;
         changed_key= true;
      }
