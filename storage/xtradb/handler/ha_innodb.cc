@@ -4657,6 +4657,7 @@ innobase_release_savepoint(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
+	trx_start_if_not_started(trx);
 
 	/* TODO: use provided savepoint data area to store savepoint data */
 
