@@ -188,25 +188,6 @@ log_buf_pool_get_oldest_modification(void)
 }
 
 /****************************************************************//**
-Safely reads the log_sys->tracked_lsn value.  Uses atomic operations
-if available, otherwise this field is protected with the log system
-mutex.  The writer counterpart function is log_set_tracked_lsn() in
-log0online.c.
-
-@return log_sys->tracked_lsn value. */
-UNIV_INLINE
-lsn_t
-log_get_tracked_lsn()
-{
-#ifdef HAVE_ATOMIC_BUILTINS_64
-	return os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
-#else
-	ut_ad(mutex_own(&(log_sys->mutex)));
-	return log_sys->tracked_lsn;
-#endif
-}
-
-/****************************************************************//**
 Checks if the log groups have a big enough margin of free space in
 so that a new log entry can be written without overwriting log data
 that is not read by the changed page bitmap thread.
@@ -630,7 +611,7 @@ log_pad_current_log_block(void)
 	byte		b		= MLOG_DUMMY_RECORD;
 	ulint		pad_length;
 	ulint		i;
-	ib_uint64_t	lsn;
+	lsn_t		lsn;
 
 	/* We retrieve lsn only because otherwise gcc crashed on HP-UX */
 	lsn = log_reserve_and_open(OS_FILE_LOG_BLOCK_SIZE);
@@ -638,6 +619,12 @@ log_pad_current_log_block(void)
 	pad_length = OS_FILE_LOG_BLOCK_SIZE
 		- (log_sys->buf_free % OS_FILE_LOG_BLOCK_SIZE)
 		- LOG_BLOCK_TRL_SIZE;
+	if (pad_length
+	    == (OS_FILE_LOG_BLOCK_SIZE - LOG_BLOCK_HDR_SIZE
+		- LOG_BLOCK_TRL_SIZE)) {
+
+		pad_length = 0;
+	}
 
 	for (i = 0; i < pad_length; i++) {
 		log_write_low(&b, 1);
@@ -1338,7 +1325,7 @@ log_group_file_header_flush(
 	mach_write_to_4(buf + LOG_GROUP_ID, group->id);
 	mach_write_to_8(buf + LOG_FILE_START_LSN, start_lsn);
 
-	/* Wipe over possible label of ibbackup --restore */
+	/* Wipe over possible label of mysqlbackup --restore */
 	memcpy(buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP, "    ", 4);
 
 	mach_write_to_4(buf + LOG_FILE_OS_FILE_LOG_BLOCK_SIZE,
@@ -2106,7 +2093,7 @@ log_reset_first_header_and_checkpoint(
 
 	lsn = start + LOG_BLOCK_HDR_SIZE;
 
-	/* Write the label of ibbackup --restore */
+	/* Write the label of mysqlbackup --restore */
 	strcpy((char*) hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 	       "ibbackup ");
 	ut_sprintf_timestamp((char*) hdr_buf
@@ -3056,8 +3043,7 @@ void
 log_archive_all(void)
 /*=================*/
 {
-	ib_uint64_t	present_lsn;
-	ulint		dummy;
+	lsn_t	present_lsn;
 
 	mutex_enter(&(log_sys->mutex));
 
@@ -3074,6 +3060,9 @@ log_archive_all(void)
 	log_pad_current_log_block();
 
 	for (;;) {
+
+		ulint	archived_bytes;
+
 		mutex_enter(&(log_sys->mutex));
 
 		if (present_lsn <= log_sys->archived_lsn) {
@@ -3085,7 +3074,10 @@ log_archive_all(void)
 
 		mutex_exit(&(log_sys->mutex));
 
-		log_archive_do(TRUE, &dummy);
+		log_archive_do(TRUE, &archived_bytes);
+
+		if (archived_bytes == 0)
+			return;
 	}
 }
 
