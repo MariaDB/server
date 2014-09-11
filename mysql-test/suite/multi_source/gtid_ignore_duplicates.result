@@ -245,8 +245,8 @@ a
 SET GLOBAL gtid_domain_id=0;
 STOP ALL SLAVES;
 Warnings:
-Note	1938	SLAVE 'c2a' stopped
 Note	1938	SLAVE 'b2a' stopped
+Note	1938	SLAVE 'c2a' stopped
 SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 SET GLOBAL gtid_domain_id=0;

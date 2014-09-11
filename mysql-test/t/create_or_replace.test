@@ -332,6 +332,38 @@ select * from information_schema.metadata_lock_info;
 drop table t1;
 unlock tables;
 
+--echo #
+--echo # MDEV-6560
+--echo # Assertion `! is_set() ' failed in Diagnostics_area::set_ok_status
+--echo #
+
+CREATE TABLE t1 (col_int_nokey INT)  ENGINE=InnoDB;
+
+--let $con_id = `SELECT CONNECTION_ID()`
+CREATE OR REPLACE TEMPORARY TABLE tmp LIKE t1;
+LOCK TABLE t1 WRITE;
+
+--connect (con1,localhost,root,,test)
+
+--connection default
+--send CREATE OR REPLACE TABLE t1 LIKE tmp;
+--connection con1
+eval KILL QUERY $con_id;
+
+--connection default
+--error 0,ER_QUERY_INTERRUPTED
+--reap
+--send CREATE OR REPLACE TABLE t1 (a int);
+
+--connection con1
+eval KILL QUERY $con_id;
+
+--connection default
+--error 0,ER_QUERY_INTERRUPTED
+--reap
+--disconnect con1
+drop table t1;
+
 #
 # Cleanup
 #

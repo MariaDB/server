@@ -4453,9 +4453,18 @@ extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
   return binlog_filter->db_ok(thd->db);
 }
 
+/*
+  This is similar to sqlcom_can_generate_row_events, with the expection
+  that we only return 1 if we are going to generate row events in a
+  transaction.
+  CREATE OR REPLACE is always safe to do as this will run in it's own
+  transaction.
+*/
+
 extern "C" bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd)
 {
-  return sqlcom_can_generate_row_events(thd);
+  return (sqlcom_can_generate_row_events(thd) && thd->lex->sql_command !=
+          SQLCOM_CREATE_TABLE);
 }
 
 

@@ -680,6 +680,8 @@ void
 my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
                     const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
+  register ulong m1= *nr1, m2= *nr2;
+
   /*
      Remove trailing spaces. We have to do this to be able to compare
     'A ' and 'A' as identical
@@ -688,10 +690,10 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
   
   for (; key < end ; key++)
   {
-    nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*key)) + (nr1[0] << 8);
-    nr2[0]+=3;
+    MY_HASH_ADD(m1, m2, (uint)*key);
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 

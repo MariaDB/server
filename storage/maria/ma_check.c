@@ -5515,6 +5515,8 @@ static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a)
   }
   if ((sort_param->keyinfo->flag & HA_NOSAME) && cmp == 0)
   {
+    DBUG_EXECUTE("key", _ma_print_keydata(DBUG_FILE, sort_param->seg, a,
+                                          USE_WHOLE_KEY););
     sort_info->dupp++;
     sort_info->info->cur_row.lastpos= get_record_for_key(sort_param->keyinfo,
                                                          a);
