@@ -14,7 +14,7 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
-                    ${CMAKE_SOURCE_DIR}/cmd-line-utils)
+                    ${CMAKE_SOURCE_DIR}/extra)
 
 ADD_DEFINITIONS(-DHAVE_CONFIG_H -DNO_KILL_INTR)
 
