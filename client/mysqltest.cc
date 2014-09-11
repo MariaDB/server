@@ -7719,6 +7719,7 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
 {
   uint count;
   MYSQL_RES *warn_res;
+  DYNAMIC_STRING res;
   DBUG_ENTER("append_warnings");
 
   if (!(count= mysql_warning_count(mysql)))
@@ -7738,11 +7739,18 @@ int append_warnings(DYNAMIC_STRING *ds, MYSQL* mysql)
     die("Warning count is %u but didn't get any warnings",
 	count);
 
-  append_result(ds, warn_res);
+  init_dynamic_string(&res, "", 1024, 1024);
+
+  append_result(&res, warn_res);
   mysql_free_result(warn_res);
 
-  DBUG_PRINT("warnings", ("%s", ds->str));
+  DBUG_PRINT("warnings", ("%s", res.str));
 
+  if (display_result_sorted)
+    dynstr_append_sorted(ds, &res, 0);
+  else
+    dynstr_append_mem(ds, res.str, res.length);
+  dynstr_free(&res);
   DBUG_RETURN(count);
 }
 

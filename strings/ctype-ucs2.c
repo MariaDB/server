@@ -1222,23 +1222,23 @@ my_caseup_utf16(CHARSET_INFO *cs, char *src, size_t srclen,
 
 static void
 my_hash_sort_utf16(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                   ulong *n1, ulong *n2)
+                   ulong *nr1, ulong *nr2)
 {
   my_wc_t wc;
   my_charset_conv_mb_wc mb_wc= cs->cset->mb_wc;
   int res;
   const uchar *e= s + cs->cset->lengthsp(cs, (const char *) s, slen);
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  register ulong m1= *nr1, m2= *nr2;
 
   while ((s < e) && (res= mb_wc(cs, &wc, (uchar *) s, (uchar *) e)) > 0)
   {
     my_tosort_utf16(uni_plane, &wc);
-    n1[0]^= (((n1[0] & 63) + n2[0]) * (wc & 0xFF)) + (n1[0] << 8);
-    n2[0]+= 3;
-    n1[0]^= (((n1[0] & 63) + n2[0]) * (wc >> 8)) + (n1[0] << 8);
-    n2[0]+= 3;
+    MY_HASH_ADD_16(m1, m2, wc);
     s+= res;
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 
@@ -1611,12 +1611,14 @@ my_hash_sort_utf16_bin(CHARSET_INFO *cs,
                        const uchar *pos, size_t len, ulong *nr1, ulong *nr2)
 {
   const uchar *end= pos + cs->cset->lengthsp(cs, (const char *) pos, len);
+  register ulong m1= *nr1, m2= *nr2;
+
   for ( ; pos < end ; pos++)
   {
-    nr1[0]^= (ulong) ((((uint) nr1[0] & 63) + nr2[0]) * 
-              ((uint)*pos)) + (nr1[0] << 8);
-    nr2[0]+= 3;
+    MY_HASH_ADD(m1, m2, (uint)*pos);
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 
@@ -2007,22 +2009,15 @@ my_caseup_utf32(CHARSET_INFO *cs, char *src, size_t srclen,
 }
 
 
-static inline void
-my_hash_add(ulong *n1, ulong *n2, uint ch)
-{
-  n1[0]^= (((n1[0] & 63) + n2[0]) * (ch)) + (n1[0] << 8);
-  n2[0]+= 3;
-}
-
-
 static void
 my_hash_sort_utf32(CHARSET_INFO *cs, const uchar *s, size_t slen,
-                   ulong *n1, ulong *n2)
+                   ulong *nr1, ulong *nr2)
 {
   my_wc_t wc;
   int res;
   const uchar *e= s + slen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  register ulong m1= *nr1, m2= *nr2;
 
   /* Skip trailing spaces */
   while (e > s + 3 && e[-1] == ' ' && !e[-2] && !e[-3] && !e[-4])
@@ -2031,12 +2026,14 @@ my_hash_sort_utf32(CHARSET_INFO *cs, const uchar *s, size_t slen,
   while ((res= my_utf32_uni(cs, &wc, (uchar*) s, (uchar*) e)) > 0)
   {
     my_tosort_utf32(uni_plane, &wc);
-    my_hash_add(n1, n2, (uint) (wc >> 24));
-    my_hash_add(n1, n2, (uint) (wc >> 16) & 0xFF);
-    my_hash_add(n1, n2, (uint) (wc >> 8)  & 0xFF);
-    my_hash_add(n1, n2, (uint) (wc & 0xFF));
+    MY_HASH_ADD(m1, m2, (uint) (wc >> 24));
+    MY_HASH_ADD(m1, m2, (uint) (wc >> 16) & 0xFF);
+    MY_HASH_ADD(m1, m2, (uint) (wc >> 8)  & 0xFF);
+    MY_HASH_ADD(m1, m2, (uint) (wc & 0xFF));
     s+= res;
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 
@@ -2976,12 +2973,13 @@ static size_t my_caseup_ucs2(CHARSET_INFO *cs, char *src, size_t srclen,
 
 
 static void my_hash_sort_ucs2(CHARSET_INFO *cs, const uchar *s, size_t slen,
-			      ulong *n1, ulong *n2)
+			      ulong *nr1, ulong *nr2)
 {
   my_wc_t wc;
   int res;
   const uchar *e=s+slen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
+  register ulong m1= *nr1, m2= *nr2;
 
   while (e > s+1 && e[-1] == ' ' && e[-2] == '\0')
     e-= 2;
@@ -2989,12 +2987,11 @@ static void my_hash_sort_ucs2(CHARSET_INFO *cs, const uchar *s, size_t slen,
   while ((s < e) && (res=my_ucs2_uni(cs,&wc, (uchar *)s, (uchar*)e)) >0)
   {
     my_tosort_ucs2(uni_plane, &wc);
-    n1[0]^= (((n1[0] & 63)+n2[0])*(wc & 0xFF))+ (n1[0] << 8);
-    n2[0]+=3;
-    n1[0]^= (((n1[0] & 63)+n2[0])*(wc >> 8))+ (n1[0] << 8);
-    n2[0]+=3;
+    MY_HASH_ADD_16(m1, m2, wc);
     s+=res;
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 
@@ -3312,16 +3309,17 @@ void my_hash_sort_ucs2_bin(CHARSET_INFO *cs __attribute__((unused)),
 			   const uchar *key, size_t len,ulong *nr1, ulong *nr2)
 {
   const uchar *end = key + len;
+  register ulong m1= *nr1, m2= *nr2;
 
   while (end > key+1 && end[-1] == ' ' && end[-2] == '\0')
     end-= 2;
 
   for (; key < (uchar*) end ; key++)
   {
-    nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * 
-	     ((uint)*key)) + (nr1[0] << 8);
-    nr2[0]+=3;
+    MY_HASH_ADD(m1, m2, (uint)*key);
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 

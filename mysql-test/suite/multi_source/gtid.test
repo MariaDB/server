@@ -141,12 +141,14 @@ DROP TABLE t3;
 SET GLOBAL gtid_domain_id=0;
 --let $wait_condition= SELECT COUNT(*)=0 FROM information_schema.tables WHERE table_name IN ("t1", "t2", "t3") AND table_schema = "test"
 --source include/wait_condition.inc
+--sorted_result
 STOP ALL SLAVES;
 --source reset_master_slave.inc
 --disconnect slave1
 
 --connection slave2
 SET GLOBAL gtid_domain_id=0;
+--sorted_result
 STOP ALL SLAVES;
 --source reset_master_slave.inc
 --disconnect slave2
