@@ -388,7 +388,7 @@ lock_loop:
 	}
 
 	HMT_medium();
-	if (lock->lock_word <= 0) {
+	if (i >= SYNC_SPIN_ROUNDS) {
 		os_thread_yield();
 	}
 
@@ -475,9 +475,9 @@ rw_lock_x_lock_wait(
 
 	counter_index = (size_t) os_thread_get_curr_id();
 
+	os_rmb;
 	ut_ad(lock->lock_word <= 0);
 
-	os_rmb;
         HMT_low();
 	while (lock->lock_word < 0) {
 		if (srv_spin_wait_delay) {
@@ -564,8 +564,11 @@ rw_lock_x_lock_low(
 
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
-		if (!pass)
+
+		if (!pass) {
 			os_rmb;
+		}
+
 		/* Decrement failed: relock or failed lock */
 		if (!pass && lock->recursive
 		    && os_thread_eq(lock->writer_thread, thread_id)) {
@@ -657,7 +660,7 @@ lock_loop:
 			os_rmb;
 		}
 		HMT_medium();
-		if (i == SYNC_SPIN_ROUNDS) {
+		if (i >= SYNC_SPIN_ROUNDS) {
 			os_thread_yield();
 		} else {
 			goto lock_loop;

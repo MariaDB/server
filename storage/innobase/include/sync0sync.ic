@@ -80,7 +80,11 @@ ib_mutex_test_and_set(
 	ib_mutex_t*	mutex)	/*!< in: mutex */
 {
 #if defined(HAVE_ATOMIC_BUILTINS)
+# if defined(HAVE_ATOMIC_BUILTINS_BYTE)
 	return(os_atomic_test_and_set_byte(&mutex->lock_word, 1));
+# else
+	return(os_atomic_test_and_set_ulint(&mutex->lock_word, 1));
+# endif
 #else
 	ibool	ret;
 
@@ -92,7 +96,7 @@ ib_mutex_test_and_set(
 		ut_a(mutex->lock_word == 0);
 
 		mutex->lock_word = 1;
-                os_wmb;
+		os_wmb;
 	}
 
 	return((byte) ret);
