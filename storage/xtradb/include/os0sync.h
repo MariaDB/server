@@ -357,6 +357,10 @@ Atomic compare-and-swap and increment for InnoDB. */
 
 # define HAVE_ATOMIC_BUILTINS
 
+# ifdef HAVE_IB_GCC_ATOMIC_BUILTINS_BYTE
+#  define HAVE_ATOMIC_BUILTINS_BYTE
+# endif
+
 # ifdef HAVE_IB_GCC_ATOMIC_BUILTINS_64
 #  define HAVE_ATOMIC_BUILTINS_64
 # endif
@@ -440,6 +444,7 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 #elif defined(HAVE_IB_SOLARIS_ATOMICS)
 
 # define HAVE_ATOMIC_BUILTINS
+# define HAVE_ATOMIC_BUILTINS_BYTE
 # define HAVE_ATOMIC_BUILTINS_64
 
 /* If not compiling with GCC or GCC doesn't support the atomic
@@ -524,6 +529,7 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 #elif defined(HAVE_WINDOWS_ATOMICS)
 
 # define HAVE_ATOMIC_BUILTINS
+# define HAVE_ATOMIC_BUILTINS_BYTE
 
 # ifndef _WIN32
 #  define HAVE_ATOMIC_BUILTINS_64
@@ -695,7 +701,15 @@ for synchronization */
 	} while (0);
 
 /** barrier definitions for memory ordering */
-#ifdef HAVE_IB_GCC_ATOMIC_THREAD_FENCE
+#if defined __i386__ || defined __x86_64__ || defined _M_IX86 || defined _M_X64 || defined __WIN__
+/* Performance regression was observed at some conditions for Intel
+architecture. Disable memory barrier for Intel architecture for now. */
+# define os_rmb do { } while(0)
+# define os_wmb do { } while(0)
+# define os_isync do { } while(0)
+# define IB_MEMORY_BARRIER_STARTUP_MSG \
+	"Memory barrier is not used"
+#elif defined(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
 # define HAVE_MEMORY_BARRIER
 # define os_rmb	__atomic_thread_fence(__ATOMIC_ACQUIRE)
 # define os_wmb	__atomic_thread_fence(__ATOMIC_RELEASE)
@@ -723,7 +737,7 @@ for synchronization */
 # define os_wmb	__machine_w_barrier()
 # define os_isync os_rmb; os_wmb
 # define IB_MEMORY_BARRIER_STARTUP_MSG \
-	"Soralis memory ordering functions are used for memory barrier"
+	"Solaris memory ordering functions are used for memory barrier"
 
 #elif defined(HAVE_WINDOWS_MM_FENCE)
 # define HAVE_MEMORY_BARRIER

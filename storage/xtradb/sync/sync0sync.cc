@@ -591,16 +591,16 @@ mutex_loop:
 spin_loop:
 
         HMT_low();
+	os_rmb;
 	while (mutex_get_lock_word(mutex) != 0 && i < SYNC_SPIN_ROUNDS) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
-                os_rmb;              // Ensure future reads sees new values
 		i++;
 	}
         HMT_medium();
 
-	if (i == SYNC_SPIN_ROUNDS) {
+	if (i >= SYNC_SPIN_ROUNDS) {
 		os_thread_yield();
 	}
 

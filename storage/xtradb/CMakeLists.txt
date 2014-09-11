@@ -78,7 +78,6 @@ IF(NOT CMAKE_CROSSCOMPILING)
     long	x;
     long	y;
     long	res;
-    char	c;
 
     x = 10;
     y = 123;
@@ -99,6 +98,16 @@ IF(NOT CMAKE_CROSSCOMPILING)
     if (res != 123 + 10 || x != 123 + 10) {
       return(1);
     }
+    return(0);
+  }"
+  HAVE_IB_GCC_ATOMIC_BUILTINS
+  )
+  CHECK_C_SOURCE_RUNS(
+  "
+  int main()
+  {
+    long	res;
+    char	c;
 
     c = 10;
     res = __sync_lock_test_and_set(&c, 123);
@@ -107,7 +116,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
     }
     return(0);
   }"
-  HAVE_IB_GCC_ATOMIC_BUILTINS
+  HAVE_IB_GCC_ATOMIC_BUILTINS_BYTE
   )
   CHECK_C_SOURCE_RUNS(
   "#include<stdint.h>
@@ -153,6 +162,10 @@ ENDIF()
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS=1)
  SET(XTRADB_OK 1)
+ENDIF()
+
+IF(HAVE_IB_GCC_ATOMIC_BUILTINS_BYTE)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS_BYTE=1)
 ENDIF()
 
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS_64)
@@ -283,13 +296,6 @@ IF(MSVC)
   ADD_DEFINITIONS(-DHAVE_WINDOWS_ATOMICS)
   ADD_DEFINITIONS(-DHAVE_WINDOWS_MM_FENCE)
   SET(XTRADB_OK 1)
-
-  # Avoid "unreferenced label" warning in generated file
-  GET_FILENAME_COMPONENT(_SRC_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
-  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/pars0grm.c
-          PROPERTIES COMPILE_FLAGS "/wd4102")
-  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.c
-          PROPERTIES COMPILE_FLAGS "/wd4003")
 ENDIF()
 
 
