@@ -411,7 +411,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
         kcp = new(g) KXYCOL(this);
 
-        if (kcp->Init(g, colp, n, true, NULL))
+        if (kcp->Init(g, colp, n, true, 0))
           return true;
 
         if (trace)

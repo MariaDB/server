@@ -905,7 +905,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       } // endif MakeInsert
 
     if (m_Rc != RC_FX) {
-      int  rc;
+      int  rc __attribute__((unused));
       char cmd[64];
       int  w;
 

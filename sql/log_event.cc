@@ -1020,8 +1020,9 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
   Relay_log_info *rli= rgi->rli;
   DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
                       " rli->replicate_same_server_id: %d,"
-                      " rli->slave_skip_counter: %lu",
-                      (ulong) server_id, (ulong) global_system_variables.server_id,
+                      " rli->slave_skip_counter: %llu",
+                      (ulong) server_id,
+                      (ulong) global_system_variables.server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
   if ((server_id == global_system_variables.server_id &&

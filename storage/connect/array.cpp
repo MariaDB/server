@@ -578,7 +578,7 @@ bool ARRAY::CanBeShort(void)
 /***********************************************************************/
 int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
   {
-  int   i, prec = 0;
+  int   i;
   bool  b = FALSE;
   PMBV  ovblk = Valblk;
   PVBLK ovblp = Vblp;
@@ -588,7 +588,6 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
 
   switch (Type) {
     case TYPE_DOUBLE:
-      prec = 2;
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_DATE:
