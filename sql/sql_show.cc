@@ -7342,14 +7342,20 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   if (partial_cond)
     partial_cond->val_int();
 
-  mysql_mutex_lock(&LOCK_status);
   if (option_type == OPT_GLOBAL)
+  {
+    /* We only hold LOCK_status for summary status vars */
+    mysql_mutex_lock(&LOCK_status);
     calc_sum_of_all_status(&tmp);
+    mysql_mutex_unlock(&LOCK_status);
+  }
+  
+  mysql_mutex_lock(&LOCK_show_status);
   res= show_status_array(thd, wild,
                          (SHOW_VAR *)all_status_vars.buffer,
                          option_type, tmp1, "", tables->table,
                          upper_case_names, partial_cond);
-  mysql_mutex_unlock(&LOCK_status);
+  mysql_mutex_unlock(&LOCK_show_status);
   DBUG_RETURN(res);
 }
 
