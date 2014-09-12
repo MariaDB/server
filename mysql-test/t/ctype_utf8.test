@@ -1738,6 +1738,9 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 
+let $ctype_unescape_combinations=selected;
+--source include/ctype_unescape.inc
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

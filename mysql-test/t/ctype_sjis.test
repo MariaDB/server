@@ -215,3 +215,14 @@ set collation_connection=sjis_bin;
 --echo #
 --echo # End of 5.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+let $ctype_unescape_combinations=selected;
+--source include/ctype_unescape.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
