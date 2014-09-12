@@ -109,11 +109,4 @@ static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
 #define MY_HASH_ADD_16(A, B, value) \
   do { MY_HASH_ADD(A, B, ((value) & 0xFF)) ; MY_HASH_ADD(A, B, ((value >>8 ))); } while(0) 
 
-/*
-  This one is needed to ensure we get the exact same hash as MariaDB 5.1
-  This is needed to ensure that old partitioned tables still work as before.
-*/
-#define MY_HASH_ADD_16_INV(A, B, value) \
-  do { MY_HASH_ADD(A, B, ((value >> 8))) ; MY_HASH_ADD(A, B, ((value & 0xFF ))); } while(0) 
-
 #endif

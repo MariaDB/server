@@ -20902,12 +20902,21 @@ static void my_hash_sort_uca(CHARSET_INFO *cs,
       /* Add back that has for the space characters */
       do
       {
-        MY_HASH_ADD_16(m1, m2, space_weight);
+        /*
+          We can't use MY_HASH_ADD_16() here as we, because of a misstake
+          in the original code, where we added the 16 byte variable the
+          opposite way.  Changing this would cause old partitioned tables
+          to fail.
+        */
+        MY_HASH_ADD(m1, m2, space_weight >> 8);
+        MY_HASH_ADD(m1, m2, space_weight & 0xFF);
       }
       while (--count != 0);
 
     }
-    MY_HASH_ADD_16(m1, m2, s_res);
+    /* See comment above why we can't use MY_HASH_ADD_16() */
+    MY_HASH_ADD(m1, m2, s_res >> 8);
+    MY_HASH_ADD(m1, m2, s_res & 0xFF);
   }
 end:
   *nr1= m1;
