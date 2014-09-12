@@ -423,7 +423,7 @@ typedef struct {                       /* User application block       */
   int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
   int        Check;                    /* General level of checking    */
   int        Numlines;                 /* Number of lines involved     */
-  USETEMP    UseTemp;                  /* Use temporary file           */
+//USETEMP    UseTemp;                  /* Use temporary file           */
   int        Vtdbno;                   /* Used for TDB number setting  */
   bool       Remote;                   /* true: if remotely called     */
   bool       Proginfo;                 /* true: return progress info   */
@@ -549,7 +549,8 @@ typedef  struct _colres {
 PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
-char    *PlgGetDataPath(PGLOBAL g);
+//ar    *PlgGetDataPath(PGLOBAL g);
+char    *SetPath(PGLOBAL g, const char *path);
 char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);

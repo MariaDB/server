@@ -68,6 +68,7 @@ void PrintResult(PGLOBAL, PSEM, PQRYRES);
 #endif   // _CONSOLE
 
 extern "C" int   trace;
+extern     bool  xinfo;
 
 // Used to check whether a MYSQL table is created on itself
 bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
@@ -754,7 +755,7 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
   if (!g)
     return (Mode == MODE_ANY && !Srcdef) ? 1 : 0;
 
-  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef) {
+  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef && xinfo) {
     // Info command, we must return the exact table row number
     char   query[96];
     MYSQLC myc;

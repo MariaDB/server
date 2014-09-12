@@ -216,10 +216,11 @@ PCOL TDBASE::ColDB(PGLOBAL g, PSZ name, int num)
       /*  Also find where to insert the new block.                     */
       /*****************************************************************/
       for (cp = Columns; cp; cp = cp->GetNext())
-        if (cp->GetIndex() < i)
+        if ((num && cp->GetIndex() == i) || 
+            (name && !stricmp(cp->GetName(), name)))
+          break;             // Found
+        else if (cp->GetIndex() < i)
           cprec = cp;
-        else if (cp->GetIndex() == i)
-          break;
 
       if (trace)
         htrc("cdp(%d).Name=%s cp=%p\n", i, cdp->GetName(), cp);

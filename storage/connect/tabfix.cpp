@@ -51,7 +51,9 @@
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
-extern "C" int trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
+
 extern int num_read, num_there, num_eq[2];               // Statistics
 static const longlong M2G = 0x80000000;
 static const longlong M4G = (longlong)2 * M2G;
@@ -135,6 +137,10 @@ int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   MaxSize = -1;                         // Size must be recalculated
   Cardinal = -1;                        // as well as Cardinality
 
+  // After the table was modified the indexes
+  // are invalid and we should mark them as such...
+  rc = ((PDOSDEF)To_Def)->InvalidateIndex(g);
+
   if (dop) {
     Columns = NULL;                     // Not used anymore
     Txfp->Reset();
@@ -153,12 +159,8 @@ int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
     Mode = MODE_READ;                   // New mode
     prc = rc;
 
-    if (!(PlgGetUser(g)->Check & CHK_OPT)) {
-      // After the table was modified the indexes
-      // are invalid and we should mark them as such...
-      rc = ((PDOSDEF)To_Def)->InvalidateIndex(g);
-    } else
-      // ... or we should remake them.
+    if (PlgGetUser(g)->Check & CHK_OPT)
+      // We must remake indexes.
       rc = MakeIndex(g, NULL, FALSE);
 
     rc = (rc == RC_INFO) ? prc : rc;
@@ -269,9 +271,11 @@ int TDBFIX::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 bool TDBFIX::IsUsingTemp(PGLOBAL g)
   {
-  USETEMP usetemp = PlgGetUser(g)->UseTemp;
-
-  return (usetemp == TMP_YES || usetemp == TMP_FORCE);
+  // Not ready yet to handle using a temporary file with mapping
+  // or while deleting from DBF files.
+  return ((Use_Temp == TMP_YES && Txfp->GetAmType() != TYPE_AM_MAP &&
+         !(Mode == MODE_DELETE && Txfp->GetAmType() == TYPE_AM_DBF)) ||
+           Use_Temp == TMP_FORCE || Use_Temp == TMP_TEST);
   } // end of IsUsingTemp
 
 /***********************************************************************/
@@ -302,8 +306,9 @@ bool TDBFIX::OpenDB(PGLOBAL g)
     return false;
     } // endif use
 
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_MAP) {
-    // Delete all lines. Not handled in MAP mode
+  if (Mode == MODE_DELETE && Txfp->GetAmType() == TYPE_AM_MAP &&
+                   (!Next || Use_Temp == TMP_FORCE)) {
+    // Delete all lines or using temp. Not handled in MAP mode
     Txfp = new(g) FIXFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
     } // endif Mode

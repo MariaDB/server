@@ -127,6 +127,10 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
       case TYPE_PCHAR:
         par->AddValue(g, parmp->Value);
         break;
+      case TYPE_VOID:
+        // Integer stored inside pp->Value
+        par->AddValue(g, (int)parmp->Value);
+        break;
       } // endswitch valtyp
 
   /*********************************************************************/
@@ -152,14 +156,17 @@ ARRAY::ARRAY(PGLOBAL g, int type, int size, int length, int prec)
   Xsize = -1;
   Len = 1;
 
-  switch ((Type = type)) {
+  switch (type) {
     case TYPE_STRING:
       Len = length;
-      break;
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_DOUBLE:
     case TYPE_PCHAR:
+      Type = type;
+      break;
+    case TYPE_VOID:
+      Type = TYPE_INT;
       break;
 #if 0
     case TYPE_TOKEN:
@@ -973,7 +980,7 @@ PSZ ARRAY::MakeArrayList(PGLOBAL g)
   size_t  z, len = 2;
 
   if (Type == TYPE_LIST)
-    return "(???)";             // To be implemented
+    return "(?" "?" "?)";             // To be implemented
 
   z = MY_MAX(24, GetTypeSize(Type, Len) + 4);
   tp = (char*)PlugSubAlloc(g, NULL, z);

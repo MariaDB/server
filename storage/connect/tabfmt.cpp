@@ -66,7 +66,8 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     10        /* Must be greater than other types */
 
-extern "C" int trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /***********************************************************************/
 /* CSVColumns: constructs the result blocks containing the description */
@@ -75,8 +76,8 @@ extern "C" int trace;
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
-                   int hdr, int mxr, bool info)
+PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
+                   char q, int hdr, int mxr, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
@@ -130,7 +131,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  PlugSetPath(filename, fn, PlgGetDataPath(g));
+  PlugSetPath(filename, fn, dp);
 
   if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r")))
     return NULL;
@@ -441,7 +442,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   PTDBASE tdbp;
 
   if (Catfunc != FNC_COL) {
-    USETEMP tmp = PlgGetUser(g)->UseTemp;
+    USETEMP tmp = Use_Temp;
     bool    map = Mapped && mode != MODE_INSERT &&
                   !(tmp != TMP_NO && mode == MODE_UPDATE) &&
                   !(tmp == TMP_FORCE &&
@@ -479,6 +480,36 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 
     if (Multiple)
       tdbp = new(g) TDBMUL(tdbp);
+    else
+      /*****************************************************************/
+      /*  For block tables, get eventually saved optimization values.  */
+      /*****************************************************************/
+      if (tdbp->GetBlockValues(g)) {
+        PushWarning(g, tdbp);
+//      return NULL;          // causes a crash when deleting index
+      } else {
+        if (IsOptimized()) {
+          if (map) {
+            txfp = new(g) MBKFAM(this);
+          } else if (Compressed) {
+#if defined(ZIP_SUPPORT)
+            if (Compressed == 1)
+              txfp = new(g) ZBKFAM(this);
+            else {
+              txfp->SetBlkPos(To_Pos);
+              ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
+              } // endelse
+#else
+            sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+            return NULL;
+#endif
+          } else
+            txfp = new(g) BLKFAM(this);
+
+          ((PTDBDOS)tdbp)->SetTxfp(txfp);
+          } // endif Optimized
+
+      } // endelse
 
   } else
     tdbp = new(g)TDBCCL(this);
@@ -605,14 +636,12 @@ int TDBCSV::EstimatedLength(PGLOBAL g)
 
 #if 0
 /***********************************************************************/
-/*  CSV tables favor the use temporary files for Update.               */
+/*  CSV tables needs the use temporary files for Update.               */
 /***********************************************************************/
 bool TDBCSV::IsUsingTemp(PGLOBAL g)
   {
-  USETEMP usetemp = PlgGetUser(g)->UseTemp;
-
-  return (usetemp == TMP_YES || usetemp == TMP_FORCE ||
-         (usetemp == TMP_AUTO && Mode == MODE_UPDATE));
+  return (Use_Temp == TMP_YES || Use_Temp == TMP_FORCE ||
+         (Use_Temp == TMP_AUTO && Mode == MODE_UPDATE));
   } // end of IsUsingTemp
 #endif // 0  (Same as TDBDOS one)
 
@@ -899,9 +928,9 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
   } // end of ReadBuffer
 
 /***********************************************************************/
-/*  Data Base write routine CSV file access method.                    */
+/*  Prepare the line to write.                                         */
 /***********************************************************************/
-int TDBCSV::WriteDB(PGLOBAL g)
+bool TDBCSV::PrepareWriting(PGLOBAL g)
   {
   char sep[2], qot[2];
   int  i, nlen, oldlen = strlen(To_Line);
@@ -912,7 +941,7 @@ int TDBCSV::WriteDB(PGLOBAL g)
 
   // Before writing the line we must check its length
   if ((nlen = CheckWrite(g)) < 0)
-    return RC_FX;
+    return true;
 
   // Before writing the line we must make it
   sep[0] = Sep;
@@ -974,6 +1003,18 @@ int TDBCSV::WriteDB(PGLOBAL g)
 
   if (trace > 1)
     htrc("Write: line is=%s", To_Line);
+
+  return false;
+  } // end of PrepareWriting
+
+/***********************************************************************/
+/*  Data Base write routine CSV file access method.                    */
+/***********************************************************************/
+int TDBCSV::WriteDB(PGLOBAL g)
+  {
+  // Before writing the line we must check and prepare it
+  if (PrepareWriting(g))
+    return RC_FX;
 
   /*********************************************************************/
   /*  Now start the writing process.                                   */
@@ -1430,7 +1471,8 @@ TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBCCL::GetResult(PGLOBAL g)
   {
-  return CSVColumns(g, Fn, Sep, Qtd, Hdr, Mxr, false);
+  return CSVColumns(g, ((PTABDEF)To_Def)->GetPath(), 
+                    Fn, Sep, Qtd, Hdr, Mxr, false);
   } // end of GetResult
 
 /* ------------------------ End of TabFmt ---------------------------- */

@@ -210,7 +210,9 @@ public:
   bool     IsSameIndex(PIXDEF xp1, PIXDEF xp2);
   bool     IsPartitioned(void);
   bool     IsUnique(uint n);
+  char    *GetDataPath(void) {return (char*)datapath;}
 
+  void     SetDataPath(PGLOBAL g, const char *path); 
   PTDB     GetTDB(PGLOBAL g);
   int      OpenTable(PGLOBAL g, bool del= false);
   bool     CheckColumnList(PGLOBAL g);
@@ -521,6 +523,7 @@ protected:
   ulong         hnum;                 // The number of this handler
   query_id_t    valid_query_id;       // The one when tdbp was allocated
   query_id_t    creat_query_id;       // The one when handler was allocated
+  char         *datapath;             // Is the Path of DB data directory
   PTDB          tdbp;                 // To table class object
   PVAL          sdvalin;              // Used to convert date values
   PVAL          sdvalout;             // Used to convert date values

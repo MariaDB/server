@@ -13,8 +13,8 @@ typedef class  TDBFMT    *PTDBFMT;
 /***********************************************************************/
 /*  Functions used externally.                                         */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
-                   int hdr, int mxr, bool info);
+PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
+                   char q, int hdr, int mxr, bool info);
 
 /***********************************************************************/
 /*  CSV table.                                                         */
@@ -80,6 +80,8 @@ class TDBCSV : public TDBDOS {
   virtual bool CheckErr(void);
 
  protected:
+  virtual bool PrepareWriting(PGLOBAL g);
+
   // Members
   PSZ  *Field;             // Field to write to current line
   int  *Offset;            // Column offsets for current record
@@ -158,6 +160,9 @@ class TDBFMT : public TDBCSV {
   virtual int  EstimatedLength(PGLOBAL g);
 
  protected:
+  virtual bool PrepareWriting(PGLOBAL g) 
+              {strcpy(g->Message, "FMT is read only"); return true;}
+
   // Members
   PSZ  *FldFormat;                      // Field read format
   void *To_Fld;                         // To field test buffer

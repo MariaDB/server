@@ -76,7 +76,8 @@
 char *strerror(int num);
 #endif   // UNIX
 
-extern "C" int  trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /***********************************************************************/
 /*  Char VCT column blocks are right filled with blanks (blank = true) */
@@ -208,7 +209,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   // Mapping not used for insert (except for true VEC not split tables)
   // or when UseTemp is forced
   bool map = Mapped && (Estimate || mode != MODE_INSERT) &&
-             !(PlgGetUser(g)->UseTemp == TMP_FORCE &&
+             !(Use_Temp == TMP_FORCE &&
              (mode == MODE_UPDATE || mode == MODE_DELETE));
   PTXF txfp;
   PTDB tdbp;
@@ -283,6 +284,15 @@ PCOL TDBVCT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   {
   return new(g) VCTCOL(g, cdp, this, cprec, n);
   } // end of MakeCol
+
+/***********************************************************************/
+/*  VEC tables are not ready yet to use temporary files.               */
+/***********************************************************************/
+bool TDBVCT::IsUsingTemp(PGLOBAL g)
+  {
+  // For developpers
+  return (Use_Temp == TMP_TEST);
+  } // end of IsUsingTemp
 
 /***********************************************************************/
 /*  VCT Access Method opening routine.                                 */

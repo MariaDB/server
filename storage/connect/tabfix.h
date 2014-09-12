@@ -51,6 +51,8 @@ class DllExport TDBFIX : public TDBDOS {
   virtual int  WriteDB(PGLOBAL g);
 
  protected:
+  virtual bool PrepareWriting(PGLOBAL g) {return false;}
+
   // Members are inherited from TDBDOS
   }; // end of class TDBFIX
 
@@ -89,7 +91,8 @@ class TDBDCL : public TDBCAT {
 
  protected:
 	// Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g) {return DBFColumns(g, Fn, false);}
+  virtual PQRYRES GetResult(PGLOBAL g) 
+      {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, false);}
 
   // Members
   char *Fn;                       // The DBF file (path) name

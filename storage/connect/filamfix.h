@@ -34,8 +34,10 @@ class DllExport FIXFAM : public BLKFAM {
   virtual int  MaxBlkSize(PGLOBAL g, int s)
                 {return TXTFAM::MaxBlkSize(g, s);}
   virtual bool SetPos(PGLOBAL g, int recpos);
+  virtual int  GetNextPos(void) {return Fpos + 1;}
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g);
+  virtual int  WriteModifiedBlock(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
@@ -44,7 +46,7 @@ class DllExport FIXFAM : public BLKFAM {
  protected:
   virtual bool CopyHeader(PGLOBAL g) {return false;}
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b);
-  virtual bool MakeDeletedFile(PGLOBAL g);
+  virtual int  InitDelete(PGLOBAL g, int fpos, int spos);
 
   // No additional members
   }; // end of class FIXFAM
@@ -68,6 +70,7 @@ class BGXFAM : public FIXFAM {
   // Methods
   virtual int  Cardinality(PGLOBAL g);
   virtual bool OpenTableFile(PGLOBAL g);
+  virtual int  WriteModifiedBlock(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
@@ -77,7 +80,6 @@ class BGXFAM : public FIXFAM {
  protected:
   virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
-  virtual bool MakeDeletedFile(PGLOBAL g);
           int  BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req);
           bool BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req);
           bool BigSeek(PGLOBAL g, HANDLE h, BIGINT pos

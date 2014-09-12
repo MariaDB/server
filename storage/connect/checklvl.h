@@ -34,9 +34,10 @@ enum XMOD {XMOD_EXECUTE =  0,         /* DOS execution mode            */
 /***********************************************************************/
 /*  Following definitions indicate the use of a temporay file.         */
 /***********************************************************************/
-enum USETEMP {TMP_AUTO  =  0,         /* Best choice                   */
-              TMP_NO    =  1,         /* Never                         */
+enum USETEMP {TMP_NO    =  0,         /* Never                         */
+              TMP_AUTO  =  1,         /* Best choice                   */
               TMP_YES   =  2,         /* Always                        */
-              TMP_FORCE =  3};        /* Forced for MAP tables         */
+              TMP_FORCE =  3,         /* Forced for MAP tables         */
+              TMP_TEST  =  4};        /* Testing value                 */
 
 #endif    // _CHKLVL_DEFINED_

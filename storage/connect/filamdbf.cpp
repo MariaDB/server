@@ -176,7 +176,7 @@ static int dbfhead(PGLOBAL g, FILE *file, PSZ fn, DBFHEADER *buf)
 /*  DBFColumns: constructs the result blocks containing the description     */
 /*  of all the columns of a DBF file that will be retrieved by #GetData.    */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
+PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                    TYPE_INT,    TYPE_INT,   TYPE_SHORT};
@@ -186,7 +186,7 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
   char       buf[2], filename[_MAX_PATH];
   int        ncol = sizeof(buftyp) / sizeof(int);
   int        rc, type, len, field, fields;
-  BOOL       bad;
+  bool       bad;
   DBFHEADER  mainhead;
   DESCRIPTOR thisfield;
   FILE      *infile = NULL;
@@ -205,7 +205,7 @@ PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info)
     /************************************************************************/
     /*  Open the input file.                                                */
     /************************************************************************/
-    PlugSetPath(filename, fn, PlgGetDataPath(g));
+    PlugSetPath(filename, fn, dp);
 
     if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "rb")))
       return NULL;
@@ -750,6 +750,36 @@ bool DBFFAM::CopyHeader(PGLOBAL g)
   return rc;
   } // end of CopyHeader
 
+#if 0 // Not useful when UseTemp is false.
+/***********************************************************************/
+/*  Mark the line to delete with '*' (soft delete).                    */
+/*  NOTE: this is not ready for UseTemp.                               */
+/***********************************************************************/
+int DBFFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+  {
+  int rc = RC_FX;
+  size_t lrecl = (size_t)Lrecl;
+
+  if (Nrec != 1)
+    strcpy(g->Message, "Cannot delete in block mode");
+  else if (fseek(Stream, Headlen + fpos * Lrecl, SEEK_SET))
+    sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+  else if (fread(To_Buf, 1, lrecl, Stream) != lrecl)
+    sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
+  else
+    *To_Buf = '*';
+
+  if (fseek(Stream, Headlen + fpos * Lrecl, SEEK_SET))
+    sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+  else if (fwrite(To_Buf, 1, lrecl, Stream) != lrecl)
+    sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
+  else
+    rc = RC_NF;     // Ok, Nothing else to do 
+
+  return rc;
+  } // end of InitDelete
+#endif // 0
+
 /***********************************************************************/
 /*  Data Base delete line routine for DBF access methods.              */
 /*  Deleted lines are just flagged in the first buffer character.      */
@@ -760,16 +790,12 @@ int DBFFAM::DeleteRecords(PGLOBAL g, int irc)
     // T_Stream is the temporary stream or the table file stream itself
     if (!T_Stream)
       if (UseTemp) {
-        if ((Indxd = Tdbp->GetKindex() != NULL)) {
-          strcpy(g->Message, "DBF indexed udate using temp file NIY");
-          return RC_FX;
-        } else if (OpenTempFile(g))
+        if (OpenTempFile(g))
           return RC_FX;
 
         if (CopyHeader(g))           // For DBF tables
           return RC_FX;
 
-//      Indxd = Tdbp->GetKindex() != NULL;
       } else
         T_Stream = Stream;
 
@@ -809,7 +835,7 @@ void DBFFAM::CloseTableFile(PGLOBAL g, bool abort)
     if (Modif && !Closing) {
       // Last updated block remains to be written
       Closing = true;
-      wrc = ReadBuffer(g);
+      wrc = WriteModifiedBlock(g);
       } // endif Modif
 
     if (UseTemp && T_Stream && wrc == RC_OK) {
