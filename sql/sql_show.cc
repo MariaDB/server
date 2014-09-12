@@ -1321,9 +1321,22 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
     it's a keyword
   */
 
+  /*
+    Special code for swe7. It encodes the letter "E WITH ACUTE" on
+    the position 0x60, where backtick normally resides.
+    In swe7 we cannot append 0x60 using system_charset_info,
+    because it cannot be converted to swe7 and will be replaced to
+    question mark '?'. Use &my_charset_bin to avoid this.
+    It will prevent conversion and will append the backtick as is.
+  */
+  CHARSET_INFO *quote_charset= q == 0x60 &&
+                               (packet->charset()->state & MY_CS_NONASCII) &&
+                               packet->charset()->mbmaxlen == 1 ?
+                               &my_charset_bin : system_charset_info;
+
   (void) packet->reserve(length*2 + 2);
   quote_char= (char) q;
-  if (packet->append(&quote_char, 1, system_charset_info))
+  if (packet->append(&quote_char, 1, quote_charset))
     return true;
 
   for (name_end= name+length ; name < name_end ; name+= length)
@@ -1340,12 +1353,12 @@ append_identifier(THD *thd, String *packet, const char *name, uint length)
     if (!length)
       length= 1;
     if (length == 1 && chr == (uchar) quote_char &&
-        packet->append(&quote_char, 1, system_charset_info))
+        packet->append(&quote_char, 1, quote_charset))
       return true;
     if (packet->append(name, length, system_charset_info))
       return true;
   }
-  return packet->append(&quote_char, 1, system_charset_info);
+  return packet->append(&quote_char, 1, quote_charset);
 }
 
 

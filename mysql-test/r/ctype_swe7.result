@@ -1,12 +1,13 @@
 #
 # Start of 10.0 tests
 #
+SET NAMES swe7;
 # Start of ctype_unescape.inc
 SET @query=_binary'SELECT CHARSET(\'test\'),@@character_set_client,@@character_set_connection';
 PREPARE stmt FROM @query;
 EXECUTE stmt;
 CHARSET('test')	@@character_set_client	@@character_set_connection
-latin1	latin1	latin1
+swe7	swe7	swe7
 DEALLOCATE PREPARE stmt;
 CREATE TABLE allbytes (a VARBINARY(10));
 # Using selected bytes combinations
@@ -73,7 +74,7 @@ CALL p1(val);
 END LOOP;  
 CLOSE stmt;
 END//
-CREATE FUNCTION iswellformed(a VARBINARY(256)) RETURNS INT RETURN a=BINARY CONVERT(a USING latin1);//
+CREATE FUNCTION iswellformed(a VARBINARY(256)) RETURNS INT RETURN a=BINARY CONVERT(a USING swe7);//
 CREATE FUNCTION unescape(a VARBINARY(256)) RETURNS VARBINARY(256)
 BEGIN
 # We need to do it in a way to avoid producing new escape sequences
