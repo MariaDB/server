@@ -223,6 +223,11 @@ set collation_connection=sjis_bin;
 let $ctype_unescape_combinations=selected;
 --source include/ctype_unescape.inc
 
+--character_set sjis
+SET NAMES sjis;
+--source include/ctype_E05C.inc
+
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

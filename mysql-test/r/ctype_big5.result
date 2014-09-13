@@ -4374,6 +4374,253 @@ DROP FUNCTION mysql_real_escape_string_generated;
 DROP FUNCTION iswellformed;
 DROP TABLE allbytes;
 # End of ctype_backslash.inc
+SET NAMES big5;
+# Start of ctype_E05C.inc
+SELECT HEX('à\'),HEX('à\t');
+HEX('à\')	HEX('à\t')
+E05C	E05C74
+SELECT HEX('\\à\'),HEX('\\à\t'),HEX('\\à\t\t');
+HEX('\\à\')	HEX('\\à\t')	HEX('\\à\t\t')
+5CE05C	5CE05C74	5CE05C7409
+SELECT HEX('''à\'),HEX('à\''');
+HEX('''à\')	HEX('à\''')
+27E05C	E05C27
+SELECT HEX('\\''à\'),HEX('à\''\\');
+HEX('\\''à\')	HEX('à\''\\')
+5C27E05C	E05C275C
+SELECT HEX(BINARY('à\')),HEX(BINARY('à\t'));
+HEX(BINARY('à\'))	HEX(BINARY('à\t'))
+E05C	E05C74
+SELECT HEX(BINARY('\\à\')),HEX(BINARY('\\à\t')),HEX(BINARY('\\à\t\t'));
+HEX(BINARY('\\à\'))	HEX(BINARY('\\à\t'))	HEX(BINARY('\\à\t\t'))
+5CE05C	5CE05C74	5CE05C7409
+SELECT HEX(BINARY('''à\')),HEX(BINARY('à\'''));
+HEX(BINARY('''à\'))	HEX(BINARY('à\'''))
+27E05C	E05C27
+SELECT HEX(BINARY('\\''à\')),HEX(BINARY('à\''\\'));
+HEX(BINARY('\\''à\'))	HEX(BINARY('à\''\\'))
+5C27E05C	E05C275C
+SELECT HEX(_BINARY'à\'),HEX(_BINARY'à\t');
+HEX(_BINARY'à\')	HEX(_BINARY'à\t')
+E05C	E05C74
+SELECT HEX(_BINARY'\\à\'),HEX(_BINARY'\\à\t'),HEX(_BINARY'\\à\t\t');
+HEX(_BINARY'\\à\')	HEX(_BINARY'\\à\t')	HEX(_BINARY'\\à\t\t')
+5CE05C	5CE05C74	5CE05C7409
+SELECT HEX(_BINARY'''à\'),HEX(_BINARY'à\''');
+HEX(_BINARY'''à\')	HEX(_BINARY'à\''')
+27E05C	E05C27
+SELECT HEX(_BINARY'\\''à\'),HEX(_BINARY'à\''\\');
+HEX(_BINARY'\\''à\')	HEX(_BINARY'à\''\\')
+5C27E05C	E05C275C
+CREATE TABLE t1 AS SELECT REPEAT(' ',10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('à\'),('à\t');
+INSERT INTO t1 VALUES ('\\à\'),('\\à\t'),('\\à\t\t');
+INSERT INTO t1 VALUES ('''à\'),('à\''');
+INSERT INTO t1 VALUES ('\\''à\'),('à\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+à\	E05C
+à\t	E05C74
+\à\	5CE05C
+\à\t	5CE05C74
+\à\t		5CE05C7409
+'à\	27E05C
+à\'	E05C27
+\'à\	5C27E05C
+à\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES ('à\'),('à\t');
+INSERT INTO t1 VALUES ('\\à\'),('\\à\t'),('\\à\t\t');
+INSERT INTO t1 VALUES ('''à\'),('à\''');
+INSERT INTO t1 VALUES ('\\''à\'),('à\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+à\	E05C
+à\t	E05C74
+\à\	5CE05C
+\à\t	5CE05C74
+\à\t		5CE05C7409
+'à\	27E05C
+à\'	E05C27
+\'à\	5C27E05C
+à\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (BINARY('à\')),(BINARY('à\t'));
+INSERT INTO t1 VALUES (BINARY('\\à\')),(BINARY('\\à\t')),(BINARY('\\à\t\t'));
+INSERT INTO t1 VALUES (BINARY('''à\')),(BINARY('à\'''));
+INSERT INTO t1 VALUES (BINARY('\\''à\')),(BINARY('à\''\\'));
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+à\	E05C
+à\t	E05C74
+\à\	5CE05C
+\à\t	5CE05C74
+\à\t		5CE05C7409
+'à\	27E05C
+à\'	E05C27
+\'à\	5C27E05C
+à\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (BINARY('à\')),(BINARY('à\t'));
+INSERT INTO t1 VALUES (BINARY('\\à\')),(BINARY('\\à\t')),(BINARY('\\à\t\t'));
+INSERT INTO t1 VALUES (BINARY('''à\')),(BINARY('à\'''));
+INSERT INTO t1 VALUES (BINARY('\\''à\')),(BINARY('à\''\\'));
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+à\	E05C
+à\t	E05C74
+\à\	5CE05C
+\à\t	5CE05C74
+\à\t		5CE05C7409
+'à\	27E05C
+à\'	E05C27
+\'à\	5C27E05C
+à\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES (_BINARY'à\'),(_BINARY'à\t');
+INSERT INTO t1 VALUES (_BINARY'\\à\'),(_BINARY'\\à\t'),(_BINARY'\\à\t\t');
+INSERT INTO t1 VALUES (_BINARY'''à\'),(_BINARY'à\''');
+INSERT INTO t1 VALUES (_BINARY'\\''à\'),(_BINARY'à\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+à\	E05C
+à\t	E05C74
+\à\	5CE05C
+\à\t	5CE05C74
+\à\t		5CE05C7409
+'à\	27E05C
+à\'	E05C27
+\'à\	5C27E05C
+à\'\	E05C275C
+DROP TABLE t1;
+CREATE TABLE t1 (a BLOB);
+INSERT INTO t1 VALUES (_BINARY'à\'),(_BINARY'à\t');
+INSERT INTO t1 VALUES (_BINARY'\\à\'),(_BINARY'\\à\t'),(_BINARY'\\à\t\t');
+INSERT INTO t1 VALUES (_BINARY'''à\'),(_BINARY'à\''');
+INSERT INTO t1 VALUES (_BINARY'\\''à\'),(_BINARY'à\''\\');
+SELECT a, HEX(a) FROM t1;
+a	HEX(a)
+à\	E05C
+à\t	E05C74
+\à\	5CE05C
+\à\t	5CE05C74
+\à\t		5CE05C7409
+'à\	27E05C
+à\'	E05C27
+\'à\	5C27E05C
+à\'\	E05C275C
+DROP TABLE t1;
+SET character_set_client=binary, character_set_results=binary;
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+binary	big5	binary
+SELECT HEX('à\['), HEX('\à\[');
+HEX('à\[')	HEX('\à\[')
+E05B	E05B
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET big5 NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('à\['),('\à\[');
+SELECT HEX(a) FROM t1;
+HEX(a)
+E05B
+E05B
+DROP TABLE t1;
+# Start of ctype_E05C.inc
+SET NAMES big5;
+CREATE TABLE t1 (a ENUM('È@') CHARACTER SET big5);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('?') CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('È@');
+INSERT INTO t1 VALUES (_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840);
+SELECT HEX(a),a FROM t1;
+HEX(a)	a
+C840	È@
+C840	È@
+C840	È@
+DROP TABLE t1;
+SET NAMES binary;
+CREATE TABLE t1 (a ENUM('È@') CHARACTER SET big5);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` enum('?') CHARACTER SET big5 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('È@');
+INSERT INTO t1 VALUES (_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840);
+SELECT HEX(a),a FROM t1;
+HEX(a)	a
+C840	È@
+C840	È@
+C840	È@
+DROP TABLE t1;
+SET NAMES big5;
+CREATE TABLE t1 (
+c1 CHAR(10)    CHARACTER SET big5,
+c2 VARCHAR(10) CHARACTER SET big5,
+c3 TEXT        CHARACTER SET big5
+);
+INSERT INTO t1 VALUES ('È@','È@','È@');
+INSERT INTO t1 VALUES (_big5 0xC840,_big5 0xC840,_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840,0xC840,0xC840);
+SELECT HEX(c1),HEX(c2),HEX(c3) FROM t1;
+HEX(c1)	HEX(c2)	HEX(c3)
+C840	C840	C840
+C840	C840	C840
+C840	C840	C840
+DROP TABLE t1;
+SET NAMES binary;
+CREATE TABLE t1 (
+c1 CHAR(10)    CHARACTER SET big5,
+c2 VARCHAR(10) CHARACTER SET big5,
+c3 TEXT        CHARACTER SET big5
+);
+INSERT INTO t1 VALUES ('È@','È@','È@');
+INSERT INTO t1 VALUES (_big5 0xC840,_big5 0xC840,_big5 0xC840);
+INSERT INTO t1 VALUES (0xC840,0xC840,0xC840);
+SELECT HEX(c1),HEX(c2),HEX(c3) FROM t1;
+HEX(c1)	HEX(c2)	HEX(c3)
+C840	C840	C840
+C840	C840	C840
+C840	C840	C840
+DROP TABLE t1;
+SET NAMES binary;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET big5, KEY(a));
+INSERT INTO t1 VALUES (0xC840),(0xC841),(0xC842);
+SELECT HEX(a) FROM t1 WHERE a='È@';
+HEX(a)
+C840
+SELECT HEX(a) FROM t1 IGNORE KEY(a) WHERE a='È@';
+HEX(a)
+C840
+DROP TABLE t1;
 #
 # End of 10.0 tests
 #
