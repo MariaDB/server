@@ -9,6 +9,10 @@
 drop procedure if exists check_instrument;
 --enable_warnings
 
+# reset counters
+truncate table performance_schema.events_statements_summary_by_digest;
+flush status;
+
 delimiter $;
 create procedure check_instrument(in instr_name varchar(128))
 begin
