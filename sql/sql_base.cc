@@ -5304,6 +5304,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
         thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST);
     }
 
+#ifdef NOT_USED_IN_MARIADB
     /* 
      INSERT...ON DUPLICATE KEY UPDATE on a table with more than one unique keys
      can be unsafe.
@@ -5329,6 +5330,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
             thd->lex->duplicates == DUP_UPDATE)
           thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS);
       }
+#endif
  
     /* We have to emulate LOCK TABLES if we are statement needs prelocking. */
     if (thd->lex->requires_prelocking())

@@ -5974,23 +5974,35 @@ show_query_type(THD::enum_binlog_query_type qtype)
   Constants required for the limit unsafe warnings suppression
 */
 //seconds after which the limit unsafe warnings suppression will be activated
-#define LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT 50
+#define LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT 5*60
 //number of limit unsafe warnings after which the suppression will be activated
-#define LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT 50
+#define LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT 10
 
-static ulonglong limit_unsafe_suppression_start_time= 0;
-static bool unsafe_warning_suppression_is_activated= false;
-static int limit_unsafe_warning_count= 0;
+static ulonglong unsafe_suppression_start_time= 0;
+static bool unsafe_warning_suppression_active[LEX::BINLOG_STMT_UNSAFE_COUNT];
+static ulong unsafe_warnings_count[LEX::BINLOG_STMT_UNSAFE_COUNT];
+static ulong total_unsafe_warnings_count;
 
 /**
   Auxiliary function to reset the limit unsafety warning suppression.
+  This is done without mutex protection, but this should be good
+  enough as it doesn't matter if we loose a couple of suppressed
+  messages or if this is called multiple times.
 */
-static void reset_binlog_unsafe_suppression()
+
+static void reset_binlog_unsafe_suppression(ulonglong now)
 {
+  uint i;
   DBUG_ENTER("reset_binlog_unsafe_suppression");
-  unsafe_warning_suppression_is_activated= false;
-  limit_unsafe_warning_count= 0;
-  limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
+
+  unsafe_suppression_start_time= now;
+  total_unsafe_warnings_count= 0;
+
+  for (i= 0 ; i < LEX::BINLOG_STMT_UNSAFE_COUNT ; i++)
+  {
+    unsafe_warnings_count[i]= 0;
+    unsafe_warning_suppression_active[i]= 0;
+  }  
   DBUG_VOID_RETURN;
 }
 
@@ -6008,95 +6020,94 @@ static void print_unsafe_warning_to_log(int unsafe_type, char* buf,
 }
 
 /**
-  Auxiliary function to check if the warning for limit unsafety should be
-  thrown or suppressed. Details of the implementation can be found in the
-  comments inline.
+  Auxiliary function to check if the warning for unsafe repliction statements
+  should be thrown or suppressed.
+
+  Logic is:
+  - If we get more than LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT errors
+    of one type, that type of errors will be suppressed for
+    LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT.
+  - When the time limit has been reached, all suppression is reset.
+
+  This means that if one gets many different types of errors, some of them
+  may be reset less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT. However at
+  least one error is disable for this time.
+
   SYNOPSIS:
   @params
-   buf         - buffer to hold the warning message text
    unsafe_type - The type of unsafety.
-   query       - The actual query statement.
 
-  TODO: Remove this function and implement a general service for all warnings
-  that would prevent flooding the error log.
+  RETURN:
+    0   0k to log
+    1   Message suppressed
 */
-static void do_unsafe_limit_checkout(char* buf, int unsafe_type, char* query)
+
+static bool protect_against_unsafe_warning_flood(int unsafe_type)
 {
-  ulonglong now= 0;
-  DBUG_ENTER("do_unsafe_limit_checkout");
-  DBUG_ASSERT(unsafe_type == LEX::BINLOG_STMT_UNSAFE_LIMIT);
-  limit_unsafe_warning_count++;
+  ulong count;
+  ulonglong now= my_interval_timer()/1000000000ULL;
+  DBUG_ENTER("protect_against_unsafe_warning_flood");
+
+  count= ++unsafe_warnings_count[unsafe_type];
+  total_unsafe_warnings_count++;
+
   /*
     INITIALIZING:
     If this is the first time this function is called with log warning
     enabled, the monitoring the unsafe warnings should start.
   */
-  if (limit_unsafe_suppression_start_time == 0)
+  if (unsafe_suppression_start_time == 0)
   {
-    limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
-    print_unsafe_warning_to_log(unsafe_type, buf, query);
+    reset_binlog_unsafe_suppression(now);
+    DBUG_RETURN(0);
   }
-  else
-  {
-    if (!unsafe_warning_suppression_is_activated)
-      print_unsafe_warning_to_log(unsafe_type, buf, query);
 
-    if (limit_unsafe_warning_count >=
-        LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT)
+  /*
+    The following is true if we got too many errors or if the error was
+    already suppressed
+  */
+  if (count >= LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT)
+  {
+    ulonglong diff_time= (now - unsafe_suppression_start_time);
+
+    if (!unsafe_warning_suppression_active[unsafe_type])
     {
-      now= my_interval_timer()/10000000;
-      if (!unsafe_warning_suppression_is_activated)
+      /*
+        ACTIVATION:
+        We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT warnings in
+        less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT we activate the
+        suppression.
+      */
+      if (diff_time <= LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
       {
-        /*
-          ACTIVATION:
-          We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT warnings in
-          less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT we activate the
-          suppression.
-        */
-        if ((now-limit_unsafe_suppression_start_time) <=
-                       LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
-        {
-          unsafe_warning_suppression_is_activated= true;
-          DBUG_PRINT("info",("A warning flood has been detected and the limit \
-unsafety warning suppression has been activated."));
-        }
-        else
-        {
-          /*
-           there is no flooding till now, therefore we restart the monitoring
-          */
-          limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
-          limit_unsafe_warning_count= 0;
-        }
+        unsafe_warning_suppression_active[unsafe_type]= 1;
+        sql_print_information("Suppressing warnings of type '%s' for up to %d seconds because of flooding",
+                              ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]),
+                              LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT);
       }
       else
       {
         /*
-          Print the suppression note and the unsafe warning.
+          There is no flooding till now, therefore we restart the monitoring
         */
-        sql_print_information("The following warning was suppressed %d times \
-during the last %d seconds in the error log",
-                              limit_unsafe_warning_count,
-                              (int)
-                              (now-limit_unsafe_suppression_start_time));
-        print_unsafe_warning_to_log(unsafe_type, buf, query);
-        /*
-          DEACTIVATION: We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT
-          warnings in more than  LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT, the
-          suppression should be deactivated.
-        */
-        if ((now - limit_unsafe_suppression_start_time) >
-            LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
-        {
-          reset_binlog_unsafe_suppression();
-          DBUG_PRINT("info",("The limit unsafety warning supression has been \
-deactivated"));
-        }
+        reset_binlog_unsafe_suppression(now);
       }
-      limit_unsafe_warning_count= 0;
+    }
+    else
+    {
+      /* This type of warnings was suppressed */
+      if (diff_time > LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
+      {
+        ulong save_count= total_unsafe_warnings_count;
+        /* Print a suppression note and remove the suppression */
+        reset_binlog_unsafe_suppression(now);
+        sql_print_information("Suppressed %lu unsafe warnings during "
+                              "the last %d seconds",
+                              save_count, (int) diff_time);
+      }
     }
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
 /**
@@ -6108,6 +6119,7 @@ deactivated"));
 void THD::issue_unsafe_warnings()
 {
   char buf[MYSQL_ERRMSG_SIZE * 2];
+  uint32 unsafe_type_flags;
   DBUG_ENTER("issue_unsafe_warnings");
   /*
     Ensure that binlog_unsafe_warning_flags is big enough to hold all
@@ -6115,8 +6127,10 @@ void THD::issue_unsafe_warnings()
   */
   DBUG_ASSERT(LEX::BINLOG_STMT_UNSAFE_COUNT <=
               sizeof(binlog_unsafe_warning_flags) * CHAR_BIT);
-
-  uint32 unsafe_type_flags= binlog_unsafe_warning_flags;
+  
+  if (!(unsafe_type_flags= binlog_unsafe_warning_flags))
+    DBUG_VOID_RETURN;                           // Nothing to do
+  
   /*
     For each unsafe_type, check if the statement is unsafe in this way
     and issue a warning.
@@ -6131,13 +6145,9 @@ void THD::issue_unsafe_warnings()
                           ER_BINLOG_UNSAFE_STATEMENT,
                           ER(ER_BINLOG_UNSAFE_STATEMENT),
                           ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
-      if (global_system_variables.log_warnings)
-      {
-        if (unsafe_type == LEX::BINLOG_STMT_UNSAFE_LIMIT)
-          do_unsafe_limit_checkout( buf, unsafe_type, query());
-        else //cases other than LIMIT unsafety
-          print_unsafe_warning_to_log(unsafe_type, buf, query());
-      }
+      if (global_system_variables.log_warnings > 1 &&
+          !protect_against_unsafe_warning_flood(unsafe_type))
+        print_unsafe_warning_to_log(unsafe_type, buf, query());
     }
   }
   DBUG_VOID_RETURN;
