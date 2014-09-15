@@ -36,7 +36,7 @@ def	information_schema	CLIENT_STATISTICS	CPU_TIME	6	0	NO	double	NULL	NULL	21	NUL
 def	information_schema	CLIENT_STATISTICS	DENIED_CONNECTIONS	20	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	EMPTY_QUERIES	23	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	LOST_CONNECTIONS	21	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
-def	information_schema	CLIENT_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	24	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
+def	information_schema	CLIENT_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	25	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	OTHER_COMMANDS	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	ROLLBACK_TRANSACTIONS	19	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	ROWS_DELETED	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
@@ -46,6 +46,7 @@ def	information_schema	CLIENT_STATISTICS	ROWS_SENT	11	0	NO	bigint	NULL	NULL	19	0
 def	information_schema	CLIENT_STATISTICS	ROWS_UPDATED	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	SELECT_COMMANDS	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	CLIENT_STATISTICS	TOTAL_CONNECTIONS	2	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
+def	information_schema	CLIENT_STATISTICS	TOTAL_SSL_CONNECTIONS	24	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	CLIENT_STATISTICS	UPDATE_COMMANDS	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	COLLATIONS	CHARACTER_SET_NAME	2		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select	
 def	information_schema	COLLATIONS	COLLATION_NAME	1		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select	
@@ -423,7 +424,7 @@ def	information_schema	USER_STATISTICS	CPU_TIME	6	0	NO	double	NULL	NULL	21	NULL	
 def	information_schema	USER_STATISTICS	DENIED_CONNECTIONS	20	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	EMPTY_QUERIES	23	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	LOST_CONNECTIONS	21	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
-def	information_schema	USER_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	24	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
+def	information_schema	USER_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	25	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	OTHER_COMMANDS	17	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	ROLLBACK_TRANSACTIONS	19	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	ROWS_DELETED	12	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
@@ -433,6 +434,7 @@ def	information_schema	USER_STATISTICS	ROWS_SENT	11	0	NO	bigint	NULL	NULL	19	0	N
 def	information_schema	USER_STATISTICS	ROWS_UPDATED	14	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	SELECT_COMMANDS	15	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	TOTAL_CONNECTIONS	2	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select	
+def	information_schema	USER_STATISTICS	TOTAL_SSL_CONNECTIONS	24	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned			select	
 def	information_schema	USER_STATISTICS	UPDATE_COMMANDS	16	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)			select	
 def	information_schema	USER_STATISTICS	USER	1		NO	varchar	128	384	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(128)			select	
 def	information_schema	VIEWS	CHARACTER_SET_CLIENT	9		NO	varchar	32	96	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(32)			select	
@@ -549,6 +551,7 @@ NULL	information_schema	CLIENT_STATISTICS	DENIED_CONNECTIONS	bigint	NULL	NULL	NU
 NULL	information_schema	CLIENT_STATISTICS	LOST_CONNECTIONS	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	CLIENT_STATISTICS	ACCESS_DENIED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	CLIENT_STATISTICS	EMPTY_QUERIES	bigint	NULL	NULL	NULL	NULL	bigint(21)
+NULL	information_schema	CLIENT_STATISTICS	TOTAL_SSL_CONNECTIONS	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
 NULL	information_schema	CLIENT_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 3.0000	information_schema	COLLATIONS	COLLATION_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
 3.0000	information_schema	COLLATIONS	CHARACTER_SET_NAME	varchar	32	96	utf8	utf8_general_ci	varchar(32)
@@ -937,6 +940,7 @@ NULL	information_schema	USER_STATISTICS	DENIED_CONNECTIONS	bigint	NULL	NULL	NULL
 NULL	information_schema	USER_STATISTICS	LOST_CONNECTIONS	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	USER_STATISTICS	ACCESS_DENIED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 NULL	information_schema	USER_STATISTICS	EMPTY_QUERIES	bigint	NULL	NULL	NULL	NULL	bigint(21)
+NULL	information_schema	USER_STATISTICS	TOTAL_SSL_CONNECTIONS	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
 NULL	information_schema	USER_STATISTICS	MAX_STATEMENT_TIME_EXCEEDED	bigint	NULL	NULL	NULL	NULL	bigint(21)
 3.0000	information_schema	VIEWS	TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	VIEWS	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)

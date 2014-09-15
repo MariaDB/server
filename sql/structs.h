@@ -285,6 +285,7 @@ typedef struct st_user_stats
   char priv_user[MY_MAX(USERNAME_LENGTH, LIST_PROCESS_HOST_LEN) + 1];
   uint user_name_length;
   uint total_connections;
+  uint total_ssl_connections;
   uint concurrent_connections;
   time_t connected_time;  // in seconds
   ha_rows rows_read, rows_sent;
@@ -300,43 +301,6 @@ typedef struct st_user_stats
   double busy_time;       // in seconds
   double cpu_time;        // in seconds
 } USER_STATS;
-
-/* Lookup function for hash tables with USER_STATS entries */
-extern "C" uchar *get_key_user_stats(USER_STATS *user_stats, size_t *length,
-                                     my_bool not_used __attribute__((unused)));
-
-/* Free all memory for a hash table with USER_STATS entries */
-extern void free_user_stats(USER_STATS* user_stats);
-
-/* Intialize an instance of USER_STATS */
-extern void
-init_user_stats(USER_STATS *user_stats,
-                const char *user,
-                size_t user_length,
-                const char *priv_user,
-                uint total_connections,
-                uint concurrent_connections,
-                time_t connected_time,
-                double busy_time,
-                double cpu_time,
-                ulonglong bytes_received,
-                ulonglong bytes_sent,
-                ulonglong binlog_bytes_written,
-                ha_rows rows_sent,
-                ha_rows rows_read,
-                ha_rows rows_inserted,
-                ha_rows rows_deleted,
-                ha_rows rows_updated,
-                ulonglong select_commands,
-                ulonglong update_commands,
-                ulonglong other_commands,
-                ulonglong commit_trans,
-                ulonglong rollback_trans,
-                ulonglong denied_connections,
-                ulonglong lost_connections,
-                ulonglong max_statement_time_exceeded,
-                ulonglong access_denied_errors,
-                ulonglong empty_queries);
 
 typedef struct st_table_stats
 {

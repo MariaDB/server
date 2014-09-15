@@ -23,6 +23,7 @@ static ST_FIELD_INFO client_stats_fields[]=
   {"LOST_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Lost_connections", 0},
   {"ACCESS_DENIED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Access_denied", 0},
   {"EMPTY_QUERIES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Empty_queries", 0},
+  {"TOTAL_SSL_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, "Total_ssl_connections", 0},
   {"MAX_STATEMENT_TIME_EXCEEDED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Max_statement_time_exceeded",SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
@@ -59,6 +60,7 @@ static int send_user_stats(THD* thd, HASH *all_user_stats, TABLE *table)
     table->field[j++]->store((longlong)user_stats->lost_connections, TRUE);
     table->field[j++]->store((longlong)user_stats->access_denied_errors, TRUE);
     table->field[j++]->store((longlong)user_stats->empty_queries, TRUE);
+    table->field[j++]->store((longlong)user_stats->total_ssl_connections, TRUE);
     table->field[j++]->store((longlong)user_stats->max_statement_time_exceeded, TRUE);
     if (schema_table_store_record(thd, table))
     {

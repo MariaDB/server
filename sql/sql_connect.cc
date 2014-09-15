@@ -417,6 +417,7 @@ void init_user_stats(USER_STATS *user_stats,
                      size_t user_length,
                      const char *priv_user,
                      uint total_connections,
+                     uint total_ssl_connections,
                      uint concurrent_connections,
                      time_t connected_time,
                      double busy_time,
@@ -450,6 +451,7 @@ void init_user_stats(USER_STATS *user_stats,
   strmake_buf(user_stats->priv_user, priv_user);
 
   user_stats->total_connections= total_connections;
+  user_stats->total_ssl_connections=  total_ssl_connections;
   user_stats->concurrent_connections= concurrent_connections;
   user_stats->connected_time= connected_time;
   user_stats->busy_time= busy_time;
@@ -458,8 +460,10 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->bytes_sent= bytes_sent;
   user_stats->binlog_bytes_written= binlog_bytes_written;
   user_stats->rows_sent= rows_sent;
-  user_stats->rows_updated= rows_updated;
   user_stats->rows_read= rows_read;
+  user_stats->rows_inserted= rows_inserted;
+  user_stats->rows_deleted= rows_deleted;
+  user_stats->rows_updated= rows_updated;
   user_stats->select_commands= select_commands;
   user_stats->update_commands= update_commands;
   user_stats->other_commands= other_commands;
@@ -584,10 +588,10 @@ static bool increment_count_by_name(const char *name, size_t name_length,
       return TRUE;                              // Out of memory
 
     init_user_stats(user_stats, name, name_length, role_name,
-                    0, 0,      // connections
+                    0, 0, 0,   // connections
                     0, 0, 0,   // time
                     0, 0, 0,   // bytes sent, received and written
-                    0, 0,      // Rows sent and read
+                    0, 0,      // rows sent and read
                     0, 0, 0,   // rows inserted, deleted and updated
                     0, 0, 0,   // select, update and other commands
                     0, 0,      // commit and rollback trans
@@ -604,6 +608,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
     }
   }
   user_stats->total_connections++;
+  if (thd->net.vio && thd->net.vio->type == VIO_TYPE_SSL)
+    user_stats->total_ssl_connections++;
   return FALSE;
 }
 
