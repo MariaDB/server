@@ -575,7 +575,6 @@ void mysql_print_status()
   /* Print key cache status */
   puts("\nKey caches:");
   process_key_caches(print_key_cache_status, 0);
-  mysql_mutex_lock(&LOCK_status);
   printf("\nhandler status:\n\
 read_key:   %10lu\n\
 read_next:  %10lu\n\
@@ -591,7 +590,6 @@ update:     %10lu\n",
 	 tmp.ha_write_count,
 	 tmp.ha_delete_count,
 	 tmp.ha_update_count);
-  mysql_mutex_unlock(&LOCK_status);
   printf("\nTable status:\n\
 Opened tables: %10lu\n\
 Open tables:   %10lu\n\
