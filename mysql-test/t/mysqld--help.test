@@ -22,7 +22,7 @@ perl;
                log-slow-queries pid-file slow-query-log-file log-basename
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
-               wsrep-node-name version.*/;
+               wsrep-node-name wsrep-data-home-dir version.*/;
 
   # Plugins which may or may not be there:
   @plugins=qw/innodb ndb archive blackhole federated partition ndbcluster
