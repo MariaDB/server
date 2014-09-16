@@ -197,6 +197,27 @@ log_buf_pool_get_oldest_modification(void)
 }
 
 /****************************************************************//**
+Returns the oldest modified block lsn in the pool, or log_sys->lsn if none
+exists.
+@return	LSN of oldest modification */
+static
+lsn_t
+log_buf_pool_get_oldest_modification_peek(void)
+/*===========================================*/
+{
+	lsn_t	lsn;
+
+	lsn = buf_pool_get_oldest_modification_peek();
+
+	if (!lsn) {
+
+		lsn = log_sys->lsn;
+	}
+
+	return(lsn);
+}
+
+/****************************************************************//**
 Checks if the log groups have a big enough margin of free space in
 so that a new log entry can be written without overwriting log data
 that is not read by the changed page bitmap thread.
@@ -3875,7 +3896,7 @@ log_print(
 	double	time_elapsed;
 	time_t	current_time;
 
-	mutex_enter(&(log_sys->mutex));
+	// mutex_enter(&(log_sys->mutex));
 
 	fprintf(file,
 		"Log sequence number " LSN_PF "\n"
@@ -3884,7 +3905,7 @@ log_print(
 		"Last checkpoint at  " LSN_PF "\n",
 		log_sys->lsn,
 		log_sys->flushed_to_disk_lsn,
-		log_buf_pool_get_oldest_modification(),
+		log_buf_pool_get_oldest_modification_peek(),
 		log_sys->last_checkpoint_lsn);
 
 	fprintf(file,
@@ -3894,7 +3915,7 @@ log_print(
 		"Checkpoint age        " LSN_PF "\n",
 		log_sys->max_checkpoint_age,
 		log_sys->max_checkpoint_age_async,
-		log_sys->lsn -log_buf_pool_get_oldest_modification(),
+		log_sys->lsn -log_buf_pool_get_oldest_modification_peek(),
 		log_sys->lsn - log_sys->last_checkpoint_lsn);
 
 	current_time = time(NULL);
@@ -3923,14 +3944,14 @@ log_print(
 			"Log tracking enabled\n"
 			"Log tracked up to   " LSN_PF "\n"
 			"Max tracked LSN age " LSN_PF "\n",
-			log_get_tracked_lsn(),
+			log_get_tracked_lsn_peek(),
 			log_sys->max_checkpoint_age);
 	}
 
 	log_sys->n_log_ios_old = log_sys->n_log_ios;
 	log_sys->last_printout_time = current_time;
 
-	mutex_exit(&(log_sys->mutex));
+	//mutex_exit(&(log_sys->mutex));
 }
 
 /**********************************************************************//**

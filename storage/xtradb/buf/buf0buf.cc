@@ -379,6 +379,48 @@ buf_pool_get_oldest_modification(void)
 }
 
 /********************************************************************//**
+Gets the smallest oldest_modification lsn for any page in the pool. Returns
+zero if all modified pages have been flushed to disk.
+@return oldest modification in pool, zero if none */
+UNIV_INTERN
+lsn_t
+buf_pool_get_oldest_modification_peek(void)
+/*=======================================*/
+{
+	ulint		i;
+	buf_page_t*	bpage;
+	lsn_t		lsn = 0;
+	lsn_t		oldest_lsn = 0;
+
+	/* Dirsty read to buffer pool array */
+	for (i = 0; i < srv_buf_pool_instances; i++) {
+		buf_pool_t*	buf_pool;
+
+		buf_pool = buf_pool_from_array(i);
+
+		buf_flush_list_mutex_enter(buf_pool);
+
+		bpage = UT_LIST_GET_LAST(buf_pool->flush_list);
+
+		if (bpage != NULL) {
+			ut_ad(bpage->in_flush_list);
+			lsn = bpage->oldest_modification;
+		}
+
+		buf_flush_list_mutex_exit(buf_pool);
+
+		if (!oldest_lsn || oldest_lsn > lsn) {
+			oldest_lsn = lsn;
+		}
+	}
+
+	/* The returned answer may be out of date: the flush_list can
+	change after the mutex has been released. */
+
+	return(oldest_lsn);
+}
+
+/********************************************************************//**
 Get total buffer pool statistics. */
 UNIV_INTERN
 void

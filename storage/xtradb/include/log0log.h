@@ -633,6 +633,15 @@ UNIV_INLINE
 lsn_t
 log_get_tracked_lsn(void);
 /*=====================*/
+/****************************************************************//**
+Unsafely reads the log_sys->tracked_lsn value.  Uses atomic operations
+if available, or use dirty read. Use for printing only.
+
+@return log_sys->tracked_lsn value. */
+UNIV_INLINE
+lsn_t
+log_get_tracked_lsn_peek(void);
+/*==========================*/
 
 extern log_t*	log_sys;
 
