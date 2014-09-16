@@ -51,12 +51,14 @@ if (USE_VALGRIND AND NOT VALGRIND_INCLUDE_DIR MATCHES NOTFOUND)
     )
 endif()
 include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/toku_include
   ${CMAKE_CURRENT_SOURCE_DIR}/portability
   ${CMAKE_CURRENT_SOURCE_DIR}  ## so you can include <ft/ft-ops.h> from inside src/
   ${CMAKE_CURRENT_BINARY_DIR}  ## for logging code
   )
 ## include where config.h will be generated
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/portability)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/toku_include)
 
 ## build db.h and include where it will be generated
 add_subdirectory(buildheader)
@@ -74,9 +76,11 @@ add_subdirectory(portability)
 add_subdirectory(ft)
 add_subdirectory(locktree)
 add_subdirectory(src)
-add_subdirectory(tools)
+add_subdirectory(utils)
 
 ## subdirectories that just install things
+#add_subdirectory(include)
+add_subdirectory(toku_include)
 #add_subdirectory(examples)
 
 INSTALL_DOCUMENTATION(README.md README-TOKUDB COMPONENT Server)
