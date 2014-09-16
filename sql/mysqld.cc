@@ -4994,7 +4994,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
         after SST has happened
      */
   }
-  if (!wsrep_recovery)
+  if (!wsrep_recovery && !opt_help)
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
