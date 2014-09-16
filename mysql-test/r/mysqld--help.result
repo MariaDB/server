@@ -1198,7 +1198,6 @@ wsrep-certify-nonPK TRUE
 wsrep-cluster-address 
 wsrep-cluster-name my_wsrep_cluster
 wsrep-convert-LOCK-to-trx FALSE
-wsrep-data-home-dir 
 wsrep-dbug-option 
 wsrep-debug FALSE
 wsrep-desync FALSE
@@ -1212,7 +1211,7 @@ wsrep-mysql-replication-bundle 0
 wsrep-node-address 
 wsrep-node-incoming-address AUTO
 wsrep-notify-cmd 
-wsrep-on FALSE
+wsrep-on TRUE
 wsrep-provider none
 wsrep-provider-options 
 wsrep-recover FALSE
