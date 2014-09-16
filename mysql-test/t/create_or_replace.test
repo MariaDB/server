@@ -348,6 +348,7 @@ LOCK TABLE t1 WRITE;
 --connection default
 --send CREATE OR REPLACE TABLE t1 LIKE tmp;
 --connection con1
+--replace_result $con_id con_id
 eval KILL QUERY $con_id;
 
 --connection default
@@ -356,6 +357,7 @@ eval KILL QUERY $con_id;
 --send CREATE OR REPLACE TABLE t1 (a int);
 
 --connection con1
+--replace_result $con_id con_id
 eval KILL QUERY $con_id;
 
 --connection default

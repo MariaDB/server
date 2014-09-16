@@ -741,12 +741,15 @@ architecture. Disable memory barrier for Intel architecture for now. */
 
 #elif defined(HAVE_WINDOWS_MM_FENCE)
 # define HAVE_MEMORY_BARRIER
-# include <mmintrin.h>
+# include <intrin.h>
 # define os_rmb	_mm_lfence()
 # define os_wmb	_mm_sfence()
 # define os_isync os_rmb; os_wmb
 # define IB_MEMORY_BARRIER_STARTUP_MSG \
 	"_mm_lfence() and _mm_sfence() are used for memory barrier"
+
+# define os_atomic_lock_release_byte(ptr) \
+	(void) InterlockedExchange(ptr, 0)
 
 #else
 # define os_rmb do { } while(0)

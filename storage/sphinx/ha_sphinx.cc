@@ -1,5 +1,5 @@
 //
-// $Id: ha_sphinx.cc 4507 2014-01-22 15:24:34Z deogar $
+// $Id: ha_sphinx.cc 4761 2014-07-03 07:24:02Z deogar $
 //
 
 //
@@ -153,7 +153,7 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 #define SPHINXSE_MAX_ALLOC			(16*1024*1024)
 #define SPHINXSE_MAX_KEYWORDSTATS	4096
 
-#define SPHINXSE_VERSION			"2.1.5-release"
+#define SPHINXSE_VERSION			"2.1.9-release"
 
 // FIXME? the following is cut-n-paste from sphinx.h and searchd.cpp
 // cut-n-paste is somewhat simpler that adding dependencies however..
@@ -3637,5 +3637,5 @@ maria_declare_plugin_end;
 #endif // >50100
 
 //
-// $Id: ha_sphinx.cc 4507 2014-01-22 15:24:34Z deogar $
+// $Id: ha_sphinx.cc 4761 2014-07-03 07:24:02Z deogar $
 //

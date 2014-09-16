@@ -122,14 +122,9 @@ ENDIF()
 
 IF(UNIX)
   SET(WITH_EXTRA_CHARSETS all CACHE STRING "")
-  IF(EXISTS "${CMAKE_SOURCE_DIR}/COPYING")
-    OPTION(WITH_READLINE  "" ON)
-  ELSE()
-    OPTION(WITH_LIBEDIT  "" ON)
-  ENDIF()
-
 
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    SET(WITH_JEMALLOC "yes" CACHE STRING "")
 
     IF(NOT IGNORE_AIO_CHECK)
       # Ensure aio is available on Linux (required by InnoDB)
