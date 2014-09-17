@@ -8868,6 +8868,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         acl_user->user.str= strdup_root(&acl_memroot, user_to->user.str);
         acl_user->user.length= user_to->user.length;
         acl_user->host.hostname= strdup_root(&acl_memroot, user_to->host.str);
+        acl_user->hostname_length= user_to->host.length;
         break;
 
       case DB_ACL:

@@ -4335,12 +4335,12 @@ end_with_restore_list:
   case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
+    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str && grant_user->host.str &&
-        !strcmp(thd->security_ctx->priv_user, grant_user->user.str) &&
-        !strcmp(thd->security_ctx->priv_host, grant_user->host.str))
+    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
+        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
       grant_user->user= current_user;
 
     if (grant_user->user.str == current_user.str ||
