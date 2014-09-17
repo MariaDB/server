@@ -44,8 +44,10 @@ static struct opt opts[] =
     { "wsrep_sst_receive_address","AUTO"}, // mysqld.cc
     { "binlog_format",         "ROW" }, // mysqld.cc
     { "wsrep_provider",       "none" }, // mysqld.cc
+#if 0
     { "query_cache_type",        "0" }, // mysqld.cc
     { "query_cache_size",        "0" }, // mysqld.cc
+#endif
     { "locked_in_memory",        "0" }, // mysqld.cc
     { "wsrep_cluster_address",   "0" }, // mysqld.cc
     { "locks_unsafe_for_binlog", "0" }, // ha_innodb.cc
@@ -61,8 +63,10 @@ enum
     WSREP_SST_RECEIVE_ADDRESS,
     BINLOG_FORMAT,
     WSREP_PROVIDER,
+#if 0
     QUERY_CACHE_TYPE,
     QUERY_CACHE_SIZE,
+#endif
     LOCKED_IN_MEMORY,
     WSREP_CLUSTER_ADDRESS,
     LOCKS_UNSAFE_FOR_BINLOG,
