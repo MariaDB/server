@@ -254,7 +254,13 @@ wsrep_view_handler_cb (void*                    app_ctx,
              wsrep_cluster_size, wsrep_local_index, view->proto_ver);
 
   /* Proceed further only if view is PRIMARY */
-  if (WSREP_VIEW_PRIMARY != view->status) {
+  if (WSREP_VIEW_PRIMARY != view->status)
+  {
+#ifdef HAVE_QUERY_CACHE
+    // query cache must be initialised by now
+    query_cache.flush();
+#endif /* HAVE_QUERY_CACHE */
+
     wsrep_ready_set(FALSE);
     new_status= WSREP_MEMBER_UNDEFINED;
     /* Always record local_uuid and local_seqno in non-prim since this
