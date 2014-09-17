@@ -238,8 +238,10 @@ wsrep_view_handler_cb (void*                    app_ctx,
   /* Proceed further only if view is PRIMARY */
   if (WSREP_VIEW_PRIMARY != view->status)
   {
+#ifdef HAVE_QUERY_CACHE
     // query cache must be initialised by now
     query_cache.flush();
+#endif /* HAVE_QUERY_CACHE */
 
     wsrep_ready_set(FALSE);
     new_status= WSREP_MEMBER_UNDEFINED;
