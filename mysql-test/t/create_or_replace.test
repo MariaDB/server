@@ -339,31 +339,31 @@ unlock tables;
 
 CREATE TABLE t1 (col_int_nokey INT)  ENGINE=InnoDB;
 
---let $con_id = `SELECT CONNECTION_ID()`
 CREATE OR REPLACE TEMPORARY TABLE tmp LIKE t1;
 LOCK TABLE t1 WRITE;
 
 --connect (con1,localhost,root,,test)
-
+--let $con_id = `SELECT CONNECTION_ID()`
+--send CREATE OR REPLACE TABLE t1 LIKE tmp
 --connection default
---send CREATE OR REPLACE TABLE t1 LIKE tmp;
---connection con1
 --replace_result $con_id con_id
-eval KILL QUERY $con_id;
+--eval KILL QUERY $con_id
 
---connection default
+--connection con1
 --error 0,ER_QUERY_INTERRUPTED
 --reap
---send CREATE OR REPLACE TABLE t1 (a int);
-
---connection con1
---replace_result $con_id con_id
-eval KILL QUERY $con_id;
+--send CREATE OR REPLACE TABLE t1 (a int)
 
 --connection default
+--replace_result $con_id con_id
+--eval KILL QUERY $con_id
+
+--connection con1
 --error 0,ER_QUERY_INTERRUPTED
 --reap
 --disconnect con1
+--connection default
+
 drop table t1;
 
 #
