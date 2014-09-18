@@ -69,6 +69,8 @@
 #define SPIDER_SQL_UPDATE_LEN (sizeof(SPIDER_SQL_UPDATE_STR) - 1)
 #define SPIDER_SQL_DELETE_STR "delete "
 #define SPIDER_SQL_DELETE_LEN (sizeof(SPIDER_SQL_DELETE_STR) - 1)
+#define SPIDER_SQL_DISTINCT_STR "distinct "
+#define SPIDER_SQL_DISTINCT_LEN (sizeof(SPIDER_SQL_DISTINCT_STR) - 1)
 #define SPIDER_SQL_HIGH_PRIORITY_STR "high_priority "
 #define SPIDER_SQL_HIGH_PRIORITY_LEN (sizeof(SPIDER_SQL_HIGH_PRIORITY_STR) - 1)
 #define SPIDER_SQL_LOW_PRIORITY_STR "low_priority "
@@ -1049,3 +1051,7 @@ void spider_db_hs_request_buf_reset(
   SPIDER_CONN *conn
 );
 #endif
+
+bool spider_db_conn_is_network_error(
+  int error_num
+);

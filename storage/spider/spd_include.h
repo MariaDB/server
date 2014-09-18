@@ -13,7 +13,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#define SPIDER_DETAIL_VERSION "3.2.4"
+#define SPIDER_DETAIL_VERSION "3.2.11"
 #define SPIDER_HEX_VERSION 0x0302
 
 #if MYSQL_VERSION_ID < 50500
@@ -138,7 +138,7 @@
 #define SPIDER_TMP_SHARE_LONG_COUNT         15
 #define SPIDER_TMP_SHARE_LONGLONG_COUNT      3
 
-#define SPIDER_MEM_CALC_LIST_NUM           246
+#define SPIDER_MEM_CALC_LIST_NUM           247
 
 #define SPIDER_BACKUP_DASTATUS \
   bool da_status; if (thd) da_status = thd->is_error(); else da_status = FALSE;
@@ -709,9 +709,13 @@ typedef struct st_spider_share
   time_t             create_time;
   time_t             update_time;
 
+  longlong           static_records_for_status;
+  longlong           static_mean_rec_length;
+
   int                bitmap_size;
   spider_string      *key_hint;
   CHARSET_INFO       *access_charset;
+  longlong           *static_key_cardinality;
   longlong           *cardinality;
   uchar              *cardinality_upd;
   longlong           additional_table_flags;
@@ -1039,6 +1043,7 @@ typedef struct st_spider_direct_sql
 #else
   int                  use_real_table;
 #endif
+  int                  error_rw_mode;
 
   char                 *server_name;
   char                 *tgt_default_db_name;
