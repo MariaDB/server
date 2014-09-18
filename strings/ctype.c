@@ -1066,7 +1066,14 @@ my_convert_internal(char *to, uint32 to_length,
       wc= '?';
     }
     else
-      break;  // Not enough characters
+    {
+      if ((uchar *) from >= from_end)
+        break;  /* End of line */
+      /* Incomplete byte sequence */
+      error_count++;
+      from++;
+      wc= '?';
+    }
 
 outp:
     if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)

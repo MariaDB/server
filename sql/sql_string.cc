@@ -1022,8 +1022,15 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
         wc= '?';
       }
       else
-        break;  // Not enough characters
-
+      {
+        if ((uchar *) from >= from_end)
+          break; // End of line
+        // Incomplete byte sequence
+        if (!*well_formed_error_pos)
+          *well_formed_error_pos= from;
+        from++;
+        wc= '?';
+      }
 outp:
       if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
         to+= cnvres;
