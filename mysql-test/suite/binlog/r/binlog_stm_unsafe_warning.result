@@ -67,7 +67,7 @@ DROP TABLE t1;
 SET GLOBAL log_warnings = @old_log_warnings;
 # Count the number of times the "Unsafe" message was printed
 # to the error log.
-Occurrences: 0
+Occurrences: 1
 create table t1 (n1 int, n2 int, n3 int,
 key (n1, n2, n3),
 key (n2, n3, n1),
