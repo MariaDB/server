@@ -104,6 +104,7 @@ MACRO(MYSQL_ADD_PLUGIN)
   ELSE()
     SET(with_var "WITH_${plugin}")
   ENDIF()
+  UNSET(${with_var} CACHE)
   
   IF(NOT ARG_DEPENDENCIES)
     SET(ARG_DEPENDENCIES)
@@ -217,8 +218,6 @@ MACRO(MYSQL_ADD_PLUGIN)
       TARGET_LINK_LIBRARIES (${target} mysqld)
     ENDIF()
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDENCIES})
-
-    UNSET(${with_var} CACHE)
 
     SET_TARGET_PROPERTIES(${target} PROPERTIES 
       OUTPUT_NAME "${ARG_MODULE_OUTPUT_NAME}")  
