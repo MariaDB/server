@@ -1000,8 +1000,7 @@ static Sys_var_session_lexstring Sys_default_master_connection(
        "Master connection to use for all slave variables and slave commands",
        SESSION_ONLY(default_master_connection),
        NO_CMD_LINE, IN_SYSTEM_CHARSET,
-       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection),
-       ON_UPDATE(0));
+       DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection));
 #endif
 
 static Sys_var_charptr Sys_init_file(
@@ -2790,8 +2789,7 @@ static Sys_var_replicate_events_marked_for_skip Replicate_events_marked_for_skip
    "@@skip_replication=1 will be filtered on the master and never be sent to "
    "the slave).",
    GLOBAL_VAR(opt_replicate_events_marked_for_skip), CMD_LINE(REQUIRED_ARG),
-   replicate_events_marked_for_skip_names, DEFAULT(RPL_SKIP_REPLICATE),
-    NO_MUTEX_GUARD, NOT_IN_BINLOG);
+   replicate_events_marked_for_skip_names, DEFAULT(RPL_SKIP_REPLICATE));
 #endif
 
 
@@ -2936,7 +2934,7 @@ static Sys_var_set Sys_old_behavior(
        "old_mode",
        "Used to emulate old behavior from earlier MariaDB or MySQL versions",
        SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
-       old_mode_names, DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       old_mode_names, DEFAULT(0));
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
@@ -3270,8 +3268,7 @@ static Sys_var_plugin Sys_storage_engine(
 static Sys_var_plugin Sys_default_tmp_storage_engine(
        "default_tmp_storage_engine", "The default storage engine for user-created temporary tables",
        SESSION_VAR(tmp_table_plugin), NO_CMD_LINE,
-       MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_tmp_storage_engine),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       MYSQL_STORAGE_ENGINE_PLUGIN, DEFAULT(&default_tmp_storage_engine));
 
 #if defined(ENABLED_DEBUG_SYNC)
 /*
@@ -4212,9 +4209,7 @@ static Sys_var_uint Sys_slave_net_timeout(
        "slave_net_timeout", "Number of seconds to wait for more data "
        "from any master/slave connection before aborting the read",
        GLOBAL_VAR(slave_net_timeout), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(0));
+       VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(SLAVE_NET_TIMEOUT), BLOCK_SIZE(1));
 
 
 /*
@@ -4461,8 +4456,7 @@ static Sys_var_charptr Sys_wsrep_provider_options(
 static Sys_var_charptr Sys_wsrep_data_home_dir(
        "wsrep_data_home_dir", "home directory for wsrep provider",
        READ_ONLY GLOBAL_VAR(wsrep_data_home_dir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(""), 
-       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       IN_FS_CHARSET, DEFAULT(""));
 
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",
@@ -4499,8 +4493,7 @@ static Sys_var_charptr Sys_wsrep_node_address (
 static Sys_var_charptr Sys_wsrep_node_incoming_address(
        "wsrep_node_incoming_address", "Client connection address",
        PREALLOCATED GLOBAL_VAR(wsrep_node_incoming_address),CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(WSREP_NODE_INCOMING_AUTO),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       IN_FS_CHARSET, DEFAULT(WSREP_NODE_INCOMING_AUTO));
 
 static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",
@@ -4513,8 +4506,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
 static Sys_var_charptr Sys_wsrep_dbug_option(
        "wsrep_dbug_option", "DBUG options to provider library",
        GLOBAL_VAR(wsrep_dbug_option),CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(""),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       IN_FS_CHARSET, DEFAULT(""));
 
 static Sys_var_mybool Sys_wsrep_debug(
        "wsrep_debug", "To enable debug level logging",
@@ -4611,7 +4603,7 @@ static Sys_var_ulong Sys_wsrep_max_ws_rows (
 static Sys_var_charptr Sys_wsrep_notify_cmd(
        "wsrep_notify_cmd", "",
        GLOBAL_VAR(wsrep_notify_cmd),CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(""), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+       IN_FS_CHARSET, DEFAULT(""));
 
 static Sys_var_mybool Sys_wsrep_certify_nonPK(
        "wsrep_certify_nonPK", "Certify tables with no primary key",
@@ -4640,9 +4632,7 @@ static const char *wsrep_OSU_method_names[]= { "TOI", "RSU", NullS };
 static Sys_var_enum Sys_wsrep_OSU_method(
        "wsrep_OSU_method", "Method for Online Schema Upgrade",
        GLOBAL_VAR(wsrep_OSU_method_options), CMD_LINE(OPT_ARG),
-       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(0));
+       wsrep_OSU_method_names, DEFAULT(WSREP_OSU_TOI));
 
 static PolyLock_mutex PLock_wsrep_desync(&LOCK_wsrep_desync);
 static Sys_var_mybool Sys_wsrep_desync (
@@ -4657,9 +4647,7 @@ static Sys_var_enum Sys_wsrep_forced_binlog_format(
        "wsrep_forced_binlog_format", "binlog format to take effect over user's choice",
        GLOBAL_VAR(wsrep_forced_binlog_format), 
        CMD_LINE(REQUIRED_ARG, OPT_BINLOG_FORMAT),
-       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(0));
+       wsrep_binlog_format_names, DEFAULT(BINLOG_FORMAT_UNSPEC));
 
 static Sys_var_mybool Sys_wsrep_recover_datadir(
        "wsrep_recover", "Recover database state after crash and exit",

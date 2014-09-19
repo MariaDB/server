@@ -1981,8 +1981,8 @@ public:
   Sys_var_replicate_events_marked_for_skip(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          const char *values[], uint def_val, PolyLock *lock,
-          enum binlog_status_enum binlog_status_arg)
+          const char *values[], uint def_val, PolyLock *lock= 0,
+          enum binlog_status_enum binlog_status_arg= VARIABLE_NOT_IN_BINLOG)
     :Sys_var_enum(name_arg, comment, flag_args, off, size, getopt,
                   values, def_val, lock, binlog_status_arg)
   {}
