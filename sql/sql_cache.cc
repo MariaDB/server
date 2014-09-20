@@ -1232,6 +1232,15 @@ void Query_cache::end_of_result(THD *thd)
     header->found_rows(limit_found_rows);
     header->result()->type= Query_cache_block::RESULT;
 
+    /* qc_info plugin select values */
+    header->qc_info_set_values(
+      qc_info_now.val - (thd->start_time * HRTIME_RESOLUTION + thd->start_time_sec_part),
+      thd->utime_after_lock - thd->start_utime,
+      thd->get_sent_row_count(),
+      thd->get_examined_row_count()
+    );
+    /* end of qc_info plugin select values */
+    
     /* Drop the writer. */
     header->writer(0);
     query_cache_tls->first_query_block= NULL;
@@ -1558,6 +1567,9 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
 	inserts++;
 	queries_in_cache++;
 	thd->query_cache_tls.first_query_block= query_block;
+	
+	header->qc_info_start();	/* qc_info plugin start statistics */
+	
 	header->writer(&thd->query_cache_tls);
 	header->tables_type(tables_type);
 
@@ -2105,6 +2117,9 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
       DBUG_PRINT("qcache", ("handler allow caching %s,%s",
 			    table_list.db, table_list.alias));
   }
+  
+  query->qc_info_hit( (thd->start_time * HRTIME_RESOLUTION + thd->start_time_sec_part) );	/* qc_info plugin, hit */
+  
   move_to_query_list_end(query_block);
   hits++;
   unlock();

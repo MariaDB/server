@@ -158,7 +158,127 @@ struct Query_cache_query
   ulong len;
   uint8 tbls_type;
   unsigned int last_pkt_nr;
+  /* query cache statistics, qc_info plugin */
+#define QUERY_CACHE_QC_INFO_PLUGIN
+#define QUERY_CACHE_QC_INFO_MAX_TOTAL_HITS		          ((ulonglong)2147483645)  /* max signed long value - 2 */
+#define QUERY_CACHE_QC_INFO_MAX_TOTAL_TIME		          ((ulonglong)4294967293)  /* max ulong value - 2       */
+#define QUERY_CACHE_QC_INFO_PERIOD_OUTLIER		          10                       /* hit period outlier = this_value * expend time, TODO: maybe change to variable */
+#define QUERY_CACHE_QC_INFO_PERIOD_OUTLIER_FIXED        1000000                  /* 1 second as min outlier time */
 
+  ulong     qc_info_freq_low_hits;       /* period lower (low) than expend time hits */
+  ulonglong qc_info_freq_low_hits_time;  /* total low hit period */
+  ulong     qc_info_freq_high_hits;      /* period higher (high) than expend time hits */
+  ulong     qc_info_freq_high_hits_outlier;      
+    /* 
+       period  higher than QUERY_CACHE_QC_INFO_PERIOD_OUTLIER * expend_time,
+       and at least > than QUERY_CACHE_QC_INFO_PERIOD_OUTLIER_FIXED
+     */
+  ulonglong qc_info_freq_high_hits_time; /* total high hit period */
+  ulonglong qc_info_hits_last_time;      /* last hit time */
+  ulonglong qc_info_hits_total_time;     /* time expend with this query using query cache */
+  ulonglong qc_info_insert_time;         /* time when this query was added in query cache */
+  ulonglong qc_info_select_expend_time;  /* time expend to execute this query without query cache */
+  ulonglong qc_info_select_lock_time;    /* lock time expend with this query without query cache */
+  ulonglong qc_info_rows_sent;           /* rows in this query */
+  longlong  qc_info_rows_read;           /* rows read in this query without query cache */
+
+  inline longlong query_freq_mean_time() {
+    if(qc_info_freq_low_hits_time+qc_info_freq_high_hits_time<=0)
+      return -1;
+    return (longlong) 
+           ( (qc_info_freq_low_hits_time+qc_info_freq_high_hits_time)/
+	     (qc_info_freq_low_hits     +qc_info_freq_high_hits ) 
+	   );
+  }
+  inline longlong query_freq_mean_low_time() {
+    if(qc_info_freq_low_hits_time<=0)
+      return -1;
+    return (longlong) (qc_info_freq_low_hits_time/qc_info_freq_low_hits);
+  }
+  inline longlong query_freq_mean_high_time() { 
+    if(qc_info_freq_high_hits_time<=0)
+      return -1;
+    return (longlong) (qc_info_freq_high_hits_time/qc_info_freq_high_hits);
+  }
+  inline ulonglong query_hits_last_time()  { return qc_info_hits_last_time; }
+  inline ulong query_hits_low()            { return qc_info_freq_low_hits; }
+  inline ulong query_hits_high()           { return qc_info_freq_high_hits; }
+  inline ulong query_hits_outlier()        { return qc_info_freq_high_hits_outlier; }
+  inline ulonglong query_hits() { 
+    return qc_info_freq_high_hits_outlier+
+           qc_info_freq_high_hits+
+	   qc_info_freq_low_hits;
+  }
+  inline ulonglong query_hits_total_time() { return qc_info_hits_total_time; }
+  inline longlong query_insert_time()      { return qc_info_insert_time; }
+  inline ulonglong query_expend_time()     { return qc_info_select_expend_time; }
+  inline ulonglong query_lock_time()       { return qc_info_select_lock_time; }
+  inline longlong query_rows_sent()        { return qc_info_rows_sent; }
+  inline longlong query_rows_read()        { return qc_info_rows_read; }
+  inline void qc_info_set_values(
+    ulonglong expend_time,
+    ulonglong lock_time,
+    ulonglong rows_sent,
+    longlong rows_read
+  ) {
+    my_hrtime_t qc_info_now = my_hrtime();
+
+    qc_info_insert_time        = qc_info_now.val;
+    qc_info_select_expend_time = expend_time;
+    qc_info_select_lock_time   = lock_time;
+    qc_info_rows_sent          = rows_sent;
+    qc_info_rows_read          = rows_read;
+  }
+  inline void qc_info_start() {
+    qc_info_freq_high_hits        = 0;
+    qc_info_freq_high_hits_time   = 0;
+    qc_info_freq_high_hits_outlier= 0;
+    qc_info_freq_low_hits         = 0;
+    qc_info_freq_low_hits_time    = 0;
+    qc_info_hits_last_time        = 0;
+    qc_info_hits_total_time       = 0;
+    qc_info_insert_time           = 0;
+    qc_info_select_expend_time    = 0;
+    qc_info_select_lock_time      = 0;
+    qc_info_rows_sent             = 0;
+    qc_info_rows_read             = 0;
+  }
+  inline void qc_info_hit(ulonglong query_start_time) { 
+    /* qc_info plugin hit time */
+    my_hrtime_t qc_info_now = my_hrtime();
+    ulonglong hit_time      = (qc_info_hits_last_time>0?qc_info_hits_last_time:qc_info_insert_time);
+    ulonglong expend_time   = qc_info_now.val - query_start_time;
+    
+    if (hit_time>0 && 
+        qc_info_freq_low_hits < QUERY_CACHE_QC_INFO_MAX_TOTAL_HITS &&
+        qc_info_freq_low_hits_time < QUERY_CACHE_QC_INFO_MAX_TOTAL_TIME &&
+        qc_info_freq_high_hits < QUERY_CACHE_QC_INFO_MAX_TOTAL_HITS &&
+        qc_info_freq_high_hits_time < QUERY_CACHE_QC_INFO_MAX_TOTAL_TIME &&
+	qc_info_freq_high_hits_outlier+qc_info_freq_high_hits+qc_info_freq_low_hits < QUERY_CACHE_QC_INFO_MAX_TOTAL_HITS &&
+	qc_info_hits_total_time < QUERY_CACHE_QC_INFO_MAX_TOTAL_TIME
+    ){
+      qc_info_hits_total_time +=expend_time;
+      ulonglong hit_period=(qc_info_now.val - hit_time);
+      if (hit_period<qc_info_select_expend_time) {
+        /* lower than expend time hit period */
+        qc_info_freq_low_hits         += 1;
+        qc_info_freq_low_hits_time    += (qc_info_now.val - hit_time);
+      } else if (
+          hit_period>(qc_info_select_expend_time * QUERY_CACHE_QC_INFO_PERIOD_OUTLIER) &&
+          hit_period>QUERY_CACHE_QC_INFO_PERIOD_OUTLIER_FIXED)
+      {
+        /* outlier */
+        qc_info_freq_high_hits_outlier+= 1;
+      } else {
+        /* higher than expend time hit period, lower than outlier */
+        qc_info_freq_high_hits        += 1;
+        qc_info_freq_high_hits_time   += (qc_info_now.val - hit_time);
+      }
+    }
+    qc_info_hits_last_time=qc_info_now.val;
+  }
+  /* end of qc_info plugin vars / functions */
+  
   Query_cache_query() {}                      /* Remove gcc warning */
   inline void init_n_lock();
   void unlock_n_destroy();
