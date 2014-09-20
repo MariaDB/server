@@ -622,8 +622,7 @@ static bool check_cs_client(sys_var *self, THD *thd, set_var *var)
   if (check_charset_not_null(self, thd, var))
     return true;
 
-  // Currently, UCS-2 cannot be used as a client character set
-  if (((CHARSET_INFO *)(var->save_result.ptr))->mbminlen > 1)
+  if (!is_supported_parser_charset((CHARSET_INFO *)(var->save_result.ptr)))
     return true;
 
   return false;
