@@ -1170,6 +1170,7 @@ void Query_cache::end_of_result(THD *thd)
   Query_cache_block *query_block;
   Query_cache_tls *query_cache_tls= &thd->query_cache_tls;
   ulonglong limit_found_rows= thd->limit_found_rows;
+  my_hrtime_t qc_info_now= my_hrtime();
   DBUG_ENTER("Query_cache::end_of_result");
 
   /* See the comment on double-check locking usage above. */
