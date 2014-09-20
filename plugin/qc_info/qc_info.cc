@@ -328,7 +328,7 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     statement_text_length = strlen(statement_text);
     /* We truncate SQL statements up to MAX_STATEMENT_TEXT_LENGTH in our I_S table */
     table->field[COLUMN_QUERIES_STATEMENT_TEXT]->store((char*)statement_text,
-           min(statement_text_length, MAX_STATEMENT_TEXT_LENGTH), scs);
+           MY_MIN(statement_text_length, MAX_STATEMENT_TEXT_LENGTH), scs);
 
     /* get the entire key that identifies this query cache query */
     key = (char*)query_cache_query_get_key(query_cache_block_raw,
@@ -352,7 +352,7 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     if (cs1 && cs1->csname) {
       table->field[COLUMN_QUERIES_FLAGS_CHARACTER_SET_CLIENT]->store(
         cs1->csname,
-        min(strlen(cs1->csname), MAX_STATEMENT_TEXT_LENGTH), 
+        MY_MIN(strlen(cs1->csname), MAX_STATEMENT_TEXT_LENGTH), 
         scs
       );
     } else {
@@ -361,7 +361,7 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     if (cs2 && cs2->csname) {
       table->field[COLUMN_QUERIES_FLAGS_CHARACTER_SET_RESULTS]->store(
         cs2->csname,
-        min(strlen(cs2->csname), MAX_STATEMENT_TEXT_LENGTH),
+        MY_MIN(strlen(cs2->csname), MAX_STATEMENT_TEXT_LENGTH),
         scs
       );
     } else {
@@ -370,7 +370,7 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     if (cs3 && cs3->name) {
       table->field[COLUMN_QUERIES_FLAGS_COLLATION_CONNECTION]->store(
         cs3->name, 
-        min(strlen(cs3->name), MAX_STATEMENT_TEXT_LENGTH),
+        MY_MIN(strlen(cs3->name), MAX_STATEMENT_TEXT_LENGTH),
         scs
       );
     } else {
@@ -380,13 +380,13 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     tz_name=flags.time_zone->get_name();    
     table->field[COLUMN_QUERIES_FLAGS_TIME_ZONE]->store(
       tz_name->ptr(),
-      min(tz_name->length(), MAX_STATEMENT_TEXT_LENGTH),
+      MY_MIN(tz_name->length(), MAX_STATEMENT_TEXT_LENGTH),
       scs
     );
     if (!sql_mode_string_representation(thd, flags.sql_mode, &sql_mode)){
       table->field[COLUMN_QUERIES_FLAGS_SQL_MODE]->store(
         sql_mode.str,
-        min(sql_mode.length, MAX_STATEMENT_TEXT_LENGTH),
+        MY_MIN(sql_mode.length, MAX_STATEMENT_TEXT_LENGTH),
         scs
       );
     }else{
@@ -394,7 +394,7 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     }
     table->field[COLUMN_QUERIES_FLAGS_LC_TIME_NAMES]->store(
       flags.lc_time_names->name,
-      min(strlen(flags.lc_time_names->name), MAX_STATEMENT_TEXT_LENGTH),
+      MY_MIN(strlen(flags.lc_time_names->name), MAX_STATEMENT_TEXT_LENGTH),
       scs
     );
     table->field[COLUMN_QUERIES_FLAGS_MAX_SORT_LENGTH]->store(flags.max_sort_length, 0);
