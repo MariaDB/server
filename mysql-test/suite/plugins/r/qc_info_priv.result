@@ -1,21 +1,27 @@
 set global query_cache_size=1355776;
-create table t1 (a int not null);
+create table t1 (a int not null) engine=myisam;
 insert into t1 values (1),(2),(3);
 select * from t1;
 a
 1
 2
 3
-select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
+select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_queries;
 statement_schema	statement_text	result_blocks_count	result_blocks_size
 test	select * from t1	1	512
+select `schema`,`table` from information_schema.query_cache_queries_tables;
+schema	table
+test	t1
+select `table_schema`,`table_name` from information_schema.query_cache_tables;
+table_schema	table_name
+test	t1
 create user mysqltest;
 select a from t1;
 a
 1
 2
 3
-select count(*) from information_schema.query_cache_info;
+select count(*) from information_schema.query_cache_queries;
 count(*)
 0
 drop user mysqltest;

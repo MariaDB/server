@@ -6,7 +6,7 @@ create user mysqltest;
 connect (conn1,localhost,mysqltest,,);
 connection conn1;
 select a from t1;
-select count(*) from information_schema.query_cache_info;
+select count(*) from information_schema.query_cache_queries;
 connection default;
 drop user mysqltest;
 drop table t1;

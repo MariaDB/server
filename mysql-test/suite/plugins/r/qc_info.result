@@ -1,18 +1,28 @@
 set global query_cache_size=1355776;
-create table t1 (a int not null);
+create table t1 (a int not null) engine=myisam;
 insert into t1 values (1),(2),(3);
 select * from t1;
 a
 1
 2
 3
-select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
+select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_queries;
 statement_schema	statement_text	result_blocks_count	result_blocks_size
 test	select * from t1	1	512
+select `schema`,`table` from information_schema.query_cache_queries_tables;
+schema	table
+test	t1
+select `table_schema`,`table_name` from information_schema.query_cache_tables;
+table_schema	table_name
+test	t1
 drop table t1;
-select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_info;
+select statement_schema, statement_text, result_blocks_count, result_blocks_size from information_schema.query_cache_queries;
 statement_schema	statement_text	result_blocks_count	result_blocks_size
 set global query_cache_size = 0;
-select * from information_schema.query_cache_info;
-STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BLOCKS_SIZE_USED
+select * from information_schema.query_cache_queries;
+QUERY_CACHE_ID	STATEMENT_SCHEMA	STATEMENT_TEXT	RESULT_FOUND_ROWS	QUERY_ROWS	SELECT_ROWS_READ	QUERY_HITS	QUERY_HITS_PERIOD_LOW	QUERY_HITS_PERIOD_HIGH	QUERY_HITS_PERIOD_OUTLIERS	QUERY_HITS_TOTAL_TIME_US	QUERY_HITS_MEAN_PERIOD_US	QUERY_HITS_MEAN_PERIOD_LOW_US	QUERY_HITS_MEAN_PERIOD_HIGH_US	QUERY_INSERT_TIME	QUERY_LAST_HIT_TIME	SELECT_EXPEND_TIME_US	SELECT_LOCK_TIME_US	TABLES_TYPE	RESULT_LENGTH	RESULT_BLOCKS_COUNT	RESULT_BLOCKS_SIZE	RESULT_BLOCKS_SIZE_USED	FLAGS_CLIENT_LONG_FLAG	FLAGS_CLIENT_PROTOCOL_41	FLAGS_PROTOCOL_TYPE	FLAGS_MORE_RESULTS_EXISTS	FLAGS_IN_TRANS	FLAGS_AUTOCOMMIT	FLAGS_PKT_NR	FLAGS_CHARACTER_SET_CLIENT	FLAGS_CHARACTER_SET_RESULTS	FLAGS_COLLATION_CONNECTION	FLAGS_LIMIT	FLAGS_TIME_ZONE	FLAGS_SQL_MODE	FLAGS_MAX_SORT_LENGTH	FLAGS_GROUP_CONCAT_MAX_LEN	FLAGS_DIV_PRECISION_INCREMENT	FLAGS_DEFAULT_WEEK_FORMAT	FLAGS_LC_TIME_NAMES
+select * from information_schema.query_cache_queries_tables;
+QUERY_CACHE_ID	SCHEMA	TABLE
+select * from information_schema.query_cache_tables;
+TABLE_SCHEMA	TABLE_NAME	TABLE_HASHED	TABLE_TYPE	QUERIES_IN_CACHE
 set global query_cache_size= default;
