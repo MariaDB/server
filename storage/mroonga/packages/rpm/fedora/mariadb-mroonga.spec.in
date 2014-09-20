@@ -1,0 +1,189 @@
+%define mariadb_version 5.5.38
+%define mariadb_release 3%{?dist}
+#%define mariadb_download_base_url http://ftp.iij.ad.jp/pub/linux/fedora/updates/20/SRPMS
+%define mariadb_download_base_url http://ftp.riken.jp/Linux/fedora/updates/20/SRPMS
+%define groonga_required_version @REQUIRED_GROONGA_VERSION@
+
+Name:		mariadb-mroonga
+Version:	@VERSION@
+Release:	1%{?dist}
+Summary:	A fast fulltext searchable storage engine for MariaDB
+
+Group:		Applications/Databases
+License:	LGPLv2
+URL:		http://mroonga.org/
+Source0:	http://packages.groonga.org/source/mroonga/mroonga-%{version}.tar.gz
+
+BuildRequires:	groonga-devel >= %{groonga_required_version}
+BuildRequires:	groonga-normalizer-mysql-devel
+BuildRequires:	mariadb-devel
+BuildRequires:	perl(Test::More)
+BuildRequires:	perl(Env)
+BuildRequires:	pam-devel
+Requires:	groonga-libs >= %{groonga_required_version}
+Requires:	mariadb-server = 1:%{mariadb_version}-%{mariadb_release}
+Requires:	mariadb = 1:%{mariadb_version}-%{mariadb_release}
+Requires:	groonga-normalizer-mysql
+Obsoletes:      mysql-groonga < 1.10-0
+
+%description
+Mroonga is a fast fulltext searchable storage plugin for MariaDB.
+It is based on Groonga that is a fast fulltext search engine and
+column store. Groonga is good at real-time update.
+
+%package doc
+Summary:	Documentation for Mroonga
+Group:		Documentation
+License:	LGPLv2
+
+%description doc
+Documentation for Mroonga
+
+%prep
+%setup -q -n mroonga-%{version}
+srpm=mariadb-%{mariadb_version}-%{mariadb_release}.src.rpm
+if [ ! -f ../../SRPMS/$srpm ]; then
+    curl --output ../../SRPMS/$srpm %{mariadb_download_base_url}/$srpm
+    rpm -Uvh ../../SRPMS/$srpm
+fi
+
+%build
+if [ ! -d ../mariadb-%{mariadb_version} ]; then
+    rpmbuild -bp --define 'runselftest 0' --define 'optflags -O0' \
+	../../SPECS/mariadb.spec
+fi
+%configure CPPFLAGS="-DDISABLE_DTRACE" \
+    --disable-static \
+    --with-mysql-source=../mariadb-%{mariadb_version} \
+    --enable-fast-mutexes \
+    %{?mroonga_configure_options}
+make %{?_smp_mflags}
+
+
+%install
+rm -rf $RPM_BUILD_ROOT
+make install DESTDIR=$RPM_BUILD_ROOT
+rm $RPM_BUILD_ROOT%{_libdir}/mysql/plugin/*.la
+mv $RPM_BUILD_ROOT%{_datadir}/doc/mroonga/ mariadb-mroonga-doc/
+
+%clean
+rm -rf $RPM_BUILD_ROOT
+
+%post
+if /usr/bin/mysql -u root -e "quit"; then
+    password_option=""
+else
+    password_option="-p"
+fi
+current_version=0
+version=`echo %{groonga_required_version} | sed -e 's/\.//g'`
+required_version=`expr $version`
+version=`/usr/bin/mysql -e "SHOW VARIABLES LIKE 'mroonga_libgroonga_version'" | \
+    grep mroonga | cut -f 2 | sed -e 's/\.//g'`
+if [ -n "$version" ]; then
+    current_version=`expr $version`
+fi
+install_sql=%{_datadir}/mroonga/install.sql
+uninstall_sql=%{_datadir}/mroonga/uninstall.sql
+
+if [ "$1" = 2 ] ; then
+    if [ $current_version -lt $required_version ]; then
+	command="/usr/bin/mysql -u root $password_option"
+	echo "run the following command after restarting MariaDB server:";
+	echo "  $command < ${uninstall_sql}"
+	echo "  $command < ${install_sql}"
+	exit 0
+    else
+	command="/usr/bin/mysql -u root $password_option < ${uninstall_sql}"
+	echo $command
+	eval $command || \
+	    (echo "run the following command to unregister Mroonga:"; \
+	     echo "  $command")
+    fi
+fi
+sql="$install_sql"
+command="/usr/bin/mysql -u root $password_option -e \"$sql\""
+echo $command
+eval $command || \
+	(echo "run the following command to register mroonga:"; \
+	 echo "  $command")
+
+%preun
+uninstall_sql=%{_datadir}/mroonga/uninstall.sql
+password_option=""
+mysql -u root -e "quit"
+if [ $? -ne 0 ]; then
+    password_option="-p"
+fi
+if [ "$1" = 0 ]; then
+    command="/usr/bin/mysql -u root $password_option < ${uninstall_sql}"
+    echo $command
+    eval $command || \
+	(echo "run the following command to unregister Mroonga:"; \
+	 echo "  $command")
+fi
+
+%files
+%defattr(-,root,root,-)
+%{_libdir}/mysql/plugin/
+%{_datadir}/mroonga/*
+%{_datadir}/man/man1/*
+%{_datadir}/man/*/man1/*
+
+%files doc
+%defattr(-,root,root,-)
+%doc README COPYING
+%doc mariadb-mroonga-doc/*
+
+%changelog
+* Fri Aug 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.05-1
+- new upstream release.
+
+* Tue Jul 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.04-1
+- new upstream release.
+
+* Thu May 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.03-1
+- new upstream release.
+
+* Tue Apr 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.02-2
+- use MariaDB 5.5.37 on Fedora 20.
+
+* Tue Apr 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.02-1
+- new upstream release.
+
+* Sat Mar 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.01-1
+- new upstream release.
+- use MariaDB 5.5.35-3 on Fedora 20.
+
+* Sun Feb 09 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 4.00-1
+- new upstream release.
+- use MariaDB 5.5.34-3 on Fedora 20.
+
+* Wed Jan 29 2014 HAYASHI Kentaro <hayashi@clear-code.com> - 3.12-1
+- new upstream release.
+
+* Sun Dec 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.11-1
+- new upstream release.
+- support Fedora 20.
+
+* Fri Nov 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.10-1
+- new upstream release.
+
+* Tue Oct 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.09-1
+- new upstream release.
+- use MariaDB 5.5.33a on Fedora 19.
+
+* Sun Sep 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.08-1
+- new upstream release.
+
+* Wed Sep 4 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.07-2
+- fix a bug that mroonga is removed accidentally on upgrade #1918.
+  Reported by @ceekz. Thanks!!!
+
+* Thu Aug 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.07-1
+- new upstream release.
+
+* Mon Jul 29 2013 HAYASHI Kentaro <hayashi@clear-code.com> - 3.06-1
+- new upstream release.
+- initial packaging for mariadb on Fedora 19.
+

@@ -1,0 +1,22 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE diaries(
+title TEXT,
+FULLTEXT KEY (title)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Start groonga");
+INSERT INTO diaries VALUES("Start mroonga");
+INSERT INTO diaries VALUES("Start groonga and Ruby");
+SELECT * FROM diaries;
+title
+Start groonga
+Start mroonga
+Start groonga and Ruby
+SELECT *,       MATCH(title) AGAINST("groonga" IN BOOLEAN MODE) AS score
+FROM diaries
+ORDER BY MATCH(title) AGAINST("groonga" IN BOOLEAN MODE);
+title	score
+Start mroonga	0
+Start groonga	1
+Start groonga and Ruby	1
+DROP TABLE diaries;

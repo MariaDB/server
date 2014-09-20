@@ -1,0 +1,23 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+id int PRIMARY KEY,
+title varchar(255),
+FULLTEXT KEY title_index (title)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES (1, "Hello");
+INSERT INTO diaries VALUES (2, "天気");
+INSERT INTO diaries VALUES (3, "富士山");
+SELECT *
+FROM diaries
+FORCE INDEX (title_index)
+WHERE MATCH (title) AGAINST ("富士山");
+id	title
+3	富士山
+ALTER TABLE diaries DISABLE KEYS;
+SELECT *
+FROM diaries
+FORCE INDEX (title_index)
+WHERE MATCH (title) AGAINST ("富士山");
+ERROR HY000: Can't find FULLTEXT index matching the column list
+DROP TABLE diaries;

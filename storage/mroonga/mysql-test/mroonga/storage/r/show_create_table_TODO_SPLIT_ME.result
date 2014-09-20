@@ -1,0 +1,25 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (c1 int, c2 int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+drop table t1;
+create table t1 (c1 int primary key, c2 varchar(100));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` varchar(100) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+drop table t1;

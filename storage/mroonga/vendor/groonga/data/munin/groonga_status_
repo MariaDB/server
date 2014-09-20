@@ -1,0 +1,176 @@
+#!/usr/bin/env ruby
+
+#%# family=auto
+#%# capabilities=autoconf suggest
+
+require 'net/http'
+begin
+  require 'json'
+rescue LoadError
+  require 'rubygems'
+  require 'json'
+end
+
+label = ENV["label"]
+@groonga = ENV["groonga"] || "groonga"
+@default_host = ENV["host"] || "127.0.0.1"
+@default_http_port = 10041
+@default_gqtp_port = 10043
+
+command = ARGV.shift
+
+def parse(success, result)
+  if success
+    begin
+      status, body = JSON.parse(result)
+      return_code, start_time, elapsed, error_message = status
+      if return_code.zero?
+        [success, body]
+      else
+        [false, error_message]
+      end
+    rescue JSON::ParserError
+      [false, $!.message]
+    end
+  else
+    [success, result]
+  end
+end
+
+def run_http(host, port, command)
+  path = "/d/#{command}"
+  response = Net::HTTP.start(host, port) do |http|
+    http.get(path)
+  end
+  if response.is_a?(Net::HTTPSuccess)
+    parse(true, response.body)
+  else
+    [false, "#{response.code}: #{response.body}"]
+  end
+end
+
+def run_gqtp(host, port, command)
+  groonga = "#{@groonga} -p #{port} -c #{host}"
+  result = `#{groonga} #{command} 2>&1`
+  parse($?.success?, result)
+end
+
+def run(command)
+  case @service_type
+  when "http"
+    run_http(@http_host, @http_port, command)
+  when "httpd"
+    run_http(@httpd_host, @httpd_port, command)
+  when "gqtp"
+    run_gqtp(@gqtp_host, @gqtp_port, command)
+  else
+    [false, "unknown service type: #{@service_type}"]
+  end
+end
+
+def setup_service_type
+  if /_([^_]+)\z/ =~ $0
+    @service_type = $1
+  else
+    @service_type = nil
+  end
+end
+
+def setup_http
+  @http_host = ENV["http_host"] || @default_host
+  @http_port = (ENV["http_port"] || @default_http_port).to_i
+end
+
+def setup_httpd
+  @httpd_host = ENV["httpd_host"] || @default_host
+  @httpd_port = (ENV["httpd_port"] || @default_http_port).to_i
+end
+
+def setup_gqtp
+  @gqtp_host = ENV["gqtp_host"] || @default_host
+  @gqtp_port = (ENV["gqtp_port"] || @default_gqtp_port).to_i
+end
+
+def setup
+  setup_service_type
+  setup_http
+  setup_httpd
+  setup_gqtp
+end
+
+def autoconf
+  results = []
+
+  if @http_host and @http_port
+    results << run_http(@http_host, @http_port, "status")
+  end
+
+  if @httpd_host and @httpd_port
+    results << run_http(@httpd_host, @httpd_port, "status")
+  end
+
+  if @gqtp_host and @gqtp_port
+    results << run_gqtp(@gqtp_host, @gqtp_port, "status")
+  end
+
+  if results.any? {|success, _| success}
+    puts("yes")
+    exit(true)
+  else
+    errors = results.collect do |_, result|
+      result
+    end
+    error_detail = errors.join(", ")
+    puts("no (#{error_detail})")
+    exit(false)
+  end
+end
+
+def suggest
+  if @http_host and @http_port
+    success, _ = run_http(@http_host, @http_port, "status")
+    puts("http") if success
+  end
+  if @httpd_host and @httpd_port
+    success, _ = run_http(@httpd_host, @httpd_port, "status")
+    puts("httpd") if success
+  end
+  if @gqtp_host and @gqtp_port
+    success, _ = run_gqtp(@gqtp_host, @gqtp_port, "status")
+    puts("gqtp") if success
+  end
+  exit(true)
+end
+
+setup
+case command
+when "autoconf", "detect"
+  autoconf
+when "suggest"
+  suggest
+when "config"
+  if label.nil?
+    title = "groonga: status"
+  else
+    title = "groonga: #{label}: status"
+  end
+  puts(<<EOF)
+graph_title #{title}
+graph_vlabel status
+graph_category groonga
+graph_info groonga status
+
+alloc_count.label alloc count
+alloc_count.type GAUGE
+EOF
+  exit(true)
+end
+
+success, body = run("status")
+unless success
+  puts("error: #{body}")
+  exit(false)
+end
+puts(<<EOF)
+alloc_count.value #{body["alloc_count"]}
+EOF

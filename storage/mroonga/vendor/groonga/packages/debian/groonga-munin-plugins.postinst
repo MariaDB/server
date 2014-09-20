@@ -1,0 +1,27 @@
+#! /bin/sh
+
+set -e
+
+prevver="$2"
+
+init_plugins() {
+	munin-node-configure --shell --remove-also | \
+		grep -e 'groonga_' | \
+		sh
+	invoke-rc.d munin-node restart
+}
+
+case "$1" in
+        configure)
+		init_plugins
+                ;;
+        abort-upgrade|abort-deconfigure|abort-remove)
+                :
+                ;;
+        *)
+                echo "Called with unknown argument $1, bailing out."
+                exit 1
+                ;;
+esac
+
+#DEBHELPER#

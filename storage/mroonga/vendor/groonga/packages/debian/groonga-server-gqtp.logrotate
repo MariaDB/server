@@ -1,0 +1,17 @@
+/var/log/groonga/*-gqtp.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 groonga groonga
+    sharedscripts
+    postrotate
+        . /etc/default/groonga-server-gqtp
+        if x"$ENABLE" = x"yes"; then
+            /usr/bin/groonga --port "${PORT:-10043}" -c 127.0.0.1 \
+                log_reopen > /dev/null
+        fi
+    endscript
+}

@@ -1,0 +1,120 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3));
+insert into t1 values(1,10,"aa bb cc dd ee >< ff gg hh ii jj kk ll mm nn");
+insert into t1 values(2,20,"nn mm ll kk jj >< ii hh gg ff ee dd cc bb aa");
+insert into t1 values(3,30,"cc dd ee ff gg >< hh ii jj kk ll mm nn oo pp");
+insert into t1 values(4,40,"ee ff gg hh ii >< jj kk ll mm nn oo pp qq rr");
+insert into t1 values(5,50,"AA BB CC DD EE >< FF GG HH II JJ KK LL MM NN");
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>')
+1	10	...a<span class="w1"> bb</span> cc<span class="w3"> dd</span>...<br>
+...e &gt;&lt;<span class="w2"> ff</span> gg...<br>
+
+2	20	...g<span class="w2"> ff</span> ee<span class="w3"> dd</span>...<br>
+... cc<span class="w1"> bb</span> aa...<br>
+
+3	30	...c<span class="w3"> dd</span> ee<span class="w2"> ff</span>...<br>
+
+4	40	...ee<span class="w2"> ff</span> gg h...<br>
+
+5	50	...A<span class="w1"> BB</span> CC<span class="w3"> DD</span>...<br>
+...E &gt;&lt;<span class="w2"> FF</span> GG...<br>
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>')
+1	10	... <span class="w1">bb</span> cc <span class="w3">dd</span> ...<br>
+... &gt;&lt; <span class="w2">ff</span> gg ...<br>
+
+2	20	... <span class="w2">ff</span> ee <span class="w3">dd</span> ...<br>
+...cc <span class="w1">bb</span> aa...<br>
+
+3	30	... <span class="w3">dd</span> ee <span class="w2">ff</span> ...<br>
+
+4	40	...ee <span class="w2">ff</span> gg h...<br>
+
+5	50	
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>')
+1	10	... <span class="w1">bb</span> cc <span class="w3">dd</span> ...<br>
+... &gt;&lt; <span class="w2">ff</span> gg ...<br>
+
+2	20	... <span class="w2">ff</span> ee <span class="w3">dd</span> ...<br>
+...cc <span class="w1">bb</span> aa...<br>
+
+3	30	... <span class="w3">dd</span> ee <span class="w2">ff</span> ...<br>
+
+4	40	...ee <span class="w2">ff</span> gg h...<br>
+
+5	50	... <span class="w1">BB</span> CC <span class="w3">DD</span> ...<br>
+... &gt;&lt; <span class="w2">FF</span> GG ...<br>
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 1, '...', '...<br>\n', 'bb', '<span class="w1">', '</span>', 'ff', '<span class="w2">', '</span>', 'dd', '<span class="w3">', '</span>')
+1	10	... <span class="w1">bb</span> cc <span class="w3">dd</span> ...<br>
+... &gt;&lt; <span class="w2">ff</span> gg ...<br>
+
+2	20	... <span class="w2">ff</span> ee <span class="w3">dd</span> ...<br>
+...cc <span class="w1">bb</span> aa...<br>
+
+3	30	... <span class="w3">dd</span> ee <span class="w2">ff</span> ...<br>
+
+4	40	...ee <span class="w2">ff</span> gg h...<br>
+
+5	50	
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']')
+1	10	...a(w1)[ bb] cc(w3)[ dd]...
+...e ><(w2)[ ff] gg...
+
+2	20	...g(w2)[ ff] ee(w3)[ dd]...
+... cc(w1)[ bb] aa...
+
+3	30	...c(w3)[ dd] ee(w2)[ ff]...
+
+4	40	...ee(w2)[ ff] gg h...
+
+5	50	...A(w1)[ BB] CC(w3)[ DD]...
+...E ><(w2)[ FF] GG...
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_bin', 0, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']')
+1	10	... (w1)[bb] cc (w3)[dd] ...
+... >< (w2)[ff] gg ...
+
+2	20	... (w2)[ff] ee (w3)[dd] ...
+...cc (w1)[bb] aa...
+
+3	30	... (w3)[dd] ee (w2)[ff] ...
+
+4	40	...ee (w2)[ff] gg h...
+
+5	50	
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_general_ci', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']')
+1	10	... (w1)[bb] cc (w3)[dd] ...
+... >< (w2)[ff] gg ...
+
+2	20	... (w2)[ff] ee (w3)[dd] ...
+...cc (w1)[bb] aa...
+
+3	30	... (w3)[dd] ee (w2)[ff] ...
+
+4	40	...ee (w2)[ff] gg h...
+
+5	50	... (w1)[BB] CC (w3)[DD] ...
+... >< (w2)[FF] GG ...
+
+select c1, c2, mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']') from t1;
+c1	c2	mroonga_snippet(c3, 10, 2, 'ascii_bin', 1, 0, '...', '...\n', 'bb', '(w1)[', ']', 'ff', '(w2)[', ']', 'dd', '(w3)[', ']')
+1	10	... (w1)[bb] cc (w3)[dd] ...
+... >< (w2)[ff] gg ...
+
+2	20	... (w2)[ff] ee (w3)[dd] ...
+...cc (w1)[bb] aa...
+
+3	30	... (w3)[dd] ee (w2)[ff] ...
+
+4	40	...ee (w2)[ff] gg h...
+
+5	50	
+drop table t1;

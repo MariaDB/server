@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+content varchar(256) COLLATE utf8_unicode_ci,
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES ("Je suis un garçon.");
+SELECT * FROM diaries WHERE MATCH (content) AGAINST ("garcon");
+content
+Je suis un garçon.
+DROP TABLE diaries;

@@ -1,0 +1,6 @@
+SET GLOBAL mroonga_lock_timeout = -2;
+Warnings:
+Warning	1292	Truncated incorrect mroonga_lock_timeout value: '-2'
+SHOW GLOBAL VARIABLES LIKE "mroonga_lock_timeout";
+Variable_name	Value
+mroonga_lock_timeout	-1

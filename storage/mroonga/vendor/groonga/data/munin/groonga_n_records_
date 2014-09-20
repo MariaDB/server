@@ -1,0 +1,256 @@
+#!/usr/bin/env ruby
+
+#%# family=auto
+#%# capabilities=autoconf suggest
+
+require 'shellwords'
+require 'net/http'
+require 'erb'
+begin
+  require 'json'
+rescue LoadError
+  require 'rubygems'
+  require 'json'
+end
+
+label = ENV["label"]
+@groonga = ENV["groonga"] || "groonga"
+@default_host = ENV["host"] || "127.0.0.1"
+@default_http_port = 10041
+@default_gqtp_port = 10043
+@database_path = nil
+
+command = ARGV.shift
+
+def parse(success, result)
+  if success
+    begin
+      status, body = JSON.parse(result)
+      return_code, start_time, elapsed, error_message = status
+      if return_code.zero?
+        [success, body]
+      else
+        [false, error_message]
+      end
+    rescue JSON::ParserError
+      [false, "#{$!.message}: #{result}"]
+    end
+  else
+    [success, result]
+  end
+end
+
+def run_http(host, port, command, *args)
+  path = "/d/#{command}"
+  unless args.empty?
+    parameters = args.each_slice(2).collect do |key, value|
+      key = key.gsub(/\A--/, "")
+      "#{ERB::Util.u(key)}=#{ERB::Util.u(value)}"
+    end
+    path << "?" << parameters.join("&")
+  end
+  response = Net::HTTP.start(host, port) do |http|
+    http.get(path)
+  end
+  if response.is_a?(Net::HTTPSuccess)
+    parse(true, response.body)
+  else
+    [false, "#{response.code}: #{response.body}"]
+  end
+end
+
+def run_gqtp(host, port, command, *args)
+  groonga = "#{@groonga} -p #{port} -c #{host}"
+  result = `#{groonga} #{command} #{args.join(' ')} 2>&1`
+  parse($?.success?, result)
+end
+
+def run_command_line(database_path, command, *args)
+  database_path = Shellwords.shellescape(database_path)
+  result = `#{@groonga} #{database_path} #{command} #{args.join(' ')} 2>&1`
+  parse($?.success?, result)
+end
+
+def run(command, *args)
+  case @service_type
+  when "http"
+    run_http(@http_host, @http_port, command, *args)
+  when "httpd"
+    run_http(@httpd_host, @httpd_port, command, *args)
+  when "gqtp"
+    run_gqtp(@gqtp_host, @gqtp_port, command, *args)
+  else
+    run_command_line(@database_path, command, *args)
+  end
+end
+
+def exclude_tables
+  case @service_type
+  when "http"
+    @http_exclude_tables
+  when "httpd"
+    @httpd_exclude_tables
+  when "gqtp"
+    @gqtp_exclude_tables
+  else
+    @exclude_tables
+  end
+end
+
+def parse_list(header, list)
+  list.collect do |item|
+    parsed_item = {}
+    header.each_with_index do |(name, type), i|
+      parsed_item[name] = item[i]
+    end
+    parsed_item
+  end
+end
+
+def table_list
+  success, body = run("table_list")
+  unless success
+    puts("error: #{body}")
+    exit(false)
+  end
+  tables = parse_list(body[0], body[1..-1])
+  tables.reject do |table|
+    name = table["name"]
+    exclude_tables.include?(name)
+  end
+end
+
+def setup_service_type
+  if /_([^_]+)\z/ =~ $0
+    @service_type = $1
+  else
+    @service_type = nil
+  end
+end
+
+def parse_exclude_tables(raw_exclude_tables_value)
+  (raw_exclude_tables_value || "").split(/\s*,\s*/)
+end
+
+def setup_command_line
+  @database_path = ENV["database_path"]
+  # For backward compatibility. Remove me when 5.0.0.
+  @database_path ||= ENV["path"]
+  @exclude_tables = parse_exclude_tables(ENV["exclude_tables"])
+end
+
+def setup_http
+  @http_host = ENV["http_host"] || @default_host
+  @http_port = (ENV["http_port"] || @default_http_port).to_i
+  @http_exclude_tables = parse_exclude_tables(ENV["http_exclude_tables"])
+end
+
+def setup_httpd
+  @httpd_host = ENV["httpd_host"] || @default_host
+  @httpd_port = (ENV["httpd_port"] || @default_http_port).to_i
+  @httpd_exclude_tables = parse_exclude_tables(ENV["httpd_exclude_tables"])
+end
+
+def setup_gqtp
+  @gqtp_host = ENV["gqtp_host"] || @default_host
+  @gqtp_port = (ENV["gqtp_port"] || @default_gqtp_port).to_i
+  @gqtp_exclude_tables = parse_exclude_tables(ENV["gqtp_exclude_tables"])
+end
+
+def setup
+  setup_service_type
+  setup_command_line
+  setup_http
+  setup_httpd
+  setup_gqtp
+end
+
+def autoconf
+  results = []
+
+  if @database_path and File.exist?(@database_path)
+    results << run_command_line(@database_path, "status")
+  end
+
+  if @http_host and @http_port
+    results << run_http(@http_host, @http_port, "status")
+  end
+
+  if @httpd_host and @httpd_port
+    results << run_http(@httpd_host, @httpd_port, "status")
+  end
+
+  if @gqtp_host and @gqtp_port
+    results << run_gqtp(@gqtp_host, @gqtp_port, "status")
+  end
+
+  if results.any? {|success, _| success}
+    puts("yes")
+    exit(true)
+  else
+    errors = results.collect do |_, result|
+      result
+    end
+    error_detail = errors.join(", ")
+    puts("no (#{error_detail})")
+    exit(false)
+  end
+end
+
+def suggest
+  if @http_host and @http_port
+    success, _ = run_http(@http_host, @http_port, "status")
+    puts("http") if success
+  end
+  if @httpd_host and @httpd_port
+    success, _ = run_http(@httpd_host, @httpd_port, "status")
+    puts("httpd") if success
+  end
+  if @gqtp_host and @gqtp_port
+    success, _ = run_gqtp(@gqtp_host, @gqtp_port, "status")
+    puts("gqtp") if success
+  end
+  exit(true)
+end
+
+setup
+case command
+when "autoconf", "detect"
+  autoconf
+when "suggest"
+  suggest
+when "config"
+  if label.nil?
+    title = "groonga: number of records"
+  else
+    title = "groonga: #{label}: number of records"
+  end
+  puts(<<EOF)
+graph_title #{title}
+graph_vlabel records
+graph_category groonga
+graph_info number of records in groonga table
+EOF
+  table_list.each do |table|
+    name = table["name"]
+    puts(<<EOF)
+
+#{name}.label #{name}
+#{name}.type GAUGE
+EOF
+  end
+  exit(true)
+end
+
+table_list.each do |table|
+  name = table["name"]
+  success, body = run("select", "--table", name, "--limit", "0")
+  unless success
+    puts("error: #{body}")
+    exit(false)
+  end
+  n_records = body[0][0][0]
+  puts(<<EOF)
+#{name}.value #{n_records}
+EOF
+end

@@ -1,0 +1,198 @@
+drop table if exists t1, t2, t3;
+create table t1(c1 int, c2 int, c3 int);
+insert into t1 values (1, 10, 100);
+insert into t1 values (2, 30, 500);
+insert into t1 values (5, 20, 200);
+insert into t1 values (3, 60, 300);
+insert into t1 values (4, 50, 600);
+insert into t1 values (6, 40, 400);
+select * from t1;
+c1	c2	c3
+1	10	100
+2	30	500
+5	20	200
+3	60	300
+4	50	600
+6	40	400
+select c1 from t1;
+c1
+1
+2
+5
+3
+4
+6
+select c2 from t1;
+c2
+10
+30
+20
+60
+50
+40
+select c3 from t1;
+c3
+100
+500
+200
+300
+600
+400
+select * from t1 where c1 <= 3;
+c1	c2	c3
+1	10	100
+2	30	500
+3	60	300
+select * from t1 where c2 > 40;
+c1	c2	c3
+3	60	300
+4	50	600
+select * from t1 where c3 = 300;
+c1	c2	c3
+3	60	300
+select * from t1 order by c1;
+c1	c2	c3
+1	10	100
+2	30	500
+3	60	300
+4	50	600
+5	20	200
+6	40	400
+select * from t1 order by c2 desc;
+c1	c2	c3
+3	60	300
+4	50	600
+6	40	400
+2	30	500
+5	20	200
+1	10	100
+select * from t1 order by c3, c1;
+c1	c2	c3
+1	10	100
+5	20	200
+3	60	300
+6	40	400
+2	30	500
+4	50	600
+drop table t1;
+create table t1 (c1 int, c2 varchar(100));
+insert into t1 values(1, "hoge");
+insert into t1 values(4, "hogefuga");
+insert into t1 values(2, "fuga");
+insert into t1 values(5, "moge");
+insert into t1 values(3, "mo");
+select * from t1;
+c1	c2
+1	hoge
+4	hogefuga
+2	fuga
+5	moge
+3	mo
+select * from t1 order by c1;
+c1	c2
+1	hoge
+2	fuga
+3	mo
+4	hogefuga
+5	moge
+select * from t1 order by c1 desc;
+c1	c2
+5	moge
+4	hogefuga
+3	mo
+2	fuga
+1	hoge
+select * from t1 order by c2;
+c1	c2
+2	fuga
+1	hoge
+4	hogefuga
+3	mo
+5	moge
+drop table t1;
+create table t1 (c1 int, c2 text);
+insert into t1 values(1, "hoge");
+insert into t1 values(4, "hogefuga");
+insert into t1 values(2, "fuga");
+insert into t1 values(5, "moge");
+insert into t1 values(3, "mo");
+select * from t1;
+c1	c2
+1	hoge
+4	hogefuga
+2	fuga
+5	moge
+3	mo
+drop table t1;
+create table t1 (c1 int, c2 int, c3 text);
+insert into t1 values(1, 20, "hoge");
+insert into t1 values(4, 60, "hogefuga");
+insert into t1 values(2, 50, "fuga");
+insert into t1 values(5, 30, "moge");
+insert into t1 values(3, 40, "mo");
+select * from t1 order by c1 asc;
+c1	c2	c3
+1	20	hoge
+2	50	fuga
+3	40	mo
+4	60	hogefuga
+5	30	moge
+select * from t1 order by c1 desc;
+c1	c2	c3
+5	30	moge
+4	60	hogefuga
+3	40	mo
+2	50	fuga
+1	20	hoge
+select * from t1 order by c2 asc;
+c1	c2	c3
+1	20	hoge
+5	30	moge
+3	40	mo
+2	50	fuga
+4	60	hogefuga
+select * from t1 order by c2 desc;
+c1	c2	c3
+4	60	hogefuga
+2	50	fuga
+3	40	mo
+5	30	moge
+1	20	hoge
+select * from t1 order by c3 asc;
+c1	c2	c3
+2	50	fuga
+1	20	hoge
+4	60	hogefuga
+3	40	mo
+5	30	moge
+select * from t1 order by c3 desc;
+c1	c2	c3
+5	30	moge
+3	40	mo
+4	60	hogefuga
+1	20	hoge
+2	50	fuga
+drop table t1;
+create table t1 (_id int, c1 int);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+insert into t1 values (null,100);
+select * from t1;
+_id	c1
+1	100
+2	100
+3	100
+4	100
+5	100
+select * from t1 where _id < 3;
+_id	c1
+1	100
+2	100
+select * from t1 where _id >= 3;
+_id	c1
+3	100
+4	100
+5	100
+drop table t1;

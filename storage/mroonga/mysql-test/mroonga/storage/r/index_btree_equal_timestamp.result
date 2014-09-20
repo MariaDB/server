@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+created_at timestamp,
+title varchar(256),
+KEY created_at_key(created_at)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES ("1970-01-01 12:00:00", "The start");
+INSERT INTO diaries VALUES ("2012-10-05 16:18:29", "Today is shiny day.");
+INSERT INTO diaries VALUES ("2038-01-18 15:14:07", "The end");
+SELECT *
+FROM diaries FORCE INDEX(created_at_key)
+WHERE created_at = "2012-10-05 16:18:29";
+created_at	title
+2012-10-05 16:18:29	Today is shiny day.
+DROP TABLE diaries;

@@ -1,0 +1,73 @@
+DROP TABLE IF EXISTS diaries;
+SHOW VARIABLES LIKE 'performance_schema';
+Variable_name	Value
+performance_schema	ON
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+content VARCHAR(255),
+FULLTEXT INDEX (content)
+) DEFAULT CHARSET UTF8 COMMENT = 'ENGINE "InnoDB"';
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `content` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  FULLTEXT KEY `content` (`content`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='ENGINE "InnoDB"'
+INSERT INTO diaries (content) VALUES ("Tommorow will be shiny day!");
+SHOW TABLES FROM performance_schema;
+Tables_in_performance_schema
+accounts
+cond_instances
+events_stages_current
+events_stages_history
+events_stages_history_long
+events_stages_summary_by_account_by_event_name
+events_stages_summary_by_host_by_event_name
+events_stages_summary_by_thread_by_event_name
+events_stages_summary_by_user_by_event_name
+events_stages_summary_global_by_event_name
+events_statements_current
+events_statements_history
+events_statements_history_long
+events_statements_summary_by_account_by_event_name
+events_statements_summary_by_digest
+events_statements_summary_by_host_by_event_name
+events_statements_summary_by_thread_by_event_name
+events_statements_summary_by_user_by_event_name
+events_statements_summary_global_by_event_name
+events_waits_current
+events_waits_history
+events_waits_history_long
+events_waits_summary_by_account_by_event_name
+events_waits_summary_by_host_by_event_name
+events_waits_summary_by_instance
+events_waits_summary_by_thread_by_event_name
+events_waits_summary_by_user_by_event_name
+events_waits_summary_global_by_event_name
+file_instances
+file_summary_by_event_name
+file_summary_by_instance
+host_cache
+hosts
+mutex_instances
+objects_summary_global_by_type
+performance_timers
+rwlock_instances
+session_account_connect_attrs
+session_connect_attrs
+setup_actors
+setup_consumers
+setup_instruments
+setup_objects
+setup_timers
+socket_instances
+socket_summary_by_event_name
+socket_summary_by_instance
+table_io_waits_summary_by_index_usage
+table_io_waits_summary_by_table
+table_lock_waits_summary_by_table
+threads
+users
+DROP TABLE diaries;

@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS timer;
+CREATE TABLE timer (
+id int PRIMARY KEY,
+elapsed time,
+KEY elapsed_key(elapsed)
+);
+INSERT INTO timer VALUES (1, "00:00:00");
+INSERT INTO timer VALUES (2, "15:11:12");
+INSERT INTO timer VALUES (3, "838:59:59");
+INSERT INTO timer VALUES (4, "-838:59:59");
+SELECT *
+FROM timer FORCE INDEX(elapsed_key)
+WHERE elapsed = "-838:59:59";
+id	elapsed
+4	-838:59:59
+DROP TABLE timer;

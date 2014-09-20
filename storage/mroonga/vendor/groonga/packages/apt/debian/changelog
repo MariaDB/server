@@ -1,0 +1,11 @@
+groonga-keyring (2012.05.29-1) unstable; urgency=low
+
+  * Replace old key id to new one.
+
+ -- groonga Key (groonga Official Signing Key) <packages@groonga.org>  Tue, 29 May 2012 00:00:00 +0900
+
+groonga-keyring (2012.04.29-1) unstable; urgency=low
+
+  * Initial release.
+
+ -- groonga Key (groonga Official Signing Key) <packages@groonga.org>  Sun, 29 Apr 2012 00:00:00 +0900

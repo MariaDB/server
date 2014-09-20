@@ -1,0 +1,15 @@
+drop table if exists diaries;
+create table diaries (
+id int primary key auto_increment,
+body text
+) comment = 'engine "innodb"';
+insert into diaries (body) values ("started groonga (long text)");
+select * from diaries;
+id	body
+1	started groonga (long text)
+insert into diaries (body) values ("sleeping... (short text)");
+select * from diaries;
+id	body
+1	started groonga (long text)
+2	sleeping... (short text)
+drop table diaries;

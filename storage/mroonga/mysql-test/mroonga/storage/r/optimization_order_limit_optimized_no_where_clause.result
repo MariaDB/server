@@ -1,0 +1,19 @@
+drop table if exists t1;
+flush status;
+create table t1 (c1 int primary key, c2 int, c3 text, _id int, key idx1(c2), fulltext index ft(c3)) default charset utf8;
+insert into t1 values(1,10,"aa ii uu ee oo",null);
+insert into t1 values(2,20,"ka ki ku ke ko",null);
+insert into t1 values(3,30,"ii si ii se ii",null);
+insert into t1 values(4,40,"ta ti tu te to",null);
+insert into t1 values(5,50,"aa ii uu ii oo",null);
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	0
+select *, match(c3) against("ii") from t1 order by c1 desc limit 2;
+c1	c2	c3	_id	match(c3) against("ii")
+5	50	aa ii uu ii oo	5	349526
+4	40	ta ti tu te to	4	0
+show status like 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+drop table t1;

@@ -1,0 +1,301 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN"
+ "http://www.w3.org/TR/html4/strict.dtd">
+<html lang="ja">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta http-equiv="Content-Style-Type" content="text/css">
+<meta http-equiv="Content-Script-Type" content="text/javascript">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>groonga admin</title>
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="icon" href="favicon.png">
+<link rel="stylesheet" type="text/css" href="css/groonga-admin.css">
+<link rel="stylesheet" type="text/css" href="css/redmond/jquery-ui-1.8.18.custom.css">
+<script type="text/javascript" src="js/jquery-1.7.2.min.js"></script>
+<script type="text/javascript" src="js/jquery-ui-1.8.18.custom.min.js"></script>
+<script type="text/javascript" src="js/jquery.flot-0.7.min.js"></script>
+<script type="text/javascript" src="js/groonga-admin.js"></script>
+</head>
+<body>
+<div id="header">
+  <ul id="locale-list">
+    <li><a href="index.html">en</a></li>
+    <li>ja</a>
+  </ul>
+</div>
+<div id="body">
+  <table>
+    <tr>
+      <td id="left-column">
+        <div id="side-menu">
+          <h2>画面一覧</h2>
+          <ul id="side-menu-view-list">
+            <li><a href="#side-menu-summary" id="side-menu-summary">サマリー</a></li>
+            <li><a href="#side-menu-suggest" id="side-menu-suggest">サジェスト</a></li>
+          </ul>
+          <h2>テーブル一覧</h2>
+          <ul id="side-menu-tablelist" />
+        </div>
+      </td>
+
+      <td id="right-column">
+        <!-- database view -->
+        <div id="database-tabs">
+          <ul>
+            <li><a href="#database-tab-summary">サマリー</a></li>
+            <li><a href="#database-tab-tablelist" id="tab-tablelist-link">テーブル一覧</a></li>
+            <li><a href="#database-tab-createtable">テーブル作成</a></li>
+          </ul>
+          <div id="database-tab-summary">
+            <p>
+              groongaの管理ツールです。
+            </p>
+            <ul>
+              <li>開始時間: <span id="status-starttime"></span></li>
+              <li>uptime: <span id="status-uptime"></span></li>
+              <li>クエリ数: <span id="status-n-queries"></span></li>
+              <li>キャッシュヒット率: <span id="status-cache-hit-rate"></span></li>
+            </ul>
+            <div id="throughput-chart" style="height: 300px; max-width: 500px;">
+            </div>
+          </div>
+          <div id="database-tab-tablelist">
+            <div id="tab-tablelist-table">
+            </div>
+            <input type="button" id="tablelist-remove-table" value="選択テーブル削除">
+          </div>
+          <div id="database-tab-createtable">
+            <table>
+              <tr>
+                <td>
+                  <label for="createtable-name">テーブル名</label>
+                </td>
+                <td>
+                  <input type="text" id="createtable-name">
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  主キー
+                </td>
+                <td>
+                  <label for="createtable-key-type">keyの型:</label>
+                  <select id="createtable-key-type">
+                    <optgroup label="組み込み型" id="createtable-key-type-builtin">
+                    </optgroup>
+                    <optgroup label="テーブル" id="createtable-key-type-table">
+                    </optgroup>
+                  </select>
+                  <label for="createtable-key-index">keyのインデックス種類:</label>
+                  <select id="createtable-key-index">
+                    <option value="GRN_OBJ_TABLE_PAT_KEY">パトリシア木</option>
+                    <option value="GRN_OBJ_TABLE_HASH_KEY">ハッシュテーブル</option>
+                    <option value="GRN_OBJ_TABLE_NO_KEY">キーなし</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  フラグ
+                </td>
+                <td id="createtable-flags">
+                  <input type="checkbox" value="GRN_OBJ_PERSISTENT" checked>永続化</input>
+                  <input type="checkbox" value="GRN_OBJ_KEY_NORMALIZE">key文字列の正規化</input>
+                  <input type="checkbox" value="GRN_OBJ_KEY_WITH_SIS">key文字列のsuffix登録</input>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  valueの型
+                </td>
+                <td>
+                  <select id="createtable-value-type">
+                    <optgroup label="組み込み型" id="createtable-value-type-builtin">
+                    </optgroup>
+                    <optgroup label="テーブル" id="createtable-value-type-table">
+                    </optgroup>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  デフォルトトークナイザ
+                </td>
+                <td>
+                  <select id="createtable-default-tokenizer">
+                    <optgroup label="組み込み" id="createtable-default-tokenizer-builtin">
+                    </optgroup>
+                  </select>
+                </td>
+              </tr>
+            </table>
+            <input type="button" id="createtable-add-table" value="テーブル追加">
+          </div>
+        </div>
+
+        <!-- table view -->
+        <div id="table-tabs">
+          <ul>
+            <li><a href="#table-tab-recordlist" id="tab-recordlist-link">レコード一覧</a></li>
+            <li><a href="#table-tab-columnlist" id="tab-columnlist-link">カラム一覧</a></li>
+            <li><a href="#table-tab-createrecord" id="tab-createrecord-link">レコード作成</a></li>
+            <li><a href="#table-tab-createcolumn">カラム作成</a></li>
+          </ul>
+          <div id="table-tab-recordlist">
+            <input type="checkbox" id="table-tab-recordlist-full-checkbox" /><label for="table-tab-recordlist-full-checkbox">管理モード</label>
+            <form id="tab-recordlist-form">
+              <div id="table-tab-recordlist-form-simple">
+                <label for="tab-recordlist-simplequery">検索クエリ: </label><input type="text" id="tab-recordlist-simplequery">
+                <select id="tab-recordlist-simplequerytype">
+                  <option value="query" data-placeholder="例）column:@value">query</option>
+                  <option value="filter" data-placeholder="例）column == &quot;value&quot;">filter</option>
+                </select>
+                <input type="checkbox" id="tab-recordlist-incremental" /><label for="tab-recordlist-incremental" id="tab-recordlist-incremental-label">インクリメンタル検索</label>
+              </div>
+              <div id="table-tab-recordlist-form-full">
+                <table>
+                  <tr><td>match_columns</td><td><input type="text" id="tab-recordlist-match_columns" /></td></tr>
+                  <tr><td>query</td><td><input type="text" id="tab-recordlist-query" /></td></tr>
+                  <tr><td>filter</td><td><input type="text" id="tab-recordlist-filter" /></td></tr>
+                  <tr><td>scorer</td><td><input type="text" id="tab-recordlist-scorer" /></td></tr>
+                  <tr><td>sortby</td><td><input type="text" id="tab-recordlist-sortby" /></td></tr>
+                  <tr><td>output_columns</td><td><input type="text" id="tab-recordlist-output_columns" /></td></tr>
+                  <tr><td>offset</td><td><input type="text" id="tab-recordlist-offset" /></td></tr>
+                  <tr><td>limit</td><td><input type="text" id="tab-recordlist-limit" /></td></tr>
+                  <tr><td>drilldown</td><td><input type="text" id="tab-recordlist-drilldown" /></td></tr>
+                  <tr><td>drilldown_sortby</td><td><input type="text" id="tab-recordlist-drilldown_sortby" /></td></tr>
+                  <tr><td>drilldown_output_columns</td><td><input type="text" id="tab-recordlist-drilldown_output_columns" /></td></tr>
+                  <tr><td>drilldown_offset</td><td><input type="text" id="tab-recordlist-drilldown_offset" /></td></tr>
+                  <tr><td>drilldown_limit</td><td><input type="text" id="tab-recordlist-drilldown_limit" /></td></tr>
+                </table>
+              </div>
+              <input type="submit" id="tab-recordlist-submit" value="検索"/>
+            </form>
+            <div id="tab-recordlist-table">
+            </div>
+            <input type="button" id="recordlist-remove-record" value="選択レコード削除">
+          </div>
+          <div id="table-tab-columnlist">
+            <div id="tab-columnlist-table">
+            </div>
+            <input type="button" id="columnlist-remove-column" value="選択カラム削除">
+          </div>
+          <div id="table-tab-createrecord">
+            <table id="table-createrecord">
+            </table>
+            <input type="button" id="createrecord-add-record" value="レコード追加">
+          </div>
+          <div id="table-tab-createcolumn">
+            <table>
+              <tr>
+                <td>
+                  <label for="createcolumn-name">カラム名</label>
+                </td>
+                <td>
+                  <input type="text" id="createcolumn-name">
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  設定
+                </td>
+                <td>
+                  <label for="createcolumn-type">型:</label>
+                  <select id="createcolumn-type">
+                    <optgroup label="組み込み型" id="createcolumn-type-builtin">
+                    </optgroup>
+                    <optgroup label="テーブル" id="createcolumn-type-table">
+                    </optgroup>
+                  </select>
+
+                  <label for="createcolumn-source">テーブル型の場合カラム</label>
+                  <select id="createcolumn-source" disabled>
+                  </select>
+
+                  <label for="createcolumn-column-type">カラム種別:</label>
+                  <select id="createcolumn-column-type">
+                    <option value="GRN_OBJ_COLUMN_SCALAR">スカラ</option>
+                    <option value="GRN_OBJ_COLUMN_VECTOR">ベクタ</option>
+                    <option value="GRN_OBJ_COLUMN_INDEX">転置インデックス</option>
+                  </select>
+
+                  <label for="createcolumn-compress">圧縮:</label>
+                  <select id="createcolumn-compress">
+                    <option value="GRN_OBJ_COMPRESS_NONE">圧縮なし</option>
+                    <option value="GRN_OBJ_COMPRESS_ZLIB">zlib</option>
+                    <option value="GRN_OBJ_COMPRESS_LZO">lzo</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  フラグ
+                </td>
+                <td id="createcolumn-flags">
+                  <input type="checkbox" value="GRN_OBJ_PERSISTENT" checked>永続化</input>
+                </td>
+              </tr>
+              <tr>
+                <td>
+                  転置インデックス用フラグ
+                </td>
+                <td id="createcolumn-ii-flags">
+                  <input type="checkbox" value="GRN_OBJ_WITH_SECTION">段落情報を含める</input>
+                  <input type="checkbox" value="GRN_OBJ_WITH_WEIGHT">重みを含める</input>
+                  <input type="checkbox" value="GRN_OBJ_WITH_POSITION">位置情報を含める</input>
+                </td>
+              </tr>
+            </table>
+            <input type="button" id="createcolumn-add-column" value="カラム追加">
+          </div>
+        </div>
+
+        <!-- suggest view -->
+        <div id="suggest-tabs">
+          <ul>
+            <li><a href="#suggest-tab-search">検索</a></li>
+          </ul>
+          <div id="suggest-tab-search">
+            <form id="suggest-tab-search-form">
+              <p>
+                <label for="suggest-dataset">データセット: </label>
+                <input type="text" id="suggest-dataset">
+              </p>
+              <label for="suggest-query">検索クエリ: </label>
+              <input type="text" id="suggest-query">
+              <input type="button" id="suggest-submit" value="検索" />
+            </form>
+            <div id="suggest-result-tabs">
+              <ul>
+                <li><a href="#suggest-result-tab-suggest">提案</a></li>
+                <li><a href="#suggest-result-tab-complete">補完</a></li>
+                <li><a href="#suggest-result-tab-correct">補正</a></li>
+              </ul>
+              <div id="suggest-result-tab-suggest">
+              </div>
+              <div id="suggest-result-tab-complete">
+              </div>
+              <div id="suggest-result-tab-correct">
+              </div>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  </table>
+</div>
+<div id="footer">
+Powered by <a href="http://jquery.com/">jQuery</a> and <a href="http://jqueryui.com/">jQuery UI</a>.
+</div>
+<script type="text/javascript">
+$(function() {
+  var admin = new GroongaAdmin();
+  $(location.hash).click();
+  $.ajaxSetup({
+    timeout: 10000,
+    cache: false
+  });
+});
+</script>
+</body>
+</html>

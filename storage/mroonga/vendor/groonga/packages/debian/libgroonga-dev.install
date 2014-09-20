@@ -1,0 +1,3 @@
+usr/include/groonga/*
+usr/lib/*/pkgconfig/*
+usr/lib/*/libgroonga.so

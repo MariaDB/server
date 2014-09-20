@@ -1,0 +1,3 @@
+var/log/groonga/httpd
+etc/groonga/httpd
+etc/groonga/httpd/logs

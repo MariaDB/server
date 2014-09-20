@@ -1,0 +1,29 @@
+DROP TABLE IF EXISTS document;
+DROP TABLE IF EXISTS category;
+CREATE TABLE category (
+category CHAR(10) PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COMMENT='default_tokenizer "TokenDelimit"';
+CREATE TABLE document (
+id INT NOT NULL,
+title TEXT,
+categories TEXT COMMENT 'flags "COLUMN_VECTOR", type "category"',
+PRIMARY KEY(id)
+) DEFAULT CHARSET=utf8;
+SHOW GLOBAL VARIABLES LIKE 'mroonga_vector_column_delimiter';
+Variable_name	Value
+mroonga_vector_column_delimiter	 
+INSERT INTO document VALUES(1, "Mroonga is the fastest search engine", "it database fulltext");
+SELECT id, title, categories FROM document;
+id	title	categories
+1	Mroonga is the fastest search engine	IT DATABASE FULLTEXT
+SET GLOBAL mroonga_vector_column_delimiter = ';';
+SHOW GLOBAL VARIABLES LIKE 'mroonga_vector_column_delimiter';
+Variable_name	Value
+mroonga_vector_column_delimiter	;
+SELECT id, title, categories FROM document;
+id	title	categories
+1	Mroonga is the fastest search engine	IT;DATABASE;FULLTEXT
+DROP TABLE document;
+DROP TABLE category;
+SET GLOBAL mroonga_vector_column_delimiter = ' ';
