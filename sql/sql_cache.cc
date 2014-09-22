@@ -1858,7 +1858,7 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
       DBUG_PRINT("qcache", ("The statement has a SQL_NO_CACHE directive"));
       goto err;
     }
-    if (thd->variables.query_cache_type==2 && !has_cache_directive(sql+6, sql_end))
+    if (thd->variables.query_cache_type==2 && !has_cache_directive(sql+6))
     {
       /*
         We do not increase 'refused' statistics here since it will be done
