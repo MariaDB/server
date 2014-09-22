@@ -766,6 +766,36 @@ void Query_cache::unlock(void)
   DBUG_VOID_RETURN;
 }
 
+/**
+  Helper function for determine if a SELECT statement has a SQL_CACHE
+  directive.
+  
+  @param sql A pointer to the first white space character after SELECT
+  
+  @return
+   @retval TRUE The character string contains SQL_CACHE
+   @retval FALSE No directive found.
+*/
+ 
+static bool has_cache_directive(const char *sql)
+{
+  while (is_white_space(*sql))
+    sql++;
+    
+  if (my_toupper(system_charset_info, sql[0])  == 'S' &&
+      my_toupper(system_charset_info, sql[1])  == 'Q' &&
+      my_toupper(system_charset_info, sql[2])  == 'L' &&
+      my_toupper(system_charset_info, sql[3])  == '_' &&
+      my_toupper(system_charset_info, sql[4])  == 'C' &&
+      my_toupper(system_charset_info, sql[5])  == 'A' &&
+      my_toupper(system_charset_info, sql[6])  == 'C' &&
+      my_toupper(system_charset_info, sql[7]) == 'H' &&
+      my_toupper(system_charset_info, sql[8]) == 'E' &&
+      my_isspace(system_charset_info, sql[9]))
+    return TRUE;
+  
+  return FALSE;       
+}
 
 /**
   Helper function for determine if a SELECT statement has a SQL_NO_CACHE
@@ -1817,14 +1847,27 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     goto err;
   }
 
-  if ((sql_end - sql) > 20 && has_no_cache_directive(sql+6))
+  if ((sql_end - sql) > 20)
   {
-    /*
-      We do not increase 'refused' statistics here since it will be done
-      later when the query is parsed.
-    */
-    DBUG_PRINT("qcache", ("The statement has a SQL_NO_CACHE directive"));
-    goto err;
+    if (has_no_cache_directive(sql+6))
+    {
+      /*
+        We do not increase 'refused' statistics here since it will be done
+        later when the query is parsed.
+      */
+      DBUG_PRINT("qcache", ("The statement has a SQL_NO_CACHE directive"));
+      goto err;
+    }
+    if (thd->variables.query_cache_type==2 && !has_cache_directive(sql+6, sql_end))
+    {
+      /*
+        We do not increase 'refused' statistics here since it will be done
+        later when the query is parsed.
+      */
+      DBUG_PRINT("qcache",
+                ("The statement don't have a SQL_CACHE directive when query_cache_type=DEMAND"));
+      goto err;
+    }
   }
   {
     /*
