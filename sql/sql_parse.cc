@@ -6812,7 +6812,7 @@ void mysql_init_multi_delete(LEX *lex)
 static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                  Parser_state *parser_state)
 {
-  bool is_autocommit= 
+  bool is_autocommit=
     !thd->in_multi_stmt_transaction_mode()                  &&
     thd->wsrep_conflict_state == NO_CONFLICT                &&
     !thd->wsrep_applier                                     &&
@@ -6840,7 +6840,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         WSREP_DEBUG("abort in exec query state, avoiding autocommit");
       }
 
-      if (thd->wsrep_conflict_state== MUST_REPLAY) 
+      if (thd->wsrep_conflict_state == MUST_REPLAY)
       {
         wsrep_replay_transaction(thd);
       }
