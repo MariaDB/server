@@ -1240,7 +1240,6 @@ public:
   virtual bool intro_version(uchar *int_arg) { return 0; }
 
   virtual bool remove_dependence_processor(uchar * arg) { return 0; }
-  virtual bool remove_fixed(uchar * arg) { fixed= 0; return 0; }
   virtual bool cleanup_processor(uchar *arg);
   virtual bool collect_item_field_processor(uchar * arg) { return 0; }
   virtual bool add_field_to_set_processor(uchar * arg) { return 0; }
@@ -3897,7 +3896,7 @@ public:
   {
     ref= &outer_ref;
     set_properties();
-    fixed= 0;
+    fixed= 0;                     /* reset flag set in set_properties() */
   }
   Item_outer_ref(Name_resolution_context *context_arg, Item **item,
                  const char *table_name_arg, const char *field_name_arg,

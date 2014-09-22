@@ -21101,7 +21101,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 
   ref_pointer_array and all_fields are updated.
 
-  @param[in] thd		     Pointer to current thread structure
+  @param[in] thd		    Pointer to current thread structure
   @param[in,out] ref_pointer_array  All select, group and order by fields
   @param[in] tables                 List of tables to search in (usually
     FROM clause)
@@ -21147,7 +21147,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
     order->in_field_list= 1;
     order->counter= count;
     order->counter_used= 1;
-   return FALSE;
+    return FALSE;
   }
   /* Lookup the current GROUP/ORDER field in the SELECT clause. */
   select_item= find_item_in_list(order_item, fields, &counter,
@@ -21215,7 +21215,8 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
         warning so the user knows that the field from the FROM clause
         overshadows the column reference from the SELECT list.
       */
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_NON_UNIQ_ERROR,
                           ER(ER_NON_UNIQ_ERROR),
                           ((Item_ident*) order_item)->field_name,
                           current_thd->where);
