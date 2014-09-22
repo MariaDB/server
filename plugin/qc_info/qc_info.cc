@@ -37,7 +37,7 @@
 #define MYSQL_SERVER
 #endif
 
-#include <sql_cache.h>          /* QUERY_CACHE_QC_INFO_PLUGIN */
+#include <sql_cache.h>
 #include <sql_parse.h>          // check_global_access
 #include <sql_acl.h>            // PROCESS_ACL
 #include <sql_class.h>          // THD
@@ -116,7 +116,7 @@ bool schema_table_store_record(THD *thd, TABLE *table);
   QUERY BLOCK 
 
   some fields are null when we have 0 hits
-  some fields are null because we don't have QUERY_CACHE_QC_INFO_PLUGIN in sql_cache.h (MariaDB MDEV-4581)
+  some fields are null because we don't have HAVE_QUERY_CACHE_STATS in config.h.cmake (MariaDB MDEV-4682)
 */
 static ST_FIELD_INFO qc_info_fields_queries[]=
 {
@@ -213,7 +213,7 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     /* rows */
     table->field[COLUMN_QUERIES_QC_ID]->store((long)i + 1, 0);
     table->field[COLUMN_QUERIES_RESULT_FOUND_ROWS]->store(query_cache_query->found_rows(), 0);
-#ifdef QUERY_CACHE_QC_INFO_PLUGIN             /* for more information see MariaDB - MDEV-4682 */
+#ifdef HAVE_QUERY_CACHE_STATS             /* for more information see MariaDB - MDEV-4682 */
     table->field[COLUMN_QUERIES_QUERY_ROWS]->store(query_cache_query->query_rows_sent(), 0);                              /* qc_info header */
     table->field[COLUMN_QUERIES_QUERY_HITS]->store(query_cache_query->query_hits(), 0);                                   /* qc_info header */
     table->field[COLUMN_QUERIES_RESULT_LENGTH]->store(query_cache_query->length(), 0);
@@ -604,7 +604,7 @@ maria_declare_plugin(query_cache_info)
   NULL,                                 /* Status variables */
   NULL,                                 /* System variables */
   "1.1",                                /* String version representation */
-  MariaDB_PLUGIN_MATURITY_ALPHA         /* Maturity (see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_GAMMA         /* Maturity (see include/mysql/plugin.h)*/
 },
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,      /* the plugin type (see include/mysql/plugin.h) */
@@ -619,7 +619,7 @@ maria_declare_plugin(query_cache_info)
   NULL,                                 /* Status variables */
   NULL,                                 /* System variables */
   "1.1",                                /* String version representation */
-  MariaDB_PLUGIN_MATURITY_ALPHA         /* Maturity (see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_GAMMA         /* Maturity (see include/mysql/plugin.h)*/
 },
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,      /* the plugin type (see include/mysql/plugin.h) */
@@ -634,6 +634,6 @@ maria_declare_plugin(query_cache_info)
   NULL,                                 /* Status variables */
   NULL,                                 /* System variables */
   "1.1",                                /* String version representation */
-  MariaDB_PLUGIN_MATURITY_ALPHA         /* Maturity (see include/mysql/plugin.h)*/
+  MariaDB_PLUGIN_MATURITY_GAMMA         /* Maturity (see include/mysql/plugin.h)*/
 }
 maria_declare_plugin_end;

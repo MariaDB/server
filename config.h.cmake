@@ -591,6 +591,12 @@
 #define HAVE_QUERY_CACHE 1
 #define BIG_TABLES 1
 
+/* 
+  Query cache stats, should be used with qc_info plugin (MDEV-4682)
+  Should be turned off by default?
+*/
+#define HAVE_QUERY_CACHE_STATS 1
+
 /*
   Important storage engines (those that really need define 
   WITH_<ENGINE>_STORAGE_ENGINE for the whole server)

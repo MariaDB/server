@@ -13,7 +13,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#define QUERY_CACHE_QC_INFO_PLUGIN      /* todo include this at compile runtime, for more information see MariaDB qc_info plugin - MDEV-4682 */
 #ifndef _SQL_CACHE_H
 #define _SQL_CACHE_H
 
@@ -161,7 +160,7 @@ struct Query_cache_query
   uint8 tbls_type;
   unsigned int last_pkt_nr;
   /* query cache statistics, qc_info plugin */
-#ifdef QUERY_CACHE_QC_INFO_PLUGIN	/* todo make it a variable that we could turn on/off at server runtime instead of compile runtime */
+#ifdef HAVE_QUERY_CACHE_STATS
 #define QUERY_CACHE_QC_INFO_MAX_TOTAL_HITS		          ((ulonglong)2147483645)  /* max signed long value - 2 */
 #define QUERY_CACHE_QC_INFO_MAX_TOTAL_TIME		          ((ulonglong)4294967293)  /* max ulong value - 2       */
 #define QUERY_CACHE_QC_INFO_PERIOD_OUTLIER		          10                       /* hit period outlier = this_value * expend time, TODO: maybe change to variable */
