@@ -90,5 +90,22 @@ INSERT INTO t1 VALUES ('à\['),('\à\[');
 SELECT HEX(a) FROM t1;
 DROP TABLE t1;
 
+#
+# Checking the other way around:
+# 0x5C in 0xE05C is treated as the second byte
+# when character_set_client=big5,cp932,gbk,sjis
+# and character_set_connection=binary
+#
+SET character_set_client=@@character_set_connection, character_set_results=@@character_set_connection;
+SET character_set_connection=binary;
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+SELECT HEX('à\['), HEX('\à\[');
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ('à\['),('\à\[');
+SELECT HEX(a) FROM t1;
+DROP TABLE t1;
+
+
 --echo # Start of ctype_E05C.inc
 

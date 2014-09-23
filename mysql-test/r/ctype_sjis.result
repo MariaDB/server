@@ -18485,6 +18485,26 @@ HEX(a)
 E05B
 E05B
 DROP TABLE t1;
+SET character_set_client=@@character_set_connection, character_set_results=@@character_set_connection;
+SET character_set_connection=binary;
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+sjis	binary	sjis
+SELECT HEX('‡\['), HEX('\‡\[');
+HEX('‡\[')	HEX('Å_‡\[')
+E05C5B	E05B
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS a LIMIT 0;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varbinary(10) NOT NULL DEFAULT ''
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+INSERT INTO t1 VALUES ('‡\['),('\‡\[');
+SELECT HEX(a) FROM t1;
+HEX(a)
+E05C5B
+E05B
+DROP TABLE t1;
 # Start of ctype_E05C.inc
 #
 # End of 10.0 tests
