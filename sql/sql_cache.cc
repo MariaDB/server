@@ -586,7 +586,7 @@ void inline fix_local_query_cache_mode(THD *thd)
   effect by another thread. This enables a quick path in execution to skip waits
   when the outcome is known.
 
-  @param mode TIMEOUT the lock can abort because of a timeout
+  @param mode TIMEOUT_WRITE/TIMEOUT_READ the lock can abort because of a timeout
               TRY the lock can abort because it is locked now
               WAIT wait for lock (default)
 
@@ -643,10 +643,29 @@ bool Query_cache::try_lock(THD *thd, Cache_try_lock_mode mode)
       {
         mysql_cond_wait(&COND_cache_status_changed, &structure_guard_mutex);
       }
-      else if (mode == TIMEOUT)
+      else if (mode == TIMEOUT_READ || mode == TIMEOUT_WRITE)
       {
         struct timespec waittime;
-        set_timespec_nsec(waittime,(ulong)(50000000L));  /* Wait for 50 msec */
+	if(mode == TIMEOUT_WRITE){
+	  if(thd->variables.query_cache_write_timeout<=0)
+	    /* Default: wait for 50 msec (nano time value=> 50.000.000ns = 50ms) */
+	    thd->variables.query_cache_write_timeout=50000000L;
+	  if(thd->variables.query_cache_write_timeout>1000000000L;
+	    /* Max value of 1s  (1.000.000.000) */
+	    thd->variables.query_cache_write_timeout=1000000000L;
+	  
+	  set_timespec_nsec(waittime,(ulong)(thd->variables.query_cache_write_timeout));
+	}
+	else
+	{
+	  if(thd->variables.query_cache_read_timeout<=0)
+	    /* Default: wait for 50 msec (nano time value=> 50.000.000ns = 50ms) */
+	    thd->variables.query_cache_read_timeout=50000000L;
+	  if(thd->variables.query_cache_read_timeout>1000000000L;
+	    /* Max value of 1s  (1.000.000.000) */
+	    thd->variables.query_cache_read_timeout=1000000000L;
+          set_timespec_nsec(waittime,(ulong)(thd->variables.query_cache_read_timeout));
+	}
         int res= mysql_cond_timedwait(&COND_cache_status_changed,
                                       &structure_guard_mutex, &waittime);
         if (res == ETIMEDOUT)
@@ -1474,10 +1493,10 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
       In case the wait time can't be determined there is an upper limit which
       causes try_lock() to abort with a time out.
 
-      The 'TIMEOUT' parameter indicate that the lock is allowed to timeout
+      The TIMEOUT_WRITE parameter indicate that the lock is allowed to timeout
 
     */
-    if (try_lock(thd, Query_cache::TIMEOUT))
+    if (try_lock(thd, Query_cache::TIMEOUT_WRITE))
       DBUG_VOID_RETURN;
     if (query_cache_size == 0)
     {
@@ -1853,9 +1872,9 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
     disabled or if a full cache flush is in progress, the attempt to
     get the lock is aborted.
 
-    The TIMEOUT parameter indicate that the lock is allowed to timeout.
+    The TIMEOUT_READ parameter indicate that the lock is allowed to timeout.
   */
-  if (try_lock(thd, Query_cache::TIMEOUT))
+  if (try_lock(thd, Query_cache::TIMEOUT_READ))
     goto err;
 
   if (query_cache_size == 0)

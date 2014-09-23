@@ -524,7 +524,7 @@ protected:
   static uint filename_2_table_key (char *key, const char *filename,
 				    uint32 *db_langth);
 
-  enum Cache_try_lock_mode {WAIT, TIMEOUT, TRY};
+  enum Cache_try_lock_mode {WAIT, TIMEOUT_WRITE, TIMEOUT_READ, TRY};
   bool try_lock(THD *thd, Cache_try_lock_mode mode= WAIT);
   void lock(THD *thd);
   void lock_and_suspend(void);

@@ -2539,6 +2539,18 @@ static Sys_var_enum Sys_thread_handling(
  );
 
 #ifdef HAVE_QUERY_CACHE
+static Sys_var_ulong Sys_query_cache_write_timeout(
+       "query_cache_write_timeout",
+       "Timeout in nanoseconds waiting lock in query cache insert, "
+       "default of 50000000 ns = 50ms",
+       SESSION_VAR(query_cache_write_timeout), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1000000000L), DEFAULT(50000000), BLOCK_SIZE(1));
+static Sys_var_ulong Sys_query_cache_read_timeout(
+       "query_cache_read_timeout",
+       "Timeout in nanoseconds waiting lock in query cache fetch, "
+       "default of 50000000 ns = 50ms",
+       SESSION_VAR(query_cache_read_timeout), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 1000000000L), DEFAULT(50000000), BLOCK_SIZE(1));
 static bool check_query_cache_size(sys_var *self, THD *thd, set_var *var)
 {
   if (global_system_variables.query_cache_type == 0 &&

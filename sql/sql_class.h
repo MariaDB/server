@@ -570,6 +570,8 @@ typedef struct system_variables
   ulong progress_report_time;
   ulong completion_type;
   ulong query_cache_type;
+  ulong query_cache_write_timeout;
+  ulong query_cache_read_timeout;
   ulong tx_isolation;
   ulong updatable_views_with_limit;
   int max_user_connections;
