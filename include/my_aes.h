@@ -1,6 +1,11 @@
 #ifndef MY_AES_INCLUDED
 #define MY_AES_INCLUDED
 
+#define AES_OK 0
+#define AES_BAD_DATA  -1
+#define AES_BAD_KEYSIZE -5
+#define AES_KEY_CREATION_FAILED -10
+
 /* Copyright (c) 2002, 2006 MySQL AB, 2009 Sun Microsystems, Inc.
    Use is subject to license terms.
 
@@ -26,6 +31,23 @@
 C_MODE_START
 
 #define AES_KEY_LENGTH 128		/* Must be 128 192 or 256 */
+typedef unsigned long int ulint;
+
+
+/*
+  my_aes_encrypt_cbc- Crypt buffer with AES encryption algorithm using cbc mode.
+  source		- Pointer to data for encryption
+  source_length		- size of encryption data
+  dest			- buffer to place encrypted data (must be large enough)
+  key			- Key to be used for encryption
+  kel_length		- Length of the key. Will handle keys of any length
+
+  returns  - size of encrypted data, or negative in case of error.
+*/
+int my_aes_encrypt_cbc(const char* source, ulint source_length,
+					char* dest, ulint *dest_length,
+					const char* key, uint8 key_length,
+					const char* iv, uint8 iv_length);
 
 /*
   my_aes_encrypt	- Crypt buffer with AES encryption algorithm.
@@ -40,6 +62,22 @@ C_MODE_START
 
 int my_aes_encrypt(const char *source, int source_length, char *dest,
 		   const char *key, int key_length);
+
+/*
+  my_aes_decrypt_cbc	- DeCrypt buffer with AES encryption algorithm using
+  	  	  	  	  cbc Mode.
+  source		- Pointer to data for decryption
+  source_length		- size of encrypted data
+  dest			- buffer to place decrypted data (must be large enough)
+  key			- Key to be used for decryption
+  kel_length		- Length of the key. Will handle keys of any length
+
+  returns  - size of original data, or negative in case of error.
+*/
+int my_aes_decrypt_cbc(const char* source, ulint source_length,
+					char* dest, ulint *dest_length,
+					const char* key, uint8 key_length,
+					const char* iv, uint8 iv_length);
 
 /*
   my_aes_decrypt	- DeCrypt buffer with AES encryption algorithm.

@@ -1,0 +1,20 @@
+--- storage/xtradb/os/os0file.cc
++++ storage/xtradb/os/os0file.cc
+@@ -3175,7 +3175,7 @@
+ 
+ 		if (fil_page_is_encrypted((byte *)buf)) {
+ //		if (page_encryption) {
+-			fil_decrypt_page(NULL, (byte *)buf, n, NULL);
++			fil_decrypt_page(NULL, (byte *)buf, n, NULL, 0);
+ 		}
+ 
+ 
+@@ -4692,7 +4692,7 @@
+ 
+ 		ut_ad(slot->page_buf2);
+ //FF
+-		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len);
++		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, 0);
+ 
+ 		/* If encryption succeeded, set up the length and buffer */
+ 		if (tmp != buf) {

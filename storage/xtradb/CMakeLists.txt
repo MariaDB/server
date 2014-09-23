@@ -337,6 +337,7 @@ SET(INNOBASE_SOURCES
 	eval/eval0proc.cc
 	fil/fil0fil.cc
         fil/fil0pagecompress.cc
+        fil/fil0pageencryption.cc
 	fsp/fsp0fsp.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc

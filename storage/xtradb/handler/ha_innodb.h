@@ -71,6 +71,8 @@ struct ha_table_option_struct
 					srv_use_atomic_writes=1.
 					Atomic writes are not used if
 					value OFF.*/
+    bool  page_encryption;     /*!< Flag for an encrypted table */
+    int  page_encryption_key;     /*!< ID of the encryption key */
 };
 
 /** The class defining a handle to an Innodb table */

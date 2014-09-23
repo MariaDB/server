@@ -620,6 +620,12 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, ULINT_UNDEFINED, 0, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
+  /* With this option the user can enable page encryption for the table */
+  HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
+
+  /* With this option the user defines the key identifier using for the encryption */
+  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, ULINT_UNDEFINED, 1, 255, 1),
+
   HA_TOPTION_END
 };
 
@@ -976,6 +982,14 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_page_compressed_trim_op_saved,     SHOW_LONGLONG},
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
+  {"num_pages_page_compression_error",
+   (char*) &export_vars.innodb_pages_page_compression_error,   SHOW_LONGLONG},
+  {"num_pages_page_encrypted",
+   (char*) &export_vars.innodb_pages_page_encrypted,   SHOW_LONGLONG},
+  {"num_pages_page_decrypted",
+   (char*) &export_vars.innodb_pages_page_decrypted,   SHOW_LONGLONG},
+  {"num_pages_page_encryption_error",
+   (char*) &export_vars.innodb_pages_page_encryption_error,   SHOW_LONGLONG},
   {"have_lz4",
   (char*) &innodb_have_lz4,                  SHOW_BOOL},
   {"have_lzo",
@@ -11360,6 +11374,8 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
+    const ulint default_encryption_key = 1;
+
 	*flags = 0;
 	*flags2 = 0;
 
@@ -11558,9 +11574,11 @@ index_bad:
 		    options->page_compressed,
 		    (ulint)options->page_compression_level == ULINT_UNDEFINED ?
 		        default_compression_level : options->page_compression_level,
-		    options->atomic_writes);
-
-	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
+            options->atomic_writes,
+            options->page_encryption,
+            (ulint)options->page_encryption_key == ULINT_UNDEFINED ?
+                    default_encryption_key : options->page_encryption_key);
+    if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
 	}
 
@@ -11594,6 +11612,24 @@ ha_innobase::check_table_options(
 	enum row_type	row_format = table->s->row_type;;
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
+    if (options->page_encryption) {
+        if (!use_tablespace) {
+            push_warning(
+                thd, Sql_condition::WARN_LEVEL_WARN,
+                HA_WRONG_CREATE_OPTION,
+                "InnoDB: PAGE_ENCRYPTION requires"
+                " innodb_file_per_table.");
+            return "PAGE_ENCRYPTION";
+        }
+        if (create_info->key_block_size) {
+            push_warning(
+                thd, Sql_condition::WARN_LEVEL_WARN,
+                HA_WRONG_CREATE_OPTION,
+                "InnoDB: PAGE_ENCRYPTION table can't have"
+                " key_block_size");
+            return "PAGE_ENCRYPTION";
+        }
+    }
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
@@ -11657,6 +11693,28 @@ ha_innobase::check_table_options(
 			return "PAGE_COMPRESSION_LEVEL";
 		}
 	}
+
+    if ((ulint)options->page_encryption_key != ULINT_UNDEFINED) {
+        if (options->page_encryption == false) {
+            push_warning(
+                thd, Sql_condition::WARN_LEVEL_WARN,
+                HA_WRONG_CREATE_OPTION,
+                "InnoDB: PAGE_ENCRYPTION_KEY requires"
+                " PAGE_ENCRYPTION");
+            return "PAGE_ENCRYPTION_KEY";
+        }
+
+        if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
+            push_warning_printf(
+                thd, Sql_condition::WARN_LEVEL_WARN,
+                HA_WRONG_CREATE_OPTION,
+                "InnoDB: invalid PAGE_ENCRYPTION_KEY = %lu."
+                " Valid values are [1..255]",
+                options->page_encryption_key);
+            return "PAGE_ENCRYPTION_KEY";
+        }
+    }
+
 
 	/* Check atomic writes requirements */
 	if (awrites == ATOMIC_WRITES_ON ||

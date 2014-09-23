@@ -85,6 +85,7 @@
 #undef SAFE_MUTEX
 #include <m_string.h>
 #include <errno.h>
+#include <stdio.h>
 
 #ifndef DBUG_OFF
 
@@ -2183,6 +2184,53 @@ const char* _db_get_func_(void)
   get_code_state_or_return NULL;
   return cs->func;
 }
+
+
+void dump_buffer(unsigned n, const unsigned char* buf) {
+#if defined(UNIV_DEBUG)
+int on_this_line = 0;
+int counter = 0;
+int cc =0;
+char ch =0;
+
+FILE* stream = stderr;
+fflush(stream);
+fprintf(stream, "%06X: ", counter);
+while (n-- > 0) {
+	fprintf(stream, "%02X ", *buf++);
+	on_this_line += 1;
+	if (on_this_line == 16 || n == 0) {
+		int i;
+		fprintf(stream, " ");
+		int cc = on_this_line;
+		if (cc != 16) {
+
+
+		for (i = on_this_line; i < 16; i++) {
+			fprintf(stream,"   " );
+		}
+		}
+		for (i = on_this_line; i > 0; i--) {
+			ch =isprint(buf[-i]) ? buf[-i] : '.';
+			fprintf(stream,"%c",ch);
+		}
+
+		fprintf(stream,"\n" );
+
+		on_this_line = 0;
+		if (n!=0) fprintf(stream, "%06X: ", ++counter);
+
+
+	} else {
+	counter++;
+	}
+}
+fprintf( stream, "\n");
+fflush(stream);
+#endif
+}
+
+
 
 #else
 
