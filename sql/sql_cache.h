@@ -294,7 +294,8 @@ public:
   ulong query_cache_size, query_cache_limit;
   /* statistics */
   ulong free_memory, queries_in_cache, hits, inserts, refused,
-    free_memory_blocks, total_blocks, lowmem_prunes;
+    free_memory_blocks, total_blocks, lowmem_prunes,
+    concurrency_refused;
 
 
 private:

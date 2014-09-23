@@ -1294,6 +1294,7 @@ Query_cache::Query_cache(ulong query_cache_limit_arg,
    query_cache_limit(query_cache_limit_arg),
    queries_in_cache(0), hits(0), inserts(0), refused(0),
    total_blocks(0), lowmem_prunes(0),
+   concurrency_refused(0),
    m_cache_status(OK),
    min_allocation_unit(ALIGN_SIZE(min_allocation_unit_arg)),
    min_result_data_size(ALIGN_SIZE(min_result_data_size_arg)),
@@ -1595,6 +1596,8 @@ def_week_frmt: %lu, in_trans: %d, autocommit: %d",
     }
     else
     {
+      // Concorrency counter
+      concurrency_refused++;
       // Another thread is processing the same query => do nothing
       refused++;
       unlock();
