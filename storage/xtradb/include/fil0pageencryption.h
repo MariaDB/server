@@ -90,8 +90,5 @@ fil_decrypt_page(
 
 void do_check_sum( ulint page_size, byte* buf);
 
-int summef(int a, int b);
-int summef2(int a, int b);
-int multiplikation(int a, int b);
 
 #endif // fil0pageencryption_h

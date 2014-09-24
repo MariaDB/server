@@ -1,19 +1,8 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (C) 2014
 
-This program is free software; you can redistribute it and/or modify it under
-the terms of the GNU General Public License as published by the Free Software
-Foundation; version 2 of the License.
-
-This program is distributed in the hope that it will be useful, but WITHOUT
-ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
-
+eperi GmbH
 *****************************************************************************/
 
 /******************************************************************//**
@@ -317,9 +306,8 @@ fil_decrypt_page(
 		;
 	}
 
-	/* Get flush lsn bytes 1..3 to determine, whether the page is PAGE_COMPRESSED and PAGE_ENCRYPTION */
 
-
+	/* flush lsn bytes 1..5 are used to store original page type, etc.*/
 
 	offset_ctrl_data = page_size - FIL_PAGE_DATA_END - FIL_PAGE_FILE_FLUSH_LSN;
 
@@ -384,6 +372,18 @@ fil_decrypt_page(
 				stringiv,
 				iv_len
 				);
+
+
+		/* If decrypt fails it means that page is corrupted or has an unknown key */
+		if (err != AES_OK) {
+			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
+					"InnoDB: but decrypt failed with error %d.\n"
+					"InnoDB: size %lu len %lu, key%d\n", err, data_size,
+					len, page_encryption_key);
+			fflush(stderr);
+			ut_error;
+		}
+
 		ut_ad(tmp_write_size == 63);
 
 		/* copy 1st part from buf to tmp_page_buf */
@@ -475,25 +475,6 @@ fil_decrypt_page(
 }
 
 
-
-
-
-int summef(int a, int b)
-{
-	return a + b;
-}
-
-int summef2(int a, int b)
-{
-	int s = (a + b)^2;
-	s = (a + b)*2;
-	return s;
-}
-
-int multiplikation(int a, int b)
-{
-	return a * b;
-}
 
 
 
