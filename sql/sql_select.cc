@@ -24706,6 +24706,11 @@ void JOIN::cache_const_exprs()
    - if there is a ref(const) access, we try to use it, too.
    - quick and ref(const) use different cost formulas, so if both are possible
       we should make a cost-based choice.
+  
+  @param  tab              JOIN_TAB with table access (is NULL for single-table
+                           UPDATE/DELETE)
+  @param  read_time OUT    Cost of reading using quick or ref(const) access.
+
 
   @return 
     true   There was a possible quick or ref access, its cost is in the OUT
