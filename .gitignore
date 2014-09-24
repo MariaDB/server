@@ -1,3 +1,6 @@
+.cproject
+.project
+Debug/*
 *-t
 *.a
 *.ctest
