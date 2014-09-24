@@ -1,5 +1,5 @@
 /*
- * johnny.cc
+ * pageenc.cc
  *
  *  Created on: 23.08.2014
  *      Author: florin
@@ -10,7 +10,7 @@ typedef unsigned char byte;
 typedef unsigned long int ulint;
 typedef unsigned long int ibool;
 
-#include "johnny-t.h"
+#include "pageenc-t.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -52,19 +52,7 @@ fil_decrypt_page(
 
 
 
-johnny::johnny() {
-	printf("%s, %d\n", "johnny summef2(int a, int b)", summef2(9, 9));
 
-}
-
-johnny::johnny(int a, int b) {
-	printf("%s, %d\n", "johnny multiplikation(int a, int b)", multiplikation(a, b));
-
-}
-
-johnny::~johnny() {
-	// TODO Auto-generated destructor stub
-}
 
 
 
@@ -99,10 +87,7 @@ void testIt(char* filename, ulint cmp_checksum) {
 		b = 8;
 	}
 	ulint i = memcmp(buf + a,dest +a, 16384 - (a+b));
-	if (i!=0) {
-		fprintf(stderr,"falsch");
-		fflush(stderr);
-	}
+
 	char str[80];
 	strcpy (str,"File ");
 	strcat (str,filename );

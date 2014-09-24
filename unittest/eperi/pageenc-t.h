@@ -9,11 +9,4 @@
 #define JOHNNY_H_
 
 
-class johnny {
-public:
-	johnny();
-	johnny(int a, int b);
-	virtual ~johnny();
-};
-
 #endif /* JOHNNY_H_ */
