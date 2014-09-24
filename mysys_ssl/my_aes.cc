@@ -24,6 +24,8 @@
 #elif defined(HAVE_OPENSSL)
 #include <openssl/aes.h>
 #include <openssl/evp.h>
+#include <openssl/buffer.h>
+#include <openssl/conf.h>
 
 // Wrap C struct, to ensure resources are released.
 struct MyCipherCtx
@@ -109,15 +111,34 @@ static int my_aes_create_key(const char *key, int key_length, uint8 *rkey)
  	 @param iv_length [in]  Size of destination array.
  */
 void
-my_aes_hexToUint(const char* iv, unsigned char *dest, int dest_length)
+my_aes_hexToUint(const char* in, unsigned char *out, int dest_length)
 {
-	const char *pos = iv;
+	const char *pos = in;
 	int count = 0;
 	for(count = 0; count < dest_length; count++)
 	{
-		sscanf(pos, "%2hhx", &dest[count]);
+		sscanf(pos, "%2hhx", &out[count]);
 		pos += 2 * sizeof(char);
 	}
+}
+
+
+/**
+ * Calculate key and iv from a given salt and secret as it is handled in openssl encrypted files via console
+ *
+ * SYNOPSIS
+ * 	my_Bytes_To_Key()
+ * 	@param salt   [in]  the given salt as extracted from the encrypted file
+ * 	@param secret [in]  the given secret as String, provided by the user
+ * 	@param key    [out] 32 Bytes of key are written to this pointer
+ * 	@param iv     [out] 16 Bytes of iv are written to this pointer
+ */
+void
+my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key, unsigned char *iv)
+{
+	const EVP_CIPHER *type = EVP_aes_256_cbc();
+	const EVP_MD *digest = EVP_sha1();
+	EVP_BytesToKey(type, digest, salt, (unsigned char*) secret, strlen(secret), 1, key, iv);
 }
 
 /**
@@ -138,18 +159,13 @@ my_aes_hexToUint(const char* iv, unsigned char *dest, int dest_length)
 
 int my_aes_encrypt_cbc(const char* source, ulint source_length,
 					char* dest, ulint *dest_length,
-					const char* key, uint8 key_length,
-					const char* iv, uint8 iv_length)
+					const unsigned char* key, uint8 key_length,
+					const unsigned char* iv, uint8 iv_length)
 {
 #if defined(HAVE_OPENSSL)
   MyCipherCtx ctx;
   int u_len, f_len;
   /* The real key to be used for encryption */
-  unsigned char rkey[key_length];
-  my_aes_hexToUint(key, rkey, key_length);
-
-  unsigned char riv[iv_length];
-  my_aes_hexToUint(iv, riv, iv_length);
   const EVP_CIPHER* cipher;
   switch(key_length) {
   	  case 16:
@@ -167,9 +183,9 @@ int my_aes_encrypt_cbc(const char* source, ulint source_length,
   //Initialize Encryption Engine here, default software Engine is default
   ENGINE *engine = NULL;
 
-  if (! EVP_EncryptInit_ex(&ctx.ctx, cipher, engine, rkey, riv))
+  if (! EVP_EncryptInit_ex(&ctx.ctx, cipher, engine, key, iv))
     return AES_BAD_DATA;                        /* Error */
-  int test = EVP_CIPHER_CTX_key_length(&ctx.ctx);
+  EVP_CIPHER_CTX_key_length(&ctx.ctx);
   OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
   OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
   OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
@@ -186,19 +202,12 @@ int my_aes_encrypt_cbc(const char* source, ulint source_length,
 
 int my_aes_decrypt_cbc(const char* source, ulint source_length,
 					char* dest, ulint *dest_length,
-					const char* key, uint8 key_length,
-					const char* iv, uint8 iv_length)
+					const unsigned char* key, uint8 key_length,
+					const unsigned char* iv, uint8 iv_length)
 {
 #if defined(HAVE_OPENSSL)
   MyCipherCtx ctx;
   int u_len, f_len;
-
-  /* The real key to be used for decryption */
-  unsigned char rkey[key_length];
-    my_aes_hexToUint(key, rkey, key_length);
-
-  unsigned char riv[iv_length];
-  my_aes_hexToUint(iv, riv, iv_length);
 
   const EVP_CIPHER* cipher;
     switch(key_length) {
@@ -217,7 +226,7 @@ int my_aes_decrypt_cbc(const char* source, ulint source_length,
     //Initialize Encryption Engine here, default software Engine is default
     ENGINE *engine = NULL;
 
-    if (! EVP_DecryptInit_ex(&ctx.ctx, cipher, engine, rkey, riv))
+    if (! EVP_DecryptInit_ex(&ctx.ctx, cipher, engine, key, iv))
     	return AES_BAD_DATA;                        /* Error */
     OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
 	OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
@@ -225,8 +234,10 @@ int my_aes_decrypt_cbc(const char* source, ulint source_length,
     if (! EVP_DecryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
                           (unsigned char *)source, source_length))
     	return AES_BAD_DATA;                        /* Error */
-    if (! EVP_DecryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
-    	return AES_BAD_DATA;                        /* Error */
+    if (! EVP_DecryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len)) {
+    	*dest_length = (ulint) u_len;
+    	return AES_BAD_DATA;
+    }
     *dest_length = (ulint) (u_len + f_len);
 #endif
     return AES_OK;

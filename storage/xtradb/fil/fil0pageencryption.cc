@@ -74,7 +74,7 @@ fil_encrypt_page(
 	ulint write_size = 0;
 	ib_uint64_t flush_lsn = 0;
 	ib_uint32_t checksum = 0;
-	ulint page_compressed = 0;
+
 	ulint offset_ctrl_data = 0;
 	fil_space_t* space = NULL;
 	byte* tmp_buf;
@@ -135,36 +135,22 @@ fil_encrypt_page(
 	checksum = fil_page_encryption_calc_checksum(buf + header_len, page_size - (FIL_PAGE_DATA_END + header_len));
 
 
-	char *stringkey = "BDE472A295675CA92E0467EADBC0E023";
+	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
+			0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23};
 	uint8 key_len = 16;
-	char *stringiv = "2D1AF8D3974E0BD3EFED5A6F82594F5E";
+	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
+		0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
 	uint8 iv_len = 16;
 
-
-		//AES_KEY aeskey;
-		//AES_set_encrypt_key(hexkey, key_len*8, &aeskey);
-		//AES_cbc_encrypt((uchar*)buf +header_len + offset, (uchar *)out_buf + header_len, data_size-offset, &aeskey, iv, AES_ENCRYPT);
-		write_size = data_size;
-		/*
-		err = my_aes_encrypt_cbc((char*)buf + header_len + offset,
-					data_size - offset,
-					(char *) out_buf + header_len,
-					&write_size,
-					stringkey,
-					key_len,
-					stringiv,
-					iv_len);
-
-*/
-
+	write_size = data_size;
 	/* 1st encryption: data_size -1 bytes starting from FIL_PAGE_DATA */
-	err = my_aes_encrypt_cbc((char*)buf +header_len,
+	err = my_aes_encrypt_cbc((char*)buf + header_len,
 			data_size-1,
 			(char *)out_buf + header_len,
 			&write_size,
-			stringkey,
+			(const unsigned char *)&rkey,
 			key_len,
-			stringiv,
+			(const unsigned char *)&iv,
 			iv_len);;
 
 	ut_ad(write_size == data_size);
@@ -182,9 +168,9 @@ fil_encrypt_page(
 				63,
 				(char*)tmp_buf,
 				&write_size,
-				stringkey,
+				(const unsigned char *)&rkey,
 				key_len,
-				stringiv,
+				(const unsigned char *)&iv,
 				iv_len);
 	ut_ad(write_size == 64);
 	//AES_cbc_encrypt((uchar*)out_buf + page_size -FIL_PAGE_DATA_END -62, tmp_buf, 63, &aeskey, iv, AES_ENCRYPT);
@@ -284,13 +270,11 @@ fil_decrypt_page(
 	ulint data_size = 0;
 	ulint page_size = UNIV_PAGE_SIZE;
 	ulint orig_page_type=0;
-	ulint remaining_bytes = 0;
+
 
 	ulint header_len = FIL_PAGE_DATA;
 	ulint remainder = 0;
-	ulint offset = 1;
 	ulint offset_ctrl_data = 0;
-	ulint flush_lsn = 0;
 	ulint page_compressed = 0;
 	ulint checksum = 0;
 	ulint stored_checksum = 0;
@@ -365,11 +349,14 @@ fil_decrypt_page(
 	tmp_buf= static_cast<byte *>(ut_malloc(64));
 	tmp_page_buf = static_cast<byte *>(ut_malloc(page_size));
 	memset(tmp_page_buf,0, page_size);
-		char *stringkey = "BDE472A295675CA92E0467EADBC0E023";
+		const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
+					0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23};
 		uint8 key_len = 16;
 
-		char *stringiv = "2D1AF8D3974E0BD3EFED5A6F82594F5E";
+		const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
+				0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
 		uint8 iv_len = 16;
+
 
 		/* 1st decryption: 64 bytes */
 		/* 62 bytes from data area and 2 bytes from header are copied to temporary buffer */
@@ -379,9 +366,9 @@ fil_decrypt_page(
 				64,
 				(char *) tmp_page_buf + page_size -FIL_PAGE_DATA_END -62,
 				&tmp_write_size,
-				stringkey,
+				(const unsigned char *)&rkey,
 				key_len,
-				stringiv,
+				(const unsigned char *)&iv,
 				iv_len
 				);
 		ut_ad(tmp_write_size == 63);
@@ -397,9 +384,9 @@ fil_decrypt_page(
 				data_size,
 				(char *) in_buf + FIL_PAGE_DATA,
 				&tmp_write_size,
-				stringkey,
+				(const unsigned char *)&rkey,
 				key_len,
-				stringiv,
+				(const unsigned char *)&iv,
 				iv_len
 				);
 		ut_ad(tmp_write_size = data_size-1);
