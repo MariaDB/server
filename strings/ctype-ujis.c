@@ -203,10 +203,10 @@ static uint mbcharlen_ujis(CHARSET_INFO *cs __attribute__((unused)),uint c)
 
 /*
   EUC-JP encoding subcomponents:
-  [x00-x7F]			# ASCII/JIS-Roman (one-byte/character)  
-  [x8E][xA0-xDF]		# half-width katakana (two bytes/char)  
-  [x8F][xA1-xFE][xA1-xFE]	# JIS X 0212-1990 (three bytes/char)  
-  [xA1-xFE][xA1-xFE]		# JIS X 0208:1997 (two bytes/char)
+  [x00-x7F]                        # ASCII/JIS-Roman (one-byte/character)  
+  [x8E][xA1-xDF]                   # half-width katakana (two bytes/char)  
+  [x8F][xA1-xFE][xA1-xFE]          # JIS X 0212-1990 (three bytes/char)  
+  [xA1-xFE][xA1-xFE]               # JIS X 0208:1997 (two bytes/char)
 */
 
 static
@@ -231,15 +231,15 @@ size_t my_well_formed_len_ujis(CHARSET_INFO *cs __attribute__((unused)),
       return (size_t) (chbeg - beg);            /* unexpected EOL  */ 
     }
     
-    if (ch == 0x8E)                 /* [x8E][xA0-xDF] */
+    if (isujis_ss2(ch))            /* [x8E][xA1-xDF] */
     {
-      if (*b >= 0xA0 && *b <= 0xDF)
+      if (iskata(*b))
         continue;
       *error= 1;
       return (size_t) (chbeg - beg);  /* invalid sequence */
     }
     
-    if (ch == 0x8F)                 /* [x8F][xA1-xFE][xA1-xFE] */
+    if (isujis_ss3(ch))           /* [x8F][xA1-xFE][xA1-xFE] */
     {
       ch= *b++;
       if (b >= (uchar*) end)
@@ -249,8 +249,7 @@ size_t my_well_formed_len_ujis(CHARSET_INFO *cs __attribute__((unused)),
       }
     }
     
-    if (ch >= 0xA1 && ch <= 0xFE &&
-        *b >= 0xA1 && *b <= 0xFE)   /* [xA1-xFE][xA1-xFE] */
+    if (isujis(ch) && isujis(*b)) /* [xA1-xFE][xA1-xFE] */
       continue;
     *error= 1;
     return (size_t) (chbeg - beg);    /* invalid sequence */
