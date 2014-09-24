@@ -1858,14 +1858,14 @@ Query_cache::send_result_to_client(THD *thd, char *org_sql, uint query_length)
       DBUG_PRINT("qcache", ("The statement has a SQL_NO_CACHE directive"));
       goto err;
     }
-    if (thd->variables.query_cache_type==2 && !has_cache_directive(sql+6))
+    if (thd->variables.query_cache_type==3 /* DEMAND_PRUNE */ && !has_cache_directive(sql+6))
     {
       /*
         We do not increase 'refused' statistics here since it will be done
         later when the query is parsed.
       */
       DBUG_PRINT("qcache",
-                ("The statement don't have a SQL_CACHE directive when query_cache_type=DEMAND"));
+                ("The statement don't have a SQL_CACHE directive when query_cache_type=DEMAND_PRUNE"));
       goto err;
     }
   }
@@ -4126,7 +4126,8 @@ Query_cache::is_cacheable(THD *thd, LEX *lex,
 
   if (thd->lex->safe_to_cache_query &&
       (thd->variables.query_cache_type == 1 ||
-       (thd->variables.query_cache_type == 2 && (lex->select_lex.options &
+       ((thd->variables.query_cache_type == 2|| 
+         thd->variables.query_cache_type == 3) && (lex->select_lex.options &
 						 OPTION_TO_QUERY_CACHE))) &&
       qc_is_able_to_intercept_result(thd))
   {
