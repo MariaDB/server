@@ -18,13 +18,13 @@
 # Mandatory settings
 #wsrep_provider=
 #wsrep_cluster_address=
-#wsrep_slave_threads=1
 #binlog_format=row
 #default_storage_engine=InnoDB
 #innodb_autoinc_lock_mode=2
 #bind-address=0.0.0.0
 #
 # Optional setting
+#wsrep_slave_threads=1
 #innodb_flush_log_at_trx_commit=0
 
 # this is only for embedded server
