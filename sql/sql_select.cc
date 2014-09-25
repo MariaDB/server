@@ -25224,15 +25224,18 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
   return MAX_KEY;
 }
 
+
 /*
-  Count how much times conditions are true for several first rows of the table
+  Count how many times the specified conditions are true for first rows_to_read
+  rows of the table.
 
-  @param thd             thread handle
-  @param rows_to_read    how much rows to check
-  @param table           table which should be checked
-  @conds conds           list of conditions and countars for them
+  @param thd                  Thread handle
+  @param rows_to_read         How many rows to sample
+  @param table                Table to use
+  @conds conds         INOUT  List of conditions and counters for them
 
-  @return number of really checked rows or 0 in case of error or empty table
+  @return Number of we've checked. It can be equal or less than rows_to_read.
+          0 is returned for error or when the table had no rows.
 */
 
 ulong check_selectivity(THD *thd,
