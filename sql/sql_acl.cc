@@ -8687,7 +8687,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   int elements;
   const char *UNINIT_VAR(user);
   const char *UNINIT_VAR(host);
-  const char *role;
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
   ACL_DB *acl_db= NULL;
@@ -8827,7 +8826,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
       user= role_grant_pair->u_uname;
       host= role_grant_pair->u_hname;
-      role= role_grant_pair->r_uname;
       break;
 
     default:
@@ -8845,8 +8843,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
-      if (! role)
-        role= "";
+      const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
       if (user_from->is_role() ? strcmp(user_from->user.str, role) :
           (strcmp(user_from->user.str, user) ||
            my_strcasecmp(system_charset_info, user_from->host.str, host)))
