@@ -3,6 +3,8 @@
 
 [mysqld.1]
 binlog-format=row
+#galera_port=OPT.port
+#sst_port=OPT.port
 wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://'
 wsrep_provider_options='base_port=@mysqld.1.#galera_port'
@@ -12,6 +14,8 @@ wsrep_causal_reads=ON
 
 [mysqld.2]
 binlog-format=row
+#galera_port=OPT.port
+#sst_port=OPT.port
 wsrep_provider=@ENV.WSREP_PROVIDER
 wsrep_cluster_address='gcomm://127.0.0.1:@mysqld.1.#galera_port'
 wsrep_provider_options='base_port=@mysqld.2.#galera_port'

@@ -2084,7 +2084,7 @@ public:
   int is_current_stmt_binlog_format_row() const {
     DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_STMT ||
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
-    return (WSREP_FORMAT((ulong)current_stmt_binlog_format) == BINLOG_FORMAT_ROW);
+    return WSREP_FORMAT(current_stmt_binlog_format) == BINLOG_FORMAT_ROW;
   }
 
   enum binlog_filter_state
@@ -2807,7 +2807,7 @@ public:
   /* Debug Sync facility. See debug_sync.cc. */
   struct st_debug_sync_control *debug_sync_control;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  THD(bool is_applier= false);
+  THD(bool is_wsrep_applier= false);
 
   ~THD();
 

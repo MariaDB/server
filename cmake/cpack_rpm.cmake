@@ -149,8 +149,13 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "${CPACK_RPM_PACKAGE_REQUIRES}"
-  "MariaDB-client" "galera" "rsync" "lsof" "socat" "grep" "gawk" "iproute"
+  "MariaDB-client")
+
+IF(WITH_WSREP)
+SETA(CPACK_RPM_server_PACKAGE_REQUIRES
+  "galera" "rsync" "lsof" "socat" "grep" "gawk" "iproute"
   "coreutils" "findutils")
+ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
 SET(CPACK_RPM_server_PRE_UNINSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-preun.sh)

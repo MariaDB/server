@@ -3967,9 +3967,6 @@ bool key_uses_partial_cols(TABLE_SHARE *table, uint keyno);
 extern const char *ha_row_type[];
 extern MYSQL_PLUGIN_IMPORT const char *tx_isolation_names[];
 extern MYSQL_PLUGIN_IMPORT const char *binlog_format_names[];
-#ifdef WITH_WSREP
-extern MYSQL_PLUGIN_IMPORT const char *wsrep_binlog_format_names[];
-#endif /* WITH_WSREP */
 extern TYPELIB tx_isolation_typelib;
 extern const char *myisam_stats_method_names[];
 extern ulong total_ha, total_ha_2pc;
@@ -4091,7 +4088,9 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv);
 #ifdef WITH_WSREP
 int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
 void ha_fake_trx_id(THD *thd);
-#endif /* WITH_WSREP */
+#else
+inline void ha_fake_trx_id(THD *thd) { }
+#endif
 
 /* these are called by storage engines */
 void trans_register_ha(THD *thd, bool all, handlerton *ht);
@@ -4121,9 +4120,6 @@ int ha_binlog_end(THD *thd);
 #define ha_binlog_log_query(a,b,c,d,e,f,g) do {} while (0)
 #define ha_binlog_wait(a) do {} while (0)
 #define ha_binlog_end(a)  do {} while (0)
-#endif
-#ifdef WITH_WSREP
-void wsrep_brute_force_aborts();
 #endif
 
 const char *get_canonical_filename(handler *file, const char *path,

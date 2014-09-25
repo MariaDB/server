@@ -646,8 +646,7 @@ cleanup:
   /* See similar binlogging code in sql_update.cc, for comments */
   if ((error < 0) || thd->transaction.stmt.modified_non_trans_table)
   {
-    if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-		mysql_bin_log.is_open()))
+    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= 0;
       if (error < 0)
@@ -1114,8 +1113,7 @@ void multi_delete::abort_result_set()
     /*
        there is only side effects; to binlog with the error
     */
-    if (IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-		 mysql_bin_log.is_open()))
+    if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
       /* possible error of writing binary log is ignored deliberately */
@@ -1291,8 +1289,7 @@ bool multi_delete::send_eof()
   }
   if ((local_error == 0) || thd->transaction.stmt.modified_non_trans_table)
   {
-    if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-		mysql_bin_log.is_open()))
+    if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
     {
       int errcode= 0;
       if (local_error == 0)

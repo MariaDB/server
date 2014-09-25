@@ -15,14 +15,15 @@
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifdef WITH_WSREP
+#include "my_config.h"
 
 #if defined(HAVE_YASSL)
-#include "my_config.h"
 #include "md5.hpp"
 #elif defined(HAVE_OPENSSL)
 #include <openssl/md5.h>
 #endif /* HAVE_YASSL */
+
+#ifdef WITH_WSREP
 
 /* Initialize md5 object. */
 void *wsrep_md5_init()

@@ -412,12 +412,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
   {
     bool hton_can_recreate;
 
-#ifdef WITH_WSREP
-    if (WSREP(thd) && wsrep_to_isolation_begin(thd, 
-                                                table_ref->db, 
-                                                table_ref->table_name, NULL))
+    if (WSREP(thd) &&
+        wsrep_to_isolation_begin(thd, table_ref->db, table_ref->table_name, 0))
         DBUG_RETURN(TRUE);
-#endif /* WITH_WSREP */
     if (lock_table(thd, table_ref, &hton_can_recreate))
       DBUG_RETURN(TRUE);
 

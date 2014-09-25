@@ -642,6 +642,12 @@
 #cmakedefine SIZEOF_TIME_T @SIZEOF_TIME_T@
 #cmakedefine TIME_T_UNSIGNED @TIME_T_UNSIGNED@
 
+#ifndef EMBEDDED_LIBRARY
+#cmakedefine WSREP_INTERFACE_VERSION "@WSREP_INTERFACE_VERSION@"
+#cmakedefine WITH_WSREP 1
+#cmakedefine WSREP_PROC_INFO 1
+#endif
+
 #ifdef _AIX
 /*
   AIX includes inttypes.h from sys/types.h

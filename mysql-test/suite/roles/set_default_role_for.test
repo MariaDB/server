@@ -44,13 +44,13 @@ set default role role_b for user_b@localhost;
 change_user 'user_a';
 
 show grants;
-select user, host, default_role from mysql.user where user like 'user_%' order by user;
+select user, host, default_role from mysql.user where user like 'user_%';
 
 set default role NONE for current_user;
-select user, host, default_role from mysql.user where user like 'user_%' order by user;
+select user, host, default_role from mysql.user where user like 'user_%';
 
 set default role current_role for current_user;
-select user, host, default_role from mysql.user where user like 'user_%' order by user;
+select user, host, default_role from mysql.user where user like 'user_%';
 
 # Make sure we can't set a default role not granted to us, using current_user
 --error ER_INVALID_ROLE
@@ -60,7 +60,7 @@ change_user 'user_b';
 
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
-select user, host, default_role from mysql.user where user like 'user_%' order by user;
+select user, host, default_role from mysql.user where user like 'user_%';
 
 # Make sure the default role setting worked from root.
 insert into mysql.user (user, host) values ('someuser', 'somehost');
@@ -73,12 +73,12 @@ change_user 'user_a';
 # There is no default role set any more.
 show grants;
 --error ER_TABLEACCESS_DENIED_ERROR
-select user, host, default_role from mysql.user where user like 'user_%' order by user;
+select user, host, default_role from mysql.user where user like 'user_%';
 
 change_user 'root';
 
 drop role role_a;
 drop role role_b;
-delete from mysql.user where user = 'someuser' && host = 'somehost' order by user;
+delete from mysql.user where user = 'someuser' && host = 'somehost';
 drop user user_a@localhost;
 drop user user_b@localhost;

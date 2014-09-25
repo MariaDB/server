@@ -4621,12 +4621,10 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
       if (!sql_slave_killed(serial_rgi))
       {
         slave_output_error_info(rli, thd);
-#ifdef WITH_WSREP
         if (WSREP_ON && rli->last_error().number == ER_UNKNOWN_COM_ERROR)
         {
 	  wsrep_node_dropped= TRUE;
 	}
-#endif /* WITH_WSREP */
       }
       goto err;
     }

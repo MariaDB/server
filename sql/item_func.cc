@@ -2771,12 +2771,13 @@ void Item_func_rand::seed_random(Item *arg)
   */
   uint32 tmp;
 #ifdef WITH_WSREP
-  if (WSREP(current_thd))
+  THD *thd= current_thd;
+  if (WSREP(thd))
   {
-    if (current_thd->wsrep_exec_mode==REPL_RECV)
-      tmp= current_thd->wsrep_rand;
+    if (thd->wsrep_exec_mode==REPL_RECV)
+      tmp= thd->wsrep_rand;
     else
-      tmp= current_thd->wsrep_rand= (uint32) arg->val_int();
+      tmp= thd->wsrep_rand= (uint32) arg->val_int();
    }
   else
 #endif /* WITH_WSREP */

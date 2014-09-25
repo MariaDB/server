@@ -1014,8 +1014,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         thd->transaction.stmt.modified_non_trans_table ||
 	was_insert_delayed)
     {
-      if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-                  mysql_bin_log.is_open()))
+      if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
       {
         int errcode= 0;
 	if (error <= 0)
@@ -3197,12 +3196,10 @@ bool Delayed_insert::handle_inserts(void)
     }
   }
 
-#ifdef WITH_WSREP
   if (WSREP((&thd)))
     thd_proc_info(&thd, "insert done");
   else
-#endif /* WITH_WSREP */
-  thd_proc_info(&thd, 0);
+    thd_proc_info(&thd, 0);
   mysql_mutex_unlock(&mutex);
 
   /*
@@ -3687,9 +3684,8 @@ bool select_insert::send_eof()
     events are in the transaction cache and will be written when
     ha_autocommit_or_rollback() is issued below.
   */
-  if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-              mysql_bin_log.is_open()) &&
-     (!error || thd->transaction.stmt.modified_non_trans_table))
+  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
+      (!error || thd->transaction.stmt.modified_non_trans_table))
   {
     int errcode= 0;
     if (!error)
@@ -3773,8 +3769,7 @@ void select_insert::abort_result_set() {
         if (!can_rollback_data())
           thd->transaction.all.modified_non_trans_table= TRUE;
 
-        if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-		    mysql_bin_log.is_open()))
+        if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
         {
           int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
           /* error of writing binary log is ignored */
@@ -4182,8 +4177,7 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                             create_info->table_was_deleted);
   DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
 
-  if(IF_WSREP((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()),
-	      mysql_bin_log.is_open()))
+  if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,
@@ -4194,7 +4188,7 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               errcode);
   }
 
-  IF_WSREP(ha_fake_trx_id(thd), );
+  ha_fake_trx_id(thd);
 
   return result;
 }

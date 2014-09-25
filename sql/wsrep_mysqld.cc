@@ -47,9 +47,6 @@ my_bool wsrep_preordered_opt= FALSE;
  * Begin configuration options and their default values
  */
 
-extern int wsrep_replaying;
-extern ulong wsrep_running_threads;
-extern ulong my_bind_addr;
 extern my_bool plugins_are_initialized;
 extern uint kill_cached_threads;
 extern mysql_cond_t COND_thread_cache;
@@ -91,6 +88,63 @@ my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 /*
  * Other wsrep global variables.
  */
+
+mysql_mutex_t LOCK_wsrep_ready;
+mysql_cond_t  COND_wsrep_ready;
+mysql_mutex_t LOCK_wsrep_sst;
+mysql_cond_t  COND_wsrep_sst;
+mysql_mutex_t LOCK_wsrep_sst_init;
+mysql_cond_t  COND_wsrep_sst_init;
+mysql_mutex_t LOCK_wsrep_rollback;
+mysql_cond_t  COND_wsrep_rollback;
+wsrep_aborting_thd_t wsrep_aborting_thd= NULL;
+mysql_mutex_t LOCK_wsrep_replaying;
+mysql_cond_t  COND_wsrep_replaying;
+mysql_mutex_t LOCK_wsrep_slave_threads;
+mysql_mutex_t LOCK_wsrep_desync;
+int wsrep_replaying= 0;
+ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
+ulong  my_bind_addr;
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
+  key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
+  key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
+  key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync;
+
+PSI_cond_key key_COND_wsrep_rollback, key_COND_wsrep_thd,
+  key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
+  key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
+
+static PSI_mutex_info wsrep_mutexes[]=
+{
+  { &key_LOCK_wsrep_ready, "LOCK_wsrep_ready", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_sst_thread, "wsrep_sst_thread", 0},
+  { &key_LOCK_wsrep_sst_init, "LOCK_wsrep_sst_init", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_rollback, "LOCK_wsrep_rollback", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
+  { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL}
+};
+
+static PSI_cond_info wsrep_conds[]=
+{
+  { &key_COND_wsrep_ready, "COND_wsrep_ready", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_sst, "COND_wsrep_sst", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
+  { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
+  { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
+};
+#else
+#define mysql_mutex_register(X,Y,Z)
+#define mysql_cond_register(X,Y,Z)
+#endif
+
 my_bool wsrep_inited                   = 0; // initialized ?
 
 static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
@@ -517,6 +571,24 @@ int wsrep_init()
   int rcode= -1;
   DBUG_ASSERT(wsrep_inited == 0);
 
+  wsrep_causal_reads_update(&global_system_variables);
+
+  mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
+  mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
+
+  mysql_mutex_init(key_LOCK_wsrep_ready, &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_ready, &COND_wsrep_ready, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_sst, &LOCK_wsrep_sst, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_sst, &COND_wsrep_sst, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_sst_init, &LOCK_wsrep_sst_init, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_sst_init, &COND_wsrep_sst_init, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_rollback, &LOCK_wsrep_rollback, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_rollback, &COND_wsrep_rollback, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_replaying, &LOCK_wsrep_replaying, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
+
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
 
@@ -747,6 +819,19 @@ void wsrep_deinit(bool free_options)
   {
     wsrep_sst_auth_free();
   }
+
+  mysql_mutex_destroy(&LOCK_wsrep_ready);
+  mysql_cond_destroy(&COND_wsrep_ready);
+  mysql_mutex_destroy(&LOCK_wsrep_sst);
+  mysql_cond_destroy(&COND_wsrep_sst);
+  mysql_mutex_destroy(&LOCK_wsrep_sst_init);
+  mysql_cond_destroy(&COND_wsrep_sst_init);
+  mysql_mutex_destroy(&LOCK_wsrep_rollback);
+  mysql_cond_destroy(&COND_wsrep_rollback);
+  mysql_mutex_destroy(&LOCK_wsrep_replaying);
+  mysql_cond_destroy(&COND_wsrep_replaying);
+  mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
+  mysql_mutex_destroy(&LOCK_wsrep_desync);
 }
 
 void wsrep_recover()
@@ -2007,7 +2092,7 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
     sp_returns_type(thd, retstr, sp);
   }
 
-  if (!create_string(thd, &log_query,
+  if (!show_create_sp(thd, &log_query,
                      sp->m_type,
                      (sp->m_explicit_name ? sp->m_db.str : NULL),
                      (sp->m_explicit_name ? sp->m_db.length : 0),
@@ -2235,23 +2320,6 @@ wsrep_trx_is_aborting(void *thd_ptr)
 		}
 	}
 	return 0;
-}
-
-
-my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
-{
-  int opt_readonly_saved = opt_readonly;
-  ulong flag_saved = (ulong)(thd->security_ctx->master_access & SUPER_ACL);
-
-  opt_readonly = 0;
-  thd->security_ctx->master_access &= ~SUPER_ACL;
-
-  my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
-
-  opt_readonly = opt_readonly_saved;
-  thd->security_ctx->master_access |= flag_saved;
-
-  return ret;
 }
 
 

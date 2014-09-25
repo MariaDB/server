@@ -3,7 +3,7 @@
 
 --source include/have_wsrep.inc
 
---require r/have_wsrep.require
-disable_query_log;
-SHOW VARIABLES LIKE 'wsrep_on';
-enable_query_log;
+if (`SELECT COUNT(*)=0 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'wsrep_on' AND VARIABLE_VALUE='ON'`)
+{
+  --skip Test requires wsrep_on=ON
+}

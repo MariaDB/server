@@ -1939,11 +1939,10 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
 #endif /* WITH_WSREP */
         }
       }
-      if ((ticket == NULL) && IF_WSREP(wsrep_can_grant, 1))
+      if ((ticket == NULL) && wsrep_can_grant)
         can_grant= TRUE; /* Incompatible locks are our own. */
     }
   }
-#ifdef WITH_WSREP
   else
   {
     if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()), false) &&
@@ -1955,7 +1954,6 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
       can_grant = true;
     }
   }
-#endif /* WITH_WSREP */
   return can_grant;
 }
 
@@ -3310,7 +3308,6 @@ void MDL_context::set_transaction_duration_for_all_locks()
 }
 
 
-#ifdef WITH_WSREP
 
 void MDL_context::release_explicit_locks()
 {
@@ -3318,6 +3315,7 @@ void MDL_context::release_explicit_locks()
 }
 
 
+#ifdef WITH_WSREP
 void MDL_ticket::wsrep_report(bool debug)
 {
   if (debug)

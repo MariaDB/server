@@ -52,7 +52,6 @@ datadir=
 # 0 means don't wait at all
 # Negative numbers mean to wait indefinitely
 service_startup_timeout=900
-startup_sleep=1
 
 # Lock directory for RedHat / SuSE.
 lockdir='/var/lock/subsys'
@@ -254,8 +253,6 @@ wait_for_gone () {
 
 wait_for_ready () {
 
-  sst_progress_file=$datadir/sst_in_progress
-
   i=0
   while test $i -ne $service_startup_timeout ; do
 
@@ -264,14 +261,9 @@ wait_for_ready () {
       return 0
     fi
 
-    if test -e $sst_progress_file && [ $startup_sleep -ne 10 ];then
-      echo $echo_n "SST in progress, setting sleep intervals to 10 seconds"
-      startup_sleep=10
-    fi
-
     echo $echo_n ".$echo_c"
     i=`expr $i + 1`
-    sleep $startup_sleep
+    sleep 1
 
   done
 

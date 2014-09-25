@@ -60,28 +60,24 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   return false;
 }
 
-bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
+bool wsrep_causal_reads_update (SV *sv)
 {
-  // global setting should not affect session setting.
-  // if (var_type == OPT_GLOBAL) {
-  //   thd->variables.wsrep_causal_reads = global_system_variables.wsrep_causal_reads;
-  // }
-  if (thd->variables.wsrep_causal_reads) {
-    thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
+  if (sv->wsrep_causal_reads) {
+    sv->wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
   } else {
-    thd->variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
+    sv->wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
   return false;
 }
 
 bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
 {
-  // global setting should not affect session setting.
-  // if (var_type == OPT_GLOBAL) {
-  //   thd->variables.wsrep_sync_wait = global_system_variables.wsrep_sync_wait;
-  // }
-  thd->variables.wsrep_causal_reads = thd->variables.wsrep_sync_wait &
-          WSREP_SYNC_WAIT_BEFORE_READ;
+  if (var_type == OPT_GLOBAL)
+    global_system_variables.wsrep_causal_reads =
+      MY_TEST(global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ);
+  else
+    thd->variables.wsrep_causal_reads =
+      MY_TEST(thd->variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ);
   return false;
 }
 
@@ -589,14 +585,21 @@ int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
   export_wsrep_status_to_mysql(thd);
   var->type= SHOW_ARRAY;
   var->value= (char *) &mysql_status_vars;
+#if 0
+  {"wsrep_connected",          (char*) &wsrep_connected,         SHOW_BOOL},
+  {"wsrep_ready",              (char*) &wsrep_ready,             SHOW_BOOL},
+  {"wsrep_cluster_state_uuid", (char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
+  {"wsrep_cluster_conf_id",    (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
+  {"wsrep_cluster_status",     (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
+  {"wsrep_cluster_size",       (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
+  {"wsrep_local_index",        (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
+  {"wsrep_local_bf_aborts",    (char*) &wsrep_show_bf_aborts,    SHOW_SIMPLE_FUNC},
+  {"wsrep_provider_name",      (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
+  {"wsrep_provider_version",   (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
+  {"wsrep_provider_vendor",    (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
+  {"wsrep_thread_count",       (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
+  {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
+#endif
   return 0;
 }
 
-void wsrep_free_status (THD* thd)
-{
-  if (thd->wsrep_status_vars)
-  {
-    wsrep->stats_free (wsrep, thd->wsrep_status_vars);
-    thd->wsrep_status_vars = 0;
-  }
-}

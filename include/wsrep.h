@@ -13,8 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include <my_config.h>
+
 #ifndef WSREP_INCLUDED
-#define WSERP_INCLUDED
+#define WSREP_INCLUDED
 
 #ifdef WITH_WSREP
 #define IF_WSREP(A,B) A

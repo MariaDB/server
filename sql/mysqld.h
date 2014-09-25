@@ -242,11 +242,6 @@ extern PSI_mutex_key key_PAGE_lock, key_LOCK_sync, key_LOCK_active,
        key_LOCK_pool, key_LOCK_pending_checkpoint;
 #endif /* HAVE_MMAP */
 
-#ifdef WITH_WSREP
-extern PSI_mutex_key key_LOCK_wsrep_thd;
-extern PSI_cond_key  key_COND_wsrep_thd;
-#endif /* WITH_WSREP */
-
 #ifdef HAVE_OPENSSL
 extern PSI_mutex_key key_LOCK_des_key_file;
 #endif
@@ -604,15 +599,8 @@ enum options_mysqld
   OPT_WANT_CORE,
   OPT_MYSQL_COMPATIBILITY,
   OPT_MYSQL_TO_BE_IMPLEMENTED,
-#ifdef WITH_WSREP
-  OPT_WSREP_PROVIDER,
-  OPT_WSREP_PROVIDER_OPTIONS,
-  OPT_WSREP_CLUSTER_ADDRESS,
   OPT_WSREP_START_POSITION,
   OPT_WSREP_SST_AUTH,
-  OPT_WSREP_RECOVER,
-#endif /* WITH_WSREP */
-
   OPT_which_is_always_the_last
 };
 #endif

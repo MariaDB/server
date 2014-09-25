@@ -388,15 +388,6 @@ const char *ha_partition::table_type() const
 }
 
 
-#if defined(WITH_WSREP) && !defined(EMBEDDED_LIBRARY)
-int ha_partition::wsrep_db_type() const
-{ 
-  // we can do this since we only support a single engine type
-  return partition_ht()->db_type;
-}
-#endif /* WITH_WSREP && !EMBEDDED_LIBRARY */
-
-
 /*
   Destructor method
 

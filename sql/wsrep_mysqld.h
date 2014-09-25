@@ -15,8 +15,10 @@
 
 #include <wsrep.h>
 
-#if !defined(WSREP_MYSQLD_H) && defined(WITH_WSREP)
+#ifndef WSREP_MYSQLD_H
 #define WSREP_MYSQLD_H
+
+#ifdef WITH_WSREP
 
 typedef struct st_mysql_show_var SHOW_VAR;
 #include <sql_priv.h>
@@ -138,7 +140,6 @@ extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
-void wsrep_free_status(THD *thd);
 
 /* Filters out --wsrep-new-cluster oprtion from argv[]
  * should be called in the very beginning of main() */
@@ -219,11 +220,11 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 // MySQL logging functions don't seem to understand long long length modifer.
 // This is a workaround. It also prefixes all messages with "WSREP"
 #define WSREP_LOG(fun, ...)                                       \
-    {                                                             \
+    do {                                                          \
         char msg[1024] = {'\0'};                                  \
         snprintf(msg, sizeof(msg) - 1, ## __VA_ARGS__);           \
         fun("WSREP: %s", msg);                                    \
-    }
+    } while(0)
 
 #define WSREP_LOG_CONFLICT_THD(thd, role)                                      \
     WSREP_LOG(sql_print_information, 	                                       \
@@ -298,6 +299,8 @@ extern my_bool       wsrep_preordered_opt;
 extern handlerton    *wsrep_hton;
 
 #ifdef HAVE_PSI_INTERFACE
+extern PSI_mutex_key key_LOCK_wsrep_thd;
+extern PSI_cond_key  key_COND_wsrep_thd;
 extern PSI_mutex_key key_LOCK_wsrep_ready;
 extern PSI_mutex_key key_COND_wsrep_ready;
 extern PSI_mutex_key key_LOCK_wsrep_sst;
@@ -356,7 +359,6 @@ void wsrep_wait_appliers_close(THD *thd);
 void wsrep_kill_mysql(THD *thd);
 void wsrep_close_threads(THD *thd);
 int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len);
-my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables);
 void wsrep_copy_query(THD *thd);
 bool wsrep_is_show_query(enum enum_sql_command command);
 void wsrep_replay_transaction(THD *thd);
@@ -365,6 +367,32 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
 	                     HA_CREATE_INFO *create_info);
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 
-extern my_bool deny_updates_if_read_only_option(THD *thd,
-	TABLE_LIST *all_tables);
+#else /* WITH_WSREP */
+
+#define WSREP(T)  (0)
+#define WSREP_ON  (0)
+#define WSREP_EMULATE_BINLOG(thd) (0)
+#define WSREP_CLIENT(thd) (0)
+#define wsrep_emulate_bin_log (0)
+#define wsrep_xid_seqno(X) (0)
+#define wsrep_is_wsrep_xid(X) (0)
+#define wsrep_to_isolation (0)
+#define wsrep_recovery (0)
+#define wsrep_init() (1)
+#define wsrep_prepend_PATH(X)
+#define wsrep_before_SE() (0)
+#define wsrep_init_startup(X)
+#define wsrep_sync_wait(...) (0)
+#define wsrep_to_isolation_begin(...) (0)
+#define wsrep_register_hton(...) do { } while(0)
+#define wsrep_post_commit(...) do { } while(0)
+#define wsrep_check_opts() (0)
+#define wsrep_stop_replication(X) do { } while(0)
+#define wsrep_inited (0)
+#define wsrep_deinit(X) do { } while(0)
+#define wsrep_filter_new_cluster(X,Y) do { } while(0)
+#define wsrep_recover() do { } while(0)
+#define wsrep_slave_threads (1)
+
+#endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */

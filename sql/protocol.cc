@@ -489,7 +489,7 @@ static uchar *net_store_length_fast(uchar *packet, uint length)
 void Protocol::end_statement()
 {
   /* sanity check*/
-  DBUG_ASSERT_IF_WSREP(!(WSREP_ON && WSREP(thd) && thd->wsrep_conflict_state == REPLAYING));
+  DBUG_ASSERT_IF_WSREP(!(WSREP(thd) && thd->wsrep_conflict_state == REPLAYING));
   DBUG_ENTER("Protocol::end_statement");
   DBUG_ASSERT(! thd->get_stmt_da()->is_sent());
   bool error= FALSE;

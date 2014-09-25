@@ -861,7 +861,7 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 }
 
 
-THD::THD(bool is_applier)
+THD::THD(bool is_wsrep_applier)
    :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
               /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
@@ -892,13 +892,12 @@ THD::THD(bool is_applier)
    derived_tables_processing(FALSE),
    spcont(NULL),
 #ifdef WITH_WSREP
-   wsrep_applier(is_applier),
+   wsrep_applier(is_wsrep_applier),
    wsrep_applier_closing(false),
    wsrep_client_thread(false),
    wsrep_apply_toi(false),
    wsrep_po_handle(WSREP_PO_INITIALIZER),
    wsrep_po_cnt(0),
-//   wsrep_po_in_trans(false),
    wsrep_apply_format(0),
 #endif
    m_parser_state(NULL),
@@ -1435,15 +1434,8 @@ void THD::init(void)
 
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
-
-  /*
-    @@wsrep_causal_reads is now being handled via wsrep_sync_wait, update it
-    appropriately.
-  */
-  if (variables.wsrep_causal_reads)
-    variables.wsrep_sync_wait|= WSREP_SYNC_WAIT_BEFORE_READ;
-
 #endif
+
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
   else
@@ -1958,14 +1950,12 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
       if (!thd_table->needs_reopen())
       {
         signalled|= mysql_lock_abort_for_thread(this, thd_table);
-#if WITH_WSREP
         if (this && WSREP(this) && wsrep_thd_is_BF((void *)this, FALSE))
         {
           WSREP_DEBUG("remove_table_from_cache: %llu",
                       (unsigned long long) this->real_id);
           wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
         }
-#endif /* WITH_WSREP */
       }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
@@ -4328,8 +4318,7 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-  if (IF_WSREP(((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()),
-      mysql_bin_log.is_open()) &&
+  if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
       thd->variables.option_bits & OPTION_BIN_LOG)
     return (int) WSREP_FORMAT(thd->variables.binlog_format);
   else
@@ -5671,8 +5660,7 @@ int THD::binlog_write_row(TABLE* table, bool is_trans,
 {
 
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
-    IF_WSREP(((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()),
-              mysql_bin_log.is_open()));
+           ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
   /*
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
@@ -5706,8 +5694,7 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                            const uchar *after_record)
 {
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
-    IF_WSREP(((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()),
-              mysql_bin_log.is_open()));
+            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
   size_t const before_maxlen = max_row_length(table, before_record);
   size_t const after_maxlen  = max_row_length(table, after_record);
@@ -5757,8 +5744,7 @@ int THD::binlog_delete_row(TABLE* table, bool is_trans,
                            uchar const *record)
 {
   DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
-    IF_WSREP(((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()),
-              mysql_bin_log.is_open()));
+            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
   /* 
      Pack records into format for transfer. We are allocating more
@@ -5793,8 +5779,7 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
 {
   DBUG_ENTER("THD::binlog_remove_pending_rows_event");
 
-  if(IF_WSREP(!(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()),
-	      !mysql_bin_log.is_open()))
+  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -5817,8 +5802,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
     mode: it might be the case that we left row-based mode before
     flushing anything (e.g., if we have explicitly locked tables).
    */
-  if(IF_WSREP(!(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()),
-              !mysql_bin_log.is_open()))
+  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -6072,8 +6056,7 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
                        show_query_type(qtype), (int) query_len, query_arg));
 
   DBUG_ASSERT(query_arg &&
-    IF_WSREP((WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()),
-             mysql_bin_log.is_open()));
+                        (WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()));
 
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)

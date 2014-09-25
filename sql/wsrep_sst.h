@@ -13,8 +13,12 @@
    with this program; if not, write to the Free Software Foundation, Inc.,
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA. */
 
-#if !defined(WSREP_SST_H) && defined(WITH_WSREP)
+#include <my_config.h>
+
+#ifndef WSREP_SST_H
 #define WSREP_SST_H
+
+#ifdef WITH_WSREP
 
 #include <mysql.h>                    // my_bool
 
@@ -65,4 +69,11 @@ extern void wsrep_SE_init_wait();   /*! wait for SE init to complete */
 extern void wsrep_SE_init_done();   /*! signal that SE init is complte */
 extern void wsrep_SE_initialized(); /*! mark SE initialization complete */
 
+#else
+#define wsrep_SE_initialized() do { } while(0)
+#define wsrep_SE_init_grab() do { } while(0)
+#define wsrep_SE_init_done() do { } while(0)
+#define wsrep_sst_continue() do { } while(0)
+
+#endif /* WITH_WSREP */
 #endif /* WSREP_SST_H */

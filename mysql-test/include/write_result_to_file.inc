@@ -33,8 +33,7 @@
 --let _WRTF_SERVER_NUMBER= $server_number
 if (!$server_number)
 {
-  # Note: 2 extra ports are reserved per server for galera use.
-  --let _WRTF_SERVER_NUMBER= `SELECT 1 + FLOOR((@@PORT - $MASTER_MYPORT) / 3)`
+  --let _WRTF_SERVER_NUMBER= `SELECT 1 + @@PORT - $MASTER_MYPORT`
 }
 
 --let $_write_result_msg= [server=$_WRTF_SERVER_NUMBER]

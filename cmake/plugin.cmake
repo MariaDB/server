@@ -155,14 +155,6 @@ MACRO(MYSQL_ADD_PLUGIN)
       ENDIF()
     ENDIF()
 
-    IF (WITH_WSREP)
-      # Set compile definitions for non-embedded plugins
-      LIST(APPEND wsrep_definitions "WITH_WSREP")
-      LIST(APPEND wsrep_definitions "WSREP_PROC_INFO")
-      SET_TARGET_PROPERTIES(${target} PROPERTIES
-        COMPILE_DEFINITIONS "${wsrep_definitions}")
-    ENDIF()
-    
     IF(ARG_STATIC_OUTPUT_NAME)
       SET_TARGET_PROPERTIES(${target} PROPERTIES 
       OUTPUT_NAME ${ARG_STATIC_OUTPUT_NAME})
@@ -195,15 +187,8 @@ MACRO(MYSQL_ADD_PLUGIN)
     ADD_LIBRARY(${target} MODULE ${SOURCES}) 
     DTRACE_INSTRUMENT(${target})
 
-    LIST(APPEND dyn_compile_definitions "MYSQL_DYNAMIC_PLUGIN")
-
-    IF (WITH_WSREP)
-      LIST(APPEND dyn_compile_definitions "WITH_WSREP")
-      LIST(APPEND dyn_compile_definitions "WSREP_PROC_INFO")
-    ENDIF()
-
     SET_TARGET_PROPERTIES (${target} PROPERTIES PREFIX ""
-      COMPILE_DEFINITIONS "${dyn_compile_definitions}")
+      COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
 

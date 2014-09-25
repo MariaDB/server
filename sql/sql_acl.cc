@@ -2657,9 +2657,7 @@ bool change_password(THD *thd, const char *host, const char *user,
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-			    user ? user : "",
-			    host ? host : "",
-			    new_password);
+			    safe_str(user), safe_str(host), new_password);
     thd->set_query_inner(buff, query_length, system_charset_info);
 
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);

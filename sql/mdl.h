@@ -793,9 +793,7 @@ public:
 
   void release_statement_locks();
   void release_transactional_locks();
-#ifdef WITH_WSREP
   void release_explicit_locks();
-#endif
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 
   MDL_context_owner *get_owner() { return m_owner; }
