@@ -167,7 +167,8 @@ static ST_FIELD_INFO qc_info_fields_queries_tables[]=
 {
   {"QUERY_CACHE_ID", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
   {"SCHEMA", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"TABLE", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"TABLE_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"TABLE_SUFFIX", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 
@@ -442,9 +443,16 @@ static int qc_info_fill_table_queries_tables(THD *thd, TABLE_LIST *tables, COND 
     for (TABLE_COUNTER_TYPE t= 0; t < query_cache_block->n_tables; t++)
     {
       Query_cache_table *tmp_table= query_cache_block->table(t)->parent;
+      char *pos= tmp_table->table();
       table->field[0]->store((long)i + 1, 0);
-      table->field[1]->store(tmp_table->db(),strlen(tmp_table->db()),scs);
-      table->field[2]->store(tmp_table->table(),strlen(tmp_table->table()),scs);
+      table->field[1]->store(tmp_table->db(),
+				strlen(tmp_table->db()) ,scs);
+      table->field[2]->store(pos,strlen(pos) - 
+				tmp_table->suffix_length(),scs);
+      /* suffix_len */
+      pos+=strlen(pos)-
+	   tmp_table->suffix_length()+1;
+      table->field[3]->store(pos,tmp_table->suffix_length(),scs);
       if (schema_table_store_record(thd, table))
         goto cleanup;
     }
