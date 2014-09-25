@@ -1,3 +1,4 @@
+set @@session.max_heap_table_size=16*1024*1024;
 create table t1 select * from information_schema.session_status where variable_name like 'Opened%';
 create temporary table t2 (a int) engine=memory;
 select variable_name, session_status.variable_value - t1.variable_value
