@@ -5664,6 +5664,8 @@ int mysqld_main(int argc, char **argv)
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
   }
+  else
+    wsrep_init_startup (false);
 
  if (opt_bootstrap)
   {
@@ -8523,7 +8525,7 @@ static int mysql_init_variables(void)
   strmake_buf(mysql_home, tmpenv);
 #endif
 
-  if (WSREP_ON && wsrep_init_vars())
+  if (wsrep_init_vars())
     return 1;
 
   return 0;

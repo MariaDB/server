@@ -4575,7 +4575,7 @@ static Sys_var_mybool Sys_wsrep_sst_donor_rejects_queries(
 static Sys_var_mybool Sys_wsrep_on (
        "wsrep_on", "To enable wsrep replication ",
        SESSION_VAR(wsrep_on), 
-       CMD_LINE(OPT_ARG), DEFAULT(TRUE), 
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(wsrep_on_update));
 
