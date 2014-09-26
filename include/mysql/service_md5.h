@@ -1,5 +1,5 @@
 #ifndef MYSQL_SERVICE_MD5_INCLUDED
-/* Copyright (c) 2013, Monty Program Ab
+/* Copyright (c) 2014, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

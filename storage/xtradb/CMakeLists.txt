@@ -268,27 +268,6 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/xtradb/include
 		    ${CMAKE_SOURCE_DIR}/storage/xtradb/handler)
 
-IF(WITH_WSREP)
-  # ssl include directory
-  INCLUDE_DIRECTORIES(${SSL_INCLUDE_DIRS}
-                      ${CMAKE_SOURCE_DIR}/storage/xtradb/wsrep)
-
-  IF(SSL_DEFINES)
-    ADD_DEFINITIONS(${SSL_DEFINES})
-  ENDIF()
-
-  LINK_LIBRARIES(${SSL_LIBRARIES})
-
-  # We do RESTRICT_SYMBOL_EXPORTS(yassl) elsewhere.
-  # In order to get correct symbol visibility, these files
-  # must be compiled with "-fvisibility=hidden"
-  IF(WITH_SSL STREQUAL "bundled" AND HAVE_VISIBILITY_HIDDEN)
-    SET_SOURCE_FILES_PROPERTIES(
-      {CMAKE_CURRENT_SOURCE_DIR}/wsrep/md5.cc
-      PROPERTIES COMPILE_FLAGS "-fvisibility=hidden")
-  ENDIF()
-ENDIF()
-
 # Sun Studio bug with -xO2
 IF(CMAKE_CXX_COMPILER_ID MATCHES "SunPro"
 	AND CMAKE_CXX_FLAGS_RELEASE MATCHES "O2"
@@ -429,10 +408,6 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc
 	ut/ut0timer.cc)
-
-IF(WITH_WSREP)
-  SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} wsrep/md5.cc)
-ENDIF()
 
 IF(NOT XTRADB_OK)
   MESSAGE(FATAL_ERROR "Percona XtraDB is not supported on this platform")

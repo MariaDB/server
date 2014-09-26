@@ -122,7 +122,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "dict0priv.h"
 #include "../storage/innobase/include/ut0byte.h"
 #include <wsrep_mysqld.h>
-#include <wsrep_md5.h>
+#include <mysql/service_md5.h>
 
 extern my_bool wsrep_certify_nonPK;
 class  binlog_trx_data;
@@ -8142,7 +8142,8 @@ wsrep_calc_row_hash(
 	ulint		col_type;
 	uint		i;
 
-	void *ctx = wsrep_md5_init();
+	void *ctx = alloca(my_md5_context_size());
+        my_md5_init(ctx);
 
 	n_fields = table->s->fields;
 
@@ -8191,14 +8192,14 @@ wsrep_calc_row_hash(
 		*/
 
 		if (field->is_null_in_record(row)) {
-			wsrep_md5_update(ctx, (char*)&null_byte, 1);
+			my_md5_input(ctx, &null_byte, 1);
 		} else {
-			wsrep_md5_update(ctx, (char*)&true_byte, 1);
-			wsrep_md5_update(ctx, (char*)ptr, len);
+			my_md5_input(ctx, &true_byte, 1);
+			my_md5_input(ctx, ptr, len);
 		}
 	}
 
-	wsrep_compute_md5_hash((char*)digest, ctx);
+	my_md5_result(ctx, digest);
 
 	return(0);
 }

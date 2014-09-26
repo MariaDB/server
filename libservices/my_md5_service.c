@@ -1,4 +1,4 @@
-/* Copyright (c) 2013 Monty Program Ab
+/* Copyright (c) 2014 Monty Program Ab
    Use is subject to license terms.
 
    This program is free software; you can redistribute it and/or modify
