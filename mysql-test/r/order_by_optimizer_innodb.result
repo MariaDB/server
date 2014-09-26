@@ -46,3 +46,45 @@ EXPLAIN SELECT * FROM t2                       WHERE pk1=9 AND fd5 < 500 ORDER B
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	PRIMARY,ux_pk1_fd5	ux_pk1_fd5	13	NULL	137	Using where
 drop table t0,t1, t2;
+#
+# MDEV-6796: Unable to skip filesort when using implicit extended key
+#
+CREATE TABLE t1 (
+pk1 int(11) NOT NULL,
+pk2 varchar(64) NOT NULL,
+col1 varchar(16) DEFAULT NULL,
+PRIMARY KEY (pk1,pk2),
+KEY key1 (pk1,col1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE t2 (
+pk1 int(11) NOT NULL,
+pk2 varchar(64) NOT NULL,
+col1 varchar(16) DEFAULT NULL,
+PRIMARY KEY (pk1,pk2),
+KEY key1 (pk1,col1,pk2)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+INSERT INTO `t1` VALUES 
+(12321321,'a8f5f167f44f4964e6c998dee827110c','video'),
+(12321321,'d77a17a3659ffa60c54e0ea17b6c6d16','video'),
+(12321321,'wwafdsafdsafads','video'),
+(12321321,'696aa249f0738e8181957dd57c2d7d0b','video-2014-09-23'),
+(12321321,'802f9f29584b486f356693e3aa4ef0af','video=sdsd'),
+(12321321,'2f94543ff74aab82e9a058b4e8316d75','video=sdsdsds'),
+(12321321,'c1316b9df0d203fd1b9035308de52a0a','video=sdsdsdsdsd');
+insert into t2 select * from t1;
+# this must not use filesort:
+explain SELECT pk2
+FROM t1 USE INDEX(key1)
+WHERE pk1 = 123
+AND col1 = 'video'
+ORDER BY pk2 DESC LIMIT 21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	key1	key1	55	const,const	1	Using where; Using index
+# this must not use filesort, either:
+explain SELECT pk2
+FROM t2 USE INDEX(key1)
+WHERE pk1 = 123 AND col1 = 'video'
+ORDER BY pk2 DESC LIMIT 21;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	key1	key1	55	const,const	1	Using where; Using index
+drop table t1, t2;

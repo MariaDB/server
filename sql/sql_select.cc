@@ -15044,6 +15044,11 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
   @retval true    can be used
   @retval false   cannot be used
 */
+
+/*
+  psergey-todo: this returns false for int_column='1234' (here '1234' is a
+  constant. Need to discuss this with Bar).
+*/
 static bool
 test_if_equality_guarantees_uniqueness(Item *l, Item *r)
 {
@@ -19676,12 +19681,21 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
 {
   KEY_PART_INFO *key_part,*key_part_end;
   key_part=table->key_info[idx].key_part;
-  key_part_end=key_part+table->key_info[idx].user_defined_key_parts;
+  key_part_end=key_part + table->key_info[idx].ext_key_parts;
   key_part_map const_key_parts=table->const_key_parts[idx];
+  uint user_defined_kp= table->key_info[idx].user_defined_key_parts;
   int reverse=0;
   uint key_parts;
-  my_bool on_pk_suffix= FALSE;
+  bool have_pk_suffix= false;
+  uint pk= table->s->primary_key;
   DBUG_ENTER("test_if_order_by_key");
+ 
+  if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) && 
+      table->key_info[idx].ext_key_part_map &&
+      pk != MAX_KEY && pk != idx)
+  {
+    have_pk_suffix= true;
+  }
 
   for (; order ; order=order->next, const_key_parts>>=1)
   {
@@ -19694,58 +19708,37 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
     */
     for (; const_key_parts & 1 ; const_key_parts>>= 1)
       key_part++; 
+    
+    /*
+      This check was in this function historically (although I think it's
+      better to check it outside of this function):
 
-    if (key_part >= key_part_end)
+      "Test if the primary key parts were all const (i.e. there's one row).
+       The sorting doesn't matter"
+
+       So, we're checking that 
+       (1) this is an extended key
+       (2) we've reached its end
+    */
+    key_parts= (key_part - table->key_info[idx].key_part);
+    if (have_pk_suffix &&
+        reverse == 0 && // all were =const so far
+        key_parts == table->key_info[idx].ext_key_parts && 
+        table->const_key_parts[pk] == PREV_BITS(uint, 
+                                                table->key_info[pk].
+                                                user_defined_key_parts))
     {
-      /* 
-        We are at the end of the key. Check if the engine has the primary
-        key as a suffix to the secondary keys. If it has continue to check
-        the primary key as a suffix.
+      key_parts= 0;
+      reverse= 1;                           // Key is ok to use
+      goto ok;
+    }
+
+    if (key_part == key_part_end)
+    {
+      /*
+        There are some items left in ORDER BY that we don't
       */
-      if (!on_pk_suffix && (table->key_info[idx].ext_key_part_map & 1) &&
-          (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) &&
-          table->s->primary_key != MAX_KEY &&
-          table->s->primary_key != idx)
-      {
-        KEY_PART_INFO *start,*end;
-        uint pk_part_idx= 0;
-        on_pk_suffix= TRUE;
-        start= key_part= table->key_info[table->s->primary_key].key_part;
-        const_key_parts=table->const_key_parts[table->s->primary_key];
-
-        /*
-          Calculate true key_part_end and const_key_parts
-          (we have to stop as first not continous primary key part)
-        */
-        for (key_part_end= key_part,
-             end= key_part+table->key_info[table->s->primary_key].user_defined_key_parts;
-             key_part_end < end; key_part_end++, pk_part_idx++)
-        {
-          /* Found hole in the pk_parts; Abort */
-          if (!(table->key_info[idx].ext_key_part_map &
-                (((key_part_map) 1) << pk_part_idx)))
-            break;
-        }
-
-        /* Adjust const_key_parts */
-        const_key_parts&= (((key_part_map) 1) << pk_part_idx) -1;
-
-        for (; const_key_parts & 1 ; const_key_parts>>= 1)
-          key_part++;
-        /*
-          Test if the primary key parts were all const (i.e. there's one row).
-          The sorting doesn't matter.
-        */
-        if (key_part == start+table->key_info[table->s->primary_key].user_defined_key_parts &&
-            reverse == 0)
-        {
-          key_parts= 0;
-          reverse= 1;                           // Key is ok to use
-          goto ok;
-        }
-      }
-      else
-        DBUG_RETURN(0);
+      DBUG_RETURN(0);
     }
 
     if (key_part->field != field || !field->part_of_sortkey.is_set(idx))
@@ -19760,27 +19753,20 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
     if (key_part < key_part_end)
       key_part++;
   }
-  if (on_pk_suffix)
-  {
-    uint used_key_parts_secondary= table->key_info[idx].user_defined_key_parts;
-    uint used_key_parts_pk=
-      (uint) (key_part - table->key_info[table->s->primary_key].key_part);
-    key_parts= used_key_parts_pk + used_key_parts_secondary;
 
-    if (reverse == -1 &&
-        (!(table->file->index_flags(idx, used_key_parts_secondary - 1, 1) &
-           HA_READ_PREV) ||
-         !(table->file->index_flags(table->s->primary_key,
-                                    used_key_parts_pk - 1, 1) & HA_READ_PREV)))
-      reverse= 0;                               // Index can't be used
-  }
-  else
+  key_parts= (uint) (key_part - table->key_info[idx].key_part);
+
+  if (reverse == -1 && 
+      !(table->file->index_flags(idx, user_defined_kp, 1) & HA_READ_PREV))
+    reverse= 0;                               // Index can't be used
+  
+  if (have_pk_suffix && reverse == -1)
   {
-    key_parts= (uint) (key_part - table->key_info[idx].key_part);
-    if (reverse == -1 && 
-        !(table->file->index_flags(idx, key_parts-1, 1) & HA_READ_PREV))
+    uint pk_parts= table->key_info[pk].user_defined_key_parts;
+    if (!table->file->index_flags(pk, pk_parts, 1) & HA_READ_PREV)
       reverse= 0;                               // Index can't be used
   }
+
 ok:
   if (used_key_parts != NULL)
     *used_key_parts= key_parts;

@@ -281,6 +281,12 @@ public:
   LEX_STRING	comment;
   /* Field is part of the following keys */
   key_map	key_start, part_of_key, part_of_key_not_clustered;
+
+  /*
+    Bitmap of indexes that have records ordered by col1, ... this_field, ...
+
+    For example, INDEX (col(prefix_n)) is not present in col.part_of_sortkey.
+  */
   key_map       part_of_sortkey;
   /*
     We use three additional unireg types for TIMESTAMP to overcome limitation
