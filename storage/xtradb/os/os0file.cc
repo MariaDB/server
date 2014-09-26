@@ -5580,8 +5580,8 @@ retry:
 						fil_page_is_encrypted(slot->page_buf2)) {
 						ut_ad(slot->page_encryption_page);
 						if (srv_use_trim && os_fallocate_failed == FALSE) {
-							// Deallocate unused blocks from file system
-							os_file_trim(slot->file, slot, slot->len);
+							// Deallocate unused blocks from file system ???
+							//os_file_trim(slot->file, slot, slot->len);
 						}
 					}
 				}

@@ -196,7 +196,8 @@ ulint* out_len /*!< out: actual length of encrypted page */
 
 	offset_ctrl_data = page_size - FIL_PAGE_DATA_END - FIL_PAGE_FILE_FLUSH_LSN;
 
-	/* Set up the encryption key. Written to the 1st byte of FIL_PAGE_FILE_FLUSH_LSN */
+	/* Set up the encryption key. Written to the 1st byte of FIL_PAGE_FILE_FLUSH_LSN. This header is currently used to store data,
+	 * this may change. */
 	mach_write_to_1(out_buf + page_size - FIL_PAGE_DATA_END - offset_ctrl_data,
 			key);
 
@@ -281,7 +282,9 @@ ibool* page_compressed /*!<out: is page compressed.*/) {
 
 	space_id = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
 
-	/* flush lsn bytes 1..5 are used to store original page type, etc.*/
+	/* flush lsn bytes 1..5 are used to store original page type, etc.
+	 * according to http://blog.jcole.us/2013/01/03/the-basics-of-innodb-space-file-layout/ this is always
+	 * 0 except for space 0 page 0. This is not verified ant therefore subject to change. */
 
 	offset_ctrl_data = page_size - FIL_PAGE_DATA_END - FIL_PAGE_FILE_FLUSH_LSN;
 
@@ -445,7 +448,7 @@ ibool* page_compressed /*!<out: is page compressed.*/) {
 		page_encryption_key = FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(flags);
 		page_encrypted = FSP_FLAGS_GET_PAGE_ENCRYPTION(flags);
 		page_compression_flag = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
-		fprintf(stderr,"Page num, page size, key, enc, compr: %lu, %lu, %lu, %lu %lu\n", page_num, page_size, page_encryption_key, page_encrypted, page_compression_flag);
+//		fprintf(stderr,"Page num, page size, key, enc, compr: %lu, %lu, %lu, %lu %lu\n", page_num, page_size, page_encryption_key, page_encrypted, page_compression_flag);
 	}
 	// Need to free temporal buffer if no buffer was given
 	if (NULL == page_buf) {
