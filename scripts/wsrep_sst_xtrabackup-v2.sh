@@ -127,7 +127,7 @@ get_keys()
     fi
 
     if [[ $encrypt -eq 0 ]];then 
-        if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF xtrabackup | grep -q encrypt;then
+        if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
             wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
         fi
         return
@@ -400,7 +400,7 @@ get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
-    if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF xtrabackup | grep -q -- "--compress";then 
+    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -491,7 +491,7 @@ read_cnf()
     ssystag+="-"
 
     if [[ $ssyslog -ne -1 ]];then 
-        if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF mysqld_safe | tr '_' '-' | grep -q -- "--syslog";then
+        if $MY_PRINT_DEFAULTS mysqld_safe | grep -q -- "--syslog";then
             ssyslog=1
         fi
     fi
@@ -667,8 +667,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if $MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
+            local eport=$($MY_PRINT_DEFAULTS --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
@@ -863,19 +863,30 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} 2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
-        INNOMOVE="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $impts --datadir=${DATA} --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
-        INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
+        INNOAPPLY="2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
+        INNOMOVE="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
+        INNOBACKUP="2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
 else 
-    INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
-    INNOMOVE="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF}  --defaults-group=mysqld${WSREP_SST_OPT_CONF_SUFFIX} $disver $impts --datadir=${DATA} --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
-    INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF}  --defaults-group=mysqld${WSREP_SST_OPT_CONF_SUFFIX} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
+    INNOAPPLY="&>\${DATA}/innobackup.prepare.log"
+    INNOMOVE="&>\${DATA}/innobackup.move.log"
+    INNOBACKUP="2>\${DATA}/innobackup.backup.log"
 fi
 
 get_stream
 get_transfer
+
+# This is as close as innobackupex gets to mysqld defaults. Important note --defaults-extra-file passed to
+# mysqld is not passed to innobackupex.
+# WSREP_SST_OPT_SUFFIX_DEFAULT goes from --defaults-group-suffix=.X to --defaults-group=mysqld.X
+# Ref: https://bugs.launchpad.net/codership-mysql/+bug/1378355
+
+readonly INNOBACKUP_OPT_DEFAULT="${$WSREP_SST_OPT_DEFAULT} ${WSREP_SST_OPT_SUFFIX_DEFAULT/-suffix=/=mysqld}"
+
+INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} ${INNOAPPLY}"
+INNOMOVE="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} $disver $impts  --move-back --force-non-empty-directories \${DATA} ${INNOMOVE}"
+INNOBACKUP="${INNOBACKUPEX_BIN} ${INNOBACKUP_OPT_DEFAULT} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir ${INNOBACKUP}"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -1167,7 +1178,6 @@ then
             popd &> /dev/null
 
         fi
-
 
         wsrep_log_info "Preparing the backup at ${DATA}"
         timeit "Xtrabackup prepare stage" "$INNOAPPLY"

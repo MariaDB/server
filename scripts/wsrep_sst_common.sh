@@ -20,11 +20,13 @@ set -u
 
 WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
-WSREP_SST_OPT_CONF_SUFFIX=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
 WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
+WSREP_SST_OPT_DEFAULT=""
+WSREP_SST_OPT_EXTRA_DEFAULT=""
+WSREP_SST_OPT_SUFFIX_DEFAULT=""
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -56,11 +58,15 @@ case "$1" in
         shift
         ;;
     '--defaults-file')
-        readonly WSREP_SST_OPT_CONF="$2"
+        readonly WSREP_SST_OPT_DEFAULT="$1=$2"
+        shift
+        ;;
+    '--defaults-extra-file')
+        readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
         shift
         ;;
     '--defaults-group-suffix')
-        WSREP_SST_OPT_CONF_SUFFIX="$2"
+        readonly WSREP_SST_OPT_SUFFIX_DEFAULT="$1=$2"
         shift
         ;;
     '--host')
@@ -112,7 +118,6 @@ shift
 done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
-readonly WSREP_SST_OPT_CONF_SUFFIX
 
 # try to use my_print_defaults, mysql and mysqldump that come with the sources
 # (for MTR suite)
@@ -140,17 +145,18 @@ else
     MY_PRINT_DEFAULTS=$(which my_print_defaults)
 fi
 
+readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT $WSREP_SST_OPT_SUFFIX_DEFAULT"
+readonly MY_PRINT_DEFAULTS="${MY_PRINT_DEFAULTS} $WSREP_SST_OPT_CONF"
+
 wsrep_auth_not_set()
 {
     [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ]
 }
 
-# For Bug:1200727
-if $MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth"
-then
-    if wsrep_auth_not_set
-    then
-        WSREP_SST_OPT_AUTH=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+# State Snapshot Transfer authentication password was displayed in the ps output. Bug fixed #1200727.
+if $MY_PRINT_DEFAULTS sst | grep -q "wsrep_sst_auth"; then
+    if wsrep_auth_not_set; then
+            WSREP_SST_OPT_AUTH=$($MY_PRINT_DEFAULTS sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
 readonly WSREP_SST_OPT_AUTH
@@ -229,7 +235,7 @@ wsrep_check_programs()
 # process like encryption, etc.....
 # parse such configuration option. (group for xb settings is [sst] in my.cnf
 #
-# 1st param: group : name of the config file section, e.g. mysqld
+# 1st param: group (config file section like sst) or my_print_defaults argument (like --mysqld)
 # 2nd param: var : name of the variable in the section, e.g. server-id
 # 3rd param: - : default value for the param
 parse_cnf()
@@ -238,20 +244,12 @@ parse_cnf()
     local var=$2
     local reval=""
 
-    # print the default settings for given group using my_print_default.
     # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
     # then grep for needed variable
     # finally get the variable value (if variables has been specified multiple time use the last value only)
 
-    # look in group+suffix
-    if [ -n $WSREP_SST_OPT_CONF_SUFFIX ]; then
-        reval=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF "${group}${WSREP_SST_OPT_CONF_SUFFIX}" | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
-    fi
-
-    # look in group
-    if [ -z $reval ]; then
-        reval=$($MY_PRINT_DEFAULTS -c $WSREP_SST_OPT_CONF $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
-    fi
+    # TODO: get awk to do the grep/cut bits as well
+    reval=$($MY_PRINT_DEFAULTS "${group}" | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
 
     # use default if we haven't found a value
     if [ -z $reval ]; then

@@ -30,8 +30,10 @@
 #include <cstdio>
 #include <cstdlib>
 
-extern const char wsrep_defaults_file[];
-extern const char wsrep_defaults_group_suffix[];
+static char wsrep_defaults_file[FN_REFLEN * 2 + 10 + 30 +
+                                sizeof(WSREP_SST_OPT_CONF) +
+                                sizeof(WSREP_SST_OPT_CONF_SUFFIX) +
+                                sizeof(WSREP_SST_OPT_CONF_EXTRA)] = {0};
 
 const char* wsrep_sst_method          = WSREP_SST_DEFAULT;
 const char* wsrep_sst_receive_address = WSREP_SST_ADDRESS_AUTO;
@@ -60,6 +62,28 @@ bool wsrep_sst_method_update (sys_var *self, THD* thd, enum_var_type type)
 {
     return 0;
 }
+
+
+static void make_wsrep_defaults_file()
+{
+  if (!wsrep_defaults_file[0])
+  {
+    char *ptr= wsrep_defaults_file;
+    char *end= ptr + sizeof(wsrep_defaults_file);
+    if (my_defaults_file)
+      ptr= strxnmov(ptr, end - ptr,
+                    WSREP_SST_OPT_CONF, " '", my_defaults_file, "' ", NULL);
+
+    if (my_defaults_extra_file)
+      ptr= strxnmov(ptr, end - ptr,
+                    WSREP_SST_OPT_CONF_EXTRA, " '", my_defaults_extra_file, "' ", NULL);
+
+    if (my_defaults_group_suffix)
+      ptr= strxnmov(ptr, end - ptr,
+                    WSREP_SST_OPT_CONF_SUFFIX, " '", my_defaults_group_suffix, "' ", NULL);
+  }
+}
+
 
 // TODO: Improve address verification.
 static bool sst_receive_address_check (const char* str)
@@ -512,17 +536,18 @@ static ssize_t sst_prepare_other (const char*  method,
   }
   if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
 
+  make_wsrep_defaults_file();
+
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
                  WSREP_SST_OPT_ROLE" 'joiner' "
                  WSREP_SST_OPT_ADDR" '%s' "
                  WSREP_SST_OPT_DATA" '%s' "
-                 WSREP_SST_OPT_CONF" '%s' "
-                 WSREP_SST_OPT_CONF_SUFFIX" '%s' "
+                 " %s "
                  WSREP_SST_OPT_PARENT" '%d'"
                  " %s '%s' ",
                  method, addr_in, mysql_real_data_home,
-                 wsrep_defaults_file, wsrep_defaults_group_suffix,
+                 wsrep_defaults_file,
                  (int)getpid(), binlog_opt, binlog_opt_val);
   my_free(binlog_opt_val);
 
@@ -785,12 +810,14 @@ static int sst_donate_mysqldump (const char*         addr,
 
   if (!bypass && wsrep_sst_donor_rejects_queries) sst_reject_queries(TRUE);
 
+  make_wsrep_defaults_file();
+
   int ret= snprintf (cmd_str(), cmd_len,
                      "wsrep_sst_mysqldump "
                      WSREP_SST_OPT_ADDR" '%s' "
                      WSREP_SST_OPT_LPORT" '%u' "
                      WSREP_SST_OPT_SOCKET" '%s' "
-                     WSREP_SST_OPT_CONF" '%s' "
+                     " '%s' "
                      WSREP_SST_OPT_GTID" '%s:%lld'"
                      "%s",
                      addr, mysqld_port, mysqld_unix_port,
@@ -1091,19 +1118,20 @@ static int sst_donate_other (const char*   method,
   }
   if (strlen(binlog_opt_val)) binlog_opt= WSREP_SST_OPT_BINLOG;
 
+  make_wsrep_defaults_file();
+
   ret= snprintf (cmd_str(), cmd_len,
                  "wsrep_sst_%s "
                  WSREP_SST_OPT_ROLE" 'donor' "
                  WSREP_SST_OPT_ADDR" '%s' "
                  WSREP_SST_OPT_SOCKET" '%s' "
                  WSREP_SST_OPT_DATA" '%s' "
-                 WSREP_SST_OPT_CONF" '%s' "
-                 WSREP_SST_OPT_CONF_SUFFIX" '%s' "
+                 " %s "
                  " %s '%s' "
                  WSREP_SST_OPT_GTID" '%s:%lld'"
                  "%s",
                  method, addr, mysqld_unix_port, mysql_real_data_home,
-                 wsrep_defaults_file, wsrep_defaults_group_suffix,
+                 wsrep_defaults_file,
                  binlog_opt, binlog_opt_val,
                  uuid, (long long) seqno,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
