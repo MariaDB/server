@@ -14,14 +14,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA 
 
-# We need to generate a proper spec file even without --with-wsrep flag,
-# so WSREP_VERSION is produced regardless
-
 # Set the patch version
 SET(WSREP_PATCH_VERSION "10")
 
 # MariaDB addition: Revision number of the last revision merged from
-# codership branch visible in @@visible_comment.
+# codership branch visible in @@version_comment.
 # Branch : codership-mysql/5.6
 SET(WSREP_PATCH_REVNO "4123")  # Should be updated on every merge.
 

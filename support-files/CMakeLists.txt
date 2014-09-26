@@ -50,7 +50,7 @@ ENDFOREACH()
 
 IF(UNIX)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  FOREACH(script  mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
+  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
 
@@ -65,7 +65,6 @@ IF(UNIX)
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
     INSTALL(DIRECTORY RHEL4-SElinux/ DESTINATION ${inst_location}/SELinux/RHEL4 COMPONENT SupportFiles)
-    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep_notify DESTINATION ${inst_location} COMPONENT SupportFiles)
   ENDIF()
 
   INSTALL(FILES mysql.m4 DESTINATION ${INSTALL_SHAREDIR}/aclocal COMPONENT Development)
