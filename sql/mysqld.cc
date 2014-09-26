@@ -5101,9 +5101,6 @@ a file name for --log-bin-index option", opt_binlog_index_name);
 
   tc_log= get_tc_log_implementation();
 
-  if (WSREP_ON && tc_log == &tc_log_mmap)
-    tc_log= &tc_log_dummy;
-
   WSREP_DEBUG("Initial TC log open: %s",
               (tc_log == &mysql_bin_log) ? "binlog" :
               (tc_log == &tc_log_mmap) ? "mmap" :
