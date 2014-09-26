@@ -359,7 +359,6 @@ IF(WITH_UNIT_TESTS)
  ADD_SUBDIRECTORY(unittest/mysys)
  ADD_SUBDIRECTORY(unittest/my_decimal)
  ADD_SUBDIRECTORY(unittest/eperi)
- 
  IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(unittest/sql)
  ENDIF()

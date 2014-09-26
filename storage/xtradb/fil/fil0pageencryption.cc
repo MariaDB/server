@@ -322,30 +322,67 @@ ibool* page_compressed /*!<out: is page compressed.*/) {
 	fflush(stderr);
 #endif /* UNIV_PAGEENCRIPTION_DEBUG */
 
-	tmp_buf = static_cast<byte *>(ut_malloc(64));
+
+	tmp_buf= static_cast<byte *>(ut_malloc(64));
 	tmp_page_buf = static_cast<byte *>(ut_malloc(page_size));
-	memset(tmp_page_buf, 0, page_size);
-	char *stringkey = "BDE472A295675CA92E0467EADBC0E023";
-	uint8 key_len = 16;
+	memset(tmp_page_buf,0, page_size);
+		char *stringkey = "BDE472A295675CA92E0467EADBC0E023";
+		uint8 key_len = 16;
 
-	char *stringiv = "2D1AF8D3974E0BD3EFED5A6F82594F5E";
-	uint8 iv_len = 16;
+		char *stringiv = "2D1AF8D3974E0BD3EFED5A6F82594F5E";
+		uint8 iv_len = 16;
 
-	/* 1st decryption: 64 bytes */
-	/* 62 bytes from data area and 2 bytes from header are copied to temporary buffer */
-	memcpy(tmp_buf, buf + page_size - FIL_PAGE_DATA_END -62, 62);
-	memcpy(tmp_buf + 62, buf + FIL_PAGE_FILE_FLUSH_LSN +3, 2);
-	err = my_aes_decrypt_cbc((const char*) tmp_buf, 64,
-			(char *) tmp_page_buf + page_size - FIL_PAGE_DATA_END - 62,
-			&tmp_write_size, stringkey, key_len, stringiv, iv_len);
+		/* 1st decryption: 64 bytes */
+		/* 62 bytes from data area and 2 bytes from header are copied to temporary buffer */
+		memcpy(tmp_buf, buf + page_size - FIL_PAGE_DATA_END -62, 62);
+		memcpy(tmp_buf + 62, buf + FIL_PAGE_FILE_FLUSH_LSN +3, 2);
+		err = my_aes_decrypt_cbc((const char*) tmp_buf,
+				64,
+				(char *) tmp_page_buf + page_size -FIL_PAGE_DATA_END -62,
+				&tmp_write_size,
+				stringkey,
+				key_len,
+				stringiv,
+				iv_len
+				);
 
-	/* If decrypt fails it means that page is corrupted or has an unknown key */
-	if (err != AES_OK) {
-		fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
-				"InnoDB: but decrypt failed with error %d.\n"
-				"InnoDB: size %lu len %lu, key %d\n", err, data_size, len,
-				page_encryption_key);
-		fflush(stderr);
+
+		/* If decrypt fails it means that page is corrupted or has an unknown key */
+		if (err != AES_OK) {
+			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
+					"InnoDB: but decrypt failed with error %d.\n"
+					"InnoDB: size %lu len %lu, key%d\n", err, data_size,
+					len, page_encryption_key);
+			fflush(stderr);
+			ut_error;
+		}
+
+		ut_ad(tmp_write_size == 63);
+
+		/* copy 1st part from buf to tmp_page_buf */
+		/* do not override result of 1st decryption */
+		memcpy(tmp_page_buf + FIL_PAGE_DATA, buf + FIL_PAGE_DATA, data_size - 60);
+		memset(in_buf, 0, page_size);
+
+
+
+		err = my_aes_decrypt_cbc((char*) tmp_page_buf + FIL_PAGE_DATA,
+				data_size,
+				(char *) in_buf + FIL_PAGE_DATA,
+				&tmp_write_size,
+				stringkey,
+				key_len,
+				stringiv,
+				iv_len
+				);
+		ut_ad(tmp_write_size = data_size-1);
+		memcpy(in_buf + FIL_PAGE_DATA + data_size -1, tmp_page_buf + page_size - FIL_PAGE_DATA_END  - 2, remainder);
+
+
+		/* calculate a checksum to verify decryption*/
+		checksum = fil_page_encryption_calc_checksum(in_buf + header_len, page_size - (FIL_PAGE_DATA_END + header_len) );
+		/* compare with stored checksum */
+		stored_checksum = mach_read_from_4(buf);
 
 		ut_free(tmp_page_buf);
 		ut_free(tmp_buf);
@@ -458,7 +495,15 @@ ibool* page_compressed /*!<out: is page compressed.*/) {
 }
 
 
+<<<<<<< HEAD
 void do_check_sum(ulint page_size, byte* buf) {
+=======
+
+
+
+
+void do_check_sum( ulint page_size, byte* buf) {
+>>>>>>> 71eac244841f8d7d56eec91853bcecb2a8d80bad
 	ib_uint32_t checksum;
 	/* recalculate check sum  - from buf0flu.cc*/
 	switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
