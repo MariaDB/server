@@ -68,6 +68,15 @@ static struct my_sha1_service_st my_sha1_handler = {
   my_sha1_result
 };
 
+static struct my_md5_service_st my_md5_handler = {
+  my_md5,
+  my_md5_multi,
+  my_md5_context_size,
+  my_md5_init,
+  my_md5_input,
+  my_md5_result
+};
+
 static struct logger_service_st logger_service_handler= {
   logger_init_mutexes,
   logger_open,
@@ -100,6 +109,7 @@ static struct st_service_ref list_of_services[]=
   { "thd_kill_statement_service",  VERSION_kill_statement,      &thd_kill_statement_handler },
   { "thd_timezone_service",        VERSION_thd_timezone,        &thd_timezone_handler },
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
+  { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "logger_service",              VERSION_logger,              &logger_service_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
   { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_conext_handler },

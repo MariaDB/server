@@ -24,4 +24,4 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
 ADD_DEFINITIONS(-DMYSQL_SERVER ${SSL_DEFINES})
 
 MY_ADD_TESTS(pfs_instr_class pfs_instr_class-oom pfs_instr pfs_instr-oom  pfs_account-oom pfs_host-oom pfs_timer pfs_user-oom pfs
-  EXT "cc" LINK_LIBRARIES perfschema mysys)
+  EXT "cc" LINK_LIBRARIES perfschema mysys mysys_ssl)

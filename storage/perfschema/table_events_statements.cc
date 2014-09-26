@@ -296,7 +296,7 @@ void table_events_statements_common::make_row_part_2(PSI_digest_storage *digest)
       safe_byte_count <= PSI_MAX_DIGEST_STORAGE_SIZE)
   {
     PFS_digest_key md5;
-    compute_md5_hash((char *) md5.m_md5,
+    compute_md5_hash(md5.m_md5,
                      (char *) digest->m_token_array,
                      safe_byte_count);
 

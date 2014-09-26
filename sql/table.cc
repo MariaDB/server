@@ -4125,7 +4125,7 @@ void TABLE::reset_item_list(List<Item> *item_list) const
 void  TABLE_LIST::calc_md5(char *buffer)
 {
   uchar digest[16];
-  compute_md5_hash((char*) digest, select_stmt.str,
+  compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
   sprintf((char *) buffer,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
