@@ -93,7 +93,7 @@ extern bool wsrep_desync_update              UPDATE_ARGS;
 
 #define WSREP_NONE
 #define wsrep_provider_init(X)
-#define wsrep_init_vars() (1)
+#define wsrep_init_vars() (0)
 #define wsrep_start_position_init(X)
 #define wsrep_sst_auth_init(X)
 

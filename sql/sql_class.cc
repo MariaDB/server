@@ -891,15 +891,6 @@ THD::THD(bool is_wsrep_applier)
    bootstrap(0),
    derived_tables_processing(FALSE),
    spcont(NULL),
-#ifdef WITH_WSREP
-   wsrep_applier(is_wsrep_applier),
-   wsrep_applier_closing(false),
-   wsrep_client_thread(false),
-   wsrep_apply_toi(false),
-   wsrep_po_handle(WSREP_PO_INITIALIZER),
-   wsrep_po_cnt(0),
-   wsrep_apply_format(0),
-#endif
    m_parser_state(NULL),
 #if defined(ENABLED_DEBUG_SYNC)
    debug_sync_control(0),
@@ -907,6 +898,15 @@ THD::THD(bool is_wsrep_applier)
    wait_for_commit_ptr(0),
     main_da(0, false, false),
    m_stmt_da(&main_da)
+#ifdef WITH_WSREP
+   ,wsrep_applier(is_wsrep_applier)
+   ,wsrep_applier_closing(false)
+   ,wsrep_client_thread(false)
+   ,wsrep_apply_toi(false)
+   ,wsrep_po_handle(WSREP_PO_INITIALIZER)
+   ,wsrep_po_cnt(0)
+   ,wsrep_apply_format(0)
+#endif
 {
   ulong tmp;
 
@@ -1030,6 +1030,7 @@ THD::THD(bool is_wsrep_applier)
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
+  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 #endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
@@ -1071,8 +1072,6 @@ THD::THD(bool is_wsrep_applier)
   substitute_null_with_insert_id = FALSE;
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
   lock_info.mysql_thd= (void *)this;
-
-  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
