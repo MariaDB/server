@@ -22,6 +22,9 @@ WSREP_SST_OPT_BYPASS=0
 WSREP_SST_OPT_BINLOG=""
 WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=""
+WSREP_SST_OPT_DEFAULT=""
+WSREP_SST_OPT_EXTRA_DEFAULT=""
+
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -41,7 +44,11 @@ case "$1" in
         shift
         ;;
     '--defaults-file')
-        readonly WSREP_SST_OPT_CONF="$2"
+        readonly WSREP_SST_OPT_DEFAULT="$1=$2"
+        shift
+        ;;
+    '--defaults-extra-file')
+        readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
         shift
         ;;
     '--host')
@@ -94,10 +101,13 @@ done
 readonly WSREP_SST_OPT_BYPASS
 readonly WSREP_SST_OPT_BINLOG
 
+readonly WSREP_SST_OPT_CONF="$WSREP_SST_OPT_DEFAULT $WSREP_SST_OPT_EXTRA_DEFAULT"
+readonly my_print_defaults="my_print_defaults $WSREP_SST_OPT_CONF"
+
 # State Snapshot Transfer authentication password was displayed in the ps output. Bug fixed #1200727.
-if my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -q "wsrep_sst_auth";then
+if $my_print_defaults sst | grep -q "wsrep_sst_auth";then
     if [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = "(null)" ];then
-            WSREP_SST_OPT_AUTH=$(my_print_defaults -c $WSREP_SST_OPT_CONF sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
+            WSREP_SST_OPT_AUTH=$($my_print_defaults sst | grep -- "--wsrep_sst_auth" | cut -d= -f2)
     fi
 fi
 

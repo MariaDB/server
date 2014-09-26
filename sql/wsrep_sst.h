@@ -27,6 +27,7 @@
 #define WSREP_SST_OPT_AUTH     "--auth"
 #define WSREP_SST_OPT_DATA     "--datadir"
 #define WSREP_SST_OPT_CONF     "--defaults-file"
+#define WSREP_SST_OPT_EXTRA_CONF "--defaults-extra-file"
 #define WSREP_SST_OPT_PARENT   "--parent"
 #define WSREP_SST_OPT_BINLOG   "--binlog"
 

@@ -100,7 +100,7 @@ get_keys()
     fi
 
     if [[ $encrypt -eq 0 ]];then 
-        if my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -q encrypt;then
+        if $my_print_defaults xtrabackup | grep -q encrypt;then
             wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
         fi
         return
@@ -195,7 +195,7 @@ parse_cnf()
 {
     local group=$1
     local var=$2
-    reval=$(my_print_defaults -c $WSREP_SST_OPT_CONF $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
+    reval=$($my_print_defaults $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2-)
     if [[ -z $reval ]];then 
         [[ -n $3 ]] && reval=$3
     fi
@@ -206,7 +206,7 @@ get_footprint()
 {
     pushd $WSREP_SST_OPT_DATA 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | xargs -0 du --block-size=1 -c | awk 'END { print $1 }')
-    if my_print_defaults -c $WSREP_SST_OPT_CONF xtrabackup | grep -q -- "--compress";then 
+    if $my_print_defaults xtrabackup | grep -q -- "--compress";then 
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -385,8 +385,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then 
-        if my_print_defaults -c $WSREP_SST_OPT_CONF mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
-            local eport=$(my_print_defaults -c $WSREP_SST_OPT_CONF mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
+        if $my_print_defaults --mysqld | tr '_' '-' | grep -- "--thread-handling=" | grep -q 'pool-of-threads';then 
+            local eport=$($my_print_defaults --mysqld | tr '_' '-' | grep -- "--extra-port=" | cut -d= -f2)
             if [[ -n $eport ]];then 
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally. 
@@ -424,8 +424,8 @@ get_stream
 get_transfer
 
 INNOEXTRA=""
-INNOAPPLY="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
-INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} \$INNOEXTRA --galera-info --stream=\$sfmt \${TMPDIR} 2>\${DATA}/innobackup.backup.log"
+INNOAPPLY="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
+INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} \$INNOEXTRA --galera-info --stream=\$sfmt \${TMPDIR} 2>\${DATA}/innobackup.backup.log"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -528,7 +528,7 @@ then
 
     if [[ $incremental -eq 1 ]];then 
         wsrep_log_info "Incremental SST enabled"
-        #lsn=$(/pxc/bin/mysqld --defaults-file=$WSREP_SST_OPT_CONF  --basedir=/pxc  --wsrep-recover 2>&1 | grep -o 'log sequence number .*' | cut -d " " -f 4 | head -1)
+        #lsn=$(/pxc/bin/mysqld $WSREP_SST_OPT_CONF  --basedir=/pxc  --wsrep-recover 2>&1 | grep -o 'log sequence number .*' | cut -d " " -f 4 | head -1)
         lsn=$(grep to_lsn xtrabackup_checkpoints | cut -d= -f2 | tr -d ' ')
         wsrep_log_info "Recovered LSN: $lsn"
     fi
@@ -681,7 +681,7 @@ then
 
         if [[ $incremental -eq 1 ]];then 
             # Added --ibbackup=xtrabackup_55 because it fails otherwise citing connection issues.
-            INNOAPPLY="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} \
+            INNOAPPLY="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} \
                 --ibbackup=xtrabackup_55 --apply-log $rebuildcmd --redo-only $BDATA --incremental-dir=${DATA} &>>${BDATA}/innobackup.prepare.log"
         fi
 
