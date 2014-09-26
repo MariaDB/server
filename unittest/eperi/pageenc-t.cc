@@ -31,14 +31,14 @@ fil_encrypt_page(
     byte*           out_buf,       /*!< out: compressed buffer */
     ulint           len,           /*!< in: length of input buffer.*/
     ulint           compression_level, /*!< in: compression level */
-    ulint*          out_len,   /*!< out: actual length of compressed page */
-    ulint           unit_test);
+    ulint*          out_len   /*!< out: actual length of compressed page */
+    );
 
 /****************************************************************//**
 For page encrypted pages decrypt the page after actual read
 operation.
 @return decrypted page */
-extern void
+extern ulint
 fil_decrypt_page(
 /*================*/
 		byte*		page_buf,      /*!< in: preallocated buffer or NULL */
@@ -46,7 +46,8 @@ fil_decrypt_page(
 		                       this must be appropriately aligned */
 		ulint		len,           /*!< in: length of output buffer.*/
 	    ulint*		write_size,    /*!< in/out: Actual payload size of the decrypted data. */
-	    ulint       unit_test);
+	    ibool*      page_compressed
+	    );
 
 
 
@@ -77,9 +78,9 @@ void testIt(char* filename, ulint cmp_checksum) {
 	byte* buf = readFile(filename);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
-	fil_encrypt_page(0,buf,dest,0,255,&out_len,1);
+	fil_encrypt_page(0,buf,dest,0,255,&out_len);
 
-	fil_decrypt_page(NULL, dest, 16384 ,NULL,1);
+	fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL);
 	ulint a = 0;
 	ulint b = 0;
 	if (cmp_checksum) {
