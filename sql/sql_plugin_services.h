@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2013, Monty Program Ab
+   Copyright (c) 2012, 2014, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -61,7 +61,11 @@ static struct thd_timezone_service_st thd_timezone_handler= {
 
 static struct my_sha1_service_st my_sha1_handler = {
   my_sha1,
-  my_sha1_multi
+  my_sha1_multi,
+  my_sha1_context_size,
+  my_sha1_init,
+  my_sha1_input,
+  my_sha1_result
 };
 
 static struct logger_service_st logger_service_handler= {

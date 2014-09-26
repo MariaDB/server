@@ -112,9 +112,17 @@ void thd_gmt_sec_to_TIME(void* thd, MYSQL_TIME *ltime, my_time_t t);
 extern struct my_sha1_service_st {
   void (*my_sha1_type)(unsigned char*, const char*, size_t);
   void (*my_sha1_multi_type)(unsigned char*, ...);
+  size_t (*my_sha1_context_size_type)();
+  void (*my_sha1_init_type)(void *);
+  void (*my_sha1_input_type)(void *, const unsigned char *, size_t);
+  void (*my_sha1_result_type)(void *, unsigned char *);
 } *my_sha1_service;
 void my_sha1(unsigned char*, const char*, size_t);
 void my_sha1_multi(unsigned char*, ...);
+size_t my_sha1_context_size();
+void my_sha1_init(void *context);
+void my_sha1_input(void *context, const unsigned char *buf, size_t len);
+void my_sha1_result(void *context, unsigned char *digest);
 #include <mysql/service_logger.h>
 typedef struct logger_handle_st LOGGER_HANDLE;
 extern struct logger_service_st {
