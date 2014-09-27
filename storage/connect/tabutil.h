@@ -114,7 +114,7 @@ class DllExport PRXCOL : public COLBLK {
                 {return false;}
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-          bool Init(PGLOBAL g, PTDBASE tp = NULL);
+  virtual bool Init(PGLOBAL g, PTDBASE tp = NULL);
 
  protected:
   // Default constructor not to be used
