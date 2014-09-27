@@ -2639,8 +2639,8 @@ static Sys_var_enum Sys_query_cache_type(
        "query_cache_type",
        "OFF = Don't cache or retrieve results. ON = Cache all results "
        "except SELECT SQL_NO_CACHE ... queries. DEMAND = Cache only "
-       "SELECT SQL_CACHE ... queries. DEMAND_PRUNE = DEMAND , but only "
-       "fetch from query cache with SQL_CACHE queries",
+       "SELECT SQL_CACHE ... queries. DEMAND_NO_PRUNE = DEMAND , but allow "
+       "fetch query from cache previous inserted without SQL_CACHE",
        SESSION_VAR(query_cache_type), CMD_LINE(REQUIRED_ARG),
        query_cache_type_names, DEFAULT(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_query_cache_type),
