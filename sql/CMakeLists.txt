@@ -29,6 +29,8 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_thd.cc
   )
   SET(WSREP_LIB wsrep)
+ELSE()
+  SET(WSREP_SOURCES wsrep_dummy.cc)
 ENDIF()
 
 INCLUDE_DIRECTORIES(

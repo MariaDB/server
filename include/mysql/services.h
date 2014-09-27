@@ -31,6 +31,7 @@ extern "C" {
 #include <mysql/service_logger.h>
 #include <mysql/service_thd_autoinc.h>
 #include <mysql/service_thd_error_context.h>
+/*#include <mysql/service_wsrep.h>*/
 
 #ifdef __cplusplus
 }

@@ -1501,7 +1501,7 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
   DBUG_ASSERT(ticket->get_lock());
 #ifdef WITH_WSREP
   if ((this == &(ticket->get_lock()->m_waiting)) &&
-      wsrep_thd_is_BF((void *)(ticket->get_ctx()->get_thd()), false))
+      wsrep_thd_is_BF(ticket->get_ctx()->get_thd(), false))
   {
     Ticket_iterator itw(ticket->get_lock()->m_waiting);
     Ticket_iterator itg(ticket->get_lock()->m_granted);
@@ -1513,10 +1513,10 @@ void MDL_lock::Ticket_list::add_ticket(MDL_ticket *ticket)
 
     while ((waiting= itw++) && !added)
     {
-      if (!wsrep_thd_is_BF((void *)(waiting->get_ctx()->get_thd()), true))
+      if (!wsrep_thd_is_BF(waiting->get_ctx()->get_thd(), true))
       {
         WSREP_DEBUG("MDL add_ticket inserted before: %lu %s",
-                    wsrep_thd_thread_id(waiting->get_ctx()->get_thd()),
+                    thd_get_thread_id(waiting->get_ctx()->get_thd()),
                     wsrep_thd_query(waiting->get_ctx()->get_thd()));
         m_list.insert_after(prev, ticket);
         added= true;
@@ -1911,11 +1911,11 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
             ticket->is_incompatible_when_granted(type_arg))
         {
 #ifdef WITH_WSREP
-          if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()),false) &&
+          if (wsrep_thd_is_BF(requestor_ctx->get_thd(),false) &&
               key.mdl_namespace() == MDL_key::GLOBAL)
           {
             WSREP_DEBUG("global lock granted for BF: %lu %s",
-                        wsrep_thd_thread_id(requestor_ctx->get_thd()),
+                        thd_get_thread_id(requestor_ctx->get_thd()),
                         wsrep_thd_query(requestor_ctx->get_thd()));
             can_grant = true;
           }
@@ -1945,12 +1945,12 @@ MDL_lock::can_grant_lock(enum_mdl_type type_arg,
   }
   else
   {
-    if (wsrep_thd_is_BF((void *)(requestor_ctx->get_thd()), false) &&
+    if (wsrep_thd_is_BF(requestor_ctx->get_thd(), false) &&
 	key.mdl_namespace() == MDL_key::GLOBAL)
     {
       WSREP_DEBUG("global lock granted for BF (waiting queue): %lu %s",
-		  wsrep_thd_thread_id(requestor_ctx->get_thd()), 
-		  wsrep_thd_query(requestor_ctx->get_thd()));
+                  thd_get_thread_id(requestor_ctx->get_thd()),
+                  wsrep_thd_query(requestor_ctx->get_thd()));
       can_grant = true;
     }
   }

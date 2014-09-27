@@ -30,6 +30,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0trx.ic"
 #endif
 
+#include <mysql/service_wsrep.h>
+
 #include "trx0undo.h"
 #include "trx0rseg.h"
 #include "log0log.h"
@@ -1226,7 +1228,7 @@ trx_write_serialisation_history(
 #ifdef WITH_WSREP
 	sys_header = trx_sysf_get(mtr);
 	/* Update latest MySQL wsrep XID in trx sys header. */
-	if (wsrep_is_wsrep_xid((const void *)&trx->xid))
+	if (wsrep_is_wsrep_xid(&trx->xid))
 	{
 		trx_sys_update_wsrep_checkpoint(&trx->xid, sys_header, mtr);
 	}

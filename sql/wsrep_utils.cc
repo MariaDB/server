@@ -514,9 +514,8 @@ wsrep_seqno_t wsrep_xid_seqno(const XID* xid)
 }
 
 extern
-int wsrep_is_wsrep_xid(const void* xid_ptr)
+int wsrep_is_wsrep_xid(const XID* xid)
 {
-  const XID* xid= reinterpret_cast<const XID*>(xid_ptr);
   return (xid->formatID      == 1                   &&
           xid->gtrid_length  == WSREP_XID_GTRID_LEN &&
           xid->bqual_length  == 0                   &&

@@ -782,14 +782,15 @@ int wsrep_init()
   return rcode;
 }
 
-extern int wsrep_on(void *);
-
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
 
-  wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_abort_thd,
-                      wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
+  wsrep_thr_lock_init(
+     (wsrep_thd_is_brute_force_fun)wsrep_thd_is_BF,
+     (wsrep_abort_thd_fun)wsrep_abort_thd,
+     wsrep_debug, wsrep_convert_LOCK_to_trx,
+     (wsrep_on_fun)wsrep_on);
 
   /* Skip replication start if no cluster address */
   if (!wsrep_cluster_address || strlen(wsrep_cluster_address) == 0) return;
@@ -1187,12 +1188,9 @@ err:
 }
 
 
-bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
-                                  size_t cache_key_len,
-                                  const uchar* row_id,
-                                  size_t row_id_len,
-                                  wsrep_buf_t* key,
-                                  size_t* key_len)
+bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
+                       const uchar* row_id, size_t row_id_len,
+                       wsrep_buf_t* key, size_t* key_len)
 {
     if (*key_len < 3) return false;
 
@@ -2112,9 +2110,9 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 }
 
 
-extern int wsrep_on(void *thd)
+extern int wsrep_on(THD *thd)
 {
-  return (int)(WSREP(((THD*)thd)));
+  return (int)(WSREP(thd));
 }
 
 
@@ -2124,9 +2122,9 @@ extern "C" bool wsrep_thd_is_wsrep_on(THD *thd)
 }
 
 
-extern "C" bool wsrep_consistency_check(void *thd)
+bool wsrep_consistency_check(THD *thd)
 {
-  return ((THD*)thd)->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
+  return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
 }
 
 
@@ -2143,20 +2141,19 @@ extern "C" void wsrep_thd_set_query_state(
 }
 
 
-extern "C" void wsrep_thd_set_conflict_state(
-	THD *thd, enum wsrep_conflict_state state)
+void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
   thd->wsrep_conflict_state= state;
 }
 
 
-extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
+enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
 {
   return thd->wsrep_exec_mode;
 }
 
 
-extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
+const char *wsrep_thd_exec_mode_str(THD *thd)
 {
   return 
     (!thd) ? "void" :
@@ -2167,13 +2164,13 @@ extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
 }
 
 
-extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd)
+enum wsrep_query_state wsrep_thd_query_state(THD *thd)
 {
   return thd->wsrep_query_state;
 }
 
 
-extern "C" const char *wsrep_thd_query_state_str(THD *thd)
+const char *wsrep_thd_query_state_str(THD *thd)
 {
   return 
     (!thd) ? "void" : 
@@ -2185,13 +2182,13 @@ extern "C" const char *wsrep_thd_query_state_str(THD *thd)
 }
 
 
-extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd)
+enum wsrep_conflict_state wsrep_thd_get_conflict_state(THD *thd)
 {
   return thd->wsrep_conflict_state;
 }
 
 
-extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
+const char *wsrep_thd_conflict_state_str(THD *thd)
 {
   return 
     (!thd) ? "void" :
@@ -2205,19 +2202,19 @@ extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
 }
 
 
-extern "C" wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
+wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 {
   return &thd->wsrep_ws_handle;
 }
 
 
-extern "C" void wsrep_thd_LOCK(THD *thd)
+void wsrep_thd_LOCK(THD *thd)
 {
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 }
 
 
-extern "C" void wsrep_thd_UNLOCK(THD *thd)
+void wsrep_thd_UNLOCK(THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 }
@@ -2234,14 +2231,7 @@ extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd)
   return thd->wsrep_rand;
 }
 
-
-extern "C" my_thread_id wsrep_thd_thread_id(THD *thd) 
-{
-  return thd->thread_id;
-}
-
-
-extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
+longlong wsrep_thd_trx_seqno(THD *thd)
 {
   return (thd) ? thd->wsrep_trx_meta.gtid.seqno : WSREP_SEQNO_UNDEFINED;
 }
@@ -2253,7 +2243,7 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 }
 
 
-extern "C" char *wsrep_thd_query(THD *thd) 
+char *wsrep_thd_query(THD *thd)
 {
   return (thd) ? thd->query() : NULL;
 }
@@ -2288,30 +2278,29 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 }
 
 
-extern "C" int wsrep_thd_retry_counter(THD *thd) 
+int wsrep_thd_retry_counter(THD *thd)
 {
   return(thd->wsrep_retry_counter);
 }
 
 
 extern int
-wsrep_trx_order_before(void *thd1, void *thd2)
+wsrep_trx_order_before(THD *thd1, THD *thd2)
 {
-    if (wsrep_thd_trx_seqno((THD*)thd1) < wsrep_thd_trx_seqno((THD*)thd2)) {
+    if (wsrep_thd_trx_seqno(thd1) < wsrep_thd_trx_seqno(thd2)) {
         WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                    (long long)wsrep_thd_trx_seqno((THD*)thd1),
-                    (long long)wsrep_thd_trx_seqno((THD*)thd2));
+                    (long long)wsrep_thd_trx_seqno(thd1),
+                    (long long)wsrep_thd_trx_seqno(thd2));
         return 1;
     }
     WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno((THD*)thd1),
-                (long long)wsrep_thd_trx_seqno((THD*)thd2));
+                (long long)wsrep_thd_trx_seqno(thd1),
+                (long long)wsrep_thd_trx_seqno(thd2));
     return 0;
 }
 
 
-extern "C" int
-wsrep_trx_is_aborting(void *thd_ptr)
+int wsrep_trx_is_aborting(THD *thd_ptr)
 {
 	if (thd_ptr) {
 		if ((((THD *)thd_ptr)->wsrep_conflict_state == MUST_ABORT) ||
@@ -2455,4 +2444,73 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 
   return wsrep_to_buf_helper(thd, stmt_query.c_ptr(), stmt_query.length(),
                              buf, buf_len);
+}
+
+/***** callbacks for wsrep service ************/
+
+my_bool get_wsrep_debug()
+{
+  return wsrep_debug;
+}
+
+my_bool get_wsrep_load_data_splitting()
+{
+  return wsrep_load_data_splitting;
+}
+
+long get_wsrep_protocol_version()
+{
+  return wsrep_protocol_version;
+}
+
+my_bool get_wsrep_drupal_282555_workaround()
+{
+  return wsrep_drupal_282555_workaround;
+}
+
+my_bool get_wsrep_log_conflicts()
+{
+  return wsrep_log_conflicts;
+}
+
+wsrep_t *get_wsrep()
+{
+  return wsrep;
+}
+
+my_bool get_wsrep_certify_nonPK()
+{
+  return wsrep_certify_nonPK;
+}
+
+void wsrep_lock_rollback()
+{
+  mysql_mutex_lock(&LOCK_wsrep_rollback);
+}
+
+void wsrep_unlock_rollback()
+{
+  mysql_cond_signal(&COND_wsrep_rollback);
+  mysql_mutex_unlock(&LOCK_wsrep_rollback);
+}
+
+my_bool wsrep_aborting_thd_contains(THD *thd)
+{
+  wsrep_aborting_thd_t abortees = wsrep_aborting_thd;
+  while (abortees)
+  {
+    if (abortees->aborting_thd == thd)
+      return true;
+    abortees = abortees->next;
+  }
+  return false;
+}
+
+void wsrep_aborting_thd_enqueue(THD *thd)
+{
+  wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
+          my_malloc(sizeof(struct wsrep_aborting_thd), MYF(0));
+  aborting->aborting_thd  = thd;
+  aborting->next          = wsrep_aborting_thd;
+  wsrep_aborting_thd      = aborting;
 }

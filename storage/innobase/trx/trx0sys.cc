@@ -44,9 +44,7 @@ Created 3/26/1996 Heikki Tuuri
 #include "os0file.h"
 #include "read0read.h"
 
-#ifdef WITH_WSREP
-#include "ha_prototypes.h" /* wsrep_is_wsrep_xid() */
-#endif /* */
+#include <mysql/service_wsrep.h>
 
 /** The file format tag structure with id and name. */
 struct file_format_t {

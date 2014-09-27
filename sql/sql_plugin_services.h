@@ -16,6 +16,7 @@
 
 /* support for Services */
 #include <service_versions.h>
+#include <mysql/service_wsrep.h>
 
 struct st_service_ref {
   const char *name;
@@ -99,6 +100,45 @@ static struct thd_error_context_service_st thd_error_conext_handler= {
   thd_get_error_context_description
 };
 
+static struct wsrep_service_st wsrep_handler = {
+  get_wsrep,
+  get_wsrep_certify_nonPK,
+  get_wsrep_debug,
+  get_wsrep_drupal_282555_workaround,
+  get_wsrep_load_data_splitting,
+  get_wsrep_log_conflicts,
+  get_wsrep_protocol_version,
+  wsrep_aborting_thd_contains,
+  wsrep_aborting_thd_enqueue,
+  wsrep_consistency_check,
+  wsrep_is_wsrep_xid,
+  wsrep_lock_rollback,
+  wsrep_on,
+  wsrep_post_commit,
+  wsrep_prepare_key,
+  wsrep_run_wsrep_commit,
+  wsrep_thd_LOCK,
+  wsrep_thd_UNLOCK,
+  wsrep_thd_awake,
+  wsrep_thd_conflict_state,
+  wsrep_thd_conflict_state_str,
+  wsrep_thd_exec_mode,
+  wsrep_thd_exec_mode_str,
+  wsrep_thd_get_conflict_state,
+  wsrep_thd_is_BF,
+  wsrep_thd_is_wsrep,
+  wsrep_thd_query,
+  wsrep_thd_query_state,
+  wsrep_thd_query_state_str,
+  wsrep_thd_retry_counter,
+  wsrep_thd_set_conflict_state,
+  wsrep_thd_trx_seqno,
+  wsrep_thd_ws_handle,
+  wsrep_trx_is_aborting,
+  wsrep_trx_order_before,
+  wsrep_unlock_rollback
+};
+
 static struct st_service_ref list_of_services[]=
 {
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
@@ -112,6 +152,7 @@ static struct st_service_ref list_of_services[]=
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "logger_service",              VERSION_logger,              &logger_service_handler },
   { "thd_autoinc_service",         VERSION_thd_autoinc,         &thd_autoinc_handler },
+  { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "thd_error_context_service",   VERSION_thd_error_context,   &thd_error_conext_handler },
 };
 
