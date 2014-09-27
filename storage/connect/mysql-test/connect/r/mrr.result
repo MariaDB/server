@@ -1,0 +1,117 @@
+#
+# Show MRR setting. The way it is done is because the t3 table cannot be directly based on
+# the information_schema.session_variables table. Not being a CONNECT table, it would be
+# read using an intermediate MYSQL table using the MySQL API and could not reflect the
+# current session variable change (the call would create another session) This would be
+# correct only for querying GLOBAL variables but is not what we want to do here.
+#
+CREATE TABLE t2 (
+name VARCHAR(64) NOT NULL,
+value VARCHAR(1024) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DOS;
+Warnings:
+Warning	1105	No file name. Table will use t2.dos
+INSERT INTO t2 SELECT * FROM information_schema.session_variables WHERE variable_name = 'OPTIMIZER_SWITCH';
+create table t3 (
+name CHAR(32) NOT NULL,
+value CHAR(64) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=t2 OPTION_LIST='Colname=value';
+SELECT value FROM t3 WHERE value LIKE 'mrr%';
+value
+mrr=off
+mrr_cost_based=off
+mrr_sort_keys=off
+#
+# Testing indexing with MRR OFF
+#
+CREATE TABLE t1
+(
+matricule INT(4) KEY NOT NULL field_format='Z',
+nom       VARCHAR(16) NOT NULL,
+prenom    VARCHAR(20) NOT NULL,
+sexe      SMALLINT(1) NOT NULL COMMENT 'sexe 1:M 2:F',
+aanais    INT(4) NOT NULL,
+mmnais    INT(2) NOT NULL,
+ddentree  DATE NOT NULL date_format='YYYYMM',
+ddnom     DATE NOT NULL date_format='YYYYMM',
+brut      INT(5) NOT NULL,
+net       DOUBLE(8,2) NOT NULL,
+service   INT(2) NOT NULL,
+sitmat    CHAR(1) NOT NULL,
+formation CHAR(5) NOT NULL,
+INDEX NP(nom,prenom)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+SELECT * FROM t1 LIMIT 10;
+matricule	nom	prenom	sexe	aanais	mmnais	ddentree	ddnom	brut	net	service	sitmat	formation
+5745	ESCOURCHE	BENEDICTE	2	1935	7	1962-12-01	1994-05-01	18345	14275.50	0	M	TECHN
+9692	VICENTE	LAURENCE	2	1941	8	1967-10-01	1989-01-01	16212	13032.80	0	M	ANGL
+9146	NICOLAS	ROGER	1	1941	6	1964-07-01	1995-02-01	34173	25098.65	0	M	SANS
+2985	TESSEREAU	MARIE HELENE	2	1941	9	1967-01-01	1990-01-01	19323	14933.78	0	V	SANS
+3368	MOGADOR	ALAIN	1	1941	1	1961-09-01	1993-11-01	43303	31420.55	0	C	SANS
+7394	CHAUSSEE	ERIC DENIS	1	1944	9	1965-11-01	1983-12-01	32002	23583.86	0	M	ANGL
+4655	MAILLOT	GEORGES	1	1945	5	1970-09-01	1986-12-01	24700	18541.64	0	C	ANGL
+2825	CAMILLE	NADINE	2	1956	9	1994-01-01	1993-01-01	19494	15050.45	0	M	SANS
+1460	BRUYERES	JEAN MARC	1	1958	8	1984-08-01	1988-05-01	20902	15980.07	0	M	SANS
+4974	LONES	GERARD	1	1959	10	1979-01-01	1994-12-01	16081	12916.70	0	M	SANS
+# Without MRR, the rows are retrieved sorted by name
+SELECT matricule, nom, prenom, sitmat, net FROM t1 WHERE nom IN ('ETANG','FOCH','CERF','ITALIE','ROI');
+matricule	nom	prenom	sitmat	net
+5324	CERF	CLAUDE	M	9503.34
+7703	CERF	NICOLE	M	12025.61
+3110	CERF	VALERIE	M	10472.37
+4454	ETANG	BEATRICE	M	11017.61
+1022	ETANG	GERARD	L	8729.58
+8222	ETANG	LIONEL	M	13497.90
+2492	ETANG	PASCAL VINCENT	M	11986.62
+1977	FOCH	BERNADETTE	.	8145.03
+5707	FOCH	DENIS	C	7679.36
+2552	FOCH	FRANCK	M	10745.81
+2634	FOCH	JOCELYNE	M	10473.09
+5765	FOCH	ROBERT	M	12916.32
+4080	FOCH	SERGE	M	9658.24
+5898	ITALIE	DENIS	M	9502.41
+7606	ITALIE	JACQUES	C	7679.45
+1067	ITALIE	SVETLANA	M	11713.61
+5853	ROI	CHANTAL	.	8147.06
+2995	ROI	JEAN	M	11715.50
+2531	ROI	MICHEL	L	10240.44
+5846	ROI	PATRICIA	M	15669.57
+#
+# Testing indexing with MRR ON
+#
+SET @@LOCAL.OPTIMIZER_SWITCH='mrr=on';
+# Refresh the t2 table to reflect the change
+UPDATE t2, information_schema.session_variables SET value = variable_value WHERE variable_name = 'OPTIMIZER_SWITCH';
+# Check that MRR is ON for the session
+SELECT value FROM t3 WHERE value LIKE 'mrr%';
+value
+mrr=on
+mrr_cost_based=off
+mrr_sort_keys=off
+# With MRR, the rows are retrieved sorted by their position in the table
+SELECT matricule, nom, prenom, sitmat, net FROM t1 WHERE nom IN ('ETANG','FOCH','CERF','ITALIE','ROI');
+matricule	nom	prenom	sitmat	net
+1977	FOCH	BERNADETTE	.	8145.03
+2995	ROI	JEAN	M	11715.50
+3110	CERF	VALERIE	M	10472.37
+5324	CERF	CLAUDE	M	9503.34
+4080	FOCH	SERGE	M	9658.24
+4454	ETANG	BEATRICE	M	11017.61
+5898	ITALIE	DENIS	M	9502.41
+2552	FOCH	FRANCK	M	10745.81
+2531	ROI	MICHEL	L	10240.44
+5853	ROI	CHANTAL	.	8147.06
+8222	ETANG	LIONEL	M	13497.90
+5707	FOCH	DENIS	C	7679.36
+1067	ITALIE	SVETLANA	M	11713.61
+7606	ITALIE	JACQUES	C	7679.45
+7703	CERF	NICOLE	M	12025.61
+2634	FOCH	JOCELYNE	M	10473.09
+1022	ETANG	GERARD	L	8729.58
+5846	ROI	PATRICIA	M	15669.57
+2492	ETANG	PASCAL VINCENT	M	11986.62
+5765	FOCH	ROBERT	M	12916.32
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+SET @@LOCAL.OPTIMIZER_SWITCH='mrr=off';
