@@ -265,11 +265,26 @@ void init_update_queries(void)
   /* Initialize the server command flags array. */
   memset(server_command_flags, 0, sizeof(server_command_flags));
 
-  server_command_flags[COM_STATISTICS]= CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS;
-  server_command_flags[COM_PING]=       CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS;
+  server_command_flags[COM_STATISTICS]= CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_PING]=       CF_SKIP_QUERY_ID | CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
   server_command_flags[COM_STMT_PREPARE]= CF_SKIP_QUESTIONS;
-  server_command_flags[COM_STMT_CLOSE]=   CF_SKIP_QUESTIONS;
-  server_command_flags[COM_STMT_RESET]=   CF_SKIP_QUESTIONS;
+  server_command_flags[COM_STMT_CLOSE]=   CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_STMT_RESET]=   CF_SKIP_QUESTIONS | CF_SKIP_WSREP_CHECK;
+
+  server_command_flags[COM_QUIT]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_PROCESS_INFO]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_PROCESS_KILL]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_SHUTDOWN]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_SLEEP]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_TIME]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_END]= CF_SKIP_WSREP_CHECK;
+
+  /*
+    COM_QUERY and COM_SET_OPTION are allowed to pass the early COM_xxx filter,
+    they're checked later in mysql_execute_command().
+  */
+  server_command_flags[COM_QUERY]= CF_SKIP_WSREP_CHECK;
+  server_command_flags[COM_SET_OPTION]= CF_SKIP_WSREP_CHECK;
 
   /* Initialize the sql command flags array. */
   memset(sql_command_flags, 0, sizeof(sql_command_flags));
@@ -874,9 +889,11 @@ void cleanup_items(Item *item)
 }
 
 
-#ifdef WITH_WSREP
+#ifndef EMBEDDED_LIBRARY
+
 static bool wsrep_node_is_ready(THD *thd)
 {
+#ifdef WITH_WSREP
   if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready)
   {
     my_message(ER_UNKNOWN_COM_ERROR,
@@ -884,12 +901,9 @@ static bool wsrep_node_is_ready(THD *thd)
                MYF(0));
     return false;
   }
+#endif
   return true;
 }
-#endif
-
-
-#ifndef EMBEDDED_LIBRARY
 
 /**
   Read one command from connection and execute it (query or simple command).
@@ -1069,29 +1083,13 @@ bool do_command(THD *thd)
                      vio_description(net->vio), command,
                      command_name[command].str));
 
-  if (WSREP(thd))
+  /* bail out if DB snapshot has not been installed. */
+  if (!(server_command_flags[command] & CF_SKIP_WSREP_CHECK) &&
+      !wsrep_node_is_ready(thd))
   {
-    /*
-     * bail out if DB snapshot has not been installed. We however,
-     * allow queries "SET" and "SHOW", they are trapped later in execute_command
-     */
-    if (command != COM_QUERY        &&
-        command != COM_PING         &&
-        command != COM_QUIT         &&
-        command != COM_PROCESS_INFO &&
-        command != COM_PROCESS_KILL &&
-        command != COM_SET_OPTION   &&
-        command != COM_SHUTDOWN     &&
-        command != COM_SLEEP        &&
-        command != COM_STATISTICS   &&
-        command != COM_TIME         &&
-        command != COM_END          &&
-        !wsrep_node_is_ready(thd))
-    {
-      thd->protocol->end_statement();
-      return_value= FALSE;
-      goto out;
-    }
+    thd->protocol->end_statement();
+    return_value= FALSE;
+    goto out;
   }
   /* Restore read timeout value */
   my_net_set_read_timeout(net, thd->variables.net_read_timeout);
