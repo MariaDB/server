@@ -4841,12 +4841,12 @@ static int init_server_components()
     unireg_abort(1);
 
   /* need to configure logging before initializing storage engines */
-  if (!opt_bin_log_used)
+  if (!opt_bin_log_used && !WSREP_ON)
   {
-    if (!WSREP_ON && opt_log_slave_updates)
+    if (opt_log_slave_updates)
       sql_print_warning("You need to use --log-bin to make "
                         "--log-slave-updates work.");
-    if (!WSREP_ON && binlog_format_used)
+    if (binlog_format_used)
       sql_print_warning("You need to use --log-bin to make "
                         "--binlog-format work.");
   }
@@ -9214,8 +9214,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
       (Yes, this is a hack, but it's required as the definition of
       max_relay_log_size allows it to be set to 0).
     */
-    max_relay_log_size_var= intern_find_sys_var("max_relay_log_size", 0);
-    max_binlog_size_var= intern_find_sys_var("max_binlog_size", 0);
+    max_relay_log_size_var= intern_find_sys_var(STRING_WITH_LEN("max_relay_log_size"));
+    max_binlog_size_var= intern_find_sys_var(STRING_WITH_LEN("max_binlog_size"));
     if (max_binlog_size_var && max_relay_log_size_var)
     {
       max_relay_log_size_var->option.min_value=
