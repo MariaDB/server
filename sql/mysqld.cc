@@ -8175,6 +8175,9 @@ SHOW_VAR status_vars[]= {
 #ifdef ENABLED_PROFILING
   {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
 #endif
+#ifdef WITH_WSREP
+  {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
+#endif
   {NullS, NullS, SHOW_LONG}
 };
 

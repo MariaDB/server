@@ -1026,7 +1026,6 @@ THD::THD(bool is_wsrep_applier)
   wsrep_retry_query_len   = 0;
   wsrep_retry_command     = COM_CONNECT;
   wsrep_consistency_check = NO_CONSISTENCY_CHECK;
-  wsrep_status_vars       = 0;
   wsrep_mysql_replicated  = 0;
   wsrep_TOI_pre_query     = NULL;
   wsrep_TOI_pre_query_len = 0;
@@ -1635,7 +1634,6 @@ THD::~THD()
   mysql_mutex_destroy(&LOCK_wsrep_thd);
   if (wsrep_rli) delete wsrep_rli;
   if (wsrep_rgi) delete wsrep_rgi;
-  if (wsrep_status_vars) wsrep->stats_free(wsrep, wsrep_status_vars);
 #endif
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY

@@ -5705,14 +5705,6 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   else
     status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
 
-#ifdef WITH_WSREP
-  if (thd->wsrep_status_vars)
-  {
-    wsrep->stats_free (wsrep, thd->wsrep_status_vars);
-    thd->wsrep_status_vars = 0;
-  }
-#endif
-
   return res;
 }
 
