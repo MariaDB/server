@@ -572,6 +572,11 @@ int wsrep_init()
   int rcode= -1;
   DBUG_ASSERT(wsrep_inited == 0);
 
+  if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO))
+    wsrep_start_position_init(wsrep_start_position);
+
+  wsrep_sst_auth_init(wsrep_sst_auth);
+
   wsrep_causal_reads_update(&global_system_variables);
 
   mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));

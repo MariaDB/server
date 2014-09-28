@@ -8772,12 +8772,6 @@ mysqld_get_one_option(int optid,
   case OPT_LOWER_CASE_TABLE_NAMES:
     lower_case_table_names_used= 1;
     break;
-  case OPT_WSREP_START_POSITION:
-    wsrep_start_position_init (argument);
-    break;
-  case OPT_WSREP_SST_AUTH:
-    wsrep_sst_auth_init (argument);
-    break;
 #if defined(ENABLED_DEBUG_SYNC)
   case OPT_DEBUG_SYNC_TIMEOUT:
     /*
