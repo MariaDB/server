@@ -30,6 +30,10 @@ MY_ADD_TESTS(eperi)
 MY_ADD_TESTS(eperi_aes 
 	LINK_LIBRARIES mysys_ssl dbug)
 
+MY_ADD_TESTS(EperiKeySingleton
+	EXT "cc" 
+	LINK_LIBRARIES xtradb pcre)
+
 MY_ADD_TESTS(
  pageenc
   EXT "cc" 
