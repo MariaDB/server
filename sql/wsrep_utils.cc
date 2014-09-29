@@ -34,6 +34,10 @@
 #include <sys/socket.h>
 #include <netdb.h>    // getaddrinfo()
 
+#ifdef HAVE_GETIFADDRS
+#include <ifaddrs.h>
+#endif
+
 extern char** environ; // environment variables
 
 static wsp::string wsrep_PATH;
@@ -371,7 +375,7 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
 {
   size_t ip_len = 0;
 
-  if (my_bind_addr_str && strlen(my_bind_addr_str))
+  if (my_bind_addr_str && my_bind_addr_str[0] != '\0')
   {
     unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str);
 
@@ -405,55 +409,29 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
     return ip_len;
   }
 
-  // try to find the address of the first one
-#if (TARGET_OS_LINUX == 1)
-  const char cmd[] = "/sbin/ifconfig | "
-//      "grep -m1 -1 -E '^[a-z]?eth[0-9]' | tail -n 1 | "
-      "grep -E '^[[:space:]]+inet addr:' | grep -m1 -v 'inet addr:127' | "
-      "sed 's/:/ /' | awk '{ print $3 }'";
-#elif defined(__sun__)
-  const char cmd[] = "/sbin/ifconfig -a | "
-      "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
-#elif defined(__APPLE__) || defined(__FreeBSD__)
-  const char cmd[] = "/sbin/route -nv get 8.8.8.8 | tail -n1 | awk '{print $(NF)}'";
-#else
-  char *cmd;
-#error "OS not supported"
+#if HAVE_GETIFADDRS
+  struct ifaddrs *ifaddr, *ifa;
+  if (getifaddrs(&ifaddr) == 0)
+  {
+    for (ifa= ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+    {
+      if (!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) // TODO AF_INET6
+        continue;
+
+      if (vio_getnameinfo(ifa->ifa_addr, buf, buf_len, NULL, 0, NI_NUMERICHOST))
+        continue;
+
+      if (strcmp(buf, "127.0.0.1") == 0) // lame
+        continue;
+
+      freeifaddrs(ifaddr);
+      return strlen(buf);
+    }
+    freeifaddrs(ifaddr);
+  }
 #endif
-  wsp::process proc (cmd, "r");
 
-  if (NULL != proc.pipe()) {
-    char* ret;
-
-    ret = fgets (buf, buf_len, proc.pipe());
-
-    if (proc.wait()) return 0;
-
-    if (NULL == ret) {
-      WSREP_ERROR("Failed to read output of: '%s'", cmd);
-      return 0;
-    }
-  }
-  else {
-    WSREP_ERROR("Failed to execute: '%s'", cmd);
-    return 0;
-  }
-
-  // clear possible \n at the end of ip string left by fgets()
-  ip_len = strlen (buf);
-  if (ip_len > 0 && '\n' == buf[ip_len - 1]) {
-    ip_len--;
-    buf[ip_len] = '\0';
-  }
-
-  if (INADDR_NONE == inet_addr(buf)) {
-    if (strlen(buf) != 0) {
-      WSREP_WARN("Shell command returned invalid address: '%s'", buf);
-    }
-    return 0;
-  }
-
-  return ip_len;
+  return 0;
 }
 
 size_t wsrep_guess_address(char* buf, size_t buf_len)
