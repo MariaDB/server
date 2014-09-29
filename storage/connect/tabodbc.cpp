@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.7                                                        */
+/*  Version 2.8                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -76,6 +76,7 @@
 #include "sql_string.h"
 
 extern "C" int   trace;
+extern     bool  xinfo;
 
 /***********************************************************************/
 /*  DB static variables.                                               */
@@ -671,7 +672,7 @@ int TDBODBC::Cardinality(PGLOBAL g)
   if (!g)
     return (Mode == MODE_ANY && !Srcdef) ? 1 : 0;
 
-  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef) {
+  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef && xinfo) {
     // Info command, we must return the exact table row number
     char     qry[96], tbn[64];
     ODBConn *ocp = new(g) ODBConn(g, this);

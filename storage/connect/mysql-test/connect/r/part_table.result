@@ -1,3 +1,4 @@
+set @@global.connect_exact_info=ON;
 CREATE TABLE xt1 (
 id INT KEY NOT NULL,
 msg VARCHAR(32))
@@ -193,3 +194,4 @@ DROP TABLE t1;
 DROP TABLE xt1;
 DROP TABLE xt2;
 DROP TABLE xt3;
+set @@global.connect_exact_info=OFF;

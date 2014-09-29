@@ -76,9 +76,6 @@ add_subdirectory(locktree)
 add_subdirectory(src)
 add_subdirectory(tools)
 
-## subdirectories that just install things
-#add_subdirectory(examples)
-
 INSTALL_DOCUMENTATION(README.md README-TOKUDB COMPONENT Server)
 
 ## build tags

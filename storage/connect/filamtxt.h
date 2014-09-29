@@ -69,10 +69,13 @@ class DllExport TXTFAM : public BLOCK {
   virtual int   DeleteRecords(PGLOBAL g, int irc) = 0;
   virtual void  CloseTableFile(PGLOBAL g, bool abort) = 0;
   virtual void  Rewind(void) = 0;
+  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+          bool  AddListValue(PGLOBAL g, int type, void *val, PPARM *top);
+          int   StoreValues(PGLOBAL g, bool upd);
+          int   UpdateSortedRows(PGLOBAL g);
+          int   DeleteSortedRows(PGLOBAL g);
 
  protected:
-          bool  AddListValue(PGLOBAL g, int type, void *val, PPARM *top);
-
   // Members
   PTDBDOS Tdbp;              // To table class
   PSZ     To_File;           // Points to table file name
@@ -107,9 +110,11 @@ class DllExport TXTFAM : public BLOCK {
   int     Modif;             // Number of modified lines in block
   int     Blksize;           // Size of padded blocks
   int     Ending;            // Length of line end
+  int     Fpos;              // Position of last read record
+  int     Spos;              // Start position for update/delete move
+  int     Tpos;              // Target Position for delete move
   bool    Padded;            // true if fixed size blocks are padded
   bool    Eof;               // true if an EOF (0xA) character exists
-  bool    Indxd;             // True for indexed UPDATE/DELETE
   bool    Abort;             // To abort on error
   char   *CrLf;              // End of line character(s)
   }; // end of class TXTFAM
@@ -154,16 +159,12 @@ class DllExport DOSFAM : public TXTFAM {
   virtual bool  OpenTempFile(PGLOBAL g);
   virtual bool  MoveIntermediateLines(PGLOBAL g, bool *b);
   virtual int   RenameTempFile(PGLOBAL g);
-  virtual bool  MakeUpdatedFile(PGLOBAL g);
-  virtual bool  MakeDeletedFile(PGLOBAL g);
+  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
 
   // Members
   FILE   *Stream;             // Points to Dos file structure
   FILE   *T_Stream;           // Points to temporary file structure
   PFBLOCK To_Fbt;             // Pointer to temp file block
-  int     Fpos;               // Position of last read record
-  int     Tpos;               // Target Position for delete move
-  int     Spos;               // Start position for update/delete move
   bool    UseTemp;            // True to use a temporary file in Upd/Del
   bool    Bin;                // True to force binary mode
   }; // end of class DOSFAM

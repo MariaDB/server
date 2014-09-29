@@ -288,9 +288,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
 
   for (; key < end ; key++)
   {
-    tmp1^= (ulong) ((((uint) tmp1 & 63) + tmp2) *
-                    ((uint) *key)) + (tmp1 << 8);
-    tmp2+= 3;
+    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
   }
 
   *nr1= tmp1;
@@ -307,9 +305,7 @@ void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
 
   for (; key < end ; key++)
   {
-    tmp1^= (ulong) ((((uint) tmp1 & 63) + tmp2) *
-                    ((uint) *key)) + (tmp1 << 8);
-    tmp2+= 3;
+    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
   }
 
   *nr1= tmp1;

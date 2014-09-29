@@ -22,6 +22,7 @@
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
+#include "sql_analyse.h"
 #endif
 #include "spd_db_include.h"
 #include "spd_include.h"
@@ -1251,7 +1252,7 @@ bool spider_string::append_for_single_quote(
 #ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
   bool res = str.append_for_single_quote(s);
 #else
-  bool res = append_escaped(&str, s);
+  bool res = append_escaped(&str, (String *) s);
 #endif
   SPIDER_STRING_CALC_MEM;
   DBUG_RETURN(res);

@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -99,8 +99,8 @@ PATENT RIGHTS GRANT:
 #include <string.h>
 
 #include <ft/ft.h>
-#include <ft/ftloader.h>
-#include <ft/checkpoint.h>
+#include <ft/loader/loader.h>
+#include <ft/cachetable/checkpoint.h>
 
 #include "ydb-internal.h"
 #include "ydb_db.h"
@@ -119,7 +119,7 @@ enum {MAX_FILE_SIZE=256};
 
 static LOADER_STATUS_S loader_status;
 
-#define STATUS_INIT(k,c,t,l,inc) TOKUDB_STATUS_INIT(loader_status, k, c, t, "loader: " l, inc)
+#define STATUS_INIT(k,c,t,l,inc) TOKUFT_STATUS_INIT(loader_status, k, c, t, "loader: " l, inc)
 
 static void
 status_init(void) {

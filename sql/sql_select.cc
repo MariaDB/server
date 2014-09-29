@@ -2521,7 +2521,7 @@ void JOIN::exec_inner()
     Item *cur_const_item;
     while ((cur_const_item= const_item_it++))
     {
-      cur_const_item->val_str(&cur_const_item->str_value);
+      cur_const_item->val_str(); // This caches val_str() to Item::str_value
       if (thd->is_error())
       {
         error= thd->is_error();
@@ -9875,6 +9875,25 @@ uint get_next_field_for_derived_key(uchar *arg)
 }
 
 
+static
+uint get_next_field_for_derived_key_simple(uchar *arg)
+{
+  KEYUSE *keyuse= *(KEYUSE **) arg;
+  if (!keyuse)
+    return (uint) (-1);
+  TABLE *table= keyuse->table;
+  uint key= keyuse->key;
+  uint fldno= keyuse->keypart; 
+  for ( ; 
+        keyuse->table == table && keyuse->key == key && keyuse->keypart == fldno;
+        keyuse++)
+    ;
+  if (keyuse->key != key)
+    keyuse= 0;
+  *((KEYUSE **) arg)= keyuse;
+  return fldno;
+}
+
 static 
 bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
 {
@@ -9905,12 +9924,28 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
     }
     else
     {
-      if (table->add_tmp_key(table->s->keys, parts, 
-                             get_next_field_for_derived_key, 
-                             (uchar *) &first_keyuse,
-                             FALSE))
-        return TRUE;
-      table->reginfo.join_tab->keys.set_bit(table->s->keys);
+      KEYUSE *save_first_keyuse= first_keyuse;
+      if (table->check_tmp_key(table->s->keys, parts,
+                               get_next_field_for_derived_key_simple, 
+                               (uchar *) &first_keyuse))
+ 
+      {
+        first_keyuse= save_first_keyuse;
+        if (table->add_tmp_key(table->s->keys, parts, 
+                               get_next_field_for_derived_key, 
+                               (uchar *) &first_keyuse,
+                               FALSE))
+          return TRUE;
+        table->reginfo.join_tab->keys.set_bit(table->s->keys);
+      }
+      else
+      {
+        /* Mark keyuses for this key to be excluded */
+        for (KEYUSE *curr=save_first_keyuse; curr < first_keyuse; curr++)
+	{
+          curr->key= MAX_KEY;
+        }
+      }
       first_keyuse= keyuse;
       key_count++;
       parts= 0;
@@ -21066,7 +21101,7 @@ cp_buffer_from_ref(THD *thd, TABLE *table, TABLE_REF *ref)
 
   ref_pointer_array and all_fields are updated.
 
-  @param[in] thd		     Pointer to current thread structure
+  @param[in] thd		    Pointer to current thread structure
   @param[in,out] ref_pointer_array  All select, group and order by fields
   @param[in] tables                 List of tables to search in (usually
     FROM clause)
@@ -21108,11 +21143,11 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
                order_item->full_name(), thd->where);
       return TRUE;
     }
-    order->item= ref_pointer_array + count - 1;
+    thd->change_item_tree((Item**)&order->item, (Item*)(ref_pointer_array + count - 1));
     order->in_field_list= 1;
     order->counter= count;
     order->counter_used= 1;
-   return FALSE;
+    return FALSE;
   }
   /* Lookup the current GROUP/ORDER field in the SELECT clause. */
   select_item= find_item_in_list(order_item, fields, &counter,
@@ -21180,7 +21215,8 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
         warning so the user knows that the field from the FROM clause
         overshadows the column reference from the SELECT list.
       */
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_NON_UNIQ_ERROR,
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_NON_UNIQ_ERROR,
                           ER(ER_NON_UNIQ_ERROR),
                           ((Item_ident*) order_item)->field_name,
                           current_thd->where);
@@ -22950,13 +22986,11 @@ int print_explain_message_line(select_result_sink *result,
                                ha_rows *rows,
                                const char *message)
 {
-  const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
   List<Item> item_list;
 
   item_list.push_back(new Item_int((int32) select_number));
-  item_list.push_back(new Item_string(select_type,
-                                      strlen(select_type), cs));
+  item_list.push_back(new Item_string_sys(select_type));
   /* `table` */
   item_list.push_back(item_null);
   
@@ -22983,7 +23017,7 @@ int print_explain_message_line(select_result_sink *result,
 
   /* `Extra` */
   if (message)
-    item_list.push_back(new Item_string(message,strlen(message),cs));
+    item_list.push_back(new Item_string_sys(message));
   else
     item_list.push_back(item_null);
 
@@ -23042,45 +23076,39 @@ int print_explain_row(select_result_sink *result,
                       ha_rows *rows,
                       const char *extra)
 {
-  const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
   List<Item> item_list;
   Item *item;
 
   item_list.push_back(new Item_int((int32) select_number));
-  item_list.push_back(new Item_string(select_type,
-                                      strlen(select_type), cs));
-  item_list.push_back(new Item_string(table_name,
-                                      strlen(table_name), cs));
+  item_list.push_back(new Item_string_sys(select_type));
+  item_list.push_back(new Item_string_sys(table_name));
   if (options & DESCRIBE_PARTITIONS)
   {
     if (partitions)
     {
-      item_list.push_back(new Item_string(partitions,
-                                          strlen(partitions), cs));
+      item_list.push_back(new Item_string_sys(partitions));
     }
     else
       item_list.push_back(item_null);
   }
   
   const char *jtype_str= join_type_str[jtype];
-  item_list.push_back(new Item_string(jtype_str,
-                                      strlen(jtype_str), cs));
+  item_list.push_back(new Item_string_sys(jtype_str));
   
-  item= possible_keys? new Item_string(possible_keys, strlen(possible_keys),
-                                      cs) : item_null;
+  item= possible_keys? new Item_string_sys(possible_keys) : item_null;
   item_list.push_back(item);
   
   /* 'index */
-  item= index ? new Item_string(index, strlen(index), cs) : item_null;
+  item= index ? new Item_string_sys(index) : item_null;
   item_list.push_back(item);
   
   /* 'key_len */
-  item= key_len ? new Item_string(key_len, strlen(key_len), cs) : item_null;
+  item= key_len ? new Item_string_sys(key_len) : item_null;
   item_list.push_back(item);
   
   /* 'ref' */
-  item= ref ? new Item_string(ref, strlen(ref), cs) : item_null;
+  item= ref ? new Item_string_sys(ref) : item_null;
   item_list.push_back(item);
 
   /* 'rows' */
@@ -23099,7 +23127,7 @@ int print_explain_row(select_result_sink *result,
   
   /* 'Extra' */
   if (extra)
-    item_list.push_back(new Item_string(extra, strlen(extra), cs));
+    item_list.push_back(new Item_string_sys(extra));
   else
     item_list.push_back(item_null);
 
@@ -23112,7 +23140,6 @@ int print_explain_row(select_result_sink *result,
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 explain_flags)
 {
-  const CHARSET_INFO *cs= system_charset_info;
   Item *item_null= new Item_null();
   List<Item> item_list;
   if (on_the_fly)
@@ -23129,9 +23156,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
   /* id */
   item_list.push_back(new Item_null);
   /* select_type */
-  item_list.push_back(new Item_string(select_lex->type,
-                                      strlen(select_lex->type),
-                                      cs));
+  item_list.push_back(new Item_string_sys(select_lex->type));
   /* table */
   {
     SELECT_LEX *sl= select_lex->master_unit()->first_select();
@@ -23153,15 +23178,14 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
       len+= lastop;
       table_name_buffer[len - 1]= '>';  // change ',' to '>'
     }
-    item_list.push_back(new Item_string(table_name_buffer, len, cs));
+    item_list.push_back(new Item_string_sys(table_name_buffer, len));
   }
   /* partitions */
   if (explain_flags & DESCRIBE_PARTITIONS)
     item_list.push_back(item_null);
   /* type */
-  item_list.push_back(new Item_string(join_type_str[JT_ALL],
-                                        strlen(join_type_str[JT_ALL]),
-                                        cs));
+  item_list.push_back(new Item_string_sys(join_type_str[JT_ALL]));
+
   /* possible_keys */
   item_list.push_back(item_null);
   /* key*/
@@ -23177,10 +23201,9 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
   item_list.push_back(item_null);
   /* extra */
   if (select_lex->master_unit()->global_parameters->order_list.first)
-    item_list.push_back(new Item_string("Using filesort",
-                                        14, cs));
+    item_list.push_back(new Item_string_sys("Using filesort", 14));
   else
-    item_list.push_back(new Item_string("", 0, cs));
+    item_list.push_back(new Item_string_sys("", 0));
 
   if (result->send_data(item_list))
     return 1;

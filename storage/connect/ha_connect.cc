@@ -170,8 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0002 July 17, 2014";
-       char  compver[]= "Version 1.03.0002 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0003 August 22, 2014";
+       char  compver[]= "Version 1.03.0003 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
        char slash= '\\';
@@ -185,11 +185,13 @@ extern "C" {
        int  trace= 0;              // The general trace value
        int  xconv= 0;              // The type conversion option
        int  zconv= SZCONV;         // The text conversion size
+       USETEMP Use_Temp= TMP_AUTO; // The temporary file use
 } // extern "C"
 
 #if defined(XMAP)
        bool xmap= false;
 #endif   // XMAP
+       bool xinfo= false;
 
        uint worksize= SZWORK;
 ulong  ha_connect::num= 0;
@@ -200,9 +202,11 @@ static int     xtrace= 0;
 static int     conv_size= SZCONV;
 static uint    work_size= SZWORK;
 static ulong   type_conv= 0;
+static ulong   use_tempfile= 1;
 #if defined(XMAP)
 static my_bool indx_map= 0;
 #endif   // XMAP
+static my_bool exact_info= 0;
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -224,11 +228,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
                                       HA_CREATE_INFO *info);
 
+/***********************************************************************/
+/*  Global variables update functions.                                 */
+/***********************************************************************/
 static void update_connect_xtrace(MYSQL_THD thd,
                                   struct st_mysql_sys_var *var,
                                   void *var_ptr, const void *save)
 {
-  xtrace= *(int *)var_ptr= *(int *)save;
+  trace= *(int *)var_ptr= *(int *)save;
 } // end of update_connect_xtrace
 
 static void update_connect_zconv(MYSQL_THD thd,
@@ -252,6 +259,13 @@ static void update_connect_worksize(MYSQL_THD thd,
   worksize= (uint)(*(ulong *)var_ptr= *(ulong *)save);
 } // end of update_connect_worksize
 
+static void update_connect_usetemp(MYSQL_THD thd,
+                                   struct st_mysql_sys_var *var,
+                                   void *var_ptr, const void *save)
+{
+  Use_Temp= (USETEMP)(*(ulong *)var_ptr= *(ulong *)save);
+} // end of update_connect_usetemp
+
 #if defined(XMAP)
 static void update_connect_xmap(MYSQL_THD thd,
                                 struct st_mysql_sys_var *var,
@@ -260,6 +274,13 @@ static void update_connect_xmap(MYSQL_THD thd,
   xmap= (bool)(*(my_bool *)var_ptr= *(my_bool *)save);
 } // end of update_connect_xmap
 #endif   // XMAP
+
+static void update_connect_xinfo(MYSQL_THD thd,
+                                 struct st_mysql_sys_var *var,
+                                 void *var_ptr, const void *save)
+{
+  xinfo= (bool)(*(my_bool *)var_ptr= *(my_bool *)save);
+} // end of update_connect_xinfo
 
 /***********************************************************************/
 /*  The CONNECT handlerton object.                                     */
@@ -542,6 +563,11 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
   if (xp)
     xp->SetHandler(this);
+#if defined(WIN32)
+  datapath= ".\\";
+#else   // !WIN32
+  datapath= "./";
+#endif  // !WIN32
   tdbp= NULL;
   sdvalin= NULL;
   sdvalout= NULL;
@@ -555,7 +581,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   stop= false;
   alter= false;
   mrr= false;
-  nox= false;
+  nox= true;
   abort= false;
   indexing= -1;
   locked= 0;
@@ -1381,6 +1407,14 @@ void ha_connect::AddColName(char *cp, Field *fp)
 } // end of AddColName
 #endif // 0
 
+/***********************************************************************/
+/*  This function sets the current database path.                      */
+/***********************************************************************/
+void ha_connect::SetDataPath(PGLOBAL g, const char *path) 
+{
+  datapath= SetPath(g, path);
+} // end of SetDataPath
+
 /****************************************************************************/
 /*  Get the table description block of a CONNECT table.                     */
 /****************************************************************************/
@@ -1590,7 +1624,7 @@ int ha_connect::CloseTable(PGLOBAL g)
   sdvalout=NULL;
   valid_info= false;
   indexing= -1;
-  nox= false;
+  nox= true;
   abort= false;
   return rc;
 } // end of CloseTable
@@ -1697,10 +1731,10 @@ int ha_connect::MakeRecord(char *buf)
 
         // Store functions returns 1 on overflow and -1 on fatal error
         if (rc > 0) {
-          char buf[128];
+          char buf[256];
           THD *thd= ha_thd();
 
-          sprintf(buf, "Out of range value %s for column '%s' at row %ld",
+          sprintf(buf, "Out of range value %.140s for column '%s' at row %ld",
             value->GetCharString(val),
             fp->field_name, 
             thd->get_stmt_da()->current_row_for_warning());
@@ -2642,7 +2676,6 @@ int ha_connect::open(const char *name, int mode, uint test_if_locked)
 int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
 {
   int      rc= 0;
-  bool     dop= (check_opt != NULL);
   PGLOBAL& g= xp->g;
   PDBUSER  dup= PlgGetUser(g);
 
@@ -2652,9 +2685,10 @@ int ha_connect::optimize(THD* thd, HA_CHECK_OPT* check_opt)
   dup->Check |= CHK_OPT;
 
   if (tdbp) {
-    bool b= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
+    bool dop= IsTypeIndexable(GetRealType(NULL));
+    bool dox= (((PTDBASE)tdbp)->GetDef()->Indexable() == 1);
 
-    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, b))) {
+    if ((rc= ((PTDBASE)tdbp)->ResetTableOpt(g, dop, dox))) {
       if (rc == RC_INFO) {
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
         rc= 0;
@@ -2739,7 +2773,8 @@ int ha_connect::write_row(uchar *buf)
       DBUG_RETURN(0);     // Alter table on an outward partition table
 
     xmod= MODE_INSERT;
-    } // endif xmod
+  } else if (xmod == MODE_ANY)
+    DBUG_RETURN(0);       // Probably never met
 
   // Open the table if it was not opened yet (locked)
   if (!IsOpened() || xmod != tdbp->GetMode()) {
@@ -2750,9 +2785,6 @@ int ha_connect::write_row(uchar *buf)
       DBUG_RETURN(rc);
 
     } // endif isopened
-
-  if (tdbp->GetMode() == MODE_ANY)
-    DBUG_RETURN(0);
 
 #if 0                // AUTO_INCREMENT NIY
   if (table->next_number_field && buf == table->record[0]) {
@@ -2773,7 +2805,8 @@ int ha_connect::write_row(uchar *buf)
     DBUG_PRINT("write_row", ("%s", g->Message));
     htrc("write_row: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
-    } // endif RC
+  } else                // Table is modified
+    nox= false;         // Indexes to be remade
 
   DBUG_RETURN(rc);
 } // end of write_row
@@ -2818,7 +2851,8 @@ int ha_connect::update_row(const uchar *old_data, uchar *new_data)
     DBUG_PRINT("update_row", ("%s", g->Message));
     htrc("update_row CONNECT: %s\n", g->Message);
     rc= HA_ERR_INTERNAL_ERROR;
-    } // endif RC
+  } else
+    nox= false;               // Table is modified
 
   DBUG_RETURN(rc);
 } // end of update_row
@@ -2851,7 +2885,8 @@ int ha_connect::delete_row(const uchar *buf)
   if (CntDeleteRow(xp->g, tdbp, false)) {
     rc= HA_ERR_INTERNAL_ERROR;
     htrc("delete_row CONNECT: %s\n", xp->g->Message);
-    } // endif DeleteRow
+  } else
+    nox= false;             // To remake indexes
 
   DBUG_RETURN(rc);
 } // end of delete_row
@@ -2898,7 +2933,7 @@ int ha_connect::index_init(uint idx, bool sorted)
     DBUG_RETURN(0);
     } // endif locked
 
-  indexing= CntIndexInit(g, tdbp, (signed)idx);
+  indexing= CntIndexInit(g, tdbp, (signed)idx, sorted);
 
   if (indexing <= 0) {
     DBUG_PRINT("index_init", ("%s", g->Message));
@@ -2911,8 +2946,10 @@ int ha_connect::index_init(uint idx, bool sorted)
         ((PTDBDOX)tdbp)->GetTxfp()->ResetBuffer(g);
 
       active_index= idx;
-    } else        // Void table
-      indexing= 0;
+//  } else {        // Void table
+//    active_index= MAX_KEY;
+//    indexing= 0;
+    } // endif Num
 
     rc= 0;
   } // endif indexing
@@ -3418,8 +3455,10 @@ int ha_connect::info(uint flag)
       } // endif xmod
 
     // This is necessary for getting file length
-    if (cat && table)
-      cat->SetDataPath(g, table->s->db.str);
+//  if (cat && table)
+//    cat->SetDataPath(g, table->s->db.str);
+    if (table)
+      SetDataPath(g, table->s->db.str);
     else
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
@@ -3535,7 +3574,8 @@ int ha_connect::delete_all_rows()
     if (CntDeleteRow(g, tdbp, true)) {
       htrc("%s\n", g->Message);
       rc= HA_ERR_INTERNAL_ERROR;
-      } // endif
+    } else
+      nox= false;
 
     } // endif rc
 
@@ -4741,7 +4781,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   const char *fncn= "?";
   const char *user, *fn, *db, *host, *pwd, *sep, *tbl, *src;
   const char *col, *ocl, *rnk, *pic, *fcl, *skc;
-  char       *tab, *dsn, *shm; 
+  char       *tab, *dsn, *shm, *dpath; 
 #if defined(WIN32)
   char       *nsp= NULL, *cls= NULL;
 #endif   // WIN32
@@ -4935,7 +4975,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       } else if (!user)
         user= "root";
 
-      if (CheckSelf(g, table_s, host, db, tab, src, port))
+      if (ok && CheckSelf(g, table_s, host, db, tab, src, port))
         ok= false;
 
       break;
@@ -4986,10 +5026,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     char   *cnm, *rem, *dft, *xtra;
     int     i, len, prec, dec, typ, flg;
 
-    if (cat)
-      cat->SetDataPath(g, table_s->db.str);
-    else
-      return HA_ERR_INTERNAL_ERROR;           // Should never happen
+//  if (cat)
+//    cat->SetDataPath(g, table_s->db.str);
+//  else
+//    return HA_ERR_INTERNAL_ERROR;           // Should never happen
+
+    dpath= SetPath(g, table_s->db.str);
 
     if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC) {
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
@@ -5002,7 +5044,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
     } else switch (ttp) {
       case TAB_DBF:
-        qrp= DBFColumns(g, fn, fnc == FNC_COL);
+        qrp= DBFColumns(g, dpath, fn, fnc == FNC_COL);
         break;
 #if defined(ODBC_SUPPORT)
       case TAB_ODBC:
@@ -5039,7 +5081,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         break;
 #endif   // MYSQL_SUPPORT
       case TAB_CSV:
-        qrp= CSVColumns(g, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
+        qrp= CSVColumns(g, dpath, fn, spc, qch, hdr, mxe, fnc == FNC_COL);
         break;
 #if defined(WIN32)
       case TAB_WMI:
@@ -5705,8 +5747,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
+        SetDataPath(g, table_arg->s->db.str);
+
         if (cat) {
-          cat->SetDataPath(g, table_arg->s->db.str);
+//        cat->SetDataPath(g, table_arg->s->db.str);
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
@@ -6196,6 +6240,9 @@ Item *ha_connect::idx_cond_push(uint keyno_arg, Item* idx_cond_arg)
 struct st_mysql_storage_engine connect_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
+/***********************************************************************/
+/*  CONNECT global variables definitions.                              */
+/***********************************************************************/
 // Tracing: 0 no, 1 yes, >1 more tracing
 static MYSQL_SYSVAR_INT(xtrace, xtrace,
        PLUGIN_VAR_RQCMDARG, "Console trace value.",
@@ -6233,6 +6280,35 @@ static MYSQL_SYSVAR_ENUM(
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 
+/**
+  Temporary file usage:
+    no:    Not using temporary file
+    auto:  Using temporary file when needed
+    yes:   Allways using temporary file
+    force: Force using temporary file (no MAP)
+    test:  Reserved
+*/
+const char *usetemp_names[]=
+{
+  "NO", "AUTO", "YES", "FORCE", "TEST", NullS
+};
+
+TYPELIB usetemp_typelib=
+{
+  array_elements(usetemp_names) - 1, "usetemp_typelib",
+  usetemp_names, NULL
+};
+
+static MYSQL_SYSVAR_ENUM(
+  use_tempfile,                    // name
+  use_tempfile,                    // varname
+  PLUGIN_VAR_RQCMDARG,             // opt
+  "Temporary file use.",           // comment
+  NULL,                            // check
+  update_connect_usetemp,          // update function
+  1,                               // def (AUTO)
+  &usetemp_typelib);               // typelib
+
 #if defined(XMAP)
 // Using file mapping for indexes if true
 static MYSQL_SYSVAR_BOOL(indx_map, indx_map, PLUGIN_VAR_RQCMDARG,
@@ -6245,6 +6321,11 @@ static MYSQL_SYSVAR_UINT(work_size, work_size,
        PLUGIN_VAR_RQCMDARG, "Size of the CONNECT work area.",
        NULL, update_connect_worksize, SZWORK, SZWMIN, UINT_MAX, 1);
 
+// Getting exact info values
+static MYSQL_SYSVAR_BOOL(exact_info, exact_info, PLUGIN_VAR_RQCMDARG,
+       "Getting exact info values",
+       NULL, update_connect_xinfo, 0);
+
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
   MYSQL_SYSVAR(conv_size),
@@ -6253,6 +6334,8 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(indx_map),
 #endif   // XMAP
   MYSQL_SYSVAR(work_size),
+  MYSQL_SYSVAR(use_tempfile),
+  MYSQL_SYSVAR(exact_info),
   NULL
 };
 

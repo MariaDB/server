@@ -50,7 +50,7 @@
 /***********************************************************************/
 /*  Macro or external routine definition                               */
 /***********************************************************************/
-#define NZ 7
+#define NZ 8
 #define NW 5
 #define MAX_INDX 10
 #ifndef INVALID_SET_FILE_POINTER
@@ -264,9 +264,6 @@ void XINDEX::Close(void)
     kcp->FreeData();
     } // endfor kcp
 
-  if (Tdbp)
-    Tdbp->RestoreNrec();
-
   } // end of Close
 
 /***********************************************************************/
@@ -411,7 +408,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
 
         kcp = new(g) KXYCOL(this);
 
-        if (kcp->Init(g, colp, n, true, NULL))
+        if (kcp->Init(g, colp, n, true, 0))
           return true;
 
         if (trace)
@@ -547,7 +544,7 @@ bool XINDEX::Make(PGLOBAL g, PIXDEF sxp)
   if ((Ndif = Qsort(g, Num_K)) < 0)
     goto err;       // Error during sort
 
-//  if (trace)
+  if (trace)
     htrc("Make: Nk=%d n=%d Num_K=%d Ndif=%d addcolp=%p BlkFil=%p X=%p\n",
           Nk, n, Num_K, Ndif, addcolp, Tdbp->To_BlkFil, X);
 
@@ -820,11 +817,11 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   bool    sep, rc = false;
   PXCOL   kcp = To_KeyCol;
   PDOSDEF defp = (PDOSDEF)Tdbp->To_Def;
-  PDBUSER dup = PlgGetUser(g);
+//PDBUSER dup = PlgGetUser(g);
 
-  dup->Step = STEP(SAVING_INDEX);
-  dup->ProgMax = 15 + 16 * Nk;
-  dup->ProgCur = 0;
+//dup->Step = STEP(SAVING_INDEX);
+//dup->ProgMax = 15 + 16 * Nk;
+//dup->ProgCur = 0;
 
   switch (Tdbp->Ftype) {
     case RECFM_VAR: ftype = ".dnx"; break;
@@ -869,31 +866,32 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
   /*********************************************************************/
   /*  Write the index values on the index file.                        */
   /*********************************************************************/
-  n[0] = ID;                  // To check validity
+  n[0] = ID + MAX_INDX;       // To check validity
   n[1] = Nk;                  // The number of indexed columns
   n[2] = nof;                 // The offset array size or 0
   n[3] = Num_K;               // The index size
   n[4] = Incr;                // Increment of record positions
   n[5] = Nblk; n[6] = Sblk;
+  n[7] = Srtd ? 1 : 0;        // Values are sorted in the file
 
   if (trace) {
     htrc("Saving index %s\n", Xdp->GetName());
-    htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d\n",
-          ID, Nk, nof, Num_K, Incr, Nblk, Sblk);
+    htrc("ID=%d Nk=%d nof=%d Num_K=%d Incr=%d Nblk=%d Sblk=%d Srtd=%d\n",
+          ID, Nk, nof, Num_K, Incr, Nblk, Sblk, Srtd);
     } // endif trace
 
   size = X->Write(g, n, NZ, sizeof(int), rc);
-  dup->ProgCur = 1;
+//dup->ProgCur = 1;
 
   if (Mul)             // Write the offset array
     size += X->Write(g, Pof, nof, sizeof(int), rc);
 
-  dup->ProgCur = 5;
+//dup->ProgCur = 5;
 
   if (!Incr)           // Write the record position array(s)
     size += X->Write(g, To_Rec, Num_K, sizeof(int), rc);
 
-  dup->ProgCur = 15;
+//dup->ProgCur = 15;
 
   for (; kcp; kcp = kcp->Next) {
     n[0] = kcp->Ndf;                 // Number of distinct sub-values
@@ -903,20 +901,20 @@ bool XINDEX::SaveIndex(PGLOBAL g, PIXDEF sxp)
     n[4] = kcp->Type;                // To be checked later
 
     size += X->Write(g, n, NW, sizeof(int), rc);
-    dup->ProgCur += 1;
+//  dup->ProgCur += 1;
 
     if (n[2])
       size += X->Write(g, kcp->To_Bkeys, Nblk, kcp->Klen, rc);
 
-    dup->ProgCur += 5;
+//  dup->ProgCur += 5;
 
     size += X->Write(g, kcp->To_Keys, n[0], kcp->Klen, rc);
-    dup->ProgCur += 5;
+//  dup->ProgCur += 5;
 
     if (n[1])
       size += X->Write(g, kcp->Kof, n[1], sizeof(int), rc);
 
-    dup->ProgCur += 5;
+//  dup->ProgCur += 5;
     } // endfor kcp
 
   if (trace)
@@ -1019,12 +1017,22 @@ bool XINDEX::Init(PGLOBAL g)
     goto err;               // No saved values
 
   //  Now start the reading process.
-  if (X->Read(g, nv, NZ, sizeof(int)))
+  if (X->Read(g, nv, NZ - 1, sizeof(int)))
     goto err;
 
+  if (nv[0] >= MAX_INDX) {
+    // New index format
+    if (X->Read(g, nv + 7, 1, sizeof(int)))
+      goto err;
+
+    Srtd = nv[7] != 0;
+    nv[0] -= MAX_INDX;
+  } else
+    Srtd = false;
+
   if (trace)
-    htrc("nv=%d %d %d %d %d %d %d\n",
-          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
+    htrc("nv=%d %d %d %d %d %d %d (%d)\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
@@ -1271,11 +1279,20 @@ bool XINDEX::MapInit(PGLOBAL g)
 
   //  Now start the mapping process.
   nv = (int*)mbase;
-  mbase += NZ * sizeof(int);
+
+  if (nv[0] >= MAX_INDX) {
+    // New index format
+    Srtd = nv[7] != 0;
+    nv[0] -= MAX_INDX;
+    mbase += NZ * sizeof(int);
+  } else {
+    Srtd = false;
+    mbase += (NZ - 1) * sizeof(int);
+  } // endif nv
 
   if (trace)
-    htrc("nv=%d %d %d %d %d %d %d\n",
-          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6]);
+    htrc("nv=%d %d %d %d %d %d %d %d\n",
+          nv[0], nv[1], nv[2], nv[3], nv[4], nv[5], nv[6], Srtd);
 
   // The test on ID was suppressed because MariaDB can change an index ID
   // when other indexes are added or deleted
@@ -2453,7 +2470,7 @@ void *XFILE::FileView(PGLOBAL g, char *fn)
 /***********************************************************************/
 bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
   {
-  IOFF  noff[MAX_INDX];
+  IOFF noff[MAX_INDX];
 
   if (Hfile != INVALID_HANDLE_VALUE) {
     sprintf(g->Message, MSG(FILE_OPEN_YET), filename);
@@ -2461,7 +2478,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
     } // endif
 
   if (trace)
-    htrc(" Xopen: filename=%s mode=%d\n", filename, mode);
+    htrc(" Xopen: filename=%s id=%d mode=%d\n", filename, id, mode);
 
 #if defined(WIN32)
   LONG  high = 0;
@@ -2553,7 +2570,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
 
 #else   // UNIX
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
-  mode_t pmod = 0;
+  mode_t pmod = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 
   /*********************************************************************/
   /*  Create the file object according to access mode                  */
@@ -2564,7 +2581,7 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       break;
     case MODE_WRITE:
       oflag |= O_WRONLY | O_CREAT | O_TRUNC;
-      pmod = S_IREAD | S_IWRITE;
+//    pmod = S_IREAD | S_IWRITE;
       break;
     case MODE_INSERT:
       oflag |= (O_WRONLY | O_APPEND);
@@ -2597,6 +2614,9 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       return true;
       } // endif
 
+    if (trace)
+      htrc("INSERT: NewOff=%lld\n", NewOff.Val);
+
   } else if (mode == MODE_WRITE) {
     if (id >= 0) {
       // New not sep index file. Write the header.
@@ -2604,18 +2624,26 @@ bool XHUGE::Open(PGLOBAL g, char *filename, int id, MODE mode)
       NewOff.Low = write(Hfile, &noff, sizeof(noff));
       } // endif id
 
+    if (trace)
+      htrc("WRITE: NewOff=%lld\n", NewOff.Val);
+
   } else if (mode == MODE_READ && id >= 0) {
     // Get offset from the header
     if (read(Hfile, noff, sizeof(noff)) != sizeof(noff)) {
       sprintf(g->Message, MSG(READ_ERROR), "Index file", strerror(errno));
       return true;
-      } // endif MAX_INDX
+      } // endif read
+      
+	  if (trace)
+      htrc("noff[%d]=%lld\n", id, noff[id].Val);
 
     // Position the cursor at the offset of this index
-    if (!lseek64(Hfile, noff[id].Val, SEEK_SET)) {
-      sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
+    if (lseek64(Hfile, noff[id].Val, SEEK_SET) < 0) {
+      sprintf(g->Message, "(XHUGE)lseek64: %s (%lld)", strerror(errno), noff[id].Val);
+      printf("%s\n", g->Message);
+//    sprintf(g->Message, MSG(FUNC_ERRNO), errno, "Hseek");
       return true;
-      } // endif
+      } // endif lseek64
 
   } // endif mode
 #endif  // UNIX
@@ -2749,6 +2777,9 @@ int XHUGE::Write(PGLOBAL g, void *buf, int n, int size, bool& rc)
 /***********************************************************************/
 void XHUGE::Close(char *fn, int id)
   {
+  if (trace)
+    htrc("XHUGE::Close: fn=%s id=%d NewOff=%lld\n", fn, id, NewOff.Val);
+
 #if defined(WIN32)
   if (id >= 0 && fn) {
     CloseFileHandle(Hfile);
@@ -2766,10 +2797,18 @@ void XHUGE::Close(char *fn, int id)
     } // endif id
 #else   // !WIN32
   if (id >= 0 && fn) {
-    fcntl(Hfile, F_SETFD, O_WRONLY);
-
-    if (lseek(Hfile, id * sizeof(IOFF), SEEK_SET))
-      write(Hfile, &NewOff, sizeof(IOFF));
+    if (Hfile != INVALID_HANDLE_VALUE) {
+      if (lseek64(Hfile, id * sizeof(IOFF), SEEK_SET) >= 0) {
+        ssize_t nbw = write(Hfile, &NewOff, sizeof(IOFF));
+			  
+        if (nbw != (signed)sizeof(IOFF))
+          htrc("Error writing index file header: %s\n", strerror(errno));
+		    
+      } else
+        htrc("(XHUGE::Close)lseek64: %s (%d)\n", strerror(errno), id);
+			
+    } else
+      htrc("(XHUGE)error reopening %s: %s\n", fn, strerror(errno));
 
     } // endif id
 #endif  // !WIN32
@@ -2795,6 +2834,7 @@ void *XHUGE::FileView(PGLOBAL g, char *fn)
 /***********************************************************************/
 XXROW::XXROW(PTDBDOS tdbp) : XXBASE(tdbp, false)
   {
+  Srtd = true;
   Tdbp = tdbp;
   Valp = NULL;
   } // end of XXROW constructor

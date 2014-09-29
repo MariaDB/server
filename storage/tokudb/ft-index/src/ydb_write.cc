@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -93,7 +93,7 @@ PATENT RIGHTS GRANT:
 #include "ydb-internal.h"
 #include "indexer.h"
 #include <ft/log_header.h>
-#include <ft/checkpoint.h>
+#include <ft/cachetable/checkpoint.h>
 #include "ydb_row_lock.h"
 #include "ydb_write.h"
 #include "ydb_db.h"
@@ -106,7 +106,7 @@ static YDB_WRITE_LAYER_STATUS_S ydb_write_layer_status;
 #endif
 #define STATUS_VALUE(x) ydb_write_layer_status.status[x].value.num
 
-#define STATUS_INIT(k,c,t,l,inc) TOKUDB_STATUS_INIT(ydb_write_layer_status, k, c, t, l, inc)
+#define STATUS_INIT(k,c,t,l,inc) TOKUFT_STATUS_INIT(ydb_write_layer_status, k, c, t, l, inc)
 
 static void
 ydb_write_layer_status_init (void) {
@@ -951,8 +951,8 @@ env_update_multiple(DB_ENV *env, DB *src_db, DB_TXN *txn,
                 } else if (idx_old == old_keys.size) {
                     cmp = +1;
                 } else {
-                    ft_compare_func cmpfun = toku_db_get_compare_fun(db);
-                    cmp = cmpfun(db, curr_old_key, curr_new_key);
+                    const toku::comparator &cmpfn = toku_db_get_comparator(db);
+                    cmp = cmpfn(curr_old_key, curr_new_key);
                 }
 
                 bool do_del = false;

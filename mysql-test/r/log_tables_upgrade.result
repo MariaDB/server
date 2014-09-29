@@ -11,7 +11,7 @@ Table	Op	Msg_type	Msg_text
 test.bug49823	repair	status	OK
 RENAME TABLE general_log TO renamed_general_log;
 RENAME TABLE test.bug49823 TO general_log;
-Phase 1/3: Running 'mysql_fix_privilege_tables'...
+Phase 1/4: Checking mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -43,8 +43,9 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.user                                         OK
-Phase 2/3: Fixing table and database names
-Phase 3/3: Checking and upgrading tables
+Phase 2/4: Running 'mysql_fix_privilege_tables'...
+Phase 3/4: Fixing table and database names
+Phase 4/4: Checking and upgrading tables
 Processing databases
 information_schema
 mtr

@@ -158,6 +158,7 @@ ha_spider::ha_spider(
   result_list.direct_aggregate = FALSE;
   result_list.snap_direct_aggregate = FALSE;
 #endif
+  result_list.direct_distinct = FALSE;
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
   DBUG_VOID_RETURN;
@@ -264,6 +265,7 @@ ha_spider::ha_spider(
   result_list.direct_aggregate = FALSE;
   result_list.snap_direct_aggregate = FALSE;
 #endif
+  result_list.direct_distinct = FALSE;
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
   ref_length = sizeof(SPIDER_POSITION);
@@ -1585,6 +1587,7 @@ int ha_spider::reset()
   result_list.direct_aggregate = FALSE;
   result_list.snap_direct_aggregate = FALSE;
 #endif
+  result_list.direct_distinct = FALSE;
   store_error_num = 0;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (
@@ -7765,9 +7768,6 @@ void ha_spider::ft_end()
 {
   DBUG_ENTER("ha_spider::ft_end");
   DBUG_PRINT("info",("spider this=%p", this));
-  ft_handler = NULL;
-  ft_current = NULL;
-  ft_count = 0;
   if (ft_init_without_index_init)
   {
     if (ft_init_idx == MAX_KEY)
@@ -8183,15 +8183,13 @@ int ha_spider::info(
   auto_inc_temporary = FALSE;
 #endif
   sql_command = thd_sql_command(thd);
-  if (
 /*
+  if (
     sql_command == SQLCOM_DROP_TABLE ||
     sql_command == SQLCOM_ALTER_TABLE ||
     sql_command == SQLCOM_SHOW_CREATE
-*/
-    sql_command == SQLCOM_DROP_TABLE ||
-    sql_command == SQLCOM_ALTER_TABLE
   ) {
+*/
     if (flag & HA_STATUS_AUTO)
     {
       if (share->lgtm_tblhnd_share->auto_increment_value)
@@ -8204,8 +8202,14 @@ int ha_spider::info(
 #endif
       }
     }
-    DBUG_RETURN(0);
+    if (
+      sql_command == SQLCOM_DROP_TABLE ||
+      sql_command == SQLCOM_ALTER_TABLE
+    )
+      DBUG_RETURN(0);
+/*
   }
+*/
 
   if (flag &
     (HA_STATUS_TIME | HA_STATUS_CONST | HA_STATUS_VARIABLE | HA_STATUS_AUTO))
@@ -8240,6 +8244,15 @@ int ha_spider::info(
             spider_param_table_init_error_interval())
           {
             pthread_mutex_unlock(&share->sts_mutex);
+            if (sql_command == SQLCOM_SHOW_CREATE)
+            {
+              if (thd->is_error())
+              {
+                DBUG_PRINT("info", ("spider clear_error"));
+                thd->clear_error();
+              }
+              DBUG_RETURN(0);
+            }
             if (spider_init_error_table->init_error_with_message)
               my_message(spider_init_error_table->init_error,
                 spider_init_error_table->init_error_msg, MYF(0));
@@ -8304,6 +8317,15 @@ int ha_spider::info(
                 share->init_error = TRUE;
                 share->init = TRUE;
               }
+              if (sql_command == SQLCOM_SHOW_CREATE)
+              {
+                if (thd->is_error())
+                {
+                  DBUG_PRINT("info", ("spider clear_error"));
+                  thd->clear_error();
+                }
+                DBUG_RETURN(0);
+              }
               DBUG_RETURN(check_error_mode(error_num));
             }
             if ((error_num = spider_get_sts(share, search_link_idx, tmp_time,
@@ -8356,6 +8378,15 @@ int ha_spider::info(
                 share->init_error = TRUE;
                 share->init = TRUE;
               }
+              if (sql_command == SQLCOM_SHOW_CREATE)
+              {
+                if (thd->is_error())
+                {
+                  DBUG_PRINT("info", ("spider clear_error"));
+                  thd->clear_error();
+                }
+                DBUG_RETURN(0);
+              }
               DBUG_RETURN(check_error_mode(error_num));
             }
           }
@@ -8376,6 +8407,15 @@ int ha_spider::info(
               if ((error_num = spider_create_sts_thread(share)))
               {
                 pthread_mutex_unlock(&share->sts_mutex);
+                if (sql_command == SQLCOM_SHOW_CREATE)
+                {
+                  if (thd->is_error())
+                  {
+                    DBUG_PRINT("info", ("spider clear_error"));
+                    thd->clear_error();
+                  }
+                  DBUG_RETURN(0);
+                }
                 DBUG_RETURN(error_num);
               }
             } else
@@ -8389,7 +8429,18 @@ int ha_spider::info(
     if (flag & HA_STATUS_CONST)
     {
       if ((error_num = check_crd()))
+      {
+        if (sql_command == SQLCOM_SHOW_CREATE)
+        {
+          if (thd->is_error())
+          {
+            DBUG_PRINT("info", ("spider clear_error"));
+            thd->clear_error();
+          }
+          DBUG_RETURN(0);
+        }
         DBUG_RETURN(error_num);
+      }
       spider_db_set_cardinarity(this, table);
     }
 
@@ -8413,6 +8464,9 @@ int ha_spider::info(
     }
     if (flag & HA_STATUS_AUTO)
     {
+#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
+      auto_inc_temporary = FALSE;
+#endif
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       if (share->partition_share && table->next_number_field)
       {
@@ -8481,6 +8535,7 @@ ha_rows ha_spider::records_in_range(
   spider_db_handler *dbton_hdl;
   DBUG_ENTER("ha_spider::records_in_range");
   DBUG_PRINT("info",("spider this=%p", this));
+  DBUG_PRINT("info",("spider inx=%u", inx));
   time_t tmp_time = (time_t) time((time_t*) 0);
   if (!share->crd_init)
   {
@@ -8517,12 +8572,16 @@ ha_rows ha_spider::records_in_range(
   crd_mode = dbton_hdl->crd_mode_exchange(crd_mode);
   if (crd_mode == 1 || crd_mode == 2)
   {
+    DBUG_PRINT("info", ("spider static_key_cardinality[%u]=%lld", inx,
+      share->static_key_cardinality[inx]));
     DBUG_PRINT("info",
       ("spider difftime=%f", difftime(tmp_time, share->crd_get_time)));
     DBUG_PRINT("info",
       ("spider crd_interval=%f", crd_interval));
-    if (difftime(tmp_time, share->crd_get_time) >= crd_interval)
-    {
+    if (
+      share->static_key_cardinality[inx] == -1 &&
+      difftime(tmp_time, share->crd_get_time) >= crd_interval
+    ) {
       if (
         crd_interval == 0 ||
         !pthread_mutex_trylock(&share->crd_mutex)
@@ -8654,44 +8713,89 @@ ha_rows ha_spider::records_in_range(
     else
       weight = 1;
 
-    for (
-      key_part = key_info->key_part;
-      tgt_key_part_map > 1;
-      tgt_key_part_map >>= 1,
-      key_part++
-    ) {
-      field = key_part->field;
-      if ((rate =
-        ((double) share->cardinality[field->field_index]) / weight) >= 1
+    if (share->static_key_cardinality[inx] == -1)
+    {
+      for (
+        key_part = key_info->key_part;
+        tgt_key_part_map > 1;
+        tgt_key_part_map >>= 1,
+        key_part++
       ) {
-        if ((rows = rows / rate) < 2)
+        field = key_part->field;
+        DBUG_PRINT("info",
+          ("spider field_index=%u",
+            field->field_index));
+        DBUG_PRINT("info",
+          ("spider cardinality=%lld", share->cardinality[field->field_index]));
+        if (share->cardinality[field->field_index] == -1)
         {
-          DBUG_PRINT("info",("spider rows2=%f then ret 2", rows));
-          DBUG_RETURN((ha_rows) 2);
+          DBUG_PRINT("info",
+            ("spider uninitialized column cardinality"));
+          DBUG_RETURN(HA_POS_ERROR);
         }
+        if ((rate =
+          ((double) share->cardinality[field->field_index]) / weight) >= 1
+        ) {
+          if ((rows = rows / rate) < 2)
+          {
+            DBUG_PRINT("info",("spider rows2=%f then ret 2", rows));
+            DBUG_RETURN((ha_rows) 2);
+          }
+        }
+        if (crd_type == 1)
+          weight += spider_param_crd_weight(thd, share->crd_weight);
+        else if (crd_type == 2)
+          weight *= spider_param_crd_weight(thd, share->crd_weight);
       }
-      if (crd_type == 1)
-        weight += spider_param_crd_weight(thd, share->crd_weight);
-      else if (crd_type == 2)
-        weight *= spider_param_crd_weight(thd, share->crd_weight);
+      field = key_part->field;
+      DBUG_PRINT("info",
+        ("spider field_index=%u",
+          field->field_index));
+      DBUG_PRINT("info",
+        ("spider cardinality=%lld", share->cardinality[field->field_index]));
+      if (share->cardinality[field->field_index] == -1)
+      {
+        DBUG_PRINT("info",
+          ("spider uninitialized column cardinality"));
+        DBUG_RETURN(HA_POS_ERROR);
+      }
     }
-    field = key_part->field;
     if (
       start_key_part_map >= end_key_part_map &&
       start_key->flag == HA_READ_KEY_EXACT
     ) {
-      if ((rate =
-        ((double) share->cardinality[field->field_index]) / weight) >= 1)
+      if (share->static_key_cardinality[inx] == -1)
+      {
+        if ((rate =
+          ((double) share->cardinality[field->field_index]) / weight) >= 1)
+          rows = rows / rate;
+      } else {
+        rate = ((double) share->static_key_cardinality[inx]);
         rows = rows / rate;
+      }
     } else if (start_key_part_map == end_key_part_map)
     {
-      if ((rate =
-        ((double) share->cardinality[field->field_index]) / weight / 4) >= 1)
-        rows = rows / rate;
+      if (share->static_key_cardinality[inx] == -1)
+      {
+        if ((rate =
+          ((double) share->cardinality[field->field_index]) / weight / 4) >= 1)
+          rows = rows / rate;
+      } else {
+        if ((rate =
+          ((double) share->static_key_cardinality[inx]) / 4) >= 1)
+          rows = rows / rate;
+      }
     } else {
-      if ((rate =
-        ((double) share->cardinality[field->field_index]) / weight / 16) >= 1)
-        rows = rows / rate;
+      if (share->static_key_cardinality[inx] == -1)
+      {
+        if ((rate =
+          ((double) share->cardinality[field->field_index]) / weight / 16) >= 1)
+          rows = rows / rate;
+      } else {
+        if ((rate =
+          ((double) share->static_key_cardinality[inx]) / 16) >= 1)
+          rows = rows / rate;
+      }
     }
     if (rows < 2)
     {
@@ -10270,6 +10374,17 @@ ha_rows ha_spider::estimate_rows_upper_bound()
   DBUG_RETURN(HA_POS_ERROR);
 }
 
+void ha_spider::print_error(
+  int error,
+  myf errflag
+) {
+  DBUG_ENTER("ha_spider::print_error");
+  DBUG_PRINT("info",("spider this=%p", this));
+  if (!current_thd->is_error())
+    handler::print_error(error, errflag);
+  DBUG_VOID_RETURN;
+}
+
 bool ha_spider::get_error_message(
   int error,
   String *buf
@@ -10350,11 +10465,22 @@ int ha_spider::create(
   {
     goto error;
   }
-  if (form->s->keys > 0 &&
-    !(tmp_share.key_hint = new spider_string[form->s->keys])
-  ) {
-    error_num = HA_ERR_OUT_OF_MEM;
-    goto error;
+  if (form->s->keys > 0)
+  {
+    if (!(tmp_share.static_key_cardinality = (longlong *)
+      spider_bulk_malloc(spider_current_trx, 246, MYF(MY_WME),
+        &tmp_share.static_key_cardinality,
+          sizeof(*tmp_share.static_key_cardinality) * form->s->keys,
+        NullS))
+    ) {
+      error_num = HA_ERR_OUT_OF_MEM;
+      goto error;
+    }
+    if (!(tmp_share.key_hint = new spider_string[form->s->keys]))
+    {
+      error_num = HA_ERR_OUT_OF_MEM;
+      goto error;
+    }
   }
   for (roop_count = 0; roop_count < form->s->keys; roop_count++)
     tmp_share.key_hint[roop_count].init_calc_mem(85);
@@ -10460,6 +10586,8 @@ int ha_spider::create(
     pthread_mutex_unlock(&tmp_share.lgtm_tblhnd_share->auto_increment_mutex);
   }
 
+  if (tmp_share.static_key_cardinality)
+    spider_free(spider_current_trx, tmp_share.static_key_cardinality, MYF(0));
   spider_free_share_alloc(&tmp_share);
   DBUG_RETURN(0);
 
@@ -10469,6 +10597,8 @@ error:
       &open_tables_backup, need_lock);
   if (tmp_share.lgtm_tblhnd_share)
     spider_free_lgtm_tblhnd_share_alloc(tmp_share.lgtm_tblhnd_share, FALSE);
+  if (tmp_share.static_key_cardinality)
+    spider_free(spider_current_trx, tmp_share.static_key_cardinality, MYF(0));
   spider_free_share_alloc(&tmp_share);
 error_alter_before_unlock:
 error_get_trx:
@@ -10478,7 +10608,6 @@ error_get_trx:
 void ha_spider::update_create_info(
   HA_CREATE_INFO* create_info
 ) {
-  THD *thd = ha_thd();
   DBUG_ENTER("ha_spider::update_create_info");
   DBUG_PRINT("info",("spider this=%p", this));
   if (!create_info->connect_string.str)
@@ -10494,13 +10623,6 @@ void ha_spider::update_create_info(
   ) {
     info(HA_STATUS_AUTO);
     create_info->auto_increment_value = stats.auto_increment_value;
-  }
-  if (
-    thd->is_error() &&
-    thd_sql_command(thd) == SQLCOM_SHOW_CREATE
-  ) {
-    DBUG_PRINT("info", ("spider clear_error"));
-    thd->clear_error();
   }
   DBUG_VOID_RETURN;
 }
@@ -11363,10 +11485,20 @@ void ha_spider::set_ft_discard_bitmap()
           }
         }
       }
-      item_next = ha_thd()->free_list;
+      THD *thd = ha_thd();
+      Statement *stmt = thd->stmt_map.find(thd->id);
+      if (stmt && stmt->free_list)
+      {
+        DBUG_PRINT("info",("spider item from stmt"));
+        item_next = stmt->free_list;
+      } else {
+        DBUG_PRINT("info",("spider item from thd"));
+        item_next = thd->free_list;
+      }
       while ((item = item_next))
       {
         DBUG_PRINT("info",("spider item=%p", item));
+        DBUG_PRINT("info",("spider itemtype=%u", item->type()));
         item_next = item->next;
         if (item->type() != Item::FIELD_ITEM)
           continue;

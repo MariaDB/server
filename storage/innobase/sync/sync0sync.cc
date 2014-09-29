@@ -45,6 +45,7 @@ Created 9/5/1995 Heikki Tuuri
 # include "srv0start.h" /* srv_is_being_started */
 #endif /* UNIV_SYNC_DEBUG */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
@@ -126,7 +127,7 @@ it and did not see the waiters byte set to 1, a case which would lead the
 other thread to an infinite wait.
 
 LEMMA 1: After a thread resets the event of a mutex (or rw_lock), some
-=======
+======
 thread will eventually call os_event_set() on that particular event.
 Thus no infinite wait is possible in this case.
 
@@ -139,7 +140,7 @@ os_event_set() with the mutex as an argument.
 Q.E.D.
 
 LEMMA 2: If an os_event_set() call is made after some thread has called
-=======
+======
 the os_event_reset() and before it starts wait on that event, the call
 will not be lost to the second thread. This is true even if there is an
 intervening call to os_event_reset() by another thread.
@@ -456,6 +457,8 @@ mutex_set_waiters(
 
 	ptr = &(mutex->waiters);
 
+        os_wmb;
+
 	*ptr = n;		/* Here we assume that the write of a single
 				word in memory is atomic */
 }
@@ -500,15 +503,17 @@ mutex_loop:
 
 spin_loop:
 
+        HMT_low();
+	os_rmb;
 	while (mutex_get_lock_word(mutex) != 0 && i < SYNC_SPIN_ROUNDS) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
-
 		i++;
 	}
+        HMT_medium();
 
-	if (i == SYNC_SPIN_ROUNDS) {
+	if (i >= SYNC_SPIN_ROUNDS) {
 		os_thread_yield();
 	}
 

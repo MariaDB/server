@@ -51,10 +51,11 @@ Created 12/27/1996 Heikki Tuuri
 #include "pars0sym.h"
 #include "eval0eval.h"
 #include "buf0lru.h"
+#include <algorithm>
+
 #ifdef WITH_WSREP
 extern my_bool wsrep_debug;
 #endif
-
 
 /* What kind of latch and lock can we assume when the control comes to
    -------------------------------------------------------------------
@@ -139,12 +140,10 @@ row_upd_index_is_referenced(
 	trx_t*		trx)	/*!< in: transaction */
 {
 	dict_table_t*	table		= index->table;
-	dict_foreign_t*	foreign;
 	ibool		froze_data_dict	= FALSE;
 	ibool		is_referenced	= FALSE;
 
-	if (!UT_LIST_GET_FIRST(table->referenced_list)) {
-
+	if (table->referenced_set.empty()) {
 		return(FALSE);
 	}
 
@@ -153,19 +152,13 @@ row_upd_index_is_referenced(
 		froze_data_dict = TRUE;
 	}
 
-	foreign = UT_LIST_GET_FIRST(table->referenced_list);
+	dict_foreign_set::iterator	it
+		= std::find_if(table->referenced_set.begin(),
+			       table->referenced_set.end(),
+			       dict_foreign_with_index(index));
 
-	while (foreign) {
-		if (foreign->referenced_index == index) {
+	is_referenced = (it != table->referenced_set.end());
 
-			is_referenced = TRUE;
-			goto func_exit;
-		}
-
-		foreign = UT_LIST_GET_NEXT(referenced_list, foreign);
-	}
-
-func_exit:
 	if (froze_data_dict) {
 		row_mysql_unfreeze_data_dictionary(trx);
 	}
@@ -186,8 +179,7 @@ wsrep_row_upd_index_is_foreign(
 	ibool		froze_data_dict	= FALSE;
 	ibool		is_referenced	= FALSE;
 
-	if (!UT_LIST_GET_FIRST(table->foreign_list)) {
-
+	if (table->foreign_set.empty()) {
 		return(FALSE);
 	}
 
@@ -196,17 +188,18 @@ wsrep_row_upd_index_is_foreign(
 		froze_data_dict = TRUE;
 	}
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+        for (dict_foreign_set::iterator it= table->foreign_set.begin();
+             it != table->foreign_set.end();
+             ++ it)
+        {
+	  foreign= *it;
 
-	while (foreign) {
-		if (foreign->foreign_index == index) {
-
-			is_referenced = TRUE;
-			goto func_exit;
-		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
-	}
+          if (foreign->foreign_index == index)
+          {
+            is_referenced= TRUE;
+            goto func_exit;
+          }
+        }
 
 func_exit:
 	if (froze_data_dict) {
@@ -247,7 +240,7 @@ row_upd_check_references_constraints(
 	dberr_t		err;
 	ibool		got_s_lock	= FALSE;
 
-	if (UT_LIST_GET_FIRST(table->referenced_list) == NULL) {
+	if (table->referenced_set.empty()) {
 
 		return(DB_SUCCESS);
 	}
@@ -274,9 +267,13 @@ row_upd_check_references_constraints(
 	}
 
 run_again:
-	foreign = UT_LIST_GET_FIRST(table->referenced_list);
 
-	while (foreign) {
+	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	     it != table->referenced_set.end();
+	     ++it) {
+
+		foreign = *it;
+
 		/* Note that we may have an update which updates the index
 		record, but does NOT update the first fields which are
 		referenced in a foreign key constraint. Then the update does
@@ -329,8 +326,6 @@ run_again:
 				goto func_exit;
 			}
 		}
-
-		foreign = UT_LIST_GET_NEXT(referenced_list, foreign);
 	}
 
 	err = DB_SUCCESS;
@@ -367,8 +362,7 @@ wsrep_row_upd_check_foreign_constraints(
 	ibool		got_s_lock	= FALSE;
 	ibool		opened     	= FALSE;
 
-	if (UT_LIST_GET_FIRST(table->foreign_list) == NULL) {
-
+	if (table->foreign_set.empty()) {
 		return(DB_SUCCESS);
 	}
 
@@ -394,9 +388,12 @@ wsrep_row_upd_check_foreign_constraints(
 		row_mysql_freeze_data_dictionary(trx);
 	}
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+        for (dict_foreign_set::iterator it= table->foreign_set.begin();
+             it != table->foreign_set.end();
+             ++ it)
+        {
+		foreign= *it;
 
-	while (foreign) {
 		/* Note that we may have an update which updates the index
 		record, but does NOT update the first fields which are
 		referenced in a foreign key constraint. Then the update does
@@ -446,8 +443,6 @@ wsrep_row_upd_check_foreign_constraints(
 				goto func_exit;
 			}
 		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
 	}
 
 	err = DB_SUCCESS;

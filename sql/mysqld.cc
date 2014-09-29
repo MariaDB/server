@@ -722,7 +722,7 @@ pthread_key(MEM_ROOT**,THR_MALLOC);
 pthread_key(THD*, THR_THD);
 mysql_mutex_t LOCK_thread_count, LOCK_thread_cache;
 mysql_mutex_t
-  LOCK_status, LOCK_error_log, LOCK_short_uuid_generator,
+  LOCK_status, LOCK_show_status, LOCK_error_log, LOCK_short_uuid_generator,
   LOCK_delayed_insert, LOCK_delayed_status, LOCK_delayed_create,
   LOCK_crypt,
   LOCK_global_system_variables,
@@ -896,7 +896,8 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_gdl, key_LOCK_global_system_variables,
   key_LOCK_manager,
   key_LOCK_prepared_stmt_count,
-  key_LOCK_rpl_status, key_LOCK_server_started, key_LOCK_status,
+  key_LOCK_rpl_status, key_LOCK_server_started,
+  key_LOCK_status, key_LOCK_show_status,
   key_LOCK_system_variables_hash, key_LOCK_thd_data,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
@@ -962,6 +963,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_rpl_status, "LOCK_rpl_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_server_started, "LOCK_server_started", PSI_FLAG_GLOBAL},
   { &key_LOCK_status, "LOCK_status", PSI_FLAG_GLOBAL},
+  { &key_LOCK_show_status, "LOCK_show_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_system_variables_hash, "LOCK_system_variables_hash", PSI_FLAG_GLOBAL},
   { &key_LOCK_stats, "LOCK_stats", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_user_client_stats, "LOCK_global_user_client_stats", PSI_FLAG_GLOBAL},
@@ -2262,6 +2264,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_thread_count);
   mysql_mutex_destroy(&LOCK_thread_cache);
   mysql_mutex_destroy(&LOCK_status);
+  mysql_mutex_destroy(&LOCK_show_status);
   mysql_mutex_destroy(&LOCK_delayed_insert);
   mysql_mutex_destroy(&LOCK_delayed_status);
   mysql_mutex_destroy(&LOCK_delayed_create);
@@ -4545,6 +4548,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_thread_count, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thread_cache, &LOCK_thread_cache, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_status, &LOCK_status, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_show_status, &LOCK_show_status, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_delayed_insert,
                    &LOCK_delayed_insert, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_delayed_status,
@@ -6974,7 +6978,8 @@ void handle_connections_sockets()
 	  (void) mysql_socket_close(new_sock);
           /*
             The connection was refused by TCP wrappers.
-            There are no details (by client IP) available to update the host_cache.
+            There are no details (by client IP) available to update the
+            host_cache.
           */
           statistic_increment(connection_errors_tcpwrap, &LOCK_status);
 	  continue;
@@ -7975,7 +7980,6 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 
   var->type= SHOW_MY_BOOL;
   var->value= buff;
-  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   if (master_info_index) 
   {
@@ -7987,7 +7991,6 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
                       mi->rli.slave_running);
   }
   mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_status);
   if (mi)
     *((my_bool *)buff)= tmp;
   else
@@ -8004,7 +8007,6 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 
   var->type= SHOW_LONGLONG;
   var->value= buff;
-  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   if (master_info_index) 
   {
@@ -8015,7 +8017,6 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
       tmp= mi->received_heartbeats;
   }
   mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_status);
   if (mi)
     *((longlong *)buff)= tmp;
   else
@@ -8032,7 +8033,6 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 
   var->type= SHOW_CHAR;
   var->value= buff;
-  mysql_mutex_unlock(&LOCK_status);
   mysql_mutex_lock(&LOCK_active_mi);
   if (master_info_index) 
   {
@@ -8043,7 +8043,6 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
       tmp= mi->heartbeat_period;
   }
   mysql_mutex_unlock(&LOCK_active_mi);
-  mysql_mutex_lock(&LOCK_status);
   if (mi)
     sprintf(buff, "%.3f", tmp);
   else

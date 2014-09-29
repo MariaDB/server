@@ -9,7 +9,7 @@ Build-Depends: libtool (>= 1.4.2-7), procps | hurd,  debhelper, file (>= 3.28),
     zlib1g-dev (>= 1:1.1.3-5), ${LIBREADLINE_DEV}, libssl-dev, libpam0g-dev,
     psmisc, po-debconf, chrpath, automake1.9, doxygen, texlive-latex-base,
     ghostscript | gs-gpl, dpatch, gawk, bison, lsb-release, hardening-wrapper,
-    ${CMAKE_DEP}libaio-dev
+    ${CMAKE_DEP}libaio-dev, libjemalloc-dev (>= 3.0.0)
 Standards-Version: 3.8.3
 Homepage: http://mariadb.org/
 Vcs-Browser: http://bazaar.launchpad.net/~maria-captains/maria/10.0/files

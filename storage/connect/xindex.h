@@ -192,6 +192,7 @@ class DllExport XXBASE : public CSORT, public BLOCK {
           void SetNth(int n) {Nth = n;}
           int *GetPof(void) {return Pof;}
           int *GetPex(void) {return Pex;}
+          bool IsSorted(void) {return Srtd;}
           void FreeIndex(void) {PlgDBfree(Index);}
 
   // Methods

@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -94,8 +94,8 @@ PATENT RIGHTS GRANT:
 
 #define DONT_DEPRECATE_MALLOC
 #include "test.h"
-#include "ftloader.h"
-#include "ftloader-internal.h"
+#include "loader/loader.h"
+#include "loader/loader-internal.h"
 #include "memory.h"
 #include <portability/toku_path.h>
 

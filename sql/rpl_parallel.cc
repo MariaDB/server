@@ -4,7 +4,6 @@
 #include "rpl_mi.h"
 #include "debug_sync.h"
 
-
 /*
   Code for optional parallel execution of replicated events on the slave.
 */
@@ -22,18 +21,22 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   rpl_group_info *rgi= qev->rgi;
   Relay_log_info *rli= rgi->rli;
   THD *thd= rgi->thd;
+  Log_event *ev;
+
+  DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_EVENT);
+  ev= qev->ev;
 
   thd->system_thread_info.rpl_sql_info->rpl_filter = rli->mi->rpl_filter;
+  ev->thd= thd;
 
-  /* ToDo: Access to thd, and what about rli, split out a parallel part? */
-  mysql_mutex_lock(&rli->data_lock);
-  qev->ev->thd= thd;
   strcpy(rgi->event_relay_log_name_buf, qev->event_relay_log_name);
   rgi->event_relay_log_name= rgi->event_relay_log_name_buf;
   rgi->event_relay_log_pos= qev->event_relay_log_pos;
   rgi->future_event_relay_log_pos= qev->future_event_relay_log_pos;
   strcpy(rgi->future_event_master_log_name, qev->future_event_master_log_name);
-  err= apply_event_and_update_pos(qev->ev, thd, rgi, rpt);
+  mysql_mutex_lock(&rli->data_lock);
+  /* Mutex will be released in apply_event_and_update_pos(). */
+  err= apply_event_and_update_pos(ev, thd, rgi, rpt);
 
   thread_safe_increment64(&rli->executed_entries,
                           &slave_executed_entries_lock);
@@ -47,6 +50,8 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 {
   int cmp;
   Relay_log_info *rli;
+  rpl_parallel_entry *e;
+
   /*
     Events that are not part of an event group, such as Format Description,
     Stop, GTID List and such, are executed directly in the driver SQL thread,
@@ -57,6 +62,13 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
   if ((thd->variables.option_bits & OPTION_BEGIN) &&
       opt_using_transactions)
     return;
+
+  /* Do not update position if an earlier event group caused an error abort. */
+  DBUG_ASSERT(qev->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE);
+  e= qev->entry_for_queued;
+  if (e->stop_on_error_sub_id < (uint64)ULONGLONG_MAX || e->force_abort)
+    return;
+
   rli= qev->rgi->rli;
   mysql_mutex_lock(&rli->data_lock);
   cmp= strcmp(rli->group_relay_log_name, qev->event_relay_log_name);
@@ -318,6 +330,15 @@ do_retry:
     thd->wait_for_commit_ptr->unregister_wait_for_prior_commit();
   rgi->cleanup_context(thd, 1);
 
+  /*
+    If we retry due to a deadlock kill that occured during the commit step, we
+    might have already updated (but not committed) an update of table
+    mysql.gtid_slave_pos, and cleared the gtid_pending flag. Now we have
+    rolled back any such update, so we must set the gtid_pending flag back to
+    true so that we will do a new update when/if we succeed with the retry.
+  */
+  rgi->gtid_pending= true;
+
   mysql_mutex_lock(&rli->data_lock);
   ++rli->retried_trans;
   statistic_increment(slave_retried_transactions, LOCK_status);
@@ -557,7 +578,7 @@ handle_rpl_parallel_thread(void *arg)
       bool end_of_group, group_ending;
 
       total_event_size+= events->event_size;
-      if (!events->ev)
+      if (events->typ == rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE)
       {
         handle_queued_pos_update(thd, events);
         events->next= qevs_to_free;
@@ -565,6 +586,31 @@ handle_rpl_parallel_thread(void *arg)
         events= next;
         continue;
       }
+      else if (events->typ ==
+               rpl_parallel_thread::queued_event::QUEUED_MASTER_RESTART)
+      {
+        if (in_event_group)
+        {
+          /*
+            Master restarted (crashed) in the middle of an event group.
+            So we need to roll back and discard that event group.
+          */
+          group_rgi->cleanup_context(thd, 1);
+          in_event_group= false;
+          finish_event_group(thd, group_rgi->gtid_sub_id,
+                             events->entry_for_queued, group_rgi);
+
+          group_rgi->next= rgis_to_free;
+          rgis_to_free= group_rgi;
+          thd->rgi_slave= group_rgi= NULL;
+        }
+
+        events->next= qevs_to_free;
+        qevs_to_free= events;
+        events= next;
+        continue;
+      }
+      DBUG_ASSERT(events->typ==rpl_parallel_thread::queued_event::QUEUED_EVENT);
 
       thd->rgi_slave= group_rgi= rgi;
       gco= rgi->gco;
@@ -797,9 +843,9 @@ handle_rpl_parallel_thread(void *arg)
       {
         if (last_ir)
         {
-          my_atomic_rwlock_wrlock(&rli->inuse_relaylog_atomic_lock);
+          my_atomic_rwlock_wrlock(&last_ir->inuse_relaylog_atomic_lock);
           my_atomic_add64(&last_ir->dequeued_count, accumulated_ir_count);
-          my_atomic_rwlock_wrunlock(&rli->inuse_relaylog_atomic_lock);
+          my_atomic_rwlock_wrunlock(&last_ir->inuse_relaylog_atomic_lock);
           accumulated_ir_count= 0;
         }
         last_ir= ir;
@@ -810,9 +856,9 @@ handle_rpl_parallel_thread(void *arg)
     }
     if (last_ir)
     {
-      my_atomic_rwlock_wrlock(&rli->inuse_relaylog_atomic_lock);
+      my_atomic_rwlock_wrlock(&last_ir->inuse_relaylog_atomic_lock);
       my_atomic_add64(&last_ir->dequeued_count, accumulated_ir_count);
-      my_atomic_rwlock_wrunlock(&rli->inuse_relaylog_atomic_lock);
+      my_atomic_rwlock_wrunlock(&last_ir->inuse_relaylog_atomic_lock);
     }
 
     if ((events= rpt->event_queue) != NULL)
@@ -1073,6 +1119,7 @@ rpl_parallel_thread::get_qev_common(Log_event *ev, ulonglong event_size)
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*qev));
     return NULL;
   }
+  qev->typ= rpl_parallel_thread::queued_event::QUEUED_EVENT;
   qev->ev= ev;
   qev->event_size= event_size;
   qev->next= NULL;
@@ -1593,6 +1640,91 @@ rpl_parallel::workers_idle()
 }
 
 
+int
+rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
+                                         Format_description_log_event *fdev)
+{
+  uint32 idx;
+  rpl_parallel_thread *thr;
+  rpl_parallel_thread::queued_event *qev;
+  Relay_log_info *rli= rgi->rli;
+
+  /*
+    We only need to queue the server restart if we still have a thread working
+    on a (potentially partial) event group.
+
+    If the last thread we queued for has finished, then it cannot have any
+    partial event group that needs aborting.
+
+    Thus there is no need for the full complexity of choose_thread(). We only
+    need to check if we have a current worker thread, and queue for it if so.
+  */
+  idx= rpl_thread_idx;
+  thr= rpl_threads[idx];
+  if (!thr)
+    return 0;
+  mysql_mutex_lock(&thr->LOCK_rpl_thread);
+  if (thr->current_owner != &rpl_threads[idx])
+  {
+    /* No active worker thread, so no need to queue the master restart. */
+    mysql_mutex_unlock(&thr->LOCK_rpl_thread);
+    return 0;
+  }
+
+  if (!(qev= thr->get_qev(fdev, 0, rli)))
+  {
+    mysql_mutex_unlock(&thr->LOCK_rpl_thread);
+    return 1;
+  }
+
+  qev->rgi= rgi;
+  qev->typ= rpl_parallel_thread::queued_event::QUEUED_MASTER_RESTART;
+  qev->entry_for_queued= this;
+  qev->ir= rli->last_inuse_relaylog;
+  ++qev->ir->queued_count;
+  thr->enqueue(qev);
+  mysql_mutex_unlock(&thr->LOCK_rpl_thread);
+  return 0;
+}
+
+
+int
+rpl_parallel::wait_for_workers_idle(THD *thd)
+{
+  uint32 i, max_i;
+
+  /*
+    The domain_hash is only accessed by the SQL driver thread, so it is safe
+    to iterate over without a lock.
+  */
+  max_i= domain_hash.records;
+  for (i= 0; i < max_i; ++i)
+  {
+    bool active;
+    wait_for_commit my_orderer;
+    struct rpl_parallel_entry *e;
+
+    e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);
+    mysql_mutex_lock(&e->LOCK_parallel_entry);
+    if ((active= (e->current_sub_id > e->last_committed_sub_id)))
+    {
+      wait_for_commit *waitee= &e->current_group_info->commit_orderer;
+      my_orderer.register_wait_for_prior_commit(waitee);
+      thd->wait_for_commit_ptr= &my_orderer;
+    }
+    mysql_mutex_unlock(&e->LOCK_parallel_entry);
+    if (active)
+    {
+      int err= my_orderer.wait_for_prior_commit(thd);
+      thd->wait_for_commit_ptr= NULL;
+      if (err)
+        return err;
+    }
+  }
+  return 0;
+}
+
+
 /*
   This is used when we get an error during processing in do_event();
   We will not queue any event to the thread, but we still need to wake it up
@@ -1659,6 +1791,33 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
 
   /* ToDo: what to do with this lock?!? */
   mysql_mutex_unlock(&rli->data_lock);
+
+  if (typ == FORMAT_DESCRIPTION_EVENT)
+  {
+    Format_description_log_event *fdev=
+      static_cast<Format_description_log_event *>(ev);
+    if (fdev->created)
+    {
+      /*
+        This format description event marks a new binlog after a master server
+        restart. We are going to close all temporary tables to clean up any
+        possible left-overs after a prior master crash.
+
+        Thus we need to wait for all prior events to execute to completion,
+        in case they need access to any of the temporary tables.
+
+        We also need to notify the worker thread running the prior incomplete
+        event group (if any), as such event group signifies an incompletely
+        written group cut short by a master crash, and must be rolled back.
+      */
+      if (current->queue_master_restart(serial_rgi, fdev) ||
+          wait_for_workers_idle(rli->sql_driver_thd))
+      {
+        delete ev;
+        return 1;
+      }
+    }
+  }
 
   /*
     Stop queueing additional event groups once the SQL thread is requested to
@@ -1815,7 +1974,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       return 1;
     }
     /*
-      Queue an empty event, so that the position will be updated in a
+      Queue a position update, so that the position will be updated in a
       reasonable way relative to other events:
 
        - If the currently executing events are queued serially for a single
@@ -1826,7 +1985,8 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
          least the position will not be updated until one of them has reached
          the current point.
     */
-    qev->ev= NULL;
+    qev->typ= rpl_parallel_thread::queued_event::QUEUED_POS_UPDATE;
+    qev->entry_for_queued= e;
   }
   else
   {

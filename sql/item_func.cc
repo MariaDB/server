@@ -3973,9 +3973,13 @@ longlong Item_master_pos_wait::val_int()
   else
     connection_name= thd->variables.default_master_connection;
 
-  if (!(mi= master_info_index->get_master_info(&connection_name,
-                                               Sql_condition::WARN_LEVEL_WARN)))
+  mysql_mutex_lock(&LOCK_active_mi);
+  mi= master_info_index->get_master_info(&connection_name,
+                                         Sql_condition::WARN_LEVEL_WARN);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (!mi)
     goto err;
+
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;

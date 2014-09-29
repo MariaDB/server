@@ -4297,6 +4297,7 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
       included= 1;
       to_purge_if_included= my_strdup(ir->name, MYF(0));
     }
+    my_atomic_rwlock_destroy(&ir->inuse_relaylog_atomic_lock);
     my_free(ir);
     ir= next;
   }
@@ -7667,6 +7668,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     }
   }
 
+  DBUG_EXECUTE_IF("inject_error_writing_xid",
+                  {
+                    entry->error_cache= NULL;
+                    entry->commit_errno= 28;
+                    DBUG_RETURN(ER_ERROR_ON_WRITE);
+                  });
+
   if (entry->end_event->write(&log_file))
   {
     entry->error_cache= NULL;
@@ -9837,7 +9845,7 @@ set_binlog_snapshot_file(const char *src)
   Copy out current values of status variables, for SHOW STATUS or
   information_schema.global_status.
 
-  This is called only under LOCK_status, so we can fill in a static array.
+  This is called only under LOCK_show_status, so we can fill in a static array.
 */
 void
 TC_LOG_BINLOG::set_status_variables(THD *thd)

@@ -1095,7 +1095,7 @@ trx_sys_print_mysql_binlog_offset_from_page(
 	    == TRX_SYS_MYSQL_LOG_MAGIC_N) {
 
 		fprintf(stderr,
-			"ibbackup: Last MySQL binlog file position %lu %lu,"
+			"mysqlbackup: Last MySQL binlog file position %lu %lu,"
 			" file name %s\n",
 			(ulong) mach_read_from_4(
 				sys_header + TRX_SYS_MYSQL_LOG_INFO
@@ -1146,9 +1146,9 @@ trx_sys_read_file_format_id(
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,
-			"  ibbackup: Error: trying to read system tablespace "
-			"file format,\n"
-			"  ibbackup: but could not open the tablespace "
+			"  mysqlbackup: Error: trying to read system "
+			"tablespace file format,\n"
+			"  mysqlbackup: but could not open the tablespace "
 			"file %s!\n", pathname);
 		return(FALSE);
 	}
@@ -1165,9 +1165,9 @@ trx_sys_read_file_format_id(
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,
-			"  ibbackup: Error: trying to read system tablespace "
-			"file format,\n"
-			"  ibbackup: but failed to read the tablespace "
+			"  mysqlbackup: Error: trying to read system "
+			"tablespace file format,\n"
+			"  mysqlbackup: but failed to read the tablespace "
 			"file %s!\n", pathname);
 
 		os_file_close(file);
@@ -1226,9 +1226,9 @@ trx_sys_read_pertable_file_format_id(
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,
-			"  ibbackup: Error: trying to read per-table "
+			"  mysqlbackup: Error: trying to read per-table "
 			"tablespace format,\n"
-			"  ibbackup: but could not open the tablespace "
+			"  mysqlbackup: but could not open the tablespace "
 			"file %s!\n", pathname);
 
 		return(FALSE);
@@ -1245,9 +1245,9 @@ trx_sys_read_pertable_file_format_id(
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,
-			"  ibbackup: Error: trying to per-table data file "
+			"  mysqlbackup: Error: trying to per-table data file "
 			"format,\n"
-			"  ibbackup: but failed to read the tablespace "
+			"  mysqlbackup: but failed to read the tablespace "
 			"file %s!\n", pathname);
 
 		os_file_close(file);

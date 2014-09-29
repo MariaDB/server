@@ -532,6 +532,32 @@ public:
 };
 
 
+/**
+  A string whose value may be changed during execution.
+*/
+class Item_string_xml_non_const: public Item_string
+{
+public:
+  Item_string_xml_non_const(const char *str, uint length, CHARSET_INFO *cs)
+    :Item_string(str, length, cs)
+  { }
+  bool const_item() const { return false ; }
+  bool basic_const_item() const { return false; }
+  void set_value(const char *str, uint length, CHARSET_INFO *cs)
+  {
+    str_value.set(str, length, cs);
+  }
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    /*
+      Item_string::safe_charset_converter() does not accept non-constants.
+      Note, conversion is not really needed here anyway.
+    */
+    return this;
+  }
+};
+
+
 class Item_nodeset_to_const_comparator :public Item_bool_func
 {
   String *pxml;
@@ -550,7 +576,8 @@ public:
   longlong val_int()
   {
     Item_func *comp= (Item_func*)args[1];
-    Item_string *fake= (Item_string*)(comp->arguments()[0]);
+    Item_string_xml_non_const *fake=
+      (Item_string_xml_non_const*)(comp->arguments()[0]);
     String *res= args[0]->val_nodeset(&tmp_nodeset);
     MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) res->ptr();
     MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) (res->ptr() + res->length());
@@ -568,8 +595,8 @@ public:
         if ((node->parent == flt->num) &&
             (node->type == MY_XML_NODE_TEXT))
         {
-          fake->str_value.set(node->beg, node->end - node->beg,
-                              collation.collation);
+          fake->set_value(node->beg, node->end - node->beg,
+                          collation.collation);
           if (args[1]->val_int())
             return 1;
         }
@@ -956,14 +983,12 @@ static Item *create_comparator(MY_XPATH *xpath,
   {
     /*
      Compare a node set to a scalar value.
-     We just create a fake Item_string() argument,
+     We just create a fake Item_string_xml_non_const() argument,
      which will be filled to the partular value
      in a loop through all of the nodes in the node set.
     */
 
-    Item_string *fake= new Item_string("", 0, xpath->cs);
-    /* Don't cache fake because its value will be changed during comparison.*/
-    fake->set_used_tables(RAND_TABLE_BIT);
+    Item_string *fake= new Item_string_xml_non_const("", 0, xpath->cs);
     Item_nodeset_func *nodeset;
     Item *scalar, *comp;
     if (a->type() == Item::XPATH_NODESET)

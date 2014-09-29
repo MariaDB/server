@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -109,7 +109,9 @@ static int my_compare_dbts(DB *db, const DBT *a, const DBT *b) {
 void locktree_unit_test::test_misc(void) {
     locktree lt;
     DICTIONARY_ID dict_id = { 1 };
-    lt.create(nullptr, dict_id, nullptr, my_compare_dbts);
+    toku::comparator my_dbt_comparator;
+    my_dbt_comparator.create(my_compare_dbts, nullptr);
+    lt.create(nullptr, dict_id, my_dbt_comparator);
 
     invariant(lt.get_userdata() == nullptr);
     int userdata;
@@ -124,19 +126,27 @@ void locktree_unit_test::test_misc(void) {
     expected_a = &dbt_a;
     expected_b = &dbt_b;
 
+    toku::comparator cmp_d1, cmp_d2;
+    cmp_d1.create(my_compare_dbts, &d1);
+    cmp_d2.create(my_compare_dbts, &d2);
+
     // make sure the comparator object has the correct
     // descriptor when we set the locktree's descriptor
-    lt.set_descriptor(&d1);
+    lt.set_comparator(cmp_d1);
     expected_descriptor = &d1;
-    r = lt.m_cmp->compare(&dbt_a, &dbt_b);
+    r = lt.m_cmp(&dbt_a, &dbt_b);
     invariant(r == expected_comparison_magic);
-    lt.set_descriptor(&d2);
+    lt.set_comparator(cmp_d2);
     expected_descriptor = &d2;
-    r = lt.m_cmp->compare(&dbt_a, &dbt_b);
+    r = lt.m_cmp(&dbt_a, &dbt_b);
     invariant(r == expected_comparison_magic);
 
     lt.release_reference();
     lt.destroy();
+
+    cmp_d1.destroy();
+    cmp_d2.destroy();
+    my_dbt_comparator.destroy();
 }
 
 } /* namespace toku */

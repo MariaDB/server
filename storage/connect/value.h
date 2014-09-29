@@ -52,6 +52,7 @@ DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
                               bool uns = false, PSZ fmt = NULL);
 DllExport ulonglong CharToNumber(char *, int, ulonglong, bool,
                                  bool *minus = NULL, bool *rc = NULL);
+DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 
 /***********************************************************************/
 /*  Class VALUE represents a constant or variable of any valid type.   */

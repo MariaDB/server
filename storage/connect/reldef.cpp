@@ -49,6 +49,8 @@
 #include "tabmul.h"
 #include "ha_connect.h"
 
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /* --------------------------- Class RELDEF -------------------------- */
 
@@ -224,6 +226,14 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   // Do the definition of AM specific fields
   return DefineAM(g, am, poff);
   } // end of Define
+
+/***********************************************************************/
+/*  This function returns the database data path.                      */
+/***********************************************************************/
+PSZ TABDEF::GetPath(void)
+  {
+  return (Database) ? (PSZ)Database : Hc->GetDataPath();
+  } // end of GetPath
 
 /***********************************************************************/
 /*  This function returns column table information.                    */
@@ -561,7 +571,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   PTXF    txfp = NULL;
   PDOSDEF defp = (PDOSDEF)Pxdef;
   bool    map = defp->Mapped && mode != MODE_INSERT &&
-                !(PlgGetUser(g)->UseTemp == TMP_FORCE &&
+                !(Use_Temp == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
   int     cmpr = defp->Compressed;
 

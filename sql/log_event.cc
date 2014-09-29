@@ -1023,8 +1023,9 @@ Log_event::do_shall_skip(rpl_group_info *rgi)
   Relay_log_info *rli= rgi->rli;
   DBUG_PRINT("info", ("ev->server_id: %lu, ::server_id: %lu,"
                       " rli->replicate_same_server_id: %d,"
-                      " rli->slave_skip_counter: %lu",
-                      (ulong) server_id, (ulong) global_system_variables.server_id,
+                      " rli->slave_skip_counter: %llu",
+                      (ulong) server_id,
+                      (ulong) global_system_variables.server_id,
                       rli->replicate_same_server_id,
                       rli->slave_skip_counter));
   if ((server_id == global_system_variables.server_id &&
@@ -4279,28 +4280,31 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
         Record any GTID in the same transaction, so slave state is
         transactionally consistent.
       */
-      if (current_stmt_is_commit && rgi->gtid_pending)
+      if (current_stmt_is_commit)
       {
-        sub_id= rgi->gtid_sub_id;
-        rgi->gtid_pending= false;
-
-        gtid= rgi->current_gtid;
         thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
-        if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
+        if (rgi->gtid_pending)
         {
-          int errcode= thd->get_stmt_da()->sql_errno();
-          if (!is_parallel_retry_error(rgi, errcode))
-            rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
-                        rgi->gtid_info(),
-                        "Error during COMMIT: failed to update GTID state in "
-                      "%s.%s: %d: %s",
-                        "mysql", rpl_gtid_slave_state_table_name.str,
-                        errcode,
-                        thd->get_stmt_da()->message());
-          trans_rollback(thd);
-          sub_id= 0;
-          thd->is_slave_error= 1;
-          goto end;
+          sub_id= rgi->gtid_sub_id;
+          rgi->gtid_pending= false;
+
+          gtid= rgi->current_gtid;
+          if (rpl_global_gtid_slave_state.record_gtid(thd, &gtid, sub_id, true, false))
+          {
+            int errcode= thd->get_stmt_da()->sql_errno();
+            if (!is_parallel_retry_error(rgi, errcode))
+              rli->report(ERROR_LEVEL, ER_CANNOT_UPDATE_GTID_STATE,
+                          rgi->gtid_info(),
+                          "Error during COMMIT: failed to update GTID state in "
+                        "%s.%s: %d: %s",
+                          "mysql", rpl_gtid_slave_state_table_name.str,
+                          errcode,
+                          thd->get_stmt_da()->message());
+            trans_rollback(thd);
+            sub_id= 0;
+            thd->is_slave_error= 1;
+            goto end;
+          }
         }
       }
 

@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -127,9 +127,9 @@ append_leaf(FTNODE leafnode, void *key, size_t keylen, void *val, size_t vallen)
     MSN msn = next_dummymsn();
 
     // apply an insert to the leaf node
-    FT_MSG_S msg = { FT_INSERT, msn, xids_get_root_xids(), .u={.id = { &thekey, &theval }} };
+    ft_msg msg(&thekey, &theval, FT_INSERT, msn, toku_xids_get_root_xids());
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, false);
-    toku_ft_bn_apply_msg_once(BLB(leafnode, 0), &msg, idx, NULL, &gc_info, NULL, NULL);
+    toku_ft_bn_apply_msg_once(BLB(leafnode, 0), msg, idx, keylen, NULL, &gc_info, NULL, NULL);
 
     // Create bad tree (don't do following):
     // leafnode->max_msn_applied_to_node = msn;
@@ -156,7 +156,7 @@ insert_into_child_buffer(FT_HANDLE ft, FTNODE node, int childnum, int minkey, in
         unsigned int key = htonl(val);
         DBT thekey; toku_fill_dbt(&thekey, &key, sizeof key);
         DBT theval; toku_fill_dbt(&theval, &val, sizeof val);
-        toku_ft_append_to_child_buffer(ft->ft->compare_fun, NULL, node, childnum, FT_INSERT, msn, xids_get_root_xids(), true, &thekey, &theval);
+        toku_ft_append_to_child_buffer(ft->ft->cmp, node, childnum, FT_INSERT, msn, toku_xids_get_root_xids(), true, &thekey, &theval);
 
 	// Create bad tree (don't do following):
 	// node->max_msn_applied_to_node = msn;
@@ -212,7 +212,7 @@ test_make_tree(int height, int fanout, int nperleaf, int do_verify) {
 
     // create a cachetable
     CACHETABLE ct = NULL;
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     // create the ft
     TOKUTXN null_txn = NULL;
@@ -225,7 +225,7 @@ test_make_tree(int height, int fanout, int nperleaf, int do_verify) {
     FTNODE newroot = make_tree(ft, height, fanout, nperleaf, &seq, &minkey, &maxkey);
 
     // set the new root to point to the new tree
-    toku_ft_set_new_root_blocknum(ft->ft, newroot->thisnodename);
+    toku_ft_set_new_root_blocknum(ft->ft, newroot->blocknum);
 
     // Create bad tree (don't do following):
     // newroot->max_msn_applied_to_node = last_dummymsn(); // capture msn of last message injected into tree

@@ -41,6 +41,7 @@ Created 9/11/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "os0sync.h" /* for INNODB_RW_LOCKS_USE_ATOMICS */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	IMPLEMENTATION OF THE RW_LOCK
@@ -448,6 +449,8 @@ lock_loop:
 					       lock)) {
 
 		/* Spin waiting for the writer field to become free */
+		os_rmb;
+		HMT_low();
 		while (i < SYNC_SPIN_ROUNDS && lock->lock_word <= 0) {
 			if (srv_spin_wait_delay) {
 				ut_delay(ut_rnd_interval(0,
@@ -455,9 +458,11 @@ lock_loop:
 			}
 
 			i++;
+			os_rmb;
 		}
 
-		if (i == SYNC_SPIN_ROUNDS) {
+		HMT_medium();
+		if (i >= SYNC_SPIN_ROUNDS) {
 			os_thread_yield();
 		}
 
@@ -603,7 +608,15 @@ rw_lock_x_lock_wait(
 
 	counter_index = (size_t) os_thread_get_curr_id();
 
+	os_rmb;
 	ut_ad(lock->lock_word <= 0);
+
+        HMT_low();
+	if (high_priority) {
+
+		prio_rw_lock = reinterpret_cast<prio_rw_lock_t *>(lock);
+		prio_rw_lock->high_priority_wait_ex_waiter = 1;
+	}
 
 	while (lock->lock_word < 0) {
 		if (srv_spin_wait_delay) {
@@ -611,8 +624,10 @@ rw_lock_x_lock_wait(
 		}
 		if(i < SYNC_SPIN_ROUNDS) {
 			i++;
+			os_rmb;
 			continue;
 		}
+		HMT_medium();
 
 		/* If there is still a reader, then go to sleep.*/
 		rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
@@ -621,13 +636,6 @@ rw_lock_x_lock_wait(
 							   RW_LOCK_WAIT_EX,
 							   file_name,
 							   line, &index);
-
-		if (high_priority) {
-
-			prio_rw_lock
-				= reinterpret_cast<prio_rw_lock_t *>(lock);
-			prio_rw_lock->high_priority_wait_ex_waiter = 1;
-		}
 
 		i = 0;
 
@@ -655,12 +663,16 @@ rw_lock_x_lock_wait(
 			We must pass the while-loop check to proceed.*/
 		} else {
 			sync_array_free_cell(sync_arr, index);
-			if (prio_rw_lock) {
-
-				prio_rw_lock->high_priority_wait_ex_waiter = 0;
-			}
 		}
+		HMT_low();
 	}
+	HMT_medium();
+
+	if (prio_rw_lock) {
+
+		prio_rw_lock->high_priority_wait_ex_waiter = 0;
+	}
+
 	rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 }
 
@@ -701,6 +713,10 @@ rw_lock_x_lock_low(
 
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
+
+		if (!pass) {
+			os_rmb;
+		}
 
 		/* Decrement failed: relock or failed lock */
 		if (!pass && lock->recursive
@@ -792,6 +808,8 @@ lock_loop:
 		}
 
 		/* Spin waiting for the lock_word to become free */
+		os_rmb;
+		HMT_low();
 		while (i < SYNC_SPIN_ROUNDS
 		       && lock->lock_word <= 0) {
 			if (srv_spin_wait_delay) {
@@ -800,8 +818,10 @@ lock_loop:
 			}
 
 			i++;
+			os_rmb;
 		}
-		if (i == SYNC_SPIN_ROUNDS) {
+		HMT_medium();
+		if (i >= SYNC_SPIN_ROUNDS) {
 			os_thread_yield();
 		} else {
 			goto lock_loop;

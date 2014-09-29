@@ -2328,32 +2328,6 @@ void Item_func_decode::crypto_transform(String *res)
 }
 
 
-Item *Item_func_sysconst::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  Item_string *conv;
-  uint conv_errors;
-  String tmp, cstr, *ostr= val_str(&tmp);
-  if (null_value)
-  {
-    Item *null_item= new Item_null((char *) fully_qualified_func_name());
-    null_item->collation.set (tocs);
-    return null_item;
-  }
-  cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
-  if (conv_errors ||
-      !(conv= new Item_static_string_func(fully_qualified_func_name(),
-                                          cstr.ptr(), cstr.length(),
-                                          cstr.charset(),
-                                          collation.derivation)))
-  {
-    return NULL;
-  }
-  conv->str_value.copy();
-  conv->str_value.mark_as_const();
-  return conv;
-}
-
-
 String *Item_func_database::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -3025,6 +2999,75 @@ err:
 }
 
 
+void Item_func_space::fix_length_and_dec()
+{
+  collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII); 
+  if (args[0]->const_item())
+  {
+    /* must be longlong to avoid truncation */
+    longlong count= args[0]->val_int();
+    if (args[0]->null_value)
+      goto end;
+    /*
+     Assumes that the maximum length of a String is < INT_MAX32. 
+     Set here so that rest of code sees out-of-bound value as such. 
+    */
+    if (count > INT_MAX32)
+      count= INT_MAX32;
+    fix_char_length_ulonglong(count); 
+    return;
+  }
+
+end:
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= 1;
+}
+
+
+String *Item_func_space::val_str(String *str)
+{
+  uint tot_length;
+  longlong count= args[0]->val_int();
+  const CHARSET_INFO *cs= collation.collation;
+   
+  if (args[0]->null_value)
+    goto err;				// string and/or delim are null
+  null_value= 0;
+
+  if (count <= 0 && (count == 0 || !args[0]->unsigned_flag))
+    return make_empty_result();
+  /*
+   Assumes that the maximum length of a String is < INT_MAX32. 
+   Bounds check on count:  If this is triggered, we will error. 
+  */
+  if ((ulonglong) count > INT_MAX32)
+    count= INT_MAX32;
+
+  // Safe length check
+  tot_length= (uint) count * cs->mbminlen;
+  if (tot_length > current_thd->variables.max_allowed_packet)
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                        func_name(),
+                        current_thd->variables.max_allowed_packet);
+    goto err;
+   }
+
+  if (str->alloc(tot_length))
+    goto err;
+  str->length(tot_length);
+  str->set_charset(cs);
+  cs->cset->fill(cs, (char*) str->ptr(), tot_length, ' ');
+  return str; 
+
+err:
+  null_value= 1;
+  return 0;
+}
+
+
 void Item_func_binlog_gtid_pos::fix_length_and_dec()
 {
   collation.set(system_charset_info);
@@ -3423,7 +3466,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN(" collate "));
   DBUG_ASSERT(args[1]->basic_const_item() &&
               args[1]->type() == Item::STRING_ITEM);
-  args[1]->str_value.print(str);
+  ((Item_string *)args[1])->print_value(str);
   str->append(')');
 }
 

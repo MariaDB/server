@@ -18707,13 +18707,31 @@ static void test_progress_reporting()
     rc= mysql_query(conn, "insert into t1 (f2) select f2 from t2");
     myquery(rc);
   }
-  rc= mysql_query(conn, "alter table t1 add f1 int primary key auto_increment, add key (f2), order by f2");
+  
+  progress_stage= progress_max_stage= progress_count= 0;
+  rc= mysql_query(conn, "alter table t1 add f1 int primary key auto_increment, order by f2");
   myquery(rc);
   if (!opt_silent)
     printf("Got progress_count: %u  stage: %u  max_stage: %u\n",
            progress_count, progress_stage, progress_max_stage);
   DIE_UNLESS(progress_count > 0 && progress_stage >=2 && progress_max_stage == 3);
+
+  progress_stage= progress_max_stage= progress_count= 0;
+  rc= mysql_query(conn, "create index f2 on t1 (f2)");
   myquery(rc);
+  if (!opt_silent)
+    printf("Got progress_count: %u  stage: %u  max_stage: %u\n",
+           progress_count, progress_stage, progress_max_stage);
+  DIE_UNLESS(progress_count > 0 && progress_stage >=2 && progress_max_stage == 2);
+
+  progress_stage= progress_max_stage= progress_count= 0;
+  rc= mysql_query(conn, "drop index f2 on t1");
+  myquery(rc);
+  if (!opt_silent)
+    printf("Got progress_count: %u  stage: %u  max_stage: %u\n",
+           progress_count, progress_stage, progress_max_stage);
+  DIE_UNLESS(progress_count > 0 && progress_stage >=2 && progress_max_stage == 2);
+
   rc= mysql_query(conn, "set @@global.progress_report_time=@save");
   myquery(rc);
   mysql_close(conn);

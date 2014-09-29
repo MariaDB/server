@@ -735,6 +735,14 @@ my_bool my_propagate_simple(CHARSET_INFO *cs, const uchar *str, size_t len);
 my_bool my_propagate_complex(CHARSET_INFO *cs, const uchar *str, size_t len);
 
 
+typedef struct 
+{
+  size_t char_length;
+  uint repertoire;
+} MY_STRING_METADATA;
+
+void my_string_metadata_get(MY_STRING_METADATA *metadata,
+                            CHARSET_INFO *cs, const char *str, size_t len);
 uint my_string_repertoire(CHARSET_INFO *cs, const char *str, ulong len);
 my_bool my_charset_is_ascii_based(CHARSET_INFO *cs);
 my_bool my_charset_is_8bit_pure_ascii(CHARSET_INFO *cs);

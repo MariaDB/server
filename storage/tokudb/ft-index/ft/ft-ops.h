@@ -1,7 +1,5 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 // vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
-#ifndef FT_OPS_H
-#define FT_OPS_H
 #ident "$Id$"
 /*
 COPYING CONDITIONS NOTICE:
@@ -31,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -88,33 +86,22 @@ PATENT RIGHTS GRANT:
   under this License.
 */
 
+#pragma once
+
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
 // This must be first to make the 64-bit file mode work right in Linux
 #define _FILE_OFFSET_BITS 64
-#include "fttypes.h"
-#include "ybt.h"
+
 #include <db.h>
-#include "cachetable.h"
-#include "log.h"
-#include "ft-search.h"
-#include "compress.h"
 
-// A callback function is invoked with the key, and the data.
-// The pointers (to the bytevecs) must not be modified.  The data must be copied out before the callback function returns.
-// Note: In the thread-safe version, the ftnode remains locked while the callback function runs.  So return soon, and don't call the ft code from the callback function.
-// If the callback function returns a nonzero value (an error code), then that error code is returned from the get function itself.
-// The cursor object will have been updated (so that if result==0 the current value is the value being passed)
-//  (If r!=0 then the cursor won't have been updated.)
-// If r!=0, it's up to the callback function to return that value of r.
-// A 'key' bytevec of NULL means that element is not found (effectively infinity or
-// -infinity depending on direction)
-// When lock_only is false, the callback does optional lock tree locking and then processes the key and val.
-// When lock_only is true, the callback only does optional lock tree locking.
-typedef int(*FT_GET_CALLBACK_FUNCTION)(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only);
+#include "ft/cachetable/cachetable.h"
+#include "ft/comparator.h"
+#include "ft/msg.h"
+#include "util/dbt.h"
 
-typedef bool(*FT_CHECK_INTERRUPT_CALLBACK)(void* extra);
+typedef struct ft_handle *FT_HANDLE;
 
 int toku_open_ft_handle (const char *fname, int is_create, FT_HANDLE *, int nodesize, int basementnodesize, enum toku_compression_method compression_method, CACHETABLE, TOKUTXN, int(*)(DB *,const DBT*,const DBT*)) __attribute__ ((warn_unused_result));
 
@@ -125,7 +112,7 @@ int toku_open_ft_handle (const char *fname, int is_create, FT_HANDLE *, int node
 //   ANY operations. to update the cmp descriptor after any operations have already happened, all handles 
 //   and transactions must close and reopen before the change, then you can update the cmp descriptor
 void toku_ft_change_descriptor(FT_HANDLE t, const DBT* old_descriptor, const DBT* new_descriptor, bool do_log, TOKUTXN txn, bool update_cmp_descriptor);
-uint32_t toku_serialize_descriptor_size(const DESCRIPTOR desc);
+uint32_t toku_serialize_descriptor_size(DESCRIPTOR desc);
 
 void toku_ft_handle_create(FT_HANDLE *ft);
 void toku_ft_set_flags(FT_HANDLE, unsigned int flags);
@@ -139,11 +126,13 @@ void toku_ft_handle_set_compression_method(FT_HANDLE, enum toku_compression_meth
 void toku_ft_handle_get_compression_method(FT_HANDLE, enum toku_compression_method *);
 void toku_ft_handle_set_fanout(FT_HANDLE, unsigned int fanout);
 void toku_ft_handle_get_fanout(FT_HANDLE, unsigned int *fanout);
+int toku_ft_handle_set_memcmp_magic(FT_HANDLE, uint8_t magic);
 
-void toku_ft_set_bt_compare(FT_HANDLE, ft_compare_func);
-ft_compare_func toku_ft_get_bt_compare (FT_HANDLE ft_h);
+void toku_ft_set_bt_compare(FT_HANDLE ft_handle, ft_compare_func cmp_func);
+const toku::comparator &toku_ft_get_comparator(FT_HANDLE ft_handle);
 
-void toku_ft_set_redirect_callback(FT_HANDLE ft_h, on_redirect_callback redir_cb, void* extra);
+typedef void (*on_redirect_callback)(FT_HANDLE ft_handle, void *extra);
+void toku_ft_set_redirect_callback(FT_HANDLE ft_handle, on_redirect_callback cb, void *extra);
 
 // How updates (update/insert/deletes) work:
 // There are two flavers of upsertdels:  Singleton and broadcast.
@@ -181,6 +170,9 @@ void toku_ft_set_redirect_callback(FT_HANDLE ft_h, on_redirect_callback redir_cb
 // Implementation note: Acquires a write lock on the entire database.
 //  This function works by sending an BROADCAST-UPDATE message containing
 //   the key and the extra.
+typedef int (*ft_update_func)(DB *db, const DBT *key, const DBT *old_val, const DBT *extra,
+                              void (*set_val)(const DBT *new_val, void *set_extra),
+                              void *set_extra);
 void toku_ft_set_update(FT_HANDLE ft_h, ft_update_func update_fun);
 
 int toku_ft_handle_open(FT_HANDLE, const char *fname_in_env,
@@ -197,9 +189,17 @@ void toku_ft_handle_close(FT_HANDLE ft_handle);
 // close an ft handle during recovery. the underlying ft must close, and will use the given lsn.
 void toku_ft_handle_close_recovery(FT_HANDLE ft_handle, LSN oplsn);
 
+// At the ydb layer, a DICTIONARY_ID uniquely identifies an open dictionary.
+// With the introduction of the loader (ticket 2216), it is possible for the file that holds
+// an open dictionary to change, so these are now separate and independent unique identifiers (see FILENUM)
+struct DICTIONARY_ID {
+    uint64_t dictid;
+};
+static const DICTIONARY_ID DICTIONARY_ID_NONE = { .dictid = 0 };
+
 int
 toku_ft_handle_open_with_dict_id(
-    FT_HANDLE t, 
+    FT_HANDLE ft_h, 
     const char *fname_in_env, 
     int is_create, 
     int only_create, 
@@ -207,8 +207,6 @@ toku_ft_handle_open_with_dict_id(
     TOKUTXN txn, 
     DICTIONARY_ID use_dictionary_id
     )  __attribute__ ((warn_unused_result));
-
-int toku_ft_lookup (FT_HANDLE ft_h, DBT *k, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
 
 // Effect: Insert a key and data pair into an ft
 void toku_ft_insert (FT_HANDLE ft_h, DBT *k, DBT *v, TOKUTXN txn);
@@ -247,8 +245,9 @@ void toku_ft_delete (FT_HANDLE ft_h, DBT *k, TOKUTXN txn);
 void toku_ft_maybe_delete (FT_HANDLE ft_h, DBT *k, TOKUTXN txn, bool oplsn_valid, LSN oplsn, bool do_logging);
 
 TXNID toku_ft_get_oldest_referenced_xid_estimate(FT_HANDLE ft_h);
-TXN_MANAGER toku_ft_get_txn_manager(FT_HANDLE ft_h);
+struct txn_manager *toku_ft_get_txn_manager(FT_HANDLE ft_h);
 
+struct txn_gc_info;
 void toku_ft_send_insert(FT_HANDLE ft_h, DBT *key, DBT *val, XIDS xids, enum ft_msg_type type, txn_gc_info *gc_info);
 void toku_ft_send_delete(FT_HANDLE ft_h, DBT *key, XIDS xids, txn_gc_info *gc_info);
 void toku_ft_send_commit_any(FT_HANDLE ft_h, DBT *key, XIDS xids, txn_gc_info *gc_info);
@@ -260,37 +259,6 @@ int toku_dump_ft (FILE *,FT_HANDLE ft_h)  __attribute__ ((warn_unused_result));
 extern int toku_ft_debug_mode;
 int toku_verify_ft (FT_HANDLE ft_h)  __attribute__ ((warn_unused_result));
 int toku_verify_ft_with_progress (FT_HANDLE ft_h, int (*progress_callback)(void *extra, float progress), void *extra, int verbose, int keep_going)  __attribute__ ((warn_unused_result));
-
-typedef struct ft_cursor *FT_CURSOR;
-int toku_ft_cursor (FT_HANDLE, FT_CURSOR*, TOKUTXN, bool, bool)  __attribute__ ((warn_unused_result));
-void toku_ft_cursor_set_leaf_mode(FT_CURSOR);
-// Sets a boolean on the ft cursor that prevents uncessary copying of
-// the cursor duing a one query.
-void toku_ft_cursor_set_temporary(FT_CURSOR);
-void toku_ft_cursor_remove_restriction(FT_CURSOR);
-void toku_ft_cursor_set_check_interrupt_cb(FT_CURSOR ftcursor, FT_CHECK_INTERRUPT_CALLBACK cb, void *extra);
-int toku_ft_cursor_is_leaf_mode(FT_CURSOR);
-void toku_ft_cursor_set_range_lock(FT_CURSOR, const DBT *, const DBT *, bool, bool, int);
-
-// get is deprecated in favor of the individual functions below
-int toku_ft_cursor_get (FT_CURSOR cursor, DBT *key, FT_GET_CALLBACK_FUNCTION getf, void *getf_v, int get_flags)  __attribute__ ((warn_unused_result));
-
-int toku_ft_cursor_first(FT_CURSOR cursor, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_last(FT_CURSOR cursor, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_next(FT_CURSOR cursor, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_prev(FT_CURSOR cursor, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_current(FT_CURSOR cursor, int op, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_set(FT_CURSOR cursor, DBT *key, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_set_range(FT_CURSOR cursor, DBT *key, DBT *key_bound, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_set_range_reverse(FT_CURSOR cursor, DBT *key, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_get_both_range(FT_CURSOR cursor, DBT *key, DBT *val, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-int toku_ft_cursor_get_both_range_reverse(FT_CURSOR cursor, DBT *key, DBT *val, FT_GET_CALLBACK_FUNCTION getf, void *getf_v)  __attribute__ ((warn_unused_result));
-
-int toku_ft_cursor_delete(FT_CURSOR cursor, int flags, TOKUTXN)  __attribute__ ((warn_unused_result));
-void toku_ft_cursor_close (FT_CURSOR curs);
-bool toku_ft_cursor_uninitialized(FT_CURSOR c)  __attribute__ ((warn_unused_result));
-
-void toku_ft_cursor_peek(FT_CURSOR cursor, const DBT **pkey, const DBT **pval);
 
 DICTIONARY_ID toku_ft_get_dictionary_id(FT_HANDLE);
 
@@ -353,7 +321,7 @@ bool toku_ft_is_empty_fast (FT_HANDLE ft_h) __attribute__ ((warn_unused_result))
 int toku_ft_strerror_r(int error, char *buf, size_t buflen);
 // Effect: LIke the XSI-compliant strerorr_r, extended to db_strerror().
 // If error>=0 then the result is to do strerror_r(error, buf, buflen), that is fill buf with a descriptive error message.
-// If error<0 then return a TokuDB-specific error code.  For unknown cases, we return -1 and set errno=EINVAL, even for cases that *should* be known.  (Not all DB errors are known by this function which is a bug.)
+// If error<0 then return a TokuFT-specific error code.  For unknown cases, we return -1 and set errno=EINVAL, even for cases that *should* be known.  (Not all DB errors are known by this function which is a bug.)
 
 extern bool garbage_collection_debug;
 
@@ -362,5 +330,3 @@ void toku_ft_set_direct_io(bool direct_io_on);
 void toku_ft_set_compress_buffers_before_eviction(bool compress_buffers);
 
 void toku_note_deserialized_basement_node(bool fixed_key_size);
-
-#endif

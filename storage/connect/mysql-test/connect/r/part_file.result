@@ -1,3 +1,4 @@
+set @@global.connect_exact_info=ON;
 # This will be used to see what data files are created
 CREATE TABLE dr1 (
 fname VARCHAR(256) NOT NULL FLAG=2,
@@ -342,3 +343,4 @@ part2	.txt
 part3	.txt
 DROP TABLE t1;
 DROP TABLE dr1;
+set @@global.connect_exact_info=OFF;

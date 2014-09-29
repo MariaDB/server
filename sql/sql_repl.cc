@@ -3235,6 +3235,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
   DBUG_ENTER("change_master");
 
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+  DBUG_ASSERT(master_info_index);
+
   *master_info_added= false;
   /* 
     We need to check if there is an empty master_host. Otherwise
@@ -3641,7 +3644,8 @@ bool mysql_show_binlog_events(THD* thd)
   else  /* showing relay log contents */
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!(mi= master_info_index->
+    if (!master_info_index ||
+        !(mi= master_info_index->
           get_master_info(&thd->variables.default_master_connection,
                           Sql_condition::WARN_LEVEL_ERROR)))
     {

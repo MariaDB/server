@@ -531,6 +531,14 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+
+  /**
+     Place holders to store Multi-source variables in sys_var.cc during
+     update and show of variables.
+  */
+  ulonglong slave_skip_counter;
+  ulonglong max_relay_log_size;
+
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
@@ -599,12 +607,6 @@ typedef struct system_variables
   */
   uint32     gtid_domain_id;
   uint64     gtid_seq_no;
-  /**
-     Place holders to store Multi-source variables in sys_var.cc during
-     update and show of variables.
-  */
-  ulong slave_skip_counter;
-  ulong max_relay_log_size;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).

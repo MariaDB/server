@@ -5323,3 +5323,22 @@ DROP TABLE t1;
 #
 # End of 5.6 tests
 #
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-6661 PI() does not work well in UCS2/UTF16/UTF32 context
+#
+SELECT CONCAT(CONVERT('pi=' USING ucs2),PI()) AS PI;
+PI
+pi=3.141593
+#
+# MDEV-6695 Bad column name for UCS2 string literals
+#
+SET NAMES utf8, character_set_connection=ucs2;
+SELECT 'a','aa';
+a	aa
+a	aa
+#
+# End of 10.0 tests
+#

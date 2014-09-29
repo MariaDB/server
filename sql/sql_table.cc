@@ -4372,9 +4372,6 @@ handler *mysql_create_frm_image(THD *thd,
     DBUG_RETURN(NULL);
   }
 
-  if (check_engine(thd, db, table_name, create_info))
-    DBUG_RETURN(NULL);
-
   set_table_default_charset(thd, create_info, (char*) db);
 
   db_options= create_info->table_options;
@@ -4780,6 +4777,9 @@ int create_table_impl(THD *thd,
 
   THD_STAGE_INFO(thd, stage_creating_table);
 
+  if (check_engine(thd, orig_db, orig_table_name, create_info))
+    goto err;
+
   if (create_table_mode == C_ASSISTED_DISCOVERY)
   {
     /* check that it's used correctly */
@@ -5029,7 +5029,10 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
      */
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     if (thd->locked_tables_list.reopen_tables(thd))
+    {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      result= 1;
+    }
     else
     {
       TABLE *table= pos_in_locked_tables->table;
@@ -5348,6 +5351,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   if (res)
   {
+    /* is_error() may be 0 if table existed and we generated a warning */
     res= thd->is_error();
     goto err;
   }
@@ -5430,7 +5434,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
      */
     thd->locked_tables_list.add_back_last_deleted_lock(pos_in_locked_tables);
     if (thd->locked_tables_list.reopen_tables(thd))
+    {
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      res= 1;                                   // We got an error
+    }
     else
     {
       /*

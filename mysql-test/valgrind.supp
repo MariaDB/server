@@ -412,6 +412,17 @@
    fun:__libc_start_main
 }
 
+#
+# dl_init reports leaked memory in memalign on OpenSuse 12.3
+
+{
+   memory "loss" from _dl_init
+   Memcheck:Leak
+   fun:memalign
+   ...
+   fun:call_init
+   fun:_dl_init
+}
 
 #
 #  dlclose can allocate memory for error message, the memory will be

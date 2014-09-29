@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2014 Tokutek, Inc.
 
 DISCLAIMER:
@@ -90,8 +90,9 @@ PATENT RIGHTS GRANT:
 
 #include "test.h"
 
-#include <ft/ybt.h>
+#include <util/dbt.h>
 #include <ft/ft-cachetable-wrappers.h>
+#include <ft/ft-flusher.h>
 
 // Promotion tracks the rightmost blocknum in the FT when a message
 // is successfully promoted to a non-root leaf node on the right extreme.
@@ -109,7 +110,7 @@ static void test_split_merge(void) {
     
     FT_HANDLE ft_handle;
     CACHETABLE ct;
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
     r = toku_open_ft_handle(name, 1, &ft_handle,
                             4*1024*1024, 64*1024,
                             TOKU_DEFAULT_COMPRESSION_METHOD, ct, NULL,
@@ -142,13 +143,13 @@ static void test_split_merge(void) {
 
     BLOCKNUM root_blocknum = ft->h->root_blocknum;
     FTNODE root_node;
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_full_read(&bfe, ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_full_read(ft);
     toku_pin_ftnode(ft, root_blocknum,
                    toku_cachetable_hash(ft->cf, ft->h->root_blocknum),
                    &bfe, PL_WRITE_EXPENSIVE, &root_node, true);
     // root blocknum should be consistent
-    invariant(root_node->thisnodename.b == ft->h->root_blocknum.b);
+    invariant(root_node->blocknum.b == ft->h->root_blocknum.b);
     // root should have split at least once, and it should now be at height 1
     invariant(root_node->n_children > 1);
     invariant(root_node->height == 1);
@@ -179,7 +180,7 @@ static void test_split_merge(void) {
     toku_pin_ftnode(ft, rightmost_blocknum_before_merge,
                    toku_cachetable_hash(ft->cf, rightmost_blocknum_before_merge),
                    &bfe, PL_WRITE_EXPENSIVE, &rightmost_leaf, true);
-    invariant(get_node_reactivity(ft, rightmost_leaf) == RE_FUSIBLE);
+    invariant(toku_ftnode_get_reactivity(ft, rightmost_leaf) == RE_FUSIBLE);
     toku_unpin_ftnode(ft, rightmost_leaf);
 
     // - merge the rightmost child now that it's fusible

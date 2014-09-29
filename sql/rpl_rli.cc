@@ -92,7 +92,6 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery)
   mysql_cond_init(key_relay_log_info_start_cond, &start_cond, NULL);
   mysql_cond_init(key_relay_log_info_stop_cond, &stop_cond, NULL);
   mysql_cond_init(key_relay_log_info_log_space_cond, &log_space_cond, NULL);
-  my_atomic_rwlock_init(&inuse_relaylog_atomic_lock);
   relay_log.init_pthread_objects();
   DBUG_VOID_RETURN;
 }
@@ -108,6 +107,7 @@ Relay_log_info::~Relay_log_info()
   {
     DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
     inuse_relaylog *next= cur->next;
+    my_atomic_rwlock_destroy(&cur->inuse_relaylog_atomic_lock);
     my_free(cur);
     cur= next;
   }
@@ -118,7 +118,6 @@ Relay_log_info::~Relay_log_info()
   mysql_cond_destroy(&start_cond);
   mysql_cond_destroy(&stop_cond);
   mysql_cond_destroy(&log_space_cond);
-  my_atomic_rwlock_destroy(&inuse_relaylog_atomic_lock);
   relay_log.cleanup();
   DBUG_VOID_RETURN;
 }
@@ -1371,6 +1370,7 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     last_inuse_relaylog->next= ir;
   }
   last_inuse_relaylog= ir;
+  my_atomic_rwlock_init(&ir->inuse_relaylog_atomic_lock);
 
   return 0;
 }

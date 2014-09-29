@@ -47,7 +47,7 @@ class DllExport MAPFAM : public TXTFAM {
   virtual void  Rewind(void);
 
  protected:
-          bool  MakeDeletedFile(PGLOBAL g);
+  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
 
   // Members
   char *Memory;               // Pointer on file mapping view.
@@ -104,11 +104,14 @@ class DllExport MPXFAM : public MBKFAM {
   virtual int   MaxBlkSize(PGLOBAL g, int s)
                 {return TXTFAM::MaxBlkSize(g, s);}
   virtual bool  SetPos(PGLOBAL g, int recpos);
+  virtual int   GetNextPos(void) {return (int)Fpos + Nrec;}
   virtual bool  DeferReading(void) {return false;}
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
 
  protected:
+  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+
   // No additional members
   }; // end of class MPXFAM
 

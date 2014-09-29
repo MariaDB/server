@@ -272,6 +272,15 @@ buf_pool_get_oldest_modification(void);
 /*==================================*/
 
 /********************************************************************//**
+Gets the smallest oldest_modification lsn for any page in the pool. Returns
+zero if all modified pages have been flushed to disk.
+@return oldest modification in pool, zero if none */
+UNIV_INTERN
+lsn_t
+buf_pool_get_oldest_modification_peek(void);
+/*=======================================*/
+
+/********************************************************************//**
 Allocates a buf_page_t descriptor. This function must succeed. In case
 of failure we assert in this function. */
 UNIV_INLINE
@@ -436,7 +445,7 @@ buf_page_create(
 	mtr_t*	mtr);	/*!< in: mini-transaction handle */
 #else /* !UNIV_HOTBACKUP */
 /********************************************************************//**
-Inits a page to the buffer buf_pool, for use in ibbackup --restore. */
+Inits a page to the buffer buf_pool, for use in mysqlbackup --restore. */
 UNIV_INTERN
 void
 buf_page_init_for_backup_restore(

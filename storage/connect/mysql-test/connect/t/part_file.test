@@ -1,6 +1,8 @@
 --source include/have_partition.inc
 let $MYSQLD_DATADIR= `select @@datadir`;
 
+set @@global.connect_exact_info=ON;
+
 --echo # This will be used to see what data files are created
 CREATE TABLE dr1 (
   fname VARCHAR(256) NOT NULL FLAG=2,
@@ -153,6 +155,8 @@ DROP TABLE dr1;
 #
 # Clean up
 #
+set @@global.connect_exact_info=OFF;
+
 --remove_file $MYSQLD_DATADIR/test/part1.txt
 --remove_file $MYSQLD_DATADIR/test/part2.txt
 --remove_file $MYSQLD_DATADIR/test/part3.txt

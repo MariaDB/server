@@ -379,6 +379,48 @@ buf_pool_get_oldest_modification(void)
 }
 
 /********************************************************************//**
+Gets the smallest oldest_modification lsn for any page in the pool. Returns
+zero if all modified pages have been flushed to disk.
+@return oldest modification in pool, zero if none */
+UNIV_INTERN
+lsn_t
+buf_pool_get_oldest_modification_peek(void)
+/*=======================================*/
+{
+	ulint		i;
+	buf_page_t*	bpage;
+	lsn_t		lsn = 0;
+	lsn_t		oldest_lsn = 0;
+
+	/* Dirsty read to buffer pool array */
+	for (i = 0; i < srv_buf_pool_instances; i++) {
+		buf_pool_t*	buf_pool;
+
+		buf_pool = buf_pool_from_array(i);
+
+		buf_flush_list_mutex_enter(buf_pool);
+
+		bpage = UT_LIST_GET_LAST(buf_pool->flush_list);
+
+		if (bpage != NULL) {
+			ut_ad(bpage->in_flush_list);
+			lsn = bpage->oldest_modification;
+		}
+
+		buf_flush_list_mutex_exit(buf_pool);
+
+		if (!oldest_lsn || oldest_lsn > lsn) {
+			oldest_lsn = lsn;
+		}
+	}
+
+	/* The returned answer may be out of date: the flush_list can
+	change after the mutex has been released. */
+
+	return(oldest_lsn);
+}
+
+/********************************************************************//**
 Get total buffer pool statistics. */
 UNIV_INTERN
 void
@@ -2990,12 +3032,6 @@ got_block:
 
 	ut_ad(buf_block_get_state(fix_block) == BUF_BLOCK_FILE_PAGE);
 
-#if UNIV_WORD_SIZE == 4
-	/* On 32-bit systems, there is no padding in buf_page_t.  On
-	other systems, Valgrind could complain about uninitialized pad
-	bytes. */
-	UNIV_MEM_ASSERT_RW(&fix_block->page, sizeof(fix_block->page));
-#endif
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 
 	if ((mode == BUF_GET_IF_IN_POOL || mode == BUF_GET_IF_IN_POOL_OR_WATCH)
@@ -5628,7 +5664,7 @@ buf_get_free_list_len(void)
 
 #else /* !UNIV_HOTBACKUP */
 /********************************************************************//**
-Inits a page to the buffer buf_pool, for use in ibbackup --restore. */
+Inits a page to the buffer buf_pool, for use in mysqlbackup --restore. */
 UNIV_INTERN
 void
 buf_page_init_for_backup_restore(

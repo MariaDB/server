@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -101,7 +101,7 @@ void locktree_unit_test::test_overlapping_relock(void) {
     locktree lt;
     
     DICTIONARY_ID dict_id = { 1 };
-    lt.create(nullptr, dict_id, nullptr, compare_dbts);
+    lt.create(nullptr, dict_id, dbt_comparator);
 
     const DBT *zero = get_dbt(0);
     const DBT *one = get_dbt(1);
@@ -143,7 +143,7 @@ void locktree_unit_test::test_overlapping_relock(void) {
             bool saw_the_other;
             TXNID expected_txnid;
             keyrange *expected_range;
-            comparator *cmp;
+            const comparator *cmp;
             bool fn(const keyrange &range, TXNID txnid) {
                 if (txnid == the_other_txnid) {
                     invariant(!saw_the_other);
@@ -151,12 +151,12 @@ void locktree_unit_test::test_overlapping_relock(void) {
                     return true;
                 }
                 invariant(txnid == expected_txnid);
-                keyrange::comparison c = range.compare(cmp, *expected_range);
+                keyrange::comparison c = range.compare(*cmp, *expected_range);
                 invariant(c == keyrange::comparison::EQUALS);
                 return true;
             }
         } verify_fn;
-        verify_fn.cmp = lt.m_cmp;
+        verify_fn.cmp = &lt.m_cmp;
 
 #define do_verify() \
         do { verify_fn.saw_the_other = false; locktree_iterate<verify_fn_obj>(&lt, &verify_fn); } while (0)

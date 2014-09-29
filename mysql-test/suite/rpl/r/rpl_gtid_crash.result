@@ -112,5 +112,98 @@ SHOW VARIABLES like 'gtid_strict_mode';
 Variable_name	Value
 gtid_strict_mode	ON
 include/start_slave.inc
+*** MDEV-6462: Incorrect recovery on a slave reconnecting to crashed master ***
+set sql_log_bin= 0;
+call mtr.add_suppression("Error writing file 'master-bin'");
+set sql_log_bin= 1;
+set sql_log_bin= 0;
+call mtr.add_suppression("The server_id of master server changed in the middle of GTID");
+call mtr.add_suppression("Unexpected change of master binlog file name in the middle of GTID");
+set sql_log_bin= 1;
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (11);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+SELECT @@GLOBAL.server_id;
+@@GLOBAL.server_id
+3
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+# Wait 30 seconds for SQL thread to catch up with IO thread
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+# Repeat this with additional transactions on the master
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (12);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+SELECT @@GLOBAL.server_id;
+@@GLOBAL.server_id
+1
+INSERT INTO t1 VALUES (13);
+INSERT INTO t1 VALUES (14);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (21);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+SELECT @@GLOBAL.server_id;
+@@GLOBAL.server_id
+1
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+# Wait 30 seconds for SQL thread to catch up with IO thread
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+# Repeat this with additional transactions on the master
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (22);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+INSERT INTO t1 VALUES (23);
+INSERT INTO t1 VALUES (24);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
 DROP TABLE t1;
 include/rpl_end.inc

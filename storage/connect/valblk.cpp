@@ -827,12 +827,12 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Type
 
-  if (!(b = pv->IsNull(n2) && Nullable))
+  if (!(b = pv->IsNull(n2)))
     memcpy(Chrp + n1 * Long, ((CHRBLK*)pv)->Chrp + n2 * Long, Long);
   else
     Reset(n1);
 
-  SetNull(n1, b);
+  SetNull(n1, b && Nullable);
   } // end of SetValue
 
 /***********************************************************************/
