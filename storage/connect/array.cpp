@@ -25,6 +25,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <stdint.h>      // for uintprt_h
 #endif  // !WIN32
 
 /***********************************************************************/

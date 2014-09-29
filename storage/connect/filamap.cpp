@@ -30,6 +30,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
+#include <stdint.h>                      // for uintprt_h
 #endif  // !WIN32
 
 /***********************************************************************/
