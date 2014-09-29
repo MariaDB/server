@@ -290,8 +290,8 @@ bool MAPFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 int MAPFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   {
-  Fpos = Memory + fpos;
-  Mempos = Memory + spos;
+  Fpos = Memory + (uintptr_t)fpos;
+  Mempos = Memory + (uintptr_t)spos;
   return RC_OK;
   } // end of InitDelete
 
@@ -685,7 +685,7 @@ bool MPXFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 int MPXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   {
-  Fpos = Memory + Headlen + fpos * Lrecl;
+  Fpos = Memory + Headlen + (uintptr_t)fpos * Lrecl;
   Mempos = Fpos + Lrecl;
   return RC_OK;
   } // end of InitDelete

@@ -129,7 +129,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
         break;
       case TYPE_VOID:
         // Integer stored inside pp->Value
-        par->AddValue(g, (int)parmp->Value);
+        par->AddValue(g, (int)(uintptr_t)parmp->Value);
         break;
       } // endswitch valtyp
 
