@@ -104,7 +104,7 @@ class DllExport MPXFAM : public MBKFAM {
   virtual int   MaxBlkSize(PGLOBAL g, int s)
                 {return TXTFAM::MaxBlkSize(g, s);}
   virtual bool  SetPos(PGLOBAL g, int recpos);
-  virtual int   GetNextPos(void) {return (int)Fpos + Nrec;}
+  virtual int   GetNextPos(void) {return GetPos() + 1;}
   virtual bool  DeferReading(void) {return false;}
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
