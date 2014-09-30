@@ -3411,10 +3411,10 @@ innobase_init(
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
 	//FF
-	KeySingleton& keysingleton = KeySingleton::getInstance( innobase_data_encryption_providername,
-			innobase_data_encryption_providerurl, innobase_data_encryption_providertype);
-	struct keyentry *entry = keysingleton.getKeys(1);
-	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+//	KeySingleton& keysingleton = KeySingleton::getInstance( innobase_data_encryption_providername,
+//			innobase_data_encryption_providerurl, innobase_data_encryption_providertype);
+//	struct keyentry *entry = keysingleton.getKeys(1);
+//	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 
 #ifndef DBUG_OFF
 	static const char	test_filename[] = "-@";

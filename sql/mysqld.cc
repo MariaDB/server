@@ -5835,9 +5835,9 @@ int mysqld_main(int argc, char **argv)
   mysql_cond_signal(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
 
-  KeySingleton& ksp2 = KeySingleton::getInstance();
-  struct keyentry *entry = ksp2.getKeys(2);
-  printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+//  KeySingleton& ksp2 = KeySingleton::getInstance();
+//  struct keyentry *entry = ksp2.getKeys(2);
+//  printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 
 #if defined(_WIN32) || defined(HAVE_SMEM)
   handle_connections_methods();

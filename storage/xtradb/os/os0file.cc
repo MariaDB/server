@@ -3148,7 +3148,7 @@ try_again:
 
 	if ((ulint) ret == n) {
 		if (fil_page_is_encrypted((byte *)buf)) {
-			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed)) {;
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)) {;
 				return FALSE;
 			}
 		}
@@ -3274,7 +3274,7 @@ try_again:
 
 
 		if (fil_page_is_encrypted((byte *)buf)) {
-			fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed);
+			fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0);
 		}
 
 
@@ -4829,7 +4829,7 @@ found:
 		}
 
 		ut_ad(slot->page_buf2);
-		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len);
+		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, 0);
 
 		/* If encryption succeeded, set up the length and buffer */
 		if (tmp != buf) {
@@ -5573,7 +5573,7 @@ retry:
 
 				if (slot->type == OS_FILE_READ) {
 					if (fil_page_is_encrypted(slot->buf)) {
-						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL);
+						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
 					}
 				} else {
 					if (slot->page_encryption_success &&

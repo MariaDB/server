@@ -102,29 +102,6 @@ fil_space_get_page_encryption_key(
 }
 
 
-/********************************************************************//**
-Determine the tablespace is using atomic writes from dict_table_t::flags.
-@return	true if atomic writes is used, false if not * /read_
-UNIV_INLINE
-atomic_writes_t
-fsp_flags_get_atomic_writes(
-/*========================* /
-    ulint	flags)	/*!< in: tablespace flags * /
-{
-    return((atomic_writes_t)FSP_FLAGS_GET_ATOMIC_WRITES(flags));
-}*/
-
-/*******************************************************************//**
-Find out wheather the page is index page or not
-@return	true if page type index page, false if not * /
-UNIV_INLINE
-ibool
-fil_page_is_index_page(
-/*===================* /
-    byte *buf)	/*!< in: page * /
-{
-    return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_INDEX);
-}*/
 
 /*******************************************************************//**
 Find out whether the page is page encrypted

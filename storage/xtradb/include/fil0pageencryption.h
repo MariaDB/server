@@ -79,7 +79,6 @@ fil_decrypt_page(
 		ulint		len,           /*!< in: length of output buffer.*/
 	    ulint*		write_size,    /*!< in/out: Actual payload size of the decrypted data. */
 	    ibool*      page_compressed, /*!<out: is page compressed.*/
-	    ulint 		encryption_flags, /*!<in: flags used by page encryption.*/
 	    ulint			mode       /*!< in: calling mode. Should be 0. */
 	    );
 
