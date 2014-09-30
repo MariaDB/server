@@ -287,7 +287,7 @@ bool TXTFAM::AddListValue(PGLOBAL g, int type, void *val, PPARM *top)
 //    *((int*)pp->Value) = *((int*)val);
 //    break;
     case TYPE_VOID:
-      pp->Value = (void*)*(int*)val;
+      pp->Intval = *(int*)val;
       break;
 //  case TYPE_STRING:
 //    pp->Value = PlugSubAlloc(g, NULL, strlen((char*)val) + 1);

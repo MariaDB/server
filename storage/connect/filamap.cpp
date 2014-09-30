@@ -30,7 +30,6 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#include <stdint.h>                      // for uintprt_h
 #endif  // !WIN32
 
 /***********************************************************************/
@@ -291,8 +290,8 @@ bool MAPFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 int MAPFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   {
-  Fpos = Memory + (uintptr_t)fpos;
-  Mempos = Memory + (uintptr_t)spos;
+  Fpos = Memory + (ptrdiff_t)fpos;
+  Mempos = Memory + (ptrdiff_t)spos;
   return RC_OK;
   } // end of InitDelete
 
@@ -686,7 +685,7 @@ bool MPXFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 int MPXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   {
-  Fpos = Memory + Headlen + (uintptr_t)fpos * Lrecl;
+  Fpos = Memory + Headlen + (ptrdiff_t)fpos * Lrecl;
   Mempos = Fpos + Lrecl;
   return RC_OK;
   } // end of InitDelete

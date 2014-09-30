@@ -322,7 +322,7 @@ PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
                                 && mode == MODE_UPDATE) &&
                 !(tmp == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
-  PTXF    txfp;
+  PTXF    txfp = NULL;
   PTDBASE tdbp;
 
   /*********************************************************************/
@@ -574,7 +574,7 @@ int TDBDOS::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
 int TDBDOS::MakeBlockValues(PGLOBAL g)
   {
   int        i, lg, nrec, rc, n = 0;
-  int        curnum, curblk, block, last, savndv, savnbm;
+  int        curnum, curblk, block, savndv, savnbm;
   void      *savmin, *savmax;
   bool       blocked, xdb2 = false;
 //POOLHEADER save;
@@ -611,7 +611,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   // to Rows+1 by unblocked variable length table access methods.
   curblk = -1;
   curnum = nrec - 1;
-  last = 0;
+//last = 0;
   Txfp->Block = block;                  // This is useful mainly for
   Txfp->CurBlk = curblk;                // blocked tables (ZLBFAM), for
   Txfp->CurNum = curnum;                // others it is just to be clean.
@@ -742,7 +742,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
         Txfp->BlkPos[curblk] = Txfp->GetPos();
         } // endif CurNum
 
-      last = curnum + 1;              // curnum is zero based
+//    last = curnum + 1;              // curnum is zero based
       Txfp->CurBlk = curblk;          // Used in COLDOS::SetMinMax
       Txfp->CurNum = curnum;          // Used in COLDOS::SetMinMax
     } // endif blocked
@@ -1351,7 +1351,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //int     i, n1, n2, ctype = TYPE_ERROR, n = 0, type[2] = {0,0};
 //bool    conv = false, xdb2 = false, ok = false, b[2];
 //PXOB   *xarg1, *xarg2 = NULL, xp[2];
-  int     i, ctype = TYPE_ERROR, n = 0, type[2] = {0,0};
+  int     i, n = 0, type[2] = {0,0};
   bool    conv = false, xdb2 = false, ok = false;
   PXOB   *xarg2 = NULL, xp[2];
   PCOL    colp;
@@ -1363,7 +1363,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
     switch (arg[i]->GetType()) {
       case TYPE_CONST:
         type[i] = 1;
-        ctype = arg[i]->GetResultType();
+ //     ctype = arg[i]->GetResultType();
         break;
       case TYPE_COLBLK:
         conv = cnv[i];
@@ -1388,7 +1388,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
           // correlated subquery, it has a constant value during
           // each execution of the subquery.
           type[i] = 1;
-          ctype = arg[i]->GetResultType();
+//        ctype = arg[i]->GetResultType();
         } // endif this
 
         break;

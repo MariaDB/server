@@ -888,6 +888,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   } else if (Mode == MODE_INSERT) {
     if (Srcdef) {
       strcpy(g->Message, "No insert into anonym views");
+      Myc.Close();
       return true;
       } // endif Srcdef
 
@@ -906,12 +907,12 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
       } // endif MakeInsert
 
     if (m_Rc != RC_FX) {
-      int  rc;
       char cmd[64];
       int  w;
 
       sprintf(cmd, "ALTER TABLE `%s` DISABLE KEYS", Tabname);
-      rc = Myc.ExecSQL(g, cmd, &w);   // may fail for some engines
+      
+      m_Rc = Myc.ExecSQL(g, cmd, &w);   // may fail for some engines
       } // endif m_Rc
 
   } else

@@ -92,32 +92,6 @@ PSZ strlwr(PSZ s);
 #endif   // !WIN32
 
 /***********************************************************************/
-/*  Returns the bitmap representing the conditions that must not be    */
-/*  met when returning from TestValue for a given operator.            */
-/*  Bit one is EQ, bit 2 is LT, and bit 3 is GT.                       */
-/***********************************************************************/
-BYTE OpBmp(PGLOBAL g, OPVAL opc)
-  {
-  BYTE bt;
-
-  switch (opc) {
-    case OP_IN:
-    case OP_EQ: bt = 0x06; break;
-    case OP_NE: bt = 0x01; break;
-    case OP_GT: bt = 0x03; break;
-    case OP_GE: bt = 0x02; break;
-    case OP_LT: bt = 0x05; break;
-    case OP_LE: bt = 0x04; break;
-    case OP_EXIST: bt = 0x00; break;
-    default:
-      sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-    } // endswitch opc
-
-  return bt;
-  } // end of OpBmp
-
-/***********************************************************************/
 /*  Get a long long number from its character representation.          */
 /*  IN  p: Pointer to the numeric string                               */
 /*  IN  n: The string length                                           */

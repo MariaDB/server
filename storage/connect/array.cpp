@@ -130,7 +130,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
         break;
       case TYPE_VOID:
         // Integer stored inside pp->Value
-        par->AddValue(g, (int)(uintptr_t)parmp->Value);
+        par->AddValue(g, parmp->Intval);
         break;
       } // endswitch valtyp
 
@@ -609,13 +609,13 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
 
   Size = Nval;
   Nval = 0;
-  Vblp = Valblk->Allocate(g, Type, Len, 0, Size);
+  Vblp = Valblk->Allocate(g, Type, Len, prec, Size);
 
   if (!Valblk->GetMemp())
     // The error message was built by PlgDBalloc
     return TYPE_ERROR;
   else
-    Value = AllocateValue(g, Type, Len, 0, NULL);
+    Value = AllocateValue(g, Type, Len, prec, NULL);
 
   /*********************************************************************/
   /*  Converting STRING to DATE can be done according to date format.  */
