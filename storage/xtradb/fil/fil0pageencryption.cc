@@ -44,7 +44,8 @@ byte* buf, /*!< in: buffer from which to write; in aio
 byte* out_buf, /*!< out: encrypted buffer */
 ulint len, /*!< in: length of input buffer.*/
 ulint encryption_key,/*!< in: encryption key */
-ulint* out_len /*!< out: actual length of encrypted page */
+ulint* out_len, /*!< out: actual length of encrypted page */
+ulint mode
 ) {
 
 	int err = AES_OK;
@@ -64,9 +65,8 @@ ulint* out_len /*!< out: actual length of encrypted page */
 	ut_ad(buf);ut_ad(out_buf);
 	key = encryption_key;
 
-#ifndef EP_UNIT_TEST
-	unit_test = 1;
-#endif
+	unit_test = 0x01 & mode;
+
 	//TODO encryption default key
 	/* If no encryption key was provided to this table, use system
 	 default key

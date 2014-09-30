@@ -79,6 +79,28 @@ fil_space_is_page_encrypted(
 	return(flags);
 }
 
+/*******************************************************************//**
+Returns the page encryption key of the space, or 0 if the space
+is not encrypted. The tablespace must be cached in the memory cache.
+@return	page compression level, ULINT_UNDEFINED if space not found */
+UNIV_INLINE
+ulint
+fil_space_get_page_encryption_key(
+/*=================================*/
+	ulint	id)	/*!< in: space id */
+{
+	ulint	flags;
+
+	flags = fil_space_get_flags(id);
+
+	if (flags && flags != ULINT_UNDEFINED) {
+
+		return(fsp_flags_get_page_encryption_key(flags));
+	}
+
+	return(flags);
+}
+
 
 /********************************************************************//**
 Determine the tablespace is using atomic writes from dict_table_t::flags.
