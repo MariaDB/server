@@ -33,6 +33,7 @@
 #define Lex (thd->lex)
 
 #define Select Lex->current_select
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_parse.h"                        /* comp_*_creator */
@@ -1834,7 +1835,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         opt_column_list grant_privileges grant_ident grant_list grant_option
         object_privilege object_privilege_list user_list user_and_role_list
         rename_list
-        clear_privileges flush_options flush_option
+        clear_privileges flush_options flush_option table_or_tables
         opt_flush_lock flush_lock flush_options_list
         equal optional_braces
         opt_mi_check_type opt_to mi_check_types 
@@ -12816,7 +12817,7 @@ flush_lock:
               MYSQL_YYABORT;
             } 
             Lex->type|= REFRESH_FOR_EXPORT;
-          } EXPORT_SYM
+          } EXPORT_SYM {}
         ;
 
 flush_options_list:
@@ -14829,8 +14830,8 @@ lock:
         ;
 
 table_or_tables:
-          TABLE_SYM
-        | TABLES
+          TABLE_SYM {}
+        | TABLES {}
         ;
 
 table_lock_list:
