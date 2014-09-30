@@ -3217,7 +3217,10 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
                    thd->in_multi_stmt_transaction_mode()) || trx_cache;
       break;
     case SQLCOM_SET_OPTION:
-      use_cache= trx_cache= (lex->autocommit ? FALSE : TRUE);
+      if (lex->autocommit)
+        use_cache= trx_cache= FALSE;
+      else
+        use_cache= TRUE;
       break;
     case SQLCOM_RELEASE_SAVEPOINT:
     case SQLCOM_ROLLBACK_TO_SAVEPOINT:
