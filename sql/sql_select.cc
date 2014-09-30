@@ -20177,6 +20177,7 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
           tab->ref.key= -1;
           tab->ref.key_parts= 0;
           tab->use_quick= 1;
+          best_key= new_ref_key;
           /*
             We don't restore select->cond as we want to use the
             original condition as index condition pushdown is not

@@ -47,6 +47,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	range	PRIMARY,ux_pk1_fd5	ux_pk1_fd5	13	NULL	137	Using where
 drop table t0,t1, t2;
 #
+# MDEV-6814: Server crashes in calculate_key_len on query with ORDER BY
+#
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, KEY(f2),KEY(f2,f1)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,5,0),(2,6,0);
+SELECT * FROM t1 WHERE f1 < 3 AND f2 IS NULL ORDER BY f1;
+f1	f2	f3
+DROP TABLE t1;
+#
 # MDEV-6796: Unable to skip filesort when using implicit extended key
 #
 CREATE TABLE t1 (
