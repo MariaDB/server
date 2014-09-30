@@ -197,11 +197,10 @@ c1	c2
 5	9
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=100, @@SESSION.AUTO_INCREMENT_OFFSET=10;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	100
 auto_increment_offset	10
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -229,13 +228,13 @@ c1
 410
 1000
 DROP TABLE t1;
+SET GLOBAL wsrep_auto_increment_control=OFF;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -271,11 +270,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -285,11 +283,10 @@ SELECT * FROM t1;
 c1
 -1
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=100, @@SESSION.AUTO_INCREMENT_OFFSET=10;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	100
 auto_increment_offset	10
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (-2), (NULL),(2),(NULL);
 INSERT INTO t1 VALUES (250),(NULL);
 SELECT * FROM t1;
@@ -319,11 +316,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -335,11 +331,10 @@ SELECT * FROM t1;
 c1
 1
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=100, @@SESSION.AUTO_INCREMENT_OFFSET=10;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	100
 auto_increment_offset	10
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (-2);
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
@@ -376,11 +371,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -392,11 +386,10 @@ SELECT * FROM t1;
 c1
 1
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=100, @@SESSION.AUTO_INCREMENT_OFFSET=10;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	100
 auto_increment_offset	10
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (-2),(NULL),(2),(NULL);
 Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
@@ -427,11 +420,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -443,11 +435,10 @@ c1
 1
 9223372036854775794
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=2, @@SESSION.AUTO_INCREMENT_OFFSET=10;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	2
 auto_increment_offset	10
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
 SELECT * FROM t1;
 c1
@@ -462,11 +453,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -478,11 +468,10 @@ c1
 1
 18446744073709551603
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=2, @@SESSION.AUTO_INCREMENT_OFFSET=10;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	2
 auto_increment_offset	10
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL);
 ERROR HY000: Failed to read auto-increment value from storage engine
 SELECT * FROM t1;
@@ -492,11 +481,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -508,11 +496,10 @@ c1
 1
 18446744073709551603
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=5, @@SESSION.AUTO_INCREMENT_OFFSET=7;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	5
 auto_increment_offset	7
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (NULL),(NULL), (NULL);
 ERROR HY000: Failed to read auto-increment value from storage engine
 SELECT * FROM t1;
@@ -522,11 +509,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -542,11 +528,10 @@ c1
 -9223372036854775806
 1
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=3, @@SESSION.AUTO_INCREMENT_OFFSET=3;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	3
 auto_increment_offset	3
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (NULL),(NULL), (NULL);
 SELECT * FROM t1;
 c1
@@ -560,11 +545,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 DROP TABLE IF EXISTS t1;
 Warnings:
 Note	1051	Unknown table 'test.t1'
@@ -579,11 +563,10 @@ SET @@SESSION.AUTO_INCREMENT_INCREMENT=1152921504606846976, @@SESSION.AUTO_INCRE
 Warnings:
 Warning	1292	Truncated incorrect auto_increment_increment value: '1152921504606846976'
 Warning	1292	Truncated incorrect auto_increment_offset value: '1152921504606846976'
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	65535
 auto_increment_offset	65535
-wsrep_auto_increment_control	ON
 INSERT INTO t1 VALUES (NULL),(NULL);
 ERROR 22003: Out of range value for column 'c1' at row 1
 SELECT * FROM t1;
@@ -593,11 +576,10 @@ c1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
 SET @@INSERT_ID=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 CREATE TABLE t1 (c1 DOUBLE NOT NULL AUTO_INCREMENT, c2 INT, PRIMARY KEY (c1)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(NULL, 1);
 INSERT INTO t1 VALUES(NULL, 2);
@@ -881,11 +863,10 @@ ERROR 22003: Out of range value for column 'c1' at row 1
 DROP TABLE t1;
 DROP TABLE t2;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 CREATE TABLE t1 (c1 TINYINT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, NULL);
 INSERT INTO t1 VALUES (-1, 'innodb');
@@ -1272,11 +1253,10 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=InnoDB AUTO_INCREMENT=18446744073709551615 DEFAULT CHARSET=latin1
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=256;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	256
-wsrep_auto_increment_control	ON
 CREATE TABLE t1 (c1 TINYINT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, NULL);
 SHOW CREATE TABLE t1;
@@ -1291,11 +1271,10 @@ c1	c2
 1	NULL
 DROP TABLE t1;
 SET @@SESSION.AUTO_INCREMENT_INCREMENT=1, @@SESSION.AUTO_INCREMENT_OFFSET=1;
-SHOW VARIABLES LIKE "%auto_inc%";
+SHOW VARIABLES LIKE "auto_inc%";
 Variable_name	Value
 auto_increment_increment	1
 auto_increment_offset	1
-wsrep_auto_increment_control	ON
 CREATE TABLE t1 (c1 INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (2147483648, 'a');
 SHOW CREATE TABLE t1;

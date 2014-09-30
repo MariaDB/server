@@ -3189,6 +3189,9 @@ sub check_wsrep_support() {
     mtr_report(" - adding wsrep, galera to default test suites");
     push @DEFAULT_SUITES, qw(wsrep galera);
 
+    # ADD scripts to $PATH to that wsrep_sst_* can be found
+    $ENV{'PATH'} = $ENV{'PATH'}.':'.$basedir.'/scripts';
+
     # Check whether WSREP_PROVIDER environment variable is set.
     if (defined $ENV{'WSREP_PROVIDER'}) {
       if ((mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "")  &&

@@ -1,0 +1,24 @@
+innodb : deadlock, failure in UPDATE IGNORE, lp1372296
+innodb_ctype_ldml : Test contains statements unsafe to replicate in statement-based replication
+innodb-autoinc : deadlock, failure in REPLACE, lp1372296
+innodb_mysql : deadlock due to DDL
+innodb_buffer_pool_load : Test contains statements unsafe to replicate in statement-based replication
+innodb-autoinc-56228 : deadlock, lp1372301
+innodb_lock_wait_timeout_1 : Test contains statements unsafe to replicate in statement-based replication
+innodb-consistent : Test contains statements unsafe to replicate in statement-based replication
+innodb-semi-consistent : Test contains statements unsafe to replicate in statement-based replication
+innodb-index : DDL concurrent with transaction
+innodb-lock : deadlock on INSERT IGNORE, lp1372296
+innodb-status-output : Test performs server restart
+innodb-wl5522 : Test contains statements unsafe to replicate in statement-based replication
+innodb-wl6445 : Test performs server restart
+innodb_bug40360 : Test contains statements unsafe to replicate in statement-based replication
+innodb_bug40565 : Galera git bug #137 - Invalid deadlock on UPDATE to NULL without a PK
+innodb_bug42419 : Test contains statements unsafe to replicate in statement-based replication
+innodb_bug49164 : Test contains statements unsafe to replicate in statement-based replication
+innodb_bug45357 : impossible to write to binary log since BINLOG_FORMAT = STATEMENT and at least one table uses a storage engine limited to row-based logging
+innodb_bug52663 : Test contains statements unsafe to replicate in statement-based replication
+innodb_bug59733 : Test contains statements unsafe to replicate in statement-based replication
+innodb_gis : Test contains statements unsafe to replicate in statement-based replication
+innodb_prefix_index_restart_server : crash, lp1372288
+innodb_stats_external_pages : Test contains statements unsafe to replicate in statement-based replication

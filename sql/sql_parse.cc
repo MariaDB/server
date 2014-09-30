@@ -975,12 +975,8 @@ bool do_command(THD *thd)
     thd->wsrep_query_state= QUERY_EXEC;
     mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
   }
-
-  if ((WSREP(thd)  && packet_length == packet_error) ||
-      (!WSREP(thd) && (packet_length == packet_error)))
-#else
-  if (packet_length == packet_error)
 #endif /* WITH_WSREP */
+  if (packet_length == packet_error)
   {
     DBUG_PRINT("info",("Got error %d reading command from socket %s",
 		       net->error,

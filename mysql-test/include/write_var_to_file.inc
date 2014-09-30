@@ -51,7 +51,7 @@ if (`SELECT LENGTH(@@secure_file_priv) > 0`)
   --copy_file $_wvtf_tmp_file $write_to_file
   --remove_file $_wvtf_tmp_file
 }
-if (`SELECT LENGTH(@@secure_file_priv) = 0`)
+if (`SELECT LENGTH(@@secure_file_priv) = 0 OR LENGTH(@@secure_file_priv) IS NULL`)
 {
   --eval SELECT '$write_var' INTO DUMPFILE '$write_to_file'
 }
