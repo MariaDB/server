@@ -182,6 +182,9 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
   if (check_global_access(thd, PROCESS_ACL, true))
     return 0;
 
+  if (qc->is_disabled())
+    return 0;
+
   if (qc->try_lock(thd))
     return 0;
 
@@ -425,6 +428,9 @@ static int qc_info_fill_table_queries_tables(THD *thd, TABLE_LIST *tables, COND 
   if (check_global_access(thd, PROCESS_ACL, true))
     return 0;
 
+  if (qc->is_disabled())
+    return 0;
+
   if (qc->try_lock(thd))
     return 0;
 
@@ -489,6 +495,9 @@ static int qc_info_fill_table_tables(THD *thd, TABLE_LIST *tables,
 
   /* one must have PROCESS privilege to see others' queries */
   if (check_global_access(thd, PROCESS_ACL, true))
+    return 0;
+
+  if (qc->is_disabled())
     return 0;
 
   if (qc->try_lock(thd))
