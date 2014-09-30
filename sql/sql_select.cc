@@ -7199,17 +7199,20 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         uint i;
         KEYUSE *keyuse= pos->key;
         uint key= keyuse->key;
-        // psergey-todo: why does the following loop not include 'i' ???
         for (i= 0; i < keyparts; i++)
 	{
+          if (i > 0)
+            keyuse+= ref_keyuse_steps[i-1];
           uint fldno;
           if (is_hash_join_key_no(key))
 	    fldno= keyuse->keypart;
           else
-            fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;        
+            fldno= table->key_info[key].key_part[i].fieldnr - 1;        
           if (fld->field_index == fldno)
             break;
         }
+        keyuse= pos->key;
+
         if (i == keyparts)
 	{
           /* 
