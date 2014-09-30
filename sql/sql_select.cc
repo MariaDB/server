@@ -7199,7 +7199,7 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         uint i;
         KEYUSE *keyuse= pos->key;
         uint key= keyuse->key;
-
+        // psergey-todo: why does the following loop not include 'i' ???
         for (i= 0; i < keyparts; i++)
 	{
           uint fldno;
@@ -7372,6 +7372,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       already taken into account in table->cond_selectivity.
     */
     keyuse= pos->key;
+    keyparts=0;
     while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))

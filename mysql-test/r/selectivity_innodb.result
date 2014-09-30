@@ -1358,4 +1358,39 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
+#
+# MDEV-6808: MariaDB 10.0.13 crash with optimizer_use_condition_selectivity > 1
+#
+set @tmp_mdev6808= @@optimizer_use_condition_selectivity;
+SET optimizer_use_condition_selectivity = 2;
+CREATE TABLE t1 (
+event_id int(11) unsigned NOT NULL AUTO_INCREMENT,
+PRIMARY KEY (event_id)
+) ENGINE=InnoDB;
+CREATE TABLE t2 (
+repost_id int(11) unsigned NOT NULL AUTO_INCREMENT,
+subject_type varchar(24) CHARACTER SET latin1 COLLATE latin1_general_ci NOT NULL,
+subject_id int(11) unsigned NOT NULL,
+object_type varchar(24) CHARACTER SET latin1 COLLATE latin1_general_ci NOT NULL,
+object_id int(11) unsigned NOT NULL,
+is_private int(1) NOT NULL DEFAULT '0',
+PRIMARY KEY (repost_id),
+UNIQUE KEY `BETWEEN` (subject_type,subject_id,object_type,object_id,is_private),
+KEY SUBJECT (subject_type,subject_id),
+KEY OBJECT (object_type,object_id)
+) ENGINE=InnoDB;
+SELECT
+*
+FROM 
+t2, t1 
+WHERE 
+t2.object_type = 'event' AND 
+t2.object_id = t1.event_id AND 
+t2.is_private = 0 AND 
+t2.subject_id = 127994 AND 
+t2.subject_type in ('user')
+;
+repost_id	subject_type	subject_id	object_type	object_id	is_private	event_id
+DROP TABLE t1, t2;
+set optimizer_use_condition_selectivity=@tmp_mdev6808;
 SET SESSION STORAGE_ENGINE=DEFAULT;
