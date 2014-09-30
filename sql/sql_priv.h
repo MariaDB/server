@@ -29,6 +29,10 @@
 
 #ifndef MYSQL_CLIENT
 
+#ifndef MY_GLOBAL_INCLUDED
+#error "You must include my_global.h first!"
+#endif
+
 /*
   Generates a warning that a feature is deprecated. After a specified
   version asserts that the feature is removed.

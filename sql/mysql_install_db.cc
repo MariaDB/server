@@ -24,7 +24,6 @@
 #include <m_string.h>
 
 #include <windows.h>
-#include <assert.h>
 #include <shellapi.h>
 #include <accctrl.h>
 #include <aclapi.h>

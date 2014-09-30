@@ -25,8 +25,8 @@
   replication slave.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
-#include "my_global.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command
 #include "sql_table.h"                         // mysql_rm_table

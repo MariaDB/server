@@ -21,9 +21,9 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include "sql_plugin.h"
 #include "sql_priv.h"
 #include "key.h"                                // key_copy
-#include "sql_plugin.h"
 #include <m_ctype.h>
 #include <my_bit.h>
 #include "ha_myisam.h"

@@ -16,7 +16,7 @@
 
 /* Write some debug info */
 
-
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_test.h"

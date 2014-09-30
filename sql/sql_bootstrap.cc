@@ -14,8 +14,7 @@
    51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA */
 
 
-#include <stdlib.h>
-#include <errno.h>
+#include <my_global.h>
 #include <ctype.h>
 #include <string.h>
 #include "sql_bootstrap.h"

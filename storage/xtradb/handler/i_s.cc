@@ -22,6 +22,7 @@ InnoDB INFORMATION SCHEMA tables interface to MySQL.
 
 Created July 18, 2007 Vasil Dimov
 *******************************************************/
+#include <my_global.h>
 #ifndef MYSQL_SERVER
 #define MYSQL_SERVER /* For Item_* classes */
 #include <item.h>

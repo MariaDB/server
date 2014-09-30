@@ -15,6 +15,7 @@
 
 /* see include/mysql/service_debug_sync.h for debug sync documentation */
 
+#include <my_global.h>
 #include "debug_sync.h"
 
 #if defined(ENABLED_DEBUG_SYNC)

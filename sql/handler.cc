@@ -20,6 +20,7 @@
   Handler-calling-functions
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "rpl_handler.h"

@@ -16,7 +16,7 @@
 
 /* Definitions for MariaDB global transaction ID (GTID). */
 
-
+#include <my_global.h>
 #include "sql_priv.h"
 #include "my_sys.h"
 #include "unireg.h"

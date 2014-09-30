@@ -74,6 +74,7 @@
   we are forced to use mysql_lock_merge.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "debug_sync.h"
 #include "unireg.h"                    // REQUIRED: for other includes
@@ -82,7 +83,6 @@
 #include "sql_parse.h"                     // is_log_table_write_query
 #include "sql_acl.h"                       // SUPER_ACL
 #include <hash.h>
-#include <assert.h>
 
 /**
   @defgroup Locking Locking

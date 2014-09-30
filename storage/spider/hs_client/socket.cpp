@@ -7,6 +7,7 @@
  * See COPYRIGHT.txt for details.
  */
 
+#include <my_global.h>
 #ifndef __WIN__
 #include <sys/types.h>
 #include <sys/un.h>

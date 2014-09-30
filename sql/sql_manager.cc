@@ -21,6 +21,7 @@
  *   o Berkeley DB: removing unneeded log files.
  */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_manager.h"
 #include "unireg.h"                    // REQUIRED: for other includes

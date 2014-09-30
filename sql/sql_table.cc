@@ -18,6 +18,7 @@
 
 /* drop and alter of tables */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"

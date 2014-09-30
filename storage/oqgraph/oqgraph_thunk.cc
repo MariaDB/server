@@ -22,17 +22,18 @@
    ======================================================================
 */
 
+#include <my_config.h>
 #include "oqgraph_thunk.h"
 
 #include <boost/tuple/tuple.hpp>
 
 #define MYSQL_SERVER
-#include "mysql_version.h"
+#include <my_global.h>
+#include "unireg.h"
 #include "sql_base.h"
 #include "table.h"
 #include "field.h"
 #include "key.h"
-#include "unireg.h"
 
 #if MYSQL_VERSION_ID	< 100000
 // Allow compatibility with build for 5.5.32

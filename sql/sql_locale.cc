@@ -20,6 +20,7 @@
   !! This file is built from my_locale.pl !!
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_locale.h"

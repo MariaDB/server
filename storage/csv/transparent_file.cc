@@ -17,6 +17,7 @@
 #pragma implementation        // gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include <mysql/psi/mysql_file.h>
 #include "transparent_file.h"
