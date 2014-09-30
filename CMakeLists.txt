@@ -202,7 +202,12 @@ ENDIF()
 
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
-OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
+IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
+  SET(security_default OFF)
+ELSE()
+  SET(security_default ON)
+ENDIF()
+OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ${security_default})
 IF(SECURITY_HARDENED)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
