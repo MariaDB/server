@@ -1112,9 +1112,22 @@ struct export_var_t{
 	ib_int64_t innodb_x_lock_os_waits;
 	ib_int64_t innodb_x_lock_spin_rounds;
 	ib_int64_t innodb_x_lock_spin_waits;
-	ulint innodb_defragment_compression_failures;
-	ulint innodb_defragment_failures;
-	ulint innodb_defragment_count;
+
+	ulint innodb_defragment_compression_failures; /*!< Number of
+						defragment re-compression
+						failures */
+
+	ulint innodb_defragment_failures;	/*!< Number of defragment
+						failures*/
+	ulint innodb_defragment_count;		/*!< Number of defragment
+						operations*/
+
+	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
+	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
+						of used row log buffer */
+	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress
+						*/
+
 #ifdef UNIV_DEBUG
 	ulint innodb_purge_trx_id_age;		/*!< rw_max_trx_id - purged trx_id */
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id

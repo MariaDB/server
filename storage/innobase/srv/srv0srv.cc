@@ -63,6 +63,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "dict0stats_bg.h" /* dict_stats_event */
 #include "srv0start.h"
 #include "row0mysql.h"
+#include "row0log.h"
 #include "ha_prototypes.h"
 #include "trx0i_s.h"
 #include "os0sync.h" /* for HAVE_ATOMIC_BUILTINS */
@@ -1522,6 +1523,10 @@ srv_export_innodb_status(void)
 		btr_defragment_compression_failures;
 	export_vars.innodb_defragment_failures = btr_defragment_failures;
 	export_vars.innodb_defragment_count = btr_defragment_count;
+
+	export_vars.innodb_onlineddl_rowlog_rows = onlineddl_rowlog_rows;
+	export_vars.innodb_onlineddl_rowlog_pct_used = onlineddl_rowlog_pct_used;
+	export_vars.innodb_onlineddl_pct_progress = onlineddl_pct_progress;
 
 #ifdef UNIV_DEBUG
 	rw_lock_s_lock(&purge_sys->latch);
