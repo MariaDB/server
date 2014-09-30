@@ -27,6 +27,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_select.h"
 #include "rpl_rli.h"                            // Pull in Relay_log_info
@@ -41,7 +42,6 @@
 #include "filesort.h"                    // change_double_for_sort
 #include "log_event.h"                   // class Table_map_log_event
 #include <m_ctype.h>
-#include <errno.h>
 
 // Maximum allowed exponent value for converting string to decimal
 #define MAX_EXPONENT 1024

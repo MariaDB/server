@@ -31,10 +31,10 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-/* May include caustic 3rd-party defs. Use early, so it can override nothing. */
-#include "sha2.h"
-#include "my_global.h"                          // HAVE_*
+#include <my_global.h>                          // HAVE_*
 
+/* May include caustic 3rd-party defs. Use early, so it can override nothing */
+#include "sha2.h"
 
 #include "sql_priv.h"
 /*

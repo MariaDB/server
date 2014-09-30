@@ -20,7 +20,7 @@
   UNION's  were introduced by Monty and Sinisa <sinisa@mysql.com>
 */
 
-
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_union.h"

@@ -17,6 +17,7 @@
 
 /* Functions to handle date and time */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"                      // REQUIRED by other includes
 #include "sql_time.h"

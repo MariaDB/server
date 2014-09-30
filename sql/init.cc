@@ -21,6 +21,7 @@
   Init and dummy functions for interface with unireg
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "init.h"
 #include "my_sys.h"

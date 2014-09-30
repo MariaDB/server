@@ -46,6 +46,7 @@
   if this file.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_parse.h"                          // append_file_to_dir
 #include "create_options.h"

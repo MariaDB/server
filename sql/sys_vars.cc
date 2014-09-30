@@ -31,7 +31,7 @@
   (for example in storage/myisam/ha_myisam.cc) !
 */
 
-#include "sql_plugin.h"
+#include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"
 #include "sql_class.h"                          // set_var.h: THD
 #include "sys_vars.h"

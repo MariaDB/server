@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include "sql_plugin.h"
+#include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"
 #include "unireg.h"
 #include <signal.h>
@@ -114,7 +114,6 @@
 #endif
 
 extern "C" {					// Because of SCO 3.2V4.2
-#include <errno.h>
 #include <sys/stat.h>
 #ifndef __GNU_LIBRARY__
 #define __GNU_LIBRARY__				// Skip warnings in getopt.h

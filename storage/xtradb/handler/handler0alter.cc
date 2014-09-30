@@ -21,6 +21,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 Smart ALTER TABLE
 *******************************************************/
 
+#include <my_global.h>
 #include <unireg.h>
 #include <mysqld_error.h>
 #include <log.h>

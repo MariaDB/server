@@ -41,6 +41,7 @@ This file contains the implementation of error and warnings related
 
 ***********************************************************************/
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_error.h"

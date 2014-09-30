@@ -1179,6 +1179,7 @@ innobase_start_trx_and_assign_read_view(
 	THD*		thd);		/* in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
+#ifdef NOT_USED
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
 Starts a new InnoDB transaction if a transaction is not yet started. And
@@ -1195,6 +1196,7 @@ innobase_start_trx_and_clone_read_view(
 	THD*		from_thd);	/* in: MySQL thread handle of the
 					user session from which the consistent
 					read should be cloned */
+#endif
 /****************************************************************//**
 Flushes InnoDB logs to disk and makes a checkpoint. Really, a commit flushes
 the logs, and the name of this function should be innobase_checkpoint.
@@ -4127,6 +4129,7 @@ innobase_commit_ordered(
 	DBUG_VOID_RETURN;
 }
 
+#ifdef NOT_USED
 /*****************************************************************//**
 Creates an InnoDB transaction struct for the thd if it does not yet have one.
 Starts a new InnoDB transaction if a transaction is not yet started. And
@@ -4222,6 +4225,7 @@ innobase_start_trx_and_clone_read_view(
 
 	DBUG_RETURN(0);
 }
+#endif
 
 /*****************************************************************//**
 Commits a transaction in an InnoDB database or marks an SQL statement

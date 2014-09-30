@@ -24,6 +24,7 @@
   Hostnames are checked with reverse name lookup and checked that they
   doesn't resemble an IP address.
 */
+#include <my_global.h>
 #include "sql_priv.h"
 #include "hostname.h"
 #include "my_global.h"

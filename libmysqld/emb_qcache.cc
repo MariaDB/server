@@ -13,8 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
-#include "sql_priv.h"
 #include "my_global.h"                          // HAVE_*
+#include "sql_priv.h"
 
 #ifdef HAVE_QUERY_CACHE
 #include <mysql.h>

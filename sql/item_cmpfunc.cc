@@ -26,6 +26,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include <m_ctype.h>
 #include "sql_select.h"
