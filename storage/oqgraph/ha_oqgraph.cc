@@ -1071,7 +1071,7 @@ int ha_oqgraph::rnd_init(bool scan)
 int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
-  open_query::row row = {};
+  open_query::row row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
