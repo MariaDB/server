@@ -174,6 +174,16 @@ class ha_connect: public handler
   CONNECT_SHARE *share;        ///< Shared lock info
   CONNECT_SHARE *get_share();
 
+protected:
+  char *PlugSubAllocStr(PGLOBAL g, void *memp, const char *str, size_t length)
+  {
+    char *ptr;
+    if (!(ptr= (char*) PlugSubAlloc(g, memp, length + 1)))
+      return NULL;
+    memcpy(ptr, str, length);
+    ptr[length]= '\0';
+    return ptr;
+  }
 public:
   ha_connect(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_connect();

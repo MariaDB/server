@@ -2188,8 +2188,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
         switch (args[i]->real_type()) {
           case COND::STRING_ITEM:
             pp->Type= TYPE_STRING;
-            pp->Value= PlugSubAlloc(g, NULL, res->length() + 1);
-            strncpy((char*)pp->Value, res->ptr(), res->length() + 1);
+            pp->Value= PlugSubAllocStr(g, NULL, res->ptr(), res->length());
             break;
           case COND::INT_ITEM:
             pp->Type= TYPE_INT;
@@ -2437,7 +2436,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         } else {
           if (args[i]->field_type() == MYSQL_TYPE_VARCHAR) {
             // Add the command to the list
-            PCMD *ncp, cmdp= new(g) CMD(g, (char*)res->ptr());
+            PCMD *ncp, cmdp= new(g) CMD(g, (char*)res->c_ptr());
 
             for (ncp= &filp->Cmds; *ncp; ncp= &(*ncp)->Next) ;
 
