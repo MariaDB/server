@@ -257,6 +257,23 @@ static int qc_info_fill_table_queries(THD *thd, TABLE_LIST *tables, COND *cond){
     table->field[COLUMN_QUERIES_QUERY_INSERT_TIME]->store(
       ((double)query_cache_query->query_insert_time()) / HRTIME_RESOLUTION                                        /* qc_info header */
     );
+#else
+    table->field[COLUMN_QUERIES_QUERY_ROWS]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS]->set_null();
+    table->field[COLUMN_QUERIES_RESULT_LENGTH]->set_null();
+    table->field[COLUMN_QUERIES_SELECT_EXPEND_TIME_US]->set_null();
+    table->field[COLUMN_QUERIES_SELECT_LOCK_TIME_US]->set_null();
+    table->field[COLUMN_QUERIES_SELECT_ROWS_READ]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_PERIOD_LOW]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_PERIOD_HIGH]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_PERIOD_OUTLIERS]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_TOTAL_TIME_US]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_MEAN_PERIOD_US]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_MEAN_PERIOD_LOW_US]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_HITS_MEAN_PERIOD_HIGH_US]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_LAST_HIT_TIME]->set_null();
+    table->field[COLUMN_QUERIES_QUERY_INSERT_TIME]->set_null();
+
 #endif
     str[0]=0;
     if((query_cache_query->tables_type() & HA_CACHE_TBL_NONTRANSACT) == HA_CACHE_TBL_NONTRANSACT){
