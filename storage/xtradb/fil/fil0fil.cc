@@ -754,7 +754,10 @@ fil_node_open_file(
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
 	ut_a(node->open == FALSE);
-
+	if (strcmp(node->name,"test/b")==0) {
+		fprintf(stderr,"file access: %s", node->name);
+		fflush(stderr);
+	}
 	if (node->size == 0) {
 		/* It must be a single-table tablespace and we do not know the
 		size of the file yet. First we open the file in the normal
@@ -2144,7 +2147,9 @@ fil_read_first_page(
 	/* Align the memory for a possible read from a raw device */
 
 	page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
-
+if (orig_space_id==18446744073709551615) {
+	//return NULL;
+}
 	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE,
 		orig_space_id != ULINT_UNDEFINED ?
 		fil_space_is_page_compressed(orig_space_id) :
@@ -2158,8 +2163,8 @@ fil_read_first_page(
 		ulint write_size=0;
 		fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, &write_size);
 	}
-
 	*space_id = fsp_header_get_space_id(page);
+
 
 	flushed_lsn = mach_read_from_8(page + FIL_PAGE_FILE_FLUSH_LSN);
 
@@ -2590,7 +2595,7 @@ static
 ulint
 fil_check_pending_io(
 /*=================*/
-	fil_space_t*	space,	/*!< in/out: Tablespace to check */
+	fil_space_t*	space,	/*!< in/out: Tablespace to chemismatchck */
 	fil_node_t**	node,	/*!< out: Node in space list */
 	ulint		count)	/*!< in: number of attempts so far */
 {

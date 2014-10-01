@@ -213,6 +213,11 @@ static char*	innobase_disable_monitor_counter	= NULL;
 static char*	innobase_reset_monitor_counter		= NULL;
 static char*	innobase_reset_all_monitor_counter	= NULL;
 
+/* Encryption for tables and columns */
+static char*	innobase_data_encryption_providername	= "keys.txt";//FF
+static char*	innobase_data_encryption_providerurl	= "/home/florin/w/cxx/build-mariadb/unittest/eperi/";//FF
+static uint innobase_data_encryption_providertype = 1; // 1 == file, 2 == server
+
 /* The highest file format being used in the database. The value can be
 set by user, however, it will be adjusted to the newer file format if
 a table of such format is created/opened. */
@@ -3404,6 +3409,12 @@ innobase_init(
 #endif /* WITH_WSREP */
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
+
+	//FF
+//	KeySingleton& keysingleton = KeySingleton::getInstance( innobase_data_encryption_providername,
+//			innobase_data_encryption_providerurl, innobase_data_encryption_providertype);
+//	struct keyentry *entry = keysingleton.getKeys(1);
+//	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 
 #ifndef DBUG_OFF
 	static const char	test_filename[] = "-@";
@@ -19950,6 +19961,22 @@ static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
   "Use multi-threaded flush. Default FALSE.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_UINT(encryption_providertype, innobase_data_encryption_providertype,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Use table or column encryption / decryption. Default is 0 for no use, 1 for keyfile and 2 for keyserver.",
+  NULL, NULL, 1, 0, 2, 0);
+
+static MYSQL_SYSVAR_STR(encryption_providername, innobase_data_encryption_providername,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Name of keyfile or keyserver.",
+  NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(encryption_providerurl, innobase_data_encryption_providerurl,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Path or URL for keyfile or keyserver.",
+  NULL, NULL, NULL);
+
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_block_size),
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -20159,7 +20186,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
-
+  MYSQL_SYSVAR(encryption_providertype),
+  MYSQL_SYSVAR(encryption_providername),
+  MYSQL_SYSVAR(encryption_providerurl),
   NULL
 };
 

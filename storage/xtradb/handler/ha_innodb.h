@@ -26,6 +26,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "dict0stats.h"
 
+#include "KeySingleton.h"
+
 /* Structure defines translation table between mysql index and innodb
 index structures */
 struct innodb_idx_translate_t {
@@ -58,7 +60,7 @@ typedef struct st_innobase_share {
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
-/** Engine specific table options are definined using this struct */
+/** Engine specific table options are defined using this struct */
 struct ha_table_option_struct
 {
 	bool  page_compressed;		/*!< Table is using page compression

@@ -3148,7 +3148,9 @@ try_again:
 
 	if ((ulint) ret == n) {
 		if (fil_page_is_encrypted((byte *)buf)) {
-			fil_decrypt_page(NULL, (byte *)buf, n, NULL, 0);
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)) {;
+				return FALSE;
+			}
 		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
@@ -3270,6 +3272,12 @@ try_again:
 
 	if ((ulint) ret == n) {
 
+
+		if (fil_page_is_encrypted((byte *)buf)) {
+			fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0);
+		}
+
+
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -3278,9 +3286,6 @@ try_again:
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
-		if (fil_page_is_encrypted((byte *)buf)) {
-			fil_decrypt_page(NULL, (byte *)buf, n, NULL, 0);
-		}
 
 
 
@@ -5556,6 +5561,33 @@ retry:
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
+
+
+			/* page encryption */
+			if (slot->message1 && slot->page_encryption) {
+				if (slot->page_buf2==NULL) {
+					os_slot_alloc_page_buf2(slot);
+				}
+
+				ut_ad(slot->page_buf2);
+
+				if (slot->type == OS_FILE_READ) {
+					if (fil_page_is_encrypted(slot->buf)) {
+						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
+					}
+				} else {
+					if (slot->page_encryption_success &&
+						fil_page_is_encrypted(slot->page_buf2)) {
+						ut_ad(slot->page_encryption_page);
+						if (srv_use_trim && os_fallocate_failed == FALSE) {
+							// Deallocate unused blocks from file system ???
+							//os_file_trim(slot->file, slot, slot->len);
+						}
+					}
+				}
+			}
+
+
 			/* If the table is page compressed and this is read,
 			we decompress before we annouce the read is
 			complete. For writes, we free the compressed page. */
@@ -5585,29 +5617,6 @@ retry:
 				}
 			}
 
-			/* page encryption */
-			if (slot->message1 && slot->page_encryption) {
-				if (slot->page_buf2==NULL) {
-					os_slot_alloc_page_buf2(slot);
-				}
-
-				ut_ad(slot->page_buf2);
-
-				if (slot->type == OS_FILE_READ) {
-					if (fil_page_is_encrypted(slot->buf)) {
-						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, 0);
-					}
-				} else {
-					if (slot->page_encryption_success &&
-						fil_page_is_encrypted(slot->page_buf2)) {
-						ut_ad(slot->page_encryption_page);
-						if (srv_use_trim && os_fallocate_failed == FALSE) {
-							// Deallocate unused blocks from file system
-							os_file_trim(slot->file, slot, slot->len);
-						}
-					}
-				}
-			}
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */

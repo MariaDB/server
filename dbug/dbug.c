@@ -2187,7 +2187,6 @@ const char* _db_get_func_(void)
 
 
 void dump_buffer(unsigned n, const unsigned char* buf) {
-#if defined(UNIV_DEBUG)
 int on_this_line = 0;
 int counter = 0;
 int cc =0;
@@ -2227,7 +2226,6 @@ while (n-- > 0) {
 }
 fprintf( stream, "\n");
 fflush(stream);
-#endif
 }
 
 

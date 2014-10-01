@@ -12,33 +12,6 @@ typedef unsigned long int ibool;
 #include "../../storage/xtradb/include/fil0pageencryption.h"
 
 
-extern byte*
-fil_encrypt_page(
-/*==============*/
-    ulint		space_id,      /*!< in: tablespace id of the
-                       table. */
-    byte*           buf,           /*!< in: buffer from which to write; in aio
-                       this must be appropriately aligned */
-    byte*           out_buf,       /*!< out: compressed buffer */
-    ulint           len,           /*!< in: length of input buffer.*/
-    ulint           compression_level, /*!< in: compression level */
-    ulint*          out_len,   /*!< out: actual length of compressed page */
-    ulint           unit_test);
-
-/****************************************************************//**
-For page encrypted pages decrypt the page after actual read
-operation.
-@return decrypted page */
-extern void
-fil_decrypt_page(
-/*================*/
-		byte*		page_buf,      /*!< in: preallocated buffer or NULL */
-		byte*		buf,           /*!< out: buffer from which to read; in aio
-		                       this must be appropriately aligned */
-		ulint		len,           /*!< in: length of output buffer.*/
-	    ulint*		write_size,    /*!< in/out: Actual payload size of the decrypted data. */
-	    ulint       unit_test);
-
 
 
 
