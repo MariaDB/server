@@ -582,7 +582,7 @@ DllExport void   *PlgDBSubAlloc(PGLOBAL g, void *memp, size_t size);
 DllExport void   *PlgDBalloc(PGLOBAL, void *, MBLOCK&);
 DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);
-DllExport char    *GetIni(int n= 0);
+//lExport char   *GetIni(int n= 0);    // Not used anymore
 DllExport void    SetTrc(void);
 DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
                                          const char *def=NULL);

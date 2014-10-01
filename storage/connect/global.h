@@ -205,7 +205,10 @@ typedef struct _activity {          /* Describes activity and language */
 
 /*----------------  UNIT ??????????    VERSION ? ----------------------*/
 typedef struct _parm {
-  void *Value;
+  union {
+    void *Value;
+    int   Intval;
+    }; // end union
   short Type, Domain;
   PPARM Next;
   } PARM;

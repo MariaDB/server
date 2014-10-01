@@ -25,6 +25,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <stdint.h>      // for uintprt_h
 #endif  // !WIN32
 
 /***********************************************************************/
@@ -129,7 +130,7 @@ PARRAY MakeValueArray(PGLOBAL g, PPARM pp)
         break;
       case TYPE_VOID:
         // Integer stored inside pp->Value
-        par->AddValue(g, (int)parmp->Value);
+        par->AddValue(g, parmp->Intval);
         break;
       } // endswitch valtyp
 
@@ -585,7 +586,7 @@ bool ARRAY::CanBeShort(void)
 /***********************************************************************/
 int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
   {
-  int   i;
+  int   i, prec = 0;
   bool  b = FALSE;
   PMBV  ovblk = Valblk;
   PVBLK ovblp = Vblp;
@@ -595,6 +596,7 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
 
   switch (Type) {
     case TYPE_DOUBLE:
+      prec = 2;
     case TYPE_SHORT:
     case TYPE_INT:
     case TYPE_DATE:
@@ -607,13 +609,13 @@ int ARRAY::Convert(PGLOBAL g, int k, PVAL vp)
 
   Size = Nval;
   Nval = 0;
-  Vblp = Valblk->Allocate(g, Type, Len, 0, Size);
+  Vblp = Valblk->Allocate(g, Type, Len, prec, Size);
 
   if (!Valblk->GetMemp())
     // The error message was built by PlgDBalloc
     return TYPE_ERROR;
   else
-    Value = AllocateValue(g, Type, Len, 0, NULL);
+    Value = AllocateValue(g, Type, Len, prec, NULL);
 
   /*********************************************************************/
   /*  Converting STRING to DATE can be done according to date format.  */

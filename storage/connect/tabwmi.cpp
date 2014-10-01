@@ -200,7 +200,7 @@ PQRYRES WMIColumns(PGLOBAL g, char *nsp, char *cls, bool info)
         }  // endif res
 
       len = (unsigned)SysStringLen(propname);
-      length[0] = max(length[0], len);
+      length[0] = MY_MAX(length[0], len);
       } // enfor i
 
     res = SafeArrayDestroy(prnlist);

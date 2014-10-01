@@ -1,0 +1,66 @@
+let $MYSQLD_DATADIR= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/emp.txt $MYSQLD_DATADIR/test/emp.txt
+
+--echo #
+--echo # Show MRR setting. The way it is done is because the t3 table cannot be directly based on
+--echo # the information_schema.session_variables table. Not being a CONNECT table, it would be
+--echo # read using an intermediate MYSQL table using the MySQL API and could not reflect the
+--echo # current session variable change (the call would create another session) This would be
+--echo # correct only for querying GLOBAL variables but is not what we want to do here.
+--echo #
+CREATE TABLE t2 (
+name VARCHAR(64) NOT NULL,
+value VARCHAR(1024) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=DOS;
+INSERT INTO t2 SELECT * FROM information_schema.session_variables WHERE variable_name = 'OPTIMIZER_SWITCH';
+# Check that MRR is OFF by default
+create table t3 (
+name CHAR(32) NOT NULL,
+value CHAR(64) NOT NULL
+) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=t2 OPTION_LIST='Colname=value';
+SELECT value FROM t3 WHERE value LIKE 'mrr%';
+
+--echo #
+--echo # Testing indexing with MRR OFF
+--echo #
+CREATE TABLE t1
+(
+  matricule INT(4) KEY NOT NULL field_format='Z',
+  nom       VARCHAR(16) NOT NULL,
+  prenom    VARCHAR(20) NOT NULL,
+  sexe      SMALLINT(1) NOT NULL COMMENT 'sexe 1:M 2:F',
+  aanais    INT(4) NOT NULL,
+  mmnais    INT(2) NOT NULL,
+  ddentree  DATE NOT NULL date_format='YYYYMM',
+  ddnom     DATE NOT NULL date_format='YYYYMM',
+  brut      INT(5) NOT NULL,
+  net       DOUBLE(8,2) NOT NULL,
+  service   INT(2) NOT NULL,
+  sitmat    CHAR(1) NOT NULL,
+  formation CHAR(5) NOT NULL,
+  INDEX NP(nom,prenom)
+) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+SELECT * FROM t1 LIMIT 10;
+--echo # Without MRR, the rows are retrieved sorted by name
+SELECT matricule, nom, prenom, sitmat, net FROM t1 WHERE nom IN ('ETANG','FOCH','CERF','ITALIE','ROI');
+
+--echo #
+--echo # Testing indexing with MRR ON
+--echo #
+SET @@LOCAL.OPTIMIZER_SWITCH='mrr=on';
+--echo # Refresh the t2 table to reflect the change
+UPDATE t2, information_schema.session_variables SET value = variable_value WHERE variable_name = 'OPTIMIZER_SWITCH';
+--echo # Check that MRR is ON for the session
+SELECT value FROM t3 WHERE value LIKE 'mrr%';
+--echo # With MRR, the rows are retrieved sorted by their position in the table
+SELECT matricule, nom, prenom, sitmat, net FROM t1 WHERE nom IN ('ETANG','FOCH','CERF','ITALIE','ROI');
+
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+
+#
+# Clean up
+#
+SET @@LOCAL.OPTIMIZER_SWITCH='mrr=off';
+--remove_file $MYSQLD_DATADIR/test/emp.txt

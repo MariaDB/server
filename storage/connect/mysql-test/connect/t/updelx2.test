@@ -1,0 +1,22 @@
+-- source include/not_embedded.inc
+
+--echo #
+--echo # Testing multiple indexed UPDATE and DELETE
+--echo #
+CREATE TABLE t1 (
+id INT(4) NOT NULL,
+msg VARCHAR(16) NOT NULL,
+INDEX IDM(id,msg))
+ENGINE=CONNECT TABLE_TYPE=DOS;
+INSERT INTO t1 VALUES(1,'one'),(4, 'four'),(7,'seven'),(8,'eight'),(10,'ten'),(11,'eleven'),(40,'forty'),(35,'thirty five'),(60,'sixty'),(72,'seventy two'),(81,'eighty one');
+INSERT INTO t1 VALUES(1,'un'),(4, 'quatre'),(7,'sept'),(8,'huit'),(10,'dix'),(11,'onze'),(40,'quarante'),(35,'trente cinq'),(60,'soixante'),(72,'soixante douze'),(81,'quatrevingt un');
+SELECT * FROM t1 IGNORE INDEX (IDM);
+UPDATE t1 SET msg = 'dieci' WHERE id = 10;
+SELECT * FROM t1 IGNORE INDEX (IDM);
+UPDATE t1 SET msg = 'septante deux' WHERE id = 72;
+SELECT * FROM t1 IGNORE INDEX (IDM);
+UPDATE t1 SET id=2, msg='deux' WHERE id=4 AND msg='quatre';
+SELECT * FROM t1 IGNORE INDEX (IDM);
+DELETE FROM t1 WHERE id IN (8,40);
+SELECT * FROM t1 IGNORE INDEX (IDM);
+DROP TABLE t1;
