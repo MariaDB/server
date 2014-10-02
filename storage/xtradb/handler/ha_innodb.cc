@@ -214,9 +214,10 @@ static char*	innobase_reset_monitor_counter		= NULL;
 static char*	innobase_reset_all_monitor_counter	= NULL;
 
 /* Encryption for tables and columns */
-static char*	innobase_data_encryption_providername	= "keys.txt";//FF
-static char*	innobase_data_encryption_providerurl	= "/home/florin/w/cxx/build-mariadb/unittest/eperi/";//FF
-static uint innobase_data_encryption_providertype = 1; // 1 == file, 2 == server
+static char*	innobase_data_encryption_providername	= NULL;
+static char*	innobase_data_encryption_providerurl	= NULL;
+static uint innobase_data_encryption_providertype = 0; // 1 == file, 2 == server
+static char*	innobase_data_encryption_filekey	= NULL;
 
 /* The highest file format being used in the database. The value can be
 set by user, however, it will be adjusted to the newer file format if
@@ -3411,10 +3412,11 @@ innobase_init(
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
 	//FF
-//	KeySingleton& keysingleton = KeySingleton::getInstance( innobase_data_encryption_providername,
-//			innobase_data_encryption_providerurl, innobase_data_encryption_providertype);
-//	struct keyentry *entry = keysingleton.getKeys(1);
-//	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+	KeySingleton& keysingleton = KeySingleton::getInstance(
+			innobase_data_encryption_providername, innobase_data_encryption_providerurl,
+			innobase_data_encryption_providertype, innobase_data_encryption_filekey);
+	struct keyentry *entry = keysingleton.getKeys(3);
+	if(entry)	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 
 #ifndef DBUG_OFF
 	static const char	test_filename[] = "-@";
@@ -3565,6 +3567,14 @@ innobase_init(
 
 	srv_data_home = (innobase_data_home_dir ? innobase_data_home_dir :
 			 default_path);
+
+	printf("\ninnobase_data_home_dir = %s,\n innobase_data_encryption_providerurl = %s,"
+			"\n Type = %u, innobase_data_encryption_providername = %s\n\n",
+			innobase_data_home_dir, innobase_data_encryption_providerurl
+			? innobase_data_encryption_providerurl : "ist NULL",
+			innobase_data_encryption_providertype, innobase_data_encryption_providername
+			? innobase_data_encryption_providername : "ist NULL");
+//	fflush(stdout);
 
 	/* Set default InnoDB data file size to 12 MB and let it be
 	auto-extending. Thus users can use InnoDB in >= 4.0 without having
@@ -19961,20 +19971,25 @@ static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
   "Use multi-threaded flush. Default FALSE.",
   NULL, NULL, FALSE);
 
-static MYSQL_SYSVAR_UINT(encryption_providertype, innobase_data_encryption_providertype,
+static MYSQL_SYSVAR_UINT(data_encryption_providertype, innobase_data_encryption_providertype,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Use table or column encryption / decryption. Default is 0 for no use, 1 for keyfile and 2 for keyserver.",
   NULL, NULL, 1, 0, 2, 0);
 
-static MYSQL_SYSVAR_STR(encryption_providername, innobase_data_encryption_providername,
+static MYSQL_SYSVAR_STR(data_encryption_providername, innobase_data_encryption_providername,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Name of keyfile or keyserver.",
   NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_STR(encryption_providerurl, innobase_data_encryption_providerurl,
+static MYSQL_SYSVAR_STR(data_encryption_providerurl, innobase_data_encryption_providerurl,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Path or URL for keyfile or keyserver.",
   NULL, NULL, NULL);
+
+  static MYSQL_SYSVAR_STR(data_encryption_filekey, innobase_data_encryption_filekey,
+    PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+    "Key to encrypt / decrypt the keyfile.",
+    NULL, NULL, NULL);
 
 
 static struct st_mysql_sys_var* innobase_system_variables[]= {
@@ -20186,9 +20201,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
-  MYSQL_SYSVAR(encryption_providertype),
-  MYSQL_SYSVAR(encryption_providername),
-  MYSQL_SYSVAR(encryption_providerurl),
+  MYSQL_SYSVAR(data_encryption_providertype),
+  MYSQL_SYSVAR(data_encryption_providername),
+  MYSQL_SYSVAR(data_encryption_providerurl),
+  MYSQL_SYSVAR(data_encryption_filekey),
   NULL
 };
 
@@ -20198,7 +20214,7 @@ maria_declare_plugin(xtradb)
   &innobase_storage_engine,
   innobase_hton_name,
   plugin_author,
-  "Percona-XtraDB, Supports transactions, row-level locking, and foreign keys",
+  "Percona-XtraDB, Supports transactions, row-level locking, foreign keys and encryption for tables and columns",
   PLUGIN_LICENSE_GPL,
   innobase_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

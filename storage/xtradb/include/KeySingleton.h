@@ -28,10 +28,9 @@ Created 09/13/2014 Florin Fugaciu
 #include "EncKeys.h"
 
 
-class KeySingleton {
+class KeySingleton
+{
 private:
-
-
 	static bool instanceInited;
 	static KeySingleton theInstance;
 	static EncKeys encKeys;
@@ -46,10 +45,11 @@ private:
 	KeySingleton & operator = (const KeySingleton&);
 
 public:
-	virtual ~KeySingleton() {} //encKeys.~EncKeys();
+	virtual ~KeySingleton() {}
 	static KeySingleton& getInstance();
 	// Init the instance for only one time
-	static KeySingleton& getInstance(const char *name, const char *url, const int initType);
+	static KeySingleton& getInstance(const char *name, const char *url,
+			const int initType, const char *filekey);
 	keyentry *getKeys(int id);
 };
 

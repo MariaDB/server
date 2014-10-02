@@ -27,42 +27,52 @@ Created 09/15/2014 Florin Fugaciu
 #include <sys/types.h>
 #include <stdio.h>
 
-#define MAX_KEYS 255
-#define KEY_MIN  1
-#define KEY_MAX  MAX_KEYS
-
-#define MAX_KEYLEN	512
-#define MAX_IVLEN	256
-
-#define KEYINITTYPE_FILE	1
-#define KEYINITTYPE_SERVER	2
-
-#define ERROR_NOINITIALIZEDKEYS	1
-
-#define E_WRONG_NUMBER_OF_MATCHES 10
-
 
 struct keyentry {
-    uint id;
-    char *iv;
-    char *key;
+	uint id;
+	char *iv;
+	char *key;
 };
 
 
-class EncKeys {
-	uint lenKey;
-	keyentry keys[MAX_KEYS];
-	keyentry oneKey;
+class EncKeys
+{
+private:
+	static const char *strMAGIC, *newLine;
+	static const int magicSize;
 
-	bool initKeysThroughFile( const char *name, const char *path);
+	enum constants { MAX_OFFSETS_IN_PCRE_PATTERNS = 30 };
+	enum keyAttributes { KEY_MIN = 1, KEY_MAX = 255, MAX_KEYS = 255,
+		MAX_IVLEN = 256, MAX_KEYLEN = 512, ivSize16 = 16, keySize32 = 32 };
+	enum keyInitType { KEYINITTYPE_FILE = 1, KEYINITTYPE_SERVER = 2 };
+	enum errorAttributes { MAX_KEY_LINE_SIZE = 3 * MAX_KEYLEN, MAX_KEY_FILE_SIZE = 1048576 };
+	enum errorCodesLine { NO_ERROR_PARSE_OK = 0, NO_ERROR_ISCOMMENT = 10, NO_ERROR_KEY_GREATER_THAN_ASKED = 20,
+		ERROR_NOINITIALIZEDKEY = 30, ERROR_ID_TOO_BIG = 40, ERROR_WRONG_NUMBER_OF_MATCHES = 50,
+		ERROR_EQUAL_DOUBLE_KEY = 60, ERROR_UNEQUAL_DOUBLE_KEY = 70 };
+
+	static const char *errorNoKeyId, *errorInMatches, *errorExceedKeyFileSize,
+		*errorExceedKeySize, *errorEqualDoubleKey, *errorUnequalDoubleKey,
+		*errorNoInitializedKey, *errorFalseFileKey,
+		*errorNotImplemented, *errorOpenFile, *errorReadingFile, *errorFileSize;
+
+	uint countKeys, keyLineInKeyFile;
+	keyentry keys[MAX_KEYS], *oneKey;
+
+	void printKeyEntry( uint id);
+	int initKeysThroughFile( const char *name, const char *path, const char *filekey);
 	bool isComment( const char *line);
-	bool parseFile( const char* filename, const uint k_len);
-	bool parseLine( const char *line);
+	char * decryptFile( const char* filename, const char *secret, int *errorCode);
+	int parseFile( const char* filename, const uint maxKeyId, const char *secret);
+	int parseLine( const char *line, const uint maxKeyId);
 
 public:
+	enum errorCodesFile { NO_ERROR_KEY_FILE_PARSE_OK = 0, ERROR_KEY_FILE_PARSE_NULL = 110,
+		ERROR_KEY_FILE_TOO_BIG = 120, ERROR_KEY_FILE_EXCEEDS_MAX_NUMBERS_OF_KEYS = 130,
+		ERROR_OPEN_FILE = 140, ERROR_READING_FILE = 150, ERROR_FALSE_FILE_KEY = 160,
+		ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED = 170 };
 	EncKeys();
 	virtual ~EncKeys();
-	bool initKeys( const char *name, const char *url, const int initType);
+	bool initKeys( const char *name, const char *url, const int initType, const char *filekey);
 	keyentry *getKeys( int id);
 };
 

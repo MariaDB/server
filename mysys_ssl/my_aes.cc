@@ -44,6 +44,7 @@ enum encrypt_dir { MY_AES_ENCRYPT, MY_AES_DECRYPT };
 /* If bad data discovered during decoding */
 #define AES_BAD_DATA  -1
 
+
 /**
   This is internal function just keeps joint code of Key generation
 
@@ -140,7 +141,6 @@ my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *ke
 	const EVP_MD *digest = EVP_sha1();
 	EVP_BytesToKey(type, digest, salt, (unsigned char*) secret, strlen(secret), 1, key, iv);
 }
-
 /**
   Crypt buffer with AES encryption algorithm.
 
@@ -156,7 +156,6 @@ my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *ke
     >= 0             Size of encrypted data
     < 0              Error
 */
-
 int my_aes_encrypt_cbc(const char* source, ulint source_length,
 					char* dest, ulint *dest_length,
 					const unsigned char* key, uint8 key_length,

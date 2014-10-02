@@ -49,6 +49,7 @@ int my_aes_encrypt_cbc(const char* source, ulint source_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length);
 
+
 /**
  * Calculate key and iv from a given salt and secret as it is handled in openssl encrypted files via console
  *
@@ -59,9 +60,19 @@ int my_aes_encrypt_cbc(const char* source, ulint source_length,
  * 	@param key    [out] 32 Bytes of key are written to this pointer
  * 	@param iv     [out] 16 Bytes of iv are written to this pointer
  */
-void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key, unsigned char *iv);
-
-void my_aes_hexToUint(const char* in, unsigned char *out, int dest_length);
+void my_bytes_to_key(const unsigned char *salt,
+		const char *secret, unsigned char *key,
+		unsigned char *iv);
+/**
+ 	 Decode Hexencoded String to uint8[].
+ 	 my_aes_hexToUint()
+ 	 @param iv		[in]	Pointer to hexadecimal encoded IV String
+ 	 @param dest	[out]	Pointer to output uint8 array. Memory needs to be allocated by caller
+ 	 @param iv_length [in]  Size of destination array.
+ */
+void my_aes_hexToUint(const char* in,
+		unsigned char *out,
+		int dest_length);
 
 /*
   my_aes_encrypt	- Crypt buffer with AES encryption algorithm.

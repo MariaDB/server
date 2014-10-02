@@ -34,19 +34,20 @@ EncKeys KeySingleton::encKeys;
 
 KeySingleton & KeySingleton::getInstance() {
 	if( !instanceInited) {
-		printf("Encryption / decryption keys were not initialized. I'll exit.\n\n");
-		exit(ERROR_NOINITIALIZEDKEYS);
+		printf("Encryption / decryption keys were not initialized. "
+				"You can not read encrypted tables or columns\n\n");
 	}
 	return theInstance;
 }
 
-KeySingleton & KeySingleton::getInstance(const char *name, const char *url, const int initType) {
+KeySingleton & KeySingleton::getInstance(const char *name, const char *url,
+		const int initType, const char *filekey) {
 	if(instanceInited)	return theInstance;
 
-	instanceInited = encKeys.initKeys(name, url, initType);
+	instanceInited = encKeys.initKeys(name, url, initType, filekey);
 	if( !instanceInited) {
-		printf("Could not initialize the encryption / decryption keys. I'll exit.\n\n");
-		exit(ERROR_NOINITIALIZEDKEYS);
+		printf("Could not initialize any of the encryption / decryption keys. "
+				"You can not read encrypted tables or columns\n\n");
 	}
 
 	return theInstance;
