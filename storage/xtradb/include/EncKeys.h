@@ -28,6 +28,8 @@ Created 09/15/2014 Florin Fugaciu
 #include <stdio.h>
 
 
+
+
 struct keyentry {
 	uint id;
 	char *iv;

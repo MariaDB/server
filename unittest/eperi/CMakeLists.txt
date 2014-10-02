@@ -32,7 +32,7 @@ MY_ADD_TESTS(eperi_aes
 
 MY_ADD_TESTS(EperiKeySingleton
 	EXT "cc" 
-	LINK_LIBRARIES xtradb pcre)
+	LINK_LIBRARIES xtradb pcre mysys_ssl)
 
 MY_ADD_TESTS(
  pageenc

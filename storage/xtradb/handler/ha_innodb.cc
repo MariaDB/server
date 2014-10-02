@@ -3415,7 +3415,7 @@ innobase_init(
 	KeySingleton& keysingleton = KeySingleton::getInstance(
 			innobase_data_encryption_providername, innobase_data_encryption_providerurl,
 			innobase_data_encryption_providertype, innobase_data_encryption_filekey);
-	struct keyentry *entry = keysingleton.getKeys(3);
+	struct keyentry *entry = keysingleton.getKeys(1);
 	if(entry)	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 
 #ifndef DBUG_OFF

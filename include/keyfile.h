@@ -1,3 +1,5 @@
+#ifndef KEYFILE_H
+#define KEYFILE_H
 #include<stdio.h>
 
 struct keyentry {
@@ -17,3 +19,4 @@ isComment(char *line);
 
 char*
 trim(char *in);
+#endif
