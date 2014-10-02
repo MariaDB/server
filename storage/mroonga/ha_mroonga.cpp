@@ -156,7 +156,7 @@ static pthread_mutex_t *mrn_LOCK_open;
 #  define st_mysql_plugin           st_maria_plugin
 #  define mrn_declare_plugin(NAME)  maria_declare_plugin(NAME)
 #  define mrn_declare_plugin_end    maria_declare_plugin_end
-#  define MRN_PLUGIN_LAST_VALUES    MRN_VERSION, MariaDB_PLUGIN_MATURITY_STABLE
+#  define MRN_PLUGIN_LAST_VALUES    MRN_VERSION, MariaDB_PLUGIN_MATURITY_BETA
 #  define MRN_ABORT_ON_WARNING(thd) thd_kill_level(thd)
 #else
 #  define mrn_declare_plugin(NAME)  mysql_declare_plugin(NAME)

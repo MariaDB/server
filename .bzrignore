@@ -1466,7 +1466,6 @@ storage/mroonga/vendor/groonga/src/groonga
 storage/mroonga/vendor/groonga/src/groonga-benchmark
 storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset
 storage/mroonga/vendor/groonga/vendor/plugins/groonga-normalizer-mysql/groonga-normalizer-mysql.pc
-libmysql/libmysql.version
 libmysql/libmysql_versions.ld
 scripts/mysql_config.pl
 pcre/pcre_chartables.c
