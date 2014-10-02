@@ -259,11 +259,18 @@ then
 
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
+    if [ -n "$MYSQL_TMP_DIR" ] ; then
+      SILENT="log file = $MYSQL_TMP_DIR/rsynd.log"
+    else
+      SILENT=""
+    fi
+
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no
 read only = no
 timeout = 300
+$SILENT
 [$MODULE]
     path = $WSREP_SST_OPT_DATA
 [$MODULE-log_dir]
