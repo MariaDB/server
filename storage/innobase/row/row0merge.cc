@@ -39,6 +39,13 @@ Completed by Sunny Bains and Marko Makela
 #include "row0import.h"
 #include "handler0alter.h"
 #include "ha_prototypes.h"
+#include "math.h" /* log() */
+
+float my_log2f(float n)
+{
+	/* log(n) / log(2) is log2. */
+	return (float)(log((double)n) / log((double)2));
+}
 
 /* Ignore posix_fadvise() on those platforms where it does not exist */
 #if defined __WIN__
@@ -2222,7 +2229,7 @@ row_merge_sort(
 
 	/* Find the number N which 2^N is greater or equal than num_runs */
 	/* N is merge sort running count */
-	total_merge_sort_count = ceil(log2f(num_runs));
+	total_merge_sort_count = ceil(my_log2f(num_runs));
 	if(total_merge_sort_count <= 0) {
 		total_merge_sort_count=1;
 	}
