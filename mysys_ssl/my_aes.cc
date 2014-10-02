@@ -188,7 +188,6 @@ int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
   OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
   OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
   OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
-  printf("Blocksize: %d \n", EVP_CIPHER_CTX_block_size(&ctx.ctx));
   if (! EVP_EncryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
                           (unsigned const char *) source, source_length))
     return AES_BAD_DATA;                        /* Error */
