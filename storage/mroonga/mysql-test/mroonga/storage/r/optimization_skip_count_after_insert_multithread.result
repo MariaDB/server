@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS diaries;
+FLUSH STATUS;
+CREATE TABLE diaries (
+title TEXT,
+FULLTEXT INDEX ft(title)
+);
+INSERT INTO diaries VALUES("Hello mroonga!");
+INSERT INTO diaries VALUES("It's funny.");
+INSERT INTO diaries VALUES("Happy birthday!");
+SHOW STATUS LIKE 'mroonga_count_skip';
+Variable_name	Value
+Mroonga_count_skip	0
+SELECT COUNT(*) FROM diaries WHERE MATCH(title) AGAINST("mroonga" IN BOOLEAN MODE);
+COUNT(*)
+1
+SHOW STATUS LIKE 'mroonga_count_skip';
+Variable_name	Value
+Mroonga_count_skip	1
+DROP TABLE diaries;

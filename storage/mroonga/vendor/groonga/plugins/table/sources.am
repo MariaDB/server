@@ -1,0 +1,2 @@
+table_la_SOURCES =				\
+	table.c

@@ -1,0 +1,42 @@
+#! /bin/sh
+
+set -e
+
+add_system_user() {
+    if ! getent passwd groonga >/dev/null; then
+        adduser --group --system --home /var/lib/groonga groonga
+    fi
+}
+
+fixperms() {
+    for target in /var/run/groonga /var/lib/groonga /etc/groonga /var/log/groonga
+    do
+        dpkg-statoverride --list $target >/dev/null || \
+            dpkg-statoverride --update --add groonga groonga 0755 $target
+    done
+}
+
+create_database() {
+    if [ ! -d /var/lib/groonga/db ]; then
+        mkdir -p /var/lib/groonga/db
+        groonga -n /var/lib/groonga/db/db shutdown > /dev/null
+        chown -R groonga:groonga /var/lib/groonga
+    fi
+}
+
+case "$1" in
+    configure)
+        add_system_user
+        create_database
+        fixperms
+        ;;
+    abort-upgrade|abort-deconfigure|abort-remove)
+        :
+        ;;
+    *)
+        echo "Called with unknown argument $1, bailing out."
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#

@@ -1,0 +1,53 @@
+# Copyright(C) 2012 Kentoku SHIBA
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+--source include/have_innodb.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+SET @tmp_query_cache_size = @@query_cache_size;
+SET GLOBAL query_cache_size = 1048576;
+
+--disable_warnings
+DROP TABLE IF EXISTS simple_table;
+--enable_warnings
+
+CREATE TABLE simple_table (
+  id INT PRIMARY KEY
+) COMMENT = 'ENGINE "InnoDB"' DEFAULT CHARSET=UTF8;
+SHOW CREATE TABLE simple_table;
+
+INSERT INTO simple_table (id) VALUES (1),(2);
+
+CONNECT(second_connection, localhost, root);
+USE test;
+START TRANSACTION;
+INSERT INTO simple_table (id) VALUES (3);
+
+CONNECTION default;
+SELECT * FROM simple_table;
+
+CONNECTION second_connection;
+COMMIT;
+
+CONNECTION default;
+SELECT * FROM simple_table;
+
+DROP TABLE simple_table;
+DISCONNECT second_connection;
+
+SET GLOBAL query_cache_size = @tmp_query_cache_size;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

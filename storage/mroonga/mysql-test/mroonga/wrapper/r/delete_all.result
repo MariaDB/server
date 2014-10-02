@@ -1,0 +1,19 @@
+DROP TABLE IF EXISTS users;
+SET NAMES utf8;
+CREATE TABLE users (
+id int PRIMARY KEY,
+name varchar(100),
+FULLTEXT INDEX (name)
+) COMMENT 'engine = "InnoDB"' DEFAULT CHARSET=utf8;
+INSERT INTO users VALUES (1, 'Alice');
+INSERT INTO users VALUES (2, 'Bob');
+INSERT INTO users VALUES (3, 'Chris');
+SELECT * FROM users;
+id	name
+1	Alice
+2	Bob
+3	Chris
+DELETE FROM users;
+SELECT * FROM users;
+id	name
+DROP TABLE users;

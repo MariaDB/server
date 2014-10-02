@@ -1,0 +1,17 @@
+/var/log/groonga/*-http.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 groonga groonga
+    sharedscripts
+    postrotate
+        . /etc/default/groonga-server-http
+        if x"$ENABLE" = x"yes"; then
+            /usr/bin/curl --silent --output /dev/null \
+                "http://127.0.0.1:${PORT:-10041}/d/log_reopen"
+        fi
+    endscript
+}

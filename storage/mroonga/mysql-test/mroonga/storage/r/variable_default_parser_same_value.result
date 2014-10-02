@@ -1,0 +1,4 @@
+SET GLOBAL mroonga_default_parser = "TokenBigram";
+SHOW GLOBAL VARIABLES LIKE 'mroonga_default_parser';
+Variable_name	Value
+mroonga_default_parser	TokenBigram

@@ -1,0 +1,31 @@
+#!/usr/bin/make -f
+# -*- makefile-gmake -*-
+#
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+# This has to be exported to make some magic below work.
+export DH_OPTIONS
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+export DEB_BUILD_HARDENING = 1
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	dh_auto_configure -- --with-munin-plugins
+
+# disable 'make check'.
+override_dh_auto_test:
+
+override_dh_install:
+	find $(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/ -name *.la -delete
+	find $(CURDIR)/debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)/ -name underscore.js -delete
+	install -d debian/tmp/etc/munin/plugin-conf.d/
+	install -m 0644 debian/groonga-munin-plugins.conf \
+	  debian/tmp/etc/munin/plugin-conf.d/groonga
+	mv debian/tmp/usr/share/doc/groonga/ \
+	  debian/tmp/usr/share/doc/groonga-doc/
+	dh_install

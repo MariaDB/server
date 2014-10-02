@@ -1,0 +1,10 @@
+--- mecab-jumandic.spec.orig	2013-01-15 21:57:48.337580114 -0500
++++ mecab-jumandic.spec	2013-01-15 21:58:47.513580269 -0500
+@@ -20,6 +20,7 @@
+ 
+ BuildRequires:	mecab-devel
+ Requires:	mecab
++Provides:	mecab-dic
+ 
+ %description
+ MeCab JUMAN is a dictionary for MeCab using CRF estimation

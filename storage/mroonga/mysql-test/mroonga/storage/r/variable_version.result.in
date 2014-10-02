@@ -1,0 +1,3 @@
+show variables like 'mroonga_version';
+Variable_name	Value
+mroonga_version	@MRN_VERSION@

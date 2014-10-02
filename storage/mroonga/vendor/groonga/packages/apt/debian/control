@@ -1,0 +1,18 @@
+Source: groonga-keyring
+Section: misc
+Priority: important
+Maintainer: groonga project <packages@groonga.org>
+Build-Depends:
+  debhelper (>= 7.0.50)
+Standards-Version: 3.9.1
+Homepage: http://groonga.org/
+
+Package: groonga-keyring
+Section: misc
+Architecture: all
+Depends:
+  ${misc:Depends},
+  gnupg
+Description: GnuPG archive key of the groonga repository
+ The groonga repository digitally signs its Release files. This
+ package contains the repository key used for that.

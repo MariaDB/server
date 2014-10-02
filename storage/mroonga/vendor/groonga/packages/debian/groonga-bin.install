@@ -1,0 +1,6 @@
+usr/bin/groonga
+usr/bin/groonga-benchmark
+usr/share/groonga/html/*
+usr/share/man/man1/*
+usr/share/man/*/man1/*
+etc/groonga/groonga.conf

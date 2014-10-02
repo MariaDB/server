@@ -1,0 +1,122 @@
+#!/usr/bin/env ruby
+
+#%# family=auto
+#%# capabilities=autoconf suggest
+
+label = ENV["label"]
+
+command = ARGV.shift
+
+def autoconf
+  pid_path_variable_names = [
+    "pid_path",
+    "pid_file", # For backward compatibility. Remove me when 5.0.0.
+    "http_pid_path",
+    "httpd_pid_path",
+    "gqtp_pid_path",
+  ]
+  pid_paths = pid_path_variable_names.collect do |variable_name|
+    ENV[variable_name]
+  end
+  pid_paths = pid_paths.compact
+  if pid_paths.empty?
+    variable_names = pid_path_variable_names.collect do |name|
+      "env.#{name}"
+    end
+    variable_names_label = variable_names[0..-2].join(", ")
+    variable_names_label << " and/or #{variable_names.last}"
+    puts("no (No PID path is specified. Specify #{variable_names_label}.)")
+    exit(false)
+  end
+  pid_paths.each do |pid_path|
+    next unless File.exist?(pid_path)
+    puts("yes")
+    exit(true)
+  end
+  pid_paths_label = pid_paths.join(", ")
+  puts("no (All PID paths don't exist: #{pid_paths_label})")
+  exit(false)
+end
+
+def suggest
+  exist_p = lambda do |variable_name|
+    pid_path = ENV[variable_name]
+    pid_path and File.exist?(pid_path)
+  end
+  if exist_p.call("http_pid_path")
+    puts("http")
+  end
+  if exist_p.call("httpd_pid_path")
+    puts("httpd")
+  end
+  if exist_p.call("gqtp_pid_path")
+    puts("gqtp")
+  end
+  exit(true)
+end
+
+def target_pid_path
+  if /_([^_]+)\z/ =~ $0
+    service_type = $1
+    pid_path_variable_name = "#{service_type}_pid_path"
+    pid_path = ENV[pid_path_variable_name]
+  else
+    pid_path_variable_name = "pid_path"
+    pid_path = ENV[pid_path_variable_name]
+    # For backward compatibility. Remove me when 5.0.0.
+    pid_path ||= ENV["pid_file"]
+  end
+
+  if pid_path.nil?
+    $stderr.puts("PID path isn't specified by env.#{pid_path_variable_name}")
+    exit(false)
+  end
+
+  unless File.exist?(pid_path)
+    $stderr.puts("PID path doesn't exist: #{pid_path}")
+    exit(false)
+  end
+
+  pid_path
+end
+
+case command
+when "autoconf", "detect"
+  autoconf
+when "suggest"
+  suggest
+when "config"
+  if label
+    title = "groonga: #{label}: CPU time"
+  else
+    title = "groonga: CPU time"
+  end
+  puts(<<EOF)
+graph_title #{title}
+graph_vlabel CPU time (days)
+graph_category groonga
+graph_info groonga CPU time
+
+cpu_time.label CPU time
+cpu_time.type GAUGE
+EOF
+  exit(true)
+end
+
+groonga_pid = File.read(target_pid_path).strip
+time = `ps h -o time -p #{groonga_pid}`.chomp
+if /\A(?:(\d+)-)?(\d+):(\d+):(\d+)\z/ =~ time
+  day, hours, minutes, seconds, = $1, $2, $3, $4
+  day = (day || 0).to_i
+  hours = hours.to_i
+  minutes = minutes.to_i
+  seconds = seconds.to_i
+  time_in_seconds = seconds + minutes * 60 + hours * 60 * 60
+  day_in_seconds = 60 * 60 * 24
+  fraction_in_day = time_in_seconds.to_f / day_in_seconds.to_f
+  cpu_time_in_day = day + fraction_in_day
+  puts("cpu_time.value #{cpu_time_in_day}")
+else
+  $stderr.puts("invalid time format: <#{time}>")
+  exit(false)
+end

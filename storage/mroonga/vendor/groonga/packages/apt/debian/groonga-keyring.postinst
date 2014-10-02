@@ -1,0 +1,22 @@
+#! /bin/sh
+
+set -e
+
+prevver="$2"
+
+case "$1" in
+    configure)
+	if [ -x /usr/bin/apt-key ]; then
+	    apt-key add /usr/share/keyrings/groonga-keyring.gpg
+	fi
+        ;;
+    abort-upgrade|abort-deconfigure|abort-remove)
+        :
+        ;;
+    *)
+        echo "Called with unknown argument $1, bailing out."
+        exit 1
+        ;;
+esac
+
+#DEBHELPER#

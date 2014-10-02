@@ -1,0 +1,13 @@
+RUBY_SCRIPT_FILES =				\
+	backtrace_entry.rb			\
+	context.rb				\
+	context/error_level.rb			\
+	context/rc.rb				\
+	eval_context.rb				\
+	expression.rb				\
+	index_info.rb				\
+	logger.rb				\
+	logger/level.rb				\
+	scan_info.rb				\
+	scan_info_builder.rb			\
+	scan_info_data.rb

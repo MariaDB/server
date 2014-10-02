@@ -1,0 +1,2 @@
+tsv_la_SOURCES =				\
+	tsv.c

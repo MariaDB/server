@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS scores;
+SET NAMES utf8;
+CREATE TABLE scores (
+deleted BOOLEAN,
+value INT,
+INDEX (deleted, value)
+);
+INSERT INTO scores VALUES (FALSE, 1);
+INSERT INTO scores VALUES (FALSE, 1);
+INSERT INTO scores VALUES (FALSE, 2);
+SELECT count(*) FROM scores WHERE deleted = FALSE;
+count(*)
+3
+UPDATE scores SET deleted = TRUE WHERE value = 1;
+SELECT count(*) FROM scores WHERE deleted = FALSE;
+count(*)
+1
+DROP TABLE scores;

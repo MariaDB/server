@@ -1,0 +1,10 @@
+--- mecab-ipadic.spec.orig	2013-01-15 21:57:41.969580098 -0500
++++ mecab-ipadic.spec	2013-01-15 21:58:32.629580230 -0500
+@@ -27,6 +27,7 @@
+ 
+ BuildRequires:	mecab-devel >= %{mecabver}
+ Requires:	mecab >= %{mecabver}
++Provides:	mecab-dic
+ 
+ %description
+ MeCab IPA is a dictionary for MeCab using CRF estimation

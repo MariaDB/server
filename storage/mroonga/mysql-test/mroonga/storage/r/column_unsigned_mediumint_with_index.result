@@ -1,0 +1,28 @@
+DROP TABLE IF EXISTS items;
+CREATE TABLE items (
+name VARCHAR(255),
+price MEDIUMINT UNSIGNED KEY
+) DEFAULT CHARSET=utf8;
+INSERT INTO items VALUES ("car", 16777215);
+INSERT INTO items VALUES ("note PC", 32767);
+INSERT INTO items VALUES ("discount", 0);
+INSERT INTO items VALUES ("coke", 100);
+INSERT INTO items VALUES ("bike", 8388607);
+SELECT * FROM items;
+name	price
+discount	0
+coke	100
+note PC	32767
+bike	8388607
+car	16777215
+SELECT * FROM items WHERE price <= 8388608;
+name	price
+discount	0
+coke	100
+note PC	32767
+bike	8388607
+SELECT * FROM items WHERE price >= 8388607;
+name	price
+bike	8388607
+car	16777215
+DROP TABLE items;
