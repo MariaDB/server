@@ -99,7 +99,7 @@ void testIt(char* filename, ulint cmp_checksum) {
 	ok  (i==0, str);
 }
 void test_page_enc_dec() {
-	/*
+
 	testIt("compressed",0);
 	testIt("compressed_full",0);
 
@@ -111,7 +111,7 @@ void test_page_enc_dec() {
 
 	testIt("xae",1);
 	testIt("xaf",1);
-	*/
+
 }
 
 
