@@ -17,7 +17,7 @@
  @file EncKeys.cc
  A class to keep keys for encryption/decryption.
 
- Created 09/15/2014 Florin Fugaciu & Clemens Doerrhoefer
+ Created 09/15/2014 Florin Fugaciu
  ***********************************************************************/
 
 #include "EncKeys.h"

@@ -31,7 +31,6 @@
 C_MODE_START
 
 #define AES_KEY_LENGTH 128		/* Must be 128 192 or 256 */
-typedef unsigned long int ulint;
 
 
 /*
@@ -44,8 +43,8 @@ typedef unsigned long int ulint;
 
   returns  - size of encrypted data, or negative in case of error.
 */
-int my_aes_encrypt_cbc(const char* source, ulint source_length,
-					char* dest, ulint *dest_length,
+int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
+					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length);
 
@@ -100,8 +99,8 @@ int my_aes_encrypt(const char *source, int source_length, char *dest,
   returns  - size of original data, or negative in case of error.
 */
 
-int my_aes_decrypt_cbc(const char* source, ulint source_length,
-					char* dest, ulint *dest_length,
+int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
+					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length);
 

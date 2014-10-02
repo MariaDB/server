@@ -20,6 +20,7 @@
 #include "buf0checksum.h"
 
 #include <my_aes.h>
+#include <KeySingleton.h>
 
 //#define UNIV_PAGEENCRIPTION_DEBUG
 //#define CRYPT_FF
@@ -112,12 +113,15 @@ ulint mode
 	/* calculate a checksum, can be used to verify decryption */
 	checksum = fil_page_encryption_calc_checksum(buf + header_len, page_size - (FIL_PAGE_DATA_END + header_len));
 
-
+	KeySingleton& keys = KeySingleton::getInstance();
 	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
 			0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23};
+	my_aes_hexToUint(keys.getKeys(encryption_key)->key, (unsigned char*)&rkey, 16);
+
 	uint8 key_len = 16;
 	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
 		0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
+	my_aes_hexToUint(keys.getKeys(encryption_key)->iv, (unsigned char*)&iv, 16);
 	uint8 iv_len = 16;
 
 	write_size = data_size;
@@ -388,12 +392,16 @@ al_size);
 	tmp_buf= static_cast<byte *>(ut_malloc(64));
 	tmp_page_buf = static_cast<byte *>(ut_malloc(page_size));
 	memset(tmp_page_buf,0, page_size);
+
+		KeySingleton& keys = KeySingleton::getInstance();
 		const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
-					0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23};
+				0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23};
+		my_aes_hexToUint(keys.getKeys(page_encryption_key)->key, (unsigned char*)&rkey, 16);
 		uint8 key_len = 16;
 
 		const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
 				0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
+		my_aes_hexToUint(keys.getKeys(page_encryption_key)->iv, (unsigned char*)&rkey, 16);
 		uint8 iv_len = 16;
 
 	if (!page_compression_flag) {
