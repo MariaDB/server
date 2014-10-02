@@ -2090,9 +2090,6 @@ lock_rec_create(
 			return(lock);
 		}
 		trx_mutex_exit(c_lock->trx);
-	} else if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-		HASH_PREPEND(lock_t, hash, lock_sys->rec_hash,
-			    lock_rec_fold(space, page_no), lock);
 	} else {
 		HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 			    lock_rec_fold(space, page_no), lock);
