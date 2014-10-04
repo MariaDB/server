@@ -37,64 +37,64 @@ int wsrep_check_opts()
                   " innodb_autoinc_lock_mode = 2.");
       return 1;
     }
+  }
 
-    if (locked_in_memory)
+  if (locked_in_memory)
+  {
+    WSREP_ERROR("Memory locking is not supported (locked_in_memory=ON)");
+    return 1;
+  }
+
+  if (!strcasecmp(wsrep_sst_method, "mysqldump"))
+  {
+    if (!strcasecmp(my_bind_addr_str, "127.0.0.1") ||
+        !strcasecmp(my_bind_addr_str, "localhost"))
     {
-      WSREP_ERROR("Memory locking is not supported (locked_in_memory=ON)");
+      WSREP_ERROR("wsrep_sst_method is set to 'mysqldump' yet "
+                  "mysqld bind_address is set to '%s', which makes it "
+                  "impossible to receive state transfer from another "
+                  "node, since mysqld won't accept such connections. "
+                  "If you wish to use mysqldump state transfer method, "
+                  "set bind_address to allow mysql client connections "
+                  "from other cluster members (e.g. 0.0.0.0).",
+                  my_bind_addr_str);
       return 1;
     }
-
-    if (!strcasecmp(wsrep_sst_method, "mysqldump"))
+  }
+  else
+  {
+    // non-mysqldump SST requires wsrep_cluster_address on startup
+    if (!wsrep_cluster_address || !wsrep_cluster_address[0])
     {
-      if (!strcasecmp(my_bind_addr_str, "127.0.0.1") ||
-          !strcasecmp(my_bind_addr_str, "localhost"))
-      {
-        WSREP_ERROR("wsrep_sst_method is set to 'mysqldump' yet "
-                    "mysqld bind_address is set to '%s', which makes it "
-                    "impossible to receive state transfer from another "
-                    "node, since mysqld won't accept such connections. "
-                    "If you wish to use mysqldump state transfer method, "
-                    "set bind_address to allow mysql client connections "
-                    "from other cluster members (e.g. 0.0.0.0).",
-                    my_bind_addr_str);
-        return 1;
-      }
+      WSREP_ERROR ("%s SST method requires wsrep_cluster_address to be "
+                   "configured on startup.", wsrep_sst_method);
+      return 1;
     }
-    else
+  }
+
+  if (strcasecmp(wsrep_sst_receive_address, "AUTO"))
+  {
+    if (!strncasecmp(wsrep_sst_receive_address, STRING_WITH_LEN("127.0.0.1")) ||
+        !strncasecmp(wsrep_sst_receive_address, STRING_WITH_LEN("localhost")))
     {
-      // non-mysqldump SST requires wsrep_cluster_address on startup
-      if (!wsrep_cluster_address || !wsrep_cluster_address[0])
-      {
-        WSREP_ERROR ("%s SST method requires wsrep_cluster_address to be "
-                     "configured on startup.", wsrep_sst_method);
-        return 1;
-      }
+      WSREP_WARN("wsrep_sst_receive_address is set to '%s' which "
+                 "makes it impossible for another host to reach this "
+                 "one. Please set it to the address which this node "
+                 "can be connected at by other cluster members.",
+                 wsrep_sst_receive_address);
     }
+  }
 
-    if (strcasecmp(wsrep_sst_receive_address, "AUTO"))
+  if (strcasecmp(wsrep_provider, "NONE"))
+  {
+    if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
     {
-      if (!strncasecmp(wsrep_sst_receive_address, STRING_WITH_LEN("127.0.0.1")) ||
-          !strncasecmp(wsrep_sst_receive_address, STRING_WITH_LEN("localhost")))
-      {
-        WSREP_WARN("wsrep_sst_receive_address is set to '%s' which "
-                   "makes it impossible for another host to reach this "
-                   "one. Please set it to the address which this node "
-                   "can be connected at by other cluster members.",
-                   wsrep_sst_receive_address);
-      }
-    }
+      WSREP_ERROR("Only binlog_format = 'ROW' is currently supported. "
+                  "Configured value: '%s'. Please adjust your "
+                  "configuration.",
+                  binlog_format_names[global_system_variables.binlog_format]);
 
-    if (strcasecmp(wsrep_provider, "NONE"))
-    {
-      if (global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
-      {
-        WSREP_ERROR("Only binlog_format = 'ROW' is currently supported. "
-                    "Configured value: '%s'. Please adjust your "
-                    "configuration.",
-                    binlog_format_names[global_system_variables.binlog_format]);
-
-        return 1;
-      }
+      return 1;
     }
   }
   return 0;

@@ -259,7 +259,7 @@ then
 
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
-    if [ -n "$MYSQL_TMP_DIR" ] ; then
+    if [ -n "${MYSQL_TMP_DIR:-}" ] ; then
       SILENT="log file = $MYSQL_TMP_DIR/rsynd.log"
     else
       SILENT=""
