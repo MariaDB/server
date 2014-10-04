@@ -2853,7 +2853,7 @@ row_discard_tablespace_foreign_key_checks(
 
 	/* Check if the table is referenced by foreign key constraints from
 	some other table (not the table itself) */
-	dict_foreign_set::iterator	it
+	dict_foreign_set::const_iterator	it
 		= std::find_if(table->referenced_set.begin(),
 			       table->referenced_set.end(),
 			       dict_foreign_different_tables());
