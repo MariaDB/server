@@ -3074,12 +3074,12 @@ void plugin_thdvar_init(THD *thd)
   plugin_ref old_table_plugin= thd->variables.table_plugin;
   plugin_ref old_tmp_table_plugin= thd->variables.tmp_table_plugin;
   DBUG_ENTER("plugin_thdvar_init");
-  
+
   // This function may be called many times per THD (e.g. on COM_CHANGE_USER)
   thd->variables.table_plugin= NULL;
   thd->variables.tmp_table_plugin= NULL;
   cleanup_variables(thd, &thd->variables);
-  
+
   thd->variables= global_system_variables;
 
   /* we are going to allocate these lazily */
@@ -3098,6 +3098,9 @@ void plugin_thdvar_init(THD *thd)
     intern_plugin_unlock(NULL, old_table_plugin);
     intern_plugin_unlock(NULL, old_tmp_table_plugin);
     mysql_mutex_unlock(&LOCK_plugin);
+  } else {
+    thd->variables.table_plugin= NULL;
+    thd->variables.tmp_table_plugin= NULL;
   }
 
   DBUG_VOID_RETURN;

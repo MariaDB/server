@@ -4981,8 +4981,10 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
 
-  if (wsrep_check_opts())
-    unireg_abort(1);
+#ifdef WITH_WSREP
+  if (WSREP_ON && wsrep_check_opts())
+    global_system_variables.wsrep_on= 0;
+#endif
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
