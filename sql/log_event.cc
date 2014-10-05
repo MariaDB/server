@@ -7535,7 +7535,7 @@ User_var_log_event(const char* buf, uint event_len,
     may have the bigger value possible, is_null= True and there is no
     payload for val, or even that name_len is 0.
   */
-  if (name + name_len + UV_NAME_LEN_SIZE > buf_end)
+  if (name + name_len + UV_VAL_IS_NULL > buf_end)
   {
     error= true;
     goto err;
