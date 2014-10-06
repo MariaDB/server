@@ -3502,7 +3502,7 @@ double get_column_range_cardinality(Field *field,
                    !(range_flag & NEAR_MIN);
 
   if (col_non_nulls < 1)
-    res= 0;
+    res= 0; /* this is likely wrong, see MDEV-6843 */
   else if (min_endp && max_endp && min_endp->length == max_endp->length &&
            !memcmp(min_endp->key, max_endp->key, min_endp->length))
   { 
@@ -3515,6 +3515,15 @@ double get_column_range_cardinality(Field *field,
     {
       double avg_frequency= col_stats->get_avg_frequency();
       res= avg_frequency;   
+      /*
+        psergey-todo: what does check for min_value, max_value mean? 
+          min/max_value are set to NULL in alloc_statistics_for_table() and
+          alloc_statistics_for_table_share().  Both functions will immediately
+          call create_min_max_statistical_fields_for_table and 
+          create_min_max_statistical_fields_for_table_share() respectively,
+          which will set min/max_value to be valid pointers, unless OOM
+          occurs.
+      */
       if (avg_frequency > 1.0 + 0.000001 && 
           col_stats->min_value && col_stats->max_value)
       {
@@ -3529,6 +3538,11 @@ double get_column_range_cardinality(Field *field,
 	       hist->point_selectivity(pos,
                                        avg_frequency / col_non_nulls);
         }
+      }
+      else if (avg_frequency == 0.0)
+      {
+        /* This actually means there is no statistics data */
+        res= tab_records;
       }
     }
   }  
