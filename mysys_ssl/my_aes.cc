@@ -24,6 +24,8 @@
 #elif defined(HAVE_OPENSSL)
 #include <openssl/aes.h>
 #include <openssl/evp.h>
+#include <openssl/buffer.h>
+#include <openssl/conf.h>
 
 // Wrap C struct, to ensure resources are released.
 struct MyCipherCtx
@@ -41,6 +43,7 @@ enum encrypt_dir { MY_AES_ENCRYPT, MY_AES_DECRYPT };
 
 /* If bad data discovered during decoding */
 #define AES_BAD_DATA  -1
+
 
 /**
   This is internal function just keeps joint code of Key generation
@@ -101,7 +104,43 @@ static int my_aes_create_key(const char *key, int key_length, uint8 *rkey)
   return 0;
 }
 
+/**
+ 	 Decode Hexencoded String to uint8[].
+ 	 my_aes_hexToUint()
+ 	 @param iv		[in]	Pointer to hexadecimal encoded IV String
+ 	 @param dest	[out]	Pointer to output uint8 array. Memory needs to be allocated by caller
+ 	 @param iv_length [in]  Size of destination array.
+ */
+void
+my_aes_hexToUint(const char* in, unsigned char *out, int dest_length)
+{
+	const char *pos = in;
+	int count = 0;
+	for(count = 0; count < dest_length; count++)
+	{
+		sscanf(pos, "%2hhx", &out[count]);
+		pos += 2 * sizeof(char);
+	}
+}
 
+
+/**
+ * Calculate key and iv from a given salt and secret as it is handled in openssl encrypted files via console
+ *
+ * SYNOPSIS
+ * 	my_Bytes_To_Key()
+ * 	@param salt   [in]  the given salt as extracted from the encrypted file
+ * 	@param secret [in]  the given secret as String, provided by the user
+ * 	@param key    [out] 32 Bytes of key are written to this pointer
+ * 	@param iv     [out] 16 Bytes of iv are written to this pointer
+ */
+void
+my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key, unsigned char *iv)
+{
+	const EVP_CIPHER *type = EVP_aes_256_cbc();
+	const EVP_MD *digest = EVP_sha1();
+	EVP_BytesToKey(type, digest, salt, (unsigned char*) secret, strlen(secret), 1, key, iv);
+}
 /**
   Crypt buffer with AES encryption algorithm.
 
@@ -117,8 +156,94 @@ static int my_aes_create_key(const char *key, int key_length, uint8 *rkey)
     >= 0             Size of encrypted data
     < 0              Error
 */
+int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
+					char* dest, unsigned long int *dest_length,
+					const unsigned char* key, uint8 key_length,
+					const unsigned char* iv, uint8 iv_length)
+{
+#if defined(HAVE_OPENSSL)
+  MyCipherCtx ctx;
+  int u_len, f_len;
+  /* The real key to be used for encryption */
+  const EVP_CIPHER* cipher;
+  switch(key_length) {
+  	  case 16:
+  		  cipher = EVP_aes_128_cbc();
+  		  break;
+  	  case 24:
+  		  cipher = EVP_aes_192_cbc();
+  		  break;
+  	  case 32:
+  		  cipher = EVP_aes_256_cbc();
+  		  break;
+  	  default:
+  		  return AES_BAD_KEYSIZE;
+  }
+  //Initialize Encryption Engine here, default software Engine is default
+  ENGINE *engine = NULL;
 
-int my_aes_encrypt(const char* source, int source_length, char* dest,
+  if (! EVP_EncryptInit_ex(&ctx.ctx, cipher, engine, key, iv))
+    return AES_BAD_DATA;                        /* Error */
+  EVP_CIPHER_CTX_key_length(&ctx.ctx);
+  OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
+  OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
+  OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
+  if (! EVP_EncryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
+                          (unsigned const char *) source, source_length))
+    return AES_BAD_DATA;                        /* Error */
+  if (! EVP_EncryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
+    return AES_BAD_DATA;                        /* Error */
+  *dest_length = (unsigned long int) (u_len + f_len);
+#endif
+  return AES_OK;
+}
+
+int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
+					char* dest, unsigned long int *dest_length,
+					const unsigned char* key, uint8 key_length,
+					const unsigned char* iv, uint8 iv_length)
+{
+#if defined(HAVE_OPENSSL)
+  MyCipherCtx ctx;
+  int u_len, f_len;
+
+  const EVP_CIPHER* cipher;
+    switch(key_length) {
+    	  case 16:
+    		  cipher = EVP_aes_128_cbc();
+    		  break;
+    	  case 24:
+    		  cipher = EVP_aes_192_cbc();
+    		  break;
+    	  case 32:
+    		  cipher = EVP_aes_256_cbc();
+    		  break;
+    	  default:
+    		  return AES_BAD_KEYSIZE;
+    }
+    //Initialize Encryption Engine here, default software Engine is default
+    ENGINE *engine = NULL;
+
+    if (! EVP_DecryptInit_ex(&ctx.ctx, cipher, engine, key, iv))
+    	return AES_BAD_DATA;                        /* Error */
+    OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
+	OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
+	OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
+    if (! EVP_DecryptUpdate(&ctx.ctx, (unsigned char *) dest, &u_len,
+                          (unsigned char *)source, source_length))
+    	return AES_BAD_DATA;                        /* Error */
+    if (! EVP_DecryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len)) {
+    	*dest_length = (unsigned long int) u_len;
+    	return AES_BAD_DATA;
+    }
+    *dest_length = (unsigned long int) (u_len + f_len);
+#endif
+    return AES_OK;
+}
+
+
+int
+my_aes_encrypt(const char* source, int source_length, char* dest,
                    const char* key, int key_length)
 {
 #if defined(HAVE_YASSL)

@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS t1;
+DROP DATABASE IF EXISTS test;
+CREATE DATABASE test;
+USE test;
+set @save_storage_engine= @@storage_engine;
+set storage_engine=InnoDB;
+CREATE TABLE t1 (id int)
+PAGE_ENCRYPTION='abc';
+ERROR HY000: Incorrect value 'abc' for option 'PAGE_ENCRYPTION'
+CREATE TABLE t1 (id int)
+PAGE_ENCRYPTION=1
+PAGE_ENCRYPTION_KEY='0xFFC';
+ERROR HY000: Incorrect value '0xFFC' for option 'PAGE_ENCRYPTION_KEY'
+CREATE TABLE t1 (id int(11)) 
+PAGE_ENCRYPTION=1 
+PAGE_ENCRYPTION_KEY=42;
+INSERT INTO t1(id) values(1);
+SELECT * FROM t1;
+id
+1

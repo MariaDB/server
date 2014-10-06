@@ -56,6 +56,10 @@ Created 10/25/1995 Heikki Tuuri
 static ulint srv_data_read, srv_data_written;
 #endif /* !UNIV_HOTBACKUP */
 #include "fil0pagecompress.h"
+
+#include "fil0pageencryption.h"
+#include "fsp0pageencryption.h"
+
 #include "zlib.h"
 #ifdef __linux__
 #include <linux/fs.h>
@@ -750,7 +754,10 @@ fil_node_open_file(
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
 	ut_a(node->open == FALSE);
-
+	if (strcmp(node->name,"test/b")==0) {
+		fprintf(stderr,"file access: %s", node->name);
+		fflush(stderr);
+	}
 	if (node->size == 0) {
 		/* It must be a single-table tablespace and we do not know the
 		size of the file yet. First we open the file in the normal
@@ -2140,7 +2147,9 @@ fil_read_first_page(
 	/* Align the memory for a possible read from a raw device */
 
 	page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
-
+if (orig_space_id==18446744073709551615) {
+	//return NULL;
+}
 	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE,
 		orig_space_id != ULINT_UNDEFINED ?
 		fil_space_is_page_compressed(orig_space_id) :
@@ -2154,8 +2163,8 @@ fil_read_first_page(
 		ulint write_size=0;
 		fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, &write_size);
 	}
-
 	*space_id = fsp_header_get_space_id(page);
+
 
 	flushed_lsn = mach_read_from_8(page + FIL_PAGE_FILE_FLUSH_LSN);
 
@@ -2586,7 +2595,7 @@ static
 ulint
 fil_check_pending_io(
 /*=================*/
-	fil_space_t*	space,	/*!< in/out: Tablespace to check */
+	fil_space_t*	space,	/*!< in/out: Tablespace to chemismatchck */
 	fil_node_t**	node,	/*!< out: Node in space list */
 	ulint		count)	/*!< in: number of attempts so far */
 {
@@ -5267,7 +5276,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 NULL, NULL, space_id, NULL, 0, 0, 0);
+				 NULL, NULL, space_id, NULL, 0, 0, 0, 0, 0);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -5660,6 +5669,9 @@ _fil_io(
 	ibool		ignore_nonexistent_pages;
 	ibool		page_compressed = FALSE;
 	ulint		page_compression_level = 0;
+    ibool		page_encrypted = FALSE;
+    ulint		page_encryption_key = 0;
+
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;
@@ -5729,6 +5741,11 @@ _fil_io(
 
 	page_compressed = fsp_flags_is_page_compressed(space->flags);
 	page_compression_level = fsp_flags_get_page_compression_level(space->flags);
+
+    page_encrypted = fsp_flags_is_page_encrypted(space->flags);
+    page_encryption_key = fsp_flags_get_page_encryption_key(space->flags);
+
+
 	/* If we are deleting a tablespace we don't allow any read
 	operations on that. However, we do allow write operations. */
 	if (space == 0 || (type == OS_FILE_READ && space->stop_new_ops)) {
@@ -5873,9 +5890,8 @@ _fil_io(
 	}
 
 	/* Queue the aio request */
-	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
-		     offset, len, node, message, space_id, trx,
-		     page_compressed, page_compression_level, write_size);
+    ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
+             offset, len, node, message, space_id, trx, page_compressed, page_compression_level, write_size, page_encrypted, page_encryption_key);
 
 #else
 	/* In ibbackup do normal i/o, not aio */
