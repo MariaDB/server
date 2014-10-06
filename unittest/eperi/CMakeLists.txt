@@ -25,8 +25,6 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     )
 
 MY_ADD_TESTS(eperi)
-MY_ADD_TESTS(eperi_keyfile 
-	LINK_LIBRARIES mysys pcre)
 MY_ADD_TESTS(eperi_aes 
 	LINK_LIBRARIES mysys_ssl dbug)
 
