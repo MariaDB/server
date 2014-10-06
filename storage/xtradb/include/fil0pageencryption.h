@@ -35,7 +35,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 @file include/fil0pageencryption.h
 Helper functions for encryption/decryption page data on to table space.
 
-Created 08/25/2014 Florin Fugaciu
+Created 08/25/2014
 ***********************************************************************/
 
 

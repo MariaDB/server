@@ -20,7 +20,7 @@
 Implementation for helper functions for encrypting/decrypting pages
 and atomic writes information to file space.
 
-Created 08/28/2014 Florin Fugaciu
+Created 08/28/2014
 ***********************************************************************/
 
 #include "fsp0fsp.h"

@@ -2,7 +2,6 @@
  * pageenc.cc
  *
  *  Created on: 23.08.2014
- *      Author: florin
  */
 //#define UNIV_INLINE
 typedef unsigned char byte;

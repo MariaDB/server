@@ -21,7 +21,7 @@
 @file include/fsp0pageencryption.h
 Helper functions for extracting/storing page encryption information to file space.
 
-Created 08/28/2014 Florin Fugaciu
+Created 08/28/2014
 ***********************************************************************/
 
 #ifndef FSP0PAGEENCRYPTION_H_

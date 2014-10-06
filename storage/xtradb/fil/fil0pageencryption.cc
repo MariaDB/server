@@ -20,7 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
  @file fil/fil0pageencryption.cc
  Implementation for page encryption file spaces.
 
- Created 08/25/2014 Florin Fugaciu
+ Created 08/25/2014
  ***********************************************************************/
 
 #include "fil0fil.h"

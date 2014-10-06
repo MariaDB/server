@@ -2,7 +2,7 @@
 @file EperiKeySingleton-t.cc
 Implementation of single pattern to keep keys for encrypting/decrypting pages.
 
-Created 09/15/2014 Florin Fugaciu
+Created 09/15/2014
 ***********************************************************************/
 
 

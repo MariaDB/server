@@ -17,7 +17,7 @@
  @file EncKeys.cc
  A class to keep keys for encryption/decryption.
 
- Created 09/15/2014 Florin Fugaciu
+ Created 09/15/2014
  ***********************************************************************/
 
 #include "EncKeys.h"
@@ -29,21 +29,7 @@
 #include <string.h>
 
 
-/*
- Die Schlüsseldatei kann Fehler beinhalten. Folgende Fehler werden abgefangen:
- 1. Doppelte SchlüsselIDs:
- 1.1. Gleiche Schlüssel --> Meldung ausgeben mit dem Hinweis auf die Zeilennummern
- 1.2. Ungleiche Schlüssel --> Meldung ausgeben mit dem Hinweis auf die Zeilennummern
- und Wahl des Schlüssel mit der kleinsten Zeilennummer
- 2. Schlüsseldatei ist zu groß --> Meldung ausgeben und abbrechen
- 3. Fehler im Schlüssel --> Meldung ausgeben und Schlüssel auf Nicht-Vorhanden setzen. Meldungen:
- 3.1. Schlüssel zu groß
- 3.2. Keine Übereinstimmung des Schlüssels mit den Vorgaben
- 4. Schlüsselserver noch nicht implementiert --> Meldung ausgeben mit dem Hinweis auf das
- Nicht-lesen-können von verschlüsselten Tabellen und Spalten.
 
- Anmerkung: voerst keine Hinweise auf die Zeilennummern
-*/
 
 const char* EncKeys::strMAGIC = "Salted__";
 const int EncKeys::magicSize = strlen(strMAGIC); // 8 byte

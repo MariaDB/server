@@ -17,7 +17,7 @@
 @file KeySingletonPattern.h
 Implementation of single pattern to keep keys for encrypting/decrypting pages.
 
-Created 09/13/2014 Florin Fugaciu
+Created 09/13/2014
 ***********************************************************************/
 
 

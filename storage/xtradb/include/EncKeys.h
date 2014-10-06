@@ -17,7 +17,7 @@
 @file EncKeys.h
 A structure and class to keep keys for encryption/decryption.
 
-Created 09/15/2014 Florin Fugaciu
+Created 09/15/2014
 ***********************************************************************/
 
 #ifndef ENCKEYS_H_

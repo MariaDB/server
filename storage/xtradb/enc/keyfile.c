@@ -14,7 +14,7 @@
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /******************************************************************/
-//Author Clemens Doerrhoefer
+
 
 #include <keyfile.h>
 #include <my_sys.h>
