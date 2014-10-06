@@ -82,6 +82,7 @@ my_bool wsrep_restart_slave_activated  = 0; // node has dropped, and slave
                                             // restart will be needed
 my_bool wsrep_slave_UK_checks          = 0; // slave thread does UK checks
 my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
+bool wsrep_new_cluster                 = false; // Bootstrap the cluster ?
 /*
  * End configuration options
  */
@@ -886,37 +887,6 @@ void wsrep_stop_replication(THD *thd)
   return;
 }
 
-/* This one is set to true when --wsrep-new-cluster is found in the command
- * line arguments */
-static my_bool wsrep_new_cluster= FALSE;
-#define WSREP_NEW_CLUSTER "--wsrep-new-cluster"
-/* Finds and hides --wsrep-new-cluster from the arguments list
- * by moving it to the end of the list and decrementing argument count */
-void wsrep_filter_new_cluster (int* argc, char* argv[])
-{
-  int i;
-  for (i= *argc - 1; i > 0; i--)
-  {
-    /* make a copy of the argument to convert possible underscores to hyphens.
-     * the copy need not to be longer than WSREP_NEW_CLUSTER option */
-    char arg[sizeof(WSREP_NEW_CLUSTER) + 1]= { 0, };
-    strncpy(arg, argv[i], sizeof(arg) - 1);
-    char* underscore(arg);
-    while (NULL != (underscore= strchr(underscore, '_'))) *underscore= '-';
-
-    if (!strcmp(arg, WSREP_NEW_CLUSTER))
-    {
-      wsrep_new_cluster= TRUE;
-      *argc -= 1;
-      /* preserve the order of remaining arguments AND
-       * preserve the original argument pointers - just in case */
-      char* wnc= argv[i];
-      memmove(&argv[i], &argv[i + 1], (*argc - i)*sizeof(argv[i]));
-      argv[*argc]= wnc; /* this will be invisible to the rest of the program */
-    }
-  }
-}
-
 bool wsrep_start_replication()
 {
   wsrep_status_t rcode;
@@ -939,10 +909,15 @@ bool wsrep_start_replication()
     return true;
   }
 
-  bool const bootstrap(TRUE == wsrep_new_cluster);
-  wsrep_new_cluster= FALSE;
+  bool const bootstrap= wsrep_new_cluster;
 
   WSREP_INFO("Start replication");
+
+  if (wsrep_new_cluster)
+  {
+    WSREP_INFO("'wsrep-new-cluster' option used, bootstrapping the cluster");
+    wsrep_new_cluster= false;
+  }
 
   if ((rcode = wsrep->connect(wsrep,
                               wsrep_cluster_name,
