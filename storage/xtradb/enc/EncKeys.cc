@@ -27,6 +27,7 @@
 #include <my_sys.h>
 #include <pcre.h>
 #include <string.h>
+#include <my_sys.h>
 
 
 /*
@@ -231,10 +232,10 @@ int EncKeys::parseLine(const char *line, const uint maxKeyId) {
  */
 char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorCode) {
 	*errorCode = NO_ERROR_PARSE_OK;
-	printf("Reading %s\n\n", filename);
-	FILE *fp = fopen(filename, "r");
+	fprintf(stderr, "Reading %s\n\n", filename);
+	FILE *fp = my_fopen(filename, O_RDONLY, MYF(MY_WME));
 	if (NULL == fp) {
-		printf(errorOpenFile, filename);
+		fprintf(stderr, errorOpenFile, filename);
 		*errorCode = ERROR_OPEN_FILE;
 		return NULL;
 	}
@@ -260,7 +261,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	char *buffer = new char[file_size + 1];
 	fread(buffer, file_size, 1, fp);
 	buffer[file_size] = '\0';
-	fclose(fp);
+	my_fclose(fp, MYF(MY_WME));
 
 	//Check for file encryption
 	if (0 == memcmp(buffer, strMAGIC, magicSize)) { //If file is encrypted, decrypt it first.
