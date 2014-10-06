@@ -347,7 +347,7 @@ static struct my_option my_long_options[] =
   {"force", 'f', "Continue even if we get an SQL error.",
    &ignore_errors, &ignore_errors, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-  {"galera-sst-mode", OPT_GALERA_SST_MODE,
+  {"galera-sst-mode", 0,
    "This mode should normally be used in mysqldump snapshot state transfer "
    "(SST) in a Galera cluster. If enabled, mysqldump additionally dumps "
    "commands to turn off binary logging and SET global gtid_binlog_state "

@@ -1,4 +1,5 @@
-/* Copyright (c) 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2012, Oracle and/or its affiliates.
+   Copyright (c) 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,66 +30,52 @@
 #if defined(HAVE_YASSL)
 #include "sha.hpp"
 
-/**
-  Compute SHA1 message digest using YaSSL.
+typedef TaoCrypt::SHA SHA_CTX;
 
-  @param digest [out]  Computed SHA1 digest
-  @param buf    [in]   Message to be computed
-  @param len    [in]   Length of the message
-
-  @return              void
-*/
-void mysql_sha1_yassl(uint8 *digest, const char *buf, int len)
+static void sha1_init(SHA_CTX *context)
 {
-  TaoCrypt::SHA hasher;
-  hasher.Update((const TaoCrypt::byte *) buf, len);
-  hasher.Final ((TaoCrypt::byte *) digest);
+  context->Init();
 }
 
-/**
-  Compute SHA1 message digest for two messages in order to
-  emulate sha1(msg1, msg2) using YaSSL.
-
-  @param digest [out]  Computed SHA1 digest
-  @param buf1   [in]   First message
-  @param len1   [in]   Length of first message
-  @param buf2   [in]   Second message
-  @param len2   [in]   Length of second message
-
-  @return              void
+/*
+  this is a variant of sha1_init to be used in this file only.
+  does nothing for yassl, because the context's constructor was called automatically.
 */
-void mysql_sha1_multi_yassl(uint8 *digest, va_list args)
+static void sha1_init_fast(SHA_CTX *context)
 {
-  const char *str;
-  TaoCrypt::SHA hasher;
+}
 
-  for (str= va_arg(args, const char*); str; str= va_arg(args, const char*))
-  {
-    hasher.Update((const TaoCrypt::byte *) str, va_arg(args, size_t));
-  }
-  hasher.Final((TaoCrypt::byte *) digest);
+static void sha1_input(SHA_CTX *context, const uchar *buf, unsigned len)
+{
+  context->Update((const TaoCrypt::byte *) buf, len);
+}
+
+static void sha1_result(SHA_CTX *context, uchar digest[SHA1_HASH_SIZE])
+{
+    context->Final((TaoCrypt::byte *) digest);
 }
 
 #elif defined(HAVE_OPENSSL)
 #include <openssl/sha.h>
 
-int mysql_sha1_reset(SHA_CTX *context)
+static void sha1_init(SHA_CTX *context)
 {
-    return SHA1_Init(context);
+  SHA1_Init(context);
 }
 
-
-int mysql_sha1_input(SHA_CTX *context, const uint8 *message_array,
-                     unsigned length)
+static void sha1_init_fast(SHA_CTX *context)
 {
-    return SHA1_Update(context, message_array, length);
+  sha1_init(context);
 }
 
-
-int mysql_sha1_result(SHA_CTX *context,
-                      uint8 Message_Digest[SHA1_HASH_SIZE])
+static void sha1_input(SHA_CTX *context, const uchar *buf, unsigned len)
 {
-    return SHA1_Final(Message_Digest, context);
+  SHA1_Update(context, buf, len);
+}
+
+static void sha1_result(SHA_CTX *context, uchar digest[SHA1_HASH_SIZE])
+{
+  SHA1_Final(digest, context);
 }
 
 #endif /* HAVE_YASSL */
@@ -102,17 +89,13 @@ int mysql_sha1_result(SHA_CTX *context,
 
   @return              void
 */
-void my_sha1(uint8 *digest, const char *buf, size_t len)
+void my_sha1(uchar *digest, const char *buf, size_t len)
 {
-#if defined(HAVE_YASSL)
-  mysql_sha1_yassl(digest, buf, len);
-#elif defined(HAVE_OPENSSL)
   SHA_CTX sha1_context;
 
-  mysql_sha1_reset(&sha1_context);
-  mysql_sha1_input(&sha1_context, (const uint8 *) buf, len);
-  mysql_sha1_result(&sha1_context, digest);
-#endif /* HAVE_YASSL */
+  sha1_init_fast(&sha1_context);
+  sha1_input(&sha1_context, (const uchar *)buf, len);
+  sha1_result(&sha1_context, digest);
 }
 
 
@@ -128,24 +111,38 @@ void my_sha1(uint8 *digest, const char *buf, size_t len)
 
   @return              void
 */
-void my_sha1_multi(uint8 *digest, ...)
+void my_sha1_multi(uchar *digest, ...)
 {
   va_list args;
   va_start(args, digest);
 
-#if defined(HAVE_YASSL)
-  mysql_sha1_multi_yassl(digest, args);
-#elif defined(HAVE_OPENSSL)
   SHA_CTX sha1_context;
-  const char *str;
+  const uchar *str;
 
-  mysql_sha1_reset(&sha1_context);
-  for (str= va_arg(args, const char*); str; str= va_arg(args, const char*))
-  {
-    mysql_sha1_input(&sha1_context, (const uint8 *) str, va_arg(args, size_t));
-  }
-  mysql_sha1_result(&sha1_context, digest);
-#endif /* HAVE_YASSL */
+  sha1_init_fast(&sha1_context);
+  for (str= va_arg(args, const uchar*); str; str= va_arg(args, const uchar*))
+    sha1_input(&sha1_context, str, va_arg(args, size_t));
+
+  sha1_result(&sha1_context, digest);
   va_end(args);
 }
 
+size_t my_sha1_context_size()
+{
+  return sizeof(SHA_CTX);
+}
+
+void my_sha1_init(void *context)
+{
+  sha1_init((SHA_CTX *)context);
+}
+
+void my_sha1_input(void *context, const uchar *buf, size_t len)
+{
+  sha1_input((SHA_CTX *)context, buf, len);
+}
+
+void my_sha1_result(void *context, uchar *digest)
+{
+  sha1_result((SHA_CTX *)context, digest);
+}

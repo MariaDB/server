@@ -33,6 +33,8 @@ Created 25/5/2010 Sunny Bains
 #include "ha_prototypes.h"
 #include "lock0priv.h"
 
+#include <mysql/service_wsrep.h>
+
 /*********************************************************************//**
 Print the contents of the lock_sys_t::waiting_threads array. */
 static

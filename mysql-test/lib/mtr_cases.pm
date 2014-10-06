@@ -861,8 +861,6 @@ sub collect_one_test_case {
       # Suite has no config, autodetect which one to use
       if ($tinfo->{rpl_test}) {
         $config= "suite/rpl/my.cnf";
-      } elsif ($tinfo->{galera_test}) {
-        $config= "suite/galera/my.cnf";
       } else {
         $config= "include/default_my.cnf";
       }
@@ -983,7 +981,6 @@ my $tags_map= {'big_test' => ['big_test', 1],
                'master-slave' => ['rpl_test', 1],
                'ndb_master-slave' => ['rpl_test', 1, 'ndb_test', 1],
                'long_test' => ['long_test', 1],
-               'galera_init' => ['galera_test', 1],
 };
 my $tags_regex_string= join('|', keys %$tags_map);
 my $tags_regex= qr:include/($tags_regex_string)\.inc:o;

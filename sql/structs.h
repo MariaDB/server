@@ -93,7 +93,19 @@ typedef struct st_key {
   uint	usable_key_parts; /* Should normally be = user_defined_key_parts */
   uint ext_key_parts;              /* Number of key parts in extended key */
   ulong ext_key_flags;             /* Flags for extended key              */
-  key_part_map ext_key_part_map;   /* Bitmap of pk key parts in extension */ 
+  /*
+    Parts of primary key that are in the extension of this index. 
+
+    Example: if this structure describes idx1, which is defined as 
+      INDEX idx1 (pk2, col2)
+    and pk is defined as:
+      PRIMARY KEY (pk1, pk2)
+    then 
+      pk1 is in the extension idx1, ext_key_part_map.is_set(0) == true
+      pk2 is explicitly present in idx1, it is not in the extension, so
+      ext_key_part_map.is_set(1) == false
+  */
+  key_part_map ext_key_part_map;
   uint  block_size;
   uint  name_length;
   enum  ha_key_alg algorithm;

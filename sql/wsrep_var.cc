@@ -15,9 +15,9 @@
 
 #include "wsrep_var.h"
 
+#include <sql_plugin.h>
 #include <mysqld.h>
 #include <sql_class.h>
-#include <sql_plugin.h>
 #include <set_var.h>
 #include <sql_acl.h>
 #include "wsrep_priv.h"
@@ -60,28 +60,24 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
   return false;
 }
 
-bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)
+bool wsrep_causal_reads_update (SV *sv)
 {
-  // global setting should not affect session setting.
-  // if (var_type == OPT_GLOBAL) {
-  //   thd->variables.wsrep_causal_reads = global_system_variables.wsrep_causal_reads;
-  // }
-  if (thd->variables.wsrep_causal_reads) {
-    thd->variables.wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
+  if (sv->wsrep_causal_reads) {
+    sv->wsrep_sync_wait |= WSREP_SYNC_WAIT_BEFORE_READ;
   } else {
-    thd->variables.wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
+    sv->wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
   return false;
 }
 
 bool wsrep_sync_wait_update (sys_var* self, THD* thd, enum_var_type var_type)
 {
-  // global setting should not affect session setting.
-  // if (var_type == OPT_GLOBAL) {
-  //   thd->variables.wsrep_sync_wait = global_system_variables.wsrep_sync_wait;
-  // }
-  thd->variables.wsrep_causal_reads = thd->variables.wsrep_sync_wait &
-          WSREP_SYNC_WAIT_BEFORE_READ;
+  if (var_type == OPT_GLOBAL)
+    global_system_variables.wsrep_causal_reads =
+      MY_TEST(global_system_variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ);
+  else
+    thd->variables.wsrep_causal_reads =
+      MY_TEST(thd->variables.wsrep_sync_wait & WSREP_SYNC_WAIT_BEFORE_READ);
   return false;
 }
 
@@ -511,92 +507,65 @@ bool wsrep_desync_update (sys_var *self, THD* thd, enum_var_type type)
   return false;
 }
 
-/*
- * Status variables stuff below
- */
-static inline void
-wsrep_assign_to_mysql (SHOW_VAR* mysql, wsrep_stats_var* wsrep)
+static SHOW_VAR wsrep_status_vars[]=
 {
-  mysql->name = wsrep->name;
-  switch (wsrep->type) {
-  case WSREP_VAR_INT64:
-    mysql->value = (char*) &wsrep->value._int64;
-    mysql->type  = SHOW_LONGLONG;
-    break;
-  case WSREP_VAR_STRING:
-    mysql->value = (char*) &wsrep->value._string;
-    mysql->type  = SHOW_CHAR_PTR;
-    break;
-  case WSREP_VAR_DOUBLE:
-    mysql->value = (char*) &wsrep->value._double;
-    mysql->type  = SHOW_DOUBLE;
-    break;
-  }
-}
+  {"connected",         (char*) &wsrep_connected,         SHOW_BOOL},
+  {"ready",             (char*) &wsrep_ready,             SHOW_BOOL},
+  {"cluster_state_uuid",(char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
+  {"cluster_conf_id",   (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
+  {"cluster_status",    (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
+  {"cluster_size",      (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
+  {"local_index",       (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
+  {"local_bf_aborts",   (char*) &wsrep_show_bf_aborts,    SHOW_SIMPLE_FUNC},
+  {"provider_name",     (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
+  {"provider_version",  (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
+  {"provider_vendor",   (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
+  {"thread_count",      (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH}
+};
 
-#if DYNAMIC
-// somehow this mysql status thing works only with statically allocated arrays.
-static SHOW_VAR*          mysql_status_vars = NULL;
-static int                mysql_status_len  = -1;
-#else
-static SHOW_VAR           mysql_status_vars[512 + 1];
-static const int          mysql_status_len  = 512;
-#endif
-
-static void export_wsrep_status_to_mysql(THD* thd)
+static int show_var_cmp(const void *var1, const void *var2)
 {
-  int wsrep_status_len, i;
-
-  thd->wsrep_status_vars = wsrep->stats_get(wsrep);
-
-  if (!thd->wsrep_status_vars) {
-    return;
-  }
-
-  for (wsrep_status_len = 0;
-       thd->wsrep_status_vars[wsrep_status_len].name != NULL;
-       wsrep_status_len++);
-
-#if DYNAMIC
-  if (wsrep_status_len != mysql_status_len) {
-    void* tmp = realloc (mysql_status_vars,
-                         (wsrep_status_len + 1) * sizeof(SHOW_VAR));
-    if (!tmp) {
-
-      sql_print_error ("Out of memory for wsrep status variables."
-                       "Number of variables: %d", wsrep_status_len);
-      return;
-    }
-
-    mysql_status_len  = wsrep_status_len;
-    mysql_status_vars = (SHOW_VAR*)tmp;
-  }
-  /* @TODO: fix this: */
-#else
-  if (mysql_status_len < wsrep_status_len) wsrep_status_len= mysql_status_len;
-#endif
-
-  for (i = 0; i < wsrep_status_len; i++)
-    wsrep_assign_to_mysql (mysql_status_vars + i, thd->wsrep_status_vars + i);
-
-  mysql_status_vars[wsrep_status_len].name  = NullS;
-  mysql_status_vars[wsrep_status_len].value = NullS;
-  mysql_status_vars[wsrep_status_len].type  = SHOW_LONG;
+  return strcasecmp(((SHOW_VAR*)var1)->name, ((SHOW_VAR*)var2)->name);
 }
 
 int wsrep_show_status (THD *thd, SHOW_VAR *var, char *buff)
 {
-  export_wsrep_status_to_mysql(thd);
+  uint i, maxi= SHOW_VAR_FUNC_BUFF_SIZE / sizeof(*var) - 1;
+  SHOW_VAR *v= (SHOW_VAR *)buff;
+
   var->type= SHOW_ARRAY;
-  var->value= (char *) &mysql_status_vars;
+  var->value= buff;
+
+  for (i=0; i < array_elements(wsrep_status_vars); i++)
+    *v++= wsrep_status_vars[i];
+
+  DBUG_ASSERT(i < maxi);
+
+  wsrep_stats_var* stats= wsrep->stats_get(wsrep);
+  for (wsrep_stats_var *sv= stats; i < maxi && sv && sv->name; i++, sv++, v++)
+  {
+    v->name = thd->strdup(sv->name);
+    switch (sv->type) {
+    case WSREP_VAR_INT64:
+      v->value = (char*)thd->memdup(&sv->value._int64, sizeof(longlong));
+      v->type  = SHOW_LONGLONG;
+      break;
+    case WSREP_VAR_STRING:
+      v->value = thd->strdup(sv->value._string);
+      v->type  = SHOW_CHAR;
+      break;
+    case WSREP_VAR_DOUBLE:
+      v->value = (char*)thd->memdup(&sv->value._double, sizeof(double));
+      v->type  = SHOW_DOUBLE;
+      break;
+    }
+    DBUG_ASSERT(i < maxi);
+  }
+  wsrep->stats_free(wsrep, stats);
+
+  my_qsort(buff, i, sizeof(*v), show_var_cmp);
+
+  v->name= 0; // terminator
   return 0;
 }
 
-void wsrep_free_status (THD* thd)
-{
-  if (thd->wsrep_status_vars)
-  {
-    wsrep->stats_free (wsrep, thd->wsrep_status_vars);
-    thd->wsrep_status_vars = 0;
-  }
-}

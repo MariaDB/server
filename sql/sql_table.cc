@@ -5267,7 +5267,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 #ifdef WITH_WSREP
   if (WSREP_ON && !thd->wsrep_applier &&
       wsrep_create_like_table(thd, table, src_table, create_info))
-    goto end;
+    DBUG_RETURN(res);
 #endif
 
   /*
@@ -5532,7 +5532,6 @@ err:
       res= 1;
   }
 
-end:
   DBUG_RETURN(res);
 }
 

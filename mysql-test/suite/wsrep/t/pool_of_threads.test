@@ -1,4 +1,4 @@
---source include/have_wsrep.inc
+--source include/have_wsrep_enabled.inc
 
 --echo
 --echo #

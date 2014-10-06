@@ -90,6 +90,7 @@ void wsrep_client_rollback(THD *thd)
 #define NUMBER_OF_FIELDS_TO_IDENTIFY_WORKER 2
 //#include "rpl_info_factory.h"
 
+#if 0
 static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
 {
 
@@ -110,6 +111,7 @@ static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
 
   return rli;
 }
+#endif
 
 class Master_info;
 
@@ -489,12 +491,11 @@ void wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe)
   }
 }
 
-int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync)
+enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd, my_bool sync)
 { 
-  int state = -1;
-  if (thd_ptr) 
+  enum wsrep_conflict_state state = NO_CONFLICT;
+  if (thd)
   {
-    THD* thd = (THD*)thd_ptr;
     if (sync) mysql_mutex_lock(&thd->LOCK_wsrep_thd);
     
     state = thd->wsrep_conflict_state;
@@ -503,26 +504,23 @@ int wsrep_thd_conflict_state(void *thd_ptr, my_bool sync)
   return state;
 }
 
-my_bool wsrep_thd_is_wsrep(void *thd_ptr)
+my_bool wsrep_thd_is_wsrep(THD *thd)
 {
   my_bool status = FALSE;
-  if (thd_ptr)
+  if (thd)
   {
-    THD* thd = (THD*)thd_ptr;
-
     status = (WSREP(thd) && WSREP_PROVIDER_EXISTS);
   }
   return status;
 }
 
-my_bool wsrep_thd_is_BF(void *thd_ptr, my_bool sync)
+my_bool wsrep_thd_is_BF(THD *thd, my_bool sync)
 {
   my_bool status = FALSE;
-  if (thd_ptr)
+  if (thd)
   {
-    THD* thd = (THD*)thd_ptr;
     // THD can be BF only if provider exists
-    if (wsrep_thd_is_wsrep(thd_ptr))
+    if (wsrep_thd_is_wsrep(thd))
     {
       if (sync)
 	mysql_mutex_lock(&thd->LOCK_wsrep_thd);

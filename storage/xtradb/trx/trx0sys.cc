@@ -48,6 +48,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "ha_prototypes.h" /* wsrep_is_wsrep_xid() */
 #endif /* */
 
+#include <mysql/service_wsrep.h>
+
 /** The file format tag structure with id and name. */
 struct file_format_t {
 	ulint		id;		/*!< id of the file format */
@@ -362,7 +364,7 @@ trx_sys_update_wsrep_checkpoint(
 #endif /* UNIV_DEBUG */
 
         ut_ad(xid && mtr);
-        ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid((const void *)xid));
+        ut_a(xid->formatID == -1 || wsrep_is_wsrep_xid(xid));
 
         if (mach_read_from_4(sys_header + TRX_SYS_WSREP_XID_INFO
                              + TRX_SYS_WSREP_XID_MAGIC_N_FLD)

@@ -13,8 +13,10 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+#include <my_config.h>
+
 #ifndef WSREP_INCLUDED
-#define WSERP_INCLUDED
+#define WSREP_INCLUDED
 
 #ifdef WITH_WSREP
 #define IF_WSREP(A,B) A
@@ -23,7 +25,7 @@
 #if !defined(EMBEDDED_LIBRARY)
 #define WSREP_FORMAT(my_format)                           \
   ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ? \
-   wsrep_forced_binlog_format : my_format)
+   ((enum enum_binlog_format)wsrep_forced_binlog_format) : my_format)
 #else
 #define WSREP_FORMAT(my_format) my_format
 #endif /* && !EMBEDDED_LIBRARY */

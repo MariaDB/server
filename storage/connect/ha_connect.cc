@@ -2527,7 +2527,6 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
   if (xtrace > 1)
     htrc("ReadIndexed: op=%d rc=%d\n", op, rc);
 
-  table->status= (rc == RC_OK) ? 0 : STATUS_NOT_FOUND;
   return rc;
 } // end of ReadIndexed
 
@@ -2638,7 +2637,6 @@ int ha_connect::index_first(uchar *buf)
   else if (indexing < 0)
     rc= HA_ERR_INTERNAL_ERROR;
   else if (CntRewindTable(xp->g, tdbp)) {
-    table->status= STATUS_NOT_FOUND;
     rc= HA_ERR_INTERNAL_ERROR;
   } else
     rc= rnd_next(buf);
@@ -2833,7 +2831,6 @@ int ha_connect::rnd_next(uchar *buf)
     xp->fnd= xp->nfd= 0;
     } // endif nrd
 
-  table->status= (!rc) ? 0 : STATUS_NOT_FOUND;
   DBUG_RETURN(rc);
 } // end of rnd_next
 

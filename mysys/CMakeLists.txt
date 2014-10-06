@@ -15,10 +15,6 @@
 
 INCLUDE_DIRECTORIES(${ZLIB_INCLUDE_DIR} ${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/mysys)
 
-IF(WITH_WSREP)
-  BUILD_WITH_WSREP()
-ENDIF()
-
 SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				errors.c hash.c list.c
                                 mf_cache.c mf_dirname.c mf_fn_ext.c

@@ -2554,9 +2554,7 @@ int ha_federatedx::index_read_idx(uchar *buf, uint index, const uchar *key,
 
   RESULT
     0	ok     In this case *result will contain the result set
-	       table->status == 0 
     #   error  In this case *result will contain 0
-               table->status == STATUS_NOT_FOUND
 */
 
 int ha_federatedx::index_read_idx_with_result_set(uchar *buf, uint index,
@@ -2613,11 +2611,9 @@ int ha_federatedx::index_read_idx_with_result_set(uchar *buf, uint index,
 
   insert_dynamic(&results, (uchar*) result);
   *result= 0;
-  table->status= STATUS_NOT_FOUND;
   DBUG_RETURN(retval);
 
 error:
-  table->status= STATUS_NOT_FOUND;
   my_error(retval, MYF(0), error_buffer);
   DBUG_RETURN(retval);
 }
@@ -2698,7 +2694,6 @@ int ha_federatedx::read_range_first(const key_range *start_key,
   DBUG_RETURN(retval);
 
 error:
-  table->status= STATUS_NOT_FOUND;
   DBUG_RETURN(retval);
 }
 
@@ -2903,8 +2898,6 @@ int ha_federatedx::read_next(uchar *buf, FEDERATEDX_IO_RESULT *result)
   FEDERATEDX_IO_ROW *row;
   DBUG_ENTER("ha_federatedx::read_next");
 
-  table->status= STATUS_NOT_FOUND;              // For easier return
-
   if ((retval= txn->acquire(share, TRUE, &io)))
     DBUG_RETURN(retval);
 
@@ -2989,7 +2982,6 @@ int ha_federatedx::rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(retval);
 
 error:
-  table->status= STATUS_NOT_FOUND;
   DBUG_RETURN(retval);
 }
 

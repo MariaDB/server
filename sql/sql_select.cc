@@ -15044,6 +15044,11 @@ remove_eq_conds(THD *thd, COND *cond, Item::cond_result *cond_value)
   @retval true    can be used
   @retval false   cannot be used
 */
+
+/*
+  psergey-todo: this returns false for int_column='1234' (here '1234' is a
+  constant. Need to discuss this with Bar).
+*/
 static bool
 test_if_equality_guarantees_uniqueness(Item *l, Item *r)
 {
@@ -19676,12 +19681,21 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
 {
   KEY_PART_INFO *key_part,*key_part_end;
   key_part=table->key_info[idx].key_part;
-  key_part_end=key_part+table->key_info[idx].user_defined_key_parts;
+  key_part_end=key_part + table->key_info[idx].ext_key_parts;
   key_part_map const_key_parts=table->const_key_parts[idx];
+  uint user_defined_kp= table->key_info[idx].user_defined_key_parts;
   int reverse=0;
   uint key_parts;
-  my_bool on_pk_suffix= FALSE;
+  bool have_pk_suffix= false;
+  uint pk= table->s->primary_key;
   DBUG_ENTER("test_if_order_by_key");
+ 
+  if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) && 
+      table->key_info[idx].ext_key_part_map &&
+      pk != MAX_KEY && pk != idx)
+  {
+    have_pk_suffix= true;
+  }
 
   for (; order ; order=order->next, const_key_parts>>=1)
   {
@@ -19694,58 +19708,37 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
     */
     for (; const_key_parts & 1 ; const_key_parts>>= 1)
       key_part++; 
+    
+    /*
+      This check was in this function historically (although I think it's
+      better to check it outside of this function):
 
-    if (key_part >= key_part_end)
+      "Test if the primary key parts were all const (i.e. there's one row).
+       The sorting doesn't matter"
+
+       So, we're checking that 
+       (1) this is an extended key
+       (2) we've reached its end
+    */
+    key_parts= (key_part - table->key_info[idx].key_part);
+    if (have_pk_suffix &&
+        reverse == 0 && // all were =const so far
+        key_parts == table->key_info[idx].ext_key_parts && 
+        table->const_key_parts[pk] == PREV_BITS(uint, 
+                                                table->key_info[pk].
+                                                user_defined_key_parts))
     {
-      /* 
-        We are at the end of the key. Check if the engine has the primary
-        key as a suffix to the secondary keys. If it has continue to check
-        the primary key as a suffix.
+      key_parts= 0;
+      reverse= 1;                           // Key is ok to use
+      goto ok;
+    }
+
+    if (key_part == key_part_end)
+    {
+      /*
+        There are some items left in ORDER BY that we don't
       */
-      if (!on_pk_suffix && (table->key_info[idx].ext_key_part_map & 1) &&
-          (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) &&
-          table->s->primary_key != MAX_KEY &&
-          table->s->primary_key != idx)
-      {
-        KEY_PART_INFO *start,*end;
-        uint pk_part_idx= 0;
-        on_pk_suffix= TRUE;
-        start= key_part= table->key_info[table->s->primary_key].key_part;
-        const_key_parts=table->const_key_parts[table->s->primary_key];
-
-        /*
-          Calculate true key_part_end and const_key_parts
-          (we have to stop as first not continous primary key part)
-        */
-        for (key_part_end= key_part,
-             end= key_part+table->key_info[table->s->primary_key].user_defined_key_parts;
-             key_part_end < end; key_part_end++, pk_part_idx++)
-        {
-          /* Found hole in the pk_parts; Abort */
-          if (!(table->key_info[idx].ext_key_part_map &
-                (((key_part_map) 1) << pk_part_idx)))
-            break;
-        }
-
-        /* Adjust const_key_parts */
-        const_key_parts&= (((key_part_map) 1) << pk_part_idx) -1;
-
-        for (; const_key_parts & 1 ; const_key_parts>>= 1)
-          key_part++;
-        /*
-          Test if the primary key parts were all const (i.e. there's one row).
-          The sorting doesn't matter.
-        */
-        if (key_part == start+table->key_info[table->s->primary_key].user_defined_key_parts &&
-            reverse == 0)
-        {
-          key_parts= 0;
-          reverse= 1;                           // Key is ok to use
-          goto ok;
-        }
-      }
-      else
-        DBUG_RETURN(0);
+      DBUG_RETURN(0);
     }
 
     if (key_part->field != field || !field->part_of_sortkey.is_set(idx))
@@ -19760,27 +19753,20 @@ static int test_if_order_by_key(ORDER *order, TABLE *table, uint idx,
     if (key_part < key_part_end)
       key_part++;
   }
-  if (on_pk_suffix)
-  {
-    uint used_key_parts_secondary= table->key_info[idx].user_defined_key_parts;
-    uint used_key_parts_pk=
-      (uint) (key_part - table->key_info[table->s->primary_key].key_part);
-    key_parts= used_key_parts_pk + used_key_parts_secondary;
 
-    if (reverse == -1 &&
-        (!(table->file->index_flags(idx, used_key_parts_secondary - 1, 1) &
-           HA_READ_PREV) ||
-         !(table->file->index_flags(table->s->primary_key,
-                                    used_key_parts_pk - 1, 1) & HA_READ_PREV)))
-      reverse= 0;                               // Index can't be used
-  }
-  else
+  key_parts= (uint) (key_part - table->key_info[idx].key_part);
+
+  if (reverse == -1 && 
+      !(table->file->index_flags(idx, user_defined_kp, 1) & HA_READ_PREV))
+    reverse= 0;                               // Index can't be used
+  
+  if (have_pk_suffix && reverse == -1)
   {
-    key_parts= (uint) (key_part - table->key_info[idx].key_part);
-    if (reverse == -1 && 
-        !(table->file->index_flags(idx, key_parts-1, 1) & HA_READ_PREV))
+    uint pk_parts= table->key_info[pk].user_defined_key_parts;
+    if (!table->file->index_flags(pk, pk_parts, 1) & HA_READ_PREV)
       reverse= 0;                               // Index can't be used
   }
+
 ok:
   if (used_key_parts != NULL)
     *used_key_parts= key_parts;
@@ -19868,7 +19854,12 @@ test_if_subkey(ORDER *order, TABLE *table, uint ref, uint ref_key_parts,
   uint best= MAX_KEY;
   KEY_PART_INFO *ref_key_part= table->key_info[ref].key_part;
   KEY_PART_INFO *ref_key_part_end= ref_key_part + ref_key_parts;
-
+  
+  /*
+    Find the shortest key that
+    - produces the required ordering
+    - has key #ref (up to ref_key_parts) as its subkey.
+  */
   for (nr= 0 ; nr < table->s->keys ; nr++)
   {
     if (usable_keys->is_set(nr) &&
@@ -20061,7 +20052,8 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     been taken into account.
   */
   usable_keys= *map;
-
+  
+  /* Find indexes that cover all ORDER/GROUP BY fields */
   for (ORDER *tmp_order=order; tmp_order ; tmp_order=tmp_order->next)
   {
     Item *item= (*tmp_order->item)->real_item();
@@ -20081,6 +20073,10 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
   {
     ref_key=	   tab->ref.key;
     ref_key_parts= tab->ref.key_parts;
+    /* 
+      todo: why does JT_REF_OR_NULL mean filesort? We could find another index
+      that satisfies the ordering. I would just set ref_key=MAX_KEY here...
+    */
     if (tab->type == JT_REF_OR_NULL || tab->type == JT_FT)
       goto use_filesort;
   }
@@ -20107,15 +20103,12 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
 
   if (ref_key >= 0 && ref_key != MAX_KEY)
   {
-    /*
-      We come here when there is a REF key.
-    */
+    /* Current access method uses index ref_key with ref_key_parts parts */
     if (!usable_keys.is_set(ref_key))
     {
-      /*
-	We come here when ref_key is not among usable_keys
-      */
+      /* However, ref_key doesn't match the needed ordering */
       uint new_ref_key;
+
       /*
 	If using index only read, only consider other possible index only
 	keys
@@ -20131,27 +20124,23 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       if ((new_ref_key= test_if_subkey(order, table, ref_key, ref_key_parts,
 				       &usable_keys)) < MAX_KEY)
       {
-	if (tab->ref.key >= 0)
-	{
-          /*
-            We'll use ref access method on key new_ref_key. In general case 
-            the index search tuple for new_ref_key will be different (e.g.
-            when one index is defined as (part1, part2, ...) and another as
-            (part1, part2(N), ...) and the WHERE clause contains 
-            "part1 = const1 AND part2=const2". 
-            So we build tab->ref from scratch here.
-          */
-          KEYUSE *keyuse= tab->keyuse;
-          while (keyuse->key != new_ref_key && keyuse->table == tab->table)
-            keyuse++;
-          if (create_ref_for_key(tab->join, tab, keyuse, FALSE,
-                                 (tab->join->const_table_map |
-                                  OUTER_REF_TABLE_BIT)))
-            goto use_filesort;
+        /*
+          Index new_ref_key 
+          - produces the required ordering, 
+          - also has the same columns as ref_key for #ref_key_parts (this
+            means we will read the same number of rows as with ref_key).
+        */
 
-          pick_table_access_method(tab);
-	}
-	else
+        /*
+          If new_ref_key allows to construct a quick select which uses more key
+          parts than ref(new_ref_key) would, do that.
+
+          Otherwise, construct a ref access (todo: it's not clear what is the
+          win in using ref access when we could use quick select also?)
+        */
+        if ((table->quick_keys.is_set(new_ref_key) && 
+             table->quick_key_parts[new_ref_key] > ref_key_parts) ||
+             !(tab->ref.key >= 0))
 	{
           /*
             The range optimizer constructed QUICK_RANGE for ref_key, and
@@ -20176,19 +20165,47 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
                                          (tab->join->select_options &
                                           OPTION_FOUND_ROWS) ?
                                          HA_POS_ERROR :
-                                         tab->join->unit->select_limit_cnt,0,
+                                         tab->join->unit->select_limit_cnt,TRUE,
                                          TRUE, FALSE) <= 0;
           if (res)
           {
             select->cond= save_cond;
             goto use_filesort;
           }
+          DBUG_ASSERT(tab->select->quick);
+          tab->type= JT_ALL;
+          tab->ref.key= -1;
+          tab->ref.key_parts= 0;
+          tab->use_quick= 1;
+          best_key= new_ref_key;
           /*
             We don't restore select->cond as we want to use the
             original condition as index condition pushdown is not
             active for the new index.
+            todo: why not perform index condition pushdown for the new index?
           */
 	}
+        else
+	{
+          /*
+            We'll use ref access method on key new_ref_key. In general case 
+            the index search tuple for new_ref_key will be different (e.g.
+            when one index is defined as (part1, part2, ...) and another as
+            (part1, part2(N), ...) and the WHERE clause contains 
+            "part1 = const1 AND part2=const2". 
+            So we build tab->ref from scratch here.
+          */
+          KEYUSE *keyuse= tab->keyuse;
+          while (keyuse->key != new_ref_key && keyuse->table == tab->table)
+            keyuse++;
+          if (create_ref_for_key(tab->join, tab, keyuse, FALSE,
+                                 (tab->join->const_table_map |
+                                  OUTER_REF_TABLE_BIT)))
+            goto use_filesort;
+
+          pick_table_access_method(tab);
+	}
+
         ref_key= new_ref_key;
         changed_key= true;
      }
@@ -20294,6 +20311,12 @@ check_reverse_order:
       */
       if (!table->covering_keys.is_set(best_key))
         table->disable_keyread();
+      else
+      {
+        if (!table->key_read)
+          table->enable_keyread();
+      }
+
       if (!quick_created)
       {
         if (select)                  // Throw any existing quick select
@@ -22463,8 +22486,7 @@ static bool add_ref_to_table_cond(THD *thd, JOIN_TAB *join_tab)
   }
   if (join_tab->select)
   {
-    Item *cond_copy;
-    UNINIT_VAR(cond_copy); // used when pre_idx_push_select_cond!=NULL
+    Item *UNINIT_VAR(cond_copy);
     if (join_tab->select->pre_idx_push_select_cond)
       cond_copy= cond->copy_andor_structure(thd);
     if (join_tab->select->cond)
@@ -24706,6 +24728,11 @@ void JOIN::cache_const_exprs()
    - if there is a ref(const) access, we try to use it, too.
    - quick and ref(const) use different cost formulas, so if both are possible
       we should make a cost-based choice.
+  
+  @param  tab              JOIN_TAB with table access (is NULL for single-table
+                           UPDATE/DELETE)
+  @param  read_time OUT    Cost of reading using quick or ref(const) access.
+
 
   @return 
     true   There was a possible quick or ref access, its cost is in the OUT
@@ -25219,15 +25246,18 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
   return MAX_KEY;
 }
 
+
 /*
-  Count how much times conditions are true for several first rows of the table
+  Count how many times the specified conditions are true for first rows_to_read
+  rows of the table.
 
-  @param thd             thread handle
-  @param rows_to_read    how much rows to check
-  @param table           table which should be checked
-  @conds conds           list of conditions and countars for them
+  @param thd                  Thread handle
+  @param rows_to_read         How many rows to sample
+  @param table                Table to use
+  @conds conds         INOUT  List of conditions and counters for them
 
-  @return number of really checked rows or 0 in case of error or empty table
+  @return Number of we've checked. It can be equal or less than rows_to_read.
+          0 is returned for error or when the table had no rows.
 */
 
 ulong check_selectivity(THD *thd,

@@ -66,10 +66,11 @@ handlerton *wsrep_hton;
 */
 void wsrep_register_hton(THD* thd, bool all)
 {
-  if (thd->wsrep_exec_mode != TOTAL_ORDER && !thd->wsrep_apply_toi)
+  if (WSREP(thd) && thd->wsrep_exec_mode != TOTAL_ORDER &&
+      !thd->wsrep_apply_toi)
   {
     THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
-    for (Ha_trx_info *i= trans->ha_list; WSREP(thd) && i; i = i->next())
+    for (Ha_trx_info *i= trans->ha_list; i; i = i->next())
     {
       if ((i->ht()->db_type == DB_TYPE_INNODB) ||
 	  (i->ht()->db_type == DB_TYPE_TOKUDB))

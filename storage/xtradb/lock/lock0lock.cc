@@ -50,11 +50,8 @@ Created 5/7/1996 Heikki Tuuri
 #include "dict0boot.h"
 #include <set>
 
-#ifdef WITH_WSREP
-extern my_bool wsrep_debug;
-extern my_bool wsrep_log_conflicts;
-#include "ha_prototypes.h"
-#endif
+#include <mysql/service_wsrep.h>
+
 /* Restricts the length of search we will do in the waits-for
 graph of transactions */
 #define LOCK_MAX_N_STEPS_IN_DEADLOCK_CHECK 1000000
@@ -2093,9 +2090,6 @@ lock_rec_create(
 			return(lock);
 		}
 		trx_mutex_exit(c_lock->trx);
-	} else if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-		HASH_PREPEND(lock_t, hash, lock_sys->rec_hash,
-			    lock_rec_fold(space, page_no), lock);
 	} else {
 		HASH_INSERT(lock_t, hash, lock_sys->rec_hash,
 			    lock_rec_fold(space, page_no), lock);

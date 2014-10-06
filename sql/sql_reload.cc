@@ -253,7 +253,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
       if (options & REFRESH_CHECKPOINT)
         disable_checkpoints(thd);
-#ifdef WITH_WSREP
       /*
         We need to do it second time after wsrep appliers were blocked in
         make_global_read_lock_block_commit(thd) above since they could have
@@ -263,7 +262,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
           close_cached_tables(thd, tables, (options & REFRESH_FAST) ?
                               FALSE : TRUE, TRUE))
           result= 1;
-#endif /* WITH_WSREP */
      }
     else
     {

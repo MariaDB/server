@@ -2287,7 +2287,6 @@ int ha_maria::index_read_map(uchar * buf, const uchar * key,
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rkey(file, buf, active_index, key, keypart_map, find_flag);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2305,7 +2304,6 @@ int ha_maria::index_read_idx_map(uchar * buf, uint index, const uchar * key,
   error= maria_rkey(file, buf, index, key, keypart_map, find_flag);
    
   ma_set_index_cond_func(file, NULL, 0);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2317,7 +2315,6 @@ int ha_maria::index_read_last_map(uchar * buf, const uchar * key,
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rkey(file, buf, active_index, key, keypart_map,
                         HA_READ_PREFIX_LAST);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   DBUG_RETURN(error);
 }
 
@@ -2326,7 +2323,6 @@ int ha_maria::index_next(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rnext(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2335,7 +2331,6 @@ int ha_maria::index_prev(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rprev(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2344,7 +2339,6 @@ int ha_maria::index_first(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rfirst(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2353,7 +2347,6 @@ int ha_maria::index_last(uchar * buf)
 {
   DBUG_ASSERT(inited == INDEX);
   int error= maria_rlast(file, buf, active_index);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2372,7 +2365,6 @@ int ha_maria::index_next_same(uchar * buf,
   {
     error= maria_rnext_same(file,buf);
   } while (error == HA_ERR_RECORD_DELETED);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2416,7 +2408,6 @@ int ha_maria::rnd_end()
 int ha_maria::rnd_next(uchar *buf)
 {
   int error= maria_scan(file, buf);
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -2439,7 +2430,6 @@ int ha_maria::restart_rnd_next(uchar *buf)
 int ha_maria::rnd_pos(uchar *buf, uchar *pos)
 {
   int error= maria_rrnd(file, buf, my_get_ptr(pos, ref_length));
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 
@@ -3189,7 +3179,6 @@ int ha_maria::ft_read(uchar * buf)
 
   error= ft_handler->please->read_next(ft_handler, (char*) buf);
 
-  table->status= error ? STATUS_NOT_FOUND : 0;
   return error;
 }
 

@@ -163,8 +163,7 @@ String *Item_func_md5::val_str_ascii(String *str)
     uchar digest[16];
 
     null_value=0;
-    compute_md5_hash((char *) digest, (const char *) sptr->ptr(),
-                     sptr->length());
+    compute_md5_hash(digest, (const char *) sptr->ptr(), sptr->length());
     if (str->alloc(32))				// Ensure that memory is free
     {
       null_value=1;

@@ -22,6 +22,7 @@
 #include "rpl_filter.h"
 #include "sql_callback.h"
 #include "sp_head.h"
+#include "sql_show.h"
 #include "sp.h"
 #include "wsrep_priv.h"
 #include "wsrep_thd.h"
@@ -47,9 +48,6 @@ my_bool wsrep_preordered_opt= FALSE;
  * Begin configuration options and their default values
  */
 
-extern int wsrep_replaying;
-extern ulong wsrep_running_threads;
-extern ulong my_bind_addr;
 extern my_bool plugins_are_initialized;
 extern uint kill_cached_threads;
 extern mysql_cond_t COND_thread_cache;
@@ -91,6 +89,63 @@ my_bool wsrep_slave_FK_checks          = 0; // slave thread does FK checks
 /*
  * Other wsrep global variables.
  */
+
+mysql_mutex_t LOCK_wsrep_ready;
+mysql_cond_t  COND_wsrep_ready;
+mysql_mutex_t LOCK_wsrep_sst;
+mysql_cond_t  COND_wsrep_sst;
+mysql_mutex_t LOCK_wsrep_sst_init;
+mysql_cond_t  COND_wsrep_sst_init;
+mysql_mutex_t LOCK_wsrep_rollback;
+mysql_cond_t  COND_wsrep_rollback;
+wsrep_aborting_thd_t wsrep_aborting_thd= NULL;
+mysql_mutex_t LOCK_wsrep_replaying;
+mysql_cond_t  COND_wsrep_replaying;
+mysql_mutex_t LOCK_wsrep_slave_threads;
+mysql_mutex_t LOCK_wsrep_desync;
+int wsrep_replaying= 0;
+ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
+ulong  my_bind_addr;
+
+#ifdef HAVE_PSI_INTERFACE
+PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
+  key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
+  key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
+  key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync;
+
+PSI_cond_key key_COND_wsrep_rollback, key_COND_wsrep_thd,
+  key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
+  key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
+
+static PSI_mutex_info wsrep_mutexes[]=
+{
+  { &key_LOCK_wsrep_ready, "LOCK_wsrep_ready", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_sst_thread, "wsrep_sst_thread", 0},
+  { &key_LOCK_wsrep_sst_init, "LOCK_wsrep_sst_init", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_rollback, "LOCK_wsrep_rollback", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
+  { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL}
+};
+
+static PSI_cond_info wsrep_conds[]=
+{
+  { &key_COND_wsrep_ready, "COND_wsrep_ready", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_sst, "COND_wsrep_sst", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
+  { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
+  { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
+  { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
+};
+#else
+#define mysql_mutex_register(X,Y,Z)
+#define mysql_cond_register(X,Y,Z)
+#endif
+
 my_bool wsrep_inited                   = 0; // initialized ?
 
 static const wsrep_uuid_t cluster_uuid = WSREP_UUID_UNDEFINED;
@@ -517,6 +572,29 @@ int wsrep_init()
   int rcode= -1;
   DBUG_ASSERT(wsrep_inited == 0);
 
+  if (strcmp(wsrep_start_position, WSREP_START_POSITION_ZERO))
+    wsrep_start_position_init(wsrep_start_position);
+
+  wsrep_sst_auth_init(wsrep_sst_auth);
+
+  wsrep_causal_reads_update(&global_system_variables);
+
+  mysql_mutex_register("sql", wsrep_mutexes, array_elements(wsrep_mutexes));
+  mysql_cond_register("sql", wsrep_conds, array_elements(wsrep_conds));
+
+  mysql_mutex_init(key_LOCK_wsrep_ready, &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_ready, &COND_wsrep_ready, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_sst, &LOCK_wsrep_sst, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_sst, &COND_wsrep_sst, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_sst_init, &LOCK_wsrep_sst_init, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_sst_init, &COND_wsrep_sst_init, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_rollback, &LOCK_wsrep_rollback, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_rollback, &COND_wsrep_rollback, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_replaying, &LOCK_wsrep_replaying, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
+  mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
+
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
 
@@ -710,14 +788,15 @@ int wsrep_init()
   return rcode;
 }
 
-extern int wsrep_on(void *);
-
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
 
-  wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_abort_thd,
-                      wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
+  wsrep_thr_lock_init(
+     (wsrep_thd_is_brute_force_fun)wsrep_thd_is_BF,
+     (wsrep_abort_thd_fun)wsrep_abort_thd,
+     wsrep_debug, wsrep_convert_LOCK_to_trx,
+     (wsrep_on_fun)wsrep_on);
 
   /* Skip replication start if no cluster address */
   if (!wsrep_cluster_address || strlen(wsrep_cluster_address) == 0) return;
@@ -747,6 +826,19 @@ void wsrep_deinit(bool free_options)
   {
     wsrep_sst_auth_free();
   }
+
+  mysql_mutex_destroy(&LOCK_wsrep_ready);
+  mysql_cond_destroy(&COND_wsrep_ready);
+  mysql_mutex_destroy(&LOCK_wsrep_sst);
+  mysql_cond_destroy(&COND_wsrep_sst);
+  mysql_mutex_destroy(&LOCK_wsrep_sst_init);
+  mysql_cond_destroy(&COND_wsrep_sst_init);
+  mysql_mutex_destroy(&LOCK_wsrep_rollback);
+  mysql_cond_destroy(&COND_wsrep_rollback);
+  mysql_mutex_destroy(&LOCK_wsrep_replaying);
+  mysql_cond_destroy(&COND_wsrep_replaying);
+  mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
+  mysql_mutex_destroy(&LOCK_wsrep_desync);
 }
 
 void wsrep_recover()
@@ -1102,12 +1194,9 @@ err:
 }
 
 
-bool wsrep_prepare_key_for_innodb(const uchar* cache_key,
-                                  size_t cache_key_len,
-                                  const uchar* row_id,
-                                  size_t row_id_len,
-                                  wsrep_buf_t* key,
-                                  size_t* key_len)
+bool wsrep_prepare_key(const uchar* cache_key, size_t cache_key_len,
+                       const uchar* row_id, size_t row_id_len,
+                       wsrep_buf_t* key, size_t* key_len)
 {
     if (*key_len < 3) return false;
 
@@ -1186,6 +1275,35 @@ int wsrep_to_buf_helper(
   if (!ret && wsrep_write_cache_buf(&tmp_io_cache, buf, buf_len)) ret= 1;
   close_cached_file(&tmp_io_cache);
   return ret;
+}
+
+static int
+wsrep_alter_query_string(THD *thd, String *buf)
+{
+  /* Append the "ALTER" part of the query */
+  if (buf->append(STRING_WITH_LEN("ALTER ")))
+    return 1;
+  /* Append definer */
+  append_definer(thd, buf, &(thd->lex->definer->user), &(thd->lex->definer->host));
+  /* Append the left part of thd->query after event name part */
+  if (buf->append(thd->lex->stmt_definition_begin,
+                  thd->lex->stmt_definition_end -
+                  thd->lex->stmt_definition_begin))
+    return 1;
+
+  return 0;
+}
+
+int wsrep_alter_event_query(THD *thd, uchar** buf, size_t* buf_len)
+{
+  String log_query;
+
+  if (wsrep_alter_query_string(thd, &log_query))
+  {
+    WSREP_WARN("events alter string failed: %s", thd->query());
+    return 1;
+  }
+  return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
 }
 
 #include "sql_show.h"
@@ -2007,7 +2125,7 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
     sp_returns_type(thd, retstr, sp);
   }
 
-  if (!create_string(thd, &log_query,
+  if (!show_create_sp(thd, &log_query,
                      sp->m_type,
                      (sp->m_explicit_name ? sp->m_db.str : NULL),
                      (sp->m_explicit_name ? sp->m_db.length : 0),
@@ -2027,9 +2145,9 @@ int wsrep_create_sp(THD *thd, uchar** buf, size_t* buf_len)
 }
 
 
-extern int wsrep_on(void *thd)
+extern int wsrep_on(THD *thd)
 {
-  return (int)(WSREP(((THD*)thd)));
+  return (int)(WSREP(thd));
 }
 
 
@@ -2039,9 +2157,9 @@ extern "C" bool wsrep_thd_is_wsrep_on(THD *thd)
 }
 
 
-extern "C" bool wsrep_consistency_check(void *thd)
+bool wsrep_consistency_check(THD *thd)
 {
-  return ((THD*)thd)->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
+  return thd->wsrep_consistency_check == CONSISTENCY_CHECK_RUNNING;
 }
 
 
@@ -2058,20 +2176,19 @@ extern "C" void wsrep_thd_set_query_state(
 }
 
 
-extern "C" void wsrep_thd_set_conflict_state(
-	THD *thd, enum wsrep_conflict_state state)
+void wsrep_thd_set_conflict_state(THD *thd, enum wsrep_conflict_state state)
 {
   thd->wsrep_conflict_state= state;
 }
 
 
-extern "C" enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
+enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
 {
   return thd->wsrep_exec_mode;
 }
 
 
-extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
+const char *wsrep_thd_exec_mode_str(THD *thd)
 {
   return 
     (!thd) ? "void" :
@@ -2082,13 +2199,13 @@ extern "C" const char *wsrep_thd_exec_mode_str(THD *thd)
 }
 
 
-extern "C" enum wsrep_query_state wsrep_thd_query_state(THD *thd)
+enum wsrep_query_state wsrep_thd_query_state(THD *thd)
 {
   return thd->wsrep_query_state;
 }
 
 
-extern "C" const char *wsrep_thd_query_state_str(THD *thd)
+const char *wsrep_thd_query_state_str(THD *thd)
 {
   return 
     (!thd) ? "void" : 
@@ -2100,13 +2217,13 @@ extern "C" const char *wsrep_thd_query_state_str(THD *thd)
 }
 
 
-extern "C" enum wsrep_conflict_state wsrep_thd_conflict_state(THD *thd)
+enum wsrep_conflict_state wsrep_thd_get_conflict_state(THD *thd)
 {
   return thd->wsrep_conflict_state;
 }
 
 
-extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
+const char *wsrep_thd_conflict_state_str(THD *thd)
 {
   return 
     (!thd) ? "void" :
@@ -2120,19 +2237,19 @@ extern "C" const char *wsrep_thd_conflict_state_str(THD *thd)
 }
 
 
-extern "C" wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
+wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 {
   return &thd->wsrep_ws_handle;
 }
 
 
-extern "C" void wsrep_thd_LOCK(THD *thd)
+void wsrep_thd_LOCK(THD *thd)
 {
   mysql_mutex_lock(&thd->LOCK_wsrep_thd);
 }
 
 
-extern "C" void wsrep_thd_UNLOCK(THD *thd)
+void wsrep_thd_UNLOCK(THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
 }
@@ -2149,14 +2266,7 @@ extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd)
   return thd->wsrep_rand;
 }
 
-
-extern "C" my_thread_id wsrep_thd_thread_id(THD *thd) 
-{
-  return thd->thread_id;
-}
-
-
-extern "C" wsrep_seqno_t wsrep_thd_trx_seqno(THD *thd) 
+longlong wsrep_thd_trx_seqno(THD *thd)
 {
   return (thd) ? thd->wsrep_trx_meta.gtid.seqno : WSREP_SEQNO_UNDEFINED;
 }
@@ -2168,7 +2278,7 @@ extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 }
 
 
-extern "C" char *wsrep_thd_query(THD *thd) 
+char *wsrep_thd_query(THD *thd)
 {
   return (thd) ? thd->query() : NULL;
 }
@@ -2203,30 +2313,29 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 }
 
 
-extern "C" int wsrep_thd_retry_counter(THD *thd) 
+int wsrep_thd_retry_counter(THD *thd)
 {
   return(thd->wsrep_retry_counter);
 }
 
 
 extern int
-wsrep_trx_order_before(void *thd1, void *thd2)
+wsrep_trx_order_before(THD *thd1, THD *thd2)
 {
-    if (wsrep_thd_trx_seqno((THD*)thd1) < wsrep_thd_trx_seqno((THD*)thd2)) {
+    if (wsrep_thd_trx_seqno(thd1) < wsrep_thd_trx_seqno(thd2)) {
         WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                    (long long)wsrep_thd_trx_seqno((THD*)thd1),
-                    (long long)wsrep_thd_trx_seqno((THD*)thd2));
+                    (long long)wsrep_thd_trx_seqno(thd1),
+                    (long long)wsrep_thd_trx_seqno(thd2));
         return 1;
     }
     WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno((THD*)thd1),
-                (long long)wsrep_thd_trx_seqno((THD*)thd2));
+                (long long)wsrep_thd_trx_seqno(thd1),
+                (long long)wsrep_thd_trx_seqno(thd2));
     return 0;
 }
 
 
-extern "C" int
-wsrep_trx_is_aborting(void *thd_ptr)
+int wsrep_trx_is_aborting(THD *thd_ptr)
 {
 	if (thd_ptr) {
 		if ((((THD *)thd_ptr)->wsrep_conflict_state == MUST_ABORT) ||
@@ -2235,23 +2344,6 @@ wsrep_trx_is_aborting(void *thd_ptr)
 		}
 	}
 	return 0;
-}
-
-
-my_bool wsrep_read_only_option(THD *thd, TABLE_LIST *all_tables)
-{
-  int opt_readonly_saved = opt_readonly;
-  ulong flag_saved = (ulong)(thd->security_ctx->master_access & SUPER_ACL);
-
-  opt_readonly = 0;
-  thd->security_ctx->master_access &= ~SUPER_ACL;
-
-  my_bool ret = !deny_updates_if_read_only_option(thd, all_tables);
-
-  opt_readonly = opt_readonly_saved;
-  thd->security_ctx->master_access |= flag_saved;
-
-  return ret;
 }
 
 
@@ -2387,4 +2479,73 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len)
 
   return wsrep_to_buf_helper(thd, stmt_query.c_ptr(), stmt_query.length(),
                              buf, buf_len);
+}
+
+/***** callbacks for wsrep service ************/
+
+my_bool get_wsrep_debug()
+{
+  return wsrep_debug;
+}
+
+my_bool get_wsrep_load_data_splitting()
+{
+  return wsrep_load_data_splitting;
+}
+
+long get_wsrep_protocol_version()
+{
+  return wsrep_protocol_version;
+}
+
+my_bool get_wsrep_drupal_282555_workaround()
+{
+  return wsrep_drupal_282555_workaround;
+}
+
+my_bool get_wsrep_log_conflicts()
+{
+  return wsrep_log_conflicts;
+}
+
+wsrep_t *get_wsrep()
+{
+  return wsrep;
+}
+
+my_bool get_wsrep_certify_nonPK()
+{
+  return wsrep_certify_nonPK;
+}
+
+void wsrep_lock_rollback()
+{
+  mysql_mutex_lock(&LOCK_wsrep_rollback);
+}
+
+void wsrep_unlock_rollback()
+{
+  mysql_cond_signal(&COND_wsrep_rollback);
+  mysql_mutex_unlock(&LOCK_wsrep_rollback);
+}
+
+my_bool wsrep_aborting_thd_contains(THD *thd)
+{
+  wsrep_aborting_thd_t abortees = wsrep_aborting_thd;
+  while (abortees)
+  {
+    if (abortees->aborting_thd == thd)
+      return true;
+    abortees = abortees->next;
+  }
+  return false;
+}
+
+void wsrep_aborting_thd_enqueue(THD *thd)
+{
+  wsrep_aborting_thd_t aborting = (wsrep_aborting_thd_t)
+          my_malloc(sizeof(struct wsrep_aborting_thd), MYF(0));
+  aborting->aborting_thd  = thd;
+  aborting->next          = wsrep_aborting_thd;
+  wsrep_aborting_thd      = aborting;
 }

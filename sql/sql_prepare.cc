@@ -3659,6 +3659,8 @@ reexecute:
 
       case MUST_REPLAY:
         (void)wsrep_replay_transaction(thd);
+        break;
+
       default:
         break;
     }

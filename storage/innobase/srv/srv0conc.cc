@@ -41,11 +41,8 @@ Created 2011/04/18 Sunny Bains
 #include "sync0sync.h"
 #include "trx0trx.h"
 
-#include "mysql/plugin.h"
-#ifdef WITH_WSREP
-extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
-extern my_bool wsrep_debug;
-#endif
+#include <mysql/plugin.h>
+#include <mysql/service_wsrep.h>
 
 /** Number of times a thread is allowed to enter InnoDB within the same
 SQL query after it has once got the ticket. */

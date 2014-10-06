@@ -29,6 +29,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0roll.ic"
 #endif
 
+#include <mysql/service_wsrep.h>
+
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "trx0rseg.h"

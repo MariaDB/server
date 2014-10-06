@@ -7171,9 +7171,7 @@ alter:
             Lex->event_parse_data->identifier= $5;
 
             Lex->sql_command= SQLCOM_ALTER_EVENT;
-#ifdef WITH_WSREP
             Lex->stmt_definition_begin= $3;
-#endif
           }
           ev_alter_on_schedule_completion
           opt_ev_rename_to
@@ -7191,9 +7189,7 @@ alter:
               can overwrite it
             */
             Lex->sql_command= SQLCOM_ALTER_EVENT;
-#ifdef WITH_WSREP
             Lex->stmt_definition_end= (char*)YYLIP->get_cpp_ptr();
-#endif
           }
         | ALTER TABLESPACE alter_tablespace_info
           {

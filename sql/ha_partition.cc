@@ -388,15 +388,6 @@ const char *ha_partition::table_type() const
 }
 
 
-#if defined(WITH_WSREP) && !defined(EMBEDDED_LIBRARY)
-int ha_partition::wsrep_db_type() const
-{ 
-  // we can do this since we only support a single engine type
-  return partition_ht()->db_type;
-}
-#endif /* WITH_WSREP && !EMBEDDED_LIBRARY */
-
-
 /*
   Destructor method
 
@@ -4953,7 +4944,6 @@ int ha_partition::rnd_next(uchar *buf)
 end:
   m_part_spec.start_part= NO_CURRENT_PART_ID;
 end_dont_reset_start_part:
-  table->status= STATUS_NOT_FOUND;
   DBUG_RETURN(result);
 }
 
@@ -5857,7 +5847,6 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
       key not found.
     */
     DBUG_PRINT("info", ("scan with no partition to scan"));
-    table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
   if (m_part_spec.start_part == m_part_spec.end_part)
@@ -5882,7 +5871,6 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     if (start_part == MY_BIT_NONE)
     {
       DBUG_PRINT("info", ("scan with no partition to scan"));
-      table->status= STATUS_NOT_FOUND;
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
     if (start_part > m_part_spec.start_part)

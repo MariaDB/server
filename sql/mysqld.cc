@@ -740,27 +740,6 @@ mysql_cond_t COND_server_started;
 int mysqld_server_started=0, mysqld_server_initialized= 0;
 File_parser_dummy_hook file_parser_dummy_hook;
 
-#ifdef WITH_WSREP
-mysql_mutex_t LOCK_wsrep_ready;
-mysql_cond_t  COND_wsrep_ready;
-mysql_mutex_t LOCK_wsrep_sst;
-mysql_cond_t  COND_wsrep_sst;
-mysql_mutex_t LOCK_wsrep_sst_init;
-mysql_cond_t  COND_wsrep_sst_init;
-mysql_mutex_t LOCK_wsrep_rollback;
-mysql_cond_t  COND_wsrep_rollback;
-wsrep_aborting_thd_t wsrep_aborting_thd= NULL;
-mysql_mutex_t LOCK_wsrep_replaying;
-mysql_cond_t  COND_wsrep_replaying;
-mysql_mutex_t LOCK_wsrep_slave_threads;
-mysql_mutex_t LOCK_wsrep_desync;
-int wsrep_replaying= 0;
-ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
-ulong  my_bind_addr;
-const char *wsrep_binlog_format_names[]=
-                                   {"MIXED", "STATEMENT", "ROW", "NONE", NullS};
-#endif /* WITH_WSREP */
-
 /* replication parameters, if master_host is not NULL, we are a slave */
 uint report_port= 0;
 ulong master_retry_count=0;
@@ -898,12 +877,6 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_error_messages, key_LOG_INFO_lock,
   key_LOCK_thread_count, key_LOCK_thread_cache,
   key_PARTITION_LOCK_auto_inc;
-#ifdef WITH_WSREP
-PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd, 
-  key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst, 
-  key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
-  key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync;
-#endif
 PSI_mutex_key key_RELAYLOG_LOCK_index;
 PSI_mutex_key key_LOCK_slave_state, key_LOCK_binlog_state,
   key_LOCK_rpl_thread, key_LOCK_rpl_thread_pool, key_LOCK_parallel_entry;
@@ -978,18 +951,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
-#ifdef WITH_WSREP
-  { &key_LOCK_wsrep_ready, "LOCK_wsrep_ready", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_sst_thread, "wsrep_sst_thread", 0},
-  { &key_LOCK_wsrep_sst_init, "LOCK_wsrep_sst_init", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_sst, "LOCK_wsrep_sst", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_rollback, "LOCK_wsrep_rollback", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
-  { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
-#endif
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
   { &key_PARTITION_LOCK_auto_inc, "HA_DATA_PARTITION::LOCK_auto_inc", 0},
@@ -1036,11 +997,6 @@ PSI_cond_key key_BINLOG_COND_xid_list, key_BINLOG_update_cond,
   key_TABLE_SHARE_cond, key_user_level_lock_cond,
   key_COND_thread_count, key_COND_thread_cache, key_COND_flush_thread_cache,
   key_BINLOG_COND_queue_busy;
-#ifdef WITH_WSREP
-PSI_cond_key key_COND_wsrep_rollback, key_COND_wsrep_thd, 
-  key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
-  key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
-#endif /* WITH_WSREP */
 PSI_cond_key key_RELAYLOG_update_cond, key_COND_wakeup_ready,
   key_COND_wait_commit;
 PSI_cond_key key_RELAYLOG_COND_queue_busy;
@@ -1090,15 +1046,6 @@ static PSI_cond_info all_server_conds[]=
   { &key_user_level_lock_cond, "User_level_lock::cond", 0},
   { &key_COND_thread_count, "COND_thread_count", PSI_FLAG_GLOBAL},
   { &key_COND_thread_cache, "COND_thread_cache", PSI_FLAG_GLOBAL},
-#ifdef WITH_WSREP
-  { &key_COND_wsrep_ready, "COND_wsrep_ready", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_sst, "COND_wsrep_sst", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
-  { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
-  { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL},
-#endif
   { &key_COND_flush_thread_cache, "COND_flush_thread_cache", PSI_FLAG_GLOBAL},
   { &key_COND_rpl_thread, "COND_rpl_thread", 0},
   { &key_COND_rpl_thread_queue, "COND_rpl_thread_queue", 0},
@@ -1947,17 +1894,13 @@ static void __cdecl kill_server(int sig_ptr)
   }
 #endif
 
-#ifdef WITH_WSREP
   if (WSREP_ON)
     wsrep_stop_replication(NULL);
-#endif
 
   close_connections();
 
-#ifdef WITH_WSREP
   if (wsrep_inited == 1)
     wsrep_deinit(true);
-#endif
 
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
@@ -2064,10 +2007,9 @@ extern "C" void unireg_abort(int exit_code)
     */
     wsrep_close_client_connections(FALSE);
     shutdown_in_progress= 1;
-    THD *thd(0);
     wsrep->disconnect(wsrep);
     WSREP_INFO("Service disconnected.");
-    wsrep_close_threads(thd); /* this won't close all threads */
+    wsrep_close_threads(NULL); /* this won't close all threads */
     sleep(1); /* so give some time to exit for those which can */
     WSREP_INFO("Some threads may fail to exit.");
 
@@ -2296,20 +2238,6 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_thread_count);
   mysql_cond_destroy(&COND_thread_cache);
   mysql_cond_destroy(&COND_flush_thread_cache);
-#ifdef WITH_WSREP
-  (void) mysql_mutex_destroy(&LOCK_wsrep_ready);
-  (void) mysql_cond_destroy(&COND_wsrep_ready);
-  (void) mysql_mutex_destroy(&LOCK_wsrep_sst);
-  (void) mysql_cond_destroy(&COND_wsrep_sst);
-  (void) mysql_mutex_destroy(&LOCK_wsrep_sst_init);
-  (void) mysql_cond_destroy(&COND_wsrep_sst_init);
-  (void) mysql_mutex_destroy(&LOCK_wsrep_rollback);
-  (void) mysql_cond_destroy(&COND_wsrep_rollback);
-  (void) mysql_mutex_destroy(&LOCK_wsrep_replaying);
-  (void) mysql_cond_destroy(&COND_wsrep_replaying);
-  (void) mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
-  (void) mysql_mutex_destroy(&LOCK_wsrep_desync);
-#endif
   mysql_mutex_destroy(&LOCK_server_started);
   mysql_cond_destroy(&COND_server_started);
   mysql_mutex_destroy(&LOCK_prepare_ordered);
@@ -2323,7 +2251,12 @@ static void clean_up_mutexes()
 ** Init IP and UNIX socket
 ****************************************************************************/
 
-#ifndef EMBEDDED_LIBRARY
+#ifdef EMBEDDED_LIBRARY
+static void set_ports()
+{
+}
+
+#else
 static void set_ports()
 {
   char	*env;
@@ -2625,10 +2558,10 @@ static MYSQL_SOCKET activate_tcp_port(uint port)
                     socket_errno);
     unireg_abort(1);
   }
-#if defined(WITH_WSREP) && defined(HAVE_FCNTL) && defined(FD_CLOEXEC)
-  if (WSREP_ON)
-    (void) fcntl(mysql_socket_getfd(ip_sock), F_SETFD, FD_CLOEXEC);
-#endif /* WITH_WSREP */
+
+#ifdef FD_CLOEXEC
+  (void) fcntl(mysql_socket_getfd(ip_sock), F_SETFD, FD_CLOEXEC);
+#endif
 
   DBUG_RETURN(ip_sock);
 }
@@ -2756,10 +2689,9 @@ static void network_init(void)
     if (mysql_socket_listen(unix_sock,(int) back_log) < 0)
       sql_print_warning("listen() on Unix socket failed with error %d",
 		      socket_errno);
-#if defined(WITH_WSREP) && defined(HAVE_FCNTL) && defined(FD_CLOEXEC)
-    if (WSREP_ON)
-      (void) fcntl(mysql_socket_getfd(unix_sock), F_SETFD, FD_CLOEXEC);
-#endif /* WITH_WSREP */
+#ifdef FD_CLOEXEC
+    (void) fcntl(mysql_socket_getfd(unix_sock), F_SETFD, FD_CLOEXEC);
+#endif
   }
 #endif
   DBUG_PRINT("info",("server started"));
@@ -3014,15 +2946,13 @@ static bool cache_thread()
 bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
 {
   DBUG_ENTER("one_thread_per_connection_end");
-#ifdef WITH_WSREP
-  const bool wsrep_applier(thd->wsrep_applier);
-#endif
+  const bool wsrep_applier= IF_WSREP(thd->wsrep_applier, false);
 
   unlink_thd(thd);
   /* Mark that current_thd is not valid anymore */
   set_current_thd(0);
 
-  if (put_in_cache && cache_thread() && IF_WSREP(!wsrep_applier, 1))
+  if (put_in_cache && cache_thread() && !wsrep_applier)
     DBUG_RETURN(0);                             // Thread is reused
 
   /*
@@ -4147,7 +4077,7 @@ static int init_common_variables()
     opt_log_basename= glob_hostname;
 
 #ifdef WITH_WSREP
-  if (0 == wsrep_node_name || 0 == wsrep_node_name[0])
+  if (wsrep_node_name == 0 || wsrep_node_name[0] == 0)
   {
     my_free((void *)wsrep_node_name);
     wsrep_node_name= my_strdup(glob_hostname, MYF(MY_WME));
@@ -4213,15 +4143,6 @@ static int init_common_variables()
   compile_time_assert(sizeof(com_status_vars)/sizeof(com_status_vars[0]) - 1 ==
                      SQLCOM_END + 8);
 #endif
-
-#ifdef WITH_WSREP
-  /*
-    This is a protection against mutually incompatible option values.
-    Note WSREP_ON == global_system_variables.wsrep_on
-  */
-  if (WSREP_ON && wsrep_check_opts (remaining_argc, remaining_argv))
-    global_system_variables.wsrep_on= 0;
-#endif /* WITH_WSREP */
 
   if (get_options(&remaining_argc, &remaining_argv))
     return 1;
@@ -4618,28 +4539,6 @@ static int init_thread_environment()
   rpl_init_gtid_waiting();
 #endif
 
-#ifdef WITH_WSREP
-  mysql_mutex_init(key_LOCK_wsrep_ready,
-                   &LOCK_wsrep_ready, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_ready, &COND_wsrep_ready, NULL);
-  mysql_mutex_init(key_LOCK_wsrep_sst,
-                   &LOCK_wsrep_sst, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_sst, &COND_wsrep_sst, NULL);
-  mysql_mutex_init(key_LOCK_wsrep_sst_init,
-                   &LOCK_wsrep_sst_init, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_sst_init, &COND_wsrep_sst_init, NULL);
-  mysql_mutex_init(key_LOCK_wsrep_rollback,
-                   &LOCK_wsrep_rollback, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_rollback, &COND_wsrep_rollback, NULL);
-  mysql_mutex_init(key_LOCK_wsrep_replaying,
-                   &LOCK_wsrep_replaying, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
-  mysql_mutex_init(key_LOCK_wsrep_slave_threads,
-                   &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_LOCK_wsrep_desync,
-                   &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
-#endif
-
   DBUG_RETURN(0);
 }
 
@@ -4935,12 +4834,12 @@ static int init_server_components()
     unireg_abort(1);
 
   /* need to configure logging before initializing storage engines */
-  if (!opt_bin_log_used)
+  if (!opt_bin_log_used && !WSREP_ON)
   {
-    if (IF_WSREP(!WSREP_ON,1) && opt_log_slave_updates)
+    if (opt_log_slave_updates)
       sql_print_warning("You need to use --log-bin to make "
                         "--log-slave-updates work.");
-    if (IF_WSREP(!WSREP_ON, 1) && binlog_format_used)
+    if (binlog_format_used)
       sql_print_warning("You need to use --log-bin to make "
                         "--binlog-format work.");
   }
@@ -5012,10 +4911,9 @@ a file name for --log-bin-index option", opt_binlog_index_name);
                         opt_log_basename, ln);
     }
     if (ln == buf)
-    {
       opt_bin_logname= my_once_strdup(buf, MYF(MY_WME));
-    }
-#ifdef WITH_WSREP /* WSREP BEFORE SE */
+  }
+
     /*
       Wsrep initialization must happen at this point, because:
       - opt_bin_logname must be known when starting replication
@@ -5023,19 +4921,19 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       - SST may modify binlog index file, so it must be opened
         after SST has happened
      */
-  }
-  if (WSREP_ON && !wsrep_recovery)
+  if (WSREP_ON && !wsrep_recovery) /* WSREP BEFORE SE */
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
       wsrep_provider_init(WSREP_NONE);
-      if (wsrep_init()) unireg_abort(1);
+      if (wsrep_init())
+        unireg_abort(1);
     }
     else // full wsrep initialization
     {
       // add basedir/bin to PATH to resolve wsrep script names
-      char* const tmp_path((char*)alloca(strlen(mysql_home) +
-                                           strlen("/bin") + 1));
+      char* const tmp_path= (char*)my_alloca(strlen(mysql_home) +
+                                             strlen("/bin") + 1);
       if (tmp_path)
       {
         strcpy(tmp_path, mysql_home);
@@ -5046,6 +4944,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       {
         WSREP_ERROR("Could not append %s/bin to PATH", mysql_home);
       }
+      my_afree(tmp_path);
 
       if (wsrep_before_SE())
       {
@@ -5055,27 +4954,14 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       }
     }
   }
+
   if (opt_bin_log)
   {
-    /*
-      Variable ln is not defined at this scope. We use opt_bin_logname instead.
-      It should be the same as ln since
-      - mysql_bin_log.generate_name() returns first argument if new log name
-        is not generated
-      - if new log name is generated, return value is assigned to ln and copied
-        to opt_bin_logname above
-     */
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
     {
       unireg_abort(1);
     }
-#else
-    if (mysql_bin_log.open_index_file(opt_binlog_index_name, ln, TRUE))
-    {
-      unireg_abort(1);
-    }
-#endif /* WITH_WSREP */
   }
 
   /* call ha_init_key_cache() on all key caches to init them */
@@ -5096,6 +4982,11 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     unireg_abort(1);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
+
+#ifdef WITH_WSREP
+  if (WSREP_ON && wsrep_check_opts())
+    global_system_variables.wsrep_on= 0;
+#endif
 
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
@@ -5208,16 +5099,11 @@ a file name for --log-bin-index option", opt_binlog_index_name);
 
   tc_log= get_tc_log_implementation();
 
-#ifdef WITH_WSREP
-  if (WSREP_ON && tc_log == &tc_log_mmap)
-    tc_log= &tc_log_dummy;
-
   WSREP_DEBUG("Initial TC log open: %s",
               (tc_log == &mysql_bin_log) ? "binlog" :
               (tc_log == &tc_log_mmap) ? "mmap" :
               (tc_log == &tc_log_dummy) ? "dummy" : "unknown"
               );
-#endif
 
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
   {
@@ -5476,10 +5362,9 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 #endif
-#ifdef WITH_WSREP
+
   if (WSREP_ON)
     wsrep_filter_new_cluster (&argc, argv);
-#endif /* WITH_WSREP */
 
   orig_argc= argc;
   orig_argv= argv;
@@ -5696,14 +5581,12 @@ int mysqld_main(int argc, char **argv)
   }
 #endif
 
-#ifdef WITH_WSREP /* WSREP AFTER SE */
   if (WSREP_ON && wsrep_recovery)
   {
     select_thread_in_use= 0;
     wsrep_recover();
     unireg_abort(0);
   }
-#endif /* WITH_WSREP */
 
   /*
     init signals & alarm
@@ -5753,7 +5636,6 @@ int mysqld_main(int argc, char **argv)
   if (Events::init(opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
-#ifdef WITH_WSREP /* WSREP AFTER SE */
   if (WSREP_ON)
   {
     if (opt_bootstrap)
@@ -5780,7 +5662,9 @@ int mysqld_main(int argc, char **argv)
       wsrep_create_appliers(wsrep_slave_threads - 1);
     }
   }
-#endif /* WITH_WSREP */
+  else
+    wsrep_init_startup (false);
+
  if (opt_bootstrap)
   {
     select_thread_in_use= 0;                    // Allow 'kill' to work
@@ -6523,9 +6407,9 @@ void handle_connections_sockets()
 	sleep(1);				// Give other threads some time
       continue;
     }
-#if defined(WITH_WSREP) && defined(HAVE_FCNTL) && defined(FD_CLOEXEC)
+#ifdef FD_CLOEXEC
     (void) fcntl(mysql_socket_getfd(new_sock), F_SETFD, FD_CLOEXEC);
-#endif /* WITH_WSREP */
+#endif
 
 #ifdef HAVE_LIBWRAP
     {
@@ -8300,18 +8184,6 @@ SHOW_VAR status_vars[]= {
   {"Uptime_since_flush_status",(char*) &show_flushstatustime,   SHOW_SIMPLE_FUNC},
 #endif
 #ifdef WITH_WSREP
-  {"wsrep_connected",          (char*) &wsrep_connected,         SHOW_BOOL},
-  {"wsrep_ready",              (char*) &wsrep_ready,             SHOW_BOOL},
-  {"wsrep_cluster_state_uuid", (char*) &wsrep_cluster_state_uuid,SHOW_CHAR_PTR},
-  {"wsrep_cluster_conf_id",    (char*) &wsrep_cluster_conf_id,   SHOW_LONGLONG},
-  {"wsrep_cluster_status",     (char*) &wsrep_cluster_status,    SHOW_CHAR_PTR},
-  {"wsrep_cluster_size",       (char*) &wsrep_cluster_size,      SHOW_LONG_NOFLUSH},
-  {"wsrep_local_index",        (char*) &wsrep_local_index,       SHOW_LONG_NOFLUSH},
-  {"wsrep_local_bf_aborts",    (char*) &wsrep_show_bf_aborts,    SHOW_SIMPLE_FUNC},
-  {"wsrep_provider_name",      (char*) &wsrep_provider_name,     SHOW_CHAR_PTR},
-  {"wsrep_provider_version",   (char*) &wsrep_provider_version,  SHOW_CHAR_PTR},
-  {"wsrep_provider_vendor",    (char*) &wsrep_provider_vendor,   SHOW_CHAR_PTR},
-  {"wsrep_thread_count",       (char*) &wsrep_running_threads,   SHOW_LONG_NOFLUSH},
   {"wsrep",                    (char*) &wsrep_show_status,       SHOW_FUNC},
 #endif
   {NullS, NullS, SHOW_LONG}
@@ -8662,10 +8534,10 @@ static int mysql_init_variables(void)
     tmpenv = DEFAULT_MYSQL_HOME;
   strmake_buf(mysql_home, tmpenv);
 #endif
-#ifdef WITH_WSREP
-  if (WSREP_ON && wsrep_init_vars())
+
+  if (wsrep_init_vars())
     return 1;
-#endif
+
   return 0;
 }
 
@@ -8913,14 +8785,6 @@ mysqld_get_one_option(int optid,
   case OPT_LOWER_CASE_TABLE_NAMES:
     lower_case_table_names_used= 1;
     break;
-#ifdef WITH_WSREP
-  case OPT_WSREP_START_POSITION:
-    wsrep_start_position_init (argument);
-    break;
-  case OPT_WSREP_SST_AUTH:
-    wsrep_sst_auth_init (argument);
-    break;
-#endif
 #if defined(ENABLED_DEBUG_SYNC)
   case OPT_DEBUG_SYNC_TIMEOUT:
     /*
@@ -9354,8 +9218,8 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
       (Yes, this is a hack, but it's required as the definition of
       max_relay_log_size allows it to be set to 0).
     */
-    max_relay_log_size_var= intern_find_sys_var("max_relay_log_size", 0);
-    max_binlog_size_var= intern_find_sys_var("max_binlog_size", 0);
+    max_relay_log_size_var= intern_find_sys_var(STRING_WITH_LEN("max_relay_log_size"));
+    max_binlog_size_var= intern_find_sys_var(STRING_WITH_LEN("max_binlog_size"));
     if (max_binlog_size_var && max_relay_log_size_var)
     {
       max_relay_log_size_var->option.min_value=

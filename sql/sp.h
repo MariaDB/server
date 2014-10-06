@@ -218,7 +218,7 @@ void sp_returns_type(THD *thd,
                      String &result,
                      sp_head *sp);
 
-bool create_string(THD *thd, String *buf,
+bool show_create_sp(THD *thd, String *buf,
               stored_procedure_type type,
               const char *db, ulong dblen,
               const char *name, ulong namelen,

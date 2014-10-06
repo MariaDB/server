@@ -92,9 +92,7 @@ fi
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$WSREP_LOG_DIR" ]; then
-    SCRIPT_DIR="$(cd $(dirname "$0"); pwd -P)"
-    WSREP_LOG_DIR=$($SCRIPT_DIR/my_print_defaults --defaults-file \
-                   "$WSREP_SST_OPT_CONF" mysqld server mysqld-10.0 mariadb mariadb-10.0 \
+    WSREP_LOG_DIR=$($my_print_defaults --mysqld \
                     | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
                     | cut -b 29- )
 fi
@@ -261,11 +259,18 @@ then
 
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
+    if [ -n "${MYSQL_TMP_DIR:-}" ] ; then
+      SILENT="log file = $MYSQL_TMP_DIR/rsynd.log"
+    else
+      SILENT=""
+    fi
+
 cat << EOF > "$RSYNC_CONF"
 pid file = $RSYNC_PID
 use chroot = no
 read only = no
 timeout = 300
+$SILENT
 [$MODULE]
     path = $WSREP_SST_OPT_DATA
 [$MODULE-log_dir]
