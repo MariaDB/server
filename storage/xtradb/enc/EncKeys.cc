@@ -93,7 +93,7 @@ bool EncKeys::initKeys(const char *name, const char *url, const int initType, co
 		else                                                                  return true;
 	}
 	else if (KEYINITTYPE_SERVER == initType) {
-		printf(errorNotImplemented);
+		fprintf(stderr, errorNotImplemented);
 	}
 	return NO_ERROR_KEY_FILE_PARSE_OK == ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
 }
@@ -118,7 +118,7 @@ keyentry *EncKeys::getKeys(int id) {
 	if (KEY_MIN <= id && KEY_MAX >= id && (oneKey = &keys[id - 1])->iv)
 		return oneKey;
 	else {
-		printf(errorNoKeyId, id);
+		fprintf(stderr, errorNoKeyId, id);
 		return NULL;
 	}
 }
@@ -142,28 +142,28 @@ int EncKeys::parseFile(const char* filename, const uint maxKeyId, const char *se
 		case NO_ERROR_PARSE_OK:
 			keys[oneKey->id - 1] = *oneKey;
 			countKeys++;
-			printf("Line: %u --> ", keyLineInKeyFile);	printKeyEntry(oneKey->id);
+			fprintf(stderr, "Line: %u --> ", keyLineInKeyFile);	printKeyEntry(oneKey->id);
 			break;
 		case ERROR_ID_TOO_BIG:
-			printf(errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
-			printf(" --> %s\n", line);
+			fprintf(stderr, errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
+			fprintf(stderr, " --> %s\n", line);
 			errorCode = ERROR_KEY_FILE_EXCEEDS_MAX_NUMBERS_OF_KEYS;
 			break;
 		case ERROR_NOINITIALIZEDKEY:
-			printf(errorNoInitializedKey);
-			printf(" --> %s\n", line);
+			fprintf(stderr, errorNoInitializedKey);
+			fprintf(stderr, " --> %s\n", line);
 			errorCode = ERROR_KEY_FILE_PARSE_NULL;
 			break;
 		case ERROR_WRONG_NUMBER_OF_MATCHES:
-			printf(errorInMatches, keyLineInKeyFile);
-			printf(" --> %s\n", line);
+			fprintf(stderr, errorInMatches, keyLineInKeyFile);
+			fprintf(stderr, " --> %s\n", line);
 			errorCode = ERROR_KEY_FILE_PARSE_NULL;
 			break;
 		case NO_ERROR_KEY_GREATER_THAN_ASKED:
-			printf("No asked key in line %u: %s\n", keyLineInKeyFile, line);
+			fprintf(stderr, "No asked key in line %u: %s\n", keyLineInKeyFile, line);
 			break;
 		case NO_ERROR_ISCOMMENT:
-			printf("Is comment in line %u: %s\n", keyLineInKeyFile, line);
+			fprintf(stderr, "Is comment in line %u: %s\n", keyLineInKeyFile, line);
 		default:
 			break;
 		}
@@ -246,12 +246,12 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	}
 	long file_size = ftell(fp);   // get the file size
 	if (MAX_KEY_FILE_SIZE < file_size) {
-		printf(errorExceedKeyFileSize, filename, MAX_KEY_FILE_SIZE);
+		fprintf(stderr, errorExceedKeyFileSize, filename, MAX_KEY_FILE_SIZE);
 		*errorCode =  ERROR_KEY_FILE_TOO_BIG;
 		return NULL;
 	}
 	else if (-1L == file_size) {
-		printf(errorFileSize, filename);
+		fprintf(stderr, errorFileSize, filename);
 		*errorCode = ERROR_READING_FILE;
 		return NULL;
 	}
@@ -278,7 +278,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
 			delete[] buffer;	buffer = NULL;
-			printf(errorFalseFileKey, secret);
+			fprintf(stderr, errorFalseFileKey, secret);
 		}
 		else {
 			memcpy(buffer, decrypted, d_size);
@@ -305,6 +305,6 @@ bool EncKeys::isComment(const char *line) {
 void EncKeys::printKeyEntry( uint id)
 {
 	keyentry *entry = getKeys(id);
-	if( NULL == entry)	printf("No such keyID = %u\n", id);
-	else	printf("Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+	if( NULL == entry)	fprintf(stderr, "No such keyID = %u\n", id);
+	else	fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 }
