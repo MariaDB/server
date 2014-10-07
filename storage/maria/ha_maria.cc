@@ -24,7 +24,7 @@
 #include <mysql/plugin.h>
 #include <m_ctype.h>
 #include <my_dir.h>
-#include <myisampack.h>
+#include <myisampack.h>qu
 #include <my_bit.h>
 #include "ha_maria.h"
 #include "trnman_public.h"
@@ -3562,7 +3562,9 @@ my_bool ha_maria::register_query_cache_table(THD *thd, char *table_name,
   ulonglong actual_data_file_length;
   ulonglong current_data_file_length;
   DBUG_ENTER("ha_maria::register_query_cache_table");
-
+  
+  if (file->s->data_file_type==ROW_TYPE_PAGE) 
+    DBUG_RETURN(FALSE); /* TODO: allow PAGE query cache - MDEV-6817 */
   /*
     No call back function is needed to determine if a cached statement
     is valid or not.
