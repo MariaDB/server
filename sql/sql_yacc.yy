@@ -1304,6 +1304,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  MAX_SIZE_SYM
 %token  MAX_SYM                       /* SQL-2003-N */
 %token  MAX_UPDATES_PER_HOUR
+%token  MAX_STATEMENT_TIME_SYM
 %token  MAX_USER_CONNECTIONS_SYM
 %token  MAX_VALUE_SYM                 /* SQL-2003-N */
 %token  MEDIUMBLOB
@@ -14266,6 +14267,7 @@ keyword_sp:
         | MAX_CONNECTIONS_PER_HOUR {}
         | MAX_QUERIES_PER_HOUR     {}
         | MAX_SIZE_SYM             {}
+        | MAX_STATEMENT_TIME_SYM   {}
         | MAX_UPDATES_PER_HOUR     {}
         | MAX_USER_CONNECTIONS_SYM {}
         | MEDIUM_SYM               {}
@@ -15619,6 +15621,12 @@ grant_option:
             LEX *lex=Lex;
             lex->mqh.user_conn= $2;
             lex->mqh.specified_limits|= USER_RESOURCES::USER_CONNECTIONS;
+          }
+        | MAX_STATEMENT_TIME_SYM NUM_literal
+          {
+            LEX *lex=Lex;
+            lex->mqh.max_statement_time= $2->val_real();
+            lex->mqh.specified_limits|= USER_RESOURCES::MAX_STATEMENT_TIME;
           }
         ;
 

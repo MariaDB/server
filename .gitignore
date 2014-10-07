@@ -75,6 +75,7 @@ mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var/
 mysys/thr_lock
+mysys/thr_timer
 packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris

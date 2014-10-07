@@ -37,6 +37,7 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
+#include "thr_timer.h"
 #include <mysql/psi/mysql_stage.h>
 #include <mysql/psi/mysql_statement.h>
 #include <mysql/psi/mysql_idle.h>
@@ -449,17 +450,19 @@ enum killed_state
   */
   ABORT_QUERY= 6,
   ABORT_QUERY_HARD= 7,
+  KILL_TIMEOUT= 8,
+  KILL_TIMEOUT_HARD= 9,
   /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 8,
-  KILL_CONNECTION_HARD= 9,
-  KILL_SYSTEM_THREAD= 10,
-  KILL_SYSTEM_THREAD_HARD= 11,
-  KILL_SERVER= 12,
-  KILL_SERVER_HARD= 13
+  KILL_CONNECTION= 10,
+  KILL_CONNECTION_HARD= 11,
+  KILL_SYSTEM_THREAD= 12,
+  KILL_SYSTEM_THREAD_HARD= 13,
+  KILL_SERVER= 14,
+  KILL_SERVER_HARD= 15
 };
 
 extern int killed_errno(killed_state killed);
@@ -508,6 +511,7 @@ typedef struct system_variables
   ulonglong max_heap_table_size;
   ulonglong tmp_table_size;
   ulonglong long_query_time;
+  ulonglong max_statement_time;
   ulonglong optimizer_switch;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
@@ -644,8 +648,7 @@ typedef struct system_variables
   my_bool wsrep_causal_reads;
   uint wsrep_sync_wait;
   ulong wsrep_retry_autocommit;
-
-  double long_query_time_double;
+  double long_query_time_double, max_statement_time_double;
 
   my_bool pseudo_slave_mode;
 
@@ -734,6 +737,7 @@ typedef struct system_status_var
   ulong empty_queries;
   ulong access_denied_errors;
   ulong lost_connections;
+  ulong max_statement_time_exceeded;
   /*
     Number of statements sent from the client
   */
@@ -3779,6 +3783,34 @@ public:
   void*                     wsrep_apply_format;
   char                      wsrep_info[128]; /* string for dynamic proc info */
 #endif /* WITH_WSREP */
+
+  /* Handling of timeouts for commands */
+  thr_timer_t query_timer;
+public:
+  void set_query_timer()
+  {
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Don't start a query timer if
+      - If timeouts are not set
+      - if we are in a stored procedure or sub statement
+      - If this is a slave thread
+      - If we already have set a timeout (happens when running prepared
+        statements that calls mysql_execute_command())
+    */
+    if (!variables.max_statement_time || spcont  || in_sub_stmt ||
+        slave_thread || query_timer.expired == 0)
+      return;
+    thr_timer_settime(&query_timer, variables.max_statement_time);
+#endif
+  }
+  void reset_query_timer()
+  {
+#ifndef EMBEDDED_LIBRARY
+    if (!query_timer.expired)
+      thr_timer_end(&query_timer);
+#endif
+  }
 };
 
 

@@ -473,6 +473,7 @@ inline bool unexpected_error_code(int unexpected_error)
   case ER_NET_READ_ERROR:
   case ER_NET_ERROR_ON_WRITE:
   case ER_QUERY_INTERRUPTED:
+  case ER_STATEMENT_TIMEOUT:
   case ER_CONNECTION_KILLED:
   case ER_SERVER_SHUTDOWN:
   case ER_NEW_ABORTING_CONNECTION:

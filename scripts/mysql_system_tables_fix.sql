@@ -632,6 +632,7 @@ ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
+ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL, MODIFY authentication_string TEXT NOT NULL;
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
 --  we want password_expired column to have collation utf8_general_ci.

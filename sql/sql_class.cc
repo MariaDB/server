@@ -861,6 +861,23 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 }
 
 
+/**
+   Send timeout to thread.
+
+   Note that this is always safe as the thread will always remove it's
+   timeouts at end of query (and thus before THD is destroyed)
+*/
+
+extern "C" void thd_kill_timeout(THD* thd)
+{
+  thd->status_var.max_statement_time_exceeded++;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  /* Kill queries that can't cause data corruptions */
+  thd->awake(KILL_TIMEOUT);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+}
+
+
 THD::THD(bool is_wsrep_applier)
    :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
               /* statement id */ 0),
@@ -1057,6 +1074,8 @@ THD::THD(bool is_wsrep_applier)
   protocol= &protocol_text;			// Default protocol
   protocol_text.init(this);
   protocol_binary.init(this);
+
+  thr_timer_init(&query_timer, (void (*)(void*)) thd_kill_timeout, this);
 
   tablespace_op=FALSE;
 
@@ -1373,6 +1392,7 @@ extern "C"   THD *_current_thd_noinline(void)
   return my_pthread_getspecific_ptr(THD*,THR_THD);
 }
 #endif
+
 /*
   Init common variables that has to be reset on start and on change_user
 */
@@ -1779,6 +1799,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   This is normally called from another thread's THD object.
 
   @note Do always call this while holding LOCK_thd_data.
+        NOT_KILLED is used to awake a thread for a slave
 */
 
 void THD::awake(killed_state state_to_set)
@@ -1789,6 +1810,13 @@ void THD::awake(killed_state state_to_set)
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
   print_aborted_warning(3, "KILLED");
+
+  /*
+    Don't degrade killed state, for example from a KILL_CONNECTION to
+    STATEMENT TIMEOUT
+  */
+  if (killed >= KILL_CONNECTION)
+    state_to_set= killed;
 
   /* Set the 'killed' flag of 'this', which is the target THD object. */
   killed= state_to_set;
@@ -1821,6 +1849,7 @@ void THD::awake(killed_state state_to_set)
     mysql_mutex_lock(&mysys_var->mutex);
     if (!system_thread)		// Don't abort locks
       mysys_var->abort=1;
+
     /*
       This broadcast could be up in the air if the victim thread
       exits the cond in the time between read and broadcast, but that is
@@ -1989,6 +2018,9 @@ int killed_errno(killed_state killed)
   case KILL_QUERY:
   case KILL_QUERY_HARD:
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
+  case KILL_TIMEOUT:
+  case KILL_TIMEOUT_HARD:
+    DBUG_RETURN(ER_STATEMENT_TIMEOUT);
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);

@@ -1176,6 +1176,29 @@ static Sys_var_double Sys_long_query_time(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_cached_long_query_time));
 
+
+static bool update_cached_max_statement_time(sys_var *self, THD *thd,
+                                         enum_var_type type)
+{
+  if (type == OPT_SESSION)
+    thd->variables.max_statement_time=
+      double2ulonglong(thd->variables.max_statement_time_double * 1e6);
+  else
+    global_system_variables.max_statement_time=
+      double2ulonglong(global_system_variables.max_statement_time_double * 1e6);
+  return false;
+}
+
+static Sys_var_double Sys_max_statement_time(
+       "max_statement_time",
+       "A SELECT query that have taken more than max_statement_time seconds "
+       "will be aborted. The argument will be treated as a decimal value "
+       "with microsecond precision.  A value of 0 (default) means no timeout",
+       SESSION_VAR(max_statement_time_double),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_cached_max_statement_time));
+
 static bool fix_low_prio_updates(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type == OPT_SESSION)

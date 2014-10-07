@@ -2697,6 +2697,9 @@ mysql_execute_command(THD *thd)
       goto error;
   }
 
+  /* Start timeouts */
+  thd->set_query_timer();
+
   switch (lex->sql_command) {
 
   case SQLCOM_SHOW_EVENTS:
@@ -5492,6 +5495,7 @@ error:
 
 finish:
 
+  thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
                thd->in_multi_stmt_transaction_mode());
 

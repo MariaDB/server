@@ -25,6 +25,7 @@ DENIED_CONNECTIONS	bigint(21)	NO		0
 LOST_CONNECTIONS	bigint(21)	NO		0	
 ACCESS_DENIED	bigint(21)	NO		0	
 EMPTY_QUERIES	bigint(21)	NO		0	
+MAX_STATEMENT_TIME_EXCEEDED	bigint(21)	NO		0	
 show columns from information_schema.user_statistics;
 Field	Type	Null	Key	Default	Extra
 USER	varchar(128)	NO			
@@ -50,6 +51,7 @@ DENIED_CONNECTIONS	bigint(21)	NO		0
 LOST_CONNECTIONS	bigint(21)	NO		0	
 ACCESS_DENIED	bigint(21)	NO		0	
 EMPTY_QUERIES	bigint(21)	NO		0	
+MAX_STATEMENT_TIME_EXCEEDED	bigint(21)	NO		0	
 show columns from information_schema.index_statistics;
 Field	Type	Null	Key	Default	Extra
 TABLE_SCHEMA	varchar(192)	NO			

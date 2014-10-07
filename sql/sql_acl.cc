@@ -211,8 +211,10 @@ static char *safe_str(char *str)
 static const char *safe_str(const char *str)
 { return str ? str : ""; }
 
+#ifndef NO_EMBEDDED_ACCESS_CHECKS
 static size_t safe_strlen(const char *str)
 { return str ? strlen(str) : 0; }
+#endif
 
 /* Classes */
 
@@ -709,6 +711,8 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
 
 #define ROLE_ASSIGN_COLUMN_IDX  43
 #define DEFAULT_ROLE_COLUMN_IDX 44
+#define MAX_STATEMENT_TIME_COLUMN_IDX 45
+
 /* various flags valid for ACL_USER */
 #define IS_ROLE                 (1L << 0)
 /* Flag to mark that a ROLE is on the recursive DEPTH_FIRST_SEARCH stack */
@@ -1272,6 +1276,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 
       user.sort= get_sort(2, user.host.hostname, user.user.str);
       user.hostname_length= safe_strlen(user.host.hostname);
+      user.user_resource.user_conn= 0;
+      user.user_resource.max_statement_time= 0.0;
 
       /* Starting from 4.0.2 we have more fields */
       if (table->s->fields >= 31)
@@ -1330,6 +1336,14 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 
             fix_user_plugin_ptr(&user);
           }
+        }
+
+        if (table->s->fields > MAX_STATEMENT_TIME_COLUMN_IDX)
+        {
+          /* Starting from 10.1.1 we can have max_statement_time */
+          ptr= get_field(thd->mem_root,
+                         table->field[MAX_STATEMENT_TIME_COLUMN_IDX]);
+          user.user_resource.max_statement_time= ptr ? atof(ptr) : 0.0;
         }
       }
       else
@@ -2041,6 +2055,8 @@ static void acl_update_user(const char *user, const char *host,
         acl_user->user_resource.conn_per_hour= mqh->conn_per_hour;
       if (mqh->specified_limits & USER_RESOURCES::USER_CONNECTIONS)
         acl_user->user_resource.user_conn= mqh->user_conn;
+      if (mqh->specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+        acl_user->user_resource.max_statement_time= mqh->max_statement_time;
       if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
       {
         acl_user->ssl_type= ssl_type;
@@ -3393,8 +3409,6 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     if (table->s->fields >= 36 &&
         (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
       table->field[next_field+3]->store((longlong) mqh.user_conn, FALSE);
-    mqh_used= mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour;
-
     next_field+= 4;
     if (table->s->fields >= 41)
     {
@@ -3415,7 +3429,16 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
         table->field[next_field]->reset();
         table->field[next_field + 1]->reset();
       }
+
+      if (table->s->fields > MAX_STATEMENT_TIME_COLUMN_IDX)
+      {
+        if (mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+          table->field[MAX_STATEMENT_TIME_COLUMN_IDX]->
+            store(mqh.max_statement_time);
+      }
     }
+    mqh_used= (mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour ||
+               mqh.user_conn || mqh.max_statement_time != 0.0);
 
     /* table format checked earlier */
     if (handle_as_role)
@@ -7508,6 +7531,21 @@ static void add_user_option(String *grant, long value, const char *name,
   }
 }
 
+
+static void add_user_option(String *grant, double value, const char *name)
+{
+  if (value != 0.0 )
+  {
+    char buff[FLOATING_POINT_BUFFER];
+    size_t len;
+    grant->append(' ');
+    grant->append(name, strlen(name));
+    grant->append(' ');
+    len= my_fcvt(value, 6, buff, NULL);
+    grant->append(buff, len);
+  }
+}
+
 static const char *command_array[]=
 {
   "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD",
@@ -7890,7 +7928,8 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
         (acl_user->user_resource.questions ||
          acl_user->user_resource.updates ||
          acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn))
+         acl_user->user_resource.user_conn ||
+         acl_user->user_resource.max_statement_time != 0.0))
     {
       global.append(STRING_WITH_LEN(" WITH"));
       if (want_access & GRANT_ACL)
@@ -7903,6 +7942,8 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
                       "MAX_CONNECTIONS_PER_HOUR", false);
       add_user_option(&global, acl_user->user_resource.user_conn,
                       "MAX_USER_CONNECTIONS", true);
+      add_user_option(&global, acl_user->user_resource.max_statement_time,
+                      "MAX_STATEMENT_TIME");
     }
   }
 
@@ -12232,12 +12273,22 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     if ((acl_user->user_resource.questions ||
          acl_user->user_resource.updates ||
          acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn || max_user_connections_checking) &&
+         acl_user->user_resource.user_conn ||
+         acl_user->user_resource.max_statement_time != 0.0 ||
+         max_user_connections_checking) &&
          get_or_create_user_conn(thd,
            (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
            (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
            &acl_user->user_resource))
       DBUG_RETURN(1); // The error is set by get_or_create_user_conn()
+
+    if (acl_user->user_resource.max_statement_time != 0.0)
+    {
+      thd->variables.max_statement_time_double=
+        acl_user->user_resource.max_statement_time;
+      thd->variables.max_statement_time=
+        (thd->variables.max_statement_time_double * 1e6 + 0.1);
+    }
   }
   else
     sctx->skip_grants();

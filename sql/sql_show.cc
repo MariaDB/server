@@ -3198,6 +3198,7 @@ static int aggregate_user_stats(HASH *all_user_stats, HASH *agg_user_stats)
                       user->other_commands,
                       user->commit_trans, user->rollback_trans,
                       user->denied_connections, user->lost_connections,
+                      user->max_statement_time_exceeded,
                       user->access_denied_errors, user->empty_queries);
 
       if (my_hash_insert(agg_user_stats, (uchar*) agg_user))
@@ -3223,6 +3224,7 @@ static int aggregate_user_stats(HASH *all_user_stats, HASH *agg_user_stats)
                      user->other_commands,
                      user->commit_trans, user->rollback_trans,
                      user->denied_connections, user->lost_connections,
+                     user->max_statement_time_exceeded,
                      user->access_denied_errors, user->empty_queries);
     }
   }
@@ -3278,6 +3280,7 @@ int send_user_stats(THD* thd, HASH *all_user_stats, TABLE *table)
     table->field[j++]->store((longlong)user_stats->lost_connections, TRUE);
     table->field[j++]->store((longlong)user_stats->access_denied_errors, TRUE);
     table->field[j++]->store((longlong)user_stats->empty_queries, TRUE);
+    table->field[j++]->store((longlong)user_stats->max_statement_time_exceeded, TRUE);
     if (schema_table_store_record(thd, table))
     {
       DBUG_PRINT("error", ("store record error"));
@@ -7410,6 +7413,7 @@ ST_FIELD_INFO user_stats_fields_info[]=
   {"LOST_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Lost_connections",SKIP_OPEN_TABLE},
   {"ACCESS_DENIED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Access_denied",SKIP_OPEN_TABLE},
   {"EMPTY_QUERIES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Empty_queries",SKIP_OPEN_TABLE},
+  {"MAX_STATEMENT_TIME_EXCEEDED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Max_statement_time_exceeded",SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 
@@ -7438,6 +7442,7 @@ ST_FIELD_INFO client_stats_fields_info[]=
   {"LOST_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Lost_connections",SKIP_OPEN_TABLE},
   {"ACCESS_DENIED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Access_denied",SKIP_OPEN_TABLE},
   {"EMPTY_QUERIES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Empty_queries",SKIP_OPEN_TABLE},
+  {"MAX_STATEMENT_TIME_EXCEEDED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Max_statement_time_exceeded",SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 

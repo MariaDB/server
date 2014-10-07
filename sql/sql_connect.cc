@@ -101,7 +101,6 @@ int get_or_create_user_conn(THD *thd, const char *user,
 end:
   mysql_mutex_unlock(&LOCK_user_conn);
   return return_val;
-
 }
 
 
@@ -437,6 +436,7 @@ void init_user_stats(USER_STATS *user_stats,
                      ulonglong rollback_trans,
                      ulonglong denied_connections,
                      ulonglong lost_connections,
+                     ulonglong max_statement_time_exceeded,
                      ulonglong access_denied_errors,
                      ulonglong empty_queries)
 {
@@ -467,6 +467,7 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->rollback_trans= rollback_trans;
   user_stats->denied_connections= denied_connections;
   user_stats->lost_connections= lost_connections;
+  user_stats->max_statement_time_exceeded= max_statement_time_exceeded;
   user_stats->access_denied_errors= access_denied_errors;
   user_stats->empty_queries= empty_queries;
   DBUG_VOID_RETURN;
@@ -496,6 +497,7 @@ void add_user_stats(USER_STATS *user_stats,
                     ulonglong rollback_trans,
                     ulonglong denied_connections,
                     ulonglong lost_connections,
+                    ulonglong max_statement_time_exceeded,
                     ulonglong access_denied_errors,
                     ulonglong empty_queries)
 {
@@ -519,6 +521,7 @@ void add_user_stats(USER_STATS *user_stats,
   user_stats->rollback_trans+= rollback_trans;
   user_stats->denied_connections+= denied_connections;
   user_stats->lost_connections+= lost_connections;
+  user_stats->max_statement_time_exceeded+= max_statement_time_exceeded;
   user_stats->access_denied_errors+= access_denied_errors;
   user_stats->empty_queries+= empty_queries;
 }
@@ -644,6 +647,7 @@ static bool increment_count_by_name(const char *name, size_t name_length,
                     0, 0,      // commit and rollback trans
                     thd->status_var.access_denied_errors,
                     0,         // lost connections
+                    0,         // max query timeouts
                     0,         // access denied errors
                     0);        // empty queries
 
@@ -756,6 +760,7 @@ static void update_global_user_stats_with_user(THD *thd,
   /* The following can only contain 0 or 1 and then connection ends */
   user_stats->denied_connections+= thd->status_var.access_denied_errors;
   user_stats->lost_connections+=   thd->status_var.lost_connections;
+  user_stats->max_statement_time_exceeded+= thd->status_var.max_statement_time_exceeded;
 }
 
 

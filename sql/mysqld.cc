@@ -2106,6 +2106,9 @@ void clean_up(bool print_message)
   sp_cache_end();
   free_status_vars();
   end_thr_alarm(1);			/* Free allocated memory */
+#ifndef EMBEDDED_LIBRARY
+  end_thr_timer();
+#endif
   my_free_open_file_info();
   if (defaults_argv)
     free_defaults(defaults_argv);
@@ -4746,6 +4749,14 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
+#ifndef EMBEDDED_LIBRARY
+  if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))
+  {
+    fprintf(stderr, "Can't initialize timers\n");
+    unireg_abort(1);
+  }
+#endif
+
   my_uuid_init((ulong) (my_rnd(&sql_rand))*12345,12345);
 #ifdef HAVE_REPLICATION
   init_slave_list();
@@ -5360,9 +5371,6 @@ int mysqld_main(int argc, char **argv)
     return 1;
   }
 #endif
-
-  if (WSREP_ON)
-    wsrep_filter_new_cluster (&argc, argv);
 
   orig_argc= argc;
   orig_argv= argv;
@@ -7341,6 +7349,13 @@ struct my_option my_long_options[]=
   {"table_cache", 0, "Deprecated; use --table-open-cache instead.",
    &tc_size, &tc_size, 0, GET_ULONG,
    REQUIRED_ARG, TABLE_OPEN_CACHE_DEFAULT, 1, 512*1024L, 0, 1, 0},
+#ifdef WITH_WSREP
+  {"wsrep-new-cluster", 0, "Bootstrap a cluster. It works by overriding the "
+   "current value of wsrep_cluster_address. It is recommended not to add this "
+   "option to the config file as this will trigger bootstrap on every server "
+   "start.", &wsrep_new_cluster, &wsrep_new_cluster, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
+#endif
 
   /* The following options exist in 5.6 but not in 10.0 */
   MYSQL_TO_BE_IMPLEMENTED_OPTION("default-tmp-storage-engine"),
@@ -8073,6 +8088,7 @@ SHOW_VAR status_vars[]= {
   {"Handler_write",            (char*) offsetof(STATUS_VAR, ha_write_count), SHOW_LONG_STATUS},
   {"Key",                      (char*) &show_default_keycache, SHOW_FUNC},
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
+  {"max_statement_time_exceeded",       (char*) offsetof(STATUS_VAR, max_statement_time_exceeded), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
   {"Memory_used",              (char*) offsetof(STATUS_VAR, memory_used), SHOW_LONGLONG_STATUS},
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
@@ -9141,7 +9157,9 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     debug_assert_if_crashed_table= 1;
 
   global_system_variables.long_query_time= (ulonglong)
-    (global_system_variables.long_query_time_double * 1e6);
+    (global_system_variables.long_query_time_double * 1e6 + 0.1);
+  global_system_variables.max_statement_time= (ulonglong)
+    (global_system_variables.max_statement_time_double * 1e6 + 0.1);
 
   if (opt_short_log_format)
     opt_specialflag|= SPECIAL_SHORT_LOG_FORMAT;

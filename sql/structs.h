@@ -232,12 +232,15 @@ typedef struct user_resources {
     connections allowed
   */
   int user_conn;
+  /* Max query timeout */
+  double max_statement_time;
+
   /*
      Values of this enum and specified_limits member are used by the
      parser to store which user limits were specified in GRANT statement.
   */
   enum {QUERIES_PER_HOUR= 1, UPDATES_PER_HOUR= 2, CONNECTIONS_PER_HOUR= 4,
-        USER_CONNECTIONS= 8};
+        USER_CONNECTIONS= 8, MAX_STATEMENT_TIME= 16};
   uint specified_limits;
 } USER_RESOURCES;
 
@@ -293,7 +296,7 @@ typedef struct st_user_stats
   ha_rows rows_updated, rows_deleted, rows_inserted;
   ulonglong select_commands, update_commands, other_commands;
   ulonglong commit_trans, rollback_trans;
-  ulonglong denied_connections, lost_connections;
+  ulonglong denied_connections, lost_connections, max_statement_time_exceeded;
   ulonglong access_denied_errors;
   ulonglong empty_queries;
 } USER_STATS;
@@ -331,6 +334,7 @@ init_user_stats(USER_STATS *user_stats,
                 ulonglong rollback_trans,
                 ulonglong denied_connections,
                 ulonglong lost_connections,
+                ulonglong max_statement_time_exceeded,
                 ulonglong access_denied_errors,
                 ulonglong empty_queries);
 
@@ -357,6 +361,7 @@ add_user_stats(USER_STATS *user_stats,
                ulonglong rollback_trans,
                ulonglong denied_connections,
                ulonglong lost_connections,
+               ulonglong max_statement_time_exceeded,
                ulonglong access_denied_errors,
                ulonglong empty_queries);
 
