@@ -3286,8 +3286,7 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) ==
-         BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
+    if ((wsrep_binlog_format() == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
@@ -3338,8 +3337,7 @@ public:
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) ==
-          BINLOG_FORMAT_ROW)
+      if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (temporary_tables == NULL)
         set_current_stmt_binlog_format_stmt();
@@ -3746,6 +3744,11 @@ public:
   {
     return (temporary_tables ||
             (rgi_slave && rgi_have_temporary_tables()));
+  }
+
+  inline ulong wsrep_binlog_format() const
+  {
+    return WSREP_FORMAT(variables.binlog_format);
   }
 
 #ifdef WITH_WSREP

@@ -3132,9 +3132,8 @@ mysql_execute_command(THD *thd)
         raise a warning, as it may cause problems
         (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
        */
-      if (thd->query_name_consts &&
-          mysql_bin_log.is_open() &&
-          WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) == BINLOG_FORMAT_STMT &&
+      if (thd->query_name_consts && mysql_bin_log.is_open() &&
+          thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
           !mysql_bin_log.is_query_in_union(thd, thd->query_id))
       {
         List_iterator_fast<Item> it(select_lex->item_list);

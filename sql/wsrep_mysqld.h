@@ -169,8 +169,11 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_EMULATE_BINLOG(thd) \
   (WSREP(thd) && wsrep_emulate_bin_log)
 
-// MySQL logging functions don't seem to understand long long length modifer.
-// This is a workaround. It also prefixes all messages with "WSREP"
+#define WSREP_FORMAT(my_format)                           \
+  ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC)   \
+    ? wsrep_forced_binlog_format : (ulong)(my_format))
+
+// prefix all messages with "WSREP"
 #define WSREP_LOG(fun, ...)                                       \
     do {                                                          \
         char msg[1024] = {'\0'};                                  \
@@ -309,6 +312,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define WSREP_ON  (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_CLIENT(thd) (0)
+#define WSREP_FORMAT(my_format) ((ulong)my_format)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_xid_seqno(X) (0)
 #define wsrep_to_isolation (0)

@@ -1910,12 +1910,12 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
 
   return ((thd->variables.option_bits & OPTION_KEEP_LOG) ||
           (trans_has_updated_non_trans_table(thd) &&
-           WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) == BINLOG_FORMAT_STMT) ||
+           thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT) ||
           (cache_mngr->trx_cache.changes_to_non_trans_temp_table() &&
-           WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) == BINLOG_FORMAT_MIXED) ||
+           thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED) ||
           (trans_has_updated_non_trans_table(thd) &&
            ending_single_stmt_trans(thd,all) &&
-           WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) == BINLOG_FORMAT_MIXED));
+           thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED));
 }
 
 
@@ -2064,9 +2064,9 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
     else if (ending_trans(thd, all) ||
              (!(thd->variables.option_bits & OPTION_KEEP_LOG) &&
               (!stmt_has_updated_non_trans_table(thd) ||
-               WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) != BINLOG_FORMAT_STMT) &&
+               thd->wsrep_binlog_format() != BINLOG_FORMAT_STMT) &&
               (!cache_mngr->trx_cache.changes_to_non_trans_temp_table() ||
-               WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) != BINLOG_FORMAT_MIXED)))
+               thd->wsrep_binlog_format() != BINLOG_FORMAT_MIXED)))
       error= binlog_truncate_trx_cache(thd, cache_mngr, all);
   }
 

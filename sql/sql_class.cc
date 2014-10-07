@@ -4350,7 +4350,7 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
   if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
       thd->variables.option_bits & OPTION_BIN_LOG)
-    return (int) WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format);
+    return (int) thd->wsrep_binlog_format();
   else
     return BINLOG_FORMAT_UNSPEC;
 }
@@ -5080,7 +5080,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlog by filtering rules.
   */
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
-      !(WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) == BINLOG_FORMAT_STMT &&
+      !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db)))
   {
     /*
@@ -5290,7 +5290,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if (WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) == BINLOG_FORMAT_ROW &&
+      else if (wsrep_binlog_format() == BINLOG_FORMAT_ROW &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -5319,7 +5319,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     else
     {
       /* binlog_format = STATEMENT */
-      if (WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) == BINLOG_FORMAT_STMT)
+      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
       {
         if (lex->is_stmt_row_injection())
         {
@@ -5451,7 +5451,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                         "and binlog_filter->db_ok(db) = %d",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
-                        (uint) WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format),
+                        (uint) wsrep_binlog_format(),
                         binlog_filter->db_ok(db)));
 #endif
 
