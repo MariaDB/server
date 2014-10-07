@@ -3286,8 +3286,8 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_MIXED) &&
-        (in_sub_stmt == 0))
+    if ((WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) ==
+         BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
@@ -3338,7 +3338,8 @@ public:
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_ROW)
+      if (WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) ==
+          BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (temporary_tables == NULL)
         set_current_stmt_binlog_format_stmt();
@@ -3726,8 +3727,8 @@ public:
   mysql_mutex_t LOCK_wakeup_ready;
   mysql_cond_t COND_wakeup_ready;
   /*
-     The GTID assigned to the last commit. If no GTID was assigned to any commit
-     so far, this is indicated by last_commit_gtid.seq_no == 0.
+    The GTID assigned to the last commit. If no GTID was assigned to any commit
+    so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
   rpl_gtid last_commit_gtid;
 
@@ -3762,25 +3763,25 @@ public:
   mysql_cond_t              COND_wsrep_thd;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
-  Relay_log_info*           wsrep_rli;
-  rpl_group_info*           wsrep_rgi;
+  Relay_log_info            *wsrep_rli;
+  rpl_group_info            *wsrep_rgi;
   wsrep_ws_handle_t         wsrep_ws_handle;
   ulong                     wsrep_retry_counter; // of autocommit
-  char*                     wsrep_retry_query;
+  char                      *wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
   enum enum_server_command  wsrep_retry_command;
   enum wsrep_consistency_check_mode
                             wsrep_consistency_check;
   int                       wsrep_mysql_replicated;
-  const char*               wsrep_TOI_pre_query; /* a query to apply before
-                                                    the actual TOI query */
+  const char                *wsrep_TOI_pre_query; /* a query to apply before
+                                                     the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
 #ifdef GTID_SUPPORT
   rpl_sid                   wsrep_po_sid;
 #endif /*  GTID_SUPPORT */
-  void*                     wsrep_apply_format;
+  void                      *wsrep_apply_format;
   char                      wsrep_info[128]; /* string for dynamic proc info */
 #endif /* WITH_WSREP */
 

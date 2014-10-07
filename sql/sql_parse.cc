@@ -2781,10 +2781,9 @@ mysql_execute_command(THD *thd)
     else
       res= check_access(thd, privileges_requested, any_db, NULL, NULL, 0, 0);
 
-    if (res)
-      break;
+    if (!res)
+      res= execute_sqlcom_select(thd, all_tables);
 
-    res= execute_sqlcom_select(thd, all_tables);
     break;
   }
   case SQLCOM_PREPARE:
@@ -3135,7 +3134,7 @@ mysql_execute_command(THD *thd)
        */
       if (thd->query_name_consts &&
           mysql_bin_log.is_open() &&
-          WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_STMT &&
+          WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format) == BINLOG_FORMAT_STMT &&
           !mysql_bin_log.is_query_in_union(thd, thd->query_id))
       {
         List_iterator_fast<Item> it(select_lex->item_list);

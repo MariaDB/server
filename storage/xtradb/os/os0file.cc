@@ -6404,7 +6404,7 @@ os_file_trim(
 
 #define SECT_SIZE 512
 	size_t trim_len = UNIV_PAGE_SIZE - len;
-	os_offset_t off = slot->offset + len;
+	os_offset_t off __attribute__((unused)) = slot->offset + len;
 	// len here should be alligned to sector size
 	ut_a((trim_len % SECT_SIZE) == 0);
 	ut_a((len % SECT_SIZE) == 0);

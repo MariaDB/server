@@ -879,8 +879,8 @@ extern "C" void thd_kill_timeout(THD* thd)
 
 
 THD::THD(bool is_wsrep_applier)
-   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
-              /* statement id */ 0),
+  :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
+             /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
@@ -913,16 +913,17 @@ THD::THD(bool is_wsrep_applier)
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
    wait_for_commit_ptr(0),
-    main_da(0, false, false),
+   main_da(0, false, false),
    m_stmt_da(&main_da)
 #ifdef WITH_WSREP
-   ,wsrep_applier(is_wsrep_applier)
-   ,wsrep_applier_closing(false)
-   ,wsrep_client_thread(false)
-   ,wsrep_apply_toi(false)
-   ,wsrep_po_handle(WSREP_PO_INITIALIZER)
-   ,wsrep_po_cnt(0)
-   ,wsrep_apply_format(0)
+  ,
+   wsrep_applier(is_wsrep_applier),
+   wsrep_applier_closing(false),
+   wsrep_client_thread(false),
+   wsrep_apply_toi(false),
+   wsrep_po_handle(WSREP_PO_INITIALIZER),
+   wsrep_po_cnt(0),
+   wsrep_apply_format(0)
 #endif
 {
   ulong tmp;
@@ -4349,7 +4350,7 @@ extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
   if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
       thd->variables.option_bits & OPTION_BIN_LOG)
-    return (int) WSREP_FORMAT(thd->variables.binlog_format);
+    return (int) WSREP_FORMAT((enum enum_binlog_format) thd->variables.binlog_format);
   else
     return BINLOG_FORMAT_UNSPEC;
 }
@@ -5079,7 +5080,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlog by filtering rules.
   */
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
-      !(WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_STMT &&
+      !(WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db)))
   {
     /*
@@ -5289,7 +5290,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if (WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_ROW &&
+      else if (WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) == BINLOG_FORMAT_ROW &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -5318,7 +5319,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     else
     {
       /* binlog_format = STATEMENT */
-      if (WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_STMT)
+      if (WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format) == BINLOG_FORMAT_STMT)
       {
         if (lex->is_stmt_row_injection())
         {
@@ -5446,11 +5447,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     DBUG_PRINT("info", ("decision: no logging since "
                         "mysql_bin_log.is_open() = %d "
                         "and (options & OPTION_BIN_LOG) = 0x%llx "
-                        "and binlog_format = %lu "
+                        "and binlog_format = %u "
                         "and binlog_filter->db_ok(db) = %d",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
-                        WSREP_FORMAT(variables.binlog_format),
+                        (uint) WSREP_FORMAT((enum enum_binlog_format) variables.binlog_format),
                         binlog_filter->db_ok(db)));
 #endif
 

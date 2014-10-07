@@ -1131,8 +1131,11 @@ Events::load_events_from_db(THD *thd)
       goto end;
     }
 #ifdef WITH_WSREP
-    // when SST from master node who initials event, the event status is ENABLED
-    // this is problematic because there are two nodes with same events and both enabled.
+    /*
+      When SST from master node who initials event, the event status is ENABLED
+      this is problematic because there are two nodes with same events and
+      both enabled.
+    */
     if (WSREP(thd) && et->originator != thd->variables.server_id)
     {
         store_record(table, record[1]);

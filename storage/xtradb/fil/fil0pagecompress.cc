@@ -99,7 +99,6 @@ fil_decompress_page_2(
 		return;
 	}
 
-	ulint	olen = 0;
 	byte*   ptr = buf + FIL_PAGE_DATA;
 	ulint   version = mach_read_from_1(buf + FIL_PAGE_VERSION);
 	int err = 0;
@@ -206,6 +205,7 @@ fil_decompress_page_2(
 
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM: {
+	        ulint olen = 0;
 		fprintf(stderr, "InnoDB: [Note]: lzo \n");
 		err = lzo1x_decompress((const unsigned char *)ptr,
 			original_len,(unsigned char *)(page_buf), &olen, NULL);
@@ -490,7 +490,6 @@ fil_decompress_page(
         ulint actual_size = 0;
 	ulint compression_alg = 0;
 	byte *in_buf;
-	ulint olen=0;
 	ulint ptype;
 
 	ut_ad(buf);
@@ -603,7 +602,8 @@ fil_decompress_page(
 		break;
 #endif /* HAVE_LZ4 */
 #ifdef HAVE_LZO
-	case PAGE_LZO_ALGORITHM:
+	case PAGE_LZO_ALGORITHM: {
+               	ulint olen=0;
 		err = lzo1x_decompress((const unsigned char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE,
 			actual_size,(unsigned char *)in_buf, &olen, NULL);
 
@@ -618,6 +618,7 @@ fil_decompress_page(
 			ut_error;
 		}
 		break;
+        }
 #endif /* HAVE_LZO */
 #ifdef HAVE_LZMA
 	case PAGE_LZMA_ALGORITHM: {
