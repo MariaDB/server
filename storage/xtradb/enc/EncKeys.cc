@@ -99,16 +99,54 @@ bool EncKeys::initKeys(const char *name, const char *url, const int initType, co
 }
 
 int EncKeys::initKeysThroughFile(const char *name, const char *path, const char *filekey) {
+
 	size_t len1 = strlen(path);
 	size_t len2 = strlen(name);
-	bool isSlash = ('/' == path[len1 - 1]);
+	const char *MAGIC = "FILE:";
+	const short MAGIC_LEN = 5;
 	int ret = NO_ERROR_KEY_FILE_PARSE_OK;
-	char *filename = new char[len1 + len2 + isSlash ? 1 : 2];
-
-	sprintf(filename, "%s%s%s", path, isSlash ? "" : "/", name);
-	ret = parseFile((const char *)filename, 254, filekey);
-	delete[] filename;		filename = NULL;
+	#ifdef TARGET_OS_LINUX
+		bool isSlash = ('/' == path[len1 - 1]);
+		char *secret = (char*) malloc(MAX_SECRET_SIZE * sizeof(char));
+		char *filename = (char*) malloc((len1 + len2 + isSlash ? 1 : 2) * sizeof(char));
+		if(filekey != NULL)
+		{
+			//If secret starts with FILE: interpret the secret as filename.
+			if(memcmp(MAGIC, filekey, MAGIC_LEN) == 0) {
+				int fk_len = strlen(filekey);
+				char *secretfile = (char*)malloc((len1 + (fk_len - MAGIC_LEN) + isSlash ? 1 : 2)* sizeof(char));
+				sprintf(secretfile, "%s%s%s", path, isSlash ? "" : "/", filekey+MAGIC_LEN);
+				parseSecret(secretfile, secret);
+				free(secretfile);
+			}else
+			{
+				sprintf(secret, "%s", filekey);
+			}
+		}
+		sprintf(filename, "%s%s%s", path, isSlash ? "" : "/", name);
+		ret = parseFile((const char *)filename, 254, secret);
+		free(filename);
+		free(secret);
+	#endif //TARGET_OS_LINUX
+	#ifdef __WIN__
+		ut_ad(false);
+	#endif //__WIN__e
 	return ret;
+}
+
+void EncKeys::parseSecret( const char *secretfile, char *secret ) {
+	int i=0;
+	FILE *fp = my_fopen(secretfile, O_RDWR, MYF(MY_WME));
+	fseek(fp, 0L, SEEK_END);
+	long file_size = ftell(fp);
+	fseek(fp, 0L, SEEK_SET);
+	fgets(secret, (MAX_SECRET_SIZE >= file_size)?file_size:MAX_SECRET_SIZE, fp);
+	fseek(fp, 0L, SEEK_SET);
+	for(i=0; i<MAX_SECRET_SIZE; i++)
+	{
+		fprintf(fp,"x");
+	}
+	my_fclose(fp, MYF(MY_WME));
 }
 
 /**

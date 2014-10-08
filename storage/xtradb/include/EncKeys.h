@@ -41,8 +41,9 @@ class EncKeys
 private:
 	static const char *strMAGIC, *newLine;
 	static const int magicSize;
+	static const size_t MAX_SECRET_SIZE = 256;
 
-	enum constants { MAX_OFFSETS_IN_PCRE_PATTERNS = 30 };
+	enum constants { MAX_OFFSETS_IN_PCRE_PATTERNS = 30};
 	enum keyAttributes { KEY_MIN = 1, KEY_MAX = 255, MAX_KEYS = 255,
 		MAX_IVLEN = 256, MAX_KEYLEN = 512, ivSize16 = 16, keySize32 = 32 };
 	enum keyInitType { KEYINITTYPE_FILE = 1, KEYINITTYPE_SERVER = 2 };
@@ -65,12 +66,13 @@ private:
 	char * decryptFile( const char* filename, const char *secret, int *errorCode);
 	int parseFile( const char* filename, const uint maxKeyId, const char *secret);
 	int parseLine( const char *line, const uint maxKeyId);
+	void parseSecret( const char *filename, char *secret );
 
 public:
 	enum errorCodesFile { NO_ERROR_KEY_FILE_PARSE_OK = 0, ERROR_KEY_FILE_PARSE_NULL = 110,
 		ERROR_KEY_FILE_TOO_BIG = 120, ERROR_KEY_FILE_EXCEEDS_MAX_NUMBERS_OF_KEYS = 130,
 		ERROR_OPEN_FILE = 140, ERROR_READING_FILE = 150, ERROR_FALSE_FILE_KEY = 160,
-		ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED = 170 };
+		ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED = 170, ERROR_ENCRYPTION_SECRET_NULL = 180 };
 	EncKeys();
 	virtual ~EncKeys();
 	bool initKeys( const char *name, const char *url, const int initType, const char *filekey);
