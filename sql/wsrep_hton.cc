@@ -157,6 +157,11 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
       !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && !wsrep_trans_cache_is_empty(thd)))
   {
+    int res= wsrep_run_wsrep_commit(thd, hton, all);
+    if (res == WSREP_TRX_SIZE_EXCEEDED)
+      res= EMSGSIZE;
+    else
+      res= EDEADLK; // for a better error message
     DBUG_RETURN (wsrep_run_wsrep_commit(thd, hton, all));
   }
   DBUG_RETURN(0);

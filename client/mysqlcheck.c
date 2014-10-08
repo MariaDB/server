@@ -734,13 +734,8 @@ static int use_db(char *database)
 /* Do not send commands to replication slaves. */
 static int disable_binlog()
 {
-#ifdef WITH_WSREP
-  /* Additionally turn off @@wsrep_on to disable implicit binary logging. */
-  const char *stmt= "SET SQL_LOG_BIN=0, WSREP_ON=OFF";
-#else
-  const char *stmt= "SET SQL_LOG_BIN=0";
-#endif /* WITH_WSREP */
-  return run_query(stmt);
+  mysql_query(sock, "SET WSREP_ON=0"); /* ignore the error, if any */
+  return run_query("SET SQL_LOG_BIN=0");
 }
 
 static int handle_request_for_tables(char *tables, uint length)

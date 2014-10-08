@@ -4368,7 +4368,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   my_off_t saved_skip= 0;
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
-  my_bool wsrep_node_dropped= FALSE;
+  my_bool wsrep_node_dropped __attribute__((unused)) = FALSE;
   const char *errmsg;
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
@@ -4378,9 +4378,6 @@ pthread_handler_t handle_slave_sql(void *arg)
   DBUG_ENTER("handle_slave_sql");
 
  wsrep_restart_point:
-
-  LINT_INIT(saved_master_log_pos);
-  LINT_INIT(saved_log_pos);
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !

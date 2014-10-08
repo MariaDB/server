@@ -4417,7 +4417,7 @@ restart:
                                            flags))
       {
         error= TRUE;
-        goto err;
+        goto error;
       }
     }
     else
@@ -4427,7 +4427,7 @@ restart:
                            ot_ctx.get_timeout(), flags))
       {
         error= TRUE;
-        goto err;
+        goto error;
       }
       for (table= *start; table && table != thd->lex->first_not_own_table();
            table= table->next_global)
@@ -4485,16 +4485,16 @@ restart:
             it may change in future.
           */
           if (ot_ctx.recover_from_failed_open())
-            goto err;
+            goto error;
 
           /* Re-open temporary tables after close_tables_for_reopen(). */
           if (open_temporary_tables(thd, *start))
-            goto err;
+            goto error;
 
           error= FALSE;
           goto restart;
         }
-        goto err;
+        goto error;
       }
 
       DEBUG_SYNC(thd, "open_tables_after_open_and_process_table");
@@ -4542,11 +4542,11 @@ restart:
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp());
             if (ot_ctx.recover_from_failed_open())
-              goto err;
+              goto error;
 
             /* Re-open temporary tables after close_tables_for_reopen(). */
             if (open_temporary_tables(thd, *start))
-              goto err;
+              goto error;
 
             error= FALSE;
             goto restart;
@@ -4556,7 +4556,7 @@ restart:
             Something is wrong with the table or its contents, and an error has
             been emitted; we must abort.
           */
-          goto err;
+          goto error;
         }
       }
     }
@@ -4567,44 +4567,37 @@ restart:
     children, attach the children to their parents. At end of statement,
     the children are detached. Attaching and detaching are always done,
     even under LOCK TABLES.
+
+    And start wsrep TOI if needed.
   */
   for (tables= *start; tables; tables= tables->next_global)
   {
     TABLE *tbl= tables->table;
 
+    if (!tbl)
+      continue;
+
+    if (WSREP_ON && sqlcom_can_generate_row_events(thd) &&
+        wsrep_replicate_myisam && tables && tbl->file->ht == myisam_hton &&
+        tables->lock_type >= TL_WRITE_ALLOW_WRITE)
+    {
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, tables);
+    }
+
     /* Schema tables may not have a TABLE object here. */
-    if (tbl && tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
+    if (tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
       DBUG_ASSERT(tbl->pos_in_table_list == tables);
       if (tbl->file->extra(HA_EXTRA_ATTACH_CHILDREN))
       {
         error= TRUE;
-        goto err;
+        goto error;
       }
     }
   }
 
-#ifdef WITH_WSREP
-  if (WSREP_ON &&
-      (thd->lex->sql_command== SQLCOM_INSERT         ||
-       thd->lex->sql_command== SQLCOM_INSERT_SELECT  ||
-       thd->lex->sql_command== SQLCOM_REPLACE        ||
-       thd->lex->sql_command== SQLCOM_REPLACE_SELECT ||
-       thd->lex->sql_command== SQLCOM_UPDATE         ||
-       thd->lex->sql_command== SQLCOM_UPDATE_MULTI   ||
-       thd->lex->sql_command== SQLCOM_LOAD           ||
-       thd->lex->sql_command== SQLCOM_DELETE)        &&
-      wsrep_replicate_myisam                         &&
-      (*start)                                       &&
-      (*start)->table && (*start)->table->file->ht->db_type == DB_TYPE_MYISAM)
-    {
-      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (*start));
-    }
- error:
-#endif
-
-err:
+error:
   THD_STAGE_INFO(thd, stage_after_opening_tables);
   thd_proc_info(thd, 0);
 

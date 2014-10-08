@@ -4764,14 +4764,12 @@ end_with_restore_list:
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && (thd->wsrep_conflict_state != NO_CONFLICT &&
+                       thd->wsrep_conflict_state != REPLAYING))
     {
-      if (thd->wsrep_conflict_state == NO_CONFLICT ||
-          thd->wsrep_conflict_state == REPLAYING)
-      {
-        my_ok(thd);
-      }
-    } else
+      DBUG_ASSERT(thd->is_error()); // the error is already issued
+    }
+    else
 #endif /* WITH_WSREP */
       my_ok(thd);
     break;
@@ -4810,11 +4808,9 @@ end_with_restore_list:
     if (tx_release)
       thd->killed= KILL_CONNECTION;
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && thd->wsrep_conflict_state != NO_CONFLICT)
     {
-      if (thd->wsrep_conflict_state == NO_CONFLICT) {
-        my_ok(thd);
-      }
+      DBUG_ASSERT(thd->is_error()); // the error is already issued
     }
     else
 #endif /* WITH_WSREP */

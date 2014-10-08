@@ -524,7 +524,16 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   File fd;
   char query_file_path[FN_REFLEN];
 #ifdef WITH_WSREP
-  /* Note: wsrep_on=ON implicitly enables binary logging. */
+  /*
+    Strictly speaking, WITH_WSREP on the client only means that the
+    client was compiled with WSREP, it doesn't mean the server was,
+    so the server might not have WSREP_ON variable.
+
+    But mysql_upgrade is tightly bound to a specific server version
+    anyway - it was mysql_fix_privilege_tables_sql script embedded
+    into its binary - so even if it won't assume anything about server
+    wsrep-ness, it won't be any less server-dependend.
+  */
   const uchar sql_log_bin[]= "SET SQL_LOG_BIN=0, WSREP_ON=OFF;";
 #else
   const uchar sql_log_bin[]= "SET SQL_LOG_BIN=0;";

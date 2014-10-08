@@ -37,6 +37,12 @@
 #include <slave.h>
 
 wsrep_t *wsrep                  = NULL;
+/*
+  wsrep_emulate_bin_log is a flag to tell that binlog has not been configured.
+  wsrep needs to get binlog events from transaction cache even when binlog is
+  not enabled, wsrep_emulate_bin_log opens needed code paths to make this
+  possible
+*/
 my_bool wsrep_emulate_bin_log   = FALSE; // activating parts of binlog interface
 #ifdef GTID_SUPPORT
 /* Sidno in global_sid_map corresponding to group uuid */

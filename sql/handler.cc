@@ -1144,6 +1144,25 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
   DBUG_VOID_RETURN;
 }
 
+
+static int prepare_or_error(handlerton *ht, THD *thd, bool all)
+{
+  int err= ht->prepare(ht, thd, all);
+  status_var_increment(thd->status_var.ha_prepare_count);
+  if (err)
+  {
+    /* avoid sending error, if we're going to replay the transaction */
+#ifdef WITH_WSREP
+    if (ht == wsrep_hton &&
+        err != WSREP_TRX_SIZE_EXCEEDED &&
+        thd->wsrep_conflict_state != MUST_REPLAY)
+#endif
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+  }
+  return err;
+}
+
+
 /**
   @retval
     0   ok
@@ -1161,32 +1180,14 @@ int ha_prepare(THD *thd)
   {
     for (; ha_info; ha_info= ha_info->next())
     {
-      int err;
       handlerton *ht= ha_info->ht();
-      status_var_increment(thd->status_var.ha_prepare_count);
       if (ht->prepare)
       {
-        if ((err= ht->prepare(ht, thd, all)))
+        if (prepare_or_error(ht, thd, all))
         {
-#ifdef WITH_WSREP
-          if (ht == wsrep_hton)
-          {
-            error= 1;
-            /* avoid sending error, if we need to replay */
-            if (thd->wsrep_conflict_state!= MUST_REPLAY)
-            {
-              my_error(ER_LOCK_DEADLOCK, MYF(0), err);
-            }
-          }
-          else
-#endif
-          {
-            /* not wsrep hton, bail to native mysql behavior */
-            my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-            ha_rollback_trans(thd, all);
-            error=1;
-            break;
-          }
+          ha_rollback_trans(thd, all);
+          error=1;
+          break;
         }
       }
       else
@@ -1417,7 +1418,6 @@ int ha_commit_trans(THD *thd, bool all)
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
-    int err;
     handlerton *ht= hi->ht();
     /*
       Do not call two-phase commit if this particular
@@ -1430,32 +1430,9 @@ int ha_commit_trans(THD *thd, bool all)
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
     */
-    err= ht->prepare(ht, thd, all);
-    status_var_increment(thd->status_var.ha_prepare_count);
-    if (err)
-    {
-#ifdef WITH_WSREP
-      if (ht == wsrep_hton)
-      {
-        switch (err) {
-        case WSREP_TRX_SIZE_EXCEEDED:
-          /* give user size exeeded error from wsrep_api.h */
-          my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
-          break;
-        case WSREP_TRX_CERT_FAIL:
-        case WSREP_TRX_ERROR:
-          /* avoid sending error, if we need to replay */
-          if (thd->wsrep_conflict_state!= MUST_REPLAY)
-          {
-            my_error(ER_LOCK_DEADLOCK, MYF(0), err);
-          }
-        }
-        goto err;
-      }
-#endif /* WITH_WSREP */
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+    if (prepare_or_error(ht, thd, all))
       goto err;
-    }
+
     need_prepare_ordered|= (ht->prepare_ordered != NULL);
     need_commit_ordered|= (ht->commit_ordered != NULL);
   }

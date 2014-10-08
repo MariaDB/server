@@ -2230,8 +2230,7 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
     DBUG_RETURN(mysql_bin_log.write(&qinfo));
   }
 
-  if (!wsrep_emulate_bin_log)
-    binlog_trans_log_truncate(thd, *(my_off_t*)sv);
+  binlog_trans_log_truncate(thd, *(my_off_t*)sv);
 
   DBUG_RETURN(0);
 }

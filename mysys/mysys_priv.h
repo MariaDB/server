@@ -62,8 +62,6 @@ extern mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open, THR_LOCK_keycache;
 extern mysql_mutex_t THR_LOCK_lock, THR_LOCK_net;
 extern mysql_mutex_t THR_LOCK_charset;
 
-extern my_bool mysys_wsrep;
-
 #include <mysql/psi/mysql_file.h>
 
 #ifdef HAVE_PSI_INTERFACE

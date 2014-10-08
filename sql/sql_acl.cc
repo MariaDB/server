@@ -2655,11 +2655,11 @@ bool change_password(THD *thd, const char *host, const char *user,
   TABLE_LIST tables[TABLES_MAX];
   /* Buffer should be extended when password length is extended. */
   char buff[512];
-  ulong query_length=0;
+  ulong query_length= 0;
   enum_binlog_format save_binlog_format;
   uint new_password_len= (uint) strlen(new_password);
   int result=0;
-  const CSET_STRING query_save = thd->query_string;
+  const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
 
   DBUG_ENTER("change_password");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  new_password: '%s'",
@@ -2669,16 +2669,18 @@ bool change_password(THD *thd, const char *host, const char *user,
   if (check_change_password(thd, host, user, new_password, new_password_len))
     DBUG_RETURN(1);
 
-#ifdef WITH_WSREP
-  if (WSREP(thd) && !thd->wsrep_applier)
+  if (mysql_bin_log.is_open() ||
+      (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-			    safe_str(user), safe_str(host), new_password);
-    thd->set_query_inner(buff, query_length, system_charset_info);
+              safe_str(user), safe_str(host), new_password);
+  }
 
+  if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
+  {
+    thd->set_query_inner(buff, query_length, system_charset_info);
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
   }
-#endif /* WITH_WSREP */
 
   if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
     DBUG_RETURN(result != 1);
@@ -2730,34 +2732,27 @@ bool change_password(THD *thd, const char *host, const char *user,
   result= 0;
   if (mysql_bin_log.is_open())
   {
-    query_length=
-      sprintf(buff,"SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-              safe_str(acl_user->user.str),
-              safe_str(acl_user->host.hostname),
-              new_password);
+    DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
                               FALSE, FALSE, FALSE, 0);
   }
 end:
   close_mysql_tables(thd);
+
 #ifdef WITH_WSREP
+error: // this label is used in WSREP_TO_ISOLATION_END
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
 
-    thd->query_string     = query_save;
+    thd->set_query_inner(query_save);
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
-
-error:
-  WSREP_ERROR("Repliation of SET PASSWORD failed: %s", buff);
-  DBUG_RETURN(result);
-
 }
 
 int acl_check_set_default_role(THD *thd, const char *host, const char *user)
@@ -2773,10 +2768,11 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   char user_key[MAX_KEY_LENGTH];
   int result= 1;
   int error;
+  ulong query_length= 0;
   bool clear_role= FALSE;
   char buff[512];
   enum_binlog_format save_binlog_format;
-  const CSET_STRING query_save = thd->query_string;
+  const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
 
   DBUG_ENTER("acl_set_default_role");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  rolename: '%s'",
@@ -2794,6 +2790,20 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
   if (!strcasecmp(rolename, "NONE"))
     clear_role= TRUE;
+
+  if (mysql_bin_log.is_open() ||
+      (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
+  {
+    query_length=
+      sprintf(buff,"SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
+              safe_str(rolename), safe_str(user), safe_str(host));
+  }
+
+  if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
+  {
+    thd->set_query_inner(buff, query_length, system_charset_info);
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
+  }
 
   if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
     DBUG_RETURN(result != 1);
@@ -2871,11 +2881,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   result= 0;
   if (mysql_bin_log.is_open())
   {
-    int query_length=
-      sprintf(buff,"SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
-              safe_str(acl_user->default_rolename.str),
-              safe_str(acl_user->user.str),
-              safe_str(acl_user->host.hostname));
+    DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
                               FALSE, FALSE, FALSE, 0);
@@ -2884,11 +2890,12 @@ end:
   close_mysql_tables(thd);
 
 #ifdef WITH_WSREP
+error: // this label is used in WSREP_TO_ISOLATION_END
   if (WSREP(thd) && !thd->wsrep_applier)
   {
     WSREP_TO_ISOLATION_END;
 
-    thd->query_string     = query_save;
+    thd->set_query_inner(query_save);
     thd->wsrep_exec_mode  = LOCAL_STATE;
   }
 #endif /* WITH_WSREP */
