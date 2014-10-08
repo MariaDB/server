@@ -27,6 +27,7 @@
 #include <my_sys.h>
 #include <pcre.h>
 #include <string.h>
+#include <my_sys.h>
 
 
 
@@ -78,22 +79,60 @@ bool EncKeys::initKeys(const char *name, const char *url, const int initType, co
 		else                                                                  return true;
 	}
 	else if (KEYINITTYPE_SERVER == initType) {
-		printf(errorNotImplemented);
+		fprintf(stderr, errorNotImplemented);
 	}
 	return NO_ERROR_KEY_FILE_PARSE_OK == ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
 }
 
 int EncKeys::initKeysThroughFile(const char *name, const char *path, const char *filekey) {
+
 	size_t len1 = strlen(path);
 	size_t len2 = strlen(name);
-	bool isSlash = ('/' == path[len1 - 1]);
+	const char *MAGIC = "FILE:";
+	const short MAGIC_LEN = 5;
 	int ret = NO_ERROR_KEY_FILE_PARSE_OK;
-	char *filename = new char[len1 + len2 + isSlash ? 1 : 2];
-
-	sprintf(filename, "%s%s%s", path, isSlash ? "" : "/", name);
-	ret = parseFile((const char *)filename, 254, filekey);
-	delete[] filename;		filename = NULL;
+	#ifdef TARGET_OS_LINUX
+		bool isSlash = ('/' == path[len1 - 1]);
+		char *secret = (char*) malloc(MAX_SECRET_SIZE * sizeof(char));
+		char *filename = (char*) malloc((len1 + len2 + isSlash ? 1 : 2) * sizeof(char));
+		if(filekey != NULL)
+		{
+			//If secret starts with FILE: interpret the secret as filename.
+			if(memcmp(MAGIC, filekey, MAGIC_LEN) == 0) {
+				int fk_len = strlen(filekey);
+				char *secretfile = (char*)malloc((len1 + (fk_len - MAGIC_LEN) + isSlash ? 1 : 2)* sizeof(char));
+				sprintf(secretfile, "%s%s%s", path, isSlash ? "" : "/", filekey+MAGIC_LEN);
+				parseSecret(secretfile, secret);
+				free(secretfile);
+			}else
+			{
+				sprintf(secret, "%s", filekey);
+			}
+		}
+		sprintf(filename, "%s%s%s", path, isSlash ? "" : "/", name);
+		ret = parseFile((const char *)filename, 254, secret);
+		free(filename);
+		free(secret);
+	#endif //TARGET_OS_LINUX
+	#ifdef __WIN__
+		ut_ad(false);
+	#endif //__WIN__e
 	return ret;
+}
+
+void EncKeys::parseSecret( const char *secretfile, char *secret ) {
+	int i=0;
+	FILE *fp = my_fopen(secretfile, O_RDWR, MYF(MY_WME));
+	fseek(fp, 0L, SEEK_END);
+	long file_size = ftell(fp);
+	fseek(fp, 0L, SEEK_SET);
+	fgets(secret, (MAX_SECRET_SIZE >= file_size)?file_size:MAX_SECRET_SIZE, fp);
+	fseek(fp, 0L, SEEK_SET);
+	for(i=0; i<MAX_SECRET_SIZE; i++)
+	{
+		fprintf(fp,"x");
+	}
+	my_fclose(fp, MYF(MY_WME));
 }
 
 /**
@@ -103,7 +142,7 @@ keyentry *EncKeys::getKeys(int id) {
 	if (KEY_MIN <= id && KEY_MAX >= id && (oneKey = &keys[id - 1])->iv)
 		return oneKey;
 	else {
-		printf(errorNoKeyId, id);
+		fprintf(stderr, errorNoKeyId, id);
 		return NULL;
 	}
 }
@@ -127,28 +166,28 @@ int EncKeys::parseFile(const char* filename, const uint maxKeyId, const char *se
 		case NO_ERROR_PARSE_OK:
 			keys[oneKey->id - 1] = *oneKey;
 			countKeys++;
-			printf("Line: %u --> ", keyLineInKeyFile);	printKeyEntry(oneKey->id);
+			fprintf(stderr, "Line: %u --> ", keyLineInKeyFile);	printKeyEntry(oneKey->id);
 			break;
 		case ERROR_ID_TOO_BIG:
-			printf(errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
-			printf(" --> %s\n", line);
+			fprintf(stderr, errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
+			fprintf(stderr, " --> %s\n", line);
 			errorCode = ERROR_KEY_FILE_EXCEEDS_MAX_NUMBERS_OF_KEYS;
 			break;
 		case ERROR_NOINITIALIZEDKEY:
-			printf(errorNoInitializedKey);
-			printf(" --> %s\n", line);
+			fprintf(stderr, errorNoInitializedKey);
+			fprintf(stderr, " --> %s\n", line);
 			errorCode = ERROR_KEY_FILE_PARSE_NULL;
 			break;
 		case ERROR_WRONG_NUMBER_OF_MATCHES:
-			printf(errorInMatches, keyLineInKeyFile);
-			printf(" --> %s\n", line);
+			fprintf(stderr, errorInMatches, keyLineInKeyFile);
+			fprintf(stderr, " --> %s\n", line);
 			errorCode = ERROR_KEY_FILE_PARSE_NULL;
 			break;
 		case NO_ERROR_KEY_GREATER_THAN_ASKED:
-			printf("No asked key in line %u: %s\n", keyLineInKeyFile, line);
+			fprintf(stderr, "No asked key in line %u: %s\n", keyLineInKeyFile, line);
 			break;
 		case NO_ERROR_ISCOMMENT:
-			printf("Is comment in line %u: %s\n", keyLineInKeyFile, line);
+			fprintf(stderr, "Is comment in line %u: %s\n", keyLineInKeyFile, line);
 		default:
 			break;
 		}
@@ -217,10 +256,10 @@ int EncKeys::parseLine(const char *line, const uint maxKeyId) {
  */
 char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorCode) {
 	*errorCode = NO_ERROR_PARSE_OK;
-	printf("Reading %s\n\n", filename);
-	FILE *fp = fopen(filename, "r");
+	fprintf(stderr, "Reading %s\n\n", filename);
+	FILE *fp = my_fopen(filename, O_RDONLY, MYF(MY_WME));
 	if (NULL == fp) {
-		printf(errorOpenFile, filename);
+		fprintf(stderr, errorOpenFile, filename);
 		*errorCode = ERROR_OPEN_FILE;
 		return NULL;
 	}
@@ -231,12 +270,12 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	}
 	long file_size = ftell(fp);   // get the file size
 	if (MAX_KEY_FILE_SIZE < file_size) {
-		printf(errorExceedKeyFileSize, filename, MAX_KEY_FILE_SIZE);
+		fprintf(stderr, errorExceedKeyFileSize, filename, MAX_KEY_FILE_SIZE);
 		*errorCode =  ERROR_KEY_FILE_TOO_BIG;
 		return NULL;
 	}
 	else if (-1L == file_size) {
-		printf(errorFileSize, filename);
+		fprintf(stderr, errorFileSize, filename);
 		*errorCode = ERROR_READING_FILE;
 		return NULL;
 	}
@@ -246,7 +285,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	char *buffer = new char[file_size + 1];
 	fread(buffer, file_size, 1, fp);
 	buffer[file_size] = '\0';
-	fclose(fp);
+	my_fclose(fp, MYF(MY_WME));
 
 	//Check for file encryption
 	if (0 == memcmp(buffer, strMAGIC, magicSize)) { //If file is encrypted, decrypt it first.
@@ -263,7 +302,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
 			delete[] buffer;	buffer = NULL;
-			printf(errorFalseFileKey, secret);
+			fprintf(stderr, errorFalseFileKey, secret);
 		}
 		else {
 			memcpy(buffer, decrypted, d_size);
@@ -290,6 +329,6 @@ bool EncKeys::isComment(const char *line) {
 void EncKeys::printKeyEntry( uint id)
 {
 	keyentry *entry = getKeys(id);
-	if( NULL == entry)	printf("No such keyID = %u\n", id);
-	else	printf("Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+	if( NULL == entry)	fprintf(stderr, "No such keyID = %u\n", id);
+	else	fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 }
