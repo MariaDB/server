@@ -210,9 +210,9 @@ static int wsrep_rollback(handlerton *hton, THD *thd, bool all)
   }
 
   if ((all || !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
-      (thd->variables.wsrep_on && thd->wsrep_conflict_state != MUST_REPLAY))
+      thd->wsrep_conflict_state != MUST_REPLAY)
   {
-    if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+    if (WSREP(thd) && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
     {
       DBUG_PRINT("wsrep", ("setting rollback fail"));
       WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
@@ -252,13 +252,11 @@ int wsrep_commit(handlerton *hton, THD *thd, bool all)
         Transaction didn't go through wsrep->pre_commit() so just roll back
         possible changes to clean state.
       */
-      if (WSREP_PROVIDER_EXISTS) {
-        if (wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
-        {
-          DBUG_PRINT("wsrep", ("setting rollback fail"));
-          WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
-                      (long long)thd->real_id, thd->query());
-        }
+      if (WSREP(thd) && wsrep->post_rollback(wsrep, &thd->wsrep_ws_handle))
+      {
+        DBUG_PRINT("wsrep", ("setting rollback fail"));
+        WSREP_ERROR("settting rollback fail: thd: %llu SQL: %s",
+                    (long long)thd->real_id, thd->query());
       }
       wsrep_cleanup_transaction(thd);
     }
