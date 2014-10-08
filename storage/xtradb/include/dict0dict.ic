@@ -699,9 +699,6 @@ dict_sys_tables_type_validate(
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
 
-    ulint	page_encryption = DICT_TF_GET_PAGE_ENCRYPTION(type);
-    ulint	page_encryption_key = DICT_TF_GET_PAGE_ENCRYPTION_KEY(type);
-
 	ut_a(atomic_writes >= 0 && atomic_writes <= ATOMIC_WRITES_OFF);
 
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1.

@@ -110,9 +110,6 @@ ibool
 fil_page_is_encrypted(
 /*===================*/
     const byte *buf)	/*!< in: page */
-{
-    //ibool result = FALSE;
-    ibool result = TRUE;
-    return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_ENCRYPTED);
-    //return(result);
+{    
+    return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_ENCRYPTED); 
 }

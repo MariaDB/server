@@ -72,7 +72,6 @@ ulint mode
 	ulint page_size = UNIV_PAGE_SIZE;
 	ulint orig_page_type = 0;
 	ulint write_size = 0;
-	ib_uint64_t flush_lsn = 0;
 	ib_uint32_t checksum = 0;
 	ulint offset_ctrl_data = 0;
 	fil_space_t* space = NULL;
@@ -456,7 +455,7 @@ al_size);
 			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
 					"InnoDB: but decrypt failed with error %d.\n"
 					"InnoDB: size %lu len %lu, key%d\n", err, data_size,
-					len, page_encryption_key);
+					len, (int)page_encryption_key);
 			fflush(stderr);
 			if (NULL == page_buf) {
 				ut_free(in_buf);
