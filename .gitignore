@@ -195,6 +195,7 @@ support-files/binary-configure
 support-files/config.huge.ini
 support-files/config.medium.ini
 support-files/config.small.ini
+support-files/mariadb.pc
 support-files/my-huge.cnf
 support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf
