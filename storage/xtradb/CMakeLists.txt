@@ -315,7 +315,6 @@ SET(INNOBASE_SOURCES
 	dyn/dyn0dyn.cc
 	    enc/EncKeys.cc
 	    enc/KeySingleton.cc
-	    enc/keyfile.c
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
