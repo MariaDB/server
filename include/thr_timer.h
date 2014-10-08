@@ -1,4 +1,4 @@
-/* Copyright (c) 2012 Monty Program Ab
+/* Copyright (c) 2014 Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,8 +15,8 @@
 
 /* Prototypes when using thr_timer functions */
 
-#ifndef _thr_timer_h
-#define _thr_timer_h
+#ifndef THR_TIMER_INCLUDED
+#define THR_TIMER_INCLUDED
 #ifdef	__cplusplus
 extern "C" {
 #endif
@@ -42,4 +42,4 @@ void    thr_timer_end(thr_timer_t *timer_data);
 #ifdef	__cplusplus
 }
 #endif /* __cplusplus */
-#endif /* _thr_timer_h */
+#endif /* THR_TIMER_INCLUDED */
