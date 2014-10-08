@@ -35,13 +35,17 @@ void printEntry(struct keyentry *entry, uint id)
 
 int main()
 {
-
 	plan(1);
-	printf("%s\n", "main() EperiKeySingleton.cc");
+	#ifdef SINGLETON_TEST_DATA
 
-	KeySingleton& ksp = KeySingleton::getInstance( "keys.txt", "/home/denis", 1, "secret");
+	printf("%s\n", "main() EperiKeySingleton.cc");
+	printf("%s\n", SINGLETON_TEST_DATA);
+	KeySingleton& ksp = KeySingleton::getInstance( "keys.txt", SINGLETON_TEST_DATA, 1, "secret");
 	printEntry(ksp.getKeys(0), 0);
 
 	return EXIT_SUCCESS;
+	#else
+
+	#endif
 
 }

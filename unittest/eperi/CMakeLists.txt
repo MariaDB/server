@@ -24,6 +24,7 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_SOURCE_DIR}/storage/xtradb/include
                     )
 
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D SINGLETON_TEST_DATA=\\\"${CMAKE_SOURCE_DIR}/unittest/eperi\\\" ")
 MY_ADD_TESTS(eperi)
 MY_ADD_TESTS(eperi_aes 
 	LINK_LIBRARIES mysys_ssl dbug)
