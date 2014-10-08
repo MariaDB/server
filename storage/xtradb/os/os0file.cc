@@ -5125,15 +5125,16 @@ os_aio_func(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
-	ibool		page_encryption, /*!< in: is page encryption used
-					  on this file space */
-	ulint		page_encryption_key, /*!< page encryption key
-						 to be used */
-	ulint*		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+   	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key) /*!< page encryption key
+						 to be used */
+
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;

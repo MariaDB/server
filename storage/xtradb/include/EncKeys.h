@@ -23,6 +23,7 @@ Created 09/15/2014
 #ifndef ENCKEYS_H_
 #define ENCKEYS_H_
 
+#include "univ.i"
 #include <sys/types.h>
 #include <stdio.h>
 
@@ -30,7 +31,7 @@ Created 09/15/2014
 
 
 struct keyentry {
-	uint id;
+	ulint id;
 	char *iv;
 	char *key;
 };
@@ -56,15 +57,15 @@ private:
 		*errorNoInitializedKey, *errorFalseFileKey,
 		*errorNotImplemented, *errorOpenFile, *errorReadingFile, *errorFileSize;
 
-	uint countKeys, keyLineInKeyFile;
+	ulint countKeys, keyLineInKeyFile;
 	keyentry keys[MAX_KEYS], *oneKey;
 
-	void printKeyEntry( uint id);
+	void printKeyEntry( ulint id);
 	int initKeysThroughFile( const char *name, const char *path, const char *filekey);
 	bool isComment( const char *line);
 	char * decryptFile( const char* filename, const char *secret, int *errorCode);
-	int parseFile( const char* filename, const uint maxKeyId, const char *secret);
-	int parseLine( const char *line, const uint maxKeyId);
+	int parseFile( const char* filename, const ulint maxKeyId, const char *secret);
+	int parseLine( const char *line, const ulint maxKeyId);
 
 public:
 	enum errorCodesFile { NO_ERROR_KEY_FILE_PARSE_OK = 0, ERROR_KEY_FILE_PARSE_NULL = 110,

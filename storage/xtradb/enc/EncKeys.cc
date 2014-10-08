@@ -19,9 +19,12 @@
 
  Created 09/15/2014
  ***********************************************************************/
+#ifdef __WIN__
+#define PCRE_STATIC 1
+#endif
 
 #include "EncKeys.h"
-#include <mysql/my_global.h>
+#include <my_global.h>
 #include <my_aes.h>
 #include <memory.h>
 #include <my_sys.h>
@@ -32,7 +35,7 @@
 
 
 const char* EncKeys::strMAGIC = "Salted__";
-const int EncKeys::magicSize = strlen(strMAGIC); // 8 byte
+const int EncKeys::magicSize = 8;//strlen(strMAGIC); // 8 byte
 const char* EncKeys::newLine = "\n";
 
 const char* EncKeys::errorNoKeyId = "KeyID = %u not found or with error. Check the key and the log file.\n";
@@ -74,8 +77,8 @@ EncKeys::~EncKeys() {
 
 bool EncKeys::initKeys(const char *name, const char *url, const int initType, const char *filekey) {
 	if (KEYINITTYPE_FILE == initType) { // url == path && name == filename
-		if(ERROR_FALSE_FILE_KEY == initKeysThroughFile(name, url, filekey))   return false;
-		else                                                                  return true;
+		int result = initKeysThroughFile(name, url, filekey);
+		return NO_ERROR_KEY_FILE_PARSE_OK == result;
 	}
 	else if (KEYINITTYPE_SERVER == initType) {
 		printf(errorNotImplemented);
@@ -84,6 +87,7 @@ bool EncKeys::initKeys(const char *name, const char *url, const int initType, co
 }
 
 int EncKeys::initKeysThroughFile(const char *name, const char *path, const char *filekey) {
+	if (path==NULL || name==NULL) return ERROR_OPEN_FILE;
 	size_t len1 = strlen(path);
 	size_t len2 = strlen(name);
 	bool isSlash = ('/' == path[len1 - 1]);
@@ -113,7 +117,7 @@ keyentry *EncKeys::getKeys(int id) {
  * Store the keys with id smaller then 'maxKeyId' in an array of structs keyentry.
  * Returns NO_ERROR_PARSE_OK or an appropriate error code.
  */
-int EncKeys::parseFile(const char* filename, const uint maxKeyId, const char *secret) {
+int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *secret) {
 	int errorCode = 0;
 	char *buffer = decryptFile(filename, secret, &errorCode);
 
@@ -160,7 +164,7 @@ int EncKeys::parseFile(const char* filename, const uint maxKeyId, const char *se
 	return errorCode;
 }
 
-int EncKeys::parseLine(const char *line, const uint maxKeyId) {
+int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 	int ret = NO_ERROR_PARSE_OK;
 	if (isComment(line))
 		ret = NO_ERROR_ISCOMMENT;
@@ -186,7 +190,7 @@ int EncKeys::parseLine(const char *line, const uint maxKeyId) {
 			else {
 				char buffer[4];
 				sprintf(buffer, "%.*s", substr_length, substring_start);
-				uint id = atoi(buffer);
+				ulint id = atoi(buffer);
 				if (0 == id)			ret = ERROR_NOINITIALIZEDKEY;
 				else if (KEY_MAX < id)	ret = ERROR_ID_TOO_BIG;
 				else if (maxKeyId < id)	ret = NO_ERROR_KEY_GREATER_THAN_ASKED;
@@ -250,7 +254,8 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 
 	//Check for file encryption
 	if (0 == memcmp(buffer, strMAGIC, magicSize)) { //If file is encrypted, decrypt it first.
-		unsigned char salt[magicSize + 1];
+		const int array_size = magicSize + 1;
+		unsigned char salt[array_size];
 		unsigned char *key = new unsigned char[keySize32];
 		unsigned char *iv = new unsigned char[ivSize16];
 		char *decrypted = new char[file_size];
@@ -263,7 +268,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
 			delete[] buffer;	buffer = NULL;
-			printf(errorFalseFileKey, secret);
+			printf(errorFalseFileKey, filename);
 		}
 		else {
 			memcpy(buffer, decrypted, d_size);
@@ -287,7 +292,7 @@ bool EncKeys::isComment(const char *line) {
 }
 
 
-void EncKeys::printKeyEntry( uint id)
+void EncKeys::printKeyEntry( ulint id)
 {
 	keyentry *entry = getKeys(id);
 	if( NULL == entry)	printf("No such keyID = %u\n", id);

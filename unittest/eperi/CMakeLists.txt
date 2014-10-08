@@ -24,9 +24,12 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     ${CMAKE_SOURCE_DIR}/storage/xtradb/include
                     )
 
+if (WIN32) 
+else()
 MY_ADD_TESTS(eperi)
 MY_ADD_TESTS(eperi_aes 
 	LINK_LIBRARIES mysys_ssl dbug)
+
 
 MY_ADD_TESTS(EperiKeySingleton
 	EXT "cc" 
@@ -68,3 +71,5 @@ file(COPY
 file(COPY
 	${CMAKE_CURRENT_LIST_DIR}/compressed_full
 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+
+endif()
