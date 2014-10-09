@@ -73,13 +73,12 @@ EncKeys::~EncKeys() {
 		delete[] keys[ii].key;	keys[ii].key = NULL;
 
 	}
-	delete oneKey;	oneKey = NULL;
 }
 
 bool EncKeys::initKeys(const char *name, const char *url, const int initType, const char *filekey) {
 	if (KEYINITTYPE_FILE == initType) { // url == path && name == filename
 		int result = initKeysThroughFile(name, url, filekey);
-		return NO_ERROR_KEY_FILE_PARSE_OK == result;
+		return ERROR_FALSE_FILE_KEY != result;
 	}
 	else if (KEYINITTYPE_SERVER == initType) {
 		fprintf(stderr, errorNotImplemented);
@@ -94,10 +93,9 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 	const char *MAGIC = "FILE:";
 	const short MAGIC_LEN = 5;
 	int ret = NO_ERROR_KEY_FILE_PARSE_OK;
-	#ifdef TARGET_OS_LINUX
 		bool isSlash = ('/' == path[len1 - 1]);
 		char *secret = (char*) malloc(MAX_SECRET_SIZE * sizeof(char));
-		char *filename = (char*) malloc((len1 + len2 + isSlash ? 1 : 2) * sizeof(char));
+		char *filename = (char*) malloc((len1 + len2 + (isSlash ? 1 : 2)) * sizeof(char));
 		if(filekey != NULL)
 		{
 			//If secret starts with FILE: interpret the secret as filename.
@@ -107,7 +105,7 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 				sprintf(secretfile, "%s%s%s", path, isSlash ? "" : "/", filekey+MAGIC_LEN);
 				parseSecret(secretfile, secret);
 				free(secretfile);
-			}else
+			} else
 			{
 				sprintf(secret, "%s", filekey);
 			}
@@ -116,10 +114,6 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 		ret = parseFile((const char *)filename, 254, secret);
 		free(filename);
 		free(secret);
-	#endif //TARGET_OS_LINUX
-	#ifdef __WIN__
-		ut_ad(false);
-	#endif //__WIN__e
 	return ret;
 }
 
@@ -207,7 +201,7 @@ int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 	if (isComment(line))
 		ret = NO_ERROR_ISCOMMENT;
 	else {
-		const char *error_p;
+		const char *error_p = NULL;
 		int offset;
 		static const pcre *pattern = pcre_compile(
 				"([0-9]+);([0-9,a-f,A-F]{32});([0-9,a-f,A-F]{64}|[0-9,a-f,A-F]{48}|[0-9,a-f,A-F]{32})",
@@ -260,7 +254,7 @@ int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorCode) {
 	*errorCode = NO_ERROR_PARSE_OK;
 	fprintf(stderr, "Reading %s\n\n", filename);
-	FILE *fp = my_fopen(filename, O_RDONLY, MYF(MY_WME));
+	FILE *fp = fopen(filename, "rb");
 	if (NULL == fp) {
 		fprintf(stderr, errorOpenFile, filename);
 		*errorCode = ERROR_OPEN_FILE;
@@ -275,6 +269,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	if (MAX_KEY_FILE_SIZE < file_size) {
 		fprintf(stderr, errorExceedKeyFileSize, filename, MAX_KEY_FILE_SIZE);
 		*errorCode =  ERROR_KEY_FILE_TOO_BIG;
+		fclose(fp);
 		return NULL;
 	}
 	else if (-1L == file_size) {
@@ -283,13 +278,12 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		return NULL;
 	}
 
-	fseek(fp, 0L, SEEK_SET);
+	rewind(fp);
 	//Read file into buffer
-	char *buffer = new char[file_size + 1];
-	fread(buffer, file_size, 1, fp);
+	uchar *buffer = new uchar[file_size + 1];
+	size_t read_bytes = fread(buffer, 1, file_size, fp);
 	buffer[file_size] = '\0';
-	my_fclose(fp, MYF(MY_WME));
-
+	fclose(fp);
 	//Check for file encryption
 	if (0 == memcmp(buffer, strMAGIC, magicSize)) { //If file is encrypted, decrypt it first.
 		const int array_size = magicSize + 1;
@@ -301,7 +295,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		salt[magicSize] = '\0';
 		my_bytes_to_key((unsigned char *) salt, secret, key, iv);
 		unsigned long int d_size = 0;
-		int res = my_aes_decrypt_cbc(buffer + 2 * magicSize, file_size - 2 * magicSize,
+		int res = my_aes_decrypt_cbc((const char*)buffer + 2 * magicSize, file_size - 2 * magicSize,
 				decrypted, &d_size, key, keySize32, iv, ivSize16);
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
@@ -317,7 +311,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		delete[] key;			key = NULL;
 		delete[] iv;			iv = NULL;
 	}
-	return buffer;
+	return (char*) buffer;
 }
 
 bool EncKeys::isComment(const char *line) {

@@ -65,8 +65,8 @@ private:
 	int initKeysThroughFile( const char *name, const char *path, const char *filekey);
 	bool isComment( const char *line);
 	char * decryptFile( const char* filename, const char *secret, int *errorCode);
-	int parseFile( const char* filename, const uint maxKeyId, const char *secret);
-	int parseLine( const char *line, const uint maxKeyId);
+	int parseFile( const char* filename, const ulint maxKeyId, const char *secret);
+	int parseLine( const char *line, const ulint maxKeyId);
 	void parseSecret( const char *filename, char *secret );
 
 public:
