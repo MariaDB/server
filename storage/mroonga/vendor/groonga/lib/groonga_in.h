@@ -505,6 +505,9 @@ typedef int grn_cond;
 /* todo */
 #  define GRN_SET_64BIT(p,v) \
   (void)atomic_swap_64(p, v)
+# elif defined(__ATOMIC_SEQ_CST) /* GCC atomic builtins */
+#  define GRN_SET_64BIT(p,v) \
+   __atomic_store_n(p, v, __ATOMIC_SEQ_CST)
 # endif /* ATOMIC 64BIT SET */
 
 # ifdef HAVE_MKOSTEMP
