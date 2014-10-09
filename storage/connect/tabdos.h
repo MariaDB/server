@@ -77,7 +77,7 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   bool    Mapped;             /* 0: disk file, 1: memory mapped file   */
   bool    Padded;             /* true for padded table file            */
   bool    Huge;               /* true for files larger than 2GB        */
-  bool    Accept;             /* true if wrong lines are accepted (DBF)*/
+  bool    Accept;             /* true if wrong lines are accepted      */
   bool    Eof;                /* true if an EOF (0xA) character exists */
   int    *To_Pos;             /* To array of block starting positions  */
   int     Optimized;          /* 0: No, 1:Yes, 2:Redo optimization     */
