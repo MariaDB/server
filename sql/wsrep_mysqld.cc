@@ -289,9 +289,16 @@ wsrep_view_handler_cb (void*                    app_ctx,
     wsrep_ready_set(FALSE);
 
     /* Close client connections to ensure that they don't interfere
-     * with SST */
-    WSREP_DEBUG("[debug]: closing client connections for PRIM");
-    wsrep_close_client_connections(TRUE);
+     * with SST. Necessary only if storage engines are initialized
+     * before SST.
+     * TODO: Just killing all ongoing transactions should be enough
+     * since wsrep_ready is OFF and no new transactions can start.
+     */
+    if (!wsrep_before_SE())
+    {
+        WSREP_DEBUG("[debug]: closing client connections for PRIM");
+        wsrep_close_client_connections(TRUE);
+    }
 
     ssize_t const req_len= wsrep_sst_prepare (sst_req);
 
