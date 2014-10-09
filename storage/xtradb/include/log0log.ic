@@ -426,6 +426,26 @@ log_get_lsn(void)
 	return(lsn);
 }
 
+/************************************************************//**
+Gets the current lsn with a trylock
+@return	current lsn or 0 if false*/
+UNIV_INLINE
+lsn_t
+log_get_lsn_nowait(void)
+/*=============*/
+{
+	lsn_t	lsn;
+
+        if (mutex_enter_nowait(&(log_sys->mutex)))
+          return 0;
+
+	lsn = log_sys->lsn;
+
+	mutex_exit(&(log_sys->mutex));
+
+	return(lsn);
+}
+
 /****************************************************************
 Gets the log group capacity. It is OK to read the value without
 holding log_sys->mutex because it is constant.
@@ -459,3 +479,24 @@ log_free_check(void)
 	}
 }
 #endif /* !UNIV_HOTBACKUP */
+
+/****************************************************************//**
+Safely reads the log_sys->tracked_lsn value.  Uses atomic operations
+if available, otherwise this field is protected with the log system
+mutex.  The writer counterpart function is log_set_tracked_lsn() in
+log0online.c.
+
+@return log_sys->tracked_lsn value. */
+UNIV_INLINE
+ib_uint64_t
+log_get_tracked_lsn(void)
+/*=====================*/
+{
+#ifdef HAVE_ATOMIC_BUILTINS_64
+	return os_atomic_increment_uint64(&log_sys->tracked_lsn, 0);
+#else
+	ut_ad(mutex_own(&(log_sys->mutex)));
+	return log_sys->tracked_lsn;
+#endif
+}
+

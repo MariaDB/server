@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2014 Tokutek, Inc.
 
 DISCLAIMER:
@@ -90,7 +90,7 @@ PATENT RIGHTS GRANT:
 
 #include "test.h"
 
-#include <ft/ybt.h>
+#include <util/dbt.h>
 #include <ft/ft-cachetable-wrappers.h>
 
 // Each FT maintains a sequential insert heuristic to determine if its
@@ -110,7 +110,7 @@ static void test_seqinsert_heuristic(void) {
     
     FT_HANDLE ft_handle;
     CACHETABLE ct;
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
     r = toku_open_ft_handle(name, 1, &ft_handle,
                             4*1024*1024, 64*1024,
                             TOKU_DEFAULT_COMPRESSION_METHOD, ct, NULL,

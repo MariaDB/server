@@ -162,6 +162,13 @@ UNIV_INLINE
 ib_uint64_t
 log_get_lsn(void);
 /*=============*/
+/************************************************************//**
+Gets the current lsn.
+@return	current lsn */
+UNIV_INLINE
+lsn_t
+log_get_lsn_nowait(void);
+/*=============*/
 /****************************************************************
 Gets the log group capacity. It is OK to read the value without
 holding log_sys->mutex because it is constant.
@@ -595,6 +602,18 @@ UNIV_INTERN
 void
 log_mem_free(void);
 /*==============*/
+
+/****************************************************************//**
+Safely reads the log_sys->tracked_lsn value.  Uses atomic operations
+if available, otherwise this field is protected with the log system
+mutex.  The writer counterpart function is log_set_tracked_lsn() in
+log0online.c.
+
+@return log_sys->tracked_lsn value. */
+UNIV_INLINE
+ib_uint64_t
+log_get_tracked_lsn(void);
+/*=====================*/
 
 extern log_t*	log_sys;
 

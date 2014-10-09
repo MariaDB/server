@@ -13,8 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#include "wsrep_sst.h"
-
+#include <my_config.h>
 #include <mysqld.h>
 #include <m_ctype.h>
 #include <my_sys.h>
@@ -24,10 +23,12 @@
 #include <sql_acl.h>
 #include <sql_reload.h>
 #include <sql_parse.h>
-#include "wsrep_priv.h"
-#include "wsrep_utils.h"
 #include <cstdio>
 #include <cstdlib>
+
+#include "wsrep_priv.h"
+#include "wsrep_utils.h"
+#include "wsrep_sst.h"
 
 extern const char wsrep_defaults_file[];
 

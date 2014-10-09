@@ -1,8 +1,4 @@
 # verify that information_schema.tokudb_locks gets populated with locks, information_schema.tokudb_lock_waits gets
-if (`select @@tokudb_version <= "7.1.6"`)
-{
-  --skip Race condition in the test in TokuDB 7.1.6 or earlier
-}
 # populated with 1 lock_wait and all transactions are present in information_schema.tokudb_trx for 2 clients
 
 source include/have_tokudb.inc;
@@ -37,10 +33,12 @@ source include/wait_condition.inc;
 real_sleep 1; # delay a little to shorten the update -> write row -> lock wait race
 
 replace_column 1 TRX_ID 2 MYSQL_ID; 
+replace_result $datadir ./;
 select * from information_schema.tokudb_locks;
 
 # should find the presence of a lock_wait on the 2nd transaction
 replace_column 1 REQUEST_TRX_ID 2 BLOCK_TRX_ID 6 LOCK_WAITS_START_TIME;
+replace_result $datadir ./;
 select * from information_schema.tokudb_lock_waits;
 
 # should find the presence of two transactions
@@ -51,6 +49,7 @@ connection conn_a;
 commit;
 # verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
 replace_column 1 TRX_ID 2 MYSQL_ID;
+replace_result $datadir ./;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;
 
@@ -87,10 +86,12 @@ source include/wait_condition.inc;
 real_sleep 1; # delay a little to shorten the update -> write row -> lock wait race
 
 replace_column 1 TRX_ID 2 MYSQL_ID; 
+replace_result $datadir ./;
 select * from information_schema.tokudb_locks;
 
 # should find the presence of a lock_wait on the 2nd transaction
 replace_column 1 REQUEST_TRX_ID 2 BLOCK_TRX_ID 6 LOCK_WAITS_START_TIME;
+replace_result $datadir ./;
 select * from information_schema.tokudb_lock_waits;
 
 # should find the presence of two transactions
@@ -101,6 +102,7 @@ connection conn_a;
 commit;
 # verify that the lock on the 1st transaction is released and replaced by the lock for the 2nd transaction
 replace_column 1 TRX_ID 2 MYSQL_ID;
+replace_result $datadir ./;
 select * from information_schema.tokudb_locks;
 select * from information_schema.tokudb_lock_waits;
 

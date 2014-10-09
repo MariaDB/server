@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -89,8 +89,10 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
-#include <bndata.h>
-#include <ft-ops.h>
+#include <config.h>
+
+#include <ft/bndata.h>
+#include <ft/ft-internal.h>
 
 using namespace toku;
 uint32_t bn_data::klpair_disksize(const uint32_t klpair_len, const klpair_struct *klpair) const {
@@ -129,18 +131,18 @@ void bn_data::initialize_from_separate_keys_and_vals(uint32_t num_entries, struc
     uint32_t ndone_before = rb->ndone;
     init_zero();
     invariant(all_keys_same_length);  // Until otherwise supported.
-    bytevec keys_src;
+    const void *keys_src;
     rbuf_literal_bytes(rb, &keys_src, key_data_size);
     //Generate dmt
     this->m_buffer.create_from_sorted_memory_of_fixed_size_elements(
             keys_src, num_entries, key_data_size, fixed_klpair_length);
     toku_mempool_construct(&this->m_buffer_mempool, val_data_size);
 
-    bytevec vals_src;
+    const void *vals_src;
     rbuf_literal_bytes(rb, &vals_src, val_data_size);
 
     if (num_entries > 0) {
-        void *vals_dest = toku_mempool_malloc(&this->m_buffer_mempool, val_data_size, 1);
+        void *vals_dest = toku_mempool_malloc(&this->m_buffer_mempool, val_data_size);
         paranoid_invariant_notnull(vals_dest);
         memcpy(vals_dest, vals_src, val_data_size);
     }
@@ -256,7 +258,7 @@ void bn_data::deserialize_from_rbuf(uint32_t num_entries, struct rbuf *rb, uint3
         }
     }
     // Version >= 26 and version 25 deserialization are now identical except that <= 25 might allocate too much memory.
-    bytevec bytes;
+    const void *bytes;
     rbuf_literal_bytes(rb, &bytes, data_size);
     const unsigned char *CAST_FROM_VOIDP(buf, bytes);
     if (data_size == 0) {
@@ -384,7 +386,7 @@ struct dmt_compressor_state {
 static int move_it (const uint32_t, klpair_struct *klpair, const uint32_t idx UU(), struct dmt_compressor_state * const oc) {
     LEAFENTRY old_le = oc->bd->get_le_from_klpair(klpair);
     uint32_t size = leafentry_memsize(old_le);
-    void* newdata = toku_mempool_malloc(oc->new_kvspace, size, 1);
+    void* newdata = toku_mempool_malloc(oc->new_kvspace, size);
     paranoid_invariant_notnull(newdata); // we do this on a fresh mempool, so nothing bad should happen
     memcpy(newdata, old_le, size);
     klpair->le_offset = toku_mempool_get_offset_from_pointer_and_base(oc->new_kvspace, newdata);
@@ -411,7 +413,7 @@ void bn_data::dmt_compress_kvspace(size_t added_size, void **maybe_free, bool fo
     } else {
         toku_mempool_construct(&new_kvspace, total_size_needed);
         size_t old_offset_limit = toku_mempool_get_offset_limit(&m_buffer_mempool);
-        void *new_mempool_base = toku_mempool_malloc(&new_kvspace, old_offset_limit, 1);
+        void *new_mempool_base = toku_mempool_malloc(&new_kvspace, old_offset_limit);
         memcpy(new_mempool_base, old_mempool_base, old_offset_limit);
     }
 
@@ -428,10 +430,10 @@ void bn_data::dmt_compress_kvspace(size_t added_size, void **maybe_free, bool fo
 //  If MAYBE_FREE is nullptr then free the old mempool's space.
 //  Otherwise, store the old mempool's space in maybe_free.
 LEAFENTRY bn_data::mempool_malloc_and_update_dmt(size_t size, void **maybe_free) {
-    void *v = toku_mempool_malloc(&m_buffer_mempool, size, 1);
+    void *v = toku_mempool_malloc(&m_buffer_mempool, size);
     if (v == nullptr) {
         dmt_compress_kvspace(size, maybe_free, false);
-        v = toku_mempool_malloc(&m_buffer_mempool, size, 1);
+        v = toku_mempool_malloc(&m_buffer_mempool, size);
         paranoid_invariant_notnull(v);
     }
     return (LEAFENTRY)v;
@@ -441,6 +443,7 @@ void bn_data::get_space_for_overwrite(
     uint32_t idx,
     const void* keyp UU(),
     uint32_t keylen UU(),
+    uint32_t old_keylen,
     uint32_t old_le_size,
     uint32_t new_size,
     LEAFENTRY* new_le_space,
@@ -455,8 +458,8 @@ void bn_data::get_space_for_overwrite(
     int r = m_buffer.fetch(idx, &klpair_len, &klp);
     invariant_zero(r);
     paranoid_invariant(klp!=nullptr);
-    // Key never changes.
-    paranoid_invariant(keylen_from_klpair_len(klpair_len) == keylen);
+    // Old key length should be consistent with what is stored in the DMT
+    invariant(keylen_from_klpair_len(klpair_len) == old_keylen);
 
     size_t new_le_offset = toku_mempool_get_offset_from_pointer_and_base(&this->m_buffer_mempool, new_le);
     paranoid_invariant(new_le_offset <= UINT32_MAX - new_size);  // Not using > 4GB
@@ -505,7 +508,7 @@ class split_klpairs_extra {
         LEAFENTRY old_le = m_left_bn->get_le_from_klpair(&klpair);
         size_t le_size = leafentry_memsize(old_le);
 
-        void *new_le = toku_mempool_malloc(dest_mp, le_size, 1);
+        void *new_le = toku_mempool_malloc(dest_mp, le_size);
         paranoid_invariant_notnull(new_le);
         memcpy(new_le, old_le, le_size);
         size_t le_offset = toku_mempool_get_offset_from_pointer_and_base(dest_mp, new_le);
@@ -658,7 +661,7 @@ void bn_data::set_contents_as_clone_of_sorted_array(
     dmt_builder.create(num_les, total_key_size);
 
     for (uint32_t idx = 0; idx < num_les; idx++) {
-        void* new_le = toku_mempool_malloc(&m_buffer_mempool, le_sizes[idx], 1);
+        void* new_le = toku_mempool_malloc(&m_buffer_mempool, le_sizes[idx]);
         paranoid_invariant_notnull(new_le);
         memcpy(new_le, old_les[idx], le_sizes[idx]);
         size_t le_offset = toku_mempool_get_offset_from_pointer_and_base(&m_buffer_mempool, new_le);

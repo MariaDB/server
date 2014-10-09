@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -89,12 +89,15 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
-#include "ft-cachetable-wrappers.h"
-#include "ft-flusher.h"
-#include "ft-internal.h"
-#include "ft.h"
-#include "fttypes.h"
-#include "ule.h"
+#include <config.h>
+
+#include "ft/ft.h"
+#include "ft/ft-cachetable-wrappers.h"
+#include "ft/ft-internal.h"
+#include "ft/ft-flusher.h"
+#include "ft/serialize/ft_node-serialize.h"
+#include "ft/node.h"
+#include "ft/ule.h"
 
 // dummymsn needed to simulate msn because messages are injected at a lower level than toku_ft_root_put_msg()
 #define MIN_DUMMYMSN ((MSN) {(uint64_t)1 << 62})
@@ -123,17 +126,21 @@ int toku_testsetup_leaf(FT_HANDLE ft_handle, BLOCKNUM *blocknum, int n_children,
     FTNODE node;
     assert(testsetup_initialized);
     toku_create_new_ftnode(ft_handle, &node, 0, n_children);
-    int i;
-    for (i=0; i<n_children; i++) {
-        BP_STATE(node,i) = PT_AVAIL;
+    for (int i = 0; i < n_children; i++) {
+        BP_STATE(node, i) = PT_AVAIL;
     }
 
-    for (i=0; i+1<n_children; i++) {
-        toku_memdup_dbt(&node->childkeys[i], keys[i], keylens[i]);
-        node->totalchildkeylens += keylens[i];
+    DBT *XMALLOC_N(n_children - 1, pivotkeys);
+    for (int i = 0; i + 1 < n_children; i++) {
+        toku_memdup_dbt(&pivotkeys[i], keys[i], keylens[i]);
     }
+    node->pivotkeys.create_from_dbts(pivotkeys, n_children - 1);
+    for (int i = 0; i + 1 < n_children; i++) {
+        toku_destroy_dbt(&pivotkeys[i]);
+    }
+    toku_free(pivotkeys);
 
-    *blocknum = node->thisnodename;
+    *blocknum = node->blocknum;
     toku_unpin_ftnode(ft_handle->ft, node);
     return 0;
 }
@@ -143,16 +150,21 @@ int toku_testsetup_nonleaf (FT_HANDLE ft_handle, int height, BLOCKNUM *blocknum,
     FTNODE node;
     assert(testsetup_initialized);
     toku_create_new_ftnode(ft_handle, &node, height, n_children);
-    int i;
-    for (i=0; i<n_children; i++) {
+    for (int i = 0; i < n_children; i++) {
         BP_BLOCKNUM(node, i) = children[i];
         BP_STATE(node,i) = PT_AVAIL;
     }
-    for (i=0; i+1<n_children; i++) {
-        toku_memdup_dbt(&node->childkeys[i], keys[i], keylens[i]);
-        node->totalchildkeylens += keylens[i];
+    DBT *XMALLOC_N(n_children - 1, pivotkeys);
+    for (int i = 0; i + 1 < n_children; i++) {
+        toku_memdup_dbt(&pivotkeys[i], keys[i], keylens[i]);
     }
-    *blocknum = node->thisnodename;
+    node->pivotkeys.create_from_dbts(pivotkeys, n_children - 1);
+    for (int i = 0; i + 1 < n_children; i++) {
+        toku_destroy_dbt(&pivotkeys[i]);
+    }
+    toku_free(pivotkeys);
+
+    *blocknum = node->blocknum;
     toku_unpin_ftnode(ft_handle->ft, node);
     return 0;
 }
@@ -167,8 +179,8 @@ int toku_testsetup_get_sersize(FT_HANDLE ft_handle, BLOCKNUM diskoff) // Return 
 {
     assert(testsetup_initialized);
     void *node_v;
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_full_read(&bfe, ft_handle->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_full_read(ft_handle->ft);
     int r  = toku_cachetable_get_and_pin(
         ft_handle->ft->cf, diskoff,
         toku_cachetable_hash(ft_handle->ft->cf, diskoff),
@@ -194,8 +206,8 @@ int toku_testsetup_insert_to_leaf (FT_HANDLE ft_handle, BLOCKNUM blocknum, const
 
     assert(testsetup_initialized);
 
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_full_read(&bfe, ft_handle->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_full_read(ft_handle->ft);
     r = toku_cachetable_get_and_pin(
         ft_handle->ft->cf,
         blocknum,
@@ -214,26 +226,22 @@ int toku_testsetup_insert_to_leaf (FT_HANDLE ft_handle, BLOCKNUM blocknum, const
     toku_verify_or_set_counts(node);
     assert(node->height==0);
 
-    DBT keydbt,valdbt;
-    MSN msn = next_dummymsn();
-    FT_MSG_S msg = { FT_INSERT, msn, xids_get_root_xids(),
-                     .u = { .id = { toku_fill_dbt(&keydbt, key, keylen),
-                                    toku_fill_dbt(&valdbt, val, vallen) } } };
+    DBT kdbt, vdbt;
+    ft_msg msg(toku_fill_dbt(&kdbt, key, keylen), toku_fill_dbt(&vdbt, val, vallen),
+               FT_INSERT, next_dummymsn(), toku_xids_get_root_xids());
 
     static size_t zero_flow_deltas[] = { 0, 0 };
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, true);
-    toku_ft_node_put_msg (
-        ft_handle->ft->compare_fun,
-        ft_handle->ft->update_fun,
-        &ft_handle->ft->cmp_descriptor,
-        node,
-        -1,
-        &msg,
-        true,
-        &gc_info,
-        zero_flow_deltas,
-        NULL
-        );
+    toku_ftnode_put_msg(ft_handle->ft->cmp,
+                        ft_handle->ft->update_fun,
+                        node,
+                        -1,
+                        msg,
+                        true,
+                        &gc_info,
+                        zero_flow_deltas,
+                        NULL
+                        );
 
     toku_verify_or_set_counts(node);
 
@@ -252,8 +260,8 @@ testhelper_string_key_cmp(DB *UU(e), const DBT *a, const DBT *b)
 void
 toku_pin_node_with_min_bfe(FTNODE* node, BLOCKNUM b, FT_HANDLE t)
 {
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_min_read(&bfe, t->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_min_read(t->ft);
     toku_pin_ftnode(
         t->ft, 
         b,
@@ -271,8 +279,8 @@ int toku_testsetup_insert_to_nonleaf (FT_HANDLE ft_handle, BLOCKNUM blocknum, en
 
     assert(testsetup_initialized);
 
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_full_read(&bfe, ft_handle->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_full_read(ft_handle->ft);
     r = toku_cachetable_get_and_pin(
         ft_handle->ft->cf,
         blocknum,
@@ -291,13 +299,14 @@ int toku_testsetup_insert_to_nonleaf (FT_HANDLE ft_handle, BLOCKNUM blocknum, en
     assert(node->height>0);
 
     DBT k;
-    int childnum = toku_ftnode_which_child(node,
-                                            toku_fill_dbt(&k, key, keylen),
-                                            &ft_handle->ft->cmp_descriptor, ft_handle->ft->compare_fun);
+    int childnum = toku_ftnode_which_child(node, toku_fill_dbt(&k, key, keylen), ft_handle->ft->cmp);
 
-    XIDS xids_0 = xids_get_root_xids();
+    XIDS xids_0 = toku_xids_get_root_xids();
     MSN msn = next_dummymsn();
-    toku_bnc_insert_msg(BNC(node, childnum), key, keylen, val, vallen, msgtype, msn, xids_0, true, NULL, testhelper_string_key_cmp);
+    toku::comparator cmp;
+    cmp.create(testhelper_string_key_cmp, nullptr);
+    toku_bnc_insert_msg(BNC(node, childnum), key, keylen, val, vallen, msgtype, msn, xids_0, true, cmp);
+    cmp.destroy();
     // Hack to get the test working. The problem is that this test
     // is directly queueing something in a FIFO instead of 
     // using ft APIs.

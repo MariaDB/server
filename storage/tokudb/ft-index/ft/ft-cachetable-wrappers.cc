@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -89,12 +89,15 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
-#include <ft-cachetable-wrappers.h>
+#include <config.h>
 
-#include <fttypes.h>
-#include <ft-flusher.h>
-#include <ft-internal.h>
-#include <ft.h>
+#include "ft/serialize/block_table.h"
+#include "ft/ft-cachetable-wrappers.h"
+#include "ft/ft-flusher.h"
+#include "ft/ft-internal.h"
+#include "ft/ft.h"
+#include "ft/node.h"
+
 #include <util/context.h>
 
 static void
@@ -103,23 +106,23 @@ ftnode_get_key_and_fullhash(
     uint32_t* fullhash,
     void* extra)
 {
-    FT h = (FT) extra;
-    BLOCKNUM name;
-    toku_allocate_blocknum(h->blocktable, &name, h);
-    *cachekey = name;
-    *fullhash = toku_cachetable_hash(h->cf, name);
+    FT ft = (FT) extra;
+    BLOCKNUM blocknum;
+    ft->blocktable.allocate_blocknum(&blocknum, ft);
+    *cachekey = blocknum;
+    *fullhash = toku_cachetable_hash(ft->cf, blocknum);
 }
 
 void
 cachetable_put_empty_node_with_dep_nodes(
-    FT h,
+    FT ft,
     uint32_t num_dependent_nodes,
     FTNODE* dependent_nodes,
-    BLOCKNUM* name, //output
+    BLOCKNUM* blocknum, //output
     uint32_t* fullhash, //output
     FTNODE* result)
 {
-    FTNODE XMALLOC(new_node);
+    FTNODE XCALLOC(new_node);
     PAIR dependent_pairs[num_dependent_nodes];
     enum cachetable_dirty dependent_dirty_bits[num_dependent_nodes];
     for (uint32_t i = 0; i < num_dependent_nodes; i++) {
@@ -128,18 +131,18 @@ cachetable_put_empty_node_with_dep_nodes(
     }
 
     toku_cachetable_put_with_dep_pairs(
-        h->cf,
+        ft->cf,
         ftnode_get_key_and_fullhash,
         new_node,
         make_pair_attr(sizeof(FTNODE)),
-        get_write_callbacks_for_node(h),
-        h,
+        get_write_callbacks_for_node(ft),
+        ft,
         num_dependent_nodes,
         dependent_pairs,
         dependent_dirty_bits,
-        name,
+        blocknum,
         fullhash,
-        toku_node_save_ct_pair);
+        toku_ftnode_save_ct_pair);
     *result = new_node;
 }
 
@@ -153,13 +156,13 @@ create_new_ftnode_with_dep_nodes(
     FTNODE* dependent_nodes)
 {
     uint32_t fullhash = 0;
-    BLOCKNUM name;
+    BLOCKNUM blocknum;
 
     cachetable_put_empty_node_with_dep_nodes(
         ft,
         num_dependent_nodes,
         dependent_nodes,
-        &name,
+        &blocknum,
         &fullhash,
         result);
 
@@ -170,7 +173,7 @@ create_new_ftnode_with_dep_nodes(
 
     toku_initialize_empty_ftnode(
         *result,
-        name,
+        blocknum,
         height,
         n_children,
         ft->h->layout_version,
@@ -207,8 +210,8 @@ toku_pin_ftnode_for_query(
     uint32_t fullhash,
     UNLOCKERS unlockers,
     ANCESTORS ancestors,
-    const PIVOT_BOUNDS bounds,
-    FTNODE_FETCH_EXTRA bfe,
+    const pivot_bounds &bounds,
+    ftnode_fetch_extra *bfe,
     bool apply_ancestor_messages, // this bool is probably temporary, for #3972, once we know how range query estimates work, will revisit this
     FTNODE *node_p,
     bool* msgs_applied)
@@ -318,10 +321,10 @@ exit:
 
 void
 toku_pin_ftnode_with_dep_nodes(
-    FT h,
+    FT ft,
     BLOCKNUM blocknum,
     uint32_t fullhash,
-    FTNODE_FETCH_EXTRA bfe,
+    ftnode_fetch_extra *bfe,
     pair_lock_type lock_type,
     uint32_t num_dependent_nodes,
     FTNODE *dependent_nodes,
@@ -337,12 +340,12 @@ toku_pin_ftnode_with_dep_nodes(
     }
 
     int r = toku_cachetable_get_and_pin_with_dep_pairs(
-        h->cf,
+        ft->cf,
         blocknum,
         fullhash,
         &node_v,
         NULL,
-        get_write_callbacks_for_node(h),
+        get_write_callbacks_for_node(ft),
         toku_ftnode_fetch_callback,
         toku_ftnode_pf_req_callback,
         toku_ftnode_pf_callback,
@@ -355,7 +358,7 @@ toku_pin_ftnode_with_dep_nodes(
     invariant_zero(r);
     FTNODE node = (FTNODE) node_v;
     if (lock_type != PL_READ && node->height > 0 && move_messages) {
-        toku_move_ftnode_messages_to_stale(h, node);
+        toku_move_ftnode_messages_to_stale(ft, node);
     }
     *node_p = node;
 }
@@ -363,7 +366,7 @@ toku_pin_ftnode_with_dep_nodes(
 void toku_pin_ftnode(FT ft,
                      BLOCKNUM blocknum,
                      uint32_t fullhash,
-                     FTNODE_FETCH_EXTRA bfe,
+                     ftnode_fetch_extra *bfe,
                      pair_lock_type lock_type,
                      FTNODE *node_p,
                      bool move_messages) {
@@ -408,15 +411,15 @@ void toku_ftnode_swap_pair_values(FTNODE a, FTNODE b)
 // Effect: Swap the blocknum, fullhash, and PAIR for for a and b
 // Requires: Both nodes are pinned
 {
-    BLOCKNUM tmp_blocknum = a->thisnodename;
+    BLOCKNUM tmp_blocknum = a->blocknum;
     uint32_t tmp_fullhash = a->fullhash;
     PAIR tmp_pair = a->ct_pair;
 
-    a->thisnodename = b->thisnodename;
+    a->blocknum = b->blocknum;
     a->fullhash = b->fullhash;
     a->ct_pair = b->ct_pair;
 
-    b->thisnodename = tmp_blocknum;
+    b->blocknum = tmp_blocknum;
     b->fullhash = tmp_fullhash;
     b->ct_pair = tmp_pair;
 

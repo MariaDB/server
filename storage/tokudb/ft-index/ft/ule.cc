@@ -31,7 +31,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -102,26 +102,28 @@ PATENT RIGHTS GRANT:
 // See design documentation for nested transactions at
 // TokuWiki/Imp/TransactionsOverview.
 
-#include <toku_portability.h>
-#include "fttypes.h"
-#include "ft-internal.h"
+#include <config.h>
 
-#include <util/omt.h>
+#include "portability/toku_portability.h"
 
-#include "leafentry.h"
-#include "xids.h"
-#include "ft_msg.h"
-#include "ule.h"
-#include "txn_manager.h"
-#include "ule-internal.h"
-#include <util/status.h>
-#include <util/scoped_malloc.h>
-#include <util/partitioned_counter.h>
+#include "ft/ft-internal.h"
+#include "ft/leafentry.h"
+#include "ft/logger/logger.h"
+#include "ft/msg.h"
+#include "ft/txn/txn.h"
+#include "ft/txn/txn_manager.h"
+#include "ft/ule.h"
+#include "ft/ule-internal.h"
+#include "ft/txn/xids.h"
+#include "util/bytestring.h"
+#include "util/omt.h"
+#include "util/partitioned_counter.h"
+#include "util/scoped_malloc.h"
+#include "util/status.h"
 
 #define ULE_DEBUG 0
 
 static uint32_t ule_get_innermost_numbytes(ULE ule, uint32_t keylen);
-
 
 ///////////////////////////////////////////////////////////////////////////////////
 // Engine status
@@ -131,7 +133,7 @@ static uint32_t ule_get_innermost_numbytes(ULE ule, uint32_t keylen);
 
 static LE_STATUS_S le_status;
 
-#define STATUS_INIT(k,c,t,l,inc) TOKUDB_STATUS_INIT(le_status, k, c, t, "le: " l, inc)
+#define STATUS_INIT(k,c,t,l,inc) TOKUFT_STATUS_INIT(le_status, k, c, t, "le: " l, inc)
 
 void toku_ule_status_init(void) {
     // Note, this function initializes the keyname, type, and legend fields.
@@ -216,7 +218,7 @@ const UXR_S committed_delete = {
 // Local functions:
 
 static void msg_init_empty_ule(ULE ule);
-static void msg_modify_ule(ULE ule, FT_MSG msg);
+static void msg_modify_ule(ULE ule, const ft_msg &msg);
 static void ule_init_empty_ule(ULE ule);
 static void ule_do_implicit_promotions(ULE ule, XIDS xids);
 static void ule_try_promote_provisional_outermost(ULE ule, TXNID oldest_possible_live_xid);
@@ -256,6 +258,7 @@ static void get_space_for_le(
     uint32_t idx,
     void* keyp,
     uint32_t keylen,
+    uint32_t old_keylen,
     uint32_t old_le_size,
     size_t size,
     LEAFENTRY* new_le_space,
@@ -268,7 +271,7 @@ static void get_space_for_le(
     else {
         // this means we are overwriting something
         if (old_le_size > 0) {
-            data_buffer->get_space_for_overwrite(idx, keyp, keylen, old_le_size, size, new_le_space, maybe_free);
+            data_buffer->get_space_for_overwrite(idx, keyp, keylen, old_keylen, old_le_size, size, new_le_space, maybe_free);
         }
         // this means we are inserting something new
         else {
@@ -327,11 +330,11 @@ xid_reads_committed_xid(TXNID tl1, TXNID xc, const xid_omt_t &snapshot_txnids, c
 //
 static void
 ule_simple_garbage_collection(ULE ule, txn_gc_info *gc_info) {
-    uint32_t curr_index = 0;
-    uint32_t num_entries;
     if (ule->num_cuxrs == 1) {
-        goto done;
+        return;
     }
+
+    uint32_t curr_index = 0;
     if (gc_info->mvcc_needed) {
         // starting at the top of the committed stack, find the first
         // uxr with a txnid that is less than oldest_referenced_xid
@@ -341,37 +344,34 @@ ule_simple_garbage_collection(ULE ule, txn_gc_info *gc_info) {
                 break;
             }
         }
-    }
-    else {
+    } else {
         // if mvcc is not needed, we can need the top committed
         // value and nothing else
         curr_index = ule->num_cuxrs - 1;
     }
-    // curr_index is now set to the youngest uxr older than oldest_referenced_xid
-    if (curr_index == 0) {
-        goto done;
-    }
 
-    // now get rid of the entries below curr_index
-    num_entries = ule->num_cuxrs + ule->num_puxrs - curr_index;
-    memmove(&ule->uxrs[0], &ule->uxrs[curr_index], num_entries * sizeof(ule->uxrs[0]));
-    ule->uxrs[0].xid = TXNID_NONE; //New 'bottom of stack' loses its TXNID
-    ule->num_cuxrs -= curr_index;
-    
-done:;
+    // curr_index is now set to the youngest uxr older than oldest_referenced_xid
+    // so if it's not the bottom of the stack..
+    if (curr_index != 0) {
+        // ..then we need to get rid of the entries below curr_index
+        uint32_t num_entries = ule->num_cuxrs + ule->num_puxrs - curr_index;
+        memmove(&ule->uxrs[0], &ule->uxrs[curr_index], num_entries * sizeof(ule->uxrs[0]));
+        ule->uxrs[0].xid = TXNID_NONE; // New 'bottom of stack' loses its TXNID
+        ule->num_cuxrs -= curr_index;
+    }
 }
+
+// TODO: Clean this up
+extern bool garbage_collection_debug;
 
 static void
 ule_garbage_collect(ULE ule, const xid_omt_t &snapshot_xids, const rx_omt_t &referenced_xids, const xid_omt_t &live_root_txns) {
-    if (ule->num_cuxrs == 1) goto done;
-    // will fail if too many num_cuxrs
-    bool necessary_static[MAX_TRANSACTION_RECORDS];
-    bool *necessary;
-    necessary = necessary_static;
-    if (ule->num_cuxrs >= MAX_TRANSACTION_RECORDS) {
-        XMALLOC_N(ule->num_cuxrs, necessary);
+    if (ule->num_cuxrs == 1) {
+        return;
     }
-    memset(necessary, 0, sizeof(necessary[0])*ule->num_cuxrs);
+
+    toku::scoped_calloc necessary_buf(ule->num_cuxrs * sizeof(bool));
+    bool *necessary = reinterpret_cast<bool *>(necessary_buf.get());
 
     uint32_t curr_committed_entry;
     curr_committed_entry = ule->num_cuxrs - 1;
@@ -401,24 +401,21 @@ ule_garbage_collect(ULE ule, const xid_omt_t &snapshot_xids, const rx_omt_t &ref
         }
 
         tl1 = toku_get_youngest_live_list_txnid_for(xc, snapshot_xids, referenced_xids);
-        if (tl1 == xc) {
-            // if tl1 == xc, that means xc should be live and show up in 
-            // live_root_txns, which we check above. So, if we get
-            // here, something is wrong.
-            assert(false);
-        }
+
+        // if tl1 == xc, that means xc should be live and show up in live_root_txns, which we check above.
+        invariant(tl1 != xc);
+
         if (tl1 == TXNID_NONE) {
             // set tl1 to youngest live transaction older than ule->uxrs[curr_committed_entry]->xid
             tl1 = get_next_older_txnid(xc, snapshot_xids);
             if (tl1 == TXNID_NONE) {
-                //Remainder is garbage, we're done
+                // remainder is garbage, we're done
                 break;
             }
         }
-        if (garbage_collection_debug)
-        {
+        if (garbage_collection_debug) {
             int r = snapshot_xids.find_zero<TXNID, toku_find_xid_by_xid>(tl1, nullptr, nullptr);
-            invariant(r==0); //make sure that the txn you are claiming is live is actually live
+            invariant_zero(r); // make sure that the txn you are claiming is live is actually live
         }
         //
         // tl1 should now be set
@@ -432,30 +429,23 @@ ule_garbage_collect(ULE ule, const xid_omt_t &snapshot_xids, const rx_omt_t &ref
             curr_committed_entry--;
         }
     } 
-    uint32_t first_free;
-    first_free = 0;
-    uint32_t i;
-    for (i = 0; i < ule->num_cuxrs; i++) {
-        //Shift values to 'delete' garbage values.
+    uint32_t first_free = 0;
+    for (uint32_t i = 0; i < ule->num_cuxrs; i++) {
+        // Shift values to 'delete' garbage values.
         if (necessary[i]) {
             ule->uxrs[first_free] = ule->uxrs[i];
             first_free++;
         }
     }
-    uint32_t saved;
-    saved = first_free;
+    uint32_t saved = first_free;
     invariant(saved <= ule->num_cuxrs);
     invariant(saved >= 1);
     ule->uxrs[0].xid = TXNID_NONE; //New 'bottom of stack' loses its TXNID
     if (first_free != ule->num_cuxrs) {
-        //Shift provisional values
+        // Shift provisional values
         memmove(&ule->uxrs[first_free], &ule->uxrs[ule->num_cuxrs], ule->num_puxrs * sizeof(ule->uxrs[0]));
     }
     ule->num_cuxrs = saved;
-    if (necessary != necessary_static) {
-        toku_free(necessary);
-    }
-done:;
 }
 
 static size_t ule_packed_memsize(ULE ule) {
@@ -492,10 +482,11 @@ enum {
 //   Otehrwise the new_leafentry_p points at the new leaf entry.
 // As of October 2011, this function always returns 0.
 void
-toku_le_apply_msg(FT_MSG   msg,
+toku_le_apply_msg(const ft_msg &msg,
                   LEAFENTRY old_leafentry, // NULL if there was no stored data.
                   bn_data* data_buffer, // bn_data storing leafentry, if NULL, means there is no bn_data
                   uint32_t idx, // index in data_buffer where leafentry is stored (and should be replaced
+                  uint32_t old_keylen, // length of the any key in data_buffer
                   txn_gc_info *gc_info,
                   LEAFENTRY *new_leafentry_p,
                   int64_t * numbytes_delta_p) {  // change in total size of key and val, not including any overhead
@@ -505,7 +496,7 @@ toku_le_apply_msg(FT_MSG   msg,
     int64_t oldnumbytes = 0;
     int64_t newnumbytes = 0;
     uint64_t oldmemsize = 0;
-    uint32_t keylen = ft_msg_get_keylen(msg);
+    uint32_t keylen = msg.kdbt()->size;
 
     if (old_leafentry == NULL) {
         msg_init_empty_ule(&ule);
@@ -550,8 +541,9 @@ toku_le_apply_msg(FT_MSG   msg,
         &ule, // create packed leafentry
         data_buffer,
         idx,
-        ft_msg_get_key(msg), // contract of this function is caller has this set, always
+        msg.kdbt()->data, // contract of this function is caller has this set, always
         keylen, // contract of this function is caller has this set, always
+        old_keylen,
         oldmemsize,
         new_leafentry_p,
         &maybe_free
@@ -655,6 +647,7 @@ toku_le_garbage_collect(LEAFENTRY old_leaf_entry,
         idx,
         keyp,
         keylen,
+        keylen, // old_keylen, same because the key isn't going to change for gc
         old_mem_size,
         new_leaf_entry,
         &maybe_free
@@ -686,10 +679,10 @@ msg_init_empty_ule(ULE ule) {
 // Purpose is to modify the unpacked leafentry in our private workspace.
 //
 static void 
-msg_modify_ule(ULE ule, FT_MSG msg) {
-    XIDS xids = ft_msg_get_xids(msg);
-    invariant(xids_get_num_xids(xids) < MAX_TRANSACTION_RECORDS);
-    enum ft_msg_type type = ft_msg_get_type(msg);
+msg_modify_ule(ULE ule, const ft_msg &msg) {
+    XIDS xids = msg.xids();
+    invariant(toku_xids_get_num_xids(xids) < MAX_TRANSACTION_RECORDS);
+    enum ft_msg_type type = msg.type();
     if (type != FT_OPTIMIZE && type != FT_OPTIMIZE_FOR_UPGRADE) {
         ule_do_implicit_promotions(ule, xids);
     }
@@ -702,9 +695,9 @@ msg_modify_ule(ULE ule, FT_MSG msg) {
         //fall through to FT_INSERT on purpose.
     }
     case FT_INSERT: {
-        uint32_t vallen = ft_msg_get_vallen(msg);
+        uint32_t vallen = msg.vdbt()->size;
         invariant(IS_VALID_LEN(vallen));
-        void * valp      = ft_msg_get_val(msg);
+        void * valp      = msg.vdbt()->data;
         ule_apply_insert(ule, xids, vallen, valp);
         break;
     }
@@ -731,25 +724,23 @@ msg_modify_ule(ULE ule, FT_MSG msg) {
         assert(false); // These messages don't get this far.  Instead they get translated (in setval_fun in do_update) into FT_INSERT messages.
         break;
     default:
-        assert(false /* illegal FT_MSG.type */);
+        assert(false); /* illegal ft msg type */
         break;
     }
 }
 
-void 
-test_msg_modify_ule(ULE ule, FT_MSG msg){
+void test_msg_modify_ule(ULE ule, const ft_msg &msg){
     msg_modify_ule(ule,msg);
 }
-
 
 static void ule_optimize(ULE ule, XIDS xids) {
     if (ule->num_puxrs) {
         TXNID uncommitted = ule->uxrs[ule->num_cuxrs].xid;      // outermost uncommitted
         TXNID oldest_living_xid = TXNID_NONE;
-        uint32_t num_xids = xids_get_num_xids(xids);
+        uint32_t num_xids = toku_xids_get_num_xids(xids);
         if (num_xids > 0) {
             invariant(num_xids==1);
-            oldest_living_xid = xids_get_xid(xids, 0);
+            oldest_living_xid = toku_xids_get_xid(xids, 0);
         }
         if (oldest_living_xid == TXNID_NONE || uncommitted < oldest_living_xid) {
             ule_promote_provisional_innermost_to_committed(ule);
@@ -974,6 +965,7 @@ le_pack(ULE ule, // data to be packed into new leafentry
         uint32_t idx,
         void* keyp,
         uint32_t keylen,
+        uint32_t old_keylen,
         uint32_t old_le_size,
         LEAFENTRY * const new_leafentry_p, // this is what this function creates
         void **const maybe_free
@@ -996,7 +988,8 @@ le_pack(ULE ule, // data to be packed into new leafentry
             }
         }
         if (data_buffer && old_le_size > 0) {
-            data_buffer->delete_leafentry(idx, keylen, old_le_size);
+            // must pass old_keylen and old_le_size, since that's what is actually stored in data_buffer
+            data_buffer->delete_leafentry(idx, old_keylen, old_le_size);
         }
         *new_leafentry_p = NULL;
         rval = 0;
@@ -1005,7 +998,7 @@ le_pack(ULE ule, // data to be packed into new leafentry
 found_insert:
     memsize = le_memsize_from_ule(ule);
     LEAFENTRY new_leafentry;
-    get_space_for_le(data_buffer, idx, keyp, keylen, old_le_size, memsize, &new_leafentry, maybe_free);
+    get_space_for_le(data_buffer, idx, keyp, keylen, old_keylen, old_le_size, memsize, &new_leafentry, maybe_free);
 
     //p always points to first unused byte after leafentry we are packing
     uint8_t *p;
@@ -1343,9 +1336,9 @@ int le_latest_is_del(LEAFENTRY le) {
 bool
 le_has_xids(LEAFENTRY le, XIDS xids) {
     //Read num_uxrs
-    uint32_t num_xids = xids_get_num_xids(xids);
+    uint32_t num_xids = toku_xids_get_num_xids(xids);
     invariant(num_xids > 0); //Disallow checking for having TXNID_NONE
-    TXNID xid = xids_get_xid(xids, 0);
+    TXNID xid = toku_xids_get_xid(xids, 0);
     invariant(xid!=TXNID_NONE);
 
     bool rval = (le_outermost_uncommitted_xid(le) == xid);
@@ -1595,13 +1588,13 @@ ule_do_implicit_promotions(ULE ule, XIDS xids) {
     //Optimization for (most) common case.
     //No commits necessary if everything is already committed.
     if (ule->num_puxrs > 0) {
-        int num_xids = xids_get_num_xids(xids);
+        int num_xids = toku_xids_get_num_xids(xids);
         invariant(num_xids>0);
         uint32_t max_index = ule->num_cuxrs + min_i32(ule->num_puxrs, num_xids) - 1;
         uint32_t ica_index = max_index;
         uint32_t index;
         for (index = ule->num_cuxrs; index <= max_index; index++) {
-            TXNID current_msg_xid = xids_get_xid(xids, index - ule->num_cuxrs);
+            TXNID current_msg_xid = toku_xids_get_xid(xids, index - ule->num_cuxrs);
             TXNID current_ule_xid = ule_get_xid(ule, index);
             if (current_msg_xid != current_ule_xid) {
                 //ica is innermost transaction with matching xids.
@@ -1691,7 +1684,7 @@ ule_promote_provisional_innermost_to_index(ULE ule, uint32_t index) {
 static void 
 ule_apply_insert(ULE ule, XIDS xids, uint32_t vallen, void * valp) {
     ule_prepare_for_new_uxr(ule, xids);
-    TXNID this_xid = xids_get_innermost_xid(xids);  // xid of transaction doing this insert
+    TXNID this_xid = toku_xids_get_innermost_xid(xids);  // xid of transaction doing this insert
     ule_push_insert_uxr(ule, this_xid == TXNID_NONE, this_xid, vallen, valp);
 }
 
@@ -1699,7 +1692,7 @@ ule_apply_insert(ULE ule, XIDS xids, uint32_t vallen, void * valp) {
 static void 
 ule_apply_delete(ULE ule, XIDS xids) {
     ule_prepare_for_new_uxr(ule, xids);
-    TXNID this_xid = xids_get_innermost_xid(xids);  // xid of transaction doing this delete
+    TXNID this_xid = toku_xids_get_innermost_xid(xids);  // xid of transaction doing this delete
     ule_push_delete_uxr(ule, this_xid == TXNID_NONE, this_xid);
 }
 
@@ -1710,7 +1703,7 @@ ule_apply_delete(ULE ule, XIDS xids) {
 // with placeholders.
 static void 
 ule_prepare_for_new_uxr(ULE ule, XIDS xids) {
-    TXNID this_xid = xids_get_innermost_xid(xids);
+    TXNID this_xid = toku_xids_get_innermost_xid(xids);
     //This is for LOADER_USE_PUTS or transactionless environment
     //where messages use XIDS of 0
     if (this_xid == TXNID_NONE && ule_get_innermost_xid(ule) == TXNID_NONE) {
@@ -1735,7 +1728,7 @@ ule_prepare_for_new_uxr(ULE ule, XIDS xids) {
 // Remember, the innermost uxr can only be an insert or a delete, not a placeholder. 
 static void 
 ule_apply_abort(ULE ule, XIDS xids) {
-    TXNID this_xid = xids_get_innermost_xid(xids);   // xid of transaction doing this abort
+    TXNID this_xid = toku_xids_get_innermost_xid(xids);   // xid of transaction doing this abort
     invariant(this_xid!=TXNID_NONE);
     UXR innermost = ule_get_innermost_uxr(ule);
     // need to check for provisional entries in ule, otherwise
@@ -1766,7 +1759,7 @@ ule_apply_broadcast_commit_all (ULE ule) {
 // If this transaction did modify the leafentry, then promote whatever it did.
 // Remember, the innermost uxr can only be an insert or a delete, not a placeholder. 
 void ule_apply_commit(ULE ule, XIDS xids) {
-    TXNID this_xid = xids_get_innermost_xid(xids);  // xid of transaction committing
+    TXNID this_xid = toku_xids_get_innermost_xid(xids);  // xid of transaction committing
     invariant(this_xid!=TXNID_NONE);
     // need to check for provisional entries in ule, otherwise
     // there is nothing to abort, not checking this may result
@@ -1908,7 +1901,7 @@ ule_add_placeholders(ULE ule, XIDS xids) {
     //Placeholders can be placed on top of the committed uxr.
     invariant(ule->num_cuxrs > 0);
 
-    uint32_t num_xids = xids_get_num_xids(xids);
+    uint32_t num_xids = toku_xids_get_num_xids(xids);
     // we assume that implicit promotion has happened
     // when we get this call, so the number of xids MUST
     // be greater than the number of provisional entries
@@ -1916,12 +1909,12 @@ ule_add_placeholders(ULE ule, XIDS xids) {
     // make sure that the xids stack matches up to a certain amount
     // this first for loop is just debug code
     for (uint32_t i = 0; i < ule->num_puxrs; i++) {
-        TXNID current_msg_xid = xids_get_xid(xids, i);
+        TXNID current_msg_xid = toku_xids_get_xid(xids, i);
         TXNID current_ule_xid = ule_get_xid(ule, i + ule->num_cuxrs);
         invariant(current_msg_xid == current_ule_xid);
     }
     for (uint32_t i = ule->num_puxrs; i < num_xids-1; i++) {
-        TXNID current_msg_xid = xids_get_xid(xids, i);
+        TXNID current_msg_xid = toku_xids_get_xid(xids, i);
         ule_push_placeholder_uxr(ule, current_msg_xid);
     }
 }
@@ -2073,7 +2066,7 @@ ule_verify_xids(ULE ule, uint32_t interesting, TXNID *xids) {
 //    is_delp - output parameter that returns answer
 //    context - parameter for f
 //
-int
+static int
 le_iterate_is_del(LEAFENTRY le, LE_ITERATE_CALLBACK f, bool *is_delp, TOKUTXN context) {
 #if ULE_DEBUG
     ULE_S ule;
@@ -2139,6 +2132,27 @@ cleanup:
 #endif
     if (!r) *is_delp = is_del;
     return r;
+}
+
+//
+// Returns true if the value that is to be read is empty.
+//
+int le_val_is_del(LEAFENTRY le, bool is_snapshot_read, TOKUTXN txn) {
+    int rval;
+    if (is_snapshot_read) {
+        bool is_del = false;
+        le_iterate_is_del(
+            le,
+            toku_txn_reads_txnid,
+            &is_del,
+            txn
+            );
+        rval = is_del;
+    }
+    else {
+        rval = le_latest_is_del(le);
+    }
+    return rval;
 }
 
 //
@@ -2259,6 +2273,27 @@ cleanup:
         *vallenp = vallen;
     }
     return r;
+}
+
+void le_extract_val(LEAFENTRY le,
+                    // should we return the entire leafentry as the val?
+                    bool is_leaf_mode, bool is_snapshot_read,
+                    TOKUTXN ttxn, uint32_t *vallen, void **val) {
+    if (is_leaf_mode) {
+        *val = le;
+        *vallen = leafentry_memsize(le);
+    } else if (is_snapshot_read) {
+        int r = le_iterate_val(
+            le,
+            toku_txn_reads_txnid,
+            val,
+            vallen,
+            ttxn
+            );
+        lazy_assert_zero(r);
+    } else {
+        *val = le_latest_val_and_len(le, vallen);
+    }
 }
 
 // This is an on-disk format.  static_asserts verify everything is packed and aligned correctly.
@@ -2465,6 +2500,7 @@ toku_le_upgrade_13_14(LEAFENTRY_13 old_leafentry,
                    nullptr,
                    0, //only matters if we are passing in a bn_data
                    nullptr, //only matters if we are passing in a bn_data
+                   0, //only matters if we are passing in a bn_data
                    0, //only matters if we are passing in a bn_data
                    0, //only matters if we are passing in a bn_data
                    new_leafentry_p,

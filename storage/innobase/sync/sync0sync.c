@@ -47,6 +47,7 @@ Created 9/5/1995 Heikki Tuuri
 # include "srv0start.h" /* srv_is_being_started */
 #endif /* UNIV_SYNC_DEBUG */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
@@ -473,6 +474,8 @@ mutex_set_waiters(
 
 	ptr = &(mutex->waiters);
 
+        os_wmb;
+
 	*ptr = n;		/* Here we assume that the write of a single
 				word in memory is atomic */
 }
@@ -520,13 +523,15 @@ mutex_loop:
 spin_loop:
 	ut_d(mutex->count_spin_loop++);
 
+        HMT_low();
 	while (mutex_get_lock_word(mutex) != 0 && i < SYNC_SPIN_ROUNDS) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
-
+                os_rmb;              // Ensure future reads sees new values
 		i++;
 	}
+        HMT_medium();
 
 	if (i == SYNC_SPIN_ROUNDS) {
 #ifdef UNIV_DEBUG
@@ -1530,11 +1535,7 @@ sync_init(void)
 		     SYNC_NO_ORDER_CHECK);
 
 #ifdef UNIV_SYNC_DEBUG
-	mutex_create(rw_lock_debug_mutex_key, &rw_lock_debug_mutex,
-		     SYNC_NO_ORDER_CHECK);
-
-	rw_lock_debug_event = os_event_create(NULL);
-	rw_lock_debug_waiters = FALSE;
+	os_fast_mutex_init(rw_lock_debug_mutex_key, &rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
 }
 
@@ -1602,6 +1603,7 @@ sync_close(void)
 	sync_order_checks_on = FALSE;
 
 	sync_thread_level_arrays_free();
+	os_fast_mutex_free(&rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
 
 	sync_initialized = FALSE;	

@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -89,6 +89,8 @@ PATENT RIGHTS GRANT:
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 #ident "$Id$"
 
+#include <config.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -97,6 +99,7 @@ PATENT RIGHTS GRANT:
 #include "ydb-internal.h"
 #include "ydb_cursor.h"
 #include "ydb_row_lock.h"
+#include "ft/cursor.h"
 
 static YDB_C_LAYER_STATUS_S ydb_c_layer_status;
 #ifdef STATUS_VALUE
@@ -104,7 +107,7 @@ static YDB_C_LAYER_STATUS_S ydb_c_layer_status;
 #endif
 #define STATUS_VALUE(x) ydb_c_layer_status.status[x].value.num
 
-#define STATUS_INIT(k,c,t,l,inc) TOKUDB_STATUS_INIT(ydb_c_layer_status, k, c, t, l, inc)
+#define STATUS_INIT(k,c,t,l,inc) TOKUFT_STATUS_INIT(ydb_c_layer_status, k, c, t, l, inc)
 
 static void
 ydb_c_layer_status_init (void) {
@@ -133,8 +136,8 @@ get_nonmain_cursor_flags(uint32_t flags) {
 }
 
 static inline bool 
-c_uninitialized(DBC* c) {
-    return toku_ft_cursor_uninitialized(dbc_struct_i(c)->c);
+c_uninitialized(DBC *c) {
+    return toku_ft_cursor_uninitialized(dbc_ftcursor(c));
 }            
 
 typedef struct query_context_wrapped_t {
@@ -200,7 +203,7 @@ typedef struct query_context_with_input_t {
 
 static void
 query_context_base_init(QUERY_CONTEXT_BASE context, DBC *c, uint32_t flag, bool is_write_op, YDB_CALLBACK_FUNCTION f, void *extra) {
-    context->c       = dbc_struct_i(c)->c;
+    context->c       = dbc_ftcursor(c);
     context->txn     = dbc_struct_i(c)->txn;
     context->db      = c->dbp;
     context->f       = f;
@@ -247,7 +250,7 @@ query_context_with_input_init(QUERY_CONTEXT_WITH_INPUT context, DBC *c, uint32_t
     context->input_val = val;
 }
 
-static int c_getf_first_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_first_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static void 
 c_query_context_init(QUERY_CONTEXT context, DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -277,7 +280,7 @@ c_getf_first(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
     c_query_context_init(&context, c, flag, f, extra);
     while (r == 0) {
         //toku_ft_cursor_first will call c_getf_first_callback(..., context) (if query is successful)
-        r = toku_ft_cursor_first(dbc_struct_i(c)->c, c_getf_first_callback, &context);
+        r = toku_ft_cursor_first(dbc_ftcursor(c), c_getf_first_callback, &context);
         if (r == DB_LOCK_NOTGRANTED) {
             r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
         } else {
@@ -290,7 +293,7 @@ c_getf_first(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_first_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_first_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT      super_context = (QUERY_CONTEXT) extra;
     QUERY_CONTEXT_BASE context       = &super_context->base;
 
@@ -317,7 +320,7 @@ c_getf_first_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, 
     return r;
 }
 
-static int c_getf_last_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_last_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static int
 c_getf_last(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -328,7 +331,7 @@ c_getf_last(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
     c_query_context_init(&context, c, flag, f, extra); 
     while (r == 0) {
         //toku_ft_cursor_last will call c_getf_last_callback(..., context) (if query is successful)
-        r = toku_ft_cursor_last(dbc_struct_i(c)->c, c_getf_last_callback, &context);
+        r = toku_ft_cursor_last(dbc_ftcursor(c), c_getf_last_callback, &context);
         if (r == DB_LOCK_NOTGRANTED) {
             r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
         } else {
@@ -341,7 +344,7 @@ c_getf_last(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_last_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_last_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT      super_context = (QUERY_CONTEXT) extra;
     QUERY_CONTEXT_BASE context       = &super_context->base;
 
@@ -368,7 +371,7 @@ c_getf_last_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, v
     return r;
 }
 
-static int c_getf_next_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_next_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static int
 c_getf_next(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -383,7 +386,7 @@ c_getf_next(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
         c_query_context_init(&context, c, flag, f, extra); 
         while (r == 0) {
             //toku_ft_cursor_next will call c_getf_next_callback(..., context) (if query is successful)
-            r = toku_ft_cursor_next(dbc_struct_i(c)->c, c_getf_next_callback, &context);
+            r = toku_ft_cursor_next(dbc_ftcursor(c), c_getf_next_callback, &context);
             if (r == DB_LOCK_NOTGRANTED) {
                 r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
             } else {
@@ -397,7 +400,7 @@ c_getf_next(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_next_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_next_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT      super_context = (QUERY_CONTEXT) extra;
     QUERY_CONTEXT_BASE context       = &super_context->base;
 
@@ -427,7 +430,7 @@ c_getf_next_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, v
     return r;
 }
 
-static int c_getf_prev_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_prev_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static int
 c_getf_prev(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -442,7 +445,7 @@ c_getf_prev(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
         c_query_context_init(&context, c, flag, f, extra);
         while (r == 0) {
             //toku_ft_cursor_prev will call c_getf_prev_callback(..., context) (if query is successful)
-            r = toku_ft_cursor_prev(dbc_struct_i(c)->c, c_getf_prev_callback, &context);
+            r = toku_ft_cursor_prev(dbc_ftcursor(c), c_getf_prev_callback, &context);
             if (r == DB_LOCK_NOTGRANTED) {
                 r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
             } else {
@@ -456,7 +459,7 @@ c_getf_prev(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_prev_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_prev_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT      super_context = (QUERY_CONTEXT) extra;
     QUERY_CONTEXT_BASE context       = &super_context->base;
 
@@ -485,7 +488,7 @@ c_getf_prev_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, v
     return r;
 }
 
-static int c_getf_current_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_current_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static int
 c_getf_current(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -495,14 +498,14 @@ c_getf_current(DBC *c, uint32_t flag, YDB_CALLBACK_FUNCTION f, void *extra) {
     QUERY_CONTEXT_S context; //Describes the context of this query.
     c_query_context_init(&context, c, flag, f, extra); 
     //toku_ft_cursor_current will call c_getf_current_callback(..., context) (if query is successful)
-    int r = toku_ft_cursor_current(dbc_struct_i(c)->c, DB_CURRENT, c_getf_current_callback, &context);
+    int r = toku_ft_cursor_current(dbc_ftcursor(c), DB_CURRENT, c_getf_current_callback, &context);
     c_query_context_destroy(&context);
     return r;
 }
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_current_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_current_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT      super_context = (QUERY_CONTEXT) extra;
     QUERY_CONTEXT_BASE context       = &super_context->base;
 
@@ -522,7 +525,7 @@ c_getf_current_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val
     return r;
 }
 
-static int c_getf_set_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_set_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 int
 toku_c_getf_set(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -534,7 +537,7 @@ toku_c_getf_set(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void *
     query_context_with_input_init(&context, c, flag, key, NULL, f, extra); 
     while (r == 0) {
         //toku_ft_cursor_set will call c_getf_set_callback(..., context) (if query is successful)
-        r = toku_ft_cursor_set(dbc_struct_i(c)->c, key, c_getf_set_callback, &context);
+        r = toku_ft_cursor_set(dbc_ftcursor(c), key, c_getf_set_callback, &context);
         if (r == DB_LOCK_NOTGRANTED) {
             r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
         } else {
@@ -547,7 +550,7 @@ toku_c_getf_set(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void *
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_set_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_set_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT_WITH_INPUT super_context = (QUERY_CONTEXT_WITH_INPUT) extra;
     QUERY_CONTEXT_BASE       context       = &super_context->base;
 
@@ -575,7 +578,7 @@ c_getf_set_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, vo
     return r;
 }
 
-static int c_getf_set_range_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_set_range_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static int
 c_getf_set_range(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -587,7 +590,7 @@ c_getf_set_range(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void 
     query_context_with_input_init(&context, c, flag, key, NULL, f, extra); 
     while (r == 0) {
         //toku_ft_cursor_set_range will call c_getf_set_range_callback(..., context) (if query is successful)
-        r = toku_ft_cursor_set_range(dbc_struct_i(c)->c, key, nullptr, c_getf_set_range_callback, &context);
+        r = toku_ft_cursor_set_range(dbc_ftcursor(c), key, nullptr, c_getf_set_range_callback, &context);
         if (r == DB_LOCK_NOTGRANTED) {
             r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
         } else {
@@ -600,7 +603,7 @@ c_getf_set_range(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void 
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_set_range_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_set_range_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT_WITH_INPUT super_context = (QUERY_CONTEXT_WITH_INPUT) extra;
     QUERY_CONTEXT_BASE       context       = &super_context->base;
 
@@ -641,7 +644,7 @@ c_getf_set_range_with_bound(DBC *c, uint32_t flag, DBT *key, DBT *key_bound, YDB
     query_context_with_input_init(&context, c, flag, key, NULL, f, extra); 
     while (r == 0) {
         //toku_ft_cursor_set_range will call c_getf_set_range_callback(..., context) (if query is successful)
-        r = toku_ft_cursor_set_range(dbc_struct_i(c)->c, key, key_bound, c_getf_set_range_callback, &context);
+        r = toku_ft_cursor_set_range(dbc_ftcursor(c), key, key_bound, c_getf_set_range_callback, &context);
         if (r == DB_LOCK_NOTGRANTED) {
             r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
         } else {
@@ -652,7 +655,7 @@ c_getf_set_range_with_bound(DBC *c, uint32_t flag, DBT *key, DBT *key_bound, YDB
     return r;
 }
 
-static int c_getf_set_range_reverse_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool);
+static int c_getf_set_range_reverse_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool);
 
 static int
 c_getf_set_range_reverse(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION f, void *extra) {
@@ -664,7 +667,7 @@ c_getf_set_range_reverse(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION 
     query_context_with_input_init(&context, c, flag, key, NULL, f, extra); 
     while (r == 0) {
         //toku_ft_cursor_set_range_reverse will call c_getf_set_range_reverse_callback(..., context) (if query is successful)
-        r = toku_ft_cursor_set_range_reverse(dbc_struct_i(c)->c, key, c_getf_set_range_reverse_callback, &context);
+        r = toku_ft_cursor_set_range_reverse(dbc_ftcursor(c), key, c_getf_set_range_reverse_callback, &context);
         if (r == DB_LOCK_NOTGRANTED) {
             r = toku_db_wait_range_lock(context.base.db, context.base.txn, &context.base.request);
         } else {
@@ -677,7 +680,7 @@ c_getf_set_range_reverse(DBC *c, uint32_t flag, DBT *key, YDB_CALLBACK_FUNCTION 
 
 //result is the result of the query (i.e. 0 means found, DB_NOTFOUND, etc..)
 static int
-c_getf_set_range_reverse_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, bytevec val, void *extra, bool lock_only) {
+c_getf_set_range_reverse_callback(uint32_t keylen, const void *key, uint32_t vallen, const void *val, void *extra, bool lock_only) {
     QUERY_CONTEXT_WITH_INPUT super_context = (QUERY_CONTEXT_WITH_INPUT) extra;
     QUERY_CONTEXT_BASE       context       = &super_context->base;
 
@@ -708,14 +711,19 @@ c_getf_set_range_reverse_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen, b
     return r;
 }
 
-// Close a cursor.
-int 
-toku_c_close(DBC * c) {
+
+int toku_c_close_internal(DBC *c) {
     HANDLE_PANICKED_DB(c->dbp);
     HANDLE_CURSOR_ILLEGAL_WORKING_PARENT_TXN(c);
-    toku_ft_cursor_close(dbc_struct_i(c)->c);
+    toku_ft_cursor_destroy(dbc_ftcursor(c));
     toku_sdbt_cleanup(&dbc_struct_i(c)->skey_s);
     toku_sdbt_cleanup(&dbc_struct_i(c)->sval_s);
+    return 0;
+}
+
+// Close a cursor.
+int toku_c_close(DBC *c) {
+    toku_c_close_internal(c);
     toku_free(c);
     return 0;
 }
@@ -739,7 +747,7 @@ c_set_bounds(DBC *dbc, const DBT *left_key, const DBT *right_key, bool pre_acqui
     DB *db = dbc->dbp;
     DB_TXN *txn = dbc_struct_i(dbc)->txn;
     HANDLE_PANICKED_DB(db);
-    toku_ft_cursor_set_range_lock(dbc_struct_i(dbc)->c, left_key, right_key,
+    toku_ft_cursor_set_range_lock(dbc_ftcursor(dbc), left_key, right_key,
                                    (left_key == toku_dbt_negative_infinity()),
                                    (right_key == toku_dbt_positive_infinity()),
                                    out_of_range_error);
@@ -757,12 +765,12 @@ c_set_bounds(DBC *dbc, const DBT *left_key, const DBT *right_key, bool pre_acqui
 
 static void
 c_remove_restriction(DBC *dbc) {
-    toku_ft_cursor_remove_restriction(dbc_struct_i(dbc)->c);
+    toku_ft_cursor_remove_restriction(dbc_ftcursor(dbc));
 }
 
 static void
 c_set_check_interrupt_callback(DBC* dbc, bool (*interrupt_callback)(void*), void *extra) {
-    toku_ft_cursor_set_check_interrupt_cb(dbc_struct_i(dbc)->c, interrupt_callback, extra);
+    toku_ft_cursor_set_check_interrupt_cb(dbc_ftcursor(dbc), interrupt_callback, extra);
 }
 
 int
@@ -828,7 +836,7 @@ toku_c_get(DBC* c, DBT* key, DBT* val, uint32_t flag) {
 }
 
 int 
-toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC ** c, uint32_t flags, int is_temporary_cursor) {
+toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC *c, uint32_t flags, int is_temporary_cursor) {
     HANDLE_PANICKED_DB(db);
     HANDLE_DB_ILLEGAL_WORKING_PARENT_TXN(db, txn);
     DB_ENV* env = db->dbenv;
@@ -841,13 +849,7 @@ toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC ** c, uint32_t flags, int is_
             );
     }
 
-    int r = 0;
-    
-    struct __toku_dbc_external *XMALLOC(eresult); // so the internal stuff is stuck on the end
-    memset(eresult, 0, sizeof(*eresult));
-    DBC *result = &eresult->external_part;
-
-#define SCRS(name) result->name = name
+#define SCRS(name) c->name = name
     SCRS(c_getf_first);
     SCRS(c_getf_last);
     SCRS(c_getf_next);
@@ -861,59 +863,49 @@ toku_db_cursor_internal(DB * db, DB_TXN * txn, DBC ** c, uint32_t flags, int is_
     SCRS(c_set_check_interrupt_callback);
 #undef SCRS
 
-    result->c_get = toku_c_get;
-    result->c_getf_set = toku_c_getf_set;
-    result->c_close = toku_c_close;
+    c->c_get = toku_c_get;
+    c->c_getf_set = toku_c_getf_set;
+    c->c_close = toku_c_close;
 
-    result->dbp = db;
+    c->dbp = db;
 
-    dbc_struct_i(result)->txn = txn;
-    dbc_struct_i(result)->skey_s = (struct simple_dbt){0,0};
-    dbc_struct_i(result)->sval_s = (struct simple_dbt){0,0};
+    dbc_struct_i(c)->txn = txn;
+    dbc_struct_i(c)->skey_s = (struct simple_dbt){0,0};
+    dbc_struct_i(c)->sval_s = (struct simple_dbt){0,0};
     if (is_temporary_cursor) {
-        dbc_struct_i(result)->skey = &db->i->skey;
-        dbc_struct_i(result)->sval = &db->i->sval;
+        dbc_struct_i(c)->skey = &db->i->skey;
+        dbc_struct_i(c)->sval = &db->i->sval;
     } else {
-        dbc_struct_i(result)->skey = &dbc_struct_i(result)->skey_s;
-        dbc_struct_i(result)->sval = &dbc_struct_i(result)->sval_s;
+        dbc_struct_i(c)->skey = &dbc_struct_i(c)->skey_s;
+        dbc_struct_i(c)->sval = &dbc_struct_i(c)->sval_s;
     }
     if (flags & DB_SERIALIZABLE) {
-        dbc_struct_i(result)->iso = TOKU_ISO_SERIALIZABLE;
+        dbc_struct_i(c)->iso = TOKU_ISO_SERIALIZABLE;
     } else {
-        dbc_struct_i(result)->iso = txn ? db_txn_struct_i(txn)->iso : TOKU_ISO_SERIALIZABLE;
+        dbc_struct_i(c)->iso = txn ? db_txn_struct_i(txn)->iso : TOKU_ISO_SERIALIZABLE;
     }
-    dbc_struct_i(result)->rmw = (flags & DB_RMW) != 0;
+    dbc_struct_i(c)->rmw = (flags & DB_RMW) != 0;
     bool is_snapshot_read = false;
     if (txn) {
-        is_snapshot_read = (dbc_struct_i(result)->iso == TOKU_ISO_READ_COMMITTED || 
-                            dbc_struct_i(result)->iso == TOKU_ISO_SNAPSHOT);
+        is_snapshot_read = (dbc_struct_i(c)->iso == TOKU_ISO_READ_COMMITTED || 
+                            dbc_struct_i(c)->iso == TOKU_ISO_SNAPSHOT);
     }
-    r = toku_ft_cursor(
+    int r = toku_ft_cursor_create(
         db->i->ft_handle, 
-        &dbc_struct_i(result)->c,
+        dbc_ftcursor(c),
         txn ? db_txn_struct_i(txn)->tokutxn : NULL,
         is_snapshot_read,
-        ((flags & DBC_DISABLE_PREFETCHING) != 0)
+        ((flags & DBC_DISABLE_PREFETCHING) != 0),
+        is_temporary_cursor != 0
         );
-    assert(r == 0 || r == TOKUDB_MVCC_DICTIONARY_TOO_NEW);
-    if (r == 0) {
-        // Set the is_temporary_cursor boolean inside the ftnode so
-        // that a query only needing one cursor will not perform
-        // unecessary malloc calls.
-        if (is_temporary_cursor) {
-            toku_ft_cursor_set_temporary(dbc_struct_i(result)->c);
-        }
-
-        *c = result;
-    }
-    else {
-        toku_free(result);
+    if (r != 0) {
+        invariant(r == TOKUDB_MVCC_DICTIONARY_TOO_NEW);
     }
     return r;
 }
 
 static inline int 
-autotxn_db_cursor(DB *db, DB_TXN *txn, DBC **c, uint32_t flags) {
+autotxn_db_cursor(DB *db, DB_TXN *txn, DBC *c, uint32_t flags) {
     if (!txn && (db->dbenv->i->open_flags & DB_INIT_TXN)) {
         return toku_ydb_do_error(db->dbenv, EINVAL,
               "Cursors in a transaction environment must have transactions.\n");
@@ -922,9 +914,14 @@ autotxn_db_cursor(DB *db, DB_TXN *txn, DBC **c, uint32_t flags) {
 }
 
 // Create a cursor on a db.
-int 
-toku_db_cursor(DB *db, DB_TXN *txn, DBC **c, uint32_t flags) {
-    int r = autotxn_db_cursor(db, txn, c, flags);
+int toku_db_cursor(DB *db, DB_TXN *txn, DBC **c, uint32_t flags) {
+    DBC *XMALLOC(cursor);
+    int r = autotxn_db_cursor(db, txn, cursor, flags);
+    if (r == 0) {
+        *c = cursor;
+    } else {
+        toku_free(cursor);
+    }
     return r;
 }
 

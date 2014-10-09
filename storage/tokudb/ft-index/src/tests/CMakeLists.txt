@@ -50,7 +50,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
   ## #5138 only reproduces when using the static library.
   list(REMOVE_ITEM tdb_bins test-5138.tdb)
   add_executable(test-5138.tdb test-5138.cc)
-  target_link_libraries(test-5138.tdb ${LIBTOKUDB}_static ${ZLIB_LIBRARY} ${LIBTOKUPORTABILITY}_static ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_SYSTEM_LIBS})
+  target_link_libraries(test-5138.tdb ${LIBTOKUDB}_static z ${LIBTOKUPORTABILITY}_static ${CMAKE_THREAD_LIBS_INIT} ${EXTRA_SYSTEM_LIBS})
   add_space_separated_property(TARGET test-5138.tdb COMPILE_FLAGS -fvisibility=hidden)
   add_ydb_test(test-5138.tdb)
 
@@ -160,10 +160,7 @@ if(BUILD_TESTING OR BUILD_SRC_TESTS)
     endforeach(av)
   endforeach(ov)
 
-  if (NOT (CMAKE_SYSTEM_NAME MATCHES Darwin OR
-           (CMAKE_CXX_COMPILER_ID STREQUAL Intel AND
-            CMAKE_BUILD_TYPE STREQUAL Release)
-           OR USE_GCOV))
+  if (NOT (CMAKE_SYSTEM_NAME MATCHES Darwin OR USE_GCOV))
     declare_custom_tests(helgrind1.tdb)
     add_test(NAME ydb/helgrind_helgrind1.tdb
       COMMAND valgrind --quiet --tool=helgrind --error-exitcode=1 --log-file=helgrind1.tdb.deleteme $<TARGET_FILE:helgrind1.tdb>)

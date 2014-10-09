@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -91,15 +91,13 @@ PATENT RIGHTS GRANT:
 // test the LE_CURSOR next function with provisionally deleted rows
 
 
-#include "checkpoint.h"
+#include "cachetable/checkpoint.h"
 #include "le-cursor.h"
 #include "test.h"
 
-static TOKUTXN const null_txn = 0;
-static DB * const null_db = 0;
 
 static int
-get_next_callback(ITEMLEN keylen, bytevec key, ITEMLEN vallen UU(), bytevec val UU(), void *extra, bool lock_only) {
+get_next_callback(uint32_t keylen, const void *key, uint32_t vallen UU(), const void *val UU(), void *extra, bool lock_only) {
     DBT *CAST_FROM_VOIDP(key_dbt, extra);
     if (!lock_only) {
         toku_dbt_set(keylen, key, key_dbt, NULL);

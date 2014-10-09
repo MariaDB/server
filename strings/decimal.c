@@ -1,5 +1,5 @@
-/* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2011, Monty Program Ab.
+/* Copyright (c) 2004, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -127,7 +127,6 @@ typedef longlong      dec2;
 #define DIG_BASE     1000000000
 #define DIG_MAX      (DIG_BASE-1)
 #define DIG_BASE2    ((dec2)DIG_BASE * (dec2)DIG_BASE)
-#define ROUND_UP(X)  (((X)+DIG_PER_DEC1-1)/DIG_PER_DEC1)
 static const dec1 powers10[DIG_PER_DEC1+1]={
   1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000};
 static const int dig2bytes[DIG_PER_DEC1+1]={0, 1, 1, 2, 2, 3, 3, 4, 4, 4};
@@ -135,6 +134,11 @@ static const dec1 frac_max[DIG_PER_DEC1-1]={
   900000000, 990000000, 999000000,
   999900000, 999990000, 999999000,
   999999900, 999999990 };
+
+static inline int ROUND_UP(int x)
+{
+  return (x + (x > 0 ? DIG_PER_DEC1 - 1 : 0)) / DIG_PER_DEC1;
+}
 
 #ifdef HAVE_valgrind
 #define sanity(d) DBUG_ASSERT((d)->len > 0)
@@ -2328,7 +2332,7 @@ static int do_div_mod(const decimal_t *from1, const decimal_t *from2,
         error=E_DEC_TRUNCATED;
         goto done;
       }
-      stop1=start1+frac0;
+      stop1= start1 + frac0 + intg0;
       frac0+=intg0;
       to->intg=0;
       while (intg0++ < 0)

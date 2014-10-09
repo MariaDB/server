@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -86,10 +86,10 @@ PATENT RIGHTS GRANT:
   under this License.
 */
 
+#pragma once
+
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
-#ifndef TOKU_PORTABILITY_H
-#define TOKU_PORTABILITY_H
 
 #include "toku_config.h"
 
@@ -106,11 +106,6 @@ PATENT RIGHTS GRANT:
 #endif
 
 #define DEV_NULL_FILE "/dev/null"
-
-// HACK Poison these mcaros so no one uses them
-#define TOKU_WINDOWS ,
-#define TOKU_WINDOWS_32 ,
-#define TOKU_WINDOWS_64 ,
 
 // include here, before they get deprecated
 #include <toku_atomic.h>
@@ -188,26 +183,6 @@ extern "C" {
 
 // Deprecated functions.
 #if !defined(TOKU_ALLOW_DEPRECATED)
-#   if defined(__ICL) || defined(__ICC) // Intel Compiler
-#       pragma deprecated (creat, fstat, stat, getpid, syscall, sysconf, mkdir, strdup)
-//#       pragma poison   off_t
-//#       pragma poison   pthread_attr_t       pthread_t
-//#       pragma poison   pthread_mutexattr_t  pthread_mutex_t
-//#       pragma poison   pthread_condattr_t   pthread_cond_t
-//#       pragma poison   pthread_rwlockattr_t pthread_rwlock_t
-//#       pragma poison   timespec
-#    ifndef DONT_DEPRECATE_WRITES
-#       pragma poison   write                pwrite
-#    endif
-#    ifndef DONT_DEPRECATE_MALLOC
-#       pragma deprecated (malloc, free, realloc)
-#    endif
-#    ifndef DONT_DEPRECATE_ERRNO
-#       pragma deprecated (errno)
-#    endif
-#    pragma poison   dup2
-#    pragma poison   _dup2
-#   else
 int      creat(const char *pathname, mode_t mode)   __attribute__((__deprecated__));
 int      fstat(int fd, struct stat *buf)            __attribute__((__deprecated__));
 int      stat(const char *path, struct stat *buf)   __attribute__((__deprecated__));
@@ -281,7 +256,6 @@ extern void *realloc(void*, size_t)            __THROW __attribute__((__deprecat
 #pragma GCC poison __sync_synchronize
 #pragma GCC poison __sync_lock_test_and_set
 #pragma GCC poison __sync_release
-#   endif
 #endif
 
 #if defined(__cplusplus)
@@ -352,17 +326,8 @@ void toku_set_func_pread (ssize_t (*)(int, void *, size_t, off_t));
 int toku_portability_init(void);
 void toku_portability_destroy(void);
 
-static inline uint64_t roundup_to_multiple(uint64_t alignment, uint64_t v)
 // Effect: Return X, where X the smallest multiple of ALIGNMENT such that X>=V.
 // Requires: ALIGNMENT is a power of two
-{
-    assert(0==(alignment&(alignment-1)));  // alignment must be a power of two
-    uint64_t result = (v+alignment-1)&~(alignment-1);
-    assert(result>=v);                     // The result is >=V.
-    assert(result%alignment==0);           // The result is a multiple of alignment.
-    assert(result<v+alignment);            // The result is the smallest such multiple of alignment.
-    return result;
+static inline uint64_t roundup_to_multiple(uint64_t alignment, uint64_t v) {
+    return (v + alignment - 1) & ~(alignment - 1);
 }
-    
-
-#endif /* TOKU_PORTABILITY_H */

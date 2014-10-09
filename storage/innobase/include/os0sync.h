@@ -310,6 +310,9 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 # define os_atomic_test_and_set_byte(ptr, new_val) \
 	__sync_lock_test_and_set(ptr, (byte) new_val)
 
+# define os_atomic_lock_release_byte(ptr) \
+	__sync_lock_release(ptr)
+
 #elif defined(HAVE_IB_SOLARIS_ATOMICS)
 
 #define HAVE_ATOMIC_BUILTINS
@@ -363,6 +366,9 @@ Returns the old value of *ptr, atomically sets *ptr to new_val */
 # define os_atomic_test_and_set_byte(ptr, new_val) \
 	atomic_swap_uchar(ptr, new_val)
 
+# define os_atomic_lock_release_byte(ptr) \
+	(void) atomic_swap_uchar(ptr, 0)
+
 #elif defined(HAVE_WINDOWS_ATOMICS)
 
 #define HAVE_ATOMIC_BUILTINS
@@ -414,6 +420,57 @@ clobbered */
 #else
 # define IB_ATOMICS_STARTUP_MSG \
 	"Mutexes and rw_locks use InnoDB's own implementation"
+#endif
+
+/** barrier definitions for memory ordering */
+#ifdef HAVE_IB_GCC_ATOMIC_THREAD_FENCE
+# define HAVE_MEMORY_BARRIER
+# define os_rmb	__atomic_thread_fence(__ATOMIC_ACQUIRE)
+# define os_wmb	__atomic_thread_fence(__ATOMIC_RELEASE)
+#ifdef __powerpc__
+# define os_isync  __asm __volatile ("isync":::"memory")
+#else
+#define os_isync do { } while(0)
+#endif
+
+# define IB_MEMORY_BARRIER_STARTUP_MSG \
+	"GCC builtin __atomic_thread_fence() is used for memory barrier"
+
+#elif defined(HAVE_IB_GCC_SYNC_SYNCHRONISE)
+# define HAVE_MEMORY_BARRIER
+# define os_rmb	__sync_synchronize()
+# define os_wmb	__sync_synchronize()
+# define os_isync __sync_synchronize()
+# define IB_MEMORY_BARRIER_STARTUP_MSG \
+	"GCC builtin __sync_synchronize() is used for memory barrier"
+
+#elif defined(HAVE_IB_MACHINE_BARRIER_SOLARIS)
+# define HAVE_MEMORY_BARRIER
+# include <mbarrier.h>
+# define os_rmb	__machine_r_barrier()
+# define os_wmb	__machine_w_barrier()
+# define os_isync os_rmb; os_wmb
+# define IB_MEMORY_BARRIER_STARTUP_MSG \
+	"Soralis memory ordering functions are used for memory barrier"
+
+#elif defined(HAVE_WINDOWS_MM_FENCE)
+# define HAVE_MEMORY_BARRIER
+# include <intrin.h>
+# define os_rmb	_mm_lfence()
+# define os_wmb	_mm_sfence()
+# define os_isync os_rmb; os_wmb
+# define IB_MEMORY_BARRIER_STARTUP_MSG \
+	"_mm_lfence() and _mm_sfence() are used for memory barrier"
+
+# define os_atomic_lock_release_byte(ptr) \
+	(void) InterlockedExchange(ptr, 0)
+
+#else
+# define os_rmb do { } while(0)
+# define os_wmb do { } while(0)
+# define os_isync do { } while(0)
+# define IB_MEMORY_BARRIER_STARTUP_MSG \
+	"Memory barrier is not used"
 #endif
 
 #ifndef UNIV_NONINL

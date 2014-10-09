@@ -9202,6 +9202,25 @@ uint get_next_field_for_derived_key(uchar *arg)
 }
 
 
+static
+uint get_next_field_for_derived_key_simple(uchar *arg)
+{
+  KEYUSE *keyuse= *(KEYUSE **) arg;
+  if (!keyuse)
+    return (uint) (-1);
+  TABLE *table= keyuse->table;
+  uint key= keyuse->key;
+  uint fldno= keyuse->keypart; 
+  for ( ; 
+        keyuse->table == table && keyuse->key == key && keyuse->keypart == fldno;
+        keyuse++)
+    ;
+  if (keyuse->key != key)
+    keyuse= 0;
+  *((KEYUSE **) arg)= keyuse;
+  return fldno;
+}
+
 static 
 bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
 {
@@ -9232,12 +9251,28 @@ bool generate_derived_keys_for_table(KEYUSE *keyuse, uint count, uint keys)
     }
     else
     {
-      if (table->add_tmp_key(table->s->keys, parts, 
-                             get_next_field_for_derived_key, 
-                             (uchar *) &first_keyuse,
-                             FALSE))
-        return TRUE;
-      table->reginfo.join_tab->keys.set_bit(table->s->keys);
+      KEYUSE *save_first_keyuse= first_keyuse;
+      if (table->check_tmp_key(table->s->keys, parts,
+                               get_next_field_for_derived_key_simple, 
+                               (uchar *) &first_keyuse))
+ 
+      {
+        first_keyuse= save_first_keyuse;
+        if (table->add_tmp_key(table->s->keys, parts, 
+                               get_next_field_for_derived_key, 
+                               (uchar *) &first_keyuse,
+                               FALSE))
+          return TRUE;
+        table->reginfo.join_tab->keys.set_bit(table->s->keys);
+      }
+      else
+      {
+        /* Mark keyuses for this key to be excluded */
+        for (KEYUSE *curr=save_first_keyuse; curr < first_keyuse; curr++)
+	{
+          curr->key= MAX_KEY;
+        }
+      }
       first_keyuse= keyuse;
       key_count++;
       parts= 0;
@@ -20390,7 +20425,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
                order_item->full_name(), thd->where);
       return TRUE;
     }
-    order->item= ref_pointer_array + count - 1;
+    thd->change_item_tree((Item**)&order->item, (Item*)(ref_pointer_array + count - 1));
     order->in_field_list= 1;
     order->counter= count;
     order->counter_used= 1;
@@ -20423,7 +20458,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
         order_item_type == Item::REF_ITEM)
     {
       from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
-                                       NULL, &view_ref, IGNORE_ERRORS, TRUE,
+                                       NULL, &view_ref, IGNORE_ERRORS, FALSE,
                                        FALSE);
       if (!from_field)
         from_field= (Field*) not_found_field;
