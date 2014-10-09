@@ -1,3 +1,4 @@
+--source include/word_size.inc
 --vertical_results
 
 # need stable timestamp, because its current value is printed below
