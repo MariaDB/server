@@ -3127,6 +3127,11 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) {;
+				return FALSE;
+			}
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -3251,6 +3256,9 @@ try_again:
 
 	if (ret && len == n) {
 
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -5125,16 +5133,18 @@ os_aio_func(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
-	ibool		page_encryption, /*!< in: is page encryption used
-					  on this file space */
-	ulint		page_encryption_key, /*!< page encryption key
-						 to be used */
-	ulint*		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+   	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key) /*!< page encryption key
+						 to be used */
+
 {
+	void* buffer = NULL;
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
 #ifdef WIN_ASYNC_IO
@@ -5254,7 +5264,12 @@ try_again:
 		if (srv_use_native_aio) {
 			os_n_file_writes++;
 #ifdef WIN_ASYNC_IO
-			ret = WriteFile(file, buf, (DWORD) n, &len,
+			if (page_encryption) {
+				buffer = slot->page_buf2;
+			} else {
+				buffer = buf;
+			}
+			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
 
 			if(!ret && GetLastError() != ERROR_IO_PENDING)
@@ -5446,6 +5461,22 @@ os_aio_windows_handle(
 		}
 
 		ret_val = ret && len == slot->len;
+	}
+
+	/* page encryption */
+	if (slot->message1 && slot->page_encryption) {
+		if (slot->page_buf2==NULL) {
+			os_slot_alloc_page_buf2(slot);
+		}
+
+		ut_ad(slot->page_buf2);
+
+		if (slot->type == OS_FILE_READ) {
+			if (fil_page_is_encrypted(slot->buf)) {
+				fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
+			}
+		} 
+		
 	}
 
 	if (slot->message1 && slot->page_compression) {

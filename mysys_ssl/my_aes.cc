@@ -115,10 +115,12 @@ void
 my_aes_hexToUint(const char* in, unsigned char *out, int dest_length)
 {
 	const char *pos = in;
+	int res = 0;
 	int count = 0;
 	for(count = 0; count < dest_length; count++)
 	{
-		sscanf(pos, "%2hhx", &out[count]);
+		sscanf(pos, "%2hhx", &res);
+		out[count] = res;
 		pos += 2 * sizeof(char);
 	}
 }

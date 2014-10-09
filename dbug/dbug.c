@@ -2201,7 +2201,7 @@ while (n-- > 0) {
 	if (on_this_line == 16 || n == 0) {
 		int i;
 		fprintf(stream, " ");
-		int cc = on_this_line;
+		cc = on_this_line;
 		if (cc != 16) {
 
 

@@ -5,7 +5,6 @@ Implementation of single pattern to keep keys for encrypting/decrypting pages.
 Created 09/15/2014
 ***********************************************************************/
 
-
 #include "EperiKeySingleton-t.h"
 #include <KeySingleton.h>
 #include <stdio.h>

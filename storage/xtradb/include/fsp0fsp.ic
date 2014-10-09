@@ -66,9 +66,7 @@ fsp_flags_is_valid(
 	ulint	unused = FSP_FLAGS_GET_UNUSED(flags);
 	ulint	page_compression = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
 	ulint	page_compression_level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL(flags);
-    ulint   page_encryption = FSP_FLAGS_GET_PAGE_ENCRYPTION(flags);
-    ulint   page_encryption_key = FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(flags);
-	ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
+    ulint	atomic_writes = FSP_FLAGS_GET_ATOMIC_WRITES(flags);
 
 	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return(false););
 

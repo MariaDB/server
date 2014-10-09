@@ -175,6 +175,9 @@ enum enum_mysql_show_type
   SHOW_always_last
 };
 
+
+
+
 /* backward compatibility mapping. */
 #define SHOW_INT      SHOW_UINT
 #define SHOW_LONG     SHOW_ULONG

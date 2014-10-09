@@ -250,8 +250,8 @@ pfs_os_aio_func(
 
 	result = os_aio_func(type, mode, name, file, buf, offset,
 			     n, message1, message2, space_id, trx,
-			     page_compression, page_compression_level,
-				 page_encryption, page_encryption_key, write_size);
+			     page_compression, page_compression_level, write_size ,
+				 page_encryption, page_encryption_key);
 
 	register_pfs_file_io_end(locker, n);
 

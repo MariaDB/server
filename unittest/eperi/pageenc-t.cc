@@ -81,7 +81,6 @@ void testIt(char* filename, ulint cmp_checksum) {
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
 	fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
-	ulint flags = 0;
 	fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
 	ulint a = 0;
 	ulint b = 0;
@@ -95,21 +94,29 @@ void testIt(char* filename, ulint cmp_checksum) {
 	strcpy (str,"File ");
 	strcat (str,filename );
 
-	ok  (i==0, str);
+	ok  (i==0, "%s", (char*) str);
 }
 void test_page_enc_dec() {
+	char compressed[] = "compressed";
+	char compressed_full[] = "compressed_full";
+	char xaa[] = "xaa";
+	char xab[] = "xab";
+	char xac[] = "xac";
+	char xad[] = "xad";
+	char xae[] = "xae";
+	char xaf[] = "xaf";
 
-	testIt("compressed",0);
-	testIt("compressed_full",0);
+	testIt(compressed,0);
+	testIt(compressed_full,0);
 
-	testIt("xaa",0);
-	testIt("xab",0);
-	testIt("xac",0);
-	testIt("xad",0);
+	testIt(xaa,0);
+	testIt(xab,0);
+	testIt(xac,0);
+	testIt(xad,0);
 
 
-	testIt("xae",1);
-	testIt("xaf",1);
+	testIt(xae,1);
+	testIt(xaf,1);
 
 }
 
