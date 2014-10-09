@@ -14,8 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include "../storage/xtradb/include/KeySingleton.h"
-
 #include "sql_plugin.h"
 #include "sql_priv.h"
 #include "unireg.h"
@@ -3684,6 +3682,11 @@ static bool init_global_datetime_format(timestamp_type format_type,
   }
   return false;
 }
+//#ifndef SHOW_LONG_STATUS
+//#define SHOW_LONG_STATUS 15
+//#endif
+
+
 
 SHOW_VAR com_status_vars[]= {
   {"admin_commands",       (char*) offsetof(STATUS_VAR, com_other), SHOW_LONG_STATUS},
@@ -5718,10 +5721,6 @@ int mysqld_main(int argc, char **argv)
   mysqld_server_started= 1;
   mysql_cond_signal(&COND_server_started);
   mysql_mutex_unlock(&LOCK_server_started);
-
-  KeySingleton& ksp2 = KeySingleton::getInstance();
-  struct keyentry *entry = ksp2.getKeys(2);
-  if(entry)	printf("id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
 
 #if defined(_WIN32) || defined(HAVE_SMEM)
   handle_connections_methods();

@@ -44,7 +44,7 @@ private:
 	KeySingleton & operator = (const KeySingleton&);
 
 public:
-	virtual ~KeySingleton() {}
+	virtual ~KeySingleton() {encKeys.~EncKeys();}
 	static KeySingleton& getInstance();
 	// Init the instance for only one time
 	static KeySingleton& getInstance(const char *name, const char *url,

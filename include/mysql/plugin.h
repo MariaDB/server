@@ -163,6 +163,21 @@ MARIA_DECLARE_PLUGIN__(NAME, \
 #define mysql_declare_plugin_end ,{0,0,0,0,0,0,0,0,0,0,0,0,0}}
 #define maria_declare_plugin_end ,{0,0,0,0,0,0,0,0,0,0,0,0,0}}
 
+#ifdef _special_
+
+
+enum enum_mysql_show_type
+{
+  SHOW_UNDEF, SHOW_BOOL, SHOW_UINT, SHOW_ULONG,
+  SHOW_ULONGLONG, SHOW_CHAR, SHOW_CHAR_PTR,
+  SHOW_ARRAY, SHOW_FUNC, SHOW_DOUBLE,
+  SHOW_SINT, SHOW_SLONG, SHOW_SLONGLONG, SHOW_SIMPLE_FUNC,
+  SHOW_KEY_CACHE_LONG,SHOW_LONG_STATUS, SHOW_DOUBLE_STATUS,
+  SHOW_HAVE, SHOW_MY_BOOL, SHOW_HA_ROWS, SHOW_SYS,SHOW_LONG_NOFLUSH, 
+  SHOW_LONGLONG_STATUS, SHOW_LEX_STRING
+};
+#else 
+
 /*
   declarations for SHOW STATUS support in plugins
 */
@@ -174,6 +189,9 @@ enum enum_mysql_show_type
   SHOW_SINT, SHOW_SLONG, SHOW_SLONGLONG, SHOW_SIMPLE_FUNC,
   SHOW_always_last
 };
+#endif
+
+
 
 /* backward compatibility mapping. */
 #define SHOW_INT      SHOW_UINT

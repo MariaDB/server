@@ -1,5 +1,9 @@
 #define EP_UNIT_TEST 1
 #define UNIV_INLINE
+
+
+#ifndef __WIN__
+
 typedef unsigned char byte;
 typedef unsigned long int ulint;
 typedef unsigned long int ibool;
@@ -8,7 +12,6 @@ typedef unsigned long int ibool;
 #include <my_aes.h>
 #include <string.h>
 #include <my_dbug.h>
-#include <openssl/aes.h>
 #include "../../storage/xtradb/include/fil0pageencryption.h"
 
 
@@ -357,7 +360,6 @@ test_bytes_to_key()
 	ok(memcmp(iv, &ivresult, 16) == 0, "BytesToKey iv generated successfully.");
 }
 
-
 int
 main(int argc __attribute__((unused)),char *argv[])
 {
@@ -369,5 +371,14 @@ main(int argc __attribute__((unused)),char *argv[])
 	test_cbc_enc_dec();
 	test_wrong_key();
 	test_bytes_to_key();
+
 	return 0;
 }
+
+#else 
+int
+main(int argc ,char *argv[]) {
+	return 0;
+}
+
+#endif

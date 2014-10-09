@@ -1,6 +1,9 @@
 .cproject
 .project
 Debug/*
+pcre/*
+pcre3/*
+bld/*
 *-t
 *.a
 *.ctest
