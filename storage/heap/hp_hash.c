@@ -878,12 +878,17 @@ uint hp_rb_pack_key(HP_KEYDEF *keydef, uchar *key, const uchar *old,
       /* Convert NULL from MySQL representation into HEAP's. */
       if (!(*key++= (char) 1 - *old++))
       {
+#if 0
         /*
           Skip length part of a variable length field.
           Length of key-part used with heap_rkey() always 2.
           See also hp_hashnr().
         */
         if (seg->flag & (HA_VAR_LENGTH_PART | HA_BLOB_PART))
+#else
+	/* Add key pack length (2) to key for VARCHAR segments */
+        if (seg->type == HA_KEYTYPE_VARTEXT1)
+#endif
           old+= 2;
         continue;
       }

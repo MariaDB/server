@@ -26,6 +26,8 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_config.h>
+
 #define MYSQL_SERVER	// to have THD
 #include <mysql/plugin.h>
 #include "sql_class.h"
