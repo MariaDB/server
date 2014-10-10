@@ -76,14 +76,16 @@ EncKeys::~EncKeys() {
 }
 
 bool EncKeys::initKeys(const char *name, const char *url, const int initType, const char *filekey) {
-	if (KEYINITTYPE_FILE == initType) { // url == path && name == filename
+	if (KEYINITTYPE_FILE == initType)
+	{
 		int result = initKeysThroughFile(name, url, filekey);
 		return ERROR_FALSE_FILE_KEY != result;
 	}
-	else if (KEYINITTYPE_SERVER == initType) {
-		fprintf(stderr, errorNotImplemented);
+	else if (KEYINITTYPE_SERVER == initType)
+	{
+		return NO_ERROR_KEY_FILE_PARSE_OK == initKeysThroughServer(name, url, filekey);
 	}
-	return NO_ERROR_KEY_FILE_PARSE_OK == ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
+	return false;
 }
 
 int EncKeys::initKeysThroughFile(const char *name, const char *path, const char *filekey) {
@@ -115,6 +117,13 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 		free(filename);
 		free(secret);
 	return ret;
+}
+
+int EncKeys::initKeysThroughServer( const char *name, const char *path, const char *filekey)
+{
+	//TODO
+	fprintf(stderr, errorNotImplemented);
+	return ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
 }
 
 void EncKeys::parseSecret( const char *secretfile, char *secret ) {

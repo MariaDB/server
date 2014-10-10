@@ -85,26 +85,19 @@ ulint mode
 
 	unit_test = 0x01 & mode;
 
-	//TODO encryption default key
-	/* If no encryption key was provided to this table, use system
-	 default key
-	 if (key == 0) {
-	 key = 0;
-	 }*/
-
 	if (!unit_test) {
 		ut_ad(fil_space_is_page_encrypted(space_id));
 		fil_system_enter();
 		space = fil_space_get_by_id(space_id);
 		fil_system_exit();
-
+	}
 #ifdef UNIV_DEBUG
 		fprintf(stderr,
 				"InnoDB: Note: Preparing for encryption for space %lu name %s len %lu\n",
 				space_id, fil_space_name(space), len);
 #endif /* UNIV_DEBUG */
 
-	}
+
 
 	/* data_size -1 bytes will be encrypted at first.
 	 * data_size is the length of the cipher text.*/

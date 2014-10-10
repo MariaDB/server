@@ -63,6 +63,7 @@ private:
 
 	void printKeyEntry( ulint id);
 	int initKeysThroughFile( const char *name, const char *path, const char *filekey);
+	int initKeysThroughServer( const char *name, const char *path, const char *filekey);
 	bool isComment( const char *line);
 	char * decryptFile( const char* filename, const char *secret, int *errorCode);
 	int parseFile( const char* filename, const ulint maxKeyId, const char *secret);
