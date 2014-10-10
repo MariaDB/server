@@ -960,6 +960,8 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
     opval= options->readonly;
   else if (!stricmp(opname, "SepIndex"))
     opval= options->sepindex;
+  else if (!stricmp(opname, "Header"))
+    opval= (options->header != 0);   // Is Boolean for some table types
   else if (options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
