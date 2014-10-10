@@ -3737,6 +3737,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       field  Field which key image should be stored
       ptr    Field value in key format
       len    Length of the value, in bytes
+  
+  ATTENTION
+    len is the length of the value not counting the NULL-byte (at the same
+    time, ptr points to the key image, which starts with NULL-byte for 
+    nullable columns)
 
   DESCRIPTION
     Copy the field value from its key image to the table record. The source

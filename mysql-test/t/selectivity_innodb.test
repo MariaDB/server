@@ -65,6 +65,20 @@ SELECT * FROM t1, t2 WHERE ( 't', 'o' ) IN (
 );
 DROP TABLE t1,t2;
 
+--echo # 
+--echo # MDEV-6738: use_stat_table + histograms crashing optimizer
+--echo # 
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+
+--echo # Need innodb because there is a special kind of field_bit for non-myisam tables
+create table t1(col1 int, col2 bit(1) DEFAULT NULL) engine=innodb;
+
+select * from t1 where col2 != true;
+
+drop table t1;
+
 --echo #
 --echo # End of 10.0 tests
 --echo #

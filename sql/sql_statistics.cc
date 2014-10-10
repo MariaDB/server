@@ -3531,7 +3531,7 @@ double get_column_range_cardinality(Field *field,
         if (hist->is_available())
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
-                                 min_endp->length);
+                                 field->key_length());
           double pos= field->pos_in_interval(col_stats->min_value,
                                              col_stats->max_value);
           res= col_non_nulls * 
@@ -3555,7 +3555,7 @@ double get_column_range_cardinality(Field *field,
       if (min_endp && !(field->null_ptr && min_endp->key[0]))
       {
         store_key_image_to_rec(field, (uchar *) min_endp->key,
-                               min_endp->length);
+                               field->key_length());
         min_mp_pos= field->pos_in_interval(col_stats->min_value,
                                            col_stats->max_value);
       }
@@ -3564,7 +3564,7 @@ double get_column_range_cardinality(Field *field,
       if (max_endp)
       {
         store_key_image_to_rec(field, (uchar *) max_endp->key,
-                               max_endp->length);
+                               field->key_length());
         max_mp_pos= field->pos_in_interval(col_stats->min_value,
                                            col_stats->max_value);
       }
