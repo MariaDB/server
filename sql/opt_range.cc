@@ -3547,7 +3547,19 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
             */
             double f1= key_info->actual_rec_per_key(i-1);
             double f2= key_info->actual_rec_per_key(i);
-            table->cond_selectivity*= f1 / f2;
+            double selectivity_mult;
+            if (f1 > 0 && f2 > 0)
+              selectivity_mult= f1 / f2;
+            else
+            {
+              /* 
+                No statistics available, assume the selectivity is proportional
+                to the number of key parts.
+                (i=0 means 1 keypart, i=1 means 2 keyparts, so use i+1)
+              */
+              selectivity_mult= ((double)(i+1)) / i;
+            }
+            table->cond_selectivity*= selectivity_mult;
           }
         }
       }
