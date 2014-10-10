@@ -154,8 +154,8 @@ keyentry *EncKeys::getKeys(int id) {
 }
 
 /**
- * Get the keys from the key file 'filename' and decrypt it with the key 'secret'.
- * Store the keys with id smaller then 'maxKeyId' in an array of structs keyentry.
+ * Get the keys from the key file <filename> and decrypt it with the key <secret>.
+ * Store the keys with id smaller then <maxKeyId> in an array of structs keyentry.
  * Returns NO_ERROR_PARSE_OK or an appropriate error code.
  */
 int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *secret) {
