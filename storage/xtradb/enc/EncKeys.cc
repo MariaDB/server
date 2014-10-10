@@ -336,6 +336,14 @@ bool EncKeys::isComment(const char *line) {
 void EncKeys::printKeyEntry( ulint id)
 {
 	keyentry *entry = getKeys(id);
-	if( NULL == entry)	fprintf(stderr, "No such keyID = %u\n", id);
-	else	fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+	if( NULL == entry)	{
+		fprintf(stderr, "No such keyID = %u\n", id);
+	}
+	else {
+#ifdef UNIV_DEBUG
+		fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+#else
+		fprintf(stderr, "Key: id:%3u\n", entry->id);
+#endif //UNIV_DEBUG
+	}
 }
