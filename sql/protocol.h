@@ -243,6 +243,47 @@ public:
     return 0;
   }
 
+  void prepare_for_resend()
+  {
+#ifndef DBUG_OFF
+    field_pos= 0;
+#endif
+  }
+  
+  /* 
+    Provide dummy overrides for any storage methods so that we
+    avoid allocating and copying of data
+  */
+  virtual bool store_null() 
+  { return false; }
+  virtual bool store_tiny(longlong from)
+  { return false; }
+  virtual bool store_short(longlong from)
+  { return false; }
+  virtual bool store_long(longlong from)
+  { return false; }
+  virtual bool store_longlong(longlong from, bool unsigned_flag)
+  { return false; }
+  virtual bool store_decimal(const my_decimal *)
+  { return false; }
+  virtual bool store(const char *from, size_t length, CHARSET_INFO *cs)
+  { return false; }
+  virtual bool store(const char *from, size_t length,
+  		     CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
+  { return false; }
+  virtual bool store(MYSQL_TIME *time, int decimals)
+  { return false; }
+  virtual bool store_date(MYSQL_TIME *time)
+  { return false; }
+  virtual bool store_time(MYSQL_TIME *time, int decimals)
+  { return false; }
+  virtual bool store(float nr, uint32 decimals, String *buffer)
+  { return false; }
+  virtual bool store(double from, uint32 decimals, String *buffer)
+  { return false; }
+  virtual bool store(Field *field)
+  { return false; }
+
 };
 
 
