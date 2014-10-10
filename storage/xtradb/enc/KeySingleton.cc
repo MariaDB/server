@@ -46,7 +46,7 @@ KeySingleton & KeySingleton::getInstance(const char *name, const char *url,
 	instanceInited = encKeys.initKeys(name, url, initType, filekey);
 	if( !instanceInited) {
 		printf("Could not initialize any of the encryption / decryption keys. "
-				"You can not read encrypted tables or columns\n\n");
+				"You can not read encrypted tables\n\n");
 	}
 
 	return theInstance;

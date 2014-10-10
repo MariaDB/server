@@ -76,14 +76,16 @@ EncKeys::~EncKeys() {
 }
 
 bool EncKeys::initKeys(const char *name, const char *url, const int initType, const char *filekey) {
-	if (KEYINITTYPE_FILE == initType) { // url == path && name == filename
+	if (KEYINITTYPE_FILE == initType)
+	{
 		int result = initKeysThroughFile(name, url, filekey);
 		return ERROR_FALSE_FILE_KEY != result && ERROR_OPEN_FILE != result && ERROR_READING_FILE != result;
 	}
-	else if (KEYINITTYPE_SERVER == initType) {
-		fprintf(stderr, errorNotImplemented);
+	else if (KEYINITTYPE_SERVER == initType)
+	{
+		return NO_ERROR_KEY_FILE_PARSE_OK == initKeysThroughServer(name, url, filekey);
 	}
-	return NO_ERROR_KEY_FILE_PARSE_OK == ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
+	return false;
 }
 
 int EncKeys::initKeysThroughFile(const char *name, const char *path, const char *filekey) {
@@ -117,6 +119,13 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 	return ret;
 }
 
+int EncKeys::initKeysThroughServer( const char *name, const char *path, const char *filekey)
+{
+	//TODO
+	fprintf(stderr, errorNotImplemented);
+	return ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
+}
+
 void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 	int i=0;
 	FILE *fp = my_fopen(secretfile, O_RDWR, MYF(MY_WME));
@@ -145,8 +154,8 @@ keyentry *EncKeys::getKeys(int id) {
 }
 
 /**
- * Get the keys from the key file 'filename' and decrypt it with the key 'secret'.
- * Store the keys with id smaller then 'maxKeyId' in an array of structs keyentry.
+ * Get the keys from the key file <filename> and decrypt it with the key <secret>.
+ * Store the keys with id smaller then <maxKeyId> in an array of structs keyentry.
  * Returns NO_ERROR_PARSE_OK or an appropriate error code.
  */
 int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *secret) {
@@ -327,6 +336,14 @@ bool EncKeys::isComment(const char *line) {
 void EncKeys::printKeyEntry( ulint id)
 {
 	keyentry *entry = getKeys(id);
-	if( NULL == entry)	fprintf(stderr, "No such keyID = %u\n", id);
-	else	fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+	if( NULL == entry)	{
+		fprintf(stderr, "No such keyID = %u\n", id);
+	}
+	else {
+#ifdef UNIV_DEBUG
+		fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+#else
+		fprintf(stderr, "Key: id:%3u\n", entry->id);
+#endif //UNIV_DEBUG
+	}
 }

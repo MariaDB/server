@@ -4840,6 +4840,7 @@ found:
 		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, 0);
 
 		/* If encryption succeeded, set up the length and buffer */
+		//TODO we do not need to reset len since we do not alter any content size
 		if (tmp != buf) {
 			len = real_len;
 			buf = slot->page_buf2;

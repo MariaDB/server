@@ -85,13 +85,6 @@ ulint mode
 
 	unit_test = 0x01 & mode;
 
-	//TODO encryption default key
-	/* If no encryption key was provided to this table, use system
-	 default key
-	 if (key == 0) {
-	 key = 0;
-	 }*/
-
 	if (!unit_test) {
 		ut_ad(fil_space_is_page_encrypted(space_id));
 		fil_system_enter();
@@ -103,8 +96,8 @@ ulint mode
 				"InnoDB: Note: Preparing for encryption for space %lu name %s len %lu\n",
 				space_id, fil_space_name(space), len);
 #endif /* UNIV_DEBUG */
-
 	}
+
 
 	/* data_size -1 bytes will be encrypted at first.
 	 * data_size is the length of the cipher text.*/
@@ -124,71 +117,78 @@ ulint mode
 	checksum = fil_page_encryption_calc_checksum(buf + header_len, page_size - (FIL_PAGE_DATA_END + header_len));
 
 	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
-			0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23,
-			0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0};
+								  0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0, 0xe0, 0x23,
+								  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+								  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 	uint8 key_len = 16;
 	if (!unit_test) {
 		KeySingleton& keys = KeySingleton::getInstance();
-		if (!keys.isAvailable()) return buf;
-		if (keys.getKeys(encryption_key) == NULL) return buf;
-		char* keyString = keys.getKeys(encryption_key)->key;
-		key_len = strlen(keyString)/2;
-		my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
+		if (!keys.isAvailable()) {
+			err = AES_KEY_CREATION_FAILED;
+		} else if (keys.getKeys(encryption_key) == NULL) {
+			err = AES_KEY_CREATION_FAILED;
+		} else {
+			char* keyString = keys.getKeys(encryption_key)->key;
+			key_len = strlen(keyString)/2;
+			my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
+		}
 	}
 	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
 		0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
+	ulint iv_len = 16;
 	if (!unit_test) {
 		KeySingleton& keys = KeySingleton::getInstance();
-		if (!keys.isAvailable()) return buf;
-		if (keys.getKeys(encryption_key) == NULL) return buf;
-		char* ivString = keys.getKeys(encryption_key)->iv;
-		if (ivString == NULL) return buf;
-		my_aes_hexToUint(ivString, (unsigned char*)&iv, 16);
+		if (!keys.isAvailable()) {
+			err = AES_KEY_CREATION_FAILED;
+		} else if (keys.getKeys(encryption_key) == NULL) {
+			err = AES_KEY_CREATION_FAILED;
+		} else {
+			char* ivString = keys.getKeys(encryption_key)->iv;
+			if (ivString == NULL) return buf;
+			my_aes_hexToUint(ivString, (unsigned char*)&iv, 16);
+		}
 	}
-	uint8 iv_len = 16;
+
 	write_size = data_size;
 	/* 1st encryption: data_size -1 bytes starting from FIL_PAGE_DATA */
-	err = my_aes_encrypt_cbc((char*)buf + header_len,
-			data_size-1,
-			(char *)out_buf + header_len,
-			&write_size,
-			(const unsigned char *)&rkey,
-			key_len,
-			(const unsigned char *)&iv,
-			iv_len);;
-	ut_ad(write_size == data_size);
+	if (err == AES_OK) {
+		err = my_aes_encrypt_cbc((char*) buf + header_len, data_size - 1,
+				(char *) out_buf + header_len, &write_size,
+				(const unsigned char *) &rkey, key_len,
+				(const unsigned char *) &iv, iv_len);
+		ut_ad(write_size == data_size);
 
-	if (page_compressed) {
-		/* page compressed pages: only one encryption. 3 bytes remain unencrypted. 2 bytes are appended to the encrypted buffer.
-		 * one byte is later written to the checksum header.
-		 */
-		offset = 1;
-	}
 
-	/* copy remaining bytes to output buffer */
-	memcpy(out_buf + header_len + data_size, buf + header_len + data_size - 1,
-			remainder - offset);
+		if (page_compressed) {
+			/* page compressed pages: only one encryption. 3 bytes remain unencrypted. 2 bytes are appended to the encrypted buffer.
+			 * one byte is later written to the checksum header. Additionally trailer remains unencrypted (8 bytes).
+			 */
+			offset = 1;
+		}
 
-	if (page_compressed) {
-		remaining_byte = mach_read_from_1(buf + header_len + data_size +1);
-	} else {
+		/* copy remaining bytes to output buffer */
+		memcpy(out_buf + header_len + data_size, buf + header_len + data_size - 1,
+				remainder - offset);
 
-		/* create temporary buffer for 2nd encryption */
-		tmp_buf = static_cast<byte *>(ut_malloc(64));
-
-	/* 2nd encryption: 63 bytes from out_buf, result length is 64 bytes */
-	err = my_aes_encrypt_cbc((char*)out_buf + page_size -FIL_PAGE_DATA_END -62,
-				63,
-				(char*)tmp_buf,
-				&write_size,
-				(const unsigned char *)&rkey,
-				key_len,
-				(const unsigned char *)&iv,
-				iv_len);
-		ut_ad(write_size == 64);
-		//AES_cbc_encrypt((uchar*)out_buf + page_size -FIL_PAGE_DATA_END -62, tmp_buf, 63, &aeskey, iv, AES_ENCRYPT);
-		/* copy 62 bytes from 2nd encryption to out_buf, last 2 bytes are copied later to a header field*/
-		memcpy(out_buf + page_size - FIL_PAGE_DATA_END -62, tmp_buf, 62);
+		if (page_compressed) {
+			remaining_byte = mach_read_from_1(buf + header_len + data_size +1);
+		} else 	{
+			//create temporary buffer for 2nd encryption
+			tmp_buf = static_cast<byte *>(ut_malloc(64));
+			/* 2nd encryption: 63 bytes from out_buf, result length is 64 bytes */
+			err = my_aes_encrypt_cbc((char*)out_buf + page_size -FIL_PAGE_DATA_END -62,
+					63,
+					(char*)tmp_buf,
+					&write_size,
+					(const unsigned char *)&rkey,
+					key_len,
+					(const unsigned char *)&iv,
+					iv_len);
+			ut_ad(write_size == 64);
+			//AES_cbc_encrypt((uchar*)out_buf + page_size -FIL_PAGE_DATA_END -62, tmp_buf, 63, &aeskey, iv, AES_ENCRYPT);
+			/* copy 62 bytes from 2nd encryption to out_buf, last 2 bytes are copied later to a header field*/
+			memcpy(out_buf + page_size - FIL_PAGE_DATA_END -62, tmp_buf, 62);
+		}
 	}
 
 	/* error handling */
@@ -196,8 +196,8 @@ ulint mode
 		/* If error we leave the actual page as it was */
 
 		fprintf(stderr,
-				"InnoDB: Warning: Encryption failed for space %lu name %s len %lu rt %d write %lu\n",
-			space_id, fil_space_name(space), len, err, data_size);
+				"InnoDB: Warning: Encryption failed for space %lu name %s len %lu rt %d write %lu, error: %lu\n",
+			space_id, fil_space_name(space), len, err, data_size, err);
 		fflush(stderr);
 		srv_stats.pages_page_encryption_error.inc();
 		*out_len = len;
@@ -302,7 +302,7 @@ ibool* page_compressed, /*!<out: is page compressed.*/
 ulint mode
 ) {
 	int err = AES_OK;
-	ulint page_encryption_key;
+	ulint page_decryption_key;
 
 	ulint data_size = 0;
 
@@ -329,11 +329,12 @@ ulint mode
 	ulint space_id = 0;
 
 
-	ut_ad(buf);ut_ad(len);
+	ut_ad(buf);
+	ut_ad(len);
 
 	/* Before actual decrypt, make sure that page type is correct */
-
-	if (mach_read_from_2(buf + FIL_PAGE_TYPE) != FIL_PAGE_PAGE_ENCRYPTED) {
+	if (mach_read_from_2(buf + FIL_PAGE_TYPE) != FIL_PAGE_PAGE_ENCRYPTED)
+	{
 		fprintf(stderr, "InnoDB: Corruption: We try to decrypt corrupted page\n"
 				"InnoDB: CRC %lu type %lu.\n"
 				"InnoDB: len %lu\n",
@@ -342,7 +343,6 @@ ulint mode
 
 		fflush(stderr);
 		return PAGE_ENCRYPTION_WRONG_PAGE_TYPE;
-
 	}
 
 	space_id = mach_read_from_4(buf + FIL_PAGE_SPACE_ID);
@@ -357,7 +357,7 @@ ulint mode
 
 	/* Get encryption key. it was not successful here to read the page encryption key from the tablespace flags, because
 	 * of unresolved deadlocks while accessing the tablespace memory structure.*/
-	page_encryption_key = mach_read_from_1(
+	page_decryption_key = mach_read_from_1(
 				buf + page_size - FIL_PAGE_DATA_END  - offset_ctrl_data);
 
 
@@ -389,55 +389,56 @@ ulint mode
 	data_size = ((page_size - header_len - FIL_PAGE_DATA_END) / 16) * 16;
 	remainder = (page_size - header_len - FIL_PAGE_DATA_END) - (data_size - 1);
 
-#ifdef UNIV_PAGEENCRIPTION_DEBUG
-	fprintf(stderr,
-			"InnoDB: Note: Preparing for decrypt for len %lu\n", actuulint compressed_size = mach_read_from_2(buf+ FIL_PAGE_DATA);
-	if (!page_compressed) {
-		/* Set up the checksum. This is only usable to verify decryption */
-		mach_write_to_3(out_buf + page_size - FIL_PAGE_DATA_END, checksum);
-	} else {
-		ulint pos_checksum = page_size - FIL_PAGE_DATA_END;
-		if (compressed_size + FIL_PAGE_DATA > pos_checksum) {
-			pos_checksum = compressed_size + FIL_PAGE_DATA;
-			if (pos_checksum > page_size - 3) {
-				// checksum not supported, because no space available
-			} else {
-				/* Set up the checksum. This is only usable to verify decryption */
-				mach_write_to_3(out_buf + pos_checksum, checksum);
-			}
-		}
-	}
-al_size);
-	fflush(stderr);
-#endif /* UNIV_PAGEENCRIPTION_DEBUG */
-
 	tmp_buf= static_cast<byte *>(ut_malloc(64));
 	tmp_page_buf = static_cast<byte *>(ut_malloc(page_size));
 	memset(tmp_page_buf,0, page_size);
 
 	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
 			0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23,
-			0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0};
-		uint8 key_len = 16;
-		if (!unit_test) {
-			KeySingleton& keys = KeySingleton::getInstance();
-			if (!keys.isAvailable()) return PAGE_ENCRYPTION_ERROR;
-			if (keys.getKeys(page_encryption_key) == NULL) return PAGE_ENCRYPTION_ERROR;
-			char* keyString = keys.getKeys(page_encryption_key)->key;
+			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
+	uint8 key_len = 16;
+	if (!unit_test) {
+		KeySingleton& keys = KeySingleton::getInstance();
+		if (!keys.isAvailable()) {
+			err = PAGE_ENCRYPTION_ERROR;
+		} else if (keys.getKeys(page_decryption_key) == NULL) {
+			err = PAGE_ENCRYPTION_ERROR;
+		} else {
+			char* keyString = keys.getKeys(page_decryption_key)->key;
 			key_len = strlen(keyString)/2;
 			my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
 		}
+	}
 
 
-		const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
-				0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
-		if (!unit_test) {
-			KeySingleton& keys = KeySingleton::getInstance();
-			if (!keys.isAvailable()) return PAGE_ENCRYPTION_ERROR;
-			if (keys.getKeys(page_encryption_key) == NULL) return PAGE_ENCRYPTION_ERROR;
-			my_aes_hexToUint(keys.getKeys(page_encryption_key)->iv, (unsigned char*)&iv, 16);
+
+	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
+			0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
+	uint8 iv_len = 16;
+	if (!unit_test) {
+		KeySingleton& keys = KeySingleton::getInstance();
+		if (!keys.isAvailable()) {
+			err =  PAGE_ENCRYPTION_ERROR;
+		} else if (keys.getKeys(page_decryption_key) == NULL) {
+			err = PAGE_ENCRYPTION_ERROR;
+		} else {
+			my_aes_hexToUint(keys.getKeys(page_decryption_key)->iv, (unsigned char*)&iv, 16);
 		}
-		uint8 iv_len = 16;
+	}
+
+	if (err != AES_OK) {
+		/* surely key could not be fetched */
+		fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
+				"InnoDB: but decrypt failed with error %d, encryption key: %d.\n",
+				err, (int)page_decryption_key);
+		fflush(stderr);
+		if (NULL == page_buf) {
+			ut_free(in_buf);
+		}
+		return err;
+	}
+
 
 	if (!page_compression_flag) {
 		tmp_page_buf = static_cast<byte *>(ut_malloc(page_size));
@@ -451,23 +452,19 @@ al_size);
 		memcpy(tmp_buf + 62, buf + FIL_PAGE_SPACE_OR_CHKSUM + 3, 1);
 		memcpy(tmp_buf + 63, buf + page_size - FIL_PAGE_DATA_END +3, 1);
 
-		err = my_aes_decrypt_cbc((const char*) tmp_buf,
-				64,
-				(char *) tmp_page_buf + page_size -FIL_PAGE_DATA_END -62,
-				&tmp_write_size,
-				(const unsigned char *)&rkey,
-				key_len,
-				(const unsigned char *)&iv,
-				iv_len
-				);
-
+		if (err == AES_OK) {
+			err = my_aes_decrypt_cbc((const char*) tmp_buf, 64,
+					(char *) tmp_page_buf + page_size - FIL_PAGE_DATA_END - 62,
+					&tmp_write_size, (const unsigned char *) &rkey, key_len,
+					(const unsigned char *) &iv, iv_len);
+		}
 
 		/* If decrypt fails it means that page is corrupted or has an unknown key */
 		if (err != AES_OK) {
 			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
 					"InnoDB: but decrypt failed with error %d.\n"
 					"InnoDB: size %lu len %lu, key%d\n", err, data_size,
-					len, (int)page_encryption_key);
+					len, (int)page_decryption_key);
 			fflush(stderr);
 			if (NULL == page_buf) {
 				ut_free(in_buf);
@@ -555,8 +552,7 @@ al_size);
 #ifdef UNIV_PAGEENCRIPTION_DEBUG
 	fprintf(stderr, "InnoDB: Note: Decryption succeeded for len %lu\n", len);
 	fflush(stderr);
-#endif /* UNIV_PAGEENCRIPTIONulint page_compressed = 0;
-	_DEBUG */
+#endif
 
 	/* copy header */
 	memcpy(in_buf, buf, FIL_PAGE_DATA);
@@ -594,7 +590,7 @@ al_size);
 		page_size = fsp_flags_get_page_size(flags);
 
 		page_num = mach_read_from_4(buf+ 4);
-		page_encryption_key = FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(flags);
+		page_decryption_key = FSP_FLAGS_GET_PAGE_ENCRYPTION_KEY(flags);
 		page_encrypted = FSP_FLAGS_GET_PAGE_ENCRYPTION(flags);
 		page_compression_flag = FSP_FLAGS_GET_PAGE_COMPRESSION(flags);
 //		fprintf(stderr,"Page num, page size, key, enc, compr: %lu, %lu, %lu, %lu %lu\n", page_num, page_size, page_encryption_key, page_encrypted, page_compression_flag);
