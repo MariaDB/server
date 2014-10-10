@@ -11646,6 +11646,14 @@ ha_innobase::check_table_options(
                 " innodb_file_per_table.");
             return "PAGE_ENCRYPTION";
         }
+        if (!KeySingleton::getInstance().isAvailable()) {
+            push_warning(
+                       thd, Sql_condition::WARN_LEVEL_WARN,
+                       HA_WRONG_CREATE_OPTION,
+                       "InnoDB: PAGE_ENCRYPTION needs a key provider"
+                       );
+                   return "PAGE_ENCRYPTION";
+        }
         if (create_info->key_block_size) {
             push_warning(
                 thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11737,6 +11745,17 @@ ha_innobase::check_table_options(
                 " Valid values are [1..255]",
                 options->page_encryption_key);
             return "PAGE_ENCRYPTION_KEY";
+        }
+
+        if (!KeySingleton::getInstance().isAvailable() || KeySingleton::getInstance().getKeys(options->page_encryption_key)==NULL) {
+        	  push_warning_printf(
+						   thd, Sql_condition::WARN_LEVEL_WARN,
+						   HA_WRONG_CREATE_OPTION,
+						   "InnoDB: PAGE_ENCRYPTION_KEY encryption key %lu not available",
+						   options->page_encryption_key
+						   );
+					   return "PAGE_ENCRYPTION_KEY";
+
         }
     }
 

@@ -2147,9 +2147,7 @@ fil_read_first_page(
 	/* Align the memory for a possible read from a raw device */
 
 	page = static_cast<byte*>(ut_align(buf, UNIV_PAGE_SIZE));
-if (orig_space_id==18446744073709551615) {
-	//return NULL;
-}
+
 	os_file_read(data_file, page, 0, UNIV_PAGE_SIZE,
 		orig_space_id != ULINT_UNDEFINED ?
 		fil_space_is_page_compressed(orig_space_id) :

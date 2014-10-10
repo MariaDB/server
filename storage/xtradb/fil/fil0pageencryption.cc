@@ -129,6 +129,8 @@ ulint mode
 	uint8 key_len = 16;
 	if (!unit_test) {
 		KeySingleton& keys = KeySingleton::getInstance();
+		if (!keys.isAvailable()) return buf;
+		if (keys.getKeys(encryption_key) == NULL) return buf;
 		char* keyString = keys.getKeys(encryption_key)->key;
 		key_len = strlen(keyString)/2;
 		my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
@@ -137,7 +139,11 @@ ulint mode
 		0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
 	if (!unit_test) {
 		KeySingleton& keys = KeySingleton::getInstance();
-		my_aes_hexToUint(keys.getKeys(encryption_key)->iv, (unsigned char*)&iv, 16);
+		if (!keys.isAvailable()) return buf;
+		if (keys.getKeys(encryption_key) == NULL) return buf;
+		char* ivString = keys.getKeys(encryption_key)->iv;
+		if (ivString == NULL) return buf;
+		my_aes_hexToUint(ivString, (unsigned char*)&iv, 16);
 	}
 	uint8 iv_len = 16;
 	write_size = data_size;
@@ -415,6 +421,8 @@ al_size);
 		uint8 key_len = 16;
 		if (!unit_test) {
 			KeySingleton& keys = KeySingleton::getInstance();
+			if (!keys.isAvailable()) return PAGE_ENCRYPTION_ERROR;
+			if (keys.getKeys(page_encryption_key) == NULL) return PAGE_ENCRYPTION_ERROR;
 			char* keyString = keys.getKeys(page_encryption_key)->key;
 			key_len = strlen(keyString)/2;
 			my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
@@ -425,6 +433,8 @@ al_size);
 				0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
 		if (!unit_test) {
 			KeySingleton& keys = KeySingleton::getInstance();
+			if (!keys.isAvailable()) return PAGE_ENCRYPTION_ERROR;
+			if (keys.getKeys(page_encryption_key) == NULL) return PAGE_ENCRYPTION_ERROR;
 			my_aes_hexToUint(keys.getKeys(page_encryption_key)->iv, (unsigned char*)&iv, 16);
 		}
 		uint8 iv_len = 16;

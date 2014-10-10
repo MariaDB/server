@@ -78,7 +78,7 @@ EncKeys::~EncKeys() {
 bool EncKeys::initKeys(const char *name, const char *url, const int initType, const char *filekey) {
 	if (KEYINITTYPE_FILE == initType) { // url == path && name == filename
 		int result = initKeysThroughFile(name, url, filekey);
-		return ERROR_FALSE_FILE_KEY != result;
+		return ERROR_FALSE_FILE_KEY != result && ERROR_OPEN_FILE != result && ERROR_READING_FILE != result;
 	}
 	else if (KEYINITTYPE_SERVER == initType) {
 		fprintf(stderr, errorNotImplemented);
