@@ -1184,6 +1184,8 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
         pcf->Length= (len) ? len : 11;
         } // endelse
 
+      // For Value setting
+      pcf->Precision= MY_MAX(pcf->Precision, pcf->Length);
       break;
     default:
       break;
@@ -2429,7 +2431,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         if (!x) {
           // Append the value to the filter
           if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
-            strcat(strcat(strcat(body, "'"), res->ptr()), "'");
+            strcat(strncat(strcat(body, "'"), res->ptr(), res->length()), "'");
           else
             strncat(body, res->ptr(), res->length());
 
