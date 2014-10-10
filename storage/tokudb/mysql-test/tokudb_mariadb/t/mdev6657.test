@@ -13,7 +13,7 @@ CREATE TABLE t3 (
   col2 mediumint(8) unsigned NOT NULL DEFAULT '0',
   col3 smallint(5) NOT NULL DEFAULT '1',
   filler varchar(255) DEFAULT NULL,
-  PRIMARY KEY (col1,col2,col3),
+  KEY pk_ersatz(col1,col2,col3),
   KEY key1 (col1,col2) USING BTREE
 ) ENGINE=TokuDB DEFAULT CHARSET=latin1 PACK_KEYS=1 COMPRESSION=TOKUDB_LZMA;
 
