@@ -20,6 +20,7 @@
   a engine that auto-creates tables with rows filled with sequential values
 */
 
+#include <my_config.h>
 #include <ctype.h>
 #include <mysql_version.h>
 #include <handler.h>

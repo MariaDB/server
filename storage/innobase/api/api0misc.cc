@@ -24,6 +24,7 @@ InnoDB Native API
 3/20/2011 Jimmy Yang extracted from Embedded InnoDB
 *******************************************************/
 
+#include <my_config.h>
 #include <errno.h>
 
 #ifdef HAVE_UNISTD_H
