@@ -1,6 +1,10 @@
 select * from information_schema.system_variables
-where variable_name like 'innodb%' and not variable_name = 'innodb_disallow_writes'
-  order by variable_name;
+where variable_name like 'innodb%' and
+variable_name not in (
+'innodb_disallow_writes',           # only available WITH_WSREP
+'innodb_sched_priority_cleaner',    # linux only
+'innodb_use_native_aio')            # default value depends on OS
+order by variable_name;
 VARIABLE_NAME	INNODB_ADAPTIVE_FLUSHING
 SESSION_VALUE	NULL
 GLOBAL_VALUE	ON
@@ -1983,20 +1987,6 @@ DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
 VARIABLE_COMMENT	Use multi-threaded flush. Default FALSE.
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	NULL
-READ_ONLY	YES
-COMMAND_LINE_ARGUMENT	NONE
-VARIABLE_NAME	INNODB_USE_NATIVE_AIO
-SESSION_VALUE	NULL
-GLOBAL_VALUE	ON
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	ON
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Use native AIO if supported on this platform.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
