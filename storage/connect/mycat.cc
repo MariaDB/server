@@ -28,6 +28,8 @@
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
+#include <my_config.h>
+
 #if defined(WIN32)
 //#include <windows.h>
 //#include <sqlext.h>

@@ -3231,9 +3231,6 @@ static void init_signals(void)
   sa.sa_flags = 0;
   sa.sa_handler = print_signal_warning;
   sigaction(SIGHUP, &sa, (struct sigaction*) 0);
-#ifdef SIGTSTP
-  sigaddset(&set,SIGTSTP);
-#endif
   if (thd_lib_detected != THD_LIB_LT)
     sigaddset(&set,THR_SERVER_ALARM);
   if (test_flags & TEST_SIGINT)
@@ -3243,7 +3240,12 @@ static void init_signals(void)
     sigdelset(&set, SIGINT);
   }
   else
+  {
     sigaddset(&set,SIGINT);
+#ifdef SIGTSTP
+    sigaddset(&set,SIGTSTP);
+#endif
+  }
 
   sigprocmask(SIG_SETMASK,&set,NULL);
   pthread_sigmask(SIG_SETMASK,&set,NULL);
@@ -8402,6 +8404,9 @@ mysqld_get_one_option(int optid,
   case 'T':
     test_flags= argument ? (uint) atoi(argument) : 0;
     opt_endinfo=1;
+    break;
+  case OPT_THREAD_CONCURRENCY:
+    WARN_DEPRECATED_NO_REPLACEMENT(NULL, "THREAD_CONCURRENCY");
     break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
