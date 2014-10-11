@@ -934,7 +934,7 @@ EXPLAIN SELECT * FROM t1 WHERE b BETWEEN 1 AND 2 ORDER BY b,a;
 id	1
 select_type	SIMPLE
 table	t1
-type	index
+type	range
 possible_keys	bkey
 key	bkey
 key_len	5
