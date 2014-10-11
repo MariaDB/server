@@ -44,12 +44,15 @@ set default role role_b for user_b@localhost;
 change_user 'user_a';
 
 show grants;
+--sorted_result
 select user, host, default_role from mysql.user where user like 'user_%';
 
 set default role NONE for current_user;
+--sorted_result
 select user, host, default_role from mysql.user where user like 'user_%';
 
 set default role current_role for current_user;
+--sorted_result
 select user, host, default_role from mysql.user where user like 'user_%';
 
 # Make sure we can't set a default role not granted to us, using current_user
