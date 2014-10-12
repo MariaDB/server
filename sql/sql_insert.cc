@@ -1100,6 +1100,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   if (error)
     goto abort;
+  if (thd->lex->analyze_stmt)
+  {
+    retval= thd->lex->explain->send_explain(thd);
+    goto abort;
+  }
   if (values_list.elements == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {

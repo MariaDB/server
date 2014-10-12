@@ -206,3 +206,14 @@ create table t1 (i int);
 analyze delete from t1 returning *;
 drop table t1;
 
+--echo #
+--echo # MDEV-6396: ANALYZE INSERT/REPLACE is accepted, but does not produce a plan
+--echo #
+create table t1 (a int primary key, b int);
+analyze insert into t1 values (1,1);
+select * from t1;
+
+analyze replace t1 values (1,2);
+select * from t1;
+drop table t1;
+
