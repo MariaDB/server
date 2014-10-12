@@ -730,6 +730,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   char *fmt, c, d, e, W[8][12];
   int   i, k, m, numval;
   int   n, y = 30;
+  bool  b = true;           // true for null dates
 
   if (pdp)
     fmt = pdp->InFmt;
@@ -763,7 +764,8 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
     m = pdp->Num;
 
   for (i = 0; i < m; i++) {
-    n = *(int*)W[i];
+    if ((n = *(int*)W[i]))
+      b = false;
 
     switch (k = pdp->Index[i]) {
       case 0:
@@ -822,7 +824,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
     htrc("numval=%d val=(%d,%d,%d,%d,%d,%d)\n",
           numval, val[0], val[1], val[2], val[3], val[4], val[5]); 
 
-  return numval;
+  return (b) ? 0 : numval;
   } // end of ExtractDate
 
 /***********************************************************************/

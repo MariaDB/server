@@ -2428,9 +2428,11 @@ bool DTVAL::SetValue_char(char *p, int n)
     if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
-    Null = false;
-  } else
+    Null = (Nullable && ndv == 0);
+  } else {
     rc = TYPVAL<int>::SetValue_char(p, n);
+    Null = (Nullable && Tval == 0);
+  } // endif Pdtp
 
   return rc;
   } // end of SetValue
@@ -2453,9 +2455,11 @@ void DTVAL::SetValue_psz(PSZ p)
     if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
-    Null = false;
-  } else
+    Null = (Nullable && ndv == 0);
+  } else {
     TYPVAL<int>::SetValue_psz(p);
+    Null = (Nullable && Tval == 0);
+  } // endif Pdtp
 
   } // end of SetValue
 
@@ -2496,7 +2500,7 @@ char *DTVAL::GetCharString(char *p)
   } else
     sprintf(p, "%d", Tval);
 
-  Null = false;
+//Null = false;                      ??????????????
   return p;
   } // end of GetCharString
 
@@ -2507,24 +2511,29 @@ char *DTVAL::ShowValue(char *buf, int len)
   {
   if (Pdtp) {
     char  *p;
-    size_t m, n = 0;
-    struct tm tm, *ptm = GetGmTime(&tm);
 
-    if (Len < len) {
-      p = buf;
-      m = len;
-    } else {
-      p = Sdate;
-      m = Len + 1;
-    } // endif Len
+    if (!Null) {
+      size_t m, n = 0;
+      struct tm tm, *ptm = GetGmTime(&tm);
+  
+      if (Len < len) {
+        p = buf;
+        m = len;
+      } else {
+        p = Sdate;
+        m = Len + 1;
+      } // endif Len
+  
+      if (ptm)
+        n = strftime(p, m, Pdtp->OutFmt, ptm);
+  
+      if (!n) {
+        *p = '\0';
+        strncat(p, "Error", m);
+        } // endif n
 
-    if (ptm)
-      n = strftime(p, m, Pdtp->OutFmt, ptm);
-
-    if (!n) {
-      *p = '\0';
-      strncat(p, "Error", m);
-      } // endif n
+    } else
+      p = "";                 // DEFAULT VALUE ???
 
     return p;
   } else

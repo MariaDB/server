@@ -1840,6 +1840,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
             } // endswitch type
 
           ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
+          sdvalin->SetNullable(colp->IsNullable());
           fp->val_str(&attribute);
           sdvalin->SetValue_psz(attribute.c_ptr_safe());
           value->SetValue_pval(sdvalin);
