@@ -1075,8 +1075,9 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
     } // endif Bufp
 
   if (Buf_Type == TYPE_DATE) {
-    struct tm dbtime = {0,0,0,0,0,0,0,0,0};
+    struct tm dbtime;
 
+    memset(&dbtime, 0, sizeof(tm));
     dbtime.tm_sec = (int)Sqlbuf->second;
     dbtime.tm_min = (int)Sqlbuf->minute;
     dbtime.tm_hour = (int)Sqlbuf->hour;
