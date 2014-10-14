@@ -223,6 +223,8 @@ struct fsp_open_info {
 	lsn_t		lsn;		/*!< Flushed LSN from header page */
 	ulint		id;		/*!< Space ID */
 	ulint		flags;		/*!< Tablespace flags */
+	ulint       encryption_error; /*!< if an encryption error occurs */
+
 };
 
 #ifndef UNIV_HOTBACKUP

@@ -26,6 +26,7 @@ Created 10/25/1995 Heikki Tuuri
 
 #include "fil0fil.h"
 
+#include "KeySingleton.h"
 #include <debug_sync.h>
 #include <my_dbug.h>
 
@@ -820,8 +821,17 @@ fil_node_open_file(
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE,
 			               space->flags);
 
+		if (fil_page_is_encrypted(page)) {
+				fprintf(stderr,
+								"InnoDB: can not decrypt %s\n",
+								node->name);
+				return false;
+
+		}
+
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
+
 		page_size = fsp_flags_get_page_size(flags);
 		atomic_writes = fsp_flags_get_atomic_writes(flags);
 
@@ -1335,6 +1345,16 @@ fil_space_create(
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(false););
 
 	ut_a(fil_system);
+
+	if (fsp_flags_is_page_encrypted(flags)) {
+		if (!KeySingleton::getInstance().isAvailable() || KeySingleton::getInstance().getKeys(fsp_flags_get_page_encryption_key(flags))==NULL) {
+
+			ib_logf(IB_LOG_LEVEL_WARN,
+							"Tablespace '%s' can not be opened, because encryption key can not be found (space id: %lu, key %lu)\n"
+							, name, (ulong) id, fsp_flags_get_page_encryption_key(flags));
+			return (FALSE);
+		}
+	}
 
 	/* Look for a matching tablespace and if found free it. */
 	do {
@@ -2074,6 +2094,7 @@ fil_check_first_page(
 {
 	ulint	space_id;
 	ulint	flags;
+	ulint cc = 0;
 
 	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
 		return(NULL);
@@ -2081,12 +2102,17 @@ fil_check_first_page(
 
 	space_id = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page);
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+	cc = fil_page_is_encrypted(page);
+	if (!KeySingleton::getInstance().isAvailable() && cc) {
+		cc = 1;
+	} else {
+		cc = 0;
+		if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
+			fprintf(stderr, "InnoDB: Error: Current page size %lu != page size on page %lu\n",
+				UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
 
-	if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
-		fprintf(stderr, "InnoDB: Error: Current page size %lu != page size on page %lu\n",
-			UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
-
-		return("innodb-page-size mismatch");
+			return("innodb-page-size mismatch");
+		}
 	}
 
 	if (!space_id && !flags) {
@@ -2102,9 +2128,14 @@ fil_check_first_page(
 		}
 	}
 
-	if (buf_page_is_corrupted(
+	if (!cc && buf_page_is_corrupted(
 		    false, page, fsp_flags_get_zip_size(flags))) {
 		return("checksum mismatch");
+	} else {
+		if (cc) {
+			return("can not decrypt");
+
+		}
 	}
 
 	if (page_get_space_id(page) == space_id
@@ -4296,6 +4327,7 @@ fil_validate_single_table_tablespace(
 
 check_first_page:
 	fsp->success = TRUE;
+	fsp->encryption_error = 0;
 	if (const char* check_msg = fil_read_first_page(
 		    fsp->file, FALSE, &fsp->flags, &fsp->id,
 		    &fsp->lsn, &fsp->lsn, ULINT_UNDEFINED)) {
@@ -4303,6 +4335,10 @@ check_first_page:
 			"%s in tablespace %s (table %s)",
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
+		if (strncmp(check_msg, "can not decrypt", strlen(check_msg))==0) {
+			fsp->encryption_error = 1;
+			return;
+		}
 	}
 
 	if (!fsp->success) {
@@ -4445,6 +4481,13 @@ fil_load_single_table_tablespace(
 	}
 
 	if (!def.success && !remote.success) {
+
+		if (def.encryption_error || remote.encryption_error) {
+			fprintf(stderr,
+						"InnoDB: Error: could not open single-table"
+						" tablespace file %s. Encryption error!\n", def.filepath);
+			return;
+		}
 		/* The following call prints an error message */
 		os_file_get_last_error(true);
 		fprintf(stderr,
