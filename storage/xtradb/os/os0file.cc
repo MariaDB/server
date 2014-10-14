@@ -4848,6 +4848,7 @@ found:
 			slot->page_encryption_success = TRUE;
 		} else {
 			slot->page_encryption_success = FALSE;
+			ut_error;
 		}
 
 		/* Take array mutex back */
@@ -4881,7 +4882,11 @@ found:
 		io_prep_pread(iocb, file, buf, len, aio_offset);
 	} else {
 		ut_a(type == OS_FILE_WRITE);
-		io_prep_pwrite(iocb, file, buf, len, aio_offset);
+		if (page_encryption && !slot->page_encryption_success) {
+			ut_error;
+		} else {
+			io_prep_pwrite(iocb, file, buf, len, aio_offset);
+		}
 	}
 
 	iocb->data = (void*) slot;
@@ -5267,6 +5272,7 @@ try_again:
 			os_n_file_writes++;
 #ifdef WIN_ASYNC_IO
 			if (page_encryption) {
+				if (!slot->page_encryption_success) goto err_exit;
 				buffer = slot->page_buf2;
 			} else {
 				buffer = buf;
