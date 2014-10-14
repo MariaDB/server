@@ -103,8 +103,8 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 			//If secret starts with FILE: interpret the secret as filename.
 			if(memcmp(MAGIC, filekey, MAGIC_LEN) == 0) {
 				int fk_len = strlen(filekey);
-				char *secretfile = (char*)malloc((len1 + (fk_len - MAGIC_LEN) + isSlash ? 1 : 2)* sizeof(char));
-				sprintf(secretfile, "%s%s%s", path, isSlash ? "" : "/", filekey+MAGIC_LEN);
+				char *secretfile = (char*)malloc((fk_len - MAGIC_LEN)* sizeof(char));
+				sprintf(secretfile, "%s", filekey+MAGIC_LEN);
 				parseSecret(secretfile, secret);
 				free(secretfile);
 			} else
