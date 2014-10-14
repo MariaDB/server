@@ -170,8 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0003 August 22, 2014";
-       char  compver[]= "Version 1.03.0003 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0004 October 13, 2014";
+       char  compver[]= "Version 1.03.0004 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
        char slash= '\\';
@@ -450,6 +450,24 @@ static const char *ha_connect_exts[]= {
 static int connect_init_func(void *p)
 {
   DBUG_ENTER("connect_init_func");
+
+// added from Sergei mail  
+#if 0 // (defined(LINUX))
+  Dl_info dl_info;
+  if (dladdr(&connect_hton, &dl_info))
+  {
+    if (dlopen(dl_info.dli_fname, RTLD_NOLOAD | RTLD_NOW | RTLD_GLOBAL) == 0)
+    {
+      sql_print_information("CONNECT: dlopen() failed, OEM table type is not supported");
+      sql_print_information("CONNECT: %s", dlerror());
+    }
+  }
+  else
+  {
+    sql_print_information("CONNECT: dladdr() failed, OEM table type is not supported");
+    sql_print_information("CONNECT: %s", dlerror());
+  }
+#endif   // 0 (LINUX)
 
   sql_print_information("CONNECT: %s", compver);
 
