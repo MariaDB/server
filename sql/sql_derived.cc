@@ -788,7 +788,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (!derived->is_merged_derived())
     {
       JOIN *join= first_select->join;
-      unit->set_limit(unit->global_parameters);
+      unit->set_limit(unit->global_parameters());
       unit->optimized= TRUE;
       if ((res= join->optimize()))
         goto err;
@@ -905,7 +905,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
-    unit->set_limit(unit->global_parameters);
+    unit->set_limit(unit->global_parameters());
     if (unit->select_limit_cnt == HA_POS_ERROR)
       first_select->options&= ~OPTION_FOUND_ROWS;
 

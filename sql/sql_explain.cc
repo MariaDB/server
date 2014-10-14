@@ -229,6 +229,9 @@ int Explain_union::print_explain(Explain_query *query,
     sel->print_explain(query, output, explain_flags, is_analyze);
   }
 
+  if (!using_tmp)
+    return 0;
+
   /* Print a line with "UNION RESULT" */
   List<Item> item_list;
   Item *item_null= new Item_null();

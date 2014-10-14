@@ -225,6 +225,7 @@ public:
 
   const char *fake_select_type;
   bool using_filesort;
+  bool using_tmp;
 
   Table_access_tracker *get_fake_select_lex_tracker()
   {

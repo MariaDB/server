@@ -351,7 +351,7 @@ bool handle_select(THD *thd, LEX *lex, select_result *result,
   else
   {
     SELECT_LEX_UNIT *unit= &lex->unit;
-    unit->set_limit(unit->global_parameters);
+    unit->set_limit(unit->global_parameters());
     /*
       'options' of mysql_select will be set in JOIN, as far as JOIN for
       every PS/SP execution new, we will not need reset this flag if 
@@ -792,7 +792,8 @@ JOIN::prepare(Item ***rref_pointer_array,
   ref_pointer_array= *rref_pointer_array;
 
   /* Resolve the ORDER BY that was skipped, then remove it. */
-  if (skip_order_by && select_lex != select_lex->master_unit()->global_parameters)
+  if (skip_order_by && select_lex !=
+                       select_lex->master_unit()->global_parameters())
   {
     if (setup_order(thd, (*rref_pointer_array), tables_list, fields_list,
                     all_fields, select_lex->order_list.first))
@@ -2481,13 +2482,6 @@ void JOIN::exec_inner()
     thd->set_examined_row_count(0);
     DBUG_VOID_RETURN;
   }
-  /*
-    Don't reset the found rows count if there're no tables as
-    FOUND_ROWS() may be called. Never reset the examined row count here.
-    It must be accumulated from all join iterations of all join parts.
-  */
-  if (table_count)
-    thd->limit_found_rows= 0;
 
   /*
     Evaluate expensive constant conditions that were not evaluated during
@@ -3091,7 +3085,6 @@ void JOIN::exec_inner()
                                     *curr_fields_list),
                                    Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
   error= do_select(curr_join, curr_fields_list, NULL, procedure);
-  thd->limit_found_rows= curr_join->send_records;
   if (curr_join->order && curr_join->filesort_found_rows)
   {
     /* Use info provided by filesort. */
@@ -3257,7 +3250,7 @@ mysql_select(THD *thd, Item ***rref_pointer_array,
       if (select_lex->linkage != GLOBAL_OPTIONS_TYPE)
       {
 	//here is EXPLAIN of subselect or derived table
-	if (join->change_result(result))
+	if (join->change_result(result, NULL))
 	{
 	  DBUG_RETURN(TRUE);
 	}
@@ -12088,6 +12081,14 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     if (having && having->val_int() == 0)
       send_row=0;
   }
+
+  /* Update results for FOUND_ROWS */
+  if (!join->send_row_on_empty_set())
+  {
+    join->thd->set_examined_row_count(0);
+    join->thd->limit_found_rows= 0;
+  }
+
   if (!(result->send_result_set_metadata(fields,
                               Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF)))
   {
@@ -12097,9 +12098,6 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
     if (!send_error)
       result->send_eof();				// Should be safe
   }
-  /* Update results for FOUND_ROWS */
-  join->thd->limit_found_rows= 0;
-  join->thd->set_examined_row_count(0);
   DBUG_RETURN(0);
 }
 
@@ -17300,6 +17298,9 @@ do_select(JOIN *join,List<Item> *fields,TABLE *table,Procedure *procedure)
     if (error == NESTED_LOOP_QUERY_LIMIT)
       error= NESTED_LOOP_OK;                    /* select_limit used */
   }
+
+  join->thd->limit_found_rows= join->send_records;
+
   if (error == NESTED_LOOP_NO_MORE_ROWS || join->thd->killed == ABORT_QUERY)
     error= NESTED_LOOP_OK;
 
@@ -23257,7 +23258,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
   /* rows */
   item_list.push_back(item_null);
   /* extra */
-  if (select_lex->master_unit()->global_parameters->order_list.first)
+  if (select_lex->master_unit()->global_parameters()->order_list.first)
     item_list.push_back(new Item_string("Using filesort",
                                         14, cs));
   else
@@ -23934,16 +23935,19 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
 
   if (unit->is_union())
   {
-    unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // jost for initialization
-    unit->fake_select_lex->type= "UNION RESULT";
-    unit->fake_select_lex->options|= SELECT_DESCRIBE;
+    if (unit->union_needs_tmp_table())
+    {
+      unit->fake_select_lex->select_number= FAKE_SELECT_LEX_ID; // just for initialization
+      unit->fake_select_lex->type= "UNION RESULT";
+      unit->fake_select_lex->options|= SELECT_DESCRIBE;
+    }
     if (!(res= unit->prepare(thd, result, SELECT_NO_UNLOCK | SELECT_DESCRIBE)))
       res= unit->exec();
   }
   else
   {
     thd->lex->current_select= first;
-    unit->set_limit(unit->global_parameters);
+    unit->set_limit(unit->global_parameters());
     res= mysql_select(thd, &first->ref_pointer_array,
 			first->table_list.first,
 			first->with_wild, first->item_list,
@@ -24427,28 +24431,34 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 
 
 /**
-  change select_result object of JOIN.
+  Change the select_result object of the JOIN.
 
-  @param res		new select_result object
+  If old_result is not used, forward the call to the current
+  select_result in case it is a wrapper around old_result.
 
-  @retval
-    FALSE   OK
-  @retval
-    TRUE    error
+  Call prepare() and prepare2() on the new select_result if we decide
+  to use it.
+
+  @param new_result New select_result object
+  @param old_result Old select_result object (NULL to force change)
+
+  @retval false Success
+  @retval true  Error
 */
 
-bool JOIN::change_result(select_result *res)
+bool JOIN::change_result(select_result *new_result, select_result *old_result)
 {
   DBUG_ENTER("JOIN::change_result");
-  result= res;
-  if (tmp_join)
-    tmp_join->result= res;
-  if (!procedure && (result->prepare(fields_list, select_lex->master_unit()) ||
-                     result->prepare2()))
+  if (old_result == NULL || result == old_result)
   {
-    DBUG_RETURN(TRUE);
+    result= new_result;
+    if (result->prepare(fields_list, select_lex->master_unit()) ||
+        result->prepare2())
+      DBUG_RETURN(true); /* purecov: inspected */
+    DBUG_RETURN(false);
   }
-  DBUG_RETURN(FALSE);
+  else
+    DBUG_RETURN(result->change_result(new_result));
 }
 
 
