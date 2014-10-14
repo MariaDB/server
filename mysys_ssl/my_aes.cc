@@ -39,8 +39,6 @@ struct MyCipherCtx
 
 enum encrypt_dir { MY_AES_ENCRYPT, MY_AES_DECRYPT };
 
-#define MY_AES_BLOCK_SIZE 16                    /* Block size in bytes */
-
 /* If bad data discovered during decoding */
 #define AES_BAD_DATA  -1
 

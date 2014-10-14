@@ -6,6 +6,8 @@
 #define AES_BAD_KEYSIZE -5
 #define AES_KEY_CREATION_FAILED -10
 
+#define MY_AES_BLOCK_SIZE 16 /* Block size in bytes */
+
 /* Copyright (c) 2002, 2006 MySQL AB, 2009 Sun Microsystems, Inc.
    Use is subject to license terms.
 
