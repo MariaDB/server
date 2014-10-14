@@ -1413,7 +1413,7 @@ public:
             having_value != Item::COND_FALSE);
   }
   bool empty_result() { return (zero_result_cause && !implicit_grouping); }
-  bool change_result(select_result *result);
+  bool change_result(select_result *new_result, select_result *old_result);
   bool is_top_level_join() const
   {
     return (unit == &thd->lex->unit && (unit->fake_select_lex == 0 ||

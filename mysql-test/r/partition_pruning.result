@@ -3138,7 +3138,6 @@ explain partitions select 1 from t1 union all select 2;
 id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	NULL	system	NULL	NULL	NULL	NULL	0	const row not found
 2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
-NULL	UNION RESULT	<union1,2>	NULL	ALL	NULL	NULL	NULL	NULL	NULL	
 drop table t1;
 create table t1 (a bigint unsigned not null) partition by range(a) (
 partition p0 values less than (10),

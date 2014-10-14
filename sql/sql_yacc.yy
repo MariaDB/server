@@ -657,6 +657,17 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
     my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
     return TRUE;
   }
+  if (lex->current_select->order_list.first && !lex->current_select->braces)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
+    return TRUE;
+  }
+
+  if (lex->current_select->explicit_limit && !lex->current_select->braces)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
+    return TRUE;
+  }
   if (lex->current_select->linkage == GLOBAL_OPTIONS_TYPE)
   {
     my_parse_error(ER(ER_SYNTAX_ERROR));
@@ -684,11 +695,14 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
 bool setup_select_in_parentheses(LEX *lex) 
 {
   SELECT_LEX * sel= lex->current_select;
+  /*
   if (sel->set_braces(1))
   {
     my_parse_error(ER(ER_SYNTAX_ERROR));
     return TRUE;
   }
+  */
+  DBUG_ASSERT(sel->braces);
   if (sel->linkage == UNION_TYPE &&
       !sel->master_unit()->first_select()->braces &&
       sel->master_unit()->first_select()->linkage ==
@@ -704,10 +718,6 @@ bool setup_select_in_parentheses(LEX *lex)
     my_error(ER_WRONG_USAGE, MYF(0), "CUBE/ROLLUP", "ORDER BY");
     return TRUE;
   }
-  /* select in braces, can't contain global parameters */
-  if (sel->master_unit()->fake_select_lex)
-    sel->master_unit()->global_parameters=
-      sel->master_unit()->fake_select_lex;
   return FALSE;
 }
 
@@ -8309,6 +8319,13 @@ select_init:
         ;
 
 select_paren:
+          {
+            /*
+              In order to correctly parse UNION's global ORDER BY we need to
+              set braces before parsing the clause.
+            */
+            Lex->current_select->set_braces(true);
+          }
           SELECT_SYM select_part2
           {
             if (setup_select_in_parentheses(Lex))
@@ -8319,6 +8336,9 @@ select_paren:
 
 /* The equivalent of select_paren for nested queries. */
 select_paren_derived:
+          {
+            Lex->current_select->set_braces(true);
+          }
           SELECT_SYM select_part2_derived
           {
             if (setup_select_in_parentheses(Lex))
@@ -8331,18 +8351,8 @@ select_init2:
           select_part2
           {
             LEX *lex= Lex;
-            SELECT_LEX * sel= lex->current_select;
-            if (lex->current_select->set_braces(0))
-            {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
-              MYSQL_YYABORT;
-            }
-            if (sel->linkage == UNION_TYPE &&
-                sel->master_unit()->first_select()->braces)
-            {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
-              MYSQL_YYABORT;
-            }
+            /* Parentheses carry no meaning here */
+            lex->current_select->set_braces(false);
           }
           union_clause
         ;
@@ -8371,13 +8381,14 @@ select_into:
         ;
 
 select_from:
-          FROM join_table_list where_clause group_clause having_clause
-          opt_order_clause opt_limit_clause procedure_clause
+          FROM join_table_list 
           {
             Select->context.table_list=
               Select->context.first_name_resolution_table=
                 Select->table_list.first;
           }
+          where_clause group_clause having_clause
+          opt_order_clause opt_limit_clause procedure_clause
         | FROM DUAL_SYM where_clause opt_limit_clause
           /* oracle compatibility: oracle always requires FROM clause,
              and DUAL is system table without fields.
@@ -10698,10 +10709,6 @@ table_factor:
                 my_parse_error(ER(ER_SYNTAX_ERROR));
                 MYSQL_YYABORT;
               }
-              /* select in braces, can't contain global parameters */
-              if (sel->master_unit()->fake_select_lex)
-                sel->master_unit()->global_parameters=
-                   sel->master_unit()->fake_select_lex;
             }
             if ($2->init_nested_join(lex->thd))
               MYSQL_YYABORT;
@@ -11246,7 +11253,8 @@ order_clause:
                        "CUBE/ROLLUP", "ORDER BY");
               MYSQL_YYABORT;
             }
-            if (lex->sql_command != SQLCOM_ALTER_TABLE && !unit->fake_select_lex)
+            if (lex->sql_command != SQLCOM_ALTER_TABLE &&
+                !unit->fake_select_lex)
             {
               /*
                 A query of the of the form (SELECT ...) ORDER BY order_list is
@@ -11263,9 +11271,24 @@ order_clause:
                   unit->add_fake_select_lex(lex->thd))
                 MYSQL_YYABORT;
             }
+            if (sel->master_unit()->is_union() && !sel->braces)
+            {
+               /*
+                 At this point we don't know yet whether this is the last
+                 select in union or not, but we move ORDER BY to
+                 fake_select_lex anyway. If there would be one more select
+                 in union mysql_new_select will correctly throw error.
+               */
+               DBUG_ASSERT(sel->master_unit()->fake_select_lex);
+               lex->current_select= sel->master_unit()->fake_select_lex;
+               lex->push_context(&lex->current_select->context);
+             }
           }
           order_list
-        ;
+          {
+
+          }
+         ;
 
 order_list:
           order_list ',' order_ident order_dir
@@ -11285,6 +11308,13 @@ opt_limit_clause_init:
           {
             LEX *lex= Lex;
             SELECT_LEX *sel= lex->current_select;
+            if (sel->master_unit()->is_union() && !sel->braces)
+            {
+              /* Move LIMIT that belongs to UNION to fake_select_lex */
+              Lex->current_select= sel->master_unit()->fake_select_lex;
+              DBUG_ASSERT(Select);
+            }
+            sel= lex->current_select;
             sel->offset_limit= 0;
             sel->select_limit= 0;
 	    lex->limit_rows_examined= 0;
@@ -11297,19 +11327,33 @@ opt_limit_clause:
         | limit_clause {}
         ;
 
+limit_clause_init:
+          LIMIT
+          {
+            SELECT_LEX *sel= Select;
+            if (sel->master_unit()->is_union() && !sel->braces)
+            {
+              /* Move LIMIT that belongs to UNION to fake_select_lex */
+              Lex->current_select= sel->master_unit()->fake_select_lex;
+              DBUG_ASSERT(Select);
+            }
+          }
+        ;  
+
 limit_clause:
-          LIMIT limit_options
+          limit_clause_init limit_options
           {
             SELECT_LEX *sel= Select;
             if (!sel->select_limit->basic_const_item() ||
                 sel->select_limit->val_int() > 0)
               Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
-        | LIMIT limit_options ROWS_SYM EXAMINED_SYM limit_rows_option
+        | limit_clause_init limit_options
+          ROWS_SYM EXAMINED_SYM limit_rows_option
           {
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
-        | LIMIT ROWS_SYM EXAMINED_SYM limit_rows_option
+        | limit_clause_init ROWS_SYM EXAMINED_SYM limit_rows_option
           {
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
@@ -12790,6 +12834,7 @@ flush_options:
             YYPS->m_mdl_type= MDL_SHARED_HIGH_PRIO;
           }
           opt_table_list opt_flush_lock
+          {}
         | flush_options_list
         ;
 
@@ -15739,7 +15784,6 @@ union_order_or_limit:
             SELECT_LEX *fake= unit->fake_select_lex;
             if (fake)
             {
-              unit->global_parameters= fake;
               fake->no_table_names_allowed= 1;
               lex->current_select= fake;
             }
