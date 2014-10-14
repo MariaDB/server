@@ -1408,6 +1408,16 @@ SELECT t1_2.b, t1_1.a FROM t1 AS t1_1 STRAIGHT_JOIN t1 AS t1_2 ON ( t1_2.a = t1_
 );
 a	b	i
 DROP TABLE t1,t2;
+# 
+# MDEV-6738: use_stat_table + histograms crashing optimizer
+# 
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+# Need innodb because there is a special kind of field_bit for non-myisam tables
+create table t1(col1 int, col2 bit(1) DEFAULT NULL) engine=innodb;
+select * from t1 where col2 != true;
+col1	col2
+drop table t1;
 #
 # End of 10.0 tests
 #
