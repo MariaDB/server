@@ -11729,12 +11729,7 @@ ha_innobase::check_table_options(
 
     if ((ulint)options->page_encryption_key != ULINT_UNDEFINED) {
         if (options->page_encryption == false) {
-            push_warning(
-                thd, Sql_condition::WARN_LEVEL_WARN,
-                HA_WRONG_CREATE_OPTION,
-                "InnoDB: PAGE_ENCRYPTION_KEY requires"
-                " PAGE_ENCRYPTION");
-            return "PAGE_ENCRYPTION_KEY";
+			/* ignore for alter table...*/	
         }
 
         if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
