@@ -344,8 +344,7 @@ ulint mode
 
 	/* Get encryption key. it was not successful here to read the page encryption key from the tablespace flags, because
 	 * of unresolved deadlocks while accessing the tablespace memory structure.*/
-	page_decryption_key = mach_read_from_1(
-				buf + page_size - FIL_PAGE_DATA_END  - offset_ctrl_data);
+	page_decryption_key = mach_read_from_1(buf);
 
 
 	/* Get the page type */
