@@ -50,6 +50,7 @@ public:
 	static KeySingleton& getInstance(const char *name, const char *url,
 			const int initType, const char *filekey);
 	keyentry *getKeys(int id);
+	ibool hasKey(int id);
 };
 
 #endif /* KEYSINGLETON_H_ */

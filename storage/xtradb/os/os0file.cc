@@ -5164,6 +5164,7 @@ os_aio_func(
 	ut_ad((n & 0xFFFFFFFFUL) == n);
 #endif
 
+
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 

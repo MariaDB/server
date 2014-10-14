@@ -56,3 +56,7 @@ keyentry *KeySingleton::getKeys(int id) {
 	return encKeys.getKeys(id);
 }
 
+ibool KeySingleton::hasKey(int id) {
+	return encKeys.getKeys(id) != NULL;
+}
+
