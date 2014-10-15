@@ -221,7 +221,7 @@ static bool change_type_is_supported(TABLE *table, TABLE *altered_table, Alter_i
 static ulong fix_handler_flags(THD *thd, TABLE *table, TABLE *altered_table, Alter_inplace_info *ha_alter_info) {
     ulong handler_flags = ha_alter_info->handler_flags;
 
-#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100099
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100199
     // This is automatically supported, hide the flag from later checks
     handler_flags &= ~Alter_inplace_info::ALTER_PARTITIONED;
 #endif

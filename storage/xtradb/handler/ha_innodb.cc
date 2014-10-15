@@ -5069,7 +5069,7 @@ innobase_kill_connection(
 		THD *cur = current_thd;
 		THD *owner = trx->current_lock_mutex_owner;
 
-		if (owner != cur) {
+		if (!owner || owner != cur) {
 			lock_mutex_enter();
 		}
 		trx_mutex_enter(trx);
@@ -5079,7 +5079,7 @@ innobase_kill_connection(
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 
 		trx_mutex_exit(trx);
-		if (owner != cur) {
+		if (!owner || owner != cur) {
 			lock_mutex_exit();
 		}
 	}

@@ -4467,7 +4467,7 @@ innobase_kill_query(
 		THD *owner = trx->current_lock_mutex_owner;
 
 		/* Cancel a pending lock request. */
-		if (owner != cur) {
+		if (!owner || owner != cur) {
 			lock_mutex_enter();
 		}
 		trx_mutex_enter(trx);
@@ -4475,7 +4475,7 @@ innobase_kill_query(
 			lock_cancel_waiting_and_release(trx->lock.wait_lock);
 		}
 		trx_mutex_exit(trx);
-		if (owner != cur) {
+		if (!owner || owner != cur) {
 			lock_mutex_exit();
 		}
 	}
