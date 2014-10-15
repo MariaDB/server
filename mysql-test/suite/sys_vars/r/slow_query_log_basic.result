@@ -42,10 +42,17 @@ ERROR 42000: Variable 'slow_query_log' can't be set to the value of ' '
 SET @@global.slow_query_log = '';
 ERROR 42000: Variable 'slow_query_log' can't be set to the value of ''
 '#-------------------FN_DYNVARS_004_04----------------------------#'
-SET @@session.slow_query_log = OFF;
-ERROR HY000: Variable 'slow_query_log' is a GLOBAL variable and should be set with SET GLOBAL
+SET @@global.slow_query_log = ON;
+SET @@session.slow_query_log = ON;
 SELECT @@session.slow_query_log;
-ERROR HY000: Variable 'slow_query_log' is a GLOBAL variable
+@@session.slow_query_log
+1
+SET @@session.slow_query_log = OFF;
+SELECT @@session.slow_query_log;
+@@session.slow_query_log
+0
+SET @@global.slow_query_log = OFF;
+SET @@session.slow_query_log = ON;
 '#----------------------FN_DYNVARS_004_05------------------------#'
 SELECT IF(@@global.slow_query_log, "ON", "OFF") = VARIABLE_VALUE 
 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
@@ -72,12 +79,11 @@ SELECT @@global.slow_query_log;
 0
 '#---------------------FN_DYNVARS_004_08----------------------#'
 SET @@global.slow_query_log = ON;
+SET @@local.slow_query_log = OFF;
 SELECT @@slow_query_log = @@global.slow_query_log;
 @@slow_query_log = @@global.slow_query_log
-1
+0
 '#---------------------FN_DYNVARS_004_09----------------------#'
-SET slow_query_log = ON;
-ERROR HY000: Variable 'slow_query_log' is a GLOBAL variable and should be set with SET GLOBAL
 SET local.slow_query_log = OFF;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'slow_query_log = OFF' at line 1
 SELECT local.slow_query_log;

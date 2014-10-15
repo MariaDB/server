@@ -286,9 +286,10 @@ void query_response_time_free()
   query_response_time::g_collector.flush();
 }
 
-void query_response_time_flush()
+int query_response_time_flush()
 {
   query_response_time::g_collector.flush();
+  return 0;
 }
 void query_response_time_collect(ulonglong query_time)
 {

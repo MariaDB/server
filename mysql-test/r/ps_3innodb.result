@@ -2248,7 +2248,46 @@ def					@arg32	250	16777215	0	Y	0	31	8
 @arg01	@arg02	@arg03	@arg04	@arg05	@arg06	@arg07	@arg08	@arg09	@arg10	@arg11	@arg12	@arg13	@arg14	@arg15	@arg16	@arg17	@arg18	@arg19	@arg20	@arg21	@arg22	@arg23	@arg24	@arg25	@arg26	@arg27	@arg28	@arg29	@arg30	@arg31	@arg32
 0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	1991-01-01 01:01:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
 prepare stmt1 from "select c1 into ? from t9 where c1= 1" ;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? from t9 where c1= 1' at line 1
+execute stmt1 using @result;
+execute full_info ;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def					@arg01	8	20	1	Y	32896	0	63
+def					@arg02	8	20	0	Y	32896	0	63
+def					@arg03	8	20	0	Y	32896	0	63
+def					@arg04	8	20	0	Y	32896	0	63
+def					@arg05	8	20	0	Y	32896	0	63
+def					@arg06	8	20	0	Y	32896	0	63
+def					@arg07	5	23	0	Y	32896	31	63
+def					@arg08	5	23	0	Y	32896	31	63
+def					@arg09	5	23	0	Y	32896	31	63
+def					@arg10	5	23	0	Y	32896	31	63
+def					@arg11	246	83	0	Y	32896	30	63
+def					@arg12	246	83	0	Y	32896	30	63
+def					@arg13	250	16777215	0	Y	0	31	8
+def					@arg14	250	16777215	0	Y	0	31	8
+def					@arg15	250	16777215	19	Y	0	31	8
+def					@arg16	250	16777215	0	Y	0	31	8
+def					@arg17	8	20	0	Y	32928	0	63
+def					@arg18	8	20	0	Y	32896	0	63
+def					@arg19	8	20	0	Y	32896	0	63
+def					@arg20	250	16777215	0	Y	0	31	8
+def					@arg21	250	16777215	0	Y	0	31	8
+def					@arg22	250	16777215	0	Y	0	31	8
+def					@arg23	250	16777215	0	Y	128	31	63
+def					@arg24	250	16777215	0	Y	0	31	8
+def					@arg25	250	16777215	0	Y	128	31	63
+def					@arg26	250	16777215	0	Y	0	31	8
+def					@arg27	250	16777215	0	Y	128	31	63
+def					@arg28	250	16777215	0	Y	0	31	8
+def					@arg29	250	16777215	0	Y	128	31	63
+def					@arg30	250	16777215	0	Y	0	31	8
+def					@arg31	250	16777215	0	Y	0	31	8
+def					@arg32	250	16777215	0	Y	0	31	8
+@arg01	@arg02	@arg03	@arg04	@arg05	@arg06	@arg07	@arg08	@arg09	@arg10	@arg11	@arg12	@arg13	@arg14	@arg15	@arg16	@arg17	@arg18	@arg19	@arg20	@arg21	@arg22	@arg23	@arg24	@arg25	@arg26	@arg27	@arg28	@arg29	@arg30	@arg31	@arg32
+0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	1991-01-01 01:01:01	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL
+select @result;
+@result
+1
 test_sequence
 -- insert into numeric columns --
 insert into t9 

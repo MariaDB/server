@@ -154,7 +154,6 @@ sub collect_test_cases ($) {
 	#
 	# Append the criteria for sorting, in order of importance.
 	#
-	push(@criteria, "ndb=" . ($tinfo->{'ndb_test'} ? "1" : "0"));
 	# Group test with equal options together.
 	# Ending with "~" makes empty sort later than filled
 	push(@criteria, join("!", sort @{$tinfo->{'master_opt'}}) . "~");
@@ -788,8 +787,6 @@ sub collect_one_test_case($$$$$$$$$) {
     {
       # Different default engine is used
       # tag test to require that engine
-      $tinfo->{'ndb_test'}= 1
-	if ( $::used_default_engine =~ /^ndb/i );
 
       $tinfo->{'innodb_test'}= 1
 	if ( $::used_default_engine =~ /^innodb/i );
@@ -809,57 +806,11 @@ sub collect_one_test_case($$$$$$$$$) {
       return;
     }
 
-    if ( $tinfo->{'ndb_extra'} and ! $::opt_ndb_extra_test )
-    {
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "Test need 'ndb_extra' option";
-      return;
-    }
-
-    if ( $tinfo->{'require_manager'} )
-    {
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "Test need the _old_ manager(to be removed)";
-      return;
-    }
-
     if ( $tinfo->{'need_debug'} && ! $::debug_compiled_binaries )
     {
       $tinfo->{'skip'}= 1;
       $tinfo->{'comment'}= "Test need debug binaries";
       return;
-    }
-
-    if ( $tinfo->{'ndb_test'} )
-    {
-      # This is a NDB test
-      if ( ! $::glob_ndbcluster_supported )
-      {
-	# Ndb is not supported, skip it
-	$tinfo->{'skip'}= 1;
-	$tinfo->{'comment'}= "No ndbcluster support";
-	return;
-      }
-      elsif ( $::opt_skip_ndbcluster )
-      {
-	# All ndb test's should be skipped
-	$tinfo->{'skip'}= 1;
-	$tinfo->{'comment'}= "No ndbcluster tests(--skip-ndbcluster)";
-	return;
-      }
-      # Ndb tests run with two mysqld masters
-      $tinfo->{'master_num'}= 2;
-    }
-    else
-    {
-      # This is not a ndb test
-      if ( $::opt_with_ndbcluster_only )
-      {
-	# Only the ndb test should be run, all other should be skipped
-	$tinfo->{'skip'}= 1;
-	$tinfo->{'comment'}= "Only ndbcluster tests(--with-ndbcluster-only)";
-	return;
-      }
     }
 
     if ( $tinfo->{'innodb_test'} )
@@ -916,10 +867,6 @@ our @tags=
  ["include/have_log_bin.inc", "need_binlog", 1],
  ["include/big_test.inc", "big_test", 1],
  ["include/have_debug.inc", "need_debug", 1],
- ["include/have_ndb.inc", "ndb_test", 1],
- ["include/have_multi_ndb.inc", "ndb_test", 1],
- ["include/have_ndb_extra.inc", "ndb_extra", 1],
- ["include/ndb_master-slave.inc", "ndb_test", 1],
  ["require_manager", "require_manager", 1],
  ["include/federated.inc", "federated_test", 1],
  ["include/have_federated_db.inc", "federated_test", 1],

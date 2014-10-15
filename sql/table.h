@@ -1113,6 +1113,7 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  double 	quick_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If
@@ -1486,8 +1487,8 @@ typedef struct st_schema_table
 {
   const char* table_name;
   ST_FIELD_INFO *fields_info;
-  /* Create information_schema table */
-  TABLE *(*create_table)  (THD *thd, TABLE_LIST *table_list);
+  /* for FLUSH table_name */
+  int (*reset_table) ();
   /* Fill table with data */
   int (*fill_table) (THD *thd, TABLE_LIST *tables, COND *cond);
   /* Handle fileds for old SHOW */

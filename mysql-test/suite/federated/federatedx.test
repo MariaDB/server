@@ -1506,8 +1506,7 @@ DROP TABLE federated.test;
 # and lost changes to NEW variables.
 # Since for federated engine only operation which is affected by wrong
 # fields mark-up is handler::write_row() this file constains coverage
-# for ON INSERT triggers only. Tests for other types of triggers reside
-# in ndb_trigger.test.
+# for ON INSERT triggers only.
 #
 connection slave;
 --disable_warnings

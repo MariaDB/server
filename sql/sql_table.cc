@@ -1853,27 +1853,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       goto end;
     }
   }
-  if (flags & WFRM_PACK_FRM)
-  {
-    /*
-      We need to pack the frm file and after packing it we delete the
-      frm file to ensure it doesn't get used. This is only used for
-      handlers that have the main version of the frm file stored in the
-      handler.
-    */
-    const uchar *data;
-    size_t length;
-    if (readfrm(shadow_path, &data, &length) ||
-        packfrm(data, length, &lpt->pack_frm_data, &lpt->pack_frm_len))
-    {
-      my_free(const_cast<uchar*>(data));
-      my_free(lpt->pack_frm_data);
-      mem_alloc_error(length);
-      error= 1;
-      goto end;
-    }
-    error= mysql_file_delete(key_file_frm, shadow_frm_name, MYF(MY_WME));
-  }
   if (flags & WFRM_INSTALL_SHADOW)
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -5264,6 +5243,12 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   int create_res;
   DBUG_ENTER("mysql_create_like_table");
 
+#ifdef WITH_WSREP
+  if (WSREP_ON && !thd->wsrep_applier &&
+      wsrep_create_like_table(thd, table, src_table, create_info))
+    DBUG_RETURN(res);
+#endif
+
   /*
     We the open source table to get its description in HA_CREATE_INFO
     and Alter_info objects. This also acquires a shared metadata lock
@@ -5525,6 +5510,7 @@ err:
                            thd->query_length(), is_trans))
       res= 1;
   }
+
   DBUG_RETURN(res);
 }
 
@@ -8117,6 +8103,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   if (!error)
   {
     error= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+
     if (!error)
       my_ok(thd);
   }

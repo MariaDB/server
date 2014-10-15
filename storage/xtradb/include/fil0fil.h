@@ -1119,7 +1119,7 @@ os_file_handle_error_no_exit(
 
 /*******************************************************************//**
 Return page type name */
-char*
+const char*
 fil_get_page_type_name(
 /*===================*/
 	ulint	page_type);	/*!< in: FIL_PAGE_TYPE */

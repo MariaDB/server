@@ -33,7 +33,9 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
 				string.c thr_alarm.c thr_lock.c thr_mutex.c
-				thr_rwlock.c tree.c typelib.c base64.c my_memmem.c my_getpagesize.c
+				thr_rwlock.c thr_timer.c
+                                tree.c typelib.c base64.c my_memmem.c
+                                 my_getpagesize.c
 				lf_alloc-pin.c lf_dynarray.c lf_hash.c
                                 safemalloc.c my_new.cc
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
@@ -88,6 +90,10 @@ ENDIF()
 ADD_EXECUTABLE(thr_lock thr_lock.c)
 TARGET_LINK_LIBRARIES(thr_lock mysys)
 SET_TARGET_PROPERTIES(thr_lock PROPERTIES COMPILE_FLAGS "-DMAIN")
+
+ADD_EXECUTABLE(thr_timer thr_timer.c)
+TARGET_LINK_LIBRARIES(thr_timer mysys)
+SET_TARGET_PROPERTIES(thr_timer PROPERTIES COMPILE_FLAGS "-DMAIN")
 
 INSTALL_DEBUG_SYMBOLS(mysys)
 IF(MSVC)

@@ -212,8 +212,6 @@ typedef ha_rows (*pfs_get_row_count_t)(void);
 */
 struct PFS_engine_table_share
 {
-  static void check_all_tables(THD *thd);
-  void check_one_table(THD *thd);
   static void init_all_locks(void);
   static void delete_all_locks(void);
   /** Get the row count. */
@@ -244,10 +242,8 @@ struct PFS_engine_table_share
   uint m_ref_length;
   /** The lock, stored on behalf of the SQL layer. */
   THR_LOCK *m_thr_lock_ptr;
-  /** Table fields definition. */
-  TABLE_FIELD_DEF *m_field_def;
-  /** Schema integrity flag. */
-  bool m_checked;
+  /** Table definition. */
+  LEX_STRING sql;
 };
 
 /**
@@ -460,6 +456,10 @@ struct PFS_triple_index
 
 bool pfs_show_status(handlerton *hton, THD *thd,
                      stat_print_fn *print, enum ha_stat_type stat);
+
+int pfs_discover_table_names(handlerton *hton, LEX_STRING *db,
+                             MY_DIR *dir,
+                             handlerton::discovered_list *result);
 
 /** @} */
 #endif

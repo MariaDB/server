@@ -121,6 +121,10 @@ class ha_innobase: public handler
 	void innobase_initialize_autoinc();
 	dict_index_t* innobase_get_index(uint keynr);
 
+#ifdef WITH_WSREP
+	int wsrep_append_keys(THD *thd, bool shared,
+			      const uchar* record0, const uchar* record1);
+#endif
 	/* Init values for the class: */
  public:
 	ha_innobase(handlerton *hton, TABLE_SHARE *table_arg);
@@ -471,7 +475,9 @@ __attribute__((nonnull));
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
 
-struct trx_t;
+#ifdef WITH_WSREP
+#include <mysql/service_wsrep.h>
+#endif
 
 extern const struct _ft_vft ft_vft_result;
 
@@ -509,6 +515,9 @@ innobase_index_name_is_reserved(
 	__attribute__((nonnull, warn_unused_result));
 
 /*****************************************************************//**
+#ifdef WITH_WSREP
+extern "C" int wsrep_trx_is_aborting(void *thd_ptr);
+#endif
 Determines InnoDB table flags.
 @retval true if successful, false if error */
 UNIV_INTERN

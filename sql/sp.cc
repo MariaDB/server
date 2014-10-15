@@ -32,19 +32,6 @@
 
 #include <my_user.h>
 
-static bool
-create_string(THD *thd, String *buf,
-	      stored_procedure_type sp_type,
-	      const char *db, ulong dblen,
-	      const char *name, ulong namelen,
-	      const char *params, ulong paramslen,
-	      const char *returns, ulong returnslen,
-	      const char *body, ulong bodylen,
-	      st_sp_chistics *chistics,
-              const LEX_STRING *definer_user,
-              const LEX_STRING *definer_host,
-              ulonglong sql_mode);
-
 static int
 db_load_routine(THD *thd, stored_procedure_type type, sp_name *name,
                 sp_head **sphp,
@@ -844,7 +831,7 @@ db_load_routine(THD *thd, stored_procedure_type type,
     definition for SHOW CREATE PROCEDURE later.
    */
 
-  if (!create_string(thd, &defstr,
+  if (!show_create_sp(thd, &defstr,
                      type,
                      NULL, 0,
                      name->m_name.str, name->m_name.length,
@@ -924,7 +911,7 @@ end:
 }
 
 
-static void
+void
 sp_returns_type(THD *thd, String &result, sp_head *sp)
 {
   TABLE table;
@@ -1186,7 +1173,7 @@ sp_create_routine(THD *thd, stored_procedure_type type, sp_head *sp)
       String log_query;
       log_query.set_charset(system_charset_info);
 
-      if (!create_string(thd, &log_query,
+      if (!show_create_sp(thd, &log_query,
                          sp->m_type,
                          (sp->m_explicit_name ? sp->m_db.str : NULL), 
                          (sp->m_explicit_name ? sp->m_db.length : 0), 
@@ -2126,8 +2113,8 @@ int sp_cache_routine(THD *thd, enum stored_procedure_type type, sp_name *name,
   @return
     Returns TRUE on success, FALSE on (alloc) failure.
 */
-static bool
-create_string(THD *thd, String *buf,
+bool
+show_create_sp(THD *thd, String *buf,
               stored_procedure_type type,
               const char *db, ulong dblen,
               const char *name, ulong namelen,
@@ -2253,7 +2240,7 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   sp_body= (type == TYPE_ENUM_FUNCTION ? "RETURN NULL" : "BEGIN END");
   bzero((char*) &sp_chistics, sizeof(sp_chistics));
   defstr.set_charset(creation_ctx->get_client_cs());
-  if (!create_string(thd, &defstr, type, 
+  if (!show_create_sp(thd, &defstr, type,
                      sp_db_str.str, sp_db_str.length, 
                      sp_name_obj.m_name.str, sp_name_obj.m_name.length, 
                      params, strlen(params),
@@ -2271,3 +2258,4 @@ sp_load_for_information_schema(THD *thd, TABLE *proc_table, String *db,
   thd->lex= old_lex;
   return sp;
 }
+

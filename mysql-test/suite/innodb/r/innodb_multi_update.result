@@ -75,7 +75,7 @@ a	b
 5	15
 drop table bug38999_1,bug38999_2;
 #
-# Bug#54475 improper error handling causes cascading crashing failures in innodb/ndb
+# Bug#54475 improper error handling causes cascading crashing failures in innodb
 #
 CREATE TABLE t1(f1 INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);

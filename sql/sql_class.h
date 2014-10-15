@@ -37,6 +37,7 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
+#include "thr_timer.h"
 #include <mysql/psi/mysql_stage.h>
 #include <mysql/psi/mysql_statement.h>
 #include <mysql/psi/mysql_idle.h>
@@ -50,12 +51,13 @@ void set_thd_stage_info(void *thd,
                         const char *calling_func,
                         const char *calling_file,
                         const unsigned int calling_line);
-                        
+
 #define THD_STAGE_INFO(thd, stage) \
   (thd)->enter_stage(& stage, NULL, __func__, __FILE__, __LINE__)
 
 #include "my_apc.h"
 #include "rpl_gtid.h"
+#include "wsrep_mysqld.h"
 
 class Reprepare_observer;
 class Relay_log_info;
@@ -448,17 +450,19 @@ enum killed_state
   */
   ABORT_QUERY= 6,
   ABORT_QUERY_HARD= 7,
+  KILL_TIMEOUT= 8,
+  KILL_TIMEOUT_HARD= 9,
   /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 8,
-  KILL_CONNECTION_HARD= 9,
-  KILL_SYSTEM_THREAD= 10,
-  KILL_SYSTEM_THREAD_HARD= 11,
-  KILL_SERVER= 12,
-  KILL_SERVER_HARD= 13
+  KILL_CONNECTION= 10,
+  KILL_CONNECTION_HARD= 11,
+  KILL_SYSTEM_THREAD= 12,
+  KILL_SYSTEM_THREAD_HARD= 13,
+  KILL_SERVER= 14,
+  KILL_SERVER_HARD= 15
 };
 
 extern int killed_errno(killed_state killed);
@@ -507,6 +511,7 @@ typedef struct system_variables
   ulonglong max_heap_table_size;
   ulonglong tmp_table_size;
   ulonglong long_query_time;
+  ulonglong max_statement_time;
   ulonglong optimizer_switch;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
@@ -567,9 +572,6 @@ typedef struct system_variables
   ulong log_slow_rate_limit; 
   ulong binlog_format; ///< binlog format for this thd (see enum_binlog_format)
   ulong progress_report_time;
-  my_bool binlog_annotate_row_events;
-  my_bool binlog_direct_non_trans_update;
-  my_bool sql_log_bin;
   ulong completion_type;
   ulong query_cache_type;
   ulong tx_isolation;
@@ -600,7 +602,6 @@ typedef struct system_variables
   my_bool tx_read_only;
   my_bool low_priority_updates;
   my_bool query_cache_wlock_invalidate;
-  my_bool engine_condition_pushdown;
   my_bool keep_files_on_create;
 
   my_bool old_mode;
@@ -608,6 +609,10 @@ typedef struct system_variables
   my_bool old_passwords;
   my_bool big_tables;
   my_bool query_cache_strip_comments;
+  my_bool sql_log_slow;
+  my_bool sql_log_bin;
+  my_bool binlog_annotate_row_events;
+  my_bool binlog_direct_non_trans_update;
 
   plugin_ref table_plugin;
   plugin_ref tmp_table_plugin;
@@ -638,7 +643,11 @@ typedef struct system_variables
   ulong wt_timeout_short, wt_deadlock_search_depth_short;
   ulong wt_timeout_long, wt_deadlock_search_depth_long;
 
-  double long_query_time_double;
+  my_bool wsrep_on;
+  my_bool wsrep_causal_reads;
+  uint wsrep_sync_wait;
+  ulong wsrep_retry_autocommit;
+  double long_query_time_double, max_statement_time_double;
 
   my_bool pseudo_slave_mode;
 
@@ -727,6 +736,7 @@ typedef struct system_status_var
   ulong empty_queries;
   ulong access_denied_errors;
   ulong lost_connections;
+  ulong max_statement_time_exceeded;
   /*
     Number of statements sent from the client
   */
@@ -793,6 +803,10 @@ mysqld_collation_get_by_name(const char *name,
   return cs;
 }
 
+inline bool is_supported_parser_charset(CHARSET_INFO *cs)
+{
+  return MY_TEST(cs->mbminlen == 1);
+}
 
 #ifdef MYSQL_SERVER
 
@@ -1355,10 +1369,9 @@ enum enum_thread_type
   SYSTEM_THREAD_DELAYED_INSERT= 1,
   SYSTEM_THREAD_SLAVE_IO= 2,
   SYSTEM_THREAD_SLAVE_SQL= 4,
-  SYSTEM_THREAD_NDBCLUSTER_BINLOG= 8,
-  SYSTEM_THREAD_EVENT_SCHEDULER= 16,
-  SYSTEM_THREAD_EVENT_WORKER= 32,
-  SYSTEM_THREAD_BINLOG_BACKGROUND= 64
+  SYSTEM_THREAD_EVENT_SCHEDULER= 8,
+  SYSTEM_THREAD_EVENT_WORKER= 16,
+  SYSTEM_THREAD_BINLOG_BACKGROUND= 32
 };
 
 inline char const *
@@ -1371,7 +1384,6 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_DELAYED_INSERT);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_IO);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_SQL);
-    RETURN_NAME_AS_STRING(SYSTEM_THREAD_NDBCLUSTER_BINLOG);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_SCHEDULER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_WORKER);
   default:
@@ -2072,7 +2084,7 @@ public:
   int is_current_stmt_binlog_format_row() const {
     DBUG_ASSERT(current_stmt_binlog_format == BINLOG_FORMAT_STMT ||
                 current_stmt_binlog_format == BINLOG_FORMAT_ROW);
-    return current_stmt_binlog_format == BINLOG_FORMAT_ROW;
+    return WSREP_FORMAT(current_stmt_binlog_format) == BINLOG_FORMAT_ROW;
   }
 
   enum binlog_filter_state
@@ -2756,7 +2768,8 @@ public:
   /* Debug Sync facility. See debug_sync.cc. */
   struct st_debug_sync_control *debug_sync_control;
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-  THD();
+  THD(bool is_wsrep_applier= false);
+
   ~THD();
 
   void init(void);
@@ -3271,8 +3284,7 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((variables.binlog_format == BINLOG_FORMAT_MIXED) &&
-        (in_sub_stmt == 0))
+    if ((wsrep_binlog_format() == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
@@ -3323,7 +3335,7 @@ public:
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (variables.binlog_format == BINLOG_FORMAT_ROW)
+      if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (temporary_tables == NULL)
         set_current_stmt_binlog_format_stmt();
@@ -3711,8 +3723,8 @@ public:
   mysql_mutex_t LOCK_wakeup_ready;
   mysql_cond_t COND_wakeup_ready;
   /*
-     The GTID assigned to the last commit. If no GTID was assigned to any commit
-     so far, this is indicated by last_commit_gtid.seq_no == 0.
+    The GTID assigned to the last commit. If no GTID was assigned to any commit
+    so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
   rpl_gtid last_commit_gtid;
 
@@ -3730,6 +3742,76 @@ public:
   {
     return (temporary_tables ||
             (rgi_slave && rgi_have_temporary_tables()));
+  }
+
+  inline ulong wsrep_binlog_format() const
+  {
+    return WSREP_FORMAT(variables.binlog_format);
+  }
+
+#ifdef WITH_WSREP
+  const bool                wsrep_applier; /* dedicated slave applier thread */
+  bool                      wsrep_applier_closing; /* applier marked to close */
+  bool                      wsrep_client_thread; /* to identify client threads*/
+  bool                      wsrep_PA_safe;
+  bool                      wsrep_converted_lock_session;
+  bool                      wsrep_apply_toi; /* applier processing in TOI */
+  enum wsrep_exec_mode      wsrep_exec_mode;
+  query_id_t                wsrep_last_query_id;
+  enum wsrep_query_state    wsrep_query_state;
+  enum wsrep_conflict_state wsrep_conflict_state;
+  mysql_mutex_t             LOCK_wsrep_thd;
+  mysql_cond_t              COND_wsrep_thd;
+  wsrep_trx_meta_t          wsrep_trx_meta;
+  uint32                    wsrep_rand;
+  Relay_log_info            *wsrep_rli;
+  rpl_group_info            *wsrep_rgi;
+  wsrep_ws_handle_t         wsrep_ws_handle;
+  ulong                     wsrep_retry_counter; // of autocommit
+  char                      *wsrep_retry_query;
+  size_t                    wsrep_retry_query_len;
+  enum enum_server_command  wsrep_retry_command;
+  enum wsrep_consistency_check_mode
+                            wsrep_consistency_check;
+  int                       wsrep_mysql_replicated;
+  const char                *wsrep_TOI_pre_query; /* a query to apply before
+                                                     the actual TOI query */
+  size_t                    wsrep_TOI_pre_query_len;
+  wsrep_po_handle_t         wsrep_po_handle;
+  size_t                    wsrep_po_cnt;
+#ifdef GTID_SUPPORT
+  rpl_sid                   wsrep_po_sid;
+#endif /*  GTID_SUPPORT */
+  void                      *wsrep_apply_format;
+  char                      wsrep_info[128]; /* string for dynamic proc info */
+#endif /* WITH_WSREP */
+
+  /* Handling of timeouts for commands */
+  thr_timer_t query_timer;
+public:
+  void set_query_timer()
+  {
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Don't start a query timer if
+      - If timeouts are not set
+      - if we are in a stored procedure or sub statement
+      - If this is a slave thread
+      - If we already have set a timeout (happens when running prepared
+        statements that calls mysql_execute_command())
+    */
+    if (!variables.max_statement_time || spcont  || in_sub_stmt ||
+        slave_thread || query_timer.expired == 0)
+      return;
+    thr_timer_settime(&query_timer, variables.max_statement_time);
+#endif
+  }
+  void reset_query_timer()
+  {
+#ifndef EMBEDDED_LIBRARY
+    if (!query_timer.expired)
+      thr_timer_end(&query_timer);
+#endif
   }
 };
 
@@ -4689,21 +4771,46 @@ public:
 
 class my_var : public Sql_alloc  {
 public:
-  LEX_STRING s;
-#ifndef DBUG_OFF
+  const LEX_STRING name;
+  enum type { SESSION_VAR, LOCAL_VAR, PARAM_VAR };
+  type scope;
+  my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
+  virtual ~my_var() {}
+  virtual bool set(THD *thd, Item *val) = 0;
+};
+
+class my_var_param: public my_var {
+public:
+  Settable_routine_parameter *param;
+  my_var_param(Item_param *p)
+    : my_var(null_lex_str, PARAM_VAR),
+      param(p->get_settable_routine_parameter())
+  { p->inout= Item_param::OUT_PARAM; }
+  ~my_var_param() { }
+  bool set(THD *thd, Item *val);
+};
+
+class my_var_sp: public my_var {
+public:
+  uint offset;
+  enum_field_types type;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-#endif
-  bool local;
-  uint offset;
-  enum_field_types type;
-  my_var (LEX_STRING& j, bool i, uint o, enum_field_types t)
-    :s(j), local(i), offset(o), type(t)
-  {}
-  ~my_var() {}
+  my_var_sp(const LEX_STRING& j, uint o, enum_field_types t, sp_head *s)
+    : my_var(j, LOCAL_VAR), offset(o), type(t), sp(s) { }
+  ~my_var_sp() { }
+  bool set(THD *thd, Item *val);
+};
+
+class my_var_user: public my_var {
+public:
+  my_var_user(const LEX_STRING& j)
+    : my_var(j, SESSION_VAR) { }
+  ~my_var_user() { }
+  bool set(THD *thd, Item *val);
 };
 
 class select_dumpvar :public select_result_interceptor {
@@ -4845,6 +4952,11 @@ public:
   sent by the user (ie: stored procedure).
 */
 #define CF_SKIP_QUESTIONS       (1U << 1)
+
+/**
+  Do not check that wsrep snapshot is ready before allowing this command
+*/
+#define CF_SKIP_WSREP_CHECK     (1U << 2)
 
 void mark_transaction_to_rollback(THD *thd, bool all);
 

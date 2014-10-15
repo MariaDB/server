@@ -1,0 +1,45 @@
+#
+# wsrep_log_conflicts
+#
+# save the initial value
+SET @wsrep_log_conflicts_global_saved = @@global.wsrep_log_conflicts;
+# default
+SELECT @@global.wsrep_log_conflicts;
+@@global.wsrep_log_conflicts
+0
+
+# scope
+SELECT @@session.wsrep_log_conflicts;
+ERROR HY000: Variable 'wsrep_log_conflicts' is a GLOBAL variable
+SET @@global.wsrep_log_conflicts=OFF;
+SELECT @@global.wsrep_log_conflicts;
+@@global.wsrep_log_conflicts
+0
+SET @@global.wsrep_log_conflicts=ON;
+SELECT @@global.wsrep_log_conflicts;
+@@global.wsrep_log_conflicts
+1
+
+# valid values
+SET @@global.wsrep_log_conflicts='OFF';
+SELECT @@global.wsrep_log_conflicts;
+@@global.wsrep_log_conflicts
+0
+SET @@global.wsrep_log_conflicts=ON;
+SELECT @@global.wsrep_log_conflicts;
+@@global.wsrep_log_conflicts
+1
+SET @@global.wsrep_log_conflicts=default;
+SELECT @@global.wsrep_log_conflicts;
+@@global.wsrep_log_conflicts
+0
+
+# invalid values
+SET @@global.wsrep_log_conflicts=NULL;
+ERROR 42000: Variable 'wsrep_log_conflicts' can't be set to the value of 'NULL'
+SET @@global.wsrep_log_conflicts='junk';
+ERROR 42000: Variable 'wsrep_log_conflicts' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_log_conflicts = @wsrep_log_conflicts_global_saved;
+# End of test

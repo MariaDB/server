@@ -590,8 +590,6 @@ static COMMANDS commands[] = {
   { "NAMES", 0, 0, 0, ""},
   { "NATIONAL", 0, 0, 0, ""},
   { "NATURAL", 0, 0, 0, ""},
-  { "NDB", 0, 0, 0, ""},
-  { "NDBCLUSTER", 0, 0, 0, ""},
   { "NCHAR", 0, 0, 0, ""},
   { "NEW", 0, 0, 0, ""},
   { "NEXT", 0, 0, 0, ""},

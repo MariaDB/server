@@ -528,6 +528,70 @@ public:
   { return NULL; }
 };
 
+/**
+  This is used for items in the query that needs to be rewritten
+  before binlogging
+
+  At the moment this applies to Item_param and Item_splocal
+*/
+class Rewritable_query_parameter
+{
+  public:
+  /*
+    Offset inside the query text.
+    Value of 0 means that this object doesn't have to be replaced
+    (for example SP variables in control statements)
+  */
+  uint pos_in_query;
+
+  /*
+    Byte length of parameter name in the statement.  This is not
+    Item::name_length because name_length contains byte length of UTF8-encoded
+    name, but the query string is in the client charset.
+  */
+  uint len_in_query;
+
+  bool limit_clause_param;
+
+  Rewritable_query_parameter(uint pos_in_q= 0, uint len_in_q= 0)
+    : pos_in_query(pos_in_q), len_in_query(len_in_q),
+      limit_clause_param(false)
+  { }
+
+  virtual ~Rewritable_query_parameter() { }
+
+  virtual bool append_for_log(THD *thd, String *str) = 0;
+};
+
+class Copy_query_with_rewrite
+{
+  THD *thd;
+  const char *src;
+  size_t src_len, from;
+  String *dst;
+
+  bool copy_up_to(size_t bytes)
+  {
+    DBUG_ASSERT(bytes >= from);
+    return dst->append(src + from, bytes - from);
+  }
+
+public:
+
+  Copy_query_with_rewrite(THD *t, const char *s, size_t l, String *d)
+    :thd(t), src(s), src_len(l), from(0), dst(d) { }
+
+  bool append(Rewritable_query_parameter *p)
+  {
+    if (copy_up_to(p->pos_in_query) || p->append_for_log(thd, dst))
+      return true;
+    from= p->pos_in_query + p->len_in_query;
+    return false;
+  }
+
+  bool finalize()
+  { return copy_up_to(src_len); }
+};
 
 struct st_dyncall_create_def
 {
@@ -570,6 +634,7 @@ class COND_EQUAL;
 class st_select_lex_unit;
 
 class Item_func_not;
+class Item_splocal;
 
 class Item {
   Item(const Item &);			/* Prevent use of these */
@@ -1431,7 +1496,9 @@ public:
     delete this;
   }
 
-  virtual bool is_splocal() { return 0; } /* Needed for error checking */
+  virtual Item_splocal *get_item_splocal() { return 0; }
+  virtual Rewritable_query_parameter *get_rewritable_query_parameter()
+  { return 0; }
 
   /*
     Return Settable_routine_parameter interface of the Item.  Return 0
@@ -1690,7 +1757,8 @@ inline bool Item_sp_variable::send(Protocol *protocol, String *str)
 *****************************************************************************/
 
 class Item_splocal :public Item_sp_variable,
-                    private Settable_routine_parameter
+                    private Settable_routine_parameter,
+                    public Rewritable_query_parameter
 {
   uint m_var_idx;
 
@@ -1698,38 +1766,9 @@ class Item_splocal :public Item_sp_variable,
   Item_result m_result_type;
   enum_field_types m_field_type;
 public:
-  /*
-    If this variable is a parameter in LIMIT clause.
-    Used only during NAME_CONST substitution, to not append
-    NAME_CONST to the resulting query and thus not break
-    the slave.
-  */
-  bool limit_clause_param;
-  /* 
-    Position of this reference to SP variable in the statement (the
-    statement itself is in sp_instr_stmt::m_query).
-    This is valid only for references to SP variables in statements,
-    excluding DECLARE CURSOR statement. It is used to replace references to SP
-    variables with NAME_CONST calls when putting statements into the binary
-    log.
-    Value of 0 means that this object doesn't corresponding to reference to
-    SP variable in query text.
-  */
-  uint pos_in_query;
-  /*
-    Byte length of SP variable name in the statement (see pos_in_query).
-    The value of this field may differ from the name_length value because
-    name_length contains byte length of UTF8-encoded item name, but
-    the query string (see sp_instr_stmt::m_query) is currently stored with
-    a charset from the SET NAMES statement.
-  */
-  uint len_in_query;
-
   Item_splocal(const LEX_STRING &sp_var_name, uint sp_var_idx,
                enum_field_types sp_var_type,
                uint pos_in_q= 0, uint len_in_q= 0);
-
-  bool is_splocal() { return 1; } /* Needed for error checking */
 
   Item *this_item();
   const Item *this_item() const;
@@ -1750,10 +1789,15 @@ private:
   bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
 public:
+  Item_splocal *get_item_splocal() { return this; }
+
+  Rewritable_query_parameter *get_rewritable_query_parameter()
+  { return this; }
+
   Settable_routine_parameter *get_settable_routine_parameter()
-  {
-    return this;
-  }
+  { return this; }
+
+  bool append_for_log(THD *thd, String *str);
 };
 
 /*****************************************************************************
@@ -2228,7 +2272,8 @@ public:
 /* Item represents one placeholder ('?') of prepared statement */
 
 class Item_param :public Item,
-                  private Settable_routine_parameter
+                  private Settable_routine_parameter,
+                  public Rewritable_query_parameter
 {
   char cnvbuf[MAX_FIELD_WIDTH];
   String cnvstr;
@@ -2241,6 +2286,7 @@ public:
     STRING_VALUE, TIME_VALUE, LONG_DATA_VALUE,
     DECIMAL_VALUE
   } state;
+  enum { IN_PARAM, OUT_PARAM } inout;
 
   /*
     A buffer for string and long data values. Historically all allocated
@@ -2292,11 +2338,6 @@ public:
     supply for this placeholder in mysql_stmt_execute.
   */
   enum enum_field_types param_type;
-  /*
-    Offset of placeholder inside statement text. Used to create
-    no-placeholders version of this statement for the binary log.
-  */
-  uint pos_in_query;
 
   Item_param(uint pos_in_query_arg);
 
@@ -2362,17 +2403,16 @@ public:
     Otherwise return FALSE.
   */
   bool eq(const Item *item, bool binary_cmp) const;
-  /** Item is a argument to a limit clause. */
-  bool limit_clause_param;
   void set_param_type_and_swap_value(Item_param *from);
 
-private:
-  virtual inline Settable_routine_parameter *
-    get_settable_routine_parameter()
-  {
-    return this;
-  }
+  Rewritable_query_parameter *get_rewritable_query_parameter()
+  { return this; }
+  Settable_routine_parameter *get_settable_routine_parameter()
+  { return this; }
 
+  bool append_for_log(THD *thd, String *str);
+
+private:
   virtual bool set_value(THD *thd, sp_rcontext *ctx, Item **it);
 
   virtual void set_out_param_info(Send_field *info);

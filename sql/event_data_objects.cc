@@ -1472,8 +1472,17 @@ end:
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 
+      if (WSREP(thd))
+      {
+        thd->lex->sql_command = SQLCOM_DROP_EVENT;
+        WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
+      }
+
       ret= Events::drop_event(thd, dbname, name, FALSE);
 
+      WSREP_TO_ISOLATION_END;
+
+  error:
       thd->tx_read_only= save_tx_read_only;
       thd->security_ctx->master_access= saved_master_access;
     }

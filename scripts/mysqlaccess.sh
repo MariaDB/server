@@ -34,7 +34,7 @@ BEGIN {
 	$script_log  = $ENV{'HOME'}."/$script.log";
 
 	# ****************************
-	# information on MySQL
+	# information on MariaDB
 	$MYSQL     = '@bindir@/mysql';    # path to mysql executable
 	$SERVER    = '3.21';
 	$MYSQL_OPT = ' --batch --unbuffered';
@@ -97,8 +97,8 @@ Usage: $script [host [user [db]]] OPTIONS
 
   -U, --superuser=#    connect as superuser
   -P, --spassword=#    password for superuser
-  -H, --rhost=#        remote MySQL-server to connect to
-      --old_server     connect to old MySQL-server (before v3.21) which 
+  -H, --rhost=#        remote MariaDB-server to connect to
+      --old_server     connect to old MariaDB-server (before v3.21) which 
                        does not yet know how to handle full where clauses.
 
   -b, --brief          single-line tabular report

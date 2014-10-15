@@ -40,6 +40,18 @@ Created 13/06/2005 Jan Lindstrom
 #include "lock0types.h"
 #include "srv0srv.h"
 
+/* Cluster index read task is mandatory */
+#define COST_READ_CLUSTERED_INDEX            1.0
+
+/* Basic fixed cost to build all type of index */
+#define COST_BUILD_INDEX_STATIC              0.5
+/* Dynamic cost to build all type of index, dynamic cost will be re-distributed based on page count ratio of each index */
+#define COST_BUILD_INDEX_DYNAMIC             0.5
+
+/* Sum of below two must be 1.0 */
+#define PCT_COST_MERGESORT_INDEX                 0.4
+#define PCT_COST_INSERT_INDEX                    0.6
+
 // Forward declaration
 struct ib_sequence_t;
 
@@ -370,7 +382,10 @@ row_merge_sort(
 	merge_file_t*		file,	/*!< in/out: file containing
 					index entries */
 	row_merge_block_t*	block,	/*!< in/out: 3 buffers */
-	int*			tmpfd)	/*!< in/out: temporary file handle */
+	int*			tmpfd,	/*!< in/out: temporary file handle */
+	const bool		update_progress, /*!< in: update progress status variable or not */
+	const float		pct_progress, /*!< in: total progress percent until now */
+	const float		pct_cost) /*!< in: current progress percent */
 	__attribute__((nonnull));
 /*********************************************************************//**
 Allocate a sort buffer.

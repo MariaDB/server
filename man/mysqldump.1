@@ -1718,14 +1718,6 @@ option are mutually exclusive because
 LOCK TABLES
 causes any pending transactions to be committed implicitly\&.
 .sp
-This option is not supported for MySQL Cluster tables; the results cannot be guaranteed to be consistent due to the fact that the
-NDBCLUSTER
-storage engine supports only the
-READ_COMMITTED
-transaction isolation level\&. You should always use
-NDB
-backup and restore instead\&.
-.sp
 To dump large tables, you should combine the
 \fB\-\-single\-transaction\fR
 option with

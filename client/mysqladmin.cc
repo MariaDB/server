@@ -693,10 +693,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       if (mysql_refresh(mysql,
 			(uint) ~(REFRESH_GRANT | REFRESH_STATUS |
 				 REFRESH_READ_LOCK | REFRESH_SLAVE |
-				 REFRESH_MASTER | REFRESH_TABLE_STATS |
-                                 REFRESH_INDEX_STATS |
-                                 REFRESH_USER_STATS |
-                                 REFRESH_CLIENT_STATS)))
+				 REFRESH_MASTER)))
       {
 	my_printf_error(0, "refresh failed; error: '%s'", error_flags,
 			mysql_error(mysql));

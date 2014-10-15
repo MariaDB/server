@@ -3752,7 +3752,13 @@ fil_open_single_table_tablespace(
 #endif /* UNIV_SYNC_DEBUG */
 	ut_ad(!fix_dict || mutex_own(&(dict_sys->mutex)));
 
-	if (!fsp_flags_is_valid(flags)) {
+	/* Table flags can be ULINT_UNDEFINED if
+	dict_tf_to_fsp_flags_failure is set. */
+	if (flags != ULINT_UNDEFINED) {
+		if (!fsp_flags_is_valid(flags)) {
+			return(DB_CORRUPTION);
+		}
+	} else {
 		return(DB_CORRUPTION);
 	}
 
@@ -6826,7 +6832,7 @@ fil_space_name(
 
 /*******************************************************************//**
 Return page type name */
-char*
+const char*
 fil_get_page_type_name(
 /*===================*/
 	ulint	page_type)	/*!< in: FIL_PAGE_TYPE */

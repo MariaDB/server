@@ -21,13 +21,11 @@
 # 20 CREATE_OPTIONS
 # 21 TABLE_COMMENT   User defined comment
 #                    + InnoDB
-#                    + NDB: "number_of_replicas: <number>" appended
 #                    + InnoDB: "InnoDB free: <number_kB> kB" appended
 #                      <number_kB> depends on tablespace history!
 #                    The LEFT/INSTR/IF/LENGTH stuff should remove these
 #                    storage engine specific part.
 let $innodb_pattern = 'InnoDB free';
-let $ndb_pattern    = 'number_of_replicas';
 --vertical_results
 # We do not unify the engine name here, because the rowformat is
 # specific to the engine.
@@ -36,11 +34,9 @@ let $ndb_pattern    = 'number_of_replicas';
 eval
 SELECT *,
        LEFT( table_comment,
-             IF(INSTR(table_comment,$innodb_pattern) = 0
-                     AND INSTR(table_comment,$ndb_pattern) = 0,
+             IF(INSTR(table_comment,$innodb_pattern) = 0,
                 LENGTH(table_comment),
-                INSTR(table_comment,$innodb_pattern)
-                     + INSTR(table_comment,$ndb_pattern) - 1))
+                INSTR(table_comment,$innodb_pattern) - 1))
        AS "user_comment",
        '-----------------------------------------------------' AS "Separator"
 FROM information_schema.tables

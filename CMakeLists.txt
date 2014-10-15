@@ -77,6 +77,10 @@ ELSE()
 ENDIF()
 PROJECT(${MYSQL_PROJECT_NAME})
 
+SET(CPACK_PACKAGE_NAME "MariaDB")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MariaDB: a very fast and robust SQL database server")
+SET(CPACK_PACKAGE_URL "http://mariadb.org")
+
 IF(BUILD_CONFIG)
   INCLUDE(
   ${CMAKE_SOURCE_DIR}/cmake/build_configurations/${BUILD_CONFIG}.cmake)
@@ -158,6 +162,7 @@ INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
 INCLUDE(mysql_add_executable)
+INCLUDE(wsrep)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -201,7 +206,12 @@ ENDIF()
 
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
-OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
+IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
+  SET(security_default OFF)
+ELSE()
+  SET(security_default ON)
+ENDIF()
+OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ${security_default})
 IF(SECURITY_HARDENED)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
@@ -234,6 +244,12 @@ OPTION(ENABLED_LOCAL_INFILE
 
 OPTION(WITH_FAST_MUTEXES "Compile with fast mutexes" OFF)
 MARK_AS_ADVANCED(WITH_FAST_MUTEXES)
+
+OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
+IF (WITH_INNODB_DISALLOW_WRITES)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
+ENDIF()
 
 # Set DBUG_OFF and other optional release-only flags for non-debug project types
 FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
@@ -372,9 +388,7 @@ ADD_SUBDIRECTORY(libmysql)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
-ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(sql/share)
-ADD_SUBDIRECTORY(support-files)
 
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
@@ -385,15 +399,13 @@ IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(libmysqld/examples)
   ENDIF(WITH_EMBEDDED_SERVER)
 
+  IF(WITH_WSREP)
+    ADD_SUBDIRECTORY(wsrep)
+  ENDIF()
+
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)
   ADD_SUBDIRECTORY(sql-bench)
-
-  IF(EXISTS ${CMAKE_SOURCE_DIR}/internal/CMakeLists.txt)
-    ADD_SUBDIRECTORY(internal)
-  ENDIF()
-  ADD_SUBDIRECTORY(packaging/rpm-uln)
-  ADD_SUBDIRECTORY(packaging/rpm-oel)
 ENDIF()
 
 IF(UNIX)
@@ -408,6 +420,10 @@ IF(WIN32)
   ADD_SUBDIRECTORY(win/packaging)
 ENDIF()
 ADD_SUBDIRECTORY(packaging/solaris)
+
+INCLUDE(for_clients)
+ADD_SUBDIRECTORY(scripts)
+ADD_SUBDIRECTORY(support-files)
 
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/my_config.h)
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/config.h)
@@ -447,6 +463,7 @@ INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
 
 IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
+  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
 ENDIF()
 
 INCLUDE(CPack)

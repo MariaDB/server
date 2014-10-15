@@ -1,12 +1,8 @@
 ########################################################
-# Test mysqlbinlog command with Ndb produced Binlog
-# variants
-#
 # WHAT
 # ====
 #  This test aims to check that the mysqlbinlog --verbose
-#  command can output binlogs in 4 format variants, currently
-#  used by Ndb
+#  command can output binlogs in 4 format variants.
 #
 #  1) Updates logged as write_row events
 #     Only primary key and updated columns included in the 
@@ -18,19 +14,6 @@
 #     event
 #  4) Updates logged as update_row events
 #     All columns included in the event
-#
-# Format variant (1) is the Ndb default.
-# Bug#47323 resulted in binlogs generated in format (1) 
-# being incorrectly parsed by the mysqlbinlog --verbose
-# option
-#
-# HOW
-# ===
-#  Row-based binlog files in each format have been 
-#  captured from an Ndb cluster
-#  These are output using the mysqlbinlog --verbose
-#  tool and the output is checked.
-#
 ########################################################
 
 # We require binlog_format_row as we're independent of binlog format

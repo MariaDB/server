@@ -6,7 +6,7 @@
 
 =head1 NAME
 
-mytop - display MySQL server performance info like `top'
+mytop - display MariaDB server performance info like `top'
 
 =cut
 
@@ -257,7 +257,7 @@ my $dbh = DBI->connect($dsn, $config{user}, $config{pass},
 if (not ref $dbh)
 {
     my $Error = <<EODIE
-Cannot connect to MySQL server. Please check the:
+Cannot connect to MariaDB server. Please check the:
 
   * database you specified "$config{db}" (default is "test")
   * username you specified "$config{user}" (default is "root")
@@ -1905,12 +1905,11 @@ pick up Term::ReadKey here:
 
     http://search.cpan.org/search?dist=TermReadKey
 
-And you obviously need access to a MySQL server (version 3.22.x or
-3.23.x) with the necessary security to run the I<SHOW PROCESSLIST> and
-I<SHOW STATUS> commands.
+And you obviously need access to a MariaDB server with the necessary
+security to run the I<SHOW PROCESSLIST> and I<SHOW STATUS> commands.
 
 If you are a Windows user, using ActiveState's Perl, you can use PPM
-(the Perl Package Manager) to install the MySQL and Term::ReadKey
+(the Perl Package Manager) to install the MariaDB/MySQL and Term::ReadKey
 modules.
 
 =head2 Optional Color Support
@@ -1962,24 +1961,24 @@ B<mytop> was inspired by the system monitoring tool B<top>. I
 routinely use B<top> on Linux, FreeBSD, and Solaris. You are likely to
 notice features from each of them here.
 
-B<mytop> will connect to a MySQL server and periodically run the
+B<mytop> will connect to a MariaDB server and periodically run the
 I<SHOW PROCESSLIST> and I<SHOW STATUS> commands and attempt to
 summarize the information from them in a useful format.
 
 =head2 The Display
 
 The B<mytop> display screen is really broken into two parts. The top 4
-lines (header) contain summary information about your MySQL
+lines (header) contain summary information about your MariaDB
 server. For example, you might see something like:
 
-MySQL on localhost (4.0.13-log)                        up 1+11:13:00 [23:29:11]
+MariaDB on localhost (10.0.13-log)                     up 1+11:13:00 [23:29:11]
  Queries: 19.3M  qps:  160 Slow:     1.0         Se/In/Up/De(%):    00/80/03/17
              qps now:  219 Slow qps: 0.0  Threads:    1 (   1/  16) 00/74/00/25
  Key Efficiency: 99.3%  Bps in/out: 30.5k/162.8   Now in/out: 32.7k/ 3.3k
 
 The first line identifies the hostname of the server (localhost) and
-the version of MySQL it is running. The right had side shows the
-uptime of the MySQL server process in days+hours:minutes:seconds
+the version of MariaDB it is running. The right had side shows the
+uptime of the MariaDB server process in days+hours:minutes:seconds
 format (much like FreeBSD's top) as well as the current time.
 
 The second line displays the total number of queries the server has
@@ -1993,7 +1992,7 @@ on the previous line).
 
 And the fourth line displays key buffer efficiency (how often keys are
 read from the buffer rather than disk) and the number of bytes that
-MySQL has sent and received, both over all and in the last cycle.
+MariaDB has sent and received, both over all and in the last cycle.
 
 You can toggle the header by hitting B<h> when running B<mytop>.
 
@@ -2039,21 +2038,21 @@ have two dashes `--'. Short arguments only have one '-'.
 
 =item B<-u> or B<-user> username
 
-Username to use when logging in to the MySQL server. Default: ``root''.
+Username to use when logging in to the MariaDB server. Default: ``root''.
 
 =item B<-p> or B<-pass> or B<-password> password
 
-Password to use when logging in to the MySQL server. Default: none.
+Password to use when logging in to the MariaDB server. Default: none.
 
 =item B<-h> or B<--host> hostname[:port]
 
-Hostname of the MySQL server. The hostname may be followed by an
+Hostname of the MariaDB server. The hostname may be followed by an
 option port number. Note that the port is specified separate from the
 host when using a config file. Default: ``localhost''.
 
 =item B<--port> or B<-P> port
 
-If you're running MySQL on a non-standard port, use this to specify
+If you're running MariaDB on a non-standard port, use this to specify
 the port number. Default: 3306.
 
 =item B<-s> or B<--delay> seconds
@@ -2071,15 +2070,15 @@ In batch mode, mytop runs only once, does not clear the screen, and
 places no limit on the number of lines it will print. This is suitable
 for running periodically (perhaps from cron) to capture the
 information into a file for later viewing. You might use batch mode in
-a CGI script to occasionally display your MySQL server status on the
+a CGI script to occasionally display your MariaDB server status on the
 web.
 
 Default: unset.
 
 =item B<-S> or B<--socket> /path/to/socket
 
-If you're running B<mytop> on the same host as MySQL, you may wish to
-have it use the MySQL socket directly rather than a standard TCP/IP
+If you're running B<mytop> on the same host as MariaDB, you may wish to
+have it use the MariaDB socket directly rather than a standard TCP/IP
 connection. If you do,just specify one.
 
 Note that specifying a socket will make B<mytop> ignore any host
@@ -2125,7 +2124,7 @@ Default: noprompt.
 
 =item B<--resolve>
 
-If you have skip-resolve set on MySQL (to keep it from doing a reverse
+If you have skip-resolve set on MariaDB (to keep it from doing a reverse
 DNS lookup on each inbound connection), mytop can replace IP addresses
 with hostnames but toggling this option.
 

@@ -1,4 +1,7 @@
 --source include/have_innodb.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
 
 --disable_warnings
 DROP TABLE if exists t1;
@@ -36,7 +39,6 @@ begin
   repeat
     set @i = @i + 1;
     optimize table t1;
-    select sleep(5);
   until @i = 3 end repeat;
 end //
 delimiter ;//
@@ -53,24 +55,11 @@ while ($i)
 }
 --enable_query_log
 
-select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
 
 select count(*) from t1;
-
-if (!`select count(*) > 180 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
-
-select count(*) from t1 force index (second);
-
-if (!`select count(*) > 170 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
-
 
 connect (con1,localhost,root,,test,$MASTER_MYPORT,$MASTER_MYSOCK);
 
@@ -98,26 +87,19 @@ connection default;
 disconnect con1;
 
 optimize table t1;
-select sleep(5);
 
 --source include/restart_mysqld.inc
 select count(*) from t1;
 
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name  in ('n_pages_freed', 'n_page_split', 'n_leaf_pages_defrag');
-
-# After deletion & defragmentation, there are 8000 records left
-if (!`select count(*) < 180 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
 
 select count(*) from t1 force index (second);
 
-# secondary index is pretty much the same size as primary index so the number of pages should be similar.
-if (!`select count(*) < 180 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_pages_freed');
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_page_split');
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_leaf_pages_defrag');
 
 ## Test-4 defragment with larger n_pages
 
@@ -139,23 +121,25 @@ optimize table t1;
 
 --source include/restart_mysqld.inc
 
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name  in ('n_pages_freed', 'n_page_split', 'n_leaf_pages_defrag');
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
 
 select count(*) from t1;
 
 # We didn't create large wholes with the previous deletion, so if innodb_defragment_n_pages = 3, we won't be able to free up many pages.
-if (!`select count(*) > 130 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
+
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) < 3 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
+
 
 select count(*) from t1 force index (second);
 
 # Same holds for secondary index, not many pages are released.
-if (!`select count(*) > 100 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_pages_freed');
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_page_split');
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_leaf_pages_defrag');
 
 SET @@global.innodb_defragment_n_pages = 10;
 
@@ -163,25 +147,21 @@ optimize table t1;
 
 --source include/restart_mysqld.inc
 
-select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t2%' and  stat_name  in ('n_pages_freed', 'n_page_split', 'n_leaf_pages_defrag');
+select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
+select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_page_split');
+select count(stat_value) > 1 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_leaf_pages_defrag');
 
-select count(*) from t1;
-
-# This time we used innodb_defragment_n_pages = 10, so we should be able to free up some pages.
-if (!`select count(*) < 165 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
 
 select count(*) from t1 force index (second);
 
-if (!`select count(*) < 165 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
+# Same holds for secondary index, not many pages are released.
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_pages_freed');
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_page_split');
+select count(stat_value) = 0 from mysql.innodb_index_stats where table_name like '%t1%' and index_name = 'second' and stat_name  in ('n_leaf_pages_defrag');
 
 DROP PROCEDURE defragment;
 DROP TABLE t1;
+
 # reset system
 --disable_query_log
 EVAL SET GLOBAL innodb_defragment_n_pages = $innodb_defragment_n_pages_orig;

@@ -49,6 +49,10 @@ Smart ALTER TABLE
 #include "pars0pars.h"
 #include "row0sel.h"
 #include "ha_innodb.h"
+#ifdef WITH_WSREP
+//#include "wsrep_api.h"
+#include <sql_acl.h>	// PROCESS_ACL
+#endif
 
 /** Operations for creating secondary indexes (no rebuild needed) */
 static const Alter_inplace_info::HA_ALTER_FLAGS INNOBASE_ONLINE_CREATE
@@ -3402,6 +3406,11 @@ ha_innobase::prepare_inplace_alter_table(
 		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 	}
 
+	/* Init online ddl status variables */
+	onlineddl_rowlog_rows = 0;
+	onlineddl_rowlog_pct_used = 0;
+	onlineddl_pct_progress = 0;
+
 	MONITOR_ATOMIC_INC(MONITOR_PENDING_ALTER_TABLE);
 
 #ifdef UNIV_DEBUG
@@ -4051,6 +4060,11 @@ oom:
 		error = row_log_table_apply(
 			ctx->thr, prebuilt->table, altered_table);
 	}
+
+	/* Init online ddl status variables */
+	onlineddl_rowlog_rows = 0;
+	onlineddl_rowlog_pct_used = 0;
+	onlineddl_pct_progress = 0;
 
 	DEBUG_SYNC_C("inplace_after_index_build");
 

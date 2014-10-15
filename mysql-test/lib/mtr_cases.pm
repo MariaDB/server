@@ -36,7 +36,6 @@ our $do_test;
 our $skip_test;
 our $binlog_format;
 our $enable_disabled;
-our $opt_with_ndbcluster_only;
 
 sub collect_option {
   my ($opt, $value)= @_;
@@ -817,29 +816,6 @@ sub collect_one_test_case {
     return $tinfo
   }
 
-  if ( $tinfo->{'ndb_test'} )
-  {
-    # This is a NDB test
-    if ( $::ndbcluster_enabled == 0)
-    {
-      # ndbcluster is disabled
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "ndbcluster disabled";
-      return $tinfo;
-    }
-  }
-  else
-  {
-    # This is not a ndb test
-    if ( $opt_with_ndbcluster_only )
-    {
-      # Only the ndb test should be run, all other should be skipped
-      $tinfo->{'skip'}= 1;
-      $tinfo->{'comment'}= "Only ndbcluster tests";
-      return $tinfo;
-    }
-  }
-
   if ( $tinfo->{'rpl_test'} )
   {
     if ( $skip_rpl )
@@ -976,10 +952,7 @@ sub collect_one_test_case {
 
 
 my $tags_map= {'big_test' => ['big_test', 1],
-               'have_ndb' => ['ndb_test', 1],
-               'have_multi_ndb' => ['ndb_test', 1],
                'master-slave' => ['rpl_test', 1],
-               'ndb_master-slave' => ['rpl_test', 1, 'ndb_test', 1],
                'long_test' => ['long_test', 1],
 };
 my $tags_regex_string= join('|', keys %$tags_map);

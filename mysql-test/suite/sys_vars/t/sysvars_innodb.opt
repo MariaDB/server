@@ -1,0 +1,1 @@
+--loose-innodb-flush-log-at-timeout=3

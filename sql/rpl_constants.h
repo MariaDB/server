@@ -36,8 +36,6 @@ enum Incident {
    Enumeration of the reserved formats of Binlog extra row information
 */
 enum ExtraRowInfoFormat {
-  /** Ndb format */
-  ERIF_NDB          =   0,
 
   /** Reserved formats  0 -> 63 inclusive */
   ERIF_LASTRESERVED =  63,

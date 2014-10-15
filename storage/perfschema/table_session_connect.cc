@@ -15,33 +15,6 @@
 
 #include "table_session_connect.h"
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("PROCESSLIST_ID") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ATTR_NAME") },
-    { C_STRING_WITH_LEN("varchar(32)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ATTR_VALUE") },
-    { C_STRING_WITH_LEN("varchar(1024)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("ORDINAL_POSITION") },
-    { C_STRING_WITH_LEN("int(11)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF table_session_connect::m_field_def=
-{ 4, field_types, 0, (uint*) 0 };
-
 table_session_connect::table_session_connect(const PFS_engine_table_share *share)
  : cursor_by_thread_connect_attr(share)
 {

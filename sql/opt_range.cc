@@ -829,6 +829,12 @@ public:
   */
   bool remove_jump_scans;
   
+  /* 
+    TRUE <=> Range analyzer should remove parts of condition that are found
+    to be always FALSE.
+  */
+  bool remove_false_where_parts;
+
   /*
     used_key_no -> table_key_no translation table. Only makes sense if
     using_real_indexes==TRUE
@@ -908,7 +914,7 @@ static SEL_TREE * get_mm_parts(RANGE_OPT_PARAM *param,COND *cond_func,Field *fie
 static SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param,COND *cond_func,Field *field,
 			    KEY_PART *key_part,
 			    Item_func::Functype type,Item *value);
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond);
+static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond);
 
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
@@ -1451,7 +1457,7 @@ mem_err:
 
 inline void imerge_list_and_list(List<SEL_IMERGE> *im1, List<SEL_IMERGE> *im2)
 {
-  im1->concat(im2);
+  im1->append(im2);
 }
 
 
@@ -1627,7 +1633,7 @@ int imerge_list_or_tree(RANGE_OPT_PARAM *param,
       it.remove();
   }
 
-  merges->concat(&additional_merges);  
+  merges->append(&additional_merges);
   return merges->is_empty();
 }
 
@@ -2941,7 +2947,8 @@ static int fill_used_fields_bitmap(PARAM *param)
 int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 				  table_map prev_tables,
 				  ha_rows limit, bool force_quick_range, 
-                                  bool ordered_output)
+                                  bool ordered_output,
+                                  bool remove_false_parts_of_where)
 {
   uint idx;
   double scan_time;
@@ -3000,6 +3007,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.imerge_cost_buff_size= 0;
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
+    param.remove_false_where_parts= remove_false_parts_of_where;
     param.force_default_mrr= ordered_output;
     param.possible_keys.clear_all();
 
@@ -3056,7 +3064,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.alloced_sel_args= 0;
 
     /* Calculate cost of full index read for the shortest covering index */
-    if (!head->covering_keys.is_clear_all())
+    if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
       double key_read_time= head->file->keyread_time(key_for_use, 1, records) +
@@ -3073,7 +3081,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     if (cond)
     {
-      if ((tree= get_mm_tree(&param,cond)))
+      if ((tree= get_mm_tree(&param, &cond)))
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
@@ -3415,7 +3423,7 @@ double records_in_column_ranges(PARAM *param, uint idx,
     TRUE   otherwise 
 */
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
   uint keynr;
   uint max_quick_key_parts= 0;
@@ -3425,7 +3433,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
 
-  if (!cond || table_records == 0)
+  if (!*cond || table_records == 0)
     DBUG_RETURN(FALSE);
 
   if (table->pos_in_table_list->schema_table)
@@ -3529,6 +3537,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
     param.old_root= thd->mem_root;
     param.table= table;
     param.is_ror_scan= FALSE;
+    param.remove_false_where_parts= true;
 
     if (create_key_parts_for_pseudo_indexes(&param, used_fields))
       goto free_alloc;
@@ -3606,7 +3615,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   ulong check_rows=
     MY_MIN(thd->variables.optimizer_selectivity_sampling_limit,
         (ulong) (table_records * SELECTIVITY_SAMPLING_SHARE));
-  if (cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
+  if (*cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
       thd->variables.optimizer_use_condition_selectivity > 4)
   {
     find_selective_predicates_list_processor_data *dt=
@@ -3617,8 +3626,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       DBUG_RETURN(TRUE);
     dt->list.empty();
     dt->table= table;
-    if (cond->walk(&Item::find_selective_predicates_list_processor, 0,
-                    (uchar*) dt))
+    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0,
+                      (uchar*) dt))
       DBUG_RETURN(TRUE);
     if (dt->list.elements > 0)
     {
@@ -3951,6 +3960,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   /* range_par->cond doesn't need initialization */
   range_par->prev_tables= range_par->read_tables= 0;
   range_par->current_table= table->map;
+  /* It should be possible to switch the following ON: */
+  range_par->remove_false_where_parts= false;
 
   range_par->keys= 1; // one index
   range_par->using_real_indexes= FALSE;
@@ -3967,7 +3978,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   SEL_TREE *tree;
   int res;
 
-  tree= get_mm_tree(range_par, pprune_cond);
+  tree= get_mm_tree(range_par, &pprune_cond);
   if (!tree)
     goto all_used;
 
@@ -7855,15 +7866,33 @@ static SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   DBUG_RETURN(ftree);
 }
 
-	/* make a select tree of all keys in condition */
+/* 
+  make a select tree of all keys in condition 
+  
+  @param  param  Context
+  @param  cond  INOUT condition to perform range analysis on.
 
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
+  @detail
+    Range analysis may infer that some conditions are never true. 
+    - If the condition is never true, SEL_TREE(type=IMPOSSIBLE) is returned
+    - if parts of condition are never true, the function may remove these parts
+      from the condition 'cond'.  Sometimes, this will cause the condition to
+      be substituted for something else.
+
+
+  @return 
+    NULL     - Could not infer anything from condition cond.
+    SEL_TREE with type=IMPOSSIBLE - condition can never be true.
+*/
+
+static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   SEL_TREE *tree=0;
   SEL_TREE *ftree= 0;
   Item_field *field_item= 0;
   bool inv= FALSE;
   Item *value= 0;
+  Item *cond= *cond_ptr;
   DBUG_ENTER("get_mm_tree");
 
   if (cond->type() == Item::COND_ITEM)
@@ -7876,31 +7905,75 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
       Item *item;
       while ((item=li++))
       {
-        SEL_TREE *new_tree= get_mm_tree(param,item);
+        SEL_TREE *new_tree= get_mm_tree(param,li.ref());
         if (param->statement_should_be_aborted())
           DBUG_RETURN(NULL);
         tree= tree_and(param,tree,new_tree);
         if (tree && tree->type == SEL_TREE::IMPOSSIBLE)
+        {
+          /* 
+            Do not remove 'item' from 'cond'. We return a SEL_TREE::IMPOSSIBLE 
+            and that is sufficient for the caller to see that the whole
+            condition is never true.
+          */
           break;
+        }
       }
     }
     else
     {                                           // COND OR
-      tree= get_mm_tree(param,li++);
+      bool replace_cond= false;
+      Item *replacement_item= li++;
+      tree= get_mm_tree(param, li.ref());
       if (param->statement_should_be_aborted())
         DBUG_RETURN(NULL);
       if (tree)
       {
+        if (tree->type == SEL_TREE::IMPOSSIBLE &&
+            param->remove_false_where_parts)
+        {
+          /* See the other li.remove() call below */
+          li.remove();
+          if (((Item_cond*)cond)->argument_list()->elements <= 1)
+            replace_cond= true;
+        }
+
         Item *item;
         while ((item=li++))
         {
-          SEL_TREE *new_tree=get_mm_tree(param,item);
+          SEL_TREE *new_tree=get_mm_tree(param,li.ref());
           if (new_tree == NULL || param->statement_should_be_aborted())
             DBUG_RETURN(NULL);
           tree= tree_or(param,tree,new_tree);
           if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
+          {
+            replacement_item= *li.ref();
             break;
+          }
+
+          if (new_tree && new_tree->type == SEL_TREE::IMPOSSIBLE &&
+              param->remove_false_where_parts)
+          {
+            /*
+              This is a condition in form
+
+                cond = item1 OR ... OR item_i OR ... itemN
+
+              and item_i produces SEL_TREE(IMPOSSIBLE). We should remove item_i 
+              from cond.  This may cause 'cond' to become a degenerate,
+              one-way OR. In that case, we replace 'cond' with the remaining
+              item_i.
+            */
+            li.remove();
+            if (((Item_cond*)cond)->argument_list()->elements <= 1)
+              replace_cond= true;
+          }
+          else
+            replacement_item= *li.ref();
         }
+
+        if (replace_cond)
+          *cond_ptr= replacement_item;
       }
     }
     DBUG_RETURN(tree);
@@ -8132,8 +8205,15 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   param->thd->mem_root= param->old_root;
   if (!value)					// IS NULL or IS NOT NULL
   {
-    if (field->table->maybe_null)		// Can't use a key on this
-      goto end;
+    /*
+      No check for field->table->maybe_null. It's perfecly fine to use range
+      access for cases like 
+
+        SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
+
+      ON expression is evaluated before considering NULL-complemented rows, so
+      IS [NOT] NULL has regular semantics.
+    */
     if (!maybe_null)				// Not null field
     {
       if (type == Item_func::ISNULL_FUNC)
@@ -10610,6 +10690,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       param->table->quick_condition_rows=
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
+      param->table->quick_costs[keynr]= cost->total_cost();
     }
   }
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
@@ -11625,14 +11706,6 @@ int QUICK_RANGE_SELECT::reset()
     mrr_buf_desc->buffer= mrange_buff;
     mrr_buf_desc->buffer_end= mrange_buff + buf_size;
     mrr_buf_desc->end_of_used_area= mrange_buff;
-#ifdef HAVE_valgrind
-    /*
-      We need this until ndb will use the buffer efficiently
-      (Now ndb stores  complete row in here, instead of only the used fields
-      which gives us valgrind warnings in compare_record[])
-    */
-    bzero((char*) mrange_buff, buf_size);
-#endif
   }
 
   if (!mrr_buf_desc)

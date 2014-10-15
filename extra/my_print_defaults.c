@@ -98,6 +98,11 @@ static struct my_option my_long_options[] =
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
+void cleanup_and_exit(int exit_code)
+{
+  my_end(0);
+  exit(exit_code);
+}
 
 static void usage(my_bool version)
 {
@@ -112,7 +117,7 @@ static void usage(my_bool version)
   my_print_default_files(config_file);
   my_print_variables(my_long_options);
   printf("\nExample usage:\n%s --defaults-file=example.cnf client client-server mysql\n", my_progname);
-  exit(0);
+  cleanup_and_exit(0);
 }
 
 
@@ -125,7 +130,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       opt_defaults_file_used= 1;
       break;
     case 'n':
-      exit(0);
+      cleanup_and_exit(0);
     case 'I':
     case '?':
       usage(0);
@@ -174,7 +179,7 @@ int main(int argc, char **argv)
 
   /* Check out the args */
   if (get_options(&argc,&argv))
-    exit(1);
+    cleanup_and_exit(1);
 
   nargs= argc + 1;
   if (opt_mysqld)

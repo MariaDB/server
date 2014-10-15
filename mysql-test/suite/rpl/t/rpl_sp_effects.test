@@ -1,7 +1,6 @@
 ##########################################
 # Change Author: JBM
 # Change Date: 2006-05-02
-# Change: Added Order By for NDB testing
 ##########################################
 
 # Test of replication of stored procedures (WL#2146 for MySQL 5.0)

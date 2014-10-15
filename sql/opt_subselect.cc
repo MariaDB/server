@@ -1515,7 +1515,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     NOTE: We actually insert them at the front! That's because the order is
           reversed in this list.
   */
-  parent_lex->leaf_tables.concat(&subq_lex->leaf_tables);
+  parent_lex->leaf_tables.append(&subq_lex->leaf_tables);
 
   if (subq_lex->options & OPTION_SCHEMA_TABLE)
     parent_lex->options |= OPTION_SCHEMA_TABLE;

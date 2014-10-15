@@ -1376,8 +1376,6 @@ int ha_archive::rnd_next(uchar *buf)
   current_position= aztell(&archive);
   rc= get_row(&archive, buf);
 
-  table->status=rc ? STATUS_NOT_FOUND: 0;
-
 end:
   DBUG_RETURN(rc);
 }

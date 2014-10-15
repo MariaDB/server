@@ -94,10 +94,9 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
   hash->free=free_element;
   hash->flags=flags;
   hash->charset=charset;
-  res= my_init_dynamic_array2(&hash->array, 
-                              sizeof(HASH_LINK), NULL, size, growth_size, 
-                              MYF((flags & HASH_THREAD_SPECIFIC ?
-                                   MY_THREAD_SPECIFIC : 0)));
+  res= init_dynamic_array2(&hash->array, sizeof(HASH_LINK), NULL, size,
+                           growth_size, MYF((flags & HASH_THREAD_SPECIFIC ?
+                                             MY_THREAD_SPECIFIC : 0)));
   DBUG_RETURN(res);
 }
 

@@ -61,7 +61,8 @@
 #ifdef  __WIN__
 #include <io.h>
 #endif
-
+#include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -3556,8 +3557,7 @@ thr_lock_type read_lock_type_for_table(THD *thd,
     at THD::variables::sql_log_bin member.
   */
   bool log_on= mysql_bin_log.is_open() && thd->variables.sql_log_bin;
-  ulong binlog_format= thd->variables.binlog_format;
-  if ((log_on == FALSE) || (binlog_format == BINLOG_FORMAT_ROW) ||
+  if ((log_on == FALSE) || (thd->wsrep_binlog_format() == BINLOG_FORMAT_ROW) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_LOG) ||
       (table_list->table->s->table_category == TABLE_CATEGORY_PERFORMANCE) ||
       !(is_update_query(prelocking_ctx->sql_command) ||
@@ -4417,7 +4417,7 @@ restart:
                                            flags))
       {
         error= TRUE;
-        goto err;
+        goto error;
       }
     }
     else
@@ -4427,7 +4427,7 @@ restart:
                            ot_ctx.get_timeout(), flags))
       {
         error= TRUE;
-        goto err;
+        goto error;
       }
       for (table= *start; table && table != thd->lex->first_not_own_table();
            table= table->next_global)
@@ -4485,16 +4485,16 @@ restart:
             it may change in future.
           */
           if (ot_ctx.recover_from_failed_open())
-            goto err;
+            goto error;
 
           /* Re-open temporary tables after close_tables_for_reopen(). */
           if (open_temporary_tables(thd, *start))
-            goto err;
+            goto error;
 
           error= FALSE;
           goto restart;
         }
-        goto err;
+        goto error;
       }
 
       DEBUG_SYNC(thd, "open_tables_after_open_and_process_table");
@@ -4542,11 +4542,11 @@ restart:
             close_tables_for_reopen(thd, start,
                                     ot_ctx.start_of_statement_svp());
             if (ot_ctx.recover_from_failed_open())
-              goto err;
+              goto error;
 
             /* Re-open temporary tables after close_tables_for_reopen(). */
             if (open_temporary_tables(thd, *start))
-              goto err;
+              goto error;
 
             error= FALSE;
             goto restart;
@@ -4556,7 +4556,7 @@ restart:
             Something is wrong with the table or its contents, and an error has
             been emitted; we must abort.
           */
-          goto err;
+          goto error;
         }
       }
     }
@@ -4567,26 +4567,40 @@ restart:
     children, attach the children to their parents. At end of statement,
     the children are detached. Attaching and detaching are always done,
     even under LOCK TABLES.
+
+    And start wsrep TOI if needed.
   */
   for (tables= *start; tables; tables= tables->next_global)
   {
     TABLE *tbl= tables->table;
 
+    if (!tbl)
+      continue;
+
+    if (WSREP_ON && sqlcom_can_generate_row_events(thd) &&
+        wsrep_replicate_myisam && tables && tbl->file->ht == myisam_hton &&
+        tables->lock_type >= TL_WRITE_ALLOW_WRITE)
+    {
+      WSREP_TO_ISOLATION_BEGIN(NULL, NULL, tables);
+    }
+
     /* Schema tables may not have a TABLE object here. */
-    if (tbl && tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
+    if (tbl->file->ht->db_type == DB_TYPE_MRG_MYISAM)
     {
       /* MERGE tables need to access parent and child TABLE_LISTs. */
       DBUG_ASSERT(tbl->pos_in_table_list == tables);
       if (tbl->file->extra(HA_EXTRA_ATTACH_CHILDREN))
       {
         error= TRUE;
-        goto err;
+        goto error;
       }
     }
   }
 
-err:
+error:
   THD_STAGE_INFO(thd, stage_after_opening_tables);
+  thd_proc_info(thd, 0);
+
   free_root(&new_frm_mem, MYF(0));              // Free pre-alloced block
 
   if (error && *table_to_open)
@@ -5040,6 +5054,8 @@ end:
     close_thread_tables(thd);
   }
   THD_STAGE_INFO(thd, stage_after_opening_tables);
+
+  thd_proc_info(thd, 0);
   DBUG_RETURN(table);
 }
 
@@ -5303,7 +5319,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count,
         We can solve these problems in mixed mode by switching to binlogging 
         if at least one updated table is used by sub-statement
       */
-      if (thd->variables.binlog_format != BINLOG_FORMAT_ROW && tables && 
+      if (thd->wsrep_binlog_format() != BINLOG_FORMAT_ROW && tables &&
           has_write_table_with_auto_increment(thd->lex->first_not_own_table()))
         thd->lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_AUTOINC_COLUMNS);
     }
@@ -7360,7 +7376,7 @@ store_natural_using_join_columns(THD *thd, TABLE_LIST *natural_using_join,
   }
 
   if (non_join_columns->elements > 0)
-    natural_using_join->join_columns->concat(non_join_columns);
+    natural_using_join->join_columns->append(non_join_columns);
   natural_using_join->is_join_columns_complete= TRUE;
 
   result= FALSE;
@@ -8993,7 +9009,15 @@ bool mysql_notify_thread_having_shared_lock(THD *thd, THD *in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
-        signalled|= mysql_lock_abort_for_thread(thd, thd_table);
+      {
+	signalled|= mysql_lock_abort_for_thread(thd, thd_table);
+	if (thd && WSREP(thd) && wsrep_thd_is_BF(thd, true))
+	{
+	  WSREP_DEBUG("remove_table_from_cache: %llu",
+		      (unsigned long long) thd->real_id);
+	  wsrep_abort_thd((void *)thd, (void *)in_use, FALSE);
+	}
+      }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }

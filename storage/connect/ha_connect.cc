@@ -690,7 +690,7 @@ ulonglong ha_connect::table_flags() const
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
-                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN;
+                     HA_NO_BLOBS | HA_CAN_TABLE_CONDITION_PUSHDOWN;
   ha_connect *hp= (ha_connect*)this;
   PTOS        pos= hp->GetTableOptionStruct();
 
@@ -2527,7 +2527,6 @@ int ha_connect::ReadIndexed(uchar *buf, OPVAL op, const uchar *key, uint key_len
   if (xtrace > 1)
     htrc("ReadIndexed: op=%d rc=%d\n", op, rc);
 
-  table->status= (rc == RC_OK) ? 0 : STATUS_NOT_FOUND;
   return rc;
 } // end of ReadIndexed
 
@@ -2638,7 +2637,6 @@ int ha_connect::index_first(uchar *buf)
   else if (indexing < 0)
     rc= HA_ERR_INTERNAL_ERROR;
   else if (CntRewindTable(xp->g, tdbp)) {
-    table->status= STATUS_NOT_FOUND;
     rc= HA_ERR_INTERNAL_ERROR;
   } else
     rc= rnd_next(buf);
@@ -2833,7 +2831,6 @@ int ha_connect::rnd_next(uchar *buf)
     xp->fnd= xp->nfd= 0;
     } // endif nrd
 
-  table->status= (!rc) ? 0 : STATUS_NOT_FOUND;
   DBUG_RETURN(rc);
 } // end of rnd_next
 

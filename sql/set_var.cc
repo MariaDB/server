@@ -35,6 +35,7 @@
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "sql_acl.h"    // SUPER_ACL
 #include "sql_select.h" // free_underlaid_joins
+#include "sql_show.h"
 #include "sql_view.h"   // updatable_views_with_limit_typelib
 #include "lock.h"                               // lock_global_read_lock,
                                                 // make_global_read_lock_block_commit,
@@ -142,8 +143,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
                  on_check_function on_check_func,
                  on_update_function on_update_func,
                  const char *substitute) :
-  next(0),
-  binlog_status(binlog_status_arg),
+  next(0), binlog_status(binlog_status_arg), value_origin(COMPILE_TIME),
   flags(flags_arg), show_val_type(show_val_type_arg),
   guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
   deprecation_substitute(substitute),
@@ -171,6 +171,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   option.arg_type= getopt_arg_type;
   option.value= (uchar **)global_var_ptr();
   option.def_value= def_val;
+  option.app_type= this;
 
   if (chain->last)
     chain->last->next= this;
@@ -192,6 +193,7 @@ bool sys_var::update(THD *thd, set_var *var)
     */
     AutoWLock lock1(&PLock_global_system_variables);
     AutoWLock lock2(guard);
+    value_origin= SQL;
     return global_update(thd, var) ||
       (on_update && on_update(this, thd, OPT_GLOBAL));
   }
@@ -200,12 +202,12 @@ bool sys_var::update(THD *thd, set_var *var)
       (on_update && on_update(this, thd, OPT_SESSION));
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, LEX_STRING *base)
+uchar *sys_var::session_value_ptr(THD *thd, const LEX_STRING *base)
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, LEX_STRING *base)
+uchar *sys_var::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   return global_var_ptr();
 }
@@ -238,8 +240,9 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type, LEX_STRING *base)
+uchar *sys_var::value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base)
 {
+  DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
   {
     mysql_mutex_assert_owner(&LOCK_global_system_variables);
@@ -261,12 +264,10 @@ bool sys_var::set_default(THD *thd, set_var* var)
 }
 
 
-#define do_num_val(T,CMD)                               \
-do {                                                    \
-  mysql_mutex_lock(&LOCK_global_system_variables);      \
-  T val= *(T*) value_ptr(thd, type,  base);             \
-  mysql_mutex_unlock(&LOCK_global_system_variables);    \
-  CMD;                                                  \
+#define do_num_val(T,CMD)                           \
+do {                                                \
+  T val= *(T*) value;                               \
+  CMD;                                              \
 } while (0)
 
 #define case_for_integers(CMD)                      \
@@ -276,39 +277,38 @@ do {                                                    \
     case SHOW_UINT:     do_num_val (uint,CMD);      \
     case SHOW_ULONG:    do_num_val (ulong,CMD);     \
     case SHOW_ULONGLONG:do_num_val (ulonglong,CMD); \
-    case SHOW_HA_ROWS:  do_num_val (ha_rows,CMD);   \
-    case SHOW_BOOL:     do_num_val (bool,CMD);      \
-    case SHOW_MY_BOOL:  do_num_val (my_bool,CMD)
+    case SHOW_HA_ROWS:  do_num_val (ha_rows,CMD);
 
-#define case_for_double(CMD)                            \
+#define case_for_double(CMD)                        \
     case SHOW_DOUBLE:   do_num_val (double,CMD)
 
-#define case_get_string_as_lex_string                   \
-    case SHOW_CHAR:                                     \
-      mysql_mutex_lock(&LOCK_global_system_variables);  \
-      sval.str= (char*) value_ptr(thd, type, base);     \
-      sval.length= sval.str ? strlen(sval.str) : 0;     \
-      break;                                            \
-    case SHOW_CHAR_PTR:                                 \
-      mysql_mutex_lock(&LOCK_global_system_variables);  \
-      sval.str= *(char**) value_ptr(thd, type, base);   \
-      sval.length= sval.str ? strlen(sval.str) : 0;     \
-      break;                                            \
-    case SHOW_LEX_STRING:                               \
-      mysql_mutex_lock(&LOCK_global_system_variables);  \
-      sval= *(LEX_STRING *) value_ptr(thd, type, base); \
+#define case_get_string_as_lex_string               \
+    case SHOW_CHAR:                                 \
+      sval.str= (char*) value;                      \
+      sval.length= sval.str ? strlen(sval.str) : 0; \
+      break;                                        \
+    case SHOW_CHAR_PTR:                             \
+      sval.str= *(char**) value;                    \
+      sval.length= sval.str ? strlen(sval.str) : 0; \
+      break;                                        \
+    case SHOW_LEX_STRING:                           \
+      sval= *(LEX_STRING *) value;                  \
       break
 
 longlong sys_var::val_int(bool *is_null,
-                          THD *thd, enum_var_type type, LEX_STRING *base)
+                          THD *thd, enum_var_type type, const LEX_STRING *base)
 {
   LEX_STRING sval;
+  AutoWLock lock(&PLock_global_system_variables);
+  const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
+
   switch (show_type())
   {
     case_get_string_as_lex_string;
     case_for_integers(return val);
     case_for_double(return (longlong) val);
+    case SHOW_MY_BOOL:  return *(my_bool*)value;
     default:            
       my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str); 
       return 0;
@@ -316,44 +316,63 @@ longlong sys_var::val_int(bool *is_null,
 
   longlong ret= 0;
   if (!(*is_null= !sval.str))
-    ret= longlong_from_string_with_check(system_charset_info,
+    ret= longlong_from_string_with_check(charset(thd),
                                          sval.str, sval.str + sval.length);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
   return ret;
 }
 
 
-String *sys_var::val_str(String *str,
-                         THD *thd, enum_var_type type, LEX_STRING *base)
+String *sys_var::val_str_nolock(String *str, THD *thd, const uchar *value)
 {
+  static LEX_STRING bools[]=
+  {
+    { C_STRING_WITH_LEN("OFF") },
+    { C_STRING_WITH_LEN("ON") }
+  };
+
   LEX_STRING sval;
   switch (show_type())
   {
     case_get_string_as_lex_string;
-    case_for_integers(return str->set((ulonglong)val, system_charset_info) ? 0 : str);
+    case_for_integers(return str->set(val, system_charset_info) ? 0 : str);
     case_for_double(return str->set_real(val, 6, system_charset_info) ? 0 : str);
+    case SHOW_MY_BOOL:
+      sval= bools[(int)*(my_bool*)value];
+      break;
     default:
       my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str);
       return 0;
   }
 
-  if (!sval.str || str->copy(sval.str, sval.length, system_charset_info))
+  if (!sval.str || str->copy(sval.str, sval.length, charset(thd)))
     str= NULL;
-  mysql_mutex_unlock(&LOCK_global_system_variables);
   return str;
 }
 
 
+String *sys_var::val_str(String *str,
+                         THD *thd, enum_var_type type, const LEX_STRING *base)
+{
+  AutoWLock lock(&PLock_global_system_variables);
+  const uchar *value= value_ptr(thd, type, base);
+  return val_str_nolock(str, thd, value);
+}
+
+
 double sys_var::val_real(bool *is_null,
-                         THD *thd, enum_var_type type, LEX_STRING *base)
+                         THD *thd, enum_var_type type, const LEX_STRING *base)
 {
   LEX_STRING sval;
+  AutoWLock lock(&PLock_global_system_variables);
+  const uchar *value= value_ptr(thd, type, base);
   *is_null= false;
+
   switch (show_type())
   {
     case_get_string_as_lex_string;
     case_for_integers(return val);
     case_for_double(return val);
+    case SHOW_MY_BOOL:  return *(my_bool*)value;
     default:            
       my_error(ER_VAR_CANT_BE_READ, MYF(0), name.str); 
       return 0;
@@ -361,9 +380,8 @@ double sys_var::val_real(bool *is_null,
 
   double ret= 0;
   if (!(*is_null= !sval.str))
-    ret= double_from_string_with_check(system_charset_info,
+    ret= double_from_string_with_check(charset(thd),
                                        sval.str, sval.str + sval.length);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
   return ret;
 }
 
@@ -452,6 +470,7 @@ CHARSET_INFO *sys_var::charset(THD *thd)
   return is_os_charset ? thd->variables.character_set_filesystem :
     system_charset_info;
 }
+
 
 typedef struct old_names_map_st
 {
@@ -565,7 +584,7 @@ static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
 
   @param thd       current thread
   @param sorted    If TRUE, the system variables should be sorted
-  @param type      OPT_GLOBAL or OPT_SESSION for SHOW GLOBAL|SESSION VARIABLES
+  @param scope     OPT_GLOBAL or OPT_SESSION for SHOW GLOBAL|SESSION VARIABLES
 
   @retval
     pointer     Array of SHOW_VAR elements for display
@@ -573,7 +592,7 @@ static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
     NULL        FAILURE
 */
 
-SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type)
+SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
 {
   int count= system_variable_hash.records, i;
   int size= sizeof(SHOW_VAR) * (count + 1);
@@ -588,7 +607,7 @@ SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type)
       sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
 
       // don't show session-only variables in SHOW GLOBAL VARIABLES
-      if (type == OPT_GLOBAL && var->check_type(type))
+      if (scope == OPT_GLOBAL && var->check_type(scope))
         continue;
 
       show->name= var->name.str;
@@ -921,5 +940,234 @@ int set_var_collation_client::update(THD *thd)
   thd->protocol_text.init(thd);
   thd->protocol_binary.init(thd);
   return 0;
+}
+
+/*****************************************************************************
+ INFORMATION_SCHEMA.SYSTEM_VARIABLES
+*****************************************************************************/
+static void store_value_ptr(Field *field, sys_var *var, String *str,
+                            uchar *value_ptr)
+{
+  field->set_notnull();
+  str= var->val_str_nolock(str, field->table->in_use, value_ptr);
+  if (str)
+    field->store(str->ptr(), str->length(), str->charset());
+}
+
+static void store_var(Field *field, sys_var *var, enum_var_type scope,
+                      String *str)
+{
+  if (var->check_type(scope))
+    return;
+
+  store_value_ptr(field, var, str,
+                  var->value_ptr(field->table->in_use, scope, &null_lex_str));
+}
+
+int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  char name_buffer[NAME_CHAR_LEN];
+  enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
+  bool res= 1;
+  CHARSET_INFO *scs= system_charset_info;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
+  const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : 0;
+  Field **fields=tables->table->field;
+
+  DBUG_ASSERT(tables->table->in_use == thd);
+
+  cond= make_cond_for_info_schema(cond, tables);
+  thd->count_cuted_fields= CHECK_FIELD_WARN;
+  mysql_rwlock_rdlock(&LOCK_system_variables_hash);
+
+  for (uint i= 0; i < system_variable_hash.records; i++)
+  {
+    sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
+
+    strmake_buf(name_buffer, var->name.str);
+    my_caseup_str(system_charset_info, name_buffer);
+
+    /* this must be done before evaluating cond */
+    restore_record(tables->table, s->default_values);
+    fields[0]->store(name_buffer, strlen(name_buffer), scs);
+
+    if ((wild && wild_case_compare(system_charset_info, name_buffer, wild))
+        || (cond && !cond->val_int()))
+      continue;
+
+    mysql_mutex_lock(&LOCK_global_system_variables);
+
+    // SESSION_VALUE
+    store_var(fields[1], var, OPT_SESSION, &strbuf);
+
+    // GLOBAL_VALUE
+    store_var(fields[2], var, OPT_GLOBAL, &strbuf);
+
+    // GLOBAL_VALUE_ORIGIN
+    static const LEX_CSTRING origins[]=
+    {
+      { STRING_WITH_LEN("CONFIG") },
+      { STRING_WITH_LEN("AUTO") },
+      { STRING_WITH_LEN("SQL") },
+      { STRING_WITH_LEN("COMPILE-TIME") },
+      { STRING_WITH_LEN("ENVIRONMENT") }
+    };
+    const LEX_CSTRING *origin= origins + var->value_origin;
+    fields[3]->store(origin->str, origin->length, scs);
+
+    // DEFAULT_VALUE
+    uchar *def= var->is_readonly() && var->option.id < 0
+                ? 0 : var->default_value_ptr(thd);
+    if (def)
+      store_value_ptr(fields[4], var, &strbuf, def);
+
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
+    // VARIABLE_SCOPE
+    static const LEX_CSTRING scopes[]=
+    {
+      { STRING_WITH_LEN("GLOBAL") },
+      { STRING_WITH_LEN("SESSION") },
+      { STRING_WITH_LEN("SESSION ONLY") }
+    };
+    const LEX_CSTRING *scope= scopes + var->scope();
+    fields[5]->store(scope->str, scope->length, scs);
+
+    // VARIABLE_TYPE
+#if SIZEOF_LONG == SIZEOF_INT
+#define LONG_TYPE "INT"
+#else
+#define LONG_TYPE "BIGINT"
+#endif
+
+    static const LEX_CSTRING types[]=
+    {
+      { 0, 0 },                                      // unused         0
+      { 0, 0 },                                      // GET_NO_ARG     1
+      { STRING_WITH_LEN("BOOLEAN") },                // GET_BOOL       2
+      { STRING_WITH_LEN("INT") },                    // GET_INT        3
+      { STRING_WITH_LEN("INT UNSIGNED") },           // GET_UINT       4
+      { STRING_WITH_LEN(LONG_TYPE) },                // GET_LONG       5
+      { STRING_WITH_LEN(LONG_TYPE " UNSIGNED") },    // GET_ULONG      6
+      { STRING_WITH_LEN("BIGINT") },                 // GET_LL         7
+      { STRING_WITH_LEN("BIGINT UNSIGNED") },        // GET_ULL        8
+      { STRING_WITH_LEN("VARCHAR") },                // GET_STR        9
+      { STRING_WITH_LEN("VARCHAR") },                // GET_STR_ALLOC 10
+      { 0, 0 },                                      // GET_DISABLED  11
+      { STRING_WITH_LEN("ENUM") },                   // GET_ENUM      12
+      { STRING_WITH_LEN("SET") },                    // GET_SET       13
+      { STRING_WITH_LEN("DOUBLE") },                 // GET_DOUBLE    14
+      { STRING_WITH_LEN("FLAGSET") },                // GET_FLAGSET   15
+    };
+    const LEX_CSTRING *type= types + (var->option.var_type & GET_TYPE_MASK);
+    fields[6]->store(type->str, type->length, scs);
+
+    // VARIABLE_COMMENT
+    fields[7]->store(var->option.comment, strlen(var->option.comment),
+                           scs);
+
+    // NUMERIC_MIN_VALUE
+    // NUMERIC_MAX_VALUE
+    // NUMERIC_BLOCK_SIZE
+    bool is_unsigned= true;
+    switch (var->option.var_type)
+    {
+    case GET_INT:
+    case GET_LONG:
+    case GET_LL:
+      is_unsigned= false;
+      /* fall through */
+    case GET_UINT:
+    case GET_ULONG:
+    case GET_ULL:
+      fields[8]->set_notnull();
+      fields[9]->set_notnull();
+      fields[10]->set_notnull();
+      fields[8]->store(var->option.min_value, is_unsigned);
+      fields[9]->store(var->option.max_value, is_unsigned);
+      fields[10]->store(var->option.block_size, is_unsigned);
+      break;
+    case GET_DOUBLE:
+      fields[8]->set_notnull();
+      fields[9]->set_notnull();
+      fields[8]->store(getopt_ulonglong2double(var->option.min_value));
+      fields[9]->store(getopt_ulonglong2double(var->option.max_value));
+    }
+
+    // ENUM_VALUE_LIST
+    TYPELIB *tl= var->option.typelib;
+    if (tl)
+    {
+      uint i;
+      strbuf.length(0);
+      for (i=0; i + 1 < tl->count; i++)
+      {
+        strbuf.append(tl->type_names[i]);
+        strbuf.append(',');
+      }
+      strbuf.append(tl->type_names[i]);
+      fields[11]->set_notnull();
+      fields[11]->store(strbuf.ptr(), strbuf.length(), scs);
+    }
+
+    // READ_ONLY
+    static const LEX_CSTRING yesno[]=
+    {
+      { STRING_WITH_LEN("NO") },
+      { STRING_WITH_LEN("YES") }
+    };
+    const LEX_CSTRING *yn = yesno + var->is_readonly();
+    fields[12]->store(yn->str, yn->length, scs);
+
+    // COMMAND_LINE_ARGUMENT
+    if (var->option.id >= 0)
+    {
+      static const LEX_CSTRING args[]=
+      {
+        { STRING_WITH_LEN("NONE") },          // NO_ARG
+        { STRING_WITH_LEN("OPTIONAL") },      // OPT_ARG
+        { STRING_WITH_LEN("REQUIRED") }       // REQUIRED_ARG
+      };
+      const LEX_CSTRING *arg= args + var->option.arg_type;
+      fields[13]->set_notnull();
+      fields[13]->store(arg->str, arg->length, scs);
+    }
+
+    if (schema_table_store_record(thd, tables->table))
+      goto end;
+    thd->get_stmt_da()->inc_current_row_for_warning();
+  }
+  res= 0;
+end:
+  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  thd->count_cuted_fields= save_count_cuted_fields;
+  return res;
+}
+
+/*
+  This is a simple and inefficient helper that sets sys_var::value_origin
+  for a specific sysvar.
+  It should *only* be used on server startup, if you need to do this later,
+  get yourself a pointer to your sysvar (see e.g. Sys_autocommit_ptr)
+  and update it directly.
+*/
+
+void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
+{
+  bool found= false;
+  DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
+
+  for (uint i= 0; i < system_variable_hash.records; i++)
+  {
+    sys_var *var= (sys_var*) my_hash_element(&system_variable_hash, i);
+    if (var->option.value == ptr)
+    {
+      found= true;
+      var->value_origin= here;
+      /* don't break early, search for all matches */
+    }
+  }
+
+  DBUG_ASSERT(found); // variable must have been found
 }
 

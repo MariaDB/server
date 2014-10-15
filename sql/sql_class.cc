@@ -64,6 +64,8 @@
 #include "sql_parse.h"                          // is_update_query
 #include "sql_callback.h"
 #include "lock.h"
+#include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 #include "sql_connect.h"
 
 /*
@@ -859,9 +861,26 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 }
 
 
-THD::THD()
-   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
-              /* statement id */ 0),
+/**
+   Send timeout to thread.
+
+   Note that this is always safe as the thread will always remove it's
+   timeouts at end of query (and thus before THD is destroyed)
+*/
+
+extern "C" void thd_kill_timeout(THD* thd)
+{
+  thd->status_var.max_statement_time_exceeded++;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  /* Kill queries that can't cause data corruptions */
+  thd->awake(KILL_TIMEOUT);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+}
+
+
+THD::THD(bool is_wsrep_applier)
+  :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
+             /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
@@ -894,8 +913,18 @@ THD::THD()
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
    wait_for_commit_ptr(0),
-    main_da(0, false, false),
+   main_da(0, false, false),
    m_stmt_da(&main_da)
+#ifdef WITH_WSREP
+  ,
+   wsrep_applier(is_wsrep_applier),
+   wsrep_applier_closing(false),
+   wsrep_client_thread(false),
+   wsrep_apply_toi(false),
+   wsrep_po_handle(WSREP_PO_INITIALIZER),
+   wsrep_po_cnt(0),
+   wsrep_apply_format(0)
+#endif
 {
   ulong tmp;
 
@@ -1004,6 +1033,22 @@ THD::THD()
   m_command=COM_CONNECT;
   *scramble= '\0';
 
+#ifdef WITH_WSREP
+  mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
+  wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
+  wsrep_ws_handle.opaque = NULL;
+  wsrep_retry_counter     = 0;
+  wsrep_PA_safe           = true;
+  wsrep_retry_query       = NULL;
+  wsrep_retry_query_len   = 0;
+  wsrep_retry_command     = COM_CONNECT;
+  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_mysql_replicated  = 0;
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
+  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
+#endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
 
@@ -1031,6 +1076,8 @@ THD::THD()
   protocol_text.init(this);
   protocol_binary.init(this);
 
+  thr_timer_init(&query_timer, (void (*)(void*)) thd_kill_timeout, this);
+
   tablespace_op=FALSE;
 
   /*
@@ -1043,6 +1090,7 @@ THD::THD()
   my_rnd_init(&rand, tmp + (ulong) &rand, tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
+  lock_info.mysql_thd= (void *)this;
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
@@ -1345,6 +1393,7 @@ extern "C"   THD *_current_thd_noinline(void)
   return my_pthread_getspecific_ptr(THD*,THR_THD);
 }
 #endif
+
 /*
   Init common variables that has to be reset on start and on change_user
 */
@@ -1355,8 +1404,8 @@ void THD::init(void)
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
-    variables= global_system_variables above has reset
-    variables.pseudo_thread_id to 0. We need to correct it here to
+    plugin_thd_var_init() sets variables= global_system_variables, which
+    has reset variables.pseudo_thread_id to 0. We need to correct it here to
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
@@ -1387,6 +1436,24 @@ void THD::init(void)
   bzero((char *) &org_status_var, sizeof(org_status_var));
   start_bytes_received= 0;
   last_commit_gtid.seq_no= 0;
+#ifdef WITH_WSREP
+  wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
+  wsrep_conflict_state= NO_CONFLICT;
+  wsrep_query_state= QUERY_IDLE;
+  wsrep_last_query_id= 0;
+  wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
+  wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
+  wsrep_converted_lock_session= false;
+  wsrep_retry_counter= 0;
+  wsrep_rli= NULL;
+  wsrep_rgi= NULL;
+  wsrep_PA_safe= true;
+  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_mysql_replicated  = 0;
+
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
+#endif
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1582,6 +1649,13 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_unlock(&LOCK_thd_data);
 
+#ifdef WITH_WSREP
+  mysql_mutex_lock(&LOCK_wsrep_thd);
+  mysql_mutex_unlock(&LOCK_wsrep_thd);
+  mysql_mutex_destroy(&LOCK_wsrep_thd);
+  if (wsrep_rli) delete wsrep_rli;
+  if (wsrep_rgi) delete wsrep_rgi;
+#endif
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
@@ -1726,6 +1800,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   This is normally called from another thread's THD object.
 
   @note Do always call this while holding LOCK_thd_data.
+        NOT_KILLED is used to awake a thread for a slave
 */
 
 void THD::awake(killed_state state_to_set)
@@ -1736,6 +1811,13 @@ void THD::awake(killed_state state_to_set)
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
   print_aborted_warning(3, "KILLED");
+
+  /*
+    Don't degrade killed state, for example from a KILL_CONNECTION to
+    STATEMENT TIMEOUT
+  */
+  if (killed >= KILL_CONNECTION)
+    state_to_set= killed;
 
   /* Set the 'killed' flag of 'this', which is the target THD object. */
   killed= state_to_set;
@@ -1768,6 +1850,7 @@ void THD::awake(killed_state state_to_set)
     mysql_mutex_lock(&mysys_var->mutex);
     if (!system_thread)		// Don't abort locks
       mysys_var->abort=1;
+
     /*
       This broadcast could be up in the air if the victim thread
       exits the cond in the time between read and broadcast, but that is
@@ -1892,7 +1975,15 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
+      {
         signalled|= mysql_lock_abort_for_thread(this, thd_table);
+        if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+        {
+          WSREP_DEBUG("remove_table_from_cache: %llu",
+                      (unsigned long long) this->real_id);
+          wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+        }
+      }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
@@ -1928,6 +2019,9 @@ int killed_errno(killed_state killed)
   case KILL_QUERY:
   case KILL_QUERY_HARD:
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
+  case KILL_TIMEOUT:
+  case KILL_TIMEOUT_HARD:
+    DBUG_RETURN(ER_STATEMENT_TIMEOUT);
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
@@ -2074,6 +2168,12 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
+#ifdef WITH_WSREP
+  if (TOTAL_ORDER == wsrep_exec_mode)
+  {
+    wsrep_exec_mode = LOCAL_STATE;
+  }
+#endif  /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
@@ -2506,6 +2606,13 @@ bool sql_exchange::escaped_given(void)
 bool select_send::send_result_set_metadata(List<Item> &list, uint flags)
 {
   bool res;
+#ifdef WITH_WSREP
+  if (WSREP(thd) && thd->wsrep_retry_query)
+  {
+    WSREP_DEBUG("skipping select metadata");
+    return FALSE;
+  }
+#endif /* WITH_WSREP */
   if (!(res= thd->protocol->send_result_set_metadata(&list, flags)))
     is_result_set_started= 1;
   return res;
@@ -3634,6 +3741,23 @@ Statement_map::~Statement_map()
   my_hash_free(&st_hash);
 }
 
+bool my_var_user::set(THD *thd, Item *item)
+{
+  Item_func_set_user_var *suv= new Item_func_set_user_var(name, item);
+  suv->save_item_result(item);
+  return suv->fix_fields(thd, 0) || suv->update();
+}
+
+bool my_var_sp::set(THD *thd, Item *item)
+{
+  return thd->spcont->set_variable(thd, offset, &item);
+}
+
+bool my_var_param::set(THD *thd, Item *item)
+{
+  return param->set_value(thd, 0, &item);
+}
+
 int select_dumpvar::send_data(List<Item> &items)
 {
   List_iterator_fast<my_var> var_li(var_list);
@@ -3654,20 +3778,8 @@ int select_dumpvar::send_data(List<Item> &items)
   }
   while ((mv= var_li++) && (item= it++))
   {
-    if (mv->local)
-    {
-      if (thd->spcont->set_variable(thd, mv->offset, &item))
-	    DBUG_RETURN(1);
-    }
-    else
-    {
-      Item_func_set_user_var *suv= new Item_func_set_user_var(mv->s, item);
-      suv->save_item_result(item);
-      if (suv->fix_fields(thd, 0))
-        DBUG_RETURN (1);
-      if (suv->update())
-        DBUG_RETURN (1);
-    }
+    if (mv->set(thd, item))
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(thd->is_error());
 }
@@ -4251,8 +4363,9 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
-    return (int) thd->variables.binlog_format;
+  if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
+      thd->variables.option_bits & OPTION_BIN_LOG)
+    return (int) thd->wsrep_binlog_format();
   else
     return BINLOG_FORMAT_UNSPEC;
 }
@@ -4982,7 +5095,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlog by filtering rules.
   */
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
-      !(variables.binlog_format == BINLOG_FORMAT_STMT &&
+      !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db)))
   {
     /*
@@ -5192,7 +5305,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if (variables.binlog_format == BINLOG_FORMAT_ROW &&
+      else if (wsrep_binlog_format() == BINLOG_FORMAT_ROW &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -5221,7 +5334,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     else
     {
       /* binlog_format = STATEMENT */
-      if (variables.binlog_format == BINLOG_FORMAT_STMT)
+      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
       {
         if (lex->is_stmt_row_injection())
         {
@@ -5238,7 +5351,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             5. Error: Cannot modify table that uses a storage engine
                limited to row-logging when binlog_format = STATEMENT
           */
-          my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
+	  if (IF_WSREP((!WSREP(this) || wsrep_exec_mode == LOCAL_STATE),1))
+	  {
+            my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
+	  }
         }
         else if (is_write && (unsafe_flags= lex->get_stmt_unsafe_flags()) != 0)
         {
@@ -5346,11 +5462,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     DBUG_PRINT("info", ("decision: no logging since "
                         "mysql_bin_log.is_open() = %d "
                         "and (options & OPTION_BIN_LOG) = 0x%llx "
-                        "and binlog_format = %lu "
+                        "and binlog_format = %u "
                         "and binlog_filter->db_ok(db) = %d",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
-                        variables.binlog_format,
+                        (uint) wsrep_binlog_format(),
                         binlog_filter->db_ok(db)));
 #endif
 
@@ -5586,9 +5702,10 @@ CPP_UNNAMED_NS_END
 int THD::binlog_write_row(TABLE* table, bool is_trans, 
                           MY_BITMAP const* cols, size_t colcnt, 
                           uchar const *record) 
-{ 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+{
 
+  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+           ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
   /*
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
@@ -5620,8 +5737,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                            MY_BITMAP const* cols, size_t colcnt,
                            const uchar *before_record,
                            const uchar *after_record)
-{ 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+{
+  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
   size_t const before_maxlen = max_row_length(table, before_record);
   size_t const after_maxlen  = max_row_length(table, after_record);
@@ -5669,8 +5787,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 int THD::binlog_delete_row(TABLE* table, bool is_trans, 
                            MY_BITMAP const* cols, size_t colcnt,
                            uchar const *record)
-{ 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+{
+  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
   /* 
      Pack records into format for transfer. We are allocating more
@@ -5705,7 +5824,7 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
 {
   DBUG_ENTER("THD::binlog_remove_pending_rows_event");
 
-  if (!mysql_bin_log.is_open())
+  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -5728,7 +5847,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
     mode: it might be the case that we left row-based mode before
     flushing anything (e.g., if we have explicitly locked tables).
    */
-  if (!mysql_bin_log.is_open())
+  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -5980,7 +6099,9 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_ENTER("THD::binlog_query");
   DBUG_PRINT("enter", ("qtype: %s  query: '%-.*s'",
                        show_query_type(qtype), (int) query_len, query_arg));
-  DBUG_ASSERT(query_arg && mysql_bin_log.is_open());
+
+  DBUG_ASSERT(query_arg &&
+                        (WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()));
 
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)

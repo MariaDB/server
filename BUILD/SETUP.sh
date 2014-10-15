@@ -205,9 +205,8 @@ fi
 
 max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
 max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
-max_no_ndb_configs="$SSL_LIBRARY --with-plugins=max-no-ndb --with-embedded-server --with-libevent"
 max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent"
-all_configs="$SSL_LIBRARY --with-plugins=max --with-plugin-ndbcluster --with-embedded-server --with-innodb_plugin --with-libevent"
+all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #
 # CPU and platform specific compilation flags.
@@ -215,7 +214,7 @@ all_configs="$SSL_LIBRARY --with-plugins=max --with-plugin-ndbcluster --with-emb
 alpha_cflags="$check_cpu_cflags -Wa,-m$cpu_flag"
 amd64_cflags="$check_cpu_cflags"
 amd64_cxxflags=""  # If dropping '--with-big-tables', add here  "-DBIG_TABLES"
-pentium_cflags="$check_cpu_cflags"
+pentium_cflags="$check_cpu_cflags -m32"
 pentium64_cflags="$check_cpu_cflags -m64"
 ppc_cflags="$check_cpu_cflags"
 sparc_cflags=""

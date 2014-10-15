@@ -52,6 +52,7 @@
 #include "log_event.h"                          // Rotate_log_event,
                                                 // Create_file_log_event,
                                                 // Format_description_log_event
+#include "wsrep_mysqld.h"
 
 #ifdef HAVE_REPLICATION
 
@@ -2922,7 +2923,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   thd->security_ctx->skip_grants();
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
-  thd->enable_slow_log= opt_log_slow_slave_statements;
+  thd->variables.sql_log_slow= opt_log_slow_slave_statements;
   thd->variables.log_slow_filter= global_system_variables.log_slow_filter;
   set_slave_thread_options(thd);
   thd->client_capabilities = CLIENT_LOCAL_FILES;
@@ -3090,9 +3091,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings)
 /*
   Check if the current error is of temporary nature of not.
   Some errors are temporary in nature, such as
-  ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT.  Ndb also signals
-  that the error is temporary by pushing a warning with the error code
-  ER_GET_TEMPORARY_ERRMSG, if the originating error is temporary.
+  ER_LOCK_DEADLOCK and ER_LOCK_WAIT_TIMEOUT.
 */
 static int has_temporary_error(THD *thd)
 {
@@ -3122,25 +3121,6 @@ static int has_temporary_error(THD *thd)
       thd->get_stmt_da()->sql_errno() == ER_LOCK_WAIT_TIMEOUT)
     DBUG_RETURN(1);
 
-#ifdef HAVE_NDB_BINLOG
-  /*
-    currently temporary error set in ndbcluster
-  */
-  List_iterator_fast<Sql_condition> it(thd->warning_info->warn_list());
-  Sql_condition *err;
-  while ((err= it++))
-  {
-    DBUG_PRINT("info", ("has condition %d %s", err->get_sql_errno(),
-                        err->get_message_text()));
-    switch (err->get_sql_errno())
-    {
-    case ER_GET_TEMPORARY_ERRMSG:
-      DBUG_RETURN(1);
-    default:
-      break;
-    }
-  }
-#endif
   DBUG_RETURN(0);
 }
 
@@ -4367,6 +4347,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   my_off_t saved_skip= 0;
   Master_info *mi= ((Master_info*)arg);
   Relay_log_info* rli = &mi->rli;
+  my_bool wsrep_node_dropped __attribute__((unused)) = FALSE;
   const char *errmsg;
   rpl_group_info *serial_rgi;
   rpl_sql_thread_info sql_info(mi->rpl_filter);
@@ -4375,8 +4356,7 @@ pthread_handler_t handle_slave_sql(void *arg)
   my_thread_init();
   DBUG_ENTER("handle_slave_sql");
 
-  LINT_INIT(saved_master_log_pos);
-  LINT_INIT(saved_log_pos);
+ wsrep_restart_point:
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD; // note that contructor of THD uses DBUG_ !
@@ -4503,6 +4483,12 @@ pthread_handler_t handle_slave_sql(void *arg)
   }
 #endif
 
+#ifdef WITH_WSREP
+  thd->wsrep_exec_mode= LOCAL_STATE;
+  /* synchronize with wsrep replication */
+  if (WSREP_ON)
+    wsrep_ready_wait();
+#endif
   DBUG_PRINT("master_info",("log_file_name: %s  position: %s",
                             rli->group_master_log_name,
                             llstr(rli->group_master_log_pos,llbuff)));
@@ -4603,13 +4589,19 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
         rli->group_master_log_name, (ulong) rli->group_master_log_pos);
       saved_skip= 0;
     }
-    
+
     if (exec_relay_log_event(thd, rli, serial_rgi))
     {
       DBUG_PRINT("info", ("exec_relay_log_event() failed"));
       // do not scare the user if SQL thread was simply killed or stopped
       if (!sql_slave_killed(serial_rgi))
+      {
         slave_output_error_info(rli, thd);
+        if (WSREP_ON && rli->last_error().number == ER_UNKNOWN_COM_ERROR)
+        {
+	  wsrep_node_dropped= TRUE;
+	}
+      }
       goto err;
     }
   }
@@ -4694,6 +4686,27 @@ err_during_init:
   delete serial_rgi;
   delete thd;
   mysql_mutex_unlock(&LOCK_thread_count);
+#ifdef WITH_WSREP
+  /* if slave stopped due to node going non primary, we set global flag to
+     trigger automatic restart of slave when node joins back to cluster
+  */
+   if (WSREP_ON && wsrep_node_dropped && wsrep_restart_slave)
+   {
+     if (wsrep_ready)
+     {
+       WSREP_INFO("Slave error due to node temporarily non-primary"
+		  "SQL slave will continue");
+       wsrep_node_dropped= FALSE;
+       mysql_mutex_unlock(&rli->run_lock);
+       goto wsrep_restart_point;
+     } else {
+       WSREP_INFO("Slave error due to node going non-primary");
+       WSREP_INFO("wsrep_restart_slave was set and therefore slave will be "
+		  "automatically restarted when node joins back to cluster");
+       wsrep_restart_slave_activated= TRUE;
+     }
+   }
+#endif /* WITH_WSREP */
  /*
   Note: the order of the broadcast and unlock calls below (first broadcast, then unlock)
   is important. Otherwise a killer_thread can execute between the calls and

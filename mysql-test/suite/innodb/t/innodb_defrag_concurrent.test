@@ -1,4 +1,7 @@
 --source include/have_innodb.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
 
 --disable_warnings
 DROP TABLE if exists t1;

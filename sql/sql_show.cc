@@ -116,10 +116,7 @@ static void get_cs_converted_string_value(THD *thd,
                                           bool use_hex);
 #endif
 
-static void
-append_algorithm(TABLE_LIST *table, String *buff);
-
-static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
+static void append_algorithm(TABLE_LIST *table, String *buff);
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
@@ -2900,10 +2897,9 @@ void remove_status_vars(SHOW_VAR *list)
 }
 
 
-
 static bool show_status_array(THD *thd, const char *wild,
                               SHOW_VAR *variables,
-                              enum enum_var_type value_type,
+                              enum enum_var_type scope,
                               struct system_status_var *status_var,
                               const char *prefix, TABLE *table,
                               bool ucase_names,
@@ -2912,10 +2908,8 @@ static bool show_status_array(THD *thd, const char *wild,
   my_aligned_storage<SHOW_VAR_FUNC_BUFF_SIZE, MY_ALIGNOF(long)> buffer;
   char * const buff= buffer.data;
   char *prefix_end;
-  /* the variable name should not be longer than 64 characters */
-  char name_buffer[64];
+  char name_buffer[NAME_CHAR_LEN];
   int len;
-  LEX_STRING null_lex_str;
   SHOW_VAR tmp, *var;
   enum_check_fields save_count_cuted_fields= thd->count_cuted_fields;
   bool res= FALSE;
@@ -2923,19 +2917,45 @@ static bool show_status_array(THD *thd, const char *wild,
   DBUG_ENTER("show_status_array");
 
   thd->count_cuted_fields= CHECK_FIELD_WARN;
-  null_lex_str.str= 0;				// For sys_var->value_ptr()
-  null_lex_str.length= 0;
 
   prefix_end=strnmov(name_buffer, prefix, sizeof(name_buffer)-1);
   if (*prefix)
     *prefix_end++= '_';
   len=name_buffer + sizeof(name_buffer) - prefix_end;
 
+#ifdef WITH_WSREP
+  bool is_wsrep_var= FALSE;
+  /*
+    This is a workaround for lp:1306875 (PBX) to skip switching of wsrep
+    status variable name's first letter to uppercase. This is an optimization
+    for status variables defined under wsrep plugin.
+    TODO: remove once lp:1306875 has been addressed.
+  */
+  if (*prefix && !my_strcasecmp(system_charset_info, prefix, "wsrep"))
+  {
+    is_wsrep_var= TRUE;
+  }
+#endif /* WITH_WSREP */
+
   for (; variables->name; variables++)
   {
     bool wild_checked;
     strnmov(prefix_end, variables->name, len);
     name_buffer[sizeof(name_buffer)-1]=0;       /* Safety */
+
+#ifdef WITH_WSREP
+    /*
+      If the prefix is NULL, that means we are looking into the status variables
+      defined directly under mysqld.cc. Do not capitalize wsrep status variable
+      names until lp:1306875 has been fixed.
+      TODO: remove once lp:1306875 has been addressed.
+     */
+    if (!(*prefix) && !strncasecmp(name_buffer, "wsrep", strlen("wsrep")))
+    {
+      is_wsrep_var= TRUE;
+    }
+#endif /* WITH_WSREP */
+
     if (ucase_names)
       my_caseup_str(system_charset_info, name_buffer);
     else
@@ -2944,8 +2964,9 @@ static bool show_status_array(THD *thd, const char *wild,
       DBUG_ASSERT(name_buffer[0] >= 'a');
       DBUG_ASSERT(name_buffer[0] <= 'z');
 
-      /* traditionally status variables have a first letter uppercased */
-      if (status_var)
+      // WSREP_TODO: remove once lp:1306875 has been addressed.
+      if (IF_WSREP(is_wsrep_var == FALSE, 1) &&
+          status_var)
         name_buffer[0]-= 'a' - 'A';
     }
 
@@ -2977,7 +2998,7 @@ static bool show_status_array(THD *thd, const char *wild,
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
     {
-      show_status_array(thd, wild, (SHOW_VAR *) var->value, value_type,
+      show_status_array(thd, wild, (SHOW_VAR *) var->value, scope,
                         status_var, name_buffer, table, ucase_names, cond);
     }
     else
@@ -2996,7 +3017,7 @@ static bool show_status_array(THD *thd, const char *wild,
         {
           sys_var *var= ((sys_var *) value);
           show_type= var->show_type();
-          value= (char*) var->value_ptr(thd, value_type, &null_lex_str);
+          value= (char*) var->value_ptr(thd, scope, &null_lex_str);
           charset= var->charset(thd);
         }
 
@@ -3066,13 +3087,6 @@ static bool show_status_array(THD *thd, const char *wild,
           if (!(pos= *(char**) value))
             pos= "";
 
-          DBUG_EXECUTE_IF("alter_server_version_str",
-                          if (!my_strcasecmp(system_charset_info,
-                                             variables->name,
-                                             "version")) {
-                            pos= "some-other-version";
-                          });
-
           end= strend(pos);
           break;
         }
@@ -3093,7 +3107,6 @@ static bool show_status_array(THD *thd, const char *wild,
           break;
         }
         table->field[1]->store(pos, (uint32) (end - pos), charset);
-        thd->count_cuted_fields= CHECK_FIELD_IGNORE;
         table->field[1]->set_notnull();
 
         mysql_mutex_unlock(&LOCK_global_system_variables);
@@ -3103,6 +3116,7 @@ static bool show_status_array(THD *thd, const char *wild,
           res= TRUE;
           goto end;
         }
+        thd->get_stmt_da()->inc_current_row_for_warning();
       }
     }
   }
@@ -3110,323 +3124,6 @@ end:
   thd->count_cuted_fields= save_count_cuted_fields;
   DBUG_RETURN(res);
 }
-
-#ifdef COMPLETE_PATCH_NOT_ADDED_YET
-/*
-  Aggregate values for mapped_user entries by their role.
-
-  SYNOPSIS
-  aggregate_user_stats
-  all_user_stats - input to aggregate
-  agg_user_stats - returns aggregated values
-
-  RETURN
-  0 - OK
-  1 - error
-*/
-
-static int aggregate_user_stats(HASH *all_user_stats, HASH *agg_user_stats)
-{
-  DBUG_ENTER("aggregate_user_stats");
-  if (my_hash_init(agg_user_stats, system_charset_info,
-                MY_MAX(all_user_stats->records, 1),
-                0, 0, (my_hash_get_key)get_key_user_stats,
-                (my_hash_free_key)free_user_stats, 0))
-  {
-    sql_print_error("Malloc in aggregate_user_stats failed");
-    DBUG_RETURN(1);
-  }
-
-  for (uint i= 0; i < all_user_stats->records; i++)
-  {
-    USER_STATS *user= (USER_STATS*)my_hash_element(all_user_stats, i);
-    USER_STATS *agg_user;
-    uint name_length= strlen(user->priv_user);
-
-    if (!(agg_user= (USER_STATS*) my_hash_search(agg_user_stats,
-                                              (uchar*)user->priv_user,
-                                              name_length)))
-    {
-      // First entry for this role.
-      if (!(agg_user= (USER_STATS*) my_malloc(sizeof(USER_STATS),
-                                              MYF(MY_WME | MY_ZEROFILL|
-                                                  MY_THREAD_SPECIFIC))))
-      {
-        sql_print_error("Malloc in aggregate_user_stats failed");
-        DBUG_RETURN(1);
-      }
-
-      init_user_stats(agg_user, user->priv_user, name_length,
-                      user->priv_user,
-                      user->total_connections, user->concurrent_connections,
-                      user->connected_time, user->busy_time, user->cpu_time,
-                      user->bytes_received, user->bytes_sent,
-                      user->binlog_bytes_written,
-                      user->rows_sent, user->rows_read,
-                      user->rows_inserted, user->rows_deleted,
-                      user->rows_updated, 
-                      user->select_commands, user->update_commands,
-                      user->other_commands,
-                      user->commit_trans, user->rollback_trans,
-                      user->denied_connections, user->lost_connections,
-                      user->access_denied_errors, user->empty_queries);
-
-      if (my_hash_insert(agg_user_stats, (uchar*) agg_user))
-      {
-        /* Out of memory */
-        my_free(agg_user, 0);
-        sql_print_error("Malloc in aggregate_user_stats failed");
-        DBUG_RETURN(1);
-      }
-    }
-    else
-    {
-      /* Aggregate with existing values for this role. */
-      add_user_stats(agg_user,
-                     user->total_connections, user->concurrent_connections,
-                     user->connected_time, user->busy_time, user->cpu_time,
-                     user->bytes_received, user->bytes_sent,
-                     user->binlog_bytes_written,
-                     user->rows_sent, user->rows_read,
-                     user->rows_inserted, user->rows_deleted,
-                     user->rows_updated,
-                     user->select_commands, user->update_commands,
-                     user->other_commands,
-                     user->commit_trans, user->rollback_trans,
-                     user->denied_connections, user->lost_connections,
-                     user->access_denied_errors, user->empty_queries);
-    }
-  }
-  DBUG_PRINT("exit", ("aggregated %lu input into %lu output entries",
-                      all_user_stats->records, agg_user_stats->records));
-  DBUG_RETURN(0);
-}
-#endif
-
-/*
-  Write result to network for SHOW USER_STATISTICS
-
-  SYNOPSIS
-  send_user_stats
-  all_user_stats - values to return
-  table - I_S table
-
-  RETURN
-  0 - OK
-  1 - error
-*/
-
-int send_user_stats(THD* thd, HASH *all_user_stats, TABLE *table)
-{
-  DBUG_ENTER("send_user_stats");
-
-  for (uint i= 0; i < all_user_stats->records; i++)
-  {
-    uint j= 0;
-    USER_STATS *user_stats= (USER_STATS*) my_hash_element(all_user_stats, i);
-    
-    table->field[j++]->store(user_stats->user, user_stats->user_name_length,
-                             system_charset_info);
-    table->field[j++]->store((longlong)user_stats->total_connections,TRUE);
-    table->field[j++]->store((longlong)user_stats->concurrent_connections, TRUE);
-    table->field[j++]->store((longlong)user_stats->connected_time, TRUE);
-    table->field[j++]->store((double)user_stats->busy_time);
-    table->field[j++]->store((double)user_stats->cpu_time);
-    table->field[j++]->store((longlong)user_stats->bytes_received, TRUE);
-    table->field[j++]->store((longlong)user_stats->bytes_sent, TRUE);
-    table->field[j++]->store((longlong)user_stats->binlog_bytes_written, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_read, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_sent, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_deleted, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_inserted, TRUE);
-    table->field[j++]->store((longlong)user_stats->rows_updated, TRUE);
-    table->field[j++]->store((longlong)user_stats->select_commands, TRUE);
-    table->field[j++]->store((longlong)user_stats->update_commands, TRUE);
-    table->field[j++]->store((longlong)user_stats->other_commands, TRUE);
-    table->field[j++]->store((longlong)user_stats->commit_trans, TRUE);
-    table->field[j++]->store((longlong)user_stats->rollback_trans, TRUE);
-    table->field[j++]->store((longlong)user_stats->denied_connections, TRUE);
-    table->field[j++]->store((longlong)user_stats->lost_connections, TRUE);
-    table->field[j++]->store((longlong)user_stats->access_denied_errors, TRUE);
-    table->field[j++]->store((longlong)user_stats->empty_queries, TRUE);
-    if (schema_table_store_record(thd, table))
-    {
-      DBUG_PRINT("error", ("store record error"));
-      DBUG_RETURN(1);
-    }
-  }
-  DBUG_RETURN(0);
-}
-
-/*
-  Process SHOW USER_STATISTICS
-
-  SYNOPSIS
-  mysqld_show_user_stats
-  thd - current thread
-  wild - limit results to the entry for this user
-  with_roles - when true, display role for mapped users
-
-  RETURN
-  0 - OK
-  1 - error
-*/
-
-int fill_schema_user_stats(THD* thd, TABLE_LIST* tables, COND* cond)
-{
-  TABLE *table= tables->table;
-  int result;
-  DBUG_ENTER("fill_schema_user_stats");
-
-  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
-    DBUG_RETURN(0);
-
-  /*
-    Iterates through all the global stats and sends them to the client.
-    Pattern matching on the client IP is supported.
-  */
-
-  mysql_mutex_lock(&LOCK_global_user_client_stats);
-  result= send_user_stats(thd, &global_user_stats, table) != 0;
-  mysql_mutex_unlock(&LOCK_global_user_client_stats);
-
-  DBUG_PRINT("exit", ("result: %d", result));
-  DBUG_RETURN(result);
-}
-
-/*
-   Process SHOW CLIENT_STATISTICS
-
-   SYNOPSIS
-     mysqld_show_client_stats
-       thd - current thread
-       wild - limit results to the entry for this client
-
-   RETURN
-     0 - OK
-     1 - error
-*/
-
-int fill_schema_client_stats(THD* thd, TABLE_LIST* tables, COND* cond)
-{
-  TABLE *table= tables->table;
-  int result;
-  DBUG_ENTER("fill_schema_client_stats");
-
-  if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
-    DBUG_RETURN(0);
-
-  /*
-    Iterates through all the global stats and sends them to the client.
-    Pattern matching on the client IP is supported.
-  */
-
-  mysql_mutex_lock(&LOCK_global_user_client_stats);
-  result= send_user_stats(thd, &global_client_stats, table) != 0;
-  mysql_mutex_unlock(&LOCK_global_user_client_stats);
-
-  DBUG_PRINT("exit", ("result: %d", result));
-  DBUG_RETURN(result);
-}
-
-
-/* Fill information schema table with table statistics */
-
-int fill_schema_table_stats(THD *thd, TABLE_LIST *tables, COND *cond)
-{
-  TABLE *table= tables->table;
-  DBUG_ENTER("fill_schema_table_stats");
-
-  mysql_mutex_lock(&LOCK_global_table_stats);
-  for (uint i= 0; i < global_table_stats.records; i++)
-  {
-    char *end_of_schema;
-    TABLE_STATS *table_stats= 
-      (TABLE_STATS*)my_hash_element(&global_table_stats, i);
-    TABLE_LIST tmp_table;
-    size_t schema_length, table_name_length;
-
-    end_of_schema= strend(table_stats->table);
-    schema_length= (size_t) (end_of_schema - table_stats->table);
-    table_name_length= strlen(table_stats->table + schema_length + 1);
-
-    bzero((char*) &tmp_table,sizeof(tmp_table));
-    tmp_table.db=         table_stats->table;
-    tmp_table.table_name= end_of_schema+1;
-    tmp_table.grant.privilege= 0;
-    if (check_access(thd, SELECT_ACL, tmp_table.db,
-                     &tmp_table.grant.privilege, NULL, 0, 1) ||
-        check_grant(thd, SELECT_ACL, &tmp_table, 1, UINT_MAX,
-                    1))
-      continue;
-
-    table->field[0]->store(table_stats->table, schema_length,
-                           system_charset_info);
-    table->field[1]->store(table_stats->table + schema_length+1,
-                           table_name_length, system_charset_info);
-    table->field[2]->store((longlong)table_stats->rows_read, TRUE);
-    table->field[3]->store((longlong)table_stats->rows_changed, TRUE);
-    table->field[4]->store((longlong)table_stats->rows_changed_x_indexes,
-                           TRUE);
-    if (schema_table_store_record(thd, table))
-    {
-      mysql_mutex_unlock(&LOCK_global_table_stats);
-      DBUG_RETURN(1);
-    }
-  }
-  mysql_mutex_unlock(&LOCK_global_table_stats);
-  DBUG_RETURN(0);
-}
-
-
-/* Fill information schema table with index statistics */
-
-int fill_schema_index_stats(THD *thd, TABLE_LIST *tables, COND *cond)
-{
-  TABLE *table= tables->table;
-  DBUG_ENTER("fill_schema_index_stats");
-
-  mysql_mutex_lock(&LOCK_global_index_stats);
-  for (uint i= 0; i < global_index_stats.records; i++)
-  {
-    INDEX_STATS *index_stats =
-      (INDEX_STATS*) my_hash_element(&global_index_stats, i);
-    TABLE_LIST tmp_table;
-    char *index_name;
-    size_t schema_name_length, table_name_length, index_name_length;
-
-    bzero((char*) &tmp_table,sizeof(tmp_table));
-    tmp_table.db=         index_stats->index;
-    tmp_table.table_name= strend(index_stats->index)+1;
-    tmp_table.grant.privilege= 0;
-    if (check_access(thd, SELECT_ACL, tmp_table.db,
-                      &tmp_table.grant.privilege, NULL, 0, 1) ||
-        check_grant(thd, SELECT_ACL, &tmp_table, 1, UINT_MAX, 1))
-      continue;
-
-    index_name=         strend(tmp_table.table_name)+1; 
-    schema_name_length= (tmp_table.table_name - index_stats->index) -1;
-    table_name_length=  (index_name - tmp_table.table_name)-1;
-    index_name_length=  (index_stats->index_name_length - schema_name_length -
-                         table_name_length - 3);
-
-    table->field[0]->store(tmp_table.db, schema_name_length,
-                           system_charset_info);
-    table->field[1]->store(tmp_table.table_name, table_name_length,
-                           system_charset_info);
-    table->field[2]->store(index_name, index_name_length, system_charset_info);
-    table->field[3]->store((longlong)index_stats->rows_read, TRUE);
-
-    if (schema_table_store_record(thd, table))
-    { 
-      mysql_mutex_unlock(&LOCK_global_index_stats);
-      DBUG_RETURN(1);
-    }
-  }
-  mysql_mutex_unlock(&LOCK_global_index_stats);
-  DBUG_RETURN(0);
-}
-
 
 /* collect status for all running threads */
 
@@ -3671,7 +3368,7 @@ bool uses_only_table_name_fields(Item *item, TABLE_LIST *table)
 }
 
 
-static COND * make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
+COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table)
 {
   if (!cond)
     return (COND*) 0;
@@ -3754,6 +3451,15 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
 
   bzero((char*) lookup_field_values, sizeof(LOOKUP_FIELD_VALUES));
   switch (lex->sql_command) {
+  case SQLCOM_SHOW_PLUGINS:
+    if (lex->ident.str)
+    {
+      thd->make_lex_string(&lookup_field_values->db_value,
+                           lex->ident.str, lex->ident.length);
+      break;
+    }
+    /* fall through */
+  case SQLCOM_SHOW_GENERIC:
   case SQLCOM_SHOW_DATABASES:
     if (wild)
     {
@@ -3773,17 +3479,6 @@ bool get_lookup_field_values(THD *thd, COND *cond, TABLE_LIST *tables,
       thd->make_lex_string(&lookup_field_values->table_value, 
                            wild->ptr(), wild->length());
       lookup_field_values->wild_table_value= 1;
-    }
-    break;
-  case SQLCOM_SHOW_PLUGINS:
-    if (lex->ident.str)
-      thd->make_lex_string(&lookup_field_values->db_value, 
-                           lex->ident.str, lex->ident.length);
-    else if (lex->wild)
-    {
-      thd->make_lex_string(&lookup_field_values->db_value, 
-                           lex->wild->ptr(), lex->wild->length());
-      lookup_field_values->wild_db_value= 1;
     }
     break;
   default:
@@ -7204,19 +6899,19 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
   const char *wild= lex->wild ? lex->wild->ptr() : NullS;
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
-  enum enum_var_type option_type= OPT_SESSION;
-  bool upper_case_names= (schema_table_idx != SCH_VARIABLES);
-  bool sorted_vars= (schema_table_idx == SCH_VARIABLES);
+  enum enum_var_type scope= OPT_SESSION;
+  bool upper_case_names= lex->sql_command != SQLCOM_SHOW_VARIABLES;
+  bool sorted_vars= lex->sql_command == SQLCOM_SHOW_VARIABLES;
 
   if (lex->option_type == OPT_GLOBAL ||
       schema_table_idx == SCH_GLOBAL_VARIABLES)
-    option_type= OPT_GLOBAL;
+    scope= OPT_GLOBAL;
 
   COND *partial_cond= make_cond_for_info_schema(cond, tables);
 
   mysql_rwlock_rdlock(&LOCK_system_variables_hash);
-  res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, option_type),
-                         option_type, NULL, "", tables->table,
+  res= show_status_array(thd, wild, enumerate_sys_vars(thd, sorted_vars, scope),
+                         scope, NULL, "", tables->table,
                          upper_case_names, partial_cond);
   mysql_rwlock_unlock(&LOCK_system_variables_hash);
   DBUG_RETURN(res);
@@ -7232,25 +6927,25 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   STATUS_VAR *tmp1, tmp;
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
-  enum enum_var_type option_type;
-  bool upper_case_names= (schema_table_idx != SCH_STATUS);
+  enum enum_var_type scope;
+  bool upper_case_names= lex->sql_command != SQLCOM_SHOW_STATUS;
 
-  if (schema_table_idx == SCH_STATUS)
+  if (lex->sql_command == SQLCOM_SHOW_STATUS)
   {
-    option_type= lex->option_type;
-    if (option_type == OPT_GLOBAL)
+    scope= lex->option_type;
+    if (scope == OPT_GLOBAL)
       tmp1= &tmp;
     else
       tmp1= thd->initial_status_var;
   }
   else if (schema_table_idx == SCH_GLOBAL_STATUS)
   {
-    option_type= OPT_GLOBAL;
+    scope= OPT_GLOBAL;
     tmp1= &tmp;
   }
   else
   {
-    option_type= OPT_SESSION;
+    scope= OPT_SESSION;
     tmp1= &thd->status_var;
   }
 
@@ -7260,11 +6955,11 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
     partial_cond->val_int();
 
   mysql_mutex_lock(&LOCK_status);
-  if (option_type == OPT_GLOBAL)
+  if (scope == OPT_GLOBAL)
     calc_sum_of_all_status(&tmp);
   res= show_status_array(thd, wild,
                          (SHOW_VAR *)all_status_vars.buffer,
-                         option_type, tmp1, "", tables->table,
+                         scope, tmp1, "", tables->table,
                          upper_case_names, partial_cond);
   mysql_mutex_unlock(&LOCK_status);
   DBUG_RETURN(res);
@@ -7354,82 +7049,6 @@ struct schema_table_ref
 {
   const char *table_name;
   ST_SCHEMA_TABLE *schema_table;
-};
-
-ST_FIELD_INFO user_stats_fields_info[]=
-{
-  {"USER", USERNAME_CHAR_LENGTH, MYSQL_TYPE_STRING, 0, 0, "User", SKIP_OPEN_TABLE},
-  {"TOTAL_CONNECTIONS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Total_connections",SKIP_OPEN_TABLE},
-  {"CONCURRENT_CONNECTIONS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Concurrent_connections",SKIP_OPEN_TABLE},
-  {"CONNECTED_TIME", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, "Connected_time",SKIP_OPEN_TABLE},
-  {"BUSY_TIME", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_DOUBLE, 0, 0, "Busy_time",SKIP_OPEN_TABLE},
-  {"CPU_TIME", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_DOUBLE, 0, 0, "Cpu_time",SKIP_OPEN_TABLE},
-  {"BYTES_RECEIVED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Bytes_received",SKIP_OPEN_TABLE},
-  {"BYTES_SENT", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Bytes_sent",SKIP_OPEN_TABLE},
-  {"BINLOG_BYTES_WRITTEN", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Binlog_bytes_written",SKIP_OPEN_TABLE},
-  {"ROWS_READ", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_read",SKIP_OPEN_TABLE},
-  {"ROWS_SENT", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_sent",SKIP_OPEN_TABLE},
-  {"ROWS_DELETED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_deleted",SKIP_OPEN_TABLE},
-  {"ROWS_INSERTED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_inserted",SKIP_OPEN_TABLE},
-  {"ROWS_UPDATED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_updated",SKIP_OPEN_TABLE},
-  {"SELECT_COMMANDS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Select_commands",SKIP_OPEN_TABLE},
-  {"UPDATE_COMMANDS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Update_commands",SKIP_OPEN_TABLE},
-  {"OTHER_COMMANDS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Other_commands",SKIP_OPEN_TABLE},
-  {"COMMIT_TRANSACTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Commit_transactions",SKIP_OPEN_TABLE},
-  {"ROLLBACK_TRANSACTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rollback_transactions",SKIP_OPEN_TABLE},
-  {"DENIED_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Denied_connections",SKIP_OPEN_TABLE},
-  {"LOST_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Lost_connections",SKIP_OPEN_TABLE},
-  {"ACCESS_DENIED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Access_denied",SKIP_OPEN_TABLE},
-  {"EMPTY_QUERIES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Empty_queries",SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
-};
-
-ST_FIELD_INFO client_stats_fields_info[]=
-{
-  {"CLIENT", LIST_PROCESS_HOST_LEN, MYSQL_TYPE_STRING, 0, 0, "Client",SKIP_OPEN_TABLE},
-  {"TOTAL_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Total_connections",SKIP_OPEN_TABLE},
-  {"CONCURRENT_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Concurrent_connections",SKIP_OPEN_TABLE},
-  {"CONNECTED_TIME", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Connected_time",SKIP_OPEN_TABLE},
-  {"BUSY_TIME", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_DOUBLE, 0, 0, "Busy_time",SKIP_OPEN_TABLE},
-  {"CPU_TIME", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_DOUBLE, 0, 0, "Cpu_time",SKIP_OPEN_TABLE},
-  {"BYTES_RECEIVED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Bytes_received",SKIP_OPEN_TABLE},
-  {"BYTES_SENT", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Bytes_sent",SKIP_OPEN_TABLE},
-  {"BINLOG_BYTES_WRITTEN", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Binlog_bytes_written",SKIP_OPEN_TABLE},
-  {"ROWS_READ", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_read",SKIP_OPEN_TABLE},
-  {"ROWS_SENT", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_sent",SKIP_OPEN_TABLE},
-  {"ROWS_DELETED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_deleted",SKIP_OPEN_TABLE},
-  {"ROWS_INSERTED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_inserted",SKIP_OPEN_TABLE},
-  {"ROWS_UPDATED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_updated",SKIP_OPEN_TABLE},
-  {"SELECT_COMMANDS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Select_commands",SKIP_OPEN_TABLE},
-  {"UPDATE_COMMANDS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Update_commands",SKIP_OPEN_TABLE},
-  {"OTHER_COMMANDS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Other_commands",SKIP_OPEN_TABLE},
-  {"COMMIT_TRANSACTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Commit_transactions",SKIP_OPEN_TABLE},
-  {"ROLLBACK_TRANSACTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rollback_transactions",SKIP_OPEN_TABLE},
-  {"DENIED_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Denied_connections",SKIP_OPEN_TABLE},
-  {"LOST_CONNECTIONS", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Lost_connections",SKIP_OPEN_TABLE},
-  {"ACCESS_DENIED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Access_denied",SKIP_OPEN_TABLE},
-  {"EMPTY_QUERIES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Empty_queries",SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
-};
-
-
-ST_FIELD_INFO table_stats_fields_info[]=
-{
-  {"TABLE_SCHEMA", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_schema",SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_name",SKIP_OPEN_TABLE},
-  {"ROWS_READ", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_read",SKIP_OPEN_TABLE},
-  {"ROWS_CHANGED", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_changed",SKIP_OPEN_TABLE},
-  {"ROWS_CHANGED_X_INDEXES", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_changed_x_#indexes",SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
-};
-
-ST_FIELD_INFO index_stats_fields_info[]=
-{
-  {"TABLE_SCHEMA", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_schema",SKIP_OPEN_TABLE},
-  {"TABLE_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Table_name",SKIP_OPEN_TABLE},
-  {"INDEX_NAME", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, "Index_name",SKIP_OPEN_TABLE},
-  {"ROWS_READ", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, "Rows_read",SKIP_OPEN_TABLE},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0,0}
 };
 
 /*
@@ -7668,7 +7287,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
    0	success
 */
 
-int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
+static int make_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
 {
   ST_FIELD_INFO *field_info= schema_table->fields_info;
   Name_resolution_context *context= &thd->lex->select_lex.context;
@@ -7854,7 +7473,7 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
 {
   TABLE *table;
   DBUG_ENTER("mysql_schema_table");
-  if (!(table= table_list->schema_table->create_table(thd, table_list)))
+  if (!(table= create_schema_table(thd, table_list)))
     DBUG_RETURN(1);
   table->s->tmp_table= SYSTEM_TMP_TABLE;
   table->grant.privilege= SELECT_ACL;
@@ -7934,9 +7553,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
 */
 
 int make_schema_select(THD *thd, SELECT_LEX *sel,
-		       enum enum_schema_tables schema_table_idx)
+                       ST_SCHEMA_TABLE *schema_table)
 {
-  ST_SCHEMA_TABLE *schema_table= get_schema_table(schema_table_idx);
   LEX_STRING db, table;
   DBUG_ENTER("make_schema_select");
   DBUG_PRINT("enter", ("mysql_schema_select: %s", schema_table->table_name));
@@ -7953,13 +7571,13 @@ int make_schema_select(THD *thd, SELECT_LEX *sel,
     DBUG_RETURN(1);
 
   if (schema_table->old_format(thd, schema_table))
-
     DBUG_RETURN(1);
 
   if (!sel->add_table_to_list(thd, new Table_ident(thd, db, table, 0),
                               0, 0, TL_READ, MDL_SHARED_READ))
     DBUG_RETURN(1);
 
+  sel->table_list.first->schema_table_reformed= 1;
   DBUG_RETURN(0);
 }
 
@@ -8006,6 +7624,7 @@ static bool optimize_for_get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond
   if (lsel && lsel->table_list.first)
   {
     /* These do not need to have a query plan */
+    plan->trivial_show_command= true;
     goto end;
   }
 
@@ -8827,8 +8446,28 @@ ST_FIELD_INFO variables_fields_info[]=
 {
   {"VARIABLE_NAME", 64, MYSQL_TYPE_STRING, 0, 0, "Variable_name",
    SKIP_OPEN_TABLE},
-  {"VARIABLE_VALUE", 1024, MYSQL_TYPE_STRING, 0, 1, "Value", SKIP_OPEN_TABLE},
+  {"VARIABLE_VALUE", 1024, MYSQL_TYPE_STRING, 0, 0, "Value", SKIP_OPEN_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
+};
+
+
+ST_FIELD_INFO sysvars_fields_info[]=
+{
+  {"VARIABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"SESSION_VALUE", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"GLOBAL_VALUE", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"GLOBAL_VALUE_ORIGIN", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"DEFAULT_VALUE", 1024, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"VARIABLE_SCOPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"VARIABLE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"VARIABLE_COMMENT", TABLE_COMMENT_MAXLEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"NUMERIC_MIN_VALUE", MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"NUMERIC_MAX_VALUE",  MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"NUMERIC_BLOCK_SIZE",  MY_INT64_NUM_DECIMAL_DIGITS, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"ENUM_VALUE_LIST", 65535, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {"READ_ONLY", 3, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"COMMAND_LINE_ARGUMENT", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, 0, 0},
+  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 
 
@@ -9078,105 +8717,95 @@ ST_FIELD_INFO show_explain_fields_info[]=
 
 ST_SCHEMA_TABLE schema_tables[]=
 {
-  {"ALL_PLUGINS", plugin_fields_info, create_schema_table,
+  {"ALL_PLUGINS", plugin_fields_info, 0,
    fill_all_plugins, make_old_format, 0, 5, -1, 0, 0},
-  {"APPLICABLE_ROLES", applicable_roles_fields_info, create_schema_table,
+  {"APPLICABLE_ROLES", applicable_roles_fields_info, 0,
    fill_schema_applicable_roles, 0, 0, -1, -1, 0, 0},
-  {"CHARACTER_SETS", charsets_fields_info, create_schema_table,
+  {"CHARACTER_SETS", charsets_fields_info, 0,
    fill_schema_charsets, make_character_sets_old_format, 0, -1, -1, 0, 0},
-  {"CLIENT_STATISTICS", client_stats_fields_info, create_schema_table, 
-   fill_schema_client_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"COLLATIONS", collation_fields_info, create_schema_table,
+  {"COLLATIONS", collation_fields_info, 0,
    fill_schema_collation, make_old_format, 0, -1, -1, 0, 0},
   {"COLLATION_CHARACTER_SET_APPLICABILITY", coll_charset_app_fields_info,
-   create_schema_table, fill_schema_coll_charset_app, 0, 0, -1, -1, 0, 0},
-  {"COLUMNS", columns_fields_info, create_schema_table,
+   0, fill_schema_coll_charset_app, 0, 0, -1, -1, 0, 0},
+  {"COLUMNS", columns_fields_info, 0,
    get_all_tables, make_columns_old_format, get_schema_column_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_VIEW_FULL},
-  {"COLUMN_PRIVILEGES", column_privileges_fields_info, create_schema_table,
+  {"COLUMN_PRIVILEGES", column_privileges_fields_info, 0,
    fill_schema_column_privileges, 0, 0, -1, -1, 0, 0},
-  {"ENABLED_ROLES", enabled_roles_fields_info, create_schema_table,
+  {"ENABLED_ROLES", enabled_roles_fields_info, 0,
    fill_schema_enabled_roles, 0, 0, -1, -1, 0, 0},
-  {"ENGINES", engines_fields_info, create_schema_table,
+  {"ENGINES", engines_fields_info, 0,
    fill_schema_engines, make_old_format, 0, -1, -1, 0, 0},
 #ifdef HAVE_EVENT_SCHEDULER
-  {"EVENTS", events_fields_info, create_schema_table,
+  {"EVENTS", events_fields_info, 0,
    Events::fill_schema_events, make_old_format, 0, -1, -1, 0, 0},
 #else
-  {"EVENTS", events_fields_info, create_schema_table,
+  {"EVENTS", events_fields_info, 0,
    0, make_old_format, 0, -1, -1, 0, 0},
 #endif
-  {"EXPLAIN", show_explain_fields_info, create_schema_table, fill_show_explain,
+  {"EXPLAIN", show_explain_fields_info, 0, fill_show_explain,
   make_old_format, 0, -1, -1, TRUE /*hidden*/ , 0},
-  {"FILES", files_fields_info, create_schema_table,
+  {"FILES", files_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"GLOBAL_STATUS", variables_fields_info, create_schema_table,
+  {"GLOBAL_STATUS", variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
-  {"GLOBAL_VARIABLES", variables_fields_info, create_schema_table,
+  {"GLOBAL_VARIABLES", variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
-  {"INDEX_STATISTICS", index_stats_fields_info, create_schema_table,
-   fill_schema_index_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"KEY_CACHES", keycache_fields_info, create_schema_table,
-   fill_key_cache_tables, make_old_format, 0, -1,-1, 0, 0}, 
-  {"KEY_COLUMN_USAGE", key_column_usage_fields_info, create_schema_table,
+  {"KEY_CACHES", keycache_fields_info, 0,
+   fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
+  {"KEY_COLUMN_USAGE", key_column_usage_fields_info, 0,
    get_all_tables, 0, get_schema_key_column_usage_record, 4, 5, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"OPEN_TABLES", open_tables_fields_info, create_schema_table,
+  {"OPEN_TABLES", open_tables_fields_info, 0,
    fill_open_tables, make_old_format, 0, -1, -1, 1, 0},
-  {"PARAMETERS", parameters_fields_info, create_schema_table,
+  {"PARAMETERS", parameters_fields_info, 0,
    fill_schema_proc, 0, 0, -1, -1, 0, 0},
-  {"PARTITIONS", partitions_fields_info, create_schema_table,
+  {"PARTITIONS", partitions_fields_info, 0,
    get_all_tables, 0, get_schema_partitions_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"PLUGINS", plugin_fields_info, create_schema_table,
+  {"PLUGINS", plugin_fields_info, 0,
    fill_plugins, make_old_format, 0, -1, -1, 0, 0},
-  {"PROCESSLIST", processlist_fields_info, create_schema_table,
+  {"PROCESSLIST", processlist_fields_info, 0,
    fill_schema_processlist, make_old_format, 0, -1, -1, 0, 0},
-  {"PROFILING", query_profile_statistics_info, create_schema_table,
+  {"PROFILING", query_profile_statistics_info, 0,
     fill_query_profile_statistics_info, make_profile_table_for_show,
     NULL, -1, -1, false, 0},
   {"REFERENTIAL_CONSTRAINTS", referential_constraints_fields_info,
-   create_schema_table, get_all_tables, 0, get_referential_constraints_record,
+   0, get_all_tables, 0, get_referential_constraints_record,
    1, 9, 0, OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"ROUTINES", proc_fields_info, create_schema_table, 
+  {"ROUTINES", proc_fields_info, 0,
    fill_schema_proc, make_proc_old_format, 0, -1, -1, 0, 0},
-  {"SCHEMATA", schema_fields_info, create_schema_table,
+  {"SCHEMATA", schema_fields_info, 0,
    fill_schema_schemata, make_schemata_old_format, 0, 1, -1, 0, 0},
-  {"SCHEMA_PRIVILEGES", schema_privileges_fields_info, create_schema_table,
+  {"SCHEMA_PRIVILEGES", schema_privileges_fields_info, 0,
    fill_schema_schema_privileges, 0, 0, -1, -1, 0, 0},
-  {"SESSION_STATUS", variables_fields_info, create_schema_table,
+  {"SESSION_STATUS", variables_fields_info, 0,
    fill_status, make_old_format, 0, 0, -1, 0, 0},
-  {"SESSION_VARIABLES", variables_fields_info, create_schema_table,
+  {"SESSION_VARIABLES", variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
-  {"STATISTICS", stat_fields_info, create_schema_table,
+  {"STATISTICS", stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
-  {"STATUS", variables_fields_info, create_schema_table, fill_status,
-   make_old_format, 0, 0, -1, 1, 0},
-  {"TABLES", tables_fields_info, create_schema_table,
+  {"SYSTEM_VARIABLES", sysvars_fields_info, 0,
+   fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
+  {"TABLES", tables_fields_info, 0,
    get_all_tables, make_old_format, get_schema_tables_record, 1, 2, 0,
    OPTIMIZE_I_S_TABLE},
-  {"TABLESPACES", tablespaces_fields_info, create_schema_table,
+  {"TABLESPACES", tablespaces_fields_info, 0,
    hton_fill_schema_table, 0, 0, -1, -1, 0, 0},
-  {"TABLE_CONSTRAINTS", table_constraints_fields_info, create_schema_table,
+  {"TABLE_CONSTRAINTS", table_constraints_fields_info, 0,
    get_all_tables, 0, get_schema_constraints_record, 3, 4, 0,
    OPTIMIZE_I_S_TABLE|OPEN_TABLE_ONLY},
-  {"TABLE_NAMES", table_names_fields_info, create_schema_table,
+  {"TABLE_NAMES", table_names_fields_info, 0,
    get_all_tables, make_table_names_old_format, 0, 1, 2, 1, OPTIMIZE_I_S_TABLE},
-  {"TABLE_PRIVILEGES", table_privileges_fields_info, create_schema_table,
+  {"TABLE_PRIVILEGES", table_privileges_fields_info, 0,
    fill_schema_table_privileges, 0, 0, -1, -1, 0, 0},
-  {"TABLE_STATISTICS", table_stats_fields_info, create_schema_table,
-   fill_schema_table_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"TRIGGERS", triggers_fields_info, create_schema_table,
+  {"TRIGGERS", triggers_fields_info, 0,
    get_all_tables, make_old_format, get_schema_triggers_record, 5, 6, 0,
    OPEN_TRIGGER_ONLY|OPTIMIZE_I_S_TABLE},
-  {"USER_PRIVILEGES", user_privileges_fields_info, create_schema_table, 
+  {"USER_PRIVILEGES", user_privileges_fields_info, 0,
    fill_schema_user_privileges, 0, 0, -1, -1, 0, 0},
-  {"USER_STATISTICS", user_stats_fields_info, create_schema_table, 
-   fill_schema_user_stats, make_old_format, 0, -1, -1, 0, 0},
-  {"VARIABLES", variables_fields_info, create_schema_table, fill_variables,
-   make_old_format, 0, 0, -1, 1, 0},
-  {"VIEWS", view_fields_info, create_schema_table,
+  {"VIEWS", view_fields_info, 0,
    get_all_tables, 0, get_schema_views_record, 1, 2, 0,
    OPEN_VIEW_ONLY|OPTIMIZE_I_S_TABLE},
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
@@ -9195,8 +8824,6 @@ int initialize_schema_table(st_plugin_int *plugin)
   plugin->data= schema_table; // shortcut for the future
   if (plugin->plugin->init)
   {
-    schema_table->create_table= create_schema_table;
-    schema_table->old_format= make_old_format;
     schema_table->idx_field1= -1,
     schema_table->idx_field2= -1;
 
@@ -9211,6 +8838,14 @@ int initialize_schema_table(st_plugin_int *plugin)
       my_free(schema_table);
       DBUG_RETURN(1);
     }
+
+    if (!schema_table->old_format)
+      for (ST_FIELD_INFO *f= schema_table->fields_info; f->field_name; f++)
+        if (f->old_name && f->old_name[0])
+        {
+          schema_table->old_format= make_old_format;
+          break;
+        }
 
     /* Make sure the plugin name is not set inside the init() function. */
     schema_table->table_name= plugin->name.str;

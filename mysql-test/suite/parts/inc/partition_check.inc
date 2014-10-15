@@ -324,7 +324,6 @@ FROM t1;
 # DEBUG SELECT COUNT(*),MIN(f_int1),MAX(f_int1) FROM t1;
 #
 # 3.4  (mass) Update @max_row_div4 * 2 + 1 records
-# Bug#18735: Partitions: NDB, UNIQUE INDEX, UPDATE, strange server response
 UPDATE t1 SET f_int1 = f_int1 + @max_row
 WHERE f_int1 BETWEEN @max_row_div2 - @max_row_div4
   AND @max_row_div2 + @max_row_div4;
@@ -431,7 +430,6 @@ WHERE f_int1 = @cur_value AND f_int2 = @cur_value
 #      record to another partition/subpartition might appear.
 SELECT MIN(f_int1) INTO @cur_value1 FROM t1;
 SELECT MAX(f_int1) + 1 INTO @cur_value2 FROM t1;
-# Bug#18735: Partitions: NDB, UNIQUE INDEX, UPDATE, strange server response
 UPDATE t1 SET f_int1 = @cur_value2
 WHERE  f_int1 = @cur_value1 AND f_charbig = '#SINGLE#';
 #      Check of preceding statement via Select
@@ -451,8 +449,6 @@ WHERE f_int1 = @cur_value2 AND f_charbig = '#SINGLE#';
 SET @cur_value1= -1;
 SELECT MAX(f_int1) INTO @cur_value2 FROM t1;
 # Bug#15968: Partitions: crash when INSERT with f_int1 = -1 into PARTITION BY HASH(f_int1)
-# Bug#16385: Partitions: crash when updating a range partitioned NDB table
-# Bug#18735: Partitions: NDB, UNIQUE INDEX, UPDATE, strange server response
 UPDATE t1 SET f_int1 = @cur_value1
 WHERE  f_int1 = @cur_value2 AND f_charbig = '#SINGLE#';
 #      Check of preceding statement via Select
@@ -538,7 +534,6 @@ eval DELETE FROM t1 WHERE f_charbig = '#$max_int_4##';
 # Let's INSERT a record where the result of the partitioning function is
 # probably (depends on function currently used) zero and look if there are
 # any strange effects during the execution of the next statements.
-# Bug#17891: Partitions: NDB, crash on select .. where col is null or col = value
 # Bug#18659: Partitions: wrong result on WHERE <col. used in part. function> IS NULL
 DELETE FROM t1 WHERE f_int1 IS NULL OR f_int1 = 0;
 # Attention: Zero should be tested
@@ -965,7 +960,6 @@ let $tab_has_trigg= t0_aux;
 let $tab_in_trigg=  t1;
 
 #             Insert three records, which will be updated by the trigger
-# Bug#18735: Partitions: NDB, UNIQUE INDEX, UPDATE, strange server response
 eval INSERT INTO $tab_in_trigg(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,'just inserted' FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 - 1 AND @max_row_div2 + 1;
@@ -1136,7 +1130,6 @@ CHECKSUM TABLE t1 EXTENDED;
 #      ... , it is mapped to ALTER TABLE, which rebuilds the table.
 #      Rebuilding updates index statistics and frees unused space in the
 #      clustered index.
-#      FIXME What will happen with NDB ?
 OPTIMIZE TABLE t1;
 --source suite/parts/inc/partition_layout_check2.inc
 # 10.2 REPAIR TABLE

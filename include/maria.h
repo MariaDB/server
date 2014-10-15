@@ -19,9 +19,6 @@
 
 #ifndef _maria_h
 #define _maria_h
-#ifdef	__cplusplus
-extern "C" {
-#endif
 #include <my_base.h>
 #include <my_sys.h>
 #include <m_ctype.h>
@@ -29,6 +26,10 @@ extern "C" {
 #include "ft_global.h"
 #include <myisamchk.h>
 #include <mysql/plugin.h>
+
+#ifdef	__cplusplus
+extern "C" {
+#endif
 
 #define MARIA_CANNOT_ROLLBACK
 

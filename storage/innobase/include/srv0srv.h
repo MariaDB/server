@@ -304,6 +304,10 @@ extern ulong	srv_flush_log_at_trx_commit;
 extern uint	srv_flush_log_at_timeout;
 extern char	srv_adaptive_flushing;
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/* When this event is reset we do not allow any file writes to take place. */
+extern os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
 even if they are marked as "corrupted". Mostly it is for DBA to process
 corrupted index and table */
@@ -899,9 +903,19 @@ struct export_var_t{
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs
 						*/
-	ulint innodb_defragment_compression_failures;
-	ulint innodb_defragment_failures;
-	ulint innodb_defragment_count;
+	ulint innodb_defragment_compression_failures; /*!< Number of
+						defragment re-compression
+						failures */
+
+	ulint innodb_defragment_failures;	/*!< Number of defragment
+						failures*/
+	ulint innodb_defragment_count;		/*!< Number of defragment
+						operations*/
+
+	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
+	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
+						of used row log buffer */
+	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress */
 
 #ifdef UNIV_DEBUG
 	ulint innodb_purge_trx_id_age;		/*!< rw_max_trx_id - purged trx_id */
@@ -913,7 +927,7 @@ struct export_var_t{
 						by page compression */
 	ib_int64_t innodb_page_compression_trim_sect512;/*!< Number of 512b TRIM
 						by page compression */
-	ib_int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM 
+	ib_int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM
 						by page compression */
 	ib_int64_t innodb_index_pages_written;  /*!< Number of index pages
 						written */
@@ -969,5 +983,13 @@ struct srv_slot_t{
 # define srv_start_raw_disk_in_use		0
 # define srv_file_per_table			1
 #endif /* !UNIV_HOTBACKUP */
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx);	/*!< in: transaction object associated with the
+			thread */
+#endif /* WITH_WSREP */
 
 #endif

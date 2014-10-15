@@ -3,35 +3,35 @@
 let $force_pk=`select @@innodb_force_primary_key`;
 
 -- error 1173
-CREATE TABLE T1(A INTEGER) ENGINE=INNODB;
-SHOW WARNINGS;
+create table t1(a integer) engine=innodb;
+show warnings;
 -- error 1173
-CREATE TABLE T1(A INTEGER UNIQUE KEY) ENGINE=INNODB;
-SHOW WARNINGS;
+create table t1(a integer unique key) engine=innodb;
+show warnings;
 -- error 1173
-CREATE TABLE T1(A INTEGER NOT NULL, B INTEGER,
-UNIQUE KEY(A,B)) ENGINE=INNODB;
-SHOW WARNINGS;
-CREATE TABLE T1(A INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
-SHOW CREATE TABLE T1;
-SHOW WARNINGS;
-DROP TABLE T1;
-CREATE TABLE T1(A INTEGER NOT NULL UNIQUE KEY) ENGINE=INNODB;
-SHOW CREATE TABLE T1;
-SHOW WARNINGS;
-DROP TABLE T1;
+create table t1(a integer not null, b integer,
+unique key(a,b)) engine=innodb;
+show warnings;
+create table t1(a integer not null primary key) engine=innodb;
+show create table t1;
+show warnings;
+drop table t1;
+create table t1(a integer not null unique key) engine=innodb;
+show create table t1;
+show warnings;
+drop table t1;
 
 set global innodb_force_primary_key = 0;
-CREATE TABLE T1(A INTEGER) ENGINE=INNODB;
-SHOW WARNINGS;
-INSERT INTO T1 VALUES (1),(2),(3);
+create table t1(a integer) engine=innodb;
+show warnings;
+insert into t1 values (1),(2),(3);
 
 set global innodb_force_primary_key = 1;
-SELECT * FROM T1;
+select * from t1;
 -- error 1173
-CREATE TABLE T2(A INTEGER) ENGINE=INNODB;
-SHOW WARNINGS;
-DROP TABLE T1;
+create table t2(a integer) engine=innodb;
+show warnings;
+drop table t1;
 
 --disable_query_log
 eval set global innodb_force_primary_key=$force_pk;

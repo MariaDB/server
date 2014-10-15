@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -504,7 +504,6 @@ void lex_start(THD *thd)
   lex->duplicates= DUP_ERROR;
   lex->ignore= 0;
   lex->spname= NULL;
-  lex->sphead= NULL;
   lex->spcont= NULL;
   lex->proc_list.first= 0;
   lex->escape_used= FALSE;
@@ -516,8 +515,7 @@ void lex_start(THD *thd)
   lex->check_exists= FALSE;
   lex->verbose= 0;
 
-  lex->name.str= 0;
-  lex->name.length= 0;
+  lex->name= null_lex_str;
   lex->event_parse_data= NULL;
   lex->profile_options= PROFILE_NONE;
   lex->nest_level=0 ;
@@ -561,8 +559,20 @@ void lex_end(LEX *lex)
   }
   reset_dynamic(&lex->plugins);
 
-  delete lex->sphead;
-  lex->sphead= NULL;
+  if (lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE)
+  {
+    /*
+      Don't delete lex->sphead, it'll be needed for EXECUTE.
+      Note that of all statements that populate lex->sphead
+      only SQLCOM_COMPOUND can be PREPAREd
+    */
+    DBUG_ASSERT(lex->sphead == 0 || lex->sql_command == SQLCOM_COMPOUND);
+  }
+  else
+  {
+    delete lex->sphead;
+    lex->sphead= NULL;
+  }
 
   lex->mi.reset();
 
@@ -1580,6 +1590,17 @@ int lex_one_token(void *arg, THD *thd)
           }
           else
           {
+#ifdef WITH_WSREP
+	    if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
+	    {
+	      WSREP_DEBUG("consistency check: %s", thd->query());
+	      thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
+	      lip->yySkipn(5);
+	      lip->set_echo(TRUE);
+	      state=MY_LEX_START;
+	      break;  /* Do not treat contents as a comment.  */
+	    }
+#endif /* WITH_WSREP */
             /*
               Patch and skip the conditional comment to avoid it
               being propagated infinitely (eg. to a slave).
@@ -2545,14 +2566,13 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL),
-    result(0), option_type(OPT_DEFAULT), is_lex_started(0),
-   limit_rows_examined_cnt(ULONGLONG_MAX)
+    result(0), option_type(OPT_DEFAULT), sphead(0),
+    is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  my_init_dynamic_array2(&plugins, sizeof(plugin_ref),
-                         plugins_static_buffer,
-                         INITIAL_LEX_PLUGIN_LIST_SIZE, 
-                         INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
+  init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
 }
@@ -2783,7 +2803,7 @@ uint8 LEX::get_effective_with_check(TABLE_LIST *view)
 bool
 LEX::copy_db_to(char **p_db, size_t *p_db_length) const
 {
-  if (sphead)
+  if (sphead && sphead->m_name.str)
   {
     DBUG_ASSERT(sphead->m_db.str && sphead->m_db.length);
     /*
@@ -3737,7 +3757,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
 {
   derived->wrap_into_nested_join(subq_select->top_join_list);
 
-  ftfunc_list->concat(subq_select->ftfunc_list);
+  ftfunc_list->append(subq_select->ftfunc_list);
   if (join ||
       thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
       thd->lex->sql_command == SQLCOM_DELETE_MULTI)

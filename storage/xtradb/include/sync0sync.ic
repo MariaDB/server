@@ -255,7 +255,10 @@ mutex_enter_func(
 	ulint		line)		/*!< in: line where locked */
 {
 	ut_ad(mutex_validate(mutex));
+#ifndef WITH_WSREP
+	/* this cannot be be granted when BF trx kills a trx in lock wait state */
 	ut_ad(!mutex_own(mutex));
+#endif /* WITH_WSREP */
 
 	/* Note that we do not peek at the value of lock_word before trying
 	the atomic test_and_set; we could peek, and possibly save time. */

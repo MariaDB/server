@@ -1,0 +1,24 @@
+#
+# Test for mysqldump's galera-sst-mode option
+#
+#
+# MDEV-6490: mysqldump unknown option --galera-sst-mode
+#
+CREATE DATABASE bug6490;
+USE bug6490;
+CREATE TABLE t1(c1 INT);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+# Save the current gtid_binlog_state.
+# Take a dump of bug6490 database
+DROP TABLE t1;
+# Load the dump
+RESET MASTER;
+SELECT * from t1;
+c1
+1
+2
+# Compare the two gtid_binlog_state's
+# Cleanup
+DROP DATABASE bug6490;
+# End of test

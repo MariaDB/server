@@ -10,6 +10,8 @@
 *.ninja
 .ninja_*
 .gdb_history
+errmsg.sys
+typescript
 CMakeCache.txt
 CMakeFiles/
 CPackConfig.cmake
@@ -21,6 +23,7 @@ Makefile
 TAGS
 Testing/
 VERSION.dep
+configure
 client/async_example
 client/mysql
 client/mysql_plugin
@@ -72,6 +75,7 @@ mysql-test/mtr
 mysql-test/mysql-test-run
 mysql-test/var/
 mysys/thr_lock
+mysys/thr_timer
 packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
@@ -103,6 +107,11 @@ scripts/mysqld_safe
 scripts/mysqldumpslow
 scripts/mysqlhotcopy
 scripts/mytop
+scripts/wsrep_sst_common
+scripts/wsrep_sst_mysqldump
+scripts/wsrep_sst_rsync
+scripts/wsrep_sst_xtrabackup
+scripts/wsrep_sst_xtrabackup-v2
 sql-bench/bench-count-distinct
 sql-bench/bench-init.pl
 sql-bench/compare-results
@@ -131,7 +140,6 @@ sql/gen_lex_hash
 sql/lex_hash.h
 sql/mysql_tzinfo_to_sql
 sql/mysqld
-sql/share/*/errmsg.sys
 sql/sql_builtin.cc
 sql/sql_yacc.cc
 sql/sql_yacc.h
@@ -187,6 +195,7 @@ support-files/binary-configure
 support-files/config.huge.ini
 support-files/config.medium.ini
 support-files/config.small.ini
+support-files/mariadb.pc
 support-files/my-huge.cnf
 support-files/my-innodb-heavy-4G.cnf
 support-files/my-large.cnf
@@ -197,7 +206,8 @@ support-files/mysql.10.0.11.spec
 support-files/mysql.server
 support-files/mysql.spec
 support-files/mysqld_multi.server
-support-files/ndb-config-2-node.ini
+support-files/wsrep.cnf
+support-files/wsrep_notify
 tags
 tests/async_queries
 tests/bug25714

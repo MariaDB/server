@@ -48,25 +48,6 @@ static row_setup_timers all_setup_timers_data[COUNT_SETUP_TIMERS]=
 
 THR_LOCK table_setup_timers::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("NAME") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_NAME") },
-    { C_STRING_WITH_LEN("enum(\'CYCLE\',\'NANOSECOND\',\'MICROSECOND\',"
-                        "\'MILLISECOND\',\'TICK\')") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_setup_timers::m_field_def=
-{ 2, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_setup_timers::m_share=
 {
@@ -79,8 +60,9 @@ table_setup_timers::m_share=
   COUNT_SETUP_TIMERS,
   sizeof(PFS_simple_index),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE setup_timers("
+                      "NAME VARCHAR(64) not null,"
+                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null)") }
 };
 
 PFS_engine_table* table_setup_timers::create(void)

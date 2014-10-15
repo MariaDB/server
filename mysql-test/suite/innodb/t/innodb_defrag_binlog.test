@@ -1,5 +1,8 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
+--source include/big_test.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -13,7 +16,7 @@ optimize table t1;
 
 drop table t1;
 
---replace_regex /\/\*.*//
+--replace_regex /\/\* xid=.* \*\//\/* XID *\// /Server ver: .*, Binlog ver: .*/Server ver: #, Binlog ver: #/ /table_id: [0-9]+/table_id: #/
 show binlog events in 'master-bin.000001' from 313;
 
 --source include/rpl_end.inc

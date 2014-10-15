@@ -199,12 +199,6 @@ ha_rows handler::multi_range_read_info(uint keyno, uint n_ranges, uint n_rows,
     One must have called index_init() before calling this function. Several
     multi_range_read_init() calls may be made in course of one query.
 
-    Until WL#2623 is done (see its text, section 3.2), the following will 
-    also hold:
-    The caller will guarantee that if "seq->init == mrr_ranges_array_init"
-    then seq_init_param is an array of n_ranges KEY_MULTI_RANGE structures.
-    This property will only be used by NDB handler until WL#2623 is done.
-     
     Buffer memory management is done according to the following scenario:
     The caller allocates the buffer and provides it to the callee by filling
     the members of HANDLER_BUFFER structure.

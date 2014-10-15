@@ -1,0 +1,46 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_forced_binlog_format
+--echo #
+
+--echo # save the initial value
+SET @wsrep_forced_binlog_format_global_saved = @@global.wsrep_forced_binlog_format;
+
+--echo # default
+SELECT @@global.wsrep_forced_binlog_format;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_forced_binlog_format;
+SET @@global.wsrep_forced_binlog_format=STATEMENT;
+SELECT @@global.wsrep_forced_binlog_format;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_forced_binlog_format=STATEMENT;
+SELECT @@global.wsrep_forced_binlog_format;
+SET @@global.wsrep_forced_binlog_format=ROW;
+SELECT @@global.wsrep_forced_binlog_format;
+SET @@global.wsrep_forced_binlog_format=MIXED;
+SELECT @@global.wsrep_forced_binlog_format;
+SET @@global.wsrep_forced_binlog_format=NONE;
+SELECT @@global.wsrep_forced_binlog_format;
+SET @@global.wsrep_forced_binlog_format=default;
+SELECT @@global.wsrep_forced_binlog_format;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_forced_binlog_format=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_forced_binlog_format='junk';
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_forced_binlog_format=ON;
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_forced_binlog_format = @wsrep_forced_binlog_format_global_saved;
+
+--echo # End of test

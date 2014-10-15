@@ -29,7 +29,7 @@ select * from bug38999_2;
 drop table bug38999_1,bug38999_2;
 
 --echo #
---echo # Bug#54475 improper error handling causes cascading crashing failures in innodb/ndb
+--echo # Bug#54475 improper error handling causes cascading crashing failures in innodb
 --echo #
 CREATE TABLE t1(f1 INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);

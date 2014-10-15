@@ -29,6 +29,8 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0trx.ic"
 #endif
 
+#include <mysql/service_wsrep.h>
+
 #include "trx0undo.h"
 #include "trx0rseg.h"
 #include "log0log.h"
@@ -159,6 +161,9 @@ trx_create(void)
 	trx->lock.table_locks = ib_vector_create(
 		heap_alloc, sizeof(void**), 32);
 
+#ifdef WITH_WSREP
+	trx->wsrep_event = NULL;
+#endif /* WITH_WSREP */
 	return(trx);
 }
 
@@ -854,6 +859,11 @@ trx_start_low(
 			srv_undo_logs, srv_undo_tablespaces);
 	}
 
+#ifdef WITH_WSREP
+        memset(&trx->xid, 0, sizeof(trx->xid));
+        trx->xid.formatID = -1;
+#endif /* WITH_WSREP */
+
 	/* The initial value for trx->no: TRX_ID_MAX is used in
 	read_view_open_now: */
 
@@ -968,6 +978,9 @@ trx_write_serialisation_history(
 	trx_t*		trx,	/*!< in/out: transaction */
 	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 {
+#ifdef WITH_WSREP
+        trx_sysf_t* sys_header;
+#endif /* WITH_WSREP */
 	trx_rseg_t*	rseg;
 
 	rseg = trx->rseg;
@@ -1014,6 +1027,15 @@ trx_write_serialisation_history(
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 
+#ifdef WITH_WSREP
+	sys_header = trx_sysf_get(mtr);
+	/* Update latest MySQL wsrep XID in trx sys header. */
+	if (wsrep_is_wsrep_xid(&trx->xid))
+	{
+		trx_sys_update_wsrep_checkpoint(&trx->xid, sys_header, mtr);
+	}
+#endif /* WITH_WSREP */
+
 	/* Update the latest MySQL binlog name and offset info
 	in trx sys header if MySQL binlogging is on or the database
 	server is a MySQL replication slave */
@@ -1024,7 +1046,11 @@ trx_write_serialisation_history(
 		trx_sys_update_mysql_binlog_offset(
 			trx->mysql_log_file_name,
 			trx->mysql_log_offset,
-			TRX_SYS_MYSQL_LOG_INFO, mtr);
+			TRX_SYS_MYSQL_LOG_INFO, 
+#ifdef WITH_WSREP
+                        sys_header,
+#endif /* WITH_WSREP */
+			mtr);
 
 		trx->mysql_log_file_name = NULL;
 	}
@@ -1312,6 +1338,11 @@ trx_commit_in_memory(
 	ut_ad(!trx->in_ro_trx_list);
 	ut_ad(!trx->in_rw_trx_list);
 
+#ifdef WITH_WSREP
+	if (wsrep_on(trx->mysql_thd)) {
+		trx->lock.was_chosen_as_deadlock_victim = FALSE;
+	}
+#endif
 	trx->dict_operation = TRX_DICT_OP_NONE;
 
 	trx->error_state = DB_SUCCESS;
@@ -1496,6 +1527,10 @@ trx_commit_or_rollback_prepare(
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
+#ifdef WITH_WSREP
+		ut_d(trx->start_file = __FILE__);
+		ut_d(trx->start_line = __LINE__);
+#endif /* WITH_WSREP */
 		trx_start_low(trx);
 		/* fall through */
 	case TRX_STATE_ACTIVE:

@@ -656,10 +656,6 @@ not_silent:
     query_length= thd->query_length();
     DBUG_ASSERT(query);
 
-    ha_binlog_log_query(thd, 0, LOGCOM_CREATE_DB,
-                        query, query_length,
-                        db, "");
-
     if (mysql_bin_log.is_open())
     {
       int errcode= query_error_code(thd, TRUE);
@@ -734,10 +730,6 @@ bool mysql_alter_db(THD *thd, const char *db, HA_CREATE_INFO *create_info)
 		     thd->variables.collation_server;
     thd->variables.collation_database= thd->db_charset;
   }
-
-  ha_binlog_log_query(thd, 0, LOGCOM_ALTER_DB,
-                      thd->query(), thd->query_length(),
-                      db, "");
 
   if (mysql_bin_log.is_open())
   {
@@ -883,11 +875,6 @@ bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
       should be dropped while the database is being cleaned, but in
       the event that a change in the code to remove other objects is
       made, these drops should still not be logged.
-
-      Notice that the binary log have to be enabled over the call to
-      ha_drop_database(), since NDB otherwise detects the binary log
-      as disabled and will not log the drop database statement on any
-      other connected server.
     */
 
     ha_drop_database(path);

@@ -26,3 +26,8 @@ extern "C" void compute_md5_hash(char *, const char *, int)
 {
 }
 
+struct sys_var { enum where { AUTO }; };
+void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
+{
+}
+

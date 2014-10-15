@@ -112,15 +112,17 @@ void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 void init_fill_schema_files_row(TABLE* table);
 bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
+COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
-                       enum enum_schema_tables schema_table_idx);
+                       ST_SCHEMA_TABLE *schema_table);
 int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list);
 bool get_schema_tables_result(JOIN *join,
                               enum enum_schema_table_state executed_place);
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
+TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
@@ -192,9 +194,17 @@ typedef struct st_lookup_field_values
 class IS_table_read_plan : public Sql_alloc
 {
 public:
-  IS_table_read_plan() : no_rows(false) {}
+  IS_table_read_plan() : no_rows(false), trivial_show_command(FALSE) {}
 
   bool no_rows;
+  /*
+    For EXPLAIN only: For SHOW KEYS and SHOW COLUMNS, we know which
+    db_name.table_name will be read, however for some reason we don't
+    set the fields in this->lookup_field_vals.
+    In order to not have JOIN::save_explain_data() walking over uninitialized
+    data, we set trivial_show_command=true.
+  */
+  bool trivial_show_command;
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
   Item *partial_cond;

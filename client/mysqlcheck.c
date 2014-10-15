@@ -731,10 +731,11 @@ static int use_db(char *database)
   DBUG_RETURN(0);
 } /* use_db */
 
+/* Do not send commands to replication slaves. */
 static int disable_binlog()
 {
-  const char *stmt= "SET SQL_LOG_BIN=0";
-  return run_query(stmt);
+  mysql_query(sock, "SET WSREP_ON=0"); /* ignore the error, if any */
+  return run_query("SET SQL_LOG_BIN=0");
 }
 
 static int handle_request_for_tables(char *tables, uint length)

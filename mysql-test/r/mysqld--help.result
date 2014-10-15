@@ -412,7 +412,7 @@ The following options may be given as the first argument:
  Maximum number of prepared statements in the server
  --max-relay-log-size=# 
  relay log will be rotated automatically when the size
- exceeds this value.  If 0 are startup, it's set to
+ exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
@@ -422,6 +422,11 @@ The following options may be given as the first argument:
  value are used; the rest are ignored)
  --max-sp-recursion-depth[=#] 
  Maximum stored procedure recursion depth
+ --max-statement-time=# 
+ A SELECT query that have taken more than
+ max_statement_time seconds will be aborted. The argument
+ will be treated as a decimal value with microsecond
+ precision.  A value of 0 (default) means no timeout
  --max-tmp-tables=#  Maximum number of temporary tables a client can keep open
  at a time
  --max-user-connections=# 
@@ -1196,6 +1201,7 @@ max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
 max-sp-recursion-depth 0
+max-statement-time 0
 max-tmp-tables 32
 max-user-connections 0
 max-write-lock-count 18446744073709551615
@@ -1263,7 +1269,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 180
+performance-schema-max-statement-classes 178
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50

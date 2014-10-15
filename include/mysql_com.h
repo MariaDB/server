@@ -186,11 +186,7 @@ enum enum_server_command
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 
-#define REFRESH_TABLE_STATS     (1ULL << 27) /* Refresh table stats hash table */
-#define REFRESH_INDEX_STATS     (1ULL << 28) /* Refresh index stats hash table */
-#define REFRESH_USER_STATS      (1ULL << 29) /* Refresh user stats hash table */
-#define REFRESH_CLIENT_STATS    (1ULL << 30) /* Refresh client stats hash table */
-
+#define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */

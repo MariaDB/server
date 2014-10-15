@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab
+   Copyright (c) 2008, 2014, Monty Program Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2946,6 +2946,7 @@ int start_slave(THD* thd , Master_info* mi,  bool net_report)
 
 err:
   unlock_slave_threads(mi);
+  thd_proc_info(thd, 0);
 
   if (slave_errno)
   {
@@ -3053,8 +3054,6 @@ int reset_slave(THD *thd, Master_info* mi)
              mi->connection_name.str);
     DBUG_RETURN(ER_SLAVE_MUST_STOP);
   }
-
-  ha_reset_slave(thd);
 
   // delete relay logs, clear relay log coordinates
   if ((error= purge_relay_logs(&mi->rli, thd,
@@ -3618,13 +3617,6 @@ bool mysql_show_binlog_events(THD* thd)
   /* select wich binary log to use: binlog or relay */
   if ( thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS )
   {
-    /*
-      Wait for handlers to insert any pending information
-      into the binlog.  For e.g. ndb which updates the binlog asynchronously
-      this is needed so that the uses sees all its own commands in the binlog
-    */
-    ha_binlog_wait(thd);
-
     binary_log= &mysql_bin_log;
   }
   else  /* showing relay log contents */

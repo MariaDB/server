@@ -6,8 +6,6 @@
 # Test: Tests SPs with cursors, flow logic, and alter sp. In addition the   #
 #       tests SPs with insert and update operations.                        #
 #############################################################################
-# 2006-02-08 By JBM added ORDER BY for use with NDB engine
-#############################################################################
 
 # Includes
 -- source include/have_binlog_format_row.inc

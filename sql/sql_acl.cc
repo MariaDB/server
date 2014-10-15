@@ -205,15 +205,6 @@ static plugin_ref old_password_plugin;
 #endif
 static plugin_ref native_password_plugin;
 
-static char *safe_str(char *str)
-{ return str ? str : const_cast<char*>(""); }
-
-static const char *safe_str(const char *str)
-{ return str ? str : ""; }
-
-static size_t safe_strlen(const char *str)
-{ return str ? strlen(str) : 0; }
-
 /* Classes */
 
 struct acl_host_and_ip
@@ -709,6 +700,8 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, char *username,
 
 #define ROLE_ASSIGN_COLUMN_IDX  43
 #define DEFAULT_ROLE_COLUMN_IDX 44
+#define MAX_STATEMENT_TIME_COLUMN_IDX 45
+
 /* various flags valid for ACL_USER */
 #define IS_ROLE                 (1L << 0)
 /* Flag to mark that a ROLE is on the recursive DEPTH_FIRST_SEARCH stack */
@@ -1175,6 +1168,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
       mysql_mutex_unlock(&LOCK_global_system_variables);
     else
     {
+      extern sys_var *Sys_old_passwords_ptr;
+      Sys_old_passwords_ptr->value_origin= sys_var::AUTO;
       global_system_variables.old_passwords= 1;
       mysql_mutex_unlock(&LOCK_global_system_variables);
       sql_print_warning("mysql.user table is not updated to new password format; "
@@ -1272,6 +1267,8 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 
       user.sort= get_sort(2, user.host.hostname, user.user.str);
       user.hostname_length= safe_strlen(user.host.hostname);
+      user.user_resource.user_conn= 0;
+      user.user_resource.max_statement_time= 0.0;
 
       /* Starting from 4.0.2 we have more fields */
       if (table->s->fields >= 31)
@@ -1330,6 +1327,14 @@ static bool acl_load(THD *thd, TABLE_LIST *tables)
 
             fix_user_plugin_ptr(&user);
           }
+        }
+
+        if (table->s->fields > MAX_STATEMENT_TIME_COLUMN_IDX)
+        {
+          /* Starting from 10.1.1 we can have max_statement_time */
+          ptr= get_field(thd->mem_root,
+                         table->field[MAX_STATEMENT_TIME_COLUMN_IDX]);
+          user.user_resource.max_statement_time= ptr ? atof(ptr) : 0.0;
         }
       }
       else
@@ -2041,6 +2046,8 @@ static void acl_update_user(const char *user, const char *host,
         acl_user->user_resource.conn_per_hour= mqh->conn_per_hour;
       if (mqh->specified_limits & USER_RESOURCES::USER_CONNECTIONS)
         acl_user->user_resource.user_conn= mqh->user_conn;
+      if (mqh->specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+        acl_user->user_resource.max_statement_time= mqh->max_statement_time;
       if (ssl_type != SSL_TYPE_NOT_SPECIFIED)
       {
         acl_user->ssl_type= ssl_type;
@@ -2559,7 +2566,9 @@ int check_alter_user(THD *thd, const char *host, const char *user)
     my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
     goto end;
   }
-  if (!thd->slave_thread && !thd->security_ctx->priv_user[0])
+
+  if (IF_WSREP((!WSREP(thd) || !thd->wsrep_applier), 1) &&
+      !thd->slave_thread && !thd->security_ctx->priv_user[0])
   {
     my_message(ER_PASSWORD_ANONYMOUS_USER, ER(ER_PASSWORD_ANONYMOUS_USER),
                MYF(0));
@@ -2570,7 +2579,9 @@ int check_alter_user(THD *thd, const char *host, const char *user)
     my_error(ER_PASSWORD_NO_MATCH, MYF(0));
     goto end;
   }
+
   if (!thd->slave_thread &&
+      IF_WSREP((!WSREP(thd) || !thd->wsrep_applier),1) &&
       (strcmp(thd->security_ctx->priv_user, user) ||
        my_strcasecmp(system_charset_info, host,
                      thd->security_ctx->priv_host)))
@@ -2635,10 +2646,12 @@ bool change_password(THD *thd, const char *host, const char *user,
   TABLE_LIST tables[TABLES_MAX];
   /* Buffer should be extended when password length is extended. */
   char buff[512];
-  ulong query_length;
+  ulong query_length= 0;
   enum_binlog_format save_binlog_format;
   uint new_password_len= (uint) strlen(new_password);
-  int result;
+  int result=0;
+  const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
+
   DBUG_ENTER("change_password");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  new_password: '%s'",
 		      host,user,new_password));
@@ -2646,6 +2659,19 @@ bool change_password(THD *thd, const char *host, const char *user,
 
   if (check_change_password(thd, host, user, new_password, new_password_len))
     DBUG_RETURN(1);
+
+  if (mysql_bin_log.is_open() ||
+      (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
+  {
+    query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
+              safe_str(user), safe_str(host), new_password);
+  }
+
+  if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
+  {
+    thd->set_query_inner(buff, query_length, system_charset_info);
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
+  }
 
   if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
     DBUG_RETURN(result != 1);
@@ -2697,17 +2723,24 @@ bool change_password(THD *thd, const char *host, const char *user,
   result= 0;
   if (mysql_bin_log.is_open())
   {
-    query_length=
-      sprintf(buff,"SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
-              safe_str(acl_user->user.str),
-              safe_str(acl_user->host.hostname),
-              new_password);
+    DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
                               FALSE, FALSE, FALSE, 0);
   }
 end:
   close_mysql_tables(thd);
+
+#ifdef WITH_WSREP
+error: // this label is used in WSREP_TO_ISOLATION_END
+  if (WSREP(thd) && !thd->wsrep_applier)
+  {
+    WSREP_TO_ISOLATION_END;
+
+    thd->set_query_inner(query_save);
+    thd->wsrep_exec_mode  = LOCAL_STATE;
+  }
+#endif /* WITH_WSREP */
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
@@ -2726,9 +2759,11 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   char user_key[MAX_KEY_LENGTH];
   int result= 1;
   int error;
+  ulong query_length= 0;
   bool clear_role= FALSE;
+  char buff[512];
   enum_binlog_format save_binlog_format;
-
+  const CSET_STRING query_save __attribute__((unused)) = thd->query_string;
 
   DBUG_ENTER("acl_set_default_role");
   DBUG_PRINT("enter",("host: '%s'  user: '%s'  rolename: '%s'",
@@ -2746,6 +2781,20 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
   if (!strcasecmp(rolename, "NONE"))
     clear_role= TRUE;
+
+  if (mysql_bin_log.is_open() ||
+      (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
+  {
+    query_length=
+      sprintf(buff,"SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
+              safe_str(rolename), safe_str(user), safe_str(host));
+  }
+
+  if (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0))
+  {
+    thd->set_query_inner(buff, query_length, system_charset_info);
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, (char*)"user", NULL);
+  }
 
   if ((result= open_grant_tables(thd, tables, TL_WRITE, Table_user)))
     DBUG_RETURN(result != 1);
@@ -2823,18 +2872,25 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
   result= 0;
   if (mysql_bin_log.is_open())
   {
-    char buff[512];
-    int query_length=
-      sprintf(buff,"SET DEFAULT ROLE '%-.120s' FOR '%-.120s'@'%-.120s'",
-              safe_str(acl_user->default_rolename.str),
-              safe_str(acl_user->user.str),
-              safe_str(acl_user->host.hostname));
+    DBUG_ASSERT(query_length);
     thd->clear_error();
     result= thd->binlog_query(THD::STMT_QUERY_TYPE, buff, query_length,
                               FALSE, FALSE, FALSE, 0);
   }
 end:
   close_mysql_tables(thd);
+
+#ifdef WITH_WSREP
+error: // this label is used in WSREP_TO_ISOLATION_END
+  if (WSREP(thd) && !thd->wsrep_applier)
+  {
+    WSREP_TO_ISOLATION_END;
+
+    thd->set_query_inner(query_save);
+    thd->wsrep_exec_mode  = LOCAL_STATE;
+  }
+#endif /* WITH_WSREP */
+
   thd->restore_stmt_binlog_format(save_binlog_format);
 
   DBUG_RETURN(result);
@@ -3351,8 +3407,6 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
     if (table->s->fields >= 36 &&
         (mqh.specified_limits & USER_RESOURCES::USER_CONNECTIONS))
       table->field[next_field+3]->store((longlong) mqh.user_conn, FALSE);
-    mqh_used= mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour;
-
     next_field+= 4;
     if (table->s->fields >= 41)
     {
@@ -3373,7 +3427,16 @@ static int replace_user_table(THD *thd, TABLE *table, LEX_USER &combo,
         table->field[next_field]->reset();
         table->field[next_field + 1]->reset();
       }
+
+      if (table->s->fields > MAX_STATEMENT_TIME_COLUMN_IDX)
+      {
+        if (mqh.specified_limits & USER_RESOURCES::MAX_STATEMENT_TIME)
+          table->field[MAX_STATEMENT_TIME_COLUMN_IDX]->
+            store(mqh.max_statement_time);
+      }
     }
+    mqh_used= (mqh_used || mqh.questions || mqh.updates || mqh.conn_per_hour ||
+               mqh.user_conn || mqh.max_statement_time != 0.0);
 
     /* table format checked earlier */
     if (handle_as_role)
@@ -7466,6 +7529,21 @@ static void add_user_option(String *grant, long value, const char *name,
   }
 }
 
+
+static void add_user_option(String *grant, double value, const char *name)
+{
+  if (value != 0.0 )
+  {
+    char buff[FLOATING_POINT_BUFFER];
+    size_t len;
+    grant->append(' ');
+    grant->append(name, strlen(name));
+    grant->append(' ');
+    len= my_fcvt(value, 6, buff, NULL);
+    grant->append(buff, len);
+  }
+}
+
 static const char *command_array[]=
 {
   "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP", "RELOAD",
@@ -7848,7 +7926,8 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
         (acl_user->user_resource.questions ||
          acl_user->user_resource.updates ||
          acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn))
+         acl_user->user_resource.user_conn ||
+         acl_user->user_resource.max_statement_time != 0.0))
     {
       global.append(STRING_WITH_LEN(" WITH"));
       if (want_access & GRANT_ACL)
@@ -7861,6 +7940,8 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
                       "MAX_CONNECTIONS_PER_HOUR", false);
       add_user_option(&global, acl_user->user_resource.user_conn,
                       "MAX_USER_CONNECTIONS", true);
+      add_user_option(&global, acl_user->user_resource.max_statement_time,
+                      "MAX_STATEMENT_TIME");
     }
   }
 
@@ -8643,7 +8724,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   int elements;
   const char *UNINIT_VAR(user);
   const char *UNINIT_VAR(host);
-  const char *UNINIT_VAR(role);
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
   ACL_DB *acl_db= NULL;
@@ -8783,7 +8863,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
       user= role_grant_pair->u_uname;
       host= role_grant_pair->u_hname;
-      role= role_grant_pair->r_uname;
       break;
 
     default:
@@ -8793,8 +8872,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       user= "";
     if (! host)
       host= "";
-    if (! role)
-      role= "";
 
 #ifdef EXTRA_DEBUG
     DBUG_PRINT("loop",("scan struct: %u  index: %u  user: '%s'  host: '%s'",
@@ -8803,6 +8880,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
+      const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
       if (user_from->is_role() ? strcmp(user_from->user.str, role) :
           (strcmp(user_from->user.str, user) ||
            my_strcasecmp(system_charset_info, user_from->host.str, host)))
@@ -10128,6 +10206,11 @@ applicable_roles_insert(ACL_USER_BASE *grantee, ACL_ROLE *role, void *ptr)
   return 0;
 }
 
+#else
+bool check_grant(THD *, ulong, TABLE_LIST *, bool, uint, bool)
+{
+  return 0;
+}
 #endif /*NO_EMBEDDED_ACCESS_CHECKS */
 
 int fill_schema_enabled_roles(THD *thd, TABLE_LIST *tables, COND *cond)
@@ -12193,12 +12276,22 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
     if ((acl_user->user_resource.questions ||
          acl_user->user_resource.updates ||
          acl_user->user_resource.conn_per_hour ||
-         acl_user->user_resource.user_conn || max_user_connections_checking) &&
+         acl_user->user_resource.user_conn ||
+         acl_user->user_resource.max_statement_time != 0.0 ||
+         max_user_connections_checking) &&
          get_or_create_user_conn(thd,
            (opt_old_style_user_limits ? sctx->user : sctx->priv_user),
            (opt_old_style_user_limits ? sctx->host_or_ip : sctx->priv_host),
            &acl_user->user_resource))
       DBUG_RETURN(1); // The error is set by get_or_create_user_conn()
+
+    if (acl_user->user_resource.max_statement_time != 0.0)
+    {
+      thd->variables.max_statement_time_double=
+        acl_user->user_resource.max_statement_time;
+      thd->variables.max_statement_time=
+        (thd->variables.max_statement_time_double * 1e6 + 0.1);
+    }
   }
   else
     sctx->skip_grants();

@@ -1777,4 +1777,28 @@ SELECT * FROM t1 LEFT JOIN t2 LEFT JOIN t3 ON i2 = i3 ON i1 = i3
 
 DROP TABLE t1,t2,t3;
 
+--echo #
+--echo # MDEV-6634: Wrong estimates for ref(const) and key IS NULL predicate
+--echo #
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (a int, b int, c int, key(b), key(c));
+
+insert into t2 select 
+  @a:=A.a + 10*B.a+100*C.a,
+  IF(@a<900, NULL, @a),
+  IF(@a<500, NULL, @a)
+from t1 A, t1 B, t1 C;
+
+delete from t1 where a=0;
+
+--echo # Check that there are different #rows of NULLs for b and c, both !=10:
+explain select * from t2 force index (b) where b is null;
+explain select * from t2 force index (c) where c is null;
+
+explain select * from t1 left join t2 on t2.b is null;
+explain select * from t1 left join t2 on t2.c is null;
+
+drop table t1,t2;
+
 SET optimizer_switch=@save_optimizer_switch;

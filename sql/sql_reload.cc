@@ -25,6 +25,7 @@
 #include "hostname.h"    // hostname_cache_refresh
 #include "sql_repl.h"    // reset_master, reset_slave
 #include "rpl_mi.h"      // Master_info::data_lock
+#include "sql_show.h"
 #include "debug_sync.h"
 #include "rpl_mi.h"
 
@@ -130,7 +131,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       result= 1;
     }
 
-  if ((options & REFRESH_SLOW_LOG) && opt_slow_log)
+  if ((options & REFRESH_SLOW_LOG) && global_system_variables.sql_log_slow)
     logger.flush_slow_log();
 
   if ((options & REFRESH_GENERAL_LOG) && opt_log)
@@ -253,7 +254,16 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       }
       if (options & REFRESH_CHECKPOINT)
         disable_checkpoints(thd);
-    }
+      /*
+        We need to do it second time after wsrep appliers were blocked in
+        make_global_read_lock_block_commit(thd) above since they could have
+        modified the tables too.
+      */
+      if (WSREP(thd) &&
+          close_cached_tables(thd, tables, (options & REFRESH_FAST) ?
+                              FALSE : TRUE, TRUE))
+          result= 1;
+     }
     else
     {
       if (thd && thd->locked_tables_mode)
@@ -368,35 +378,17 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 #endif
  if (options & REFRESH_USER_RESOURCES)
    reset_mqh((LEX_USER *) NULL, 0);             /* purecov: inspected */
-  if (options & REFRESH_TABLE_STATS)
-  {
-    mysql_mutex_lock(&LOCK_global_table_stats);
-    free_global_table_stats();
-    init_global_table_stats();
-    mysql_mutex_unlock(&LOCK_global_table_stats);
-  }
-  if (options & REFRESH_INDEX_STATS)
-  {
-    mysql_mutex_lock(&LOCK_global_index_stats);
-    free_global_index_stats();
-    init_global_index_stats();
-    mysql_mutex_unlock(&LOCK_global_index_stats);
-  }
-  if (options & (REFRESH_USER_STATS | REFRESH_CLIENT_STATS))
-  {
-    mysql_mutex_lock(&LOCK_global_user_client_stats);
-    if (options & REFRESH_USER_STATS)
-    {
-      free_global_user_stats();
-      init_global_user_stats();
-    }
-    if (options & REFRESH_CLIENT_STATS)
-    {
-      free_global_client_stats();
-      init_global_client_stats();
-    }
-    mysql_mutex_unlock(&LOCK_global_user_client_stats);
-  }
+ if (options & REFRESH_GENERIC)
+ {
+   List_iterator_fast<LEX_STRING> li(thd->lex->view_list);
+   LEX_STRING *ls;
+   while ((ls= li++))
+   {
+     ST_SCHEMA_TABLE *table= find_schema_table(thd, ls->str);
+     if (table->reset_table())
+       result= 1;
+   }
+ }
  if (*write_to_binlog != -1)
    *write_to_binlog= tmp_write_to_binlog;
  /*

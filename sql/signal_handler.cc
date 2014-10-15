@@ -172,6 +172,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     case KILL_QUERY_HARD:
       kreason= "KILL_QUERY";
       break;
+    case KILL_TIMEOUT:
+    case KILL_TIMEOUT_HARD:
+      kreason= "KILL_TIMEOUT";
+      break;
     case KILL_SYSTEM_THREAD:
     case KILL_SYSTEM_THREAD_HARD:
       kreason= "KILL_SYSTEM_THREAD";

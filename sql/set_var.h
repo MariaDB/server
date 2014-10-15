@@ -61,7 +61,10 @@ public:
   sys_var *next;
   LEX_CSTRING name;
   enum flag_enum { GLOBAL, SESSION, ONLY_SESSION, SCOPE_MASK=1023,
-                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096, SHOW_VALUE_IN_HELP=8192 };
+                   READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096 };
+  enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
+  enum where { CONFIG, AUTO, SQL, COMPILE_TIME, ENV };
+
   /**
     Enumeration type to indicate for a system variable whether
     it will be written to the binlog or not.
@@ -70,6 +73,7 @@ public:
                             SESSION_VARIABLE_IN_BINLOG } binlog_status;
 
   my_option option;     ///< min, max, default values are stored here
+  enum where value_origin;
 
 protected:
   typedef bool (*on_check_function)(sys_var *self, THD *thd, set_var *var);
@@ -105,7 +109,7 @@ public:
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
   bool check(THD *thd, set_var *var);
-  uchar *value_ptr(THD *thd, enum_var_type type, LEX_STRING *base);
+  uchar *value_ptr(THD *thd, enum_var_type type, const LEX_STRING *base);
 
   /**
      Update the system variable with the default value from either
@@ -115,9 +119,10 @@ public:
   bool set_default(THD *thd, set_var *var);
   bool update(THD *thd, set_var *var);
 
-  longlong val_int(bool *is_null, THD *thd, enum_var_type type, LEX_STRING *base);
-  String *val_str(String *str, THD *thd, enum_var_type type, LEX_STRING *base);
-  double val_real(bool *is_null, THD *thd, enum_var_type type, LEX_STRING *base);
+  String *val_str_nolock(String *str, THD *thd, const uchar *value);
+  longlong val_int(bool *is_null, THD *thd, enum_var_type type, const LEX_STRING *base);
+  String *val_str(String *str, THD *thd, enum_var_type type, const LEX_STRING *base);
+  double val_real(bool *is_null, THD *thd, enum_var_type type, const LEX_STRING *base);
 
   SHOW_TYPE show_type() { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
@@ -130,7 +135,31 @@ public:
   bool is_struct() { return option.var_type & GET_ASK_ADDR; }
   bool is_written_to_binlog(enum_var_type type)
   { return type != OPT_GLOBAL && binlog_status == SESSION_VARIABLE_IN_BINLOG; }
-  virtual bool check_update_type(Item_result type) = 0;
+  bool check_update_type(Item_result type)
+  {
+    switch (option.var_type & GET_TYPE_MASK) {
+    case GET_INT:
+    case GET_UINT:
+    case GET_LONG:
+    case GET_ULONG:
+    case GET_LL:
+    case GET_ULL:
+      return type != INT_RESULT;
+    case GET_STR:
+    case GET_STR_ALLOC:
+      return type != STRING_RESULT;
+    case GET_ENUM:
+    case GET_BOOL:
+    case GET_SET:
+    case GET_FLAGSET:
+      return type != STRING_RESULT && type != INT_RESULT;
+    case GET_DOUBLE:
+      return type != INT_RESULT && type != REAL_RESULT && type != DECIMAL_RESULT;
+    default:
+      return true;
+    }
+  }
+
   bool check_type(enum_var_type type)
   {
     switch (scope())
@@ -143,11 +172,28 @@ public:
   }
   bool register_option(DYNAMIC_ARRAY *array, int parse_flags)
   {
-    return ((((option.id != -1) && ((flags & PARSE_EARLY) == parse_flags)) ||
-             (flags & parse_flags)) &&
-            insert_dynamic(array, (uchar*)&option));
+    DBUG_ASSERT(parse_flags == GETOPT_ONLY_HELP ||
+                parse_flags == PARSE_EARLY || parse_flags == 0);
+    if (option.id == NO_GETOPT)
+      return 0;
+    if (parse_flags == GETOPT_ONLY_HELP)
+    {
+      if (option.id != GETOPT_ONLY_HELP)
+        return 0;
+    }
+    else
+    {
+      if (option.id == GETOPT_ONLY_HELP)
+        return 0;
+      if ((flags & PARSE_EARLY) != parse_flags)
+        return 0;
+    }
+    return insert_dynamic(array, (uchar*)&option);
   }
   void do_deprecated_warning(THD *thd);
+
+  virtual uchar *default_value_ptr(THD *thd)
+  { return (uchar*)&option.def_value; }
 
 private:
   virtual bool do_check(THD *thd, set_var *var) = 0;
@@ -165,11 +211,11 @@ private:
 protected:
   /**
     A pointer to a value of the variable for SHOW.
-    It must be of show_val_type type (bool for SHOW_BOOL, int for SHOW_INT,
-    longlong for SHOW_LONGLONG, etc).
+    It must be of show_val_type type (my_bool for SHOW_MY_BOOL,
+    int for SHOW_INT, longlong for SHOW_LONGLONG, etc).
   */
-  virtual uchar *session_value_ptr(THD *thd, LEX_STRING *base);
-  virtual uchar *global_value_ptr(THD *thd, LEX_STRING *base);
+  virtual uchar *session_value_ptr(THD *thd, const LEX_STRING *base);
+  virtual uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
 
   /**
     A pointer to a storage area of the variable, to the raw data.
@@ -341,9 +387,18 @@ extern SHOW_COMP_OPTION have_openssl;
 */
 
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
+int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
 
 sys_var *find_sys_var(THD *thd, const char *str, uint length=0);
 int sql_set_variables(THD *thd, List<set_var_base> *var_list);
+
+#define SYSVAR_AUTOSIZE(VAR,VAL)                        \
+  do {                                                  \
+    VAR= (VAL);                                         \
+    mark_sys_var_value_origin(&VAR, sys_var::AUTO);     \
+  } while(0)
+
+void mark_sys_var_value_origin(void *ptr, enum sys_var::where here);
 
 bool fix_delay_key_write(sys_var *self, THD *thd, enum_var_type type);
 

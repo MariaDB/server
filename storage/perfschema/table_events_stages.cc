@@ -28,64 +28,6 @@
 
 THR_LOCK table_events_stages_current::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("THREAD_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("END_EVENT_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("SOURCE") },
-    { C_STRING_WITH_LEN("varchar(64)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_START") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_END") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("TIMER_WAIT") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("NESTING_EVENT_ID") },
-    { C_STRING_WITH_LEN("bigint(20)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("NESTING_EVENT_TYPE") },
-    { C_STRING_WITH_LEN("enum(\'STATEMENT\',\'STAGE\',\'WAIT\'") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_events_stages_current::m_field_def=
-{10 , field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_events_stages_current::m_share=
 {
@@ -98,8 +40,17 @@ table_events_stages_current::m_share=
   1000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_stages_current("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_ID BIGINT unsigned not null,"
+                      "END_EVENT_ID BIGINT unsigned,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "SOURCE VARCHAR(64),"
+                      "TIMER_START BIGINT unsigned,"
+                      "TIMER_END BIGINT unsigned,"
+                      "TIMER_WAIT BIGINT unsigned,"
+                      "NESTING_EVENT_ID BIGINT unsigned,"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT'))") }
 };
 
 THR_LOCK table_events_stages_history::m_table_lock;
@@ -116,8 +67,17 @@ table_events_stages_history::m_share=
   1000, /* records */
   sizeof(pos_events_stages_history), /* ref length */
   &m_table_lock,
-  &table_events_stages_current::m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_stages_history("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_ID BIGINT unsigned not null,"
+                      "END_EVENT_ID BIGINT unsigned,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "SOURCE VARCHAR(64),"
+                      "TIMER_START BIGINT unsigned,"
+                      "TIMER_END BIGINT unsigned,"
+                      "TIMER_WAIT BIGINT unsigned,"
+                      "NESTING_EVENT_ID BIGINT unsigned,"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT'))") }
 };
 
 THR_LOCK table_events_stages_history_long::m_table_lock;
@@ -134,8 +94,17 @@ table_events_stages_history_long::m_share=
   10000, /* records */
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
-  &table_events_stages_current::m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE events_stages_history_long("
+                      "THREAD_ID BIGINT unsigned not null,"
+                      "EVENT_ID BIGINT unsigned not null,"
+                      "END_EVENT_ID BIGINT unsigned,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "SOURCE VARCHAR(64),"
+                      "TIMER_START BIGINT unsigned,"
+                      "TIMER_END BIGINT unsigned,"
+                      "TIMER_WAIT BIGINT unsigned,"
+                      "NESTING_EVENT_ID BIGINT unsigned,"
+                      "NESTING_EVENT_TYPE ENUM('STATEMENT', 'STAGE', 'WAIT'))") }
 };
 
 table_events_stages_common::table_events_stages_common

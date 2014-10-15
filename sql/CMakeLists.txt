@@ -13,6 +13,26 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
+
+IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
+  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
+  SET(WSREP_SOURCES
+    wsrep_check_opts.cc
+    wsrep_hton.cc
+    wsrep_mysqld.cc 
+    wsrep_notify.cc
+    wsrep_sst.cc
+    wsrep_utils.cc
+    wsrep_var.cc
+    wsrep_binlog.cc
+    wsrep_applier.cc
+    wsrep_thd.cc
+  )
+  SET(WSREP_LIB wsrep)
+ELSE()
+  SET(WSREP_SOURCES wsrep_dummy.cc)
+ENDIF()
+
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/sql 
@@ -20,6 +40,7 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
+${WSREP_INCLUDES}
 )
 
 SET(GEN_SOURCES
@@ -92,6 +113,7 @@ SET (SQL_SOURCE
                my_apc.cc my_apc.h
                my_json_writer.cc my_json_writer.h
                rpl_gtid.cc rpl_parallel.cc
+	       ${WSREP_SOURCES}
                table_cache.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
@@ -113,6 +135,7 @@ DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
+  ${WSREP_LIB}
   ${SSL_LIBRARIES})
 
 IF(WIN32)

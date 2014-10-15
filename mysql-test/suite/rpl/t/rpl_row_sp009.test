@@ -5,8 +5,6 @@
 #############################################################################
 #TEST: Taken and modfied from http://bugs.mysql.com/bug.php?id=12168        #
 #############################################################################
-# 2006-02-08 By JBM : Added order by for ndb engine use
-#############################################################################
 
 # Includes
 -- source include/have_binlog_format_row.inc

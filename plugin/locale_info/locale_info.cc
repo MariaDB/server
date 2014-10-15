@@ -38,14 +38,14 @@ static MY_LOCALE **locale_list;
 /* LOCALES */
 static ST_FIELD_INFO locale_info_locale_fields_info[]=
 {
-  {"ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {"NAME", 255, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"DESCRIPTION", 255,  MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"ID", 4, MYSQL_TYPE_LONGLONG, 0, 0, "Id", 0},
+  {"NAME", 255, MYSQL_TYPE_STRING, 0, 0, "Name", 0},
+  {"DESCRIPTION", 255,  MYSQL_TYPE_STRING, 0, 0, "Description", 0},
   {"MAX_MONTH_NAME_LENGTH", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
   {"MAX_DAY_NAME_LENGTH", 4, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
   {"DECIMAL_POINT", 2, MYSQL_TYPE_STRING, 0, 0, 0, 0},
   {"THOUSAND_SEP", 2, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"ERROR_MESSAGE_LANGUAGE", 64, MYSQL_TYPE_STRING, 0, 0, 0, 0},
+  {"ERROR_MESSAGE_LANGUAGE", 64, MYSQL_TYPE_STRING, 0, 0, "Error_Message_Language", 0},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
 };
 static int locale_info_fill_table_locale(THD* thd, TABLE_LIST* tables, COND* cond)

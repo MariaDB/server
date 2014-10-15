@@ -25,6 +25,7 @@
 #include "sql_list.h"                      /* I_List */
 #include "sql_cmd.h"
 #include <my_rnd.h>
+#include "my_pthread.h"
 
 class THD;
 struct handlerton;
@@ -80,7 +81,7 @@ extern CHARSET_INFO *character_set_filesystem;
 extern MY_BITMAP temp_pool;
 extern bool opt_large_files, server_id_supplied;
 extern bool opt_update_log, opt_bin_log, opt_error_log;
-extern my_bool opt_log, opt_slow_log, opt_bootstrap;
+extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_backup_history_log;
 extern my_bool opt_backup_progress_log;
 extern ulonglong log_output_options;
@@ -328,6 +329,7 @@ void init_server_psi_keys();
   MAINTAINER: Please keep this list in order, to limit merge collisions.
   Hint: grep PSI_stage_info | sort -u
 */
+extern PSI_stage_info stage_apply_event;
 extern PSI_stage_info stage_after_create;
 extern PSI_stage_info stage_after_opening_tables;
 extern PSI_stage_info stage_after_table_lock;
@@ -335,6 +337,7 @@ extern PSI_stage_info stage_allocating_local_table;
 extern PSI_stage_info stage_alter_inplace_prepare;
 extern PSI_stage_info stage_alter_inplace;
 extern PSI_stage_info stage_alter_inplace_commit;
+extern PSI_stage_info stage_after_apply_event;
 extern PSI_stage_info stage_changing_master;
 extern PSI_stage_info stage_checking_master_version;
 extern PSI_stage_info stage_checking_permissions;
@@ -408,6 +411,7 @@ extern PSI_stage_info stage_statistics;
 extern PSI_stage_info stage_storing_result_in_query_cache;
 extern PSI_stage_info stage_storing_row_into_queue;
 extern PSI_stage_info stage_system_lock;
+extern PSI_stage_info stage_unlocking_tables;
 extern PSI_stage_info stage_update;
 extern PSI_stage_info stage_updating;
 extern PSI_stage_info stage_updating_main_table;
@@ -554,7 +558,6 @@ enum options_mysqld
   OPT_DEBUG_SYNC_TIMEOUT,
   OPT_DELAY_KEY_WRITE_ALL,
   OPT_DEPRECATED_OPTION,
-  OPT_ENGINE_CONDITION_PUSHDOWN,
   OPT_IGNORE_DB_DIRECTORY,
   OPT_ISAM_LOG,
   OPT_KEY_BUFFER_SIZE,

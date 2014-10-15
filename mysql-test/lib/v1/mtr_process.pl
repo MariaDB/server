@@ -31,7 +31,6 @@ sub mtr_check_stop_servers ($);
 sub mtr_kill_leftovers ();
 sub mtr_wait_blocking ($);
 sub mtr_record_dead_children ();
-sub mtr_ndbmgm_start($$);
 sub mtr_mysqladmin_start($$$);
 sub mtr_exit ($);
 sub sleep_until_file_created ($$$);
@@ -342,10 +341,8 @@ sub mtr_process_exit_status {
 ##############################################################################
 
 
-# Kill all processes(mysqld, ndbd, ndb_mgmd and im) that would conflict with
-# this run
+# Kill all processes that would conflict with this run
 # Make sure to remove the PID file, if any.
-# kill IM manager first, else it will restart the servers
 sub mtr_kill_leftovers () {
 
   mtr_report("Killing Possible Leftover Processes");
@@ -374,46 +371,6 @@ sub mtr_kill_leftovers () {
 		     port     => $srv->{'port'},
 		    });
     $srv->{'pid'}= 0; # Assume we are done with it
-  }
-
-  if ( ! $::opt_skip_ndbcluster )
-  {
-
-    foreach my $cluster (@{$::clusters})
-    {
-
-      # Don't shut down a "running" cluster
-      next if $cluster->{'use_running'};
-
-      mtr_debug("  - cluster " .
-		"(pid: $cluster->{pid}; " .
-		"pid file: '$cluster->{path_pid})");
-
-      my $pid= mtr_ndbmgm_start($cluster, "shutdown");
-
-      # Save the pid of the ndb_mgm process
-      $admin_pids{$pid}= 1;
-
-      push(@kill_pids,{
-		       pid      => $cluster->{'pid'},
-		       pidfile  => $cluster->{'path_pid'}
-		      });
-
-      $cluster->{'pid'}= 0; # Assume we are done with it
-
-      foreach my $ndbd (@{$cluster->{'ndbds'}})
-      {
-	mtr_debug("    - ndbd " .
-		  "(pid: $ndbd->{pid}; " .
-		  "pid file: '$ndbd->{path_pid})");
-
-	push(@kill_pids,{
-			 pid      => $ndbd->{'pid'},
-			 pidfile  => $ndbd->{'path_pid'},
-			});
-	$ndbd->{'pid'}= 0; # Assume we are done with it
-      }
-    }
   }
 
   # Wait for all the admin processes to complete
@@ -747,32 +704,6 @@ sub mtr_mysqladmin_start($$$) {
 
 }
 
-# Start "ndb_mgm shutdown" for a specific cluster, it will
-# shutdown all data nodes and leave the ndb_mgmd running
-sub mtr_ndbmgm_start($$) {
-  my $cluster= shift;
-  my $command= shift;
-
-  my $args;
-
-  mtr_init_args(\$args);
-
-  mtr_add_arg($args, "--no-defaults");
-  mtr_add_arg($args, "--core");
-  mtr_add_arg($args, "--try-reconnect=1");
-  mtr_add_arg($args, "--ndb_connectstring=%s", $cluster->{'connect_string'});
-  mtr_add_arg($args, "-e");
-  mtr_add_arg($args, "$command");
-
-  my $pid= mtr_spawn($::exe_ndb_mgm, $args,
-		     "", "/dev/null", "/dev/null", "",
-		     {});
-  mtr_verbose("mtr_ndbmgm_start, pid: $pid");
-  return $pid;
-
-}
-
-
 # Ping all servers in list, exit when none of them answers
 # or when timeout has passed
 sub mtr_ping_with_timeout($) {
@@ -843,25 +774,6 @@ sub mark_process_dead($)
     }
   }
 
-  foreach my $cluster (@{$::clusters})
-  {
-    if ( $cluster->{'pid'} eq $ret_pid )
-    {
-      mtr_verbose("$cluster->{'name'} cluster ndb_mgmd exited, pid: $ret_pid");
-      $cluster->{'pid'}= 0;
-      return;
-    }
-
-    foreach my $ndbd (@{$cluster->{'ndbds'}})
-    {
-      if ( $ndbd->{'pid'} eq $ret_pid )
-      {
-	mtr_verbose("$cluster->{'name'} cluster ndbd exited, pid: $ret_pid");
-	$ndbd->{'pid'}= 0;
-	return;
-      }
-    }
-  }
   mtr_warning("mark_process_dead couldn't find an entry for pid: $ret_pid");
 
 }
@@ -913,52 +825,6 @@ sub check_expected_crash_and_restart($)
 
       return;
     }
-  }
-
-  foreach my $cluster (@{$::clusters})
-  {
-    if ( $cluster->{'pid'} eq $ret_pid )
-    {
-      mtr_verbose("$cluster->{'name'} cluster ndb_mgmd exited, pid: $ret_pid");
-      $cluster->{'pid'}= 0;
-
-      # Check if crash expected and restart if it was
-      my $expect_file= "$::opt_vardir/tmp/ndb_mgmd_" . "$cluster->{'type'}" .
-	".expect";
-      if ( -f $expect_file )
-      {
-	mtr_verbose("Crash was expected, file $expect_file exists");
-	unlink($expect_file);
-	ndbmgmd_start($cluster);
-      }
-      return;
-    }
-
-    foreach my $ndbd (@{$cluster->{'ndbds'}})
-    {
-      if ( $ndbd->{'pid'} eq $ret_pid )
-      {
-	mtr_verbose("$cluster->{'name'} cluster ndbd exited, pid: $ret_pid");
-	$ndbd->{'pid'}= 0;
-
-	# Check if crash expected and restart if it was
-	my $expect_file= "$::opt_vardir/tmp/ndbd_" . "$cluster->{'type'}" .
-	  "$ndbd->{'idx'}" . ".expect";
-	if ( -f $expect_file )
-	{
-	  mtr_verbose("Crash was expected, file $expect_file exists");
-	  unlink($expect_file);
-	  ndbd_start($cluster, $ndbd->{'idx'},
-		     $ndbd->{'start_extra_args'});
-	}
-	return;
-      }
-    }
-  }
-
-  if ($::instance_manager->{'spawner_pid'} eq $ret_pid)
-  {
-    return;
   }
 
   mtr_warning("check_expected_crash_and_restart couldn't find an entry for pid: $ret_pid");

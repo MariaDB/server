@@ -39,7 +39,7 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.15"
+#define DUMP_VERSION "10.16"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -111,7 +111,8 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0,
                 opt_slave_apply= 0, 
                 opt_include_master_host_port= 0,
                 opt_events= 0, opt_comments_used= 0,
-                opt_alltspcs=0, opt_notspcs= 0;
+                opt_galera_sst_mode= 0,
+                opt_alltspcs=0, opt_notspcs= 0, opt_logging;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static MYSQL mysql_connection,*mysql=0;
@@ -346,6 +347,14 @@ static struct my_option my_long_options[] =
   {"force", 'f', "Continue even if we get an SQL error.",
    &ignore_errors, &ignore_errors, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
+  {"galera-sst-mode", 0,
+   "This mode should normally be used in mysqldump snapshot state transfer "
+   "(SST) in a Galera cluster. If enabled, mysqldump additionally dumps "
+   "commands to turn off binary logging and SET global gtid_binlog_state "
+   "with the current value. Note: RESET MASTER needs to be executed on the "
+   "server receiving the resulting dump.",
+   &opt_galera_sst_mode, &opt_galera_sst_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0,
+   0, 0, 0},
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"hex-blob", OPT_HEXBLOB, "Dump binary strings (BINARY, "
@@ -381,6 +390,8 @@ static struct my_option my_long_options[] =
   {"log-error", OPT_ERROR_LOG_FILE, "Append warnings and errors to given file.",
    &log_error_file, &log_error_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"log-queries", 0, "When restoring the dump, the server will, if logging turned on, log the queries to the general and slow query log.",
+   &opt_logging, &opt_logging, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"master-data", OPT_MASTER_DATA,
    "This causes the binary log position and filename to be appended to the "
    "output. If equal to 1, will print it as a CHANGE MASTER command; if equal"
@@ -662,6 +673,10 @@ static void write_header(FILE *sql_file, char *db_name)
                  );
     print_comment(sql_file, 0, "-- Server version\t%s\n",
                   mysql_get_server_info(&mysql_connection));
+
+    if (!opt_logging)
+      fprintf(sql_file,
+"\n/*M!100101 SET LOCAL SQL_LOG_OFF=0, LOCAL SLOW_QUERY_LOG=0 */;");
 
     if (opt_set_charset)
       fprintf(sql_file,
@@ -4799,6 +4814,42 @@ static int dump_selected_tables(char *db, char **table_names, int tables)
 } /* dump_selected_tables */
 
 
+/**
+  Add the following statements to the generated dump:
+  a) SET @@session.sql_log_bin=OFF;
+  b) SET @@global.gtid_binlog_state='[N-N-N,...]'
+*/
+static int wsrep_set_sst_cmds(MYSQL *mysql) {
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+
+  if (mysql_get_server_version(mysql) < 100005) {
+    /* @@gtid_binlog_state does not exist. */
+    return 0;
+  }
+
+  if (mysql_query_with_error_report(mysql, &res, "SELECT "
+                                    "@@global.gtid_binlog_state"))
+    return 1;
+
+  if (mysql_num_rows(res) != 1)
+    /* No entry for @@global.gtid_binlog_state, nothing needs to be done. */
+    return 0;
+
+  if (!(row= mysql_fetch_row(res)) || !(char *)row[0])
+    return 1;
+
+  /* first, add a command to turn off binary logging, */
+  fprintf(md_result_file, "SET @@session.sql_log_bin=OFF;\n");
+
+  /* followed by, a command to set global gtid_binlog_state. */
+  fprintf(md_result_file, "SET @@global.gtid_binlog_state='%s';\n",
+          (char*)row[0]);
+
+  mysql_free_result(res);
+  return 0;
+}
+
 static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
 {
   MYSQL_ROW row;
@@ -5743,6 +5794,10 @@ int main(int argc, char **argv)
   /* Add 'STOP SLAVE to beginning of dump */
   if (opt_slave_apply && add_stop_slave())
     goto err;
+
+  if (opt_galera_sst_mode && wsrep_set_sst_cmds(mysql))
+    goto err;
+
   if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos))
     goto err;
   if (opt_slave_data && do_show_slave_status(mysql))
