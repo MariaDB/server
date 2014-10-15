@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -131,18 +131,18 @@ append_leaf(FT_HANDLE ft, FTNODE leafnode, void *key, uint32_t keylen, void *val
     // apply an insert to the leaf node
     MSN msn = next_dummymsn();
     ft->ft->h->max_msn_in_ft = msn;
-    FT_MSG_S msg = { FT_INSERT, msn, xids_get_root_xids(), .u={.id = { &thekey, &theval }} };
+    ft_msg msg(&thekey, &theval, FT_INSERT, msn, toku_xids_get_root_xids());
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, false);
 
-    toku_ft_leaf_apply_msg(ft->ft->compare_fun, ft->ft->update_fun, &ft->ft->cmp_descriptor, leafnode, -1, &msg, &gc_info, nullptr, nullptr);
+    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, msg, &gc_info, nullptr, nullptr);
     {
 	int r = toku_ft_lookup(ft, &thekey, lookup_checkf, &pair);
 	assert(r==0);
 	assert(pair.call_count==1);
     }
 
-    FT_MSG_S badmsg = { FT_INSERT, msn, xids_get_root_xids(), .u={.id = { &thekey, &badval }} };
-    toku_ft_leaf_apply_msg(ft->ft->compare_fun, ft->ft->update_fun, &ft->ft->cmp_descriptor, leafnode, -1, &badmsg, &gc_info, nullptr, nullptr);
+    ft_msg badmsg(&thekey, &badval, FT_INSERT, msn, toku_xids_get_root_xids());
+    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, badmsg, &gc_info, nullptr, nullptr);
 
     // message should be rejected for duplicate msn, row should still have original val
     {
@@ -154,8 +154,8 @@ append_leaf(FT_HANDLE ft, FTNODE leafnode, void *key, uint32_t keylen, void *val
     // now verify that message with proper msn gets through
     msn = next_dummymsn();
     ft->ft->h->max_msn_in_ft = msn;
-    FT_MSG_S msg2 = { FT_INSERT, msn, xids_get_root_xids(), .u={.id = { &thekey, &val2 }} };
-    toku_ft_leaf_apply_msg(ft->ft->compare_fun, ft->ft->update_fun, &ft->ft->cmp_descriptor, leafnode, -1, &msg2, &gc_info, nullptr, nullptr);
+    ft_msg msg2(&thekey, &val2,  FT_INSERT, msn, toku_xids_get_root_xids());
+    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, msg2, &gc_info, nullptr, nullptr);
 
     // message should be accepted, val should have new value
     {
@@ -166,8 +166,8 @@ append_leaf(FT_HANDLE ft, FTNODE leafnode, void *key, uint32_t keylen, void *val
 
     // now verify that message with lesser (older) msn is rejected
     msn.msn = msn.msn - 10;
-    FT_MSG_S msg3 = { FT_INSERT, msn, xids_get_root_xids(), .u={.id = { &thekey, &badval } }};
-    toku_ft_leaf_apply_msg(ft->ft->compare_fun, ft->ft->update_fun, &ft->ft->cmp_descriptor, leafnode, -1, &msg3, &gc_info, nullptr, nullptr);
+    ft_msg msg3(&thekey, &badval, FT_INSERT, msn, toku_xids_get_root_xids());
+    toku_ft_leaf_apply_msg(ft->ft->cmp, ft->ft->update_fun, leafnode, -1, msg3, &gc_info, nullptr, nullptr);
 
     // message should be rejected, val should still have value in pair2
     {
@@ -202,7 +202,7 @@ test_msnfilter(int do_verify) {
 
     // create a cachetable
     CACHETABLE ct = NULL;
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     // create the ft
     TOKUTXN null_txn = NULL;
@@ -213,7 +213,7 @@ test_msnfilter(int do_verify) {
     FTNODE newroot = make_node(ft, 0);
 
     // set the new root to point to the new tree
-    toku_ft_set_new_root_blocknum(ft->ft, newroot->thisnodename);
+    toku_ft_set_new_root_blocknum(ft->ft, newroot->blocknum);
 
     // KLUDGE: Unpin the new root so toku_ft_lookup() can pin it.  (Pin lock is no longer a recursive
     //         mutex.)  Just leaving it unpinned for this test program works  because it is the only 

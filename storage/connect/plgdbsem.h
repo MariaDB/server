@@ -28,6 +28,8 @@ enum BLKTYP {TYPE_TABLE      = 50,    /* Table Name/Srcdef/... Block   */
              TYPE_COLUMN     = 51,    /* Column Name/Qualifier Block   */
              TYPE_TDB        = 53,    /* Table Description Block       */
              TYPE_COLBLK     = 54,    /* Column Description Block      */
+             TYPE_FILTER     = 55,    /* Filter Description Block      */
+             TYPE_ARRAY      = 63,    /* General array type            */
              TYPE_PSZ        = 64,    /* Pointer to String ended by 0  */
              TYPE_SQL        = 65,    /* Pointer to SQL block          */
              TYPE_XOBJECT    = 69,    /* Extended DB object            */
@@ -83,6 +85,7 @@ enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_SRVID =   5,        /* SERVID type (special column)  */
           TYPE_AM_TABID =   6,        /* TABID  type (special column)  */
           TYPE_AM_CNSID =   7,        /* CONSTID type (special column) */
+          TYPE_AM_PRTID =   8,        /* PARTID type (special column)  */
           TYPE_AM_COUNT =  10,        /* CPT AM type no (count table)  */
           TYPE_AM_DCD   =  20,        /* Decode access method type no  */
           TYPE_AM_CMS   =  30,        /* CMS access method type no     */
@@ -371,6 +374,7 @@ typedef class COLDEF     *PCOLDEF;
 typedef class CONSTANT   *PCONST;
 typedef class VALUE      *PVAL;
 typedef class VALBLK     *PVBLK;
+typedef class FILTER     *PFIL;
 
 typedef struct _fblock   *PFBLOCK;
 typedef struct _mblock   *PMBLOCK;
@@ -416,9 +420,10 @@ typedef struct {                       /* User application block       */
   PFBLOCK    Openlist;                 /* To file/map open list        */
   PMBLOCK    Memlist;                  /* To memory block list         */
   PXUSED     Xlist;                    /* To used index list           */
+  int        Maxbmp;                   /* Maximum XDB2 bitmap size     */
   int        Check;                    /* General level of checking    */
   int        Numlines;                 /* Number of lines involved     */
-  USETEMP    UseTemp;                  /* Use temporary file           */
+//USETEMP    UseTemp;                  /* Use temporary file           */
   int        Vtdbno;                   /* Used for TDB number setting  */
   bool       Remote;                   /* true: if remotely called     */
   bool       Proginfo;                 /* true: return progress info   */
@@ -459,6 +464,21 @@ typedef struct _tabs {
   PTABPTR P1;
   PTABADR P3;
   } TABS;
+
+/***********************************************************************/
+/*  Argument of expression, function, filter etc. (Xobject)            */
+/***********************************************************************/
+typedef struct _arg {              /* Argument                         */
+  PXOB    To_Obj;                  /* To the argument object           */
+  PVAL    Value;                   /* Argument value                   */
+  bool    Conv;                    /* TRUE if conversion is required   */
+  } ARGBLK, *PARG;
+
+typedef struct _oper {             /* Operator                         */
+  PSZ     Name;                    /* The input/output operator name   */
+  OPVAL   Val;                     /* Operator numeric value           */
+  int     Mod;                     /* The modificator                  */
+  } OPER, *POPER;
 
 /***********************************************************************/
 /*  Following definitions are used to define table fields (columns).   */
@@ -529,7 +549,9 @@ typedef  struct _colres {
 PPARM    Vcolist(PGLOBAL, PTDB, PSZ, bool);
 void     PlugPutOut(PGLOBAL, FILE *, short, void *, uint);
 void     PlugLineDB(PGLOBAL, PSZ, short, void *, uint);
-char    *PlgGetDataPath(PGLOBAL g);
+//ar    *PlgGetDataPath(PGLOBAL g);
+char    *SetPath(PGLOBAL g, const char *path);
+char    *ExtractFromPath(PGLOBAL, char *, char *, OPVAL);
 void     AddPointer(PTABS, void *);
 PDTP     MakeDateFormat(PGLOBAL, PSZ, bool, bool, int);
 int      ExtractDate(char *, PDTP, int, int val[6]);
@@ -538,14 +560,15 @@ int      ExtractDate(char *, PDTP, int, int val[6]);
 /*  Allocate the result structure that will contain result data.          */
 /**************************************************************************/
 DllExport PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
-                                 int *buftyp, XFLD *fldtyp, 
-                                 unsigned int *length, 
+                                 int *buftyp, XFLD *fldtyp,
+                                 unsigned int *length,
                                  bool blank, bool nonull);
 
 /***********************************************************************/
 /*  Exported utility routines.                                         */
 /***********************************************************************/
 DllExport FILE   *PlugOpenFile(PGLOBAL, LPCSTR, LPCSTR);
+DllExport FILE   *PlugReopenFile(PGLOBAL, PFBLOCK, LPCSTR);
 DllExport int     PlugCloseFile(PGLOBAL, PFBLOCK, bool all = false);
 DllExport void    PlugCleanup(PGLOBAL, bool);
 DllExport bool    GetPromptAnswer(PGLOBAL, char *);
@@ -561,7 +584,7 @@ DllExport void   *PlgDBrealloc(PGLOBAL, void *, MBLOCK&, size_t);
 DllExport void    NewPointer(PTABS, void *, void *);
 DllExport char    *GetIni(int n= 0);
 DllExport void    SetTrc(void);
-DllExport char   *GetListOption(PGLOBAL, const char *, const char *, 
+DllExport char   *GetListOption(PGLOBAL, const char *, const char *,
                                          const char *def=NULL);
 
 #define MSGID_NONE                         0

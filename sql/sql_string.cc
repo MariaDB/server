@@ -580,7 +580,7 @@ bool String::append_with_prefill(const char *s,uint32 arg_length,
   return FALSE;
 }
 
-uint32 String::numchars()
+uint32 String::numchars() const
 {
   return str_charset->cset->numchars(str_charset, Ptr, Ptr+str_length);
 }
@@ -1022,8 +1022,15 @@ well_formed_copy_nchars(CHARSET_INFO *to_cs,
         wc= '?';
       }
       else
-        break;  // Not enough characters
-
+      {
+        if ((uchar *) from >= from_end)
+          break; // End of line
+        // Incomplete byte sequence
+        if (!*well_formed_error_pos)
+          *well_formed_error_pos= from;
+        from++;
+        wc= '?';
+      }
 outp:
       if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
         to+= cnvres;
@@ -1074,7 +1081,7 @@ bool String::append_for_single_quote(const char *st, uint len)
   return 0;
 }
 
-void String::print(String *str)
+void String::print(String *str) const
 {
   str->append_for_single_quote(Ptr, str_length);
 }

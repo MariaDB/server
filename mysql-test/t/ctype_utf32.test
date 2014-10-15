@@ -1,4 +1,5 @@
 -- source include/have_utf32.inc
+-- source include/have_utf8mb4.inc
 
 SET TIME_ZONE = '+03:00';
 
@@ -873,6 +874,22 @@ ORDER BY l DESC;
 SELECT '2010-10-10 10:10:10' + INTERVAL GeometryType(GeomFromText('POINT(1 1)')) hour_second;
 
 --echo #
+--echo # MDEV-5745 analyze MySQL fix for bug#12368495
+--echo #
+SELECT CHAR_LENGTH(TRIM(LEADING 0x0000000000 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(LEADING 0x0001 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(LEADING 0x00 FROM _utf32 0x00000061));
+
+SELECT CHAR_LENGTH(TRIM(TRAILING 0x0000000000 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(TRAILING 0x0001 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(TRAILING 0x61 FROM _utf32 0x00000061));
+
+SELECT CHAR_LENGTH(TRIM(BOTH 0x0000000000 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(BOTH 0x0001 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(BOTH 0x61 FROM _utf32 0x00000061));
+SELECT CHAR_LENGTH(TRIM(BOTH 0x00 FROM _utf32 0x00000061));
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -901,4 +918,41 @@ set collation_connection=utf32_bin;
 --echo # End of 5.6 tests
 --echo #
 
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6661 PI() does not work well in UCS2/UTF16/UTF32 context
+--echo #
+SELECT CONCAT(CONVERT('pi=' USING utf32),PI()) AS PI;
+
+--echo #
+--echo # MDEV-6666 Malformed result for CONCAT(utf8_column, binary_string)
+--echo #
+
+SET NAMES utf8mb4;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf32);
+INSERT INTO t1 VALUES ('a');
+--error ER_INVALID_CHARACTER_STRING
+SELECT CONCAT(a,0x20FFFF) FROM t1;
+SELECT CONCAT(a,0x010000) FROM t1;
+SELECT CONCAT(a,0x00FF) FROM t1;
+DROP TABLE t1;
+--error ER_INVALID_CHARACTER_STRING
+SELECT CONCAT(_utf32'a' COLLATE utf32_unicode_ci, _binary 0x20FFFF);
+PREPARE stmt FROM "SELECT CONCAT(_utf32'a' COLLATE utf32_unicode_ci, ?)";
+SET @arg00=_binary 0x20FFFF;
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE stmt USING @arg00;
+SET @arg00=_binary 0x010000;
+EXECUTE stmt USING @arg00;
+SET @arg00=_binary 0x00FF;
+EXECUTE stmt USING @arg00;
+DEALLOCATE PREPARE stmt;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
 

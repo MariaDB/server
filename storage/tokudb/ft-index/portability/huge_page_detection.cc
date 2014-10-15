@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -107,7 +107,7 @@ static bool check_huge_pages_config_file(const char *fname)
         char *r = fgets(buf, sizeof(buf), f);
         assert(r != NULL);
         if (strstr(buf, "[always]")) {
-            fprintf(stderr,"TokuDB: Transparent huge pages are enabled, according to %s.  TokuDB will be disabled. To use TokuDB disable huge pages in your kernel or, for testing, set the environment variable TOKU_HUGE_PAGES_OK to 1\n", fname);
+            fprintf(stderr, "Transparent huge pages are enabled, according to %s\n", fname);
             huge_pages_enabled = true;
         } else {
             huge_pages_enabled =false;

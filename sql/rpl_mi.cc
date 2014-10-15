@@ -38,6 +38,7 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
    connect_retry(DEFAULT_CONNECT_RETRY), inited(0), abort_slave(0),
    slave_running(0), slave_run_id(0), sync_counter(0),
    heartbeat_period(0), received_heartbeats(0), master_id(0),
+   prev_master_id(0),
    using_gtid(USE_GTID_NO), events_queued_since_last_gtid(0),
    gtid_reconnect_event_skip_count(0), gtid_event_seen(false)
 {
@@ -890,6 +891,9 @@ bool Master_info_index::init_all_master_info()
   File index_file_nr;
   DBUG_ENTER("init_all_master_info");
 
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+  DBUG_ASSERT(master_info_index);
+
   if ((index_file_nr= my_open(index_file_name,
                               O_RDWR | O_CREAT | O_BINARY ,
                               MYF(MY_WME | ME_NOREFRESH))) < 0 ||
@@ -1089,6 +1093,10 @@ Master_info_index::get_master_info(const LEX_STRING *connection_name,
              ("connection_name: '%.*s'", (int) connection_name->length,
               connection_name->str));
 
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+  if (!this) // master_info_index is set to NULL on server shutdown
+    return NULL;
+
   /* Make name lower case for comparison */
   res= strmake(buff, connection_name->str, connection_name->length);
   my_casedn_str(system_charset_info, buff); 
@@ -1115,6 +1123,9 @@ bool Master_info_index::check_duplicate_master_info(LEX_STRING *name_arg,
 {
   Master_info *mi;
   DBUG_ENTER("check_duplicate_master_info");
+
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+  DBUG_ASSERT(master_info_index);
 
   /* Get full host and port name */
   if ((mi= master_info_index->get_master_info(name_arg,
@@ -1238,6 +1249,8 @@ bool Master_info_index::give_error_if_slave_running()
 {
   DBUG_ENTER("warn_if_slave_running");
   mysql_mutex_assert_owner(&LOCK_active_mi);
+  if (!this) // master_info_index is set to NULL on server shutdown
+    return TRUE;
 
   for (uint i= 0; i< master_info_hash.records; ++i)
   {

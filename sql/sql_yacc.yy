@@ -77,7 +77,7 @@ int yylex(void *yylval, void *yythd);
     ulong val= *(F);                          \
     if (my_yyoverflow((B), (D), &val))        \
     {                                         \
-      yyerror(current_thd, (char*) (A));      \
+      yyerror(thd, (char*) (A));              \
       return 2;                               \
     }                                         \
     else                                      \
@@ -1616,7 +1616,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <lex_str>
         IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
-        HEX_NUM HEX_STRING hex_num_or_string
+        HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
@@ -1635,7 +1635,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         wild_and_where
 
 %type <string>
-        text_string opt_gconcat_separator
+        text_string hex_or_bin_String opt_gconcat_separator
 
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
@@ -6288,7 +6288,8 @@ spatial_type:
         | GEOMETRYCOLLECTION  { $$= Field::GEOM_GEOMETRYCOLLECTION; }
         | POINT_SYM
           {
-            Lex->length= (char*)"25";
+            Lex->length= const_cast<char*>(STRINGIFY_ARG
+                                           (MAX_LEN_GEOM_POINT_FIELD));
             $$= Field::GEOM_POINT;
           }
         | MULTIPOINT          { $$= Field::GEOM_MULTIPOINT; }
@@ -6506,11 +6507,6 @@ now_or_signed_literal:
           }
         | signed_literal
           { $$=$1; }
-        ;
-
-hex_num_or_string:
-          HEX_NUM {}
-        | HEX_STRING {}
         ;
 
 charset:
@@ -9194,7 +9190,6 @@ simple_expr:
           }
         | '{' ident expr '}'
           {
-            Item_string *item;
             $$= NULL;
             /*
               If "expr" is reasonably short pure ASCII string literal,
@@ -9204,31 +9199,13 @@ simple_expr:
               SELECT {t'10:20:30'};
               SELECT {ts'2001-01-01 10:20:30'};
             */
-            if ($3->type() == Item::STRING_ITEM &&
-               (item= (Item_string *) $3) &&
-                item->collation.repertoire == MY_REPERTOIRE_ASCII &&
-                item->str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4)
+            if ($3->type() == Item::STRING_ITEM)
             {
-              enum_field_types type= MYSQL_TYPE_STRING;
-              LEX_STRING *ls= &$2;
-              if (ls->length == 1)
-              {
-                if (ls->str[0] == 'd')  /* {d'2001-01-01'} */
-                  type= MYSQL_TYPE_DATE;
-                else if (ls->str[0] == 't') /* {t'10:20:30'} */
-                  type= MYSQL_TYPE_TIME;
-              }
-              else if (ls->length == 2) /* {ts'2001-01-01 10:20:30'} */
-              {
-                if (ls->str[0] == 't' && ls->str[1] == 's')
-                  type= MYSQL_TYPE_DATETIME;
-              }
+              Item_string *item= (Item_string *) $3;
+              enum_field_types type= item->odbc_temporal_literal_type(&$2);
               if (type != MYSQL_TYPE_STRING)
               {
-                $$= create_temporal_literal(thd,
-                                            item->str_value.ptr(),
-                                            item->str_value.length(),
-                                            item->str_value.charset(),
+                $$= create_temporal_literal(thd, item->val_str(NULL),
                                             type, false);
               }
             }
@@ -11143,8 +11120,8 @@ opt_escape:
           {
             Lex->escape_used= FALSE;
             $$= ((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) ?
-                 new (thd->mem_root) Item_string("", 0, &my_charset_latin1) :
-                 new (thd->mem_root) Item_string("\\", 1, &my_charset_latin1));
+                 new (thd->mem_root) Item_string_ascii("", 0) :
+                 new (thd->mem_root) Item_string_ascii("\\", 1));
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -13298,14 +13275,10 @@ text_literal:
           }
         | UNDERSCORE_CHARSET TEXT_STRING
           {
-            Item_string *str= new (thd->mem_root) Item_string($2.str,
+            $$= new (thd->mem_root) Item_string_with_introducer($2.str,
                                                                 $2.length, $1);
-            if (str == NULL)
+            if ($$ == NULL)
               MYSQL_YYABORT;
-            str->set_repertoire_from_value();
-            str->set_cs_specified(TRUE);
-
-            $$= str;
           }
         | text_literal TEXT_STRING_literal
           {
@@ -13334,7 +13307,12 @@ text_string:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | HEX_NUM
+          | hex_or_bin_String { $$= $1; }
+          ;
+
+
+hex_or_bin_String:
+          HEX_NUM
           {
             Item *tmp= new (thd->mem_root) Item_hex_hybrid($1.str, $1.length);
             if (tmp == NULL)
@@ -13441,60 +13419,12 @@ literal:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | UNDERSCORE_CHARSET hex_num_or_string
+        | UNDERSCORE_CHARSET hex_or_bin_String
           {
-            Item *tmp= new (thd->mem_root) Item_hex_string($2.str, $2.length);
-            if (tmp == NULL)
+            Item_string_with_introducer *item_str;
+            item_str= new (thd->mem_root) Item_string_with_introducer($2, $1);
+            if (!item_str || !item_str->check_well_formed_result(true))
               MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fieds, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
-            String *str= tmp->val_str((String*) 0);
-
-            Item_string *item_str;
-            item_str= new (thd->mem_root)
-                        Item_string(NULL, /* name will be set in select_item */
-                                    str ? str->ptr() : "",
-                                    str ? str->length() : 0,
-                                    $1);
-            if (!item_str ||
-                !item_str->check_well_formed_result(&item_str->str_value, TRUE))
-            {
-              MYSQL_YYABORT;
-            }
-
-            item_str->set_repertoire_from_value();
-            item_str->set_cs_specified(TRUE);
-
-            $$= item_str;
-          }
-        | UNDERSCORE_CHARSET BIN_NUM
-          {
-            Item *tmp= new (thd->mem_root) Item_bin_string($2.str, $2.length);
-            if (tmp == NULL)
-              MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fieds, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
-            String *str= tmp->val_str((String*) 0);
-
-            Item_string *item_str;
-            item_str= new (thd->mem_root)
-                        Item_string(NULL, /* name will be set in select_item */
-                                    str ? str->ptr() : "",
-                                    str ? str->length() : 0,
-                                    $1);
-            if (!item_str ||
-                !item_str->check_well_formed_result(&item_str->str_value, TRUE))
-            {
-              MYSQL_YYABORT;
-            }
-
-            item_str->set_cs_specified(TRUE);
 
             $$= item_str;
           }
@@ -14918,19 +14848,19 @@ set_expr_or_default:
         | DEFAULT { $$=0; }
         | ON
           {
-            $$=new (thd->mem_root) Item_string("ON",  2, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("ON",  2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | ALL
           {
-            $$=new (thd->mem_root) Item_string("ALL", 3, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("ALL", 3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | BINARY
           {
-            $$=new (thd->mem_root) Item_string("binary", 6, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("binary", 6);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

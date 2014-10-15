@@ -128,7 +128,33 @@ insert into t3 value (1, @@global.binlog_checksum);
 drop table t1, t2, t3;
 set @@global.binlog_checksum = @master_save_binlog_checksum;
 set @@global.master_verify_checksum = @save_master_verify_checksum;
+*** Bug#59123 / MDEV-5799: INCIDENT_EVENT checksum written to error log as garbage characters ***
+CREATE TABLE t4 (a INT PRIMARY KEY);
+INSERT INTO t4 VALUES (1);
+SET sql_log_bin=0;
+CALL mtr.add_suppression("\\[ERROR\\] Can't generate a unique log-filename");
+SET sql_log_bin=1;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET debug_dbug= '+d,binlog_inject_new_name_error';
+FLUSH LOGS;
+ERROR HY000: Can't generate a unique log-filename master-bin.(1-999)
+
+SET debug_dbug= @old_dbug;
+INSERT INTO t4 VALUES (2);
+include/wait_for_slave_sql_error.inc [errno=1590]
+Last_SQL_Error = 'The incident LOST_EVENTS occured on the master. Message: error writing to the binary log'
+SELECT * FROM t4 ORDER BY a;
+a
+1
+STOP SLAVE IO_THREAD;
+SET sql_slave_skip_counter= 1;
+include/start_slave.inc
+SELECT * FROM t4 ORDER BY a;
+a
+1
+2
 set @@global.binlog_checksum = @slave_save_binlog_checksum;
 set @@global.slave_sql_verify_checksum = @save_slave_sql_verify_checksum;
 End of tests
+DROP TABLE t4;
 include/rpl_end.inc

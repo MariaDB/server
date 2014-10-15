@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2014, Oracle and/or its affiliates. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -43,6 +43,13 @@ Full Text Search interface
 
 /** Column name from the FTS config table */
 #define FTS_MAX_CACHE_SIZE_IN_MB	"cache_size_in_mb"
+
+/** Verify if a aux table name is a obsolete table
+by looking up the key word in the obsolete table names */
+#define FTS_IS_OBSOLETE_AUX_TABLE(table_name)			\
+	(strstr((table_name), "DOC_ID") != NULL			\
+	 || strstr((table_name), "ADDED") != NULL		\
+	 || strstr((table_name), "STOPWORDS") != NULL)
 
 /** This is maximum FTS cache for each table and would be
 a configurable variable */
@@ -601,8 +608,10 @@ fts_cache_init(
 
 	cache->total_size = 0;
 
+	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 	cache->deleted_doc_ids = ib_vector_create(
 		cache->sync_heap, sizeof(fts_update_t), 4);
+	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
 
 	/* Reset the cache data for all the FTS indexes. */
 	for (i = 0; i < ib_vector_size(cache->indexes); ++i) {
@@ -1130,7 +1139,10 @@ fts_cache_clear(
 	cache->sync_heap->arg = NULL;
 
 	cache->total_size = 0;
+
+	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 	cache->deleted_doc_ids = NULL;
+	mutex_exit((ib_mutex_t*) &cache->deleted_lock);
 }
 
 /*********************************************************************//**
@@ -1947,10 +1959,15 @@ fts_create_one_index_table(
 	char*			table_name = fts_get_table_name(fts_table);
 	dberr_t			error;
 	CHARSET_INFO*		charset;
+	ulint			flags2 = 0;
 
 	ut_ad(index->type & DICT_FTS);
 
-	new_table = dict_mem_table_create(table_name, 0, 5, 1, 0);
+	if (srv_file_per_table) {
+		flags2 = DICT_TF2_USE_TABLESPACE;
+	}
+
+	new_table = dict_mem_table_create(table_name, 0, 5, 1, flags2);
 
 	field = dict_index_get_nth_field(index, 0);
 	charset = innobase_get_fts_charset(
@@ -1979,7 +1996,7 @@ fts_create_one_index_table(
 	dict_mem_table_add_col(new_table, heap, "ilist", DATA_BLOB,
 			       4130048,	0);
 
-	error = row_create_table_for_mysql(new_table, trx, true);
+	error = row_create_table_for_mysql(new_table, trx, false);
 
 	if (error != DB_SUCCESS) {
 		trx->error_state = error;
@@ -2244,11 +2261,15 @@ static
 fts_trx_t*
 fts_trx_create(
 /*===========*/
-	trx_t*	trx)				/*!< in: InnoDB transaction */
+	trx_t*	trx)				/*!< in/out: InnoDB
+						transaction */
 {
-	fts_trx_t*	ftt;
-	ib_alloc_t*	heap_alloc;
-	mem_heap_t*	heap = mem_heap_create(1024);
+	fts_trx_t*		ftt;
+	ib_alloc_t*		heap_alloc;
+	mem_heap_t*		heap = mem_heap_create(1024);
+	trx_named_savept_t*	savep;
+
+	ut_a(trx->fts_trx == NULL);
 
 	ftt = static_cast<fts_trx_t*>(mem_heap_alloc(heap, sizeof(fts_trx_t)));
 	ftt->trx = trx;
@@ -2265,6 +2286,14 @@ fts_trx_create(
 	/* Default instance has no name and no heap. */
 	fts_savepoint_create(ftt->savepoints, NULL, NULL);
 	fts_savepoint_create(ftt->last_stmt, NULL, NULL);
+
+	/* Copy savepoints that already set before. */
+	for (savep = UT_LIST_GET_FIRST(trx->trx_savepoints);
+	     savep != NULL;
+	     savep = UT_LIST_GET_NEXT(trx_savepoints, savep)) {
+
+		fts_savepoint_take(trx, ftt, savep->name);
+	}
 
 	return(ftt);
 }
@@ -4359,6 +4388,7 @@ fts_sync_commit(
 	/* We need to do this within the deleted lock since fts_delete() can
 	attempt to add a deleted doc id to the cache deleted id array. */
 	fts_cache_clear(cache);
+	DEBUG_SYNC_C("fts_deleted_doc_ids_clear");
 	fts_cache_init(cache);
 	rw_lock_x_unlock(&cache->lock);
 
@@ -5160,6 +5190,12 @@ fts_cache_append_deleted_doc_ids(
 
 	mutex_enter((ib_mutex_t*) &cache->deleted_lock);
 
+	if (cache->deleted_doc_ids == NULL) {
+		mutex_exit((ib_mutex_t*) &cache->deleted_lock);
+		return;
+	}
+
+
 	for (i = 0; i < ib_vector_size(cache->deleted_doc_ids); ++i) {
 		fts_update_t*	update;
 
@@ -5445,16 +5481,15 @@ void
 fts_savepoint_take(
 /*===============*/
 	trx_t*		trx,		/*!< in: transaction */
+	fts_trx_t*	fts_trx,	/*!< in: fts transaction */
 	const char*	name)		/*!< in: savepoint name */
 {
 	mem_heap_t*		heap;
-	fts_trx_t*		fts_trx;
 	fts_savepoint_t*	savepoint;
 	fts_savepoint_t*	last_savepoint;
 
 	ut_a(name != NULL);
 
-	fts_trx = trx->fts_trx;
 	heap = fts_trx->heap;
 
 	/* The implied savepoint must exist. */
@@ -5771,7 +5806,7 @@ fts_savepoint_rollback(
 		ut_a(ib_vector_size(savepoints) > 0);
 
 		/* Restore the savepoint. */
-		fts_savepoint_take(trx, name);
+		fts_savepoint_take(trx, trx->fts_trx, name);
 	}
 }
 
@@ -5835,6 +5870,12 @@ fts_is_aux_table_name(
 			if (strncmp(ptr, fts_common_tables[i], len) == 0) {
 				return(TRUE);
 			}
+		}
+
+		/* Could be obsolete common tables. */
+		if (strncmp(ptr, "ADDED", len) == 0
+		    || strncmp(ptr, "STOPWORDS", len) == 0) {
+			return(true);
 		}
 
 		/* Try and read the index id. */
@@ -6432,6 +6473,56 @@ fts_check_and_drop_orphaned_tables(
 							 path);
 
 				mem_free(path);
+			}
+		} else {
+			if (FTS_IS_OBSOLETE_AUX_TABLE(aux_table->name)) {
+
+				/* Current table could be one of the three
+				obsolete tables, in this case, we should
+				always try to drop it but not rename it.
+				This could happen when we try to upgrade
+				from older server to later one, which doesn't
+				contain these obsolete tables. */
+				drop = true;
+
+				dberr_t	err;
+				trx_t*	trx_drop =
+					trx_allocate_for_background();
+
+				trx_drop->op_info = "Drop obsolete aux tables";
+				trx_drop->dict_operation_lock_mode = RW_X_LATCH;
+
+				trx_start_for_ddl(trx_drop, TRX_DICT_OP_TABLE);
+
+				err = row_drop_table_for_mysql(
+					aux_table->name, trx_drop, false, true);
+
+				trx_drop->dict_operation_lock_mode = 0;
+
+				if (err != DB_SUCCESS) {
+					/* We don't need to worry about the
+					failure, since server would try to
+					drop it on next restart, even if
+					the table was broken. */
+
+					ib_logf(IB_LOG_LEVEL_WARN,
+						"Fail to drop obsolete aux"
+						" table '%s', which is"
+						" harmless. will try to drop"
+						" it on next restart.",
+						aux_table->name);
+
+					fts_sql_rollback(trx_drop);
+				} else {
+					ib_logf(IB_LOG_LEVEL_INFO,
+						"Dropped obsolete aux"
+						" table '%s'.",
+						aux_table->name);
+
+					fts_sql_commit(trx_drop);
+				}
+
+				trx_free_for_background(trx_drop);
 			}
 		}
 #ifdef _WIN32

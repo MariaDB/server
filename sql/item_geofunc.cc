@@ -1739,4 +1739,12 @@ mem_error:
 }
 
 
+#ifndef DBUG_OFF
+longlong Item_func_gis_debug::val_int()
+{
+  /* For now this is just a stub. TODO: implement the internal GIS debuggign */
+  return 0;
+}
+#endif
+
 #endif /*HAVE_SPATIAL*/

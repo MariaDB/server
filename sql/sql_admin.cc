@@ -914,7 +914,7 @@ send_result_message:
       protocol->store(operator_name, system_charset_info);
       if (result_code) // either mysql_recreate_table or analyze failed
       {
-        DBUG_ASSERT(thd->is_error() || thd->killed);
+        DBUG_ASSERT(thd->is_error());
         if (thd->is_error())
         {
           const char *err_msg= thd->get_stmt_da()->message();

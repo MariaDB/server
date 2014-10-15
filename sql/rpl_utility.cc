@@ -826,7 +826,7 @@ can_convert_field_to(Field *field,
   @retval false Master table is not compatible with slave table.
 */
 bool
-table_def::compatible_with(THD *thd, Relay_log_info *rli,
+table_def::compatible_with(THD *thd, rpl_group_info *rgi,
                            TABLE *table, TABLE **conv_table_var)
   const
 {
@@ -834,6 +834,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
     We only check the initial columns for the tables.
   */
   uint const cols_to_check= MY_MIN(table->s->fields, size());
+  Relay_log_info *rli= rgi->rli;
   TABLE *tmp_table= NULL;
 
   for (uint col= 0 ; col < cols_to_check ; ++col)
@@ -857,7 +858,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
           This will create the full table with all fields. This is
           necessary to ge the correct field lengths for the record.
         */
-        tmp_table= create_conversion_table(thd, rli, table);
+        tmp_table= create_conversion_table(thd, rgi, table);
         if (tmp_table == NULL)
             return false;
         /*
@@ -885,7 +886,7 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
       String target_type(target_buf, sizeof(target_buf), &my_charset_latin1);
       show_sql_type(type(col), field_metadata(col), &source_type, field->charset());
       field->sql_type(target_type);
-      rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED,
+      rli->report(ERROR_LEVEL, ER_SLAVE_CONVERSION_FAILED, rgi->gtid_info(),
                   ER(ER_SLAVE_CONVERSION_FAILED),
                   col, db_name, tbl_name,
                   source_type.c_ptr_safe(), target_type.c_ptr_safe());
@@ -927,12 +928,14 @@ table_def::compatible_with(THD *thd, Relay_log_info *rli,
   conversion table.
  */
 
-TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *target_table) const
+TABLE *table_def::create_conversion_table(THD *thd, rpl_group_info *rgi,
+                                          TABLE *target_table) const
 {
   DBUG_ENTER("table_def::create_conversion_table");
 
   List<Create_field> field_list;
   TABLE *conv_table= NULL;
+  Relay_log_info *rli= rgi->rli;
   /*
     At slave, columns may differ. So we should create
     MY_MIN(columns@master, columns@slave) columns in the
@@ -1014,7 +1017,7 @@ TABLE *table_def::create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *
 
 err:
   if (conv_table == NULL)
-    rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION,
+    rli->report(ERROR_LEVEL, ER_SLAVE_CANT_CREATE_CONVERSION, rgi->gtid_info(),
                 ER(ER_SLAVE_CANT_CREATE_CONVERSION),
                 target_table->s->db.str,
                 target_table->s->table_name.str);

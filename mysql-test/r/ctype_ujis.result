@@ -25928,3 +25928,20 @@ hex(weight_string(cast(0x8FA2C38FA2C38FA2C3 as char),25, 4, 0xC0))
 #
 # End of 5.6 tests
 #
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-6776 ujis and eucjmps erroneously accept 0x8EA0 as a valid byte sequence
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET ujis);
+INSERT INTO t1 VALUES (0x8EA0);
+SELECT HEX(a), CHAR_LENGTH(a) FROM t1;
+HEX(a)	CHAR_LENGTH(a)
+	0
+DROP TABLE t1;
+SELECT _ujis 0x8EA0;
+ERROR HY000: Invalid ujis character string: '8EA0'
+#
+# End of 10.0 tests
+#

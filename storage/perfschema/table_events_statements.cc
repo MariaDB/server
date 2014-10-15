@@ -41,7 +41,7 @@ table_events_statements_current::m_share=
   &table_events_statements_current::delete_all_rows,
   NULL, /* get_row_count */
   1000, /* records */
-  sizeof(PFS_simple_index), /* ref length */
+  sizeof(pos_events_statements_current), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_statements_current("
                       "THREAD_ID BIGINT unsigned not null,"

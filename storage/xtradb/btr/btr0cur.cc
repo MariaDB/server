@@ -202,15 +202,6 @@ btr_rec_free_externally_stored_fields(
 	mtr_t*		mtr);	/*!< in: mini-transaction handle which contains
 				an X-latch to record page and to the index
 				tree */
-/***********************************************************//**
-Gets the externally stored size of a record, in units of a database page.
-@return	externally stored part, in units of a database page */
-static
-ulint
-btr_rec_get_externally_stored_len(
-/*==============================*/
-	const rec_t*	rec,	/*!< in: record */
-	const ulint*	offsets);/*!< in: array returned by rec_get_offsets() */
 #endif /* !UNIV_HOTBACKUP */
 
 /******************************************************//**
@@ -2743,6 +2734,31 @@ make_external:
 		goto return_after_reservations;
 	}
 
+	if (big_rec_vec) {
+		const ulint redo_10p = srv_log_file_size * UNIV_PAGE_SIZE / 10;
+		ulint total_blob_len = 0;
+
+		/* Calculate the total number of bytes for blob data */
+		for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
+			total_blob_len += big_rec_vec->fields[i].len;
+		}
+
+		if (total_blob_len > redo_10p) {
+			ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data"
+				" length (" ULINTPF ") is greater than"
+				" 10%% of the redo log file size (" UINT64PF
+				"). Please increase innodb_log_file_size.",
+				total_blob_len, srv_log_file_size);
+			if (n_reserved > 0) {
+				fil_space_release_free_extents(
+					index->space, n_reserved);
+			}
+
+			err = DB_TOO_BIG_RECORD;
+			goto err_exit;
+		}
+	}
+
 	/* Store state of explicit locks on rec on the page infimum record,
 	before deleting rec. The page infimum acts as a dummy carrier of the
 	locks, taking care also of lock releases, before we can move the locks
@@ -4238,15 +4254,15 @@ btr_rec_get_field_ref_offs(
 #define btr_rec_get_field_ref(rec, offsets, n)			\
 	((rec) + btr_rec_get_field_ref_offs(offsets, n))
 
-/***********************************************************//**
-Gets the externally stored size of a record, in units of a database page.
+/** Gets the externally stored size of a record, in units of a database page.
+@param[in]	rec	record
+@param[in]	offsets	array returned by rec_get_offsets()
 @return	externally stored part, in units of a database page */
-static
+
 ulint
 btr_rec_get_externally_stored_len(
-/*==============================*/
-	const rec_t*	rec,	/*!< in: record */
-	const ulint*	offsets)/*!< in: array returned by rec_get_offsets() */
+	const rec_t*	rec,
+	const ulint*	offsets)
 {
 	ulint	n_fields;
 	ulint	total_extern_len = 0;
@@ -4593,6 +4609,7 @@ btr_store_big_rec_extern_fields(
 	buf_block_t**	freed_pages	= NULL;
 	ulint		n_freed_pages	= 0;
 	dberr_t		error		= DB_SUCCESS;
+	ulint		total_blob_len	= 0;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
@@ -4611,6 +4628,23 @@ btr_store_big_rec_extern_fields(
 	zip_size = buf_block_get_zip_size(rec_block);
 	rec_page_no = buf_block_get_page_no(rec_block);
 	ut_a(fil_page_get_type(page_align(rec)) == FIL_PAGE_INDEX);
+
+	const ulint redo_10p = (srv_log_file_size * UNIV_PAGE_SIZE / 10);
+
+	/* Calculate the total number of bytes for blob data */
+	for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
+		total_blob_len += big_rec_vec->fields[i].len;
+	}
+
+	if (total_blob_len > redo_10p) {
+		ut_ad(op == BTR_STORE_INSERT);
+		ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data length"
+			" (" ULINTPF ") is greater than 10%% of the"
+			" redo log file size (" UINT64PF "). Please"
+			" increase innodb_log_file_size.",
+			total_blob_len, srv_log_file_size);
+		return(DB_TOO_BIG_RECORD);
+	}
 
 	if (page_zip) {
 		int	err;

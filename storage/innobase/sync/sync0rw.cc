@@ -41,6 +41,7 @@ Created 9/11/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "os0sync.h" /* for INNODB_RW_LOCKS_USE_ATOMICS */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	IMPLEMENTATION OF THE RW_LOCK
@@ -151,17 +152,11 @@ UNIV_INTERN mysql_pfs_key_t	rw_lock_mutex_key;
 To modify the debug info list of an rw-lock, this mutex has to be
 acquired in addition to the mutex protecting the lock. */
 
-UNIV_INTERN ib_mutex_t		rw_lock_debug_mutex;
+UNIV_INTERN os_fast_mutex_t	rw_lock_debug_mutex;
 
 # ifdef UNIV_PFS_MUTEX
 UNIV_INTERN mysql_pfs_key_t	rw_lock_debug_mutex_key;
 # endif
-
-/* If deadlock detection does not get immediately the mutex,
-it may wait for this event */
-UNIV_INTERN os_event_t		rw_lock_debug_event;
-/* This is set to TRUE, if there may be waiters for the event */
-UNIV_INTERN ibool		rw_lock_debug_waiters;
 
 /******************************************************************//**
 Creates a debug info struct. */
@@ -381,15 +376,19 @@ rw_lock_s_lock_spin(
 lock_loop:
 
 	/* Spin waiting for the writer field to become free */
+	os_rmb;
+	HMT_low();
 	while (i < SYNC_SPIN_ROUNDS && lock->lock_word <= 0) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
 
 		i++;
+		os_rmb;
 	}
 
-	if (i == SYNC_SPIN_ROUNDS) {
+	HMT_medium();
+	if (i >= SYNC_SPIN_ROUNDS) {
 		os_thread_yield();
 	}
 
@@ -476,16 +475,20 @@ rw_lock_x_lock_wait(
 
 	counter_index = (size_t) os_thread_get_curr_id();
 
+	os_rmb;
 	ut_ad(lock->lock_word <= 0);
 
+        HMT_low();
 	while (lock->lock_word < 0) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
 		if(i < SYNC_SPIN_ROUNDS) {
 			i++;
+			os_rmb;
 			continue;
 		}
+		HMT_medium();
 
 		/* If there is still a reader, then go to sleep.*/
 		rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
@@ -522,7 +525,9 @@ rw_lock_x_lock_wait(
 		} else {
 			sync_array_free_cell(sync_arr, index);
 		}
+		HMT_low();
 	}
+	HMT_medium();
 	rw_lock_stats.rw_x_spin_round_count.add(counter_index, i);
 }
 
@@ -559,6 +564,10 @@ rw_lock_x_lock_low(
 
 	} else {
 		os_thread_id_t	thread_id = os_thread_get_curr_id();
+
+		if (!pass) {
+			os_rmb;
+		}
 
 		/* Decrement failed: relock or failed lock */
 		if (!pass && lock->recursive
@@ -638,6 +647,8 @@ lock_loop:
 		}
 
 		/* Spin waiting for the lock_word to become free */
+		os_rmb;
+		HMT_low();
 		while (i < SYNC_SPIN_ROUNDS
 		       && lock->lock_word <= 0) {
 			if (srv_spin_wait_delay) {
@@ -646,8 +657,10 @@ lock_loop:
 			}
 
 			i++;
+			os_rmb;
 		}
-		if (i == SYNC_SPIN_ROUNDS) {
+		HMT_medium();
+		if (i >= SYNC_SPIN_ROUNDS) {
 			os_thread_yield();
 		} else {
 			goto lock_loop;
@@ -690,22 +703,7 @@ void
 rw_lock_debug_mutex_enter(void)
 /*===========================*/
 {
-loop:
-	if (0 == mutex_enter_nowait(&rw_lock_debug_mutex)) {
-		return;
-	}
-
-	os_event_reset(rw_lock_debug_event);
-
-	rw_lock_debug_waiters = TRUE;
-
-	if (0 == mutex_enter_nowait(&rw_lock_debug_mutex)) {
-		return;
-	}
-
-	os_event_wait(rw_lock_debug_event);
-
-	goto loop;
+	os_fast_mutex_lock(&rw_lock_debug_mutex);
 }
 
 /******************************************************************//**
@@ -715,12 +713,7 @@ void
 rw_lock_debug_mutex_exit(void)
 /*==========================*/
 {
-	mutex_exit(&rw_lock_debug_mutex);
-
-	if (rw_lock_debug_waiters) {
-		rw_lock_debug_waiters = FALSE;
-		os_event_set(rw_lock_debug_event);
-	}
+	os_fast_mutex_unlock(&rw_lock_debug_mutex);
 }
 
 /******************************************************************//**

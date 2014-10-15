@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -96,7 +96,6 @@ PATENT RIGHTS GRANT:
 #include <ft-cachetable-wrappers.h>
 
 static TOKUTXN const null_txn = 0;
-static DB * const null_db = 0;
 
 enum { NODESIZE = 1024, KSIZE=NODESIZE-100, TOKU_PSIZE=20 };
 
@@ -110,7 +109,7 @@ doit (void) {
 
     int r;
     
-    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, nullptr);
     unlink(fname);
     r = toku_open_ft_handle(fname, 1, &t, NODESIZE, NODESIZE/2, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, toku_builtin_compare_fun);
     assert(r==0);
@@ -148,8 +147,8 @@ doit (void) {
     // then node_internal should be huge
     // we pin it and verify that it is not
     FTNODE node;
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_full_read(&bfe, t->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_full_read(t->ft);
     toku_pin_ftnode(
         t->ft, 
         node_internal,

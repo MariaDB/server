@@ -822,7 +822,15 @@ int ha_myisam::open(const char *name, int mode, uint test_if_locked)
     table->key_info[i].block_size= file->s->keyinfo[i].block_length;
   }
   my_errno= 0;
+
+  /* Count statistics of usage for newly open normal files */
+  if (file->s->reopen == 1 && ! (test_if_locked & HA_OPEN_TMP_TABLE))
+  {
+    if (file->s->delay_key_write)
+      feature_files_opened_with_delayed_keys++;
+  }
   goto end;
+
  err:
   this->close();
  end:
@@ -1079,7 +1087,6 @@ int ha_myisam::repair(THD *thd, HA_CHECK &param, bool do_optimize)
 
   param.db_name=    table->s->db.str;
   param.table_name= table->alias.c_ptr();
-  param.tmpfile_createflag= O_RDWR | O_TRUNC | O_EXCL;
   param.using_global_keycache = 1;
   param.thd= thd;
   param.tmpdir= &mysql_tmpdir_list;

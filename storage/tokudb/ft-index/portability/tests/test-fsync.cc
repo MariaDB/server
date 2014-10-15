@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -221,7 +221,6 @@ time_fsyncs_many_files(int N, int bytes, int fds[/*N*/]) {
     }
 }
 
-//sync() does not appear to have an analogue on windows.
 static void
 time_sync_fsyncs_many_files(int N, int bytes, int fds[/*N*/]) {
     if (verbose>1) {

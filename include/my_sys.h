@@ -242,6 +242,11 @@ extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *default_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *all_charsets[MY_ALL_CHARSETS_SIZE];
 extern struct charset_info_st compiled_charsets[];
 
+/* Collation properties and use statistics */
+extern my_bool my_collation_is_known_id(uint id);
+extern ulonglong my_collation_statistics_get_use_count(uint id);
+extern const char *my_collation_get_tailoring(uint id);
+
 /* statistics */
 extern ulong	my_file_opened,my_stream_opened, my_tmp_file_created;
 extern ulong    my_file_total_opened;

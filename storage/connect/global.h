@@ -1,6 +1,6 @@
 /***********************************************************************/
 /*  GLOBAL.H: Declaration file used by all CONNECT implementations.    */
-/*  (C) Copyright Olivier Bertrand                       1993-2012     */
+/*  (C) Copyright Olivier Bertrand                       1993-2014     */
 /***********************************************************************/
 
 /***********************************************************************/
@@ -23,12 +23,12 @@
 #define XML_SUPPORT 1
 #endif
 
-#if defined(XMSG) 
+#if defined(XMSG)
 // Definition used to read messages from message file.
 #include "msgid.h"
 #define MSG(I)   PlugReadMessage(NULL, MSG_##I, #I)
 #define STEP(I)  PlugReadMessage(g, MSG_##I, #I)
-#elif defined(NEWMSG) 
+#elif defined(NEWMSG)
 // Definition used to get messages from resource.
 #include "msgid.h"
 #define MSG(I)   PlugGetMessage(NULL, MSG_##I)
@@ -85,6 +85,7 @@
 #define  TYPE_INT          7
 #define  TYPE_DECIM        9
 #define  TYPE_BIN         10
+#define  TYPE_PCHAR       11
 
 #if defined(OS32)
   #define  SYS_STAMP   "OS32"
@@ -223,6 +224,7 @@ typedef struct _global {            /* Global structure                */
   int       Createas;               /* To pass info to created table   */
   void     *Xchk;                   /* indexes in create/alter         */
   short     Alchecked;              /* Checked for ALTER               */
+  short     Mrr;                    /* True when doing mrr             */
   short     Trace;
   int       jump_level;
   jmp_buf   jumper[MAX_JUMP + 2];

@@ -279,6 +279,11 @@ The following options may be given as the first argument:
  The default size of key cache blocks
  --key-cache-division-limit=# 
  The minimum percentage of warm blocks in key cache
+ --key-cache-file-hash-size=# 
+ Number of hash buckets for open and changed files.  If
+ you have a lot of MyISAM files open you should increase
+ this for faster flush of changes. A good value is
+ probably 1/10 of number of possible open MyISAM files.
  --key-cache-segments=# 
  The number of segments in a key cache
  -L, --language=name Client error messages in given language. May be given as
@@ -1031,8 +1036,8 @@ The following options may be given as the first argument:
  created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
- --timed-mutexes     Specify whether to time mutexes (only InnoDB mutexes are
- currently supported)
+ --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
+ effect.
  --tmp-table-size=#  If an internal in-memory temporary table exceeds this
  size, MySQL will automatically convert it to an on-disk
  MyISAM or Aria table
@@ -1154,6 +1159,7 @@ key-buffer-size 134217728
 key-cache-age-threshold 300
 key-cache-block-size 1024
 key-cache-division-limit 100
+key-cache-file-hash-size 512
 key-cache-segments 0
 large-pages FALSE
 lc-messages en_US

@@ -22,3 +22,4 @@ ssl_crl                  : broken upstream
 ssl_crl_clrpath          : broken upstream
 innodb-wl5522-debug-zip  : broken upstream
 innodb_bug12902967       : broken upstream
+file_contents            : MDEV-6526 these files are not installed anymore

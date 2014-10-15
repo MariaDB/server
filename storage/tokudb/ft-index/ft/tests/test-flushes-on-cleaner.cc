@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -94,11 +94,10 @@ PATENT RIGHTS GRANT:
 
 #include <ft-cachetable-wrappers.h>
 #include "ft-flusher.h"
-#include "checkpoint.h"
+#include "cachetable/checkpoint.h"
 
 
 static TOKUTXN const null_txn = 0;
-static DB * const null_db = 0;
 
 enum { NODESIZE = 1024, KSIZE=NODESIZE-100, TOKU_PSIZE=20 };
 
@@ -132,7 +131,7 @@ doit (bool keep_other_bn_in_memory) {
 
     int r;
     
-    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, nullptr);
     unlink(fname);
     r = toku_open_ft_handle(fname, 1, &ft, NODESIZE, NODESIZE/2, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, toku_builtin_compare_fun);
     assert(r==0);
@@ -244,8 +243,8 @@ doit (bool keep_other_bn_in_memory) {
     assert_zero(r);
     // now lock and release the leaf node to make sure it is what we expect it to be.
     FTNODE node = NULL;
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_min_read(&bfe, ft->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_min_read(ft->ft);
     toku_pin_ftnode(
         ft->ft, 
         node_leaf,
@@ -281,7 +280,7 @@ doit (bool keep_other_bn_in_memory) {
         // but only one should have broadcast message
         // applied.
         //
-        fill_bfe_for_full_read(&bfe, ft->ft);
+        bfe.create_for_full_read(ft->ft);
     }
     else {
         //
@@ -290,7 +289,7 @@ doit (bool keep_other_bn_in_memory) {
         // node is in memory and another is
         // on disk
         //
-        fill_bfe_for_min_read(&bfe, ft->ft);
+        bfe.create_for_min_read(ft->ft);
     }
     toku_pin_ftnode(
         ft->ft, 
@@ -315,7 +314,7 @@ doit (bool keep_other_bn_in_memory) {
     //
     // now let us induce a clean on the internal node
     //    
-    fill_bfe_for_min_read(&bfe, ft->ft);
+    bfe.create_for_min_read(ft->ft);
     toku_pin_ftnode(
         ft->ft, 
         node_internal,
@@ -338,7 +337,7 @@ doit (bool keep_other_bn_in_memory) {
         );
 
     // verify that node_internal's buffer is empty
-    fill_bfe_for_min_read(&bfe, ft->ft);
+    bfe.create_for_min_read(ft->ft);
     toku_pin_ftnode(
         ft->ft, 
         node_internal,

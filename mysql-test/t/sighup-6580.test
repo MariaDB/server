@@ -1,0 +1,10 @@
+#
+# MDEV-6580 Assertion `thd' failed in my_malloc_size_cb_func upon writing status report into error log
+#
+source include/not_windows.inc;
+source include/not_embedded.inc;
+let $pid=`select @@pid_file`;
+exec kill -1 `cat $pid`;
+
+select 'ok';
+

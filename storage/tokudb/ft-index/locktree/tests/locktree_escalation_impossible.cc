@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -167,9 +167,8 @@ int main(int argc, const char *argv[]) {
     const TXNID txn_b = 100;
 
     // create lock trees
-    DESCRIPTOR desc = nullptr;
-    DICTIONARY_ID dict_id = { 1 };
-    locktree *lt = mgr.get_lt(dict_id, desc, compare_dbts, nullptr);
+    DICTIONARY_ID dict_id = { .dictid = 1 };
+    locktree *lt = mgr.get_lt(dict_id, dbt_comparator, nullptr);
 
     int64_t last_i = -1;
     for (int64_t i = 0; ; i++) {

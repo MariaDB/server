@@ -1,7 +1,7 @@
 /*************** FilAMap H Declares Source Code File (.H) **************/
-/*  Name: FILAMAP.H     Version 1.2                                    */
+/*  Name: FILAMAP.H     Version 1.3                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /*  This file contains the MAP file access method classes declares.    */
 /***********************************************************************/
@@ -33,23 +33,26 @@ class DllExport MAPFAM : public TXTFAM {
   virtual void  Reset(void);
   virtual int   GetFileLength(PGLOBAL g);
   virtual int   Cardinality(PGLOBAL g) {return (g) ? -1 : 0;}
+  virtual int   MaxBlkSize(PGLOBAL g, int s) {return s;}
   virtual int   GetRowID(void);
   virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual bool  SetPos(PGLOBAL g, int recpos);
   virtual int   SkipRecord(PGLOBAL g, bool header);
   virtual bool  OpenTableFile(PGLOBAL g);
   virtual bool  DeferReading(void) {return false;}
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
-  virtual int    DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g);
+  virtual int   DeleteRecords(PGLOBAL g, int irc);
+  virtual void  CloseTableFile(PGLOBAL g, bool abort);
   virtual void  Rewind(void);
 
  protected:
+  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+
   // Members
   char *Memory;               // Pointer on file mapping view.
   char *Mempos;               // Position of next data to read
-  char *Fpos;                  // Position of last read record
+  char *Fpos;                 // Position of last read record
   char *Tpos;                 // Target Position for delete move
   char *Spos;                 // Start position for delete move
   char *Top;                  // Mark end of file mapping view
@@ -71,6 +74,8 @@ class DllExport MBKFAM : public MAPFAM {
   // Methods
   virtual void Reset(void);
   virtual int  Cardinality(PGLOBAL g);
+  virtual int  MaxBlkSize(PGLOBAL g, int s)
+                {return TXTFAM::MaxBlkSize(g, s);}
   virtual int  GetRowID(void);
   virtual int  SkipRecord(PGLOBAL g, bool header);
   virtual int  ReadBuffer(PGLOBAL g);
@@ -96,12 +101,17 @@ class DllExport MPXFAM : public MBKFAM {
 
   // Methods
   virtual int   Cardinality(PGLOBAL g) {return TXTFAM::Cardinality(g);}
-  virtual bool  SetPos(PGLOBAL g, int recpos); 
+  virtual int   MaxBlkSize(PGLOBAL g, int s)
+                {return TXTFAM::MaxBlkSize(g, s);}
+  virtual bool  SetPos(PGLOBAL g, int recpos);
+  virtual int   GetNextPos(void) {return (int)Fpos + Nrec;}
   virtual bool  DeferReading(void) {return false;}
   virtual int   ReadBuffer(PGLOBAL g);
   virtual int   WriteBuffer(PGLOBAL g);
 
  protected:
+  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+
   // No additional members
   }; // end of class MPXFAM
 

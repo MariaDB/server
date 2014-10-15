@@ -261,24 +261,28 @@ SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
 # Clean up.
 --connection server_1
 SET GLOBAL gtid_domain_id=0;
+--sorted_result
 STOP ALL SLAVES;
 SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 
 --connection server_2
 SET GLOBAL gtid_domain_id=0;
+--sorted_result
 STOP ALL SLAVES;
 SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 
 --connection server_3
 SET GLOBAL gtid_domain_id=0;
+--sorted_result
 STOP ALL SLAVES;
 SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;
 
 --connection server_4
 SET GLOBAL gtid_domain_id=0;
+--sorted_result
 STOP ALL SLAVES;
 SET GLOBAL slave_parallel_threads= @old_parallel;
 SET GLOBAL gtid_ignore_duplicates= @old_ignore_duplicates;

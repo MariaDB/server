@@ -20873,21 +20873,54 @@ static int my_strnncollsp_uca(CHARSET_INFO *cs,
 static void my_hash_sort_uca(CHARSET_INFO *cs,
                              my_uca_scanner_handler *scanner_handler,
 			     const uchar *s, size_t slen,
-			     ulong *n1, ulong *n2)
+			     ulong *nr1, ulong *nr2)
 {
   int   s_res;
   my_uca_scanner scanner;
-  
-  slen= cs->cset->lengthsp(cs, (char*) s, slen);
+  int space_weight= my_space_weight(cs);
+  register ulong m1= *nr1, m2= *nr2;
+
   scanner_handler->init(&scanner, cs, &cs->uca->level[0], s, slen);
   
   while ((s_res= scanner_handler->next(&scanner)) >0)
   {
-    n1[0]^= (((n1[0] & 63)+n2[0])*(s_res >> 8))+ (n1[0] << 8);
-    n2[0]+=3;
-    n1[0]^= (((n1[0] & 63)+n2[0])*(s_res & 0xFF))+ (n1[0] << 8);
-    n2[0]+=3;
+    if (s_res == space_weight)
+    {
+      /* Combine all spaces to be able to skip end spaces */
+      uint count= 0;
+      do
+      {
+        count++;
+        if ((s_res= scanner_handler->next(&scanner)) <= 0)
+        {
+          /* Skip strings at end of string */
+          goto end;
+        }
+      }
+      while (s_res == space_weight);
+
+      /* Add back that has for the space characters */
+      do
+      {
+        /*
+          We can't use MY_HASH_ADD_16() here as we, because of a misstake
+          in the original code, where we added the 16 byte variable the
+          opposite way.  Changing this would cause old partitioned tables
+          to fail.
+        */
+        MY_HASH_ADD(m1, m2, space_weight >> 8);
+        MY_HASH_ADD(m1, m2, space_weight & 0xFF);
+      }
+      while (--count != 0);
+
+    }
+    /* See comment above why we can't use MY_HASH_ADD_16() */
+    MY_HASH_ADD(m1, m2, s_res >> 8);
+    MY_HASH_ADD(m1, m2, s_res & 0xFF);
   }
+end:
+  *nr1= m1;
+  *nr2= m2;
 }
 
 

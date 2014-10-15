@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -132,7 +132,7 @@ test_main(int argc, char *const argv[]) {
 	r = db_env_create(&dbenv, 0);
 	CKERR(r);
 	r = dbenv->open(dbenv, TOKU_TEST_FILENAME, private_flags|DB_INIT_MPOOL, 0);
-	// TokuDB has no trouble opening an environment if the directory exists.
+	// TokuFT has no trouble opening an environment if the directory exists.
 	CKERR(r);
 	assert(r==0);
 	dbenv->close(dbenv,0); // free memory

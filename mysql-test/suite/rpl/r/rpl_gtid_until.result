@@ -168,7 +168,7 @@ a
 include/stop_slave.inc
 CREATE TABLE t3 (a INT);
 DROP TABLE t3;
-START SLAVE UNTIL master_gtid_pos='1-1-5,2-1-5,0-1-6';
+START SLAVE UNTIL master_gtid_pos='UNTIL_CONDITION';
 include/wait_for_slave_to_stop.inc
 SHOW CREATE TABLE t3;
 Table	Create Table

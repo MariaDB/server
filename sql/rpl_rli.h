@@ -28,6 +28,12 @@ struct RPL_TABLE_LIST;
 class Master_info;
 class Rpl_filter;
 
+
+enum {
+  LINES_IN_RELAY_LOG_INFO_WITH_DELAY= 5
+};
+
+
 /****************************************************************************
 
   Replication SQL Thread
@@ -55,6 +61,7 @@ class Rpl_filter;
 *****************************************************************************/
 
 struct rpl_group_info;
+struct inuse_relaylog;
 
 class Relay_log_info : public Slave_reporting_capability
 {
@@ -158,6 +165,13 @@ public:
   Master_info *mi;
 
   /*
+    List of active relay log files.
+    (This can be more than one in case of parallel replication).
+  */
+  inuse_relaylog *inuse_relaylog_list;
+  inuse_relaylog *last_inuse_relaylog;
+
+  /*
     Needed to deal properly with cur_log getting closed and re-opened with
     a different log under our feet
   */
@@ -237,10 +251,11 @@ public:
     errors, and have been manually applied by DBA already.
     Must be ulong as it's refered to from set_var.cc
   */
-  volatile ulong slave_skip_counter;
+  volatile ulonglong slave_skip_counter;
+  ulonglong max_relay_log_size;
+
   volatile ulong abort_pos_wait;	/* Incremented on change master */
   volatile ulong slave_run_id;		/* Incremented on slave start */
-  ulong max_relay_log_size;
   mysql_mutex_t log_space_lock;
   mysql_cond_t log_space_cond;
   /*
@@ -392,6 +407,7 @@ public:
   void stmt_done(my_off_t event_log_pos,
                  time_t event_creation_time, THD *thd,
                  rpl_group_info *rgi);
+  int alloc_inuse_relaylog(const char *name);
 
   /**
      Is the replication inside a group?
@@ -458,6 +474,41 @@ private:
 
 
 /*
+  In parallel replication, if we need to re-try a transaction due to a
+  deadlock or other temporary error, we may need to go back and re-read events
+  out of an earlier relay log.
+
+  This structure keeps track of the relaylogs that are potentially in use.
+  Each rpl_group_info has a pointer to one of those, corresponding to the
+  first GTID event.
+
+  A pair of reference count keeps track of how long a relay log is potentially
+  in use. When the `completed' flag is set, all events have been read out of
+  the relay log, but the log might still be needed for retry in worker
+  threads.  As worker threads complete an event group, they increment
+  atomically the `dequeued_count' with number of events queued. Thus, when
+  completed is set and dequeued_count equals queued_count, the relay log file
+  is finally done with and can be purged.
+
+  By separating the queued and dequeued count, only the dequeued_count needs
+  multi-thread synchronisation; the completed flag and queued_count fields
+  are only accessed by the SQL driver thread and need no synchronisation.
+*/
+struct inuse_relaylog {
+  inuse_relaylog *next;
+  /* Number of events in this relay log queued for worker threads. */
+  int64 queued_count;
+  /* Number of events completed by worker threads. */
+  volatile int64 dequeued_count;
+  /* Set when all events have been read from a relaylog. */
+  bool completed;
+  char name[FN_REFLEN];
+  /* Lock used to protect inuse_relaylog::dequeued_count */
+  my_atomic_rwlock_t inuse_relaylog_atomic_lock;
+};
+
+
+/*
   This is data for various state needed to be kept for the processing of
   one event group (transaction) during replication.
 
@@ -483,6 +534,7 @@ struct rpl_group_info
   */
   uint64 gtid_sub_id;
   rpl_gtid current_gtid;
+  uint64 commit_id;
   /*
     This is used to keep transaction commit order.
     We will signal this when we commit, and can register it to wait for the
@@ -560,6 +612,8 @@ struct rpl_group_info
   */
   char future_event_master_log_name[FN_REFLEN];
   bool is_parallel_exec;
+  /* When gtid_pending is true, we have not yet done record_gtid(). */
+  bool gtid_pending;
   int worker_error;
   /*
     Set true when we signalled that we reach the commit phase. Used to avoid
@@ -587,6 +641,17 @@ struct rpl_group_info
    */
   time_t row_stmt_start_timestamp;
   bool long_find_row_note_printed;
+  /* Needs room for "Gtid D-S-N\x00". */
+  char gtid_info_buf[5+10+1+10+1+20+1];
+
+  /*
+    Information to be able to re-try an event group in case of a deadlock or
+    other temporary error.
+  */
+  inuse_relaylog *relay_log;
+  uint64 retry_start_offset;
+  uint64 retry_event_count;
+  bool killed_for_retry;
 
   rpl_group_info(Relay_log_info *rli_);
   ~rpl_group_info();
@@ -675,6 +740,8 @@ struct rpl_group_info
   void slave_close_thread_tables(THD *);
   void mark_start_commit_no_lock();
   void mark_start_commit();
+  char *gtid_info();
+  void unmark_start_commit();
 
   time_t get_row_stmt_start_timestamp()
   {

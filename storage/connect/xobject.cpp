@@ -1,7 +1,7 @@
 /************ Xobject C++ Functions Source Code File (.CPP) ************/
-/*  Name: XOBJECT.CPP  Version 2.2                                     */
+/*  Name: XOBJECT.CPP  Version 2.3                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains base XOBJECT class functions.                   */
 /*  Also here is the implementation of the CONSTANT class.             */
@@ -108,6 +108,17 @@ int CONSTANT::GetLengthEx(void)
   {
   return Value->GetValLen();
   } // end of GetLengthEx
+
+/***********************************************************************/
+/*  Convert a constant to the given type.                              */
+/***********************************************************************/
+void CONSTANT::Convert(PGLOBAL g, int newtype)
+  {
+  if (Value->GetType() != newtype)
+    if (!(Value = AllocateValue(g, Value, newtype)))
+      longjmp(g->jumper[g->jump_level], TYPE_CONST);
+
+  } // end of Convert
 
 /***********************************************************************/
 /*  Compare: returns true if this object is equivalent to xp.          */

@@ -50,6 +50,27 @@ read_view_open_now(
 					NULL if a new one needs to be created */
 
 /*********************************************************************//**
+Clones a read view object. This function will allocate space for two read
+views contiguously, one identical in size and content as @param view (starting
+at returned pointer) and another view immediately following the trx_ids array.
+The second view will have space for an extra trx_id_t element.
+@return	read view struct */
+UNIV_INTERN
+read_view_t*
+read_view_clone(
+/*============*/
+	const read_view_t*	view,		/*!< in: view to clone */
+	read_view_t*&		prebuilt_clone);/*!< in,out: prebuilt view or
+						NULL */
+/*********************************************************************//**
+Insert the view in the proper order into the trx_sys->view_list. The
+read view list is ordered by read_view_t::low_limit_no in descending order. */
+UNIV_INTERN
+void
+read_view_add(
+/*==========*/
+	read_view_t*	view);		/*!< in: view to add to */
+/*********************************************************************//**
 Makes a copy of the oldest existing read view, or opens a new. The view
 must be closed with ..._close.
 @return	own: read view struct */

@@ -63,7 +63,7 @@ INSERT INTO t1 VALUES (4);
 --replace_column 2 # 4 # 5 #
 SHOW BINLOG EVENTS IN 'master-bin.000003' LIMIT 1,1;
 FLUSH LOGS;
---replace_column 2 # 4 # 5 #
+--replace_column 2 # 4 # 5 # 6 #
 SHOW BINLOG EVENTS IN 'master-bin.000004' LIMIT 1,1;
 
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -83,7 +83,7 @@ EOF
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 
---replace_column 2 # 4 # 5 #
+--replace_column 2 # 4 # 5 # 6 #
 SHOW BINLOG EVENTS IN 'master-bin.000005' LIMIT 1,1;
 --source include/show_binary_logs.inc
 

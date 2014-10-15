@@ -2,10 +2,6 @@
 // vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
 #ident "$Id$"
 
-#ifndef __TEST_H
-#define __TEST_H
-
-
 /*
 COPYING CONDITIONS NOTICE:
 
@@ -34,7 +30,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -91,7 +87,10 @@ PATENT RIGHTS GRANT:
   under this License.
 */
 
+#pragma once
+
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
+
 #include <toku_portability.h>
 
 #include <string.h>
@@ -495,15 +494,8 @@ static int env_del_multiple_test_no_array(
             { int chk_r = (txn)->abort(txn); CKERR(chk_r); }            \
         })
 
-
-int test_main (int argc, char * const argv[]);
-int
-#if defined(__cilkplusplus)
-cilk_main(int argc, char *argv[]) 
-#else
-main(int argc, char * const argv[]) 
-#endif
-{
+int test_main(int argc, char *const argv[]);
+int main(int argc, char *const argv[]) {
     int r;
     toku_os_initialize_settings(1);
     r = test_main(argc, argv);
@@ -513,5 +505,3 @@ main(int argc, char * const argv[])
 #ifndef DB_GID_SIZE
 #define	DB_GID_SIZE	DB_XIDDATASIZE
 #endif
-
-#endif // __TEST_H

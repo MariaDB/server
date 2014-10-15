@@ -333,7 +333,7 @@ static int examine_log(char * file_name, char **table_names)
 	    (tree_element_free) file_info_free, NULL,
             MYF(MY_TREE_WITH_DELETE));
   (void) init_key_cache(dflt_key_cache,KEY_CACHE_BLOCK_SIZE,KEY_CACHE_SIZE,
-                      0, 0, 0);
+                        0, 0, 0, 0);
 
   files_open=0; access_time=0;
   while (access_time++ != number_of_commands &&

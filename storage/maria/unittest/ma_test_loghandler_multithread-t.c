@@ -261,7 +261,6 @@ int main(int argc __attribute__((unused)),
          char **argv __attribute__ ((unused)))
 {
   uint32 i;
-  uint pagen;
   PAGECACHE pagecache;
   LSN first_lsn;
   TRANSLOG_HEADER_BUFFER rec;
@@ -341,8 +340,8 @@ int main(int argc __attribute__((unused)),
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);
   }
-  if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
-                             TRANSLOG_PAGE_SIZE, 0)) == 0)
+  if (init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
+                     TRANSLOG_PAGE_SIZE, 0, 0) == 0)
   {
     fprintf(stderr, "Got error: init_pagecache() (errno: %d)\n", errno);
     exit(1);

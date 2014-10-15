@@ -350,7 +350,34 @@ bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
   } // end of TestFil
 
 /***********************************************************************/
-/*  Sum up the sizes of all sub-tables.                                */
+/*  Sum up the cardinality of all sub-tables.                          */
+/***********************************************************************/
+int TDBTBL::Cardinality(PGLOBAL g)
+  {
+  if (Cardinal < 0) {
+    int tsz;
+
+    if (!Tablist && InitTableList(g))
+      return 0;               // Cannot be calculated at this stage
+
+    Cardinal = 0;
+
+    for (PTABLE tabp = Tablist; tabp; tabp = tabp->GetNext()) {
+      if ((tsz = tabp->GetTo_Tdb()->Cardinality(g)) < 0) {
+        Cardinal = -1;
+        return tsz;
+        } // endif mxsz
+
+      Cardinal += tsz;
+      } // endfor i
+
+    } // endif Cardinal
+
+  return Cardinal;
+  } // end of Cardinality
+
+/***********************************************************************/
+/*  Sum up the maximum sizes of all sub-tables.                        */
 /***********************************************************************/
 int TDBTBL::GetMaxSize(PGLOBAL g)
   {
@@ -435,7 +462,7 @@ bool TDBTBL::OpenDB(PGLOBAL g)
 
   if ((CurTable = Tablist)) {
     Tdbp = (PTDBASE)CurTable->GetTo_Tdb();
-    Tdbp->SetMode(Mode);
+//  Tdbp->SetMode(Mode);
 //  Tdbp->ResetDB();
 //  Tdbp->ResetSize();
 
@@ -685,7 +712,7 @@ bool TDBTBM::OpenDB(PGLOBAL g)
   /*********************************************************************/
   if ((CurTable = Tablist)) {
     Tdbp = (PTDBASE)CurTable->GetTo_Tdb();
-    Tdbp->SetMode(Mode);
+//  Tdbp->SetMode(Mode);
 
     // Check and initialize the subtable columns
     for (PCOL cp = Columns; cp; cp = cp->GetNext())

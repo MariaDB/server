@@ -30,6 +30,7 @@
 
 class Relay_log_info;
 class Log_event;
+struct rpl_group_info;
 
 /**
   A table definition from the master.
@@ -187,7 +188,7 @@ public:
     @retval 0  if the table definition is compatible with @c table
   */
 #ifndef MYSQL_CLIENT
-  bool compatible_with(THD *thd, Relay_log_info *rli, TABLE *table,
+  bool compatible_with(THD *thd, rpl_group_info *rgi, TABLE *table,
                       TABLE **conv_table_var) const;
 
   /**
@@ -212,7 +213,8 @@ public:
    @return A pointer to a temporary table with memory allocated in the
    thread's memroot, NULL if the table could not be created
    */
-  TABLE *create_conversion_table(THD *thd, Relay_log_info *rli, TABLE *target_table) const;
+  TABLE *create_conversion_table(THD *thd, rpl_group_info *rgi,
+                                 TABLE *target_table) const;
 #endif
 
 

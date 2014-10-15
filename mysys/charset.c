@@ -483,6 +483,50 @@ void add_compiled_collation(struct charset_info_st *cs)
 static my_pthread_once_t charsets_initialized= MY_PTHREAD_ONCE_INIT;
 static my_pthread_once_t charsets_template= MY_PTHREAD_ONCE_INIT;
 
+typedef struct
+{
+  ulonglong use_count;
+} MY_COLLATION_STATISTICS;
+
+
+static MY_COLLATION_STATISTICS my_collation_statistics[MY_ALL_CHARSETS_SIZE];
+
+
+my_bool my_collation_is_known_id(uint id)
+{
+  return id > 0 && id < array_elements(all_charsets) && all_charsets[id] ?
+         TRUE : FALSE;
+}
+
+
+/*
+  Collation use statistics functions do not lock
+  counters to avoid mutex contention. This can lose
+  some counter increments with high thread concurrency.
+  But this should be Ok, as we don't need exact numbers.
+*/
+static inline void my_collation_statistics_inc_use_count(uint id)
+{
+  DBUG_ASSERT(my_collation_is_known_id(id));
+  my_collation_statistics[id].use_count++;
+}
+
+
+ulonglong my_collation_statistics_get_use_count(uint id)
+{
+  DBUG_ASSERT(my_collation_is_known_id(id));
+  return my_collation_statistics[id].use_count;
+}
+
+
+const char *my_collation_get_tailoring(uint id)
+{
+  /* all_charsets[id]->tailoring is never changed after server startup. */
+  DBUG_ASSERT(my_collation_is_known_id(id));
+  return all_charsets[id]->tailoring;
+}
+
+
 static void init_available_charsets(void)
 {
   char fname[FN_REFLEN + sizeof(MY_CHARSET_INDEX)];
@@ -490,6 +534,7 @@ static void init_available_charsets(void)
   MY_CHARSET_LOADER loader;
 
   bzero((char*) &all_charsets,sizeof(all_charsets));
+  bzero((char*) &my_collation_statistics, sizeof(my_collation_statistics));
   init_compiled_charsets(MYF(0));
 
   /* Copy compiled charsets */
@@ -608,7 +653,10 @@ get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
   if ((cs= (struct charset_info_st*) all_charsets[cs_number]))
   {
     if (cs->state & MY_CS_READY)  /* if CS is already initialized */
-        return cs;
+    {
+      my_collation_statistics_inc_use_count(cs_number);
+      return cs;
+    }
 
     /*
       To make things thread safe we are not allowing other threads to interfere
@@ -636,6 +684,7 @@ get_internal_charset(MY_CHARSET_LOADER *loader, uint cs_number, myf flags)
         else
           cs->state|= MY_CS_READY;
       }
+      my_collation_statistics_inc_use_count(cs_number);
     }
     else
       cs= NULL;

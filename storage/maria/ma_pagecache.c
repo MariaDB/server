@@ -502,7 +502,7 @@ static void test_key_cache(PAGECACHE *pagecache,
 
 #define PAGECACHE_HASH(p, f, pos) (((ulong) (pos) +                          \
                                     (ulong) (f).file) & (p->hash_entries-1))
-#define FILE_HASH(f) ((uint) (f).file & (PAGECACHE_CHANGED_BLOCKS_HASH - 1))
+#define FILE_HASH(f,cache) ((uint) (f).file & (cache->changed_blocks_hash_size-1))
 
 #define DEFAULT_PAGECACHE_DEBUG_LOG  "pagecache_debug.log"
 
@@ -743,7 +743,8 @@ static inline uint next_power(uint value)
 
 ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                      uint division_limit, uint age_threshold,
-                     uint block_size, myf my_readwrite_flags)
+                     uint block_size, uint changed_blocks_hash_size,
+                     myf my_readwrite_flags)
 {
   ulong blocks, hash_links, length;
   int error;
@@ -786,6 +787,10 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
                               2 * sizeof(PAGECACHE_HASH_LINK) +
                               sizeof(PAGECACHE_HASH_LINK*) *
                               5/4 + block_size));
+  /* Changed blocks hash needs to be a power of 2 */
+  changed_blocks_hash_size= my_round_up_to_next_power(MY_MAX(changed_blocks_hash_size,
+                                                             MIN_PAGECACHE_CHANGED_BLOCKS_HASH_SIZE));
+
   /*
     We need to support page cache with just one block to be able to do
     scanning of rows-in-block files
@@ -809,10 +814,11 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
       hash_links= MAX_THREADS + blocks - 1;
 #endif
     while ((length= (ALIGN_SIZE(blocks * sizeof(PAGECACHE_BLOCK_LINK)) +
-                     ALIGN_SIZE(hash_links * sizeof(PAGECACHE_HASH_LINK)) +
                      ALIGN_SIZE(sizeof(PAGECACHE_HASH_LINK*) *
-                                pagecache->hash_entries))) +
-           (blocks << pagecache->shift) > use_mem)
+                                pagecache->hash_entries) +
+                     ALIGN_SIZE(hash_links * sizeof(PAGECACHE_HASH_LINK)) +
+                     sizeof(PAGECACHE_BLOCK_LINK*)* (changed_blocks_hash_size*2))) +
+           (blocks << pagecache->shift) > use_mem && blocks > 8)
       blocks--;
     /* Allocate memory for cache page buffers */
     if ((pagecache->block_mem=
@@ -823,8 +829,17 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
         Allocate memory for blocks, hash_links and hash entries;
         For each block 2 hash links are allocated
       */
-      if ((pagecache->block_root=
-           (PAGECACHE_BLOCK_LINK*) my_malloc((size_t) length, MYF(0))))
+      if (my_multi_malloc(MYF(MY_ZEROFILL),
+                          &pagecache->block_root, blocks * sizeof(PAGECACHE_BLOCK_LINK),
+                          &pagecache->hash_root,
+                          sizeof(PAGECACHE_HASH_LINK*) * pagecache->hash_entries,
+                          &pagecache->hash_link_root,
+                          hash_links * sizeof(PAGECACHE_HASH_LINK),
+                          &pagecache->changed_blocks,
+                          sizeof(PAGECACHE_BLOCK_LINK*) * changed_blocks_hash_size,
+                          &pagecache->file_blocks,
+                          sizeof(PAGECACHE_BLOCK_LINK*) * changed_blocks_hash_size,
+                          NullS))
         break;
       my_large_free(pagecache->block_mem);
       pagecache->block_mem= 0;
@@ -834,19 +849,6 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
   pagecache->blocks_unused= blocks;
   pagecache->disk_blocks= (long) blocks;
   pagecache->hash_links= hash_links;
-  pagecache->hash_root=
-    (PAGECACHE_HASH_LINK**) ((char*) pagecache->block_root +
-                             ALIGN_SIZE(blocks*sizeof(PAGECACHE_BLOCK_LINK)));
-  pagecache->hash_link_root=
-    (PAGECACHE_HASH_LINK*) ((char*) pagecache->hash_root +
-                            ALIGN_SIZE((sizeof(PAGECACHE_HASH_LINK*) *
-                                        pagecache->hash_entries)));
-  bzero((uchar*) pagecache->block_root,
-        pagecache->disk_blocks * sizeof(PAGECACHE_BLOCK_LINK));
-  bzero((uchar*) pagecache->hash_root,
-        pagecache->hash_entries * sizeof(PAGECACHE_HASH_LINK*));
-  bzero((uchar*) pagecache->hash_link_root,
-        pagecache->hash_links * sizeof(PAGECACHE_HASH_LINK));
   pagecache->hash_links_used= 0;
   pagecache->free_hash_list= NULL;
   pagecache->blocks_used= pagecache->blocks_changed= 0;
@@ -866,6 +868,7 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
   pagecache->age_threshold= (age_threshold ?
                              blocks * age_threshold / 100 :
                              blocks);
+  pagecache->changed_blocks_hash_size= changed_blocks_hash_size;
 
   pagecache->cnt_for_resize_op= 0;
   pagecache->resize_in_flush= 0;
@@ -879,12 +882,6 @@ ulong init_pagecache(PAGECACHE *pagecache, size_t use_mem,
               pagecache->disk_blocks, (long) pagecache->block_root,
               pagecache->hash_entries, (long) pagecache->hash_root,
               pagecache->hash_links, (long) pagecache->hash_link_root));
-  bzero((uchar*) pagecache->changed_blocks,
-        sizeof(pagecache->changed_blocks[0]) *
-        PAGECACHE_CHANGED_BLOCKS_HASH);
-  bzero((uchar*) pagecache->file_blocks,
-        sizeof(pagecache->file_blocks[0]) *
-        PAGECACHE_CHANGED_BLOCKS_HASH);
 
   pagecache->blocks= pagecache->disk_blocks > 0 ? pagecache->disk_blocks : 0;
   DBUG_RETURN((ulong) pagecache->disk_blocks);
@@ -980,12 +977,11 @@ static int flush_all_key_blocks(PAGECACHE *pagecache)
 #if NOT_USED /* keep disabled until code is fixed see above !! */
 ulong resize_pagecache(PAGECACHE *pagecache,
                        size_t use_mem, uint division_limit,
-                       uint age_threshold)
+                       uint age_threshold, uint changed_blocks_hash_size)
 {
   ulong blocks;
   struct st_my_thread_var *thread;
   WQUEUE *wqueue;
-
   DBUG_ENTER("resize_pagecache");
 
   if (!pagecache->inited)
@@ -1028,7 +1024,7 @@ ulong resize_pagecache(PAGECACHE *pagecache,
   end_pagecache(pagecache, 0);			/* Don't free mutex */
   /* The following will work even if use_mem is 0 */
   blocks= init_pagecache(pagecache, pagecache->block_size, use_mem,
-			 division_limit, age_threshold,
+			 division_limit, age_threshold, changed_blocks_hash_size,
                          pagecache->readwrite_flags);
 
 finish:
@@ -1237,7 +1233,7 @@ static void link_to_file_list(PAGECACHE *pagecache,
 {
   if (unlink_flag)
     unlink_changed(block);
-  link_changed(block, &pagecache->file_blocks[FILE_HASH(*file)]);
+  link_changed(block, &pagecache->file_blocks[FILE_HASH(*file, pagecache)]);
   if (block->status & PCBLOCK_CHANGED)
   {
     block->status&= ~(PCBLOCK_CHANGED | PCBLOCK_DEL_WRITE);
@@ -1258,7 +1254,7 @@ static inline void link_to_changed_list(PAGECACHE *pagecache,
 {
   unlink_changed(block);
   link_changed(block,
-               &pagecache->changed_blocks[FILE_HASH(block->hash_link->file)]);
+               &pagecache->changed_blocks[FILE_HASH(block->hash_link->file, pagecache)]);
   block->status|=PCBLOCK_CHANGED;
   pagecache->blocks_changed++;
   pagecache->global_blocks_changed++;
@@ -4578,7 +4574,7 @@ static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
         Count how many key blocks we have to cache to be able
         to flush all dirty pages with minimum seek moves.
       */
-      for (block= pagecache->changed_blocks[FILE_HASH(*file)] ;
+      for (block= pagecache->changed_blocks[FILE_HASH(*file, pagecache)] ;
            block;
            block= block->next_changed)
       {
@@ -4603,7 +4599,7 @@ static int flush_pagecache_blocks_int(PAGECACHE *pagecache,
     /* Retrieve the blocks and write them to a buffer to be flushed */
 restart:
     end= (pos= cache)+count;
-    for (block= pagecache->changed_blocks[FILE_HASH(*file)] ;
+    for (block= pagecache->changed_blocks[FILE_HASH(*file, pagecache)] ;
          block;
          block= next)
     {
@@ -4729,7 +4725,7 @@ restart:
 #if defined(PAGECACHE_DEBUG)
       cnt=0;
 #endif
-      for (block= pagecache->file_blocks[FILE_HASH(*file)] ;
+      for (block= pagecache->file_blocks[FILE_HASH(*file, pagecache)] ;
            block;
            block= next)
       {
@@ -4918,7 +4914,7 @@ my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
   }
 
   /* Count how many dirty pages are interesting */
-  for (file_hash= 0; file_hash < PAGECACHE_CHANGED_BLOCKS_HASH; file_hash++)
+  for (file_hash= 0; file_hash < pagecache->changed_blocks_hash_size; file_hash++)
   {
     PAGECACHE_BLOCK_LINK *block;
     for (block= pagecache->changed_blocks[file_hash] ;
@@ -4957,7 +4953,7 @@ my_bool pagecache_collect_changed_blocks_with_lsn(PAGECACHE *pagecache,
   DBUG_PRINT("info", ("found %lu dirty pages", stored_list_size));
   if (stored_list_size == 0)
     goto end;
-  for (file_hash= 0; file_hash < PAGECACHE_CHANGED_BLOCKS_HASH; file_hash++)
+  for (file_hash= 0; file_hash < pagecache->changed_blocks_hash_size; file_hash++)
   {
     PAGECACHE_BLOCK_LINK *block;
     for (block= pagecache->changed_blocks[file_hash] ;
@@ -5008,7 +5004,7 @@ void pagecache_file_no_dirty_page(PAGECACHE *pagecache, PAGECACHE_FILE *file)
 {
   File fd= file->file;
   PAGECACHE_BLOCK_LINK *block;
-  for (block= pagecache->changed_blocks[FILE_HASH(*file)];
+  for (block= pagecache->changed_blocks[FILE_HASH(*file, pagecache)];
        block != NULL;
        block= block->next_changed)
     if (block->hash_link->file.file == fd)

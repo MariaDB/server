@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -118,9 +118,9 @@ append_leaf(FTNODE leafnode, void *key, size_t keylen, void *val, size_t vallen)
 
     // apply an insert to the leaf node
     MSN msn = next_dummymsn();
-    FT_MSG_S msg = { FT_INSERT, msn, xids_get_root_xids(), .u={.id = { &thekey, &theval }} };
+    ft_msg msg(&thekey, &theval, FT_INSERT, msn, toku_xids_get_root_xids());
     txn_gc_info gc_info(nullptr, TXNID_NONE, TXNID_NONE, false);
-    toku_ft_bn_apply_msg_once(BLB(leafnode, 0), &msg, idx, NULL, &gc_info, NULL, NULL);
+    toku_ft_bn_apply_msg_once(BLB(leafnode, 0), msg, idx, keylen, NULL, &gc_info, NULL, NULL);
 
     // dont forget to dirty the node
     leafnode->dirty = 1;
@@ -142,7 +142,7 @@ test_dup_in_leaf(int do_verify) {
 
     // create a cachetable
     CACHETABLE ct = NULL;
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     // create the ft
     TOKUTXN null_txn = NULL;
@@ -156,7 +156,7 @@ test_dup_in_leaf(int do_verify) {
     populate_leaf(newroot, htonl(1), 2);
 
     // set the new root to point to the new tree
-    toku_ft_set_new_root_blocknum(ft->ft, newroot->thisnodename);
+    toku_ft_set_new_root_blocknum(ft->ft, newroot->blocknum);
 
     // unpin the new root
     toku_unpin_ftnode(ft->ft, newroot);

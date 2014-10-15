@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -96,7 +96,7 @@ static const char *fname = TOKU_TEST_FILENAME;
 static TOKUTXN const null_txn = 0;
 
 static int
-save_data (ITEMLEN UU(keylen), bytevec UU(key), ITEMLEN vallen, bytevec val, void *v, bool lock_only) {
+save_data (uint32_t UU(keylen), const void *UU(key), uint32_t vallen, const void *val, void *v, bool lock_only) {
     if (lock_only) return 0;
     assert(key!=NULL);
     void **CAST_FROM_VOIDP(vp, v);
@@ -106,7 +106,7 @@ save_data (ITEMLEN UU(keylen), bytevec UU(key), ITEMLEN vallen, bytevec val, voi
 
 
 // Verify that different cursors return different data items when a DBT is initialized to all zeros (no flags)
-// Note: The BRT test used to implement DBTs with per-cursor allocated space, but there isn't any such thing any more
+// Note: The ft test used to implement DBTs with per-cursor allocated space, but there isn't any such thing any more
 // so this test is a little bit obsolete.
 static void test_multiple_ft_cursor_dbts(int n) {
     if (verbose) printf("test_multiple_ft_cursors:%d\n", n);
@@ -118,7 +118,7 @@ static void test_multiple_ft_cursor_dbts(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, toku_builtin_compare_fun);
     assert(r==0);

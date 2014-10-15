@@ -1,7 +1,7 @@
 /*************** Xobject H Declares Source Code File (.H) **************/
-/*  Name: XOBJECT.H    Version 2.3                                     */
+/*  Name: XOBJECT.H    Version 2.4                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the XOBJECT and derived classes declares.       */
 /***********************************************************************/
@@ -110,6 +110,7 @@ class DllExport CONSTANT : public XOBJECT {
   virtual bool   Compare(PXOB xp);
   virtual bool   SetFormat(PGLOBAL g, FORMAT& fmt)
                  {return Value->SetConstFormat(g, fmt);}
+          void   Convert(PGLOBAL g, int newtype);
           void   SetValue(PVAL vp) {Value = vp;}
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);

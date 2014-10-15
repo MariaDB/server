@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -95,19 +95,18 @@ PATENT RIGHTS GRANT:
 //  * Thread 1 calls apply_msg_to_in_memory_leaves, calls get_and_pin_if_in_memory, tries to get a read lock on the root node and blocks on the rwlock because there is a write request on the lock.
 
 
-#include "checkpoint.h"
+#include "cachetable/checkpoint.h"
 #include "test.h"
 
 CACHETABLE ct;
 FT_HANDLE t;
 
-static DB * const null_db = 0;
 static TOKUTXN const null_txn = 0;
 
 volatile bool done = false;
 
 static void setup (void) {
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
     const char *fname = TOKU_TEST_FILENAME;
     unlink(fname);
     { int r = toku_open_ft_handle(fname, 1, &t, 1024, 256, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, toku_builtin_compare_fun);         assert(r==0); }
