@@ -1,4 +1,4 @@
-# Copyright (c) 2006, 2013, Oracle and/or its affiliates
+# Copyright (c) 2006, 2014, Oracle and/or its affiliates
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -95,7 +95,6 @@ ADD_EXECUTABLE(thr_timer thr_timer.c)
 TARGET_LINK_LIBRARIES(thr_timer mysys)
 SET_TARGET_PROPERTIES(thr_timer PROPERTIES COMPILE_FLAGS "-DMAIN")
 
-INSTALL_DEBUG_SYMBOLS(mysys)
 IF(MSVC)
    INSTALL_DEBUG_TARGET(mysys DESTINATION ${INSTALL_LIBDIR}/debug)
 ENDIF()

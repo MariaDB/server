@@ -46,10 +46,13 @@ DllExport char *GetFormatType(int);
 DllExport int   GetFormatType(char);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
+DllExport int   ConvertType(int, int, CONV, bool match = false);
+DllExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
                               bool uns = false, PSZ fmt = NULL);
-DllExport ulonglong CharToNumber(char *, int, ulonglong, bool, 
+DllExport ulonglong CharToNumber(char *, int, ulonglong, bool,
                                  bool *minus = NULL, bool *rc = NULL);
+DllExport BYTE OpBmp(PGLOBAL g, OPVAL opc);
 
 /***********************************************************************/
 /*  Class VALUE represents a constant or variable of any valid type.   */
@@ -93,6 +96,9 @@ class DllExport VALUE : public BLOCK {
   virtual bool   SetValue_pval(PVAL valp, bool chktype = false) = 0;
   virtual bool   SetValue_char(char *p, int n) = 0;
   virtual void   SetValue_psz(PSZ s) = 0;
+  virtual void   SetValue_bool(bool b) {assert(FALSE);}
+  virtual int    CompareValue(PVAL vp) = 0;
+  virtual BYTE   TestValue(PVAL vp);
   virtual void   SetValue(char c) {assert(false);}
   virtual void   SetValue(uchar c) {assert(false);}
   virtual void   SetValue(short i) {assert(false);}
@@ -161,6 +167,8 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);
+  virtual void   SetValue_bool(bool b) {Tval = (b) ? 1 : 0;}
+  virtual int    CompareValue(PVAL vp);
   virtual void   SetValue(char c) {Tval = (TYPE)c; Null = false;}
   virtual void   SetValue(uchar c) {Tval = (TYPE)c; Null = false;}
   virtual void   SetValue(short i) {Tval = (TYPE)i; Null = false;}
@@ -199,7 +207,7 @@ class DllExport TYPVAL : public VALUE {
 /*  Specific STRING class.                                             */
 /***********************************************************************/
 template <>
-class DllExport TYPVAL<PSZ>: public VALUE { 
+class DllExport TYPVAL<PSZ>: public VALUE {
  public:
   // Constructors
   TYPVAL(PSZ s);
@@ -240,6 +248,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual void   SetValue(ulonglong n);
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
+  virtual int    CompareValue(PVAL vp);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
@@ -256,7 +265,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
 /***********************************************************************/
 /*  Specific DECIMAL class.                                            */
 /***********************************************************************/
-class DllExport DECVAL: public TYPVAL<PSZ> { 
+class DllExport DECVAL: public TYPVAL<PSZ> {
  public:
   // Constructors
   DECVAL(PSZ s);
@@ -272,6 +281,7 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
   virtual char  *ShowValue(char *buf, int);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+  virtual int    CompareValue(PVAL vp);
 
   // Members
   }; // end of class DECVAL
@@ -279,7 +289,7 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
 /***********************************************************************/
 /*  Specific BINARY class.                                             */
 /***********************************************************************/
-class DllExport BINVAL: public VALUE { 
+class DllExport BINVAL: public VALUE {
  public:
   // Constructors
 //BINVAL(void *p);
@@ -320,6 +330,7 @@ class DllExport BINVAL: public VALUE {
   virtual void   SetValue(double f);
   virtual void   SetBinValue(void *p);
   virtual bool   GetBinValue(void *buf, int buflen, bool go);
+  virtual int    CompareValue(PVAL vp) {assert(false); return 0;}
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);

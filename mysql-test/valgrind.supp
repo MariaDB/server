@@ -412,6 +412,17 @@
    fun:__libc_start_main
 }
 
+#
+# dl_init reports leaked memory in memalign on OpenSuse 12.3
+
+{
+   memory "loss" from _dl_init
+   Memcheck:Leak
+   fun:memalign
+   ...
+   fun:call_init
+   fun:_dl_init
+}
 
 #
 #  dlclose can allocate memory for error message, the memory will be
@@ -1116,6 +1127,17 @@
    fun:*alloc
    fun:CRYPTO_malloc
    fun:sk_new
+   obj:*libssl*
+   fun:SSL_COMP_get_compression_methods
+   fun:SSL_library_init
+}
+
+
+{
+   OpenSSL still reachable.
+   Memcheck:Leak
+   fun:*alloc
+   fun:CRYPTO_malloc
    obj:*libssl*
    fun:SSL_COMP_get_compression_methods
    fun:SSL_library_init

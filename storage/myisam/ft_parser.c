@@ -329,7 +329,7 @@ MYSQL_FTPARSER_PARAM* ftparser_alloc_param(MI_INFO *info)
 {
   if (!info->ftparser_param)
   {
-    /* 
+    /*
 .     info->ftparser_param can not be zero after the initialization,
       because it always includes built-in fulltext parser. And built-in
       parser can be called even if the table has no fulltext indexes and

@@ -109,15 +109,6 @@ typedef struct loader_context {
     ha_tokudb* ha;
 } *LOADER_CONTEXT;
 
-typedef struct hot_optimize_context {
-    THD *thd;
-    char* write_status_msg;
-    ha_tokudb *ha;
-    uint progress_stage;
-    uint current_table;
-    uint num_tables;
-} *HOT_OPTIMIZE_CONTEXT;
-
 //
 // This object stores table information that is to be shared
 // among all ha_tokudb objects.
@@ -260,6 +251,7 @@ private:
     uint64_t bulk_fetch_iteration;
     uint64_t rows_fetched_using_bulk_fetch;
     bool doing_bulk_fetch;
+    bool maybe_index_scan;
 
     //
     // buffer used to temporarily store a "packed key" 
@@ -475,7 +467,7 @@ private:
         );
     int create_main_dictionary(const char* name, TABLE* form, DB_TXN* txn, KEY_AND_COL_INFO* kc_info, toku_compression_method compression_method);
     void trace_create_table_info(const char *name, TABLE * form);
-    int is_index_unique(bool* is_unique, DB_TXN* txn, DB* db, KEY* key_info);
+    int is_index_unique(bool* is_unique, DB_TXN* txn, DB* db, KEY* key_info, int lock_flags);
     int is_val_unique(bool* is_unique, uchar* record, KEY* key_info, uint dict_index, DB_TXN* txn);
     int do_uniqueness_checks(uchar* record, DB_TXN* txn, THD* thd);
     void set_main_dict_put_flags(THD* thd, bool opt_eligible, uint32_t* put_flags);
@@ -804,7 +796,21 @@ private:
     void remove_from_trx_handler_list();
 
 private:
+    int do_optimize(THD *thd);
     int map_to_handler_error(int error);
+
+public:
+    void rpl_before_write_rows();
+    void rpl_after_write_rows();
+    void rpl_before_delete_rows();
+    void rpl_after_delete_rows();
+    void rpl_before_update_rows();
+    void rpl_after_update_rows();
+    bool rpl_lookup_rows();
+private:
+    bool in_rpl_write_rows;
+    bool in_rpl_delete_rows;
+    bool in_rpl_update_rows;
 };
 
 #if TOKU_INCLUDE_OPTION_STRUCTS

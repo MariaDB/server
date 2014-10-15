@@ -679,11 +679,20 @@ public:
   /* Reuse size, only used by SP local variable assignment, otherwize 0 */
   uint rsize;
 
+protected:
   /*
     str_values's main purpose is to be used to cache the value in
     save_in_field
   */
   String str_value;
+
+public:
+  /*
+    Cache val_str() into the own buffer, e.g. to evaluate constant
+    expressions with subqueries in the ORDER/GROUP clauses.
+  */
+  String *val_str() { return val_str(&str_value); }
+
   char * name;			/* Name from select */
   /* Original item name (if it was renamed)*/
   char * orig_name;
@@ -1099,9 +1108,47 @@ public:
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
   { return decimals != NOT_FIXED_DEC ? (DBL_DIG+2+decimals_par) : DBL_DIG+8;}
+  /* Returns total number of decimal digits */
   virtual uint decimal_precision() const;
+  /* Returns the number of integer part digits only */
   inline int decimal_int_part() const
   { return my_decimal_int_part(decimal_precision(), decimals); }
+  /*
+    Returns the number of fractional digits only.
+    NOT_FIXED_DEC is replaced to the maximum possible number
+    of fractional digits, taking into account the data type.
+  */
+  uint decimal_scale() const
+  {
+    return decimals < NOT_FIXED_DEC ? decimals :
+           is_temporal_type_with_time(field_type()) ?
+           TIME_SECOND_PART_DIGITS :
+           MY_MIN(max_length, DECIMAL_MAX_SCALE);
+  }
+  /*
+    Returns how many digits a divisor adds into a division result.
+    This is important when the integer part of the divisor can be 0.
+    In this  example:
+      SELECT 1 / 0.000001; -> 1000000.0000
+    the divisor adds 5 digits into the result precision.
+
+    Currently this method only replaces NOT_FIXED_DEC to
+    TIME_SECOND_PART_DIGITS for temporal data types.
+    This method can be made virtual, to create more efficient (smaller)
+    data types for division results.
+    For example, in
+      SELECT 1/1.000001;
+    the divisor could provide no additional precision into the result,
+    so could any other items that are know to return a result
+    with non-zero integer part.
+  */
+  uint divisor_precision_increment() const
+  {
+    return decimals <  NOT_FIXED_DEC ? decimals :
+           is_temporal_type_with_time(field_type()) ?
+           TIME_SECOND_PART_DIGITS :
+           decimals;
+  }
   /**
     TIME or DATETIME precision of the item: 0..6
   */
@@ -1258,7 +1305,6 @@ public:
   virtual bool intro_version(uchar *int_arg) { return 0; }
 
   virtual bool remove_dependence_processor(uchar * arg) { return 0; }
-  virtual bool remove_fixed(uchar * arg) { fixed= 0; return 0; }
   virtual bool cleanup_processor(uchar *arg);
   virtual bool collect_item_field_processor(uchar * arg) { return 0; }
   virtual bool add_field_to_set_processor(uchar * arg) { return 0; }
@@ -1490,6 +1536,48 @@ public:
   virtual Item *expr_cache_insert_transformer(uchar *thd_arg) { return this; }
   virtual bool expr_cache_is_needed(THD *) { return FALSE; }
   virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
+  bool needs_charset_converter(uint32 length, CHARSET_INFO *tocs)
+  {
+    /*
+      This will return "true" if conversion happens:
+      - between two non-binary different character sets
+      - from "binary" to "unsafe" character set
+        (those that can have non-well-formed string)
+      - from "binary" to UCS2-alike character set with mbminlen>1,
+        when prefix left-padding is needed for an incomplete character:
+        binary 0xFF -> ucs2 0x00FF)
+    */
+    if (!String::needs_conversion_on_storage(length,
+                                             collation.collation, tocs))
+      return false;
+    /*
+      No needs to add converter if an "arg" is NUMERIC or DATETIME
+      value (which is pure ASCII) and at the same time target DTCollation
+      is ASCII-compatible. For example, no needs to rewrite:
+        SELECT * FROM t1 WHERE datetime_field = '2010-01-01';
+      to
+        SELECT * FROM t1 WHERE CONVERT(datetime_field USING cs) = '2010-01-01';
+
+      TODO: avoid conversion of any values with
+      repertoire ASCII and 7bit-ASCII-compatible,
+      not only numeric/datetime origin.
+    */
+    if (collation.derivation == DERIVATION_NUMERIC &&
+        collation.repertoire == MY_REPERTOIRE_ASCII &&
+        !(collation.collation->state & MY_CS_NONASCII) &&
+        !(tocs->state & MY_CS_NONASCII))
+      return false;
+    return true;
+  }
+  bool needs_charset_converter(CHARSET_INFO *tocs)
+  {
+    // Pass 1 as length to force conversion if tocs->mbminlen>1.
+    return needs_charset_converter(1, tocs);
+  }
+  Item *const_charset_converter(CHARSET_INFO *tocs, bool lossless,
+                                const char *func_name);
+  Item *const_charset_converter(CHARSET_INFO *tocs, bool lossless)
+  { return const_charset_converter(tocs, lossless, NULL); }
   void delete_self()
   {
     cleanup();
@@ -1649,12 +1737,102 @@ public:
 };
 
 class sp_head;
+class Item_string;
 
-class Item_basic_constant :public Item
+
+/**
+  A common class for Item_basic_constant and Item_param
+*/
+class Item_basic_value :public Item
+{
+  bool is_basic_value(const Item *item, Type type_arg) const
+  {
+    return item->basic_const_item() && item->type() == type_arg;
+  }
+  bool is_basic_value(Type type_arg) const
+  {
+    return basic_const_item() && type() == type_arg;
+  }
+  bool str_eq(const String *value,
+              const String *other, CHARSET_INFO *cs, bool binary_cmp) const
+  {
+    return binary_cmp ?
+      value->bin_eq(other) :
+      collation.collation == cs && value->eq(other, collation.collation);
+  }
+
+protected:
+  // Value metadata, e.g. to make string processing easier
+  class Metadata: private MY_STRING_METADATA
+  {
+  public:
+    Metadata(const String *str)
+    {
+      my_string_metadata_get(this, str->charset(), str->ptr(), str->length());
+    }
+    Metadata(const String *str, uint repertoire)
+    {
+      MY_STRING_METADATA::repertoire= repertoire;
+      MY_STRING_METADATA::char_length= str->numchars();
+    }
+    uint repertoire() const { return MY_STRING_METADATA::repertoire; }
+    size_t char_length() const { return MY_STRING_METADATA::char_length; }
+  };
+  void fix_charset_and_length_from_str_value(Derivation dv, Metadata metadata)
+  {
+    /*
+      We have to have a different max_length than 'length' here to
+      ensure that we get the right length if we do use the item
+      to create a new table. In this case max_length must be the maximum
+      number of chars for a string of this type because we in Create_field::
+      divide the max_length with mbmaxlen).
+    */
+    collation.set(str_value.charset(), dv, metadata.repertoire());
+    fix_char_length(metadata.char_length());
+    decimals= NOT_FIXED_DEC;
+  }
+  void fix_charset_and_length_from_str_value(Derivation dv)
+  {
+    fix_charset_and_length_from_str_value(dv, Metadata(&str_value));
+  }
+  Item_basic_value(): Item() {}
+  /*
+    In the xxx_eq() methods below we need to cast off "const" to
+    call val_xxx(). This is OK for Item_basic_constant and Item_param.
+  */
+  bool null_eq(const Item *item) const
+  {
+    DBUG_ASSERT(is_basic_value(NULL_ITEM));
+    return item->type() == NULL_ITEM;
+  }
+  bool str_eq(const String *value, const Item *item, bool binary_cmp) const
+  {
+    DBUG_ASSERT(is_basic_value(STRING_ITEM));
+    return is_basic_value(item, STRING_ITEM) &&
+           str_eq(value, ((Item_basic_value*)item)->val_str(NULL),
+                  item->collation.collation, binary_cmp);
+  }
+  bool real_eq(double value, const Item *item) const
+  {
+    DBUG_ASSERT(is_basic_value(REAL_ITEM));
+    return is_basic_value(item, REAL_ITEM) &&
+           value == ((Item_basic_value*)item)->val_real();
+  }
+  bool int_eq(longlong value, const Item *item) const
+  {
+    DBUG_ASSERT(is_basic_value(INT_ITEM));
+    return is_basic_value(item, INT_ITEM) &&
+           value == ((Item_basic_value*)item)->val_int() &&
+           (value >= 0 || item->unsigned_flag == unsigned_flag);
+  }
+};
+
+
+class Item_basic_constant :public Item_basic_value
 {
   table_map used_table_map;
 public:
-  Item_basic_constant(): Item(), used_table_map(0) {};
+  Item_basic_constant(): Item_basic_value(), used_table_map(0) {};
   void set_used_tables(table_map map) { used_table_map= map; }
   table_map used_tables() const { return used_table_map; }
   /* to prevent drop fixed flag (no need parent cleanup call) */
@@ -2195,7 +2373,6 @@ public:
   Item *replace_equal_field(uchar *arg);
   inline uint32 max_disp_length() { return field->max_display_length(); }
   Item_field *field_for_view_update() { return this; }
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
   int fix_outer_field(THD *thd, Field **field, Item **reference);
   virtual Item *update_value_transformer(uchar *select_arg);
   virtual void print(String *str, enum_query_type query_type);
@@ -2219,16 +2396,16 @@ public:
 class Item_null :public Item_basic_constant
 {
 public:
-  Item_null(char *name_par=0)
+  Item_null(char *name_par=0, CHARSET_INFO *cs= &my_charset_bin)
   {
     maybe_null= null_value= TRUE;
     max_length= 0;
     name= name_par ? name_par : (char*) "NULL";
     fixed= 1;
-    collation.set(&my_charset_bin, DERIVATION_IGNORABLE);
+    collation.set(cs, DERIVATION_IGNORABLE);
   }
   enum Type type() const { return NULL_ITEM; }
-  bool eq(const Item *item, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const { return null_eq(item); }
   double val_real();
   longlong val_int();
   String *val_str(String *str);
@@ -2271,14 +2448,10 @@ public:
 
 /* Item represents one placeholder ('?') of prepared statement */
 
-class Item_param :public Item,
+class Item_param :public Item_basic_value,
                   private Settable_routine_parameter,
                   public Rewritable_query_parameter
 {
-  char cnvbuf[MAX_FIELD_WIDTH];
-  String cnvstr;
-  Item *cnvitem;
-
 public:
   enum enum_item_param_state
   {
@@ -2457,7 +2630,8 @@ public:
   Item_num *neg() { value= -value; return this; }
   uint decimal_precision() const
   { return (uint) (max_length - MY_TEST(value < 0)); }
-  bool eq(const Item *, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  { return int_eq(value, item); }
   bool check_partition_func_processor(uchar *bool_arg) { return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
 };
@@ -2578,7 +2752,8 @@ public:
   { return new Item_float(name, value, decimals, max_length); }
   Item_num *neg() { value= -value; return this; }
   virtual void print(String *str, enum_query_type query_type);
-  bool eq(const Item *, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  { return real_eq(value, item); }
 };
 
 
@@ -2596,70 +2771,98 @@ public:
     str->append(func_name);
   }
 
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true, func_name);
+  }
 };
 
 
 class Item_string :public Item_basic_constant
 {
-public:
-  Item_string(const char *str,uint length,
-              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE,
-              uint repertoire= MY_REPERTOIRE_UNICODE30)
-    : m_cs_specified(FALSE)
+  bool m_cs_specified;
+protected:
+  /**
+    Set the value of m_cs_specified attribute.
+
+    m_cs_specified attribute shows whether character-set-introducer was
+    explicitly specified in the original query for this text literal or
+    not. The attribute makes sense (is used) only for views.
+
+    This operation is to be called from the parser during parsing an input
+    query.
+  */
+  inline void set_cs_specified(bool cs_specified)
   {
-    str_value.set_or_copy_aligned(str, length, cs);
-    collation.set(cs, dv, repertoire);
-    /*
-      We have to have a different max_length than 'length' here to
-      ensure that we get the right length if we do use the item
-      to create a new table. In this case max_length must be the maximum
-      number of chars for a string of this type because we in Create_field::
-      divide the max_length with mbmaxlen).
-    */
-    max_length= str_value.numchars()*cs->mbmaxlen;
-    set_name(str, length, cs);
-    decimals=NOT_FIXED_DEC;
+    m_cs_specified= cs_specified;
+  }
+  void fix_from_value(Derivation dv, const Metadata metadata)
+  {
+    fix_charset_and_length_from_str_value(dv, metadata);
     // it is constant => can be used without fix_fields (and frequently used)
     fixed= 1;
   }
+  void fix_and_set_name_from_value(Derivation dv, const Metadata metadata)
+  {
+    fix_from_value(dv, metadata);
+    set_name(str_value.ptr(), str_value.length(), str_value.charset());
+  }
+protected:
   /* Just create an item and do not fill string representation */
   Item_string(CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
     : m_cs_specified(FALSE)
   {
     collation.set(cs, dv);
     max_length= 0;
-    set_name(NULL, 0, cs);
+    set_name(NULL, 0, system_charset_info);
     decimals= NOT_FIXED_DEC;
     fixed= 1;
   }
-  Item_string(const char *name_par, const char *str, uint length,
-              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE,
-              uint repertoire= MY_REPERTOIRE_UNICODE30)
+public:
+  // Constructors with the item name set from its value
+  Item_string(const char *str, uint length, CHARSET_INFO *cs,
+              Derivation dv, uint repertoire)
     : m_cs_specified(FALSE)
   {
     str_value.set_or_copy_aligned(str, length, cs);
-    collation.set(cs, dv, repertoire);
-    max_length= str_value.numchars()*cs->mbmaxlen;
-    set_name(name_par, 0, cs);
-    decimals=NOT_FIXED_DEC;
-    // it is constant => can be used without fix_fields (and frequently used)
-    fixed= 1;
+    fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
   }
-  /*
-    This is used in stored procedures to avoid memory leaks and
-    does a deep copy of its argument.
-  */
-  void set_str_with_copy(const char *str_arg, uint length_arg)
+  Item_string(const char *str, uint length,
+              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
+    : m_cs_specified(FALSE)
   {
-    str_value.copy(str_arg, length_arg, collation.collation);
-    max_length= str_value.numchars() * collation.collation->mbmaxlen;
+    str_value.set_or_copy_aligned(str, length, cs);
+    fix_and_set_name_from_value(dv, Metadata(&str_value));
   }
-  void set_repertoire_from_value()
+  Item_string(const String *str, CHARSET_INFO *tocs, uint *conv_errors,
+              Derivation dv, uint repertoire)
+    :m_cs_specified(false)
   {
-    collation.repertoire= my_string_repertoire(str_value.charset(),
-                                               str_value.ptr(),
-                                               str_value.length());
+    if (str_value.copy(str, tocs, conv_errors))
+      str_value.set("", 0, tocs); // EOM ?
+    str_value.mark_as_const();
+    fix_and_set_name_from_value(dv, Metadata(&str_value, repertoire));
+  }
+  // Constructors with an externally provided item name
+  Item_string(const char *name_par, const char *str, uint length,
+              CHARSET_INFO *cs, Derivation dv= DERIVATION_COERCIBLE)
+    :m_cs_specified(false)
+  {
+    str_value.set_or_copy_aligned(str, length, cs);
+    fix_from_value(dv, Metadata(&str_value));
+    set_name(name_par, 0, system_charset_info);
+  }
+  Item_string(const char *name_par, const char *str, uint length,
+              CHARSET_INFO *cs, Derivation dv, uint repertoire)
+    :m_cs_specified(false)
+  {
+    str_value.set_or_copy_aligned(str, length, cs);
+    fix_from_value(dv, Metadata(&str_value, repertoire));
+    set_name(name_par, 0, system_charset_info);
+  }
+  void print_value(String *to) const
+  {
+    str_value.print(to);
   }
   enum Type type() const { return STRING_ITEM; }
   double val_real();
@@ -2674,14 +2877,19 @@ public:
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
   bool basic_const_item() const { return 1; }
-  bool eq(const Item *item, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    return str_eq(&str_value, item, binary_cmp);
+  }
   Item *clone_item() 
   {
     return new Item_string(name, str_value.ptr(), 
-    			   str_value.length(), collation.collation);
+                           str_value.length(), collation.collation);
   }
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
-  Item *charset_converter(CHARSET_INFO *tocs, bool lossless);
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true);
+  }
   inline void append(char *str, uint length)
   {
     str_value.append(str, length);
@@ -2715,23 +2923,79 @@ public:
     return m_cs_specified;
   }
 
-  /**
-    Set the value of m_cs_specified attribute.
+  String *check_well_formed_result(bool send_error)
+  { return Item::check_well_formed_result(&str_value, send_error); }
 
-    m_cs_specified attribute shows whether character-set-introducer was
-    explicitly specified in the original query for this text literal or
-    not. The attribute makes sense (is used) only for views.
-
-    This operation is to be called from the parser during parsing an input
-    query.
-  */
-  inline void set_cs_specified(bool cs_specified)
+  enum_field_types odbc_temporal_literal_type(const LEX_STRING *type_str) const
   {
-    m_cs_specified= cs_specified;
+    /*
+      If string is a reasonably short pure ASCII string literal,
+      try to parse known ODBC style date, time or timestamp literals,
+      e.g:
+      SELECT {d'2001-01-01'};
+      SELECT {t'10:20:30'};
+      SELECT {ts'2001-01-01 10:20:30'};
+    */
+    if (collation.repertoire == MY_REPERTOIRE_ASCII &&
+        str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4)
+    {
+      if (type_str->length == 1)
+      {
+        if (type_str->str[0] == 'd')  /* {d'2001-01-01'} */
+          return MYSQL_TYPE_DATE;
+        else if (type_str->str[0] == 't') /* {t'10:20:30'} */
+          return MYSQL_TYPE_TIME;
+      }
+      else if (type_str->length == 2) /* {ts'2001-01-01 10:20:30'} */
+      {
+        if (type_str->str[0] == 't' && type_str->str[1] == 's')
+          return MYSQL_TYPE_DATETIME;
+      }
+    }
+    return MYSQL_TYPE_STRING; // Not a temporal literal
   }
+};
 
-private:
-  bool m_cs_specified;
+
+class Item_string_with_introducer :public Item_string
+{
+public:
+  Item_string_with_introducer(const char *str, uint length, CHARSET_INFO *cs)
+    :Item_string(str, length, cs)
+  {
+    set_cs_specified(true);
+  }
+  Item_string_with_introducer(const String *str, CHARSET_INFO *tocs)
+    :Item_string(str->ptr(), str->length(), tocs)
+  {
+    set_cs_specified(true);
+  }
+};
+
+
+class Item_string_sys :public Item_string
+{
+public:
+  Item_string_sys(const char *str, uint length)
+    :Item_string(str, length, system_charset_info)
+  { }
+  Item_string_sys(const char *str)
+    :Item_string(str, strlen(str), system_charset_info)
+  { }
+};
+
+
+class Item_string_ascii :public Item_string
+{
+public:
+  Item_string_ascii(const char *str, uint length)
+    :Item_string(str, length, &my_charset_latin1,
+                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
+  { }
+  Item_string_ascii(const char *str)
+    :Item_string(str, strlen(str), &my_charset_latin1,
+                 DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII)
+  { }
 };
 
 
@@ -2751,7 +3015,17 @@ public:
                           Derivation dv= DERIVATION_COERCIBLE)
     :Item_string(NullS, str, length, cs, dv), func_name(name_par)
   {}
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
+  Item_static_string_func(const char *name_par,
+                          const String *str,
+                          CHARSET_INFO *tocs, uint *conv_errors,
+                          Derivation dv, uint repertoire)
+    :Item_string(str, tocs, conv_errors, dv, repertoire),
+     func_name(name_par)
+  {}
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true, func_name);
+  }
 
   virtual inline void print(String *str, enum_query_type query_type)
   {
@@ -2854,11 +3128,19 @@ public:
   enum Type type() const { return VARBIN_ITEM; }
   enum Item_result result_type () const { return STRING_RESULT; }
   enum_field_types field_type() const { return MYSQL_TYPE_VARCHAR; }
-  virtual Item *safe_charset_converter(CHARSET_INFO *tocs);
+  virtual Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true);
+  }
   bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *arg) { return FALSE;}
   bool basic_const_item() const { return 1; }
-  bool eq(const Item *item, bool binary_cmp) const;
+  bool eq(const Item *item, bool binary_cmp) const
+  {
+    return item->basic_const_item() && item->type() == type() &&
+           item->cast_to_int_type() == cast_to_int_type() &&
+           str_value.bin_eq(&((Item_hex_constant*)item)->str_value);
+  }
   String *val_str(String*) { DBUG_ASSERT(fixed == 1); return &str_value; }
 };
 
@@ -3654,7 +3936,7 @@ public:
   {
     ref= &outer_ref;
     set_properties();
-    fixed= 0;
+    fixed= 0;                     /* reset flag set in set_properties() */
   }
   Item_outer_ref(Name_resolution_context *context_arg, Item **item,
                  const char *table_name_arg, const char *field_name_arg,

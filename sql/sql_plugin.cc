@@ -1025,7 +1025,7 @@ static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
 static bool plugin_add(MEM_ROOT *tmp_root,
                        const LEX_STRING *name, LEX_STRING *dl, int report)
 {
-  struct st_plugin_int tmp;
+  struct st_plugin_int tmp, *maybe_dupe;
   struct st_maria_plugin *plugin;
   uint oks= 0, errs= 0, dupes= 0;
   DBUG_ENTER("plugin_add");
@@ -1055,8 +1055,14 @@ static bool plugin_add(MEM_ROOT *tmp_root,
                                   (const uchar *)tmp.name.str, tmp.name.length))
       continue; // plugin name doesn't match
 
-    if (!name->str && plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN))
+    if (!name->str &&
+        (maybe_dupe= plugin_find_internal(&tmp.name, MYSQL_ANY_PLUGIN)))
     {
+      if (plugin->name != maybe_dupe->plugin->name)
+      {
+        report_error(report, ER_UDF_EXISTS, plugin->name);
+        DBUG_RETURN(TRUE);
+      }
       dupes++;
       continue; // already installed
     }
@@ -1572,7 +1578,7 @@ int plugin_init(int *argc, char **argv, int flags)
       if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, !is_myisam &&
                             (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
       {
-        if (mandatory)
+        if (plugin_ptr->load_option == PLUGIN_FORCE)
           goto err_unlock;
         plugin_ptr->state= PLUGIN_IS_DISABLED;
       }
@@ -3313,7 +3319,7 @@ bool sys_var_pluginvar::session_update(THD *thd, set_var *var)
   mysql_mutex_unlock(&LOCK_global_system_variables);
 
   plugin_var->update(thd, plugin_var, tgt, src);
- 
+
   return false;
 }
 
@@ -3731,7 +3737,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
       if (opt->flags & PLUGIN_VAR_NOCMDOPT)
         continue;
 
-      optname= (char*) memdup_root(mem_root, v->key + 1, 
+      optname= (char*) memdup_root(mem_root, v->key + 1,
                                    (optnamelen= v->name_len) + 1);
     }
 
@@ -3993,7 +3999,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
   }
 
   DBUG_RETURN(0);
-  
+
 err:
   if (opts)
     my_cleanup_options(opts);

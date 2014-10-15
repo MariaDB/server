@@ -658,6 +658,10 @@ public:
 #endif
   const key_map *keys_to_use_for_scanning();
   ha_rows estimate_rows_upper_bound();
+  void print_error(
+    int error,
+    myf errflag
+  );
   bool get_error_message(
     int error,
     String *buf

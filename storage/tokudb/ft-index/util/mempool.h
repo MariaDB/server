@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -86,11 +86,10 @@ PATENT RIGHTS GRANT:
   under this License.
 */
 
+#pragma once
+
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
-
-#ifndef UTIL_MEMPOOL_H
-#define UTIL_MEMPOOL_H
 
 /* a memory pool is a contiguous region of memory that supports single
    allocations from the pool.  these allocated regions are never recycled.
@@ -164,8 +163,8 @@ size_t toku_mempool_get_free_size(const struct mempool *mp);
 /* get the amount of space that has been allocated for use (wasted or not) */
 size_t toku_mempool_get_allocated_size(const struct mempool *mp);
 
-/* allocate a chunk of memory from the memory pool suitably aligned */
-void *toku_mempool_malloc(struct mempool *mp, size_t size, int alignment);
+/* allocate a chunk of memory from the memory pool */
+void *toku_mempool_malloc(struct mempool *mp, size_t size);
 
 /* free a previously allocated chunk of memory.  the free only updates
    a count of the amount of free space in the memory pool.  the memory
@@ -181,7 +180,3 @@ static inline int toku_mempool_inrange(struct mempool *mp, void *vp, size_t size
 size_t toku_mempool_footprint(struct mempool *mp);
 
 void toku_mempool_clone(const struct mempool* orig_mp, struct mempool* new_mp);
-
-
-
-#endif // UTIL_MEMPOOL_H

@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2005, 2012, Oracle and/or its affiliates.
+   Copyright (c) 2005, 2014, Oracle and/or its affiliates.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -791,7 +791,10 @@ int SSL_CTX_load_verify_locations(SSL_CTX* ctx, const char* file,
             strncpy(name, path, MAX_PATH - 1 - HALF_PATH);
             strncat(name, "/", 1);
             strncat(name, entry->d_name, HALF_PATH);
-            if (stat(name, &buf) < 0) return SSL_BAD_STAT;
+            if (stat(name, &buf) < 0) {
+                closedir(dir);
+                return SSL_BAD_STAT;
+            }
      
             if (S_ISREG(buf.st_mode))
                 ret = read_file(ctx, name, SSL_FILETYPE_PEM, CA);

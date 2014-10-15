@@ -137,7 +137,8 @@ TABLE *find_write_locked_table(TABLE *list, const char *db,
                                const char *table_name);
 thr_lock_type read_lock_type_for_table(THD *thd,
                                        Query_tables_list *prelocking_ctx,
-                                       TABLE_LIST *table_list);
+                                       TABLE_LIST *table_list,
+                                       bool routine_modifies_data);
 
 my_bool mysql_rm_tmp_tables(void);
 bool rm_temporary_table(handlerton *base, const char *path);

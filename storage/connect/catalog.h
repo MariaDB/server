@@ -1,7 +1,7 @@
 /*************** Catalog H Declares Source Code File (.H) **************/
-/*  Name: CATALOG.H  Version 3.2                                       */
+/*  Name: CATALOG.H  Version 3.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2012    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
 /*                                                                     */
 /*  This file contains the CATALOG PlugDB classes definitions.         */
 /***********************************************************************/
@@ -43,6 +43,8 @@ typedef struct _colinfo {
   int    Key;
   int    Precision;
   int    Scale;
+  int    Opt;
+  int    Freq;
   char  *Remark;
   char  *Datefmt;
   char  *Fieldfmt;
@@ -66,11 +68,11 @@ class DllExport CATALOG {
   bool    GetDefHuge(void) {return DefHuge;}
   void    SetDefHuge(bool b) {DefHuge = b;}
   char   *GetCbuf(void) {return Cbuf;}
-  char   *GetDataPath(void) {return (char*)DataPath;}
+//char   *GetDataPath(void) {return (char*)DataPath;}
 
   // Methods
   virtual void    Reset(void) {}
-  virtual void    SetDataPath(PGLOBAL g, const char *path) {}
+//virtual void    SetDataPath(PGLOBAL g, const char *path) {}
   virtual bool    CheckName(PGLOBAL g, char *name) {return true;}
   virtual bool    ClearName(PGLOBAL g, PSZ name) {return true;}
   virtual PRELDEF MakeOneTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am) {return NULL;}
@@ -82,7 +84,7 @@ class DllExport CATALOG {
   virtual bool    TestCond(PGLOBAL g, const char *name, const char *type)
                                 {return true;}
   virtual bool    DropTable(PGLOBAL g, PSZ name, bool erase) {return true;}
-  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep, 
+  virtual PTDB    GetTable(PGLOBAL g, PTABLE tablep,
                            MODE mode = MODE_READ, LPCSTR type = NULL)
                                 {return NULL;}
   virtual void    TableNames(PGLOBAL g, char *buffer, int maxbuf, int info[]) {}
@@ -104,7 +106,7 @@ class DllExport CATALOG {
   int     Cblen;                       /* Length of suballoc. buffer   */
   CURTAB  Ctb;                         /* Used to enumerate tables     */
   bool    DefHuge;                     /* true: tables default to huge */
-  LPCSTR  DataPath;                    /* Is the Path of DB data dir   */
+//LPCSTR  DataPath;                    /* Is the Path of DB data dir   */
   }; // end of class CATALOG
 
 #endif // __CATALOG__H

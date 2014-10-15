@@ -1,0 +1,42 @@
+include/master-slave.inc
+[connection master]
+*** Test MDEV-6120, output of current GTID when a replication error is logged to the errorlog ***
+CREATE TABLE t1(a INT PRIMARY KEY);
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+INSERT INTO t1 VALUES (1);
+SET gtid_seq_no=100;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+SET sql_log_bin=0;
+INSERT INTO t1 VALUES (2);
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+include/stop_slave.inc
+SET GLOBAL gtid_slave_pos= "0-1-100";
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+SET @dbug_save= @@debug_dbug;
+SET debug_dbug= '+d,incident_database_resync_on_replace';
+REPLACE INTO t1 VALUES (5);
+SET debug_dbug= @dbug_save;
+include/wait_for_slave_sql_error.inc [errno=1590]
+include/stop_slave.inc
+SET sql_slave_skip_counter=1;
+include/start_slave.inc
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+3
+4
+5
+DROP TABLE t1;
+include/rpl_end.inc

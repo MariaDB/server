@@ -1,0 +1,7 @@
+-- source include/not_embedded.inc
+
+#
+# MDEV-6625 SHOW GRANTS for current_user_name@wrong_host_name
+#
+--error ER_NONEXISTING_GRANT
+SHOW GRANTS FOR root@invalid_host;

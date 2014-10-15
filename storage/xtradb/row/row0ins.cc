@@ -151,35 +151,37 @@ row_ins_alloc_sys_fields(
 	ut_ad(row && table && heap);
 	ut_ad(dtuple_get_n_fields(row) == dict_table_get_n_cols(table));
 
-	/* 1. Allocate buffer for row id */
+	/* allocate buffer to hold the needed system created hidden columns. */
+	uint len = DATA_ROW_ID_LEN + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN;
+	ptr = static_cast<byte*>(mem_heap_zalloc(heap, len));
 
+	/* 1. Populate row-id */
 	col = dict_table_get_sys_col(table, DATA_ROW_ID);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
-
-	ptr = static_cast<byte*>(mem_heap_zalloc(heap, DATA_ROW_ID_LEN));
 
 	dfield_set_data(dfield, ptr, DATA_ROW_ID_LEN);
 
 	node->row_id_buf = ptr;
 
-	/* 3. Allocate buffer for trx id */
+	ptr += DATA_ROW_ID_LEN;
 
+	/* 2. Populate trx id */
 	col = dict_table_get_sys_col(table, DATA_TRX_ID);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
-	ptr = static_cast<byte*>(mem_heap_zalloc(heap, DATA_TRX_ID_LEN));
 
 	dfield_set_data(dfield, ptr, DATA_TRX_ID_LEN);
 
 	node->trx_id_buf = ptr;
 
-	/* 4. Allocate buffer for roll ptr */
+	ptr += DATA_TRX_ID_LEN;
+
+	/* 3. Populate roll ptr */
 
 	col = dict_table_get_sys_col(table, DATA_ROLL_PTR);
 
 	dfield = dtuple_get_nth_field(row, dict_col_get_no(col));
-	ptr = static_cast<byte*>(mem_heap_zalloc(heap, DATA_ROLL_PTR_LEN));
 
 	dfield_set_data(dfield, ptr, DATA_ROLL_PTR_LEN);
 }
@@ -1743,12 +1745,11 @@ do_possible_lock_wait:
 		table case (check_ref == 0), since MDL lock will prevent
 		concurrent DDL and DML on the same table */
 		if (!check_ref) {
-			for (const dict_foreign_t* check_foreign
-				= UT_LIST_GET_FIRST( table->referenced_list);
-			     check_foreign;
-			     check_foreign = UT_LIST_GET_NEXT(
-					referenced_list, check_foreign)) {
-				if (check_foreign == foreign) {
+			for (dict_foreign_set::iterator it
+				= table->referenced_set.begin();
+			     it != table->referenced_set.end();
+			     ++it) {
+				if (*it == foreign) {
 					verified = true;
 					break;
 				}
@@ -1801,12 +1802,15 @@ row_ins_check_foreign_constraints(
 
 	trx = thr_get_trx(thr);
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
-
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
 			    "foreign_constraint_check_for_ins");
 
-	while (foreign) {
+	for (dict_foreign_set::iterator it = table->foreign_set.begin();
+	     it != table->foreign_set.end();
+	     ++it) {
+
+		foreign = *it;
+
 		if (foreign->foreign_index == index) {
 			dict_table_t*	ref_table = NULL;
 			dict_table_t*	foreign_table = foreign->foreign_table;
@@ -1862,8 +1866,6 @@ row_ins_check_foreign_constraints(
 				return(err);
 			}
 		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
 	}
 
 	return(DB_SUCCESS);
@@ -2913,7 +2915,7 @@ row_ins_clust_index_entry(
 	dberr_t	err;
 	ulint	n_uniq;
 
-	if (UT_LIST_GET_FIRST(index->table->foreign_list)) {
+	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(
 			index->table, index, entry, thr);
 		if (err != DB_SUCCESS) {
@@ -2971,7 +2973,7 @@ row_ins_sec_index_entry(
 	mem_heap_t*	offsets_heap;
 	mem_heap_t*	heap;
 
-	if (UT_LIST_GET_FIRST(index->table->foreign_list)) {
+	if (!index->table->foreign_set.empty()) {
 		err = row_ins_check_foreign_constraints(index->table, index,
 							entry, thr);
 		if (err != DB_SUCCESS) {

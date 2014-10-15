@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -88,13 +88,13 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
-
 #pragma once
 
-#include <util/mempool.h>
-#include "wbuf.h"
-#include <util/dmt.h>
-#include "leafentry.h"
+#include "util/dmt.h"
+#include "util/mempool.h"
+
+#include "ft/leafentry.h"
+#include "ft/serialize/wbuf.h"
 
 // Key/leafentry pair stored in a dmt.  The key is inlined, the offset (in leafentry mempool) is stored for the leafentry.
 struct klpair_struct {
@@ -304,7 +304,8 @@ public:
     // Allocates space in the mempool to store a new leafentry.
     // This may require reorganizing the mempool and updating the dmt.
     __attribute__((__nonnull__))
-    void get_space_for_overwrite(uint32_t idx, const void* keyp, uint32_t keylen, uint32_t old_size, uint32_t new_size, LEAFENTRY* new_le_space, void **const maybe_free);
+    void get_space_for_overwrite(uint32_t idx, const void* keyp, uint32_t keylen, uint32_t old_keylen, uint32_t old_size,
+                                 uint32_t new_size, LEAFENTRY* new_le_space, void **const maybe_free);
 
     // Allocates space in the mempool to store a new leafentry
     // and inserts a new key into the dmt
@@ -383,4 +384,3 @@ private:
                                                 uint32_t key_data_size, uint32_t val_data_size, bool all_keys_same_length,
                                                 uint32_t fixed_klpair_length);
 };
-

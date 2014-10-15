@@ -32,7 +32,7 @@
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 #if defined(WIN32)
@@ -76,7 +76,8 @@
 char *strerror(int num);
 #endif   // UNIX
 
-extern "C" int  trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /***********************************************************************/
 /*  Char VCT column blocks are right filled with blanks (blank = true) */
@@ -95,7 +96,10 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   {
   DOSDEF::DefineAM(g, "BIN", poff);
 
-  Estimate = GetIntCatInfo("Estimate", 0);
+  if ((Estimate = GetIntCatInfo("Estimate", 0)))
+    Elemt = MY_MIN(Elemt, Estimate);
+
+  // Split treated as INT to get default value
   Split = GetIntCatInfo("Split", (Estimate) ? 0 : 1);
   Header = GetIntCatInfo("Header", 0);
 
@@ -103,7 +107,7 @@ bool VCTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   if (Estimate && !Split && !Header) {
     char *fn = GetStringCatInfo(g, "Filename", "?");
 
-    // No separate header file fo urbi tables
+    // No separate header file for urbi tables
     Header = (*fn == '?') ? 3 : 2;
     } // endif Estimate
 
@@ -205,7 +209,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   // Mapping not used for insert (except for true VEC not split tables)
   // or when UseTemp is forced
   bool map = Mapped && (Estimate || mode != MODE_INSERT) &&
-             !(PlgGetUser(g)->UseTemp == TMP_FORCE &&
+             !(Use_Temp == TMP_FORCE &&
              (mode == MODE_UPDATE || mode == MODE_DELETE));
   PTXF txfp;
   PTDB tdbp;
@@ -282,6 +286,15 @@ PCOL TDBVCT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
   } // end of MakeCol
 
 /***********************************************************************/
+/*  VEC tables are not ready yet to use temporary files.               */
+/***********************************************************************/
+bool TDBVCT::IsUsingTemp(PGLOBAL g)
+  {
+  // For developpers
+  return (Use_Temp == TMP_TEST);
+  } // end of IsUsingTemp
+
+/***********************************************************************/
 /*  VCT Access Method opening routine.                                 */
 /*  New method now that this routine is called recursively (last table */
 /*  first in reverse order): index blocks are immediately linked to    */
@@ -302,14 +315,19 @@ bool TDBVCT::OpenDB(PGLOBAL g)
       To_Kindex->Reset();
 
     Txfp->Rewind();
+    ResetBlockFilter(g);
     return false;
     } // endif Use
 
   /*********************************************************************/
   /*  Delete all is not handled using file mapping.                    */
   /*********************************************************************/
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_MAP) {
-    Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
+  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_VMP) {
+    if (IsSplit())
+      Txfp = new(g) VECFAM((PVCTDEF)To_Def);
+    else
+      Txfp = new(g) VCTFAM((PVCTDEF)To_Def);
+
     Txfp->SetTdbp(this);
     } // endif Mode
 
@@ -322,6 +340,11 @@ bool TDBVCT::OpenDB(PGLOBAL g)
 
   // This was not done in previous version
   Use = USE_OPEN;       // Do it now in case we are recursively called
+
+  /*********************************************************************/
+  /*  Allocate the block filter tree if evaluation is possible.        */
+  /*********************************************************************/
+  To_BlkFil = InitBlockFilter(g, To_Filter);
 
   /*********************************************************************/
   /*  Reset buffer access according to indexing and to mode.           */
@@ -382,7 +405,7 @@ void TDBVCT::CloseDB(PGLOBAL g)
     To_Kindex = NULL;
     } // endif
 
-  Txfp->CloseTableFile(g);
+  Txfp->CloseTableFile(g, false);
   } // end of CloseDB
 
 // ------------------------ VCTCOL functions ----------------------------

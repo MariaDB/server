@@ -1944,7 +1944,10 @@ btr_search_validate_one_table(
 			buf_pool_t*		buf_pool;
 			index_id_t		page_index_id;
 
-			buf_pool = buf_pool_from_bpage((buf_page_t*) block);
+			buf_pool = buf_pool_from_bpage((buf_page_t *) block);
+			/* Prevent BUF_BLOCK_FILE_PAGE -> BUF_BLOCK_REMOVE_HASH
+			transition until we lock the block mutex */
+			mutex_enter(&buf_pool->LRU_list_mutex);
 
 			if (UNIV_LIKELY(buf_block_get_state(block)
 					== BUF_BLOCK_FILE_PAGE)) {
@@ -1980,6 +1983,7 @@ btr_search_validate_one_table(
 			}
 
 			mutex_enter(&block->mutex);
+			mutex_exit(&buf_pool->LRU_list_mutex);
 
 			ut_a(!dict_index_is_ibuf(block->index));
 

@@ -5265,7 +5265,7 @@ sub get_extra_opts {
 sub stop_servers($$) {
   my (@servers)= @_;
 
-  mtr_report("Restarting ", started(@servers));
+  mtr_report("Stopping ", started(@servers));
 
   My::SafeProcess::shutdown($opt_shutdown_timeout,
                              started(@servers));

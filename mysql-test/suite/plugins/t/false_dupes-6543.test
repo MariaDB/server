@@ -1,0 +1,18 @@
+#
+#    MDEV-6543 Crash if enable 'federatedx' when 'federated' plugin already enabled, and vice-versa
+#
+if(!$HA_FEDERATED_SO) {
+  skip Needs ha_federated.so;
+}
+if(!$HA_FEDERATEDX_SO) {
+  skip Needs ha_federatedx.so;
+}
+
+install soname 'ha_federated';
+# note: no error below! install soname ignores already loaded plugins
+install soname 'ha_federated';
+# note: an error here, even though plugin name is the same!
+--error ER_UDF_EXISTS
+install soname 'ha_federatedx';
+uninstall soname 'ha_federated';
+

@@ -184,7 +184,7 @@ private:
 public:
 
   inline void init(THD *thd, Field * table_field);
-  inline void add(ha_rows rowno);
+  inline bool add(ha_rows rowno);
   inline void finish(ha_rows rows); 
   inline void cleanup();
 };
@@ -1550,6 +1550,7 @@ public:
     uint key_parts= table->actual_n_key_parts(key_info);
     empty= TRUE;
     prefixes= 0;
+    LINT_INIT(calc_state);
 
     is_single_comp_pk= FALSE;
     uint pk= table->s->primary_key;
@@ -2218,9 +2219,10 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
 */
 
 inline
-void Column_statistics_collected::add(ha_rows rowno)
+bool Column_statistics_collected::add(ha_rows rowno)
 {
 
+  bool err= 0;
   if (column->is_null())
     nulls++;
   else
@@ -2231,8 +2233,9 @@ void Column_statistics_collected::add(ha_rows rowno)
     if (max_value && column->update_max(max_value, rowno == nulls))
       set_not_null(COLUMN_STAT_MAX_VALUE);
     if (count_distinct) 
-      count_distinct->add();
+      err= count_distinct->add();
   } 
+  return err;
 }
 
 
@@ -2486,8 +2489,11 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
         table_field= *field_ptr;
         if (!bitmap_is_set(table->read_set, table_field->field_index))
           continue;  
-        table_field->collected_stats->add(rows);
+        if ((rc= table_field->collected_stats->add(rows)))
+          break;
       }
+      if (rc)
+        break;
       rows++;
     }
     file->ha_rnd_end();
@@ -2517,7 +2523,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     else
       table_field->collected_stats->cleanup();
   }
-bitmap_clear_all(table->write_set);
+  bitmap_clear_all(table->write_set);
 
   if (!rc)
   {

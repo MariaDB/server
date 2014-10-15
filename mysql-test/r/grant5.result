@@ -1,0 +1,2 @@
+SHOW GRANTS FOR root@invalid_host;
+ERROR 42000: There is no such grant defined for user 'root' on host 'invalid_host'

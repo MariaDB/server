@@ -612,15 +612,9 @@ innobase_init_foreign(
 		/* Check if any existing foreign key has the same id,
 		this is needed only if user supplies the constraint name */
 
-		for (const dict_foreign_t* existing_foreign
-			= UT_LIST_GET_FIRST(table->foreign_list);
-		     existing_foreign != 0;
-		     existing_foreign = UT_LIST_GET_NEXT(
-			     foreign_list, existing_foreign)) {
-
-			if (ut_strcmp(existing_foreign->id, foreign->id) == 0) {
-				return(false);
-			}
+		if (table->foreign_set.find(foreign)
+		    != table->foreign_set.end()) {
+			return(false);
 		}
         }
 
@@ -2258,14 +2252,18 @@ innobase_check_foreigns_low(
 	const char*		col_name,
 	bool			drop)
 {
+	dict_foreign_t*	foreign;
 	ut_ad(mutex_own(&dict_sys->mutex));
 
 	/* Check if any FOREIGN KEY constraints are defined on this
 	column. */
-	for (const dict_foreign_t* foreign = UT_LIST_GET_FIRST(
-		     user_table->foreign_list);
-	     foreign;
-	     foreign = UT_LIST_GET_NEXT(foreign_list, foreign)) {
+
+	for (dict_foreign_set::iterator it = user_table->foreign_set.begin();
+	     it != user_table->foreign_set.end();
+	     ++it) {
+
+		foreign = *it;
+
 		if (!drop && !(foreign->type
 			       & (DICT_FOREIGN_ON_DELETE_SET_NULL
 				  | DICT_FOREIGN_ON_UPDATE_SET_NULL))) {
@@ -2297,10 +2295,13 @@ innobase_check_foreigns_low(
 
 	/* Check if any FOREIGN KEY constraints in other tables are
 	referring to the column that is being dropped. */
-	for (const dict_foreign_t* foreign = UT_LIST_GET_FIRST(
-		     user_table->referenced_list);
-	     foreign;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
+	for (dict_foreign_set::iterator it
+		= user_table->referenced_set.begin();
+	     it != user_table->referenced_set.end();
+	     ++it) {
+
+		foreign = *it;
+
 		if (innobase_dropping_foreign(foreign, drop_fk, n_drop_fk)) {
 			continue;
 		}
@@ -3188,6 +3189,9 @@ error_handling:
 	case DB_DUPLICATE_KEY:
 		my_error(ER_DUP_KEY, MYF(0), "SYS_INDEXES");
 		break;
+        case DB_OUT_OF_FILE_SPACE:
+		my_error_innodb(error, table_name, user_table->flags);
+		break;
 	default:
 		my_error_innodb(error, table_name, user_table->flags);
 	}
@@ -3648,11 +3652,12 @@ check_if_ok_to_rename:
 				continue;
 			}
 
-			for (dict_foreign_t* foreign = UT_LIST_GET_FIRST(
-				     prebuilt->table->foreign_list);
-			     foreign != NULL;
-			     foreign = UT_LIST_GET_NEXT(
-				     foreign_list, foreign)) {
+			for (dict_foreign_set::iterator it
+				= prebuilt->table->foreign_set.begin();
+			     it != prebuilt->table->foreign_set.end();
+			     ++it) {
+
+				dict_foreign_t*	foreign = *it;
 				const char* fid = strchr(foreign->id, '/');
 
 				DBUG_ASSERT(fid);
@@ -4498,10 +4503,12 @@ err_exit:
 rename_foreign:
 	trx->op_info = "renaming column in SYS_FOREIGN_COLS";
 
-	for (const dict_foreign_t* foreign = UT_LIST_GET_FIRST(
-		     user_table->foreign_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_NEXT(foreign_list, foreign)) {
+	for (dict_foreign_set::iterator it = user_table->foreign_set.begin();
+	     it != user_table->foreign_set.end();
+	     ++it) {
+
+		dict_foreign_t*	foreign = *it;
+
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
 			if (strcmp(foreign->foreign_col_names[i], from)) {
 				continue;
@@ -4531,10 +4538,12 @@ rename_foreign:
 		}
 	}
 
-	for (const dict_foreign_t* foreign = UT_LIST_GET_FIRST(
-		     user_table->referenced_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
+	for (dict_foreign_set::iterator it
+		= user_table->referenced_set.begin();
+	     it != user_table->referenced_set.end();
+	     ++it) {
+
+		dict_foreign_t*	foreign = *it;
 		for (unsigned i = 0; i < foreign->n_fields; i++) {
 			if (strcmp(foreign->referenced_col_names[i], from)) {
 				continue;
@@ -4858,8 +4867,8 @@ innobase_update_foreign_cache(
 		column names. No need to pass col_names or to drop
 		constraints from the data dictionary cache. */
 		DBUG_ASSERT(!ctx->col_names);
-		DBUG_ASSERT(UT_LIST_GET_LEN(user_table->foreign_list) == 0);
-		DBUG_ASSERT(UT_LIST_GET_LEN(user_table->referenced_list) == 0);
+		DBUG_ASSERT(user_table->foreign_set.empty());
+		DBUG_ASSERT(user_table->referenced_set.empty());
 		user_table = ctx->new_table;
 	} else {
 		/* Drop the foreign key constraints if the

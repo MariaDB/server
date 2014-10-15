@@ -100,4 +100,13 @@ static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
     end--;
   return (end);
 }
+
+/* Macros for hashing characters */
+
+#define MY_HASH_ADD(A, B, value) \
+  do { A^= (((A & 63)+B)*((value)))+ (A << 8); B+=3; } while(0)
+
+#define MY_HASH_ADD_16(A, B, value) \
+  do { MY_HASH_ADD(A, B, ((value) & 0xFF)) ; MY_HASH_ADD(A, B, ((value >>8 ))); } while(0) 
+
 #endif

@@ -1,5 +1,5 @@
-# Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-# Copyright (c) 2012, Monty Program Ab
+# Copyright (c) 2006, 2014, Oracle and/or its affiliates.
+# Copyright (c) 2012, 2014, SkySQL Ab.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,14 +53,8 @@ IF(UNIX)
   FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
-
-    IF(script MATCHES ".ini")
-      SET(comp IniFiles)
-    ELSE()
-      SET(comp Server_Scripts)
-    ENDIF()
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
-       DESTINATION ${inst_location} COMPONENT ${comp})
+      DESTINATION ${inst_location} COMPONENT Server_Scripts)
   ENDFOREACH()
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)

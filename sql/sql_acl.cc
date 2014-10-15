@@ -297,7 +297,7 @@ public:
 
   bool eq(const char *user2, const char *host2) { return !cmp(user2, host2); }
 
-  bool wild_eq(const char *user2, const char *host2, const char *ip2 = 0)
+  bool wild_eq(const char *user2, const char *host2, const char *ip2)
   {
     if (strcmp(safe_str(user.str), safe_str(user2)))
       return false;
@@ -1886,8 +1886,8 @@ bool acl_getroot(Security_context *sctx, char *user, char *host,
   DBUG_RETURN(res);
 }
 
-int check_user_can_set_role(const char *host, const char *user,
-                            const char *rolename, ulonglong *access)
+static int check_user_can_set_role(const char *user, const char *host,
+                      const char *ip, const char *rolename, ulonglong *access)
 {
   ACL_ROLE *role;
   ACL_USER_BASE *acl_user_base;
@@ -1930,7 +1930,7 @@ int check_user_can_set_role(const char *host, const char *user,
       continue;
 
     acl_user= (ACL_USER *)acl_user_base;
-    if (acl_user->wild_eq(user, host))
+    if (acl_user->wild_eq(user, host, ip))
     {
       is_granted= TRUE;
       break;
@@ -1958,9 +1958,8 @@ end:
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 {
     /* Yes! priv_user@host. Don't ask why - that's what check_access() does. */
-  return check_user_can_set_role(thd->security_ctx->host,
-                                 thd->security_ctx->priv_user,
-                                 rolename, access);
+  return check_user_can_set_role(thd->security_ctx->priv_user,
+        thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
 }
 
 
@@ -2776,7 +2775,7 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
       rolename= thd->security_ctx->priv_role;
   }
 
-  if (check_user_can_set_role(host, user, rolename, NULL))
+  if (check_user_can_set_role(user, host, host, rolename, NULL))
     DBUG_RETURN(result);
 
   if (!strcasecmp(rolename, "NONE"))
@@ -7665,7 +7664,7 @@ bool mysql_show_grants(THD *thd, LEX_USER *lex_user)
   }
   DBUG_ASSERT(rolename || username);
 
-  Item_string *field=new Item_string("",0,&my_charset_latin1);
+  Item_string *field=new Item_string_ascii("", 0);
   List<Item> field_list;
   field->name=buff;
   field->max_length=1024;
@@ -8944,6 +8943,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
         acl_user->user.str= strdup_root(&acl_memroot, user_to->user.str);
         acl_user->user.length= user_to->user.length;
         acl_user->host.hostname= strdup_root(&acl_memroot, user_to->host.str);
+        acl_user->hostname_length= user_to->host.length;
         break;
 
       case DB_ACL:
@@ -12561,7 +12561,7 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 },
 {
   MYSQL_AUTHENTICATION_PLUGIN,                  /* type constant    */
@@ -12576,7 +12576,7 @@ maria_declare_plugin(mysql_password)
   NULL,                                         /* status variables */
   NULL,                                         /* system variables */
   "1.0",                                        /* String version   */
-  MariaDB_PLUGIN_MATURITY_BETA                  /* Maturity         */
+  MariaDB_PLUGIN_MATURITY_STABLE                /* Maturity         */
 }
 maria_declare_plugin_end;
 

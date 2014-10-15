@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -96,10 +96,9 @@ PATENT RIGHTS GRANT:
 #include <ft-cachetable-wrappers.h>
 #include "ft-flusher.h"
 #include "ft-flusher-internal.h"
-#include "checkpoint.h"
+#include "cachetable/checkpoint.h"
 
 static TOKUTXN const null_txn = 0;
-static DB * const null_db = 0;
 
 enum { NODESIZE = 1024, KSIZE=NODESIZE-100, TOKU_PSIZE=20 };
 
@@ -184,7 +183,7 @@ doit (bool after_split) {
 
     toku_flusher_thread_set_callback(flusher_callback, &after_split);
     
-    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, nullptr);
     unlink("foo4.ft_handle");
     unlink("bar4.ft_handle");
     // note the basement node size is 5 times the node size
@@ -242,8 +241,8 @@ doit (bool after_split) {
         );
     
     FTNODE node = NULL;
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_min_read(&bfe, t->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_min_read(t->ft);
     toku_pin_ftnode(
         t->ft, 
         node_root,
@@ -298,7 +297,7 @@ doit (bool after_split) {
     //
     // now pin the root, verify that we have a message in there, and that it is clean
     //
-    fill_bfe_for_full_read(&bfe, c_ft->ft);
+    bfe.create_for_full_read(c_ft->ft);
     toku_pin_ftnode(
         c_ft->ft, 
         node_root,

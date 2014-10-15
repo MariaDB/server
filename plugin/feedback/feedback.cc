@@ -217,7 +217,8 @@ int fill_feedback(THD *thd, TABLE_LIST *tables, COND *unused)
   tables->schema_table= i_s_feedback;
   res= res || fill_plugin_version(thd, tables)
            || fill_misc_data(thd, tables)
-           || fill_linux_info(thd, tables);
+           || fill_linux_info(thd, tables)
+           || fill_collation_statistics(thd, tables);
 
   return res;
 }

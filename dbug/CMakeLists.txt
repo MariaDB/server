@@ -24,8 +24,10 @@ TARGET_LINK_LIBRARIES(dbug mysys)
 ADD_EXECUTABLE(tests tests.c)
 TARGET_LINK_LIBRARIES(tests dbug)
 
-ADD_EXECUTABLE(factorial my_main.c factorial.c)
-TARGET_LINK_LIBRARIES(factorial dbug)
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(factorial my_main.c factorial.c)
+  TARGET_LINK_LIBRARIES(factorial dbug)
+ENDIF()
 
 IF(NOT WIN32 AND NOT CMAKE_GENERATOR MATCHES Xcode)
   FIND_PROGRAM(GROFF groff)
@@ -36,11 +38,11 @@ IF(NOT WIN32 AND NOT CMAKE_GENERATOR MATCHES Xcode)
   SET(SOURCE_INC factorial.r main.r example1.r example2.r example3.r)
   ADD_CUSTOM_COMMAND(OUTPUT ${OUTPUT_INC}
                      DEPENDS factorial
-                     COMMAND ./factorial 1 2 3 4 5 > output1.r
-                     COMMAND ./factorial -\#t:o 2 3 > output2.r
-                     COMMAND ./factorial -\#d:t:o 3 > output3.r
-                     COMMAND ./factorial -\#d,result:o 4 > output4.r
-                     COMMAND ./factorial -\#d:f,factorial:F:L:o 3 > output5.r)
+                     COMMAND factorial 1 2 3 4 5 > output1.r
+                     COMMAND factorial -\#t:o 2 3 > output2.r
+                     COMMAND factorial -\#d:t:o 3 > output3.r
+                     COMMAND factorial -\#d,result:o 4 > output4.r
+                     COMMAND factorial -\#d:f,factorial:F:L:o 3 > output5.r)
   FOREACH(file ${SOURCE_INC})
     STRING(REGEX REPLACE "\\.r" ".c" srcfile ${file})
     ADD_CUSTOM_COMMAND(OUTPUT ${file} DEPENDS ${srcfile}

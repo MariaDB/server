@@ -1816,7 +1816,7 @@ void Item_func_date_format::fix_length_and_dec()
   if (arg1->type() == STRING_ITEM)
   {						// Optimize the normal case
     fixed_length=1;
-    max_length= format_length(&arg1->str_value) *
+    max_length= format_length(arg1->val_str(NULL)) *
                 collation.collation->mbmaxlen;
   }
   else

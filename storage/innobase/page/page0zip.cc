@@ -1309,6 +1309,30 @@ page_zip_compress(
 
 	MONITOR_INC(MONITOR_PAGE_COMPRESS);
 
+	/* Simulate a compression failure with a probability determined by
+	innodb_simulate_comp_failures, only if the page has 2 or more
+	records. */
+
+	if (srv_simulate_comp_failures
+	    && !dict_index_is_ibuf(index)
+	    && page_get_n_recs(page) >= 2
+	    && ((ulint)(rand() % 100) < srv_simulate_comp_failures)
+	    && strcasecmp(index->table_name, "IBUF_DUMMY") != 0) {
+
+#ifdef UNIV_DEBUG
+		fprintf(stderr,
+			"InnoDB: Simulating a compression failure"
+			" for table %s, index %s, page %lu (%s)\n",
+			index->table_name,
+			index->name,
+			page_get_page_no(page),
+			page_is_leaf(page) ? "leaf" : "non-leaf");
+
+#endif
+
+		goto err_exit;
+	}
+
 	heap = mem_heap_create(page_zip_get_size(page_zip)
 			       + n_fields * (2 + sizeof(ulint))
 			       + REC_OFFS_HEADER_SIZE
@@ -3254,24 +3278,8 @@ page_zip_validate_low(
 	temp_page_buf = static_cast<byte*>(ut_malloc(2 * UNIV_PAGE_SIZE));
 	temp_page = static_cast<byte*>(ut_align(temp_page_buf, UNIV_PAGE_SIZE));
 
-#ifdef UNIV_DEBUG_VALGRIND
-	/* Get detailed information on the valid bits in case the
-	UNIV_MEM_ASSERT_RW() checks fail.  The v-bits of page[],
-	page_zip->data[] or page_zip could be viewed at temp_page[] or
-	temp_page_zip in a debugger when running valgrind --db-attach. */
-	(void) VALGRIND_GET_VBITS(page, temp_page, UNIV_PAGE_SIZE);
 	UNIV_MEM_ASSERT_RW(page, UNIV_PAGE_SIZE);
-# if UNIV_WORD_SIZE == 4
-	VALGRIND_GET_VBITS(page_zip, &temp_page_zip, sizeof temp_page_zip);
-	/* On 32-bit systems, there is no padding in page_zip_des_t.
-	On other systems, Valgrind could complain about uninitialized
-	pad bytes. */
-	UNIV_MEM_ASSERT_RW(page_zip, sizeof *page_zip);
-# endif
-	(void) VALGRIND_GET_VBITS(page_zip->data, temp_page,
-				  page_zip_get_size(page_zip));
 	UNIV_MEM_ASSERT_RW(page_zip->data, page_zip_get_size(page_zip));
-#endif /* UNIV_DEBUG_VALGRIND */
 
 	temp_page_zip = *page_zip;
 	valid = page_zip_decompress(&temp_page_zip, temp_page, TRUE);
