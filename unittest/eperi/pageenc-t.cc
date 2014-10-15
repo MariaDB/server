@@ -20,6 +20,20 @@ extern int summef(int a, int b);
 extern int summef2(int a, int b);
 extern int multiplikation(int a, int b);
 
+ulint
+mach_read_from_2(
+/*=============*/
+	const byte*	b)	/*!< in: pointer to 2 bytes */
+{
+	return(((ulint)(b[0]) << 8) | (ulint)(b[1]));
+}
+ulint
+mach_read_from_1(
+/*=============*/
+	const byte*	b)	/*!< in: pointer to 1 bytes */
+{
+	return((ulint)(b[0]));
+}
 
 extern byte*
 fil_encrypt_page(
@@ -76,17 +90,25 @@ return buffer;
 }
 
 
-void testIt(char* filename, ulint cmp_checksum) {
+void testIt(char* filename, ulint do_not_cmp_checksum) {
 	byte* buf = readFile(filename);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
 	ulint cc1 = 0;
+
+	ulint orig_page_type = mach_read_from_2(buf + 24);
 	fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
 	cc1 = (buf!=dest);
+	if (!do_not_cmp_checksum) {
+		/* verify page type and enryption key*/
+		cc1 = cc1 && (mach_read_from_2(dest+1) == orig_page_type);
+		/* 255 is the key used for unit test */
+		cc1 = cc1 && (mach_read_from_1(dest) == 255);
+	}
 	fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
 	ulint a = 0;
 	ulint b = 0;
-	if (cmp_checksum) {
+	if (do_not_cmp_checksum) {
 		a = 4;
 		b = 8;
 	}

@@ -84,11 +84,12 @@ ulint mode
 
 	if (!unit_test) {
 		ut_ad(fil_space_is_page_encrypted(space_id));
+
+#ifdef UNIV_DEBUG
 		fil_system_enter();
 		space = fil_space_get_by_id(space_id);
 		fil_system_exit();
 
-#ifdef UNIV_DEBUG
 		fprintf(stderr,
 				"InnoDB: Note: Preparing for encryption for space %lu name %s len %lu\n",
 				space_id, fil_space_name(space), len);
@@ -154,38 +155,39 @@ ulint mode
 				(const unsigned char *) &rkey, key_len,
 				(const unsigned char *) &iv, iv_len);
 		ut_ad(write_size == data_size);
-	}
 
-	if (page_compressed) {
-		/* page compressed pages: only one encryption. 3 bytes remain unencrypted. 2 bytes are appended to the encrypted buffer.
-		 * one byte is later written to the checksum header. Additionally trailer remains unencrypted (8 bytes).
-		 */
-		offset = 1;
-	}
-	/* copy remaining bytes to output buffer */
-	memcpy(out_buf + FIL_PAGE_DATA + data_size, buf + FIL_PAGE_DATA + data_size - 1,
-			remainder - offset);
 
-	if (page_compressed ) {
-		remaining_byte = mach_read_from_1(buf + FIL_PAGE_DATA + data_size +1);
-	} else 	{
-		//create temporary buffer for 2nd encryption
-		tmp_buf = static_cast<byte *>(ut_malloc(64));
-		/* 2nd encryption: 63 bytes from out_buf, result length is 64 bytes */
-		err = my_aes_encrypt_cbc((char*)out_buf + UNIV_PAGE_SIZE -FIL_PAGE_DATA_END -62,
-				63,
-				(char*)tmp_buf,
-				&write_size,
-				(const unsigned char *)&rkey,
-				key_len,
-				(const unsigned char *)&iv,
-				iv_len);
-		ut_ad(write_size == 64);
-		//AES_cbc_encrypt((uchar*)out_buf + UNIV_PAGE_SIZE -FIL_PAGE_DATA_END -62, tmp_buf, 63, &aeskey, iv, AES_ENCRYPT);
-		/* copy 62 bytes from 2nd encryption to out_buf, last 2 bytes are copied later to a header field*/
-		memcpy(out_buf + UNIV_PAGE_SIZE - FIL_PAGE_DATA_END -62, tmp_buf, 62);
-	}
+		if (page_compressed) {
+			/* page compressed pages: only one encryption. 3 bytes remain unencrypted. 2 bytes are appended to the encrypted buffer.
+			 * one byte is later written to the checksum header. Additionally trailer remains unencrypted (8 bytes).
+			 */
+			offset = 1;
+		}
+		/* copy remaining bytes to output buffer */
+		memcpy(out_buf + FIL_PAGE_DATA + data_size, buf + FIL_PAGE_DATA + data_size - 1,
+				remainder - offset);
 
+		if (page_compressed ) {
+			remaining_byte = mach_read_from_1(buf + FIL_PAGE_DATA + data_size +1);
+		} else 	{
+			//create temporary buffer for 2nd encryption
+			tmp_buf = static_cast<byte *>(ut_malloc(64));
+			/* 2nd encryption: 63 bytes from out_buf, result length is 64 bytes */
+			err = my_aes_encrypt_cbc((char*)out_buf + UNIV_PAGE_SIZE -FIL_PAGE_DATA_END -62,
+					63,
+					(char*)tmp_buf,
+					&write_size,
+					(const unsigned char *)&rkey,
+					key_len,
+					(const unsigned char *)&iv,
+					iv_len);
+			ut_ad(write_size == 64);
+			//AES_cbc_encrypt((uchar*)out_buf + UNIV_PAGE_SIZE -FIL_PAGE_DATA_END -62, tmp_buf, 63, &aeskey, iv, AES_ENCRYPT);
+			/* copy 62 bytes from 2nd encryption to out_buf, last 2 bytes are copied later to a header field*/
+			memcpy(out_buf + UNIV_PAGE_SIZE - FIL_PAGE_DATA_END -62, tmp_buf, 62);
+
+		}
+	}
 	/* error handling */
 	if (err != AES_OK) {
 		/* If error we leave the actual page as it was */
@@ -333,7 +335,7 @@ ulint mode
 
 
 	/* Get the page type */
-	orig_page_type = mach_read_from_3(buf);
+	orig_page_type = mach_read_from_2(buf+1);
 
 	if (FIL_PAGE_PAGE_COMPRESSED == orig_page_type) {
 		if (page_compressed != NULL) {
