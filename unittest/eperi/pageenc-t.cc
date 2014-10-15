@@ -89,6 +89,26 @@ fclose(fileptr); // Close the file
 return buffer;
 }
 
+void testEncryptionChecksum(char* filename) {
+	byte* buf = readFile(filename);
+	byte* dest = (byte *) malloc(16384*sizeof(byte));
+	ulint out_len;
+	fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
+	dest[2000]=0xFF;
+	dest[2001]=0xFF;
+	dest[2002]=0xFF;
+	dest[2003]=0xFF;
+
+	ulint result = fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
+
+	char str[80];
+	strcpy (str,"Detect decryption error in ");
+	strcat (str,filename );
+
+
+	ok  (result == 1, "%s encryption result %lu", (char*) str, result);
+
+}
 
 void testIt(char* filename, ulint do_not_cmp_checksum) {
 	byte* buf = readFile(filename);
@@ -97,15 +117,17 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 	ulint cc1 = 0;
 
 	ulint orig_page_type = mach_read_from_2(buf + 24);
-	fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
+	byte* snd = fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
 	cc1 = (buf!=dest);
+	cc1 = cc1 && (snd==dest);
 	if (!do_not_cmp_checksum) {
 		/* verify page type and enryption key*/
 		cc1 = cc1 && (mach_read_from_2(dest+1) == orig_page_type);
 		/* 255 is the key used for unit test */
 		cc1 = cc1 && (mach_read_from_1(dest) == 255);
 	}
-	fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
+	ulint result = fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
+	cc1 = result == 0;
 	ulint a = 0;
 	ulint b = 0;
 	if (do_not_cmp_checksum) {
@@ -150,6 +172,7 @@ int main()
 
 
 	test_page_enc_dec();
+	testEncryptionChecksum((char* )"xaa");
 
 	return 0;
 }
