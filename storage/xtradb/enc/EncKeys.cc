@@ -57,6 +57,8 @@ const char* EncKeys::errorReadingFile = "Could not read from %s. You can not rea
 const char* EncKeys::errorFileSize = "Could not get the file size from %s. You can not read encrypted tables or columns\n\n";
 const char* EncKeys::errorFalseFileKey = "Wrong encryption / decryption key for keyfile '%s'.\n";
 
+/* read this from a secret source in some later version */
+const char* EncKeys::initialPwd = "lg28s9ac5ffa537fd8798875c98e190df289da7e047c05";
 
 EncKeys::EncKeys() {
 	countKeys = keyLineInKeyFile = 0;
@@ -96,7 +98,7 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 	const short MAGIC_LEN = 5;
 	int ret = NO_ERROR_KEY_FILE_PARSE_OK;
 		bool isSlash = ('/' == path[len1 - 1]);
-		char *secret = (char*) malloc(MAX_SECRET_SIZE * sizeof(char));
+		char *secret = (char*) malloc(MAX_SECRET_SIZE +1 * sizeof(char));
 		char *filename = (char*) malloc((len1 + len2 + (isSlash ? 1 : 2)) * sizeof(char));
 		if(filekey != NULL)
 		{
@@ -126,14 +128,44 @@ int EncKeys::initKeysThroughServer( const char *name, const char *path, const ch
 	return ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
 }
 
+/*
+ * secret is limited to MAX_SECRET_SIZE characters
+ */
 void EncKeys::parseSecret( const char *secretfile, char *secret ) {
-	int i=0;
-	FILE *fp = my_fopen(secretfile, O_RDWR, MYF(MY_WME));
+	int maxSize = (MAX_SECRET_SIZE +16 + magicSize*2) ;
+	char* buf = (char*)malloc((maxSize) * sizeof(char));
+	char* _initPwd = (char*)malloc((strlen(initialPwd)+1) * sizeof(char));
+
+	FILE *fp = fopen(secretfile, "rb");
 	fseek(fp, 0L, SEEK_END);
 	long file_size = ftell(fp);
-	fseek(fp, 0L, SEEK_SET);
-	fgets(secret, (MAX_SECRET_SIZE >= file_size)?file_size:MAX_SECRET_SIZE, fp);
-	my_fclose(fp, MYF(MY_WME));
+	rewind(fp);
+	int bytes_to_read = (maxSize >= file_size)? file_size:(maxSize);
+	fread(buf, 1, bytes_to_read, fp);
+	if (memcmp(buf, strMAGIC, magicSize)) {
+		bytes_to_read = (bytes_to_read>MAX_SECRET_SIZE) ? MAX_SECRET_SIZE : bytes_to_read;
+		memcpy(secret, buf, bytes_to_read);
+		secret[bytes_to_read] = '\0';
+	} else {
+		unsigned char salt[magicSize];
+		unsigned char *key = new unsigned char[keySize32];
+		unsigned char *iv = new unsigned char[ivSize16];
+		memcpy(&salt, buf + magicSize, magicSize);
+		salt[magicSize] = '\0';
+		memcpy(_initPwd, initialPwd, strlen(initialPwd));
+		_initPwd[strlen(initialPwd)]= '\0';
+		my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
+		unsigned long int d_size = 0;
+		int res = my_aes_decrypt_cbc((const char*)buf + 2 * magicSize, bytes_to_read - 2 * magicSize,
+				secret, &d_size, key, keySize32, iv, ivSize16);
+		if (d_size>EncKeys::MAX_SECRET_SIZE) {
+			d_size = EncKeys::MAX_SECRET_SIZE;
+		}
+		secret[d_size] = '\0';
+	}
+	free(buf);
+	free(_initPwd);
+	fclose(fp);
 }
 
 /**

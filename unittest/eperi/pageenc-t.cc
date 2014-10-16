@@ -11,6 +11,7 @@ typedef unsigned long int ibool;
 
 
 #include "pageenc-t.h"
+#include "EncKeys.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -19,7 +20,12 @@ typedef unsigned long int ibool;
 extern int summef(int a, int b);
 extern int summef2(int a, int b);
 extern int multiplikation(int a, int b);
-
+extern "C" {
+extern int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
+		char* dest, unsigned long int *dest_length,
+		const unsigned char* key, uint8 key_length,
+		const unsigned char* iv, uint8 iv_length);
+}
 ulint
 mach_read_from_2(
 /*=============*/
@@ -73,7 +79,7 @@ fil_decrypt_page(
 
 
 
-byte* readFile(char* fileName) {
+byte* readFile(char* fileName, int* fileLen) {
 FILE *fileptr;
 byte *buffer;
 long filelen;
@@ -86,11 +92,13 @@ rewind(fileptr);                      // Jump back to the beginning of the file
 buffer = (byte *)malloc((filelen+1)*sizeof(byte)); // Enough memory for file + \0
 fread(buffer, filelen, 1, fileptr); // Read in the entire file
 fclose(fileptr); // Close the file
+if (fileLen!=NULL)
+	*fileLen = filelen;
 return buffer;
 }
 
 void testEncryptionChecksum(char* filename) {
-	byte* buf = readFile(filename);
+	byte* buf = readFile(filename,NULL);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
 	fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
@@ -111,7 +119,7 @@ void testEncryptionChecksum(char* filename) {
 }
 
 void testIt(char* filename, ulint do_not_cmp_checksum) {
-	byte* buf = readFile(filename);
+	byte* buf = readFile(filename, NULL);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
 	ulint cc1 = 0;
@@ -166,13 +174,76 @@ void test_page_enc_dec() {
 
 }
 
+char* __sub(size_t length, char* in) {
+	in[length-1] = '\0';
+	return in;
+}
+void testSecret(char* filename, char* cmp) {
+	char* s = (char*) malloc (1000);
+	EncKeys::parseSecret(filename,s);
+	int c = strcmp (s, cmp);
+	//printf("\n%s\n%s\n",s,cmp);
+	ok(c==0,"secret can be decrypted");
+	free (s);
+}
+void testShortSecret_EncryptedFile() {
+	testSecret("secret.enc", "secret");
+}
+void testShortSecret_PlainFile() {
+	testSecret("secret", "secret");
+}
+void testLongSecret_PlainFile() {
+	char * s = (char*) "2304832408230498 3094823084092384093824908234 480 32480923840981309548sdmflösdkmflkjmfokjmk4rlkwemflkjrl23409098dsk39i980938098098234098098sdkfölklök1230980sd2304983209483209489fklödkfölk3209483209480932482309480923480923480923480923840932840923840932843399";
+	char * x = (char* )malloc(EncKeys::MAX_SECRET_SIZE+1);
+	memcpy(x,s,EncKeys::MAX_SECRET_SIZE);
+	x[EncKeys::MAX_SECRET_SIZE] = '\0';
+
+	testSecret((char*)"long_secret", x);
+
+}
+void testLongSecret_EncryptedFile() {
+	char * s = (char*) "2304832408230498 3094823084092384093824908234 480 32480923840981309548sdmflösdkmflkjmfokjmk4rlkwemflkjrl23409098dsk39i980938098098234098098sdkfölklök1230980sd2304983209483209489fklödkfölk3209483209480932482309480923480923480923480923840932840923840932843399";
+	char * x = (char* )malloc(EncKeys::MAX_SECRET_SIZE+1);
+	memcpy(x,s,EncKeys::MAX_SECRET_SIZE);
+	x[EncKeys::MAX_SECRET_SIZE] = '\0';
+
+	testSecret("long_secret.enc", x);
+
+}
+void testSecret256_EncryptedFile() {
+	char * s = (char*) "423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423";
+	char * x = (char* )malloc(EncKeys::MAX_SECRET_SIZE+1);
+	memcpy(x,s,EncKeys::MAX_SECRET_SIZE);
+	x[EncKeys::MAX_SECRET_SIZE] = '\0';
+
+	testSecret("secret256.enc", x);
+
+}
+void testSecret256_PlainFile() {
+	char * s = (char*) "423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423480980928309482423";
+	char * x = (char* )malloc(EncKeys::MAX_SECRET_SIZE+1);
+	memcpy(x,s,EncKeys::MAX_SECRET_SIZE);
+	x[EncKeys::MAX_SECRET_SIZE] = '\0';
+
+	testSecret("secret256", x);
+
+}
+void testSecrets() {
+
+	testShortSecret_EncryptedFile();
+	testShortSecret_PlainFile();
+	testLongSecret_PlainFile();
+	testLongSecret_EncryptedFile();
+	testSecret256_PlainFile();
+	testSecret256_EncryptedFile();
+
+}
 
 int main()
 {
-
-
+	testSecrets();
 	test_page_enc_dec();
-	testEncryptionChecksum((char* )"xaa");
+    testEncryptionChecksum((char* )"xaa");
 
 	return 0;
 }
