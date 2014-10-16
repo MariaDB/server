@@ -39,7 +39,7 @@ MY_ADD_TESTS(EperiKeySingleton
 MY_ADD_TESTS(
  pageenc
   EXT "cc" 
-  LINK_LIBRARIES xtradb perfschema mysys mysys_ssl sql mysql)
+  LINK_LIBRARIES mysys_ssl xtradb perfschema mysys  sql mysql)
 
 
 file(COPY
@@ -71,6 +71,11 @@ file(COPY
 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 file(COPY
 	${CMAKE_CURRENT_LIST_DIR}/compressed_full
+	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+
+
+file(COPY
+	${CMAKE_CURRENT_LIST_DIR}/secret.txt
 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 
 endif()

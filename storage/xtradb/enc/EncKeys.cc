@@ -128,17 +128,13 @@ int EncKeys::initKeysThroughServer( const char *name, const char *path, const ch
 
 void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 	int i=0;
-	FILE *fp = my_fopen(secretfile, O_RDWR, MYF(MY_WME));
+	FILE *fp = fopen(secretfile, "rb");
 	fseek(fp, 0L, SEEK_END);
 	long file_size = ftell(fp);
-	fseek(fp, 0L, SEEK_SET);
-	fgets(secret, (MAX_SECRET_SIZE >= file_size)?file_size:MAX_SECRET_SIZE, fp);
-	fseek(fp, 0L, SEEK_SET);
-	for(i=0; i<MAX_SECRET_SIZE; i++)
-	{
-		fprintf(fp,"x");
-	}
-	my_fclose(fp, MYF(MY_WME));
+	rewind(fp);
+	fgets(secret, (MAX_SECRET_SIZE >= file_size)? file_size:MAX_SECRET_SIZE, fp);
+
+	fclose(fp);
 }
 
 /**
