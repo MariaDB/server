@@ -133,11 +133,6 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 	long file_size = ftell(fp);
 	fseek(fp, 0L, SEEK_SET);
 	fgets(secret, (MAX_SECRET_SIZE >= file_size)?file_size:MAX_SECRET_SIZE, fp);
-	fseek(fp, 0L, SEEK_SET);
-	for(i=0; i<MAX_SECRET_SIZE; i++)
-	{
-		fprintf(fp,"x");
-	}
 	my_fclose(fp, MYF(MY_WME));
 }
 
@@ -295,8 +290,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	fclose(fp);
 	//Check for file encryption
 	if (0 == memcmp(buffer, strMAGIC, magicSize)) { //If file is encrypted, decrypt it first.
-		const int array_size = magicSize + 1;
-		unsigned char salt[array_size];
+		unsigned char salt[magicSize];
 		unsigned char *key = new unsigned char[keySize32];
 		unsigned char *iv = new unsigned char[ivSize16];
 		char *decrypted = new char[file_size];
