@@ -36,10 +36,14 @@ this program; if not, write to the Free Software Foundation, Inc.,
 //#define UNIV_PAGEENCRIPTION_DEBUG
 //#define CRYPT_FF
 
-/* calculate a 3 byte checksum to verify decryption. One byte is needed for other things */
-ulint fil_page_encryption_calc_checksum(unsigned char* buf, size_t size) {
+/* calculate a 3 byte checksum to verify decryption. One byte is currently needed for other things */
+ulint fil_page_encryption_calc_checksum(unsigned char* buf) {
 	ulint checksum = 0;
-	checksum = ut_fold_binary(buf, size);
+	checksum = ut_fold_binary(buf + FIL_PAGE_OFFSET,
+				  FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+		+ ut_fold_binary(buf + FIL_PAGE_DATA,
+				 UNIV_PAGE_SIZE - FIL_PAGE_DATA
+				 - FIL_PAGE_END_LSN_OLD_CHKSUM);
 	checksum = checksum & 0x0FFFFFF0UL;
 	checksum = checksum >> 8;
 	checksum = checksum & 0x00FFFFFFUL;
@@ -112,7 +116,7 @@ ulint mode
 	}
 
 	/* calculate a checksum, can be used to verify decryption */
-	checksum = fil_page_encryption_calc_checksum(buf + FIL_PAGE_DATA, UNIV_PAGE_SIZE - (FIL_PAGE_DATA_END + FIL_PAGE_DATA));
+	checksum = fil_page_encryption_calc_checksum(buf);
 
 	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
 								  0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0, 0xe0, 0x23,
@@ -193,7 +197,7 @@ ulint mode
 		/* If error we leave the actual page as it was */
 
 		fprintf(stderr,
-				"InnoDB: Warning: Encryption failed for space %lu name %s len %lu rt %d write %lu, error: %lu\n",
+				"InnoDB: Warning: Encryption failed for space %lu name %s len %lu rt %d write %lu, error: %d\n",
 			space_id, fil_space_name(space), len, err, data_size, err);
 		fflush(stderr);
 		srv_stats.pages_page_encryption_error.inc();
@@ -401,7 +405,7 @@ ulint mode
 	if (err != AES_OK) {
 		/* surely key could not be fetched */
 		fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
-				"InnoDB: but decrypt failed with error %d, encryption key: %d.\n",
+				"InnoDB: but decrypt failed with error %d, encryption key %d.\n",
 				err, (int)page_decryption_key);
 		fflush(stderr);
 		if (NULL == page_buf) {
@@ -434,7 +438,7 @@ ulint mode
 		if (err != AES_OK) {
 			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
 					"InnoDB: but decrypt failed with error %d.\n"
-					"InnoDB: size %lu len %lu, key%d\n", err, data_size,
+					"InnoDB: size %lu len %lu, key %d\n", err, data_size,
 					len, (int)page_decryption_key);
 			fflush(stderr);
 			if (NULL == page_buf) {
@@ -474,8 +478,6 @@ ulint mode
 	}
 
 
-	/* calculate a checksum to verify decryption*/
-	checksum = fil_page_encryption_calc_checksum(in_buf + FIL_PAGE_DATA, UNIV_PAGE_SIZE - (FIL_PAGE_DATA_END + FIL_PAGE_DATA) );
 	/* compare with stored checksum */
 	ulint compressed_size = mach_read_from_2(in_buf+ FIL_PAGE_DATA);
 	ibool no_checksum_support = 0;
@@ -504,20 +506,6 @@ ulint mode
 		ut_free(tmp_page_buf);
 		ut_free(tmp_buf);
 	}
-	if (no_checksum_support) {
-		fprintf(stderr, "InnoDB: decrypting page can not be verified!\n");
-		fflush(stderr);
-
-	} else {
-		if ((stored_checksum != checksum)) {
-			err = PAGE_ENCRYPTION_WRONG_KEY;
-			// Need to free temporal buffer if no buffer was given
-			if (NULL == page_buf) {
-				ut_free(in_buf);
-			}
-			return err;
-		}
-	}
 
 
 #ifdef UNIV_PAGEENCRIPTION_DEBUG
@@ -539,9 +527,34 @@ ulint mode
 
 	mach_write_to_2(buf + FIL_PAGE_TYPE, orig_page_type);
 
+	/* calculate a checksum to verify decryption */
+	checksum = fil_page_encryption_calc_checksum(buf);
 
-	/* calc check sums and write to the buffer, if page was not compressed */
+	if (no_checksum_support) {
+			fprintf(stderr, "InnoDB: decrypting page can not be verified!\n");
+			fflush(stderr);
+
+	} else {
+		if ((stored_checksum != checksum)) {
+			err = PAGE_ENCRYPTION_WRONG_KEY;
+			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted.\n"
+								"InnoDB: Checksum mismatch after decryption.\n"
+								"InnoDB: size %lu len %lu, key %d\n", data_size,
+								len, (int)page_decryption_key);
+						fflush(stderr);
+			// Need to free temporal buffer if no buffer was given
+			if (NULL == page_buf) {
+				ut_free(in_buf);
+			}
+			return err;
+		}
+	}
+
 	if (!(page_compression_flag )) {
+		/* calc check sums and write to the buffer, if page was not compressed.
+		 * if the decryption is verified, it is assumed that the original page was restored, re-calculating the original
+		 * checksums should be ok
+		 */
 		do_check_sum(UNIV_PAGE_SIZE, buf);
 	} else {
 		/* page_compression uses BUF_NO_CHECKSUM_MAGIC as checksum */
@@ -558,10 +571,10 @@ ulint mode
 }
 
 
+/* recalculate check sum  - from buf0flu.cc*/
 void do_check_sum( ulint page_size, byte* buf) {
 	ib_uint32_t checksum = 0;
-	/* recalculate check sum  - from buf0flu.cc*/
-	switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
+		switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
 	case SRV_CHECKSUM_ALGORITHM_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 		checksum = buf_calc_page_crc32(buf);
