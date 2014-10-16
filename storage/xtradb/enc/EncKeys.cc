@@ -151,7 +151,6 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 		unsigned char *key = new unsigned char[keySize32];
 		unsigned char *iv = new unsigned char[ivSize16];
 		memcpy(&salt, buf + magicSize, magicSize);
-		salt[magicSize] = '\0';
 		memcpy(_initPwd, initialPwd, strlen(initialPwd));
 		_initPwd[strlen(initialPwd)]= '\0';
 		my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
@@ -327,7 +326,6 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		unsigned char *iv = new unsigned char[ivSize16];
 		char *decrypted = new char[file_size];
 		memcpy(&salt, buffer + magicSize, magicSize);
-		salt[magicSize] = '\0';
 		my_bytes_to_key((unsigned char *) salt, secret, key, iv);
 		unsigned long int d_size = 0;
 		int res = my_aes_decrypt_cbc((const char*)buffer + 2 * magicSize, file_size - 2 * magicSize,
