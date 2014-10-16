@@ -97,7 +97,8 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 	const char *MAGIC = "FILE:";
 	const short MAGIC_LEN = 5;
 	int ret = NO_ERROR_KEY_FILE_PARSE_OK;
-		bool isSlash = ('/' == path[len1 - 1]);
+	bool isUncPath= (len1>2) ? ((strncmp("\\\\", path, 2)==0) ? TRUE : FALSE) : FALSE;
+		bool isSlash = ((isUncPath? '\\':'/') == path[len1 - 1]);
 		char *secret = (char*) malloc(MAX_SECRET_SIZE +1 * sizeof(char));
 		char *filename = (char*) malloc((len1 + len2 + (isSlash ? 1 : 2)) * sizeof(char));
 		if(filekey != NULL)
@@ -105,8 +106,9 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 			//If secret starts with FILE: interpret the secret as filename.
 			if(memcmp(MAGIC, filekey, MAGIC_LEN) == 0) {
 				int fk_len = strlen(filekey);
-				char *secretfile = (char*)malloc((fk_len - MAGIC_LEN)* sizeof(char));
-				sprintf(secretfile, "%s", filekey+MAGIC_LEN);
+				char *secretfile = (char*)malloc( (1 + fk_len - MAGIC_LEN)* sizeof(char));
+				memcpy(secretfile, filekey+MAGIC_LEN, fk_len - MAGIC_LEN);
+				secretfile[fk_len-MAGIC_LEN] = '\0';
 				parseSecret(secretfile, secret);
 				free(secretfile);
 			} else
@@ -114,7 +116,7 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 				sprintf(secret, "%s", filekey);
 			}
 		}
-		sprintf(filename, "%s%s%s", path, isSlash ? "" : "/", name);
+		sprintf(filename, "%s%s%s", path, isSlash ? "" : (isUncPath ? "\\":"/"), name);
 		ret = parseFile((const char *)filename, 254, secret);
 		free(filename);
 		free(secret);
