@@ -2710,7 +2710,7 @@ bool select_to_file::send_eof()
   if (mysql_file_close(file, MYF(MY_WME)) || thd->is_error())
     error= true;
 
-  if (!error)
+  if (!error && !suppress_my_ok)
   {
     ::my_ok(thd,row_count);
   }
@@ -3786,9 +3786,12 @@ bool select_dumpvar::send_eof()
   if (thd->is_error())
     return true;
 
-  ::my_ok(thd,row_count);
+  if (!suppress_my_ok)
+    ::my_ok(thd,row_count);
+
   return 0;
 }
+
 
 
 bool

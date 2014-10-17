@@ -3956,6 +3956,14 @@ public:
   {
     unit->offset_limit_cnt= 0;
   }
+
+  /*
+    This returns
+    - FALSE if the class sends output row to the client
+    - TRUE if the output is set elsewhere (a file, @variable, or table).
+    Currently all intercepting classes derive from select_result_interceptor.
+  */
+  virtual bool is_result_interceptor()=0;
 };
 
 
@@ -3986,6 +3994,8 @@ public:
 
 /*
   This is a select_result_sink which stores the data in text form.
+
+  It is only used to save EXPLAIN output.
 */
 
 class select_result_text_buffer : public select_result_sink
@@ -4014,7 +4024,7 @@ private:
 class select_result_interceptor: public select_result
 {
 public:
-  select_result_interceptor()
+  select_result_interceptor() : suppress_my_ok(false)
   {
     DBUG_ENTER("select_result_interceptor::select_result_interceptor");
     DBUG_PRINT("enter", ("this 0x%lx", (ulong) this));
@@ -4022,6 +4032,15 @@ public:
   }              /* Remove gcc warning */
   uint field_count(List<Item> &fields) const { return 0; }
   bool send_result_set_metadata(List<Item> &fields, uint flag) { return FALSE; }
+  bool is_result_interceptor() { return true; }
+
+  /*
+    Instruct the object to not call my_ok(). Client output will be handled
+    elsewhere. (this is used by ANALYZE $stmt feature).
+  */
+  void disable_my_ok_calls() { suppress_my_ok= true; }
+protected:
+  bool suppress_my_ok;
 };
 
 
@@ -4040,6 +4059,7 @@ public:
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
   virtual void cleanup();
+  bool is_result_interceptor() { return true; }
 };
 
 

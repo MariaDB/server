@@ -3814,6 +3814,9 @@ end_with_restore_list:
                                                  lex->duplicates,
                                                  lex->ignore)))
       {
+        if (lex->analyze_stmt)
+          ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
+
 	res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
         /*
           Invalidate the table in the query cache if something changed
@@ -3833,7 +3836,7 @@ end_with_restore_list:
         delete sel_result;
       }
 
-      if (!res && explain)
+      if (!res && (explain || lex->analyze_stmt))
         res= thd->lex->explain->send_explain(thd);
 
       /* revert changes for SP */
@@ -5649,12 +5652,18 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
     else
     {
-      Protocol *save_protocol;
+      Protocol *save_protocol= NULL;
       if (lex->analyze_stmt)
       {
-        result= new select_send_analyze();
-        save_protocol= thd->protocol;
-        thd->protocol= new Protocol_discard(thd);
+        if (result && result->is_result_interceptor())
+          ((select_result_interceptor*)result)->disable_my_ok_calls();
+        else 
+        {
+          DBUG_ASSERT(thd->protocol);
+          result= new select_send_analyze();
+          save_protocol= thd->protocol;
+          thd->protocol= new Protocol_discard(thd);
+        }
       }
       else
       {
@@ -5668,8 +5677,11 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
       if (lex->analyze_stmt)
       {
-        delete thd->protocol;
-        thd->protocol= save_protocol;
+        if (save_protocol)
+        {
+          delete thd->protocol;
+          thd->protocol= save_protocol;
+        }
         if (!res)
           res= thd->lex->explain->send_explain(thd);
       }

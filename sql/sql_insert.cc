@@ -3712,6 +3712,10 @@ bool select_insert::send_eof()
     table->file->print_error(error,MYF(0));
     DBUG_RETURN(1);
   }
+
+  if (suppress_my_ok)
+    DBUG_RETURN(0);
+
   char buff[160];
   if (info.ignore)
     sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,

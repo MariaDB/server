@@ -217,3 +217,19 @@ analyze replace t1 values (1,2);
 select * from t1;
 drop table t1;
 
+--echo #
+--echo # MDEV-6400 "ANALYZE SELECT ... INTO @var" doesn't set @var
+--echo #
+create table t1(a int);
+insert into t1 values (1),(2);
+
+analyze select a from t1 where a <2 into @var;
+--error ER_TOO_MANY_ROWS
+analyze select a from t1 into @var;
+
+analyze insert into t1 select * from t1;
+
+analyze select * into outfile '../../tmp/data1.tmp' from t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
+
+drop table t1;
