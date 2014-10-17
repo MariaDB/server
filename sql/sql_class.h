@@ -4397,11 +4397,13 @@ private:
   ha_rows limit;
 
 public:
+  /* Number of rows in the union */
+  ha_rows send_records; 
   select_union_direct(select_result *result, SELECT_LEX *last_select_lex)
     :result(result), last_select_lex(last_select_lex),
     done_send_result_set_metadata(false), done_initialize_tables(false),
     limit_found_rows(0)
-  {}
+    { send_records= 0; }
   bool change_result(select_result *new_result);
   uint field_count(List<Item> &fields) const
   {
@@ -4432,6 +4434,7 @@ public:
       and for the results of subquery engines
       (select_<something>_subselect).
     */
+    send_records= 0;
     DBUG_ASSERT(false); /* purecov: inspected */
   }
   void set_thd(THD *thd_arg)
