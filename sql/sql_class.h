@@ -3083,8 +3083,10 @@ public:
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
-  int send_explain_fields(select_result *result);
-  void make_explain_field_list(List<Item> &field_list);
+  int send_explain_fields(select_result *result, uint8 explain_flags,
+                          bool is_analyze);
+  void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
+                               bool is_analyze);
   /**
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we

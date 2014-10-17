@@ -2951,7 +2951,7 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     {
       StringBuffer<128> buf;
       DBUG_ASSERT(!thd->free_list);
-      if (!print_explain_query(thd->lex, thd, &buf))
+      if (!print_explain_for_slow_log(thd->lex, thd, &buf))
         my_b_printf(&log_file, "%s", buf.c_ptr_safe());
       thd->free_items();
     }

@@ -5618,7 +5618,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       */
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
-      thd->send_explain_fields(result);
+      thd->send_explain_fields(result, lex->describe, lex->analyze_stmt);
         
       /*
         This will call optimize() for all parts of query. The query plan is

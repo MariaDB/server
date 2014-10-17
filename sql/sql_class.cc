@@ -2367,10 +2367,10 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 }
 
 
-int THD::send_explain_fields(select_result *result)
+int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is_analyze)
 {
   List<Item> field_list;
-  make_explain_field_list(field_list);
+  make_explain_field_list(field_list, explain_flags, is_analyze);
   result->prepare(field_list, NULL);
   return (result->send_result_set_metadata(field_list,
                                            Protocol::SEND_NUM_ROWS | 
@@ -2386,7 +2386,8 @@ int THD::send_explain_fields(select_result *result)
   Explain_query::print_explain and co.
 */
 
-void THD::make_explain_field_list(List<Item> &field_list)
+void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
+                                  bool is_analyze)
 {
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
@@ -2395,7 +2396,7 @@ void THD::make_explain_field_list(List<Item> &field_list)
   field_list.push_back(new Item_empty_string("select_type", 19, cs));
   field_list.push_back(item= new Item_empty_string("table", NAME_CHAR_LEN, cs));
   item->maybe_null= 1;
-  if (lex->describe & DESCRIBE_PARTITIONS)
+  if (explain_flags & DESCRIBE_PARTITIONS)
   {
     /* Maximum length of string that make_used_partitions_str() can produce */
     item= new Item_empty_string("partitions", MAX_PARTITIONS * (1 + FN_LEN),
@@ -2419,20 +2420,20 @@ void THD::make_explain_field_list(List<Item> &field_list)
   item->maybe_null=1;
   field_list.push_back(item= new Item_return_int("rows", 10,
                                                  MYSQL_TYPE_LONGLONG));
-  if (lex->analyze_stmt)
+  if (is_analyze)
   {
     field_list.push_back(item= new Item_return_int("r_rows", 10,
                                                    MYSQL_TYPE_LONGLONG));
     item->maybe_null=1;
   }
 
-  if (lex->analyze_stmt || lex->describe & DESCRIBE_EXTENDED)
+  if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
   {
     field_list.push_back(item= new Item_float("filtered", 0.1234, 2, 4));
     item->maybe_null=1;
   }
 
-  if (lex->analyze_stmt)
+  if (is_analyze)
   {
     field_list.push_back(item= new Item_float("r_filtered", 0.1234, 2, 4));
     item->maybe_null=1;

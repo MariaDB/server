@@ -136,7 +136,7 @@ int Explain_query::send_explain(THD *thd)
   LEX *lex= thd->lex;
  
   if (!(result= new select_send()) || 
-      thd->send_explain_fields(result))
+      thd->send_explain_fields(result, lex->describe, lex->analyze_stmt))
     return 1;
 
   int res;
@@ -177,9 +177,9 @@ int Explain_query::print_explain(select_result_sink *output,
 }
 
 
-bool print_explain_query(LEX *lex, THD *thd, String *str)
+bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str)
 {
-  return lex->explain->print_explain_str(thd, str, false);
+  return lex->explain->print_explain_str(thd, str, /*is_analyze*/ true);
 }
 
 
@@ -190,7 +190,7 @@ bool print_explain_query(LEX *lex, THD *thd, String *str)
 bool Explain_query::print_explain_str(THD *thd, String *out_str,  bool is_analyze)
 {
   List<Item> fields;
-  thd->make_explain_field_list(fields);
+  thd->make_explain_field_list(fields, thd->lex->describe, is_analyze);
 
   select_result_text_buffer output_buf(thd);
   output_buf.send_result_set_metadata(fields, thd->lex->describe);
