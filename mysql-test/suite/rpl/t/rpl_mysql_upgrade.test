@@ -5,11 +5,9 @@
 # options are added into mysql_upgrade. These options control whether sql
 # statements are binlogged or not. 
 #############################################################################
---source include/master-slave.inc
 --source include/have_innodb.inc
-
-# Only run test if "mysql_upgrade" is found
---source include/have_mysql_upgrade.inc
+--source include/mysql_upgrade_preparation.inc
+--source include/master-slave.inc
 
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("table or database name 'mysqltest-1'");

@@ -83,7 +83,7 @@ let $script=
   s{block_len=[0-9]+}{block_len=#};
   s{Server ver:.*DOLLAR}{SERVER_VERSION, BINLOG_VERSION};
   s{GTID [0-9]+-[0-9]+-[0-9]+}{GTID #-#-#};
-  s{\[[0-9]-[0-9]-[0-9]+\]}{[#-#-#]};
+  s{\[([0-9]-[0-9]-[0-9]+,?)+\]}{[#-#-#]};
   s{cid=[0-9]+}{cid=#};
   s{SQL_LOAD-[a-z,0-9,-]*.[a-z]*}{SQL_LOAD-<SERVER UUID>-<MASTER server-id>-<file-id>.<extension>};
   s{rand_seed1=[0-9]*,rand_seed2=[0-9]*}{rand_seed1=<seed 1>,rand_seed2=<seed 2>};

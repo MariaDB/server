@@ -722,7 +722,12 @@ DROP TABLE t1;
 CREATE TABLE IF NOT EXISTS t1 (
 f1 bit(2) NOT NULL default b''
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
-ERROR 42000: Invalid default value for 'f1'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` bit(2) NOT NULL DEFAULT b'0'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci
+DROP TABLE t1;
 create table t1bit7 (a1 bit(7) not null) engine=MyISAM;
 create table t2bit7 (b1 bit(7)) engine=MyISAM;
 insert into t1bit7 values (b'1100000');

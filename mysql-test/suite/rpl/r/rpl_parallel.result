@@ -314,7 +314,7 @@ SET debug_sync='now WAIT_FOR t1_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR t2_killed';
 SET debug_sync='now SIGNAL t1_cont';
-include/wait_for_slave_sql_error.inc [errno=1317,1964]
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 STOP SLAVE IO_THREAD;
 SELECT * FROM t3 WHERE a >= 30 ORDER BY a;
 a	b
@@ -398,7 +398,7 @@ SET debug_sync='now WAIT_FOR t1_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR t2_killed';
 SET debug_sync='now SIGNAL t1_cont';
-include/wait_for_slave_sql_error.inc [errno=1317,1964]
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 SET debug_sync='RESET';
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
@@ -481,7 +481,7 @@ SET debug_sync='now WAIT_FOR t1_ready';
 KILL THD_ID;
 SET debug_sync='now WAIT_FOR t2_killed';
 SET debug_sync='now SIGNAL t1_cont';
-include/wait_for_slave_sql_error.inc [errno=1317,1964]
+include/wait_for_slave_sql_error.inc [errno=1317,1927,1964]
 SELECT * FROM t3 WHERE a >= 50 ORDER BY a;
 a	b
 51	51
@@ -793,6 +793,7 @@ SET debug_sync='now WAIT_FOR master_queued2';
 SET debug_sync='now SIGNAL master_cont1';
 SET debug_sync='RESET';
 include/start_slave.inc
+include/stop_slave.inc
 SELECT * FROM t4 ORDER BY a;
 a	b
 1	NULL
@@ -801,6 +802,42 @@ a	b
 5	NULL
 6	6
 7	NULL
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+SET debug_sync='now WAIT_FOR master_queued1';
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+SET @old_format=@@GLOBAL.binlog_format;
+SET debug_sync='RESET';
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,disable_thd_need_ordering_with";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+2	2
+3	NULL
+4	4
+5	NULL
+6	NULL
+SET @last_gtid= 'GTID';
+SELECT IF(@@gtid_slave_pos LIKE CONCAT('%',@last_gtid,'%'), "GTID found ok",
+CONCAT("GTID ", @last_gtid, " not found in gtid_slave_pos=", @@gtid_slave_pos))
+AS result;
+result
+GTID found ok
+SELECT "ROW FOUND" AS `Is the row found?`
+  FROM mysql.gtid_slave_pos
+WHERE CONCAT(domain_id, "-", server_id, "-", seq_no) = @last_gtid;
+Is the row found?
+ROW FOUND
 *** MDEV-5938: Exec_master_log_pos not updated at log rotate in parallel replication ***
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=1;
@@ -819,11 +856,78 @@ test_check
 OK
 test_check
 OK
+*** MDEV_6435: Incorrect error handling when query binlogged partially on master with "killed" error ***
+CREATE TABLE t6 (a INT) ENGINE=MyISAM;
+CREATE TRIGGER tr AFTER INSERT ON t6 FOR EACH ROW SET @a = 1;
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='sp_head_execute_before_loop SIGNAL ready WAIT_FOR cont';
+INSERT INTO t6 VALUES (1), (2), (3);
+SET debug_sync='now WAIT_FOR ready';
+KILL QUERY CONID;
+SET debug_sync='now SIGNAL cont';
+ERROR 70100: Query execution was interrupted
+SET binlog_format= @old_format;
+SET debug_sync='RESET';
+SET debug_sync='RESET';
+include/wait_for_slave_sql_error.inc [errno=1317]
+STOP SLAVE IO_THREAD;
+SET GLOBAL gtid_slave_pos= 'AFTER_ERROR_GTID_POS';
+include/start_slave.inc
+INSERT INTO t6 VALUES (4);
+SELECT * FROM t6 ORDER BY a;
+a
+1
+4
+SELECT * FROM t6 ORDER BY a;
+a
+4
+*** MDEV-6551: Some replication errors are ignored if slave_parallel_threads > 0 ***
+INSERT INTO t2 VALUES (31);
+include/save_master_gtid.inc
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= 0;
+include/start_slave.inc
+SET sql_log_bin= 0;
+INSERT INTO t2 VALUES (32);
+SET sql_log_bin= 1;
+INSERT INTO t2 VALUES (32);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (33);
+INSERT INTO t2 VALUES (34);
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+include/save_master_gtid.inc
+include/wait_for_slave_sql_error.inc [errno=1062]
+include/stop_slave_io.inc
+SET GLOBAL slave_parallel_threads=10;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1062]
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+SET sql_slave_skip_counter= 1;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 DROP function foo;
-DROP TABLE t1,t2,t3,t4,t5;
+DROP TABLE t1,t2,t3,t4,t5,t6;
 SET DEBUG_SYNC= 'RESET';
 include/rpl_end.inc

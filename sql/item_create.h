@@ -173,6 +173,15 @@ Item *create_temporal_literal(THD *thd,
                               CHARSET_INFO *cs,
                               enum_field_types type,
                               bool send_error);
+inline
+Item *create_temporal_literal(THD *thd, const String *str,
+                              enum_field_types type,
+                              bool send_error)
+{
+  return create_temporal_literal(thd,
+                                 str->ptr(), str->length(), str->charset(),
+                                 type, send_error);
+}
 
 int item_create_init();
 void item_create_cleanup();

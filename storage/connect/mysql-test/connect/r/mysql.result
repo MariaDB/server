@@ -282,8 +282,6 @@ a
 20
 30
 ALTER TABLE t2 MODIFY a TINYINT;
-Warnings:
-Warning	1105	This is an outward table, table data were not modified.
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (

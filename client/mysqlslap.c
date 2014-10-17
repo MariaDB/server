@@ -1796,8 +1796,8 @@ run_scheduler(stats *sptr, statement *stmts, uint concur, ulonglong limit)
 
   pthread_mutex_lock(&sleeper_mutex);
   master_wakeup= 0;
-  pthread_mutex_unlock(&sleeper_mutex);
   pthread_cond_broadcast(&sleep_threshhold);
+  pthread_mutex_unlock(&sleeper_mutex);
 
   gettimeofday(&start_time, NULL);
 

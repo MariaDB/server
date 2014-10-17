@@ -1,7 +1,5 @@
 /* -*- mode: C++; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 // vim: ft=cpp:expandtab:ts=8:sw=4:softtabstop=4:
-#ifndef YDB_INTERNAL_H
-#define YDB_INTERNAL_H
 
 /*
 COPYING CONDITIONS NOTICE:
@@ -31,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -88,17 +86,22 @@ PATENT RIGHTS GRANT:
   under this License.
 */
 
+#pragma once
+
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "$Id$"
 
 #include <db.h>
 #include <limits.h>
 
-#include <ft/fttypes.h>
-#include <ft/ft-ops.h>
-#include <ft/minicron.h>
+#include <ft/cachetable/cachetable.h>
+#include <ft/cursor.h>
+#include <ft/comparator.h>
+#include <ft/logger/logger.h>
+#include <ft/txn/txn.h>
 
 #include <util/growable_array.h>
+#include <util/minicron.h>
 #include <util/omt.h>
 
 #include <locktree/locktree.h>
@@ -276,7 +279,7 @@ struct __toku_db_txn_external {
 #define db_txn_struct_i(x) (&((struct __toku_db_txn_external *)x)->internal_part)
 
 struct __toku_dbc_internal {
-    struct ft_cursor *c;
+    struct ft_cursor ftcursor;
     DB_TXN *txn;
     TOKU_ISOLATION iso;
     struct simple_dbt skey_s,sval_s;
@@ -287,12 +290,21 @@ struct __toku_dbc_internal {
     bool rmw;
 };
 
-struct __toku_dbc_external {
-    struct __toku_dbc          external_part;
-    struct __toku_dbc_internal internal_part;
-};
-	
-#define dbc_struct_i(x) (&((struct __toku_dbc_external *)x)->internal_part)
+static_assert(sizeof(__toku_dbc_internal) <= sizeof(((DBC *) nullptr)->_internal),
+              "__toku_dbc_internal doesn't fit in the internal portion of a DBC");
+
+static inline __toku_dbc_internal *dbc_struct_i(DBC *c) {
+    union dbc_union {
+        __toku_dbc_internal *dbc_internal;
+        char *buf;
+    } u;
+    u.buf = c->_internal;
+    return u.dbc_internal;
+}
+
+static inline struct ft_cursor *dbc_ftcursor(DBC *c) {
+    return &dbc_struct_i(c)->ftcursor;
+}
 
 static inline int 
 env_opened(DB_ENV *env) {
@@ -312,5 +324,3 @@ txn_is_read_only(DB_TXN* txn) {
 void env_panic(DB_ENV * env, int cause, const char * msg);
 void env_note_db_opened(DB_ENV *env, DB *db);
 void env_note_db_closed(DB_ENV *env, DB *db);
-
-#endif

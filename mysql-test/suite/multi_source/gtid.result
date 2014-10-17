@@ -141,8 +141,8 @@ include/reset_master_slave.inc
 SET GLOBAL gtid_domain_id=0;
 STOP ALL SLAVES;
 Warnings:
-Note	1938	SLAVE 'slave2' stopped
 Note	1938	SLAVE 'slave1' stopped
+Note	1938	SLAVE 'slave2' stopped
 include/reset_master_slave.inc
 SET GLOBAL gtid_domain_id=0;
 include/reset_master_slave.inc

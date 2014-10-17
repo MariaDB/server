@@ -77,7 +77,7 @@ int yylex(void *yylval, void *yythd);
     ulong val= *(F);                          \
     if (my_yyoverflow((B), (D), &val))        \
     {                                         \
-      yyerror(current_thd, (char*) (A));      \
+      yyerror(thd, (char*) (A));              \
       return 2;                               \
     }                                         \
     else                                      \
@@ -657,6 +657,17 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
     my_error(ER_WRONG_USAGE, MYF(0), "UNION", "INTO");
     return TRUE;
   }
+  if (lex->current_select->order_list.first && !lex->current_select->braces)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "ORDER BY");
+    return TRUE;
+  }
+
+  if (lex->current_select->explicit_limit && !lex->current_select->braces)
+  {
+    my_error(ER_WRONG_USAGE, MYF(0), "UNION", "LIMIT");
+    return TRUE;
+  }
   if (lex->current_select->linkage == GLOBAL_OPTIONS_TYPE)
   {
     my_parse_error(ER(ER_SYNTAX_ERROR));
@@ -684,11 +695,14 @@ bool add_select_to_union_list(LEX *lex, bool is_union_distinct,
 bool setup_select_in_parentheses(LEX *lex) 
 {
   SELECT_LEX * sel= lex->current_select;
+  /*
   if (sel->set_braces(1))
   {
     my_parse_error(ER(ER_SYNTAX_ERROR));
     return TRUE;
   }
+  */
+  DBUG_ASSERT(sel->braces);
   if (sel->linkage == UNION_TYPE &&
       !sel->master_unit()->first_select()->braces &&
       sel->master_unit()->first_select()->linkage ==
@@ -704,10 +718,6 @@ bool setup_select_in_parentheses(LEX *lex)
     my_error(ER_WRONG_USAGE, MYF(0), "CUBE/ROLLUP", "ORDER BY");
     return TRUE;
   }
-  /* select in braces, can't contain global parameters */
-  if (sel->master_unit()->fake_select_lex)
-    sel->master_unit()->global_parameters=
-      sel->master_unit()->fake_select_lex;
   return FALSE;
 }
 
@@ -1606,7 +1616,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 
 %type <lex_str>
         IDENT IDENT_QUOTED TEXT_STRING DECIMAL_NUM FLOAT_NUM NUM LONG_NUM
-        HEX_NUM HEX_STRING hex_num_or_string
+        HEX_NUM HEX_STRING
         LEX_HOSTNAME ULONGLONG_NUM field_ident select_alias ident ident_or_text
         IDENT_sys TEXT_STRING_sys TEXT_STRING_literal
         NCHAR_STRING opt_component key_cache_name
@@ -1625,7 +1635,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         wild_and_where
 
 %type <string>
-        text_string opt_gconcat_separator
+        text_string hex_or_bin_String opt_gconcat_separator
 
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
@@ -6278,7 +6288,8 @@ spatial_type:
         | GEOMETRYCOLLECTION  { $$= Field::GEOM_GEOMETRYCOLLECTION; }
         | POINT_SYM
           {
-            Lex->length= (char*)"25";
+            Lex->length= const_cast<char*>(STRINGIFY_ARG
+                                           (MAX_LEN_GEOM_POINT_FIELD));
             $$= Field::GEOM_POINT;
           }
         | MULTIPOINT          { $$= Field::GEOM_MULTIPOINT; }
@@ -6496,11 +6507,6 @@ now_or_signed_literal:
           }
         | signed_literal
           { $$=$1; }
-        ;
-
-hex_num_or_string:
-          HEX_NUM {}
-        | HEX_STRING {}
         ;
 
 charset:
@@ -8309,6 +8315,13 @@ select_init:
         ;
 
 select_paren:
+          {
+            /*
+              In order to correctly parse UNION's global ORDER BY we need to
+              set braces before parsing the clause.
+            */
+            Lex->current_select->set_braces(true);
+          }
           SELECT_SYM select_part2
           {
             if (setup_select_in_parentheses(Lex))
@@ -8319,6 +8332,9 @@ select_paren:
 
 /* The equivalent of select_paren for nested queries. */
 select_paren_derived:
+          {
+            Lex->current_select->set_braces(true);
+          }
           SELECT_SYM select_part2_derived
           {
             if (setup_select_in_parentheses(Lex))
@@ -8331,18 +8347,8 @@ select_init2:
           select_part2
           {
             LEX *lex= Lex;
-            SELECT_LEX * sel= lex->current_select;
-            if (lex->current_select->set_braces(0))
-            {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
-              MYSQL_YYABORT;
-            }
-            if (sel->linkage == UNION_TYPE &&
-                sel->master_unit()->first_select()->braces)
-            {
-              my_parse_error(ER(ER_SYNTAX_ERROR));
-              MYSQL_YYABORT;
-            }
+            /* Parentheses carry no meaning here */
+            lex->current_select->set_braces(false);
           }
           union_clause
         ;
@@ -8371,13 +8377,14 @@ select_into:
         ;
 
 select_from:
-          FROM join_table_list where_clause group_clause having_clause
-          opt_order_clause opt_limit_clause procedure_clause
+          FROM join_table_list 
           {
             Select->context.table_list=
               Select->context.first_name_resolution_table=
                 Select->table_list.first;
           }
+          where_clause group_clause having_clause
+          opt_order_clause opt_limit_clause procedure_clause
         | FROM DUAL_SYM where_clause opt_limit_clause
           /* oracle compatibility: oracle always requires FROM clause,
              and DUAL is system table without fields.
@@ -9183,7 +9190,6 @@ simple_expr:
           }
         | '{' ident expr '}'
           {
-            Item_string *item;
             $$= NULL;
             /*
               If "expr" is reasonably short pure ASCII string literal,
@@ -9193,31 +9199,13 @@ simple_expr:
               SELECT {t'10:20:30'};
               SELECT {ts'2001-01-01 10:20:30'};
             */
-            if ($3->type() == Item::STRING_ITEM &&
-               (item= (Item_string *) $3) &&
-                item->collation.repertoire == MY_REPERTOIRE_ASCII &&
-                item->str_value.length() < MAX_DATE_STRING_REP_LENGTH * 4)
+            if ($3->type() == Item::STRING_ITEM)
             {
-              enum_field_types type= MYSQL_TYPE_STRING;
-              LEX_STRING *ls= &$2;
-              if (ls->length == 1)
-              {
-                if (ls->str[0] == 'd')  /* {d'2001-01-01'} */
-                  type= MYSQL_TYPE_DATE;
-                else if (ls->str[0] == 't') /* {t'10:20:30'} */
-                  type= MYSQL_TYPE_TIME;
-              }
-              else if (ls->length == 2) /* {ts'2001-01-01 10:20:30'} */
-              {
-                if (ls->str[0] == 't' && ls->str[1] == 's')
-                  type= MYSQL_TYPE_DATETIME;
-              }
+              Item_string *item= (Item_string *) $3;
+              enum_field_types type= item->odbc_temporal_literal_type(&$2);
               if (type != MYSQL_TYPE_STRING)
               {
-                $$= create_temporal_literal(thd,
-                                            item->str_value.ptr(),
-                                            item->str_value.length(),
-                                            item->str_value.charset(),
+                $$= create_temporal_literal(thd, item->val_str(NULL),
                                             type, false);
               }
             }
@@ -10698,10 +10686,6 @@ table_factor:
                 my_parse_error(ER(ER_SYNTAX_ERROR));
                 MYSQL_YYABORT;
               }
-              /* select in braces, can't contain global parameters */
-              if (sel->master_unit()->fake_select_lex)
-                sel->master_unit()->global_parameters=
-                   sel->master_unit()->fake_select_lex;
             }
             if ($2->init_nested_join(lex->thd))
               MYSQL_YYABORT;
@@ -11136,8 +11120,8 @@ opt_escape:
           {
             Lex->escape_used= FALSE;
             $$= ((thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES) ?
-                 new (thd->mem_root) Item_string("", 0, &my_charset_latin1) :
-                 new (thd->mem_root) Item_string("\\", 1, &my_charset_latin1));
+                 new (thd->mem_root) Item_string_ascii("", 0) :
+                 new (thd->mem_root) Item_string_ascii("\\", 1));
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -11246,7 +11230,8 @@ order_clause:
                        "CUBE/ROLLUP", "ORDER BY");
               MYSQL_YYABORT;
             }
-            if (lex->sql_command != SQLCOM_ALTER_TABLE && !unit->fake_select_lex)
+            if (lex->sql_command != SQLCOM_ALTER_TABLE &&
+                !unit->fake_select_lex)
             {
               /*
                 A query of the of the form (SELECT ...) ORDER BY order_list is
@@ -11263,9 +11248,24 @@ order_clause:
                   unit->add_fake_select_lex(lex->thd))
                 MYSQL_YYABORT;
             }
+            if (sel->master_unit()->is_union() && !sel->braces)
+            {
+               /*
+                 At this point we don't know yet whether this is the last
+                 select in union or not, but we move ORDER BY to
+                 fake_select_lex anyway. If there would be one more select
+                 in union mysql_new_select will correctly throw error.
+               */
+               DBUG_ASSERT(sel->master_unit()->fake_select_lex);
+               lex->current_select= sel->master_unit()->fake_select_lex;
+               lex->push_context(&lex->current_select->context);
+             }
           }
           order_list
-        ;
+          {
+
+          }
+         ;
 
 order_list:
           order_list ',' order_ident order_dir
@@ -11285,6 +11285,13 @@ opt_limit_clause_init:
           {
             LEX *lex= Lex;
             SELECT_LEX *sel= lex->current_select;
+            if (sel->master_unit()->is_union() && !sel->braces)
+            {
+              /* Move LIMIT that belongs to UNION to fake_select_lex */
+              Lex->current_select= sel->master_unit()->fake_select_lex;
+              DBUG_ASSERT(Select);
+            }
+            sel= lex->current_select;
             sel->offset_limit= 0;
             sel->select_limit= 0;
 	    lex->limit_rows_examined= 0;
@@ -11297,19 +11304,33 @@ opt_limit_clause:
         | limit_clause {}
         ;
 
+limit_clause_init:
+          LIMIT
+          {
+            SELECT_LEX *sel= Select;
+            if (sel->master_unit()->is_union() && !sel->braces)
+            {
+              /* Move LIMIT that belongs to UNION to fake_select_lex */
+              Lex->current_select= sel->master_unit()->fake_select_lex;
+              DBUG_ASSERT(Select);
+            }
+          }
+        ;  
+
 limit_clause:
-          LIMIT limit_options
+          limit_clause_init limit_options
           {
             SELECT_LEX *sel= Select;
             if (!sel->select_limit->basic_const_item() ||
                 sel->select_limit->val_int() > 0)
               Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
-        | LIMIT limit_options ROWS_SYM EXAMINED_SYM limit_rows_option
+        | limit_clause_init limit_options
+          ROWS_SYM EXAMINED_SYM limit_rows_option
           {
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
-        | LIMIT ROWS_SYM EXAMINED_SYM limit_rows_option
+        | limit_clause_init ROWS_SYM EXAMINED_SYM limit_rows_option
           {
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
@@ -12790,6 +12811,7 @@ flush_options:
             YYPS->m_mdl_type= MDL_SHARED_HIGH_PRIO;
           }
           opt_table_list opt_flush_lock
+          {}
         | flush_options_list
         ;
 
@@ -13253,14 +13275,10 @@ text_literal:
           }
         | UNDERSCORE_CHARSET TEXT_STRING
           {
-            Item_string *str= new (thd->mem_root) Item_string($2.str,
+            $$= new (thd->mem_root) Item_string_with_introducer($2.str,
                                                                 $2.length, $1);
-            if (str == NULL)
+            if ($$ == NULL)
               MYSQL_YYABORT;
-            str->set_repertoire_from_value();
-            str->set_cs_specified(TRUE);
-
-            $$= str;
           }
         | text_literal TEXT_STRING_literal
           {
@@ -13289,7 +13307,12 @@ text_string:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | HEX_NUM
+          | hex_or_bin_String { $$= $1; }
+          ;
+
+
+hex_or_bin_String:
+          HEX_NUM
           {
             Item *tmp= new (thd->mem_root) Item_hex_hybrid($1.str, $1.length);
             if (tmp == NULL)
@@ -13396,60 +13419,12 @@ literal:
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
-        | UNDERSCORE_CHARSET hex_num_or_string
+        | UNDERSCORE_CHARSET hex_or_bin_String
           {
-            Item *tmp= new (thd->mem_root) Item_hex_string($2.str, $2.length);
-            if (tmp == NULL)
+            Item_string_with_introducer *item_str;
+            item_str= new (thd->mem_root) Item_string_with_introducer($2, $1);
+            if (!item_str || !item_str->check_well_formed_result(true))
               MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fieds, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
-            String *str= tmp->val_str((String*) 0);
-
-            Item_string *item_str;
-            item_str= new (thd->mem_root)
-                        Item_string(NULL, /* name will be set in select_item */
-                                    str ? str->ptr() : "",
-                                    str ? str->length() : 0,
-                                    $1);
-            if (!item_str ||
-                !item_str->check_well_formed_result(&item_str->str_value, TRUE))
-            {
-              MYSQL_YYABORT;
-            }
-
-            item_str->set_repertoire_from_value();
-            item_str->set_cs_specified(TRUE);
-
-            $$= item_str;
-          }
-        | UNDERSCORE_CHARSET BIN_NUM
-          {
-            Item *tmp= new (thd->mem_root) Item_bin_string($2.str, $2.length);
-            if (tmp == NULL)
-              MYSQL_YYABORT;
-            /*
-              it is OK only emulate fix_fieds, because we need only
-              value of constant
-            */
-            tmp->quick_fix_field();
-            String *str= tmp->val_str((String*) 0);
-
-            Item_string *item_str;
-            item_str= new (thd->mem_root)
-                        Item_string(NULL, /* name will be set in select_item */
-                                    str ? str->ptr() : "",
-                                    str ? str->length() : 0,
-                                    $1);
-            if (!item_str ||
-                !item_str->check_well_formed_result(&item_str->str_value, TRUE))
-            {
-              MYSQL_YYABORT;
-            }
-
-            item_str->set_cs_specified(TRUE);
 
             $$= item_str;
           }
@@ -14873,19 +14848,19 @@ set_expr_or_default:
         | DEFAULT { $$=0; }
         | ON
           {
-            $$=new (thd->mem_root) Item_string("ON",  2, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("ON",  2);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | ALL
           {
-            $$=new (thd->mem_root) Item_string("ALL", 3, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("ALL", 3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | BINARY
           {
-            $$=new (thd->mem_root) Item_string("binary", 6, system_charset_info);
+            $$=new (thd->mem_root) Item_string_sys("binary", 6);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
@@ -15739,7 +15714,6 @@ union_order_or_limit:
             SELECT_LEX *fake= unit->fake_select_lex;
             if (fake)
             {
-              unit->global_parameters= fake;
               fake->no_table_names_allowed= 1;
               lex->current_select= fake;
             }

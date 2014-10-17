@@ -506,6 +506,9 @@ extern struct export_var_t export_vars;
 /** Global counters */
 extern srv_stats_t	srv_stats;
 
+/** Simulate compression failures. */
+extern uint srv_simulate_comp_failures;
+
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
 extern mysql_pfs_key_t	buf_page_cleaner_thread_key;

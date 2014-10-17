@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -207,24 +207,20 @@ size_t toku_mempool_get_allocated_size(const struct mempool *mp) {
     return mp->free_offset;
 }
 
-void *toku_mempool_malloc(struct mempool *mp, size_t size, int alignment) {
+void *toku_mempool_malloc(struct mempool *mp, size_t size) {
     paranoid_invariant(size < (1U<<31));
     paranoid_invariant(mp->size < (1U<<31));
     paranoid_invariant(mp->free_offset < (1U<<31));
     paranoid_invariant(mp->free_offset <= mp->size);
     void *vp;
-    size_t offset = (mp->free_offset + (alignment-1)) & ~(alignment-1);
-    //printf("mempool_malloc size=%ld base=%p free_offset=%ld mp->size=%ld offset=%ld\n", size, mp->base, mp->free_offset, mp->size, offset);
-    if (offset + size > mp->size) {
-        vp = 0;
+    if (mp->free_offset + size > mp->size) {
+        vp = nullptr;
     } else {
-        vp = (char *)mp->base + offset;
-        mp->free_offset = offset + size;
+        vp = reinterpret_cast<char *>(mp->base) + mp->free_offset;
+        mp->free_offset += size;
     }
     paranoid_invariant(mp->free_offset <= mp->size);
-    paranoid_invariant(((long)vp & (alignment-1)) == 0);
     paranoid_invariant(vp == 0 || toku_mempool_inrange(mp, vp, size));
-    //printf("mempool returning %p\n", vp);
     return vp;
 }
 
@@ -232,7 +228,8 @@ void *toku_mempool_malloc(struct mempool *mp, size_t size, int alignment) {
 void toku_mempool_mfree(struct mempool *mp, void *vp, size_t size) {
     if (vp) { paranoid_invariant(toku_mempool_inrange(mp, vp, size)); }
     mp->frag_size += size;
-    paranoid_invariant(mp->frag_size <= mp->size);
+    invariant(mp->frag_size <= mp->free_offset);
+    invariant(mp->frag_size <= mp->size);
 }
 
 

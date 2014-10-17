@@ -2391,7 +2391,7 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
     String query(buf, sizeof(buf), system_charset_info);
     query.length(0);  // Have to zero it since constructor doesn't
 
-    (void)  store_create_info(thd, &tbl, &query, NULL, TRUE, FALSE);
+    (void)  show_create_table(thd, &tbl, &query, NULL, WITH_DB_NAME);
     WSREP_DEBUG("TMP TABLE: %s", query.ptr());
 
     thd->wsrep_TOI_pre_query=     query.ptr();

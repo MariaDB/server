@@ -524,6 +524,14 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+
+  /**
+     Place holders to store Multi-source variables in sys_var.cc during
+     update and show of variables.
+  */
+  ulonglong slave_skip_counter;
+  ulonglong max_relay_log_size;
+
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
@@ -589,12 +597,6 @@ typedef struct system_variables
   */
   uint32     gtid_domain_id;
   uint64     gtid_seq_no;
-  /**
-     Place holders to store Multi-source variables in sys_var.cc during
-     update and show of variables.
-  */
-  ulong slave_skip_counter;
-  ulong max_relay_log_size;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).
@@ -714,6 +716,7 @@ typedef struct system_status_var
   ulong filesort_range_count_;
   ulong filesort_rows_;
   ulong filesort_scan_count_;
+  ulong filesort_pq_sorts_;
   /* Prepared statements and binary protocol */
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
@@ -767,6 +770,13 @@ typedef struct system_status_var
 
 #define last_system_status_var questions
 #define last_cleared_system_status_var memory_used
+
+/*
+  Global status variables
+*/
+
+extern ulong feature_files_opened_with_delayed_keys;
+
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
@@ -1371,7 +1381,8 @@ enum enum_thread_type
   SYSTEM_THREAD_SLAVE_SQL= 4,
   SYSTEM_THREAD_EVENT_SCHEDULER= 8,
   SYSTEM_THREAD_EVENT_WORKER= 16,
-  SYSTEM_THREAD_BINLOG_BACKGROUND= 32
+  SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
+  SYSTEM_THREAD_SLAVE_INIT= 64
 };
 
 inline char const *
@@ -1386,6 +1397,7 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_SQL);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_SCHEDULER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_WORKER);
+    RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_INIT);
   default:
     sprintf(buf, "<UNKNOWN SYSTEM THREAD: %d>", thread);
     return buf;
@@ -1753,6 +1765,8 @@ struct wait_for_commit
   {
     if (waitee)
       unregister_wait_for_prior_commit2();
+    else
+      wakeup_error= 0;
   }
   /*
     Remove a waiter from the list in the waitee. Used to unregister a wait.
@@ -2510,8 +2524,6 @@ public:
   /** Idle instrumentation state. */
   PSI_idle_locker_state m_idle_state;
 #endif /* HAVE_PSI_IDLE_INTERFACE */
-  /** True if the server code is IDLE for this connection. */
-  bool m_server_idle;
 
   /*
     Id of current query. Statement can be reused to execute several queries
@@ -3914,6 +3926,23 @@ protected:
 public:
   select_result();
   virtual ~select_result() {};
+  /**
+    Change wrapped select_result.
+
+    Replace the wrapped result object with new_result and call
+    prepare() and prepare2() on new_result.
+
+    This base class implementation doesn't wrap other select_results.
+
+    @param new_result The new result object to wrap around
+
+    @retval false Success
+    @retval true  Error
+  */
+  virtual bool change_result(select_result *new_result)
+  {
+    return false;
+  }
   virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   {
     unit= u;
@@ -4341,9 +4370,19 @@ public:
 
   select_union() :write_err(0), table(0), records(0) { tmp_table_param.init(); }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  /**
+    Do prepare() and prepare2() if they have been postponed until
+    column type information is computed (used by select_union_direct).
+
+    @param types Column types
+
+    @return false on success, true on failure
+  */
+  virtual bool postponed_prepare(List<Item> &types)
+  { return false; }
   int send_data(List<Item> &items);
   bool send_eof();
-  bool flush();
+  virtual bool flush();
   void cleanup();
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
@@ -4353,6 +4392,101 @@ public:
                                    bool keep_row_order= FALSE);
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
 };
+
+
+/**
+  UNION result that is passed directly to the receiving select_result
+  without filling a temporary table.
+
+  Function calls are forwarded to the wrapped select_result, but some
+  functions are expected to be called only once for each query, so
+  they are only executed for the first SELECT in the union (execept
+  for send_eof(), which is executed only for the last SELECT).
+
+  This select_result is used when a UNION is not DISTINCT and doesn't
+  have a global ORDER BY clause. @see st_select_lex_unit::prepare().
+*/
+
+class select_union_direct :public select_union
+{
+private:
+  /* Result object that receives all rows */
+  select_result *result;
+  /* The last SELECT_LEX of the union */
+  SELECT_LEX *last_select_lex;
+
+  /* Wrapped result has received metadata */
+  bool done_send_result_set_metadata;
+  /* Wrapped result has initialized tables */
+  bool done_initialize_tables;
+
+  /* Accumulated limit_found_rows */
+  ulonglong limit_found_rows;
+
+  /* Number of rows offset */
+  ha_rows offset;
+  /* Number of rows limit + offset, @see select_union_direct::send_data() */
+  ha_rows limit;
+
+public:
+  select_union_direct(select_result *result, SELECT_LEX *last_select_lex)
+    :result(result), last_select_lex(last_select_lex),
+    done_send_result_set_metadata(false), done_initialize_tables(false),
+    limit_found_rows(0)
+  {}
+  bool change_result(select_result *new_result);
+  uint field_count(List<Item> &fields) const
+  {
+    // Only called for top-level select_results, usually select_send
+    DBUG_ASSERT(false); /* purecov: inspected */
+    return 0; /* purecov: inspected */
+  }
+  bool postponed_prepare(List<Item> &types);
+  bool send_result_set_metadata(List<Item> &list, uint flags);
+  int send_data(List<Item> &items);
+  bool initialize_tables (JOIN *join= NULL);
+  bool send_eof();
+  bool flush() { return false; }
+  bool check_simple_select() const
+  {
+    /* Only called for top-level select_results, usually select_send */
+    DBUG_ASSERT(false); /* purecov: inspected */
+    return false; /* purecov: inspected */
+  }
+  void abort_result_set()
+  {
+    result->abort_result_set(); /* purecov: inspected */
+  }
+  void cleanup()
+  {
+    /*
+      Only called for top-level select_results, usually select_send,
+      and for the results of subquery engines
+      (select_<something>_subselect).
+    */
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+  void set_thd(THD *thd_arg)
+  {
+    /*
+      Only called for top-level select_results, usually select_send,
+      and for the results of subquery engines
+      (select_<something>_subselect).
+    */
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+  void reset_offset_limit_cnt()
+  {
+    // EXPLAIN should never output to a select_union_direct
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+  void begin_dataset()
+  {
+    // Only called for sp_cursor::Select_fetch_into_spvars
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+};
+
 
 /* Base subselect interface class */
 class select_subselect :public select_result_interceptor

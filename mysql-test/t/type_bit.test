@@ -362,11 +362,11 @@ f2 bit(14) NOT NULL default b'11110000111100'
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
 
---error ER_INVALID_DEFAULT
 CREATE TABLE IF NOT EXISTS t1 (
 f1 bit(2) NOT NULL default b''
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_general_ci;
-
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
 
 #
 # Bug#31399 Wrong query result when doing join buffering over BIT fields 

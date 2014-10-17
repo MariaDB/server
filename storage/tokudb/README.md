@@ -1,17 +1,17 @@
 TokuDB
 ======
 
-TokuDB is a high-performance, transactional storage engine for MySQL and
+TokuDB is a high-performance, write optimized, transactional storage engine for MySQL and
 MariaDB.  For more details, see our [product page][products].
 
-This repository contains the MySQL plugin that uses the [TokuKV][tokukv]
+This repository contains the MySQL plugin that uses the [TokuFT][tokuft]
 core.
 
 There are also patches to the MySQL and MariaDB kernels, available in our
 forks of [mysql][mysql] and [mariadb][mariadb].
 
 [products]: http://www.tokutek.com/products/tokudb-for-mysql/
-[tokukv]: http://github.com/Tokutek/ft-index
+[tokuft]: http://github.com/Tokutek/ft-index
 [mysql]: http://github.com/Tokutek/mysql
 [mariadb]: http://github.com/Tokutek/mariadb
 
@@ -24,14 +24,14 @@ working MySQL or MariaDB with Tokutek patches, and with the TokuDB storage
 engine, called `make.mysql.bash`.  This script will download copies of the
 needed source code from github and build everything.
 
-To build MySQL 5.5.36 with TokuDB 7.1.5:
+To build MySQL 5.5.38 with TokuDB 7.1.7:
 ```sh
-scripts/make.mysql.bash --mysqlbuild=mysql-5.5.36-tokudb-7.1.5-linux-x86_64
+scripts/make.mysql.bash --mysqlbuild=mysql-5.5.38-tokudb-7.1.7-linux-x86_64
 ```
 
-To build MariaDB 5.5.36 with TokuDB 7.1.5:
+To build MariaDB 5.5.38 with TokuDB 7.1.7:
 ```sh
-scripts/make.mysql.bash --mysqlbuild=mariadb-5.5.36-tokudb-7.1.5-linux-x86_64
+scripts/make.mysql.bash --mysqlbuild=mariadb-5.5.38-tokudb-7.1.7-linux-x86_64
 ```
 
 Before you start, make sure you have a C++11-compatible compiler (GCC >=

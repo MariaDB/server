@@ -413,3 +413,12 @@ a
 `
 drop table t1;
 End of 5.0 tests
+create table t1(f1 bit(2) not null default b'10',f2 bit(14) not null default b'11110000111100');
+insert into t1 (f1) values (default);
+insert into t1 values (b'',b''),('','');
+select hex(f1), hex(f2) from t1;
+hex(f1)	hex(f2)
+2	3C3C
+0	0
+0	0
+drop table t1;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -302,7 +302,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_TABLE]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_CAN_GENERATE_ROW_EVENTS;
-  sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_INSERTS_DATA;
@@ -981,9 +981,7 @@ bool do_command(THD *thd)
   */
   DEBUG_SYNC(thd, "before_do_command_net_read");
 
-  thd->m_server_idle= TRUE;
-  packet_length= my_net_read(net);
-  thd->m_server_idle= FALSE;
+  packet_length= my_net_read_packet(net, 1);
 #ifdef WITH_WSREP
   if (WSREP(thd)) {
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
@@ -2946,6 +2944,9 @@ mysql_execute_command(THD *thd)
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
 
+    if (!master_info_index)
+      goto error;
+
     mi= master_info_index->get_master_info(&lex_mi->connection_name,
                                            Sql_condition::WARN_LEVEL_NOTE);
 
@@ -3195,7 +3196,11 @@ mysql_execute_command(THD *thd)
         goto end_with_restore_list;
       }
 
+      /* Copy temporarily the statement flags to thd for lock_table_names() */
+      uint save_thd_create_info_options= thd->lex->create_info.options;
+      thd->lex->create_info.options|= create_info.options;
       res= open_and_lock_tables(thd, lex->query_tables, TRUE, 0);
+      thd->lex->create_info.options= save_thd_create_info_options;
       if (res)
       {
         /* Got error or warning. Set res to 1 if error */
@@ -3407,7 +3412,7 @@ end_with_restore_list:
   case SQLCOM_SLAVE_ALL_START:
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index->start_all_slaves(thd))
+    if (master_info_index && !master_info_index->start_all_slaves(thd))
       my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -3423,7 +3428,7 @@ end_with_restore_list:
       goto error;
     }
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index->stop_all_slaves(thd))
+    if (master_info_index && !master_info_index->stop_all_slaves(thd))
       my_ok(thd);      
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -4696,11 +4701,12 @@ end_with_restore_list:
   case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
+    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str &&
-        !strcmp(thd->security_ctx->priv_user, grant_user->user.str))
+    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
+        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
       grant_user->user= current_user;
 
     if (grant_user->user.str == current_user.str ||
@@ -5595,7 +5601,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   bool res;
   /* assign global limit variable if limit is not given */
   {
-    SELECT_LEX *param= lex->unit.global_parameters;
+    SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->explicit_limit)
       param->select_limit=
         new Item_int((ulonglong) thd->variables.select_limit);
@@ -6687,7 +6693,6 @@ mysql_new_select(LEX *lex, bool move_down)
                 unit->first_select()->context.outer_context;
   }
 
-  select_lex->master_unit()->global_parameters= select_lex;
   select_lex->include_global((st_select_lex_node**)&lex->all_selects_list);
   lex->current_select= select_lex;
   /*
@@ -7654,7 +7659,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   fake_select_lex->context.outer_context=first_sl->context.outer_context;
   /* allow item list resolving in fake select for ORDER BY */
   fake_select_lex->context.resolve_in_select_list= TRUE;
-  fake_select_lex->context.select_lex= fake_select_lex;
+  fake_select_lex->context.select_lex= fake_select_lex;  
 
   if (!is_union())
   {
@@ -7664,7 +7669,6 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
       (SELECT ... LIMIT n) ORDER BY order_list [LIMIT m]
       just before the parser starts processing order_list
     */ 
-    global_parameters= fake_select_lex;
     fake_select_lex->no_table_names_allowed= 1;
     thd_arg->lex->current_select= fake_select_lex;
   }
@@ -7928,7 +7932,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    if (tmp->get_command() == COM_DAEMON)
+    if (!tmp->security_ctx->user)
       continue;
     /*
       Check that hostname (if given) and user name matches.

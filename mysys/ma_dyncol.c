@@ -1610,7 +1610,7 @@ dynamic_new_column_store(DYNAMIC_COLUMN *str,
                          my_bool new_str)
 {
   struct st_service_funcs *fmt= fmt_data + hdr->format;
-  void **columns_order;
+  void **UNINIT_VAR(columns_order);
   uchar *element;
   uint i;
   enum enum_dyncol_func_result rc= ER_DYNCOL_RESOURCE;

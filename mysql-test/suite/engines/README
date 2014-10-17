@@ -1,17 +1,13 @@
-
-
-
-This directory includes a set of three test suites aimed as testing functionality
-in an engine independent way, that is - the tests should work identically against
-different engines.
-
+This directory includes a set of three test suites aimed as testing
+functionality in an engine independent way, that is - the tests should
+work identically against different engines.
 
 The following suites are included:
 
 1) 'funcs' suite
    -------------
-   A collection of functional tests covering basic engine and server functionality that can be run
-   against iany engine.
+   A collection of functional tests covering basic engine and server
+   functionality that can be run against any engine.
 
    To run the test suite:
       cd INSTALL_DIR/mysql-test
@@ -19,7 +15,7 @@ The following suites are included:
 
 2) 'iuds' suite
    ------------
-   Similar to the above focused on insert/update/delete operations of different different data types.
+   Similar to the above focused on insert/update/delete operations of different data types.
 
    To run the test suite:
       cd INSTALL_DIR/mysql-test
@@ -44,13 +40,13 @@ The following suites are included:
    3) Copy the 'init_innodb.txt' file to 'init_<engine>.txt file and change its content to be "init_<engine>".
    4) In the 't' directory copy the "init_innodb.test" file to "init_<engine>.test" and change the value of
       the '$engine' variable to <engine>.
-   5) In the 'r' directory copy "the init_innodb.result" file to "init_<engine>.result" and change refrences
+   5) In the 'r' directory copy "the init_innodb.result" file to "init_<engine>.result" and change references
       to 'InnoDB' to <engine>.
 
 
 Known Issues
 ------------
-1) The folowing tests in the 'iuds' suite:
+1) The following tests in the 'iuds' suite:
      - delete_decimal
      - insert_decimal 
      - update_decimal
@@ -63,9 +59,9 @@ Known Issues
    - ix_unique_string_length (bug 52056, masked by an 'Out of memory error' on some 32-bit platforms)
    Add the '--force' option to prevent the test run from aborting.
 
-3) Some of the rpl_xxx tests in the 'funcs' suite require a secific binlog_forat setting and will be
-   skipped otherwise.
+3) Some of the rpl_xxx tests in the 'funcs' suite require a specific
+   binlog_format setting and will be skipped otherwise.
  
-4) Some of the rpl_xxx tests in the 'funcs' suite will report a 'Statement unsafe for replication' warning 
-   when run againsr a server configured to use statement based replication.
- 
+4) Some of the rpl_xxx tests in the 'funcs' suite will report a
+   'Statement unsafe for replication' warning when run against a
+   server configured to use statement based replication.

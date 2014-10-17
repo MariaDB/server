@@ -179,16 +179,27 @@ String *Item_func_md5::val_str_ascii(String *str)
 }
 
 
+/*
+  The MD5()/SHA() functions treat their parameter as being a case sensitive.
+  Thus we set binary collation on it so different instances of MD5() will be
+  compared properly.
+*/
+static CHARSET_INFO *get_checksum_charset(const char *csname)
+{
+  CHARSET_INFO *cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
+  if (!cs)
+  {
+    // Charset has no binary collation: use my_charset_bin.
+    cs= &my_charset_bin;
+  }
+  return cs;
+}
+
+
 void Item_func_md5::fix_length_and_dec()
 {
-  /*
-    The MD5() function treats its parameter as being a case sensitive. Thus
-    we set binary collation on it so different instances of MD5() will be
-    compared properly.
-  */
-  args[0]->collation.set(
-      get_charset_by_csname(args[0]->collation.collation->csname,
-                            MY_CS_BINSORT,MYF(0)), DERIVATION_COERCIBLE);
+  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
+  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
   fix_length_and_charset(32, default_charset());
 }
 
@@ -218,14 +229,8 @@ String *Item_func_sha::val_str_ascii(String *str)
 
 void Item_func_sha::fix_length_and_dec()
 {
-  /*
-    The SHA() function treats its parameter as being a case sensitive. Thus
-    we set binary collation on it so different instances of MD5() will be
-    compared properly.
-  */
-  args[0]->collation.set(
-      get_charset_by_csname(args[0]->collation.collation->csname,
-                            MY_CS_BINSORT,MYF(0)), DERIVATION_COERCIBLE);
+  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
+  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
   // size of hex representation of hash
   fix_length_and_charset(SHA1_HASH_SIZE * 2, default_charset());
 }
@@ -348,18 +353,9 @@ void Item_func_sha2::fix_length_and_dec()
       ER(ER_WRONG_PARAMETERS_TO_NATIVE_FCT), "sha2");
   }
 
-  /*
-    The SHA2() function treats its parameter as being a case sensitive.
-    Thus we set binary collation on it so different instances of SHA2()
-    will be compared properly.
-  */
+  CHARSET_INFO *cs= get_checksum_charset(args[0]->collation.collation->csname);
+  args[0]->collation.set(cs, DERIVATION_COERCIBLE);
 
-  args[0]->collation.set(
-      get_charset_by_csname(
-        args[0]->collation.collation->csname,
-        MY_CS_BINSORT,
-        MYF(0)),
-      DERIVATION_COERCIBLE);
 #else
   push_warning_printf(current_thd,
     Sql_condition::WARN_LEVEL_WARN,
@@ -513,39 +509,42 @@ void Item_func_from_base64::fix_length_and_dec()
 String *Item_func_from_base64::val_str(String *str)
 {
   String *res= args[0]->val_str_ascii(str);
-  bool too_long= false;
   int length;
   const char *end_ptr;
 
-  if (!res ||
-      res->length() > (uint) base64_decode_max_arg_length() ||
-      (too_long=
-       ((uint) (length= base64_needed_decoded_length((int) res->length())) >
-        current_thd->variables.max_allowed_packet)) ||
-      tmp_value.alloc((uint) length) ||
-      (length= base64_decode(res->ptr(), (int) res->length(),
+  if (!res)
+    goto err;
+
+  if (res->length() > (uint) base64_decode_max_arg_length() ||
+      ((uint) (length= base64_needed_decoded_length((int) res->length())) >
+       current_thd->variables.max_allowed_packet))
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                        current_thd->variables.max_allowed_packet);
+    goto err;
+  }
+
+  if (tmp_value.alloc((uint) length))
+    goto err;
+
+  if ((length= base64_decode(res->ptr(), (int) res->length(),
                              (char *) tmp_value.ptr(), &end_ptr, 0)) < 0 ||
       end_ptr < res->ptr() + res->length())
   {
-    null_value= 1; // NULL input, too long input, OOM, or badly formed input
-    if (too_long)
-    {
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
-                          current_thd->variables.max_allowed_packet);
-    }
-    else if (res && length < 0)
-    {
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
-                          end_ptr - res->ptr());
-    }
-    return 0;
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_BAD_BASE64_DATA, ER(ER_BAD_BASE64_DATA),
+                        end_ptr - res->ptr());
+    goto err;
   }
+
   tmp_value.length((uint) length);
   null_value= 0;
   return &tmp_value;
+err:
+  null_value= 1; // NULL input, too long input, OOM, or badly formed input
+  return 0;
 }
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -598,7 +597,7 @@ String *Item_func_decode_histogram::val_str(String *str)
       val= p[i] / ((double)((1 << 8) - 1));
       break;
     case DOUBLE_PREC_HB:
-      val= ((uint16 *)(p + i))[0] / ((double)((1 << 16) - 1));
+      val= uint2korr(p + i) / ((double)((1 << 16) - 1));
       i++;
       break;
     default:
@@ -1962,7 +1961,7 @@ String *Item_func_ltrim::val_str(String *str)
 
   if ((remove_length= remove_str->length()) == 0 ||
       remove_length > res->length())
-    return res;
+    return non_trimmed_value(res);
 
   ptr= (char*) res->ptr();
   end= ptr+res->length();
@@ -1981,9 +1980,8 @@ String *Item_func_ltrim::val_str(String *str)
     end+=remove_length;
   }
   if (ptr == res->ptr())
-    return res;
-  tmp_value.set(*res,(uint) (ptr - res->ptr()),(uint) (end-ptr));
-  return &tmp_value;
+    return non_trimmed_value(res);
+  return trimmed_value(res, (uint32) (ptr - res->ptr()), (uint32) (end - ptr));
 }
 
 
@@ -2009,7 +2007,7 @@ String *Item_func_rtrim::val_str(String *str)
 
   if ((remove_length= remove_str->length()) == 0 ||
       remove_length > res->length())
-    return res;
+    return non_trimmed_value(res);
 
   ptr= (char*) res->ptr();
   end= ptr+res->length();
@@ -2021,11 +2019,11 @@ String *Item_func_rtrim::val_str(String *str)
   {
     char chr=(*remove_str)[0];
 #ifdef USE_MB
-    if (use_mb(res->charset()))
+    if (use_mb(collation.collation))
     {
       while (ptr < end)
       {
-	if ((l=my_ismbchar(res->charset(), ptr,end))) ptr+=l,p=ptr;
+	if ((l= my_ismbchar(collation.collation, ptr, end))) ptr+= l, p=ptr;
 	else ++ptr;
       }
       ptr=p;
@@ -2038,12 +2036,12 @@ String *Item_func_rtrim::val_str(String *str)
   {
     const char *r_ptr=remove_str->ptr();
 #ifdef USE_MB
-    if (use_mb(res->charset()))
+    if (use_mb(collation.collation))
     {
   loop:
       while (ptr + remove_length < end)
       {
-	if ((l=my_ismbchar(res->charset(), ptr,end))) ptr+=l;
+	if ((l= my_ismbchar(collation.collation, ptr, end))) ptr+= l;
 	else ++ptr;
       }
       if (ptr + remove_length == end && !memcmp(ptr,r_ptr,remove_length))
@@ -2062,9 +2060,8 @@ String *Item_func_rtrim::val_str(String *str)
     }
   }
   if (end == res->ptr()+res->length())
-    return res;
-  tmp_value.set(*res,0,(uint) (end-res->ptr()));
-  return &tmp_value;
+    return non_trimmed_value(res);
+  return trimmed_value(res, 0, (uint32) (end - res->ptr()));
 }
 
 
@@ -2091,37 +2088,22 @@ String *Item_func_trim::val_str(String *str)
 
   if ((remove_length= remove_str->length()) == 0 ||
       remove_length > res->length())
-    return res;
+    return non_trimmed_value(res);
 
   ptr= (char*) res->ptr();
   end= ptr+res->length();
   r_ptr= remove_str->ptr();
+  while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
+    ptr+=remove_length;
 #ifdef USE_MB
-  if (use_mb(res->charset()))
+  if (use_mb(collation.collation))
   {
-    while (ptr + remove_length <= end)
-    {
-      uint num_bytes= 0;
-      while (num_bytes < remove_length)
-      {
-        uint len;
-        if ((len= my_ismbchar(res->charset(), ptr + num_bytes, end)))
-          num_bytes+= len;
-        else
-          ++num_bytes;
-      }
-      if (num_bytes != remove_length)
-        break;
-      if (memcmp(ptr, r_ptr, remove_length))
-        break;
-      ptr+= remove_length;
-    }
     char *p=ptr;
     register uint32 l;
  loop:
     while (ptr + remove_length < end)
     {
-      if ((l= my_ismbchar(res->charset(), ptr,end)))
+      if ((l= my_ismbchar(collation.collation, ptr, end)))
         ptr+= l;
       else
         ++ptr;
@@ -2137,16 +2119,13 @@ String *Item_func_trim::val_str(String *str)
   else
 #endif /* USE_MB */
   {
-    while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
-      ptr+=remove_length;
     while (ptr + remove_length <= end &&
 	   !memcmp(end-remove_length,r_ptr,remove_length))
       end-=remove_length;
   }
   if (ptr == res->ptr() && end == ptr+res->length())
-    return res;
-  tmp_value.set(*res,(uint) (ptr - res->ptr()),(uint) (end-ptr));
-  return &tmp_value;
+    return non_trimmed_value(res);
+  return trimmed_value(res, (uint32) (ptr - res->ptr()), (uint32) (end - ptr));
 }
 
 void Item_func_trim::fix_length_and_dec()
@@ -2345,32 +2324,6 @@ void Item_func_encode::crypto_transform(String *res)
 void Item_func_decode::crypto_transform(String *res)
 {
   sql_crypt.decode((char*) res->ptr(),res->length());
-}
-
-
-Item *Item_func_sysconst::safe_charset_converter(CHARSET_INFO *tocs)
-{
-  Item_string *conv;
-  uint conv_errors;
-  String tmp, cstr, *ostr= val_str(&tmp);
-  if (null_value)
-  {
-    Item *null_item= new Item_null((char *) fully_qualified_func_name());
-    null_item->collation.set (tocs);
-    return null_item;
-  }
-  cstr.copy(ostr->ptr(), ostr->length(), ostr->charset(), tocs, &conv_errors);
-  if (conv_errors ||
-      !(conv= new Item_static_string_func(fully_qualified_func_name(),
-                                          cstr.ptr(), cstr.length(),
-                                          cstr.charset(),
-                                          collation.derivation)))
-  {
-    return NULL;
-  }
-  conv->str_value.copy();
-  conv->str_value.mark_as_const();
-  return conv;
 }
 
 
@@ -3045,6 +2998,75 @@ err:
 }
 
 
+void Item_func_space::fix_length_and_dec()
+{
+  collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
+  if (args[0]->const_item())
+  {
+    /* must be longlong to avoid truncation */
+    longlong count= args[0]->val_int();
+    if (args[0]->null_value)
+      goto end;
+    /*
+     Assumes that the maximum length of a String is < INT_MAX32.
+     Set here so that rest of code sees out-of-bound value as such.
+    */
+    if (count > INT_MAX32)
+      count= INT_MAX32;
+    fix_char_length_ulonglong(count);
+    return;
+  }
+
+end:
+  max_length= MAX_BLOB_WIDTH;
+  maybe_null= 1;
+}
+
+
+String *Item_func_space::val_str(String *str)
+{
+  uint tot_length;
+  longlong count= args[0]->val_int();
+  const CHARSET_INFO *cs= collation.collation;
+
+  if (args[0]->null_value)
+    goto err;				// string and/or delim are null
+  null_value= 0;
+
+  if (count <= 0 && (count == 0 || !args[0]->unsigned_flag))
+    return make_empty_result();
+  /*
+   Assumes that the maximum length of a String is < INT_MAX32.
+   Bounds check on count:  If this is triggered, we will error.
+  */
+  if ((ulonglong) count > INT_MAX32)
+    count= INT_MAX32;
+
+  // Safe length check
+  tot_length= (uint) count * cs->mbminlen;
+  if (tot_length > current_thd->variables.max_allowed_packet)
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED),
+                        func_name(),
+                        current_thd->variables.max_allowed_packet);
+    goto err;
+   }
+
+  if (str->alloc(tot_length))
+    goto err;
+  str->length(tot_length);
+  str->set_charset(cs);
+  cs->cset->fill(cs, (char*) str->ptr(), tot_length, ' ');
+  return str;
+
+err:
+  null_value= 1;
+  return 0;
+}
+
+
 void Item_func_binlog_gtid_pos::fix_length_and_dec()
 {
   collation.set(system_charset_info);
@@ -3443,7 +3465,7 @@ void Item_func_set_collation::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN(" collate "));
   DBUG_ASSERT(args[1]->basic_const_item() &&
               args[1]->type() == Item::STRING_ITEM);
-  args[1]->str_value.print(str);
+  ((Item_string *)args[1])->print_value(str);
   str->append(')');
 }
 

@@ -349,6 +349,21 @@ class Item_func_trim :public Item_str_func
 protected:
   String tmp_value;
   String remove;
+  String *trimmed_value(String *res, uint32 offset, uint32 length)
+  {
+    tmp_value.set(*res, offset, length);
+    /*
+      Make sure to return correct charset and collation:
+      TRIM(0x000000 FROM _ucs2 0x0061)
+      should set charset to "binary" rather than to "ucs2".
+    */
+    tmp_value.set_charset(collation.collation);
+    return &tmp_value;
+  }
+  String *non_trimmed_value(String *res)
+  {
+    return trimmed_value(res, 0, res->length());
+  }
 public:
   Item_func_trim(Item *a,Item *b) :Item_str_func(a,b) {}
   Item_func_trim(Item *a) :Item_str_func(a) {}
@@ -527,7 +542,10 @@ class Item_func_sysconst :public Item_str_func
 public:
   Item_func_sysconst()
   { collation.set(system_charset_info,DERIVATION_SYSCONST); }
-  Item *safe_charset_converter(CHARSET_INFO *tocs);
+  Item *safe_charset_converter(CHARSET_INFO *tocs)
+  {
+    return const_charset_converter(tocs, true, fully_qualified_func_name());
+  }
   /*
     Used to create correct Item name in new converted item in
     safe_charset_converter, return string representation of this function
@@ -698,6 +716,16 @@ public:
   String *val_str(String *);
   void fix_length_and_dec();
   const char *func_name() const { return "repeat"; }
+};
+
+
+class Item_func_space :public Item_str_func
+{
+public:
+  Item_func_space(Item *arg1):Item_str_func(arg1) {}
+  String *val_str(String *);
+  void fix_length_and_dec();
+  const char *func_name() const { return "space"; }
 };
 
 

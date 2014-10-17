@@ -57,13 +57,17 @@ class DllExport TDBPRX : public TDBASE {
   friend class PRXDEF;
   friend class PRXCOL;
  public:
-  // Constructor
+  // Constructors
   TDBPRX(PPRXDEF tdp);
+  TDBPRX(PGLOBAL g, PTDBPRX tdbp);
 
   // Implementation
   virtual AMT   GetAmType(void) {return TYPE_AM_PRX;}
+  virtual PTDB  Duplicate(PGLOBAL g)
+                {return (PTDB)new(g) TDBPRX(g, this);}
 
   // Methods
+  virtual PTDB  CopyOne(PTABS t);
   virtual int   GetRecpos(void) {return Tdbp->GetRecpos();}
 	virtual void  ResetDB(void) {Tdbp->ResetDB();}
 	virtual int   RowNumber(PGLOBAL g, bool b = FALSE);
@@ -72,6 +76,7 @@ class DllExport TDBPRX : public TDBASE {
   // Database routines
 	virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual bool  InitTable(PGLOBAL g);
+  virtual int   Cardinality(PGLOBAL g);
   virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
@@ -97,15 +102,19 @@ class DllExport PRXCOL : public COLBLK {
  public:
   // Constructors
   PRXCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am = "PRX");
+  PRXCOL(PRXCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_PRX;}
+  virtual int  GetAmType(void) {return TYPE_AM_PRX;}
 
   // Methods
-  virtual void   Reset(void);
-  virtual bool   IsSpecial(void) {return Pseudo;}
-  virtual void   ReadColumn(PGLOBAL g);
-          bool   Init(PGLOBAL g);
+  virtual void Reset(void);
+  virtual bool IsSpecial(void) {return Pseudo;}
+  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
+                {return false;}
+  virtual void ReadColumn(PGLOBAL g);
+  virtual void WriteColumn(PGLOBAL g);
+          bool Init(PGLOBAL g, PTDBASE tp = NULL);
 
  protected:
   // Default constructor not to be used

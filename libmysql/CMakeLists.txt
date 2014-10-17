@@ -257,6 +257,9 @@ mariadb_dyncol_unpack_free
 mariadb_dyncol_column_cmp_named
 mariadb_dyncol_column_count
 mariadb_dyncol_prepare_decimal
+
+# Added in MariaDB-10.0 to stay compatible with MySQL-5.6, yuck!
+mysql_options4
 )
 
 SET(CLIENT_API_FUNCTIONS
@@ -406,7 +409,6 @@ SET(LIBS clientlib dbug strings vio mysys mysys_ssl ${ZLIB_LIBRARY} ${SSL_LIBRAR
 MERGE_LIBRARIES(mysqlclient STATIC ${LIBS} COMPONENT Development)
 
 # Visual Studio users need debug  static library for debug projects
-INSTALL_DEBUG_SYMBOLS(clientlib)
 IF(MSVC)
  INSTALL_DEBUG_TARGET(mysqlclient DESTINATION ${INSTALL_LIBDIR}/debug)
  INSTALL_DEBUG_TARGET(clientlib DESTINATION ${INSTALL_LIBDIR}/debug)
@@ -447,6 +449,10 @@ IF(NOT DISABLE_SHARED)
       SOVERSION "${SHARED_LIB_MAJOR_VERSION}")
     IF(LINK_FLAG_NO_UNDEFINED OR VERSION_SCRIPT_LINK_FLAGS)
       GET_TARGET_PROPERTY(libmysql_link_flags libmysql LINK_FLAGS)
+      IF(NOT libmysql_link_flags)
+        # Avoid libmysql_link_flags-NOTFOUND
+        SET(libmysql_link_flags)
+      ENDIF()
       SET_TARGET_PROPERTIES(libmysql PROPERTIES LINK_FLAGS 
         "${libmysql_link_flags} ${LINK_FLAG_NO_UNDEFINED} ${VERSION_SCRIPT_LINK_FLAGS}")
     ENDIF() 

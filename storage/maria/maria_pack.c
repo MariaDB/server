@@ -511,7 +511,7 @@ static int compress(PACK_MRG_INFO *mrg,char *result_table)
     fn_format(org_name,isam_file->s->open_file_name.str, "",MARIA_NAME_DEXT, 2+4+16);
 
   if (init_pagecache(maria_pagecache, MARIA_MIN_PAGE_CACHE_SIZE, 0, 0,
-                     maria_block_size, MY_WME) == 0)
+                     maria_block_size, 0, MY_WME) == 0)
   {
     fprintf(stderr, "Can't initialize page cache\n");
     goto err;

@@ -5935,6 +5935,12 @@ int spider_oracle_handler::append_select(
     if (str->reserve(SPIDER_SQL_SELECT_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SELECT_STR, SPIDER_SQL_SELECT_LEN);
+    if (spider->result_list.direct_distinct)
+    {
+      if (str->reserve(SPIDER_SQL_DISTINCT_LEN))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_DISTINCT_STR, SPIDER_SQL_DISTINCT_LEN);
+    }
   }
   DBUG_RETURN(0);
 }

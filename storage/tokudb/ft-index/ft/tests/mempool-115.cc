@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -123,6 +123,7 @@ le_overwrite(bn_data* bn, uint32_t idx, const  char *key, int keysize, const cha
         idx, 
         key,
         keysize,
+        keysize, // old_keylen
         size_needed, // old_le_size
         size_needed,
         &r,
@@ -148,7 +149,7 @@ public:
         // just copy this code from a previous test
         // don't care what it does, just want to get a node up and running
         sn.flags = 0x11223344;
-        sn.thisnodename.b = 20;
+        sn.blocknum.b = 20;
         sn.layout_version = FT_LAYOUT_VERSION;
         sn.layout_version_original = FT_LAYOUT_VERSION;
         sn.height = 0;
@@ -156,9 +157,8 @@ public:
         sn.dirty = 1;
         sn.oldest_referenced_xid_known = TXNID_NONE;
         MALLOC_N(sn.n_children, sn.bp);
-        MALLOC_N(1, sn.childkeys);
-        toku_memdup_dbt(&sn.childkeys[0], "b", 2);
-        sn.totalchildkeylens = 2;
+        DBT pivotkey;
+        sn.pivotkeys.create_from_dbts(toku_fill_dbt(&pivotkey, "b", 2), 1);
         BP_STATE(&sn,0) = PT_AVAIL;
         BP_STATE(&sn,1) = PT_AVAIL;
         set_BLB(&sn, 0, toku_create_empty_bn());
@@ -166,8 +166,6 @@ public:
         le_add_to_bn(BLB_DATA(&sn, 0), 0, "a", 2, "aval", 5);
         le_add_to_bn(BLB_DATA(&sn, 0), 1, "b", 2, "bval", 5);
         le_add_to_bn(BLB_DATA(&sn, 1), 0, "x", 2, "xval", 5);
-    
-    
     
         // now this is the test. If I keep getting space for overwrite
         // like crazy, it should expose the bug
@@ -186,15 +184,7 @@ public:
         // on. It may be that some algorithm has changed.
         assert(new_size < 5*old_size);
     
-    
-        for (int i = 0; i < sn.n_children-1; ++i) {
-            toku_free(sn.childkeys[i].data);
-        }
-        for (int i = 0; i < sn.n_children; i++) {
-            destroy_basement_node(BLB(&sn, i));
-        }
-        toku_free(sn.bp);
-        toku_free(sn.childkeys);
+        toku_destroy_ftnode_internals(&sn);
     }
 };
 

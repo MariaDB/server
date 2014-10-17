@@ -211,8 +211,9 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share, const char *name,
 
   if (!internal_table)
   {
-    m_info->open_list.data=(void*) m_info;
-    maria_open_list=list_add(maria_open_list,&m_info->open_list);
+    m_info->open_list.data= m_info->share_list.data= (void*) m_info;
+    maria_open_list=  list_add(maria_open_list,  &m_info->open_list);
+    share->open_list= list_add(share->open_list, &m_info->share_list);
   }
   else
   {

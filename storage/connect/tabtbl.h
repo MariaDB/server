@@ -78,6 +78,7 @@ class DllExport TDBTBL : public TDBPRX {
 
   // Database routines
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  virtual int  Cardinality(PGLOBAL g);
   virtual int  GetMaxSize(PGLOBAL g);
   virtual int  RowNumber(PGLOBAL g, bool b = FALSE);
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL scp);
