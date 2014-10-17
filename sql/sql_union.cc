@@ -247,6 +247,7 @@ int select_union_direct::send_data(List<Item> &items)
     return false;
   }
 
+  send_records++;
   fill_record(thd, table, table->field, items, true, false);
   if (thd->is_error())
     return true; /* purecov: inspected */
