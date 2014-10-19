@@ -676,6 +676,7 @@ public:
 
   List<Item> *get_unit_column_types();
 
+  select_union *get_union_result() { return union_result; }
   int save_union_explain(Explain_query *output);
   int save_union_explain_part2(Explain_query *output);
 };

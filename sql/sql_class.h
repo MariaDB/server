@@ -4463,13 +4463,7 @@ public:
   }
   void cleanup()
   {
-    /*
-      Only called for top-level select_results, usually select_send,
-      and for the results of subquery engines
-      (select_<something>_subselect).
-    */
     send_records= 0;
-    DBUG_ASSERT(false); /* purecov: inspected */
   }
   void set_thd(THD *thd_arg)
   {

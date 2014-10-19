@@ -3397,7 +3397,8 @@ bool subselect_union_engine::no_rows()
   /* Check if we got any rows when reading UNION result from temp. table: */
   return MY_TEST(!(unit->fake_select_lex ?
                    unit->fake_select_lex->join->send_records :
-                   ((select_union_direct *) result)->send_records));
+                   ((select_union_direct *)(unit->get_union_result()))
+                                                            ->send_records));
 }
 
 

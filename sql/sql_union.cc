@@ -784,6 +784,8 @@ bool st_select_lex_unit::exec()
 
   if (uncacheable || !item || !item->assigned() || describe)
   {
+    if (!fake_select_lex)
+      union_result->cleanup();
     for (SELECT_LEX *sl= select_cursor; sl; sl= sl->next_select())
     {
       ha_rows records_at_start= 0;
