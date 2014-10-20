@@ -2123,18 +2123,17 @@ fil_read_first_page(
 	do not validate the first page. */
 	if (!one_read_already) {
 		*flags = fsp_header_get_flags(page);
+		*space_id = fsp_header_get_space_id(page);
 	}
 
 	/* Page is page compressed page, need to decompress, before
 	continue. */
-	if (fsp_flags_is_page_compressed(*flags)) {
+	if (fil_page_is_compressed(page)) {
 		ulint write_size=0;
 		fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, &write_size);
 	}
 
 	if (!one_read_already) {
-		*space_id = fsp_header_get_space_id(page);
-
 		check_msg = fil_check_first_page(page);
 	}
 
