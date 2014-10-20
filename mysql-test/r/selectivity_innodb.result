@@ -1358,6 +1358,8 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 DROP TABLE t1,t2;
 set use_stat_tables=@save_use_stat_tables;
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
+set @tmp_ust= @@use_stat_tables;
+set @tmp_oucs= @@optimizer_use_condition_selectivity;
 #
 # MDEV-6808: MariaDB 10.0.13 crash with optimizer_use_condition_selectivity > 1
 #
@@ -1393,4 +1395,32 @@ t2.subject_type in ('user')
 repost_id	subject_type	subject_id	object_type	object_id	is_private	event_id
 DROP TABLE t1, t2;
 set optimizer_use_condition_selectivity=@tmp_mdev6808;
+#
+# MDEV-6442: Assertion `join->best_read < double(...)' failed with optimizer_use_condition_selectivity >=3, ...
+#
+SET use_stat_tables = PREFERABLY;
+SET optimizer_use_condition_selectivity = 3;
+CREATE TABLE t1 ( a VARCHAR(3), b VARCHAR(8), KEY (a,b) ) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('USA','Chinese'),('USA','English');
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+SELECT * FROM t1, t2 WHERE ( 't', 'o' ) IN ( 
+SELECT t1_2.b, t1_1.a FROM t1 AS t1_1 STRAIGHT_JOIN t1 AS t1_2 ON ( t1_2.a = t1_1.b ) 
+);
+a	b	i
+DROP TABLE t1,t2;
+# 
+# MDEV-6738: use_stat_table + histograms crashing optimizer
+# 
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+# Need innodb because there is a special kind of field_bit for non-myisam tables
+create table t1(col1 int, col2 bit(1) DEFAULT NULL) engine=innodb;
+select * from t1 where col2 != true;
+col1	col2
+drop table t1;
+#
+# End of 10.0 tests
+#
+set use_stat_tables= @tmp_ust;
+set optimizer_use_condition_selectivity= @tmp_oucs;
 SET SESSION STORAGE_ENGINE=DEFAULT;

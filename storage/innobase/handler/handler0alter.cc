@@ -2237,7 +2237,7 @@ innobase_check_foreigns_low(
 	/* Check if any FOREIGN KEY constraints are defined on this
 	column. */
 
-	for (dict_foreign_set::iterator it = user_table->foreign_set.begin();
+	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
 	     it != user_table->foreign_set.end();
 	     ++it) {
 
@@ -2274,7 +2274,7 @@ innobase_check_foreigns_low(
 
 	/* Check if any FOREIGN KEY constraints in other tables are
 	referring to the column that is being dropped. */
-	for (dict_foreign_set::iterator it
+	for (dict_foreign_set::const_iterator it
 		= user_table->referenced_set.begin();
 	     it != user_table->referenced_set.end();
 	     ++it) {
@@ -4446,7 +4446,7 @@ err_exit:
 rename_foreign:
 	trx->op_info = "renaming column in SYS_FOREIGN_COLS";
 
-	for (dict_foreign_set::iterator it = user_table->foreign_set.begin();
+	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
 	     it != user_table->foreign_set.end();
 	     ++it) {
 
@@ -4481,7 +4481,7 @@ rename_foreign:
 		}
 	}
 
-	for (dict_foreign_set::iterator it
+	for (dict_foreign_set::const_iterator it
 		= user_table->referenced_set.begin();
 	     it != user_table->referenced_set.end();
 	     ++it) {

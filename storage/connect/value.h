@@ -357,6 +357,7 @@ class DllExport DTVAL : public TYPVAL<int> {
   DTVAL(PGLOBAL g, double f);
 
   // Implementation
+  virtual bool   IsZero(void) {return Null;}
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);

@@ -504,7 +504,11 @@ UNIV_INTERN ulint	srv_available_undo_logs         = 0;
 
 /* Ensure status variables are on separate cache lines */
 
+#ifdef __powerpc__
+#define CACHE_LINE_SIZE 128
+#else
 #define CACHE_LINE_SIZE 64
+#endif
 #define CACHE_ALIGNED __attribute__ ((aligned (CACHE_LINE_SIZE)))
 
 UNIV_INTERN byte

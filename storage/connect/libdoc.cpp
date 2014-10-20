@@ -2,6 +2,7 @@
 /*  Implementation of XML document processing using libxml2       */
 /*  Author: Olivier Bertrand                2007-2013             */
 /******************************************************************/
+#include "my_global.h"
 #include <string.h>
 #include <stdio.h>
 #include <libxml/parser.h>
@@ -11,11 +12,6 @@
 #include <libxml/catalog.h>
 #include <libxml/xmlschemastypes.h>
 #include <libxml/relaxng.h>
-//#if defined(WIN32)
-//#include <windows.h>
-//#else   // !WIN32
-#include "my_global.h"
-//#endif  // !WIN32
 
 #if !defined(LIBXML_TREE_ENABLED) || !defined(LIBXML_OUTPUT_ENABLED)
 #error "tree support not compiled in"

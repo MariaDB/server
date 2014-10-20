@@ -960,6 +960,8 @@ bool ha_connect::GetBooleanOption(char *opname, bool bdef)
     opval= options->readonly;
   else if (!stricmp(opname, "SepIndex"))
     opval= options->sepindex;
+  else if (!stricmp(opname, "Header"))
+    opval= (options->header != 0);   // Is Boolean for some table types
   else if (options->oplist)
     if ((pv= GetListOption(xp->g, opname, options->oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
@@ -1184,6 +1186,8 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
         pcf->Length= (len) ? len : 11;
         } // endelse
 
+      // For Value setting
+      pcf->Precision= MY_MAX(pcf->Precision, pcf->Length);
       break;
     default:
       break;
@@ -1836,6 +1840,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
             } // endswitch type
 
           ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
+          sdvalin->SetNullable(colp->IsNullable());
           fp->val_str(&attribute);
           sdvalin->SetValue_psz(attribute.c_ptr_safe());
           value->SetValue_pval(sdvalin);
@@ -2429,7 +2434,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         if (!x) {
           // Append the value to the filter
           if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
-            strcat(strcat(strcat(body, "'"), res->ptr()), "'");
+            strcat(strncat(strcat(body, "'"), res->ptr(), res->length()), "'");
           else
             strncat(body, res->ptr(), res->length());
 

@@ -10614,7 +10614,20 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       goto no_join_cache;
     if (tab->ref.is_access_triggered())
       goto no_join_cache;
-      
+    
+    /*
+      Don't use BKA for materialized tables. We could actually have a
+      meaningful use of BKA when linked join buffers are used.
+
+      The problem is, the temp.table is not filled (actually not even opened
+      properly) yet, and this doesn't let us call 
+      handler->multi_range_read_info(). It is possible to come up with
+      estimates, etc. without acessing the table, but it seems not to worth the
+      effort now.
+    */
+    if (tab->table->pos_in_table_list->is_materialized_derived())
+      goto no_join_cache;
+
     if (!tab->is_ref_for_hash_join())
     {
       flags= HA_MRR_NO_NULL_ENDPOINTS | HA_MRR_SINGLE_POINT;
@@ -21181,7 +21194,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
         order_item_type == Item::REF_ITEM)
     {
       from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
-                                       NULL, &view_ref, IGNORE_ERRORS, TRUE,
+                                       NULL, &view_ref, IGNORE_ERRORS, FALSE,
                                        FALSE);
       if (!from_field)
         from_field= (Field*) not_found_field;

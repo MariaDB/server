@@ -390,8 +390,8 @@ PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
 /***********************************************************************/
 CSVDEF::CSVDEF(void)
   {
-  Fmtd = Accept = Header = false;
-  Maxerr = 0;
+  Fmtd = Header = false;
+//Maxerr = 0;
   Quoted = -1;
   Sep = ',';
   Qot = '\0';
@@ -428,9 +428,13 @@ bool CSVDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Qot = '"';
 
   Fmtd = (!Sep || (am && (*am == 'F' || *am == 'f')));
-  Header = (GetIntCatInfo("Header", 0) != 0);
+  Header = GetBoolCatInfo("Header", false);
   Maxerr = GetIntCatInfo("Maxerr", 0);
-  Accept = (GetIntCatInfo("Accept", 0) != 0);
+  Accept = GetBoolCatInfo("Accept", false);
+
+  if (Accept && Maxerr == 0)
+    Maxerr = INT_MAX32;       // Accept all bad lines
+
   return false;
   } // end of DefineAM
 

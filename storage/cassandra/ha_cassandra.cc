@@ -18,6 +18,7 @@
 #pragma implementation        // gcc: Class implementation
 #endif
 
+#include <my_config.h>
 #include <mysql/plugin.h>
 #include "ha_cassandra.h"
 #include "sql_class.h"

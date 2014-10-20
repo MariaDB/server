@@ -146,7 +146,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Eof = (GetIntCatInfo("EOF", 0) != 0);
   } else if (Recfm == RECFM_DBF) {
     Maxerr = GetIntCatInfo("Maxerr", 0);
-    Accept = (GetIntCatInfo("Accept", 0) != 0);
+    Accept = GetBoolCatInfo("Accept", false);
     ReadMode = GetIntCatInfo("Readmode", 0);
   } else // (Recfm == RECFM_VAR)
     AvgLen = GetIntCatInfo("Avglen", 0);

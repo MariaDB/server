@@ -8,6 +8,9 @@ set optimizer_switch='extended_keys=on';
 --source selectivity.test
 
 set optimizer_switch=@save_optimizer_switch_for_selectivity_test;
+set @tmp_ust= @@use_stat_tables;
+set @tmp_oucs= @@optimizer_use_condition_selectivity;
+
 
 --echo #
 --echo # MDEV-6808: MariaDB 10.0.13 crash with optimizer_use_condition_selectivity > 1
@@ -46,4 +49,40 @@ WHERE
 DROP TABLE t1, t2;
 set optimizer_use_condition_selectivity=@tmp_mdev6808;
 
+--echo #
+--echo # MDEV-6442: Assertion `join->best_read < double(...)' failed with optimizer_use_condition_selectivity >=3, ...
+--echo #
+SET use_stat_tables = PREFERABLY;
+SET optimizer_use_condition_selectivity = 3;
+
+CREATE TABLE t1 ( a VARCHAR(3), b VARCHAR(8), KEY (a,b) ) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ('USA','Chinese'),('USA','English');
+
+CREATE TABLE t2 (i INT) ENGINE=InnoDB;
+
+SELECT * FROM t1, t2 WHERE ( 't', 'o' ) IN ( 
+  SELECT t1_2.b, t1_1.a FROM t1 AS t1_1 STRAIGHT_JOIN t1 AS t1_2 ON ( t1_2.a = t1_1.b ) 
+);
+DROP TABLE t1,t2;
+
+--echo # 
+--echo # MDEV-6738: use_stat_table + histograms crashing optimizer
+--echo # 
+
+set use_stat_tables='preferably';
+set optimizer_use_condition_selectivity=4;
+
+--echo # Need innodb because there is a special kind of field_bit for non-myisam tables
+create table t1(col1 int, col2 bit(1) DEFAULT NULL) engine=innodb;
+
+select * from t1 where col2 != true;
+
+drop table t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+set use_stat_tables= @tmp_ust;
+set optimizer_use_condition_selectivity= @tmp_oucs;
 SET SESSION STORAGE_ENGINE=DEFAULT;

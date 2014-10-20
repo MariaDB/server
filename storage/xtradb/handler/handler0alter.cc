@@ -2238,7 +2238,7 @@ innobase_check_foreigns_low(
 	/* Check if any FOREIGN KEY constraints are defined on this
 	column. */
 
-	for (dict_foreign_set::iterator it = user_table->foreign_set.begin();
+	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
 	     it != user_table->foreign_set.end();
 	     ++it) {
 
@@ -2275,7 +2275,7 @@ innobase_check_foreigns_low(
 
 	/* Check if any FOREIGN KEY constraints in other tables are
 	referring to the column that is being dropped. */
-	for (dict_foreign_set::iterator it
+	for (dict_foreign_set::const_iterator it
 		= user_table->referenced_set.begin();
 	     it != user_table->referenced_set.end();
 	     ++it) {
@@ -2667,7 +2667,7 @@ prepare_inplace_alter_table_dict(
 	if (UNIV_UNLIKELY(ctx->trx->fake_changes)) {
 		trx_rollback_to_savepoint(ctx->trx, NULL);
 		trx_free_for_mysql(ctx->trx);
-		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+		DBUG_RETURN(true);
 	}
 
 	trx_start_for_ddl(ctx->trx, TRX_DICT_OP_INDEX);
@@ -3387,7 +3387,7 @@ ha_innobase::prepare_inplace_alter_table(
 	DBUG_ASSERT(!srv_read_only_mode);
 
 	if (UNIV_UNLIKELY(prebuilt->trx->fake_changes)) {
-		DBUG_RETURN(HA_ERR_WRONG_COMMAND);
+		DBUG_RETURN(true);
 	}
 
 	MONITOR_ATOMIC_INC(MONITOR_PENDING_ALTER_TABLE);
@@ -4462,7 +4462,7 @@ err_exit:
 rename_foreign:
 	trx->op_info = "renaming column in SYS_FOREIGN_COLS";
 
-	for (dict_foreign_set::iterator it = user_table->foreign_set.begin();
+	for (dict_foreign_set::const_iterator it = user_table->foreign_set.begin();
 	     it != user_table->foreign_set.end();
 	     ++it) {
 
@@ -4497,7 +4497,7 @@ rename_foreign:
 		}
 	}
 
-	for (dict_foreign_set::iterator it
+	for (dict_foreign_set::const_iterator it
 		= user_table->referenced_set.begin();
 	     it != user_table->referenced_set.end();
 	     ++it) {
