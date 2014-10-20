@@ -20,6 +20,7 @@
 #include "ctx_impl.h"
 
 #include "mrb.h"
+#include "mrb/mrb_error.h"
 #include "mrb/mrb_id.h"
 #include "mrb/mrb_operator.h"
 #include "mrb/mrb_ctx.h"
@@ -46,6 +47,7 @@ grn_ctx_impl_mrb_init_bindings(grn_ctx *ctx)
 
   grn_mrb_load(ctx, "backtrace_entry.rb");
 
+  grn_mrb_error_init(ctx);
   grn_mrb_id_init(ctx);
   grn_mrb_operator_init(ctx);
   grn_mrb_ctx_init(ctx);

@@ -29,6 +29,8 @@
 #include "store.h"
 #endif /* GRN_STORE_H */
 
+#include <groonga/token_filter.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -96,7 +98,8 @@ grn_id grn_table_add_v(grn_ctx *ctx, grn_obj *table, const void *key, int key_si
                        void **value, int *added);
 GRN_API grn_rc grn_table_get_info(grn_ctx *ctx, grn_obj *table, grn_obj_flags *flags,
                                   grn_encoding *encoding, grn_obj **tokenizer,
-                                  grn_obj **normalizer);
+                                  grn_obj **normalizer,
+                                  grn_obj **token_filters);
 const char *_grn_table_key(grn_ctx *ctx, grn_obj *table, grn_id id, uint32_t *key_size);
 
 grn_rc grn_table_search(grn_ctx *ctx, grn_obj *table,
@@ -183,6 +186,16 @@ struct _grn_proc {
   grn_proc_func *funcs[3];
 
   grn_selector_func *selector;
+
+  union {
+    struct {
+      grn_token_filter_init_func   *init;
+      grn_token_filter_filter_func *filter;
+      grn_token_filter_fin_func    *fin;
+    } token_filter;
+  } callbacks;
+
+  void *user_data;
 
   grn_id module;
   //  uint32_t nargs;

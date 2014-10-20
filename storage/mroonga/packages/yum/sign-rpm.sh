@@ -28,6 +28,14 @@ unsigned_rpms()
     done
 }
 
+if ! gpg --list-keys "${GPG_UID}" > /dev/null 2>&1; then
+    run gpg --keyserver keyserver.ubuntu.com --recv-key "${GPG_UID}"
+fi
+run mkdir -p tmp
+run gpg --armor --export "${GPG_UID}" > tmp/sign-key
+run rpm --import tmp/sign-key
+run rm -rf tmp/sign-key
+
 rpms=""
 for distribution in ${DISTRIBUTIONS}; do
     rpms="${rpms} $(find ${DESTINATION}${distribution} -name '*.rpm' | unsigned_rpms)"

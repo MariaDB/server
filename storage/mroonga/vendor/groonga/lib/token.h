@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009 Brazil
+/* Copyright(C) 2009-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -33,21 +33,23 @@
 #include "str.h"
 #endif /* GRN_STR_H */
 
+#include <groonga/tokenizer.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef enum {
-  GRN_TOKEN_GET = 0,
-  GRN_TOKEN_ADD,
-  GRN_TOKEN_DEL
-} grn_token_mode;
-
-typedef enum {
   GRN_TOKEN_DOING = 0,
   GRN_TOKEN_DONE,
+  GRN_TOKEN_DONE_SKIP,
   GRN_TOKEN_NOT_FOUND
 } grn_token_status;
+
+struct _grn_token {
+  grn_obj data;
+  grn_tokenizer_status status;
+};
 
 typedef struct {
   grn_obj *table;
@@ -63,9 +65,10 @@ typedef struct {
   grn_encoding encoding;
   grn_obj *tokenizer;
   grn_proc_ctx pctx;
+  grn_obj *token_filters;
   uint32_t variant;
   grn_obj *nstr;
-} grn_token;
+} grn_token_cursor;
 
 extern grn_obj *grn_token_uvector;
 
@@ -74,12 +77,13 @@ grn_rc grn_token_fin(void);
 
 #define GRN_TOKEN_ENABLE_TOKENIZED_DELIMITER (0x01L<<0)
 
-GRN_API grn_token *grn_token_open(grn_ctx *ctx, grn_obj *table, const char *str,
-                                  size_t str_len, grn_token_mode mode,
-                                  unsigned int flags);
+GRN_API grn_token_cursor *grn_token_cursor_open(grn_ctx *ctx, grn_obj *table,
+                                                const char *str, size_t str_len,
+                                                grn_token_mode mode,
+                                                unsigned int flags);
 
-GRN_API grn_id grn_token_next(grn_ctx *ctx, grn_token *ng);
-GRN_API grn_rc grn_token_close(grn_ctx *ctx, grn_token *ng);
+GRN_API grn_id grn_token_cursor_next(grn_ctx *ctx, grn_token_cursor *token_cursor);
+GRN_API grn_rc grn_token_cursor_close(grn_ctx *ctx, grn_token_cursor *token_cursor);
 
 grn_rc grn_db_init_mecab_tokenizer(grn_ctx *ctx);
 grn_rc grn_db_init_builtin_tokenizers(grn_ctx *ctx);

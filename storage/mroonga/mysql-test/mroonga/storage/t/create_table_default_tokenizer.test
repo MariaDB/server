@@ -18,9 +18,11 @@
 --source ../../include/mroonga/have_mroonga.inc
 --source ../../include/mroonga/load_mroonga_functions.inc
 
---disable_warnings
-DROP TABLE IF EXISTS tags;
---enable_warnings
+--disable_query_log
+DROP DATABASE test;
+CREATE DATABASE test;
+USE test;
+--enable_query_log
 
 CREATE TABLE tags (
   name VARCHAR(64) PRIMARY KEY

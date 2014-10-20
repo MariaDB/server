@@ -3,7 +3,8 @@ SUBDIRS =					\
 	suggest					\
 	table					\
 	query_expanders				\
-	ruby
+	ruby					\
+	token_filters
 
 EXTRA_DIST =					\
 	CMakeLists.txt

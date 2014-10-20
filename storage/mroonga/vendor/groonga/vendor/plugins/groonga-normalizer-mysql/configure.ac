@@ -150,6 +150,7 @@ AC_CONFIG_FILES([
   normalizers/Makefile
   packages/Makefile
   packages/apt/Makefile
+  packages/apt/env.sh
   packages/ubuntu/Makefile
   packages/rpm/Makefile
   packages/rpm/centos/Makefile

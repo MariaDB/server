@@ -1,6 +1,6 @@
 # -*- coding: utf-8; mode: ruby -*-
 #
-# Copyright (C) 2011-2012  Kouhei Sutou <kou@clear-code.com>
+# Copyright (C) 2011-2014  Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -49,7 +49,7 @@ namespace :build do
   download_dir = Pathname.new("tmp/download").expand_path
 
   desc "Build MessagePack and install it into #{dist_dir}."
-  task(:msgpack) do
+  task :msgpack do
     tmp_dir = Pathname.new("tmp/msgpack")
     rm_rf(tmp_dir)
     mkdir_p(tmp_dir)
@@ -89,7 +89,7 @@ namespace :build do
   end
 
   desc "Build MeCab and install it into #{dist_dir}."
-  task(:mecab) do
+  task :mecab do
     tmp_dir = Pathname.new("tmp/mecab")
     rm_rf(tmp_dir)
     mkdir_p(tmp_dir)
@@ -133,7 +133,7 @@ namespace :build do
   end
 
   desc "Build MeCab dictionary and install it into #{dist_dir}."
-  task(:mecab_dict) do
+  task :mecab_dict do
     tmp_dir = Pathname.new("tmp/mecab_dict")
     rm_rf(tmp_dir)
     mkdir_p(tmp_dir)
@@ -175,7 +175,7 @@ namespace :build do
   end
 
   desc "Build groonga and install it into #{dist_dir}/."
-  task(:groonga) do
+  task :groonga do
     tmp_dir = Pathname.new("tmp/groonga")
     rm_rf(tmp_dir)
     mkdir_p(tmp_dir)
@@ -193,6 +193,8 @@ namespace :build do
         "--disable-benchmark",
         "--disable-groonga-httpd",
         "--with-message-pack=#{binary_dir}",
+        "--enable-mruby",
+        "--enable-shared-onigmo",
       ]
       if mecab_config.exist?
         options << "--with-mecab-config=#{mecab_config}"
@@ -208,21 +210,41 @@ namespace :build do
       mkdir_p(groonga_license_dir)
       files = ["README.md", "COPYING"]
       cp(files, groonga_license_dir)
+
+      mruby_license_dir = license_dir + "mruby"
+      mkdir_p(mruby_license_dir)
+      files = [
+        "vendor/mruby-source/README.md",
+        "vendor/mruby-source/AUTHORS",
+        "vendor/mruby-source/LEGAL",
+        "vendor/mruby-source/MITL",
+      ]
+      cp(files, mruby_license_dir)
+
+      onigmo_license_dir = license_dir + "onigmo"
+      mkdir_p(onigmo_license_dir)
+      files = [
+        "vendor/onigmo-source/README",
+        "vendor/onigmo-source/README",
+        "vendor/onigmo-source/AUTHORS",
+        "vendor/onigmo-source/COPYING",
+      ]
+      cp(files, onigmo_license_dir)
     end
   end
 
-  task(:clean) do
+  task :clean do
     rm_rf(dist_dir)
   end
 
-  task(:pre => :clean)
-  task(:post)
+  task :pre => :clean
+  task :post
 end
 
 namespace :gcc do
   namespace :dll do
     desc "Bundle GCC related DLLs"
-    task(:bundle) do
+    task :bundle do
       dlls = ["libstdc++-6.dll", "libwinpthread-1.dll"]
       if groonga_win32_x86_p
         dlls << "libgcc_s_sjlj-1.dll"
@@ -237,12 +259,12 @@ namespace :gcc do
   end
 end
 
-task("build:post" => "gcc:dll:bundle")
+task "build:post" => "gcc:dll:bundle"
 
 desc "Build MeCab and groonga and install them into #{dist_dir}/."
-task(:build => ["build:pre",
+task :build => ["build:pre",
                 "build:msgpack",
                 "build:mecab",
                 "build:mecab_dict",
                 "build:groonga",
-                "build:post"])
+                "build:post"]

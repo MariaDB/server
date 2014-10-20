@@ -1,11 +1,7 @@
 REPOSITORIES_PATH = repositories
-DISTRIBUTIONS = debian ubuntu
-CHROOT_BASE = /var/lib/chroot
+DISTRIBUTIONS = debian
 ARCHITECTURES = i386 amd64
-CODES = wheezy jessie unstable precise quantal saucy trusty
-KEYRING_PACKAGE = groonga-keyring
-KEYRING_VERSION = 2012.05.29
-KEYRING_BASE_NAME = $(KEYRING_PACKAGE)-$(KEYRING_VERSION)
+CODE_NAMES = wheezy
 
 all:
 
@@ -31,14 +27,14 @@ download: ensure-rsync-path
 	done
 
 sign-packages:
-	./sign-packages.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODES)'
+	./sign-packages.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODE_NAMES)'
 
 update-repository:
 	./update-repository.sh '$(PACKAGE_NAME)' '$(REPOSITORIES_PATH)/' \
-	  '$(ARCHITECTURES)' '$(CODES)'
+	  '$(ARCHITECTURES)' '$(CODE_NAMES)'
 
 sign-repository:
-	./sign-repository.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODES)'
+	./sign-repository.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODE_NAMES)'
 
 upload: ensure-rsync-path
 	for distribution in $(DISTRIBUTIONS); do		\
@@ -49,12 +45,23 @@ upload: ensure-rsync-path
 
 build: build-package-deb
 
-build-package-deb: source
-	./build-in-chroot.sh						\
-	  $(PACKAGE) $(VERSION) $(srcdir)/.. $(REPOSITORIES_PATH)/	\
-	  $(CHROOT_BASE) '$(ARCHITECTURES)' '$(CODES)'
+build-package-deb: prepare-build-package-deb
+	vagrant destroy --force
+	for architecture in $(ARCHITECTURES); do		\
+	  for code_name in $(CODE_NAMES); do			\
+	    id=debian-$$code_name-$$architecture;		\
+	    vagrant up $$id || exit 1;				\
+	    vagrant destroy --force $$id;			\
+	  done;							\
+	done
 
-source: ../$(PACKAGE)-$(VERSION).tar.gz
+prepare-build-package-deb: source env.sh
+	cp env.sh tmp/
+	rm -rf tmp/debian
+	cp -rp $(srcdir)/../debian tmp/
 
-../$(PACKAGE)-$(VERSION).tar.gz:
-	ln -s $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz ../
+source: tmp/$(PACKAGE)-$(VERSION).tar.gz
+
+tmp/$(PACKAGE)-$(VERSION).tar.gz: $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz
+	mkdir -p tmp
+	cp $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz $@

@@ -7,7 +7,8 @@ SUBDIRS =					\
 EXTRA_DIST =					\
 	$(NGINX_DIR)				\
 	CMakeLists.txt				\
-	plugins/CMakeLists.txt
+	plugins/CMakeLists.txt			\
+	mruby/CMakeLists.txt
 
 dist-hook:
 	GIT_DIR=$(srcdir)/mruby-source/.git git archive --format=tar HEAD | \

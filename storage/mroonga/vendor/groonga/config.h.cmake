@@ -116,7 +116,6 @@
 #cmakedefine HAVE_SYS_STAT_H
 #cmakedefine HAVE_SYS_SYSCALL_H
 #cmakedefine HAVE_SYS_SYSCTL_H
-#cmakedefine HAVE_SYS_TIMEB_H
 #cmakedefine HAVE_SYS_TIME_H
 #cmakedefine HAVE_SYS_TYPES_H
 #cmakedefine HAVE_SYS_WAIT_H

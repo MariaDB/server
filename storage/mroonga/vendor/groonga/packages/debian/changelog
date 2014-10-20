@@ -1,6 +1,16 @@
+groonga (4.0.6-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Kouhei Sutou <kou@cozmixng.org>  Mon, 29 Sep 2014 00:00:00 +0900
+
 groonga (4.0.5-1) unstable; urgency=low
 
   * New upstream release.
+  * debian/copyright
+    - Add missing copyright about bundled .js and .css
+  * debian/missing-sources
+    - Add missing-sources for bundled JavaScript.
 
  -- Kouhei Sutou <kou@clear-code.com>  Fri, 29 Aug 2014 00:00:00 +0900
 

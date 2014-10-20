@@ -50,7 +50,6 @@ else()
     ${MRUBY_LIBS})
 endif()
 set_target_properties(libgroonga PROPERTIES OUTPUT_NAME "groonga")
-
 if(NOT MRN_GROONGA_BUNDLED)
   target_link_libraries(libgroonga
     ${EXECINFO_LIBS}

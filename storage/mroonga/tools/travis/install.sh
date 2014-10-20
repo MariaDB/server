@@ -32,7 +32,7 @@ if [ ! -f /usr/lib/groonga/plugins/tokenizers/mecab.so ]; then
     sudo apt-get -qq -y install groonga-tokenizer-mecab
 fi
 
-if [ "${MRN_BUNDLED}" = "yes" ]; then
+if [ "${MROONGA_BUNDLED}" = "yes" ]; then
     mkdir -p .mroonga
     mv * .mroonga/
     mv .mroonga/tools ./

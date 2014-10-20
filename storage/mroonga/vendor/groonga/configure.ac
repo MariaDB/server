@@ -75,6 +75,7 @@ AC_MSG_RESULT([$solaris])
 AC_C_BIGENDIAN
 AC_PROG_CXX
 AC_PROG_CC
+AC_PROG_CC_C99
 AM_PROG_CC_C_O
 m4_ifdef([PKG_PROG_PKG_CONFIG],
          [PKG_PROG_PKG_CONFIG([0.19])
@@ -233,6 +234,7 @@ AC_CONFIG_FILES([
   plugins/table/Makefile
   plugins/query_expanders/Makefile
   plugins/ruby/Makefile
+  plugins/token_filters/Makefile
   examples/Makefile
   examples/dictionary/Makefile
   examples/dictionary/edict/Makefile
@@ -1139,7 +1141,12 @@ For Debian GNU/Linux based system like Ubuntu:
 
 For Red Hat based system like CentOS:
   % sudo yum install -y python-pip
-  % sudo pip install sphinx])
+  % sudo pip install sphinx
+
+For OS X with Homebrew:
+  % brew install pip
+  % export PATH="`brew --prefix gettext`/bin:\$PATH"
+  % pip install sphinx])
     fi
     AC_SUBST(SPHINX_BUILD)
   fi
@@ -1237,6 +1244,9 @@ AC_SUBST(table_pluginsdir)
 ruby_pluginsdir="\${pluginsdir}/ruby"
 AC_SUBST(ruby_pluginsdir)
 
+token_filter_pluginsdir="\${pluginsdir}/token_filters"
+AC_SUBST(token_filter_pluginsdir)
+
 AC_MSG_CHECKING(for the suffix of plugin shared libraries)
 shrext_cmds=$(./libtool --config | grep '^shrext_cmds=')
 eval $shrext_cmds
@@ -1269,6 +1279,8 @@ AC_SUBST(examples_dictionarydir)
 # for ruby scripts
 relative_ruby_scriptsdir_base="\$(PACKAGE)/scripts/ruby"
 AC_SUBST(relative_ruby_scriptsdir_base)
+relative_ruby_scriptsdir="lib/\$(relative_ruby_scriptsdir_base)"
+AC_SUBST(relative_ruby_scriptsdir)
 ruby_scriptsdir="\${libdir}/\$(relative_ruby_scriptsdir_base)"
 AC_SUBST(ruby_scriptsdir)
 
@@ -1343,7 +1355,8 @@ fi
 AC_MSG_RESULT($enable_mruby)
 
 if test "$enable_mruby" = "yes"; then
-  if test "$ac_cv_ruby_available" != "yes"; then
+  if test ! -f "$srcdir/vendor/mruby/mruby-build.timestamp" -a \
+          "$ac_cv_ruby_available" != "yes"; then
     AC_MSG_ERROR(--enable-ruby requires --with-ruby)
   fi
   AC_DEFINE(GRN_WITH_MRUBY, [1], [Define to 1 if mruby is enabled.])
@@ -1358,6 +1371,14 @@ fi
 AC_SUBST(MRUBY_CFLAGS)
 AC_SUBST(MRUBY_LIBS)
 AM_CONDITIONAL(WITH_MRUBY, test "$enable_mruby" = "yes")
+
+# This option is used in vendor/onigmo/configure
+AC_ARG_ENABLE(shared-onigmo,
+  [AS_HELP_STRING([--enable-shared-onigmo],
+    [use Onigmo as shared library instead of static library. [default=no]])],
+  [enable_shared_onigmo="$enableval"],
+  [enable_shared_onigmo="no"])
+AM_CONDITIONAL(WITH_SHARED_ONIGMO, test "$enable_shared_onigmo" = "yes")
 
 # PCRE
 GRN_WITH_PCRE=no
@@ -1427,6 +1448,7 @@ AC_OUTPUT([
   packages/rpm/centos/groonga.spec
   packages/rpm/fedora/groonga.spec
   packages/apt/debian/groonga-keyring.postrm
+  packages/apt/env.sh
   packages/yum/env.sh
   groonga.pc
   config.sh

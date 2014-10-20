@@ -524,6 +524,7 @@ grn_ja_ref_raw(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *va
   iw->size = 0;
   iw->addr = NULL;
   iw->pseg = pseg;
+  iw->value = NULL;
   if (pseg != JA_ESEG_VOID) {
     grn_ja_einfo *einfo = NULL;
     GRN_IO_SEG_REF(ja->io, pseg, einfo);
@@ -556,9 +557,14 @@ grn_ja_ref_raw(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *va
 grn_rc
 grn_ja_unref(grn_ctx *ctx, grn_io_win *iw)
 {
-  if (!iw->addr) { return GRN_INVALID_ARGUMENT; }
-  GRN_IO_SEG_UNREF(iw->io, iw->pseg);
-  if (!iw->tiny_p) { grn_io_win_unmap2(iw); }
+  if (iw->value) {
+    GRN_FREE(iw->value);
+    iw->value = NULL;
+  } else {
+    if (!iw->addr) { return GRN_INVALID_ARGUMENT; }
+    GRN_IO_SEG_UNREF(iw->io, iw->pseg);
+    if (!iw->tiny_p) { grn_io_win_unmap2(iw); }
+  }
   return GRN_SUCCESS;
 }
 
@@ -858,6 +864,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
       vp->seg = 0;
       vp->pos = 0;
     }
+    iw->value = NULL;
     grn_io_unlock(ja->io);
     return GRN_SUCCESS;
   }
@@ -1176,12 +1183,11 @@ grn_ja_element_info(grn_ctx *ctx, grn_ja *ja, grn_id id,
 static void *
 grn_ja_ref_zlib(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *value_len)
 {
-  /* TODO: This function leaks a memory. The return value
-   * must be freed. */
   z_stream zstream;
-  void *value, *zvalue;
+  void *zvalue;
   uint32_t zvalue_len;
   if (!(zvalue = grn_ja_ref_raw(ctx, ja, id, iw, &zvalue_len))) {
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
@@ -1190,29 +1196,33 @@ grn_ja_ref_zlib(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *v
   zstream.zalloc = Z_NULL;
   zstream.zfree = Z_NULL;
   if (inflateInit2(&zstream, 15 /* windowBits */) != Z_OK) {
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
-  if (!(value = GRN_MALLOC(*((uint64_t *)zvalue)))) {
+  if (!(iw->value = GRN_MALLOC(*((uint64_t *)zvalue)))) {
     inflateEnd(&zstream);
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
-  zstream.next_out = (Bytef *)value;
+  zstream.next_out = (Bytef *)iw->value;
   zstream.avail_out = *(uint64_t *)zvalue;
   if (inflate(&zstream, Z_FINISH) != Z_STREAM_END) {
     inflateEnd(&zstream);
-    GRN_FREE(value);
+    GRN_FREE(iw->value);
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
   *value_len = zstream.total_out;
   if (inflateEnd(&zstream) != Z_OK) {
-    GRN_FREE(value);
+    GRN_FREE(iw->value);
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
-  return value;
+  return iw->value;
 }
 #endif /* GRN_WITH_ZLIB */
 
@@ -1222,35 +1232,36 @@ grn_ja_ref_zlib(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *v
 static void *
 grn_ja_ref_lzo(grn_ctx *ctx, grn_ja *ja, grn_id id, grn_io_win *iw, uint32_t *value_len)
 {
-  /* TODO: This function leaks a memory. The return value
-   * must be freed. */
-  void *value, *lvalue;
+  void *lvalue;
   uint32_t lvalue_len;
   lzo_uint lout_len;
   if (!(lvalue = grn_ja_ref_raw(ctx, ja, id, iw, &lvalue_len))) {
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
-  if (!(value = GRN_MALLOC(*((uint64_t *)lvalue)))) {
+  if (!(iw->value = GRN_MALLOC(*((uint64_t *)lvalue)))) {
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
   lout_len = *((uint64_t *)lvalue);
   switch (lzo1x_decompress((lzo_bytep)(((uint64_t *)lvalue) + 1),
                            lvalue_len,
-                           (lzo_bytep)(value),
+                           (lzo_bytep)(iw->value),
                            &lout_len,
                            NULL)) {
   case LZO_E_OK :
   case LZO_E_INPUT_NOT_CONSUMED :
     break;
   default :
-    GRN_FREE(value);
+    GRN_FREE(iw->value);
+    iw->value = NULL;
     *value_len = 0;
     return NULL;
   }
   *value_len = lout_len;
-  return value;
+  return iw->value;
 }
 #endif /* GRN_WITH_LZO */
 

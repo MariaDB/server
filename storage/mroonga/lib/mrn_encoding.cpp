@@ -153,7 +153,27 @@ namespace mrn {
       DBUG_VOID_RETURN;
     }
 
-    bool set(grn_ctx *ctx, const CHARSET_INFO *charset) {
+    int set(grn_ctx *ctx, const CHARSET_INFO *charset) {
+      MRN_DBUG_ENTER_FUNCTION();
+      int error = 0;
+
+      if (!set_raw(ctx, charset)) {
+        const char *name = "<null>";
+        const char *csname = "<null>";
+        if (charset) {
+          name = charset->name;
+          csname = charset->csname;
+        }
+        error = ER_MRN_CHARSET_NOT_SUPPORT_NUM;
+        my_printf_error(error,
+                        ER_MRN_CHARSET_NOT_SUPPORT_STR,
+                        MYF(0), name, csname);
+      }
+
+      DBUG_RETURN(error);
+    }
+
+    bool set_raw(grn_ctx *ctx, const CHARSET_INFO *charset) {
       MRN_DBUG_ENTER_FUNCTION();
       if (!charset)
       {

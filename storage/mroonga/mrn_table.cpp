@@ -18,9 +18,6 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-#include <config.h>
-#include <string>
-
 #include "mrn_mysql.h"
 
 #if MYSQL_VERSION_ID >= 50500
@@ -28,7 +25,6 @@
 #  include <sql_base.h>
 #endif
 #include "mrn_err.h"
-#include "mrn_sys.hpp"
 #include "mrn_table.hpp"
 #include "mrn_mysql_compat.h"
 #include <mrn_lock.hpp>
@@ -301,10 +297,11 @@ void mrn_get_partition_info(const char *table_name, uint table_name_length,
 
 int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
 {
-  int i, error;
+  int i, error = 0;
   int title_length;
   const char *sprit_ptr[2];
   const char *tmp_ptr, *start_ptr;
+  char *params_string = NULL;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_element *part_elem;
   partition_element *sub_elem;
@@ -371,8 +368,15 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
     }
 
     {
-      std::string params_string(params_string_value, params_string_length);
-      sprit_ptr[0] = params_string.c_str();
+      params_string = my_strndup(params_string_value,
+                                 params_string_length,
+                                 MYF(MY_WME));
+      if (!params_string) {
+        error = HA_ERR_OUT_OF_MEM;
+        goto error;
+      }
+
+      sprit_ptr[0] = params_string;
       while (sprit_ptr[0])
       {
         if ((sprit_ptr[1] = strchr(sprit_ptr[0], ',')))
@@ -406,6 +410,12 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
         case 6:
           MRN_PARAM_STR("engine", engine);
           break;
+        case 10:
+          MRN_PARAM_STR("normalizer", normalizer);
+          break;
+        case 13:
+          MRN_PARAM_STR("token_filters", token_filters);
+          break;
         case 17:
           MRN_PARAM_STR("default_tokenizer", default_tokenizer);
           break;
@@ -413,6 +423,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
           break;
         }
       }
+
+      my_free(params_string, MYF(0));
+      params_string = NULL;
     }
   }
 
@@ -459,9 +472,9 @@ int mrn_parse_table_param(MRN_SHARE *share, TABLE *table)
     }
   }
 
-  DBUG_RETURN(0);
-
 error:
+  if (params_string)
+    my_free(params_string, MYF(0));
   DBUG_RETURN(error);
 }
 
@@ -704,6 +717,10 @@ int mrn_free_share_alloc(
     my_free(share->engine, MYF(0));
   if (share->default_tokenizer)
     my_free(share->default_tokenizer, MYF(0));
+  if (share->normalizer)
+    my_free(share->normalizer, MYF(0));
+  if (share->token_filters)
+    my_free(share->token_filters, MYF(0));
   for (i = 0; i < share->table_share->keys; i++)
   {
     if (share->index_table && share->index_table[i])

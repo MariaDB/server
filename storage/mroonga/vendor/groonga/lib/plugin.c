@@ -375,7 +375,6 @@ grn_plugin_get_system_plugins_dir(void)
   if (!win32_plugins_dir) {
     const char *base_dir;
     const char *relative_path = GRN_RELATIVE_PLUGINS_DIR;
-    char *path;
     size_t base_dir_length;
 
     base_dir = grn_win32_base_dir();

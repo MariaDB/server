@@ -26,6 +26,9 @@ extern "C" {
 #endif
 
 void grn_mrb_ctx_init(grn_ctx *ctx);
+#ifdef GRN_WITH_MRUBY
+void grn_mrb_ctx_check(mrb_state *mrb);
+#endif
 
 #ifdef __cplusplus
 }

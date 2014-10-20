@@ -9,6 +9,8 @@ libgrnmrb_la_SOURCES =				\
 	mrb_converter.h				\
 	mrb_ctx.c				\
 	mrb_ctx.h				\
+	mrb_error.c				\
+	mrb_error.h				\
 	mrb_expr.c				\
 	mrb_expr.h				\
 	mrb_fixed_size_column.c			\

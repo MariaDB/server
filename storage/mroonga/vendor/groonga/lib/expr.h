@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2013 Brazil
+  Copyright(C) 2013-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -57,11 +57,14 @@ void grn_scan_info_set_end(scan_info *si, uint32_t end);
 void grn_scan_info_set_query(scan_info *si, grn_obj *query);
 int grn_scan_info_get_max_interval(scan_info *si);
 void grn_scan_info_set_max_interval(scan_info *si, int max_interval);
+int grn_scan_info_get_similarity_threshold(scan_info *si);
+void grn_scan_info_set_similarity_threshold(scan_info *si, int similarity_threshold);
 grn_bool grn_scan_info_push_arg(scan_info *si, grn_obj *arg);
 grn_obj *grn_scan_info_get_arg(grn_ctx *ctx, scan_info *si, int i);
 
 int32_t grn_expr_code_get_weight(grn_ctx *ctx, grn_expr_code *ec);
-grn_rc grn_expr_get_keywords(grn_ctx *ctx, grn_obj *expr, grn_obj *keywords);
+void grn_expr_take_obj(grn_ctx *ctx, grn_obj *expr, grn_obj *obj);
+grn_obj *grn_expr_alloc_const(grn_ctx *ctx, grn_obj *expr);
 
 #ifdef __cplusplus
 }

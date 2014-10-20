@@ -345,8 +345,10 @@ fi
 %dir %{_libdir}/groonga/plugins/suggest
 %dir %{_libdir}/groonga/plugins/table
 %dir %{_libdir}/groonga/plugins/tokenizers
+%dir %{_libdir}/groonga/plugins/token_filters
 %{_libdir}/groonga/plugins/table/table.so
 %{_libdir}/groonga/plugins/query_expanders/tsv.so
+%{_libdir}/groonga/plugins/token_filters/stop_word
 %{_datadir}/groonga/
 %config(noreplace) %{_sysconfdir}/groonga/synonyms.tsv
 
@@ -411,6 +413,9 @@ fi
 %{php_extdir}/groonga.so
 
 %changelog
+* Mon Sep 29 2014 Kouhei Sutou <kou@cozmixng.org> - 4.0.6-1
+- new upstream release.
+
 * Fri Aug 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.0.5-1
 - new upstream release.
 
