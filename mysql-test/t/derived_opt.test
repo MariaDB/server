@@ -279,22 +279,22 @@ create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
 create table t2 (a int, b int, c text);
-insert into t2 
-select 
+insert into t2
+select
   A.a + B.a* 10,
   A.a + B.a* 10,
-  'blob-data' 
+  'blob-data'
 from t1 A, t1 B;
 
 set @tmp_jcl= @@join_cache_level;
 set @tmp_os= @@optimizer_switch;
 set join_cache_level=6;
 set @@optimizer_switch='derived_merge=on,derived_with_keys=on,mrr=on';
-explain 
-select * from 
+explain
+select * from
   t1 join
-  (select * from t2 order by a limit 1000) as D1 
-where 
+  (select * from t2 order by a limit 1000) as D1
+where
   D1.a= t1.a;
 
 set join_cache_level=@tmp_jcl;
