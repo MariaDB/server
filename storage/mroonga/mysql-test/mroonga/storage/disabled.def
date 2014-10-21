@@ -5,3 +5,11 @@ create_table_token_filters_index_comment_multiple_token_filters : Bundled Mroong
 create_table_token_filters_index_comment_one_token_filter : Bundled Mroonga does not support token filter yet.
 create_table_token_filters_table_comment_multiple_token_filters : Bundled Mroonga does not support token filter yet.
 create_table_token_filters_table_comment_one_token_filter : Bundled Mroonga does not support token filter yet.
+foreign_key_create : Bundled Mroonga does not support this test yet.
+optimization_skip_count_index_view : Bundled Mroonga does not support this test yet.
+alter_table_disable_keys_primary : Bundled Mroonga does not support this test yet.
+alter_table_enable_keys_primary : Bundled Mroonga does not support this test yet.
+column_enum_many_with_index : Bundled Mroonga does not support this test yet.
+column_groonga_index_int_other_table : Bundled Mroonga does not support this test yet.
+column_signed_int_with_index : Bundled Mroonga does not support this test yet.
+column_signed_mediumint_with_index : Bundled Mroonga does not support this test yet.
