@@ -56,7 +56,6 @@
 #endif
 
 extern int num_read, num_there, num_eq[2];               // Statistics
-extern "C" int trace;
 
 /***********************************************************************/
 /*  Routine called externally by TXTFAM SortedRows functions.          */

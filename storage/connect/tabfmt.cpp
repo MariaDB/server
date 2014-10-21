@@ -66,8 +66,10 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     10        /* Must be greater than other types */
 
-extern "C" int     trace;
-extern "C" USETEMP Use_Temp;
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+USETEMP UseTemp(void);
 
 /***********************************************************************/
 /* CSVColumns: constructs the result blocks containing the description */
@@ -446,7 +448,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   PTDBASE tdbp;
 
   if (Catfunc != FNC_COL) {
-    USETEMP tmp = Use_Temp;
+    USETEMP tmp = UseTemp();
     bool    map = Mapped && mode != MODE_INSERT &&
                   !(tmp != TMP_NO && mode == MODE_UPDATE) &&
                   !(tmp == TMP_FORCE &&

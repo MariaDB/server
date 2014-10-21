@@ -49,12 +49,14 @@
 #include "tabmul.h"
 #include "ha_connect.h"
 
-extern "C" int     trace;
-extern "C" USETEMP Use_Temp;
-
 #if !defined(WIN32)
 extern handlerton *connect_hton;
 #endif   // !WIN32
+
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+USETEMP UseTemp(void);
 
 /* --------------------------- Class RELDEF -------------------------- */
 
@@ -591,7 +593,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   PTXF    txfp = NULL;
   PDOSDEF defp = (PDOSDEF)Pxdef;
   bool    map = defp->Mapped && mode != MODE_INSERT &&
-                !(Use_Temp == TMP_FORCE &&
+                !(UseTemp() == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
   int     cmpr = defp->Compressed;
 

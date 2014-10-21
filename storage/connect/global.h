@@ -47,6 +47,11 @@
 #endif  // !WIN32
 
 /***********************************************************************/
+/*  Define access to the thread based trace value.                     */
+/***********************************************************************/
+#define trace  GetTraceValue()
+
+/***********************************************************************/
 /*  Miscellaneous Constants                                            */
 /***********************************************************************/
 #define  NO_IVAL   -95684275        /* Used by GetIntegerOption        */
@@ -255,6 +260,7 @@ DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);
+DllExport int     GetTraceValue(void);
 
 #if defined(__cplusplus)
 } // extern "C"

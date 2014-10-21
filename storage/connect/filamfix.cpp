@@ -52,7 +52,6 @@
 #define INVALID_SET_FILE_POINTER  0xFFFFFFFF
 #endif
 
-extern "C" int  trace;
 extern int num_read, num_there, num_eq[2];               // Statistics
 
 /* --------------------------- Class FIXFAM -------------------------- */

@@ -81,8 +81,6 @@
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
 #endif   // WIN32
 
-extern int  trace;
-
 #if defined(XMSG)
 extern char msglang[];
 #endif   // XMSG

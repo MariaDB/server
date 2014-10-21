@@ -49,11 +49,6 @@
 #define my_stricmp(a, b) my_strcasecmp(default_charset_info, (a), (b))
 
 /***********************************************************************/
-/*  DB static variables.                                               */
-/***********************************************************************/
-extern "C" int trace;
-
-/***********************************************************************/
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
 void  CntEndDB(PGLOBAL);
@@ -289,7 +284,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 //    } else
       colp= tdbp->ColDB(g, p, 0);
 
-    if (!colp) {
+    if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
       sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
       goto err;
       } // endif colp

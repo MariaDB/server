@@ -1,5 +1,5 @@
 /************ Xobject C++ Functions Source Code File (.CPP) ************/
-/*  Name: XOBJECT.CPP  Version 2.3                                     */
+/*  Name: XOBJECT.CPP  Version 2.4                                     */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
@@ -184,3 +184,188 @@ void CONSTANT::Print(PGLOBAL g, char *ps, uint z)
   {
   Value->Print(g, ps, z);
   } /* end of Print */
+
+/* -------------------------- Class STRING --------------------------- */
+
+/***********************************************************************/
+/*  STRING public constructor for new char values. Alloc Size must be  */
+/*  calculated because PlugSubAlloc rounds up size to multiple of 8.   */
+/***********************************************************************/
+STRING::STRING(PGLOBAL g, uint n, char *str)
+{
+  G = g;
+  Length = (str) ? strlen(str) : 0;
+
+  if ((Strp = (PSZ)PlgDBSubAlloc(g, NULL, MY_MAX(n, Length) + 1))) {
+    if (str)
+      strcpy(Strp, str);
+    else
+      *Strp = 0;
+
+    Next = GetNext();
+    Size = Next - Strp;
+  } else {
+    // This should normally never happen
+    Next = NULL;
+    Size = 0;
+  } // endif Strp
+
+} // end of STRING constructor
+
+/***********************************************************************/
+/*  Reallocate the string memory and return the (new) position.        */
+/*  If Next is equal to GetNext() this means that no new suballocation */
+/*  has been done. Then we can just increase the size of the current   */
+/*  allocation and the Strp will remain pointing to the same memory.   */
+/***********************************************************************/
+char *STRING::Realloc(uint len)
+{
+  char *p;
+  bool  b = (Next == GetNext());
+  
+  p = (char*)PlgDBSubAlloc(G, NULL, b ? len - Size : len);
+
+  if (!p) {
+    // No more room in Sarea; this is very unlikely
+    strcpy(G->Message, "No more room in work area");
+    return NULL;
+    } // endif p
+
+  if (b)
+    p = Strp;
+
+  Next = GetNext();
+  Size = Next - p;
+  return p;
+} // end of Realloc
+
+/***********************************************************************/
+/*  Set a STRING new PSZ value.                                        */
+/***********************************************************************/
+bool STRING::Set(PSZ s)
+{
+  if (!s)
+    return false;
+
+  uint len = strlen(s) + 1;
+
+  if (len > Size) {
+    char *p = Realloc(len);
+    
+    if (!p)
+      return true;
+    else
+      Strp = p;
+
+    } // endif n
+
+ 	strcpy(Strp, s);
+  Length = len - 1;
+  return false;
+} // end of Set
+
+/***********************************************************************/
+/*  Set a STRING new PSZ value.                                        */
+/***********************************************************************/
+bool STRING::Set(char *s, uint n)
+{
+  if (!s)
+    return false;
+
+  uint len = MY_MIN(strlen(s), n) + 1;
+
+  if (len > Size) {
+    char *p = Realloc(len);
+    
+    if (!p)
+      return true;
+    else
+      Strp = p;
+
+    } // endif n
+
+ 	strncpy(Strp, s, n);
+  Length = len - 1;
+  return false;
+} // end of Set
+
+/***********************************************************************/
+/*  Append a PSZ to a STRING.                                          */
+/***********************************************************************/
+bool STRING::Append(PSZ s)
+{
+  if (!s)
+    return false;
+
+  uint len = Length + strlen(s) + 1;
+
+  if (len > Size) {
+    char *p = Realloc(len);
+    
+    if (!p)
+      return true;
+    else if (p != Strp) {
+      strcpy(p, Strp);
+      Strp = p;
+      } // endif p
+
+    } // endif n
+
+  strcpy(Strp + Length, s);
+  Length = len - 1;
+  return false;
+} // end of Append
+
+/***********************************************************************/
+/*  Append a STRING to a STRING.                                       */
+/***********************************************************************/
+bool STRING::Append(STRING &str)
+{
+  return Append(str.GetStr());
+} // end of Append
+
+/***********************************************************************/
+/*  Append a char to a STRING.                                         */
+/***********************************************************************/
+bool STRING::Append(char c)
+{
+  if (Length + 2 > Size) {
+    char *p = Realloc(Length + 2);
+    
+    if (!p)
+      return true;
+    else if (p != Strp) {
+      strcpy(p, Strp);
+      Strp = p;
+      } // endif p
+
+    } // endif n
+
+  Strp[Length++] = c;
+  Strp[Length] = 0;
+  return false;
+} // end of Append
+
+/***********************************************************************/
+/*  Resize to given length but only when last suballocated.            */
+/*  New size should be greater than string length.                     */
+/***********************************************************************/
+bool STRING::Resize(uint newsize)
+{
+  if (Next == GetNext() && newsize > Length) {
+    uint        nsz = (((signed)newsize + 7) / 8) * 8;
+    int         diff = (signed)Size - (signed)nsz;
+    PPOOLHEADER pp = (PPOOLHEADER)G->Sarea;
+
+    if ((signed)pp->FreeBlk + diff < 0)
+      return true;      // Out of memory
+
+    pp->To_Free -= diff;
+    pp->FreeBlk += diff;
+    Size = nsz;
+    return false;
+  } else
+    return newsize > Size;
+
+} // end of Resize
+

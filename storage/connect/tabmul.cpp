@@ -68,8 +68,6 @@
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
 #include "tabmul.h"      // TDBMUL and MULCOL classes dcls
 
-extern "C" int   trace;
-
 /* ------------------------- Class TDBMUL ---------------------------- */
 
 /***********************************************************************/

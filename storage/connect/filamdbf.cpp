@@ -63,8 +63,6 @@
 #define DBFTYPE        3            /* value of bits 0 and 1 if .dbf        */
 #define EOH         0x0D            /* end-of-header marker in .dbf file    */
 
-extern "C" int trace;                // The general trace value  
-
 /****************************************************************************/
 /*  First 32 bytes of a .dbf file.                                          */
 /*  Note: some reserved fields are used here to store info (Fields)         */

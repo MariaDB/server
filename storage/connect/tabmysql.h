@@ -119,6 +119,7 @@ class TDBMYSQL : public TDBASE {
   // Members
   MYSQLC      Myc;            // MySQL connection class
   MYSQL_BIND *Bind;           // To the MySQL bind structure array
+  PSTRG       Query;          // Constructed SQL query
   char       *Host;           // Host machine to use
   char       *User;           // User logon info
   char       *Pwd;            // Password logon info
@@ -126,8 +127,6 @@ class TDBMYSQL : public TDBASE {
   char       *Tabname;        // External table name
   char       *Srcdef;         // The source table SQL definition
   char       *Server;         // The server ID
-  char       *Query;          // Points to SQL query
-  char       *Qbuf;           // Used for not prepared insert
   char       *Qrystr;         // The original query
   bool        Fetched;        // True when fetch was done
   bool        Isview;         // True if this table is a MySQL view

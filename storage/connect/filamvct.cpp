@@ -64,7 +64,6 @@
 
 extern int num_read, num_there;                          // Statistics
 static int num_write;
-extern "C" int trace;
 
 #if defined(UNIX)
 // Add dummy strerror  (NGC)

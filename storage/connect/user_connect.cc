@@ -47,7 +47,6 @@
 #include "user_connect.h"
 #include "mycat.h"
 
-extern "C" int trace;
 extern    uint worksize;
 
 /****************************************************************************/

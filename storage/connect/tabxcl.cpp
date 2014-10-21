@@ -57,8 +57,6 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-extern "C" int trace;
-
 /* -------------- Implementation of the XCOL classes	---------------- */
 
 /***********************************************************************/

@@ -98,8 +98,6 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !WIN32
 
-extern "C" int trace;
-
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
 /***********************************************************************/

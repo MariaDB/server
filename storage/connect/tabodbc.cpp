@@ -75,14 +75,16 @@
 
 #include "sql_string.h"
 
-extern "C" int   trace;
-extern     bool  xinfo;
-
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
 //     int num_read, num_there, num_eq[2], num_nf;        // Statistics
 extern int num_read, num_there, num_eq[2];                // Statistics
+
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+bool ExactInfo(void);
 
 /* -------------------------- Class ODBCDEF -------------------------- */
 
@@ -672,7 +674,7 @@ int TDBODBC::Cardinality(PGLOBAL g)
   if (!g)
     return (Mode == MODE_ANY && !Srcdef) ? 1 : 0;
 
-  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef && xinfo) {
+  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef && ExactInfo()) {
     // Info command, we must return the exact table row number
     char     qry[96], tbn[64];
     ODBConn *ocp = new(g) ODBConn(g, this);

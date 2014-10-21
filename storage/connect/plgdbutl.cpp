@@ -90,7 +90,6 @@ extern "C" {
 #if defined(XMSG)
        char  msglang[16] = "ENGLISH";      // Default language
 #endif
-extern int  trace;
 extern char version[];
 } // extern "C"
 

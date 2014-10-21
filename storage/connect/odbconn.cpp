@@ -64,8 +64,6 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #define DEBUG_ONLY(f)      ((void)0)
 #endif  // !_DEBUG
 
-extern "C" int trace;
-
 /***********************************************************************/
 /*  GetSQLType: returns the SQL_TYPE corresponding to a PLG type.      */
 /***********************************************************************/
