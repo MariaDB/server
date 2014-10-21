@@ -39,7 +39,7 @@ build-groonga: source
 	done
 
 LICENSE:
-	@(echo "groonga";				\
+	@(echo "Groonga";				\
 	 echo "=======";				\
 	 echo;						\
 	 echo "AUTHORS";				\

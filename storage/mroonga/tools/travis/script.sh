@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright(C) 2012-2013 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2014 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -31,20 +31,24 @@ else
     . "${top_dir}/config.sh"
 fi
 
-if [ "${MRN_BUNDLED}" = "TRUE" ]; then
-    n_processors=1
-else
-    n_processors="$(grep '^processor' /proc/cpuinfo | wc -l)"
+n_processors="$(grep '^processor' /proc/cpuinfo | wc -l)"
+max_n_processors=8
+if (( $n_processors > $max_n_processors )); then
+    n_processors=$max_n_processors
 fi
 
 build()
 {
-    make -j${n_processors} > /dev/null
+    if [ "${MROONGA_BUNDLED}" = "yes" ]; then
+	make > /dev/null
+    else
+	make -j${n_processors} > /dev/null
+    fi
 }
 
 run_unit_test()
 {
-    if [ "${MRN_BUNDLED}" != "TRUE" ]; then
+    if [ "${MROONGA_BUNDLED}" != "yes" ]; then
 	NO_MAKE=yes ${mroonga_dir}/test/run-unit-test.sh
     fi
 }
@@ -89,12 +93,14 @@ prepare_sql_test()
 run_sql_test()
 {
     test_args=()
-    if [ "${MRN_TEST_EMBEDDED}" = "yes" ]; then
+    if [ "${MROONGA_TEST_EMBEDDED}" = "yes" ]; then
 	test_args=("${test_args[@]}" "--embedded-server")
     fi
 
-    if [ "${MRN_BUNDLED}" = "TRUE" ]; then
-	${mroonga_dir}/test/run-sql-test.sh "${test_args[@]}"
+    if [ "${MROONGA_BUNDLED}" = "yes" ]; then
+	${mroonga_dir}/test/run-sql-test.sh \
+	  "${test_args[@]}" \
+	  --parallel="${n_processors}"
     else
 	prepare_sql_test
 

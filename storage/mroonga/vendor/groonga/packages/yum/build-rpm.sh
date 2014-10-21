@@ -13,6 +13,11 @@ rpmbuild_options=
 
 . /vagrant/env.sh
 
+swap_file=/tmp/swap
+run sudo dd if=/dev/zero of="$swap_file" bs=1024 count=4096K
+run sudo /sbin/mkswap "$swap_file"
+run sudo /sbin/swapon "$swap_file"
+
 distribution=$(cut -d " " -f 1 /etc/redhat-release | tr "A-Z" "a-z")
 if grep -q Linux /etc/redhat-release; then
     distribution_version=$(cut -d " " -f 4 /etc/redhat-release)
@@ -28,8 +33,8 @@ case "${architecture}" in
         ;;
 esac
 
-run yum groupinstall -y "Development Tools"
-run yum install -y rpm-build rpmdevtools tar ${DEPENDED_PACKAGES}
+run sudo yum groupinstall -y "Development Tools"
+run sudo yum install -y rpm-build rpmdevtools tar ${DEPENDED_PACKAGES}
 
 if [ -x /usr/bin/rpmdev-setuptree ]; then
     rm -rf .rpmmacros
@@ -94,13 +99,13 @@ build_fedora_srpm()
             ;;
     esac
 
-    run rpm -Uvh rpmbuild/RPMS/*/*.rpm
+    run sudo rpm -Uvh rpmbuild/RPMS/*/*.rpm
     run mv rpmbuild/RPMS/*/*.rpm "${rpm_dir}/"
     run mv rpmbuild/SRPMS/*.rpm "${srpm_dir}/"
 }
 
 if ! rpm -q mecab-devel > /dev/null; then
-    run yum install -y wget
+    run sudo yum install -y wget
 
     for rpm in mecab-0.996-1.fc20.src.rpm \
                mecab-ipadic-2.7.0.20070801-8.fc20.1.src.rpm \

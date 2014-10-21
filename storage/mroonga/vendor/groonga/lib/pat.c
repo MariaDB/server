@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009-2012 Brazil
+/* Copyright(C) 2009-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -432,6 +432,7 @@ _grn_pat_create(grn_ctx *ctx, grn_pat *pat,
     pat->normalizer = NULL;
     header->normalizer = GRN_ID_NIL;
   }
+  GRN_PTR_INIT(&(pat->token_filters), GRN_OBJ_VECTOR, GRN_ID_NIL);
   pat->io = io;
   pat->header = header;
   pat->key_size = key_size;
@@ -533,6 +534,7 @@ grn_pat_open(grn_ctx *ctx, const char *path)
   } else {
     pat->normalizer = grn_ctx_at(ctx, header->normalizer);
   }
+  GRN_PTR_INIT(&(pat->token_filters), GRN_OBJ_VECTOR, GRN_ID_NIL);
   pat->obj.header.flags = header->flags;
   PAT_AT(pat, 0, node0);
   if (!node0) {
@@ -552,6 +554,7 @@ grn_pat_close(grn_ctx *ctx, grn_pat *pat)
   if ((rc = grn_io_close(ctx, pat->io))) {
     ERR(rc, "grn_io_close failed");
   } else {
+    GRN_OBJ_FIN(ctx, &(pat->token_filters));
     if (pat->cache) { grn_pat_cache_disable(ctx, pat); }
     GRN_FREE(pat);
   }

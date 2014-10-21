@@ -434,7 +434,7 @@ grn_snip_find_firstbyte(const char *string, grn_encoding encoding, size_t offset
       offset += doffset;
     break;
   case GRN_ENC_UTF8:
-    while (string[offset] <= (char)0xc0)
+    while ((signed char)string[offset] <= (signed char)0xc0)
       offset += doffset;
     break;
   default:

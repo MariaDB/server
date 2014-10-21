@@ -2418,7 +2418,7 @@ grn_text_urlenc(grn_ctx *ctx, grn_obj *buf, const char *s, unsigned int len)
 {
   const char *e, c = '%';
   for (e = s + len; s < e; s++) {
-    if (*s < 0 || urlenc_tbl[(int)*s]) {
+    if ((signed char)*s < 0 || urlenc_tbl[(int)*s]) {
       if (!grn_bulk_write(ctx, buf, &c, 1)) {
         if (grn_text_itoh(ctx, buf, *s, 2)) {
           GRN_BULK_INCR_LEN(buf, -1);

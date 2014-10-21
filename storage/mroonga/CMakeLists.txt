@@ -33,6 +33,12 @@ else()
   set(MRN_BUNDLED TRUE)
 endif()
 
+if(MRN_BUNDLED)
+  if(WITHOUT_HA_MROONGA OR WITHOUT_HA_MROONGA_STORAGE_ENGINE)
+    return()
+  endif()
+endif()
+
 set(MRN_BUNDLED_GROONGA_RELATIVE_DIR "vendor/groonga")
 set(MRN_BUNDLED_GROONGA_DIR
   "${CMAKE_CURRENT_SOURCE_DIR}/${MRN_BUNDLED_GROONGA_RELATIVE_DIR}")
@@ -85,24 +91,22 @@ set(MRN_C_COMPILE_FLAGS "")
 set(MRN_CXX_COMPILE_FLAGS "")
 
 macro(mrn_check_cflag flag)
-  set(checking_message "checking for C flag '${flag}'")
-  check_c_compiler_flag(${flag} is_available)
-  if(${is_available})
-    message(STATUS "${checking_message} - available")
+  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
+  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
+  set(temporary_variable_name "CFLAG${temporary_variable_name}")
+  check_c_compiler_flag(${flag} ${temporary_variable_name})
+  if(${temporary_variable_name})
     set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} ${flag}")
-  else()
-    message(STATUS "${checking_message} - not available")
   endif()
 endmacro()
 
 macro(mrn_check_cxxflag flag)
-  set(checking_message "checking for CXX flag '${flag}'")
-  check_cxx_compiler_flag(${flag} is_available)
-  if(${is_available})
-    message(STATUS "${checking_message} - available")
+  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
+  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
+  set(temporary_variable_name "CXXFLAG${temporary_variable_name}")
+  check_cxx_compiler_flag(${flag} ${temporary_variable_name})
+  if(${temporary_variable_name})
     set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} ${flag}")
-  else()
-    message(STATUS "${checking_message} - not available")
   endif()
 endmacro()
 
@@ -157,8 +161,7 @@ set(MYSQL_INCLUDE_DIRS
   "${MYSQL_SOURCE_DIR}/sql"
   "${MYSQL_SOURCE_DIR}/include"
   "${MYSQL_REGEX_INCLUDE_DIR}"
-  "${MYSQL_SOURCE_DIR}"
-  CACHE INTERNAL "MySQL include directories")
+  "${MYSQL_SOURCE_DIR}")
 
 if(MRN_BUNDLED)
   set(MYSQL_PLUGIN_DIR "${INSTALL_PLUGINDIR}")
@@ -340,9 +343,9 @@ if(GROONGA_NORMALIZER_MYSQL_FOUND)
   endif()
 endif()
 
-set(DEFAULT_PARSER "TokenBigram" CACHE STRING "The default fulltext parser")
+set(MRN_DEFAULT_PARSER "TokenBigram" CACHE STRING "The default fulltext parser")
 set_property(TARGET ha_mroonga APPEND PROPERTY
-  COMPILE_DEFINITIONS "MRN_PARSER_DEFAULT=\"${DEFAULT_PARSER}\"")
+  COMPILE_DEFINITIONS "MRN_PARSER_DEFAULT=\"${MRN_DEFAULT_PARSER}\"")
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/mrn_version.h.in"

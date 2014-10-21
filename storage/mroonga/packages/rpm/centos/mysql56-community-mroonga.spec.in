@@ -1,14 +1,14 @@
 %{!?centos_ver:%define centos_ver 6}
 
 %if %{centos_ver} == 7
-%define mysql_version_default 5.6.20
-%define mysql_release_default 4
+%define mysql_version_default 5.6.21
+%define mysql_release_default 2
 %define mysql_dist_default    el7
 %define mysql_download_base_url_default http://repo.mysql.com/yum/mysql-5.6-community/el/7/SRPMS
 %define mysql_spec_file_default mysql.spec
 %else
-%define mysql_version_default 5.6.20
-%define mysql_release_default 4
+%define mysql_version_default 5.6.21
+%define mysql_release_default 2
 %define mysql_dist_default    el6
 %define mysql_download_base_url_default http://repo.mysql.com/yum/mysql-5.6-community/el/6/SRPMS
 %define mysql_spec_file_default mysql.spec
@@ -158,6 +158,12 @@ fi
 %doc mysql-mroonga-doc/*
 
 %changelog
+* Mon Sep 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.06-1
+- new upstream release.
+
+* Sat Sep 27 2014 Eiichi Sato <miko@cafelounge.net> - 4.05-2
+- build against MySQL 5.6.21-2 on MySQL yum repository.
+
 * Fri Aug 29 2014 Kouhei Sutou <kou@clear-code.com> - 4.05-1
 - new upstream release.
 

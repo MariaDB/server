@@ -1,58 +1,87 @@
 Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: Groonga Project
+Upstream-Name: Groonga
 Upstream-Contact: Groonga Project <packages@groonga.org>
 Source: http://packages.groonga.org/source/groonga/
 
 Files: *
-Copyright: Copyright 2009-2013 Brazil, Inc.
+Copyright: 2009-2013 Brazil, Inc.
 License: LGPL-2.1
 
 Files: debian/*
-Copyright: Copyright 2011 Kouhei Sutou <kou@clear-code.com>
+Copyright: 2011 Kouhei Sutou <kou@clear-code.com>
+	   HAYASHI Kentaro <hayashi@clear-code.com>
+	   IWAI, Masaharu <iwaim.sub@gmail.com>
+	   SATOH Fumiyasu <fumiyas@osstech.co.jp>
+	   orangain <orangain@gmail.com>
 License: LGPL-2.1
 
-Files: data/html/admin/css/redmond/*
-Copyright: Copyright 2011, Brandon Aaron
- Paul Bakaus (paulbakaus.com)
- David Bolter
- Rich Caloggero
- Chi Cheng (cloudream@gmail.com)
- Colin Clark (http://colin.atrc.utoronto.ca/)
- Michelle D'Souza
- Aaron Eisenberger (aaronchi@gmail.com)
- Ariel Flesler
- Bohdan Ganicky
- Scott González
- Marc Grabanski (m@marcgrabanski.com)
- Klaus Hartl (stilbuero.de)
- Scott Jehl
- Cody Lindley
- Eduardo Lundgren (eduardolundgren@gmail.com)
- Todd Parker
- John Resig
- Patty Toland
- Ca-Phun Ung (yelotofu.com)
- Keith Wood (kbwood@virginbroadband.com.au)
- Maggie Costello Wachs
- Richard D. Worth (rdworth.org)
- Jörn Zaefferer (bassistance.de)
+Files: data/html/admin/css/redmond/* examples/dictionary/html/css/smoothness/jquery-ui-1.8.12.custom.css data/html/admin/css/redmond/jquery-ui-1.8.18.custom.css
+Copyright: 2011, Brandon Aaron
+	   Paul Bakaus (paulbakaus.com)
+	   David Bolter
+	   Rich Caloggero
+	   Chi Cheng (cloudream@gmail.com)
+	   Colin Clark (http://colin.atrc.utoronto.ca/)
+	   Michelle D'Souza
+	   Aaron Eisenberger (aaronchi@gmail.com)
+	   Ariel Flesler
+	   Bohdan Ganicky
+	   Scott González
+	   Marc Grabanski (m@marcgrabanski.com)
+	   Klaus Hartl (stilbuero.de)
+	   Scott Jehl
+	   Cody Lindley
+	   Eduardo Lundgren (eduardolundgren@gmail.com)
+	   Todd Parker
+	   John Resig
+	   Patty Toland
+	   Ca-Phun Ung (yelotofu.com)
+	   Keith Wood (kbwood@virginbroadband.com.au)
+	   Maggie Costello Wachs
+	   Richard D. Worth (rdworth.org)
+	   Jörn Zaefferer (bassistance.de)
 License: MIT or GPL-2
 
 Files: data/html/admin/js/jquery.flot*
-Copyright: Copyright (c) 2007-2009 IOLA and Ole Laursen
+Copyright: 2007-2009 IOLA and Ole Laursen
 License: MIT
 
 Files: data/html/admin/js/jquery-1.7.2.min.js
-Copyright: Copyright 2011, John Resig
+Copyright: 2011, John Resig
 License: MIT or GPL-2
 
 Files: doc/locale/*/jquery.js
-Copyright: Copyright 2012 jQuery Foundation
+Copyright: 2012 jQuery Foundation
 License: MIT
 
 Files: doc/locale/*/underscore.js
-Copyright: Copyright 2009-2012 Jeremy Ashkenas, DocumentCloud Inc.
+Copyright: 2009-2012 Jeremy Ashkenas, DocumentCloud Inc.
 License: MIT
+
+Files: doc/locale/*/doctools.js
+Copyright: 2007-2014 the Sphinx team
+License: BSD-2-clause
+
+Files: doc/locale/*/searchtools.js
+Copyright: 2007-2014 the Sphinx team
+License: BSD-2-clause
+
+Files: doc/locale/*/websupport.js
+Copyright: 2007-2014 the Sphinx team
+License: BSD-2-clause
+
+Files: doc/locale/*/basic.css doc/locale/*/pygments.css
+Copyright: 2007-2014 the Sphinx team
+License: BSD-2-clause
+
+License: BSD-2-clause
+ Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+ .
+ 1) Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+ .
+ 2) Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+ .
+ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 License: LGPL-2.1
  This library is free software; you can redistribute it and/or
@@ -107,3 +136,6 @@ License: GPL-2
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software Foundation,
  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+ .
+ On Debian systems, the complete text of the GNU General Public
+ License Version 2 can be found in `/usr/share/common-licenses/GPL-2'.

@@ -154,4 +154,3 @@ misc:
 	  exit 1; \
 	fi
 	ln -s "$(CUTTER_SOURCE_PATH)/misc" misc
-

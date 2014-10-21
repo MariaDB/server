@@ -482,6 +482,7 @@ AC_OUTPUT([
   mysql-test/mroonga/storage/information_schema/r/plugins.result
   mysql-test/mroonga/storage/variable/r/version.result
   packages/debian/control
+  packages/apt/env.sh
   packages/rpm/centos/mysql55-mroonga.spec
   packages/rpm/centos/mysql56-community-mroonga.spec
   packages/rpm/centos/mariadb-mroonga.spec

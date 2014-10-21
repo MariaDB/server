@@ -1,6 +1,5 @@
 if WITH_CUTTER
 noinst_LTLIBRARIES =				\
-	test_mrn_sys.la				\
 	test_mrn_path_mapper.la
 endif
 
@@ -20,12 +19,6 @@ LIBS =						\
 	$(CPPCUTTER_LIBS)			\
 	$(GROONGA_LIBS)				\
 	$(MECAB_LIBS)
-
-EXTERNAL_SRC = ../../mrn_sys.cpp
-
-test_mrn_sys_la_SOURCES =			\
-	$(EXTERNAL_SRC)				\
-	test_mrn_sys.cpp
 
 test_mrn_path_mapper_la_SOURCES =		\
 	test_mrn_path_mapper.cpp

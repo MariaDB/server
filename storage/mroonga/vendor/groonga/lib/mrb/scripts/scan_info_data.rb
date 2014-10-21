@@ -9,6 +9,7 @@ module Groonga
     attr_accessor :indexes
     attr_accessor :flags
     attr_accessor :max_interval
+    attr_accessor :similarity_threshold
     def initialize(start)
       @start = start
       @end = 0
@@ -19,11 +20,14 @@ module Groonga
       @indexes = []
       @flags = ScanInfo::Flags::PUSH
       @max_interval = nil
+      @similarity_threshold = nil
     end
 
     def match_resolve_index
       if near_search?
         match_near_resolve_index
+      elsif similar_search?
+        match_similar_resolve_index
       else
         match_generic_resolve_index
       end
@@ -58,6 +62,29 @@ module Groonga
 
       self.query = @args[1]
       self.max_interval = @args[2].value
+    end
+
+    def similar_search?
+      @op == Operator::SIMILAR and @args.size == 3
+    end
+
+    def match_similar_resolve_index
+      arg = @args[0]
+      case arg
+      when Expression
+        match_resolve_index_expression(arg)
+      when Accessor
+        match_resolve_index_accessor(arg)
+      when Object
+        match_resolve_index_db_obj(arg)
+      else
+        message =
+          "The first argument of SIMILAR must be Expression, Accessor or Object: #{arg.class}"
+        raise message
+      end
+
+      self.query = @args[1]
+      self.similarity_threshold = @args[2].value
     end
 
     def match_generic_resolve_index

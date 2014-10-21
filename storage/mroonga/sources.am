@@ -1,7 +1,5 @@
 sources =					\
 	mrn_macro.hpp				\
-	mrn_sys.cpp				\
-	mrn_sys.hpp				\
 	mrn_constants.hpp			\
 	ha_mroonga.cpp				\
 	ha_mroonga.hpp				\

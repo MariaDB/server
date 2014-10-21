@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2; indent-tabs-mode: nil -*- */
-/* Copyright(C) 2010-2013 Brazil
+/* Copyright(C) 2010-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -888,14 +888,15 @@ learner_learn_for_suggest(grn_ctx *ctx, grn_suggest_learner *learner)
   int keylen = grn_table_get_key(ctx, learner->items, learner->post_item_id,
                                  keybuf, GRN_TABLE_MAX_KEY_SIZE);
   unsigned int token_flags = 0;
-  grn_token *token = grn_token_open(ctx, learner->items, keybuf, keylen,
-                                    GRN_TOKEN_ADD, token_flags);
-  if (token) {
+  grn_token_cursor *token_cursor =
+    grn_token_cursor_open(ctx, learner->items, keybuf, keylen,
+                          GRN_TOKEN_ADD, token_flags);
+  if (token_cursor) {
     grn_id tid;
     grn_obj *pre_item = &(learner->pre_item);
     grn_obj *post_item = learner->post_item;
     grn_hash *token_ids = NULL;
-    while ((tid = grn_token_next(ctx, token)) && tid != learner->post_item_id) {
+    while ((tid = grn_token_cursor_next(ctx, token_cursor)) && tid != learner->post_item_id) {
       uint64_t key;
       int added;
       grn_id pair_id;
@@ -924,7 +925,7 @@ learner_learn_for_suggest(grn_ctx *ctx, grn_suggest_learner *learner)
     if (token_ids) {
       grn_hash_close(ctx, token_ids);
     }
-    grn_token_close(ctx, token);
+    grn_token_cursor_close(ctx, token_cursor);
   }
 }
 

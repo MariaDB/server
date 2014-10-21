@@ -2274,10 +2274,10 @@ show_version(void)
 #ifdef GRN_WITH_MESSAGE_PACK
   printf(",msgpack");
 #endif
-#ifndef NO_ZLIB
+#ifdef GRN_WITH_ZLIB
   printf(",zlib");
 #endif
-#ifndef NO_LZO
+#ifdef GRN_WITH_LZO
   printf(",lzo");
 #endif
 #ifdef USE_KQUEUE

@@ -31,7 +31,6 @@ extern "C" {
 #endif
 
 #include <groonga.h>
-#include "mrn_sys.hpp"
 #include "mrn_mysql_compat.h"
 
 #if (MYSQL_VERSION_ID >= 50603) || \
@@ -558,6 +557,13 @@ private:
   int drop_index(MRN_SHARE *target_share, uint key_index);
   grn_obj *find_tokenizer(const char *name, int name_length);
   grn_obj *find_normalizer(KEY *key_info);
+  bool find_token_filters(KEY *key_info, grn_obj *token_filters);
+  bool find_token_filters_put(grn_obj *token_filters,
+                              const char *token_filter_name,
+                              int token_filter_name_length);
+  bool find_token_filters_fill(grn_obj *token_filters,
+                               const char *token_filter_names,
+                               int token_filter_name_length);
   int wrapper_get_record(uchar *buf, const uchar *key);
   int wrapper_get_next_geo_record(uchar *buf);
   int storage_get_next_record(uchar *buf);
@@ -635,6 +641,8 @@ private:
   void storage_store_field_geometry(Field *field,
                                     const char *value, uint value_length);
   void storage_store_field(Field *field, const char *value, uint value_length);
+  void storage_store_field_column(Field *field,
+                                  int nth_column, grn_id record_id);
   void storage_store_fields(uchar *buf, grn_id record_id);
   void storage_store_fields_for_prep_update(const uchar *old_data,
                                             uchar *new_data,
@@ -723,9 +731,6 @@ private:
   int storage_create_indexes(TABLE *table, const char *grn_table_name,
                              grn_obj *grn_table, MRN_SHARE *tmp_share);
   int close_databases();
-  void ensure_database_directory();
-  int ensure_normalizers_register();
-  int ensure_database_create(const char *name);
   int ensure_database_open(const char *name);
   int ensure_database_remove(const char *name);
   int wrapper_delete_table(const char *name, MRN_SHARE *tmp_share,

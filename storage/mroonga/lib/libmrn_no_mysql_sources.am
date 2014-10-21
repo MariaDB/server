@@ -5,4 +5,5 @@ libmrn_no_mysql_la_SOURCES =				\
 	mrn_path_mapper.hpp				\
 	mrn_windows.hpp					\
 	mrn_smart_grn_obj.cpp				\
-	mrn_smart_grn_obj.hpp
+	mrn_smart_grn_obj.hpp				\
+	mrn_grn.hpp

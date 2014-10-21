@@ -32,9 +32,12 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     config.vm.define(vm[:id]) do |node|
       node.vm.box = vm[:id]
       node.vm.box_url = vm[:box_url]
-      node.vm.provision(:shell, :path => "build-rpm.sh")
+      hour_in_seconds = 60 * 60
+      node.vm.boot_timeout = 1 * hour_in_seconds
+      node.vm.provision(:shell, :privileged => false, :path => "build-rpm.sh")
       node.vm.provider("virtualbox") do |virtual_box|
-        virtual_box.memory = 4096
+        virtual_box.memory = 512
+        virtual_box.customize ["modifyvm", :id, "--hwvirtex", "off"]
       end
     end
   end

@@ -24,12 +24,17 @@
 #include <mrn_path_mapper.hpp>
 #include <mrn_windows.hpp>
 #include <mrn_macro.hpp>
+#include <mrn_database_manager.hpp>
+
+extern mrn::DatabaseManager *mrn_db_manager;
 
 MRN_BEGIN_DECLS
 
 struct CommandInfo
 {
   grn_ctx ctx;
+  grn_obj *db;
+  bool use_shared_db;
   String result;
 };
 
@@ -66,13 +71,17 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *initid, UDF_ARGS *args,
     const char *action;
     if (current_db_path) {
       action = "open database";
-      mrn::PathMapper mapper(current_db_path);
-      grn_db_open(&(info->ctx), mapper.db_path());
+      int error = mrn_db_manager->open(current_db_path, &(info->db));
+      if (error == 0) {
+        grn_ctx_use(&(info->ctx), info->db);
+        info->use_shared_db = true;
+      }
     } else {
       action = "create anonymous database";
-      grn_db_create(&(info->ctx), NULL, NULL);
+      info->db = grn_db_create(&(info->ctx), NULL, NULL);
+      info->use_shared_db = false;
     }
-    if (info->ctx.rc != GRN_SUCCESS) {
+    if (!info->db) {
       sprintf(message,
               "mroonga_command(): failed to %s: %s",
               action,
@@ -87,10 +96,8 @@ MRN_API my_bool mroonga_command_init(UDF_INIT *initid, UDF_ARGS *args,
 
 error:
   if (info) {
-    grn_obj *db;
-    db = grn_ctx_db(&(info->ctx));
-    if (db) {
-      grn_obj_close(&(info->ctx), db);
+    if (!info->use_shared_db) {
+      grn_obj_close(&(info->ctx), info->db);
     }
     grn_ctx_fin(&(info->ctx));
     my_free(info, MYF(0));
@@ -152,9 +159,8 @@ MRN_API void mroonga_command_deinit(UDF_INIT *initid)
 {
   CommandInfo *info = (CommandInfo *)initid->ptr;
   if (info) {
-    grn_obj *db = grn_ctx_db(&(info->ctx));
-    if (db) {
-      grn_obj_close(&(info->ctx), db);
+    if (!info->use_shared_db) {
+      grn_obj_close(&(info->ctx), info->db);
     }
     grn_ctx_fin(&(info->ctx));
     info->result.free();

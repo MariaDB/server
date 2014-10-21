@@ -301,12 +301,20 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
   grn_bool ctx_used_db;
   if (!s) { return GRN_INVALID_ARGUMENT; }
   GRN_API_ENTER;
+
   ctx_used_db = ctx->impl && ctx->impl->db == db;
   if (ctx_used_db) {
     grn_ctx_loader_clear(ctx);
     if (ctx->impl->parser) {
       grn_expr_parser_close(ctx);
     }
+  }
+
+  GRN_TINY_ARRAY_EACH(&s->values, 1, grn_db_curr_id(ctx, db), id, vp, {
+    if (vp->ptr) { grn_obj_close(ctx, vp->ptr); }
+  });
+
+  if (ctx_used_db) {
     if (ctx->impl->values) {
       grn_db_obj *o;
       GRN_ARRAY_EACH(ctx, ctx->impl->values, 0, 0, id, &o, {
@@ -315,9 +323,7 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
       grn_array_truncate(ctx, ctx->impl->values);
     }
   }
-  GRN_TINY_ARRAY_EACH(&s->values, 1, grn_db_curr_id(ctx, db), id, vp, {
-    if (vp->ptr) { grn_obj_close(ctx, vp->ptr); }
-  });
+
 /* grn_tiny_array_fin should be refined.. */
 #ifdef WIN32
   {
@@ -326,6 +332,7 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
   }
 #endif
   grn_tiny_array_fin(&s->values);
+
   switch (s->keys->header.type) {
   case GRN_TABLE_PAT_KEY :
     grn_pat_close(ctx, (grn_pat *)s->keys);
@@ -337,6 +344,7 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
   CRITICAL_SECTION_FIN(s->lock);
   if (s->specs) { grn_ja_close(ctx, s->specs); }
   GRN_FREE(s);
+
   if (ctx_used_db) {
     grn_cache *cache;
     cache = grn_cache_current_get(ctx);
@@ -345,6 +353,7 @@ grn_db_close(grn_ctx *ctx, grn_obj *db)
     }
     ctx->impl->db = NULL;
   }
+
   GRN_API_RETURN(GRN_SUCCESS);
 }
 
@@ -1472,11 +1481,11 @@ call_delete_hook(grn_ctx *ctx, grn_obj *table, grn_id rid, const void *key, unsi
       GRN_TEXT_SET_REF(&oldvalue_, key, key_size);
       GRN_UINT32_SET(ctx, &id_, rid);
       GRN_UINT32_SET(ctx, &flags_, GRN_OBJ_SET);
-      grn_ctx_push(ctx, &id_);
-      grn_ctx_push(ctx, &oldvalue_);
-      grn_ctx_push(ctx, &value_);
-      grn_ctx_push(ctx, &flags_);
       while (hooks) {
+        grn_ctx_push(ctx, &id_);
+        grn_ctx_push(ctx, &oldvalue_);
+        grn_ctx_push(ctx, &value_);
+        grn_ctx_push(ctx, &flags_);
         pctx.caller = NULL;
         pctx.currh = hooks;
         if (hooks->proc) {
@@ -1845,6 +1854,7 @@ grn_table_truncate(grn_ctx *ctx, grn_obj *table)
     grn_hash *cols;
     grn_obj *tokenizer;
     grn_obj *normalizer;
+    grn_obj token_filters;
     if ((cols = grn_hash_create(ctx, NULL, sizeof(grn_id), 0,
                                 GRN_OBJ_TABLE_HASH_KEY|GRN_HASH_TINY))) {
       if (grn_table_columns(ctx, table, "", 0, (grn_obj *)cols)) {
@@ -1856,7 +1866,9 @@ grn_table_truncate(grn_ctx *ctx, grn_obj *table)
       }
       grn_hash_close(ctx, cols);
     }
-    grn_table_get_info(ctx, table, NULL, NULL, &tokenizer, &normalizer);
+    grn_table_get_info(ctx, table, NULL, NULL, &tokenizer, &normalizer, NULL);
+    GRN_PTR_INIT(&token_filters, GRN_OBJ_VECTOR, GRN_ID_NIL);
+    grn_obj_get_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
     switch (table->header.type) {
     case GRN_TABLE_PAT_KEY :
       for (hooks = DB_OBJ(table)->hooks[GRN_HOOK_INSERT]; hooks; hooks = hooks->next) {
@@ -1891,6 +1903,8 @@ grn_table_truncate(grn_ctx *ctx, grn_obj *table)
     }
     grn_obj_set_info(ctx, table, GRN_INFO_DEFAULT_TOKENIZER, tokenizer);
     grn_obj_set_info(ctx, table, GRN_INFO_NORMALIZER, normalizer);
+    grn_obj_set_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
+    GRN_OBJ_FIN(ctx, &token_filters);
     grn_obj_touch(ctx, table, NULL);
   }
 exit :
@@ -1900,7 +1914,8 @@ exit :
 grn_rc
 grn_table_get_info(grn_ctx *ctx, grn_obj *table, grn_obj_flags *flags,
                    grn_encoding *encoding, grn_obj **tokenizer,
-                   grn_obj **normalizer)
+                   grn_obj **normalizer,
+                   grn_obj **token_filters)
 {
   grn_rc rc = GRN_INVALID_ARGUMENT;
   GRN_API_ENTER;
@@ -1911,6 +1926,7 @@ grn_table_get_info(grn_ctx *ctx, grn_obj *table, grn_obj_flags *flags,
       if (encoding) { *encoding = ((grn_pat *)table)->encoding; }
       if (tokenizer) { *tokenizer = ((grn_pat *)table)->tokenizer; }
       if (normalizer) { *normalizer = ((grn_pat *)table)->normalizer; }
+      if (token_filters) { *token_filters = &(((grn_pat *)table)->token_filters); }
       rc = GRN_SUCCESS;
       break;
     case GRN_TABLE_DAT_KEY :
@@ -1918,6 +1934,7 @@ grn_table_get_info(grn_ctx *ctx, grn_obj *table, grn_obj_flags *flags,
       if (encoding) { *encoding = ((grn_dat *)table)->encoding; }
       if (tokenizer) { *tokenizer = ((grn_dat *)table)->tokenizer; }
       if (normalizer) { *normalizer = ((grn_dat *)table)->normalizer; }
+      if (token_filters) { *token_filters = &(((grn_dat *)table)->token_filters); }
       rc = GRN_SUCCESS;
       break;
     case GRN_TABLE_HASH_KEY :
@@ -1925,6 +1942,7 @@ grn_table_get_info(grn_ctx *ctx, grn_obj *table, grn_obj_flags *flags,
       if (encoding) { *encoding = ((grn_hash *)table)->encoding; }
       if (tokenizer) { *tokenizer = ((grn_hash *)table)->tokenizer; }
       if (normalizer) { *normalizer = ((grn_hash *)table)->normalizer; }
+      if (token_filters) { *token_filters = &(((grn_hash *)table)->token_filters); }
       rc = GRN_SUCCESS;
       break;
     case GRN_TABLE_NO_KEY :
@@ -1932,6 +1950,7 @@ grn_table_get_info(grn_ctx *ctx, grn_obj *table, grn_obj_flags *flags,
       if (encoding) { *encoding = GRN_ENC_NONE; }
       if (tokenizer) { *tokenizer = grn_token_uvector; }
       if (normalizer) { *normalizer = NULL; }
+      if (token_filters) { *token_filters = NULL; }
       rc = GRN_SUCCESS;
       break;
     }
@@ -3515,7 +3534,6 @@ grn_column_create(grn_ctx *ctx, grn_obj *table,
   grn_id domain = GRN_ID_NIL;
   char fullname[GRN_TABLE_MAX_KEY_SIZE];
   char buffer[PATH_MAX];
-  grn_bool ja_p = GRN_FALSE;
   GRN_API_ENTER;
   if (!table) {
     ERR(GRN_INVALID_ARGUMENT, "[column][create] table is missing");
@@ -3635,14 +3653,12 @@ grn_column_create(grn_ctx *ctx, grn_obj *table,
   case GRN_OBJ_COLUMN_SCALAR :
     if ((flags & GRN_OBJ_KEY_VAR_SIZE) || value_size > sizeof(int64_t)) {
       res = (grn_obj *)grn_ja_create(ctx, path, value_size, flags);
-      ja_p = GRN_TRUE;
     } else {
       res = (grn_obj *)grn_ra_create(ctx, path, value_size);
     }
     break;
   case GRN_OBJ_COLUMN_VECTOR :
     res = (grn_obj *)grn_ja_create(ctx, path, value_size * 30/*todo*/, flags);
-    ja_p = GRN_TRUE;
     //todo : zlib support
     break;
   case GRN_OBJ_COLUMN_INDEX :
@@ -3655,31 +3671,6 @@ grn_column_create(grn_ctx *ctx, grn_obj *table,
     DB_OBJ(res)->range = range;
     DB_OBJ(res)->header.flags = flags;
     res->header.flags = flags;
-    if (ja_p) {
-      grn_bool zlib_p = GRN_FALSE;
-      grn_bool lzo_p = GRN_FALSE;
-#ifdef GRN_WITH_ZLIB
-      if (flags & GRN_OBJ_COMPRESS_ZLIB) {
-        zlib_p = GRN_TRUE;
-      }
-#endif /* GRN_WITH_ZLIB */
-#ifdef GRN_WITH_LZO
-      if (flags & GRN_OBJ_COMPRESS_LZO) {
-        lzo_p = GRN_TRUE;
-      }
-#endif /* GRN_WITH_LZO */
-      if (zlib_p || lzo_p) {
-        int table_name_len;
-        char table_name[GRN_TABLE_MAX_KEY_SIZE];
-        table_name_len = grn_obj_name(ctx, table, table_name,
-                                      GRN_TABLE_MAX_KEY_SIZE);
-        GRN_LOG(ctx, GRN_LOG_WARNING,
-                "[column][create] "
-                "%s compressed column will leaks memories: <%.*s>.<%.*s>",
-                zlib_p ? "zlib" : "lzo",
-                table_name_len, table_name, name_size, name);
-      }
-    }
     if (grn_db_obj_init(ctx, db, id, DB_OBJ(res))) {
       _grn_obj_remove(ctx, res);
       res = NULL;
@@ -5676,15 +5667,15 @@ grn_obj_set_value_column_var_size_vector(grn_ctx *ctx, grn_obj *obj, grn_id id,
     case GRN_BULK :
       {
         unsigned int token_flags = 0;
-        grn_token *token;
+        grn_token_cursor *token_cursor;
         if (v && s &&
-            (token = grn_token_open(ctx, lexicon, v, s,
-                                    GRN_TOKEN_ADD, token_flags))) {
-          while (!token->status) {
-            grn_id tid = grn_token_next(ctx, token);
+            (token_cursor = grn_token_cursor_open(ctx, lexicon, v, s,
+                                                  GRN_TOKEN_ADD, token_flags))) {
+          while (token_cursor->status == GRN_TOKEN_DOING) {
+            grn_id tid = grn_token_cursor_next(ctx, token_cursor);
             grn_uvector_add_element(ctx, &uvector, tid, 0);
           }
-          grn_token_close(ctx, token);
+          grn_token_cursor_close(ctx, token_cursor);
         }
         rc = grn_ja_put(ctx, (grn_ja *)obj, id,
                         GRN_BULK_HEAD(&uvector), GRN_BULK_VSIZE(&uvector),
@@ -6289,6 +6280,42 @@ grn_obj_get_info(grn_ctx *ctx, grn_obj *obj, grn_info_type type, grn_obj *valueb
         break;
       }
       break;
+    case GRN_INFO_TOKEN_FILTERS :
+      if (!valuebuf) {
+        if (!(valuebuf = grn_obj_open(ctx, GRN_PVECTOR, 0, 0))) {
+          ERR(GRN_NO_MEMORY_AVAILABLE,
+              "grn_obj_get_info: failed to allocate value buffer");
+          goto exit;
+        }
+      }
+      {
+        grn_obj *token_filters = NULL;
+        switch (obj->header.type) {
+        case GRN_TABLE_HASH_KEY :
+          token_filters = &(((grn_hash *)obj)->token_filters);
+          break;
+        case GRN_TABLE_PAT_KEY :
+          token_filters = &(((grn_pat *)obj)->token_filters);
+          break;
+        case GRN_TABLE_DAT_KEY :
+          token_filters = &(((grn_dat *)obj)->token_filters);
+          break;
+        default :
+          ERR(GRN_INVALID_ARGUMENT,
+              /* TODO: Show type name instead of type ID */
+              "[info][get][token-filters] target object must be one of "
+              "GRN_TABLE_HASH_KEY, GRN_TABLE_PAT_KEY and GRN_TABLE_DAT_KEY: %d",
+              obj->header.type);
+          break;
+        }
+        if (token_filters) {
+          grn_bulk_write(ctx,
+                         valuebuf,
+                         GRN_BULK_HEAD(token_filters),
+                         GRN_BULK_VSIZE(token_filters));
+        }
+      }
+      break;
     default :
       /* todo */
       break;
@@ -6311,7 +6338,7 @@ build_index(grn_ctx *ctx, grn_obj *obj)
       grn_obj_flags flags;
       grn_ii *ii = (grn_ii *)obj;
       grn_bool use_grn_ii_build;
-      grn_table_get_info(ctx, ii->lexicon, &flags, NULL, NULL, NULL);
+      grn_table_get_info(ctx, ii->lexicon, &flags, NULL, NULL, NULL, NULL);
       switch (flags & GRN_OBJ_TABLE_TYPE_MASK) {
       case GRN_OBJ_TABLE_PAT_KEY :
       case GRN_OBJ_TABLE_DAT_KEY :
@@ -6519,6 +6546,23 @@ grn_hook_unpack(grn_ctx *ctx, grn_db_obj *obj, const char *buf, uint32_t buf_siz
   return GRN_SUCCESS;
 }
 
+static void
+grn_token_filters_pack(grn_ctx *ctx,
+                       grn_obj *token_filters,
+                       grn_obj *buffer)
+{
+  unsigned int i, n_token_filters;
+
+  n_token_filters = GRN_BULK_VSIZE(token_filters) / sizeof(grn_obj *);
+  for (i = 0; i < n_token_filters; i++) {
+    grn_obj *token_filter = GRN_PTR_VALUE_AT(token_filters, i);
+    grn_id token_filter_id;
+
+    token_filter_id = grn_obj_id(ctx, token_filter);
+    GRN_RECORD_PUT(ctx, buffer, token_filter_id);
+  }
+}
+
 void
 grn_obj_spec_save(grn_ctx *ctx, grn_db_obj *obj)
 {
@@ -6543,6 +6587,18 @@ grn_obj_spec_save(grn_ctx *ctx, grn_db_obj *obj)
   grn_hook_pack(ctx, obj, b);
   grn_vector_delimit(ctx, &v, 0, 0);
   switch (obj->header.type) {
+  case GRN_TABLE_HASH_KEY :
+    grn_token_filters_pack(ctx, &(((grn_hash *)obj)->token_filters), b);
+    grn_vector_delimit(ctx, &v, 0, 0);
+    break;
+  case GRN_TABLE_PAT_KEY :
+    grn_token_filters_pack(ctx, &(((grn_pat *)obj)->token_filters), b);
+    grn_vector_delimit(ctx, &v, 0, 0);
+    break;
+  case GRN_TABLE_DAT_KEY :
+    grn_token_filters_pack(ctx, &(((grn_dat *)obj)->token_filters), b);
+    grn_vector_delimit(ctx, &v, 0, 0);
+    break;
   case GRN_EXPR :
     grn_expr_pack(ctx, b, (grn_obj *)obj);
     grn_vector_delimit(ctx, &v, 0, 0);
@@ -6748,6 +6804,62 @@ grn_obj_set_info_source(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
   return rc;
 }
 
+static grn_rc
+grn_obj_set_info_token_filters(grn_ctx *ctx,
+                               grn_obj *table,
+                               grn_obj *token_filters)
+{
+  grn_obj *current_token_filters;
+  unsigned int i, n_token_filters;
+  grn_obj token_filter_names;
+
+  switch (table->header.type) {
+  case GRN_TABLE_HASH_KEY :
+    current_token_filters = &(((grn_hash *)table)->token_filters);
+    break;
+  case GRN_TABLE_PAT_KEY :
+    current_token_filters = &(((grn_pat *)table)->token_filters);
+    break;
+  case GRN_TABLE_DAT_KEY :
+    current_token_filters = &(((grn_dat *)table)->token_filters);
+    break;
+  default :
+    /* TODO: Show type name instead of type ID */
+    ERR(GRN_INVALID_ARGUMENT,
+        "[info][set][token-filters] target object must be one of "
+        "GRN_TABLE_HASH_KEY, GRN_TABLE_PAT_KEY and GRN_TABLE_DAT_KEY: %d",
+        table->header.type);
+    return ctx->rc;
+  }
+
+  GRN_TEXT_INIT(&token_filter_names, 0);
+  GRN_BULK_REWIND(current_token_filters);
+  n_token_filters = GRN_BULK_VSIZE(token_filters) / sizeof(grn_obj *);
+  for (i = 0; i < n_token_filters; i++) {
+    grn_obj *token_filter = GRN_PTR_VALUE_AT(token_filters, i);
+    char token_filter_name[GRN_TABLE_MAX_KEY_SIZE];
+    unsigned int token_filter_name_size;
+
+    GRN_PTR_PUT(ctx, current_token_filters, token_filter);
+
+    token_filter_name_size = grn_obj_name(ctx,
+                                          token_filter,
+                                          token_filter_name,
+                                          GRN_TABLE_MAX_KEY_SIZE);
+    GRN_TEXT_PUT(ctx,
+                 &token_filter_names,
+                 token_filter_name,
+                 token_filter_name_size);
+  }
+  GRN_LOG(ctx, GRN_LOG_NOTICE, "DDL:set_token_filters %.*s",
+          (int)GRN_BULK_VSIZE(&token_filter_names),
+          GRN_BULK_HEAD(&token_filter_names));
+  GRN_OBJ_FIN(ctx, &token_filter_names);
+  grn_obj_spec_save(ctx, DB_OBJ(table));
+
+  return GRN_SUCCESS;
+}
+
 grn_rc
 grn_obj_set_info(grn_ctx *ctx, grn_obj *obj, grn_info_type type, grn_obj *value)
 {
@@ -6806,6 +6918,9 @@ grn_obj_set_info(grn_ctx *ctx, grn_obj *obj, grn_info_type type, grn_obj *value)
         break;
       }
     }
+    break;
+  case GRN_INFO_TOKEN_FILTERS :
+    rc = grn_obj_set_info_token_filters(ctx, obj, value);
     break;
   default :
     /* todo */
@@ -7702,10 +7817,22 @@ grn_db_obj_init(grn_ctx *ctx, grn_obj *db, grn_id id, grn_db_obj *obj)
   return rc;
 }
 
+#define SERIALIZED_SPEC_INDEX_SPEC   0
+#define SERIALIZED_SPEC_INDEX_PATH   1
+#define SERIALIZED_SPEC_INDEX_SOURCE 2
+#define SERIALIZED_SPEC_INDEX_HOOK   3
+#define SERIALIZED_SPEC_INDEX_TOKEN_FILTERS 4
+#define SERIALIZED_SPEC_INDEX_EXPR   4
+
 #define GET_PATH(spec,buffer,s,id) do {\
   if (spec->header.flags & GRN_OBJ_CUSTOM_NAME) {\
     const char *path;\
-    unsigned int size = grn_vector_get_element(ctx, &v, 1, &path, NULL, NULL); \
+    unsigned int size = grn_vector_get_element(ctx,\
+                                               &v,\
+                                               SERIALIZED_SPEC_INDEX_PATH,\
+                                               &path,\
+                                               NULL,\
+                                               NULL);\
     if (size > PATH_MAX) { ERR(GRN_FILENAME_TOO_LONG, "too long path"); }\
     memcpy(buffer, path, size);\
     buffer[size] = '\0';\
@@ -7721,17 +7848,61 @@ grn_db_obj_init(grn_ctx *ctx, grn_obj *db, grn_id id, grn_db_obj *obj)
     r->id = id;\
     r->range = spec->range;\
     r->db = (grn_obj *)s;\
-    size = grn_vector_get_element(ctx, &v, 2, &p, NULL, NULL);\
+    size = grn_vector_get_element(ctx,\
+                                  &v,\
+                                  SERIALIZED_SPEC_INDEX_SOURCE,\
+                                  &p,\
+                                  NULL,\
+                                  NULL);\
     if (size) {\
       if ((r->source = GRN_MALLOC(size))) {\
         memcpy(r->source, p, size);\
         r->source_size = size;\
       }\
     }\
-    size = grn_vector_get_element(ctx, &v, 3, &p, NULL, NULL);\
+    size = grn_vector_get_element(ctx,\
+                                  &v,\
+                                  SERIALIZED_SPEC_INDEX_HOOK,\
+                                  &p,\
+                                  NULL,\
+                                  NULL);\
     grn_hook_unpack(ctx, r, p, size);\
   }\
 } while (0)
+
+static void
+grn_token_filters_unpack(grn_ctx *ctx,
+                         grn_obj *token_filters,
+                         grn_obj *spec_vector)
+{
+  grn_id *token_filter_ids;
+  unsigned int element_size;
+  unsigned int i, n_token_filter_ids;
+
+  if (grn_vector_size(ctx, spec_vector) < SERIALIZED_SPEC_INDEX_TOKEN_FILTERS) {
+    return;
+  }
+
+  element_size = grn_vector_get_element(ctx,
+                                        spec_vector,
+                                        SERIALIZED_SPEC_INDEX_TOKEN_FILTERS,
+                                        (const char **)(&token_filter_ids),
+                                        NULL,
+                                        NULL);
+  n_token_filter_ids = element_size / sizeof(grn_id);
+  for (i = 0; i < n_token_filter_ids; i++) {
+    grn_id token_filter_id = token_filter_ids[i];
+    grn_obj *token_filter;
+
+    token_filter = grn_ctx_at(ctx, token_filter_id);
+    if (!token_filter) {
+      ERR(GRN_INVALID_ARGUMENT,
+          "nonexistent token filter ID: %d", token_filter_id);
+      return;
+    }
+    GRN_PTR_PUT(ctx, token_filters, token_filter);
+  }
+}
 
 grn_obj *
 grn_ctx_at(grn_ctx *ctx, grn_id id)
@@ -7792,7 +7963,12 @@ grn_ctx_at(grn_ctx *ctx, grn_id id)
               uint32_t size;
               grn_obj_spec *spec;
               char buffer[PATH_MAX];
-              size = grn_vector_get_element(ctx, &v, 0, (const char **)&spec, NULL, NULL);
+              size = grn_vector_get_element(ctx,
+                                            &v,
+                                            SERIALIZED_SPEC_INDEX_SPEC,
+                                            (const char **)&spec,
+                                            NULL,
+                                            NULL);
               if (size) {
                 switch (spec->header.type) {
                 case GRN_TYPE :
@@ -7803,27 +7979,33 @@ grn_ctx_at(grn_ctx *ctx, grn_id id)
                   GET_PATH(spec, buffer, s, id);
                   vp->ptr = (grn_obj *)grn_hash_open(ctx, buffer);
                   if (vp->ptr) {
+                    grn_hash *hash = (grn_hash *)(vp->ptr);
                     grn_obj_flags flags = vp->ptr->header.flags;
                     UNPACK_INFO();
                     vp->ptr->header.flags = flags;
+                    grn_token_filters_unpack(ctx, &(hash->token_filters), &v);
                   }
                   break;
                 case GRN_TABLE_PAT_KEY :
                   GET_PATH(spec, buffer, s, id);
                   vp->ptr = (grn_obj *)grn_pat_open(ctx, buffer);
                   if (vp->ptr) {
+                    grn_pat *pat = (grn_pat *)(vp->ptr);
                     grn_obj_flags flags = vp->ptr->header.flags;
                     UNPACK_INFO();
                     vp->ptr->header.flags = flags;
+                    grn_token_filters_unpack(ctx, &(pat->token_filters), &v);
                   }
                   break;
                 case GRN_TABLE_DAT_KEY :
                   GET_PATH(spec, buffer, s, id);
                   vp->ptr = (grn_obj *)grn_dat_open(ctx, buffer);
                   if (vp->ptr) {
+                    grn_dat *dat = (grn_dat *)(vp->ptr);
                     grn_obj_flags flags = vp->ptr->header.flags;
                     UNPACK_INFO();
                     vp->ptr->header.flags = flags;
+                    grn_token_filters_unpack(ctx, &(dat->token_filters), &v);
                   }
                   break;
                 case GRN_TABLE_NO_KEY :
@@ -7856,7 +8038,12 @@ grn_ctx_at(grn_ctx *ctx, grn_id id)
                 case GRN_EXPR :
                   {
                     uint8_t *u;
-                    size = grn_vector_get_element(ctx, &v, 4, &p, NULL, NULL);
+                    size = grn_vector_get_element(ctx,
+                                                  &v,
+                                                  SERIALIZED_SPEC_INDEX_EXPR,
+                                                  &p,
+                                                  NULL,
+                                                  NULL);
                     u = (uint8_t *)p;
                     vp->ptr = grn_expr_open(ctx, spec, u, u + size);
                   }
@@ -9050,7 +9237,7 @@ grn_column_index_column_equal(grn_ctx *ctx, grn_obj *obj, grn_operator op,
     if (obj->header.type != GRN_COLUMN_FIX_SIZE) {
       grn_obj *tokenizer, *lexicon = grn_ctx_at(ctx, target->header.domain);
       if (!lexicon) { continue; }
-      grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL);
+      grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL, NULL);
       if (tokenizer) { continue; }
     }
     if (n < buf_size) {
@@ -9115,7 +9302,7 @@ grn_column_index_column_range(grn_ctx *ctx, grn_obj *obj, grn_operator op,
       if (!lexicon) { continue; }
       if (lexicon->header.type != GRN_TABLE_PAT_KEY) { continue; }
       /* FIXME: GRN_TABLE_DAT_KEY should be supported */
-      grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL);
+      grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL, NULL);
       if (tokenizer) { continue; }
     }
     if (n < buf_size) {
@@ -9147,7 +9334,7 @@ is_valid_range_index(grn_ctx *ctx, grn_obj *index_column)
     return GRN_FALSE;
   }
 
-  grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL);
+  grn_table_get_info(ctx, lexicon, NULL, NULL, &tokenizer, NULL, NULL);
   grn_obj_unlink(ctx, lexicon);
   if (tokenizer) { return GRN_FALSE; }
 
@@ -9644,10 +9831,10 @@ grn_table_tokenize(grn_ctx *ctx, grn_obj *table,
                    const char *str, unsigned int str_len,
                    grn_obj *buf, grn_bool addp)
 {
-  grn_token *token = NULL;
+  grn_token_cursor *token_cursor = NULL;
   grn_token_mode mode = addp ? GRN_TOKEN_ADD : GRN_TOKEN_GET;
   GRN_API_ENTER;
-  if (!(token = grn_token_open(ctx, table, str, str_len, mode, 0))) {
+  if (!(token_cursor = grn_token_cursor_open(ctx, table, str, str_len, mode, 0))) {
     goto exit;
   }
   if (buf) {
@@ -9657,15 +9844,15 @@ grn_table_tokenize(grn_ctx *ctx, grn_obj *table,
       goto exit;
     }
   }
-  while (token->status != GRN_TOKEN_DONE) {
+  while (token_cursor->status != GRN_TOKEN_DONE && token_cursor->status != GRN_TOKEN_DONE_SKIP) {
     grn_id tid;
-    if ((tid = grn_token_next(ctx, token))) {
+    if ((tid = grn_token_cursor_next(ctx, token_cursor))) {
       GRN_RECORD_PUT(ctx, buf, tid);
     }
   }
 exit :
-  if (token) {
-    grn_token_close(ctx, token);
+  if (token_cursor) {
+    grn_token_cursor_close(ctx, token_cursor);
   }
   GRN_API_RETURN(buf);
 }

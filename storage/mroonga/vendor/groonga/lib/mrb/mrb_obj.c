@@ -91,6 +91,26 @@ object_grn_inspect(mrb_state *mrb, mrb_value self)
   return inspected;
 }
 
+static mrb_value
+object_equal(mrb_state *mrb, mrb_value self)
+{
+  grn_obj *object, *other_object;
+  mrb_value mrb_other;
+
+  mrb_get_args(mrb, "o", &mrb_other);
+  if (!mrb_obj_is_kind_of(mrb, mrb_other, mrb_obj_class(mrb, self))) {
+    return mrb_false_value();
+  }
+
+  object = DATA_PTR(self);
+  other_object = DATA_PTR(mrb_other);
+  if (object == other_object) {
+    return mrb_true_value();
+  } else {
+    return mrb_false_value();
+  }
+}
+
 void
 grn_mrb_obj_init(grn_ctx *ctx)
 {
@@ -108,6 +128,7 @@ grn_mrb_obj_init(grn_ctx *ctx)
                     object_find_index, MRB_ARGS_REQ(1));
   mrb_define_method(mrb, klass, "grn_inspect",
                     object_grn_inspect, MRB_ARGS_NONE());
+  mrb_define_method(mrb, klass, "==", object_equal, MRB_ARGS_REQ(1));
 
   grn_mrb_load(ctx, "index_info.rb");
 }

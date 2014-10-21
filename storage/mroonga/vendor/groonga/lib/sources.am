@@ -47,5 +47,6 @@ libgroonga_la_SOURCES =				\
 	token.c					\
 	token.h					\
 	tokenizer.c				\
+	token_filter.c				\
 	util.c					\
 	util.h

@@ -47,7 +47,6 @@
 #  include <mysql_priv.h>
 #  include <mysql/plugin.h>
 #else
-#  include <my_global.h>
 #  include <sql_priv.h>
 #  include <sql_class.h>
 #  include <probes_mysql.h>

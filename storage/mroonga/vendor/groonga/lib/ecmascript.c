@@ -4,7 +4,7 @@
 /* First off, code is included that follows the "include" declaration
 ** in the input grammar file. */
 #include <stdio.h>
-#line 3 "ecmascript.lemon"
+#line 4 "ecmascript.lemon"
 
 #define assert GRN_ASSERT
 #line 11 "ecmascript.c"
@@ -867,7 +867,7 @@ static void yy_destructor(
     */
     case 74: /* suppress_unused_variable_warning */
 {
-#line 10 "ecmascript.lemon"
+#line 11 "ecmascript.lemon"
 
   (void)efsi;
 
@@ -1295,7 +1295,7 @@ static void yy_reduce(
   **     break;
   */
       case 5: /* query ::= query query_element */
-#line 45 "ecmascript.lemon"
+#line 46 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, grn_int32_value_at(&efsi->op_stack, -1), 2);
 }
@@ -1303,7 +1303,7 @@ static void yy_reduce(
         break;
       case 6: /* query ::= query LOGICAL_AND query_element */
       case 35: /* logical_and_expression ::= logical_and_expression LOGICAL_AND bitwise_or_expression */ yytestcase(yyruleno==35);
-#line 48 "ecmascript.lemon"
+#line 49 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_AND, 2);
 }
@@ -1311,7 +1311,7 @@ static void yy_reduce(
         break;
       case 7: /* query ::= query LOGICAL_AND_NOT query_element */
       case 36: /* logical_and_expression ::= logical_and_expression LOGICAL_AND_NOT bitwise_or_expression */ yytestcase(yyruleno==36);
-#line 51 "ecmascript.lemon"
+#line 52 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_AND_NOT, 2);
 }
@@ -1319,14 +1319,14 @@ static void yy_reduce(
         break;
       case 8: /* query ::= query LOGICAL_OR query_element */
       case 33: /* logical_or_expression ::= logical_or_expression LOGICAL_OR logical_and_expression */ yytestcase(yyruleno==33);
-#line 54 "ecmascript.lemon"
+#line 55 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_OR, 2);
 }
 #line 1327 "ecmascript.c"
         break;
       case 11: /* query_element ::= RELATIVE_OP query_element */
-#line 61 "ecmascript.lemon"
+#line 62 "ecmascript.lemon"
 {
   int mode;
   GRN_INT32_POP(&efsi->mode_stack, mode);
@@ -1334,7 +1334,7 @@ static void yy_reduce(
 #line 1335 "ecmascript.c"
         break;
       case 12: /* query_element ::= IDENTIFIER RELATIVE_OP query_element */
-#line 65 "ecmascript.lemon"
+#line 66 "ecmascript.lemon"
 {
   int mode;
   grn_obj *c;
@@ -1348,314 +1348,320 @@ static void yy_reduce(
       GRN_INT32_POP(&efsi->max_interval_stack, max_interval);
     }
     break;
+  case GRN_OP_SIMILAR :
+    {
+      int similarity_threshold;
+      GRN_INT32_POP(&efsi->similarity_threshold_stack, similarity_threshold);
+    }
+    break;
   default :
     break;
   }
 }
-#line 1356 "ecmascript.c"
+#line 1362 "ecmascript.c"
         break;
       case 13: /* query_element ::= BRACEL expression BRACER */
       case 14: /* query_element ::= EVAL primary_expression */ yytestcase(yyruleno==14);
-#line 82 "ecmascript.lemon"
+#line 89 "ecmascript.lemon"
 {
   efsi->flags = efsi->default_flags;
 }
-#line 1364 "ecmascript.c"
+#line 1370 "ecmascript.c"
         break;
       case 16: /* expression ::= expression COMMA assignment_expression */
-#line 90 "ecmascript.lemon"
+#line 97 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_COMMA, 2);
 }
-#line 1371 "ecmascript.c"
+#line 1377 "ecmascript.c"
         break;
       case 18: /* assignment_expression ::= lefthand_side_expression ASSIGN assignment_expression */
-#line 95 "ecmascript.lemon"
+#line 102 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_ASSIGN, 2);
 }
-#line 1378 "ecmascript.c"
+#line 1384 "ecmascript.c"
         break;
       case 19: /* assignment_expression ::= lefthand_side_expression STAR_ASSIGN assignment_expression */
-#line 98 "ecmascript.lemon"
+#line 105 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_STAR_ASSIGN, 2);
 }
-#line 1385 "ecmascript.c"
+#line 1391 "ecmascript.c"
         break;
       case 20: /* assignment_expression ::= lefthand_side_expression SLASH_ASSIGN assignment_expression */
-#line 101 "ecmascript.lemon"
+#line 108 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SLASH_ASSIGN, 2);
 }
-#line 1392 "ecmascript.c"
+#line 1398 "ecmascript.c"
         break;
       case 21: /* assignment_expression ::= lefthand_side_expression MOD_ASSIGN assignment_expression */
-#line 104 "ecmascript.lemon"
+#line 111 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MOD_ASSIGN, 2);
 }
-#line 1399 "ecmascript.c"
+#line 1405 "ecmascript.c"
         break;
       case 22: /* assignment_expression ::= lefthand_side_expression PLUS_ASSIGN assignment_expression */
-#line 107 "ecmascript.lemon"
+#line 114 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_PLUS_ASSIGN, 2);
 }
-#line 1406 "ecmascript.c"
+#line 1412 "ecmascript.c"
         break;
       case 23: /* assignment_expression ::= lefthand_side_expression MINUS_ASSIGN assignment_expression */
-#line 110 "ecmascript.lemon"
+#line 117 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MINUS_ASSIGN, 2);
 }
-#line 1413 "ecmascript.c"
+#line 1419 "ecmascript.c"
         break;
       case 24: /* assignment_expression ::= lefthand_side_expression SHIFTL_ASSIGN assignment_expression */
-#line 113 "ecmascript.lemon"
+#line 120 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SHIFTL_ASSIGN, 2);
 }
-#line 1420 "ecmascript.c"
+#line 1426 "ecmascript.c"
         break;
       case 25: /* assignment_expression ::= lefthand_side_expression SHIFTR_ASSIGN assignment_expression */
-#line 116 "ecmascript.lemon"
+#line 123 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SHIFTR_ASSIGN, 2);
 }
-#line 1427 "ecmascript.c"
+#line 1433 "ecmascript.c"
         break;
       case 26: /* assignment_expression ::= lefthand_side_expression SHIFTRR_ASSIGN assignment_expression */
-#line 119 "ecmascript.lemon"
+#line 126 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SHIFTRR_ASSIGN, 2);
 }
-#line 1434 "ecmascript.c"
+#line 1440 "ecmascript.c"
         break;
       case 27: /* assignment_expression ::= lefthand_side_expression AND_ASSIGN assignment_expression */
-#line 122 "ecmascript.lemon"
+#line 129 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_AND_ASSIGN, 2);
 }
-#line 1441 "ecmascript.c"
+#line 1447 "ecmascript.c"
         break;
       case 28: /* assignment_expression ::= lefthand_side_expression XOR_ASSIGN assignment_expression */
-#line 125 "ecmascript.lemon"
+#line 132 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_XOR_ASSIGN, 2);
 }
-#line 1448 "ecmascript.c"
+#line 1454 "ecmascript.c"
         break;
       case 29: /* assignment_expression ::= lefthand_side_expression OR_ASSIGN assignment_expression */
-#line 128 "ecmascript.lemon"
+#line 135 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_OR_ASSIGN, 2);
 }
-#line 1455 "ecmascript.c"
+#line 1461 "ecmascript.c"
         break;
       case 31: /* conditional_expression ::= logical_or_expression QUESTION assignment_expression COLON assignment_expression */
-#line 133 "ecmascript.lemon"
+#line 140 "ecmascript.lemon"
 {
   grn_expr *e = (grn_expr *)efsi->e;
   e->codes[yymsp[-3].minor.yy0].nargs = yymsp[-1].minor.yy0 - yymsp[-3].minor.yy0;
   e->codes[yymsp[-1].minor.yy0].nargs = e->codes_curr - yymsp[-1].minor.yy0 - 1;
 }
-#line 1464 "ecmascript.c"
+#line 1470 "ecmascript.c"
         break;
       case 38: /* bitwise_or_expression ::= bitwise_or_expression BITWISE_OR bitwise_xor_expression */
-#line 153 "ecmascript.lemon"
+#line 160 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_BITWISE_OR, 2);
 }
-#line 1471 "ecmascript.c"
+#line 1477 "ecmascript.c"
         break;
       case 40: /* bitwise_xor_expression ::= bitwise_xor_expression BITWISE_XOR bitwise_and_expression */
-#line 158 "ecmascript.lemon"
+#line 165 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_BITWISE_XOR, 2);
 }
-#line 1478 "ecmascript.c"
+#line 1484 "ecmascript.c"
         break;
       case 42: /* bitwise_and_expression ::= bitwise_and_expression BITWISE_AND equality_expression */
-#line 163 "ecmascript.lemon"
+#line 170 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_BITWISE_AND, 2);
 }
-#line 1485 "ecmascript.c"
+#line 1491 "ecmascript.c"
         break;
       case 44: /* equality_expression ::= equality_expression EQUAL relational_expression */
-#line 168 "ecmascript.lemon"
+#line 175 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_EQUAL, 2);
 }
-#line 1492 "ecmascript.c"
+#line 1498 "ecmascript.c"
         break;
       case 45: /* equality_expression ::= equality_expression NOT_EQUAL relational_expression */
-#line 171 "ecmascript.lemon"
+#line 178 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NOT_EQUAL, 2);
 }
-#line 1499 "ecmascript.c"
+#line 1505 "ecmascript.c"
         break;
       case 47: /* relational_expression ::= relational_expression LESS shift_expression */
-#line 176 "ecmascript.lemon"
+#line 183 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_LESS, 2);
 }
-#line 1506 "ecmascript.c"
+#line 1512 "ecmascript.c"
         break;
       case 48: /* relational_expression ::= relational_expression GREATER shift_expression */
-#line 179 "ecmascript.lemon"
+#line 186 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_GREATER, 2);
 }
-#line 1513 "ecmascript.c"
+#line 1519 "ecmascript.c"
         break;
       case 49: /* relational_expression ::= relational_expression LESS_EQUAL shift_expression */
-#line 182 "ecmascript.lemon"
+#line 189 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_LESS_EQUAL, 2);
 }
-#line 1520 "ecmascript.c"
+#line 1526 "ecmascript.c"
         break;
       case 50: /* relational_expression ::= relational_expression GREATER_EQUAL shift_expression */
-#line 185 "ecmascript.lemon"
+#line 192 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_GREATER_EQUAL, 2);
 }
-#line 1527 "ecmascript.c"
+#line 1533 "ecmascript.c"
         break;
       case 51: /* relational_expression ::= relational_expression IN shift_expression */
-#line 188 "ecmascript.lemon"
+#line 195 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_IN, 2);
 }
-#line 1534 "ecmascript.c"
+#line 1540 "ecmascript.c"
         break;
       case 52: /* relational_expression ::= relational_expression MATCH shift_expression */
       case 130: /* adjust_match_expression ::= IDENTIFIER MATCH STRING */ yytestcase(yyruleno==130);
-#line 191 "ecmascript.lemon"
+#line 198 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MATCH, 2);
 }
-#line 1542 "ecmascript.c"
+#line 1548 "ecmascript.c"
         break;
       case 53: /* relational_expression ::= relational_expression NEAR shift_expression */
-#line 194 "ecmascript.lemon"
+#line 201 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NEAR, 2);
 }
-#line 1549 "ecmascript.c"
+#line 1555 "ecmascript.c"
         break;
       case 54: /* relational_expression ::= relational_expression NEAR2 shift_expression */
-#line 197 "ecmascript.lemon"
+#line 204 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NEAR2, 2);
 }
-#line 1556 "ecmascript.c"
+#line 1562 "ecmascript.c"
         break;
       case 55: /* relational_expression ::= relational_expression SIMILAR shift_expression */
-#line 200 "ecmascript.lemon"
+#line 207 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SIMILAR, 2);
 }
-#line 1563 "ecmascript.c"
+#line 1569 "ecmascript.c"
         break;
       case 56: /* relational_expression ::= relational_expression TERM_EXTRACT shift_expression */
-#line 203 "ecmascript.lemon"
+#line 210 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_TERM_EXTRACT, 2);
 }
-#line 1570 "ecmascript.c"
+#line 1576 "ecmascript.c"
         break;
       case 57: /* relational_expression ::= relational_expression LCP shift_expression */
-#line 206 "ecmascript.lemon"
+#line 213 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_LCP, 2);
 }
-#line 1577 "ecmascript.c"
+#line 1583 "ecmascript.c"
         break;
       case 58: /* relational_expression ::= relational_expression PREFIX shift_expression */
-#line 209 "ecmascript.lemon"
+#line 216 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_PREFIX, 2);
 }
-#line 1584 "ecmascript.c"
+#line 1590 "ecmascript.c"
         break;
       case 59: /* relational_expression ::= relational_expression SUFFIX shift_expression */
-#line 212 "ecmascript.lemon"
+#line 219 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SUFFIX, 2);
 }
-#line 1591 "ecmascript.c"
+#line 1597 "ecmascript.c"
         break;
       case 61: /* shift_expression ::= shift_expression SHIFTL additive_expression */
-#line 217 "ecmascript.lemon"
+#line 224 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SHIFTL, 2);
 }
-#line 1598 "ecmascript.c"
+#line 1604 "ecmascript.c"
         break;
       case 62: /* shift_expression ::= shift_expression SHIFTR additive_expression */
-#line 220 "ecmascript.lemon"
+#line 227 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SHIFTR, 2);
 }
-#line 1605 "ecmascript.c"
+#line 1611 "ecmascript.c"
         break;
       case 63: /* shift_expression ::= shift_expression SHIFTRR additive_expression */
-#line 223 "ecmascript.lemon"
+#line 230 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SHIFTRR, 2);
 }
-#line 1612 "ecmascript.c"
+#line 1618 "ecmascript.c"
         break;
       case 65: /* additive_expression ::= additive_expression PLUS multiplicative_expression */
       case 127: /* adjuster ::= adjuster PLUS adjust_expression */ yytestcase(yyruleno==127);
-#line 228 "ecmascript.lemon"
+#line 235 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_PLUS, 2);
 }
-#line 1620 "ecmascript.c"
+#line 1626 "ecmascript.c"
         break;
       case 66: /* additive_expression ::= additive_expression MINUS multiplicative_expression */
-#line 231 "ecmascript.lemon"
+#line 238 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MINUS, 2);
 }
-#line 1627 "ecmascript.c"
+#line 1633 "ecmascript.c"
         break;
       case 68: /* multiplicative_expression ::= multiplicative_expression STAR unary_expression */
       case 129: /* adjust_expression ::= adjust_match_expression STAR DECIMAL */ yytestcase(yyruleno==129);
-#line 236 "ecmascript.lemon"
+#line 243 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_STAR, 2);
 }
-#line 1635 "ecmascript.c"
+#line 1641 "ecmascript.c"
         break;
       case 69: /* multiplicative_expression ::= multiplicative_expression SLASH unary_expression */
-#line 239 "ecmascript.lemon"
+#line 246 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_SLASH, 2);
 }
-#line 1642 "ecmascript.c"
+#line 1648 "ecmascript.c"
         break;
       case 70: /* multiplicative_expression ::= multiplicative_expression MOD unary_expression */
-#line 242 "ecmascript.lemon"
+#line 249 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MOD, 2);
 }
-#line 1649 "ecmascript.c"
+#line 1655 "ecmascript.c"
         break;
       case 72: /* unary_expression ::= DELETE unary_expression */
-#line 247 "ecmascript.lemon"
+#line 254 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_DELETE, 1);
 }
-#line 1656 "ecmascript.c"
+#line 1662 "ecmascript.c"
         break;
       case 73: /* unary_expression ::= INCR unary_expression */
-#line 250 "ecmascript.lemon"
+#line 257 "ecmascript.lemon"
 {
   grn_ctx *ctx = efsi->ctx;
   grn_expr *e = (grn_expr *)(efsi->e);
@@ -1673,10 +1679,10 @@ static void yy_reduce(
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_INCR, 1);
   }
 }
-#line 1677 "ecmascript.c"
+#line 1683 "ecmascript.c"
         break;
       case 74: /* unary_expression ::= DECR unary_expression */
-#line 267 "ecmascript.lemon"
+#line 274 "ecmascript.lemon"
 {
   grn_ctx *ctx = efsi->ctx;
   grn_expr *e = (grn_expr *)(efsi->e);
@@ -1694,66 +1700,66 @@ static void yy_reduce(
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_DECR, 1);
   }
 }
-#line 1698 "ecmascript.c"
+#line 1704 "ecmascript.c"
         break;
       case 75: /* unary_expression ::= PLUS unary_expression */
-#line 284 "ecmascript.lemon"
+#line 291 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_PLUS, 1);
 }
-#line 1705 "ecmascript.c"
+#line 1711 "ecmascript.c"
         break;
       case 76: /* unary_expression ::= MINUS unary_expression */
-#line 287 "ecmascript.lemon"
+#line 294 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_MINUS, 1);
 }
-#line 1712 "ecmascript.c"
+#line 1718 "ecmascript.c"
         break;
       case 77: /* unary_expression ::= NOT unary_expression */
-#line 290 "ecmascript.lemon"
+#line 297 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_NOT, 1);
 }
-#line 1719 "ecmascript.c"
+#line 1725 "ecmascript.c"
         break;
       case 78: /* unary_expression ::= BITWISE_NOT unary_expression */
-#line 293 "ecmascript.lemon"
+#line 300 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_BITWISE_NOT, 1);
 }
-#line 1726 "ecmascript.c"
+#line 1732 "ecmascript.c"
         break;
       case 79: /* unary_expression ::= ADJUST unary_expression */
-#line 296 "ecmascript.lemon"
+#line 303 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_ADJUST, 1);
 }
-#line 1733 "ecmascript.c"
+#line 1739 "ecmascript.c"
         break;
       case 80: /* unary_expression ::= EXACT unary_expression */
-#line 299 "ecmascript.lemon"
+#line 306 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_EXACT, 1);
 }
-#line 1740 "ecmascript.c"
+#line 1746 "ecmascript.c"
         break;
       case 81: /* unary_expression ::= PARTIAL unary_expression */
-#line 302 "ecmascript.lemon"
+#line 309 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_PARTIAL, 1);
 }
-#line 1747 "ecmascript.c"
+#line 1753 "ecmascript.c"
         break;
       case 82: /* unary_expression ::= UNSPLIT unary_expression */
-#line 305 "ecmascript.lemon"
+#line 312 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_UNSPLIT, 1);
 }
-#line 1754 "ecmascript.c"
+#line 1760 "ecmascript.c"
         break;
       case 84: /* postfix_expression ::= lefthand_side_expression INCR */
-#line 310 "ecmascript.lemon"
+#line 317 "ecmascript.lemon"
 {
   grn_ctx *ctx = efsi->ctx;
   grn_expr *e = (grn_expr *)(efsi->e);
@@ -1771,10 +1777,10 @@ static void yy_reduce(
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_INCR_POST, 1);
   }
 }
-#line 1775 "ecmascript.c"
+#line 1781 "ecmascript.c"
         break;
       case 85: /* postfix_expression ::= lefthand_side_expression DECR */
-#line 327 "ecmascript.lemon"
+#line 334 "ecmascript.lemon"
 {
   grn_ctx *ctx = efsi->ctx;
   grn_expr *e = (grn_expr *)(efsi->e);
@@ -1792,51 +1798,51 @@ static void yy_reduce(
     grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_DECR_POST, 1);
   }
 }
-#line 1796 "ecmascript.c"
+#line 1802 "ecmascript.c"
         break;
       case 88: /* call_expression ::= member_expression arguments */
-#line 348 "ecmascript.lemon"
+#line 355 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_CALL, yymsp[0].minor.yy0);
 }
-#line 1803 "ecmascript.c"
+#line 1809 "ecmascript.c"
         break;
       case 113: /* member_expression_part ::= BRACKETL expression BRACKETR */
-#line 384 "ecmascript.lemon"
+#line 391 "ecmascript.lemon"
 {
   grn_expr_append_op(efsi->ctx, efsi->e, GRN_OP_GET_MEMBER, 2);
 }
-#line 1810 "ecmascript.c"
+#line 1816 "ecmascript.c"
         break;
       case 115: /* arguments ::= PARENL argument_list PARENR */
-#line 389 "ecmascript.lemon"
+#line 396 "ecmascript.lemon"
 { yygotominor.yy0 = yymsp[-1].minor.yy0; }
-#line 1815 "ecmascript.c"
+#line 1821 "ecmascript.c"
         break;
       case 116: /* argument_list ::= */
-#line 390 "ecmascript.lemon"
+#line 397 "ecmascript.lemon"
 { yygotominor.yy0 = 0; }
-#line 1820 "ecmascript.c"
+#line 1826 "ecmascript.c"
         break;
       case 117: /* argument_list ::= assignment_expression */
-#line 391 "ecmascript.lemon"
+#line 398 "ecmascript.lemon"
 { yygotominor.yy0 = 1; }
-#line 1825 "ecmascript.c"
+#line 1831 "ecmascript.c"
         break;
       case 118: /* argument_list ::= argument_list COMMA assignment_expression */
-#line 392 "ecmascript.lemon"
+#line 399 "ecmascript.lemon"
 { yygotominor.yy0 = yymsp[-2].minor.yy0 + 1; }
-#line 1830 "ecmascript.c"
+#line 1836 "ecmascript.c"
         break;
       case 119: /* output_columns ::= */
-#line 394 "ecmascript.lemon"
+#line 401 "ecmascript.lemon"
 {
   yygotominor.yy0 = 0;
 }
-#line 1837 "ecmascript.c"
+#line 1843 "ecmascript.c"
         break;
       case 120: /* output_columns ::= output_column */
-#line 397 "ecmascript.lemon"
+#line 404 "ecmascript.lemon"
 {
   if (yymsp[0].minor.yy0) {
     yygotominor.yy0 = 0;
@@ -1844,10 +1850,10 @@ static void yy_reduce(
     yygotominor.yy0 = 1;
   }
 }
-#line 1848 "ecmascript.c"
+#line 1854 "ecmascript.c"
         break;
       case 121: /* output_columns ::= output_columns COMMA output_column */
-#line 405 "ecmascript.lemon"
+#line 412 "ecmascript.lemon"
 {
   if (yymsp[0].minor.yy0) {
     yygotominor.yy0 = yymsp[-2].minor.yy0;
@@ -1858,10 +1864,10 @@ static void yy_reduce(
     yygotominor.yy0 = 1;
   }
 }
-#line 1862 "ecmascript.c"
+#line 1868 "ecmascript.c"
         break;
       case 122: /* output_column ::= STAR */
-#line 416 "ecmascript.lemon"
+#line 423 "ecmascript.lemon"
 {
   grn_ctx *ctx = efsi->ctx;
   grn_obj *expr = efsi->e;
@@ -1899,21 +1905,21 @@ static void yy_reduce(
     yygotominor.yy0 = GRN_TRUE;
   }
 }
-#line 1903 "ecmascript.c"
+#line 1909 "ecmascript.c"
         break;
       case 123: /* output_column ::= NONEXISTENT_COLUMN */
-#line 453 "ecmascript.lemon"
+#line 460 "ecmascript.lemon"
 {
   yygotominor.yy0 = GRN_TRUE;
 }
-#line 1910 "ecmascript.c"
+#line 1916 "ecmascript.c"
         break;
       case 124: /* output_column ::= assignment_expression */
-#line 456 "ecmascript.lemon"
+#line 463 "ecmascript.lemon"
 {
   yygotominor.yy0 = GRN_FALSE;
 }
-#line 1917 "ecmascript.c"
+#line 1923 "ecmascript.c"
         break;
       default:
       /* (0) input ::= query */ yytestcase(yyruleno==0);
@@ -2027,7 +2033,7 @@ static void yy_syntax_error(
 ){
   grn_expr_parserARG_FETCH;
 #define TOKEN (yyminor.yy0)
-#line 16 "ecmascript.lemon"
+#line 17 "ecmascript.lemon"
 
   {
     grn_ctx *ctx = efsi->ctx;
@@ -2049,7 +2055,7 @@ static void yy_syntax_error(
       GRN_OBJ_FIN(ctx, &message);
     }
   }
-#line 2053 "ecmascript.c"
+#line 2059 "ecmascript.c"
   grn_expr_parserARG_STORE; /* Suppress warning about unused %extra_argument variable */
 }
 

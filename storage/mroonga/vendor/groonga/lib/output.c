@@ -1411,6 +1411,7 @@ grn_output_obj(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type,
     break;
   case GRN_TABLE_HASH_KEY :
   case GRN_TABLE_PAT_KEY :
+  case GRN_TABLE_DAT_KEY :
   case GRN_TABLE_NO_KEY :
     grn_output_table(ctx, outbuf, output_type, obj, format);
     break;

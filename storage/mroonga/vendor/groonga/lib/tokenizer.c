@@ -1,6 +1,6 @@
 /* -*- c-basic-offset: 2 -*- */
 /*
-  Copyright(C) 2012 Brazil
+  Copyright(C) 2012-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -148,7 +148,7 @@ grn_tokenizer_query_open(grn_ctx *ctx, int num_args, grn_obj **args,
         return NULL;
       }
       grn_table_get_info(ctx, table, &table_flags, &table_encoding, NULL,
-                         &normalizer);
+                         &normalizer, NULL);
       {
         grn_obj *normalized_query;
         if (table_flags & GRN_OBJ_KEY_NORMALIZE) {
@@ -317,4 +317,60 @@ grn_tokenizer_register(grn_ctx *ctx, const char *plugin_name_ptr,
     }
   }
   return GRN_SUCCESS;
+}
+
+grn_obj *
+grn_token_get_data(grn_ctx *ctx, grn_token *token)
+{
+  GRN_API_ENTER;
+  if (!token) {
+    ERR(GRN_INVALID_ARGUMENT, "token must not be NULL");
+    GRN_API_RETURN(NULL);
+  }
+  GRN_API_RETURN(&(token->data));
+}
+
+grn_rc
+grn_token_set_data(grn_ctx *ctx,
+                   grn_token *token,
+                   const char *str_ptr,
+                   int str_length)
+{
+  GRN_API_ENTER;
+  if (!token) {
+    ERR(GRN_INVALID_ARGUMENT, "token must not be NULL");
+    goto exit;
+  }
+  if (str_length == -1) {
+    str_length = strlen(str_ptr);
+  }
+  GRN_TEXT_SET(ctx, &(token->data), str_ptr, str_length);
+exit:
+  GRN_API_RETURN(ctx->rc);
+}
+
+grn_tokenizer_status
+grn_token_get_status(grn_ctx *ctx, grn_token *token)
+{
+  GRN_API_ENTER;
+  if (!token) {
+    ERR(GRN_INVALID_ARGUMENT, "token must not be NULL");
+    GRN_API_RETURN(GRN_TOKENIZER_TOKEN_CONTINUE);
+  }
+  GRN_API_RETURN(token->status);
+}
+
+grn_rc
+grn_token_set_status(grn_ctx *ctx,
+                     grn_token *token,
+                     grn_tokenizer_status status)
+{
+  GRN_API_ENTER;
+  if (!token) {
+    ERR(GRN_INVALID_ARGUMENT, "token must not be NULL");
+    goto exit;
+  }
+  token->status = status;
+exit:
+  GRN_API_RETURN(ctx->rc);
 }

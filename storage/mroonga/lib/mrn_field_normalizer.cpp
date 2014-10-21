@@ -95,7 +95,7 @@ namespace mrn {
     grn_obj *normalizer = find_grn_normalizer();
     int flags = 0;
     grn_encoding original_encoding = GRN_CTX_GET_ENCODING(ctx_);
-    encoding::set(ctx_, field_->charset());
+    encoding::set_raw(ctx_, field_->charset());
     grn_obj *grn_string = grn_string_open(ctx_, string, string_length,
                                           normalizer, flags);
     GRN_CTX_SET_ENCODING(ctx_, original_encoding);

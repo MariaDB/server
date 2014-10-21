@@ -1102,6 +1102,12 @@ grn_parse_column_create_flags(grn_ctx *ctx, const char *nptr, const char *end)
     } else if (!memcmp(nptr, "COLUMN_INDEX", 12)) {
       flags |= GRN_OBJ_COLUMN_INDEX;
       nptr += 12;
+    } else if (!memcmp(nptr, "COMPRESS_ZLIB", 13)) {
+      flags |= GRN_OBJ_COMPRESS_ZLIB;
+      nptr += 13;
+    } else if (!memcmp(nptr, "COMPRESS_LZO", 12)) {
+      flags |= GRN_OBJ_COMPRESS_LZO;
+      nptr += 12;
     } else if (!memcmp(nptr, "WITH_SECTION", 12)) {
       flags |= GRN_OBJ_WITH_SECTION;
       nptr += 12;
@@ -1194,6 +1200,116 @@ grn_column_create_flags_to_text(grn_ctx *ctx, grn_obj *buf, grn_obj_flags flags)
   }
 }
 
+static grn_bool
+proc_table_create_set_token_filters_put(grn_ctx *ctx,
+                                        grn_obj *token_filters,
+                                        const char *token_filter_name,
+                                        int token_filter_name_length)
+{
+  grn_obj *token_filter;
+
+  token_filter = grn_ctx_get(ctx,
+                             token_filter_name,
+                             token_filter_name_length);
+  if (token_filter) {
+    GRN_PTR_PUT(ctx, token_filters, token_filter);
+    return GRN_TRUE;
+  } else {
+    ERR(GRN_INVALID_ARGUMENT,
+        "[table][create][token-filter] nonexistent token filter: <%.*s>",
+        token_filter_name_length, token_filter_name);
+    return GRN_FALSE;
+  }
+}
+
+static grn_bool
+proc_table_create_set_token_filters_fill(grn_ctx *ctx,
+                                         grn_obj *token_filters,
+                                         grn_obj *token_filter_names)
+{
+  const char *start, *current, *end;
+  const char *name_start, *name_end;
+  const char *last_name_end;
+
+  start = GRN_TEXT_VALUE(token_filter_names);
+  end = start + GRN_TEXT_LEN(token_filter_names);
+  current = start;
+  name_start = NULL;
+  name_end = NULL;
+  last_name_end = start;
+  while (current < end) {
+    switch (current[0]) {
+    case ' ' :
+      if (name_start && !name_end) {
+        name_end = current;
+      }
+      break;
+    case ',' :
+      if (!name_start) {
+        goto break_loop;
+      }
+      if (!name_end) {
+        name_end = current;
+      }
+      proc_table_create_set_token_filters_put(ctx,
+                                              token_filters,
+                                              name_start,
+                                              name_end - name_start);
+      last_name_end = name_end + 1;
+      name_start = NULL;
+      name_end = NULL;
+      break;
+    default :
+      if (!name_start) {
+        name_start = current;
+      }
+      break;
+    }
+    current++;
+  }
+
+break_loop:
+  if (!name_start) {
+    ERR(GRN_INVALID_ARGUMENT,
+        "[table][create][token-filter] empty token filter name: "
+        "<%.*s|%.*s|%.*s>",
+        (int)(last_name_end - start), start,
+        (int)(current - last_name_end), last_name_end,
+        (int)(end - current), current);
+    return GRN_FALSE;
+  }
+
+  if (!name_end) {
+    name_end = current;
+  }
+  proc_table_create_set_token_filters_put(ctx,
+                                          token_filters,
+                                          name_start,
+                                          name_end - name_start);
+
+  return GRN_TRUE;
+}
+
+static void
+proc_table_create_set_token_filters(grn_ctx *ctx,
+                                    grn_obj *table,
+                                    grn_obj *token_filter_names)
+{
+  grn_obj token_filters;
+
+  if (GRN_TEXT_LEN(token_filter_names) == 0) {
+    return;
+  }
+
+  GRN_PTR_INIT(&token_filters, GRN_OBJ_VECTOR, 0);
+  if (proc_table_create_set_token_filters_fill(ctx,
+                                               &token_filters,
+                                               token_filter_names)) {
+    grn_obj_set_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
+  }
+  grn_obj_unlink(ctx, &token_filters);
+}
+
 static grn_obj *
 proc_table_create(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
 {
@@ -1251,6 +1367,7 @@ proc_table_create(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_d
                                      GRN_TEXT_VALUE(normalizer_name),
                                      GRN_TEXT_LEN(normalizer_name)));
       }
+      proc_table_create_set_token_filters(ctx, table, VAR(6));
       grn_obj_unlink(ctx, table);
     }
   } else {
@@ -1316,9 +1433,104 @@ exit:
   return NULL;
 }
 
+static grn_rc
+proc_column_create_resolve_source_name(grn_ctx *ctx,
+                                       grn_obj *table,
+                                       const char *source_name,
+                                       int source_name_length,
+                                       grn_obj *source_ids)
+{
+  grn_obj *column;
+
+  column = grn_obj_column(ctx, table, source_name, source_name_length);
+  if (!column) {
+    ERR(GRN_INVALID_ARGUMENT,
+        "[column][create] nonexistent source: <%.*s>",
+        source_name_length, source_name);
+    return ctx->rc;
+  }
+
+  if (column->header.type == GRN_ACCESSOR) {
+    if (strncmp(source_name, "_key", source_name_length) == 0) {
+      grn_id source_id = grn_obj_id(ctx, table);
+      GRN_UINT32_PUT(ctx, source_ids, source_id);
+    } else {
+      ERR(GRN_INVALID_ARGUMENT,
+          "[column][create] pseudo column except <_key> is invalid: <%.*s>",
+          source_name_length, source_name);
+    }
+  } else {
+    grn_id source_id = grn_obj_id(ctx, column);
+    GRN_UINT32_PUT(ctx, source_ids, source_id);
+  }
+  grn_obj_unlink(ctx, column);
+
+  return ctx->rc;
+}
+
+static grn_rc
+proc_column_create_resolve_source_names(grn_ctx *ctx,
+                                        grn_obj *table,
+                                        grn_obj *source_names,
+                                        grn_obj *source_ids)
+{
+  int i, names_length;
+  int start, source_name_length;
+  const char *names;
+
+  names = GRN_TEXT_VALUE(source_names);
+  start = 0;
+  source_name_length = 0;
+  names_length = GRN_TEXT_LEN(source_names);
+  for (i = 0; i < names_length; i++) {
+    switch (names[i]) {
+    case ' ' :
+      if (source_name_length == 0) {
+        start++;
+      }
+      break;
+    case ',' :
+      {
+        grn_rc rc;
+        const char *source_name = names + start;
+        rc = proc_column_create_resolve_source_name(ctx,
+                                                    table,
+                                                    source_name,
+                                                    source_name_length,
+                                                    source_ids);
+        if (rc) {
+          return rc;
+        }
+        start = i + 1;
+        source_name_length = 0;
+      }
+      break;
+    default :
+      source_name_length++;
+      break;
+    }
+  }
+
+  if (source_name_length > 0) {
+    grn_rc rc;
+    const char *source_name = names + start;
+    rc = proc_column_create_resolve_source_name(ctx,
+                                                table,
+                                                source_name,
+                                                source_name_length,
+                                                source_ids);
+    if (rc) {
+      return rc;
+    }
+  }
+
+  return GRN_SUCCESS;
+}
+
 static grn_obj *
 proc_column_create(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
 {
+  grn_bool succeeded = GRN_TRUE;
   grn_obj *column, *table = NULL, *type = NULL;
   const char *rest;
   grn_obj_flags flags = grn_atoi(GRN_TEXT_VALUE(VAR(2)),
@@ -1326,13 +1538,17 @@ proc_column_create(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_
   if (GRN_TEXT_VALUE(VAR(2)) == rest) {
     flags = grn_parse_column_create_flags(ctx, GRN_TEXT_VALUE(VAR(2)),
                                           GRN_BULK_CURR(VAR(2)));
-    if (ctx->rc) { goto exit; }
+    if (ctx->rc) {
+      succeeded = GRN_FALSE;
+      goto exit;
+    }
   }
   table = grn_ctx_get(ctx, GRN_TEXT_VALUE(VAR(0)), GRN_TEXT_LEN(VAR(0)));
   if (!table) {
     ERR(GRN_INVALID_ARGUMENT,
         "[column][create] table doesn't exist: <%.*s>",
         (int)GRN_TEXT_LEN(VAR(0)), GRN_TEXT_VALUE(VAR(0)));
+    succeeded = GRN_FALSE;
     goto exit;
   }
   type = grn_ctx_get(ctx, GRN_TEXT_VALUE(VAR(3)),
@@ -1341,12 +1557,14 @@ proc_column_create(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_
     ERR(GRN_INVALID_ARGUMENT,
         "[column][create] type doesn't exist: <%.*s>",
         (int)GRN_TEXT_LEN(VAR(3)), GRN_TEXT_VALUE(VAR(3))) ;
+    succeeded = GRN_FALSE;
     goto exit;
   }
   if (GRN_TEXT_LEN(VAR(1))) {
     flags |= GRN_OBJ_PERSISTENT;
   } else {
     ERR(GRN_INVALID_ARGUMENT, "[column][create] name is missing");
+    succeeded = GRN_FALSE;
     goto exit;
   }
   column = grn_column_create(ctx, table,
@@ -1355,36 +1573,30 @@ proc_column_create(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_
                              NULL, flags, type);
   if (column) {
     if (GRN_TEXT_LEN(VAR(4))) {
-      grn_obj sources, source_ids, **p, **pe;
-      GRN_PTR_INIT(&sources, GRN_OBJ_VECTOR, GRN_ID_NIL);
+      grn_rc rc;
+      grn_obj source_ids;
       GRN_UINT32_INIT(&source_ids, GRN_OBJ_VECTOR);
-      grn_obj_columns(ctx, type,
-                      GRN_TEXT_VALUE(VAR(4)),
-                      GRN_TEXT_LEN(VAR(4)),
-                      &sources);
-      p = (grn_obj **)GRN_BULK_HEAD(&sources);
-      pe = (grn_obj **)GRN_BULK_CURR(&sources);
-      for (; p < pe; p++) {
-        grn_id source_id = grn_obj_id(ctx, *p);
-        if ((*p)->header.type == GRN_ACCESSOR) {
-          /* todo : if "_key" assigned */
-          source_id = grn_obj_id(ctx, type);
-        }
-        if (source_id) {
-          GRN_UINT32_PUT(ctx, &source_ids, source_id);
-        }
-        grn_obj_unlink(ctx, *p);
-      }
-      if (GRN_BULK_VSIZE(&source_ids)) {
+      rc = proc_column_create_resolve_source_names(ctx,
+                                                   type,
+                                                   VAR(4),
+                                                   &source_ids);
+      if (!rc && GRN_BULK_VSIZE(&source_ids)) {
         grn_obj_set_info(ctx, column, GRN_INFO_SOURCE, &source_ids);
+        rc = ctx->rc;
       }
       GRN_OBJ_FIN(ctx, &source_ids);
-      GRN_OBJ_FIN(ctx, &sources);
+      if (rc) {
+        grn_obj_remove(ctx, column);
+        succeeded = GRN_FALSE;
+        goto exit;
+      }
     }
     grn_obj_unlink(ctx, column);
+  } else {
+    succeeded = GRN_FALSE;
   }
 exit:
-  GRN_OUTPUT_BOOL(!ctx->rc);
+  GRN_OUTPUT_BOOL(succeeded);
   if (table) { grn_obj_unlink(ctx, table); }
   if (type) { grn_obj_unlink(ctx, type); }
   return NULL;
@@ -2544,6 +2756,26 @@ dump_table(grn_ctx *ctx, grn_obj *outbuf, grn_obj *table,
     GRN_TEXT_PUTS(ctx, outbuf, " --normalizer ");
     dump_obj_name(ctx, outbuf, normalizer);
   }
+  if (table->header.type != GRN_TABLE_NO_KEY) {
+    grn_obj token_filters;
+    int n_token_filters;
+
+    GRN_PTR_INIT(&token_filters, GRN_OBJ_VECTOR, GRN_ID_NIL);
+    grn_obj_get_info(ctx, table, GRN_INFO_TOKEN_FILTERS, &token_filters);
+    n_token_filters = GRN_BULK_VSIZE(&token_filters) / sizeof(grn_obj *);
+    if (n_token_filters > 0) {
+      int i;
+      GRN_TEXT_PUTS(ctx, outbuf, " --token_filters ");
+      for (i = 0; i < n_token_filters; i++) {
+        grn_obj *token_filter = GRN_PTR_VALUE_AT(&token_filters, i);
+        if (i > 0) {
+          GRN_TEXT_PUTC(ctx, outbuf, ',');
+        }
+        dump_obj_name(ctx, outbuf, token_filter);
+      }
+    }
+    GRN_OBJ_FIN(ctx, &token_filters);
+  }
 
   GRN_TEXT_PUTC(ctx, outbuf, '\n');
 
@@ -3274,17 +3506,18 @@ static void
 tokenize(grn_ctx *ctx, grn_hash *lexicon, grn_obj *string, grn_token_mode mode,
          unsigned int flags, grn_obj *tokens)
 {
-  grn_token *token;
+  grn_token_cursor *token_cursor;
 
-  token = grn_token_open(ctx, (grn_obj *)lexicon,
-                         GRN_TEXT_VALUE(string), GRN_TEXT_LEN(string),
-                         mode, flags);
-  if (!token) {
+  token_cursor =
+    grn_token_cursor_open(ctx, (grn_obj *)lexicon,
+                          GRN_TEXT_VALUE(string), GRN_TEXT_LEN(string),
+                          mode, flags);
+  if (!token_cursor) {
     return;
   }
 
-  while (token->status == GRN_TOKEN_DOING) {
-    grn_id token_id = grn_token_next(ctx, token);
+  while (token_cursor->status == GRN_TOKEN_DOING) {
+    grn_id token_id = grn_token_cursor_next(ctx, token_cursor);
     tokenize_token *current_token;
     if (token_id == GRN_ID_NIL) {
       continue;
@@ -3292,9 +3525,9 @@ tokenize(grn_ctx *ctx, grn_hash *lexicon, grn_obj *string, grn_token_mode mode,
     grn_bulk_space(ctx, tokens, sizeof(tokenize_token));
     current_token = ((tokenize_token *)(GRN_BULK_CURR(tokens))) - 1;
     current_token->id = token_id;
-    current_token->position = token->pos;
+    current_token->position = token_cursor->pos;
   }
-  grn_token_close(ctx, token);
+  grn_token_cursor_close(ctx, token_cursor);
 }
 
 static grn_obj *
@@ -3348,15 +3581,16 @@ proc_tokenize(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
       GRN_OBJ_FIN(ctx, &tokens);
     } else if (MODE_NAME_EQUAL("GET")) {
       {
-        grn_token *token;
-        token = grn_token_open(ctx, (grn_obj *)lexicon,
-                               GRN_TEXT_VALUE(string), GRN_TEXT_LEN(string),
-                               GRN_TOKEN_ADD, flags);
-        if (token) {
-          while (token->status == GRN_TOKEN_DOING) {
-            grn_token_next(ctx, token);
+        grn_token_cursor *token_cursor;
+        token_cursor =
+          grn_token_cursor_open(ctx, (grn_obj *)lexicon,
+                                GRN_TEXT_VALUE(string), GRN_TEXT_LEN(string),
+                                GRN_TOKEN_ADD, flags);
+        if (token_cursor) {
+          while (token_cursor->status == GRN_TOKEN_DOING) {
+            grn_token_cursor_next(ctx, token_cursor);
           }
-          grn_token_close(ctx, token);
+          grn_token_cursor_close(ctx, token_cursor);
         }
       }
 
@@ -5076,7 +5310,8 @@ grn_db_init_builtin_query(grn_ctx *ctx)
   DEF_VAR(vars[3], "value_type");
   DEF_VAR(vars[4], "default_tokenizer");
   DEF_VAR(vars[5], "normalizer");
-  DEF_COMMAND("table_create", proc_table_create, 6, vars);
+  DEF_VAR(vars[6], "token_filters");
+  DEF_COMMAND("table_create", proc_table_create, 7, vars);
 
   DEF_VAR(vars[0], "name");
   DEF_COMMAND("table_remove", proc_table_remove, 1, vars);

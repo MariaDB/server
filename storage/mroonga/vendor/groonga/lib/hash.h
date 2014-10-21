@@ -206,6 +206,7 @@ struct _grn_hash {
   uint32_t *max_offset;
   grn_obj *tokenizer;
   grn_obj *normalizer;
+  grn_obj token_filters;
 
   /* For grn_io_hash. */
   grn_io *io;

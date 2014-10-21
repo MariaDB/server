@@ -75,6 +75,7 @@ typedef struct {
 #if defined(WIN32) && defined(WIN32_FMO_EACH)
   HANDLE fmo;
 #endif /* defined(WIN32) && defined(WIN32_FMO_EACH) */
+  void *value;
 } grn_io_win;
 
 typedef struct {

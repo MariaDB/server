@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2009 Brazil
+/* Copyright(C) 2009-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -39,6 +39,7 @@ struct _grn_pat {
   uint32_t value_size;
   grn_obj *tokenizer;
   grn_obj *normalizer;
+  grn_obj token_filters;
   grn_id *cache;
   uint32_t cache_size;
 };

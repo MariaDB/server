@@ -1,6 +1,6 @@
-#!/bin/sh
+#!/bin/bash
 #
-# Copyright(C) 2012-2013 Kouhei Sutou <kou@clear-code.com>
+# Copyright(C) 2012-2014 Kouhei Sutou <kou@clear-code.com>
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,12 @@
 # set -x
 set -e
 
-if [ "$MRN_BUNDLED" = "yes" ]; then
-    cmake . -DWITH_DEBUG=1
+if [ "${MROONGA_BUNDLED}" = "yes" ]; then
+    cmake_args=(-DCMAKE_BUILD_TYPE=Debug)
+    if [ "${MROONGA_TEST_EMBEDDED}" = "yes" ]; then
+	cmake_args=("${cmake_args[@]}" "-DWITH_EMBEDDED_SERVER=TRUE")
+    fi
+    cmake . "${cmake_args[@]}"
 else
     ./autogen.sh
 

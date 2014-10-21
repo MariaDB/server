@@ -1,3 +1,4 @@
+/* -*- mode: c; c-basic-offset: 2 -*- */
 %name grn_expr_parser
 %token_prefix GRN_EXPR_TOKEN_
 %include {
@@ -73,6 +74,12 @@ query_element ::= IDENTIFIER RELATIVE_OP query_element. {
     {
       int max_interval;
       GRN_INT32_POP(&efsi->max_interval_stack, max_interval);
+    }
+    break;
+  case GRN_OP_SIMILAR :
+    {
+      int similarity_threshold;
+      GRN_INT32_POP(&efsi->similarity_threshold_stack, similarity_threshold);
     }
     break;
   default :

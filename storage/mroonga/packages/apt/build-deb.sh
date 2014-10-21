@@ -2,120 +2,77 @@
 
 LANG=C
 
-PACKAGE=$(cat /tmp/build-package)
-USER_NAME=$(cat /tmp/build-user)
-VERSION=$(cat /tmp/build-version)
-DEPENDED_PACKAGES=$(cat /tmp/depended-packages)
-BUILD_SCRIPT=/tmp/build-deb-in-chroot.sh
-
 mysql_server_package=mysql-server
 
 run()
 {
-    "$@"
-    if test $? -ne 0; then
-	echo "Failed $@"
-	exit 1
-    fi
+  "$@"
+  if test $? -ne 0; then
+    echo "Failed $@"
+    exit 1
+  fi
 }
+
+. /vagrant/tmp/env.sh
 
 grep '^deb ' /etc/apt/sources.list | \
     sed -e 's/^deb /deb-src /' > /etc/apt/sources.list.d/base-source.list
 
 run apt-get update
-run apt-get install -V -y lsb-release
-distribution=$(lsb_release --id --short)
+run apt-get install -y lsb-release
+
+distribution=$(lsb_release --id --short | tr 'A-Z' 'a-z')
 code_name=$(lsb_release --codename --short)
-
-groonga_list=/etc/apt/sources.list.d/groonga.list
-if [ ! -f "${groonga_list}" ]; then
-    case ${distribution} in
-	Debian)
-	    component=main
-	    if [ "$code_name" = "sid" ]; then
-		code_name=unstable
-	    fi
-	    ;;
-	Ubuntu)
-	    component=universe
-	    ;;
-    esac
-    downcased_distribtion=$(echo ${distribution} | tr A-Z a-z)
-    run cat <<EOF | run tee ${groonga_list}
-deb http://packages.groonga.org/${downcased_distribtion}/ ${code_name} ${component}
-deb-src http://packages.groonga.org/${downcased_distribtion}/ ${code_name} ${component}
+case "${distribution}" in
+  debian)
+    component=main
+    run cat <<EOF > /etc/apt/sources.list.d/groonga.list
+deb http://packages.groonga.org/debian/ wheezy main
+deb-src http://packages.groonga.org/debian/ wheezy main
 EOF
-    apt-get update
-    run apt-get -V -y --allow-unauthenticated install groonga-keyring
-fi
-
-run apt-get update
-run apt-get upgrade -V -y
-
-security_list=/etc/apt/sources.list.d/security.list
-if [ ! -f "${security_list}" ]; then
-    run apt-get install -V -y lsb-release
-
-    case ${distribution} in
-	Debian)
-	    if [ "${code_name}" = "sid" ]; then
-		touch "${security_list}"
-	    else
-		cat <<EOF > "${security_list}"
+    if ! grep --quiet security /etc/apt/sources.list; then
+      run cat <<EOF > /etc/apt/sources.list.d/security.list
 deb http://security.debian.org/ ${code_name}/updates main
 deb-src http://security.debian.org/ ${code_name}/updates main
 EOF
-	    fi
-	    ;;
-	Ubuntu)
-	    cat <<EOF > "${security_list}"
+    fi
+    run apt-get update
+    run apt-get install -y --allow-unauthenticated groonga-keyring
+    run apt-get update
+    ;;
+  ubuntu)
+    component=universe
+    run cat <<EOF > /etc/apt/sources.list.d/security.list
 deb http://security.ubuntu.com/ubuntu ${code_name}-security main restricted
 deb-src http://security.ubuntu.com/ubuntu ${code_name}-security main restricted
 EOF
-	    ;;
-    esac
-
+    run sed -e 's/main/universe/' /etc/apt/sources.list > \
+      /etc/apt/sources.list.d/universe.list
+    run apt-get -y install software-properties-common
+    run add-apt-repository -y universe
+    run add-apt-repository -y ppa:groonga/ppa
     run apt-get update
-    run apt-get upgrade -V -y
-fi
+    ;;
+esac
 
-universe_list=/etc/apt/sources.list.d/universe.list
-if [ ! -f "$universe_list}" ]; then
-    case ${distribution} in
-	Ubuntu)
-	    sed -e 's/main/universe/' /etc/apt/sources.list > ${universe_list}
-	    run apt-get update
-	    ;;
-    esac
-fi
-
-run apt-get install -V -y devscripts ${DEPENDED_PACKAGES}
+run apt-get install -V -y build-essential devscripts ${DEPENDED_PACKAGES}
 run apt-get build-dep -y ${mysql_server_package}
-run apt-get clean
 
-if ! id $USER_NAME >/dev/null 2>&1; then
-    run useradd -m $USER_NAME
-fi
+run mkdir -p build
+run cp /vagrant/tmp/${PACKAGE}-${VERSION}.tar.gz \
+  build/${PACKAGE}_${VERSION}.orig.tar.gz
+run cd build
+run tar xfz ${PACKAGE}_${VERSION}.orig.tar.gz
+run cd ${PACKAGE}-${VERSION}/
+run cp -rp /vagrant/tmp/debian debian
+# export DEB_BUILD_OPTIONS=noopt
+MYSQL_PACKAGE_INFO=$(apt-cache show mysql-server | grep Version | sort | tail -1)
+MYSQL_PACKAGE_VERSION=${MYSQL_PACKAGE_INFO##Version: }
+sed -i "s/MYSQL_VERSION/$MYSQL_PACKAGE_VERSION/" debian/control
+run debuild -us -uc
+run cd -
 
-cat <<EOF > $BUILD_SCRIPT
-#!/bin/sh
-
-rm -rf build
-mkdir -p build
-
-cp /tmp/${PACKAGE}-${VERSION}.tar.gz build/${PACKAGE}_${VERSION}.orig.tar.gz
-
-cd build
-
-tar xfz ${PACKAGE}_${VERSION}.orig.tar.gz
-cd ${PACKAGE}-${VERSION}/
-cp -rp /tmp/${PACKAGE}-debian debian
-# export DEB_BUILD_OPTIONS="noopt nostrip"
-MYSQL_PACKAGE_INFO=\$(apt-cache show mysql-server | grep Version | sort | tail -1)
-MYSQL_PACKAGE_VERSION=\${MYSQL_PACKAGE_INFO##Version: }
-sed -i "s/MYSQL_VERSION/\$MYSQL_PACKAGE_VERSION/" debian/control
-debuild -us -uc
-EOF
-
-run chmod +x $BUILD_SCRIPT
-run su - $USER_NAME $BUILD_SCRIPT
+package_initial=$(echo "${PACKAGE}" | sed -e 's/\(.\).*/\1/')
+pool_dir="/vagrant/repositories/${distribution}/pool/${code_name}/${component}/${package_initial}/${PACKAGE}"
+run mkdir -p "${pool_dir}/"
+run cp *.tar.gz *.dsc *.deb "${pool_dir}/"

@@ -2,114 +2,50 @@
 
 LANG=C
 
-PACKAGE=$(cat /tmp/build-package)
-USER_NAME=$(cat /tmp/build-user)
-VERSION=$(cat /tmp/build-version)
-DEPENDED_PACKAGES=$(cat /tmp/depended-packages)
-BUILD_SCRIPT=/tmp/build-deb-in-chroot.sh
-
 run()
 {
-    "$@"
-    if test $? -ne 0; then
-	echo "Failed $@"
-	exit 1
-    fi
+  "$@"
+  if test $? -ne 0; then
+    echo "Failed $@"
+    exit 1
+  fi
 }
 
-if [ ! -x /usr/bin/lsb_release ]; then
-    run apt-get update
-    run apt-get install -y lsb-release
-fi
+. /vagrant/tmp/env.sh
 
-distribution=$(lsb_release --id --short)
+swap_file=/tmp/swap
+run sudo dd if=/dev/zero of="$swap_file" bs=1024 count=4096K
+run sudo mkswap "$swap_file"
+run sudo swapon "$swap_file"
+
+run sudo apt-get update
+run sudo apt-get install -y lsb-release
+
+distribution=$(lsb_release --id --short | tr 'A-Z' 'a-z')
 code_name=$(lsb_release --codename --short)
-
-security_list=/etc/apt/sources.list.d/security.list
-if [ ! -f "${security_list}" ]; then
-    case ${distribution} in
-	Debian)
-	    if [ "${code_name}" = "sid" ]; then
-		touch "${security_list}"
-	    else
-		cat <<EOF > "${security_list}"
-deb http://security.debian.org/ ${code_name}/updates main
-deb-src http://security.debian.org/ ${code_name}/updates main
-EOF
-	    fi
-	    ;;
-	Ubuntu)
-	    cat <<EOF > "${security_list}"
-deb http://security.ubuntu.com/ubuntu ${code_name}-security main restricted
-deb-src http://security.ubuntu.com/ubuntu ${code_name}-security main restricted
-EOF
-	    ;;
-    esac
-fi
-
-sources_list=/etc/apt/sources.list
-if [ "$distribution" = "Ubuntu" ] && \
-    ! (grep '^deb' $sources_list | grep -q universe); then
-    run sed -i'' -e 's/main$/main universe/g' $sources_list
-fi
-
-if [ ! -x /usr/bin/aptitude ]; then
-    run apt-get update
-    run apt-get install -y aptitude
-fi
-run aptitude update -V -D
-run aptitude safe-upgrade -V -D -y
-
-run aptitude install -V -D -y ruby
-
-if aptitude show libmsgpack-dev > /dev/null 2>&1; then
-    DEPENDED_PACKAGES="${DEPENDED_PACKAGES} libmsgpack-dev"
-else
-    ruby -i'' -ne 'print $_ unless /libmsgpack/' /tmp/${PACKAGE}-debian/control
-fi
-
-case $(lsb_release -s -c) in
-    jessie|sid)
-	DEPENDED_PACKAGES="${DEPENDED_PACKAGES} libzmq3-dev"
-	;;
-    *)
-	DEPENDED_PACKAGES="${DEPENDED_PACKAGES} libzmq-dev"
-	;;
+case "${distribution}" in
+  debian)
+    component=main
+    ;;
+  ubuntu)
+    component=universe
+    ;;
 esac
 
-if aptitude show libevent-dev > /dev/null 2>&1; then
-    DEPENDED_PACKAGES="${DEPENDED_PACKAGES} libevent-dev"
-else
-    ruby -i'' -ne 'print $_ unless /libevent/' /tmp/${PACKAGE}-debian/control
-fi
+run sudo apt-get install -V -y build-essential devscripts ${DEPENDED_PACKAGES}
 
-if aptitude show liblzo2-dev > /dev/null 2>&1; then
-    DEPENDED_PACKAGES="${DEPENDED_PACKAGES} liblzo2-dev"
-else
-    ruby -i'' -ne 'print $_ unless /liblzo2-dev/' /tmp/${PACKAGE}-debian/control
-fi
-
-run aptitude install -V -D -y devscripts ${DEPENDED_PACKAGES}
-run aptitude clean
-
-if ! id $USER_NAME >/dev/null 2>&1; then
-    run useradd -m $USER_NAME
-fi
-
-cat <<EOF > $BUILD_SCRIPT
-#!/bin/sh
-
-rm -rf build
-mkdir -p build
-
-cp /tmp/${PACKAGE}-${VERSION}.tar.gz build/${PACKAGE}_${VERSION}.orig.tar.gz
-cd build
-tar xfz ${PACKAGE}_${VERSION}.orig.tar.gz
-cd ${PACKAGE}-${VERSION}/
-cp -rp /tmp/${PACKAGE}-debian debian
+run mkdir -p build
+run cp /vagrant/tmp/${PACKAGE}-${VERSION}.tar.gz \
+  build/${PACKAGE}_${VERSION}.orig.tar.gz
+run cd build
+run tar xfz ${PACKAGE}_${VERSION}.orig.tar.gz
+run cd ${PACKAGE}-${VERSION}/
+run cp -rp /vagrant/tmp/debian debian
 # export DEB_BUILD_OPTIONS=noopt
-debuild -us -uc
-EOF
+run debuild -us -uc
+run cd -
 
-run chmod +x $BUILD_SCRIPT
-run su - $USER_NAME $BUILD_SCRIPT
+package_initial=$(echo "${PACKAGE}" | sed -e 's/\(.\).*/\1/')
+pool_dir="/vagrant/repositories/${distribution}/pool/${code_name}/${component}/${package_initial}/${PACKAGE}"
+run mkdir -p "${pool_dir}/"
+run cp *.tar.gz *.dsc *.deb "${pool_dir}/"

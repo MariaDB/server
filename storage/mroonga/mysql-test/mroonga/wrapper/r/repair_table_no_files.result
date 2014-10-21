@@ -25,7 +25,7 @@ id	title	body
 2	groonga (1)	starting groonga...
 FLUSH TABLES;
 SELECT * FROM diaries WHERE MATCH(body) AGAINST("starting");
-ERROR HY000: syscall error 'repair_test.mrn' (No such file or directory)
+ERROR HY000: mroonga: failed to open table: <diaries>
 REPAIR TABLE diaries;
 Table	Op	Msg_type	Msg_text
 repair_test.diaries	repair	status	OK

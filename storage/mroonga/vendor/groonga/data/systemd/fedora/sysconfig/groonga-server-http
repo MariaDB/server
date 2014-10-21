@@ -6,4 +6,3 @@ QUERY_LOG_PATH=/var/log/groonga/query-http.log
 PROTOCOL=http
 PORT=10041
 GRN_QUERY_EXPANDER_TSV_SYNONYMS_FILE=/usr/share/groonga/synonyms.tsv
-#GRN_JA_SKIP_SAME_VALUE_PUT=yes

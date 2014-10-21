@@ -1,5 +1,5 @@
 /* -*- c-basic-offset: 2 -*- */
-/* Copyright(C) 2011 Brazil
+/* Copyright(C) 2011-2014 Brazil
 
   This library is free software; you can redistribute it and/or
   modify it under the terms of the GNU Lesser General Public
@@ -37,6 +37,7 @@ struct _grn_dat {
   void *old_trie;
   grn_obj *tokenizer;
   grn_obj *normalizer;
+  grn_obj token_filters;
   grn_critical_section lock;
 };
 

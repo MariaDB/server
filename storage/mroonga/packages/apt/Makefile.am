@@ -2,7 +2,7 @@ REPOSITORIES_PATH = repositories
 DISTRIBUTIONS = debian
 CHROOT_BASE = /var/lib/chroot
 ARCHITECTURES = i386 amd64
-CODES = wheezy jessie unstable
+CODE_NAMES = wheezy
 
 all:
 
@@ -21,14 +21,14 @@ download:
 	done
 
 sign-packages:
-	./sign-packages.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODES)'
+	./sign-packages.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODE_NAMES)'
 
 update-repository:
 	./update-repository.sh '$(PACKAGE_NAME)' '$(REPOSITORIES_PATH)/' \
-	  '$(ARCHITECTURES)' '$(CODES)'
+	  '$(ARCHITECTURES)' '$(CODE_NAMES)'
 
 sign-repository:
-	./sign-repository.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODES)'
+	./sign-repository.sh '$(GPG_UID)' '$(REPOSITORIES_PATH)/' '$(CODE_NAMES)'
 
 ensure-rsync-path:
 	@if test -z "$(RSYNC_PATH)"; then				\
@@ -44,12 +44,25 @@ upload: ensure-rsync-path
 	  );						\
 	done
 
-build: source
-	./build-in-chroot.sh \
-	  $(PACKAGE) $(VERSION) $(srcdir)/.. $(REPOSITORIES_PATH)/ \
-	  $(CHROOT_BASE) '$(ARCHITECTURES)' '$(CODES)'
+build: build-package-deb
 
-source: ../$(PACKAGE)-$(VERSION).tar.gz
+build-package-deb: prepare-build-package-deb
+	vagrant destroy --force
+	for architecture in $(ARCHITECTURES); do		\
+	  for code_name in $(CODE_NAMES); do			\
+	    id=debian-$$code_name-$$architecture;		\
+	    vagrant up $$id || exit 1;				\
+	    vagrant destroy --force $$id;			\
+	  done;							\
+	done
 
-../$(PACKAGE)-$(VERSION).tar.gz:
-	ln -s $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz ../
+prepare-build-package-deb: source env.sh
+	cp env.sh tmp/
+	rm -rf tmp/debian
+	cp -rp $(srcdir)/../debian tmp/
+
+source: tmp/$(PACKAGE)-$(VERSION).tar.gz
+
+tmp/$(PACKAGE)-$(VERSION).tar.gz: $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz
+	mkdir -p tmp
+	cp $(abs_top_builddir)/$(PACKAGE)-$(VERSION).tar.gz $@

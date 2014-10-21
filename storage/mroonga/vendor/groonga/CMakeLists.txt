@@ -1,4 +1,4 @@
-# Copyright(C) 2012-2013 Brazil
+# Copyright(C) 2012-2014 Brazil
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -97,32 +97,22 @@ set(GRN_RUBY_SCRIPTS_DIR
   "${CMAKE_INSTALL_PREFIX}/${GRN_RELATIVE_RUBY_SCRIPTS_DIR}")
 
 macro(check_cflag flag)
-  set(checking_message "checking for C flag '${flag}'")
   string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
   string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
   set(temporary_variable_name "CFLAG${temporary_variable_name}")
-#  unset(${temporary_variable_name})
   check_c_compiler_flag(${flag} ${temporary_variable_name})
   if(${temporary_variable_name})
-    message(STATUS "${checking_message} - available")
     set(GRN_C_COMPILE_FLAGS "${GRN_C_COMPILE_FLAGS} ${flag}")
-  else()
-    message(STATUS "${checking_message} - not available")
   endif()
 endmacro()
 
 macro(check_cxxflag flag)
-  set(checking_message "checking for CXX flag '${flag}'")
   string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
   string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
   set(temporary_variable_name "CXXFLAG${temporary_variable_name}")
-#  unset(${temporary_variable_name})
   check_cxx_compiler_flag(${flag} ${temporary_variable_name})
   if(${temporary_variable_name})
-    message(STATUS "${checking_message} - available")
     set(GRN_CXX_COMPILE_FLAGS "${GRN_CXX_COMPILE_FLAGS} ${flag}")
-  else()
-    message(STATUS "${checking_message} - not available")
   endif()
 endmacro()
 
@@ -187,21 +177,18 @@ macro(ac_check_headers header)
   string(REGEX REPLACE "[/.]" "_" output_variable_name ${header})
   string(TOUPPER "${output_variable_name}" output_variable_name)
   set(output_variable_name "HAVE_${output_variable_name}")
-#  unset(${output_variable_name})
   check_include_file(${header} ${output_variable_name})
 endmacro()
 
 macro(ac_check_funcs function)
   string(TOUPPER "${function}" output_variable_name)
   set(output_variable_name "HAVE_${output_variable_name}")
-#  unset(${output_variable_name})
   check_function_exists(${function} ${output_variable_name})
 endmacro()
 
 macro(ac_check_symbols symbol files)
   string(TOUPPER "${symbol}" output_variable_name)
   set(output_variable_name "HAVE_${output_variable_name}")
-#  unset(${output_variable_name})
   check_symbol_exists(${symbol} ${files} ${output_variable_name})
 endmacro()
 
@@ -210,7 +197,6 @@ macro(ac_check_lib library function)
   string(TOUPPER "${output_variable_base_name}" output_variable_base_name)
   set(output_variable_name "HAVE_LIB${output_variable_base_name}")
   set(location "${ARG2}")
-#  unset(${output_variable_name})
   check_library_exists(${library} ${function} "${location}"
     ${output_variable_name})
   if(${output_variable_name})
@@ -332,15 +318,15 @@ endif()
 set(GRN_WITH_MECAB "auto"
   CACHE STRING "use MeCab for morphological analysis")
 if(NOT ${GRN_WITH_MECAB} STREQUAL "no")
-  set(MECAB_CONFIG "mecab-config" CACHE FILEPATH "mecab-config path")
+  set(GRN_MECAB_CONFIG "mecab-config" CACHE FILEPATH "mecab-config path")
   if(NOT CMAKE_CROSSCOMPILING)
-    find_program(MECAB_CONFIG_ABSOLUTE_PATH "${MECAB_CONFIG}")
+    find_program(GRN_MECAB_CONFIG_ABSOLUTE_PATH "${GRN_MECAB_CONFIG}")
   endif()
-  if(EXISTS "${MECAB_CONFIG_ABSOLUTE_PATH}")
-    execute_process(COMMAND "${MECAB_CONFIG_ABSOLUTE_PATH}" --inc-dir
+  if(EXISTS "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}")
+    execute_process(COMMAND "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}" --inc-dir
       OUTPUT_VARIABLE MECAB_INCLUDE_DIRS
       OUTPUT_STRIP_TRAILING_WHITESPACE)
-    execute_process(COMMAND "${MECAB_CONFIG_ABSOLUTE_PATH}" --libs-only-L
+    execute_process(COMMAND "${GRN_MECAB_CONFIG_ABSOLUTE_PATH}" --libs-only-L
       OUTPUT_VARIABLE MECAB_LIBRARY_DIRS
       OUTPUT_STRIP_TRAILING_WHITESPACE)
     set(MECAB_LIBRARIES "mecab")
@@ -358,7 +344,7 @@ if(NOT ${GRN_WITH_MECAB} STREQUAL "no")
     endif()
   else()
     if(${GRN_WITH_MECAB} STREQUAL "yes")
-      message(FATAL_ERROR "No mecab-config found: <${MECAB_CONFIG}>")
+      message(FATAL_ERROR "No mecab-config found: <${GRN_MECAB_CONFIG}>")
     endif()
     set(GRN_WITH_MECAB FALSE)
   endif()

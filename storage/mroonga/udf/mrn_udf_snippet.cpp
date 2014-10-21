@@ -69,7 +69,7 @@ static my_bool mrn_snippet_prepare(st_mrn_snip_info *snip_info, UDF_ARGS *args,
       goto error;
     }
   }
-  if (!mrn::encoding::set(ctx, cs)) {
+  if (!mrn::encoding::set_raw(ctx, cs)) {
     snprintf(message, MYSQL_ERRMSG_SIZE,
              "Unsupported charset: <%s>", cs->name);
     goto error;

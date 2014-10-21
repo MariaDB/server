@@ -123,7 +123,7 @@ module Groonga
         put_logical_op(@operator, n_codes)
       end
 
-      @data_list
+      optimize
     end
 
     private
@@ -238,6 +238,110 @@ module Groonga
           raise GRN_INVALID_ARGUMENT.new("unmatched nesting level")
         end
       end
+    end
+
+    def optimize
+      optimized_data_list = []
+      i = 0
+      n = @data_list.size
+      while i < n
+        data = @data_list[i]
+        next_data = @data_list[i + 1]
+        i += 1
+        if next_data.nil?
+          optimized_data_list << data
+          next
+        end
+        if range_operations?(data, next_data)
+          between_data = create_between_data(data, next_data)
+          optimized_data_list << between_data
+          i += 1
+          next
+        end
+        optimized_data_list << data
+      end
+      optimized_data_list
+    end
+
+    def range_operations?(data, next_data)
+      return false unless next_data.logical_op == Operator::AND
+
+      op, next_op = data.op, next_data.op
+      return false if !(lower_condition?(op) or lower_condition?(next_op))
+      return false if !(upper_condition?(op) or upper_condition?(next_op))
+
+      return false if data.args[0] != next_data.args[0]
+
+      data_indexes = data.indexes
+      return false if data_indexes.empty?
+
+      data_indexes == next_data.indexes
+    end
+
+    def lower_condition?(operator)
+      case operator
+      when Operator::GREATER, Operator::GREATER_EQUAL
+        true
+      else
+        false
+      end
+    end
+
+    def upper_condition?(operator)
+      case operator
+      when Operator::LESS, Operator::LESS_EQUAL
+        true
+      else
+        false
+      end
+    end
+
+    def create_between_data(data, next_data)
+      between_data = ScanInfoData.new(data.start)
+      between_data.end = next_data.end + 1
+      between_data.flags = data.flags
+      between_data.op = Operator::CALL
+      between_data.logical_op = data.logical_op
+      between_data.args = create_between_data_args(data, next_data)
+      between_data.indexes = data.indexes
+      between_data
+    end
+
+    def create_between_data_args(data, next_data)
+      between = Context.instance["between"]
+      @expression.take_object(between)
+      column = data.args[0]
+      op, next_op = data.op, next_data.op
+      if lower_condition?(op)
+        min = data.args[1]
+        min_operator = op
+        max = next_data.args[1]
+        max_operator = next_op
+      else
+        min = next_data.args[1]
+        min_operator = next_op
+        max = data.args[1]
+        max_operator = op
+      end
+      if min_operator == Operator::GREATER
+        min_border = "exclude"
+      else
+        min_border = "include"
+      end
+      if max_operator == Operator::LESS
+        max_border = "exclude"
+      else
+        max_border = "include"
+      end
+
+      [
+        between,
+        column,
+        min,
+        @expression.allocate_constant(min_border),
+        max,
+        @expression.allocate_constant(max_border),
+      ]
     end
   end
 end
