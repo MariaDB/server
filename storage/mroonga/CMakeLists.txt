@@ -20,6 +20,13 @@
 cmake_minimum_required(VERSION 2.6)
 project(mroonga)
 
+include(TestBigEndian)
+test_big_endian(BIG_ENDIAN)
+if(BIG_ENDIAN)
+  message(STATUS "Mroonga is not supported on big-endian")
+  return()
+endif()
+
 if(MSVC)
   if(MSVC_VERSION LESS 1600)
     message(STATUS "Mroonga supports only MSVC 2010 or later")
