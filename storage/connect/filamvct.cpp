@@ -387,15 +387,20 @@ bool VCTFAM::MakeEmptyFile(PGLOBAL g, char *fn)
 
   n = (Header == 1 || Header == 3) ? sizeof(VECHEADER) : 0;
 
-  if (lseek(h, n + MaxBlk * Nrec * Lrecl - 1, SEEK_SET) == -1) {
-    sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
-    close(h);
-    return true;
-    } // endif h
+  if (lseek(h, n + MaxBlk * Nrec * Lrecl - 1, SEEK_SET) < 0)
+    goto err;
 
-  write(h, &c, 1);     // This actually fills the empty file
+  // This actually fills the empty file
+  if (write(h, &c, 1) < 0)     
+    goto err;
+
   close(h);
   return false;
+  
+ err:
+  sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
+  close(h);
+  return true;
   } // end of MakeEmptyFile
 
 /***********************************************************************/
@@ -3392,15 +3397,20 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, char *fn)
     htrc("MEF: pos=%lld n=%d maxblk=%d blksize=%d\n",
                pos, n, MaxBlk, Blksize);
 
-  if (lseek64(h, pos, SEEK_SET) < 0) {
-    sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
-    close(h);
-    return true;
-    } // endif h
+  if (lseek64(h, pos, SEEK_SET) < 0)
+    goto err;
 
-  write(h, &c, 1);     // This actually fills the empty file
+  // This actually fills the empty file
+  if (write(h, &c, 1) < 0)
+    goto err;
+       
   close(h);
   return false;
+  
+ err:
+  sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
+  close(h);
+  return true;
 #endif  // !WIN32
   } // end of MakeEmptyFile
 

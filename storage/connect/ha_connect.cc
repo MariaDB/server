@@ -207,17 +207,18 @@ static my_bool indx_map= 0;
 /*  Utility functions.                                                 */
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
-void PushWarning(PGLOBAL g, THD *thd, int level);
-bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
-                   const char *db, char *tab, const char *src, int port);
-
+void    PushWarning(PGLOBAL g, THD *thd, int level);
+bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
+                  const char *db, char *tab, const char *src, int port);
+bool    ExactInfo(void);
+USETEMP UseTemp(void);
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 
 static handler *connect_create_handler(handlerton *hton,
-                                   TABLE_SHARE *table,
-                                   MEM_ROOT *mem_root);
+                                       TABLE_SHARE *table,
+                                       MEM_ROOT *mem_root);
 
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
