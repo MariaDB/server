@@ -755,10 +755,7 @@ fil_node_open_file(
 	ut_ad(mutex_own(&(system->mutex)));
 	ut_a(node->n_pending == 0);
 	ut_a(node->open == FALSE);
-	if (strcmp(node->name,"test/b")==0) {
-		fprintf(stderr,"file access: %s", node->name);
-		fflush(stderr);
-	}
+
 	if (node->size == 0) {
 		/* It must be a single-table tablespace and we do not know the
 		size of the file yet. First we open the file in the normal
@@ -2624,7 +2621,7 @@ static
 ulint
 fil_check_pending_io(
 /*=================*/
-	fil_space_t*	space,	/*!< in/out: Tablespace to chemismatchck */
+	fil_space_t*	space,	/*!< in/out: Tablespace to check */
 	fil_node_t**	node,	/*!< out: Node in space list */
 	ulint		count)	/*!< in: number of attempts so far */
 {

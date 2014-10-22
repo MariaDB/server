@@ -33,8 +33,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include <my_aes.h>
 #include <KeySingleton.h>
 
-//#define UNIV_PAGEENCRIPTION_DEBUG
-//#define CRYPT_FF
 
 /* calculate a 3 byte checksum to verify decryption. One byte is currently needed for other things */
 ulint fil_page_encryption_calc_checksum(unsigned char* buf) {
@@ -186,7 +184,6 @@ ulint mode
 					(const unsigned char *)&iv,
 					iv_len);
 			ut_ad(write_size == 64);
-			//AES_cbc_encrypt((uchar*)out_buf + UNIV_PAGE_SIZE -FIL_PAGE_DATA_END -62, tmp_buf, 63, &aeskey, iv, AES_ENCRYPT);
 			/* copy 62 bytes from 2nd encryption to out_buf, last 2 bytes are copied later to a header field*/
 			memcpy(out_buf + UNIV_PAGE_SIZE - FIL_PAGE_DATA_END -62, tmp_buf, 62);
 
