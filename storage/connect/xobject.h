@@ -141,8 +141,7 @@ class DllExport STRING : public BLOCK {
   inline void   Trim(void) {(void)Resize(Length + 1);}
   inline void   Chop(void) {if (Length) Strp[--Length] = 0;}
   inline void   RepLast(char c) {if (Length) Strp[Length-1] = c;}
-  inline void   Truncate(uint n) {if (n >= 0 && n < Length)
-                                    {Strp[n] = 0; Length = n;}}
+  inline void   Truncate(uint n) {if (n < Length) {Strp[n] = 0; Length = n;}}
 
  protected:
          char  *Realloc(uint len);

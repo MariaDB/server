@@ -172,7 +172,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       } // endif b
 
     if (trace)
-      htrc("MyColumns: cmd='%s'\n", cmd);
+      htrc("MyColumns: cmd='%s'\n", cmd.GetStr());
 
     if ((n = myc.GetResultSize(g, cmd.GetStr())) < 0) {
       myc.Close();
