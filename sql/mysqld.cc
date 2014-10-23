@@ -3682,9 +3682,6 @@ static bool init_global_datetime_format(timestamp_type format_type,
   }
   return false;
 }
-//#ifndef SHOW_LONG_STATUS
-//#define SHOW_LONG_STATUS 15
-//#endif
 
 
 
