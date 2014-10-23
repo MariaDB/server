@@ -283,7 +283,7 @@ static int test_plugin_options(MEM_ROOT *, struct st_plugin_int *,
 static bool register_builtin(struct st_maria_plugin *, struct st_plugin_int *,
                              struct st_plugin_int **);
 static void unlock_variables(THD *thd, struct system_variables *vars);
-static void cleanup_variables(THD *thd, struct system_variables *vars);
+static void cleanup_variables(struct system_variables *vars);
 static void plugin_vars_free_values(sys_var *vars);
 static void restore_ptr_backup(uint n, st_ptr_backup *backup);
 static plugin_ref intern_plugin_lock(LEX *lex, plugin_ref plugin);
@@ -1947,8 +1947,8 @@ void plugin_shutdown(void)
       Now we can deallocate all memory.
     */
 
-    cleanup_variables(NULL, &global_system_variables);
-    cleanup_variables(NULL, &max_system_variables);
+    cleanup_variables(&global_system_variables);
+    cleanup_variables(&max_system_variables);
     mysql_mutex_unlock(&LOCK_plugin);
 
     initialized= 0;
@@ -2968,11 +2968,10 @@ static uchar *intern_sys_var_ptr(THD* thd, int offset, bool global_lock)
       if ((pi->plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_STR &&
           pi->plugin_var->flags & PLUGIN_VAR_MEMALLOC)
       {
-         char **pp= (char**) (thd->variables.dynamic_variables_ptr +
-                             *(int*)(pi->plugin_var + 1));
-         if ((*pp= *(char**) (global_system_variables.dynamic_variables_ptr +
-                             *(int*)(pi->plugin_var + 1))))
-           *pp= my_strdup(*pp, MYF(MY_WME|MY_FAE));
+        int offset= ((thdvar_str_t *)(pi->plugin_var))->offset;
+        char **pp= (char**) (thd->variables.dynamic_variables_ptr + offset);
+        if (*pp)
+          *pp= my_strdup(*pp, MYF(MY_WME|MY_FAE));
       }
     }
 
@@ -3049,7 +3048,7 @@ void plugin_thdvar_init(THD *thd)
   // This function may be called many times per THD (e.g. on COM_CHANGE_USER)
   thd->variables.table_plugin= NULL;
   thd->variables.tmp_table_plugin= NULL;
-  cleanup_variables(thd, &thd->variables);
+  cleanup_variables(&thd->variables);
 
   thd->variables= global_system_variables;
 
@@ -3095,7 +3094,7 @@ static void unlock_variables(THD *thd, struct system_variables *vars)
   Unlike plugin_vars_free_values() it frees all variables of all plugins,
   it's used on shutdown.
 */
-static void cleanup_variables(THD *thd, struct system_variables *vars)
+static void cleanup_variables(struct system_variables *vars)
 {
   st_bookmark *v;
   uint idx;
@@ -3110,6 +3109,7 @@ static void cleanup_variables(THD *thd, struct system_variables *vars)
 
     DBUG_ASSERT((uint)v->offset <= vars->dynamic_variables_head);
 
+    /* free allocated strings (PLUGIN_VAR_STR | PLUGIN_VAR_MEMALLOC) */
     if ((v->key[0] & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_STR &&
          v->key[0] & BOOKMARK_MEMALLOC)
     {
@@ -3139,7 +3139,7 @@ void plugin_thdvar_cleanup(THD *thd)
   mysql_mutex_lock(&LOCK_plugin);
 
   unlock_variables(thd, &thd->variables);
-  cleanup_variables(thd, &thd->variables);
+  cleanup_variables(&thd->variables);
 
   if ((idx= thd->lex->plugins.elements))
   {
@@ -3544,7 +3544,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   char *comment= (char *) alloc_root(mem_root, max_comment_len + 1);
   char *optname;
 
-  int index= 0, offset= 0;
+  int index= 0, UNINIT_VAR(offset);
   st_mysql_sys_var *opt, **plugin_option;
   st_bookmark *v;
 
@@ -3600,6 +3600,14 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
        plugin_option && *plugin_option; plugin_option++, index++)
   {
     opt= *plugin_option;
+
+    if (!opt->name)
+    {
+      sql_print_error("Missing variable name in plugin '%s'.",
+                      plugin_name);
+      DBUG_RETURN(-1);
+    }
+
     if (!(opt->flags & PLUGIN_VAR_THDLOCAL))
       continue;
     if (!(register_var(plugin_name_ptr, opt->name, opt->flags)))
@@ -3707,13 +3715,6 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
     if ((opt->flags & (PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_THDLOCAL))
                     == PLUGIN_VAR_NOCMDOPT)
       continue;
-
-    if (!opt->name)
-    {
-      sql_print_error("Missing variable name in plugin '%s'.",
-                      plugin_name);
-      DBUG_RETURN(-1);
-    }
 
     if (!(opt->flags & PLUGIN_VAR_THDLOCAL))
     {
