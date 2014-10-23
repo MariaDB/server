@@ -696,7 +696,7 @@ MY_LOCALE *my_default_lc_time_names;
 
 SHOW_COMP_OPTION have_ssl, have_symlink, have_dlopen, have_query_cache;
 SHOW_COMP_OPTION have_geometry, have_rtree_keys;
-SHOW_COMP_OPTION have_crypt, have_datacrypt, have_compress;
+SHOW_COMP_OPTION have_crypt, have_compress;
 SHOW_COMP_OPTION have_profiling;
 SHOW_COMP_OPTION have_openssl;
 
@@ -8485,11 +8485,6 @@ static int mysql_init_variables(void)
   have_crypt=SHOW_OPTION_YES;
 #else
   have_crypt=SHOW_OPTION_NO;
-#endif
-#ifdef HAVE_DATACRYPT
-  have_datacrypt=SHOW_OPTION_YES;
-#else
-  have_datacrypt=SHOW_OPTION_NO;
 #endif
 #ifdef HAVE_COMPRESS
   have_compress= SHOW_OPTION_YES;
