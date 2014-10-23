@@ -26,7 +26,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "dict0stats.h"
 
-#include "KeySingleton.h"
 
 
 /* Structure defines translation table between mysql index and innodb

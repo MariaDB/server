@@ -819,6 +819,10 @@ fil_node_open_file(
 			               space->flags);
 
 		if (fil_page_is_encrypted(page)) {
+				/* if page is encrypted, write and error and return.
+				 * Otherwise the server would crash if decrypting is not possible.
+				 * This may be the case, if the keyfile could not be opened on server startup.
+				 */
 				fprintf(stderr,
 								"InnoDB: can not decrypt %s\n",
 								node->name);
@@ -1345,7 +1349,11 @@ fil_space_create(
 
 	if (fsp_flags_is_page_encrypted(flags)) {
 		if (!KeySingleton::getInstance().isAvailable() || KeySingleton::getInstance().getKeys(fsp_flags_get_page_encryption_key(flags))==NULL) {
-
+			/* by returning here it should be avoided that
+			 * the server crashes, if someone tries to access an
+			 * encrypted table and the encryption key is not available.
+			 * The table is treaded as non-existent.
+			 */
 			ib_logf(IB_LOG_LEVEL_WARN,
 							"Tablespace '%s' can not be opened, because encryption key can not be found (space id: %lu, key %lu)\n"
 							, name, (ulong) id, fsp_flags_get_page_encryption_key(flags));
@@ -2091,7 +2099,7 @@ fil_check_first_page(
 {
 	ulint	space_id;
 	ulint	flags;
-	ulint cc = 0;
+	ulint page_is_encrypted = 0;
 
 	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
 		return(NULL);
@@ -2099,11 +2107,11 @@ fil_check_first_page(
 
 	space_id = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page);
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-	cc = fil_page_is_encrypted(page);
-	if (!KeySingleton::getInstance().isAvailable() && cc) {
-		cc = 1;
+	page_is_encrypted = fil_page_is_encrypted(page);
+	if (!KeySingleton::getInstance().isAvailable() && page_is_encrypted) {
+		page_is_encrypted = 1;
 	} else {
-		cc = 0;
+		page_is_encrypted = 0;
 		if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
 			fprintf(stderr, "InnoDB: Error: Current page size %lu != page size on page %lu\n",
 				UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
@@ -2125,11 +2133,14 @@ fil_check_first_page(
 		}
 	}
 
-	if (!cc && buf_page_is_corrupted(
+	if (!page_is_encrypted && buf_page_is_corrupted(
 		    false, page, fsp_flags_get_zip_size(flags))) {
 		return("checksum mismatch");
 	} else {
-		if (cc) {
+		if (page_is_encrypted) {
+			/* this error message is interpreted by the calling method, which is
+			 * executed if the server starts in recovery mode.
+			 */
 			return("can not decrypt");
 
 		}
@@ -4333,6 +4344,10 @@ check_first_page:
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
 		if (strncmp(check_msg, "can not decrypt", strlen(check_msg))==0) {
+			/* by returning here, it should be avoided, that the server crashes,
+			 * if started in recovery mode and can not decrypt tables, if
+			 * the key file can not be read.
+			 */
 			fsp->encryption_error = 1;
 			return;
 		}

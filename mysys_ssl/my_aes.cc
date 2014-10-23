@@ -137,9 +137,13 @@ my_aes_hexToUint(const char* in, unsigned char *out, int dest_length)
 void
 my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key, unsigned char *iv)
 {
+#ifndef HAVE_OPENSSL
+	return;
+#else
 	const EVP_CIPHER *type = EVP_aes_256_cbc();
 	const EVP_MD *digest = EVP_sha1();
 	EVP_BytesToKey(type, digest, salt, (unsigned char*) secret, strlen(secret), 1, key, iv);
+#endif
 }
 /**
   Crypt buffer with AES encryption algorithm.
@@ -194,8 +198,12 @@ int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
   if (! EVP_EncryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
     return AES_BAD_DATA;                        /* Error */
   *dest_length = (unsigned long int) (u_len + f_len);
-#endif
+
   return AES_OK;
+#else
+  /* currently Open SSL is required */
+  return AES_BAD_DATA;
+#endif
 }
 
 int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,

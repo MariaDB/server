@@ -56,14 +56,14 @@ ulint fil_page_encryption_calc_checksum(unsigned char* buf) {
 byte*
 fil_encrypt_page(
 /*==============*/
-ulint space_id, /*!< in: tablespace id of the table. */
-byte* buf, /*!< in: buffer from which to write; in aio
- this must be appropriately aligned */
-byte* out_buf, /*!< out: encrypted buffer */
-ulint len, /*!< in: length of input buffer.*/
-ulint encryption_key,/*!< in: encryption key */
-ulint* out_len, /*!< out: actual length of encrypted page */
-ulint mode
+		ulint 		space_id, 	/*!< in: tablespace id of the table. */
+		byte* 		buf, 		/*!< in: buffer from which to write; in aio
+ 	 	 	 	 	 	 			this must be appropriately aligned */
+		byte* 		out_buf, 	/*!< out: encrypted buffer */
+		ulint 		len, 		/*!< in: length of input buffer.*/
+		ulint 		encryption_key,/*!< in: encryption key */
+		ulint* 		out_len, 	/*!< out: actual length of encrypted page */
+		ulint 		mode 		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 
 	int err = AES_OK;
@@ -283,13 +283,13 @@ ulint mode
  @return decrypted page */
 ulint fil_decrypt_page(
 /*================*/
-byte* page_buf, /*!< in: preallocated buffer or NULL */
-byte* buf, /*!< in/out: buffer from which to read; in aio
- this must be appropriately aligned */
-ulint len, /*!< in: length of output buffer.*/
-ulint* write_size, /*!< in/out: Actual payload size of the decrypted data. */
-ibool* page_compressed, /*!<out: is page compressed.*/
-ulint mode
+		byte* 		page_buf, 	/*!< in: preallocated buffer or NULL */
+		byte* 		buf, 		/*!< in/out: buffer from which to read; in aio
+ 	 	 	 	 	 	 	 	 this must be appropriately aligned */
+		ulint 		len, 		/*!< in: length of output buffer.*/
+		ulint* 		write_size, /*!< in/out: Actual payload size of the decrypted data. */
+		ibool* 		page_compressed, /*!<out: is page compressed.*/
+		ulint 		mode		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 	int err = AES_OK;
 	ulint page_decryption_key;
@@ -300,6 +300,7 @@ ulint mode
 	ulint stored_checksum = 0;
 	ulint tmp_write_size = 0;
 	ulint offset = 0;
+	byte * in_buffer;
 	byte * in_buf;
 	byte * tmp_buf;
 	byte * tmp_page_buf;
@@ -353,8 +354,10 @@ ulint mode
 				"InnoDB: FIL: Note: Decryption buffer not given, allocating...\n");
 		fflush(stderr);
 #endif /* UNIV_PAGEENCRIPTION_DEBUG */
-		in_buf = static_cast<byte *>(ut_malloc(len + 16));
-		//in_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+		/* it was request to align this buffer */
+		in_buffer = static_cast<byte*>(ut_malloc(2 * (len + 16)));
+		in_buf = static_cast<byte*>(ut_align(in_buffer, len + 16));
+
 	} else {
 		in_buf = page_buf;
 	}
@@ -406,7 +409,7 @@ ulint mode
 				err, (int)page_decryption_key);
 		fflush(stderr);
 		if (NULL == page_buf) {
-			ut_free(in_buf);
+			ut_free(in_buffer);
 		}
 		return err;
 	}
@@ -439,7 +442,7 @@ ulint mode
 					len, (int)page_decryption_key);
 			fflush(stderr);
 			if (NULL == page_buf) {
-				ut_free(in_buf);
+				ut_free(in_buffer);
 			}
 			return err;
 		}
@@ -541,7 +544,7 @@ ulint mode
 						fflush(stderr);
 			// Need to free temporal buffer if no buffer was given
 			if (NULL == page_buf) {
-				ut_free(in_buf);
+				ut_free(in_buffer);
 			}
 			return err;
 		}
@@ -569,7 +572,9 @@ ulint mode
 
 
 /* recalculate check sum  - from buf0flu.cc*/
-void do_check_sum( ulint page_size, byte* buf) {
+void do_check_sum(
+		ulint 	page_size,
+		byte* 	buf) {
 	ib_uint32_t checksum = 0;
 		switch ((srv_checksum_algorithm_t) srv_checksum_algorithm) {
 	case SRV_CHECKSUM_ALGORITHM_CRC32:

@@ -106,6 +106,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "page0zip.h"
 #include "fil0pagecompress.h"
 
+#include "KeySingleton.h"
+
+
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -3415,8 +3418,8 @@ innobase_init(
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
-	//FF
-	KeySingleton& keysingleton = KeySingleton::getInstance(
+
+	KeySingleton::getInstance(
 			innobase_data_encryption_providername, innobase_data_encryption_providerurl,
 			innobase_data_encryption_providertype, innobase_data_encryption_filekey);
 
@@ -3502,6 +3505,15 @@ innobase_init(
 			goto error;
 		}
 	}
+#ifndef HAVE_OPENSSL
+	if (innobase_data_encryption_providertype != 0) {
+		sql_print_error("InnoDB: innobase_data_encryption_providertype = %lu unsupported.\n"
+				"InnoDB: Open SSL not available. \n",
+				innobase_data_encryption_providertype);
+	        goto error;
+
+	}
+#endif
 
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
@@ -3570,13 +3582,6 @@ innobase_init(
 	srv_data_home = (innobase_data_home_dir ? innobase_data_home_dir :
 			 default_path);
 
-	printf("\ninnobase_data_home_dir = %s,\n innobase_data_encryption_providerurl = %s,"
-			"\n Type = %u, innobase_data_encryption_providername = %s\n\n",
-			innobase_data_home_dir, innobase_data_encryption_providerurl
-			? innobase_data_encryption_providerurl : "ist NULL",
-			innobase_data_encryption_providertype, innobase_data_encryption_providername
-			? innobase_data_encryption_providername : "ist NULL");
-//	fflush(stdout);
 
 	/* Set default InnoDB data file size to 12 MB and let it be
 	auto-extending. Thus users can use InnoDB in >= 4.0 without having
@@ -11638,6 +11643,15 @@ ha_innobase::check_table_options(
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
     if (options->page_encryption) {
+#ifndef HAVE_OPENSSL
+        push_warning(
+                    thd, Sql_condition::WARN_LEVEL_WARN,
+                    HA_WRONG_CREATE_OPTION,
+                    "InnoDB: Open SSL is required for PAGE_ENCRYPTION"
+                    );
+                return "PAGE_ENCRYPTION";
+
+#else
         if (!use_tablespace) {
             push_warning(
                 thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11654,14 +11668,7 @@ ha_innobase::check_table_options(
                        );
                    return "PAGE_ENCRYPTION";
         }
-        if (create_info->key_block_size) {
-            push_warning(
-                thd, Sql_condition::WARN_LEVEL_WARN,
-                HA_WRONG_CREATE_OPTION,
-                "InnoDB: PAGE_ENCRYPTION table can't have"
-                " key_block_size");
-            return "PAGE_ENCRYPTION";
-        }
+#endif
     }
 
 	/* Check page compression requirements */
@@ -11729,7 +11736,7 @@ ha_innobase::check_table_options(
 
     if ((ulint)options->page_encryption_key != ULINT_UNDEFINED) {
         if (options->page_encryption == false) {
-			/* ignore for alter table...*/	
+			/* ignore this to allow alter table without changing page_encryption_key ...*/
         }
 
         if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {

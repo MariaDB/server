@@ -33,20 +33,26 @@ EncKeys KeySingleton::encKeys;
 
 KeySingleton & KeySingleton::getInstance() {
 	if( !instanceInited) {
-		printf("Encryption / decryption keys were not initialized. "
+		fprintf(stderr, "Encryption / decryption keys were not initialized. "
 				"You can not read encrypted tables or columns\n\n");
+		fflush(stderr);
 	}
 	return theInstance;
 }
 
 KeySingleton & KeySingleton::getInstance(const char *name, const char *url,
 		const int initType, const char *filekey) {
-	if(instanceInited)	return theInstance;
 
+	if(instanceInited)	return theInstance;
+#ifndef HAVE_OPENSSL
+	instanceInited = false;
+#else
 	instanceInited = encKeys.initKeys(name, url, initType, filekey);
+#endif
 	if( !instanceInited) {
-		printf("Could not initialize any of the encryption / decryption keys. "
+		fprintf(stderr, "Could not initialize any of the encryption / decryption keys. "
 				"You can not read encrypted tables\n\n");
+		fflush(stderr);
 	}
 
 	return theInstance;

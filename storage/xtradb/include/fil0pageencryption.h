@@ -66,15 +66,15 @@ operation.
 byte*
 fil_encrypt_page(
 /*==============*/
-    ulint		space_id,      /*!< in: tablespace id of the
-                       table. */
+    ulint			space_id,      /*!< in: tablespace id of the
+                       	   	   	   	   table. */
     byte*           buf,           /*!< in: buffer from which to write; in aio
-                       this must be appropriately aligned */
+									   this must be appropriately aligned */
     byte*           out_buf,       /*!< out: compressed buffer */
     ulint           len,           /*!< in: length of input buffer.*/
     ulint           compression_level, /*!< in: compression level */
-    ulint*          out_len,   /*!< out: actual length of compressed page */
-    ulint			mode       /*!< in: calling mode. Should be 0. */
+    ulint*          out_len,   		/*!< out: actual length of compressed page */
+    ulint			mode       		/*!< in: calling mode. Should be 0. */
     );
 
 /****************************************************************//**
@@ -86,11 +86,11 @@ fil_decrypt_page(
 /*================*/
 		byte*		page_buf,      /*!< in: preallocated buffer or NULL */
 		byte*		buf,           /*!< out: buffer from which to read; in aio
-		                       this must be appropriately aligned */
+		                       	   	   this must be appropriately aligned */
 		ulint		len,           /*!< in: length of output buffer.*/
 	    ulint*		write_size,    /*!< in/out: Actual payload size of the decrypted data. */
 	    ibool*      page_compressed, /*!<out: is page compressed.*/
-	    ulint			mode       /*!< in: calling mode. Should be 0. */
+	    ulint		mode	       /*!< in: calling mode. Should be 0. */
 	    );
 
 
