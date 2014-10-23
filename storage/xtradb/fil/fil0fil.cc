@@ -1352,7 +1352,7 @@ fil_space_create(
 			/* by returning here it should be avoided that
 			 * the server crashes, if someone tries to access an
 			 * encrypted table and the encryption key is not available.
-			 * The table is treaded as non-existent.
+			 * The the table is treaded as non-existent.
 			 */
 			ib_logf(IB_LOG_LEVEL_WARN,
 							"Tablespace '%s' can not be opened, because encryption key can not be found (space id: %lu, key %lu)\n"
