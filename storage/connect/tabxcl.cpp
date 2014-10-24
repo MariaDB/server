@@ -182,8 +182,9 @@ bool TDBXCL::OpenDB(PGLOBAL g)
   /*  Check and initialize the subtable columns.                       */
   /*********************************************************************/
   for (PCOL cp = Columns; cp; cp = cp->GetNext())
-    if (((PPRXCOL)cp)->Init(g))
-      return TRUE;
+    if (!cp->IsSpecial())
+      if (((PPRXCOL)cp)->Init(g))
+        return TRUE;
 
   /*********************************************************************/
   /*  Physically open the object table.                                */
