@@ -416,14 +416,14 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
 
   for (colp= tdbp->GetColumns(); rc == RC_OK && colp;
        colp= colp->GetNext()) {
-      colp->Reset();
+    colp->Reset();
 
-      // Virtual columns are computed by MariaDB
-      if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
-        if (colp->Eval(g))
-          rc= RC_FX;
+    // Virtual columns are computed by MariaDB
+    if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
+      if (colp->Eval(g))
+        rc= RC_FX;
 
-      } // endfor colp
+    } // endfor colp
 
  err:
   g->jump_level--;

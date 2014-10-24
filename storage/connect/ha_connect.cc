@@ -2188,7 +2188,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 
     if (trace)
       htrc("Func type=%d argnum=%d\n", condf->functype(),
-                                         condf->argument_count());
+                                       condf->argument_count());
 
     switch (condf->functype()) {
       case Item_func::EQUAL_FUNC:

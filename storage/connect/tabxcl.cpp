@@ -266,6 +266,7 @@ bool XCLCOL::Init(PGLOBAL g, PTDBASE tp)
 void XCLCOL::ReadColumn(PGLOBAL g)
   {
 	if (((PTDBXCL)To_Tdb)->New) {
+    Colp->Reset();           // In case of failed filtering
 		Colp->Eval(g);
 		strncpy(Cbuf, To_Val->GetCharValue(), Colp->GetLength());
     Cbuf[Colp->GetLength()] = 0;
