@@ -367,7 +367,7 @@ void EncKeys::printKeyEntry( ulint id)
 	}
 	else {
 #ifdef UNIV_DEBUG
-		fprintf(stderr, "Key: id:%3u \tiv:%s \tkey:%s\n", entry->id, entry->iv, entry->key);
+		fprintf(stderr, "Key: id:%3u \tiv:%d bytes\tkey:%d bytes\n", entry->id, strlen(entry->iv)/2, strlen(entry->key)/2);
 #else
 		fprintf(stderr, "Key: id:%3u\n", entry->id);
 #endif //UNIV_DEBUG

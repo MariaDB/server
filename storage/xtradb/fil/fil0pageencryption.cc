@@ -354,9 +354,9 @@ ulint fil_decrypt_page(
 				"InnoDB: FIL: Note: Decryption buffer not given, allocating...\n");
 		fflush(stderr);
 #endif /* UNIV_PAGEENCRIPTION_DEBUG */
-		/* it was request to align this buffer */
-		in_buffer = static_cast<byte*>(ut_malloc(2 * (len + 16)));
-		in_buf = static_cast<byte*>(ut_align(in_buffer, len + 16));
+		/* it was requested to align this buffer */
+		in_buffer = static_cast<byte*>(ut_malloc(2 * (len)));
+		in_buf = static_cast<byte*>(ut_align(in_buffer, len));
 
 	} else {
 		in_buf = page_buf;
