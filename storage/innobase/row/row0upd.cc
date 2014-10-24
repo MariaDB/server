@@ -210,7 +210,7 @@ row_upd_check_references_constraints(
 
 	DEBUG_SYNC_C("foreign_constraint_check_for_update");
 
-	mtr_start(mtr);
+	mtr_start_trx(mtr, trx);
 
 	if (trx->dict_operation_lock_mode == 0) {
 		got_s_lock = TRUE;
@@ -984,7 +984,7 @@ row_upd_ext_fetch(
 	byte*	buf = static_cast<byte*>(mem_heap_alloc(heap, *len));
 
 	*len = btr_copy_externally_stored_field_prefix(
-		buf, *len, zip_size, data, local_len);
+		buf, *len, zip_size, data, local_len, NULL);
 
 	/* We should never update records containing a half-deleted BLOB. */
 	ut_a(*len);
@@ -1685,7 +1685,7 @@ row_upd_sec_index_entry(
 	}
 #endif /* UNIV_DEBUG */
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, trx);
 
 	if (*index->name == TEMP_INDEX_PREFIX) {
 		/* The index->online_status may change if the
@@ -2152,7 +2152,7 @@ row_upd_clust_rec(
 	/* We may have to modify the tree structure: do a pessimistic descent
 	down the index tree */
 
-	mtr_start(mtr);
+	mtr_start_trx(mtr, thr_get_trx(thr));
 
 	/* NOTE: this transaction has an s-lock or x-lock on the record and
 	therefore other transactions cannot modify the record when we have no
@@ -2319,7 +2319,7 @@ row_upd_clust_step(
 
 	/* We have to restore the cursor to its position */
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, thr_get_trx(thr));
 
 	/* If the restoration does not succeed, then the same
 	transaction has deleted the record on which the cursor was,
@@ -2373,7 +2373,7 @@ row_upd_clust_step(
 
 		mtr_commit(&mtr);
 
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, thr_get_trx(thr));
 
 		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
 						    &mtr);

@@ -1850,7 +1850,7 @@ row_unlock_for_mysql(
 		trx_id_t	rec_trx_id;
 		mtr_t		mtr;
 
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, trx);
 
 		/* Restore the cursor position and find the record */
 
@@ -3412,7 +3412,7 @@ row_truncate_table_for_mysql(
 				index = dict_table_get_next_index(index);
 			} while (index);
 
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, trx);
 			fsp_header_init(space,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
@@ -3441,7 +3441,7 @@ row_truncate_table_for_mysql(
 	sys_index = dict_table_get_first_index(dict_sys->sys_indexes);
 	dict_index_copy_types(tuple, sys_index, 1);
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, trx);
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_MODIFY_LEAF, &pcur, &mtr);
 	for (;;) {
@@ -3488,7 +3488,7 @@ row_truncate_table_for_mysql(
 			a page in this mini-transaction, and the rest of
 			this loop could latch another index page. */
 			mtr_commit(&mtr);
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, trx);
 			btr_pcur_restore_position(BTR_MODIFY_LEAF,
 						  &pcur, &mtr);
 		}
