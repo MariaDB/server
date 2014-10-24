@@ -44,11 +44,7 @@ KeySingleton & KeySingleton::getInstance(const char *name, const char *url,
 		const int initType, const char *filekey) {
 
 	if(instanceInited)	return theInstance;
-#ifndef HAVE_OPENSSL
-	instanceInited = false;
-#else
 	instanceInited = encKeys.initKeys(name, url, initType, filekey);
-#endif
 	if( !instanceInited) {
 		fprintf(stderr, "Could not initialize any of the encryption / decryption keys. "
 				"You can not read encrypted tables\n\n");

@@ -25,21 +25,29 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
                     )
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D SINGLETON_TEST_DATA=\\\"${CMAKE_SOURCE_DIR}/unittest/eperi\\\" ")
+
+MY_ADD_TESTS(eperi_aes 
+  EXT "cc"
+	LINK_LIBRARIES mysys_ssl)
+	
+
 if (WIN32) 
+
 else()
-MY_ADD_TESTS(eperi)
-#MY_ADD_TESTS(eperi_aes 
-#	LINK_LIBRARIES mysys_ssl dbug)
-
-
-MY_ADD_TESTS(EperiKeySingleton
-	EXT "cc" 
-	LINK_LIBRARIES xtradb pcre mysys_ssl)
 
 MY_ADD_TESTS(
  pageenc
   EXT "cc" 
   LINK_LIBRARIES mysys_ssl xtradb perfschema mysys  sql mysql)
+
+MY_ADD_TESTS(EperiKeySingleton
+	EXT "cc" 
+	LINK_LIBRARIES xtradb pcre mysys_ssl)
+  
+  
+MY_ADD_TESTS(eperi)
+
+endif()
 
 
 file(COPY
@@ -90,5 +98,3 @@ file(COPY
 file(COPY
 	${CMAKE_CURRENT_LIST_DIR}/secret256.enc
 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
-
-endif()

@@ -21,6 +21,7 @@
 #if defined(HAVE_YASSL)
 #include "aes.hpp"
 #include "openssl/ssl.h"
+#include "crypto_wrapper.hpp"
 #elif defined(HAVE_OPENSSL)
 #include <openssl/aes.h>
 #include <openssl/evp.h>
@@ -137,9 +138,63 @@ my_aes_hexToUint(const char* in, unsigned char *out, int dest_length)
 void
 my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key, unsigned char *iv)
 {
-#ifndef HAVE_OPENSSL
+#ifdef HAVE_YASSL
+#ifndef ___min
+#define ___min(a,b)      (((a) < (b)) ? (a) : (b))
+#endif
+	/*
+	the yassl function has no support for SHA1.
+	Reason unknown.
+	*/
+    int keyLen = 32;
+    int ivLen  = 16;
+	int EVP_SALT_SZ = 8;
+	const int SHA_LEN = 20;
+	yaSSL::SHA myMD;
+    uint digestSz = myMD.get_digestSize();
+    unsigned char digest[SHA_LEN];                   // max size
+	int sz = strlen(secret);
+	int count = 1;
+    int keyLeft   = keyLen;
+    int ivLeft    = ivLen;
+    int keyOutput = 0;
+
+    while (keyOutput < (keyLen + ivLen)) {
+        int digestLeft = digestSz;
+        // D_(i - 1)
+        if (keyOutput)                      // first time D_0 is empty
+            myMD.update(digest, digestSz);
+        // data
+        myMD.update((yaSSL::byte* )secret, sz);
+        // salt
+        if (salt)
+            myMD.update(salt, EVP_SALT_SZ);
+        myMD.get_digest(digest);
+        // count
+        for (int j = 1; j < count; j++) {
+            myMD.update(digest, digestSz);
+            myMD.get_digest(digest);
+        }
+
+        if (keyLeft) {
+            int store = ___min(keyLeft, static_cast<int>(digestSz));
+            memcpy(&key[keyLen - keyLeft], digest, store);
+
+            keyOutput  += store;
+            keyLeft    -= store;
+            digestLeft -= store;
+        }
+
+        if (ivLeft && digestLeft) {
+            int store = ___min(ivLeft, digestLeft);
+            memcpy(&iv[ivLen - ivLeft], &digest[digestSz - digestLeft], store);
+
+            keyOutput += store;
+            ivLeft    -= store;
+        }
+    }
 	return;
-#else
+#elif HAVE_OPENSSL
 	const EVP_CIPHER *type = EVP_aes_256_cbc();
 	const EVP_MD *digest = EVP_sha1();
 	EVP_BytesToKey(type, digest, salt, (unsigned char*) secret, strlen(secret), 1, key, iv);
@@ -153,19 +208,62 @@ my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *ke
      @param source         [in]  Pointer to data for encryption
      @param source_length  [in]  Size of encryption data
      @param dest           [out] Buffer to place encrypted data (must be large enough)
-     @param key            [in]  Key to be used for encryption
+	 @param dest_length    [out] Pointer to size of encrypted data
+ 	 @param key            [in]  Key to be used for encryption
      @param key_length     [in]  Length of the key. Will handle keys of any length
+ 	 @param key            [in]  Iv to be used for encryption
+     @param key_length     [in]  Length of the iv. should be 16.
 
   @return
-    >= 0             Size of encrypted data
-    < 0              Error
+    > 0           error
+    0             no error
 */
 int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
 					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length)
 {
-#if defined(HAVE_OPENSSL)
+#ifdef HAVE_YASSL
+	TaoCrypt::AES_CBC_Encryption enc;
+	/* 128 bit block used for padding */
+	uint8 block[MY_AES_BLOCK_SIZE];
+	int num_blocks;                               /* number of complete blocks */
+	int i;
+	switch(key_length) {
+  	  case 16:
+  		  break;
+  	  case 24:
+  		  break;
+  	  case 32:
+  		  break;
+  	  default:
+  		  return AES_BAD_KEYSIZE;
+	}
+	 
+	enc.SetKey((const TaoCrypt::byte *) key, key_length, (const TaoCrypt::byte *) iv);
+	 
+  num_blocks = source_length / MY_AES_BLOCK_SIZE;
+
+  for (i = num_blocks; i > 0; i--)              /* Encode complete blocks */
+  {
+    enc.Process((TaoCrypt::byte *) dest, (const TaoCrypt::byte *) source,
+                MY_AES_BLOCK_SIZE);
+    source += MY_AES_BLOCK_SIZE;
+    dest += MY_AES_BLOCK_SIZE;
+  }
+
+  /* Encode the rest. We always have incomplete block */
+  char pad_len = MY_AES_BLOCK_SIZE - (source_length -
+                                      MY_AES_BLOCK_SIZE * num_blocks);
+  memcpy(block, source, 16 - pad_len);
+  memset(block + MY_AES_BLOCK_SIZE - pad_len, pad_len,  pad_len);
+
+  enc.Process((TaoCrypt::byte *) dest, (const TaoCrypt::byte *) block,
+              MY_AES_BLOCK_SIZE);
+
+  *dest_length = MY_AES_BLOCK_SIZE * (num_blocks + 1);
+  return AES_OK;
+#elif defined(HAVE_OPENSSL)
   MyCipherCtx ctx;
   int u_len, f_len;
   /* The real key to be used for encryption */
@@ -211,7 +309,54 @@ int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length)
 {
-#if defined(HAVE_OPENSSL)
+#ifdef HAVE_YASSL
+	TaoCrypt::AES_CBC_Decryption dec;
+	/* 128 bit block used for padding */
+	uint8 block[MY_AES_BLOCK_SIZE];
+	int num_blocks;                               /* Number of complete blocks */
+	int i;
+	switch(key_length) {
+  		case 16:
+  			break;
+  		case 24:
+  			break;
+  		case 32:
+  			break;
+  		default:
+  			return AES_BAD_KEYSIZE;
+	}
+
+	dec.SetKey((const TaoCrypt::byte *) key, key_length, iv);
+
+	num_blocks = source_length / MY_AES_BLOCK_SIZE;
+
+	if ((source_length != num_blocks * MY_AES_BLOCK_SIZE) || num_blocks == 0 )
+	/* Input size has to be even and at least one block */
+	return AES_BAD_DATA;
+
+	/* Decode all but last blocks */
+	for (i = num_blocks - 1; i > 0; i--)
+	{
+		dec.Process((TaoCrypt::byte *) dest, (const TaoCrypt::byte *) source,
+					MY_AES_BLOCK_SIZE);
+		source += MY_AES_BLOCK_SIZE;
+		dest += MY_AES_BLOCK_SIZE;
+	}
+
+	dec.Process((TaoCrypt::byte *) block, (const TaoCrypt::byte *) source,
+				MY_AES_BLOCK_SIZE);
+
+	/* Use last char in the block as size */
+	uint pad_len = (uint) (uchar) block[MY_AES_BLOCK_SIZE - 1];
+
+	if (pad_len > MY_AES_BLOCK_SIZE)
+	return AES_BAD_DATA;
+	/* We could also check whole padding but we do not really need this */
+
+	memcpy(dest, block, MY_AES_BLOCK_SIZE - pad_len);
+	*dest_length = MY_AES_BLOCK_SIZE * num_blocks - pad_len;
+	return  AES_OK;
+#elif defined(HAVE_OPENSSL)
   MyCipherCtx ctx;
   int u_len, f_len;
 

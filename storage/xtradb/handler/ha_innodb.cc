@@ -3422,7 +3422,7 @@ innobase_init(
 	KeySingleton::getInstance(
 			innobase_data_encryption_providername, innobase_data_encryption_providerurl,
 			innobase_data_encryption_providertype, innobase_data_encryption_filekey);
-
+	
 #ifndef DBUG_OFF
 	static const char	test_filename[] = "-@";
 	char			test_tablename[sizeof test_filename
@@ -3505,16 +3505,7 @@ innobase_init(
 			goto error;
 		}
 	}
-#ifndef HAVE_OPENSSL
-	if (innobase_data_encryption_providertype != 0) {
-		sql_print_error("InnoDB: innobase_data_encryption_providertype = %lu unsupported.\n"
-				"InnoDB: Open SSL not available. \n",
-				innobase_data_encryption_providertype);
-	        goto error;
-
-	}
-#endif
-
+	
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
@@ -11643,15 +11634,6 @@ ha_innobase::check_table_options(
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
     if (options->page_encryption) {
-#ifndef HAVE_OPENSSL
-        push_warning(
-                    thd, Sql_condition::WARN_LEVEL_WARN,
-                    HA_WRONG_CREATE_OPTION,
-                    "InnoDB: Open SSL is required for PAGE_ENCRYPTION"
-                    );
-                return "PAGE_ENCRYPTION";
-
-#else
         if (!use_tablespace) {
             push_warning(
                 thd, Sql_condition::WARN_LEVEL_WARN,
@@ -11668,7 +11650,6 @@ ha_innobase::check_table_options(
                        );
                    return "PAGE_ENCRYPTION";
         }
-#endif
     }
 
 	/* Check page compression requirements */
