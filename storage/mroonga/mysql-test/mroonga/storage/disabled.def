@@ -5,3 +5,5 @@ create_table_token_filters_index_comment_multiple_token_filters : Bundled Mroong
 create_table_token_filters_index_comment_one_token_filter : Bundled Mroonga does not support token filter yet.
 create_table_token_filters_table_comment_multiple_token_filters : Bundled Mroonga does not support token filter yet.
 create_table_token_filters_table_comment_one_token_filter : Bundled Mroonga does not support token filter yet.
+foreign_key_create : Bundled Mroonga does not support this test yet.
+
