@@ -508,13 +508,13 @@ drop database mysqltest_db1;
 #
 # START - BUG#16394: Events: Crash if schedule contains SELECT
 #
---error ER_NOT_SUPPORTED_YET
+--error ER_SUBQUERIES_NOT_SUPPORTED
 create event e_53 on schedule at (select s1 from ttx) do drop table t;
---error ER_NOT_SUPPORTED_YET
+--error ER_SUBQUERIES_NOT_SUPPORTED
 create event e_53 on schedule every (select s1 from ttx) second do drop table t;
---error ER_NOT_SUPPORTED_YET
+--error ER_SUBQUERIES_NOT_SUPPORTED
 create event e_53 on schedule every 5 second starts (select s1 from ttx) do drop table t;
---error ER_NOT_SUPPORTED_YET
+--error ER_SUBQUERIES_NOT_SUPPORTED
 create event e_53 on schedule every 5 second ends (select s1 from ttx) do drop table t;
 #
 # END   - BUG#16394: Events: Crash if schedule contains SELECT
@@ -570,7 +570,7 @@ begin
   select release_lock('ee_22830');
 end|
 
---error ER_NOT_SUPPORTED_YET
+--error ER_SUBQUERIES_NOT_SUPPORTED
 create event e22830 on schedule every f22830() second do
 begin
   call p22830_wait();

@@ -70,7 +70,7 @@ connection con2;
 SELECT 4;
 connection default;
 
---error ER_NOT_SUPPORTED_YET
+--error ER_SUBQUERIES_NOT_SUPPORTED
 KILL (SELECT COUNT(*) FROM mysql.user);
 
 connection con1;

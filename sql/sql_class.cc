@@ -3441,6 +3441,7 @@ void Query_arena::free_items()
   {
     next= free_list->next;
     DBUG_ASSERT(free_list != next);
+    DBUG_PRINT("info", ("free item: 0x%lx", (ulong) free_list));
     free_list->delete_self();
   }
   /* Postcondition: free_list is 0 */

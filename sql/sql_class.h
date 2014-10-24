@@ -3826,6 +3826,10 @@ public:
       thr_timer_end(&query_timer);
 #endif
   }
+  void restore_set_statement_var()
+  {
+    main_lex.restore_set_statement_var();
+  }
 };
 
 

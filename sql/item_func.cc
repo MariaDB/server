@@ -5547,7 +5547,7 @@ get_var_with_binlog(THD *thd, enum_sql_command sql_command,
     tmp_var_list.push_back(new set_var_user(new Item_func_set_user_var(name,
                                                                        new Item_null())));
     /* Create the variable */
-    if (sql_set_variables(thd, &tmp_var_list))
+    if (sql_set_variables(thd, &tmp_var_list, false))
     {
       thd->lex= sav_lex;
       goto err;

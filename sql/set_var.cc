@@ -147,7 +147,7 @@ sys_var::sys_var(sys_var_chain *chain, const char *name_arg,
   flags(flags_arg), show_val_type(show_val_type_arg),
   guard(lock), offset(off), on_check(on_check_func), on_update(on_update_func),
   deprecation_substitute(substitute),
-  is_os_charset(FALSE)
+  is_os_charset(FALSE), default_val(FALSE)
 {
   /*
     There is a limitation in handle_options() related to short options:
@@ -675,9 +675,10 @@ sys_var *intern_find_sys_var(const char *str, uint length)
     -1  ERROR, message not sent
 */
 
-int sql_set_variables(THD *thd, List<set_var_base> *var_list)
+int sql_set_variables(THD *thd, List<set_var_base> *var_list, bool free)
 {
-  int error;
+  int error= 0;
+  bool was_error= thd->is_error();
   List_iterator_fast<set_var_base> it(*var_list);
   DBUG_ENTER("sql_set_variables");
 
@@ -687,7 +688,7 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list)
     if ((error= var->check(thd)))
       goto err;
   }
-  if (!(error= MY_TEST(thd->is_error())))
+  if (was_error || !(error= MY_TEST(thd->is_error())))
   {
     it.rewind();
     while ((var= it++))
@@ -695,7 +696,8 @@ int sql_set_variables(THD *thd, List<set_var_base> *var_list)
   }
 
 err:
-  free_underlaid_joins(thd, &thd->lex->select_lex);
+  if (free)
+    free_underlaid_joins(thd, &thd->lex->select_lex);
   DBUG_RETURN(error);
 }
 
@@ -788,6 +790,7 @@ int set_var::light_check(THD *thd)
 */
 int set_var::update(THD *thd)
 {
+  var->set_is_default(value == 0);
   return value ? var->update(thd, this) : var->set_default(thd, this);
 }
 

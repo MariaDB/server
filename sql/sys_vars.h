@@ -57,6 +57,7 @@
 // this means that Sys_var_charptr initial value was malloc()ed
 #define PREALLOCATED sys_var::ALLOCATED+
 #define PARSED_EARLY sys_var::PARSE_EARLY+
+#define NO_SET_STMT sys_var::NO_SET_STATEMENT+
 
 /*
   Sys_var_bit meaning is reversed, like in

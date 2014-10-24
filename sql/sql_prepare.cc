@@ -3299,7 +3299,7 @@ void Prepared_statement::cleanup_stmt()
 {
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: 0x%lx", (long) this));
-
+  thd->restore_set_statement_var();
   cleanup_items(free_list);
   thd->cleanup_after_query();
   thd->rollback_item_tree_changes();
@@ -3619,7 +3619,9 @@ Prepared_statement::execute_loop(String *expanded_query,
   Reprepare_observer reprepare_observer;
   bool error;
   int reprepare_attempt= 0;
-  
+#ifndef DBUG_OFF
+  Item *free_list_state= thd->free_list;
+#endif
   thd->select_number= select_number_after_prepare;
   /* Check if we got an error when sending long data */
   if (state == Query_arena::STMT_ERROR)
@@ -3646,7 +3648,7 @@ reexecute:
     allocated items when cleaning up after validation of the prepared
     statement.
   */
-  DBUG_ASSERT(thd->free_list == NULL);
+  DBUG_ASSERT(thd->free_list == free_list_state);
 
   /*
     Install the metadata observer. If some metadata version is

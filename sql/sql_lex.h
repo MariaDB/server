@@ -2401,6 +2401,8 @@ struct LEX: public Query_tables_list
   List<Item>	      *insert_list,field_list,value_list,update_list;
   List<List_item>     many_values;
   List<set_var_base>  var_list;
+  List<set_var_base>  stmt_var_list; //SET_STATEMENT values
+  List<set_var_base>  old_var_list; // SET STATEMENT old values
   List<Item_func_set_user_var> set_var_list; // in-query assignment list
   List<Item_param>    param_list;
   List<LEX_STRING>    view_list; // view list (list of field names in view)
@@ -2775,6 +2777,7 @@ struct LEX: public Query_tables_list
 
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool is_analyze, bool *printed_anything);
+  void restore_set_statement_var();
 };
 
 

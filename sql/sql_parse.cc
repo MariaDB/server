@@ -2635,6 +2635,101 @@ mysql_execute_command(THD *thd)
   thd->get_binlog_format(&orig_binlog_format,
                          &orig_current_stmt_binlog_format);
 
+  if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
+  {
+    DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
+
+    lex->old_var_list.empty();
+    List_iterator_fast<set_var_base> it(lex->stmt_var_list);
+    set_var_base *var;
+    while ((var=it++))
+    {
+      DBUG_ASSERT(var->is_system());
+      set_var *o= NULL, *v= (set_var*)var;
+      if (!v->var->is_set_stmt_ok())
+      {
+        my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
+        goto error;
+      }
+      if (v->var->is_default())
+          o= new set_var(v->type, v->var, &v->base, NULL);
+      else
+      {
+        switch (v->var->option.var_type & GET_TYPE_MASK)
+        {
+        case GET_BOOL:
+        case GET_INT:
+        case GET_LONG:
+        case GET_LL:
+          {
+            bool null_value;
+            longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
+            o= new set_var(v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *)new Item_null() :
+                            (Item *)new Item_int(val)));
+          }
+          break;
+        case GET_UINT:
+        case GET_ULONG:
+        case GET_ULL:
+          {
+            bool null_value;
+            ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
+            o= new set_var(v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *)new Item_null() :
+                            (Item *)new Item_uint(val)));
+          }
+          break;
+        case GET_DOUBLE:
+          {
+            bool null_value;
+            double val= v->var->val_real(&null_value, thd, v->type, &v->base);
+            o= new set_var(v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *)new Item_null() :
+                            (Item *)new Item_float(val, 1)));
+          }
+          break;
+        default:
+        case GET_NO_ARG:
+        case GET_DISABLED:
+          DBUG_ASSERT(0);
+        case 0:
+        case GET_FLAGSET:
+        case GET_ENUM:
+        case GET_SET:
+        case GET_STR:
+        case GET_STR_ALLOC:
+          {
+            char buff[STRING_BUFFER_USUAL_SIZE];
+            String tmp(buff, sizeof(buff), v->var->charset(thd)),*val;
+            val= v->var->val_str(&tmp, thd, v->type, &v->base);
+            if (val)
+            {
+              Item_string *str= new Item_string(v->var->charset(thd),
+                                                val->ptr(), val->length());
+              o= new set_var(v->type, v->var, &v->base, str);
+            }
+            else
+              o= new set_var(v->type, v->var, &v->base, new Item_null());
+          }
+          break;
+        }
+      }
+      DBUG_ASSERT(o);
+      lex->old_var_list.push_back(o);
+    }
+    if (thd->is_error() ||
+        (res= sql_set_variables(thd, &lex->stmt_var_list, false)))
+    {
+      if (!thd->is_error())
+        my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
+      goto error;
+    }
+  }
+
   /*
     Force statement logging for DDL commands to allow us to update
     privilege, system or statistic tables directly without the updates
@@ -4100,7 +4195,7 @@ end_with_restore_list:
     if ((check_table_access(thd, SELECT_ACL, all_tables, FALSE, UINT_MAX, FALSE)
          || open_and_lock_tables(thd, all_tables, TRUE, 0)))
       goto error;
-    if (!(res= sql_set_variables(thd, lex_var_list)))
+    if (!(res= sql_set_variables(thd, lex_var_list, true)))
     {
       my_ok(thd);
     }
@@ -4344,8 +4439,7 @@ end_with_restore_list:
     DBUG_ASSERT(lex->event_parse_data);
     if (lex->table_or_sp_used())
     {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "Usage of subqueries or stored "
-               "function calls as part of this statement");
+      my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0), "CREATE/ALTER EVENT");
       break;
     }
 
@@ -4665,8 +4759,7 @@ end_with_restore_list:
   {
     if (lex->table_or_sp_used())
     {
-      my_error(ER_NOT_SUPPORTED_YET, MYF(0), "Usage of subqueries or stored "
-               "function calls as part of this statement");
+      my_error(ER_SUBQUERIES_NOT_SUPPORTED, MYF(0), "KILL");
       break;
     }
 
@@ -5059,6 +5152,7 @@ create_sp_error:
   case SQLCOM_COMPOUND:
     DBUG_ASSERT(all_tables == 0);
     DBUG_ASSERT(thd->in_sub_stmt == 0);
+    lex->sphead->m_sql_mode= thd->variables.sql_mode;
     if (do_execute_sp(thd, lex->sphead))
       goto error;
     break;
@@ -5482,6 +5576,8 @@ finish:
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
                thd->in_multi_stmt_transaction_mode());
 
+
+  lex->restore_set_statement_var();
   lex->unit.cleanup();
 
   if (! thd->in_sub_stmt)

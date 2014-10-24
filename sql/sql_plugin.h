@@ -189,4 +189,5 @@ extern bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                                      int type, uint state_mask, void *arg);
 extern bool plugin_dl_foreach(THD *thd, const LEX_STRING *dl,
                               plugin_foreach_func *func, void *arg);
+
 #endif

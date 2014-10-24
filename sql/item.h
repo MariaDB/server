@@ -2819,6 +2819,16 @@ protected:
     fixed= 1;
   }
 public:
+  Item_string(CHARSET_INFO *csi, const char *str_arg, uint length_arg)
+    : m_cs_specified(FALSE)
+  {
+    collation.set(csi, DERIVATION_COERCIBLE);
+    set_name(NULL, 0, system_charset_info);
+    decimals= NOT_FIXED_DEC;
+    fixed= 1;
+    str_value.copy(str_arg, length_arg, csi);
+    max_length= str_value.numchars() * csi->mbmaxlen;
+  }
   // Constructors with the item name set from its value
   Item_string(const char *str, uint length, CHARSET_INFO *cs,
               Derivation dv, uint repertoire)
@@ -2954,6 +2964,7 @@ public:
     }
     return MYSQL_TYPE_STRING; // Not a temporal literal
   }
+
 };
 
 

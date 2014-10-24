@@ -636,7 +636,7 @@ static bool fix_thd_charset(sys_var *self, THD *thd, enum_var_type type)
 static Sys_var_struct Sys_character_set_client(
        "character_set_client", "The character set for statements "
        "that arrive from the client",
-       SESSION_VAR(character_set_client), NO_CMD_LINE,
+       NO_SET_STMT SESSION_VAR(character_set_client), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_cs_client),
        ON_UPDATE(fix_thd_charset));
@@ -645,7 +645,7 @@ static Sys_var_struct Sys_character_set_connection(
        "character_set_connection", "The character set used for "
        "literals that do not have a character set introducer and for "
        "number-to-string conversion",
-       SESSION_VAR(collation_connection), NO_CMD_LINE,
+       NO_SET_STMT SESSION_VAR(collation_connection), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_not_null),
        ON_UPDATE(fix_thd_charset));
@@ -659,7 +659,7 @@ static Sys_var_struct Sys_character_set_results(
 
 static Sys_var_struct Sys_character_set_filesystem(
        "character_set_filesystem", "The filesystem character set",
-       SESSION_VAR(character_set_filesystem), NO_CMD_LINE,
+       NO_SET_STMT SESSION_VAR(character_set_filesystem), NO_CMD_LINE,
        offsetof(CHARSET_INFO, csname), DEFAULT(&character_set_filesystem),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_charset_not_null),
        ON_UPDATE(fix_thd_charset));
@@ -705,7 +705,7 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
 static Sys_var_struct Sys_collation_connection(
        "collation_connection", "The collation of the connection "
        "character set",
-       SESSION_VAR(collation_connection), NO_CMD_LINE,
+       NO_SET_STMT SESSION_VAR(collation_connection), NO_CMD_LINE,
        offsetof(CHARSET_INFO, name), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_collation_not_null),
        ON_UPDATE(fix_thd_charset));
@@ -997,7 +997,7 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
 static Sys_var_session_lexstring Sys_default_master_connection(
        "default_master_connection",
        "Master connection to use for all slave variables and slave commands",
-       SESSION_ONLY(default_master_connection),
+       NO_SET_STMT SESSION_ONLY(default_master_connection),
        NO_CMD_LINE, IN_SYSTEM_CHARSET,
        DEFAULT(""), MAX_CONNECTION_NAME, ON_CHECK(check_master_connection));
 #endif
@@ -1024,7 +1024,7 @@ static Sys_var_ulong Sys_interactive_timeout(
        "interactive_timeout",
        "The number of seconds the server waits for activity on an interactive "
        "connection before closing it",
-       SESSION_VAR(net_interactive_timeout),
+       NO_SET_STMT SESSION_VAR(net_interactive_timeout),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(NET_WAIT_TIMEOUT), BLOCK_SIZE(1));
 
@@ -1182,7 +1182,7 @@ static Sys_var_double Sys_long_query_time(
        "Log all queries that have taken more than long_query_time seconds "
        "to execute to file. The argument will be treated as a decimal value "
        "with microsecond precision",
-       SESSION_VAR(long_query_time_double),
+       NO_SET_STMT SESSION_VAR(long_query_time_double),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(10),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_cached_long_query_time));
@@ -1437,7 +1437,7 @@ static Sys_var_uint Sys_gtid_domain_id(
        "parallel paths (for example multiple masters), each independent "
        "source server must use a distinct domain_id. For simple tree-shaped "
        "replication topologies, it can be left at its default, 0.",
-       SESSION_VAR(gtid_domain_id),
+       NO_SET_STMT SESSION_VAR(gtid_domain_id),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, UINT_MAX32), DEFAULT(0),
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_gtid_domain_id));
@@ -2037,7 +2037,7 @@ static Sys_var_ulong Sys_min_examined_row_limit(
        "min_examined_row_limit",
        "Don't write queries to slow log that examine fewer rows "
        "than that",
-       SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(min_examined_row_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));
 
 #ifdef _WIN32
@@ -2130,8 +2130,9 @@ static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
 static Sys_var_mybool Sys_old_passwords(
        "old_passwords",
        "Use old password encryption method (needed for 4.0 and older clients)",
-       SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_old_passwords));
+       NO_SET_STMT SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
+       ON_CHECK(check_old_passwords));
 export sys_var *Sys_old_passwords_ptr= &Sys_old_passwords; // for sql_acl.cc
 
 static Sys_var_ulong Sys_open_files_limit(
@@ -2675,7 +2676,7 @@ static Sys_var_enum Sys_query_cache_type(
        "OFF = Don't cache or retrieve results. ON = Cache all results "
        "except SELECT SQL_NO_CACHE ... queries. DEMAND = Cache only "
        "SELECT SQL_CACHE ... queries",
-       SESSION_VAR(query_cache_type), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(query_cache_type), CMD_LINE(REQUIRED_ARG),
        query_cache_type_names, DEFAULT(1), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_query_cache_type),
        ON_UPDATE(fix_query_cache_type));
@@ -3192,7 +3193,7 @@ static bool check_tx_isolation(sys_var *self, THD *thd, set_var *var)
 // NO_CMD_LINE - different name of the option
 static Sys_var_tx_isolation Sys_tx_isolation(
        "tx_isolation", "Default transaction isolation level",
-       SESSION_VAR(tx_isolation), NO_CMD_LINE,
+       NO_SET_STMT SESSION_VAR(tx_isolation), NO_CMD_LINE,
        tx_isolation_names, DEFAULT(ISO_REPEATABLE_READ),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_tx_isolation));
 
@@ -3284,7 +3285,7 @@ static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
        "The number of seconds the server waits for activity on a "
        "connection before closing it",
-       SESSION_VAR(net_wait_timeout), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(net_wait_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
        DEFAULT(NET_WAIT_TIMEOUT), BLOCK_SIZE(1));
 
@@ -3321,7 +3322,7 @@ static Sys_var_plugin Sys_default_tmp_storage_engine(
 */
 static Sys_var_debug_sync Sys_debug_sync(
        "debug_sync", "Debug Sync Facility",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
@@ -3407,7 +3408,8 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
 
 static Sys_var_bit Sys_autocommit(
        "autocommit", "autocommit",
-       SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_AUTOCOMMIT, DEFAULT(TRUE),
+       NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE,
+       OPTION_AUTOCOMMIT, DEFAULT(TRUE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(fix_autocommit));
 export sys_var *Sys_autocommit_ptr= &Sys_autocommit; // for sql_yacc.yy
 
@@ -3423,7 +3425,7 @@ static Sys_var_bit Sys_big_selects(
 
 static Sys_var_bit Sys_log_off(
        "sql_log_off", "sql_log_off",
-       SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_LOG_OFF,
+       NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_LOG_OFF,
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_has_super));
 
 /**
@@ -3527,12 +3529,12 @@ static Sys_var_bit Sys_unique_checks(
 #ifdef ENABLED_PROFILING
 static Sys_var_bit Sys_profiling(
        "profiling", "profiling",
-       SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_PROFILING,
+       NO_SET_STMT SESSION_VAR(option_bits), NO_CMD_LINE, OPTION_PROFILING,
        DEFAULT(FALSE));
 
 static Sys_var_ulong Sys_profiling_history_size(
        "profiling_history_size", "Limit of query profiling memory",
-       SESSION_VAR(profiling_history_size), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(profiling_history_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 100), DEFAULT(15), BLOCK_SIZE(1));
 #endif
 
@@ -3566,7 +3568,8 @@ static bool check_skip_replication(sys_var *self, THD *thd, set_var *var)
 
 static Sys_var_bit Sys_skip_replication(
        "skip_replication", "skip_replication",
-       SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_SKIP_REPLICATION,
+       NO_SET_STMT SESSION_ONLY(option_bits),
+       NO_CMD_LINE, OPTION_SKIP_REPLICATION,
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_skip_replication));
 
@@ -3616,7 +3619,7 @@ static ulonglong read_last_insert_id(THD *thd)
 }
 static Sys_var_session_special Sys_last_insert_id(
        "last_insert_id", "The value to be returned from LAST_INSERT_ID()",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONGLONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_last_insert_id), ON_READ(read_last_insert_id));
@@ -3688,7 +3691,7 @@ static ulonglong read_rand_seed(THD *thd)
 static Sys_var_session_special Sys_rand_seed1(
        "rand_seed1", "Sets the internal state of the RAND() "
        "generator for replication purposes",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_rand_seed1), ON_READ(read_rand_seed));
@@ -3706,7 +3709,7 @@ static bool update_rand_seed2(THD *thd, set_var *var)
 static Sys_var_session_special Sys_rand_seed2(
        "rand_seed2", "Sets the internal state of the RAND() "
        "generator for replication purposes",
-       sys_var::ONLY_SESSION, NO_CMD_LINE,
+       NO_SET_STMT sys_var::ONLY_SESSION, NO_CMD_LINE,
        VALID_RANGE(0, ULONG_MAX), BLOCK_SIZE(1),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_rand_seed2), ON_READ(read_rand_seed));
@@ -3738,7 +3741,7 @@ static Sys_var_session_special Sys_warning_count(
 static Sys_var_ulong Sys_default_week_format(
        "default_week_format",
        "The default week format used by WEEK() functions",
-       SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 7), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_ulonglong Sys_group_concat_max_len(
@@ -3961,7 +3964,7 @@ static Sys_var_mybool Sys_slow_query_log(
        "Log slow queries to a table or log file. Defaults logging to a file "
        "'hostname'-slow.log or a table mysql.slow_log if --log-output=TABLE is "
        "used. Must be enabled to activate other slow log options",
-       SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
+       NO_SET_STMT SESSION_VAR(sql_log_slow), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0), ON_UPDATE(fix_log_state));
 
@@ -4832,7 +4835,7 @@ static const char *log_slow_filter_names[]=
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
        "Log only certain types of queries",
-       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
        log_slow_filter_names,
        DEFAULT(MAX_SET(array_elements(log_slow_filter_names)-1)));
 
@@ -4879,7 +4882,7 @@ static Sys_var_ulong Sys_log_slow_rate_limit(
        "Write to slow log every #th slow query. Set to 1 to log everything. "
        "Increase it to reduce the size of the slow or the performance impact "
        "of slow logging",
-       SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(log_slow_rate_limit), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(1), BLOCK_SIZE(1));
 
 static const char *log_slow_verbosity_names[]= { "innodb", "query_plan", 
@@ -4887,7 +4890,7 @@ static const char *log_slow_verbosity_names[]= { "innodb", "query_plan",
 static Sys_var_set Sys_log_slow_verbosity(
        "log_slow_verbosity",
        "Verbosity level for the slow log",
-       SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT SESSION_VAR(log_slow_verbosity), CMD_LINE(REQUIRED_ARG),
        log_slow_verbosity_names, DEFAULT(LOG_SLOW_VERBOSITY_INIT));
 
 static Sys_var_ulong Sys_join_cache_level(

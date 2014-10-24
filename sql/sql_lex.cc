@@ -542,6 +542,8 @@ void lex_start(THD *thd)
   lex->reset_slave_info.all= false;
   lex->limit_rows_examined= 0;
   lex->limit_rows_examined_cnt= ULONGLONG_MAX;
+  lex->var_list.empty();
+  lex->stmt_var_list.empty();
   DBUG_VOID_RETURN;
 }
 
@@ -4233,6 +4235,17 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
   return res;
 }
 
+void LEX::restore_set_statement_var()
+{
+  DBUG_ENTER("LEX::restore_set_statement_var");
+  if (!old_var_list.is_empty())
+  {
+    DBUG_PRINT("info", ("vars: %d", old_var_list.elements));
+    sql_set_variables(thd, &old_var_list, false);
+    old_var_list.empty();
+  }
+  DBUG_VOID_RETURN;
+}
 
 /*
   Save explain structures of a UNION. The only variable member is whether the 

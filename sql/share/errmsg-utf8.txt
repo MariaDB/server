@@ -7111,3 +7111,7 @@ ER_TABLE_DEFINITION_TOO_BIG
         eng "The definition for table %`s is too big"
 ER_STATEMENT_TIMEOUT 70100
         eng "Query execution was interrupted (max_statement_time exceeded)"
+ER_SUBQUERIES_NOT_SUPPORTED 42000
+        eng "%s does not support subqueries or stored functions."
+ER_SET_STATEMENT_NOT_SUPPORTED 42000
+        eng "The system variable %.200s cannot be set in SET STATEMENT." 
