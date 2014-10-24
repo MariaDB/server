@@ -1,0 +1,28 @@
+SET @start_innodb_defragment_n_pages = @@global.innodb_defragment_n_pages;
+SELECT @start_innodb_defragment_n_pages;
+@start_innodb_defragment_n_pages
+7
+SELECT COUNT(@@global.innodb_defragment_n_pages);
+COUNT(@@global.innodb_defragment_n_pages)
+1
+SET @@global.innodb_defragment_n_pages = 1;
+Warnings:
+Warning	1292	Truncated incorrect innodb_defragment_n_pages value: '1'
+SELECT @@global.innodb_defragment_n_pages;
+@@global.innodb_defragment_n_pages
+2
+SET @@global.innodb_defragment_n_pages = 2;
+SELECT @@global.innodb_defragment_n_pages;
+@@global.innodb_defragment_n_pages
+2
+SET @@global.innodb_defragment_n_pages = 32;
+SELECT @@global.innodb_defragment_n_pages;
+@@global.innodb_defragment_n_pages
+32
+SET @@global.innodb_defragment_n_pages = 64;
+Warnings:
+Warning	1292	Truncated incorrect innodb_defragment_n_pages value: '64'
+SELECT @@global.innodb_defragment_n_pages;
+@@global.innodb_defragment_n_pages
+32
+SET @@global.innodb_defragment_n_pages = @start_innodb_defragment_n_pages;

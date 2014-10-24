@@ -25,7 +25,11 @@ extern
 #endif
 builtin_maria_plugin 
   @mysql_mandatory_plugins@ @mysql_optional_plugins@
-  builtin_maria_binlog_plugin, builtin_maria_mysql_password_plugin;
+  builtin_maria_binlog_plugin,
+#ifdef WITH_WSREP
+  builtin_wsrep_plugin,
+#endif /* WITH_WSREP */
+ builtin_maria_mysql_password_plugin;
 
 struct st_maria_plugin *mysql_optional_plugins[]=
 {
@@ -35,5 +39,8 @@ struct st_maria_plugin *mysql_optional_plugins[]=
 struct st_maria_plugin *mysql_mandatory_plugins[]=
 {
   builtin_maria_binlog_plugin, builtin_maria_mysql_password_plugin,
+#ifdef WITH_WSREP
+  builtin_wsrep_plugin,
+#endif /* WITH_WSREP */
   @mysql_mandatory_plugins@ 0
 };

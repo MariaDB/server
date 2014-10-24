@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -94,7 +94,6 @@ PATENT RIGHTS GRANT:
 static const char *fname = TOKU_TEST_FILENAME;
 
 static TOKUTXN const null_txn = 0;
-static DB * const null_db = 0;
 
 static int test_cursor_debug = 0;
 
@@ -170,7 +169,7 @@ static void test_ft_cursor_first(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -208,7 +207,7 @@ static void test_ft_cursor_last(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -247,7 +246,7 @@ static void test_ft_cursor_first_last(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -289,7 +288,7 @@ static void test_ft_cursor_rfirst(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -353,7 +352,7 @@ static void test_ft_cursor_walk(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -415,7 +414,7 @@ static void test_ft_cursor_rwalk(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -443,7 +442,7 @@ static void test_ft_cursor_rwalk(int n) {
 }
 
 static int
-ascending_key_string_checkf (ITEMLEN keylen, bytevec key, ITEMLEN UU(vallen), bytevec UU(val), void *v, bool lock_only)
+ascending_key_string_checkf (uint32_t keylen, const void *key, uint32_t UU(vallen), const void *UU(val), void *v, bool lock_only)
 // the keys are strings.  Verify that they keylen matches the key, that the keys are ascending.  Use (char**)v  to hold a
 // malloc'd previous string.
 {
@@ -496,7 +495,7 @@ static void test_ft_cursor_rand(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -546,7 +545,7 @@ static void test_ft_cursor_split(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -617,7 +616,7 @@ static void test_multiple_ft_cursors(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -663,7 +662,7 @@ static void test_multiple_ft_cursor_walk(int n) {
     int nodesize = 1<<12;
     int h = log16(n);
     int cachesize = 2 * h * ncursors * nodesize;
-    toku_cachetable_create(&ct, cachesize, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, cachesize, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -736,7 +735,7 @@ static void test_ft_cursor_set(int n, int cursor_op) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -804,7 +803,7 @@ static void test_ft_cursor_set_range(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     r = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(r==0);
@@ -864,7 +863,7 @@ static void test_ft_cursor_delete(int n) {
 
     unlink(fname);
 
-    toku_cachetable_create(&ct, 0, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 0, ZERO_LSN, nullptr);
 
     error = toku_open_ft_handle(fname, 1, &ft, 1<<12, 1<<9, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, test_ft_cursor_keycompare);
     assert(error == 0);

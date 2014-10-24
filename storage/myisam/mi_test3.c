@@ -178,7 +178,7 @@ void start_test(int id)
   }
   if (key_cacheing && rnd(2) == 0)
     init_key_cache(dflt_key_cache, KEY_CACHE_BLOCK_SIZE, 65536L, 0, 0,
-                   DEFAULT_KEY_CACHE_PARTITIONS);
+                   0, DEFAULT_KEY_CACHE_PARTITIONS);
   printf("Process %d, pid: %ld\n", id, (long) getpid());
   fflush(stdout);
 

@@ -50,6 +50,8 @@ extern "C" my_bool	timed_mutexes;
 #ifdef _WIN32
 typedef LONG lock_word_t;	/*!< On Windows, InterlockedExchange operates
 				on LONG variable */
+#elif defined(HAVE_ATOMIC_BUILTINS) && !defined(HAVE_ATOMIC_BUILTINS_BYTE)
+typedef ulint lock_word_t;
 #else
 typedef byte lock_word_t;
 #endif
@@ -864,6 +866,7 @@ or row lock! */
 #define SYNC_EXTERN_STORAGE	500
 #define	SYNC_FSP		400
 #define	SYNC_FSP_PAGE		395
+#define SYNC_STATS_DEFRAG	390
 /*------------------------------------- Change buffer headers */
 #define SYNC_IBUF_MUTEX		370	/* ibuf_mutex */
 /*------------------------------------- Change buffer tree */

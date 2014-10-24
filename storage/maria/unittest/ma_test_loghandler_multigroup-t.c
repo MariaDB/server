@@ -226,7 +226,6 @@ int main(int argc __attribute__((unused)), char *argv[])
 {
   uint32 i;
   uint32 rec_len;
-  uint pagen;
   uchar long_tr_id[6];
   uchar lsn_buff[23]=
   {
@@ -284,8 +283,8 @@ int main(int argc __attribute__((unused)), char *argv[])
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);
   }
-  if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
-                             TRANSLOG_PAGE_SIZE, 0)) == 0)
+  if (init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
+                     TRANSLOG_PAGE_SIZE, 0, 0) == 0)
   {
     fprintf(stderr, "Got error: init_pagecache() (errno: %d)\n", errno);
     exit(1);
@@ -447,8 +446,8 @@ int main(int argc __attribute__((unused)), char *argv[])
     fprintf(stderr, "pass2: Can't init control file (%d)\n", errno);
     exit(1);
   }
-  if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
-                             TRANSLOG_PAGE_SIZE, 0)) == 0)
+  if (init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
+                     TRANSLOG_PAGE_SIZE, 0, 0) == 0)
   {
     fprintf(stderr, "pass2: Got error: init_pagecache() (errno: %d)\n", errno);
     exit(1);

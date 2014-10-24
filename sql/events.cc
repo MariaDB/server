@@ -270,6 +270,7 @@ common_1_lev_code:
 static int
 create_query_string(THD *thd, String *buf)
 {
+  buf->length(0);
   /* Append the "CREATE" part of the query */
   if (buf->append(STRING_WITH_LEN("CREATE ")))
     return 1;
@@ -380,7 +381,8 @@ Events::create_event(THD *thd, Event_parse_data *parse_data,
     {
       /* Binlog the create event. */
       DBUG_ASSERT(thd->query() && thd->query_length());
-      String log_query;
+      char buffer[1024];
+      String log_query(buffer, sizeof(buffer), &my_charset_bin);
       if (create_query_string(thd, &log_query))
       {
         sql_print_error("Event Error: An error occurred while creating query "
@@ -1128,7 +1130,6 @@ Events::load_events_from_db(THD *thd)
       delete et;
       goto end;
     }
-
     /**
       Since the Event_queue_element object could be deleted inside
       Event_queue::create_event we should save the value of dropped flag
@@ -1174,6 +1175,20 @@ end:
   DBUG_RETURN(ret);
 }
 
+#ifdef WITH_WSREP
+int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len)
+{
+  char buffer[1024];
+  String log_query(buffer, sizeof(buffer), &my_charset_bin);
+
+  if (create_query_string(thd, &log_query))
+  {
+    WSREP_WARN("events create string failed: %s", thd->query());
+    return 1;
+  }
+  return wsrep_to_buf_helper(thd, log_query.ptr(), log_query.length(), buf, buf_len);
+}
+#endif /* WITH_WSREP */
 /**
   @} (End of group Event_Scheduler)
 */

@@ -2,11 +2,9 @@ DROP DATABASE IF EXISTS test1;
 CREATE DATABASE test1;
 SELECT *,
 LEFT( table_comment,
-IF(INSTR(table_comment,'InnoDB free') = 0
-AND INSTR(table_comment,'number_of_replicas') = 0,
+IF(INSTR(table_comment,'InnoDB free') = 0,
 LENGTH(table_comment),
-INSTR(table_comment,'InnoDB free')
-+ INSTR(table_comment,'number_of_replicas') - 1))
+INSTR(table_comment,'InnoDB free') - 1))
 AS "user_comment",
 '-----------------------------------------------------' AS "Separator"
 FROM information_schema.tables
@@ -642,6 +640,29 @@ TABLE_TYPE	SYSTEM VIEW
 ENGINE	MEMORY
 VERSION	10
 ROW_FORMAT	Fixed
+TABLE_ROWS	#TBLR#
+AVG_ROW_LENGTH	#ARL#
+DATA_LENGTH	#DL#
+MAX_DATA_LENGTH	#MDL#
+INDEX_LENGTH	#IL#
+DATA_FREE	#DF#
+AUTO_INCREMENT	NULL
+CREATE_TIME	#CRT#
+UPDATE_TIME	#UT#
+CHECK_TIME	#CT#
+TABLE_COLLATION	utf8_general_ci
+CHECKSUM	NULL
+CREATE_OPTIONS	#CO#
+TABLE_COMMENT	#TC#
+user_comment	
+Separator	-----------------------------------------------------
+TABLE_CATALOG	def
+TABLE_SCHEMA	information_schema
+TABLE_NAME	SYSTEM_VARIABLES
+TABLE_TYPE	SYSTEM VIEW
+ENGINE	MYISAM_OR_MARIA
+VERSION	10
+ROW_FORMAT	DYNAMIC_OR_PAGE
 TABLE_ROWS	#TBLR#
 AVG_ROW_LENGTH	#ARL#
 DATA_LENGTH	#DL#
@@ -871,11 +892,9 @@ GRANT SELECT ON test1.* TO testuser1@localhost;
 # Establish connection testuser1 (user=testuser1)
 SELECT *,
 LEFT( table_comment,
-IF(INSTR(table_comment,'InnoDB free') = 0
-AND INSTR(table_comment,'number_of_replicas') = 0,
+IF(INSTR(table_comment,'InnoDB free') = 0,
 LENGTH(table_comment),
-INSTR(table_comment,'InnoDB free')
-+ INSTR(table_comment,'number_of_replicas') - 1))
+INSTR(table_comment,'InnoDB free') - 1))
 AS "user_comment",
 '-----------------------------------------------------' AS "Separator"
 FROM information_schema.tables
@@ -1511,6 +1530,29 @@ TABLE_TYPE	SYSTEM VIEW
 ENGINE	MEMORY
 VERSION	10
 ROW_FORMAT	Fixed
+TABLE_ROWS	#TBLR#
+AVG_ROW_LENGTH	#ARL#
+DATA_LENGTH	#DL#
+MAX_DATA_LENGTH	#MDL#
+INDEX_LENGTH	#IL#
+DATA_FREE	#DF#
+AUTO_INCREMENT	NULL
+CREATE_TIME	#CRT#
+UPDATE_TIME	#UT#
+CHECK_TIME	#CT#
+TABLE_COLLATION	utf8_general_ci
+CHECKSUM	NULL
+CREATE_OPTIONS	#CO#
+TABLE_COMMENT	#TC#
+user_comment	
+Separator	-----------------------------------------------------
+TABLE_CATALOG	def
+TABLE_SCHEMA	information_schema
+TABLE_NAME	SYSTEM_VARIABLES
+TABLE_TYPE	SYSTEM VIEW
+ENGINE	MYISAM_OR_MARIA
+VERSION	10
+ROW_FORMAT	DYNAMIC_OR_PAGE
 TABLE_ROWS	#TBLR#
 AVG_ROW_LENGTH	#ARL#
 DATA_LENGTH	#DL#

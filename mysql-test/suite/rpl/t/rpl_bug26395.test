@@ -4,9 +4,6 @@
 # just before writing the XID log event is executed correctly.  The
 # master rolls back, so the slave should not execute statement.
 #
-# This test was previously part of rpl_ndb_transaction.test
-#
-#
 # ==== Method ====
 #
 # We want master to be alive so that it can replicate the statement to

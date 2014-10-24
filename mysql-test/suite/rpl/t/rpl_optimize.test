@@ -4,13 +4,10 @@
 #####################################
 # Change Author: JBM
 # Change Date: 2006-02-09
-# Change: NDB does not and will not support
 # OPTIMIZE for memory tables. If and when 
 # it does support for Disk Data, a new 
 # version of this test will be need.
-# Skipping this test if default engine = ndb
 #####################################
--- source include/not_ndb_default.inc
 # Slow test, don't run during staging part
 -- source include/not_staging.inc
 -- source include/master-slave.inc

@@ -110,6 +110,12 @@ UNIV_INTERN os_ib_mutex_t	os_file_seek_mutexes[OS_FILE_N_SEEK_MUTEXES];
 /* In simulated aio, merge at most this many consecutive i/os */
 #define OS_AIO_MERGE_N_CONSECUTIVE	64
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+#define WAIT_ALLOW_WRITES() os_event_wait(srv_allow_writes_event)
+#else
+#define WAIT_ALLOW_WRITES() do { } while (0)
+#endif /* WITH_INNODB_DISALLOW_WRITES */
+
 /**********************************************************************
 
 InnoDB AIO Implementation:
@@ -233,12 +239,7 @@ struct os_aio_slot_t{
 	int		n_bytes;	/* bytes written/read. */
 	int		ret;		/* AIO return code */
 #endif /* WIN_ASYNC_IO */
-#ifdef HAVE_LZO
-	byte		lzo_mem[LZO1X_1_15_MEM_COMPRESS];
-#else
-	byte		lzo_mem[1];	/* Temporal memory used by LZO */
-#endif
-
+	byte		*lzo_mem;	/* Temporal memory used by LZO */
 };
 
 /** The asynchronous i/o array structure */
@@ -365,6 +366,17 @@ void
 os_slot_alloc_page_buf(
 /*===================*/
 	os_aio_slot_t*	slot); /*!< in: slot structure     */
+
+#ifdef HAVE_LZO
+/**********************************************************************//**
+Allocate memory for temporal memory used for page compression when
+LZO compression method is used */
+UNIV_INTERN
+void
+os_slot_alloc_lzo_mem(
+/*===================*/
+	os_aio_slot_t*   slot); /*!< in: slot structure     */
+#endif
 
 /****************************************************************//**
 Does error handling when a file operation fails.
@@ -865,8 +877,11 @@ os_file_handle_error_cond_exit(
 		is better to ignore on_error_silent and print an error message
 		to the log. */
 
-		fprintf(stderr,
-			" InnoDB: at file %s and at line %ld\n", file, line);
+		if (should_exit || !on_error_silent) {
+			fprintf(stderr,
+				" InnoDB: Operation %s to file %s and at line %ld\n",
+				operation, file, line);
+		}
 
 		if (should_exit || !on_error_silent) {
 			ib_logf(IB_LOG_LEVEL_ERROR, "File %s: '%s' returned OS "
@@ -993,7 +1008,9 @@ os_file_create_tmpfile(void)
 /*========================*/
 {
 	FILE*	file	= NULL;
-	int	fd	= innobase_mysql_tmpfile();
+	int	fd;
+	WAIT_ALLOW_WRITES();
+	fd	= innobase_mysql_tmpfile();
 
 	ut_ad(!srv_read_only_mode);
 
@@ -1319,6 +1336,7 @@ os_file_create_directory(
 	return(TRUE);
 #else
 	int	rcode;
+	WAIT_ALLOW_WRITES();
 
 	rcode = mkdir(pathname, 0770);
 
@@ -1445,6 +1463,8 @@ os_file_create_simple_func(
 
 #else /* __WIN__ */
 	int		create_flag;
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW)
+		WAIT_ALLOW_WRITES();
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -1632,6 +1652,8 @@ os_file_create_simple_no_error_handling_func(
 	int		create_flag;
 
 	ut_a(name);
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW)
+		WAIT_ALLOW_WRITES();
 
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_SILENT));
 	ut_a(!(create_mode & OS_FILE_ON_ERROR_NO_EXIT));
@@ -2007,6 +2029,8 @@ os_file_create_func(
 #else /* __WIN__ */
 	int		create_flag;
 	const char*	mode_str	= NULL;
+	if (create_mode != OS_FILE_OPEN && create_mode != OS_FILE_OPEN_RAW)
+		WAIT_ALLOW_WRITES();
 
 	on_error_no_exit = create_mode & OS_FILE_ON_ERROR_NO_EXIT
 		? TRUE : FALSE;
@@ -2171,7 +2195,7 @@ os_file_delete_if_exists_func(
 	bool	ret;
 	ulint	count	= 0;
 loop:
-	/* In Windows, deleting an .ibd file may fail if ibbackup is copying
+	/* In Windows, deleting an .ibd file may fail if mysqlbackup is copying
 	it */
 
 	ret = DeleteFile((LPCTSTR) name);
@@ -2196,7 +2220,7 @@ loop:
 		ib_logf(IB_LOG_LEVEL_WARN, "Delete of file %s failed.", name);
 	}
 
-	os_thread_sleep(1000000);	/* sleep for a second */
+	os_thread_sleep(500000);	/* sleep for 0.5 second */
 
 	if (count > 2000) {
 
@@ -2206,6 +2230,7 @@ loop:
 	goto loop;
 #else
 	int	ret;
+	WAIT_ALLOW_WRITES();
 
 	ret = unlink(name);
 
@@ -2233,7 +2258,7 @@ os_file_delete_func(
 	BOOL	ret;
 	ulint	count	= 0;
 loop:
-	/* In Windows, deleting an .ibd file may fail if ibbackup is copying
+	/* In Windows, deleting an .ibd file may fail if mysqlbackup is copying
 	it */
 
 	ret = DeleteFile((LPCTSTR) name);
@@ -2256,7 +2281,7 @@ loop:
 
 		fprintf(stderr,
 			"InnoDB: Warning: cannot delete file %s\n"
-			"InnoDB: Are you running ibbackup"
+			"InnoDB: Are you running mysqlbackup"
 			" to back up the file?\n", name);
 	}
 
@@ -2270,6 +2295,7 @@ loop:
 	goto loop;
 #else
 	int	ret;
+	WAIT_ALLOW_WRITES();
 
 	ret = unlink(name);
 
@@ -2323,6 +2349,7 @@ os_file_rename_func(
 	return(FALSE);
 #else
 	int	ret;
+	WAIT_ALLOW_WRITES();
 
 	ret = rename(oldpath, newpath);
 
@@ -2459,12 +2486,6 @@ os_file_set_size(
 
 	current_size = 0;
 
-#ifdef UNIV_DEBUG
-	fprintf(stderr, "InnoDB: Note: File %s current_size %lu extended_size %lu\n",
-		name, os_file_get_size(file), size);
-#endif
-
-
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 
@@ -2508,6 +2529,7 @@ os_file_set_size(
 		}
 
 		ret = os_file_write(name, file, buf, current_size, n_bytes);
+
 		if (!ret) {
 			ut_free(buf2);
 			goto error_handling;
@@ -2555,6 +2577,7 @@ os_file_set_eof(
 	HANDLE h = (HANDLE) _get_osfhandle(fileno(file));
 	return(SetEndOfFile(h));
 #else /* __WIN__ */
+	WAIT_ALLOW_WRITES();
 	return(!ftruncate(fileno(file), ftell(file)));
 #endif /* __WIN__ */
 }
@@ -2574,6 +2597,7 @@ os_file_set_eof_at(
 	return(SetFilePointerEx(file, li, &li2,FILE_BEGIN)
 	       && SetEndOfFile(file));
 #else
+	WAIT_ALLOW_WRITES();
 	/* TODO: works only with -D_FILE_OFFSET_BITS=64 ? */
 	return(!ftruncate(file, new_len));
 #endif
@@ -2673,6 +2697,7 @@ os_file_flush_func(
 	return(FALSE);
 #else
 	int	ret;
+	WAIT_ALLOW_WRITES();
 
 #if defined(HAVE_DARWIN_THREADS)
 # ifndef F_FULLFSYNC
@@ -3032,7 +3057,9 @@ os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	trx_t*		trx)
+	trx_t*		trx,
+	ibool		compressed) /*!< in: is this file space
+				    compressed ? */
 {
 #ifdef __WIN__
 	BOOL		ret;
@@ -3075,9 +3102,14 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
-		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, len, NULL);
+		/* Note that InnoDB writes files that are not formated
+		as file spaces and they do not have FIL_PAGE_TYPE
+		field, thus we must use here information is the actual
+		file space compressed. */
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
+			fil_decompress_page(NULL, (byte *)buf, len, NULL);
 		}
+
 		return(TRUE);
 	}
 #else /* __WIN__ */
@@ -3091,15 +3123,19 @@ try_again:
 
 	if ((ulint) ret == n) {
 
-		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, n, NULL);
+		/* Note that InnoDB writes files that are not formated
+		as file spaces and they do not have FIL_PAGE_TYPE
+		field, thus we must use here information is the actual
+		file space compressed. */
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
+			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
 		return(TRUE);
 	}
 
 	ib_logf(IB_LOG_LEVEL_ERROR,
-		"Tried to read "ULINTPF" bytes at offset " UINT64PF". "
+		"Tried to read " ULINTPF " bytes at offset " UINT64PF ". "
 		"Was only able to read %ld.", n, offset, (lint) ret);
 #endif /* __WIN__ */
 	retry = os_file_handle_error(NULL, "read", __FILE__, __LINE__);
@@ -3137,7 +3173,9 @@ os_file_read_no_error_handling_func(
 	os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
-	ulint		n)	/*!< in: number of bytes to read */
+	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed) /*!< in: is this file space
+				     compressed ? */
 {
 #ifdef __WIN__
 	BOOL		ret;
@@ -3182,6 +3220,15 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
+
+		/* Note that InnoDB writes files that are not formated
+		as file spaces and they do not have FIL_PAGE_TYPE
+		field, thus we must use here information is the actual
+		file space compressed. */
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
+			fil_decompress_page(NULL, (byte *)buf, n, NULL);
+		}
+
 		return(TRUE);
 	}
 #else /* __WIN__ */
@@ -3195,8 +3242,12 @@ try_again:
 
 	if ((ulint) ret == n) {
 
-		if (fil_page_is_compressed((byte *)buf)) {
-		        fil_decompress_page(NULL, (byte *)buf, n, NULL);
+		/* Note that InnoDB writes files that are not formated
+		as file spaces and they do not have FIL_PAGE_TYPE
+		field, thus we must use here information is the actual
+		file space compressed. */
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
+			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
 		return(TRUE);
@@ -3257,7 +3308,8 @@ os_file_write_func(
 	DWORD		len;
 	ulint		n_retries	= 0;
 	ulint		err;
-	OVERLAPPED overlapped;
+	OVERLAPPED	overlapped;
+	DWORD		saved_error = 0;
 
 	/* On 64-bit Windows, ulint is 64 bits. But offset and n should be
 	no more than 32 bits. */
@@ -3268,6 +3320,7 @@ os_file_write_func(
 	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
+
 retry:
 
 	os_mutex_enter(os_file_count_mutex);
@@ -3284,7 +3337,7 @@ retry:
 	if (ret) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, FALSE);
 	}
-	else if(GetLastError() == ERROR_IO_PENDING) {
+	else if ( GetLastError() == ERROR_IO_PENDING) {
 		ret = GetOverlappedResult(file, &overlapped, (DWORD *)&len, TRUE);
 	}
 
@@ -3312,8 +3365,10 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
+		char *winmsg = NULL;
 
-		err = (ulint) GetLastError();
+		saved_error = GetLastError();
+		err = (ulint) saved_error;
 
 		ut_print_timestamp(stderr);
 
@@ -3329,6 +3384,23 @@ retry:
 			" or a disk quota exceeded.\n",
 			name, offset,
 			(ulong) n, (ulong) len, (ulong) err);
+
+		/* Ask Windows to prepare a standard message for a
+		GetLastError() */
+
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, saved_error,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPSTR)&winmsg, 0, NULL);
+
+		if (winmsg) {
+			fprintf(stderr,
+				"InnoDB: FormatMessage: Error number %lu means '%s'.\n",
+				(ulong) saved_error, winmsg);
+			LocalFree(winmsg);
+		}
 
 		if (strerror((int) err) != NULL) {
 			fprintf(stderr,
@@ -3348,6 +3420,7 @@ retry:
 	return(FALSE);
 #else
 	ssize_t	ret;
+	WAIT_ALLOW_WRITES();
 
 	ret = os_file_pwrite(file, buf, n, offset);
 
@@ -3362,7 +3435,7 @@ retry:
 
 		fprintf(stderr,
 			" InnoDB: Error: Write to file %s failed"
-			" at offset "UINT64PF".\n"
+			" at offset " UINT64PF ".\n"
 			"InnoDB: %lu bytes should have been written,"
 			" only %ld were written.\n"
 			"InnoDB: Operating system error number %lu.\n"
@@ -4202,6 +4275,11 @@ os_aio_array_free(
 			ut_free(slot->page_compression_page);
 			slot->page_compression_page = NULL;
 		}
+
+		if (slot->lzo_mem) {
+			ut_free(slot->lzo_mem);
+			slot->lzo_mem = NULL;
+		}
 	}
 
 	ut_free(array->slots);
@@ -4669,7 +4747,11 @@ found:
 			os_slot_alloc_page_buf(slot);
 		}
 
-		ut_ad(slot->page_buf);
+#ifdef HAVE_LZO
+		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+			os_slot_alloc_lzo_mem(slot);
+		}
+#endif
 
 		/* Call page compression */
 		tmp = fil_compress_page(fil_node_get_space_id(slot->message1),
@@ -5003,14 +5085,17 @@ os_aio_func(
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
-	if (mode == OS_AIO_SYNC)
-	{
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			mode = OS_AIO_SYNC;);
+
+	if (mode == OS_AIO_SYNC) {
 		ibool ret;
 		/* This is actually an ordinary synchronous read or write:
 		no need to use an i/o-handler thread */
 
 		if (type == OS_FILE_READ) {
-			ret = os_file_read_func(file, buf, offset, n, trx);
+			ret = os_file_read_func(file, buf, offset, n, trx,
+				                page_compression);
 		}
 		else {
 			ut_ad(!srv_read_only_mode);
@@ -5018,7 +5103,18 @@ os_aio_func(
 
 			ret = os_file_write(name, file, buf, offset, n);
 		}
-		ut_a(ret);
+
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			ret = 0;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			errno = 28;);
+
+		if (!ret) {
+			fprintf(stderr, "FAIL");
+		}
+
 		return ret;
 	}
 
@@ -5259,16 +5355,16 @@ os_aio_windows_handle(
 		case OS_FILE_WRITE:
 			if (slot->message1 && slot->page_compression && slot->page_buf) {
 				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
-					slot->offset, slot->len);
+					                slot->offset, slot->len);
 			} else {
 
 				ret_val = os_file_write(slot->name, slot->file, slot->buf,
-					slot->offset, slot->len);
+					                slot->offset, slot->len);
 			}
 			break;
 		case OS_FILE_READ:
 			ret_val = os_file_read(slot->file, slot->buf,
-				slot->offset, slot->len);
+				               slot->offset, slot->len, slot->page_compression);
 			break;
 		default:
 			ut_error;
@@ -5299,12 +5395,14 @@ os_aio_windows_handle(
 		if (slot->page_buf == NULL) {
 			os_slot_alloc_page_buf(slot);
 		}
-		ut_ad(slot->page_buf);
 
+#ifdef HAVE_LZO
+		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+			os_slot_alloc_lzo_mem(slot);
+		}
+#endif
 	        if (slot->type == OS_FILE_READ) {
-			if (fil_page_is_compressed(slot->buf)) {
-				fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-			}
+			fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 		} else {
 			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
 				if (srv_use_trim && os_fallocate_failed == FALSE) {
@@ -5413,12 +5511,14 @@ retry:
 				if (slot->page_buf == NULL) {
 					os_slot_alloc_page_buf(slot);
 				}
-				ut_ad(slot->page_buf);
 
+#ifdef HAVE_LZO
+				if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+					os_slot_alloc_lzo_mem(slot);
+				}
+#endif
 				if (slot->type == OS_FILE_READ) {
-					if (fil_page_is_compressed(slot->buf)) {
-						fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-					}
+					fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
 				} else {
 					if (slot->page_compress_success &&
 					    fil_page_is_compressed(slot->page_buf)) {
@@ -5907,10 +6007,17 @@ consecutive_loop:
 	} else {
 		ret = os_file_read(
 			aio_slot->file, combined_buf,
-			aio_slot->offset, total_len);
+			aio_slot->offset, total_len,
+			aio_slot->page_compression);
 	}
 
-	ut_a(ret);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+		os_has_said_disk_full = FALSE;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			ret = 0;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			errno = 28;);
+
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
 	if (aio_slot->type == OS_FILE_READ && n_consecutive > 1) {
@@ -6336,7 +6443,7 @@ os_file_trim(
 
 #define SECT_SIZE 512
 	size_t trim_len = UNIV_PAGE_SIZE - len;
-	os_offset_t off = slot->offset + len;
+	os_offset_t off __attribute__((unused)) = slot->offset + len;
 	// len here should be alligned to sector size
 	ut_a((trim_len % SECT_SIZE) == 0);
 	ut_a((len % SECT_SIZE) == 0);
@@ -6459,9 +6566,27 @@ os_slot_alloc_page_buf(
 	byte*           cbuf2;
 	byte*           cbuf;
 
+	ut_a(slot != NULL);
 	/* We allocate extra to avoid memory overwrite on compression */
 	cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
 	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 	slot->page_compression_page = static_cast<byte *>(cbuf2);
 	slot->page_buf = static_cast<byte *>(cbuf);
+	ut_a(slot->page_buf != NULL);
 }
+
+#ifdef HAVE_LZO
+/**********************************************************************//**
+Allocate memory for temporal memory used for page compression when
+LZO compression method is used */
+UNIV_INTERN
+void
+os_slot_alloc_lzo_mem(
+/*===================*/
+	os_aio_slot_t*   slot) /*!< in: slot structure     */
+{
+	ut_a(slot != NULL);
+	slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
+	ut_a(slot->lzo_mem != NULL);
+}
+#endif

@@ -434,7 +434,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     binlogged, so they share the same danger, so trust_function_creators
     applies to them too.
   */
-  if (!trust_function_creators && mysql_bin_log.is_open() &&
+  if (!trust_function_creators                               &&
+      (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
       !(thd->security_ctx->master_access & SUPER_ACL))
   {
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
@@ -2437,3 +2438,4 @@ bool load_table_name_for_trigger(THD *thd,
 
   DBUG_RETURN(FALSE);
 }
+

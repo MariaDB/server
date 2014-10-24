@@ -427,4 +427,16 @@ THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
 #	MDL_SHARED_READ	MDL_EXPLICIT	Table metadata lock	test	t2
 drop table t1;
 unlock tables;
+#
+# MDEV-6560
+# Assertion `! is_set() ' failed in Diagnostics_area::set_ok_status
+#
+CREATE TABLE t1 (col_int_nokey INT)  ENGINE=InnoDB;
+CREATE OR REPLACE TEMPORARY TABLE tmp LIKE t1;
+LOCK TABLE t1 WRITE;
+CREATE OR REPLACE TABLE t1 LIKE tmp;
+KILL QUERY con_id;
+CREATE OR REPLACE TABLE t1 (a int);
+KILL QUERY con_id;
+drop table t1;
 DROP TABLE t2;

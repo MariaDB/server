@@ -53,8 +53,9 @@ dict_table_t*
 dict_table_open_on_id_low(
 /*=====================*/
 	table_id_t		table_id,	/*!< in: table id */
-	dict_err_ignore_t	ignore_err);	/*!< in: errors to ignore
+	dict_err_ignore_t	ignore_err,	/*!< in: errors to ignore
 						when loading the table */
+	ibool			open_only_if_in_cache);
 
 #ifndef UNIV_NONINL
 #include "dict0priv.ic"

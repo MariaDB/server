@@ -2,6 +2,7 @@
 
 Copyright (c) 1994, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
+Copyright (c) 2013, 2014 SkySQL Ab.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -44,7 +45,7 @@ Created 1/20/1994 Heikki Tuuri
 
 #define INNODB_VERSION_MAJOR	5
 #define INNODB_VERSION_MINOR	6
-#define INNODB_VERSION_BUGFIX	17
+#define INNODB_VERSION_BUGFIX	20
 
 /* The following is the InnoDB version as shown in
 SELECT plugin_version FROM information_schema.plugins;
@@ -331,6 +332,30 @@ typedef enum innodb_file_formats_enum innodb_file_formats_t;
 /** The 2-logarithm of UNIV_PAGE_SIZE: */
 #define UNIV_PAGE_SIZE_SHIFT	srv_page_size_shift
 
+#ifdef HAVE_LZO
+#define IF_LZO(A,B) A
+#else
+#define IF_LZO(A,B) B
+#endif
+
+#ifdef HAVE_LZ4
+#define IF_LZ4(A,B) A
+#else
+#define IF_LZ4(A,B) B
+#endif
+
+#ifdef HAVE_LZMA
+#define IF_LZMA(A,B) A
+#else
+#define IF_LZMA(A,B) B
+#endif
+
+#ifdef HAVE_BZIP2
+#define IF_BZIP2(A,B) A
+#else
+#define IF_BZIP2(A,B) B
+#endif
+
 /** The universal page size of the database */
 #define UNIV_PAGE_SIZE		((ulint) srv_page_size)
 
@@ -441,10 +466,10 @@ typedef unsigned __int64 ib_uint64_t;
 typedef unsigned __int32 ib_uint32_t;
 #else
 /* Use the integer types and formatting strings defined in the C99 standard. */
-# define UINT32PF	"%"PRIu32
-# define INT64PF	"%"PRId64
-# define UINT64PF	"%"PRIu64
-# define UINT64PFx	"%016"PRIx64
+# define UINT32PF	"%" PRIu32
+# define INT64PF	"%" PRId64
+# define UINT64PF	"%" PRIu64
+# define UINT64PFx	"%016" PRIx64
 # define DBUG_LSN_PF    UINT64PF
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;

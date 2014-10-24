@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.2-MariaDB"
+#define CHECK_VERSION "2.7.3-MariaDB"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -51,6 +51,7 @@ static char *opt_password = 0, *current_user = 0,
 	    *default_charset= 0, *current_host= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 static int first_error = 0;
+static char *opt_skip_database;
 DYNAMIC_ARRAY tables4repair, tables4rebuild, alter_table_cmds;
 static char *shared_memory_base_name=0;
 static uint opt_protocol=0;
@@ -178,6 +179,9 @@ static struct my_option my_long_options[] =
 #endif
   {"silent", 's', "Print only error messages.", &opt_silent,
    &opt_silent, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"skip_database", 0, "Don't process the database specified as argument", 
+   &opt_skip_database, &opt_skip_database, 0, GET_STR, REQUIRED_ARG, 
+   0, 0, 0, 0, 0, 0},
   {"socket", 'S', "The socket file to use for connection.",
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -192,8 +196,8 @@ static struct my_option my_long_options[] =
   {"user", 'u', "User for login if not current user.", &current_user,
    &current_user, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"verbose", 'v', "Print info about the various stages.", 0, 0, 0, GET_NO_ARG,
-   NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"verbose", 'v', "Print info about the various stages; Using it 3 times will print out all CHECK, RENAME and ALTER TABLE during the check phase.",
+   0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
@@ -246,6 +250,9 @@ static void usage(void)
   puts("mysqlrepair:   The default option will be -r");
   puts("mysqlanalyze:  The default option will be -a");
   puts("mysqloptimize: The default option will be -o\n");
+  printf("Usage: %s [OPTIONS] database [tables]\n", my_progname);
+  printf("OR     %s [OPTIONS] --databases DB1 [DB2 DB3...]\n",
+	 my_progname);
   puts("Please consult the MariaDB/MySQL knowledgebase at");
   puts("http://kb.askmonty.org/v/mysqlcheck for latest information about");
   puts("this program.");
@@ -625,8 +632,10 @@ static int process_all_tables_in_db(char *database)
 } /* process_all_tables_in_db */
 
 
-static int run_query(const char *query)
+static int run_query(const char *query, my_bool log_query)
 {
+  if (verbose >=3 && log_query)
+    puts(query);
   if (mysql_query(sock, query))
   {
     fprintf(stderr, "Failed to %s\n", query);
@@ -646,7 +655,7 @@ static int fix_table_storage_name(const char *name)
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
   sprintf(qbuf, "RENAME TABLE `%s` TO `%s`", name, name + 9);
-  rc= run_query(qbuf);
+  rc= run_query(qbuf, 1);
   if (verbose)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
@@ -661,7 +670,7 @@ static int fix_database_storage_name(const char *name)
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
   sprintf(qbuf, "ALTER DATABASE `%s` UPGRADE DATA DIRECTORY NAME", name);
-  rc= run_query(qbuf);
+  rc= run_query(qbuf, 1);
   if (verbose)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
@@ -680,6 +689,8 @@ static int rebuild_table(char *name)
   ptr= strmov(query, "ALTER TABLE ");
   ptr= fix_table_name(ptr, name);
   ptr= strxmov(ptr, " FORCE", NullS);
+  if (verbose >= 3)
+    puts(query);
   if (mysql_real_query(sock, query, (uint)(ptr - query)))
   {
     fprintf(stderr, "Failed to %s\n", query);
@@ -695,6 +706,9 @@ static int rebuild_table(char *name)
 static int process_one_db(char *database)
 {
   DBUG_ENTER("process_one_db");
+
+  if (opt_skip_database && !strcmp(database, opt_skip_database))
+    DBUG_RETURN(0);
 
   if (verbose)
     puts(database);
@@ -731,10 +745,11 @@ static int use_db(char *database)
   DBUG_RETURN(0);
 } /* use_db */
 
+/* Do not send commands to replication slaves. */
 static int disable_binlog()
 {
-  const char *stmt= "SET SQL_LOG_BIN=0";
-  return run_query(stmt);
+  mysql_query(sock, "SET WSREP_ON=0"); /* ignore the error, if any */
+  return run_query("SET SQL_LOG_BIN=0", 0);
 }
 
 static int handle_request_for_tables(char *tables, uint length)
@@ -793,6 +808,8 @@ static int handle_request_for_tables(char *tables, uint length)
     ptr= strxmov(ptr, " ", options, NullS);
     query_length= (uint) (ptr - query);
   }
+  if (verbose >= 3)
+    puts(query);
   if (mysql_real_query(sock, query, query_length))
   {
     sprintf(message, "when executing '%s TABLE ... %s'", op, options);
@@ -1045,7 +1062,7 @@ int main(int argc, char **argv)
     for (i = 0; i < tables4rebuild.elements ; i++)
       rebuild_table((char*) dynamic_array_ptr(&tables4rebuild, i));
     for (i = 0; i < alter_table_cmds.elements ; i++)
-      run_query((char*) dynamic_array_ptr(&alter_table_cmds, i));
+      run_query((char*) dynamic_array_ptr(&alter_table_cmds, i), 1);
   }
   ret= MY_TEST(first_error);
 

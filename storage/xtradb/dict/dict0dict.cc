@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
@@ -28,6 +28,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0dict.h"
 #include "fts0fts.h"
 #include "fil0fil.h"
+#include <algorithm>
 
 #ifdef UNIV_NONINL
 #include "dict0dict.ic"
@@ -51,6 +52,7 @@ UNIV_INTERN dict_index_t*	dict_ind_compact;
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"
+#include "os0once.h"
 #include "page0zip.h"
 #include "page0page.h"
 #include "pars0pars.h"
@@ -103,7 +105,7 @@ UNIV_INTERN ulong	zip_pad_max = 50;
 UNIV_INTERN mysql_pfs_key_t	dict_operation_lock_key;
 UNIV_INTERN mysql_pfs_key_t	index_tree_rw_lock_key;
 UNIV_INTERN mysql_pfs_key_t	index_online_log_key;
-UNIV_INTERN mysql_pfs_key_t	dict_table_stats_latch_key;
+UNIV_INTERN mysql_pfs_key_t	dict_table_stats_key;
 #endif /* UNIV_PFS_RWLOCK */
 
 #ifdef UNIV_PFS_MUTEX
@@ -121,6 +123,11 @@ UNIV_INTERN mysql_pfs_key_t	dict_foreign_err_mutex_key;
 
 /** Identifies generated InnoDB foreign key names */
 static char	dict_ibfk[] = "_ibfk_";
+
+bool		innodb_table_stats_not_found = false;
+bool		innodb_index_stats_not_found = false;
+static bool	innodb_table_stats_not_found_reported = false;
+static bool	innodb_index_stats_not_found_reported = false;
 
 /*******************************************************************//**
 Tries to find column names for the index and sets the col field of the
@@ -320,6 +327,82 @@ dict_mutex_exit_for_mysql(void)
 	mutex_exit(&(dict_sys->mutex));
 }
 
+/** Allocate and init a dict_table_t's stats latch.
+This function must not be called concurrently on the same table object.
+@param[in,out]	table_void	table whose stats latch to create */
+static
+void
+dict_table_stats_latch_alloc(
+	void*	table_void)
+{
+	dict_table_t*	table = static_cast<dict_table_t*>(table_void);
+
+	table->stats_latch = new(std::nothrow) rw_lock_t;
+
+	ut_a(table->stats_latch != NULL);
+
+	rw_lock_create(dict_table_stats_key, table->stats_latch,
+		       SYNC_INDEX_TREE);
+}
+
+/** Deinit and free a dict_table_t's stats latch.
+This function must not be called concurrently on the same table object.
+@param[in,out]	table	table whose stats latch to free */
+static
+void
+dict_table_stats_latch_free(
+	dict_table_t*	table)
+{
+	rw_lock_free(table->stats_latch);
+	delete table->stats_latch;
+}
+
+/** Create a dict_table_t's stats latch or delay for lazy creation.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to create
+@param[in]	enabled	if false then the latch is disabled
+and dict_table_stats_lock()/unlock() become noop on this table. */
+
+void
+dict_table_stats_latch_create(
+	dict_table_t*	table,
+	bool		enabled)
+{
+	if (!enabled) {
+		table->stats_latch = NULL;
+		table->stats_latch_created = os_once::DONE;
+		return;
+	}
+
+#ifdef HAVE_ATOMIC_BUILTINS
+	/* We create this lazily the first time it is used. */
+	table->stats_latch = NULL;
+	table->stats_latch_created = os_once::NEVER_DONE;
+#else /* HAVE_ATOMIC_BUILTINS */
+
+	dict_table_stats_latch_alloc(table);
+
+	table->stats_latch_created = os_once::DONE;
+#endif /* HAVE_ATOMIC_BUILTINS */
+}
+
+/** Destroy a dict_table_t's stats latch.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to destroy */
+
+void
+dict_table_stats_latch_destroy(
+	dict_table_t*	table)
+{
+	if (table->stats_latch_created == os_once::DONE
+	    && table->stats_latch != NULL) {
+
+		dict_table_stats_latch_free(table);
+	}
+}
+
 /**********************************************************************//**
 Lock the appropriate latch to protect a given table's statistics. */
 UNIV_INTERN
@@ -331,6 +414,14 @@ dict_table_stats_lock(
 {
 	ut_ad(table != NULL);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+
+#ifdef HAVE_ATOMIC_BUILTINS
+	os_once::do_or_wait_for_done(
+		&table->stats_latch_created,
+		dict_table_stats_latch_alloc, table);
+#else /* HAVE_ATOMIC_BUILTINS */
+	ut_ad(table->stats_latch_created == os_once::DONE);
+#endif /* HAVE_ATOMIC_BUILTINS */
 
 	if (table->stats_latch == NULL) {
 		/* This is a dummy table object that is private in the current
@@ -408,7 +499,7 @@ dict_table_try_drop_aborted(
 
 	if (table == NULL) {
 		table = dict_table_open_on_id_low(
-			table_id, DICT_ERR_IGNORE_NONE);
+			table_id, DICT_ERR_IGNORE_NONE, FALSE);
 	} else {
 		ut_ad(table->id == table_id);
 	}
@@ -795,7 +886,8 @@ dict_table_open_on_id(
 		table_id,
 		table_op == DICT_TABLE_OP_LOAD_TABLESPACE
 		? DICT_ERR_IGNORE_RECOVER_LOCK
-		: DICT_ERR_IGNORE_NONE);
+		: DICT_ERR_IGNORE_NONE,
+		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
 	if (table != NULL) {
 
@@ -1162,8 +1254,8 @@ dict_table_can_be_evicted(
 #endif /* UNIV_SYNC_DEBUG */
 
 	ut_a(table->can_be_evicted);
-	ut_a(UT_LIST_GET_LEN(table->foreign_list) == 0);
-	ut_a(UT_LIST_GET_LEN(table->referenced_list) == 0);
+	ut_a(table->foreign_set.empty());
+	ut_a(table->referenced_set.empty());
 
 	if (table->n_ref_count == 0) {
 		dict_index_t*	index;
@@ -1313,7 +1405,7 @@ dict_table_move_from_non_lru_to_lru(
 /**********************************************************************//**
 Looks for an index with the given id given a table instance.
 @return	index or NULL */
-static
+UNIV_INTERN
 dict_index_t*
 dict_table_find_index_on_id(
 /*========================*/
@@ -1378,6 +1470,22 @@ dict_index_find_on_id_low(
 
 	return(NULL);
 }
+
+/** Function object to remove a foreign key constraint from the
+referenced_set of the referenced table.  The foreign key object is
+also removed from the dictionary cache.  The foreign key constraint
+is not removed from the foreign_set of the table containing the
+constraint. */
+struct dict_foreign_remove_partial
+{
+	void operator()(dict_foreign_t* foreign) {
+		dict_table_t*	table = foreign->referenced_table;
+		if (table != NULL) {
+			table->referenced_set.erase(foreign);
+		}
+		dict_foreign_free(foreign);
+	}
+};
 
 /**********************************************************************//**
 Renames a table object.
@@ -1553,27 +1661,25 @@ dict_table_rename_in_cache(
 		system tables through a call of dict_load_foreigns. */
 
 		/* Remove the foreign constraints from the cache */
-		foreign = UT_LIST_GET_LAST(table->foreign_list);
-
-		while (foreign != NULL) {
-			dict_foreign_remove_from_cache(foreign);
-			foreign = UT_LIST_GET_LAST(table->foreign_list);
-		}
+		std::for_each(table->foreign_set.begin(),
+			      table->foreign_set.end(),
+			      dict_foreign_remove_partial());
+		table->foreign_set.clear();
 
 		/* Reset table field in referencing constraints */
+		for (dict_foreign_set::iterator it
+			= table->referenced_set.begin();
+		     it != table->referenced_set.end();
+		     ++it) {
 
-		foreign = UT_LIST_GET_FIRST(table->referenced_list);
-
-		while (foreign != NULL) {
+			foreign = *it;
 			foreign->referenced_table = NULL;
 			foreign->referenced_index = NULL;
 
-			foreign = UT_LIST_GET_NEXT(referenced_list, foreign);
 		}
 
-		/* Make the list of referencing constraints empty */
-
-		UT_LIST_INIT(table->referenced_list);
+		/* Make the set of referencing constraints empty */
+		table->referenced_set.clear();
 
 		return(DB_SUCCESS);
 	}
@@ -1582,9 +1688,19 @@ dict_table_rename_in_cache(
 	the constraint id of new format >= 4.0.18 constraints. Note that at
 	this point we have already changed table->name to the new name. */
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+	dict_foreign_set	fk_set;
 
-	while (foreign != NULL) {
+	for (;;) {
+
+		dict_foreign_set::iterator	it
+			= table->foreign_set.begin();
+
+		if (it == table->foreign_set.end()) {
+			break;
+		}
+
+		foreign = *it;
+
 		if (ut_strlen(foreign->foreign_table_name)
 		    < ut_strlen(table->name)) {
 			/* Allocate a longer name buffer;
@@ -1734,12 +1850,18 @@ dict_table_rename_in_cache(
 			mem_free(old_id);
 		}
 
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
+		table->foreign_set.erase(it);
+		fk_set.insert(foreign);
 	}
 
-	for (foreign = UT_LIST_GET_FIRST(table->referenced_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
+	ut_a(table->foreign_set.empty());
+	table->foreign_set.swap(fk_set);
+
+	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	     it != table->referenced_set.end();
+	     ++it) {
+
+		foreign = *it;
 
 		if (ut_strlen(foreign->referenced_table_name)
 		    < ut_strlen(table->name)) {
@@ -1809,27 +1931,17 @@ dict_table_remove_from_cache_low(
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
 
-#if 0
-	fputs("Removing table ", stderr);
-	ut_print_name(stderr, table->name, ULINT_UNDEFINED);
-	fputs(" from dictionary cache\n", stderr);
-#endif
-
 	/* Remove the foreign constraints from the cache */
-
-	for (foreign = UT_LIST_GET_LAST(table->foreign_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_LAST(table->foreign_list)) {
-
-		dict_foreign_remove_from_cache(foreign);
-	}
+	std::for_each(table->foreign_set.begin(), table->foreign_set.end(),
+		      dict_foreign_remove_partial());
+	table->foreign_set.clear();
 
 	/* Reset table field in referencing constraints */
+	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	     it != table->referenced_set.end();
+	     ++it) {
 
-	for (foreign = UT_LIST_GET_FIRST(table->referenced_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
-
+		foreign = *it;
 		foreign->referenced_table = NULL;
 		foreign->referenced_index = NULL;
 	}
@@ -2407,6 +2519,13 @@ undo_size_ok:
 
 	new_index->stat_index_size = 1;
 	new_index->stat_n_leaf_pages = 1;
+
+	new_index->stat_defrag_n_pages_freed = 0;
+	new_index->stat_defrag_n_page_split = 0;
+
+	new_index->stat_defrag_sample_next_slot = 0;
+	memset(&new_index->stat_defrag_data_size_sample,
+	       0x0, sizeof(ulint) * STAT_DEFRAG_DATA_SIZE_N_SAMPLE);
 
 	/* Add the new index as the last index for the table */
 
@@ -3049,7 +3168,7 @@ dict_table_is_referenced_by_foreign_key(
 /*====================================*/
 	const dict_table_t*	table)	/*!< in: InnoDB table */
 {
-	return(UT_LIST_GET_LEN(table->referenced_list) > 0);
+	return(!table->referenced_set.empty());
 }
 
 /*********************************************************************//**
@@ -3069,9 +3188,11 @@ dict_table_get_referenced_constraint(
 	ut_ad(index != NULL);
 	ut_ad(table != NULL);
 
-	for (foreign = UT_LIST_GET_FIRST(table->referenced_list);
-	     foreign;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
+	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	     it != table->referenced_set.end();
+	     ++it) {
+
+		foreign = *it;
 
 		if (foreign->referenced_index == index) {
 
@@ -3100,9 +3221,11 @@ dict_table_get_foreign_constraint(
 	ut_ad(index != NULL);
 	ut_ad(table != NULL);
 
-	for (foreign = UT_LIST_GET_FIRST(table->foreign_list);
-	     foreign;
-	     foreign = UT_LIST_GET_NEXT(foreign_list, foreign)) {
+	for (dict_foreign_set::iterator it = table->foreign_set.begin();
+	     it != table->foreign_set.end();
+	     ++it) {
+
+		foreign = *it;
 
 		if (foreign->foreign_index == index) {
 
@@ -3111,17 +3234,6 @@ dict_table_get_foreign_constraint(
 	}
 
 	return(NULL);
-}
-
-/*********************************************************************//**
-Frees a foreign key struct. */
-UNIV_INTERN
-void
-dict_foreign_free(
-/*==============*/
-	dict_foreign_t*	foreign)	/*!< in, own: foreign key struct */
-{
-	mem_heap_free(foreign->heap);
 }
 
 /**********************************************************************//**
@@ -3135,16 +3247,12 @@ dict_foreign_remove_from_cache(
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 	ut_a(foreign);
 
-	if (foreign->referenced_table) {
-		UT_LIST_REMOVE(referenced_list,
-			       foreign->referenced_table->referenced_list,
-			       foreign);
+	if (foreign->referenced_table != NULL) {
+		foreign->referenced_table->referenced_set.erase(foreign);
 	}
 
-	if (foreign->foreign_table) {
-		UT_LIST_REMOVE(foreign_list,
-			       foreign->foreign_table->foreign_list,
-			       foreign);
+	if (foreign->foreign_table != NULL) {
+		foreign->foreign_table->foreign_set.erase(foreign);
 	}
 
 	dict_foreign_free(foreign);
@@ -3158,33 +3266,21 @@ static
 dict_foreign_t*
 dict_foreign_find(
 /*==============*/
-	dict_table_t*	table,	/*!< in: table object */
-	const char*	id)	/*!< in: foreign constraint id */
+	dict_table_t*	table,		/*!< in: table object */
+	dict_foreign_t*	foreign)	/*!< in: foreign constraint */
 {
-	dict_foreign_t*	foreign;
-
 	ut_ad(mutex_own(&(dict_sys->mutex)));
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+	dict_foreign_set::iterator it = table->foreign_set.find(foreign);
 
-	while (foreign) {
-		if (ut_strcmp(id, foreign->id) == 0) {
-
-			return(foreign);
-		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
+	if (it != table->foreign_set.end()) {
+		return(*it);
 	}
 
-	foreign = UT_LIST_GET_FIRST(table->referenced_list);
+	it = table->referenced_set.find(foreign);
 
-	while (foreign) {
-		if (ut_strcmp(id, foreign->id) == 0) {
-
-			return(foreign);
-		}
-
-		foreign = UT_LIST_GET_NEXT(referenced_list, foreign);
+	if (it != table->referenced_set.end()) {
+		return(*it);
 	}
 
 	return(NULL);
@@ -3241,7 +3337,29 @@ dict_foreign_find_index(
 
 	return(NULL);
 }
-
+#ifdef WITH_WSREP
+dict_index_t*
+wsrep_dict_foreign_find_index(
+/*====================*/
+	dict_table_t*	table,	/*!< in: table */
+	const char**	col_names, /*!< in: column names, or NULL
+					to use table->col_names */
+	const char**	columns,/*!< in: array of column names */
+	ulint		n_cols,	/*!< in: number of columns */
+	dict_index_t*	types_idx, /*!< in: NULL or an index to whose types the
+				   column types must match */
+	ibool		check_charsets,
+				/*!< in: whether to check charsets.
+				only has an effect if types_idx != NULL */
+	ulint		check_null)
+				/*!< in: nonzero if none of the columns must
+				be declared NOT NULL */
+{
+	return dict_foreign_find_index(
+		table, col_names, columns, n_cols, types_idx, check_charsets,
+		check_null);
+}
+#endif /* WITH_WSREP */
 /**********************************************************************//**
 Report an error in a foreign key definition. */
 static
@@ -3322,11 +3440,11 @@ dict_foreign_add_to_cache(
 	ut_a(for_table || ref_table);
 
 	if (for_table) {
-		for_in_cache = dict_foreign_find(for_table, foreign->id);
+		for_in_cache = dict_foreign_find(for_table, foreign);
 	}
 
 	if (!for_in_cache && ref_table) {
-		for_in_cache = dict_foreign_find(ref_table, foreign->id);
+		for_in_cache = dict_foreign_find(ref_table, foreign);
 	}
 
 	if (for_in_cache) {
@@ -3363,9 +3481,12 @@ dict_foreign_add_to_cache(
 
 		for_in_cache->referenced_table = ref_table;
 		for_in_cache->referenced_index = index;
-		UT_LIST_ADD_LAST(referenced_list,
-				 ref_table->referenced_list,
-				 for_in_cache);
+
+		std::pair<dict_foreign_set::iterator, bool>	ret
+			= ref_table->referenced_set.insert(for_in_cache);
+
+		ut_a(ret.second);	/* second is true if the insertion
+					took place */
 		added_to_referenced_list = TRUE;
 	}
 
@@ -3394,10 +3515,13 @@ dict_foreign_add_to_cache(
 
 			if (for_in_cache == foreign) {
 				if (added_to_referenced_list) {
-					UT_LIST_REMOVE(
-						referenced_list,
-						ref_table->referenced_list,
-						for_in_cache);
+					const dict_foreign_set::size_type	n
+						= ref_table->referenced_set
+						  .erase(for_in_cache);
+
+					ut_a(n == 1);	/* the number of
+							elements removed must
+							be one */
 				}
 
 				mem_heap_free(foreign->heap);
@@ -3408,9 +3532,11 @@ dict_foreign_add_to_cache(
 
 		for_in_cache->foreign_table = for_table;
 		for_in_cache->foreign_index = index;
-		UT_LIST_ADD_LAST(foreign_list,
-				 for_table->foreign_list,
-				 for_in_cache);
+		std::pair<dict_foreign_set::iterator, bool>	ret
+			= for_table->foreign_set.insert(for_in_cache);
+
+		ut_a(ret.second);	/* second is true if the insertion
+					took place */
 	}
 
 	/* We need to move the table to the non-LRU end of the table LRU
@@ -3988,9 +4114,12 @@ dict_table_get_highest_foreign_id(
 	ut_a(table);
 
 	len = ut_strlen(table->name);
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
 
-	while (foreign) {
+	for (dict_foreign_set::iterator it = table->foreign_set.begin();
+	     it != table->foreign_set.end();
+	     ++it) {
+		foreign = *it;
+
 		if (ut_strlen(foreign->id) > ((sizeof dict_ibfk) - 1) + len
 		    && 0 == ut_memcmp(foreign->id, table->name, len)
 		    && 0 == ut_memcmp(foreign->id + len,
@@ -4009,8 +4138,6 @@ dict_table_get_highest_foreign_id(
 				}
 			}
 		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
 	}
 
 	return(biggest_id);
@@ -4071,6 +4198,7 @@ dict_create_foreign_constraints_low(
 	dict_table_t*	referenced_table;
 	dict_table_t*	table_to_alter;
 	ulint		highest_id_so_far	= 0;
+	ulint		number			= 1;
 	dict_index_t*	index;
 	dict_foreign_t*	foreign;
 	const char*	ptr			= sql_string;
@@ -4089,6 +4217,8 @@ dict_create_foreign_constraints_low(
 	const dict_col_t*columns[500];
 	const char*	column_names[500];
 	const char*	referenced_table_name;
+	dict_foreign_set	local_fk_set;
+	dict_foreign_set_free	local_fk_set_free(local_fk_set);
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(mutex_own(&(dict_sys->mutex)));
@@ -4153,6 +4283,7 @@ dict_create_foreign_constraints_low(
 			table_to_alter);
 	}
 
+	number = highest_id_so_far + 1;
 	/* Scan for foreign key declarations in a loop */
 loop:
 	/* Scan either to "CONSTRAINT" or "FOREIGN", whichever is closer */
@@ -4197,7 +4328,7 @@ loop:
 		command, determine if there are any foreign keys, and
 		if so, immediately reject the command if the table is a
 		temporary one. For now, this kludge will work. */
-		if (reject_fks && (UT_LIST_GET_LEN(table->foreign_list) > 0)) {
+		if (reject_fks && !local_fk_set.empty()) {
 
 			return(DB_CANNOT_ADD_CONSTRAINT);
 		}
@@ -4207,7 +4338,17 @@ loop:
 		to the data dictionary system tables on disk */
 
 		error = dict_create_add_foreigns_to_dictionary(
-			highest_id_so_far, table, trx);
+			local_fk_set, table, trx);
+
+		if (error == DB_SUCCESS) {
+
+			table->foreign_set.insert(local_fk_set.begin(),
+						  local_fk_set.end());
+			std::for_each(local_fk_set.begin(),
+				      local_fk_set.end(),
+				      dict_foreign_add_to_referenced_table());
+			local_fk_set.clear();
+		}
 		return(error);
 	}
 
@@ -4366,6 +4507,24 @@ col_loop1:
 		strcpy(foreign->id + db_len + 1, constraint_name);
 	}
 
+	if (foreign->id == NULL) {
+		error = dict_create_add_foreign_id(&number,
+						   table->name, foreign);
+		if (error != DB_SUCCESS) {
+			dict_foreign_free(foreign);
+			return(error);
+		}
+	}
+
+	std::pair<dict_foreign_set::iterator, bool>	ret
+		= local_fk_set.insert(foreign);
+
+	if (!ret.second) {
+		/* A duplicate foreign key name has been found */
+		dict_foreign_free(foreign);
+		return(DB_CANNOT_ADD_CONSTRAINT);
+	}
+
 	foreign->foreign_table = table;
 	foreign->foreign_table_name = mem_heap_strdup(
 		foreign->heap, table->name);
@@ -4391,8 +4550,6 @@ col_loop1:
 	checking of foreign key constraints! */
 
 	if (!success || (!referenced_table && trx->check_foreigns)) {
-		dict_foreign_free(foreign);
-
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, name);
 		fprintf(ef, "%s:\nCannot resolve table name close to:\n"
@@ -4406,7 +4563,6 @@ col_loop1:
 	ptr = dict_accept(cs, ptr, "(", &success);
 
 	if (!success) {
-		dict_foreign_free(foreign);
 		dict_foreign_report_syntax_err(name, start_of_latest_foreign,
 					       ptr);
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4421,7 +4577,6 @@ col_loop2:
 	i++;
 
 	if (!success) {
-		dict_foreign_free(foreign);
 
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, name);
@@ -4442,7 +4597,6 @@ col_loop2:
 	ptr = dict_accept(cs, ptr, ")", &success);
 
 	if (!success || foreign->n_fields != i) {
-		dict_foreign_free(foreign);
 
 		dict_foreign_report_syntax_err(name, start_of_latest_foreign,
 					       ptr);
@@ -4468,7 +4622,6 @@ scan_on_conditions:
 		ptr = dict_accept(cs, ptr, "UPDATE", &success);
 
 		if (!success) {
-			dict_foreign_free(foreign);
 
 			dict_foreign_report_syntax_err(
 				name, start_of_latest_foreign, ptr);
@@ -4506,7 +4659,6 @@ scan_on_conditions:
 		ptr = dict_accept(cs, ptr, "ACTION", &success);
 
 		if (!success) {
-			dict_foreign_free(foreign);
 			dict_foreign_report_syntax_err(
 				name, start_of_latest_foreign, ptr);
 
@@ -4525,7 +4677,6 @@ scan_on_conditions:
 	ptr = dict_accept(cs, ptr, "SET", &success);
 
 	if (!success) {
-		dict_foreign_free(foreign);
 		dict_foreign_report_syntax_err(name, start_of_latest_foreign,
 					       ptr);
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4534,7 +4685,6 @@ scan_on_conditions:
 	ptr = dict_accept(cs, ptr, "NULL", &success);
 
 	if (!success) {
-		dict_foreign_free(foreign);
 		dict_foreign_report_syntax_err(name, start_of_latest_foreign,
 					       ptr);
 		return(DB_CANNOT_ADD_CONSTRAINT);
@@ -4546,8 +4696,6 @@ scan_on_conditions:
 
 			/* It is not sensible to define SET NULL
 			if the column is not allowed to be NULL! */
-
-			dict_foreign_free(foreign);
 
 			mutex_enter(&dict_foreign_err_mutex);
 			dict_foreign_error_report_low(ef, name);
@@ -4574,8 +4722,6 @@ try_find_index:
 	if (n_on_deletes > 1 || n_on_updates > 1) {
 		/* It is an error to define more than 1 action */
 
-		dict_foreign_free(foreign);
-
 		mutex_enter(&dict_foreign_err_mutex);
 		dict_foreign_error_report_low(ef, name);
 		fprintf(ef, "%s:\n"
@@ -4597,7 +4743,6 @@ try_find_index:
 						foreign->foreign_index,
 						TRUE, FALSE);
 		if (!index) {
-			dict_foreign_free(foreign);
 			mutex_enter(&dict_foreign_err_mutex);
 			dict_foreign_error_report_low(ef, name);
 			fprintf(ef, "%s:\n"
@@ -4639,16 +4784,6 @@ try_find_index:
 	for (i = 0; i < foreign->n_fields; i++) {
 		foreign->referenced_col_names[i]
 			= mem_heap_strdup(foreign->heap, column_names[i]);
-	}
-
-	/* We found an ok constraint definition: add to the lists */
-
-	UT_LIST_ADD_LAST(foreign_list, table->foreign_list, foreign);
-
-	if (referenced_table) {
-		UT_LIST_ADD_LAST(referenced_list,
-				 referenced_table->referenced_list,
-				 foreign);
 	}
 
 	goto loop;
@@ -4736,7 +4871,6 @@ dict_foreign_parse_drop_constraints(
 	const char***	constraints_to_drop)	/*!< out: id's of the
 						constraints to drop */
 {
-	dict_foreign_t*		foreign;
 	ibool			success;
 	char*			str;
 	size_t			len;
@@ -4813,25 +4947,10 @@ loop:
 	(*constraints_to_drop)[*n] = id;
 	(*n)++;
 
-	/* Look for the given constraint id */
-
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
-
-	while (foreign != NULL) {
-		if (0 == innobase_strcasecmp(foreign->id, id)
-		    || (strchr(foreign->id, '/')
-			&& 0 == innobase_strcasecmp(
-				id,
-				dict_remove_db_name(foreign->id)))) {
-			/* Found */
-			break;
-		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
-	}
-
-
-	if (foreign == NULL) {
+	if (std::find_if(table->foreign_set.begin(),
+			 table->foreign_set.end(),
+			 dict_foreign_matches_id(id))
+	    == table->foreign_set.end()) {
 
 		if (!srv_read_only_mode) {
 			FILE*	ef = dict_foreign_err_file;
@@ -5158,7 +5277,6 @@ dict_table_print(
 	dict_table_t*	table)	/*!< in: table */
 {
 	dict_index_t*	index;
-	dict_foreign_t*	foreign;
 	ulint		i;
 
 	ut_ad(mutex_own(&(dict_sys->mutex)));
@@ -5195,23 +5313,15 @@ dict_table_print(
 		index = UT_LIST_GET_NEXT(indexes, index);
 	}
 
-	table->stat_initialized = FALSE;
-
 	dict_table_stats_unlock(table, RW_X_LATCH);
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+	std::for_each(table->foreign_set.begin(),
+		      table->foreign_set.end(),
+		      dict_foreign_print_low);
 
-	while (foreign != NULL) {
-		dict_foreign_print_low(foreign);
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
-	}
-
-	foreign = UT_LIST_GET_FIRST(table->referenced_list);
-
-	while (foreign != NULL) {
-		dict_foreign_print_low(foreign);
-		foreign = UT_LIST_GET_NEXT(referenced_list, foreign);
-	}
+	std::for_each(table->referenced_set.begin(),
+		      table->referenced_set.end(),
+		      dict_foreign_print_low);
 }
 
 /**********************************************************************//**
@@ -5419,15 +5529,12 @@ dict_print_info_on_foreign_keys(
 
 	mutex_enter(&(dict_sys->mutex));
 
-	foreign = UT_LIST_GET_FIRST(table->foreign_list);
+	for (dict_foreign_set::iterator it = table->foreign_set.begin();
+	     it != table->foreign_set.end();
+	     ++it) {
 
-	if (foreign == NULL) {
-		mutex_exit(&(dict_sys->mutex));
+		foreign = *it;
 
-		return;
-	}
-
-	while (foreign != NULL) {
 		if (create_table_format) {
 			dict_print_info_on_foreign_key_in_create_format(
 				file, trx, foreign, TRUE);
@@ -5484,8 +5591,6 @@ dict_print_info_on_foreign_keys(
 				fputs(" ON UPDATE NO ACTION", file);
 			}
 		}
-
-		foreign = UT_LIST_GET_NEXT(foreign_list, foreign);
 	}
 
 	mutex_exit(&(dict_sys->mutex));
@@ -5856,10 +5961,11 @@ dict_foreign_replace_index(
 	ut_ad(index->to_be_dropped);
 	ut_ad(index->table == table);
 
-	for (foreign = UT_LIST_GET_FIRST(table->foreign_list);
-	     foreign;
-	     foreign = UT_LIST_GET_NEXT(foreign_list, foreign)) {
+	for (dict_foreign_set::iterator it = table->foreign_set.begin();
+	     it != table->foreign_set.end();
+	     ++it) {
 
+		foreign = *it;
 		if (foreign->foreign_index == index) {
 			ut_ad(foreign->foreign_table == index->table);
 
@@ -5879,10 +5985,11 @@ dict_foreign_replace_index(
 		}
 	}
 
-	for (foreign = UT_LIST_GET_FIRST(table->referenced_list);
-	     foreign;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
+	for (dict_foreign_set::iterator it = table->referenced_set.begin();
+	     it != table->referenced_set.end();
+	     ++it) {
 
+		foreign = *it;
 		if (foreign->referenced_index == index) {
 			ut_ad(foreign->referenced_table == index->table);
 
@@ -6038,14 +6145,34 @@ dict_table_schema_check(
 	table = dict_table_get_low(req_schema->table_name);
 
 	if (table == NULL) {
+		bool should_print=true;
 		/* no such table */
 
-		ut_snprintf(errstr, errstr_sz,
-			    "Table %s not found.",
-			    ut_format_name(req_schema->table_name,
-					   TRUE, buf, sizeof(buf)));
+		if (innobase_strcasecmp(req_schema->table_name, "mysql/innodb_table_stats") == 0) {
+			if (innodb_table_stats_not_found_reported == false) {
+				innodb_table_stats_not_found = true;
+				innodb_table_stats_not_found_reported = true;
+			} else {
+				should_print = false;
+			}
+		} else if (innobase_strcasecmp(req_schema->table_name, "mysql/innodb_index_stats") == 0 ) {
+			if (innodb_index_stats_not_found_reported == false) {
+				innodb_index_stats_not_found = true;
+				innodb_index_stats_not_found_reported = true;
+			} else {
+				should_print = false;
+			}
+		}
 
-		return(DB_TABLE_NOT_FOUND);
+		if (should_print) {
+			ut_snprintf(errstr, errstr_sz,
+				"Table %s not found.",
+				ut_format_name(req_schema->table_name,
+					TRUE, buf, sizeof(buf)));
+			return(DB_TABLE_NOT_FOUND);
+		} else {
+			return(DB_STATS_DO_NOT_EXIST);
+		}
 	}
 
 	if (table->ibd_file_missing) {
@@ -6174,24 +6301,24 @@ dict_table_schema_check(
 		}
 	}
 
-	if (req_schema->n_foreign != UT_LIST_GET_LEN(table->foreign_list)) {
+	if (req_schema->n_foreign != table->foreign_set.size()) {
 		ut_snprintf(
 			errstr, errstr_sz,
-			"Table %s has %lu foreign key(s) pointing to other "
-			"tables, but it must have %lu.",
+			"Table %s has " ULINTPF " foreign key(s) pointing"
+			" to other tables, but it must have %lu.",
 			ut_format_name(req_schema->table_name,
 				       TRUE, buf, sizeof(buf)),
-			UT_LIST_GET_LEN(table->foreign_list),
+			static_cast<ulint>(table->foreign_set.size()),
 			req_schema->n_foreign);
 		return(DB_ERROR);
 	}
 
-	if (req_schema->n_referenced != UT_LIST_GET_LEN(table->referenced_list)) {
+	if (req_schema->n_referenced != table->referenced_set.size()) {
 		ut_snprintf(
 			errstr, errstr_sz,
-			"There are %lu foreign key(s) pointing to %s, "
+			"There are " ULINTPF " foreign key(s) pointing to %s, "
 			"but there must be %lu.",
-			UT_LIST_GET_LEN(table->referenced_list),
+			static_cast<ulint>(table->referenced_set.size()),
 			ut_format_name(req_schema->table_name,
 				       TRUE, buf, sizeof(buf)),
 			req_schema->n_referenced);

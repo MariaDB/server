@@ -860,7 +860,6 @@ int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
   DBUG_ASSERT(inited==INDEX);
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
-  table->status= res ? STATUS_NOT_FOUND : 0;
   return error_code(res);
 }
 
@@ -952,7 +951,6 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
       if (!parse_latch_string_to_legacy_int(latchFieldValue, latch)) {
         // Invalid, so warn & fail
         push_warning_printf(current_thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_WRONG_ARGUMENTS, ER(ER_WRONG_ARGUMENTS), "OQGRAPH latch");
-        table->status = STATUS_NOT_FOUND;
 	if (ptrdiff) /* fixes debug build assert - should be a tidier way to do this */
 	{
 	  field[0]->move_field_offset(-ptrdiff);
@@ -1008,7 +1006,6 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   if (!res && !(res= graph->fetch_row(row))) {
     res= fill_record(buf, row);
   }
-  table->status = res ? STATUS_NOT_FOUND : 0;
   return error_code(res);
 }
 
@@ -1113,7 +1110,6 @@ int ha_oqgraph::rnd_next(byte *buf)
 
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);
-  table->status= res ? STATUS_NOT_FOUND: 0;
   return error_code(res);
 }
 
@@ -1123,7 +1119,6 @@ int ha_oqgraph::rnd_pos(byte * buf, byte *pos)
   open_query::row row;
   if (!(res= graph->fetch_row(row, pos)))
     res= fill_record(buf, row);
-  table->status=res ? STATUS_NOT_FOUND: 0;
   return error_code(res);
 }
 

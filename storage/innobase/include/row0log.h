@@ -35,6 +35,10 @@ Created 2011-05-26 Marko Makela
 #include "trx0types.h"
 #include "que0types.h"
 
+extern ulint onlineddl_rowlog_rows;
+extern ulint onlineddl_rowlog_pct_used;
+extern ulint onlineddl_pct_progress;
+
 /******************************************************//**
 Allocate the row log for an index and flag the index
 for online creation.

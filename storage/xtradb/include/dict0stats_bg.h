@@ -56,6 +56,28 @@ dict_stats_recalc_pool_del(
 /*=======================*/
 	const dict_table_t*	table);	/*!< in: table to remove */
 
+/*****************************************************************//**
+Add an index in a table to the defrag pool, which is processed by the
+background stats gathering thread. Only the table id and index id are
+added to the list, so the table can be closed after being enqueued and
+it will be opened when needed. If the table or index does not exist later
+(has been DROPped), then it will be removed from the pool and skipped. */
+UNIV_INTERN
+void
+dict_stats_defrag_pool_add(
+/*=======================*/
+	const dict_index_t*	index);	/*!< in: table to add */
+
+/*****************************************************************//**
+Delete a given index from the auto defrag pool. */
+UNIV_INTERN
+void
+dict_stats_defrag_pool_del(
+/*=======================*/
+	const dict_table_t*	table,	/*!<in: if given, remove
+					all entries for the table */
+	const dict_index_t*	index);	/*!< in: index to remove */
+
 /** Yield the data dictionary latch when waiting
 for the background thread to stop accessing a table.
 @param trx	transaction holding the data dictionary locks */

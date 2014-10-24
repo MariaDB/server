@@ -57,7 +57,7 @@ public:
   int on_completion;
   int status;
   bool status_changed;
-  longlong originator;
+  uint32 originator;
   /*
     do_not_create will be set if STARTS time is in the past and
     on_completion == ON_COMPLETION_DROP.

@@ -2,8 +2,6 @@
 # Change Author: JBM
 # Change Date: 2006-02-07
 # Change: Added ENGINE=MyISAM
-# Purpose: According to TU in 16552 This is how
-# to work around NDB's issue with temp tables
 ##############################################
 source include/have_binlog_format_mixed_or_statement.inc;
 source include/master-slave.inc;

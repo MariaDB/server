@@ -1,5 +1,6 @@
 /* Copyright (c) 2002-2007 MySQL AB & tommy@valley.ne.jp
-   Copyright (c) 2009-2011, Monty Program Ab
+   Copyright (c) 2002, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
    
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -287,9 +288,7 @@ void my_hash_sort_8bit_bin(CHARSET_INFO *cs __attribute__((unused)),
 
   for (; key < end ; key++)
   {
-    tmp1^= (ulong) ((((uint) tmp1 & 63) + tmp2) *
-                    ((uint) *key)) + (tmp1 << 8);
-    tmp2+= 3;
+    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
   }
 
   *nr1= tmp1;
@@ -306,9 +305,7 @@ void my_hash_sort_bin(CHARSET_INFO *cs __attribute__((unused)),
 
   for (; key < end ; key++)
   {
-    tmp1^= (ulong) ((((uint) tmp1 & 63) + tmp2) *
-                    ((uint) *key)) + (tmp1 << 8);
-    tmp2+= 3;
+    MY_HASH_ADD(tmp1, tmp2, (uint) *key);
   }
 
   *nr1= tmp1;

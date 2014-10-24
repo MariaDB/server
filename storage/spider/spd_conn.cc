@@ -2505,14 +2505,21 @@ void *spider_bg_conn_action(
         ) {
           if (thd->is_error())
           {
-            SPIDER_BG_DIRECT_SQL *bg_direct_sql =
-              (SPIDER_BG_DIRECT_SQL *) direct_sql->parent;
-            pthread_mutex_lock(direct_sql->bg_mutex);
-            bg_direct_sql->bg_error = spider_stmt_da_sql_errno(thd);
-            strmov((char *) bg_direct_sql->bg_error_msg,
-              spider_stmt_da_message(thd));
-            pthread_mutex_unlock(direct_sql->bg_mutex);
-            is_error = TRUE;
+            if (
+              direct_sql->error_rw_mode &&
+              spider_db_conn_is_network_error(error_num)
+            ) {
+              thd->clear_error();
+            } else {
+              SPIDER_BG_DIRECT_SQL *bg_direct_sql =
+                (SPIDER_BG_DIRECT_SQL *) direct_sql->parent;
+              pthread_mutex_lock(direct_sql->bg_mutex);
+              bg_direct_sql->bg_error = spider_stmt_da_sql_errno(thd);
+              strmov((char *) bg_direct_sql->bg_error_msg,
+                spider_stmt_da_message(thd));
+              pthread_mutex_unlock(direct_sql->bg_mutex);
+              is_error = TRUE;
+            }
           }
         }
         if (direct_sql->modified_non_trans_table)

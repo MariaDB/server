@@ -796,6 +796,23 @@ DROP TABLE t1;
 
 
 --echo #
+--echo # MDEV-5745 analyze MySQL fix for bug#12368495
+--echo #
+SELECT CHAR_LENGTH(TRIM(LEADING 0x000000 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(LEADING 0x0001 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(LEADING 0x00 FROM _ucs2 0x0061));
+
+SELECT CHAR_LENGTH(TRIM(TRAILING 0x000000 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(TRAILING 0x0001 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(TRAILING 0x61 FROM _ucs2 0x0061));
+
+SELECT CHAR_LENGTH(TRIM(BOTH 0x000000 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(BOTH 0x0001 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(BOTH 0x61 FROM _ucs2 0x0061));
+SELECT CHAR_LENGTH(TRIM(BOTH 0x00 FROM _ucs2 0x0061));
+
+
+--echo #
 --echo # End of 5.5 tests
 --echo #
 
@@ -873,4 +890,25 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 5.6 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6661 PI() does not work well in UCS2/UTF16/UTF32 context
+--echo #
+SELECT CONCAT(CONVERT('pi=' USING ucs2),PI()) AS PI;
+
+--echo #
+--echo # MDEV-6695 Bad column name for UCS2 string literals
+--echo #
+SET NAMES utf8, character_set_connection=ucs2;
+SELECT 'a','aa';
+
+
+--echo #
+--echo # End of 10.0 tests
 --echo #

@@ -480,16 +480,14 @@ extern "C" int madvise(void *addr, size_t len, int behav);
 
 /*
    Suppress uninitialized variable warning without generating code.
-
-   The _cplusplus is a temporary workaround for C++ code pending a fix
-   for a g++ bug (http://gcc.gnu.org/bugzilla/show_bug.cgi?id=34772).
 */
-#if defined(_lint) || defined(FORCE_INIT_OF_VARS) || \
-    defined(__cplusplus) || !defined(__GNUC__)
-#define UNINIT_VAR(x) x= 0
-#else
+#if defined(__GNUC__)
 /* GCC specific self-initialization which inhibits the warning. */
 #define UNINIT_VAR(x) x= x
+#elif defined(_lint) || defined(FORCE_INIT_OF_VARS)
+#define UNINIT_VAR(x) x= 0
+#else
+#define UNINIT_VAR(x) x
 #endif
 
 #if !defined(HAVE_UINT)
@@ -1233,9 +1231,6 @@ static inline double rint(double x)
 #undef HAVE_SMEM				/* No shared memory */
 
 #else
-#ifdef WITH_NDB_BINLOG
-#define HAVE_NDB_BINLOG 1
-#endif
 #define HAVE_REPLICATION
 #define HAVE_EXTERNAL_CLIENT
 #endif /* EMBEDDED_LIBRARY */

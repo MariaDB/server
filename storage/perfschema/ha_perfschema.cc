@@ -71,6 +71,23 @@ find_table_share(const char *db, const char *name)
   DBUG_RETURN(result);
 }
 
+static int pfs_discover_table(handlerton *hton, THD *thd, TABLE_SHARE *share)
+{
+  const PFS_engine_table_share *pfs_share;
+
+  if ((pfs_share= find_table_share(share->db.str, share->table_name.str)))
+    return share->init_from_sql_statement_string(thd, false,
+                                                 pfs_share->sql.str,
+                                                 pfs_share->sql.length);
+  return HA_ERR_NO_SUCH_TABLE;
+}
+
+static int pfs_discover_table_existence(handlerton *hton, const char *db,
+                                        const char *table_name)
+{
+  return MY_TEST(find_table_share(db, table_name));
+}
+
 static int pfs_init_func(void *p)
 {
   DBUG_ENTER("pfs_init_func");
@@ -99,6 +116,9 @@ static int pfs_init_func(void *p)
     the performance schema. See Bug#43039.
   */
   pfs_hton->db_type= DB_TYPE_PERFORMANCE_SCHEMA;
+  pfs_hton->discover_table= pfs_discover_table;
+  pfs_hton->discover_table_existence= pfs_discover_table_existence;
+  pfs_hton->discover_table_names= pfs_discover_table_names;
 
   PFS_engine_table_share::init_all_locks();
 
@@ -205,7 +225,7 @@ maria_declare_plugin(perfschema)
   0x0001,
   pfs_status_vars,
   NULL,
-  "0.1",
+  "5.6.20",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
@@ -438,25 +458,10 @@ int ha_perfschema::create(const char *name, TABLE *table_arg,
                           HA_CREATE_INFO *create_info)
 {
   DBUG_ENTER("ha_perfschema::create");
-  DBUG_ASSERT(table_arg);
-  DBUG_ASSERT(table_arg->s);
-  if (find_table_share(table_arg->s->db.str,
-                       table_arg->s->table_name.str))
-  {
-    /*
-      Attempting to create a known performance schema table.
-      Allowing the create, to create .FRM files,
-      for the initial database install, and mysql_upgrade.
-      This should fail once .FRM are removed.
-    */
-    DBUG_RETURN(0);
-  }
   /*
     This is not a general purpose engine.
     Failure to CREATE TABLE is the expected result.
   */
-  DBUG_PRINT("error", ("unknown table: %s.%s", table_arg->s->db.str,
-                       table_arg->s->table_name.str));
   DBUG_RETURN(HA_ERR_WRONG_COMMAND);
 }
 

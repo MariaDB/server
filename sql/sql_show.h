@@ -74,10 +74,10 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_STATUS              36
 #define IS_FILES_EXTRA               37
 
-int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO  *create_info_arg, bool show_database,
-                      bool create_or_replace);
-int view_store_create_info(THD *thd, TABLE_LIST *table, String *buff);
+typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
+int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
+                      HA_CREATE_INFO  *create_info_arg,
+                      enum_with_db_name with_db_name);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
@@ -112,15 +112,17 @@ void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 void init_fill_schema_files_row(TABLE* table);
 bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
+COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
-                       enum enum_schema_tables schema_table_idx);
+                       ST_SCHEMA_TABLE *schema_table);
 int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list);
 bool get_schema_tables_result(JOIN *join,
                               enum enum_schema_table_state executed_place);
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
+TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
@@ -149,6 +151,77 @@ public:
   /* Overloaded virtual function */
   void call_in_target_thread();
 };
+
+/**
+  Condition pushdown used for INFORMATION_SCHEMA / SHOW queries.
+  This structure is to implement an optimization when
+  accessing data dictionary data in the INFORMATION_SCHEMA
+  or SHOW commands.
+  When the query contain a TABLE_SCHEMA or TABLE_NAME clause,
+  narrow the search for data based on the constraints given.
+*/
+typedef struct st_lookup_field_values
+{
+  /**
+    Value of a TABLE_SCHEMA clause.
+    Note that this value length may exceed @c NAME_LEN.
+    @sa wild_db_value
+  */
+  LEX_STRING db_value;
+  /**
+    Value of a TABLE_NAME clause.
+    Note that this value length may exceed @c NAME_LEN.
+    @sa wild_table_value
+  */
+  LEX_STRING table_value;
+  /**
+    True when @c db_value is a LIKE clause,
+    false when @c db_value is an '=' clause.
+  */
+  bool wild_db_value;
+  /**
+    True when @c table_value is a LIKE clause,
+    false when @c table_value is an '=' clause.
+  */
+  bool wild_table_value;
+} LOOKUP_FIELD_VALUES;  
+
+
+/*
+  INFORMATION_SCHEMA: Execution plan for get_all_tables() call
+*/
+
+class IS_table_read_plan : public Sql_alloc
+{
+public:
+  IS_table_read_plan() : no_rows(false), trivial_show_command(FALSE) {}
+
+  bool no_rows;
+  /*
+    For EXPLAIN only: For SHOW KEYS and SHOW COLUMNS, we know which
+    db_name.table_name will be read, however for some reason we don't
+    set the fields in this->lookup_field_vals.
+    In order to not have JOIN::save_explain_data() walking over uninitialized
+    data, we set trivial_show_command=true.
+  */
+  bool trivial_show_command;
+
+  LOOKUP_FIELD_VALUES lookup_field_vals;
+  Item *partial_cond;
+
+  bool has_db_lookup_value()
+  {
+    return (lookup_field_vals.db_value.length &&
+           !lookup_field_vals.wild_db_value);
+  }
+  bool has_table_lookup_value()
+  {
+    return (lookup_field_vals.table_value.length &&
+            !lookup_field_vals.wild_table_value);
+  }
+};
+
+bool optimize_schema_tables_reads(JOIN *join);
 
 /* Handle the ignored database directories list for SHOW/I_S. */
 bool ignore_db_dirs_init();

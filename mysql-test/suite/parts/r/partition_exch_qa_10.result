@@ -23,7 +23,7 @@ a	b
 DROP PROCEDURE test_p1;
 SET @save_autocommit= @@autocommit;
 SET @@autocommit= OFF;
-SHOW VARIABLES LIKE '%autocommit%';
+SHOW VARIABLES LIKE 'autocommit%';
 Variable_name	Value
 autocommit	OFF
 CREATE TRIGGER test_trg_1 BEFORE UPDATE ON tp FOR EACH ROW

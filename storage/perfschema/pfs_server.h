@@ -231,8 +231,6 @@ void pfs_automated_sizing(PFS_global_param *param);
 */
 void initialize_performance_schema_acl(bool bootstrap);
 
-void check_performance_schema();
-
 /**
   Initialize the dynamic array holding individual instrument settings collected
   from the server configuration options.

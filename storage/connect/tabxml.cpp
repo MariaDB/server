@@ -366,7 +366,7 @@ int TDBXML::LoadTableFile(PGLOBAL g, char *filename)
   /*********************************************************************/
   /*  Firstly we check whether this file have been already loaded.     */
   /*********************************************************************/
-  if (Mode == MODE_READ)
+  if (Mode == MODE_READ || Mode == MODE_ANY)
     for (fp = dup->Openlist; fp; fp = fp->Next)
       if (fp->Type == type && fp->Length && fp->Count)
         if (!stricmp(fp->Fname, filename))
@@ -522,8 +522,8 @@ bool TDBXML::Initialize(PGLOBAL g)
         To_Xb = Docp->LinkXblock(g, Mode, rc, filename);
 
         // Add a CONNECT comment node
-//      sprintf(buf, MSG(CREATED_PLUGDB), version);
-        sprintf(buf, " Created by CONNECT %s ", version);
+//      sprintf(buf, " Created by CONNECT %s ", version);
+        strcpy(buf, " Created by the MariaDB CONNECT Storage Engine");
         Docp->AddComment(g, buf);
 
         if (XmlDB) {

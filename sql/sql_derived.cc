@@ -465,6 +465,8 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
+  if (!derived->merged_for_insert)
+    dt_select->first_cond_optimization= FALSE; // consider it optimized
 exit_merge:
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -614,6 +616,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   SELECT_LEX_UNIT *unit= derived->get_unit();
   DBUG_ENTER("mysql_derived_prepare");
   bool res= FALSE;
+  DBUG_PRINT("enter", ("unit 0x%lx", (ulong) unit));
 
   // Skip already prepared views/DT
   if (!unit || unit->prepared ||
@@ -622,9 +625,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
          (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
           thd->lex->sql_command == SQLCOM_DELETE_MULTI))))
     DBUG_RETURN(FALSE);
-
-  Query_arena *arena, backup;
-  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   SELECT_LEX *first_select= unit->first_select();
 
@@ -743,8 +743,6 @@ exit:
     if (derived->outer_join)
       table->maybe_null= 1;
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(res);
 }
 
@@ -788,7 +786,7 @@ bool mysql_derived_optimize(THD *thd, LEX *lex, TABLE_LIST *derived)
     if (!derived->is_merged_derived())
     {
       JOIN *join= first_select->join;
-      unit->set_limit(unit->global_parameters);
+      unit->set_limit(unit->global_parameters());
       unit->optimized= TRUE;
       if ((res= join->optimize()))
         goto err;
@@ -905,7 +903,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
-    unit->set_limit(unit->global_parameters);
+    unit->set_limit(unit->global_parameters());
     if (unit->select_limit_cnt == HA_POS_ERROR)
       first_select->options&= ~OPTION_FOUND_ROWS;
 

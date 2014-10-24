@@ -275,6 +275,17 @@ read_view_t*
 trx_assign_read_view(
 /*=================*/
 	trx_t*	trx);	/*!< in: active transaction */
+/********************************************************************//**
+Clones the read view from another transaction. All the consistent reads within
+the receiver transaction will get the same read view as the donor transaction
+@return read view clone */
+UNIV_INTERN
+read_view_t*
+trx_clone_read_view(
+/*================*/
+	trx_t*	trx,		/*!< in: receiver transaction */
+	trx_t*	from_trx)	/*!< in: donor transaction */
+	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
 Prepares a transaction for commit/rollback. */
 UNIV_INTERN
@@ -1019,6 +1030,11 @@ struct trx_t{
 					count of tables being flushed. */
 
 	/*------------------------------*/
+	THD*		current_lock_mutex_owner;
+					/*!< If this is equal to current_thd,
+					then in innobase_kill_query() we know we
+					already hold the lock_sys->mutex. */
+	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	ulint		start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
@@ -1031,6 +1047,9 @@ struct trx_t{
 	/*------------------------------*/
 	char detailed_error[256];	/*!< detailed error message for last
 					error, or empty. */
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
 	/*------------------------------*/
 	ulint		io_reads;
 	ib_uint64_t	io_read;

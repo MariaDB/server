@@ -631,6 +631,8 @@ UPDATE user SET Create_tablespace_priv = Super_priv WHERE @hadCreateTablespacePr
 ALTER TABLE user ADD plugin char(64) DEFAULT '',  ADD authentication_string TEXT;
 ALTER TABLE user ADD password_expired ENUM('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
 ALTER TABLE user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAULT 'N' NOT NULL;
+ALTER TABLE user ADD default_role char(80) binary DEFAULT '' NOT NULL;
+ALTER TABLE user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
 ALTER TABLE user MODIFY plugin char(64) CHARACTER SET latin1 DEFAULT '' NOT NULL, MODIFY authentication_string TEXT NOT NULL;
 -- Somewhere above, we ran ALTER TABLE user .... CONVERT TO CHARACTER SET utf8 COLLATE utf8_bin.
 --  we want password_expired column to have collation utf8_general_ci.
@@ -647,6 +649,22 @@ DROP TABLE tmp_proxies_priv;
 
 # Convering the host name to lower case for existing users
 UPDATE user SET host=LOWER( host ) WHERE LOWER( host ) <> host;
+
+# update timestamp fields in the innodb stat tables
+set @str="alter table mysql.innodb_index_stats modify last_update timestamp not null default current_timestamp on update current_timestamp";
+set @str=if(@have_innodb <> 0, @str, "set @dummy = 0");
+prepare stmt from @str;
+execute stmt;
+
+set @str=replace(@str, "innodb_index_stats", "innodb_table_stats");
+prepare stmt from @str;
+execute stmt;
+
+SET @innodb_index_stats_fk= (select count(*) from information_schema.referential_constraints where constraint_schema='mysql' and table_name = 'innodb_index_stats' and referenced_table_name = 'innodb_table_stats' and constraint_name = 'innodb_index_stats_ibfk_1');
+SET @str=IF(@innodb_index_stats_fk > 0 and @have_innodb > 0, "ALTER TABLE mysql.innodb_index_stats DROP FOREIGN KEY `innodb_index_stats_ibfk_1`", "SET @dummy = 0");
+PREPARE stmt FROM @str;
+EXECUTE stmt;
+DROP PREPARE stmt; 
 
 # MDEV-4332 longer user names
 alter table user         modify User         char(80)  binary not null default '';
@@ -666,13 +684,6 @@ alter table tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null
 # Activate the new, possible modified privilege tables
 # This should not be needed, but gives us some extra testing that the above
 # changes was correct
-
-set @have_innodb= (select count(engine) from information_schema.engines where engine='INNODB' and support != 'NO');
-SET @innodb_index_stats_fk= (select count(*) from information_schema.referential_constraints where constraint_schema='mysql' and table_name = 'innodb_index_stats' and referenced_table_name = 'innodb_table_stats' and constraint_name = 'innodb_index_stats_ibfk_1');
-SET @str=IF(@innodb_index_stats_fk > 0 and @have_innodb > 0, "ALTER TABLE mysql.innodb_index_stats DROP FOREIGN KEY `innodb_index_stats_ibfk_1`", "SET @dummy = 0");
-PREPARE stmt FROM @str;
-EXECUTE stmt;
-DROP PREPARE stmt; 
 
 flush privileges;
 

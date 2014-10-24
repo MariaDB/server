@@ -206,29 +206,6 @@ msgstr "Pasahitz sarrera errorea"
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr "Idatzi dituzun bi pasahitzak ez dira berdina. Mesedez saiatu berriz."
 
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid "NDB Cluster seems to be in use"
-msgstr "Dirudienez NDB Cluster-a erabilia dago"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-#, fuzzy
-#| msgid ""
-#| "MySQL-5.1 has orphaned NDB Cluster support. Please migrate to the new "
-#| "mysql-cluster package and remove all lines starting with \"ndb\" from all "
-#| "config files below /etc/mysql/."
-msgid ""
-"MySQL-5.1 no longer provides NDB Cluster support. Please migrate to the new "
-"mysql-cluster package and remove all lines starting with \"ndb\" from all "
-"config files below /etc/mysql/."
-msgstr ""
-"MySQL-5.1-ek NDB cluster euskarri umezurtz bat behar du. Mesedez migratu "
-"mysql-cluster pakete berrira eta /etc/mysql/ azpiko konfigurazio fitxategi "
-"guztietan \"ndb\"-ez hasten diren lerro guztiak ezabatu."
-
 #~ msgid ""
 #~ "To use MariaDB, the following entries for users and groups should be "
 #~ "added to the system:"

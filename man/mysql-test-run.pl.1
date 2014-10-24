@@ -1141,25 +1141,6 @@ Section\ \&4.9, \(lqPassing Options from mysql-test-run.pl to mysqld or mysqltes
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-test-run.pl: ndb-connectstring option
-.\" ndb-connectstring option: mysql-test-run.pl
-\fB\-\-ndb\-connectstring=\fR\fB\fIstr\fR\fR
-.sp
-Pass
-\fB\-\-ndb\-connectstring=\fR\fB\fIstr\fR\fR
-to the master MySQL server\&. This option also prevents
-\fBmysql\-test\-run\&.pl\fR
-from starting a cluster\&. It is assumed that there is already a cluster running to which the server can connect with the given connectstring\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
 .\" mysql-test-run.pl: nocheck-testcases option
 .\" nocheck-testcases option: mysql-test-run.pl
 \fB\-\-nocheck\-testcases\fR
@@ -1435,42 +1416,6 @@ Max number of seconds to wait for servers to do controlled shutdown before killi
 \fB\-\-skip\-combinations\fR
 .sp
 Do not apply combinations; ignore combinations file or option\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysql-test-run.pl: skip-ndbcluster option
-.\" skip-ndbcluster option: mysql-test-run.pl
-\fB\-\-skip\-ndbcluster\fR,
-.\" mysql-test-run.pl: skip-ndb option
-.\" skip-ndb option: mysql-test-run.pl
-\fB\-\-skip\-ndb\fR
-.sp
-Do not start NDB Cluster; skip Cluster test cases\&.
-.RE
-.sp
-.RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysql-test-run.pl: skip-ndbcluster-slave option
-.\" skip-ndbcluster-slave option: mysql-test-run.pl
-\fB\-\-skip\-ndbcluster\-slave\fR,
-.\" mysql-test-run.pl: skip-ndb-slave option
-.\" skip-ndb-slave option: mysql-test-run.pl
-\fB\-\-skip\-ndb\-slave\fR
-.sp
-Do not start an NDB Cluster slave\&.
 .RE
 .sp
 .RS 4
@@ -2034,20 +1979,6 @@ Search the server log for errors or warning after each test and report any suspi
 .RE
 .sp
 .RS 4
-.ie n \{\
-\h'-04'\(bu\h'+03'\c
-.\}
-.el \{\
-.sp -1
-.IP \(bu 2.3
-.\}
-.\" mysql-test-run.pl: with-ndbcluster-only option
-.\" with-ndbcluster-only option: mysql-test-run.pl
-\fB\-\-with\-ndbcluster\-only\fR
-.sp
-Run only test cases that have
-ndb
-in their name\&.
 .RE
 .SH "COPYRIGHT"
 .br

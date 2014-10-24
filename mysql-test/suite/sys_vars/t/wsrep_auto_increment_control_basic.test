@@ -1,0 +1,42 @@
+--source include/have_wsrep.inc
+
+--echo #
+--echo # wsrep_auto_increment_control
+--echo #
+
+--echo # save the initial value
+SET @wsrep_auto_increment_control_global_saved = @@global.wsrep_auto_increment_control;
+
+--echo # default
+SELECT @@global.wsrep_auto_increment_control;
+
+--echo
+--echo # scope
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@session.wsrep_auto_increment_control;
+SET @@global.wsrep_auto_increment_control=OFF;
+SELECT @@global.wsrep_auto_increment_control;
+SET @@global.wsrep_auto_increment_control=ON;
+SELECT @@global.wsrep_auto_increment_control;
+
+--echo
+--echo # valid values
+SET @@global.wsrep_auto_increment_control='OFF';
+SELECT @@global.wsrep_auto_increment_control;
+SET @@global.wsrep_auto_increment_control=ON;
+SELECT @@global.wsrep_auto_increment_control;
+SET @@global.wsrep_auto_increment_control=default;
+SELECT @@global.wsrep_auto_increment_control;
+
+--echo
+--echo # invalid values
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_auto_increment_control=NULL;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.wsrep_auto_increment_control='junk';
+
+--echo
+--echo # restore the initial value
+SET @@global.wsrep_auto_increment_control = @wsrep_auto_increment_control_global_saved;
+
+--echo # End of test

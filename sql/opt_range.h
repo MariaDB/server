@@ -389,6 +389,13 @@ public:
     Returns a QUICK_SELECT with reverse order of to the index.
   */
   virtual QUICK_SELECT_I *make_reverse(uint used_key_parts_arg) { return NULL; }
+
+  /*
+    Add the key columns used by the quick select into table's read set.
+
+    This is used by an optimization in filesort.
+  */
+  virtual void add_used_key_part_to_set(MY_BITMAP *col_set)=0;
 };
 
 
@@ -479,6 +486,9 @@ public:
 #endif
   virtual void replace_handler(handler *new_file) { file= new_file; }
   QUICK_SELECT_I *make_reverse(uint used_key_parts_arg);
+
+  virtual void add_used_key_part_to_set(MY_BITMAP *col_set);
+
 private:
   /* Default copy ctor used by QUICK_SELECT_DESC */
   friend class TRP_ROR_INTERSECT;
@@ -640,6 +650,8 @@ public:
   virtual int read_keys_and_merge()= 0;
   /* used to get rows collected in Unique */
   READ_RECORD read_record;
+
+  virtual void add_used_key_part_to_set(MY_BITMAP *col_set);
 };
 
 
@@ -714,6 +726,7 @@ public:
   void add_keys_and_lengths(String *key_names, String *used_lengths);
   Explain_quick_select *get_explain(MEM_ROOT *alloc);
   bool is_keys_used(const MY_BITMAP *fields);
+  void add_used_key_part_to_set(MY_BITMAP *col_set);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -793,6 +806,7 @@ public:
   void add_keys_and_lengths(String *key_names, String *used_lengths);
   Explain_quick_select *get_explain(MEM_ROOT *alloc);
   bool is_keys_used(const MY_BITMAP *fields);
+  void add_used_key_part_to_set(MY_BITMAP *col_set);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -935,6 +949,7 @@ public:
   bool unique_key_range() { return false; }
   int get_type() { return QS_TYPE_GROUP_MIN_MAX; }
   void add_keys_and_lengths(String *key_names, String *used_lengths);
+  void add_used_key_part_to_set(MY_BITMAP *col_set);
 #ifndef DBUG_OFF
   void dbug_dump(int indent, bool verbose);
 #endif
@@ -994,7 +1009,7 @@ class SQL_SELECT :public Sql_alloc {
   {
     key_map tmp;
     tmp.set_all();
-    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE) < 0;
+    return test_quick_select(thd, tmp, 0, limit, force_quick_range, FALSE, FALSE) < 0;
   }
   /* 
     RETURN
@@ -1011,7 +1026,7 @@ class SQL_SELECT :public Sql_alloc {
   }
   int test_quick_select(THD *thd, key_map keys, table_map prev_tables,
 			ha_rows limit, bool force_quick_range, 
-                        bool ordered_output);
+                        bool ordered_output, bool remove_false_parts_of_where);
 };
 
 
@@ -1036,7 +1051,7 @@ SQL_SELECT *make_select(TABLE *head, table_map const_tables,
 			table_map read_tables, COND *conds,
                         bool allow_null_cond,  int *error);
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond);
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond);
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond);

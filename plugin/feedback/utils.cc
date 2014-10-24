@@ -383,6 +383,25 @@ int fill_misc_data(THD *thd, TABLE_LIST *tables)
   return 0;
 }
 
+int fill_collation_statistics(THD *thd, TABLE_LIST *tables)
+{
+  TABLE *table= tables->table;
+  for (uint id= 1; id < MY_ALL_CHARSETS_SIZE; id++)
+  {
+    ulonglong count;
+    if (my_collation_is_known_id(id) &&
+        (count= my_collation_statistics_get_use_count(id)))
+    {
+      char name[MY_CS_NAME_SIZE + 32];
+      size_t namelen= my_snprintf(name, sizeof(name),
+                                 "Collation used %s",
+                                 get_charset_name(id));
+      INSERT2(name, namelen, (count, UNSIGNED));
+    }
+  }
+  return 0;
+};
+
 /**
   calculates the server unique identifier
   

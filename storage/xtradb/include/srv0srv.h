@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -183,9 +183,12 @@ extern char		srv_disable_sort_file_cache;
 thread */
 extern os_event_t	srv_checkpoint_completed_event;
 
-/* This event is set on the online redo log following thread exit to signal
-that the (slow) shutdown may proceed */
-extern os_event_t	srv_redo_log_thread_finished_event;
+/* This event is set on the online redo log following thread after a successful
+log tracking iteration */
+extern os_event_t	srv_redo_log_tracked_event;
+
+/** srv_redo_log_follow_thread spawn flag */
+extern bool srv_redo_log_thread_started;
 
 /* If the last data file is auto-extended, we add this many pages to it
 at a time */
@@ -323,6 +326,10 @@ extern uint	srv_flush_log_at_timeout;
 extern char	srv_use_global_flush_log_at_trx_commit;
 extern char	srv_adaptive_flushing;
 
+#ifdef WITH_INNODB_DISALLOW_WRITES
+/* When this event is reset we do not allow any file writes to take place. */
+extern os_event_t	srv_allow_writes_event;
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 /* If this flag is TRUE, then we will load the indexes' (and tables') metadata
 even if they are marked as "corrupted". Mostly it is for DBA to process
 corrupted index and table */
@@ -397,6 +404,15 @@ extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;
 extern ulint	srv_n_read_io_threads;
 extern ulint	srv_n_write_io_threads;
+/* Defragmentation, Origianlly facebook default value is 100, but it's too high */
+#define SRV_DEFRAGMENT_FREQUENCY_DEFAULT 40
+extern my_bool	srv_defragment;
+extern uint	srv_defragment_n_pages;
+extern uint	srv_defragment_stats_accuracy;
+extern uint	srv_defragment_fill_factor_n_recs;
+extern double	srv_defragment_fill_factor;
+extern uint	srv_defragment_frequency;
+extern ulonglong	srv_defragment_interval;
 
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
@@ -629,6 +645,8 @@ extern srv_stats_t	srv_stats;
 When FALSE, row locks are not taken at all. */
 extern my_bool srv_fake_changes_locks;
 
+/** Simulate compression failures. */
+extern uint srv_simulate_comp_failures;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
@@ -1099,6 +1117,22 @@ struct export_var_t{
 	ib_int64_t innodb_x_lock_os_waits;
 	ib_int64_t innodb_x_lock_spin_rounds;
 	ib_int64_t innodb_x_lock_spin_waits;
+
+	ulint innodb_defragment_compression_failures; /*!< Number of
+						defragment re-compression
+						failures */
+
+	ulint innodb_defragment_failures;	/*!< Number of defragment
+						failures*/
+	ulint innodb_defragment_count;		/*!< Number of defragment
+						operations*/
+
+	ulint innodb_onlineddl_rowlog_rows;	/*!< Online alter rows */
+	ulint innodb_onlineddl_rowlog_pct_used; /*!< Online alter percentage
+						of used row log buffer */
+	ulint innodb_onlineddl_pct_progress;	/*!< Online alter progress
+						*/
+
 #ifdef UNIV_DEBUG
 	ulint innodb_purge_trx_id_age;		/*!< rw_max_trx_id - purged trx_id */
 	ulint innodb_purge_view_trx_id_age;	/*!< rw_max_trx_id
@@ -1166,5 +1200,14 @@ struct srv_slot_t{
 # define srv_start_raw_disk_in_use		0
 # define srv_file_per_table			1
 #endif /* !UNIV_HOTBACKUP */
+
+#ifdef WITH_WSREP
+UNIV_INTERN
+void
+wsrep_srv_conc_cancel_wait(
+/*==================*/
+	trx_t*	trx);	/*!< in: transaction object associated with the
+			thread */
+#endif /* WITH_WSREP */
 
 #endif

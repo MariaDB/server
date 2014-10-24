@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -144,7 +144,7 @@ test_serialize_leaf(int valsize, int nelts, double entropy, int ser_runs, int de
 
     sn->max_msn_applied_to_node_on_disk.msn = 0;
     sn->flags = 0x11223344;
-    sn->thisnodename.b = 20;
+    sn->blocknum.b = 20;
     sn->layout_version = FT_LAYOUT_VERSION;
     sn->layout_version_original = FT_LAYOUT_VERSION;
     sn->height = 0;
@@ -152,8 +152,7 @@ test_serialize_leaf(int valsize, int nelts, double entropy, int ser_runs, int de
     sn->dirty = 1;
     sn->oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn->n_children, sn->bp);
-    MALLOC_N(sn->n_children-1, sn->childkeys);
-    sn->totalchildkeylens = 0;
+    sn->pivotkeys.create_empty();
     for (int i = 0; i < sn->n_children; ++i) {
         BP_STATE(sn,i) = PT_AVAIL;
         set_BLB(sn, i, toku_create_empty_bn());
@@ -181,8 +180,8 @@ test_serialize_leaf(int valsize, int nelts, double entropy, int ser_runs, int de
                 );
         }
         if (ck < 7) {
-            toku_memdup_dbt(&sn->childkeys[ck], &k, sizeof k);
-            sn->totalchildkeylens += sizeof k;
+            DBT pivotkey;
+            sn->pivotkeys.insert_at(toku_fill_dbt(&pivotkey, &k, sizeof(k)), ck);
         }
     }
 
@@ -196,26 +195,26 @@ test_serialize_leaf(int valsize, int nelts, double entropy, int ser_runs, int de
                  128*1024,
                  TOKU_DEFAULT_COMPRESSION_METHOD,
                  16);
+    ft_h->cmp.create(long_key_cmp, nullptr);
     ft->ft = ft_h;
     
-    ft_h->compare_fun = long_key_cmp;
-    toku_blocktable_create_new(&ft_h->blocktable);
+    ft_h->blocktable.create();
     { int r_truncate = ftruncate(fd, 0); CKERR(r_truncate); }
     //Want to use block #20
     BLOCKNUM b = make_blocknum(0);
     while (b.b < 20) {
-        toku_allocate_blocknum(ft_h->blocktable, &b, ft_h);
+        ft_h->blocktable.allocate_blocknum(&b, ft_h);
     }
     assert(b.b == 20);
 
     {
         DISKOFF offset;
         DISKOFF size;
-        toku_blocknum_realloc_on_disk(ft_h->blocktable, b, 100, &offset, ft_h, fd, false);
-        assert(offset==BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
+        ft_h->blocktable.realloc_on_disk(b, 100, &offset, ft_h, fd, false, 0);
+        assert(offset==(DISKOFF)block_allocator::BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
 
-        toku_translate_blocknum_to_offset_size(ft_h->blocktable, b, &offset, &size);
-        assert(offset == BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
+        ft_h->blocktable.translate_blocknum_to_offset_size(b, &offset, &size);
+        assert(offset == (DISKOFF)block_allocator::BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
         assert(size   == 100);
     }
 
@@ -248,9 +247,9 @@ test_serialize_leaf(int valsize, int nelts, double entropy, int ser_runs, int de
     total_start.tv_sec = total_start.tv_usec = 0;
     total_end.tv_sec = total_end.tv_usec = 0;
 
-    struct ftnode_fetch_extra bfe;
+    ftnode_fetch_extra bfe;
     for (int i = 0; i < deser_runs; i++) {
-        fill_bfe_for_full_read(&bfe, ft_h);
+        bfe.create_for_full_read(ft_h);
         gettimeofday(&t[0], NULL);
         FTNODE_DISK_DATA ndd2 = NULL;
         r = toku_deserialize_ftnode_from(fd, make_blocknum(20), 0/*pass zero for hash*/, &dn, &ndd2, &bfe);
@@ -278,8 +277,9 @@ test_serialize_leaf(int valsize, int nelts, double entropy, int ser_runs, int de
 
     toku_ftnode_free(&sn);
 
-    toku_block_free(ft_h->blocktable, BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
-    toku_blocktable_destroy(&ft_h->blocktable);
+    ft_h->blocktable.block_free(block_allocator::BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
+    ft_h->blocktable.destroy();
+    ft_h->cmp.destroy();
     toku_free(ft_h->h);
     toku_free(ft_h);
     toku_free(ft);
@@ -299,7 +299,7 @@ test_serialize_nonleaf(int valsize, int nelts, double entropy, int ser_runs, int
     //    source_ft.fd=fd;
     sn.max_msn_applied_to_node_on_disk.msn = 0;
     sn.flags = 0x11223344;
-    sn.thisnodename.b = 20;
+    sn.blocknum.b = 20;
     sn.layout_version = FT_LAYOUT_VERSION;
     sn.layout_version_original = FT_LAYOUT_VERSION;
     sn.height = 1;
@@ -307,18 +307,19 @@ test_serialize_nonleaf(int valsize, int nelts, double entropy, int ser_runs, int
     sn.dirty = 1;
     sn.oldest_referenced_xid_known = TXNID_NONE;
     MALLOC_N(sn.n_children, sn.bp);
-    MALLOC_N(sn.n_children-1, sn.childkeys);
-    sn.totalchildkeylens = 0;
+    sn.pivotkeys.create_empty();
     for (int i = 0; i < sn.n_children; ++i) {
         BP_BLOCKNUM(&sn, i).b = 30 + (i*5);
         BP_STATE(&sn,i) = PT_AVAIL;
         set_BNC(&sn, i, toku_create_empty_nl());
     }
     //Create XIDS
-    XIDS xids_0 = xids_get_root_xids();
+    XIDS xids_0 = toku_xids_get_root_xids();
     XIDS xids_123;
-    r = xids_create_child(xids_0, &xids_123, (TXNID)123);
+    r = toku_xids_create_child(xids_0, &xids_123, (TXNID)123);
     CKERR(r);
+    toku::comparator cmp;
+    cmp.create(long_key_cmp, nullptr);
     int nperchild = nelts / 8;
     for (int ck = 0; ck < sn.n_children; ++ck) {
         long k;
@@ -334,17 +335,18 @@ test_serialize_nonleaf(int valsize, int nelts, double entropy, int ser_runs, int
             }
             memset(&buf[c], 0, valsize - c);
 
-            toku_bnc_insert_msg(bnc, &k, sizeof k, buf, valsize, FT_NONE, next_dummymsn(), xids_123, true, NULL, long_key_cmp);
+            toku_bnc_insert_msg(bnc, &k, sizeof k, buf, valsize, FT_NONE, next_dummymsn(), xids_123, true, cmp);
         }
         if (ck < 7) {
-            toku_memdup_dbt(&sn.childkeys[ck], &k, sizeof k);
-            sn.totalchildkeylens += sizeof k;
+            DBT pivotkey;
+            sn.pivotkeys.insert_at(toku_fill_dbt(&pivotkey, &k, sizeof(k)), ck);
         }
     }
 
     //Cleanup:
-    xids_destroy(&xids_0);
-    xids_destroy(&xids_123);
+    toku_xids_destroy(&xids_0);
+    toku_xids_destroy(&xids_123);
+    cmp.destroy();
 
     FT_HANDLE XMALLOC(ft);
     FT XCALLOC(ft_h);
@@ -356,26 +358,26 @@ test_serialize_nonleaf(int valsize, int nelts, double entropy, int ser_runs, int
                  128*1024,
                  TOKU_DEFAULT_COMPRESSION_METHOD,
                  16);
+    ft_h->cmp.create(long_key_cmp, nullptr);
     ft->ft = ft_h;
     
-    ft_h->compare_fun = long_key_cmp;
-    toku_blocktable_create_new(&ft_h->blocktable);
+    ft_h->blocktable.create();
     { int r_truncate = ftruncate(fd, 0); CKERR(r_truncate); }
     //Want to use block #20
     BLOCKNUM b = make_blocknum(0);
     while (b.b < 20) {
-        toku_allocate_blocknum(ft_h->blocktable, &b, ft_h);
+        ft_h->blocktable.allocate_blocknum(&b, ft_h);
     }
     assert(b.b == 20);
 
     {
         DISKOFF offset;
         DISKOFF size;
-        toku_blocknum_realloc_on_disk(ft_h->blocktable, b, 100, &offset, ft_h, fd, false);
-        assert(offset==BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
+        ft_h->blocktable.realloc_on_disk(b, 100, &offset, ft_h, fd, false, 0);
+        assert(offset==(DISKOFF)block_allocator::BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
 
-        toku_translate_blocknum_to_offset_size(ft_h->blocktable, b, &offset, &size);
-        assert(offset == BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
+        ft_h->blocktable.translate_blocknum_to_offset_size(b, &offset, &size);
+        assert(offset == (DISKOFF)block_allocator::BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
         assert(size   == 100);
     }
 
@@ -390,8 +392,8 @@ test_serialize_nonleaf(int valsize, int nelts, double entropy, int ser_runs, int
     dt *= 1000;
     printf("serialize nonleaf(ms):   %0.05lf (IGNORED RUNS=%d)\n", dt, ser_runs);
 
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_full_read(&bfe, ft_h);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_full_read(ft_h);
     gettimeofday(&t[0], NULL);
     FTNODE_DISK_DATA ndd2 = NULL;
     r = toku_deserialize_ftnode_from(fd, make_blocknum(20), 0/*pass zero for hash*/, &dn, &ndd2, &bfe);
@@ -408,19 +410,12 @@ test_serialize_nonleaf(int valsize, int nelts, double entropy, int ser_runs, int
            );
 
     toku_ftnode_free(&dn);
+    toku_destroy_ftnode_internals(&sn);
 
-    for (int i = 0; i < sn.n_children-1; ++i) {
-        toku_free(sn.childkeys[i].data);
-    }
-    for (int i = 0; i < sn.n_children; ++i) {
-        destroy_nonleaf_childinfo(BNC(&sn, i));
-    }
-    toku_free(sn.bp);
-    toku_free(sn.childkeys);
-
-    toku_block_free(ft_h->blocktable, BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
-    toku_blocktable_destroy(&ft_h->blocktable);
+    ft_h->blocktable.block_free(block_allocator::BLOCK_ALLOCATOR_TOTAL_HEADER_RESERVE);
+    ft_h->blocktable.destroy();
     toku_free(ft_h->h);
+    ft_h->cmp.destroy();
     toku_free(ft_h);
     toku_free(ft);
     toku_free(ndd);

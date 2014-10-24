@@ -38,6 +38,7 @@ Created 6/2/1994 Heikki Tuuri
 #include "btr0cur.h"
 #include "btr0sea.h"
 #include "btr0pcur.h"
+#include "btr0defragment.h"
 #include "rem0cmp.h"
 #include "lock0lock.h"
 #include "ibuf0ibuf.h"
@@ -1213,6 +1214,32 @@ btr_get_size(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
 {
+	ulint used;
+	if (flag == BTR_N_LEAF_PAGES) {
+		btr_get_size_and_reserved(index, flag, &used, mtr);
+		return used;
+	} else if (flag == BTR_TOTAL_SIZE) {
+		return btr_get_size_and_reserved(index, flag, &used, mtr);
+	} else {
+		ut_error;
+	}
+	return (ULINT_UNDEFINED);
+}
+
+/**************************************************************//**
+Gets the number of reserved and used pages in a B-tree.
+@return	number of pages reserved, or ULINT_UNDEFINED if the index
+is unavailable */
+UNIV_INTERN
+ulint
+btr_get_size_and_reserved(
+/*======================*/
+	dict_index_t*	index,	/*!< in: index */
+	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
+	ulint*		used,	/*!< out: number of pages used (<= reserved) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
+				is s-latched */
+{
 	fseg_header_t*	seg_header;
 	page_t*		root;
 	ulint		n;
@@ -1221,6 +1248,8 @@ btr_get_size(
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
 				MTR_MEMO_S_LOCK));
 
+	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
+
 	if (index->page == FIL_NULL || dict_index_is_online_ddl(index)
 	    || *index->name == TEMP_INDEX_PREFIX) {
 		return(ULINT_UNDEFINED);
@@ -1228,27 +1257,16 @@ btr_get_size(
 
 	root = btr_root_get(index, mtr);
 
-	SRV_CORRUPT_TABLE_CHECK(root,
-	{
-		mtr_commit(mtr);
-		return(0);
-	});
+	seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
 
-	if (flag == BTR_N_LEAF_PAGES) {
-		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
+	n = fseg_n_reserved_pages(seg_header, used, mtr);
 
-		fseg_n_reserved_pages(seg_header, &n, mtr);
-
-	} else if (flag == BTR_TOTAL_SIZE) {
+	if (flag == BTR_TOTAL_SIZE) {
 		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_TOP;
 
-		n = fseg_n_reserved_pages(seg_header, &dummy, mtr);
-
-		seg_header = root + PAGE_HEADER + PAGE_BTR_SEG_LEAF;
-
 		n += fseg_n_reserved_pages(seg_header, &dummy, mtr);
-	} else {
-		ut_error;
+		*used += dummy;
+
 	}
 
 	return(n);
@@ -2013,7 +2031,7 @@ IBUF_BITMAP_FREE is unaffected by reorganization.
 
 @retval true if the operation was successful
 @retval false if it is a compressed page, and recompression failed */
-static __attribute__((nonnull))
+UNIV_INTERN
 bool
 btr_page_reorganize_block(
 /*======================*/
@@ -2965,6 +2983,12 @@ func_start:
 	new_page_zip = buf_block_get_page_zip(new_block);
 	btr_page_create(new_block, new_page_zip, cursor->index,
 			btr_page_get_level(page, mtr), mtr);
+	/* Only record the leaf level page splits. */
+	if (btr_page_get_level(page, mtr) == 0) {
+		cursor->index->stat_defrag_n_page_split ++;
+		cursor->index->stat_defrag_modified_counter ++;
+		btr_defragment_save_defrag_stats_if_needed(cursor->index);
+	}
 
 	/* 3. Calculate the first record on the upper half-page, and the
 	first record (move_limit) on original page which ends up on the
@@ -3223,31 +3247,9 @@ func_exit:
 	return(rec);
 }
 
-#ifdef UNIV_SYNC_DEBUG
-/*************************************************************//**
-Removes a page from the level list of pages.
-@param space	in: space where removed
-@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
-@param page	in/out: page to remove
-@param index	in: index tree
-@param mtr	in/out: mini-transaction */
-# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
-	btr_level_list_remove_func(space,zip_size,page,index,mtr)
-#else /* UNIV_SYNC_DEBUG */
-/*************************************************************//**
-Removes a page from the level list of pages.
-@param space	in: space where removed
-@param zip_size	in: compressed page size in bytes, or 0 for uncompressed
-@param page	in/out: page to remove
-@param index	in: index tree
-@param mtr	in/out: mini-transaction */
-# define btr_level_list_remove(space,zip_size,page,index,mtr)		\
-	btr_level_list_remove_func(space,zip_size,page,mtr)
-#endif /* UNIV_SYNC_DEBUG */
-
 /*************************************************************//**
 Removes a page from the level list of pages. */
-static __attribute__((nonnull))
+UNIV_INTERN
 void
 btr_level_list_remove_func(
 /*=======================*/
@@ -3419,7 +3421,7 @@ btr_node_ptr_delete(
 If page is the only on its level, this function moves its records to the
 father page, thus reducing the tree height.
 @return father block */
-static
+UNIV_INTERN
 buf_block_t*
 btr_lift_page_up(
 /*=============*/

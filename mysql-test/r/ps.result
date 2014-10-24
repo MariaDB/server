@@ -1,5 +1,6 @@
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
 drop table if exists t1,t2,t3,t4;
+drop database if exists mysqltest1;
 drop database if exists client_test_db;
 create table t1
 (
@@ -1201,13 +1202,13 @@ SET @aux= "SELECT COUNT(*)
 prepare my_stmt from @aux;
 execute my_stmt;
 COUNT(*)
-44
+46
 execute my_stmt;
 COUNT(*)
-44
+46
 execute my_stmt;
 COUNT(*)
-44
+46
 deallocate prepare my_stmt;
 drop procedure if exists p1|
 drop table if exists t1|

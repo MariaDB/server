@@ -1430,7 +1430,7 @@ void Item_exists_subselect::fix_length_and_dec()
     We need only 1 row to determine existence (i.e. any EXISTS that is not
     an IN always requires LIMIT 1)
   */
-  thd->change_item_tree(&unit->global_parameters->select_limit,
+  thd->change_item_tree(&unit->global_parameters()->select_limit,
                         new Item_int((int32) 1));
   DBUG_PRINT("info", ("Set limit to 1"));
   DBUG_VOID_RETURN;
@@ -2540,7 +2540,7 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     select_lex->having->top_level_item();
     join_arg->having= select_lex->having;
   }
-  join_arg->thd->change_item_tree(&unit->global_parameters->select_limit,
+  join_arg->thd->change_item_tree(&unit->global_parameters()->select_limit,
                                   new Item_int((int32) 1));
   unit->select_limit_cnt= 1;
 
@@ -3395,7 +3395,10 @@ bool subselect_union_engine::is_executed() const
 bool subselect_union_engine::no_rows()
 {
   /* Check if we got any rows when reading UNION result from temp. table: */
-  return MY_TEST(!unit->fake_select_lex->join->send_records);
+  return MY_TEST(!(unit->fake_select_lex ?
+                   unit->fake_select_lex->join->send_records :
+                   ((select_union_direct *)(unit->get_union_result()))
+                                                            ->send_records));
 }
 
 
@@ -3593,7 +3596,7 @@ int subselect_single_select_engine::exec()
   {
     SELECT_LEX_UNIT *unit= select_lex->master_unit();
 
-    unit->set_limit(unit->global_parameters);
+    unit->set_limit(unit->global_parameters());
     if (join->optimize())
     {
       thd->where= save_where;
@@ -3654,8 +3657,9 @@ int subselect_single_select_engine::exec()
         pushed down into the subquery. Those optimizations are ref[_or_null]
         acceses. Change them to be full table scans.
       */
-      for (JOIN_TAB *tab= first_linear_tab(join, WITHOUT_CONST_TABLES); tab;
-           tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
+      JOIN_TAB *tab;
+      for (tab= first_linear_tab(join, WITH_BUSH_ROOTS, WITHOUT_CONST_TABLES);
+           tab; tab= next_linear_tab(join, tab, WITH_BUSH_ROOTS))
       {
         if (tab && tab->keyuse)
         {
@@ -4310,7 +4314,7 @@ subselect_single_select_engine::change_result(Item_subselect *si,
     that would not require a lot of extra code that would be harder to manage
     than the current code.
   */
-  DBUG_RETURN(select_lex->join->change_result(res));
+  DBUG_RETURN(select_lex->join->change_result(res, NULL));
 }
 
 
@@ -4820,7 +4824,7 @@ bool subselect_hash_sj_engine::init(List<Item> *tmp_columns, uint subquery_id)
     DBUG_RETURN(TRUE);
   /* Let our engine reuse this query plan for materialization. */
   materialize_join= materialize_engine->join;
-  materialize_join->change_result(result);
+  materialize_join->change_result(result, NULL);
 
   DBUG_RETURN(FALSE);
 }

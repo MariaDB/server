@@ -54,11 +54,8 @@ INSERT INTO test.t1 VALUES (null,test.f1());
 ROLLBACK;
 SET AUTOCOMMIT=1;
 
-# Sync master and slave for all engines except NDB
-if (`SELECT UPPER(LEFT('$engine_type', 3)) != 'NDB'`) {
   sync_slave_with_master;
   connection master;
-}
 
 # Time to dump the databases and so we can see if they match
 

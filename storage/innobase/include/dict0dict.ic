@@ -647,7 +647,7 @@ dict_tf_is_valid(
 
 	if (atomic_writes) {
 
-		if(atomic_writes < 0 || atomic_writes > ATOMIC_WRITES_OFF) {
+		if(atomic_writes > ATOMIC_WRITES_OFF) {
 
 			fprintf(stderr,
 				"InnoDB: Error: table flags are %ld in the data dictionary and are corrupted\n"
@@ -689,7 +689,7 @@ dict_sys_tables_type_validate(
 	ulint	page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(type);
 	ulint	atomic_writes = DICT_TF_GET_ATOMIC_WRITES(type);
 
-	ut_a(atomic_writes >= 0 && atomic_writes <= ATOMIC_WRITES_OFF);
+	ut_a(atomic_writes <= ATOMIC_WRITES_OFF);
 
 	/* The low order bit of SYS_TABLES.TYPE is always set to 1.
 	If the format is UNIV_FORMAT_B or higher, this field is the same
@@ -768,7 +768,7 @@ dict_sys_tables_type_validate(
 	}
 
 	/* Validate that the atomic writes number is within allowed range. */
-	if (atomic_writes < 0 || atomic_writes > ATOMIC_WRITES_OFF) {
+	if (atomic_writes > ATOMIC_WRITES_OFF) {
 		fprintf(stderr, "InnoDB: Error: SYS_TABLES::TYPE=%lu, atomic_writes %lu\n",
 				type, atomic_writes);
 			return(ULINT_UNDEFINED);

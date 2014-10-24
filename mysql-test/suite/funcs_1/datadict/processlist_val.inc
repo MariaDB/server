@@ -20,7 +20,6 @@
 #       The column PROCESSLIST.INFO is of data type LONGTEXT ----> MyISAM      #
 #    -  There is no impact of the GLOBAL(server) or SESSION default storage    #
 #       engine setting on the engine used for I_S tables.                      #
-#       That means we cannot get NDB or InnoDB instead.                        #
 # 3. The SHOW (FULL) PROCESSLIST command are for comparison.                   #
 #    The main test target is INFORMATION_SCHEMA.PROCESSLIST !                  #
 # 4. Attention:                                                                #

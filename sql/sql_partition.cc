@@ -1,5 +1,5 @@
-/* Copyright (c) 2005, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2005, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3167,19 +3167,28 @@ uint32 get_partition_id_cols_list_for_endpoint(partition_info *part_info,
   uint num_columns= part_info->part_field_list.elements;
   uint list_index;
   uint min_list_index= 0;
+  int cmp;
+  /* Notice that max_list_index = last_index + 1 here! */
   uint max_list_index= part_info->num_list_values;
   DBUG_ENTER("get_partition_id_cols_list_for_endpoint");
 
   /* Find the matching partition (including taking endpoint into account). */
   do
   {
-    /* Midpoint, adjusted down, so it can never be > last index. */
+    /* Midpoint, adjusted down, so it can never be >= max_list_index. */
     list_index= (max_list_index + min_list_index) >> 1;
-    if (cmp_rec_and_tuple_prune(list_col_array + list_index*num_columns,
-                                nparts, left_endpoint, include_endpoint) > 0)
+    cmp= cmp_rec_and_tuple_prune(list_col_array + list_index*num_columns,
+                                 nparts, left_endpoint, include_endpoint);
+    if (cmp > 0)
+    {
       min_list_index= list_index + 1;
+    }
     else
+    {
       max_list_index= list_index;
+      if (cmp == 0)
+        break;
+    }
   } while (max_list_index > min_list_index);
   list_index= max_list_index;
 
@@ -3196,12 +3205,10 @@ uint32 get_partition_id_cols_list_for_endpoint(partition_info *part_info,
                                            nparts, left_endpoint,
                                            include_endpoint)));
 
-  if (!left_endpoint)
-  {
-    /* Set the end after this list tuple if not already after the last. */
-    if (list_index < part_info->num_parts)
-      list_index++;
-  }
+  /* Include the right endpoint if not already passed end of array. */
+  if (!left_endpoint && include_endpoint && cmp == 0 &&
+      list_index < part_info->num_list_values)
+    list_index++;
 
   DBUG_RETURN(list_index);
 }
@@ -6887,7 +6894,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       1) Write the new frm, pack it and then delete it
       2) Perform the change within the handler
     */
-    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW | WFRM_PACK_FRM) ||
+    if (mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
         mysql_change_partitions(lpt))
     {
       goto err;
@@ -7573,15 +7580,13 @@ static int cmp_rec_and_tuple_prune(part_column_list_val *val,
   field= val->part_info->part_field_array + n_vals_in_rec;
   if (!(*field))
   {
-    /*
-      Full match, if right endpoint and not including the endpoint,
-      (rec < part) return lesser.
-    */
-    if (!is_left_endpoint && !include_endpoint)
-      return -4;
+    /* Full match. Only equal if including endpoint. */
+    if (include_endpoint)
+      return 0;
 
-    /* Otherwise they are equal! */
-    return 0;
+    if (is_left_endpoint)
+      return +4;     /* Start of range, part_tuple < rec, return higher. */
+    return -4;     /* End of range, rec < part_tupe, return lesser. */
   }
   /*
     The prefix is equal and there are more partition columns to compare.

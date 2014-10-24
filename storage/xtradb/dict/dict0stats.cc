@@ -46,6 +46,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "ut0rnd.h" /* ut_rnd_interval() */
 #include "ut0ut.h" /* ut_format_name(), ut_time() */
 
+#include <algorithm>
 #include <map>
 #include <vector>
 
@@ -127,10 +128,11 @@ where n=1..n_uniq.
 #endif /* UNIV_STATS_DEBUG */
 
 /* Gets the number of leaf pages to sample in persistent stats estimation */
-#define N_SAMPLE_PAGES(index)				\
-	((index)->table->stats_sample_pages != 0 ?	\
-	 (index)->table->stats_sample_pages :		\
-	 srv_stats_persistent_sample_pages)
+#define N_SAMPLE_PAGES(index)					\
+	static_cast<ib_uint64_t>(				\
+		(index)->table->stats_sample_pages != 0		\
+		? (index)->table->stats_sample_pages		\
+		: srv_stats_persistent_sample_pages)
 
 /* number of distinct records on a given level that are required to stop
 descending to lower levels and fetch N_SAMPLE_PAGES(index) records
@@ -268,10 +270,12 @@ dict_stats_persistent_storage_check(
 		mutex_exit(&(dict_sys->mutex));
 	}
 
-	if (ret != DB_SUCCESS) {
+	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr, " InnoDB: Error: %s\n", errstr);
 		return(false);
+	} else if (ret == DB_STATS_DO_NOT_EXIST) {
+		return false;
 	}
 	/* else */
 
@@ -430,9 +434,9 @@ dict_stats_table_clone_create(
 	t->corrupted = table->corrupted;
 
 	/* This private object "t" is not shared with other threads, so
-	we do not need the stats_latch. The lock/unlock routines will do
-	nothing if stats_latch is NULL. */
-	t->stats_latch = NULL;
+	we do not need the stats_latch (thus we pass false below). The
+	dict_table_stats_lock()/unlock() routines will do nothing. */
+	dict_table_stats_latch_create(t, false);
 
 	UT_LIST_INIT(t->indexes);
 
@@ -492,6 +496,9 @@ dict_stats_table_clone_create(
 			heap,
 			idx->n_uniq * sizeof(idx->stat_n_non_null_key_vals[0]));
 		ut_d(idx->magic_n = DICT_INDEX_MAGIC_N);
+
+		idx->stat_defrag_n_page_split = 0;
+		idx->stat_defrag_n_pages_freed = 0;
 	}
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
@@ -508,6 +515,7 @@ dict_stats_table_clone_free(
 /*========================*/
 	dict_table_t*	t)	/*!< in: dummy table object to free */
 {
+	dict_table_stats_latch_destroy(t);
 	mem_heap_free(t->heap);
 }
 
@@ -520,7 +528,9 @@ static
 void
 dict_stats_empty_index(
 /*===================*/
-	dict_index_t*	index)	/*!< in/out: index */
+	dict_index_t*	index,	/*!< in/out: index */
+	bool		empty_defrag_stats)
+				/*!< in: whether to empty defrag stats */
 {
 	ut_ad(!(index->type & DICT_FTS));
 	ut_ad(!dict_index_is_univ(index));
@@ -535,6 +545,34 @@ dict_stats_empty_index(
 
 	index->stat_index_size = 1;
 	index->stat_n_leaf_pages = 1;
+
+	if (empty_defrag_stats) {
+		dict_stats_empty_defrag_stats(index);
+		dict_stats_empty_defrag_summary(index);
+	}
+}
+
+/**********************************************************************//**
+Clear defragmentation summary. */
+UNIV_INTERN
+void
+dict_stats_empty_defrag_summary(
+/*==================*/
+	dict_index_t* index)	/*!< in: index to clear defragmentation stats */
+{
+	index->stat_defrag_n_pages_freed = 0;
+}
+
+/**********************************************************************//**
+Clear defragmentation related index stats. */
+UNIV_INTERN
+void
+dict_stats_empty_defrag_stats(
+/*==================*/
+	dict_index_t* index)	/*!< in: index to clear defragmentation stats */
+{
+	index->stat_defrag_modified_counter = 0;
+	index->stat_defrag_n_page_split = 0;
 }
 
 /*********************************************************************//**
@@ -544,7 +582,9 @@ static
 void
 dict_stats_empty_table(
 /*===================*/
-	dict_table_t*	table)	/*!< in/out: table */
+	dict_table_t*	table,	/*!< in/out: table */
+	bool		empty_defrag_stats)
+				/*!< in: whether to empty defrag stats */
 {
 	/* Zero the stats members */
 
@@ -569,7 +609,7 @@ dict_stats_empty_table(
 
 		ut_ad(!dict_index_is_univ(index));
 
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, empty_defrag_stats);
 	}
 
 	table->stat_initialized = TRUE;
@@ -704,7 +744,7 @@ dict_stats_copy(
 		}
 
 		if (!INDEX_EQ(src_idx, dst_idx)) {
-			dict_stats_empty_index(dst_idx);
+			dict_stats_empty_index(dst_idx, true);
 			continue;
 		}
 
@@ -715,7 +755,7 @@ dict_stats_copy(
 			/* Since src is smaller some elements in dst
 			will remain untouched by the following memmove(),
 			thus we init all of them here. */
-			dict_stats_empty_index(dst_idx);
+			dict_stats_empty_index(dst_idx, true);
 		} else {
 			n_copy_el = dst_idx->n_uniq;
 		}
@@ -735,6 +775,13 @@ dict_stats_copy(
 		dst_idx->stat_index_size = src_idx->stat_index_size;
 
 		dst_idx->stat_n_leaf_pages = src_idx->stat_n_leaf_pages;
+
+		dst_idx->stat_defrag_modified_counter =
+			src_idx->stat_defrag_modified_counter;
+		dst_idx->stat_defrag_n_pages_freed =
+			src_idx->stat_defrag_n_pages_freed;
+		dst_idx->stat_defrag_n_page_split =
+			src_idx->stat_defrag_n_page_split;
 	}
 
 	dst->stat_initialized = TRUE;
@@ -758,6 +805,9 @@ dict_index_t::stat_n_sample_sizes[]
 dict_index_t::stat_n_non_null_key_vals[]
 dict_index_t::stat_index_size
 dict_index_t::stat_n_leaf_pages
+dict_index_t::stat_defrag_modified_counter
+dict_index_t::stat_defrag_n_pages_freed
+dict_index_t::stat_defrag_n_page_split
 The returned object should be freed with dict_stats_snapshot_free()
 when no longer needed.
 @return incomplete table object */
@@ -807,7 +857,9 @@ dict_stats_snapshot_free(
 Calculates new estimates for index statistics. This function is
 relatively quick and is used to calculate transient statistics that
 are not saved on disk. This was the only way to calculate statistics
-before the Persistent Statistics feature was introduced. */
+before the Persistent Statistics feature was introduced.
+This function doesn't update the defragmentation related stats.
+Only persistent statistics supports defragmentation stats. */
 static
 void
 dict_stats_update_transient_for_index(
@@ -823,10 +875,10 @@ dict_stats_update_transient_for_index(
 		Initialize some bogus index cardinality
 		statistics, so that the data can be queried in
 		various means, also via secondary indexes. */
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else {
 		mtr_t	mtr;
@@ -847,7 +899,7 @@ dict_stats_update_transient_for_index(
 
 		switch (size) {
 		case ULINT_UNDEFINED:
-			dict_stats_empty_index(index);
+			dict_stats_empty_index(index, false);
 			return;
 		case 0:
 			/* The root node of the tree is a leaf */
@@ -882,7 +934,7 @@ dict_stats_update_transient(
 
 	if (dict_table_is_discarded(table)) {
 		/* Nothing to do. */
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, false);
 		return;
 	} else if (index == NULL) {
 		/* Table definition is corrupt */
@@ -892,7 +944,7 @@ dict_stats_update_transient(
 		fprintf(stderr, " InnoDB: table %s has no indexes. "
 			"Cannot calculate statistics.\n",
 			ut_format_name(table->name, TRUE, buf, sizeof(buf)));
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, false);
 		return;
 	}
 
@@ -904,7 +956,7 @@ dict_stats_update_transient(
 			continue;
 		}
 
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
@@ -1283,35 +1335,40 @@ enum page_scan_method_t {
 };
 /* @} */
 
-/*********************************************************************//**
-Scan a page, reading records from left to right and counting the number
-of distinct records on that page (looking only at the first n_prefix
-columns). If scan_method is QUIT_ON_FIRST_NON_BORING then the function
+/** Scan a page, reading records from left to right and counting the number
+of distinct records (looking only at the first n_prefix
+columns) and the number of external pages pointed by records from this page.
+If scan_method is QUIT_ON_FIRST_NON_BORING then the function
 will return as soon as it finds a record that does not match its neighbor
 to the right, which means that in the case of QUIT_ON_FIRST_NON_BORING the
 returned n_diff can either be 0 (empty page), 1 (the whole page has all keys
 equal) or 2 (the function found a non-boring record and returned).
+@param[out]	out_rec			record, or NULL
+@param[out]	offsets1		rec_get_offsets() working space (must
+be big enough)
+@param[out]	offsets2		rec_get_offsets() working space (must
+be big enough)
+@param[in]	index			index of the page
+@param[in]	page			the page to scan
+@param[in]	n_prefix		look at the first n_prefix columns
+@param[in]	scan_method		scan to the end of the page or not
+@param[out]	n_diff			number of distinct records encountered
+@param[out]	n_external_pages	if this is non-NULL then it will be set
+to the number of externally stored pages which were encountered
 @return offsets1 or offsets2 (the offsets of *out_rec),
 or NULL if the page is empty and does not contain user records. */
-UNIV_INLINE __attribute__((nonnull))
+UNIV_INLINE
 ulint*
 dict_stats_scan_page(
-/*=================*/
-	const rec_t**		out_rec,	/*!< out: record, or NULL */
-	ulint*			offsets1,	/*!< out: rec_get_offsets()
-						working space (must be big
-						enough) */
-	ulint*			offsets2,	/*!< out: rec_get_offsets()
-						working space (must be big
-						enough) */
-	dict_index_t*		index,		/*!< in: index of the page */
-	const page_t*		page,		/*!< in: the page to scan */
-	ulint			n_prefix,	/*!< in: look at the first
-						n_prefix columns */
-	page_scan_method_t	scan_method,	/*!< in: scan to the end of
-						the page or not */
-	ib_uint64_t*		n_diff)		/*!< out: number of distinct
-						records encountered */
+	const rec_t**		out_rec,
+	ulint*			offsets1,
+	ulint*			offsets2,
+	dict_index_t*		index,
+	const page_t*		page,
+	ulint			n_prefix,
+	page_scan_method_t	scan_method,
+	ib_uint64_t*		n_diff,
+	ib_uint64_t*		n_external_pages)
 {
 	ulint*		offsets_rec		= offsets1;
 	ulint*		offsets_next_rec	= offsets2;
@@ -1329,6 +1386,12 @@ dict_stats_scan_page(
 		get_next = page_rec_get_next_const;
 	}
 
+	const bool	should_count_external_pages = n_external_pages != NULL;
+
+	if (should_count_external_pages) {
+		*n_external_pages = 0;
+	}
+
 	rec = get_next(page_get_infimum_rec(page));
 
 	if (page_rec_is_supremum(rec)) {
@@ -1340,6 +1403,11 @@ dict_stats_scan_page(
 
 	offsets_rec = rec_get_offsets(rec, index, offsets_rec,
 				      ULINT_UNDEFINED, &heap);
+
+	if (should_count_external_pages) {
+		*n_external_pages += btr_rec_get_externally_stored_len(
+			rec, offsets_rec);
+	}
 
 	next_rec = get_next(rec);
 
@@ -1391,6 +1459,11 @@ dict_stats_scan_page(
 			offsets_next_rec = offsets_tmp;
 		}
 
+		if (should_count_external_pages) {
+			*n_external_pages += btr_rec_get_externally_stored_len(
+				rec, offsets_rec);
+		}
+
 		next_rec = get_next(next_rec);
 	}
 
@@ -1401,19 +1474,25 @@ func_exit:
 	return(offsets_rec);
 }
 
-/*********************************************************************//**
-Dive below the current position of a cursor and calculate the number of
+/** Dive below the current position of a cursor and calculate the number of
 distinct records on the leaf page, when looking at the fist n_prefix
-columns.
+columns. Also calculate the number of external pages pointed by records
+on the leaf page.
+@param[in]	cur			cursor
+@param[in]	n_prefix		look at the first n_prefix columns
+when comparing records
+@param[out]	n_diff			number of distinct records
+@param[out]	n_external_pages	number of external pages
+@param[in,out]	mtr			mini-transaction
 @return number of distinct records on the leaf page */
 static
-ib_uint64_t
+void
 dict_stats_analyze_index_below_cur(
-/*===============================*/
-	const btr_cur_t*cur,		/*!< in: cursor */
-	ulint		n_prefix,	/*!< in: look at the first n_prefix
-					columns when comparing records */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
+	const btr_cur_t*	cur,
+	ulint			n_prefix,
+	ib_uint64_t*		n_diff,
+	ib_uint64_t*		n_external_pages,
+	mtr_t*			mtr)
 {
 	dict_index_t*	index;
 	ulint		space;
@@ -1426,7 +1505,6 @@ dict_stats_analyze_index_below_cur(
 	ulint*		offsets1;
 	ulint*		offsets2;
 	ulint*		offsets_rec;
-	ib_uint64_t	n_diff; /* the result */
 	ulint		size;
 
 	index = btr_cur_get_index(cur);
@@ -1462,6 +1540,10 @@ dict_stats_analyze_index_below_cur(
 
 	page_no = btr_node_ptr_get_child_page_no(rec, offsets_rec);
 
+	/* assume no external pages by default - in case we quit from this
+	function without analyzing any leaf pages */
+	*n_external_pages = 0;
+
 	/* descend to the leaf level on the B-tree */
 	for (;;) {
 
@@ -1480,20 +1562,24 @@ dict_stats_analyze_index_below_cur(
 		/* search for the first non-boring record on the page */
 		offsets_rec = dict_stats_scan_page(
 			&rec, offsets1, offsets2, index, page, n_prefix,
-			QUIT_ON_FIRST_NON_BORING, &n_diff);
+			QUIT_ON_FIRST_NON_BORING, n_diff, NULL);
 
 		/* pages on level > 0 are not allowed to be empty */
 		ut_a(offsets_rec != NULL);
 		/* if page is not empty (offsets_rec != NULL) then n_diff must
 		be > 0, otherwise there is a bug in dict_stats_scan_page() */
-		ut_a(n_diff > 0);
+		ut_a(*n_diff > 0);
 
-		if (n_diff == 1) {
+		if (*n_diff == 1) {
 			/* page has all keys equal and the end of the page
 			was reached by dict_stats_scan_page(), no need to
 			descend to the leaf level */
 			mem_heap_free(heap);
-			return(1);
+			/* can't get an estimate for n_external_pages here
+			because we do not dive to the leaf level, assume no
+			external pages (*n_external_pages was assigned to 0
+			above). */
+			return;
 		}
 		/* else */
 
@@ -1501,7 +1587,7 @@ dict_stats_analyze_index_below_cur(
 		first non-boring record it finds, then the returned n_diff
 		can either be 0 (empty page), 1 (page has all keys equal) or
 		2 (non-boring record was found) */
-		ut_a(n_diff == 2);
+		ut_a(*n_diff == 2);
 
 		/* we have a non-boring record in rec, descend below it */
 
@@ -1512,11 +1598,14 @@ dict_stats_analyze_index_below_cur(
 	ut_ad(btr_page_get_level(page, mtr) == 0);
 
 	/* scan the leaf page and find the number of distinct keys,
-	when looking only at the first n_prefix columns */
+	when looking only at the first n_prefix columns; also estimate
+	the number of externally stored pages pointed by records on this
+	page */
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
-		COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED, &n_diff);
+		COUNT_ALL_NON_BORING_AND_SKIP_DEL_MARKED, n_diff,
+		n_external_pages);
 
 #if 0
 	DEBUG_PRINTF("      %s(): n_diff below page_no=%lu: " UINT64PF "\n",
@@ -1524,133 +1613,146 @@ dict_stats_analyze_index_below_cur(
 #endif
 
 	mem_heap_free(heap);
-
-	return(n_diff);
 }
 
-/*********************************************************************//**
-For a given level in an index select N_SAMPLE_PAGES(index)
-(or less) records from that level and dive below them to the corresponding
-leaf pages, then scan those leaf pages and save the sampling results in
-index->stat_n_diff_key_vals[n_prefix - 1] and the number of pages scanned in
-index->stat_n_sample_sizes[n_prefix - 1]. */
+/** Input data that is used to calculate dict_index_t::stat_n_diff_key_vals[]
+for each n-columns prefix (n from 1 to n_uniq). */
+struct n_diff_data_t {
+	/** Index of the level on which the descent through the btree
+	stopped. level 0 is the leaf level. This is >= 1 because we
+	avoid scanning the leaf level because it may contain too many
+	pages and doing so is useless when combined with the random dives -
+	if we are to scan the leaf level, this means a full scan and we can
+	simply do that instead of fiddling with picking random records higher
+	in the tree and to dive below them. At the start of the analyzing
+	we may decide to do full scan of the leaf level, but then this
+	structure is not used in that code path. */
+	ulint		level;
+
+	/** Number of records on the level where the descend through the btree
+	stopped. When we scan the btree from the root, we stop at some mid
+	level, choose some records from it and dive below them towards a leaf
+	page to analyze. */
+	ib_uint64_t	n_recs_on_level;
+
+	/** Number of different key values that were found on the mid level. */
+	ib_uint64_t	n_diff_on_level;
+
+	/** Number of leaf pages that are analyzed. This is also the same as
+	the number of records that we pick from the mid level and dive below
+	them. */
+	ib_uint64_t	n_leaf_pages_to_analyze;
+
+	/** Cumulative sum of the number of different key values that were
+	found on all analyzed pages. */
+	ib_uint64_t	n_diff_all_analyzed_pages;
+
+	/** Cumulative sum of the number of external pages (stored outside of
+	the btree but in the same file segment). */
+	ib_uint64_t	n_external_pages_sum;
+};
+
+/** Estimate the number of different key values in an index when looking at
+the first n_prefix columns. For a given level in an index select
+n_diff_data->n_leaf_pages_to_analyze records from that level and dive below
+them to the corresponding leaf pages, then scan those leaf pages and save the
+sampling results in n_diff_data->n_diff_all_analyzed_pages.
+@param[in]	index			index
+@param[in]	n_prefix		look at first 'n_prefix' columns when
+comparing records
+@param[in]	boundaries		a vector that contains
+n_diff_data->n_diff_on_level integers each of which represents the index (on
+level 'level', counting from left/smallest to right/biggest from 0) of the
+last record from each group of distinct keys
+@param[in,out]	n_diff_data		n_diff_all_analyzed_pages and
+n_external_pages_sum in this structure will be set by this function. The
+members level, n_diff_on_level and n_leaf_pages_to_analyze must be set by the
+caller in advance - they are used by some calculations inside this function
+@param[in,out]	mtr			mini-transaction */
 static
 void
 dict_stats_analyze_index_for_n_prefix(
-/*==================================*/
-	dict_index_t*	index,		/*!< in/out: index */
-	ulint		level,		/*!< in: level, must be >= 1 */
-	ib_uint64_t	total_recs_on_level,
-					/*!< in: total number of
-					records on the given level */
-	ulint		n_prefix,	/*!< in: look at first
-					n_prefix columns when
-					comparing records */
-	ib_uint64_t	n_diff_for_this_prefix,
-					/*!< in: number of distinct
-					records on the given level,
-					when looking at the first
-					n_prefix columns */
-	boundaries_t*	boundaries,	/*!< in: array that contains
-					n_diff_for_this_prefix
-					integers each of which
-					represents the index (on the
-					level, counting from
-					left/smallest to right/biggest
-					from 0) of the last record
-					from each group of distinct
-					keys */
-	mtr_t*		mtr)		/*!< in/out: mini-transaction */
+	dict_index_t*		index,
+	ulint			n_prefix,
+	const boundaries_t*	boundaries,
+	n_diff_data_t*		n_diff_data,
+	mtr_t*			mtr)
 {
 	btr_pcur_t	pcur;
 	const page_t*	page;
 	ib_uint64_t	rec_idx;
-	ib_uint64_t	last_idx_on_level;
-	ib_uint64_t	n_recs_to_dive_below;
-	ib_uint64_t	n_diff_sum_of_all_analyzed_pages;
 	ib_uint64_t	i;
 
 #if 0
 	DEBUG_PRINTF("    %s(table=%s, index=%s, level=%lu, n_prefix=%lu, "
-		     "n_diff_for_this_prefix=" UINT64PF ")\n",
+		     "n_diff_on_level=" UINT64PF ")\n",
 		     __func__, index->table->name, index->name, level,
-		     n_prefix, n_diff_for_this_prefix);
+		     n_prefix, n_diff_data->n_diff_on_level);
 #endif
 
 	ut_ad(mtr_memo_contains(mtr, dict_index_get_lock(index),
 				MTR_MEMO_S_LOCK));
-
-	/* if some of those is 0 then this means that there is exactly one
-	page in the B-tree and it is empty and we should have done full scan
-	and should not be here */
-	ut_ad(total_recs_on_level > 0);
-	ut_ad(n_diff_for_this_prefix > 0);
-
-	/* this must be at least 1 */
-	ut_ad(N_SAMPLE_PAGES(index) > 0);
 
 	/* Position pcur on the leftmost record on the leftmost page
 	on the desired level. */
 
 	btr_pcur_open_at_index_side(
 		true, index, BTR_SEARCH_LEAF | BTR_ALREADY_S_LATCHED,
-		&pcur, true, level, mtr);
+		&pcur, true, n_diff_data->level, mtr);
 	btr_pcur_move_to_next_on_page(&pcur);
 
 	page = btr_pcur_get_page(&pcur);
 
+	const rec_t*	first_rec = btr_pcur_get_rec(&pcur);
+
+	/* We shouldn't be scanning the leaf level. The caller of this function
+	should have stopped the descend on level 1 or higher. */
+	ut_ad(n_diff_data->level > 0);
+	ut_ad(!page_is_leaf(page));
+
 	/* The page must not be empty, except when
 	it is the root page (and the whole index is empty). */
-	ut_ad(btr_pcur_is_on_user_rec(&pcur) || page_is_leaf(page));
-	ut_ad(btr_pcur_get_rec(&pcur)
-	      == page_rec_get_next_const(page_get_infimum_rec(page)));
+	ut_ad(btr_pcur_is_on_user_rec(&pcur));
+	ut_ad(first_rec == page_rec_get_next_const(page_get_infimum_rec(page)));
 
 	/* check that we are indeed on the desired level */
-	ut_a(btr_page_get_level(page, mtr) == level);
+	ut_a(btr_page_get_level(page, mtr) == n_diff_data->level);
 
 	/* there should not be any pages on the left */
 	ut_a(btr_page_get_prev(page, mtr) == FIL_NULL);
 
 	/* check whether the first record on the leftmost page is marked
-	as such, if we are on a non-leaf level */
-	ut_a((level == 0)
-	     == !(REC_INFO_MIN_REC_FLAG & rec_get_info_bits(
-			  btr_pcur_get_rec(&pcur), page_is_comp(page))));
+	as such; we are on a non-leaf level */
+	ut_a(rec_get_info_bits(first_rec, page_is_comp(page))
+	     & REC_INFO_MIN_REC_FLAG);
 
-	last_idx_on_level = boundaries->at(
-		static_cast<unsigned int>(n_diff_for_this_prefix - 1));
+	const ib_uint64_t	last_idx_on_level = boundaries->at(
+		static_cast<unsigned>(n_diff_data->n_diff_on_level - 1));
 
 	rec_idx = 0;
 
-	n_diff_sum_of_all_analyzed_pages = 0;
+	n_diff_data->n_diff_all_analyzed_pages = 0;
+	n_diff_data->n_external_pages_sum = 0;
 
-	n_recs_to_dive_below = ut_min(N_SAMPLE_PAGES(index),
-				      n_diff_for_this_prefix);
-
-	for (i = 0; i < n_recs_to_dive_below; i++) {
-		ib_uint64_t	left;
-		ib_uint64_t	right;
-		ib_uint64_t	rnd;
-		ib_uint64_t	dive_below_idx;
-
-		/* there are n_diff_for_this_prefix elements
+	for (i = 0; i < n_diff_data->n_leaf_pages_to_analyze; i++) {
+		/* there are n_diff_on_level elements
 		in 'boundaries' and we divide those elements
-		into n_recs_to_dive_below segments, for example:
+		into n_leaf_pages_to_analyze segments, for example:
 
-		let n_diff_for_this_prefix=100, n_recs_to_dive_below=4, then:
+		let n_diff_on_level=100, n_leaf_pages_to_analyze=4, then:
 		segment i=0:  [0, 24]
 		segment i=1: [25, 49]
 		segment i=2: [50, 74]
 		segment i=3: [75, 99] or
 
-		let n_diff_for_this_prefix=1, n_recs_to_dive_below=1, then:
+		let n_diff_on_level=1, n_leaf_pages_to_analyze=1, then:
 		segment i=0: [0, 0] or
 
-		let n_diff_for_this_prefix=2, n_recs_to_dive_below=2, then:
+		let n_diff_on_level=2, n_leaf_pages_to_analyze=2, then:
 		segment i=0: [0, 0]
 		segment i=1: [1, 1] or
 
-		let n_diff_for_this_prefix=13, n_recs_to_dive_below=7, then:
+		let n_diff_on_level=13, n_leaf_pages_to_analyze=7, then:
 		segment i=0:  [0,  0]
 		segment i=1:  [1,  2]
 		segment i=2:  [3,  4]
@@ -1661,9 +1763,12 @@ dict_stats_analyze_index_for_n_prefix(
 
 		then we select a random record from each segment and dive
 		below it */
-		left = n_diff_for_this_prefix * i / n_recs_to_dive_below;
-		right = n_diff_for_this_prefix * (i + 1)
-			/ n_recs_to_dive_below - 1;
+		const ib_uint64_t	n_diff = n_diff_data->n_diff_on_level;
+		const ib_uint64_t	n_pick
+			= n_diff_data->n_leaf_pages_to_analyze;
+
+		const ib_uint64_t	left = n_diff * i / n_pick;
+		const ib_uint64_t	right = n_diff * (i + 1) / n_pick - 1;
 
 		ut_a(left <= right);
 		ut_a(right <= last_idx_on_level);
@@ -1671,11 +1776,11 @@ dict_stats_analyze_index_for_n_prefix(
 		/* we do not pass (left, right) because we do not want to ask
 		ut_rnd_interval() to work with too big numbers since
 		ib_uint64_t could be bigger than ulint */
-		rnd = static_cast<ib_uint64_t>(
-			ut_rnd_interval(0, static_cast<ulint>(right - left)));
+		const ulint	rnd = ut_rnd_interval(
+			0, static_cast<ulint>(right - left));
 
-		dive_below_idx = boundaries->at(
-			static_cast<unsigned int>(left + rnd));
+		const ib_uint64_t	dive_below_idx
+			= boundaries->at(static_cast<unsigned>(left + rnd));
 
 #if 0
 		DEBUG_PRINTF("    %s(): dive below record with index="
@@ -1711,9 +1816,13 @@ dict_stats_analyze_index_for_n_prefix(
 		ut_a(rec_idx == dive_below_idx);
 
 		ib_uint64_t	n_diff_on_leaf_page;
+		ib_uint64_t	n_external_pages;
 
-		n_diff_on_leaf_page = dict_stats_analyze_index_below_cur(
-			btr_pcur_get_btr_cur(&pcur), n_prefix, mtr);
+		dict_stats_analyze_index_below_cur(btr_pcur_get_btr_cur(&pcur),
+						   n_prefix,
+						   &n_diff_on_leaf_page,
+						   &n_external_pages,
+						   mtr);
 
 		/* We adjust n_diff_on_leaf_page here to avoid counting
 		one record twice - once as the last on some page and once
@@ -1733,37 +1842,86 @@ dict_stats_analyze_index_for_n_prefix(
 			n_diff_on_leaf_page--;
 		}
 
-		n_diff_sum_of_all_analyzed_pages += n_diff_on_leaf_page;
+		n_diff_data->n_diff_all_analyzed_pages += n_diff_on_leaf_page;
+
+		n_diff_data->n_external_pages_sum += n_external_pages;
 	}
 
-	/* n_diff_sum_of_all_analyzed_pages can be 0 here if all the leaf
-	pages sampled contained only delete-marked records. In this case
-	we should assign 0 to index->stat_n_diff_key_vals[n_prefix - 1], which
-	the formula below does. */
-
-	/* See REF01 for an explanation of the algorithm */
-	index->stat_n_diff_key_vals[n_prefix - 1]
-		= index->stat_n_leaf_pages
-
-		* n_diff_for_this_prefix
-		/ total_recs_on_level
-
-		* n_diff_sum_of_all_analyzed_pages
-		/ n_recs_to_dive_below;
-
-	index->stat_n_sample_sizes[n_prefix - 1] = n_recs_to_dive_below;
-
-	DEBUG_PRINTF("    %s(): n_diff=" UINT64PF " for n_prefix=%lu "
-		     "(%lu"
-		     " * " UINT64PF " / " UINT64PF
-		     " * " UINT64PF " / " UINT64PF ")\n",
-		     __func__, index->stat_n_diff_key_vals[n_prefix - 1],
-		     n_prefix,
-		     index->stat_n_leaf_pages,
-		     n_diff_for_this_prefix, total_recs_on_level,
-		     n_diff_sum_of_all_analyzed_pages, n_recs_to_dive_below);
-
 	btr_pcur_close(&pcur);
+}
+
+/** Set dict_index_t::stat_n_diff_key_vals[] and stat_n_sample_sizes[].
+@param[in]	n_diff_data	input data to use to derive the results
+@param[in,out]	index		index whose stat_n_diff_key_vals[] to set */
+UNIV_INLINE
+void
+dict_stats_index_set_n_diff(
+	const n_diff_data_t*	n_diff_data,
+	dict_index_t*		index)
+{
+	for (ulint n_prefix = dict_index_get_n_unique(index);
+	     n_prefix >= 1;
+	     n_prefix--) {
+		/* n_diff_all_analyzed_pages can be 0 here if
+		all the leaf pages sampled contained only
+		delete-marked records. In this case we should assign
+		0 to index->stat_n_diff_key_vals[n_prefix - 1], which
+		the formula below does. */
+
+		const n_diff_data_t*	data = &n_diff_data[n_prefix - 1];
+
+		ut_ad(data->n_leaf_pages_to_analyze > 0);
+		ut_ad(data->n_recs_on_level > 0);
+
+		ulint	n_ordinary_leaf_pages;
+
+		if (data->level == 1) {
+			/* If we know the number of records on level 1, then
+			this number is the same as the number of pages on
+			level 0 (leaf). */
+			n_ordinary_leaf_pages = data->n_recs_on_level;
+		} else {
+			/* If we analyzed D ordinary leaf pages and found E
+			external pages in total linked from those D ordinary
+			leaf pages, then this means that the ratio
+			ordinary/external is D/E. Then the ratio ordinary/total
+			is D / (D + E). Knowing that the total number of pages
+			is T (including ordinary and external) then we estimate
+			that the total number of ordinary leaf pages is
+			T * D / (D + E). */
+			n_ordinary_leaf_pages
+				= index->stat_n_leaf_pages
+				* data->n_leaf_pages_to_analyze
+				/ (data->n_leaf_pages_to_analyze
+				   + data->n_external_pages_sum);
+		}
+
+		/* See REF01 for an explanation of the algorithm */
+		index->stat_n_diff_key_vals[n_prefix - 1]
+			= n_ordinary_leaf_pages
+
+			* data->n_diff_on_level
+			/ data->n_recs_on_level
+
+			* data->n_diff_all_analyzed_pages
+			/ data->n_leaf_pages_to_analyze;
+
+		index->stat_n_sample_sizes[n_prefix - 1]
+			= data->n_leaf_pages_to_analyze;
+
+		DEBUG_PRINTF("    %s(): n_diff=" UINT64PF " for n_prefix=%lu"
+			     " (%lu"
+			     " * " UINT64PF " / " UINT64PF
+			     " * " UINT64PF " / " UINT64PF ")\n",
+			     __func__,
+			     index->stat_n_diff_key_vals[n_prefix - 1],
+			     n_prefix,
+			     index->stat_n_leaf_pages,
+			     data->n_diff_on_level,
+			     data->n_recs_on_level,
+			     data->n_diff_all_analyzed_pages,
+			     data->n_leaf_pages_to_analyze);
+	}
 }
 
 /*********************************************************************//**
@@ -1781,10 +1939,8 @@ dict_stats_analyze_index(
 	bool		level_is_analyzed;
 	ulint		n_uniq;
 	ulint		n_prefix;
-	ib_uint64_t*	n_diff_on_level;
 	ib_uint64_t	total_recs;
 	ib_uint64_t	total_pages;
-	boundaries_t*	n_diff_boundaries;
 	mtr_t		mtr;
 	ulint		size;
 	DBUG_ENTER("dict_stats_analyze_index");
@@ -1794,7 +1950,7 @@ dict_stats_analyze_index(
 
 	DEBUG_PRINTF("  %s(index=%s)\n", __func__, index->name);
 
-	dict_stats_empty_index(index);
+	dict_stats_empty_index(index, false);
 
 	mtr_start(&mtr);
 
@@ -1870,11 +2026,18 @@ dict_stats_analyze_index(
 		DBUG_VOID_RETURN;
 	}
 
-	/* set to zero */
-	n_diff_on_level = reinterpret_cast<ib_uint64_t*>
-		(mem_zalloc(n_uniq * sizeof(ib_uint64_t)));
+	/* For each level that is being scanned in the btree, this contains the
+	number of different key values for all possible n-column prefixes. */
+	ib_uint64_t*		n_diff_on_level = new ib_uint64_t[n_uniq];
 
-	n_diff_boundaries = new boundaries_t[n_uniq];
+	/* For each level that is being scanned in the btree, this contains the
+	index of the last record from each group of equal records (when
+	comparing only the first n columns, n=1..n_uniq). */
+	boundaries_t*		n_diff_boundaries = new boundaries_t[n_uniq];
+
+	/* For each n-column prefix this array contains the input data that is
+	used to calculate dict_index_t::stat_n_diff_key_vals[]. */
+	n_diff_data_t*		n_diff_data = new n_diff_data_t[n_uniq];
 
 	/* total_recs is also used to estimate the number of pages on one
 	level below, so at the start we have 1 page (the root) */
@@ -1986,12 +2149,12 @@ dict_stats_analyze_index(
 
 			level_is_analyzed = true;
 
-			if (n_diff_on_level[n_prefix - 1]
-			    >= N_DIFF_REQUIRED(index)
-			    || level == 1) {
-				/* we found a good level with many distinct
-				records or we have reached the last level we
-				could scan */
+			if (level == 1
+			    || n_diff_on_level[n_prefix - 1]
+			    >= N_DIFF_REQUIRED(index)) {
+				/* we have reached the last level we could scan
+				or we found a good level with many distinct
+				records */
 				break;
 			}
 
@@ -2004,7 +2167,6 @@ found_level:
 			     " distinct records for n_prefix=%lu\n",
 			     __func__, level, n_diff_on_level[n_prefix - 1],
 			     n_prefix);
-
 		/* here we are either on level 1 or the level that we are on
 		contains >= N_DIFF_REQUIRED distinct keys or we did not scan
 		deeper levels because they would contain too many pages */
@@ -2013,20 +2175,47 @@ found_level:
 
 		ut_ad(level_is_analyzed);
 
+		/* if any of these is 0 then there is exactly one page in the
+		B-tree and it is empty and we should have done full scan and
+		should not be here */
+		ut_ad(total_recs > 0);
+		ut_ad(n_diff_on_level[n_prefix - 1] > 0);
+
+		ut_ad(N_SAMPLE_PAGES(index) > 0);
+
+		n_diff_data_t*	data = &n_diff_data[n_prefix - 1];
+
+		data->level = level;
+
+		data->n_recs_on_level = total_recs;
+
+		data->n_diff_on_level = n_diff_on_level[n_prefix - 1];
+
+		data->n_leaf_pages_to_analyze = std::min(
+			N_SAMPLE_PAGES(index),
+			n_diff_on_level[n_prefix - 1]);
+
 		/* pick some records from this level and dive below them for
 		the given n_prefix */
 
 		dict_stats_analyze_index_for_n_prefix(
-			index, level, total_recs, n_prefix,
-			n_diff_on_level[n_prefix - 1],
-			&n_diff_boundaries[n_prefix - 1], &mtr);
+			index, n_prefix, &n_diff_boundaries[n_prefix - 1],
+			data, &mtr);
 	}
 
 	mtr_commit(&mtr);
 
 	delete[] n_diff_boundaries;
 
-	mem_free(n_diff_on_level);
+	delete[] n_diff_on_level;
+
+	/* n_prefix == 0 means that the above loop did not end up prematurely
+	due to tree being changed and so n_diff_data[] is set up. */
+	if (n_prefix == 0) {
+		dict_stats_index_set_n_diff(n_diff_data, index);
+	}
+
+	delete[] n_diff_data;
 
 	dict_stats_assert_initialized_index(index);
 	DBUG_VOID_RETURN;
@@ -2059,7 +2248,7 @@ dict_stats_update_persistent(
 
 		/* Table definition is corrupt */
 		dict_table_stats_unlock(table, RW_X_LATCH);
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, true);
 
 		return(DB_CORRUPTION);
 	}
@@ -2088,7 +2277,7 @@ dict_stats_update_persistent(
 			continue;
 		}
 
-		dict_stats_empty_index(index);
+		dict_stats_empty_index(index, false);
 
 		if (dict_stats_should_ignore_index(index)) {
 			continue;
@@ -2201,17 +2390,21 @@ dict_stats_save_index_stat(
 		"END;", trx);
 
 	if (ret != DB_SUCCESS) {
-		char	buf_table[MAX_FULL_NAME_LEN];
-		char	buf_index[MAX_FULL_NAME_LEN];
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Cannot save index statistics for table "
-			"%s, index %s, stat name \"%s\": %s\n",
-			ut_format_name(index->table->name, TRUE,
-				       buf_table, sizeof(buf_table)),
-			ut_format_name(index->name, FALSE,
-				       buf_index, sizeof(buf_index)),
-			stat_name, ut_strerr(ret));
+		if (innodb_index_stats_not_found == false &&
+		    index->stats_error_printed == false) {
+			char	buf_table[MAX_FULL_NAME_LEN];
+			char	buf_index[MAX_FULL_NAME_LEN];
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				" InnoDB: Cannot save index statistics for table "
+				"%s, index %s, stat name \"%s\": %s\n",
+				ut_format_name(index->table->name, TRUE,
+					buf_table, sizeof(buf_table)),
+				ut_format_name(index->name, FALSE,
+					buf_index, sizeof(buf_index)),
+				stat_name, ut_strerr(ret));
+			index->stats_error_printed = true;
+		}
 	}
 
 	return(ret);
@@ -2657,6 +2850,16 @@ dict_stats_fetch_index_stats_step(
 		   == 0) {
 		index->stat_n_leaf_pages = (ulint) stat_value;
 		arg->stats_were_modified = true;
+	} else if (stat_name_len == 12 /* strlen("n_page_split") */
+		   && strncasecmp("n_page_split", stat_name, stat_name_len)
+		      == 0) {
+		index->stat_defrag_n_page_split = (ulint) stat_value;
+		arg->stats_were_modified = true;
+	} else if (stat_name_len == 13 /* strlen("n_pages_freed") */
+		   && strncasecmp("n_pages_freed", stat_name, stat_name_len)
+		      == 0) {
+		index->stat_defrag_n_pages_freed = (ulint) stat_value;
+		arg->stats_were_modified = true;
 	} else if (stat_name_len > PFX_LEN /* e.g. stat_name=="n_diff_pfx01" */
 		   && strncasecmp(PFX, stat_name, PFX_LEN) == 0) {
 
@@ -2776,7 +2979,7 @@ dict_stats_fetch_from_ps(
 	the persistent storage contains incomplete stats (e.g. missing stats
 	for some index) then we would end up with (partially) uninitialized
 	stats. */
-	dict_stats_empty_table(table);
+	dict_stats_empty_table(table, true);
 
 	trx = trx_allocate_for_background();
 
@@ -2878,6 +3081,22 @@ dict_stats_fetch_from_ps(
 }
 
 /*********************************************************************//**
+Clear defragmentation stats modified counter for all indices in table. */
+static
+void
+dict_stats_empty_defrag_modified_counter(
+	dict_table_t*	table)	/*!< in: table */
+{
+	dict_index_t*	index;
+	ut_a(table);
+	for (index = dict_table_get_first_index(table);
+	     index != NULL;
+	     index = dict_table_get_next_index(index)) {
+		index->stat_defrag_modified_counter = 0;
+	}
+}
+
+/*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */
 UNIV_INTERN
 void
@@ -2900,20 +3119,24 @@ dict_stats_update_for_index(
 		}
 		/* else */
 
-		/* Fall back to transient stats since the persistent
-		storage is not present or is corrupted */
-		char	buf_table[MAX_FULL_NAME_LEN];
-		char	buf_index[MAX_FULL_NAME_LEN];
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Recalculation of persistent statistics "
-			"requested for table %s index %s but the required "
-			"persistent statistics storage is not present or is "
-			"corrupted. Using transient stats instead.\n",
-			ut_format_name(index->table->name, TRUE,
-				       buf_table, sizeof(buf_table)),
-			ut_format_name(index->name, FALSE,
-				       buf_index, sizeof(buf_index)));
+		if (innodb_index_stats_not_found == false &&
+		    index->stats_error_printed == false) {
+			/* Fall back to transient stats since the persistent
+			storage is not present or is corrupted */
+			char	buf_table[MAX_FULL_NAME_LEN];
+			char	buf_index[MAX_FULL_NAME_LEN];
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				" InnoDB: Recalculation of persistent statistics "
+				"requested for table %s index %s but the required "
+				"persistent statistics storage is not present or is "
+				"corrupted. Using transient stats instead.\n",
+				ut_format_name(index->table->name, TRUE,
+					buf_table, sizeof(buf_table)),
+				ut_format_name(index->name, FALSE,
+					buf_index, sizeof(buf_index)));
+			index->stats_error_printed = false;
+		}
 	}
 
 	dict_table_stats_lock(index->table, RW_X_LATCH);
@@ -2949,13 +3172,13 @@ dict_stats_update(
 			"because the .ibd file is missing. For help, please "
 			"refer to " REFMAN "innodb-troubleshooting.html\n",
 			ut_format_name(table->name, TRUE, buf, sizeof(buf)));
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, true);
 		return(DB_TABLESPACE_DELETED);
 	} else if (srv_force_recovery >= SRV_FORCE_NO_IBUF_MERGE) {
 		/* If we have set a high innodb_force_recovery level, do
 		not calculate statistics, as a badly corrupted index can
 		cause a crash in it. */
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, false);
 		return(DB_SUCCESS);
 	}
 
@@ -2998,13 +3221,17 @@ dict_stats_update(
 		/* Fall back to transient stats since the persistent
 		storage is not present or is corrupted */
 
-		ut_print_timestamp(stderr);
-		fprintf(stderr,
-			" InnoDB: Recalculation of persistent statistics "
-			"requested for table %s but the required persistent "
-			"statistics storage is not present or is corrupted. "
-			"Using transient stats instead.\n",
-			ut_format_name(table->name, TRUE, buf, sizeof(buf)));
+		if (innodb_table_stats_not_found == false &&
+		    table->stats_error_printed == false) {
+			ut_print_timestamp(stderr);
+			fprintf(stderr,
+				" InnoDB: Recalculation of persistent statistics "
+				"requested for table %s but the required persistent "
+				"statistics storage is not present or is corrupted. "
+				"Using transient stats instead.\n",
+				ut_format_name(table->name, TRUE, buf, sizeof(buf)));
+			table->stats_error_printed = true;
+		}
 
 		goto transient;
 
@@ -3014,7 +3241,7 @@ dict_stats_update(
 
 	case DICT_STATS_EMPTY_TABLE:
 
-		dict_stats_empty_table(table);
+		dict_stats_empty_table(table, true);
 
 		/* If table is using persistent stats,
 		then save the stats on disk */
@@ -3048,17 +3275,21 @@ dict_stats_update(
 			/* persistent statistics storage does not exist
 			or is corrupted, calculate the transient stats */
 
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Error: Fetch of persistent "
-				"statistics requested for table %s but the "
-				"required system tables %s and %s are not "
-				"present or have unexpected structure. "
-				"Using transient stats instead.\n",
-				ut_format_name(table->name, TRUE,
-					       buf, sizeof(buf)),
-				TABLE_STATS_NAME_PRINT,
-				INDEX_STATS_NAME_PRINT);
+			if (innodb_table_stats_not_found == false &&
+			    table->stats_error_printed == false) {
+				ut_print_timestamp(stderr);
+				fprintf(stderr,
+					" InnoDB: Error: Fetch of persistent "
+					"statistics requested for table %s but the "
+					"required system tables %s and %s are not "
+					"present or have unexpected structure. "
+					"Using transient stats instead.\n",
+					ut_format_name(table->name, TRUE,
+						buf, sizeof(buf)),
+					TABLE_STATS_NAME_PRINT,
+					INDEX_STATS_NAME_PRINT);
+				table->stats_error_printed = true;
+			}
 
 			goto transient;
 		}
@@ -3073,6 +3304,7 @@ dict_stats_update(
 
 		t->stats_last_recalc = table->stats_last_recalc;
 		t->stat_modified_counter = 0;
+		dict_stats_empty_defrag_modified_counter(t);
 
 		switch (err) {
 		case DB_SUCCESS:
@@ -3083,7 +3315,7 @@ dict_stats_update(
 			copying because dict_stats_table_clone_create() does
 			skip corrupted indexes so our dummy object 't' may
 			have less indexes than the real object 'table'. */
-			dict_stats_empty_table(table);
+			dict_stats_empty_table(table, true);
 
 			dict_stats_copy(table, t);
 
@@ -3128,16 +3360,19 @@ dict_stats_update(
 
 			dict_stats_table_clone_free(t);
 
-			ut_print_timestamp(stderr);
-			fprintf(stderr,
-				" InnoDB: Error fetching persistent statistics "
-				"for table %s from %s and %s: %s. "
-				"Using transient stats method instead.\n",
-				ut_format_name(table->name, TRUE, buf,
-					       sizeof(buf)),
-				TABLE_STATS_NAME,
-				INDEX_STATS_NAME,
-				ut_strerr(err));
+			if (innodb_table_stats_not_found == false &&
+			    table->stats_error_printed == false) {
+				ut_print_timestamp(stderr);
+				fprintf(stderr,
+					" InnoDB: Error fetching persistent statistics "
+					"for table %s from %s and %s: %s. "
+					"Using transient stats method instead.\n",
+					ut_format_name(table->name, TRUE, buf,
+						sizeof(buf)),
+					TABLE_STATS_NAME,
+					INDEX_STATS_NAME,
+					ut_strerr(err));
+			}
 
 			goto transient;
 		}
@@ -3648,6 +3883,117 @@ dict_stats_rename_table(
 	}
 
 	return(ret);
+}
+
+/*********************************************************************//**
+Save defragmentation result.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_stats_save_defrag_summary(
+	dict_index_t*	index)	/*!< in: index */
+{
+	dberr_t	ret;
+	lint	now = (lint) ut_time();
+	if (dict_index_is_univ(index)) {
+		return DB_SUCCESS;
+	}
+	rw_lock_x_lock(&dict_operation_lock);
+	mutex_enter(&dict_sys->mutex);
+	ret = dict_stats_save_index_stat(index, now, "n_pages_freed",
+					 index->stat_defrag_n_pages_freed,
+					 NULL,
+					 "Number of pages freed during"
+					 " last defragmentation run.",
+					 NULL);
+
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(&dict_operation_lock);
+	return (ret);
+}
+
+/*********************************************************************//**
+Save defragmentation stats for a given index.
+@return DB_SUCCESS or error code */
+UNIV_INTERN
+dberr_t
+dict_stats_save_defrag_stats(
+	dict_index_t*	index)	/*!< in: index */
+{
+	dberr_t	ret;
+
+	if (index->table->ibd_file_missing) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			" InnoDB: Cannot save defragment stats because "
+			".ibd file is missing.\n");
+		return (DB_TABLESPACE_DELETED);
+	}
+	if (dict_index_is_corrupted(index)) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			" InnoDB: Cannot save defragment stats because "
+			"index is corrupted.\n");
+		return(DB_CORRUPTION);
+	}
+
+	if (dict_index_is_univ(index)) {
+		return DB_SUCCESS;
+	}
+
+	lint	now = (lint) ut_time();
+	mtr_t	mtr;
+	ulint	n_leaf_pages;
+	ulint	n_leaf_reserved;
+	mtr_start(&mtr);
+	mtr_s_lock(dict_index_get_lock(index), &mtr);
+	n_leaf_reserved = btr_get_size_and_reserved(index, BTR_N_LEAF_PAGES,
+						    &n_leaf_pages, &mtr);
+	mtr_commit(&mtr);
+
+	if (n_leaf_reserved == ULINT_UNDEFINED) {
+		// The index name is different during fast index creation,
+		// so the stats won't be associated with the right index
+		// for later use. We just return without saving.
+		return DB_SUCCESS;
+	}
+
+	rw_lock_x_lock(&dict_operation_lock);
+
+	mutex_enter(&dict_sys->mutex);
+	ret = dict_stats_save_index_stat(index, now, "n_page_split",
+					 index->stat_defrag_n_page_split,
+					 NULL,
+					 "Number of new page splits on leaves"
+					 " since last defragmentation.",
+					 NULL);
+	if (ret != DB_SUCCESS) {
+		goto end;
+	}
+
+	ret = dict_stats_save_index_stat(
+		index, now, "n_leaf_pages_defrag",
+		n_leaf_pages,
+		NULL,
+		"Number of leaf pages when this stat is saved to disk",
+		NULL);
+	if (ret != DB_SUCCESS) {
+		goto end;
+	}
+
+	ret = dict_stats_save_index_stat(
+		index, now, "n_leaf_pages_reserved",
+		n_leaf_reserved,
+		NULL,
+		"Number of pages reserved for this index leaves when this stat "
+		"is saved to disk",
+		NULL);
+
+end:
+	mutex_exit(&dict_sys->mutex);
+	rw_lock_x_unlock(&dict_operation_lock);
+
+	return (ret);
 }
 
 /* tests @{ */

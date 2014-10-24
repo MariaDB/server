@@ -42,7 +42,7 @@ insert into t5 values (10);
 create view v1 (c) as
 SELECT table_name FROM information_schema.TABLES
 WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND
-table_name not like 'ndb_%' AND table_name not like 'innodb_%' AND
+table_name not like 'innodb_%' AND
 table_name not like 'xtradb_%';
 select * from v1;
 c
@@ -58,6 +58,7 @@ ENABLED_ROLES
 ENGINES
 EVENTS
 FILES
+GEOMETRY_COLUMNS
 GLOBAL_STATUS
 GLOBAL_VARIABLES
 INDEX_STATISTICS
@@ -74,7 +75,9 @@ SCHEMATA
 SCHEMA_PRIVILEGES
 SESSION_STATUS
 SESSION_VARIABLES
+SPATIAL_REF_SYS
 STATISTICS
+SYSTEM_VARIABLES
 TABLES
 TABLESPACES
 TABLE_CONSTRAINTS
@@ -128,6 +131,11 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+t1	t1
+t2	t2
+t3	t3
+t4	t4
+t5	t5
 table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
@@ -135,11 +143,6 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
-t1	t1
-t4	t4
-t2	t2
-t3	t3
-t5	t5
 select c,table_name from v1 
 left join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
@@ -150,6 +153,11 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+t1	t1
+t2	t2
+t3	t3
+t4	t4
+t5	t5
 table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
@@ -157,11 +165,6 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
-t1	t1
-t4	t4
-t2	t2
-t3	t3
-t5	t5
 select c, v2.table_name from v1
 right join information_schema.TABLES v2 on (v1.c=v2.table_name)
 where v1.c like "t%";
@@ -172,6 +175,11 @@ TABLE_CONSTRAINTS	TABLE_CONSTRAINTS
 TABLE_PRIVILEGES	TABLE_PRIVILEGES
 TABLE_STATISTICS	TABLE_STATISTICS
 TRIGGERS	TRIGGERS
+t1	t1
+t2	t2
+t3	t3
+t4	t4
+t5	t5
 table_stats	table_stats
 tables_priv	tables_priv
 time_zone	time_zone
@@ -179,11 +187,6 @@ time_zone_leap_second	time_zone_leap_second
 time_zone_name	time_zone_name
 time_zone_transition	time_zone_transition
 time_zone_transition_type	time_zone_transition_type
-t1	t1
-t4	t4
-t2	t2
-t3	t3
-t5	t5
 select table_name from information_schema.TABLES
 where table_schema = "mysqltest" and table_name like "t%";
 table_name
@@ -715,6 +718,7 @@ max_user_connections	select,insert,update,references
 authentication_string	select,insert,update,references
 password_expired	select,insert,update,references
 is_role	select,insert,update,references
+default_role	select,insert,update,references
 use test;
 create function sub1(i int) returns int
 return i+1;
@@ -818,6 +822,7 @@ information_schema	PROCESSLIST	INFO
 information_schema	ROUTINES	DTD_IDENTIFIER
 information_schema	ROUTINES	ROUTINE_DEFINITION
 information_schema	ROUTINES	ROUTINE_COMMENT
+information_schema	SYSTEM_VARIABLES	ENUM_VALUE_LIST
 information_schema	TRIGGERS	ACTION_CONDITION
 information_schema	TRIGGERS	ACTION_STATEMENT
 information_schema	VIEWS	VIEW_DEFINITION
@@ -1636,6 +1641,33 @@ drop table if exists t1;drop table if exists t1;
 drop table if exists t1;drop table if exists
 Warnings:
 Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row 1
+select * from information_schema.global_variables where variable_name like 'init%' order by variable_name;
+VARIABLE_NAME	VARIABLE_VALUE
+INIT_CONNECT	drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists t1;
+drop table if exists t1;drop table if exists
+INIT_FILE	
+INIT_SLAVE	
+Warnings:
+Warning	1265	Data truncated for column 'VARIABLE_VALUE' at row #
 set global init_connect="";
 create table t0 select * from information_schema.global_status where VARIABLE_NAME='COM_SELECT';
 SELECT 1;

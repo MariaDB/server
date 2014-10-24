@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2008, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -359,31 +359,54 @@ public:
      elements(1),use_count(1),left(0),right(0),
      next_key_part(0), color(BLACK), type(type_arg)
   {}
-  inline bool is_same(SEL_ARG *arg)
+  /**
+    returns true if a range predicate is equal. Use all_same()
+    to check for equality of all the predicates on this keypart.
+  */
+  inline bool is_same(const SEL_ARG *arg) const
   {
     if (type != arg->type || part != arg->part)
-      return 0;
+      return false;
     if (type != KEY_RANGE)
-      return 1;
+      return true;
     return cmp_min_to_min(arg) == 0 && cmp_max_to_max(arg) == 0;
+  }
+  /**
+    returns true if all the predicates in the keypart tree are equal
+  */
+  bool all_same(const SEL_ARG *arg) const
+  {
+    if (type != arg->type || part != arg->part)
+      return false;
+    if (type != KEY_RANGE)
+      return true;
+    if (arg == this)
+      return true;
+    const SEL_ARG *cmp_arg= arg->first();
+    const SEL_ARG *cur_arg= first();
+    for (; cur_arg && cmp_arg && cur_arg->is_same(cmp_arg);
+         cur_arg= cur_arg->next, cmp_arg= cmp_arg->next) ;
+    if (cur_arg || cmp_arg)
+      return false;
+    return true;
   }
   inline void merge_flags(SEL_ARG *arg) { maybe_flag|=arg->maybe_flag; }
   inline void maybe_smaller() { maybe_flag=1; }
   /* Return true iff it's a single-point null interval */
   inline bool is_null_interval() { return maybe_null && max_value[0] == 1; } 
-  inline int cmp_min_to_min(SEL_ARG* arg)
+  inline int cmp_min_to_min(const SEL_ARG* arg) const
   {
     return sel_cmp(field,min_value, arg->min_value, min_flag, arg->min_flag);
   }
-  inline int cmp_min_to_max(SEL_ARG* arg)
+  inline int cmp_min_to_max(const SEL_ARG* arg) const
   {
     return sel_cmp(field,min_value, arg->max_value, min_flag, arg->max_flag);
   }
-  inline int cmp_max_to_max(SEL_ARG* arg)
+  inline int cmp_max_to_max(const SEL_ARG* arg) const
   {
     return sel_cmp(field,max_value, arg->max_value, max_flag, arg->max_flag);
   }
-  inline int cmp_max_to_min(SEL_ARG* arg)
+  inline int cmp_max_to_min(const SEL_ARG* arg) const
   {
     return sel_cmp(field,max_value, arg->min_value, max_flag, arg->min_flag);
   }
@@ -563,6 +586,7 @@ public:
   void test_use_count(SEL_ARG *root);
 #endif
   SEL_ARG *first();
+  const SEL_ARG *first() const;
   SEL_ARG *last();
   void make_root();
   inline bool simple_key()
@@ -651,6 +675,18 @@ public:
   }
   SEL_ARG *clone_tree(RANGE_OPT_PARAM *param);
 };
+
+/**
+  Helper function to compare two SEL_ARG's.
+*/
+static bool all_same(const SEL_ARG *sa1, const SEL_ARG *sa2)
+{
+  if (sa1 == NULL && sa2 == NULL)
+    return true;
+  if ((sa1 != NULL && sa2 == NULL) || (sa1 == NULL && sa2 != NULL))
+    return false;
+  return sa1->all_same(sa2);
+}
 
 class SEL_IMERGE;
 
@@ -829,6 +865,12 @@ public:
   */
   bool remove_jump_scans;
   
+  /* 
+    TRUE <=> Range analyzer should remove parts of condition that are found
+    to be always FALSE.
+  */
+  bool remove_false_where_parts;
+
   /*
     used_key_no -> table_key_no translation table. Only makes sense if
     using_real_indexes==TRUE
@@ -908,7 +950,7 @@ static SEL_TREE * get_mm_parts(RANGE_OPT_PARAM *param,COND *cond_func,Field *fie
 static SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param,COND *cond_func,Field *field,
 			    KEY_PART *key_part,
 			    Item_func::Functype type,Item *value);
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond);
+static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond);
 
 static bool is_key_scan_ror(PARAM *param, uint keynr, uint8 nparts);
 static ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
@@ -1451,7 +1493,7 @@ mem_err:
 
 inline void imerge_list_and_list(List<SEL_IMERGE> *im1, List<SEL_IMERGE> *im2)
 {
-  im1->concat(im2);
+  im1->append(im2);
 }
 
 
@@ -1627,7 +1669,7 @@ int imerge_list_or_tree(RANGE_OPT_PARAM *param,
       it.remove();
   }
 
-  merges->concat(&additional_merges);  
+  merges->append(&additional_merges);
   return merges->is_empty();
 }
 
@@ -2495,6 +2537,13 @@ SEL_ARG *SEL_ARG::clone(RANGE_OPT_PARAM *param, SEL_ARG *new_parent,
   return tmp;
 }
 
+/**
+  This gives the first SEL_ARG in the interval list, and the minimal element
+  in the red-black tree
+
+  @return
+  SEL_ARG   first SEL_ARG in the interval list
+*/
 SEL_ARG *SEL_ARG::first()
 {
   SEL_ARG *next_arg=this;
@@ -2503,6 +2552,11 @@ SEL_ARG *SEL_ARG::first()
   while (next_arg->left != &null_element)
     next_arg=next_arg->left;
   return next_arg;
+}
+
+const SEL_ARG *SEL_ARG::first() const
+{
+  return const_cast<SEL_ARG*>(this)->first();
 }
 
 SEL_ARG *SEL_ARG::last()
@@ -2941,7 +2995,8 @@ static int fill_used_fields_bitmap(PARAM *param)
 int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 				  table_map prev_tables,
 				  ha_rows limit, bool force_quick_range, 
-                                  bool ordered_output)
+                                  bool ordered_output,
+                                  bool remove_false_parts_of_where)
 {
   uint idx;
   double scan_time;
@@ -3000,6 +3055,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.imerge_cost_buff_size= 0;
     param.using_real_indexes= TRUE;
     param.remove_jump_scans= TRUE;
+    param.remove_false_where_parts= remove_false_parts_of_where;
     param.force_default_mrr= ordered_output;
     param.possible_keys.clear_all();
 
@@ -3056,7 +3112,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
     param.alloced_sel_args= 0;
 
     /* Calculate cost of full index read for the shortest covering index */
-    if (!head->covering_keys.is_clear_all())
+    if (!force_quick_range && !head->covering_keys.is_clear_all())
     {
       int key_for_use= find_shortest_key(head, &head->covering_keys);
       double key_read_time= head->file->keyread_time(key_for_use, 1, records) +
@@ -3073,7 +3129,7 @@ int SQL_SELECT::test_quick_select(THD *thd, key_map keys_to_use,
 
     if (cond)
     {
-      if ((tree= get_mm_tree(&param,cond)))
+      if ((tree= get_mm_tree(&param, &cond)))
       {
         if (tree->type == SEL_TREE::IMPOSSIBLE)
         {
@@ -3415,7 +3471,7 @@ double records_in_column_ranges(PARAM *param, uint idx,
     TRUE   otherwise 
 */
 
-bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
+bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 {
   uint keynr;
   uint max_quick_key_parts= 0;
@@ -3425,7 +3481,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   table->cond_selectivity= 1.0;
 
-  if (!cond || table_records == 0)
+  if (!*cond || table_records == 0)
     DBUG_RETURN(FALSE);
 
   if (table->pos_in_table_list->schema_table)
@@ -3529,6 +3585,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
     param.old_root= thd->mem_root;
     param.table= table;
     param.is_ror_scan= FALSE;
+    param.remove_false_where_parts= true;
 
     if (create_key_parts_for_pseudo_indexes(&param, used_fields))
       goto free_alloc;
@@ -3606,7 +3663,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   ulong check_rows=
     MY_MIN(thd->variables.optimizer_selectivity_sampling_limit,
         (ulong) (table_records * SELECTIVITY_SAMPLING_SHARE));
-  if (cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
+  if (*cond && check_rows > SELECTIVITY_SAMPLING_THRESHOLD &&
       thd->variables.optimizer_use_condition_selectivity > 4)
   {
     find_selective_predicates_list_processor_data *dt=
@@ -3617,8 +3674,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
       DBUG_RETURN(TRUE);
     dt->list.empty();
     dt->table= table;
-    if (cond->walk(&Item::find_selective_predicates_list_processor, 0,
-                    (uchar*) dt))
+    if ((*cond)->walk(&Item::find_selective_predicates_list_processor, 0,
+                      (uchar*) dt))
       DBUG_RETURN(TRUE);
     if (dt->list.elements > 0)
     {
@@ -3951,6 +4008,8 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   /* range_par->cond doesn't need initialization */
   range_par->prev_tables= range_par->read_tables= 0;
   range_par->current_table= table->map;
+  /* It should be possible to switch the following ON: */
+  range_par->remove_false_where_parts= false;
 
   range_par->keys= 1; // one index
   range_par->using_real_indexes= FALSE;
@@ -3967,7 +4026,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   SEL_TREE *tree;
   int res;
 
-  tree= get_mm_tree(range_par, pprune_cond);
+  tree= get_mm_tree(range_par, &pprune_cond);
   if (!tree)
     goto all_used;
 
@@ -7855,15 +7914,33 @@ static SEL_TREE *get_full_func_mm_tree(RANGE_OPT_PARAM *param,
   DBUG_RETURN(ftree);
 }
 
-	/* make a select tree of all keys in condition */
+/* 
+  make a select tree of all keys in condition 
+  
+  @param  param  Context
+  @param  cond  INOUT condition to perform range analysis on.
 
-static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
+  @detail
+    Range analysis may infer that some conditions are never true. 
+    - If the condition is never true, SEL_TREE(type=IMPOSSIBLE) is returned
+    - if parts of condition are never true, the function may remove these parts
+      from the condition 'cond'.  Sometimes, this will cause the condition to
+      be substituted for something else.
+
+
+  @return 
+    NULL     - Could not infer anything from condition cond.
+    SEL_TREE with type=IMPOSSIBLE - condition can never be true.
+*/
+
+static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
 {
   SEL_TREE *tree=0;
   SEL_TREE *ftree= 0;
   Item_field *field_item= 0;
   bool inv= FALSE;
   Item *value= 0;
+  Item *cond= *cond_ptr;
   DBUG_ENTER("get_mm_tree");
 
   if (cond->type() == Item::COND_ITEM)
@@ -7876,31 +7953,75 @@ static SEL_TREE *get_mm_tree(RANGE_OPT_PARAM *param,COND *cond)
       Item *item;
       while ((item=li++))
       {
-        SEL_TREE *new_tree= get_mm_tree(param,item);
+        SEL_TREE *new_tree= get_mm_tree(param,li.ref());
         if (param->statement_should_be_aborted())
           DBUG_RETURN(NULL);
         tree= tree_and(param,tree,new_tree);
         if (tree && tree->type == SEL_TREE::IMPOSSIBLE)
+        {
+          /* 
+            Do not remove 'item' from 'cond'. We return a SEL_TREE::IMPOSSIBLE 
+            and that is sufficient for the caller to see that the whole
+            condition is never true.
+          */
           break;
+        }
       }
     }
     else
     {                                           // COND OR
-      tree= get_mm_tree(param,li++);
+      bool replace_cond= false;
+      Item *replacement_item= li++;
+      tree= get_mm_tree(param, li.ref());
       if (param->statement_should_be_aborted())
         DBUG_RETURN(NULL);
       if (tree)
       {
+        if (tree->type == SEL_TREE::IMPOSSIBLE &&
+            param->remove_false_where_parts)
+        {
+          /* See the other li.remove() call below */
+          li.remove();
+          if (((Item_cond*)cond)->argument_list()->elements <= 1)
+            replace_cond= true;
+        }
+
         Item *item;
         while ((item=li++))
         {
-          SEL_TREE *new_tree=get_mm_tree(param,item);
+          SEL_TREE *new_tree=get_mm_tree(param,li.ref());
           if (new_tree == NULL || param->statement_should_be_aborted())
             DBUG_RETURN(NULL);
           tree= tree_or(param,tree,new_tree);
           if (tree == NULL || tree->type == SEL_TREE::ALWAYS)
+          {
+            replacement_item= *li.ref();
             break;
+          }
+
+          if (new_tree && new_tree->type == SEL_TREE::IMPOSSIBLE &&
+              param->remove_false_where_parts)
+          {
+            /*
+              This is a condition in form
+
+                cond = item1 OR ... OR item_i OR ... itemN
+
+              and item_i produces SEL_TREE(IMPOSSIBLE). We should remove item_i 
+              from cond.  This may cause 'cond' to become a degenerate,
+              one-way OR. In that case, we replace 'cond' with the remaining
+              item_i.
+            */
+            li.remove();
+            if (((Item_cond*)cond)->argument_list()->elements <= 1)
+              replace_cond= true;
+          }
+          else
+            replacement_item= *li.ref();
         }
+
+        if (replace_cond)
+          *cond_ptr= replacement_item;
       }
     }
     DBUG_RETURN(tree);
@@ -8132,8 +8253,15 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
   param->thd->mem_root= param->old_root;
   if (!value)					// IS NULL or IS NOT NULL
   {
-    if (field->table->maybe_null)		// Can't use a key on this
-      goto end;
+    /*
+      No check for field->table->maybe_null. It's perfecly fine to use range
+      access for cases like 
+
+        SELECT * FROM t1 LEFT JOIN t2 ON t2.key IS [NOT] NULL
+
+      ON expression is evaluated before considering NULL-complemented rows, so
+      IS [NOT] NULL has regular semantics.
+    */
     if (!maybe_null)				// Not null field
     {
       if (type == Item_func::ISNULL_FUNC)
@@ -10610,6 +10738,7 @@ ha_rows check_quick_select(PARAM *param, uint idx, bool index_only,
       param->table->quick_condition_rows=
         MY_MIN(param->table->quick_condition_rows, rows);
       param->table->quick_rows[keynr]= rows;
+      param->table->quick_costs[keynr]= cost->total_cost();
     }
   }
   /* Figure out if the key scan is ROR (returns rows in ROWID order) or not */
@@ -11043,6 +11172,7 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
   uint part;
   bool create_err= FALSE;
   Cost_estimate cost;
+  uint max_used_key_len;
 
   old_root= thd->mem_root;
   /* The following call may change thd->mem_root */
@@ -11069,12 +11199,13 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
   range->min_length= range->max_length= ref->key_length;
   range->min_keypart_map= range->max_keypart_map=
     make_prev_keypart_map(ref->key_parts);
-  range->flag= (ref->key_length == key_info->key_length ? EQ_RANGE : 0);
+  range->flag= EQ_RANGE;
 
   if (!(quick->key_parts=key_part=(KEY_PART *)
 	alloc_root(&quick->alloc,sizeof(KEY_PART)*ref->key_parts)))
     goto err;
-
+  
+  max_used_key_len=0;
   for (part=0 ; part < ref->key_parts ;part++,key_part++)
   {
     key_part->part=part;
@@ -11083,7 +11214,12 @@ QUICK_RANGE_SELECT *get_quick_select_for_ref(THD *thd, TABLE *table,
     key_part->store_length= key_info->key_part[part].store_length;
     key_part->null_bit=     key_info->key_part[part].null_bit;
     key_part->flag=         (uint8) key_info->key_part[part].key_part_flag;
+
+    max_used_key_len +=key_info->key_part[part].store_length;
   }
+
+  quick->max_used_key_length= max_used_key_len;
+
   if (insert_dynamic(&quick->ranges,(uchar*)&range))
     goto err;
 
@@ -11625,14 +11761,6 @@ int QUICK_RANGE_SELECT::reset()
     mrr_buf_desc->buffer= mrange_buff;
     mrr_buf_desc->buffer_end= mrange_buff + buf_size;
     mrr_buf_desc->end_of_used_area= mrange_buff;
-#ifdef HAVE_valgrind
-    /*
-      We need this until ndb will use the buffer efficiently
-      (Now ndb stores  complete row in here, instead of only the used fields
-      which gives us valgrind warnings in compare_record[])
-    */
-    bzero((char*) mrange_buff, buf_size);
-#endif
   }
 
   if (!mrr_buf_desc)
@@ -12334,6 +12462,66 @@ void QUICK_ROR_UNION_SELECT::add_keys_and_lengths(String *key_names,
 }
 
 
+void QUICK_RANGE_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+{
+  uint key_len;
+  KEY_PART *part= key_parts;
+  for (key_len=0; key_len < max_used_key_length;
+       key_len += (part++)->store_length)
+  {
+    bitmap_set_bit(col_set, part->field->field_index);
+  }
+}
+
+
+void QUICK_GROUP_MIN_MAX_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+{
+  uint key_len;
+  KEY_PART_INFO *part= index_info->key_part;
+  for (key_len=0; key_len < max_used_key_length;
+       key_len += (part++)->store_length)
+  {
+    bitmap_set_bit(col_set, part->field->field_index);
+  }
+}
+
+
+void QUICK_ROR_INTERSECT_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+{
+  List_iterator_fast<QUICK_SELECT_WITH_RECORD> it(quick_selects);
+  QUICK_SELECT_WITH_RECORD *quick;
+  while ((quick= it++))
+  {
+    quick->quick->add_used_key_part_to_set(col_set);
+  }
+}
+
+
+void QUICK_INDEX_SORT_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+{
+  QUICK_RANGE_SELECT *quick;
+  List_iterator_fast<QUICK_RANGE_SELECT> it(quick_selects);
+  while ((quick= it++))
+  {
+    quick->add_used_key_part_to_set(col_set);
+  }
+  if (pk_quick_select)
+    pk_quick_select->add_used_key_part_to_set(col_set);
+}
+
+
+void QUICK_ROR_UNION_SELECT::add_used_key_part_to_set(MY_BITMAP *col_set)
+{
+  QUICK_SELECT_I *quick;
+  List_iterator_fast<QUICK_SELECT_I> it(quick_selects);
+
+  while ((quick= it++))
+  {
+    quick->add_used_key_part_to_set(col_set);
+  }
+}
+
+
 /*******************************************************************************
 * Implementation of QUICK_GROUP_MIN_MAX_SELECT
 *******************************************************************************/
@@ -12341,6 +12529,8 @@ void QUICK_ROR_UNION_SELECT::add_keys_and_lengths(String *key_names,
 static inline uint get_field_keypart(KEY *index, Field *field);
 static inline SEL_ARG * get_index_range_tree(uint index, SEL_TREE* range_tree,
                                              PARAM *param, uint *param_idx);
+static bool get_sel_arg_for_keypart(Field *field, SEL_ARG *index_range_tree,
+                                    SEL_ARG **cur_range);
 static bool get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
                        KEY_PART_INFO *first_non_group_part,
                        KEY_PART_INFO *min_max_arg_part,
@@ -12406,6 +12596,16 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
          never stored after a unique key lookup in the clustered index and
          furhter index_next/prev calls can not be used. So loose index scan
          optimization can not be used in this case.
+    SA7. If Q has both AGG_FUNC(DISTINCT ...) and MIN/MAX() functions then this
+         access method is not used.
+         For above queries MIN/MAX() aggregation has to be done at
+         nested_loops_join (end_send_group). But with current design MIN/MAX()
+         is always set as part of loose index scan. Because of this mismatch
+         MIN() and MAX() values will be set incorrectly. For such queries to
+         work we need a new interface for loose index scan. This new interface
+         should only fetch records with min and max values and let
+         end_send_group to do aggregation. Until then do not use
+         loose_index_scan.
     GA1. If Q has a GROUP BY clause, then GA is a prefix of I. That is, if
          G_i = A_j => i = j.
     GA2. If Q has a DISTINCT clause, then there is a permutation of SA that
@@ -12437,6 +12637,8 @@ cost_group_min_max(TABLE* table, KEY *index_info, uint used_key_parts,
          above tests. By transitivity then it also follows that each WA_i
          participates in the index I (if this was already tested for GA, NGA
          and C).
+    WA2. If there is a predicate on C, then it must be in conjunction
+         to all predicates on all earlier keyparts in I.
 
     C) Overall query form:
        SELECT EXPR([A_1,...,A_k], [B_1,...,B_m], [MIN(C)], [MAX(C)])
@@ -12571,6 +12773,13 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
         DBUG_RETURN(NULL);
     }
   }
+
+  /* Check (SA7). */
+  if (is_agg_distinct && (have_max || have_min))
+  {
+    DBUG_RETURN(NULL);
+  }
+
   /* Check (SA5). */
   if (join->select_distinct)
   {
@@ -12857,6 +13066,25 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       {
         if (bitmap_is_set(table->read_set, cur_part->field->field_index))
           goto next_index;
+      }
+    }
+
+    /**
+      Test WA2:If there are conditions on a column C participating in
+      MIN/MAX, those conditions must be conjunctions to all earlier
+      keyparts. Otherwise, Loose Index Scan cannot be used.
+    */
+    if (tree && min_max_arg_item)
+    {
+      uint dummy;
+      SEL_ARG *index_range_tree= get_index_range_tree(cur_index, tree, param,
+                                                      &dummy);
+      SEL_ARG *cur_range= NULL;
+      if (get_sel_arg_for_keypart(min_max_arg_part->field,
+                                  index_range_tree, &cur_range) ||
+          (cur_range && cur_range->type != SEL_ARG::KEY_RANGE))
+      {
+        goto next_index;
       }
     }
 
@@ -13177,72 +13405,74 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
 
 
 /*
-  Get SEL_ARG tree, if any, for the keypart covering non grouping
-  attribute (NGA) field 'nga_field'.
+  Get the SEL_ARG tree 'tree' for the keypart covering 'field', if
+  any. 'tree' must be a unique conjunction to ALL predicates in earlier
+  keyparts of 'keypart_tree'.
 
-  This function enforces the NGA3 test: If 'keypart_tree' contains a
-  condition for 'nga_field', there can only be one range. In the
-  opposite case, this function returns with error and 'cur_range'
-  should not be used.
+  E.g., if 'keypart_tree' is for a composite index (kp1,kp2) and kp2
+  covers 'field', all these conditions satisfies the requirement:
 
-  Note that the NGA1 and NGA2 requirements, like whether or not the
-  range predicate for 'nga_field' is equality, is not tested by this
-  function.
+   1. "(kp1=2 OR kp1=3) AND kp2=10"    => returns "kp2=10"
+   2. "(kp1=2 AND kp2=10) OR (kp1=3 AND kp2=10)"  => returns "kp2=10"
+   3. "(kp1=2 AND (kp2=10 OR kp2=11)) OR (kp1=3 AND (kp2=10 OR kp2=11))"
+                                       => returns "kp2=10  OR kp2=11"
 
-  @param[in]   nga_field      The NGA field we want the SEL_ARG tree for
+   whereas these do not
+   1. "(kp1=2 AND kp2=10) OR kp1=3"
+   2. "(kp1=2 AND kp2=10) OR (kp1=3 AND kp2=11)"
+   3. "(kp1=2 AND kp2=10) OR (kp1=3 AND (kp2=10 OR kp2=11))"
+
+   This function effectively tests requirement WA2. In combination with
+   a test that the returned tree has no more than one range it is also
+   a test of NGA3.
+
+  @param[in]   field          The field we want the SEL_ARG tree for
   @param[in]   keypart_tree   Root node of the SEL_ARG* tree for the index
   @param[out]  cur_range      The SEL_ARG tree, if any, for the keypart
                               covering field 'keypart_field'
-  @retval true   'keypart_tree' contained a predicate for 'nga_field' but
-                  multiple ranges exists. 'cur_range' should not be used.
+  @retval true   'keypart_tree' contained a predicate for 'field' that
+                  is not conjunction to all predicates on earlier keyparts
   @retval false  otherwise
 */
 
 static bool
-get_sel_arg_for_keypart(Field *nga_field,
+get_sel_arg_for_keypart(Field *field,
                         SEL_ARG *keypart_tree,
                         SEL_ARG **cur_range)
 {
-  if(keypart_tree == NULL)
+  if (keypart_tree == NULL)
     return false;
-  if(keypart_tree->field->eq(nga_field))
+  if (keypart_tree->field->eq(field))
   {
-    /*
-      Enforce NGA3: If a condition for nga_field has been found, only
-      a single range is allowed.
-    */
-  if (keypart_tree->prev || keypart_tree->next)
-      return true; // There are multiple ranges
-
     *cur_range= keypart_tree;
     return false;
   }
 
-  SEL_ARG *found_tree= NULL;
+  SEL_ARG *tree_first_range= NULL;
   SEL_ARG *first_kp=  keypart_tree->first();
 
-  for (SEL_ARG *cur_kp= first_kp; cur_kp && !found_tree;
-       cur_kp= cur_kp->next)
+  for (SEL_ARG *cur_kp= first_kp; cur_kp; cur_kp= cur_kp->next)
   {
+    SEL_ARG *curr_tree= NULL;
     if (cur_kp->next_key_part)
     {
-      if (get_sel_arg_for_keypart(nga_field,
+      if (get_sel_arg_for_keypart(field,
                                   cur_kp->next_key_part,
-                                  &found_tree))
+                                  &curr_tree))
         return true;
-
     }
     /*
-       Enforce NGA3: If a condition for nga_field has been found,only
-       a single range is allowed.
-    */
-    if (found_tree && first_kp->next)
-      return true; // There are multiple ranges
+      Check if the SEL_ARG tree for 'field' is identical for all ranges in
+      'keypart_tree
+     */
+    if (cur_kp == first_kp)
+      tree_first_range= curr_tree;
+    else if (!all_same(tree_first_range, curr_tree))
+      return true;
   }
-  *cur_range= found_tree;
+  *cur_range= tree_first_range;
   return false;
 }
-
 
 /*
   Extract a sequence of constants from a conjunction of equality predicates.
@@ -13266,7 +13496,8 @@ get_sel_arg_for_keypart(Field *nga_field,
     (const_ci = NG_i).. In addition, there can only be one range when there is
     such a gap.
     Thus all the NGF_i attributes must fill the 'gap' between the last group-by
-    attribute and the MIN/MAX attribute in the index (if present). If these
+    attribute and the MIN/MAX attribute in the index (if present).  Also ensure
+    that there is only a single range on NGF_i (NGA3). If these
     conditions hold, copy each constant from its corresponding predicate into
     key_infix, in the order its NG_i attribute appears in the index, and update
     key_infix_len with the total length of the key parts in key_infix.
@@ -13275,7 +13506,6 @@ get_sel_arg_for_keypart(Field *nga_field,
     TRUE  if the index passes the test
     FALSE o/w
 */
-
 static bool
 get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
                        KEY_PART_INFO *first_non_group_part,
@@ -13295,32 +13525,42 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
   {
     cur_range= NULL;
     /*
-      Find the range tree for the current keypart. We assume that
-      index_range_tree points to the first keypart in the index.
+      Check NGA3:
+      1. get_sel_arg_for_keypart gets the range tree for the 'field' and also
+         checks for a unique conjunction of this tree with all the predicates
+         on the earlier keyparts in the index.
+      2. Check for multiple ranges on the found keypart tree.
+
+      We assume that index_range_tree points to the leftmost keypart in
+      the index.
     */
-    if(get_sel_arg_for_keypart(cur_part->field, index_range_tree, &cur_range))
+    if (get_sel_arg_for_keypart(cur_part->field, index_range_tree,
+                                &cur_range))
+      return false;
+
+    if (cur_range && cur_range->elements > 1)
       return false;
 
     if (!cur_range || cur_range->type != SEL_ARG::KEY_RANGE)
     {
       if (min_max_arg_part)
-        return FALSE; /* The current keypart has no range predicates at all. */
+        return false; /* The current keypart has no range predicates at all. */
       else
       {
         *first_non_infix_part= cur_part;
-        return TRUE;
+        return true;
       }
     }
 
     if ((cur_range->min_flag & NO_MIN_RANGE) ||
         (cur_range->max_flag & NO_MAX_RANGE) ||
         (cur_range->min_flag & NEAR_MIN) || (cur_range->max_flag & NEAR_MAX))
-      return FALSE;
+      return false;
 
     uint field_length= cur_part->store_length;
     if (cur_range->maybe_null &&
          cur_range->min_value[0] && cur_range->max_value[0])
-    { 
+    {
       /*
         cur_range specifies 'IS NULL'. In this case the argument points
         to a "null value" (is_null_string) that may not always be long
@@ -13339,7 +13579,7 @@ get_constant_key_infix(KEY *index_info, SEL_ARG *index_range_tree,
       *key_infix_len+= field_length;
     }
     else
-      return FALSE;
+      return false;
   }
 
   if (!min_max_arg_part && (cur_part == last_part))

@@ -1,0 +1,29 @@
+#
+# MDEV-6610 Assertion `thd->is_error() || thd->killed' failed in mysql_execute_command on executing an SP with repeated CREATE TABLE .. SELECT
+#
+CREATE TABLE t1 (i INT);
+SET @a = 2; 
+
+CREATE TABLE IF NOT EXISTS t2 (i INT) ENGINE = MyISAM 
+    AS SELECT * FROM t1; 
+CREATE TABLE IF NOT EXISTS t2 (i INT) ENGINE = MyISAM 
+    AS SELECT * FROM t1;
+DROP TABLE t2;
+
+--delimiter |
+CREATE PROCEDURE sp()
+BEGIN
+REPEAT 
+  CREATE TABLE IF NOT EXISTS t2 (i INT) ENGINE = MyISAM 
+      AS SELECT * FROM t1; 
+  SET @a = @a - 1; 
+UNTIL @a = 0 
+END REPEAT ;
+END |
+--delimiter ;
+
+CALL sp();
+
+DROP PROCEDURE sp;
+DROP TABLE t1, t2;
+

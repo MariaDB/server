@@ -1,0 +1,45 @@
+#
+# wsrep_debug
+#
+# save the initial value
+SET @wsrep_debug_global_saved = @@global.wsrep_debug;
+# default
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+0
+
+# scope
+SELECT @@session.wsrep_debug;
+ERROR HY000: Variable 'wsrep_debug' is a GLOBAL variable
+SET @@global.wsrep_debug=OFF;
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+0
+SET @@global.wsrep_debug=ON;
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+1
+
+# valid values
+SET @@global.wsrep_debug='OFF';
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+0
+SET @@global.wsrep_debug=ON;
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+1
+SET @@global.wsrep_debug=default;
+SELECT @@global.wsrep_debug;
+@@global.wsrep_debug
+0
+
+# invalid values
+SET @@global.wsrep_debug=NULL;
+ERROR 42000: Variable 'wsrep_debug' can't be set to the value of 'NULL'
+SET @@global.wsrep_debug='junk';
+ERROR 42000: Variable 'wsrep_debug' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_debug = @wsrep_debug_global_saved;
+# End of test

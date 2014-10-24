@@ -85,7 +85,7 @@ class Event_queue_element : public Event_basic
 public:
   int on_completion;
   int status;
-  longlong originator;
+  uint32 originator;
 
   my_time_t last_executed;
   my_time_t execute_at;

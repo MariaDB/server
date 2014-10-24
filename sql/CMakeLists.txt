@@ -13,6 +13,26 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
+
+IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
+  SET(WSREP_INCLUDES ${CMAKE_SOURCE_DIR}/wsrep)
+  SET(WSREP_SOURCES
+    wsrep_check_opts.cc
+    wsrep_hton.cc
+    wsrep_mysqld.cc 
+    wsrep_notify.cc
+    wsrep_sst.cc
+    wsrep_utils.cc
+    wsrep_var.cc
+    wsrep_binlog.cc
+    wsrep_applier.cc
+    wsrep_thd.cc
+  )
+  SET(WSREP_LIB wsrep)
+ELSE()
+  SET(WSREP_SOURCES wsrep_dummy.cc)
+ENDIF()
+
 INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/sql 
@@ -20,6 +40,7 @@ ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
 ${SSL_INCLUDE_DIRS}
 ${CMAKE_BINARY_DIR}/sql
+${WSREP_INCLUDES}
 )
 
 SET(GEN_SOURCES
@@ -30,7 +51,8 @@ ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
 
 SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED 1)
 
-ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER -DHAVE_POOL_OF_THREADS) 
+ADD_DEFINITIONS(-DMYSQL_SERVER -DHAVE_EVENT_SCHEDULER)
+
 IF(SSL_DEFINES)
  ADD_DEFINITIONS(${SSL_DEFINES})
 ENDIF()
@@ -91,16 +113,23 @@ SET (SQL_SOURCE
 			   ../sql-common/mysql_async.c
                my_apc.cc my_apc.h
                rpl_gtid.cc rpl_parallel.cc
+	       ${WSREP_SOURCES}
                table_cache.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 			   )
   
-IF(WIN32)
-  SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
-ELSE()
- SET(SQL_SOURCE ${SQL_SOURCE} threadpool_unix.cc)
+IF (CMAKE_SYSTEM_NAME MATCHES "Linux" OR
+    CMAKE_SYSTEM_NAME MATCHES "Windows" OR
+    CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
+    HAVE_KQUEUE)
+ ADD_DEFINITIONS(-DHAVE_POOL_OF_THREADS)
+ IF(WIN32)
+   SET(SQL_SOURCE ${SQL_SOURCE} threadpool_win.cc)
+ ELSE()
+   SET(SQL_SOURCE ${SQL_SOURCE} threadpool_unix.cc)
+ ENDIF()
 ENDIF()
 
 MYSQL_ADD_PLUGIN(partition ha_partition.cc STORAGE_ENGINE DEFAULT STATIC_ONLY
@@ -112,6 +141,7 @@ DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql ${MYSQLD_STATIC_PLUGIN_LIBS} 
   mysys mysys_ssl dbug strings vio pcre ${LIBJEMALLOC}
   ${LIBWRAP} ${LIBCRYPT} ${LIBDL} ${CMAKE_THREAD_LIBS_INIT}
+  ${WSREP_LIB}
   ${SSL_LIBRARIES})
 
 IF(WIN32)
@@ -218,7 +248,9 @@ RUN_BISON(
 )
 
 # Gen_lex_hash
-ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
+ENDIF()
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
@@ -364,6 +396,5 @@ ENDIF(WIN32)
 
 INSTALL(DIRECTORY . DESTINATION ${INSTALL_INCLUDEDIR}/private COMPONENT Development
   FILES_MATCHING PATTERN "*.h"
-  PATTERN examples EXCLUDE
   PATTERN share EXCLUDE
   PATTERN CMakeFiles EXCLUDE)

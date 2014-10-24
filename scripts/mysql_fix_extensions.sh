@@ -18,10 +18,10 @@
 # Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston,
 # MA 02110-1301, USA
 
-# This is a utility for MySQL. It is not needed by any standard part
-# of MySQL.
+# This is a utility for MariaDB. It is not needed by any standard part
+# of MariaDB.
 
-# Usage: mysql_fix_extentions datadir
+# Usage: mysql_fix_extensions datadir
 # does not work with RAID, with InnoDB or BDB tables
 # makes .frm lowercase and .MYI/MYD/ISM/ISD uppercase
 # useful when datafiles are copied from windows

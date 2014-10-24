@@ -1,0 +1,27 @@
+source include/master-slave.inc;
+
+create table t1 (a int, b int);
+create table t2 (c int);
+insert t1 values (1, 2), (3, 4);
+
+delimiter |;
+create function fn1(x int) returns int deterministic
+begin
+  insert t2 values (x);
+  return x;
+end|
+delimiter ;|
+
+prepare stmt1 from "select fn1(a) into ? from t1 where b= 2";
+execute stmt1 using @result;
+select * from t2;
+select @result;
+sync_slave_with_master;
+select * from t2;
+
+connection master;
+drop table t1, t2;
+drop function fn1;
+
+source include/rpl_end.inc;
+

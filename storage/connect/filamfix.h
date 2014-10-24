@@ -1,7 +1,7 @@
 /************** FilAMFix H Declares Source Code File (.H) **************/
-/*  Name: FILAMFIX.H    Version 1.2                                    */
+/*  Name: FILAMFIX.H    Version 1.3                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2005 - 2012  */
+/*  (C) Copyright to the author Olivier BERTRAND          2005 - 2014  */
 /*                                                                     */
 /*  This file contains the FIX file access method classes declares.    */
 /***********************************************************************/
@@ -25,22 +25,28 @@ class DllExport FIXFAM : public BLKFAM {
   FIXFAM(PFIXFAM txfp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_FIX;}
-  virtual PTXF  Duplicate(PGLOBAL g)
-                  {return (PTXF)new(g) FIXFAM(this);}
+  virtual AMT  GetAmType(void) {return TYPE_AM_FIX;}
+  virtual PTXF Duplicate(PGLOBAL g)
+                 {return (PTXF)new(g) FIXFAM(this);}
 
   // Methods
   virtual int  Cardinality(PGLOBAL g) {return TXTFAM::Cardinality(g);}
+  virtual int  MaxBlkSize(PGLOBAL g, int s)
+                {return TXTFAM::MaxBlkSize(g, s);}
+  virtual bool SetPos(PGLOBAL g, int recpos);
+  virtual int  GetNextPos(void) {return Fpos + 1;}
   virtual bool AllocateBuffer(PGLOBAL g);
   virtual void ResetBuffer(PGLOBAL g);
+  virtual int  WriteModifiedBlock(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  WriteBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
 
  protected:
   virtual bool CopyHeader(PGLOBAL g) {return false;}
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b);
+  virtual int  InitDelete(PGLOBAL g, int fpos, int spos);
 
   // No additional members
   }; // end of class FIXFAM
@@ -58,25 +64,26 @@ class BGXFAM : public FIXFAM {
   BGXFAM(PBGXFAM txfp);
 
   // Implementation
-  virtual PTXF  Duplicate(PGLOBAL g)
-                  {return (PTXF)new(g) BGXFAM(this);}
+  virtual PTXF Duplicate(PGLOBAL g)
+                 {return (PTXF)new(g) BGXFAM(this);}
 
   // Methods
-  virtual int   Cardinality(PGLOBAL g);
-  virtual bool  OpenTableFile(PGLOBAL g);
-  virtual int   ReadBuffer(PGLOBAL g);
-  virtual int   WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g);
-  virtual void  Rewind(void);
+  virtual int  Cardinality(PGLOBAL g);
+  virtual bool OpenTableFile(PGLOBAL g);
+  virtual int  WriteModifiedBlock(PGLOBAL g);
+  virtual int  ReadBuffer(PGLOBAL g);
+  virtual int  WriteBuffer(PGLOBAL g);
+  virtual int  DeleteRecords(PGLOBAL g, int irc);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
+  virtual void Rewind(void);
 
  protected:
-          bool BigSeek(PGLOBAL g, HANDLE h, BIGINT pos
-                                          , int org = FILE_BEGIN);
-          int  BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req);
-          bool BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req);
   virtual bool OpenTempFile(PGLOBAL g);
   virtual bool MoveIntermediateLines(PGLOBAL g, bool *b = NULL);
+          int  BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req);
+          bool BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req);
+          bool BigSeek(PGLOBAL g, HANDLE h, BIGINT pos
+                                          , int org = FILE_BEGIN);
 
   // Members
   HANDLE  Hfile;               // Handle(descriptor) to big file

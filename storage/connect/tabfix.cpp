@@ -45,11 +45,15 @@
 #include "filamfix.h"
 #include "filamdbf.h"
 #include "tabfix.h"      // TDBFIX, FIXCOL classes declares
+#include "array.h"
+#include "blkfil.h"
 
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
-extern "C" int trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
+
 extern int num_read, num_there, num_eq[2];               // Statistics
 static const longlong M2G = 0x80000000;
 static const longlong M4G = (longlong)2 * M2G;
@@ -61,12 +65,10 @@ static const longlong M4G = (longlong)2 * M2G;
 /***********************************************************************/
 TDBFIX::TDBFIX(PDOSDEF tdp, PTXF txfp) : TDBDOS(tdp, txfp)
   {
-//Cardinal = -1;
   } // end of TDBFIX standard constructor
 
 TDBFIX::TDBFIX(PGLOBAL g, PTDBFIX tdbp) : TDBDOS(g, tdbp)
   {
-//Cardinal = tdbp->Cardinal;
   } // end of TDBFIX copy constructor
 
 // Method
@@ -123,10 +125,48 @@ PCOL TDBFIX::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 /***********************************************************************/
 /*  Remake the indexes after the table was modified.                   */
 /***********************************************************************/
-int TDBFIX::ResetTableOpt(PGLOBAL g, bool dox)
+int TDBFIX::ResetTableOpt(PGLOBAL g, bool dop, bool dox)
   {
+  int prc, rc = RC_OK;
+
+  To_Filter = NULL;                     // Disable filtering
+//To_BlkIdx = NULL;                     // and block filtering
+  To_BlkFil = NULL;                     // and index filtering
+  Cardinality(g);                       // If called by create
   RestoreNrec();                        // May have been modified
-  return TDBDOS::ResetTableOpt(g, dox);
+  MaxSize = -1;                         // Size must be recalculated
+  Cardinal = -1;                        // as well as Cardinality
+
+  // After the table was modified the indexes
+  // are invalid and we should mark them as such...
+  rc = ((PDOSDEF)To_Def)->InvalidateIndex(g);
+
+  if (dop) {
+    Columns = NULL;                     // Not used anymore
+    Txfp->Reset();
+//  OldBlk = CurBlk = -1;
+//  ReadBlks = CurNum = Rbuf = Modif = 0;
+    Use = USE_READY;                    // So the table can be reopened
+    Mode = MODE_ANY;                    // Just to be clean
+    rc = MakeBlockValues(g);            // Redo optimization
+    } // endif dop
+
+  if (dox && (rc == RC_OK || rc == RC_INFO)) {
+    // Remake eventual indexes
+    Columns = NULL;                     // Not used anymore
+    Txfp->Reset();                      // New start
+    Use = USE_READY;                    // So the table can be reopened
+    Mode = MODE_READ;                   // New mode
+    prc = rc;
+
+    if (PlgGetUser(g)->Check & CHK_OPT)
+      // We must remake indexes.
+      rc = MakeIndex(g, NULL, FALSE);
+
+    rc = (rc == RC_INFO) ? prc : rc;
+    } // endif dox
+
+  return rc;
   } // end of ResetTableOpt
 
 /***********************************************************************/
@@ -138,6 +178,11 @@ void TDBFIX::RestoreNrec(void)
     Txfp->Nrec = (To_Def && To_Def->GetElemt()) ? To_Def->GetElemt()
                                                 : DOS_BUFF_LEN;
     Txfp->Blksize = Txfp->Nrec * Txfp->Lrecl;
+
+    if (Cardinal >= 0)
+      Txfp->Block = (Cardinal > 0) 
+                  ? (Cardinal + Txfp->Nrec - 1) / Txfp->Nrec : 0;
+
     } // endif Padded
 
   } // end of RestoreNrec
@@ -163,8 +208,17 @@ int TDBFIX::Cardinality(PGLOBAL g)
 /***********************************************************************/
 int TDBFIX::GetMaxSize(PGLOBAL g)
   {
-  if (MaxSize < 0)
+  if (MaxSize < 0) {
     MaxSize = Cardinality(g);
+
+    if (MaxSize > 0 && (To_BlkFil = InitBlockFilter(g, To_Filter))
+                    && !To_BlkFil->Correlated()) {
+      // Use BlockTest to reduce the estimated size
+      MaxSize = Txfp->MaxBlkSize(g, MaxSize);
+      ResetBlockFilter(g);
+      } // endif To_BlkFil
+
+    } // endif MaxSize
 
   return MaxSize;
   } // end of GetMaxSize
@@ -217,9 +271,11 @@ int TDBFIX::RowNumber(PGLOBAL g, bool b)
 /***********************************************************************/
 bool TDBFIX::IsUsingTemp(PGLOBAL g)
   {
-  USETEMP usetemp = PlgGetUser(g)->UseTemp;
-
-  return (usetemp == TMP_YES || usetemp == TMP_FORCE);
+  // Not ready yet to handle using a temporary file with mapping
+  // or while deleting from DBF files.
+  return ((Use_Temp == TMP_YES && Txfp->GetAmType() != TYPE_AM_MAP &&
+         !(Mode == MODE_DELETE && Txfp->GetAmType() == TYPE_AM_DBF)) ||
+           Use_Temp == TMP_FORCE || Use_Temp == TMP_TEST);
   } // end of IsUsingTemp
 
 /***********************************************************************/
@@ -246,11 +302,13 @@ bool TDBFIX::OpenDB(PGLOBAL g)
     else
       Txfp->Rewind();       // see comment in Work.log
 
+    ResetBlockFilter(g);
     return false;
     } // endif use
 
-  if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() == TYPE_AM_MAP) {
-    // Delete all lines. Not handled in MAP mode
+  if (Mode == MODE_DELETE && Txfp->GetAmType() == TYPE_AM_MAP &&
+                   (!Next || Use_Temp == TMP_FORCE)) {
+    // Delete all lines or using temp. Not handled in MAP mode
     Txfp = new(g) FIXFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
     } // endif Mode
@@ -277,8 +335,13 @@ bool TDBFIX::OpenDB(PGLOBAL g)
   /*********************************************************************/
   To_Line = Txfp->GetBuf();                       // For WriteDB
 
+  /*********************************************************************/
+  /*  Allocate the block filter tree if evaluation is possible.        */
+  /*********************************************************************/
+  To_BlkFil = InitBlockFilter(g, To_Filter);
+
   if (trace)
-    htrc("OpenDos: R%hd mode=%d\n", Tdb_No, Mode);
+    htrc("OpenFix: R%hd mode=%d BlkFil=%p\n", Tdb_No, Mode, To_BlkFil);
 
   /*********************************************************************/
   /*  Reset buffer access according to indexing and to mode.           */

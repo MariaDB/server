@@ -38,10 +38,6 @@ set global innodb_compression_algorithm="foo";
 #
 set global innodb_compression_algorithm=0;
 select @@global.innodb_compression_algorithm;
--- echo BUG! This should've failed (lzo is not compiled in)
-set global innodb_compression_algorithm=3;
-select @@global.innodb_compression_algorithm;
-
 #
 # cleanup
 #

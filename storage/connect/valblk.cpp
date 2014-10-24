@@ -101,6 +101,9 @@ PVBLK AllocValBlock(PGLOBAL g, void *mp, int type, int nval, int len,
         blkp = new(g) TYPBLK<char>(mp, nval, type);
 
       break;
+    case TYPE_PCHAR:
+      blkp = new(g) PTRBLK(g, mp, nval);
+      break;
     default:
       sprintf(g->Message, MSG(BAD_VALBLK_TYPE), type);
       return NULL;
@@ -468,6 +471,36 @@ template <>
 uchar TYPBLK<uchar>::GetTypedValue(PVBLK blk, int n)
   {return blk->GetUTinyValue(n);}
 
+/***********************************************************************/
+/*  Set one value in a block if val is less than the current value.    */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetMin(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  TYPE  tval = GetTypedValue(valp);
+  TYPE& tmin = Typp[n];
+
+  if (tval < tmin)
+    tmin = tval;
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  Set one value in a block if val is greater than the current value. */
+/***********************************************************************/
+template <class TYPE>
+void TYPBLK<TYPE>::SetMax(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  TYPE  tval = GetTypedValue(valp);
+  TYPE& tmin = Typp[n];
+
+  if (tval > tmin)
+    tmin = tval;
+
+  } // end of SetMax
+
 #if 0
 /***********************************************************************/
 /*  Set many values in a block from values in another block.           */
@@ -794,13 +827,43 @@ void CHRBLK::SetValue(PVBLK pv, int n1, int n2)
     longjmp(g->jumper[g->jump_level], Type);
     } // endif Type
 
-  if (!(b = pv->IsNull(n2) && Nullable))
+  if (!(b = pv->IsNull(n2)))
     memcpy(Chrp + n1 * Long, ((CHRBLK*)pv)->Chrp + n2 * Long, Long);
   else
     Reset(n1);
 
-  SetNull(n1, b);
+  SetNull(n1, b && Nullable);
   } // end of SetValue
+
+/***********************************************************************/
+/*  Set one value in a block if val is less than the current value.    */
+/***********************************************************************/
+void CHRBLK::SetMin(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  CheckBlanks
+  char *vp = valp->GetCharValue();
+  char *bp = Chrp + n * Long;
+
+  if (((Ci) ? strnicmp(vp, bp, Long) : strncmp(vp, bp, Long)) < 0)
+    memcpy(bp, vp, Long);
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  Set one value in a block if val is greater than the current value. */
+/***********************************************************************/
+void CHRBLK::SetMax(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  CheckBlanks
+  char *vp = valp->GetCharValue();
+  char *bp = Chrp + n * Long;
+
+  if (((Ci) ? strnicmp(vp, bp, Long) : strncmp(vp, bp, Long)) > 0)
+    memcpy(bp, vp, Long);
+
+  } // end of SetMax
 
 #if 0
 /***********************************************************************/
@@ -1127,6 +1190,34 @@ void STRBLK::SetValue(char *sp, uint len, int n)
   } // end of SetValue
 
 /***********************************************************************/
+/*  Set one value in a block if val is less than the current value.    */
+/***********************************************************************/
+void STRBLK::SetMin(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  char *vp = valp->GetCharValue();
+  char *bp = Strp[n];
+
+  if (strcmp(vp, bp) < 0)
+    SetValue(valp, n);
+
+  } // end of SetMin
+
+/***********************************************************************/
+/*  Set one value in a block if val is greater than the current value. */
+/***********************************************************************/
+void STRBLK::SetMax(PVAL valp, int n)
+  {
+  CheckParms(valp, n)
+  char *vp = valp->GetCharValue();
+  char *bp = Strp[n];
+
+  if (strcmp(vp, bp) > 0)
+    SetValue(valp, n);
+
+  } // end of SetMax
+
+/***********************************************************************/
 /*  Move one value from i to j.                                        */
 /***********************************************************************/
 void STRBLK::Move(int i, int j)
@@ -1264,6 +1355,62 @@ void DATBLK::SetValue(PSZ p, int n)
     TYPBLK<int>::SetValue(p, n);
 
   } // end of SetValue
+
+
+/* -------------------------- Class PTRBLK --------------------------- */
+
+/***********************************************************************/
+/*  Compare two values of the block.                                   */
+/***********************************************************************/
+int PTRBLK::CompVal(int i1, int i2)
+  {
+  return (Strp[i1] > Strp[i2]) ? 1 : (Strp[i1] < Strp[i2]) ? (-1) : 0;
+  } // end of CompVal
+
+
+/* -------------------------- Class MBVALS --------------------------- */
+
+/***********************************************************************/
+/*  Allocate a value block according to type,len, and nb of values.    */
+/***********************************************************************/
+PVBLK MBVALS::Allocate(PGLOBAL g, int type, int len, int prec,
+																	int n, bool sub)
+  {
+  Mblk.Sub = sub;
+  Mblk.Size = n * GetTypeSize(type, len);
+
+  if (!PlgDBalloc(g, NULL, Mblk)) {
+    sprintf(g->Message, MSG(ALLOC_ERROR), "MBVALS::Allocate");
+    return NULL;
+  } else
+    Vblk = AllocValBlock(g, Mblk.Memp, type, n, len, prec, 
+                            TRUE, TRUE, FALSE);
+
+  return Vblk;
+  } // end of Allocate
+
+/***********************************************************************/
+/*  Reallocate the value block according to the new size.              */
+/***********************************************************************/
+bool MBVALS::ReAllocate(PGLOBAL g, int n)
+  {
+  if (!PlgDBrealloc(g, NULL, Mblk, n * Vblk->GetVlen())) {
+    sprintf(g->Message, MSG(ALLOC_ERROR), "MBVALS::ReAllocate");
+    return TRUE;
+  } else
+    Vblk->ReAlloc(Mblk.Memp, n);
+
+  return FALSE;
+  } // end of ReAllocate
+
+/***********************************************************************/
+/*  Free the value block.                                              */
+/***********************************************************************/
+void MBVALS::Free(void)
+  {
+  PlgDBfree(Mblk);
+  Vblk = NULL;
+  } // end of Free
 
 /* ------------------------- End of Valblk --------------------------- */
 

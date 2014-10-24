@@ -111,3 +111,142 @@ ID	NAME	DESCRIPTION	MAX_MONTH_NAME_LENGTH	MAX_DAY_NAME_LENGTH	DECIMAL_POINT	THOU
 108	zh_HK	Chinese - Hong Kong SAR	3	3	.	,	english
 109	el_GR	Greek - Greece	11	9	,	.	greek
 110	rm_CH	Romansh - Switzerland	9	9	,	'	english
+show locales;
+Id	Name	Description	Error_Message_Language
+0	en_US	English - United States	english
+1	en_GB	English - United Kingdom	english
+2	ja_JP	Japanese - Japan	japanese
+3	sv_SE	Swedish - Sweden	swedish
+4	de_DE	German - Germany	german
+5	fr_FR	French - France	french
+6	ar_AE	Arabic - United Arab Emirates	english
+7	ar_BH	Arabic - Bahrain	english
+8	ar_JO	Arabic - Jordan	english
+9	ar_SA	Arabic - Saudi Arabia	english
+10	ar_SY	Arabic - Syria	english
+11	be_BY	Belarusian - Belarus	english
+12	bg_BG	Bulgarian - Bulgaria	english
+13	ca_ES	Catalan - Catalan	english
+14	cs_CZ	Czech - Czech Republic	czech
+15	da_DK	Danish - Denmark	danish
+16	de_AT	German - Austria	german
+17	es_ES	Spanish - Spain	spanish
+18	et_EE	Estonian - Estonia	estonian
+19	eu_ES	Basque - Basque	english
+20	fi_FI	Finnish - Finland	english
+21	fo_FO	Faroese - Faroe Islands	english
+22	gl_ES	Galician - Galician	english
+23	gu_IN	Gujarati - India	english
+24	he_IL	Hebrew - Israel	english
+25	hi_IN	Hindi - India	english
+26	hr_HR	Croatian - Croatia	english
+27	hu_HU	Hungarian - Hungary	hungarian
+28	id_ID	Indonesian - Indonesia	english
+29	is_IS	Icelandic - Iceland	english
+30	it_CH	Italian - Switzerland	italian
+31	ko_KR	Korean - Korea	korean
+32	lt_LT	Lithuanian - Lithuania	english
+33	lv_LV	Latvian - Latvia	english
+34	mk_MK	Macedonian - FYROM	english
+35	mn_MN	Mongolia - Mongolian	english
+36	ms_MY	Malay - Malaysia	english
+37	nb_NO	Norwegian(Bokml) - Norway	norwegian
+38	nl_NL	Dutch - The Netherlands	dutch
+39	pl_PL	Polish - Poland	polish
+40	pt_BR	Portugese - Brazil	portuguese
+41	pt_PT	Portugese - Portugal	portuguese
+42	ro_RO	Romanian - Romania	romanian
+43	ru_RU	Russian - Russia	russian
+44	ru_UA	Russian - Ukraine	russian
+45	sk_SK	Slovak - Slovakia	slovak
+46	sl_SI	Slovenian - Slovenia	english
+47	sq_AL	Albanian - Albania	english
+48	sr_RS	Serbian - Serbia	serbian
+49	ta_IN	Tamil - India	english
+50	te_IN	Telugu - India	english
+51	th_TH	Thai - Thailand	english
+52	tr_TR	Turkish - Turkey	english
+53	uk_UA	Ukrainian - Ukraine	ukrainian
+54	ur_PK	Urdu - Pakistan	english
+55	vi_VN	Vietnamese - Vietnam	english
+56	zh_CN	Chinese - Peoples Republic of China	english
+57	zh_TW	Chinese - Taiwan	english
+58	ar_DZ	Arabic - Algeria	english
+59	ar_EG	Arabic - Egypt	english
+60	ar_IN	Arabic - Iran	english
+61	ar_IQ	Arabic - Iraq	english
+62	ar_KW	Arabic - Kuwait	english
+63	ar_LB	Arabic - Lebanon	english
+64	ar_LY	Arabic - Libya	english
+65	ar_MA	Arabic - Morocco	english
+66	ar_OM	Arabic - Oman	english
+67	ar_QA	Arabic - Qatar	english
+68	ar_SD	Arabic - Sudan	english
+69	ar_TN	Arabic - Tunisia	english
+70	ar_YE	Arabic - Yemen	english
+71	de_BE	German - Belgium	german
+72	de_CH	German - Switzerland	german
+73	de_LU	German - Luxembourg	german
+74	en_AU	English - Australia	english
+75	en_CA	English - Canada	english
+76	en_IN	English - India	english
+77	en_NZ	English - New Zealand	english
+78	en_PH	English - Philippines	english
+79	en_ZA	English - South Africa	english
+80	en_ZW	English - Zimbabwe	english
+81	es_AR	Spanish - Argentina	spanish
+82	es_BO	Spanish - Bolivia	spanish
+83	es_CL	Spanish - Chile	spanish
+84	es_CO	Spanish - Columbia	spanish
+85	es_CR	Spanish - Costa Rica	spanish
+86	es_DO	Spanish - Dominican Republic	spanish
+87	es_EC	Spanish - Ecuador	spanish
+88	es_GT	Spanish - Guatemala	spanish
+89	es_HN	Spanish - Honduras	spanish
+90	es_MX	Spanish - Mexico	spanish
+91	es_NI	Spanish - Nicaragua	spanish
+92	es_PA	Spanish - Panama	spanish
+93	es_PE	Spanish - Peru	spanish
+94	es_PR	Spanish - Puerto Rico	spanish
+95	es_PY	Spanish - Paraguay	spanish
+96	es_SV	Spanish - El Salvador	spanish
+97	es_US	Spanish - United States	spanish
+98	es_UY	Spanish - Uruguay	spanish
+99	es_VE	Spanish - Venezuela	spanish
+100	fr_BE	French - Belgium	french
+101	fr_CA	French - Canada	french
+102	fr_CH	French - Switzerland	french
+103	fr_LU	French - Luxembourg	french
+104	it_IT	Italian - Italy	italian
+105	nl_BE	Dutch - Belgium	dutch
+106	no_NO	Norwegian - Norway	norwegian
+107	sv_FI	Swedish - Finland	swedish
+108	zh_HK	Chinese - Hong Kong SAR	english
+109	el_GR	Greek - Greece	greek
+110	rm_CH	Romansh - Switzerland	english
+show locales like '%spanish%';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'like '%spanish%'' at line 1
+show locales where description like '%spanish%';
+Id	Name	Description	Error_Message_Language
+17	es_ES	Spanish - Spain	spanish
+81	es_AR	Spanish - Argentina	spanish
+82	es_BO	Spanish - Bolivia	spanish
+83	es_CL	Spanish - Chile	spanish
+84	es_CO	Spanish - Columbia	spanish
+85	es_CR	Spanish - Costa Rica	spanish
+86	es_DO	Spanish - Dominican Republic	spanish
+87	es_EC	Spanish - Ecuador	spanish
+88	es_GT	Spanish - Guatemala	spanish
+89	es_HN	Spanish - Honduras	spanish
+90	es_MX	Spanish - Mexico	spanish
+91	es_NI	Spanish - Nicaragua	spanish
+92	es_PA	Spanish - Panama	spanish
+93	es_PE	Spanish - Peru	spanish
+94	es_PR	Spanish - Puerto Rico	spanish
+95	es_PY	Spanish - Paraguay	spanish
+96	es_SV	Spanish - El Salvador	spanish
+97	es_US	Spanish - United States	spanish
+98	es_UY	Spanish - Uruguay	spanish
+99	es_VE	Spanish - Venezuela	spanish
+flush locales;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'locales' at line 1

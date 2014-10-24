@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -95,7 +95,6 @@ static DB_ENV *env;
 static DB *db;
 DB_TXN *txn;
 
-const int num_insert = 25000;
 
 static void
 setup (void) {

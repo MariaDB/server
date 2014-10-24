@@ -1,0 +1,30 @@
+
+-- source include/have_rbr_triggers.inc
+
+SET @old_slave_run_triggers_for_rbr= @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= NO;
+select @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= YES;
+select @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= LOGGING;
+select @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= default;
+select @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= 0;
+select @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= 1;
+select @@global.slave_run_triggers_for_rbr;
+SET @@global.slave_run_triggers_for_rbr= 2;
+select @@global.slave_run_triggers_for_rbr;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.slave_run_triggers_for_rbr= 3;
+select @@global.slave_run_triggers_for_rbr;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.slave_run_triggers_for_rbr= "N";
+select @@global.slave_run_triggers_for_rbr;
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@global.slave_run_triggers_for_rbr= -1;
+select @@global.slave_run_triggers_for_rbr;
+
+
+SET @@global.slave_run_triggers_for_rbr= @old_slave_run_triggers_for_rbr;

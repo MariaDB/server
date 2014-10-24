@@ -26,6 +26,7 @@
 #include "sql_analyse.h"
 #include "sql_base.h"
 #include "tztime.h"
+#include "errmsg.h"
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
 #endif
@@ -637,8 +638,11 @@ int spider_db_errorno(
     if (conn->server_lost)
     {
       *conn->need_mon = ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM;
-      my_message(ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM,
-        ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR, MYF(0));
+      if (!current_thd->is_error())
+      {
+        my_message(ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM,
+          ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR, MYF(0));
+      }
       if (!conn->mta_conn_mutex_unlock_later)
       {
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
@@ -3199,7 +3203,8 @@ void spider_db_free_one_result_for_start_next(
         result = (SPIDER_RESULT *) result_list->current;
         if (
           !result->result &&
-          !result->first_position
+          !result->first_position &&
+          !result->tmp_tbl_use_position
         )
           result_list->current = result->prev;
       }
@@ -3261,6 +3266,35 @@ void spider_db_free_one_result(
         ) {
           delete position[roop_count].row;
           position[roop_count].row = NULL;
+        }
+      }
+      if (result_list->quick_mode == 3)
+      {
+        if (!result->first_pos_use_position)
+        {
+          spider_free(spider_current_trx, position, MYF(0));
+          result->first_position = NULL;
+        }
+        if (result->result)
+        {
+          result->result->free_result();
+          delete result->result;
+          result->result = NULL;
+        }
+        if (!result->tmp_tbl_use_position)
+        {
+          if (result->result_tmp_tbl)
+          {
+            if (result->result_tmp_tbl_inited)
+            {
+              result->result_tmp_tbl->file->ha_rnd_end();
+              result->result_tmp_tbl_inited = 0;
+            }
+            spider_rm_sys_tmp_table_for_result(result->result_tmp_tbl_thd,
+              result->result_tmp_tbl, &result->result_tmp_tbl_prm);
+            result->result_tmp_tbl = NULL;
+            result->result_tmp_tbl_thd = NULL;
+          }
         }
       }
     }
@@ -3472,6 +3506,8 @@ int spider_db_free_result(
       result->record_num = 0;
       DBUG_PRINT("info",("spider result->finish_flg = FALSE"));
       result->finish_flg = FALSE;
+      result->first_pos_use_position = FALSE;
+      result->tmp_tbl_use_position = FALSE;
       result->use_position = FALSE;
       result = (SPIDER_RESULT*) result->next;
     }
@@ -3872,8 +3908,10 @@ int spider_db_store_result(
         DBUG_PRINT("info", ("spider conn[%p]->quick_target=NULL", conn));
         conn->quick_target = NULL;
         spider->quick_targets[link_idx] = NULL;
-      } else if (result_list->limit_num == roop_count)
-      {
+      } else if (
+        result_list->quick_mode == 3 ||
+        result_list->limit_num == roop_count
+      ) {
         current->result->free_result();
         if (!current->result_tmp_tbl)
         {
@@ -4176,6 +4214,7 @@ int spider_db_seek_next(
         spider_next_split_read_param(spider);
         if (
           result_list->quick_mode == 0 ||
+          result_list->quick_mode == 3 ||
           !result_list->current->result
         ) {
           result_list->limit_num =
@@ -4839,6 +4878,7 @@ void spider_db_create_position(
       tmp_pos->use_position = TRUE;
       tmp_pos->pos_mode = 0;
       pos->pos_mode = 0;
+      current->first_pos_use_position = TRUE;
     } else {
       TABLE *tmp_tbl = current->result_tmp_tbl;
       pos->row = NULL;
@@ -4848,6 +4888,7 @@ void spider_db_create_position(
       DBUG_PRINT("info",("spider tmp_tbl->file->ref=%p", tmp_tbl->file->ref));
       tmp_tbl->file->ref = (uchar *) &pos->tmp_tbl_pos;
       tmp_tbl->file->position(tmp_tbl->record[0]);
+      current->tmp_tbl_use_position = TRUE;
     }
   }
   current->use_position = TRUE;
@@ -10256,3 +10297,20 @@ void spider_db_hs_request_buf_reset(
   DBUG_VOID_RETURN;
 }
 #endif
+
+bool spider_db_conn_is_network_error(
+  int error_num
+) {
+  DBUG_ENTER("spider_db_conn_is_network_error");
+  if (
+    error_num == ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM ||
+    error_num == ER_CONNECT_TO_FOREIGN_DATA_SOURCE ||
+    (
+      error_num >= CR_MIN_ERROR &&
+      error_num <= CR_MAX_ERROR
+    )
+  ) {
+    DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(FALSE);
+}

@@ -1,0 +1,76 @@
+DROP TABLE if exists t1;
+DROP TABLE if exists t2;
+Testing tables with large records
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARCHAR(256), KEY SECOND(a, b)) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1, REPEAT('A', 256));
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+INSERT INTO t1 (b) SELECT b from t1;
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+select sleep(1);
+sleep(1)
+0
+select count(*) from t1;
+count(*)
+927
+select count(*) from t1 force index (second);
+count(*)
+927
+# A few more insertions on the page should not cause a page split.
+insert into t1 values (81, REPEAT('A', 256));
+insert into t1 values (83, REPEAT('A', 256));
+insert into t1 values (87, REPEAT('A', 256));
+insert into t1 values (82, REPEAT('A', 256));
+insert into t1 values (86, REPEAT('A', 256));
+# More insertions will cause page splits
+insert into t1 values (88, REPEAT('A', 256));
+insert into t1 values (85, REPEAT('A', 256));
+insert into t1 values (84, REPEAT('A', 256));
+DROP TABLE t1;
+Testing table with small records
+CREATE TABLE t2 (a INT NOT NULL PRIMARY KEY AUTO_INCREMENT, b VARchar(16), KEY SECOND(a,b)) ENGINE=INNODB;
+optimize table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	status	OK
+select sleep(1);
+sleep(1)
+0
+select count(*) from t2 force index(second);
+count(*)
+3701
+The page should have room for about 20 insertions
+insert into t2 values(1181, REPEAT('A', 16));
+insert into t2 values(1191, REPEAT('A', 16));
+insert into t2 values(1182, REPEAT('A', 16));
+insert into t2 values(1192, REPEAT('A', 16));
+insert into t2 values(1183, REPEAT('A', 16));
+insert into t2 values(1193, REPEAT('A', 16));
+insert into t2 values(1184, REPEAT('A', 16));
+insert into t2 values(1194, REPEAT('A', 16));
+insert into t2 values(1185, REPEAT('A', 16));
+insert into t2 values(1195, REPEAT('A', 16));
+insert into t2 values(1186, REPEAT('A', 16));
+insert into t2 values(1196, REPEAT('A', 16));
+insert into t2 values(1187, REPEAT('A', 16));
+insert into t2 values(1197, REPEAT('A', 16));
+insert into t2 values(1188, REPEAT('A', 16));
+insert into t2 values(1198, REPEAT('A', 16));
+insert into t2 values(1189, REPEAT('A', 16));
+insert into t2 values(1199, REPEAT('A', 16));
+insert into t2 values(1190, REPEAT('A', 16));
+insert into t2 values(1180, REPEAT('A', 16));
+More insertions will cause page split.
+insert into t2 values(1280, REPEAT('A', 16));
+insert into t2 values(1290, REPEAT('A', 16));
+insert into t2 values(1281, REPEAT('A', 16));
+insert into t2 values(1291, REPEAT('A', 16));
+DROP TABLE t2;

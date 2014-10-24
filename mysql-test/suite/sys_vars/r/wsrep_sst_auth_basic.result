@@ -1,0 +1,52 @@
+#
+# wsrep_sst_auth
+#
+# save the initial value
+SET @wsrep_sst_auth_global_saved = @@global.wsrep_sst_auth;
+# default
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+NULL
+
+# scope
+SELECT @@session.wsrep_sst_auth;
+ERROR HY000: Variable 'wsrep_sst_auth' is a GLOBAL variable
+SET @@global.wsrep_sst_auth='user:pass';
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
+
+# valid values
+SET @@global.wsrep_sst_auth=user;
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
+SET @@global.wsrep_sst_auth='user:1234';
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
+SET @@global.wsrep_sst_auth='hyphenated-user-name:';
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+********
+SET @@global.wsrep_sst_auth=default;
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+NULL
+SET @@global.wsrep_sst_auth=NULL;
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+NULL
+
+# invalid values
+SET @@global.wsrep_sst_auth=1;
+ERROR 42000: Incorrect argument type to variable 'wsrep_sst_auth'
+SELECT @@global.wsrep_sst_auth;
+@@global.wsrep_sst_auth
+NULL
+SET @@global.wsrep_sst_auth=user:pass;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ':pass' at line 1
+
+# restore the initial value
+SET @@global.wsrep_sst_auth = @wsrep_sst_auth_global_saved;
+# End of test

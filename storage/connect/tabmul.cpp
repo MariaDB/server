@@ -680,7 +680,7 @@ char* TDBDIR::Path(PGLOBAL g)
 
 #if defined(WIN32)
   if (!*Drive) {
-    PlugSetPath(Fpath, To_File, cat->GetDataPath());
+    PlugSetPath(Fpath, To_File, ((PTABDEF)To_Def)->GetPath());
     _splitpath(Fpath, Drive, Direc, Fname, Ftype);
   } else
     _makepath(Fpath, Drive, Direc, Fname, Ftype);   // Usefull ???
@@ -688,7 +688,7 @@ char* TDBDIR::Path(PGLOBAL g)
   return Fpath;
 #else   // !WIN32
   if (!Done) {
-    PlugSetPath(Fpath, To_File, cat->GetDataPath());
+    PlugSetPath(Fpath, To_File, ((PTABDEF)To_Def)->GetPath());
     _splitpath(Fpath, NULL, Direc, Fname, Ftype);
     strcat(strcpy(Pattern, Fname), Ftype);
     Done = true;

@@ -26,6 +26,14 @@ IF(POLICY CMP0022)
   CMAKE_POLICY(SET CMP0022 OLD)
 ENDIF()
 
+# We use the LOCATION target property (CMP0026)
+# and get_target_property() for non-existent targets (CMP0045)
+IF(CMAKE_VERSION VERSION_EQUAL "3.0.0" OR
+   CMAKE_VERSION VERSION_GREATER "3.0.0")
+ CMAKE_POLICY(SET CMP0026 OLD)
+ CMAKE_POLICY(SET CMP0045 OLD)
+ENDIF()
+
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
@@ -77,6 +85,10 @@ ELSE()
 ENDIF()
 PROJECT(${MYSQL_PROJECT_NAME})
 
+SET(CPACK_PACKAGE_NAME "MariaDB")
+SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MariaDB: a very fast and robust SQL database server")
+SET(CPACK_PACKAGE_URL "http://mariadb.org")
+
 IF(BUILD_CONFIG)
   INCLUDE(
   ${CMAKE_SOURCE_DIR}/cmake/build_configurations/${BUILD_CONFIG}.cmake)
@@ -114,7 +126,6 @@ ENDIF()
 INCLUDE(maintainer)
 
 SET(MYSQL_MAINTAINER_MODE "OFF" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
-MARK_AS_ADVANCED(MYSQL_MAINTAINER_MODE)
 
 # Whether the maintainer mode compiler options should be enabled.
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
@@ -159,6 +170,7 @@ INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
 INCLUDE(mysql_add_executable)
+INCLUDE(wsrep)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -168,81 +180,29 @@ IF(DISABLE_SHARED)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
 OPTION(CYBOZU "" OFF)
-OPTION(BACKUP_TEST "" OFF)
-OPTION(WITHOUT_SERVER OFF)
+OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
 ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
-MARK_AS_ADVANCED(CYBOZU BACKUP_TEST WITHOUT_SERVER DISABLE_SHARED)
+MARK_AS_ADVANCED(CYBOZU)
 
 OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
- 
-include(CheckCSourceCompiles)
-include(CheckCXXSourceCompiles)
-# We need some extra FAIL_REGEX patterns
-# Note that CHECK_C_SOURCE_COMPILES is a misnomer, it will also link.
-MACRO (MY_CHECK_C_COMPILER_FLAG FLAG RESULT)
-  SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
-  CHECK_C_SOURCE_COMPILES("int main(void) { return 0; }" ${RESULT}
-    FAIL_REGEX "argument unused during compilation"
-    FAIL_REGEX "unsupported .*option"
-    FAIL_REGEX "unknown .*option"
-    FAIL_REGEX "unrecognized .*option"
-    FAIL_REGEX "ignoring unknown option"
-    FAIL_REGEX "[Ww]arning: [Oo]ption"
-    )
-  SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
-ENDMACRO()
 
-MACRO (MY_CHECK_CXX_COMPILER_FLAG FLAG RESULT)
-  SET(SAVE_CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS}")
-  SET(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${FLAG}")
-  CHECK_CXX_SOURCE_COMPILES("int main(void) { return 0; }" ${RESULT}
-    FAIL_REGEX "argument unused during compilation"
-    FAIL_REGEX "unsupported .*option"
-    FAIL_REGEX "unknown .*option"
-    FAIL_REGEX "unrecognized .*option"
-    FAIL_REGEX "ignoring unknown option"
-    FAIL_REGEX "[Ww]arning: [Oo]ption"
-    )
-  SET(CMAKE_REQUIRED_FLAGS "${SAVE_CMAKE_REQUIRED_FLAGS}")
-ENDMACRO()
+INCLUDE(check_compiler_flag)
 
 OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN)
   # gcc 4.8.1 and new versions of clang
-  MY_CHECK_C_COMPILER_FLAG("-fsanitize=address" HAVE_C_FSANITIZE)
-  MY_CHECK_CXX_COMPILER_FLAG("-fsanitize=address" HAVE_CXX_FSANITIZE)
-
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -O1 -Wno-error -fPIC"
+    DEBUG RELWITHDEBINFO)
   IF(HAVE_C_FSANITIZE AND HAVE_CXX_FSANITIZE)
-    # We switch on basic optimization also for debug builds.
-    # With optimization we may get some warnings, so we switch off -Werror
-    SET(CMAKE_C_FLAGS_DEBUG
-      "${CMAKE_C_FLAGS_DEBUG} -fsanitize=address -O1 -Wno-error -fPIC")
-    SET(CMAKE_C_FLAGS_RELWITHDEBINFO
-      "${CMAKE_C_FLAGS_RELWITHDEBINFO} -fsanitize=address -fPIC")
-    SET(CMAKE_CXX_FLAGS_DEBUG
-      "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -O1 -Wno-error -fPIC")
-    SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO
-      "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -fsanitize=address -fPIC")
     SET(WITH_ASAN_OK 1)
   ELSE()
     # older versions of clang
-    MY_CHECK_C_COMPILER_FLAG("-faddress-sanitizer" HAVE_C_FADDRESS)
-    MY_CHECK_CXX_COMPILER_FLAG("-faddress-sanitizer" HAVE_CXX_FFADDRESS)
-
-    IF(HAVE_C_FADDRESS AND HAVE_CXX_FFADDRESS)
-      # We switch on basic optimization also for debug builds.
-      SET(CMAKE_C_FLAGS_DEBUG
-        "${CMAKE_C_FLAGS_DEBUG} -faddress-sanitizer -O1 -fPIC")
-      SET(CMAKE_C_FLAGS_RELWITHDEBINFO
-        "${CMAKE_C_FLAGS_RELWITHDEBINFO} -faddress-sanitizer -fPIC")
-      SET(CMAKE_CXX_FLAGS_DEBUG
-        "${CMAKE_CXX_FLAGS_DEBUG} -faddress-sanitizer -O1 -fPIC")
-      SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO
-        "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -faddress-sanitizer -fPIC")
+    MY_CHECK_AND_SET_COMPILER_FLAG("-faddress-sanitizer -O1 -fPIC"
+      DEBUG RELWITHDEBINFO)
+    IF(HAVE_C_FADDRESS AND HAVE_CXX_FADDRESS)
       SET(WITH_ASAN_OK 1)
     ENDIF()
   ENDIF()
@@ -252,6 +212,27 @@ IF (WITH_ASAN)
   ENDIF()
 ENDIF()
 
+# enable security hardening features, like most distributions do
+# in our benchmarks that costs about ~1% of performance, depending on the load
+IF(CMAKE_C_COMPILER_VERSION VERSION_LESS "4.6")
+  SET(security_default OFF)
+ELSE()
+  SET(security_default ON)
+ENDIF()
+OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ${security_default})
+IF(SECURITY_HARDENED)
+  # security-enhancing flags
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-Wl,-z,relro,-z,now")
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
+
+  # sometimes _FORTIFY_SOURCE is predefined
+  INCLUDE(CheckSymbolExists)
+  CHECK_SYMBOL_EXISTS(_FORTIFY_SOURCE "" HAVE_FORTIFY_SOURCE)
+  IF(NOT HAVE_FORTIFY_SOURCE)
+    ADD_DEFINITIONS(-D_FORTIFY_SOURCE=2)
+  ENDIF()
+ENDIF()
 
 OPTION(ENABLE_DEBUG_SYNC "Enable debug sync (debug builds only)" ON) 
 IF(ENABLE_DEBUG_SYNC) 
@@ -260,22 +241,23 @@ IF(ENABLE_DEBUG_SYNC)
 ENDIF() 
  
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
-IF (ENABLE_GCOV AND NOT WIN32 AND NOT APPLE)
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fprofile-arcs -ftest-coverage")
-  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -fprofile-arcs -ftest-coverage")
-  SET(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fprofile-arcs -ftest-coverage -lgcov")
+IF (ENABLE_GCOV)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
 ENDIF()
 
-MY_CHECK_C_COMPILER_FLAG(-ggdb3 HAVE_GGDB3)
-SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -ggdb3")
-SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb3")
+MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
 
 OPTION(ENABLED_LOCAL_INFILE
  "If we should should enable LOAD DATA LOCAL by default" ${IF_WIN})
-MARK_AS_ADVANCED(ENABLED_LOCAL_INFILE)
 
 OPTION(WITH_FAST_MUTEXES "Compile with fast mutexes" OFF)
 MARK_AS_ADVANCED(WITH_FAST_MUTEXES)
+
+OPTION(WITH_INNODB_DISALLOW_WRITES "InnoDB freeze writes patch from Google" ${WITH_WSREP})
+IF (WITH_INNODB_DISALLOW_WRITES)
+  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_INNODB_DISALLOW_WRITES")
+ENDIF()
 
 # Set DBUG_OFF and other optional release-only flags for non-debug project types
 FOREACH(BUILD_TYPE RELEASE RELWITHDEBINFO MINSIZEREL)
@@ -303,16 +285,11 @@ ENDIF()
 # safemalloc can be enabled and disabled independently
 SET(WITH_SAFEMALLOC "AUTO" CACHE STRING "Use safemalloc memory debugger. Will result in slower execution. Options are: ON OFF AUTO.")
 
-# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
-IF(HAVE_CXX_NEW)
-  SET(DUSE_MYSYS_NEW "-DUSE_MYSYS_NEW")
-ENDIF()
-
 IF(WITH_SAFEMALLOC MATCHES "ON")
-  ADD_DEFINITIONS( -DSAFEMALLOC ${DUSE_MYSYS_NEW})
+  ADD_DEFINITIONS( -DSAFEMALLOC)
 ELSEIF(WITH_SAFEMALLOC MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND)
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DSAFEMALLOC")
-  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC ${DUSE_MYSYS_NEW}")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DSAFEMALLOC")
 ENDIF()
 
 # Set commonly used variables
@@ -332,7 +309,7 @@ ELSE()
 ENDIF()
 SET(DEFAULT_CHARSET_HOME "${DEFAULT_MYSQL_HOME}")
 SET(PLUGINDIR "${DEFAULT_MYSQL_HOME}/${INSTALL_PLUGINDIR}")
-IF(INSTALL_SYSCONFDIR)
+IF(INSTALL_SYSCONFDIR AND NOT DEFAULT_SYSCONFDIR)
   SET(DEFAULT_SYSCONFDIR "${INSTALL_SYSCONFDIR}")
 ENDIF()
 
@@ -349,6 +326,11 @@ ENDIF()
 
 # Run platform tests
 INCLUDE(configure.cmake)
+
+# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
+IF(NOT HAVE_CXX_NEW)
+  ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
+ENDIF()
 
 # Find header files from the bundled libraries
 # (jemalloc, yassl, readline, pcre, etc)
@@ -386,6 +368,11 @@ ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
   SET(CMAKE_CXX_FLAGS_DEBUG "${MY_MAINTAINER_CXX_WARNINGS} ${CMAKE_CXX_FLAGS_DEBUG}")
 ENDIF()
 
+IF(CMAKE_CROSSCOMPILING)
+  SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
+  INCLUDE(${IMPORT_EXECUTABLES})
+ENDIF()
+
 IF(WITH_UNIT_TESTS)
  ENABLE_TESTING()
  ADD_SUBDIRECTORY(unittest/mytap)
@@ -414,9 +401,7 @@ ADD_SUBDIRECTORY(libmysql)
 ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
-ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(sql/share)
-ADD_SUBDIRECTORY(support-files)
 
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
@@ -427,15 +412,13 @@ IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(libmysqld/examples)
   ENDIF(WITH_EMBEDDED_SERVER)
 
+  IF(WITH_WSREP)
+    ADD_SUBDIRECTORY(wsrep)
+  ENDIF()
+
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)
   ADD_SUBDIRECTORY(sql-bench)
-
-  IF(EXISTS ${CMAKE_SOURCE_DIR}/internal/CMakeLists.txt)
-    ADD_SUBDIRECTORY(internal)
-  ENDIF()
-  ADD_SUBDIRECTORY(packaging/rpm-uln)
-  ADD_SUBDIRECTORY(packaging/rpm-oel)
 ENDIF()
 
 IF(UNIX)
@@ -450,6 +433,21 @@ IF(WIN32)
   ADD_SUBDIRECTORY(win/packaging)
 ENDIF()
 ADD_SUBDIRECTORY(packaging/solaris)
+
+
+INCLUDE(for_clients)
+ADD_SUBDIRECTORY(scripts)
+ADD_SUBDIRECTORY(support-files)
+
+IF(NOT CMAKE_CROSSCOMPILING)
+  SET(EXPORTED comp_err comp_sql factorial)
+  IF(NOT WITHOUT_SERVER)
+    SET(EXPORTED ${EXPORTED} gen_lex_hash gen_pfs_lex_token)
+  ENDIF()
+  # minimal target to build only binaries for export
+  ADD_CUSTOM_TARGET(import_executables DEPENDS ${EXPORTED})
+  EXPORT(TARGETS ${EXPORTED} FILE ${CMAKE_BINARY_DIR}/import_executables.cmake)
+ENDIF()
 
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/my_config.h)
 CONFIGURE_FILE(config.h.cmake   ${CMAKE_BINARY_DIR}/include/config.h)
@@ -484,11 +482,13 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
 
 INSTALL_DOCUMENTATION(README CREDITS COPYING COPYING.LESSER COPYING.thirdparty
                       EXCEPTIONS-CLIENT COMPONENT Readme)
-INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
-                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
+# MDEV-6526 these files are not installed anymore
+#INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC
+#                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
 
 IF(UNIX)
   INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
+  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
 ENDIF()
 
 INCLUDE(CPack)

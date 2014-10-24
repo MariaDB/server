@@ -186,11 +186,7 @@ enum enum_server_command
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 
-#define REFRESH_TABLE_STATS     (1ULL << 27) /* Refresh table stats hash table */
-#define REFRESH_INDEX_STATS     (1ULL << 28) /* Refresh index stats hash table */
-#define REFRESH_USER_STATS      (1ULL << 29) /* Refresh user stats hash table */
-#define REFRESH_CLIENT_STATS    (1ULL << 30) /* Refresh client stats hash table */
-
+#define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
 
 #define CLIENT_LONG_PASSWORD	1	/* new more secure passwords */
@@ -352,9 +348,6 @@ enum enum_server_command
 #define NET_WRITE_TIMEOUT	60		/* Timeout on write */
 #define NET_WAIT_TIMEOUT	8*60*60		/* Wait for new query */
 
-#define ONLY_KILL_QUERY         1
-
-
 struct st_vio;					/* Only C */
 typedef struct st_vio Vio;
 
@@ -502,12 +495,6 @@ enum mysql_enum_shutdown_level {
   SHUTDOWN_WAIT_CRITICAL_BUFFERS= (MYSQL_SHUTDOWN_KILLABLE_UPDATE << 1) + 1
 };
 
-/* Compatibility */
-#if !defined(MYSQL_SERVER) && defined(USE_OLD_FUNCTIONS)
-#define KILL_QUERY SHUTDOWN_KILL_QUERY
-#define KILL_CONNECTION SHUTDOWN_KILL_CONNECTION
-#endif
-
 enum enum_cursor_type
 {
   CURSOR_TYPE_NO_CURSOR= 0,
@@ -541,7 +528,8 @@ my_bool	net_write_command(NET *net,unsigned char command,
 			  const unsigned char *header, size_t head_len,
 			  const unsigned char *packet, size_t len);
 int	net_real_write(NET *net,const unsigned char *packet, size_t len);
-unsigned long my_net_read(NET *net);
+unsigned long my_net_read_packet(NET *net, my_bool read_from_server);
+#define my_net_read(A) my_net_read_packet((A), 0)
 
 #ifdef MY_GLOBAL_INCLUDED
 void my_net_set_write_timeout(NET *net, uint timeout);

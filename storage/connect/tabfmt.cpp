@@ -1,11 +1,11 @@
 /************* TabFmt C++ Program Source Code File (.CPP) **************/
 /* PROGRAM NAME: TABFMT                                                */
 /* -------------                                                       */
-/*  Version 3.8                                                        */
+/*  Version 3.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2013  */
+/*  (C) Copyright to the author Olivier BERTRAND          2001 - 2014  */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -16,7 +16,7 @@
 /***********************************************************************/
 
 /***********************************************************************/
-/*  Include relevant MariaDB header file.                  */
+/*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
 
@@ -66,7 +66,8 @@
 #define MAXCOL          200        /* Default max column nb in result  */
 #define TYPE_UNKNOWN     10        /* Must be greater than other types */
 
-extern "C" int trace;
+extern "C" int     trace;
+extern "C" USETEMP Use_Temp;
 
 /***********************************************************************/
 /* CSVColumns: constructs the result blocks containing the description */
@@ -75,8 +76,8 @@ extern "C" int trace;
 /* of types (TYPE_STRING < TYPE_DOUBLE < TYPE_INT) (1 < 2 < 7).        */
 /* If these values are changed, this will have to be revisited.        */
 /***********************************************************************/
-PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
-                   int hdr, int mxr, bool info)
+PQRYRES CSVColumns(PGLOBAL g, char *dp, const char *fn, char sep,
+                   char q, int hdr, int mxr, bool info)
   {
   static int  buftyp[] = {TYPE_STRING, TYPE_SHORT, TYPE_STRING,
                           TYPE_INT,   TYPE_INT, TYPE_SHORT};
@@ -130,7 +131,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
   /*********************************************************************/
   /*  Open the input file.                                             */
   /*********************************************************************/
-  PlugSetPath(filename, fn, PlgGetDataPath(g));
+  PlugSetPath(filename, fn, dp);
 
   if (!(infile= global_fopen(g, MSGID_CANNOT_OPEN, filename, "r")))
     return NULL;
@@ -145,7 +146,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
       n = strlen(buf) + 1;
       buf[n - 2] = '\0';
 #if defined(UNIX)
-      // The file can be imported from Windows 
+      // The file can be imported from Windows
       if (buf[n - 3] == '\r')
         buf[n - 3] = 0;
 #endif   // UNIX
@@ -202,7 +203,7 @@ PQRYRES CSVColumns(PGLOBAL g, const char *fn, char sep, char q,
       n = strlen(buf);
       buf[n - 1] = '\0';
 #if defined(UNIX)
-      // The file can be imported from Windows 
+      // The file can be imported from Windows
       if (buf[n - 2] == '\r')
         buf[n - 2] = 0;
 #endif   // UNIX
@@ -392,7 +393,7 @@ CSVDEF::CSVDEF(void)
   Fmtd = Accept = Header = false;
   Maxerr = 0;
   Quoted = -1;
-  Sep = ','; 
+  Sep = ',';
   Qot = '\0';
   }  // end of CSVDEF constructor
 
@@ -441,7 +442,7 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
   PTDBASE tdbp;
 
   if (Catfunc != FNC_COL) {
-    USETEMP tmp = PlgGetUser(g)->UseTemp;
+    USETEMP tmp = Use_Temp;
     bool    map = Mapped && mode != MODE_INSERT &&
                   !(tmp != TMP_NO && mode == MODE_UPDATE) &&
                   !(tmp == TMP_FORCE &&
@@ -458,10 +459,9 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 #if defined(ZIP_SUPPORT)
       if (Compressed == 1)
         txfp = new(g) ZIPFAM(this);
-      else {
-        strcpy(g->Message, "Compress 2 not supported yet");
-        return NULL;
-        } // endelse
+      else
+        txfp = new(g) ZLBFAM(this);
+
 #else   // !ZIP_SUPPORT
         strcpy(g->Message, "Compress not supported");
         return NULL;
@@ -480,6 +480,36 @@ PTDB CSVDEF::GetTable(PGLOBAL g, MODE mode)
 
     if (Multiple)
       tdbp = new(g) TDBMUL(tdbp);
+    else
+      /*****************************************************************/
+      /*  For block tables, get eventually saved optimization values.  */
+      /*****************************************************************/
+      if (tdbp->GetBlockValues(g)) {
+        PushWarning(g, tdbp);
+//      return NULL;          // causes a crash when deleting index
+      } else {
+        if (IsOptimized()) {
+          if (map) {
+            txfp = new(g) MBKFAM(this);
+          } else if (Compressed) {
+#if defined(ZIP_SUPPORT)
+            if (Compressed == 1)
+              txfp = new(g) ZBKFAM(this);
+            else {
+              txfp->SetBlkPos(To_Pos);
+              ((PZLBFAM)txfp)->SetOptimized(To_Pos != NULL);
+              } // endelse
+#else
+            sprintf(g->Message, MSG(NO_FEAT_SUPPORT), "ZIP");
+            return NULL;
+#endif
+          } else
+            txfp = new(g) BLKFAM(this);
+
+          ((PTDBDOS)tdbp)->SetTxfp(txfp);
+          } // endif Optimized
+
+      } // endelse
 
   } else
     tdbp = new(g)TDBCCL(this);
@@ -591,34 +621,27 @@ bool TDBCSV::CheckErr(void)
 /***********************************************************************/
 int TDBCSV::EstimatedLength(PGLOBAL g)
   {
+  int     n = 0;
+  PCOLDEF cdp;
+
   if (trace)
     htrc("EstimatedLength: Fields=%d Columns=%p\n", Fields, Columns);
-     
-  if (!Fields) {
-    PCSVCOL colp;
 
-    for (colp = (PCSVCOL)Columns; colp; colp = (PCSVCOL)colp->Next)
-      if (!colp->IsSpecial() && !colp->IsVirtual())  // A true column
-        Fields = MY_MAX(Fields, (int)colp->Fldnum);
+  for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
+    if (!cdp->IsSpecial() && !cdp->IsVirtual())  // A true column
+      n++;
 
-    if (Columns)
-      Fields++;           // Fldnum was 0 based
-
-    } // endif Fields
-
-  return (int)Fields;   // Number of separators if all fields are null
+  return --n;   // Number of separators if all fields are null
   } // end of Estimated Length
 
 #if 0
 /***********************************************************************/
-/*  CSV tables favor the use temporary files for Update.               */
+/*  CSV tables needs the use temporary files for Update.               */
 /***********************************************************************/
 bool TDBCSV::IsUsingTemp(PGLOBAL g)
   {
-  USETEMP usetemp = PlgGetUser(g)->UseTemp;
-
-  return (usetemp == TMP_YES || usetemp == TMP_FORCE ||
-         (usetemp == TMP_AUTO && Mode == MODE_UPDATE));
+  return (Use_Temp == TMP_YES || Use_Temp == TMP_FORCE ||
+         (Use_Temp == TMP_AUTO && Mode == MODE_UPDATE));
   } // end of IsUsingTemp
 #endif // 0  (Same as TDBDOS one)
 
@@ -649,7 +672,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } else
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!cdp->IsVirtual())
+          if (!cdp->IsSpecial() && !cdp->IsVirtual())
             Fields++;
 
     Offset = (int*)PlugSubAlloc(g, NULL, sizeof(int) * Fields);
@@ -686,7 +709,7 @@ bool TDBCSV::OpenDB(PGLOBAL g)
 
       } else     // MODE_UPDATE
         for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-          if (!cdp->IsVirtual()) {
+          if (!cdp->IsSpecial() && !cdp->IsVirtual()) {
             i = cdp->GetOffset() - 1;
             len = cdp->GetLength();
             Field[i] = (PSZ)PlugSubAlloc(g, NULL, len + 1);
@@ -905,9 +928,9 @@ int TDBCSV::ReadBuffer(PGLOBAL g)
   } // end of ReadBuffer
 
 /***********************************************************************/
-/*  Data Base write routine CSV file access method.                    */
+/*  Prepare the line to write.                                         */
 /***********************************************************************/
-int TDBCSV::WriteDB(PGLOBAL g)
+bool TDBCSV::PrepareWriting(PGLOBAL g)
   {
   char sep[2], qot[2];
   int  i, nlen, oldlen = strlen(To_Line);
@@ -918,7 +941,7 @@ int TDBCSV::WriteDB(PGLOBAL g)
 
   // Before writing the line we must check its length
   if ((nlen = CheckWrite(g)) < 0)
-    return RC_FX;
+    return true;
 
   // Before writing the line we must make it
   sep[0] = Sep;
@@ -980,6 +1003,18 @@ int TDBCSV::WriteDB(PGLOBAL g)
 
   if (trace > 1)
     htrc("Write: line is=%s", To_Line);
+
+  return false;
+  } // end of PrepareWriting
+
+/***********************************************************************/
+/*  Data Base write routine CSV file access method.                    */
+/***********************************************************************/
+int TDBCSV::WriteDB(PGLOBAL g)
+  {
+  // Before writing the line we must check and prepare it
+  if (PrepareWriting(g))
+    return RC_FX;
 
   /*********************************************************************/
   /*  Now start the writing process.                                   */
@@ -1080,7 +1115,7 @@ PCOL TDBFMT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 int TDBFMT::EstimatedLength(PGLOBAL g)
   {
   // This is rather stupid !!!
-  return ((PDOSDEF)To_Def)->GetEnding() + (int)((Lrecl / 10) + 1);   
+  return ((PDOSDEF)To_Def)->GetEnding() + (int)((Lrecl / 10) + 1);
   } // end of EstimatedLength
 
 /***********************************************************************/
@@ -1118,7 +1153,8 @@ bool TDBFMT::OpenDB(PGLOBAL g)
 
     // Get the column formats
     for (cdp = tdp->GetCols(); cdp; cdp = cdp->GetNext())
-      if (!cdp->IsVirtual() && (i = cdp->GetOffset() - 1) < Fields) {
+      if (!cdp->IsSpecial() && !cdp->IsVirtual() 
+                            && (i = cdp->GetOffset() - 1) < Fields) {
         if (!(pfm = cdp->GetFmt())) {
           sprintf(g->Message, MSG(NO_FLD_FORMAT), i + 1, Name);
           return true;
@@ -1275,6 +1311,25 @@ CSVCOL::CSVCOL(CSVCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   } // end of CSVCOL copy constructor
 
 /***********************************************************************/
+/*  VarSize: This function tells UpdateDB whether or not the block     */
+/*  optimization file must be redone if this column is updated, even   */
+/*  it is not sorted or clustered. This applies to a blocked table,    */
+/*  because if it is updated using a temporary file, the block size    */
+/*  may be modified.                                                   */
+/***********************************************************************/
+bool CSVCOL::VarSize(void)
+  {
+  PTXF txfp = ((PTDBCSV)To_Tdb)->Txfp;
+
+  if (txfp->IsBlocked() && txfp->GetUseTemp())
+    // Blocked table using a temporary file
+    return true;
+  else
+    return false;
+
+  } // end VarSize
+
+/***********************************************************************/
 /*  ReadColumn: call DOSCOL::ReadColumn after having set the offet     */
 /*  and length of the field to read as calculated by TDBCSV::ReadDB.   */
 /***********************************************************************/
@@ -1408,7 +1463,7 @@ TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
   Hdr = tdp->Header;
   Mxr = tdp->Maxerr;
   Qtd = tdp->Quoted;
-  Sep = tdp->Sep;     
+  Sep = tdp->Sep;
   } // end of TDBCCL constructor
 
 /***********************************************************************/
@@ -1416,7 +1471,8 @@ TDBCCL::TDBCCL(PCSVDEF tdp) : TDBCAT(tdp)
 /***********************************************************************/
 PQRYRES TDBCCL::GetResult(PGLOBAL g)
   {
-  return CSVColumns(g, Fn, Sep, Qtd, Hdr, Mxr, false);
-	} // end of GetResult
+  return CSVColumns(g, ((PTABDEF)To_Def)->GetPath(), 
+                    Fn, Sep, Qtd, Hdr, Mxr, false);
+  } // end of GetResult
 
 /* ------------------------ End of TabFmt ---------------------------- */

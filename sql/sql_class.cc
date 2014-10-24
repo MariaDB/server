@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2013, Monty Program Ab.
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -64,6 +64,8 @@
 #include "sql_parse.h"                          // is_update_query
 #include "sql_callback.h"
 #include "lock.h"
+#include "wsrep_mysqld.h"
+#include "wsrep_thd.h"
 #include "sql_connect.h"
 
 /*
@@ -859,9 +861,26 @@ bool Drop_table_error_handler::handle_condition(THD *thd,
 }
 
 
-THD::THD()
-   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
-              /* statement id */ 0),
+/**
+   Send timeout to thread.
+
+   Note that this is always safe as the thread will always remove it's
+   timeouts at end of query (and thus before THD is destroyed)
+*/
+
+extern "C" void thd_kill_timeout(THD* thd)
+{
+  thd->status_var.max_statement_time_exceeded++;
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  /* Kill queries that can't cause data corruptions */
+  thd->awake(KILL_TIMEOUT);
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+}
+
+
+THD::THD(bool is_wsrep_applier)
+  :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
+             /* statement id */ 0),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    in_sub_stmt(0), log_all_errors(0),
    binlog_unsafe_warning_flags(0),
@@ -876,7 +895,6 @@ THD::THD()
    accessed_rows_and_keys(0),
    m_statement_psi(NULL),
    m_idle_psi(NULL),
-   m_server_idle(false),
    thread_id(0),
    global_disable_checkpoint(0),
    failed_com_change_user(0),
@@ -894,8 +912,18 @@ THD::THD()
    debug_sync_control(0),
 #endif /* defined(ENABLED_DEBUG_SYNC) */
    wait_for_commit_ptr(0),
-    main_da(0, false, false),
+   main_da(0, false, false),
    m_stmt_da(&main_da)
+#ifdef WITH_WSREP
+  ,
+   wsrep_applier(is_wsrep_applier),
+   wsrep_applier_closing(false),
+   wsrep_client_thread(false),
+   wsrep_apply_toi(false),
+   wsrep_po_handle(WSREP_PO_INITIALIZER),
+   wsrep_po_cnt(0),
+   wsrep_apply_format(0)
+#endif
 {
   ulong tmp;
 
@@ -1004,6 +1032,22 @@ THD::THD()
   m_command=COM_CONNECT;
   *scramble= '\0';
 
+#ifdef WITH_WSREP
+  mysql_mutex_init(key_LOCK_wsrep_thd, &LOCK_wsrep_thd, MY_MUTEX_INIT_FAST);
+  mysql_cond_init(key_COND_wsrep_thd, &COND_wsrep_thd, NULL);
+  wsrep_ws_handle.trx_id = WSREP_UNDEFINED_TRX_ID;
+  wsrep_ws_handle.opaque = NULL;
+  wsrep_retry_counter     = 0;
+  wsrep_PA_safe           = true;
+  wsrep_retry_query       = NULL;
+  wsrep_retry_query_len   = 0;
+  wsrep_retry_command     = COM_CONNECT;
+  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_mysql_replicated  = 0;
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
+  wsrep_info[sizeof(wsrep_info) - 1] = '\0'; /* make sure it is 0-terminated */
+#endif
   /* Call to init() below requires fully initialized Open_tables_state. */
   reset_open_tables_state(this);
 
@@ -1031,6 +1075,8 @@ THD::THD()
   protocol_text.init(this);
   protocol_binary.init(this);
 
+  thr_timer_init(&query_timer, (void (*)(void*)) thd_kill_timeout, this);
+
   tablespace_op=FALSE;
 
   /*
@@ -1043,6 +1089,7 @@ THD::THD()
   my_rnd_init(&rand, tmp + (ulong) &rand, tmp + (ulong) ::global_query_id);
   substitute_null_with_insert_id = FALSE;
   thr_lock_info_init(&lock_info); /* safety: will be reset after start */
+  lock_info.mysql_thd= (void *)this;
 
   m_internal_handler= NULL;
   m_binlog_invoker= INVOKER_NONE;
@@ -1345,6 +1392,7 @@ extern "C"   THD *_current_thd_noinline(void)
   return my_pthread_getspecific_ptr(THD*,THR_THD);
 }
 #endif
+
 /*
   Init common variables that has to be reset on start and on change_user
 */
@@ -1355,8 +1403,8 @@ void THD::init(void)
   mysql_mutex_lock(&LOCK_global_system_variables);
   plugin_thdvar_init(this);
   /*
-    variables= global_system_variables above has reset
-    variables.pseudo_thread_id to 0. We need to correct it here to
+    plugin_thd_var_init() sets variables= global_system_variables, which
+    has reset variables.pseudo_thread_id to 0. We need to correct it here to
     avoid temporary tables replication failure.
   */
   variables.pseudo_thread_id= thread_id;
@@ -1387,6 +1435,24 @@ void THD::init(void)
   bzero((char *) &org_status_var, sizeof(org_status_var));
   start_bytes_received= 0;
   last_commit_gtid.seq_no= 0;
+#ifdef WITH_WSREP
+  wsrep_exec_mode= wsrep_applier ? REPL_RECV :  LOCAL_STATE;
+  wsrep_conflict_state= NO_CONFLICT;
+  wsrep_query_state= QUERY_IDLE;
+  wsrep_last_query_id= 0;
+  wsrep_trx_meta.gtid= WSREP_GTID_UNDEFINED;
+  wsrep_trx_meta.depends_on= WSREP_SEQNO_UNDEFINED;
+  wsrep_converted_lock_session= false;
+  wsrep_retry_counter= 0;
+  wsrep_rli= NULL;
+  wsrep_rgi= NULL;
+  wsrep_PA_safe= true;
+  wsrep_consistency_check = NO_CONSISTENCY_CHECK;
+  wsrep_mysql_replicated  = 0;
+
+  wsrep_TOI_pre_query     = NULL;
+  wsrep_TOI_pre_query_len = 0;
+#endif
 
   if (variables.sql_log_bin)
     variables.option_bits|= OPTION_BIN_LOG;
@@ -1582,6 +1648,13 @@ THD::~THD()
   mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_unlock(&LOCK_thd_data);
 
+#ifdef WITH_WSREP
+  mysql_mutex_lock(&LOCK_wsrep_thd);
+  mysql_mutex_unlock(&LOCK_wsrep_thd);
+  mysql_mutex_destroy(&LOCK_wsrep_thd);
+  if (wsrep_rli) delete wsrep_rli;
+  if (wsrep_rgi) delete wsrep_rgi;
+#endif
   /* Close connection */
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
@@ -1726,6 +1799,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
   This is normally called from another thread's THD object.
 
   @note Do always call this while holding LOCK_thd_data.
+        NOT_KILLED is used to awake a thread for a slave
 */
 
 void THD::awake(killed_state state_to_set)
@@ -1736,6 +1810,13 @@ void THD::awake(killed_state state_to_set)
   mysql_mutex_assert_owner(&LOCK_thd_data);
 
   print_aborted_warning(3, "KILLED");
+
+  /*
+    Don't degrade killed state, for example from a KILL_CONNECTION to
+    STATEMENT TIMEOUT
+  */
+  if (killed >= KILL_CONNECTION)
+    state_to_set= killed;
 
   /* Set the 'killed' flag of 'this', which is the target THD object. */
   killed= state_to_set;
@@ -1768,6 +1849,7 @@ void THD::awake(killed_state state_to_set)
     mysql_mutex_lock(&mysys_var->mutex);
     if (!system_thread)		// Don't abort locks
       mysys_var->abort=1;
+
     /*
       This broadcast could be up in the air if the victim thread
       exits the cond in the time between read and broadcast, but that is
@@ -1892,7 +1974,15 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
         (e.g. see partitioning code).
       */
       if (!thd_table->needs_reopen())
+      {
         signalled|= mysql_lock_abort_for_thread(this, thd_table);
+        if (this && WSREP(this) && wsrep_thd_is_BF(this, FALSE))
+        {
+          WSREP_DEBUG("remove_table_from_cache: %llu",
+                      (unsigned long long) this->real_id);
+          wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+        }
+      }
     }
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
@@ -1928,6 +2018,9 @@ int killed_errno(killed_state killed)
   case KILL_QUERY:
   case KILL_QUERY_HARD:
     DBUG_RETURN(ER_QUERY_INTERRUPTED);
+  case KILL_TIMEOUT:
+  case KILL_TIMEOUT_HARD:
+    DBUG_RETURN(ER_STATEMENT_TIMEOUT);
   case KILL_SERVER:
   case KILL_SERVER_HARD:
     DBUG_RETURN(ER_SERVER_SHUTDOWN);
@@ -2074,6 +2167,12 @@ void THD::cleanup_after_query()
   /* reset table map for multi-table update */
   table_map_for_update= 0;
   m_binlog_invoker= INVOKER_NONE;
+#ifdef WITH_WSREP
+  if (TOTAL_ORDER == wsrep_exec_mode)
+  {
+    wsrep_exec_mode = LOCAL_STATE;
+  }
+#endif  /* WITH_WSREP */
 
 #ifndef EMBEDDED_LIBRARY
   if (rgi_slave)
@@ -2268,10 +2367,10 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 }
 
 
-int THD::send_explain_fields(select_result *result)
+int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is_analyze)
 {
   List<Item> field_list;
-  make_explain_field_list(field_list);
+  make_explain_field_list(field_list, explain_flags, is_analyze);
   result->prepare(field_list, NULL);
   return (result->send_result_set_metadata(field_list,
                                            Protocol::SEND_NUM_ROWS | 
@@ -2282,9 +2381,13 @@ int THD::send_explain_fields(select_result *result)
 /*
   Populate the provided field_list with EXPLAIN output columns.
   this->lex->describe has the EXPLAIN flags
+
+  The set/order of columns must be kept in sync with 
+  Explain_query::print_explain and co.
 */
 
-void THD::make_explain_field_list(List<Item> &field_list)
+void THD::make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
+                                  bool is_analyze)
 {
   Item *item;
   CHARSET_INFO *cs= system_charset_info;
@@ -2293,7 +2396,7 @@ void THD::make_explain_field_list(List<Item> &field_list)
   field_list.push_back(new Item_empty_string("select_type", 19, cs));
   field_list.push_back(item= new Item_empty_string("table", NAME_CHAR_LEN, cs));
   item->maybe_null= 1;
-  if (lex->describe & DESCRIBE_PARTITIONS)
+  if (explain_flags & DESCRIBE_PARTITIONS)
   {
     /* Maximum length of string that make_used_partitions_str() can produce */
     item= new Item_empty_string("partitions", MAX_PARTITIONS * (1 + FN_LEN),
@@ -2317,11 +2420,25 @@ void THD::make_explain_field_list(List<Item> &field_list)
   item->maybe_null=1;
   field_list.push_back(item= new Item_return_int("rows", 10,
                                                  MYSQL_TYPE_LONGLONG));
-  if (lex->describe & DESCRIBE_EXTENDED)
+  if (is_analyze)
+  {
+    field_list.push_back(item= new Item_return_int("r_rows", 10,
+                                                   MYSQL_TYPE_LONGLONG));
+    item->maybe_null=1;
+  }
+
+  if (is_analyze || (explain_flags & DESCRIBE_EXTENDED))
   {
     field_list.push_back(item= new Item_float("filtered", 0.1234, 2, 4));
     item->maybe_null=1;
   }
+
+  if (is_analyze)
+  {
+    field_list.push_back(item= new Item_float("r_filtered", 0.1234, 2, 4));
+    item->maybe_null=1;
+  }
+
   item->maybe_null= 1;
   field_list.push_back(new Item_empty_string("Extra", 255, cs));
 }
@@ -2479,6 +2596,13 @@ bool sql_exchange::escaped_given(void)
 bool select_send::send_result_set_metadata(List<Item> &list, uint flags)
 {
   bool res;
+#ifdef WITH_WSREP
+  if (WSREP(thd) && thd->wsrep_retry_query)
+  {
+    WSREP_DEBUG("skipping select metadata");
+    return FALSE;
+  }
+#endif /* WITH_WSREP */
   if (!(res= thd->protocol->send_result_set_metadata(&list, flags)))
     is_result_set_started= 1;
   return res;
@@ -2586,7 +2710,7 @@ bool select_to_file::send_eof()
   if (mysql_file_close(file, MYF(MY_WME)) || thd->is_error())
     error= true;
 
-  if (!error)
+  if (!error && !suppress_my_ok)
   {
     ::my_ok(thd,row_count);
   }
@@ -3607,6 +3731,23 @@ Statement_map::~Statement_map()
   my_hash_free(&st_hash);
 }
 
+bool my_var_user::set(THD *thd, Item *item)
+{
+  Item_func_set_user_var *suv= new Item_func_set_user_var(name, item);
+  suv->save_item_result(item);
+  return suv->fix_fields(thd, 0) || suv->update();
+}
+
+bool my_var_sp::set(THD *thd, Item *item)
+{
+  return thd->spcont->set_variable(thd, offset, &item);
+}
+
+bool my_var_param::set(THD *thd, Item *item)
+{
+  return param->set_value(thd, 0, &item);
+}
+
 int select_dumpvar::send_data(List<Item> &items)
 {
   List_iterator_fast<my_var> var_li(var_list);
@@ -3627,20 +3768,8 @@ int select_dumpvar::send_data(List<Item> &items)
   }
   while ((mv= var_li++) && (item= it++))
   {
-    if (mv->local)
-    {
-      if (thd->spcont->set_variable(thd, mv->offset, &item))
-	    DBUG_RETURN(1);
-    }
-    else
-    {
-      Item_func_set_user_var *suv= new Item_func_set_user_var(mv->s, item);
-      suv->save_item_result(item);
-      if (suv->fix_fields(thd, 0))
-        DBUG_RETURN (1);
-      if (suv->update())
-        DBUG_RETURN (1);
-    }
+    if (mv->set(thd, item))
+      DBUG_RETURN(1);
   }
   DBUG_RETURN(thd->is_error());
 }
@@ -3657,9 +3786,12 @@ bool select_dumpvar::send_eof()
   if (thd->is_error())
     return true;
 
-  ::my_ok(thd,row_count);
+  if (!suppress_my_ok)
+    ::my_ok(thd,row_count);
+
   return 0;
 }
+
 
 
 bool
@@ -4217,6 +4349,220 @@ extern "C" int thd_rpl_is_parallel(const MYSQL_THD thd)
   return thd->rgi_slave && thd->rgi_slave->is_parallel_exec;
 }
 
+/*
+  This function can optionally be called to check if thd_report_wait_for()
+  needs to be called for waits done by a given transaction.
+
+  If this function returns false for a given thd, there is no need to do any
+  calls to thd_report_wait_for() on that thd.
+
+  This call is optional; it is safe to call thd_report_wait_for() in any case.
+  This call can be used to save some redundant calls to thd_report_wait_for()
+  if desired. (This is unlikely to matter much unless there are _lots_ of
+  waits to report, as the overhead of thd_report_wait_for() is small).
+*/
+extern "C" int
+thd_need_wait_for(const MYSQL_THD thd)
+{
+  rpl_group_info *rgi;
+
+  if (!thd)
+    return false;
+  rgi= thd->rgi_slave;
+  if (!rgi)
+    return false;
+  return rgi->is_parallel_exec;
+}
+
+/*
+  Used by InnoDB/XtraDB to report that one transaction THD is about to go to
+  wait for a transactional lock held by another transactions OTHER_THD.
+
+  This is used for parallel replication, where transactions are required to
+  commit in the same order on the slave as they did on the master. If the
+  transactions on the slave encounters lock conflicts on the slave that did
+  not exist on the master, this can cause deadlocks.
+
+  Normally, such conflicts will not occur, because the same conflict would
+  have prevented the two transactions from committing in parallel on the
+  master, thus preventing them from running in parallel on the slave in the
+  first place. However, it is possible in case when the optimizer chooses a
+  different plan on the slave than on the master (eg. table scan instead of
+  index scan).
+
+  InnoDB/XtraDB reports lock waits using this call. If a lock wait causes a
+  deadlock with the pre-determined commit order, we kill the later transaction,
+  and later re-try it, to resolve the deadlock.
+
+  This call need only receive reports about waits for locks that will remain
+  until the holding transaction commits. InnoDB/XtraDB auto-increment locks
+  are released earlier, and so need not be reported. (Such false positives are
+  not harmful, but could lead to unnecessary kill and retry, so best avoided).
+*/
+extern "C" void
+thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi;
+  rpl_group_info *other_rgi;
+
+  if (!thd || !other_thd)
+    return;
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return;
+  if (!rgi->is_parallel_exec)
+    return;
+  if (rgi->rli != other_rgi->rli)
+    return;
+  if (!rgi->gtid_sub_id || !other_rgi->gtid_sub_id)
+    return;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return;
+  if (rgi->gtid_sub_id > other_rgi->gtid_sub_id)
+    return;
+  /*
+    This transaction is about to wait for another transaction that is required
+    by replication binlog order to commit after. This would cause a deadlock.
+
+    So send a kill to the other transaction, with a temporary error; this will
+    cause replication to rollback (and later re-try) the other transaction,
+    releasing the lock for this transaction so replication can proceed.
+  */
+  other_rgi->killed_for_retry= true;
+  mysql_mutex_lock(&other_thd->LOCK_thd_data);
+  other_thd->awake(KILL_CONNECTION);
+  mysql_mutex_unlock(&other_thd->LOCK_thd_data);
+}
+
+/*
+  This function is called from InnoDB/XtraDB to check if the commit order of
+  two transactions has already been decided by the upper layer. This happens
+  in parallel replication, where the commit order is forced to be the same on
+  the slave as it was originally on the master.
+
+  If this function returns false, it means that such commit order will be
+  enforced. This allows the storage engine to optionally omit gap lock waits
+  or similar measures that would otherwise be needed to ensure that
+  transactions would be serialised in a way that would cause a commit order
+  that is correct for binlogging for statement-based replication.
+
+  Since transactions are only run in parallel on the slave if they ran without
+  lock conflicts on the master, normally no lock conflicts on the slave happen
+  during parallel replication. However, there are a couple of corner cases
+  where it can happen, like these secondary-index operations:
+
+    T1: INSERT INTO t1 VALUES (7, NULL);
+    T2: DELETE FROM t1 WHERE b <= 3;
+
+    T1: UPDATE t1 SET secondary=NULL WHERE primary=1
+    T2: DELETE t1 WHERE secondary <= 3
+
+  The DELETE takes a gap lock that can block the INSERT/UPDATE, but the row
+  locks set by INSERT/UPDATE do not block the DELETE. Thus, the execution
+  order of the transactions determine whether a lock conflict occurs or
+  not. Thus a lock conflict can occur on the slave where it did not on the
+  master.
+
+  If this function returns true, normal locking should be done as required by
+  the binlogging and transaction isolation level in effect. But if it returns
+  false, the correct order will be enforced anyway, and InnoDB/XtraDB can
+  avoid taking the gap lock, preventing the lock conflict.
+
+  Calling this function is just an optimisation to avoid unnecessary
+  deadlocks. If it was not used, a gap lock would be set that could eventually
+  cause a deadlock; the deadlock would be caught by thd_report_wait_for() and
+  the transaction T2 killed and rolled back (and later re-tried).
+*/
+extern "C" int
+thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
+{
+  rpl_group_info *rgi, *other_rgi;
+
+  DBUG_EXECUTE_IF("disable_thd_need_ordering_with", return 1;);
+  if (!thd || !other_thd)
+    return 1;
+  rgi= thd->rgi_slave;
+  other_rgi= other_thd->rgi_slave;
+  if (!rgi || !other_rgi)
+    return 1;
+  if (!rgi->is_parallel_exec)
+    return 1;
+  if (rgi->rli != other_rgi->rli)
+    return 1;
+  if (rgi->current_gtid.domain_id != other_rgi->current_gtid.domain_id)
+    return 1;
+  if (!rgi->commit_id || rgi->commit_id != other_rgi->commit_id)
+    return 1;
+  /*
+    Otherwise, these two threads are doing parallel replication within the same
+    replication domain. Their commit order is already fixed, so we do not need
+    gap locks or similar to otherwise enforce ordering (and in fact such locks
+    could lead to unnecessary deadlocks and transaction retry).
+  */
+  return 0;
+}
+
+
+/*
+  If the storage engine detects a deadlock, and needs to choose a victim
+  transaction to roll back, it can call this function to ask the upper
+  server layer for which of two possible transactions is prefered to be
+  aborted and rolled back.
+
+  In parallel replication, if two transactions are running in parallel and
+  one is fixed to commit before the other, then the one that commits later
+  will be prefered as the victim - chosing the early transaction as a victim
+  will not resolve the deadlock anyway, as the later transaction still needs
+  to wait for the earlier to commit.
+
+  Otherwise, a transaction that uses only transactional tables, and can thus
+  be safely rolled back, will be prefered as a deadlock victim over a
+  transaction that also modified non-transactional (eg. MyISAM) tables.
+
+  The return value is -1 if the first transaction is prefered as a deadlock
+  victim, 1 if the second transaction is prefered, or 0 for no preference (in
+  which case the storage engine can make the choice as it prefers).
+*/
+extern "C" int
+thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
+{
+  rpl_group_info *rgi1, *rgi2;
+  bool nontrans1, nontrans2;
+
+  if (!thd1 || !thd2)
+    return 0;
+
+  /*
+    If the transactions are participating in the same replication domain in
+    parallel replication, then request to select the one that will commit
+    later (in the fixed commit order from the master) as the deadlock victim.
+  */
+  rgi1= thd1->rgi_slave;
+  rgi2= thd2->rgi_slave;
+  if (rgi1 && rgi2 &&
+      rgi1->is_parallel_exec &&
+      rgi1->rli == rgi2->rli &&
+      rgi1->current_gtid.domain_id == rgi2->current_gtid.domain_id)
+    return rgi1->gtid_sub_id < rgi2->gtid_sub_id ? 1 : -1;
+
+  /*
+    If one transaction has modified non-transactional tables (so that it
+    cannot be safely rolled back), and the other has not, then prefer to
+    select the purely transactional one as the victim.
+  */
+  nontrans1= thd1->transaction.all.modified_non_trans_table;
+  nontrans2= thd2->transaction.all.modified_non_trans_table;
+  if (nontrans1 && !nontrans2)
+    return 1;
+  else if (!nontrans1 && nontrans2)
+    return -1;
+
+  /* No preferences, let the storage engine decide. */
+  return 0;
+}
+
+
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
   return(thd->transaction.all.modified_non_trans_table);
@@ -4224,8 +4570,9 @@ extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 
 extern "C" int thd_binlog_format(const MYSQL_THD thd)
 {
-  if (mysql_bin_log.is_open() && (thd->variables.option_bits & OPTION_BIN_LOG))
-    return (int) thd->variables.binlog_format;
+  if (((WSREP(thd) &&  wsrep_emulate_bin_log) || mysql_bin_log.is_open()) &&
+      thd->variables.option_bits & OPTION_BIN_LOG)
+    return (int) thd->wsrep_binlog_format();
   else
     return BINLOG_FORMAT_UNSPEC;
 }
@@ -4240,9 +4587,18 @@ extern "C" bool thd_binlog_filter_ok(const MYSQL_THD thd)
   return binlog_filter->db_ok(thd->db);
 }
 
+/*
+  This is similar to sqlcom_can_generate_row_events, with the expection
+  that we only return 1 if we are going to generate row events in a
+  transaction.
+  CREATE OR REPLACE is always safe to do as this will run in it's own
+  transaction.
+*/
+
 extern "C" bool thd_sqlcom_can_generate_row_events(const MYSQL_THD thd)
 {
-  return sqlcom_can_generate_row_events(thd);
+  return (sqlcom_can_generate_row_events(thd) && thd->lex->sql_command !=
+          SQLCOM_CREATE_TABLE);
 }
 
 
@@ -4955,7 +5311,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     binlog by filtering rules.
   */
   if (mysql_bin_log.is_open() && (variables.option_bits & OPTION_BIN_LOG) &&
-      !(variables.binlog_format == BINLOG_FORMAT_STMT &&
+      !(wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
         !binlog_filter->db_ok(db)))
   {
     /*
@@ -5165,7 +5521,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         my_error((error= ER_BINLOG_ROW_INJECTION_AND_STMT_ENGINE), MYF(0));
       }
-      else if (variables.binlog_format == BINLOG_FORMAT_ROW &&
+      else if (wsrep_binlog_format() == BINLOG_FORMAT_ROW &&
                sqlcom_can_generate_row_events(this))
       {
         /*
@@ -5194,7 +5550,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     else
     {
       /* binlog_format = STATEMENT */
-      if (variables.binlog_format == BINLOG_FORMAT_STMT)
+      if (wsrep_binlog_format() == BINLOG_FORMAT_STMT)
       {
         if (lex->is_stmt_row_injection())
         {
@@ -5211,7 +5567,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
             5. Error: Cannot modify table that uses a storage engine
                limited to row-logging when binlog_format = STATEMENT
           */
-          my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
+	  if (IF_WSREP((!WSREP(this) || wsrep_exec_mode == LOCAL_STATE),1))
+	  {
+            my_error((error= ER_BINLOG_STMT_MODE_AND_ROW_ENGINE), MYF(0), "");
+	  }
         }
         else if (is_write && (unsafe_flags= lex->get_stmt_unsafe_flags()) != 0)
         {
@@ -5319,11 +5678,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
     DBUG_PRINT("info", ("decision: no logging since "
                         "mysql_bin_log.is_open() = %d "
                         "and (options & OPTION_BIN_LOG) = 0x%llx "
-                        "and binlog_format = %lu "
+                        "and binlog_format = %u "
                         "and binlog_filter->db_ok(db) = %d",
                         mysql_bin_log.is_open(),
                         (variables.option_bits & OPTION_BIN_LOG),
-                        variables.binlog_format,
+                        (uint) wsrep_binlog_format(),
                         binlog_filter->db_ok(db)));
 #endif
 
@@ -5559,9 +5918,10 @@ CPP_UNNAMED_NS_END
 int THD::binlog_write_row(TABLE* table, bool is_trans, 
                           MY_BITMAP const* cols, size_t colcnt, 
                           uchar const *record) 
-{ 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+{
 
+  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+           ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
   /*
     Pack records into format for transfer. We are allocating more
     memory than needed, but that doesn't matter.
@@ -5593,8 +5953,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
                            MY_BITMAP const* cols, size_t colcnt,
                            const uchar *before_record,
                            const uchar *after_record)
-{ 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+{
+  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
   size_t const before_maxlen = max_row_length(table, before_record);
   size_t const after_maxlen  = max_row_length(table, after_record);
@@ -5642,8 +6003,9 @@ int THD::binlog_update_row(TABLE* table, bool is_trans,
 int THD::binlog_delete_row(TABLE* table, bool is_trans, 
                            MY_BITMAP const* cols, size_t colcnt,
                            uchar const *record)
-{ 
-  DBUG_ASSERT(is_current_stmt_binlog_format_row() && mysql_bin_log.is_open());
+{
+  DBUG_ASSERT(is_current_stmt_binlog_format_row() &&
+            ((WSREP(this) && wsrep_emulate_bin_log) || mysql_bin_log.is_open()));
 
   /* 
      Pack records into format for transfer. We are allocating more
@@ -5678,7 +6040,7 @@ int THD::binlog_remove_pending_rows_event(bool clear_maps,
 {
   DBUG_ENTER("THD::binlog_remove_pending_rows_event");
 
-  if (!mysql_bin_log.is_open())
+  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -5701,7 +6063,7 @@ int THD::binlog_flush_pending_rows_event(bool stmt_end, bool is_transactional)
     mode: it might be the case that we left row-based mode before
     flushing anything (e.g., if we have explicitly locked tables).
    */
-  if (!mysql_bin_log.is_open())
+  if(!WSREP_EMULATE_BINLOG(this) && !mysql_bin_log.is_open())
     DBUG_RETURN(0);
 
   /* Ensure that all events in a GTID group are in the same cache */
@@ -5752,23 +6114,35 @@ show_query_type(THD::enum_binlog_query_type qtype)
   Constants required for the limit unsafe warnings suppression
 */
 //seconds after which the limit unsafe warnings suppression will be activated
-#define LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT 50
+#define LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT 5*60
 //number of limit unsafe warnings after which the suppression will be activated
-#define LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT 50
+#define LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT 10
 
-static ulonglong limit_unsafe_suppression_start_time= 0;
-static bool unsafe_warning_suppression_is_activated= false;
-static int limit_unsafe_warning_count= 0;
+static ulonglong unsafe_suppression_start_time= 0;
+static bool unsafe_warning_suppression_active[LEX::BINLOG_STMT_UNSAFE_COUNT];
+static ulong unsafe_warnings_count[LEX::BINLOG_STMT_UNSAFE_COUNT];
+static ulong total_unsafe_warnings_count;
 
 /**
   Auxiliary function to reset the limit unsafety warning suppression.
+  This is done without mutex protection, but this should be good
+  enough as it doesn't matter if we loose a couple of suppressed
+  messages or if this is called multiple times.
 */
-static void reset_binlog_unsafe_suppression()
+
+static void reset_binlog_unsafe_suppression(ulonglong now)
 {
+  uint i;
   DBUG_ENTER("reset_binlog_unsafe_suppression");
-  unsafe_warning_suppression_is_activated= false;
-  limit_unsafe_warning_count= 0;
-  limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
+
+  unsafe_suppression_start_time= now;
+  total_unsafe_warnings_count= 0;
+
+  for (i= 0 ; i < LEX::BINLOG_STMT_UNSAFE_COUNT ; i++)
+  {
+    unsafe_warnings_count[i]= 0;
+    unsafe_warning_suppression_active[i]= 0;
+  }
   DBUG_VOID_RETURN;
 }
 
@@ -5786,95 +6160,94 @@ static void print_unsafe_warning_to_log(int unsafe_type, char* buf,
 }
 
 /**
-  Auxiliary function to check if the warning for limit unsafety should be
-  thrown or suppressed. Details of the implementation can be found in the
-  comments inline.
+  Auxiliary function to check if the warning for unsafe repliction statements
+  should be thrown or suppressed.
+
+  Logic is:
+  - If we get more than LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT errors
+    of one type, that type of errors will be suppressed for
+    LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT.
+  - When the time limit has been reached, all suppression is reset.
+
+  This means that if one gets many different types of errors, some of them
+  may be reset less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT. However at
+  least one error is disable for this time.
+
   SYNOPSIS:
   @params
-   buf         - buffer to hold the warning message text
    unsafe_type - The type of unsafety.
-   query       - The actual query statement.
 
-  TODO: Remove this function and implement a general service for all warnings
-  that would prevent flooding the error log.
+  RETURN:
+    0   0k to log
+    1   Message suppressed
 */
-static void do_unsafe_limit_checkout(char* buf, int unsafe_type, char* query)
+
+static bool protect_against_unsafe_warning_flood(int unsafe_type)
 {
-  ulonglong now= 0;
-  DBUG_ENTER("do_unsafe_limit_checkout");
-  DBUG_ASSERT(unsafe_type == LEX::BINLOG_STMT_UNSAFE_LIMIT);
-  limit_unsafe_warning_count++;
+  ulong count;
+  ulonglong now= my_interval_timer()/1000000000ULL;
+  DBUG_ENTER("protect_against_unsafe_warning_flood");
+
+  count= ++unsafe_warnings_count[unsafe_type];
+  total_unsafe_warnings_count++;
+
   /*
     INITIALIZING:
     If this is the first time this function is called with log warning
     enabled, the monitoring the unsafe warnings should start.
   */
-  if (limit_unsafe_suppression_start_time == 0)
+  if (unsafe_suppression_start_time == 0)
   {
-    limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
-    print_unsafe_warning_to_log(unsafe_type, buf, query);
+    reset_binlog_unsafe_suppression(now);
+    DBUG_RETURN(0);
   }
-  else
-  {
-    if (!unsafe_warning_suppression_is_activated)
-      print_unsafe_warning_to_log(unsafe_type, buf, query);
 
-    if (limit_unsafe_warning_count >=
-        LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT)
+  /*
+    The following is true if we got too many errors or if the error was
+    already suppressed
+  */
+  if (count >= LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT)
+  {
+    ulonglong diff_time= (now - unsafe_suppression_start_time);
+
+    if (!unsafe_warning_suppression_active[unsafe_type])
     {
-      now= my_interval_timer()/10000000;
-      if (!unsafe_warning_suppression_is_activated)
+      /*
+        ACTIVATION:
+        We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT warnings in
+        less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT we activate the
+        suppression.
+      */
+      if (diff_time <= LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
       {
-        /*
-          ACTIVATION:
-          We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT warnings in
-          less than LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT we activate the
-          suppression.
-        */
-        if ((now-limit_unsafe_suppression_start_time) <=
-                       LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
-        {
-          unsafe_warning_suppression_is_activated= true;
-          DBUG_PRINT("info",("A warning flood has been detected and the limit \
-unsafety warning suppression has been activated."));
-        }
-        else
-        {
-          /*
-           there is no flooding till now, therefore we restart the monitoring
-          */
-          limit_unsafe_suppression_start_time= my_interval_timer()/10000000;
-          limit_unsafe_warning_count= 0;
-        }
+        unsafe_warning_suppression_active[unsafe_type]= 1;
+        sql_print_information("Suppressing warnings of type '%s' for up to %d seconds because of flooding",
+                              ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]),
+                              LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT);
       }
       else
       {
         /*
-          Print the suppression note and the unsafe warning.
+          There is no flooding till now, therefore we restart the monitoring
         */
-        sql_print_information("The following warning was suppressed %d times \
-during the last %d seconds in the error log",
-                              limit_unsafe_warning_count,
-                              (int)
-                              (now-limit_unsafe_suppression_start_time));
-        print_unsafe_warning_to_log(unsafe_type, buf, query);
-        /*
-          DEACTIVATION: We got LIMIT_UNSAFE_WARNING_ACTIVATION_THRESHOLD_COUNT
-          warnings in more than  LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT, the
-          suppression should be deactivated.
-        */
-        if ((now - limit_unsafe_suppression_start_time) >
-            LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
-        {
-          reset_binlog_unsafe_suppression();
-          DBUG_PRINT("info",("The limit unsafety warning supression has been \
-deactivated"));
-        }
+        reset_binlog_unsafe_suppression(now);
       }
-      limit_unsafe_warning_count= 0;
+    }
+    else
+    {
+      /* This type of warnings was suppressed */
+      if (diff_time > LIMIT_UNSAFE_WARNING_ACTIVATION_TIMEOUT)
+      {
+        ulong save_count= total_unsafe_warnings_count;
+        /* Print a suppression note and remove the suppression */
+        reset_binlog_unsafe_suppression(now);
+        sql_print_information("Suppressed %lu unsafe warnings during "
+                              "the last %d seconds",
+                              save_count, (int) diff_time);
+      }
     }
   }
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(unsafe_warning_suppression_active[unsafe_type]);
 }
 
 /**
@@ -5886,6 +6259,7 @@ deactivated"));
 void THD::issue_unsafe_warnings()
 {
   char buf[MYSQL_ERRMSG_SIZE * 2];
+  uint32 unsafe_type_flags;
   DBUG_ENTER("issue_unsafe_warnings");
   /*
     Ensure that binlog_unsafe_warning_flags is big enough to hold all
@@ -5893,8 +6267,10 @@ void THD::issue_unsafe_warnings()
   */
   DBUG_ASSERT(LEX::BINLOG_STMT_UNSAFE_COUNT <=
               sizeof(binlog_unsafe_warning_flags) * CHAR_BIT);
+  
+  if (!(unsafe_type_flags= binlog_unsafe_warning_flags))
+    DBUG_VOID_RETURN;                           // Nothing to do
 
-  uint32 unsafe_type_flags= binlog_unsafe_warning_flags;
   /*
     For each unsafe_type, check if the statement is unsafe in this way
     and issue a warning.
@@ -5909,13 +6285,9 @@ void THD::issue_unsafe_warnings()
                           ER_BINLOG_UNSAFE_STATEMENT,
                           ER(ER_BINLOG_UNSAFE_STATEMENT),
                           ER(LEX::binlog_stmt_unsafe_errcode[unsafe_type]));
-      if (global_system_variables.log_warnings)
-      {
-        if (unsafe_type == LEX::BINLOG_STMT_UNSAFE_LIMIT)
-          do_unsafe_limit_checkout( buf, unsafe_type, query());
-        else //cases other than LIMIT unsafety
-          print_unsafe_warning_to_log(unsafe_type, buf, query());
-      }
+      if (global_system_variables.log_warnings > 0 &&
+          !protect_against_unsafe_warning_flood(unsafe_type))
+        print_unsafe_warning_to_log(unsafe_type, buf, query());
     }
   }
   DBUG_VOID_RETURN;
@@ -5953,7 +6325,9 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_ENTER("THD::binlog_query");
   DBUG_PRINT("enter", ("qtype: %s  query: '%-.*s'",
                        show_query_type(qtype), (int) query_len, query_arg));
-  DBUG_ASSERT(query_arg && mysql_bin_log.is_open());
+
+  DBUG_ASSERT(query_arg &&
+                        (WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()));
 
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)
@@ -6393,6 +6767,7 @@ wait_for_commit::unregister_wait_for_prior_commit2()
       this->waitee= NULL;
     }
   }
+  wakeup_error= 0;
   mysql_mutex_unlock(&LOCK_wait_commit);
 }
 

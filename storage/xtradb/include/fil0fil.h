@@ -50,7 +50,7 @@ struct fil_space_t;
 typedef std::list<const char*> space_name_list_t;
 
 /** When mysqld is run, the default directory "." is the mysqld datadir,
-but in the MySQL Embedded Server Library and ibbackup it is not the default
+but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 extern const char*	fil_path_to_mysql_datadir;
 
@@ -127,6 +127,24 @@ extern fil_addr_t	fil_addr_null;
 					data file (ibdata*, not *.ibd):
 					the file has been flushed to disk
 					at least up to this lsn */
+/** If page type is FIL_PAGE_COMPRESSED then the 8 bytes starting at
+FIL_PAGE_FILE_FLUSH_LSN are broken down as follows: */
+
+/** Control information version format (u8) */
+static const ulint FIL_PAGE_VERSION = FIL_PAGE_FILE_FLUSH_LSN;
+
+/** Compression algorithm (u8) */
+static const ulint FIL_PAGE_ALGORITHM_V1 = FIL_PAGE_VERSION + 1;
+
+/** Original page type (u16) */
+static const ulint FIL_PAGE_ORIGINAL_TYPE_V1 = FIL_PAGE_ALGORITHM_V1 + 1;
+
+/** Original data size in bytes (u16)*/
+static const ulint FIL_PAGE_ORIGINAL_SIZE_V1 = FIL_PAGE_ORIGINAL_TYPE_V1 + 2;
+
+/** Size after compression (u16)*/
+static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
+
 #define FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID  34 /*!< starting from 4.1.x this
 					contains the space id of the page */
 #define FIL_PAGE_SPACE_ID  FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID
@@ -164,7 +182,8 @@ extern fil_addr_t	fil_addr_null;
 #define FIL_PAGE_TYPE_BLOB	10	/*!< Uncompressed BLOB page */
 #define FIL_PAGE_TYPE_ZBLOB	11	/*!< First compressed BLOB page */
 #define FIL_PAGE_TYPE_ZBLOB2	12	/*!< Subsequent compressed BLOB page */
-#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_ZBLOB2
+#define FIL_PAGE_TYPE_COMPRESSED	13	/*!< Compressed page */
+#define FIL_PAGE_TYPE_LAST	FIL_PAGE_TYPE_COMPRESSED
 					/*!< Last page type */
 /* @} */
 
@@ -406,8 +425,10 @@ fil_read_first_page(
 	ulint*		space_id,		/*!< out: tablespace ID */
 	lsn_t*		min_flushed_lsn,	/*!< out: min of flushed
 						lsn values in data files */
-	lsn_t*		max_flushed_lsn)	/*!< out: max of flushed
+	lsn_t*		max_flushed_lsn,	/*!< out: max of flushed
 						lsn values in data files */
+	ulint		orig_space_id)		/*!< in: file space id or
+						ULINT_UNDEFINED */
 	__attribute__((warn_unused_result));
 /*******************************************************************//**
 Increments the count of pending operation, if space is not being deleted.
@@ -435,8 +456,8 @@ exists and the space id in it matches. Replays the create operation if a file
 at that path does not exist yet. If the database directory for the file to be
 created does not exist, then we create the directory, too.
 
-Note that ibbackup --apply-log sets fil_path_to_mysql_datadir to point to the
-datadir that we should use in replaying the file operations.
+Note that mysqlbackup --apply-log sets fil_path_to_mysql_datadir to point to
+the datadir that we should use in replaying the file operations.
 @return end of log record, or NULL if the record was not completely
 contained between ptr and end_ptr */
 UNIV_INTERN
@@ -689,9 +710,9 @@ fil_space_for_table_exists_in_mem(
 #else /* !UNIV_HOTBACKUP */
 /********************************************************************//**
 Extends all tablespaces to the size stored in the space header. During the
-ibbackup --apply-log phase we extended the spaces on-demand so that log records
-could be appllied, but that may have left spaces still too small compared to
-the size stored in the space header. */
+mysqlbackup --apply-log phase we extended the spaces on-demand so that log
+records could be appllied, but that may have left spaces still too small
+compared to the size stored in the space header. */
 UNIV_INTERN
 void
 fil_extend_tablespaces_to_stored_len(void);
@@ -1095,5 +1116,12 @@ os_file_handle_error_no_exit(
 					any message to the log. */
 	const char*	file,		/*!< in: file name */
 	const ulint	line);		/*!< in: line */
+
+/*******************************************************************//**
+Return page type name */
+const char*
+fil_get_page_type_name(
+/*===================*/
+	ulint	page_type);	/*!< in: FIL_PAGE_TYPE */
 
 #endif /* fil0fil_h */

@@ -136,6 +136,12 @@ class Master_info : public Slave_reporting_capability
   DYNAMIC_ARRAY ignore_server_ids;
   ulong master_id;
   /*
+    At reconnect and until the first rotate event is seen, prev_master_id is
+    the value of master_id during the previous connection, used to detect
+    silent change of master server during reconnects.
+  */
+  ulong prev_master_id;
+  /*
     Which kind of GTID position (if any) is used when connecting to master.
 
     Note that you can not change the numeric values of these, they are used
@@ -209,7 +215,7 @@ public:
                                    const char *host, uint port);
   bool add_master_info(Master_info *mi, bool write_to_file);
   bool remove_master_info(LEX_STRING *connection_name);
-  Master_info *get_master_info(LEX_STRING *connection_name,
+  Master_info *get_master_info(const LEX_STRING *connection_name,
                                Sql_condition::enum_warning_level warning);
   bool give_error_if_slave_running();
   bool start_all_slaves(THD *thd);

@@ -221,12 +221,17 @@ INSTALL_SCRIPT(
 ENDIF()
 
 SET(prefix "${CMAKE_INSTALL_PREFIX}")
-SET(sysconfdir ${prefix})
+IF(INSTALL_SYSCONFDIR)
+  SET(sysconfdir ${DEFAULT_SYSCONFDIR})
+ELSE()
+  SET(sysconfdir "/etc")
+ENDIF()
 SET(bindir ${prefix}/${INSTALL_BINDIR})
 SET(libexecdir ${prefix}/${INSTALL_SBINDIR})
 SET(scriptdir ${prefix}/${INSTALL_BINDIR})
 SET(datadir ${prefix}/${INSTALL_MYSQLSHAREDIR})
 SET(pkgdatadir ${prefix}/${INSTALL_MYSQLSHAREDIR})
+SET(libsubdir  ${INSTALL_LIBDIR})
 SET(pkgincludedir ${prefix}/${INSTALL_INCLUDEDIR})
 SET(pkglibdir ${prefix}/${INSTALL_LIBDIR})
 SET(pkgplugindir ${prefix}/${INSTALL_PLUGINDIR})
@@ -244,57 +249,6 @@ ELSE()
   SET(TARGET_LINUX "false")
 ENDIF()
 
-# Use cmake variables to inspect dependencies for 
-# mysqlclient library (add -l stuff)
-SET(CLIENT_LIBS "")
-SET(LIBS "")
-
-# Avoid compatibility warning about lists with empty elements
-IF(POLICY CMP0011)
-  CMAKE_POLICY(SET CMP0011 NEW)
-ENDIF()
-IF(POLICY CMP0007)
-  CMAKE_POLICY(SET CMP0007 OLD)
-ENDIF()
-
-# Extract dependencies using CMake's internal ${target}_LIB_DEPENDS variable
-# returned string in ${var} is can be passed to linker's command line
-MACRO(EXTRACT_LINK_LIBRARIES target var)
-  IF(${target}_LIB_DEPENDS)
-    LIST(REMOVE_ITEM ${target}_LIB_DEPENDS "")
-    LIST(REMOVE_DUPLICATES ${target}_LIB_DEPENDS)
-    FOREACH(lib ${${target}_LIB_DEPENDS})
-      # Filter out "general", it is not a library, just CMake hint
-      # Also, remove duplicates
-      IF(NOT lib STREQUAL "general" AND NOT ${var}  MATCHES "-l${lib} ")
-        IF (lib MATCHES "^\\-l")
-          SET(${var} "${${var}} ${lib} ") 
-        ELSEIF(lib MATCHES "^/")
-          IF (lib MATCHES "\\.(a|so([0-9.]*)|lib|dll|dylib)$")
-            # Full path, convert to just filename, strip "lib" prefix and extension
-            GET_FILENAME_COMPONENT(lib "${lib}" NAME_WE)
-            STRING(REGEX REPLACE "^lib" "" lib "${lib}")
-            SET(${var} "${${var}}-l${lib} " ) 
-          ENDIF()
-        ELSE()
-          SET(${var} "${${var}}-l${lib} " ) 
-        ENDIF()
-      ENDIF()
-    ENDFOREACH()
-  ENDIF()
-  IF(MSVC)
-    STRING(REPLACE "-l" "" ${var} "${${var}}")
-  ENDIF()
-ENDMACRO()
-
-EXTRACT_LINK_LIBRARIES(mysqlclient CLIENT_LIBS)
-EXTRACT_LINK_LIBRARIES(mysqlserver LIBS)
-
-# mysql_config evaluates ${LIBDL}, we want to avoid it
-# as our CLIENT_LIBS and LIBS are already correct
-SET(LIBDL)
-
-SET(NON_THREADED_LIBS ${CLIENT_LIBS})
 SET(mysql_config_COMPONENT COMPONENT Development)
 SET(msql2mysql_COMPONENT COMPONENT Client)
 SET(mysqlaccess_COMPONENT COMPONENT Client)
@@ -327,6 +281,15 @@ IF(WIN32)
     INSTALL_SCRIPT(${CMAKE_CURRENT_BINARY_DIR}/${file}.pl COMPONENT Server_Scripts)
   ENDFOREACH()
 ELSE()
+  IF(WITH_WSREP)
+    SET(WSREP_BINARIES
+      wsrep_sst_common
+      wsrep_sst_mysqldump
+      wsrep_sst_rsync
+      wsrep_sst_xtrabackup
+      wsrep_sst_xtrabackup-v2
+    )
+  ENDIF()
   # Configure this one, for testing, but do not install it.
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/mysql_config.pl.in
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_config.pl ESCAPE_QUOTES @ONLY)
@@ -346,6 +309,7 @@ ELSE()
     mysqldumpslow
     mysqld_multi
     mysqld_safe
+    ${WSREP_BINARIES}
   )
   FOREACH(file ${BIN_SCRIPTS})
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file}.sh)

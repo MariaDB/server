@@ -4944,7 +4944,6 @@ int ha_partition::rnd_next(uchar *buf)
 end:
   m_part_spec.start_part= NO_CURRENT_PART_ID;
 end_dont_reset_start_part:
-  table->status= STATUS_NOT_FOUND;
   DBUG_RETURN(result);
 }
 
@@ -5848,7 +5847,6 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
       key not found.
     */
     DBUG_PRINT("info", ("scan with no partition to scan"));
-    table->status= STATUS_NOT_FOUND;
     DBUG_RETURN(HA_ERR_END_OF_FILE);
   }
   if (m_part_spec.start_part == m_part_spec.end_part)
@@ -5873,7 +5871,6 @@ int ha_partition::partition_scan_set_up(uchar * buf, bool idx_read_flag)
     if (start_part == MY_BIT_NONE)
     {
       DBUG_PRINT("info", ("scan with no partition to scan"));
-      table->status= STATUS_NOT_FOUND;
       DBUG_RETURN(HA_ERR_END_OF_FILE);
     }
     if (start_part > m_part_spec.start_part)
@@ -8589,8 +8586,7 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
     ulonglong first_value_part, max_first_value;
     handler **file= m_file;
     first_value_part= max_first_value= *first_value;
-    /* Must lock and find highest value among all partitions. */
-    lock_auto_increment();
+    /* Must find highest value among all partitions. */
     do
     {
       /* Only nb_desired_values = 1 makes sense */
@@ -8601,7 +8597,6 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
         *first_value= first_value_part;
         /* log that the error was between table/partition handler */
         sql_print_error("Partition failed to reserve auto_increment value");
-        unlock_auto_increment();
         DBUG_VOID_RETURN;
       }
       DBUG_PRINT("info", ("first_value_part: %lu", (ulong) first_value_part));
@@ -8609,7 +8604,6 @@ void ha_partition::get_auto_increment(ulonglong offset, ulonglong increment,
     } while (*(++file));
     *first_value= max_first_value;
     *nb_reserved_values= 1;
-    unlock_auto_increment();
   }
   else
   {

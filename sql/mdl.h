@@ -586,6 +586,9 @@ public:
   MDL_ticket *next_in_lock;
   MDL_ticket **prev_in_lock;
 public:
+#ifdef WITH_WSREP
+  void wsrep_report(bool debug);
+#endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 
   MDL_context *get_ctx() const { return m_ctx; }
@@ -773,6 +776,10 @@ public:
              m_tickets[MDL_TRANSACTION].is_empty() &&
              m_tickets[MDL_EXPLICIT].is_empty());
   }
+  inline bool has_transactional_locks() const
+  {
+    return !m_tickets[MDL_TRANSACTION].is_empty();
+  }
 
   MDL_savepoint mdl_savepoint()
   {
@@ -786,6 +793,7 @@ public:
 
   void release_statement_locks();
   void release_transactional_locks();
+  void release_explicit_locks();
   void rollback_to_savepoint(const MDL_savepoint &mdl_savepoint);
 
   MDL_context_owner *get_owner() { return m_owner; }
@@ -910,7 +918,6 @@ private:
    */
   MDL_wait_for_subgraph *m_waiting_for;
 private:
-  THD *get_thd() const { return m_owner->get_thd(); }
   MDL_ticket *find_ticket(MDL_request *mdl_req,
                           enum_mdl_duration *duration);
   void release_locks_stored_before(enum_mdl_duration duration, MDL_ticket *sentinel);
@@ -919,6 +926,7 @@ private:
                              MDL_ticket **out_ticket);
 
 public:
+  THD *get_thd() const { return m_owner->get_thd(); }
   void find_deadlock();
 
   ulong get_thread_id() const { return thd_get_thread_id(get_thd()); }

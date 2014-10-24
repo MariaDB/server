@@ -2936,7 +2936,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         cze "Používáte MySQL jako anonymní uživatel a anonymní uživatelé nemají povoleno měnit hesla"
         dan "Du bruger MariaDB som anonym bruger. Anonyme brugere må ikke ændre adgangskoder"
         nla "U gebruikt MariaDB als anonieme gebruiker en deze mogen geen wachtwoorden wijzigen"
-        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to change passwords"
+        eng "You are using MariaDB as an anonymous user and anonymous users are not allowed to modify user settings"
         est "Te kasutate MariaDB-i anonüümse kasutajana, kelledel pole parooli muutmise õigust"
         fre "Vous utilisez un utilisateur anonyme et les utilisateurs anonymes ne sont pas autorisés à changer les mots de passe"
         ger "Sie benutzen MariaDB als anonymer Benutzer und dürfen daher keine Passwörter ändern"
@@ -2946,7 +2946,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         jpn "MySQL を匿名ユーザーで使用しているので、パスワードの変更はできません。"
         kor "당신은 MariaDB서버에 익명의 사용자로 접속을 하셨습니다.익명의 사용자는 암호를 변경할 수 없습니다."
         por "Você está usando o MariaDB como usuário anônimo e usuários anônimos não têm permissão para mudar senhas"
-        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schime parolele"
+        rum "Dumneavoastra folositi MariaDB ca un utilizator anonim si utilizatorii anonimi nu au voie sa schimbe setarile utilizatorilor."
         rus "Вы используете MariaDB от имени анонимного пользователя, а анонимным пользователям не разрешается менять пароли"
         serbian "Vi koristite MariaDB kao anonimni korisnik a anonimnim korisnicima nije dozvoljeno da menjaju lozinke"
         spa "Tu estás usando MariaDB como un usuario anonimo y usuarios anonimos no tienen permiso para cambiar las claves"
@@ -3962,7 +3962,7 @@ ER_NEW_ABORTING_CONNECTION 08S01
         spa "Abortada conexión %ld para db: '%-.192s' usuario: '%-.48s' servidor: '%-.64s' (%-.64s)"
         swe "Avbröt länken för tråd %ld till db '%-.192s', användare '%-.48s', host '%-.64s' (%-.64s)"
         ukr "Перервано з'єднання %ld до бази данних: '%-.192s' користувач: '%-.48s' хост: '%-.64s' (%-.64s)"
-ER_unused_2
+ER_UNUSED_10
         eng "You should never see it"
 ER_FLUSH_MASTER_BINLOG_CLOSED  
         eng "Binlog closed, cannot RESET MASTER"
@@ -5541,8 +5541,8 @@ ER_VIEW_OTHER_USER
         eng "You need the SUPER privilege for creation view with '%-.192s'@'%-.192s' definer"
         ger "Sie brauchen die SUPER-Berechtigung, um einen View mit dem Definierer '%-.192s'@'%-.192s' zu erzeugen"
 ER_NO_SUCH_USER
-  eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
-  ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
+        eng "The user specified as a definer ('%-.64s'@'%-.64s') does not exist"
+        ger "Der als Definierer angegebene Benutzer ('%-.64s'@'%-.64s') existiert nicht"
 ER_FORBID_SCHEMA_CHANGE
         eng "Changing schema from '%-.192s' to '%-.192s' is not allowed."
         ger "Wechsel des Schemas von '%-.192s' auf '%-.192s' ist nicht erlaubt"
@@ -5879,10 +5879,9 @@ ER_EVENT_NEITHER_M_EXPR_NOR_M_AT
         ger "Kein DATETIME-Ausdruck angegeben"
 
 ER_UNUSED_2
-        eng ""
-
+        eng "You should never see it"
 ER_UNUSED_3
-        eng ""
+        eng "You should never see it"
 ER_EVENT_CANNOT_DELETE
         eng "Failed to delete the event from mysql.event"
         ger "Löschen des Events aus mysql.event fehlgeschlagen"
@@ -5910,7 +5909,7 @@ ER_CANT_LOCK_LOG_TABLE
         eng "You can't use locks with log tables."
         ger "Log-Tabellen können nicht gesperrt werden."
 ER_UNUSED_4
-        eng ""
+        eng "You should never see it"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
         eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error."
         ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
@@ -5920,9 +5919,8 @@ ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
 ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT
         eng "Cannot change the binary logging format inside a stored function or trigger"
         ger "Das Binärlog-Format kann innerhalb einer gespeicherten Funktion oder eines Triggers nicht geändert werden"
-ER_NDB_CANT_SWITCH_BINLOG_FORMAT
-        eng "The NDB cluster engine does not support changing the binlog format on the fly yet"
-        ger "Die Speicher-Engine NDB Cluster unterstützt das Ändern des Binärlog-Formats zur Laufzeit noch nicht"
+ER_UNUSED_13
+        eng "You should never see it"
 ER_PARTITION_NO_TEMPORARY
         eng "Cannot create temporary table with partitions"
         ger "Anlegen temporärer Tabellen mit Partitionen nicht möglich"
@@ -6090,8 +6088,8 @@ ER_TRG_CANT_OPEN_TABLE
 ER_CANT_CREATE_SROUTINE
   eng "Cannot create stored routine `%-.64s`. Check warnings"
   ger "Kann gespeicherte Routine `%-.64s` nicht erzeugen. Beachten Sie die Warnungen"
-ER_UNUSED
-  eng ""
+ER_UNUSED_11
+        eng "You should never see it"
 ER_NO_FORMAT_DESCRIPTION_EVENT_BEFORE_BINLOG_STATEMENT
   eng "The BINLOG statement of type `%s` was not preceded by a format description BINLOG statement."
   ger "Der BINLOG-Anweisung vom Typ `%s` ging keine BINLOG-Anweisung zur Formatbeschreibung voran."
@@ -6139,9 +6137,8 @@ ER_SLAVE_HEARTBEAT_FAILURE
   ger "Unerwartete Daten vom Heartbeat des Masters: %s"
 ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE
   eng "The requested value for the heartbeat period is either negative or exceeds the maximum allowed (%s seconds)."
-ER_NDB_REPLICATION_SCHEMA_ERROR
-  eng "Bad schema for mysql.ndb_replication table. Message: %-.64s"
-  ger "Fehlerhaftes Schema für mysql.ndb_replication table. Meldung: %-.64s"
+ER_UNUSED_14
+  eng "You should never see it"
 ER_CONFLICT_FN_PARSE_ERROR
   eng "Error in parsing conflict function. Message: %-.64s"
   ger "Fehler beim Parsen einer Konflikt-Funktion. Meldung: %-.64s"
@@ -6459,7 +6456,7 @@ ER_BINLOG_UNSAFE_INSERT_TWO_KEYS
 ER_TABLE_IN_FK_CHECK
   eng "Table is being used in foreign key check."
 
-ER_unused_1
+ER_UNUSED_1
   eng "You should never see it"
 
 ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST
@@ -6529,7 +6526,7 @@ ER_ROW_DOES_NOT_MATCH_GIVEN_PARTITION_SET
   swe "Hittade en rad som inte passar i någon given partition"
 
 ER_UNUSED_5
-  eng ""
+  eng "You should never see it"
 
 ER_CHANGE_RPL_INFO_REPOSITORY_FAILURE
   eng "Failure while changing the type of replication repository: %s."
@@ -6995,11 +6992,11 @@ ER_UNKNOWN_OPTION
 ER_BAD_OPTION_VALUE
   eng "Incorrect value '%-.64s' for option '%-.64s'"
 ER_UNUSED_6
-  eng ""
+  eng "You should never see it"
 ER_UNUSED_7
-  eng ""
+  eng "You should never see it"
 ER_UNUSED_8
-  eng ""
+  eng "You should never see it"
 ER_DATA_OVERFLOW 22003
         eng "Got overflow when converting '%-.128s' to %-.32s. Value truncated."
 ER_DATA_TRUNCATED 22003
@@ -7024,8 +7021,8 @@ ER_VIEW_ORDERBY_IGNORED
         eng "View '%-.192s'.'%-.192s' ORDER BY clause ignored because there is other ORDER BY clause already."
 ER_CONNECTION_KILLED 70100 
         eng "Connection was killed"
-ER_UNSED 
-        eng "Internal error: '%-.192s'"
+ER_UNUSED_12
+        eng "You should never see it"
 ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_SKIP_REPLICATION
         eng "Cannot modify @@session.skip_replication inside a transaction"
 ER_STORED_FUNCTION_PREVENTS_SWITCH_SKIP_REPLICATION
@@ -7110,3 +7107,7 @@ ER_IT_IS_A_VIEW 42S02
         eng "'%-.192s' is a view"
 ER_SLAVE_SKIP_NOT_IN_GTID
 	eng "When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position."
+ER_TABLE_DEFINITION_TOO_BIG
+        eng "The definition for table %`s is too big"
+ER_STATEMENT_TIMEOUT 70100
+        eng "Query execution was interrupted (max_statement_time exceeded)"

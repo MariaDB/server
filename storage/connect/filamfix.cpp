@@ -1,7 +1,7 @@
 /*********** File AM Fix C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMFIX                                              */
 /* -------------                                                       */
-/*  Version 1.5                                                        */
+/*  Version 1.6                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -80,6 +80,37 @@ FIXFAM::FIXFAM(PFIXFAM txfp) : BLKFAM(txfp)
   } // end of FIXFAM copy constructor
 
 /***********************************************************************/
+/*  SetPos: Replace the table at the specified position.               */
+/***********************************************************************/
+bool FIXFAM::SetPos(PGLOBAL g, int pos)
+  {
+  if (pos < 0) {
+    strcpy(g->Message, MSG(INV_REC_POS));
+    return true;
+    } // endif recpos
+
+  CurBlk = pos / Nrec;
+  CurNum = pos % Nrec;
+#if defined(_DEBUG)
+  num_eq[(CurBlk == OldBlk) ? 1 : 0]++;
+#endif
+
+  // Indicate the table position was externally set
+  Placed = true;
+  return false;
+  } // end of SetPos
+
+/***********************************************************************/
+/*  Initialize CurBlk and CurNum for indexed DELETE.                   */
+/***********************************************************************/
+int FIXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
+  {
+  CurBlk = fpos / Nrec;
+  CurNum = fpos % Nrec;
+  return RC_OK;
+  } // end of InitDelete
+
+/***********************************************************************/
 /*  Allocate the block buffer for the table.                           */
 /***********************************************************************/
 bool FIXFAM::AllocateBuffer(PGLOBAL g)
@@ -128,12 +159,9 @@ void FIXFAM::ResetBuffer(PGLOBAL g)
   /*********************************************************************/
   /*  If access is random, performances can be much better when the    */
   /*  reads are done on only one row, except for small tables that can */
-  /*  be entirely read in one block. If the index is just used as a    */
-  /*  bitmap filter as for Update or Delete reading will be sequential */
-  /*  and we better keep block reading.                                */
+  /*  be entirely read in one block.                                   */
   /*********************************************************************/
-  if (Tdbp->GetMode() == MODE_READ && ReadBlks != 1 && !Padded &&
-      Tdbp->GetKindex() /*&& Tdbp->GetKindex()->IsRandom()*/) {
+  if (Tdbp->GetKindex() && ReadBlks != 1 && !Padded) {
     Nrec = 1;                       // Better for random access
     Rbuf = 0;
     Blksize = Lrecl;
@@ -144,79 +172,93 @@ void FIXFAM::ResetBuffer(PGLOBAL g)
   } // end of ResetBuffer
 
 /***********************************************************************/
+/*  WriteModifiedBlock: Used when updating.                            */
+/***********************************************************************/
+int FIXFAM::WriteModifiedBlock(PGLOBAL g)
+  {
+  /*********************************************************************/
+  /*  The old block was modified in Update mode.                       */
+  /*  In Update mode we simply rewrite the old block on itself.        */
+  /*********************************************************************/
+  int  rc = RC_OK;
+  bool moved = false;
+
+  // Using temp copy any intermediate lines.
+  if (UseTemp && MoveIntermediateLines(g, &moved))
+    rc = RC_FX;
+
+  // Fpos is last position, Headlen is DBF file header length
+  else if (!moved && fseek(Stream, Headlen + Fpos * Lrecl, SEEK_SET)) {
+    sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
+    rc = RC_FX;
+  } else if (fwrite(To_Buf, Lrecl, Rbuf, T_Stream) != (size_t)Rbuf) {
+    sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
+    rc = RC_FX;
+  } else
+    Spos = Fpos + Nrec;           // + Rbuf ???
+
+  if (Closing || rc != RC_OK) {   // Error or called from CloseDB
+    Closing = true;               // To tell CloseDB about error
+    return rc;
+    } // endif Closing
+
+  // NOTE: Next line was added to avoid a very strange fread bug.
+  // When the fseek is not executed (even the file has the good
+  // pointer position) the next read can happen anywhere in the file.
+  OldBlk = CurBlk;            // This will force fseek to be executed
+  Modif = 0;
+  return rc;
+  } // end of WriteModifiedBlock
+
+/***********************************************************************/
 /*  ReadBuffer: Read one line for a FIX file.                          */
 /***********************************************************************/
 int FIXFAM::ReadBuffer(PGLOBAL g)
   {
   int n, rc = RC_OK;
 
-  if (!Closing) {
+  /*********************************************************************/
+  /*  Sequential reading when Placed is not true.                      */
+  /*********************************************************************/
+  if (Placed) {
+    Tdbp->SetLine(To_Buf + CurNum * Lrecl);
+    Placed = false;
+  } else if (++CurNum < Rbuf) {
+    Tdbp->IncLine(Lrecl);                // Used by DOSCOL functions
+    return RC_OK;
+  } else if (Rbuf < Nrec && CurBlk != -1) {
+    return RC_EF;
+  } else {
     /*******************************************************************/
-    /*  Sequential reading when Placed is not true.                    */
+    /*  New block.                                                     */
     /*******************************************************************/
-    if (Placed) {
-      Tdbp->SetLine(To_Buf + CurNum * Lrecl);
-      Placed = false;
-    } else if (++CurNum < Rbuf) {
-      Tdbp->IncLine(Lrecl);                // Used by DOSCOL functions
-      return RC_OK;
-    } else if (Rbuf < Nrec && CurBlk != -1) {
+    CurNum = 0;
+    Tdbp->SetLine(To_Buf);
+
+ next:
+    if (++CurBlk >= Block)
       return RC_EF;
-    } else {
-      /*****************************************************************/
-      /*  New block.                                                   */
-      /*****************************************************************/
-      CurNum = 0;
-      Tdbp->SetLine(To_Buf);
 
-      if (++CurBlk >= Block)
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block indexing       */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
         return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+   } // endif's
 
-     } // endif's
+  if (OldBlk == CurBlk) {
+    IsRead = true;            // Was read indeed
+    return RC_OK;             // Block is already there
+    } // endif OldBlk
 
-    if (OldBlk == CurBlk) {
-      IsRead = true;            // Was read indeed
-      return RC_OK;             // Block is already there
-      } // endif OldBlk
-
-    } // endif !Closing
-
-  if (Modif) {
-    /*******************************************************************/
-    /*  The old block was modified in Update mode.                     */
-    /*  In Update mode we simply rewrite the old block on itself.      */
-    /*******************************************************************/
-    bool moved = false;
-
-    if (UseTemp)                // Copy any intermediate lines.
-      if (MoveIntermediateLines(g, &moved))
-        rc = RC_FX;
-
-    if (rc == RC_OK) {
-      // Fpos is last position, Headlen is DBF file header length
-      if (!moved && fseek(Stream, Headlen + Fpos * Lrecl, SEEK_SET)) {
-        sprintf(g->Message, MSG(FSETPOS_ERROR), 0);
-        rc = RC_FX;
-      } else if (fwrite(To_Buf, Lrecl, Rbuf, T_Stream) != (size_t)Rbuf) {
-        sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
-        rc = RC_FX;
-      } // endif fwrite
-
-      Spos = Fpos + Nrec;       // + Rbuf ???
-      } // endif rc
-
-    if (Closing || rc != RC_OK) {   // Error or called from CloseDB
-      Closing = true;           // To tell CloseDB about error
-      return rc;
-      } // endif Closing
-
-    // NOTE: Next line was added to avoid a very  strange fread bug.
-    // When the fseek is not executed (even the file has the good
-    // pointer position) the next read can happen anywhere in the file.
-    OldBlk = CurBlk;            // This will force fseek to be executed
-    Modif = 0;
-//  Spos = Fpos + Nrec;         done above
-    } // endif Mode
+  // Write modified block in mode UPDATE
+  if (Modif && (rc = WriteModifiedBlock(g)) != RC_OK)
+    return rc;
 
   // This could be done only for new block. However note that FPOS
   // is used as block position when updating and as line position
@@ -233,8 +275,6 @@ int FIXFAM::ReadBuffer(PGLOBAL g)
 
   if (trace > 1)
     htrc("File position is now %d\n", ftell(Stream));
-
-//long tell = ftell(Stream);                not used
 
   if (Padded)
     n = fread(To_Buf, (size_t)Blksize, 1, Stream);
@@ -304,19 +344,23 @@ int FIXFAM::WriteBuffer(PGLOBAL g)
 
   } else {                           // Mode == MODE_UPDATE
     // T_Stream is the temporary stream or the table file stream itself
-    if (!T_Stream)
-    {
-      if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
+    if (!T_Stream) {
+      if (UseTemp) {
         if (OpenTempFile(g))
           return RC_FX;
-
-        if (CopyHeader(g))           // For DBF tables
+        else if (CopyHeader(g))           // For DBF tables
           return RC_FX;
 
       } else
         T_Stream = Stream;
-    }
-    Modif++;                         // Modified line in Update mode
+
+      } // endif T_Stream
+
+    if (Nrec > 1)
+      Modif++;                         // Modified line in blocked mode
+    else if (WriteModifiedBlock(g))    // Indexed update
+      return RC_FX;
+
   } // endif Mode
 
   return RC_OK;
@@ -516,36 +560,37 @@ bool FIXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 /*  Table file close routine for FIX access method.                    */
 /***********************************************************************/
-void FIXFAM::CloseTableFile(PGLOBAL g)
+void FIXFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
+
+  Abort = abort;
 
   // Closing is True if last Write was in error
   if (mode == MODE_INSERT && CurNum && !Closing) {
     // Some more inserted lines remain to be written
     Rbuf = CurNum--;
-//  Closing = true;
     wrc = WriteBuffer(g);
   } else if (mode == MODE_UPDATE) {
     if (Modif && !Closing) {
       // Last updated block remains to be written
-      Closing = true;
-      wrc = ReadBuffer(g);
+      Closing = true;               // ???
+      wrc = WriteModifiedBlock(g);
       } // endif Modif
 
     if (UseTemp && T_Stream && wrc == RC_OK) {
-      // Copy any remaining lines
-      bool b;
+      if (!Abort) {
+        // Copy any remaining lines
+        bool b;
+    
+        Fpos = Tdbp->Cardinality(g);
+        Abort = MoveIntermediateLines(g, &b) != RC_OK;
+        } // endif Abort
 
-      Fpos = Tdbp->Cardinality(g);
-
-      if ((rc = MoveIntermediateLines(g, &b)) == RC_OK) {
-        // Delete the old file and rename the new temp file.
-        RenameTempFile(g);
-        goto fin;
-        } // endif rc
-
+      // Delete the old file and rename the new temp file.
+      RenameTempFile(g);
+      goto fin;
       } // endif UseTemp
 
   } // endif's mode
@@ -602,7 +647,9 @@ bool BGXFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, int org)
     } // endif
 #else   // !WIN32
   if (lseek64(h, pos, org) < 0) {
-    sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
+//  sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
+    sprintf(g->Message, "lseek64: %s", strerror(errno));
+    printf("%s\n", g->Message);
     return true;
     } // endif
 #endif  // !WIN32
@@ -804,7 +851,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
 #else   // UNIX
   int    rc = 0;
   int    oflag = O_LARGEFILE;         // Enable file size > 2G
-  mode_t tmode = 0;
+  mode_t tmode = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
 
   /*********************************************************************/
   /*  Create the file object according to access mode                  */
@@ -829,7 +876,7 @@ bool BGXFAM::OpenTableFile(PGLOBAL g)
       break;
     case MODE_INSERT:
       oflag |= (O_WRONLY | O_CREAT | O_APPEND);
-      tmode = S_IREAD | S_IWRITE;
+ //   tmode = S_IREAD | S_IWRITE;
       break;
     default:
       sprintf(g->Message, MSG(BAD_OPEN_MODE), mode);
@@ -988,73 +1035,92 @@ int BGXFAM::Cardinality(PGLOBAL g)
   } // end of Cardinality
 
 /***********************************************************************/
+/*  WriteModifiedBlock: Used when updating.                            */
+/***********************************************************************/
+int BGXFAM::WriteModifiedBlock(PGLOBAL g)
+  {
+  /*********************************************************************/
+  /*  The old block was modified in Update mode.                       */
+  /*  In Update mode we simply rewrite the old block on itself.        */
+  /*********************************************************************/
+  int  rc = RC_OK;
+  bool moved = false;
+
+  if (UseTemp)                // Copy any intermediate lines.
+    if (MoveIntermediateLines(g, &moved))
+      rc = RC_FX;
+
+  if (rc == RC_OK) {
+    // Set file position to OldBlk position (Fpos)
+    if (!moved && BigSeek(g, Hfile, (BIGINT)Fpos * (BIGINT)Lrecl))
+      rc = RC_FX;
+    else if (BigWrite(g, Tfile, To_Buf, Lrecl * Rbuf))
+      rc = RC_FX;
+
+    Spos = Fpos + Nrec;       // + Rbuf ???
+    } // endif rc
+
+  if (Closing || rc != RC_OK) // Error or called from CloseDB
+    return rc;
+
+  // NOTE: Next line was added to avoid a very  strange fread bug.
+  // When the fseek is not executed (even the file has the good
+  // pointer position) the next read can happen anywhere in the file.
+  OldBlk = CurBlk;       // This will force fseek to be executed
+  Modif = 0;
+  return rc;
+  } // end of WriteModifiedBlock
+
+/***********************************************************************/
 /*  ReadBuffer: Read Nrec lines for a big fixed/binary file.           */
 /***********************************************************************/
 int BGXFAM::ReadBuffer(PGLOBAL g)
   {
   int nbr, rc = RC_OK;
 
-  if (!Closing) {
+  /*********************************************************************/
+  /*  Sequential reading when Placed is not true.                      */
+  /*********************************************************************/
+  if (Placed) {
+    Tdbp->SetLine(To_Buf + CurNum * Lrecl);
+    Placed = false;
+  } else if (++CurNum < Rbuf) {
+    Tdbp->IncLine(Lrecl);                // Used by DOSCOL functions
+    return RC_OK;
+  } else if (Rbuf < Nrec && CurBlk != -1) {
+    return RC_EF;
+  } else {
     /*******************************************************************/
-    /*  Sequential reading when Placed is not true.                    */
+    /*  New block.                                                     */
     /*******************************************************************/
-    if (Placed) {
-      Tdbp->SetLine(To_Buf + CurNum * Lrecl);
-      Placed = false;
-    } else if (++CurNum < Rbuf) {
-      Tdbp->IncLine(Lrecl);                // Used by DOSCOL functions
-      return RC_OK;
-    } else if (Rbuf < Nrec && CurBlk != -1) {
+    CurNum = 0;
+    Tdbp->SetLine(To_Buf);
+
+ next:
+    if (++CurBlk >= Block)
       return RC_EF;
-    } else {
-      /*****************************************************************/
-      /*  New block.                                                   */
-      /*****************************************************************/
-      CurNum = 0;
-      Tdbp->SetLine(To_Buf);
 
-      if (++CurBlk >= Block)
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
         return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
 
-     } // endif's
+   } // endif's
 
-    if (OldBlk == CurBlk) {
-      IsRead = true;       // Was read indeed
-      return RC_OK;        // Block is already there
-      } // endif OldBlk
+  if (OldBlk == CurBlk) {
+    IsRead = true;       // Was read indeed
+    return RC_OK;        // Block is already there
+    } // endif OldBlk
 
-    } // endif !Closing
-
-  if (Modif) {
-    /*******************************************************************/
-    /*  The old block was modified in Update mode.                     */
-    /*  In Update mode we simply rewrite the old block on itself.      */
-    /*******************************************************************/
-    bool moved = false;
-
-    if (UseTemp)                // Copy any intermediate lines.
-      if (MoveIntermediateLines(g, &moved))
-        rc = RC_FX;
-
-    if (rc == RC_OK) {
-      // Set file position to OldBlk position (Fpos)
-      if (!moved && BigSeek(g, Hfile, (BIGINT)Fpos * (BIGINT)Lrecl))
-        rc = RC_FX;
-      else if (BigWrite(g, Tfile, To_Buf, Lrecl * Rbuf))
-        rc = RC_FX;
-
-      Spos = Fpos + Nrec;       // + Rbuf ???
-      } // endif rc
-
-    if (Closing || rc != RC_OK) // Error or called from CloseDB
-      return rc;
-
-    // NOTE: Next line was added to avoid a very  strange fread bug.
-    // When the fseek is not executed (even the file has the good
-    // pointer position) the next read can happen anywhere in the file.
-    OldBlk = CurBlk;       // This will force fseek to be executed
-    Modif = 0;
-    } // endif Mode
+  // Write modified block in mode UPDATE
+  if (Modif && (rc = WriteModifiedBlock(g)) != RC_OK)
+    return rc;
 
   Fpos = CurBlk * Nrec;
 
@@ -1116,16 +1182,21 @@ int BGXFAM::WriteBuffer(PGLOBAL g)
 
   } else {                           // Mode == MODE_UPDATE
     // Tfile is the temporary file or the table file handle itself
-    if (Tfile == INVALID_HANDLE_VALUE)
-    {
+    if (Tfile == INVALID_HANDLE_VALUE) {
       if (UseTemp /*&& Tdbp->GetMode() == MODE_UPDATE*/) {
         if (OpenTempFile(g))
           return RC_FX;
 
       } else
         Tfile = Hfile;
-    }
-    Modif++;                         // Modified line in Update mode
+
+      } // endif Tfile
+
+    if (Nrec > 1)
+      Modif++;                         // Modified line in blocked mode
+    else if (WriteModifiedBlock(g))    // Indexed update
+      return RC_FX;
+
   } // endif Mode
 
   return RC_OK;
@@ -1210,14 +1281,10 @@ int BGXFAM::DeleteRecords(PGLOBAL g, int irc)
     if (trace > 1)
       htrc("after: Tpos=%d Spos=%d\n", Tpos, Spos);
 
-  } else {
+  } else if (irc != RC_OK) {
     /*******************************************************************/
     /*  Last call after EOF has been reached.                          */
     /*******************************************************************/
-    char filename[_MAX_PATH];
-
-    PlugSetPath(filename, To_File, Tdbp->GetPath());
-
     if (UseTemp) {
       /*****************************************************************/
       /*  Ok, now delete old file and rename new temp file.            */
@@ -1352,10 +1419,12 @@ bool BGXFAM::MoveIntermediateLines(PGLOBAL g, bool *b)
 /***********************************************************************/
 /*  Data Base close routine for BIGFIX access method.                  */
 /***********************************************************************/
-void BGXFAM::CloseTableFile(PGLOBAL g)
+void BGXFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK, wrc = RC_OK;
   MODE mode = Tdbp->GetMode();
+
+  Abort = abort;
 
   // Closing is True if last Write was in error
   if (mode == MODE_INSERT && CurNum && !Closing) {
@@ -1366,21 +1435,21 @@ void BGXFAM::CloseTableFile(PGLOBAL g)
     if (Modif && !Closing) {
       // Last updated block remains to be written
       Closing = true;
-      wrc = ReadBuffer(g);
+      wrc = WriteModifiedBlock(g);
       } // endif Modif
 
     if (UseTemp && Tfile && wrc == RC_OK) {
-      // Copy any remaining lines
-      bool b;
+      if (!Abort) {
+        // Copy any remaining lines
+        bool b;
+    
+        Fpos = Tdbp->Cardinality(g);
+        Abort = MoveIntermediateLines(g, &b) != RC_OK;
+        } // endif Abort
 
-      Fpos = Tdbp->Cardinality(g);
-
-      if ((rc = MoveIntermediateLines(g, &b)) == RC_OK) {
-        // Delete the old file and rename the new temp file.
-        RenameTempFile(g);
-        goto fin;
-        } // endif rc
-
+      // Delete the old file and rename the new temp file.
+      RenameTempFile(g);
+      goto fin;
       } // endif UseTemp
 
   } // endif's mode

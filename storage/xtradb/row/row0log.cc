@@ -40,6 +40,10 @@ Created 2011-05-26 Marko Makela
 
 #include<map>
 
+ulint onlineddl_rowlog_rows;
+ulint onlineddl_rowlog_pct_used;
+ulint onlineddl_pct_progress;
+
 /** Table row modification operations during online table rebuild.
 Delete-marked records are not copied to the rebuilt table. */
 enum row_tab_op {
@@ -471,6 +475,10 @@ write_failed:
 	log->tail.total += size;
 	UNIV_MEM_INVALID(log->tail.buf, sizeof log->tail.buf);
 	mutex_exit(&log->mutex);
+
+	os_atomic_increment_ulint(&onlineddl_rowlog_rows, 1);
+	/* 10000 means 100.00%, 4525 means 45.25% */
+	onlineddl_rowlog_pct_used = (log->tail.total * 10000) / srv_online_max_size;
 }
 
 #ifdef UNIV_DEBUG
@@ -2544,7 +2552,7 @@ all_done:
 		success = os_file_read_no_error_handling(
 			OS_FILE_FROM_FD(index->online_log->fd),
 			index->online_log->head.block, ofs,
-			srv_sort_buf_size);
+			srv_sort_buf_size, FALSE);
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"
@@ -3372,7 +3380,7 @@ all_done:
 		success = os_file_read_no_error_handling(
 			OS_FILE_FROM_FD(index->online_log->fd),
 			index->online_log->head.block, ofs,
-			srv_sort_buf_size);
+			srv_sort_buf_size, FALSE);
 
 		if (!success) {
 			fprintf(stderr, "InnoDB: unable to read temporary file"

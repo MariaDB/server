@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -90,9 +90,8 @@ PATENT RIGHTS GRANT:
 #include <toku_portability.h>
 #include <string.h>
 
-#include "logcursor.h"
+#include "logger/logcursor.h"
 #include "test.h"
-#include "fttypes.h"
 
 #if defined(HAVE_LIMITS_H)
 # include <limits.h>
@@ -105,7 +104,6 @@ const char LOGDIR[100] = "./dir.test_logcursor";
 const int FSYNC = 1;
 const int NO_FSYNC = 0;
 
-const int envflags = DB_INIT_MPOOL|DB_CREATE|DB_THREAD |DB_INIT_LOCK|DB_INIT_LOG|DB_INIT_TXN;
 const char *namea="a.db";
 const char *nameb="b.db";
 const char *a="a";

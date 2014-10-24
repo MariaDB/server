@@ -22,7 +22,6 @@
 #         effects like failing 'sync_slave_with_master', crashes of the slave or
 #         abort of the test case etc..
 #
---source include/not_ndb_default.inc
 --source include/have_innodb.inc
 --source include/master-slave.inc
 let $engine_type= InnoDB;

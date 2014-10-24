@@ -261,6 +261,8 @@ pfs_os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed, /*!< in: is this file space
+				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -271,7 +273,7 @@ pfs_os_file_read_func(
 	register_pfs_file_io_begin(&state, locker, file, n, PSI_FILE_READ,
 				   src_file, src_line);
 
-	result = os_file_read_func(file, buf, offset, n);
+	result = os_file_read_func(file, buf, offset, n, compressed);
 
 	register_pfs_file_io_end(locker, n);
 
@@ -294,6 +296,8 @@ pfs_os_file_read_no_error_handling_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed, /*!< in: is this file space
+				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -304,7 +308,7 @@ pfs_os_file_read_no_error_handling_func(
 	register_pfs_file_io_begin(&state, locker, file, n, PSI_FILE_READ,
 				   src_file, src_line);
 
-	result = os_file_read_no_error_handling_func(file, buf, offset, n);
+	result = os_file_read_no_error_handling_func(file, buf, offset, n, compressed);
 
 	register_pfs_file_io_end(locker, n);
 

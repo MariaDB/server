@@ -131,7 +131,7 @@ $0  Ver $version
 
 Prints all SQL queries that matches a regexp or contains a 'use
 database' or 'set ..' command to stdout.  A SQL query may contain
-newlines.  This is useful to find things in a MySQL update log.
+newlines.  This is useful to find things in a MariaDB update log.
 
 $0 takes the following options:
 

@@ -181,6 +181,16 @@ lock_update_merge_left(
 	const buf_block_t*	right_block);	/*!< in: merged index page
 						which will be discarded */
 /*************************************************************//**
+Updates the lock table when a page is splited and merged to
+two pages. */
+UNIV_INTERN
+void
+lock_update_split_and_merge(
+	const buf_block_t* left_block,	/*!< in: left page to which merged */
+	const rec_t* orig_pred,		/*!< in: original predecessor of
+					supremum on the left page before merge*/
+	const buf_block_t* right_block);/*!< in: right page from which merged */
+/*************************************************************//**
 Resets the original locks on heir and replaces them with gap type locks
 inherited from rec. */
 UNIV_INTERN
@@ -289,7 +299,7 @@ lock_rec_insert_check_and_lock(
 				inserted record maybe should inherit
 				LOCK_GAP type locks from the successor
 				record */
-	__attribute__((nonnull, warn_unused_result));
+	__attribute__((nonnull(2,3,4,6,7), warn_unused_result));
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate modify (update,
 delete mark, or delete unmark) of a clustered index record. If they do,
@@ -972,6 +982,16 @@ extern lock_sys_t*	lock_sys;
 	mutex_exit(&lock_sys->wait_mutex);	\
 } while (0)
 
+#ifdef WITH_WSREP
+/*********************************************************************//**
+Cancels a waiting lock request and releases possible other transactions
+waiting behind it. */
+UNIV_INTERN
+void
+lock_cancel_waiting_and_release(
+/*============================*/
+	lock_t*	lock);	/*!< in/out: waiting lock request */
+#endif /* WITH_WSREP */
 #ifndef UNIV_NONINL
 #include "lock0lock.ic"
 #endif

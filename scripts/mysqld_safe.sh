@@ -189,17 +189,90 @@ shell_quote_string() {
   echo "$1" | sed -e 's,\([^a-zA-Z0-9/_.=-]\),\\\1,g'
 }
 
-parse_arguments() {
-  # We only need to pass arguments through to the server if we don't
-  # handle them here.  So, we collect unrecognized options (passed on
-  # the command line) into the args variable.
-  pick_args=
-  if test "$1" = PICK-ARGS-FROM-ARGV
-  then
-    pick_args=1
-    shift
+wsrep_pick_url() {
+  [ $# -eq 0 ] && return 0
+
+  log_error "WSREP: 'wsrep_urls' is DEPRECATED! Use wsrep_cluster_address to specify multiple addresses instead."
+
+  if ! which nc >/dev/null; then
+    log_error "ERROR: nc tool not found in PATH! Make sure you have it installed."
+    return 1
   fi
 
+  local url
+  # Assuming URL in the form scheme://host:port
+  # If host and port are not NULL, the liveness of URL is assumed to be tested
+  # If port part is absent, the url is returned literally and unconditionally
+  # If every URL has port but none is reachable, nothing is returned
+  for url in `echo $@ | sed s/,/\ /g` 0; do
+    local host=`echo $url | cut -d \: -f 2 | sed s/^\\\/\\\///`
+    local port=`echo $url | cut -d \: -f 3`
+    [ -z "$port" ] && break
+    nc -z "$host" $port >/dev/null && break
+  done
+
+  if [ "$url" == "0" ]; then
+    log_error "ERROR: none of the URLs in '$@' is reachable."
+    return 1
+  fi
+
+  echo $url
+}
+
+# Run mysqld with --wsrep-recover and parse recovered position from log.
+# Position will be stored in wsrep_start_position_opt global.
+wsrep_start_position_opt=""
+wsrep_recover_position() {
+  local mysqld_cmd="$@"
+  local euid=$(id -u)
+  local ret=0
+
+  local wr_logfile=$(mktemp $DATADIR/wsrep_recovery.XXXXXX)
+
+  # safety checks
+  if [ -z $wr_logfile ]; then
+    log_error "WSREP: mktemp failed"
+    return 1
+  fi
+
+  if [ -f $wr_logfile ]; then
+    [ "$euid" = "0" ] && chown $user $wr_logfile
+    chmod 600 $wr_logfile
+  else
+    log_error "WSREP: mktemp failed"
+    return 1
+  fi
+
+  local wr_pidfile="$DATADIR/"`@HOSTNAME@`"-recover.pid"
+
+  local wr_options="--log_error='$wr_logfile' --pid-file='$wr_pidfile'"
+
+  log_notice "WSREP: Running position recovery with $wr_options"
+
+  eval_log_error "$mysqld_cmd --wsrep_recover $wr_options"
+
+  local rp="$(grep 'WSREP: Recovered position:' $wr_logfile)"
+  if [ -z "$rp" ]; then
+    local skipped="$(grep WSREP $wr_logfile | grep 'skipping position recovery')"
+    if [ -z "$skipped" ]; then
+      log_error "WSREP: Failed to recover position: '`cat $wr_logfile`'"
+      ret=1
+    else
+      log_notice "WSREP: Position recovery skipped"
+    fi
+  else
+    local start_pos="$(echo $rp | sed 's/.*WSREP\:\ Recovered\ position://' \
+        | sed 's/^[ \t]*//')"
+    log_notice "WSREP: Recovered position $start_pos"
+    wsrep_start_position_opt="--wsrep_start_position=$start_pos"
+  fi
+
+  [ $ret -eq 0 ] && rm $wr_logfile
+
+  return $ret
+}
+
+parse_arguments() {
   for arg do
     val=`echo "$arg" | sed -e "s;--[^=]*=;;"`
     case "$arg" in
@@ -245,15 +318,22 @@ parse_arguments() {
       --timezone=*) TZ="$val"; export TZ; ;;
       --flush[-_]caches) flush_caches=1 ;;
       --numa[-_]interleave) numa_interleave=1 ;;
+      --wsrep[-_]urls=*) wsrep_urls="$val"; ;;
+      --wsrep[-_]provider=*)
+        if test -n "$val" && test "$val" != "none"
+        then
+          wsrep_restart=1
+        fi
+        append_arg_to_args "$arg"
+        ;;
 
       --help) usage ;;
 
       *)
-        if test -n "$pick_args"
-        then
-          append_arg_to_args "$arg"
-        fi
-        ;;
+        case "$unrecognized_handling" in
+          collect) append_arg_to_args "$arg" ;;
+          complain) log_error "unknown option '$arg'" ;;
+        esac
     esac
   done
 }
@@ -510,8 +590,16 @@ then
   SET_USER=0
 fi
 
+# If arguments come from [mysqld_safe] section of my.cnf
+# we complain about unrecognized options
+unrecognized_handling=complain
 parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe`
-parse_arguments PICK-ARGS-FROM-ARGV "$@"
+
+# We only need to pass arguments through to the server if we don't
+# handle them here.  So, we collect unrecognized options (passed on
+# the command line) into the args variable.
+unrecognized_handling=collect
+parse_arguments "$@"
 
 
 #
@@ -860,13 +948,28 @@ max_fast_restarts=5
 # flag whether a usable sleep command exists
 have_sleep=1
 
+# maximum number of wsrep restarts
+max_wsrep_restarts=0
+
 while true
 do
   rm -f "$pid_file"	# Some extra safety
 
   start_time=`date +%M%S`
 
-  eval_log_error "$cmd"
+  # this sets wsrep_start_position_opt
+  wsrep_recover_position "$cmd"
+
+  [ $? -ne 0 ] && exit 1 #
+
+  [ -n "$wsrep_urls" ] && url=`wsrep_pick_url $wsrep_urls` # check connect address
+
+  if [ -z "$url" ]
+  then
+    eval_log_error "$cmd $wsrep_start_position_opt $nohup_redir"
+  else
+    eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url $nohup_redir"
+  fi
 
   if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then
     touch "$err_log"                    # hypothetical: log was renamed but not
@@ -936,6 +1039,20 @@ do
       I=`expr $I + 1`
     done
   fi
+
+  if [ -n "$wsrep_restart" ]
+  then
+    if [ $wsrep_restart -le $max_wsrep_restarts ]
+    then
+      wsrep_restart=`expr $wsrep_restart + 1`
+      log_notice "WSREP: sleeping 15 seconds before restart"
+      sleep 15
+    else
+      log_notice "WSREP: not restarting wsrep node automatically"
+      break
+    fi
+  fi
+
   log_notice "mysqld restarted"
   if test -n "$CRASH_SCRIPT"
   then

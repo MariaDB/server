@@ -1113,6 +1113,7 @@ public:
     and max #key parts that range access would use.
   */
   ha_rows	quick_rows[MAX_KEY];
+  double 	quick_costs[MAX_KEY];
 
   /* 
     Bitmaps of key parts that =const for the duration of join execution. If
@@ -1335,6 +1336,8 @@ public:
   { return !db_stat || m_needs_reopen; }
 
   bool alloc_keys(uint key_count);
+  bool check_tmp_key(uint key, uint key_parts,
+                     uint (*next_field_no) (uchar *), uchar *arg);
   bool add_tmp_key(uint key, uint key_parts,
                    uint (*next_field_no) (uchar *), uchar *arg,
                    bool unique);
@@ -1486,8 +1489,8 @@ typedef struct st_schema_table
 {
   const char* table_name;
   ST_FIELD_INFO *fields_info;
-  /* Create information_schema table */
-  TABLE *(*create_table)  (THD *thd, TABLE_LIST *table_list);
+  /* for FLUSH table_name */
+  int (*reset_table) ();
   /* Fill table with data */
   int (*fill_table) (THD *thd, TABLE_LIST *tables, COND *cond);
   /* Handle fileds for old SHOW */
@@ -1499,6 +1502,7 @@ typedef struct st_schema_table
   uint i_s_requested_object;  /* the object we need to open(TABLE | VIEW) */
 } ST_SCHEMA_TABLE;
 
+class IS_table_read_plan;
 
 /*
   Types of derived tables. The ending part is a bitmap of phases that are
@@ -2044,11 +2048,22 @@ struct TABLE_LIST
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
+  /* I_S: Flags to open_table (e.g. OPEN_TABLE_ONLY or OPEN_VIEW_ONLY) */
   uint i_s_requested_object;
-  bool has_db_lookup_value;
-  bool has_table_lookup_value;
+
+  /*
+    I_S: how to read the tables (SKIP_OPEN_TABLE/OPEN_FRM_ONLY/OPEN_FULL_TABLE)
+  */
   uint table_open_method;
+  /*
+    I_S: where the schema table was filled
+    (this is a hack. The code should be able to figure out whether reading
+    from I_S should be done by create_sort_index() or by JOIN::exec.)
+  */
   enum enum_schema_table_state schema_table_state;
+
+  /* Something like a "query plan" for reading INFORMATION_SCHEMA table */
+  IS_table_read_plan *is_table_read_plan;
 
   MDL_request mdl_request;
 

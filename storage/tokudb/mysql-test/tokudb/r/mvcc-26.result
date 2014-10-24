@@ -16,6 +16,7 @@ select * from foo;
 a
 optimize table foo;
 Table	Op	Msg_type	Msg_text
+test.foo	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.foo	optimize	status	OK
 select * from foo;
 a
@@ -27,6 +28,7 @@ a
 3
 optimize table foo;
 Table	Op	Msg_type	Msg_text
+test.foo	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.foo	optimize	status	OK
 select * from foo;
 a

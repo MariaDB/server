@@ -1774,13 +1774,25 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         key_part= keyinfo->key_part;
 	for (i=0 ; i < keyinfo->user_defined_key_parts ;i++)
 	{
-	  uint fieldnr= key_part[i].fieldnr;
-	  if (!fieldnr ||
-	      share->field[fieldnr-1]->null_ptr ||
-	      share->field[fieldnr-1]->key_length() !=
-	      key_part[i].length)
+          DBUG_ASSERT(key_part[i].fieldnr > 0);
+          // Table field corresponding to the i'th key part.
+          Field *table_field= share->field[key_part[i].fieldnr - 1];
+
+          /*
+            If the key column is of NOT NULL BLOB type, then it
+            will definitly have key prefix. And if key part prefix size
+            is equal to the BLOB column max size, then we can promote
+            it to primary key.
+          */
+          if (!table_field->real_maybe_null() &&
+              table_field->type() == MYSQL_TYPE_BLOB &&
+              table_field->field_length == key_part[i].length)
+            continue;
+
+	  if (table_field->real_maybe_null() ||
+	      table_field->key_length() != key_part[i].length)
 	  {
-	    primary_key=MAX_KEY;		// Can't be used
+	    primary_key= MAX_KEY;		// Can't be used
 	    break;
 	  }
 	}
@@ -4125,7 +4137,7 @@ void TABLE::reset_item_list(List<Item> *item_list) const
 void  TABLE_LIST::calc_md5(char *buffer)
 {
   uchar digest[16];
-  compute_md5_hash((char*) digest, select_stmt.str,
+  compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
   sprintf((char *) buffer,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
@@ -4210,7 +4222,8 @@ bool TABLE_LIST::create_field_translation(THD *thd)
 
   while ((item= it++))
   {
-    transl[field_count].name= item->name;
+    DBUG_ASSERT(item->name && item->name[0]);
+    transl[field_count].name= thd->strdup(item->name);
     transl[field_count++].item= item;
   }
   field_translation= transl;
@@ -6104,6 +6117,52 @@ void TABLE::create_key_part_by_field(KEY *keyinfo,
 
 /**
   @brief
+  Check validity of a possible key for the derived table
+
+  @param key            the number of the key
+  @param key_parts      number of components of the key
+  @param next_field_no  the call-back function that returns the number of
+                        the field used as the next component of the key
+  @param arg            the argument for the above function
+
+  @details
+  The function checks whether a possible key satisfies the constraints
+  imposed on the keys of any temporary table.
+
+  @return TRUE if the key is valid
+  @return FALSE otherwise
+*/
+
+bool TABLE::check_tmp_key(uint key, uint key_parts,
+                          uint (*next_field_no) (uchar *), uchar *arg)
+{
+  Field **reg_field;
+  uint i;
+  uint key_len= 0;
+
+  for (i= 0; i < key_parts; i++)
+  {
+    uint fld_idx= next_field_no(arg);
+    reg_field= field + fld_idx;
+    uint fld_store_len= (uint16) (*reg_field)->key_length();
+    if ((*reg_field)->real_maybe_null())
+      fld_store_len+= HA_KEY_NULL_LENGTH;
+    if ((*reg_field)->type() == MYSQL_TYPE_BLOB ||
+        (*reg_field)->real_type() == MYSQL_TYPE_VARCHAR ||
+        (*reg_field)->type() == MYSQL_TYPE_GEOMETRY)
+      fld_store_len+= HA_KEY_BLOB_LENGTH;
+    key_len+= fld_store_len;
+  }
+  /*
+    We use MI_MAX_KEY_LENGTH (myisam's default) below because it is
+    smaller than MAX_KEY_LENGTH (heap's default) and it's unknown whether
+    myisam or heap will be used for the temporary table.
+  */
+  return key_len <= MI_MAX_KEY_LENGTH;
+}
+
+/**
+  @brief
   Add one key to a temporary table
 
   @param key            the number of the key
@@ -6133,6 +6192,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
   KEY* keyinfo;
   Field **reg_field;
   uint i;
+
   bool key_start= TRUE;
   KEY_PART_INFO* key_part_info=
       (KEY_PART_INFO*) alloc_root(&mem_root, sizeof(KEY_PART_INFO)*key_parts);

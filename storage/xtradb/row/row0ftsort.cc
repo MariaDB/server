@@ -850,7 +850,7 @@ exit:
 
 		error = row_merge_sort(psort_info->psort_common->trx,
 				       psort_info->psort_common->dup,
-				       merge_file[i], block[i], &tmpfd[i]);
+				       merge_file[i], block[i], &tmpfd[i], false, 0.0/* pct_progress */, 0.0/* pct_cost */);
 		if (error != DB_SUCCESS) {
 			close(tmpfd[i]);
 			goto func_exit;

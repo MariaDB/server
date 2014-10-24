@@ -2,7 +2,7 @@
 # Author:  Serge Kozlov                                                         #
 # Date:    2005-09-21                                                           #
 # Purpose: used by ../t/*_charset.test                                          #
-# Require: set $engine_type= [NDB,MyISAM,InnoDB,etc] before calling             #
+# Require: set $engine_type= [MyISAM,InnoDB,etc] before calling                 #
 #                                                                               #
 # Last modification:  Matthias Leich                                            #
 # Date:    2008-07-02                                                           #

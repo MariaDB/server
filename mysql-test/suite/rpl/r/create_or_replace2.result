@@ -1,0 +1,31 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-6525 ; Problems with CREATE OR REPLACE under lock
+#
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE FUNCTION f1() RETURNS INT RETURN ( SELECT MAX(a) FROM t1 );
+connect  con1,localhost,root,,test;
+CREATE TEMPORARY TABLE tmp (b INT) ENGINE=InnoDB;
+LOCK TABLE t1 WRITE;
+SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
+CREATE OR REPLACE TABLE t1 LIKE tmp;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+connection default;
+set session lock_wait_timeout=1;
+SELECT f1();
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+set session lock_wait_timeout=@@global.lock_wait_timeout;
+SELECT f1();
+connection con1;
+unlock tables;
+connection default;
+ERROR 42S22: Unknown column 'a' in 'field list'
+disconnect con1;
+drop function f1;
+drop table t1;
+include/rpl_end.inc

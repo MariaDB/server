@@ -1,0 +1,45 @@
+#
+# wsrep_sst_donor_rejects_queries
+#
+# save the initial value
+SET @wsrep_sst_donor_rejects_queries_global_saved = @@global.wsrep_sst_donor_rejects_queries;
+# default
+SELECT @@global.wsrep_sst_donor_rejects_queries;
+@@global.wsrep_sst_donor_rejects_queries
+0
+
+# scope
+SELECT @@session.wsrep_sst_donor_rejects_queries;
+ERROR HY000: Variable 'wsrep_sst_donor_rejects_queries' is a GLOBAL variable
+SET @@global.wsrep_sst_donor_rejects_queries=OFF;
+SELECT @@global.wsrep_sst_donor_rejects_queries;
+@@global.wsrep_sst_donor_rejects_queries
+0
+SET @@global.wsrep_sst_donor_rejects_queries=ON;
+SELECT @@global.wsrep_sst_donor_rejects_queries;
+@@global.wsrep_sst_donor_rejects_queries
+1
+
+# valid values
+SET @@global.wsrep_sst_donor_rejects_queries='OFF';
+SELECT @@global.wsrep_sst_donor_rejects_queries;
+@@global.wsrep_sst_donor_rejects_queries
+0
+SET @@global.wsrep_sst_donor_rejects_queries=ON;
+SELECT @@global.wsrep_sst_donor_rejects_queries;
+@@global.wsrep_sst_donor_rejects_queries
+1
+SET @@global.wsrep_sst_donor_rejects_queries=default;
+SELECT @@global.wsrep_sst_donor_rejects_queries;
+@@global.wsrep_sst_donor_rejects_queries
+0
+
+# invalid values
+SET @@global.wsrep_sst_donor_rejects_queries=NULL;
+ERROR 42000: Variable 'wsrep_sst_donor_rejects_queries' can't be set to the value of 'NULL'
+SET @@global.wsrep_sst_donor_rejects_queries='junk';
+ERROR 42000: Variable 'wsrep_sst_donor_rejects_queries' can't be set to the value of 'junk'
+
+# restore the initial value
+SET @@global.wsrep_sst_donor_rejects_queries = @wsrep_sst_donor_rejects_queries_global_saved;
+# End of test

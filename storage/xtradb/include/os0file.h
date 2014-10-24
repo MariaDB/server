@@ -132,7 +132,7 @@ enum os_file_create_t {
 
 #define OS_FILE_READ_ONLY		333
 #define	OS_FILE_READ_WRITE		444
-#define	OS_FILE_READ_ALLOW_DELETE	555	/* for ibbackup */
+#define	OS_FILE_READ_ALLOW_DELETE	555	/* for mysqlbackup */
 
 /* Options for file_create */
 #define	OS_FILE_AIO			61
@@ -168,8 +168,8 @@ enum os_file_create_t {
 #define OS_FILE_LOG	256	/* This can be ORed to type */
 /* @} */
 
-#define OS_AIO_N_PENDING_IOS_PER_THREAD 256	/*!< Windows might be able to handle
-more */
+#define OS_AIO_N_PENDING_IOS_PER_THREAD 32	/*!< Win NT does not allow more
+						than 64 */
 
 /** Modes for aio operations @{ */
 #define OS_AIO_NORMAL	21	/*!< Normal asynchronous i/o not for ibuf
@@ -328,21 +328,21 @@ The wrapper functions have the prefix of "innodb_". */
 		page_compressed, page_compression_level, write_size,	\
 		__FILE__, __LINE__)
 
-# define os_file_read(file, buf, offset, n)				\
-	pfs_os_file_read_func(file, buf, offset, n, NULL,		\
+# define os_file_read(file, buf, offset, n, compressed)			\
+	pfs_os_file_read_func(file, buf, offset, n, NULL, compressed,	\
 			      __FILE__, __LINE__)
 
-# define os_file_read_trx(file, buf, offset, n, trx)			\
-	pfs_os_file_read_func(file, buf, offset, n, trx,		\
+# define os_file_read_trx(file, buf, offset, n, trx, compressed)	\
+	pfs_os_file_read_func(file, buf, offset, n, trx, compressed,	\
 			      __FILE__, __LINE__)
 
-# define os_file_read_no_error_handling(file, buf, offset, n)		\
-	pfs_os_file_read_no_error_handling_func(file, buf, offset, n,	\
+# define os_file_read_no_error_handling(file, buf, offset, n, compressed) \
+	pfs_os_file_read_no_error_handling_func(file, buf, offset, n, compressed, \
 						__FILE__, __LINE__)
 
-# define os_file_write(name, file, buf, offset, n)	\
-	pfs_os_file_write_func(name, file, buf, offset,	\
-			       n, __FILE__, __LINE__)
+# define os_file_write(name, file, buf, offset, n)			\
+	pfs_os_file_write_func(name, file, buf, offset,	n,		\
+		               __FILE__, __LINE__)
 
 # define os_file_flush(file)						\
 	pfs_os_file_flush_func(file, __FILE__, __LINE__)
@@ -379,14 +379,14 @@ to original un-instrumented file I/O APIs */
 		message1, message2, space_id, trx,			\
 		page_compressed, page_compression_level, write_size)
 
-# define os_file_read(file, buf, offset, n)				\
-	os_file_read_func(file, buf, offset, n, NULL)
+# define os_file_read(file, buf, offset, n, compressed)			\
+	os_file_read_func(file, buf, offset, n, NULL, compressed)
 
-# define os_file_read_trx(file, buf, offset, n, trx)			\
-	os_file_read_func(file, buf, offset, n, trx)
+# define os_file_read_trx(file, buf, offset, n, trx, compressed)	\
+	os_file_read_func(file, buf, offset, n, trx, compressed)
 
-# define os_file_read_no_error_handling(file, buf, offset, n)		\
-	os_file_read_no_error_handling_func(file, buf, offset, n)
+# define os_file_read_no_error_handling(file, buf, offset, n, compressed) \
+	os_file_read_no_error_handling_func(file, buf, offset, n, compressed)
 
 # define os_file_write(name, file, buf, offset, n)			\
 	os_file_write_func(name, file, buf, offset, n)
@@ -741,7 +741,9 @@ pfs_os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	trx_t*		trx,
+	trx_t*		trx,	/*!< in: trx */
+	ibool		compressed, /*!< in: is this file space
+				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -760,6 +762,8 @@ pfs_os_file_read_no_error_handling_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed, /*!< in: is this file space
+				    compressed ? */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 
@@ -964,7 +968,9 @@ os_file_read_func(
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
 	ulint		n,	/*!< in: number of bytes to read */
-	trx_t*		trx);
+	trx_t*		trx,	/*!< in: trx */
+	ibool		compressed); /*!< in: is this file space
+				     compressed ? */
 /*******************************************************************//**
 Rewind file to its start, read at most size - 1 bytes from it to str, and
 NUL-terminate str. All errors are silently ignored. This function is
@@ -989,7 +995,9 @@ os_file_read_no_error_handling_func(
 	os_file_t	file,	/*!< in: handle to a file */
 	void*		buf,	/*!< in: buffer where to read */
 	os_offset_t	offset,	/*!< in: file offset where to read */
-	ulint		n);	/*!< in: number of bytes to read */
+	ulint		n,	/*!< in: number of bytes to read */
+	ibool		compressed); /*!< in: is this file space
+				     compressed ? */
 
 /*******************************************************************//**
 NOTE! Use the corresponding macro os_file_write(), not directly this
@@ -1006,6 +1014,7 @@ os_file_write_func(
 	const void*	buf,	/*!< in: buffer from which to write */
 	os_offset_t	offset,	/*!< in: file offset where to write */
 	ulint		n);	/*!< in: number of bytes to write */
+
 /*******************************************************************//**
 Check the existence and type of the given file.
 @return	TRUE if call succeeded */

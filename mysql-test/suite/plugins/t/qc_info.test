@@ -9,3 +9,8 @@ select * from information_schema.query_cache_info;
 
 set global query_cache_size= default;
 
+--error ER_PARSE_ERROR
+show query_cache_info;
+--error ER_PARSE_ERROR
+flush query_cache_info;
+

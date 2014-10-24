@@ -46,7 +46,6 @@
 #           ----> MyISAM                                               #
 #     -  There is no impact of the GLOBAL(server) or SESSION default   #
 #        storage engine setting on the engine used for I_S tables.     #
-#        That means we cannot get NDB or InnoDB instead.               #
 #                                                                      #
 # Creation:                                                            #
 # 2007-08    hhunger Implement this test as part of                    #

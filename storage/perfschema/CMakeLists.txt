@@ -22,9 +22,11 @@ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}
 ADD_DEFINITIONS(-DMYSQL_SERVER)
 
 # Gen_pfs_lex_token
-ADD_EXECUTABLE(gen_pfs_lex_token gen_pfs_lex_token.cc)
-# gen_pfs_lex_token itself depends on ${CMAKE_CURRENT_BINARY_DIR}/sql/sql_yacc.h
-ADD_DEPENDENCIES(gen_pfs_lex_token GenServerSource)
+IF(NOT CMAKE_CROSSCOMPILING)
+  ADD_EXECUTABLE(gen_pfs_lex_token gen_pfs_lex_token.cc)
+  # gen_pfs_lex_token itself depends on ${CMAKE_CURRENT_BINARY_DIR}/sql/sql_yacc.h
+  ADD_DEPENDENCIES(gen_pfs_lex_token GenServerSource)
+ENDIF()
 
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/pfs_lex_token.h
@@ -131,7 +133,6 @@ pfs.cc
 pfs_account.cc
 pfs_atomic.cc
 pfs_autosize.cc
-pfs_check.cc
 pfs_column_values.cc
 pfs_con_slice.cc
 pfs_defaults.cc

@@ -2708,6 +2708,13 @@ main(int argc, char **argv)
     free_defaults(default_argv);
     return 1;
   }
+
+  // Replicate MyISAM DDL for this session, cf. lp:1161432
+  // timezone info unfixable in XtraDB Cluster
+  printf("set @prep=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on'), 'SET GLOBAL wsrep_replicate_myisam=?', 'do ?');\n"
+         "prepare set_wsrep_myisam from @prep;\n"
+         "set @toggle=1; execute set_wsrep_myisam using @toggle;\n");
+
   if (argc == 1 && !opt_leap)
   {
     /* Argument is timezonedir */
@@ -2754,6 +2761,9 @@ main(int argc, char **argv)
 
     free_root(&tz_storage, MYF(0));
   }
+
+  // Reset wsrep_replicate_myisam. lp:1161432
+  printf("set @toggle=0; execute set_wsrep_myisam using @toggle;\n");
 
   free_defaults(default_argv);
   my_end(0);

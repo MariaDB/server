@@ -42,6 +42,7 @@ select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id
 # Switch to connection default
 set global slow_query_log= ON;
+set local slow_query_log= ON;
 # Switch to connection con1
 set session long_query_time = @long_query_time;
 select sleep(@long_query_time + 1);
@@ -49,7 +50,13 @@ sleep(@long_query_time + 1)
 0
 select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
 start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id
-TIMESTAMP	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	select sleep(@long_query_time + 1)	THREAD_ID
+set local slow_query_log= ON;
+select sleep(@long_query_time + 2);
+sleep(@long_query_time + 2)
+0
+select * from mysql.slow_log where sql_text NOT LIKE '%slow_log%';
+start_time	user_host	query_time	lock_time	rows_sent	rows_examined	db	last_insert_id	insert_id	server_id	sql_text	thread_id
+TIMESTAMP	USER_HOST	QUERY_TIME	00:00:00.000000	1	0	test	0	0	1	select sleep(@long_query_time + 2)	THREAD_ID
 # Switch to connection default
 show global variables
 where Variable_name = 'general_log' or Variable_name = 'slow_query_log';
@@ -62,6 +69,7 @@ set global general_log= OFF;
 set global slow_query_log= ON;
 set global slow_query_log= OFF;
 set global slow_query_log= OFF;
+set local slow_query_log= ON;
 set global general_log= ON;
 truncate table mysql.general_log;
 create table t1(f1 int);
@@ -123,6 +131,9 @@ show variables like 'general_log';
 Variable_name	Value
 general_log	OFF
 show variables like 'slow_query_log';
+Variable_name	Value
+slow_query_log	ON
+show global variables like 'slow_query_log';
 Variable_name	Value
 slow_query_log	OFF
 set global general_log=ON;

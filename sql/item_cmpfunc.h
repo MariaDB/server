@@ -883,6 +883,18 @@ class in_string :public in_vector
 {
   char buff[STRING_BUFFER_USUAL_SIZE];
   String tmp;
+  class Item_string_for_in_vector: public Item_string
+  {
+  public:
+    Item_string_for_in_vector(CHARSET_INFO *cs):
+      Item_string(cs)
+    { }
+    void set_value(const String *str)
+    {
+      str_value= *str;
+      collation.set(str->charset());
+    }
+  };
 public:
   in_string(uint elements,qsort2_cmp cmp_func, CHARSET_INFO *cs);
   ~in_string();
@@ -890,13 +902,13 @@ public:
   uchar *get_value(Item *item);
   Item* create_item()
   { 
-    return new Item_string(collation);
+    return new Item_string_for_in_vector(collation);
   }
   void value_to_item(uint pos, Item *item)
   {    
     String *str=((String*) base)+pos;
-    Item_string *to= (Item_string*)item;
-    to->str_value= *str;
+    Item_string_for_in_vector *to= (Item_string_for_in_vector*) item;
+    to->set_value(str);
   }
   Item_result result_type() { return STRING_RESULT; }
 };
@@ -1652,12 +1664,12 @@ public:
   void add_at_head(List<Item> *nlist)
   {
     DBUG_ASSERT(nlist->elements);
-    list.prepand(nlist);
+    list.prepend(nlist);
   }
   void add_at_end(List<Item> *nlist)
   {
     DBUG_ASSERT(nlist->elements);
-    list.concat(nlist);
+    list.append(nlist);
   }
   bool fix_fields(THD *, Item **ref);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);

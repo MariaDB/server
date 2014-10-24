@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1996, 2013, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
 Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
 
@@ -45,6 +45,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "row0types.h"
 #include "fsp0fsp.h"
 #include "dict0pagecompress.h"
+
+extern bool innodb_table_stats_not_found;
+extern bool innodb_index_stats_not_found;
 
 #ifndef UNIV_HOTBACKUP
 # include "sync0sync.h"
@@ -120,7 +123,9 @@ enum dict_table_op_t {
 	DICT_TABLE_OP_DROP_ORPHAN,
 	/** Silently load the tablespace if it does not exist,
 	and do not load the definitions of incomplete indexes. */
-	DICT_TABLE_OP_LOAD_TABLESPACE
+	DICT_TABLE_OP_LOAD_TABLESPACE,
+	/** Open the table only if it's in table cache. */
+	DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
 };
 
 /**********************************************************************//**
@@ -1446,6 +1451,28 @@ UNIV_INTERN
 void
 dict_mutex_exit_for_mysql(void);
 /*===========================*/
+
+/** Create a dict_table_t's stats latch or delay for lazy creation.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to create
+@param[in]	enabled	if false then the latch is disabled
+and dict_table_stats_lock()/unlock() become noop on this table. */
+
+void
+dict_table_stats_latch_create(
+	dict_table_t*	table,
+	bool		enabled);
+
+/** Destroy a dict_table_t's stats latch.
+This function is only called from either single threaded environment
+or from a thread that has not shared the table object with other threads.
+@param[in,out]	table	table whose stats latch to destroy */
+
+void
+dict_table_stats_latch_destroy(
+	dict_table_t*	table);
+
 /**********************************************************************//**
 Lock the appropriate latch to protect a given table's statistics.
 table->id is used to pick the corresponding latch from a global array of
@@ -1494,6 +1521,16 @@ dict_table_get_index_on_name(
 /*=========================*/
 	dict_table_t*	table,	/*!< in: table */
 	const char*	name)	/*!< in: name of the index to find */
+	__attribute__((nonnull, warn_unused_result));
+/**********************************************************************//**
+Looks for an index with the given id given a table instance.
+@return	index or NULL */
+UNIV_INTERN
+dict_index_t*
+dict_table_find_index_on_id(
+/*========================*/
+	const dict_table_t*	table,	/*!< in: table instance */
+	index_id_t		id)	/*!< in: index id */
 	__attribute__((nonnull, warn_unused_result));
 /**********************************************************************//**
 In case there is more than one index with the same name return the index

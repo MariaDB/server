@@ -90,14 +90,16 @@ SET @@global.slow_query_log = '';
 
 --echo '#-------------------FN_DYNVARS_004_04----------------------------#'
 ##################################################################
-#         Test if accessing session slow_query_log gives error   #
+#         Test that accessing session slow_query_log dows not give   #
 ##################################################################
 
---Error ER_GLOBAL_VARIABLE
-SET @@session.slow_query_log = OFF;
---Error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @@global.slow_query_log = ON;
+SET @@session.slow_query_log = ON;
 SELECT @@session.slow_query_log;
-
+SET @@session.slow_query_log = OFF;
+SELECT @@session.slow_query_log;
+SET @@global.slow_query_log = OFF;
+SET @@session.slow_query_log = ON;
 
 --echo '#----------------------FN_DYNVARS_004_05------------------------#'
 ############################################################################## 
@@ -132,18 +134,17 @@ SELECT @@global.slow_query_log;
 --echo '#---------------------FN_DYNVARS_004_08----------------------#'
 ##############################################################################
 #    Check if accessing variable with SESSION,LOCAL and without SCOPE points #
-#    to same session variable                                                #
+#    to same session variable (doesn't)                                      #
 ##############################################################################
 
 SET @@global.slow_query_log = ON;
+SET @@local.slow_query_log = OFF;
 SELECT @@slow_query_log = @@global.slow_query_log;
 
 --echo '#---------------------FN_DYNVARS_004_09----------------------#'
 ######################################################################
 #   Check if slow_query_log can be accessed with and without @@ sign #
 ######################################################################
---Error ER_GLOBAL_VARIABLE
-SET slow_query_log = ON;
 --Error ER_PARSE_ERROR
 SET local.slow_query_log = OFF;
 --Error ER_UNKNOWN_TABLE

@@ -279,6 +279,11 @@ The following options may be given as the first argument:
  The default size of key cache blocks
  --key-cache-division-limit=# 
  The minimum percentage of warm blocks in key cache
+ --key-cache-file-hash-size=# 
+ Number of hash buckets for open and changed files.  If
+ you have a lot of MyISAM files open you should increase
+ this for faster flush of changes. A good value is
+ probably 1/10 of number of possible open MyISAM files.
  --key-cache-segments=# 
  The number of segments in a key cache
  -L, --language=name Client error messages in given language. May be given as
@@ -412,7 +417,7 @@ The following options may be given as the first argument:
  Maximum number of prepared statements in the server
  --max-relay-log-size=# 
  relay log will be rotated automatically when the size
- exceeds this value.  If 0 are startup, it's set to
+ exceeds this value.  If 0 at startup, it's set to
  max_binlog_size
  --max-seeks-for-key=# 
  Limit assumed max number of seeks when looking up rows
@@ -422,6 +427,11 @@ The following options may be given as the first argument:
  value are used; the rest are ignored)
  --max-sp-recursion-depth[=#] 
  Maximum stored procedure recursion depth
+ --max-statement-time=# 
+ A SELECT query that have taken more than
+ max_statement_time seconds will be aborted. The argument
+ will be treated as a decimal value with microsecond
+ precision.  A value of 0 (default) means no timeout
  --max-tmp-tables=#  Maximum number of temporary tables a client can keep open
  at a time
  --max-user-connections=# 
@@ -916,6 +926,15 @@ The following options may be given as the first argument:
  replication domains. Note that these threads are in
  addition to the IO and SQL threads, which are always
  created by a replication slave
+ --slave-run-triggers-for-rbr=name 
+ Modes for how triggers in row-base replication on slave
+ side will be executed. Legal values are NO (default), YES
+ and LOGGING. NO means that trigger for RBR will not be
+ running on slave. YES and LOGGING means that triggers
+ will be running on slave, if there was not triggers
+ running on the master for the statement. LOGGING also
+ means results of that the executed triggers work will be
+ written to the binlog.
  --slave-skip-errors=name 
  Tells the slave thread to continue replication when a
  query event returns an error from the provided list
@@ -1017,8 +1036,8 @@ The following options may be given as the first argument:
  created to handle remaining clients.
  --thread-stack=#    The stack size for each thread
  --time-format=name  The TIME format (ignored)
- --timed-mutexes     Specify whether to time mutexes (only InnoDB mutexes are
- currently supported)
+ --timed-mutexes     Specify whether to time mutexes. Deprecated, has no
+ effect.
  --tmp-table-size=#  If an internal in-memory temporary table exceeds this
  size, MySQL will automatically convert it to an on-disk
  MyISAM or Aria table
@@ -1140,6 +1159,7 @@ key-buffer-size 134217728
 key-cache-age-threshold 300
 key-cache-block-size 1024
 key-cache-division-limit 100
+key-cache-file-hash-size 512
 key-cache-segments 0
 large-pages FALSE
 lc-messages en_US
@@ -1187,6 +1207,7 @@ max-relay-log-size 1073741824
 max-seeks-for-key 18446744073709551615
 max-sort-length 1024
 max-sp-recursion-depth 0
+max-statement-time 0
 max-tmp-tables 32
 max-user-connections 0
 max-write-lock-count 18446744073709551615
@@ -1254,7 +1275,7 @@ performance-schema-max-rwlock-instances -1
 performance-schema-max-socket-classes 10
 performance-schema-max-socket-instances -1
 performance-schema-max-stage-classes 150
-performance-schema-max-statement-classes 180
+performance-schema-max-statement-classes 178
 performance-schema-max-table-handles -1
 performance-schema-max-table-instances -1
 performance-schema-max-thread-classes 50
@@ -1315,6 +1336,7 @@ slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
 slave-parallel-max-queued 131072
 slave-parallel-threads 0
+slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
 slave-sql-verify-checksum TRUE
 slave-transaction-retries 10

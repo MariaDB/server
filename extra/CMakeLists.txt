@@ -13,15 +13,7 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 
-INCLUDE_DIRECTORIES(
-${CMAKE_SOURCE_DIR}/include 
-${ZLIB_INCLUDE_DIR}
-# Following is for perror, in case NDB is compiled in.
-${CMAKE_SOURCE_DIR}/storage/ndb/include
-${CMAKE_SOURCE_DIR}/storage/ndb/include/util  
-${CMAKE_SOURCE_DIR}/storage/ndb/include/ndbapi
-${CMAKE_SOURCE_DIR}/storage/ndb/include/portlib
-${CMAKE_SOURCE_DIR}/storage/ndb/include/mgmapi)
+INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include ${ZLIB_INCLUDE_DIR})
 
 # Default install component for the files is Server here
 SET(MYSQL_INSTALL_COMPONENT Server)
@@ -72,7 +64,7 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
 ENDIF()
 ENDIF()
 
-IF(WITH_INNOBASE_STORAGE_ENGINE)
+IF(WITH_INNOBASE_STORAGE_ENGINE OR WITH_XTRADB_STORAGE_ENGINE)
   # Add path to the InnoDB headers
   INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include)
   # We use the InnoDB code directly in case the code changes.

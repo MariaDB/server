@@ -19,9 +19,6 @@ usr/share/mysql/mysql-test/suite/parts
 usr/share/mysql/mysql-test/suite/parts/inc
 usr/share/mysql/mysql-test/suite/parts/t
 usr/share/mysql/mysql-test/suite/parts/r
-usr/share/mysql/mysql-test/suite/rpl_ndb
-usr/share/mysql/mysql-test/suite/rpl_ndb/t
-usr/share/mysql/mysql-test/suite/rpl_ndb/r
 usr/share/mysql/mysql-test/suite/bugs
 usr/share/mysql/mysql-test/suite/bugs/t
 usr/share/mysql/mysql-test/suite/bugs/r
@@ -46,9 +43,6 @@ usr/share/mysql/mysql-test/suite/jp/t
 usr/share/mysql/mysql-test/suite/jp/r
 usr/share/mysql/mysql-test/suite/jp/include
 usr/share/mysql/mysql-test/suite/jp/std_data
-usr/share/mysql/mysql-test/suite/ndb
-usr/share/mysql/mysql-test/suite/ndb/t
-usr/share/mysql/mysql-test/suite/ndb/r
 usr/share/mysql/mysql-test/suite/maria
 usr/share/mysql/mysql-test/suite/maria/t
 usr/share/mysql/mysql-test/suite/maria/r
@@ -63,9 +57,6 @@ usr/share/mysql/mysql-test/suite/binlog
 usr/share/mysql/mysql-test/suite/binlog/t
 usr/share/mysql/mysql-test/suite/binlog/r
 usr/share/mysql/mysql-test/suite/binlog/std_data
-usr/share/mysql/mysql-test/suite/ndb_team
-usr/share/mysql/mysql-test/suite/ndb_team/t
-usr/share/mysql/mysql-test/suite/ndb_team/r
 usr/share/mysql/mysql-test/suite/federated
 usr/share/mysql/mysql-test/suite/funcs_1
 usr/share/mysql/mysql-test/suite/funcs_1/cursors
@@ -87,9 +78,5 @@ usr/share/mysql/mysql-test/suite/oqgraph/t
 usr/share/mysql/mysql-test/suite/oqgraph/r
 usr/share/mysql/mysql-test/suite/oqgraph/include
 usr/share/mysql/mysql-test/std_data
-usr/share/mysql/mysql-test/std_data/ndb_backup50
 usr/share/mysql/mysql-test/std_data/parts
-usr/share/mysql/mysql-test/std_data/ndb_backup51_data_le
-usr/share/mysql/mysql-test/std_data/ndb_backup51_data_be
-usr/share/mysql/mysql-test/std_data/ndb_backup51
 usr/share/mysql/mysql-test/std_data/funcs_1

@@ -45,9 +45,6 @@ debhelper (>=4.1.16):
 autoconf (>= 2.13-20), automake1.7
 	Try to get rid of them.
 
-doxygen, tetex-bin, tetex-extra, gs
-	for ndb/docs/*tex
-
 #
 # Remarks to the start scripts
 #

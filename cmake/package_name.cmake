@@ -126,12 +126,7 @@ IF(NOT VERSION)
     SET(PRODUCT_TAG)
   ENDIF()
 
-  IF("${VERSION}" MATCHES "-ndb-")
-    STRING(REGEX REPLACE "^.*-ndb-" "" NDBVERSION "${VERSION}")
-    SET(package_name "mysql-cluster${PRODUCT_TAG}-${NDBVERSION}-${SYSTEM_NAME_AND_PROCESSOR}")
-  ELSE()
-    SET(package_name "mariadb${PRODUCT_TAG}-${VERSION}-${SYSTEM_NAME_AND_PROCESSOR}")
-  ENDIF()
+  SET(package_name "mariadb${PRODUCT_TAG}-${VERSION}-${SYSTEM_NAME_AND_PROCESSOR}")
 
   MESSAGE(STATUS "Packaging as: ${package_name}")
 

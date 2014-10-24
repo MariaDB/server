@@ -287,9 +287,6 @@ sub mtr_report_stats ($) {
                 /unknown variable 'loose-/ or
 		/You have forced lower_case_table_names to 0 through a command-line option/ or
 		/Setting lower_case_table_names=2/ or
-		/NDB Binlog:/ or
-		/NDB: failed to setup table/ or
-		/NDB: only row based binary logging/ or
 		/Neither --relay-log nor --relay-log-index were used/ or
 		/Query partially completed/ or
 		/Slave I.O thread aborted while waiting for relay log/ or
@@ -314,7 +311,6 @@ sub mtr_report_stats ($) {
 		/Slave: Can't drop database.* database doesn't exist/ or
                 /Slave SQL:.*(?:error.* \d+|Query:.*)/ or
 		/Sort aborted/ or
-		/Time-out in NDB/ or
 		/One can only use the --user.*root/ or
 		/Table:.* on (delete|rename)/ or
 		/You have an error in your SQL syntax/ or

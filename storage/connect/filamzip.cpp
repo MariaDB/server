@@ -1,11 +1,11 @@
 /*********** File AM Zip C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: FILAMZIP                                              */
 /* -------------                                                       */
-/*  Version 1.4                                                        */
+/*  Version 1.5                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -306,10 +306,27 @@ int ZIPFAM::ReadBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  Record file position in case of UPDATE or DELETE.              */
     /*******************************************************************/
+   next:
     if (RecordPos(g))
       return RC_FX;
 
     CurBlk = Rows++;                        // Update RowID
+
+    /*******************************************************************/
+    /*  Check whether optimization on ROWID                            */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        // Skip this record
+        if ((rc = SkipRecord(g, FALSE)) != RC_OK)
+          return rc;
+
+        goto next;
+      } // endswitch rc
+
   } else
     Placed = false;
 
@@ -369,7 +386,7 @@ int ZIPFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for DOS access method.                     */
 /***********************************************************************/
-void ZIPFAM::CloseTableFile(PGLOBAL g)
+void ZIPFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = gzclose(Zfile);
 
@@ -402,7 +419,7 @@ ZBKFAM::ZBKFAM(PDOSDEF tdp) : ZIPFAM(tdp)
   CurLine = NULL;
   NxtLine = NULL;
   Closing = false;
-  BlkPos = NULL;
+  BlkPos = tdp->GetTo_Pos();
   } // end of ZBKFAM standard constructor
 
 ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
@@ -413,15 +430,33 @@ ZBKFAM::ZBKFAM(PZBKFAM txfp) : ZIPFAM(txfp)
   } // end of ZBKFAM copy constructor
 
 /***********************************************************************/
+/*  Use BlockTest to reduce the table estimated size.                  */
+/***********************************************************************/
+int ZBKFAM::MaxBlkSize(PGLOBAL g, int s)
+  {
+  int rc = RC_OK, savcur = CurBlk;
+  int size;
+
+  // Roughly estimate the table size as the sum of blocks
+  // that can contain good rows
+  for (size = 0, CurBlk = 0; CurBlk < Block; CurBlk++)
+    if ((rc = Tdbp->TestBlock(g)) == RC_OK)
+      size += (CurBlk == Block - 1) ? Last : Nrec;
+    else if (rc == RC_EF)
+      break;
+
+  CurBlk = savcur;
+  return size;
+  } // end of MaxBlkSize
+
+/***********************************************************************/
 /*  ZBK Cardinality: returns table cardinality in number of rows.      */
 /*  This function can be called with a null argument to test the       */
 /*  availability of Cardinality implementation (1 yes, 0 no).          */
 /***********************************************************************/
 int ZBKFAM::Cardinality(PGLOBAL g)
   {
-  // Should not be called in this version
-  return (g) ? -1 : 0;
-//return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
+  return (g) ? (int)((Block - 1) * Nrec + Last) : 1;
   } // end of Cardinality
 
 /***********************************************************************/
@@ -491,8 +526,80 @@ int ZBKFAM::SkipRecord(PGLOBAL g, bool header)
 /***********************************************************************/
 int ZBKFAM::ReadBuffer(PGLOBAL g)
   {
-  strcpy(g->Message, "This AM cannot be used in this version");
-  return RC_FX;
+  int     n, skip, rc = RC_OK;
+
+  /*********************************************************************/
+  /*  Sequential reading when Placed is not true.                      */
+  /*********************************************************************/
+  if (++CurNum < Rbuf) {
+    CurLine = NxtLine;
+
+    // Get the position of the next line in the buffer
+    while (*NxtLine++ != '\n') ;
+
+    // Set caller line buffer
+    n = NxtLine - CurLine - Ending;
+    memcpy(Tdbp->GetLine(), CurLine, n);
+    Tdbp->GetLine()[n] = '\0';
+    return RC_OK;
+  } else if (Rbuf < Nrec && CurBlk != -1)
+    return RC_EF;
+
+  /*********************************************************************/
+  /*  New block.                                                       */
+  /*********************************************************************/
+  CurNum = 0;
+  skip = 0;
+
+ next:
+  if (++CurBlk >= Block)
+    return RC_EF;
+
+  /*********************************************************************/
+  /*  Before using the new block, check whether block optimization     */
+  /*  can be done, as well as for join as for local filtering.         */
+  /*********************************************************************/
+  switch (Tdbp->TestBlock(g)) {
+    case RC_EF:
+      return RC_EF;
+    case RC_NF:
+      skip++;
+      goto next;
+    } // endswitch rc
+
+  if (skip)
+    // Skip blocks rejected by block optimization
+    for (int i = CurBlk - skip; i < CurBlk; i++) {
+      BlkLen = BlkPos[i + 1] - BlkPos[i];
+
+      if (gzseek(Zfile, (z_off_t)BlkLen, SEEK_CUR) < 0)
+        return Zerror(g);
+
+      } // endfor i
+
+  BlkLen = BlkPos[CurBlk + 1] - BlkPos[CurBlk];
+
+  if (!(n = gzread(Zfile, To_Buf, BlkLen))) {
+    rc = RC_EF;
+  } else if (n > 0) {
+    // Get the position of the current line
+    CurLine = To_Buf;
+
+    // Now get the position of the next line
+    for (NxtLine = CurLine; *NxtLine++ != '\n';) ;
+
+    // Set caller line buffer
+    n = NxtLine - CurLine - Ending;
+    memcpy(Tdbp->GetLine(), CurLine, n);
+    Tdbp->GetLine()[n] = '\0';
+    Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
+    IsRead = true;
+    rc = RC_OK;
+    num_read++;
+  } else
+    rc = Zerror(g);
+
+  return rc;
   } // end of ReadBuffer
 
 /***********************************************************************/
@@ -562,7 +669,7 @@ int ZBKFAM::DeleteRecords(PGLOBAL g, int irc)
 /***********************************************************************/
 /*  Data Base close routine for ZBK access method.                     */
 /***********************************************************************/
-void ZBKFAM::CloseTableFile(PGLOBAL g)
+void ZBKFAM::CloseTableFile(PGLOBAL g, bool abort)
   {
   int rc = RC_OK;
 
@@ -701,6 +808,32 @@ int ZIXFAM::ReadBuffer(PGLOBAL g)
   CurNum = 0;
   Tdbp->SetLine(To_Buf);
 
+  int skip = 0;
+
+ next:
+  if (++CurBlk >= Block)
+    return RC_EF;
+
+  /*********************************************************************/
+  /*  Before using the new block, check whether block optimization     */
+  /*  can be done, as well as for join as for local filtering.         */
+  /*********************************************************************/
+  switch (Tdbp->TestBlock(g)) {
+    case RC_EF:
+      return RC_EF;
+    case RC_NF:
+      skip++;
+      goto next;
+    } // endswitch rc
+
+  if (skip)
+    // Skip blocks rejected by block optimization
+    for (int i = 0; i < skip; i++) {
+      if (gzseek(Zfile, (z_off_t)Buflen, SEEK_CUR) < 0)
+        return Zerror(g);
+
+      } // endfor i
+
   if (!(n = gzread(Zfile, To_Buf, Buflen))) {
     rc = RC_EF;
   } else if (n > 0) {
@@ -745,5 +878,545 @@ int ZIXFAM::WriteBuffer(PGLOBAL g)
 
   return RC_OK;
   } // end of WriteBuffer
+
+/* --------------------------- Class ZLBFAM -------------------------- */
+
+/***********************************************************************/
+/*  Constructors.                                                      */
+/***********************************************************************/
+ZLBFAM::ZLBFAM(PDOSDEF tdp) : BLKFAM(tdp)
+  {
+  Zstream = NULL;
+  Zbuffer = NULL;
+  Zlenp = NULL;
+  Optimized = tdp->IsOptimized();
+  } // end of ZLBFAM standard constructor
+
+ZLBFAM::ZLBFAM(PZLBFAM txfp) : BLKFAM(txfp)
+  {
+  Zstream = txfp->Zstream;
+  Zbuffer = txfp->Zbuffer;
+  Zlenp = txfp->Zlenp;
+  Optimized = txfp->Optimized;
+  } // end of ZLBFAM (dummy?) copy constructor
+
+/***********************************************************************/
+/*  ZLB GetFileLength: returns an estimate of what would be the        */
+/*  uncompressed file size in number of bytes.                         */
+/***********************************************************************/
+int ZLBFAM::GetFileLength(PGLOBAL g)
+  {
+  int len = (Optimized) ? BlkPos[Block] : BLKFAM::GetFileLength(g);
+
+  if (len > 0)
+    // Estimate size reduction to a max of 5
+    len *= 5;
+
+  return len;
+  } // end of GetFileLength
+
+/***********************************************************************/
+/*  Allocate the line buffer. For mode Delete a bigger buffer has to   */
+/*  be allocated because is it also used to move lines into the file.  */
+/***********************************************************************/
+bool ZLBFAM::AllocateBuffer(PGLOBAL g)
+  {
+  char *msg;
+  int   n, zrc;
+
+#if 0
+  if (!Optimized && Tdbp->NeedIndexing(g)) {
+    strcpy(g->Message, MSG(NOP_ZLIB_INDEX));
+    return TRUE;
+    } // endif indexing
+#endif // 0
+
+#if defined(NOLIB)
+  if (!zlib && LoadZlib()) {
+    sprintf(g->Message, MSG(DLL_LOAD_ERROR), GetLastError(), "zlib.dll");
+    return TRUE;
+    } // endif zlib
+#endif
+
+  BLKFAM::AllocateBuffer(g);
+//Buflen = Nrec * (Lrecl + 2);
+//Rbuf = Nrec;
+
+  // Allocate the compressed buffer
+  n = Buflen + 16;             // ?????????????????????????????????
+  Zlenp = (int*)PlugSubAlloc(g, NULL, n);
+  Zbuffer = (Byte*)(Zlenp + 1);
+
+  // Allocate and initialize the Z stream
+  Zstream = (z_streamp)PlugSubAlloc(g, NULL, sizeof(z_stream));
+  Zstream->zalloc = (alloc_func)0;
+  Zstream->zfree = (free_func)0;
+  Zstream->opaque = (voidpf)0;
+  Zstream->next_in = NULL;
+  Zstream->avail_in = 0;
+
+  if (Tdbp->GetMode() == MODE_READ) {
+    msg = "inflateInit";
+    zrc = inflateInit(Zstream);
+  } else {
+    msg = "deflateInit";
+    zrc = deflateInit(Zstream, Z_DEFAULT_COMPRESSION);
+  } // endif Mode
+
+  if (zrc != Z_OK) {
+    if (Zstream->msg)
+      sprintf(g->Message, "%s error: %s", msg, Zstream->msg);
+    else
+      sprintf(g->Message, "%s error: %d", msg, zrc);
+
+    return TRUE;
+    } // endif zrc
+
+  if (Tdbp->GetMode() == MODE_INSERT) {
+    // Write the file header block
+    if (Last == Nrec) {
+      CurBlk = Block;
+      CurNum = 0;
+
+      if (!GetFileLength(g)) {
+        // Write the zlib header as an extra block
+        strcpy(To_Buf, "PlugDB");
+        BlkLen = strlen("PlugDB") + 1;
+
+        if (WriteCompressedBuffer(g))
+          return TRUE;
+
+        } // endif void file
+
+    } else {
+      // In mode insert, if Last != Nrec, last block must be updated
+      CurBlk = Block - 1;
+      CurNum = Last;
+
+      strcpy(g->Message, MSG(NO_PAR_BLK_INS));
+      return TRUE;
+    } // endif Last
+
+  } else { // MODE_READ
+    // First thing to do is to read the header block
+    void *rdbuf;
+
+    if (Optimized) {
+      BlkLen = BlkPos[0];
+      rdbuf = Zlenp;
+    } else {
+      // Get the stored length from the file itself
+      if (fread(Zlenp, sizeof(int), 1, Stream) != 1)
+        return FALSE;             // Empty file
+
+      BlkLen = *Zlenp;
+      rdbuf = Zbuffer;
+    } // endif Optimized
+
+    switch (ReadCompressedBuffer(g, rdbuf)) {
+      case RC_EF:
+        return FALSE;
+      case RC_FX:
+#if defined(UNIX)
+        sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
+#else
+        sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#endif
+      case RC_NF:
+        return TRUE;
+      } // endswitch
+
+    // Some old tables can have PlugDB in their header
+    if (strcmp(To_Buf, "PlugDB")) {
+      sprintf(g->Message, MSG(BAD_HEADER), Tdbp->GetFile(g));
+      return TRUE;
+      } // endif strcmp
+
+  } // endif Mode
+
+  return FALSE;
+  } // end of AllocateBuffer
+
+/***********************************************************************/
+/*  GetPos: return the position of last read record.                   */
+/***********************************************************************/
+int ZLBFAM::GetPos(void)
+  {
+  return (Optimized) ? (CurNum + Nrec * CurBlk) : Fpos;
+  } // end of GetPos
+
+/***********************************************************************/
+/*  GetNextPos: should not be called for this class.                   */
+/***********************************************************************/
+int ZLBFAM::GetNextPos(void)
+  {
+  if (Optimized) {
+    assert(FALSE);
+    return 0;
+  } else
+    return ftell(Stream);
+
+  } // end of GetNextPos
+
+/***********************************************************************/
+/*  SetPos: Replace the table at the specified position.               */
+/***********************************************************************/
+bool ZLBFAM::SetPos(PGLOBAL g, int pos)
+  {
+  sprintf(g->Message, MSG(NO_SETPOS_YET), "ZIP");
+  return true;
+#if 0 // All this must be checked
+  if (pos < 0) {
+    strcpy(g->Message, MSG(INV_REC_POS));
+    return true;
+    } // endif recpos
+
+  CurBlk = pos / Nrec;
+  CurNum = pos % Nrec;
+#if defined(_DEBUG)
+  num_eq[(CurBlk == OldBlk) ? 1 : 0]++;
+#endif
+
+  // Indicate the table position was externally set
+  Placed = true;
+  return false;
+#endif // 0
+  } // end of SetPos
+
+/***********************************************************************/
+/*  ReadBuffer: Read one line for a text file.                         */
+/***********************************************************************/
+int ZLBFAM::ReadBuffer(PGLOBAL g)
+  {
+  int   n;
+  void *rdbuf;
+
+  /*********************************************************************/
+  /*  Sequential reading when Placed is not true.                      */
+  /*********************************************************************/
+  if (Placed) {
+    Placed = FALSE;
+  } else if (++CurNum < Rbuf) {
+    CurLine = NxtLine;
+
+    // Get the position of the next line in the buffer
+    if (Tdbp->GetFtype() == RECFM_VAR)
+      while (*NxtLine++ != '\n') ;
+    else
+      NxtLine += Lrecl;
+
+    // Set caller line buffer
+    n = NxtLine - CurLine - ((Tdbp->GetFtype() == RECFM_BIN) ? 0 : Ending);
+    memcpy(Tdbp->GetLine(), CurLine, n);
+    Tdbp->GetLine()[n] = '\0';
+    return RC_OK;
+  } else if (Rbuf < Nrec && CurBlk != -1) {
+    CurNum--;         // To have a correct Last value when optimizing
+    return RC_EF;
+  } else {
+    /*******************************************************************/
+    /*  New block.                                                     */
+    /*******************************************************************/
+    CurNum = 0;
+
+   next:
+    if (++CurBlk >= Block)
+      return RC_EF;
+
+    /*******************************************************************/
+    /*  Before reading a new block, check whether block optimization   */
+    /*  can be done, as well as for join as for local filtering.       */
+    /*******************************************************************/
+    if (Optimized) switch (Tdbp->TestBlock(g)) {
+      case RC_EF:
+        return RC_EF;
+      case RC_NF:
+        goto next;
+      } // endswitch rc
+
+  } // endif's
+
+  if (OldBlk == CurBlk)
+    goto ok;         // Block is already there
+
+  if (Optimized) {
+    // Store the position of next block
+    Fpos = BlkPos[CurBlk];
+
+    // fseek is required only in non sequential reading
+    if (CurBlk != OldBlk + 1)
+      if (fseek(Stream, Fpos, SEEK_SET)) {
+        sprintf(g->Message, MSG(FSETPOS_ERROR), Fpos);
+        return RC_FX;
+        } // endif fseek
+
+    // Calculate the length of block to read
+    BlkLen = BlkPos[CurBlk + 1] - Fpos;
+    rdbuf = Zlenp;
+  } else {                     // !Optimized
+    if (CurBlk != OldBlk + 1) {
+      strcpy(g->Message, MSG(INV_RAND_ACC));
+      return RC_FX;
+    } else
+      Fpos = ftell(Stream);    // Used when optimizing
+
+    // Get the stored length from the file itself
+    if (fread(Zlenp, sizeof(int), 1, Stream) != 1) {
+      if (feof(Stream))
+        return RC_EF;
+
+      goto err;
+      } // endif fread
+
+    BlkLen = *Zlenp;
+    rdbuf = Zbuffer;
+  } // endif Optimized
+
+  // Read the next block
+  switch (ReadCompressedBuffer(g, rdbuf)) {
+    case RC_FX: goto err;
+    case RC_NF: return RC_FX;
+    case RC_EF: return RC_EF;
+    default: Rbuf = (CurBlk == Block - 1) ? Last : Nrec;
+    } // endswitch ReadCompressedBuffer
+
+ ok:
+  if (Tdbp->GetFtype() == RECFM_VAR) {
+    int i;
+
+    // Get the position of the current line
+    for (i = 0, CurLine = To_Buf; i < CurNum; i++)
+      while (*CurLine++ != '\n') ;      // What about Unix ???
+
+    // Now get the position of the next line
+    for (NxtLine = CurLine; *NxtLine++ != '\n';) ;
+
+    // Set caller line buffer
+    n = NxtLine - CurLine - Ending;
+  } else {
+    CurLine = To_Buf + CurNum * Lrecl;
+    NxtLine = CurLine + Lrecl;
+    n = Lrecl - ((Tdbp->GetFtype() == RECFM_BIN) ? 0 : Ending);
+  } // endif Ftype
+
+  memcpy(Tdbp->GetLine(), CurLine, n);
+  Tdbp->GetLine()[n] = '\0';
+
+  OldBlk = CurBlk;         // Last block actually read
+  IsRead = TRUE;           // Is read indeed
+  return RC_OK;
+
+ err:
+#if defined(UNIX)
+  sprintf(g->Message, MSG(READ_ERROR), To_File, strerror(errno));
+#else
+  sprintf(g->Message, MSG(READ_ERROR), To_File, _strerror(NULL));
+#endif
+  return RC_FX;
+  } // end of ReadBuffer
+
+/***********************************************************************/
+/*  Read and decompress a block from the stream.                       */
+/***********************************************************************/
+int ZLBFAM::ReadCompressedBuffer(PGLOBAL g, void *rdbuf)
+  {
+  if (fread(rdbuf, 1, (size_t)BlkLen, Stream) == (unsigned)BlkLen) {
+    int zrc;
+
+    num_read++;
+
+    if (Optimized && BlkLen != signed(*Zlenp + sizeof(int))) {
+      sprintf(g->Message, MSG(BAD_BLK_SIZE), CurBlk + 1);
+      return RC_NF;
+      } // endif BlkLen
+
+    // HERE WE MUST INFLATE THE BLOCK
+    Zstream->next_in = Zbuffer;
+    Zstream->avail_in = (uInt)(*Zlenp);
+    Zstream->next_out = (Byte*)To_Buf;
+    Zstream->avail_out = Buflen;
+    zrc = inflate(Zstream, Z_SYNC_FLUSH);
+
+    if (zrc != Z_OK) {
+      if (Zstream->msg)
+        sprintf(g->Message, MSG(FUNC_ERR_S), "inflate", Zstream->msg);
+      else
+        sprintf(g->Message, MSG(FUNCTION_ERROR), "inflate", (int)zrc);
+
+      return RC_NF;
+      } // endif zrc
+
+  } else if (feof(Stream)) {
+    return RC_EF;
+  } else
+    return RC_FX;
+
+  return RC_OK;
+  } // end of ReadCompressedBuffer
+
+/***********************************************************************/
+/*  WriteBuffer: File write routine for DOS access method.             */
+/*  Update is directly written back into the file,                     */
+/*         with this (fast) method, record size cannot change.         */
+/***********************************************************************/
+int ZLBFAM::WriteBuffer(PGLOBAL g)
+  {
+  assert (Tdbp->GetMode() == MODE_INSERT);
+
+  /*********************************************************************/
+  /*  Prepare the write buffer.                                        */
+  /*********************************************************************/
+  if (!Closing) {
+    if (Tdbp->GetFtype() == RECFM_BIN)
+      memcpy(CurLine, Tdbp->GetLine(), Lrecl);
+    else
+      strcat(strcpy(CurLine, Tdbp->GetLine()), CrLf);
+
+#if defined(_DEBUG)
+    if (Tdbp->GetFtype() == RECFM_FIX &&
+      (signed)strlen(CurLine) != Lrecl + (signed)strlen(CrLf)) {
+      strcpy(g->Message, MSG(BAD_LINE_LEN));
+      Closing = TRUE;
+      return RC_FX;
+      } // endif Lrecl
+#endif   // _DEBUG
+    } // endif Closing
+
+  /*********************************************************************/
+  /*  In Insert mode, blocs are added sequentialy to the file end.     */
+  /*********************************************************************/
+  if (++CurNum != Rbuf) {
+    if (Tdbp->GetFtype() == RECFM_VAR)
+      CurLine += strlen(CurLine);
+    else
+      CurLine += Lrecl;
+
+    return RC_OK;                    // We write only full blocks
+    } // endif CurNum
+
+  // HERE WE MUST DEFLATE THE BLOCK
+  if (Tdbp->GetFtype() == RECFM_VAR)
+    NxtLine = CurLine + strlen(CurLine);
+  else
+    NxtLine = CurLine + Lrecl;
+
+  BlkLen = NxtLine - To_Buf;
+
+  if (WriteCompressedBuffer(g)) {
+    Closing = TRUE;      // To tell CloseDB about a Write error
+    return RC_FX;
+    } // endif WriteCompressedBuffer
+
+  CurBlk++;
+  CurNum = 0;
+  CurLine = To_Buf;
+  return RC_OK;
+  } // end of WriteBuffer
+
+/***********************************************************************/
+/*  Compress the buffer and write the deflated output to stream.       */
+/***********************************************************************/
+bool ZLBFAM::WriteCompressedBuffer(PGLOBAL g)
+  {
+  int zrc;
+
+  Zstream->next_in = (Byte*)To_Buf;
+  Zstream->avail_in = (uInt)BlkLen;
+  Zstream->next_out = Zbuffer;
+  Zstream->avail_out = Buflen + 16;
+  Zstream->total_out = 0;
+  zrc = deflate(Zstream, Z_FULL_FLUSH);
+
+  if (zrc != Z_OK) {
+    if (Zstream->msg)
+      sprintf(g->Message, MSG(FUNC_ERR_S), "deflate", Zstream->msg);
+    else
+      sprintf(g->Message, MSG(FUNCTION_ERROR), "deflate", (int)zrc);
+
+    return TRUE;
+  } else
+    *Zlenp = Zstream->total_out;
+
+  //  Now start the writing process.
+  BlkLen = *Zlenp + sizeof(int);
+
+  if (fwrite(Zlenp, 1, BlkLen, Stream) != (size_t)BlkLen) {
+    sprintf(g->Message, MSG(FWRITE_ERROR), strerror(errno));
+    return TRUE;
+    } // endif size
+
+  return FALSE;
+  } // end of WriteCompressedBuffer
+
+/***********************************************************************/
+/*  Table file close routine for DOS access method.                    */
+/***********************************************************************/
+void ZLBFAM::CloseTableFile(PGLOBAL g, bool abort)
+  {
+  int rc = RC_OK;
+
+  if (Tdbp->GetMode() == MODE_INSERT) {
+    LPCSTR  name = Tdbp->GetName();
+    PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
+
+    // Closing is True if last Write was in error
+    if (CurNum && !Closing) {
+      // Some more inserted lines remain to be written
+      Last = (Nrec - Rbuf) + CurNum;
+      Block = CurBlk + 1;
+      Rbuf = CurNum--;
+      Closing = TRUE;
+      rc = WriteBuffer(g);
+    } else if (Rbuf == Nrec) {
+      Last = Nrec;
+      Block = CurBlk;
+    } // endif CurNum
+
+    if (rc != RC_FX) {
+      defp->SetBlock(Block);
+      defp->SetLast(Last);
+      defp->SetIntCatInfo("Blocks", Block);
+      defp->SetIntCatInfo("Last", Last);
+      } // endif
+
+    fclose(Stream);
+  } else
+    rc = fclose(Stream);
+
+  if (trace)
+    htrc("ZLB CloseTableFile: closing %s mode=%d rc=%d\n",
+         To_File, Tdbp->GetMode(), rc);
+
+  Stream = NULL;           // So we can know whether table is open
+  To_Fb->Count = 0;        // Avoid double closing by PlugCloseAll
+
+  if (Tdbp->GetMode() == MODE_READ)
+    rc = inflateEnd(Zstream);
+  else
+    rc = deflateEnd(Zstream);
+
+  } // end of CloseTableFile
+
+/***********************************************************************/
+/*  Rewind routine for ZLIB access method.                             */
+/***********************************************************************/
+void ZLBFAM::Rewind(void)
+  {
+  // We must be positioned after the header block
+  if (CurBlk >= 0) {   // Nothing to do if no block read yet
+    if (!Optimized) {  // If optimized, fseek will be done in ReadBuffer
+      rewind(Stream);
+      fread(Zlenp, sizeof(int), 1, Stream);
+      fseek(Stream, *Zlenp + sizeof(int), SEEK_SET);
+      OldBlk = -1;
+      } // endif Optimized
+
+    CurBlk = -1;
+    CurNum = Rbuf;
+    } // endif CurBlk
+
+//OldBlk = -1;
+//Rbuf = 0;        commented out in case we reuse last read block
+  } // end of Rewind
 
 /* ------------------------ End of ZipFam ---------------------------- */

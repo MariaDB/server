@@ -1340,7 +1340,11 @@ public:
    */
   int apply_event(rpl_group_info *rgi)
   {
-    return do_apply_event(rgi);
+    int res;
+    THD_STAGE_INFO(thd, stage_apply_event);
+    res= do_apply_event(rgi);
+    THD_STAGE_INFO(thd, stage_after_apply_event);
+    return res;
   }
 
 
@@ -4686,7 +4690,16 @@ public:
   {
     DBUG_ENTER("Incident_log_event::Incident_log_event");
     DBUG_PRINT("enter", ("m_incident: %d", m_incident));
-    m_message= msg;
+    m_message.str= NULL;
+    m_message.length= 0;
+    if (!(m_message.str= (char*) my_malloc(msg.length+1, MYF(MY_WME))))
+    {
+      /* Mark this event invalid */
+      m_incident= INCIDENT_NONE;
+      DBUG_VOID_RETURN;
+    }
+    strmake(m_message.str, msg.str, msg.length);
+    m_message.length= msg.length;
     set_direct_logging();
     /* Replicate the incident irregardless of @@skip_replication. */
     flags&= ~LOG_EVENT_SKIP_REPLICATION_F;

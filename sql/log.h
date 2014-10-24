@@ -19,6 +19,8 @@
 
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "handler.h"                            /* my_xid */
+#include "wsrep.h"
+#include "wsrep_mysqld.h"
 
 class Relay_log_info;
 
@@ -106,7 +108,7 @@ public:
   int log_and_order(THD *thd, my_xid xid, bool all,
                     bool need_prepare_ordered, bool need_commit_ordered)
   {
-    DBUG_ASSERT(0 /* Internal error - TC_LOG_DUMMY::log_and_order() called */);
+    DBUG_ASSERT(0);
     return 1;
   }
   int unlog(ulong cookie, my_xid xid)  { return 0; }
@@ -1077,6 +1079,13 @@ end:
   DBUG_RETURN(error);
 }
 
-
+static inline TC_LOG *get_tc_log_implementation()
+{
+  if (total_ha_2pc <= 1)
+    return &tc_log_dummy;
+  if (opt_bin_log)
+    return &mysql_bin_log;
+  return &tc_log_mmap;
+}
 
 #endif /* LOG_H */

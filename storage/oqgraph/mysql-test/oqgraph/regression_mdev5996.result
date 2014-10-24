@@ -1,3 +1,4 @@
+call mtr.add_suppression("99999999 is open on delete");
 Performing OQGraph regression test mdev5996 - using db=``, table=`999999999`
 use test;
 drop table if exists `999999999` ;

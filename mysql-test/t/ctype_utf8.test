@@ -1654,3 +1654,93 @@ set max_sort_length=default;
 --echo # End of 5.6 tests
 --echo #
 
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6666 Malformed result for CONCAT(utf8_column, binary_string)
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('a');
+--error ER_INVALID_CHARACTER_STRING
+SELECT CONCAT(a,0xFF) FROM t1;
+SELECT CONCAT(a,0xC3BF) FROM t1;
+DROP TABLE t1;
+--error ER_INVALID_CHARACTER_STRING
+SELECT CONCAT('a' COLLATE utf8_unicode_ci, _binary 0xFF);
+PREPARE stmt FROM "SELECT CONCAT('a' COLLATE utf8_unicode_ci, ?)";
+SET @arg00=_binary 0xFF;
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE stmt USING @arg00;
+DEALLOCATE PREPARE stmt;
+SET NAMES latin1;
+PREPARE stmt FROM "SELECT CONCAT(_utf8'a' COLLATE utf8_unicode_ci, ?)";
+EXECUTE stmt USING @no_such_var;
+DEALLOCATE PREPARE stmt;
+SET NAMES utf8;
+
+--echo #
+--echo # MDEV-6679 Different optimizer plan for "a BETWEEN 'string' AND ?" and "a BETWEEN ? AND 'string'"
+--echo #
+SET NAMES utf8, collation_connection=utf8_swedish_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8, b INT NOT NULL DEFAULT 0, key(a));
+INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
+SET @arg='¢';
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
+EXECUTE stmt USING @arg;
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
+EXECUTE stmt USING @arg;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+-- echo #
+-- echo # MDEV-6683 A parameter and a string literal with the same values are not recognized as equal by the optimizer
+-- echo #
+
+SET NAMES utf8, collation_connection=utf8_swedish_ci;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT NOT NULL DEFAULT 0, key(a));
+INSERT INTO t1 (a) VALUES ('a'),('b'),('c'),('d'),('¢');
+SET @arg='¢';
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a BETWEEN _utf8'¢' and ?";
+EXECUTE stmt USING @arg;
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t1 WHERE a between ? and _utf8'¢'";
+EXECUTE stmt USING @arg;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-6688 Illegal mix of collation with bit string B'01100001'
+--echo #
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1, b INT);
+INSERT INTO t1 VALUES ('a',1);
+SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 X'61')) FROM t1;
+SELECT CONCAT(a, IF(b>10, _utf8 X'61', _utf8 B'01100001')) FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-6694 Illegal mix of collation with a PS parameter
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 (a INT, b VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES (1,'a');
+SELECT CONCAT(b,IF(a,'b','b')) FROM t1;
+PREPARE stmt FROM "SELECT CONCAT(b,IF(a,?,?)) FROM t1";
+SET @b='b';
+EXECUTE stmt USING @b,@b;
+SET @b='';
+EXECUTE stmt USING @b,@b;
+SET @b='я';
+--error ER_CANT_AGGREGATE_2COLLATIONS
+EXECUTE stmt USING @b,@b;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+
+let $ctype_unescape_combinations=selected;
+--source include/ctype_unescape.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

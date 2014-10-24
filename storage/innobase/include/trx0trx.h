@@ -992,6 +992,11 @@ struct trx_t{
 					count of tables being flushed. */
 
 	/*------------------------------*/
+	THD*		current_lock_mutex_owner;
+					/*!< If this is equal to current_thd,
+					then in innobase_kill_query() we know we
+					already hold the lock_sys->mutex. */
+	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	ulint		start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
@@ -1004,6 +1009,9 @@ struct trx_t{
 	/*------------------------------*/
 	char detailed_error[256];	/*!< detailed error message for last
 					error, or empty. */
+#ifdef WITH_WSREP
+	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
+#endif /* WITH_WSREP */
 };
 
 /* Transaction isolation levels (trx->isolation_level) */

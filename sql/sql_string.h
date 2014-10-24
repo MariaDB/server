@@ -211,10 +211,12 @@ public:
     str_charset=cs;
   }
   bool set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs);
-  bool set(longlong num, CHARSET_INFO *cs)
-  { return set_int(num, false, cs); }
-  bool set(ulonglong num, CHARSET_INFO *cs)
-  { return set_int((longlong)num, true, cs); }
+  bool set(int num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
+  bool set(uint num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
+  bool set(long num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
+  bool set(ulong num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
+  bool set(longlong num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
+  bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
   bool set_real(double num,uint decimals, CHARSET_INFO *cs);
 
   /* Move handling of buffer from some other object to String */
@@ -351,6 +353,10 @@ public:
   bool set_or_copy_aligned(const char *s, uint32 arg_length, CHARSET_INFO *cs);
   bool copy(const char*s,uint32 arg_length, CHARSET_INFO *csfrom,
 	    CHARSET_INFO *csto, uint *errors);
+  bool copy(const String *str, CHARSET_INFO *tocs, uint *errors)
+  {
+    return copy(str->ptr(), str->length(), str->charset(), tocs, errors);
+  }
   void move(String &s)
   {
     free();
@@ -407,7 +413,7 @@ public:
   friend int stringcmp(const String *a,const String *b);
   friend String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
   friend class Field;
-  uint32 numchars();
+  uint32 numchars() const;
   int charpos(longlong i,uint32 offset=0);
 
   int reserve(uint32 space_needed)
@@ -498,7 +504,7 @@ public:
     str_length+= arg_length;
     return FALSE;
   }
-  void print(String *print);
+  void print(String *print) const;
 
   bool append_for_single_quote(const char *st, uint len);
   bool append_for_single_quote(const String *s)
@@ -517,6 +523,12 @@ public:
   {
     return (s->alloced && Ptr >= s->Ptr && Ptr < s->Ptr + s->str_length);
   }
+  uint well_formed_length() const
+  {
+    int dummy_error;
+    return charset()->cset->well_formed_len(charset(), ptr(), ptr() + length(),
+                                            length(), &dummy_error);
+  }
   bool is_ascii() const
   {
     if (length() == 0)
@@ -529,6 +541,15 @@ public:
         return FALSE;
     }
     return TRUE;
+  }
+  bool bin_eq(const String *other) const
+  {
+    return length() == other->length() &&
+           !memcmp(ptr(), other->ptr(), length());
+  }
+  bool eq(const String *other, CHARSET_INFO *cs) const
+  {
+    return !sortcmp(this, other, cs);
   }
 };
 

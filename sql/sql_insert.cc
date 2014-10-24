@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+   Copyright (c) 2010, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1014,7 +1014,7 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
         thd->transaction.stmt.modified_non_trans_table ||
 	was_insert_delayed)
     {
-      if (mysql_bin_log.is_open())
+      if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
       {
         int errcode= 0;
 	if (error <= 0)
@@ -1100,6 +1100,11 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
 
   if (error)
     goto abort;
+  if (thd->lex->analyze_stmt)
+  {
+    retval= thd->lex->explain->send_explain(thd);
+    goto abort;
+  }
   if (values_list.elements == 1 && (!(thd->variables.option_bits & OPTION_WARNINGS) ||
 				    !thd->cuted_fields))
   {
@@ -3195,6 +3200,11 @@ bool Delayed_insert::handle_inserts(void)
         mysql_cond_broadcast(&cond_client);     // If waiting clients
     }
   }
+
+  if (WSREP((&thd)))
+    thd_proc_info(&thd, "insert done");
+  else
+    thd_proc_info(&thd, 0);
   mysql_mutex_unlock(&mutex);
 
   /*
@@ -3647,8 +3657,11 @@ bool select_insert::send_eof()
   DBUG_PRINT("enter", ("trans_table=%d, table_type='%s'",
                        trans_table, table->file->table_type()));
 
-  error= (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
-          table->file->ha_end_bulk_insert() : 0);
+  error = IF_WSREP((thd->wsrep_conflict_state == MUST_ABORT ||
+		  thd->wsrep_conflict_state == CERT_FAILURE) ? -1 :, )
+	  (thd->locked_tables_mode <= LTM_LOCK_TABLES ?
+           table->file->ha_end_bulk_insert() : 0);
+
   if (!error && thd->is_error())
     error= thd->get_stmt_da()->sql_errno();
 
@@ -3676,7 +3689,7 @@ bool select_insert::send_eof()
     events are in the transaction cache and will be written when
     ha_autocommit_or_rollback() is issued below.
   */
-  if (mysql_bin_log.is_open() &&
+  if ((WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
       (!error || thd->transaction.stmt.modified_non_trans_table))
   {
     int errcode= 0;
@@ -3699,6 +3712,10 @@ bool select_insert::send_eof()
     table->file->print_error(error,MYF(0));
     DBUG_RETURN(1);
   }
+
+  if (suppress_my_ok)
+    DBUG_RETURN(0);
+
   char buff[160];
   if (info.ignore)
     sprintf(buff, ER(ER_INSERT_INFO), (ulong) info.records,
@@ -3761,7 +3778,7 @@ void select_insert::abort_result_set() {
         if (!can_rollback_data())
           thd->transaction.all.modified_non_trans_table= TRUE;
 
-        if (mysql_bin_log.is_open())
+        if(WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
         {
           int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
           /* error of writing binary log is ignored */
@@ -4135,15 +4152,14 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
 {
   /*
     Note 1: In RBR mode, we generate a CREATE TABLE statement for the
-    created table by calling store_create_info() (behaves as SHOW
-    CREATE TABLE).  In the event of an error, nothing should be
-    written to the binary log, even if the table is non-transactional;
-    therefore we pretend that the generated CREATE TABLE statement is
-    for a transactional table.  The event will then be put in the
-    transaction cache, and any subsequent events (e.g., table-map
-    events and binrow events) will also be put there.  We can then use
-    ha_autocommit_or_rollback() to either throw away the entire
-    kaboodle of events, or write them to the binary log.
+    created table by calling show_create_table().  In the event of an error,
+    nothing should be written to the binary log, even if the table is
+    non-transactional; therefore we pretend that the generated CREATE TABLE
+    statement is for a transactional table.  The event will then be put in the
+    transaction cache, and any subsequent events (e.g., table-map events and
+    binrow events) will also be put there.  We can then use
+    ha_autocommit_or_rollback() to either throw away the entire kaboodle of
+    events, or write them to the binary log.
 
     We write the CREATE TABLE statement here and not in prepare()
     since there potentially are sub-selects or accesses to information
@@ -4162,14 +4178,11 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   tmp_table_list.table = *tables;
   query.length(0);      // Have to zero it since constructor doesn't
 
-  result= store_create_info(thd, &tmp_table_list, &query, create_info,
-                            /* show_database */ TRUE,
-                            MY_TEST(create_info->org_options &
-                                    HA_LEX_CREATE_REPLACE) ||
-                            create_info->table_was_deleted);
-  DBUG_ASSERT(result == 0); /* store_create_info() always return 0 */
+  result= show_create_table(thd, &tmp_table_list, &query, create_info,
+                            WITH_DB_NAME);
+  DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
 
-  if (mysql_bin_log.is_open())
+  if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())
   {
     int errcode= query_error_code(thd, thd->killed == NOT_KILLED);
     result= thd->binlog_query(THD::STMT_QUERY_TYPE,
@@ -4179,6 +4192,9 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
                               /* suppress_use */ FALSE,
                               errcode);
   }
+
+  ha_fake_trx_id(thd);
+
   return result;
 }
 
@@ -4208,6 +4224,21 @@ bool select_create::send_eof()
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
+#ifdef WITH_WSREP
+    if (WSREP_ON)
+    {
+      mysql_mutex_lock(&thd->LOCK_wsrep_thd);
+      if (thd->wsrep_conflict_state != NO_CONFLICT)
+      {
+        WSREP_DEBUG("select_create commit failed, thd: %lu err: %d %s",
+                    thd->thread_id, thd->wsrep_conflict_state, thd->query());
+        mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+        abort_result_set();
+	return TRUE;
+      }
+      mysql_mutex_unlock(&thd->LOCK_wsrep_thd);
+    }
+#endif /* WITH_WSREP */
   }
   else if (!thd->is_current_stmt_binlog_format_row())
     table->s->table_creation_was_logged= 1;

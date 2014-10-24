@@ -167,7 +167,7 @@ foreach my $option (@ARGV)
   }
   if($option =~ /with-debug/)
   {
-    $cmakeargs = $cmakeargs." -DCMAKE_BUILD_TYPE=Debug";
+    $cmakeargs = $cmakeargs." -DCMAKE_BUILD_TYPE=Debug -DSECURITY_HARDENED=OFF";
     next;
   }
   if($option =~ /with-ssl/)

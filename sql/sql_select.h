@@ -250,7 +250,9 @@ typedef struct st_join_table {
   
   /* Special content for EXPLAIN 'Extra' column or NULL if none */
   enum explain_extra_tag info;
-
+  
+  Table_access_tracker *tracker;
+  Table_access_tracker *jbuf_tracker;
   /* 
     Bitmap of TAB_INFO_* bits that encodes special line for EXPLAIN 'Extra'
     column, or 0 if there is no info.
@@ -536,6 +538,11 @@ typedef struct st_join_table {
   }
 
   void remove_redundant_bnl_scan_conds();
+
+  void save_explain_data(Explain_table_access *eta, table_map prefix_tables, 
+                         bool distinct, struct st_join_table *first_top_tab);
+
+  void update_explain_data(uint idx);
 } JOIN_TAB;
 
 
@@ -1342,7 +1349,6 @@ public:
     sjm_lookup_tables= 0;
 
     filesort_found_rows= false;
-    exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
       joins for which JOIN::optimize was aborted with an error before a proper
@@ -1350,13 +1356,6 @@ public:
     */
     table_access_tabs= NULL; 
   }
-
-  /*
-    TRUE <=> There was a JOIN::exec() call, which saved this JOIN's EXPLAIN.
-    The idea is that we also save at the end of JOIN::optimize(), but that
-    might not be the final plan.
-  */
-  bool exec_saved_explain;
 
   int prepare(Item ***rref_pointer_array, TABLE_LIST *tables, uint wind_num,
 	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
@@ -1414,7 +1413,7 @@ public:
             having_value != Item::COND_FALSE);
   }
   bool empty_result() { return (zero_result_cause && !implicit_grouping); }
-  bool change_result(select_result *result);
+  bool change_result(select_result *new_result, select_result *old_result);
   bool is_top_level_join() const
   {
     return (unit == &thd->lex->unit && (unit->fake_select_lex == 0 ||
@@ -1500,7 +1499,9 @@ private:
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
 enum enum_with_const_tables { WITH_CONST_TABLES, WITHOUT_CONST_TABLES};
 
-JOIN_TAB *first_linear_tab(JOIN *join, enum enum_with_const_tables const_tbls);
+JOIN_TAB *first_linear_tab(JOIN *join,
+                           enum enum_with_bush_roots include_bush_roots,
+                           enum enum_with_const_tables const_tbls);
 JOIN_TAB *next_linear_tab(JOIN* join, JOIN_TAB* tab, 
                           enum enum_with_bush_roots include_bush_roots);
 
@@ -1848,14 +1849,14 @@ void push_index_cond(JOIN_TAB *tab, uint keyno);
 
 /* EXPLAIN-related utility functions */
 int print_explain_message_line(select_result_sink *result, 
-                               uint8 options,
+                               uint8 options, bool is_analyze,
                                uint select_number,
                                const char *select_type,
                                ha_rows *rows,
                                const char *message);
 void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
 int print_explain_row(select_result_sink *result,
-                      uint8 options,
+                      uint8 options, bool is_analyze,
                       uint select_number,
                       const char *select_type,
                       const char *table_name,
@@ -1866,6 +1867,8 @@ int print_explain_row(select_result_sink *result,
                       const char *key_len,
                       const char *ref,
                       ha_rows *rows,
+                      ha_rows *r_rows,
+                      double r_filtered,
                       const char *extra);
 void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
 

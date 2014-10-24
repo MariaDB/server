@@ -125,7 +125,7 @@ sub usage
 
   print <<EOF;
 
-Conversion of a MySQL tables to other storage engines
+Conversion of a MariaDB tables to other storage engines
 
  Usage: $0 database [table[ table ...]]
  If no tables has been specifed, all tables in the database will be converted.

@@ -28,29 +28,6 @@
 
 THR_LOCK table_file_instances::m_table_lock;
 
-static const TABLE_FIELD_TYPE field_types[]=
-{
-  {
-    { C_STRING_WITH_LEN("FILE_NAME") },
-    { C_STRING_WITH_LEN("varchar(512)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("EVENT_NAME") },
-    { C_STRING_WITH_LEN("varchar(128)") },
-    { NULL, 0}
-  },
-  {
-    { C_STRING_WITH_LEN("OPEN_COUNT") },
-    { C_STRING_WITH_LEN("int(10)") },
-    { NULL, 0}
-  }
-};
-
-TABLE_FIELD_DEF
-table_file_instances::m_field_def=
-{ 3, field_types, 0, (uint*) 0 };
-
 PFS_engine_table_share
 table_file_instances::m_share=
 {
@@ -63,8 +40,10 @@ table_file_instances::m_share=
   1000, /* records */
   sizeof(PFS_simple_index),
   &m_table_lock,
-  &m_field_def,
-  false /* checked */
+  { C_STRING_WITH_LEN("CREATE TABLE file_instances("
+                      "FILE_NAME VARCHAR(512) not null,"
+                      "EVENT_NAME VARCHAR(128) not null,"
+                      "OPEN_COUNT INTEGER unsigned not null)") }
 };
 
 PFS_engine_table* table_file_instances::create(void)

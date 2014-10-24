@@ -477,21 +477,6 @@ FLUSH LOGS;
 # rollback;
 # Transaction2 end
 
-# Test case3: Test if the 'BEGIN' and 'COMMIT' are output for the 'test' database 
-# in transaction3 base on NDB engine tables
-# use test;
-# create table t5(a int) engine= NDB;
-# use mysql;
-# create table t6(a int) engine= NDB;
-# Transaction3 begin
-# begin;
-# use test;
-# insert into t5 (a) values (3);
-# use mysql;
-# insert into t6 (a) values (3);
-# commit;
-# Transaction3 end
-
 --echo #
 --echo # Test if the 'BEGIN', 'ROLLBACK' and 'COMMIT' are output if the database specified exists
 --exec $MYSQL_BINLOG --database=test --short-form $MYSQLTEST_VARDIR/std_data/binlog_transaction.000001

@@ -244,7 +244,7 @@ public:
     delete *prev;
     *prev=node;
   }
-  inline void concat(base_list *list)
+  inline void append(base_list *list)
   {
     if (!list->is_empty())
     {
@@ -290,7 +290,7 @@ public:
     *prev= &end_of_list;
     last= prev;
   }
-  inline void prepand(base_list *list)
+  inline void prepend(base_list *list)
   {
     if (!list->is_empty())
     {
@@ -516,9 +516,9 @@ public:
   inline T* head() {return (T*) base_list::head(); }
   inline T** head_ref() {return (T**) base_list::head_ref(); }
   inline T* pop()  {return (T*) base_list::pop(); }
-  inline void concat(List<T> *list) { base_list::concat(list); }
+  inline void append(List<T> *list) { base_list::append(list); }
+  inline void prepend(List<T> *list) { base_list::prepend(list); }
   inline void disjoin(List<T> *list) { base_list::disjoin(list); }
-  inline void prepand(List<T> *list) { base_list::prepand(list); }
   inline bool add_unique(T *a, bool (*eq)(T *a, T *b))
   { return base_list::add_unique(a, (List_eq *)eq); }
   void delete_elements(void)

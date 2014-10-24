@@ -163,6 +163,7 @@
 #cmakedefine HAVE_FSYNC 1
 #cmakedefine HAVE_FTIME 1
 #cmakedefine HAVE_GETADDRINFO 1
+#cmakedefine HAVE_GETIFADDRS 1
 #cmakedefine HAVE_GETCWD 1
 #cmakedefine HAVE_GETHOSTBYADDR_R 1
 #cmakedefine HAVE_GETHRTIME 1
@@ -520,13 +521,17 @@
 #endif
 #define PSAPI_VERSION 1     /* for GetProcessMemoryInfo() */
 
+/* We don't want the min/max macros */
+#ifdef __WIN__
+#define NOMINMAX
+#endif
+
 /*
   MySQL features
 */
 #cmakedefine ENABLED_LOCAL_INFILE 1
 #cmakedefine ENABLED_PROFILING 1
 #cmakedefine EXTRA_DEBUG 1
-#cmakedefine BACKUP_TEST 1
 #cmakedefine CYBOZU 1
 #cmakedefine USE_SYMDIR 1
 
@@ -604,10 +609,6 @@
 #cmakedefine WITH_CSV_STORAGE_ENGINE 1
 #cmakedefine WITH_PARTITION_STORAGE_ENGINE 1
 #cmakedefine WITH_PERFSCHEMA_STORAGE_ENGINE 1
-#cmakedefine WITH_NDBCLUSTER_STORAGE_ENGINE 1
-#if (WITH_NDBCLUSTER_STORAGE_ENGINE) && !defined(EMBEDDED_LIBRARY)
-# define HAVE_NDB_BINLOG 1
-#endif
 #cmakedefine WITH_ARIA_STORAGE_ENGINE 1
 #cmakedefine USE_ARIA_FOR_TMP_TABLES 1
 
@@ -642,6 +643,12 @@
 
 #cmakedefine SIZEOF_TIME_T @SIZEOF_TIME_T@
 #cmakedefine TIME_T_UNSIGNED @TIME_T_UNSIGNED@
+
+#ifndef EMBEDDED_LIBRARY
+#cmakedefine WSREP_INTERFACE_VERSION "@WSREP_INTERFACE_VERSION@"
+#cmakedefine WITH_WSREP 1
+#cmakedefine WSREP_PROC_INFO 1
+#endif
 
 #ifdef _AIX
 /*

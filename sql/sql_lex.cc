@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #include "sp.h"
 #include "sql_select.h"
 
-static int lex_one_token(void *arg, THD *thd);
+static int lex_one_token(YYSTYPE *yylval, THD *thd);
 
 /*
   We are using pointer to this variable for distinguishing between assignment
@@ -470,7 +470,7 @@ void lex_start(THD *thd)
   lex->unit.next= lex->unit.master=
     lex->unit.link_next= lex->unit.return_to= 0;
   lex->unit.prev= lex->unit.link_prev= 0;
-  lex->unit.slave= lex->unit.global_parameters= lex->current_select=
+  lex->unit.slave= lex->current_select=
     lex->all_selects_list= &lex->select_lex;
   lex->select_lex.master= &lex->unit;
   lex->select_lex.prev= &lex->unit.slave;
@@ -483,6 +483,7 @@ void lex_start(THD *thd)
   if (lex->select_lex.group_list_ptrs)
     lex->select_lex.group_list_ptrs->clear();
   lex->describe= 0;
+  lex->analyze_stmt= 0;
   lex->subqueries= FALSE;
   lex->context_analysis_only= 0;
   lex->derived_tables= 0;
@@ -502,7 +503,6 @@ void lex_start(THD *thd)
   lex->duplicates= DUP_ERROR;
   lex->ignore= 0;
   lex->spname= NULL;
-  lex->sphead= NULL;
   lex->spcont= NULL;
   lex->proc_list.first= 0;
   lex->escape_used= FALSE;
@@ -514,8 +514,7 @@ void lex_start(THD *thd)
   lex->check_exists= FALSE;
   lex->verbose= 0;
 
-  lex->name.str= 0;
-  lex->name.length= 0;
+  lex->name= null_lex_str;
   lex->event_parse_data= NULL;
   lex->profile_options= PROFILE_NONE;
   lex->nest_level=0 ;
@@ -559,8 +558,20 @@ void lex_end(LEX *lex)
   }
   reset_dynamic(&lex->plugins);
 
-  delete lex->sphead;
-  lex->sphead= NULL;
+  if (lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE)
+  {
+    /*
+      Don't delete lex->sphead, it'll be needed for EXECUTE.
+      Note that of all statements that populate lex->sphead
+      only SQLCOM_COMPOUND can be PREPAREd
+    */
+    DBUG_ASSERT(lex->sphead == 0 || lex->sql_command == SQLCOM_COMPOUND);
+  }
+  else
+  {
+    delete lex->sphead;
+    lex->sphead= NULL;
+  }
 
   lex->mi.reset();
 
@@ -958,15 +969,17 @@ bool consume_comment(Lex_input_stream *lip, int remaining_recursions_permitted)
 /*
   MYSQLlex remember the following states from the following MYSQLlex()
 
+  @param yylval         [out]  semantic value of the token being parsed (yylval)
+  @param thd            THD
+
   - MY_LEX_EOQ			Found end of query
   - MY_LEX_OPERATOR_OR_IDENT	Last state was an ident, text or number
 				(which can't be followed by a signed number)
 */
 
-int MYSQLlex(void *arg, THD *thd)
+int MYSQLlex(YYSTYPE *yylval, THD *thd)
 {
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
-  YYSTYPE *yylval=(YYSTYPE*) arg;
   int token;
 
   if (lip->lookahead_token >= 0)
@@ -983,7 +996,7 @@ int MYSQLlex(void *arg, THD *thd)
     return token;
   }
 
-  token= lex_one_token(arg, thd);
+  token= lex_one_token(yylval, thd);
 
   switch(token) {
   case WITH:
@@ -994,7 +1007,7 @@ int MYSQLlex(void *arg, THD *thd)
       to transform the grammar into a LALR(1) grammar,
       which sql_yacc.yy can process.
     */
-    token= lex_one_token(arg, thd);
+    token= lex_one_token(yylval, thd);
     switch(token) {
     case CUBE_SYM:
       lip->m_digest_psi= MYSQL_ADD_TOKEN(lip->m_digest_psi, WITH_CUBE_SYM,
@@ -1023,7 +1036,7 @@ int MYSQLlex(void *arg, THD *thd)
   return token;
 }
 
-int lex_one_token(void *arg, THD *thd)
+static int lex_one_token(YYSTYPE *yylval, THD *thd)
 {
   reg1	uchar c;
   bool comment_closed;
@@ -1032,7 +1045,6 @@ int lex_one_token(void *arg, THD *thd)
   enum my_lex_states state;
   Lex_input_stream *lip= & thd->m_parser_state->m_lip;
   LEX *lex= thd->lex;
-  YYSTYPE *yylval=(YYSTYPE*) arg;
   CHARSET_INFO *const cs= thd->charset();
   const uchar *const state_map= cs->state_map;
   const uchar *const ident_map= cs->ident_map;
@@ -1578,6 +1590,17 @@ int lex_one_token(void *arg, THD *thd)
           }
           else
           {
+#ifdef WITH_WSREP
+	    if (WSREP(thd) && version == 99997 && thd->wsrep_exec_mode == LOCAL_STATE)
+	    {
+	      WSREP_DEBUG("consistency check: %s", thd->query());
+	      thd->wsrep_consistency_check= CONSISTENCY_CHECK_DECLARED;
+	      lip->yySkipn(5);
+	      lip->set_echo(TRUE);
+	      state=MY_LEX_START;
+	      break;  /* Do not treat contents as a comment.  */
+	    }
+#endif /* WITH_WSREP */
             /*
               Patch and skip the conditional comment to avoid it
               being propagated infinitely (eg. to a slave).
@@ -1797,7 +1820,6 @@ void st_select_lex_unit::init_query()
 {
   st_select_lex_node::init_query();
   linkage= GLOBAL_OPTIONS_TYPE;
-  global_parameters= first_select();
   select_limit_cnt= HA_POS_ERROR;
   offset_limit_cnt= 0;
   union_distinct= 0;
@@ -1806,6 +1828,7 @@ void st_select_lex_unit::init_query()
   union_result= 0;
   table= 0;
   fake_select_lex= 0;
+  saved_fake_select_lex= 0;
   cleaned= 0;
   item_list.empty();
   describe= 0;
@@ -1879,7 +1902,6 @@ void st_select_lex::init_select()
   in_sum_expr= with_wild= 0;
   options= 0;
   sql_cache= SQL_CACHE_UNSPECIFIED;
-  braces= 0;
   interval_list.empty();
   ftfunc_list_alloc.empty();
   inner_sum_func_list= 0;
@@ -2192,6 +2214,7 @@ bool st_select_lex::test_limit()
 }
 
 
+
 st_select_lex_unit* st_select_lex_unit::master_unit()
 {
     return this;
@@ -2201,6 +2224,75 @@ st_select_lex_unit* st_select_lex_unit::master_unit()
 st_select_lex* st_select_lex_unit::outer_select()
 {
   return (st_select_lex*) master;
+}
+
+
+ha_rows st_select_lex::get_offset()
+{
+  ulonglong val= 0;
+
+  if (offset_limit)
+  {
+    // see comment for st_select_lex::get_limit()
+    bool fix_fields_successful= true;
+    if (!offset_limit->fixed)
+    {
+      fix_fields_successful= !offset_limit->fix_fields(master_unit()->thd,
+                                                       NULL);
+
+      DBUG_ASSERT(fix_fields_successful);
+    }
+    val= fix_fields_successful ? offset_limit->val_uint() : HA_POS_ERROR;
+  }
+
+  return (ha_rows)val;
+}
+
+
+ha_rows st_select_lex::get_limit()
+{
+  ulonglong val= HA_POS_ERROR;
+
+  if (select_limit)
+  {
+    /*
+      fix_fields() has not been called for select_limit. That's due to the
+      historical reasons -- this item could be only of type Item_int, and
+      Item_int does not require fix_fields(). Thus, fix_fields() was never
+      called for select_limit.
+
+      Some time ago, Item_splocal was also allowed for LIMIT / OFFSET clauses.
+      However, the fix_fields() behavior was not updated, which led to a crash
+      in some cases.
+
+      There is no single place where to call fix_fields() for LIMIT / OFFSET
+      items during the fix-fields-phase. Thus, for the sake of readability,
+      it was decided to do it here, on the evaluation phase (which is a
+      violation of design, but we chose the lesser of two evils).
+
+      We can call fix_fields() here, because select_limit can be of two
+      types only: Item_int and Item_splocal. Item_int::fix_fields() is trivial,
+      and Item_splocal::fix_fields() (or rather Item_sp_variable::fix_fields())
+      has the following properties:
+        1) it does not affect other items;
+        2) it does not fail.
+
+      Nevertheless DBUG_ASSERT was added to catch future changes in
+      fix_fields() implementation. Also added runtime check against a result
+      of fix_fields() in order to handle error condition in non-debug build.
+    */
+    bool fix_fields_successful= true;
+    if (!select_limit->fixed)
+    {
+      fix_fields_successful= !select_limit->fix_fields(master_unit()->thd,
+                                                       NULL);
+
+      DBUG_ASSERT(fix_fields_successful);
+    }
+    val= fix_fields_successful ? select_limit->val_uint() : HA_POS_ERROR;
+  }
+
+  return (ha_rows)val;
 }
 
 
@@ -2214,6 +2306,7 @@ bool st_select_lex::add_gorder_to_list(THD *thd, Item *item, bool asc)
 {
   return add_to_list(thd, gorder_list, item, asc);
 }
+
 
 bool st_select_lex::add_item_to_list(THD *thd, Item *item)
 {
@@ -2342,7 +2435,7 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
     if (sl->braces)
       str->append(')');
   }
-  if (fake_select_lex == global_parameters)
+  if (fake_select_lex)
   {
     if (fake_select_lex->order_list.elements)
     {
@@ -2353,6 +2446,8 @@ void st_select_lex_unit::print(String *str, enum_query_type query_type)
     }
     fake_select_lex->print_limit(thd, str, query_type);
   }
+  else if (saved_fake_select_lex)
+    saved_fake_select_lex->print_limit(thd, str, query_type);
 }
 
 
@@ -2403,7 +2498,7 @@ void st_select_lex::print_limit(THD *thd,
   SELECT_LEX_UNIT *unit= master_unit();
   Item_subselect *item= unit->item;
 
-  if (item && unit->global_parameters == this)
+  if (item && unit->global_parameters() == this)
   {
     Item_subselect::subs_type subs_type= item->substype();
     if (subs_type == Item_subselect::EXISTS_SUBS ||
@@ -2543,14 +2638,13 @@ void Query_tables_list::destroy_query_tables_list()
 
 LEX::LEX()
   : explain(NULL),
-    result(0), option_type(OPT_DEFAULT), is_lex_started(0),
-   limit_rows_examined_cnt(ULONGLONG_MAX)
+    result(0), option_type(OPT_DEFAULT), sphead(0),
+    is_lex_started(0), limit_rows_examined_cnt(ULONGLONG_MAX)
 {
 
-  my_init_dynamic_array2(&plugins, sizeof(plugin_ref),
-                         plugins_static_buffer,
-                         INITIAL_LEX_PLUGIN_LIST_SIZE, 
-                         INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
+  init_dynamic_array2(&plugins, sizeof(plugin_ref), plugins_static_buffer,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE,
+                      INITIAL_LEX_PLUGIN_LIST_SIZE, 0);
   reset_query_tables_list(TRUE);
   mi.init();
 }
@@ -2781,7 +2875,7 @@ uint8 LEX::get_effective_with_check(TABLE_LIST *view)
 bool
 LEX::copy_db_to(char **p_db, size_t *p_db_length) const
 {
-  if (sphead)
+  if (sphead && sphead->m_name.str)
   {
     DBUG_ASSERT(sphead->m_db.str && sphead->m_db.length);
     /*
@@ -2796,97 +2890,39 @@ LEX::copy_db_to(char **p_db, size_t *p_db_length) const
   return thd->copy_db_to(p_db, p_db_length);
 }
 
-/*
-  initialize limit counters
+/**
+  Initialize offset and limit counters.
 
-  SYNOPSIS
-    st_select_lex_unit::set_limit()
-    values	- SELECT_LEX with initial values for counters
+  @param sl SELECT_LEX to get offset and limit from.
 */
 
 void st_select_lex_unit::set_limit(st_select_lex *sl)
 {
-  ha_rows select_limit_val;
-  ulonglong val;
+  DBUG_ASSERT(!thd->stmt_arena->is_stmt_prepare());
 
-  DBUG_ASSERT(! thd->stmt_arena->is_stmt_prepare());
-  if (sl->select_limit)
-  {
-    Item *item = sl->select_limit;
-    /*
-      fix_fields() has not been called for sl->select_limit. That's due to the
-      historical reasons -- this item could be only of type Item_int, and
-      Item_int does not require fix_fields(). Thus, fix_fields() was never
-      called for sl->select_limit.
-
-      Some time ago, Item_splocal was also allowed for LIMIT / OFFSET clauses.
-      However, the fix_fields() behavior was not updated, which led to a crash
-      in some cases.
-
-      There is no single place where to call fix_fields() for LIMIT / OFFSET
-      items during the fix-fields-phase. Thus, for the sake of readability,
-      it was decided to do it here, on the evaluation phase (which is a
-      violation of design, but we chose the lesser of two evils).
-
-      We can call fix_fields() here, because sl->select_limit can be of two
-      types only: Item_int and Item_splocal. Item_int::fix_fields() is trivial,
-      and Item_splocal::fix_fields() (or rather Item_sp_variable::fix_fields())
-      has the following specific:
-        1) it does not affect other items;
-        2) it does not fail.
-
-      Nevertheless DBUG_ASSERT was added to catch future changes in
-      fix_fields() implementation. Also added runtime check against a result
-      of fix_fields() in order to handle error condition in non-debug build.
-    */
-    bool fix_fields_successful= true;
-    if (!item->fixed)
-    {
-      fix_fields_successful= !item->fix_fields(thd, NULL);
-
-      DBUG_ASSERT(fix_fields_successful);
-    }
-    val= fix_fields_successful ? item->val_uint() : HA_POS_ERROR;
-  }
+  offset_limit_cnt= sl->get_offset();
+  select_limit_cnt= sl->get_limit();
+  if (select_limit_cnt + offset_limit_cnt >= select_limit_cnt)
+    select_limit_cnt+= offset_limit_cnt;
   else
-    val= HA_POS_ERROR;
-
-  select_limit_val= (ha_rows)val;
-#ifndef BIG_TABLES
-  /*
-    Check for overflow : ha_rows can be smaller then ulonglong if
-    BIG_TABLES is off.
-    */
-  if (val != (ulonglong)select_limit_val)
-    select_limit_val= HA_POS_ERROR;
-#endif
-  if (sl->offset_limit)
-  {
-    Item *item = sl->offset_limit;
-    // see comment for sl->select_limit branch.
-    bool fix_fields_successful= true;
-    if (!item->fixed)
-    {
-      fix_fields_successful= !item->fix_fields(thd, NULL);
-
-      DBUG_ASSERT(fix_fields_successful);
-    }
-    val= fix_fields_successful ? item->val_uint() : 0;
-  }
-  else
-    val= 0;
-
-  offset_limit_cnt= (ha_rows)val;
-#ifndef BIG_TABLES
-  /* Check for truncation. */
-  if (val != (ulonglong)offset_limit_cnt)
-    offset_limit_cnt= HA_POS_ERROR;
-#endif
-  select_limit_cnt= select_limit_val + offset_limit_cnt;
-  if (select_limit_cnt < select_limit_val)
-    select_limit_cnt= HA_POS_ERROR;		// no limit
+    select_limit_cnt= HA_POS_ERROR;
 }
 
+
+/**
+  Decide if a temporary table is needed for the UNION.
+
+  @retval true  A temporary table is needed.
+  @retval false A temporary table is not needed.
+ */
+
+bool st_select_lex_unit::union_needs_tmp_table()
+{
+  return union_distinct != NULL ||
+    global_parameters()->order_list.elements != 0 ||
+    thd->lex->sql_command == SQLCOM_INSERT_SELECT ||
+    thd->lex->sql_command == SQLCOM_REPLACE_SELECT;
+}  
 
 /**
   @brief Set the initial purpose of this TABLE_LIST object in the list of used
@@ -3281,7 +3317,7 @@ static void fix_prepare_info_in_table_list(THD *thd, TABLE_LIST *tbl)
 {
   for (; tbl; tbl= tbl->next_local)
   {
-    if (tbl->on_expr)
+    if (tbl->on_expr && !tbl->prep_on_expr)
     {
       thd->check_and_register_item_tree(&tbl->prep_on_expr, &tbl->on_expr);
       tbl->on_expr= tbl->on_expr->copy_andor_structure(thd);
@@ -3475,7 +3511,7 @@ bool st_select_lex::optimize_unflattened_subqueries(bool const_only)
         ulonglong save_options;
         int res;
         /* We need only 1 row to determine existence */
-        un->set_limit(un->global_parameters);
+        un->set_limit(un->global_parameters());
         un->thd->lex->current_select= sl;
         save_options= inner_join->select_options;
         if (options & SELECT_DESCRIBE)
@@ -3735,7 +3771,7 @@ bool SELECT_LEX::merge_subquery(THD *thd, TABLE_LIST *derived,
 {
   derived->wrap_into_nested_join(subq_select->top_join_list);
 
-  ftfunc_list->concat(subq_select->ftfunc_list);
+  ftfunc_list->append(subq_select->ftfunc_list);
   if (join ||
       thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
       thd->lex->sql_command == SQLCOM_DELETE_MULTI)
@@ -3875,7 +3911,7 @@ void SELECT_LEX::update_used_tables()
   }
   for (ORDER *order= group_list.first; order; order= order->next)
     (*order->item)->update_used_tables();
-  if (!master_unit()->is_union() || master_unit()->global_parameters != this)
+  if (!master_unit()->is_union() || master_unit()->global_parameters() != this)
   {
     for (ORDER *order= order_list.first; order; order= order->next)
       (*order->item)->update_used_tables();
@@ -4181,12 +4217,12 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
 */
 
 int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
-                       bool *printed_anything)
+                       bool is_analyze, bool *printed_anything)
 {
   int res;
   if (explain && explain->have_query_plan())
   {
-    res= explain->print_explain(output, explain_flags);
+    res= explain->print_explain(output, explain_flags, is_analyze);
     *printed_anything= true;
   }
   else
@@ -4223,7 +4259,8 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
     eu->add_select(sl->select_number);
 
   eu->fake_select_type= "UNION RESULT";
-  eu->using_filesort= MY_TEST(global_parameters->order_list.first);
+  eu->using_filesort= MY_TEST(global_parameters()->order_list.first);
+  eu->using_tmp= union_needs_tmp_table();
 
   // Save the UNION node
   output->add_node(eu);

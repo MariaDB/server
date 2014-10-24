@@ -191,16 +191,8 @@ drop table t1;
 #
 if(!$is_heap)
 {
-if(!$is_ndb)
-{
 --error ER_TOO_LONG_KEY
 eval create table t1 (a text character set utf8mb4, primary key(a(371))) engine $engine;
-}
-if($is_ndb)
-{
---error ER_BLOB_USED_AS_KEY
-eval create table t1 (a text character set utf8mb4, primary key(a(371))) engine $engine;
-}
 }
 
 #
@@ -254,8 +246,6 @@ drop table t2;
 # Bug 4521: unique key prefix interacts poorly with utf8mb4
 # MYISAM: keys with prefix compression, case insensitive collation.
 #
-if (!$is_ndb)
-{
 eval create table t1 (c varchar(30) character set utf8mb4, unique(c(10))) engine $engine;
 insert into t1 values ('1'),('2'),('3'),('x'),('y'),('z');
 insert into t1 values ('aaaaaaaaaa');
@@ -549,7 +539,6 @@ select c as c_all from t1 order by c;
 select c as c_a from t1 where c='a';
 select c as c_a from t1 where c='Ð±';
 drop table t1;
-}
 
 
 # Bug#4594: column index make = failed for gbk, but like works
@@ -593,8 +582,6 @@ drop table t1;
 # the same for HEAP+HASH
 #
 
-if (!$is_ndb)
-{
 eval create table t1 (
   str varchar(255) character set utf8mb4 not null,
   key str using hash (str(2))
@@ -618,7 +605,6 @@ INSERT INTO t1 VALUES ('str');
 INSERT INTO t1 VALUES ('str2');
 select * from t1 where str='str';
 drop table t1;
-}
 
 #
 # Bug #5397: Crash with varchar binary and LIKE
@@ -650,8 +636,6 @@ DROP TABLE t1;
 # Bug #5832 SELECT doesn't return records in some cases
 #
 if (!$is_heap)
-{
-if (!$is_ndb)
 {
 eval CREATE TABLE t1 (
     id       int unsigned NOT NULL auto_increment,
@@ -688,7 +672,6 @@ SELECT id, term FROM t1 where (list_id = 1) AND (term = "testétest");
 SELECT id, term FROM t1 where (list_id = 1) AND (term = "testetest");
 SELECT id, term FROM t1 where (list_id = 1) AND (term = "testètest");
 DROP TABLE t1;
-}
 }
 
 #
@@ -979,14 +962,7 @@ if (!$is_heap)
 #
 eval CREATE TABLE t1 (t TINYTEXT CHARACTER SET utf8mb4) ENGINE $engine;
 INSERT INTO t1 VALUES(REPEAT('a', 100));
-if (!$is_ndb)
-{
 eval CREATE TEMPORARY TABLE t2 ENGINE $engine SELECT COALESCE(t) AS bug FROM t1;
-}
-if ($is_ndb)
-{
-eval CREATE TABLE t2 ENGINE $engine SELECT COALESCE(t) AS bug FROM t1;
-}
 SELECT LENGTH(bug) FROM t2;
 DROP TABLE t2;
 DROP TABLE t1;
@@ -1202,8 +1178,6 @@ SET NAMES latin2;
 
 if (!$is_heap)
 {
-if (!$is_ndb)
-{
 eval CREATE TABLE t1 (
   id int(11) NOT NULL default '0',
   tid int(11) NOT NULL default '0',
@@ -1228,7 +1202,6 @@ ALTER TABLE t1 ADD KEY idx (tid,val(11));
 SELECT * FROM t1 WHERE tid=72 and val LIKE 'VOLNÝ ADSL'; 
 
 DROP TABLE t1;
-}
 }
 
 #
@@ -1318,8 +1291,6 @@ drop table t1;
 #
 # Check that do_varstring2_mb produces a warning
 #
-if (!$is_ndb)
-{
 eval create table t1 (
   a varchar(4000) not null
 ) default character set utf8mb4 engine $engine;
@@ -1327,7 +1298,6 @@ insert into t1 values (repeat('a',4000));
 alter table t1 change a a varchar(3000) character set utf8mb4 not null;
 select length(a) from t1;
 drop table t1;
-}
 
 #
 #  Bug#10504: Character set does not support traditional mode
@@ -1614,8 +1584,6 @@ set max_sort_length=default;
 --echo #
 if (!$is_heap)
 {
-if (!$is_ndb)
-{
 eval CREATE TABLE t1 (
   clipid INT NOT NULL,
   Tape TINYTEXT,
@@ -1625,7 +1593,6 @@ eval CREATE TABLE t1 (
 ALTER TABLE t1 ADD mos TINYINT DEFAULT 0 AFTER clipid;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
-}
 }
 
 #--echo #
@@ -1807,12 +1774,9 @@ INSERT INTO t2 VALUES (x'ea9da8');
 SELECT HEX(CONCAT(utf8mb4, utf8mb3)) FROM t1,t2 ORDER BY 1;
 SELECT CHARSET(CONCAT(utf8mb4, utf8mb3)) FROM t1, t2 LIMIT 1;
 
-if (!$is_ndb)
-{
 eval CREATE TEMPORARY TABLE t3 ENGINE $engine AS SELECT *, concat(utf8mb4,utf8mb3) FROM t1, t2;
 SHOW CREATE TABLE t3;
 DROP TEMPORARY TABLE t3;
-}
 
 SELECT * FROM t1, t2 WHERE t1.utf8mb4 > t2.utf8mb3;
 SELECT * FROM t1, t2 WHERE t1.utf8mb4 = t2.utf8mb3;
