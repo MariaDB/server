@@ -133,6 +133,7 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
   return new (mem_root) ha_oqgraph(hton, table);
 }
 
+int oqgraph_close_connection(handlerton *hton, THD *thd);
 
 static int oqgraph_init(void *p)
 {
@@ -149,6 +150,9 @@ static int oqgraph_init(void *p)
   // HTON_NO_FLAGS;
 
   hton->table_options= (ha_create_table_option*)oqgraph_table_option_list;
+
+  hton->close_connection = oqgraph_close_connection;
+
   oqgraph_init_done= TRUE;
   return 0;
 }
@@ -363,6 +367,14 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 ** OQGRAPH tables
 *****************************************************************************/
 
+int oqgraph_close_connection(handlerton *hton, THD *thd)
+{
+  DBUG_PRINT( "oq-debug", ("thd: 0x%lx; oqgraph_close_connection.", (long) thd));
+  // close_thread_tables(thd); // maybe this?
+  return 0;
+}
+
+
 ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
   : handler(hton, table_arg)
   , have_table_share(false)
@@ -372,7 +384,8 @@ ha_oqgraph::ha_oqgraph(handlerton *hton, TABLE_SHARE *table_arg)
   , graph_share(0)
   , graph(0)
   , error_message("", 0, &my_charset_latin1)
-{ }
+{
+}
 
 ha_oqgraph::~ha_oqgraph()
 { }
@@ -434,14 +447,15 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_oqgraph::open");
 
-  DBUG_PRINT( "oq-debug", ("open(name=%s,mode=%d,test_if_locked=%u)", name, mode, test_if_locked));
+  DBUG_PRINT( "oq-debug", ("thd: 0x%lx; open(name=%s,mode=%d,test_if_locked=%u)", (long) current_thd, name, mode, test_if_locked));
 
   DBUG_ASSERT(!have_table_share);
   DBUG_ASSERT(graph == NULL);
 
   THD* thd = current_thd;
-  oqgraph_table_option_struct *options=
-    reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
+  thd_set_ha_data( thd, ht, (void*)1);
+
+  ha_table_option_struct *options= table->s->option_struct;
 
   // Catch cases where table was not constructed properly
   // Note - need to return -1 so our error text gets reported
@@ -663,6 +677,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 
 int ha_oqgraph::close(void)
 {
+  DBUG_PRINT( "oq-debug", ("close()"));
   oqgraph::free(graph); graph= 0;
   oqgraph::free(graph_share); graph_share= 0;
 
@@ -678,6 +693,7 @@ int ha_oqgraph::close(void)
 
 void ha_oqgraph::update_key_stats()
 {
+  DBUG_PRINT( "oq-debug", ("update_key_stats()"));
   for (uint i= 0; i < table->s->keys; i++)
   {
     KEY *key=table->key_info+i;
@@ -799,6 +815,8 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
   VertexID *orig_idp=0, *dest_idp=0;
   int* latchp=0;
   open_query::row row;
+
+  DBUG_PRINT("oq-debug", ("thd: 0x%lx; index_read_idx()", (long) current_thd));
 
   bmove_align(buf, table->s->default_values, table->s->reclength);
   key_restore(buf, (byte*) key, key_info, key_len);
@@ -1062,11 +1080,13 @@ THR_LOCK_DATA **ha_oqgraph::store_lock(THD *thd, THR_LOCK_DATA **to, enum thr_lo
 
 int ha_oqgraph::delete_table(const char *)
 {
+  DBUG_PRINT( "oq-debug", ("delete_table()"));
   return 0;
 }
 
 int ha_oqgraph::rename_table(const char *, const char *)
 {
+  DBUG_PRINT( "oq-debug", ("rename_table()"));
   return 0;
 }
 
@@ -1080,7 +1100,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
     String temp;
     key->key_part[0].field->val_str(&temp);
     temp.c_ptr_safe();
-    DBUG_PRINT( "oq-debug", ("records_in_range ::>> inx=%u", inx));
+    DBUG_PRINT( "oq-debug", ("thd: 0x%lx; records_in_range ::>> inx=%u", (long) current_thd, inx));
     DBUG_PRINT( "oq-debug", ("records_in_range ::>> key0=%s.", temp.c_ptr())); // for some reason when I had  ...inx=%u key=%s", inx, temp.c_ptr_safe()) it printed nothing ...
   }
 #endif
