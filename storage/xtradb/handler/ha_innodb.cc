@@ -3517,7 +3517,7 @@ innobase_change_buffering_inited_ok:
 				  " cannot be set higher than"
 				  " innodb_max_dirty_pages_pct.\n"
 				  "InnoDB: Setting"
-				  " innodb_max_dirty_pages_pct_lwm to %lu\n",
+				  " innodb_max_dirty_pages_pct_lwm to %lf\n",
 				  srv_max_buf_pool_modified_pct);
 
 		srv_max_dirty_pages_pct_lwm = srv_max_buf_pool_modified_pct;
@@ -15051,7 +15051,7 @@ innodb_max_dirty_pages_pct_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
-	ulong	in_val = *static_cast<const ulong*>(save);
+	double	in_val = *static_cast<const double*>(save);
 	if (in_val < srv_max_dirty_pages_pct_lwm) {
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
@@ -15061,7 +15061,7 @@ innodb_max_dirty_pages_pct_update(
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "Lowering"
-				    " innodb_max_dirty_page_pct_lwm to %lu",
+				    " innodb_max_dirty_page_pct_lwm to %lf",
 				    in_val);
 
 		srv_max_dirty_pages_pct_lwm = in_val;
@@ -15085,7 +15085,7 @@ innodb_max_dirty_pages_pct_lwm_update(
 	const void*			save)	/*!< in: immediate result
 						from check function */
 {
-	ulong	in_val = *static_cast<const ulong*>(save);
+	double	in_val = *static_cast<const double*>(save);
 	if (in_val > srv_max_buf_pool_modified_pct) {
 		in_val = srv_max_buf_pool_modified_pct;
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -15096,7 +15096,7 @@ innodb_max_dirty_pages_pct_lwm_update(
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "Setting innodb_max_dirty_page_pct_lwm"
-				    " to %lu",
+				    " to %lf",
 				    in_val);
 	}
 
@@ -17338,22 +17338,22 @@ static MYSQL_SYSVAR_ULONG(log_arch_expire_sec,
   "Expiration time for archived innodb transaction logs.",
   NULL, innodb_log_archive_expire_update, 0, 0, ~0UL, 0);
 
-static MYSQL_SYSVAR_ULONG(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
+static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct, srv_max_buf_pool_modified_pct,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of dirty pages allowed in bufferpool.",
-  NULL, innodb_max_dirty_pages_pct_update, 75, 0, 99, 0);
+  NULL, innodb_max_dirty_pages_pct_update, 75.0, 0.001, 99.999, 0);
 
-static MYSQL_SYSVAR_ULONG(max_dirty_pages_pct_lwm,
+static MYSQL_SYSVAR_DOUBLE(max_dirty_pages_pct_lwm,
   srv_max_dirty_pages_pct_lwm,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of dirty pages at which flushing kicks in.",
-  NULL, innodb_max_dirty_pages_pct_lwm_update, 0, 0, 99, 0);
+  NULL, innodb_max_dirty_pages_pct_lwm_update, 0.001, 0.000, 99.999, 0);
 
-static MYSQL_SYSVAR_ULONG(adaptive_flushing_lwm,
+static MYSQL_SYSVAR_DOUBLE(adaptive_flushing_lwm,
   srv_adaptive_flushing_lwm,
   PLUGIN_VAR_RQCMDARG,
   "Percentage of log capacity below which no adaptive flushing happens.",
-  NULL, NULL, 10, 0, 70, 0);
+  NULL, NULL, 10.0, 0.0, 70.0, 0);
 
 static MYSQL_SYSVAR_BOOL(adaptive_flushing, srv_adaptive_flushing,
   PLUGIN_VAR_NOCMDARG,

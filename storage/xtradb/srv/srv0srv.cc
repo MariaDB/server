@@ -347,12 +347,12 @@ in the buffer pool to all database pages in the buffer pool smaller than
 the following number. But it is not guaranteed that the value stays below
 that during a time of heavy update/insert activity. */
 
-UNIV_INTERN ulong	srv_max_buf_pool_modified_pct	= 75;
-UNIV_INTERN ulong	srv_max_dirty_pages_pct_lwm	= 50;
+UNIV_INTERN double	srv_max_buf_pool_modified_pct	= 75.0;
+UNIV_INTERN double	srv_max_dirty_pages_pct_lwm	= 50.0;
 
 /* This is the percentage of log capacity at which adaptive flushing,
 if enabled, will kick in. */
-UNIV_INTERN ulong	srv_adaptive_flushing_lwm	= 10;
+UNIV_INTERN double	srv_adaptive_flushing_lwm	= 10.0;
 
 /* Number of iterations over which adaptive flushing is averaged. */
 UNIV_INTERN ulong	srv_flushing_avg_loops		= 30;
