@@ -266,6 +266,14 @@ dict_mem_table_create(
 	bool		nonshared);/*!< in: whether the table object is a dummy
 				   one that does not need the initialization of
 				   locking-related fields. */
+/**********************************************************************//**
+Determines if a table belongs to a system database
+@return true if table belong to a system database */
+UNIV_INTERN
+bool
+dict_mem_table_is_system(
+/*==================*/
+	char	*name);		/*!< in: table name */
 /****************************************************************//**
 Free a table memory object. */
 UNIV_INTERN
@@ -894,6 +902,10 @@ struct dict_table_t{
 				the string contains n_cols, it will be
 				allocated from a temporary heap.  The final
 				string will be allocated from table->heap. */
+	bool		is_system_db;
+				/*!< True if the table belongs to a system
+				database (mysql, information_schema or
+				performance_schema) */
 #ifndef UNIV_HOTBACKUP
 	hash_node_t	name_hash; /*!< hash chain node */
 	hash_node_t	id_hash; /*!< hash chain node */

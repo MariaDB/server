@@ -669,6 +669,14 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_rows_read,		  SHOW_LONG},
   {"rows_updated",
   (char*) &export_vars.innodb_rows_updated,		  SHOW_LONG},
+  {"system_rows_deleted",
+  (char*) &export_vars.innodb_system_rows_deleted, SHOW_LONG},
+  {"system_rows_inserted",
+  (char*) &export_vars.innodb_system_rows_inserted, SHOW_LONG},
+  {"system_rows_read",
+  (char*) &export_vars.innodb_system_rows_read, SHOW_LONG},
+  {"system_rows_updated",
+  (char*) &export_vars.innodb_system_rows_updated, SHOW_LONG},
   {"num_open_files",
   (char*) &export_vars.innodb_num_open_files,		  SHOW_LONG},
   {"truncated_status_writes",
@@ -7892,7 +7900,13 @@ ha_innobase::index_read(
 	case DB_SUCCESS:
 		error = 0;
 		table->status = 0;
-		srv_stats.n_rows_read.add((size_t) prebuilt->trx->id, 1);
+		if (prebuilt->table->is_system_db) {
+			srv_stats.n_system_rows_read.add(
+				(size_t) prebuilt->trx->id, 1);
+		} else {
+			srv_stats.n_rows_read.add(
+				(size_t) prebuilt->trx->id, 1);
+		}
 		break;
 	case DB_RECORD_NOT_FOUND:
 		error = HA_ERR_KEY_NOT_FOUND;
@@ -8168,7 +8182,13 @@ ha_innobase::general_fetch(
 	case DB_SUCCESS:
 		error = 0;
 		table->status = 0;
-		srv_stats.n_rows_read.add((size_t) prebuilt->trx->id, 1);
+		if (prebuilt->table->is_system_db) {
+			srv_stats.n_system_rows_read.add(
+				(size_t) prebuilt->trx->id, 1);
+		} else {
+			srv_stats.n_rows_read.add(
+				(size_t) prebuilt->trx->id, 1);
+		}
 		break;
 	case DB_RECORD_NOT_FOUND:
 		error = HA_ERR_END_OF_FILE;

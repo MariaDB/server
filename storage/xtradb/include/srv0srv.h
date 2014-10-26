@@ -127,8 +127,23 @@ struct srv_stats_t {
 	/** Number of rows inserted */
 	ulint_ctr_64_t		n_rows_inserted;
 
+	/** Number of system rows read. */
+	ulint_ctr_64_t		n_system_rows_read;
+
+	/** Number of system rows updated */
+	ulint_ctr_64_t		n_system_rows_updated;
+
+	/** Number of system rows deleted */
+	ulint_ctr_64_t		n_system_rows_deleted;
+
+	/** Number of system rows inserted */
+	ulint_ctr_64_t		n_system_rows_inserted;
+
+	/** Number of lock deadlocks */
 	ulint_ctr_1_t		lock_deadlock_count;
 
+	/** Number of lock waits that have been up to max time (i.e.) lock
+	wait timeout */
 	ulint_ctr_1_t		n_lock_max_wait_time;
 };
 
@@ -1052,6 +1067,10 @@ struct export_var_t{
 	ulint innodb_rows_inserted;		/*!< srv_n_rows_inserted */
 	ulint innodb_rows_updated;		/*!< srv_n_rows_updated */
 	ulint innodb_rows_deleted;		/*!< srv_n_rows_deleted */
+	ulint innodb_system_rows_read; /*!< srv_n_system_rows_read */
+	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
+	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
+	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
 	ulint innodb_num_open_files;		/*!< fil_n_file_opened */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs */

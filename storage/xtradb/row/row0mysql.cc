@@ -1395,7 +1395,11 @@ error_exit:
 
 	if (UNIV_LIKELY(!(trx->fake_changes))) {
 
-		srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_inserted.add((size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+		}
 
 		/* Not protected by dict_table_stats_lock() for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
@@ -1793,9 +1797,19 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		}
 	} else {
-		srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_updated.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		}
 	}
 
 	/* We update table statistics only if it is a DELETE or UPDATE
@@ -2024,9 +2038,19 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(table);
 
-		srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		}
 	} else {
-		srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_updated.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		}
 	}
 
 	row_update_statistics_if_needed(table);

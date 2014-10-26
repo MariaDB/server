@@ -864,6 +864,14 @@ static SHOW_VAR innodb_status_variables[]= {
   (char*) &export_vars.innodb_rows_read,		  SHOW_LONG},
   {"rows_updated",
   (char*) &export_vars.innodb_rows_updated,		  SHOW_LONG},
+  {"system_rows_deleted",
+  (char*) &export_vars.innodb_system_rows_deleted,	  SHOW_LONG},
+  {"system_rows_inserted",
+  (char*) &export_vars.innodb_system_rows_inserted,	  SHOW_LONG},
+  {"system_rows_read",
+  (char*) &export_vars.innodb_system_rows_read,		  SHOW_LONG},
+  {"system_rows_updated",
+  (char*) &export_vars.innodb_system_rows_updated,	  SHOW_LONG},
   {"s_lock_os_waits",
   (char*) &export_vars.innodb_s_lock_os_waits,		  SHOW_LONGLONG},
   {"s_lock_spin_rounds",
@@ -8513,7 +8521,13 @@ ha_innobase::index_read(
 	case DB_SUCCESS:
 		error = 0;
 		table->status = 0;
-		srv_stats.n_rows_read.add((size_t) prebuilt->trx->id, 1);
+		if (prebuilt->table->is_system_db) {
+			srv_stats.n_system_rows_read.add(
+				(size_t) prebuilt->trx->id, 1);
+		} else {
+			srv_stats.n_rows_read.add(
+				(size_t) prebuilt->trx->id, 1);
+		}
 #ifdef EXTENDED_FOR_USERSTAT
 		rows_read++;
 		if (active_index < MAX_KEY)

@@ -296,8 +296,8 @@ set global innodb_monitor_enable="";
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of ''
 set global innodb_monitor_enable="_";
 ERROR 42000: Variable 'innodb_monitor_enable' can't be set to the value of '_'
-SET global innodb_monitor_disable = module_metadata;
-SET global innodb_monitor_reset_all = module_metadata;
+set global innodb_monitor_disable = module_metadata;
+set global innodb_monitor_reset_all = module_metadata;
 set global innodb_monitor_enable = metadata_table_handles_opened;
 create table monitor_test(col int) engine = innodb;
 select * from monitor_test;
@@ -574,8 +574,11 @@ icp_no_match	0
 icp_out_of_range	1
 icp_match	1
 drop table monitor_test;
-set global innodb_monitor_disable = All;
+set global innodb_monitor_disable = all;
 set global innodb_monitor_reset_all = all;
+select 1 from `information_schema`.`INNODB_METRICS`
+where case (1) when (1) then (AVG_COUNT_RESET) else (1) end;
+1
 set global innodb_monitor_enable = default;
 set global innodb_monitor_disable = default;
 set global innodb_monitor_reset = default;
