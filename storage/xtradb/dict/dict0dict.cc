@@ -1481,7 +1481,6 @@ struct dict_foreign_remove_partial
 		if (table != NULL) {
 			table->referenced_set.erase(foreign);
 		}
-		dict_foreign_free(foreign);
 	}
 };
 
