@@ -210,19 +210,24 @@ my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *ke
      @param dest           [out] Buffer to place encrypted data (must be large enough)
 	 @param dest_length    [out] Pointer to size of encrypted data
  	 @param key            [in]  Key to be used for encryption
-     @param key_length     [in]  Length of the key. Will handle keys of any length
- 	 @param key            [in]  Iv to be used for encryption
-     @param key_length     [in]  Length of the iv. should be 16.
+     @param key_length     [in]  Length of the key. 16, 24 or 32
+	 @param iv             [in]  Iv to be used for encryption
+     @param iv_length      [in]  Length of the iv. should be 16.
+	 @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
 
   @return
-    > 0           error
+    != 0           error
     0             no error
 */
 int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
 					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
-					const unsigned char* iv, uint8 iv_length)
+					const unsigned char* iv, uint8 iv_length,
+					int noPadding)
 {
+	if (noPadding) {
+		if (source_length % 16 !=0) return AES_BAD_DATA;
+	}
 #ifdef HAVE_YASSL
 	TaoCrypt::AES_CBC_Encryption enc;
 	/* 128 bit block used for padding */
@@ -250,6 +255,12 @@ int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
                 MY_AES_BLOCK_SIZE);
     source += MY_AES_BLOCK_SIZE;
     dest += MY_AES_BLOCK_SIZE;
+  }
+
+  if (noPadding) {
+	  *dest_length = MY_AES_BLOCK_SIZE * (num_blocks);
+	  return AES_OK;
+  
   }
 
   /* Encode the rest. We always have incomplete block */
@@ -286,6 +297,9 @@ int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
 
   if (! EVP_EncryptInit_ex(&ctx.ctx, cipher, engine, key, iv))
     return AES_BAD_DATA;                        /* Error */
+  if (noPadding) {
+	  EVP_CIPHER_CTX_set_padding(&ctx.ctx, 0);
+  }
   EVP_CIPHER_CTX_key_length(&ctx.ctx);
   OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
   OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
@@ -304,11 +318,35 @@ int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
 #endif
 }
 
+
+/**
+  AES decryption - CBC mode
+
+  SYNOPSIS
+     my_aes_encrypt()
+     @param source         [in]  Pointer to data to decrypt
+     @param source_length  [in]  Size of data
+     @param dest           [out] Buffer to place decrypted data (must be large enough)
+	 @param dest_length    [out] Pointer to size of decrypted data
+ 	 @param key            [in]  Key to be used for decryption
+     @param key_length     [in]  Length of the key. 16, 24 or 32
+ 	 @param iv             [in]  Iv to be used for encryption
+     @param iv_length      [in]  Length of the iv. should be 16.
+	 @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
+
+  @return
+    != 0           error
+    0             no error
+*/
 int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
-					const unsigned char* iv, uint8 iv_length)
+					const unsigned char* iv, uint8 iv_length,
+					int noPadding)
 {
+	if (noPadding) {
+		if (source_length % 16 !=0) return AES_BAD_DATA;
+	}
 #ifdef HAVE_YASSL
 	TaoCrypt::AES_CBC_Decryption dec;
 	/* 128 bit block used for padding */
@@ -345,6 +383,12 @@ int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 
 	dec.Process((TaoCrypt::byte *) block, (const TaoCrypt::byte *) source,
 				MY_AES_BLOCK_SIZE);
+	
+	if (noPadding) {
+		memcpy(dest, block, MY_AES_BLOCK_SIZE);
+		*dest_length = MY_AES_BLOCK_SIZE * num_blocks;
+		return AES_OK;
+	}
 
 	/* Use last char in the block as size */
 	uint pad_len = (uint) (uchar) block[MY_AES_BLOCK_SIZE - 1];
@@ -379,6 +423,9 @@ int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 
     if (! EVP_DecryptInit_ex(&ctx.ctx, cipher, engine, key, iv))
     	return AES_BAD_DATA;                        /* Error */
+	if (noPadding) {
+	  EVP_CIPHER_CTX_set_padding(&ctx.ctx, 0);
+    }
     OPENSSL_assert(EVP_CIPHER_CTX_key_length(&ctx.ctx) == key_length);
 	OPENSSL_assert(EVP_CIPHER_CTX_iv_length(&ctx.ctx) == iv_length);
 	OPENSSL_assert(EVP_CIPHER_CTX_block_size(&ctx.ctx) == 16);
@@ -401,6 +448,7 @@ my_aes_encrypt(const char* source, int source_length, char* dest,
 {
 #if defined(HAVE_YASSL)
   TaoCrypt::AES_ECB_Encryption enc;
+  
   /* 128 bit block used for padding */
   uint8 block[MY_AES_BLOCK_SIZE];
   int num_blocks;                               /* number of complete blocks */

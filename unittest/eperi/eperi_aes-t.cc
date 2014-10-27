@@ -20,13 +20,15 @@ extern "C" {
 extern int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 		char* dest, unsigned long int *dest_length,
 		const unsigned char* key, uint8 key_length,
-		const unsigned char* iv, uint8 iv_length);
+		const unsigned char* iv, uint8 iv_length,
+		int noPadding);
 
 
 extern int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
 					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
-					const unsigned char* iv, uint8 iv_length);
+					const unsigned char* iv, uint8 iv_length,
+					int noPadding);
 extern void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key, unsigned char *iv);
 }
 
@@ -81,109 +83,44 @@ fclose(fileptr); // Close the file
 return buffer;
 }
 
-void
-test_cbc_wrong_keylength()
-{
-	plan(2);
-	char* source = "Joshua: Shall we play a game";
-	ulint s_len = (ulint)strlen(source);
-	unsigned char key[24] = {0x89, 0x9c, 0x0e, 0xcb, 0x59, 0x2b, 0x2c,
-			0xee, 0x46, 0xe6, 0x41, 0x91, 0xb6, 0xe6, 0xde, 0x9b, 0x97,
-			0xd8, 0xa8, 0xee, 0xa4, 0x3b, 0xef, 0x78 };
-	uint8 k_len = 6;
-	unsigned char iv[16] = {0xf0, 0x97, 0x40, 0x07, 0xd6, 0x19, 0x46, 0x6b,
-	0x9e, 0xbf, 0x8d, 0x4f, 0x6e, 0x30, 0x2a, 0xa3};
-	uint8 i_len = 16;
-	char* dest = (char *) malloc(2*s_len*sizeof(char));
-	unsigned long int dest_len = 0;
 
-	int rc = my_aes_encrypt_cbc(source, s_len, dest, &dest_len,(unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
-	ok(rc == -5, "Encryption - wrong keylength was detected.");
-	rc = my_aes_decrypt_cbc(source, s_len, dest, &dest_len,(unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
-	ok(rc == -5, "Decryption - wrong keylength was detected.");
-}
+
+
+
 
 void
-test_cbc_keysizes()
+test_cbc128noPadding()
 {
-	plan(2);
-	char* source = MY_AES_TEST_JOSHUA;
-	ulint s_len = (ulint)strlen(source);
-	unsigned char key[24] = {0x89, 0x9c, 0x0e, 0xcb, 0x59, 0x2b, 0x2c,
-				0xee, 0x46, 0xe6, 0x41, 0x91, 0xb6, 0xe6, 0xde, 0x9b, 0x97,
-				0xd8, 0xa8, 0xee, 0xa4, 0x3b, 0xef, 0x78 };
-	uint8 k_len = 24;
-	unsigned char iv[16] = {0xf0, 0x97, 0x40, 0x07, 0xd6, 0x19, 0x46, 0x6b,
-	0x9e, 0xbf, 0x8d, 0x4f, 0x6e, 0x30, 0x2a, 0xa3};
-	uint8 i_len = 16;
-	char* dest = (char *) malloc(2*s_len*sizeof(char));
-	ulint dest_len = 0;
-	my_aes_encrypt_cbc(source, s_len, dest, &dest_len, key, k_len, iv, i_len);
-	source = (char *) malloc(strlen(MY_AES_TEST_TEXTBLOCK) * sizeof(char));
-	my_aes_decrypt_cbc(dest , strlen(dest), source, &dest_len,(unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
-	ok(strcmp(source, MY_AES_TEST_JOSHUA),"Decrypted text is identical to original text.");
-
-	unsigned char key2[32] = {0x7b, 0x3b, 0x8d, 0xa9, 0x4b, 0x77,
-					0xf9, 0x1a, 0x6e, 0x05, 0x03, 0x7b,
-					0x21, 0xad, 0x5f, 0x6e, 0x86, 0xbd,
-					0x46, 0x57, 0xc4, 0x5d, 0x97, 0xbc,
-					0xb5, 0xa3};
-	k_len = 32;
-	dest = (char *) malloc(2*s_len*sizeof(char));
-	my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key2, k_len,(unsigned char*) &iv, i_len);
-	source = (char *) malloc(strlen(MY_AES_TEST_TEXTBLOCK) * sizeof(char));
-	my_aes_decrypt_cbc(dest , strlen(dest), source, &dest_len, (unsigned char*) &key2, k_len, (unsigned char*) &iv, i_len);
-	ok(strcmp(source, MY_AES_TEST_JOSHUA),"Decrypted text is identical to original text.");
-	free(source);
-	free(dest);
-}
-
-void
-test_cbc_large()
-{
+	char expected[]=
+	{
+	0x51 , 0xBC , 0xF9 , 0x96 , 0xCB , 0x6A , 0x6D , 0x18 , 0x08 , 0xE1 , 0x08 , 0xC5 , 0x07 , 0x78 , 0x70 , 0xA6,
+	0x15 , 0x3E , 0x41 , 0x34 , 0xEC , 0x5E , 0xA2 , 0x67 , 0x52 , 0x51 , 0x87 , 0x61 , 0x8A , 0x15 , 0xE0 , 0xD7,
+	0x1D , 0x9A , 0x5B , 0x4A , 0xF9 , 0x9F , 0x13 , 0xEE , 0x3B , 0x77 , 0x1E , 0xD1 , 0xF6 , 0x54 , 0xAD , 0xFE
+	};
 	plan(1);
-	char* source = MY_AES_TEST_TEXTBLOCK;
-	ulint s_len = (ulint)strlen(source);
+	int i;
+	char* source = "int i = memcmp(decbuf,inbuf,16);";
+	ulint s_len = strlen(source);
+	char* dest = (char* ) malloc(100);
+	char* result = (char*) malloc(100);
 
-	unsigned char key[16] = {0x3c, 0x5d, 0xc9, 0x15, 0x3a, 0x6f, 0xe5, 0xf2,
-			0x25, 0x16, 0xe2, 0x17, 0xc1, 0x60, 0x3b, 0xf7};
+	ulint dest_len = 0;
+    unsigned char key[16] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
+    		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51};
 	uint8 k_len = 16;
-	unsigned char iv[16] = {0xf0, 0x97, 0x40, 0x00, 0x7d, 0x61, 0x94, 0x66,
-			0xb9, 0xeb, 0xf8, 0xd4, 0x6e, 0x30, 0x2a, 0xa3};
+	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
+			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
 	uint8 i_len = 16;
-	char* dest = (char *) malloc( 2* s_len * sizeof(char));
-	ulint dest_len = 0;
-	my_aes_encrypt_cbc(source, s_len, dest, &dest_len, key, k_len, iv, i_len);
-	source = (char *) malloc(strlen(MY_AES_TEST_TEXTBLOCK) * sizeof(char));
-	my_aes_decrypt_cbc(dest , strlen(dest), source, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len);
-	ok(strcmp(source, MY_AES_TEST_TEXTBLOCK),"Decrypted text is identical to original text.");
-	free(source);
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 1);
+	ok(ec == AES_OK, "Checking return code.");
+	ok(memcmp(expected,dest,dest_len)==0, "expected cipher text");
+	ok(memcmp(source,dest,32)!=0,"plain and cipher text differ");
+	ok(dest_len == s_len, "input length = output length, cbc 128 no padding");
+
+	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len, 1);
+	ok((dest_len == s_len) && (ec == AES_OK) && (strncmp(result, "int i = memcmp(decbuf,inbuf,16);",dest_len)==0),"Decrypted text is identical to original text.");
+	free(result);
 	free(dest);
-}
-
-void
-test_wrong_key()
-{
-	plan(1);
-		char* source = MY_AES_TEST_TEXTBLOCK;
-		ulint s_len = (ulint)strlen(source);
-		unsigned char key[16] = {0x3c, 0x5d, 0xc9, 0x15, 0x3a, 0x6f, 0xe5, 0xf2,
-				0x25, 0x16, 0xe2, 0x17, 0xc1, 0x60, 0x3b, 0xf7};
-		uint8 k_len = 16;
-		unsigned char iv[16] = {0xf0, 0x97, 0x40, 0x00, 0x7d, 0x61, 0x94, 0x66,
-				0xb9, 0xeb, 0xf8, 0xd4, 0x6e, 0x30, 0x2a, 0xa3};
-		uint8 i_len = 16;
-		char* dest = (char *) malloc( 2* s_len * sizeof(char));
-		ulint dest_len = 0;
-		my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
-
-		iv[0] = 0xf1;
-		//"F1A74007D619455B9EBF8D4F6E302AA3";
-		source = (char *) malloc(strlen(MY_AES_TEST_TEXTBLOCK) * sizeof(char));
-		my_aes_decrypt_cbc(dest , strlen(dest), source, &dest_len, key, k_len, iv, i_len);
-		ok(strcmp(source, MY_AES_TEST_TEXTBLOCK) != 0,"Using wrong iv results in wrong decryption.");
-		free(source);
-		free(dest);
 }
 
 void
@@ -209,12 +146,40 @@ test_cbc128()
 	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
 			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
 	uint8 i_len = 16;
-	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 0);
 	ok(ec == AES_OK, "Checking return code.");
 	ok(memcmp(expected,dest,48)==0, "expected cipher text");
 	ok(memcmp(source,dest,32)!=0,"plain and cipher text differ");
 
-	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len);
+	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len, 0);
+	ok((dest_len == s_len) && (ec == AES_OK) && (strncmp(result, "int i = memcmp(decbuf,inbuf,16);",dest_len)==0),"Decrypted text is identical to original text.");
+	free(result);
+	free(dest);
+}
+
+void
+test_cbc192noPadding()
+{
+
+	plan(1);
+	int i;
+	char* source = "int i = memcmp(decbuf,inbuf,16);";
+	ulint s_len = strlen(source);
+	char* dest = (char* ) malloc(100);
+	char* result = (char*) malloc(100);
+
+	ulint dest_len = 0;
+    unsigned char key[24] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
+    		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
+	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+	uint8 k_len = 24;
+	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
+			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
+	uint8 i_len = 16;
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 1);
+	ok (ec == AES_OK, "Checking return code.");
+	ok (dest_len == s_len, "input length = output length, cbc 192 no padding");
+	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len, 1);
 	ok((dest_len == s_len) && (ec == AES_OK) && (strncmp(result, "int i = memcmp(decbuf,inbuf,16);",dest_len)==0),"Decrypted text is identical to original text.");
 	free(result);
 	free(dest);
@@ -239,10 +204,9 @@ test_cbc192()
 	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
 			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
 	uint8 i_len = 16;
-	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
-	ok(ec == AES_OK, "Checking return code.");
-
-	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len);
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 1);
+	ok (ec == AES_OK, "Checking return code.");
+	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len, 1);
 	ok((dest_len == s_len) && (ec == AES_OK) && (strncmp(result, "int i = memcmp(decbuf,inbuf,16);",dest_len)==0),"Decrypted text is identical to original text.");
 	free(result);
 	free(dest);
@@ -272,13 +236,52 @@ test_cbc256()
 	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
 			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
 	uint8 i_len = 16;
-	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len);
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 0);
 
 
 	ok(ec == AES_OK, "Checking return code.");
 	ok(memcmp(expected,dest,48)==0,"Excepted cipher text - aes 256 cbc");
 
-	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len);
+	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len, 0);
+
+	ok((dest_len == s_len) && (ec == AES_OK) && (strncmp(result, "int i = memcmp(decbuf,inbuf,16);",dest_len)==0),"Decrypted text is identical to original text.");
+	free(result);
+	free(dest);
+}
+
+
+void
+test_cbc256noPadding()
+{
+	char expected[] = {
+			0x81, 0x22, 0x05, 0xA7, 0x3E, 0x9D, 0xB2, 0x18, 0x7F, 0xE2, 0x5C, 0xB4, 0xBD, 0xCD, 0xFB, 0x9B,
+			0xB6, 0xEF, 0x64, 0x2C, 0xF4, 0x53, 0x9B, 0x29, 0x98, 0x3A, 0xD6, 0xDE, 0xB2, 0x65, 0xEF, 0x85,
+			0xEF, 0x4B, 0xDA, 0x8F, 0xD9, 0xEB, 0xD7, 0x07, 0x80, 0x03, 0x0E, 0x7C, 0x55, 0x2E, 0x97, 0x47
+	};
+	plan(1);
+	int i;
+	char* source = "int i = memcmp(decbuf,inbuf,16);";
+	ulint s_len = strlen(source);
+	char* dest = (char* ) malloc(100);
+	char* result = (char*) malloc(100);
+
+	ulint dest_len = 0;
+    unsigned char key[32] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
+    		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
+	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
+	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+	uint8 k_len = 32;
+	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
+			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
+	uint8 i_len = 16;
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 1);
+
+
+	ok(ec == AES_OK, "Checking return code.");
+	ok(memcmp(expected,dest,dest_len)==0,"Excepted cipher text - aes 256 cbc");
+	ok(s_len==dest_len,"input length = output length, cbc 256 no padding");
+
+	ec = my_aes_decrypt_cbc(dest , dest_len, result, &dest_len, (unsigned char*) &key, k_len, (unsigned char*) &iv, i_len, 1);
 
 	ok((dest_len == s_len) && (ec == AES_OK) && (strncmp(result, "int i = memcmp(decbuf,inbuf,16);",dest_len)==0),"Decrypted text is identical to original text.");
 	free(result);
@@ -287,8 +290,36 @@ test_cbc256()
 
 
 
+void
+test_cbc256noPaddingWrongInputSize()
+{
+	char expected[] = {
+			0x81, 0x22, 0x05, 0xA7, 0x3E, 0x9D, 0xB2, 0x18, 0x7F, 0xE2, 0x5C, 0xB4, 0xBD, 0xCD, 0xFB, 0x9B,
+			0xB6, 0xEF, 0x64, 0x2C, 0xF4, 0x53, 0x9B, 0x29, 0x98, 0x3A, 0xD6, 0xDE, 0xB2, 0x65, 0xEF, 0x85,
+			0xEF, 0x4B, 0xDA, 0x8F, 0xD9, 0xEB, 0xD7, 0x07, 0x80, 0x03, 0x0E, 0x7C, 0x55, 0x2E, 0x97, 0x47
+	};
+	plan(1);
+	int i;
+	char* source = "int i = memcmp(decbuf,inbuf,16);sdfsd";
+	ulint s_len = strlen(source);
+	char* dest = (char* ) malloc(100);
+	char* result = (char*) malloc(100);
 
+	ulint dest_len = 0;
+    unsigned char key[32] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
+    		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
+	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
+	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
+	uint8 k_len = 32;
+	unsigned char iv[16] = {0x33, 0x25, 0xcc, 0x3f, 0x02, 0x20, 0x3f, 0xb6, 0xb8,
+			0x49, 0x99, 0x00, 0x42, 0xe5, 0x8b, 0xcb};
+	uint8 i_len = 16;
+	int ec = my_aes_encrypt_cbc(source, s_len, dest, &dest_len, (unsigned char*) &key, k_len,(unsigned char*) &iv, i_len, 1);
+	ok (ec== AES_BAD_DATA, "wrong input size detected");
 
+	free(result);
+	free(dest);
+}
 
 
 
@@ -320,7 +351,6 @@ test_bytes_to_key()
 			0x55, 0x82, 0x0E, 0x54, 0x8F, 0xE4, 0x44, 0xD9};
 
 	my_bytes_to_key((unsigned char*) &salt, secret, (unsigned char*) key, (unsigned char*) &iv);
-	dump_buffer(32, key);
 	ok(memcmp(key, &keyresult, 32) == 0, "BytesToKey key generated successfully.");
 	ok(memcmp(iv, &ivresult, 16) == 0, "BytesToKey iv generated successfully.");
 	// following should ensure, that yassl and openssl calculate the same!
@@ -331,20 +361,18 @@ test_bytes_to_key()
 int
 main(int argc __attribute__((unused)),char *argv[])
 {
+	test_cbc256noPadding();
+	test_cbc192noPadding();
+	test_cbc128noPadding();
+	test_cbc256noPaddingWrongInputSize();
+
 	test_cbc128();
 	test_cbc192();
 	test_cbc256();
 
 	test_bytes_to_key();
-	/*
-	test_cbc();
-	test_cbc_large();
-	test_cbc_keysizes();
-	test_cbc_wrong_keylength();
-	test_cbc_resultsize();
-	test_wrong_key();
-	test_bytes_to_key();
-	*/
+
+	
 	return 0;
 }
 

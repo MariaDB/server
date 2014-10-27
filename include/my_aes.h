@@ -35,20 +35,30 @@ C_MODE_START
 #define AES_KEY_LENGTH 128		/* Must be 128 192 or 256 */
 
 
-/*
-  my_aes_encrypt_cbc- Crypt buffer with AES encryption algorithm using cbc mode.
-  source		- Pointer to data for encryption
-  source_length		- size of encryption data
-  dest			- buffer to place encrypted data (must be large enough)
-  key			- Key to be used for encryption
-  kel_length		- Length of the key. Will handle keys of any length
+/**
+  Crypt buffer with AES encryption algorithm.
 
-  returns  - size of encrypted data, or negative in case of error.
+  SYNOPSIS
+     my_aes_encrypt()
+     @param source         [in]  Pointer to data for encryption
+     @param source_length  [in]  Size of encryption data
+     @param dest           [out] Buffer to place encrypted data (must be large enough)
+	 @param dest_length    [out] Pointer to size of encrypted data
+ 	 @param key            [in]  Key to be used for encryption
+     @param key_length     [in]  Length of the key. 16, 24 or 32
+	 @param iv             [in]  Iv to be used for encryption
+     @param iv_length      [in]  Length of the iv. should be 16.
+	 @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
+
+  @return
+    != 0           error
+    0             no error
 */
 int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
 					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
-					const unsigned char* iv, uint8 iv_length);
+					const unsigned char* iv, uint8 iv_length,
+					int noPadding);
 
 
 /**
@@ -89,22 +99,30 @@ void my_aes_hexToUint(const char* in,
 int my_aes_encrypt(const char *source, int source_length, char *dest,
 		   const char *key, int key_length);
 
-/*
-  my_aes_decrypt_cbc	- DeCrypt buffer with AES encryption algorithm using
-  	  	  	  	  cbc Mode.
-  source		- Pointer to data for decryption
-  source_length		- size of encrypted data
-  dest			- buffer to place decrypted data (must be large enough)
-  key			- Key to be used for decryption
-  kel_length		- Length of the key. Will handle keys of any length
+/**
+  AES decryption - CBC mode
 
-  returns  - size of original data, or negative in case of error.
+  SYNOPSIS
+     my_aes_encrypt()
+     @param source         [in]  Pointer to data to decrypt
+     @param source_length  [in]  Size of data
+     @param dest           [out] Buffer to place decrypted data (must be large enough)
+	 @param dest_length    [out] Pointer to size of decrypted data
+ 	 @param key            [in]  Key to be used for decryption
+     @param key_length     [in]  Length of the key. 16, 24 or 32
+ 	 @param iv             [in]  Iv to be used for encryption
+     @param iv_length      [in]  Length of the iv. should be 16.
+	 @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
+
+  @return
+    != 0           error
+    0             no error
 */
-
 int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 					char* dest, unsigned long int *dest_length,
 					const unsigned char* key, uint8 key_length,
-					const unsigned char* iv, uint8 iv_length);
+					const unsigned char* iv, uint8 iv_length,
+					int noPadding);
 
 /*
   my_aes_decrypt	- DeCrypt buffer with AES encryption algorithm.
