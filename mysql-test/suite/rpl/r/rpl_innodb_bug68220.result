@@ -75,7 +75,7 @@ select @rows_inserted - @slave_rows_inserted;
 select variable_value into @system_rows_read from information_schema.global_status where variable_name = 'innodb_system_rows_read';
 select @system_rows_read - @slave_system_rows_read;
 @system_rows_read - @slave_system_rows_read
-0
+3
 select variable_value into @system_rows_updated from information_schema.global_status where variable_name = 'innodb_system_rows_updated';
 select @system_rows_updated - @slave_system_rows_updated;
 @system_rows_updated - @slave_system_rows_updated
@@ -83,11 +83,11 @@ select @system_rows_updated - @slave_system_rows_updated;
 select variable_value into @system_rows_deleted from information_schema.global_status where variable_name = 'innodb_system_rows_deleted';
 select @system_rows_deleted - @slave_system_rows_deleted;
 @system_rows_deleted - @slave_system_rows_deleted
-0
+3
 select variable_value into @system_rows_inserted from information_schema.global_status where variable_name = 'innodb_system_rows_inserted';
 select @system_rows_inserted - @slave_system_rows_inserted;
 @system_rows_inserted - @slave_system_rows_inserted
-0
+3
 UPDATE t1 SET i=2 WHERE i=1;
 ==========MASTER==========
 select variable_value into @rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
@@ -142,7 +142,7 @@ select @rows_inserted - @slave_rows_inserted;
 select variable_value into @system_rows_read from information_schema.global_status where variable_name = 'innodb_system_rows_read';
 select @system_rows_read - @slave_system_rows_read;
 @system_rows_read - @slave_system_rows_read
-0
+4
 select variable_value into @system_rows_updated from information_schema.global_status where variable_name = 'innodb_system_rows_updated';
 select @system_rows_updated - @slave_system_rows_updated;
 @system_rows_updated - @slave_system_rows_updated
@@ -150,11 +150,11 @@ select @system_rows_updated - @slave_system_rows_updated;
 select variable_value into @system_rows_deleted from information_schema.global_status where variable_name = 'innodb_system_rows_deleted';
 select @system_rows_deleted - @slave_system_rows_deleted;
 @system_rows_deleted - @slave_system_rows_deleted
-0
+4
 select variable_value into @system_rows_inserted from information_schema.global_status where variable_name = 'innodb_system_rows_inserted';
 select @system_rows_inserted - @slave_system_rows_inserted;
 @system_rows_inserted - @slave_system_rows_inserted
-0
+4
 DELETE FROM t1 WHERE i=2;
 ==========MASTER==========
 select variable_value into @rows_read from information_schema.global_status where variable_name = 'innodb_rows_read';
@@ -209,7 +209,7 @@ select @rows_inserted - @slave_rows_inserted;
 select variable_value into @system_rows_read from information_schema.global_status where variable_name = 'innodb_system_rows_read';
 select @system_rows_read - @slave_system_rows_read;
 @system_rows_read - @slave_system_rows_read
-0
+5
 select variable_value into @system_rows_updated from information_schema.global_status where variable_name = 'innodb_system_rows_updated';
 select @system_rows_updated - @slave_system_rows_updated;
 @system_rows_updated - @slave_system_rows_updated
@@ -217,11 +217,11 @@ select @system_rows_updated - @slave_system_rows_updated;
 select variable_value into @system_rows_deleted from information_schema.global_status where variable_name = 'innodb_system_rows_deleted';
 select @system_rows_deleted - @slave_system_rows_deleted;
 @system_rows_deleted - @slave_system_rows_deleted
-0
+5
 select variable_value into @system_rows_inserted from information_schema.global_status where variable_name = 'innodb_system_rows_inserted';
 select @system_rows_inserted - @slave_system_rows_inserted;
 @system_rows_inserted - @slave_system_rows_inserted
-0
+5
 DROP TABLE t1;
 DROP DATABASE testdb;
 include/rpl_end.inc
