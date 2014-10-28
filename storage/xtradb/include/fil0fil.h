@@ -1115,6 +1115,15 @@ fil_space_name(
 	fil_space_t*	space);	/*!< in: space */
 #endif
 
+/*******************************************************************//**
+Return space flags */
+ulint
+fil_space_flags(
+/*===========*/
+	fil_space_t*	space);	/*!< in: space */
+
+
+
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */

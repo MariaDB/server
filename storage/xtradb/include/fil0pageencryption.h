@@ -84,19 +84,19 @@ operation.
 ulint
 fil_decrypt_page(
 /*================*/
-		byte*		page_buf,      /*!< in: preallocated buffer or NULL */
-		byte*		buf,           /*!< out: buffer from which to read; in aio
+		byte*		page_buf,       /*!< in: preallocated buffer or NULL */
+		byte*		buf,            /*!< out: buffer from which to read; in aio
 		                       	   	   this must be appropriately aligned */
-		ulint		len,           /*!< in: length of output buffer.*/
-	    ulint*		write_size,    /*!< in/out: Actual payload size of the decrypted data. */
-	    ibool*      page_compressed, /*!<out: is page compressed.*/
-	    ulint		mode	       /*!< in: calling mode. Should be 0. */
+		ulint 		len, 			/*!< in: length buffer, which should be decrypted.*/
+		ulint* 		write_size, 	/*!< out: size of the decrypted data. If no error occurred equal to len */
+		ibool*      page_compressed, /*!<out: is page compressed.*/
+	    ulint		mode	       	/*!< in: calling mode. Should be 0. */
 	    );
 
 
 
+byte fil_page_encryption_calc_checksum(unsigned char* buf, ulint len);
 
-void do_check_sum( ulint page_size, byte* buf);
-
+void do_check_sum(ulint page_size, ulint zip_size, byte* buf);
 
 #endif // fil0pageencryption_h

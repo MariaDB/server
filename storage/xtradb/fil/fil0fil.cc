@@ -819,7 +819,7 @@ fil_node_open_file(
 			               space->flags);
 
 		if (fil_page_is_encrypted(page)) {
-				/* if page is encrypted, write and error and return.
+				/* if page is encrypted, write an error and return.
 				 * Otherwise the server would crash if decrypting is not possible.
 				 * This may be the case, if the keyfile could not be opened on server startup.
 				 */
@@ -6897,6 +6897,16 @@ fil_space_name(
 	fil_space_t*	space)	/*!< in: space */
 {
 	return (space->name);
+}
+
+/*******************************************************************//**
+Return space flags */
+ulint
+fil_space_flags(
+/*===========*/
+	fil_space_t*	space)	/*!< in: space */
+{
+	return (space->flags);
 }
 
 /*******************************************************************//**

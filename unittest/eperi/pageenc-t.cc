@@ -20,11 +20,24 @@ typedef unsigned long int ibool;
 extern int summef(int a, int b);
 extern int summef2(int a, int b);
 extern int multiplikation(int a, int b);
+extern ulint fil_page_encryption_calc_checksum(unsigned char* buf, ulint len);
 extern "C" {
 extern int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
 		char* dest, unsigned long int *dest_length,
 		const unsigned char* key, uint8 key_length,
 		const unsigned char* iv, uint8 iv_length);
+}
+void
+mach_write_to_4(
+/*============*/
+	byte*	b,	/*!< in: pointer to four bytes where to store */
+	ulint	n)	/*!< in: ulint integer to be stored */
+{
+
+	b[0] = (byte)(n >> 24);
+	b[1] = (byte)(n >> 16);
+	b[2] = (byte)(n >> 8);
+	b[3] = (byte) n;
 }
 ulint
 mach_read_from_2(
@@ -98,10 +111,11 @@ return buffer;
 }
 
 void testEncryptionChecksum(char* filename) {
-	byte* buf = readFile(filename,NULL);
+	int fl  = 0;
+	byte* buf = readFile(filename,&fl);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
-	fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
+	fil_encrypt_page(0,buf,dest,fl,255, &out_len, 1);
 	dest[2000]=0xFF;
 	dest[2001]=0xFF;
 	dest[2002]=0xFF;
@@ -119,13 +133,17 @@ void testEncryptionChecksum(char* filename) {
 }
 
 void testIt(char* filename, ulint do_not_cmp_checksum) {
-	byte* buf = readFile(filename, NULL);
+	int fl = 0;
+	byte* buf = readFile(filename, &fl);
+
+
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
+
 	ulint out_len;
 	ulint cc1 = 0;
 
 	ulint orig_page_type = mach_read_from_2(buf + 24);
-	byte* snd = fil_encrypt_page(0,buf,dest,0,255, &out_len, 1);
+	byte* snd = fil_encrypt_page(0,buf,dest,fl,255, &out_len,  fl==8192 ? fl : 1);
 	cc1 = (buf!=dest);
 	cc1 = cc1 && (snd==dest);
 	if (!do_not_cmp_checksum) {
@@ -134,25 +152,34 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 		/* 255 is the key used for unit test */
 		cc1 = cc1 && (mach_read_from_1(dest) == 255);
 	}
-	ulint result = fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
-	cc1 = result == 0;
+	ulint write_size = 0;
+	ulint result = fil_decrypt_page(NULL, dest, out_len,&write_size,NULL,  out_len==8192 ? out_len : 1);
+	cc1 = (result == 0) && (write_size==fl);
 	ulint a = 0;
 	ulint b = 0;
 	if (do_not_cmp_checksum) {
 		a = 4;
-		b = 8;
+		b = 0;
 	}
-	ulint i = memcmp((buf + a),(dest +a), (size_t)(16384 - (a+b)));
+	ulint i = memcmp((buf + a),(dest +a), (size_t)(write_size - (a+b)));
 
 	char str[80];
 	strcpy (str,"File ");
 	strcat (str,filename );
+	cc1 = (i==0) && (cc1);
+	if (!cc1) {
+		dump_buffer(fl, buf);
 
-	ok  (i==0 && cc1, "%s", (char*) str);
+		dump_buffer(write_size, dest);
+	}
+
+	ok  (cc1, "%s", (char*) str);
 }
 void test_page_enc_dec() {
 	char compressed[] = "compressed";
 	char compressed_full[] = "compressed_full";
+	char compressed_6bytes_av[] = "compressed_6bytes_av";
+
 	char xaa[] = "xaa";
 	char xab[] = "xab";
 	char xac[] = "xac";
@@ -160,15 +187,40 @@ void test_page_enc_dec() {
 	char xae[] = "xae";
 	char xaf[] = "xaf";
 
+
+
+	testIt("row_format_compressedaa", 0);
+	testIt("row_format_compressedab", 0);
+	testIt("row_format_compressedac", 0);
+	testIt("row_format_compressedad", 0);
+
+	testIt("row_format_dynamicaa", 0);
+	testIt("row_format_dynamicab", 0);
+	testIt("row_format_dynamicac", 0);
+	testIt("row_format_dynamicad", 0);
+
+	testIt("row_format_redundantaa", 0);
+	testIt("row_format_redundantab", 0);
+	testIt("row_format_redundantac", 0);
+	testIt("row_format_redundantad", 0);
+
+	testIt("row_format_compactaa", 0);
+	testIt("row_format_compactab", 0);
+	testIt("row_format_compactac", 0);
+	testIt("row_format_compactad", 0);
+
+
 	testIt(compressed,0);
 	testIt(compressed_full,0);
+	testIt(compressed_6bytes_av,0);
+
 
 	testIt(xaa,0);
 	testIt(xab,0);
 	testIt(xac,0);
 	testIt(xad,0);
 
-
+// empty pages
 	testIt(xae,1);
 	testIt(xaf,1);
 
@@ -230,6 +282,7 @@ void testSecret256_PlainFile() {
 }
 void testSecrets() {
 
+
 	testShortSecret_EncryptedFile();
 	testShortSecret_PlainFile();
 	testLongSecret_PlainFile();
@@ -241,9 +294,11 @@ void testSecrets() {
 
 int main()
 {
+
+
 	testSecrets();
 	test_page_enc_dec();
-    testEncryptionChecksum((char* )"xaa");
+	testEncryptionChecksum((char* )"xaa");
 
 	return 0;
 }
