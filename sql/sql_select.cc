@@ -4407,8 +4407,7 @@ add_key_field(JOIN *join,
       if (is_const)
       {
         stat[0].const_keys.merge(possible_keys);
-        if (possible_keys.is_clear_all())
-          bitmap_set_bit(&field->table->cond_set, field->field_index);
+        bitmap_set_bit(&field->table->cond_set, field->field_index);
       }
       else if (!eq_func)
       {
