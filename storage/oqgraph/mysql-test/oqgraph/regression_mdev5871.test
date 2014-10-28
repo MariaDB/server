@@ -34,7 +34,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id' WEIGHT='weight_xxx';
---echo # Expect 'Invalid OQGRAPH backing store ('graph.weight' attribute not set to a valid column of 'graph_base')'
+--echo # Expect 'Invalid OQGRAPH backing store description ('graph.weight' attribute not set to a valid column of 'graph_base')'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -42,7 +42,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id' DESTID='to_id_xxx' WEIGHT='weight';
---echo # Expect 'Invalid OQGRAPH backing store ('graph.destid' attribute not set to a valid column of 'graph_base')'
+--echo # Expect 'Invalid OQGRAPH backing store description ('graph.destid' attribute not set to a valid column of 'graph_base')'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -50,7 +50,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id_xxx' DESTID='to_id' WEIGHT='weight';
---echo # Expect 'Invalid OQGRAPH backing store ('graph.origid' attribute not set to a valid column of 'graph_base')'
+--echo # Expect 'Invalid OQGRAPH backing store description ('graph.origid' attribute not set to a valid column of 'graph_base')'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -59,7 +59,7 @@ DROP TABLE IF EXISTS graph;
 
 # The following combinations should be invalid
 CREATE TABLE graph ENGINE=OQGRAPH;
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -67,7 +67,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -75,7 +75,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' ORIGID='from_id';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty destid attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty destid attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -83,7 +83,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DATA_TABLE='graph_base' DESTID='to_id';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty origid attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty origid attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -91,7 +91,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH ORIGID='from_id';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -99,7 +99,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH DESTID='to_id';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
@@ -107,7 +107,7 @@ DROP TABLE IF EXISTS graph;
 --enable_warnings
 
 CREATE TABLE graph ENGINE=OQGRAPH ORIGID='from_id', DESTID='to_id';
---echo # Expect: 'Invalid OQGRAPH backing store (unspecified or empty data_table attribute)'
+--echo # Expect: 'Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)'
 --error 1296
 DESCRIBE graph;
 --disable_warnings
