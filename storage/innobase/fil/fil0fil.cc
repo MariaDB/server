@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014 SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,6 +181,7 @@ struct fil_node_t {
 	ib_int64_t	flush_counter;/*!< up to what
 				modification_counter value we have
 				flushed the modifications to disk */
+	ulint		file_block_size;/*!< file system block size */
 	UT_LIST_NODE_T(fil_node_t) chain;
 				/*!< link field for the file chain */
 	UT_LIST_NODE_T(fil_node_t) LRU;
@@ -778,6 +779,8 @@ fil_node_open_file(
 
 		size_bytes = os_file_get_size(node->handle);
 		ut_a(size_bytes != (os_offset_t) -1);
+
+		node->file_block_size = os_file_get_block_size(node->handle, node->name);
 #ifdef UNIV_HOTBACKUP
 		if (space->id == 0) {
 			node->size = (ulint) (size_bytes / UNIV_PAGE_SIZE);
@@ -925,6 +928,10 @@ add_size:
 					      node->name, OS_FILE_OPEN,
 					      OS_FILE_AIO, OS_DATA_FILE,
 					      &ret, atomic_writes);
+	}
+
+	if (node->file_block_size == 0) {
+		node->file_block_size = os_file_get_block_size(node->handle, node->name);
 	}
 
 	ut_a(ret);
@@ -5185,6 +5192,11 @@ retry:
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
+	/* Determine correct file block size */
+	if (node->file_block_size == 0) {
+		node->file_block_size = os_file_get_block_size(node->handle, node->name);
+	}
+
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 		os_offset_t	start_offset = start_page_no * page_size;
@@ -6721,36 +6733,47 @@ fil_get_page_type_name(
 {
 	switch(page_type) {
 	case FIL_PAGE_PAGE_COMPRESSED:
-		return "PAGE_COMPRESSED";
+		return (const char*)"PAGE_COMPRESSED";
 	case FIL_PAGE_INDEX:
-		return "INDEX";
+		return (const char*)"INDEX";
 	case FIL_PAGE_UNDO_LOG:
-		return "UNDO LOG";
+		return (const char*)"UNDO LOG";
 	case FIL_PAGE_INODE:
-		return "INODE";
+		return (const char*)"INODE";
 	case FIL_PAGE_IBUF_FREE_LIST:
-		return "IBUF_FREE_LIST";
+		return (const char*)"IBUF_FREE_LIST";
 	case FIL_PAGE_TYPE_ALLOCATED:
-		return "ALLOCATED";
+		return (const char*)"ALLOCATED";
 	case FIL_PAGE_IBUF_BITMAP:
-		return "IBUF_BITMAP";
+		return (const char*)"IBUF_BITMAP";
 	case FIL_PAGE_TYPE_SYS:
-		return "SYS";
+		return (const char*)"SYS";
 	case FIL_PAGE_TYPE_TRX_SYS:
-		return "TRX_SYS";
+		return (const char*)"TRX_SYS";
 	case FIL_PAGE_TYPE_FSP_HDR:
-		return "FSP_HDR";
+		return (const char*)"FSP_HDR";
 	case FIL_PAGE_TYPE_XDES:
-		return "XDES";
+		return (const char*)"XDES";
 	case FIL_PAGE_TYPE_BLOB:
-		return "BLOB";
+		return (const char*)"BLOB";
 	case FIL_PAGE_TYPE_ZBLOB:
-		return "ZBLOB";
+		return (const char*)"ZBLOB";
 	case FIL_PAGE_TYPE_ZBLOB2:
-		return "ZBLOB2";
+		return (const char*)"ZBLOB2";
 	case FIL_PAGE_TYPE_COMPRESSED:
-		return "ORACLE PAGE COMPRESSED";
+		return (const char*)"ORACLE PAGE COMPRESSED";
 	default:
-		return "PAGE TYPE CORRUPTED";
+		return (const char*)"PAGE TYPE CORRUPTED";
 	}
+}
+/****************************************************************//**
+Get block size from fil node
+@return block size*/
+ulint
+fil_node_get_block_size(
+/*====================*/
+	fil_node_t*     node)		/*!< in: Node where to get block
+					size */
+{
+	return (node->file_block_size);
 }

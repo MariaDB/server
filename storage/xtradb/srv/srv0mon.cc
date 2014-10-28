@@ -2,6 +2,7 @@
 
 Copyright (c) 2010, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
+Copyright (c) 2013, 2014, MariaDB Corporation
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -901,10 +902,35 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512},
 
+	{"compress_trim_sect1024", "compression",
+	 "Number of sect-1024 TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024},
+
+	{"compress_trim_sect2048", "compression",
+	 "Number of sect-2048 TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048},
+
 	{"compress_trim_sect4096", "compression",
 	 "Number of sect-4K TRIMed by page compression",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096},
+
+	{"compress_trim_sect8192", "compression",
+	 "Number of sect-8K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT8192},
+
+	{"compress_trim_sect16384", "compression",
+	 "Number of sect-16K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT16384},
+
+	{"compress_trim_sect32768", "compression",
+	 "Number of sect-32K TRIMed by page compression",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT32768},
 
 	{"compress_pages_page_compressed", "compression",
 	 "Number of pages compressed by page compression",
@@ -1861,8 +1887,23 @@ srv_mon_process_existing_counter(
         case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512:
 		value = srv_stats.page_compression_trim_sect512;
 		break;
+       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024:
+		value = srv_stats.page_compression_trim_sect1024;
+		break;
+       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048:
+		value = srv_stats.page_compression_trim_sect2048;
+		break;
         case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096:
 		value = srv_stats.page_compression_trim_sect4096;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT8192:
+		value = srv_stats.page_compression_trim_sect8192;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT16384:
+		value = srv_stats.page_compression_trim_sect16384;
+		break;
+        case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT32768:
+		value = srv_stats.page_compression_trim_sect32768;
 		break;
         case MONITOR_OVLD_PAGES_PAGE_COMPRESSED:
 		value = srv_stats.pages_page_compressed;

@@ -1333,6 +1333,16 @@ os_file_handle_error_no_exit(
 	const char*	file,		/*!< in: file name */
 	const ulint	line);		/*!< in: line */
 
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name);	/*!< in: file name */
+
 #ifndef UNIV_NONINL
 #include "os0file.ic"
 #endif

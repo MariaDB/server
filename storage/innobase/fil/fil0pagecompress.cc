@@ -260,6 +260,7 @@ fil_compress_page(
         byte*           out_buf,       /*!< out: compressed buffer */
         ulint           len,           /*!< in: length of input buffer.*/
         ulint           compression_level, /* in: compression level */
+	ulint           block_size,    /*!< in: block size */
 	ulint*          out_len,       /*!< out: actual length of compressed
 				       page */
 	byte*		lzo_mem)       /*!< in: temporal memory used by LZO */
@@ -453,12 +454,11 @@ fil_compress_page(
 
 	write_size+=header_len;
 
-#define SECT_SIZE 512
-
 	/* Actual write needs to be alligned on block size */
-	if (write_size % SECT_SIZE) {
-		write_size = (write_size + SECT_SIZE-1) & ~(SECT_SIZE-1);
-		ut_a((write_size % SECT_SIZE) == 0);
+	if (write_size % block_size) {
+		ut_a(block_size > 0);
+		write_size = (write_size + block_size-1) & ~(block_size-1);
+		ut_a((write_size % block_size) == 0);
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG

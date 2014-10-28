@@ -107,8 +107,18 @@ struct srv_stats_t {
 	ulint_ctr_64_t          page_compression_saved;
 	/** Number of 512Byte TRIM by page compression */
 	ulint_ctr_64_t          page_compression_trim_sect512;
+	/** Number of 1K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect1024;
+	/** Number of 2K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect2048;
 	/** Number of 4K TRIM  by page compression */
 	ulint_ctr_64_t          page_compression_trim_sect4096;
+	/** Number of 8K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect8192;
+	/** Number of 16K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect16384;
+	/** Number of 32K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect32768;
 	/* Number of index pages written */
 	ulint_ctr_64_t          index_pages_written;
 	/* Number of non index pages written */
@@ -1144,7 +1154,17 @@ struct export_var_t{
 						by page compression */
 	ib_int64_t innodb_page_compression_trim_sect512;/*!< Number of 512b TRIM
 						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect1024;/*!< Number of 1K TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect2048;/*!< Number of 2K TRIM
+						by page compression */
 	ib_int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect8192;/*!< Number of 8K TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect16384;/*!< Number of 16K TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect32768;/*!< Number of 32K TRIM
 						by page compression */
 	ib_int64_t innodb_index_pages_written;  /*!< Number of index pages
 						written */

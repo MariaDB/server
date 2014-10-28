@@ -94,6 +94,7 @@
 #cmakedefine HAVE_SYS_TYPES_H 1
 #cmakedefine HAVE_SYS_UN_H 1
 #cmakedefine HAVE_SYS_VADVISE_H 1
+#cmakedefine HAVE_SYS_STATVFS_H 1
 #cmakedefine HAVE_TERM_H 1
 #cmakedefine HAVE_TERMBITS_H 1
 #cmakedefine HAVE_TERMIOS_H 1

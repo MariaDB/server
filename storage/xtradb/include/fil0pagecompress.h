@@ -93,6 +93,7 @@ fil_compress_page(
         byte*           out_buf,       /*!< out: compressed buffer */
         ulint           len,           /*!< in: length of input buffer.*/
         ulint           compression_level, /*!< in: compression level */
+	ulint           block_size,    /*!< in: block size */
 	ulint*          out_len,       /*!< out: actual length of compressed
 				       page */
 	byte*		lzo_mem);      /*!< in: temporal memory used by LZO */
@@ -117,8 +118,15 @@ Get space id from fil node
 ulint
 fil_node_get_space_id(
 /*==================*/
-        fil_node_t*     node);         /*!< in: Node where to get space id*/
+        fil_node_t*     node);		/*!< in: Node where to get space id*/
 
+/****************************************************************//**
+Get block size from fil node
+@return block size*/
+ulint
+fil_node_get_block_size(
+	fil_node_t*     node);		/*!< in: Node where to get block
+					size */
 /*******************************************************************//**
 Find out wheather the page is page compressed
 @return	true if page is page compressed*/

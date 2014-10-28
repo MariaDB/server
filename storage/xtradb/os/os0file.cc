@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -77,6 +77,10 @@ Created 10/21/1995 Heikki Tuuri
 # ifndef DFS_IOCTL_ATOMIC_WRITE_SET
 #  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
 # endif
+#endif
+
+#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
+#include <sys/statvfs.h>
 #endif
 
 #ifdef HAVE_LZO
@@ -233,6 +237,10 @@ struct os_aio_slot_t{
 					free this */
 
 	ibool           page_compress_success;
+	                                /*!< TRUE if page compression was
+					successfull, false if not */
+
+	ulint           file_block_size;/*!< file block size */
 
 #ifdef LINUX_NATIVE_AIO
 	struct iocb	control;	/* Linux control block for aio */
@@ -354,9 +362,7 @@ UNIV_INTERN
 ibool
 os_file_trim(
 /*=========*/
-	os_file_t	file, /*!< in: file to be trimmed */
-	os_aio_slot_t*	slot, /*!< in: slot structure     */
-	ulint		len); /*!< in: length of area     */
+	os_aio_slot_t*	slot); /*!< in: slot structure     */
 
 /**********************************************************************//**
 Allocate memory for temporal buffer used for page compression. This
@@ -4731,6 +4737,7 @@ found:
 	slot->write_size = write_size;
 	slot->page_compression_level = page_compression_level;
 	slot->page_compression = page_compression;
+	slot->file_block_size = fil_node_get_block_size(message1);
 
 	/* If the space is page compressed and this is write operation
 	   then we compress the page */
@@ -4759,6 +4766,7 @@ found:
 			slot->page_buf,
 			len,
 			page_compression_level,
+			fil_node_get_block_size(slot->message1),
 			&real_len,
 			slot->lzo_mem
 		);
@@ -5407,7 +5415,7 @@ os_aio_windows_handle(
 			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
 				if (srv_use_trim && os_fallocate_failed == FALSE) {
 					// Deallocate unused blocks from file system
-					os_file_trim(slot->file, slot, slot->len);
+					os_file_trim(slot);
 				}
 			}
 		}
@@ -5525,7 +5533,7 @@ retry:
 						ut_ad(slot->page_compression_page);
 						if (srv_use_trim && os_fallocate_failed == FALSE) {
 							// Deallocate unused blocks from file system
-							os_file_trim(slot->file, slot, slot->len);
+							os_file_trim(slot);
 						}
 					}
 				}
@@ -6436,17 +6444,17 @@ UNIV_INTERN
 ibool
 os_file_trim(
 /*=========*/
-	os_file_t	file, /*!< in: file to be trimmed */
-	os_aio_slot_t*	slot, /*!< in: slot structure     */
-	ulint		len)  /*!< in: length of area     */
+	os_aio_slot_t*	slot) /*!< in: slot structure     */
 {
-
-#define SECT_SIZE 512
-	size_t trim_len = UNIV_PAGE_SIZE - len;
+	size_t len = slot->len;
+	size_t trim_len = UNIV_PAGE_SIZE - slot->len;
 	os_offset_t off __attribute__((unused)) = slot->offset + len;
+	size_t bsize = slot->file_block_size;
+
 	// len here should be alligned to sector size
-	ut_a((trim_len % SECT_SIZE) == 0);
-	ut_a((len % SECT_SIZE) == 0);
+	ut_ad((trim_len % bsize) == 0);
+	ut_ad((len % bsize) == 0);
+	ut_ad(bsize != 0);
 
 	// Nothing to do if trim length is zero or if actual write
 	// size is initialized and it is smaller than current write size.
@@ -6476,7 +6484,7 @@ os_file_trim(
 
 #ifdef __linux__
 #if defined(FALLOC_FL_PUNCH_HOLE) && defined (FALLOC_FL_KEEP_SIZE)
-	int ret = fallocate(file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
+	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
 		/* After first failure do not try to trim again */
@@ -6520,7 +6528,8 @@ os_file_trim(
 	flt.Ranges[0].Offset = off;
 	flt.Ranges[0].Length = trim_len;
 
-	BOOL ret = DeviceIoControl(file,FSCTL_FILE_LEVEL_TRIM,&flt, sizeof(flt), NULL, NULL, NULL, NULL);
+	BOOL ret = DeviceIoControl(slot->file, FSCTL_FILE_LEVEL_TRIM,
+		&flt, sizeof(flt), NULL, NULL, NULL, NULL);
 
 	if (!ret) {
 		/* After first failure do not try to trim again */
@@ -6546,8 +6555,32 @@ os_file_trim(
 	}
 #endif
 
-	srv_stats.page_compression_trim_sect512.add((trim_len / SECT_SIZE));
-	srv_stats.page_compression_trim_sect4096.add((trim_len / (SECT_SIZE*8)));
+	switch(bsize) {
+	case 512:
+		srv_stats.page_compression_trim_sect512.add((trim_len / bsize));
+		break;
+	case 1024:
+		srv_stats.page_compression_trim_sect1024.add((trim_len / bsize));
+		break;
+	case 2948:
+		srv_stats.page_compression_trim_sect2048.add((trim_len / bsize));
+		break;
+	case 4096:
+		srv_stats.page_compression_trim_sect4096.add((trim_len / bsize));
+		break;
+	case 8192:
+		srv_stats.page_compression_trim_sect8192.add((trim_len / bsize));
+		break;
+	case 16384:
+		srv_stats.page_compression_trim_sect16384.add((trim_len / bsize));
+		break;
+	case 32768:
+		srv_stats.page_compression_trim_sect32768.add((trim_len / bsize));
+		break;
+	default:
+		break;
+	}
+
 	srv_stats.page_compressed_trim_op.inc();
 
 	return (TRUE);
@@ -6590,3 +6623,57 @@ os_slot_alloc_lzo_mem(
 	ut_a(slot->lzo_mem != NULL);
 }
 #endif
+
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name)	/*!< in: file name */
+{
+	ulint		fblock_size = 512;
+
+#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
+	struct statvfs  fstat;
+	int		err;
+
+	err = fstatvfs(file, &fstat);
+
+	if (err != 0) {
+		fprintf(stderr, "InnoDB: Warning: fstatvfs() failed on file %s\n", name);
+		os_file_handle_error_no_exit(name, "fstatvfs()", FALSE, __FILE__, __LINE__);
+	} else {
+		fblock_size = fstat.f_bsize;
+	}
+#endif /* UNIV_LINUX */
+#ifdef __WIN__
+	{
+		DWORD SectorsPerCluster = 0;
+		DWORD BytesPerSector = 0;
+		DWORD NumberOfFreeClusters = 0;
+		DWORD TotalNumberOfClusters = 0;
+
+		if (GetFreeSpace((LPCTSTR)name, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
+			fblock_size = BytesPerSector;
+			fprintf(stderr, "InnoDB: [Note]: Using %ld file block size\n", fblock_size);
+		} else {
+			fprintf(stderr, "InnoDB: Warning: GetFreeSpace() failed on file %s\n", name);
+			os_file_handle_error_no_exit(name, "GetFreeSpace()", FALSE, __FILE__, __LINE__);
+		}
+	}
+#endif /* __WIN__*/
+
+	if (fblock_size > UNIV_PAGE_SIZE/2) {
+		fprintf(stderr, "InnoDB: Warning: File system for file %s has "
+			"file block size %lu not supported for page_size %lu\n",
+			name, fblock_size, UNIV_PAGE_SIZE);
+		fblock_size = UNIV_PAGE_SIZE/2;
+		fprintf(stderr, "InnoDB: Note: Using file block size %ld for file %s\n",
+			fblock_size, name);
+	}
+
+	return fblock_size;
+}
