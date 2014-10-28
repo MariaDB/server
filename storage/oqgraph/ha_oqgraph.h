@@ -133,8 +133,10 @@ public:
   }
 
 private:
-  int oqgraph_check_table_structure (TABLE *table_arg);
 
+  // Various helper functions
+  int oqgraph_check_table_structure (TABLE *table_arg); 
+  bool validate_oqgraph_table_options();
   void update_key_stats();
   String error_message;
 };

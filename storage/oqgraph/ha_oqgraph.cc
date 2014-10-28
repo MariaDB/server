@@ -435,55 +435,90 @@ void ha_oqgraph::fprint_error(const char* fmt, ...)
 }
 
 /**
+ * Check that the currently referenced OQGRAPH table definition, on entry to open(), has sane OQGRAPH options.
+ * (This does not check the backing store, but the OQGRAPH virtual table options)
+ *
+ * @return true if OK, or false if an option is invalid.
+ */
+bool ha_oqgraph::validate_oqgraph_table_options() 
+{
+  // Note when called from open(), we should not expect this method to fail except in the case of bugs; the fact that it does is
+  // could be construed as a bug. I think in practice however, this is because CREATE TABLE calls both create() and open(),
+  // and it is possible to do something like ALTER TABLE x DESTID='y' to _change_ the options.
+  // Thus we need to sanity check from open() until and unless we get around to extending ha_oqgraph to properly handle ALTER TABLE, 
+  // after which we could change things to call this method from create() and the ALTER TABLE handling code instead.
+  // It may still be sensible to call this from open() anyway, in case someone somewhere upgrades from a broken table definition...
+
+  ha_table_option_struct *options = table->s->option_struct;
+  // Catch cases where table was not constructed properly
+  // Note - need to return -1 so our error text gets reported
+  if (!options) {
+    // This should only happen if there is a bug elsewhere in the storage engine, because ENGINE itself is an attribute
+    fprint_error("Invalid OQGRAPH backing store (null attributes)");
+  }
+  else if (!options->table_name || !*options->table_name) {
+    // The first condition indicates no DATA_TABLE option, the second if the user specified DATA_TABLE=''
+    fprint_error("Invalid OQGRAPH backing store description (unspecified or empty data_table attribute)");
+    // if table_name option is present but doesn't actually exist, we will fail later
+  }
+  else if (!options->origid || !*options->origid) {
+    // The first condition indicates no ORIGID option, the second if the user specified ORIGID=''
+    fprint_error("Invalid OQGRAPH backing store description (unspecified or empty origid attribute)");
+    // if ORIGID option is present but doesn't actually exist, we will fail later
+  }
+  else if (!options->destid || !*options->destid) {
+    // The first condition indicates no DESTID option, the second if the user specified DESTID=''
+    fprint_error("Invalid OQGRAPH backing store description (unspecified or empty destid attribute)");
+    // if DESTID option is present but doesn't actually exist, we will fail later
+  } else {
+    // weight is optional...
+    return true;
+  }
+  // Fault
+  return false;
+}
+
+/**
  * Open the OQGRAPH engine 'table'.
  *
- * An OQGRAPH table is effectively similar to a view over the underlying backing table,
- * attribute 'data_table', but where the result returned by a query depends on the
- * value of the 'latch' column specified to the query.  Therefore,
- * when mysqld opens us, we need to open the corresponding backing table 'data_table'
+ * An OQGRAPH table is effectively similar to a view over the underlying backing table, attribute 'data_table', but where the
+ * result returned by a query depends on the value of the 'latch' column specified to the query.
+ * Therefore, when mysqld opens us, we need to open the corresponding backing table 'data_table'.
+ *
+ * Conceptually, the backing store could be any kind of object having queryable semantics, including a SQL VIEW.
+ * However, for that to work in practice would require us to hook into the right level of the MYSQL API.
+ * Presently, only objects that can be opened using the internal mechanisms can be used: INNODB, MYISAM, etc.
+ * The intention is to borrow from ha_connect and use the mysql client library to access the backing store.
  *
  */
 int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
 {
   DBUG_ENTER("ha_oqgraph::open");
-
   DBUG_PRINT( "oq-debug", ("thd: 0x%lx; open(name=%s,mode=%d,test_if_locked=%u)", (long) current_thd, name, mode, test_if_locked));
+
+  // So, we took a peek inside handler::ha_open() and learned a few things:
+  // * this->table is set by handler::ha_open() before calling open().
+  //   Note that from this we can only assume that MariaDB knows what it is doing and wont call open() other anything else
+  //   relying on this-0>table, re-entrantly...
+  // * this->table_share should never be set back to NULL, an assertion checks for this in ha_open() after open()
+  // * this->table_share is initialised in the constructor of handler
+  // * this->table_share is only otherwise changed by this->change_table_ptr())
+  // We also discovered that an assertion is raised if table->s is not table_share before calling open())
 
   DBUG_ASSERT(!have_table_share);
   DBUG_ASSERT(graph == NULL);
 
-  THD* thd = current_thd;
-  thd_set_ha_data( thd, ht, (void*)1);
+  // Before doing anything, make sure we have DATA_TABLE, ORIGID and DESTID not empty
+  if (!validate_oqgraph_table_options()) { DBUG_RETURN(-1); }
 
   ha_table_option_struct *options= table->s->option_struct;
 
-  // Catch cases where table was not constructed properly
-  // Note - need to return -1 so our error text gets reported
-  if (!options) {
-    fprint_error("Invalid OQGRAPH backing store (null attributes)");
-    DBUG_RETURN(-1);
-  }
-  if (!options->table_name || !*options->table_name) {
-    fprint_error("Invalid OQGRAPH backing store (unspecified or empty data_table attribute)");
-    // if table_name if present but doesnt actually exist, we will fail out below
-    // when we call open_table_def(). same probably applies for the id fields
-    DBUG_RETURN(-1);
-  }
-  if (!options->origid || !*options->origid) {
-    fprint_error("Invalid OQGRAPH backing store (unspecified or empty origid attribute)");
-    DBUG_RETURN(-1);
-  }
-  if (!options->destid || !*options->destid) {
-    fprint_error("Invalid OQGRAPH backing store (unspecified or empty destid attribute)");
-    DBUG_RETURN(-1);
-  }
-  // weight is optional
 
   error_message.length(0);
-
   origid= destid= weight= 0;
 
   // Here we're abusing init_tmp_table_share() which is normally only works for thread-local shares.
+  THD* thd = current_thd;
   init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
   // because of that, we need to reinitialize the memroot (to reset MY_THREAD_SPECIFIC flag)
   DBUG_ASSERT(share->mem_root.used == NULL); // it's still empty
