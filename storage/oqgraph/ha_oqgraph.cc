@@ -325,7 +325,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
   }
 
   if (!table_arg->key_info || !table_arg->s->keys) {
-    push_warning_printf( current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "No vaild key specification.");
+    push_warning_printf( current_thd, Sql_condition::WARN_LEVEL_WARN, HA_WRONG_CREATE_OPTION, "No valid key specification.");
     DBUG_RETURN(-1);
   }
 
