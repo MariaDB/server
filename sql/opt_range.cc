@@ -3487,6 +3487,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
   my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
 
   /*
+    Calculate the selectivity of the range conditions supported by indexes.
+
     First, take into account possible range accesses. 
     range access estimates are the most precise, we prefer them to any other
     estimate sources.
@@ -3532,6 +3534,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 	    break; 
           bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
         }
+        double selectivity_mult;
         if (i)
         {
           /* 
@@ -3547,7 +3550,6 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
             */
             double f1= key_info->actual_rec_per_key(i-1);
             double f2= key_info->actual_rec_per_key(i);
-            double selectivity_mult;
             if (f1 > 0 && f2 > 0)
               selectivity_mult= f1 / f2;
             else
@@ -3559,8 +3561,23 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
               */
               selectivity_mult= ((double)(i+1)) / i;
             }
-            table->cond_selectivity*= selectivity_mult;
+            table->cond_selectivity*= selectivity_mult;            
           }
+          /*
+            We need to set selectivity for fields supported by indexes.
+            For single-component indexes and for some first components
+            of other indexes we do it here. For the remaining fields
+            we do it later in this function, in the same way as for the
+            fields not used in any indexes.
+	  */
+	  if (i == 1)
+	  {
+            uint fieldnr= key_info->key_part[0].fieldnr;
+            table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
+            if (i != used_key_parts)
+	      table->field[fieldnr-1]->cond_selectivity*= selectivity_mult;
+            bitmap_clear_bit(used_fields, fieldnr-1);
+	  }
         }
       }
     }
@@ -3568,10 +3585,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
    
   /* 
     Second step: calculate the selectivity of the range conditions not 
-    supported by any index
+    supported by any index and selectivity of the range condition
+    over the fields whose selectivity has not been set yet.
   */
-  bitmap_subtract(used_fields, &handled_columns);
-  /* no need to do: my_bitmap_free(&handled_columns); */
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
@@ -3647,9 +3663,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
     for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;   
-      if (bitmap_is_set(table->read_set, table_field->field_index) &&
+      if (bitmap_is_set(used_fields, table_field->field_index) &&
           table_field->cond_selectivity < 1.0)
-        table->cond_selectivity*= table_field->cond_selectivity;
+      {
+        if (!bitmap_is_set(&handled_columns, table_field->field_index))
+          table->cond_selectivity*= table_field->cond_selectivity;
+      }
     }
 
   free_alloc:
@@ -3658,10 +3677,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item *cond)
 
   }
 
-  /* Calculate the selectivity of the range conditions supported by indexes */
-
-  bitmap_clear_all(used_fields);
-
+  bitmap_union(used_fields, &handled_columns);
 
   /* Check if we can improve selectivity estimates by using sampling */
   ulong check_rows=

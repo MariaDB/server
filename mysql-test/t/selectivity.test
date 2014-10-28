@@ -889,4 +889,29 @@ set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivit
 
 DROP TABLE t1,t2;
 
+--echo #
+--echo # Bug mdev-6325: wrong selectivity of a column with ref access 
+--echo #
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t1(a int);
+insert into t1 select A.a + B.a* 10 + C.a * 100 from t0 A, t0 B, t0 C;
+create table t2 (a int, b int, key(a));
+insert into t2 select A.a + 10*B.a, 12345 from t0 A, t0 B, t0 C;
+
+set use_stat_tables='preferably';
+set histogram_size=100;
+
+set optimizer_use_condition_selectivity=4;
+analyze table t1 persistent for all;
+analyze table t2 persistent for all;
+
+explain extended 
+select * from t1 straight_join t2 where t1.a=t2.a and t1.a<10;
+explain extended 
+select * from t1 straight_join t2 where t1.a=t2.a and t2.a<10;
+
+drop table t0,t1,t2;
+
 set use_stat_tables=@save_use_stat_tables;
