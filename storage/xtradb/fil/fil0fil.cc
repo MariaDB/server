@@ -818,10 +818,10 @@ fil_node_open_file(
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE,
 			               space->flags);
 
-		if (fil_page_is_encrypted(page)) {
-				/* if page is encrypted, write an error and return.
+		if (fil_page_can_not_decrypt(page)) {
+				/* if page is (still) encrypted, write an error and return.
 				 * Otherwise the server would crash if decrypting is not possible.
-				 * This may be the case, if the keyfile could not be opened on server startup.
+				 * This may be the case, if the key file could not be opened on server startup.
 				 */
 				fprintf(stderr,
 								"InnoDB: can not decrypt %s\n",
@@ -2107,8 +2107,10 @@ fil_check_first_page(
 
 	space_id = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page);
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-	page_is_encrypted = fil_page_is_encrypted(page);
-	if (!KeySingleton::getInstance().isAvailable() && page_is_encrypted) {
+	/* Note: the 1st page is usually not encrypted. If the Key Provider or the encryption key is not available, the
+	 * check for reading the first page should intentionally fail with "can not decrypt" message. */
+	page_is_encrypted = fil_page_can_not_decrypt(page);
+	if ((!KeySingleton::getInstance().isAvailable() || (page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING)) && page_is_encrypted) {
 		page_is_encrypted = 1;
 	} else {
 		page_is_encrypted = 0;

@@ -16,6 +16,10 @@ typedef unsigned long int ibool;
 #include <string.h>
 
 #include <tap.h>
+#define FIL_PAGE_TYPE_FSP_HDR	8	/*!< File space header */
+#define FIL_PAGE_TYPE_XDES	9	/*!< Extent descriptor page */
+#define PAGE_ENCRYPTION_WILL_NOT_ENCRYPT  5
+
 
 extern int summef(int a, int b);
 extern int summef2(int a, int b);
@@ -65,6 +69,7 @@ fil_encrypt_page(
     ulint           len,           /*!< in: length of input buffer.*/
     ulint           compression_level, /*!< in: compression level */
     ulint*          out_len,   /*!< out: actual length of compressed page */
+    ulint* 		    errorCode,   	/*!< out: an error code. set, if page is intentionally not encrypted */
     ulint			mode       /*!< in: calling mode */
     );
 
@@ -115,7 +120,8 @@ void testEncryptionChecksum(char* filename) {
 	byte* buf = readFile(filename,&fl);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
-	fil_encrypt_page(0,buf,dest,fl,255, &out_len, 1);
+	ulint ec = 0;
+	fil_encrypt_page(0,buf,dest,fl,255, &out_len, &ec, 1);
 	dest[2000]=0xFF;
 	dest[2001]=0xFF;
 	dest[2002]=0xFF;
@@ -135,15 +141,24 @@ void testEncryptionChecksum(char* filename) {
 void testIt(char* filename, ulint do_not_cmp_checksum) {
 	int fl = 0;
 	byte* buf = readFile(filename, &fl);
+	char str[80];
+		strcpy (str,"File ");
+		strcat (str,filename );
 
 
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 
 	ulint out_len;
 	ulint cc1 = 0;
+	ulint ec = 0;
 
 	ulint orig_page_type = mach_read_from_2(buf + 24);
-	byte* snd = fil_encrypt_page(0,buf,dest,fl,255, &out_len,  fl==8192 ? fl : 1);
+	byte* snd = fil_encrypt_page(0,buf,dest,fl,255, &out_len,  &ec, fl==8192 ? fl : 1);
+	if ((orig_page_type ==8) || (orig_page_type==9)) {
+		cc1 = (ec == 5) && (snd == buf);
+		ok(cc1, "page type 8 or 9 will not be encrypted! file %s", (char*) str);
+		return;
+	}
 	cc1 = (buf!=dest);
 	cc1 = cc1 && (snd==dest);
 	if (!do_not_cmp_checksum) {
@@ -163,9 +178,6 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 	}
 	ulint i = memcmp((buf + a),(dest +a), (size_t)(write_size - (a+b)));
 
-	char str[80];
-	strcpy (str,"File ");
-	strcat (str,filename );
 	cc1 = (i==0) && (cc1);
 	if (!cc1) {
 		dump_buffer(fl, buf);

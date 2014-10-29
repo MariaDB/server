@@ -19,15 +19,17 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #ifndef fil0pageencryption_h
 #define fil0pageencryption_h
 
-#ifndef EP_UNIT_TEST
-#include "fsp0fsp.h"
-#include "fsp0pageencryption.h"
-#endif
-
 #define PAGE_ENCRYPTION_WRONG_KEY 1
 #define PAGE_ENCRYPTION_WRONG_PAGE_TYPE 2
 #define PAGE_ENCRYPTION_ERROR 3
+#define PAGE_ENCRYPTION_KEY_MISSING  4
 #define PAGE_ENCRYPTION_OK 0
+#define PAGE_ENCRYPTION_WILL_NOT_ENCRYPT  5
+
+#include "fsp0fsp.h"
+#include "fsp0pageencryption.h"
+
+
 
 
 
@@ -39,7 +41,7 @@ Created 08/25/2014
 ***********************************************************************/
 
 
-/*******************************************************************//**
+/******************************PAGE_ENCRYPTION_ERROR*************************************//**
 Returns the page encryption flag of the space, or false if the space
 is not encrypted. The tablespace must be cached in the memory cache.
 @return	true if page encrypted, false if not or space not found */
@@ -59,6 +61,16 @@ fil_page_is_encrypted(
     const byte *buf);	/*!< in: page */
 
 
+/*******************************************************************//**
+Find out whether the page can be decrypted
+@return	true if page can be decrypted, false if not. */
+UNIV_INLINE
+ulint
+fil_page_can_not_decrypt(
+/*===================*/
+    const byte *buf);	/*!< in: page */
+
+
 /****************************************************************//**
 For page encrypted pages encrypt the page before actual write
 operation.
@@ -74,6 +86,7 @@ fil_encrypt_page(
     ulint           len,           /*!< in: length of input buffer.*/
     ulint           compression_level, /*!< in: compression level */
     ulint*          out_len,   		/*!< out: actual length of compressed page */
+	ulint* 		    errorCode,   	/*!< out: an error code. set, if page is intentionally not encrypted */
     ulint			mode       		/*!< in: calling mode. Should be 0. */
     );
 

@@ -17,6 +17,48 @@
  @file EncKeys.cc
  A class to keep keys for encryption/decryption.
 
+How it works...
+The location and usage can be configured via the configuration file.
+Example
+
+[mysqld]
+...
+innodb_data_encryption_providertype = 1
+innodb_data_encryption_providername = keys.enc
+innodb_data_encryption_providerurl = /home/mdb/
+innodb_data_encryption_filekey = secret
+...
+
+As provider type currently only value 1 is supported, which means, the keys are read from a file.
+The filename is set up via the innodb_data_encryption_providername configuration value.
+innodb_data_encryption_providerurl is used to configure the path to this file. This is usually
+a folder name.
+Examples:
+innodb_data_encryption_providerurl = \\\\unc 	(windows share)
+innodb_data_encryption_providerurl = e:/tmp/ 	(windows path)
+innodb_data_encryption_providerurl = /tmp    	(linux path)
+
+The key file contains AES keys and initialization vectors as hex-encoded Strings.
+Supported are keys of size 128, 192 or 256 bits. IV consists of 16 bytes.
+
+The key file should be encrypted and the key to decrypt the file can be given with the
+innodb_data_encryption_filekey parameter.
+
+The file key can also be located if FILE: is prepended to the key. Then the following part is interpreted
+as absolut to the file containing the file key. This file can optionally be encrypted, currently with a fix key.
+Example:
+innodb_data_encryption_filekey = FILE:y:/secret256.enc
+
+If the key file can not be read at server startup, for example if the file key is not present,
+page_encryption feature is not availabe and access to page_encryption tables is not possible.
+
+Example files can be found inside the unittest/eperi folder.
+
+Open SSL command line utility can be used to create an encrypted key file.
+Examples:
+openssl enc –aes-256-cbc –md sha1 –k secret –in keys.txt –out keys.enc
+openssl enc –aes-256-cbc –md sha1 –k <initialPwd> –in secret –out secret.enc
+
  Created 09/15/2014
  ***********************************************************************/
 #ifdef __WIN__

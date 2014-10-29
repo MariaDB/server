@@ -55,7 +55,7 @@ byte crc_table[] = {
 
 };
 
-
+/* this calculates a crc-8 checksum byte */
 byte fil_page_encryption_calc_checksum(unsigned char* buf, ulint len) {
        byte crc = 0;
        for (ulint i = 0; i < len; i++)
@@ -68,22 +68,24 @@ byte fil_page_encryption_calc_checksum(unsigned char* buf, ulint len) {
  operation.
 
  Pages are encrypted with AES/CBC/NoPadding algorithm.
+
  "No padding" is used to ensure, that the encrypted page does not exceed the page size.
  If "no padding" is used, the input for encryption must be of size (multiple * AES blocksize). AES Blocksize is usually 16 (bytes).
 
- Since the length of the payload is not a mulitple of the AES blocksize,
+ Everything in the page is encrypted except for the 38 byte FIL header.
+ Since the length of the payload is not a multiple of the AES blocksize,
  and to ensure that every byte of the payload is encrypted, two encryption operations are done.
  Each time with a block of adequate size as input.
+ 1st block contains everything from beginning of payload bytes except for the remainder.
+ 2nd block is of size 64 and contains the remainder and the last (64 - sizeof(remainder)) bytes of the encrypted 1st block.
 
  Each encrypted page receives a new page type for PAGE_ENCRYPTION.
- The original page type (2 bytes) is stored in the Checksum header of the page.
+ The original page type (2 bytes) is stored in the Checksum header of the page (position FIL_PAGE_SPACE_OR_CHKSUM).
  Additionally the encryption key identifier is stored in the Checksum Header. This uses 1 byte.
- Checksum verification for encrypted pages is disabled.
+ Checksum verification for encrypted pages is disabled. This checksum should be restored after decryption.
 
- To be able to verify decryption in a later stage, a checksum is stored in the "Old-style Checksum" at the end of the page.
+ To be able to verify decryption in a later stage, a 1-byte checksum at position 4 of the FIL_PAGE_SPACE_OR_CHKSUM header is stored.
 
- Since with page_compressed enabled pages, these field does not seem to be availabe, this checksum is only usable, if there is
- enough space at the end of the page.
 
  @return encrypted page to be written*/
 byte*
@@ -96,6 +98,7 @@ fil_encrypt_page(
 		ulint 		len, 		/*!< in: length of input buffer.*/
 		ulint 		encryption_key,/*!< in: encryption key */
 		ulint* 		out_len, 	/*!< out: actual length of encrypted page */
+		ulint* 	    errorCode,  /*!< out: an error code. set, if page is intentionally not encrypted */
 		ulint 		mode 		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 
@@ -112,6 +115,8 @@ fil_encrypt_page(
 	ulint offset = 0;
 	unit_test = mode ? 1 : 0;
 
+	*errorCode = AES_OK;
+
 	if (!unit_test) {
 		ut_ad(fil_space_is_page_encrypted(space_id));
 		fil_system_enter();
@@ -125,7 +130,15 @@ fil_encrypt_page(
 				space_id, fil_space_name(space), len);
 #endif /* UNIV_DEBUG */
 	}
+	/* read original page type */
+	orig_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
 
+	if ((orig_page_type == FIL_PAGE_TYPE_FSP_HDR) || (orig_page_type == FIL_PAGE_TYPE_XDES) ) {
+			memcpy(out_buf, buf, len);
+
+			*errorCode = PAGE_ENCRYPTION_WILL_NOT_ENCRYPT;
+			return (out_buf);
+	}
 
 	byte checksum_byte = fil_page_encryption_calc_checksum(buf + FIL_PAGE_DATA, len - FIL_PAGE_DATA);
 
@@ -134,8 +147,6 @@ fil_encrypt_page(
 	data_size = ((len - FIL_PAGE_DATA - FIL_PAGE_DATA_END) / MY_AES_BLOCK_SIZE) * MY_AES_BLOCK_SIZE;
 
 
-	/* read original page type */
-	orig_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
 
 
 
@@ -149,7 +160,7 @@ fil_encrypt_page(
 		if (!keys.isAvailable()) {
 			err = AES_KEY_CREATION_FAILED;
 		} else if (keys.getKeys(encryption_key) == NULL) {
-			err = AES_KEY_CREATION_FAILED;
+			err = PAGE_ENCRYPTION_KEY_MISSING;
 		} else {
 			char* keyString = keys.getKeys(encryption_key)->key;
 			key_len = strlen(keyString)/2;
@@ -164,7 +175,7 @@ fil_encrypt_page(
 		if (!keys.isAvailable()) {
 			err = AES_KEY_CREATION_FAILED;
 		} else if (keys.getKeys(encryption_key) == NULL) {
-			err = AES_KEY_CREATION_FAILED;
+			err = PAGE_ENCRYPTION_KEY_MISSING;
 		} else {
 			char* ivString = keys.getKeys(encryption_key)->iv;
 			if (ivString == NULL) return buf;
@@ -218,6 +229,7 @@ fil_encrypt_page(
 		if (tmp_buf!=NULL) {
 			ut_free(tmp_buf);
 		}
+		*errorCode = err;
 
 		return (buf);
 	}
@@ -233,15 +245,16 @@ fil_encrypt_page(
 
 	/* The 1st checksum field is used to store original page type, etc.
 	 * checksum check for page encrypted pages is omitted.
+	 */
 
 	/* Set up the encryption key. Written to the 1st byte of the checksum header field. This header is currently used to store data. */
-	mach_write_to_1(out_buf, key);
+	mach_write_to_1(out_buf + FIL_PAGE_SPACE_OR_CHKSUM, key);
 
 	/* store original page type. Written to 2nd and 3rd byte of the checksum header field */
-	mach_write_to_2(out_buf + 1, orig_page_type);
+	mach_write_to_2(out_buf + FIL_PAGE_SPACE_OR_CHKSUM + 1, orig_page_type);
 
 	/* set byte 4 of checksum field to checksum byte */
-	memset(out_buf + 3, checksum_byte, 1);
+	memset(out_buf + FIL_PAGE_SPACE_OR_CHKSUM + 3, checksum_byte, 1);
 
 #ifdef UNIV_DEBUG
 	/* Verify */
@@ -263,12 +276,12 @@ fil_encrypt_page(
  For page encrypted pages decrypt the page after actual read
  operation.
 
- See fil_encrypt_page for details.
+ See fil_encrypt_page for details, how the encryption works.
 
- if the decryption can be verified, original page should be completely restored, alongside. This includes original page type, checksum fields at page start and end.
- If the verification fails, an error is raised.
- If page_compressed is active it may not be possible to verify decryption, since the verification checksum can be missing. In this
- case the verification result is not evaluated.
+ If the decryption can be verified, original page should be completely restored.
+ This includes original page type, 4-byte checksum field at page start.
+ Decryption is verified against a 1-byte checksum built over the plain data bytes. If this verification fails, an error state is returned..
+
 
  @return decrypted page */
 ulint fil_decrypt_page(
@@ -300,8 +313,17 @@ ulint fil_decrypt_page(
 	ut_ad(len);
 
 	/* Before actual decrypt, make sure that page type is correct */
-	if (mach_read_from_2(buf + FIL_PAGE_TYPE) != FIL_PAGE_PAGE_ENCRYPTED)
+	ulint current_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
+	if ((current_page_type == FIL_PAGE_TYPE_FSP_HDR) || (current_page_type == FIL_PAGE_TYPE_XDES)) {
+		/* assumed as unencrypted */
+		if (write_size!=NULL)  {
+			* write_size = len;
+		}
+		return AES_OK;
+	}
+	if (current_page_type != FIL_PAGE_PAGE_ENCRYPTED)
 	{
+		if (mach_read_from_2(buf + FIL_PAGE_TYPE) != FIL_PAGE_PAGE_ENCRYPTED)
 		fprintf(stderr, "InnoDB: Corruption: We try to decrypt corrupted page\n"
 				"InnoDB: CRC %lu type %lu.\n"
 				"InnoDB: len %lu\n",
@@ -319,14 +341,14 @@ ulint fil_decrypt_page(
 
 
 	/* read page encryption key */
-	page_decryption_key = mach_read_from_1(buf);
+	page_decryption_key = mach_read_from_1(buf + FIL_PAGE_SPACE_OR_CHKSUM);
 
 
 	/* Get the page type */
-	orig_page_type = mach_read_from_2(buf+1);
+	orig_page_type = mach_read_from_2(buf + FIL_PAGE_SPACE_OR_CHKSUM + 1);
 
 	/* read checksum byte */
-	byte stored_checksum_byte = mach_read_from_1(buf+3);
+	byte stored_checksum_byte = mach_read_from_1(buf + FIL_PAGE_SPACE_OR_CHKSUM + 3);
 
 	if (FIL_PAGE_PAGE_COMPRESSED == orig_page_type) {
 		if (page_compressed != NULL) {
@@ -366,7 +388,7 @@ ulint fil_decrypt_page(
 		if (!keys.isAvailable()) {
 			err = PAGE_ENCRYPTION_ERROR;
 		} else if (keys.getKeys(page_decryption_key) == NULL) {
-			err = PAGE_ENCRYPTION_ERROR;
+			err = PAGE_ENCRYPTION_KEY_MISSING;
 		} else {
 			char* keyString = keys.getKeys(page_decryption_key)->key;
 			key_len = strlen(keyString)/2;
@@ -375,20 +397,22 @@ ulint fil_decrypt_page(
 	}
 
 
-
 	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
 			0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
+
+
 	uint8 iv_len = 16;
 	if (!unit_test) {
 		KeySingleton& keys = KeySingleton::getInstance();
 		if (!keys.isAvailable()) {
 			err =  PAGE_ENCRYPTION_ERROR;
 		} else if (keys.getKeys(page_decryption_key) == NULL) {
-			err = PAGE_ENCRYPTION_ERROR;
+			err = PAGE_ENCRYPTION_KEY_MISSING;
 		} else {
 			my_aes_hexToUint(keys.getKeys(page_decryption_key)->iv, (unsigned char*)&iv, 16);
 		}
 	}
+
 
 	if (err != AES_OK) {
 		/* surely key could not be determined. */
@@ -496,11 +520,13 @@ ulint fil_decrypt_page(
 	ulint pageno = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 	ulint flags = 0;
 	ulint zip_size = 0;
+	/* please note, that pane with number 0 is not encrypted */
 	if (pageno == 0 ) {
+
 		flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 	} else {
 		if (unit_test) {
-			/* in simple unit test, the tablespace memory hash is n.a. */
+			/* in simple unit test, the tablespace memory cache is n.a. */
 			if ((mode & 0x01) != 0x01) {
 				zip_size = mode;
 			}
@@ -533,7 +559,7 @@ ulint fil_decrypt_page(
 	}
 
 	if (!(page_compression_flag)) {
-		/* calc check sums and write to the buffer, if page was not compressed.
+		/* calc check sums and write to the buffer, if page is not of type PAGE_COMPRESSED.
 		 * if the decryption is verified, it is assumed that the original page was restored, re-calculating the original
 		 * checksums should be ok
 		 */

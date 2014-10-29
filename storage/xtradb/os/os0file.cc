@@ -45,7 +45,6 @@ Created 10/21/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fsp0fsp.h"
 #include "fil0pagecompress.h"
-#include "fsp0pageencryption.h"
 #include "fil0pageencryption.h"
 #include "buf0buf.h"
 #include "btr0types.h"
@@ -4825,6 +4824,7 @@ found:
 	   then we encrypt the page */
 	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
 		ulint           real_len = len;
+		ulint 			ec = 0;
 		byte*           tmp = NULL;
 
 		/* Release the array mutex while encrypting */
@@ -4837,11 +4837,11 @@ found:
 		}
 
 		ut_ad(slot->page_buf2);
-		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, 0);
+
+		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, &ec, 0);
 
 		/* If encryption succeeded, set up the length and buffer */
-		//TODO we do not need to reset len since we do not alter any content size
-		if (tmp != buf) {
+		if (tmp != buf || (ec == PAGE_ENCRYPTION_WILL_NOT_ENCRYPT)) {
 			len = real_len;
 			buf = slot->page_buf2;
 			slot->len = real_len;
