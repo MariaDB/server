@@ -257,6 +257,8 @@ UNIV_INTERN ulint	srv_buf_pool_curr_size	= 0;
 UNIV_INTERN ulint	srv_mem_pool_size	= ULINT_MAX;
 UNIV_INTERN ulint	srv_lock_table_size	= ULINT_MAX;
 
+UNIV_INTERN ulint	srv_idle_flush_pct = 100;
+
 /* This parameter is deprecated. Use srv_n_io_[read|write]_threads
 instead. */
 UNIV_INTERN ulint	srv_n_file_io_threads	= ULINT_MAX;

@@ -341,6 +341,8 @@ UNIV_INTERN ulong	srv_cleaner_lsn_age_factor
 UNIV_INTERN ulong	srv_empty_free_list_algorithm
 	= SRV_EMPTY_FREE_LIST_BACKOFF;
 
+UNIV_INTERN ulint	srv_idle_flush_pct = 100;
+
 /* This parameter is deprecated. Use srv_n_io_[read|write]_threads
 instead. */
 UNIV_INTERN ulint	srv_n_file_io_threads	= ULINT_MAX;

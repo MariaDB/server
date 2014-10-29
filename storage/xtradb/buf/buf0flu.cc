@@ -2736,14 +2736,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 
 		srv_current_thread_priority = srv_cleaner_thread_priority;
 
-		/* The page_cleaner skips sleep if the server is
-		idle and there are no pending IOs in the buffer pool
-		and there is work to do. */
-		if (srv_check_activity(last_activity)
-		    || buf_get_n_pending_read_ios()
-		    || n_flushed == 0) {
-			page_cleaner_sleep_if_needed(next_loop_time);
-		}
+		page_cleaner_sleep_if_needed(next_loop_time);
 
 		page_cleaner_sleep_time
 			= page_cleaner_adapt_flush_sleep_time();
@@ -2761,8 +2754,8 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 			}
 
 			/* Flush pages from flush_list if required */
-			n_flushed += page_cleaner_flush_pages_if_needed();
-		} else {
+			page_cleaner_flush_pages_if_needed();
+		} else if (srv_idle_flush_pct) {
 			n_flushed = page_cleaner_do_flush_batch(
 							PCT_IO(100),
 							LSN_MAX);
@@ -2775,6 +2768,9 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 					n_flushed);
 			}
 		}
+
+		/* Flush pages from end of LRU if required */
+		buf_flush_LRU_tail();
 	}
 
 	ut_ad(srv_shutdown_state > 0);
