@@ -1468,7 +1468,9 @@ bool mysqld_embedded=0;
 bool mysqld_embedded=1;
 #endif
 
+#ifndef EMBEDDED_LIBRARY
 static my_bool plugins_are_initialized= FALSE;
+#endif
 
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
