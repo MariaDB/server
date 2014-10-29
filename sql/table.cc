@@ -6080,7 +6080,6 @@ void TABLE::create_key_part_by_field(KEY *keyinfo,
                                      Field *field, uint fieldnr)
 {
   DBUG_ASSERT(field->field_index + 1 == (int)fieldnr);
-  field->flags|= PART_KEY_FLAG;
   key_part_info->null_bit= field->null_bit;
   key_part_info->null_offset= (uint) (field->null_ptr -
                                       (uchar*) record[0]);
@@ -6237,6 +6236,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
       (*reg_field)->key_start.set_bit(key);
     (*reg_field)->part_of_key.set_bit(key);
     create_key_part_by_field(keyinfo, key_part_info, *reg_field, fld_idx+1);
+    (*reg_field)->flags|= PART_KEY_FLAG;
     key_start= FALSE;
     key_part_info++;
   }
