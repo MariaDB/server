@@ -4737,7 +4737,10 @@ found:
 	slot->write_size = write_size;
 	slot->page_compression_level = page_compression_level;
 	slot->page_compression = page_compression;
-	slot->file_block_size = fil_node_get_block_size(message1);
+
+	if (message1) {
+		slot->file_block_size = fil_node_get_block_size(message1);
+	}
 
 	/* If the space is page compressed and this is write operation
 	   then we compress the page */
@@ -6658,7 +6661,6 @@ os_file_get_block_size(
 
 		if (GetFreeSpace((LPCTSTR)name, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
 			fblock_size = BytesPerSector;
-			fprintf(stderr, "InnoDB: [Note]: Using %ld file block size\n", fblock_size);
 		} else {
 			fprintf(stderr, "InnoDB: Warning: GetFreeSpace() failed on file %s\n", name);
 			os_file_handle_error_no_exit(name, "GetFreeSpace()", FALSE, __FILE__, __LINE__);
@@ -6666,11 +6668,17 @@ os_file_get_block_size(
 	}
 #endif /* __WIN__*/
 
-	if (fblock_size > UNIV_PAGE_SIZE/2) {
-		fprintf(stderr, "InnoDB: Warning: File system for file %s has "
+	if (fblock_size > UNIV_PAGE_SIZE/2 || fblock_size < 512) {
+		fprintf(stderr, "InnoDB: Note: File system for file %s has "
 			"file block size %lu not supported for page_size %lu\n",
 			name, fblock_size, UNIV_PAGE_SIZE);
-		fblock_size = UNIV_PAGE_SIZE/2;
+
+		if (fblock_size < 512) {
+			fblock_size = 512;
+		} else {
+			fblock_size = UNIV_PAGE_SIZE/2;
+		}
+
 		fprintf(stderr, "InnoDB: Note: Using file block size %ld for file %s\n",
 			fblock_size, name);
 	}
