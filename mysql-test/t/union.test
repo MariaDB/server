@@ -216,14 +216,12 @@ select found_rows();
 select found_rows();
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1) UNION all (SELECT * FROM t2 LIMIT 1);
 select found_rows();
-# This used to work in 4.0 but not anymore in 4.1
---error 1064
 (SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1) UNION SELECT * FROM t2 LIMIT 1;
-#select found_rows();
+select found_rows();
 
 # In these case found_rows() should work
+--error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION all SELECT * FROM t2 LIMIT 2;
-select found_rows();
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION all SELECT * FROM t2 LIMIT 2;
 select found_rows();
 
@@ -232,16 +230,16 @@ SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2;
 select found_rows();
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 100;
 select found_rows();
+--error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 100 UNION SELECT * FROM t2;
-select found_rows();
+--error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2;
-select found_rows();
+--error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 LIMIT 1 UNION SELECT * FROM t2 LIMIT 2;
-select found_rows();
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION SELECT * FROM t2 LIMIT 2,2;
 select found_rows();
+--error ER_WRONG_USAGE
 SELECT SQL_CALC_FOUND_ROWS * FROM t1 limit 2,2 UNION SELECT * FROM t2;
-select found_rows();
 
 # Test some limits with ORDER BY
 SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a desc LIMIT 1;
@@ -255,7 +253,7 @@ create temporary table t1 select a from t1 union select a from t2;
 drop temporary table t1;
 --error ER_TABLE_EXISTS_ERROR
 create table t1 select a from t1 union select a from t2;
---error 1054
+--error ER_TABLENAME_NOT_ALLOWED_HERE
 select a from t1 union select a from t2 order by t2.a;
 drop table t1,t2;
 
@@ -723,12 +721,12 @@ drop table t1;
 # Enum merging test
 #
 CREATE TABLE t1 (
-  a ENUM('ä','ö','ü') character set utf8 not null default 'ü',
+  a ENUM('Ã¤','Ã¶','Ã¼') character set utf8 not null default 'Ã¼',
   b ENUM("one", "two") character set utf8,
   c ENUM("one", "two")
 );
 show create table t1;
-insert into t1 values ('ä', 'one', 'one'), ('ö', 'two', 'one'), ('ü', NULL, NULL);
+insert into t1 values ('Ã¤', 'one', 'one'), ('Ã¶', 'two', 'one'), ('Ã¼', NULL, NULL);
 create table t2 select NULL union select a from t1;
 show columns from t2;
 drop table t2;
@@ -1086,13 +1084,11 @@ SELECT * FROM t1 UNION SELECT * FROM t1 ORDER BY a + 12;
 
 
 --echo # Should not crash
---error ER_CANT_USE_OPTION_HERE
 EXPLAIN EXTENDED
 SELECT * FROM t1 UNION SELECT * FROM t1
   ORDER BY MATCH(a) AGAINST ('+abc' IN BOOLEAN MODE);
 
 --echo # Should not crash
---error ER_CANT_USE_OPTION_HERE
 SELECT * FROM t1 UNION SELECT * FROM t1
   ORDER BY MATCH(a) AGAINST ('+abc' IN BOOLEAN MODE);
 
@@ -1273,6 +1269,36 @@ SELECT(SELECT 1 AS a ORDER BY a) AS dev;
 SELECT(SELECT 1 AS a LIMIT 1) AS dev;
 SELECT(SELECT 1 AS a FROM dual ORDER BY a DESC LIMIT 1) AS dev;
 
+
+--echo #
+--echo # Bug #17059925 : UNIONS COMPUTES ROWS_EXAMINED INCORRECTLY
+--echo #
+
+## Save current state of slow log variables
+SET @old_slow_query_log= @@global.slow_query_log;
+SET @old_log_output= @@global.log_output;
+SET @old_long_query_time= @@long_query_time;
+SET GLOBAL log_output= "TABLE";
+SET GLOBAL slow_query_log= ON;
+SET SESSION long_query_time= 0;
+
+CREATE TABLE t17059925 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT);
+INSERT INTO t17059925 VALUES (1), (2), (3);
+INSERT INTO t2 VALUES (4), (5), (6);
+INSERT INTO t3 VALUES (7), (8), (9);
+TRUNCATE table mysql.slow_log;
+--sorted_result
+SELECT * FROM t17059925 UNION SELECT * FROM t2 UNION SELECT * FROM t3;
+SELECT sql_text, rows_examined FROM mysql.slow_log WHERE sql_text LIKE '%SELECT%t17059925%';
+DROP TABLE t17059925, t2, t3;
+
+## Reset to initial values
+SET @@long_query_time= @old_long_query_time;
+SET @@global.log_output= @old_log_output;
+SET @@global.slow_query_log= @old_slow_query_log;
+
 --echo #
 --echo # lp:1010729: Unexpected syntax error from UNION
 --echo # (bug #54382) with single-table join nest      
@@ -1300,3 +1326,106 @@ create table t1 (a int);
 insert t1 values (1),(2),(3),(1);
 explain select 1 from dual where exists (select max(a) from t1 group by a union select a+2 from t1);
 drop table t1;
+
+--echo #
+--echo # WL#1763 Avoid creating temporary table in UNION ALL
+--echo #
+
+EXPLAIN SELECT 1 UNION ALL SELECT 1 LIMIT 1 OFFSET 1;
+
+--echo # Bug #17579498 CHANGES IN DATATYPE OF THE RESULT QUERY IN UNION.
+
+CREATE TABLE t1 (a TIME);
+CREATE TABLE t2 (b DATETIME);
+
+CREATE TABLE t3
+SELECT a FROM t1 UNION ALL SELECT b FROM t2;
+
+SELECT column_name, column_type
+FROM information_schema.columns
+WHERE TABLE_NAME='t3';
+
+DROP TABLE t1, t2, t3;
+
+--echo # Bug #17602922 RESULT DIFFERENCES IN UNION QUERIES WITH IN
+--echo # (SUBQUERY-UNION ALL)
+
+CREATE TABLE t1 (a VARCHAR(1));
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES (NULL);
+INSERT INTO t1 VALUES ('j');
+INSERT INTO t1 VALUES ('k');
+INSERT INTO t1 VALUES ('r');
+INSERT INTO t1 VALUES ('r');
+INSERT INTO t1 VALUES ('h');
+
+SELECT a FROM t1 WHERE a IN (SELECT 'r' FROM t1 UNION ALL SELECT 'j');
+
+CREATE TABLE t2
+SELECT a FROM t1 WHERE a IN (SELECT 'r' FROM t1 UNION ALL SELECT 'j');
+
+SELECT * FROM t2;
+
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (a INT PRIMARY KEY);
+CREATE TABLE t2 (a INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1);
+
+SELECT a, SUM(a) FROM t2 UNION ALL SELECT a, MIN(a) FROM t1 ;
+
+SELECT FOUND_ROWS();
+
+DROP TABLE t1, t2;
+
+--echo # Bug #17669551 CRASH/ASSERT AT SELECT_CREATE::PREPARE2 AT
+--echo # SQL_INSERT.CC
+
+CREATE TABLE t1 (a INT);
+
+--error ER_DUP_FIELDNAME
+CREATE TABLE t2 SELECT a, a FROM t1 UNION ALL SELECT a, a FROM t1;
+
+DROP TABLE t1;
+
+--echo # Bug #17694956 RESULT DIFFERENCES IN UNION ALL QUERIES WITH LIMIT
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+
+(SELECT a FROM t1 ORDER BY a LIMIT 0) UNION ALL SELECT a FROM t1;
+
+DROP TABLE t1;
+
+--echo # Bug #17708480 FOUND_ROWS() VALUE DO NOT MATCH WITH UNION ALL QUERIES
+
+CREATE TABLE t1 (a INT) ENGINE=MEMORY;
+CREATE TABLE t2 (a INT) ENGINE=MEMORY;
+INSERT INTO t2 VALUES (1);
+
+SELECT COUNT(*) FROM (
+SELECT                     * FROM t2 UNION ALL SELECT * FROM t1) q;
+SELECT SQL_CALC_FOUND_ROWS * FROM t2 UNION ALL SELECT * FROM t1;
+SELECT FOUND_ROWS();
+
+SELECT COUNT(*) FROM (
+SELECT                     * FROM t1 UNION ALL SELECT * FROM t2) q;
+SELECT SQL_CALC_FOUND_ROWS * FROM t1 UNION ALL SELECT * FROM t2;
+SELECT FOUND_ROWS();
+
+DROP TABLE t1, t2;
+
+--echo # End of WL1763 tests
+
+--echo #
+--echo # Bug mdev-6874: crash with UNION ALL in a subquery
+--echo #
+
+CREATE TABLE t1 (a int, b int);
+INSERT INTO t1 VALUES (1,1), (2,8);
+
+SELECT * FROM t1 t1_1 LEFT JOIN t1 t1_2 ON ( t1_2.b = t1_1.a )
+  WHERE t1_2.b NOT IN ( SELECT 4 UNION ALL SELECT 5 );
+
+DROP TABLE t1;
+

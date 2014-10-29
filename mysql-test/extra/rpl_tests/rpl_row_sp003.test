@@ -53,8 +53,6 @@ SELECT release_lock("test");
 
 connection master;
 SELECT * FROM test.t1; 
-#show binlog events;
---source include/wait_for_ndb_to_binlog.inc
 sync_slave_with_master;
 connection slave;
 SELECT * FROM test.t1;

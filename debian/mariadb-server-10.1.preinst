@@ -48,18 +48,6 @@ stop_server() {
 
 this_version=10.1
 
-# Abort if an NDB cluster is in use.
-if egrep -qi -r '^[^#]*ndb.connectstring|^[[:space:]]*\[[[:space:]]*ndb_mgmd' /etc/mysql/; then
-  db_fset mysql-server/no_upgrade_when_using_ndb seen false || true
-  db_input high mysql-server/no_upgrade_when_using_ndb || true
-  db_go
-  db_stop
-  exit 1
-fi
-
-# Abort if skip-bdb option is enabled, required for 5.0 -> 5.1 upgrades.
-#TODO
-
 # Safe the user from stupidities.
 show_downgrade_warning=0
 for i in `ls $DATADIR/debian-*.flag 2>/dev/null`; do

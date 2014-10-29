@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -85,11 +85,10 @@ PATENT RIGHTS GRANT:
   under this License.
 */
 
+#pragma once
+
 #ident "Copyright (c) 2012-2013 Tokutek Inc.  All rights reserved."
 #ident "$Id$"
-
-#ifndef TOKU_BYTESWAP_H
-#define TOKU_BYTESWAP_H
 
 #include <portability/toku_config.h>
 
@@ -102,5 +101,3 @@ PATENT RIGHTS GRANT:
 # include <libkern/OSByteOrder.h>
 # define bswap_64 OSSwapInt64
 #endif
-
-#endif /* TOKU_BYTESWAP_H */

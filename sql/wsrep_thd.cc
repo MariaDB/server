@@ -90,7 +90,7 @@ void wsrep_client_rollback(THD *thd)
 #define NUMBER_OF_FIELDS_TO_IDENTIFY_WORKER 2
 //#include "rpl_info_factory.h"
 
-#if 0
+#ifdef NOT_USED
 static Relay_log_info* wsrep_relay_log_init(const char* log_fname)
 {
 

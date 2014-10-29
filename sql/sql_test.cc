@@ -468,8 +468,7 @@ static void display_table_locks(void)
   DYNAMIC_ARRAY saved_table_locks;
 
   (void) my_init_dynamic_array(&saved_table_locks,sizeof(TABLE_LOCK_INFO),
-                               tc_records() + 20, 50,
-                               MYF(MY_THREAD_SPECIFIC));
+                               tc_records() + 20, 50, MYF(0));
   mysql_mutex_lock(&THR_LOCK_lock);
   for (list= thr_lock_thread_list; list; list= list_rest(list))
   {
@@ -576,7 +575,6 @@ void mysql_print_status()
   /* Print key cache status */
   puts("\nKey caches:");
   process_key_caches(print_key_cache_status, 0);
-  mysql_mutex_lock(&LOCK_status);
   printf("\nhandler status:\n\
 read_key:   %10lu\n\
 read_next:  %10lu\n\
@@ -592,7 +590,6 @@ update:     %10lu\n",
 	 tmp.ha_write_count,
 	 tmp.ha_delete_count,
 	 tmp.ha_update_count);
-  mysql_mutex_unlock(&LOCK_status);
   printf("\nTable status:\n\
 Opened tables: %10lu\n\
 Open tables:   %10lu\n\

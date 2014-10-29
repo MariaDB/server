@@ -1,4 +1,4 @@
-/* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
+/* Copyright (c) 2002, 2014, Oracle and/or its affiliates.
    Copyright (c) 2012, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
@@ -1074,11 +1074,22 @@ static Sys_var_keycache Sys_key_cache_age_threshold(
        BLOCK_SIZE(100), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(change_keycache_param));
 
+static Sys_var_keycache Sys_key_cache_file_hash_size(
+       "key_cache_file_hash_size",
+       "Number of hash buckets for open and changed files.  If you have a lot of MyISAM "
+       "files open you should increase this for faster flush of changes. A good "
+       "value is probably 1/10 of number of possible open MyISAM files.",
+       KEYCACHE_VAR(changed_blocks_hash_size),
+       CMD_LINE(REQUIRED_ARG, OPT_KEY_CACHE_CHANGED_BLOCKS_HASH_SIZE),
+       VALID_RANGE(128, 16384), DEFAULT(512),
+       BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(resize_keycache));
+
 static Sys_var_mybool Sys_large_files_support(
        "large_files_support",
        "Whether mysqld was compiled with options for large file support",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(opt_large_files),
-       NO_CMD_LINE, DEFAULT(sizeof(my_off_t) > 4));
+       READ_ONLY GLOBAL_VAR(opt_large_files),
+       CMD_LINE_HELP_ONLY, DEFAULT(sizeof(my_off_t) > 4));
 
 static Sys_var_uint Sys_large_page_size(
        "large_page_size",
@@ -1176,6 +1187,29 @@ static Sys_var_double Sys_long_query_time(
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(update_cached_long_query_time));
 
+
+static bool update_cached_max_statement_time(sys_var *self, THD *thd,
+                                         enum_var_type type)
+{
+  if (type == OPT_SESSION)
+    thd->variables.max_statement_time=
+      double2ulonglong(thd->variables.max_statement_time_double * 1e6);
+  else
+    global_system_variables.max_statement_time=
+      double2ulonglong(global_system_variables.max_statement_time_double * 1e6);
+  return false;
+}
+
+static Sys_var_double Sys_max_statement_time(
+       "max_statement_time",
+       "A SELECT query that have taken more than max_statement_time seconds "
+       "will be aborted. The argument will be treated as a decimal value "
+       "with microsecond precision.  A value of 0 (default) means no timeout",
+       SESSION_VAR(max_statement_time_double),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(update_cached_max_statement_time));
+
 static bool fix_low_prio_updates(sys_var *self, THD *thd, enum_var_type type)
 {
   if (type == OPT_SESSION)
@@ -1199,8 +1233,8 @@ static Sys_var_mybool Sys_lower_case_file_system(
        "lower_case_file_system",
        "Case sensitivity of file names on the file system where the "
        "data directory is located",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(lower_case_file_system),
-       NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(lower_case_file_system),
+       CMD_LINE_HELP_ONLY,
        DEFAULT(FALSE));
 
 static Sys_var_uint Sys_lower_case_table_names(
@@ -1454,7 +1488,7 @@ static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
 
 
 uchar *
-Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1482,7 +1516,7 @@ static Sys_var_gtid_current_pos Sys_gtid_current_pos(
 
 
 uchar *
-Sys_var_gtid_current_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   String str;
   char *p;
@@ -1567,7 +1601,7 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 
 
 uchar *
-Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, LEX_STRING *base)
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   String str;
   char *p;
@@ -1685,7 +1719,7 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
 
 
 uchar *
-Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, LEX_STRING *base)
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   char buf[512];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1718,7 +1752,7 @@ static Sys_var_last_gtid Sys_last_gtid(
 
 
 uchar *
-Sys_var_last_gtid::session_value_ptr(THD *thd, LEX_STRING *base)
+Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_STRING *base)
 {
   char buf[10+1+10+1+20+1];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2098,6 +2132,7 @@ static Sys_var_mybool Sys_old_passwords(
        "Use old password encryption method (needed for 4.0 and older clients)",
        SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_old_passwords));
+export sys_var *Sys_old_passwords_ptr= &Sys_old_passwords; // for sql_acl.cc
 
 static Sys_var_ulong Sys_open_files_limit(
        "open_files_limit",
@@ -2199,13 +2234,15 @@ export const char *optimizer_switch_names[]=
   "exists_to_in",
   "default", NullS
 };
-/** propagates changes to @@engine_condition_pushdown */
 static bool fix_optimizer_switch(sys_var *self, THD *thd,
                                  enum_var_type type)
 {
   SV *sv= (type == OPT_GLOBAL) ? &global_system_variables : &thd->variables;
-  sv->engine_condition_pushdown=
-    MY_TEST(sv->optimizer_switch & OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN);
+  if (sv->optimizer_switch & deprecated_ENGINE_CONDITION_PUSHDOWN)
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
+                        ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
+                        "engine_condition_pushdown=on");
   return false;
 }
 static Sys_var_flagset Sys_optimizer_switch(
@@ -2246,7 +2283,7 @@ static Sys_var_ulong Sys_preload_buff_size(
 static Sys_var_uint Sys_protocol_version(
        "protocol_version",
        "The version of the client/server protocol used by the MySQL server",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(protocol_version), NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(protocol_version), CMD_LINE_HELP_ONLY,
        VALID_RANGE(0, ~0), DEFAULT(PROTOCOL_VERSION), BLOCK_SIZE(1));
 
 static Sys_var_proxy_user Sys_proxy_user(
@@ -3001,8 +3038,8 @@ static Sys_var_mybool Sys_sync_frm(
 static char *system_time_zone_ptr;
 static Sys_var_charptr Sys_system_time_zone(
        "system_time_zone", "The server system time zone",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(system_time_zone_ptr),
-       NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(system_time_zone_ptr),
+       CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(system_time_zone));
 
 static Sys_var_ulong Sys_table_def_size(
@@ -3110,7 +3147,7 @@ static Sys_var_uint Sys_threadpool_size(
  "This parameter is roughly equivalent to maximum number of concurrently "
  "executing threads (threads in a waiting state do not count as executing).",
   GLOBAL_VAR(threadpool_size), CMD_LINE(REQUIRED_ARG),
-  VALID_RANGE(1, MAX_THREAD_GROUPS), DEFAULT(my_getncpus()), BLOCK_SIZE(1),
+  VALID_RANGE(1, MAX_THREAD_GROUPS), DEFAULT(8), BLOCK_SIZE(1),
   NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_threadpool_size),
   ON_UPDATE(fix_threadpool_size)
 );
@@ -3205,42 +3242,42 @@ static Sys_var_ulonglong Sys_tmp_table_size(
 
 static Sys_var_mybool Sys_timed_mutexes(
        "timed_mutexes",
-       "Specify whether to time mutexes (only InnoDB mutexes are currently "
-       "supported)",
-       GLOBAL_VAR(timed_mutexes), CMD_LINE(OPT_ARG), DEFAULT(0));
+       "Specify whether to time mutexes. Deprecated, has no effect.",
+       GLOBAL_VAR(timed_mutexes), CMD_LINE(OPT_ARG), DEFAULT(0),
+       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(NULL), ON_UPDATE(NULL),
+       DEPRECATED(""));
 
 static char *server_version_ptr;
 static Sys_var_charptr Sys_version(
        "version", "Server version",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_ptr),
-       NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(server_version_ptr),
+       CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(server_version));
 
 static char *server_version_comment_ptr;
 static Sys_var_charptr Sys_version_comment(
        "version_comment", "version_comment",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_comment_ptr),
-       NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(server_version_comment_ptr),
+       CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(MYSQL_COMPILATION_COMMENT));
 
 static char *server_version_compile_machine_ptr;
 static Sys_var_charptr Sys_version_compile_machine(
        "version_compile_machine", "version_compile_machine",
-       READ_ONLY SHOW_VALUE_IN_HELP
-       GLOBAL_VAR(server_version_compile_machine_ptr), NO_CMD_LINE,
-       IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
+       READ_ONLY GLOBAL_VAR(server_version_compile_machine_ptr),
+       CMD_LINE_HELP_ONLY, IN_SYSTEM_CHARSET, DEFAULT(MACHINE_TYPE));
 
 static char *server_version_compile_os_ptr;
 static Sys_var_charptr Sys_version_compile_os(
        "version_compile_os", "version_compile_os",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(server_version_compile_os_ptr),
-       NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(server_version_compile_os_ptr),
+       CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(SYSTEM_TYPE));
 
 static char *malloc_library;
 static Sys_var_charptr Sys_malloc_library(
        "version_malloc_library", "Version of the used malloc library",
-       READ_ONLY SHOW_VALUE_IN_HELP GLOBAL_VAR(malloc_library), NO_CMD_LINE,
+       READ_ONLY GLOBAL_VAR(malloc_library), CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(MALLOC_LIBRARY));
 
 static Sys_var_ulong Sys_net_wait_timeout(
@@ -4099,7 +4136,7 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, LEX_STRING *base)
+uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, const LEX_STRING *base)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -4216,11 +4253,11 @@ static Sys_var_uint Sys_slave_net_timeout(
   Return 0 + warning if it doesn't exist
 */
 
-uint Sys_var_multi_source_ulong::
-get_master_info_uint_value(THD *thd, ptrdiff_t offset)
+ulonglong Sys_var_multi_source_ulonglong::
+get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset)
 {
   Master_info *mi;
-  uint res= 0;                                  // Default value
+  ulonglong res= 0;                                  // Default value
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   mi= master_info_index->
@@ -4229,7 +4266,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
   if (mi)
   {
     mysql_mutex_lock(&mi->rli.data_lock);
-    res= *((uint*) (((uchar*) mi) + master_info_offset));
+    res= *((ulonglong*) (((uchar*) mi) + master_info_offset));
     mysql_mutex_unlock(&mi->rli.data_lock);
   }
   mysql_mutex_unlock(&LOCK_active_mi);    
@@ -4241,7 +4278,7 @@ get_master_info_uint_value(THD *thd, ptrdiff_t offset)
 bool update_multi_source_variable(sys_var *self_var, THD *thd,
                                   enum_var_type type)
 {
-  Sys_var_multi_source_ulong *self= (Sys_var_multi_source_ulong*) self_var;
+  Sys_var_multi_source_ulonglong *self= (Sys_var_multi_source_ulonglong*) self_var;
   bool result= true;
   Master_info *mi;
 
@@ -4267,11 +4304,6 @@ bool update_multi_source_variable(sys_var *self_var, THD *thd,
 
 static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
 {
-  if (mi->using_gtid != Master_info::USE_GTID_NO)
-  {
-    my_error(ER_SLAVE_SKIP_NOT_IN_GTID, MYF(0));
-    return true;
-  }
   if (mi->rli.slave_running)
   {
     my_error(ER_SLAVE_MUST_STOP, MYF(0), mi->connection_name.length,
@@ -4283,16 +4315,12 @@ static bool update_slave_skip_counter(sys_var *self, THD *thd, Master_info *mi)
   return false;
 }
 
-
-static Sys_var_multi_source_ulong
-Sys_slave_skip_counter("sql_slave_skip_counter",
-                       "Skip the next N events from the master log",
-                       SESSION_VAR(slave_skip_counter),
-                       NO_CMD_LINE,
-                       my_offsetof(Master_info, rli.slave_skip_counter),
-                       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
-                       ON_UPDATE(update_slave_skip_counter));
-
+static Sys_var_multi_source_ulonglong Sys_slave_skip_counter(
+       "sql_slave_skip_counter", "Skip the next N events from the master log",
+       SESSION_VAR(slave_skip_counter), NO_CMD_LINE,
+       MASTER_INFO_VAR(rli.slave_skip_counter),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1),
+       ON_UPDATE(update_slave_skip_counter));
 
 static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
 {
@@ -4301,17 +4329,14 @@ static bool update_max_relay_log_size(sys_var *self, THD *thd, Master_info *mi)
   return false;
 }
 
-static Sys_var_multi_source_ulong
-Sys_max_relay_log_size( "max_relay_log_size",
-                        "relay log will be rotated automatically when the "
-                        "size exceeds this value.  If 0 are startup, it's "
-                        "set to max_binlog_size",
-                        SESSION_VAR(max_relay_log_size),
-                        CMD_LINE(REQUIRED_ARG),
-                        my_offsetof(Master_info, rli.max_relay_log_size),
-                        VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0),
-                        BLOCK_SIZE(IO_SIZE),
-                        ON_UPDATE(update_max_relay_log_size));
+static Sys_var_multi_source_ulonglong Sys_max_relay_log_size(
+       "max_relay_log_size",
+       "relay log will be rotated automatically when the size exceeds this "
+       "value.  If 0 at startup, it's set to max_binlog_size",
+       SESSION_VAR(max_relay_log_size), CMD_LINE(REQUIRED_ARG),
+       MASTER_INFO_VAR(rli.max_relay_log_size),
+       VALID_RANGE(0, 1024L*1024*1024), DEFAULT(0), BLOCK_SIZE(IO_SIZE),
+       ON_UPDATE(update_max_relay_log_size));
 
 static Sys_var_charptr Sys_slave_skip_errors(
        "slave_skip_errors", "Tells the slave thread to continue "
@@ -4786,7 +4811,7 @@ static Sys_var_ulong Sys_extra_max_connections(
 
 #ifdef SAFE_MUTEX
 static Sys_var_mybool Sys_mutex_deadlock_detector(
-       "mutex_deadlock_detector", "Enable checking of wrong mutex usage",
+       "debug_mutex_deadlock_detector", "Enable checking of wrong mutex usage",
        READ_ONLY GLOBAL_VAR(safe_mutex_deadlock_detector),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE));
 #endif

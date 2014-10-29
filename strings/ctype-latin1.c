@@ -691,6 +691,8 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
 			    ulong *nr1, ulong *nr2)
 {
   const uchar *end;
+  register ulong m1= *nr1, m2= *nr2;
+    
   /*
     Remove end space. We have to do this to be able to compare
     'AE' and 'Ä' as identical
@@ -700,14 +702,14 @@ void my_hash_sort_latin1_de(CHARSET_INFO *cs __attribute__((unused)),
   for (; key < end ; key++)
   {
     uint X= (uint) combo1map[(uint) *key];
-    nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * X) + (nr1[0] << 8);
-    nr2[0]+=3;
+    MY_HASH_ADD(m1, m2, X);
     if ((X= combo2map[*key]))
     {
-      nr1[0]^=(ulong) ((((uint) nr1[0] & 63)+nr2[0]) * X) + (nr1[0] << 8);
-      nr2[0]+=3;
+      MY_HASH_ADD(m1, m2, X);
     }
   }
+  *nr1= m1;
+  *nr2= m2;
 }
 
 

@@ -163,7 +163,7 @@ maria_declare_plugin(metadata_lock_info)
   NULL,
   NULL,
   NULL,
-  MariaDB_PLUGIN_MATURITY_BETA,
+  MariaDB_PLUGIN_MATURITY_GAMMA,
 }
 maria_declare_plugin_end;
 #else

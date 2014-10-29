@@ -595,6 +595,8 @@ buf_flush_or_remove_pages(
 	buf_page_t*	bpage;
 	ulint		processed = 0;
 
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
+
 	buf_flush_list_mutex_enter(buf_pool);
 
 rescan:
@@ -1971,13 +1973,6 @@ buf_LRU_free_page(
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(bpage->in_LRU_list);
 
-#if UNIV_WORD_SIZE == 4
-	/* On 32-bit systems, there is no padding in buf_page_t.  On
-	other systems, Valgrind could complain about uninitialized pad
-	bytes. */
-	UNIV_MEM_ASSERT_RW(bpage, sizeof *bpage);
-#endif
-
 	if (!buf_page_can_relocate(bpage)) {
 
 		/* Do not free buffer fixed or I/O-fixed blocks. */
@@ -2010,12 +2005,6 @@ buf_LRU_free_page(
 	ut_ad(buf_page_in_file(bpage));
 	ut_ad(bpage->in_LRU_list);
 	ut_ad(!bpage->in_flush_list == !bpage->oldest_modification);
-#if UNIV_WORD_SIZE == 4
-	/* On 32-bit systems, there is no padding in buf_page_t.  On
-	other systems, Valgrind could complain about uninitialized pad
-	bytes. */
-	UNIV_MEM_ASSERT_RW(bpage, sizeof *bpage);
-#endif
 
 #ifdef UNIV_DEBUG
 	if (buf_debug_prints) {
@@ -2121,13 +2110,6 @@ not_freed:
 
 			ut_ad(prev_b->in_LRU_list);
 			ut_ad(buf_page_in_file(prev_b));
-#if UNIV_WORD_SIZE == 4
-			/* On 32-bit systems, there is no
-			padding in buf_page_t.  On other
-			systems, Valgrind could complain about
-			uninitialized pad bytes. */
-			UNIV_MEM_ASSERT_RW(prev_b, sizeof *prev_b);
-#endif
 			UT_LIST_INSERT_AFTER(LRU, buf_pool->LRU,
 					     prev_b, b);
 
@@ -2338,13 +2320,6 @@ buf_LRU_block_remove_hashed(
 	ut_a(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
 	ut_a(bpage->buf_fix_count == 0);
 
-#if UNIV_WORD_SIZE == 4
-	/* On 32-bit systems, there is no padding in
-	buf_page_t.  On other systems, Valgrind could complain
-	about uninitialized pad bytes. */
-	UNIV_MEM_ASSERT_RW(bpage, sizeof *bpage);
-#endif
-
 	buf_LRU_remove_block(bpage);
 
 	buf_pool->freed_page_clock += 1;
@@ -2429,6 +2404,25 @@ buf_LRU_block_remove_hashed(
 			" in the hash table\n",
 			(ulong) bpage->space,
 			(ulong) bpage->offset);
+
+#ifdef UNIV_DEBUG
+		fprintf(stderr,
+			"InnoDB: in_page_hash %lu in_zip_hash %lu\n"
+			" in_free_list %lu in_flush_list %lu in_LRU_list %lu\n"
+			" zip.data %p zip_size %lu page_state %d\n",
+			bpage->in_page_hash, bpage->in_zip_hash,
+			bpage->in_free_list, bpage->in_flush_list,
+			bpage->in_LRU_list, bpage->zip.data,
+			buf_page_get_zip_size(bpage),
+			buf_page_get_state(bpage));
+#else
+		fprintf(stderr,
+			"InnoDB: zip.data %p zip_size %lu page_state %d\n",
+			bpage->zip.data,
+			buf_page_get_zip_size(bpage),
+			buf_page_get_state(bpage));
+#endif
+
 		if (hashed_bpage) {
 			fprintf(stderr,
 				"InnoDB: In hash table we find block"
@@ -2438,6 +2432,9 @@ buf_LRU_block_remove_hashed(
 				(ulong) hashed_bpage->offset,
 				(const void*) bpage);
 		}
+
+		ut_a(buf_page_get_io_fix(bpage) == BUF_IO_NONE);
+		ut_a(bpage->buf_fix_count == 0);
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 		mutex_exit(buf_page_get_mutex(bpage));

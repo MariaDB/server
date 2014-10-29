@@ -25,23 +25,6 @@
 # Set the session storage engine
 eval SET @@session.default_storage_engine = $engine;
 
-##### Disabled/affected testcases, because of open bugs #####
-# --echo
-# --echo #------------------------------------------------------------------------
-# --echo # There are several testcases disabled because of the open bugs
-# if (`SELECT @@session.default_storage_engine IN('ndbcluster')`)
-# {
-# --echo # #18730
-# }
-# --echo #------------------------------------------------------------------------
-# # Attention: Only bugs appearing in all storage engines should be mentioned above.
-# #            The top level test wrapper (example: t/partition_basic_ndb.test)
-# #            may set the $fixed_bug<nnnnn> variable to 0 after sourcing
-# #            this file.
-# # Bug#18730: Partitions: NDB, crash on SELECT MIN(<unique column>)
-# # Attention: NDB testcases set this variable later to 0
-# let $fixed_bug18730= 1;
-
 --echo
 --echo #------------------------------------------------------------------------
 --echo #  0. Setting of auxiliary variables + Creation of an auxiliary tables
@@ -127,18 +110,7 @@ f_char1 CHAR(20),
 f_char2 CHAR(20),
 f_charbig VARCHAR(1000);
 
-# Currently (April 2006) the default compiled NDB cannot manage
-#    no_of_partitions (no subpartitioning) > 8
-#    no_of_partitions * no_of_subpartitions > 8
-# This NDB specific limitation will cause
-#   1005: Can't create table 'test.t1' (errno: 1224)
-# in partition_methods[1|2].inc and partition_alter_1[1|3].inc
-# when $sub_part_no is set to >= 3.
 let $sub_part_no= 3;
-if (`SELECT @@session.default_storage_engine = 'ndbcluster'`)
-{
-  let $sub_part_no= 2;
-}
 
 # Auxiliary table used for many experiments (INSERT INTO t1 ... SELECT ...)
 # on the tables to be checked
@@ -297,16 +269,11 @@ if (0)
 #     Examples for the main rgression tests:
 #       InnoDB - The PRIMARY KEY is a clustered index where the data for the
 #                rows are stored.       $do_pk_tests= 1
-#       NDB    - The PRIMARY KEY is used for implicit partitioning (NDB).
-#                                       $do_pk_tests= 1
 #       MyISAM - AFAIK there is no effect on the tree containing the rows.
 #                                       $do_pk_tests= 0
 #
 # Assign a big number smaller than the maximum value for partitions
 # and smaller than the maximum value of SIGNED INTEGER
-# The NDB handler only supports 32 bit integers in VALUES
-#     2147483647 seems to be too big.
-#     $MAX_VALUE= (2147483646);
 #
 #
 # 2. Typical architecture of a test:

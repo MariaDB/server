@@ -46,6 +46,7 @@ Created 9/5/1995 Heikki Tuuri
 # include "srv0start.h" /* srv_is_being_started */
 #endif /* UNIV_SYNC_DEBUG */
 #include "ha_prototypes.h"
+#include "my_cpu.h"
 
 /*
 	REASONS FOR IMPLEMENTING THE SPIN LOCK MUTEX
@@ -535,6 +536,8 @@ mutex_set_waiters(
 
 	ptr = &(mutex->waiters);
 
+        os_wmb;
+
 	*ptr = n;		/* Here we assume that the write of a single
 				word in memory is atomic */
 }
@@ -587,15 +590,17 @@ mutex_loop:
 
 spin_loop:
 
+        HMT_low();
+	os_rmb;
 	while (mutex_get_lock_word(mutex) != 0 && i < SYNC_SPIN_ROUNDS) {
 		if (srv_spin_wait_delay) {
 			ut_delay(ut_rnd_interval(0, srv_spin_wait_delay));
 		}
-
 		i++;
 	}
+        HMT_medium();
 
-	if (i == SYNC_SPIN_ROUNDS) {
+	if (i >= SYNC_SPIN_ROUNDS) {
 		os_thread_yield();
 	}
 
@@ -1599,11 +1604,7 @@ sync_init(void)
 		     SYNC_NO_ORDER_CHECK);
 
 #ifdef UNIV_SYNC_DEBUG
-	mutex_create(rw_lock_debug_mutex_key, &rw_lock_debug_mutex,
-		     SYNC_NO_ORDER_CHECK);
-
-	rw_lock_debug_event = os_event_create();
-	rw_lock_debug_waiters = FALSE;
+	os_fast_mutex_init(rw_lock_debug_mutex_key, &rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
 }
 
@@ -1677,6 +1678,7 @@ sync_close(void)
 	sync_order_checks_on = FALSE;
 
 	sync_thread_level_arrays_free();
+	os_fast_mutex_free(&rw_lock_debug_mutex);
 #endif /* UNIV_SYNC_DEBUG */
 
 	sync_initialized = FALSE;
@@ -1691,12 +1693,12 @@ sync_print_wait_info(
 	FILE*	file)		/*!< in: file where to print */
 {
 	fprintf(file,
-		"Mutex spin waits "UINT64PF", rounds "UINT64PF", "
-		"OS waits "UINT64PF"\n"
-		"RW-shared spins "UINT64PF", rounds "UINT64PF", "
-		"OS waits "UINT64PF"\n"
-		"RW-excl spins "UINT64PF", rounds "UINT64PF", "
-		"OS waits "UINT64PF"\n",
+		"Mutex spin waits " UINT64PF ", rounds " UINT64PF ", "
+		"OS waits " UINT64PF "\n"
+		"RW-shared spins " UINT64PF ", rounds " UINT64PF ", "
+		"OS waits " UINT64PF "\n"
+		"RW-excl spins " UINT64PF ", rounds " UINT64PF ", "
+		"OS waits " UINT64PF "\n",
 		(ib_uint64_t) mutex_spin_wait_count,
 		(ib_uint64_t) mutex_spin_round_count,
 		(ib_uint64_t) mutex_os_wait_count,

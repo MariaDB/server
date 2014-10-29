@@ -919,13 +919,13 @@ int spider_db_mysql_result::fetch_table_cardinality(
   Field *field;
   DBUG_ENTER("spider_db_mysql_result::fetch_table_cardinality");
   DBUG_PRINT("info",("spider this=%p", this));
+  memset((uchar *) cardinality_upd, 0, sizeof(uchar) * bitmap_size);
   if (!(mysql_row = mysql_fetch_row(db_result)))
   {
     DBUG_PRINT("info",("spider fetch row is null"));
     /* no index */
     DBUG_RETURN(0);
   }
-  memset((uchar *) cardinality_upd, 0, sizeof(uchar) * bitmap_size);
   if (mode == 1)
   {
     uint num_fields = this->num_fields();
@@ -2096,6 +2096,7 @@ int spider_db_mysql::rollback(
   int error_num;
   DBUG_ENTER("spider_db_mysql::rollback");
   DBUG_PRINT("info",("spider this=%p", this));
+  conn->mta_conn_mutex_unlock_later = TRUE;
   if (spider_db_query(
     conn,
     SPIDER_SQL_ROLLBACK_STR,
@@ -2104,7 +2105,6 @@ int spider_db_mysql::rollback(
     need_mon)
   ) {
     is_error = conn->thd->is_error();
-    conn->mta_conn_mutex_unlock_later = TRUE;
     error_num = spider_db_errorno(conn);
     if (
       error_num == ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM &&
@@ -4814,6 +4814,21 @@ int spider_mysql_share::discover_table_structure(
     ) {
       DBUG_RETURN(error_num);
     }
+    if (!conn->disable_reconnect)
+    {
+      ha_spider tmp_spider;
+      int need_mon = 0;
+      uint tmp_conn_link_idx = 0;
+      tmp_spider.trx = trx;
+      tmp_spider.share = spider_share;
+      tmp_spider.need_mons = &need_mon;
+      tmp_spider.conn_link_idx = &tmp_conn_link_idx;
+      if ((error_num = spider_db_ping(&tmp_spider, conn, 0)))
+      {
+        DBUG_PRINT("info",("spider spider_db_ping error"));
+        continue;
+      }
+    }
     pthread_mutex_lock(&conn->mta_conn_mutex);
     SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
     conn->need_mon = &need_mon;
@@ -4879,6 +4894,11 @@ int spider_mysql_share::discover_table_structure(
       conn->mta_conn_mutex_unlock_later = FALSE;
       SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
       pthread_mutex_unlock(&conn->mta_conn_mutex);
+      my_printf_error(ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM,
+        ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR, MYF(0),
+        db_names_str[roop_count].ptr(),
+        table_names_str[roop_count].ptr());
+      error_num = ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM;
       continue;
     }
     res->free_result();
@@ -6238,6 +6258,12 @@ int spider_mysql_handler::append_select(
     if (str->reserve(SPIDER_SQL_SELECT_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(SPIDER_SQL_SELECT_STR, SPIDER_SQL_SELECT_LEN);
+    if (result_list->direct_distinct)
+    {
+      if (str->reserve(SPIDER_SQL_DISTINCT_LEN))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      str->q_append(SPIDER_SQL_DISTINCT_STR, SPIDER_SQL_DISTINCT_LEN);
+    }
     if (result_list->lock_type != F_WRLCK && spider->lock_mode < 1)
     {
       /* no lock */
@@ -10328,6 +10354,14 @@ int spider_mysql_handler::show_table_status(
       DBUG_RETURN(error_num);
     }
   }
+  if (share->static_records_for_status != -1)
+  {
+    share->records = (ha_rows) share->static_records_for_status;
+  }
+  if (share->static_mean_rec_length != -1)
+  {
+    share->mean_rec_length = (ulong) share->static_mean_rec_length;
+  }
   if (auto_increment_value > share->lgtm_tblhnd_share->auto_increment_value)
   {
     share->lgtm_tblhnd_share->auto_increment_value = auto_increment_value;
@@ -10462,8 +10496,8 @@ int spider_mysql_handler::show_index(
       if (!spider_bit_is_set(share->cardinality_upd, roop_count))
       {
         DBUG_PRINT("info",
-          ("spider init column cardinality id=%d", roop_count));
-        *tmp_cardinality = 1;
+          ("spider uninitialized column cardinality id=%d", roop_count));
+        *tmp_cardinality = -1;
       }
     }
     if (res)
@@ -10596,8 +10630,8 @@ int spider_mysql_handler::show_index(
       if (!spider_bit_is_set(share->cardinality_upd, roop_count))
       {
         DBUG_PRINT("info",
-          ("spider init column cardinality id=%d", roop_count));
-        *tmp_cardinality = 1;
+          ("spider uninitialized column cardinality id=%d", roop_count));
+        *tmp_cardinality = -1;
       }
     }
     if (res)

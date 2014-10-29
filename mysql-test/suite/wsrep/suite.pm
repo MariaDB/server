@@ -16,9 +16,11 @@ return "No wsrep provider library" unless -f $provider;
 
 $ENV{WSREP_PROVIDER} = $provider;
 
-my ($path) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
+my ($spath) = grep { -f "$_/wsrep_sst_rsync"; } "$::bindir/scripts", $::path_client_bindir;
+return "No SST scripts" unless $spath;
 
-return "No SST scripts" unless $path;
+my ($epath) = grep { -f "$_/my_print_defaults"; } "$::bindir/extra", $::path_client_bindir;
+return "No my_print_defaults" unless $epath;
 
 push @::global_suppressions,
   (
@@ -32,7 +34,8 @@ push @::global_suppressions,
    );
 
 
-$ENV{PATH}="$path:$ENV{PATH}";
+$ENV{PATH}="$epath:$ENV{PATH}";
+$ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;
 
 bless { };
 

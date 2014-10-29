@@ -117,13 +117,15 @@ enum enum_explain_filename_mode
   EXPLAIN_PARTITIONS_AS_COMMENT
 };
 
+/* Maximum length of GEOM_POINT Field */
+#define MAX_LEN_GEOM_POINT_FIELD   25
+
 /* depends on errmsg.txt Database `db`, Table `t` ... */
 #define EXPLAIN_FILENAME_MAX_EXTRA_LENGTH 63
 
 #define WFRM_WRITE_SHADOW 1
 #define WFRM_INSTALL_SHADOW 2
-#define WFRM_PACK_FRM 4
-#define WFRM_KEEP_SHARE 8
+#define WFRM_KEEP_SHARE 4
 
 /* Flags for conversion functions. */
 static const uint FN_FROM_IS_TMP=  1 << 0;

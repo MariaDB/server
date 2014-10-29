@@ -306,24 +306,48 @@ void my_hash_sort_simple(CHARSET_INFO *cs,
 {
   register const uchar *sort_order=cs->sort_order;
   const uchar *end;
-  ulong n1, n2;
+  register ulong m1= *nr1, m2= *nr2;
+  uint16 space_weight= sort_order[' '];
 
   /*
-    Remove end space. We have to do this to be able to compare
-    'A ' and 'A' as identical
-  */
-  end= skip_trailing_space(key, len);
+    Remove all trailing characters that are equal to space.
+    We have to do this to be able to compare 'A ' and 'A' as identical.
 
-  n1= *nr1;
-  n2= *nr2;
+    If the key is long enough, cut the trailing spaces (0x20) using an
+    optimized function implemented in skip_trailing_spaces().
+
+    "len > 16" is just some heuristic here.
+    Calling skip_triling_space() for short values is not desirable,
+    because its initialization block may be more expensive than the
+    performance gained.
+  */
+
+  end= len > 16 ? skip_trailing_space(key, len) : key + len;
+
+  /*
+    We removed all trailing characters that are binary equal to space 0x20.
+    Now remove all trailing characters that have weights equal to space.
+    Some 8bit simple collations may have such characters:
+    - cp1250_general_ci    0xA0 NO-BREAK SPACE == 0x20 SPACE
+    - cp1251_ukrainian_ci  0x60 GRAVE ACCENT   == 0x20 SPACE
+    - koi8u_general_ci     0x60 GRAVE ACCENT   == 0x20 SPACE
+  */
+
+  for ( ; key < end ; )
+  {
+    if (sort_order[*--end] != space_weight)
+    {
+      end++;
+      break;
+    }
+  }
+
   for (; key < (uchar*) end ; key++)
   {
-    n1^=(ulong) ((((uint) n1 & 63)+n2) *
-	     ((uint) sort_order[(uint) *key])) + (n1 << 8);
-    n2+=3;
+    MY_HASH_ADD(m1, m2, (uint) sort_order[(uint) *key]);
   }
-  *nr1= n1;
-  *nr2= n2;
+  *nr1= m1;
+  *nr2= m2;
 }
 
 

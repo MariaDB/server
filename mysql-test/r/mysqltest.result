@@ -680,6 +680,9 @@ txt
 b is b and more is more
 txt
 a is a and less is more
+sflfdt 'ABCDfF bbddff h' bs txt;
+txt
+ABCDfF bbddff h
 create table t2 ( a char(10));
 garbage;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'garbage' at line 1

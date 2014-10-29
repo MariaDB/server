@@ -341,6 +341,8 @@ UNIV_INTERN ulong	srv_cleaner_lsn_age_factor
 UNIV_INTERN ulong	srv_empty_free_list_algorithm
 	= SRV_EMPTY_FREE_LIST_BACKOFF;
 
+UNIV_INTERN ulint	srv_idle_flush_pct = 100;
+
 /* This parameter is deprecated. Use srv_n_io_[read|write]_threads
 instead. */
 UNIV_INTERN ulint	srv_n_file_io_threads	= ULINT_MAX;
@@ -515,7 +517,12 @@ UNIV_INTERN ulong	srv_log_checksum_algorithm =
 	SRV_CHECKSUM_ALGORITHM_INNODB;
 
 /*-------------------------------------------*/
+#ifdef HAVE_MEMORY_BARRIER
+/* No idea to wait long with memory barriers */
+UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 15;
+#else
 UNIV_INTERN ulong	srv_n_spin_wait_rounds	= 30;
+#endif
 UNIV_INTERN ulong	srv_spin_wait_delay	= 6;
 UNIV_INTERN ibool	srv_priority_boost	= TRUE;
 
@@ -671,6 +678,9 @@ current_time % 5 != 0. */
 	 ? thd_lock_wait_timeout((trx)->mysql_thd)	\
 	 : 0)
 
+/** Simulate compression failures. */
+UNIV_INTERN uint srv_simulate_comp_failures = 0;
+
 /*
 	IMPLEMENTATION OF THE SERVER MAIN PROGRAM
 	=========================================
@@ -798,7 +808,9 @@ static const ulint	SRV_MASTER_SLOT = 0;
 
 UNIV_INTERN os_event_t	srv_checkpoint_completed_event;
 
-UNIV_INTERN os_event_t	srv_redo_log_thread_finished_event;
+UNIV_INTERN os_event_t	srv_redo_log_tracked_event;
+
+UNIV_INTERN bool	srv_redo_log_thread_started = false;
 
 /*********************************************************************//**
 Prints counters for work done by srv_master_thread. */
@@ -1152,7 +1164,10 @@ srv_init(void)
 
 		srv_checkpoint_completed_event = os_event_create();
 
-		srv_redo_log_thread_finished_event = os_event_create();
+		if (srv_track_changed_pages) {
+			srv_redo_log_tracked_event = os_event_create();
+			os_event_set(srv_redo_log_tracked_event);
+		}
 
 		UT_LIST_INIT(srv_sys->tasks);
 	}
@@ -2168,9 +2183,10 @@ loop:
 	/* Try to track a strange bug reported by Harald Fuchs and others,
 	where the lsn seems to decrease at times */
 
-	new_lsn = log_get_lsn();
+        /* We have to use nowait to ensure we don't block */
+	new_lsn= log_get_lsn_nowait();
 
-	if (new_lsn < old_lsn) {
+	if (new_lsn && new_lsn < old_lsn) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
 			"  InnoDB: Error: old log sequence number " LSN_PF
@@ -2182,7 +2198,8 @@ loop:
 		ut_ad(0);
 	}
 
-	old_lsn = new_lsn;
+        if (new_lsn)
+		old_lsn = new_lsn;
 
 	if (difftime(time(NULL), srv_last_monitor_time) > 60) {
 		/* We referesh InnoDB Monitor values so that averages are
@@ -2395,6 +2412,7 @@ DECLARE_THREAD(srv_redo_log_follow_thread)(
 #endif
 
 	my_thread_init();
+	srv_redo_log_thread_started = true;
 
 	do {
 		os_event_wait(srv_checkpoint_completed_event);
@@ -2414,13 +2432,15 @@ DECLARE_THREAD(srv_redo_log_follow_thread)(
 					"stopping log tracking thread!\n");
 				break;
 			}
+			os_event_set(srv_redo_log_tracked_event);
 		}
 
 	} while (srv_shutdown_state < SRV_SHUTDOWN_LAST_PHASE);
 
 	srv_track_changed_pages = FALSE;
 	log_online_read_shutdown();
-	os_event_set(srv_redo_log_thread_finished_event);
+	os_event_set(srv_redo_log_tracked_event);
+	srv_redo_log_thread_started = false; /* Defensive, not required */
 
 	my_thread_end();
 	os_thread_exit(NULL);

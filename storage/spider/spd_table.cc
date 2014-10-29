@@ -25,9 +25,7 @@
 #include "sql_class.h"
 #include "sql_partition.h"
 #include "sql_servers.h"
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 #include "sql_select.h"
-#endif
 #endif
 #include "spd_err.h"
 #include "spd_param.h"
@@ -907,6 +905,8 @@ void spider_free_tmp_share_alloc(
     spider_free(spider_current_trx, share->conn_keys, MYF(0));
     share->conn_keys = NULL;
   }
+  if (share->static_key_cardinality)
+    spider_free(spider_current_trx, share->static_key_cardinality, MYF(0));
   if (share->key_hint)
   {
     delete [] share->key_hint;
@@ -1476,6 +1476,16 @@ int spider_increase_longlong_list(
   DBUG_RETURN(0);
 }
 
+static int spider_set_ll_value(
+  longlong *value,
+  char *str
+) {
+  int error_num = 0;
+  DBUG_ENTER("spider_set_ll_value");
+  *value = my_strtoll10(str, (char**) NULL, &error_num);
+  DBUG_RETURN(error_num);
+}
+
 #define SPIDER_PARAM_STR_LEN(name) name ## _length
 #define SPIDER_PARAM_STR(title_name, param_name) \
   if (!strncasecmp(tmp_ptr, title_name, title_length)) \
@@ -1548,6 +1558,38 @@ int spider_increase_longlong_list(
         goto error; \
       DBUG_PRINT("info",("spider "title_name"[%d]=%s", hint_num, \
         share->param_name[hint_num].ptr())); \
+    } else { \
+      error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
+      my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
+        MYF(0), tmp_ptr); \
+      goto error; \
+    } \
+    break; \
+  }
+#define SPIDER_PARAM_NUMHINT(title_name, param_name, check_length, max_size, append_method) \
+  if (!strncasecmp(tmp_ptr, title_name, check_length)) \
+  { \
+    DBUG_PRINT("info",("spider "title_name" start")); \
+    DBUG_PRINT("info",("spider max_size=%d", max_size)); \
+    int hint_num = atoi(tmp_ptr + check_length); \
+    DBUG_PRINT("info",("spider hint_num=%d", hint_num)); \
+    DBUG_PRINT("info",("spider share->param_name=%p", share->param_name)); \
+    if (share->param_name) \
+    { \
+      if (hint_num < 0 || hint_num >= max_size) \
+      { \
+        error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
+        my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
+          MYF(0), tmp_ptr); \
+        goto error; \
+      } else if (share->param_name[hint_num] != -1) \
+        break; \
+      char *hint_str = spider_get_string_between_quote(start_ptr, FALSE); \
+      if ((error_num = \
+        append_method(&share->param_name[hint_num], hint_str))) \
+        goto error; \
+      DBUG_PRINT("info",("spider "title_name"[%d]=%lld", hint_num, \
+        share->param_name[hint_num])); \
     } else { \
       error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM; \
       my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR, \
@@ -1817,6 +1859,12 @@ int spider_parse_connect_info(
 #endif
   share->casual_read = -1;
   share->delete_all_rows_type = -1;
+  share->static_records_for_status = -1;
+  share->static_mean_rec_length = -1;
+  for (roop_count = 0; roop_count < (int) table_share->keys; roop_count++)
+  {
+    share->static_key_cardinality[roop_count] = -1;
+  }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   for (roop_count = 4; roop_count > 0; roop_count--)
@@ -2025,6 +2073,7 @@ int spider_parse_connect_info(
           SPIDER_PARAM_STR_LIST("sky", tgt_ssl_keys);
           SPIDER_PARAM_INT_WITH_MAX("slm", selupd_lock_mode, 0, 2);
           SPIDER_PARAM_INT_WITH_MAX("smd", sts_mode, 1, 2);
+          SPIDER_PARAM_LONGLONG("smr", static_mean_rec_length, 0);
           SPIDER_PARAM_LONGLONG("spr", split_read, 0);
           SPIDER_PARAM_STR_LIST("sqn", tgt_sequence_names);
           SPIDER_PARAM_LONGLONG("srd", second_read, 0);
@@ -2037,6 +2086,7 @@ int spider_parse_connect_info(
 #endif
           SPIDER_PARAM_INT_WITH_MAX("stc", semi_table_lock_conn, 0, 1);
           SPIDER_PARAM_INT_WITH_MAX("stl", semi_table_lock, 0, 1);
+          SPIDER_PARAM_LONGLONG("srs", static_records_for_status, 0);
           SPIDER_PARAM_LONG_LIST_WITH_MAX("svc", tgt_ssl_vscs, 0, 1);
           SPIDER_PARAM_STR_LIST("tbl", tgt_table_names);
           SPIDER_PARAM_INT_WITH_MAX("tcm", table_count_mode, 0, 3);
@@ -2073,6 +2123,8 @@ int spider_parse_connect_info(
           SPIDER_PARAM_HINT("idx", key_hint, 3, (int) table_share->keys,
             spider_db_append_key_hint);
           SPIDER_PARAM_STR_LIST("ssl_ca", tgt_ssl_cas);
+          SPIDER_PARAM_NUMHINT("skc", static_key_cardinality, 3,
+            (int) table_share->keys, spider_set_ll_value);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -2312,6 +2364,8 @@ int spider_parse_connect_info(
 #endif
           SPIDER_PARAM_INT_WITH_MAX(
             "skip_default_condition", skip_default_condition, 0, 1);
+          SPIDER_PARAM_LONGLONG(
+            "static_mean_rec_length", static_mean_rec_length, 0);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -2319,6 +2373,15 @@ int spider_parse_connect_info(
         case 23:
           SPIDER_PARAM_INT_WITH_MAX(
             "internal_optimize_local", internal_optimize_local, 0, 1);
+          error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
+          my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
+            MYF(0), tmp_ptr);
+          goto error;
+        case 25:
+          SPIDER_PARAM_LONGLONG("static_records_for_status",
+            static_records_for_status, 0);
+          SPIDER_PARAM_NUMHINT("static_key_cardinality", static_key_cardinality,
+            3, (int) table_share->keys, spider_set_ll_value);
           error_num = ER_SPIDER_INVALID_CONNECT_INFO_NUM;
           my_printf_error(error_num, ER_SPIDER_INVALID_CONNECT_INFO_STR,
             MYF(0), tmp_ptr);
@@ -3963,7 +4026,7 @@ SPIDER_SHARE *spider_create_share(
   int use_table_charset;
   SPIDER_SHARE *share;
   char *tmp_name;
-  longlong *tmp_cardinality;
+  longlong *tmp_cardinality, *tmp_static_key_cardinality;
   uchar *tmp_cardinality_upd;
   DBUG_ENTER("spider_create_share");
   length = (uint) strlen(table_name);
@@ -3972,6 +4035,7 @@ SPIDER_SHARE *spider_create_share(
     spider_bulk_malloc(spider_current_trx, 46, MYF(MY_WME | MY_ZEROFILL),
       &share, sizeof(*share),
       &tmp_name, length + 1,
+      &tmp_static_key_cardinality, sizeof(*tmp_static_key_cardinality) * table_share->keys,
       &tmp_cardinality, sizeof(*tmp_cardinality) * table_share->fields,
       &tmp_cardinality_upd, sizeof(*tmp_cardinality_upd) * bitmap_size,
       NullS))
@@ -3988,6 +4052,7 @@ SPIDER_SHARE *spider_create_share(
   share->table_name_length = length;
   share->table_name = tmp_name;
   strmov(share->table_name, table_name);
+  share->static_key_cardinality = tmp_static_key_cardinality;
   share->cardinality = tmp_cardinality;
   share->cardinality_upd = tmp_cardinality_upd;
   share->bitmap_size = bitmap_size;
@@ -7737,12 +7802,42 @@ longlong spider_split_read_param(
       result_list->set_split_read = TRUE;
       DBUG_RETURN(9223372036854775807LL);
     }
+    Explain_query *explain = thd->lex->explain;
+    bool filesort = FALSE;
+    if (explain)
+    {
+      DBUG_PRINT("info",("spider explain=%p", explain));
+      Explain_select *explain_select = NULL;
+      if (select_lex)
+      {
+        DBUG_PRINT("info",("spider select_lex=%p", select_lex));
+        DBUG_PRINT("info",("spider select_number=%u",
+          select_lex->select_number));
+        explain_select =
+          explain->get_select(select_lex->select_number);
+      }
+      if (explain_select)
+      {
+        DBUG_PRINT("info",("spider explain_select=%p", explain_select));
+        if (explain_select->using_filesort)
+        {
+          DBUG_PRINT("info",("spider using filesort"));
+          filesort = TRUE;
+        }
+      }
+    }
     result_list->split_read_base =
       spider_param_split_read(thd, share->split_read);
-    result_list->semi_split_read =
-      spider_param_semi_split_read(thd, share->semi_split_read);
-    result_list->semi_split_read_limit =
-      spider_param_semi_split_read_limit(thd, share->semi_split_read_limit);
+    if (filesort)
+    {
+      result_list->semi_split_read = 0;
+      result_list->semi_split_read_limit = 9223372036854775807LL;
+    } else {
+      result_list->semi_split_read =
+        spider_param_semi_split_read(thd, share->semi_split_read);
+      result_list->semi_split_read_limit =
+        spider_param_semi_split_read_limit(thd, share->semi_split_read_limit);
+    }
     result_list->first_read =
       spider_param_first_read(thd, share->first_read);
     result_list->second_read =
@@ -7864,18 +7959,18 @@ bool spider_check_direct_order_limit(
     DBUG_PRINT("info",("spider leaf_tables.elements=%u",
       select_lex->leaf_tables.elements));
 #endif
+
+    if (select_lex->options & SELECT_DISTINCT)
+    {
+      DBUG_PRINT("info",("spider with distinct"));
+      spider->result_list.direct_distinct = TRUE;
+    }
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
     spider->result_list.direct_aggregate = TRUE;
 #endif
     DBUG_PRINT("info",("spider select_limit=%lld", select_limit));
     DBUG_PRINT("info",("spider offset_limit=%lld", offset_limit));
     if (
-#if MYSQL_VERSION_ID < 50500
-      !thd->variables.engine_condition_pushdown ||
-#else
-      !(thd->variables.optimizer_switch &
-        OPTIMIZER_SWITCH_ENGINE_CONDITION_PUSHDOWN) ||
-#endif
       !select_lex ||
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100000
       select_lex->leaf_tables.elements != 1 ||
@@ -7884,6 +7979,7 @@ bool spider_check_direct_order_limit(
     ) {
       DBUG_PRINT("info",("spider first_check is FALSE"));
       first_check = FALSE;
+      spider->result_list.direct_distinct = FALSE;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
       spider->result_list.direct_aggregate = FALSE;
 #endif
@@ -7891,6 +7987,14 @@ bool spider_check_direct_order_limit(
     {
       DBUG_PRINT("info",("spider FALSE by condition"));
       first_check = FALSE;
+      spider->result_list.direct_distinct = FALSE;
+#ifdef HANDLER_HAS_DIRECT_AGGREGATE
+      spider->result_list.direct_aggregate = FALSE;
+#endif
+    } else if (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER)
+    {
+      DBUG_PRINT("info",("spider sql_kinds with SPIDER_SQL_KIND_HANDLER"));
+      spider->result_list.direct_distinct = FALSE;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
       spider->result_list.direct_aggregate = FALSE;
     } else if (
@@ -7898,10 +8002,6 @@ bool spider_check_direct_order_limit(
       !select_lex->with_sum_func
     ) {
       DBUG_PRINT("info",("spider this SQL is not aggregate SQL"));
-      spider->result_list.direct_aggregate = FALSE;
-    } else if (spider->sql_kinds & SPIDER_SQL_KIND_HANDLER)
-    {
-      DBUG_PRINT("info",("spider sql_kinds with SPIDER_SQL_KIND_HANDLER"));
       spider->result_list.direct_aggregate = FALSE;
     } else {
       ORDER *group;

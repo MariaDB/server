@@ -90,7 +90,7 @@ extern "C" {
 #if defined(__WIN__)
 #include <conio.h>
 #else
-#include <readline/readline.h>
+#include <readline.h>
 #define HAVE_READLINE
 #define USE_POPEN
 #endif
@@ -590,8 +590,6 @@ static COMMANDS commands[] = {
   { "NAMES", 0, 0, 0, ""},
   { "NATIONAL", 0, 0, 0, ""},
   { "NATURAL", 0, 0, 0, ""},
-  { "NDB", 0, 0, 0, ""},
-  { "NDBCLUSTER", 0, 0, 0, ""},
   { "NCHAR", 0, 0, 0, ""},
   { "NEW", 0, 0, 0, ""},
   { "NEXT", 0, 0, 0, ""},

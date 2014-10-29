@@ -48,8 +48,6 @@ connection master;
 #
 #Note Matthias: to be merged to rpl_ddl.test
 
---source include/not_ndb_default.inc
-
 FLUSH LOGS;
 sync_slave_with_master;
 FLUSH LOGS;

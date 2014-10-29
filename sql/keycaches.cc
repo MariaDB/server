@@ -103,7 +103,7 @@ LEX_STRING default_key_cache_base= {C_STRING_WITH_LEN("default")};
 
 KEY_CACHE zero_key_cache; ///< @@nonexistent_cache.param->value_ptr() points here
 
-KEY_CACHE *get_key_cache(LEX_STRING *cache_name)
+KEY_CACHE *get_key_cache(const LEX_STRING *cache_name)
 {
   if (!cache_name || ! cache_name->length)
     cache_name= &default_key_cache_base;

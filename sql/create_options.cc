@@ -331,7 +331,7 @@ bool parse_option_list(THD* thd, handlerton *hton, void *option_struct_arg,
 
         char buf[256];
         String sbuf(buf, sizeof(buf), system_charset_info), *str;
-        if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, 0)))
+        if ((str= sysvar->val_str(&sbuf, thd, OPT_SESSION, &null_lex_str)))
         {
           LEX_STRING name= { const_cast<char*>(opt->name), opt->name_length };
           default_val.str= strmake_root(root, str->ptr(), str->length());
@@ -775,3 +775,20 @@ engine_option_value *merge_engine_table_options(engine_option_value *first,
                                    &first, &end);
   DBUG_RETURN(first);
 }
+
+bool is_engine_option_known(engine_option_value *opt,
+                            ha_create_table_option *rules)
+{
+  if (!rules)
+    return false;
+
+  for (; rules->name; rules++)
+  {
+      if (!my_strnncoll(system_charset_info,
+                        (uchar*)rules->name, rules->name_length,
+                        (uchar*)opt->name.str, opt->name.length))
+        return true;
+  }
+  return false;
+}
+

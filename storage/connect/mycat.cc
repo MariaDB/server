@@ -405,9 +405,9 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info)
 CATALOG::CATALOG(void)
   {
 #if defined(WIN32)
-  DataPath= ".\\";
+//DataPath= ".\\";
 #else   // !WIN32
-  DataPath= "./";
+//DataPath= "./";
 #endif  // !WIN32
   memset(&Ctb, 0, sizeof(CURTAB));
   Cbuf= NULL;
@@ -433,6 +433,7 @@ void MYCAT::Reset(void)
   {
   } // end of Reset
 
+#if 0
 /***********************************************************************/
 /*  This function sets the current database path.                      */
 /***********************************************************************/
@@ -463,6 +464,7 @@ void MYCAT::SetPath(PGLOBAL g, LPCSTR *datapath, const char *path)
 		} // endif path
 
 	} // end of SetDataPath
+#endif // 0
 
 /***********************************************************************/
 /*  GetTableDesc: retrieve a table descriptor.                         */
@@ -560,7 +562,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 			printf("tdb=%p type=%s\n", tdp, tdp->GetType());
 
 		if (tablep->GetQualifier())
-			SetPath(g, &tdp->Database, tablep->GetQualifier());
+			tdp->Database = SetPath(g, tablep->GetQualifier());
 		
     tdbp= tdp->GetTable(g, mode);
 		} // endif tdp
@@ -571,6 +573,7 @@ PTDB MYCAT::GetTable(PGLOBAL g, PTABLE tablep, MODE mode, LPCSTR type)
 																						tdbp->GetAmType());
     tablep->SetTo_Tdb(tdbp);
     tdbp->SetTable(tablep);
+    tdbp->SetMode(mode);
     } // endif tdbp
 
   return (tdbp);

@@ -428,7 +428,6 @@ execute stmt1 using @arg01, @arg02;
 prepare stmt1 from ' select a, b FROM t1 outer_table where
    a = (select a from t1 where b = outer_table.b ) order by a ';
 # also Bug#4000 (only BDB tables)
-# Bug#4106 : ndb table, query with correlated subquery, wrong result
 execute stmt1 ;
 # test case derived from client_test.c: test_subqueries_ref
 let $1= 3 ;

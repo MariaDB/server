@@ -18,26 +18,14 @@ source include/have_innodb.inc;
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 --enable_query_log
 
-# MTR is not case-sensitive.
-let $lower_stmt_head= load data;
-let $UPPER_STMT_HEAD= LOAD DATA;
-if ($lock_option)
-{
-  #if $lock_option is null, an extra blank is added into the statement,
-  #this will change the result of rpl_loaddata test case. so $lock_option
-  #is set only when it is not null.
-  let $lower_stmt_head= load data $lock_option;
-  let $UPPER_STMT_HEAD= LOAD DATA $lock_option;
-}
-
 select last_insert_id();
 create table t1(a int not null auto_increment, b int, primary key(a) );
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata.dat' into table t1;
+eval load data $lock_option infile '../../std_data/rpl_loaddata.dat' into table t1;
 # verify that LAST_INSERT_ID() is set by LOAD DATA INFILE
 select last_insert_id();
 
 create temporary table t2 (day date,id int(9),category enum('a','b','c'),name varchar(60));
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata2.dat' into table t2 fields terminated by ',' optionally enclosed by '%' escaped by '@' lines terminated by '\n##\n' starting by '>' ignore 1 lines;
+eval load data $lock_option infile '../../std_data/rpl_loaddata2.dat' into table t2 fields terminated by ',' optionally enclosed by '%' escaped by '@' lines terminated by '\n##\n' starting by '>' ignore 1 lines;
 
 create table t3 (day date,id int(9),category enum('a','b','c'),name varchar(60));
 --disable_warnings
@@ -63,7 +51,7 @@ sync_slave_with_master;
 insert into t1 values(1,10);
 
 connection master;
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata.dat' into table t1;
+eval load data $lock_option infile '../../std_data/rpl_loaddata.dat' into table t1;
 
 save_master_pos;
 connection slave;
@@ -86,7 +74,7 @@ connection master;
 set sql_log_bin=0;
 delete from t1;
 set sql_log_bin=1;
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata.dat' into table t1;
+eval load data $lock_option infile '../../std_data/rpl_loaddata.dat' into table t1;
 save_master_pos;
 connection slave;
 # The SQL slave thread should be stopped now. 
@@ -111,7 +99,7 @@ connection master;
 set sql_log_bin=0;
 delete from t1;
 set sql_log_bin=1;
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata.dat' into table t1;
+eval load data $lock_option infile '../../std_data/rpl_loaddata.dat' into table t1;
 save_master_pos;
 connection slave;
 # The SQL slave thread should be stopped now.
@@ -131,7 +119,7 @@ reset master;
 eval create table t2 (day date,id int(9),category enum('a','b','c'),name varchar(60),
 unique(day)) engine=$engine_type; # no transactions
 --error ER_DUP_ENTRY
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata2.dat' into table t2 fields
+eval load data $lock_option infile '../../std_data/rpl_loaddata2.dat' into table t2 fields
 terminated by ',' optionally enclosed by '%' escaped by '@' lines terminated by
 '\n##\n' starting by '>' ignore 1 lines;
 select * from t2;
@@ -147,7 +135,7 @@ alter table t2 drop key day;
 connection master;
 delete from t2;
 --error ER_DUP_ENTRY
-eval $lower_stmt_head infile '../../std_data/rpl_loaddata2.dat' into table t2 fields
+eval load data $lock_option infile '../../std_data/rpl_loaddata2.dat' into table t2 fields
 terminated by ',' optionally enclosed by '%' escaped by '@' lines terminated by
 '\n##\n' starting by '>' ignore 1 lines;
 connection slave;
@@ -167,7 +155,7 @@ drop table t1, t2;
 CREATE TABLE t1 (word CHAR(20) NOT NULL PRIMARY KEY) ENGINE=INNODB;
 
 --error ER_DUP_ENTRY
-eval $UPPER_STMT_HEAD INFILE "../../std_data/words.dat" INTO TABLE t1;
+eval LOAD DATA $lock_option INFILE "../../std_data/words.dat" INTO TABLE t1;
 
 DROP TABLE t1;
 
@@ -196,17 +184,17 @@ DROP TABLE t1;
 
 -- echo ### assertion: works with cross-referenced database
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
--- eval $UPPER_STMT_HEAD LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE $db1.t1
+-- eval LOAD DATA $lock_option LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE $db1.t1
 
 -- eval use $db1
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 -- echo ### assertion: works with fully qualified name on current database
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
--- eval $UPPER_STMT_HEAD LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE $db1.t1
+-- eval LOAD DATA $lock_option LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE $db1.t1
 
 -- echo ### assertion: works without fully qualified name on current database
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
--- eval $UPPER_STMT_HEAD LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE t1
+-- eval LOAD DATA $lock_option LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE t1
 
 -- echo ### create connection without default database
 -- echo ### connect (conn2,localhost,root,,*NO-ONE*);
@@ -214,7 +202,7 @@ connect (conn2,localhost,root,,*NO-ONE*);
 -- connection conn2
 -- echo ### assertion: works without stating the default database
 -- replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
--- eval $UPPER_STMT_HEAD LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE $db1.t1
+-- eval LOAD DATA $lock_option LOCAL INFILE '$MYSQLTEST_VARDIR/std_data/loaddata5.dat' INTO TABLE $db1.t1
 
 # We cannot disconnect right away because when inserting
 # concurrently in a MyISAM table, the server is sending an OK 

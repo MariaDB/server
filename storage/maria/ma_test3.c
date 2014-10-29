@@ -178,7 +178,7 @@ void start_test(int id)
     exit(1);
   }
   if (pagecacheing && rnd(2) == 0)
-    init_pagecache(maria_pagecache, 65536L, 0, 0, MARIA_KEY_BLOCK_LENGTH,
+    init_pagecache(maria_pagecache, 65536L, 0, 0, MARIA_KEY_BLOCK_LENGTH, 0,
                    MY_WME);
   printf("Process %d, pid: %ld\n",id,(long) getpid()); fflush(stdout);
 

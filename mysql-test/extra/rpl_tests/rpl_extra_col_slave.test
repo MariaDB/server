@@ -395,9 +395,6 @@ sync_slave_with_master;
 ###############################################################
 # Error reaction is up to sql_mode of the slave sql (bug#38173)
 #--echo *** Create t9 on slave  ***
-# Please, check BUG#47741 to see why you are not testing NDB.
-if (`SELECT UPPER(LEFT($engine_type, 3)) != 'NDB'`)
-{
   STOP SLAVE;
   RESET SLAVE;
   eval CREATE TABLE t9 (a INT KEY, b BLOB, c CHAR(5),
@@ -445,8 +442,6 @@ if (`SELECT UPPER(LEFT($engine_type, 3)) != 'NDB'`)
   connection master;
   DROP TABLE t9;
   sync_slave_with_master;
-
-}
 
 ############################################
 # More columns in slave at middle of table #

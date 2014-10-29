@@ -87,6 +87,9 @@
 /* Chars needed to store LONGLONG, excluding trailing '\0'. */
 #define LONGLONG_LEN 20
 
+/* Max length GTID position that we will output. */
+#define MAX_GTID_LENGTH 1024
+
 static void add_load_option(DYNAMIC_STRING *str, const char *option,
                              const char *option_value);
 static ulong find_set(TYPELIB *lib, const char *x, uint length,
@@ -135,6 +138,7 @@ static ulong opt_compatible_mode= 0;
 #define MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL 2
 static uint opt_mysql_port= 0, opt_master_data;
 static uint opt_slave_data;
+static uint opt_use_gtid;
 static uint my_end_arg;
 static char * opt_mysql_unix_port=0;
 static int   first_error=0;
@@ -355,6 +359,13 @@ static struct my_option my_long_options[] =
    "server receiving the resulting dump.",
    &opt_galera_sst_mode, &opt_galera_sst_mode, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
+  {"gtid", 0, "Used together with --master-data=1 or --dump-slave=1."
+   "When enabled, the output from those options will set the GTID position "
+   "instead of the binlog file and offset; the file/offset will appear only as "
+   "a comment. When disabled, the GTID position will still appear in the "
+   "output, but only commented.",
+   &opt_use_gtid, &opt_use_gtid, 0, GET_BOOL, NO_ARG,
+   0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
   {"hex-blob", OPT_HEXBLOB, "Dump binary strings (BINARY, "
@@ -1192,7 +1203,7 @@ check_consistent_binlog_pos(char *binlog_pos_file, char *binlog_pos_offset)
 
   if (mysql_query_with_error_report(mysql, &res,
                                     "SHOW STATUS LIKE 'binlog_snapshot_%'"))
-    return 1;
+    return 0;
 
   found= 0;
   while ((row= mysql_fetch_row(res)))
@@ -1214,6 +1225,90 @@ check_consistent_binlog_pos(char *binlog_pos_file, char *binlog_pos_offset)
 
   return (found == 2);
 }
+
+
+/*
+  Get the GTID position corresponding to a given old-style binlog position.
+  This uses BINLOG_GTID_POS(). The advantage is that the GTID position can
+  be obtained completely non-blocking in this way (without the need for
+  FLUSH TABLES WITH READ LOCK), as the old-style position can be obtained
+  with START TRANSACTION WITH CONSISTENT SNAPSHOT.
+
+  Returns 0 if ok, non-zero if error.
+*/
+static int
+get_binlog_gtid_pos(char *binlog_pos_file, char *binlog_pos_offset,
+                    char *out_gtid_pos)
+{
+  DYNAMIC_STRING query;
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  int err;
+  char file_buf[FN_REFLEN*2+1], offset_buf[LONGLONG_LEN*2+1];
+  size_t len_pos_file= strlen(binlog_pos_file);
+  size_t len_pos_offset= strlen(binlog_pos_offset);
+
+  if (len_pos_file >= FN_REFLEN || len_pos_offset > LONGLONG_LEN)
+    return 0;
+  mysql_real_escape_string(mysql, file_buf, binlog_pos_file, len_pos_file);
+  mysql_real_escape_string(mysql, offset_buf, binlog_pos_offset, len_pos_offset);
+  init_dynamic_string_checked(&query, "SELECT BINLOG_GTID_POS('", 256, 1024);
+  dynstr_append_checked(&query, file_buf);
+  dynstr_append_checked(&query, "', '");
+  dynstr_append_checked(&query, offset_buf);
+  dynstr_append_checked(&query, "')");
+
+  err= mysql_query_with_error_report(mysql, &res, query.str);
+  dynstr_free(&query);
+  if (err)
+    return err;
+
+  err= 1;
+  if ((row= mysql_fetch_row(res)))
+  {
+    strmake(out_gtid_pos, row[0], MAX_GTID_LENGTH-1);
+    err= 0;
+  }
+  mysql_free_result(res);
+
+  return err;
+}
+
+
+/*
+  Get the GTID position on a master or slave.
+  The parameter MASTER is non-zero to get the position on a master
+  (@@gtid_binlog_pos) or zero for a slave (@@gtid_slave_pos).
+
+  This uses the @@gtid_binlog_pos or @@gtid_slave_pos, so requires FLUSH TABLES
+  WITH READ LOCK or similar to be consistent.
+
+  Returns 0 if ok, non-zero for error.
+*/
+static int
+get_gtid_pos(char *out_gtid_pos, int master)
+{
+  MYSQL_RES *res;
+  MYSQL_ROW row;
+  int found;
+
+  if (mysql_query_with_error_report(mysql, &res,
+                                    (master ?
+                                     "SELECT @@GLOBAL.gtid_binlog_pos" :
+                                     "SELECT @@GLOBAL.gtid_slave_pos")))
+    return 1;
+
+  found= 0;
+  if ((row= mysql_fetch_row(res)))
+  {
+    strmake(out_gtid_pos, row[0], MAX_GTID_LENGTH-1);
+    found++;
+  }
+  mysql_free_result(res);
+
+  return (found != 1);
+}
+
 
 static char *my_case_str(const char *str,
                          uint str_len,
@@ -4850,12 +4945,15 @@ static int wsrep_set_sst_cmds(MYSQL *mysql) {
   return 0;
 }
 
-static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
+
+static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos,
+                                 int have_mariadb_gtid, int use_gtid)
 {
   MYSQL_ROW row;
   MYSQL_RES *UNINIT_VAR(master);
   char binlog_pos_file[FN_REFLEN];
   char binlog_pos_offset[LONGLONG_LEN+1];
+  char gtid_pos[MAX_GTID_LENGTH];
   char *file, *offset;
   const char *comment_prefix=
     (opt_master_data == MYSQL_OPT_MASTER_DATA_COMMENTED_SQL) ? "-- " : "";
@@ -4866,6 +4964,9 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
       return 1;
     file= binlog_pos_file;
     offset= binlog_pos_offset;
+    if (have_mariadb_gtid &&
+        get_binlog_gtid_pos(binlog_pos_file, binlog_pos_offset, gtid_pos))
+      return 1;
   }
   else
   {
@@ -4895,6 +4996,9 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
         return 0;
       }
     }
+
+    if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 1))
+      return 1;
   }
 
   /* SHOW MASTER STATUS reports file and position */
@@ -4903,7 +5007,19 @@ static int do_show_master_status(MYSQL *mysql_con, int consistent_binlog_pos)
                 "recovery from\n--\n\n");
   fprintf(md_result_file,
           "%sCHANGE MASTER TO MASTER_LOG_FILE='%s', MASTER_LOG_POS=%s;\n",
-          comment_prefix, file, offset);
+          (use_gtid ? "-- " : comment_prefix), file, offset);
+  if (have_mariadb_gtid)
+  {
+    print_comment(md_result_file, 0,
+                  "\n--\n-- GTID to start replication from\n--\n\n");
+    if (use_gtid)
+      fprintf(md_result_file,
+              "%sCHANGE MASTER TO MASTER_USE_GTID=slave_pos;\n",
+              comment_prefix);
+    fprintf(md_result_file,
+            "%sSET GLOBAL gtid_slave_pos='%s';\n",
+            (!use_gtid ? "-- " : comment_prefix), gtid_pos);
+  }
   check_io(md_result_file);
 
   if (!consistent_binlog_pos)
@@ -4973,12 +5089,16 @@ static int add_slave_statements(void)
   return(0);
 }
 
-static int do_show_slave_status(MYSQL *mysql_con)
+static int do_show_slave_status(MYSQL *mysql_con, int use_gtid,
+                                int have_mariadb_gtid)
 {
   MYSQL_RES *UNINIT_VAR(slave);
   MYSQL_ROW row;
   const char *comment_prefix=
     (opt_slave_data == MYSQL_OPT_SLAVE_DATA_COMMENTED_SQL) ? "-- " : "";
+  const char *gtid_comment_prefix= (use_gtid ? comment_prefix : "-- ");
+  const char *nogtid_comment_prefix= (!use_gtid ? comment_prefix : "-- ");
+  int set_gtid_done= 0;
 
   if (mysql_query_with_error_report(mysql_con, &slave,
                                     multi_source ?
@@ -4996,8 +5116,30 @@ static int do_show_slave_status(MYSQL *mysql_con)
 
   while ((row= mysql_fetch_row(slave)))
   {
+    if (multi_source && !set_gtid_done)
+    {
+      char gtid_pos[MAX_GTID_LENGTH];
+      if (have_mariadb_gtid && get_gtid_pos(gtid_pos, 0))
+        return 1;
+      if (opt_comments)
+        fprintf(md_result_file, "\n--\n-- Gtid position to start replication "
+                "from\n--\n\n");
+      fprintf(md_result_file, "%sSET GLOBAL gtid_slave_pos='%s';\n",
+              gtid_comment_prefix, gtid_pos);
+      set_gtid_done= 1;
+    }
     if (row[9 + multi_source] && row[21 + multi_source])
     {
+      if (use_gtid)
+      {
+        if (multi_source)
+          fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO "
+                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix, row[0]);
+        else
+          fprintf(md_result_file, "%sCHANGE MASTER TO "
+                  "MASTER_USE_GTID=slave_pos;\n", gtid_comment_prefix);
+      }
+
       /* SHOW MASTER STATUS reports file and position */
       if (opt_comments)
         fprintf(md_result_file,
@@ -5006,9 +5148,9 @@ static int do_show_slave_status(MYSQL *mysql_con)
 
       if (multi_source)
         fprintf(md_result_file, "%sCHANGE MASTER '%.80s' TO ",
-                comment_prefix, row[0]);
+                nogtid_comment_prefix, row[0]);
       else
-        fprintf(md_result_file, "%sCHANGE MASTER TO ", comment_prefix);
+        fprintf(md_result_file, "%sCHANGE MASTER TO ", nogtid_comment_prefix);
       
       if (opt_include_master_host_port)
       {
@@ -5081,12 +5223,13 @@ static int do_flush_tables_read_lock(MYSQL *mysql_con)
     FLUSH TABLES is to lower the probability of a stage where both mysqldump
     and most client connections are stalled. Of course, if a second long
     update starts between the two FLUSHes, we have that bad stall.
+
+    We use the LOCAL option, as we do not want the FLUSH TABLES replicated to
+    other servers.
   */
   return
-    ( mysql_query_with_error_report(mysql_con, 0, 
-                                    ((opt_master_data != 0) ? 
-                                        "FLUSH /*!40101 LOCAL */ TABLES" : 
-                                        "FLUSH TABLES")) ||
+    ( mysql_query_with_error_report(mysql_con, 0,
+                                    "FLUSH /*!40101 LOCAL */ TABLES") ||
       mysql_query_with_error_report(mysql_con, 0,
                                     "FLUSH TABLES WITH READ LOCK") );
 }
@@ -5707,6 +5850,7 @@ int main(int argc, char **argv)
   char bin_log_name[FN_REFLEN];
   int exit_code;
   int consistent_binlog_pos= 0;
+  int have_mariadb_gtid= 0;
   MY_INIT(argv[0]);
 
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
@@ -5747,7 +5891,10 @@ int main(int argc, char **argv)
 
   /* Check if the server support multi source */
   if (mysql_get_server_version(mysql) >= 100000)
+  {
     multi_source= 2;
+    have_mariadb_gtid= 1;
+  }
 
   if (opt_slave_data && do_stop_slave_sql(mysql))
     goto err;
@@ -5798,9 +5945,11 @@ int main(int argc, char **argv)
   if (opt_galera_sst_mode && wsrep_set_sst_cmds(mysql))
     goto err;
 
-  if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos))
+  if (opt_master_data && do_show_master_status(mysql, consistent_binlog_pos,
+                                               have_mariadb_gtid, opt_use_gtid))
     goto err;
-  if (opt_slave_data && do_show_slave_status(mysql))
+  if (opt_slave_data && do_show_slave_status(mysql, opt_use_gtid,
+                                             have_mariadb_gtid))
     goto err;
   if (opt_single_transaction && do_unlock_tables(mysql)) /* unlock but no commit! */
     goto err;
@@ -5817,19 +5966,36 @@ int main(int argc, char **argv)
       dump_all_tablespaces();
     dump_all_databases();
   }
-  else if (argc > 1 && !opt_databases)
-  {
-    /* Only one database and selected table(s) */
-    if (!opt_alltspcs && !opt_notspcs)
-      dump_tablespaces_for_tables(*argv, (argv + 1), (argc -1));
-    dump_selected_tables(*argv, (argv + 1), (argc - 1));
-  }
   else
   {
-    /* One or more databases, all tables */
-    if (!opt_alltspcs && !opt_notspcs)
-      dump_tablespaces_for_databases(argv);
-    dump_databases(argv);
+    // Check all arguments meet length condition. Currently database and table
+    // names are limited to NAME_LEN bytes and stack-based buffers assumes
+    // that escaped name will be not longer than NAME_LEN*2 + 2 bytes long.
+    int argument;
+    for (argument= 0; argument < argc; argument++)
+    {
+      size_t argument_length= strlen(argv[argument]);
+      if (argument_length > NAME_LEN)
+      {
+        die(EX_CONSCHECK, "[ERROR] Argument '%s' is too long, it cannot be "
+          "name for any table or database.\n", argv[argument]);
+      }
+    }
+
+    if (argc > 1 && !opt_databases)
+    {
+      /* Only one database and selected table(s) */
+      if (!opt_alltspcs && !opt_notspcs)
+        dump_tablespaces_for_tables(*argv, (argv + 1), (argc - 1));
+      dump_selected_tables(*argv, (argv + 1), (argc - 1));
+    }
+    else
+    {
+      /* One or more databases, all tables */
+      if (!opt_alltspcs && !opt_notspcs)
+        dump_tablespaces_for_databases(argv);
+      dump_databases(argv);
+    }
   }
 
   /* add 'START SLAVE' to end of dump */

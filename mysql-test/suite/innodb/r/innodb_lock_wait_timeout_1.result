@@ -140,16 +140,6 @@ key_len	NULL
 ref	NULL
 rows	NULL
 Extra	No tables used
-id	NULL
-select_type	UNION RESULT
-table	<union2,3>
-type	ALL
-possible_keys	NULL
-key	NULL
-key_len	NULL
-ref	NULL
-rows	NULL
-Extra	
 #
 # Demonstrate that the reported SELECT statement
 # no longer produces warnings.
@@ -344,16 +334,6 @@ key_len	NULL
 ref	NULL
 rows	NULL
 Extra	No tables used
-id	NULL
-select_type	UNION RESULT
-table	<union2,3>
-type	ALL
-possible_keys	NULL
-key	NULL
-key_len	NULL
-ref	NULL
-rows	NULL
-Extra	
 # Lock the record.
 select 1 from t1 natural join (select 3 as a, 2 as b union all
 select 3 as a, 1 as b) as t2 for update;

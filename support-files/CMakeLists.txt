@@ -1,5 +1,5 @@
-# Copyright (c) 2006, 2010, Oracle and/or its affiliates.
-# Copyright (c) 2012, Monty Program Ab
+# Copyright (c) 2006, 2014, Oracle and/or its affiliates.
+# Copyright (c) 2012, 2014, SkySQL Ab.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -53,33 +53,19 @@ IF(UNIX)
   FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
-
-    IF(script MATCHES ".ini")
-      SET(comp IniFiles)
-    ELSE()
-      SET(comp Server_Scripts)
-    ENDIF()
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
-       DESTINATION ${inst_location} COMPONENT ${comp})
+      DESTINATION ${inst_location} COMPONENT Server_Scripts)
   ENDFOREACH()
   IF(INSTALL_SUPPORTFILESDIR)
     INSTALL(FILES magic DESTINATION ${inst_location} COMPONENT SupportFiles)
     INSTALL(DIRECTORY RHEL4-SElinux/ DESTINATION ${inst_location}/SELinux/RHEL4 COMPONENT SupportFiles)
   ENDIF()
 
-  INSTALL(FILES mysql.m4 DESTINATION ${INSTALL_SHAREDIR}/aclocal COMPONENT Development)
-  CONFIGURE_FILE(MySQL-shared-compat.spec.sh ${CMAKE_CURRENT_BINARY_DIR}/MySQL-shared-compat.spec @ONLY)
-  CONFIGURE_FILE(mysql.spec.sh ${CMAKE_CURRENT_BINARY_DIR}/mysql.spec @ONLY)
-  
-  SET(SPECFILENAME "mysql.${VERSION}.spec")
-  IF("${VERSION}" MATCHES "-ndb-")
-    STRING(REGEX REPLACE "^.*-ndb-" "" NDBVERSION "${VERSION}")
-    SET(SPECFILENAME "mysql-cluster-${NDBVERSION}.spec")
-  ENDIF()
-  CONFIGURE_FILE(mysql.spec.sh ${CMAKE_CURRENT_BINARY_DIR}/${SPECFILENAME} @ONLY)
-  
-  CONFIGURE_FILE(MySQL-shared-compat.spec.sh ${CMAKE_CURRENT_BINARY_DIR}/MySQL-shared-compat.spec @ONLY)
+  CONFIGURE_FILE(mariadb.pc.in ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc @ONLY)
+  INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.pc DESTINATION ${INSTALL_SHAREDIR}/pkgconfig COMPONENT Development)
 
+  INSTALL(FILES mysql.m4 DESTINATION ${INSTALL_SHAREDIR}/aclocal COMPONENT Development)
+  
   SET(bindir ${prefix}/${INSTALL_BINDIR})
   SET(sbindir ${prefix}/${INSTALL_SBINDIR})
   SET(scriptdir ${prefix}/${INSTALL_SCRIPTDIR})

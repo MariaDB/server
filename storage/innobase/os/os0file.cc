@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted
 by Percona Inc.. Those modifications are
@@ -71,6 +71,10 @@ Created 10/21/1995 Heikki Tuuri
 # ifndef DFS_IOCTL_ATOMIC_WRITE_SET
 #  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
 # endif
+#endif
+
+#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
+#include <sys/statvfs.h>
 #endif
 
 #ifdef HAVE_LZO
@@ -219,6 +223,10 @@ struct os_aio_slot_t{
 					free this */
 
 	ibool           page_compress_success;
+	                                /*!< TRUE if page compression was
+					successfull, false if not */
+
+	ulint           file_block_size;/*!< file block size */
 
 #ifdef WIN_ASYNC_IO
 	HANDLE		handle;		/*!< handle object we need in the
@@ -354,9 +362,7 @@ UNIV_INTERN
 ibool
 os_file_trim(
 /*=========*/
-	os_file_t	file, /*!< in: file to be trimmed */
-	os_aio_slot_t*	slot, /*!< in: slot structure     */
-	ulint		len); /*!< in: length of area     */
+	os_aio_slot_t*	slot); /*!< in: slot structure     */
 
 /**********************************************************************//**
 Allocate memory for temporal buffer used for page compression. This
@@ -2072,7 +2078,7 @@ os_file_delete_if_exists_func(
 	bool	ret;
 	ulint	count	= 0;
 loop:
-	/* In Windows, deleting an .ibd file may fail if ibbackup is copying
+	/* In Windows, deleting an .ibd file may fail if mysqlbackup is copying
 	it */
 
 	ret = DeleteFile((LPCTSTR) name);
@@ -2097,7 +2103,7 @@ loop:
 		ib_logf(IB_LOG_LEVEL_WARN, "Delete of file %s failed.", name);
 	}
 
-	os_thread_sleep(1000000);	/* sleep for a second */
+	os_thread_sleep(500000);	/* sleep for 0.5 second */
 
 	if (count > 2000) {
 
@@ -2135,7 +2141,7 @@ os_file_delete_func(
 	BOOL	ret;
 	ulint	count	= 0;
 loop:
-	/* In Windows, deleting an .ibd file may fail if ibbackup is copying
+	/* In Windows, deleting an .ibd file may fail if mysqlbackup is copying
 	it */
 
 	ret = DeleteFile((LPCTSTR) name);
@@ -2158,7 +2164,7 @@ loop:
 
 		fprintf(stderr,
 			"InnoDB: Warning: cannot delete file %s\n"
-			"InnoDB: Are you running ibbackup"
+			"InnoDB: Are you running mysqlbackup"
 			" to back up the file?\n", name);
 	}
 
@@ -2938,7 +2944,7 @@ try_again:
 	}
 
 	ib_logf(IB_LOG_LEVEL_ERROR,
-		"Tried to read "ULINTPF" bytes at offset " UINT64PF". "
+		"Tried to read " ULINTPF " bytes at offset " UINT64PF ". "
 		"Was only able to read %ld.", n, offset, (lint) ret);
 #endif /* __WIN__ */
 #ifdef __WIN__
@@ -3143,6 +3149,7 @@ os_file_write_func(
 	DWORD		high;
 	ulint		n_retries	= 0;
 	ulint		err;
+	DWORD		saved_error = 0;
 #ifndef UNIV_HOTBACKUP
 	ulint		i;
 #endif /* !UNIV_HOTBACKUP */
@@ -3233,8 +3240,10 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
+		char *winmsg = NULL;
 
-		err = (ulint) GetLastError();
+		saved_error = GetLastError();
+		err = (ulint) saved_error;
 
 		ut_print_timestamp(stderr);
 
@@ -3250,6 +3259,23 @@ retry:
 			" or a disk quota exceeded.\n",
 			name, offset,
 			(ulong) n, (ulong) len, (ulong) err);
+
+		/* Ask Windows to prepare a standard message for a
+		GetLastError() */
+
+		FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+			FORMAT_MESSAGE_FROM_SYSTEM |
+			FORMAT_MESSAGE_IGNORE_INSERTS,
+			NULL, saved_error,
+			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			(LPSTR)&winmsg, 0, NULL);
+
+		if (winmsg) {
+			fprintf(stderr,
+				"InnoDB: FormatMessage: Error number %lu means '%s'.\n",
+				(ulong) saved_error, winmsg);
+			LocalFree(winmsg);
+		}
 
 		if (strerror((int) err) != NULL) {
 			fprintf(stderr,
@@ -3279,12 +3305,11 @@ retry:
 	}
 
 	if (!os_has_said_disk_full) {
-
 		ut_print_timestamp(stderr);
 
 		fprintf(stderr,
 			" InnoDB: Error: Write to file %s failed"
-			" at offset "UINT64PF".\n"
+			" at offset " UINT64PF ".\n"
 			"InnoDB: %lu bytes should have been written,"
 			" only %ld were written.\n"
 			"InnoDB: Operating system error number %lu.\n"
@@ -4594,6 +4619,10 @@ found:
 	slot->page_compression_level = page_compression_level;
 	slot->page_compression = page_compression;
 
+	if (message1) {
+		slot->file_block_size = fil_node_get_block_size(message1);
+	}
+
 	/* If the space is page compressed and this is write operation
 	   then we compress the page */
 	if (message1 && type == OS_FILE_WRITE && page_compression ) {
@@ -4621,6 +4650,7 @@ found:
 			slot->page_buf,
 			len,
 			page_compression_level,
+			fil_node_get_block_size(slot->message1),
 			&real_len,
 			slot->lzo_mem
 		);
@@ -4954,11 +4984,16 @@ os_aio_func(
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
 
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			mode = OS_AIO_SYNC;);
+
 	if (mode == OS_AIO_SYNC
 #ifdef WIN_ASYNC_IO
 	    && !srv_use_native_aio
 #endif /* WIN_ASYNC_IO */
 	    ) {
+		ibool ret;
+
 		/* This is actually an ordinary synchronous read or write:
 		no need to use an i/o-handler thread. NOTE that if we use
 		Windows async i/o, Windows does not allow us to use
@@ -4973,14 +5008,24 @@ os_aio_func(
 		and os_file_write_func() */
 
 		if (type == OS_FILE_READ) {
-			return(os_file_read_func(file, buf, offset, n,
-					         page_compression));
+			ret = os_file_read_func(file, buf, offset, n,
+					         page_compression);
+		} else {
+
+			ut_ad(!srv_read_only_mode);
+			ut_a(type == OS_FILE_WRITE);
+
+			ret = os_file_write_func(name, file, buf, offset, n);
 		}
 
-		ut_ad(!srv_read_only_mode);
-		ut_a(type == OS_FILE_WRITE);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			ret = 0;);
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			errno = 28;);
 
-		return(os_file_write_func(name, file, buf, offset, n));
+		return ret;
 	}
 
 try_again:
@@ -5310,7 +5355,7 @@ os_aio_windows_handle(
 			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
 				if (srv_use_trim && os_fallocate_failed == FALSE) {
 					// Deallocate unused blocks from file system
-					os_file_trim(slot->file, slot, slot->len);
+					os_file_trim(slot);
 				}
 			}
 		}
@@ -5429,7 +5474,7 @@ retry:
 						ut_ad(slot->page_compression_page);
 						if (srv_use_trim && os_fallocate_failed == FALSE) {
 							// Deallocate unused blocks from file system
-							os_file_trim(slot->file, slot, slot->len);
+							os_file_trim(slot);
 						}
 					}
 				}
@@ -5876,7 +5921,13 @@ consecutive_loop:
 			aio_slot->page_compression);
 	}
 
-	ut_a(ret);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+		os_has_said_disk_full = FALSE;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			ret = 0;);
+	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+			errno = 28;);
+
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
 	if (aio_slot->type == OS_FILE_READ && n_consecutive > 1) {
@@ -6292,17 +6343,18 @@ UNIV_INTERN
 ibool
 os_file_trim(
 /*=========*/
-	os_file_t	file, /*!< in: file to be trimmed */
-	os_aio_slot_t*	slot, /*!< in: slot structure     */
-	ulint		len)  /*!< in: length of area     */
+	os_aio_slot_t*	slot) /*!< in: slot structure     */
 {
 
-#define SECT_SIZE 512
+	size_t len = slot->len;
 	size_t trim_len = UNIV_PAGE_SIZE - len;
 	os_offset_t off = slot->offset + len;
+	size_t bsize = slot->file_block_size;
+
 	// len here should be alligned to sector size
-	ut_a((trim_len % SECT_SIZE) == 0);
-	ut_a((len % SECT_SIZE) == 0);
+	ut_ad((trim_len % bsize) == 0);
+	ut_ad((len % bsize) == 0);
+	ut_ad(bsize != 0);
 
 	// Nothing to do if trim length is zero or if actual write
 	// size is initialized and it is smaller than current write size.
@@ -6332,7 +6384,7 @@ os_file_trim(
 
 #ifdef __linux__
 #if defined(FALLOC_FL_PUNCH_HOLE) && defined (FALLOC_FL_KEEP_SIZE)
-	int ret = fallocate(file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
+	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
 		/* After first failure do not try to trim again */
@@ -6376,7 +6428,8 @@ os_file_trim(
 	flt.Ranges[0].Offset = off;
 	flt.Ranges[0].Length = trim_len;
 
-	BOOL ret = DeviceIoControl(file,FSCTL_FILE_LEVEL_TRIM,&flt, sizeof(flt), NULL, NULL, NULL, NULL);
+	BOOL ret = DeviceIoControl(slot->file, FSCTL_FILE_LEVEL_TRIM,
+		&flt, sizeof(flt), NULL, NULL, NULL, NULL);
 
 	if (!ret) {
 		/* After first failure do not try to trim again */
@@ -6402,8 +6455,32 @@ os_file_trim(
 	}
 #endif
 
-	srv_stats.page_compression_trim_sect512.add((trim_len / SECT_SIZE));
-	srv_stats.page_compression_trim_sect4096.add((trim_len / (SECT_SIZE*8)));
+	switch(bsize) {
+	case 512:
+		srv_stats.page_compression_trim_sect512.add((trim_len / bsize));
+		break;
+	case 1024:
+		srv_stats.page_compression_trim_sect1024.add((trim_len / bsize));
+		break;
+	case 2948:
+		srv_stats.page_compression_trim_sect2048.add((trim_len / bsize));
+		break;
+	case 4096:
+		srv_stats.page_compression_trim_sect4096.add((trim_len / bsize));
+		break;
+	case 8192:
+		srv_stats.page_compression_trim_sect8192.add((trim_len / bsize));
+		break;
+	case 16384:
+		srv_stats.page_compression_trim_sect16384.add((trim_len / bsize));
+		break;
+	case 32768:
+		srv_stats.page_compression_trim_sect32768.add((trim_len / bsize));
+		break;
+	default:
+		break;
+	}
+
 	srv_stats.page_compressed_trim_op.inc();
 
 	return (TRUE);
@@ -6447,3 +6524,62 @@ os_slot_alloc_lzo_mem(
 	ut_a(slot->lzo_mem != NULL);
 }
 #endif
+
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name)	/*!< in: file name */
+{
+	ulint		fblock_size = 512;
+
+#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
+	struct statvfs  fstat;
+	int		err;
+
+	err = fstatvfs(file, &fstat);
+
+	if (err != 0) {
+		fprintf(stderr, "InnoDB: Warning: fstatvfs() failed on file %s\n", name);
+		os_file_handle_error_no_exit(name, "fstatvfs()", FALSE, __FILE__, __LINE__);
+	} else {
+		fblock_size = fstat.f_bsize;
+	}
+#endif /* UNIV_LINUX */
+#ifdef __WIN__
+	{
+		DWORD SectorsPerCluster = 0;
+		DWORD BytesPerSector = 0;
+		DWORD NumberOfFreeClusters = 0;
+		DWORD TotalNumberOfClusters = 0;
+
+		if (GetFreeSpace((LPCTSTR)name, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
+			fblock_size = BytesPerSector;
+		} else {
+			fprintf(stderr, "InnoDB: Warning: GetFreeSpace() failed on file %s\n", name);
+			os_file_handle_error_no_exit(name, "GetFreeSpace()", FALSE, __FILE__, __LINE__);
+		}
+	}
+#endif /* __WIN__*/
+
+	if (fblock_size > UNIV_PAGE_SIZE/2 || fblock_size < 512) {
+		fprintf(stderr, "InnoDB: Note: File system for file %s has "
+			"file block size %lu not supported for page_size %lu\n",
+			name, fblock_size, UNIV_PAGE_SIZE);
+
+		if (fblock_size < 512) {
+			fblock_size = 512;
+		} else {
+			fblock_size = UNIV_PAGE_SIZE/2;
+		}
+
+		fprintf(stderr, "InnoDB: Note: Using file block size %ld for file %s\n",
+			fblock_size, name);
+	}
+
+	return fblock_size;
+}

@@ -89,7 +89,6 @@ IF(NOT CMAKE_CROSSCOMPILING)
     long	x;
     long	y;
     long	res;
-    char	c;
 
     x = 10;
     y = 123;
@@ -110,6 +109,16 @@ IF(NOT CMAKE_CROSSCOMPILING)
     if (res != 123 + 10 || x != 123 + 10) {
       return(1);
     }
+    return(0);
+  }"
+  HAVE_IB_GCC_ATOMIC_BUILTINS
+  )
+  CHECK_C_SOURCE_RUNS(
+  "
+  int main()
+  {
+    long	res;
+    char	c;
 
     c = 10;
     res = __sync_lock_test_and_set(&c, 123);
@@ -118,7 +127,7 @@ IF(NOT CMAKE_CROSSCOMPILING)
     }
     return(0);
   }"
-  HAVE_IB_GCC_ATOMIC_BUILTINS
+  HAVE_IB_GCC_ATOMIC_BUILTINS_BYTE
   )
   CHECK_C_SOURCE_RUNS(
   "#include<stdint.h>
@@ -140,6 +149,25 @@ IF(NOT CMAKE_CROSSCOMPILING)
   }"
   HAVE_IB_GCC_ATOMIC_BUILTINS_64
   )
+  CHECK_C_SOURCE_RUNS(
+  "#include<stdint.h>
+  int main()
+  {
+    __sync_synchronize();
+    return(0);
+  }"
+  HAVE_IB_GCC_SYNC_SYNCHRONISE
+  )
+  CHECK_C_SOURCE_RUNS(
+  "#include<stdint.h>
+  int main()
+  {
+    __atomic_thread_fence(__ATOMIC_ACQUIRE);
+    __atomic_thread_fence(__ATOMIC_RELEASE);
+    return(0);
+  }"
+  HAVE_IB_GCC_ATOMIC_THREAD_FENCE
+  )
 ENDIF()
 
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS)
@@ -147,8 +175,20 @@ IF(HAVE_IB_GCC_ATOMIC_BUILTINS)
  SET(XTRADB_OK 1)
 ENDIF()
 
+IF(HAVE_IB_GCC_ATOMIC_BUILTINS_BYTE)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS_BYTE=1)
+ENDIF()
+
 IF(HAVE_IB_GCC_ATOMIC_BUILTINS_64)
  ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_BUILTINS_64=1)
+ENDIF()
+
+IF(HAVE_IB_GCC_SYNC_SYNCHRONISE)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_SYNC_SYNCHRONISE=1)
+ENDIF()
+
+IF(HAVE_IB_GCC_ATOMIC_THREAD_FENCE)
+ ADD_DEFINITIONS(-DHAVE_IB_GCC_ATOMIC_THREAD_FENCE=1)
 ENDIF()
 
  # either define HAVE_IB_ATOMIC_PTHREAD_T_GCC or not
@@ -233,9 +273,20 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "SunOS")
       return(0);
     }
   " HAVE_IB_ATOMIC_PTHREAD_T_SOLARIS)
+  CHECK_C_SOURCE_COMPILES(
+  "#include <mbarrier.h>
+  int main() {
+    __machine_r_barrier();
+    __machine_w_barrier();
+    return(0);
+  }"
+  HAVE_IB_MACHINE_BARRIER_SOLARIS)
   ENDIF()
   IF(HAVE_IB_ATOMIC_PTHREAD_T_SOLARIS)
     ADD_DEFINITIONS(-DHAVE_IB_ATOMIC_PTHREAD_T_SOLARIS=1)
+  ENDIF()
+  IF(HAVE_IB_MACHINE_BARRIER_SOLARIS)
+    ADD_DEFINITIONS(-DHAVE_IB_MACHINE_BARRIER_SOLARIS=1)
   ENDIF()
 ENDIF()
 
@@ -254,14 +305,8 @@ ENDIF()
 
 IF(MSVC)
   ADD_DEFINITIONS(-DHAVE_WINDOWS_ATOMICS)
+  ADD_DEFINITIONS(-DHAVE_WINDOWS_MM_FENCE)
   SET(XTRADB_OK 1)
-
-  # Avoid "unreferenced label" warning in generated file
-  GET_FILENAME_COMPONENT(_SRC_DIR ${CMAKE_CURRENT_LIST_FILE} PATH)
-  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/pars0grm.c
-          PROPERTIES COMPILE_FLAGS "/wd4102")
-  SET_SOURCE_FILES_PROPERTIES(${_SRC_DIR}/pars/lexyy.c
-          PROPERTIES COMPILE_FLAGS "/wd4003")
 ENDIF()
 
 

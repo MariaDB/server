@@ -1,0 +1,19 @@
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+SET NAMES swe7;
+
+#
+# Test escape sequences.
+# This also covers:
+# MDEV-6737 Stored routines do now work with swe7: "The table mysql.proc is missing, corrupt, or contains bad data"
+# as uses stored functions actively.
+#
+
+let $ctype_unescape_combinations=selected;
+--source include/ctype_unescape.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

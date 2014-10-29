@@ -42,6 +42,11 @@ usr/bin/perror
 usr/bin/replace
 usr/bin/resolve_stack_dump
 usr/bin/resolveip
+usr/bin/wsrep_sst_common
+usr/bin/wsrep_sst_mysqldump
+usr/bin/wsrep_sst_rsync
+usr/bin/wsrep_sst_xtrabackup
+usr/bin/wsrep_sst_xtrabackup-v2
 usr/share/doc/mariadb-server-10.1/mysqld.sym.gz
 usr/share/doc/mariadb-server-10.1/INFO_SRC
 usr/share/doc/mariadb-server-10.1/INFO_BIN
@@ -76,6 +81,7 @@ usr/share/mysql/mysql_system_tables_data.sql
 usr/share/mysql/mysql_system_tables.sql
 usr/share/mysql/mysql_performance_tables.sql
 usr/share/mysql/mysql_test_data_timezone.sql
+usr/share/mysql/wsrep_notify
 @CASSANDRA_DEB_FILES@
 @SPIDER_DEB_FILES@
 @TOKUDB_DEB_FILES@

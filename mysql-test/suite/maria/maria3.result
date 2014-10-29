@@ -314,6 +314,7 @@ aria_max_sort_file_size	9223372036853727232
 aria_pagecache_age_threshold	300
 aria_pagecache_buffer_size	8388608
 aria_pagecache_division_limit	100
+aria_pagecache_file_hash_size	512
 aria_page_checksum	OFF
 aria_recover	NORMAL
 aria_repair_threads	1

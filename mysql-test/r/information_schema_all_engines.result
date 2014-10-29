@@ -13,6 +13,7 @@ ENABLED_ROLES
 ENGINES
 EVENTS
 FILES
+GEOMETRY_COLUMNS
 GLOBAL_STATUS
 GLOBAL_VARIABLES
 INDEX_STATISTICS
@@ -45,7 +46,9 @@ SCHEMATA
 SCHEMA_PRIVILEGES
 SESSION_STATUS
 SESSION_VARIABLES
+SPATIAL_REF_SYS
 STATISTICS
+SYSTEM_VARIABLES
 TABLES
 TABLESPACES
 TABLE_CONSTRAINTS
@@ -82,6 +85,7 @@ ENABLED_ROLES	ROLE_NAME
 ENGINES	ENGINE
 EVENTS	EVENT_SCHEMA
 FILES	TABLE_SCHEMA
+GEOMETRY_COLUMNS	F_TABLE_SCHEMA
 GLOBAL_STATUS	VARIABLE_NAME
 GLOBAL_VARIABLES	VARIABLE_NAME
 INDEX_STATISTICS	TABLE_SCHEMA
@@ -114,7 +118,9 @@ SCHEMATA	SCHEMA_NAME
 SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
+SPATIAL_REF_SYS	SRID
 STATISTICS	TABLE_SCHEMA
+SYSTEM_VARIABLES	VARIABLE_NAME
 TABLES	TABLE_SCHEMA
 TABLESPACES	TABLESPACE_NAME
 TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
@@ -151,6 +157,7 @@ ENABLED_ROLES	ROLE_NAME
 ENGINES	ENGINE
 EVENTS	EVENT_SCHEMA
 FILES	TABLE_SCHEMA
+GEOMETRY_COLUMNS	F_TABLE_SCHEMA
 GLOBAL_STATUS	VARIABLE_NAME
 GLOBAL_VARIABLES	VARIABLE_NAME
 INDEX_STATISTICS	TABLE_SCHEMA
@@ -183,7 +190,9 @@ SCHEMATA	SCHEMA_NAME
 SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
+SPATIAL_REF_SYS	SRID
 STATISTICS	TABLE_SCHEMA
+SYSTEM_VARIABLES	VARIABLE_NAME
 TABLES	TABLE_SCHEMA
 TABLESPACES	TABLESPACE_NAME
 TABLE_CONSTRAINTS	CONSTRAINT_SCHEMA
@@ -225,6 +234,7 @@ COLUMN_PRIVILEGES	information_schema.COLUMN_PRIVILEGES	1
 ENGINES	information_schema.ENGINES	1
 EVENTS	information_schema.EVENTS	1
 FILES	information_schema.FILES	1
+GEOMETRY_COLUMNS	information_schema.GEOMETRY_COLUMNS	1
 GLOBAL_STATUS	information_schema.GLOBAL_STATUS	1
 GLOBAL_VARIABLES	information_schema.GLOBAL_VARIABLES	1
 INDEX_STATISTICS	information_schema.INDEX_STATISTICS	1
@@ -257,7 +267,9 @@ SCHEMATA	information_schema.SCHEMATA	1
 SCHEMA_PRIVILEGES	information_schema.SCHEMA_PRIVILEGES	1
 SESSION_STATUS	information_schema.SESSION_STATUS	1
 SESSION_VARIABLES	information_schema.SESSION_VARIABLES	1
+SPATIAL_REF_SYS	information_schema.SPATIAL_REF_SYS	1
 STATISTICS	information_schema.STATISTICS	1
+SYSTEM_VARIABLES	information_schema.SYSTEM_VARIABLES	1
 TABLES	information_schema.TABLES	1
 TABLESPACES	information_schema.TABLESPACES	1
 TABLE_CONSTRAINTS	information_schema.TABLE_CONSTRAINTS	1
@@ -284,6 +296,7 @@ Database: information_schema
 | ENGINES                               |
 | EVENTS                                |
 | FILES                                 |
+| GEOMETRY_COLUMNS                      |
 | GLOBAL_STATUS                         |
 | GLOBAL_VARIABLES                      |
 | INDEX_STATISTICS                      |
@@ -316,7 +329,9 @@ Database: information_schema
 | SCHEMA_PRIVILEGES                     |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
+| SPATIAL_REF_SYS                       |
 | STATISTICS                            |
+| SYSTEM_VARIABLES                      |
 | TABLES                                |
 | TABLESPACES                           |
 | TABLE_CONSTRAINTS                     |
@@ -343,6 +358,7 @@ Database: INFORMATION_SCHEMA
 | ENGINES                               |
 | EVENTS                                |
 | FILES                                 |
+| GEOMETRY_COLUMNS                      |
 | GLOBAL_STATUS                         |
 | GLOBAL_VARIABLES                      |
 | INDEX_STATISTICS                      |
@@ -375,7 +391,9 @@ Database: INFORMATION_SCHEMA
 | SCHEMA_PRIVILEGES                     |
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
+| SPATIAL_REF_SYS                       |
 | STATISTICS                            |
+| SYSTEM_VARIABLES                      |
 | TABLES                                |
 | TABLESPACES                           |
 | TABLE_CONSTRAINTS                     |
@@ -391,7 +409,7 @@ Database: INFORMATION_SCHEMA
 Wildcard: inf_rmation_schema
 |     Databases      |
 | information_schema |
-SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') AND table_name<>'ndb_binlog_index' AND table_name<>'ndb_apply_status' GROUP BY TABLE_SCHEMA;
+SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	54
+information_schema	57
 mysql	30

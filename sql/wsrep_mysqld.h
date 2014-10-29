@@ -87,6 +87,7 @@ extern my_bool     wsrep_restart_slave_activated;
 extern my_bool     wsrep_slave_FK_checks;
 extern my_bool     wsrep_slave_UK_checks;
 extern ulong       wsrep_running_threads;
+extern bool        wsrep_new_cluster;
 
 enum enum_wsrep_OSU_method { WSREP_OSU_TOI, WSREP_OSU_RSU };
 enum enum_wsrep_sync_wait {
@@ -112,11 +113,6 @@ extern const char* wsrep_provider_version;
 extern const char* wsrep_provider_vendor;
 
 int  wsrep_show_status(THD *thd, SHOW_VAR *var, char *buff);
-
-/* Filters out --wsrep-new-cluster oprtion from argv[]
- * should be called in the very beginning of main() */
-void wsrep_filter_new_cluster (int* argc, char* argv[]);
-
 int  wsrep_init();
 void wsrep_deinit(bool free_options);
 void wsrep_recover();
@@ -173,8 +169,11 @@ extern wsrep_seqno_t wsrep_locked_seqno;
 #define WSREP_EMULATE_BINLOG(thd) \
   (WSREP(thd) && wsrep_emulate_bin_log)
 
-// MySQL logging functions don't seem to understand long long length modifer.
-// This is a workaround. It also prefixes all messages with "WSREP"
+#define WSREP_FORMAT(my_format)                           \
+  ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC)   \
+    ? wsrep_forced_binlog_format : (ulong)(my_format))
+
+// prefix all messages with "WSREP"
 #define WSREP_LOG(fun, ...)                                       \
     do {                                                          \
         char msg[1024] = {'\0'};                                  \
@@ -313,6 +312,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define WSREP_ON  (0)
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_CLIENT(thd) (0)
+#define WSREP_FORMAT(my_format) ((ulong)my_format)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_xid_seqno(X) (0)
 #define wsrep_to_isolation (0)
@@ -328,9 +328,9 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define wsrep_stop_replication(X) do { } while(0)
 #define wsrep_inited (0)
 #define wsrep_deinit(X) do { } while(0)
-#define wsrep_filter_new_cluster(X,Y) do { } while(0)
 #define wsrep_recover() do { } while(0)
 #define wsrep_slave_threads (1)
+#define wsrep_replicate_myisam (0)
 
 #endif /* WITH_WSREP */
 #endif /* WSREP_MYSQLD_H */

@@ -202,3 +202,37 @@ set names latin1;
 --echo #
 --echo # End of 5.6 tests
 --echo #
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+let $ctype_unescape_combinations=selected;
+--source include/ctype_unescape.inc
+
+--echo #
+--echo # MDEV-6752 Trailing incomplete characters are not replaced to question marks on conversion
+--echo #
+SET NAMES utf8, character_set_connection=latin1;
+SELECT 'Â';
+SELECT HEX('Â');
+SELECT HEX(CAST('Â' AS CHAR CHARACTER SET utf8));
+SELECT HEX(CAST('Â' AS CHAR CHARACTER SET latin1));
+SELECT HEX(CONVERT('Â' USING utf8));
+SELECT HEX(CONVERT('Â' USING latin1));
+SELECT 'Âx';
+SELECT HEX('Âx');
+SELECT HEX(CAST('Âx' AS CHAR CHARACTER SET utf8));
+SELECT HEX(CAST('Âx' AS CHAR CHARACTER SET latin1));
+SELECT HEX(CONVERT('Âx' USING utf8));
+SELECT HEX(CONVERT('Âx' USING latin1));
+SET NAMES utf8;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET latin1);
+INSERT INTO t1 VALUES ('Â'),('Â#');
+SHOW WARNINGS;
+SELECT HEX(a),a FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

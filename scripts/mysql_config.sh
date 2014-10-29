@@ -76,7 +76,8 @@ get_full_path ()
 
 me=`get_full_path $0`
 
-basedir=`echo $me | sed -e 's;/bin/mysql_config;;'`
+# Script might have been renamed but assume mysql_<something>config<something>
+basedir=`echo $me | sed -e 's;/bin/mysql_.*config.*;;'`
 
 ldata='@localstatedir@'
 execdir='@libexecdir@'
@@ -85,18 +86,17 @@ bindir='@bindir@'
 # If installed, search for the compiled in directory first (might be "lib64")
 pkglibdir='@pkglibdir@'
 pkglibdir_rel=`echo $pkglibdir | sed -e "s;^$basedir/;;"`
-fix_path pkglibdir $pkglibdir_rel lib64/mysql lib64 lib/mysql lib
+fix_path pkglibdir $pkglibdir_rel @libsubdir@/mysql @libsubdir@
 
 plugindir='@pkgplugindir@'
 plugindir_rel=`echo $plugindir | sed -e "s;^$basedir/;;"`
-fix_path plugindir $plugindir_rel lib/mysql/plugin lib/plugin
+fix_path plugindir $plugindir_rel @libsubdir@/mysql/plugin @libsubdir@/plugin
 
 pkgincludedir='@pkgincludedir@'
 fix_path pkgincludedir include/mysql
 
 version='@VERSION@'
 socket='@MYSQL_UNIX_ADDR@'
-ldflags='@LDFLAGS@'
 
 if [ @MYSQL_TCP_PORT_DEFAULT@ -eq 0 ]; then
   port=0
@@ -105,58 +105,14 @@ else
 fi
 
 # Create options 
-# We intentionally add a space to the beginning and end of lib strings, simplifies replace later
-libs=" $ldflags -L$pkglibdir @RPATH_OPTION@ -lmysqlclient @ZLIB_DEPS@ @NON_THREADED_LIBS@"
-libs="$libs @openssl_libs@ @STATIC_NSS_FLAGS@ "
-libs_r=" $ldflags -L$pkglibdir  @RPATH_OPTION@ -lmysqlclient_r @ZLIB_DEPS@ @CLIENT_LIBS@ @openssl_libs@ "
-embedded_libs=" $ldflags -L$pkglibdir @RPATH_OPTION@ -lmysqld @LIBDL@ @ZLIB_DEPS@ @LIBS@ @WRAPLIBS@ @openssl_libs@ "
-
-if [ -r "$pkglibdir/libmygcc.a" ]; then
-  # When linking against the static library with a different version of GCC
-  # from what was used to compile the library, some symbols may not be defined
-  # automatically.  We package the libmygcc.a from the build host, to provide
-  # definitions for those.  Bugs 4921, 19561, 19817, 21158, etc.
-  libs="$libs -lmygcc "
-  libs_r="$libs_r -lmygcc "
-  embedded_libs="$embedded_libs -lmygcc "
-fi
+libs="-L$pkglibdir @RPATH_OPTION@ @LIBS_FOR_CLIENTS@"
+embedded_libs="-L$pkglibdir @RPATH_OPTION@ @EMB_LIBS_FOR_CLIENTS@"
 
 include="-I$pkgincludedir"
 if [ "$basedir" != "/usr" ]; then
   include="$include -I$pkgincludedir/.."
 fi
-cflags="$include @CFLAGS@ " #note: end space!
-
-# Remove some options that a client doesn't have to care about
-# FIXME until we have a --cxxflags, we need to remove -Xa
-#       and -xstrconst to make --cflags usable for Sun Forte C++
-# FIXME until we have a --cxxflags, we need to remove -AC99
-#       to make --cflags usable for HP C++ (aCC)
-for remove in DDBUG_OFF DSAFE_MUTEX DUNIV_MUST_NOT_INLINE DFORCE_INIT_OF_VARS \
-              DEXTRA_DEBUG DHAVE_valgrind O 'O[0-9]' 'xO[0-9]' 'W[-A-Za-z]*' \
-              'mtune=[-A-Za-z0-9]*' 'mcpu=[-A-Za-z0-9]*' 'march=[-A-Za-z0-9]*' \
-              Xa xstrconst "xc99=none" AC99 \
-              unroll2 ip mp restrict
-do
-  # The first option we might strip will always have a space before it because
-  # we set -I$pkgincludedir as the first option
-  cflags=`echo "$cflags"|sed -e "s/ -$remove  */ /g"` 
-done
-cflags=`echo "$cflags"|sed -e 's/ *\$//'` 
-
-# Same for --libs(_r)
-for remove in lmtmalloc static-libcxa i-static static-intel
-do
-  # We know the strings starts with a space
-  libs=`echo "$libs"|sed -e "s/ -$remove  */ /g"` 
-  libs_r=`echo "$libs_r"|sed -e "s/ -$remove  */ /g"` 
-  embedded_libs=`echo "$embedded_libs"|sed -e "s/ -$remove  */ /g"` 
-done
-
-# Strip trailing and ending space if any, and '+' (FIXME why?)
-libs=`echo "$libs" | sed -e 's;  \+; ;g' | sed -e 's;^ *;;' | sed -e 's; *\$;;'`
-libs_r=`echo "$libs_r" | sed -e 's;  \+; ;g' | sed -e 's;^ *;;' | sed -e 's; *\$;;'`
-embedded_libs=`echo "$embedded_libs" | sed -e 's;  \+; ;g' | sed -e 's;^ *;;' | sed -e 's; *\$;;'`
+cflags="$include @CFLAGS_FOR_CLIENTS@"
 
 usage () {
         cat <<EOF
@@ -165,7 +121,7 @@ Options:
         --cflags         [$cflags]
         --include        [$include]
         --libs           [$libs]
-        --libs_r         [$libs_r]
+        --libs_r         [$libs]
         --plugindir      [$plugindir]
         --socket         [$socket]
         --port           [$port]
@@ -176,17 +132,17 @@ Options:
                 pkglibdir     [$pkglibdir]
                 plugindir     [$plugindir]
 EOF
-        exit 0
+  exit $1
 }
 
-if test $# -le 0; then usage; fi
+if test $# -le 0; then usage 0 ; fi
 
 while test $# -gt 0; do
         case $1 in
         --cflags)  echo "$cflags" ;;
         --include) echo "$include" ;;
         --libs)    echo "$libs" ;;
-        --libs_r)  echo "$libs_r" ;;
+        --libs_r)  echo "$libs" ;;
         --plugindir) echo "$plugindir" ;;
         --socket)  echo "$socket" ;;
         --port)    echo "$port" ;;
@@ -198,10 +154,10 @@ while test $# -gt 0; do
             pkgincludedir) echo "$pkgincludedir" ;;
             pkglibdir) echo "$pkglibdir" ;;
             plugindir) echo "$plugindir" ;;
-            *) usage ;;
+            *) usage 1 >&2 ;;
           esac
           ;;
-        *)         usage ;;
+        *) usage 1 >&2 ;;
         esac
 
         shift

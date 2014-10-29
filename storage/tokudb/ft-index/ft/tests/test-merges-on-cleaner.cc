@@ -28,7 +28,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -94,10 +94,9 @@ PATENT RIGHTS GRANT:
 
 #include <ft-cachetable-wrappers.h>
 #include "ft-flusher.h"
-#include "checkpoint.h"
+#include "cachetable/checkpoint.h"
 
 static TOKUTXN const null_txn = 0;
-static DB * const null_db = 0;
 
 enum { NODESIZE = 1024, KSIZE=NODESIZE-100, TOKU_PSIZE=20 };
 
@@ -131,7 +130,7 @@ doit (void) {
 
     int r;
     
-    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, NULL_LOGGER);
+    toku_cachetable_create(&ct, 500*1024*1024, ZERO_LSN, nullptr);
     unlink(fname);
     r = toku_open_ft_handle(fname, 1, &ft, NODESIZE, NODESIZE/2, TOKU_DEFAULT_COMPRESSION_METHOD, ct, null_txn, toku_builtin_compare_fun);
     assert(r==0);
@@ -230,8 +229,8 @@ doit (void) {
     r = toku_ft_lookup(ft, toku_fill_dbt(&k, "a", 2), lookup_checkf, &pair);
     assert(r==0);
 
-    struct ftnode_fetch_extra bfe;
-    fill_bfe_for_min_read(&bfe, ft->ft);
+    ftnode_fetch_extra bfe;
+    bfe.create_for_min_read(ft->ft);
     toku_pin_ftnode(
         ft->ft, 
         node_internal,
@@ -253,7 +252,7 @@ doit (void) {
         );
 
     // verify that node_internal's buffer is empty
-    fill_bfe_for_min_read(&bfe, ft->ft);
+    bfe.create_for_min_read(ft->ft);
     toku_pin_ftnode(
         ft->ft, 
         node_internal,

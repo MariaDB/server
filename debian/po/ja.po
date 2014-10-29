@@ -205,20 +205,3 @@ msgstr "パスワード入力エラー"
 msgid "The two passwords you entered were not the same. Please try again."
 msgstr "入力された二つのパスワードが一致しません。再入力してください。"
 
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid "NDB Cluster seems to be in use"
-msgstr "NDB クラスタが利用されているようです"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid ""
-"MySQL-5.1 no longer provides NDB Cluster support. Please migrate to the new "
-"mysql-cluster package and remove all lines starting with \"ndb\" from all "
-"config files below /etc/mysql/."
-msgstr ""
-"MySQL-5.1 では NDB クラスタのサポートを提供しなくなっています。新たな mysql-"
-"cluster パッケージに移行して、/etc/mysql 以下の設定ファイルすべてから「ndb」"
-"で始まる行を削除してください。"

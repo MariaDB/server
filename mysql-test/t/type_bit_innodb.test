@@ -148,3 +148,12 @@ select * from t1;
 drop table t1;
 
 --echo End of 5.0 tests
+
+#
+# MDEV-6052 Inconsistent results with bit type
+#
+create table t1(f1 bit(2) not null default b'10',f2 bit(14) not null default b'11110000111100');
+insert into t1 (f1) values (default);
+insert into t1 values (b'',b''),('','');
+select hex(f1), hex(f2) from t1;
+drop table t1;

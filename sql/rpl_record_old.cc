@@ -141,7 +141,7 @@ unpack_row_old(rpl_group_info *rgi,
       f->move_field_offset(-offset);
       if (!ptr)
       {
-        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT,
+        rgi->rli->report(ERROR_LEVEL, ER_SLAVE_CORRUPT_EVENT, NULL,
                     "Could not read field `%s` of table `%s`.`%s`",
                     f->field_name, table->s->db.str,
                     table->s->table_name.str);
@@ -183,7 +183,7 @@ unpack_row_old(rpl_group_info *rgi,
     if (event_type == WRITE_ROWS_EVENT &&
         ((*field_ptr)->flags & mask) == mask)
     {
-      rgi->rli->report(ERROR_LEVEL, ER_NO_DEFAULT_FOR_FIELD,
+      rgi->rli->report(ERROR_LEVEL, ER_NO_DEFAULT_FOR_FIELD, NULL,
                   "Field `%s` of table `%s`.`%s` "
                   "has no default value and cannot be NULL",
                   (*field_ptr)->field_name, table->s->db.str,

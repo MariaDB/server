@@ -37,6 +37,7 @@
 #include "violite.h"              /* vio_is_connected */
 #include "thr_lock.h"             /* thr_lock_type, THR_LOCK_DATA,
                                      THR_LOCK_INFO */
+#include "thr_timer.h"
 #include <mysql/psi/mysql_stage.h>
 #include <mysql/psi/mysql_statement.h>
 #include <mysql/psi/mysql_idle.h>
@@ -449,17 +450,19 @@ enum killed_state
   */
   ABORT_QUERY= 6,
   ABORT_QUERY_HARD= 7,
+  KILL_TIMEOUT= 8,
+  KILL_TIMEOUT_HARD= 9,
   /*
     All of the following killed states will kill the connection
     KILL_CONNECTION must be the first of these and it must start with
     an even number (becasue of HARD bit)!
   */
-  KILL_CONNECTION= 8,
-  KILL_CONNECTION_HARD= 9,
-  KILL_SYSTEM_THREAD= 10,
-  KILL_SYSTEM_THREAD_HARD= 11,
-  KILL_SERVER= 12,
-  KILL_SERVER_HARD= 13
+  KILL_CONNECTION= 10,
+  KILL_CONNECTION_HARD= 11,
+  KILL_SYSTEM_THREAD= 12,
+  KILL_SYSTEM_THREAD_HARD= 13,
+  KILL_SERVER= 14,
+  KILL_SERVER_HARD= 15
 };
 
 extern int killed_errno(killed_state killed);
@@ -508,6 +511,7 @@ typedef struct system_variables
   ulonglong max_heap_table_size;
   ulonglong tmp_table_size;
   ulonglong long_query_time;
+  ulonglong max_statement_time;
   ulonglong optimizer_switch;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
@@ -520,6 +524,14 @@ typedef struct system_variables
   ulonglong sortbuff_size;
   ulonglong group_concat_max_len;
   ulonglong default_regex_flags;
+
+  /**
+     Place holders to store Multi-source variables in sys_var.cc during
+     update and show of variables.
+  */
+  ulonglong slave_skip_counter;
+  ulonglong max_relay_log_size;
+
   ha_rows select_limit;
   ha_rows max_join_size;
   ha_rows expensive_subquery_limit;
@@ -585,12 +597,6 @@ typedef struct system_variables
   */
   uint32     gtid_domain_id;
   uint64     gtid_seq_no;
-  /**
-     Place holders to store Multi-source variables in sys_var.cc during
-     update and show of variables.
-  */
-  ulong slave_skip_counter;
-  ulong max_relay_log_size;
 
   /**
     Default transaction access mode. READ ONLY (true) or READ WRITE (false).
@@ -598,7 +604,6 @@ typedef struct system_variables
   my_bool tx_read_only;
   my_bool low_priority_updates;
   my_bool query_cache_wlock_invalidate;
-  my_bool engine_condition_pushdown;
   my_bool keep_files_on_create;
 
   my_bool old_mode;
@@ -644,8 +649,7 @@ typedef struct system_variables
   my_bool wsrep_causal_reads;
   uint wsrep_sync_wait;
   ulong wsrep_retry_autocommit;
-
-  double long_query_time_double;
+  double long_query_time_double, max_statement_time_double;
 
   my_bool pseudo_slave_mode;
 
@@ -712,6 +716,7 @@ typedef struct system_status_var
   ulong filesort_range_count_;
   ulong filesort_rows_;
   ulong filesort_scan_count_;
+  ulong filesort_pq_sorts_;
   /* Prepared statements and binary protocol */
   ulong com_stmt_prepare;
   ulong com_stmt_reprepare;
@@ -734,6 +739,7 @@ typedef struct system_status_var
   ulong empty_queries;
   ulong access_denied_errors;
   ulong lost_connections;
+  ulong max_statement_time_exceeded;
   /*
     Number of statements sent from the client
   */
@@ -764,6 +770,13 @@ typedef struct system_status_var
 
 #define last_system_status_var questions
 #define last_cleared_system_status_var memory_used
+
+/*
+  Global status variables
+*/
+
+extern ulong feature_files_opened_with_delayed_keys;
+
 
 void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 
@@ -1366,10 +1379,10 @@ enum enum_thread_type
   SYSTEM_THREAD_DELAYED_INSERT= 1,
   SYSTEM_THREAD_SLAVE_IO= 2,
   SYSTEM_THREAD_SLAVE_SQL= 4,
-  SYSTEM_THREAD_NDBCLUSTER_BINLOG= 8,
-  SYSTEM_THREAD_EVENT_SCHEDULER= 16,
-  SYSTEM_THREAD_EVENT_WORKER= 32,
-  SYSTEM_THREAD_BINLOG_BACKGROUND= 64
+  SYSTEM_THREAD_EVENT_SCHEDULER= 8,
+  SYSTEM_THREAD_EVENT_WORKER= 16,
+  SYSTEM_THREAD_BINLOG_BACKGROUND= 32,
+  SYSTEM_THREAD_SLAVE_INIT= 64
 };
 
 inline char const *
@@ -1382,9 +1395,9 @@ show_system_thread(enum_thread_type thread)
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_DELAYED_INSERT);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_IO);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_SQL);
-    RETURN_NAME_AS_STRING(SYSTEM_THREAD_NDBCLUSTER_BINLOG);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_SCHEDULER);
     RETURN_NAME_AS_STRING(SYSTEM_THREAD_EVENT_WORKER);
+    RETURN_NAME_AS_STRING(SYSTEM_THREAD_SLAVE_INIT);
   default:
     sprintf(buf, "<UNKNOWN SYSTEM THREAD: %d>", thread);
     return buf;
@@ -1752,6 +1765,8 @@ struct wait_for_commit
   {
     if (waitee)
       unregister_wait_for_prior_commit2();
+    else
+      wakeup_error= 0;
   }
   /*
     Remove a waiter from the list in the waitee. Used to unregister a wait.
@@ -2509,8 +2524,6 @@ public:
   /** Idle instrumentation state. */
   PSI_idle_locker_state m_idle_state;
 #endif /* HAVE_PSI_IDLE_INTERFACE */
-  /** True if the server code is IDLE for this connection. */
-  bool m_server_idle;
 
   /*
     Id of current query. Statement can be reused to execute several queries
@@ -3070,8 +3083,10 @@ public:
   void add_changed_table(TABLE *table);
   void add_changed_table(const char *key, long key_length);
   CHANGED_TABLE_LIST * changed_table_dup(const char *key, long key_length);
-  int send_explain_fields(select_result *result);
-  void make_explain_field_list(List<Item> &field_list);
+  int send_explain_fields(select_result *result, uint8 explain_flags,
+                          bool is_analyze);
+  void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
+                               bool is_analyze);
   /**
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we
@@ -3282,8 +3297,7 @@ public:
       tests fail and so force them to propagate the
       lex->binlog_row_based_if_mixed upwards to the caller.
     */
-    if ((WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_MIXED) &&
-        (in_sub_stmt == 0))
+    if ((wsrep_binlog_format() == BINLOG_FORMAT_MIXED) && (in_sub_stmt == 0))
       set_current_stmt_binlog_format_row();
 
     DBUG_VOID_RETURN;
@@ -3334,7 +3348,7 @@ public:
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
-      if (WSREP_FORMAT(variables.binlog_format) == BINLOG_FORMAT_ROW)
+      if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
       else if (temporary_tables == NULL)
         set_current_stmt_binlog_format_stmt();
@@ -3722,8 +3736,8 @@ public:
   mysql_mutex_t LOCK_wakeup_ready;
   mysql_cond_t COND_wakeup_ready;
   /*
-     The GTID assigned to the last commit. If no GTID was assigned to any commit
-     so far, this is indicated by last_commit_gtid.seq_no == 0.
+    The GTID assigned to the last commit. If no GTID was assigned to any commit
+    so far, this is indicated by last_commit_gtid.seq_no == 0.
   */
   rpl_gtid last_commit_gtid;
 
@@ -3743,6 +3757,11 @@ public:
             (rgi_slave && rgi_have_temporary_tables()));
   }
 
+  inline ulong wsrep_binlog_format() const
+  {
+    return WSREP_FORMAT(variables.binlog_format);
+  }
+
 #ifdef WITH_WSREP
   const bool                wsrep_applier; /* dedicated slave applier thread */
   bool                      wsrep_applier_closing; /* applier marked to close */
@@ -3758,27 +3777,55 @@ public:
   mysql_cond_t              COND_wsrep_thd;
   wsrep_trx_meta_t          wsrep_trx_meta;
   uint32                    wsrep_rand;
-  Relay_log_info*           wsrep_rli;
-  rpl_group_info*           wsrep_rgi;
+  Relay_log_info            *wsrep_rli;
+  rpl_group_info            *wsrep_rgi;
   wsrep_ws_handle_t         wsrep_ws_handle;
   ulong                     wsrep_retry_counter; // of autocommit
-  char*                     wsrep_retry_query;
+  char                      *wsrep_retry_query;
   size_t                    wsrep_retry_query_len;
   enum enum_server_command  wsrep_retry_command;
   enum wsrep_consistency_check_mode
                             wsrep_consistency_check;
   int                       wsrep_mysql_replicated;
-  const char*               wsrep_TOI_pre_query; /* a query to apply before
-                                                    the actual TOI query */
+  const char                *wsrep_TOI_pre_query; /* a query to apply before
+                                                     the actual TOI query */
   size_t                    wsrep_TOI_pre_query_len;
   wsrep_po_handle_t         wsrep_po_handle;
   size_t                    wsrep_po_cnt;
 #ifdef GTID_SUPPORT
   rpl_sid                   wsrep_po_sid;
 #endif /*  GTID_SUPPORT */
-  void*                     wsrep_apply_format;
+  void                      *wsrep_apply_format;
   char                      wsrep_info[128]; /* string for dynamic proc info */
 #endif /* WITH_WSREP */
+
+  /* Handling of timeouts for commands */
+  thr_timer_t query_timer;
+public:
+  void set_query_timer()
+  {
+#ifndef EMBEDDED_LIBRARY
+    /*
+      Don't start a query timer if
+      - If timeouts are not set
+      - if we are in a stored procedure or sub statement
+      - If this is a slave thread
+      - If we already have set a timeout (happens when running prepared
+        statements that calls mysql_execute_command())
+    */
+    if (!variables.max_statement_time || spcont  || in_sub_stmt ||
+        slave_thread || query_timer.expired == 0)
+      return;
+    thr_timer_settime(&query_timer, variables.max_statement_time);
+#endif
+  }
+  void reset_query_timer()
+  {
+#ifndef EMBEDDED_LIBRARY
+    if (!query_timer.expired)
+      thr_timer_end(&query_timer);
+#endif
+  }
 };
 
 
@@ -3881,6 +3928,23 @@ protected:
 public:
   select_result();
   virtual ~select_result() {};
+  /**
+    Change wrapped select_result.
+
+    Replace the wrapped result object with new_result and call
+    prepare() and prepare2() on new_result.
+
+    This base class implementation doesn't wrap other select_results.
+
+    @param new_result The new result object to wrap around
+
+    @retval false Success
+    @retval true  Error
+  */
+  virtual bool change_result(select_result *new_result)
+  {
+    return false;
+  }
   virtual int prepare(List<Item> &list, SELECT_LEX_UNIT *u)
   {
     unit= u;
@@ -3923,6 +3987,14 @@ public:
   {
     unit->offset_limit_cnt= 0;
   }
+
+  /*
+    This returns
+    - FALSE if the class sends output row to the client
+    - TRUE if the output is set elsewhere (a file, @variable, or table).
+    Currently all intercepting classes derive from select_result_interceptor.
+  */
+  virtual bool is_result_interceptor()=0;
 };
 
 
@@ -3953,6 +4025,8 @@ public:
 
 /*
   This is a select_result_sink which stores the data in text form.
+
+  It is only used to save EXPLAIN output.
 */
 
 class select_result_text_buffer : public select_result_sink
@@ -3981,7 +4055,7 @@ private:
 class select_result_interceptor: public select_result
 {
 public:
-  select_result_interceptor()
+  select_result_interceptor() : suppress_my_ok(false)
   {
     DBUG_ENTER("select_result_interceptor::select_result_interceptor");
     DBUG_PRINT("enter", ("this 0x%lx", (ulong) this));
@@ -3989,6 +4063,15 @@ public:
   }              /* Remove gcc warning */
   uint field_count(List<Item> &fields) const { return 0; }
   bool send_result_set_metadata(List<Item> &fields, uint flag) { return FALSE; }
+  bool is_result_interceptor() { return true; }
+
+  /*
+    Instruct the object to not call my_ok(). Client output will be handled
+    elsewhere. (this is used by ANALYZE $stmt feature).
+  */
+  void disable_my_ok_calls() { suppress_my_ok= true; }
+protected:
+  bool suppress_my_ok;
 };
 
 
@@ -4007,6 +4090,7 @@ public:
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
   virtual void cleanup();
+  bool is_result_interceptor() { return true; }
 };
 
 
@@ -4288,9 +4372,19 @@ public:
 
   select_union() :write_err(0), table(0), records(0) { tmp_table_param.init(); }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
+  /**
+    Do prepare() and prepare2() if they have been postponed until
+    column type information is computed (used by select_union_direct).
+
+    @param types Column types
+
+    @return false on success, true on failure
+  */
+  virtual bool postponed_prepare(List<Item> &types)
+  { return false; }
   int send_data(List<Item> &items);
   bool send_eof();
-  bool flush();
+  virtual bool flush();
   void cleanup();
   virtual bool create_result_table(THD *thd, List<Item> *column_types,
                                    bool is_distinct, ulonglong options,
@@ -4300,6 +4394,98 @@ public:
                                    bool keep_row_order= FALSE);
   TMP_TABLE_PARAM *get_tmp_table_param() { return &tmp_table_param; }
 };
+
+
+/**
+  UNION result that is passed directly to the receiving select_result
+  without filling a temporary table.
+
+  Function calls are forwarded to the wrapped select_result, but some
+  functions are expected to be called only once for each query, so
+  they are only executed for the first SELECT in the union (execept
+  for send_eof(), which is executed only for the last SELECT).
+
+  This select_result is used when a UNION is not DISTINCT and doesn't
+  have a global ORDER BY clause. @see st_select_lex_unit::prepare().
+*/
+
+class select_union_direct :public select_union
+{
+private:
+  /* Result object that receives all rows */
+  select_result *result;
+  /* The last SELECT_LEX of the union */
+  SELECT_LEX *last_select_lex;
+
+  /* Wrapped result has received metadata */
+  bool done_send_result_set_metadata;
+  /* Wrapped result has initialized tables */
+  bool done_initialize_tables;
+
+  /* Accumulated limit_found_rows */
+  ulonglong limit_found_rows;
+
+  /* Number of rows offset */
+  ha_rows offset;
+  /* Number of rows limit + offset, @see select_union_direct::send_data() */
+  ha_rows limit;
+
+public:
+  /* Number of rows in the union */
+  ha_rows send_records; 
+  select_union_direct(select_result *result, SELECT_LEX *last_select_lex)
+    :result(result), last_select_lex(last_select_lex),
+    done_send_result_set_metadata(false), done_initialize_tables(false),
+    limit_found_rows(0)
+    { send_records= 0; }
+  bool change_result(select_result *new_result);
+  uint field_count(List<Item> &fields) const
+  {
+    // Only called for top-level select_results, usually select_send
+    DBUG_ASSERT(false); /* purecov: inspected */
+    return 0; /* purecov: inspected */
+  }
+  bool postponed_prepare(List<Item> &types);
+  bool send_result_set_metadata(List<Item> &list, uint flags);
+  int send_data(List<Item> &items);
+  bool initialize_tables (JOIN *join= NULL);
+  bool send_eof();
+  bool flush() { return false; }
+  bool check_simple_select() const
+  {
+    /* Only called for top-level select_results, usually select_send */
+    DBUG_ASSERT(false); /* purecov: inspected */
+    return false; /* purecov: inspected */
+  }
+  void abort_result_set()
+  {
+    result->abort_result_set(); /* purecov: inspected */
+  }
+  void cleanup()
+  {
+    send_records= 0;
+  }
+  void set_thd(THD *thd_arg)
+  {
+    /*
+      Only called for top-level select_results, usually select_send,
+      and for the results of subquery engines
+      (select_<something>_subselect).
+    */
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+  void reset_offset_limit_cnt()
+  {
+    // EXPLAIN should never output to a select_union_direct
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+  void begin_dataset()
+  {
+    // Only called for sp_cursor::Select_fetch_into_spvars
+    DBUG_ASSERT(false); /* purecov: inspected */
+  }
+};
+
 
 /* Base subselect interface class */
 class select_subselect :public select_result_interceptor
@@ -4737,21 +4923,46 @@ public:
 
 class my_var : public Sql_alloc  {
 public:
-  LEX_STRING s;
-#ifndef DBUG_OFF
+  const LEX_STRING name;
+  enum type { SESSION_VAR, LOCAL_VAR, PARAM_VAR };
+  type scope;
+  my_var(const LEX_STRING& j, enum type s) : name(j), scope(s) { }
+  virtual ~my_var() {}
+  virtual bool set(THD *thd, Item *val) = 0;
+};
+
+class my_var_param: public my_var {
+public:
+  Settable_routine_parameter *param;
+  my_var_param(Item_param *p)
+    : my_var(null_lex_str, PARAM_VAR),
+      param(p->get_settable_routine_parameter())
+  { p->inout= Item_param::OUT_PARAM; }
+  ~my_var_param() { }
+  bool set(THD *thd, Item *val);
+};
+
+class my_var_sp: public my_var {
+public:
+  uint offset;
+  enum_field_types type;
   /*
     Routine to which this Item_splocal belongs. Used for checking if correct
     runtime context is used for variable handling.
   */
   sp_head *sp;
-#endif
-  bool local;
-  uint offset;
-  enum_field_types type;
-  my_var (LEX_STRING& j, bool i, uint o, enum_field_types t)
-    :s(j), local(i), offset(o), type(t)
-  {}
-  ~my_var() {}
+  my_var_sp(const LEX_STRING& j, uint o, enum_field_types t, sp_head *s)
+    : my_var(j, LOCAL_VAR), offset(o), type(t), sp(s) { }
+  ~my_var_sp() { }
+  bool set(THD *thd, Item *val);
+};
+
+class my_var_user: public my_var {
+public:
+  my_var_user(const LEX_STRING& j)
+    : my_var(j, SESSION_VAR) { }
+  ~my_var_user() { }
+  bool set(THD *thd, Item *val);
 };
 
 class select_dumpvar :public select_result_interceptor {

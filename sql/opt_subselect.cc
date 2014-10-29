@@ -1515,7 +1515,7 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     NOTE: We actually insert them at the front! That's because the order is
           reversed in this list.
   */
-  parent_lex->leaf_tables.concat(&subq_lex->leaf_tables);
+  parent_lex->leaf_tables.append(&subq_lex->leaf_tables);
 
   if (subq_lex->options & OPTION_SCHEMA_TABLE)
     parent_lex->options |= OPTION_SCHEMA_TABLE;
@@ -5224,7 +5224,7 @@ bool setup_jtbm_semi_joins(JOIN *join, List<TABLE_LIST> *join_list,
         if (!(new_sink= new select_value_catcher(subq_pred)))
           DBUG_RETURN(TRUE);
         if (new_sink->setup(&engine->select_lex->join->fields_list) ||
-            engine->select_lex->join->change_result(new_sink) ||
+            engine->select_lex->join->change_result(new_sink, NULL) ||
             engine->exec())
         {
           DBUG_RETURN(TRUE);
@@ -5576,8 +5576,8 @@ bool JOIN::choose_subquery_plan(table_map join_tables)
       Item_in_subselect::test_limit). However, once we allow this, here
       we should set the correct limit if given in the query.
     */
-    in_subs->unit->global_parameters->select_limit= NULL;
-    in_subs->unit->set_limit(unit->global_parameters);
+    in_subs->unit->global_parameters()->select_limit= NULL;
+    in_subs->unit->set_limit(unit->global_parameters());
     /*
       Set the limit of this JOIN object as well, because normally its being
       set in the beginning of JOIN::optimize, which was already done.

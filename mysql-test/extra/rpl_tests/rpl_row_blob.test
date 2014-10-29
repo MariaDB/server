@@ -36,7 +36,6 @@ SELECT LENGTH(data) FROM test.t1 WHERE c1 = 3;
 save_master_pos;
 connection slave;
 sync_with_master; 
---source include/wait_for_ndb_to_binlog.inc
 --echo
 --echo **** Data Insert Validation Slave Section test.t1 ****
 --echo
@@ -59,7 +58,6 @@ SELECT LENGTH(data) FROM test.t1 WHERE c1 = 2;
 save_master_pos;
 connection slave;
 sync_with_master; 
---source include/wait_for_ndb_to_binlog.inc
 --echo
 --echo **** Data Update Validation Slave Section test.t1 ****
 --echo
@@ -130,7 +128,6 @@ FROM test.t2 WHERE c1=2;
 save_master_pos;
 connection slave;
 sync_with_master; 
---source include/wait_for_ndb_to_binlog.inc
 --echo
 --echo **** Data Insert Validation Slave Section test.t2 ****
 --echo
@@ -156,7 +153,6 @@ FROM test.t2 WHERE c1=2;
 save_master_pos;
 connection slave;
 sync_with_master; 
---source include/wait_for_ndb_to_binlog.inc
 --echo
 --echo **** Data Update Validation Slave Section test.t2 ****
 --echo
@@ -176,8 +172,4 @@ diff_files $MYSQLTEST_VARDIR/tmp/rpl_row_blob_master.sql $MYSQLTEST_VARDIR/tmp/r
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 # ensure cleanup on slave as well:
-# ndb blob tables consist of several tables
-# if cluster is shutdown while not all tables are
-# properly dropped, the table becomes inconsistent
-# and wrecks later test cases
 --sync_slave_with_master

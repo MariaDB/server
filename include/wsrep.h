@@ -22,14 +22,6 @@
 #define IF_WSREP(A,B) A
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
-#if !defined(EMBEDDED_LIBRARY)
-#define WSREP_FORMAT(my_format)                           \
-  ((wsrep_forced_binlog_format != BINLOG_FORMAT_UNSPEC) ? \
-   ((enum enum_binlog_format)wsrep_forced_binlog_format) : my_format)
-#else
-#define WSREP_FORMAT(my_format) my_format
-#endif /* && !EMBEDDED_LIBRARY */
-
 #define WSREP_MYSQL_DB (char *)"mysql"
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)                   \
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
@@ -52,7 +44,6 @@
 #define WSREP_INFO(...)
 #define WSREP_WARN(...)
 #define WSREP_ERROR(...)
-#define WSREP_FORMAT(my_format) my_format
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)
 #define WSREP_TO_ISOLATION_END
 #endif

@@ -227,7 +227,7 @@ public:
       char time[TIME_STRING_BUFFER_LENGTH];
       char total[TOTAL_STRING_BUFFER_LENGTH];
       if(i == bound_count())
-      {        
+      {
         assert(sizeof(TIME_OVERFLOW) <= TIME_STRING_BUFFER_LENGTH);
         assert(sizeof(TIME_OVERFLOW) <= TOTAL_STRING_BUFFER_LENGTH);
         memcpy(time,TIME_OVERFLOW,sizeof(TIME_OVERFLOW));
@@ -286,9 +286,10 @@ void query_response_time_free()
   query_response_time::g_collector.flush();
 }
 
-void query_response_time_flush()
+int query_response_time_flush()
 {
   query_response_time::g_collector.flush();
+  return 0;
 }
 void query_response_time_collect(ulonglong query_time)
 {

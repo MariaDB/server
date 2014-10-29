@@ -101,7 +101,6 @@ int get_or_create_user_conn(THD *thd, const char *user,
 end:
   mysql_mutex_unlock(&LOCK_user_conn);
   return return_val;
-
 }
 
 
@@ -418,6 +417,7 @@ void init_user_stats(USER_STATS *user_stats,
                      size_t user_length,
                      const char *priv_user,
                      uint total_connections,
+                     uint total_ssl_connections,
                      uint concurrent_connections,
                      time_t connected_time,
                      double busy_time,
@@ -437,6 +437,7 @@ void init_user_stats(USER_STATS *user_stats,
                      ulonglong rollback_trans,
                      ulonglong denied_connections,
                      ulonglong lost_connections,
+                     ulonglong max_statement_time_exceeded,
                      ulonglong access_denied_errors,
                      ulonglong empty_queries)
 {
@@ -450,6 +451,7 @@ void init_user_stats(USER_STATS *user_stats,
   strmake_buf(user_stats->priv_user, priv_user);
 
   user_stats->total_connections= total_connections;
+  user_stats->total_ssl_connections=  total_ssl_connections;
   user_stats->concurrent_connections= concurrent_connections;
   user_stats->connected_time= connected_time;
   user_stats->busy_time= busy_time;
@@ -458,8 +460,10 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->bytes_sent= bytes_sent;
   user_stats->binlog_bytes_written= binlog_bytes_written;
   user_stats->rows_sent= rows_sent;
-  user_stats->rows_updated= rows_updated;
   user_stats->rows_read= rows_read;
+  user_stats->rows_inserted= rows_inserted;
+  user_stats->rows_deleted= rows_deleted;
+  user_stats->rows_updated= rows_updated;
   user_stats->select_commands= select_commands;
   user_stats->update_commands= update_commands;
   user_stats->other_commands= other_commands;
@@ -467,62 +471,11 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->rollback_trans= rollback_trans;
   user_stats->denied_connections= denied_connections;
   user_stats->lost_connections= lost_connections;
+  user_stats->max_statement_time_exceeded= max_statement_time_exceeded;
   user_stats->access_denied_errors= access_denied_errors;
   user_stats->empty_queries= empty_queries;
   DBUG_VOID_RETURN;
 }
-
-
-#ifdef COMPLETE_PATCH_NOT_ADDED_YET
-
-void add_user_stats(USER_STATS *user_stats,
-                    uint total_connections,
-                    uint concurrent_connections,
-                    time_t connected_time,
-                    double busy_time,
-                    double cpu_time,
-                    ulonglong bytes_received,
-                    ulonglong bytes_sent,
-                    ulonglong binlog_bytes_written,
-                    ha_rows rows_sent,
-                    ha_rows rows_read,
-                    ha_rows rows_inserted,
-                    ha_rows rows_deleted,
-                    ha_rows rows_updated,
-                    ulonglong select_commands,
-                    ulonglong update_commands,
-                    ulonglong other_commands,
-                    ulonglong commit_trans,
-                    ulonglong rollback_trans,
-                    ulonglong denied_connections,
-                    ulonglong lost_connections,
-                    ulonglong access_denied_errors,
-                    ulonglong empty_queries)
-{
-  user_stats->total_connections+= total_connections;
-  user_stats->concurrent_connections+= concurrent_connections;
-  user_stats->connected_time+= connected_time;
-  user_stats->busy_time+= busy_time;
-  user_stats->cpu_time+= cpu_time;
-  user_stats->bytes_received+= bytes_received;
-  user_stats->bytes_sent+= bytes_sent;
-  user_stats->binlog_bytes_written+= binlog_bytes_written;
-  user_stats->rows_sent+=  rows_sent;
-  user_stats->rows_inserted+= rows_inserted;
-  user_stats->rows_deleted+=  rows_deleted;
-  user_stats->rows_updated+=  rows_updated;
-  user_stats->rows_read+= rows_read;
-  user_stats->select_commands+= select_commands;
-  user_stats->update_commands+= update_commands;
-  user_stats->other_commands+= other_commands;
-  user_stats->commit_trans+= commit_trans;
-  user_stats->rollback_trans+= rollback_trans;
-  user_stats->denied_connections+= denied_connections;
-  user_stats->lost_connections+= lost_connections;
-  user_stats->access_denied_errors+= access_denied_errors;
-  user_stats->empty_queries+= empty_queries;
-}
-#endif
 
 
 void init_global_user_stats(void)
@@ -635,15 +588,16 @@ static bool increment_count_by_name(const char *name, size_t name_length,
       return TRUE;                              // Out of memory
 
     init_user_stats(user_stats, name, name_length, role_name,
-                    0, 0,      // connections
+                    0, 0, 0,   // connections
                     0, 0, 0,   // time
                     0, 0, 0,   // bytes sent, received and written
-                    0, 0,      // Rows sent and read
+                    0, 0,      // rows sent and read
                     0, 0, 0,   // rows inserted, deleted and updated
                     0, 0, 0,   // select, update and other commands
                     0, 0,      // commit and rollback trans
                     thd->status_var.access_denied_errors,
                     0,         // lost connections
+                    0,         // max query timeouts
                     0,         // access denied errors
                     0);        // empty queries
 
@@ -654,6 +608,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
     }
   }
   user_stats->total_connections++;
+  if (thd->net.vio && thd->net.vio->type == VIO_TYPE_SSL)
+    user_stats->total_ssl_connections++;
   return FALSE;
 }
 
@@ -756,6 +712,7 @@ static void update_global_user_stats_with_user(THD *thd,
   /* The following can only contain 0 or 1 and then connection ends */
   user_stats->denied_connections+= thd->status_var.access_denied_errors;
   user_stats->lost_connections+=   thd->status_var.lost_connections;
+  user_stats->max_statement_time_exceeded+= thd->status_var.max_statement_time_exceeded;
 }
 
 

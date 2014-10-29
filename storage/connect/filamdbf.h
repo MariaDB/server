@@ -1,7 +1,7 @@
 /***************** FilAmDbf H Declares Source Code File (.H) ****************/
-/*  Name: filamdbf.h    Version 1.3                                         */
+/*  Name: filamdbf.h    Version 1.4                                         */
 /*                                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2005-2012         */
+/*  (C) Copyright to the author Olivier BERTRAND          2005-2014         */
 /*                                                                          */
 /*  This file contains the DBF file access method classes declares.         */
 /****************************************************************************/
@@ -19,7 +19,7 @@ typedef class DBMFAM  *PDBMFAM;
 /****************************************************************************/
 /*  Functions used externally.                                              */
 /****************************************************************************/
-PQRYRES DBFColumns(PGLOBAL g, const char *fn, BOOL info);
+PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info);
 
 /****************************************************************************/
 /*  This is the base class for dBASE file access methods.                   */
@@ -40,8 +40,8 @@ class DllExport DBFBASE {
   // Members
   int  Records;                     /*  records in the file                 */
   bool Accept;                      /*  true if bad lines are accepted      */
-  int  Nerr;                        /*  Number of bad records                */
-  int  Maxerr;                      /*  Maximum number of bad records        */
+  int  Nerr;                        /*  Number of bad records               */
+  int  Maxerr;                      /*  Maximum number of bad records       */
   int  ReadMode;                    /*  1: ALL 2: DEL 0: NOT DEL            */
   }; // end of class DBFBASE
 
@@ -67,11 +67,12 @@ class DllExport DBFFAM : public FIXFAM, public DBFBASE {
   virtual void ResetBuffer(PGLOBAL g);
   virtual int  ReadBuffer(PGLOBAL g);
   virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g);
+  virtual void CloseTableFile(PGLOBAL g, bool abort);
   virtual void Rewind(void);
 
  protected:
   virtual bool CopyHeader(PGLOBAL g);
+//virtual int  InitDelete(PGLOBAL g, int fpos, int spos);
 
   // Members
   }; // end of class DBFFAM

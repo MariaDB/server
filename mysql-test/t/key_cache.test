@@ -8,6 +8,7 @@ drop table if exists t1, t2, t3;
 SET @save_key_buffer_size=@@key_buffer_size;
 SET @save_key_cache_block_size=@@key_cache_block_size;
 SET @save_key_cache_segments=@@key_cache_segments;
+SET @save_key_cache_file_hash_size=@@key_cache_file_hash_size;
 
 SELECT @@key_buffer_size, @@small.key_buffer_size;
 
@@ -62,19 +63,19 @@ select @@keycache1.key_buffer_size;
 select @@keycache1.key_cache_block_size;
 select @@key_buffer_size;
 select @@key_cache_block_size;
+select @@key_cache_file_hash_size;
 
 set global keycache1.key_buffer_size=1024*1024;
+
+let org_key_blocks_unused=`select unused_blocks as unused from information_schema.key_caches where key_cache_name="default"`;
+--disable_query_log
+eval set @org_key_blocks_unused=$org_key_blocks_unused;
+--enable_query_log
 
 create table t1 (p int primary key, a char(10)) delay_key_write=1;
 create table t2 (p int primary key, i int, a char(10), key k1(i), key k2(a));
 
-show status like 'key_blocks_used';
-
-# Following results differs on 64 and 32 bit systems because of different
-# pointer sizes, which takes up different amount of space in key cache
-
---replace_result 1812 KEY_BLOCKS_UNUSED 1793 KEY_BLOCKS_UNUSED 1674 KEY_BLOCKS_UNUSED 1818 KEY_BLOCKS_UNUSED 1824 KEY_BLOCKS_UNUSED
-show status like 'key_blocks_unused';
+select @org_key_blocks_unused-unused_blocks as key_blocks_unused, used_blocks as key_blocks_used from information_schema.key_caches where key_cache_name="default";
 
 insert into t1 values (1, 'qqqq'), (11, 'yyyy');
 insert into t2 values (1, 1, 'qqqq'), (2, 1, 'pppp'),
@@ -85,9 +86,7 @@ select * from t2;
 update t1 set p=2 where p=1;
 update t2 set i=2 where i=1;
 
-show status like 'key_blocks_used';
---replace_result 1808 KEY_BLOCKS_UNUSED 1789 KEY_BLOCKS_UNUSED 1670 KEY_BLOCKS_UNUSED 1814 KEY_BLOCKS_UNUSED 1820 KEY_BLOCKS_UNUSED
-show status like 'key_blocks_unused';
+select @org_key_blocks_unused-unused_blocks as key_blocks_unused, used_blocks as key_blocks_used from information_schema.key_caches where key_cache_name="default";
 
 cache index t1 key (`primary`) in keycache1;
 
@@ -147,9 +146,7 @@ cache index t3 in keycache2;
 cache index t1,t2 in default;
 drop table t1,t2,t3;
 
-show status like 'key_blocks_used';
---replace_result 1812 KEY_BLOCKS_UNUSED 1793 KEY_BLOCKS_UNUSED 1674 KEY_BLOCKS_UNUSED 1818 KEY_BLOCKS_UNUSED 1824 KEY_BLOCKS_UNUSED
-show status like 'key_blocks_unused';
+select @org_key_blocks_unused-unused_blocks as key_blocks_unused, used_blocks as key_blocks_used from information_schema.key_caches where key_cache_name="default";
 
 create table t1 (a int primary key);
 cache index t1 in keycache2;
@@ -304,7 +301,7 @@ select * from t2;
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
---replace_result 1808 KEY_BLOCKS_UNUSED 1670 KEY_BLOCKS_UNUSED 1789 KEY_BLOCKS_UNUSED
+--replace_result 1804 KEY_BLOCKS_UNUSED 1801 KEY_BLOCKS_UNUSED 1663 KEY_BLOCKS_UNUSED 1782 KEY_BLOCKS_UNUSED
 show status like 'key_%';
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -336,7 +333,8 @@ select * from t2;
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
---replace_result 1808 KEY_BLOCKS_UNUSED 1670 KEY_BLOCKS_UNUSED 1788 KEY_BLOCKS_UNUSED
+
+--replace_result 1800 KEY_BLOCKS_UNUSED 1794 KEY_BLOCKS_UNUSED 1656 KEY_BLOCKS_UNUSED 1775 KEY_BLOCKS_UNUSED
 show status like 'key_%';
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -361,7 +359,7 @@ select * from t2;
 update t1 set p=3 where p=1;
 update t2 set i=2 where i=1;
 
---replace_result 1808 KEY_BLOCKS_UNUSED 1670 KEY_BLOCKS_UNUSED 1789 KEY_BLOCKS_UNUSED
+--replace_result 1804 KEY_BLOCKS_UNUSED 1801 KEY_BLOCKS_UNUSED 1663 KEY_BLOCKS_UNUSED 1782 KEY_BLOCKS_UNUSED
 show status like 'key_%';
 --replace_column 7 #
 select * from information_schema.key_caches where segment_number is null;
@@ -378,6 +376,7 @@ select * from information_schema.key_caches where segment_number is null;
 # Switch back to 2 segments
 
 set global key_buffer_size=32*1024;
+set global key_cache_file_hash_size=128;
 select @@key_buffer_size;
 set global key_cache_segments=2;
 select @@key_cache_segments;
@@ -536,5 +535,6 @@ set global keycache2.key_buffer_size=0;
 
 set global key_buffer_size=@save_key_buffer_size;
 set global key_cache_segments=@save_key_cache_segments;
+set global key_cache_file_hash_size=@save_key_cache_file_hash_size;
 
 # End of 5.2 tests

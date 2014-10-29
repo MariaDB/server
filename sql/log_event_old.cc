@@ -108,7 +108,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
           Error reporting borrowed from Query_log_event with many excessive
           simplifications (we don't honour --slave-skip-errors)
         */
-        rli->report(ERROR_LEVEL, actual_error,
+        rli->report(ERROR_LEVEL, actual_error, NULL,
                     "Error '%s' on opening tables",
                     (actual_error ? ev_thd->get_stmt_da()->message() :
                      "unexpected success or fatal error"));
@@ -133,8 +133,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
       {
         DBUG_ASSERT(ptr->m_tabledef_valid);
         TABLE *conv_table;
-        if (!ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                             ptr->table, &conv_table))
+        if (!ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           ev_thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(ev_thd);
@@ -234,7 +233,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
   break;
 
       default:
-  rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(),
+  rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                     "Error in %s event: row application failed. %s",
                     ev->get_type_str(),
                     ev_thd->is_error() ? ev_thd->get_stmt_da()->message() : "");
@@ -251,7 +250,7 @@ Old_rows_log_event::do_apply_event(Old_rows_log_event *ev, rpl_group_info *rgi)
 
   if (error)
   {                     /* error has occured during the transaction */
-    rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(),
+    rli->report(ERROR_LEVEL, ev_thd->get_stmt_da()->sql_errno(), NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
                 ev->get_type_str(), table->s->db.str,
@@ -302,50 +301,7 @@ last_uniq_key(TABLE *table, uint keyno)
 */
 static bool record_compare(TABLE *table)
 {
-  /*
-    Need to set the X bit and the filler bits in both records since
-    there are engines that do not set it correctly.
-
-    In addition, since MyISAM checks that one hasn't tampered with the
-    record, it is necessary to restore the old bytes into the record
-    after doing the comparison.
-
-    TODO[record format ndb]: Remove it once NDB returns correct
-    records. Check that the other engines also return correct records.
-   */
-
   bool result= FALSE;
-  uchar saved_x[2]= {0, 0}, saved_filler[2]= {0, 0};
-
-  if (table->s->null_bytes > 0)
-  {
-    for (int i = 0 ; i < 2 ; ++i)
-    { 
-      /* 
-        If we have an X bit then we need to take care of it.
-      */
-      if (!(table->s->db_options_in_use & HA_OPTION_PACK_RECORD))
-      {
-        saved_x[i]= table->record[i][0];
-        table->record[i][0]|= 1U;
-      }
-      
-      /*
-         If (last_null_bit_pos == 0 && null_bytes > 1), then:
-
-         X bit (if any) + N nullable fields + M Field_bit fields = 8 bits 
-
-         Ie, the entire byte is used.
-      */
-      if (table->s->last_null_bit_pos > 0)
-      {
-        saved_filler[i]= table->record[i][table->s->null_bytes - 1];
-        table->record[i][table->s->null_bytes - 1]|=
-          256U - (1U << table->s->last_null_bit_pos);
-      }
-    }
-  }
-
   if (table->s->blob_fields + table->s->varchar_fields == 0)
   {
     result= cmp_record(table,record[1]);
@@ -372,24 +328,6 @@ static bool record_compare(TABLE *table)
   }
 
 record_compare_exit:
-  /*
-    Restore the saved bytes.
-
-    TODO[record format ndb]: Remove this code once NDB returns the
-    correct record format.
-  */
-  if (table->s->null_bytes > 0)
-  {
-    for (int i = 0 ; i < 2 ; ++i)
-    {
-      if (!(table->s->db_options_in_use & HA_OPTION_PACK_RECORD))
-        table->record[i][0]= saved_x[i];
-
-      if (table->s->last_null_bit_pos > 0)
-        table->record[i][table->s->null_bytes - 1]= saved_filler[i];
-    }
-  }
-
   return result;
 }
 
@@ -780,21 +718,6 @@ static int find_and_fetch_row(TABLE *table, uchar *key)
     {
       int error;
 
-      /*
-        We need to set the null bytes to ensure that the filler bit
-        are all set when returning.  There are storage engines that
-        just set the necessary bits on the bytes and don't set the
-        filler bits correctly.
-
-        TODO[record format ndb]: Remove this code once NDB returns the
-        correct record format.
-      */
-      if (table->s->null_bytes > 0)
-      {
-        table->record[1][table->s->null_bytes - 1]|=
-          256U - (1U << table->s->last_null_bit_pos);
-      }
-
       while ((error= table->file->ha_index_next(table->record[1])))
       {
         /* We just skip records that has already been deleted */
@@ -889,34 +812,13 @@ int Write_rows_log_event_old::do_before_row_operations(TABLE *table)
   /* Tell the storage engine that we are using REPLACE semantics. */
   thd->lex->duplicates= DUP_REPLACE;
 
-  /*
-    Pretend we're executing a REPLACE command: this is needed for
-    InnoDB and NDB Cluster since they are not (properly) checking the
-    lex->duplicates flag.
-  */
   thd->lex->sql_command= SQLCOM_REPLACE;
   /* 
      Do not raise the error flag in case of hitting to an unique attribute
   */
   table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-  /* 
-     NDB specific: update from ndb master wrapped as Write_rows
-  */
-  /*
-    so that the event should be applied to replace slave's row
-  */
   table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
-  /* 
-     NDB specific: if update from ndb master wrapped as Write_rows
-     does not find the row it's assumed idempotent binlog applying
-     is taking place; don't raise the error.
-  */
   table->file->extra(HA_EXTRA_IGNORE_NO_KEY);
-  /*
-    TODO: the cluster team (Tomas?) says that it's better if the engine knows
-    how many rows are going to be inserted, then it can allocate needed memory
-    from the start.
-  */
   table->file->ha_start_bulk_insert(0);
   return error;
 }
@@ -1499,7 +1401,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
           simplifications (we don't honour --slave-skip-errors)
         */
         uint actual_error= thd->net.last_errno;
-        rli->report(ERROR_LEVEL, actual_error,
+        rli->report(ERROR_LEVEL, actual_error, NULL,
                     "Error '%s' in %s event: when locking tables",
                     (actual_error ? thd->net.last_error :
                      "unexpected success or fatal error"),
@@ -1508,7 +1410,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
       }
       else
       {
-        rli->report(ERROR_LEVEL, error,
+        rli->report(ERROR_LEVEL, error, NULL,
                     "Error in %s event: when locking tables",
                     get_type_str());
       }
@@ -1530,8 +1432,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
            ptr= static_cast<RPL_TABLE_LIST*>(ptr->next_global), i++)
       {
         TABLE *conv_table;
-        if (ptr->m_tabledef.compatible_with(thd, const_cast<Relay_log_info*>(rli),
-                                            ptr->table, &conv_table))
+        if (ptr->m_tabledef.compatible_with(thd, rgi, ptr->table, &conv_table))
         {
           thd->is_slave_error= 1;
           rgi->slave_close_thread_tables(thd);
@@ -1655,7 +1556,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
         break;
 
       default:
-	rli->report(ERROR_LEVEL, thd->net.last_errno,
+	rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                     "Error in %s event: row application failed. %s",
                     get_type_str(),
                     thd->net.last_error ? thd->net.last_error : "");
@@ -1693,7 +1594,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
 
   if (error)
   {                     /* error has occured during the transaction */
-    rli->report(ERROR_LEVEL, thd->net.last_errno,
+    rli->report(ERROR_LEVEL, thd->net.last_errno, NULL,
                 "Error in %s event: error during transaction execution "
                 "on table %s.%s. %s",
                 get_type_str(), table->s->db.str,
@@ -1776,7 +1677,7 @@ int Old_rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     DBUG_ASSERT(! thd->transaction_rollback_request);
     if ((error= (binlog_error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd))))
-      rli->report(ERROR_LEVEL, error,
+      rli->report(ERROR_LEVEL, error, NULL,
                   "Error in %s event: commit of row events failed, "
                   "table `%s`.`%s`",
                   get_type_str(), m_table->s->db.str,
@@ -2375,21 +2276,6 @@ int Old_rows_log_event::find_row(rpl_group_info *rgi)
 
     while (record_compare(table))
     {
-      /*
-        We need to set the null bytes to ensure that the filler bit
-        are all set when returning.  There are storage engines that
-        just set the necessary bits on the bytes and don't set the
-        filler bits correctly.
-
-        TODO[record format ndb]: Remove this code once NDB returns the
-        correct record format.
-      */
-      if (table->s->null_bytes > 0)
-      {
-        table->record[0][table->s->null_bytes - 1]|=
-          256U - (1U << table->s->last_null_bit_pos);
-      }
-
       while ((error= table->file->ha_index_next(table->record[0])))
       {
         /* We just skip records that has already been deleted */
@@ -2529,34 +2415,13 @@ Write_rows_log_event_old::do_before_row_operations(const Slave_reporting_capabil
   /* Tell the storage engine that we are using REPLACE semantics. */
   thd->lex->duplicates= DUP_REPLACE;
 
-  /*
-    Pretend we're executing a REPLACE command: this is needed for
-    InnoDB and NDB Cluster since they are not (properly) checking the
-    lex->duplicates flag.
-  */
   thd->lex->sql_command= SQLCOM_REPLACE;
   /* 
      Do not raise the error flag in case of hitting to an unique attribute
   */
   m_table->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
-  /* 
-     NDB specific: update from ndb master wrapped as Write_rows
-  */
-  /*
-    so that the event should be applied to replace slave's row
-  */
   m_table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
-  /* 
-     NDB specific: if update from ndb master wrapped as Write_rows
-     does not find the row it's assumed idempotent binlog applying
-     is taking place; don't raise the error.
-  */
   m_table->file->extra(HA_EXTRA_IGNORE_NO_KEY);
-  /*
-    TODO: the cluster team (Tomas?) says that it's better if the engine knows
-    how many rows are going to be inserted, then it can allocate needed memory
-    from the start.
-  */
   m_table->file->ha_start_bulk_insert(0);
   return error;
 }

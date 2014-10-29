@@ -267,7 +267,7 @@ void tc_add_table(THD *thd, TABLE *table)
     TABLE_SHARE *purge_share= 0;
     TABLE_SHARE *share;
     TABLE *entry;
-    ulonglong purge_time;
+    ulonglong UNINIT_VAR(purge_time);
     TDC_iterator tdc_it;
 
     tdc_it.init();

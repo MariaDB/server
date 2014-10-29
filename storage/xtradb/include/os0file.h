@@ -132,7 +132,7 @@ enum os_file_create_t {
 
 #define OS_FILE_READ_ONLY		333
 #define	OS_FILE_READ_WRITE		444
-#define	OS_FILE_READ_ALLOW_DELETE	555	/* for ibbackup */
+#define	OS_FILE_READ_ALLOW_DELETE	555	/* for mysqlbackup */
 
 /* Options for file_create */
 #define	OS_FILE_AIO			61
@@ -168,8 +168,8 @@ enum os_file_create_t {
 #define OS_FILE_LOG	256	/* This can be ORed to type */
 /* @} */
 
-#define OS_AIO_N_PENDING_IOS_PER_THREAD 256	/*!< Windows might be able to handle
-more */
+#define OS_AIO_N_PENDING_IOS_PER_THREAD 32	/*!< Win NT does not allow more
+						than 64 */
 
 /** Modes for aio operations @{ */
 #define OS_AIO_NORMAL	21	/*!< Normal asynchronous i/o not for ibuf
@@ -1382,6 +1382,16 @@ os_file_handle_error_no_exit(
 	ibool		on_error_silent);/*!< in: if TRUE then don't print
 					any message to the log. */
 
+
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name);	/*!< in: file name */
 
 #ifndef UNIV_NONINL
 #include "os0file.ic"

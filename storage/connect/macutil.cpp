@@ -103,7 +103,7 @@ int MACINFO::GetNadap(PGLOBAL g)
     } // endif MaxSize
 
   return N;
-  } // end of GetMaxSize
+  } // end of GetNadap
 
 /***********************************************************************/
 /*  GetMacInfo: Get info for all found adapters.                       */

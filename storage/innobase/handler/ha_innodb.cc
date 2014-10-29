@@ -426,7 +426,7 @@ static PSI_rwlock_info all_innodb_rwlocks[] = {
 	{&trx_purge_latch_key, "trx_purge_latch", 0},
 	{&index_tree_rw_lock_key, "index_tree_rw_lock", 0},
 	{&index_online_log_key, "index_online_log", 0},
-	{&dict_table_stats_latch_key, "dict_table_stats", 0},
+	{&dict_table_stats_key, "dict_table_stats", 0},
 	{&hash_table_rw_lock_key, "hash_table_locks", 0}
 };
 # endif /* UNIV_PFS_RWLOCK */
@@ -3640,6 +3640,14 @@ innobase_end(
 
 	if (innodb_inited) {
 
+		THD *thd= current_thd;
+		if (thd) { // may be UNINSTALL PLUGIN statement
+		 	trx_t* trx = thd_to_trx(thd);
+		 	if (trx) {
+		 		trx_free_for_mysql(trx);
+		 	}
+		}
+
 		srv_fast_shutdown = (ulint) innobase_fast_shutdown;
 
 		innodb_inited = 0;
@@ -3784,7 +3792,7 @@ innobase_commit_ordered_2(
 {
 	DBUG_ENTER("innobase_commit_ordered_2");
 
-	/* We need current binlog position for ibbackup to work.
+	/* We need current binlog position for mysqlbackup to work.
 	Note, the position is current because commit_ordered is guaranteed
 	to be called in same sequenece as writing to binlog. */
 
@@ -4300,6 +4308,7 @@ innobase_release_savepoint(
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
+	trx_start_if_not_started(trx);
 
 	/* TODO: use provided savepoint data area to store savepoint data */
 
@@ -4355,7 +4364,7 @@ innobase_savepoint(
 	error = trx_savepoint_for_mysql(trx, name, (ib_int64_t)0);
 
 	if (error == DB_SUCCESS && trx->fts_trx != NULL) {
-		fts_savepoint_take(trx, name);
+		fts_savepoint_take(trx, trx->fts_trx, name);
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(error, 0, NULL));
@@ -4390,7 +4399,7 @@ innobase_close_connection(
 
 		sql_print_warning(
 			"MySQL is closing a connection that has an active "
-			"InnoDB transaction.  "TRX_ID_FMT" row modifications "
+			"InnoDB transaction.  " TRX_ID_FMT " row modifications "
 			"will roll back.",
 			trx->undo_no);
 	}
@@ -4453,16 +4462,23 @@ innobase_kill_query(
 #endif /* WITH_WSREP */
 	trx = thd_to_trx(thd);
 
-        if (trx)
-        {
-          /* Cancel a pending lock request. */
-          lock_mutex_enter();
-          trx_mutex_enter(trx);
-          if (trx->lock.wait_lock)
-            lock_cancel_waiting_and_release(trx->lock.wait_lock);
-          trx_mutex_exit(trx);
-          lock_mutex_exit();
-        }
+	if (trx) {
+		THD *cur = current_thd;
+		THD *owner = trx->current_lock_mutex_owner;
+
+		/* Cancel a pending lock request. */
+		if (!owner || owner != cur) {
+			lock_mutex_enter();
+		}
+		trx_mutex_enter(trx);
+		if (trx->lock.wait_lock) {
+			lock_cancel_waiting_and_release(trx->lock.wait_lock);
+		}
+		trx_mutex_exit(trx);
+		if (!owner || owner != cur) {
+			lock_mutex_exit();
+		}
+	}
 
 	DBUG_VOID_RETURN;
 }
@@ -4509,14 +4525,11 @@ handler::Table_flags
 ha_innobase::table_flags() const
 /*============================*/
 {
-	THD *thd = ha_thd();
 	/* Need to use tx_isolation here since table flags is (also)
 	called before prebuilt is inited. */
-	ulong const tx_isolation = thd_tx_isolation(thd);
+	ulong const tx_isolation = thd_tx_isolation(ha_thd());
 
-	if (tx_isolation <= ISO_READ_COMMITTED &&
-	    !(tx_isolation == ISO_READ_COMMITTED &&
-	      thd_rpl_is_parallel(thd))) {
+	if (tx_isolation <= ISO_READ_COMMITTED) {
 		return(int_table_flags);
 	}
 
@@ -8059,7 +8072,7 @@ calc_row_difference(
 			if (doc_id < prebuilt->table->fts->cache->next_doc_id) {
 				fprintf(stderr,
 					"InnoDB: FTS Doc ID must be larger than"
-					" "IB_ID_FMT" for table",
+					" " IB_ID_FMT " for table",
 					innodb_table->fts->cache->next_doc_id
 					- 1);
 				ut_print_name(stderr, trx,
@@ -8071,9 +8084,9 @@ calc_row_difference(
 				    - prebuilt->table->fts->cache->next_doc_id)
 				   >= FTS_DOC_ID_MAX_STEP) {
 				fprintf(stderr,
-					"InnoDB: Doc ID "UINT64PF" is too"
+					"InnoDB: Doc ID " UINT64PF " is too"
 					" big. Its difference with largest"
-					" Doc ID used "UINT64PF" cannot"
+					" Doc ID used " UINT64PF " cannot"
 					" exceed or equal to %d\n",
 					doc_id,
 					prebuilt->table->fts->cache->next_doc_id - 1,
@@ -8814,6 +8827,29 @@ ha_innobase::innobase_get_index(
 		index = innobase_index_lookup(share, keynr);
 
 		if (index) {
+			if (!key || ut_strcmp(index->name, key->name) != 0) {
+				fprintf(stderr, "InnoDB: [Error] Index for key no %u"
+					" mysql name %s , InnoDB name %s for table %s\n",
+					keynr, key ? key->name : "NULL",
+					index->name,
+					prebuilt->table->name);
+
+				for(ulint i=0; i < table->s->keys; i++) {
+					index = innobase_index_lookup(share, i);
+					key = table->key_info + keynr;
+
+					if (index) {
+
+						fprintf(stderr, "InnoDB: [Note] Index for key no %u"
+							" mysql name %s , InnoDB name %s for table %s\n",
+							keynr, key ? key->name : "NULL",
+							index->name,
+							prebuilt->table->name);
+					}
+				}
+
+			}
+
 			ut_a(ut_strcmp(index->name, key->name) == 0);
 		} else {
 			/* Can't find index with keynr in the translation
@@ -12881,6 +12917,34 @@ ha_innobase::info_low(
 					break;
 				}
 
+	DBUG_EXECUTE_IF("ib_ha_innodb_stat_not_initialized",
+					index->table->stat_initialized = FALSE;);
+
+				if (!ib_table->stat_initialized ||
+					(index->table != ib_table ||
+						!index->table->stat_initialized)) {
+					fprintf(stderr,
+						"InnoDB: Warning: Index %s points to table %s"									        " and ib_table %s statistics is initialized %d "
+						" but index table %s initialized %d "
+					        " mysql table is %s. Have you mixed "
+						"up .frm files from different "
+					       	"installations? "
+						"See " REFMAN
+						"innodb-troubleshooting.html\n",
+						index->name,
+						index->table->name,
+						ib_table->name,
+						ib_table->stat_initialized,
+						index->table->name,
+						index->table->stat_initialized,
+						table->s->table_name.str
+						);
+
+					/* This is better than
+					assert on below function */
+					dict_stats_init(index->table);
+				}
+
 				rec_per_key = innodb_rec_per_key(
 					index, j, stats.records);
 
@@ -13562,9 +13626,13 @@ ha_innobase::get_foreign_key_list(
 
 	mutex_enter(&(dict_sys->mutex));
 
-	for (foreign = UT_LIST_GET_FIRST(prebuilt->table->foreign_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_NEXT(foreign_list, foreign)) {
+	for (dict_foreign_set::iterator it
+		= prebuilt->table->foreign_set.begin();
+	     it != prebuilt->table->foreign_set.end();
+	     ++it) {
+
+		foreign = *it;
+
 		pf_key_info = get_foreign_key_info(thd, foreign);
 		if (pf_key_info) {
 			f_key_list->push_back(pf_key_info);
@@ -13600,9 +13668,13 @@ ha_innobase::get_parent_foreign_key_list(
 
 	mutex_enter(&(dict_sys->mutex));
 
-	for (foreign = UT_LIST_GET_FIRST(prebuilt->table->referenced_list);
-	     foreign != NULL;
-	     foreign = UT_LIST_GET_NEXT(referenced_list, foreign)) {
+	for (dict_foreign_set::iterator it
+		= prebuilt->table->referenced_set.begin();
+	     it != prebuilt->table->referenced_set.end();
+	     ++it) {
+
+		foreign = *it;
+
 		pf_key_info = get_foreign_key_info(thd, foreign);
 		if (pf_key_info) {
 			f_key_list->push_back(pf_key_info);
@@ -13635,8 +13707,8 @@ ha_innobase::can_switch_engines(void)
 			"determining if there are foreign key constraints";
 	row_mysql_freeze_data_dictionary(prebuilt->trx);
 
-	can_switch = !UT_LIST_GET_FIRST(prebuilt->table->referenced_list)
-			&& !UT_LIST_GET_FIRST(prebuilt->table->foreign_list);
+	can_switch = prebuilt->table->referenced_set.empty()
+		&& prebuilt->table->foreign_set.empty();
 
 	row_mysql_unfreeze_data_dictionary(prebuilt->trx);
 	prebuilt->trx->op_info = "";
@@ -17819,6 +17891,13 @@ static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT, 100,
   SRV_MAX_IO_CAPACITY_LIMIT, 0);
 
+static MYSQL_SYSVAR_ULONG(idle_flush_pct,
+  srv_idle_flush_pct,
+  PLUGIN_VAR_RQCMDARG,
+  "Up to what percentage of dirty pages should be flushed when innodb "
+  "finds it has spare resources to do so.",
+  NULL, NULL, 100, 0, 100, 0);
+
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(purge_run_now, innodb_purge_run_now,
   PLUGIN_VAR_OPCMDARG,
@@ -18079,7 +18158,7 @@ static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
   " the zlib compression algorithm changes."
   " When turned OFF, InnoDB will assume that the zlib"
   " compression algorithm doesn't change.",
-  NULL, NULL, TRUE);
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_LONG(additional_mem_pool_size, innobase_additional_mem_pool_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
@@ -18670,6 +18749,11 @@ static MYSQL_SYSVAR_ULONG(saved_page_number_debug,
   NULL, innodb_save_page_no, 0, 0, UINT_MAX32, 0);
 #endif /* UNIV_DEBUG */
 
+static MYSQL_SYSVAR_UINT(simulate_comp_failures, srv_simulate_comp_failures,
+  PLUGIN_VAR_NOCMDARG,
+  "Simulate compression failures.",
+  NULL, NULL, 0, 0, 99, 0);
+
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,
   PLUGIN_VAR_OPCMDARG,
@@ -18843,6 +18927,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(read_only),
   MYSQL_SYSVAR(io_capacity),
   MYSQL_SYSVAR(io_capacity_max),
+  MYSQL_SYSVAR(idle_flush_pct),
   MYSQL_SYSVAR(monitor_enable),
   MYSQL_SYSVAR(monitor_disable),
   MYSQL_SYSVAR(monitor_reset),
@@ -18877,6 +18962,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */
+  MYSQL_SYSVAR(simulate_comp_failures),
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(use_trim),
   MYSQL_SYSVAR(compression_algorithm),
@@ -19211,7 +19297,7 @@ ib_senderrf(
 
 	va_start(args, code);
 
-	myf	l;
+	myf	l=0;
 
 	switch(level) {
 	case IB_LOG_LEVEL_INFO:

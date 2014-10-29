@@ -221,7 +221,7 @@ views contiguously, one identical in size and content as @param view (starting
 at returned pointer) and another view immediately following the trx_ids array.
 The second view will have space for an extra trx_id_t element.
 @return	read view struct */
-UNIV_INLINE
+UNIV_INTERN
 read_view_t*
 read_view_clone(
 /*============*/
@@ -256,7 +256,7 @@ read_view_clone(
 /*********************************************************************//**
 Insert the view in the proper order into the trx_sys->view_list. The
 read view list is ordered by read_view_t::low_limit_no in descending order. */
-static
+UNIV_INTERN
 void
 read_view_add(
 /*==========*/

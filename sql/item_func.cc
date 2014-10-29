@@ -593,7 +593,7 @@ my_decimal *Item_real_func::val_decimal(my_decimal *decimal_value)
 }
 
 
-void Item_func::fix_num_length_and_dec()
+void Item_udf_func::fix_num_length_and_dec()
 {
   uint fl_length= 0;
   decimals=0;
@@ -609,11 +609,6 @@ void Item_func::fix_num_length_and_dec()
     max_length= float_length(NOT_FIXED_DEC);
   }
 }
-
-
-void Item_func_numhybrid::fix_num_length_and_dec()
-{}
-
 
 
 /**
@@ -803,9 +798,9 @@ bool Item_func_connection_id::fix_fields(THD *thd, Item **ref)
   function of two arguments.
 */
 
-void Item_num_op::find_num_type(void)
+void Item_num_op::fix_length_and_dec(void)
 {
-  DBUG_ENTER("Item_num_op::find_num_type");
+  DBUG_ENTER("Item_num_op::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   DBUG_ASSERT(arg_count == 2);
   Item_result r0= args[0]->cast_to_int_type();
@@ -849,22 +844,26 @@ void Item_num_op::find_num_type(void)
   type depends only on the first argument)
 */
 
-void Item_func_num1::find_num_type()
+void Item_func_num1::fix_length_and_dec()
 {
-  DBUG_ENTER("Item_func_num1::find_num_type");
+  DBUG_ENTER("Item_func_num1::fix_length_and_dec");
   DBUG_PRINT("info", ("name %s", func_name()));
   switch (cached_result_type= args[0]->cast_to_int_type()) {
   case INT_RESULT:
+    max_length= args[0]->max_length;
     unsigned_flag= args[0]->unsigned_flag;
     break;
   case STRING_RESULT:
   case REAL_RESULT:
     cached_result_type= REAL_RESULT;
+    decimals= args[0]->decimals; // Preserve NOT_FIXED_DEC
     max_length= float_length(decimals);
     break;
   case TIME_RESULT:
     cached_result_type= DECIMAL_RESULT;
   case DECIMAL_RESULT:
+    decimals= args[0]->decimal_scale(); // Do not preserve NOT_FIXED_DEC
+    max_length= args[0]->max_length;
     break;
   case ROW_RESULT:
   case IMPOSSIBLE_RESULT:
@@ -876,20 +875,6 @@ void Item_func_num1::find_num_type()
                        cached_result_type == INT_RESULT ? "INT_RESULT" :
                        "--ILLEGAL!!!--")));
   DBUG_VOID_RETURN;
-}
-
-
-void Item_func_num1::fix_num_length_and_dec()
-{
-  decimals= args[0]->decimals;
-  max_length= args[0]->max_length;
-}
-
-
-void Item_func_numhybrid::fix_length_and_dec()
-{
-  fix_num_length_and_dec();
-  find_num_type();
 }
 
 
@@ -1537,10 +1522,13 @@ my_decimal *Item_func_plus::decimal_op(my_decimal *decimal_value)
 */
 void Item_func_additive_op::result_precision()
 {
-  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
-  int arg1_int= args[0]->decimal_precision() - args[0]->decimals;
-  int arg2_int= args[1]->decimal_precision() - args[1]->decimals;
+  decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
+  int arg1_int= args[0]->decimal_precision() - args[0]->decimal_scale();
+  int arg2_int= args[1]->decimal_precision() - args[1]->decimal_scale();
   int precision= MY_MAX(arg1_int, arg2_int) + 1 + decimals;
+
+  DBUG_ASSERT(arg1_int >= 0);
+  DBUG_ASSERT(arg2_int >= 0);
 
   /* Integer operations keep unsigned_flag if one of arguments is unsigned */
   if (result_type() == INT_RESULT)
@@ -1778,7 +1766,8 @@ void Item_func_mul::result_precision()
     unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
   else
     unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
-  decimals= MY_MIN(args[0]->decimals + args[1]->decimals, DECIMAL_MAX_SCALE);
+  decimals= MY_MIN(args[0]->decimal_scale() + args[1]->decimal_scale(),
+                DECIMAL_MAX_SCALE);
   uint est_prec = args[0]->decimal_precision() + args[1]->decimal_precision();
   uint precision= MY_MIN(est_prec, DECIMAL_MAX_PRECISION);
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
@@ -1832,8 +1821,20 @@ my_decimal *Item_func_div::decimal_op(my_decimal *decimal_value)
 
 void Item_func_div::result_precision()
 {
+  /*
+    We need to add args[1]->divisor_precision_increment(),
+    to properly handle the cases like this:
+      SELECT 5.05 / 0.014; -> 360.714286
+    i.e. when the divisor has a zero integer part
+    and non-zero digits appear only after the decimal point.
+    Precision in this example is calculated as
+      args[0]->decimal_precision()           +  // 3
+      args[1]->divisor_precision_increment() +  // 3
+      prec_increment                            // 4
+    which gives 10 decimals digits.
+  */
   uint precision=MY_MIN(args[0]->decimal_precision() + 
-                     args[1]->decimals + prec_increment,
+                     args[1]->divisor_precision_increment() + prec_increment,
                      DECIMAL_MAX_PRECISION);
 
   /* Integer operations keep unsigned_flag if one of arguments is unsigned */
@@ -1841,7 +1842,7 @@ void Item_func_div::result_precision()
     unsigned_flag= args[0]->unsigned_flag | args[1]->unsigned_flag;
   else
     unsigned_flag= args[0]->unsigned_flag & args[1]->unsigned_flag;
-  decimals= MY_MIN(args[0]->decimals + prec_increment, DECIMAL_MAX_SCALE);
+  decimals= MY_MIN(args[0]->decimal_scale() + prec_increment, DECIMAL_MAX_SCALE);
   max_length= my_decimal_precision_to_length_no_truncation(precision, decimals,
                                                            unsigned_flag);
 }
@@ -2047,7 +2048,7 @@ my_decimal *Item_func_mod::decimal_op(my_decimal *decimal_value)
 
 void Item_func_mod::result_precision()
 {
-  decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
+  decimals= MY_MAX(args[0]->decimal_scale(), args[1]->decimal_scale());
   max_length= MY_MAX(args[0]->max_length, args[1]->max_length);
 }
 
@@ -2103,18 +2104,12 @@ my_decimal *Item_func_neg::decimal_op(my_decimal *decimal_value)
 }
 
 
-void Item_func_neg::fix_num_length_and_dec()
-{
-  decimals= args[0]->decimals;
-  /* 1 add because sign can appear */
-  max_length= args[0]->max_length + 1;
-}
-
-
 void Item_func_neg::fix_length_and_dec()
 {
   DBUG_ENTER("Item_func_neg::fix_length_and_dec");
   Item_func_num1::fix_length_and_dec();
+  /* 1 add because sign can appear */
+  max_length= args[0]->max_length + 1;
 
   /*
     If this is in integer context keep the context as integer if possible
@@ -2421,8 +2416,12 @@ void Item_func_integer::fix_length_and_dec()
   decimals=0;
 }
 
-void Item_func_int_val::fix_num_length_and_dec()
+
+void Item_func_int_val::fix_length_and_dec()
 {
+  DBUG_ENTER("Item_func_int_val::fix_length_and_dec");
+  DBUG_PRINT("info", ("name %s", func_name()));
+
   ulonglong tmp_max_length= (ulonglong ) args[0]->max_length - 
     (args[0]->decimals ? args[0]->decimals + 1 : 0) + 2;
   max_length= tmp_max_length > (ulonglong) 4294967295U ?
@@ -2430,13 +2429,7 @@ void Item_func_int_val::fix_num_length_and_dec()
   uint tmp= float_length(decimals);
   set_if_smaller(max_length,tmp);
   decimals= 0;
-}
 
-
-void Item_func_int_val::find_num_type()
-{
-  DBUG_ENTER("Item_func_int_val::find_num_type");
-  DBUG_PRINT("info", ("name %s", func_name()));
   switch (cached_result_type= args[0]->cast_to_int_type())
   {
   case STRING_RESULT:
@@ -2973,7 +2966,7 @@ bool Item_func_min_max::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
   {
     ltime->time_type= MYSQL_TIMESTAMP_TIME;
     ltime->hour+= (ltime->month * 32 + ltime->day) * 24;
-    ltime->month= ltime->day= 0;
+    ltime->year= ltime->month= ltime->day= 0;
     if (adjust_time_range_with_warn(ltime,
                                     std::min<uint>(decimals, TIME_SECOND_PART_DIGITS)))
       return (null_value= true);
@@ -3907,12 +3900,6 @@ String *Item_func_udf_decimal::val_str(String *str)
 }
 
 
-void Item_func_udf_decimal::fix_length_and_dec()
-{
-  fix_num_length_and_dec();
-}
-
-
 /* Default max_length is max argument length */
 
 void Item_func_udf_str::fix_length_and_dec()
@@ -3987,9 +3974,13 @@ longlong Item_master_pos_wait::val_int()
   else
     connection_name= thd->variables.default_master_connection;
 
-  if (!(mi= master_info_index->get_master_info(&connection_name,
-                                               Sql_condition::WARN_LEVEL_WARN)))
+  mysql_mutex_lock(&LOCK_active_mi);
+  mi= master_info_index->get_master_info(&connection_name,
+                                         Sql_condition::WARN_LEVEL_WARN);
+  mysql_mutex_unlock(&LOCK_active_mi);
+  if (!mi)
     goto err;
+
   if ((event_count = mi->rli.wait_for_pos(thd, log_name, pos, timeout)) == -2)
   {
     null_value = 1;

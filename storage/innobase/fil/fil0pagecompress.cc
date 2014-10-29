@@ -99,7 +99,6 @@ fil_decompress_page_2(
 		return;
 	}
 
-	ulint	olen = 0;
 	byte*   ptr = buf + FIL_PAGE_DATA;
 	ulint   version = mach_read_from_1(buf + FIL_PAGE_VERSION);
 	int err = 0;
@@ -206,6 +205,7 @@ fil_decompress_page_2(
 
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM: {
+                ulint olen = 0;
 		fprintf(stderr, "InnoDB: [Note]: lzo \n");
 		err = lzo1x_decompress((const unsigned char *)ptr,
 			original_len,(unsigned char *)(page_buf), &olen, NULL);
@@ -260,6 +260,7 @@ fil_compress_page(
         byte*           out_buf,       /*!< out: compressed buffer */
         ulint           len,           /*!< in: length of input buffer.*/
         ulint           compression_level, /* in: compression level */
+	ulint           block_size,    /*!< in: block size */
 	ulint*          out_len,       /*!< out: actual length of compressed
 				       page */
 	byte*		lzo_mem)       /*!< in: temporal memory used by LZO */
@@ -453,12 +454,11 @@ fil_compress_page(
 
 	write_size+=header_len;
 
-#define SECT_SIZE 512
-
 	/* Actual write needs to be alligned on block size */
-	if (write_size % SECT_SIZE) {
-		write_size = (write_size + SECT_SIZE-1) & ~(SECT_SIZE-1);
-		ut_a((write_size % SECT_SIZE) == 0);
+	if (write_size % block_size) {
+		ut_a(block_size > 0);
+		write_size = (write_size + block_size-1) & ~(block_size-1);
+		ut_a((write_size % block_size) == 0);
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
@@ -493,7 +493,6 @@ fil_decompress_page(
         ulint actual_size = 0;
 	ulint compression_alg = 0;
 	byte *in_buf;
-	ulint olen=0;
 	ulint ptype;
 
 	ut_ad(buf);
@@ -607,6 +606,8 @@ fil_decompress_page(
 #endif /* HAVE_LZ4 */
 #ifdef HAVE_LZO
 	case PAGE_LZO_ALGORITHM:
+        {
+                ulint olen=0;
 		err = lzo1x_decompress((const unsigned char *)buf+FIL_PAGE_DATA+FIL_PAGE_COMPRESSED_SIZE,
 			actual_size,(unsigned char *)in_buf, &olen, NULL);
 
@@ -621,6 +622,7 @@ fil_decompress_page(
 			ut_error;
 		}
 		break;
+        }
 #endif /* HAVE_LZO */
 #ifdef HAVE_LZMA
 	case PAGE_LZMA_ALGORITHM: {

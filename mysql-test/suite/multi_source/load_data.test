@@ -58,6 +58,7 @@ drop table t2;
 --sync_with_master 0,'master2'
 
 --connection slave
+--sorted_result
 stop all slaves;
 
 --source reset_master_slave.inc

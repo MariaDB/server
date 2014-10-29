@@ -77,7 +77,6 @@ ulong savepoint_alloc_size= 0;
 static const LEX_STRING sys_table_aliases[]=
 {
   { C_STRING_WITH_LEN("INNOBASE") },  { C_STRING_WITH_LEN("INNODB") },
-  { C_STRING_WITH_LEN("NDB") },       { C_STRING_WITH_LEN("NDBCLUSTER") },
   { C_STRING_WITH_LEN("HEAP") },      { C_STRING_WITH_LEN("MEMORY") },
   { C_STRING_WITH_LEN("MERGE") },     { C_STRING_WITH_LEN("MRG_MYISAM") },
   { C_STRING_WITH_LEN("Maria") },      { C_STRING_WITH_LEN("Aria") },
@@ -610,7 +609,19 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
       savepoint_alloc_size+= tmp;
       hton2plugin[hton->slot]=plugin;
       if (hton->prepare)
+      {
         total_ha_2pc++;
+        if (tc_log && tc_log != get_tc_log_implementation())
+        {
+          total_ha_2pc--;
+          hton->prepare= 0;
+          push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                              ER_UNKNOWN_ERROR,
+                              "Cannot enable tc-log at run-time. "
+                              "XA features of %s are disabled",
+                              plugin->name.str);
+        }
+      }
       break;
     }
     /* fall through */
@@ -1144,6 +1155,25 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg)
   DBUG_VOID_RETURN;
 }
 
+
+static int prepare_or_error(handlerton *ht, THD *thd, bool all)
+{
+  int err= ht->prepare(ht, thd, all);
+  status_var_increment(thd->status_var.ha_prepare_count);
+  if (err)
+  {
+    /* avoid sending error, if we're going to replay the transaction */
+#ifdef WITH_WSREP
+    if (ht == wsrep_hton &&
+        err != WSREP_TRX_SIZE_EXCEEDED &&
+        thd->wsrep_conflict_state != MUST_REPLAY)
+#endif
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+  }
+  return err;
+}
+
+
 /**
   @retval
     0   ok
@@ -1161,32 +1191,14 @@ int ha_prepare(THD *thd)
   {
     for (; ha_info; ha_info= ha_info->next())
     {
-      int err;
       handlerton *ht= ha_info->ht();
-      status_var_increment(thd->status_var.ha_prepare_count);
       if (ht->prepare)
       {
-        if ((err= ht->prepare(ht, thd, all)))
+        if (prepare_or_error(ht, thd, all))
         {
-#ifdef WITH_WSREP
-          if (ht == wsrep_hton)
-          {
-            error= 1;
-            /* avoid sending error, if we need to replay */
-            if (thd->wsrep_conflict_state!= MUST_REPLAY)
-            {
-              my_error(ER_LOCK_DEADLOCK, MYF(0), err);
-            }
-          }
-          else
-#endif
-          {
-            /* not wsrep hton, bail to native mysql behavior */
-            my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-            ha_rollback_trans(thd, all);
-            error=1;
-            break;
-          }
+          ha_rollback_trans(thd, all);
+          error=1;
+          break;
         }
       }
       else
@@ -1417,7 +1429,6 @@ int ha_commit_trans(THD *thd, bool all)
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
-    int err;
     handlerton *ht= hi->ht();
     /*
       Do not call two-phase commit if this particular
@@ -1430,32 +1441,9 @@ int ha_commit_trans(THD *thd, bool all)
       Sic: we know that prepare() is not NULL since otherwise
       trans->no_2pc would have been set.
     */
-    err= ht->prepare(ht, thd, all);
-    status_var_increment(thd->status_var.ha_prepare_count);
-    if (err)
-    {
-#ifdef WITH_WSREP
-      if (ht == wsrep_hton)
-      {
-        switch (err) {
-        case WSREP_TRX_SIZE_EXCEEDED:
-          /* give user size exeeded error from wsrep_api.h */
-          my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
-          break;
-        case WSREP_TRX_CERT_FAIL:
-        case WSREP_TRX_ERROR:
-          /* avoid sending error, if we need to replay */
-          if (thd->wsrep_conflict_state!= MUST_REPLAY)
-          {
-            my_error(ER_LOCK_DEADLOCK, MYF(0), err);
-          }
-        }
-        goto err;
-      }
-#endif /* WITH_WSREP */
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+    if (prepare_or_error(ht, thd, all))
       goto err;
-    }
+
     need_prepare_ordered|= (ht->prepare_ordered != NULL);
     need_commit_ordered|= (ht->commit_ordered != NULL);
   }
@@ -3255,15 +3243,10 @@ void handler::get_auto_increment(ulonglong offset, ulonglong increment,
   if (error)
   {
     if (error == HA_ERR_END_OF_FILE || error == HA_ERR_KEY_NOT_FOUND)
-    {
-      /* No entry found, start with 1. */
-      nr= 1;
-    }
+      /* No entry found, that's fine */;
     else
-    {
-      DBUG_ASSERT(0);
-      nr= ULONGLONG_MAX;
-    }
+      print_error(error, MYF(0));
+    nr= 1;
   }
   else
     nr= ((ulonglong) table->next_number_field->
@@ -4434,10 +4417,10 @@ handler::ha_rename_partitions(const char *path)
 
 /**
   Tell the storage engine that it is allowed to "disable transaction" in the
-  handler. It is a hint that ACID is not required - it is used in NDB for
+  handler. It is a hint that ACID is not required - it was used in NDB for
   ALTER TABLE, for example, when data are copied to temporary table.
   A storage engine may treat this hint any way it likes. NDB for example
-  starts to commit every now and then automatically.
+  started to commit every now and then automatically.
   This hint can be safely ignored.
 */
 int ha_enable_transaction(THD *thd, bool on)
@@ -4760,11 +4743,13 @@ int ha_init_key_cache(const char *name, KEY_CACHE *key_cache, void *unused
     uint division_limit= (uint)key_cache->param_division_limit;
     uint age_threshold=  (uint)key_cache->param_age_threshold;
     uint partitions=     (uint)key_cache->param_partitions;
+    uint changed_blocks_hash_size=  (uint)key_cache->changed_blocks_hash_size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
     DBUG_RETURN(!init_key_cache(key_cache,
 				tmp_block_size,
 				tmp_buff_size,
 				division_limit, age_threshold,
+                                changed_blocks_hash_size,
                                 partitions));
   }
   DBUG_RETURN(0);
@@ -4785,10 +4770,12 @@ int ha_resize_key_cache(KEY_CACHE *key_cache)
     long tmp_block_size= (long) key_cache->param_block_size;
     uint division_limit= (uint)key_cache->param_division_limit;
     uint age_threshold=  (uint)key_cache->param_age_threshold;
+    uint changed_blocks_hash_size=  (uint)key_cache->changed_blocks_hash_size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
     DBUG_RETURN(!resize_key_cache(key_cache, tmp_block_size,
 				  tmp_buff_size,
-				  division_limit, age_threshold));
+				  division_limit, age_threshold,
+                                  changed_blocks_hash_size));
   }
   DBUG_RETURN(0);
 }
@@ -4828,10 +4815,12 @@ int ha_repartition_key_cache(KEY_CACHE *key_cache)
     uint division_limit= (uint)key_cache->param_division_limit;
     uint age_threshold=  (uint)key_cache->param_age_threshold;
     uint partitions=     (uint)key_cache->param_partitions;
+    uint changed_blocks_hash_size=  (uint)key_cache->changed_blocks_hash_size;
     mysql_mutex_unlock(&LOCK_global_system_variables);
     DBUG_RETURN(!repartition_key_cache(key_cache, tmp_block_size,
 				       tmp_buff_size,
 				       division_limit, age_threshold,
+                                       changed_blocks_hash_size,
                                        partitions));
   }
   DBUG_RETURN(0);
@@ -5248,145 +5237,6 @@ int ha_discover_table_names(THD *thd, LEX_STRING *db, MY_DIR *dirp,
 
   DBUG_RETURN(error);
 }
-
-
-#ifdef HAVE_NDB_BINLOG
-/*
-  TODO: change this into a dynamic struct
-  List<handlerton> does not work as
-  1. binlog_end is called when MEM_ROOT is gone
-  2. cannot work with thd MEM_ROOT as memory should be freed
-*/
-#define MAX_HTON_LIST_ST 63
-struct hton_list_st
-{
-  handlerton *hton[MAX_HTON_LIST_ST];
-  uint sz;
-};
-
-struct binlog_func_st
-{
-  enum_binlog_func fn;
-  void *arg;
-};
-
-/** @brief
-  Listing handlertons first to avoid recursive calls and deadlock
-*/
-static my_bool binlog_func_list(THD *thd, plugin_ref plugin, void *arg)
-{
-  hton_list_st *hton_list= (hton_list_st *)arg;
-  handlerton *hton= plugin_hton(plugin);
-  if (hton->state == SHOW_OPTION_YES && hton->binlog_func)
-  {
-    uint sz= hton_list->sz;
-    if (sz == MAX_HTON_LIST_ST-1)
-    {
-      /* list full */
-      return FALSE;
-    }
-    hton_list->hton[sz]= hton;
-    hton_list->sz= sz+1;
-  }
-  return FALSE;
-}
-
-static my_bool binlog_func_foreach(THD *thd, binlog_func_st *bfn)
-{
-  hton_list_st hton_list;
-  uint i, sz;
-
-  hton_list.sz= 0;
-  plugin_foreach(thd, binlog_func_list,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &hton_list);
-
-  for (i= 0, sz= hton_list.sz; i < sz ; i++)
-    hton_list.hton[i]->binlog_func(hton_list.hton[i], thd, bfn->fn, bfn->arg);
-  return FALSE;
-}
-
-int ha_reset_logs(THD *thd)
-{
-  binlog_func_st bfn= {BFN_RESET_LOGS, 0};
-  binlog_func_foreach(thd, &bfn);
-  return 0;
-}
-
-void ha_reset_slave(THD* thd)
-{
-  binlog_func_st bfn= {BFN_RESET_SLAVE, 0};
-  binlog_func_foreach(thd, &bfn);
-}
-
-void ha_binlog_wait(THD* thd)
-{
-  binlog_func_st bfn= {BFN_BINLOG_WAIT, 0};
-  binlog_func_foreach(thd, &bfn);
-}
-
-int ha_binlog_end(THD* thd)
-{
-  binlog_func_st bfn= {BFN_BINLOG_END, 0};
-  binlog_func_foreach(thd, &bfn);
-  return 0;
-}
-
-int ha_binlog_index_purge_file(THD *thd, const char *file)
-{
-  binlog_func_st bfn= {BFN_BINLOG_PURGE_FILE, (void *)file};
-  binlog_func_foreach(thd, &bfn);
-  return 0;
-}
-
-struct binlog_log_query_st
-{
-  enum_binlog_command binlog_command;
-  const char *query;
-  uint query_length;
-  const char *db;
-  const char *table_name;
-};
-
-static my_bool binlog_log_query_handlerton2(THD *thd,
-                                            handlerton *hton,
-                                            void *args)
-{
-  struct binlog_log_query_st *b= (struct binlog_log_query_st*)args;
-  if (hton->state == SHOW_OPTION_YES && hton->binlog_log_query)
-    hton->binlog_log_query(hton, thd,
-                           b->binlog_command,
-                           b->query,
-                           b->query_length,
-                           b->db,
-                           b->table_name);
-  return FALSE;
-}
-
-static my_bool binlog_log_query_handlerton(THD *thd,
-                                           plugin_ref plugin,
-                                           void *args)
-{
-  return binlog_log_query_handlerton2(thd, plugin_hton(plugin), args);
-}
-
-void ha_binlog_log_query(THD *thd, handlerton *hton,
-                         enum_binlog_command binlog_command,
-                         const char *query, uint query_length,
-                         const char *db, const char *table_name)
-{
-  struct binlog_log_query_st b;
-  b.binlog_command= binlog_command;
-  b.query= query;
-  b.query_length= query_length;
-  b.db= db;
-  b.table_name= table_name;
-  if (hton == 0)
-    plugin_foreach(thd, binlog_log_query_handlerton,
-                   MYSQL_STORAGE_ENGINE_PLUGIN, &b);
-  else
-    binlog_log_query_handlerton2(thd, hton, &b);
-}
-#endif
 
 
 /**

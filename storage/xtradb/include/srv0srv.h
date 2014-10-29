@@ -1,9 +1,9 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All rights reserved.
+Copyright (c) 1995, 2013, Oracle and/or its affiliates.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, SkySQL Ab.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -107,8 +107,18 @@ struct srv_stats_t {
 	ulint_ctr_64_t          page_compression_saved;
 	/** Number of 512Byte TRIM by page compression */
 	ulint_ctr_64_t          page_compression_trim_sect512;
+	/** Number of 1K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect1024;
+	/** Number of 2K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect2048;
 	/** Number of 4K TRIM  by page compression */
 	ulint_ctr_64_t          page_compression_trim_sect4096;
+	/** Number of 8K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect8192;
+	/** Number of 16K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect16384;
+	/** Number of 32K TRIM by page compression */
+	ulint_ctr_64_t          page_compression_trim_sect32768;
 	/* Number of index pages written */
 	ulint_ctr_64_t          index_pages_written;
 	/* Number of non index pages written */
@@ -190,9 +200,12 @@ extern char		srv_disable_sort_file_cache;
 thread */
 extern os_event_t	srv_checkpoint_completed_event;
 
-/* This event is set on the online redo log following thread exit to signal
-that the (slow) shutdown may proceed */
-extern os_event_t	srv_redo_log_thread_finished_event;
+/* This event is set on the online redo log following thread after a successful
+log tracking iteration */
+extern os_event_t	srv_redo_log_tracked_event;
+
+/** srv_redo_log_follow_thread spawn flag */
+extern bool srv_redo_log_thread_started;
 
 /* If the last data file is auto-extended, we add this many pages to it
 at a time */
@@ -417,6 +430,8 @@ extern uint	srv_defragment_fill_factor_n_recs;
 extern double	srv_defragment_fill_factor;
 extern uint	srv_defragment_frequency;
 extern ulonglong	srv_defragment_interval;
+
+extern ulint	srv_idle_flush_pct;
 
 /* Number of IO operations per second the server can do */
 extern ulong    srv_io_capacity;
@@ -649,6 +664,8 @@ extern srv_stats_t	srv_stats;
 When FALSE, row locks are not taken at all. */
 extern my_bool srv_fake_changes_locks;
 
+/** Simulate compression failures. */
+extern uint srv_simulate_comp_failures;
 
 # ifdef UNIV_PFS_THREAD
 /* Keys to register InnoDB threads with performance schema */
@@ -1146,7 +1163,17 @@ struct export_var_t{
 						by page compression */
 	ib_int64_t innodb_page_compression_trim_sect512;/*!< Number of 512b TRIM
 						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect1024;/*!< Number of 1K TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect2048;/*!< Number of 2K TRIM
+						by page compression */
 	ib_int64_t innodb_page_compression_trim_sect4096;/*!< Number of 4K byte TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect8192;/*!< Number of 8K TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect16384;/*!< Number of 16K TRIM
+						by page compression */
+	ib_int64_t innodb_page_compression_trim_sect32768;/*!< Number of 32K TRIM
 						by page compression */
 	ib_int64_t innodb_index_pages_written;  /*!< Number of index pages
 						written */

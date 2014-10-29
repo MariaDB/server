@@ -96,10 +96,6 @@
 # rpl.rpl_variables_stm tests the small subset of variables that
 # actually can be replicated safely in statement mode.
 #
-# rpl_ndb.rpl_ndb_binlog_format_errors tests all errors and warnings
-# related to logging format (not just 'Unsafe statement written to the
-# binary log using statement format since BINLOG_FORMAT = STATEMENT').
-
 --source include/have_udf.inc
 --source include/have_log_bin.inc
 --source include/have_binlog_format_statement.inc

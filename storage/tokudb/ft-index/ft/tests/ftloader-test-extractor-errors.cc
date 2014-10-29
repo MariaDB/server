@@ -29,7 +29,7 @@ COPYING CONDITIONS NOTICE:
 
 COPYRIGHT NOTICE:
 
-  TokuDB, Tokutek Fractal Tree Indexing Library.
+  TokuFT, Tokutek Fractal Tree Indexing Library.
   Copyright (C) 2007-2013 Tokutek, Inc.
 
 DISCLAIMER:
@@ -95,8 +95,8 @@ PATENT RIGHTS GRANT:
 #define DONT_DEPRECATE_MALLOC
 #define DONT_DEPRECATE_WRITES
 #include "test.h"
-#include "ftloader.h"
-#include "ftloader-internal.h"
+#include "loader/loader.h"
+#include "loader/loader-internal.h"
 #include "ftloader-error-injector.h"
 #include "memory.h"
 #include <portability/toku_path.h>
@@ -180,7 +180,7 @@ static void test_extractor(int nrows, int nrowsets, bool expect_fail, const char
     sprintf(temp, "%s/%s", testdir, "tempXXXXXX");
 
     FTLOADER loader;
-    r = toku_ft_loader_open(&loader, NULL, generate, NULL, N, fts, dbs, fnames, compares, "tempXXXXXX", ZERO_LSN, nullptr, true, 0, false);
+    r = toku_ft_loader_open(&loader, NULL, generate, NULL, N, fts, dbs, fnames, compares, "tempXXXXXX", ZERO_LSN, nullptr, true, 0, false, true);
     assert(r == 0);
 
     struct rowset *rowset[nrowsets];
@@ -201,7 +201,7 @@ static void test_extractor(int nrows, int nrowsets, bool expect_fail, const char
 
     // feed rowsets to the extractor
     for (int i = 0; i < nrowsets; i++) {
-        r = queue_enq(loader->primary_rowset_queue, rowset[i], 1, NULL);
+        r = toku_queue_enq(loader->primary_rowset_queue, rowset[i], 1, NULL);
         assert(r == 0);
     }
 

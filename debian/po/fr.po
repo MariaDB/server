@@ -202,24 +202,6 @@ msgstr ""
 "Le mot de passe et sa confirmation ne sont pas identiques. Veuillez "
 "recommencer."
 
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid "NDB Cluster seems to be in use"
-msgstr "Abandon de la gestion de NDB"
-
-#. Type: error
-#. Description
-#: ../mariadb-server-10.1.templates:10001
-msgid ""
-"MySQL-5.1 no longer provides NDB Cluster support. Please migrate to the new "
-"mysql-cluster package and remove all lines starting with \"ndb\" from all "
-"config files below /etc/mysql/."
-msgstr ""
-"La version 5.1 de MySQL ne gère plus les grappes NDB. Vous devriez utiliser "
-"le paquet mysql-cluster et supprimer toutes les lignes commençant par "
-"« ndb » des fichiers de configuration situés dans /etc/mysql."
-
 #~ msgid ""
 #~ "To use MySQL, the following entries for users and groups should be added "
 #~ "to the system:"

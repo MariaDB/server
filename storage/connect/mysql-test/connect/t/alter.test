@@ -105,8 +105,12 @@ SELECT * FROM t1;
 --echo # Changing to another engine is Ok
 --echo # However, the data file is not deleted.
 --echo #
-ALTER TABLE t1 ENGINE=MARIA;
+ALTER TABLE t1 ENGINE=ARIA;
 SHOW CREATE TABLE t1;
+set @old_sql_mode=@@sql_mode;
+set sql_mode=ignore_bad_table_options;
+SHOW CREATE TABLE t1;
+set sql_mode=@old_sql_mode;
 SELECT * from t1;
 SELECT * from t2;
 

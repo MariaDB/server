@@ -84,7 +84,7 @@ class EXPLAIN_BKA_TYPE;
   For the third algorithm the accumulation of records allows to optimize
   fetching rows of the second operand from disk for some engines (MyISAM, 
   InnoDB), or to minimize the number of round-trips between the Server and
-  the engine nodes (NDB Cluster).        
+  the engine nodes.        
 */ 
 
 class JOIN_CACHE :public Sql_alloc

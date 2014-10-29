@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -135,6 +135,9 @@ struct sys_var_with_base
 
 #ifdef MYSQL_SERVER
 
+extern const LEX_STRING null_lex_str;
+extern const LEX_STRING empty_lex_str;
+
 enum enum_sp_suid_behaviour
 {
   SP_IS_DEFAULT_SUID= 0,
@@ -242,8 +245,7 @@ struct LEX_MASTER_INFO
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
       repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;
-    gtid_pos_str.length= 0;
-    gtid_pos_str.str= NULL;
+    gtid_pos_str= null_lex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
   }
 };
@@ -539,7 +541,7 @@ class Explain_query;
 void delete_explain_query(LEX *lex);
 void create_explain_query(LEX *lex, MEM_ROOT *mem_root);
 void create_explain_query_if_not_exists(LEX *lex, MEM_ROOT *mem_root);
-bool print_explain_query(LEX *lex, THD *thd, String *str);
+bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str);
 
 class st_select_lex_unit: public st_select_lex_node {
 protected:
@@ -575,11 +577,28 @@ public:
     any SELECT of this unit execution
   */
   List<Item> types;
-  /*
-    Pointer to 'last' select or pointer to unit where stored
-    global parameters for union
+  /**
+    Pointer to 'last' select, or pointer to select where we stored
+    global parameters for union.
+
+    If this is a union of multiple selects, the parser puts the global
+    parameters in fake_select_lex. If the union doesn't use a
+    temporary table, st_select_lex_unit::prepare() nulls out
+    fake_select_lex, but saves a copy in saved_fake_select_lex in
+    order to preserve the global parameters.
+
+    If it is not a union, first_select() is the last select.
+
+    @return select containing the global parameters
   */
-  st_select_lex *global_parameters;
+  inline st_select_lex *global_parameters()
+  {
+    if (fake_select_lex != NULL)
+      return fake_select_lex;
+    else if (saved_fake_select_lex != NULL)
+      return saved_fake_select_lex;
+    return first_select();
+  };
   //node on wich we should return current_select pointer after parsing subquery
   st_select_lex *return_to;
   /* LIMIT clause runtime counters */
@@ -598,6 +617,11 @@ public:
     ORDER BY and LIMIT
   */
   st_select_lex *fake_select_lex;
+  /**
+    SELECT_LEX that stores LIMIT and OFFSET for UNION ALL when no
+    fake_select_lex is used.
+  */
+  st_select_lex *saved_fake_select_lex;
 
   st_select_lex *union_distinct; /* pointer to the last UNION DISTINCT */
   bool describe; /* union exec() called for EXPLAIN */
@@ -643,6 +667,7 @@ public:
   void set_limit(st_select_lex *values);
   void set_thd(THD *thd_arg) { thd= thd_arg; }
   inline bool is_union (); 
+  bool union_needs_tmp_table();
 
   void set_unique_exclude();
 
@@ -651,6 +676,7 @@ public:
 
   List<Item> *get_unit_column_types();
 
+  select_union *get_union_result() { return union_result; }
   int save_union_explain(Explain_query *output);
   int save_union_explain_part2(Explain_query *output);
 };
@@ -902,9 +928,26 @@ public:
   */
   void cut_subtree() { slave= 0; }
   bool test_limit();
+  /**
+    Get offset for LIMIT.
+
+    Evaluate offset item if necessary.
+
+    @return Number of rows to skip.
+  */
+  ha_rows get_offset();
+  /**
+   Get limit.
+
+   Evaluate limit item if necessary.
+
+   @return Limit of rows in result.
+  */
+  ha_rows get_limit();
 
   friend void lex_start(THD *thd);
-  st_select_lex() : group_list_ptrs(NULL), n_sum_items(0), n_child_sum_items(0)
+  st_select_lex() : group_list_ptrs(NULL), braces(0),
+  n_sum_items(0), n_child_sum_items(0)
   {}
   void make_empty_select()
   {
@@ -1021,9 +1064,6 @@ struct st_sp_chistics
   enum enum_sp_data_access daccess;
 };
 
-extern const LEX_STRING null_lex_str;
-extern const LEX_STRING empty_lex_str;
-
 struct st_trg_chistics
 {
   enum trg_action_time_type action_time;
@@ -1034,9 +1074,6 @@ extern sys_var *trg_new_row_fake_var;
 
 enum xa_option_words {XA_NONE, XA_JOIN, XA_RESUME, XA_ONE_PHASE,
                       XA_SUSPEND, XA_FOR_MIGRATE};
-
-extern const LEX_STRING null_lex_str;
-extern const LEX_STRING empty_lex_str;
 
 class Sroutine_hash_entry;
 
@@ -2891,20 +2928,8 @@ public:
 };
 
 
-struct st_lex_local: public LEX
+struct st_lex_local: public LEX, public Sql_alloc
 {
-  static void *operator new(size_t size) throw()
-  {
-    return sql_alloc(size);
-  }
-  static void *operator new(size_t size, MEM_ROOT *mem_root) throw()
-  {
-    return (void*) alloc_root(mem_root, (uint) size);
-  }
-  static void operator delete(void *ptr,size_t size)
-  { TRASH(ptr, size); }
-  static void operator delete(void *ptr, MEM_ROOT *mem_root)
-  { /* Never called */ }
 };
 
 extern void lex_init(void);
@@ -2913,7 +2938,7 @@ extern void lex_start(THD *thd);
 extern void lex_end(LEX *lex);
 void end_lex_with_single_table(THD *thd, TABLE *table, LEX *old_lex);
 int init_lex_with_single_table(THD *thd, TABLE *table, LEX *lex);
-extern int MYSQLlex(void *arg, THD *thd);
+extern int MYSQLlex(union YYSTYPE *yylval, THD *thd);
 
 extern void trim_whitespace(CHARSET_INFO *cs, LEX_STRING *str);
 

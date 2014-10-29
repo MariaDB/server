@@ -127,7 +127,7 @@ enum os_file_create_t {
 
 #define OS_FILE_READ_ONLY		333
 #define	OS_FILE_READ_WRITE		444
-#define	OS_FILE_READ_ALLOW_DELETE	555	/* for ibbackup */
+#define	OS_FILE_READ_ALLOW_DELETE	555	/* for mysqlbackup */
 
 /* Options for file_create */
 #define	OS_FILE_AIO			61
@@ -1332,6 +1332,16 @@ os_file_handle_error_no_exit(
 					any message to the log. */
 	const char*	file,		/*!< in: file name */
 	const ulint	line);		/*!< in: line */
+
+/***********************************************************************//**
+Try to get number of bytes per sector from file system.
+@return	file block size */
+UNIV_INTERN
+ulint
+os_file_get_block_size(
+/*===================*/
+	os_file_t	file,	/*!< in: handle to a file */
+	const char*	name);	/*!< in: file name */
 
 #ifndef UNIV_NONINL
 #include "os0file.ic"

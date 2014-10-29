@@ -149,7 +149,8 @@ typedef struct st_keycache_wqueue
   struct st_my_thread_var *last_thread;  /* circular list of waiting threads */
 } KEYCACHE_WQUEUE;
 
-#define CHANGED_BLOCKS_HASH 128             /* must be power of 2 */
+/* Default size of hash for changed files */
+#define MIN_CHANGED_BLOCKS_HASH_SIZE 128
 
 /* Control block for a simple (non-partitioned) key cache */
 
@@ -165,6 +166,7 @@ typedef struct st_simple_key_cache_cb
   ulong age_threshold;           /* age threshold for hot blocks             */
   ulonglong keycache_time;       /* total number of block link operations    */
   uint hash_entries;             /* max number of entries in the hash table  */
+  uint changed_blocks_hash_size;	 /* Number of hash buckets for file blocks   */
   int hash_links;                /* max number of hash links                 */
   int hash_links_used;           /* number of hash links currently used      */
   int disk_blocks;               /* max number of blocks in the cache        */
@@ -191,8 +193,8 @@ typedef struct st_simple_key_cache_cb
   KEYCACHE_WQUEUE waiting_for_resize_cnt;
   KEYCACHE_WQUEUE waiting_for_hash_link; /* waiting for a free hash link     */
   KEYCACHE_WQUEUE waiting_for_block;    /* requests waiting for a free block */
-  BLOCK_LINK *changed_blocks[CHANGED_BLOCKS_HASH]; /* hash for dirty file bl.*/
-  BLOCK_LINK *file_blocks[CHANGED_BLOCKS_HASH];    /* hash for other file bl.*/
+  BLOCK_LINK **changed_blocks; 		/* hash for dirty file bl.*/
+  BLOCK_LINK **file_blocks;  		/* hash for other file bl.*/
 
   /* Statistics variables. These are reset in reset_key_cache_counters(). */
   ulong global_blocks_changed;      /* number of currently dirty blocks      */
@@ -331,7 +333,7 @@ static void test_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
 #define KEYCACHE_HASH(f, pos)                                                 \
   ((KEYCACHE_BASE_EXPR(f, pos) / keycache->hash_factor) &                     \
       (keycache->hash_entries-1))
-#define FILE_HASH(f)                 ((uint) (f) & (CHANGED_BLOCKS_HASH-1))
+#define FILE_HASH(f, cache)  ((uint) (f) & (cache->changed_blocks_hash_size-1))
 
 #define DEFAULT_KEYCACHE_DEBUG_LOG  "keycache_debug.log"
 
@@ -468,9 +470,10 @@ static inline uint next_power(uint value)
 */
 
 static
-int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_size,
+int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
+                          uint key_cache_block_size,
 		          size_t use_mem, uint division_limit,
-		          uint age_threshold)
+		          uint age_threshold, uint changed_blocks_hash_size)
 {
   ulong blocks, hash_links;
   size_t length;
@@ -515,6 +518,11 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_si
 
   blocks= (ulong) (use_mem / (sizeof(BLOCK_LINK) + 2 * sizeof(HASH_LINK) +
                               sizeof(HASH_LINK*) * 5/4 + key_cache_block_size));
+
+  /* Changed blocks hash needs to be a power of 2 */
+  changed_blocks_hash_size= my_round_up_to_next_power(MY_MAX(changed_blocks_hash_size,
+                                                             MIN_CHANGED_BLOCKS_HASH_SIZE));
+
   /* It doesn't make sense to have too few blocks (less than 8) */
   if (blocks >= 8)
   {
@@ -531,8 +539,9 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_si
       while ((length= (ALIGN_SIZE(blocks * sizeof(BLOCK_LINK)) +
 		       ALIGN_SIZE(hash_links * sizeof(HASH_LINK)) +
 		       ALIGN_SIZE(sizeof(HASH_LINK*) *
-                                  keycache->hash_entries))) +
-	     ((size_t) blocks * keycache->key_cache_block_size) > use_mem)
+                                  keycache->hash_entries) +
+                       sizeof(BLOCK_LINK*)* (changed_blocks_hash_size*2))) +
+             ((size_t) blocks * keycache->key_cache_block_size) > use_mem && blocks > 8)
         blocks--;
       /* Allocate memory for cache page buffers */
       if ((keycache->block_mem=
@@ -543,8 +552,17 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_si
 	  Allocate memory for blocks, hash_links and hash entries;
 	  For each block 2 hash links are allocated
         */
-        if ((keycache->block_root= (BLOCK_LINK*) my_malloc(length,
-                                                           MYF(0))))
+        if (my_multi_malloc(MYF(MY_ZEROFILL),
+                            &keycache->block_root, blocks * sizeof(BLOCK_LINK),
+                            &keycache->hash_root,
+                            sizeof(HASH_LINK*) * keycache->hash_entries,
+                            &keycache->hash_link_root,
+                            hash_links * sizeof(HASH_LINK),
+                            &keycache->changed_blocks,
+                            sizeof(BLOCK_LINK*) * changed_blocks_hash_size,
+                            &keycache->file_blocks,
+                            sizeof(BLOCK_LINK*) * changed_blocks_hash_size,
+                            NullS))
           break;
         my_large_free(keycache->block_mem);
         keycache->block_mem= 0;
@@ -561,17 +579,6 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_si
     keycache->blocks_unused= blocks;
     keycache->disk_blocks= (int) blocks;
     keycache->hash_links= hash_links;
-    keycache->hash_root= (HASH_LINK**) ((char*) keycache->block_root +
-				        ALIGN_SIZE(blocks*sizeof(BLOCK_LINK)));
-    keycache->hash_link_root= (HASH_LINK*) ((char*) keycache->hash_root +
-				            ALIGN_SIZE((sizeof(HASH_LINK*) *
-							keycache->hash_entries)));
-    bzero((uchar*) keycache->block_root,
-	  keycache->disk_blocks * sizeof(BLOCK_LINK));
-    bzero((uchar*) keycache->hash_root,
-          keycache->hash_entries * sizeof(HASH_LINK*));
-    bzero((uchar*) keycache->hash_link_root,
-	  keycache->hash_links * sizeof(HASH_LINK));
     keycache->hash_links_used= 0;
     keycache->free_hash_list= NULL;
     keycache->blocks_used= keycache->blocks_changed= 0;
@@ -591,7 +598,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_si
     keycache->age_threshold= (age_threshold ?
 			      blocks * age_threshold / 100 :
 			      blocks);
-
+    keycache->changed_blocks_hash_size= changed_blocks_hash_size;
     keycache->can_be_used= 1;
 
     keycache->waiting_for_hash_link.last_thread= NULL;
@@ -602,10 +609,6 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_si
 		keycache->disk_blocks,  (long) keycache->block_root,
 		keycache->hash_entries, (long) keycache->hash_root,
 		keycache->hash_links,   (long) keycache->hash_link_root));
-    bzero((uchar*) keycache->changed_blocks,
-	  sizeof(keycache->changed_blocks[0]) * CHANGED_BLOCKS_HASH);
-    bzero((uchar*) keycache->file_blocks,
-	  sizeof(keycache->file_blocks[0]) * CHANGED_BLOCKS_HASH);
   }
   else
   {
@@ -832,9 +835,10 @@ void finish_resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
 */
 
 static
-int resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_size,
+int resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
+                            uint key_cache_block_size,
 		            size_t use_mem, uint division_limit,
-		            uint age_threshold)
+		            uint age_threshold, uint changed_blocks_hash_size)
 {
   int blocks= 0;
   DBUG_ENTER("resize_simple_key_cache");
@@ -852,7 +856,8 @@ int resize_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, uint key_cache_block_
 
   /* The following will work even if use_mem is 0 */ 
   blocks= init_simple_key_cache(keycache, key_cache_block_size, use_mem,
-			        division_limit, age_threshold);
+			        division_limit, age_threshold,
+                                changed_blocks_hash_size);
 
 finish:
   finish_resize_simple_key_cache(keycache, 0);
@@ -1248,7 +1253,7 @@ static void link_to_file_list(SIMPLE_KEY_CACHE_CB *keycache,
   DBUG_ASSERT(block->hash_link->file == file);
   if (unlink_block)
     unlink_changed(block);
-  link_changed(block, &keycache->file_blocks[FILE_HASH(file)]);
+  link_changed(block, &keycache->file_blocks[FILE_HASH(file, keycache)]);
   if (block->status & BLOCK_CHANGED)
   {
     block->status&= ~BLOCK_CHANGED;
@@ -1289,7 +1294,7 @@ static void link_to_changed_list(SIMPLE_KEY_CACHE_CB *keycache,
 
   unlink_changed(block);
   link_changed(block,
-               &keycache->changed_blocks[FILE_HASH(block->hash_link->file)]);
+               &keycache->changed_blocks[FILE_HASH(block->hash_link->file, keycache)]);
   block->status|=BLOCK_CHANGED;
   keycache->blocks_changed++;
   keycache->global_blocks_changed++;
@@ -3901,7 +3906,7 @@ static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
          to flush all dirty pages with minimum seek moves
       */
       count= 0;
-      for (block= keycache->changed_blocks[FILE_HASH(file)] ;
+      for (block= keycache->changed_blocks[FILE_HASH(file, keycache)] ;
            block ;
            block= block->next_changed)
       {
@@ -3934,7 +3939,7 @@ restart:
     last_in_flush= NULL;
     last_for_update= NULL;
     end= (pos= cache)+count;
-    for (block= keycache->changed_blocks[FILE_HASH(file)] ;
+    for (block= keycache->changed_blocks[FILE_HASH(file, keycache)] ;
          block ;
          block= next)
     {
@@ -4156,7 +4161,7 @@ restart:
       do
       {
         found= 0;
-        for (block= keycache->file_blocks[FILE_HASH(file)] ;
+        for (block= keycache->file_blocks[FILE_HASH(file, keycache)] ;
              block ;
              block= next)
         {
@@ -4397,6 +4402,7 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
   uint          total_found;
   uint          found;
   uint          idx;
+  uint          changed_blocks_hash_size= keycache->changed_blocks_hash_size;
   DBUG_ENTER("flush_all_key_blocks");
 
   do
@@ -4412,7 +4418,7 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
     {
       found= 0;
       /* Step over the whole changed_blocks hash array. */
-      for (idx= 0; idx < CHANGED_BLOCKS_HASH; idx++)
+      for (idx= 0; idx < changed_blocks_hash_size; idx++)
       {
         /*
           If an array element is non-empty, use the first block from its
@@ -4423,7 +4429,7 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
           same hash bucket, one of them will be flushed per iteration
           of the outer loop of phase 1.
         */
-        if ((block= keycache->changed_blocks[idx]))
+        while ((block= keycache->changed_blocks[idx]))
         {
           found++;
           /*
@@ -4435,7 +4441,6 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
             DBUG_RETURN(1);
         }
       }
-
     } while (found);
 
     /*
@@ -4450,7 +4455,7 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
     {
       found= 0;
       /* Step over the whole file_blocks hash array. */
-      for (idx= 0; idx < CHANGED_BLOCKS_HASH; idx++)
+      for (idx= 0; idx < changed_blocks_hash_size; idx++)
       {
         /*
           If an array element is non-empty, use the first block from its
@@ -4460,7 +4465,7 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
           same hash bucket, one of them will be flushed per iteration
           of the outer loop of phase 2.
         */
-        if ((block= keycache->file_blocks[idx]))
+        while ((block= keycache->file_blocks[idx]))
         {
           total_found++;
           found++;
@@ -4469,7 +4474,6 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
             DBUG_RETURN(1);
         }
       }
-
     } while (found);
 
     /*
@@ -4482,7 +4486,7 @@ static int flush_all_key_blocks(SIMPLE_KEY_CACHE_CB *keycache)
 
 #ifndef DBUG_OFF
   /* Now there should not exist any block any more. */
-  for (idx= 0; idx < CHANGED_BLOCKS_HASH; idx++)
+  for (idx= 0; idx < changed_blocks_hash_size; idx++)
   {
     DBUG_ASSERT(!keycache->changed_blocks[idx]);
     DBUG_ASSERT(!keycache->file_blocks[idx]);
@@ -5028,15 +5032,18 @@ static SIMPLE_KEY_CACHE_CB
     age_threshold       age threshold (may be zero)
 
   DESCRIPTION
-    This function is the implementation of the init_key_cache interface function
-    that is employed by partitioned key caches.
-    The function builds and initializes an array of simple key caches, and then
-    initializes the control block structure of the type PARTITIONED_KEY_CACHE_CB
-    that is used for a partitioned key cache. The parameter keycache is
-    supposed to point to this structure. The number of partitions in the
-    partitioned key cache to be built must be passed through the field
-    'partitions' of this structure. The parameter key_cache_block_size specifies
-    the size of the  blocks in the the simple key caches to be built.
+    This function is the implementation of the init_key_cache
+    interface function that is employed by partitioned key caches.
+
+    The function builds and initializes an array of simple key caches,
+    and then initializes the control block structure of the type
+    PARTITIONED_KEY_CACHE_CB that is used for a partitioned key
+    cache. The parameter keycache is supposed to point to this
+    structure. The number of partitions in the partitioned key cache
+    to be built must be passed through the field 'partitions' of this
+    structure.
+    The parameter key_cache_block_size specifies the size of the
+    blocks in the the simple key caches to be built.
     The parameters division_limit and  age_threshold determine the initial
     values of those characteristics of the simple key caches that are used for
     midpoint insertion strategy. The parameter use_mem specifies the total
@@ -5059,7 +5066,7 @@ static
 int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
                                uint key_cache_block_size,
                                size_t use_mem, uint division_limit,
-                               uint age_threshold)
+                               uint age_threshold, uint changed_blocks_hash_size)
 {
   int i;
   size_t mem_per_cache;
@@ -5103,7 +5110,8 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
     }
 
     cnt= init_simple_key_cache(partition, key_cache_block_size, mem_per_cache, 
-			       division_limit, age_threshold);
+			       division_limit, age_threshold,
+                               changed_blocks_hash_size);
     if (cnt <= 0)
     {
       end_simple_key_cache(partition, 1);
@@ -5222,7 +5230,8 @@ static
 int resize_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache, 
                                  uint key_cache_block_size,
 		                 size_t use_mem, uint division_limit,
-		                 uint age_threshold)
+		                 uint age_threshold,
+                                 uint changed_blocks_hash_size)
 {
   uint i;
   uint partitions= keycache->partitions;
@@ -5241,7 +5250,8 @@ int resize_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
   }
   if (!err) 
     blocks= init_partitioned_key_cache(keycache, key_cache_block_size,
-                                       use_mem, division_limit, age_threshold);
+                                       use_mem, division_limit, age_threshold,
+                                       changed_blocks_hash_size);
   if (blocks > 0)
   {
     for (i= 0; i < partitions; i++)
@@ -5816,6 +5826,7 @@ static
 int repartition_key_cache_internal(KEY_CACHE *keycache,
                                    uint key_cache_block_size, size_t use_mem,
                                    uint division_limit, uint age_threshold,
+                                   uint changed_blocks_hash_size,
                                    uint partitions, my_bool use_op_lock);
 
 /*
@@ -5828,8 +5839,11 @@ int repartition_key_cache_internal(KEY_CACHE *keycache,
     use_mem             total memory to use for cache buffers/structures 
     division_limit      division limit (may be zero)
     age_threshold       age threshold (may be zero)
-    partitions          number of partitions in the key cache
-    use_op_lock        if TRUE use keycache->op_lock, otherwise - ignore it
+    changed_blocks_hash_size Number of hash buckets to hold a link of different
+                        files. Should be proportional to number of different
+                        files sused.
+    partitions          Number of partitions in the key cache
+    use_op_lock         if TRUE use keycache->op_lock, otherwise - ignore it
 
   DESCRIPTION
     The function performs the actions required from init_key_cache().
@@ -5850,7 +5864,8 @@ int repartition_key_cache_internal(KEY_CACHE *keycache,
 static
 int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
 		            size_t use_mem, uint division_limit,
-		            uint age_threshold, uint partitions,
+		            uint age_threshold, uint changed_blocks_hash_size,
+                            uint partitions,
                             my_bool use_op_lock)
 {
   void *keycache_cb;
@@ -5901,7 +5916,7 @@ int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
   keycache->can_be_used= 0;
   blocks= keycache->interface_funcs->init(keycache_cb, key_cache_block_size,
                                           use_mem, division_limit,
-                                          age_threshold);
+                                          age_threshold, changed_blocks_hash_size);
   keycache->partitions= partitions ? 
                         ((PARTITIONED_KEY_CACHE_CB *) keycache_cb)->partitions :
                         0;
@@ -5956,10 +5971,12 @@ int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
 
 int init_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 		   size_t use_mem, uint division_limit,
-		   uint age_threshold, uint partitions)
+		   uint age_threshold, uint changed_blocks_hash_size,
+                   uint partitions)
 {
   return init_key_cache_internal(keycache,  key_cache_block_size, use_mem,
-				 division_limit, age_threshold, partitions, 1);
+				 division_limit, age_threshold, 
+                                 changed_blocks_hash_size, partitions, 1);
 }
 
 
@@ -5998,7 +6015,8 @@ int init_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 */
 
 int resize_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
-		     size_t use_mem, uint division_limit, uint age_threshold)
+		     size_t use_mem, uint division_limit, uint age_threshold,
+                     uint changed_blocks_hash_size)
 {
   int blocks= -1;
   if (keycache->key_cache_inited)
@@ -6008,6 +6026,7 @@ int resize_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
       blocks= repartition_key_cache_internal(keycache,
                                              key_cache_block_size, use_mem,
                                              division_limit, age_threshold, 
+                                             changed_blocks_hash_size,
                                              (uint) keycache->param_partitions,
                                              0);
     else
@@ -6015,7 +6034,8 @@ int resize_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
       blocks= keycache->interface_funcs->resize(keycache->keycache_cb,
                                                 key_cache_block_size,
                                                 use_mem, division_limit,
-                                                age_threshold);
+                                                age_threshold,
+                                                changed_blocks_hash_size);
 
       if (keycache->partitions)
         keycache->partitions=
@@ -6453,6 +6473,7 @@ static
 int repartition_key_cache_internal(KEY_CACHE *keycache,
                                    uint key_cache_block_size, size_t use_mem,
                                    uint division_limit, uint age_threshold,
+                                   uint changed_blocks_hash_size,
                                    uint partitions, my_bool use_op_lock)
 {
   uint blocks= -1;
@@ -6462,10 +6483,12 @@ int repartition_key_cache_internal(KEY_CACHE *keycache,
       pthread_mutex_lock(&keycache->op_lock);
     keycache->interface_funcs->resize(keycache->keycache_cb,
                                       key_cache_block_size, 0,
-                                      division_limit, age_threshold);
+                                      division_limit, age_threshold,
+                                      changed_blocks_hash_size);
     end_key_cache_internal(keycache, 1, 0);
     blocks= init_key_cache_internal(keycache, key_cache_block_size, use_mem,
-                                    division_limit, age_threshold, partitions,
+                                    division_limit, age_threshold,
+                                    changed_blocks_hash_size, partitions,
                                     0);
     if (use_op_lock)
       pthread_mutex_unlock(&keycache->op_lock);
@@ -6510,10 +6533,12 @@ int repartition_key_cache_internal(KEY_CACHE *keycache,
 
 int repartition_key_cache(KEY_CACHE *keycache, uint key_cache_block_size,
 		          size_t use_mem, uint division_limit,
-                          uint age_threshold, uint partitions)
+                          uint age_threshold, uint changed_blocks_hash_size,
+                          uint partitions)
 {
   return repartition_key_cache_internal(keycache, key_cache_block_size, use_mem,
 			                division_limit, age_threshold,
+                                        changed_blocks_hash_size,
                                         partitions, 1);
 }
 

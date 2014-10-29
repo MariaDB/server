@@ -45,6 +45,7 @@ FLUSH STATUS;
 SHOW SESSION STATUS LIKE 'Sort%';
 Variable_name	Value
 Sort_merge_passes	0
+Sort_priority_queue_sorts	0
 Sort_range	0
 Sort_rows	0
 Sort_scan	0
@@ -153,6 +154,7 @@ f0	f1	f2
 SHOW SESSION STATUS LIKE 'Sort%';
 Variable_name	Value
 Sort_merge_passes	0
+Sort_priority_queue_sorts	1
 Sort_range	0
 Sort_rows	100
 Sort_scan	1

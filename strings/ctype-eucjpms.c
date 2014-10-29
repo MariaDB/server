@@ -1,5 +1,6 @@
-/* Copyright (c) 2005, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2009-2011, Monty Program Ab
+/* Copyright (c) 2002 MySQL AB & tommy@valley.ne.jp
+   Copyright (c) 2002, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, SkySQL Ab.
    
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -67417,10 +67418,10 @@ my_wc_mb_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
 
 /*
   EUCJPMS encoding subcomponents:
-  [x00-x7F]			# ASCII/JIS-Roman (one-byte/character)
-  [x8E][xA0-xDF]		# half-width katakana (two bytes/char)
-  [x8F][xA1-xFE][xA1-xFE]	# JIS X 0212-1990 (three bytes/char)
-  [xA1-xFE][xA1-xFE]		# JIS X 0208:1997 (two bytes/char)
+  [x00-x7F]                     # ASCII/JIS-Roman (one-byte/character)
+  [x8E][xA1-xDF]                # half-width katakana (two bytes/char)
+  [x8F][xA1-xFE][xA1-xFE]       # JIS X 0212-1990 (three bytes/char)
+  [xA1-xFE][xA1-xFE]            # JIS X 0208:1997 (two bytes/char)
 */
 
 static
@@ -67443,15 +67444,15 @@ size_t my_well_formed_len_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
     if (b >= (uchar *) end)         /* need more bytes */
       return (uint) (chbeg - beg);  /* unexpected EOL  */
 
-    if (ch == 0x8E)                 /* [x8E][xA0-xDF] */
+    if (iseucjpms_ss2(ch))          /* [x8E][xA1-xDF] */
     {
-      if (*b >= 0xA0 && *b <= 0xDF)
+      if (iskata(*b))
         continue;
       *error=1;
       return (uint) (chbeg - beg);  /* invalid sequence */
     }
 
-    if (ch == 0x8F)                 /* [x8F][xA1-xFE][xA1-xFE] */
+    if (iseucjpms_ss3(ch))          /* [x8F][xA1-xFE][xA1-xFE] */
     {
       ch= *b++;
       if (b >= (uchar*) end)
@@ -67461,8 +67462,7 @@ size_t my_well_formed_len_eucjpms(CHARSET_INFO *cs __attribute__((unused)),
       }
     }
 
-    if (ch >= 0xA1 && ch <= 0xFE &&
-        *b >= 0xA1 && *b <= 0xFE)   /* [xA1-xFE][xA1-xFE] */
+    if (iseucjpms(ch) && iseucjpms(*b)) /* [xA1-xFE][xA1-xFE] */
       continue;
     *error=1;
     return (size_t) (chbeg - beg);    /* invalid sequence */

@@ -1,9 +1,6 @@
 #### suite/funcs_1/views/views_master.test
 #
 # Last Change:
-# 2007-10-05 mleich
-#    1. Fix for Bug#31237 Test "ndb_views" fails because of differing order ...
-#    2. Cleanup of test
 # 2007-11-15 hhunger WL#4084: Review and fix all disabled tests ...
 
 let $message= ! Attention: The file with the expected results is not
@@ -2945,10 +2942,6 @@ eval EXPLAIN SELECT * FROM test3.v$toplevel;
 #++++++++++++++++++++++++++++++++++++++++++++++
 let $message= FIXME - Setting join_limit to 28 - hangs for higher values;
 --source include/show_msg.inc
-# OBN - Reduced from 30 in 5.1.21 to avoid hitting the ndbcluster limit
-#       of "ERROR HY000: Got temporary error 4006 'Connect failure
-#           - out of connection objects (increase MaxNoOfConcurrentTransactions)'
-#           from NDBCLUSTER " to early;
 #SET @join_limit = 61;
 SET @join_limit = 28; # OBN - see above
 SET @max_level = @join_limit - 1;
@@ -3918,7 +3911,7 @@ SELECT * FROM v1 order by f1, report;
 #
 # 3. Length of one base table column is reduced
 # We have to mangle within warnings the row numbers, because they are not
-# deterministic in case of NDB.
+# always deterministic in engines
 --replace_regex /at row [0-9]/at row <some number>/
 ALTER TABLE t1 CHANGE COLUMN f4 f4 CHAR(8);
 INSERT INTO t1 SET f1 = 3, f4 = '<-- 10 -->', report = 't1 3';

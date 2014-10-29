@@ -80,7 +80,10 @@ int maria_close(register MARIA_HA *info)
   }
   flag= !--share->reopen;
   if (!internal_table)
-    maria_open_list=list_delete(maria_open_list,&info->open_list);
+  {
+    maria_open_list=  list_delete(maria_open_list,&info->open_list);
+    share->open_list= list_delete(share->open_list, &info->share_list);
+  }
 
   my_free(info->rec_buff);
   (*share->end)(info);
@@ -91,6 +94,7 @@ int maria_close(register MARIA_HA *info)
 
     /* Check that we don't have any dangling pointers from the transaction */
     DBUG_ASSERT(share->in_trans == 0);
+    DBUG_ASSERT(share->open_list == 0);
 
     if (share->kfile.file >= 0)
     {

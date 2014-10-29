@@ -493,7 +493,6 @@ public:
     uint32 arg_length,
     uint32 step_alloc
   );
-#ifdef SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
   bool append_for_single_quote(
     const char *st,
     uint len
@@ -504,7 +503,6 @@ public:
   bool append_for_single_quote(
     const char *st
   );
-#endif
   void print(
     String *print
   );
@@ -1566,6 +1564,8 @@ typedef struct st_spider_result
   longlong             record_num;
   bool                 finish_flg;
   bool                 use_position;
+  bool                 first_pos_use_position;
+  bool                 tmp_tbl_use_position;
   uint                 field_count; /* for quick mode */
   TABLE                *result_tmp_tbl;
   TMP_TABLE_PARAM      result_tmp_tbl_prm;
@@ -1642,6 +1642,7 @@ typedef struct st_spider_result_list
   spider_bulk_upd_start   bulk_update_start;
   bool                    check_direct_order_limit;
   bool                    direct_order_limit;
+  bool                    direct_distinct;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
   bool                    direct_aggregate;
   bool                    snap_mrr_with_cnt;

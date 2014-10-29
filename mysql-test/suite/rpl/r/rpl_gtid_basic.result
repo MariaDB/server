@@ -61,13 +61,7 @@ include/stop_slave.inc
 INSERT INTO t1 VALUES (5, "m1a");
 INSERT INTO t2 VALUES (5, "i1a");
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
-MASTER_USE_GTID=SLAVE_POS;
-SET GLOBAL sql_slave_skip_counter=1;
-ERROR HY000: When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position.
-CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=CURRENT_POS;
-SET GLOBAL sql_slave_skip_counter=10;
-ERROR HY000: When using GTID, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position.
 include/start_slave.inc
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -191,14 +185,8 @@ master-bin.000001	#
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Format_desc	#	#	SERVER_VERSION, BINLOG_VERSION
-master-bin.000001	#	Gtid_list	#	#	[1-2-20,0-1-10,0-3-30]
+master-bin.000001	#	Gtid_list	#	#	[#-#-#]
 master-bin.000001	#	Binlog_checkpoint	#	#	master-bin.000001
-SELECT @@GLOBAL.gtid_binlog_pos;
-@@GLOBAL.gtid_binlog_pos
-1-2-20,0-3-30
-SELECT @@GLOBAL.gtid_binlog_state;
-@@GLOBAL.gtid_binlog_state
-1-2-20,0-1-10,0-3-30
 SET GLOBAL gtid_binlog_state = @old_state;
 ERROR HY000: This operation is not allowed if any GTID has been logged to the binary log. Run RESET MASTER first to erase the log
 RESET MASTER;
@@ -258,7 +246,7 @@ a
 include/stop_slave.inc
 SET gtid_domain_id= 1;
 INSERT INTO t1 VALUES (3);
-SET @pos= '1-1-1,0-1-110';
+SET @pos= 'POS';
 SELECT master_gtid_wait(@pos, 0);
 master_gtid_wait(@pos, 0)
 -1
@@ -322,5 +310,108 @@ master_gtid_wait('2-1-10')
 0
 master_gtid_wait('2-1-10')
 0
+*** Test sql_gtid_slave_pos when used with GTID ***
+include/stop_slave.inc
+SET gtid_domain_id=2;
+SET gtid_seq_no=1000;
+INSERT INTO t1 VALUES (10);
+INSERT INTO t1 VALUES (11);
+SET sql_slave_skip_counter= 1;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+SELECT IF(LOCATE("2-1-1001", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1001 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+SET gtid_domain_id=2;
+SET gtid_seq_no=1010;
+INSERT INTO t1 VALUES (12);
+INSERT INTO t1 VALUES (13);
+SET sql_slave_skip_counter= 2;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+13
+SELECT IF(LOCATE("2-1-1011", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1011 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+SET gtid_domain_id=2;
+SET gtid_seq_no=1020;
+INSERT INTO t1 VALUES (14);
+INSERT INTO t1 VALUES (15);
+INSERT INTO t1 VALUES (16);
+SET sql_slave_skip_counter= 3;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+13
+15
+16
+SELECT IF(LOCATE("2-1-1022", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1022 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+SET gtid_domain_id=2;
+SET gtid_seq_no=1030;
+INSERT INTO t1 VALUES (17);
+INSERT INTO t1 VALUES (18);
+INSERT INTO t1 VALUES (19);
+SET sql_slave_skip_counter= 5;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
+a
+11
+13
+15
+16
+19
+SELECT IF(LOCATE("2-1-1032", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1032 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+include/stop_slave.inc
+SET gtid_domain_id=3;
+SET gtid_seq_no=100;
+CREATE TABLE t2 (a INT PRIMARY KEY);
+DROP TABLE t2;
+SET gtid_domain_id=2;
+SET gtid_seq_no=1040;
+INSERT INTO t1 VALUES (20);
+SET @saved_mode= @@GLOBAL.slave_ddl_exec_mode;
+SET GLOBAL slave_ddl_exec_mode=STRICT;
+SET sql_slave_skip_counter=1;
+START SLAVE UNTIL master_gtid_pos="3-1-100";
+include/sync_with_master_gtid.inc
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+SELECT IF(LOCATE("3-1-100", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-100 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+SET sql_log_bin=0;
+CALL mtr.add_suppression("Slave: Unknown table 'test\\.t2' Error_code: 1051");
+SET sql_log_bin=1;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1051]
+SELECT IF(LOCATE("3-1-100", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-100 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+STOP SLAVE IO_THREAD;
+SET sql_slave_skip_counter=2;
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 20 ORDER BY a;
+a
+20
+SELECT IF(LOCATE("3-1-101", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-101 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+SELECT IF(LOCATE("2-1-1040", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 2-1-1040 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;
+status
+Ok
+SET GLOBAL slave_ddl_exec_mode= @saved_mode;
 DROP TABLE t1;
 include/rpl_end.inc

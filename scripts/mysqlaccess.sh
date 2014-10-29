@@ -261,12 +261,12 @@ Release Notes:
     * log-file for debug-output : /tmp/mysqlaccess.log
     * default values are read from a configuration file $script.conf
       first this file is looked for in the current directory; if not
-      found it is looked for in /etc/
+      found it is looked for in @sysconfdir@
       Note that when default-values are given, these can't get overriden
       by empty (blanc) values!
     * CGI-BIN version with HTML and forms interface.  Simply place the
       script in an ScriptAliased directory, make the configuration file
-      available in the that directory or in /etc, and point your browser
+      available in the that directory or in @sysconfdir@, and point your browser
       to the right URL. 
     * copy the grant-rules to temporary tables, where you are safe to
       play with them.
@@ -480,11 +480,11 @@ MySQLaccess::Report::Print_Header();
   if (-f "./$script_conf") {
      require "./$script_conf";
   }
+  elsif (-f "@prefix@/$script_conf") {
+     require "@prefix@/$script_conf";
+  }
   elsif (-f "@sysconfdir@/$script_conf") {
      require "@sysconfdir@/$script_conf";
-  }
-  elsif (-f "/etc/$script_conf") {
-     require "/etc/$script_conf";
   }
 
 # ****************************
@@ -950,8 +950,8 @@ sub MergeConfigFile {
 # =================================
 sub MergeConfigFiles {
     my ($name,$pass,$uid,$gid,$quota,$comment,$gcos,$dir,$shell) = getpwuid $<;
+    MergeConfigFile("@prefix@/my.cnf");
     MergeConfigFile("@sysconfdir@/my.cnf");
-    MergeConfigFile("/etc/my.cnf");
     MergeConfigFile("$dir/.my.cnf");
 }
 

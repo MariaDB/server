@@ -56,7 +56,7 @@ extern ST_SCHEMA_TABLE query_response_time_table;
 #ifdef HAVE_RESPONSE_TIME_DISTRIBUTION
 extern void query_response_time_init   ();
 extern void query_response_time_free   ();
-extern void query_response_time_flush  ();
+extern int query_response_time_flush  ();
 extern void query_response_time_collect(ulonglong query_time);
 extern int  query_response_time_fill   (THD* thd, TABLE_LIST *tables, COND *cond);
 

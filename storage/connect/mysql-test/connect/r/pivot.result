@@ -59,8 +59,6 @@ Joe	5	14.00	0.00	12.00
 # Restricting the columns in a Pivot Table
 #
 ALTER TABLE pivex DROP COLUMN week;
-Warnings:
-Warning	1105	This is an outward table, table data were not modified.
 SELECT * FROM pivex;
 Who	Beer	Car	Food
 Beth	51.00	0.00	29.00

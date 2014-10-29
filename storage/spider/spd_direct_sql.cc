@@ -1045,6 +1045,7 @@ int spider_udf_parse_direct_sql_param(
 #else
   direct_sql->use_real_table = -1;
 #endif
+  direct_sql->error_rw_mode = -1;
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
     direct_sql->iop[roop_count] = -1;
 
@@ -1123,9 +1124,10 @@ int spider_udf_parse_direct_sql_param(
           MYF(0), tmp_ptr);
         goto error;
       case 4:
+        SPIDER_PARAM_INT_WITH_MAX("erwm", error_rw_mode, 0, 1);
         SPIDER_PARAM_STR("host", tgt_host);
-        SPIDER_PARAM_STR("user", tgt_username);
         SPIDER_PARAM_INT_WITH_MAX("port", tgt_port, 0, 65535);
+        SPIDER_PARAM_STR("user", tgt_username);
         error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
           MYF(0), tmp_ptr);
@@ -1178,6 +1180,7 @@ int spider_udf_parse_direct_sql_param(
         goto error;
       case 13:
         SPIDER_PARAM_STR("default_group", tgt_default_group);
+        SPIDER_PARAM_INT_WITH_MAX("error_rw_mode", error_rw_mode, 0, 1);
         error_num = ER_SPIDER_INVALID_UDF_PARAM_NUM;
         my_printf_error(error_num, ER_SPIDER_INVALID_UDF_PARAM_STR,
           MYF(0), tmp_ptr);
@@ -1400,6 +1403,8 @@ int spider_udf_set_direct_sql_param_default(
   if (direct_sql->use_real_table == -1)
     direct_sql->use_real_table = 0;
 #endif
+  if (direct_sql->error_rw_mode == -1)
+    direct_sql->error_rw_mode = 0;
   for (roop_count = 0; roop_count < direct_sql->table_count; roop_count++)
   {
     if (direct_sql->iop[roop_count] == -1)
@@ -1526,12 +1531,14 @@ long long spider_direct_sql_body(
   uint use_real_table = 0;
 #endif
   DBUG_ENTER("spider_direct_sql_body");
+  SPIDER_BACKUP_DASTATUS;
   if (!(direct_sql = (SPIDER_DIRECT_SQL *)
     spider_bulk_malloc(spider_current_trx, 34, MYF(MY_WME | MY_ZEROFILL),
       &direct_sql, sizeof(SPIDER_DIRECT_SQL),
       &sql, sizeof(char) * args->lengths[0],
       NullS))
   ) {
+    error_num = HA_ERR_OUT_OF_MEM;
     my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
@@ -1556,48 +1563,51 @@ long long spider_direct_sql_body(
 #endif
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
   {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    if (error_num == HA_ERR_OUT_OF_MEM)
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
   direct_sql->trx = trx;
 
   if (args->args[1])
   {
-    if (spider_udf_direct_sql_create_table_list(
+    if ((error_num = spider_udf_direct_sql_create_table_list(
       direct_sql,
       args->args[1],
       args->lengths[1]
-    )) {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    ))) {
+      if (error_num == HA_ERR_OUT_OF_MEM)
+        my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
     }
   } else {
-    if (spider_udf_direct_sql_create_table_list(
+    if ((error_num = spider_udf_direct_sql_create_table_list(
       direct_sql,
       (char *) "",
       0
-    )) {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    ))) {
+      if (error_num == HA_ERR_OUT_OF_MEM)
+        my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
     }
   }
   if (args->args[2])
   {
-    if (spider_udf_parse_direct_sql_param(
+    if ((error_num = spider_udf_parse_direct_sql_param(
       trx,
       direct_sql,
       args->args[2],
       args->lengths[2]
-    )) {
+    ))) {
       goto error;
     }
   } else {
-    if (spider_udf_parse_direct_sql_param(
+    if ((error_num = spider_udf_parse_direct_sql_param(
       trx,
       direct_sql,
       "",
       0
-    )) {
+    ))) {
       goto error;
     }
   }
@@ -1626,6 +1636,7 @@ long long spider_direct_sql_body(
       if (!use_real_table)
       {
 #endif
+        error_num = ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM;
         my_printf_error(ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_NUM,
           ER_SPIDER_UDF_TMP_TABLE_NOT_FOUND_STR,
           MYF(0), table_list.db, table_list.table_name);
@@ -1651,20 +1662,24 @@ long long spider_direct_sql_body(
 #endif
     }
   }
-  if (spider_udf_direct_sql_create_conn_key(direct_sql))
+  if ((error_num = spider_udf_direct_sql_create_conn_key(direct_sql)))
   {
+    if (error_num == HA_ERR_OUT_OF_MEM)
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
   if (!(conn = spider_udf_direct_sql_get_conn(direct_sql, trx, &error_num)))
   {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    if (error_num == HA_ERR_OUT_OF_MEM)
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
   conn->error_mode = 0;
   direct_sql->conn = conn;
-  if (spider_db_udf_check_and_set_set_names(trx))
+  if ((error_num = spider_db_udf_check_and_set_set_names(trx)))
   {
-    my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+    if (error_num == HA_ERR_OUT_OF_MEM)
+      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
     goto error;
   }
   if (args->args[0])
@@ -1678,21 +1693,24 @@ long long spider_direct_sql_body(
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   if (bg)
   {
-    if (spider_udf_bg_direct_sql(direct_sql))
+    if ((error_num = spider_udf_bg_direct_sql(direct_sql)))
     {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
+      if (error_num == HA_ERR_OUT_OF_MEM)
+        my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
     }
   } else {
 #endif
     if (conn->bg_init)
       pthread_mutex_lock(&conn->bg_conn_mutex);
-    if (spider_db_udf_direct_sql(direct_sql))
+    if ((error_num = spider_db_udf_direct_sql(direct_sql)))
     {
       if (conn->bg_init)
         pthread_mutex_unlock(&conn->bg_conn_mutex);
       if (direct_sql->modified_non_trans_table)
         thd->transaction.stmt.modified_non_trans_table = TRUE;
+      if (error_num == HA_ERR_OUT_OF_MEM)
+        my_error(ER_OUT_OF_RESOURCES, MYF(0), HA_ERR_OUT_OF_MEM);
       goto error;
     }
     if (conn->bg_init)
@@ -1712,7 +1730,17 @@ long long spider_direct_sql_body(
 
 error:
   if (direct_sql)
+  {
+    if (
+      direct_sql->error_rw_mode &&
+      spider_db_conn_is_network_error(error_num)
+    ) {
+      SPIDER_RESTORE_DASTATUS;
+      spider_udf_free_direct_sql_alloc(direct_sql, bg);
+      DBUG_RETURN(1);
+    }
     spider_udf_free_direct_sql_alloc(direct_sql, bg);
+  }
   *error = 1;
   DBUG_RETURN(0);
 }
@@ -1790,6 +1818,15 @@ void spider_direct_sql_deinit_body(
   DBUG_ENTER("spider_direct_sql_deinit_body");
   if (bg_direct_sql)
   {
+    pthread_mutex_lock(&bg_direct_sql->bg_mutex);
+    while (bg_direct_sql->direct_sql)
+      pthread_cond_wait(&bg_direct_sql->bg_cond, &bg_direct_sql->bg_mutex);
+    pthread_mutex_unlock(&bg_direct_sql->bg_mutex);
+    if (bg_direct_sql->modified_non_trans_table)
+    {
+      THD *thd = current_thd;
+      thd->transaction.stmt.modified_non_trans_table = TRUE;
+    }
     pthread_cond_destroy(&bg_direct_sql->bg_cond);
     pthread_mutex_destroy(&bg_direct_sql->bg_mutex);
     spider_free(spider_current_trx, bg_direct_sql, MYF(0));

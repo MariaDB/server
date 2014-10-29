@@ -2053,7 +2053,7 @@ select "at" as col1, "AT" as col2, "c" as col3;
 --replace_regex /a/b/ /ct/d/
 select "a" as col1, "ct" as col2;
 
---replace_regex /(strawberry)/raspberry and \1/ /blueberry/blackberry/ /potato/tomato/;
+--replace_regex /(strawberry)/raspberry and \1/ /blueberry/blackberry/ /potato/tomato/
 select "strawberry","blueberry","potato";
 
 --error 1
@@ -2097,6 +2097,12 @@ select "a is a and less is more" as txt;
 --replace_regex $patt
 select "a is a and less is more" as txt;
 --enable_query_log
+
+#
+# different delimiters
+#
+--replace_regex (a)[b] /c/d/ <e>{f}i {g\/\}}/h/
+select 'ABCDEF abcdef g/}' as txt;
 
 #-------------------------------------------------------------------------
 # BUG #11754855 : Passing variable to --error  

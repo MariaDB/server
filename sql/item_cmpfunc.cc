@@ -5869,7 +5869,7 @@ void Item_equal::merge(Item_equal *item)
   Item *c= item->get_const();
   if (c)
     item->equal_items.pop();
-  equal_items.concat(&item->equal_items);
+  equal_items.append(&item->equal_items);
   if (c)
   {
     /* 

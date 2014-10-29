@@ -19,20 +19,20 @@ SET(CONNECT_PLUGIN_DYNAMIC "connect")
 SET(CONNECT_SOURCES
 ha_connect.cc connect.cc user_connect.cc mycat.cc
 fmdlex.c osutil.c plugutil.c rcmsg.c rcmsg.h
-csort.cpp maputil.cpp plgdbutl.cpp
-colblk.cpp reldef.cpp tabcol.cpp table.cpp
-filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp
-tabdos.cpp tabfix.cpp tabfmt.cpp tabmul.cpp tabsys.cpp tabvct.cpp
+array.cpp blkfil.cpp colblk.cpp csort.cpp
+filamap.cpp filamdbf.cpp filamfix.cpp filamtxt.cpp filamvct.cpp filamzip.cpp
+filter.cpp maputil.cpp myutil.cpp plgdbutl.cpp reldef.cpp tabcol.cpp
+tabdos.cpp tabfix.cpp tabfmt.cpp table.cpp tabmul.cpp taboccur.cpp
+tabpivot.cpp tabsys.cpp tabtbl.cpp tabutil.cpp tabvct.cpp tabxcl.cpp
 valblk.cpp value.cpp xindex.cpp xobject.cpp
-filamzip.cpp tabtbl.cpp myutil.cpp
-tabutil.cpp tabxcl.cpp taboccur.cpp tabpivot.cpp
-block.h catalog.h checklvl.h colblk.h connect.h csort.h engmsg.h
-filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
-global.h ha_connect.h inihandl.h maputil.h msgid.h mycat.h myutil.h os.h
-osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
-tabdos.h tabfix.h tabfmt.h tabmul.h tabsys.h tabtbl.h tabvct.h
-user_connect.h valblk.h value.h xindex.h xobject.h xtable.h
-tabutil.h tabxcl.h taboccur.h tabpivot.h)
+
+array.h blkfil.h block.h catalog.h checklvl.h colblk.h connect.h csort.h
+engmsg.h filamap.h filamdbf.h filamfix.h filamtxt.h filamvct.h filamzip.h
+filter.h global.h ha_connect.h inihandl.h maputil.h msgid.h mycat.h myutil.h
+os.h osutil.h plgcnx.h plgdbsem.h preparse.h reldef.h resource.h tabcol.h
+tabdos.h tabfix.h tabfmt.h tabmul.h taboccur.h tabpivot.h tabsys.h
+tabtbl.h tabutil.h tabvct.h tabxcl.h user_connect.h valblk.h value.h
+xindex.h xobject.h xtable.h)
 
 #
 # Definitions that are shared for all OSes

@@ -662,6 +662,11 @@ buf_page_get_block(
 	buf_page_t*	bpage)	/*!< in: control block, or NULL */
 {
 	if (bpage != NULL) {
+#ifdef UNIV_DEBUG
+		buf_pool_t*	buf_pool	= buf_pool_from_bpage(bpage);
+		ut_ad(buf_page_hash_lock_held_s_or_x(buf_pool, bpage)
+		      || mutex_own(&buf_pool->LRU_list_mutex));
+#endif
 		ut_ad(buf_page_in_file(bpage));
 
 		if (buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE) {
@@ -1176,12 +1181,6 @@ buf_page_hash_get_low(
 		ut_a(buf_page_in_file(bpage));
 		ut_ad(bpage->in_page_hash);
 		ut_ad(!bpage->in_zip_hash);
-#if UNIV_WORD_SIZE == 4
-		/* On 32-bit systems, there is no padding in
-		buf_page_t.  On other systems, Valgrind could complain
-		about uninitialized pad bytes. */
-		UNIV_MEM_ASSERT_RW(bpage, sizeof *bpage);
-#endif
 	}
 
 	return(bpage);

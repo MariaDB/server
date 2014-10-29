@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2014, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -126,7 +126,7 @@ completes, we decrement the count and return the file node to the LRU-list if
 the count drops to zero. */
 
 /** When mysqld is run, the default directory "." is the mysqld datadir,
-but in the MySQL Embedded Server Library and ibbackup it is not the default
+but in the MySQL Embedded Server Library and mysqlbackup it is not the default
 directory, and we must set the base file path explicitly */
 UNIV_INTERN const char*	fil_path_to_mysql_datadir	= ".";
 
@@ -184,6 +184,7 @@ struct fil_node_t {
 	ib_int64_t	flush_counter;/*!< up to what
 				modification_counter value we have
 				flushed the modifications to disk */
+	ulint		file_block_size;/*!< file system block size */
 	UT_LIST_NODE_T(fil_node_t) chain;
 				/*!< link field for the file chain */
 	UT_LIST_NODE_T(fil_node_t) LRU;
@@ -784,6 +785,8 @@ fil_node_open_file(
 
 		size_bytes = os_file_get_size(node->handle);
 		ut_a(size_bytes != (os_offset_t) -1);
+
+		node->file_block_size = os_file_get_block_size(node->handle, node->name);
 #ifdef UNIV_HOTBACKUP
 		if (space->id == 0) {
 			node->size = (ulint) (size_bytes / UNIV_PAGE_SIZE);
@@ -798,7 +801,7 @@ fil_node_open_file(
 			fprintf(stderr,
 				"InnoDB: Error: the size of single-table"
 				" tablespace file %s\n"
-				"InnoDB: is only "UINT64PF","
+				"InnoDB: is only " UINT64PF ","
 				" should be at least %lu!\n",
 				node->name,
 				size_bytes,
@@ -943,6 +946,10 @@ add_size:
 					      node->name, OS_FILE_OPEN,
 					      OS_FILE_AIO, OS_DATA_FILE,
 					      &ret, atomic_writes);
+	}
+
+	if (node->file_block_size == 0) {
+		node->file_block_size = os_file_get_block_size(node->handle, node->name);
 	}
 
 	ut_a(ret);
@@ -1898,6 +1905,9 @@ fil_close_all_files(void)
 {
 	fil_space_t*	space;
 
+	if (srv_track_changed_pages && srv_redo_log_thread_started)
+		os_event_wait(srv_redo_log_tracked_event);
+
 	mutex_enter(&fil_system->mutex);
 
 	space = UT_LIST_GET_FIRST(fil_system->space_list);
@@ -1933,6 +1943,9 @@ fil_close_log_files(
 	bool	free)	/*!< in: whether to free the memory object */
 {
 	fil_space_t*	space;
+
+	if (srv_track_changed_pages && srv_redo_log_thread_started)
+		os_event_wait(srv_redo_log_tracked_event);
 
 	mutex_enter(&fil_system->mutex);
 
@@ -2157,8 +2170,8 @@ fil_check_first_page(
 }
 
 /*******************************************************************//**
-Reads the flushed lsn, arch no, and tablespace flag fields from a data
-file at database startup.
+Reads the flushed lsn, arch no, space_id and tablespace flag fields from
+the first page of a data file at database startup.
 @retval NULL on success, or if innodb_force_recovery is set
 @return pointer to an error message string */
 UNIV_INTERN
@@ -2194,22 +2207,27 @@ fil_read_first_page(
 		fil_space_is_page_compressed(orig_space_id) :
 		FALSE);
 
-	*flags = fsp_header_get_flags(page);
+	/* The FSP_HEADER on page 0 is only valid for the first file
+	in a tablespace.  So if this is not the first datafile, leave
+	*flags and *space_id as they were read from the first file and
+	do not validate the first page. */
+	if (!one_read_already) {
+		*flags = fsp_header_get_flags(page);
+		*space_id = fsp_header_get_space_id(page);
+	}
 
 	/* Page is page compressed page, need to decompress, before
 	continue. */
-	if (fsp_flags_is_page_compressed(*flags)) {
+	if (fil_page_is_compressed(page)) {
 		ulint write_size=0;
 		fil_decompress_page(NULL, page, UNIV_PAGE_SIZE, &write_size);
 	}
-	*space_id = fsp_header_get_space_id(page);
-
-
-	flushed_lsn = mach_read_from_8(page + FIL_PAGE_FILE_FLUSH_LSN);
 
 	if (!one_read_already) {
 		check_msg = fil_check_first_page(page);
 	}
+
+	flushed_lsn = mach_read_from_8(page + FIL_PAGE_FILE_FLUSH_LSN);
 
 	ut_free(buf);
 
@@ -2407,13 +2425,13 @@ exists and the space id in it matches. Replays the create operation if a file
 at that path does not exist yet. If the database directory for the file to be
 created does not exist, then we create the directory, too.
 
-Note that ibbackup --apply-log sets fil_path_to_mysql_datadir to point to the
-datadir that we should use in replaying the file operations.
+Note that mysqlbackup --apply-log sets fil_path_to_mysql_datadir to point to
+the datadir that we should use in replaying the file operations.
 
 InnoDB recovery does not replay these fully since it always sets the space id
-to zero. But ibbackup does replay them.  TODO: If remote tablespaces are used,
-ibbackup will only create tables in the default directory since MLOG_FILE_CREATE
-and MLOG_FILE_CREATE2 only know the tablename, not the path.
+to zero. But mysqlbackup does replay them.  TODO: If remote tablespaces are
+used, mysqlbackup will only create tables in the default directory since
+MLOG_FILE_CREATE and MLOG_FILE_CREATE2 only know the tablename, not the path.
 
 @return end of log record, or NULL if the record was not completely
 contained between ptr and end_ptr */
@@ -2505,11 +2523,11 @@ fil_op_log_parse_or_replay(
 	}
 
 	/* Let us try to perform the file operation, if sensible. Note that
-	ibbackup has at this stage already read in all space id info to the
+	mysqlbackup has at this stage already read in all space id info to the
 	fil0fil.cc data structures.
 
 	NOTE that our algorithm is not guaranteed to work correctly if there
-	were renames of tables during the backup. See ibbackup code for more
+	were renames of tables during the backup. See mysqlbackup code for more
 	on the problem. */
 
 	switch (type) {
@@ -2924,12 +2942,12 @@ fil_delete_tablespace(
 	if (err == DB_SUCCESS) {
 #ifndef UNIV_HOTBACKUP
 		/* Write a log record about the deletion of the .ibd
-		file, so that ibbackup can replay it in the
+		file, so that mysqlbackup can replay it in the
 		--apply-log phase. We use a dummy mtr and the familiar
 		log write mechanism. */
 		mtr_t		mtr;
 
-		/* When replaying the operation in ibbackup, do not try
+		/* When replaying the operation in mysqlbackup, do not try
 		to write any log record */
 		mtr_start(&mtr);
 
@@ -4627,7 +4645,7 @@ will_not_choose:
 			" (< 4 pages 16 kB each),\n"
 			"InnoDB: or the space id in the file header"
 			" is not sensible.\n"
-			"InnoDB: This can happen in an ibbackup run,"
+			"InnoDB: This can happen in an mysqlbackup run,"
 			" and is not dangerous.\n",
 			fsp->filepath, fsp->id, fsp->filepath, size);
 		os_file_close(fsp->file);
@@ -4664,7 +4682,7 @@ will_not_choose:
 			"InnoDB: because space %s with the same id\n"
 			"InnoDB: was scanned earlier. This can happen"
 			" if you have renamed tables\n"
-			"InnoDB: during an ibbackup run.\n",
+			"InnoDB: during an mysqlbackup run.\n",
 			fsp->filepath, fsp->id, fsp->filepath,
 			space->name);
 		os_file_close(fsp->file);
@@ -5274,6 +5292,11 @@ retry:
 	start_page_no = space->size;
 	file_start_page_no = space->size - node->size;
 
+	/* Determine correct file block size */
+	if (node->file_block_size == 0) {
+		node->file_block_size = os_file_get_block_size(node->handle, node->name);
+	}
+
 #ifdef HAVE_POSIX_FALLOCATE
 	if (srv_use_posix_fallocate) {
 		os_offset_t	start_offset = start_page_no * page_size;
@@ -5331,7 +5354,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 NULL, NULL, space_id, NULL, 0, 0, 0, 0, 0);
+				 node, NULL, space_id, NULL, 0, 0, 0, 0, 0);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -5396,9 +5419,9 @@ file_extended:
 #ifdef UNIV_HOTBACKUP
 /********************************************************************//**
 Extends all tablespaces to the size stored in the space header. During the
-ibbackup --apply-log phase we extended the spaces on-demand so that log records
-could be applied, but that may have left spaces still too small compared to
-the size stored in the space header. */
+mysqlbackup --apply-log phase we extended the spaces on-demand so that log
+records could be applied, but that may have left spaces still too small
+compared to the size stored in the space header. */
 UNIV_INTERN
 void
 fil_extend_tablespaces_to_stored_len(void)
@@ -5717,7 +5740,7 @@ _fil_io(
 	ulint		mode;
 	fil_space_t*	space;
 	fil_node_t*	node;
-	ibool		ret;
+	ibool		ret=TRUE;
 	ulint		is_log;
 	ulint		wake_later;
 	os_offset_t	offset;
@@ -5949,7 +5972,7 @@ _fil_io(
              offset, len, node, message, space_id, trx, page_compressed, page_compression_level, write_size, page_encrypted, page_encryption_key);
 
 #else
-	/* In ibbackup do normal i/o, not aio */
+	/* In mysqlbackup do normal i/o, not aio */
 	if (type == OS_FILE_READ) {
 		ret = os_file_read(node->handle, buf, offset, len);
 	} else {
@@ -5958,7 +5981,6 @@ _fil_io(
 				    offset, len);
 	}
 #endif /* !UNIV_HOTBACKUP */
-	ut_a(ret);
 
 	if (mode == OS_AIO_SYNC) {
 		/* The i/o operation is already completed when we return from
@@ -5973,7 +5995,11 @@ _fil_io(
 		ut_ad(fil_validate_skip());
 	}
 
-	return(DB_SUCCESS);
+	if (!ret) {
+		return(DB_OUT_OF_FILE_SPACE);
+	} else {
+		return(DB_SUCCESS);
+	}
 }
 
 #ifndef UNIV_HOTBACKUP
@@ -6920,36 +6946,47 @@ fil_get_page_type_name(
 {
 	switch(page_type) {
 	case FIL_PAGE_PAGE_COMPRESSED:
-		return "PAGE_COMPRESSED";
+		return (const char*)"PAGE_COMPRESSED";
 	case FIL_PAGE_INDEX:
-		return "INDEX";
+		return (const char*)"INDEX";
 	case FIL_PAGE_UNDO_LOG:
-		return "UNDO LOG";
+		return (const char*)"UNDO LOG";
 	case FIL_PAGE_INODE:
-		return "INODE";
+		return (const char*)"INODE";
 	case FIL_PAGE_IBUF_FREE_LIST:
-		return "IBUF_FREE_LIST";
+		return (const char*)"IBUF_FREE_LIST";
 	case FIL_PAGE_TYPE_ALLOCATED:
-		return "ALLOCATED";
+		return (const char*)"ALLOCATED";
 	case FIL_PAGE_IBUF_BITMAP:
-		return "IBUF_BITMAP";
+		return (const char*)"IBUF_BITMAP";
 	case FIL_PAGE_TYPE_SYS:
-		return "SYS";
+		return (const char*)"SYS";
 	case FIL_PAGE_TYPE_TRX_SYS:
-		return "TRX_SYS";
+		return (const char*)"TRX_SYS";
 	case FIL_PAGE_TYPE_FSP_HDR:
-		return "FSP_HDR";
+		return (const char*)"FSP_HDR";
 	case FIL_PAGE_TYPE_XDES:
-		return "XDES";
+		return (const char*)"XDES";
 	case FIL_PAGE_TYPE_BLOB:
-		return "BLOB";
+		return (const char*)"BLOB";
 	case FIL_PAGE_TYPE_ZBLOB:
-		return "ZBLOB";
+		return (const char*)"ZBLOB";
 	case FIL_PAGE_TYPE_ZBLOB2:
-		return "ZBLOB2";
+		return (const char*)"ZBLOB2";
 	case FIL_PAGE_TYPE_COMPRESSED:
-		return "ORACLE PAGE COMPRESSED";
+		return (const char*)"ORACLE PAGE COMPRESSED";
 	default:
-		return "PAGE TYPE CORRUPTED";
+		return (const char*)"PAGE TYPE CORRUPTED";
 	}
+}
+/****************************************************************//**
+Get block size from fil node
+@return block size*/
+ulint
+fil_node_get_block_size(
+/*====================*/
+	fil_node_t*     node)		/*!< in: Node where to get block
+					size */
+{
+	return (node->file_block_size);
 }

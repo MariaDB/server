@@ -155,7 +155,6 @@ class ha_innobase: public handler
 	double read_time(uint index, uint ranges, ha_rows rows);
 	longlong get_memory_buffer_size() const;
 	my_bool is_fake_change_enabled(THD *thd);
-	bool is_corrupt() const;
 
 	int write_row(uchar * buf);
 	int update_row(const uchar * old_data, uchar * new_data);

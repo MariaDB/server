@@ -795,7 +795,7 @@ row_merge_read(
 	if (UNIV_UNLIKELY(!success)) {
 		ut_print_timestamp(stderr);
 		fprintf(stderr,
-			"  InnoDB: failed to read merge block at "UINT64PF"\n",
+			"  InnoDB: failed to read merge block at " UINT64PF "\n",
 			ofs);
 	}
 
@@ -2257,6 +2257,7 @@ row_merge_sort(
 	ut_ad(file->offset > 0);
 
 	thd_progress_init(trx->mysql_thd, num_runs);
+	sql_print_information("InnoDB: Online DDL : merge-sorting has estimated %lu runs", num_runs);
 
 	/* Merge the runs until we have one big run */
 	do {
@@ -2265,6 +2266,7 @@ row_merge_sort(
 		/* Report progress of merge sort to MySQL for
 		show processlist progress field */
 		thd_progress_report(trx->mysql_thd, cur_run, num_runs);
+		sql_print_information("InnoDB: Online DDL : merge-sorting current run %lu estimated %lu runs", cur_run, num_runs);
 
 		error = row_merge(trx, dup, file, block, tmpfd,
 				  &num_runs, run_offset);

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -302,7 +302,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_CREATE_TABLE]=   CF_CHANGES_DATA | CF_REEXECUTION_FRAGILE |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_CAN_GENERATE_ROW_EVENTS;
-  sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_CREATE_INDEX]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS;
   sql_command_flags[SQLCOM_ALTER_TABLE]=    CF_CHANGES_DATA | CF_WRITE_LOGS_COMMAND |
                                             CF_AUTO_COMMIT_TRANS | CF_REPORT_PROGRESS |
                                             CF_INSERTS_DATA;
@@ -390,6 +390,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_EVENTS]=      CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_OPEN_TABLES]= CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_PLUGINS]=     CF_STATUS_COMMAND;
+  sql_command_flags[SQLCOM_SHOW_GENERIC]=     CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_FIELDS]=      CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_KEYS]=        CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
   sql_command_flags[SQLCOM_SHOW_VARIABLES]=   CF_STATUS_COMMAND | CF_REEXECUTION_FRAGILE;
@@ -424,10 +425,6 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_SHOW_PROFILES]=    CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_PROFILE]=     CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_BINLOG_BASE64_EVENT]= CF_STATUS_COMMAND | CF_CAN_GENERATE_ROW_EVENTS;
-  sql_command_flags[SQLCOM_SHOW_CLIENT_STATS]= CF_STATUS_COMMAND;
-  sql_command_flags[SQLCOM_SHOW_USER_STATS]=   CF_STATUS_COMMAND;
-  sql_command_flags[SQLCOM_SHOW_TABLE_STATS]=  CF_STATUS_COMMAND;
-  sql_command_flags[SQLCOM_SHOW_INDEX_STATS]=  CF_STATUS_COMMAND;
   sql_command_flags[SQLCOM_SHOW_TABLES]=       (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
   sql_command_flags[SQLCOM_SHOW_TABLE_STATUS]= (CF_STATUS_COMMAND | CF_SHOW_TABLE_COMMAND | CF_REEXECUTION_FRAGILE);
 
@@ -471,6 +468,7 @@ void init_update_queries(void)
                                        CF_CAN_GENERATE_ROW_EVENTS |
                                        CF_OPTIMIZER_TRACE; // (1)
   sql_command_flags[SQLCOM_EXECUTE]=   CF_CAN_GENERATE_ROW_EVENTS;
+  sql_command_flags[SQLCOM_COMPOUND]=  CF_CAN_GENERATE_ROW_EVENTS;
 
   /*
     We don't want to change to statement based replication for these commands
@@ -983,9 +981,7 @@ bool do_command(THD *thd)
   */
   DEBUG_SYNC(thd, "before_do_command_net_read");
 
-  thd->m_server_idle= TRUE;
-  packet_length= my_net_read(net);
-  thd->m_server_idle= FALSE;
+  packet_length= my_net_read_packet(net, 1);
 #ifdef WITH_WSREP
   if (WSREP(thd)) {
     mysql_mutex_lock(&thd->LOCK_wsrep_thd);
@@ -1748,8 +1744,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     else
 #endif
     {
-      thd->lex->relay_log_connection_name.str= (char*) "";
-      thd->lex->relay_log_connection_name.length= 0;
+      thd->lex->relay_log_connection_name= empty_lex_str;
       if (reload_acl_and_cache(thd, options, (TABLE_LIST*) 0, &not_used))
         break;
     }
@@ -2118,38 +2113,15 @@ int prepare_schema_table(THD *thd, LEX *lex, Table_ident *table_ident,
     thd->profiling.discard_current_query();
 #endif
     break;
-  case SCH_USER_STATS:
-  case SCH_CLIENT_STATS:
-    if (check_global_access(thd, SUPER_ACL | PROCESS_ACL, true))
-      DBUG_RETURN(1);
-  case SCH_TABLE_STATS:
-  case SCH_INDEX_STATS:
-  case SCH_OPEN_TABLES:
-  case SCH_VARIABLES:
-  case SCH_STATUS:
-  case SCH_PROCEDURES:
-  case SCH_CHARSETS:
-  case SCH_ENGINES:
-  case SCH_COLLATIONS:
-  case SCH_COLLATION_CHARACTER_SET_APPLICABILITY:
-  case SCH_USER_PRIVILEGES:
-  case SCH_SCHEMA_PRIVILEGES:
-  case SCH_TABLE_PRIVILEGES:
-  case SCH_COLUMN_PRIVILEGES:
-  case SCH_TABLE_CONSTRAINTS:
-  case SCH_KEY_COLUMN_USAGE:
   default:
     break;
   }
   
   SELECT_LEX *select_lex= lex->current_select;
-  if (make_schema_select(thd, select_lex, schema_table_idx))
-  {
+  if (make_schema_select(thd, select_lex, get_schema_table(schema_table_idx)))
     DBUG_RETURN(1);
-  }
-  TABLE_LIST *table_list= select_lex->table_list.first;
-  table_list->schema_select_lex= schema_select_lex;
-  table_list->schema_table_reformed= 1;
+
+  select_lex->table_list.first->schema_select_lex= schema_select_lex;
   DBUG_RETURN(0);
 }
 
@@ -2364,6 +2336,54 @@ err:
   DBUG_ASSERT(!thd->locked_tables_mode);
   thd->mdl_context.release_transactional_locks();
   return TRUE;
+}
+
+
+static bool do_execute_sp(THD *thd, sp_head *sp)
+{
+  /* bits that should be cleared in thd->server_status */
+  uint bits_to_be_cleared= 0;
+  if (sp->m_flags & sp_head::MULTI_RESULTS)
+  {
+    if (!(thd->client_capabilities & CLIENT_MULTI_RESULTS))
+    {
+      /* The client does not support multiple result sets being sent back */
+      my_error(ER_SP_BADSELECT, MYF(0), sp->m_qname.str);
+      return 1;
+    }
+    /*
+      If SERVER_MORE_RESULTS_EXISTS is not set,
+      then remember that it should be cleared
+    */
+    bits_to_be_cleared= (~thd->server_status &
+                         SERVER_MORE_RESULTS_EXISTS);
+    thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
+  }
+
+  ha_rows select_limit= thd->variables.select_limit;
+  thd->variables.select_limit= HA_POS_ERROR;
+
+  /*
+    We never write CALL statements into binlog:
+     - If the mode is non-prelocked, each statement will be logged
+       separately.
+     - If the mode is prelocked, the invoking statement will care
+       about writing into binlog.
+    So just execute the statement.
+  */
+  int res= sp->execute_procedure(thd, &thd->lex->value_list);
+
+  thd->variables.select_limit= select_limit;
+  thd->server_status&= ~bits_to_be_cleared;
+
+  if (res)
+  {
+    DBUG_ASSERT(thd->is_error() || thd->killed);
+    return 1;  		// Substatement should already have sent error
+  }
+
+  my_ok(thd, (thd->get_row_count_func() < 0) ? 0 : thd->get_row_count_func());
+  return 0;
 }
 
 
@@ -2697,6 +2717,9 @@ mysql_execute_command(THD *thd)
       goto error;
   }
 
+  /* Start timeouts */
+  thd->set_query_timer();
+
   switch (lex->sql_command) {
 
   case SQLCOM_SHOW_EVENTS:
@@ -2745,17 +2768,14 @@ mysql_execute_command(THD *thd)
   case SQLCOM_SHOW_TRIGGERS:
   case SQLCOM_SHOW_TABLE_STATUS:
   case SQLCOM_SHOW_OPEN_TABLES:
-  case SQLCOM_SHOW_PLUGINS:
+  case SQLCOM_SHOW_GENERIC:
   case SQLCOM_SHOW_FIELDS:
   case SQLCOM_SHOW_KEYS:
-  case SQLCOM_SHOW_CLIENT_STATS:
-  case SQLCOM_SHOW_USER_STATS:
-  case SQLCOM_SHOW_TABLE_STATS:
-  case SQLCOM_SHOW_INDEX_STATS:
   case SQLCOM_SELECT:
     if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
       goto error;
 
+  case SQLCOM_SHOW_PLUGINS:
   case SQLCOM_SHOW_VARIABLES:
   case SQLCOM_SHOW_CHARSETS:
   case SQLCOM_SHOW_COLLATIONS:
@@ -2778,10 +2798,9 @@ mysql_execute_command(THD *thd)
     else
       res= check_access(thd, privileges_requested, any_db, NULL, NULL, 0, 0);
 
-    if (res)
-      break;
+    if (!res)
+      res= execute_sqlcom_select(thd, all_tables);
 
-    res= execute_sqlcom_select(thd, all_tables);
     break;
   }
   case SQLCOM_PREPARE:
@@ -2924,6 +2943,9 @@ mysql_execute_command(THD *thd)
     if (check_global_access(thd, SUPER_ACL))
       goto error;
     mysql_mutex_lock(&LOCK_active_mi);
+
+    if (!master_info_index)
+      goto error;
 
     mi= master_info_index->get_master_info(&lex_mi->connection_name,
                                            Sql_condition::WARN_LEVEL_NOTE);
@@ -3130,9 +3152,8 @@ mysql_execute_command(THD *thd)
         raise a warning, as it may cause problems
         (see 'NAME_CONST issues' in 'Binary Logging of Stored Programs')
        */
-      if (thd->query_name_consts &&
-          mysql_bin_log.is_open() &&
-          WSREP_FORMAT(thd->variables.binlog_format) == BINLOG_FORMAT_STMT &&
+      if (thd->query_name_consts && mysql_bin_log.is_open() &&
+          thd->wsrep_binlog_format() == BINLOG_FORMAT_STMT &&
           !mysql_bin_log.is_query_in_union(thd, thd->query_id))
       {
         List_iterator_fast<Item> it(select_lex->item_list);
@@ -3141,7 +3162,7 @@ mysql_execute_command(THD *thd)
         /* Count SP local vars in the top-level SELECT list */
         while ((item= it++))
         {
-          if (item->is_splocal())
+          if (item->get_item_splocal())
             splocal_refs++;
         }
         /*
@@ -3175,7 +3196,11 @@ mysql_execute_command(THD *thd)
         goto end_with_restore_list;
       }
 
+      /* Copy temporarily the statement flags to thd for lock_table_names() */
+      uint save_thd_create_info_options= thd->lex->create_info.options;
+      thd->lex->create_info.options|= create_info.options;
       res= open_and_lock_tables(thd, lex->query_tables, TRUE, 0);
+      thd->lex->create_info.options= save_thd_create_info_options;
       if (res)
       {
         /* Got error or warning. Set res to 1 if error */
@@ -3387,7 +3412,7 @@ end_with_restore_list:
   case SQLCOM_SLAVE_ALL_START:
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index->start_all_slaves(thd))
+    if (master_info_index && !master_info_index->start_all_slaves(thd))
       my_ok(thd);
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -3403,7 +3428,7 @@ end_with_restore_list:
       goto error;
     }
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!master_info_index->stop_all_slaves(thd))
+    if (master_info_index && !master_info_index->stop_all_slaves(thd))
       my_ok(thd);      
     mysql_mutex_unlock(&LOCK_active_mi);
     break;
@@ -3794,6 +3819,9 @@ end_with_restore_list:
                                                  lex->duplicates,
                                                  lex->ignore)))
       {
+        if (lex->analyze_stmt)
+          ((select_result_interceptor*)sel_result)->disable_my_ok_calls();
+
 	res= handle_select(thd, lex, sel_result, OPTION_SETUP_TABLES_DONE);
         /*
           Invalidate the table in the query cache if something changed
@@ -3813,7 +3841,7 @@ end_with_restore_list:
         delete sel_result;
       }
 
-      if (!res && explain)
+      if (!res && (explain || lex->analyze_stmt))
         res= thd->lex->explain->send_explain(thd);
 
       /* revert changes for SP */
@@ -4673,11 +4701,12 @@ end_with_restore_list:
   case SQLCOM_SHOW_GRANTS:
   {
     LEX_USER *grant_user= lex->grant_user;
+    Security_context *sctx= thd->security_ctx;
     if (!grant_user)
       goto error;
 
-    if (grant_user->user.str &&
-        !strcmp(thd->security_ctx->priv_user, grant_user->user.str))
+    if (grant_user->user.str && !strcmp(sctx->priv_user, grant_user->user.str) &&
+        grant_user->host.str && !strcmp(sctx->priv_host, grant_user->host.str))
       grant_user->user= current_user;
 
     if (grant_user->user.str == current_user.str ||
@@ -4763,14 +4792,12 @@ end_with_restore_list:
       thd->print_aborted_warning(3, "RELEASE");
     }
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && (thd->wsrep_conflict_state != NO_CONFLICT &&
+                       thd->wsrep_conflict_state != REPLAYING))
     {
-      if (thd->wsrep_conflict_state == NO_CONFLICT ||
-          thd->wsrep_conflict_state == REPLAYING)
-      {
-        my_ok(thd);
-      }
-    } else
+      DBUG_ASSERT(thd->is_error()); // the error is already issued
+    }
+    else
 #endif /* WITH_WSREP */
       my_ok(thd);
     break;
@@ -4809,11 +4836,9 @@ end_with_restore_list:
     if (tx_release)
       thd->killed= KILL_CONNECTION;
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && thd->wsrep_conflict_state != NO_CONFLICT)
     {
-      if (thd->wsrep_conflict_state == NO_CONFLICT) {
-        my_ok(thd);
-      }
+      DBUG_ASSERT(thd->is_error()); // the error is already issued
     }
     else
 #endif /* WITH_WSREP */
@@ -5012,9 +5037,6 @@ create_sp_error:
       }
       else
       {
-	ha_rows select_limit;
-        /* bits that should be cleared in thd->server_status */
-	uint bits_to_be_cleared= 0;
         /*
           Check that the stored procedure doesn't contain Dynamic SQL
           and doesn't return result sets: such stored procedures can't
@@ -5028,55 +5050,19 @@ create_sp_error:
             goto error;
         }
 
-	if (sp->m_flags & sp_head::MULTI_RESULTS)
-	{
-	  if (! (thd->client_capabilities & CLIENT_MULTI_RESULTS))
-	  {
-            /*
-              The client does not support multiple result sets being sent
-              back
-            */
-	    my_error(ER_SP_BADSELECT, MYF(0), sp->m_qname.str);
-	    goto error;
-	  }
-          /*
-            If SERVER_MORE_RESULTS_EXISTS is not set,
-            then remember that it should be cleared
-          */
-	  bits_to_be_cleared= (~thd->server_status &
-                               SERVER_MORE_RESULTS_EXISTS);
-	  thd->server_status|= SERVER_MORE_RESULTS_EXISTS;
-	}
-
-	select_limit= thd->variables.select_limit;
-	thd->variables.select_limit= HA_POS_ERROR;
-
-        /* 
-          We never write CALL statements into binlog:
-           - If the mode is non-prelocked, each statement will be logged
-             separately.
-           - If the mode is prelocked, the invoking statement will care
-             about writing into binlog.
-          So just execute the statement.
-        */
-	res= sp->execute_procedure(thd, &lex->value_list);
-
-	thd->variables.select_limit= select_limit;
-
-        thd->server_status&= ~bits_to_be_cleared;
-
-	if (!res)
-        {
-          my_ok(thd, (thd->get_row_count_func() < 0) ? 0 : thd->get_row_count_func());
-        }
-	else
-        {
-          DBUG_ASSERT(thd->is_error() || thd->killed);
-	  goto error;		// Substatement should already have sent error
-        }
+        if (do_execute_sp(thd, sp))
+          goto error;
       }
       break;
     }
+
+  case SQLCOM_COMPOUND:
+    DBUG_ASSERT(all_tables == 0);
+    DBUG_ASSERT(thd->in_sub_stmt == 0);
+    if (do_execute_sp(thd, lex->sphead))
+      goto error;
+    break;
+
   case SQLCOM_ALTER_PROCEDURE:
   case SQLCOM_ALTER_FUNCTION:
     {
@@ -5492,6 +5478,7 @@ error:
 
 finish:
 
+  thd->reset_query_timer();
   DBUG_ASSERT(!thd->in_active_multi_stmt_transaction() ||
                thd->in_multi_stmt_transaction_mode());
 
@@ -5614,7 +5601,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
   bool res;
   /* assign global limit variable if limit is not given */
   {
-    SELECT_LEX *param= lex->unit.global_parameters;
+    SELECT_LEX *param= lex->unit.global_parameters();
     if (!param->explicit_limit)
       param->select_limit=
         new Item_int((ulonglong) thd->variables.select_limit);
@@ -5631,7 +5618,7 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
       */
       if (!(result= new select_send()))
         return 1;                               /* purecov: inspected */
-      thd->send_explain_fields(result);
+      thd->send_explain_fields(result, lex->describe, lex->analyze_stmt);
         
       /*
         This will call optimize() for all parts of query. The query plan is
@@ -5671,12 +5658,18 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
     }
     else
     {
-      Protocol *save_protocol;
+      Protocol *save_protocol= NULL;
       if (lex->analyze_stmt)
       {
-        result= new select_send_analyze();
-        save_protocol= thd->protocol;
-        thd->protocol= new Protocol_discard(thd);
+        if (result && result->is_result_interceptor())
+          ((select_result_interceptor*)result)->disable_my_ok_calls();
+        else 
+        {
+          DBUG_ASSERT(thd->protocol);
+          result= new select_send_analyze();
+          save_protocol= thd->protocol;
+          thd->protocol= new Protocol_discard(thd);
+        }
       }
       else
       {
@@ -5690,8 +5683,11 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
 
       if (lex->analyze_stmt)
       {
-        delete thd->protocol;
-        thd->protocol= save_protocol;
+        if (save_protocol)
+        {
+          delete thd->protocol;
+          thd->protocol= save_protocol;
+        }
         if (!res)
           res= thd->lex->explain->send_explain(thd);
       }
@@ -6697,7 +6693,6 @@ mysql_new_select(LEX *lex, bool move_down)
                 unit->first_select()->context.outer_context;
   }
 
-  select_lex->master_unit()->global_parameters= select_lex;
   select_lex->include_global((st_select_lex_node**)&lex->all_selects_list);
   lex->current_select= select_lex;
   /*
@@ -6722,7 +6717,7 @@ void create_select_for_variable(const char *var_name)
 {
   THD *thd;
   LEX *lex;
-  LEX_STRING tmp, null_lex_string;
+  LEX_STRING tmp;
   Item *var;
   char buff[MAX_SYS_VAR_LENGTH*2+4+8], *end;
   DBUG_ENTER("create_select_for_variable");
@@ -6733,12 +6728,11 @@ void create_select_for_variable(const char *var_name)
   lex->sql_command= SQLCOM_SELECT;
   tmp.str= (char*) var_name;
   tmp.length=strlen(var_name);
-  bzero((char*) &null_lex_string.str, sizeof(null_lex_string));
   /*
     We set the name of Item to @@session.var_name because that then is used
     as the column name in the output.
   */
-  if ((var= get_system_var(thd, OPT_SESSION, tmp, null_lex_string)))
+  if ((var= get_system_var(thd, OPT_SESSION, tmp, null_lex_str)))
   {
     end= strxmov(buff, "@@session.", var_name, NullS);
     var->set_name(buff, end-buff, system_charset_info);
@@ -7665,7 +7659,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   fake_select_lex->context.outer_context=first_sl->context.outer_context;
   /* allow item list resolving in fake select for ORDER BY */
   fake_select_lex->context.resolve_in_select_list= TRUE;
-  fake_select_lex->context.select_lex= fake_select_lex;
+  fake_select_lex->context.select_lex= fake_select_lex;  
 
   if (!is_union())
   {
@@ -7675,7 +7669,6 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
       (SELECT ... LIMIT n) ORDER BY order_list [LIMIT m]
       just before the parser starts processing order_list
     */ 
-    global_parameters= fake_select_lex;
     fake_select_lex->no_table_names_allowed= 1;
     thd_arg->lex->current_select= fake_select_lex;
   }
@@ -7939,7 +7932,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
-    if (tmp->get_command() == COM_DAEMON)
+    if (!tmp->security_ctx->user)
       continue;
     /*
       Check that hostname (if given) and user name matches.
@@ -8763,8 +8756,7 @@ LEX_USER *create_definer(THD *thd, LEX_STRING *user_name, LEX_STRING *host_name)
 
   definer->user= *user_name;
   definer->host= *host_name;
-  definer->password.str= NULL;
-  definer->password.length= 0;
+  definer->password= null_lex_str;
 
   return definer;
 }

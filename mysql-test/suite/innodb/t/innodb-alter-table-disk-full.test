@@ -1,0 +1,47 @@
+# MDEV-6288: Innodb causes server crash after disk full, then can't ALTER TABLE any more
+--source include/have_innodb.inc
+
+# DEBUG_SYNC must be compiled in.
+--source include/have_debug_sync.inc
+
+create table t1(a int not null primary key, b int) engine=innodb;
+
+delimiter //;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+  declare current_num int;
+  set current_num = 0;
+  while current_num < repeat_count do
+    insert into t1 values(current_num, current_num);
+    set current_num = current_num + 1;
+  end while;
+end//
+delimiter ;//
+commit;
+
+set autocommit=0;
+call innodb_insert_proc(10000);
+commit;
+set autocommit=1;
+
+# This caused crash earlier
+set DEBUG_DBUG='+d,ib_os_aio_func_io_failure_28';
+--error 1114
+alter table t1 add testcol int;
+show create table t1;
+
+# This caused crash earlier
+set DEBUG_DBUG='+d,ib_os_aio_func_io_failure_28_2';
+--error 1114
+alter table t1 add testcol int;
+show create table t1;
+
+set DEBUG_DBUG=NULL;
+alter table t1 add testcol2 int;
+show create table t1;
+
+select count(1) from t1;
+
+drop procedure innodb_insert_proc;
+drop table t1;
+

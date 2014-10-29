@@ -74,10 +74,10 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_STATUS              36
 #define IS_FILES_EXTRA               37
 
-int store_create_info(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO  *create_info_arg, bool show_database,
-                      bool create_or_replace);
-int view_store_create_info(THD *thd, TABLE_LIST *table, String *buff);
+typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
+int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
+                      HA_CREATE_INFO  *create_info_arg,
+                      enum_with_db_name with_db_name);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
@@ -112,15 +112,17 @@ void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 void init_fill_schema_files_row(TABLE* table);
 bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
+COND *make_cond_for_info_schema(COND *cond, TABLE_LIST *table);
 
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const char* table_name);
 ST_SCHEMA_TABLE *get_schema_table(enum enum_schema_tables schema_table_idx);
 int make_schema_select(THD *thd,  SELECT_LEX *sel,
-                       enum enum_schema_tables schema_table_idx);
+                       ST_SCHEMA_TABLE *schema_table);
 int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list);
 bool get_schema_tables_result(JOIN *join,
                               enum enum_schema_table_state executed_place);
 enum enum_schema_tables get_schema_table_idx(ST_SCHEMA_TABLE *schema_table);
+TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list);
 
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);

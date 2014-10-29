@@ -94,6 +94,7 @@
 #cmakedefine HAVE_SYS_TYPES_H 1
 #cmakedefine HAVE_SYS_UN_H 1
 #cmakedefine HAVE_SYS_VADVISE_H 1
+#cmakedefine HAVE_SYS_STATVFS_H 1
 #cmakedefine HAVE_TERM_H 1
 #cmakedefine HAVE_TERMBITS_H 1
 #cmakedefine HAVE_TERMIOS_H 1
@@ -521,6 +522,11 @@
 #endif
 #define PSAPI_VERSION 1     /* for GetProcessMemoryInfo() */
 
+/* We don't want the min/max macros */
+#ifdef __WIN__
+#define NOMINMAX
+#endif
+
 /*
   MySQL features
 */
@@ -604,10 +610,6 @@
 #cmakedefine WITH_CSV_STORAGE_ENGINE 1
 #cmakedefine WITH_PARTITION_STORAGE_ENGINE 1
 #cmakedefine WITH_PERFSCHEMA_STORAGE_ENGINE 1
-#cmakedefine WITH_NDBCLUSTER_STORAGE_ENGINE 1
-#if (WITH_NDBCLUSTER_STORAGE_ENGINE) && !defined(EMBEDDED_LIBRARY)
-# define HAVE_NDB_BINLOG 1
-#endif
 #cmakedefine WITH_ARIA_STORAGE_ENGINE 1
 #cmakedefine USE_ARIA_FOR_TMP_TABLES 1
 

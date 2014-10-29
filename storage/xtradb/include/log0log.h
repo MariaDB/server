@@ -168,6 +168,13 @@ lsn_t
 log_get_lsn(void);
 /*=============*/
 /************************************************************//**
+Gets the current lsn.
+@return	current lsn */
+UNIV_INLINE
+lsn_t
+log_get_lsn_nowait(void);
+/*=============*/
+/************************************************************//**
 Gets the last lsn that is fully flushed to disk.
 @return	last flushed lsn */
 UNIV_INLINE
@@ -615,6 +622,27 @@ void
 log_mem_free(void);
 /*==============*/
 
+/****************************************************************//**
+Safely reads the log_sys->tracked_lsn value.  Uses atomic operations
+if available, otherwise this field is protected with the log system
+mutex.  The writer counterpart function is log_set_tracked_lsn() in
+log0online.c.
+
+@return log_sys->tracked_lsn value. */
+UNIV_INLINE
+lsn_t
+log_get_tracked_lsn(void);
+/*=====================*/
+/****************************************************************//**
+Unsafely reads the log_sys->tracked_lsn value.  Uses atomic operations
+if available, or use dirty read. Use for printing only.
+
+@return log_sys->tracked_lsn value. */
+UNIV_INLINE
+lsn_t
+log_get_tracked_lsn_peek(void);
+/*==========================*/
+
 extern log_t*	log_sys;
 
 /* Values used as flags */
@@ -696,13 +724,13 @@ extern log_t*	log_sys;
 					megabyte.
 
 					This information might have been used
-					since ibbackup version 0.35 but
+					since mysqlbackup version 0.35 but
 					before 1.41 to decide if unused ends of
 					non-auto-extending data files
 					in space 0 can be truncated.
 
 					This information was made obsolete
-					by ibbackup --compress. */
+					by mysqlbackup --compress. */
 #define LOG_CHECKPOINT_FSP_MAGIC_N	(12 + LOG_CHECKPOINT_ARRAY_END)
 					/*!< Not used (0);
 					This magic number tells if the
@@ -731,7 +759,7 @@ extern log_t*	log_sys;
 					/* a 32-byte field which contains
 					the string 'ibbackup' and the
 					creation time if the log file was
-					created by ibbackup --restore;
+					created by mysqlbackup --restore;
 					when mysqld is first time started
 					on the restored database, it can
 					print helpful info for the user */

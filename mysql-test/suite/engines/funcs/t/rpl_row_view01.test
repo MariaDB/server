@@ -5,8 +5,6 @@
 #############################################################################
 #TEST: row based replication of views                                       #
 #############################################################################
-# 2006-02-08 By JBM added order by and sleep for use with ndb engine
-#############################################################################
 # Includes
 -- source include/have_binlog_format_row.inc
 -- source include/master-slave.inc
@@ -43,11 +41,6 @@ CREATE VIEW mysqltest1.v4 AS SELECT * FROM mysqltest1.v3 WHERE a > 1 WITH LOCAL 
 
 SELECT * FROM mysqltest1.v2;
 SELECT * FROM mysqltest1.v1;
-# Had to add a sleep for use with NDB
-# engine. Injector thread would have not 
-# populated biblog and data would not be on 
-# the slave.
-sleep 10;
 sync_slave_with_master;
 SELECT * FROM mysqltest1.v2;
 SELECT * FROM mysqltest1.v1;

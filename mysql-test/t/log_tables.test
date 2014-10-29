@@ -265,8 +265,6 @@ alter table mysql.slow_log engine=NonExistentEngine;
 --error ER_UNSUPORTED_LOG_ENGINE
 alter table mysql.slow_log engine=memory;
 #--error ER_UNSUPORTED_LOG_ENGINE
-#alter table mysql.slow_log engine=ndb;
-#--error ER_UNSUPORTED_LOG_ENGINE
 #alter table mysql.slow_log engine=innodb;
 #--error ER_UNSUPORTED_LOG_ENGINE
 #alter table mysql.slow_log engine=archive;

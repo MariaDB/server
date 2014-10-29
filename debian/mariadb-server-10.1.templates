@@ -81,9 +81,3 @@ Type: error
 _Description: Password input error
  The two passwords you entered were not the same. Please try again.
 
-Template: mysql-server/no_upgrade_when_using_ndb
-Type: error
-_Description: NDB Cluster seems to be in use
- MySQL-5.1 no longer provides NDB Cluster support. Please migrate to the new
- mysql-cluster package and remove all lines starting with "ndb" from
- all config files below /etc/mysql/.

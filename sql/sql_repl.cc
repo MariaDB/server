@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2014, Monty Program Ab
+   Copyright (c) 2008, 2014, SkySQL Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3055,8 +3055,6 @@ int reset_slave(THD *thd, Master_info* mi)
     DBUG_RETURN(ER_SLAVE_MUST_STOP);
   }
 
-  ha_reset_slave(thd);
-
   // delete relay logs, clear relay log coordinates
   if ((error= purge_relay_logs(&mi->rli, thd,
 			       1 /* just reset */,
@@ -3076,6 +3074,7 @@ int reset_slave(THD *thd, Master_info* mi)
   mi->clear_error();
   mi->rli.clear_error();
   mi->rli.clear_until_condition();
+  mi->rli.slave_skip_counter= 0;
 
   // close master_info_file, relay_log_info_file, set mi->inited=rli->inited=0
   end_master_info(mi);
@@ -3225,6 +3224,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   my_off_t saved_log_pos;
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
   DBUG_ENTER("change_master");
+
+  mysql_mutex_assert_owner(&LOCK_active_mi);
+  DBUG_ASSERT(master_info_index);
 
   *master_info_added= false;
   /* 
@@ -3523,6 +3525,7 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   /* Clear the errors, for a clean start */
   mi->rli.clear_error();
   mi->rli.clear_until_condition();
+  mi->rli.slave_skip_counter= 0;
 
   sql_print_information("'CHANGE MASTER TO executed'. "
     "Previous state master_host='%s', master_port='%u', master_log_file='%s', "
@@ -3619,19 +3622,13 @@ bool mysql_show_binlog_events(THD* thd)
   /* select wich binary log to use: binlog or relay */
   if ( thd->lex->sql_command == SQLCOM_SHOW_BINLOG_EVENTS )
   {
-    /*
-      Wait for handlers to insert any pending information
-      into the binlog.  For e.g. ndb which updates the binlog asynchronously
-      this is needed so that the uses sees all its own commands in the binlog
-    */
-    ha_binlog_wait(thd);
-
     binary_log= &mysql_bin_log;
   }
   else  /* showing relay log contents */
   {
     mysql_mutex_lock(&LOCK_active_mi);
-    if (!(mi= master_info_index->
+    if (!master_info_index ||
+        !(mi= master_info_index->
           get_master_info(&thd->variables.default_master_connection,
                           Sql_condition::WARN_LEVEL_ERROR)))
     {

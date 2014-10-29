@@ -164,7 +164,12 @@ compression_pad_increments	disabled
 compression_pad_decrements	disabled
 compress_saved	disabled
 compress_trim_sect512	disabled
+compress_trim_sect1024	disabled
+compress_trim_sect2048	disabled
 compress_trim_sect4096	disabled
+compress_trim_sect8192	disabled
+compress_trim_sect16384	disabled
+compress_trim_sect32768	disabled
 compress_pages_page_compressed	disabled
 compress_page_compressed_trim_op	disabled
 compress_page_compressed_trim_op_saved	disabled

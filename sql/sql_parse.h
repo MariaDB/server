@@ -148,15 +148,6 @@ inline bool check_identifier_name(LEX_STRING *str)
   return check_identifier_name(str, NAME_CHAR_LEN, 0, "");
 }
 
-
-/*
-  check_access() is needed for the connect engine.
-  It cannot be inlined - it must be exported.
-*/
-bool check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
-                  GRANT_INTERNAL_INFO *grant_internal_info,
-                  bool dont_check_global_grants, bool no_errors);
-
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
 bool check_single_table_access(THD *thd, ulong privilege,
@@ -193,9 +184,5 @@ check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
                    bool no_errors)
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
-
-/* These were under the INNODB_COMPATIBILITY_HOOKS */
-
-bool check_global_access(THD *thd, ulong want_access, bool no_errors= false);
 
 #endif /* SQL_PARSE_INCLUDED */

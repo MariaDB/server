@@ -267,9 +267,11 @@ Condition_information_item::make_utf8_string_item(THD *thd, const String *str)
   CHARSET_INFO *to_cs= &my_charset_utf8_general_ci;
   /* If a charset was not set, assume that no conversion is needed. */
   CHARSET_INFO *from_cs= str->charset() ? str->charset() : to_cs;
-  Item_string *item= new Item_string(str->ptr(), str->length(), from_cs);
+  String tmp(str->ptr(), str->length(), from_cs);
   /* If necessary, convert the string (ignoring errors), then copy it over. */
-  return item ? item->charset_converter(to_cs, false) : NULL;
+  uint conv_errors;
+  return new Item_string(&tmp, to_cs, &conv_errors,
+                         DERIVATION_COERCIBLE, MY_REPERTOIRE_UNICODE30);
 }
 
 

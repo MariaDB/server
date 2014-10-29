@@ -136,7 +136,7 @@ int Explain_query::send_explain(THD *thd)
   LEX *lex= thd->lex;
  
   if (!(result= new select_send()) || 
-      thd->send_explain_fields(result))
+      thd->send_explain_fields(result, lex->describe, lex->analyze_stmt))
     return 1;
 
   int res;
@@ -177,9 +177,9 @@ int Explain_query::print_explain(select_result_sink *output,
 }
 
 
-bool print_explain_query(LEX *lex, THD *thd, String *str)
+bool print_explain_for_slow_log(LEX *lex, THD *thd, String *str)
 {
-  return lex->explain->print_explain_str(thd, str, false);
+  return lex->explain->print_explain_str(thd, str, /*is_analyze*/ true);
 }
 
 
@@ -190,7 +190,7 @@ bool print_explain_query(LEX *lex, THD *thd, String *str)
 bool Explain_query::print_explain_str(THD *thd, String *out_str,  bool is_analyze)
 {
   List<Item> fields;
-  thd->make_explain_field_list(fields);
+  thd->make_explain_field_list(fields, thd->lex->describe, is_analyze);
 
   select_result_text_buffer output_buf(thd);
   output_buf.send_result_set_metadata(fields, thd->lex->describe);
@@ -203,15 +203,13 @@ bool Explain_query::print_explain_str(THD *thd, String *out_str,  bool is_analyz
 
 static void push_str(List<Item> *item_list, const char *str)
 {
-  item_list->push_back(new Item_string(str,
-                                      strlen(str), system_charset_info));
+  item_list->push_back(new Item_string_sys(str));
 }
 
 
 static void push_string(List<Item> *item_list, String *str)
 {
-  item_list->push_back(new Item_string(str->ptr(), str->length(),
-                       system_charset_info));
+  item_list->push_back(new Item_string_sys(str->ptr(), str->length()));
 }
 
 
@@ -228,6 +226,9 @@ int Explain_union::print_explain(Explain_query *query,
     Explain_select *sel= query->get_select(union_members.at(i));
     sel->print_explain(query, output, explain_flags, is_analyze);
   }
+
+  if (!using_tmp)
+    return 0;
 
   /* Print a line with "UNION RESULT" */
   List<Item> item_list;
@@ -263,8 +264,7 @@ int Explain_union::print_explain(Explain_query *query,
       len+= lastop;
       table_name_buffer[len - 1]= '>';  // change ',' to '>'
     }
-    const CHARSET_INFO *cs= system_charset_info;
-    item_list.push_back(new Item_string(table_name_buffer, len, cs));
+    item_list.push_back(new Item_string_sys(table_name_buffer, len));
   }
   
   /* `partitions` column */
@@ -311,8 +311,7 @@ int Explain_union::print_explain(Explain_query *query,
   {
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
   }
-  const CHARSET_INFO *cs= system_charset_info;
-  item_list.push_back(new Item_string(extra_buf.ptr(), extra_buf.length(), cs));
+  item_list.push_back(new Item_string_sys(extra_buf.ptr(), extra_buf.length()));
 
   //output->unit.offset_limit_cnt= 0; 
   if (output->send_data(item_list))
@@ -370,12 +369,10 @@ int Explain_select::print_explain(Explain_query *query,
   if (message)
   {
     List<Item> item_list;
-    const CHARSET_INFO *cs= system_charset_info;
     Item *item_null= new Item_null();
 
     item_list.push_back(new Item_int((int32) select_id));
-    item_list.push_back(new Item_string(select_type,
-                                        strlen(select_type), cs));
+    item_list.push_back(new Item_string_sys(select_type));
     for (uint i=0 ; i < 7; i++)
       item_list.push_back(item_null);
     if (explain_flags & DESCRIBE_PARTITIONS)
@@ -392,7 +389,7 @@ int Explain_select::print_explain(Explain_query *query,
       item_list.push_back(item_null);
     }
 
-    item_list.push_back(new Item_string(message,strlen(message),cs));
+    item_list.push_back(new Item_string_sys(message));
 
     if (output->send_data(item_list))
       return 1;
@@ -622,7 +619,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
     extra_buf.append(STRING_WITH_LEN("Using filesort"));
   }
 
-  item_list.push_back(new Item_string(extra_buf.ptr(), extra_buf.length(), cs));
+  item_list.push_back(new Item_string_sys(extra_buf.ptr(), extra_buf.length()));
 
   if (output->send_data(item_list))
     return 1;

@@ -9,10 +9,8 @@
 # Uses following variables:                                                    #
 #   engine        Use specified storage engine                                 #
 #   can_only_key  Storage engine only able to use HASH/KEY (not range/list)    #
-#                 (E.g. not ndbcluster)                                        #
 #   part_optA-D   Extra partitioning options (E.g. INDEX/DATA DIR)             #
 #                                                                              #
-#   have_bug33158 NDB case insensitive create, but case sensitive rename       #
 #   no_truncate   No support for truncate partition                            #
 #------------------------------------------------------------------------------#
 # Original Author: mattiasj                                                    #
@@ -144,8 +142,6 @@ SHOW CREATE TABLE tablea;
 }
 if (!$lower_case_table_names)
 {
-if (!$have_bug33158)
-{
 eval CREATE TABLE tablea (a INT)
 ENGINE = $engine
 PARTITION BY KEY (a)
@@ -163,7 +159,6 @@ SELECT * FROM tableA;
 RENAME TABLE tableA to TableA;
 SHOW CREATE TABLE tablea;
 DROP TABLE tablea;
-}
 }
 
 --echo # Test of REMOVE PARTITIONING
