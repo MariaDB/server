@@ -1141,9 +1141,9 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	INNODB_LOG_COMPRESSED_PAGES
 SESSION_VALUE	NULL
-GLOBAL_VALUE	ON
+GLOBAL_VALUE	OFF
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	ON
+DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
 VARIABLE_COMMENT	Enables/disables the logging of entire compressed page images. InnoDB logs the compressed pages to prevent corruption if the zlib compression algorithm changes. When turned OFF, InnoDB will assume that the zlib compression algorithm doesn't change.

@@ -18151,7 +18151,7 @@ static MYSQL_SYSVAR_BOOL(log_compressed_pages, page_zip_log_pages,
   " the zlib compression algorithm changes."
   " When turned OFF, InnoDB will assume that the zlib"
   " compression algorithm doesn't change.",
-  NULL, NULL, TRUE);
+  NULL, NULL, FALSE);
 
 static MYSQL_SYSVAR_LONG(additional_mem_pool_size, innobase_additional_mem_pool_size,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,

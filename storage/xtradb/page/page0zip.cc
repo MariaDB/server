@@ -77,7 +77,7 @@ UNIV_INTERN uint	page_zip_level = DEFAULT_COMPRESSION_LEVEL;
 
 /* Whether or not to log compressed page images to avoid possible
 compression algorithm changes in zlib. */
-UNIV_INTERN my_bool	page_zip_log_pages = true;
+UNIV_INTERN my_bool	page_zip_log_pages = false;
 
 /* Please refer to ../include/page0zip.ic for a description of the
 compressed page format. */
