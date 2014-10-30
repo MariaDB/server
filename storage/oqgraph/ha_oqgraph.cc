@@ -879,6 +879,11 @@ static int parse_latch_string_to_legacy_int(const String& value, int &latch)
 int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
                         uint key_len, enum ha_rkey_function find_flag)
 {
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
+
   Field **field= table->field;
   KEY *key_info= table->key_info + index;
   int res;
@@ -1162,6 +1167,11 @@ int ha_oqgraph::rename_table(const char *, const char *)
 ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
                                   key_range *max_key)
 {
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
+
   KEY *key=table->key_info+inx;
 #ifdef VERBOSE_DEBUG
   {
