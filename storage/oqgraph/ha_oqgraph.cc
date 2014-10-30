@@ -28,6 +28,7 @@
    -----------------------
    * Removed compatibility hacks for 5.5.32 and 10.0.4.
      I expect no issues building oqgraph into Mariadb 5.5.40 but I think the better approach is maintain a separate fork / patches.
+   * Added status variable to report if verbose debug is on
 
 */
 
@@ -62,8 +63,6 @@
 #define DBUG_PRINT(x ...)
 #endif
 
-using namespace open_query;
-
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
 /* In normal operation, no new tables using an integer latch can be created,
  * but they can still be used if they already exist, to allow for upgrades.
@@ -74,11 +73,9 @@ using namespace open_query;
  */
 
 static my_bool g_allow_create_integer_latch = FALSE;
-
-static MYSQL_SYSVAR_BOOL(allow_create_integer_latch, g_allow_create_integer_latch,
-  PLUGIN_VAR_RQCMDARG, "Allow creation of integer latches "
-  "so the upgrade logic can be tested", NULL, NULL, FALSE);
 #endif
+
+using namespace open_query;
 
 // Table of varchar latch operations.
 // In the future this needs to be refactactored to live somewhere else
@@ -126,10 +123,6 @@ static const ha_create_table_option oqgraph_table_option_list[]=
   HA_TOPTION_STRING("weight", weight),
   HA_TOPTION_END
 };
-
-static const char oqgraph_description[]=
-  "Open Query Graph Computation Engine "
-  "(http://openquery.com/graph)";
 
 static bool oqgraph_init_done= 0;
 
@@ -1203,24 +1196,55 @@ void ha_oqgraph::update_create_info(HA_CREATE_INFO *create_info)
   table->file->info(HA_STATUS_AUTO);
 }
 
+// --------------------
+// Handler description.
+// --------------------
+
+
+static const char oqgraph_description[]=
+  "Open Query Graph Computation Engine "
+  "(http://openquery.com/graph)";
+
 struct st_mysql_storage_engine oqgraph_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
 extern "C" const char* const oqgraph_boost_version;
 
+static const char *oqgraph_status_verbose_debug =
+#ifdef VERBOSE_DEBUG
+  "Verbose Debug is enabled. Performance may be adversely impacted.";
+#else
+  "Verbose Debug is not enabled.";
+#endif
+
+static const char *oqgraph_status_latch_compat_mode =
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
+  "Legacy tables with integer latches are supported.";
+#else
+  "Legacy tables with integer latches are not supported.";
+#endif
+
 static struct st_mysql_show_var oqgraph_status[]=
 {
   { "OQGraph_Boost_Version", (char*) &oqgraph_boost_version, SHOW_CHAR_PTR },
   /* We thought about reporting the Judy version, but there seems to be no way to get that from code in the first place. */
+  { "OQGraph_Verbose_Debug", (char*) &oqgraph_status_verbose_debug, SHOW_CHAR_PTR },
+  { "OQGraph_Compat_mode",   (char*) &oqgraph_status_latch_compat_mode, SHOW_CHAR_PTR },
   { 0, 0, SHOW_UNDEF }
 };
 
 #ifdef RETAIN_INT_LATCH_COMPATIBILITY
+static MYSQL_SYSVAR_BOOL( allow_create_integer_latch, g_allow_create_integer_latch, PLUGIN_VAR_RQCMDARG,
+                        "Allow creation of integer latches so the upgrade logic can be tested. Not for normal use.",
+                        NULL, NULL, FALSE);
+#endif
+
 static struct st_mysql_sys_var* oqgraph_sysvars[]= {
+#ifdef RETAIN_INT_LATCH_COMPATIBILITY
   MYSQL_SYSVAR(allow_create_integer_latch),
+#endif
   0
 };
-#endif
 
 maria_declare_plugin(oqgraph)
 {
@@ -1234,11 +1258,7 @@ maria_declare_plugin(oqgraph)
   oqgraph_fini,                  /* Plugin Deinit                */
   0x0300,                        /* Version: 3s.0                */
   oqgraph_status,                /* status variables             */
-#ifdef RETAIN_INT_LATCH_COMPATIBILITY
-  oqgraph_sysvars,               /* system variables                */
-#else
-  NULL,
-#endif
+  oqgraph_sysvars,               /* system variables             */
   "3.0",
   MariaDB_PLUGIN_MATURITY_BETA
 }
