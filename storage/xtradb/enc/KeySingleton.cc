@@ -32,11 +32,12 @@ EncKeys KeySingleton::encKeys;
 
 
 KeySingleton & KeySingleton::getInstance() {
+#ifdef UNIV_DEBUG
 	if( !instanceInited) {
 		fprintf(stderr, "Encryption / decryption keys were not initialized. "
-				"You can not read encrypted tables or columns\n\n");
-		fflush(stderr);
+				"You can not read encrypted tables or columns\n");
 	}
+#endif UNIV_DEBUG
 	return theInstance;
 }
 

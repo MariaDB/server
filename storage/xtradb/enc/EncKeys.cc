@@ -168,7 +168,9 @@ int EncKeys::initKeysThroughFile(const char *name, const char *path, const char 
 int EncKeys::initKeysThroughServer( const char *name, const char *path, const char *filekey)
 {
 	//TODO
+#ifdef UNIV_DEBUG
 	fprintf(stderr, errorNotImplemented);
+#endif //UNIV_DEBUG
 	return ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
 }
 
@@ -216,11 +218,16 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
  */
 keyentry *EncKeys::getKeys(int id) {
 	if (KEY_MIN <= id && KEY_MAX >= id && (oneKey = &keys[id - 1])->iv)
+	{
 		return oneKey;
+	}
+#ifdef UNIV_DEBUG
 	else {
+
 		fprintf(stderr, errorNoKeyId, id);
 		return NULL;
 	}
+#endif //UNIV_DEBUG
 }
 
 /**
@@ -403,15 +410,13 @@ bool EncKeys::isComment(const char *line) {
 
 void EncKeys::printKeyEntry( ulint id)
 {
+#ifdef UNIV_DEBUG
 	keyentry *entry = getKeys(id);
 	if( NULL == entry)	{
-		fprintf(stderr, "No such keyID = %u\n", id);
+		fprintf(stderr, "No such keyID=%u\n",id);
 	}
 	else {
-#ifdef UNIV_DEBUG
 		fprintf(stderr, "Key: id:%3u \tiv:%d bytes\tkey:%d bytes\n", entry->id, strlen(entry->iv)/2, strlen(entry->key)/2);
-#else
-		fprintf(stderr, "Key: id:%3u\n", entry->id);
-#endif //UNIV_DEBUG
 	}
+#endif //UNIV_DEBUG
 }

@@ -180,9 +180,9 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 
 	cc1 = (i==0) && (cc1);
 	if (!cc1) {
-		dump_buffer(fl, buf);
+		//dump_buffer(fl, buf);
 
-		dump_buffer(write_size, dest);
+		//dump_buffer(write_size, dest);
 	}
 
 	ok  (cc1, "%s", (char*) str);
