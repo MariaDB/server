@@ -124,10 +124,11 @@ fil_encrypt_page(
 		fil_system_exit();
 
 #ifdef UNIV_DEBUG
-
+		ulint pageno = mach_read_from_4(buf + FIL_PAGE_OFFSET);
+	
 		fprintf(stderr,
-				"InnoDB: Note: Preparing for encryption for space %lu name %s len %lu\n",
-				space_id, fil_space_name(space), len);
+				"InnoDB: Note: Preparing for encryption for space %lu name %s len %lu, page no %lu\n",
+				space_id, fil_space_name(space), len, pageno);
 #endif /* UNIV_DEBUG */
 	}
 	/* read original page type */
@@ -374,10 +375,6 @@ ulint fil_decrypt_page(
 	}
 	data_size = ((len - FIL_PAGE_DATA - FIL_PAGE_DATA_END) / MY_AES_BLOCK_SIZE) * MY_AES_BLOCK_SIZE;
 
-	tmp_buf= static_cast<byte *>(ut_malloc(64));
-	tmp_page_buf = static_cast<byte *>(ut_malloc(len));
-	memset(tmp_page_buf,0, len);
-
 	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
 			0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23,
 			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -455,6 +452,9 @@ ulint fil_decrypt_page(
 		if (NULL == page_buf) {
 			ut_free(in_buffer);
 		}
+		ut_free(tmp_page_buf);
+		ut_free(tmp_buf);
+
 		return err;
 	}
 
@@ -510,6 +510,10 @@ ulint fil_decrypt_page(
 
 	/* Copy the decrypted page to the buffer pool*/
 	memcpy(buf, in_buf, len);
+
+	if (NULL == page_buf) {
+		ut_free(in_buffer);
+	}
 
 	/* setting original page type */
 
