@@ -8,6 +8,11 @@
 typedef class VIRDEF   *PVIRDEF;
 typedef class TDBVIR   *PTDBVIR;
 
+/***********************************************************************/
+/*  Return the unique column definition to MariaDB.                    */
+/***********************************************************************/
+PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
+
 /* --------------------------- VIR classes --------------------------- */
 
 /***********************************************************************/

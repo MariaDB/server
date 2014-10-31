@@ -5508,6 +5508,14 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       DBUG_RETURN(rc);
       } // endif flags
 
+    if (type == TAB_VIR)
+      if (!fp->option_struct || !fp->option_struct->special) {
+        strcpy(g->Message, "Virtual tables accept only special or virtual columns");
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        rc= HA_ERR_INTERNAL_ERROR;
+        DBUG_RETURN(rc);
+        } // endif special
+      
     switch (fp->type()) {
       case MYSQL_TYPE_SHORT:
       case MYSQL_TYPE_LONG:
