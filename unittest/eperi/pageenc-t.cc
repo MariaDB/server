@@ -155,7 +155,8 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 	ulint orig_page_type = mach_read_from_2(buf + 24);
 	byte* snd = fil_encrypt_page(0,buf,dest,fl,255, &out_len,  &ec, fl==8192 ? fl : 1);
 	if ((orig_page_type ==8) || (orig_page_type==9)) {
-		cc1 = (ec == 5) && (snd == buf);
+		ulint cc2 = memcmp(buf,snd,fl) == 0;
+		cc1 = (ec == 5) && cc2;
 		ok(cc1, "page type 8 or 9 will not be encrypted! file %s", (char*) str);
 		return;
 	}
@@ -310,7 +311,7 @@ int main()
 
 	testSecrets();
 	test_page_enc_dec();
-	testEncryptionChecksum((char* )"xaa");
+	testEncryptionChecksum((char* )"xab");
 
 	return 0;
 }
