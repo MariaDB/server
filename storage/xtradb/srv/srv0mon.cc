@@ -1920,6 +1920,15 @@ srv_mon_process_existing_counter(
         case MONITOR_OVLD_PAGES_PAGE_COMPRESSION_ERROR:
 		value = srv_stats.pages_page_compression_error;
 		break;
+        case MONITOR_OVLD_PAGES_PAGE_ENCRYPTED:
+		value = srv_stats.pages_page_encrypted;
+		break;
+        case MONITOR_OVLD_PAGES_PAGE_DECRYPTED:
+		value = srv_stats.pages_page_decrypted;
+		break;
+        case MONITOR_OVLD_PAGES_PAGE_ENCRYPTION_ERROR:
+		value = srv_stats.pages_page_encryption_error;
+		break;
 
 	default:
 		ut_error;

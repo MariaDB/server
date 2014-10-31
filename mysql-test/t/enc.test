@@ -1,0 +1,28 @@
+-- source include/have_xtradb.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS t1;
+DROP DATABASE IF EXISTS test;
+--enable_warnings
+
+CREATE DATABASE test;
+USE test;
+set @save_storage_engine= @@storage_engine;
+set storage_engine=InnoDB;
+
+--error ER_BAD_OPTION_VALUE
+CREATE TABLE t1 (id int)
+ PAGE_ENCRYPTION='abc';
+
+--error ER_BAD_OPTION_VALUE
+CREATE TABLE t1 (id int)
+ PAGE_ENCRYPTION=1
+ PAGE_ENCRYPTION_KEY='0xFFC';
+
+CREATE TABLE t1 (id int(11)) 
+ PAGE_ENCRYPTION=1 
+ PAGE_ENCRYPTION_KEY=42;
+
+INSERT INTO t1(id) values(1);
+SELECT * FROM t1;
+

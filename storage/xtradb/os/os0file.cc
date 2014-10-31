@@ -1,246 +1,263 @@
-/***********************************************************************
+	/***********************************************************************
 
-Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2014, MariaDB Corporation.
+	Copyright (c) 1995, 2013, Oracle and/or its affiliates. All Rights Reserved.
+	Copyright (c) 2009, Percona Inc.
+	Copyright (c) 2013, 2014, MariaDB Corporation.
 
-Portions of this file contain modifications contributed and copyrighted
-by Percona Inc.. Those modifications are
-gratefully acknowledged and are described briefly in the InnoDB
-documentation. The contributions by Percona Inc. are incorporated with
-their permission, and subject to the conditions contained in the file
-COPYING.Percona.
+	Portions of this file contain modifications contributed and copyrighted
+	by Percona Inc.. Those modifications are
+	gratefully acknowledged and are described briefly in the InnoDB
+	documentation. The contributions by Percona Inc. are incorporated with
+	their permission, and subject to the conditions contained in the file
+	COPYING.Percona.
 
-This program is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License as published by the
-Free Software Foundation; version 2 of the License.
+	This program is free software; you can redistribute it and/or modify it
+	under the terms of the GNU General Public License as published by the
+	Free Software Foundation; version 2 of the License.
 
-This program is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
-Public License for more details.
+	This program is distributed in the hope that it will be useful, but
+	WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+	Public License for more details.
 
-You should have received a copy of the GNU General Public License along with
-this program; if not, write to the Free Software Foundation, Inc.,
-51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
+	You should have received a copy of the GNU General Public License along with
+	this program; if not, write to the Free Software Foundation, Inc.,
+	51 Franklin Street, Suite 500, Boston, MA 02110-1335 USA
 
-***********************************************************************/
+	***********************************************************************/
 
-/**************************************************//**
-@file os/os0file.cc
-The interface to the operating system file i/o primitives
+	/**************************************************//**
+	@file os/os0file.cc
+	The interface to the operating system file i/o primitives
 
-Created 10/21/1995 Heikki Tuuri
-*******************************************************/
+	Created 10/21/1995 Heikki Tuuri
+	*******************************************************/
 
-#include "os0file.h"
+	#include "os0file.h"
 
-#ifdef UNIV_NONINL
-#include "os0file.ic"
-#endif
-#include "ha_prototypes.h"
-#include "ut0mem.h"
-#include "srv0srv.h"
-#include "srv0start.h"
-#include "fil0fil.h"
-#include "fil0pagecompress.h"
-#include "buf0buf.h"
-#include "btr0types.h"
-#include "trx0trx.h"
-#include "srv0mon.h"
-#include "srv0srv.h"
-#ifdef HAVE_POSIX_FALLOCATE
-#include "fcntl.h"
-#endif
-#ifndef UNIV_HOTBACKUP
-# include "os0sync.h"
-# include "os0thread.h"
-#else /* !UNIV_HOTBACKUP */
-# ifdef __WIN__
-/* Add includes for the _stat() call to compile on Windows */
-#  include <sys/types.h>
-#  include <sys/stat.h>
-#  include <errno.h>
-# endif /* __WIN__ */
-#endif /* !UNIV_HOTBACKUP */
+	#ifdef UNIV_NONINL
+	#include "os0file.ic"
+	#endif
+	#include "ha_prototypes.h"
+	#include "ut0mem.h"
+	#include "srv0srv.h"
+	#include "srv0start.h"
+	#include "fil0fil.h"
+	#include "fsp0fsp.h"
+	#include "fil0pagecompress.h"
+	#include "fil0pageencryption.h"
+	#include "buf0buf.h"
+	#include "btr0types.h"
+	#include "trx0trx.h"
+	#include "srv0mon.h"
+	#include "srv0srv.h"
+	#ifdef HAVE_POSIX_FALLOCATE
+	#include "fcntl.h"
+	#endif
+	#ifndef UNIV_HOTBACKUP
+	# include "os0sync.h"
+	# include "os0thread.h"
+	#else /* !UNIV_HOTBACKUP */
+	# ifdef __WIN__
+	/* Add includes for the _stat() call to compile on Windows */
+	#  include <sys/types.h>
+	#  include <sys/stat.h>
+	#  include <errno.h>
+	# endif /* __WIN__ */
+	#endif /* !UNIV_HOTBACKUP */
 
-#if defined(LINUX_NATIVE_AIO)
-#include <libaio.h>
-#endif
+	#if defined(LINUX_NATIVE_AIO)
+	#include <libaio.h>
+	#endif
 
-#ifdef _WIN32
-#define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
-#endif
+	#ifdef _WIN32
+	#define IOCP_SHUTDOWN_KEY (ULONG_PTR)-1
+	#endif
 
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
-# include <sys/ioctl.h>
-# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
-#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
-# endif
-#endif
+	#if defined(UNIV_LINUX) && defined(HAVE_SYS_IOCTL_H)
+	# include <sys/ioctl.h>
+	# ifndef DFS_IOCTL_ATOMIC_WRITE_SET
+	#  define DFS_IOCTL_ATOMIC_WRITE_SET _IOW(0x95, 2, uint)
+	# endif
+	#endif
 
-#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
-#include <sys/statvfs.h>
-#endif
+	#if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
+	#include <sys/statvfs.h>
+	#endif
 
-#ifdef HAVE_LZO
-#include "lzo/lzo1x.h"
-#endif
+	#ifdef HAVE_LZO
+	#include "lzo/lzo1x.h"
+	#endif
 
-/** Insert buffer segment id */
-static const ulint IO_IBUF_SEGMENT = 0;
+	/** Insert buffer segment id */
+	static const ulint IO_IBUF_SEGMENT = 0;
 
-/** Log segment id */
-static const ulint IO_LOG_SEGMENT = 1;
+	/** Log segment id */
+	static const ulint IO_LOG_SEGMENT = 1;
 
-/* This specifies the file permissions InnoDB uses when it creates files in
-Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
-my_umask */
+	/* This specifies the file permissions InnoDB uses when it creates files in
+	Unix; the value of os_innodb_umask is initialized in ha_innodb.cc to
+	my_umask */
 
-#ifndef __WIN__
-/** Umask for creating files */
-UNIV_INTERN ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-#else
-/** Umask for creating files */
-UNIV_INTERN ulint	os_innodb_umask	= 0;
-#endif /* __WIN__ */
+	#ifndef __WIN__
+	/** Umask for creating files */
+	UNIV_INTERN ulint	os_innodb_umask = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+	#else
+	/** Umask for creating files */
+	UNIV_INTERN ulint	os_innodb_umask	= 0;
+	#endif /* __WIN__ */
 
-#ifndef UNIV_HOTBACKUP
-/* We use these mutexes to protect lseek + file i/o operation, if the
-OS does not provide an atomic pread or pwrite, or similar */
-#define OS_FILE_N_SEEK_MUTEXES	16
-UNIV_INTERN os_ib_mutex_t	os_file_seek_mutexes[OS_FILE_N_SEEK_MUTEXES];
+	#ifndef UNIV_HOTBACKUP
+	/* We use these mutexes to protect lseek + file i/o operation, if the
+	OS does not provide an atomic pread or pwrite, or similar */
+	#define OS_FILE_N_SEEK_MUTEXES	16
+	UNIV_INTERN os_ib_mutex_t	os_file_seek_mutexes[OS_FILE_N_SEEK_MUTEXES];
 
-/* In simulated aio, merge at most this many consecutive i/os */
-#define OS_AIO_MERGE_N_CONSECUTIVE	64
+	/* In simulated aio, merge at most this many consecutive i/os */
+	#define OS_AIO_MERGE_N_CONSECUTIVE	64
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-#define WAIT_ALLOW_WRITES() os_event_wait(srv_allow_writes_event)
-#else
-#define WAIT_ALLOW_WRITES() do { } while (0)
-#endif /* WITH_INNODB_DISALLOW_WRITES */
+	#ifdef WITH_INNODB_DISALLOW_WRITES
+	#define WAIT_ALLOW_WRITES() os_event_wait(srv_allow_writes_event)
+	#else
+	#define WAIT_ALLOW_WRITES() do { } while (0)
+	#endif /* WITH_INNODB_DISALLOW_WRITES */
 
-/**********************************************************************
+	/**********************************************************************
 
-InnoDB AIO Implementation:
-=========================
+	InnoDB AIO Implementation:
+	=========================
 
-We support native AIO for windows and linux. For rest of the platforms
-we simulate AIO by special io-threads servicing the IO-requests.
+	We support native AIO for windows and linux. For rest of the platforms
+	we simulate AIO by special io-threads servicing the IO-requests.
 
-Simulated AIO:
-==============
+	Simulated AIO:
+	==============
 
-In platforms where we 'simulate' AIO following is a rough explanation
-of the high level design.
-There are four io-threads (for ibuf, log, read, write).
-All synchronous IO requests are serviced by the calling thread using
-os_file_write/os_file_read. The Asynchronous requests are queued up
-in an array (there are four such arrays) by the calling thread.
-Later these requests are picked up by the io-thread and are serviced
-synchronously.
+	In platforms where we 'simulate' AIO following is a rough explanation
+	of the high level design.
+	There are four io-threads (for ibuf, log, read, write).
+	All synchronous IO requests are serviced by the calling thread using
+	os_file_write/os_file_read. The Asynchronous requests are queued up
+	in an array (there are four such arrays) by the calling thread.
+	Later these requests are picked up by the io-thread and are serviced
+	synchronously.
 
-Windows native AIO:
-==================
+	Windows native AIO:
+	==================
 
-If srv_use_native_aio is not set then windows follow the same
-code as simulated AIO. If the flag is set then native AIO interface
-is used. On windows, one of the limitation is that if a file is opened
-for AIO no synchronous IO can be done on it. Therefore we have an
-extra fifth array to queue up synchronous IO requests.
-There are innodb_file_io_threads helper threads. These threads work
-on the four arrays mentioned above in Simulated AIO. No thread is
-required for the sync array.
-If a synchronous IO request is made, it is first queued in the sync
-array. Then the calling thread itself waits on the request, thus
-making the call synchronous.
-If an AIO request is made the calling thread not only queues it in the
-array but also submits the requests. The helper thread then collects
-the completed IO request and calls completion routine on it.
+	If srv_use_native_aio is not set then windows follow the same
+	code as simulated AIO. If the flag is set then native AIO interface
+	is used. On windows, one of the limitation is that if a file is opened
+	for AIO no synchronous IO can be done on it. Therefore we have an
+	extra fifth array to queue up synchronous IO requests.
+	There are innodb_file_io_threads helper threads. These threads work
+	on the four arrays mentioned above in Simulated AIO. No thread is
+	required for the sync array.
+	If a synchronous IO request is made, it is first queued in the sync
+	array. Then the calling thread itself waits on the request, thus
+	making the call synchronous.
+	If an AIO request is made the calling thread not only queues it in the
+	array but also submits the requests. The helper thread then collects
+	the completed IO request and calls completion routine on it.
 
-Linux native AIO:
-=================
+	Linux native AIO:
+	=================
 
-If we have libaio installed on the system and innodb_use_native_aio
-is set to TRUE we follow the code path of native AIO, otherwise we
-do simulated AIO.
-There are innodb_file_io_threads helper threads. These threads work
-on the four arrays mentioned above in Simulated AIO.
-If a synchronous IO request is made, it is handled by calling
-os_file_write/os_file_read.
-If an AIO request is made the calling thread not only queues it in the
-array but also submits the requests. The helper thread then collects
-the completed IO request and calls completion routine on it.
+	If we have libaio installed on the system and innodb_use_native_aio
+	is set to TRUE we follow the code path of native AIO, otherwise we
+	do simulated AIO.
+	There are innodb_file_io_threads helper threads. These threads work
+	on the four arrays mentioned above in Simulated AIO.
+	If a synchronous IO request is made, it is handled by calling
+	os_file_write/os_file_read.
+	If an AIO request is made the calling thread not only queues it in the
+	array but also submits the requests. The helper thread then collects
+	the completed IO request and calls completion routine on it.
 
-**********************************************************************/
+	**********************************************************************/
 
-/** Flag: enable debug printout for asynchronous i/o */
-UNIV_INTERN ibool	os_aio_print_debug	= FALSE;
+	/** Flag: enable debug printout for asynchronous i/o */
+	UNIV_INTERN ibool	os_aio_print_debug	= FALSE;
 
-#ifdef UNIV_PFS_IO
-/* Keys to register InnoDB I/O with performance schema */
-UNIV_INTERN mysql_pfs_key_t  innodb_file_data_key;
-UNIV_INTERN mysql_pfs_key_t  innodb_file_log_key;
-UNIV_INTERN mysql_pfs_key_t  innodb_file_temp_key;
-UNIV_INTERN mysql_pfs_key_t  innodb_file_bmp_key;
-#endif /* UNIV_PFS_IO */
+	#ifdef UNIV_PFS_IO
+	/* Keys to register InnoDB I/O with performance schema */
+	UNIV_INTERN mysql_pfs_key_t  innodb_file_data_key;
+	UNIV_INTERN mysql_pfs_key_t  innodb_file_log_key;
+	UNIV_INTERN mysql_pfs_key_t  innodb_file_temp_key;
+	UNIV_INTERN mysql_pfs_key_t  innodb_file_bmp_key;
+	#endif /* UNIV_PFS_IO */
 
-/** The asynchronous i/o array slot structure */
-struct os_aio_slot_t{
-#ifdef WIN_ASYNC_IO
-	OVERLAPPED	control;	/*!< Windows control block for the
-					aio request, MUST be first element in the structure*/
-	void *arr;				/*!< Array this slot belongs to*/
-#endif
+	/** The asynchronous i/o array slot structure */
+	struct os_aio_slot_t{
+	#ifdef WIN_ASYNC_IO
+		OVERLAPPED	control;	/*!< Windows control block for the
+						aio request, MUST be first element in the structure*/
+		void *arr;				/*!< Array this slot belongs to*/
+	#endif
 
-	ibool		is_read;	/*!< TRUE if a read operation */
-	ulint		pos;		/*!< index of the slot in the aio
-					array */
-	ibool		reserved;	/*!< TRUE if this slot is reserved */
-	time_t		reservation_time;/*!< time when reserved */
-	ulint		len;		/*!< length of the block to read or
-					write */
-	byte*		buf;		/*!< buffer used in i/o */
-	ulint		type;		/*!< OS_FILE_READ or OS_FILE_WRITE */
-	os_offset_t	offset;		/*!< file offset in bytes */
-	os_file_t	file;		/*!< file where to read or write */
-	const char*	name;		/*!< file name or path */
-	ibool		io_already_done;/*!< used only in simulated aio:
-					TRUE if the physical i/o already
-					made and only the slot message
-					needs to be passed to the caller
-					of os_aio_simulated_handle */
-	ulint		space_id;
-	fil_node_t*	message1;	/*!< message which is given by the */
-	void*		message2;	/*!< the requester of an aio operation
-					and which can be used to identify
-					which pending aio operation was
-					completed */
-	ulint           bitmap;
+		ibool		is_read;	/*!< TRUE if a read operation */
+		ulint		pos;		/*!< index of the slot in the aio
+						array */
+		ibool		reserved;	/*!< TRUE if this slot is reserved */
+		time_t		reservation_time;/*!< time when reserved */
+		ulint		len;		/*!< length of the block to read or
+						write */
+		byte*		buf;		/*!< buffer used in i/o */
+		ulint		type;		/*!< OS_FILE_READ or OS_FILE_WRITE */
+		os_offset_t	offset;		/*!< file offset in bytes */
+		os_file_t	file;		/*!< file where to read or write */
+		const char*	name;		/*!< file name or path */
+		ibool		io_already_done;/*!< used only in simulated aio:
+						TRUE if the physical i/o already
+						made and only the slot message
+						needs to be passed to the caller
+						of os_aio_simulated_handle */
+		ulint		space_id;
+		fil_node_t*	message1;	/*!< message which is given by the */
+		void*		message2;	/*!< the requester of an aio operation
+						and which can be used to identify
+						which pending aio operation was
+						completed */
+		ulint           bitmap;
 
-	byte*           page_compression_page; /*!< Memory allocated for
-					       page compressed page and
-					       freed after the write
-					       has been completed */
+		byte*           page_compression_page; /*!< Memory allocated for
+						       page compressed page and
+						       freed after the write
+						       has been completed */
 
-	ibool           page_compression;
-	ulint           page_compression_level;
+		byte*           page_encryption_page; /*!< Memory allocated for
+						       page encrypted page and
+						       freed after the write
+						       has been completed */
 
-	ulint*          write_size;     /*!< Actual write size initialized
-					after fist successfull trim
-					operation for this page and if
-					initialized we do not trim again if
-					actual page size does not decrease. */
 
-	byte*           page_buf;       /*!< Actual page buffer for
-					page compressed pages, do not
-					free this */
+		ibool           page_compression;
+		ulint           page_compression_level;
 
-	ibool           page_compress_success;
-	                                /*!< TRUE if page compression was
-					successfull, false if not */
+		ibool           page_encryption;
+		ulint           page_encryption_key;
 
-	ulint           file_block_size;/*!< file block size */
+		ulint*          write_size;     /*!< Actual write size initialized
+						after fist successfull trim
+						operation for this page and if
+						initialized we do not trim again if
+						actual page size does not decrease. */
+
+		byte*           page_buf;       /*!< Actual page buffer for
+						page compressed pages, do not
+						free this */
+
+		byte*           page_buf2;       /*!< Actual page buffer for
+							page encrypted pages, do not
+							free this */
+
+
+		ibool           page_compress_success;
+		ibool           page_encryption_success;
+						/*!< TRUE if page compression was
+						successfull, false if not */
+
+		ulint           file_block_size;/*!< file block size */
 
 #ifdef LINUX_NATIVE_AIO
 	struct iocb	control;	/* Linux control block for aio */
@@ -384,6 +401,13 @@ os_slot_alloc_lzo_mem(
 	os_aio_slot_t*   slot); /*!< in: slot structure     */
 #endif
 
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. This
+buffer is freed later. */
+UNIV_INTERN
+void
+os_slot_alloc_page_buf2(
+os_aio_slot_t*	slot); /*!< in: slot structure */
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
@@ -494,19 +518,19 @@ os_get_os_version(void)
 /*
 Windows : Handling synchronous IO on files opened asynchronously.
 
-If file is opened for asynchronous IO (FILE_FLAG_OVERLAPPED) and also bound to 
+If file is opened for asynchronous IO (FILE_FLAG_OVERLAPPED) and also bound to
 a completion port, then every IO on this file would normally be enqueued to the
 completion port. Sometimes however we would like to do a synchronous IO. This is
 possible if we initialitze have overlapped.hEvent with a valid event and set its
 lowest order bit to 1 (see MSDN ReadFile and WriteFile description for more info)
 
-We'll create this special event once for each thread and store in thread local 
+We'll create this special event once for each thread and store in thread local
 storage.
 */
 
 
 /***********************************************************************//**
-Initialize tls index.for event handle used for synchronized IO on files that 
+Initialize tls index.for event handle used for synchronized IO on files that
 might be opened with FILE_FLAG_OVERLAPPED.
 */
 static void win_init_syncio_event()
@@ -3108,6 +3132,11 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) {;
+				return FALSE;
+			}
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -3128,7 +3157,11 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset, trx);
 
 	if ((ulint) ret == n) {
-
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) {;
+				return FALSE;
+			}
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -3136,6 +3169,7 @@ try_again:
 		if (compressed && fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
+
 
 		return(TRUE);
 	}
@@ -3227,6 +3261,9 @@ try_again:
 
 	if (ret && len == n) {
 
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -3248,6 +3285,12 @@ try_again:
 
 	if ((ulint) ret == n) {
 
+
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
+		}
+
+
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
@@ -3255,6 +3298,9 @@ try_again:
 		if (compressed && fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
+
+
+
 
 		return(TRUE);
 	}
@@ -4288,6 +4334,15 @@ os_aio_array_free(
 		}
 	}
 
+	for (i = 0; i < array->n_slots; i++) {
+			os_aio_slot_t* slot = os_aio_array_get_nth_slot(array, i);
+			if (slot->page_encryption_page) {
+				ut_free(slot->page_encryption_page);
+				slot->page_encryption_page = NULL;
+			}
+	}
+
+
 	ut_free(array->slots);
 	ut_free(array);
 
@@ -4637,6 +4692,10 @@ os_aio_array_reserve_slot(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
+	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key, /*!< page encryption key
+						 to be used */
 	ulint*		write_size)/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
@@ -4734,9 +4793,13 @@ found:
 	slot->space_id = space_id;
 
 	slot->page_compress_success = FALSE;
+	slot->page_encryption_success = FALSE;
+
 	slot->write_size = write_size;
 	slot->page_compression_level = page_compression_level;
 	slot->page_compression = page_compression;
+	slot->page_encryption_key = page_encryption_key;
+	slot->page_encryption = page_encryption;
 
 	if (message1) {
 		slot->file_block_size = fil_node_get_block_size(message1);
@@ -4787,6 +4850,40 @@ found:
 		/* Take array mutex back */
 		os_mutex_enter(array->mutex);
 
+	} //CMD
+	/* If the space is page encryption and this is write operation
+	   then we encrypt the page */
+	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
+		ulint           real_len = len;
+		ulint 			ec = 0;
+		byte*           tmp = NULL;
+
+		/* Release the array mutex while encrypting */
+		os_mutex_exit(array->mutex);
+
+		// We allocate memory for page encrypted buffer if and only
+		// if it is not yet allocated.
+		if (slot->page_buf2 == NULL) {
+			os_slot_alloc_page_buf2(slot);
+		}
+
+		ut_ad(slot->page_buf2);
+
+		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, &ec, 0);
+
+		/* If encryption succeeded, set up the length and buffer */
+		if (tmp != buf || (ec == PAGE_ENCRYPTION_WILL_NOT_ENCRYPT)) {
+			len = real_len;
+			buf = slot->page_buf2;
+			slot->len = real_len;
+			slot->page_encryption_success = TRUE;
+		} else {
+			slot->page_encryption_success = FALSE;
+			ut_error;
+		}
+
+		/* Take array mutex back */
+		os_mutex_enter(array->mutex);
 	}
 
 #ifdef WIN_ASYNC_IO
@@ -4816,7 +4913,11 @@ found:
 		io_prep_pread(iocb, file, buf, len, aio_offset);
 	} else {
 		ut_a(type == OS_FILE_WRITE);
-		io_prep_pwrite(iocb, file, buf, len, aio_offset);
+		if (page_encryption && !slot->page_encryption_success) {
+			ut_error;
+		} else {
+			io_prep_pwrite(iocb, file, buf, len, aio_offset);
+		}
 	}
 
 	iocb->data = (void*) slot;
@@ -5069,12 +5170,18 @@ os_aio_func(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
-	ulint*		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+   	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key) /*!< page encryption key
+						 to be used */
+
 {
+	void* buffer = NULL;
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
 #ifdef WIN_ASYNC_IO
@@ -5092,6 +5199,7 @@ os_aio_func(
 #ifdef WIN_ASYNC_IO
 	ut_ad((n & 0xFFFFFFFFUL) == n);
 #endif
+
 
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
@@ -5178,7 +5286,8 @@ try_again:
 	}
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n, space_id,
-					 page_compression, page_compression_level, write_size);
+					 page_compression, page_compression_level,
+					 page_encryption, page_encryption_key, write_size);
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
 			os_n_file_reads++;
@@ -5206,7 +5315,13 @@ try_again:
 		if (srv_use_native_aio) {
 			os_n_file_writes++;
 #ifdef WIN_ASYNC_IO
-			ret = WriteFile(file, buf, (DWORD) n, &len,
+			if (page_encryption) {
+				if (!slot->page_encryption_success) goto err_exit;
+				buffer = slot->page_buf2;
+			} else {
+				buffer = buf;
+			}
+			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
 
 			if(!ret && GetLastError() != ERROR_IO_PENDING)
@@ -5289,7 +5404,7 @@ os_aio_windows_handle(
 	HANDLE port = READ_SEGMENT(segment)? read_completion_port : completion_port;
 
 	for(;;) {
-		ret = GetQueuedCompletionStatus(port, &len, &key, 
+		ret = GetQueuedCompletionStatus(port, &len, &key,
 			(OVERLAPPED **)&slot, INFINITE);
 
 		/* If shutdown key was received, repost the shutdown message and exit */
@@ -5304,19 +5419,19 @@ os_aio_windows_handle(
 
 		if(WRITE_SEGMENT(segment)&& slot->type == OS_FILE_READ) {
 			/*
-			Redirect read completions  to the dedicated completion port 
+			Redirect read completions  to the dedicated completion port
 			and thread. We need to split read and write threads. If we do not
-			do that, and just allow all io threads process all IO, it is possible 
+			do that, and just allow all io threads process all IO, it is possible
 			to get stuck in a deadlock in buffer pool code,
 
-			Currently, the problem is solved this way - "write io" threads  
+			Currently, the problem is solved this way - "write io" threads
 			always get all completion notifications, from both async reads and
 			writes. Write completion is handled in the same thread that gets it.
 			Read completion is forwarded via PostQueueCompletionStatus())
 			to the second completion port dedicated solely to reads. One of the
 			"read io" threads waiting on this port will finally handle the IO.
 
-			Forwarding IO completion this way costs a context switch , and this 
+			Forwarding IO completion this way costs a context switch , and this
 			seems tolerable  since asynchronous reads are by far less frequent.
 			*/
 			ut_a(PostQueuedCompletionStatus(read_completion_port, len, key,
@@ -5398,6 +5513,22 @@ os_aio_windows_handle(
 		}
 
 		ret_val = ret && len == slot->len;
+	}
+
+	/* page encryption */
+	if (slot->message1 && slot->page_encryption) {
+		if (slot->page_buf2==NULL) {
+			os_slot_alloc_page_buf2(slot);
+		}
+
+		ut_ad(slot->page_buf2);
+
+		if (slot->type == OS_FILE_READ) {
+			if (fil_page_is_encrypted(slot->buf)) {
+				fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
+			}
+		} 
+		
 	}
 
 	if (slot->message1 && slot->page_compression) {
@@ -5513,6 +5644,24 @@ retry:
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
+
+
+			/* page encryption */
+			if (slot->message1 && slot->page_encryption) {
+				if (slot->page_buf2==NULL) {
+					os_slot_alloc_page_buf2(slot);
+				}
+
+				ut_ad(slot->page_buf2);
+
+				if (slot->type == OS_FILE_READ) {
+					if (fil_page_is_encrypted(slot->buf)) {
+						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
+					}
+				}
+			}
+
+
 			/* If the table is page compressed and this is read,
 			we decompress before we annouce the read is
 			complete. For writes, we free the compressed page. */
@@ -5541,6 +5690,7 @@ retry:
 					}
 				}
 			}
+
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */
@@ -6588,6 +6738,24 @@ os_file_trim(
 
 	return (TRUE);
 
+}
+
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. This
+buffer is freed later. */
+UNIV_INTERN
+void
+os_slot_alloc_page_buf2(
+/*===================*/
+	os_aio_slot_t*   slot) /*!< in: slot structure     */
+{
+	byte*           cbuf2;
+	byte*           cbuf;
+
+	cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
+	slot->page_encryption_page = static_cast<byte *>(cbuf2);
+	slot->page_buf2 = static_cast<byte *>(cbuf);
 }
 
 /**********************************************************************//**

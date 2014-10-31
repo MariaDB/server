@@ -107,6 +107,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "page0zip.h"
 #include "fil0pagecompress.h"
 
+#include "KeySingleton.h"
+
+
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
@@ -209,6 +212,12 @@ static char*	innobase_enable_monitor_counter		= NULL;
 static char*	innobase_disable_monitor_counter	= NULL;
 static char*	innobase_reset_monitor_counter		= NULL;
 static char*	innobase_reset_all_monitor_counter	= NULL;
+
+/* Encryption for tables and columns */
+static char*	innobase_data_encryption_providername	= NULL;
+static char*	innobase_data_encryption_providerurl	= NULL;
+static uint innobase_data_encryption_providertype = 0; // 1 == file, 2 == server
+static char*	innobase_data_encryption_filekey	= NULL;
 
 /* The highest file format being used in the database. The value can be
 set by user, however, it will be adjusted to the newer file format if
@@ -617,6 +626,12 @@ ha_create_table_option innodb_table_option_list[]=
   HA_TOPTION_NUMBER("PAGE_COMPRESSION_LEVEL", page_compression_level, ULINT_UNDEFINED, 0, 9, 1),
   /* With this option user can enable atomic writes feature for this table */
   HA_TOPTION_ENUM("ATOMIC_WRITES", atomic_writes, "DEFAULT,ON,OFF", 0),
+  /* With this option the user can enable page encryption for the table */
+  HA_TOPTION_BOOL("PAGE_ENCRYPTION", page_encryption, 0),
+
+  /* With this option the user defines the key identifier using for the encryption */
+  HA_TOPTION_NUMBER("PAGE_ENCRYPTION_KEY", page_encryption_key, ULINT_UNDEFINED, 1, 255, 1),
+
   HA_TOPTION_END
 };
 
@@ -973,6 +988,14 @@ static SHOW_VAR innodb_status_variables[]= {
    (char*) &export_vars.innodb_page_compressed_trim_op_saved,     SHOW_LONGLONG},
   {"num_pages_page_decompressed",
    (char*) &export_vars.innodb_pages_page_decompressed,   SHOW_LONGLONG},
+  {"num_pages_page_compression_error",
+   (char*) &export_vars.innodb_pages_page_compression_error,   SHOW_LONGLONG},
+  {"num_pages_page_encrypted",
+   (char*) &export_vars.innodb_pages_page_encrypted,   SHOW_LONGLONG},
+  {"num_pages_page_decrypted",
+   (char*) &export_vars.innodb_pages_page_decrypted,   SHOW_LONGLONG},
+  {"num_pages_page_encryption_error",
+   (char*) &export_vars.innodb_pages_page_encryption_error,   SHOW_LONGLONG},
   {"have_lz4",
   (char*) &innodb_have_lz4,                  SHOW_BOOL},
   {"have_lzo",
@@ -3412,6 +3435,11 @@ innobase_init(
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
+
+	KeySingleton::getInstance(
+			innobase_data_encryption_providername, innobase_data_encryption_providerurl,
+			innobase_data_encryption_providertype, innobase_data_encryption_filekey);
+	
 #ifndef DBUG_OFF
 	static const char	test_filename[] = "-@";
 	char			test_tablename[sizeof test_filename
@@ -3494,7 +3522,7 @@ innobase_init(
 			goto error;
 		}
 	}
-
+	
 #ifndef HAVE_LZ4
 	if (innodb_compression_algorithm == PAGE_LZ4_ALGORITHM) {
 		sql_print_error("InnoDB: innodb_compression_algorithm = %lu unsupported.\n"
@@ -3561,6 +3589,7 @@ innobase_init(
 
 	srv_data_home = (innobase_data_home_dir ? innobase_data_home_dir :
 			 default_path);
+
 
 	/* Set default InnoDB data file size to 12 MB and let it be
 	auto-extending. Thus users can use InnoDB in >= 4.0 without having
@@ -4049,6 +4078,7 @@ innobase_end(
 	DBUG_ENTER("innobase_end");
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
+	KeySingleton::getInstance().~KeySingleton();
 	if (innodb_inited) {
 
 		THD *thd= current_thd;
@@ -11515,6 +11545,8 @@ innobase_table_flags(
 	modified by another thread while the table is being created. */
 	const ulint     default_compression_level = page_zip_level;
 
+    const ulint default_encryption_key = 1;
+
 	*flags = 0;
 	*flags2 = 0;
 
@@ -11713,9 +11745,11 @@ index_bad:
 		    options->page_compressed,
 		    (ulint)options->page_compression_level == ULINT_UNDEFINED ?
 		        default_compression_level : options->page_compression_level,
-		    options->atomic_writes);
-
-	if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
+            options->atomic_writes,
+            options->page_encryption,
+            (ulint)options->page_encryption_key == ULINT_UNDEFINED ?
+                    default_encryption_key : options->page_encryption_key);
+    if (create_info->options & HA_LEX_CREATE_TMP_TABLE) {
 		*flags2 |= DICT_TF2_TEMPORARY;
 	}
 
@@ -11749,6 +11783,24 @@ ha_innobase::check_table_options(
 	enum row_type	row_format = table->s->row_type;;
 	ha_table_option_struct *options= table->s->option_struct;
 	atomic_writes_t awrites = (atomic_writes_t)options->atomic_writes;
+    if (options->page_encryption) {
+        if (!use_tablespace) {
+            push_warning(
+                thd, Sql_condition::WARN_LEVEL_WARN,
+                HA_WRONG_CREATE_OPTION,
+                "InnoDB: PAGE_ENCRYPTION requires"
+                " innodb_file_per_table.");
+            return "PAGE_ENCRYPTION";
+        }
+        if (!KeySingleton::getInstance().isAvailable()) {
+            push_warning(
+                       thd, Sql_condition::WARN_LEVEL_WARN,
+                       HA_WRONG_CREATE_OPTION,
+                       "InnoDB: PAGE_ENCRYPTION needs a key provider"
+                       );
+                   return "PAGE_ENCRYPTION";
+        }
+    }
 
 	/* Check page compression requirements */
 	if (options->page_compressed) {
@@ -11812,6 +11864,34 @@ ha_innobase::check_table_options(
 			return "PAGE_COMPRESSION_LEVEL";
 		}
 	}
+
+    if ((ulint)options->page_encryption_key != ULINT_UNDEFINED) {
+        if (options->page_encryption == false) {
+			/* ignore this to allow alter table without changing page_encryption_key ...*/
+        }
+
+        if (options->page_encryption_key < 1 || options->page_encryption_key > 255) {
+            push_warning_printf(
+                thd, Sql_condition::WARN_LEVEL_WARN,
+                HA_WRONG_CREATE_OPTION,
+                "InnoDB: invalid PAGE_ENCRYPTION_KEY = %lu."
+                " Valid values are [1..255]",
+                options->page_encryption_key);
+            return "PAGE_ENCRYPTION_KEY";
+        }
+
+        if (!KeySingleton::getInstance().isAvailable() || KeySingleton::getInstance().getKeys(options->page_encryption_key)==NULL) {
+        	  push_warning_printf(
+						   thd, Sql_condition::WARN_LEVEL_WARN,
+						   HA_WRONG_CREATE_OPTION,
+						   "InnoDB: PAGE_ENCRYPTION_KEY encryption key %lu not available",
+						   options->page_encryption_key
+						   );
+					   return "PAGE_ENCRYPTION_KEY";
+
+        }
+    }
+
 
 	/* Check atomic writes requirements */
 	if (awrites == ATOMIC_WRITES_ON ||
@@ -20087,6 +20167,27 @@ static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
   "Use multi-threaded flush. Default FALSE.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_UINT(data_encryption_providertype, innobase_data_encryption_providertype,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Use table or column encryption / decryption. Default is 0 for no use, 1 for keyfile and 2 for keyserver.",
+  NULL, NULL, 1, 0, 2, 0);
+
+static MYSQL_SYSVAR_STR(data_encryption_providername, innobase_data_encryption_providername,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Name of keyfile or keyserver.",
+  NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(data_encryption_providerurl, innobase_data_encryption_providerurl,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Path or URL for keyfile or keyserver.",
+  NULL, NULL, NULL);
+
+  static MYSQL_SYSVAR_STR(data_encryption_filekey, innobase_data_encryption_filekey,
+    PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+    "Key to encrypt / decrypt the keyfile.",
+    NULL, NULL, NULL);
+
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_block_size),
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -20298,6 +20399,10 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
+  MYSQL_SYSVAR(data_encryption_providertype),
+  MYSQL_SYSVAR(data_encryption_providername),
+  MYSQL_SYSVAR(data_encryption_providerurl),
+  MYSQL_SYSVAR(data_encryption_filekey),
   NULL
 };
 
@@ -20307,7 +20412,7 @@ maria_declare_plugin(xtradb)
   &innobase_storage_engine,
   innobase_hton_name,
   plugin_author,
-  "Percona-XtraDB, Supports transactions, row-level locking, and foreign keys",
+  "Percona-XtraDB, Supports transactions, row-level locking, foreign keys and encryption for tables and columns",
   PLUGIN_LICENSE_GPL,
   innobase_init, /* Plugin Init */
   NULL, /* Plugin Deinit */

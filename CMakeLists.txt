@@ -341,6 +341,7 @@ SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
 
+  
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
 # Add bundled yassl/taocrypt or system openssl.
@@ -380,6 +381,7 @@ IF(WITH_UNIT_TESTS)
  ADD_SUBDIRECTORY(unittest/examples)
  ADD_SUBDIRECTORY(unittest/mysys)
  ADD_SUBDIRECTORY(unittest/my_decimal)
+ ADD_SUBDIRECTORY(unittest/eperi)
  IF(NOT WITHOUT_SERVER)
    ADD_SUBDIRECTORY(unittest/sql)
  ENDIF()

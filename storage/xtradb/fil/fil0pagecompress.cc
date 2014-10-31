@@ -269,7 +269,8 @@ fil_compress_page(
         int level = 0;
         ulint header_len = FIL_PAGE_DATA + FIL_PAGE_COMPRESSED_SIZE;
 	ulint write_size=0;
-	ulint comp_method = innodb_compression_algorithm; /* Cache to avoid
+	ulint comp_method = innodb_compression_algorithm;
+	/* Cache to avoid
 							  change during
 							  function execution */
 	ut_ad(buf);

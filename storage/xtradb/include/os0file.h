@@ -322,10 +322,10 @@ The wrapper functions have the prefix of "innodb_". */
 
 # define os_aio(type, mode, name, file, buf, offset,			\
 	n, message1, message2, space_id, 				\
-	trx, page_compressed, page_compression_level, write_size)	\
+    trx, page_compressed, page_compression_level, write_size, page_encryption, page_encryption_key)	\
 	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
 		n, message1, message2, space_id, trx,			\
-		page_compressed, page_compression_level, write_size,	\
+        page_compressed, page_compression_level, write_size, page_encryption, page_encryption_key,	\
 		__FILE__, __LINE__)
 
 # define os_file_read(file, buf, offset, n, compressed)			\
@@ -374,10 +374,10 @@ to original un-instrumented file I/O APIs */
 
 # define os_aio(type, mode, name, file, buf, offset, n, message1,	\
 		message2, space_id, trx,				\
-		page_compressed, page_compression_level, write_size)	\
+        page_compressed, page_compression_level, write_size, page_encryption, page_encryption_key)	\
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
 		message1, message2, space_id, trx,			\
-		page_compressed, page_compression_level, write_size)
+        page_compressed, page_compression_level, write_size, page_encryption, page_encryption_key)
 
 # define os_file_read(file, buf, offset, n, compressed)			\
 	os_file_read_func(file, buf, offset, n, NULL, compressed)
@@ -805,6 +805,10 @@ pfs_os_aio_func(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	ibool		page_encryption, /*!< in: is page encryption used
+	                              on this file space */
+	ulint		page_encryption_key, /*!< page encryption
+	                                 key to be used */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 /*******************************************************************//**
@@ -1187,11 +1191,16 @@ os_aio_func(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
-	ulint*		write_size);/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key); /*!< page encryption key
+						 to be used */
+	
 
 /************************************************************************//**
 Wakes up all async i/o threads so that they know to exit themselves in

@@ -134,6 +134,13 @@ struct srv_stats_t {
 	/* Number of page compression errors */
 	ulint_ctr_64_t          pages_page_compression_error;
 
+	/* Number of pages encrypted with page encryption */
+        ulint_ctr_64_t          pages_page_encrypted;
+   	/* Number of pages decrypted with page encryption */
+        ulint_ctr_64_t          pages_page_decrypted;
+    /* Number of page encryption errors */
+    	ulint_ctr_64_t          pages_page_encryption_error;
+
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
 
@@ -1183,6 +1190,12 @@ struct export_var_t{
 						compression */
 	ib_int64_t innodb_pages_page_compression_error;/*!< Number of page
 						compression errors */
+	ib_int64_t innodb_pages_page_encrypted;/*!< Number of pages
+						encrypted by page encryption */
+	ib_int64_t innodb_pages_page_decrypted;/*!< Number of pages
+						decrypted by page encryption */
+	ib_int64_t innodb_pages_page_encryption_error;/*!< Number of page
+						encryption errors */
 };
 
 /** Thread slot in the thread table.  */
