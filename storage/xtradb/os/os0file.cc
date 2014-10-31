@@ -5658,15 +5658,6 @@ retry:
 					if (fil_page_is_encrypted(slot->buf)) {
 						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
 					}
-				} else {
-					if (slot->page_encryption_success &&
-						fil_page_is_encrypted(slot->page_buf2)) {
-						ut_ad(slot->page_encryption_page);
-						if (srv_use_trim && os_fallocate_failed == FALSE) {
-							// Deallocate unused blocks from file system ???
-							//os_file_trim(slot->file, slot, slot->len);
-						}
-					}
 				}
 			}
 

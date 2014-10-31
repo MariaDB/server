@@ -67,6 +67,8 @@ byte fil_page_encryption_calc_checksum(unsigned char* buf, ulint len) {
  For page encrypted pages encrypt the page before actual write
  operation.
 
+ Note, that FIL_PAGE_TYPE_FSP_HDR and FIL_PAGE_TYPE_XDES type pages are not encrypted!
+
  Pages are encrypted with AES/CBC/NoPadding algorithm.
 
  "No padding" is used to ensure, that the encrypted page does not exceed the page size.
