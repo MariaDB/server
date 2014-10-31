@@ -207,6 +207,7 @@ static my_bool indx_map= 0;
 /*  Utility functions.                                                 */
 /***********************************************************************/
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
+PQRYRES VirColumns(PGLOBAL g, char *tab, char *db, bool info);
 void    PushWarning(PGLOBAL g, THD *thd, int level);
 bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
@@ -763,6 +764,7 @@ const char *ha_connect::index_type(uint inx)
         return "XINDEX";
 
     case 2: return "REMOTE";
+    case 3: return "VIRTUAL";
     } // endswitch
 
   return "Unknown";
@@ -1403,6 +1405,42 @@ PIXDEF ha_connect::GetIndexInfo(TABLE_SHARE *s)
 
   return toidx;
 } // end of GetIndexInfo
+
+/****************************************************************************/
+/*  Returns the index description structure used to make the index.         */
+/****************************************************************************/
+bool ha_connect::CheckVirtualIndex(TABLE_SHARE *s)
+{
+
+  char    *rid;
+  KEY      kp;
+  Field   *fp;
+  PGLOBAL& g= xp->g;
+
+  if (!s)
+    s= table->s;
+
+  for (int n= 0; (unsigned)n < s->keynames.count; n++) {
+    kp= s->key_info[n];
+
+    // Now get index information
+
+    // Get the the key parts info
+    for (int k= 0; (unsigned)k < kp.user_defined_key_parts; k++) {
+      fp= kp.key_part[k].field;
+      rid= (fp->option_struct) ? fp->option_struct->special : NULL;
+
+      if (!rid || (stricmp(rid, "ROWID") && stricmp(rid, "ROWNUM"))) {
+        strcpy(g->Message, "Invalid virtual index");
+        return true;
+        } // endif rowid
+
+      } // endfor k
+
+    } // endfor n
+
+  return false;
+} // end of CheckVirtualIndex
 
 bool ha_connect::IsPartitioned(void)
 {
@@ -3725,6 +3763,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_PRX:
     case TAB_OCCUR:
     case TAB_PIVOT:
+    case TAB_VIR:
       return false;
     } // endswitch type
 
@@ -4069,6 +4108,14 @@ int ha_connect::external_lock(THD *thd, int lock_type)
               rc= 0;
               } // endif MakeIndex
       
+        } else if (((PTDBASE)tdbp)->GetDef()->Indexable() == 3) {
+          if (CheckVirtualIndex(NULL)) {
+            // Make it a warning to avoid crash
+            push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 
+                              0, g->Message);
+            rc= 0;
+            } // endif Check
+
         } // endif indexable
 
         } // endif Tdbp
@@ -4455,7 +4502,7 @@ static char *encode(PGLOBAL g, const char *cnm)
     Return 0 if ok
 */
 static bool add_field(String *sql, const char *field_name, int typ,
-                      int len, int dec, uint tm, const char *rem,
+                      int len, int dec, char *key, uint tm, const char *rem,
                       char *dft, char *xtra, int flag, bool dbf, char v)
 {
   char var = (len > 255) ? 'V' : v;
@@ -4488,6 +4535,11 @@ static bool add_field(String *sql, const char *field_name, int typ,
     error|= sql->append(" UNSIGNED");
   else if (v == 'Z')
     error|= sql->append(" ZEROFILL");
+
+  if (key && *key) {
+    error|= sql->append(" ");
+    error|= sql->append(key);
+    } // endif key
 
   if (tm)
     error|= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
@@ -4902,6 +4954,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         strcpy(g->Message, "Missing OEM module or subtype");
 
       break;
+    case TAB_VIR:
+      ok= true;
+      break;
     default:
       sprintf(g->Message, "Cannot get column info for table type %s", topt->type);
       break;
@@ -4920,7 +4975,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     } // endif src
 
   if (ok) {
-    char   *cnm, *rem, *dft, *xtra;
+    char   *cnm, *rem, *dft, *xtra, *key;
     int     i, len, prec, dec, typ, flg;
 
 //  if (cat)
@@ -5005,6 +5060,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
       case TAB_PIVOT:
         qrp= PivotColumns(g, tab, src, pic, fcl, skc, host, db, user, pwd, port);
         break;
+      case TAB_VIR:
+        qrp= VirColumns(g, tab, (char*)db, fnc == FNC_COL);
+        break;
       case TAB_OEM:
         qrp= OEMColumns(g, topt, tab, (char*)db, fnc == FNC_COL);
         break;
@@ -5036,7 +5094,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rc= add_fields(g, thd, &alter_info, cnm, typ, len, dec,
                        NOT_NULL_FLAG, "", flg, dbf, v);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, len, dec, NOT_NULL_FLAG,
+        if (add_field(&sql, cnm, typ, len, dec, NULL, NOT_NULL_FLAG,
                       NULL, NULL, NULL, flg, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
@@ -5058,7 +5116,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         typ= len= prec= dec= 0;
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
-        dft= xtra= NULL;
+        dft= xtra= key= NULL;
 #if defined(NEW_WAY)
         rem= "";
 //      cs= NULL;
@@ -5110,6 +5168,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
                 xtra= NULL;
 
               break;
+            case FLD_KEY:
+              if (ttp == TAB_VIR)
+                key= crp->Kdata->GetCharValue(i);
+
+              break;
             default:
               break;                 // Ignore
             } // endswitch Fld
@@ -5150,7 +5213,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         rc= add_fields(g, thd, &alter_info, cnm, typ, prec, dec,
                        tm, rem, 0, dbf, v);
 #else   // !NEW_WAY
-        if (add_field(&sql, cnm, typ, prec, dec, tm, rem, dft, xtra,
+        if (add_field(&sql, cnm, typ, prec, dec, key, tm, rem, dft, xtra,
                       0, dbf, v))
           rc= HA_ERR_OUT_OF_MEM;
 #endif  // !NEW_WAY
@@ -5669,6 +5732,12 @@ int ha_connect::create(const char *name, TABLE *table_arg,
 
           } // endif cat
     
+      } else if (GetIndexType(type) == 3) {
+        if (CheckVirtualIndex(table_arg->s)) {
+          my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+          rc= HA_ERR_UNSUPPORTED;
+          } // endif Check
+
       } else if (!GetIndexType(type)) {
         sprintf(g->Message, "Table type %s is not indexable", options->type);
         my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -5951,6 +6020,12 @@ ha_connect::check_if_supported_inplace_alter(TABLE *altered_table,
         idx= true;
       else
         DBUG_RETURN(HA_ALTER_INPLACE_EXCLUSIVE_LOCK);
+
+    } else if (GetIndexType(type) == 3) {
+      if (CheckVirtualIndex(altered_table->s)) {
+        my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+        DBUG_RETURN(HA_ALTER_ERROR);
+        } // endif Check
 
     } else if (!GetIndexType(type)) {
       sprintf(g->Message, "Table type %s is not indexable", oldopt->type);

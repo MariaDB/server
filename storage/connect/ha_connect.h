@@ -215,6 +215,7 @@ public:
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
   PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
+  bool     CheckVirtualIndex(TABLE_SHARE *s);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
   char    *GetPartName(void);

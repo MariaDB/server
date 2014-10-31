@@ -276,16 +276,13 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     if (trace)
       printf("Allocating column %s\n", p);
 
-//    if (*p == '*') {
-//      // This is a special column
-//      cp= new(g) COLUMN(p + 1);
-//      cp->SetTo_Table(tdbp->GetTable());
-//      colp= ((PTDBASE)tdbp)->InsertSpcBlk(g, cp);
-//    } else
-      colp= tdbp->ColDB(g, p, 0);
+    g->Message[0] = 0;    // To check whether ColDB made an error message
+    colp= tdbp->ColDB(g, p, 0);
 
     if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
-      sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
+      if (g->Message[0] == 0)
+        sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
+
       goto err;
       } // endif colp
 
@@ -656,6 +653,8 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
     sprintf(g->Message, "CntIndexInit: Table %s is not indexable", ptdb->GetName());
     return 0;
+  } else if (((PTDBASE)ptdb)->GetDef()->Indexable() == 3) {
+    return 1;
   } else
     tdbp= (PTDBDOX)ptdb;
 
@@ -731,6 +730,14 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     // Remote index
     if (ptdb->ReadKey(g, op, key, len))
       return RC_FX;
+
+    goto rnd;
+  } else if (x == 3) {
+    if (key)
+      ((PTDBASE)ptdb)->SetRecpos(g, *(int*)key);
+
+    if (op == OP_SAME)
+      return RC_NF;
 
     goto rnd;
   } else
@@ -837,6 +844,15 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   } else if (x == 2) {
     // Remote index
     return 2;
+  } else if (x == 3) {
+    // Virtual index
+    for (i= 0; i < 2; i++)
+      if (key[i])
+        k[i] = *(int*)key[i] + (incl[i] ? 0 : 1 - 2 * i);
+      else
+        k[i] = (i) ? ptdb->Cardinality(g) : 1;
+
+    return k[1] - k[0] + 1;
   } else
     tdbp= (PTDBDOX)ptdb;
 

@@ -130,18 +130,49 @@ bool FIXFAM::AllocateBuffer(PGLOBAL g)
     /*******************************************************************/
     /*  For Insert the buffer must be prepared.                        */
     /*******************************************************************/
-    memset(To_Buf, ' ', Buflen);
+    if (Tdbp->GetFtype() == RECFM_BIN) {
+      // The buffer must be prepared depending on column types
+      int     n = 0;
+      PDOSDEF defp = (PDOSDEF)Tdbp->GetDef();
+      PCOLDEF cdp;
 
-    if (/*Tdbp->GetFtype() < 2 &&*/ !Padded)
-      // If not binary, the file is physically a text file.
-      // We do it also for binary table because the lrecl can have been
+      // Prepare the first line of the buffer
+      memset(To_Buf, 0, Buflen);
+
+      for (cdp = defp->GetCols(); cdp; cdp = cdp->GetNext()) {
+        if (IsTypeNum(cdp->GetType()))
+          memset(To_Buf + cdp->GetOffset(), ' ', cdp->GetClen());
+
+        n = MY_MAX(n, cdp->GetPoff() + cdp->GetClen());
+        } // endfor cdp
+
+      // We do this for binary table because the lrecl can have been
       // specified with additional space to include line ending.
-      for (int len = Lrecl; len <= Buflen; len += Lrecl) {
-#if defined(WIN32)
-        To_Buf[len - 2] = '\r';
-#endif   // WIN32
-        To_Buf[len - 1] = '\n';
-        } // endfor len
+      if (n < Lrecl && Ending) {
+        To_Buf[Lrecl - 1] = '\n';
+
+        if (n < Lrecl - 1 && Ending == 2)
+          To_Buf[Lrecl - 2] = '\r';
+
+        } // endif n
+
+      // Now repeat this for the whole buffer
+      for (int len = Lrecl; len <= Buflen - Lrecl; len += Lrecl)
+        memcpy(To_Buf + len, To_Buf, Lrecl);
+
+    } else {
+      memset(To_Buf, ' ', Buflen);
+  
+      if (!Padded)
+        // The file is physically a text file.
+        for (int len = Lrecl; len <= Buflen; len += Lrecl) {
+          if (Ending == 2)
+            To_Buf[len - 2] = '\r';
+  
+          To_Buf[len - 1] = '\n';
+          } // endfor len
+
+    } // endif Ftype
 
     Rbuf = Nrec;                     // To be used by WriteDB
     } // endif Insert
@@ -204,7 +235,7 @@ int FIXFAM::WriteModifiedBlock(PGLOBAL g)
   // NOTE: Next line was added to avoid a very strange fread bug.
   // When the fseek is not executed (even the file has the good
   // pointer position) the next read can happen anywhere in the file.
-  OldBlk = CurBlk;            // This will force fseek to be executed
+  OldBlk = -2;            // This will force fseek to be executed
   Modif = 0;
   return rc;
   } // end of WriteModifiedBlock

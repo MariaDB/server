@@ -1778,8 +1778,13 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted)
   To_Link = (PXOB*)PlugSubAlloc(g, NULL, Knum * sizeof(PXOB));
 
   for (k = 0, kdp = xdp->GetToKeyParts(); kdp; k++, kdp = kdp->GetNext()) {
-    cdp = Key(k)->GetCdp();
-    valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    if ((cdp = Key(k)->GetCdp()))
+      valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    else {                        // Special column ?
+      colp = Key(k);
+      valp = AllocateValue(g, colp->GetResultType(), colp->GetLength());
+    } // endif cdp
+
     To_Link[k]= new(g) CONSTANT(valp);
     } // endfor k
 
