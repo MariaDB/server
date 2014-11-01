@@ -3835,6 +3835,8 @@ MODE ha_connect::CheckMode(PGLOBAL g, THD *thd,
       case SQLCOM_OPTIMIZE:
         newmode= MODE_READ;
         break;
+      case SQLCOM_FLUSH:
+        locked= 0;
       case SQLCOM_DROP_TABLE:
       case SQLCOM_RENAME_TABLE:
         newmode= MODE_ANY;
@@ -4014,6 +4016,8 @@ int ha_connect::external_lock(THD *thd, int lock_type)
     // This is unlocking, do it by closing the table
     if (xp->CheckQueryID() && sqlcom != SQLCOM_UNLOCK_TABLES
                            && sqlcom != SQLCOM_LOCK_TABLES
+                           && sqlcom != SQLCOM_FLUSH
+                           && sqlcom != SQLCOM_BEGIN
                            && sqlcom != SQLCOM_DROP_TABLE) {
       sprintf(g->Message, "external_lock: unexpected command %d", sqlcom);
       push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
