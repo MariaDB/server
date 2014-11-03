@@ -68,8 +68,17 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-6649 Different warnings for TIME and TIME(N) when @@old_mode=zero_date_time_cast
 --echo #
+SET @@global.mysql56_temporal_format=true;
 SET @@old_mode=zero_date_time_cast;
 CREATE TABLE t1 (a TIME,b TIME(1));
 INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
 SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
 DROP TABLE t1;
+SET @@global.mysql56_temporal_format=false;
+SET @@old_mode=zero_date_time_cast;
+CREATE TABLE t1 (a TIME,b TIME(1));
+INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
+SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
+DROP TABLE t1;
+SET @@global.mysql56_temporal_format=DEFAULT;
+

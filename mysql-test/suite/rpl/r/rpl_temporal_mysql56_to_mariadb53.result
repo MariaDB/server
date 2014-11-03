@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+SET @@global.mysql56_temporal_format=false;;
 #
 # Testing replication from MariaDB-10.0 master
 # started over MySQL-5.6 data directory
@@ -22,7 +23,7 @@ mysql050614_temporal1	CREATE TABLE `mysql050614_temporal1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 SELECT @@mysql56_temporal_format;
 @@mysql56_temporal_format
-1
+0
 SET TIME_ZONE='+00:00';
 CREATE TABLE mysql050614_temporal0 (a time(0), b datetime(0), c timestamp(0)) engine=myisam;
 CREATE TABLE mysql050614_temporal1 (a time(1), b datetime(1), c timestamp(1)) engine=myisam;
@@ -42,7 +43,7 @@ a	b	c
 SELECT TABLE_NAME, TABLE_ROWS, AVG_ROW_LENGTH,DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES
 WHERE TABLE_NAME LIKE 'mysql050614_temporal%' ORDER BY TABLE_NAME;
 TABLE_NAME	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH
-mysql050614_temporal0	1	13	13
+mysql050614_temporal0	1	16	16
 mysql050614_temporal1	1	16	16
 SET @@global.mysql56_temporal_format=DEFAULT;
 DROP TABLE mysql050614_temporal0;

@@ -432,6 +432,7 @@ my_bool opt_safe_user_create = 0;
 my_bool opt_show_slave_auth_info;
 my_bool opt_log_slave_updates= 0;
 my_bool opt_replicate_annotate_row_events= 0;
+my_bool opt_mysql56_temporal_format= 0;
 char *opt_slave_skip_errors;
 
 /*

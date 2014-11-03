@@ -479,6 +479,10 @@ The following options may be given as the first argument:
  NULLS_UNEQUAL (default behavior for 4.1 and later),
  NULLS_EQUAL (emulate 4.0 behavior), and NULLS_IGNORED
  --myisam-use-mmap   Use memory mapping for reading and writing MyISAM tables
+ --mysql56-temporal-format 
+ Use MySQL-5.6 (instead of MariaDB-5.3) format for TIME,
+ DATETIME, TIMESTAMP columns.
+ (Defaults to on; use --skip-mysql56-temporal-format to disable.)
  --net-buffer-length=# 
  Buffer length for TCP/IP and socket communication
  --net-read-timeout=# 
@@ -1226,6 +1230,7 @@ myisam-repair-threads 1
 myisam-sort-buffer-size 134216704
 myisam-stats-method NULLS_UNEQUAL
 myisam-use-mmap FALSE
+mysql56-temporal-format TRUE
 net-buffer-length 16384
 net-read-timeout 30
 net-retry-count 10

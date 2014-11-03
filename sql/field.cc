@@ -5042,7 +5042,8 @@ int Field_timestamp_with_dec::set_time()
 {
   THD *thd= get_thd();
   set_notnull();
-  store_TIME(thd->query_start(), thd->query_start_sec_part());
+  // Avoid writing microseconds into binlog for FSP=0
+  store_TIME(thd->query_start(), decimals() ? thd->query_start_sec_part() : 0);
   return 0;
 }
 

@@ -6196,22 +6196,26 @@ type:
         | DATE_SYM
           { $$=MYSQL_TYPE_DATE; }
         | TIME_SYM opt_field_length
-          { $$=MYSQL_TYPE_TIME; }
+          { $$= opt_mysql56_temporal_format ?
+                MYSQL_TYPE_TIME2 : MYSQL_TYPE_TIME; }
         | TIMESTAMP opt_field_length
           {
             if (thd->variables.sql_mode & MODE_MAXDB)
-              $$=MYSQL_TYPE_DATETIME;
+              $$= opt_mysql56_temporal_format ?
+                  MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME;
             else
             {
               /* 
                 Unlike other types TIMESTAMP fields are NOT NULL by default.
               */
               Lex->type|= NOT_NULL_FLAG;
-              $$=MYSQL_TYPE_TIMESTAMP;
+              $$= opt_mysql56_temporal_format ?
+                  MYSQL_TYPE_TIMESTAMP2 : MYSQL_TYPE_TIMESTAMP;
             }
           }
         | DATETIME opt_field_length
-          { $$=MYSQL_TYPE_DATETIME; }
+          { $$= opt_mysql56_temporal_format ?
+                MYSQL_TYPE_DATETIME2 : MYSQL_TYPE_DATETIME; }
         | TINYBLOB
           {
             Lex->charset=&my_charset_bin;
