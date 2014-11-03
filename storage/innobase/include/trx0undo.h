@@ -243,22 +243,13 @@ Truncates an undo log from the end. This function is used during a rollback
 to free space from an undo log. */
 UNIV_INTERN
 void
-trx_undo_truncate_end_func(
+trx_undo_truncate_end(
 /*=======================*/
-#ifdef UNIV_DEBUG
-	const trx_t*	trx,	/*!< in: transaction whose undo log it is */
-#endif /* UNIV_DEBUG */
+	trx_t*		trx,	/*!< in: transaction whose undo log it is */
 	trx_undo_t*	undo,	/*!< in/out: undo log */
 	undo_no_t	limit)	/*!< in: all undo records with undo number
 				>= this value should be truncated */
 	__attribute__((nonnull));
-#ifdef UNIV_DEBUG
-# define trx_undo_truncate_end(trx,undo,limit)		\
-	trx_undo_truncate_end_func(trx,undo,limit)
-#else /* UNIV_DEBUG */
-# define trx_undo_truncate_end(trx,undo,limit)		\
-	trx_undo_truncate_end_func(undo,limit)
-#endif /* UNIV_DEBUG */
 
 /***********************************************************************//**
 Truncates an undo log from the start. This function is used during a purge

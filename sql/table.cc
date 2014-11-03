@@ -6067,11 +6067,19 @@ bool TABLE::alloc_keys(uint key_count)
 }
 
 
+/*
+  Given a field, fill key_part_info
+    @param keyinfo             Key to where key part is added (we will
+                               only adjust key_length there)
+    @param field           IN  Table field for which key part is needed
+    @param key_part_info  OUT  key part structure to be filled.
+    @param fieldnr             Field's number.
+*/
 void TABLE::create_key_part_by_field(KEY *keyinfo,
                                      KEY_PART_INFO *key_part_info,
                                      Field *field, uint fieldnr)
-{   
-  field->flags|= PART_KEY_FLAG;
+{
+  DBUG_ASSERT(field->field_index + 1 == (int)fieldnr);
   key_part_info->null_bit= field->null_bit;
   key_part_info->null_offset= (uint) (field->null_ptr -
                                       (uchar*) record[0]);
@@ -6228,6 +6236,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
       (*reg_field)->key_start.set_bit(key);
     (*reg_field)->part_of_key.set_bit(key);
     create_key_part_by_field(keyinfo, key_part_info, *reg_field, fld_idx+1);
+    (*reg_field)->flags|= PART_KEY_FLAG;
     key_start= FALSE;
     key_part_info++;
   }

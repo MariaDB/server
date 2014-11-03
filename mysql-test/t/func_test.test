@@ -180,3 +180,17 @@ select * from t1 where not (a+0);
 explain extended select * from t1 where not (a+0);
 
 drop table t1;
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-7001 Bad result for NOT NOT STRCMP('a','b') and NOT NOT NULLIF(2,3)
+--echo #
+SELECT NOT NOT strcmp('a','b');
+EXPLAIN EXTENDED SELECT NOT NOT strcmp('a','b');
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

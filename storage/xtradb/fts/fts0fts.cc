@@ -3393,7 +3393,8 @@ fts_fetch_doc_from_rec(
 					dict_table_zip_size(table),
 					clust_pos, &doc->text.f_len,
 					static_cast<mem_heap_t*>(
-						doc->self_heap->arg));
+						doc->self_heap->arg),
+					NULL);
 		} else {
 			doc->text.f_str = (byte*) rec_get_nth_field(
 				clust_rec, offsets, clust_pos,
@@ -7077,7 +7078,8 @@ fts_init_recover_doc(
 				&doc.text.f_len,
 				static_cast<byte*>(dfield_get_data(dfield)),
 				zip_size, len,
-				static_cast<mem_heap_t*>(doc.self_heap->arg));
+				static_cast<mem_heap_t*>(doc.self_heap->arg),
+				NULL);
 		} else {
 			doc.text.f_str = static_cast<byte*>(
 				dfield_get_data(dfield));

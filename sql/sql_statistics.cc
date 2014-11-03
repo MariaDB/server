@@ -3502,7 +3502,12 @@ double get_column_range_cardinality(Field *field,
                    !(range_flag & NEAR_MIN);
 
   if (col_non_nulls < 1)
-    res= 0; /* this is likely wrong, see MDEV-6843 */
+  {
+    if (nulls_incl)
+      res= col_nulls;
+    else
+      res= 0;
+  }
   else if (min_endp && max_endp && min_endp->length == max_endp->length &&
            !memcmp(min_endp->key, max_endp->key, min_endp->length))
   { 

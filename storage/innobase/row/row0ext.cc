@@ -78,7 +78,8 @@ row_ext_cache_fill(
 			crashed during the execution of
 			btr_free_externally_stored_field(). */
 			ext->len[i] = btr_copy_externally_stored_field_prefix(
-				buf, ext->max_len, zip_size, field, f_len);
+				buf, ext->max_len, zip_size, field, f_len,
+				NULL);
 		}
 	}
 }

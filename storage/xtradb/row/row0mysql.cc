@@ -1395,7 +1395,11 @@ error_exit:
 
 	if (UNIV_LIKELY(!(trx->fake_changes))) {
 
-		srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_inserted.add((size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+		}
 
 		/* Not protected by dict_table_stats_lock() for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
@@ -1793,9 +1797,19 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		}
 	} else {
-		srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_updated.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		}
 	}
 
 	/* We update table statistics only if it is a DELETE or UPDATE
@@ -1859,7 +1873,7 @@ row_unlock_for_mysql(
 		trx_id_t	rec_trx_id;
 		mtr_t		mtr;
 
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, trx);
 
 		/* Restore the cursor position and find the record */
 
@@ -2024,9 +2038,19 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(table);
 
-		srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		}
 	} else {
-		srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_updated.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		}
 	}
 
 	row_update_statistics_if_needed(table);
@@ -2214,23 +2238,23 @@ err_exit:
 		/* The lock timeout monitor thread also takes care
 		of InnoDB monitor prints */
 
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_lock_monitor)) {
 
 		srv_print_innodb_monitor = TRUE;
 		srv_print_innodb_lock_monitor = TRUE;
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_tablespace_monitor)) {
 
 		srv_print_innodb_tablespace_monitor = TRUE;
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_table_monitor)) {
 
 		srv_print_innodb_table_monitor = TRUE;
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 #ifdef UNIV_MEM_DEBUG
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_mem_validate)) {
@@ -3426,7 +3450,7 @@ row_truncate_table_for_mysql(
 				index = dict_table_get_next_index(index);
 			} while (index);
 
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, trx);
 			fsp_header_init(space,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
@@ -3455,7 +3479,7 @@ row_truncate_table_for_mysql(
 	sys_index = dict_table_get_first_index(dict_sys->sys_indexes);
 	dict_index_copy_types(tuple, sys_index, 1);
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, trx);
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_MODIFY_LEAF, &pcur, &mtr);
 	for (;;) {
@@ -3502,7 +3526,7 @@ row_truncate_table_for_mysql(
 			a page in this mini-transaction, and the rest of
 			this loop could latch another index page. */
 			mtr_commit(&mtr);
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, trx);
 			btr_pcur_restore_position(BTR_MODIFY_LEAF,
 						  &pcur, &mtr);
 		}

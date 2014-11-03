@@ -471,17 +471,18 @@ void Mrr_ordered_index_reader::position()
 void Mrr_ordered_index_reader::resume_read()
 {
   TABLE *table= file->get_table();
-  if (read_was_interrupted)
+
+  if (!read_was_interrupted)
+    return;
+
+  KEY *used_index= &table->key_info[file->active_index];
+  key_restore(table->record[0], saved_key_tuple, 
+              used_index, used_index->key_length);
+  if (saved_primary_key)
   {
-    KEY *used_index= &table->key_info[file->active_index];
-    key_restore(table->record[0], saved_key_tuple, 
-                used_index, used_index->key_length);
-    if (saved_primary_key)
-    {
-      key_restore(table->record[0], saved_primary_key, 
-                  &table->key_info[table->s->primary_key],
-                  table->key_info[table->s->primary_key].key_length);
-    }
+    key_restore(table->record[0], saved_primary_key, 
+                &table->key_info[table->s->primary_key],
+                table->key_info[table->s->primary_key].key_length);
   }
 }
 

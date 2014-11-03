@@ -561,7 +561,8 @@ btr_estimate_n_rows_in_range(
 	const dtuple_t*	tuple1,	/*!< in: range start, may also be empty tuple */
 	ulint		mode1,	/*!< in: search mode for range start */
 	const dtuple_t*	tuple2,	/*!< in: range end, may also be empty tuple */
-	ulint		mode2);	/*!< in: search mode for range end */
+	ulint		mode2,	/*!< in: search mode for range end */
+	trx_t*		trx);	/*!< in: trx */
 /*******************************************************************//**
 Estimates the number of different key values in a given index, for
 each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
@@ -697,7 +698,8 @@ btr_copy_externally_stored_field_prefix(
 				field containing also the reference to
 				the external part; must be protected by
 				a lock or a page latch */
-	ulint		local_len);/*!< in: length of data, in bytes */
+	ulint		local_len,/*!< in: length of data, in bytes */
+	trx_t*		trx);	/*!< in: transaction handle */
 /*******************************************************************//**
 Copies an externally stored field of a record to mem heap.  The
 clustered index record must be protected by a lock or a page latch.
@@ -714,7 +716,8 @@ btr_copy_externally_stored_field(
 	ulint		zip_size,/*!< in: nonzero=compressed BLOB page size,
 				zero for uncompressed BLOBs */
 	ulint		local_len,/*!< in: length of data */
-	mem_heap_t*	heap);	/*!< in: mem heap */
+	mem_heap_t*	heap,	/*!< in: mem heap */
+	trx_t*		trx);	/*!< in: transaction handle */
 /*******************************************************************//**
 Copies an externally stored field of a record to mem heap.
 @return	the field copied to heap, or NULL if the field is incomplete */
@@ -729,7 +732,8 @@ btr_rec_copy_externally_stored_field(
 				zero for uncompressed BLOBs */
 	ulint		no,	/*!< in: field number */
 	ulint*		len,	/*!< out: length of the field */
-	mem_heap_t*	heap);	/*!< in: mem heap */
+	mem_heap_t*	heap,	/*!< in: mem heap */
+	trx_t*		trx);	/*!< in: transaction handle */
 /*******************************************************************//**
 Flags the data tuple fields that are marked as extern storage in the
 update vector.  We use this function to remember which fields we must

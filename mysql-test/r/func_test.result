@@ -320,3 +320,20 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where (not((`test`.`t1`.`a` + 0)))
 drop table t1;
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-7001 Bad result for NOT NOT STRCMP('a','b') and NOT NOT NULLIF(2,3)
+#
+SELECT NOT NOT strcmp('a','b');
+NOT NOT strcmp('a','b')
+1
+EXPLAIN EXTENDED SELECT NOT NOT strcmp('a','b');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select (strcmp('a','b') <> 0) AS `NOT NOT strcmp('a','b')`
+#
+# End of 10.0 tests
+#

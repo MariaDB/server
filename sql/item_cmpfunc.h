@@ -695,21 +695,18 @@ public:
 };
 
 
-class Item_func_strcmp :public Item_bool_func2
+class Item_func_strcmp :public Item_int_func
 {
+  String value1, value2;
+  DTCollation cmp_collation;
 public:
-  Item_func_strcmp(Item *a,Item *b) :Item_bool_func2(a,b) {}
+  Item_func_strcmp(Item *a,Item *b) :Item_int_func(a,b) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
+  uint decimal_precision() const { return 1; }
   const char *func_name() const { return "strcmp"; }
-
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
   void fix_length_and_dec()
   {
-    Item_bool_func2::fix_length_and_dec();
+    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
     fix_char_length(2); // returns "1" or "0" or "-1"
   }
 };
@@ -803,6 +800,7 @@ public:
   Item_func_nullif(Item *a,Item *b)
     :Item_bool_func2(a,b), cached_result_type(INT_RESULT)
   {}
+  bool is_bool_func() { return false; }
   double val_real();
   longlong val_int();
   String *val_str(String *str);

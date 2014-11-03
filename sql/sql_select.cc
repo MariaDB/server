@@ -3834,6 +3834,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->impossible_where= false;
   if (conds && const_count)
   { 
+    COND_EQUAL *orig_cond_equal = join->cond_equal;
     conds->update_used_tables();
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
@@ -3860,7 +3861,21 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         join->cond_equal->current_level.empty();
         join->cond_equal->current_level.push_back((Item_equal*) conds);
       }
-    }     
+    }
+
+    if (orig_cond_equal != join->cond_equal)
+    {
+      /*
+        If join->cond_equal has changed all references to it from COND_EQUAL
+        objects associated with ON expressions must be updated.
+      */
+      for (JOIN_TAB **pos=stat_vector+const_count ; (s= *pos) ; pos++) 
+      {
+        if (*s->on_expr_ref && s->cond_equal &&
+	    s->cond_equal->upper_levels == orig_cond_equal)
+          s->cond_equal->upper_levels= join->cond_equal;
+      }
+    }
   }
 
   /* Calc how many (possible) matched records in each table */
@@ -4407,8 +4422,7 @@ add_key_field(JOIN *join,
       if (is_const)
       {
         stat[0].const_keys.merge(possible_keys);
-        if (possible_keys.is_clear_all())
-          bitmap_set_bit(&field->table->cond_set, field->field_index);
+        bitmap_set_bit(&field->table->cond_set, field->field_index);
       }
       else if (!eq_func)
       {
@@ -10550,6 +10564,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   }
     
   /*
+    Don't use BKA for materialized tables. We could actually have a
+    meaningful use of BKA when linked join buffers are used.
+
+    The problem is, the temp.table is not filled (actually not even opened
+    properly) yet, and this doesn't let us call
+    handler->multi_range_read_info(). It is possible to come up with
+    estimates, etc. without acessing the table, but it seems not to worth the
+    effort now.
+  */
+  if (tab->table->pos_in_table_list->is_materialized_derived())
+    no_bka_cache= true;
+
+  /*
     Don't use join buffering if we're dictated not to by no_jbuf_after
     (This is not meaningfully used currently)
   */
@@ -10614,21 +10641,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       goto no_join_cache;
     if (tab->ref.is_access_triggered())
       goto no_join_cache;
-    
-    /*
-      Don't use BKA for materialized tables. We could actually have a
-      meaningful use of BKA when linked join buffers are used.
 
-      The problem is, the temp.table is not filled (actually not even opened
-      properly) yet, and this doesn't let us call 
-      handler->multi_range_read_info(). It is possible to come up with
-      estimates, etc. without acessing the table, but it seems not to worth the
-      effort now.
-    */
-    if (tab->table->pos_in_table_list->is_materialized_derived())
-      goto no_join_cache;
-
-    if (!tab->is_ref_for_hash_join())
+    if (!tab->is_ref_for_hash_join() && !no_bka_cache)
     {
       flags= HA_MRR_NO_NULL_ENDPOINTS | HA_MRR_SINGLE_POINT;
       if (tab->table->covering_keys.is_set(tab->ref.key))
@@ -13186,10 +13200,18 @@ Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
     if (upper)
     {
       TABLE_LIST *native_sjm= embedding_sjm(item_equal->context_field);
-      if (item_const && upper->get_const())
+      Item *upper_const= upper->get_const();
+      if (item_const && upper_const)
       {
-        /* Upper item also has "field_item=const". Don't produce equality here */
-        item= 0;
+        /* 
+          Upper item also has "field_item=const".
+          Don't produce equality if const is equal to item_const.
+        */
+        Item_func_eq *func= new Item_func_eq(item_const, upper_const);
+        func->set_cmp_func();
+        func->quick_fix_field();
+        if (func->val_int())
+          item= 0;
       }
       else
       {
