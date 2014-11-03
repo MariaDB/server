@@ -606,6 +606,12 @@ struct mysql_row_templ_t {
 					Innobase record in the current index;
 					not defined if template_type is
 					ROW_MYSQL_WHOLE_ROW */
+	ibool	rec_field_is_prefix;	/* is this field in a prefix index? */
+	ulint	rec_prefix_field_no;	/* record field, even if just a
+					prefix; same as rec_field_no when not a
+					prefix, otherwise rec_field_no is
+					ULINT_UNDEFINED but this is the true
+					field number*/
 	ulint	clust_rec_field_no;	/*!< field number of the column in an
 					Innobase record in the clustered index;
 					not defined if template_type is
@@ -707,7 +713,9 @@ struct row_prebuilt_t {
 					columns through a secondary index
 					and at least one column is not in
 					the secondary index, then this is
-					set to TRUE */
+					set to TRUE; note that sometimes this
+					is set but we later optimize out the
+					clustered index lookup */
 	unsigned	templ_contains_blob:1;/*!< TRUE if the template contains
 					a column with DATA_BLOB ==
 					get_innobase_type_from_mysql_type();

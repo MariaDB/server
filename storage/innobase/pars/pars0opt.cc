@@ -948,12 +948,14 @@ opt_find_all_cols(
 	/* Fill in the field_no fields in sym_node */
 
 	sym_node->field_nos[SYM_CLUST_FIELD_NO] = dict_index_get_nth_col_pos(
-		dict_table_get_first_index(index->table), sym_node->col_no);
+		dict_table_get_first_index(index->table), sym_node->col_no,
+		NULL);
 	if (!dict_index_is_clust(index)) {
 
 		ut_a(plan);
 
-		col_pos = dict_index_get_nth_col_pos(index, sym_node->col_no);
+		col_pos = dict_index_get_nth_col_pos(index, sym_node->col_no,
+						     NULL);
 
 		if (col_pos == ULINT_UNDEFINED) {
 

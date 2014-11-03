@@ -158,6 +158,12 @@ struct srv_stats_t {
 	/** Number of rows inserted */
 	ulint_ctr_64_t		n_rows_inserted;
 
+	/** Number of times secondary index lookup triggered cluster lookup */
+	ulint_ctr_64_t		n_sec_rec_cluster_reads;
+
+	/** Number of times prefix optimization avoided triggering cluster lookup */
+	ulint_ctr_64_t		n_sec_rec_cluster_reads_avoided;
+
 	ulint_ctr_1_t		lock_deadlock_count;
 
 	ulint_ctr_1_t		n_lock_max_wait_time;
@@ -325,6 +331,10 @@ extern char*	srv_log_group_home_dir;
 extern ulong	srv_auto_extend_increment;
 
 extern ibool	srv_created_new_raw;
+
+/* Optimize prefix index queries to skip cluster index lookup when possible */
+/* Enables or disables this prefix optimization.  Disabled by default. */
+extern my_bool	srv_prefix_index_cluster_optimization;
 
 /** Maximum number of srv_n_log_files, or innodb_log_files_in_group */
 #define SRV_N_LOG_FILES_MAX 100
@@ -1183,6 +1193,9 @@ struct export_var_t{
 						compression */
 	ib_int64_t innodb_pages_page_compression_error;/*!< Number of page
 						compression errors */
+
+	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
+	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
 };
 
 /** Thread slot in the thread table.  */

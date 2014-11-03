@@ -1,0 +1,102 @@
+drop table if exists prefixinno;
+set global innodb_prefix_index_cluster_optimization = ON;
+show variables like 'innodb_prefix_index_cluster_optimization';
+Variable_name	Value
+innodb_prefix_index_cluster_optimization	ON
+# Create a table with a large varchar field that we index the prefix
+# of and ensure we only trigger cluster lookups when we expect it.
+create table prefixinno (
+id int not null,
+fake_id int not null,
+bigfield varchar(4096),
+primary key(id),
+index bigfield_idx (bigfield(32)),
+index fake_id_bigfield_prefix (fake_id, bigfield(32))
+) engine=innodb;
+insert into prefixinno values (1, 1001, repeat('a', 1)),
+(8, 1008, repeat('b', 8)),
+(24, 1024, repeat('c', 24)),
+(31, 1031, repeat('d', 31)),
+(32, 1032, repeat('x', 32)),
+(33, 1033, repeat('y', 33)),
+(128, 1128, repeat('z', 128));
+select * from prefixinno;
+id	fake_id	bigfield
+1	1001	a
+8	1008	bbbbbbbb
+24	1024	cccccccccccccccccccccccc
+31	1031	ddddddddddddddddddddddddddddddd
+32	1032	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+33	1033	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+128	1128	zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+# Baseline sanity check: 0, 0.
+no-op query
+no-op query
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Eligible for optimization.
+id	bigfield
+31	ddddddddddddddddddddddddddddddd
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Eligible for optimization, access via fake_id only.
+id	bigfield
+31	ddddddddddddddddddddddddddddddd
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Not eligible for optimization, access via fake_id of big row.
+id	bigfield
+33	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Not eligible for optimization.
+id	bigfield
+32	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Not eligible for optimization.
+id	bigfield
+33	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Eligible, should not increment lookup counter.
+id	bigfield
+8	bbbbbbbb
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Eligible, should not increment lookup counter.
+id	bigfield
+24	cccccccccccccccccccccccc
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Should increment lookup counter.
+id	bigfield
+128	zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# Disable optimization, confirm we still increment counter.
+id	bigfield
+33	yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+cluster_lookups_matched
+1
+cluster_lookups_avoided_matched
+1
+# make test suite happy by cleaning up our mess

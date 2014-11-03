@@ -1,0 +1,150 @@
+-- source include/have_innodb.inc
+
+--disable_warnings
+drop table if exists prefixinno;
+--enable_warnings
+
+set global innodb_prefix_index_cluster_optimization = ON;
+show variables like 'innodb_prefix_index_cluster_optimization';
+
+--echo # Create a table with a large varchar field that we index the prefix
+--echo # of and ensure we only trigger cluster lookups when we expect it.
+create table prefixinno (
+       id int not null,
+       fake_id int not null,
+       bigfield varchar(4096),
+       primary key(id),
+       index bigfield_idx (bigfield(32)),
+       index fake_id_bigfield_prefix (fake_id, bigfield(32))
+) engine=innodb;
+
+insert into prefixinno values (1, 1001, repeat('a', 1)),
+                              (8, 1008, repeat('b', 8)),
+                              (24, 1024, repeat('c', 24)),
+                              (31, 1031, repeat('d', 31)),
+                              (32, 1032, repeat('x', 32)),
+                              (33, 1033, repeat('y', 33)),
+                              (128, 1128, repeat('z', 128));
+
+select * from prefixinno;
+
+let $show_count_statement = show status like 'innodb_secondary_index_triggered_cluster_reads';
+let $show_opt_statement = show status like 'innodb_secondary_index_triggered_cluster_reads_avoided';
+
+--disable_query_log
+
+--echo # Baseline sanity check: 0, 0.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select "no-op query";
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_avoided_matched;
+
+--echo # Eligible for optimization.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where bigfield = repeat('d', 31);
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_avoided_matched;
+
+--echo # Eligible for optimization, access via fake_id only.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where fake_id = 1031;
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_avoided_matched;
+
+--echo # Not eligible for optimization, access via fake_id of big row.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where fake_id = 1033;
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_avoided_matched;
+
+--echo # Not eligible for optimization.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where bigfield = repeat('x', 32);
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_avoided_matched;
+
+--echo # Not eligible for optimization.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where bigfield = repeat('y', 33);
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_avoided_matched;
+
+--echo # Eligible, should not increment lookup counter.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where bigfield = repeat('b', 8);
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_avoided_matched;
+
+--echo # Eligible, should not increment lookup counter.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where bigfield = repeat('c', 24);
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_avoided_matched;
+
+--echo # Should increment lookup counter.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+select id, bigfield from prefixinno where bigfield = repeat('z', 128);
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_avoided_matched;
+
+--echo # Disable optimization, confirm we still increment counter.
+--let $base_count = query_get_value($show_count_statement, Value, 1)
+--let $base_opt = query_get_value($show_opt_statement, Value, 1)
+set global innodb_prefix_index_cluster_optimization = OFF;
+select id, bigfield from prefixinno where fake_id = 1033;
+--let $count = query_get_value($show_count_statement, Value, 1)
+eval select $count - $base_count into @cluster_lookups;
+select @cluster_lookups = 1 as cluster_lookups_matched;
+--let $opt = query_get_value($show_opt_statement, Value, 1)
+eval select $opt - $base_opt into @cluster_lookups;
+select @cluster_lookups = 0 as cluster_lookups_avoided_matched;
+
+
+--echo # make test suite happy by cleaning up our mess
+drop table prefixinno;
+set global innodb_prefix_index_cluster_optimization = OFF;

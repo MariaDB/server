@@ -490,6 +490,10 @@ UNIV_INTERN ulint	srv_fast_shutdown	= 0;
 /* Generate a innodb_status.<pid> file */
 UNIV_INTERN ibool	srv_innodb_status	= FALSE;
 
+/* Optimize prefix index queries to skip cluster index lookup when possible */
+/* Enables or disables this prefix optimization.  Disabled by default. */
+UNIV_INTERN my_bool	srv_prefix_index_cluster_optimization = 0;
+
 /* When estimating number of different key values in an index, sample
 this many index pages, there are 2 ways to calculate statistics:
 * persistent stats that are calculated by ANALYZE TABLE and saved
@@ -1959,6 +1963,11 @@ srv_export_innodb_status(void)
 			(ulint) (max_trx_id - up_limit_id);
 	}
 #endif /* UNIV_DEBUG */
+
+	export_vars.innodb_sec_rec_cluster_reads =
+		srv_stats.n_sec_rec_cluster_reads;
+	export_vars.innodb_sec_rec_cluster_reads_avoided =
+		srv_stats.n_sec_rec_cluster_reads_avoided;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }

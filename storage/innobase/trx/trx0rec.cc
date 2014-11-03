@@ -781,7 +781,8 @@ trx_undo_page_report_modify(
 				}
 
 				pos = dict_index_get_nth_col_pos(index,
-								 col_no);
+								 col_no,
+								 NULL);
 				ptr += mach_write_compressed(ptr, pos);
 
 				/* Save the old value of field */
