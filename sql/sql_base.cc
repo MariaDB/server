@@ -8428,7 +8428,6 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
     do
     {
       embedded= embedding;
-      DBUG_PRINT("XXX", ("check: %s", table->alias));
       if (embedded->on_expr)
       {
         thd->where="on clause";
