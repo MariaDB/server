@@ -41,7 +41,7 @@ else()
 endif()
 
 if(MRN_BUNDLED)
-  if(WITHOUT_HA_MROONGA OR WITHOUT_HA_MROONGA_STORAGE_ENGINE)
+  if(WITHOUT_MROONGA OR WITHOUT_MROONGA_STORAGE_ENGINE)
     return()
   endif()
 endif()
@@ -246,17 +246,15 @@ link_directories(
 
 if(MRN_BUNDLED)
   if(GROONGA_NORMALIZER_MYSQL_FOUND AND MRN_GROONGA_BUNDLED)
-    mysql_add_plugin(ha_mroonga
+    mysql_add_plugin(mroonga
       "${MROONGA_SOURCES};${MRN_UDF_SOURCES};${MRN_GRN_NORMALIZER_MYSQL_SOURCES};${LIBMRN_NEED_MYSQL_SOURCES};${LIBMRN_NO_MYSQL_SOURCES}"
       STORAGE_ENGINE MODULE_ONLY
-      LINK_LIBRARIES ${GROONGA_LIBRARIES}
-      MODULE_OUTPUT_NAME "ha_mroonga")
+      LINK_LIBRARIES ${GROONGA_LIBRARIES})
   else()
-    mysql_add_plugin(ha_mroonga
+    mysql_add_plugin(mroonga
       "${MROONGA_SOURCES};${MRN_UDF_SOURCES};${LIBMRN_NEED_MYSQL_SOURCES};${LIBMRN_NO_MYSQL_SOURCES}"
       STORAGE_ENGINE MODULE_ONLY
-      LINK_LIBRARIES ${GROONGA_LIBRARIES}
-      MODULE_OUTPUT_NAME "ha_mroonga")
+      LINK_LIBRARIES ${GROONGA_LIBRARIES})
   endif()
   set(EXPANDED_INSTALL_LIBDIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBDIR}")
   list(FIND
@@ -264,47 +262,47 @@ if(MRN_BUNDLED)
     "${EXPANDED_INSTALL_LIBDIR}"
     EXPANDED_INSTALL_LIBDIR_INDEX_IN_IMPLICIT_LINK_DIRECTORIES)
   if(EXPANDED_INSTALL_LIBDIR_INDEX_IN_IMPLICIT_LINK_DIRECTORIES EQUAL -1)
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       INSTALL_RPATH "${EXPANDED_INSTALL_LIBDIR}")
   endif()
 else()
-  add_library(ha_mroonga MODULE
+  add_library(mroonga MODULE
     ${MROONGA_SOURCES}
     ${MRN_UDF_SOURCES}
     ${LIBMRN_NO_MYSQL_SOURCES}
     ${LIBMRN_NEED_MYSQL_SOURCES})
 
   set(MYSQL_LIBRARIES "mysqlservices")
-  target_link_libraries(ha_mroonga ${GROONGA_LIBRARIES} ${MYSQL_LIBRARIES})
+  target_link_libraries(mroonga ${GROONGA_LIBRARIES} ${MYSQL_LIBRARIES})
 
   option(WITH_DEBUG "Enable debug options" OFF)
   if(WITH_DEBUG)
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "SAFE_MUTEX")
     if(CMAKE_COMPILER_IS_GNUCXX)
       set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} -g3 -O0")
       set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} -g3 -O0")
     endif()
   else()
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "DBUG_OFF")
   endif()
 
   option(WITH_DEBUG_FULL "Enable full debug options" OFF)
   if(WITH_DEBUG_FULL)
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "SAFE_MUTEX" "SAFEMALLOC")
   endif()
 
   option(DISABLE_FAST_MUTEXES "Force disabling fast mutex" OFF)
   if(DISABLE_FAST_MUTEXES)
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "FORCE_FAST_MUTEX_DISABLED=1")
   endif()
 
   option(WITH_FAST_MUTEXES "Enable fast mutex" OFF)
   if(WITH_FAST_MUTEXES)
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "MY_PTHREAD_FASTMUTEX")
   endif()
 
@@ -327,31 +325,31 @@ else()
     COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS}")
   set_source_files_properties(${LIBMRN_NO_MYSQL_SOURCES} PROPERTIES
     COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS}")
-  set_property(TARGET ha_mroonga APPEND PROPERTY
+  set_property(TARGET mroonga APPEND PROPERTY
     COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
-  set_target_properties(ha_mroonga PROPERTIES
+  set_target_properties(mroonga PROPERTIES
     PREFIX ""
     OUTPUT_NAME "ha_mroonga")
 
-  install(TARGETS ha_mroonga DESTINATION "${MYSQL_PLUGIN_DIR}")
+  install(TARGETS mroonga DESTINATION "${MYSQL_PLUGIN_DIR}")
 endif()
 
 if(GROONGA_NORMALIZER_MYSQL_FOUND)
   set(WITH_GROONGA_NORMALIZER_MYSQL 1)
-  set_property(TARGET ha_mroonga APPEND PROPERTY
+  set_property(TARGET mroonga APPEND PROPERTY
     COMPILE_DEFINITIONS "WITH_GROONGA_NORMALIZER_MYSQL=1")
   if(MRN_GROONGA_BUNDLED)
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_PLUGIN_IS_BUNDLED_STATIC=1")
   else()
     set(GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME \"normalizers/mysql\")
-    set_property(TARGET ha_mroonga APPEND PROPERTY
+    set_property(TARGET mroonga APPEND PROPERTY
       COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME=\"normalizers/mysql\"")
   endif()
 endif()
 
 set(MRN_DEFAULT_PARSER "TokenBigram" CACHE STRING "The default fulltext parser")
-set_property(TARGET ha_mroonga APPEND PROPERTY
+set_property(TARGET mroonga APPEND PROPERTY
   COMPILE_DEFINITIONS "MRN_PARSER_DEFAULT=\"${MRN_DEFAULT_PARSER}\"")
 
 configure_file(
