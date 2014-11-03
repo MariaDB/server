@@ -219,8 +219,8 @@ my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *ke
     != 0           error
     0             no error
 */
-int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
-					char* dest, unsigned long int *dest_length,
+int my_aes_encrypt_cbc(const char* source, uint32 source_length,
+					char* dest, uint32* dest_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length,
 					int noPadding)
@@ -338,8 +338,8 @@ int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
     != 0           error
     0             no error
 */
-int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
-					char* dest, unsigned long int *dest_length,
+int my_aes_decrypt_cbc(const char* source, uint32 source_length,
+					char* dest, uint32 *dest_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length,
 					int noPadding)

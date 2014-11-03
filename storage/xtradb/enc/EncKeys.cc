@@ -200,7 +200,7 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 		memcpy(_initPwd, initialPwd, strlen(initialPwd));
 		_initPwd[strlen(initialPwd)]= '\0';
 		my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
-		unsigned long int d_size = 0;
+		uint32 d_size = 0;
 		int res = my_aes_decrypt_cbc((const char*)buf + 2 * magicSize, bytes_to_read - 2 * magicSize,
 				secret, &d_size, key, keySize32, iv, ivSize16, 0);
 		if (d_size>EncKeys::MAX_SECRET_SIZE) {
@@ -378,7 +378,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		char *decrypted = new char[file_size];
 		memcpy(&salt, buffer + magicSize, magicSize);
 		my_bytes_to_key((unsigned char *) salt, secret, key, iv);
-		unsigned long int d_size = 0;
+		uint32 d_size = 0;
 		int res = my_aes_decrypt_cbc((const char*)buffer + 2 * magicSize, file_size - 2 * magicSize,
 				decrypted, &d_size, key, keySize32, iv, ivSize16, 0);
 		if(0 != res) {

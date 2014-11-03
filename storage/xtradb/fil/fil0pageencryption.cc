@@ -106,9 +106,9 @@ fil_encrypt_page(
 
 	int err = AES_OK;
 	int key = 0;
-	ulint data_size = 0;
+	uint32 data_size = 0;
 	ulint orig_page_type = 0;
-	ulint write_size = 0;
+	uint32 write_size = 0;
 	fil_space_t* space = NULL;
 	byte* tmp_buf = NULL;
 	ulint unit_test = 0;
@@ -299,9 +299,9 @@ ulint fil_decrypt_page(
 ) {
 	int err = AES_OK;
 	ulint page_decryption_key;
-	ulint data_size = 0;
+	uint32 data_size = 0;
 	ulint orig_page_type = 0;
-	ulint tmp_write_size = 0;
+	uint32 tmp_write_size = 0;
 	ulint offset = 0;
 	byte * in_buffer;
 	byte * in_buf;

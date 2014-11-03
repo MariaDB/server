@@ -17,15 +17,15 @@ typedef unsigned long int ibool;
 #include <string.h>
 #include <my_dbug.h>
 extern "C" {
-extern int my_aes_decrypt_cbc(const char* source, unsigned long int source_length,
-		char* dest, unsigned long int *dest_length,
+extern int my_aes_decrypt_cbc(const char* source, uint32 source_length,
+		char* dest, uint32* dest_length,
 		const unsigned char* key, uint8 key_length,
 		const unsigned char* iv, uint8 iv_length,
 		int noPadding);
 
 
-extern int my_aes_encrypt_cbc(const char* source, unsigned long int source_length,
-					char* dest, unsigned long int *dest_length,
+extern int my_aes_encrypt_cbc(const char* source, uint32 source_length,
+					char* dest, uint32 *dest_length,
 					const unsigned char* key, uint8 key_length,
 					const unsigned char* iv, uint8 iv_length,
 					int noPadding);
@@ -100,11 +100,11 @@ test_cbc128noPadding()
 	plan(1);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[16] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51};
 	uint8 k_len = 16;
@@ -135,11 +135,11 @@ test_cbc128()
 	plan(2);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[16] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51};
 	uint8 k_len = 16;
@@ -164,11 +164,11 @@ test_cbc192noPadding()
 	plan(3);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[24] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
 	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
@@ -192,11 +192,11 @@ test_cbc192()
 	plan(4);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[24] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
 	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08};
@@ -223,11 +223,11 @@ test_cbc256()
 	plan(5);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[32] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
 	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
@@ -261,11 +261,11 @@ test_cbc256noPadding()
 	plan(6);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[32] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
 	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
@@ -301,11 +301,11 @@ test_cbc256noPaddingWrongInputSize()
 	plan(7);
 	int i;
 	char* source = "int i = memcmp(decbuf,inbuf,16);sdfsd";
-	ulint s_len = strlen(source);
+	uint32 s_len = strlen(source);
 	char* dest = (char* ) malloc(100);
 	char* result = (char*) malloc(100);
 
-	ulint dest_len = 0;
+	uint32 dest_len = 0;
     unsigned char key[32] = {0x58, 0x3b, 0xe7, 0xf3, 0x34, 0xf8,
     		0x5e, 0x7d, 0x9d, 0xdb, 0x36, 0x2e, 0x9a, 0xc3, 0x81, 0x51,
 	0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,
