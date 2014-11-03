@@ -1891,6 +1891,7 @@ protected:
   virtual void store_TIME(MYSQL_TIME *ltime);
   int store_TIME_with_warning(MYSQL_TIME *ltime, const ErrConv *str,
                               int was_cut, int have_smth_to_conv);
+  bool check_zero_in_date_with_warn(ulonglong fuzzydate);
 public:
   Field_time(uchar *ptr_arg, uint length_arg, uchar *null_ptr_arg,
              uchar null_bit_arg, enum utype unireg_check_arg,

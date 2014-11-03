@@ -5442,6 +5442,21 @@ String *Field_time::val_str(String *str,
 }
 
 
+bool Field_time::check_zero_in_date_with_warn(ulonglong fuzzydate)
+{
+  if (!(fuzzydate & TIME_TIME_ONLY) && (fuzzydate & TIME_NO_ZERO_IN_DATE))
+  {
+    THD *thd= get_thd();
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_DATA_OUT_OF_RANGE,
+                        ER(ER_WARN_DATA_OUT_OF_RANGE), field_name,
+                        thd->get_stmt_da()->current_row_for_warning());
+    return true;
+  }
+  return false;
+}
+
+
 /**
   @note
   Normally we would not consider 'time' as a valid date, but we allow
@@ -5451,16 +5466,8 @@ String *Field_time::val_str(String *str,
  
 bool Field_time::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
-  if (!(fuzzydate & TIME_TIME_ONLY) &&
-      (fuzzydate & TIME_NO_ZERO_IN_DATE))
-  {
-    THD *thd= get_thd();
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_DATA_OUT_OF_RANGE,
-                        ER(ER_WARN_DATA_OUT_OF_RANGE), field_name,
-                        thd->get_stmt_da()->current_row_for_warning());
-    return 1;
-  }
+  if (check_zero_in_date_with_warn(fuzzydate))
+    return true;
   long tmp=(long) sint3korr(ptr);
   ltime->neg=0;
   if (tmp < 0)
@@ -5565,6 +5572,8 @@ double Field_time_with_dec::val_real(void)
 
 bool Field_time_hires::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
+  if (check_zero_in_date_with_warn(fuzzydate))
+    return true;
   uint32 len= pack_length();
   longlong packed= read_bigendian(ptr, len);
 
@@ -5578,7 +5587,7 @@ bool Field_time_hires::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
   ltime->time_type= MYSQL_TIMESTAMP_TIME;
   ltime->hour+= (ltime->month*32+ltime->day)*24;
   ltime->month= ltime->day= 0;
-  return !(fuzzydate & TIME_TIME_ONLY) && (fuzzydate & TIME_NO_ZERO_IN_DATE);
+  return false;
 }
 
 
@@ -5623,6 +5632,8 @@ void Field_timef::store_TIME(MYSQL_TIME *ltime)
 
 bool Field_timef::get_date(MYSQL_TIME *ltime, ulonglong fuzzydate)
 {
+  if (check_zero_in_date_with_warn(fuzzydate))
+    return true;
   longlong tmp= my_time_packed_from_binary(ptr, dec);
   TIME_from_longlong_time_packed(ltime, tmp);
   return false;
