@@ -194,7 +194,7 @@ dict_stats_persistent_storage_check(
 		{"table_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 192},
 
-		{"last_update", DATA_INT,
+		{"last_update", DATA_FIXBINARY,
 			DATA_NOT_NULL, 4},
 
 		{"n_rows", DATA_INT,
@@ -225,7 +225,7 @@ dict_stats_persistent_storage_check(
 		{"index_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 192},
 
-		{"last_update", DATA_INT,
+		{"last_update", DATA_FIXBINARY,
 			DATA_NOT_NULL, 4},
 
 		{"stat_name", DATA_VARMYSQL,
