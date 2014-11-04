@@ -5018,12 +5018,12 @@ os_aio_func(
 			ret = os_file_write_func(name, file, buf, offset, n);
 		}
 
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			os_has_said_disk_full = FALSE;);
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			ret = 0;);
-		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
-			errno = 28;);
+		if (type == OS_FILE_WRITE) {
+			DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+				os_has_said_disk_full = FALSE;
+				ret = 0;
+				errno = 28;);
+		}
 
 		return ret;
 	}
@@ -6355,6 +6355,11 @@ os_file_trim(
 	ut_ad((trim_len % bsize) == 0);
 	ut_ad((len % bsize) == 0);
 	ut_ad(bsize != 0);
+
+#ifdef UNIV_TRIM_DEBUG
+	fprintf(stderr, "Note: TRIM: write_size %lu trim_len %lu len %lu off %lu\n",
+		*slot->write_size, trim_len, len, off);
+#endif
 
 	// Nothing to do if trim length is zero or if actual write
 	// size is initialized and it is smaller than current write size.

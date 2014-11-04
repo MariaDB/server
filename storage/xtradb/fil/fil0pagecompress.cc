@@ -453,9 +453,15 @@ fil_compress_page(
 
 	/* Actual write needs to be alligned on block size */
 	if (write_size % block_size) {
+#ifdef UNIV_DEBUG
+		size_t tmp = write_size;
 		ut_a(block_size > 0);
-		write_size = (write_size + block_size-1) & ~(block_size-1);
-		ut_a((write_size % block_size) == 0);
+#endif
+		write_size =  (size_t)ut_uint64_align_up((ib_uint64_t)write_size, block_size);
+#ifdef UNIV_DEBUG
+		ut_a(write_size > 0 && ((write_size % block_size) == 0));
+		ut_a(write_size >= tmp);
+#endif
 	}
 
 #ifdef UNIV_PAGECOMPRESS_DEBUG
