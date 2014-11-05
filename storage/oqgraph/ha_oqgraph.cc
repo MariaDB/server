@@ -780,6 +780,10 @@ int ha_oqgraph::index_read(byte * buf, const byte * key, uint key_len, enum ha_r
 
 int ha_oqgraph::index_next_same(byte *buf, const byte *key, uint key_len)
 {
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("index_next_same g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   int res;
   open_query::row row;
   DBUG_ASSERT(inited==INDEX);
@@ -843,7 +847,7 @@ int ha_oqgraph::index_read_idx(byte * buf, uint index, const byte * key,
                         uint key_len, enum ha_rkey_function find_flag)
 {
   if (graph->get_thd() != current_thd) {
-    DBUG_PRINT( "oq-debug", ("g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    DBUG_PRINT( "oq-debug", ("index_read_idx g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
     graph->set_thd(current_thd);
   }
 
@@ -1040,6 +1044,10 @@ int ha_oqgraph::rnd_init(bool scan)
 
 int ha_oqgraph::rnd_next(byte *buf)
 {
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("rnd_next g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   int res;
   open_query::row row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
@@ -1051,6 +1059,10 @@ int ha_oqgraph::rnd_next(byte *buf)
 
 int ha_oqgraph::rnd_pos(byte * buf, byte *pos)
 {
+  if (graph->get_thd() != current_thd) {
+    DBUG_PRINT( "oq-debug", ("rnd_pos g->table->in_use: 0x%lx <-- current_thd 0x%lx", (long) graph->get_thd(), (long) current_thd));
+    graph->set_thd(current_thd);
+  }
   int res;
   open_query::row row;
   if (!(res= graph->fetch_row(row, pos)))
