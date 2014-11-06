@@ -2338,17 +2338,24 @@ buf_flush_LRU_tail(void)
 					free_len = UT_LIST_GET_LEN(
 						buf_pool->free);
 				}
+				if (n.flushed) {
+					MONITOR_INC_VALUE_CUMULATIVE(
+						MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
+						MONITOR_LRU_BATCH_FLUSH_COUNT,
+						MONITOR_LRU_BATCH_FLUSH_PAGES,
+						n.flushed);
+				}
+
+				if (n.evicted) {
+					MONITOR_INC_VALUE_CUMULATIVE(
+						MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
+						MONITOR_LRU_BATCH_EVICT_COUNT,
+						MONITOR_LRU_BATCH_EVICT_PAGES,
+						n.evicted);
+				}
 			} while (active_instance[i]
 				 && free_len <= free_list_lwm);
 		}
-	}
-
-	if (total_flushed) {
-		MONITOR_INC_VALUE_CUMULATIVE(
-			MONITOR_LRU_BATCH_TOTAL_PAGE,
-			MONITOR_LRU_BATCH_COUNT,
-			MONITOR_LRU_BATCH_PAGES,
-			total_flushed);
 	}
 
 	return(total_flushed);

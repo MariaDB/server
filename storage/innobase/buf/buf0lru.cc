@@ -81,6 +81,10 @@ are not blocked for extended period of time when using very large
 buffer pools. */
 #define BUF_LRU_DROP_SEARCH_SIZE	1024
 
+/** We scan these many blocks when looking for a clean page to evict
+during LRU eviction. */
+#define BUF_LRU_SEARCH_SCAN_THRESHOLD	100
+
 /** If we switch on the InnoDB monitor because there are too few available
 frames in the buffer pool, we set this to TRUE */
 static ibool	buf_lru_switched_on_innodb_mon	= FALSE;
@@ -961,7 +965,7 @@ buf_LRU_free_from_unzip_LRU_list(
 	}
 
 	for (block = UT_LIST_GET_LAST(buf_pool->unzip_LRU),
-	     scanned = 1, freed = FALSE;
+	     scanned = 0, freed = FALSE;
 	     block != NULL && !freed
 	     && (scan_all || scanned < srv_LRU_scan_depth);
 	     ++scanned) {
@@ -978,11 +982,13 @@ buf_LRU_free_from_unzip_LRU_list(
 		block = prev_block;
 	}
 
-	MONITOR_INC_VALUE_CUMULATIVE(
-		MONITOR_LRU_UNZIP_SEARCH_SCANNED,
-		MONITOR_LRU_UNZIP_SEARCH_SCANNED_NUM_CALL,
-		MONITOR_LRU_UNZIP_SEARCH_SCANNED_PER_CALL,
-		scanned);
+	if (scanned) {
+		MONITOR_INC_VALUE_CUMULATIVE(
+			MONITOR_LRU_UNZIP_SEARCH_SCANNED,
+			MONITOR_LRU_UNZIP_SEARCH_SCANNED_NUM_CALL,
+			MONITOR_LRU_UNZIP_SEARCH_SCANNED_PER_CALL,
+			scanned);
+	}
 	return(freed);
 }
 
@@ -1004,21 +1010,30 @@ buf_LRU_free_from_common_LRU_list(
 
 	ut_ad(buf_pool_mutex_own(buf_pool));
 
-	for (bpage = UT_LIST_GET_LAST(buf_pool->LRU),
-	     scanned = 1, freed = FALSE;
+	for (bpage = buf_pool->lru_scan_itr.start(),
+	     scanned = 0, freed = false;
 	     bpage != NULL && !freed
-	     && (scan_all || scanned < srv_LRU_scan_depth);
-	     ++scanned) {
+	     && (scan_all || scanned < BUF_LRU_SEARCH_SCAN_THRESHOLD);
+	     ++scanned, bpage = buf_pool->lru_scan_itr.get()) {
 
-		unsigned	accessed;
-		buf_page_t*	prev_bpage = UT_LIST_GET_PREV(LRU,
-						bpage);
+		buf_page_t* prev = UT_LIST_GET_PREV(LRU, bpage);
+		buf_pool->lru_scan_itr.set(prev);
+
+		ib_mutex_t* mutex = buf_page_get_mutex(bpage);
+		mutex_enter(mutex);
 
 		ut_ad(buf_page_in_file(bpage));
 		ut_ad(bpage->in_LRU_list);
 
-		accessed = buf_page_is_accessed(bpage);
-		freed = buf_LRU_free_page(bpage, true);
+		unsigned accessed = buf_page_is_accessed(bpage);
+
+		if (buf_flush_ready_for_replace(bpage)) {
+			mutex_exit(mutex);
+			freed = buf_LRU_free_page(bpage, true);
+		} else {
+			mutex_exit(mutex);
+		}
+
 		if (freed && !accessed) {
 			/* Keep track of pages that are evicted without
 			ever being accessed. This gives us a measure of
@@ -1026,14 +1041,17 @@ buf_LRU_free_from_common_LRU_list(
 			++buf_pool->stat.n_ra_pages_evicted;
 		}
 
-		bpage = prev_bpage;
+		ut_ad(buf_pool_mutex_own(buf_pool));
+		ut_ad(!mutex_own(mutex));
 	}
 
-	MONITOR_INC_VALUE_CUMULATIVE(
-		MONITOR_LRU_SEARCH_SCANNED,
-		MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
-		MONITOR_LRU_SEARCH_SCANNED_PER_CALL,
-		scanned);
+	if (scanned) {
+		MONITOR_INC_VALUE_CUMULATIVE(
+			MONITOR_LRU_SEARCH_SCANNED,
+			MONITOR_LRU_SEARCH_SCANNED_NUM_CALL,
+			MONITOR_LRU_SEARCH_SCANNED_PER_CALL,
+			scanned);
+	}
 
 	return(freed);
 }
@@ -1217,8 +1235,6 @@ the free list. Even when we flush a page or find a page in LRU scan
 we put it to free list to be used.
 * iteration 0:
   * get a block from free list, success:done
-  * if there is an LRU flush batch in progress:
-    * wait for batch to end: retry free list
   * if buf_pool->try_LRU_scan is set
     * scan LRU up to srv_LRU_scan_depth to find a clean block
     * the above will put the block on free list
@@ -1231,7 +1247,7 @@ we put it to free list to be used.
     * scan whole LRU list
     * scan LRU list even if buf_pool->try_LRU_scan is not set
 * iteration > 1:
-  * same as iteration 1 but sleep 100ms
+  * same as iteration 1 but sleep 10ms
 @return	the free control block, in state BUF_BLOCK_READY_FOR_USE */
 UNIV_INTERN
 buf_block_t*
@@ -1269,20 +1285,6 @@ loop:
 		return(block);
 	}
 
-	if (buf_pool->init_flush[BUF_FLUSH_LRU]
-	    && srv_use_doublewrite_buf
-	    && buf_dblwr != NULL) {
-
-		/* If there is an LRU flush happening in the background
-		then we wait for it to end instead of trying a single
-		page flush. If, however, we are not using doublewrite
-		buffer then it is better to do our own single page
-		flush instead of waiting for LRU flush to end. */
-		buf_pool_mutex_exit(buf_pool);
-		buf_flush_wait_batch_end(buf_pool, BUF_FLUSH_LRU);
-		goto loop;
-	}
-
 	freed = FALSE;
 	if (buf_pool->try_LRU_scan || n_iterations > 0) {
 		/* If no block was in the free list, search from the
@@ -1299,6 +1301,10 @@ loop:
 			TRUE again when we flush a batch from this
 			buffer pool. */
 			buf_pool->try_LRU_scan = FALSE;
+
+			/* Also tell the page_cleaner thread that
+			there is work for it to do. */
+			os_event_set(buf_flush_event);
 		}
 	}
 
@@ -1347,12 +1353,10 @@ loop:
 
 	/* If we have scanned the whole LRU and still are unable to
 	find a free block then we should sleep here to let the
-	page_cleaner do an LRU batch for us.
-	TODO: It'd be better if we can signal the page_cleaner. Perhaps
-	we should use timed wait for page_cleaner. */
-	if (n_iterations > 1) {
+	page_cleaner do an LRU batch for us. */
 
-		os_thread_sleep(100000);
+	if (n_iterations > 1) {
+		os_thread_sleep(10000);
 	}
 
 	/* No free block was found: try to flush the LRU list.
@@ -1503,6 +1507,20 @@ buf_unzip_LRU_remove_block_if_needed(
 }
 
 /******************************************************************//**
+Adjust LRU hazard pointers if needed. */
+
+void
+buf_LRU_adjust_hp(
+/*==============*/
+	buf_pool_t*		buf_pool,/*!< in: buffer pool instance */
+	const buf_page_t*	bpage)	/*!< in: control block */
+{
+	buf_pool->lru_hp.adjust(bpage);
+	buf_pool->lru_scan_itr.adjust(bpage);
+	buf_pool->single_scan_itr.adjust(bpage);
+}
+
+/******************************************************************//**
 Removes a block from the LRU list. */
 UNIV_INLINE
 void
@@ -1520,6 +1538,10 @@ buf_LRU_remove_block(
 	ut_a(buf_page_in_file(bpage));
 
 	ut_ad(bpage->in_LRU_list);
+
+	/* Important that we adjust the hazard pointers before removing
+	bpage from the LRU list. */
+	buf_LRU_adjust_hp(buf_pool, bpage);
 
 	/* If the LRU_old pointer is defined and points to just this block,
 	move it backward one step */

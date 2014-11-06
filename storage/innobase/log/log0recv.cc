@@ -348,7 +348,10 @@ DECLARE_THREAD(recv_writer_thread)(
 
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 
-		os_thread_sleep(100000);
+		/* Wait till we get a signal to clean the LRU list.
+		Bounded by max wait time of 100ms. */
+		ib_int64_t      sig_count = os_event_reset(buf_flush_event);
+		os_event_wait_time_low(buf_flush_event, 100000, sig_count);
 
 		mutex_enter(&recv_sys->writer_mutex);
 

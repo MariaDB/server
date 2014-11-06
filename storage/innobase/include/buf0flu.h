@@ -37,6 +37,17 @@ Created 11/5/1995 Heikki Tuuri
 /** Flag indicating if the page_cleaner is in active state. */
 extern ibool buf_page_cleaner_is_active;
 
+/** Event to synchronise with the flushing. */
+extern os_event_t	buf_flush_event;
+
+/** Handled page counters for a single flush */
+struct flush_counters_t {
+	ulint	flushed;	/*!< number of dirty pages flushed */
+	ulint	evicted;	/*!< number of clean pages evicted */
+	ulint	unzip_LRU_evicted;/*!< number of uncompressed page images
+				evicted */
+};
+
 /********************************************************************//**
 Remove a block from the flush list of modified blocks. */
 UNIV_INTERN
@@ -111,12 +122,12 @@ buf_flush_list(
 					which were processed is passed
 					back to caller. Ignored if NULL */
 /******************************************************************//**
-This function picks up a single dirty page from the tail of the LRU
-list, flushes it, removes it from page_hash and LRU list and puts
-it on the free list. It is called from user threads when they are
-unable to find a replacable page at the tail of the LRU list i.e.:
-when the background LRU flushing in the page_cleaner thread is not
-fast enough to keep pace with the workload.
+This function picks up a single page from the tail of the LRU
+list, flushes it (if it is dirty), removes it from page_hash and LRU
+list and puts it on the free list. It is called from user threads when
+they are unable to find a replaceable page at the tail of the LRU
+list i.e.: when the background LRU flushing in the page_cleaner thread
+is not fast enough to keep pace with the workload.
 @return TRUE if success. */
 UNIV_INTERN
 ibool
@@ -309,9 +320,9 @@ This utility flushes dirty blocks from the end of the LRU list or flush_list.
 NOTE 1: in the case of an LRU flush the calling thread may own latches to
 pages: to avoid deadlocks, this function must be written so that it cannot
 end up waiting for these latches! NOTE 2: in the case of a flush list flush,
-the calling thread is not allowed to own any latches on pages!
-@return number of blocks for which the write request was queued */
-ulint
+the calling thread is not allowed to own any latches on pages! */
+__attribute__((nonnull))
+void
 buf_flush_batch(
 /*============*/
 	buf_pool_t*	buf_pool,	/*!< in: buffer pool instance */
@@ -322,11 +333,13 @@ buf_flush_batch(
 	ulint		min_n,		/*!< in: wished minimum mumber of blocks
 					flushed (it is not guaranteed that the
 					actual number is that big, though) */
-	lsn_t		lsn_limit);	/*!< in: in the case of BUF_FLUSH_LIST
+	lsn_t		lsn_limit,	/*!< in: in the case of BUF_FLUSH_LIST
 					all blocks whose oldest_modification is
 					smaller than this should be flushed
 					(if their number does not exceed
 					min_n), otherwise ignored */
+	flush_counters_t*	n);	/*!< out: flushed/evicted page
+					counts  */
 
 
 #ifndef UNIV_NONINL
