@@ -3077,7 +3077,9 @@ void plugin_thdvar_init(THD *thd)
     intern_plugin_unlock(NULL, old_table_plugin);
     intern_plugin_unlock(NULL, old_tmp_table_plugin);
     mysql_mutex_unlock(&LOCK_plugin);
-  } else {
+  }
+  else
+  {
     thd->variables.table_plugin= NULL;
     thd->variables.tmp_table_plugin= NULL;
   }

@@ -9163,96 +9163,100 @@ void Create_field::init_for_tmp_table(enum_field_types sql_type_arg,
 }
 
 
-/**
-  Initialize field definition for create.
-
-  @param thd                   Thread handle
-  @param fld_name              Field name
-  @param fld_type              Field type
-  @param fld_length            Field length
-  @param fld_decimals          Decimal (if any)
-  @param fld_type_modifier     Additional type information
-  @param fld_default_value     Field default value (if any)
-  @param fld_on_update_value   The value of ON UPDATE clause
-  @param fld_comment           Field comment
-  @param fld_change            Field change
-  @param fld_interval_list     Interval list (if any)
-  @param fld_charset           Field charset
-  @param fld_geom_type         Field geometry type (if any)
-  @param fld_vcol_info         Virtual column data
-
-  @retval
-    FALSE on success
-  @retval
-    TRUE  on error
-*/
-
-bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
-                        char *fld_length, char *fld_decimals,
-                        uint fld_type_modifier, Item *fld_default_value,
-                        Item *fld_on_update_value, LEX_STRING *fld_comment,
-                        char *fld_change, List<String> *fld_interval_list,
-                        CHARSET_INFO *fld_charset, uint fld_geom_type,
-			Virtual_column_info *fld_vcol_info,
-                        engine_option_value *create_opt, bool check_exists)
+static inline bool is_item_func(Item* x)
 {
+  return x != NULL && x->type() == Item::FUNC_ITEM;
+}
+
+
+bool Create_field::check(THD *thd)
+{
+  const uint conditional_type_modifiers= AUTO_INCREMENT_FLAG;
   uint sign_len, allowed_type_modifier= 0;
   ulong max_field_charlength= MAX_FIELD_CHARLENGTH;
-  const bool on_update_is_function=
-    (fld_on_update_value != NULL &&
-     fld_on_update_value->type() == Item::FUNC_ITEM);
+  DBUG_ENTER("Create_field::check");
 
-  DBUG_ENTER("Create_field::init()");
+  if (vcol_info)
+  {
+    vcol_info->set_field_type(sql_type);
+    sql_type= (enum enum_field_types)MYSQL_TYPE_VIRTUAL;
+  }
 
-  field= 0;
-  field_name= fld_name;
-  flags= fld_type_modifier;
-  option_list= create_opt;
+  if (length > MAX_FIELD_BLOBLENGTH)
+  {
+    my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name, MAX_FIELD_BLOBLENGTH);
+    DBUG_RETURN(1);
+  }
 
-  if (fld_default_value != NULL && fld_default_value->type() == Item::FUNC_ITEM)
+  if (decimals >= NOT_FIXED_DEC)
+  {
+    my_error(ER_TOO_BIG_SCALE, MYF(0), decimals, field_name,
+             static_cast<ulong>(NOT_FIXED_DEC - 1));
+    DBUG_RETURN(TRUE);
+  }
+
+  if (def)
+  {
+    /*
+      Default value should be literal => basic constants =>
+      no need fix_fields()
+
+      We allow only one function as part of default value -
+      NOW() as default for TIMESTAMP and DATETIME type.
+    */
+    if (def->type() == Item::FUNC_ITEM &&
+        (static_cast<Item_func*>(def)->functype() != Item_func::NOW_FUNC ||
+         (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME) ||
+         def->decimals < length))
+    {
+      my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+      DBUG_RETURN(1);
+    }
+    else if (def->type() == Item::NULL_ITEM)
+    {
+      def= 0;
+      if ((flags & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) == NOT_NULL_FLAG)
+      {
+	my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+	DBUG_RETURN(1);
+      }
+    }
+    else if (flags & AUTO_INCREMENT_FLAG)
+    {
+      my_error(ER_INVALID_DEFAULT, MYF(0), field_name);
+      DBUG_RETURN(1);
+    }
+  }
+
+  if (is_item_func(def))
   {
     /* There is a function default for insertions. */
     def= NULL;
-    unireg_check= (on_update_is_function ?
+    unireg_check= (is_item_func(on_update) ?
                    Field::TIMESTAMP_DNUN_FIELD : // for insertions and for updates.
                    Field::TIMESTAMP_DN_FIELD);   // only for insertions.
   }
   else
   {
     /* No function default for insertions. Either NULL or a constant. */
-    def= fld_default_value;
-    if (on_update_is_function)
+    if (is_item_func(on_update))
       unireg_check= Field::TIMESTAMP_UN_FIELD; // function default for updates
     else
-      unireg_check= ((fld_type_modifier & AUTO_INCREMENT_FLAG) != 0 ?
+      unireg_check= ((flags & AUTO_INCREMENT_FLAG) ?
                      Field::NEXT_NUMBER : // Automatic increment.
                      Field::NONE);
   }
 
-  decimals= fld_decimals ? (uint)atoi(fld_decimals) : 0;
-  if (decimals >= NOT_FIXED_DEC)
+  if (on_update &&
+      (mysql_type_to_time_type(sql_type) != MYSQL_TIMESTAMP_DATETIME ||
+       on_update->decimals < length))
   {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), decimals, fld_name,
-             static_cast<ulong>(NOT_FIXED_DEC - 1));
-    DBUG_RETURN(TRUE);
+    my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name);
+    DBUG_RETURN(1);
   }
 
-  sql_type= fld_type;
-  length= 0;
-  change= fld_change;
-  interval= 0;
-  pack_length= key_length= 0;
-  charset= fld_charset;
-  geom_type= (Field::geometry_type) fld_geom_type;
-  interval_list.empty();
-
-  comment= *fld_comment;
-  vcol_info= fld_vcol_info;
-  create_if_not_exists= check_exists;
-  stored_in_db= TRUE;
-
   /* Initialize data for a computed field */
-  if ((uchar)fld_type == (uchar)MYSQL_TYPE_VIRTUAL)
+  if (sql_type == MYSQL_TYPE_VIRTUAL)
   {
     DBUG_ASSERT(vcol_info && vcol_info->expr_item);
     stored_in_db= vcol_info->is_stored();
@@ -9272,56 +9276,42 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
       Field::vcol_info. It is is always NULL for a column that is not
       computed.
     */
-    sql_type= fld_type= vcol_info->get_real_type();
+    sql_type= vcol_info->get_real_type();
   }
 
   /*
     Set NO_DEFAULT_VALUE_FLAG if this field doesn't have a default value and
     it is NOT NULL, not an AUTO_INCREMENT field and not a TIMESTAMP.
   */
-  if (!fld_default_value && !(fld_type_modifier & AUTO_INCREMENT_FLAG) &&
-      (fld_type_modifier & NOT_NULL_FLAG) && !is_timestamp_type(fld_type))
+  if (!def && unireg_check == Field::NONE &&
+      (flags & NOT_NULL_FLAG) && !is_timestamp_type(sql_type))
     flags|= NO_DEFAULT_VALUE_FLAG;
 
-  if (fld_length != NULL)
-  {
-    errno= 0;
-    length= strtoul(fld_length, NULL, 10);
-    if ((errno != 0) || (length > MAX_FIELD_BLOBLENGTH))
-    {
-      my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), fld_name, MAX_FIELD_BLOBLENGTH);
-      DBUG_RETURN(TRUE);
-    }
+  sign_len= flags & UNSIGNED_FLAG ? 0 : 1;
 
-    if (length == 0)
-      fld_length= NULL; /* purecov: inspected */
-  }
-
-  sign_len= fld_type_modifier & UNSIGNED_FLAG ? 0 : 1;
-
-  switch (fld_type) {
+  switch (sql_type) {
   case MYSQL_TYPE_TINY:
-    if (!fld_length)
+    if (!length)
       length= MAX_TINYINT_WIDTH+sign_len;
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
     break;
   case MYSQL_TYPE_SHORT:
-    if (!fld_length)
+    if (!length)
       length= MAX_SMALLINT_WIDTH+sign_len;
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
     break;
   case MYSQL_TYPE_INT24:
-    if (!fld_length)
+    if (!length)
       length= MAX_MEDIUMINT_WIDTH+sign_len;
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
     break;
   case MYSQL_TYPE_LONG:
-    if (!fld_length)
+    if (!length)
       length= MAX_INT_WIDTH+sign_len;
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
     break;
   case MYSQL_TYPE_LONGLONG:
-    if (!fld_length)
+    if (!length)
       length= MAX_BIGINT_WIDTH;
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
     break;
@@ -9331,18 +9321,17 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     my_decimal_trim(&length, &decimals);
     if (length > DECIMAL_MAX_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), static_cast<int>(length),
-               fld_name, static_cast<ulong>(DECIMAL_MAX_PRECISION));
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
+               DECIMAL_MAX_PRECISION);
       DBUG_RETURN(TRUE);
     }
     if (length < decimals)
     {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), fld_name);
+      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
       DBUG_RETURN(TRUE);
     }
     length=
-      my_decimal_precision_to_length(length, decimals,
-                                     fld_type_modifier & UNSIGNED_FLAG);
+      my_decimal_precision_to_length(length, decimals, flags & UNSIGNED_FLAG);
     pack_length=
       my_decimal_get_binary_size(length, decimals);
     break;
@@ -9360,11 +9349,11 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
   case MYSQL_TYPE_LONG_BLOB:
   case MYSQL_TYPE_MEDIUM_BLOB:
   case MYSQL_TYPE_GEOMETRY:
-    if (fld_default_value)
+    if (def)
     {
       /* Allow empty as default value. */
       String str,*res;
-      res= fld_default_value->val_str(&str);
+      res= def->val_str(&str);
       /*
         A default other than '' is always an error, and any non-NULL
         specified default is an error in strict mode.
@@ -9372,7 +9361,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
       if (res->length() || thd->is_strict_mode())
       {
         my_error(ER_BLOB_CANT_HAVE_DEFAULT, MYF(0),
-                 fld_name); /* purecov: inspected */
+                 field_name); /* purecov: inspected */
         DBUG_RETURN(TRUE);
       }
       else
@@ -9383,39 +9372,21 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                             ER_BLOB_CANT_HAVE_DEFAULT,
                             ER(ER_BLOB_CANT_HAVE_DEFAULT),
-                            fld_name);
+                            field_name);
       }
       def= 0;
     }
     flags|= BLOB_FLAG;
     break;
   case MYSQL_TYPE_YEAR:
-    if (!fld_length || length != 2)
+    if (!length || length != 2)
       length= 4; /* Default length */
     flags|= ZEROFILL_FLAG | UNSIGNED_FLAG;
     break;
   case MYSQL_TYPE_FLOAT:
     /* change FLOAT(precision) to FLOAT or DOUBLE */
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    if (fld_length && !fld_decimals)
-    {
-      uint tmp_length= length;
-      if (tmp_length > PRECISION_FOR_DOUBLE)
-      {
-        my_error(ER_WRONG_FIELD_SPEC, MYF(0), fld_name);
-        DBUG_RETURN(TRUE);
-      }
-      else if (tmp_length > PRECISION_FOR_FLOAT)
-      {
-        sql_type= MYSQL_TYPE_DOUBLE;
-        length= MAX_DOUBLE_STR_LENGTH; 
-      }
-      else
-        length= MAX_FLOAT_STR_LENGTH; 
-      decimals= NOT_FIXED_DEC;
-      break;
-    }
-    if (!fld_length && !fld_decimals)
+    if (!length && !decimals)
     {
       length=  MAX_FLOAT_STR_LENGTH;
       decimals= NOT_FIXED_DEC;
@@ -9423,13 +9394,13 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     if (length < decimals &&
         decimals != NOT_FIXED_DEC)
     {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), fld_name);
+      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
       DBUG_RETURN(TRUE);
     }
     break;
   case MYSQL_TYPE_DOUBLE:
     allowed_type_modifier= AUTO_INCREMENT_FLAG;
-    if (!fld_length && !fld_decimals)
+    if (!length && !decimals)
     {
       length= DBL_DIG+7;
       decimals= NOT_FIXED_DEC;
@@ -9437,7 +9408,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     if (length < decimals &&
         decimals != NOT_FIXED_DEC)
     {
-      my_error(ER_M_BIGGER_THAN_D, MYF(0), fld_name);
+      my_error(ER_M_BIGGER_THAN_D, MYF(0), field_name);
       DBUG_RETURN(TRUE);
     }
     break;
@@ -9445,7 +9416,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
   case MYSQL_TYPE_TIMESTAMP2:
     if (length > MAX_DATETIME_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, fld_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
                MAX_DATETIME_PRECISION);
       DBUG_RETURN(TRUE);
     }
@@ -9463,7 +9434,7 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
   case MYSQL_TYPE_TIME2:
     if (length > MAX_DATETIME_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, fld_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
                MAX_DATETIME_PRECISION);
       DBUG_RETURN(TRUE);
     }
@@ -9473,50 +9444,29 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
   case MYSQL_TYPE_DATETIME2:
     if (length > MAX_DATETIME_PRECISION)
     {
-      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, fld_name,
+      my_error(ER_TOO_BIG_PRECISION, MYF(0), length, field_name,
                MAX_DATETIME_PRECISION);
       DBUG_RETURN(TRUE);
     }
     length+= MAX_DATETIME_WIDTH + (length ? 1 : 0);
     break;
   case MYSQL_TYPE_SET:
-    {
-      pack_length= get_set_pack_length(fld_interval_list->elements);
-
-      List_iterator<String> it(*fld_interval_list);
-      String *tmp;
-      while ((tmp= it++))
-        interval_list.push_back(tmp);
-      /*
-        Set fake length to 1 to pass the below conditions.
-        Real length will be set in mysql_prepare_table()
-        when we know the character set of the column
-      */
-      length= 1;
-      break;
-    }
+    pack_length= get_set_pack_length(interval_list.elements);
+    break;
   case MYSQL_TYPE_ENUM:
-    {
-      /* Should be safe. */
-      pack_length= get_enum_pack_length(fld_interval_list->elements);
-
-      List_iterator<String> it(*fld_interval_list);
-      String *tmp;
-      while ((tmp= it++))
-        interval_list.push_back(tmp);
-      length= 1; /* See comment for MYSQL_TYPE_SET above. */
-      break;
-   }
+    /* Should be safe. */
+    pack_length= get_enum_pack_length(interval_list.elements);
+    break;
   case MYSQL_TYPE_VAR_STRING:
     DBUG_ASSERT(0);  /* Impossible. */
     break;
   case MYSQL_TYPE_BIT:
     {
-      if (!fld_length)
+      if (!length)
         length= 1;
       if (length > MAX_BIT_FIELD_LENGTH)
       {
-        my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), fld_name,
+        my_error(ER_TOO_BIG_DISPLAYWIDTH, MYF(0), field_name,
                  static_cast<ulong>(MAX_BIT_FIELD_LENGTH));
         DBUG_RETURN(TRUE);
       }
@@ -9525,36 +9475,34 @@ bool Create_field::init(THD *thd, char *fld_name, enum_field_types fld_type,
     }
   case MYSQL_TYPE_DECIMAL:
     DBUG_ASSERT(0); /* Was obsolete */
- }
+  }
   /* Remember the value of length */
   char_length= length;
 
   if (!(flags & BLOB_FLAG) &&
-      ((length > max_field_charlength && fld_type != MYSQL_TYPE_SET &&
-        fld_type != MYSQL_TYPE_ENUM &&
-        (fld_type != MYSQL_TYPE_VARCHAR || fld_default_value)) ||
-       ((length == 0) &&
-        fld_type != MYSQL_TYPE_STRING &&
-        fld_type != MYSQL_TYPE_VARCHAR && fld_type != MYSQL_TYPE_GEOMETRY)))
+      ((length > max_field_charlength &&
+        (sql_type != MYSQL_TYPE_VARCHAR || def)) ||
+       (length == 0 &&
+        sql_type != MYSQL_TYPE_ENUM && sql_type != MYSQL_TYPE_SET &&
+        sql_type != MYSQL_TYPE_STRING && sql_type != MYSQL_TYPE_VARCHAR &&
+        sql_type != MYSQL_TYPE_GEOMETRY)))
   {
-    my_error((fld_type == MYSQL_TYPE_VAR_STRING ||
-              fld_type == MYSQL_TYPE_VARCHAR ||
-              fld_type == MYSQL_TYPE_STRING) ?  ER_TOO_BIG_FIELDLENGTH :
+    my_error((sql_type == MYSQL_TYPE_VAR_STRING ||
+              sql_type == MYSQL_TYPE_VARCHAR ||
+              sql_type == MYSQL_TYPE_STRING) ?  ER_TOO_BIG_FIELDLENGTH :
                                                 ER_TOO_BIG_DISPLAYWIDTH,
               MYF(0),
-              fld_name, max_field_charlength); /* purecov: inspected */
+              field_name, max_field_charlength); /* purecov: inspected */
     DBUG_RETURN(TRUE);
   }
-  fld_type_modifier&= AUTO_INCREMENT_FLAG;
-  if ((~allowed_type_modifier) & fld_type_modifier)
+  if ((~allowed_type_modifier) & flags & conditional_type_modifiers)
   {
-    my_error(ER_WRONG_FIELD_SPEC, MYF(0), fld_name);
+    my_error(ER_WRONG_FIELD_SPEC, MYF(0), field_name);
     DBUG_RETURN(TRUE);
   }
 
   DBUG_RETURN(FALSE); /* success */
 }
-
 
 enum_field_types get_blob_type_from_length(ulong length)
 {

@@ -22,6 +22,8 @@
   This code needs extra visibility in the lexer structures
 */
 
+#define MYSQL_LEX 1
+
 #include "my_global.h"
 #include "my_sys.h"
 #include "pfs_instr.h"
@@ -35,7 +37,6 @@
 #include <string.h>
 
 /* Generated code */
-#include "../sql/sql_yacc.h"
 #include "../storage/perfschema/pfs_lex_token.h"
 
 /* Name pollution from sql/sql_lex.h */

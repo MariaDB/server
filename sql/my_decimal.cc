@@ -335,7 +335,7 @@ my_decimal *date2my_decimal(MYSQL_TIME *ltime, my_decimal *dec)
 }
 
 
-void my_decimal_trim(ulong *precision, uint *scale)
+void my_decimal_trim(ulonglong *precision, uint *scale)
 {
   if (!(*precision) && !(*scale))
   {

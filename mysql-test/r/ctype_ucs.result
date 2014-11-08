@@ -5535,3 +5535,12 @@ a	aa
 #
 # End of 10.0 tests
 #
+select collation(cast("a" as char(10) unicode binary));
+collation(cast("a" as char(10) unicode binary))
+ucs2_bin
+select collation(cast("a" as char(10) binary unicode));
+collation(cast("a" as char(10) binary unicode))
+ucs2_bin
+#
+# End of 10.1 tests
+#

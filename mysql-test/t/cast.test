@@ -456,3 +456,19 @@ SELECT CAST(TIME('10:20:30') AS DATE) + INTERVAL 1 DAY;
 SET SQL_MODE=ALLOW_INVALID_DATES;
 SELECT DATE("foo");
 
+#
+# CAST and field definition using same fields in LEX
+#
+create table t1 (a int, b char(5) as (cast("a" as char(10) binary) + a) );
+show create table t1;
+drop table t1;
+
+#
+# CAST (... BINARY)
+#
+select collation(cast("a" as char(10) binary));
+select collation(cast("a" as char(10) charset utf8 binary));
+select collation(cast("a" as char(10) ascii binary));
+select collation(cast("a" as char(10) binary charset utf8));
+select collation(cast("a" as char(10) binary ascii));
+

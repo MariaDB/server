@@ -2216,16 +2216,6 @@ sp_head::reset_lex(THD *thd)
   sublex->trg_table_fields.empty();
   sublex->sp_lex_in_use= FALSE;
 
-  /* Reset type info. */
-
-  sublex->charset= NULL;
-  sublex->length= NULL;
-  sublex->dec= NULL;
-  sublex->interval_list.empty();
-  sublex->type= 0;
-  sublex->uint_geom_type= 0;
-  sublex->vcol_info= 0;
-
   /* Reset part of parser state which needs this. */
   thd->m_parser_state->m_yacc.reset_before_substatement();
 
@@ -2351,16 +2341,9 @@ sp_head::fill_field_definition(THD *thd, LEX *lex,
                                enum enum_field_types field_type,
                                Create_field *field_def)
 {
-  LEX_STRING cmt = { 0, 0 };
   uint unused1= 0;
 
-  if (field_def->init(thd, (char*) "", field_type, lex->length, lex->dec,
-                      lex->type, (Item*) 0, (Item*) 0, &cmt, 0,
-                      &lex->interval_list,
-                      lex->charset ? lex->charset :
-                                     thd->variables.collation_database,
-                      lex->uint_geom_type,
-		      lex->vcol_info, NULL, FALSE))
+  if (field_def->check(thd))
     return TRUE;
 
   if (field_def->interval_list.elements)

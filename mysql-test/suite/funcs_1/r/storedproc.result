@@ -142,7 +142,7 @@ BEGIN
 SET @v1 = f1;
 SELECT @v1;
 END//
-ERROR 42000: Too big precision 256 specified for ''. Maximum is 65.
+ERROR 42000: Too big precision 256 specified for 'f1'. Maximum is 65.
 DROP PROCEDURE IF EXISTS sp1//
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -152,7 +152,7 @@ BEGIN
 SET @v1 = f1;
 SELECT @v1;
 END//
-ERROR 42000: Too big precision 66 specified for ''. Maximum is 65.
+ERROR 42000: Too big precision 66 specified for 'f1'. Maximum is 65.
 DROP PROCEDURE IF EXISTS sp1//
 Warnings:
 Note	1305	PROCEDURE db_storedproc.sp1 does not exist
@@ -1407,12 +1407,12 @@ BEGIN
 SELECT f1;
 END//
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in ENUM
+Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 CALL sp1( "value1" );
 f1
 value1
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in ENUM
+Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -1423,12 +1423,12 @@ BEGIN
 SELECT f1;
 END//
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in SET
+Note	1291	Column 'f1' has duplicated value 'value1' in SET
 CALL sp1( "value1, value1" );
 f1
 value1
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in SET
+Note	1291	Column 'f1' has duplicated value 'value1' in SET
 Warning	1265	Data truncated for column 'f1' at row 1
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
@@ -1440,12 +1440,12 @@ BEGIN
 SELECT f1;
 END//
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in ENUM
+Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 CALL sp1( "value1" );
 f1
 value1
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in ENUM
+Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 SHOW PROCEDURE STATUS WHERE db = 'db_storedproc';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 db_storedproc	sp1	PROCEDURE	root@localhost	<modified>	<created>	INVOKER	this is simple	latin1	latin1_swedish_ci	latin1_swedish_ci
@@ -1548,7 +1548,7 @@ BEGIN
 SET f1 = 1000000 + f1;
 RETURN f1;
 END//
-ERROR 42000: Too big scale 31 specified for ''. Maximum is 30.
+ERROR 42000: Too big scale 31 specified for 'f1'. Maximum is 30.
 SELECT fn1( 1.3326e+8 );
 ERROR 42000: FUNCTION db_storedproc.fn1 does not exist
 CREATE FUNCTION fn1( f1 DECIMAL(63, 30) ) RETURNS DECIMAL(63, 30)
@@ -1570,7 +1570,7 @@ BEGIN
 RETURN f1;
 END//
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in ENUM
+Note	1291	Column 'f1' has duplicated value 'value1' in ENUM
 SELECT fn1( "value1" );
 fn1( "value1" )
 1.000000000000000000000000000000
@@ -1584,7 +1584,7 @@ BEGIN
 RETURN f1;
 END//
 Warnings:
-Note	1291	Column '' has duplicated value 'value1' in SET
+Note	1291	Column 'f1' has duplicated value 'value1' in SET
 SELECT fn1( "value1, value1" );
 fn1( "value1, value1" )
 1.000000000000000000000000000000
@@ -3119,10 +3119,7 @@ return f1;
 DROP FUNCTION IF EXISTS fn1;
 CREATE FUNCTION fn1(f1 char binary ) returns char binary
 return f1;
-ERROR 42000: This version of MariaDB doesn't yet support 'return value collation'
 DROP FUNCTION IF EXISTS fn1;
-Warnings:
-Note	1305	FUNCTION db_storedproc.fn1 does not exist
 CREATE FUNCTION fn1(f1 char ascii ) returns char ascii
 return f1;
 DROP FUNCTION IF EXISTS fn1;
@@ -5836,7 +5833,7 @@ fetch cur1 into e;
 SELECT x, y, z, a, b, c, d, e;
 close cur1;
 END//
-ERROR 42000: Too big scale 255 specified for ''. Maximum is 30.
+ERROR 42000: Too big scale 255 specified for 'b'. Maximum is 30.
 CALL sp6();
 ERROR 42000: PROCEDURE db_storedproc.sp6 does not exist
 DROP PROCEDURE IF EXISTS sp6;

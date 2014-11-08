@@ -53,13 +53,12 @@ static const char* item_name(Item *a, String *str)
 
 
 static void wrong_precision_error(uint errcode, Item *a,
-                                  ulonglong number, ulong maximum)
+                                  ulonglong number, uint maximum)
 {
   char buff[1024];
   String buf(buff, sizeof(buff), system_charset_info);
 
-  my_error(errcode, MYF(0), (uint) MY_MIN(number, UINT_MAX32),
-           item_name(a, &buf), maximum);
+  my_error(errcode, MYF(0), number, item_name(a, &buf), maximum);
 }
 
 
@@ -87,9 +86,9 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
     return 1;
   }
 
-  *out_length=  (ulong) length;
   *out_decimals=  (uint) decimals;
-  my_decimal_trim(out_length, out_decimals);
+  my_decimal_trim(&length, out_decimals);
+  *out_length=  (ulong) length;
   
   if (*out_length < *out_decimals)
   {

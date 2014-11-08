@@ -125,6 +125,7 @@ struct LEX_TYPE
 #if MYSQL_LEX
 #include "item_func.h"            /* Cast_target used in sql_yacc.h */
 #include "sql_get_diagnostics.h"  /* Types used in sql_yacc.h */
+#include "sp_pcontext.h"
 #include "sql_yacc.h"
 #define LEX_YYSTYPE YYSTYPE *
 #else
@@ -2380,7 +2381,10 @@ struct LEX: public Query_tables_list
   /* Query Plan Footprint of a currently running select  */
   Explain_query *explain;
 
-  char *length,*dec,*change;
+  // type information
+  char *length,*dec;
+  CHARSET_INFO *charset;
+
   LEX_STRING name;
   char *help_arg;
   char *backup_dir;				/* For RESTORE/BACKUP */
@@ -2389,18 +2393,15 @@ struct LEX: public Query_tables_list
   String *wild; /* Wildcard in SHOW {something} LIKE 'wild'*/ 
   sql_exchange *exchange;
   select_result *result;
-  Item *default_value, *on_update_value;
   LEX_STRING comment, ident;
   LEX_USER *grant_user;
   XID *xid;
   THD *thd;
-  Virtual_column_info *vcol_info;
 
   /* maintain a list of used plugins for this LEX */
   DYNAMIC_ARRAY plugins;
   plugin_ref plugins_static_buffer[INITIAL_LEX_PLUGIN_LIST_SIZE];
 
-  CHARSET_INFO *charset;
   bool text_string_is_7bit;
 
   /** SELECT of CREATE VIEW statement */
@@ -2422,7 +2423,6 @@ struct LEX: public Query_tables_list
 
   List<Key_part_spec> col_list;
   List<Key_part_spec> ref_list;
-  List<String>	      interval_list;
   List<LEX_USER>      users_list;
   List<LEX_COLUMN>    columns;
   List<Item>	      *insert_list,field_list,value_list,update_list;
@@ -2512,7 +2512,6 @@ struct LEX: public Query_tables_list
 
   uint profile_query_id;
   uint profile_options;
-  uint uint_geom_type;
   uint grant, grant_tot_col, which_columns;
   enum Foreign_key::fk_match_opt fk_match_option;
   enum Foreign_key::fk_option fk_update_opt;
@@ -2623,9 +2622,17 @@ struct LEX: public Query_tables_list
   };
 
   /**
-    Collects create options for Field and KEY
+    Collects create options for KEY
   */
-  engine_option_value *option_list, *option_list_last;
+  engine_option_value *option_list;
+
+  /**
+    Helper pointer to the end of the list when parsing options for
+      LEX::create_info.option_list (for table)
+      LEX::last_field->option_list (for fields)
+      LEX::option_list             (for indexes)
+  */
+  engine_option_value *option_list_last;
 
   /**
     During name resolution search only in the table list given by 
@@ -2806,6 +2813,10 @@ struct LEX: public Query_tables_list
   int print_explain(select_result_sink *output, uint8 explain_flags,
                     bool is_analyze, bool *printed_anything);
   void restore_set_statement_var();
+
+  void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
+  void set_last_field_type(enum enum_field_types type);
+  bool set_bincmp(CHARSET_INFO *cs, bool bin);
 };
 
 

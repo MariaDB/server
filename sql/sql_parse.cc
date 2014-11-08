@@ -7097,113 +7097,6 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
 #endif
 
 
-
-/**
-  Store field definition for create.
-
-  @return
-    Return 0 if ok
-*/
-
-bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum_field_types type,
-		       char *length, char *decimals,
-		       uint type_modifier,
-		       Item *default_value, Item *on_update_value,
-                       LEX_STRING *comment,
-		       char *change,
-                       List<String> *interval_list, CHARSET_INFO *cs,
-		       uint uint_geom_type,
-		       Virtual_column_info *vcol_info,
-                       engine_option_value *create_options)
-{
-  register Create_field *new_field;
-  LEX  *lex= thd->lex;
-  uint8 datetime_precision= length ? atoi(length) : 0;
-  DBUG_ENTER("add_field_to_list");
-
-  if (check_string_char_length(field_name, "", NAME_CHAR_LEN,
-                               system_charset_info, 1))
-  {
-    my_error(ER_TOO_LONG_IDENT, MYF(0), field_name->str); /* purecov: inspected */
-    DBUG_RETURN(1);				/* purecov: inspected */
-  }
-  if (type_modifier & PRI_KEY_FLAG)
-  {
-    Key *key;
-    lex->col_list.push_back(new Key_part_spec(*field_name, 0));
-    key= new Key(Key::PRIMARY, null_lex_str,
-                      &default_key_create_info,
-                      0, lex->col_list, NULL, lex->check_exists);
-    lex->alter_info.key_list.push_back(key);
-    lex->col_list.empty();
-  }
-  if (type_modifier & (UNIQUE_FLAG | UNIQUE_KEY_FLAG))
-  {
-    Key *key;
-    lex->col_list.push_back(new Key_part_spec(*field_name, 0));
-    key= new Key(Key::UNIQUE, null_lex_str,
-                 &default_key_create_info, 0,
-                 lex->col_list, NULL, lex->check_exists);
-    lex->alter_info.key_list.push_back(key);
-    lex->col_list.empty();
-  }
-
-  if (default_value)
-  {
-    /* 
-      Default value should be literal => basic constants =>
-      no need fix_fields()
-      
-      We allow only one function as part of default value - 
-      NOW() as default for TIMESTAMP and DATETIME type.
-    */
-    if (default_value->type() == Item::FUNC_ITEM && 
-        (static_cast<Item_func*>(default_value)->functype() !=
-         Item_func::NOW_FUNC ||
-         (mysql_type_to_time_type(type) != MYSQL_TIMESTAMP_DATETIME) ||
-         default_value->decimals < datetime_precision))
-    {
-      my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
-      DBUG_RETURN(1);
-    }
-    else if (default_value->type() == Item::NULL_ITEM)
-    {
-      default_value= 0;
-      if ((type_modifier & (NOT_NULL_FLAG | AUTO_INCREMENT_FLAG)) ==
-	  NOT_NULL_FLAG)
-      {
-	my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
-	DBUG_RETURN(1);
-      }
-    }
-    else if (type_modifier & AUTO_INCREMENT_FLAG)
-    {
-      my_error(ER_INVALID_DEFAULT, MYF(0), field_name->str);
-      DBUG_RETURN(1);
-    }
-  }
-
-  if (on_update_value &&
-      (mysql_type_to_time_type(type) != MYSQL_TIMESTAMP_DATETIME ||
-       on_update_value->decimals < datetime_precision))
-  {
-    my_error(ER_INVALID_ON_UPDATE, MYF(0), field_name->str);
-    DBUG_RETURN(1);
-  }
-
-  if (!(new_field= new Create_field()) ||
-      new_field->init(thd, field_name->str, type, length, decimals, type_modifier,
-                      default_value, on_update_value, comment, change,
-                      interval_list, cs, uint_geom_type, vcol_info,
-                      create_options, lex->check_exists))
-    DBUG_RETURN(1);
-
-  lex->alter_info.create_list.push_back(new_field);
-  lex->last_field=new_field;
-  DBUG_RETURN(0);
-}
-
-
 /** Store position for column in ALTER TABLE .. ADD column. */
 
 void store_position_for_column(const char *name)
@@ -9135,6 +9028,21 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
       return NULL;
     }
     return cl;
+  }
+  return cs;
+}
+
+/** find a collation with binary comparison rules
+*/
+CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
+{
+  const char *csname= cs->csname;
+  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
+  if (!cs)
+  {
+    char tmp[65];
+    strxnmov(tmp, sizeof(tmp)-1, csname, "_bin", NULL);
+    my_error(ER_UNKNOWN_COLLATION, MYF(0), tmp);
   }
   return cs;
 }

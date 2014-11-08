@@ -73,6 +73,7 @@ bool check_string_char_length(LEX_STRING *str, const char *err_msg,
                               uint max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
+CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
 bool check_host_name(LEX_STRING *str);
 bool check_identifier_name(LEX_STRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);
@@ -104,16 +105,6 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
                         const char *table_name);
 void execute_init_command(THD *thd, LEX_STRING *init_command,
                           mysql_rwlock_t *var_lock);
-bool add_field_to_list(THD *thd, LEX_STRING *field_name, enum enum_field_types type,
-		       char *length, char *decimal,
-		       uint type_modifier,
-		       Item *default_value, Item *on_update_value,
-		       LEX_STRING *comment,
-		       char *change, List<String> *interval_list,
-		       CHARSET_INFO *cs,
-		       uint uint_geom_type,
-                       Virtual_column_info *vcol_info,
-                       engine_option_value *create_options);
 bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *group, bool asc);
 void add_join_on(TABLE_LIST *b,Item *expr);
 void add_join_natural(TABLE_LIST *a,TABLE_LIST *b,List<String> *using_fields,

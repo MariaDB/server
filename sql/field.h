@@ -2835,13 +2835,13 @@ public:
   const char *change;			// If done with alter table
   const char *after;			// Put column after this one
   LEX_STRING comment;			// Comment for field
-  Item	*def;				// Default value
+  Item *def, *on_update;                // Default value
   enum	enum_field_types sql_type;
   /*
     At various stages in execution this can be length of field in bytes or
     max number of characters. 
   */
-  ulong length;
+  ulonglong length;
   /*
     The value of `length' as set by parser: is the number of characters
     for most of the types, or of bytes for BLOBs or numeric types.
@@ -2877,9 +2877,13 @@ public:
   */
   bool stored_in_db;
 
-  Create_field() :after(0), option_list(NULL), option_struct(NULL),
-                  create_if_not_exists(FALSE)
-  {}
+  Create_field() :after(0), pack_length(0), key_length(0), interval(0),
+                  field(0), option_list(NULL), option_struct(NULL),
+                  create_if_not_exists(false), stored_in_db(true)
+  {
+    interval_list.empty();
+  }
+
   Create_field(Field *field, Field *orig_field);
   /* Used to make a clone of this object for ALTER/CREATE TABLE */
   Create_field *clone(MEM_ROOT *mem_root) const;
@@ -2891,12 +2895,7 @@ public:
                           bool maybe_null, bool is_unsigned,
                           uint pack_length = ~0U);
 
-  bool init(THD *thd, char *field_name, enum_field_types type, char *length,
-            char *decimals, uint type_modifier, Item *default_value,
-            Item *on_update_value, LEX_STRING *comment, char *change,
-            List<String> *interval_list, CHARSET_INFO *cs,
-            uint uint_geom_type, Virtual_column_info *vcol_info,
-            engine_option_value *option_list, bool check_exists);
+  bool check(THD *thd);
 
   bool field_flags_are_binary()
   {

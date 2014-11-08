@@ -914,7 +914,16 @@ SELECT CONCAT(CONVERT('pi=' USING ucs2),PI()) AS PI;
 SET NAMES utf8, character_set_connection=ucs2;
 SELECT 'a','aa';
 
-
 --echo #
 --echo # End of 10.0 tests
+--echo #
+
+#
+# CAST (... BINARY)
+#
+select collation(cast("a" as char(10) unicode binary));
+select collation(cast("a" as char(10) binary unicode));
+
+--echo #
+--echo # End of 10.1 tests
 --echo #

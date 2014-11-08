@@ -3248,18 +3248,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     sql_field->length= sql_field->char_length;
     /* Set field charset. */
-    save_cs= sql_field->charset= get_sql_field_charset(sql_field,
-                                                       create_info);
+    save_cs= sql_field->charset= get_sql_field_charset(sql_field, create_info);
     if ((sql_field->flags & BINCMP_FLAG) &&
-	!(sql_field->charset= get_charset_by_csname(sql_field->charset->csname,
-						    MY_CS_BINSORT,MYF(0))))
-    {
-      char tmp[65];
-      strmake(strmake(tmp, save_cs->csname, sizeof(tmp)-4),
-              STRING_WITH_LEN("_bin"));
-      my_error(ER_UNKNOWN_COLLATION, MYF(0), tmp);
+	!(sql_field->charset= find_bin_collation(sql_field->charset)))
       DBUG_RETURN(TRUE);
-    }
 
     /*
       Convert the default value from client character

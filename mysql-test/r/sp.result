@@ -3548,7 +3548,10 @@ begin
 set f1= concat( 'hello', f1 );
 return f1;
 end|
-ERROR 42000: This version of MariaDB doesn't yet support 'return value collation'
+select collation(bug9048("foo"))|
+collation(bug9048("foo"))
+latin1_bin
+drop function bug9048|
 drop procedure if exists bug12849_1|
 create procedure bug12849_1(inout x char) select x into x|
 set @var='a'|
@@ -7858,3 +7861,22 @@ v1
 DROP PROCEDURE p1;
 DROP TABLE t1;
 # End of 5.5 test
+CREATE FUNCTION f(f1 VARCHAR(64) COLLATE latin1_german2_ci)
+RETURNS VARCHAR(64)
+BEGIN
+RETURN 'str';
+END|
+DROP FUNCTION f|
+CREATE FUNCTION f(f1 VARCHAR(64))
+RETURNS VARCHAR(64) COLLATE latin1_german2_ci
+BEGIN
+RETURN 'str';
+END|
+DROP FUNCTION f|
+CREATE FUNCTION f(f1 VARCHAR(64))
+RETURNS VARCHAR(64)
+BEGIN
+DECLARE f2 VARCHAR(64) COLLATE latin1_german2_ci;
+RETURN 'str';
+END|
+DROP FUNCTION f|

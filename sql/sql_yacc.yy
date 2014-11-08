@@ -45,7 +45,6 @@
 #include "lex_symbol.h"
 #include "item_create.h"
 #include "sp_head.h"
-#include "sp_pcontext.h"
 #include "sp_rcontext.h"
 #include "sp.h"
 #include "sql_show.h"
@@ -731,7 +730,6 @@ static bool add_create_index_prepare (LEX *lex, Table_ident *table)
   lex->alter_info.reset();
   lex->alter_info.flags= Alter_info::ALTER_ADD_INDEX;
   lex->col_list.empty();
-  lex->change= NullS;
   lex->option_list= NULL;
   return FALSE;
 }
@@ -862,6 +860,85 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
 }
 
 
+static void add_key_to_list(LEX *lex, LEX_STRING *field_name,
+                            enum Key::Keytype type)
+{
+  Key *key;
+  lex->col_list.push_back(new Key_part_spec(*field_name, 0));
+  key= new Key(type, null_lex_str,
+               &default_key_create_info, 0,
+               lex->col_list, NULL, lex->check_exists);
+  lex->alter_info.key_list.push_back(key);
+  lex->col_list.empty();
+}
+
+void LEX::init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs)
+{
+  last_field= field;
+
+  field->field_name= name;
+  field->flags= 0;
+  field->def= 0;
+  field->on_update= 0;
+  field->sql_type= MYSQL_TYPE_NULL;
+  field->change= 0;
+  field->geom_type= Field::GEOM_GEOMETRY;
+  field->comment= null_lex_str;
+  field->vcol_info= 0;
+  field->interval_list.empty();
+
+  /* reset LEX fields that are used in Create_field::set_and_check() */
+  length= 0;
+  dec= 0;
+  charset= cs;
+}
+
+void LEX::set_last_field_type(enum enum_field_types type)
+{
+  last_field->sql_type= type;
+  last_field->create_if_not_exists= check_exists;
+  last_field->charset= charset;
+
+  if (length)
+  {
+    int err;
+    last_field->length= my_strtoll10(length, NULL, &err);
+    if (err)
+      last_field->length= ~0ULL; // safety
+  }
+  else
+    last_field->length= 0;
+
+  last_field->decimals= dec ? (uint)atoi(dec) : 0;
+}
+
+bool LEX::set_bincmp(CHARSET_INFO *cs, bool bin)
+{
+  /*
+     if charset is NULL - we're parsing a field declaration.
+     we cannot call find_bin_collation for a field here, because actual
+     field charset is determined in get_sql_field_charset() much later.
+     so we only set a flag.
+  */
+  if (!charset)
+  {
+    charset= cs;
+    last_field->flags|= bin ? BINCMP_FLAG : 0;
+    return false;
+  }
+
+  charset= bin ? find_bin_collation(cs ? cs : charset)
+               :                    cs ? cs : charset;
+  return charset == NULL;
+}
+
+#define bincmp_collation(X,Y)           \
+  do                                    \
+  {                                     \
+     if (Lex->set_bincmp(X,Y))          \
+       MYSQL_YYABORT;                   \
+  } while(0)
+
 %}
 %union {
   int  num;
@@ -871,7 +948,6 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   LEX_STRING lex_str;
   LEX_STRING *lex_str_ptr;
   LEX_SYMBOL symbol;
-  LEX_TYPE lex_type;
   Table_ident *table;
   char *simple_string;
   Item *item;
@@ -888,6 +964,8 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   enum enum_var_type var_type;
   Key::Keytype key_type;
   enum ha_key_alg key_alg;
+  enum enum_field_types field_type;
+  enum Field::geometry_type geom_type;
   handlerton *db_type;
   enum row_type row_type;
   enum ha_rkey_function ha_rkey_mode;
@@ -907,12 +985,14 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   class sp_label *splabel;
   LEX *lex;
   class my_var *myvar;
-  sp_head *sphead;
+  class sp_head *sphead;
+  class sp_variable *spvar;
   struct p_elem_val *p_elem_value;
   enum index_hint_type index_hint;
   enum enum_filetype filetype;
   enum Foreign_key::fk_option m_fk_option;
   enum enum_yes_no_unknown m_yes_no_unk;
+  enum sp_variable::enum_mode spvar_mode;
   Diag_condition_item_name diag_condition_item_name;
   Diagnostics_information::Which_area diag_area;
   Diagnostics_information *diag_info;
@@ -1643,14 +1723,16 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
 
-%type <lex_type> field_def
+%type <field_type> type_with_opt_collate int_type real_type field_type
+
+%type <geom_type> spatial_type
 
 %type <num>
-        type type_with_opt_collate int_type real_type order_dir lock_option
+        order_dir lock_option
         udf_type opt_if_exists opt_local opt_table_options table_options
         table_option opt_if_not_exists create_or_replace opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
-        opt_ignore_leaves fulltext_options spatial_type union_option
+        opt_ignore_leaves fulltext_options union_option
         opt_not opt_union_order_or_limit
         union_opt select_derived_init transaction_access_mode_types
         opt_natural_language_mode opt_query_expansion
@@ -1659,7 +1741,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         optional_flush_tables_arguments opt_dyncol_type dyncol_type
         opt_time_precision kill_type kill_option int_num
         opt_default_time_precision
-        case_stmt_body
+        case_stmt_body opt_bin_mod
 
 /*
   Bit field of MYSQL_START_TRANS_OPT_* flags.
@@ -1763,6 +1845,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <charset>
         opt_collate
         charset_name
+        charset_or_alias
         charset_name_or_default
         old_or_new_charset_name
         old_or_new_charset_name_or_default
@@ -1805,10 +1888,10 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         select_item_list select_item values_list no_braces
         opt_limit_clause delete_limit_clause fields opt_values values
         procedure_list procedure_list2 procedure_item
-        handler
+        field_def handler opt_generated_always
         opt_precision opt_ignore opt_column opt_restrict
         grant revoke set lock unlock string_list field_options field_option
-        field_opt_list opt_binary ascii unicode table_lock_list table_lock
+        field_opt_list opt_binary table_lock_list table_lock
         ref_list opt_match_clause opt_on_update_delete use
         opt_delete_options opt_delete_option varchar nchar nvarchar
         opt_outer table_list table_name table_alias_ref_list table_alias_ref
@@ -1863,12 +1946,14 @@ END_OF_INPUT
 %type <NONE> sp_proc_stmt_open sp_proc_stmt_fetch sp_proc_stmt_close
 %type <NONE> case_stmt_specification
 
-%type <num>  sp_decl_idents sp_opt_inout sp_handler_type sp_hcond_list
+%type <num>  sp_decl_idents sp_handler_type sp_hcond_list
 %type <spcondvalue> sp_cond sp_hcond sqlstate signal_value opt_signal_value
 %type <spblock> sp_decls sp_decl
 %type <lex> sp_cursor_stmt
 %type <spname> sp_name
 %type <splabel> sp_block_content
+%type <spvar> sp_param_name_and_type
+%type <spvar_mode> sp_opt_inout
 %type <index_hint> index_hint_type
 %type <num> index_hint_clause normal_join inner_join
 %type <filetype> data_or_xml
@@ -2379,7 +2464,6 @@ create:
               MYSQL_YYABORT;
             lex->alter_info.reset();
             lex->col_list.empty();
-            lex->change=NullS;
             bzero((char*) &lex->create_info,sizeof(lex->create_info));
             /*
               For CREATE TABLE we should not open the table even if it exists.
@@ -2836,33 +2920,12 @@ sp_fdparam_list:
         ;
 
 sp_fdparams:
-          sp_fdparams ',' sp_fdparam
-        | sp_fdparam
+          sp_fdparams ',' sp_param_name_and_type
+        | sp_param_name_and_type
         ;
 
-sp_init_param:
-          /* Empty */
-          {
-            LEX *lex= Lex;
-
-            lex->length= 0;
-            lex->dec= 0;
-            lex->type= 0;
-
-            lex->default_value= 0;
-            lex->on_update_value= 0;
-
-            lex->comment= null_lex_str;
-            lex->charset= NULL;
-
-            lex->interval_list.empty();
-            lex->uint_geom_type= 0;
-            lex->vcol_info= 0;
-          }
-        ;
-
-sp_fdparam:
-          ident sp_init_param type_with_opt_collate
+sp_param_name_and_type:
+          ident
           {
             LEX *lex= Lex;
             sp_pcontext *spc= lex->spcont;
@@ -2873,19 +2936,27 @@ sp_fdparam:
               MYSQL_YYABORT;
             }
 
-            sp_variable *spvar= spc->add_variable(thd,
-                                                  $1,
-                                                  (enum enum_field_types) $3,
-                                                  sp_variable::MODE_IN);
+            sp_variable *spvar= spc->add_variable(thd, $1);
 
-            if (lex->sphead->fill_field_definition(thd, lex,
-                                                   (enum enum_field_types) $3,
-                                                   &spvar->field_def))
+            lex->init_last_field(&spvar->field_def, $1.str,
+                                 thd->variables.collation_database);
+            $<spvar>$= spvar;
+          }
+          type_with_opt_collate
+          {
+            LEX *lex= Lex;
+            sp_variable *spvar= $<spvar>2;
+
+            spvar->type= $3;
+            if (lex->sphead->fill_field_definition(thd, lex, $3,
+                                                   lex->last_field))
             {
               MYSQL_YYABORT;
             }
             spvar->field_def.field_name= spvar->name.str;
             spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
+
+            $$= spvar;
           }
         ;
 
@@ -2901,30 +2972,7 @@ sp_pdparams:
         ;
 
 sp_pdparam:
-          sp_opt_inout sp_init_param ident type_with_opt_collate
-          {
-            LEX *lex= Lex;
-            sp_pcontext *spc= lex->spcont;
-
-            if (spc->find_variable($3, TRUE))
-            {
-              my_error(ER_SP_DUP_PARAM, MYF(0), $3.str);
-              MYSQL_YYABORT;
-            }
-            sp_variable *spvar= spc->add_variable(thd,
-                                                  $3,
-                                                  (enum enum_field_types) $4,
-                                                  (sp_variable::enum_mode) $1);
-
-            if (lex->sphead->fill_field_definition(thd, lex,
-                                                   (enum enum_field_types) $4,
-                                                   &spvar->field_def))
-            {
-              MYSQL_YYABORT;
-            }
-            spvar->field_def.field_name= spvar->name.str;
-            spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
-          }
+          sp_opt_inout sp_param_name_and_type { $2->mode=$1; }
         ;
 
 sp_opt_inout:
@@ -2978,9 +3026,17 @@ sp_decl:
           DECLARE_SYM sp_decl_idents
           {
             LEX *lex= Lex;
+            sp_pcontext *pctx= lex->spcont;
+
+            // get the last variable:
+            uint num_vars= pctx->context_var_count();
+            uint var_idx= pctx->var_context2runtime(num_vars - 1);
+            sp_variable *spvar= pctx->find_variable(var_idx);
 
             lex->sphead->reset_lex(thd);
-            lex->spcont->declare_var_boundary($2);
+            pctx->declare_var_boundary($2);
+            thd->lex->init_last_field(&spvar->field_def, spvar->name.str,
+                                      thd->variables.collation_database);
           }
           type_with_opt_collate
           sp_opt_default
@@ -2988,7 +3044,7 @@ sp_decl:
             LEX *lex= Lex;
             sp_pcontext *pctx= lex->spcont;
             uint num_vars= pctx->context_var_count();
-            enum enum_field_types var_type= (enum enum_field_types) $4;
+            enum enum_field_types var_type= $4;
             Item *dflt_value_item= $5;
             
             if (!dflt_value_item)
@@ -3003,12 +3059,17 @@ sp_decl:
             {
               uint var_idx= pctx->var_context2runtime(i);
               sp_variable *spvar= pctx->find_variable(var_idx);
+              bool last= i == num_vars - 1;
             
               if (!spvar)
                 MYSQL_YYABORT;
             
+              if (!last)
+                spvar->field_def= *lex->last_field;
+
               spvar->type= var_type;
               spvar->default_value= dflt_value_item;
+              spvar->field_def.field_name= spvar->name.str;
             
               if (lex->sphead->fill_field_definition(thd, lex, var_type,
                                                      &spvar->field_def))
@@ -3016,7 +3077,6 @@ sp_decl:
                 MYSQL_YYABORT;
               }
             
-              spvar->field_def.field_name= spvar->name.str;
               spvar->field_def.pack_flag |= FIELDFLAG_MAYBE_NULL;
             
               /* The last instruction is responsible for freeing LEX. */
@@ -3027,7 +3087,7 @@ sp_decl:
                                                  dflt_value_item,
                                                  var_type,
                                                  lex,
-                                                 (i == num_vars - 1));
+                                                 last);
               if (is == NULL ||
                   lex->sphead->add_instr(is))
                 MYSQL_YYABORT;
@@ -3581,10 +3641,7 @@ sp_decl_idents:
               my_error(ER_SP_DUP_VAR, MYF(0), $1.str);
               MYSQL_YYABORT;
             }
-            spc->add_variable(thd,
-                              $1,
-                              MYSQL_TYPE_DECIMAL,
-                              sp_variable::MODE_IN);
+            spc->add_variable(thd, $1);
             $$= 1;
           }
         | sp_decl_idents ',' ident
@@ -3599,10 +3656,7 @@ sp_decl_idents:
               my_error(ER_SP_DUP_VAR, MYF(0), $3.str);
               MYSQL_YYABORT;
             }
-            spc->add_variable(thd,
-                              $3,
-                              MYSQL_TYPE_DECIMAL,
-                              sp_variable::MODE_IN);
+            spc->add_variable(thd, $3);
             $$= $1 + 1;
           }
         ;
@@ -6038,58 +6092,62 @@ field_spec:
           field_ident
           {
             LEX *lex=Lex;
-            lex->length=lex->dec=0;
-            lex->type=0;
-            lex->default_value= lex->on_update_value= 0;
-            lex->comment=null_lex_str;
-            lex->charset=NULL;
-	    lex->vcol_info= 0;
-            lex->option_list= NULL;
+            Create_field *f= new Create_field();
+
+            if (check_string_char_length(&$1, "", NAME_CHAR_LEN,
+                                         system_charset_info, 1))
+            {
+              my_error(ER_TOO_LONG_IDENT, MYF(0), $1.str);
+              MYSQL_YYABORT;
+            }
+
+            if (!f)
+              MYSQL_YYABORT;
+
+            lex->init_last_field(f, $1.str, NULL);
           }
+          field_type  { Lex->set_last_field_type($3); }
           field_def
           {
             LEX *lex=Lex;
-            if (add_field_to_list(lex->thd, &$1, $3.type,
-                                  $3.length, $3.dec, lex->type,
-                                  lex->default_value, lex->on_update_value, 
-                                  &lex->comment,
-                                  lex->change, &lex->interval_list, $3.charset,
-                                  lex->uint_geom_type,
-                                  lex->vcol_info, lex->option_list))
+            Create_field *f= lex->last_field;
+
+            if (f->check(thd))
               MYSQL_YYABORT;
+
+            lex->alter_info.create_list.push_back(f);
+
+            if (f->flags & PRI_KEY_FLAG)
+              add_key_to_list(lex, &$1, Key::PRIMARY);
+            else if (f->flags & (UNIQUE_FLAG | UNIQUE_KEY_FLAG))
+              add_key_to_list(lex, &$1, Key::UNIQUE);
           }
         ;
 
 field_def:
-          type opt_attribute
-          { $$.set($1, Lex->length, Lex->dec, Lex->charset); }
-        | type opt_generated_always AS
-          { $<lex_type>$.set($1, Lex->length, Lex->dec, Lex->charset); }
-          '(' virtual_column_func ')' vcol_opt_specifier vcol_opt_attribute
-          {
-            $$= $<lex_type>4;
-            Lex->vcol_info->set_field_type($$.type);
-            $$.type= (enum enum_field_types)MYSQL_TYPE_VIRTUAL;
-          }
+          opt_attribute
+        | opt_generated_always AS
+          '(' virtual_column_func ')'
+          vcol_opt_specifier vcol_opt_attribute
         ;
 
 opt_generated_always:
-          /* empty */
+          /* empty */ {}
         | GENERATED_SYM ALWAYS_SYM {}
         ;
 
 vcol_opt_specifier:
           /* empty */
           {
-            Lex->vcol_info->set_stored_in_db_flag(FALSE);
+            Lex->last_field->vcol_info->set_stored_in_db_flag(FALSE);
           }
         | VIRTUAL_SYM
           {
-            Lex->vcol_info->set_stored_in_db_flag(FALSE);
+            Lex->last_field->vcol_info->set_stored_in_db_flag(FALSE);
           }
         | PERSISTENT_SYM
           {
-            Lex->vcol_info->set_stored_in_db_flag(TRUE);
+            Lex->last_field->vcol_info->set_stored_in_db_flag(TRUE);
           }
         ;
 
@@ -6107,16 +6165,16 @@ vcol_attribute:
           UNIQUE_SYM
           {
             LEX *lex=Lex;
-            lex->type|= UNIQUE_FLAG;
+            lex->last_field->flags|= UNIQUE_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM
           {
             LEX *lex=Lex;
-            lex->type|= UNIQUE_KEY_FLAG;
+            lex->last_field->flags|= UNIQUE_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
-        | COMMENT_SYM TEXT_STRING_sys { Lex->comment= $2; }
+        | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
         ;
 
 parse_vcol_expr:
@@ -6138,23 +6196,41 @@ parse_vcol_expr:
 virtual_column_func:
           remember_name expr remember_end
           {
-            Lex->vcol_info= new Virtual_column_info();
-            if (!Lex->vcol_info)
+            Virtual_column_info *v= new Virtual_column_info();
+            if (!v)
             {
               mem_alloc_error(sizeof(Virtual_column_info));
               MYSQL_YYABORT;
             }
             uint expr_len= (uint)($3 - $1) - 1;
-            Lex->vcol_info->expr_str.str= (char* ) thd->memdup($1 + 1, expr_len);
-            Lex->vcol_info->expr_str.length= expr_len;
-            Lex->vcol_info->expr_item= $2;
+            v->expr_str.str= (char* ) thd->memdup($1 + 1, expr_len);
+            v->expr_str.length= expr_len;
+            v->expr_item= $2;
+            Lex->last_field->vcol_info= v;
           }
         ;
 
-type:
+field_type:
           int_type opt_field_length field_options { $$=$1; }
         | real_type opt_precision field_options { $$=$1; }
-        | FLOAT_SYM float_options field_options { $$=MYSQL_TYPE_FLOAT; }
+        | FLOAT_SYM float_options field_options
+          {
+            $$=MYSQL_TYPE_FLOAT;
+            if (Lex->length && !Lex->dec)
+            {
+              int err;
+              ulonglong tmp_length= my_strtoll10(Lex->length, NULL, &err);
+              if (err || tmp_length > PRECISION_FOR_DOUBLE)
+              {
+                my_error(ER_WRONG_FIELD_SPEC, MYF(0),
+                         Lex->last_field->field_name);
+                MYSQL_YYABORT;
+              }
+              else if (tmp_length > PRECISION_FOR_FLOAT)
+                $$= MYSQL_TYPE_DOUBLE;
+              Lex->length= 0;
+            }
+          }
         | BIT_SYM
           {
             Lex->length= (char*) "1";
@@ -6186,13 +6262,13 @@ type:
         | nchar field_length opt_bin_mod
           {
             $$=MYSQL_TYPE_STRING;
-            Lex->charset=national_charset_info;
+            bincmp_collation(national_charset_info, $3);
           }
         | nchar opt_bin_mod
           {
             Lex->length= (char*) "1";
             $$=MYSQL_TYPE_STRING;
-            Lex->charset=national_charset_info;
+            bincmp_collation(national_charset_info, $2);
           }
         | BINARY field_length
           {
@@ -6212,7 +6288,7 @@ type:
         | nvarchar field_length opt_bin_mod
           {
             $$= MYSQL_TYPE_VARCHAR;
-            Lex->charset=national_charset_info;
+            bincmp_collation(national_charset_info, $3);
           }
         | VARBINARY field_length
           {
@@ -6252,9 +6328,9 @@ type:
               /* 
                 Unlike other types TIMESTAMP fields are NOT NULL by default.
               */
-              Lex->type|= NOT_NULL_FLAG;
-              $$= opt_mysql56_temporal_format ?
-                  MYSQL_TYPE_TIMESTAMP2 : MYSQL_TYPE_TIMESTAMP;
+              Lex->last_field->flags|= NOT_NULL_FLAG;
+              $$= opt_mysql56_temporal_format ? MYSQL_TYPE_TIMESTAMP2
+                                              : MYSQL_TYPE_TIMESTAMP;
             }
           }
         | DATETIME opt_field_length
@@ -6274,7 +6350,7 @@ type:
           {
 #ifdef HAVE_SPATIAL
             Lex->charset=&my_charset_bin;
-            Lex->uint_geom_type= (uint)$1;
+            Lex->last_field->geom_type= $1;
             $$=MYSQL_TYPE_GEOMETRY;
 #else
             my_error(ER_FEATURE_DISABLED, MYF(0),
@@ -6313,20 +6389,16 @@ type:
           { $$=MYSQL_TYPE_NEWDECIMAL;}
         | FIXED_SYM float_options field_options
           { $$=MYSQL_TYPE_NEWDECIMAL;}
-        | ENUM
-          {Lex->interval_list.empty();}
-          '(' string_list ')' opt_binary
+        | ENUM '(' string_list ')' opt_binary
           { $$=MYSQL_TYPE_ENUM; }
-        | SET
-          { Lex->interval_list.empty();}
-          '(' string_list ')' opt_binary
+        | SET '(' string_list ')' opt_binary
           { $$=MYSQL_TYPE_SET; }
         | LONG_SYM opt_binary
           { $$=MYSQL_TYPE_MEDIUM_BLOB; }
         | SERIAL_SYM
           {
             $$=MYSQL_TYPE_LONGLONG;
-            Lex->type|= (AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNSIGNED_FLAG |
+            Lex->last_field->flags|= (AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNSIGNED_FLAG |
               UNIQUE_FLAG);
           }
         ;
@@ -6419,8 +6491,8 @@ field_opt_list:
 
 field_option:
           SIGNED_SYM {}
-        | UNSIGNED { Lex->type|= UNSIGNED_FLAG;}
-        | ZEROFILL { Lex->type|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
+        | UNSIGNED { Lex->last_field->flags|= UNSIGNED_FLAG;}
+        | ZEROFILL { Lex->last_field->flags|= UNSIGNED_FLAG | ZEROFILL_FLAG; }
         ;
 
 field_length:
@@ -6450,42 +6522,42 @@ opt_attribute_list:
         ;
 
 attribute:
-          NULL_SYM { Lex->type&= ~ NOT_NULL_FLAG; }
-        | not NULL_SYM { Lex->type|= NOT_NULL_FLAG; }
-        | DEFAULT now_or_signed_literal { Lex->default_value=$2; }
+          NULL_SYM { Lex->last_field->flags&= ~ NOT_NULL_FLAG; }
+        | not NULL_SYM { Lex->last_field->flags|= NOT_NULL_FLAG; }
+        | DEFAULT now_or_signed_literal { Lex->last_field->def= $2; }
         | ON UPDATE_SYM NOW_SYM opt_default_time_precision
           {
             Item *item= new (thd->mem_root) Item_func_now_local($4);
             if (item == NULL)
               MYSQL_YYABORT;
-            Lex->on_update_value= item;
+            Lex->last_field->on_update= item;
           }
-        | AUTO_INC { Lex->type|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG; }
+        | AUTO_INC { Lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG; }
         | SERIAL_SYM DEFAULT VALUE_SYM
           { 
             LEX *lex=Lex;
-            lex->type|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_FLAG;
+            lex->last_field->flags|= AUTO_INCREMENT_FLAG | NOT_NULL_FLAG | UNIQUE_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | opt_primary KEY_SYM
           {
             LEX *lex=Lex;
-            lex->type|= PRI_KEY_FLAG | NOT_NULL_FLAG;
+            lex->last_field->flags|= PRI_KEY_FLAG | NOT_NULL_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM
           {
             LEX *lex=Lex;
-            lex->type|= UNIQUE_FLAG; 
+            lex->last_field->flags|= UNIQUE_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX;
           }
         | UNIQUE_SYM KEY_SYM
           {
             LEX *lex=Lex;
-            lex->type|= UNIQUE_KEY_FLAG; 
+            lex->last_field->flags|= UNIQUE_KEY_FLAG;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_INDEX; 
           }
-        | COMMENT_SYM TEXT_STRING_sys { Lex->comment= $2; }
+        | COMMENT_SYM TEXT_STRING_sys { Lex->last_field->comment= $2; }
         | COLLATE_SYM collation_name
           {
             if (Lex->charset && !my_charset_same(Lex->charset,$2))
@@ -6496,52 +6568,46 @@ attribute:
             }
             else
             {
-              Lex->charset=$2;
+              Lex->last_field->charset= $2;
             }
           }
         | IDENT_sys equal TEXT_STRING_sys
           {
             new (thd->mem_root)
-              engine_option_value($1, $3, true, &Lex->option_list,
+              engine_option_value($1, $3, true, &Lex->last_field->option_list,
                                   &Lex->option_list_last);
           }
         | IDENT_sys equal ident
           {
             new (thd->mem_root)
-              engine_option_value($1, $3, false, &Lex->option_list,
+              engine_option_value($1, $3, false, &Lex->last_field->option_list,
                                   &Lex->option_list_last);
           }
         | IDENT_sys equal real_ulonglong_num
           {
             new (thd->mem_root)
-              engine_option_value($1, $3, &Lex->option_list,
+              engine_option_value($1, $3, &Lex->last_field->option_list,
                                   &Lex->option_list_last, thd->mem_root);
           }
         | IDENT_sys equal DEFAULT
           {
             new (thd->mem_root)
-              engine_option_value($1, &Lex->option_list, &Lex->option_list_last);
+              engine_option_value($1, &Lex->last_field->option_list, &Lex->option_list_last);
           }
         ;
 
 
 type_with_opt_collate:
-        type opt_collate
+        field_type opt_collate
         {
           $$= $1;
 
-          if (Lex->charset) /* Lex->charset is scanned in "type" */
+          if ($2)
           {
             if (!(Lex->charset= merge_charset_and_collation(Lex->charset, $2)))
               MYSQL_YYABORT;
           }
-          else if ($2)
-          {
-            my_error(ER_NOT_SUPPORTED_YET, MYF(0),
-                     "COLLATE with no CHARACTER SET "
-                     "in SP parameters, RETURNS, DECLARE");
-            MYSQL_YYABORT;
-          }
+          Lex->set_last_field_type($1);
         }
         ;
 
@@ -6625,62 +6691,30 @@ opt_default:
         | DEFAULT {}
         ;
 
-
-ascii:
-          ASCII_SYM { Lex->charset= &my_charset_latin1; }
-        | BINARY ASCII_SYM
+charset_or_alias:
+          charset charset_name { $$= $2; }
+        | ASCII_SYM { $$= &my_charset_latin1; }
+        | UNICODE_SYM
           {
-            Lex->charset= &my_charset_latin1_bin;
-          }
-        | ASCII_SYM BINARY
-          {
-            Lex->charset= &my_charset_latin1_bin;
-          }
-        ;
-
-unicode:
-          UNICODE_SYM
-          {
-            if (!(Lex->charset=get_charset_by_csname("ucs2",
-                                                     MY_CS_PRIMARY,MYF(0))))
+            if (!($$= get_charset_by_csname("ucs2", MY_CS_PRIMARY,MYF(0))))
             {
               my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), "ucs2");
               MYSQL_YYABORT;
             }
           }
-        | UNICODE_SYM BINARY
-          {
-            if (!(Lex->charset= mysqld_collation_get_by_name("ucs2_bin")))
-              MYSQL_YYABORT;
-          }
-        | BINARY UNICODE_SYM
-          {
-            if (!(Lex->charset= mysqld_collation_get_by_name("ucs2_bin")))
-              MYSQL_YYABORT;
-          }
         ;
 
 opt_binary:
-          /* empty */ { Lex->charset=NULL; }
-        | ascii
-        | unicode
-        | BYTE_SYM { Lex->charset=&my_charset_bin; }
-        | charset charset_name opt_bin_mod { Lex->charset=$2; }
-        | BINARY
-          {
-            Lex->charset= NULL;
-            Lex->type|= BINCMP_FLAG;
-          }
-        | BINARY charset charset_name
-          {
-            Lex->charset= $3;
-            Lex->type|= BINCMP_FLAG;
-          }
+          /* empty */             { bincmp_collation(NULL, false); }
+        | BYTE_SYM                { bincmp_collation(&my_charset_bin, false); }
+        | charset_or_alias opt_bin_mod { bincmp_collation($1, $2); }
+        | BINARY                  { bincmp_collation(NULL, true); }
+        | BINARY charset_or_alias { bincmp_collation($2, true); }
         ;
 
 opt_bin_mod:
-          /* empty */ { }
-        | BINARY { Lex->type|= BINCMP_FLAG; }
+          /* empty */   { $$= false; }
+        | BINARY        { $$= true; }
         ;
 
 ws_nweights:
@@ -7051,8 +7085,8 @@ opt_component:
         ;
 
 string_list:
-          text_string { Lex->interval_list.push_back($1); }
-        | string_list ',' text_string { Lex->interval_list.push_back($3); };
+          text_string { Lex->last_field->interval_list.push_back($1); }
+        | string_list ',' text_string { Lex->last_field->interval_list.push_back($3); };
 
 /*
 ** Alter table
@@ -7522,7 +7556,6 @@ add_column:
           ADD opt_column opt_if_not_exists
           {
             LEX *lex=Lex;
-            lex->change=0;
             lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN;
           }
         ;
@@ -7542,44 +7575,17 @@ alter_list_item:
             Lex->alter_info.flags|= Alter_info::ALTER_ADD_COLUMN |
                                     Alter_info::ALTER_ADD_INDEX;
           }
-        | CHANGE opt_column opt_if_exists field_ident
+        | CHANGE opt_column opt_if_exists field_ident field_spec opt_place
           {
-            LEX *lex=Lex;
-            lex->change= $4.str;
-            lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
-            lex->option_list= NULL;
-          }
-          field_spec opt_place
-          {
+            Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->last_field->change= $4.str;
           }
-        | MODIFY_SYM opt_column opt_if_exists field_ident
+        | MODIFY_SYM opt_column opt_if_exists field_spec opt_place
           {
-            LEX *lex=Lex;
-            lex->length=lex->dec=0; lex->type=0;
-            lex->default_value= lex->on_update_value= 0;
-            lex->comment=null_lex_str;
-            lex->charset= NULL;
-            lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
-	    lex->vcol_info= 0;
-            lex->option_list= NULL;
-          }
-          field_def
-          {
-            LEX *lex=Lex;
-            if (add_field_to_list(lex->thd,&$4,
-                                  $6.type,
-                                  $6.length, $6.dec, lex->type,
-                                  lex->default_value, lex->on_update_value,
-                                  &lex->comment,
-                                  $4.str, &lex->interval_list, $6.charset,
-                                  lex->uint_geom_type,
-                                  lex->vcol_info, lex->option_list))
-              MYSQL_YYABORT;
-          }
-          opt_place
-          {
+            Lex->alter_info.flags|= Alter_info::ALTER_CHANGE_COLUMN;
             Lex->create_last_non_select_table= Lex->last_table();
+            Lex->last_field->change= Lex->last_field->field_name;
           }
         | DROP opt_column opt_if_exists field_ident opt_restrict
           {
@@ -9083,7 +9089,9 @@ dyncol_type:
             $$= DYN_COL_DECIMAL;
             Lex->charset= NULL;
           }
-        | char opt_binary
+        | char
+          { Lex->charset= thd->variables.collation_connection; }
+          opt_binary
           {
             LEX *lex= Lex;
             $$= DYN_COL_STRING;
@@ -10414,7 +10422,9 @@ in_sum_expr:
 cast_type:
           BINARY opt_field_length
           { $$=ITEM_CAST_CHAR; Lex->charset= &my_charset_bin; Lex->dec= 0; }
-        | CHAR_SYM opt_field_length opt_binary
+        | CHAR_SYM opt_field_length
+          { Lex->charset= thd->variables.collation_connection; }
+          opt_binary
           { $$=ITEM_CAST_CHAR; Lex->dec= 0; }
         | NCHAR_SYM opt_field_length
           { $$=ITEM_CAST_CHAR; Lex->charset= national_charset_info; Lex->dec=0; }
@@ -13259,8 +13269,7 @@ opt_ignore_lines:
         ;
 
 lines_or_rows:
-        LINES { }
-
+          LINES { }
         | ROWS_SYM { }
         ;
 
@@ -16233,31 +16242,13 @@ sf_tail:
           RETURNS_SYM /* $9 */
           { /* $10 */
             LEX *lex= Lex;
-            lex->charset= NULL;
-            lex->length= lex->dec= NULL;
-            lex->interval_list.empty();
-            lex->type= 0;
-            lex->vcol_info= 0;
+            lex->init_last_field(&lex->sphead->m_return_field_def, NULL,
+                                 thd->variables.collation_database);
           }
           type_with_opt_collate /* $11 */
           { /* $12 */
-            LEX *lex= Lex;
-            sp_head *sp= lex->sphead;
-            /*
-              This was disabled in 5.1.12. See bug #20701
-              When collation support in SP is implemented, then this test
-              should be removed.
-            */
-            if (($11 == MYSQL_TYPE_STRING || $11 == MYSQL_TYPE_VARCHAR)
-                && (lex->type & BINCMP_FLAG))
-            {
-              my_error(ER_NOT_SUPPORTED_YET, MYF(0), "return value collation");
-              MYSQL_YYABORT;
-            }
-
-            if (sp->fill_field_definition(thd, lex,
-                                          (enum enum_field_types) $11,
-                                          &sp->m_return_field_def))
+            if (Lex->sphead->fill_field_definition(thd, Lex, $11,
+                                                   Lex->last_field))
               MYSQL_YYABORT;
           }
           sp_c_chistics /* $13 */

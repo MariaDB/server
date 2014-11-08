@@ -183,13 +183,10 @@ sp_variable *sp_pcontext::find_variable(uint offset) const
 }
 
 
-sp_variable *sp_pcontext::add_variable(THD *thd,
-                                       LEX_STRING name,
-                                       enum enum_field_types type,
-                                       sp_variable::enum_mode mode)
+sp_variable *sp_pcontext::add_variable(THD *thd, LEX_STRING name)
 {
   sp_variable *p=
-    new (thd->mem_root) sp_variable(name, type,mode, current_var_count());
+    new (thd->mem_root) sp_variable(name, current_var_count());
 
   if (!p)
     return NULL;

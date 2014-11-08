@@ -4355,17 +4355,14 @@ begin
   return f1;
 end|
 drop function bug9048|
-#
-# This was disabled in 5.1.12. See bug #20701
-# When collation support in SP is implemented, then this test should
-# be removed.
-#
---error ER_NOT_SUPPORTED_YET
+
 create function bug9048(f1 char binary) returns char binary
 begin
   set f1= concat( 'hello', f1 );
   return f1;
 end|
+select collation(bug9048("foo"))|
+drop function bug9048|
 
 # Bug #12849 Stored Procedure: Crash on procedure call with CHAR type
 # 'INOUT' parameter
@@ -9303,3 +9300,27 @@ DROP PROCEDURE p1;
 DROP TABLE t1;
 
 --echo # End of 5.5 test
+
+DELIMITER |;
+CREATE FUNCTION f(f1 VARCHAR(64) COLLATE latin1_german2_ci)
+  RETURNS VARCHAR(64)
+BEGIN
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+CREATE FUNCTION f(f1 VARCHAR(64))
+  RETURNS VARCHAR(64) COLLATE latin1_german2_ci
+BEGIN
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+
+CREATE FUNCTION f(f1 VARCHAR(64))
+  RETURNS VARCHAR(64)
+BEGIN
+  DECLARE f2 VARCHAR(64) COLLATE latin1_german2_ci;
+  RETURN 'str';
+END|
+DROP FUNCTION f|
+DELIMITER ;|
