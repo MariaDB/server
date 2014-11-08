@@ -197,7 +197,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
 #else   // !WIN32
     struct stat fileinfo;
-    char   fn[FN_REFLEN], direc[C], pattern[256], ftype[8];
+    char   fn[FN_REFLEN], direc[FN_REFLEN], pattern[FN_HEADLEN], ftype[FN_EXTLEN];
     DIR   *dir;
     struct dirent *entry;
 
