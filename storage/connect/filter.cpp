@@ -101,7 +101,7 @@ PFIL MakeFilter(PGLOBAL g, PFIL fp1, OPVAL vop, PFIL fp2)
   PFIL filp = new(g) FILTER(g, vop);
 
   filp->Arg(0) = fp1;
-  filp->Arg(1) = fp2;
+  filp->Arg(1) = (fp2) ? fp2 : pXVOID;
 
   if (filp->Convert(g, false))
     return NULL;

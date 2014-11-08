@@ -82,7 +82,8 @@ extern HINSTANCE s_hModule;                   /* Saved module handle    */
 #endif   // WIN32
 
 #if defined(XMSG)
-extern char msglang[];
+extern char *msg_path;
+char *msglang(void);
 #endif   // XMSG
 
 /***********************************************************************/
@@ -326,8 +327,9 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
   char *msg;
   FILE *mfile = NULL;
 
-  GetPrivateProfileString("Message", msglang, "Message\\english.msg",
-                                     msgfile, _MAX_PATH, plgini);
+//GetPrivateProfileString("Message", msglang, "Message\\english.msg",
+//                                   msgfile, _MAX_PATH, plgini);
+  strcat(strcat(strcpy(msgfile, msg_path), msglang()), ".msg");
 
   if (!(mfile = fopen(msgfile, "rt"))) {
     sprintf(stmsg, "Fail to open message file %s for %s", msgfile, msglang);

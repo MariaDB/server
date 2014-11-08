@@ -683,6 +683,7 @@ bool DOSFAM::RecordPos(PGLOBAL g)
   {
   if ((Fpos = ftell(Stream)) < 0) {
     sprintf(g->Message, MSG(FTELL_ERROR), 0, strerror(errno));
+    strcat(g->Message, " (possible wrong ENDING option value)");
     return true;
     } // endif Fpos
 

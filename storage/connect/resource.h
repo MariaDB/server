@@ -2,6 +2,7 @@
 // Microsoft Developer Studio generated include file.
 // Used by PlgSock.rc
 //
+#if 0
 #define IDS_00                          115
 #define IDS_01                          116
 #define IDS_02                          117
@@ -24,6 +25,7 @@
 #define IDS_19                          134
 #define IDS_20                          135
 #define IDS_21                          136
+#endif // 0
 #define IDS_TABLES                      143
 #define IDS_TAB_01                      144
 #define IDS_TAB_02                      145
@@ -43,6 +45,7 @@
 #define IDS_COL_10                      169
 #define IDS_COL_11                      170
 #define IDS_COL_12                      171
+#if 0
 #define IDS_INFO                        175
 #define IDS_INF_01                      176
 #define IDS_INF_02                      177
@@ -59,6 +62,7 @@
 #define IDS_INF_13                      188
 #define IDS_INF_14                      189
 #define IDS_INF_15                      190
+#endif // 0
 #define IDS_PKEY                        191
 #define IDS_PKY_01                      192
 #define IDS_PKY_02                      193
@@ -66,6 +70,7 @@
 #define IDS_PKY_04                      195
 #define IDS_PKY_05                      196
 #define IDS_PKY_06                      197
+#if 0
 #define IDS_FKEY                        207
 #define IDS_FKY_01                      208
 #define IDS_FKY_02                      209
@@ -80,6 +85,7 @@
 #define IDS_FKY_11                      218
 #define IDS_FKY_12                      219
 #define IDS_FKY_13                      220
+#endif // 0
 #define IDS_STAT                        223
 #define IDS_STA_01                      224
 #define IDS_STA_02                      225
@@ -94,6 +100,7 @@
 #define IDS_STA_11                      234
 #define IDS_STA_12                      235
 #define IDS_STA_13                      236
+#if 0
 #define IDS_SPCOLS                      1247
 #define IDS_SPC_01                      1248
 #define IDS_SPC_02                      1249
@@ -118,6 +125,7 @@
 #define IDS_PLG_07                      1286
 #define IDS_PLG_08                      1287
 #define IDS_PLG_09                      1288
+#endif // 0
 #define IDS_DRIVER                      1290
 #define IDS_DRV_01                      1291
 #define IDS_DRV_02                      1292

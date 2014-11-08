@@ -170,8 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0004 October 13, 2014";
-       char  compver[]= "Version 1.03.0004 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0005 November 08, 2014";
+       char  compver[]= "Version 1.03.0005 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
        char slash= '\\';
@@ -179,9 +179,6 @@ extern "C" {
        char slash= '/';
 #endif  // !WIN32
 
-#if defined(XMSG)
-       char  msglang[];            // Default message language
-#endif
 //     int  trace= 0;              // The general trace value
        int  xconv= 0;              // The type conversion option
        int  zconv= SZCONV;         // The text conversion size
@@ -202,6 +199,11 @@ static ulong   type_conv= 0;
 #if defined(XMAP)
 static my_bool indx_map= 0;
 #endif   // XMAP
+#if defined(XMSG)
+extern "C" {
+       char *msg_path;
+} // extern "C"
+#endif   // XMSG
 
 /***********************************************************************/
 /*  Utility functions.                                                 */
@@ -278,12 +280,40 @@ static MYSQL_THDVAR_ENUM(
   1,                               // def (AUTO)
   &usetemp_typelib);               // typelib
 
+#if defined(XMSG)
+const char *language_names[]=
+{
+  "default", "english", "french", NullS
+};
+
+TYPELIB language_typelib=
+{
+  array_elements(language_names) - 1, "language_typelib",
+  language_names, NULL
+};
+
+static MYSQL_THDVAR_ENUM(
+  msg_lang,                        // name
+  PLUGIN_VAR_RQCMDARG,             // opt
+  "Message language",              // comment
+  NULL,                            // check
+  NULL,                            // update
+  1,                               // def (ENGLISH)      
+  &language_typelib);              // typelib
+#endif   // XMSG
+
 /***********************************************************************/
 /*  Function to export session variable values to other source files.  */
 /***********************************************************************/
 extern "C" int GetTraceValue(void) {return THDVAR(current_thd, xtrace);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
+#if defined(XMSG)
+extern "C" const char *msglang(void)
+{
+  return language_names[THDVAR(current_thd, msg_lang)];
+} // end of msglang
+#endif   // XMSG
 
 /***********************************************************************/
 /*  Global variables update functions.                                 */
@@ -912,15 +942,6 @@ char *ha_connect::GetRealString(const char *s)
   return sv;
 } // end of GetRealString
 
-inline char *ha_connect::Strz(LEX_STRING &ls)
-{ 
-  if (unlikely(ls.str && ls.str[ls.length]))
-    return strz(xp->g, ls);
-  else
-    return ls.str;
-
-}  // end of Strz
-
 /****************************************************************************/
 /*  Return the value of a string option or NULL if not specified.           */
 /****************************************************************************/
@@ -934,7 +955,7 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
                            : table->s->connect_string;
 
     if (cnc.length)
-      opval= GetRealString(Strz(cnc));
+      opval= GetRealString(strz(xp->g, cnc));
 
   } else if (!stricmp(opname, "Query_String"))
     opval= thd_query_string(table->in_use)->str;
@@ -1274,13 +1295,9 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Key= 0;   // Not used when called from MySQL
 
   // Get the comment if any
-  if (fp->comment.str && fp->comment.length) {
-    if ((pcf->Remark= (char*)PlgDBSubAlloc(g, NULL, fp->comment.length + 1))) {
-      memcpy(pcf->Remark, fp->comment.str, fp->comment.length);
-      pcf->Remark[fp->comment.length]= 0;
-      } // endif Remark
-
-  } else
+  if (fp->comment.str && fp->comment.length)
+    pcf->Remark= strz(g, fp->comment);
+  else
     pcf->Remark= NULL;
 
   return fldp;
@@ -1309,7 +1326,7 @@ bool ha_connect::GetIndexOption(KEY *kp, char *opname)
       opval= options->mapped;
 
   } else if (kp->comment.str && kp->comment.length) {
-    char *pv, *oplist= Strz(kp->comment);
+    char *pv, *oplist= strz(xp->g, kp->comment);
 
     if ((pv= GetListOption(xp->g, opname, oplist)))
       opval= (!*pv || *pv == 'y' || *pv == 'Y' || atoi(pv) != 0);
@@ -1455,12 +1472,12 @@ bool ha_connect::IsPartitioned(void)
 
 const char *ha_connect::GetDBName(const char* name)
 {
-  return (name) ? name : Strz(table->s->db);
+  return (name) ? name : table->s->db.str;
 } // end of GetDBName
 
 const char *ha_connect::GetTableName(void)
 {
-  return Strz(tshp ? tshp->table_name : table_share->table_name);
+  return tshp ? tshp->table_name.str : table_share->table_name.str;
 } // end of GetTableName
 
 char *ha_connect::GetPartName(void)
@@ -3575,7 +3592,7 @@ int ha_connect::info(uint flag)
 
     // This is necessary for getting file length
     if (table)
-      SetDataPath(g, Strz(table->s->db));
+      SetDataPath(g, table->s->db.str);
     else
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);       // Should never happen
 
@@ -4140,7 +4157,7 @@ int ha_connect::external_lock(THD *thd, int lock_type)
 
   DBUG_ASSERT(table && table->s);
 
-  if (check_privileges(thd, options, Strz(table->s->db))) {
+  if (check_privileges(thd, options, table->s->db.str)) {
     strcpy(g->Message, "This operation requires the FILE privilege");
     htrc("%s\n", g->Message);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
@@ -4675,15 +4692,6 @@ static int init_table_share(THD* thd,
                                                  sql->ptr(), sql->length());
 } // end of init_table_share
 
-static inline char *Strz(PGLOBAL g, LEX_STRING &ls)
-{ 
-  if (unlikely(ls.str && ls.str[ls.length]))
-    return strz(g, ls);
-  else
-    return ls.str;
-
-} // end of Strz
-
 // Used to check whether a MYSQL table is created on itself
 bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                       const char *db, char *tab, const char *src, int port)
@@ -4692,9 +4700,9 @@ bool CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
     return false;
   else if (host && stricmp(host, "localhost") && strcmp(host, "127.0.0.1"))
     return false;
-  else if (db && stricmp(db, Strz(g, s->db)))
+  else if (db && stricmp(db, s->db.str))
     return false;
-  else if (tab && stricmp(tab, Strz(g, s->table_name)))
+  else if (tab && stricmp(tab, s->table_name.str))
     return false;
   else if (port && port != (signed)GetDefaultPort())
     return false;
@@ -4799,7 +4807,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   } // endif option_list
 
   if (!(shm= (char*)db))
-    db= Strz(g, table_s->db);                   // Default value
+    db= table_s->db.str;                   // Default value
 
   // Check table type
   if (ttp == TAB_UNDEF) {
@@ -4849,7 +4857,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         } // endif p
 
     } else if (ttp != TAB_ODBC || !(fnc & (FNC_TABLE | FNC_COL)))
-      tab= Strz(g, table_s->table_name);           // Default value
+      tab= table_s->table_name.str;           // Default value
 
 #if defined(NEW_WAY)
 //  add_option(thd, create_info, "tabname", tab);
@@ -4859,7 +4867,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   switch (ttp) {
 #if defined(ODBC_SUPPORT)
     case TAB_ODBC:
-      dsn= Strz(g, create_info->connect_string);
+      dsn= strz(g, create_info->connect_string);
 
       if (fnc & (FNC_DSN | FNC_DRIVER)) {
         ok= true;
@@ -4894,13 +4902,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_MYSQL:
       ok= true;
 
-      if (create_info->connect_string.str) {
-        int     len= create_info->connect_string.length;
+      if (create_info->connect_string.str &&
+          create_info->connect_string.length) {
         PMYDEF  mydef= new(g) MYSQLDEF();
 
-        dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
-        strncpy(dsn, create_info->connect_string.str, len);
-        dsn[len]= 0;
+        dsn= strz(g, create_info->connect_string);
         mydef->SetName(create_info->alias);
 
         if (!mydef->ParseURL(g, dsn, false)) {
@@ -4945,7 +4951,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     case TAB_XCL:
     case TAB_OCCUR:
       if (!src && !stricmp(tab, create_info->alias) &&
-         (!db || !stricmp(db, Strz(g, table_s->db))))
+         (!db || !stricmp(db, table_s->db.str)))
         sprintf(g->Message, "A %s table cannot refer to itself", topt->type);
       else
         ok= true;
@@ -4983,11 +4989,11 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     int     i, len, prec, dec, typ, flg;
 
 //  if (cat)
-//    cat->SetDataPath(g, Strz(g, table_s->db));
+//    cat->SetDataPath(g, table_s->db.str);
 //  else
 //    return HA_ERR_INTERNAL_ERROR;           // Should never happen
 
-    dpath= SetPath(g, Strz(g, table_s->db));
+    dpath= SetPath(g, table_s->db.str);
 
     if (src && ttp != TAB_PIVOT && ttp != TAB_ODBC) {
       qrp= SrcColumns(g, host, db, user, pwd, src, port);
@@ -5380,7 +5386,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         } else if (options->tabname) {
           if (!stricmp(options->tabname, create_info->alias) &&
              (!options->dbname || 
-              !stricmp(options->dbname, Strz(table_arg->s->db)))) {
+              !stricmp(options->dbname, table_arg->s->db.str))) {
             sprintf(g->Message, "A %s table cannot refer to itself",
                                 options->type);
             my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
@@ -5405,14 +5411,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         db= GetStringOption("database", NULL);
         port= atoi(GetListOption(g, "port", options->oplist, "0"));
 
-        if (create_info->connect_string.str) {
-          char   *dsn;
-          int     len= create_info->connect_string.length;
+        if (create_info->connect_string.str &&
+            create_info->connect_string.length) {
+          char   *dsn= strz(g, create_info->connect_string);
           PMYDEF  mydef= new(g) MYSQLDEF();
 
-          dsn= (char*)PlugSubAlloc(g, NULL, len + 1);
-          strncpy(dsn, create_info->connect_string.str, len);
-          dsn[len]= 0;
           mydef->SetName(create_info->alias);
 
           if (!mydef->ParseURL(g, dsn, false)) {
@@ -5650,7 +5653,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
       if (sqlcom == SQLCOM_CREATE_TABLE)
         push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
   
-      strcat(strcat(strcpy(dbpath, "./"), Strz(table->s->db)), "/");
+      strcat(strcat(strcpy(dbpath, "./"), table->s->db.str), "/");
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
     } // endif part_info
 #endif   // WITH_PARTITION_STORAGE_ENGINE
@@ -5724,10 +5727,10 @@ int ha_connect::create(const char *name, TABLE *table_arg,
         PDBUSER dup= PlgGetUser(g);
         PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
-        SetDataPath(g, Strz(table_arg->s->db));
+        SetDataPath(g, table_arg->s->db.str);
 
         if (cat) {
-//        cat->SetDataPath(g, Strz(table_arg->s->db));
+//        cat->SetDataPath(g, table_arg->s->db.str);
 
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
           if (part_info)
@@ -5807,7 +5810,7 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     } else
       strcpy(tfn, fn);
 
-    strcat(strcat(strcat(strcpy(path, "."), s), Strz(table->s->db)), s);
+    strcat(strcat(strcat(strcpy(path, "."), s), table->s->db.str), s);
     PlugSetPath(filename, tfn, path);
     n= stat(filename, &info);
 
@@ -6291,6 +6294,13 @@ static MYSQL_SYSVAR_BOOL(indx_map, indx_map, PLUGIN_VAR_RQCMDARG,
        NULL, update_connect_xmap, 0);
 #endif   // XMAP
 
+#if defined(XMSG)
+static MYSQL_SYSVAR_STR(errmsg_dir_path, msg_path,
+       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+       "Path to the directory where are the message files",
+       NULL, NULL, "");
+#endif   // XMSG
+
 // Size used for g->Sarea_Size
 static MYSQL_SYSVAR_UINT(work_size, work_size,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY, 
@@ -6307,6 +6317,10 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(work_size),
   MYSQL_SYSVAR(use_tempfile),
   MYSQL_SYSVAR(exact_info),
+#if defined(XMSG)
+  MYSQL_SYSVAR(msg_lang),
+  MYSQL_SYSVAR(errmsg_dir_path),
+#endif   // XMSG
   NULL
 };
 
@@ -6323,7 +6337,7 @@ maria_declare_plugin(connect)
   0x0103,                                       /* version number (1.03) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.03",                                       /* string version */
+  "1.03.0005",                                  /* string version */
   MariaDB_PLUGIN_MATURITY_BETA                  /* maturity */
 }
 maria_declare_plugin_end;

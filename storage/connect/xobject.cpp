@@ -272,7 +272,7 @@ bool STRING::Set(char *s, uint n)
   if (!s)
     return false;
 
-  uint len = MY_MIN(strlen(s), n) + 1;
+  uint len = strnlen(s, n) + 1;
 
   if (len > Size) {
     char *p = Realloc(len);

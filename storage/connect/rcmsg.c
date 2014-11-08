@@ -21,23 +21,23 @@ char *GetMsgid(int id)
   char *p = NULL;
 
   switch (id) {
-    case IDS_00:     p = "%s";                break;
+//  case IDS_00:     p = "%s";                break;
 #if defined(FRENCH)
     case IDS_01:     p = "%s: erreur d'allocation du buffer de communication de %d octets"; break;
     case IDS_02:     p = "%s: erreur d'allocation mémoire tampon pour %d colonnes";         break;
-    case IDS_03:     p = "%s: Commande spéciale invalide";                                   break;
+    case IDS_03:     p = "%s: Commande spéciale invalide";                                  break;
     case IDS_04:     p = "%s: Wrong number of arguments %d";                                break;
-    case IDS_05:     p = "%s";                                                               break;
+    case IDS_05:     p = "%s";                                                              break;
     case IDS_06:     p = "%s: Commande dépassant la taille du buffer interne (%d octets)";  break;
     case IDS_07:     p = "%s: Données (%d octets) tronquées à la taille du buffer";         break;
     case IDS_08:     p = "%s: Résultat dépassant la taille du buffer interne (%d octets)";  break;
-    case IDS_09:     p = "Erreur dans %s: %s";                                               break;
+    case IDS_09:     p = "Erreur dans %s: %s";                                              break;
     case IDS_10:     p = "%s: erreur d'allocating mémoire de %d octets";                    break;
     case IDS_11:     p = "%s: mauvaise clé de connexion %d";                                break;
     case IDS_12:     p = "%s: Pas plus de %d connexions autorisées pour un programme";      break;
     case IDS_13:     p = "%s: clé de connexion invalide %d";                                break;
     case IDS_14:     p = "SafeDB: %s rc=%d";                                                break;
-    case IDS_15:     p = "Mauvaise Dll de communication appelée par le moteur %s";           break;
+    case IDS_15:     p = "Mauvaise Dll de communication appelée par le moteur %s";          break;
     case IDS_TAB_01: p = "Catalogue";         break;
     case IDS_TAB_02: p = "Schéma";            break;
     case IDS_TAB_03: p = "Nom";               break;
@@ -115,21 +115,23 @@ char *GetMsgid(int id)
     case IDS_DSC_01: p = "Nom";               break;
     case IDS_DSC_02: p = "Description";       break;
 #else    // English
+#if 0
     case IDS_01:     p = "%s: error allocating communication buffer of %d bytes";        break;
     case IDS_02:     p = "%s: error allocating parser memory for %d columns";            break;
-    case IDS_03:     p = "%s: Invalid special command";                                   break;
+    case IDS_03:     p = "%s: Invalid special command";                                  break;
     case IDS_04:     p = "%s: Wrong number of arguments %d";                             break;
-    case IDS_05:     p = "%s";                                                            break;
+    case IDS_05:     p = "%s";                                                           break;
     case IDS_06:     p = "%s: Command bigger than internal buffer of size = %d";         break;
     case IDS_07:     p = "%s: Data truncated to buffer size, actual length is %d bytes"; break;
     case IDS_08:     p = "%s: Result bigger than internal buffer of size = %d";          break;
-    case IDS_09:     p = "Error in %s: %s";                                               break;
+    case IDS_09:     p = "Error in %s: %s";                                              break;
     case IDS_10:     p = "%s: error allocating instance memory of %d bytes";             break;
     case IDS_11:     p = "%s: wrong connection key value %d";                            break;
     case IDS_12:     p = "%s: No more than %d connections allowed from one process";     break;
     case IDS_13:     p = "%s: invalid connection key value %d";                          break;
     case IDS_14:     p = "SafeDB: %s rc=%d";                                             break;
-    case IDS_15:     p = "Wrong communication Dll called for engine %s";                  break;
+    case IDS_15:     p = "Wrong communication Dll called for engine %s";                 break;
+#endif // 0
     case IDS_TAB_01: p = "Table_Cat";          break;
     case IDS_TAB_02: p = "Table_Schema";       break;
     case IDS_TAB_03: p = "Table_Name";         break;
@@ -147,6 +149,7 @@ char *GetMsgid(int id)
     case IDS_COL_10: p = "Radix";              break;
     case IDS_COL_11: p = "Nullable";           break;
     case IDS_COL_12: p = "Remarks";            break;
+#if 0
     case IDS_INF_01: p = "Type_Name";          break;
     case IDS_INF_02: p = "Data_Type";          break;
     case IDS_INF_03: p = "Precision";          break;
@@ -162,12 +165,14 @@ char *GetMsgid(int id)
     case IDS_INF_13: p = "Local_Type_Name";    break;
     case IDS_INF_14: p = "Minimum_Scale";      break;
     case IDS_INF_15: p = "Maximum_Scale";      break;
+#endif // 0
     case IDS_PKY_01: p = "Table_Catalog";      break;
     case IDS_PKY_02: p = "Table_Schema";       break;
     case IDS_PKY_03: p = "Table_Name";         break;
     case IDS_PKY_04: p = "Column_Name";        break;
     case IDS_PKY_05: p = "Key_Seq";            break;
     case IDS_PKY_06: p = "Pk_Name";            break;
+#if 0
     case IDS_FKY_01: p = "PKTable_Catalog";    break;
     case IDS_FKY_02: p = "PKTable_Schema";     break;
     case IDS_FKY_03: p = "PKTable_Name";       break;
@@ -181,6 +186,7 @@ char *GetMsgid(int id)
     case IDS_FKY_11: p = "Delete_Rule";        break;
     case IDS_FKY_12: p = "FK_Name";            break;
     case IDS_FKY_13: p = "PK_Name";            break;
+#endif // 0
     case IDS_STA_01: p = "Table_Catalog";      break;
     case IDS_STA_02: p = "Table_Schema";       break;
     case IDS_STA_03: p = "Table_Name";         break;
@@ -194,6 +200,7 @@ char *GetMsgid(int id)
     case IDS_STA_11: p = "Cardinality";        break;
     case IDS_STA_12: p = "Pages";              break;
     case IDS_STA_13: p = "Filter_Condition";   break;
+#if 0
     case IDS_SPC_01: p = "Scope";              break;
     case IDS_SPC_02: p = "Column_Name";        break;
     case IDS_SPC_03: p = "Data_Type";          break;
@@ -202,6 +209,7 @@ char *GetMsgid(int id)
     case IDS_SPC_06: p = "Length";             break;
     case IDS_SPC_07: p = "Scale";              break;
     case IDS_SPC_08: p = "Pseudo_Column";      break;
+#endif // 0
     case IDS_DRV_01: p = "Description";        break;
     case IDS_DRV_02: p = "Attributes";         break;
     case IDS_DSC_01: p = "Name";               break;

@@ -87,9 +87,6 @@ bool  Initdone = false;
 bool  plugin = false;  // True when called by the XDB plugin handler 
 
 extern "C" {
-#if defined(XMSG)
-       char  msglang[16] = "ENGLISH";      // Default language
-#endif
 extern char version[];
 } // extern "C"
 
@@ -136,10 +133,12 @@ global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
       break;
 
     case MSGID_OPEN_MODE_STRERROR:
+      {char fmt[256];
+      strcat(strcpy(fmt, MSG(OPEN_MODE_ERROR)), ": %s");
       len= snprintf(g->Message, sizeof(g->Message) - 1,
-                    MSG(OPEN_MODE_ERROR) ": %s", // Open(%s) error %d on %s: %s
+                    fmt, // Open(%s) error %d on %s: %s
                     mode, (int) errno, path, strerror(errno));
-      break;
+      }break;
 
     case MSGID_OPEN_STRERROR:
       len= snprintf(g->Message, sizeof(g->Message) - 1,
