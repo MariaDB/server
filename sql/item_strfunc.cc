@@ -1379,12 +1379,15 @@ bool Item_func_regexp_replace::append_replacement(String *str,
       break; /* End of line */
     beg+= cnv;
 
-    if ((n= ((int) wc) - '0') >= 0 && n <= 9 && n < re.nsubpatterns())
+    if ((n= ((int) wc) - '0') >= 0 && n <= 9)
     {
-      /* A valid sub-pattern reference found */
-      int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
-      if (str->append(source->str + pbeg, plength, cs))
-        return true;
+      if (n < re.nsubpatterns())
+      {
+        /* A valid sub-pattern reference found */
+        int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
+        if (str->append(source->str + pbeg, plength, cs))
+          return true;
+      }
     }
     else
     {
