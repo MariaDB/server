@@ -935,7 +935,7 @@ set optimizer_use_condition_selectivity=4;
 analyze table t2 persistent for all;
 
 explain extended
-select * from t2 A straight_join t2 B where A.a is null;
+select * from t2 a straight_join t2 b where a.a is null;
 
 set histogram_size=@save_histogram_size;
 set optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
