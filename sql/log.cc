@@ -1712,15 +1712,36 @@ int binlog_init(void *p)
   return 0;
 }
 
+#ifdef WITH_WSREP
+#include "wsrep_binlog.h"
+#endif /* WITH_WSREP */
 static int binlog_close_connection(handlerton *hton, THD *thd)
 {
+  DBUG_ENTER("binlog_close_connection");
   binlog_cache_mngr *const cache_mngr=
     (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
+#ifdef WITH_WSREP
+  if (cache_mngr && !cache_mngr->trx_cache.empty()) {
+    IO_CACHE* cache= get_trans_log(thd);
+    uchar *buf;
+    size_t len=0;
+    wsrep_write_cache_buf(cache, &buf, &len);
+    WSREP_WARN("binlog trx cache not empty (%lu bytes) @ connection close %lu",
+               len, thd->thread_id);
+    if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
+
+    cache = cache_mngr->get_binlog_cache_log(false);
+    wsrep_write_cache_buf(cache, &buf, &len);
+    WSREP_WARN("binlog stmt cache not empty (%lu bytes) @ connection close %lu",
+               len, thd->thread_id);
+    if (len > 0) wsrep_dump_rbr_buf(thd, buf, len);
+  }
+#endif /* WITH_WSREP */
   DBUG_ASSERT(cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty());
   thd_set_ha_data(thd, binlog_hton, NULL);
   cache_mngr->~binlog_cache_mngr();
   my_free(cache_mngr);
-  return 0;
+  DBUG_RETURN(0);
 }
 
 /*

@@ -98,17 +98,32 @@ void wsrep_register_hton(THD* thd, bool all)
  */
 void wsrep_post_commit(THD* thd, bool all)
 {
-  if (thd->wsrep_exec_mode == LOCAL_COMMIT)
+  switch (thd->wsrep_exec_mode)
   {
-    DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
-    if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
+  case LOCAL_COMMIT:
     {
+      DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
+      if (wsrep->post_commit(wsrep, &thd->wsrep_ws_handle))
+      {
         DBUG_PRINT("wsrep", ("set committed fail"));
         WSREP_WARN("set committed fail: %llu %d",
                    (long long)thd->real_id, thd->get_stmt_da()->status());
+      }
+      wsrep_cleanup_transaction(thd);
+      break;
     }
-    wsrep_cleanup_transaction(thd);
+ case LOCAL_STATE:
+   {
+     /*
+       Non-InnoDB statements may have populated events in stmt cache => cleanup
+     */
+     WSREP_DEBUG("cleanup transaction for LOCAL_STATE: %s", thd->query());
+     wsrep_cleanup_transaction(thd);
+     break;
+   }
+  default: break;
   }
+
 }
 
 /*
