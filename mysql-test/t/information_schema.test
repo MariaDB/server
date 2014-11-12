@@ -496,7 +496,7 @@ drop table t_crashme;
 #
 select table_schema,table_name, column_name from
 information_schema.columns
-where data_type = 'longtext';
+where data_type = 'longtext' and table_schema != 'performance_schema';
 select table_name, column_name, data_type from information_schema.columns
 where data_type = 'datetime' and table_name not like 'innodb_%';
 
