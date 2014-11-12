@@ -350,6 +350,11 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_SET_MEMBER, MONITOR_FLUSH_BATCH_SCANNED,
 	 MONITOR_FLUSH_BATCH_SCANNED_PER_CALL},
 
+	{"buffer_flush_batch_rescan", "buffer",
+	 "Number of times rescan of flush list forced",
+	 MONITOR_NONE,
+	 MONITOR_DEFAULT_START, MONITOR_FLUSH_HP_RESCAN},
+
 	/* Cumulative counter for pages flushed in flush batches */
 	{"buffer_flush_batch_total_pages", "buffer",
 	 "Total pages flushed as part of flush batch",
@@ -1920,10 +1925,10 @@ srv_mon_process_existing_counter(
         case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT512:
 		value = srv_stats.page_compression_trim_sect512;
 		break;
-       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024:
+	case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT1024:
 		value = srv_stats.page_compression_trim_sect1024;
 		break;
-       case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048:
+	case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT2048:
 		value = srv_stats.page_compression_trim_sect2048;
 		break;
         case MONITOR_OVLD_PAGE_COMPRESS_TRIM_SECT4096:
