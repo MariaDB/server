@@ -5285,13 +5285,10 @@ err:
     const char *error= thd->is_error() ? thd->get_stmt_da()->message() : "";
     table->field[20]->store(error, strlen(error), cs);
 
-    if (thd->is_error())
-    {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
-    }
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 thd->get_stmt_da()->sql_errno(),
+                 thd->get_stmt_da()->message());
+    thd->clear_error();
   }
 
   DBUG_RETURN(schema_table_store_record(thd, table));
@@ -5452,10 +5449,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      if (thd->is_error())
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     thd->get_stmt_da()->sql_errno(),
-                     thd->get_stmt_da()->message());
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
       thd->clear_error();
       res= 0;
     }
