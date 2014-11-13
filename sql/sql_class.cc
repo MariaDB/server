@@ -6342,6 +6342,7 @@ wait_for_commit::reinit()
   opaque_pointer= NULL;
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
+  commit_started= false;
 #ifdef SAFE_MUTEX
   /*
     When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
