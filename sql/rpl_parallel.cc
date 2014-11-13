@@ -290,6 +290,7 @@ retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
   THD *thd= rgi->thd;
   rpl_parallel_entry *entry= rgi->parallel_entry;
   ulong retries= 0;
+  Format_description_log_event *description_event= NULL;
 
 do_retry:
   event_count= 0;
@@ -355,6 +356,14 @@ do_retry:
     goto err;
   }
   cur_offset= rgi->retry_start_offset;
+  delete description_event;
+  description_event=
+    read_relay_log_description_event(&rlog, cur_offset, &errmsg);
+  if (!description_event)
+  {
+    err= 1;
+    goto err;
+  }
   my_b_seek(&rlog, cur_offset);
 
   do
@@ -367,8 +376,7 @@ do_retry:
     for (;;)
     {
       old_offset= cur_offset;
-      ev= Log_event::read_log_event(&rlog, 0,
-                                    rli->relay_log.description_event_for_exec /* ToDo: this needs fixing */,
+      ev= Log_event::read_log_event(&rlog, 0, description_event,
                                     opt_slave_sql_verify_checksum);
       cur_offset= my_b_tell(&rlog);
 
@@ -416,7 +424,12 @@ do_retry:
     }
 
     event_type= ev->get_type_code();
-    if (!Log_event::is_group_event(event_type))
+    if (event_type == FORMAT_DESCRIPTION_EVENT)
+    {
+      delete description_event;
+      description_event= (Format_description_log_event *)ev;
+      continue;
+    } else if (!Log_event::is_group_event(event_type))
     {
       delete ev;
       continue;
@@ -472,6 +485,8 @@ do_retry:
 
 err:
 
+  if (description_event)
+    delete description_event;
   if (fd >= 0)
   {
     end_io_cache(&rlog);

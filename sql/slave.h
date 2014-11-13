@@ -220,6 +220,10 @@ void end_relay_log_info(Relay_log_info* rli);
 void lock_slave_threads(Master_info* mi);
 void unlock_slave_threads(Master_info* mi);
 void init_thread_mask(int* mask,Master_info* mi,bool inverse);
+Format_description_log_event *
+read_relay_log_description_event(IO_CACHE *cur_log, ulonglong start_pos,
+                                 const char **errmsg);
+
 int init_relay_log_pos(Relay_log_info* rli,const char* log,ulonglong pos,
 		       bool need_data_lock, const char** errmsg,
                        bool look_for_description_event);
