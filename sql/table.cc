@@ -946,10 +946,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       size_t length= *extra2++;
       if (!length)
       {
-        if (extra2 + 258 >= e2end)
+        if (extra2 + 2 >= e2end)
           goto err;
         length= uint2korr(extra2);
-        extra2+=2;
+        extra2+= 2;
         if (length < 256)
           goto err;
       }
