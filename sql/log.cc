@@ -5848,7 +5848,10 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
 
     if (direct)
     {
+      int res;
       DBUG_PRINT("info", ("direct is set"));
+      if ((res= thd->wait_for_prior_commit()))
+        DBUG_RETURN(res);
       file= &log_file;
       my_org_b_tell= my_b_tell(file);
       mysql_mutex_lock(&LOCK_log);
