@@ -16434,19 +16434,24 @@ innodb_sched_priority_cleaner_update(
 {
 	ulint	priority = *static_cast<const ulint *>(save);
 	ulint	actual_priority;
+	ulint	nice = 0;
 
 	/* Set the priority for the LRU manager thread */
 	ut_ad(buf_lru_manager_is_active);
+	nice = os_thread_get_priority(srv_lru_manager_tid);
 	actual_priority = os_thread_set_priority(srv_lru_manager_tid,
 						 priority);
+
 	if (UNIV_UNLIKELY(actual_priority != priority)) {
 
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Failed to set the LRU manager thread "
-				    "priority to %lu,  "
-				    "the current priority is %lu", priority,
-				    actual_priority);
+		if (actual_priority+nice != priority) {
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"Failed to set the LRU manager thread "
+				"priority to %lu,  "
+				"the nice is %lu and used priority is %lu", priority,
+				nice, actual_priority);
+		}
 	} else {
 
 		srv_sched_priority_cleaner = priority;
@@ -16459,15 +16464,17 @@ innodb_sched_priority_cleaner_update(
 	}
 
 	ut_ad(buf_page_cleaner_is_active);
+	nice = os_thread_get_priority(srv_cleaner_tid);
 	actual_priority = os_thread_set_priority(srv_cleaner_tid, priority);
 	if (UNIV_UNLIKELY(actual_priority != priority)) {
-
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-				    ER_WRONG_ARGUMENTS,
-				    "Failed to set the page cleaner thread "
-				    "priority to %lu,  "
-				    "the current priority is %lu", priority,
-				    actual_priority);
+		if (actual_priority+nice != priority) {
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+				ER_WRONG_ARGUMENTS,
+				"Failed to set the page cleaner thread "
+				"priority to %lu,  "
+				"the nice is %lu and used priority is %lu", priority,
+				nice, actual_priority);
+		}
 	}
 }
 

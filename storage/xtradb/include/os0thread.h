@@ -182,6 +182,17 @@ os_thread_set_priority(
 	ulint		relative_priority);	/*!< in: system-specific
 						priority value */
 
+/*****************************************************************//**
+Get priority for a given thread on Linux.  Currently a
+no-op on other systems.
+
+@return An actual thread priority */
+UNIV_INTERN
+ulint
+os_thread_get_priority(
+/*===================*/
+	os_tid_t	thread_id);		/*!< in: thread id */
+
 #ifndef UNIV_NONINL
 #include "os0thread.ic"
 #endif
