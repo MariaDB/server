@@ -6342,6 +6342,18 @@ wait_for_commit::reinit()
   opaque_pointer= NULL;
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
+#ifdef SAFE_MUTEX
+  /*
+    When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
+    mutexes is checked. This causes a problem when we re-use a mutex, as then
+    the expected locking order may change.
+
+    So in this case, do a re-init of the mutex. In release builds, we want to
+    avoid the overhead of a re-init though.
+  */
+  mysql_mutex_destroy(&LOCK_wait_commit);
+  mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
+#endif
 }
 
 
