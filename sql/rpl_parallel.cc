@@ -656,7 +656,7 @@ handle_rpl_parallel_thread(void *arg)
           DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior");
           thd->ENTER_COND(&gco->COND_group_commit_orderer,
                           &entry->LOCK_parallel_entry,
-                          &stage_waiting_for_prior_transaction_to_commit,
+                          &stage_waiting_for_prior_transaction_to_start_commit,
                           &old_stage);
           did_enter_cond= true;
           do
