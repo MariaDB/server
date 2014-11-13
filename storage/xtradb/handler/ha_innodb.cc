@@ -14966,14 +14966,17 @@ innodb_io_capacity_max_update(
 {
 	ulong	in_val = *static_cast<const ulong*>(save);
 	if (in_val < srv_io_capacity) {
-		in_val = srv_io_capacity;
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
-				    "innodb_io_capacity_max cannot be"
-				    " set lower than innodb_io_capacity.");
+				    "Setting innodb_io_capacity_max %lu"
+			" lower than innodb_io_capacity %lu.",
+			in_val, srv_io_capacity);
+
+		srv_io_capacity = in_val;
+
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
-				    "Setting innodb_io_capacity_max to %lu",
+				    "Setting innodb_io_capacity to %lu",
 				    srv_io_capacity);
 	}
 
@@ -14997,14 +15000,18 @@ innodb_io_capacity_update(
 {
 	ulong	in_val = *static_cast<const ulong*>(save);
 	if (in_val > srv_max_io_capacity) {
-		in_val = srv_max_io_capacity;
+
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
-				    "innodb_io_capacity cannot be set"
-				    " higher than innodb_io_capacity_max.");
+				    "Setting innodb_io_capacity to %lu"
+			" higher than innodb_io_capacity_max %lu",
+			in_val, srv_max_io_capacity);
+
+		srv_max_io_capacity = in_val * 2;
+
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
-				    "Setting innodb_io_capacity to %lu",
+				    "Setting innodb_max_io_capacity to %lu",
 				    srv_max_io_capacity);
 	}
 
