@@ -188,6 +188,52 @@ a	LENGTH(b)
 3	5012
 4	5000
 SET GLOBAL max_relay_log_size=@old_max;
+*** MDEV-7065: Incorrect relay log position in parallel replication after retry of transaction ***
+include/stop_slave.inc
+BEGIN;
+INSERT INTO t1 VALUES (100, 0);
+INSERT INTO t1 VALUES (101, 0);
+INSERT INTO t1 VALUES (102, 0);
+INSERT INTO t1 VALUES (103, 0);
+COMMIT;
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+a	b
+100	0
+101	0
+102	0
+103	0
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+retries
+1
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+a	b
+100	0
+101	0
+102	0
+103	0
+include/stop_slave_sql.inc
+INSERT INTO t1 VALUES (104, 1);
+INSERT INTO t1 VALUES (105, 1);
+INSERT INTO t1 VALUES (106, 1);
+INSERT INTO t1 VALUES (107, 1);
+INSERT INTO t1 VALUES (108, 1);
+INSERT INTO t1 VALUES (109, 1);
+include/start_slave.inc
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+a	b
+100	0
+101	0
+102	0
+103	0
+104	1
+105	1
+106	1
+107	1
+108	1
+109	1
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

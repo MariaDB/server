@@ -135,7 +135,6 @@ SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parall
 let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
 START SLAVE;
 --let $slave_sql_errno= 1213
---let $slave_timeout= 10
 --source include/wait_for_slave_sql_error.inc
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
@@ -206,6 +205,58 @@ eval INSERT INTO t2 VALUES (4, "$big");
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 SELECT a, LENGTH(b) FROM t2 ORDER BY a;
 SET GLOBAL max_relay_log_size=@old_max;
+
+
+--echo *** MDEV-7065: Incorrect relay log position in parallel replication after retry of transaction ***
+
+--connection server_2
+--source include/stop_slave.inc
+
+--connection server_1
+BEGIN;
+INSERT INTO t1 VALUES (100, 0);
+INSERT INTO t1 VALUES (101, 0);
+INSERT INTO t1 VALUES (102, 0);
+INSERT INTO t1 VALUES (103, 0);
+COMMIT;
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+--save_master_pos
+
+--connection server_2
+# Inject a DBUG error insert to cause the XID event of the single transaction
+# from the master to fail with a deadlock error and be retried.
+# The bug was that the retry of the XID would leave the relay log position
+# incorrect (off by the size of XID event).
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
+--source include/start_slave.inc
+--sync_with_master
+SET GLOBAL debug_dbug=@old_dbug;
+let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
+--disable_query_log
+eval SELECT $new_retry - $old_retry AS retries;
+--enable_query_log
+
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
+# Stop the SQL thread. When the bug was there to give the incorrect relay log
+# position, the restart of the SQL thread would read garbage data from the
+# middle of an event and fail with relay log IO error.
+--source include/stop_slave_sql.inc
+
+--connection server_1
+INSERT INTO t1 VALUES (104, 1);
+INSERT INTO t1 VALUES (105, 1);
+INSERT INTO t1 VALUES (106, 1);
+INSERT INTO t1 VALUES (107, 1);
+INSERT INTO t1 VALUES (108, 1);
+INSERT INTO t1 VALUES (109, 1);
+--save_master_pos
+
+--connection server_2
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 
 
 --connection server_2

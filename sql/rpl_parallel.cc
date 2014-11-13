@@ -446,7 +446,7 @@ do_retry:
     ev->thd= thd;
 
     mysql_mutex_lock(&rpt->LOCK_rpl_thread);
-    qev= rpt->retry_get_qev(ev, orig_qev, log_name, cur_offset,
+    qev= rpt->retry_get_qev(ev, orig_qev, log_name, old_offset,
                             cur_offset - old_offset);
     mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
     if (!qev)
@@ -776,6 +776,18 @@ handle_rpl_parallel_thread(void *arg)
       if (likely(!rgi->worker_error) && !skip_event_group)
       {
         ++rgi->retry_event_count;
+#ifndef DBUG_OFF
+        err= 0;
+        DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
+          if (event_type == XID_EVENT)
+          {
+            thd->clear_error();
+            thd->get_stmt_da()->reset_diagnostics_area();
+            my_error(ER_LOCK_DEADLOCK, MYF(0));
+            err= 1;
+          });
+        if (!err)
+#endif
         err= rpt_handle_event(qev, rpt);
         delete_or_keep_event_post_apply(rgi, event_type, qev->ev);
         DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_gtid_0_x_100",
