@@ -1240,6 +1240,12 @@ create_view_query(THD *thd, uchar** buf, size_t* buf_len)
     return wsrep_to_buf_helper(thd, buff.ptr(), buff.length(), buf, buf_len);
 }
 
+/*
+  returns: 
+   0: statement was replicated as TOI
+   1: TOI replication was skipped
+  -1: TOI replication failed 
+ */
 static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
                            const TABLE_LIST* table_list)
 {
@@ -1276,30 +1282,38 @@ static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
 
   wsrep_key_arr_t key_arr= {0, 0};
   struct wsrep_buf buff = { buf, buf_len };
-  if (!buf_err                                                    &&
+  if (!buf_err                                                                &&
       wsrep_prepare_keys_for_isolation(thd, db_, table_, table_list, &key_arr)&&
+      key_arr.keys_len > 0                                                    &&
       WSREP_OK == (ret = wsrep->to_execute_start(wsrep, thd->thread_id,
-                                                 key_arr.keys, key_arr.keys_len,
-                                                 &buff, 1,
-                                                 &thd->wsrep_trx_meta)))
+						 key_arr.keys, key_arr.keys_len,
+						 &buff, 1,
+						 &thd->wsrep_trx_meta)))
   {
     thd->wsrep_exec_mode= TOTAL_ORDER;
     wsrep_to_isolation++;
     if (buf) my_free(buf);
     wsrep_keys_free(&key_arr);
     WSREP_DEBUG("TO BEGIN: %lld, %d",(long long)wsrep_thd_trx_seqno(thd),
-                thd->wsrep_exec_mode);
+		thd->wsrep_exec_mode);
   }
-  else {
+  else if (key_arr.keys_len > 0) {
     /* jump to error handler in mysql_execute_command() */
     WSREP_WARN("TO isolation failed for: %d, sql: %s. Check wsrep "
                "connection state and retry the query.",
                ret, (thd->query()) ? thd->query() : "void");
     my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
-            "your wsrep connection state and retry the query.");
+	     "your wsrep connection state and retry the query.");
     if (buf) my_free(buf);
     wsrep_keys_free(&key_arr);
     return -1;
+  }
+  else {
+    /* non replicated DDL, affecting temporary tables only */
+    WSREP_DEBUG("TO isolation skipped for: %d, sql: %s."
+		"Only temporary tables affected.",
+		ret, (thd->query()) ? thd->query() : "void");
+    return 1;
   }
   return 0;
 }
@@ -1454,9 +1468,15 @@ int wsrep_to_isolation_begin(THD *thd, char *db_, char *table_,
                                                table_list); break;
     case WSREP_OSU_RSU: ret =  wsrep_RSU_begin(thd, db_, table_); break;
     }
-    if (!ret)
-    {
-      thd->wsrep_exec_mode= TOTAL_ORDER;
+    switch (ret) {
+    case 0:  thd->wsrep_exec_mode= TOTAL_ORDER; break;
+    case 1: 
+      /* TOI replication skipped, treat as success */ 
+      ret = 0; 
+      break;
+    case -1:
+      /* TOI replication failed, treat as error */ 
+      break;
     }
   }
   return ret;
