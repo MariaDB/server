@@ -1390,6 +1390,7 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     my_error(ER_OUTOFMEMORY, MYF(0), (int)sizeof(*ir));
     return 1;
   }
+  ir->rli= this;
   strmake_buf(ir->name, name);
 
   if (!inuse_relaylog_list)

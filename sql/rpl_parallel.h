@@ -96,9 +96,28 @@ struct rpl_parallel_thread {
     size_t event_size;
   } *event_queue, *last_in_queue;
   uint64 queued_size;
+  /* These free lists are protected by LOCK_rpl_thread. */
   queued_event *qev_free_list;
   rpl_group_info *rgi_free_list;
   group_commit_orderer *gco_free_list;
+  /*
+    These free lists are local to the thread, so need not be protected by any
+    lock. They are moved to the global free lists in batches in the function
+    batch_free(), to reduce LOCK_rpl_thread contention.
+
+    The lists are not NULL-terminated (as we do not need to traverse them).
+    Instead, if they are non-NULL, the loc_XXX_last_ptr_ptr points to the
+    `next' pointer of the last element, which is used to link into the front
+    of the global freelists.
+  */
+  queued_event *loc_qev_list, **loc_qev_last_ptr_ptr;
+  size_t loc_qev_size;
+  uint64 qev_free_pending;
+  rpl_group_info *loc_rgi_list, **loc_rgi_last_ptr_ptr;
+  group_commit_orderer *loc_gco_list, **loc_gco_last_ptr_ptr;
+  /* These keep track of batch update of inuse_relaylog refcounts. */
+  inuse_relaylog *accumulated_ir_last;
+  uint64 accumulated_ir_count;
 
   void enqueue(queued_event *qev)
   {
@@ -127,12 +146,41 @@ struct rpl_parallel_thread {
   queued_event *retry_get_qev(Log_event *ev, queued_event *orig_qev,
                               const char *relay_log_name,
                               ulonglong event_pos, ulonglong event_size);
+  /*
+    Put a qev on the local free list, to be later released to the global free
+    list by batch_free().
+  */
+  void loc_free_qev(queued_event *qev);
+  /*
+    Release an rgi immediately to the global free list. Requires holding the
+    LOCK_rpl_thread mutex.
+  */
   void free_qev(queued_event *qev);
   rpl_group_info *get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
                           rpl_parallel_entry *e, ulonglong event_size);
+  /*
+    Put an gco on the local free list, to be later released to the global free
+    list by batch_free().
+  */
+  void loc_free_rgi(rpl_group_info *rgi);
+  /*
+    Release an rgi immediately to the global free list. Requires holding the
+    LOCK_rpl_thread mutex.
+  */
   void free_rgi(rpl_group_info *rgi);
   group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev);
-  void free_gco(group_commit_orderer *gco);
+  /*
+    Put a gco on the local free list, to be later released to the global free
+    list by batch_free().
+  */
+  void loc_free_gco(group_commit_orderer *gco);
+  /*
+    Move all local free lists to the global ones. Requires holding
+    LOCK_rpl_thread.
+  */
+  void batch_free();
+  /* Update inuse_relaylog refcounts with what we have accumulated so far. */
+  void inuse_relaylog_refcount_update();
 };
 
 
