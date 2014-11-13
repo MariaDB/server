@@ -42,7 +42,7 @@ if (!$rpl_connection_name)
 --let $_rpl_port= \$SERVER_MYPORT_$rpl_server_number
 if (!$_rpl_port)
 {
-  --echo Bug in test case: '\$SERVER_MYPORT_$rpl_server_number' not initialized. Check the test's .cfg file.
+  --echo Bug in test case: '\$SERVER_MYPORT_$rpl_server_number' not initialized. Check the test's .cnf file.
   --die Not all SERVER_MYPORT_* environment variables are setup correctly.
 }
 
