@@ -259,13 +259,126 @@ INSERT INTO t1 VALUES (109, 1);
 SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 
 
+--echo *** MDEV-6917: Parallel replication: "Commit failed due to failure of an earlier commit on which this one depends", but no prior failure seen **
+
+--connection server_1
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+# We need statement binlog format to be able to inject debug_sync statements
+# on the slave with calls to foo().
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+
+--connection server_1
+
+# Create a group commit with three transactions T1, T2, T3.
+# T2 will block T1 on the slave where we will make it run first, so it will be
+# deadlock killed.
+# The bug was that in this case, T3 was signalled to fail due to T2 failing,
+# even though the retry of T2 was later successful.
+
+--connect (con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+BEGIN;
+INSERT INTO t4 VALUES (10, foo(1, 'before_execute_sql_command WAIT_FOR t1_start', ''));
+UPDATE t3 SET b=NULL WHERE a=6;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+send COMMIT;
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued1';
+
+--connect (con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+BEGIN;
+INSERT INTO t4 VALUES (20, foo(2, 'group_commit_waiting_for_prior SIGNAL t2_waiting', ''));
+DELETE FROM t3 WHERE b <= 3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+send COMMIT;
+
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued2';
+
+--connect (con3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+BEGIN;
+INSERT INTO t4 VALUES (30, foo(3, 'before_execute_sql_command WAIT_FOR t3_start', 'group_commit_waiting_for_prior SIGNAL t3_waiting'));
+INSERT INTO t3 VALUES (7,7);
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued3';
+send COMMIT;
+
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued3';
+SET debug_sync='now SIGNAL master_cont1';
+
+--connection con1
+REAP;
+SET binlog_format=@old_format;
+--connection con2
+REAP;
+SET binlog_format=@old_format;
+--connection con3
+REAP;
+SET debug_sync='RESET';
+SET binlog_format=@old_format;
+
+--connection server_1
+--save_master_pos
+SELECT * FROM t3 ORDER BY a;
+
+
+--connection server_2
+let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,thd_need_ordering_with_force";
+--source include/start_slave.inc
+# First, wait for T2 to complete up to where it is waiting for T1 to group
+# commit for both of them. This will set locks that will block T1, causing
+# a deadlock kill and retry of T2. T1 and T3 are still blocked at the start
+# of each their SQL statements.
+SET debug_sync='now WAIT_FOR t2_waiting';
+# Now let T3 move on until the point where it is itself ready to commit.
+SET debug_sync='now SIGNAL t3_start';
+SET debug_sync='now WAIT_FOR t3_waiting';
+# Now T2 and T3 are set up, so we can let T1 proceed.
+SET debug_sync='now SIGNAL t1_start';
+# Now we can wait for the slave to catch up.
+# We should see T2 being deadlock killed and retried.
+# The bug was that T2 deadlock kill would cause T3 to fail due to failure
+# of an earlier commit. This is wrong as T2 did not fail, it was only
+# retried.
+--sync_with_master
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync='RESET';
+let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
+--disable_query_log
+eval SELECT $new_retry - $old_retry >= 1 AS retries;
+--enable_query_log
+SELECT * FROM t3 ORDER BY a;
+
+
+--connection server_1
+SET binlog_format=@old_format;
+
+
+# Clean up.
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 --source include/start_slave.inc
 
 --connection server_1
-DROP TABLE t1, t2;
+DROP TABLE t1, t2, t3, t4;
 DROP function foo;
 
 --source include/rpl_end.inc
