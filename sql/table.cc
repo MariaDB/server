@@ -6736,7 +6736,7 @@ int TABLE::update_default_fields()
 
   DBUG_ASSERT(default_field);
 
-  /* Iterate over virtual fields in the table */
+  /* Iterate over fields with default functions in the table */
   for (dfield_ptr= default_field; *dfield_ptr; dfield_ptr++)
   {
     dfield= (*dfield_ptr);
@@ -6753,12 +6753,16 @@ int TABLE::update_default_fields()
       if (res)
         DBUG_RETURN(res);
     }
-    /* Unset the explicit default flag for the next record. */
-    dfield->flags&= ~HAS_EXPLICIT_VALUE;
   }
   DBUG_RETURN(res);
 }
 
+void TABLE::reset_default_fields()
+{
+  if (default_field)
+    for (Field **df= default_field; *df; df++)
+      (*df)->flags&= ~HAS_EXPLICIT_VALUE;
+}
 
 /*
   Prepare triggers  for INSERT-like statement.

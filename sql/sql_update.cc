@@ -717,6 +717,8 @@ int mysql_update(THD *thd,
   if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ)
     table->prepare_for_position();
 
+  table->reset_default_fields();
+
   /*
     We can use compare_record() to optimize away updates if
     the table handler is returning all columns OR if
@@ -1693,6 +1695,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       table->covering_keys.clear_all();
       table->pos_in_table_list= tl;
       table->prepare_triggers_for_update_stmt_or_event();
+      table->reset_default_fields();
     }
   }
 

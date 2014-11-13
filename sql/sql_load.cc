@@ -478,6 +478,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   thd_proc_info(thd, "reading file");
   if (!(error= MY_TEST(read_info.error)))
   {
+    table->reset_default_fields();
     table->next_number_field=table->found_next_number_field;
     if (ignore ||
 	handle_duplicates == DUP_REPLACE)

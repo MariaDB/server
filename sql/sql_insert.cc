@@ -868,6 +868,8 @@ bool mysql_insert(THD *thd,TABLE_LIST *table_list,
       table_list->prepare_check_option(thd))
     error= 1;
 
+  table->reset_default_fields();
+
   while ((values= its++))
   {
     if (fields.elements || !value_count)
@@ -1661,6 +1663,13 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 	DBUG_ASSERT(table->insert_values != NULL);
         store_record(table,insert_values);
         restore_record(table,record[1]);
+
+        /*
+          in INSERT ... ON DUPLICATE KEY UPDATE the set of modified fields can
+          change per row. Thus, we have to do reset_default_fields() per row.
+          Twice (before insert and before update).
+        */
+        table->reset_default_fields();
         DBUG_ASSERT(info->update_fields->elements ==
                     info->update_values->elements);
         if (fill_record_n_invoke_before_triggers(thd, table, *info->update_fields,
@@ -1688,6 +1697,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (res)
             goto err;
         }
+        table->reset_default_fields();
 
         /* CHECK OPTION for VIEW ... ON DUPLICATE KEY UPDATE ... */
         if (info->view &&
@@ -3473,6 +3483,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     table->file->ha_start_bulk_insert((ha_rows) 0);
   }
   restore_record(table,s->default_values);		// Get empty record
+  table->reset_default_fields();
   table->next_number_field=table->found_next_number_field;
 
 #ifdef HAVE_REPLICATION

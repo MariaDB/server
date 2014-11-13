@@ -408,15 +408,28 @@ UPDATE t1 SET c = 2;
 SELECT * FROM t1;
 
 --echo #
+--echo # Test that ON UPDATE CURRENT_TIMESTAMP works after non-changing UPDATE.
+--echo #
+
+--echo # 2011-04-20 09:54:13 UTC
+SET TIMESTAMP = 1303293253.794613;
+
+UPDATE t1 SET c = 2, b = '2011-04-20 09:53:41.794613';
+SELECT * FROM t1;
+
+UPDATE t1 SET c = 3;
+SELECT * FROM t1;
+
+--echo #
 --echo # Test of multiple-table UPDATE for ON UPDATE CURRENT_TIMESTAMP
 --echo #
 --echo # 2011-04-20 15:06:13 UTC
 SET TIMESTAMP = 1303311973.534231;
 
-UPDATE t1 t11, t1 t12 SET t11.c = 2;
+UPDATE t1 t11, t1 t12 SET t11.c = 3;
 SELECT * FROM t1;
 
-UPDATE t1 t11, t1 t12 SET t11.c = 3;
+UPDATE t1 t11, t1 t12 SET t11.c = 2;
 SELECT * FROM t1;
 
 DROP TABLE t1;
