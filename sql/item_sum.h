@@ -551,9 +551,9 @@ class Unique;
 /**
  The distinct aggregator. 
  Implements AGGFN (DISTINCT ..)
- Collects all the data into an Unique (similarly to what Item_sum_distinct 
- does currently) and then (if applicable) iterates over the list of 
- unique values and pumps them back into its object
+ Collects all the data into an Unique (similarly to what Item_sum
+ does currently when with_distinct=true) and then (if applicable) iterates over
+ the list of unique values and pumps them back into its object
 */
 
 class Aggregator_distinct : public Aggregator

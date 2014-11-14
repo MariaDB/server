@@ -1575,7 +1575,7 @@ bool Item_in_optimizer::invisible_mode()
   @details
   The function checks whether an expression cache is needed for this item
   and if if so wraps the item into an item of the class
-  Item_exp_cache_wrapper with an appropriate expression cache set up there.
+  Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
   used from Item::transform()

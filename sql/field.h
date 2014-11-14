@@ -965,7 +965,6 @@ public:
   friend class Item_std_field;
   friend class Item_sum_num;
   friend class Item_sum_sum;
-  friend class Item_sum_str;
   friend class Item_sum_count;
   friend class Item_sum_avg;
   friend class Item_sum_std;

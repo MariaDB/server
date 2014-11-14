@@ -424,7 +424,7 @@ Item *Item_func::compile(Item_analyzer analyzer, uchar **arg_p,
 }
 
 /**
-  See comments in Item_cmp_func::split_sum_func()
+  See comments in Item_cond::split_sum_func()
 */
 
 void Item_func::split_sum_func(THD *thd, Item **ref_pointer_array,
@@ -2115,7 +2115,7 @@ void Item_func_neg::fix_length_and_dec()
     If this is in integer context keep the context as integer if possible
     (This is how multiplication and other integer functions works)
     Use val() to get value as arg_type doesn't mean that item is
-    Item_int or Item_real due to existence of Item_param.
+    Item_int or Item_float due to existence of Item_param.
   */
   if (cached_result_type == INT_RESULT && args[0]->const_item())
   {

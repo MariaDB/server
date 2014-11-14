@@ -2597,7 +2597,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
       SELECT_LEX_UNIT *unit= sl->master_unit();
       unit->unclean();
       unit->types.empty();
-      /* for derived tables & PS (which can't be reset by Item_subquery) */
+      /* for derived tables & PS (which can't be reset by Item_subselect) */
       unit->reinit_exec_mechanism();
       unit->set_thd(thd);
     }

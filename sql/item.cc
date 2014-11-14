@@ -7102,7 +7102,7 @@ void Item_ref::cleanup()
   Transform an Item_ref object with a transformer callback function.
 
   The function first applies the transform method to the item
-  referenced by this Item_reg object. If this returns a new item the
+  referenced by this Item_ref object. If this returns a new item the
   old item is substituted for a new one. After this the transformer
   is applied to the Item_ref object.
 
@@ -8166,7 +8166,7 @@ Item *Item_direct_view_ref::equal_fields_propagator(uchar *arg)
   object belongs to unless item_equal contains  a constant item. In this
   case the function returns this constant item (if the substitution does
    not require conversion).   
-  If the Item_direct_view_item object does not refer any Item_equal object
+  If the Item_direct_view_ref object does not refer any Item_equal object
   'this' is returned .
 
   @param arg   NULL or points to so some item of the Item_equal type  
@@ -8620,7 +8620,7 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
   if (item->type() == Item::ROW_ITEM && comp_item->type() == Item::ROW_ITEM)
   {
     /*
-      Substitute constants only in Item_rows. Don't affect other Items
+      Substitute constants only in Item_row's. Don't affect other Items
       with ROW_RESULT (eg Item_singlerow_subselect).
 
       For such Items more optimal is to detect if it is constant and replace
@@ -8632,7 +8632,7 @@ void resolve_const_item(THD *thd, Item **ref, Item *comp_item)
     uint col;
     new_item= 0;
     /*
-      If item and comp_item are both Item_rows and have same number of cols
+      If item and comp_item are both Item_row's and have same number of cols
       then process items in Item_row one by one.
       We can't ignore NULL values here as this item may be used with <=>, in
       which case NULL's are significant.

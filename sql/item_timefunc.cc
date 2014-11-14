@@ -1095,7 +1095,7 @@ void Item_func_dayname::fix_length_and_dec()
 String* Item_func_dayname::val_str(String* str)
 {
   DBUG_ASSERT(fixed == 1);
-  uint weekday=(uint) val_int();		// Always Item_func_daynr()
+  uint weekday=(uint) val_int();		// Always Item_func_weekday()
   const char *day_name;
   uint err;
 
@@ -2064,7 +2064,7 @@ void Item_date_add_interval::fix_length_and_dec()
   enum_field_types arg0_field_type;
 
   /*
-    The field type for the result of an Item_date function is defined as
+    The field type for the result of an Item_datefunc is defined as
     follows:
 
     - If first arg is a MYSQL_TYPE_DATETIME result is MYSQL_TYPE_DATETIME
@@ -2117,8 +2117,6 @@ void Item_date_add_interval::fix_length_and_dec()
   Item_temporal_func::fix_length_and_dec();
 }
 
-
-/* Here arg[1] is a Item_interval object */
 
 bool Item_date_add_interval::get_date(MYSQL_TIME *ltime, ulonglong fuzzy_date)
 {

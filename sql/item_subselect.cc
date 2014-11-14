@@ -790,7 +790,7 @@ inline bool Item_in_subselect::left_expr_has_null()
 
   @note
   This method allows many columns in the subquery because it is supported by
-  Item_in optimizer and result of the IN subquery will be scalar in this
+  Item_in_optimizer and result of the IN subquery will be scalar in this
   case.
 
   @retval TRUE  cache is needed
@@ -1180,7 +1180,7 @@ void Item_singlerow_subselect::fix_length_and_dec()
   @details
   The function checks whether an expression cache is needed for this item
   and if if so wraps the item into an item of the class
-  Item_exp_cache_wrapper with an appropriate expression cache set up there.
+  Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
   used from Item::transform()
@@ -1473,7 +1473,7 @@ void Item_in_subselect::fix_length_and_dec()
   @details
   The function checks whether an expression cache is needed for this item
   and if if so wraps the item into an item of the class
-  Item_exp_cache_wrapper with an appropriate expression cache set up there.
+  Item_cache_wrapper with an appropriate expression cache set up there.
 
   @note
   used from Item::transform()
@@ -1810,7 +1810,7 @@ Item_in_subselect::single_value_transformer(JOIN *join)
     optimizer->keep_top_level_cache();
 
     /*
-      As far as  Item_ref_in_optimizer do not substitute itself on fix_fields
+      As far as  Item_in_optimizer does not substitute itself on fix_fields
       we can use same item for all selects.
     */
     expr= new Item_direct_ref(&select_lex->context,

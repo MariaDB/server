@@ -33,6 +33,7 @@ C_MODE_START
 #include <ma_dyncol.h>
 C_MODE_END
 
+#ifndef DBUG_OFF
 static inline
 bool trace_unsupported_func(const char *where, const char *processor_name)
 {
@@ -43,6 +44,9 @@ bool trace_unsupported_func(const char *where, const char *processor_name)
   DBUG_PRINT("info", ("%s", buff));
   DBUG_RETURN(TRUE);
 }
+#else
+#define trace_unsupported_func(X,Y) TRUE
+#endif
 
 static inline
 bool trace_unsupported_by_check_vcol_func_processor(const char *where)
@@ -730,7 +734,7 @@ public:
   bool unsigned_flag;
   bool with_sum_func;                   /* True if item contains a sum func */
   /**
-    True if any item except Item_sum_func contains a field. Set during parsing.
+    True if any item except Item_sum contains a field. Set during parsing.
   */
   bool with_field;
   bool fixed;                           /* If item fixed with fix_fields */
@@ -1207,7 +1211,7 @@ public:
     The method allows to determine nullness of a complex expression 
     without fully evaluating it, instead of calling val/result*() then 
     checking null_value. Used in Item_func_isnull/Item_func_isnotnull
-    and Item_sum_count/Item_sum_count_distinct.
+    and Item_sum_count.
     Any new item which can be NULL must implement this method.
   */
   virtual bool is_null() { return 0; }
@@ -2718,7 +2722,6 @@ class Item_float :public Item_num
   char *presentation;
 public:
   double value;
-  // Item_real() :value(0) {}
   Item_float(const char *str_arg, uint length);
   Item_float(const char *str,double val_arg,uint decimal_par,uint length)
     :value(val_arg)
@@ -3390,7 +3393,7 @@ public:
     should not be used for runtime type identification, use enum
     {Sum}Functype and Item_func::functype()/Item_sum::sum_func()
     instead.
-    Added here, to the parent class of both Item_func and Item_sum_func.
+    Added here, to the parent class of both Item_func and Item_sum.
 
     NOTE: for Items inherited from Item_sum, func_name() return part of
     function name till first argument (including '(') to make difference in
@@ -4498,7 +4501,8 @@ private:
     BEFORE INSERT of BEFORE UPDATE trigger.
   */
   bool read_only;
-  virtual bool check_vcol_func_processor(uchar *arg)
+public:
+  bool check_vcol_func_processor(uchar *arg)
   {
     return trace_unsupported_by_check_vcol_func_processor("trigger");
   }
