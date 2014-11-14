@@ -16510,20 +16510,21 @@ innodb_sched_priority_purge_update(
 
 	ut_ad(purge_sys->state == PURGE_STATE_RUN);
 	for (ulint i = 0; i < srv_n_purge_threads; i++) {
-
+		ulint nice = os_thread_get_priority(srv_purge_tids[i]);
 		ulint actual_priority
 			= os_thread_set_priority(srv_purge_tids[i], priority);
 		if (UNIV_UNLIKELY(actual_priority != priority)) {
-
-			push_warning_printf(thd,
+			if (actual_priority+nice != priority) {
+				push_warning_printf(thd,
 					    Sql_condition::WARN_LEVEL_WARN,
 					    ER_WRONG_ARGUMENTS,
 					    "Failed to set the purge "
 					    "thread priority to %lu, the "
-					    "current priority is %lu, "
+					    "nice is %lu the current priority is %lu, "
 					    "aborting priority update",
-					    priority, actual_priority);
-			return;
+					    priority, nice, actual_priority);
+				return;
+			}
 		}
 	}
 
@@ -16548,21 +16549,23 @@ innodb_sched_priority_io_update(
 	ulint	priority = *static_cast<const ulint *>(save);
 
 	for (ulint i = 0; i < srv_n_file_io_threads; i++) {
-
+		ulint nice = os_thread_get_priority(srv_io_tids[i]);
 		ulint actual_priority = os_thread_set_priority(srv_io_tids[i],
 							       priority);
 
 		if (UNIV_UNLIKELY(actual_priority != priority)) {
 
-			push_warning_printf(thd,
+			if (actual_priority+nice != priority) {
+				push_warning_printf(thd,
 					    Sql_condition::WARN_LEVEL_WARN,
 					    ER_WRONG_ARGUMENTS,
 					    "Failed to set the I/O "
 					    "thread priority to %lu, the "
-					    "current priority is %lu, "
+					    "nice is %lu the current priority is %lu, "
 					    "aborting priority update",
-					    priority, actual_priority);
-			return;
+					    priority, nice, actual_priority);
+				return;
+			}
 		}
 	}
 
@@ -16586,20 +16589,23 @@ innodb_sched_priority_master_update(
 {
 	ulint	priority = *static_cast<const lint *>(save);
 	ulint	actual_priority;
+	ulint	nice;
 
 	if (srv_read_only_mode) {
 		return;
 	}
 
+	nice = os_thread_get_priority(srv_master_tid);
 	actual_priority = os_thread_set_priority(srv_master_tid, priority);
 	if (UNIV_UNLIKELY(actual_priority != priority)) {
-
-		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+		if (actual_priority+nice != priority) {
+			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
 				    "Failed to set the master thread "
 				    "priority to %lu,  "
-				    "the current priority is %lu", priority,
-				    actual_priority);
+				    "the nice is %lu and the current priority is %lu", priority,
+				    nice, actual_priority);
+		}
 	} else {
 
 		srv_sched_priority_master = priority;
