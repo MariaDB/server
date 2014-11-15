@@ -95,7 +95,7 @@ ODBCDEF::ODBCDEF(void)
   {
   Connect= Tabname= Tabschema= Tabcat= Srcdef= Qchar= Qrystr= Sep= NULL;
   Catver = Options = Quoted = Maxerr = Maxres = 0;
-  Xsrc = false;
+  Scrollable = Xsrc = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -129,6 +129,11 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Maxres = GetIntCatInfo("Maxres", 0);
   Quoted = GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
+//Options = ODBConn::noOdbcDialog | ODBConn::useCursorLib;
+
+  if ((Scrollable = GetBoolCatInfo("Scrollable", false)))
+    Elemt = 0;   // Not compatible with extended fetch
+
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
   } // end of DefineAM
@@ -193,6 +198,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Quoted = MY_MAX(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
+    Scrollable = tdp->Scrollable;
   } else {
     Connect = NULL;
     TableName = NULL;
@@ -205,6 +211,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Quoted = 0;
     Rows = 0;
     Catver = 0;
+    Scrollable = false;
   } // endif tdp
 
   Quote = NULL;
@@ -231,6 +238,7 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Catalog = tdbp->Catalog;
   Srcdef = tdbp->Srcdef;
   Qrystr = tdbp->Qrystr;
+  Scrollable = tdbp->Scrollable;
   Quote = tdbp->Quote;
   Query = tdbp->Query;
   Count = tdbp->Count;
@@ -757,6 +765,12 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 //    To_Kindex->Reset();
 
 //  rewind(Stream);    >>>>>>> Something to be done with Cursor <<<<<<<
+    if (Ocp->Rewind(Query, (PODBCCOL)Columns)) {
+      Ocp->Close();
+      return true;
+      } // endif Rewind
+
+    Fpos = 0;
     return false;
     } // endif use
 

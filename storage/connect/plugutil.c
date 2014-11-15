@@ -2,7 +2,7 @@
 /*                                                                     */
 /* PROGRAM NAME: PLUGUTIL                                              */
 /* -------------                                                       */
-/*  Version 2.8                                                        */
+/*  Version 2.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
@@ -76,6 +76,9 @@
 
 #include "osutil.h"
 #include "global.h"
+#if defined(NEWMSG)
+#include "rcmsg.h"
+#endif   // NEWMSG
 
 #if defined(WIN32)
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
@@ -156,7 +159,9 @@ PGLOBAL PlugInit(LPCSTR Language, uint worksize)
       char errmsg[256];
       sprintf(errmsg, MSG(WORK_AREA), g->Message);
       strcpy(g->Message, errmsg);
-      } /* endif Sarea */
+      g->Sarea_Size = 0;
+    } else
+      g->Sarea_Size = worksize;
 
     } /* endif g */
 
@@ -231,7 +236,7 @@ BOOL PlugIsAbsolutePath(LPCSTR path)
 LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   {
   char newname[_MAX_PATH];
-  char direc[_MAX_DIR], defdir[_MAX_DIR];
+  char direc[_MAX_DIR], defdir[_MAX_DIR], tmpdir[_MAX_DIR];
   char fname[_MAX_FNAME];
   char ftype[_MAX_EXT];
 #if !defined(UNIX) && !defined(UNIV_LINUX)
@@ -264,7 +269,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
     } // endif FileName  
 #endif   // !WIN32
   
-  if (strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
+  if (prefix && strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
   {
     char tmp[_MAX_PATH];
     int len= snprintf(tmp, sizeof(tmp) - 1, "%s%s%s",
@@ -275,7 +280,19 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   }
 
   _splitpath(FileName, drive, direc, fname, ftype);
-  _splitpath(defpath, defdrv, defdir, NULL, NULL);
+
+  if (defpath) {
+    char c = defpath[strlen(defpath) - 1];
+
+    strcpy(tmpdir, defpath);
+
+    if (c != '/' && c != '\\')
+      strcat(tmpdir, "/");
+
+  } else
+    strcpy(tmpdir, "./");
+
+  _splitpath(tmpdir, defdrv, defdir, NULL, NULL);
 
   if (trace > 1) {
     htrc("after _splitpath: FileName=%s\n", FileName);
@@ -329,10 +346,12 @@ char *PlugReadMessage(PGLOBAL g, int mid, char *m)
 
 //GetPrivateProfileString("Message", msglang, "Message\\english.msg",
 //                                   msgfile, _MAX_PATH, plgini);
-  strcat(strcat(strcpy(msgfile, msg_path), msglang()), ".msg");
+//strcat(strcat(strcpy(msgfile, msg_path), msglang()), ".msg");
+  strcat(strcpy(buff, msglang()), ".msg");
+  PlugSetPath(msgfile, NULL, buff, msg_path);
 
   if (!(mfile = fopen(msgfile, "rt"))) {
-    sprintf(stmsg, "Fail to open message file %s for %s", msgfile, msglang);
+    sprintf(stmsg, "Fail to open message file %s", msgfile);
     goto err;
     } // endif mfile
 
@@ -382,7 +401,7 @@ char *PlugGetMessage(PGLOBAL g, int mid)
   {
   char *msg;
 
-#if !defined(UNIX) && !defined(UNIV_LINUX)
+#if 0 // was !defined(UNIX) && !defined(UNIV_LINUX)
   int   n = LoadString(s_hModule, (uint)mid, (LPTSTR)stmsg, 200);
 
   if (n == 0) {
@@ -395,10 +414,10 @@ char *PlugGetMessage(PGLOBAL g, int mid)
     return msg;
     } // endif n
 
-#else      // UNIX
+#else  // ALL
   if (!GetRcString(mid, stmsg, 200))
     sprintf(stmsg, "Message %d not found", mid);
-#endif    // UNIX
+#endif // ALL
 
   if (g) {
     // Called by STEP

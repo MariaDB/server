@@ -62,7 +62,7 @@
 /***********************************************************************/
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 #if defined(XMAP)
-extern     bool xmap;
+extern my_bool xmap;
 #endif   // XMAP
 
 /***********************************************************************/

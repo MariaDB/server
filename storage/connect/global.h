@@ -24,13 +24,13 @@
 #endif
 
 #if defined(XMSG)
-#error Option XMSG is not yet fully implemented
+//#error Option XMSG is not yet fully implemented
 // Definition used to read messages from message file.
 #include "msgid.h"
 #define MSG(I)   PlugReadMessage(NULL, MSG_##I, #I)
 #define STEP(I)  PlugReadMessage(g, MSG_##I, #I)
 #elif defined(NEWMSG)
-#error Option NEWMSG is not yet fully implemented
+//#error Option NEWMSG is not yet fully implemented
 // Definition used to get messages from resource.
 #include "msgid.h"
 #define MSG(I)   PlugGetMessage(NULL, MSG_##I)

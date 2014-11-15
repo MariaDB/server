@@ -859,6 +859,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
     Myc.Rewind();
+    N = -1;
     return false;
     } // endif use
 

@@ -179,25 +179,25 @@ extern "C" {
        char slash= '/';
 #endif  // !WIN32
 
-//     int  trace= 0;              // The general trace value
-       int  xconv= 0;              // The type conversion option
-       int  zconv= SZCONV;         // The text conversion size
+//     int   trace= 0;             // The general trace value
+       ulong xconv= 0;             // The type conversion option
+       int   zconv= 0;             // The text conversion size
 } // extern "C"
 
 #if defined(XMAP)
-       bool xmap= false;
+       my_bool xmap= false;
 #endif   // XMAP
 
-       uint worksize= SZWORK;
+//     uint worksize= 0;
 ulong  ha_connect::num= 0;
 //int  DTVAL::Shift= 0;
 
 /* CONNECT system variables */
-static int     conv_size= SZCONV;
-static uint    work_size= SZWORK;
-static ulong   type_conv= 0;
+//atic int     conv_size= 0;
+//atic uint    work_size= 0;
+//atic ulong   type_conv= 0;
 #if defined(XMAP)
-static my_bool indx_map= 0;
+//atic my_bool indx_map= 0;
 #endif   // XMAP
 #if defined(XMSG)
 extern "C" {
@@ -215,6 +215,8 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
 bool    ExactInfo(void);
 USETEMP UseTemp(void);
+uint    GetWorkSize(void);
+void    SetWorkSize(uint);
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
@@ -280,7 +282,13 @@ static MYSQL_THDVAR_ENUM(
   1,                               // def (AUTO)
   &usetemp_typelib);               // typelib
 
-#if defined(XMSG)
+// Size used for g->Sarea_Size
+static MYSQL_THDVAR_UINT(work_size,
+       PLUGIN_VAR_RQCMDARG, 
+       "Size of the CONNECT work area.",
+       NULL, NULL, SZWORK, SZWMIN, UINT_MAX, 1);
+
+#if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
   "default", "english", "french", NullS
@@ -300,7 +308,7 @@ static MYSQL_THDVAR_ENUM(
   NULL,                            // update
   1,                               // def (ENGLISH)      
   &language_typelib);              // typelib
-#endif   // XMSG
+#endif   // XMSG || NEWMSG
 
 /***********************************************************************/
 /*  Function to export session variable values to other source files.  */
@@ -308,13 +316,31 @@ static MYSQL_THDVAR_ENUM(
 extern "C" int GetTraceValue(void) {return THDVAR(current_thd, xtrace);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
-#if defined(XMSG)
+uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
+void SetWorkSize(uint n) 
+{
+  // Changing the session variable value seems to be impossible here
+  // and should be done in a check function 
+  push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, 
+    "Work size too big, try setting a smaller value");
+} // end of SetWorkSize
+#if defined(XMSG) || defined(NEWMSG)
 extern "C" const char *msglang(void)
 {
   return language_names[THDVAR(current_thd, msg_lang)];
 } // end of msglang
-#endif   // XMSG
+#else   // !XMSG && !NEWMSG
+extern "C" const char *msglang(void)
+{
+#if defined(FRENCH)
+  return "french";
+#else  // DEFAULT
+  return "english";
+#endif // DEFAULT
+} // end of msglang
+#endif  // !XMSG && !NEWMSG
 
+#if 0
 /***********************************************************************/
 /*  Global variables update functions.                                 */
 /***********************************************************************/
@@ -332,21 +358,57 @@ static void update_connect_xconv(MYSQL_THD thd,
   xconv= (int)(*(ulong *)var_ptr= *(ulong *)save);
 } // end of update_connect_xconv
 
-static void update_connect_worksize(MYSQL_THD thd,
-                                 struct st_mysql_sys_var *var,
-                                 void *var_ptr, const void *save)
-{
-  worksize= (uint)(*(ulong *)var_ptr= *(ulong *)save);
-} // end of update_connect_worksize
-
 #if defined(XMAP)
 static void update_connect_xmap(MYSQL_THD thd,
                                 struct st_mysql_sys_var *var,
                                 void *var_ptr, const void *save)
 {
-  xmap= (bool)(*(my_bool *)var_ptr= *(my_bool *)save);
+  xmap= (my_bool)(*(my_bool *)var_ptr= *(my_bool *)save);
 } // end of update_connect_xmap
 #endif   // XMAP
+#endif // 0
+
+#if 0 // (was XMSG) Unuseful because not called for default value
+static void update_msg_path(MYSQL_THD thd,
+                            struct st_mysql_sys_var *var,
+                            void *var_ptr, const void *save)
+{
+  char *value= *(char**)save;
+  char *old= *(char**)var_ptr;
+
+  if (value)
+    *(char**)var_ptr= my_strdup(value, MYF(0));
+  else
+    *(char**)var_ptr= 0;
+
+  my_free(old);
+} // end of update_msg_path
+
+static int check_msg_path (MYSQL_THD thd, struct st_mysql_sys_var *var,
+	                         void *save, struct st_mysql_value *value)
+{
+	const char *path;
+	char	buff[512];
+	int		len= sizeof(buff);
+
+	path= value->val_str(value, buff, &len);
+
+	if (path && *path != '*') {
+		/* Save a pointer to the name in the
+		'file_format_name_map' constant array. */
+		*(char**)save= my_strdup(path, MYF(0));
+		return(0);
+	} else {
+		push_warning_printf(thd,
+		  Sql_condition::WARN_LEVEL_WARN,
+		  ER_WRONG_ARGUMENTS,
+		  "CONNECT: invalid message path");
+	} // endif path
+
+	*(char**)save= NULL;
+	return(1);
+} // end of check_msg_path
+#endif   // 0
 
 /***********************************************************************/
 /*  The CONNECT handlerton object.                                     */
@@ -6237,15 +6299,15 @@ struct st_mysql_storage_engine connect_storage_engine=
 /***********************************************************************/
 // Size used when converting TEXT columns to VARCHAR
 #if defined(_DEBUG)
-static MYSQL_SYSVAR_INT(conv_size, conv_size,
+static MYSQL_SYSVAR_INT(conv_size, zconv,
        PLUGIN_VAR_RQCMDARG,             // opt
        "Size used when converting TEXT columns.",
-       NULL, update_connect_zconv, SZCONV, 0, 65500, 1);
+       NULL, NULL, SZCONV, 0, 65500, 1);
 #else
-static MYSQL_SYSVAR_INT(conv_size, conv_size,
+static MYSQL_SYSVAR_INT(conv_size, zconv,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,  // opt
        "Size used when converting TEXT columns.",
-       NULL, update_connect_zconv, SZCONV, 0, 65500, 1);
+       NULL, NULL, SZCONV, 0, 65500, 1);
 #endif
 
 /**
@@ -6268,44 +6330,40 @@ TYPELIB xconv_typelib=
 #if defined(_DEBUG)
 static MYSQL_SYSVAR_ENUM(
   type_conv,                       // name
-  type_conv,                       // varname
+  xconv,                           // varname
   PLUGIN_VAR_RQCMDARG,             // opt
   "Unsupported types conversion.", // comment
   NULL,                            // check
-  update_connect_xconv,            // update function
+  NULL,                            // update function
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 #else
 static MYSQL_SYSVAR_ENUM(
   type_conv,                       // name
-  type_conv,                       // varname
+  xconv,                           // varname
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Unsupported types conversion.", // comment
   NULL,                            // check
-  update_connect_xconv,            // update function
+  NULL,                            // update function
   0,                               // def (no)
   &xconv_typelib);                 // typelib
 #endif
 
 #if defined(XMAP)
 // Using file mapping for indexes if true
-static MYSQL_SYSVAR_BOOL(indx_map, indx_map, PLUGIN_VAR_RQCMDARG,
-       "Using file mapping for indexes",
-       NULL, update_connect_xmap, 0);
+static MYSQL_SYSVAR_BOOL(indx_map, xmap, PLUGIN_VAR_RQCMDARG,
+       "Using file mapping for indexes", NULL, NULL, 0);
 #endif   // XMAP
 
 #if defined(XMSG)
 static MYSQL_SYSVAR_STR(errmsg_dir_path, msg_path,
+//     PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
        "Path to the directory where are the message files",
-       NULL, NULL, "");
+//     check_msg_path, update_msg_path,
+       NULL, NULL,
+       "../../../../storage/connect/");     // for testing
 #endif   // XMSG
-
-// Size used for g->Sarea_Size
-static MYSQL_SYSVAR_UINT(work_size, work_size,
-       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY, 
-       "Size of the CONNECT work area.",
-       NULL, update_connect_worksize, SZWORK, SZWMIN, UINT_MAX, 1);
 
 static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(xtrace),
@@ -6317,8 +6375,10 @@ static struct st_mysql_sys_var* connect_system_variables[]= {
   MYSQL_SYSVAR(work_size),
   MYSQL_SYSVAR(use_tempfile),
   MYSQL_SYSVAR(exact_info),
-#if defined(XMSG)
+#if defined(XMSG) || defined(NEWMSG)
   MYSQL_SYSVAR(msg_lang),
+#endif   // XMSG || NEWMSG
+#if defined(XMSG)
   MYSQL_SYSVAR(errmsg_dir_path),
 #endif   // XMSG
   NULL

@@ -281,7 +281,7 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
 
     if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
       if (g->Message[0] == 0)
-        sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
+        sprintf(g->Message, MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
 
       goto err;
       } // endif colp
@@ -651,7 +651,7 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "CntIndexInit: Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     return 0;
   } else if (((PTDBASE)ptdb)->GetDef()->Indexable() == 3) {
     return 1;
@@ -724,7 +724,7 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     x= ((PTDBASE)ptdb)->GetDef()->Indexable();
 
   if (!x) {
-    sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     return RC_FX;
   } else if (x == 2) {
     // Remote index
@@ -838,7 +838,7 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   x= ((PTDBASE)ptdb)->GetDef()->Indexable();
 
   if (!x) {
-    sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else if (x == 2) {

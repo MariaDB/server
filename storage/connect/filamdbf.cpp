@@ -284,7 +284,8 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
         break;
       default:
         if (!info) {
-          sprintf(g->Message, MSG(BAD_DBF_TYPE), thisfield.Type);
+          sprintf(g->Message, MSG(BAD_DBF_TYPE), thisfield.Type
+                                               , thisfield.Name);
           goto err;
           } // endif info
 
@@ -585,7 +586,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
             case 'D':           // Date
               break;
             default:            // Should never happen
-              sprintf(g->Message, "Unsupported DBF type %c for column %s",
+              sprintf(g->Message, MSG(BAD_DBF_TYPE),
                                   c, cdp->GetName());
               return true;
             } // endswitch c
