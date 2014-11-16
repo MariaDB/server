@@ -298,7 +298,7 @@
     case MSG_VALSTR_TOO_LONG: p = "Valeur %s trop longue pour une chaîne de longueur %d";                        break;
     case MSG_VALTYPE_NOMATCH: p = "Disparité types de valeur";                                                   break;
     case MSG_VALUE_ERROR:     p = "Colonne %s: bloc valeur nul";                                                 break;
-    case MSG_VALUE_TOO_BIG:   p = "Valeur %d trop grande pour la colonne %s";                                    break;
+    case MSG_VALUE_TOO_BIG:   p = "Valeur %lld trop grande pour la colonne %s";                                  break;
     case MSG_VALUE_TOO_LONG:  p = "Valeur %s trop longue pour la colonne %s de longueur %d";                     break;
     case MSG_VAL_ALLOC_ERR:   p = "Allocation impossible du noeud valeur";                                       break;
     case MSG_VIR_NO_DELETE:   p = "Delete impossible sur les tables %s";                                         break;

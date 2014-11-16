@@ -217,6 +217,7 @@ bool    ExactInfo(void);
 USETEMP UseTemp(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
+extern "C" const char *msglang(void);
 
 static PCONNECT GetUser(THD *thd, PCONNECT xp);
 static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);

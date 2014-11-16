@@ -122,7 +122,7 @@ static void global_open_error_msg(GLOBAL *g, int msgid, const char *path,
   int  len, rno= (int)errno;
   char errmsg[256]= "";
 
-  strncat(errmsg, strerror(errno), 256);
+  strncat(errmsg, strerror(errno), 255);
 
   switch (msgid)
   {

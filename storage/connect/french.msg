@@ -344,7 +344,7 @@
  497 VALSTR_TOO_LONG  "Valeur %s trop longue pour une chaîne de longueur %d"
  498 VALTYPE_NOMATCH  "Disparité types de valeur"
  499 VALUE_ERROR      "Colonne %s: bloc valeur nul"
- 500 VALUE_TOO_BIG    "Valeur %d trop grande pour la colonne %s"
+ 500 VALUE_TOO_BIG    "Valeur %lld trop grande pour la colonne %s"
  501 VALUE_TOO_LONG   "Valeur %s trop longue pour la colonne %s de longueur %d"
  502 VAL_ALLOC_ERR    "Allocation impossible du noeud valeur"
  503 VIR_NO_DELETE    "Delete impossible sur les tables %s"

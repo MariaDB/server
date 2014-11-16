@@ -298,7 +298,7 @@
     case MSG_VALSTR_TOO_LONG: p = "Value %s too long for string of length %d";               break;
     case MSG_VALTYPE_NOMATCH: p = "Non matching Value types";                                break;
     case MSG_VALUE_ERROR:     p = "Column %s: value is null";                                break;
-    case MSG_VALUE_TOO_BIG:   p = "Value %d too big for column %s";                          break;
+    case MSG_VALUE_TOO_BIG:   p = "Value %lld too big for column %s";                        break;
     case MSG_VALUE_TOO_LONG:  p = "Value %s too long for column %s of length %d";            break;
     case MSG_VAL_ALLOC_ERR:   p = "Cannot allocate value node";                              break;
     case MSG_VIR_NO_DELETE:   p = "Delete not allowed for %s tables";                        break;

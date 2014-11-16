@@ -344,7 +344,7 @@
  497 VALSTR_TOO_LONG  "Value %s too long for string of length %d"
  498 VALTYPE_NOMATCH  "Non matching Value types"
  499 VALUE_ERROR      "Column %s: value is null"
- 500 VALUE_TOO_BIG    "Value %d too big for column %s"
+ 500 VALUE_TOO_BIG    "Value %lld too big for column %s"
  501 VALUE_TOO_LONG   "Value %s too long for column %s of length %d"
  502 VAL_ALLOC_ERR    "Cannot allocate value node"
  503 VIR_NO_DELETE    "Delete not allowed for %s tables"
