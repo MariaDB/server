@@ -538,7 +538,7 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
 
   // This is required when using Unix files under Windows and vice versa
 //Bin = (Blocked || Ending != CRLF);
-  Bin = true;             // To void ftell problems
+  Bin = true;             // To avoid ftell problems
 
   switch (mode) {
     case MODE_READ:

@@ -298,7 +298,7 @@
 #define MSG_VALSTR_TOO_LONG "Value %s too long for string of length %d"
 #define MSG_VALTYPE_NOMATCH "Non matching Value types"
 #define MSG_VALUE_ERROR     "Column %s: value is null"
-#define MSG_VALUE_TOO_BIG   "Value %d too big for column %s"
+#define MSG_VALUE_TOO_BIG   "Value %lld too big for column %s"
 #define MSG_VALUE_TOO_LONG  "Value %s too long for column %s of length %d"
 #define MSG_VAL_ALLOC_ERR   "Cannot allocate value node"
 #define MSG_VIR_NO_DELETE   "Delete not allowed for %s tables"
