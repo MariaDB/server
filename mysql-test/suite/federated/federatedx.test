@@ -1966,7 +1966,7 @@ connection default;
 
 --echo End of 5.0 tests
 
-create server 's1' foreign data wrapper 'mysql' options (port 3306);
+create server 's1' foreign data wrapper 'mysql' options (host 'foo');
 drop server 's1';
 
 

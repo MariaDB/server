@@ -246,7 +246,7 @@ drop user guest_usage@localhost;
 drop user guest_select@localhost;
 drop table federated.t1;
 drop server 's1';
-create server 's1' foreign data wrapper 'mysql' options (port 3306);
+create server 's1' foreign data wrapper 'mysql' options (host 'foo');
 alter server 's1' options
 (host 'localhost', database '', user '',
 password '', socket '', owner '', port 3306);

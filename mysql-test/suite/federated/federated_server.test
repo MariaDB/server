@@ -292,7 +292,7 @@ drop server 's1';
 #
 # Bug#30671 - ALTER SERVER causes the server to crash
 #
-create server 's1' foreign data wrapper 'mysql' options (port 3306);
+create server 's1' foreign data wrapper 'mysql' options (host 'foo');
 alter server 's1' options
   (host 'localhost', database '', user '',
   password '', socket '', owner '', port 3306);
