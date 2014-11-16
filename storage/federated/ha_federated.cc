@@ -626,17 +626,17 @@ int get_connection(MEM_ROOT *mem_root, FEDERATED_SHARE *share)
     at the address of the share.
   */
   share->server_name_length= server->server_name_length;
-  share->server_name= server->server_name;
-  share->username= server->username;
-  share->password= server->password;
-  share->database= server->db;
+  share->server_name= const_cast<char*>(server->server_name);
+  share->username= const_cast<char*>(server->username);
+  share->password= const_cast<char*>(server->password);
+  share->database= const_cast<char*>(server->db);
   share->port= server->port > MIN_PORT && server->port < 65536 ? 
                (ushort) server->port : MYSQL_PORT;
-  share->hostname= server->host;
-  if (!(share->socket= server->socket) &&
+  share->hostname= const_cast<char*>(server->host);
+  if (!(share->socket= const_cast<char*>(server->socket)) &&
       !strcmp(share->hostname, my_localhost))
     share->socket= (char *) MYSQL_UNIX_ADDR;
-  share->scheme= server->scheme;
+  share->scheme= const_cast<char*>(server->scheme);
 
   DBUG_PRINT("info", ("share->username %s", share->username));
   DBUG_PRINT("info", ("share->password %s", share->password));

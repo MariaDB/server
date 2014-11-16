@@ -202,8 +202,13 @@ typedef Mem_root_array<ORDER*, true> Group_list_ptrs;
 typedef struct st_lex_server_options
 {
   long port;
-  uint server_name_length;
-  char *server_name, *host, *db, *username, *password, *scheme, *socket, *owner;
+  LEX_STRING server_name, host, db, username, password, scheme, socket, owner;
+  void reset(LEX_STRING name)
+  {
+    server_name= name;
+    host= db= username= password= scheme= socket= owner= null_lex_str;
+    port= -1;
+  }
 } LEX_SERVER_OPTIONS;
 
 

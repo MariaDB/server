@@ -2494,16 +2494,11 @@ create:
         ;
 
 server_def:
-          SERVER_SYM
-          ident_or_text
-          FOREIGN DATA_SYM WRAPPER_SYM
-          ident_or_text
+          SERVER_SYM ident_or_text
+          { Lex->server_options.reset($2); }
+          FOREIGN DATA_SYM WRAPPER_SYM ident_or_text
           OPTIONS_SYM '(' server_options_list ')'
-          {
-            Lex->server_options.server_name= $2.str;
-            Lex->server_options.server_name_length= $2.length;
-            Lex->server_options.scheme= $6.str;
-          }
+          { Lex->server_options.scheme= $7; }
         ;
 
 server_options_list:
@@ -2514,27 +2509,33 @@ server_options_list:
 server_option:
           USER TEXT_STRING_sys
           {
-            Lex->server_options.username= $2.str;
+            MYSQL_YYABORT_UNLESS(Lex->server_options.username.str == 0);
+            Lex->server_options.username= $2;
           }
         | HOST_SYM TEXT_STRING_sys
           {
-            Lex->server_options.host= $2.str;
+            MYSQL_YYABORT_UNLESS(Lex->server_options.host.str == 0);
+            Lex->server_options.host= $2;
           }
         | DATABASE TEXT_STRING_sys
           {
-            Lex->server_options.db= $2.str;
+            MYSQL_YYABORT_UNLESS(Lex->server_options.db.str == 0);
+            Lex->server_options.db= $2;
           }
         | OWNER_SYM TEXT_STRING_sys
           {
-            Lex->server_options.owner= $2.str;
+            MYSQL_YYABORT_UNLESS(Lex->server_options.owner.str == 0);
+            Lex->server_options.owner= $2;
           }
         | PASSWORD TEXT_STRING_sys
           {
-            Lex->server_options.password= $2.str;
+            MYSQL_YYABORT_UNLESS(Lex->server_options.password.str == 0);
+            Lex->server_options.password= $2;
           }
         | SOCKET_SYM TEXT_STRING_sys
           {
-            Lex->server_options.socket= $2.str;
+            MYSQL_YYABORT_UNLESS(Lex->server_options.socket.str == 0);
+            Lex->server_options.socket= $2;
           }
         | PORT_SYM ulong_num
           {
@@ -7243,13 +7244,12 @@ alter:
             LEX *lex= Lex;
             lex->alter_tablespace_info->ts_cmd_type= ALTER_ACCESS_MODE_TABLESPACE;
           }
-        | ALTER SERVER_SYM ident_or_text OPTIONS_SYM '(' server_options_list ')'
+        | ALTER SERVER_SYM ident_or_text
           {
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_ALTER_SERVER;
-            lex->server_options.server_name= $3.str;
-            lex->server_options.server_name_length= $3.length;
-          }
+            lex->server_options.reset($3);
+          } OPTIONS_SYM '(' server_options_list ')' { }
         ;
 
 ev_alter_on_schedule_completion:
@@ -11863,8 +11863,7 @@ drop:
           {
             Lex->sql_command = SQLCOM_DROP_SERVER;
             Lex->check_exists= $3;
-            Lex->server_options.server_name= $4.str;
-            Lex->server_options.server_name_length= $4.length;
+            Lex->server_options.reset($4);
           }
         ;
 
