@@ -1760,6 +1760,7 @@ rpl_parallel_entry::queue_master_restart(rpl_group_info *rgi,
   qev->ir= rli->last_inuse_relaylog;
   ++qev->ir->queued_count;
   thr->enqueue(qev);
+  mysql_cond_signal(&thr->COND_rpl_thread);
   mysql_mutex_unlock(&thr->LOCK_rpl_thread);
   return 0;
 }
