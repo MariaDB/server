@@ -9631,6 +9631,15 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     global_system_variables.option_bits&= ~OPTION_BIG_SELECTS;
 
 #ifdef WITH_WSREP
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS &&
+      global_system_variables.binlog_format != BINLOG_FORMAT_ROW) {
+
+    WSREP_ERROR ("Only binlog_format = 'ROW' is currently supported. "
+                 "Configured value: '%s'. Please adjust your configuration.",
+                 binlog_format_names[global_system_variables.binlog_format]);
+    return 1;
+  }
+
   if (global_system_variables.wsrep_causal_reads) {
       WSREP_WARN("option --wsrep-casual-reads is deprecated");
       if (!(global_system_variables.wsrep_sync_wait &
