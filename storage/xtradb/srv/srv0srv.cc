@@ -95,7 +95,7 @@ in the server */
 UNIV_INTERN ulint	srv_activity_count	= 0;
 
 /* The following is the maximum allowed duration of a lock wait. */
-UNIV_INTERN ulint	srv_fatal_semaphore_wait_threshold = 600;
+UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
 /**/
 UNIV_INTERN long long	srv_kill_idle_transaction = 0;

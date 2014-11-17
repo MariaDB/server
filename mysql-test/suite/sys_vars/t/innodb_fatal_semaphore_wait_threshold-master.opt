@@ -1,0 +1,1 @@
+--innodb-fatal-semaphore-wait-threshold=1

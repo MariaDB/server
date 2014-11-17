@@ -13219,7 +13219,7 @@ ha_innobase::check(
 			CHECK TABLE. */
 			os_increment_counter_by_amount(
 				server_mutex,
-				srv_fatal_semaphore_wait_threshold,
+                                srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 			bool valid = btr_validate_index(index, prebuilt->trx);
 
@@ -13227,7 +13227,7 @@ ha_innobase::check(
 			CHECK TABLE. */
 			os_decrement_counter_by_amount(
 				server_mutex,
-				srv_fatal_semaphore_wait_threshold,
+                                srv_fatal_semaphore_wait_threshold,
 				SRV_SEMAPHORE_WAIT_EXTENSION);
 
 			if (!valid) {
@@ -18836,6 +18836,15 @@ static MYSQL_SYSVAR_BOOL(use_mtflush, srv_use_mtflush,
   "Use multi-threaded flush. Default FALSE.",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wait_threshold,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Maximum number of seconds that semaphore times out in InnoDB.",
+  NULL, NULL,
+  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT, /* Default setting */
+  1, /* Minimum setting */
+  UINT_MAX32, /* Maximum setting */
+  0);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(additional_mem_pool_size),
   MYSQL_SYSVAR(api_trx_level),
@@ -19010,6 +19019,8 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
+
+  MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   NULL
 };
 
