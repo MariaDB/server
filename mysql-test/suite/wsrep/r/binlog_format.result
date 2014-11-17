@@ -1,5 +1,6 @@
 call mtr.add_suppression("WSREP: cannot get fake InnoDB transaction ID");
 call mtr.add_suppression("WSREP: Could not open saved state file for reading:.*");
+call mtr.add_suppression("WSREP: MariaDB Galera does not support binlog format.*");
 SHOW VARIABLES LIKE 'binlog_format';
 Variable_name	Value
 binlog_format	ROW
@@ -33,3 +34,18 @@ CREATE TABLE IF NOT EXISTS test.t3 AS SELECT * FROM information_schema.routines 
 DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 DROP TABLE IF EXISTS test.t3;
+SET @@GLOBAL.binlog_format=STATEMENT;
+ERROR 42000: Variable 'binlog_format' can't be set to the value of 'STATEMENT'
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET @@GLOBAL.binlog_format=MIXED;
+ERROR 42000: Variable 'binlog_format' can't be set to the value of 'MIXED'
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+SET @@GLOBAL.binlog_format=ROW;
+SHOW GLOBAL VARIABLES LIKE 'binlog_format';
+Variable_name	Value
+binlog_format	ROW
+# End of test.

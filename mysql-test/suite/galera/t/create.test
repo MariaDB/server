@@ -1,0 +1,26 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-6924 : Server crashed on CREATE TABLE ... SELECT
+--echo #
+
+SET @wsrep_forced_binlog_format_saved=@@GLOBAL.wsrep_forced_binlog_format;
+SET @@GLOBAL.wsrep_forced_binlog_format=STATEMENT;
+
+# @@log_bin must be OFF
+SHOW VARIABLES LIKE '%log%bin%';
+
+USE test;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE `t1_temp` AS SELECT * FROM `t1` WHERE i = 1;
+SELECT * FROM t1;
+SELECT * FROM t1_temp;
+
+# Cleanup
+DROP TABLE t1;
+SET @@GLOBAL.wsrep_forced_binlog_format=@wsrep_forced_binlog_format_saved;
+
+--echo # End of tests
+
