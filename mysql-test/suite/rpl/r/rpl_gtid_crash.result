@@ -124,7 +124,7 @@ SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
 BEGIN;
 INSERT INTO t1 VALUES (11);
 COMMIT;
-ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
 COMMIT;
 Got one of the listed errors
@@ -141,7 +141,7 @@ SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
 BEGIN;
 INSERT INTO t1 VALUES (12);
 COMMIT;
-ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
 COMMIT;
 Got one of the listed errors
@@ -164,7 +164,7 @@ SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
 BEGIN;
 INSERT INTO t1 VALUES (21);
 COMMIT;
-ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
 COMMIT;
 Got one of the listed errors
@@ -185,7 +185,7 @@ SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
 BEGIN;
 INSERT INTO t1 VALUES (22);
 COMMIT;
-ERROR HY000: Error writing file 'master-bin' (errno: 11 "Resource temporarily unavailable")
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
 SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
 COMMIT;
 Got one of the listed errors

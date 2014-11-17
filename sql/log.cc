@@ -7437,7 +7437,6 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
       write_cache(entry->thd, mngr->get_binlog_cache_log(FALSE)))
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
-    entry->commit_errno= errno;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
@@ -7458,7 +7457,6 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     if (write_cache(entry->thd, mngr->get_binlog_cache_log(TRUE)))
     {
       entry->error_cache= &mngr->trx_cache.cache_log;
-      entry->commit_errno= errno;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
   }
@@ -7466,14 +7464,13 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_EXECUTE_IF("inject_error_writing_xid",
                   {
                     entry->error_cache= NULL;
-                    entry->commit_errno= 28;
+                    errno= 28;
                     DBUG_RETURN(ER_ERROR_ON_WRITE);
                   });
 
   if (entry->end_event->write(&log_file))
   {
     entry->error_cache= NULL;
-    entry->commit_errno= errno;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   status_var_add(entry->thd->status_var.binlog_bytes_written,
@@ -7484,7 +7481,6 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     if (entry->incident_event->write(&log_file))
     {
       entry->error_cache= NULL;
-      entry->commit_errno= errno;
       DBUG_RETURN(ER_ERROR_ON_WRITE);
     }
   }
@@ -7492,13 +7488,11 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   if (mngr->get_binlog_cache_log(FALSE)->error) // Error on read
   {
     entry->error_cache= &mngr->stmt_cache.cache_log;
-    entry->commit_errno= errno;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
   if (mngr->get_binlog_cache_log(TRUE)->error)  // Error on read
   {
     entry->error_cache= &mngr->trx_cache.cache_log;
-    entry->commit_errno= errno;
     DBUG_RETURN(ER_ERROR_ON_WRITE);
   }
 
