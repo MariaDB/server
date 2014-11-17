@@ -1067,12 +1067,13 @@ lock_rec_has_to_wait(
 #ifdef WITH_WSREP
 		/* if BF thread is locking and has conflict with another BF
 		   thread, we need to look at trx ordering and lock types */
-		if (for_locking                                    &&
-		    wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
+		if (wsrep_thd_is_BF(trx->mysql_thd, FALSE)         &&
 		    wsrep_thd_is_BF(lock2->trx->mysql_thd, TRUE)) {
 
 			if (wsrep_debug) {
-				fprintf(stderr, "\n BF-BF lock conflict \n");
+				fprintf(stderr,
+					"BF-BF lock conflict, locking: %lu\n",
+					for_locking);
 				lock_rec_print(stderr, lock2);
 			}
 
@@ -1081,16 +1082,21 @@ lock_rec_has_to_wait(
 			    (type_mode & LOCK_MODE_MASK) == LOCK_X        &&
 			    (lock2->type_mode & LOCK_MODE_MASK) == LOCK_X)
 			{
-				/* exclusive lock conflicts are not accepted */
-				fprintf(stderr, "BF-BF X lock conflict,"
-					"type_mode: %lu supremum: %lu\n",
-					type_mode, lock_is_on_supremum);
-				fprintf(stderr, "conflicts states: my %d locked %d\n",
-					wsrep_thd_conflict_state(trx->mysql_thd, FALSE),
-					wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE) );
-				lock_rec_print(stderr, lock2);
-				return FALSE;
-				//abort();
+				if (for_locking || wsrep_debug) {
+					/* exclusive lock conflicts are not
+					   accepted */
+					fprintf(stderr,
+						"BF-BF X lock conflict,"
+						"mode: %lu supremum: %lu\n",
+						type_mode, lock_is_on_supremum);
+					fprintf(stderr,
+						"conflicts states: my %d locked %d\n",
+						wsrep_thd_conflict_state(trx->mysql_thd, FALSE), 
+						wsrep_thd_conflict_state(lock2->trx->mysql_thd, FALSE) );
+					lock_rec_print(stderr, lock2);
+					if (for_locking) return FALSE;
+					//abort();
+				}
 			} else {
 				/* if lock2->index->n_uniq <=
 				   lock2->index->n_user_defined_cols
@@ -1110,7 +1116,7 @@ lock_rec_has_to_wait(
 #endif /* WITH_WSREP */
 		return(TRUE);
 	}
-
+	
 	return(FALSE);
 }
 
