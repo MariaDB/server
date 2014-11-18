@@ -1486,6 +1486,8 @@ void check_equality(Dep_analysis_context *ctx, Dep_module_expr **eq_mod,
       left->real_item()->type() == Item::FIELD_ITEM)
   {
     Field *field= ((Item_field*)left->real_item())->field;
+    if (right->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
+      return;
     if (field->result_type() == STRING_RESULT)
     {
       if (right->result_type() != STRING_RESULT)

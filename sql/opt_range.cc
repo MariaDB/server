@@ -8252,6 +8252,8 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
       !(conf_func->compare_collation()->state & MY_CS_BINSORT &&
         (type == Item_func::EQUAL_FUNC || type == Item_func::EQ_FUNC)))
     goto end;
+  if (value->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
+    goto end;
 
   if (key_part->image_type == Field::itMBR)
   {

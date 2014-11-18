@@ -4440,6 +4440,10 @@ add_key_field(JOIN *join,
       if (!eq_func) // eq_func is NEVER true when num_values > 1
         return;
 
+      if ((*value)->cmp_type() == TIME_RESULT &&
+          field->cmp_type() != TIME_RESULT)
+        return;
+
       /*
 	We can't use indexes when comparing a string index to a
 	number or two strings if the effective collation

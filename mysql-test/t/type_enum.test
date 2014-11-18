@@ -236,3 +236,30 @@ SELECT AVG(f1) FROM t1;
 drop table t1;
 
 --echo End of 5.3 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6950 Bad results with joins comparing DATE/DATETIME and INT/ENUM/VARCHAR columns
+--echo #
+
+CREATE TABLE t1 (c1 DATE PRIMARY KEY);
+INSERT INTO t1 VALUES ('2001-01-01');
+CREATE TABLE t2 (c1 ENUM('2001-01-01','2001/01/01'));
+INSERT INTO t2 VALUES ('2001-01-01');
+INSERT INTO t2 VALUES ('2001/01/01');
+SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+EXPLAIN SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #
