@@ -217,9 +217,9 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
  * Returns a struct keyentry with the asked 'id' or NULL.
  */
 keyentry *EncKeys::getKeys(int id) {
-	if (KEY_MIN <= id && KEY_MAX >= id && (oneKey = &keys[id - 1])->iv)
+	if (KEY_MIN <= id && KEY_MAX >= id && (&keys[id - 1])->iv)
 	{
-		return oneKey;
+		return &keys[id - 1];
 	}
 #ifdef UNIV_DEBUG
 	else {
@@ -237,6 +237,7 @@ keyentry *EncKeys::getKeys(int id) {
  */
 int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *secret) {
 	int errorCode = 0;
+	ulint id = 0;
 	char *buffer = decryptFile(filename, secret, &errorCode);
 
 	if (NO_ERROR_PARSE_OK != errorCode)	return errorCode;
@@ -247,9 +248,11 @@ int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *s
 		keyLineInKeyFile++;
 		switch (parseLine(line, maxKeyId)) {
 		case NO_ERROR_PARSE_OK:
+			id = oneKey->id;
 			keys[oneKey->id - 1] = *oneKey;
+			delete(oneKey);
 			countKeys++;
-			fprintf(stderr, "Line: %u --> ", keyLineInKeyFile);	printKeyEntry(oneKey->id);
+			fprintf(stderr, "Line: %u --> ", keyLineInKeyFile);	printKeyEntry(id);
 			break;
 		case ERROR_ID_TOO_BIG:
 			fprintf(stderr, errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
@@ -289,7 +292,7 @@ int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 	else {
 		const char *error_p = NULL;
 		int offset;
-		static const pcre *pattern = pcre_compile(
+		pcre *pattern = pcre_compile(
 				"([0-9]+);([0-9,a-f,A-F]{32});([0-9,a-f,A-F]{64}|[0-9,a-f,A-F]{48}|[0-9,a-f,A-F]{32})",
 				0, &error_p, &offset, NULL);
 		if ( NULL != error_p)
@@ -297,6 +300,7 @@ int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 
 		int m_len = (int) strlen(line), ovector[MAX_OFFSETS_IN_PCRE_PATTERNS];
 		int rc = pcre_exec(pattern, NULL, line, m_len, 0, 0, ovector, MAX_OFFSETS_IN_PCRE_PATTERNS);
+		pcre_free(pattern);
 		if (4 == rc) {
 			char lin[MAX_KEY_LINE_SIZE + 1];
 			strncpy( lin, line, MAX_KEY_LINE_SIZE);
@@ -401,8 +405,9 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 bool EncKeys::isComment(const char *line) {
 	const char *error_p;
 	int offset, m_len = (int) strlen(line), ovector[MAX_OFFSETS_IN_PCRE_PATTERNS];
-	static const pcre *pattern = pcre_compile("\\s*#.*", 0, &error_p, &offset, NULL);
+	pcre *pattern = pcre_compile("\\s*#.*", 0, &error_p, &offset, NULL);
 	int rc = pcre_exec( pattern, NULL, line, m_len, 0, 0, ovector, MAX_OFFSETS_IN_PCRE_PATTERNS);
+	pcre_free(pattern);
 	if (0 > rc)	return false;
 	else		return true;
 }
