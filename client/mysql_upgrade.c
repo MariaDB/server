@@ -762,7 +762,7 @@ static int run_mysqlcheck_upgrade(const char *arg1, const char *arg2)
 
 static int run_mysqlcheck_fixnames(void)
 {
-  verbose("Phase 3/4: Fixing table and database names");
+  verbose("Phase 3/5: Fixing table and database names");
   print_conn_args("mysqlcheck");
   return run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
@@ -860,7 +860,8 @@ static int run_sql_fix_privilege_tables(void)
         query_ptr++
       )
   {
-    dynstr_append(&ds_script, *query_ptr);
+    if (strcasecmp(*query_ptr, "flush privileges;\n"))
+      dynstr_append(&ds_script, *query_ptr);
   }
 
   run_query(ds_script.str,
@@ -1021,17 +1022,21 @@ int main(int argc, char **argv)
   /*
     Run "mysqlcheck" and "mysql_fix_privilege_tables.sql"
   */
-  verbose("Phase 1/4: Checking mysql database");
+  verbose("Phase 1/5: Checking mysql database");
   if (run_mysqlcheck_upgrade("--databases", "mysql"))
     die("Upgrade failed" );
-  verbose("Phase 2/4: Running 'mysql_fix_privilege_tables'...");
+  verbose("Phase 2/5: Running 'mysql_fix_privilege_tables'...");
   if (run_sql_fix_privilege_tables())
     die("Upgrade failed" );
 
   if (!opt_systables_only &&
       (run_mysqlcheck_fixnames() ||
-       verbose("Phase 4/4: Checking and upgrading tables") ||
+       verbose("Phase 4/5: Checking and upgrading tables") ||
        run_mysqlcheck_upgrade("--all-databases","--skip-database=mysql")))
+    die("Upgrade failed" );
+
+  verbose("Phase 5/5: Running 'FLUSH PRIVILEGES'...");
+  if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
     die("Upgrade failed" );
 
   verbose("OK");
