@@ -702,3 +702,10 @@ alter table tables_priv  modify Grantor      char(141) COLLATE utf8_bin not null
 
 flush privileges;
 
+--
+-- Upgrade help tables
+--
+
+ALTER TABLE help_category MODIFY url TEXT NOT NULL;
+ALTER TABLE help_topic MODIFY url TEXT NOT NULL;
+
