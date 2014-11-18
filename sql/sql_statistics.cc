@@ -2468,6 +2468,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
     table_field->collected_stats->init(thd, table_field);
   }
 
+  restore_record(table, s->default_values);
+
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))
   {  
