@@ -633,7 +633,7 @@ inline int setup_without_group(THD *thd, Item **ref_pointer_array,
   res= setup_conds(thd, tables, leaves, conds);
   if (thd->lex->current_select->first_cond_optimization)
   {
-    if (!res && *conds)
+    if (!res && *conds && ! thd->lex->current_select->merged_into)
       (*reserved)= (*conds)->exists2in_reserved_items();
     else
       (*reserved)= 0;
