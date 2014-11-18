@@ -447,12 +447,12 @@ else()
   set(MRUBY_LIBS "")
 endif()
 
-add_subdirectory(vendor)
+#add_subdirectory(vendor)
 add_subdirectory(lib)
 add_subdirectory(src)
-add_subdirectory(plugins)
+#add_subdirectory(plugins)
 add_subdirectory(include)
-add_subdirectory(data)
+#add_subdirectory(data)
 
 configure_file(config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
@@ -482,4 +482,4 @@ if(NOT MRN_GROONGA_BUNDLED)
     DESTINATION "${LIB_DIR}/pkgconfig/")
 endif()
 
-add_subdirectory(vendor/plugins)
+#add_subdirectory(vendor/plugins)
