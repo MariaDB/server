@@ -1,8 +1,0 @@
-usr/share/groonga/munin/plugins/groonga_cpu_load_ /usr/share/munin/plugins/groonga_cpu_load_
-usr/share/groonga/munin/plugins/groonga_cpu_time_ /usr/share/munin/plugins/groonga_cpu_time_
-usr/share/groonga/munin/plugins/groonga_disk_ /usr/share/munin/plugins/groonga_disk_
-usr/share/groonga/munin/plugins/groonga_memory_ /usr/share/munin/plugins/groonga_memory_
-usr/share/groonga/munin/plugins/groonga_n_records_ /usr/share/munin/plugins/groonga_n_records_
-usr/share/groonga/munin/plugins/groonga_query_performance_ /usr/share/munin/plugins/groonga_query_performance_
-usr/share/groonga/munin/plugins/groonga_status_ /usr/share/munin/plugins/groonga_status_
-usr/share/groonga/munin/plugins/groonga_throughput_ /usr/share/munin/plugins/groonga_throughput_
