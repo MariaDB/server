@@ -8723,6 +8723,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     */
     altered_table->column_bitmaps_set_no_signal(&altered_table->s->all_set,
                                                 &altered_table->s->all_set);
+    restore_record(altered_table, s->default_values); // Create empty record
+    if (altered_table->default_field && altered_table->update_default_fields())
+      goto err_new_table_cleanup;
 
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
@@ -9365,14 +9368,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->use_all_columns();
   to->mark_virtual_columns_for_write(TRUE);
   if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, 1, 1, FALSE))
-  {
-    error= 1;
     goto err;
-  }
+
   if (ignore && !alter_ctx->fk_error_if_delete_row)
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
   thd->get_stmt_da()->reset_current_row_for_warning();
   restore_record(to, s->default_values);        // Create empty record
+  if (to->default_field && to->update_default_fields())
+    goto err;
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
@@ -9415,11 +9418,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     prev_insert_id= to->file->next_insert_id;
     if (to->vfield)
       update_virtual_fields(thd, to, VCOL_UPDATE_FOR_WRITE);
-    if (to->default_field && to->update_default_fields())
-    {
-      error= 1;
-      break;
-    }
     if (thd->is_error())
     {
       error= 1;

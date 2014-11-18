@@ -2461,7 +2461,7 @@ innobase_build_col_map(
 
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(add_cols, i),
-			altered_table->s->field[sql_idx],
+			altered_table->field[sql_idx],
 			dict_table_is_comp(new_table));
 found_col:
 		i++;

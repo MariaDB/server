@@ -2,6 +2,9 @@
 --echo # Test of function defaults for any server, including embedded.
 --echo #
 
+--source include/have_innodb.inc
+set default_storage_engine=innodb;
+
 --echo #
 --echo # Function defaults run 1. No microsecond precision.
 --echo #
