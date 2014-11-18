@@ -80,8 +80,8 @@ for (;;)
     $pattern .= $_;
     }
 
-   chomp($pattern);
-   $pattern =~ s/\s+$//;
+  chomp($pattern);
+  $pattern =~ s/\s+$//;
 
   # The private /+ modifier means "print $' afterwards".
 
@@ -121,6 +121,14 @@ for (;;)
   if ($@)
     {
     printf $outfile "Error: $@";
+    if ($infile != "STDIN")
+      {
+      for (;;)
+        {
+        last if ! ($_ = <$infile>);
+        last if $_ =~ /^\s*$/;
+        }
+      }
     next NEXT_RE;
     }
 

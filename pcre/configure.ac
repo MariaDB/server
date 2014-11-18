@@ -9,19 +9,19 @@ dnl The PCRE_PRERELEASE feature is for identifying release candidates. It might
 dnl be defined as -RC2, for example. For real releases, it should be empty.
 
 m4_define(pcre_major, [8])
-m4_define(pcre_minor, [35])
+m4_define(pcre_minor, [36])
 m4_define(pcre_prerelease, [])
-m4_define(pcre_date, [2014-04-04])
+m4_define(pcre_date, [2014-09-26])
 
 # NOTE: The CMakeLists.txt file searches for the above variables in the first
 # 50 lines of this file. Please update that if the variables above are moved.
 
 # Libtool shared library interface versions (current:revision:age)
-m4_define(libpcre_version, [3:3:2])
-m4_define(libpcre16_version, [2:3:2])
-m4_define(libpcre32_version, [0:3:0])
-m4_define(libpcreposix_version, [0:2:0])
-m4_define(libpcrecpp_version, [0:0:0])
+m4_define(libpcre_version, [3:4:2])
+m4_define(libpcre16_version, [2:4:2])
+m4_define(libpcre32_version, [0:4:0])
+m4_define(libpcreposix_version, [0:3:0])
+m4_define(libpcrecpp_version, [0:1:0])
 
 AC_PREREQ(2.57)
 AC_INIT(PCRE, pcre_major.pcre_minor[]pcre_prerelease, , pcre)

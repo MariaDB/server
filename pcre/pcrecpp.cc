@@ -511,7 +511,7 @@ int RE::TryMatch(const StringPiece& text,
     return 0;
   }
 
-  pcre_extra extra = { 0, 0, 0, 0, 0, 0 };
+  pcre_extra extra = { 0, 0, 0, 0, 0, 0, 0, 0 };
   if (options_.match_limit() > 0) {
     extra.flags |= PCRE_EXTRA_MATCH_LIMIT;
     extra.match_limit = options_.match_limit();
@@ -660,6 +660,8 @@ int RE::NumberOfCapturingGroups() const {
 /***** Parsers for various types *****/
 
 bool Arg::parse_null(const char* str, int n, void* dest) {
+  (void)str;
+  (void)n;
   // We fail if somebody asked us to store into a non-NULL void* pointer
   return (dest == NULL);
 }
