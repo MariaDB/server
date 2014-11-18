@@ -1666,10 +1666,44 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (key_parts)
   {
     uint add_first_key_parts= 0;
-    uint primary_key=(uint) (find_type(primary_key_name, &share->keynames,
-                                       FIND_TYPE_NO_PREFIX) - 1);
     longlong ha_option= handler_file->ha_table_flags();
     keyinfo= share->key_info;
+    uint primary_key= my_strcasecmp(system_charset_info, share->keynames.type_names[0],
+                                    primary_key_name) ? MAX_KEY : 0;
+
+    if (primary_key >= MAX_KEY && keyinfo->flags & HA_NOSAME)
+    {
+      /*
+        If the UNIQUE key doesn't have NULL columns and is not a part key
+        declare this as a primary key.
+      */
+      primary_key= 0;
+      key_part= keyinfo->key_part;
+      for (i=0 ; i < keyinfo->user_defined_key_parts ;i++)
+      {
+        DBUG_ASSERT(key_part[i].fieldnr > 0);
+        // Table field corresponding to the i'th key part.
+        Field *table_field= share->field[key_part[i].fieldnr - 1];
+
+        /*
+          If the key column is of NOT NULL BLOB type, then it
+          will definitly have key prefix. And if key part prefix size
+          is equal to the BLOB column max size, then we can promote
+          it to primary key.
+        */
+        if (!table_field->real_maybe_null() &&
+            table_field->type() == MYSQL_TYPE_BLOB &&
+            table_field->field_length == key_part[i].length)
+          continue;
+
+        if (table_field->real_maybe_null() ||
+            table_field->key_length() != key_part[i].length)
+        {
+          primary_key= MAX_KEY;		// Can't be used
+          break;
+        }
+      }
+    }
 
     if (share->use_ext_keys)
     { 
@@ -1763,40 +1797,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       /* Fix fulltext keys for old .frm files */
       if (share->key_info[key].flags & HA_FULLTEXT)
 	share->key_info[key].algorithm= HA_KEY_ALG_FULLTEXT;
-
-      if (primary_key >= MAX_KEY && (keyinfo->flags & HA_NOSAME))
-      {
-	/*
-	  If the UNIQUE key doesn't have NULL columns and is not a part key
-	  declare this as a primary key.
-	*/
-	primary_key=key;
-        key_part= keyinfo->key_part;
-	for (i=0 ; i < keyinfo->user_defined_key_parts ;i++)
-	{
-          DBUG_ASSERT(key_part[i].fieldnr > 0);
-          // Table field corresponding to the i'th key part.
-          Field *table_field= share->field[key_part[i].fieldnr - 1];
-
-          /*
-            If the key column is of NOT NULL BLOB type, then it
-            will definitly have key prefix. And if key part prefix size
-            is equal to the BLOB column max size, then we can promote
-            it to primary key.
-          */
-          if (!table_field->real_maybe_null() &&
-              table_field->type() == MYSQL_TYPE_BLOB &&
-              table_field->field_length == key_part[i].length)
-            continue;
-
-	  if (table_field->real_maybe_null() ||
-	      table_field->key_length() != key_part[i].length)
-	  {
-	    primary_key= MAX_KEY;		// Can't be used
-	    break;
-	  }
-	}
-      }
 
       key_part= keyinfo->key_part;
       uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
