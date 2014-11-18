@@ -261,5 +261,36 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
 DROP TABLE t1, t2;
 
 --echo #
+--echo # MDEV-6991 GROUP_MIN_MAX optimization is erroneously applied in some cases
+--echo #
+CREATE TABLE t1 (id INT NOT NULL, a ENUM('04','03','02','01')) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'01');
+INSERT INTO t1 VALUES (1,'02');
+INSERT INTO t1 VALUES (1,'03');
+INSERT INTO t1 VALUES (1,'04');
+INSERT INTO t1 VALUES (2,'01');
+INSERT INTO t1 VALUES (2,'02');
+INSERT INTO t1 VALUES (2,'03');
+INSERT INTO t1 VALUES (2,'04');
+INSERT INTO t1 VALUES (3,'01');
+INSERT INTO t1 VALUES (3,'02');
+INSERT INTO t1 VALUES (3,'03');
+INSERT INTO t1 VALUES (3,'04');
+INSERT INTO t1 VALUES (4,'01');
+INSERT INTO t1 VALUES (4,'02');
+INSERT INTO t1 VALUES (4,'03');
+INSERT INTO t1 VALUES (4,'04');
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='02' GROUP BY id;
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a<=3 GROUP BY id;
+ALTER TABLE t1 ADD KEY(id,a);
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='02' GROUP BY id;
+--echo # Should NOT use group_min_max optimization
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='02' GROUP BY id;
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a<=3 GROUP BY id;
+--echo # Should NOT use group_min_max optimization
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a<=3 GROUP BY id;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #
