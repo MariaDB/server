@@ -1,0 +1,121 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_compressed=1;
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_compressed=1;
+create table innodb_compressed(c1 bigint not null, b char(200)) engine=innodb row_format=compressed page_compressed=1;
+ERROR HY000: Can't create table `test`.`innodb_compressed` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=COMPRESSED
+Error	1005	Can't create table `test`.`innodb_compressed` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+show create table innodb_compact;
+Table	Create Table
+innodb_compact	CREATE TABLE `innodb_compact` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `page_compressed`=1
+show create table innodb_dynamic;
+Table	Create Table
+innodb_dynamic	CREATE TABLE `innodb_dynamic` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC `page_compressed`=1
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant page_compressed=1;
+ERROR HY000: Can't create table `test`.`innodb_redundant` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=REDUNDANT
+Error	1005	Can't create table `test`.`innodb_redundant` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+create table innodb_redundant(c1 bigint not null, b char(200)) engine=innodb row_format=redundant;
+show create table innodb_redundant;
+Table	Create Table
+innodb_redundant	CREATE TABLE `innodb_redundant` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+alter table innodb_redundant page_compressed=1;
+ERROR HY000: Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+show warnings;
+Level	Code	Message
+Warning	140	InnoDB: PAGE_COMPRESSED table can't have ROW_TYPE=REDUNDANT
+Error	1005	Can't create table `test`.`#sql-temporary` (errno: 140 "Wrong create options")
+Warning	1030	Got error 140 "Wrong create options" from storage engine InnoDB
+show create table innodb_redundant;
+Table	Create Table
+innodb_redundant	CREATE TABLE `innodb_redundant` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+alter table innodb_redundant row_format=compact page_compressed=1;
+show create table innodb_redundant;
+Table	Create Table
+innodb_redundant	CREATE TABLE `innodb_redundant` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT `page_compressed`=1
+drop table innodb_redundant;
+create procedure innodb_insert_proc (repeat_count int)
+begin
+declare current_num int;
+set current_num = 0;
+while current_num < repeat_count do
+insert into innodb_normal values(current_num, substring(MD5(RAND()), -64));
+set current_num = current_num + 1;
+end while;
+end//
+commit;
+set autocommit=0;
+call innodb_insert_proc(5000);
+commit;
+set autocommit=1;
+insert into innodb_compact select * from innodb_normal;
+insert into innodb_dynamic select * from innodb_normal;
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+count(*)
+5000
+select count(*) from innodb_dynamic where c1 < 1500000;
+count(*)
+5000
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+count(*)
+5000
+select count(*) from innodb_dynamic where c1 < 1500000;
+count(*)
+5000
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 0;
+alter table innodb_compact engine=innodb page_compressed=DEFAULT;
+alter table innodb_dynamic engine=innodb page_compressed=DEFAULT;
+show create table innodb_compact;
+Table	Create Table
+innodb_compact	CREATE TABLE `innodb_compact` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=COMPACT
+show create table innodb_dynamic;
+Table	Create Table
+innodb_dynamic	CREATE TABLE `innodb_dynamic` (
+  `c1` bigint(20) NOT NULL,
+  `b` char(200) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+update innodb_compact set c1 = c1 + 1;
+update innodb_dynamic set c1 = c1 + 1;
+select count(*) from innodb_compact where c1 < 1500000;
+count(*)
+5000
+select count(*) from innodb_dynamic where c1 < 1500000;
+count(*)
+5000
+drop procedure innodb_insert_proc;
+drop table innodb_normal;
+drop table innodb_compact;
+drop table innodb_dynamic;

@@ -11165,6 +11165,15 @@ ha_innobase::check_table_options(
 			return "PAGE_COMPRESSED";
 		}
 
+		if (row_format == ROW_TYPE_REDUNDANT) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_COMPRESSED table can't have"
+				" ROW_TYPE=REDUNDANT");
+			return "PAGE_COMPRESSED";
+		}
+
 		if (!use_tablespace) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,
