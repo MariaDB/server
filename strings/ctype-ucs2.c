@@ -1753,7 +1753,7 @@ struct charset_info_st my_charset_utf16_bin=
 
 
 static int
-my_utf16le_uni(const CHARSET_INFO *cs __attribute__((unused)),
+my_utf16le_uni(CHARSET_INFO *cs __attribute__((unused)),
                my_wc_t *pwc, const uchar *s, const uchar *e)
 {
   my_wc_t lo;
@@ -1783,7 +1783,7 @@ my_utf16le_uni(const CHARSET_INFO *cs __attribute__((unused)),
 
 
 static int
-my_uni_utf16le(const CHARSET_INFO *cs __attribute__((unused)),
+my_uni_utf16le(CHARSET_INFO *cs __attribute__((unused)),
                my_wc_t wc, uchar *s, uchar *e)
 {
   uint32 first, second, total;
@@ -1813,7 +1813,7 @@ my_uni_utf16le(const CHARSET_INFO *cs __attribute__((unused)),
 
 
 static size_t
-my_lengthsp_utf16le(const CHARSET_INFO *cs __attribute__((unused)),
+my_lengthsp_utf16le(CHARSET_INFO *cs __attribute__((unused)),
                     const char *ptr, size_t length)
 {
   const char *end= ptr + length;

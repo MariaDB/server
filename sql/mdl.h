@@ -416,7 +416,7 @@ private:
 private:
   MDL_key(const MDL_key &);                     /* not implemented */
   MDL_key &operator=(const MDL_key &);          /* not implemented */
-  friend my_hash_value_type mdl_hash_function(const CHARSET_INFO *,
+  friend my_hash_value_type mdl_hash_function(CHARSET_INFO *,
                                               const uchar *, size_t);
 };
 

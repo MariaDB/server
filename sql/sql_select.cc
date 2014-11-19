@@ -23289,7 +23289,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
                                  bool distinct, JOIN_TAB *first_top_tab)
 {
   int quick_type;
-  const CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *cs= system_charset_info;
 
   JOIN_TAB *tab= this;
   THD *thd=join->thd;

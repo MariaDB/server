@@ -3041,7 +3041,7 @@ String *Item_func_space::val_str(String *str)
 {
   uint tot_length;
   longlong count= args[0]->val_int();
-  const CHARSET_INFO *cs= collation.collation;
+  CHARSET_INFO *cs= collation.collation;
 
   if (args[0]->null_value)
     goto err;				// string and/or delim are null

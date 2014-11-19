@@ -5517,7 +5517,7 @@ void Field_time::sql_type(String &res) const
     res.set_ascii(STRING_WITH_LEN("time"));
     return;
   }
-  const CHARSET_INFO *cs= res.charset();
+  CHARSET_INFO *cs= res.charset();
   res.length(cs->cset->snprintf(cs, (char*) res.ptr(), res.alloced_length(),
                                "time(%d)", decimals()));
 }

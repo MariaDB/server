@@ -988,7 +988,7 @@ static void make_sortkey(register Sort_param *param,
       switch (sort_field->result_type) {
       case STRING_RESULT:
       {
-        const CHARSET_INFO *cs=item->collation.collation;
+        CHARSET_INFO *cs=item->collation.collation;
         char fill_char= ((cs->state & MY_CS_BINSORT) ? (char) 0 : ' ');
 
         if (maybe_null)
@@ -1863,8 +1863,8 @@ static uint
 sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
            bool *multi_byte_charset)
 {
-  reg2 uint length;
-  const CHARSET_INFO *cs;
+  uint length;
+  CHARSET_INFO *cs;
   *multi_byte_charset= 0;
 
   length=0;

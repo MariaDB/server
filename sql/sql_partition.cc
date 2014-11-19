@@ -195,7 +195,7 @@ static int cmp_rec_and_tuple_prune(part_column_list_val *val,
     item                                New converted item
 */
 
-Item* convert_charset_partition_constant(Item *item, const CHARSET_INFO *cs)
+Item* convert_charset_partition_constant(Item *item, CHARSET_INFO *cs)
 {
   THD *thd= current_thd;
   Name_resolution_context *context= &thd->lex->current_select->context;
@@ -2222,7 +2222,7 @@ static int add_column_list_values(File fptr, partition_info *part_info,
       else
       {
         String *res;
-        const CHARSET_INFO *field_cs;
+        CHARSET_INFO *field_cs;
         bool need_cs_check= FALSE;
         Item_result result_type= STRING_RESULT;
 
@@ -4292,7 +4292,7 @@ bool mysql_unpack_partition(THD *thd,
 {
   bool result= TRUE;
   partition_info *part_info;
-  const CHARSET_INFO *old_character_set_client=
+  CHARSET_INFO *old_character_set_client=
     thd->variables.character_set_client;
   LEX *old_lex= thd->lex;
   LEX lex;

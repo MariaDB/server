@@ -63,7 +63,7 @@ size_t my_casedn_str_mb(CHARSET_INFO * cs, char *str)
 
 
 static inline MY_UNICASE_CHARACTER*
-get_case_info_for_ch(const CHARSET_INFO *cs, uint page, uint offs)
+get_case_info_for_ch(CHARSET_INFO *cs, uint page, uint offs)
 {
   MY_UNICASE_CHARACTER *p;
   return cs->caseinfo && (p= cs->caseinfo->page[page]) ? &p[offs] : NULL;

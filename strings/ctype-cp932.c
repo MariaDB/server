@@ -1709,7 +1709,7 @@ MY_UNICASE_INFO my_caseinfo_cp932=
   my_caseinfo_pages_cp932
 };
 
-static int my_strnncoll_cp932_internal(const CHARSET_INFO *cs,
+static int my_strnncoll_cp932_internal(CHARSET_INFO *cs,
 				      const uchar **a_res, size_t a_length,
 				      const uchar **b_res, size_t b_length)
 {

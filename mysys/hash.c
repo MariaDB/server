@@ -40,7 +40,7 @@ static void movelink(HASH_LINK *array,uint pos,uint next_link,uint newlink);
 static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length);
 
-my_hash_value_type my_hash_sort(const CHARSET_INFO *cs, const uchar *key,
+my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
                                 size_t length)
 {
   ulong nr1= 1, nr2= 4;

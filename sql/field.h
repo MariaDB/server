@@ -1583,7 +1583,7 @@ public:
   enum Derivation derivation(void) const { return DERIVATION_NUMERIC; }
   uint repertoire(void) const { return MY_REPERTOIRE_NUMERIC; }
   CHARSET_INFO *charset(void) const { return &my_charset_numeric; }
-  const CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
+  CHARSET_INFO *sort_charset(void) const { return &my_charset_bin; }
   bool binary() const { return true; }
   enum Item_result cmp_type () const { return TIME_RESULT; }
   uint is_equal(Create_field *new_field);

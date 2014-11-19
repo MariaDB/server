@@ -793,7 +793,7 @@ void MDL_map::init()
 }
 
 
-my_hash_value_type mdl_hash_function(const CHARSET_INFO *cs,
+my_hash_value_type mdl_hash_function(CHARSET_INFO *cs,
                                      const uchar *key, size_t length)
 {
   MDL_key *mdl_key= (MDL_key*) (key - offsetof(MDL_key, m_ptr));

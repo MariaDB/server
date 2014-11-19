@@ -207,7 +207,7 @@ void Explain_query::print_explain_json(select_result_sink *output, bool is_analy
 
   writer.end_object();
 
-  const CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *cs= system_charset_info;
   List<Item> item_list;
   String *buf= &writer.output;
   item_list.push_back(new Item_string(buf->ptr(), buf->length(), cs));
@@ -416,7 +416,7 @@ int Explain_union::print_explain(Explain_query *query,
                                  uint8 explain_flags, 
                                  bool is_analyze)
 {
-  //const CHARSET_INFO *cs= system_charset_info;
+  //CHARSET_INFO *cs= system_charset_info;
   char table_name_buffer[SAFE_NAME_LEN];
 
   /* print all UNION children, in order */
@@ -762,7 +762,7 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 
 void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
 {
-  const CHARSET_INFO *cs= system_charset_info;
+  CHARSET_INFO *cs= system_charset_info;
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
                type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
   const char *hash_key_prefix= "#hash#";
@@ -882,7 +882,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
                                         uint select_id, const char *select_type,
                                         bool using_temporary, bool using_filesort)
 {
-  //const CHARSET_INFO *cs= system_charset_info;
+  //CHARSET_INFO *cs= system_charset_info;
 
   List<Item> item_list;
   Item *item_null= new Item_null();

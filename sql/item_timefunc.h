@@ -523,7 +523,7 @@ public:
     return cached_field_type == MYSQL_TYPE_STRING ?
            STRING_RESULT : TIME_RESULT;
   }
-  const CHARSET_INFO *charset_for_protocol() const
+  CHARSET_INFO *charset_for_protocol() const
   {
     /*
       Can return TIME, DATE, DATETIME or VARCHAR depending on arguments.

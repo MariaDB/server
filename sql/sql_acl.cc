@@ -11284,8 +11284,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
 }
 
 static bool
-read_client_connect_attrs(char **ptr, char *end,
-                          const CHARSET_INFO *from_cs)
+read_client_connect_attrs(char **ptr, char *end, CHARSET_INFO *from_cs)
 {
   size_t length;
   char *ptr_save= *ptr;

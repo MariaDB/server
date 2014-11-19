@@ -618,7 +618,7 @@ ret:
 */
 
 static size_t
-my_strnxfrm_tis620(const CHARSET_INFO *cs,
+my_strnxfrm_tis620(CHARSET_INFO *cs,
                    uchar *dst, size_t dstlen, uint nweights,
                    const uchar *src, size_t srclen, uint flags)
 {

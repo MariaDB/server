@@ -20714,7 +20714,7 @@ static int my_strnncoll_uca(CHARSET_INFO *cs,
 
 
 static inline int
-my_space_weight(const CHARSET_INFO *cs) /* W3-TODO */
+my_space_weight(CHARSET_INFO *cs) /* W3-TODO */
 {
   return cs->uca->level[0].weights[0][0x20 * cs->uca->level[0].lengths[0]];
 }

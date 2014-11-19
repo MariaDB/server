@@ -35,9 +35,9 @@ typedef struct st_mem_root MEM_ROOT;
 int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
 String *copy_if_not_alloced(String *a,String *b,uint32 arg_length);
 inline uint32 copy_and_convert(char *to, uint32 to_length,
-                               const CHARSET_INFO *to_cs,
+                               CHARSET_INFO *to_cs,
                                const char *from, uint32 from_length,
-                               const CHARSET_INFO *from_cs, uint *errors)
+                               CHARSET_INFO *from_cs, uint *errors)
 {
   return my_convert(to, to_length, to_cs, from, from_length, from_cs, errors);
 }
@@ -575,11 +575,11 @@ class StringBuffer : public String
 
 public:
   StringBuffer() : String(buff, buff_sz, &my_charset_bin) { length(0); }
-  explicit StringBuffer(const CHARSET_INFO *cs) : String(buff, buff_sz, cs)
+  explicit StringBuffer(CHARSET_INFO *cs) : String(buff, buff_sz, cs)
   {
     length(0);
   }
-  StringBuffer(const char *str, size_t length, const CHARSET_INFO *cs)
+  StringBuffer(const char *str, size_t length, CHARSET_INFO *cs)
     : String(buff, buff_sz, cs)
   {
     set(str, length, cs);
