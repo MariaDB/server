@@ -414,7 +414,7 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
 #elif defined(__sun__)
   const char cmd[] = "/sbin/ifconfig -a | "
       "/usr/gnu/bin/grep -m1 -1 -E 'net[0-9]:' | tail -n 1 | awk '{ print $2 }'";
-#elif defined(__APPLE__) || defined(__FreeBSD__)
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   const char cmd[] = "/sbin/route -nv get 8.8.8.8 | tail -n1 | awk '{print $(NF)}'";
 #else
   char *cmd;
