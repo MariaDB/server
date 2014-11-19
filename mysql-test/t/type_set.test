@@ -162,5 +162,26 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c
 DROP TABLE IF EXISTS t1,t2;
 
 --echo #
+--echo # MDEV-6993 Bad results with join comparing DECIMAL and ENUM/SET columns
+--echo #
+CREATE TABLE t1 (c1 DECIMAL(10,1) PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (c1 SET('a','b'));
+INSERT INTO t2 VALUES ('a'),('b');
+SELECT t1.* FROM t1 NATURAL JOIN t2;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 NATURAL JOIN t2;
+SELECT t1.* FROM t1 LEFT OUTER JOIN t2 USING (c1);
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(10,1), b SET('1','2'));
+INSERT INTO t1 (a) VALUES (1),(2);
+UPDATE t1 SET b=a;
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY a SET('1','2');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.0 tests
 --echo #

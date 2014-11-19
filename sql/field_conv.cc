@@ -792,6 +792,10 @@ Copy_field::get_copy_func(Field *to,Field *from)
     else if (to->real_type() != from->real_type() ||
 	     to_length != from_length)
     {
+      if ((to->real_type() == MYSQL_TYPE_ENUM ||
+           to->real_type() == MYSQL_TYPE_SET) &&
+          from->real_type() == MYSQL_TYPE_NEWDECIMAL)
+        return do_field_decimal;
       if (to->real_type() == MYSQL_TYPE_DECIMAL ||
 	  to->result_type() == STRING_RESULT)
 	return do_field_string;
