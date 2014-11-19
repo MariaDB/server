@@ -1740,6 +1740,7 @@ public:
   bool register_field_in_bitmap(uchar *arg);
   bool set_entry(THD *thd, bool create_if_not_exists);
   void cleanup();
+  bool check_vcol_func_processor(uchar *int_arg) {return TRUE;}
 };
 
 
@@ -1779,6 +1780,7 @@ public:
   {
     return this;
   }
+  bool check_vcol_func_processor(uchar *int_arg) { return TRUE;}
 };
 
 
@@ -1861,6 +1863,7 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
 
   void cleanup();
+  bool check_vcol_func_processor(uchar *int_arg) { return TRUE;}
 };
 
 
@@ -2159,7 +2162,6 @@ public:
   longlong val_int();
   void fix_length_and_dec()
   { max_length= 21; unsigned_flag=1; }
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());

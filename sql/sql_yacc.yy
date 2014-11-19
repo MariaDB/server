@@ -902,6 +902,7 @@ static bool sp_create_assignment_instr(THD *thd, bool no_lookahead)
   LEX_STRING lex_str;
   LEX_STRING *lex_str_ptr;
   LEX_SYMBOL symbol;
+  LEX_TYPE lex_type;
   Table_ident *table;
   char *simple_string;
   Item *item;
@@ -1669,13 +1670,14 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %type <string>
         text_string hex_or_bin_String opt_gconcat_separator
 
+%type <lex_type> field_def
+
 %type <num>
         type type_with_opt_collate int_type real_type order_dir lock_option
         udf_type opt_if_exists opt_local opt_table_options table_options
         table_option opt_if_not_exists create_or_replace opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct
         opt_ignore_leaves fulltext_options spatial_type union_option
-        field_def
         union_opt select_derived_init transaction_access_mode_types
         opt_natural_language_mode opt_query_expansion
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
@@ -6016,11 +6018,11 @@ field_spec:
           field_def
           {
             LEX *lex=Lex;
-            if (add_field_to_list(lex->thd, &$1, (enum enum_field_types) $3,
-                                  lex->length,lex->dec,lex->type,
+            if (add_field_to_list(lex->thd, &$1, $3.type,
+                                  $3.length, $3.dec, lex->type,
                                   lex->default_value, lex->on_update_value, 
                                   &lex->comment,
-                                  lex->change,&lex->interval_list,lex->charset,
+                                  lex->change, &lex->interval_list, $3.charset,
                                   lex->uint_geom_type,
                                   lex->vcol_info, lex->option_list))
               MYSQL_YYABORT;
@@ -6028,13 +6030,15 @@ field_spec:
         ;
 
 field_def:
-          type opt_attribute {}
-        | type opt_generated_always AS '(' virtual_column_func ')'
-          vcol_opt_specifier
-          vcol_opt_attribute
+          type opt_attribute
+          { $$.set($1, Lex->length, Lex->dec, Lex->charset); }
+        | type opt_generated_always AS
+          { $<lex_type>$.set($1, Lex->length, Lex->dec, Lex->charset); }
+          '(' virtual_column_func ')' vcol_opt_specifier vcol_opt_attribute
           {
-            $$= (enum enum_field_types)MYSQL_TYPE_VIRTUAL;
-            Lex->vcol_info->set_field_type((enum enum_field_types) $1);
+            $$= $<lex_type>4;
+            Lex->vcol_info->set_field_type($$.type);
+            $$.type= (enum enum_field_types)MYSQL_TYPE_VIRTUAL;
           }
         ;
 
@@ -7529,11 +7533,11 @@ alter_list_item:
           {
             LEX *lex=Lex;
             if (add_field_to_list(lex->thd,&$4,
-                                  (enum enum_field_types) $6,
-                                  lex->length,lex->dec,lex->type,
+                                  $6.type,
+                                  $6.length, $6.dec, lex->type,
                                   lex->default_value, lex->on_update_value,
                                   &lex->comment,
-                                  $4.str, &lex->interval_list, lex->charset,
+                                  $4.str, &lex->interval_list, $6.charset,
                                   lex->uint_geom_type,
                                   lex->vcol_info, lex->option_list))
               MYSQL_YYABORT;

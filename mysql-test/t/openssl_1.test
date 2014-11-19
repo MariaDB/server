@@ -20,13 +20,16 @@ grant select on test.* to ssl_user4@localhost require cipher "DHE-RSA-AES256-SHA
 grant select on test.* to ssl_user5@localhost require cipher "DHE-RSA-AES256-SHA" AND SUBJECT "xxx";
 flush privileges;
 
-connect (con1,localhost,ssl_user1,,,,,SSL);
-connect (con2,localhost,ssl_user2,,,,,SSL);
-connect (con3,localhost,ssl_user3,,,,,SSL);
-connect (con4,localhost,ssl_user4,,,,,SSL);
+connect (con1,localhost,ssl_user1,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
 --replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
 --error ER_ACCESS_DENIED_ERROR
-connect (con5,localhost,ssl_user5,,,,,SSL);
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=RC4-SHA);
+connect (con2,localhost,ssl_user2,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
+connect (con3,localhost,ssl_user3,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
+connect (con4,localhost,ssl_user4,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
+--replace_result $MASTER_MYSOCK MASTER_SOCKET $MASTER_MYPORT MASTER_PORT
+--error ER_ACCESS_DENIED_ERROR
+connect (con5,localhost,ssl_user5,,,,,SSL-CIPHER=DHE-RSA-AES256-SHA);
 
 connection con1;
 # Check ssl turned on
@@ -129,6 +132,7 @@ drop table t1;
 # verification of servers certificate by setting both ca certificate
 # and ca path to NULL
 #
+--replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
 --exec $MYSQL --ssl --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem -e "SHOW STATUS LIKE 'ssl_Cipher'" 2>&1
 --echo End of 5.0 tests
 
@@ -255,6 +259,7 @@ select 'is still running; no cipher request crashed the server' as result from d
 GRANT SELECT ON test.* TO bug42158@localhost REQUIRE X509;
 FLUSH PRIVILEGES;
 connect(con1,localhost,bug42158,,,,,SSL);
+--replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
 SHOW STATUS LIKE 'Ssl_cipher';
 disconnect con1;
 connection default;
