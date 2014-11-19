@@ -12801,11 +12801,11 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     uint cur_used_key_parts;
     
     /*
-      Check (B1) - if current index is covering. Exclude UNIQUE indexes, because
-      loose scan may still be chosen for them due to imperfect cost calculations.
+      Check (B1) - if current index is covering.
+      (was also: "Exclude UNIQUE indexes ..." but this was removed because 
+      there are cases Loose Scan over a multi-part index is useful).
     */
-    if (!table->covering_keys.is_set(cur_index) ||
-        cur_index_info->flags & HA_NOSAME)
+    if (!table->covering_keys.is_set(cur_index))
       goto next_index;
 
     /*
@@ -12941,6 +12941,16 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       if (key_part_nr <= cur_group_key_parts)
         goto next_index;
       min_max_arg_part= cur_index_info->key_part + key_part_nr - 1;
+    }
+
+    /*
+      Aplly a heuristic: there is no point to use loose index scan when we're
+      using the whole unique index.
+    */
+    if (cur_index_info->flags & HA_NOSAME && 
+        cur_group_key_parts == cur_index_info->user_defined_key_parts)
+    {
+      goto next_index;
     }
 
     /*
