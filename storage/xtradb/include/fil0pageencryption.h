@@ -85,7 +85,7 @@ fil_encrypt_page(
     byte*           out_buf,       /*!< out: compressed buffer */
     ulint           len,           /*!< in: length of input buffer.*/
     ulint           compression_level, /*!< in: compression level */
-    ulint*          out_len,   		/*!< out: actual length of compressed page */
+    ulint*          out_len,   		/*!< out: actual length of encrypted page */
 	ulint* 		    errorCode,   	/*!< out: an error code. set, if page is intentionally not encrypted */
     ulint			mode       		/*!< in: calling mode. Should be 0. */
     );
@@ -101,7 +101,7 @@ fil_decrypt_page(
 		byte*		buf,            /*!< out: buffer from which to read; in aio
 		                       	   	   this must be appropriately aligned */
 		ulint 		len, 			/*!< in: length buffer, which should be decrypted.*/
-		ulint* 		write_size, 	/*!< out: size of the decrypted data. If no error occurred equal to len */
+		ulint* 		write_size, 	/*!< out: size of the decrypted data. If no error occurred equal to len, except for page compressed tables */
 		ibool*      page_compressed, /*!<out: is page compressed.*/
 	    ulint		mode	       	/*!< in: calling mode. Should be 0. */
 	    );

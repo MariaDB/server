@@ -33,6 +33,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <my_aes.h>
 #include <KeySingleton.h>
+#include <math.h>
 
 
 /*
@@ -87,7 +88,7 @@ byte fil_page_encryption_calc_checksum(unsigned char* buf, ulint len) {
  Checksum verification for encrypted pages is disabled. This checksum should be restored after decryption.
 
  To be able to verify decryption in a later stage, a 1-byte checksum at position 4 of the FIL_PAGE_SPACE_OR_CHKSUM header is stored.
-
+ For page compressed table pages the log base 2 of the length of the encrypted data is stored.
 
  @return encrypted page to be written*/
 byte*
@@ -115,6 +116,7 @@ fil_encrypt_page(
 	ut_ad(buf);ut_ad(out_buf);
 	key = encryption_key;
 	ulint offset = 0;
+	ulint page_len = 0;
 	unit_test = mode ? 1 : 0;
 
 	*errorCode = AES_OK;
@@ -142,6 +144,12 @@ fil_encrypt_page(
 			*errorCode = PAGE_ENCRYPTION_WILL_NOT_ENCRYPT;
 			return (out_buf);
 	}
+
+	if (FIL_PAGE_PAGE_COMPRESSED == orig_page_type) {
+		page_len = log10(len)/log10(2);
+	}
+
+
 
 	byte checksum_byte = fil_page_encryption_calc_checksum(buf + FIL_PAGE_DATA, len - FIL_PAGE_DATA);
 
@@ -256,8 +264,13 @@ fil_encrypt_page(
 	/* store original page type. Written to 2nd and 3rd byte of the checksum header field */
 	mach_write_to_2(out_buf + FIL_PAGE_SPACE_OR_CHKSUM + 1, orig_page_type);
 
-	/* set byte 4 of checksum field to checksum byte */
-	memset(out_buf + FIL_PAGE_SPACE_OR_CHKSUM + 3, checksum_byte, 1);
+	if (FIL_PAGE_PAGE_COMPRESSED == orig_page_type) {
+		/* set byte 4 of checksum field to page length (ln(len)) */
+		memset(out_buf + FIL_PAGE_SPACE_OR_CHKSUM + 3, page_len, 1);
+	} else {
+		/* set byte 4 of checksum field to checksum byte */
+		memset(out_buf + FIL_PAGE_SPACE_OR_CHKSUM + 3, checksum_byte, 1);
+	}
 
 #ifdef UNIV_DEBUG
 	/* Verify */
@@ -283,7 +296,7 @@ fil_encrypt_page(
 
  If the decryption can be verified, original page should be completely restored.
  This includes original page type, 4-byte checksum field at page start.
- Decryption is verified against a 1-byte checksum built over the plain data bytes. If this verification fails, an error state is returned..
+ If it is not a page compressed table's page, decryption is verified against a 1-byte checksum built over the plain data bytes. If this verification fails, an error state is returned..
 
 
  @return decrypted page */
@@ -293,7 +306,7 @@ ulint fil_decrypt_page(
 		byte* 		buf, 		/*!< in/out: buffer from which to read; in aio
  	 	 	 	 	 	 	 	 this must be appropriately aligned */
 		ulint 		len, 		/*!< in: length buffer, which should be decrypted.*/
-		ulint* 		write_size, /*!< out: size of the decrypted data. If no error occurred equal to len */
+		ulint* 		write_size, /*!< out: size of the decrypted data. If no error occurred equal to len, except for page compressed tables */
 		ibool* 		page_compressed, /*!<out: is page compressed.*/
 		ulint 		mode		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
@@ -308,12 +321,12 @@ ulint fil_decrypt_page(
 	byte * tmp_buf;
 	byte * tmp_page_buf;
 	fil_space_t* space = NULL;
-
 	ulint page_compression_flag = 0;
 	ulint unit_test = mode ? 0x01: 0;
 
 	ut_ad(buf);
 	ut_ad(len);
+
 
 	/* Before actual decrypt, make sure that page type is correct */
 	ulint current_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
@@ -359,6 +372,7 @@ ulint fil_decrypt_page(
 		}
 		page_compression_flag = 1;
 		offset = 0;
+		len = pow(2, mach_read_from_1(buf + FIL_PAGE_SPACE_OR_CHKSUM + 3));
 	}
 
 // If no buffer was given, we need to allocate temporal buffer
@@ -369,8 +383,8 @@ ulint fil_decrypt_page(
 		fflush(stderr);
 #endif /* UNIV_PAGEENCRIPTION_DEBUG */
 		/* it was requested to align this buffer */
-		in_buffer = static_cast<byte*>(ut_malloc(2 * (len)));
-		in_buf = static_cast<byte*>(ut_align(in_buffer, len));
+		in_buffer = static_cast<byte*>(ut_malloc(2 * (UNIV_PAGE_SIZE)));
+		in_buf = static_cast<byte*>(ut_align(in_buffer, UNIV_PAGE_SIZE));
 
 	} else {
 		in_buf = page_buf;
@@ -526,7 +540,7 @@ ulint fil_decrypt_page(
 	ulint pageno = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 	ulint flags = 0;
 	ulint zip_size = 0;
-	/* please note, that pane with number 0 is not encrypted */
+	/* please note, that page with number 0 is not encrypted */
 	if (pageno == 0 ) {
 
 		flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
@@ -544,7 +558,7 @@ ulint fil_decrypt_page(
 			fil_system_exit();
 		}
 	}
-	if (!unit_test || pageno==0) {
+	if (!(page_compression_flag) && (!unit_test || pageno==0)) {
 		zip_size = fsp_flags_get_zip_size(flags);
 	}
 
@@ -553,15 +567,17 @@ ulint fil_decrypt_page(
 		}
 
 
-	byte checksum_byte = fil_page_encryption_calc_checksum(buf + FIL_PAGE_DATA, len - FIL_PAGE_DATA);
-	if (checksum_byte != stored_checksum_byte) {
-		err = PAGE_ENCRYPTION_WRONG_KEY;
-		fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
-						"InnoDB: but decryption verification failed with error %d, encryption key %d.\n",
-						err, (int)page_decryption_key);
-		fflush(stderr);
+	if (!(page_compression_flag)) {
+		byte checksum_byte = fil_page_encryption_calc_checksum(buf + FIL_PAGE_DATA, len - FIL_PAGE_DATA);
+		if (checksum_byte != stored_checksum_byte) {
+			err = PAGE_ENCRYPTION_WRONG_KEY;
+			fprintf(stderr, "InnoDB: Corruption: Page is marked as encrypted\n"
+							"InnoDB: but decryption verification failed with error %d, encryption key %d.\n",
+							err, (int)page_decryption_key);
+			fflush(stderr);
 
-		return err;
+			return err;
+		}
 	}
 
 	if (!(page_compression_flag)) {
@@ -574,7 +590,6 @@ ulint fil_decrypt_page(
 		/* page_compression uses BUF_NO_CHECKSUM_MAGIC as checksum */
 		mach_write_to_4(buf + FIL_PAGE_SPACE_OR_CHKSUM, BUF_NO_CHECKSUM_MAGIC);
 	}
-
 
 
 

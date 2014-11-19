@@ -14,6 +14,7 @@ typedef unsigned long int ibool;
 #include "EncKeys.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include <tap.h>
 #define FIL_PAGE_TYPE_FSP_HDR	8	/*!< File space header */
@@ -138,7 +139,7 @@ void testEncryptionChecksum(char* filename) {
 
 }
 
-void testIt(char* filename, ulint do_not_cmp_checksum) {
+void testIt(char* filename, ulint do_not_cmp_checksum, ulint page_compressed, ulint input_size) {
 	int fl = 0;
 	byte* buf = readFile(filename, &fl);
 	char str[80];
@@ -153,14 +154,24 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 	ulint ec = 0;
 
 	ulint orig_page_type = mach_read_from_2(buf + 24);
-	byte* snd = fil_encrypt_page(0,buf,dest,fl,255, &out_len,  &ec, fl==8192 ? fl : 1);
+	ulint compressed_page =0;
+	if (orig_page_type == 0x8632) {
+		compressed_page = 1;
+	}
+
+	byte* snd = fil_encrypt_page(0,buf,dest,page_compressed? input_size : fl,255, &out_len,  &ec, fl==8192 ? fl : 1);
 	if ((orig_page_type ==8) || (orig_page_type==9)) {
 		ulint cc2 = memcmp(buf,snd,fl) == 0;
 		cc1 = (ec == 5) && cc2;
 		ok(cc1, "page type 8 or 9 will not be encrypted! file %s", (char*) str);
 		return;
 	}
+
 	cc1 = (buf!=dest);
+	if (compressed_page) {
+		ulint write_size = mach_read_from_1(dest+3);
+		cc1 = cc1 && (pow(2,write_size) ==fl);
+	}
 	cc1 = cc1 && (snd==dest);
 	if (!do_not_cmp_checksum) {
 		/* verify page type and enryption key*/
@@ -168,9 +179,12 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 		/* 255 is the key used for unit test */
 		cc1 = cc1 && (mach_read_from_1(dest) == 255);
 	}
+	if (page_compressed) {
+		memcpy (dest+out_len, buf+out_len, fl-out_len);
+	}
 	ulint write_size = 0;
-	ulint result = fil_decrypt_page(NULL, dest, out_len,&write_size,NULL,  out_len==8192 ? out_len : 1);
-	cc1 = (result == 0) && (write_size==fl);
+	ulint result = fil_decrypt_page(NULL, dest, page_compressed? fl: out_len,&write_size,NULL,  out_len==8192 ? out_len : 1);
+	cc1 = (result == 0) && (page_compressed? (write_size = out_len):(write_size==fl));
 	ulint a = 0;
 	ulint b = 0;
 	if (do_not_cmp_checksum) {
@@ -185,8 +199,13 @@ void testIt(char* filename, ulint do_not_cmp_checksum) {
 
 		//dump_buffer(write_size, dest);
 	}
-
+	if (page_compressed) {
+		ok(cc1, "%s %s write size: %lu", str, "page_compressed", out_len );
+	}
 	ok  (cc1, "%s", (char*) str);
+}
+void testIt(char* filename, ulint do_not_cmp_checksum) {
+	testIt(filename, do_not_cmp_checksum, 0, 0);
 }
 void test_page_enc_dec() {
 	char compressed[] = "compressed";
@@ -223,9 +242,11 @@ void test_page_enc_dec() {
 	testIt("row_format_compactad", 0);
 
 
-	testIt(compressed,0);
-	testIt(compressed_full,0);
-	testIt(compressed_6bytes_av,0);
+	testIt(compressed,0, 1, 16384);
+	testIt(compressed_full, 0, 1, 16384);
+	testIt(compressed_6bytes_av, 0, 1, 16384);
+
+	testIt(compressed,0, 1, 4096);
 
 
 	testIt(xaa,0);
