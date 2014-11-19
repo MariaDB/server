@@ -4445,6 +4445,28 @@ add_key_field(JOIN *join,
         return;
 
       /*
+        Note, for ITEM/ENUM columns:
+        - field->cmp_type() returns INT_RESULT
+        - field->result_type() returns STRING_RESULT
+        - field->type() returns MYSQL_TYPE_STRING
+
+        Using field->real_type() to detect ENUM/SET,
+        as they need a special handling:
+        - Conditions between a ENUM/SET filter and a TIME expression
+          cannot be optimized. They were filtered out in the previous if block.
+        - It's Ok to use ref access for an ENUM/SET field compared to an
+          INT/REAL/DECIMAL expression.
+        - It's Ok to use ref for an ENUM/SET field compared to a STRING
+          expression if the collation of the field and the collation of
+          the condition match.
+      */
+      if ((field->real_type() == MYSQL_TYPE_ENUM ||
+           field->real_type() == MYSQL_TYPE_SET) &&
+          (*value)->cmp_type () == STRING_RESULT &&
+          field->charset() != cond->compare_collation())
+        return;
+
+      /*
 	We can't use indexes when comparing a string index to a
 	number or two strings if the effective collation
         of the operation differ from the field collation.
