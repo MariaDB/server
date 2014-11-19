@@ -2432,13 +2432,14 @@ void Item_func_between::print(String *str, enum_query_type query_type)
   str->append(')');
 }
 
+
 void
-Item_func_ifnull::fix_length_and_dec()
+Item_func_case_abbreviation2::fix_length_and_dec(Item **args)
 {
   uint32 char_length;
   agg_result_type(&cached_result_type, args, 2);
   cached_field_type= agg_field_type(args, 2);
-  maybe_null=args[1]->maybe_null;
+  maybe_null=args[0]->maybe_null || args[1]->maybe_null;
   decimals= MY_MAX(args[0]->decimals, args[1]->decimals);
   unsigned_flag= args[0]->unsigned_flag && args[1]->unsigned_flag;
 
@@ -2457,7 +2458,7 @@ Item_func_ifnull::fix_length_and_dec()
 
   switch (cached_result_type) {
   case STRING_RESULT:
-    if (count_string_result_length(cached_field_type, args, arg_count))
+    if (count_string_result_length(cached_field_type, args, 2))
       return;
     break;
   case DECIMAL_RESULT:
@@ -2475,7 +2476,8 @@ Item_func_ifnull::fix_length_and_dec()
 }
 
 
-uint Item_func_ifnull::decimal_precision() const
+
+uint Item_func_case_abbreviation2::decimal_precision(Item **args) const
 {
   int arg0_int_part= args[0]->decimal_int_part();
   int arg1_int_part= args[1]->decimal_int_part();
@@ -2662,47 +2664,7 @@ Item_func_if::fix_length_and_dec()
     maybe_null= true;
     return;
   }
-
-  agg_result_type(&cached_result_type, args + 1, 2);
-  cached_field_type= agg_field_type(args + 1, 2);
-  maybe_null= args[1]->maybe_null || args[2]->maybe_null;
-  decimals= MY_MAX(args[1]->decimals, args[2]->decimals);
-  unsigned_flag=args[1]->unsigned_flag && args[2]->unsigned_flag;
-
-  if (cached_result_type == STRING_RESULT)
-  {
-    count_string_result_length(cached_field_type, args + 1, 2);
-    return;
-  }
-  else
-  {
-    collation.set_numeric(); // Number
-  }
-
-  uint32 char_length;
-  if ((cached_result_type == DECIMAL_RESULT )
-      || (cached_result_type == INT_RESULT))
-  {
-    int len1= args[1]->max_length - args[1]->decimals
-      - (args[1]->unsigned_flag ? 0 : 1);
-
-    int len2= args[2]->max_length - args[2]->decimals
-      - (args[2]->unsigned_flag ? 0 : 1);
-
-    char_length= MY_MAX(len1, len2) + decimals + (unsigned_flag ? 0 : 1);
-  }
-  else
-    char_length= MY_MAX(args[1]->max_char_length(), args[2]->max_char_length());
-  fix_char_length(char_length);
-}
-
-
-uint Item_func_if::decimal_precision() const
-{
-  int arg1_prec= args[1]->decimal_int_part();
-  int arg2_prec= args[2]->decimal_int_part();
-  int precision=MY_MAX(arg1_prec,arg2_prec) + decimals;
-  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
+  Item_func_case_abbreviation2::fix_length_and_dec(args + 1);
 }
 
 

@@ -756,29 +756,52 @@ public:
 };
 
 
-class Item_func_ifnull :public Item_func_coalesce
+/*
+  Case abbreviations that aggregate its result field type by two arguments:
+    IFNULL(arg1, arg2)
+    IF(switch, arg1, arg2)
+*/
+class Item_func_case_abbreviation2 :public Item_func_hybrid_field_type
 {
-protected:
-  bool field_type_defined;
 public:
-  Item_func_ifnull(Item *a, Item *b) :Item_func_coalesce(a,b) {}
+  Item_func_case_abbreviation2(Item *a, Item *b)
+   :Item_func_hybrid_field_type(a, b) { }
+  Item_func_case_abbreviation2(Item *a, Item *b, Item *c)
+   :Item_func_hybrid_field_type(a, b, c) { }
+  void fix_length_and_dec(Item **args);
+  uint decimal_precision(Item **args) const;
+};
+
+
+class Item_func_ifnull :public Item_func_case_abbreviation2
+{
+public:
+  Item_func_ifnull(Item *a, Item *b) :Item_func_case_abbreviation2(a,b) {}
   double real_op();
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
-  void fix_length_and_dec();
+  void fix_length_and_dec()
+  {
+    Item_func_case_abbreviation2::fix_length_and_dec(args);
+    maybe_null= args[1]->maybe_null;
+  }
   const char *func_name() const { return "ifnull"; }
   Field *tmp_table_field(TABLE *table);
-  uint decimal_precision() const;
+  table_map not_null_tables() const { return 0; }
+  uint decimal_precision() const
+  {
+    return Item_func_case_abbreviation2::decimal_precision(args);
+  }
 };
 
 
-class Item_func_if :public Item_func_hybrid_field_type
+class Item_func_if :public Item_func_case_abbreviation2
 {
 public:
   Item_func_if(Item *a,Item *b,Item *c)
-    :Item_func_hybrid_field_type(a,b,c)
+    :Item_func_case_abbreviation2(a, b, c)
   {}
   bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
   longlong int_op();
@@ -787,7 +810,10 @@ public:
   String *str_op(String *);
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
-  uint decimal_precision() const;
+  uint decimal_precision() const
+  {
+    return Item_func_case_abbreviation2::decimal_precision(args + 1);
+  }
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
