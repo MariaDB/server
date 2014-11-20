@@ -49,8 +49,14 @@
 #include "tabmul.h"
 #include "ha_connect.h"
 
-extern "C" int     trace;
-extern "C" USETEMP Use_Temp;
+#if !defined(WIN32)
+extern handlerton *connect_hton;
+#endif   // !WIN32
+
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+USETEMP UseTemp(void);
 
 /* --------------------------- Class RELDEF -------------------------- */
 
@@ -455,6 +461,22 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     } // endif getdef
 #else   // !WIN32
   const char *error = NULL;
+  Dl_info dl_info;
+  
+  // The OEM lib must retrieve exported CONNECT variables
+  if (dladdr(&connect_hton, &dl_info)) {
+    if (dlopen(dl_info.dli_fname, RTLD_NOLOAD | RTLD_NOW | RTLD_GLOBAL) == 0) {
+      error = dlerror();
+      sprintf(g->Message, "dlopen failed: %s, OEM not supported", SVP(error));
+      return NULL;
+      } // endif dlopen
+    
+  } else {
+    error = dlerror();
+    sprintf(g->Message, "dladdr failed: %s, OEM not supported", SVP(error));
+    return NULL;
+  } // endif dladdr
+
   // Is the library already loaded?
 //  if (!Hdll && !(Hdll = ???))
   // Load the desired shared library
@@ -571,7 +593,7 @@ PTDB OEMDEF::GetTable(PGLOBAL g, MODE mode)
   PTXF    txfp = NULL;
   PDOSDEF defp = (PDOSDEF)Pxdef;
   bool    map = defp->Mapped && mode != MODE_INSERT &&
-                !(Use_Temp == TMP_FORCE &&
+                !(UseTemp() == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
   int     cmpr = defp->Compressed;
 

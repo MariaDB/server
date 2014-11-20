@@ -53,12 +53,12 @@ typedef int   HANDLE;
 #ifdef PATH_MAX
 #define _MAX_PATH   PATH_MAX
 #else
-#define _MAX_PATH   260
+#define _MAX_PATH   FN_REFLEN
 #endif
 #define _MAX_DRIVE    3
-#define _MAX_DIR    256
-#define _MAX_FNAME  256
-#define _MAX_EXT    256
+#define _MAX_DIR    FN_REFLEN
+#define _MAX_FNAME  FN_HEADLEN
+#define _MAX_EXT    FN_EXTLEN
 #define INVALID_HANDLE_VALUE  (-1)
 #define __stdcall
 #endif /* !WIN32 */

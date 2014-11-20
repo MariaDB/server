@@ -88,6 +88,7 @@
 #if defined(PIVOT_SUPPORT)
 #include "tabpivot.h"
 #endif   // PIVOT_SUPPORT
+#include "tabvir.h"
 #include "ha_connect.h"
 #include "mycat.h"
 
@@ -97,8 +98,6 @@
 #if defined(WIN32)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !WIN32
-
-extern "C" int trace;
 
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
@@ -139,6 +138,7 @@ TABTYPE GetTypeID(const char *type)
 #ifdef PIVOT_SUPPORT
                  : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
 #endif
+                 : (!stricmp(type, "VIR"))   ? TAB_VIR
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -182,6 +182,7 @@ bool IsExactType(TABTYPE type)
     case TAB_DBF:
 //  case TAB_XML:     depends on Multiple || Xpand || Coltype
     case TAB_VEC:
+    case TAB_VIR:
       exact= true;
       break;
     default:
@@ -279,6 +280,9 @@ int GetIndexType(TABTYPE type)
     case TAB_MYSQL:
 //  case TAB_ODBC:
       xtyp= 2;
+      break;
+    case TAB_VIR:
+      xtyp= 3;
       break;
     case TAB_ODBC:
     default:
@@ -533,6 +537,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 #if defined(PIVOT_SUPPORT)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
 #endif   // PIVOT_SUPPORT
+    case TAB_VIR: tdp= new(g) VIRDEF;   break;
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch

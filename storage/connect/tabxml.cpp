@@ -49,10 +49,7 @@
 #include "tabxml.h"
 #include "tabmul.h"
 
-extern "C" {
-extern char version[];
-extern int  trace;
-} // "C"
+extern "C" char version[];
 
 #if defined(WIN32) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"
