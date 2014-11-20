@@ -1055,8 +1055,12 @@ row_update_statistics_if_needed(
 	since the last time a statistics batch was run.
 	We calculate statistics at most every 16th round, since we may have
 	a counter table which is very small and updated very often. */
+	ib_uint64_t threshold= 16 + n_rows / 16; /* 6.25% */
+	if (srv_stats_modified_counter)
+		threshold= ut_min(srv_stats_modified_counter, threshold);
 
-	if (counter > 16 + n_rows / 16 /* 6.25% */) {
+	if (counter > threshold) {
+	ib_uint64_t threshold= 16 + n_rows / 16; /* 6.25% */
 
 		ut_ad(!mutex_own(&dict_sys->mutex));
 		/* this will reset table->stat_modified_counter to 0 */

@@ -457,6 +457,14 @@ UNIV_INTERN my_bool		srv_stats_persistent = TRUE;
 UNIV_INTERN unsigned long long	srv_stats_persistent_sample_pages = 20;
 UNIV_INTERN my_bool		srv_stats_auto_recalc = TRUE;
 
+/* The number of rows modified before we calculate new statistics (default 0
+= current limits) */
+UNIV_INTERN unsigned long long srv_stats_modified_counter = 0;
+
+/* Enable traditional statistic calculation based on number of configured
+pages default false. */
+UNIV_INTERN my_bool	srv_stats_sample_traditional = FALSE;
+
 UNIV_INTERN ibool	srv_use_doublewrite_buf	= TRUE;
 UNIV_INTERN ibool       srv_use_atomic_writes = FALSE;
 #ifdef HAVE_POSIX_FALLOCATE
