@@ -243,25 +243,23 @@ if(MRN_BUNDLED)
     mysql_add_plugin(mroonga
       "${MROONGA_SOURCES};${MRN_UDF_SOURCES};${MRN_GRN_NORMALIZER_MYSQL_SOURCES};${LIBMRN_NEED_MYSQL_SOURCES};${LIBMRN_NO_MYSQL_SOURCES}"
       STORAGE_ENGINE MODULE_ONLY
-      LINK_LIBRARIES ${GROONGA_LIBRARIES}
-      MODULE_OUTPUT_NAME "ha_mroonga")
+      LINK_LIBRARIES ${GROONGA_LIBRARIES})
   else()
     mysql_add_plugin(mroonga
       "${MROONGA_SOURCES};${MRN_UDF_SOURCES};${LIBMRN_NEED_MYSQL_SOURCES};${LIBMRN_NO_MYSQL_SOURCES}"
       STORAGE_ENGINE MODULE_ONLY
-      LINK_LIBRARIES ${GROONGA_LIBRARIES}
-      MODULE_OUTPUT_NAME "ha_mroonga")
+      LINK_LIBRARIES ${GROONGA_LIBRARIES})
   endif()
  else()
 else()
-  add_library(ha_mroonga MODULE
+  add_library(mroonga MODULE
     ${MROONGA_SOURCES}
     ${MRN_UDF_SOURCES}
     ${LIBMRN_NO_MYSQL_SOURCES}
     ${LIBMRN_NEED_MYSQL_SOURCES})
 
   set(MYSQL_LIBRARIES "mysqlservices")
-  target_link_libraries(ha_mroonga ${GROONGA_LIBRARIES} ${MYSQL_LIBRARIES})
+  target_link_libraries(mroonga ${GROONGA_LIBRARIES} ${MYSQL_LIBRARIES})
 
   option(WITH_DEBUG "Enable debug options" OFF)
   if(WITH_DEBUG)
@@ -315,11 +313,11 @@ else()
     COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS}")
   set_property(TARGET mroonga APPEND PROPERTY
     COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
-  set_target_properties(ha_mroonga PROPERTIES
+  set_target_properties(mroonga PROPERTIES
     PREFIX ""
     OUTPUT_NAME "ha_mroonga")
 
-  install(TARGETS ha_mroonga DESTINATION "${MYSQL_PLUGIN_DIR}")
+  install(TARGETS mroonga DESTINATION "${MYSQL_PLUGIN_DIR}")
 endif()
 
 if(GROONGA_NORMALIZER_MYSQL_FOUND)
