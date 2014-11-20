@@ -174,6 +174,7 @@ template<> struct __type_traits<pcrecpp::StringPiece> {
 #endif
 
 // allow StringPiece to be logged
-std::ostream& operator<<(std::ostream& o, const pcrecpp::StringPiece& piece);
+PCRECPP_EXP_DECL std::ostream& operator<<(std::ostream& o,
+                                          const pcrecpp::StringPiece& piece);
 
 #endif /* _PCRE_STRINGPIECE_H */
