@@ -122,6 +122,8 @@ public:
   Item_bool_func() :Item_int_func() {}
   Item_bool_func(Item *a) :Item_int_func(a) {}
   Item_bool_func(Item *a,Item *b) :Item_int_func(a,b) {}
+  Item_bool_func(Item *a, Item *b, Item *c) :Item_int_func(a, b, c) {}
+  Item_bool_func(List<Item> &list) :Item_int_func(list) { }
   Item_bool_func(THD *thd, Item_bool_func *item) :Item_int_func(thd, item) {}
   bool is_bool_func() { return 1; }
   void fix_length_and_dec() { decimals=0; max_length=1; }
@@ -644,16 +646,16 @@ public:
 
 */
 
-class Item_func_opt_neg :public Item_int_func
+class Item_func_opt_neg :public Item_bool_func
 {
 public:
   bool negated;     /* <=> the item represents NOT <func> */
   bool pred_level;  /* <=> [NOT] <func> is used on a predicate level */
 public:
   Item_func_opt_neg(Item *a, Item *b, Item *c)
-    :Item_int_func(a, b, c), negated(0), pred_level(0) {}
+    :Item_bool_func(a, b, c), negated(0), pred_level(0) {}
   Item_func_opt_neg(List<Item> &list)
-    :Item_int_func(list), negated(0), pred_level(0) {}
+    :Item_bool_func(list), negated(0), pred_level(0) {}
 public:
   inline void negate() { negated= !negated; }
   inline void top_level_item() { pred_level= 1; }
@@ -684,9 +686,7 @@ public:
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
   virtual void print(String *str, enum_query_type query_type);
-  bool is_bool_func() { return 1; }
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
-  uint decimal_precision() const { return 1; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
   bool count_sargable_conds(uchar *arg);
@@ -1352,7 +1352,6 @@ public:
   longlong val_int();
   bool fix_fields(THD *, Item **);
   void fix_length_and_dec();
-  uint decimal_precision() const { return 1; }
   void cleanup()
   {
     uint i;
@@ -1373,7 +1372,6 @@ public:
   enum Functype functype() const { return IN_FUNC; }
   const char *func_name() const { return " IN "; }
   bool nulls_in_row();
-  bool is_bool_func() { return 1; }
   CHARSET_INFO *compare_collation() { return cmp_collation.collation; }
   bool eval_not_null_tables(uchar *opt_arg);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref);
