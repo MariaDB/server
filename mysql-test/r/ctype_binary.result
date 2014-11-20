@@ -2900,7 +2900,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `d` date DEFAULT NULL,
-  `bad` varbinary(10) DEFAULT NULL
+  `bad` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1, t2;
 SET NAMES latin1;

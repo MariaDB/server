@@ -822,20 +822,30 @@ private:
 };
 
 
-class Item_func_nullif :public Item_bool_func2
+class Item_func_nullif :public Item_func_hybrid_field_type
 {
-  enum Item_result cached_result_type;
+  Arg_comparator cmp;
+  /*
+    Remember the first argument in case it will be substituted by either of:
+    - convert_const_compared_to_int_field()
+    - agg_item_set_converter() in set_cmp_func()
+    - cache_converted_constant() in set_cmp_func()
+    The original item will be stored in m_arg0_copy, to return result.
+    The substituted item will be stored in args[0], for comparison purposes.
+  */
+  Item *m_args0_copy;
 public:
   Item_func_nullif(Item *a,Item *b)
-    :Item_bool_func2(a,b), cached_result_type(INT_RESULT)
+    :Item_func_hybrid_field_type(a, b),
+     m_args0_copy(a)
   {}
-  double val_real();
-  longlong val_int();
-  String *val_str(String *str);
-  my_decimal *val_decimal(my_decimal *);
-  enum Item_result result_type () const { return cached_result_type; }
+  bool date_op(MYSQL_TIME *ltime, uint fuzzydate);
+  double real_op();
+  longlong int_op();
+  String *str_op(String *str);
+  my_decimal *decimal_op(my_decimal *);
   void fix_length_and_dec();
-  uint decimal_precision() const { return args[0]->decimal_precision(); }
+  uint decimal_precision() const { return m_args0_copy->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
 
   virtual inline void print(String *str, enum_query_type query_type)

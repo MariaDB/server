@@ -241,7 +241,7 @@ t1	CREATE TABLE `t1` (
   `c11` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
   `c12` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
   `c13` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
-  `c14` char(0) CHARACTER SET latin2 DEFAULT NULL,
+  `c14` binary(0) DEFAULT NULL,
   `c15` char(0) CHARACTER SET latin2 DEFAULT NULL,
   `c16` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
   `c17` varchar(6) CHARACTER SET latin2 DEFAULT NULL,
@@ -382,3 +382,961 @@ CREATE TABLE t2 (d DATE) ENGINE=MyISAM;
 SELECT  * FROM t1,t2 WHERE  1 IS NOT NULL AND t1.b IS NULL;
 a	b	c	d
 DROP TABLE t1,t2;
+#
+# Start of 10.1 tests
+#
+#
+# MDEV-7146 NULLIF returns unexpected result with a YEAR field
+#
+CREATE TABLE t1 (a YEAR(2));
+Warnings:
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+INSERT INTO t1 VALUES (0);
+SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
+a	NULLIF(a,2000)	NULLIF(2000,a)
+00	NULL	NULL
+SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;
+a	NULLIF(a,2001)	NULLIF(2001,a)
+00	0	2001
+DROP TABLE t1;
+#
+# MDEV-7005 NULLIF does not work as documented
+#
+CREATE TABLE t1 (a TIME);
+CREATE TABLE t2 AS SELECT a,NULLIF(a,a), CASE WHEN a=a THEN NULL ELSE a END FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` time DEFAULT NULL,
+  `NULLIF(a,a)` time DEFAULT NULL,
+  `CASE WHEN a=a THEN NULL ELSE a END` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;
+SELECT NULLIF(_latin1'a' COLLATE latin1_general_ci, _latin1'a' COLLATE latin1_bin);
+ERROR HY000: Illegal mix of collations (latin1_general_ci,EXPLICIT) and (latin1_bin,EXPLICIT) for operation 'nullif'
+CREATE TABLE t1 AS SELECT
+NULLIF(1,1),
+NULLIF(1,1.0),
+NULLIF(1,1e0),
+NULLIF(1,'2001-01-01'),
+NULLIF(1,TIME'00:00:00');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF(1,1)` int(1) DEFAULT NULL,
+  `NULLIF(1,1.0)` int(1) DEFAULT NULL,
+  `NULLIF(1,1e0)` int(1) DEFAULT NULL,
+  `NULLIF(1,'2001-01-01')` int(1) DEFAULT NULL,
+  `NULLIF(1,TIME'00:00:00')` int(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+NULLIF(1.0,1),
+NULLIF(1.0,1.0),
+NULLIF(1.0,1e0),
+NULLIF(1.0,'2001-01-01'),
+NULLIF(1.0,TIME'00:00:00');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF(1.0,1)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,1.0)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,1e0)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,'2001-01-01')` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,TIME'00:00:00')` decimal(2,1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+NULLIF(1e0,1),
+NULLIF(1e0,1.0),
+NULLIF(1e0,1e0),
+NULLIF(1e0,'2001-01-01'),
+NULLIF(1e0,TIME'00:00:00');
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF(1e0,1)` double DEFAULT NULL,
+  `NULLIF(1e0,1.0)` double DEFAULT NULL,
+  `NULLIF(1e0,1e0)` double DEFAULT NULL,
+  `NULLIF(1e0,'2001-01-01')` double DEFAULT NULL,
+  `NULLIF(1e0,TIME'00:00:00')` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+NULLIF('1',1),
+NULLIF('1',1.0),
+NULLIF('1',1e0),
+NULLIF('1','2001-01-01'),
+NULLIF('1',TIME'00:00:00');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF('1',1)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',1.0)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',1e0)` varchar(1) DEFAULT NULL,
+  `NULLIF('1','2001-01-01')` varchar(1) DEFAULT NULL,
+  `NULLIF('1',TIME'00:00:00')` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+NULLIF(TIMESTAMP'2001-01-01 00:00:00',1),
+NULLIF(TIMESTAMP'2001-01-01 00:00:00',1.0),
+NULLIF(TIMESTAMP'2001-01-01 00:00:00',1e0),
+NULLIF(TIMESTAMP'2001-01-01 00:00:00','2001-01-01'),
+NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF(TIMESTAMP'2001-01-01 00:00:00',1)` datetime DEFAULT NULL,
+  `NULLIF(TIMESTAMP'2001-01-01 00:00:00',1.0)` datetime DEFAULT NULL,
+  `NULLIF(TIMESTAMP'2001-01-01 00:00:00',1e0)` datetime DEFAULT NULL,
+  `NULLIF(TIMESTAMP'2001-01-01 00:00:00','2001-01-01')` datetime DEFAULT NULL,
+  `NULLIF(TIMESTAMP'2001-01-01 00:00:00',TIME'00:00:00')` datetime DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+NULLIF(DATE'2001-01-01',1),
+NULLIF(DATE'2001-01-01',1.0),
+NULLIF(DATE'2001-01-01',1e0),
+NULLIF(DATE'2001-01-01','2001-01-01'),
+NULLIF(DATE'2001-01-01',TIME'00:00:00');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF(DATE'2001-01-01',1)` date DEFAULT NULL,
+  `NULLIF(DATE'2001-01-01',1.0)` date DEFAULT NULL,
+  `NULLIF(DATE'2001-01-01',1e0)` date DEFAULT NULL,
+  `NULLIF(DATE'2001-01-01','2001-01-01')` date DEFAULT NULL,
+  `NULLIF(DATE'2001-01-01',TIME'00:00:00')` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT
+NULLIF(TIME'00:00:01',1),
+NULLIF(TIME'00:00:01',1.0),
+NULLIF(TIME'00:00:01',1e0),
+NULLIF(TIME'00:00:01','00:00:00'),
+NULLIF(TIME'00:00:01',DATE'2001-01-01');
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `NULLIF(TIME'00:00:01',1)` time DEFAULT NULL,
+  `NULLIF(TIME'00:00:01',1.0)` time DEFAULT NULL,
+  `NULLIF(TIME'00:00:01',1e0)` time DEFAULT NULL,
+  `NULLIF(TIME'00:00:01','00:00:00')` time DEFAULT NULL,
+  `NULLIF(TIME'00:00:01',DATE'2001-01-01')` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+CREATE TABLE t1
+(
+c_tinyint    TINYINT,
+c_smallint   SMALLINT,
+c_int        INT,
+c_bigint     BIGINT,
+c_float      FLOAT,
+c_double     DOUBLE,
+c_decimal103 DECIMAL(10,3),
+c_varchar10  VARCHAR(10),
+c_text       TEXT,
+c_blob       BLOB,
+c_enum       ENUM('one','two','tree'),
+c_datetime3  DATETIME(3),
+c_timestamp3 TIMESTAMP(3),
+c_date       DATE,
+c_time       TIME
+);
+#
+# Checking that the return type depends only on args[0], even when compared to a super type
+#
+CREATE TABLE t2 AS SELECT
+NULLIF(c_tinyint,  1),
+NULLIF(c_tinyint,  c_smallint),
+NULLIF(c_tinyint,  c_tinyint),
+NULLIF(c_tinyint,  c_int),
+NULLIF(c_tinyint,  c_bigint),
+NULLIF(c_tinyint,  c_float),
+NULLIF(c_tinyint,  c_double),
+NULLIF(c_tinyint,  c_decimal103),
+NULLIF(c_tinyint,  c_varchar10),
+NULLIF(c_tinyint,  c_text),
+NULLIF(c_tinyint,  c_blob),
+NULLIF(c_tinyint,  c_enum),
+NULLIF(c_tinyint,  c_datetime3),
+NULLIF(c_tinyint,  c_timestamp3),
+NULLIF(c_tinyint,  c_date),
+NULLIF(c_tinyint,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_tinyint,  1)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_smallint)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_tinyint)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_int)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_bigint)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_float)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_double)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_decimal103)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_varchar10)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_text)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_blob)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_enum)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_datetime3)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_timestamp3)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_date)` int(4) DEFAULT NULL,
+  `NULLIF(c_tinyint,  c_time)` int(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_smallint,  1),
+NULLIF(c_smallint,  c_smallint),
+NULLIF(c_smallint,  c_tinyint),
+NULLIF(c_smallint,  c_int),
+NULLIF(c_smallint,  c_bigint),
+NULLIF(c_smallint,  c_float),
+NULLIF(c_smallint,  c_double),
+NULLIF(c_smallint,  c_decimal103),
+NULLIF(c_smallint,  c_varchar10),
+NULLIF(c_smallint,  c_text),
+NULLIF(c_smallint,  c_blob),
+NULLIF(c_smallint,  c_enum),
+NULLIF(c_smallint,  c_datetime3),
+NULLIF(c_smallint,  c_timestamp3),
+NULLIF(c_smallint,  c_date),
+NULLIF(c_smallint,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_smallint,  1)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_smallint)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_tinyint)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_int)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_bigint)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_float)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_double)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_decimal103)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_varchar10)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_text)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_blob)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_enum)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_datetime3)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_timestamp3)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_date)` int(6) DEFAULT NULL,
+  `NULLIF(c_smallint,  c_time)` int(6) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_int,  1),
+NULLIF(c_int,  c_smallint),
+NULLIF(c_int,  c_tinyint),
+NULLIF(c_int,  c_int),
+NULLIF(c_int,  c_bigint),
+NULLIF(c_int,  c_float),
+NULLIF(c_int,  c_double),
+NULLIF(c_int,  c_decimal103),
+NULLIF(c_int,  c_varchar10),
+NULLIF(c_int,  c_text),
+NULLIF(c_int,  c_blob),
+NULLIF(c_int,  c_enum),
+NULLIF(c_int,  c_datetime3),
+NULLIF(c_int,  c_timestamp3),
+NULLIF(c_int,  c_date),
+NULLIF(c_int,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_int,  1)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_smallint)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_tinyint)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_int)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_bigint)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_float)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_double)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_decimal103)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_varchar10)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_text)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_blob)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_enum)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_datetime3)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_timestamp3)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_date)` int(11) DEFAULT NULL,
+  `NULLIF(c_int,  c_time)` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_bigint,  1),
+NULLIF(c_bigint,  c_smallint),
+NULLIF(c_bigint,  c_tinyint),
+NULLIF(c_bigint,  c_int),
+NULLIF(c_bigint,  c_bigint),
+NULLIF(c_bigint,  c_float),
+NULLIF(c_bigint,  c_double),
+NULLIF(c_bigint,  c_decimal103),
+NULLIF(c_bigint,  c_varchar10),
+NULLIF(c_bigint,  c_text),
+NULLIF(c_bigint,  c_blob),
+NULLIF(c_bigint,  c_enum),
+NULLIF(c_bigint,  c_datetime3),
+NULLIF(c_bigint,  c_timestamp3),
+NULLIF(c_bigint,  c_date),
+NULLIF(c_bigint,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_bigint,  1)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_smallint)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_tinyint)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_int)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_bigint)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_float)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_double)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_decimal103)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_varchar10)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_text)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_blob)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_enum)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_datetime3)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_timestamp3)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_date)` bigint(20) DEFAULT NULL,
+  `NULLIF(c_bigint,  c_time)` bigint(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_float,  1),
+NULLIF(c_float,  c_smallint),
+NULLIF(c_float,  c_tinyint),
+NULLIF(c_float,  c_int),
+NULLIF(c_float,  c_bigint),
+NULLIF(c_float,  c_float),
+NULLIF(c_float,  c_double),
+NULLIF(c_float,  c_decimal103),
+NULLIF(c_float,  c_varchar10),
+NULLIF(c_float,  c_text),
+NULLIF(c_float,  c_blob),
+NULLIF(c_float,  c_enum),
+NULLIF(c_float,  c_datetime3),
+NULLIF(c_float,  c_timestamp3),
+NULLIF(c_float,  c_date),
+NULLIF(c_float,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_float,  1)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_smallint)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_tinyint)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_int)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_bigint)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_float)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_double)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_decimal103)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_varchar10)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_text)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_blob)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_enum)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_datetime3)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_timestamp3)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_date)` double DEFAULT NULL,
+  `NULLIF(c_float,  c_time)` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_double,  1),
+NULLIF(c_double,  c_smallint),
+NULLIF(c_double,  c_tinyint),
+NULLIF(c_double,  c_int),
+NULLIF(c_double,  c_bigint),
+NULLIF(c_double,  c_float),
+NULLIF(c_double,  c_double),
+NULLIF(c_double,  c_decimal103),
+NULLIF(c_double,  c_varchar10),
+NULLIF(c_double,  c_text),
+NULLIF(c_double,  c_blob),
+NULLIF(c_double,  c_enum),
+NULLIF(c_double,  c_datetime3),
+NULLIF(c_double,  c_timestamp3),
+NULLIF(c_double,  c_date),
+NULLIF(c_double,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_double,  1)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_smallint)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_tinyint)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_int)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_bigint)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_float)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_double)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_decimal103)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_varchar10)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_text)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_blob)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_enum)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_datetime3)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_timestamp3)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_date)` double DEFAULT NULL,
+  `NULLIF(c_double,  c_time)` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_decimal103,  1),
+NULLIF(c_decimal103,  c_smallint),
+NULLIF(c_decimal103,  c_tinyint),
+NULLIF(c_decimal103,  c_int),
+NULLIF(c_decimal103,  c_bigint),
+NULLIF(c_decimal103,  c_float),
+NULLIF(c_decimal103,  c_double),
+NULLIF(c_decimal103,  c_decimal103),
+NULLIF(c_decimal103,  c_varchar10),
+NULLIF(c_decimal103,  c_text),
+NULLIF(c_decimal103,  c_blob),
+NULLIF(c_decimal103,  c_enum),
+NULLIF(c_decimal103,  c_datetime3),
+NULLIF(c_decimal103,  c_timestamp3),
+NULLIF(c_decimal103,  c_date),
+NULLIF(c_decimal103,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_decimal103,  1)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_smallint)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_tinyint)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_int)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_bigint)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_float)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_double)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_decimal103)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_varchar10)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_text)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_blob)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_enum)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_datetime3)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_timestamp3)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_date)` decimal(10,3) DEFAULT NULL,
+  `NULLIF(c_decimal103,  c_time)` decimal(10,3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_varchar10,  1),
+NULLIF(c_varchar10,  c_smallint),
+NULLIF(c_varchar10,  c_tinyint),
+NULLIF(c_varchar10,  c_int),
+NULLIF(c_varchar10,  c_bigint),
+NULLIF(c_varchar10,  c_float),
+NULLIF(c_varchar10,  c_double),
+NULLIF(c_varchar10,  c_decimal103),
+NULLIF(c_varchar10,  c_varchar10),
+NULLIF(c_varchar10,  c_text),
+NULLIF(c_varchar10,  c_blob),
+NULLIF(c_varchar10,  c_enum),
+NULLIF(c_varchar10,  c_datetime3),
+NULLIF(c_varchar10,  c_timestamp3),
+NULLIF(c_varchar10,  c_date),
+NULLIF(c_varchar10,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_varchar10,  1)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_smallint)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_tinyint)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_int)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_bigint)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_float)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_double)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_decimal103)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_varchar10)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_text)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_blob)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_enum)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_datetime3)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_timestamp3)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_date)` varchar(10) DEFAULT NULL,
+  `NULLIF(c_varchar10,  c_time)` varchar(10) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_text,  1),
+NULLIF(c_text,  c_smallint),
+NULLIF(c_text,  c_tinyint),
+NULLIF(c_text,  c_int),
+NULLIF(c_text,  c_bigint),
+NULLIF(c_text,  c_float),
+NULLIF(c_text,  c_double),
+NULLIF(c_text,  c_decimal103),
+NULLIF(c_text,  c_varchar10),
+NULLIF(c_text,  c_text),
+NULLIF(c_text,  c_blob),
+NULLIF(c_text,  c_enum),
+NULLIF(c_text,  c_datetime3),
+NULLIF(c_text,  c_timestamp3),
+NULLIF(c_text,  c_date),
+NULLIF(c_text,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_text,  1)` longtext,
+  `NULLIF(c_text,  c_smallint)` longtext,
+  `NULLIF(c_text,  c_tinyint)` longtext,
+  `NULLIF(c_text,  c_int)` longtext,
+  `NULLIF(c_text,  c_bigint)` longtext,
+  `NULLIF(c_text,  c_float)` longtext,
+  `NULLIF(c_text,  c_double)` longtext,
+  `NULLIF(c_text,  c_decimal103)` longtext,
+  `NULLIF(c_text,  c_varchar10)` longtext,
+  `NULLIF(c_text,  c_text)` longtext,
+  `NULLIF(c_text,  c_blob)` longtext,
+  `NULLIF(c_text,  c_enum)` longtext,
+  `NULLIF(c_text,  c_datetime3)` longtext,
+  `NULLIF(c_text,  c_timestamp3)` longtext,
+  `NULLIF(c_text,  c_date)` longtext,
+  `NULLIF(c_text,  c_time)` longtext
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_blob,  1),
+NULLIF(c_blob,  c_smallint),
+NULLIF(c_blob,  c_tinyint),
+NULLIF(c_blob,  c_int),
+NULLIF(c_blob,  c_bigint),
+NULLIF(c_blob,  c_float),
+NULLIF(c_blob,  c_double),
+NULLIF(c_blob,  c_decimal103),
+NULLIF(c_blob,  c_varchar10),
+NULLIF(c_blob,  c_text),
+NULLIF(c_blob,  c_blob),
+NULLIF(c_blob,  c_enum),
+NULLIF(c_blob,  c_datetime3),
+NULLIF(c_blob,  c_timestamp3),
+NULLIF(c_blob,  c_date),
+NULLIF(c_blob,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_blob,  1)` longblob,
+  `NULLIF(c_blob,  c_smallint)` longblob,
+  `NULLIF(c_blob,  c_tinyint)` longblob,
+  `NULLIF(c_blob,  c_int)` longblob,
+  `NULLIF(c_blob,  c_bigint)` longblob,
+  `NULLIF(c_blob,  c_float)` longblob,
+  `NULLIF(c_blob,  c_double)` longblob,
+  `NULLIF(c_blob,  c_decimal103)` longblob,
+  `NULLIF(c_blob,  c_varchar10)` longblob,
+  `NULLIF(c_blob,  c_text)` longblob,
+  `NULLIF(c_blob,  c_blob)` longblob,
+  `NULLIF(c_blob,  c_enum)` longblob,
+  `NULLIF(c_blob,  c_datetime3)` longblob,
+  `NULLIF(c_blob,  c_timestamp3)` longblob,
+  `NULLIF(c_blob,  c_date)` longblob,
+  `NULLIF(c_blob,  c_time)` longblob
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_enum,  1),
+NULLIF(c_enum,  c_smallint),
+NULLIF(c_enum,  c_tinyint),
+NULLIF(c_enum,  c_int),
+NULLIF(c_enum,  c_bigint),
+NULLIF(c_enum,  c_float),
+NULLIF(c_enum,  c_double),
+NULLIF(c_enum,  c_decimal103),
+NULLIF(c_enum,  c_varchar10),
+NULLIF(c_enum,  c_text),
+NULLIF(c_enum,  c_blob),
+NULLIF(c_enum,  c_enum),
+NULLIF(c_enum,  c_datetime3),
+NULLIF(c_enum,  c_timestamp3),
+NULLIF(c_enum,  c_date),
+NULLIF(c_enum,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_enum,  1)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_smallint)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_tinyint)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_int)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_bigint)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_float)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_double)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_decimal103)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_varchar10)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_text)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_blob)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_enum)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_datetime3)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_timestamp3)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_date)` varchar(4) DEFAULT NULL,
+  `NULLIF(c_enum,  c_time)` varchar(4) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_datetime3,  1),
+NULLIF(c_datetime3,  c_smallint),
+NULLIF(c_datetime3,  c_tinyint),
+NULLIF(c_datetime3,  c_int),
+NULLIF(c_datetime3,  c_bigint),
+NULLIF(c_datetime3,  c_float),
+NULLIF(c_datetime3,  c_double),
+NULLIF(c_datetime3,  c_decimal103),
+NULLIF(c_datetime3,  c_varchar10),
+NULLIF(c_datetime3,  c_text),
+NULLIF(c_datetime3,  c_blob),
+NULLIF(c_datetime3,  c_enum),
+NULLIF(c_datetime3,  c_datetime3),
+NULLIF(c_datetime3,  c_timestamp3),
+NULLIF(c_datetime3,  c_date),
+NULLIF(c_datetime3,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_datetime3,  1)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_smallint)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_tinyint)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_int)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_bigint)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_float)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_double)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_decimal103)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_varchar10)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_text)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_blob)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_enum)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_datetime3)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_timestamp3)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_date)` datetime(3) DEFAULT NULL,
+  `NULLIF(c_datetime3,  c_time)` datetime(3) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_timestamp3,  1),
+NULLIF(c_timestamp3,  c_smallint),
+NULLIF(c_timestamp3,  c_tinyint),
+NULLIF(c_timestamp3,  c_int),
+NULLIF(c_timestamp3,  c_bigint),
+NULLIF(c_timestamp3,  c_float),
+NULLIF(c_timestamp3,  c_double),
+NULLIF(c_timestamp3,  c_decimal103),
+NULLIF(c_timestamp3,  c_varchar10),
+NULLIF(c_timestamp3,  c_text),
+NULLIF(c_timestamp3,  c_blob),
+NULLIF(c_timestamp3,  c_enum),
+NULLIF(c_timestamp3,  c_datetime3),
+NULLIF(c_timestamp3,  c_timestamp3),
+NULLIF(c_timestamp3,  c_date),
+NULLIF(c_timestamp3,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_timestamp3,  1)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_smallint)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_tinyint)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_int)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_bigint)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_float)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_double)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_decimal103)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_varchar10)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_text)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_blob)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_enum)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_datetime3)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_timestamp3)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_date)` timestamp(3) NULL DEFAULT NULL,
+  `NULLIF(c_timestamp3,  c_time)` timestamp(3) NULL DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_date,  1),
+NULLIF(c_date,  c_smallint),
+NULLIF(c_date,  c_tinyint),
+NULLIF(c_date,  c_int),
+NULLIF(c_date,  c_bigint),
+NULLIF(c_date,  c_float),
+NULLIF(c_date,  c_double),
+NULLIF(c_date,  c_decimal103),
+NULLIF(c_date,  c_varchar10),
+NULLIF(c_date,  c_text),
+NULLIF(c_date,  c_blob),
+NULLIF(c_date,  c_enum),
+NULLIF(c_date,  c_datetime3),
+NULLIF(c_date,  c_timestamp3),
+NULLIF(c_date,  c_date),
+NULLIF(c_date,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_date,  1)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_smallint)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_tinyint)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_int)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_bigint)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_float)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_double)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_decimal103)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_varchar10)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_text)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_blob)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_enum)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_datetime3)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_timestamp3)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_date)` date DEFAULT NULL,
+  `NULLIF(c_date,  c_time)` date DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(c_time,  1),
+NULLIF(c_time,  c_smallint),
+NULLIF(c_time,  c_tinyint),
+NULLIF(c_time,  c_int),
+NULLIF(c_time,  c_bigint),
+NULLIF(c_time,  c_float),
+NULLIF(c_time,  c_double),
+NULLIF(c_time,  c_decimal103),
+NULLIF(c_time,  c_varchar10),
+NULLIF(c_time,  c_text),
+NULLIF(c_time,  c_blob),
+NULLIF(c_time,  c_enum),
+NULLIF(c_time,  c_datetime3),
+NULLIF(c_time,  c_timestamp3),
+NULLIF(c_time,  c_date),
+NULLIF(c_time,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(c_time,  1)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_smallint)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_tinyint)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_int)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_bigint)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_float)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_double)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_decimal103)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_varchar10)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_text)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_blob)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_enum)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_datetime3)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_timestamp3)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_date)` time DEFAULT NULL,
+  `NULLIF(c_time,  c_time)` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+#
+# Checking that the return type depends only on args[0], even if compared to a field
+#
+CREATE TABLE t2 AS SELECT
+NULLIF(1,  1),
+NULLIF(1,  c_smallint),
+NULLIF(1,  c_tinyint),
+NULLIF(1,  c_int),
+NULLIF(1,  c_bigint),
+NULLIF(1,  c_float),
+NULLIF(1,  c_double),
+NULLIF(1,  c_decimal103),
+NULLIF(1,  c_varchar10),
+NULLIF(1,  c_text),
+NULLIF(1,  c_blob),
+NULLIF(1,  c_enum),
+NULLIF(1,  c_datetime3),
+NULLIF(1,  c_timestamp3),
+NULLIF(1,  c_date),
+NULLIF(1,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(1,  1)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_smallint)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_tinyint)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_int)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_bigint)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_float)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_double)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_decimal103)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_varchar10)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_text)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_blob)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_enum)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_datetime3)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_timestamp3)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_date)` int(1) DEFAULT NULL,
+  `NULLIF(1,  c_time)` int(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(1.0,  1),
+NULLIF(1.0,  c_smallint),
+NULLIF(1.0,  c_tinyint),
+NULLIF(1.0,  c_int),
+NULLIF(1.0,  c_bigint),
+NULLIF(1.0,  c_float),
+NULLIF(1.0,  c_double),
+NULLIF(1.0,  c_decimal103),
+NULLIF(1.0,  c_varchar10),
+NULLIF(1.0,  c_text),
+NULLIF(1.0,  c_blob),
+NULLIF(1.0,  c_enum),
+NULLIF(1.0,  c_datetime3),
+NULLIF(1.0,  c_timestamp3),
+NULLIF(1.0,  c_date),
+NULLIF(1.0,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(1.0,  1)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_smallint)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_tinyint)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_int)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_bigint)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_float)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_double)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_decimal103)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_varchar10)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_text)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_blob)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_enum)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_datetime3)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_timestamp3)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_date)` decimal(2,1) DEFAULT NULL,
+  `NULLIF(1.0,  c_time)` decimal(2,1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(1e0,  1),
+NULLIF(1e0,  c_smallint),
+NULLIF(1e0,  c_tinyint),
+NULLIF(1e0,  c_int),
+NULLIF(1e0,  c_bigint),
+NULLIF(1e0,  c_float),
+NULLIF(1e0,  c_double),
+NULLIF(1e0,  c_decimal103),
+NULLIF(1e0,  c_varchar10),
+NULLIF(1e0,  c_text),
+NULLIF(1e0,  c_blob),
+NULLIF(1e0,  c_enum),
+NULLIF(1e0,  c_datetime3),
+NULLIF(1e0,  c_timestamp3),
+NULLIF(1e0,  c_date),
+NULLIF(1e0,  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(1e0,  1)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_smallint)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_tinyint)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_int)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_bigint)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_float)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_double)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_decimal103)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_varchar10)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_text)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_blob)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_enum)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_datetime3)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_timestamp3)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_date)` double DEFAULT NULL,
+  `NULLIF(1e0,  c_time)` double DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF('1',  1),
+NULLIF('1',  c_smallint),
+NULLIF('1',  c_tinyint),
+NULLIF('1',  c_int),
+NULLIF('1',  c_bigint),
+NULLIF('1',  c_float),
+NULLIF('1',  c_double),
+NULLIF('1',  c_decimal103),
+NULLIF('1',  c_varchar10),
+NULLIF('1',  c_text),
+NULLIF('1',  c_blob),
+NULLIF('1',  c_enum),
+NULLIF('1',  c_datetime3),
+NULLIF('1',  c_timestamp3),
+NULLIF('1',  c_date),
+NULLIF('1',  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF('1',  1)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_smallint)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_tinyint)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_int)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_bigint)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_float)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_double)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_decimal103)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_varchar10)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_text)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_blob)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_enum)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_datetime3)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_timestamp3)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_date)` varchar(1) DEFAULT NULL,
+  `NULLIF('1',  c_time)` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+CREATE TABLE t2 AS SELECT
+NULLIF(TIME'10:10:10',  1),
+NULLIF(TIME'10:10:10',  c_smallint),
+NULLIF(TIME'10:10:10',  c_tinyint),
+NULLIF(TIME'10:10:10',  c_int),
+NULLIF(TIME'10:10:10',  c_bigint),
+NULLIF(TIME'10:10:10',  c_float),
+NULLIF(TIME'10:10:10',  c_double),
+NULLIF(TIME'10:10:10',  c_decimal103),
+NULLIF(TIME'10:10:10',  c_varchar10),
+NULLIF(TIME'10:10:10',  c_text),
+NULLIF(TIME'10:10:10',  c_blob),
+NULLIF(TIME'10:10:10',  c_enum),
+NULLIF(TIME'10:10:10',  c_datetime3),
+NULLIF(TIME'10:10:10',  c_timestamp3),
+NULLIF(TIME'10:10:10',  c_date),
+NULLIF(TIME'10:10:10',  c_time)
+FROM t1;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `NULLIF(TIME'10:10:10',  1)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_smallint)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_tinyint)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_int)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_bigint)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_float)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_double)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_decimal103)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_varchar10)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_text)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_blob)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_enum)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_datetime3)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_timestamp3)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_date)` time DEFAULT NULL,
+  `NULLIF(TIME'10:10:10',  c_time)` time DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2;
+DROP TABLE t1;
+#
+# End of 10.1 tests
+#

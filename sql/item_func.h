@@ -396,6 +396,7 @@ public:
     info.bool_function= &Item::restore_to_before_no_rows_in_result;
     walk(&Item::call_bool_func_processor, FALSE, (uchar*) &info);
   }
+  void convert_const_compared_to_int_field(THD *thd);
 };
 
 
