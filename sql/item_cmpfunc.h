@@ -364,7 +364,7 @@ public:
   virtual bool l_op() const { return 1; }
 };
 
-class Item_bool_func2 :public Item_int_func
+class Item_bool_func2 :public Item_bool_func
 {						/* Bool with 2 string args */
 protected:
   Arg_comparator cmp;
@@ -372,7 +372,7 @@ protected:
 
 public:
   Item_bool_func2(Item *a,Item *b)
-    :Item_int_func(a,b), cmp(tmp_arg, tmp_arg+1),
+    :Item_bool_func(a,b), cmp(tmp_arg, tmp_arg+1),
      abort_on_null(FALSE) { sargable= TRUE; }
   void fix_length_and_dec();
   int set_cmp_func()
@@ -389,14 +389,12 @@ public:
   }
 
   bool is_null() { return MY_TEST(args[0]->is_null() || args[1]->is_null()); }
-  bool is_bool_func() { return 1; }
   CHARSET_INFO *compare_collation() { return cmp.cmp_collation.collation; }
-  uint decimal_precision() const { return 1; }
   void top_level_item() { abort_on_null= TRUE; }
   Arg_comparator *get_comparator() { return &cmp; }
   void cleanup()
   {
-    Item_int_func::cleanup();
+    Item_bool_func::cleanup();
     cmp.cleanup();
   }
 
