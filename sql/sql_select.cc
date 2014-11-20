@@ -20736,6 +20736,24 @@ static void free_blobs(Field **ptr)
 }
 
 
+/*
+  @brief
+    Remove duplicates from a temporary table.
+
+  @detail
+    Remove duplicate rows from a temporary table. This is used for e.g. queries
+    like
+
+      select distinct count(*) as CNT from tbl group by col
+
+    Here, we get a group table with count(*) values. It is not possible to
+    prevent duplicates from appearing in the table (as we don't know the values
+    before we've done the grouping).  Because of that, we have this function to
+    scan the temptable (maybe, multiple times) and remove the duplicate rows
+
+    Rows that do not satisfy 'having' condition are also removed.
+*/
+
 static int
 remove_duplicates(JOIN *join, TABLE *table, List<Item> &fields, Item *having)
 {

@@ -1072,6 +1072,12 @@ public:
   TABLE_LIST *pos_in_table_list;/* Element referring to this table */
   /* Position in thd->locked_table_list under LOCK TABLES */
   TABLE_LIST *pos_in_locked_tables;
+
+  /*
+    Not-null for temporary tables only. Non-null values means this table is
+    used to compute GROUP BY, it has a unique of GROUP BY columns.
+    (set by create_tmp_table)
+  */
   ORDER		*group;
   String	alias;            	  /* alias or table name */
   uchar		*null_flags;
