@@ -60,6 +60,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   int     Maxerr;             /* Maxerr for an Exec table              */
   int     Maxres;             /* Maxres for a catalog table            */
   bool    Scrollable;         /* Use scrollable cursor                 */
+  bool    Memory;             /* Put result set in memory              */
   bool    Xsrc;               /* Execution type                        */
   }; // end of ODBCDEF
 
@@ -143,7 +144,9 @@ class TDBODBC : public TDBASE {
   int      Rbuf;              // Number of lines read in buffer
   int      BufSize;           // Size of connect string buffer
   int      Nparm;             // The number of statement parameters
+  int      Memory;            // 0: No 1: Alloc 2: Put 3: Get
   bool     Scrollable;        // Use scrollable cursor
+  PQRYRES  Qrp;               // Points to storage result
   }; // end of class TDBODBC
 
 /***********************************************************************/
@@ -162,6 +165,7 @@ class ODBCCOL : public COLBLK {
           SQLLEN *GetStrLen(void) {return StrLen;}
           int     GetRank(void) {return Rank;}
 //        PVBLK   GetBlkp(void) {return Blkp;}
+          void    SetCrp(PCOLRES crp) {Crp = crp;}
 
   // Methods
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -178,6 +182,7 @@ class ODBCCOL : public COLBLK {
 
   // Members
   TIMESTAMP_STRUCT *Sqlbuf;    // To get SQL_TIMESTAMP's
+  PCOLRES Crp;                 // To storage result
   void   *Bufp;                // To extended buffer
   PVBLK   Blkp;                // To Value Block
 //char    F_Date[12];          // Internal Date format

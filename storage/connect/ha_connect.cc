@@ -5190,6 +5190,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
         dft= xtra= key= NULL;
+        v= ' ';
 #if defined(NEW_WAY)
         rem= "";
 //      cs= NULL;

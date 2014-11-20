@@ -126,6 +126,7 @@ class ODBConn : public BLOCK {
   int  Open(PSZ ConnectString, DWORD Options = 0);
   bool Rewind(char *sql, ODBCCOL *tocols);
   void Close(void);
+  PQRYRES AllocateResult(PGLOBAL g);
 
   // Attributes
  public:
@@ -187,9 +188,11 @@ class ODBConn : public BLOCK {
   DWORD    m_UpdateOptions;
   DWORD    m_RowsetSize;
   char     m_IDQuoteChar[2];
-  int      m_Catver;
   PSZ      m_Connect;
+  int      m_Catver;
+  int      m_Rows;
   bool     m_Updatable;
   bool     m_Transact;
   bool     m_Scrollable;
+  bool     m_Memory;
   }; // end of ODBConn class definition

@@ -146,18 +146,25 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
       type = TYPE_DOUBLE;
       break;
     case SQL_DATETIME:                      //    9
-//  case SQL_DATE:                          //    9
+      type = TYPE_DATE;
+      len = 19;
+      break;
+    case SQL_TYPE_DATE:                     //   91
       type = TYPE_DATE;
       len = 10;
+      v = 'D';
       break;
     case SQL_INTERVAL:                      //   10
-//  case SQL_TIME:                          //   10
+    case SQL_TYPE_TIME:                     //   92
       type = TYPE_STRING;
       len = 8 + ((prec) ? (prec+1) : 0);
+      v = 'T';
       break;
     case SQL_TIMESTAMP:                     //   11
+    case SQL_TYPE_TIMESTAMP:                //   93
       type = TYPE_DATE;
       len = 19 + ((prec) ? (prec+1) : 0);
+      v = 'S';
       break;
     case SQL_BIGINT:                        //  (-5)
       type = TYPE_BIGINT;
@@ -910,6 +917,7 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_UpdateOptions = 0;
   m_RowsetSize = (DWORD)((tdbp) ? tdbp->Rows : 10);
   m_Catver = (tdbp) ? tdbp->Catver : 0;
+  m_Rows = 0;
   m_Connect = NULL;
   m_Updatable = true;
   m_Transact = false;
@@ -1068,6 +1076,9 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
       } // endif
 
     /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
+    // Verify support for required functionality and cache info
+//  VerifyConnect();         Deprecated
+    GetConnectInfo();
   } catch(DBX *xp) {
 //    strcpy(g->Message, xp->m_ErrMsg[0]);
     strcpy(g->Message, xp->GetErrorMessage(0));
@@ -1076,9 +1087,6 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
     return -1;
   } // end try-catch
 
-  // Verify support for required functionality and cache info
-  VerifyConnect();
-  GetConnectInfo();
   return 1;
   } // end of Open
 
@@ -1500,6 +1508,10 @@ int ODBConn::Fetch()
       ThrowDBX(rc, "Fetch", m_hstmt);
 
     irc = (rc == SQL_NO_DATA_FOUND) ? 0 : (int)crow;
+
+    if (m_Tdb->Memory == 1)
+      m_Rows += irc;
+
   } catch(DBX *x) {
     if (trace)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
@@ -2150,6 +2162,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   HSTMT    hstmt = NULL;
   SQLLEN  *vl, *vlen = NULL;
   PVAL    *pval = NULL;
+  char*   *pbuf = NULL;
 
   try {
     b = false;
@@ -2226,6 +2239,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     // Unconditional to handle STRBLK's
     pval = (PVAL *)PlugSubAlloc(g, NULL, n * sizeof(PVAL));
     vlen = (SQLLEN *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN));
+    pbuf = (char**)PlugSubAlloc(g, NULL, n * sizeof(char*));
 
     // Now bind the column buffers
     for (n = 0, crp = qrp->Colresp; crp; crp = crp->Next) {
@@ -2240,7 +2254,13 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         } // endif len
 
       pval[n] = AllocateValue(g, crp->Type, len);
-      buffer = pval[n]->GetTo_Val();
+
+      if (crp->Type == TYPE_STRING) {
+        pbuf[n] = (char*)PlugSubAlloc(g, NULL, len);
+        buffer = pbuf[n];
+      } else
+        buffer = pval[n]->GetTo_Val();
+
       vl = vlen + n;
 
       // n + 1 because column numbers begin with 1
@@ -2288,7 +2308,13 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         } // endif rc
 
       for (n = 0, crp = qrp->Colresp; crp; n++, crp = crp->Next) {
-        pval[n]->SetNull(vlen[n] == SQL_NULL_DATA);
+        if (vlen[n] == SQL_NULL_DATA)
+          pval[n]->SetNull(true);
+        else if (crp->Type == TYPE_STRING && vlen[n] != SQL_NULL_DATA)
+          pval[n]->SetValue_char(pbuf[n], vlen[n]);
+        else
+          pval[n]->SetNull(false);
+
         crp->Kdata->SetValue(pval[n], i);
         cap->Vlen[n][i] = vlen[n];
         } // endfor crp
@@ -2343,6 +2369,76 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   } // end of GetCatInfo
 
 /***********************************************************************/
+/*  Allocate a CONNECT result structure from the ODBC result.          */
+/***********************************************************************/
+PQRYRES ODBConn::AllocateResult(PGLOBAL g)
+  {
+//char        *fmt, v;
+  int          n;
+  bool         uns;
+  PODBCCOL     colp;
+  PCOLRES     *pcrp, crp;
+  PQRYRES      qrp;
+
+  if (!m_Rows) {
+    strcpy(g->Message, "Void result");
+    return NULL;
+    } // endif m_Res
+
+  /*********************************************************************/
+  /*  Allocate the result storage for future retrieval.                */
+  /*********************************************************************/
+  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
+  pcrp = &qrp->Colresp;
+  qrp->Continued = FALSE;
+  qrp->Truncated = FALSE;
+  qrp->Info = FALSE;
+  qrp->Suball = TRUE;
+  qrp->BadLines = 0;
+  qrp->Maxsize = m_Rows;
+  qrp->Maxres = m_Rows;
+  qrp->Nbcol = 0;
+  qrp->Nblin = 0;
+  qrp->Cursor = 0;
+
+  for (n = 1, colp = (PODBCCOL)m_Tdb->Columns; colp; 
+              colp = (PODBCCOL)colp->GetNext())
+    if (!colp->IsSpecial()) {
+      *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+      crp = *pcrp;
+      pcrp = &crp->Next;
+      memset(crp, 0, sizeof(COLRES));
+      crp->Ncol = ++qrp->Nbcol;
+      crp->Name = colp->GetName();
+      crp->Type = colp->GetResultType();
+      crp->Prec = colp->GetScale();
+      crp->Length = colp->GetLength();
+      crp->Clen = colp->GetBuflen();
+      uns = colp->IsUnsigned();
+
+      if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
+                                     crp->Clen, 0, FALSE, TRUE, uns))) {
+        sprintf(g->Message, MSG(INV_RESULT_TYPE),
+                          GetFormatType(crp->Type));
+        return NULL;
+        } // endif Kdata
+
+      if (!colp->IsNullable())
+        crp->Nulls = NULL;
+      else {
+        crp->Nulls = (char*)PlugSubAlloc(g, NULL, m_Rows);
+        memset(crp->Nulls, ' ', m_Rows);
+      } // endelse Nullable
+
+      colp->SetCrp(crp);
+      } // endif colp
+
+  *pcrp = NULL;
+//qrp->Nblin = n;
+  return qrp;
+  } // end of AllocateResult
+
+/***********************************************************************/
 /*  Restart from beginning of result set                               */
 /***********************************************************************/
 bool ODBConn::Rewind(char *sql, ODBCCOL *tocols)
@@ -2382,7 +2478,7 @@ void ODBConn::Close()
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
     } // endif m_hstmt
-
+                                       
   if (m_hdbc != SQL_NULL_HDBC) {
     if (m_Transact) {
       rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_COMMIT);
