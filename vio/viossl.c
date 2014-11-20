@@ -26,7 +26,7 @@
 
 #ifdef HAVE_OPENSSL
 
-#ifndef HAVE_YASSL
+#ifdef HAVE_YASSL
 /*
   yassl seem to be different here, SSL_get_error() value can be
   directly passed to ERR_error_string(), and these errors don't go
@@ -35,7 +35,9 @@
   namespace, one needs to use ERR_get_error() as an argument
   for ERR_error_string().
 */
-#define SSL_get_error(X,Y) ERR_get_error()
+#define SSL_errno(X,Y) SSL_get_error(X,Y)
+#else
+#define SSL_errno(X,Y) ERR_get_error()
 #endif
 
 #ifndef DBUG_OFF
@@ -60,8 +62,8 @@ report_errors(SSL* ssl)
   if (ssl)
   {
 #ifndef DBUG_OFF
-    int error= SSL_get_error(ssl, l);
-    DBUG_PRINT("error", ("error: %s (%d)",
+    ulong error= SSL_errno(ssl, l);
+    DBUG_PRINT("error", ("error: %s (%lu)",
                          ERR_error_string(error, buf), error));
 #endif
   }
@@ -288,7 +290,7 @@ int vio_ssl_close(Vio *vio)
       break;
     default: /* Shutdown failed */
       DBUG_PRINT("vio_error", ("SSL_shutdown() failed, error: %d",
-                               (int)SSL_get_error(ssl, r)));
+                               SSL_get_error(ssl, r)));
       break;
     }
   }
@@ -402,7 +404,7 @@ static int ssl_do(struct st_VioSSLFd *ptr, Vio *vio, long timeout,
   if ((r= ssl_handshake_loop(vio, ssl, func)) < 1)
   {
     DBUG_PRINT("error", ("SSL_connect/accept failure"));
-    *errptr= SSL_get_error(ssl, r);
+    *errptr= SSL_errno(ssl, r);
     SSL_free(ssl);
     vio_blocking(vio, was_blocking, &unused);
     DBUG_RETURN(1);
