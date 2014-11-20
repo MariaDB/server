@@ -2373,8 +2373,6 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 /***********************************************************************/
 PQRYRES ODBConn::AllocateResult(PGLOBAL g)
   {
-//char        *fmt, v;
-  int          n;
   bool         uns;
   PODBCCOL     colp;
   PCOLRES     *pcrp, crp;
@@ -2401,8 +2399,8 @@ PQRYRES ODBConn::AllocateResult(PGLOBAL g)
   qrp->Nblin = 0;
   qrp->Cursor = 0;
 
-  for (n = 1, colp = (PODBCCOL)m_Tdb->Columns; colp; 
-              colp = (PODBCCOL)colp->GetNext())
+  for (colp = (PODBCCOL)m_Tdb->Columns; colp; 
+       colp = (PODBCCOL)colp->GetNext())
     if (!colp->IsSpecial()) {
       *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
       crp = *pcrp;
