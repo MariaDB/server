@@ -21,8 +21,6 @@
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 
-extern "C" int trace;
-
 /* ------------------- Functions WMI Column info --------------------- */
 
 /***********************************************************************/

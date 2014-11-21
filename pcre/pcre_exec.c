@@ -1167,11 +1167,16 @@ for (;;)
         if (rrc == MATCH_KETRPOS)
           {
           offset_top = md->end_offset_top;
-          eptr = md->end_match_ptr;
           ecode = md->start_code + code_offset;
           save_capture_last = md->capture_last;
           matched_once = TRUE;
           mstart = md->start_match_ptr;    /* In case \K changed it */
+          if (eptr == md->end_match_ptr)   /* Matched an empty string */
+            {
+            do ecode += GET(ecode, 1); while (*ecode == OP_ALT);
+            break;
+            }
+          eptr = md->end_match_ptr;
           continue;
           }
 
@@ -1241,10 +1246,15 @@ for (;;)
       if (rrc == MATCH_KETRPOS)
         {
         offset_top = md->end_offset_top;
-        eptr = md->end_match_ptr;
         ecode = md->start_code + code_offset;
         matched_once = TRUE;
         mstart = md->start_match_ptr;   /* In case \K reset it */
+        if (eptr == md->end_match_ptr)  /* Matched an empty string */
+          {
+          do ecode += GET(ecode, 1); while (*ecode == OP_ALT);
+          break;
+          }
+        eptr = md->end_match_ptr;
         continue;
         }
 
@@ -1979,6 +1989,19 @@ for (;;)
         }
       }
 
+    /* OP_KETRPOS is a possessive repeating ket. Remember the current position,
+    and return the MATCH_KETRPOS. This makes it possible to do the repeats one
+    at a time from the outer level, thus saving stack. This must precede the
+    empty string test - in this case that test is done at the outer level. */
+
+    if (*ecode == OP_KETRPOS)
+      {
+      md->start_match_ptr = mstart;    /* In case \K reset it */
+      md->end_match_ptr = eptr;
+      md->end_offset_top = offset_top;
+      RRETURN(MATCH_KETRPOS);
+      }
+
     /* For an ordinary non-repeating ket, just continue at this level. This
     also happens for a repeating ket if no characters were matched in the
     group. This is the forcible breaking of infinite loops as implemented in
@@ -1999,18 +2022,6 @@ for (;;)
         }
       ecode += 1 + LINK_SIZE;    /* Carry on at this level */
       break;
-      }
-
-    /* OP_KETRPOS is a possessive repeating ket. Remember the current position,
-    and return the MATCH_KETRPOS. This makes it possible to do the repeats one
-    at a time from the outer level, thus saving stack. */
-
-    if (*ecode == OP_KETRPOS)
-      {
-      md->start_match_ptr = mstart;    /* In case \K reset it */
-      md->end_match_ptr = eptr;
-      md->end_offset_top = offset_top;
-      RRETURN(MATCH_KETRPOS);
       }
 
     /* The normal repeating kets try the rest of the pattern or restart from
@@ -5681,54 +5692,25 @@ for (;;)
         switch(ctype)
           {
           case OP_ANY:
-          if (max < INT_MAX)
+          for (i = min; i < max; i++)
             {
-            for (i = min; i < max; i++)
+            if (eptr >= md->end_subject)
               {
-              if (eptr >= md->end_subject)
-                {
-                SCHECK_PARTIAL();
-                break;
-                }
-              if (IS_NEWLINE(eptr)) break;
-              if (md->partial != 0 &&    /* Take care with CRLF partial */
-                  eptr + 1 >= md->end_subject &&
-                  NLBLOCK->nltype == NLTYPE_FIXED &&
-                  NLBLOCK->nllen == 2 &&
-                  UCHAR21(eptr) == NLBLOCK->nl[0])
-                {
-                md->hitend = TRUE;
-                if (md->partial > 1) RRETURN(PCRE_ERROR_PARTIAL);
-                }
-              eptr++;
-              ACROSSCHAR(eptr < md->end_subject, *eptr, eptr++);
+              SCHECK_PARTIAL();
+              break;
               }
-            }
-
-          /* Handle unlimited UTF-8 repeat */
-
-          else
-            {
-            for (i = min; i < max; i++)
+            if (IS_NEWLINE(eptr)) break;
+            if (md->partial != 0 &&    /* Take care with CRLF partial */
+                eptr + 1 >= md->end_subject &&
+                NLBLOCK->nltype == NLTYPE_FIXED &&
+                NLBLOCK->nllen == 2 &&
+                UCHAR21(eptr) == NLBLOCK->nl[0])
               {
-              if (eptr >= md->end_subject)
-                {
-                SCHECK_PARTIAL();
-                break;
-                }
-              if (IS_NEWLINE(eptr)) break;
-              if (md->partial != 0 &&    /* Take care with CRLF partial */
-                  eptr + 1 >= md->end_subject &&
-                  NLBLOCK->nltype == NLTYPE_FIXED &&
-                  NLBLOCK->nllen == 2 &&
-                  UCHAR21(eptr) == NLBLOCK->nl[0])
-                {
-                md->hitend = TRUE;
-                if (md->partial > 1) RRETURN(PCRE_ERROR_PARTIAL);
-                }
-              eptr++;
-              ACROSSCHAR(eptr < md->end_subject, *eptr, eptr++);
+              md->hitend = TRUE;
+              if (md->partial > 1) RRETURN(PCRE_ERROR_PARTIAL);
               }
+            eptr++;
+            ACROSSCHAR(eptr < md->end_subject, *eptr, eptr++);
             }
           break;
 
@@ -6519,7 +6501,7 @@ tables = re->tables;
 
 if (extra_data != NULL)
   {
-  register unsigned int flags = extra_data->flags;
+  unsigned long int flags = extra_data->flags;
   if ((flags & PCRE_EXTRA_STUDY_DATA) != 0)
     study = (const pcre_study_data *)extra_data->study_data;
   if ((flags & PCRE_EXTRA_MATCH_LIMIT) != 0)

@@ -56,7 +56,6 @@
 #endif
 
 extern int num_read, num_there, num_eq[2];               // Statistics
-extern "C" int trace;
 
 /***********************************************************************/
 /*  Routine called externally by TXTFAM SortedRows functions.          */
@@ -538,7 +537,8 @@ bool DOSFAM::OpenTableFile(PGLOBAL g)
   PDBUSER dbuserp = PlgGetUser(g);
 
   // This is required when using Unix files under Windows and vice versa
-  Bin = (Blocked || Ending != CRLF);
+//Bin = (Blocked || Ending != CRLF);
+  Bin = true;             // To avoid ftell problems
 
   switch (mode) {
     case MODE_READ:
@@ -684,6 +684,7 @@ bool DOSFAM::RecordPos(PGLOBAL g)
   {
   if ((Fpos = ftell(Stream)) < 0) {
     sprintf(g->Message, MSG(FTELL_ERROR), 0, strerror(errno));
+//  strcat(g->Message, " (possible wrong ENDING option value)");
     return true;
     } // endif Fpos
 

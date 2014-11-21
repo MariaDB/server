@@ -148,14 +148,8 @@ static int read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
                           bool ignore_check_option_errors);
 
 #ifndef EMBEDDED_LIBRARY
-static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
-                                               const char* db_arg, /* table's database */
-                                               const char* table_name_arg,
-                                               bool is_concurrent,
-                                               enum enum_duplicates duplicates,
-                                               bool ignore,
-                                               bool transactional_table,
-                                               int errocode);
+static bool write_execute_load_query_log_event(THD *, sql_exchange*, const
+           char*, const char*, bool, enum enum_duplicates, bool, bool, int);
 #endif /* EMBEDDED_LIBRARY */
 
 /*
@@ -284,9 +278,15 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
 
   if (!fields_vars.elements)
   {
-    Field **field;
-    for (field=table->field; *field ; field++)
-      fields_vars.push_back(new Item_field(*field));
+    Field_iterator_table_ref field_iterator;
+    field_iterator.set(table_list);
+    for (; !field_iterator.end_of_fields(); field_iterator.next())
+    {
+      Item *item;
+      if (!(item= field_iterator.create_item(thd)))
+        DBUG_RETURN(TRUE);
+      fields_vars.push_back(item->real_item());
+    }
     bitmap_set_all(table->write_set);
     /*
       Let us also prepare SET clause, altough it is probably empty
@@ -478,6 +478,7 @@ int mysql_load(THD *thd,sql_exchange *ex,TABLE_LIST *table_list,
   thd_proc_info(thd, "reading file");
   if (!(error= MY_TEST(read_info.error)))
   {
+    table->reset_default_fields();
     table->next_number_field=table->found_next_number_field;
     if (ignore ||
 	handle_duplicates == DUP_REPLACE)
@@ -723,7 +724,7 @@ static bool write_execute_load_query_log_event(THD *thd, sql_exchange* ex,
     {
       if (n++)
         query_str.append(", ");
-      if (item->type() == Item::FIELD_ITEM)
+      if (item->real_type() == Item::FIELD_ITEM)
         append_identifier(thd, &query_str, item->name, strlen(item->name));
       else
       {

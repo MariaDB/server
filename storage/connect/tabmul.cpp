@@ -68,8 +68,6 @@
 #include "tabdos.h"      // TDBDOS and DOSCOL class dcls
 #include "tabmul.h"      // TDBMUL and MULCOL classes dcls
 
-extern "C" int   trace;
-
 /* ------------------------- Class TDBMUL ---------------------------- */
 
 /***********************************************************************/
@@ -199,7 +197,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
 #else   // !WIN32
     struct stat fileinfo;
-    char   fn[PATH_MAX], direc[PATH_MAX], pattern[256], ftype[8];
+    char   fn[FN_REFLEN], direc[FN_REFLEN], pattern[FN_HEADLEN], ftype[FN_EXTLEN];
     DIR   *dir;
     struct dirent *entry;
 

@@ -1,5 +1,7 @@
 -- source include/have_ucs2.inc
 
+call mtr.add_suppression("Cannot use ucs2 as character_set_client");
+
 #
 # MySQL Bug#15276: MySQL ignores collation-server
 #

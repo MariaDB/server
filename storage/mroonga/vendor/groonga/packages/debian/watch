@@ -1,3 +1,0 @@
-version=3
-
-http://packages.groonga.org/source/groonga/groonga-(.*).tar.gz debian uupdate

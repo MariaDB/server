@@ -1247,7 +1247,7 @@ btr_cur_optimistic_insert(
 	rec_t*		dummy;
 	ibool		leaf;
 	ibool		reorg;
-	ibool		inherit;
+	ibool		inherit = TRUE;
 	ulint		zip_size;
 	ulint		rec_size;
 	dberr_t		err;
@@ -1525,7 +1525,7 @@ btr_cur_pessimistic_insert(
 	ulint		zip_size	= dict_table_zip_size(index->table);
 	big_rec_t*	big_rec_vec	= NULL;
 	dberr_t		err;
-	ibool		dummy_inh;
+	ibool		inherit = FALSE;
 	ibool		success;
 	ulint		n_reserved	= 0;
 
@@ -1547,7 +1547,7 @@ btr_cur_pessimistic_insert(
 	/* Check locks and write to undo log, if specified */
 
 	err = btr_cur_ins_lock_and_undo(flags, cursor, entry,
-					thr, mtr, &dummy_inh);
+					thr, mtr, &inherit);
 
 	if (err != DB_SUCCESS) {
 
@@ -1607,10 +1607,31 @@ btr_cur_pessimistic_insert(
 
 	ut_ad(page_rec_get_next(btr_cur_get_rec(cursor)) == *rec);
 
+	if (!(flags & BTR_NO_LOCKING_FLAG)) {
+		/* The cursor might be moved to the other page,
+		and the max trx id field should be updated after
+		the cursor was fixed. */
+		if (!dict_index_is_clust(index)) {
+			page_update_max_trx_id(
+				btr_cur_get_block(cursor),
+				btr_cur_get_page_zip(cursor),
+				thr_get_trx(thr)->id, mtr);
+		}
+		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))
+		    || btr_page_get_prev(
+			buf_block_get_frame(
+				btr_cur_get_block(cursor)), mtr)
+		       == FIL_NULL) {
+			/* split and inserted need to call
+			lock_update_insert() always. */
+			inherit = TRUE;
+		}
+	}
+
 #ifdef BTR_CUR_ADAPT
 	btr_search_update_hash_on_insert(cursor);
 #endif
-	if (!(flags & BTR_NO_LOCKING_FLAG)) {
+	if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
 		lock_update_insert(btr_cur_get_block(cursor), *rec);
 	}
@@ -3870,16 +3891,29 @@ btr_estimate_number_of_different_key_vals(
 		ut_error;
         }
 
-	/* It makes no sense to test more pages than are contained
-	in the index, thus we lower the number if it is too high */
-	if (srv_stats_transient_sample_pages > index->stat_index_size) {
+	if (srv_stats_sample_traditional) {
+		/* It makes no sense to test more pages than are contained
+		in the index, thus we lower the number if it is too high */
+		if (srv_stats_transient_sample_pages > index->stat_index_size) {
+			if (index->stat_index_size > 0) {
+				n_sample_pages = index->stat_index_size;
+			} else {
+				n_sample_pages = 1;
+			}
+		} else {
+			n_sample_pages = srv_stats_transient_sample_pages;
+		}
+	} else {
+		/* New logaritmic number of pages that are estimated. We
+		first pick minimun from srv_stats_transient_sample_pages and number of
+		pages on index. Then we pick maximum from previous number of
+		pages and log2(number of index pages) * srv_stats_transient_sample_pages. */
 		if (index->stat_index_size > 0) {
-			n_sample_pages = index->stat_index_size;
+			n_sample_pages = ut_max(ut_min(srv_stats_transient_sample_pages, index->stat_index_size),
+				                log2(index->stat_index_size)*srv_stats_transient_sample_pages);
 		} else {
 			n_sample_pages = 1;
 		}
-	} else {
-		n_sample_pages = srv_stats_transient_sample_pages;
 	}
 
 	/* We sample some pages in the index to get an estimate */

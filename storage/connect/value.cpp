@@ -48,7 +48,6 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "preparse.h"                     // For DATPAR
-//#include "value.h"
 #include "valblk.h"
 #define NO_FUNC                           // Already defined in ODBConn
 #include "plgcnx.h"                       // For DB types
@@ -67,12 +66,6 @@
 #endif
 
 #define FOURYEARS    126230400    // Four years in seconds (1 leap)
-
-/***********************************************************************/
-/*  Static variables.                                                  */
-/***********************************************************************/
-
-extern "C" int  trace;
 
 /***********************************************************************/
 /*  Initialize the DTVAL static member.                                */
@@ -1019,8 +1012,11 @@ TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
 
   if (!s) {
     if (g) {
-      Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
-      Strp[Len] = '\0';
+      if ((Strp = (char *)PlgDBSubAlloc(g, NULL, Len + 1)))
+        Strp[Len] = '\0';
+      else
+        Len = 0;
+
     } else
       assert(false);
 

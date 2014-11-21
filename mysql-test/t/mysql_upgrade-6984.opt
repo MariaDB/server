@@ -1,0 +1,1 @@
+--skip-grant-tables --group-concat-max-len=1023

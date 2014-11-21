@@ -1,5 +1,6 @@
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_socket.so
+usr/lib/mysql/plugin/ha_mroonga.so
 usr/lib/mysql/plugin/ha_sequence.so
 usr/lib/mysql/plugin/ha_sphinx.so
 usr/lib/mysql/plugin/ha_innodb.so

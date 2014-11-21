@@ -9,7 +9,7 @@ SELECT @@global.collation_connection;
 latin1_danish_ci
 SELECT @@session.collation_connection;
 @@session.collation_connection
-latin1_danish_ci
+latin1_swedish_ci
 '#--------------------FN_DYNVARS_015_02-------------------------#'
 'connection default'
 DROP TABLE IF EXISTS t1;

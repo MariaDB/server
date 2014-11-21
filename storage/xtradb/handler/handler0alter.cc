@@ -2461,7 +2461,7 @@ innobase_build_col_map(
 
 		innobase_build_col_map_add(
 			heap, dtuple_get_nth_field(add_cols, i),
-			altered_table->s->field[sql_idx],
+			altered_table->field[sql_idx],
 			dict_table_is_comp(new_table));
 found_col:
 		i++;
@@ -3255,9 +3255,6 @@ err_exit:
 
 	delete ctx;
 	ha_alter_info->handler_ctx = NULL;
-
-	/* There might be work for utility threads.*/
-	srv_active_wake_master_thread();
 
 	DBUG_RETURN(true);
 }
@@ -4288,7 +4285,6 @@ func_exit:
 	}
 
 	trx_commit_for_mysql(prebuilt->trx);
-	srv_active_wake_master_thread();
 	MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
 	DBUG_RETURN(fail);
 }
@@ -4801,14 +4797,17 @@ innobase_update_foreign_try(
 /** Update the foreign key constraint definitions in the data dictionary cache
 after the changes to data dictionary tables were committed.
 @param ctx	In-place ALTER TABLE context
+@param user_thd	MySQL connection
 @return		InnoDB error code (should always be DB_SUCCESS) */
 static __attribute__((nonnull, warn_unused_result))
 dberr_t
 innobase_update_foreign_cache(
 /*==========================*/
-	ha_innobase_inplace_ctx*	ctx)
+	ha_innobase_inplace_ctx*	ctx,
+	THD*				user_thd)
 {
 	dict_table_t*	user_table;
+	dberr_t		err = DB_SUCCESS;
 
 	DBUG_ENTER("innobase_update_foreign_cache");
 
@@ -4843,9 +4842,34 @@ innobase_update_foreign_cache(
 	/* Load the old or added foreign keys from the data dictionary
 	and prevent the table from being evicted from the data
 	dictionary cache (work around the lack of WL#6049). */
-	DBUG_RETURN(dict_load_foreigns(user_table->name,
-				       ctx->col_names, false, true,
-				       DICT_ERR_IGNORE_NONE));
+	err = dict_load_foreigns(user_table->name,
+				 ctx->col_names, false, true,
+				 DICT_ERR_IGNORE_NONE);
+
+	if (err == DB_CANNOT_ADD_CONSTRAINT) {
+		/* It is possible there are existing foreign key are
+		loaded with "foreign_key checks" off,
+		so let's retry the loading with charset_check is off */
+		err = dict_load_foreigns(user_table->name,
+					 ctx->col_names, false, false,
+					 DICT_ERR_IGNORE_NONE);
+
+		/* The load with "charset_check" off is successful, warn
+		the user that the foreign key has loaded with mis-matched
+		charset */
+		if (err == DB_SUCCESS) {
+			push_warning_printf(
+				user_thd,
+				Sql_condition::WARN_LEVEL_WARN,
+				ER_ALTER_INFO,
+				"Foreign key constraints for table '%s'"
+				" are loaded with charset check off",
+				user_table->name);
+				
+		}
+	}
+
+	DBUG_RETURN(err);
 }
 
 /** Commit the changes made during prepare_inplace_alter_table()
@@ -5723,12 +5747,12 @@ ha_innobase::commit_inplace_alter_table(
 			/* Rename the tablespace files. */
 			commit_cache_rebuild(ctx);
 
-			error = innobase_update_foreign_cache(ctx);
+			error = innobase_update_foreign_cache(ctx, user_thd);
 			if (error != DB_SUCCESS) {
 				goto foreign_fail;
 			}
 		} else {
-			error = innobase_update_foreign_cache(ctx);
+			error = innobase_update_foreign_cache(ctx, user_thd);
 
 			if (error != DB_SUCCESS) {
 foreign_fail:

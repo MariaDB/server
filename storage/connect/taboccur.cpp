@@ -51,8 +51,6 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-extern "C" int trace;
-
 /***********************************************************************/
 /*  Prepare and count columns in the column list.                      */
 /***********************************************************************/

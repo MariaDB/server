@@ -180,7 +180,6 @@ class XML2ATTR : public XMLATTRIBUTE {
 
 extern "C" {
 extern char version[];
-extern int  trace;
 } //   "C"
 
 #if defined(MEMORY_TRACE)

@@ -47,8 +47,8 @@ supporting internal functions that are not used by other modules. */
 #endif
 
 #define NLBLOCK cd             /* Block containing newline information */
-#define PSSTART start_pattern  /* Field containing processed string start */
-#define PSEND   end_pattern    /* Field containing processed string end */
+#define PSSTART start_pattern  /* Field containing pattern start */
+#define PSEND   end_pattern    /* Field containing pattern end */
 
 #include "pcre_internal.h"
 
@@ -549,6 +549,7 @@ static const char error_texts[] =
   "group name must start with a non-digit\0"
   /* 85 */
   "parentheses are too deeply nested (stack check)\0"
+  "digits missing in \\x{} or \\o{}\0"
   ;
 
 /* Table to identify digits and hex digits. This is used when compiling
@@ -1259,6 +1260,7 @@ else
 
     case CHAR_o:
     if (ptr[1] != CHAR_LEFT_CURLY_BRACKET) *errorcodeptr = ERR81; else
+    if (ptr[2] == CHAR_RIGHT_CURLY_BRACKET) *errorcodeptr = ERR86; else
       {
       ptr += 2;
       c = 0;
@@ -1328,6 +1330,11 @@ else
       if (ptr[1] == CHAR_LEFT_CURLY_BRACKET)
         {
         ptr += 2;
+        if (*ptr == CHAR_RIGHT_CURLY_BRACKET)
+          {
+          *errorcodeptr = ERR86;
+          break;
+          }
         c = 0;
         overflow = FALSE;
         while (MAX_255(*ptr) && (digitab[*ptr] & ctype_xdigit) != 0)
@@ -1583,29 +1590,29 @@ read_repeat_counts(const pcre_uchar *p, int *minp, int *maxp, int *errorcodeptr)
 int min = 0;
 int max = -1;
 
-/* Read the minimum value and do a paranoid check: a negative value indicates
-an integer overflow. */
-
-while (IS_DIGIT(*p)) min = min * 10 + (int)(*p++ - CHAR_0);
-if (min < 0 || min > 65535)
+while (IS_DIGIT(*p))
   {
-  *errorcodeptr = ERR5;
-  return p;
+  min = min * 10 + (int)(*p++ - CHAR_0);
+  if (min > 65535)
+    {
+    *errorcodeptr = ERR5;
+    return p;
+    }
   }
-
-/* Read the maximum value if there is one, and again do a paranoid on its size.
-Also, max must not be less than min. */
 
 if (*p == CHAR_RIGHT_CURLY_BRACKET) max = min; else
   {
   if (*(++p) != CHAR_RIGHT_CURLY_BRACKET)
     {
     max = 0;
-    while(IS_DIGIT(*p)) max = max * 10 + (int)(*p++ - CHAR_0);
-    if (max < 0 || max > 65535)
+    while(IS_DIGIT(*p))
       {
-      *errorcodeptr = ERR5;
-      return p;
+      max = max * 10 + (int)(*p++ - CHAR_0);
+      if (max > 65535)
+        {
+        *errorcodeptr = ERR5;
+        return p;
+        }
       }
     if (max < min)
       {
@@ -1614,9 +1621,6 @@ if (*p == CHAR_RIGHT_CURLY_BRACKET) max = min; else
       }
     }
   }
-
-/* Fill in the required variables, and pass back the pointer to the terminating
-'}'. */
 
 *minp = min;
 *maxp = max;
@@ -2370,6 +2374,7 @@ for (code = first_significant_code(code + PRIV(OP_lengths)[*code], TRUE);
   if (c == OP_RECURSE)
     {
     const pcre_uchar *scode = cd->start_code + GET(code, 1);
+    const pcre_uchar *endgroup = scode;
     BOOL empty_branch;
 
     /* Test for forward reference or uncompleted reference. This is disabled
@@ -2384,20 +2389,16 @@ for (code = first_significant_code(code + PRIV(OP_lengths)[*code], TRUE);
       if (GET(scode, 1) == 0) return TRUE;    /* Unclosed */
       }
 
-    /* If we are scanning a completed pattern, there are no forward references
-    and all groups are complete. We need to detect whether this is a recursive
-    call, as otherwise there will be an infinite loop. If it is a recursion,
-    just skip over it. Simple recursions are easily detected. For mutual
-    recursions we keep a chain on the stack. */
+    /* If the reference is to a completed group, we need to detect whether this
+    is a recursive call, as otherwise there will be an infinite loop. If it is
+    a recursion, just skip over it. Simple recursions are easily detected. For
+    mutual recursions we keep a chain on the stack. */
 
+    do endgroup += GET(endgroup, 1); while (*endgroup == OP_ALT);
+    if (code >= scode && code <= endgroup) continue;  /* Simple recursion */
     else
       {
       recurse_check *r = recurses;
-      const pcre_uchar *endgroup = scode;
-
-      do endgroup += GET(endgroup, 1); while (*endgroup == OP_ALT);
-      if (code >= scode && code <= endgroup) continue;  /* Simple recursion */
-
       for (r = recurses; r != NULL; r = r->prev)
         if (r->group == scode) break;
       if (r != NULL) continue;   /* Mutual recursion */
@@ -3038,7 +3039,7 @@ switch(c)
     end += 1 + 2 * IMM2_SIZE;
     break;
     }
-  list[2] = end - code;
+  list[2] = (pcre_uint32)(end - code);
   return end;
   }
 return NULL;    /* Opcode not accepted */
@@ -3079,6 +3080,7 @@ const pcre_uint8 *class_bitset;
 const pcre_uint8 *set1, *set2, *set_end;
 pcre_uint32 chr;
 BOOL accepted, invert_bits;
+BOOL entered_a_group = FALSE;
 
 /* Note: the base_list[1] contains whether the current opcode has greedy
 (represented by a non-zero value) quantifier. This is a different from
@@ -3132,8 +3134,10 @@ for(;;)
       case OP_ONCE:
       case OP_ONCE_NC:
       /* Atomic sub-patterns and assertions can always auto-possessify their
-      last iterator. */
-      return TRUE;
+      last iterator. However, if the group was entered as a result of checking
+      a previous iterator, this is not possible. */
+
+      return !entered_a_group;
       }
 
     code += PRIV(OP_lengths)[c];
@@ -3152,6 +3156,8 @@ for(;;)
       code = next_code + 1 + LINK_SIZE;
       next_code += GET(next_code, 1);
       }
+
+    entered_a_group = TRUE;
     continue;
 
     case OP_BRAZERO:
@@ -3171,6 +3177,9 @@ for(;;)
 
     code += PRIV(OP_lengths)[c];
     continue;
+
+    default:
+    break;
     }
 
   /* Check for a supported opcode, and load its properties. */
@@ -3409,8 +3418,7 @@ for(;;)
            rightop >= FIRST_AUTOTAB_OP && rightop <= LAST_AUTOTAB_RIGHT_OP &&
            autoposstab[leftop - FIRST_AUTOTAB_OP][rightop - FIRST_AUTOTAB_OP];
 
-    if (!accepted)
-      return FALSE;
+    if (!accepted) return FALSE;
 
     if (list[1] == 0) return TRUE;
     /* Might be an empty repeat. */
@@ -4683,7 +4691,8 @@ for (;; ptr++)
     previous = NULL;
     if ((options & PCRE_MULTILINE) != 0)
       {
-      if (firstcharflags == REQ_UNSET) firstcharflags = REQ_NONE;
+      if (firstcharflags == REQ_UNSET)
+        zerofirstcharflags = firstcharflags = REQ_NONE;
       *code++ = OP_CIRCM;
       }
     else *code++ = OP_CIRC;
@@ -4863,7 +4872,7 @@ for (;; ptr++)
       if (lengthptr != NULL && class_uchardata > class_uchardata_base)
         {
         xclass = TRUE;
-        *lengthptr += class_uchardata - class_uchardata_base;
+        *lengthptr += (int)(class_uchardata - class_uchardata_base);
         class_uchardata = class_uchardata_base;
         }
 #endif
@@ -5313,7 +5322,7 @@ for (;; ptr++)
       whatever repeat count may follow. In the case of reqchar, save the
       previous value for reinstating. */
 
-      if (class_one_char == 1 && ptr[1] == CHAR_RIGHT_SQUARE_BRACKET)
+      if (!inescq && class_one_char == 1 && ptr[1] == CHAR_RIGHT_SQUARE_BRACKET)
         {
         ptr++;
         zeroreqchar = reqchar;
@@ -6008,8 +6017,8 @@ for (;; ptr++)
               while (cd->hwm > cd->start_workspace + cd->workspace_size -
                      WORK_SIZE_SAFETY_MARGIN - (this_hwm - save_hwm))
                 {
-                int save_offset = save_hwm - cd->start_workspace;
-                int this_offset = this_hwm - cd->start_workspace;
+                size_t save_offset = save_hwm - cd->start_workspace;
+                size_t this_offset = this_hwm - cd->start_workspace;
                 *errorcodeptr = expand_workspace(cd);
                 if (*errorcodeptr != 0) goto FAILED;
                 save_hwm = (pcre_uchar *)cd->start_workspace + save_offset;
@@ -6090,8 +6099,8 @@ for (;; ptr++)
           while (cd->hwm > cd->start_workspace + cd->workspace_size -
                  WORK_SIZE_SAFETY_MARGIN - (this_hwm - save_hwm))
             {
-            int save_offset = save_hwm - cd->start_workspace;
-            int this_offset = this_hwm - cd->start_workspace;
+            size_t save_offset = save_hwm - cd->start_workspace;
+            size_t this_offset = this_hwm - cd->start_workspace;
             *errorcodeptr = expand_workspace(cd);
             if (*errorcodeptr != 0) goto FAILED;
             save_hwm = (pcre_uchar *)cd->start_workspace + save_offset;
@@ -6689,7 +6698,8 @@ for (;; ptr++)
             ptr++;
             }
           namelen = (int)(ptr - name);
-          if (lengthptr != NULL) *lengthptr += IMM2_SIZE;
+          if (lengthptr != NULL && (options & PCRE_DUPNAMES) != 0)
+            *lengthptr += IMM2_SIZE;
           }
 
         /* Check the terminator */
@@ -6750,9 +6760,11 @@ for (;; ptr++)
           for (; i < cd->names_found; i++)
             {
             slot += cd->name_entry_size;
-            if (STRNCMP_UC_UC(name, slot+IMM2_SIZE, namelen) != 0) break;
+            if (STRNCMP_UC_UC(name, slot+IMM2_SIZE, namelen) != 0 ||
+              (slot+IMM2_SIZE)[namelen] != 0) break;
             count++;
             }
+
           if (count > 1)
             {
             PUT2(code, 2+LINK_SIZE, offset);
@@ -7101,6 +7113,12 @@ for (;; ptr++)
           /* Count named back references. */
 
           if (!is_recurse) cd->namedrefcount++;
+
+          /* If duplicate names are permitted, we have to allow for a named
+          reference to a duplicated name (this cannot be determined until the
+          second pass). This needs an extra 16-bit data item. */
+
+          if ((options & PCRE_DUPNAMES) != 0) *lengthptr += IMM2_SIZE;
           }
 
         /* In the real compile, search the name table. We check the name
@@ -7147,6 +7165,8 @@ for (;; ptr++)
           for (i++; i < cd->names_found; i++)
             {
             if (STRCMP_UC_UC(slot + IMM2_SIZE, cslot + IMM2_SIZE) != 0) break;
+
+
             count++;
             cslot += cd->name_entry_size;
             }
@@ -8244,12 +8264,16 @@ for (;;)
 
     /* If it was a capturing subpattern, check to see if it contained any
     recursive back references. If so, we must wrap it in atomic brackets.
-    In any event, remove the block from the chain. */
+    Because we are moving code along, we must ensure that any pending recursive
+    references are updated. In any event, remove the block from the chain. */
 
     if (capnumber > 0)
       {
       if (cd->open_caps->flag)
         {
+        *code = OP_END;
+        adjust_recurse(start_bracket, 1 + LINK_SIZE,
+          (options & PCRE_UTF8) != 0, cd, cd->hwm);
         memmove(start_bracket + 1 + LINK_SIZE, start_bracket,
           IN_UCHARS(code - start_bracket));
         *start_bracket = OP_ONCE;
@@ -9254,11 +9278,18 @@ subpattern. */
 
 if (errorcode == 0 && re->top_backref > re->top_bracket) errorcode = ERR15;
 
-/* Unless disabled, check whether single character iterators can be
-auto-possessified. The function overwrites the appropriate opcode values. */
+/* Unless disabled, check whether any single character iterators can be
+auto-possessified. The function overwrites the appropriate opcode values, so
+the type of the pointer must be cast. NOTE: the intermediate variable "temp" is
+used in this code because at least one compiler gives a warning about loss of
+"const" attribute if the cast (pcre_uchar *)codestart is used directly in the
+function call. */
 
 if ((options & PCRE_NO_AUTO_POSSESS) == 0)
-  auto_possessify((pcre_uchar *)codestart, utf, cd);
+  {
+  pcre_uchar *temp = (pcre_uchar *)codestart;
+  auto_possessify(temp, utf, cd);
+  }
 
 /* If there were any lookbehind assertions that contained OP_RECURSE
 (recursions or subroutine calls), a flag is set for them to be checked here,

@@ -4268,7 +4268,15 @@ static int init_common_variables()
   global_system_variables.collation_database=	 default_charset_info;
   global_system_variables.collation_connection=  default_charset_info;
   global_system_variables.character_set_results= default_charset_info;
-  global_system_variables.character_set_client=  default_charset_info;
+  if (default_charset_info->mbminlen > 1)
+  {
+    global_system_variables.character_set_client=  &my_charset_latin1;
+    sql_print_warning("Cannot use %s as character_set_client, %s will be used instead",
+                      default_charset_info->csname,
+                      global_system_variables.character_set_client->csname);
+  }
+  else
+    global_system_variables.character_set_client=  default_charset_info;
 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,

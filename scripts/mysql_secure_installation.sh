@@ -182,7 +182,7 @@ else
 fi
 
 mysql_command=`find_in_basedir mysql $bindir`
-if test -z "$print_defaults"
+if test -z "$mysql_command"
 then
   cannot_find_file mysql $bindir
   exit 1
@@ -204,7 +204,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $bindir/mysql --defaults-file=$config <$command
+    $mysql_command --defaults-file=$config <$command
     return $?
 }
 
@@ -376,7 +376,6 @@ clean_and_exit() {
 # The actual script starts here
 
 prepare
-find_mysql_client
 set_echo_compat
 
 echo
