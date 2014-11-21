@@ -1048,7 +1048,11 @@ static bool plugin_add(MEM_ROOT *tmp_root,
     tmp.name.length= strlen(plugin->name);
 
     if (plugin->type < 0 || plugin->type >= MYSQL_MAX_PLUGIN_TYPE_NUM)
-      continue; // invalid plugin
+      continue; // invalid plugin type
+
+    if (plugin->type == MYSQL_UDF_PLUGIN ||
+        (plugin->type == 8 && tmp.plugin_dl->mariaversion == 0))
+      continue; // unsupported plugin type
 
     if (name->str && my_strnncoll(system_charset_info,
                                   (const uchar *)name->str, name->length,
