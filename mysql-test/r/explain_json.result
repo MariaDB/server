@@ -174,5 +174,5 @@ EXPLAIN
     }
   }
 }
-drop table t1;
+drop table t1,t2;
 drop table t0;

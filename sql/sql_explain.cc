@@ -721,7 +721,15 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   /* `ref` */
   StringBuffer<64> ref_list_buf;
   if (ref_list.is_empty())
-    item_list.push_back(item_null);
+  {
+    if (type == JT_FT)
+    {
+      /* Traditionally, EXPLAIN lines with type=fulltext have ref='' */
+      push_str(&item_list, "");
+    }
+    else
+      item_list.push_back(item_null);
+  }
   else
     push_string_list(&item_list, ref_list, &ref_list_buf);
  
@@ -819,7 +827,7 @@ bool String_list::append_str(MEM_ROOT *mem_root, const char *str)
 {
   size_t len= strlen(str);
   char *cp;
-  if (!(cp = (char*)alloc_root(mem_root, len)))
+  if (!(cp = (char*)alloc_root(mem_root, len+1)))
     return 1;
   memcpy(cp, str, len+1);
   push_back(cp);
@@ -879,6 +887,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
       break;
     case ET_USING:
       // index merge: case ET_USING 
+      break;
+    case ET_USING_JOIN_BUFFER: 
+      // TODO TODO 
       break;
     default:
       DBUG_ASSERT(0);
