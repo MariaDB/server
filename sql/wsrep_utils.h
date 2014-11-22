@@ -17,32 +17,82 @@
 #define WSREP_UTILS_H
 
 #include "wsrep_priv.h"
+#include "wsrep_mysqld.h"
 
 unsigned int wsrep_check_ip (const char* addr);
 size_t wsrep_guess_ip (char* buf, size_t buf_len);
 size_t wsrep_guess_address(char* buf, size_t buf_len);
 
 namespace wsp {
-class node_status
+
+class Config_state
 {
 public:
-  node_status() : status(WSREP_MEMBER_UNDEFINED) {}
-  void set(wsrep_member_status_t new_status,
-           const wsrep_view_info_t* view = 0)
+  Config_state() : view_(), status_(WSREP_MEMBER_UNDEFINED)
+  {}
+
+  void set(wsrep_member_status_t status, const wsrep_view_info_t* view)
   {
-    if (status != new_status || 0 != view)
+    wsrep_notify_status(status, view);
+
+    lock();
+
+    status_= status;
+    view_= *view;
+    member_info_.clear();
+
+    wsrep_member_info_t memb;
+    for(int i= 0; i < view->memb_num; i ++)
     {
-      wsrep_notify_status(new_status, view);
-      status = new_status;
+      memb= view->members[i];
+      member_info_.append_val(memb);
     }
+
+    unlock();
   }
-  wsrep_member_status_t get() const { return status; }
+
+  void set(wsrep_member_status_t status)
+  {
+    wsrep_notify_status(status, 0);
+    lock();
+    status_= status;
+    unlock();
+  }
+
+  wsrep_view_info_t get_view_info() const
+  {
+    return view_;
+  }
+
+  wsrep_member_status_t get_status() const
+  {
+    return status_;
+  }
+
+  Dynamic_array<wsrep_member_info_t> * get_member_info()
+  {
+    return &member_info_;
+  }
+
+  int lock()
+  {
+    return mysql_mutex_lock(&LOCK_wsrep_config_state);
+  }
+
+  int unlock()
+  {
+    return mysql_mutex_unlock(&LOCK_wsrep_config_state);
+  }
+
 private:
-  wsrep_member_status_t status;
+  wsrep_view_info_t                  view_;
+  wsrep_member_status_t              status_;
+  Dynamic_array<wsrep_member_info_t> member_info_;
 };
+
 } /* namespace wsp */
 
-extern wsp::node_status local_status;
+extern wsp::Config_state wsrep_config_state;
 
 namespace wsp {
 /* A small class to run external programs. */

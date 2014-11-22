@@ -110,6 +110,8 @@ mysql_mutex_t LOCK_wsrep_replaying;
 mysql_cond_t  COND_wsrep_replaying;
 mysql_mutex_t LOCK_wsrep_slave_threads;
 mysql_mutex_t LOCK_wsrep_desync;
+mysql_mutex_t LOCK_wsrep_config_state;
+
 int wsrep_replaying= 0;
 ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 ulong  my_bind_addr;
@@ -118,7 +120,8 @@ ulong  my_bind_addr;
 PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
   key_LOCK_wsrep_replaying, key_LOCK_wsrep_ready, key_LOCK_wsrep_sst,
   key_LOCK_wsrep_sst_thread, key_LOCK_wsrep_sst_init,
-  key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync;
+  key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
+  key_LOCK_wsrep_config_state;
 
 PSI_cond_key key_COND_wsrep_rollback, key_COND_wsrep_thd,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
@@ -135,7 +138,8 @@ static PSI_mutex_info wsrep_mutexes[]=
   { &key_LOCK_wsrep_thd, "THD::LOCK_wsrep_thd", 0},
   { &key_LOCK_wsrep_replaying, "LOCK_wsrep_replaying", PSI_FLAG_GLOBAL},
   { &key_LOCK_wsrep_slave_threads, "LOCK_wsrep_slave_threads", PSI_FLAG_GLOBAL},
-  { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL}
+  { &key_LOCK_wsrep_desync, "LOCK_wsrep_desync", PSI_FLAG_GLOBAL},
+  { &key_LOCK_wsrep_config_state, "LOCK_wsrep_config_state", PSI_FLAG_GLOBAL}
 };
 
 static PSI_cond_info wsrep_conds[]=
@@ -186,8 +190,9 @@ const char* wsrep_provider_vendor    = provider_vendor;
 
 wsrep_uuid_t     local_uuid   = WSREP_UUID_UNDEFINED;
 wsrep_seqno_t    local_seqno  = WSREP_SEQNO_UNDEFINED;
-wsp::node_status local_status;
 long             wsrep_protocol_version = 3;
+
+wsp::Config_state wsrep_config_state;
 
 // Boolean denoting if server is in initial startup phase. This is needed
 // to make sure that main thread waiting in wsrep_sst_wait() is signaled
@@ -306,7 +311,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   *sst_req     = NULL;
   *sst_req_len = 0;
 
-  wsrep_member_status_t new_status= local_status.get();
+  wsrep_member_status_t memb_status= wsrep_config_state.get_status();
 
   if (memcmp(&cluster_uuid, &view->state_id.uuid, sizeof(wsrep_uuid_t)))
   {
@@ -331,7 +336,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
   /* Proceed further only if view is PRIMARY */
   if (WSREP_VIEW_PRIMARY != view->status) {
     wsrep_ready_set(FALSE);
-    new_status= WSREP_MEMBER_UNDEFINED;
+    memb_status= WSREP_MEMBER_UNDEFINED;
     /* Always record local_uuid and local_seqno in non-prim since this
      * may lead to re-initializing provider and start position is
      * determined according to these variables */
@@ -386,13 +391,13 @@ wsrep_view_handler_cb (void*                    app_ctx,
     {
       WSREP_ERROR("SST preparation failed: %zd (%s)", -req_len,
                   strerror(-req_len));
-      new_status= WSREP_MEMBER_UNDEFINED;
+      memb_status= WSREP_MEMBER_UNDEFINED;
     }
     else
     {
       assert(sst_req != NULL);
       *sst_req_len= req_len;
-      new_status= WSREP_MEMBER_JOINER;
+      memb_status= WSREP_MEMBER_JOINER;
     }
   }
   else
@@ -420,7 +425,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
       XID xid;
       wsrep_xid_init(&xid, &local_uuid, local_seqno);
       wsrep_set_SE_checkpoint(&xid);
-      new_status= WSREP_MEMBER_JOINED;
+      memb_status= WSREP_MEMBER_JOINED;
 #ifdef GTID_SUPPORT
       wsrep_init_sidno(local_uuid);
 #endif /* GTID_SUPPORT */
@@ -456,7 +461,7 @@ wsrep_view_handler_cb (void*                    app_ctx,
 
 out:
   if (view->status == WSREP_VIEW_PRIMARY) wsrep_startup= FALSE;
-  local_status.set(new_status, view);
+  wsrep_config_state.set(memb_status, view);
 
   return WSREP_CB_SUCCESS;
 }
@@ -498,7 +503,7 @@ static void wsrep_synced_cb(void* app_ctx)
     signal_main= true;
 
   }
-  local_status.set(WSREP_MEMBER_SYNCED);
+  wsrep_config_state.set(WSREP_MEMBER_SYNCED);
   mysql_mutex_unlock (&LOCK_wsrep_ready);
 
   if (signal_main)
@@ -601,6 +606,7 @@ int wsrep_init()
   mysql_cond_init(key_COND_wsrep_replaying, &COND_wsrep_replaying, NULL);
   mysql_mutex_init(key_LOCK_wsrep_slave_threads, &LOCK_wsrep_slave_threads, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_wsrep_desync, &LOCK_wsrep_desync, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_wsrep_config_state, &LOCK_wsrep_config_state, MY_MUTEX_INIT_FAST);
 
   wsrep_ready_set(FALSE);
   assert(wsrep_provider);
@@ -846,6 +852,7 @@ void wsrep_deinit(bool free_options)
   mysql_cond_destroy(&COND_wsrep_replaying);
   mysql_mutex_destroy(&LOCK_wsrep_slave_threads);
   mysql_mutex_destroy(&LOCK_wsrep_desync);
+  mysql_mutex_destroy(&LOCK_wsrep_config_state);
 }
 
 void wsrep_recover()
