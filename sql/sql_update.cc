@@ -603,7 +603,10 @@ int mysql_update(THD *thd,
       if (query_plan.index == MAX_KEY || (select && select->quick))
       {
         if (init_read_record(&info, thd, table, select, 0, 1, FALSE))
+        {
+          close_cached_file(&tempfile);
           goto err;
+        }
       }
       else
         init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
