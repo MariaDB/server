@@ -943,6 +943,43 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
   return false;
 }
 
+
+/*
+  transform equivalent LEX_USER values to one:
+     username IDENTIFIED BY PASSWORD xxx
+     username IDENTIFIED VIA mysql_native_password USING xxx
+     etc
+*/
+static bool fix_lex_user(LEX_USER *user)
+{
+  size_t check_length= 0;
+  if (my_strcasecmp(system_charset_info, user->plugin.str,
+                    native_password_plugin_name.str) == 0)
+  {
+    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+  }
+  else
+  if (my_strcasecmp(system_charset_info, user->plugin.str,
+                    old_password_plugin_name.str) == 0)
+  {
+    check_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+  }
+
+  if (check_length)
+  {
+    user->password= user->auth.length ? user->auth : null_lex_str;
+    user->plugin= empty_lex_str;
+    user->auth= empty_lex_str;
+    if (user->password.length && user->password.length != check_length)
+    {
+      my_error(ER_PASSWD_LENGTH, MYF(0), check_length);
+      return true;
+    }
+  }
+  return false;
+}
+
+
 static bool get_YN_as_bool(Field *field)
 {
   char buff[2];
@@ -6350,6 +6387,12 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       continue;
     }
 
+    if (fix_lex_user(tmp_Str))
+    {
+      result= TRUE;
+      continue;
+    }
+
     if (copy_and_check_auth(Str, tmp_Str, thd->lex))
       result= true;
     else
@@ -9289,6 +9332,13 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     if (!user_name->host.str)
       user_name->host= host_not_specified;
 
+    if (fix_lex_user(user_name))
+    {
+      append_user(thd, &wrong_users, user_name);
+      result= TRUE;
+      continue;
+    }
+
     /*
       Search all in-memory structures and grant tables
       for a mention of the new user/role name.
@@ -9296,7 +9346,6 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     if (handle_grant_data(tables, 0, user_name, NULL))
     {
       append_user(thd, &wrong_users, user_name);
-
       result= TRUE;
       continue;
     }
