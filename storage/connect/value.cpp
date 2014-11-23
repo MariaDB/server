@@ -2484,8 +2484,10 @@ char *DTVAL::GetCharString(char *p)
     size_t n = 0;
     struct tm tm, *ptm= GetGmTime(&tm);
 
-    if (ptm)
+    if (ptm) {
+      mktime(ptm);  // Populate tm_wday and tm_yday to get day name
       n = strftime(Sdate, Len + 1, Pdtp->OutFmt, ptm);
+      } // endif ptm
 
     if (!n) {
       *Sdate = '\0';
@@ -2511,6 +2513,8 @@ char *DTVAL::ShowValue(char *buf, int len)
     if (!Null) {
       size_t m, n = 0;
       struct tm tm, *ptm = GetGmTime(&tm);
+
+
   
       if (Len < len) {
         p = buf;
@@ -2520,8 +2524,10 @@ char *DTVAL::ShowValue(char *buf, int len)
         m = Len + 1;
       } // endif Len
   
-      if (ptm)
+      if (ptm) {
+        mktime(ptm);  // Populate tm_wday and tm_yday to get day name
         n = strftime(p, m, Pdtp->OutFmt, ptm);
+        } // endif ptm
   
       if (!n) {
         *p = '\0';
