@@ -6346,18 +6346,18 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
   {
     if (!(Str= get_current_user(thd, tmp_Str, false)))
     {
-      result= TRUE;
+      result= true;
       continue;
     }
 
     if (copy_and_check_auth(Str, tmp_Str, thd->lex))
-      result= -1;
+      result= true;
     else
     if (replace_user_table(thd, tables[USER_TABLE].table, *Str,
                            (!db ? rights : 0), revoke_grant, create_new_users,
                            MY_TEST(thd->variables.sql_mode &
                                    MODE_NO_AUTO_CREATE_USER)))
-      result= -1;
+      result= true;
     else if (db)
     {
       ulong db_rights= rights & DB_ACLS;
@@ -6365,12 +6365,12 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
       {
 	if (replace_db_table(tables[DB_TABLE].table, db, *Str, db_rights,
 			     revoke_grant))
-	  result= -1;
+	  result= true;
       }
       else
       {
 	my_error(ER_WRONG_USAGE, MYF(0), "DB GRANT", "GLOBAL PRIVILEGES");
-	result= -1;
+	result= true;
       }
     }
     else if (is_proxy)
@@ -6380,7 +6380,7 @@ bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &list,
                                       Str, proxied_user,
                                       rights & GRANT_ACL ? TRUE : FALSE,
                                       revoke_grant))
-        result= -1;
+        result= true;
     }
     if (Str->is_role())
       propagate_role_grants(find_acl_role(Str->user.str),
