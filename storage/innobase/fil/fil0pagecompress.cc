@@ -476,6 +476,23 @@ fil_compress_page(
 
 	srv_stats.page_compression_saved.add((len - write_size));
 	srv_stats.pages_page_compressed.inc();
+
+#if defined (__linux__) && (!defined(FALLOC_FL_PUNCH_HOLE) || !defined (FALLOC_FL_KEEP_SIZE))
+	if (srv_use_trim) {
+		ut_print_timestamp(stderr);
+		fprintf(stderr,
+			"  InnoDB: [Warning] System does not support FALLOC_FL_PUNCH_HOLE || FALLOC_FL_KEEP_SIZE.\n"
+			"  InnoDB: Disabling trim for now.\n");
+		srv_use_trim = FALSE;
+	}
+#endif
+
+	if (!srv_use_trim) {
+		/* If persistent trims are not used we always write full
+		page */
+		write_size = len;
+	}
+
 	*out_len = write_size;
 
 	return(out_buf);
