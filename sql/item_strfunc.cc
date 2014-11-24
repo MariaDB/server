@@ -2184,7 +2184,6 @@ String *Item_func_password::val_str_ascii(String *str)
   String *res= args[0]->val_str(str); 
   switch (alg){
   case NEW:
-    check_password_policy(res);
     if (args[0]->null_value || res->length() == 0)
       return make_empty_result();
     my_make_scrambled_password(tmp_value, res->ptr(), res->length());
@@ -2215,13 +2214,8 @@ char *Item_func_password::alloc(THD *thd, const char *password,
 
   switch (al) {
   case NEW:
-    {
-      String *password_str= new (thd->mem_root)String(password, thd->variables.
-                                                      character_set_client);
-      check_password_policy(password_str);
-      my_make_scrambled_password(buff, password, pass_len);
-      break;
-    }
+    my_make_scrambled_password(buff, password, pass_len);
+    break;
   case OLD:
     my_make_scrambled_password_323(buff, password, pass_len);
     break;

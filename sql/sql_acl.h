@@ -266,7 +266,6 @@ int fill_schema_schema_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_table_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int fill_schema_column_privileges(THD *thd, TABLE_LIST *tables, COND *cond);
 int wild_case_compare(CHARSET_INFO *cs, const char *str,const char *wildstr);
-int check_password_policy(String *password);
 
 /**
   Result of an access check for an internal schema or table.

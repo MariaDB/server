@@ -29,7 +29,7 @@
 #include "sql_table.h"                        // build_table_filename,
                                               // check_n_cut_mysql50_prefix
 #include "sql_db.h"                        // get_default_db_collation
-#include "sql_acl.h"                       // *_ACL, is_acl_user
+#include "sql_acl.h"                       // *_ACL
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
