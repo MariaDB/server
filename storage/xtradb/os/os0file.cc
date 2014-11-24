@@ -6666,12 +6666,14 @@ os_file_get_block_size(
 		DWORD NumberOfFreeClusters = 0;
 		DWORD TotalNumberOfClusters = 0;
 
+		/*
 		if (GetFreeSpace((LPCTSTR)name, &SectorsPerCluster, &BytesPerSector, &NumberOfFreeClusters, &TotalNumberOfClusters)) {
 			fblock_size = BytesPerSector;
 		} else {
 			fprintf(stderr, "InnoDB: Warning: GetFreeSpace() failed on file %s\n", name);
 			os_file_handle_error_no_exit(name, "GetFreeSpace()", FALSE, __FILE__, __LINE__);
 		}
+		*/
 	}
 #endif /* __WIN__*/
 
