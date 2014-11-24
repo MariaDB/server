@@ -10806,6 +10806,12 @@ LEX_USER *get_current_user(THD *thd, LEX_USER *user, bool lock)
       return 0;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
+    if (has_auth(user, thd->lex))
+    {
+      dup->host= host_not_specified;
+      return dup;
+    }
+
     if (is_invalid_role_name(user->user.str))
       return 0;
 
