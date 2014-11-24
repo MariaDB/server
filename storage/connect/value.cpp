@@ -2187,10 +2187,11 @@ static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
   tm->tm_year= ltime->year - 1900;
   tm->tm_mon=  ltime->month - 1;
   tm->tm_mday= ltime->day;
+  mktime(tm);  // set tm->tm_wday tm->yday fields to get proper day name (OB)
   tm->tm_hour= ltime->hour;
   tm->tm_min=  ltime->minute;
   tm->tm_sec=  ltime->second;
-}
+} // end of TIME_to_localtime
 
 // Added by Alexander Barkov
 static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
@@ -2199,7 +2200,7 @@ static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
   thd_gmt_sec_to_TIME(current_thd, &ltime, (my_time_t) *timep);
   TIME_to_localtime(tm, &ltime);
   return tm;
-}
+} // end of gmtime_mysql
 
 /***********************************************************************/
 /*  GetGmTime: returns a pointer to a static tm structure obtained     */
@@ -2511,6 +2512,8 @@ char *DTVAL::ShowValue(char *buf, int len)
     if (!Null) {
       size_t m, n = 0;
       struct tm tm, *ptm = GetGmTime(&tm);
+
+
   
       if (Len < len) {
         p = buf;
@@ -2596,7 +2599,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
 /***********************************************************************/
 bool DTVAL::FormatValue(PVAL vp, char *fmt)
   {
-  char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
+  char     *buf = (char*)vp->GetTo_Val();       // Should be big enough
   struct tm tm, *ptm = GetGmTime(&tm);
 
   if (trace > 1)

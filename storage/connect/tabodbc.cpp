@@ -130,10 +130,7 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Quoted = GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
 //Options = ODBConn::noOdbcDialog | ODBConn::useCursorLib;
-
-  if ((Scrollable = GetBoolCatInfo("Scrollable", false)))
-    Elemt = 0;   // Not compatible with extended fetch
-
+  Scrollable = GetBoolCatInfo("Scrollable", false);
   Memory = GetBoolCatInfo("Memory", false);
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
@@ -775,13 +772,14 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
     if (Memory < 3) {
       // Method will depend on cursor type
-      if (Ocp->Rewind(Query, (PODBCCOL)Columns)) {
+      if ((Rbuf = Ocp->Rewind(Query, (PODBCCOL)Columns)) < 0) {
         Ocp->Close();
         return true;
         } // endif Rewind
 
       } // endif Memory
 
+    CurNum = 0;
     Fpos = 0;
     return false;
     } // endif use

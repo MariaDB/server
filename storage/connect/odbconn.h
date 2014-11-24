@@ -124,7 +124,7 @@ class ODBConn : public BLOCK {
     forceOdbcDialog = 0x0010};    // Always display ODBC connect dialog
 
   int  Open(PSZ ConnectString, DWORD Options = 0);
-  bool Rewind(char *sql, ODBCCOL *tocols);
+  int  Rewind(char *sql, ODBCCOL *tocols);
   void Close(void);
   PQRYRES AllocateResult(PGLOBAL g);
 

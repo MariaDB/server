@@ -1326,6 +1326,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
           datm.tm_mday= 12;
           datm.tm_mon= 11;
           datm.tm_year= 112;
+          mktime(&datm); // set other fields get proper day name
           len= strftime(buf, 256, pdtp->OutFmt, &datm);
         } else
           len= 0;

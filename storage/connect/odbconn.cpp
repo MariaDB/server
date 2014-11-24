@@ -2439,29 +2439,31 @@ PQRYRES ODBConn::AllocateResult(PGLOBAL g)
 /***********************************************************************/
 /*  Restart from beginning of result set                               */
 /***********************************************************************/
-bool ODBConn::Rewind(char *sql, ODBCCOL *tocols)
+int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
   {
-  RETCODE rc;
+  int rc, rbuf = -1;
 
   if (!m_hstmt)
-    return false;
+    return rbuf;
 
   if (m_Scrollable) {
+    SQLULEN  crow;
+
     try {
-      rc = SQLFetchScroll(m_hstmt, SQL_FETCH_ABSOLUTE, 0);
+      rc = SQLExtendedFetch(m_hstmt, SQL_FETCH_FIRST, 1, &crow, NULL);
 
-      if (rc != SQL_NO_DATA_FOUND)
-        ThrowDBX(rc, "SQLFetchScroll", m_hstmt);
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLExtendedFetch", m_hstmt);
 
+      rbuf = (int)crow;
     } catch(DBX *x) {
       strcpy(m_G->Message, x->GetErrorMessage(0));
-      return true;
     } // end try/catch
 
-  } else if (ExecDirectSQL(sql, tocols) < 0)
-    return true;
+  } else if (ExecDirectSQL(sql, tocols) >= 0)
+    rbuf = 0;
 
-  return false;
+  return rbuf;
   } // end of Rewind
 
 /***********************************************************************/
