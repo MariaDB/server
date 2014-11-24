@@ -15534,8 +15534,8 @@ grant_user:
                 if (buff == NULL)
                   MYSQL_YYABORT;
                 my_make_scrambled_password_323(buff, $4.str, $4.length);
-                $1->password.str= buff;
-                $1->password.length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+                $1->auth.str= buff;
+                $1->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
               }
               else
               {
@@ -15544,15 +15544,15 @@ grant_user:
                 if (buff == NULL)
                   MYSQL_YYABORT;
                 my_make_scrambled_password(buff, $4.str, $4.length);
-                $1->password.str= buff;
-                $1->password.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+                $1->auth.str= buff;
+                $1->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
               }
             }
           }
         | user IDENTIFIED_SYM BY PASSWORD TEXT_STRING
           { 
             $$= $1; 
-            $1->password= $5; 
+            $1->auth= $5;
           }
         | user IDENTIFIED_SYM via_or_with ident_or_text
           {

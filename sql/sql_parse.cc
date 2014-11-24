@@ -4591,29 +4591,6 @@ end_with_restore_list:
                                         lex->grant & GRANT_ACL))
             goto error;
         } 
-        else if (user->password.str)
-        {
-          // Are we trying to change a password of another user?
-          const char *hostname= user->host.str, *username=user->user.str;
-          bool userok;
-          if (username == current_user.str)
-          {
-            username= thd->security_ctx->priv_user;
-            hostname= thd->security_ctx->priv_host;
-            userok= true;
-          }
-          else
-          {
-            if (!hostname)
-              hostname= host_not_specified.str;
-            userok= is_acl_user(hostname, username);
-          }
-
-          if (userok && check_change_password (thd, hostname, username, 
-                                               user->password.str, 
-                                               user->password.length))
-            goto error;
-        }
       }
     }
     if (first_table)
