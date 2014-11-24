@@ -647,3 +647,17 @@ ERROR 42000: execute command denied to user 'bug12602983_user'@'localhost' for r
 # Connection 'default'.
 drop user bug12602983_user@localhost;
 drop database mysqltest_db;
+set password=password('foobar');
+create procedure sp1() select 1;
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*9B500343BC52E2911172EB52AE5CF4847604C6E5' WITH GRANT OPTION
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+grant execute on procedure sp1 to current_user() identified by 'barfoo';
+show grants;
+Grants for root@localhost
+GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' IDENTIFIED BY PASSWORD '*343915A8181B5728EADBDC73E1F7E6B0C3998483' WITH GRANT OPTION
+GRANT EXECUTE ON PROCEDURE `test`.`sp1` TO 'root'@'localhost'
+GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
+drop procedure sp1;
+set password='';

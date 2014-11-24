@@ -5596,6 +5596,14 @@ static bool merge_one_role_privileges(ACL_ROLE *grantee)
   End of the role privilege propagation and graph traversal code
 ******************************************************************/
 
+static bool has_auth(LEX_USER *user, LEX *lex)
+{
+  return user->password.str || user->plugin.length || user->auth.length ||
+         lex->ssl_type != SSL_TYPE_NOT_SPECIFIED || lex->ssl_cipher ||
+         lex->x509_issuer || lex->x509_subject ||
+         lex->mqh.specified_limits;
+}
+
 static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, LEX *lex)
 {
   if (to != from)
@@ -5607,19 +5615,10 @@ static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, LEX *lex)
   }
 
   /*
-    Note, that no password is null_lex_str, while no plugin is empty_lex_str.
-    See sql_yacc.yy
-  */
-  bool has_auth= to->password.str || to->plugin.length || to->auth.length ||
-                 lex->ssl_type != SSL_TYPE_NOT_SPECIFIED || lex->ssl_cipher ||
-                 lex->x509_issuer || lex->x509_subject ||
-                 lex->mqh.specified_limits;
-
-  /*
     Specifying authentication clauses forces the name to be interpreted
     as a user, not a role. See also check_change_password()
   */
-  if (to->is_role() && has_auth)
+  if (to->is_role() && has_auth(to, lex))
   {
     my_error(ER_PASSWORD_NO_MATCH, MYF(0));
     return true;
@@ -5937,7 +5936,6 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
 
   while ((tmp_Str= str_list++))
   {
-    int error;
     GRANT_NAME *grant_name;
     if (!(Str= get_current_user(thd, tmp_Str, false)))
     {
@@ -5945,14 +5943,14 @@ bool mysql_routine_grant(THD *thd, TABLE_LIST *table_list, bool is_proc,
       continue;
     }
     /* Create user if needed */
-    error=replace_user_table(thd, tables[USER_TABLE].table, *Str,
-			     0, revoke_grant, create_new_users,
-                             MY_TEST(thd->variables.sql_mode &
-                                     MODE_NO_AUTO_CREATE_USER));
-    if (error)
+    if (copy_and_check_auth(Str, tmp_Str, thd->lex) ||
+        replace_user_table(thd, tables[USER_TABLE].table, *Str,
+			   0, revoke_grant, create_new_users,
+                           MY_TEST(thd->variables.sql_mode &
+                                     MODE_NO_AUTO_CREATE_USER)))
     {
-      result= TRUE;				// Remember error
-      continue;					// Add next user
+      result= TRUE;
+      continue;
     }
 
     db_name= table_list->db;
@@ -6210,7 +6208,9 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
                                                       &rolename);
     ACL_USER_BASE *grantee= role_as_user;
 
-    if (!grantee)
+    if (has_auth(user, thd->lex))
+      DBUG_ASSERT(!grantee);
+    else if (!grantee)
       grantee= find_user_exact(hostname.str, username.str);
 
     if (!grantee && !revoke)
@@ -6220,7 +6220,8 @@ bool mysql_grant_role(THD *thd, List <LEX_USER> &list, bool revoke)
       user_combo.user = username;
 
       /* create the user if it does not exist */
-      if (replace_user_table(thd, tables[USER_TABLE].table, user_combo, 0,
+      if (copy_and_check_auth(&user_combo, &user_combo, thd->lex) ||
+          replace_user_table(thd, tables[USER_TABLE].table, user_combo, 0,
                              false, create_new_user,
                              no_auto_create_user))
       {
