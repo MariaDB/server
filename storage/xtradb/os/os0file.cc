@@ -250,6 +250,7 @@
 		byte*           page_buf2;       /*!< Actual page buffer for
 							page encrypted pages, do not
 							free this */
+		byte*			tmp_encryption_buf; /*!< a temporal buffer used by page encryption */
 
 
 		ibool           page_compress_success;
@@ -407,6 +408,12 @@ buffer is freed later. */
 UNIV_INTERN
 void
 os_slot_alloc_page_buf2(
+os_aio_slot_t*	slot); /*!< in: slot structure */
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. */
+UNIV_INTERN
+void
+os_slot_alloc_tmp_encryption_buf(
 os_aio_slot_t*	slot); /*!< in: slot structure */
 /****************************************************************//**
 Does error handling when a file operation fails.
@@ -3133,7 +3140,7 @@ try_again:
 
 	if (ret && len == n) {
 		if (fil_page_is_encrypted((byte *)buf)) {
-			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) {;
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, NULL, 0)!=PAGE_ENCRYPTION_OK) {;
 				return FALSE;
 			}
 		}
@@ -3158,7 +3165,7 @@ try_again:
 
 	if ((ulint) ret == n) {
 		if (fil_page_is_encrypted((byte *)buf)) {
-			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) {;
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, NULL, 0)!=PAGE_ENCRYPTION_OK) {;
 				return FALSE;
 			}
 		}
@@ -3262,7 +3269,7 @@ try_again:
 	if (ret && len == n) {
 
 		if (fil_page_is_encrypted((byte *)buf)) {
-			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, NULL, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
 		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
@@ -3287,7 +3294,7 @@ try_again:
 
 
 		if (fil_page_is_encrypted((byte *)buf)) {
-			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
+			if (fil_decrypt_page(NULL, (byte *)buf, n, NULL, &compressed, NULL, 0)!=PAGE_ENCRYPTION_OK) return (FALSE);
 		}
 
 
@@ -4340,6 +4347,10 @@ os_aio_array_free(
 				ut_free(slot->page_encryption_page);
 				slot->page_encryption_page = NULL;
 			}
+			if (slot->tmp_encryption_buf) {
+				ut_free(slot->tmp_encryption_buf);
+				slot->tmp_encryption_buf = NULL;
+			}
 	}
 
 
@@ -4866,10 +4877,13 @@ found:
 		if (slot->page_buf2 == NULL) {
 			os_slot_alloc_page_buf2(slot);
 		}
+		os_slot_alloc_tmp_encryption_buf(slot);
+
+
 
 		ut_ad(slot->page_buf2);
 
-		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, &ec, 0);
+		tmp = fil_encrypt_page(fil_node_get_space_id(slot->message1), (byte *)buf, slot->page_buf2, len, page_encryption_key, &real_len, &ec, slot->tmp_encryption_buf, 0);
 
 		/* If encryption succeeded, set up the length and buffer */
 		if (tmp != buf || (ec == PAGE_ENCRYPTION_WILL_NOT_ENCRYPT)) {
@@ -5318,6 +5332,7 @@ try_again:
 			if (page_encryption) {
 				if (!slot->page_encryption_success) goto err_exit;
 				buffer = slot->page_buf2;
+				n = slot->len;
 			} else {
 				buffer = buf;
 			}
@@ -5479,14 +5494,18 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			if (slot->message1 && slot->page_compression && slot->page_buf) {
-				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
-					                slot->offset, slot->len);
-			} else {
+			if (slot->message1 && slot->page_encryption && slot->page_buf2) {
+				ret_val = os_file_write(slot->name, slot->file, slot->page_buf2,
+										slot->offset, slot->len);
+			} else
+				if (slot->message1 && slot->page_compression && slot->page_buf) {
+					ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
+										slot->offset, slot->len);
+				} else {
 
-				ret_val = os_file_write(slot->name, slot->file, slot->buf,
-					                slot->offset, slot->len);
-			}
+					ret_val = os_file_write(slot->name, slot->file, slot->buf,
+										slot->offset, slot->len);
+				}
 			break;
 		case OS_FILE_READ:
 			ret_val = os_file_read(slot->file, slot->buf,
@@ -5520,12 +5539,13 @@ os_aio_windows_handle(
 		if (slot->page_buf2==NULL) {
 			os_slot_alloc_page_buf2(slot);
 		}
+		os_slot_alloc_tmp_encryption_buf(slot);
 
 		ut_ad(slot->page_buf2);
 
 		if (slot->type == OS_FILE_READ) {
 			if (fil_page_is_encrypted(slot->buf)) {
-				fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
+				fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, slot->tmp_encryption_buf, 0);
 			}
 		} 
 		
@@ -5651,12 +5671,13 @@ retry:
 				if (slot->page_buf2==NULL) {
 					os_slot_alloc_page_buf2(slot);
 				}
+				os_slot_alloc_tmp_encryption_buf(slot);
 
 				ut_ad(slot->page_buf2);
 
 				if (slot->type == OS_FILE_READ) {
 					if (fil_page_is_encrypted(slot->buf)) {
-						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, 0);
+						fil_decrypt_page(slot->page_buf2, slot->buf, slot->len, slot->write_size, NULL, slot->tmp_encryption_buf, 0);
 					}
 				}
 			}
@@ -6756,6 +6777,19 @@ os_slot_alloc_page_buf2(
 	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 	slot->page_encryption_page = static_cast<byte *>(cbuf2);
 	slot->page_buf2 = static_cast<byte *>(cbuf);
+}
+
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. */
+UNIV_INTERN
+void
+os_slot_alloc_tmp_encryption_buf(
+/*===================*/
+os_aio_slot_t*   slot) /*!< in: slot structure     */
+{
+	if (slot->tmp_encryption_buf == NULL) {
+		slot->tmp_encryption_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE + 64));
+	}
 }
 
 /**********************************************************************//**

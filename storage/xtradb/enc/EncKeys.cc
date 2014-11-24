@@ -206,6 +206,8 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 		if (d_size>EncKeys::MAX_SECRET_SIZE) {
 			d_size = EncKeys::MAX_SECRET_SIZE;
 		}
+		delete[] key;
+		delete[] iv;
 		secret[d_size] = '\0';
 	}
 	free(buf);

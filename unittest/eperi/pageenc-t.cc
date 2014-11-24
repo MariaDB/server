@@ -71,6 +71,7 @@ fil_encrypt_page(
     ulint           compression_level, /*!< in: compression level */
     ulint*          out_len,   /*!< out: actual length of compressed page */
     ulint* 		    errorCode,   	/*!< out: an error code. set, if page is intentionally not encrypted */
+    byte* 			tmp_encryption_buf, /*!< in: temorary buffer or NULL */
     ulint			mode       /*!< in: calling mode */
     );
 
@@ -87,6 +88,7 @@ fil_decrypt_page(
 		ulint		len,           /*!< in: length of output buffer.*/
 	    ulint*		write_size,    /*!< in/out: Actual payload size of the decrypted data. */
 	    ibool*      page_compressed,
+	    byte* 		tmp_encryption_buf, /*!< in: temorary buffer or NULL */
 	    ulint 		mode /*!<in: calling mode, useful for unit test, etc. */
 	    );
 
@@ -102,8 +104,8 @@ byte* readFile(char* fileName, int* fileLen) {
 FILE *fileptr;
 byte *buffer;
 long filelen;
-
 fileptr = fopen(fileName, "rb");  // Open the file in binary mode
+if (fileptr==0) return NULL;
 fseek(fileptr, 0, SEEK_END);          // Jump to the end of the file
 filelen = ftell(fileptr);             // Get the current byte offset in the file
 rewind(fileptr);                      // Jump back to the beginning of the file
@@ -116,19 +118,32 @@ if (fileLen!=NULL)
 return buffer;
 }
 
+void verifyCipherText(char* fileName, byte* buf, int len) {
+	char fn[80];
+	strcpy(fn, "");
+	strcat(fn,fileName);
+	strcat(fn,"_encrypted");
+	int fl = 0;
+	byte* expected = readFile(fn, &fl);
+	if (expected==NULL) return;
+	int cmp = memcmp(expected, buf, fl);
+	ok (((fl==len) &&(cmp==0)),"%s encrypted == %s", fileName, fn);
+	free(expected);
+}
+
 void testEncryptionChecksum(char* filename) {
 	int fl  = 0;
 	byte* buf = readFile(filename,&fl);
 	byte* dest = (byte *) malloc(16384*sizeof(byte));
 	ulint out_len;
 	ulint ec = 0;
-	fil_encrypt_page(0,buf,dest,fl,255, &out_len, &ec, 1);
+	fil_encrypt_page(0,buf,dest,fl,255, &out_len, &ec, NULL, 1);
 	dest[2000]=0xFF;
 	dest[2001]=0xFF;
 	dest[2002]=0xFF;
 	dest[2003]=0xFF;
 
-	ulint result = fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, 1);
+	ulint result = fil_decrypt_page(NULL, dest, 16384 ,NULL,NULL, NULL, 1);
 
 	char str[80];
 	strcpy (str,"Detect decryption error in ");
@@ -136,7 +151,8 @@ void testEncryptionChecksum(char* filename) {
 
 
 	ok  (result == 1, "%s encryption result %lu", (char*) str, result);
-
+	free(dest);
+	free(buf);
 }
 
 void testIt(char* filename, ulint do_not_cmp_checksum, ulint page_compressed, ulint input_size) {
@@ -159,14 +175,17 @@ void testIt(char* filename, ulint do_not_cmp_checksum, ulint page_compressed, ul
 		compressed_page = 1;
 	}
 
-	byte* snd = fil_encrypt_page(0,buf,dest,page_compressed? input_size : fl,255, &out_len,  &ec, fl==8192 ? fl : 1);
+	byte* snd = fil_encrypt_page(0,buf,dest,page_compressed? input_size : fl,255, &out_len,  &ec, NULL, fl==8192 ? fl : 1);
 	if ((orig_page_type ==8) || (orig_page_type==9)) {
 		ulint cc2 = memcmp(buf,snd,fl) == 0;
 		cc1 = (ec == 5) && cc2;
 		ok(cc1, "page type 8 or 9 will not be encrypted! file %s", (char*) str);
+		free(buf);
+		free(dest);
 		return;
 	}
 
+	verifyCipherText(filename,dest,out_len);
 	cc1 = (buf!=dest);
 	if (compressed_page) {
 		ulint write_size = mach_read_from_1(dest+3);
@@ -183,7 +202,7 @@ void testIt(char* filename, ulint do_not_cmp_checksum, ulint page_compressed, ul
 		memcpy (dest+out_len, buf+out_len, fl-out_len);
 	}
 	ulint write_size = 0;
-	ulint result = fil_decrypt_page(NULL, dest, page_compressed? fl: out_len,&write_size,NULL,  out_len==8192 ? out_len : 1);
+	ulint result = fil_decrypt_page(NULL, dest, page_compressed? fl: out_len,&write_size,NULL, NULL,  out_len==8192 ? out_len : 1);
 	cc1 = (result == 0) && (page_compressed? (write_size = out_len):(write_size==fl));
 	ulint a = 0;
 	ulint b = 0;
@@ -203,6 +222,8 @@ void testIt(char* filename, ulint do_not_cmp_checksum, ulint page_compressed, ul
 		ok(cc1, "%s %s write size: %lu", str, "page_compressed", out_len );
 	}
 	ok  (cc1, "%s", (char*) str);
+	free(buf);
+	free(dest);
 }
 void testIt(char* filename, ulint do_not_cmp_checksum) {
 	testIt(filename, do_not_cmp_checksum, 0, 0);
@@ -285,7 +306,7 @@ void testLongSecret_PlainFile() {
 	x[EncKeys::MAX_SECRET_SIZE] = '\0';
 
 	testSecret((char*)"long_secret", x);
-
+	free(x);
 }
 void testLongSecret_EncryptedFile() {
 	char * s = (char*) "2304832408230498 3094823084092384093824908234 480 32480923840981309548sdmflösdkmflkjmfokjmk4rlkwemflkjrl23409098dsk39i980938098098234098098sdkfölklök1230980sd2304983209483209489fklödkfölk3209483209480932482309480923480923480923480923840932840923840932843399";
@@ -294,6 +315,7 @@ void testLongSecret_EncryptedFile() {
 	x[EncKeys::MAX_SECRET_SIZE] = '\0';
 
 	testSecret("long_secret.enc", x);
+	free(x);
 
 }
 void testSecret256_EncryptedFile() {
@@ -303,6 +325,7 @@ void testSecret256_EncryptedFile() {
 	x[EncKeys::MAX_SECRET_SIZE] = '\0';
 
 	testSecret("secret256.enc", x);
+	free(x);
 
 }
 void testSecret256_PlainFile() {
@@ -312,6 +335,7 @@ void testSecret256_PlainFile() {
 	x[EncKeys::MAX_SECRET_SIZE] = '\0';
 
 	testSecret("secret256", x);
+	free(x);
 
 }
 void testSecrets() {

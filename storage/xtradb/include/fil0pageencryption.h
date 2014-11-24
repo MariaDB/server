@@ -87,7 +87,8 @@ fil_encrypt_page(
     ulint           compression_level, /*!< in: compression level */
     ulint*          out_len,   		/*!< out: actual length of encrypted page */
 	ulint* 		    errorCode,   	/*!< out: an error code. set, if page is intentionally not encrypted */
-    ulint			mode       		/*!< in: calling mode. Should be 0. */
+	byte* 			tmp_encryption_buf, /*!< in: temorary buffer or NULL */
+	ulint			mode       		/*!< in: calling mode. Should be 0. */
     );
 
 /****************************************************************//**
@@ -103,7 +104,8 @@ fil_decrypt_page(
 		ulint 		len, 			/*!< in: length buffer, which should be decrypted.*/
 		ulint* 		write_size, 	/*!< out: size of the decrypted data. If no error occurred equal to len, except for page compressed tables */
 		ibool*      page_compressed, /*!<out: is page compressed.*/
-	    ulint		mode	       	/*!< in: calling mode. Should be 0. */
+		byte* 		tmp_encryption_buf, /*!< in: temorary buffer or NULL */
+		ulint		mode	       	/*!< in: calling mode. Should be 0. */
 	    );
 
 

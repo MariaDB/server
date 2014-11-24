@@ -102,6 +102,7 @@ fil_encrypt_page(
 		ulint 		encryption_key,/*!< in: encryption key */
 		ulint* 		out_len, 	/*!< out: actual length of encrypted page */
 		ulint* 	    errorCode,  /*!< out: an error code. set, if page is intentionally not encrypted */
+		byte* 		tmp_encryption_buf, /*!< in: temorary buffer or NULL */
 		ulint 		mode 		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 
@@ -207,9 +208,12 @@ fil_encrypt_page(
 			 * Old-style checksum and the "Low 32 bits of LSN */
 			memcpy(out_buf + FIL_PAGE_DATA + data_size , buf + FIL_PAGE_DATA + data_size , len - FIL_PAGE_DATA -data_size);
 
-
-			//create temporary buffer for 2nd encryption
-			tmp_buf = static_cast<byte *>(ut_malloc(64));
+			if (tmp_encryption_buf == NULL) {
+				//create temporary buffer for 2nd encryption
+				tmp_buf = static_cast<byte *>(ut_malloc(64));
+			} else {
+				tmp_buf = tmp_encryption_buf;
+			}
 			/* 2nd encryption: 63 bytes from out_buf, result length is 64 bytes */
 			err = my_aes_encrypt_cbc((char*)out_buf + len -offset -64,
 					64,
@@ -237,7 +241,7 @@ fil_encrypt_page(
 		*out_len = len;
 
 		/* free temporary buffer */
-		if (tmp_buf!=NULL) {
+		if (tmp_buf!=NULL && tmp_encryption_buf == NULL) {
 			ut_free(tmp_buf);
 		}
 		*errorCode = err;
@@ -282,7 +286,7 @@ fil_encrypt_page(
 	*out_len = len;
 
 	/* free temporary buffer */
-	if (tmp_buf!=NULL) {
+	if (tmp_buf!=NULL && tmp_encryption_buf == NULL) {
 		ut_free(tmp_buf);
 	}
 	return (out_buf);
@@ -308,6 +312,7 @@ ulint fil_decrypt_page(
 		ulint 		len, 		/*!< in: length buffer, which should be decrypted.*/
 		ulint* 		write_size, /*!< out: size of the decrypted data. If no error occurred equal to len, except for page compressed tables */
 		ibool* 		page_compressed, /*!<out: is page compressed.*/
+		byte* 		tmp_encryption_buf, /*!< in: temorary buffer or NULL */
 		ulint 		mode		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 	int err = AES_OK;
@@ -439,10 +444,13 @@ ulint fil_decrypt_page(
 		return err;
 	}
 
-
-	tmp_page_buf = static_cast<byte *>(ut_malloc(len));
-	tmp_buf= static_cast<byte *>(ut_malloc(64));
-	memset(tmp_page_buf,0, len);
+	if (tmp_encryption_buf == NULL) {
+		tmp_page_buf = static_cast<byte *>(ut_malloc(len));
+		tmp_buf= static_cast<byte *>(ut_malloc(64));
+	} else {
+		tmp_page_buf = tmp_encryption_buf;
+		tmp_buf = tmp_encryption_buf + UNIV_PAGE_SIZE;
+	}
 
 
 	/* 1st decryption: 64 bytes */
@@ -468,9 +476,10 @@ ulint fil_decrypt_page(
 		if (NULL == page_buf) {
 			ut_free(in_buffer);
 		}
-		ut_free(tmp_page_buf);
-		ut_free(tmp_buf);
-
+		if (NULL == tmp_encryption_buf) {
+			ut_free(tmp_page_buf);
+			ut_free(tmp_buf);
+		}
 		return err;
 	}
 
@@ -481,8 +490,6 @@ ulint fil_decrypt_page(
 	memcpy(tmp_page_buf + FIL_PAGE_DATA, buf + FIL_PAGE_DATA, len -offset -64 - FIL_PAGE_DATA);
 
 
-	/* fill target buffer with zeros */
-	memset(in_buf, 0, len);
 
 
 
@@ -509,9 +516,10 @@ ulint fil_decrypt_page(
 
 
 
-
-	ut_free(tmp_page_buf);
-	ut_free(tmp_buf);
+	if (NULL == tmp_encryption_buf) {
+		ut_free(tmp_page_buf);
+		ut_free(tmp_buf);
+	}
 
 
 

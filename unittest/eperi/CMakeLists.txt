@@ -149,4 +149,7 @@ file(COPY
 file(COPY
 	${CMAKE_CURRENT_LIST_DIR}/row_format_compactad
 	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
+file(COPY
+	${CMAKE_CURRENT_LIST_DIR}/row_format_compactad_encrypted
+	DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
 		
