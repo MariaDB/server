@@ -5929,12 +5929,12 @@ consecutive_loop:
 			aio_slot->page_compression);
 	}
 
-	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
-		os_has_said_disk_full = FALSE;);
-	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
-			ret = 0;);
-	DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28_2",
+	if (aio_slot->type == OS_FILE_WRITE) {
+		DBUG_EXECUTE_IF("ib_os_aio_func_io_failure_28",
+			os_has_said_disk_full = FALSE;
+			ret = 0;
 			errno = 28;);
+	}
 
 	srv_set_io_thread_op_info(global_segment, "file i/o done");
 
