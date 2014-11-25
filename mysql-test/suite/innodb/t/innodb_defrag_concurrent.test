@@ -41,29 +41,9 @@ while ($i)
 }
 --enable_query_log
 
---echo after populate PRIMARY
 select count(*) from t1; 
-
-if (`select count(*) < 30 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-aelect count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
-
---echo after populate second
 select count(*) from t1 force index (second);
-
-if (`select count(*) < 320 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
-
---ECHO after populate third
 select count(*) from t1 force index (third);
-
-if (`select count(*) < 20 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'third' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'third' order by page_number;
-}
 
 # Delete some data
 --disable_query_log
@@ -76,29 +56,9 @@ while ($size)
 }
 --enable_query_log
 
-select count(*) from t1;
-
---echo after delete PRIMAY
-if (`select count(*) < 30 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
-
+select count(*) from t1; 
 select count(*) from t1 force index (second);
-
---echo after delete second
-if (`select count(*) < 300 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
-
 select count(*) from t1 force index (third);
-
---echo after delete third
-if (`select count(*) > 20 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'third' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'third' order by page_number;
-}
 
 # Above delete will free some pages and insert causes page split and these could cause defrag
 select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
@@ -143,31 +103,10 @@ disconnect con3;
 disconnect con4;
 
 optimize table t1;
-select sleep(5);
 
 select count(*) from t1;
-
---echo after optimize PRIMARY
-if (`select count(*) > 62 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'PRIMARY' order by page_number;
-}
-
 select count(*) from t1 force index (second);
-
---echo after optimize second
-if (`select count(*) >  340 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'second' order by page_number;
-}
-
 select count(*) from t1 force index (third);
-
---echo after optimize third
-if (`select count(*) > 25 from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'third' order by page_number;`)
-{
-select count(*) from information_schema.innodb_buffer_page where table_name like '%t1%' and index_name = 'third' order by page_number;
-}
 
 # Now pages are freed
 select count(stat_value) > 0 from mysql.innodb_index_stats where table_name like '%t1%' and  stat_name  in ('n_pages_freed');
