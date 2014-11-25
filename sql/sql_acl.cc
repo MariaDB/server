@@ -47,6 +47,7 @@
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
 #include <sql_common.h>
 #include <mysql/plugin_auth.h>
+#include <mysql/plugin_password_validation.h>
 #include "sql_connect.h"
 #include "hostname.h"
 #include "sql_db.h"
@@ -872,6 +873,24 @@ static void free_acl_role(ACL_ROLE *role)
   delete_dynamic(&(role->parent_grantee));
 }
 
+struct validation_data { LEX_STRING *user, *password; };
+
+static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
+{
+  struct validation_data *data= (struct validation_data *)arg;
+  struct st_mysql_password_validation *handler=
+    (st_mysql_password_validation *)plugin_decl(plugin)->info;
+  return handler->validate_password(data->user, data->password);
+}
+
+
+static bool validate_password(LEX_STRING *user, LEX_STRING *password)
+{
+  struct validation_data data= { user, password };
+  return plugin_foreach(NULL, do_validate,
+                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data);
+}
+
 /**
   Convert scrambled password to binary form, according to scramble type,
   Binary form is stored in user.salt.
@@ -975,6 +994,15 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
   {
     my_error(ER_PASSWD_LENGTH, MYF(0), check_length);
     return true;
+  }
+
+  if (user->password.length || !user->auth.length)
+  {
+    if (validate_password(&user->user, &user->password))
+    {
+      my_error(ER_NOT_VALID_PASSWORD, MYF(0));
+      return true;
+    }
   }
 
   if (user->password.length)
