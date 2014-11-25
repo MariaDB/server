@@ -52,6 +52,7 @@
 #include "sql_db.h"
 #include "sql_array.h"
 #include "sql_hset.h"
+#include "password.h"
 
 #include "sql_plugin_compat.h"
 
@@ -950,7 +951,7 @@ static bool fix_user_plugin_ptr(ACL_USER *user)
      username IDENTIFIED VIA mysql_native_password USING xxx
      etc
 */
-static bool fix_lex_user(LEX_USER *user)
+static bool fix_lex_user(THD *thd, LEX_USER *user)
 {
   size_t check_length;
 
@@ -974,6 +975,30 @@ static bool fix_lex_user(LEX_USER *user)
   {
     my_error(ER_PASSWD_LENGTH, MYF(0), check_length);
     return true;
+  }
+
+  if (user->password.length)
+  {
+    size_t scramble_length;
+    void (*make_scramble)(char *, const char *, size_t);
+
+    if (thd->variables.old_passwords == 1)
+    {
+      scramble_length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
+      make_scramble= my_make_scrambled_password_323;
+    }
+    else
+    {
+      scramble_length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
+      make_scramble= my_make_scrambled_password;
+    }
+
+    char *buff= (char *) thd->alloc(scramble_length + 1);
+    if (buff == NULL)
+      return true;
+    make_scramble(buff, user->password.str, user->password.length);
+    user->auth.str= buff;
+    user->auth.length= scramble_length;
   }
 
   user->password= user->auth.length ? user->auth : null_lex_str;
@@ -5609,7 +5634,7 @@ static bool has_auth(LEX_USER *user, LEX *lex)
 
 static bool copy_and_check_auth(LEX_USER *to, LEX_USER *from, THD *thd)
 {
-  if (fix_lex_user(from))
+  if (fix_lex_user(thd, from))
     return true;
 
   if (to != from)
@@ -9308,7 +9333,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     if (!user_name->host.str)
       user_name->host= host_not_specified;
 
-    if (fix_lex_user(user_name))
+    if (fix_lex_user(thd, user_name))
     {
       append_user(thd, &wrong_users, user_name);
       result= TRUE;

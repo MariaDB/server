@@ -40,7 +40,6 @@
 #include "sql_table.h"                        /* primary_key_name */
 #include "sql_partition.h"  /* mem_alloc_error, partition_info, HASH_PARTITION */
 #include "sql_acl.h"                          /* *_ACL */
-#include "password.h"       /* my_make_scrambled_password_323, my_make_scrambled_password */
 #include "sql_class.h"      /* Key_part_spec, enum_filetype, Diag_condition_item_name */
 #include "slave.h"
 #include "lex_symbol.h"
@@ -15525,29 +15524,6 @@ grant_user:
             $$=$1; $1->password=$4;
             if (Lex->sql_command == SQLCOM_REVOKE)
               MYSQL_YYABORT;
-            if ($4.length)
-            {
-              if (thd->variables.old_passwords == 1)
-              {
-                char *buff= 
-                  (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH_323+1);
-                if (buff == NULL)
-                  MYSQL_YYABORT;
-                my_make_scrambled_password_323(buff, $4.str, $4.length);
-                $1->auth.str= buff;
-                $1->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
-              }
-              else
-              {
-                char *buff= 
-                  (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH+1);
-                if (buff == NULL)
-                  MYSQL_YYABORT;
-                my_make_scrambled_password(buff, $4.str, $4.length);
-                $1->auth.str= buff;
-                $1->auth.length= SCRAMBLED_PASSWORD_CHAR_LENGTH;
-              }
-            }
           }
         | user IDENTIFIED_SYM BY PASSWORD TEXT_STRING
           { 
