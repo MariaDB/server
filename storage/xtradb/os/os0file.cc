@@ -6788,7 +6788,7 @@ os_slot_alloc_tmp_encryption_buf(
 os_aio_slot_t*   slot) /*!< in: slot structure     */
 {
 	if (slot->tmp_encryption_buf == NULL) {
-		slot->tmp_encryption_buf = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE + 64));
+		slot->tmp_encryption_buf = static_cast<byte *>(ut_malloc(64));
 	}
 }
 

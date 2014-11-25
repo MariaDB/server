@@ -102,7 +102,7 @@ fil_encrypt_page(
 		ulint 		encryption_key,/*!< in: encryption key */
 		ulint* 		out_len, 	/*!< out: actual length of encrypted page */
 		ulint* 	    errorCode,  /*!< out: an error code. set, if page is intentionally not encrypted */
-		byte* 		tmp_encryption_buf, /*!< in: temorary buffer or NULL */
+		byte* 		tmp_encryption_buf, /*!< in: temporary buffer or NULL */
 		ulint 		mode 		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 
@@ -214,7 +214,7 @@ fil_encrypt_page(
 			} else {
 				tmp_buf = tmp_encryption_buf;
 			}
-			/* 2nd encryption: 63 bytes from out_buf, result length is 64 bytes */
+			/* 2nd encryption: 64 bytes from out_buf, result length is 64 bytes */
 			err = my_aes_encrypt_cbc((char*)out_buf + len -offset -64,
 					64,
 					(char*)tmp_buf,
@@ -312,7 +312,7 @@ ulint fil_decrypt_page(
 		ulint 		len, 		/*!< in: length buffer, which should be decrypted.*/
 		ulint* 		write_size, /*!< out: size of the decrypted data. If no error occurred equal to len, except for page compressed tables */
 		ibool* 		page_compressed, /*!<out: is page compressed.*/
-		byte* 		tmp_encryption_buf, /*!< in: temorary buffer or NULL */
+		byte* 		tmp_encryption_buf, /*!< in: temporary buffer or NULL */
 		ulint 		mode		/*!< in: calling mode. Should be 0. Can be used for unit tests */
 ) {
 	int err = AES_OK;
@@ -321,10 +321,8 @@ ulint fil_decrypt_page(
 	ulint orig_page_type = 0;
 	uint32 tmp_write_size = 0;
 	ulint offset = 0;
-	byte * in_buffer;
 	byte * in_buf;
 	byte * tmp_buf;
-	byte * tmp_page_buf;
 	fil_space_t* space = NULL;
 	ulint page_compression_flag = 0;
 	ulint unit_test = mode ? 0x01: 0;
@@ -387,10 +385,7 @@ ulint fil_decrypt_page(
 				"InnoDB: FIL: Note: Decryption buffer not given, allocating...\n");
 		fflush(stderr);
 #endif /* UNIV_PAGEENCRIPTION_DEBUG */
-		/* it was requested to align this buffer */
-		in_buffer = static_cast<byte*>(ut_malloc(2 * (UNIV_PAGE_SIZE)));
-		in_buf = static_cast<byte*>(ut_align(in_buffer, UNIV_PAGE_SIZE));
-
+		in_buf = static_cast<byte*>(ut_malloc(UNIV_PAGE_SIZE));
 	} else {
 		in_buf = page_buf;
 	}
@@ -439,17 +434,15 @@ ulint fil_decrypt_page(
 				err, (int)page_decryption_key);
 		fflush(stderr);
 		if (NULL == page_buf) {
-			ut_free(in_buffer);
+			ut_free(in_buf);
 		}
 		return err;
 	}
 
 	if (tmp_encryption_buf == NULL) {
-		tmp_page_buf = static_cast<byte *>(ut_malloc(len));
 		tmp_buf= static_cast<byte *>(ut_malloc(64));
 	} else {
-		tmp_page_buf = tmp_encryption_buf;
-		tmp_buf = tmp_encryption_buf + UNIV_PAGE_SIZE;
+		tmp_buf = tmp_encryption_buf;
 	}
 
 
@@ -459,7 +452,7 @@ ulint fil_decrypt_page(
 	memcpy(tmp_buf, buf + len - offset - 64, 64);
 	if (err == AES_OK) {
 		err = my_aes_decrypt_cbc((const char*) tmp_buf, 64,
-				(char *) tmp_page_buf + len - offset - 64,
+				(char *) in_buf + len - offset - 64,
 				&tmp_write_size, (const unsigned char *) &rkey, key_len,
 				(const unsigned char *) &iv, iv_len, 1);
 	}
@@ -474,10 +467,9 @@ ulint fil_decrypt_page(
 				len, (int)page_decryption_key);
 		fflush(stderr);
 		if (NULL == page_buf) {
-			ut_free(in_buffer);
+			ut_free(in_buf);
 		}
 		if (NULL == tmp_encryption_buf) {
-			ut_free(tmp_page_buf);
 			ut_free(tmp_buf);
 		}
 		return err;
@@ -485,18 +477,13 @@ ulint fil_decrypt_page(
 
 	ut_ad(tmp_write_size == 64);
 
-	/* copy 1st part of payload from buf to tmp_page_buf */
+	/* copy 1st part of payload from buf to in_buf */
 	/* do not override result of 1st decryption */
-	memcpy(tmp_page_buf + FIL_PAGE_DATA, buf + FIL_PAGE_DATA, len -offset -64 - FIL_PAGE_DATA);
+	memcpy(in_buf + FIL_PAGE_DATA, buf + FIL_PAGE_DATA, len -offset -64 - FIL_PAGE_DATA);
 
-
-
-
-
-
-	err = my_aes_decrypt_cbc((char*) tmp_page_buf + FIL_PAGE_DATA,
+	err = my_aes_decrypt_cbc((char*) in_buf + FIL_PAGE_DATA,
 			data_size,
-			(char *) in_buf + FIL_PAGE_DATA,
+			(char *) buf + FIL_PAGE_DATA,
 			&tmp_write_size,
 			(const unsigned char *)&rkey,
 			key_len,
@@ -505,45 +492,27 @@ ulint fil_decrypt_page(
 			1);
 	ut_ad(tmp_write_size = data_size);
 
-	/* copy remaining bytes from tmp_page_buf to in_buf.
+	/* copy remaining bytes from in_buf to buf.
 	 */
 	ulint bytes_to_copy = len - FIL_PAGE_DATA - data_size - offset;
-	memcpy(in_buf + FIL_PAGE_DATA + data_size, tmp_page_buf + FIL_PAGE_DATA + data_size, bytes_to_copy);
-
-	/* apart from header data everything is now in in_buf */
-
-
-
-
+	memcpy(buf + FIL_PAGE_DATA + data_size, in_buf + FIL_PAGE_DATA + data_size, bytes_to_copy);
 
 	if (NULL == tmp_encryption_buf) {
-		ut_free(tmp_page_buf);
 		ut_free(tmp_buf);
 	}
-
-
 
 #ifdef UNIV_PAGEENCRIPTION_DEBUG
 	fprintf(stderr, "InnoDB: Note: Decryption succeeded for len %lu\n", len);
 	fflush(stderr);
 #endif
 
-	/* copy header */
-	memcpy(in_buf, buf, FIL_PAGE_DATA);
-
-
-	/* Copy the decrypted page to the buffer pool*/
-	memcpy(buf, in_buf, len);
-
 	if (NULL == page_buf) {
-		ut_free(in_buffer);
+		ut_free(in_buf);
 	}
 
 	/* setting original page type */
 
 	mach_write_to_2(buf + FIL_PAGE_TYPE, orig_page_type);
-
-
 
 	ulint pageno = mach_read_from_4(buf + FIL_PAGE_OFFSET);
 	ulint flags = 0;
