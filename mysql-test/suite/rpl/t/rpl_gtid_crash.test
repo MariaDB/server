@@ -12,6 +12,11 @@
 call mtr.add_suppression("Checking table:");
 call mtr.add_suppression("client is using or hasn't closed the table properly");
 call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+# We have seen this warning a couple of times in Buildbot. Since we crash the
+# server deliberately, it seems possible that we could in rare cases crash in
+# the middle of a page write. The page is recovered from the doublewrite
+# buffer ("[Note] InnoDB: Recovered the page from the doublewrite buffer.").
+call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
 flush tables;
 
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
