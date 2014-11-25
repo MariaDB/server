@@ -35,6 +35,7 @@
 #include <mysql/plugin_auth.h>
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_TIMEOUT
 #include <mysql/plugin_auth.h>
+#include <mysql/plugin_password_validation.h>
 #include "sql_plugin_compat.h"
 
 #define REPORT_TO_LOG  1
@@ -82,7 +83,8 @@ const LEX_STRING plugin_type_names[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   { C_STRING_WITH_LEN("INFORMATION SCHEMA") },
   { C_STRING_WITH_LEN("AUDIT") },
   { C_STRING_WITH_LEN("REPLICATION") },
-  { C_STRING_WITH_LEN("AUTHENTICATION") }
+  { C_STRING_WITH_LEN("AUTHENTICATION") },
+  { C_STRING_WITH_LEN("PASSWORD VALIDATION") }
 };
 
 extern int initialize_schema_table(st_plugin_int *plugin);
@@ -98,14 +100,14 @@ extern int finalize_audit_plugin(st_plugin_int *plugin);
 */
 plugin_type_init plugin_type_initialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
-  0,ha_initialize_handlerton,0,0,initialize_schema_table,
-  initialize_audit_plugin, 0, 0
+  0, ha_initialize_handlerton, 0, 0,initialize_schema_table,
+  initialize_audit_plugin, 0, 0, 0
 };
 
 plugin_type_init plugin_type_deinitialize[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
-  0,ha_finalize_handlerton,0,0,finalize_schema_table,
-  finalize_audit_plugin, 0, 0
+  0, ha_finalize_handlerton, 0, 0, finalize_schema_table,
+  finalize_audit_plugin, 0, 0, 0
 };
 
 #ifdef HAVE_DLOPEN
@@ -137,7 +139,8 @@ static int min_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION,
   MYSQL_AUDIT_INTERFACE_VERSION,
   MYSQL_REPLICATION_INTERFACE_VERSION,
-  MIN_AUTHENTICATION_INTERFACE_VERSION
+  MIN_AUTHENTICATION_INTERFACE_VERSION,
+  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION
 };
 static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
 {
@@ -148,7 +151,8 @@ static int cur_plugin_info_interface_version[MYSQL_MAX_PLUGIN_TYPE_NUM]=
   MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION,
   MYSQL_AUDIT_INTERFACE_VERSION,
   MYSQL_REPLICATION_INTERFACE_VERSION,
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION
+  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MariaDB_PASSWORD_VALIDATION_INTERFACE_VERSION
 };
 
 static struct
@@ -1051,7 +1055,8 @@ static bool plugin_add(MEM_ROOT *tmp_root,
       continue; // invalid plugin type
 
     if (plugin->type == MYSQL_UDF_PLUGIN ||
-        (plugin->type == 8 && tmp.plugin_dl->mariaversion == 0))
+        (plugin->type == MariaDB_PASSWORD_VALIDATION_PLUGIN &&
+         tmp.plugin_dl->mariaversion == 0))
       continue; // unsupported plugin type
 
     if (name->str && my_strnncoll(system_charset_info,

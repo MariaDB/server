@@ -1,0 +1,1 @@
+MYSQL_ADD_PLUGIN(simple_password_check simple_password_check.c MODULE_ONLY)
