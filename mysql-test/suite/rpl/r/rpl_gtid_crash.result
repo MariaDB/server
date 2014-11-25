@@ -133,9 +133,17 @@ SELECT @@GLOBAL.server_id;
 3
 SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
+gtid_check
+Binlog pos ok
 # Wait 30 seconds for SQL thread to catch up with IO thread
 SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
+gtid_check
+Binlog pos ok
+gtid_check
+Slave pos ok
+gtid_check
+Current pos ok
 # Repeat this with additional transactions on the master
 SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
 BEGIN;
@@ -175,11 +183,21 @@ SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
 13
 14
+gtid_check
+Binlog pos ok
+gtid_check
+Current pos ok
 # Wait 30 seconds for SQL thread to catch up with IO thread
 SELECT * from t1 WHERE a > 10 ORDER BY a;
 a
 13
 14
+gtid_check
+Binlog pos ok
+gtid_check
+Slave pos ok
+gtid_check
+Current pos ok
 # Repeat this with additional transactions on the master
 SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
 BEGIN;
@@ -205,5 +223,48 @@ a
 14
 23
 24
+# Repeat this with slave restart
+SET GLOBAL debug_dbug="+d,inject_error_writing_xid";
+BEGIN;
+INSERT INTO t1 VALUES (25);
+COMMIT;
+ERROR HY000: Error writing file 'master-bin' (errno: 28 "No space left on device")
+SET GLOBAL debug_dbug="+d,crash_dispatch_command_before";
+COMMIT;
+Got one of the listed errors
+# Wait 30 seconds for IO thread to connect and SQL thread to catch up
+# with IO thread.
+include/stop_slave.inc
+gtid_check
+Binlog pos ok
+gtid_check
+Current pos ok
+INSERT INTO t1 VALUES (26);
+INSERT INTO t1 VALUES (27);
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+26
+27
+include/save_master_gtid.inc
+gtid_check
+Binlog pos ok
+gtid_check
+Slave pos ok
+gtid_check
+Current pos ok
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * from t1 WHERE a > 10 ORDER BY a;
+a
+13
+14
+23
+24
+26
+27
 DROP TABLE t1;
 include/rpl_end.inc

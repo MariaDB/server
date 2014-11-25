@@ -1717,6 +1717,11 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
+    /*
+      Now that we have rolled back the transaction, make sure we do not
+      errorneously update the GTID position.
+    */
+    gtid_pending= false;
   }
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
