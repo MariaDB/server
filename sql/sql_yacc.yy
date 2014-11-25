@@ -1637,7 +1637,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         table_ident_opt_wild create_like
 
 %type <simple_string>
-        remember_name remember_end opt_db text_or_password remember_tok_start
+        remember_name remember_end opt_db remember_tok_start
         wild_and_where
 
 %type <string>
@@ -14045,7 +14045,6 @@ user_maybe_role:
             if (!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER))))
               MYSQL_YYABORT;
             $$->user= current_user;
-            $$->password= null_lex_str;
             $$->plugin= empty_lex_str;
             $$->auth= empty_lex_str;
           }
@@ -14753,40 +14752,16 @@ option_value_no_option_type:
               MYSQL_YYABORT;
             lex->var_list.push_back(var);
           }
-        | PASSWORD_SYM equal text_or_password
+        | PASSWORD_SYM opt_for_user text_or_password
           {
-            LEX *lex= thd->lex;
-            LEX_USER *user;
-            sp_pcontext *spc= lex->spcont;
-            LEX_STRING pw;
-
-            pw.str= (char *)"password";
-            pw.length= 8;
-            if (spc && spc->find_variable(pw, false))
-            {
-              my_error(ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str);
-              MYSQL_YYABORT;
-            }
-            if (!(user=(LEX_USER*) thd->calloc(sizeof(LEX_USER))))
-              MYSQL_YYABORT;
-            user->user= current_user;
-            set_var_password *var= new set_var_password(user, $3);
+            LEX *lex = Lex;
+            set_var_password *var= new set_var_password(lex->definer);
             if (var == NULL)
               MYSQL_YYABORT;
-            thd->lex->var_list.push_back(var);
-            thd->lex->autocommit= TRUE;
+            lex->var_list.push_back(var);
+            lex->autocommit= TRUE;
             if (lex->sphead)
               lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
-          }
-        | PASSWORD_SYM FOR_SYM user equal text_or_password
-          {
-            set_var_password *var= new set_var_password($3,$5);
-            if (var == NULL)
-              MYSQL_YYABORT;
-            Lex->var_list.push_back(var);
-            Lex->autocommit= TRUE;
-            if (Lex->sphead)
-              Lex->sphead->m_flags|= sp_head::HAS_SET_AUTOCOMMIT_STMT;
           }
         ;
 
@@ -14927,26 +14902,36 @@ isolation_types:
         | SERIALIZABLE_SYM         { $$= ISO_SERIALIZABLE; }
         ;
 
-text_or_password:
-          TEXT_STRING { $$=$1.str;}
-        | PASSWORD_SYM '(' TEXT_STRING ')'
+opt_for_user:
+        equal
           {
-            $$= $3.length ? 
-              Item_func_password::alloc(thd, $3.str, $3.length,
-                                        thd->variables.old_passwords ?
-                                        Item_func_password::OLD :
-                                        Item_func_password::NEW) :
-              $3.str;
-            if ($$ == NULL)
+            LEX *lex= thd->lex;
+            sp_pcontext *spc= lex->spcont;
+            LEX_STRING pw= { C_STRING_WITH_LEN("password") };
+
+            if (spc && spc->find_variable(pw, false))
+            {
+              my_error(ER_SP_BAD_VAR_SHADOW, MYF(0), pw.str);
               MYSQL_YYABORT;
+            }
+            if (!(lex->definer= (LEX_USER*) thd->calloc(sizeof(LEX_USER))))
+              MYSQL_YYABORT;
+            lex->definer->user= current_user;
+            lex->definer->plugin= empty_lex_str;
+            lex->definer->auth= empty_lex_str;
           }
+        | FOR_SYM user equal { Lex->definer= $2; }
+        ;
+
+text_or_password:
+          TEXT_STRING { Lex->definer->auth= $1;}
+        | PASSWORD_SYM '(' TEXT_STRING ')' { Lex->definer->password= $3; }
         | OLD_PASSWORD_SYM '(' TEXT_STRING ')'
           {
-            $$= $3.length ? Item_func_password::
-              alloc(thd, $3.str, $3.length, Item_func_password::OLD) :
-              $3.str;
-            if ($$ == NULL)
-              MYSQL_YYABORT;
+            Lex->definer->password= $3;
+            Lex->definer->auth.str= Item_func_password::alloc(thd,
+                                   $3.str, $3.length, Item_func_password::OLD);
+            Lex->definer->auth.length=  SCRAMBLED_PASSWORD_CHAR_LENGTH_323;
           }
         ;
 

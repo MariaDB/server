@@ -321,10 +321,8 @@ public:
 class set_var_password: public set_var_base
 {
   LEX_USER *user;
-  char *password;
 public:
-  set_var_password(LEX_USER *user_arg,char *password_arg)
-    :user(user_arg), password(password_arg)
+  set_var_password(LEX_USER *user_arg) :user(user_arg)
   {}
   int check(THD *thd);
   int update(THD *thd);

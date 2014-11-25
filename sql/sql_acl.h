@@ -206,10 +206,8 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len);
 bool acl_getroot(Security_context *sctx, char *user, char *host,
                  char *ip, char *db);
 bool acl_check_host(const char *host, const char *ip);
-int check_change_password(THD *thd, const char *host, const char *user,
-                           char *password, uint password_len);
-bool change_password(THD *thd, const char *host, const char *user,
-                     char *password);
+bool check_change_password(THD *thd, LEX_USER *user);
+bool change_password(THD *thd, LEX_USER *user);
 
 bool mysql_grant_role(THD *thd, List<LEX_USER> &user_list, bool revoke);
 bool mysql_grant(THD *thd, const char *db, List <LEX_USER> &user_list,
