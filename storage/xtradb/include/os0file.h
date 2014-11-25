@@ -144,6 +144,7 @@ enum os_file_create_t {
 /* @} */
 
 /** Error codes from os_file_get_last_error @{ */
+#define	OS_FILE_NAME_TOO_LONG		36
 #define	OS_FILE_NOT_FOUND		71
 #define	OS_FILE_DISK_FULL		72
 #define	OS_FILE_ALREADY_EXISTS		73

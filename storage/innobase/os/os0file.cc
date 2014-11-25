@@ -467,6 +467,8 @@ os_file_get_last_error_low(
 		return(OS_FILE_OPERATION_ABORTED);
 	} else if (err == ERROR_ACCESS_DENIED) {
 		return(OS_FILE_ACCESS_VIOLATION);
+	} else if (err == ERROR_BUFFER_OVERFLOW) {
+		return(OS_FILE_NAME_TOO_LONG);
 	} else {
 		return(OS_FILE_ERROR_MAX + err);
 	}
@@ -528,6 +530,8 @@ os_file_get_last_error_low(
 		return(OS_FILE_NOT_FOUND);
 	case EEXIST:
 		return(OS_FILE_ALREADY_EXISTS);
+	case ENAMETOOLONG:
+		return(OS_FILE_NAME_TOO_LONG);
 	case EXDEV:
 	case ENOTDIR:
 	case EISDIR:
@@ -3049,7 +3053,7 @@ os_file_status(
 	struct _stat64	statinfo;
 
 	ret = _stat64(path, &statinfo);
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 		*exists = FALSE;
 		return(TRUE);
@@ -3077,7 +3081,7 @@ os_file_status(
 	struct stat	statinfo;
 
 	ret = stat(path, &statinfo);
-	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG)) {
 		/* file does not exist */
 		*exists = FALSE;
 		return(TRUE);
