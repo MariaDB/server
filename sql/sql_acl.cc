@@ -892,6 +892,17 @@ static bool validate_password(LEX_STRING *user, LEX_STRING *password)
                         MariaDB_PASSWORD_VALIDATION_PLUGIN, &data);
 }
 
+static my_bool check_if_exists(THD *, plugin_ref, void *)
+{
+  return TRUE;
+}
+
+static bool has_validation_plugins()
+{
+  return plugin_foreach(NULL, check_if_exists,
+                        MariaDB_PASSWORD_VALIDATION_PLUGIN, NULL);
+}
+
 /**
   Convert scrambled password to binary form, according to scramble type,
   Binary form is stored in user.salt.
@@ -1017,6 +1028,14 @@ static bool fix_lex_user(THD *thd, LEX_USER *user)
     if (validate_password(&user->user, &user->password))
     {
       my_error(ER_NOT_VALID_PASSWORD, MYF(0));
+      return true;
+    }
+  }
+  else
+  {
+    if (strict_password_validation && has_validation_plugins())
+    {
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--strict-password-validation");
       return true;
     }
   }

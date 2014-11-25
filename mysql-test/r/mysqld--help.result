@@ -987,6 +987,11 @@ The following options may be given as the first argument:
  --stored-program-cache=# 
  The soft upper limit for number of cached stored routines
  for one connection.
+ --strict-password-validation 
+ When password validation plugins are enabled, reject
+ passwords that cannot be validated (passwords specified
+ as a hash)
+ (Defaults to on; use --skip-strict-password-validation to disable.)
  -s, --symbolic-links 
  Enable symbolic link support.
  --sync-binlog=#     Synchronously flush binary log to disk after every #th
@@ -1348,6 +1353,7 @@ sort-buffer-size 2097152
 sql-mode 
 stack-trace TRUE
 stored-program-cache 256
+strict-password-validation TRUE
 symbolic-links FALSE
 sync-binlog 0
 sync-frm FALSE
