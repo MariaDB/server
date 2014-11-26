@@ -126,7 +126,8 @@ const char *oqlatchToCode(int latch) {
   return "unknown";
 }
 
-struct oqgraph_table_option_struct
+
+struct ha_table_option_struct
 {
   const char *table_name;
 
@@ -135,7 +136,6 @@ struct oqgraph_table_option_struct
   const char *weight; // name of the weight column (optional)
 };
 
-#define ha_table_option_struct oqgraph_table_option_struct
 static const ha_create_table_option oqgraph_table_option_list[]=
 {
   HA_TOPTION_STRING("data_table", table_name),
@@ -511,8 +511,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   DBUG_ASSERT(graph == NULL);
 
   THD* thd = current_thd;
-  oqgraph_table_option_struct *options=
-    reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
+  ha_table_option_struct *options= table->s->option_struct;
 
   // Catch cases where table was not constructed properly
   // Note - need to return -1 so our error text gets reported
@@ -1268,8 +1267,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
 int ha_oqgraph::create(const char *name, TABLE *table_arg,
 		    HA_CREATE_INFO *create_info)
 {
-  oqgraph_table_option_struct *options=
-    reinterpret_cast<oqgraph_table_option_struct*>(table_arg->s->option_struct);
+  ha_table_option_struct *options= table_arg->s->option_struct;
 
 	DBUG_ENTER("ha_oqgraph::create");
   DBUG_PRINT( "oq-debug", ("create(name=%s)", name));
