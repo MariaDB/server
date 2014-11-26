@@ -12233,7 +12233,7 @@ Explain_quick_select* QUICK_RANGE_SELECT::get_explain(MEM_ROOT *alloc)
 {
   Explain_quick_select *res;
   if ((res= new (alloc) Explain_quick_select(QS_TYPE_RANGE)))
-    res->range.set(alloc, head->key_info[index].name, max_used_key_length);
+    res->range.set(alloc, &head->key_info[index], max_used_key_length);
   return res;
 }
 
@@ -12242,7 +12242,7 @@ Explain_quick_select* QUICK_GROUP_MIN_MAX_SELECT::get_explain(MEM_ROOT *alloc)
 {
   Explain_quick_select *res;
   if ((res= new (alloc) Explain_quick_select(QS_TYPE_GROUP_MIN_MAX)))
-    res->range.set(alloc, head->key_info[index].name, max_used_key_length);
+    res->range.set(alloc, &head->key_info[index], max_used_key_length);
   return res;
 }
 

@@ -3087,6 +3087,8 @@ public:
                           bool is_analyze);
   void make_explain_field_list(List<Item> &field_list, uint8 explain_flags,
                                bool is_analyze);
+  void make_explain_json_field_list(List<Item> &field_list);
+
   /**
     Clear the current error, if any.
     We do not clear is_fatal_error or is_fatal_sub_stmt_error since we

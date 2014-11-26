@@ -1,0 +1,178 @@
+drop table if exists t0,t1;
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+explain format=json select * from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100
+    }
+  }
+}
+explain format=json select * from t0 where 1>2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible WHERE"
+    }
+  }
+}
+explain format=json select * from t0 where a<3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(t0.a < 3)"
+    }
+  }
+}
+# Try a basic join
+create table t1 (a int, b int, filler char(32), key(a));
+insert into t1 
+select 
+a.a + b.a* 10 + c.a * 100, 
+a.a + b.a* 10 + c.a * 100,
+'filler'
+from t0 a, t0 b, t0 c;
+explain format=json select * from t0,t1 where t1.a=t0.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(t0.a is not null)"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t0.a"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+# Try range and index_merge
+create table t2 (a1 int, a2 int, b1 int, b2 int, key(a1,a2), key(b1,b2));
+insert into t2 select a,a,a,a from t1;
+explain format=json select * from t2 where a1<5;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "range",
+      "possible_keys": ["a1"],
+      "key": "a1",
+      "key_length": "5",
+      "used_key_parts": ["a1"],
+      "rows": 5,
+      "filtered": 100,
+      "index_condition": "(t2.a1 < 5)"
+    }
+  }
+}
+explain format=json select * from t2 where a1=1 or b1=2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "index_merge",
+      "possible_keys": ["a1", "b1"],
+      "key_length": "5,5",
+      "index_merge": {
+        "sort_union": {
+          "range": {
+            "key": "a1",
+            "used_key_parts": ["a1"]
+          },
+          "range": {
+            "key": "b1",
+            "used_key_parts": ["b1"]
+          }
+        }
+      },
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "((t2.a1 = 1) or (t2.b1 = 2))"
+    }
+  }
+}
+explain format=json select * from t2 where a1=1 or (b1=2 and b2=3);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t2",
+      "access_type": "index_merge",
+      "possible_keys": ["a1", "b1"],
+      "key_length": "5,10",
+      "index_merge": {
+        "sort_union": {
+          "range": {
+            "key": "a1",
+            "used_key_parts": ["a1"]
+          },
+          "range": {
+            "key": "b1",
+            "used_key_parts": ["b1", "b2"]
+          }
+        }
+      },
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "((t2.a1 = 1) or ((t2.b1 = 2) and (t2.b2 = 3)))"
+    }
+  }
+}
+# Try ref access on two key components
+explain format=json select * from t0,t2 where t2.b1=t0.a and t2.b2=4;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(t0.a is not null)"
+    },
+    "table": {
+      "table_name": "t2",
+      "access_type": "ref",
+      "possible_keys": ["b1"],
+      "key": "b1",
+      "key_length": "10",
+      "used_key_parts": ["b1", "b2"],
+      "ref": ["test.t0.a", "const"],
+      "rows": 1,
+      "filtered": 100
+    }
+  }
+}
+drop table t1,t2;
+drop table t0;

@@ -982,7 +982,13 @@ public:
   */
   uint     top_join_tab_count;
   uint	   send_group_parts;
-  bool	   group;          /**< If query contains GROUP BY clause */
+  /*
+    True if the query has GROUP BY.
+    (that is, if group_by != NULL. when DISTINCT is converted into GROUP BY, it
+     will set this, too. It is not clear why we need a separate var from 
+     group_list)
+  */
+  bool	   group;
   bool     need_distinct;
 
   /**
@@ -1913,5 +1919,6 @@ ulong check_selectivity(THD *thd,
                         ulong rows_to_read,
                         TABLE *table,
                         List<COND_STATISTIC> *conds);
+
 
 #endif /* SQL_SELECT_INCLUDED */

@@ -2500,6 +2500,7 @@ struct LEX: public Query_tables_list
   uint table_count;
   uint8 describe;
   bool  analyze_stmt; /* TRUE<=> this is "ANALYZE $stmt" */
+  bool  explain_json;
   /*
     A flag that indicates what kinds of derived tables are present in the
     query (0 if no derived tables, otherwise a combination of flags

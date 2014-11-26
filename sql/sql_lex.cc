@@ -484,6 +484,7 @@ void lex_start(THD *thd)
     lex->select_lex.group_list_ptrs->clear();
   lex->describe= 0;
   lex->analyze_stmt= 0;
+  lex->explain_json= false;
   lex->subqueries= FALSE;
   lex->context_analysis_only= 0;
   lex->derived_tables= 0;

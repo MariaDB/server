@@ -20791,6 +20791,24 @@ static void free_blobs(Field **ptr)
 }
 
 
+/*
+  @brief
+    Remove duplicates from a temporary table.
+
+  @detail
+    Remove duplicate rows from a temporary table. This is used for e.g. queries
+    like
+
+      select distinct count(*) as CNT from tbl group by col
+
+    Here, we get a group table with count(*) values. It is not possible to
+    prevent duplicates from appearing in the table (as we don't know the values
+    before we've done the grouping).  Because of that, we have this function to
+    scan the temptable (maybe, multiple times) and remove the duplicate rows
+
+    Rows that do not satisfy 'having' condition are also removed.
+*/
+
 static int
 remove_duplicates(JOIN *join, TABLE *table, List<Item> &fields, Item *having)
 {
@@ -23051,7 +23069,6 @@ void JOIN::clear()
 
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
-  TODO: is_analyze
 */
 
 int print_explain_message_line(select_result_sink *result, 
@@ -23333,21 +23350,16 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// TODO: join with make_possible_keys_line ?
-void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
+int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table, 
+                         key_map possible_keys)
 {
   uint j;
   for (j=0 ; j < table->s->keys ; j++)
   {
     if (possible_keys.is_set(j))
-    {
-      if (str->length())
-        str->append(',');
-      str->append(table->key_info[j].name, 
-                  strlen(table->key_info[j].name),
-                  system_charset_info);
-    }
+      list.append_str(alloc, table->key_info[j].name);
   }
+  return 0;
 }
 
 // TODO: this function is only applicable for the first non-const optimization
@@ -23380,17 +23392,14 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
   TABLE *table=tab->table;
   TABLE_LIST *table_list= tab->table->pos_in_table_list;
-  char buff4[512];
   my_bool key_read;
   char table_name_buffer[SAFE_NAME_LEN];
-  String tmp4(buff4,sizeof(buff4),cs);
   KEY *key_info= 0;
   uint key_len= 0;
-  tmp4.length(0);
   quick_type= -1;
   QUICK_SELECT_I *quick= NULL;
 
-  eta->key.set(thd->mem_root, NULL, (uint)-1);
+  eta->key.clear();
   eta->quick_info= NULL;
   
   tab->tracker= &eta->tracker;
@@ -23488,7 +23497,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   eta->type= tab_type;
 
   /* Build "possible_keys" value */
-  append_possible_keys(&eta->possible_keys_str, table, tab->keys);
+  // psergey-todo: why does this use thd MEM_ROOT??? Doesn't this 
+  // break ANALYZE ? thd->mem_root will be freed, and after that we will
+  // attempt to print the query plan?
+  append_possible_keys(thd->mem_root, eta->possible_keys, table, tab->keys);
+  // psergey-todo: ^ check for error return code 
 
   /* Build "key", "key_len", and "ref" */
   if (tab_type == JT_NEXT)
@@ -23513,21 +23526,18 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
   if (key_info) /* 'index' or 'ref' access */
   {
-    eta->key.set(thd->mem_root, key_info->name, key_len);
+    eta->key.set(thd->mem_root, key_info, key_len);
 
     if (tab->ref.key_parts && tab_type != JT_FT)
     {
       store_key **ref=tab->ref.key_copy;
       for (uint kp= 0; kp < tab->ref.key_parts; kp++)
       {
-        if (tmp4.length())
-          tmp4.append(',');
-
         if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
-          tmp4.append("const");
+          eta->ref_list.append_str(thd->mem_root, "const");
         else
         {
-          tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
+          eta->ref_list.append_str(thd->mem_root, (*ref)->name());
           ref++;
         }
       }
@@ -23537,21 +23547,13 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
   {
     eta->hash_next_key.set(thd->mem_root, 
-                           table->key_info[tab->index].name, 
+                           & table->key_info[tab->index], 
                            table->key_info[tab->index].key_length);
+    // psergey-todo: ^ is the above correct? are we necessarily joining on all
+    // columns?
   }
 
-  if (key_info)
-  {
-    if (key_info && tab_type != JT_NEXT)
-    {
-      eta->ref.copy(tmp4);
-      eta->ref_set= true;
-    }
-    else
-      eta->ref_set= false;
-  }
-  else
+  if (!key_info)
   {
     if (table_list && /* SJM bushes don't have table_list */
         table_list->schema_table &&
@@ -23582,9 +23584,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       }
 
       if (key_name_buf.length())
-        eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
+        eta->key.set_pseudo_key(thd->mem_root, key_name_buf.c_ptr_safe());
     }
-    eta->ref_set= false;
   }
   
   /* "rows" */
@@ -23649,7 +23650,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
     if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
         table->file->pushed_idx_cond)
+        {
       eta->push_extra(ET_USING_INDEX_CONDITION);
+          eta->pushed_index_cond= table->file->pushed_idx_cond;
+        }
     else if (tab->cache_idx_cond)
       eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
 
@@ -23679,7 +23683,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
           eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
         }
         else
+            {
+              eta->where_cond= tab->select->cond? tab->select->cond:
+                               tab->cache_select->cond;
           eta->push_extra(ET_USING_WHERE);
+            }
       }
     }
     if (table_list /* SJM bushes don't have table_list */ &&

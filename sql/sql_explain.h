@@ -14,6 +14,15 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
+
+class String_list: public List<char>
+{
+public:
+  bool append_str(MEM_ROOT *mem_root, const char *str);
+};
+
+
+
 /* Data structures for ANALYZE */
 class Table_access_tracker 
 {
@@ -67,6 +76,7 @@ const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 
 class Explain_query;
 
+class Json_writer;
 /* 
   A node can be either a SELECT, or a UNION.
 */
@@ -97,7 +107,9 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze)=0;
-  
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, 
+                                  bool is_analyze)= 0;
+
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
   virtual ~Explain_node(){}
@@ -177,6 +189,8 @@ public:
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
   
   Table_access_tracker *get_using_temporary_read_tracker()
   {
@@ -222,6 +236,8 @@ public:
   }
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
 
   const char *fake_select_type;
   bool using_filesort;
@@ -236,6 +252,8 @@ public:
     return &tmptable_read_tracker;
   }
 private:
+  uint make_union_table_name(char *buf);
+  
   Table_access_tracker fake_select_lex_tracker;
   /* This one is for reading after ORDER BY */
   Table_access_tracker tmptable_read_tracker; 
@@ -310,6 +328,8 @@ public:
   
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
+
+  void print_explain_json(select_result_sink *output, bool is_analyze);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
@@ -407,21 +427,16 @@ class Explain_index_use : public Sql_alloc
 {
   char *key_name;
   uint key_len;
-  /* will add #keyparts here if we implement EXPLAIN FORMAT=JSON */
 public:
-
-  void set(MEM_ROOT *root, const char *key_name_arg, uint key_len_arg)
+  String_list key_parts_list;
+  
+  void clear()
   {
-    if (key_name_arg)
-    {
-      size_t name_len= strlen(key_name_arg);
-      if ((key_name= (char*)alloc_root(root, name_len+1)))
-        memcpy(key_name, key_name_arg, name_len+1);
-    }
-    else
-      key_name= NULL;
-    key_len= key_len_arg;
+    key_name= NULL;
+    key_len= (uint)-1;
   }
+  void set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
+  void set_pseudo_key(MEM_ROOT *root, const char *key_name);
 
   inline const char *get_key_name() { return key_name; }
   inline uint get_key_len() { return key_len; }
@@ -438,6 +453,13 @@ public:
   {}
 
   const int quick_type;
+
+  bool is_basic() 
+  {
+    return (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+            quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
+            quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX);
+  }
   
   /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
   Explain_index_use range;
@@ -448,8 +470,11 @@ public:
   void print_extra(String *str);
   void print_key(String *str);
   void print_key_len(String *str);
-private:
+
+  void print_json(Json_writer *writer);
+
   void print_extra_recursive(String *str);
+private:
   const char *get_name_by_type();
 };
 
@@ -479,8 +504,8 @@ public:
   StringBuffer<32> used_partitions;
   bool used_partitions_set;
   
-  /* Empty string means "NULL" will be printed */
-  StringBuffer<32> possible_keys_str;
+  /* Empty means "NULL" will be printed */
+  String_list possible_keys;
   
   /*
     Index use: key name and length.
@@ -498,8 +523,7 @@ public:
   */
   Explain_index_use hash_next_key;
   
-  bool ref_set; /* not set means 'NULL' should be printed */
-  StringBuffer<32> ref;
+  String_list ref_list;
 
   bool rows_set; /* not set means 'NULL' should be printed */
   ha_rows rows;
@@ -529,11 +553,19 @@ public:
   EXPLAIN_BKA_TYPE bka_type;
   
   StringBuffer<32> firstmatch_table_name;
+  
+  /*
+    Note: lifespan of WHERE condition is less than lifespan of this object.
+    THe below is valid if tags include "ET_USING_WHERE".
+  */
+  Item *where_cond;
+  Item *pushed_index_cond;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
+  void print_explain_json(Json_writer *writer, bool is_analyze);
 
   /* ANALYZE members*/
   Table_access_tracker tracker;
@@ -541,6 +573,10 @@ public:
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
+  void fill_key_str(String *key_str, bool is_json);
+  void fill_key_len_str(String *key_len_str);
+  double get_r_filtered();
+  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
 };
 
 
@@ -585,6 +621,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, bool is_analyze)
+  { /* EXPLAIN_JSON_NOT_IMPL */}
 };
 
 
@@ -605,6 +643,9 @@ public:
 
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze)
+  { /* EXPLAIN_JSON_NOT_IMPL */}
 };
 
 
@@ -626,6 +667,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, bool is_analyze)
+  { /* EXPLAIN_JSON_NOT_IMPL */}
 };
 
 
