@@ -581,7 +581,7 @@ CREATE INDEX i1 ON t1 (a);
 DROP TABLE t1;
 
 # Before the fix it should show extra file like #sql-2405_2.par
---list_files $MYSQLD_DATADIR/test/ *
+--list_files $MYSQLD_DATADIR/test/ *.par
 
 --disable_parsing
 --echo #
@@ -616,7 +616,7 @@ ALTER TABLE t1 REORGANIZE PARTITION pMAX INTO
 SHOW WARNINGS;
 
 #Contents of the 'test' database directory:
---list_files $MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test/ *.par
 
 disconnect con1;
 connection default;
@@ -638,6 +638,7 @@ SELECT * FROM t1 WHERE i1 = ( SELECT i1 FROM t1 WHERE f1=0 LIMIT 1 );
 
 DROP TABLE t1;
 
+--remove_file $MYSQLD_DATADIR/test/db.opt
 --enable_parsing
 
 --echo #
