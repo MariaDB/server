@@ -24,6 +24,7 @@
 #include <my_global.h>
 #include <m_string.h>
 #include <my_sys.h>
+#include <mysys_err.h>
 #include <my_bit.h>
 #include <lf.h>
 
@@ -57,26 +58,43 @@ typedef struct {
 #define PTR(V)      (LF_SLIST *)((V) & (~(intptr)1))
 #define DELETED(V)  ((V) & 1)
 
-/*
-  DESCRIPTION
+/** walk the list, searching for an element or invoking a callback
+
     Search for hashnr/key/keylen in the list starting from 'head' and
     position the cursor. The list is ORDER BY hashnr, key
 
-  RETURN
-    0 - not found
-    1 - found
+    @param head         start walking the list from this node
+    @param cs           charset for comparing keys, NULL if callback is used
+    @param hashnr       hash number to search for
+    @param key          key to search for OR data for the callback
+    @param keylen       length of the key to compare, 0 if callback is used
+    @param cursor       for returning the found element
+    @param pins         see lf_alloc-pin.c
+    @param callback     callback action, invoked for every element
 
-  NOTE
+  @note
     cursor is positioned in either case
     pins[0..2] are used, they are NOT removed on return
+    callback might see some elements twice (because of retries)
+
+  @return
+    if find: 0 - not found
+             1 - found
+    if callback:
+             0 - ok
+             1 - error (callbck returned 1)
 */
 static int lfind(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
-                 const uchar *key, uint keylen, CURSOR *cursor, LF_PINS *pins)
+                 const uchar *key, uint keylen, CURSOR *cursor, LF_PINS *pins,
+                 my_hash_walk_action callback)
 {
   uint32       cur_hashnr;
   const uchar  *cur_key;
   uint         cur_keylen;
   intptr       link;
+
+  DBUG_ASSERT(!cs || !callback);        /* should not be set both */
+  DBUG_ASSERT(!keylen || !callback);    /* should not be set both */
 
 retry:
   cursor->prev= (intptr *)head;
@@ -102,7 +120,12 @@ retry:
 
     if (!DELETED(link))
     {
-      if (cur_hashnr >= hashnr)
+      if (unlikely(callback))
+      {
+        if (callback(cursor->curr + 1, (void*)key))
+          return 1;
+      }
+      else if (cur_hashnr >= hashnr)
       {
         int r= 1;
         if (cur_hashnr > hashnr ||
@@ -153,7 +176,7 @@ static LF_SLIST *linsert(LF_SLIST * volatile *head, CHARSET_INFO *cs,
   for (;;)
   {
     if (lfind(head, cs, node->hashnr, node->key, node->keylen,
-              &cursor, pins) &&
+              &cursor, pins, 0) &&
         (flags & LF_HASH_UNIQUE))
     {
       res= 0; /* duplicate found */
@@ -204,7 +227,7 @@ static int ldelete(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
 
   for (;;)
   {
-    if (!lfind(head, cs, hashnr, key, keylen, &cursor, pins))
+    if (!lfind(head, cs, hashnr, key, keylen, &cursor, pins, 0))
     {
       res= 1; /* not found */
       break;
@@ -228,7 +251,7 @@ static int ldelete(LF_SLIST * volatile *head, CHARSET_INFO *cs, uint32 hashnr,
             (to ensure the number of "set DELETED flag" actions
             is equal to the number of "remove from the list" actions)
           */
-          lfind(head, cs, hashnr, key, keylen, &cursor, pins);
+          lfind(head, cs, hashnr, key, keylen, &cursor, pins, 0);
         }
         res= 0;
         break;
@@ -259,7 +282,7 @@ static LF_SLIST *lsearch(LF_SLIST * volatile *head, CHARSET_INFO *cs,
                          LF_PINS *pins)
 {
   CURSOR cursor;
-  int res= lfind(head, cs, hashnr, key, keylen, &cursor, pins);
+  int res= lfind(head, cs, hashnr, key, keylen, &cursor, pins, 0);
   if (res)
     _lf_pin(pins, 2, cursor.curr);
   else
@@ -460,6 +483,42 @@ void *lf_hash_search(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
                  (uchar *)key, keylen, pins);
   lf_rwunlock_by_pins(pins);
   return found ? found+1 : 0;
+}
+
+
+/**
+   Iterate over all elements in hash and call function with the element
+
+   @note
+   If one of 'action' invocations returns 1 the iteration aborts.
+   'action' might see some elements twice!
+
+   @retval 0    ok
+   @retval 1    error (action returned 1)
+   @retval EE_OUTOFMEMORY
+*/
+int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
+                    my_hash_walk_action action, void *argument)
+{
+  CURSOR cursor;
+  uint bucket= 0;
+  int res;
+  LF_SLIST * volatile *el;
+
+  lf_rwlock_by_pins(pins);
+  el= _lf_dynarray_lvalue(&hash->array, bucket);
+  if (unlikely(!el))
+    return EE_OUTOFMEMORY;
+  if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
+    return EE_OUTOFMEMORY;
+
+  res= lfind(el, 0, 0, (uchar*)argument, 0, &cursor, pins, action);
+
+  _lf_unpin(pins, 2);
+  _lf_unpin(pins, 1);
+  _lf_unpin(pins, 0);
+  lf_rwunlock_by_pins(pins);
+  return res;
 }
 
 static const uchar *dummy_key= (uchar*)"";
