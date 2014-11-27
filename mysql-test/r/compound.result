@@ -36,16 +36,6 @@ master-bin.000001	#	Query	#	#	COMMIT
 master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES (6)
 master-bin.000001	#	Query	#	#	COMMIT
-PREPARE stmt FROM "BEGIN NOT ATOMIC
-  DECLARE v_res INT;
-  SELECT COUNT(*) INTO v_res FROM t1;
-  SELECT 'Hello World', v_res INTO ?,?;
-END"|
-SET @val="", @val2=""|
-EXECUTE stmt USING @val, @val2|
-SELECT @val, @val2|
-@val	@val2
-Hello World	6
 DROP TABLE t1|
 CREATE DATABASE mysqltest1|
 CREATE PROCEDURE mysqltest1.sp1()

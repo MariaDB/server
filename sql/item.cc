@@ -3154,7 +3154,7 @@ default_set_param_func(Item_param *param,
 
 Item_param::Item_param(uint pos_in_query_arg) :
   Rewritable_query_parameter(pos_in_query_arg, 1),
-  state(NO_VALUE), inout(IN_PARAM),
+  state(NO_VALUE),
   item_result_type(STRING_RESULT),
   /* Don't pretend to be a literal unless value for this item is set. */
   item_type(PARAM_ITEM),

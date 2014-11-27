@@ -28,14 +28,6 @@ delimiter ;|
 source include/show_binlog_events.inc;
 delimiter |;
 
-PREPARE stmt FROM "BEGIN NOT ATOMIC
-  DECLARE v_res INT;
-  SELECT COUNT(*) INTO v_res FROM t1;
-  SELECT 'Hello World', v_res INTO ?,?;
-END"|
-SET @val="", @val2=""|
-EXECUTE stmt USING @val, @val2|
-SELECT @val, @val2|
 DROP TABLE t1|
 
 #
