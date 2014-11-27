@@ -29,7 +29,7 @@
 
 /* An element of the list */
 typedef struct {
-  intptr volatile link; /* a pointer to the next element in a listand a flag */
+  intptr volatile link; /* a pointer to the next element in a list and a flag */
   uint32 hashnr;        /* reversed hash number, for sorting                 */
   const uchar *key;
   size_t keylen;
@@ -84,35 +84,34 @@ retry:
     cursor->curr= (LF_SLIST *)(*cursor->prev);
     _lf_pin(pins, 1, cursor->curr);
   } while (*cursor->prev != (intptr)cursor->curr && LF_BACKOFF);
+
   for (;;)
   {
     if (unlikely(!cursor->curr))
       return 0; /* end of the list */
+
+    cur_hashnr= cursor->curr->hashnr;
+    cur_keylen= cursor->curr->keylen;
+    cur_key= cursor->curr->key;
+
     do {
-      /* QQ: XXX or goto retry ? */
       link= cursor->curr->link;
       cursor->next= PTR(link);
       _lf_pin(pins, 0, cursor->next);
     } while (link != cursor->curr->link && LF_BACKOFF);
-    cur_hashnr= cursor->curr->hashnr;
-    cur_key= cursor->curr->key;
-    cur_keylen= cursor->curr->keylen;
-    if (*cursor->prev != (intptr)cursor->curr)
-    {
-      (void)LF_BACKOFF;
-      goto retry;
-    }
+
     if (!DELETED(link))
     {
       if (cur_hashnr >= hashnr)
       {
         int r= 1;
         if (cur_hashnr > hashnr ||
-            (r= my_strnncoll(cs, (uchar*) cur_key, cur_keylen, (uchar*) key,
-                             keylen)) >= 0)
+            (r= my_strnncoll(cs, cur_key, cur_keylen, key, keylen)) >= 0)
           return !r;
       }
       cursor->prev= &(cursor->curr->link);
+      if (!(cur_hashnr & 1)) /* dummy node */
+        head= (LF_SLIST **)cursor->prev;
       _lf_pin(pins, 2, cursor->curr);
     }
     else
@@ -122,13 +121,10 @@ retry:
         and remove this deleted node
       */
       if (my_atomic_casptr((void **) cursor->prev,
-                           (void **)(char*) &cursor->curr, cursor->next))
+                           (void **) &cursor->curr, cursor->next) && LF_BACKOFF)
         _lf_alloc_free(pins, cursor->curr);
       else
-      {
-        (void)LF_BACKOFF;
         goto retry;
-      }
     }
     cursor->curr= cursor->next;
     _lf_pin(pins, 1, cursor->curr);
