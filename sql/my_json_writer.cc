@@ -79,7 +79,12 @@ Json_writer& Json_writer::add_member(const char *name)
   return *this;
 }
 
-/* Used by formatting helper to print something that is formatted by the helper. */
+
+/* 
+  Used by formatting helper to print something that is formatted by the helper.
+  We should only separate it from the previous element.
+*/
+
 void Json_writer::start_sub_element()
 {
   //element_started= true;
@@ -184,6 +189,7 @@ bool Single_line_formatting_helper::on_add_member(const char *name)
   return false; // not handled
 }
 
+
 bool Single_line_formatting_helper::on_start_array()
 {
   if (state == ADD_MEMBER)
@@ -200,6 +206,7 @@ bool Single_line_formatting_helper::on_start_array()
   }
 }
 
+
 bool Single_line_formatting_helper::on_end_array()
 {
   if (state == IN_ARRAY)
@@ -211,11 +218,13 @@ bool Single_line_formatting_helper::on_end_array()
   return false; // not handled
 }
 
+
 void Single_line_formatting_helper::on_start_object()
 {
   // Nested objects will not be printed on one line
   disable_and_flush();
 }
+
 
 bool Single_line_formatting_helper::on_add_str(const char *str)
 {
@@ -244,9 +253,13 @@ bool Single_line_formatting_helper::on_add_str(const char *str)
   return false; // not handled
 }
 
+
+/*
+  Append everything accumulated to the output on one line
+*/
+
 void Single_line_formatting_helper::flush_on_one_line()
 {
-  // append everything to output on one line
   owner->start_sub_element();
   char *ptr= buffer;
   int nr= 0;
@@ -281,6 +294,7 @@ void Single_line_formatting_helper::flush_on_one_line()
 
 void Single_line_formatting_helper::disable_and_flush()
 {
+  bool start_array= (state == IN_ARRAY);
   state= DISABLED;
   // deactivate ourselves and flush all accumulated calls.
   char *ptr= buffer;
@@ -291,11 +305,13 @@ void Single_line_formatting_helper::disable_and_flush()
     if (nr == 0)
     {
       owner->add_member(str);
+      if (start_array)
+        owner->start_array();
     }
     else
     {
-      if (nr == 1)
-        owner->start_array();
+      //if (nr == 1)
+      //  owner->start_array();
       owner->add_str(str);
     }
     

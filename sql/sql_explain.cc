@@ -303,7 +303,7 @@ int Explain_union::print_explain(Explain_query *query,
                                  uint8 explain_flags, 
                                  bool is_analyze)
 {
-  const CHARSET_INFO *cs= system_charset_info;
+  //const CHARSET_INFO *cs= system_charset_info;
   char table_name_buffer[SAFE_NAME_LEN];
 
   /* print all UNION children, in order */
@@ -391,6 +391,7 @@ int Explain_union::print_explain(Explain_query *query,
 void Explain_union::print_explain_json(Explain_query *query, 
                                        Json_writer *writer, bool is_analyze)
 {
+  Json_writer_nesting_guard guard(writer);
   char table_name_buffer[SAFE_NAME_LEN];
   
   writer->add_member("query_block").start_object();
@@ -404,17 +405,18 @@ void Explain_union::print_explain_json(Explain_query *query,
   for (int i= 0; i < (int) union_members.elements(); i++)
   {
     writer->start_object();
-    writer->add_member("dependent").add_str("TODO");
-    writer->add_member("cacheable").add_str("TODO");
+    //writer->add_member("dependent").add_str("TODO");
+    //writer->add_member("cacheable").add_str("TODO");
     Explain_select *sel= query->get_select(union_members.at(i));
     sel->print_explain_json(query, writer, is_analyze);
     writer->end_object();
   }
   writer->end_array();
 
-  //TODO: print_explain_for_children
+  print_explain_json_for_children(query, writer, is_analyze);
 
-  writer->end_object();
+  writer->end_object(); // union_result
+  writer->end_object(); // query_block
 }
 
 
@@ -423,9 +425,9 @@ void Explain_union::print_explain_json(Explain_query *query,
 */
 
 int Explain_node::print_explain_for_children(Explain_query *query, 
-                                         select_result_sink *output,
-                                         uint8 explain_flags, 
-                                         bool is_analyze)
+                                             select_result_sink *output,
+                                             uint8 explain_flags, 
+                                             bool is_analyze)
 {
   for (int i= 0; i < (int) children.elements(); i++)
   {
@@ -434,6 +436,25 @@ int Explain_node::print_explain_for_children(Explain_query *query,
       return 1;
   }
   return 0;
+}
+
+
+void Explain_node::print_explain_json_for_children(Explain_query *query, 
+                                                  Json_writer *writer,
+                                                  bool is_analyze)
+{
+  if (!children.elements())
+    return;
+
+  writer->add_member("subqueries").start_array();
+  for (int i= 0; i < (int) children.elements(); i++)
+  {
+    writer->start_object();
+    Explain_node *node= query->get_node(children.at(i));
+    node->print_explain_json(query, writer, is_analyze);
+    writer->end_object();
+  }
+  writer->end_array();
 }
 
 
@@ -514,6 +535,8 @@ int Explain_select::print_explain(Explain_query *query,
 void Explain_select::print_explain_json(Explain_query *query, 
                                         Json_writer *writer, bool is_analyze)
 {
+  Json_writer_nesting_guard guard(writer);
+
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(1);
   if (message)
@@ -530,6 +553,8 @@ void Explain_select::print_explain_json(Explain_query *query,
       join_tabs[i]->print_explain_json(writer, is_analyze);
     }
   }
+
+  print_explain_json_for_children(query, writer, is_analyze);
   writer->end_object();
 }
 
@@ -658,7 +683,7 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
                                         uint select_id, const char *select_type,
                                         bool using_temporary, bool using_filesort)
 {
-  const CHARSET_INFO *cs= system_charset_info;
+  //const CHARSET_INFO *cs= system_charset_info;
 
   List<Item> item_list;
   Item *item_null= new Item_null();
@@ -899,6 +924,7 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
 void Explain_table_access::print_explain_json(Json_writer *writer, 
                                               bool is_analyze)
 {
+  Json_writer_nesting_guard guard(writer);
   writer->add_member("table").start_object();
 
   writer->add_member("table_name").add_str(table_name);

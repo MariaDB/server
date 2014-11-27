@@ -7536,6 +7536,13 @@ void Item_cache_wrapper::init_on_demand()
 
 void Item_cache_wrapper::print(String *str, enum_query_type query_type)
 {
+  if (query_type == QT_EXPLAIN)
+  {
+    /* Don't print the cache in EXPLAIN EXTENDED */
+    orig_item->print(str, query_type);
+    return;
+  }
+
   str->append(func_name());
   if (expr_cache)
   {

@@ -112,6 +112,8 @@ public:
 
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
+  void print_explain_json_for_children(Explain_query *query,
+                                       Json_writer *writer, bool is_analyze);
   virtual ~Explain_node(){}
 };
 

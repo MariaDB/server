@@ -175,4 +175,138 @@ EXPLAIN
   }
 }
 drop table t1,t2;
+#
+# Try a UNION
+#
+explain format=json select * from t0 A union     select * from t0 B;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,2>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "table": {
+              "table_name": "A",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 1,
+            "table": {
+              "table_name": "B",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+explain format=json select * from t0 A union all select * from t0 B;
+EXPLAIN
+{
+  "query_block": {
+    "union_result": {
+      "table_name": "<union1,2>",
+      "access_type": "ALL",
+      "query_specifications": [
+        {
+          "query_block": {
+            "select_id": 1,
+            "table": {
+              "table_name": "A",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        },
+        {
+          "query_block": {
+            "select_id": 1,
+            "table": {
+              "table_name": "B",
+              "access_type": "ALL",
+              "rows": 10,
+              "filtered": 100
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+#
+# Subqueries
+#
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+explain format=json select a, a > (select max(b) from t1 where t1.b=t0.a) from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 1,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100,
+            "attached_condition": "(t1.b = t0.a)"
+          }
+        }
+      }
+    ]
+  }
+}
+explain format=json 
+select * from t0 where 
+a > (select max(b) from t1 where t1.b=t0.a) or a < 3 ;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "((t0.a > (subquery#2)) or (t0.a < 3))"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 1,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100,
+            "attached_condition": "(t1.b = t0.a)"
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1;
 drop table t0;
