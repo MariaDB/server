@@ -23650,10 +23650,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
     if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
         table->file->pushed_idx_cond)
-        {
+    {
       eta->push_extra(ET_USING_INDEX_CONDITION);
-          eta->pushed_index_cond= table->file->pushed_idx_cond;
-        }
+      eta->pushed_index_cond= table->file->pushed_idx_cond;
+    }
     else if (tab->cache_idx_cond)
       eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
 
@@ -23683,11 +23683,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
           eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
         }
         else
-            {
-              eta->where_cond= tab->select->cond? tab->select->cond:
-                               tab->cache_select->cond;
+        {
+          eta->where_cond= tab->select->cond;
+          eta->cache_cond= tab->cache_select? tab->cache_select->cond : NULL;
           eta->push_extra(ET_USING_WHERE);
-            }
+        }
       }
     }
     if (table_list /* SJM bushes don't have table_list */ &&

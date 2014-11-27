@@ -488,6 +488,12 @@ private:
 class Explain_table_access : public Sql_alloc
 {
 public:
+  Explain_table_access() :
+    where_cond(NULL),
+    cache_cond(NULL),
+    pushed_index_cond(NULL)
+  {}
+
   void push_extra(enum explain_extra_tag extra_tag);
 
   /* Internals */
@@ -558,9 +564,12 @@ public:
   
   /*
     Note: lifespan of WHERE condition is less than lifespan of this object.
-    THe below is valid if tags include "ET_USING_WHERE".
+    The below two are valid if tags include "ET_USING_WHERE".
+    (TODO: indexsubquery may put ET_USING_WHERE without setting where_cond?)
   */
   Item *where_cond;
+  Item *cache_cond;
+
   Item *pushed_index_cond;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 

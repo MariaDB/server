@@ -903,8 +903,18 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
       write_item(writer, pushed_index_cond);
       break;
     case ET_USING_WHERE:
-      writer->add_member("attached_condition");
-      write_item(writer, where_cond);
+      if (where_cond)
+      {
+        writer->add_member("attached_condition");
+        /*
+          We are printing the condition that is checked when scanning this
+          table.
+          - when join buffer is used, it is cache_cond. 
+          - in other cases, it is where_cond.
+        */
+        Item *item= bka_type.is_using_jbuf()? cache_cond: where_cond;
+        write_item(writer, item);
+      }
       break;
     case ET_USING_INDEX:
       writer->add_member("using_index").add_bool(true);
@@ -912,8 +922,8 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_USING:
       // index merge: case ET_USING 
       break;
-    case ET_USING_JOIN_BUFFER: 
-      // TODO TODO 
+    case ET_USING_JOIN_BUFFER:
+      /* Do nothing. Join buffer is handled differently */
       break;
     default:
       DBUG_ASSERT(0);
@@ -925,6 +935,12 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
                                               bool is_analyze)
 {
   Json_writer_nesting_guard guard(writer);
+
+  if (bka_type.is_using_jbuf())
+  {
+    writer->add_member("block-nl-join").start_object();
+  }
+
   writer->add_member("table").start_object();
 
   writer->add_member("table_name").add_str(table_name);
@@ -1016,6 +1032,21 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
   for (int i=0; i < (int)extra_tags.elements(); i++)
   {
     tag_to_json(writer, extra_tags.at(i));
+  }
+
+  if (bka_type.is_using_jbuf())
+  {
+    writer->end_object();
+    writer->add_member("buffer_type").add_str(bka_type.incremental?
+                                              "incremental":"flat");
+    writer->add_member("join_type").add_str(bka_type.join_alg);
+    if (bka_type.mrr_type.length())
+      writer->add_member("mrr_type").add_str(bka_type.mrr_type);
+    if (where_cond)
+    {
+      writer->add_member("attached_condition");
+      write_item(writer, where_cond);
+    }
   }
 
   writer->end_object();

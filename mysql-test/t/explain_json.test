@@ -58,5 +58,17 @@ select * from t0 where
   a > (select max(b) from t1 where t1.b=t0.a) or a < 3 ;
 
 drop table t1;
+
+--echo #
+--echo # Join buffering
+--echo #
+create table t1 (a int, b int);
+insert into t1 select A.a+10*B.a, A.a+10*B.a from t0 A, t0 B;
+
+explain format=json
+select * from t1 A, t1 B where A.a=B.a and A.b < 3 and B.b < 5;
+
+drop table t1;
+
 drop table t0;
 
