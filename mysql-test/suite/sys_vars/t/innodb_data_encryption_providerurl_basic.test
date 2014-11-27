@@ -1,0 +1,13 @@
+--source include/have_innodb.inc
+
+SELECT @start_data_encryption_providerurl;
+
+SELECT COUNT(@@GLOBAL.innodb_data_encryption_providerurl);
+--echo 1 Expected
+
+# This variable is read only variable
+--error 1238
+SET @@GLOBAL.innodb_data_encryption_providerurl='http://www.google.com';
+
+
+

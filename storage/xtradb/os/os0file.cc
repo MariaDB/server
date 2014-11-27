@@ -43,14 +43,15 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0srv.h"
 #include "srv0start.h"
 #include "fil0fil.h"
+#include "fsp0fsp.h"
 #include "fil0pagecompress.h"
+#include "fil0pageencryption.h"
 #include "buf0buf.h"
 #include "btr0types.h"
 #include "trx0trx.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
 #ifdef HAVE_POSIX_FALLOCATE
-#include "unistd.h"
 #include "fcntl.h"
 #endif
 #ifndef UNIV_HOTBACKUP
@@ -82,19 +83,6 @@ Created 10/21/1995 Heikki Tuuri
 
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
 #include <sys/statvfs.h>
-#endif
-
-#if defined(UNIV_LINUX) && defined(HAVE_LINUX_FALLOC_H)
-#include <linux/falloc.h>
-#endif
-
-#if defined(HAVE_FALLOCATE)
-#ifndef FALLOC_FL_KEEP_SIZE
-#define FALLOC_FL_KEEP_SIZE 0x01
-#endif
-#ifndef FALLOC_FL_PUNCH_HOLE
-#define FALLOC_FL_PUNCH_HOLE 0x02
-#endif
 #endif
 
 #ifdef HAVE_LZO
@@ -204,7 +192,7 @@ struct os_aio_slot_t{
 #ifdef WIN_ASYNC_IO
 	OVERLAPPED	control;	/*!< Windows control block for the
 					aio request, MUST be first element in the structure*/
-	void *arr;				/*!< Array this slot belongs to*/
+	void *arr;			/*!< Array this slot belongs to*/
 #endif
 
 	ibool		is_read;	/*!< TRUE if a read operation */
@@ -237,8 +225,16 @@ struct os_aio_slot_t{
 					       freed after the write
 					       has been completed */
 
+	byte*           page_encryption_page; /*!< Memory allocated for
+					      page encrypted page and
+					      freed after the write
+					      has been completed */
+
 	ibool           page_compression;
 	ulint           page_compression_level;
+
+	ibool           page_encryption;
+	ulint           page_encryption_key;
 
 	ulint*          write_size;     /*!< Actual write size initialized
 					after fist successfull trim
@@ -250,9 +246,15 @@ struct os_aio_slot_t{
 					page compressed pages, do not
 					free this */
 
-	ibool           page_compress_success;
-	                                /*!< TRUE if page compression was
-					successfull, false if not */
+	byte*           page_buf2;       /*!< Actual page buffer for
+					 page encrypted pages, do not
+					 free this */
+	byte*           tmp_encryption_buf; /*!< a temporal buffer used by page encryption */
+
+	ibool           page_compression_success;
+	ibool           page_encryption_success;
+	/*!< TRUE if page compression was
+	successfull, false if not */
 
 	ulint           file_block_size;/*!< file block size */
 
@@ -398,6 +400,19 @@ os_slot_alloc_lzo_mem(
 	os_aio_slot_t*   slot); /*!< in: slot structure     */
 #endif
 
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. This
+buffer is freed later. */
+UNIV_INTERN
+void
+os_slot_alloc_page_buf2(
+	os_aio_slot_t*	slot); /*!< in: slot structure */
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. */
+UNIV_INTERN
+void
+os_slot_alloc_tmp_encryption_buf(
+	os_aio_slot_t* slot); /*!< in: slot structure */
 /****************************************************************//**
 Does error handling when a file operation fails.
 @return	TRUE if we should retry the operation */
@@ -508,19 +523,19 @@ os_get_os_version(void)
 /*
 Windows : Handling synchronous IO on files opened asynchronously.
 
-If file is opened for asynchronous IO (FILE_FLAG_OVERLAPPED) and also bound to 
+If file is opened for asynchronous IO (FILE_FLAG_OVERLAPPED) and also bound to
 a completion port, then every IO on this file would normally be enqueued to the
 completion port. Sometimes however we would like to do a synchronous IO. This is
 possible if we initialitze have overlapped.hEvent with a valid event and set its
 lowest order bit to 1 (see MSDN ReadFile and WriteFile description for more info)
 
-We'll create this special event once for each thread and store in thread local 
+We'll create this special event once for each thread and store in thread local
 storage.
 */
 
 
 /***********************************************************************//**
-Initialize tls index.for event handle used for synchronized IO on files that 
+Initialize tls index.for event handle used for synchronized IO on files that
 might be opened with FILE_FLAG_OVERLAPPED.
 */
 static void win_init_syncio_event()
@@ -699,8 +714,6 @@ os_file_get_last_error_low(
 		return(OS_FILE_OPERATION_ABORTED);
 	} else if (err == ERROR_ACCESS_DENIED) {
 		return(OS_FILE_ACCESS_VIOLATION);
-	} else if (err == ERROR_BUFFER_OVERFLOW) {
-		return(OS_FILE_NAME_TOO_LONG);
 	} else {
 		return(OS_FILE_ERROR_MAX + err);
 	}
@@ -776,8 +789,6 @@ os_file_get_last_error_low(
 		return(OS_FILE_NOT_FOUND);
 	case EEXIST:
 		return(OS_FILE_ALREADY_EXISTS);
-	case ENAMETOOLONG:
-		return(OS_FILE_NAME_TOO_LONG);
 	case EXDEV:
 	case ENOTDIR:
 	case EISDIR:
@@ -2037,7 +2048,7 @@ os_file_create_func(
 	try to set atomic writes and if that fails when creating a new
 	table, produce a error. If atomic writes are used on existing
 	file, ignore error and use traditional writes for that file */
-	if (file != INVALID_HANDLE_VALUE && type == OS_DATA_FILE
+	if (file != INVALID_HANDLE_VALUE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
@@ -2186,7 +2197,7 @@ os_file_create_func(
 	try to set atomic writes and if that fails when creating a new
 	table, produce a error. If atomic writes are used on existing
 	file, ignore error and use traditional writes for that file */
-	if (file != -1 && type == OS_DATA_FILE
+	if (file != -1
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
@@ -2401,6 +2412,8 @@ os_file_close_func(
 #ifdef __WIN__
 	BOOL	ret;
 
+	ut_a(file);
+
 	ret = CloseHandle(file);
 
 	if (ret) {
@@ -2436,6 +2449,8 @@ os_file_close_no_error_handling(
 {
 #ifdef __WIN__
 	BOOL	ret;
+
+	ut_a(file);
 
 	ret = CloseHandle(file);
 
@@ -2688,6 +2703,8 @@ os_file_flush_func(
 {
 #ifdef __WIN__
 	BOOL	ret;
+
+	ut_a(file);
 
 	os_n_fsyncs++;
 
@@ -3094,6 +3111,7 @@ os_file_read_func(
 	os_bytes_read_since_printout += n;
 
 try_again:
+	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3119,11 +3137,23 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
+		/* If page is encrypted we need to decrypt it first */
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(
+					NULL
+					(byte *)buf,
+					n,
+					NULL,
+					&compressed,
+					NULL)) {
+				return FALSE;
+			}
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, len, NULL);
 		}
 
@@ -3139,14 +3169,26 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset, trx);
 
 	if ((ulint) ret == n) {
-
+		/* If page is encrypted we need to decrypt it first */
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(
+					NULL,
+					(byte *)buf,
+					n,
+					NULL,
+					&compressed,
+					NULL)) {
+				return FALSE;
+			}
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
+
 
 		return(TRUE);
 	}
@@ -3211,6 +3253,7 @@ os_file_read_no_error_handling_func(
 	os_bytes_read_since_printout += n;
 
 try_again:
+	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3236,12 +3279,23 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
-
+		/* If page is encrypted we need to decrypt it first */
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(
+					NULL,
+					(byte *)buf,
+					n,
+					NULL,
+					&compressed,
+					NULL)) {
+				return (FALSE);
+			}
+		}
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -3258,11 +3312,24 @@ try_again:
 
 	if ((ulint) ret == n) {
 
+		/* If the page is encrypted we need to decrypt it first */
+		if (fil_page_is_encrypted((byte *)buf)) {
+			if (fil_decrypt_page(
+					NULL,
+					(byte *)buf,
+					n,
+					NULL,
+					&compressed,
+					NULL)) {
+				return (FALSE);
+			}
+		}
+
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
+		if (compressed && fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -3333,6 +3400,7 @@ os_file_write_func(
 
 	os_n_file_writes++;
 
+	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3495,7 +3563,7 @@ os_file_status(
 	struct _stat64	statinfo;
 
 	ret = _stat64(path, &statinfo);
-	if (ret && (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
 		/* file does not exist */
 		*exists = FALSE;
 		return(TRUE);
@@ -3523,7 +3591,7 @@ os_file_status(
 	struct stat	statinfo;
 
 	ret = stat(path, &statinfo);
-	if (ret && (errno == ENOENT || errno == ENOTDIR || errno == ENAMETOOLONG)) {
+	if (ret && (errno == ENOENT || errno == ENOTDIR)) {
 		/* file does not exist */
 		*exists = FALSE;
 		return(TRUE);
@@ -4286,6 +4354,7 @@ os_aio_array_free(
 
 	for (i = 0; i < array->n_slots; i++) {
 		os_aio_slot_t* slot = os_aio_array_get_nth_slot(array, i);
+
 		if (slot->page_compression_page) {
 			ut_free(slot->page_compression_page);
 			slot->page_compression_page = NULL;
@@ -4295,7 +4364,18 @@ os_aio_array_free(
 			ut_free(slot->lzo_mem);
 			slot->lzo_mem = NULL;
 		}
+
+		if (slot->page_encryption_page) {
+			ut_free(slot->page_encryption_page);
+			slot->page_encryption_page = NULL;
+		}
+
+		if (slot->tmp_encryption_buf) {
+			ut_free(slot->tmp_encryption_buf);
+			slot->tmp_encryption_buf = NULL;
+		}
 	}
+
 
 	ut_free(array->slots);
 	ut_free(array);
@@ -4646,6 +4726,10 @@ os_aio_array_reserve_slot(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
+	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key, /*!< page encryption key
+						 to be used */
 	ulint*		write_size)/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
@@ -4742,10 +4826,14 @@ found:
 	slot->io_already_done = FALSE;
 	slot->space_id = space_id;
 
-	slot->page_compress_success = FALSE;
+	slot->page_compression_success = FALSE;
+	slot->page_encryption_success = FALSE;
+
 	slot->write_size = write_size;
 	slot->page_compression_level = page_compression_level;
 	slot->page_compression = page_compression;
+	slot->page_encryption_key = page_encryption_key;
+	slot->page_encryption = page_encryption;
 
 	if (message1) {
 		slot->file_block_size = fil_node_get_block_size(message1);
@@ -4771,7 +4859,8 @@ found:
 #endif
 
 		/* Call page compression */
-		tmp = fil_compress_page(fil_node_get_space_id(slot->message1),
+		tmp = fil_compress_page(
+			fil_node_get_space_id(slot->message1),
 			(byte *)buf,
 			slot->page_buf,
 			len,
@@ -4786,9 +4875,51 @@ found:
 			len = real_len;
 			buf = slot->page_buf;
 			slot->len = real_len;
-			slot->page_compress_success = TRUE;
+			slot->page_compression_success = TRUE;
 		} else {
-			slot->page_compress_success = FALSE;
+			slot->page_compression_success = FALSE;
+		}
+
+		/* Take array mutex back */
+		os_mutex_enter(array->mutex);
+
+	}
+
+	/* If the space is page encryption and this is write operation
+	   then we encrypt the page */
+	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
+		ulint		real_len = len;
+		ulint		ec = 0;
+		byte*		tmp = NULL;
+
+		/* Release the array mutex while encrypting */
+		os_mutex_exit(array->mutex);
+
+		// We allocate memory for page encrypted buffer if and only
+		// if it is not yet allocated.
+		os_slot_alloc_page_buf2(slot);
+		os_slot_alloc_tmp_encryption_buf(slot);
+
+		tmp = fil_encrypt_page(
+			fil_node_get_space_id(slot->message1),
+			(byte *)buf,
+			slot->page_buf2,
+			len,
+			page_encryption_key,
+			&real_len,
+			&ec,
+			slot->tmp_encryption_buf);
+
+		/* If encryption succeeded, set up the length and buffer */
+		if (tmp != buf) {
+			len = real_len;
+			buf = slot->page_buf2;
+			slot->len = real_len;
+			slot->page_encryption_success = TRUE;
+		} else {
+			/* Use original not encrypted page */
+			slot->page_encryption_success = FALSE;
+			buf = slot->buf;
 		}
 
 		/* Take array mutex back */
@@ -5075,20 +5206,27 @@ os_aio_func(
 					  on this file space */
 	ulint		page_compression_level, /*!< page compression
 						 level to be used */
-	ulint*		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+   	ibool		page_encryption, /*!< in: is page encryption used
+					  on this file space */
+	ulint		page_encryption_key) /*!< page encryption key
+						 to be used */
+
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
 #ifdef WIN_ASYNC_IO
+	void* buffer = NULL;
 	DWORD		len		= (DWORD) n;
 	BOOL	ret;
 #endif
 	ulint		wake_later;
 
+	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 	ut_ad(n % OS_MIN_LOG_BLOCK_SIZE == 0);
@@ -5097,6 +5235,7 @@ os_aio_func(
 #ifdef WIN_ASYNC_IO
 	ut_ad((n & 0xFFFFFFFFUL) == n);
 #endif
+
 
 	wake_later = mode & OS_AIO_SIMULATED_WAKE_LATER;
 	mode = mode & (~OS_AIO_SIMULATED_WAKE_LATER);
@@ -5181,11 +5320,10 @@ try_again:
 		trx->io_reads++;
 		trx->io_read += n;
 	}
-
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n, space_id,
-					 page_compression, page_compression_level, write_size);
-
+					 page_compression, page_compression_level,
+					 page_encryption, page_encryption_key, write_size);
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
 			os_n_file_reads++;
@@ -5213,7 +5351,18 @@ try_again:
 		if (srv_use_native_aio) {
 			os_n_file_writes++;
 #ifdef WIN_ASYNC_IO
-			ret = WriteFile(file, buf, (DWORD) n, &len,
+			if (page_encryption && slot->page_encryption_success) {
+				buffer = slot->page_buf2;
+				n = slot->len;
+			} else {
+				if (page_compression && slot->page_compression_success) {
+					buffer = slot->page_buf;
+					n = slot->len;
+				} else {
+					buffer = buf;
+				}
+			}
+			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
 
 			if(!ret && GetLastError() != ERROR_IO_PENDING)
@@ -5296,7 +5445,7 @@ os_aio_windows_handle(
 	HANDLE port = READ_SEGMENT(segment)? read_completion_port : completion_port;
 
 	for(;;) {
-		ret = GetQueuedCompletionStatus(port, &len, &key, 
+		ret = GetQueuedCompletionStatus(port, &len, &key,
 			(OVERLAPPED **)&slot, INFINITE);
 
 		/* If shutdown key was received, repost the shutdown message and exit */
@@ -5311,19 +5460,19 @@ os_aio_windows_handle(
 
 		if(WRITE_SEGMENT(segment)&& slot->type == OS_FILE_READ) {
 			/*
-			Redirect read completions  to the dedicated completion port 
+			Redirect read completions  to the dedicated completion port
 			and thread. We need to split read and write threads. If we do not
-			do that, and just allow all io threads process all IO, it is possible 
+			do that, and just allow all io threads process all IO, it is possible
 			to get stuck in a deadlock in buffer pool code,
 
-			Currently, the problem is solved this way - "write io" threads  
+			Currently, the problem is solved this way - "write io" threads
 			always get all completion notifications, from both async reads and
 			writes. Write completion is handled in the same thread that gets it.
 			Read completion is forwarded via PostQueueCompletionStatus())
 			to the second completion port dedicated solely to reads. One of the
 			"read io" threads waiting on this port will finally handle the IO.
 
-			Forwarding IO completion this way costs a context switch , and this 
+			Forwarding IO completion this way costs a context switch , and this
 			seems tolerable  since asynchronous reads are by far less frequent.
 			*/
 			ut_a(PostQueuedCompletionStatus(read_completion_port, len, key,
@@ -5371,13 +5520,17 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			if (slot->message1 && slot->page_compression && slot->page_compress_success && slot->page_buf) {
-				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
+			if (slot->message1 && slot->page_encryption && slot->page_encryption_success) {
+				ret_val = os_file_write(slot->name, slot->file, slot->page_buf2,
 					                slot->offset, slot->len);
 			} else {
-
-				ret_val = os_file_write(slot->name, slot->file, slot->buf,
-					                slot->offset, slot->len);
+				if (slot->message1 && slot->page_compression && slot->page_compression_success) {
+					ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
+						                slot->offset, slot->len);
+				} else {
+					ret_val = os_file_write(slot->name, slot->file, slot->buf,
+						                slot->offset, slot->len);
+				}
 			}
 			break;
 		case OS_FILE_READ:
@@ -5407,23 +5560,44 @@ os_aio_windows_handle(
 		ret_val = ret && len == slot->len;
 	}
 
-	if (slot->type == OS_FILE_READ) {
-		if (fil_page_is_compressed(slot->buf)) {
-			os_slot_alloc_page_buf(slot);
+	/* page encryption */
+	if (slot->message1 && slot->page_encryption) {
+		if (slot->type == OS_FILE_READ) {
+			if (fil_page_is_encrypted(slot->buf)) {
+				os_slot_alloc_page_buf2(slot);
+				os_slot_alloc_tmp_encryption_buf(slot);
+				fil_decrypt_page(
+					slot->page_buf2,
+					slot->buf,
+					slot->len,
+					slot->write_size,
+					NULL,
+					slot->tmp_encryption_buf);
+			}
+		}
+	}
+
+	if (slot->message1 && slot->page_compression) {
+		os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
-			if (fil_page_is_lzo_compressed(slot->buf)) {
-				os_slot_alloc_lzo_mem(slot);
-			}
-#endif
-			fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
+		if (innodb_compression_algorithm == 3) {
+			os_slot_alloc_lzo_mem(slot);
 		}
-	} else {
-		/* OS_FILE_WRITE */
-		if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
-			if (srv_use_trim && os_fallocate_failed == FALSE) {
-				// Deallocate unused blocks from file system
-				os_file_trim(slot);
+#endif
+	        if (slot->type == OS_FILE_READ) {
+			fil_decompress_page(
+				slot->page_buf,
+				slot->buf,
+				slot->len,
+				slot->write_size);
+		} else {
+			if (slot->page_compression_success
+			    && fil_page_is_compressed(slot->page_buf)) {
+				if (srv_use_trim && os_fallocate_failed == FALSE) {
+					// Deallocate unused blocks from file system
+					os_file_trim(slot);
+				}
 			}
 		}
 	}
@@ -5517,32 +5691,54 @@ retry:
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
-			if (slot->type == OS_FILE_READ) {
-				/* If the table is page compressed and this is read,
-				we decompress before we annouce the read is
-				complete. For writes, we free the compressed page. */
-				if (fil_page_is_compressed(slot->buf)) {
-					// We allocate memory for page compressed buffer if and only
-					// if it is not yet allocated.
-					os_slot_alloc_page_buf(slot);
-#ifdef HAVE_LZO
-					if (fil_page_is_lzo_compressed(slot->buf)) {
-						os_slot_alloc_lzo_mem(slot);
-					}
-#endif
-					fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-				}
-			} else {
-				/* OS_FILE_WRITE */
-				if (slot->page_compress_success &&
-				    fil_page_is_compressed(slot->page_buf)) {
-					ut_ad(slot->page_compression_page);
-					if (srv_use_trim && os_fallocate_failed == FALSE) {
-						// Deallocate unused blocks from file system
-						os_file_trim(slot);
+			/* page encryption */
+			if (slot->message1 && slot->page_encryption) {
+				if (slot->type == OS_FILE_READ) {
+					if (fil_page_is_encrypted(slot->buf)) {
+						os_slot_alloc_page_buf2(slot);
+						os_slot_alloc_tmp_encryption_buf(slot);
+						fil_decrypt_page(
+							slot->page_buf2,
+							slot->buf,
+							slot->len,
+							slot->write_size,
+							NULL,
+							slot->tmp_encryption_buf);
 					}
 				}
 			}
+
+			/* If the table is page compressed and this is read,
+			we decompress before we annouce the read is
+			complete. For writes, we free the compressed page. */
+			if (slot->message1 && slot->page_compression) {
+				// We allocate memory for page compressed buffer if and only
+				// if it is not yet allocated.
+				os_slot_alloc_page_buf(slot);
+
+#ifdef HAVE_LZO
+				if (innodb_compression_algorithm == 3) {
+					os_slot_alloc_lzo_mem(slot);
+				}
+#endif
+				if (slot->type == OS_FILE_READ) {
+					fil_decompress_page(
+						slot->page_buf,
+						slot->buf,
+						slot->len,
+						slot->write_size);
+				} else {
+					if (slot->page_compression_success &&
+					    fil_page_is_compressed(slot->page_buf)) {
+						ut_ad(slot->page_compression_page);
+						if (srv_use_trim && os_fallocate_failed == FALSE) {
+							// Deallocate unused blocks from file system
+							os_file_trim(slot);
+						}
+					}
+				}
+			}
+
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */
@@ -6492,7 +6688,7 @@ os_file_trim(
 	}
 
 #ifdef __linux__
-#if defined(HAVE_FALLOCATE)
+#if defined(FALLOC_FL_PUNCH_HOLE) && defined (FALLOC_FL_KEEP_SIZE)
 	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
@@ -6600,6 +6796,28 @@ os_file_trim(
 }
 
 /**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. This
+buffer is freed later. */
+UNIV_INTERN
+void
+os_slot_alloc_page_buf2(
+/*===================*/
+	os_aio_slot_t*   slot) /*!< in: slot structure     */
+{
+	ut_a(slot != NULL);
+
+	if(slot->page_buf2 == NULL) {
+		byte*           cbuf2;
+		byte*           cbuf;
+
+		cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
+		slot->page_encryption_page = static_cast<byte *>(cbuf2);
+		slot->page_buf2 = static_cast<byte *>(cbuf);
+	}
+}
+
+/**********************************************************************//**
 Allocate memory for temporal buffer used for page compression. This
 buffer is freed later. */
 UNIV_INTERN
@@ -6608,17 +6826,15 @@ os_slot_alloc_page_buf(
 /*===================*/
 	os_aio_slot_t*   slot) /*!< in: slot structure     */
 {
-	byte*           cbuf2;
-	byte*           cbuf;
-
 	ut_a(slot != NULL);
-	if (slot->page_compression_page == NULL) {
+	if (slot->page_buf == NULL) {
+		byte*           cbuf2;
+		byte*           cbuf;
 		/* We allocate extra to avoid memory overwrite on compression */
 		cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
 		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 		slot->page_compression_page = static_cast<byte *>(cbuf2);
 		slot->page_buf = static_cast<byte *>(cbuf);
-		memset(slot->page_compression_page, 0, UNIV_PAGE_SIZE*2);
 		ut_a(slot->page_buf != NULL);
 	}
 }
@@ -6634,13 +6850,26 @@ os_slot_alloc_lzo_mem(
 	os_aio_slot_t*   slot) /*!< in: slot structure     */
 {
 	ut_a(slot != NULL);
-	if(slot->lzo_mem == NULL) {
+	if (slot->lzo_mem == NULL) {
 		slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
-		memset(slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
 		ut_a(slot->lzo_mem != NULL);
 	}
 }
 #endif
+
+/**********************************************************************//**
+Allocate memory for temporal buffer used for page encryption. */
+UNIV_INTERN
+void
+os_slot_alloc_tmp_encryption_buf(
+/*=============================*/
+	os_aio_slot_t* slot) /*!< in: slot structure */
+{
+	ut_a(slot != NULL);
+	if (slot->tmp_encryption_buf == NULL) {
+		slot->tmp_encryption_buf = static_cast<byte *>(ut_malloc(64));
+	}
+}
 
 /***********************************************************************//**
 Try to get number of bytes per sector from file system.

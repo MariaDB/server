@@ -170,6 +170,7 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
 #define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< page compressed page */
+#define FIL_PAGE_PAGE_ENCRYPTED  34355  /*!< Page encrypted page  */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
 #define FIL_PAGE_INODE		3	/*!< Index node */
@@ -216,6 +217,7 @@ struct fsp_open_info {
 	lsn_t		lsn;		/*!< Flushed LSN from header page */
 	ulint		id;		/*!< Space ID */
 	ulint		flags;		/*!< Tablespace flags */
+	ulint		encryption_error; /*!< if an encryption error occurs */
 #ifdef UNIV_LOG_ARCHIVE
 	ulint		arch_log_no;	/*!< latest archived log file number */
 #endif /* UNIV_LOG_ARCHIVE */
@@ -1230,6 +1232,13 @@ fil_user_tablespace_restore_page(
 					file information */
 	ulint		page_no);	/* in: page_no to obtain from double
 					write buffer */
+
+/*******************************************************************//**
+Return space flags */
+ulint
+fil_space_flags(
+/*===========*/
+	fil_space_t*	space);	/*!< in: space */
 
 #endif /* !UNIV_INNOCHECKSUM */
 

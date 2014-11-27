@@ -27,7 +27,10 @@ Created 10/25/1995 Heikki Tuuri
 #include "fil0fil.h"
 #include "fil0pagecompress.h"
 #include "fsp0pagecompress.h"
+#include "fil0pageencryption.h"
+#include "fsp0pageencryption.h"
 
+#include "KeySingleton.h"
 #include <debug_sync.h>
 #include <my_dbug.h>
 
@@ -645,8 +648,22 @@ fil_node_open_file(
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE,
 			               space->flags);
 
+		if (fil_page_can_not_decrypt(page)) {
+			/* if page is (still) encrypted, write an error and return.
+			* Otherwise the server would crash if decrypting is not possible.
+			* This may be the case, if the key file could not be
+			* opened on server startup.
+			*/
+			fprintf(stderr,
+				"InnoDB: can not decrypt %s\n",
+				node->name);
+				return false;
+
+		}
+
 		space_id = fsp_header_get_space_id(page);
 		flags = fsp_header_get_flags(page);
+
 		page_size = fsp_flags_get_page_size(flags);
 		atomic_writes = fsp_flags_get_atomic_writes(flags);
 
@@ -1132,6 +1149,22 @@ fil_space_create(
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(false););
 
 	ut_a(fil_system);
+
+	if (fsp_flags_is_page_encrypted(flags)) {
+		if (!KeySingleton::getInstance().isAvailable()
+		    || KeySingleton::getInstance().getKeys(fsp_flags_get_page_encryption_key(flags))==NULL) {
+			/* by returning here it should be avoided that
+			 * the server crashes, if someone tries to access an
+			 * encrypted table and the encryption key is not available.
+			 * The the table is treaded as non-existent.
+			 */
+			ib_logf(IB_LOG_LEVEL_WARN,
+				"Tablespace '%s' can not be opened, because "
+				" encryption key can not be found (space id: %lu, key %lu)\n"
+				, name, (ulong) id, fsp_flags_get_page_encryption_key(flags));
+			return (FALSE);
+		}
+	}
 
 	/* Look for a matching tablespace and if found free it. */
 	do {
@@ -1869,6 +1902,7 @@ fil_check_first_page(
 {
 	ulint	space_id;
 	ulint	flags;
+	ulint page_is_encrypted = 0;
 
 	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
 		return(NULL);
@@ -1876,12 +1910,24 @@ fil_check_first_page(
 
 	space_id = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page);
 	flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+	/* Note: the 1st page is usually not encrypted. If the Key Provider
+	or the encryption key is not available, the
+	check for reading the first page should intentionally fail
+	with "can not decrypt" message. */
+	page_is_encrypted = fil_page_can_not_decrypt(page);
+	if ((!KeySingleton::getInstance().isAvailable()
+	     || (page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING)) && page_is_encrypted) {
+		page_is_encrypted = 1;
+	} else {
+		page_is_encrypted = 0;
+		if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
+			fprintf(stderr, 
+				"InnoDB: Error: Current page size %lu != "
+				" page size on page %lu\n",
+				UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
 
-	if (UNIV_PAGE_SIZE != fsp_flags_get_page_size(flags)) {
-		fprintf(stderr, "InnoDB: Error: Current page size %lu != page size on page %lu\n",
-			UNIV_PAGE_SIZE, fsp_flags_get_page_size(flags));
-
-		return("innodb-page-size mismatch");
+			return("innodb-page-size mismatch");
+		}
 	}
 
 	if (!space_id && !flags) {
@@ -1897,9 +1943,17 @@ fil_check_first_page(
 		}
 	}
 
-	if (buf_page_is_corrupted(
+	if (!page_is_encrypted && buf_page_is_corrupted(
 		    false, page, fsp_flags_get_zip_size(flags))) {
 		return("checksum mismatch");
+	} else {
+		if (page_is_encrypted) {
+			/* this error message is interpreted by the calling method, which is
+			 * executed if the server starts in recovery mode.
+			 */
+			return("can not decrypt");
+
+		}
 	}
 
 	if (page_get_space_id(page) == space_id
@@ -4118,6 +4172,7 @@ fil_validate_single_table_tablespace(
 
 check_first_page:
 	fsp->success = TRUE;
+	fsp->encryption_error = 0;
 	if (const char* check_msg = fil_read_first_page(
 		    fsp->file, FALSE, &fsp->flags, &fsp->id,
 #ifdef UNIV_LOG_ARCHIVE
@@ -4128,6 +4183,14 @@ check_first_page:
 			"%s in tablespace %s (table %s)",
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
+		if (strncmp(check_msg, "can not decrypt", strlen(check_msg))==0) {
+			/* by returning here, it should be avoided, that the server crashes,
+			 * if started in recovery mode and can not decrypt tables, if
+			 * the key file can not be read.
+			 */
+			fsp->encryption_error = 1;
+			return;
+		}
 	}
 
 	if (!fsp->success) {
@@ -4281,6 +4344,14 @@ fil_load_single_table_tablespace(
 	}
 
 	if (!def.success && !remote.success) {
+
+		if (def.encryption_error || remote.encryption_error) {
+			fprintf(stderr,
+				"InnoDB: Error: could not open single-table"
+				" tablespace file %s. Encryption error!\n", def.filepath);
+			return;
+		}
+
 		/* The following call prints an error message */
 		os_file_get_last_error(true);
 		fprintf(stderr,
@@ -5099,7 +5170,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 node, NULL, 0, FALSE, 0);
+			         node, NULL, 0, FALSE, 0, 0, 0);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -5491,6 +5562,8 @@ fil_io(
 	ibool		ignore_nonexistent_pages;
         ibool		page_compressed = FALSE;
 	ulint		page_compression_level = 0;
+	ibool		page_encrypted = FALSE;
+	ulint		page_encryption_key = 0;
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;
@@ -5676,6 +5749,8 @@ fil_io(
 
 	page_compressed = fsp_flags_is_page_compressed(space->flags);
 	page_compression_level = fsp_flags_get_page_compression_level(space->flags);
+	page_encrypted = fsp_flags_is_page_encrypted(space->flags);
+	page_encryption_key = fsp_flags_get_page_encryption_key(space->flags);
 
 #ifdef UNIV_HOTBACKUP
 	/* In mysqlbackup do normal i/o, not aio */
@@ -5688,9 +5763,22 @@ fil_io(
 	}
 #else
 	/* Queue the aio request */
-	ret = os_aio(type, mode | wake_later, node->name, node->handle, buf,
-		offset, len, node, message, write_size,
-		page_compressed, page_compression_level);
+	ret = os_aio(
+		type,
+		mode | wake_later,
+		node->name,
+		node->handle,
+		buf,
+		offset,
+		len,
+		node,
+		message,
+		write_size,
+		page_compressed,
+		page_compression_level,
+		page_encrypted,
+		page_encryption_key);
+
 #endif /* UNIV_HOTBACKUP */
 
 
@@ -6566,6 +6654,16 @@ fil_space_name(
 	fil_space_t*	space)	/*!< in: space */
 {
 	return (space->name);
+}
+
+/*******************************************************************//**
+Return space flags */
+ulint
+fil_space_flags(
+/*===========*/
+	fil_space_t*	space)	/*!< in: space */
+{
+	return (space->flags);
 }
 
 /*******************************************************************//**

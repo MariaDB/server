@@ -272,11 +272,23 @@ fil_compress_page(
 	ulint comp_method = innodb_compression_algorithm; /* Cache to avoid
 							  change during
 							  function execution */
+	ulint orig_page_type = 0;
 
 	ut_ad(buf);
 	ut_ad(out_buf);
 	ut_ad(len);
 	ut_ad(out_len);
+
+	/* read original page type */
+	orig_page_type = mach_read_from_2(buf + FIL_PAGE_TYPE);
+
+	/* Let's not compress file space header or
+	extent descriptor */
+	if ((orig_page_type == FIL_PAGE_TYPE_FSP_HDR)
+	     || (orig_page_type == FIL_PAGE_TYPE_XDES) ) {
+		*out_len = len;
+		return (buf);
+	}
 
         level = compression_level;
 	ut_ad(fil_space_is_page_compressed(space_id));

@@ -30,6 +30,7 @@ MYSQL_CHECK_BZIP2()
 
 # OS tests
 IF(UNIX)
+	
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     CHECK_INCLUDE_FILES (libaio.h HAVE_LIBAIO_H)
     IF (XTRADB_PREFER_STATIC_LIBAIO)
@@ -357,10 +358,13 @@ SET(INNOBASE_SOURCES
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
 	dyn/dyn0dyn.cc
+	enc/EncKeys.cc
+	enc/KeySingleton.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
-        fil/fil0pagecompress.cc
+	fil/fil0pagecompress.cc
+	fil/fil0pageencryption.cc
 	fsp/fsp0fsp.cc
 	fut/fut0fut.cc
 	fut/fut0lst.cc

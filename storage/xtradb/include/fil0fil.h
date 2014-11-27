@@ -155,9 +155,6 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 #define FIL_PAGE_COMPRESSED_SIZE 2      /*!< Number of bytes used to store
  					actual payload data size on
  					compressed pages. */
-#define FIL_PAGE_COMPRESSION_ZLIB 1    /*!< Compressin algorithm ZLIB. */
-#define FIL_PAGE_COMPRESSION_LZ4  2    /*!< Compressin algorithm LZ4. */
-
 /* @} */
 /** File page trailer @{ */
 #define FIL_PAGE_END_LSN_OLD_CHKSUM 8	/*!< the low 4 bytes of this are used
@@ -169,6 +166,7 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
 #define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< Page compressed page */
+#define FIL_PAGE_PAGE_ENCRYPTED  34355  /*!< Page encrypted page  */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
 #define FIL_PAGE_UNDO_LOG	2	/*!< Undo log page */
 #define FIL_PAGE_INODE		3	/*!< Index node */
@@ -215,6 +213,8 @@ struct fsp_open_info {
 	lsn_t		lsn;		/*!< Flushed LSN from header page */
 	ulint		id;		/*!< Space ID */
 	ulint		flags;		/*!< Tablespace flags */
+	ulint       encryption_error; /*!< if an encryption error occurs */
+
 };
 
 struct fil_space_t;
@@ -1284,6 +1284,15 @@ fil_space_name(
 /*===========*/
 	fil_space_t*	space);	/*!< in: space */
 #endif
+
+/*******************************************************************//**
+Return space flags */
+ulint
+fil_space_flags(
+/*===========*/
+	fil_space_t*	space);	/*!< in: space */
+
+
 
 /****************************************************************//**
 Does error handling when a file operation fails.

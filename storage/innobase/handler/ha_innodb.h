@@ -26,6 +26,8 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include "dict0stats.h"
 
+
+
 /* Structure defines translation table between mysql index and innodb
 index structures */
 struct innodb_idx_translate_t {
@@ -57,7 +59,7 @@ typedef struct st_innobase_share {
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
-/** Engine specific table options are definined using this struct */
+/** Engine specific table options are defined using this struct */
 struct ha_table_option_struct
 {
 	bool  page_compressed;		/*!< Table is using page compression
@@ -70,6 +72,8 @@ struct ha_table_option_struct
 					srv_use_atomic_writes=1.
 					Atomic writes are not used if
 					value OFF.*/
+    bool  page_encryption;     /*!< Flag for an encrypted table */
+    int  page_encryption_key;     /*!< ID of the encryption key */
 };
 
 

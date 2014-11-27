@@ -57,6 +57,9 @@ Created 11/5/1995 Heikki Tuuri
 #include "trx0trx.h"
 #include "srv0start.h"
 
+#include "fil0pageencryption.h"
+
+
 /* prototypes for new functions added to ha_innodb.cc */
 trx_t* innobase_get_trx();
 
@@ -570,12 +573,13 @@ buf_page_is_corrupted(
 	ulint		zip_size)	/*!< in: size of compressed page;
 					0 for uncompressed pages */
 {
+	ulint		page_encrypted = fil_page_is_encrypted(read_buf);
 	ulint		checksum_field1;
 	ulint		checksum_field2;
 	ibool		crc32_inited = FALSE;
 	ib_uint32_t	crc32 = ULINT32_UNDEFINED;
 
-	if (!zip_size
+	if (!page_encrypted && !zip_size
 	    && memcmp(read_buf + FIL_PAGE_LSN + 4,
 		      read_buf + UNIV_PAGE_SIZE
 		      - FIL_PAGE_END_LSN_OLD_CHKSUM + 4, 4)) {
@@ -627,6 +631,9 @@ buf_page_is_corrupted(
 
 	if (zip_size) {
 		return(!page_zip_verify_checksum(read_buf, zip_size));
+	}
+	if (page_encrypted) {
+		return (FALSE);
 	}
 
 	checksum_field1 = mach_read_from_4(

@@ -918,8 +918,10 @@ dict_tf_set(
 					pages */
 	ulint		page_compression_level, /*!< in: table page compression
 						 level */
-	ulint		atomic_writes)  /*!< in: table atomic
+	ulint		atomic_writes,  /*!< in: table atomic
 					writes option value*/
+	bool		page_encrypted,/*!< in: table uses page encryption */
+	ulint		page_encryption_key) /*!< in: page encryption key */
 	__attribute__((nonnull));
 /********************************************************************//**
 Convert a 32 bit integer table flags to the 32 bit integer that is
