@@ -517,7 +517,7 @@ int mysql_update(THD *thd,
   */
   if (thd->lex->describe)
     goto produce_explain_and_leave;
-  query_plan.save_explain_data(thd->lex->explain);
+  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
 
   DBUG_EXECUTE_IF("show_explain_probe_update_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -1037,7 +1037,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_data(thd->lex->explain);
+  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
 
 emit_explain_and_leave:
   int err2= thd->lex->explain->send_explain(thd);

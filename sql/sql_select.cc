@@ -23126,135 +23126,7 @@ int print_explain_message_line(select_result_sink *result,
   return 0;
 }
 
-
-/*
-  Make a comma-separated list of possible_keys names and add it into the string
-*/ 
-
-void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line)
-{
-  if (!possible_keys.is_clear_all())
-  {
-    uint j;
-    for (j=0 ; j < table->s->keys ; j++)
-    {
-      if (possible_keys.is_set(j))
-      {
-        if (line->length())
-          line->append(',');
-        line->append(table->key_info[j].name, 
-                     strlen(table->key_info[j].name),
-                     system_charset_info);
-      }
-    }
-  }
-}
-
-/*
-  Print an EXPLAIN output row, based on information provided in the parameters
-
-  @note
-    Parameters that may have NULL value in EXPLAIN output, should be passed
-    (char*)NULL.
-
-  @return 
-    0  - OK
-    1  - OOM Error
-*/
-
-int print_explain_row(select_result_sink *result,
-                      uint8 options, bool is_analyze,
-                      uint select_number,
-                      const char *select_type,
-                      const char *table_name,
-                      const char *partitions,
-                      enum join_type jtype,
-                      const char *possible_keys,
-                      const char *index,
-                      const char *key_len,
-                      const char *ref,
-                      ha_rows *rows,
-                      ha_rows *r_rows,
-                      double r_filtered,
-                      const char *extra)
-{
-  Item *item_null= new Item_null();
-  List<Item> item_list;
-  Item *item;
-
-  item_list.push_back(new Item_int((int32) select_number));
-  item_list.push_back(new Item_string_sys(select_type));
-  item_list.push_back(new Item_string_sys(table_name));
-  if (options & DESCRIBE_PARTITIONS)
-  {
-    if (partitions)
-    {
-      item_list.push_back(new Item_string_sys(partitions));
-    }
-    else
-      item_list.push_back(item_null);
-  }
-  
-  const char *jtype_str= join_type_str[jtype];
-  item_list.push_back(new Item_string_sys(jtype_str));
-  
-  item= possible_keys? new Item_string_sys(possible_keys) : item_null;
-  item_list.push_back(item);
-  
-  /* 'index */
-  item= index ? new Item_string_sys(index) : item_null;
-  item_list.push_back(item);
-  
-  /* 'key_len */
-  item= key_len ? new Item_string_sys(key_len) : item_null;
-  item_list.push_back(item);
-  
-  /* 'ref' */
-  item= ref ? new Item_string_sys(ref) : item_null;
-  item_list.push_back(item);
-
-  /* 'rows' */
-  if (rows)
-  {
-    item_list.push_back(new Item_int(*rows, 
-                                     MY_INT64_NUM_DECIMAL_DIGITS));
-  }
-  else
-    item_list.push_back(item_null);
-  
-  /* 'r_rows' */
-  if (is_analyze)
-  {
-    if (r_rows)
-    {
-      item_list.push_back(new Item_int(*r_rows, 
-                                       MY_INT64_NUM_DECIMAL_DIGITS));
-    }
-    else
-      item_list.push_back(item_null);
-  }
-
-  /* 'filtered' */
-  const double filtered=100.0;
-  if (options & DESCRIBE_EXTENDED || is_analyze)
-    item_list.push_back(new Item_float(filtered, 2));
-  
-  /* 'r_filtered' */
-  if (is_analyze)
-    item_list.push_back(new Item_float(r_filtered, 2));
-  
-  /* 'Extra' */
-  if (extra)
-    item_list.push_back(new Item_string_sys(extra));
-  else
-    item_list.push_back(item_null);
-
-  if (result->send_data(item_list))
-    return 1;
-  return 0;
-}
-
-
+#if 0
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 explain_flags)
 {
@@ -23327,7 +23199,7 @@ int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
     return 1;
   return 0;
 }
-
+#endif
 
 /*
   Append MRR information from quick select to the given string

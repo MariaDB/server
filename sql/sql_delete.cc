@@ -51,7 +51,7 @@
     invoked on a running DELETE statement.
 */
 
-void Delete_plan::save_explain_data(Explain_query *query)
+void Delete_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
 {
   Explain_delete* explain= new Explain_delete;
 
@@ -64,22 +64,23 @@ void Delete_plan::save_explain_data(Explain_query *query)
   else
   {
     explain->deleting_all_rows= false;
-    Update_plan::save_explain_data_intern(query, explain);
+    Update_plan::save_explain_data_intern(mem_root, query, explain);
   }
  
   query->add_upd_del_plan(explain);
 }
 
 
-void Update_plan::save_explain_data(Explain_query *query)
+void Update_plan::save_explain_data(MEM_ROOT *mem_root, Explain_query *query)
 {
   Explain_update* explain= new Explain_update;
-  save_explain_data_intern(query, explain);
+  save_explain_data_intern(mem_root, query, explain);
   query->add_upd_del_plan(explain);
 }
 
 
-void Update_plan::save_explain_data_intern(Explain_query *query, 
+void Update_plan::save_explain_data_intern(MEM_ROOT *mem_root,
+                                           Explain_query *query, 
                                            Explain_update *explain)
 {
   explain->select_type= "SIMPLE";
@@ -141,10 +142,12 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
   }
 
   explain->using_where= MY_TEST(select && select->cond);
+  explain->where_cond= select? select->cond: NULL;
   explain->using_filesort= using_filesort;
   explain->using_io_buffer= using_io_buffer;
 
-  make_possible_keys_line(table, possible_keys, &explain->possible_keys_line);
+  append_possible_keys(mem_root, explain->possible_keys, table, 
+                       possible_keys);
 
   explain->quick_info= NULL;
 
@@ -157,11 +160,8 @@ void Update_plan::save_explain_data_intern(Explain_query *query,
   {
     if (index != MAX_KEY)
     {
-      explain->key_str.append(table->key_info[index].name);
-      char buf[64];
-      size_t length;
-      length= longlong10_to_str(table->key_info[index].key_length, buf, 10) - buf;
-      explain->key_len_str.append(buf, length);
+      explain->key.set(mem_root, &table->key_info[index],
+                       table->key_info[index].key_length);
     }
   }
   explain->rows= scanned_rows;
@@ -460,7 +460,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (thd->lex->describe)
     goto produce_explain_and_leave;
   
-  query_plan.save_explain_data(thd->lex->explain);
+  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
 
   DBUG_EXECUTE_IF("show_explain_probe_delete_exec_start", 
                   dbug_serve_apcs(thd, 1););
@@ -698,7 +698,7 @@ produce_explain_and_leave:
     We come here for various "degenerate" query plans: impossible WHERE,
     no-partitions-used, impossible-range, etc.
   */
-  query_plan.save_explain_data(thd->lex->explain);
+  query_plan.save_explain_data(thd->mem_root, thd->lex->explain);
 
 send_nothing_and_leave:
   /* 

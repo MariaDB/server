@@ -22,6 +22,10 @@
 #include "sql_select.h"
 #include "my_json_writer.h"
 
+const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
+const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
+const char * STR_NO_ROWS_AFTER_PRUNING= "No matching rows after partition pruning";
+
 Explain_query::Explain_query(THD *thd_arg) : 
   upd_del_plan(NULL), insert_plan(NULL), thd(thd_arg), apc_enabled(false)
 {
@@ -188,10 +192,7 @@ void Explain_query::print_explain_json(select_result_sink *output, bool is_analy
   writer.start_object();
 
   if (upd_del_plan)
-  {
-    //upd_del_plan->print_explain(this, output, explain_flags, is_analyze);
-    DBUG_ASSERT(0);
-  }
+    upd_del_plan->print_explain_json(this, &writer, is_analyze);
   else if (insert_plan)
   {
     //insert_plan->print_explain(this, output, explain_flags, is_analyze);
@@ -268,6 +269,120 @@ static void push_string_list(List<Item> *item_list, String_list &lines,
   }
   push_string(item_list, buf);
 }
+
+
+/*
+  Print an EXPLAIN output row, based on information provided in the parameters
+
+  @note
+    Parameters that may have NULL value in EXPLAIN output, should be passed
+    (char*)NULL.
+
+  @return 
+    0  - OK
+    1  - OOM Error
+*/
+
+static
+int print_explain_row(select_result_sink *result,
+                      uint8 options, bool is_analyze,
+                      uint select_number,
+                      const char *select_type,
+                      const char *table_name,
+                      const char *partitions,
+                      enum join_type jtype,
+                      String_list *possible_keys,
+                      const char *index,
+                      const char *key_len,
+                      const char *ref,
+                      ha_rows *rows,
+                      ha_rows *r_rows,
+                      double r_filtered,
+                      const char *extra)
+{
+  Item *item_null= new Item_null();
+  List<Item> item_list;
+  Item *item;
+
+  item_list.push_back(new Item_int((int32) select_number));
+  item_list.push_back(new Item_string_sys(select_type));
+  item_list.push_back(new Item_string_sys(table_name));
+  if (options & DESCRIBE_PARTITIONS)
+  {
+    if (partitions)
+    {
+      item_list.push_back(new Item_string_sys(partitions));
+    }
+    else
+      item_list.push_back(item_null);
+  }
+  
+  const char *jtype_str= join_type_str[jtype];
+  item_list.push_back(new Item_string_sys(jtype_str));
+  
+  /* 'possible_keys' */
+  if (possible_keys && !possible_keys->is_empty())
+  {
+    StringBuffer<64> possible_keys_buf;
+    push_string_list(&item_list, *possible_keys, &possible_keys_buf);
+  }
+  else
+    item_list.push_back(item_null);
+  
+  /* 'index */
+  item= index ? new Item_string_sys(index) : item_null;
+  item_list.push_back(item);
+  
+  /* 'key_len */
+  item= key_len ? new Item_string_sys(key_len) : item_null;
+  item_list.push_back(item);
+  
+  /* 'ref' */
+  item= ref ? new Item_string_sys(ref) : item_null;
+  item_list.push_back(item);
+
+  /* 'rows' */
+  if (rows)
+  {
+    item_list.push_back(new Item_int(*rows, 
+                                     MY_INT64_NUM_DECIMAL_DIGITS));
+  }
+  else
+    item_list.push_back(item_null);
+  
+  /* 'r_rows' */
+  if (is_analyze)
+  {
+    if (r_rows)
+    {
+      item_list.push_back(new Item_int(*r_rows, 
+                                       MY_INT64_NUM_DECIMAL_DIGITS));
+    }
+    else
+      item_list.push_back(item_null);
+  }
+
+  /* 'filtered' */
+  const double filtered=100.0;
+  if (options & DESCRIBE_EXTENDED || is_analyze)
+    item_list.push_back(new Item_float(filtered, 2));
+  
+  /* 'r_filtered' */
+  if (is_analyze)
+    item_list.push_back(new Item_float(r_filtered, 2));
+  
+  /* 'Extra' */
+  if (extra)
+    item_list.push_back(new Item_string_sys(extra));
+  else
+    item_list.push_back(item_null);
+
+  if (result->send_data(item_list))
+    return 1;
+  return 0;
+}
+
+
 
 
 uint Explain_union::make_union_table_name(char *buf)
@@ -538,7 +653,7 @@ void Explain_select::print_explain_json(Explain_query *query,
   Json_writer_nesting_guard guard(writer);
 
   writer->add_member("query_block").start_object();
-  writer->add_member("select_id").add_ll(1);
+  writer->add_member("select_id").add_ll(select_id);
   if (message)
   {
     writer->add_member("table").start_object();
@@ -565,7 +680,15 @@ void Explain_table_access::push_extra(enum explain_extra_tag extra_tag)
 }
 
 
-void Explain_table_access::fill_key_str(String *key_str, bool is_json)
+/*
+  Put the contents of 'key' field of EXPLAIN otuput into key_str.
+
+  It is surprisingly complex:
+  - hash join shows #hash#used_key
+  - quick selects that use single index will print index name
+*/
+
+void Explain_table_access::fill_key_str(String *key_str, bool is_json) const
 {
   const CHARSET_INFO *cs= system_charset_info;
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
@@ -607,7 +730,7 @@ void Explain_table_access::fill_key_str(String *key_str, bool is_json)
   the column legacy, it is superceded by used_key_parts.
 */
 
-void Explain_table_access::fill_key_len_str(String *key_len_str)
+void Explain_table_access::fill_key_len_str(String *key_len_str) const
 {
   bool is_hj= (type == JT_HASH || type == JT_HASH_NEXT || 
                type == JT_HASH_RANGE || type == JT_HASH_INDEX_MERGE);
@@ -996,9 +1119,6 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
     writer->end_object();
   }
   
-
-  // TODO: here, if quick select is not basic, print its nested form.
-  
   /* `ref` */
   if (!ref_list.is_empty())
   {
@@ -1320,7 +1440,7 @@ int Explain_delete::print_explain(Explain_query *query,
 {
   if (deleting_all_rows)
   {
-    const char *msg= "Deleting all rows";
+    const char *msg= STR_DELETING_ALL_ROWS;
     int res= print_explain_message_line(output, explain_flags, is_analyze,
                                         1 /*select number*/,
                                         select_type, &rows, msg);
@@ -1335,6 +1455,27 @@ int Explain_delete::print_explain(Explain_query *query,
 }
 
 
+void Explain_delete::print_explain_json(Explain_query *query, 
+                                        Json_writer *writer,
+                                        bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
+
+  if (deleting_all_rows)
+  {
+    writer->add_member("query_block").start_object();
+    writer->add_member("select_id").add_ll(1);
+    writer->add_member("table").start_object();
+    // just like mysql-5.6, we don't print table name. Is this ok?
+    writer->add_member("message").add_str(STR_DELETING_ALL_ROWS);
+    writer->end_object(); // table
+    writer->end_object(); // query_block
+    return;
+  }
+  Explain_update::print_explain_json(query, writer, is_analyze);
+}
+
+
 int Explain_update::print_explain(Explain_query *query, 
                                   select_result_sink *output,
                                   uint8 explain_flags,
@@ -1346,8 +1487,8 @@ int Explain_update::print_explain(Explain_query *query,
   if (impossible_where || no_partitions)
   {
     const char *msg= impossible_where ? 
-                     "Impossible WHERE" : 
-                     "No matching rows after partition pruning";
+                     STR_IMPOSSIBLE_WHERE : 
+                     STR_NO_ROWS_AFTER_PRUNING;
     int res= print_explain_message_line(output, explain_flags, is_analyze,
                                         1 /*select number*/,
                                         select_type, 
@@ -1356,7 +1497,6 @@ int Explain_update::print_explain(Explain_query *query,
     return res;
   }
 
-  
   if (quick_info)
   {
     quick_info->print_key(&key_buf);
@@ -1370,10 +1510,13 @@ int Explain_update::print_explain(Explain_query *query,
       extra_str.append(quick_buf);
     }
   }
-  else
+  else if (key.get_key_name())
   {
-    key_buf.copy(key_str);
-    key_len_buf.copy(key_len_str);
+    const char *name= key.get_key_name();
+    key_buf.set(name, strlen(name), &my_charset_bin);
+    char buf[64];
+    size_t length= longlong10_to_str(key.get_key_len(), buf, 10) - buf;
+    key_len_buf.copy(buf, length, &my_charset_bin);
   }
 
   if (using_where)
@@ -1417,7 +1560,7 @@ int Explain_update::print_explain(Explain_query *query,
                     table_name.c_ptr(), 
                     used_partitions_set? used_partitions.c_ptr() : NULL,
                     jtype,
-                    possible_keys_line.length()? possible_keys_line.c_ptr(): NULL,
+                    &possible_keys,
                     key_buf.length()? key_buf.c_ptr() : NULL,
                     key_len_buf.length() ? key_len_buf.c_ptr() : NULL,
                     NULL, /* 'ref' is always NULL in single-table EXPLAIN DELETE */
@@ -1427,6 +1570,140 @@ int Explain_update::print_explain(Explain_query *query,
                     extra_str.c_ptr_safe());
 
   return print_explain_for_children(query, output, explain_flags, is_analyze);
+}
+
+
+void Explain_update::print_explain_json(Explain_query *query,
+                                        Json_writer *writer,
+                                        bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
+
+  writer->add_member("query_block").start_object();
+  writer->add_member("select_id").add_ll(1);
+
+  if (impossible_where || no_partitions)
+  {
+    const char *msg= impossible_where ?  STR_IMPOSSIBLE_WHERE : 
+                                         STR_NO_ROWS_AFTER_PRUNING;
+    writer->add_member("table").start_object();
+    writer->add_member("message").add_str(msg);
+    writer->end_object(); // table
+    writer->end_object(); // query_block
+    return;
+  }
+
+  writer->add_member("table").start_object();
+
+  if (get_type() == EXPLAIN_UPDATE)
+    writer->add_member("update").add_ll(1);
+  else
+    writer->add_member("delete").add_ll(1);
+
+  writer->add_member("table_name").add_str(table_name);
+  writer->add_member("access_type").add_str(join_type_str[jtype]);
+
+  if (!possible_keys.is_empty())
+  {
+    List_iterator_fast<char> it(possible_keys);
+    const char *name;
+    writer->add_member("possible_keys").start_array();
+    while ((name= it++))
+      writer->add_str(name);
+    writer->end_array();
+  }
+
+  /* `key`, `key_length` */
+  if (quick_info && quick_info->is_basic())
+  {
+    StringBuffer<64> key_buf;
+    StringBuffer<64> key_len_buf;
+    quick_info->print_extra_recursive(&key_buf);
+    quick_info->print_key_len(&key_len_buf);
+    
+    writer->add_member("key").add_str(key_buf);
+    writer->add_member("key_length").add_str(key_len_buf);
+  }
+  else if (key.get_key_name())
+  {
+    writer->add_member("key").add_str(key.get_key_name());
+    writer->add_member("key_length").add_str(key.get_key_len());
+  }
+
+  /* `used_key_parts` */
+  String_list *parts_list= NULL;
+  if (quick_info && quick_info->is_basic())
+    parts_list= &quick_info->range.key_parts_list;
+  else
+    parts_list= &key.key_parts_list;
+
+  if (parts_list && !parts_list->is_empty())
+  {
+    List_iterator_fast<char> it(*parts_list);
+    const char *name;
+    writer->add_member("used_key_parts").start_array();
+    while ((name= it++))
+      writer->add_str(name);
+    writer->end_array();
+  }
+
+  if (quick_info && !quick_info->is_basic())
+  {
+    writer->add_member("index_merge").start_object();
+    quick_info->print_json(writer);
+    writer->end_object();
+  }
+  
+#if 0
+  /* `ref` */
+  if (!ref_list.is_empty())
+  {
+    List_iterator_fast<char> it(ref_list);
+    const char *str;
+    writer->add_member("ref").start_array();
+    while ((str= it++))
+      writer->add_str(str);
+    writer->end_array();
+  }
+#endif
+
+  /* `rows` */
+  writer->add_member("rows").add_ll(rows);
+
+  /* `r_rows` */
+  if (is_analyze && tracker.has_scans())
+  {
+    ha_rows avg_rows= tracker.get_avg_rows();
+    writer->add_member("r_rows").add_ll(avg_rows);
+  }
+ 
+  /* UPDATE/DELETE do not produce `filtered` estimate */
+
+  /* `r_filtered` */
+  if (is_analyze)
+  {
+    double r_filtered= tracker.get_filtered_after_where();
+    writer->add_member("r_filtered").add_double(r_filtered);
+  }
+
+  if (mrr_type.length() != 0)
+    writer->add_member("mrr_type").add_str(mrr_type.ptr());
+  
+  if (using_filesort)
+    writer->add_member("using_filesort").add_ll(1);
+
+  if (using_io_buffer)
+    writer->add_member("using_io_buffer").add_ll(1);
+
+  if (where_cond)
+  {
+    writer->add_member("attached_condition");
+    write_item(writer, where_cond);
+  }
+
+  writer->end_object(); // table
+  print_explain_json_for_children(query, writer, is_analyze);
+  writer->end_object(); // query_block
 }
 
 

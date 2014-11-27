@@ -199,7 +199,7 @@ EXPLAIN
         },
         {
           "query_block": {
-            "select_id": 1,
+            "select_id": 2,
             "table": {
               "table_name": "B",
               "access_type": "ALL",
@@ -233,7 +233,7 @@ EXPLAIN
         },
         {
           "query_block": {
-            "select_id": 1,
+            "select_id": 2,
             "table": {
               "table_name": "B",
               "access_type": "ALL",
@@ -265,7 +265,7 @@ EXPLAIN
     "subqueries": [
       {
         "query_block": {
-          "select_id": 1,
+          "select_id": 2,
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
@@ -295,7 +295,7 @@ EXPLAIN
     "subqueries": [
       {
         "query_block": {
-          "select_id": 1,
+          "select_id": 2,
           "table": {
             "table_name": "t1",
             "access_type": "ALL",
@@ -342,4 +342,55 @@ EXPLAIN
   }
 }
 drop table t1;
+#
+# Single-table UPDATE/DELETE
+#
+explain format=json delete from t0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Deleting all rows"
+    }
+  }
+}
+explain format=json delete from t0 where 1 > 2;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "message": "Impossible WHERE"
+    }
+  }
+}
+explain format=json delete from t0 where a < 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "delete": 1,
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "attached_condition": "(t0.a < 3)"
+    }
+  }
+}
+explain format=json update t0 set a=3 where a in (2,3,4);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t0",
+      "access_type": "ALL",
+      "rows": 10,
+      "attached_condition": "(t0.a in (2,3,4))"
+    }
+  }
+}
 drop table t0;

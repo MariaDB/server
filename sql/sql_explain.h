@@ -432,6 +432,11 @@ class Explain_index_use : public Sql_alloc
 public:
   String_list key_parts_list;
   
+  Explain_index_use()
+  {
+    clear();
+  }
+
   void clear()
   {
     key_name= NULL;
@@ -440,8 +445,8 @@ public:
   void set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
   void set_pseudo_key(MEM_ROOT *root, const char *key_name);
 
-  inline const char *get_key_name() { return key_name; }
-  inline uint get_key_len() { return key_len; }
+  inline const char *get_key_name() const { return key_name; }
+  inline uint get_key_len() const { return key_len; }
 };
 
 
@@ -584,8 +589,8 @@ public:
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
-  void fill_key_str(String *key_str, bool is_json);
-  void fill_key_len_str(String *key_len_str);
+  void fill_key_str(String *key_str, bool is_json) const;
+  void fill_key_len_str(String *key_len_str) const;
   double get_r_filtered();
   void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
 };
@@ -614,14 +619,22 @@ public:
   StringBuffer<64> table_name;
 
   enum join_type jtype;
-  StringBuffer<128> possible_keys_line;
-  StringBuffer<128> key_str;
-  StringBuffer<128> key_len_str;
+  String_list possible_keys;
+
+  /* Used key when doing a full index scan (possibly with limit) */
+  Explain_index_use key;
+
+  /* 
+    MRR that's used with quick select. This should probably belong to the
+    quick select
+  */
   StringBuffer<64> mrr_type;
   
   Explain_quick_select *quick_info;
 
   bool using_where;
+  Item *where_cond;
+
   ha_rows rows;
 
   bool using_filesort;
@@ -632,8 +645,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
-  virtual void print_explain_json(Explain_query *query, Json_writer *writer, bool is_analyze)
-  { /* EXPLAIN_JSON_NOT_IMPL */}
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer,
+                                  bool is_analyze);
 };
 
 
@@ -678,8 +691,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
-  virtual void print_explain_json(Explain_query *query, Json_writer *writer, bool is_analyze)
-  { /* EXPLAIN_JSON_NOT_IMPL */}
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer,
+                                  bool is_analyze);
 };
 
 

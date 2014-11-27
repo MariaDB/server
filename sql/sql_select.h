@@ -1832,8 +1832,10 @@ inline bool optimizer_flag(THD *thd, uint flag)
   return (thd->variables.optimizer_switch & flag);
 }
 
+/*
 int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
                                SELECT_LEX *select_lex, uint8 select_options);
+*/
 
 uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
                          ha_rows limit, ha_rows *scanned_limit, 
@@ -1861,22 +1863,8 @@ int print_explain_message_line(select_result_sink *result,
                                ha_rows *rows,
                                const char *message);
 void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res);
-int print_explain_row(select_result_sink *result,
-                      uint8 options, bool is_analyze,
-                      uint select_number,
-                      const char *select_type,
-                      const char *table_name,
-                      const char *partitions,
-                      enum join_type jtype,
-                      const char *possible_keys,
-                      const char *index,
-                      const char *key_len,
-                      const char *ref,
-                      ha_rows *rows,
-                      ha_rows *r_rows,
-                      double r_filtered,
-                      const char *extra);
-void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line);
+int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table, 
+                         key_map possible_keys);
 
 /****************************************************************************
   Temporary table support for SQL Runtime
