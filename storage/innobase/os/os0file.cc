@@ -5103,6 +5103,7 @@ os_aio_func(
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
 #ifdef WIN_ASYNC_IO
+	void* buffer = NULL;
 	ibool		retval;
 	BOOL		ret		= TRUE;
 	DWORD		len		= (DWORD) n;
