@@ -2944,7 +2944,7 @@ try_again:
 		/* If page is encrypted we need to decrypt it first */
 		if (fil_page_is_encrypted((byte *)buf)) {
 			if (fil_decrypt_page(
-					NULL
+					NULL,
 					(byte *)buf,
 					n,
 					NULL,
