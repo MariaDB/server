@@ -1326,6 +1326,18 @@ WHERE name = 'Route 5'
 AND aliases = 'Main Street';
 IsEmpty(centerline)
 0
+# Conformance Item T12 
+SELECT IsSimple(shore) 
+FROM lakes 
+WHERE name = 'Blue Lake';
+IsSimple(shore)
+1
+# Conformance Item T13 
+SELECT AsText(ST_Boundary(boundary))
+FROM named_places 
+WHERE name = 'Goose Island';
+AsText(ST_Boundary(boundary))
+LINESTRING(67 13,67 18,59 18,59 13,67 13)
 # Conformance Item T14 
 SELECT AsText(Envelope(boundary)) 
 FROM named_places 
@@ -1356,6 +1368,17 @@ FROM road_segments
 WHERE fid = 102;
 AsText(EndPoint(centerline))
 POINT(44 31)
+SELECT IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+FROM named_places 
+WHERE name = 'Goose Island';
+IsClosed(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
+1
+# Conformance Item T20 
+SELECT IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary))) 
+FROM named_places 
+WHERE name = 'Goose Island';
+IsRing(LineFromWKB(AsBinary(Boundary(boundary)),SRID(boundary)))
+0
 # Conformance Item T21 
 SELECT GLength(centerline) 
 FROM road_segments 
@@ -1380,6 +1403,11 @@ FROM named_places
 WHERE name = 'Goose Island';
 AsText(Centroid(boundary))
 POINT(63 15.5)
+SELECT ST_Contains(boundary, PointOnSurface(boundary)) 
+FROM named_places 
+WHERE name = 'Goose Island';
+ST_Contains(boundary, PointOnSurface(boundary))
+1
 # Conformance Item T26 
 SELECT Area(boundary) 
 FROM named_places 
@@ -1434,6 +1462,12 @@ FROM ponds
 WHERE fid = 120;
 AsText(Centroid(shores))
 POINT(25 42)
+# Conformance Item T35 
+SELECT Contains(shores, PointOnSurface(shores)) 
+FROM ponds 
+WHERE fid = 120;
+Contains(shores, PointOnSurface(shores))
+1
 # Conformance Item T36 
 SELECT Area(shores) 
 FROM ponds 
@@ -1462,6 +1496,20 @@ WHERE streams.name = 'Cam Stream'
 AND lakes.name = 'Blue Lake';
 ST_Touches(centerline, shore)
 1
+# Conformance Item T40 
+SELECT ST_Within(footprint, boundary) 
+FROM named_places, buildings 
+WHERE named_places.name = 'Ashton' 
+AND buildings.address = '215 Main Street';
+ST_Within(footprint, boundary)
+1
+# Conformance Item T41 
+SELECT ST_Overlaps(forests.boundary, named_places.boundary) 
+FROM forests, named_places 
+WHERE forests.name = 'Green Forest' 
+AND named_places.name = 'Ashton';
+ST_Overlaps(forests.boundary, named_places.boundary)
+1
 # Conformance Item T42
 SELECT Crosses(road_segments.centerline, divided_routes.centerlines)
 FROM road_segments, divided_routes 
@@ -1483,6 +1531,13 @@ WHERE forests.name = 'Green Forest'
 AND named_places.name = 'Ashton';
 ST_Contains(forests.boundary, named_places.boundary)
 0
+# Conformance Item T45 
+SELECT ST_Relate(forests.boundary, named_places.boundary, 'TTTTTTTTT') 
+FROM forests, named_places 
+WHERE forests.name = 'Green Forest' 
+AND named_places.name = 'Ashton';
+ST_Relate(forests.boundary, named_places.boundary, 'TTTTTTTTT')
+1
 # Conformance Item T46 
 SELECT ST_Distance(position, boundary) 
 FROM bridges, named_places 
@@ -1490,6 +1545,13 @@ WHERE bridges.name = 'Cam Bridge'
 AND named_places.name = 'Ashton';
 ST_Distance(position, boundary)
 12
+# Conformance Item T47 
+SELECT AsText(ST_Intersection(centerline, shore)) 
+FROM streams, lakes 
+WHERE streams.name = 'Cam Stream' 
+AND lakes.name = 'Blue Lake';
+AsText(ST_Intersection(centerline, shore))
+POINT(52 18)
 # Conformance Item T48 
 SELECT AsText(ST_Difference(named_places.boundary, forests.boundary)) 
 FROM named_places, forests 
@@ -1516,6 +1578,12 @@ FROM buildings, bridges
 WHERE ST_Contains(ST_Buffer(bridges.position, 15.0), buildings.footprint) = 1;
 count(*)
 1
+# Conformance Item T52 
+SELECT AsText(ConvexHull(shore)) 
+FROM lakes 
+WHERE lakes.name = 'Blue Lake';
+AsText(ConvexHull(shore))
+POLYGON((48 6,52 18,66 23,73 9,48 6))
 DROP DATABASE gis_ogs;
 USE test;
 #

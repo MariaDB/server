@@ -298,7 +298,7 @@ public:
 				   bool init_stream=1);
   static Geometry *create_from_wkb(Geometry_buffer *buffer,
                                    const char *wkb, uint32 len, String *res);
-  static int create_from_opresult(Geometry_buffer *g_buf,
+  static Geometry *create_from_opresult(Geometry_buffer *g_buf,
                                   String *res, Gcalc_result_receiver &rr);
   int as_wkt(String *wkt, const char **end);
 
@@ -316,6 +316,7 @@ public:
   bool envelope(String *result) const;
   static Class_info *ci_collection[wkb_last+1];
 
+  static bool create_point(String *result, double x, double y);
 protected:
   static Class_info *find_class(int type_id)
   {
@@ -326,7 +327,6 @@ protected:
   const char *append_points(String *txt, uint32 n_points,
 			    const char *data, uint32 offset) const;
   bool create_point(String *result, const char *data) const;
-  bool create_point(String *result, double x, double y) const;
   const char *get_mbr_for_points(MBR *mbr, const char *data, uint offset)
     const;
 
