@@ -432,8 +432,7 @@ The following options may be given as the first argument:
  max_statement_time seconds will be aborted. The argument
  will be treated as a decimal value with microsecond
  precision.  A value of 0 (default) means no timeout
- --max-tmp-tables=#  Maximum number of temporary tables a client can keep open
- at a time
+ --max-tmp-tables=#  Unused, will be removed.
  --max-user-connections=# 
  The maximum number of active connections for a single
  user (0 = no limit)
@@ -858,8 +857,6 @@ The following options may be given as the first argument:
  --rowid-merge-buff-size=# 
  The size of the buffers used [NOT] IN evaluation via
  partial matching
- --rpl-recovery-rank=# 
- Unused, will be removed
  --safe-mode         Skip some optimize stages (for testing). Deprecated.
  --safe-user-create  Don't allow new user creation by the user who has no
  write privileges to the mysql.user table.
@@ -1322,7 +1319,6 @@ report-password (No default value)
 report-port 0
 report-user (No default value)
 rowid-merge-buff-size 8388608
-rpl-recovery-rank 0
 safe-user-create FALSE
 secure-auth FALSE
 secure-file-priv (No default value)
