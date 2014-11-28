@@ -527,6 +527,21 @@ typedef struct st_join_table {
   bool preread_init();
 
   bool is_sjm_nest() { return MY_TEST(bush_children); }
+  
+  /*
+    If this join_tab reads a non-merged semi-join (also called jtbm), return
+    the select's number.  Otherwise, return 0.
+  */
+  int get_non_merged_semijoin_select() const
+  {
+    Item_in_subselect *subq;
+    if (table->pos_in_table_list && 
+        (subq= table->pos_in_table_list->jtbm_subselect))
+    {
+      return subq->unit->first_select()->select_number;
+    }
+    return 0; /* Not a merged semi-join */
+  }
 
   bool access_from_tables_is_allowed(table_map used_tables,
                                      table_map sjm_lookup_tables)

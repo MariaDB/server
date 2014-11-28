@@ -554,6 +554,19 @@ int Explain_node::print_explain_for_children(Explain_query *query,
 }
 
 
+/*
+  This tells whether a child subquery should be printed in JSON output.
+
+  Derived tables and Non-merged semi-joins should not be printed, because they
+  are printed inline in Explain_table_access.
+*/
+bool is_connection_printable_in_json(enum Explain_node::explain_connection_type type)
+{
+  return (type != Explain_node::EXPLAIN_NODE_DERIVED && 
+          type != Explain_node::EXPLAIN_NODE_NON_MERGED_SJ);
+}
+
+
 void Explain_node::print_explain_json_for_children(Explain_query *query, 
                                                   Json_writer *writer,
                                                   bool is_analyze)
@@ -565,7 +578,8 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
   {
     Explain_node *node= query->get_node(children.at(i));
     /* Derived tables are printed inside Explain_table_access objects */
-    if (node->is_derived_table)
+    
+    if (!is_connection_printable_in_json(node->connection_type))
       continue;
 
     if (!started)
@@ -1186,6 +1200,16 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     /* This is a derived table. Print its contents here */
     writer->add_member("materialized").start_object();
     Explain_node *node= query->get_node(derived_select_number);
+    node->print_explain_json(query, writer, is_analyze);
+    writer->end_object();
+  }
+  if (non_merged_sjm_number)
+  {
+    /* This is a non-merged semi-join table. Print its contents here */
+    writer->add_member("materialized").start_object();
+    writer->add_member("unique").add_ll(1);
+    Explain_node *node= query->get_node(non_merged_sjm_number);
+    node->connection_type= Explain_node::EXPLAIN_NODE_NON_MERGED_SJ;
     node->print_explain_json(query, writer, is_analyze);
     writer->end_object();
   }

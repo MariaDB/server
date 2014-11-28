@@ -77,12 +77,14 @@ const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 class Explain_query;
 
 class Json_writer;
+
 /* 
   A node can be either a SELECT, or a UNION.
 */
 class Explain_node : public Sql_alloc
 {
 public:
+  /* A type specifying what kind of node this is */
   enum explain_node_type 
   {
     EXPLAIN_UNION, 
@@ -91,16 +93,24 @@ public:
     EXPLAIN_DELETE, 
     EXPLAIN_INSERT
   };
+  
+  /* How this node is connected */
+  enum explain_connection_type {
+    EXPLAIN_NODE_OTHER,
+    EXPLAIN_NODE_DERIVED, /* Materialized derived table */
+    EXPLAIN_NODE_NON_MERGED_SJ /* aka JTBM semi-join */
+  };
 
-  Explain_node() : is_derived_table(false) {}
+  Explain_node() : connection_type(EXPLAIN_NODE_OTHER) {}
 
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
 
   /*
-    TRUE means this is a derived table. FALSE means otherwise.
+    How this node is connected to its parent.
+    (NOTE: EXPLAIN_NODE_NON_MERGED_SJ is set very late currently)
   */
-  bool is_derived_table;
+  enum explain_connection_type connection_type;
 
   /* 
     A node may have children nodes. When a node's explain structure is 
@@ -502,6 +512,7 @@ class Explain_table_access : public Sql_alloc
 public:
   Explain_table_access() :
     derived_select_number(0),
+    non_merged_sjm_number(0),
     where_cond(NULL),
     cache_cond(NULL),
     pushed_index_cond(NULL)
@@ -525,6 +536,8 @@ public:
     find the query plan for the derived table
   */
   int derived_select_number;
+  /* TODO: join with the previous member. */
+  int non_merged_sjm_number;
 
   enum join_type type;
 
