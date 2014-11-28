@@ -11471,36 +11471,29 @@ Rows_log_event::write_row(rpl_group_info *rgi,
        then there might be another key for which the unique check will
        fail, so we're better off just deleting the row and inserting
        the correct row.
+
+       Additionally we don't use UPDATE if rbr triggers should be invoked -
+       when triggers are used we want a simple and predictable execution path.
      */
-    if (last_uniq_key(table, keynum) &&
+    if (last_uniq_key(table, keynum) && !invoke_triggers &&
         !table->file->referenced_by_foreign_key())
     {
       DBUG_PRINT("info",("Updating row using ha_update_row()"));
-      if (invoke_triggers &&
-          process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_BEFORE, FALSE))
-        error= HA_ERR_GENERIC; // in case if error is not set yet
-      else
-      {
-        error= table->file->ha_update_row(table->record[1],
-                                         table->record[0]);
-        switch (error) {
+      error= table->file->ha_update_row(table->record[1],
+                                       table->record[0]);
+      switch (error) {
 
-        case HA_ERR_RECORD_IS_THE_SAME:
-          DBUG_PRINT("info",("ignoring HA_ERR_RECORD_IS_THE_SAME error from"
-                             " ha_update_row()"));
-          error= 0;
+      case HA_ERR_RECORD_IS_THE_SAME:
+        DBUG_PRINT("info",("ignoring HA_ERR_RECORD_IS_THE_SAME error from"
+                           " ha_update_row()"));
+        error= 0;
 
-        case 0:
-          break;
+      case 0:
+        break;
 
-        default:
-          DBUG_PRINT("info",("ha_update_row() returns error %d",error));
-          table->file->print_error(error, MYF(0));
-        }
-        if (invoke_triggers && !error &&
-            (process_triggers(TRG_EVENT_UPDATE, TRG_ACTION_AFTER, TRUE) ||
-             process_triggers(TRG_EVENT_INSERT, TRG_ACTION_AFTER, TRUE)))
-          error= HA_ERR_GENERIC; // in case if error is not set yet
+      default:
+        DBUG_PRINT("info",("ha_update_row() returns error %d",error));
+        table->file->print_error(error, MYF(0));
       }
 
       DBUG_RETURN(error);
