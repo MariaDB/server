@@ -4268,6 +4268,8 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
   Explain_union *eu= new (output->mem_root) Explain_union;
+  if (derived)
+    eu->is_derived_table= true;
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);

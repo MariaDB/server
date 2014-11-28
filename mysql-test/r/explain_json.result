@@ -393,4 +393,75 @@ EXPLAIN
     }
   }
 }
+#
+# A derived table
+#
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+explain format=json
+select * from (select a, count(*) as cnt from t1 group by a) as tbl
+where cnt>0;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(tbl.cnt > 0)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
+explain format=json
+select * from (select a, count(*) as cnt from t1 group by a) as tbl1, t1 as
+tbl2 where cnt=tbl2.a;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "tbl2",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100,
+      "attached_condition": "(tbl2.a is not null)"
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "8",
+      "used_key_parts": ["cnt"],
+      "ref": ["test.tbl2.a"],
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "(tbl1.cnt = tbl2.a)",
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t1",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    }
+  }
+}
 drop table t0;

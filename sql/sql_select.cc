@@ -23654,6 +23654,12 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       tab->cache->save_explain_data(&eta->bka_type);
     }
   }
+
+  /* 
+    In case this is a derived table, here we remember the number of 
+    subselect that used to produce it.
+  */
+  eta->derived_select_number= table->derived_select_number;
 }
 
 /*
@@ -23686,6 +23692,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->message= message;
+    if (select_lex->master_unit()->derived)
+      xpl_sel->is_derived_table= true;
     /* Setting xpl_sel->message means that all other members are invalid */
     output->add_node(xpl_sel);
   }
@@ -23703,6 +23711,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     join->select_lex->set_explain_type(true);
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
+    if (select_lex->master_unit()->derived)
+      xpl_sel->is_derived_table= true;
 
     JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
 

@@ -92,8 +92,15 @@ public:
     EXPLAIN_INSERT
   };
 
+  Explain_node() : is_derived_table(false) {}
+
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
+
+  /*
+    TRUE means this is a derived table. FALSE means otherwise.
+  */
+  bool is_derived_table;
 
   /* 
     A node may have children nodes. When a node's explain structure is 
@@ -494,6 +501,7 @@ class Explain_table_access : public Sql_alloc
 {
 public:
   Explain_table_access() :
+    derived_select_number(0),
     where_cond(NULL),
     cache_cond(NULL),
     pushed_index_cond(NULL)
@@ -511,6 +519,12 @@ public:
 
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
+
+  /* 
+    Non-zero number means this is a derived table. The number can be used to
+    find the query plan for the derived table
+  */
+  int derived_select_number;
 
   enum join_type type;
 
@@ -581,7 +595,8 @@ public:
                     bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
-  void print_explain_json(Json_writer *writer, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze);
 
   /* ANALYZE members*/
   Table_access_tracker tracker;

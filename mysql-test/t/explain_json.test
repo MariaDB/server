@@ -80,5 +80,18 @@ explain format=json delete from t0 where a < 3;
 
 explain format=json update t0 set a=3 where a in (2,3,4);
 
+--echo #
+--echo # A derived table
+--echo #
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+explain format=json
+select * from (select a, count(*) as cnt from t1 group by a) as tbl
+where cnt>0;
+
+explain format=json
+select * from (select a, count(*) as cnt from t1 group by a) as tbl1, t1 as
+tbl2 where cnt=tbl2.a;
+
 drop table t0;
 

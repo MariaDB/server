@@ -558,18 +558,29 @@ void Explain_node::print_explain_json_for_children(Explain_query *query,
                                                   Json_writer *writer,
                                                   bool is_analyze)
 {
-  if (!children.elements())
-    return;
-
-  writer->add_member("subqueries").start_array();
+  Json_writer_nesting_guard guard(writer);
+  
+  bool started= false;
   for (int i= 0; i < (int) children.elements(); i++)
   {
-    writer->start_object();
     Explain_node *node= query->get_node(children.at(i));
+    /* Derived tables are printed inside Explain_table_access objects */
+    if (node->is_derived_table)
+      continue;
+
+    if (!started)
+    {
+      writer->add_member("subqueries").start_array();
+      started= true;
+    }
+
+    writer->start_object();
     node->print_explain_json(query, writer, is_analyze);
     writer->end_object();
   }
-  writer->end_array();
+
+  if (started)
+    writer->end_array();
 }
 
 
@@ -665,7 +676,7 @@ void Explain_select::print_explain_json(Explain_query *query,
     for (uint i=0; i< n_join_tabs; i++)
     {
       // psergey-todo: Need to honor SJM nests...
-      join_tabs[i]->print_explain_json(writer, is_analyze);
+      join_tabs[i]->print_explain_json(query, writer, is_analyze);
     }
   }
 
@@ -1054,7 +1065,8 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
 }
 
 
-void Explain_table_access::print_explain_json(Json_writer *writer, 
+void Explain_table_access::print_explain_json(Explain_query *query,
+                                              Json_writer *writer,
                                               bool is_analyze)
 {
   Json_writer_nesting_guard guard(writer);
@@ -1167,6 +1179,15 @@ void Explain_table_access::print_explain_json(Json_writer *writer,
       writer->add_member("attached_condition");
       write_item(writer, where_cond);
     }
+  }
+
+  if (derived_select_number)
+  {
+    /* This is a derived table. Print its contents here */
+    writer->add_member("materialized").start_object();
+    Explain_node *node= query->get_node(derived_select_number);
+    node->print_explain_json(query, writer, is_analyze);
+    writer->end_object();
   }
 
   writer->end_object();
