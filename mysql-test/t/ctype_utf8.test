@@ -1658,6 +1658,13 @@ set max_sort_length=default;
 --echo # Start of 10.0 tests
 --echo #
 
+SET NAMES utf8 COLLATE utf8_bin;
+--source include/ctype_like_cond_propagation.inc
+SET NAMES utf8;
+--source include/ctype_like_cond_propagation.inc
+--source include/ctype_like_cond_propagation_utf8_german.inc
+
+
 --echo #
 --echo # MDEV-6666 Malformed result for CONCAT(utf8_column, binary_string)
 --echo #

@@ -571,6 +571,14 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_ci;
 --echo #
 --echo
 
+SET NAMES utf8 COLLATE utf8_unicode_ci;
+--source include/ctype_like_cond_propagation.inc
+--source include/ctype_like_cond_propagation_utf8_german.inc
+
+SET NAMES utf8 COLLATE utf8_german2_ci;
+--source include/ctype_like_cond_propagation.inc
+--source include/ctype_like_cond_propagation_utf8_german.inc
+
 --echo #
 --echo # MDEV-4929 Myanmar collation
 --echo #

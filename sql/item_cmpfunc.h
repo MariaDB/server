@@ -1486,7 +1486,42 @@ public:
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   optimize_type select_optimize() const;
-  cond_result eq_cmp_result() const { return COND_TRUE; }
+  cond_result eq_cmp_result() const
+  {
+    /**
+      We cannot always rewrite conditions as follows:
+        from:  WHERE expr1=const AND expr1 LIKE expr2
+        to:    WHERE expr1=const AND const LIKE expr2
+      or
+        from:  WHERE expr1=const AND expr2 LIKE expr1
+        to:    WHERE expr1=const AND expr2 LIKE const
+
+      because LIKE works differently comparing to the regular "=" operator:
+
+      1. LIKE performs a stricter one-character-to-one-character comparison
+         and does not recognize contractions and expansions.
+         Replacing "expr1" to "const in LIKE would make the condition
+         stricter in case of a complex collation.
+
+      2. LIKE does not ignore trailing spaces and thus works differently
+         from the "=" operator in case of "PAD SPACE" collations
+         (which are the majority in MariaDB). So, for "PAD SPACE" collations:
+
+         - expr1=const       - ignores trailing spaces
+         - const LIKE expr2  - does not ignore trailing spaces
+         - expr2 LIKE const  - does not ignore trailing spaces
+
+      Allow only "binary" for now.
+      It neither ignores trailing spaces nor has contractions/expansions.
+
+      TODO:
+      We could still replace "expr1" to "const" in "expr1 LIKE expr2"
+      in case of a "PAD SPACE" collation, but only if "expr2" has '%'
+      at the end.         
+    */
+    return ((Item_func_like *)this)->compare_collation() == &my_charset_bin ?
+           COND_TRUE : COND_OK;
+  }
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void cleanup();
