@@ -63,10 +63,10 @@ drop table t1;
 --echo # Join buffering
 --echo #
 create table t1 (a int, b int);
-insert into t1 select A.a+10*B.a, A.a+10*B.a from t0 A, t0 B;
+insert into t1 select tbl1.a+10*tbl2.a, tbl1.a+10*tbl2.a from t0 tbl1, t0 tbl2;
 
 explain format=json
-select * from t1 A, t1 B where A.a=B.a and A.b < 3 and B.b < 5;
+select * from t1 tbl1, t1 tbl2 where tbl1.a=tbl2.a and tbl1.b < 3 and tbl2.b < 5;
 
 drop table t1;
 
