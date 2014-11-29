@@ -343,7 +343,7 @@ EXPLAIN
 }
 drop table t1;
 #
-# Single-table UPDATE/DELETE
+# Single-table UPDATE/DELETE, INSERT
 #
 explain format=json delete from t0;
 EXPLAIN
@@ -393,6 +393,41 @@ EXPLAIN
     }
   }
 }
+explain format=json insert into t0 values (1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t0"
+    }
+  }
+}
+create table t1 like t0;
+explain format=json insert into t1 values ((select max(a) from t0));
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1"
+    },
+    "subqueries": [
+      {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t0",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1;
 #
 # A derived table
 #

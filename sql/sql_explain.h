@@ -704,8 +704,7 @@ public:
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze)
-  { /* EXPLAIN_JSON_NOT_IMPL */}
+                          bool is_analyze);
 };
 
 

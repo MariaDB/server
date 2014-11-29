@@ -194,10 +194,7 @@ void Explain_query::print_explain_json(select_result_sink *output, bool is_analy
   if (upd_del_plan)
     upd_del_plan->print_explain_json(this, &writer, is_analyze);
   else if (insert_plan)
-  {
-    //insert_plan->print_explain(this, output, explain_flags, is_analyze);
-    DBUG_ASSERT(0);
-  }
+    insert_plan->print_explain_json(this, &writer, is_analyze);
   else
   {
     /* Start printing from node with id=1 */
@@ -1806,6 +1803,20 @@ int Explain_insert::print_explain(Explain_query *query,
                     NULL);
 
   return print_explain_for_children(query, output, explain_flags, is_analyze);
+}
+
+void Explain_insert::print_explain_json(Explain_query *query, 
+                                        Json_writer *writer, bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
+
+  writer->add_member("query_block").start_object();
+  writer->add_member("select_id").add_ll(1);
+  writer->add_member("table").start_object();
+  writer->add_member("table_name").add_str(table_name.c_ptr());
+  writer->end_object(); // table
+  print_explain_json_for_children(query, writer, is_analyze);
+  writer->end_object(); // query_block
 }
 
 
