@@ -869,13 +869,13 @@ private:
 
   /**
     The number of rows affected by the last statement. This is
-    semantically close to thd->row_count_func, but has a different
-    life cycle. thd->row_count_func stores the value returned by
+    semantically close to thd->m_row_count_func, but has a different
+    life cycle. thd->m_row_count_func stores the value returned by
     function ROW_COUNT() and is cleared only by statements that
     update its value, such as INSERT, UPDATE, DELETE and few others.
     This member is cleared at the beginning of the next statement.
 
-    We could possibly merge the two, but life cycle of thd->row_count_func
+    We could possibly merge the two, but life cycle of thd->m_row_count_func
     can not be changed.
   */
   ulonglong    m_affected_rows;
