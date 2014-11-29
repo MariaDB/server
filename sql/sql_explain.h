@@ -22,8 +22,13 @@ public:
 };
 
 
+/*
+  A class for collecting read statistics.
+  
+  The idea is that we run several scans. Each scans gets rows, and then filters
+  some of them out.  We count scans, rows, and rows left after filtering.
+*/
 
-/* Data structures for ANALYZE */
 class Table_access_tracker 
 {
 public:
@@ -38,6 +43,7 @@ public:
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
   bool has_scans() { return (r_scans != 0); }
+  ha_rows get_loops() { return r_scans; }
   ha_rows get_avg_rows()
   {
     return r_scans ? (ha_rows)rint((double) r_rows / r_scans): 0;
@@ -611,7 +617,9 @@ public:
   void print_explain_json(Explain_query *query, Json_writer *writer,
                           bool is_analyze);
 
-  /* ANALYZE members*/
+  /* ANALYZE members */
+
+  /* Tracker for reading the table */
   Table_access_tracker tracker;
   Table_access_tracker jbuf_tracker;
 

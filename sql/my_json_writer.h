@@ -99,6 +99,7 @@ public:
   void add_ll(longlong val);
   void add_double(double val);
   void add_bool(bool val);
+  void add_null();
 
 private:
   void add_unquoted_str(const char* val);

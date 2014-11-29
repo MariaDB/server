@@ -815,10 +815,14 @@ void Explain_index_use::set_pseudo_key(MEM_ROOT *root, const char* key_name_arg)
 }
 
 
+/*
+  Given r_filtered% from join buffer condition and join condition, produce a
+  combined r_filtered% number. This is needed for tabular EXPLAIN output which
+  has only one cell for r_filtered value.
+*/
+
 double Explain_table_access::get_r_filtered()
 {
-  //psergey-todo: modify this to produce separate filtered% for both parts of
-  //WHERE.
   double r_filtered= tracker.get_filtered_after_where();
   if (bka_type.is_using_jbuf())
     r_filtered *= jbuf_tracker.get_filtered_after_where();
@@ -1156,15 +1160,27 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->end_array();
   }
 
+  /* r_loops (not present in tabular output) */
+  if (is_analyze)
+  {
+    writer->add_member("r_loops").add_ll(tracker.get_loops());
+  }
+  
   /* `rows` */
   if (rows_set)
     writer->add_member("rows").add_ll(rows);
 
   /* `r_rows` */
-  if (is_analyze && tracker.has_scans())
+  if (is_analyze)
   {
-    ha_rows avg_rows= tracker.get_avg_rows();
-    writer->add_member("r_rows").add_ll(avg_rows);
+    writer->add_member("r_rows");
+    if (tracker.has_scans())
+    {
+      ha_rows avg_rows= tracker.get_avg_rows();
+      writer->add_ll(avg_rows);
+    }
+    else
+      writer->add_null();
   }
   
   /* `filtered` */
@@ -1173,7 +1189,13 @@ void Explain_table_access::print_explain_json(Explain_query *query,
 
   /* `r_filtered` */
   if (is_analyze)
-    writer->add_member("r_filtered").add_double(get_r_filtered());
+  {
+    writer->add_member("r_filtered");
+    if (tracker.has_scans())
+      writer->add_double(tracker.get_filtered_after_where()*100.0);
+    else
+      writer->add_null();
+  }
 
   for (int i=0; i < (int)extra_tags.elements(); i++)
   {
@@ -1192,6 +1214,16 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     {
       writer->add_member("attached_condition");
       write_item(writer, where_cond);
+    }
+
+    if (is_analyze)
+    {
+      //writer->add_member("r_loops").add_ll(jbuf_tracker.get_loops());
+      writer->add_member("r_filtered");
+      if (jbuf_tracker.has_scans())
+        writer->add_double(jbuf_tracker.get_filtered_after_where()*100.0);
+      else
+        writer->add_null();
     }
   }
 

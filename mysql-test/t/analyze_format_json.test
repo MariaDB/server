@@ -1,0 +1,38 @@
+#
+#  Tests for "ANALYZE FORMAT=JSON $statement" syntax
+#
+--disable_warnings
+drop table if exists t0,t1,t2,t3;
+--enable_warnings
+
+create table t0 (a int);
+INSERT INTO t0 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+--echo # r_filtered=30%, because 3 rows match: 0,1,2
+analyze format=json select * from t0 where a<3;
+
+create table t1 (a int, b int, c int, key(a));
+insert into t1 select A.a*10 + B.a, A.a*10 + B.a, A.a*10 + B.a from t0 A, t0 B;
+
+analyze
+select * from t0, t1 where t1.a=t0.a and t0.a > 9;
+analyze format=json 
+select * from t0, t1 where t1.a=t0.a and t0.a > 9;
+
+analyze
+select * from t0, t1 where t1.a=t0.a and t1.b<4;
+
+analyze format=json
+select * from t0, t1 where t1.a=t0.a and t1.b<4;
+
+analyze 
+select * from t1 A, t1 B where A.b<2 and B.b>5;
+
+analyze format=json
+select * from t1 A, t1 B where A.b<20 and B.b<60;
+
+analyze format=json
+select * from t1 A, t1 B where A.b<20 and B.b<60 and A.c > B.c;
+
+drop table t1;
+drop table t0;

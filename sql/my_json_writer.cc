@@ -131,6 +131,12 @@ void Json_writer::add_bool(bool val)
 }
 
 
+void Json_writer::add_null()
+{
+  add_unquoted_str("null");
+}
+
+
 void Json_writer::add_unquoted_str(const char* str)
 {
   if (fmt_helper.on_add_str(str))
