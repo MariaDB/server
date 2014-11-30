@@ -863,6 +863,33 @@ SELECT INET6_NTOA(ip), HEX(ip), LENGTH(ip) FROM t2;
 DROP TABLE t1;
 DROP TABLE t2;
 
+--echo #
+--echo # MDEV-4018 : Microseconds in GET_LOCK()
+--echo #
+
+--echo # -> Switching to connection 'default'
+connection default;
+select is_used_lock('test') = connection_id();
+
+--echo # GET_LOCK returns 1 if it manages to acquire a lock
+select get_lock('test', 0);
+
+connect (con1,localhost,root,,);
+--echo # -> Switching to connection 'con1'
+connection con1;
+select is_used_lock('test') = connection_id();
+select get_lock('test', 0);
+select get_lock('test', 1.0);
+select get_lock('test', 1.5);
+select get_lock('test', 0.1);
+select get_lock('test', 0.000001);
+select get_lock('test', 0.0000000000000001);
+
+--echo # -> Switching to connection 'default'
+connection default;
+select is_used_lock('test') = connection_id();
+select release_lock('test');
+
 --echo
 --echo # -- Done.
 --echo

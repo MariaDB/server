@@ -2388,7 +2388,7 @@ void MDL_scoped_lock::notify_conflicting_locks(MDL_context *ctx)
 */
 
 bool
-MDL_context::acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout)
+MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 {
   MDL_lock *lock;
   MDL_ticket *ticket;
@@ -2550,7 +2550,7 @@ extern "C" int mdl_request_ptr_cmp(const void* ptr1, const void* ptr2)
 */
 
 bool MDL_context::acquire_locks(MDL_request_list *mdl_requests,
-                                ulong lock_wait_timeout)
+                                double lock_wait_timeout)
 {
   MDL_request_list::Iterator it(*mdl_requests);
   MDL_request **sort_buf, **p_req;
@@ -2623,13 +2623,13 @@ err:
 bool
 MDL_context::upgrade_shared_lock(MDL_ticket *mdl_ticket,
                                  enum_mdl_type new_type,
-                                 ulong lock_wait_timeout)
+                                 double lock_wait_timeout)
 {
   MDL_request mdl_xlock_request;
   MDL_savepoint mdl_svp= mdl_savepoint();
   bool is_new_ticket;
   DBUG_ENTER("MDL_context::upgrade_shared_lock");
-  DBUG_PRINT("enter",("new_type: %d  lock_wait_timeout: %lu", new_type,
+  DBUG_PRINT("enter",("new_type: %d  lock_wait_timeout: %f", new_type,
                       lock_wait_timeout));
   DEBUG_SYNC(get_thd(), "mdl_upgrade_lock");
 
