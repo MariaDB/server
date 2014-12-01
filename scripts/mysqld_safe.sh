@@ -153,7 +153,7 @@ log_notice () {
 }
 
 eval_log_error () {
-  cmd="$1"
+  local cmd="$1"
   case $logging in
     file) cmd="$cmd >> "`shell_quote_string "$err_log"`" 2>&1" ;;
     syslog)
@@ -966,9 +966,9 @@ do
 
   if [ -z "$url" ]
   then
-    eval_log_error "$cmd $wsrep_start_position_opt $nohup_redir"
+    eval_log_error "$cmd $wsrep_start_position_opt"
   else
-    eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url $nohup_redir"
+    eval_log_error "$cmd $wsrep_start_position_opt --wsrep_cluster_address=$url"
   fi
 
   if [ $want_syslog -eq 0 -a ! -f "$err_log" ]; then
