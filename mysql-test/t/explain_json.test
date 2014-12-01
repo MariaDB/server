@@ -105,6 +105,15 @@ tbl2 where cnt=tbl2.a;
 --echo #
 explain format=json 
 select * from t1 where a in (select max(a) from t1 group by b);
-drop table t1;
+
+--echo #
+--echo # Semi-join Materialization
+--echo #
+create table t2 like t1;
+insert into t2 select * from t1;
+explain format=json
+select * from t1,t2 where t1.a in ( select a from t0);
+
+drop table t1,t2;
 drop table t0;
 

@@ -8186,6 +8186,41 @@ JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
 }
 
 
+/* 
+  Enumerate JOIN_TABs in "EXPLAIN order". This order
+   - const tabs are included
+   - we enumerate "optimization tabs".
+   - 
+*/
+
+JOIN_TAB *first_explain_order_tab(JOIN* join)
+{
+  JOIN_TAB* tab;
+  tab= join->table_access_tabs;
+  return (tab->bush_children) ? tab->bush_children->start : tab;
+}
+
+
+JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab)
+{
+  /* If we're inside SJM nest and have reached its end, get out */
+  if (tab->last_leaf_in_bush)
+    return tab->bush_root_tab;
+  
+  /* Move to next tab in the array we're traversing */
+  tab++;
+  
+  if (tab == join->table_access_tabs + join->top_join_tab_count)
+    return NULL; /* Outside SJM nest and reached EOF */
+
+  if (tab->bush_children)
+    return tab->bush_children->start;
+
+  return tab;
+}
+
+
+
 JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables const_tbls)
 {
   JOIN_TAB *tab= join->join_tab;
@@ -23277,16 +23312,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
   
-  /* id */
-  if (tab->bush_root_tab)
-  {
-    JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
-    eta->sjm_nest_select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-  }
-  else
-    eta->sjm_nest_select_id= 0;
-
-  /* select_type is kept in Explain_select */
+  /* id and select_type are kept in Explain_select */
 
   /* table */
   if (table->derived_select_number)
@@ -23719,12 +23745,22 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     if (select_lex->master_unit()->derived)
       xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
 
-    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
+    if (need_tmp_table)
+      xpl_sel->using_temporary= true;
 
-    for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
-         tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
+    if (need_order)
+      xpl_sel->using_filesort= true;
+
+    JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
+    JOIN_TAB* prev_bush_root_tab= NULL;
+
+    Explain_basic_join *cur_parent= xpl_sel;
+    
+    for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
+         tab= next_explain_order_tab(join, tab))
+    //for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
+    //     tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
-      
       JOIN_TAB *saved_join_tab= NULL;
       TABLE *table=tab->table;
 
@@ -23735,6 +23771,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
         continue;
       }
 
+
       if (join->table_access_tabs == join->join_tab &&
           tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
       {
@@ -23743,20 +23780,35 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       }
 
       Explain_table_access *eta= new (output->mem_root) Explain_table_access;
-      xpl_sel->add_table(eta);
 
+      if (tab->bush_root_tab != prev_bush_root_tab)
+      {
+        if (tab->bush_root_tab)
+        {
+          /* 
+            We've entered an SJ-Materialization nest. Create an object for it.
+          */
+          cur_parent= new Explain_basic_join;
+
+          JOIN_TAB *first_child= tab->bush_root_tab->bush_children->start;
+          cur_parent->select_id=
+            first_child->emb_sj_nest->sj_subq_pred->get_identifier();
+        }
+        else
+        {
+          /* 
+            We've just left an SJ-Materialization nest. We are at the join tab
+            that 'embeds the nest'
+          */
+          DBUG_ASSERT(tab->bush_children);
+          eta->sjm_nest= cur_parent;
+          cur_parent= xpl_sel;
+        }
+      }
+      prev_bush_root_tab= tab->bush_root_tab;
+
+      cur_parent->add_table(eta);
       tab->save_explain_data(eta, used_tables, distinct, first_top_tab);
-
-      if (need_tmp_table)
-      {
-        need_tmp_table=0;
-        xpl_sel->using_temporary= true;
-      }
-      if (need_order)
-      {
-        need_order=0;
-        xpl_sel->using_filesort= true;
-      }
 
       if (saved_join_tab)
         tab= saved_join_tab;

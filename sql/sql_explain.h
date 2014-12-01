@@ -94,7 +94,8 @@ public:
   enum explain_node_type 
   {
     EXPLAIN_UNION, 
-    EXPLAIN_SELECT, 
+    EXPLAIN_SELECT,
+    EXPLAIN_BASIC_JOIN,
     EXPLAIN_UPDATE,
     EXPLAIN_DELETE, 
     EXPLAIN_INSERT
@@ -144,6 +145,49 @@ public:
 class Explain_table_access;
 
 
+/* 
+  A basic join. This is only used for SJ-Materialization nests.
+
+  Basic join doesn't have ORDER/GROUP/DISTINCT operations. It also cannot be
+  degenerate.
+
+  It has its own select_id.
+*/
+class Explain_basic_join : public Explain_node
+{
+public:
+  enum explain_node_type get_type() { return EXPLAIN_BASIC_JOIN; }
+  
+  Explain_basic_join() : join_tabs(NULL) {}
+  ~Explain_basic_join();
+
+  bool add_table(Explain_table_access *tab)
+  {
+    if (!join_tabs)
+    {
+      join_tabs= (Explain_table_access**) my_malloc(sizeof(Explain_table_access*) *
+                                                MAX_TABLES, MYF(0));
+      n_join_tabs= 0;
+    }
+    join_tabs[n_join_tabs++]= tab;
+    return false;
+  }
+
+  int get_select_id() { return select_id; }
+
+  int select_id;
+
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
+
+  /* A flat array of Explain structs for tables. */
+  Explain_table_access** join_tabs;
+  uint n_join_tabs;
+};
+
+
 /*
   EXPLAIN structure for a SELECT.
   
@@ -159,30 +203,16 @@ class Explain_table_access;
   a way get node's children.
 */
 
-class Explain_select : public Explain_node
+class Explain_select : public Explain_basic_join
 {
 public:
   enum explain_node_type get_type() { return EXPLAIN_SELECT; }
 
   Explain_select() : 
-    message(NULL), join_tabs(NULL),
+    message(NULL),
     using_temporary(false), using_filesort(false)
   {}
-  
-  ~Explain_select();
 
-  bool add_table(Explain_table_access *tab)
-  {
-    if (!join_tabs)
-    {
-      join_tabs= (Explain_table_access**) my_malloc(sizeof(Explain_table_access*) *
-                                                MAX_TABLES, MYF(0));
-      n_join_tabs= 0;
-    }
-    join_tabs[n_join_tabs++]= tab;
-    return false;
-  }
-  
   /*
     This is used to save the results of "late" test_if_skip_sort_order() calls
     that are made from JOIN::exec
@@ -190,10 +220,7 @@ public:
   void replace_table(uint idx, Explain_table_access *new_tab);
 
 public:
-  int select_id;
   const char *select_type;
-
-  int get_select_id() { return select_id; }
 
   /*
     If message != NULL, this is a degenerate join plan, and all subsequent
@@ -201,13 +228,6 @@ public:
   */
   const char *message;
   
-  /*
-    A flat array of Explain structs for tables. The order is "just like EXPLAIN
-    would print them".
-  */
-  Explain_table_access** join_tabs;
-  uint n_join_tabs;
-
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
@@ -521,19 +541,15 @@ public:
     non_merged_sjm_number(0),
     where_cond(NULL),
     cache_cond(NULL),
-    pushed_index_cond(NULL)
+    pushed_index_cond(NULL),
+    sjm_nest(NULL)
   {}
+  ~Explain_table_access() { delete sjm_nest; }
 
   void push_extra(enum explain_extra_tag extra_tag);
 
   /* Internals */
 public:
-  /* 
-    0 means this tab is not inside SJM nest and should use Explain_select's id
-    other value means the tab is inside an SJM nest.
-  */
-  int sjm_nest_select_id;
-
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
 
@@ -609,6 +625,8 @@ public:
   Item *cache_cond;
 
   Item *pushed_index_cond;
+
+  Explain_basic_join *sjm_nest;
 
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,

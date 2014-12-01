@@ -167,11 +167,5 @@ EXPLAIN
     }
   }
 }
-select count(*) from t1 A, t1 B where A.b<20 and B.b<60;
-count(*)
-1200
-select count(*) from t1 A, t1 B where A.b<20 and B.b<60 and A.c > B.c;
-count(*)
-190
 drop table t1;
 drop table t0;

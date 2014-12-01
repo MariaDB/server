@@ -540,5 +540,57 @@ EXPLAIN
     }
   }
 }
-drop table t1;
+#
+# Semi-join Materialization
+#
+create table t2 like t1;
+insert into t2 select * from t1;
+explain format=json
+select * from t1,t2 where t1.a in ( select a from t0);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 10,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "t0",
+            "access_type": "ALL",
+            "rows": 10,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "block-nl-join": {
+      "table": {
+        "table_name": "t2",
+        "access_type": "ALL",
+        "rows": 10,
+        "filtered": 100
+      },
+      "buffer_type": "flat",
+      "join_type": "BNL"
+    }
+  }
+}
+drop table t1,t2;
 drop table t0;

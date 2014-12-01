@@ -602,7 +602,7 @@ void Explain_select::replace_table(uint idx, Explain_table_access *new_tab)
 }
 
 
-Explain_select::~Explain_select()
+Explain_basic_join::~Explain_basic_join()
 {
   if (join_tabs)
   {
@@ -663,9 +663,32 @@ int Explain_select::print_explain(Explain_query *query,
         using_fs= false;
       }
     }
+    for (uint i=0; i< n_join_tabs; i++)
+    {
+      Explain_basic_join* nest;
+      if ((nest= join_tabs[i]->sjm_nest))
+        nest->print_explain(query, output, explain_flags, is_analyze);
+    }
   }
 
   return print_explain_for_children(query, output, explain_flags, is_analyze);
+}
+
+
+int Explain_basic_join::print_explain(Explain_query *query, 
+                                      select_result_sink *output,
+                                      uint8 explain_flags, bool is_analyze)
+{
+  for (uint i=0; i< n_join_tabs; i++)
+  {
+    if (join_tabs[i]->print_explain(output, explain_flags, is_analyze, 
+                                    select_id,
+                                    "MATERIALIZED" /*select_type*/, 
+                                    FALSE /*using temporary*/, 
+                                    FALSE /*using filesort*/))
+      return 1;
+  }
+  return 0;
 }
 
 
@@ -674,23 +697,43 @@ void Explain_select::print_explain_json(Explain_query *query,
 {
   Json_writer_nesting_guard guard(writer);
 
-  writer->add_member("query_block").start_object();
-  writer->add_member("select_id").add_ll(select_id);
   if (message)
   {
+    writer->add_member("query_block").start_object();
+    writer->add_member("select_id").add_ll(select_id);
+
     writer->add_member("table").start_object();
     writer->add_member("message").add_str(message);
+    writer->end_object();
+
+    print_explain_json_for_children(query, writer, is_analyze);
     writer->end_object();
   }
   else
   {
-    for (uint i=0; i< n_join_tabs; i++)
-    {
-      // psergey-todo: Need to honor SJM nests...
-      join_tabs[i]->print_explain_json(query, writer, is_analyze);
-    }
+    /*
+       TODO: how does this approach allow to print ORDER BY members?
+         Explain_basic_join does not have ORDER/GROUP.
+         A: factor out join tab printing loop into a common func.
+    */
+    Explain_basic_join::print_explain_json(query, writer, is_analyze);
   }
 
+}
+
+
+void Explain_basic_join::print_explain_json(Explain_query *query, 
+                                            Json_writer *writer, 
+                                            bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
+
+  writer->add_member("query_block").start_object();
+  writer->add_member("select_id").add_ll(select_id);
+  for (uint i=0; i< n_join_tabs; i++)
+  {
+    join_tabs[i]->print_explain_json(query, writer, is_analyze);
+  }
   print_explain_json_for_children(query, writer, is_analyze);
   writer->end_object();
 }
@@ -837,17 +880,11 @@ int Explain_table_access::print_explain(select_result_sink *output, uint8 explai
   List<Item> item_list;
   Item *item_null= new Item_null();
   
-  if (sjm_nest_select_id)
-    select_id= sjm_nest_select_id;
-
   /* `id` column */
   item_list.push_back(new Item_int((int32) select_id));
 
   /* `select_type` column */
-  if (sjm_nest_select_id)
-    push_str(&item_list, "MATERIALIZED");
-  else
-    push_str(&item_list, select_type);
+  push_str(&item_list, select_type);
 
   /* `table` column */
   push_string(&item_list, &table_name);
@@ -1240,6 +1277,14 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     Explain_node *node= query->get_node(non_merged_sjm_number);
     node->connection_type= Explain_node::EXPLAIN_NODE_NON_MERGED_SJ;
     node->print_explain_json(query, writer, is_analyze);
+    writer->end_object();
+  }
+  if (sjm_nest)
+  {
+    /* This is a non-merged semi-join table. Print its contents here */
+    writer->add_member("materialized").start_object();
+    writer->add_member("unique").add_ll(1);
+    sjm_nest->print_explain_json(query, writer, is_analyze);
     writer->end_object();
   }
 
