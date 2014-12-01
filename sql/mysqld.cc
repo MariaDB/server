@@ -5624,7 +5624,10 @@ int mysqld_main(int argc, char **argv)
   if (wsrep_recovery)
   {
     select_thread_in_use= 0;
-    if (WSREP_ON) wsrep_recover();
+    if (WSREP_ON)
+      wsrep_recover();
+    else
+      sql_print_information("WSREP: disabled, skipping position recovery");
     unireg_abort(0);
   }
 
