@@ -309,7 +309,8 @@ CREATE TABLE `slow_log` (
   `insert_id` int(11) NOT NULL,
   `server_id` int(10) unsigned NOT NULL,
   `sql_text` mediumtext NOT NULL,
-  `thread_id` BIGINT(21) UNSIGNED NOT NULL
+  `thread_id` BIGINT(21) UNSIGNED NOT NULL,
+  `rows_affected` int(11) NOT NULL
 ) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
 
 set global general_log='ON';
@@ -743,7 +744,7 @@ CREATE procedure `db_17876.archiveSlowLog`()
 BEGIN
   DECLARE start_time, query_time, lock_time CHAR(28);
   DECLARE user_host MEDIUMTEXT;
-  DECLARE rows_set, rows_examined, last_insert_id, insert_id, server_id INT;
+  DECLARE rows_set, rows_examined, last_insert_id, insert_id, server_id, rows_affected INT;
   DECLARE thread_id BIGINT UNSIGNED;
   DECLARE dbname MEDIUMTEXT;
   DECLARE sql_text BLOB;
@@ -762,7 +763,7 @@ BEGIN
         FETCH cur1 INTO
            start_time, user_host, query_time, lock_time,
            rows_set, rows_examined, dbname, last_insert_id,
-           insert_id, server_id, sql_text, thread_id;
+           insert_id, server_id, sql_text, thread_id, rows_affected;
       END;
 
       IF NOT done THEN
@@ -770,7 +771,8 @@ BEGIN
           INSERT INTO
             `db_17876.slow_log_data`
             VALUES(start_time, user_host, query_time, lock_time, rows_set, rows_examined,
-                   dbname, last_insert_id,  insert_id, server_id, sql_text, thread_id);
+                   dbname, last_insert_id,  insert_id, server_id, sql_text, thread_id,
+                   rows_affected);
         END;
       END IF;
     END;

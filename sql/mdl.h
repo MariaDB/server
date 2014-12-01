@@ -752,11 +752,11 @@ public:
   void destroy();
 
   bool try_acquire_lock(MDL_request *mdl_request);
-  bool acquire_lock(MDL_request *mdl_request, ulong lock_wait_timeout);
-  bool acquire_locks(MDL_request_list *requests, ulong lock_wait_timeout);
+  bool acquire_lock(MDL_request *mdl_request, double lock_wait_timeout);
+  bool acquire_locks(MDL_request_list *requests, double lock_wait_timeout);
   bool upgrade_shared_lock(MDL_ticket *mdl_ticket,
                            enum_mdl_type new_type,
-                           ulong lock_wait_timeout);
+                           double lock_wait_timeout);
 
   bool clone_ticket(MDL_request *mdl_request);
 

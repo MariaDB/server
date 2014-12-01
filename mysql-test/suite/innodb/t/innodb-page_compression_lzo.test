@@ -1,5 +1,7 @@
 -- source include/have_innodb.inc
 -- source include/have_innodb_lzo.inc
+-- source include/not_embedded.inc
+
 
 --disable_query_log
 let $innodb_compression_algorithm_orig=`select @@innodb_compression_algorithm`;

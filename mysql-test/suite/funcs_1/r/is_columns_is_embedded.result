@@ -152,6 +152,19 @@ def	information_schema	FILES	TRANSACTION_COUNTER	24	NULL	YES	bigint	NULL	NULL	19
 def	information_schema	FILES	UPDATE_COUNT	13	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(4)				
 def	information_schema	FILES	UPDATE_TIME	34	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime				
 def	information_schema	FILES	VERSION	25	NULL	YES	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned				
+def	information_schema	GEOMETRY_COLUMNS	COORD_DIMENSION	11	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)				
+def	information_schema	GEOMETRY_COLUMNS	F_GEOMETRY_COLUMN	4		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	GEOMETRY_COLUMNS	F_TABLE_CATALOG	1		NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)				
+def	information_schema	GEOMETRY_COLUMNS	F_TABLE_NAME	3		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	GEOMETRY_COLUMNS	F_TABLE_SCHEMA	2		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	GEOMETRY_COLUMNS	GEOMETRY_TYPE	10	0	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(7)				
+def	information_schema	GEOMETRY_COLUMNS	G_GEOMETRY_COLUMN	8		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	GEOMETRY_COLUMNS	G_TABLE_CATALOG	5		NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)				
+def	information_schema	GEOMETRY_COLUMNS	G_TABLE_NAME	7		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	GEOMETRY_COLUMNS	G_TABLE_SCHEMA	6		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
+def	information_schema	GEOMETRY_COLUMNS	MAX_PPR	12	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)				
+def	information_schema	GEOMETRY_COLUMNS	SRID	13	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)				
+def	information_schema	GEOMETRY_COLUMNS	STORAGE_TYPE	9	0	NO	tinyint	NULL	NULL	3	0	NULL	NULL	NULL	tinyint(2)				
 def	information_schema	GLOBAL_STATUS	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
 def	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
 def	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
@@ -309,6 +322,10 @@ def	information_schema	SESSION_STATUS	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NU
 def	information_schema	SESSION_STATUS	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
 def	information_schema	SESSION_VARIABLES	VARIABLE_NAME	1		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
 def	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	2		NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)				
+def	information_schema	SPATIAL_REF_SYS	AUTH_NAME	2		NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)				
+def	information_schema	SPATIAL_REF_SYS	AUTH_SRID	3	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)				
+def	information_schema	SPATIAL_REF_SYS	SRID	1	0	NO	smallint	NULL	NULL	5	0	NULL	NULL	NULL	smallint(5)				
+def	information_schema	SPATIAL_REF_SYS	SRTEXT	4		NO	varchar	2048	6144	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(2048)				
 def	information_schema	STATISTICS	CARDINALITY	10	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)				
 def	information_schema	STATISTICS	COLLATION	9	NULL	YES	varchar	1	3	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1)				
 def	information_schema	STATISTICS	COLUMN_NAME	8		NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)				
@@ -490,6 +507,7 @@ NULL	datetime	NULL	NULL
 NULL	decimal	NULL	NULL
 NULL	double	NULL	NULL
 NULL	int	NULL	NULL
+NULL	smallint	NULL	NULL
 NULL	tinyint	NULL	NULL
 --> CHAR(0) is allowed (see manual), and here both CHARACHTER_* values
 --> are 0, which is intended behavior, and the result of 0 / 0 IS NULL
@@ -657,6 +675,19 @@ NULL	information_schema	FILES	CHECK_TIME	datetime	NULL	NULL	NULL	NULL	datetime
 NULL	information_schema	FILES	CHECKSUM	bigint	NULL	NULL	NULL	NULL	bigint(21) unsigned
 3.0000	information_schema	FILES	STATUS	varchar	20	60	utf8	utf8_general_ci	varchar(20)
 3.0000	information_schema	FILES	EXTRA	varchar	255	765	utf8	utf8_general_ci	varchar(255)
+3.0000	information_schema	GEOMETRY_COLUMNS	F_TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
+3.0000	information_schema	GEOMETRY_COLUMNS	F_TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GEOMETRY_COLUMNS	F_TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GEOMETRY_COLUMNS	F_GEOMETRY_COLUMN	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GEOMETRY_COLUMNS	G_TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
+3.0000	information_schema	GEOMETRY_COLUMNS	G_TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GEOMETRY_COLUMNS	G_TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+3.0000	information_schema	GEOMETRY_COLUMNS	G_GEOMETRY_COLUMN	varchar	64	192	utf8	utf8_general_ci	varchar(64)
+NULL	information_schema	GEOMETRY_COLUMNS	STORAGE_TYPE	tinyint	NULL	NULL	NULL	NULL	tinyint(2)
+NULL	information_schema	GEOMETRY_COLUMNS	GEOMETRY_TYPE	int	NULL	NULL	NULL	NULL	int(7)
+NULL	information_schema	GEOMETRY_COLUMNS	COORD_DIMENSION	tinyint	NULL	NULL	NULL	NULL	tinyint(2)
+NULL	information_schema	GEOMETRY_COLUMNS	MAX_PPR	tinyint	NULL	NULL	NULL	NULL	tinyint(2)
+NULL	information_schema	GEOMETRY_COLUMNS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
 3.0000	information_schema	GLOBAL_STATUS	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	GLOBAL_STATUS	VARIABLE_VALUE	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
 3.0000	information_schema	GLOBAL_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
@@ -814,6 +845,10 @@ NULL	information_schema	ROUTINES	LAST_ALTERED	datetime	NULL	NULL	NULL	NULL	datet
 3.0000	information_schema	SESSION_STATUS	VARIABLE_VALUE	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	SESSION_VARIABLES	VARIABLE_VALUE	varchar	1024	3072	utf8	utf8_general_ci	varchar(1024)
+NULL	information_schema	SPATIAL_REF_SYS	SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
+3.0000	information_schema	SPATIAL_REF_SYS	AUTH_NAME	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
+NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	smallint	NULL	NULL	NULL	NULL	smallint(5)
+3.0000	information_schema	SPATIAL_REF_SYS	SRTEXT	varchar	2048	6144	utf8	utf8_general_ci	varchar(2048)
 3.0000	information_schema	STATISTICS	TABLE_CATALOG	varchar	512	1536	utf8	utf8_general_ci	varchar(512)
 3.0000	information_schema	STATISTICS	TABLE_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	STATISTICS	TABLE_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)

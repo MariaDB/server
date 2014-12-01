@@ -966,16 +966,6 @@ drop table t1;
 SET @@default_storage_engine=@save_dfs;
 
 #
-# statement timeout
-#
-SELECT @@MAX_STATEMENT_TIME;
-SET STATEMENT MAX_STATEMENT_TIME=2 FOR SELECT SLEEP(1);
-SHOW STATUS LIKE "max_statement_time_exceeded";
-SET STATEMENT MAX_STATEMENT_TIME=2 FOR SELECT SLEEP(3);
-SHOW STATUS LIKE "max_statement_time_exceeded";
-SELECT @@MAX_STATEMENT_TIME;
-
-#
 # MDEV-6946:Assertion `0' failed in mysql_execute_command on SET STATEMENT
 # keycache1.key_buffer_size=.. FOR
 #
@@ -1010,10 +1000,6 @@ set statement rand_seed1=default for select 1;
 set statement rand_seed2=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement skip_replication=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement default_master_connection=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement default_master_connection=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement last_insert_id=1 for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED

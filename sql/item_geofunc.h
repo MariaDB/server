@@ -93,6 +93,39 @@ public:
   };
 };
 
+
+// #define HEAVY_CONVEX_HULL
+class Item_func_convexhull: public Item_geometry_func
+{
+  class ch_node: public Gcalc_dyn_list::Item
+  {
+  public:
+    const Gcalc_heap::Info *pi;
+    ch_node *prev;
+    Gcalc_dyn_list::Item *next;
+    ch_node *get_next() { return (ch_node *) next; }
+  };
+
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_dyn_list res_heap;
+
+  Gcalc_result_receiver res_receiver;
+  String tmp_value;
+#ifdef HEAVY_CONVEX_HULL
+  Gcalc_scan_iterator scan_it;
+#endif /*HEAVY_CONVEX_HULL*/
+  ch_node *new_ch_node() { return (ch_node *) res_heap.new_item(); }
+  int add_node_to_line(ch_node **p_cur, int dir, const Gcalc_heap::Info *pi);
+public:
+  Item_func_convexhull(Item *a): Item_geometry_func(a),
+    res_heap(8192, sizeof(ch_node))
+    {}
+  const char *func_name() const { return "st_convexhull"; }
+  String *val_str(String *);
+};
+
+
 class Item_func_centroid: public Item_geometry_func
 {
 public:
@@ -110,6 +143,38 @@ public:
   String *val_str(String *);
   Field::geometry_type get_geometry_type() const;
 };
+
+
+class Item_func_boundary: public Item_geometry_func
+{
+  class Transporter : public Gcalc_shape_transporter
+  {
+    Gcalc_result_receiver *m_receiver;
+    uint n_points;
+    Gcalc_function::shape_type current_type;
+    double last_x, last_y;
+  public:
+    Transporter(Gcalc_result_receiver *receiver) :
+      Gcalc_shape_transporter(NULL), m_receiver(receiver)
+    {}
+    int single_point(double x, double y);
+    int start_line();
+    int complete_line();
+    int start_poly();
+    int complete_poly();
+    int start_ring();
+    int complete_ring();
+    int add_point(double x, double y);
+
+    int start_collection(int n_objects);
+  };
+  Gcalc_result_receiver res_receiver;
+public:
+  Item_func_boundary(Item *a): Item_geometry_func(a) {}
+  const char *func_name() const { return "st_boundary"; }
+  String *val_str(String *);
+};
+
 
 class Item_func_point: public Item_geometry_func
 {
@@ -229,15 +294,16 @@ public:
 };
 
 
-class Item_func_spatial_rel: public Item_bool_func2
+class Item_func_spatial_rel: public Item_int_func
 {
   enum Functype spatial_rel;
   Gcalc_heap collector;
   Gcalc_scan_iterator scan_it;
   Gcalc_function func;
-  String tmp_value1,tmp_value2;
+  String tmp_value1,tmp_value2, tmp_matrix;
 public:
   Item_func_spatial_rel(Item *a,Item *b, enum Functype sp_rel);
+  Item_func_spatial_rel(Item *a, Item *b, Item *matrix);
   virtual ~Item_func_spatial_rel();
   longlong val_int();
   enum Functype functype() const 
@@ -253,6 +319,9 @@ public:
 
   void fix_length_and_dec() { maybe_null= 1; }
   bool is_null() { (void) val_int(); return null_value; }
+  bool is_bool_func() { return 1; }
+  uint decimal_precision() const { return 1; }
+  optimize_type select_optimize() const { return OPTIMIZE_OP; }
 };
 
 
@@ -367,6 +436,14 @@ public:
   optimize_type select_optimize() const { return OPTIMIZE_NONE; }
   const char *func_name() const { return "st_isclosed"; }
   void fix_length_and_dec() { maybe_null= 1; }
+};
+
+class Item_func_isring: public Item_func_issimple
+{
+public:
+  Item_func_isring(Item *a): Item_func_issimple(a) {}
+  longlong val_int();
+  const char *func_name() const { return "st_isring"; }
 };
 
 class Item_func_dimension: public Item_int_func
@@ -494,6 +571,20 @@ public:
   Item_func_distance(Item *a, Item *b): Item_real_func(a, b) {}
   double val_real();
   const char *func_name() const { return "st_distance"; }
+};
+
+
+class Item_func_pointonsurface: public Item_geometry_func
+{
+  String tmp_value;
+  Gcalc_heap collector;
+  Gcalc_function func;
+  Gcalc_scan_iterator scan_it;
+public:
+  Item_func_pointonsurface(Item *a): Item_geometry_func(a) {}
+  const char *func_name() const { return "st_pointonsurface"; }
+  String *val_str(String *);
+  Field::geometry_type get_geometry_type() const;
 };
 
 

@@ -4257,7 +4257,7 @@ longlong Item_func_get_lock::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(&value);
-  ulonglong timeout= args[1]->val_int();
+  double timeout= args[1]->val_real();
   THD *thd= current_thd;
   User_level_lock *ull;
   DBUG_ENTER("Item_func_get_lock::val_int");

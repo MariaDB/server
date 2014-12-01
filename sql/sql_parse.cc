@@ -7767,6 +7767,9 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   fake_select_lex->context.resolve_in_select_list= TRUE;
   fake_select_lex->context.select_lex= fake_select_lex;  
 
+  fake_select_lex->nest_level_base= first_select()->nest_level_base;
+  fake_select_lex->nest_level=first_select()->nest_level;
+
   if (!is_union())
   {
     /* 
