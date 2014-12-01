@@ -732,7 +732,13 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
   writer->add_member("select_id").add_ll(select_id);
   for (uint i=0; i< n_join_tabs; i++)
   {
+    if (join_tabs[i]->start_dups_weedout)
+      writer->add_member("duplicates_removal").start_object();
+    
     join_tabs[i]->print_explain_json(query, writer, is_analyze);
+    
+    if (join_tabs[i]->end_dups_weedout)
+      writer->end_object();
   }
   print_explain_json_for_children(query, writer, is_analyze);
   writer->end_object();
@@ -1089,9 +1095,7 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
       write_item(writer, pushed_index_cond);
       break;
     case ET_USING_WHERE:
-      if (where_cond)
       {
-        writer->add_member("attached_condition");
         /*
           We are printing the condition that is checked when scanning this
           table.
@@ -1099,7 +1103,11 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
           - in other cases, it is where_cond.
         */
         Item *item= bka_type.is_using_jbuf()? cache_cond: where_cond;
-        write_item(writer, item);
+        if (item)
+        {
+          writer->add_member("attached_condition");
+          write_item(writer, item);
+        }
       }
       break;
     case ET_USING_INDEX:
@@ -1110,6 +1118,15 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
       break;
     case ET_USING_JOIN_BUFFER:
       /* Do nothing. Join buffer is handled differently */
+    case ET_START_TEMPORARY:
+    case ET_END_TEMPORARY:
+      /* Handled as "duplicates_removal: { ... } */
+      break;
+    case ET_FIRST_MATCH:
+      writer->add_member("first_match").add_str(firstmatch_table_name.c_ptr());
+      break;
+    case ET_LOOSESCAN:
+      writer->add_member("loose_scan").add_bool(true);
       break;
     default:
       DBUG_ASSERT(0);

@@ -114,6 +114,25 @@ insert into t2 select * from t1;
 explain format=json
 select * from t1,t2 where t1.a in ( select a from t0);
 
+--echo # 
+--echo # First-Match
+--echo # 
+explain
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+explain format=json
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+
+--echo # 
+--echo # Duplicate Weedout
+--echo # 
+set @tmp= @@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+explain
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+explain format=json
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+set optimizer_switch=@tmp;
+
 drop table t1,t2;
 drop table t0;
 

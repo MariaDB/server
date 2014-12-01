@@ -539,6 +539,8 @@ public:
   Explain_table_access() :
     derived_select_number(0),
     non_merged_sjm_number(0),
+    start_dups_weedout(false),
+    end_dups_weedout(false),
     where_cond(NULL),
     cache_cond(NULL),
     pushed_index_cond(NULL),
@@ -615,6 +617,9 @@ public:
   EXPLAIN_BKA_TYPE bka_type;
   
   StringBuffer<32> firstmatch_table_name;
+
+  bool start_dups_weedout;
+  bool end_dups_weedout;
   
   /*
     Note: lifespan of WHERE condition is less than lifespan of this object.

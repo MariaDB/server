@@ -23641,9 +23641,16 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
     }
 
     if (tab->first_weedout_table)
+    {
+      eta->start_dups_weedout= true;
       eta->push_extra(ET_START_TEMPORARY);
+    }
     if (tab->check_weed_out_table)
+    {
       eta->push_extra(ET_END_TEMPORARY);
+      eta->end_dups_weedout= true;
+    }
+
     else if (tab->do_firstmatch)
     {
       if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
