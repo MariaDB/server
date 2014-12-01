@@ -972,6 +972,54 @@ SET GLOBAL binlog_format= @old_format;
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
+*** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
+INSERT INTO t2 VALUES (40);
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_scheduled_gtid_0_x_100";
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+DELETE FROM t2 WHERE a=40;
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (45);
+SET gtid_seq_no=100;
+INSERT INTO t2 VALUES (46);
+BEGIN;
+SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+a
+40
+include/start_slave.inc
+SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+STOP SLAVE;
+SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+ROLLBACK;
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+41
+42
+include/start_slave.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+41
+42
+43
+44
+45
+46
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
 include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
 include/start_slave.inc

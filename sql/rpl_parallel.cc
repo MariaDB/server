@@ -631,6 +631,14 @@ handle_rpl_parallel_thread(void *arg)
         PSI_stage_info old_stage;
         uint64 wait_count;
 
+        DBUG_EXECUTE_IF("rpl_parallel_scheduled_gtid_0_x_100", {
+            if (rgi->current_gtid.domain_id == 0 &&
+                rgi->current_gtid.seq_no == 100) {
+              debug_sync_set_action(thd,
+                      STRING_WITH_LEN("now SIGNAL scheduled_gtid_0_x_100"));
+            }
+          });
+
         in_event_group= true;
         /*
           If the standalone flag is set, then this event group consists of a

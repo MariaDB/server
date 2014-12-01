@@ -1535,6 +1535,99 @@ SET GLOBAL slave_parallel_threads=10;
 --source include/start_slave.inc
 
 
+--echo *** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
+--connection server_1
+INSERT INTO t2 VALUES (40);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+# This DBUG injection causes a DEBUG_SYNC signal "scheduled_gtid_0_x_100" when
+# GTID 0-1-100 has been scheduled for and fetched by a worker thread.
+SET GLOBAL debug_dbug="+d,rpl_parallel_scheduled_gtid_0_x_100";
+# This DBUG injection causes a DEBUG_SYNC signal "wait_for_done_waiting" when
+# STOP SLAVE has signalled all worker threads to stop.
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+# Reset worker threads to make DBUG setting catch on.
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+
+
+--connection server_1
+# Setup some transaction for the slave to replicate.
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+DELETE FROM t2 WHERE a=40;
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+# Force the slave to switch to a new relay log file.
+FLUSH LOGS;
+INSERT INTO t2 VALUES (45);
+# Inject a GTID 0-1-100, which will trigger a DEBUG_SYNC signal when this
+# transaction has been fetched by a worker thread.
+SET gtid_seq_no=100;
+INSERT INTO t2 VALUES (46);
+--save_master_pos
+
+--connection con_temp2
+# Temporarily block the DELETE on a=40 from completing.
+BEGIN;
+SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+
+
+--connection server_2
+--source include/start_slave.inc
+
+# The DBUG injection set above will make the worker thread signal the following
+# debug_sync when the GTID 0-1-100 has been reached by a worker thread.
+# Thus, at this point, the SQL driver thread has reached the next
+# relay log file name, while a worker thread is still processing a
+# transaction in the previous relay log file, blocked on the SELECT FOR
+# UPDATE.
+SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+# At this point, the SQL driver thread is in the new relay log file, while
+# the DELETE from the old relay log file is not yet complete. We will stop
+# the slave at this point. The bug was that the DELETE statement would
+# update the slave position to the _new_ relay log file name instead of
+# its own old file name. Thus, by stoping and restarting the slave at this
+# point, we would get an error at restart due to incorrect position. (If
+# we would let the slave catch up before stopping, the incorrect position
+# would be corrected by a later transaction).
+
+send STOP SLAVE;
+
+--connection con_temp2
+# Wait for STOP SLAVE to have proceeded sufficiently that it has signalled
+# all worker threads to stop; this ensures that we will stop after the DELETE
+# transaction (and not after a later transaction that might have been able
+# to set a fixed position).
+SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+# Now release the row lock that was blocking the replication of DELETE.
+ROLLBACK;
+
+--connection server_2
+reap;
+--source include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+# Now restart the slave. With the bug present, this would start at an
+# incorrect relay log position, causing relay log read error (or if unlucky,
+# silently skip a number of events).
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+
+# Clean up.
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;
