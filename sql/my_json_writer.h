@@ -1,8 +1,24 @@
-/* Todo: SkySQL copyrights */
+/* Copyright (C) 2014 SkySQL Ab, MariaDB Corporation Ab
+
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; version 2 of the License.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 class Json_writer;
 
 /*
+  Single_line_formatting_helper is used by Json_writer to do better formatting
+  of JSON documents. 
+
   The idea is to catch arrays that can be printed on one line:
 
     arrayName : [ "boo", 123, 456 ] 
@@ -17,11 +33,6 @@ class Json_writer;
    - either the pattern is broken, and we print the elements out, 
    - or the pattern lasts till the end of the array, and we print the 
      array on one line.
-
-  TODO: 
-    fix the quoting. If we start to accumulate an array and but then it grows
-    too large to be printed on one line, the elements will be printed as
-    strings (even if some of them could be initially numbers).
 */
 
 class Single_line_formatting_helper

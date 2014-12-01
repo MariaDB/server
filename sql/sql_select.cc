@@ -23162,80 +23162,6 @@ int print_explain_message_line(select_result_sink *result,
   return 0;
 }
 
-#if 0
-int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
-                               SELECT_LEX *select_lex, uint8 explain_flags)
-{
-  Item *item_null= new Item_null();
-  List<Item> item_list;
-  if (on_the_fly)
-    select_lex->set_explain_type(on_the_fly);
-  /* 
-    here we assume that the query will return at least two rows, so we
-    show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
-    and no filesort will be actually done, but executing all selects in
-    the UNION to provide precise EXPLAIN information will hardly be
-    appreciated :)
-  */
-  char table_name_buffer[SAFE_NAME_LEN];
-  item_list.empty();
-  /* id */
-  item_list.push_back(new Item_null);
-  /* select_type */
-  item_list.push_back(new Item_string_sys(select_lex->type));
-  /* table */
-  {
-    SELECT_LEX *sl= select_lex->master_unit()->first_select();
-    uint len= 6, lastop= 0;
-    memcpy(table_name_buffer, STRING_WITH_LEN("<union"));
-    for (; sl && len + lastop + 5 < NAME_LEN; sl= sl->next_select())
-    {
-      len+= lastop;
-      lastop= my_snprintf(table_name_buffer + len, NAME_LEN - len,
-                          "%u,", sl->select_number);
-    }
-    if (sl || len + lastop >= NAME_LEN)
-    {
-      memcpy(table_name_buffer + len, STRING_WITH_LEN("...>") + 1);
-      len+= 4;
-    }
-    else
-    {
-      len+= lastop;
-      table_name_buffer[len - 1]= '>';  // change ',' to '>'
-    }
-    item_list.push_back(new Item_string_sys(table_name_buffer, len));
-  }
-  /* partitions */
-  if (explain_flags & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null);
-  /* type */
-  item_list.push_back(new Item_string_sys(join_type_str[JT_ALL]));
-
-  /* possible_keys */
-  item_list.push_back(item_null);
-  /* key*/
-  item_list.push_back(item_null);
-  /* key_len */
-  item_list.push_back(item_null);
-  /* ref */
-  item_list.push_back(item_null);
-  /* in_rows */
-  if (explain_flags & DESCRIBE_EXTENDED)
-    item_list.push_back(item_null);
-  /* rows */
-  item_list.push_back(item_null);
-  /* extra */
-  if (select_lex->master_unit()->global_parameters()->order_list.first)
-    item_list.push_back(new Item_string_sys("Using filesort", 14));
-  else
-    item_list.push_back(new Item_string_sys("", 0));
-
-  if (result->send_data(item_list))
-    return 1;
-  return 0;
-}
-#endif
 
 /*
   Append MRR information from quick select to the given string
@@ -23700,7 +23626,6 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 }
 
 
-
 /*
   Save Query Plan Footprint
 
@@ -23766,8 +23691,6 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     
     for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
          tab= next_explain_order_tab(join, tab))
-    //for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
-    //     tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
     {
       JOIN_TAB *saved_join_tab= NULL;
       TABLE *table=tab->table;
