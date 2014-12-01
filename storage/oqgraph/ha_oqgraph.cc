@@ -1,4 +1,6 @@
-/* Copyright (C) 2007-2013 Arjen G Lentz & Antony T Curtis for Open Query
+/* Copyright (C) 2007-2014 Arjen G Lentz & Antony T Curtis for Open Query
+   Copyright (C) 2013-2014 Andrew McDonnell
+   Copyright (C) 2014 Sergei Golubchik
    Portions of this file copyright (C) 2000-2006 MySQL AB
 
    This program is free software; you can redistribute it and/or modify
@@ -124,7 +126,8 @@ const char *oqlatchToCode(int latch) {
   return "unknown";
 }
 
-struct oqgraph_table_option_struct
+
+struct ha_table_option_struct
 {
   const char *table_name;
 
@@ -133,7 +136,6 @@ struct oqgraph_table_option_struct
   const char *weight; // name of the weight column (optional)
 };
 
-#define ha_table_option_struct oqgraph_table_option_struct
 static const ha_create_table_option oqgraph_table_option_list[]=
 {
   HA_TOPTION_STRING("data_table", table_name),
@@ -193,6 +195,41 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
   return new (mem_root) ha_oqgraph(hton, table);
 }
 
+#define OQGRAPH_CREATE_TABLE                              \
+"         CREATE TABLE oq_graph (                        "\
+"           latch VARCHAR(32) NULL,                      "\
+"           origid BIGINT UNSIGNED NULL,                 "\
+"           destid BIGINT UNSIGNED NULL,                 "\
+"           weight DOUBLE NULL,                          "\
+"           seq BIGINT UNSIGNED NULL,                    "\
+"           linkid BIGINT UNSIGNED NULL,                 "\
+"           KEY (latch, origid, destid) USING HASH,      "\
+"           KEY (latch, destid, origid) USING HASH       "\
+"         )                                              "
+
+#define append_opt(NAME,VAL)                                    \
+  if (share->option_struct->VAL)                                \
+  {                                                             \
+    sql.append(STRING_WITH_LEN(" " NAME "='"));                  \
+    sql.append_for_single_quote(share->option_struct->VAL);     \
+    sql.append('\'');                                           \
+  }
+
+int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
+                                     TABLE_SHARE *share, HA_CREATE_INFO *info)
+{
+  StringBuffer<1024> sql(system_charset_info);
+  sql.copy(STRING_WITH_LEN(OQGRAPH_CREATE_TABLE), system_charset_info);
+
+  append_opt("data_table", table_name);
+  append_opt("origid", origid);
+  append_opt("destid", destid);
+  append_opt("weight", weight);
+
+  return
+    share->init_from_sql_statement_string(thd, true, sql.ptr(), sql.length());
+}
+
 #if MYSQL_VERSION_ID >= 50100
 static int oqgraph_init(handlerton *hton)
 {
@@ -217,6 +254,8 @@ static bool oqgraph_init()
   // HTON_NO_FLAGS;
   
   hton->table_options= (ha_create_table_option*)oqgraph_table_option_list;
+
+  hton->discover_table_structure= oqgraph_discover_table_structure;
   oqgraph_init_done= TRUE;
   return 0;
 }
@@ -509,8 +548,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   DBUG_ASSERT(graph == NULL);
 
   THD* thd = current_thd;
-  oqgraph_table_option_struct *options=
-    reinterpret_cast<oqgraph_table_option_struct*>(table->s->option_struct);
+  ha_table_option_struct *options= table->s->option_struct;
 
   // Catch cases where table was not constructed properly
   // Note - need to return -1 so our error text gets reported
@@ -1266,8 +1304,7 @@ ha_rows ha_oqgraph::records_in_range(uint inx, key_range *min_key,
 int ha_oqgraph::create(const char *name, TABLE *table_arg,
 		    HA_CREATE_INFO *create_info)
 {
-  oqgraph_table_option_struct *options=
-    reinterpret_cast<oqgraph_table_option_struct*>(table_arg->s->option_struct);
+  ha_table_option_struct *options= table_arg->s->option_struct;
 
 	DBUG_ENTER("ha_oqgraph::create");
   DBUG_PRINT( "oq-debug", ("create(name=%s)", name));
