@@ -16391,6 +16391,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       ((field_count-param->hidden_field_count)+
        (share->uniques ? MY_TEST(null_pack_length) : 0));
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
+    keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
     share->keys= 1;
     if (!(key_part_info= (KEY_PART_INFO*)
