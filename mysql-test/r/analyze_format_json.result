@@ -125,7 +125,8 @@ EXPLAIN
         "rows": 100,
         "r_rows": 100,
         "filtered": 100,
-        "r_filtered": 60
+        "r_filtered": 60,
+        "attached_condition": "(B.b < 60)"
       },
       "buffer_type": "flat",
       "join_type": "BNL",
