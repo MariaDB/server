@@ -837,7 +837,7 @@ bool Log_to_csv_event_handler::
   restore_record(table, s->default_values);    // Get empty record
 
   /* check that all columns exist */
-  if (table->s->fields < 11)
+  if (table->s->fields < 13)
     goto err;
 
   /* store the time and user values */
@@ -916,6 +916,12 @@ bool Log_to_csv_event_handler::
     goto err;
 
   if (table->field[11]->store((longlong) thd->thread_id, TRUE))
+    goto err;
+
+  /* Rows_affected */
+  if (table->field[12]->store(thd->get_stmt_da()->is_ok() ?
+                              (longlong) thd->get_stmt_da()->affected_rows() :
+                              0, TRUE))
     goto err;
 
   /* log table entries are not replicated */
@@ -2918,12 +2924,16 @@ bool MYSQL_QUERY_LOG::write(THD *thd, time_t current_time,
     sprintf(lock_time_buff,  "%.6f", ulonglong2double(lock_utime)/1000000.0);
     if (my_b_printf(&log_file,
                     "# Thread_id: %lu  Schema: %s  QC_hit: %s\n" \
-                    "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n",
+                    "# Query_time: %s  Lock_time: %s  Rows_sent: %lu  Rows_examined: %lu\n" \
+                    "# Rows_affected: %lu\n",
                     (ulong) thd->thread_id, (thd->db ? thd->db : ""),
                     ((thd->query_plan_flags & QPLAN_QC) ? "Yes" : "No"),
                     query_time_buff, lock_time_buff,
                     (ulong) thd->get_sent_row_count(),
-                    (ulong) thd->get_examined_row_count()) == (size_t) -1)
+                    (ulong) thd->get_examined_row_count(),
+                    thd->get_stmt_da()->is_ok() ?
+                    (ulong) thd->get_stmt_da()->affected_rows() :
+                    0) == (size_t) -1)
       tmp_errno= errno;
      if ((thd->variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_QUERY_PLAN) &&
          (thd->query_plan_flags &
