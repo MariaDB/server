@@ -638,7 +638,6 @@ SELECT * FROM t1 WHERE i1 = ( SELECT i1 FROM t1 WHERE f1=0 LIMIT 1 );
 
 DROP TABLE t1;
 
---remove_file $MYSQLD_DATADIR/test/db.opt
 --enable_parsing
 
 --echo #

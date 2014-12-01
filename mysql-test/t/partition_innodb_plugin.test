@@ -52,7 +52,7 @@ KEY_BLOCK_SIZE=4
 PARTITION BY HASH(id) PARTITIONS 1;
 
 --replace_result #p# #P#
---list_files $MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test t1*
 SHOW CREATE TABLE t1;
 
 SET GLOBAL innodb_file_per_table = OFF;
@@ -71,14 +71,14 @@ LOCK TABLE t1 WRITE;
 ALTER TABLE t1 ADD PARTITION PARTITIONS 1;
 
 --replace_result #p# #P#
---list_files $MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test t1*
 --echo # This SET is not needed to reproduce the bug,
 --echo # it is here just to make the test case more realistic
 SET innodb_strict_mode = OFF;
 
 ALTER TABLE t1 ADD PARTITION PARTITIONS 2;
 --replace_result #p# #P#
---list_files $MYSQLD_DATADIR/test
+--list_files $MYSQLD_DATADIR/test t1*
 
 # really bug#56172
 ALTER TABLE t1 REBUILD PARTITION p0;
