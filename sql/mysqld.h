@@ -633,7 +633,7 @@ inline __attribute__((warn_unused_result)) query_id_t next_query_id()
 {
   query_id_t id;
   my_atomic_rwlock_wrlock(&global_query_id_lock);
-  id= my_atomic_add64(&global_query_id, 1);
+  id= my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(&global_query_id_lock);
   return (id);
 }
@@ -642,7 +642,7 @@ inline query_id_t get_query_id()
 {
   query_id_t id;
   my_atomic_rwlock_wrlock(&global_query_id_lock);
-  id= my_atomic_load64(&global_query_id);
+  id= my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(&global_query_id_lock);
   return id;
 }
@@ -668,28 +668,28 @@ inline void table_case_convert(char * name, uint length)
 inline void thread_safe_increment32(int32 *value, my_atomic_rwlock_t *lock)
 {
   my_atomic_rwlock_wrlock(lock);
-  (void) my_atomic_add32(value, 1);
+  (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(lock);
 }
 
 inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
 {
   my_atomic_rwlock_wrlock(lock);
-  (void) my_atomic_add32(value, -1);
+  (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(lock);
 }
 
 inline void thread_safe_increment64(int64 *value, my_atomic_rwlock_t *lock)
 {
   my_atomic_rwlock_wrlock(lock);
-  (void) my_atomic_add64(value, 1);
+  (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(lock);
 }
 
 inline void thread_safe_decrement64(int64 *value, my_atomic_rwlock_t *lock)
 {
   my_atomic_rwlock_wrlock(lock);
-  (void) my_atomic_add64(value, -1);
+  (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(lock);
 }
 

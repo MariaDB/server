@@ -139,7 +139,7 @@ uint tc_records(void)
 {
   uint count;
   my_atomic_rwlock_rdlock(&LOCK_tdc_atomics);
-  count= my_atomic_load32(&tc_count);
+  count= my_atomic_load32_explicit(&tc_count, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_rdunlock(&LOCK_tdc_atomics);
   return count;
 }
@@ -155,7 +155,7 @@ uint tc_records(void)
 static void tc_remove_table(TABLE *table)
 {
   my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
-  my_atomic_add32(&tc_count, -1);
+  my_atomic_add32_explicit(&tc_count, -1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
   table->s->tdc.all_tables.remove(table);
 }
@@ -259,7 +259,8 @@ void tc_add_table(THD *thd, TABLE *table)
 
   /* If we have too many TABLE instances around, try to get rid of them */
   my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
-  need_purge= my_atomic_add32(&tc_count, 1) >= (int32) tc_size;
+  need_purge= my_atomic_add32_explicit(&tc_count, 1, MY_MEMORY_ORDER_RELAXED) >=
+              (int32) tc_size;
   my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
 
   if (need_purge)
@@ -1101,7 +1102,7 @@ int tdc_wait_for_old_version(THD *thd, const char *db, const char *table_name,
 ulong tdc_refresh_version(void)
 {
   my_atomic_rwlock_rdlock(&LOCK_tdc_atomics);
-  ulong v= my_atomic_load64(&tdc_version);
+  ulong v= my_atomic_load64_explicit(&tdc_version, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_rdunlock(&LOCK_tdc_atomics);
   return v;
 }
@@ -1110,7 +1111,7 @@ ulong tdc_refresh_version(void)
 ulong tdc_increment_refresh_version(void)
 {
   my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
-  ulong v= my_atomic_add64(&tdc_version, 1);
+  ulong v= my_atomic_add64_explicit(&tdc_version, 1, MY_MEMORY_ORDER_RELAXED);
   my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
   DBUG_PRINT("tcache", ("incremented global refresh_version to: %lu", v));
   return v + 1;
@@ -1210,7 +1211,7 @@ void tdc_assign_new_table_id(TABLE_SHARE *share)
   do
   {
     my_atomic_rwlock_wrlock(&LOCK_tdc_atomics);
-    tid= my_atomic_add64(&last_table_id, 1);
+    tid= my_atomic_add64_explicit(&last_table_id, 1, MY_MEMORY_ORDER_RELAXED);
     my_atomic_rwlock_wrunlock(&LOCK_tdc_atomics);
   } while (unlikely(tid == ~0UL));
 
