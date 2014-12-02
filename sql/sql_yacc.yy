@@ -9826,11 +9826,14 @@ function_call_conflict:
           }
         | WEEK_SYM '(' expr ')'
           {
-            Item *i1= new (thd->mem_root) Item_int((char*) "0",
-                                           thd->variables.default_week_format,
-                                                   1);
-            if (i1 == NULL)
+            Item *i1;
+            LEX_STRING name= {STRING_WITH_LEN("default_week_format")};
+            if (!(i1= get_system_var(thd, OPT_SESSION,
+                                     name, null_lex_str)))
               MYSQL_YYABORT;
+            i1->set_name((const char *)
+                         STRING_WITH_LEN("@@default_week_format"),
+                         system_charset_info);
             $$= new (thd->mem_root) Item_func_week($3, i1);
             if ($$ == NULL)
               MYSQL_YYABORT;

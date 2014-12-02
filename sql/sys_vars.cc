@@ -3741,7 +3741,7 @@ static Sys_var_session_special Sys_warning_count(
 static Sys_var_ulong Sys_default_week_format(
        "default_week_format",
        "The default week format used by WEEK() functions",
-       NO_SET_STMT SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
+       SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 7), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_ulonglong Sys_group_concat_max_len(
