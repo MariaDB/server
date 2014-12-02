@@ -3149,11 +3149,12 @@ try_again:
 				return FALSE;
 			}
 		}
+
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, len, NULL);
 		}
 
@@ -3181,11 +3182,12 @@ try_again:
 				return FALSE;
 			}
 		}
+
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -3291,11 +3293,12 @@ try_again:
 				return (FALSE);
 			}
 		}
+
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -3329,7 +3332,7 @@ try_again:
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -5560,44 +5563,40 @@ os_aio_windows_handle(
 		ret_val = ret && len == slot->len;
 	}
 
-	/* page encryption */
-	if (slot->message1 && slot->page_encryption) {
-		if (slot->type == OS_FILE_READ) {
-			if (fil_page_is_encrypted(slot->buf)) {
-				os_slot_alloc_page_buf2(slot);
-				os_slot_alloc_tmp_encryption_buf(slot);
-				fil_decrypt_page(
-					slot->page_buf2,
-					slot->buf,
-					slot->len,
-					slot->write_size,
-					NULL,
-					slot->tmp_encryption_buf);
-			}
+	if (slot->type == OS_FILE_READ) {
+		if (fil_page_is_encrypted(slot->buf)) {
+			os_slot_alloc_page_buf2(slot);
+			os_slot_alloc_tmp_encryption_buf(slot);
+			fil_decrypt_page(
+				slot->page_buf2,
+				slot->buf,
+				slot->len,
+				slot->write_size,
+				NULL,
+				slot->tmp_encryption_buf);
 		}
-	}
 
-	if (slot->message1 && slot->page_compression) {
-		os_slot_alloc_page_buf(slot);
+		if (fil_page_is_compressed(slot->buf)) {
+			os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
-		if (innodb_compression_algorithm == 3) {
-			os_slot_alloc_lzo_mem(slot);
-		}
+			if (mach_read_from_8(slot->buf+FIL_PAGE_FILE_FLUSH_LSN) == 3) {
+				os_slot_alloc_lzo_mem(slot);
+			}
 #endif
-	        if (slot->type == OS_FILE_READ) {
 			fil_decompress_page(
 				slot->page_buf,
 				slot->buf,
 				slot->len,
 				slot->write_size);
-		} else {
-			if (slot->page_compression_success
-			    && fil_page_is_compressed(slot->page_buf)) {
-				if (srv_use_trim && os_fallocate_failed == FALSE) {
-					// Deallocate unused blocks from file system
-					os_file_trim(slot);
-				}
+		}
+	} else {
+		/* OS_FILE_WRITE */
+		if (slot->page_compression_success
+		    && fil_page_is_compressed(slot->page_buf)) {
+			if (srv_use_trim && os_fallocate_failed == FALSE) {
+				// Deallocate unused blocks from file system
+				os_file_trim(slot);
 			}
 		}
 	}
@@ -5691,54 +5690,50 @@ retry:
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
-			/* page encryption */
-			if (slot->message1 && slot->page_encryption) {
-				if (slot->type == OS_FILE_READ) {
-					if (fil_page_is_encrypted(slot->buf)) {
-						os_slot_alloc_page_buf2(slot);
-						os_slot_alloc_tmp_encryption_buf(slot);
-						fil_decrypt_page(
-							slot->page_buf2,
-							slot->buf,
-							slot->len,
-							slot->write_size,
-							NULL,
-							slot->tmp_encryption_buf);
-					}
+			if (slot->type == OS_FILE_READ) {
+				if (fil_page_is_encrypted(slot->buf)) {
+					os_slot_alloc_page_buf2(slot);
+					os_slot_alloc_tmp_encryption_buf(slot);
+					fil_decrypt_page(
+						slot->page_buf2,
+						slot->buf,
+						slot->len,
+						slot->write_size,
+						NULL,
+						slot->tmp_encryption_buf);
 				}
-			}
 
-			/* If the table is page compressed and this is read,
-			we decompress before we annouce the read is
-			complete. For writes, we free the compressed page. */
-			if (slot->message1 && slot->page_compression) {
-				// We allocate memory for page compressed buffer if and only
-				// if it is not yet allocated.
-				os_slot_alloc_page_buf(slot);
+				/* If the page is page compressed and this is read,
+				we decompress before we annouce the read is
+				complete. For writes, we free the compressed page. */
+				if (fil_page_is_compressed(slot->buf)) {
+
+					// We allocate memory for page compressed buffer if and only
+					// if it is not yet allocated.
+					os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
-				if (innodb_compression_algorithm == 3) {
-					os_slot_alloc_lzo_mem(slot);
-				}
+					if (mach_read_from_8(slot->buf+FIL_PAGE_FILE_FLUSH_LSN) == 3) {
+						os_slot_alloc_lzo_mem(slot);
+					}
 #endif
-				if (slot->type == OS_FILE_READ) {
 					fil_decompress_page(
 						slot->page_buf,
 						slot->buf,
 						slot->len,
 						slot->write_size);
-				} else {
-					if (slot->page_compression_success &&
-					    fil_page_is_compressed(slot->page_buf)) {
-						ut_ad(slot->page_compression_page);
-						if (srv_use_trim && os_fallocate_failed == FALSE) {
-							// Deallocate unused blocks from file system
-							os_file_trim(slot);
-						}
+				}
+			} else {
+				/* OS_FILE_WRITE */
+				if (slot->page_compression_success &&
+				    fil_page_is_compressed(slot->page_buf)) {
+					ut_ad(slot->page_compression_page);
+					if (srv_use_trim && os_fallocate_failed == FALSE) {
+						// Deallocate unused blocks from file system
+						os_file_trim(slot);
 					}
 				}
 			}
-
 
 			/* Mark this request as completed. The error handling
 			will be done in the calling function. */
@@ -6688,7 +6683,7 @@ os_file_trim(
 	}
 
 #ifdef __linux__
-#if defined(FALLOC_FL_PUNCH_HOLE) && defined (FALLOC_FL_KEEP_SIZE)
+#if defined(POSIX_FALLOCATE)
 	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
@@ -6726,7 +6721,7 @@ os_file_trim(
 		*slot->write_size = 0;
 	}
 
-#endif /* HAVE_FALLOCATE ... */
+#endif /* HAVE_POSIX_FALLOCATE ... */
 
 #elif defined(_WIN32)
 	FILE_LEVEL_TRIM flt;
@@ -6814,6 +6809,7 @@ os_slot_alloc_page_buf2(
 		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
 		slot->page_encryption_page = static_cast<byte *>(cbuf2);
 		slot->page_buf2 = static_cast<byte *>(cbuf);
+		memset(slot->page_encryption_page, 0, UNIV_PAGE_SIZE*2);
 	}
 }
 
@@ -6836,6 +6832,7 @@ os_slot_alloc_page_buf(
 		slot->page_compression_page = static_cast<byte *>(cbuf2);
 		slot->page_buf = static_cast<byte *>(cbuf);
 		ut_a(slot->page_buf != NULL);
+		memset(slot->page_compression_page, 0, UNIV_PAGE_SIZE*2);
 	}
 }
 
@@ -6853,6 +6850,7 @@ os_slot_alloc_lzo_mem(
 	if (slot->lzo_mem == NULL) {
 		slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
 		ut_a(slot->lzo_mem != NULL);
+		memset(slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
 	}
 }
 #endif
@@ -6868,6 +6866,7 @@ os_slot_alloc_tmp_encryption_buf(
 	ut_a(slot != NULL);
 	if (slot->tmp_encryption_buf == NULL) {
 		slot->tmp_encryption_buf = static_cast<byte *>(ut_malloc(64));
+		memset(slot->tmp_encryption_buf, 0, 64);
 	}
 }
 

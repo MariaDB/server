@@ -466,6 +466,9 @@ fil_compress_page(
 		ut_a(block_size > 0);
 #endif
 		write_size =  (size_t)ut_uint64_align_up((ib_uint64_t)write_size, block_size);
+		/* Initialize rest of the written data to avoid
+		uninitialized bytes */
+		memset(out_buf+tmp, 0, write_size-tmp);
 #ifdef UNIV_DEBUG
 		ut_a(write_size > 0 && ((write_size % block_size) == 0));
 		ut_a(write_size >= tmp);
@@ -482,9 +485,10 @@ fil_compress_page(
 	srv_stats.page_compression_saved.add((len - write_size));
 	srv_stats.pages_page_compressed.inc();
 
-	/* If we do not persistently trim rest of page, we need to write it
-	all */
 	if (!srv_use_trim) {
+		/* If persistent trims are not used we always write full
+		page and end of the page needs to be initialized.*/
+		memset(out_buf+write_size, 0, len-write_size);
 		write_size = len;
 	}
 
