@@ -473,7 +473,8 @@ typedef struct st_io_cache		/* Used when cacheing files */
   ulong disk_writes;
   void* arg;				/* for use by pre/post_read */
   char *file_name;			/* if used with 'open_cached_file' */
-  char *dir,*prefix;
+  const char *dir;
+  char prefix[3];
   File file; /* file descriptor */
   /*
     seek_not_done is set by my_b_seek() to inform the upcoming read/write
