@@ -22,3 +22,5 @@ change_user;
 disconnect test;
 connection default;
 
+--echo that's all
+
