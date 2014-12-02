@@ -1025,8 +1025,6 @@ set statement character_set_filesystem=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement collation_connection=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
-set statement old_passwords=default for select 1;
---error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement query_cache_type=default for select 1;
 --error ER_SET_STATEMENT_NOT_SUPPORTED
 set statement wait_timeout=default for select 1;
@@ -1050,3 +1048,21 @@ deallocate prepare stmt1;
 drop table t1;
 set @@default_week_format=@save_week_format;
 
+# MDEV-7015: SET STATEMENT old_passwords has no effect
+set @save_old_passwords=@@old_passwords;
+set @@old_passwords=0;
+set statement OLD_PASSWORDS = 0 for select password('test');
+set statement OLD_PASSWORDS = 1 for select password('test');
+set statement OLD_PASSWORDS = 0 for explain extended select password('test');
+set statement OLD_PASSWORDS = 1 for explain extended select password('test');
+create table t1 (a char(10));
+insert t1 values ('qwertyuiop');
+prepare stmt1 from "select password(a) from t1";
+execute stmt1;
+set old_passwords=1;
+execute stmt1;
+alter table t1 engine=myisam;
+execute stmt1;
+deallocate prepare stmt1;
+drop table t1;
+set @@old_passwords=@save_old_passwords;

@@ -407,39 +407,31 @@ public:
 
 class Item_func_password :public Item_str_ascii_func
 {
+public:
+  enum PW_Alg {OLD, NEW};
+private:
   char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH+1]; 
+  enum PW_Alg alg;
+  bool deflt;
 public:
-  Item_func_password(Item *a) :Item_str_ascii_func(a) {}
+  Item_func_password(Item *a) :Item_str_ascii_func(a), alg(NEW), deflt(1) {}
+  Item_func_password(Item *a, PW_Alg al) :Item_str_ascii_func(a),
+    alg(al), deflt(0) {}
   String *val_str_ascii(String *str);
+  bool fix_fields(THD *thd, Item **ref);
   void fix_length_and_dec()
   {
-    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH, default_charset());
+    fix_length_and_charset((alg == 1 ?
+                            SCRAMBLED_PASSWORD_CHAR_LENGTH :
+                            SCRAMBLED_PASSWORD_CHAR_LENGTH_323),
+                           default_charset());
   }
-  const char *func_name() const { return "password"; }
-  static char *alloc(THD *thd, const char *password, size_t pass_len);
+  const char *func_name() const { return ((deflt || alg == 1) ?
+                                          "password" : "old_password"); }
+  static char *alloc(THD *thd, const char *password, size_t pass_len,
+                     enum PW_Alg al);
 };
 
-
-/*
-  Item_func_old_password -- PASSWORD() implementation used in MySQL 3.21 - 4.0
-  compatibility mode. This item is created in sql_yacc.yy when
-  'old_passwords' session variable is set, and to handle OLD_PASSWORD()
-  function.
-*/
-
-class Item_func_old_password :public Item_str_ascii_func
-{
-  char tmp_value[SCRAMBLED_PASSWORD_CHAR_LENGTH_323+1];
-public:
-  Item_func_old_password(Item *a) :Item_str_ascii_func(a) {}
-  String *val_str_ascii(String *str);
-  void fix_length_and_dec()
-  {
-    fix_length_and_charset(SCRAMBLED_PASSWORD_CHAR_LENGTH_323, default_charset());
-  } 
-  const char *func_name() const { return "old_password"; }
-  static char *alloc(THD *thd, const char *password, size_t pass_len);
-};
 
 
 class Item_func_des_encrypt :public Item_str_func

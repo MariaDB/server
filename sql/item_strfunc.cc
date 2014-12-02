@@ -2168,55 +2168,66 @@ void Item_func_trim::print(String *str, enum_query_type query_type)
 
 /* Item_func_password */
 
+bool Item_func_password::fix_fields(THD *thd, Item **ref)
+{
+  if (deflt)
+    alg= (thd->variables.old_passwords ? OLD : NEW);
+  return Item_str_ascii_func::fix_fields(thd, ref);
+}
+
 String *Item_func_password::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(str); 
-  check_password_policy(res);
-  if (args[0]->null_value || res->length() == 0)
-    return make_empty_result();
-  my_make_scrambled_password(tmp_value, res->ptr(), res->length());
-  str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+  switch (alg){
+  case NEW:
+    check_password_policy(res);
+    if (args[0]->null_value || res->length() == 0)
+      return make_empty_result();
+    my_make_scrambled_password(tmp_value, res->ptr(), res->length());
+    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH, &my_charset_latin1);
+    break;
+  case OLD:
+    if ((null_value=args[0]->null_value))
+      return 0;
+    if (res->length() == 0)
+      return make_empty_result();
+    my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
+    str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
+    break;
+  default:
+    DBUG_ASSERT(0);
+  }
   return str;
 }
 
-char *Item_func_password::alloc(THD *thd, const char *password, size_t pass_len)
+char *Item_func_password::alloc(THD *thd, const char *password,
+                                size_t pass_len, enum PW_Alg al)
 {
-  char *buff= (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH+1);
-  if (buff)
-  {
-    String *password_str= new (thd->mem_root)String(password, thd->variables.
-                                                    character_set_client);
-    check_password_policy(password_str);
-    my_make_scrambled_password(buff, password, pass_len);
+  char *buff= (char *) thd->alloc((al==NEW)?
+                                  SCRAMBLED_PASSWORD_CHAR_LENGTH + 1:
+                                  SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1);
+  if (!buff)
+    return NULL;
+
+  switch (al) {
+  case NEW:
+    {
+      String *password_str= new (thd->mem_root)String(password, thd->variables.
+                                                      character_set_client);
+      check_password_policy(password_str);
+      my_make_scrambled_password(buff, password, pass_len);
+      break;
+    }
+  case OLD:
+    my_make_scrambled_password_323(buff, password, pass_len);
+    break;
+  default:
+    DBUG_ASSERT(0);
   }
   return buff;
 }
 
-
-/* Item_func_old_password */
-
-String *Item_func_old_password::val_str_ascii(String *str)
-{
-  DBUG_ASSERT(fixed == 1);
-  String *res= args[0]->val_str(str);
-  if ((null_value=args[0]->null_value))
-    return 0;
-  if (res->length() == 0)
-    return make_empty_result();
-  my_make_scrambled_password_323(tmp_value, res->ptr(), res->length());
-  str->set(tmp_value, SCRAMBLED_PASSWORD_CHAR_LENGTH_323, &my_charset_latin1);
-  return str;
-}
-
-char *Item_func_old_password::alloc(THD *thd, const char *password,
-                                    size_t pass_len)
-{
-  char *buff= (char *) thd->alloc(SCRAMBLED_PASSWORD_CHAR_LENGTH_323+1);
-  if (buff)
-    my_make_scrambled_password_323(buff, password, pass_len);
-  return buff;
-}
 
 
 #define bin_to_ascii(c) ((c)>=38?((c)-38+'a'):(c)>=12?((c)-12+'A'):(c)+'.')

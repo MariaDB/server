@@ -9771,17 +9771,15 @@ function_call_conflict:
           }
         | OLD_PASSWORD '(' expr ')'
           {
-            $$=  new (thd->mem_root) Item_func_old_password($3);
+            $$=  new (thd->mem_root)
+              Item_func_password($3, Item_func_password::OLD);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | PASSWORD '(' expr ')'
           {
             Item* i1;
-            if (thd->variables.old_passwords)
-              i1= new (thd->mem_root) Item_func_old_password($3);
-            else
-              i1= new (thd->mem_root) Item_func_password($3);
+            i1= new (thd->mem_root) Item_func_password($3);
             if (i1 == NULL)
               MYSQL_YYABORT;
             $$= i1;
@@ -14898,17 +14896,19 @@ text_or_password:
           TEXT_STRING { $$=$1.str;}
         | PASSWORD '(' TEXT_STRING ')'
           {
-            $$= $3.length ? thd->variables.old_passwords ?
-              Item_func_old_password::alloc(thd, $3.str, $3.length) :
-              Item_func_password::alloc(thd, $3.str, $3.length) :
+            $$= $3.length ? 
+              Item_func_password::alloc(thd, $3.str, $3.length,
+                                        thd->variables.old_passwords ?
+                                        Item_func_password::OLD :
+                                        Item_func_password::NEW) :
               $3.str;
             if ($$ == NULL)
               MYSQL_YYABORT;
           }
         | OLD_PASSWORD '(' TEXT_STRING ')'
           {
-            $$= $3.length ? Item_func_old_password::
-              alloc(thd, $3.str, $3.length) :
+            $$= $3.length ? Item_func_password::
+              alloc(thd, $3.str, $3.length, Item_func_password::OLD) :
               $3.str;
             if ($$ == NULL)
               MYSQL_YYABORT;

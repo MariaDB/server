@@ -2130,7 +2130,7 @@ static bool check_old_passwords(sys_var *self, THD *thd, set_var *var)
 static Sys_var_mybool Sys_old_passwords(
        "old_passwords",
        "Use old password encryption method (needed for 4.0 and older clients)",
-       NO_SET_STMT SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG),
+       SESSION_VAR(old_passwords), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(check_old_passwords));
 export sys_var *Sys_old_passwords_ptr= &Sys_old_passwords; // for sql_acl.cc
