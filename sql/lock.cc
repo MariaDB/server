@@ -404,9 +404,10 @@ void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock, bool free_lock)
 
 void mysql_unlock_some_tables(THD *thd, TABLE **table,uint count)
 {
-  MYSQL_LOCK *sql_lock;
-  if ((sql_lock= get_lock_data(thd, table, count, GET_LOCK_UNLOCK)))
-    mysql_unlock_tables(thd, sql_lock, 1);
+  MYSQL_LOCK *sql_lock=
+    get_lock_data(thd, table, count, GET_LOCK_UNLOCK | GET_LOCK_ON_THD);
+  if (sql_lock)
+    mysql_unlock_tables(thd, sql_lock, 0);
 }
 
 
@@ -553,11 +554,10 @@ void mysql_lock_abort(THD *thd, TABLE *table, bool upgrade_lock)
   MYSQL_LOCK *locked;
   DBUG_ENTER("mysql_lock_abort");
 
-  if ((locked= get_lock_data(thd, &table, 1, GET_LOCK_UNLOCK)))
+  if ((locked= get_lock_data(thd, &table, 1, GET_LOCK_UNLOCK | GET_LOCK_ON_THD)))
   {
     for (uint i=0; i < locked->lock_count; i++)
       thr_abort_locks(locked->locks[i]->lock, upgrade_lock);
-    my_free(locked);
   }
   DBUG_VOID_RETURN;
 }
@@ -581,7 +581,7 @@ bool mysql_lock_abort_for_thread(THD *thd, TABLE *table)
   bool result= FALSE;
   DBUG_ENTER("mysql_lock_abort_for_thread");
 
-  if ((locked= get_lock_data(thd, &table, 1, GET_LOCK_UNLOCK)))
+  if ((locked= get_lock_data(thd, &table, 1, GET_LOCK_UNLOCK | GET_LOCK_ON_THD)))
   {
     for (uint i=0; i < locked->lock_count; i++)
     {
@@ -589,7 +589,6 @@ bool mysql_lock_abort_for_thread(THD *thd, TABLE *table)
                                      table->in_use->thread_id))
         result= TRUE;
     }
-    my_free(locked);
   }
   DBUG_RETURN(result);
 }
@@ -707,7 +706,6 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
   TABLE **to, **table_buf;
   DBUG_ENTER("get_lock_data");
 
-  DBUG_ASSERT((flags == GET_LOCK_UNLOCK) || (flags == GET_LOCK_STORE_LOCKS));
   DBUG_PRINT("info", ("count %d", count));
 
   for (i=lock_count=table_count=0 ; i < count ; i++)
@@ -728,11 +726,12 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     update the table values. So the second part of the array is copied
     from the first part immediately before calling thr_multi_lock().
   */
-  if (!(sql_lock= (MYSQL_LOCK*)
-	my_malloc(sizeof(*sql_lock) +
-		  sizeof(THR_LOCK_DATA*) * lock_count * 2 +
-                  sizeof(table_ptr) * table_count,
-		  MYF(0))))
+  size_t amount= sizeof(*sql_lock) +
+                 sizeof(THR_LOCK_DATA*) * lock_count * 2 +
+                 sizeof(table_ptr) * table_count;
+  if (!(sql_lock= (MYSQL_LOCK*) (flags & GET_LOCK_ON_THD ?
+                                 thd->alloc(amount) :
+                                 my_malloc(amount, MYF(0)))))
     DBUG_RETURN(0);
   locks= locks_buf= sql_lock->locks= (THR_LOCK_DATA**) (sql_lock + 1);
   to= table_buf= sql_lock->table= (TABLE**) (locks + lock_count * 2);
@@ -751,9 +750,9 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
     DBUG_ASSERT(lock_type != TL_WRITE_DEFAULT && lock_type != TL_READ_DEFAULT);
     locks_start= locks;
     locks= table->file->store_lock(thd, locks,
-                                   (flags & GET_LOCK_UNLOCK) ? TL_IGNORE :
-                                   lock_type);
-    if (flags & GET_LOCK_STORE_LOCKS)
+             (flags & GET_LOCK_ACTION_MASK) == GET_LOCK_UNLOCK ? TL_IGNORE :
+             lock_type);
+    if ((flags & GET_LOCK_ACTION_MASK) == GET_LOCK_STORE_LOCKS)
     {
       table->lock_position=   (uint) (to - table_buf);
       table->lock_data_start= (uint) (locks_start - locks_buf);

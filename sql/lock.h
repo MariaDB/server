@@ -42,8 +42,10 @@ bool lock_object_name(THD *thd, MDL_key::enum_mdl_namespace mdl_type,
                       const char *db, const char *name);
 
 /* flags for get_lock_data */
-#define GET_LOCK_UNLOCK         1
-#define GET_LOCK_STORE_LOCKS    2
+#define GET_LOCK_UNLOCK         0
+#define GET_LOCK_STORE_LOCKS    1
+#define GET_LOCK_ACTION_MASK    1
+#define GET_LOCK_ON_THD         (1 << 1)
 
 MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags);
 void reset_lock_data(MYSQL_LOCK *sql_lock, bool unlock);
