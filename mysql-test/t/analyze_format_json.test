@@ -26,13 +26,13 @@ analyze format=json
 select * from t0, t1 where t1.a=t0.a and t1.b<4;
 
 analyze 
-select * from t1 A, t1 B where A.b<2 and B.b>5;
+select * from t1 tbl1, t1 tbl2 where tbl1.b<2 and tbl2.b>5;
 
 analyze format=json
-select * from t1 A, t1 B where A.b<20 and B.b<60;
+select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
 
 analyze format=json
-select * from t1 A, t1 B where A.b<20 and B.b<60 and A.c > B.c;
+select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c;
 
 drop table t1;
 drop table t0;

@@ -97,36 +97,36 @@ EXPLAIN
   }
 }
 analyze 
-select * from t1 A, t1 B where A.b<2 and B.b>5;
+select * from t1 tbl1, t1 tbl2 where tbl1.b<2 and tbl2.b>5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	A	ALL	NULL	NULL	NULL	NULL	100	100	100.00	2.00	Using where
-1	SIMPLE	B	ALL	NULL	NULL	NULL	NULL	100	100	100.00	94.00	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	tbl1	ALL	NULL	NULL	NULL	NULL	100	100	100.00	2.00	Using where
+1	SIMPLE	tbl2	ALL	NULL	NULL	NULL	NULL	100	100	100.00	94.00	Using where; Using join buffer (flat, BNL join)
 analyze format=json
-select * from t1 A, t1 B where A.b<20 and B.b<60;
+select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "A",
+      "table_name": "tbl1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 100,
       "r_rows": 100,
       "filtered": 100,
       "r_filtered": 20,
-      "attached_condition": "(A.b < 20)"
+      "attached_condition": "(tbl1.b < 20)"
     },
     "block-nl-join": {
       "table": {
-        "table_name": "B",
+        "table_name": "tbl2",
         "access_type": "ALL",
         "r_loops": 1,
         "rows": 100,
         "r_rows": 100,
         "filtered": 100,
         "r_filtered": 60,
-        "attached_condition": "(B.b < 60)"
+        "attached_condition": "(tbl2.b < 60)"
       },
       "buffer_type": "flat",
       "join_type": "BNL",
@@ -135,35 +135,35 @@ EXPLAIN
   }
 }
 analyze format=json
-select * from t1 A, t1 B where A.b<20 and B.b<60 and A.c > B.c;
+select * from t1 tbl1, t1 tbl2 where tbl1.b<20 and tbl2.b<60 and tbl1.c > tbl2.c;
 EXPLAIN
 {
   "query_block": {
     "select_id": 1,
     "table": {
-      "table_name": "A",
+      "table_name": "tbl1",
       "access_type": "ALL",
       "r_loops": 1,
       "rows": 100,
       "r_rows": 100,
       "filtered": 100,
       "r_filtered": 20,
-      "attached_condition": "(A.b < 20)"
+      "attached_condition": "(tbl1.b < 20)"
     },
     "block-nl-join": {
       "table": {
-        "table_name": "B",
+        "table_name": "tbl2",
         "access_type": "ALL",
         "r_loops": 1,
         "rows": 100,
         "r_rows": 100,
         "filtered": 100,
         "r_filtered": 60,
-        "attached_condition": "(B.b < 60)"
+        "attached_condition": "(tbl2.b < 60)"
       },
       "buffer_type": "flat",
       "join_type": "BNL",
-      "attached_condition": "(A.c > B.c)",
+      "attached_condition": "(tbl1.c > tbl2.c)",
       "r_filtered": 15.833
     }
   }
