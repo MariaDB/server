@@ -587,7 +587,6 @@ void THD::enter_stage(const PSI_stage_info *new_stage,
     proc_info= msg;
 
 #ifdef HAVE_PSI_THREAD_INTERFACE
-    PSI_THREAD_CALL(set_thread_state)(msg);
     MYSQL_SET_STAGE(m_current_stage_key, calling_file, calling_line);
 #endif
   }
