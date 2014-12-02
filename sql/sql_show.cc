@@ -17,7 +17,7 @@
 
 /* Function with list databases, tables or fields */
 
-#include "sql_plugin.h"
+#include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_acl.h"                        // fill_schema_*_privileges
@@ -3135,12 +3135,11 @@ static bool show_status_array(THD *thd, const char *wild,
         char *value=var->value;
         const char *pos, *end;                  // We assign a lot of const's
 
-        mysql_mutex_lock(&LOCK_global_system_variables);
-
         if (show_type == SHOW_SYS)
         {
           sys_var *var= ((sys_var *) value);
           show_type= var->show_type();
+          mysql_mutex_lock(&LOCK_global_system_variables);
           value= (char*) var->value_ptr(thd, scope, &null_lex_str);
           charset= var->charset(thd);
         }
@@ -3233,7 +3232,8 @@ static bool show_status_array(THD *thd, const char *wild,
         table->field[1]->store(pos, (uint32) (end - pos), charset);
         table->field[1]->set_notnull();
 
-        mysql_mutex_unlock(&LOCK_global_system_variables);
+        if (var->type == SHOW_SYS)
+          mysql_mutex_unlock(&LOCK_global_system_variables);
 
         if (schema_table_store_record(thd, table))
         {
@@ -5008,13 +5008,10 @@ err:
     const char *error= thd->is_error() ? thd->get_stmt_da()->message() : "";
     table->field[20]->store(error, strlen(error), cs);
 
-    if (thd->is_error())
-    {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
-    }
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 thd->get_stmt_da()->sql_errno(),
+                 thd->get_stmt_da()->message());
+    thd->clear_error();
   }
 
   DBUG_RETURN(schema_table_store_record(thd, table));
@@ -5175,10 +5172,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      if (thd->is_error())
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     thd->get_stmt_da()->sql_errno(),
-                     thd->get_stmt_da()->message());
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
       thd->clear_error();
       res= 0;
     }

@@ -52,6 +52,7 @@
   cursor points at the first record).
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_handler.h"
 #include "unireg.h"                    // REQUIRED: for other includes

@@ -312,3 +312,21 @@ os_thread_set_priority(
 	return(relative_priority);
 #endif
 }
+
+/*****************************************************************//**
+Get priority for a given thread on Linux.  Currently a
+no-op on other systems.
+
+@return An actual thread priority */
+UNIV_INTERN
+ulint
+os_thread_get_priority(
+/*===================*/
+	os_tid_t	thread_id)		/*!< in: thread id */
+{
+#ifdef UNIV_LINUX
+	return (getpriority(PRIO_PROCESS, thread_id));
+#else
+	return (0);
+#endif
+}

@@ -33,6 +33,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <debug_sync.h>
 #include <my_dbug.h>
 
+#include <sql_const.h>
 #include "row0ins.h"
 #include "row0merge.h"
 #include "row0sel.h"
@@ -712,8 +713,10 @@ row_create_prebuilt(
 	row_prebuilt_t*	prebuilt;
 	mem_heap_t*	heap;
 	dict_index_t*	clust_index;
+	dict_index_t*	temp_index;
 	dtuple_t*	ref;
 	ulint		ref_len;
+	uint		srch_key_len = 0;
 	ulint		search_tuple_n_fields;
 
 	search_tuple_n_fields = 2 * dict_table_get_n_cols(table);
@@ -724,6 +727,14 @@ row_create_prebuilt(
 	ut_a(2 * dict_table_get_n_cols(table) >= clust_index->n_fields);
 
 	ref_len = dict_index_get_n_unique(clust_index);
+
+
+        /* Maximum size of the buffer needed for conversion of INTs from
+	little endian format to big endian format in an index. An index
+	can have maximum 16 columns (MAX_REF_PARTS) in it. Therfore
+	Max size for PK: 16 * 8 bytes (BIGINT's size) = 128 bytes
+	Max size Secondary index: 16 * 8 bytes + PK = 256 bytes. */
+#define MAX_SRCH_KEY_VAL_BUFFER         2* (8 * MAX_REF_PARTS)
 
 #define PREBUILT_HEAP_INITIAL_SIZE	\
 	( \
@@ -753,10 +764,38 @@ row_create_prebuilt(
 	+ sizeof(que_thr_t) \
 	)
 
+	/* Calculate size of key buffer used to store search key in
+	InnoDB format. MySQL stores INTs in little endian format and
+	InnoDB stores INTs in big endian format with the sign bit
+	flipped. All other field types are stored/compared the same
+	in MySQL and InnoDB, so we must create a buffer containing
+	the INT key parts in InnoDB format.We need two such buffers
+	since both start and end keys are used in records_in_range(). */
+
+	for (temp_index = dict_table_get_first_index(table); temp_index;
+	     temp_index = dict_table_get_next_index(temp_index)) {
+		DBUG_EXECUTE_IF("innodb_srch_key_buffer_max_value",
+			ut_a(temp_index->n_user_defined_cols
+						== MAX_REF_PARTS););
+		uint temp_len = 0;
+		for (uint i = 0; i < temp_index->n_uniq; i++) {
+			if (temp_index->fields[i].col->mtype == DATA_INT) {
+				temp_len +=
+					temp_index->fields[i].fixed_len;
+			}
+		}
+		srch_key_len = max(srch_key_len,temp_len);
+	}
+
+	ut_a(srch_key_len <= MAX_SRCH_KEY_VAL_BUFFER);
+
+	DBUG_EXECUTE_IF("innodb_srch_key_buffer_max_value",
+		ut_a(srch_key_len == MAX_SRCH_KEY_VAL_BUFFER););
+
 	/* We allocate enough space for the objects that are likely to
 	be created later in order to minimize the number of malloc()
 	calls */
-	heap = mem_heap_create(PREBUILT_HEAP_INITIAL_SIZE);
+	heap = mem_heap_create(PREBUILT_HEAP_INITIAL_SIZE + 2 * srch_key_len);
 
 	prebuilt = static_cast<row_prebuilt_t*>(
 		mem_heap_zalloc(heap, sizeof(*prebuilt)));
@@ -768,6 +807,18 @@ row_create_prebuilt(
 
 	prebuilt->sql_stat_start = TRUE;
 	prebuilt->heap = heap;
+
+	prebuilt->srch_key_val_len = srch_key_len;
+	if (prebuilt->srch_key_val_len) {
+		prebuilt->srch_key_val1 = static_cast<byte*>(
+			mem_heap_alloc(prebuilt->heap,
+				       2 * prebuilt->srch_key_val_len));
+		prebuilt->srch_key_val2 = prebuilt->srch_key_val1 +
+						prebuilt->srch_key_val_len;
+	} else {
+		prebuilt->srch_key_val1 = NULL;
+		prebuilt->srch_key_val2 = NULL;
+	}
 
 	btr_pcur_reset(&prebuilt->pcur);
 	btr_pcur_reset(&prebuilt->clust_pcur);
@@ -1056,8 +1107,11 @@ row_update_statistics_if_needed(
 	since the last time a statistics batch was run.
 	We calculate statistics at most every 16th round, since we may have
 	a counter table which is very small and updated very often. */
+	ib_uint64_t threshold= 16 + n_rows / 16; /* 6.25% */
+	if (srv_stats_modified_counter)
+		threshold= ut_min(srv_stats_modified_counter, threshold);
 
-	if (counter > 16 + n_rows / 16 /* 6.25% */) {
+	if (counter > threshold) {
 
 		ut_ad(!mutex_own(&dict_sys->mutex));
 		/* this will reset table->stat_modified_counter to 0 */
@@ -1395,7 +1449,11 @@ error_exit:
 
 	que_thr_stop_for_mysql_no_error(thr, trx);
 
-	srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+	if (table->is_system_db) {
+		srv_stats.n_system_rows_inserted.add((size_t)trx->id, 1);
+	} else {
+		srv_stats.n_rows_inserted.add((size_t)trx->id, 1);
+	}
 
 	/* Not protected by dict_table_stats_lock() for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
@@ -1785,9 +1843,20 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(prebuilt->table);
 
-		srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		}
+
 	} else {
-		srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_updated.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		}
 	}
 
 	/* We update table statistics only if it is a DELETE or UPDATE
@@ -1851,7 +1920,7 @@ row_unlock_for_mysql(
 		trx_id_t	rec_trx_id;
 		mtr_t		mtr;
 
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, trx);
 
 		/* Restore the cursor position and find the record */
 
@@ -2011,9 +2080,19 @@ run_again:
 		with a latch. */
 		dict_table_n_rows_dec(table);
 
-		srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_deleted.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_deleted.add((size_t)trx->id, 1);
+		}
 	} else {
-		srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		if (table->is_system_db) {
+			srv_stats.n_system_rows_updated.add(
+				(size_t)trx->id, 1);
+		} else {
+			srv_stats.n_rows_updated.add((size_t)trx->id, 1);
+		}
 	}
 
 	row_update_statistics_if_needed(table);
@@ -2201,23 +2280,23 @@ err_exit:
 		/* The lock timeout monitor thread also takes care
 		of InnoDB monitor prints */
 
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_lock_monitor)) {
 
 		srv_print_innodb_monitor = TRUE;
 		srv_print_innodb_lock_monitor = TRUE;
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_tablespace_monitor)) {
 
 		srv_print_innodb_tablespace_monitor = TRUE;
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_table_monitor)) {
 
 		srv_print_innodb_table_monitor = TRUE;
-		os_event_set(lock_sys->timeout_event);
+		os_event_set(srv_monitor_event);
 #ifdef UNIV_MEM_DEBUG
 	} else if (STR_EQ(table_name, table_name_len,
 			  S_innodb_mem_validate)) {
@@ -2840,7 +2919,7 @@ row_discard_tablespace_foreign_key_checks(
 
 	/* Check if the table is referenced by foreign key constraints from
 	some other table (not the table itself) */
-	dict_foreign_set::iterator	it
+	dict_foreign_set::const_iterator	it
 		= std::find_if(table->referenced_set.begin(),
 			       table->referenced_set.end(),
 			       dict_foreign_different_tables());
@@ -3413,7 +3492,7 @@ row_truncate_table_for_mysql(
 				index = dict_table_get_next_index(index);
 			} while (index);
 
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, trx);
 			fsp_header_init(space,
 					FIL_IBD_FILE_INITIAL_SIZE, &mtr);
 			mtr_commit(&mtr);
@@ -3442,7 +3521,7 @@ row_truncate_table_for_mysql(
 	sys_index = dict_table_get_first_index(dict_sys->sys_indexes);
 	dict_index_copy_types(tuple, sys_index, 1);
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, trx);
 	btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
 				  BTR_MODIFY_LEAF, &pcur, &mtr);
 	for (;;) {
@@ -3489,7 +3568,7 @@ row_truncate_table_for_mysql(
 			a page in this mini-transaction, and the rest of
 			this loop could latch another index page. */
 			mtr_commit(&mtr);
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, trx);
 			btr_pcur_restore_position(BTR_MODIFY_LEAF,
 						  &pcur, &mtr);
 		}

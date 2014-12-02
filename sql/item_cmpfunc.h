@@ -693,21 +693,18 @@ public:
 };
 
 
-class Item_func_strcmp :public Item_bool_func2
+class Item_func_strcmp :public Item_int_func
 {
+  String value1, value2;
+  DTCollation cmp_collation;
 public:
-  Item_func_strcmp(Item *a,Item *b) :Item_bool_func2(a,b) {}
+  Item_func_strcmp(Item *a,Item *b) :Item_int_func(a,b) {}
   longlong val_int();
-  optimize_type select_optimize() const { return OPTIMIZE_NONE; }
+  uint decimal_precision() const { return 1; }
   const char *func_name() const { return "strcmp"; }
-
-  virtual inline void print(String *str, enum_query_type query_type)
-  {
-    Item_func::print(str, query_type);
-  }
   void fix_length_and_dec()
   {
-    Item_bool_func2::fix_length_and_dec();
+    agg_arg_charsets_for_comparison(cmp_collation, args, 2);
     fix_char_length(2); // returns "1" or "0" or "-1"
   }
 };
@@ -842,6 +839,7 @@ public:
   longlong int_op();
   String *str_op(String *str);
   my_decimal *decimal_op(my_decimal *);
+  bool is_bool_func() { return false; }
   void fix_length_and_dec();
   uint decimal_precision() const { return m_args0_copy->decimal_precision(); }
   const char *func_name() const { return "nullif"; }
@@ -1524,7 +1522,42 @@ public:
   longlong val_int();
   enum Functype functype() const { return LIKE_FUNC; }
   optimize_type select_optimize() const;
-  cond_result eq_cmp_result() const { return COND_TRUE; }
+  cond_result eq_cmp_result() const
+  {
+    /**
+      We cannot always rewrite conditions as follows:
+        from:  WHERE expr1=const AND expr1 LIKE expr2
+        to:    WHERE expr1=const AND const LIKE expr2
+      or
+        from:  WHERE expr1=const AND expr2 LIKE expr1
+        to:    WHERE expr1=const AND expr2 LIKE const
+
+      because LIKE works differently comparing to the regular "=" operator:
+
+      1. LIKE performs a stricter one-character-to-one-character comparison
+         and does not recognize contractions and expansions.
+         Replacing "expr1" to "const in LIKE would make the condition
+         stricter in case of a complex collation.
+
+      2. LIKE does not ignore trailing spaces and thus works differently
+         from the "=" operator in case of "PAD SPACE" collations
+         (which are the majority in MariaDB). So, for "PAD SPACE" collations:
+
+         - expr1=const       - ignores trailing spaces
+         - const LIKE expr2  - does not ignore trailing spaces
+         - expr2 LIKE const  - does not ignore trailing spaces
+
+      Allow only "binary" for now.
+      It neither ignores trailing spaces nor has contractions/expansions.
+
+      TODO:
+      We could still replace "expr1" to "const" in "expr1 LIKE expr2"
+      in case of a "PAD SPACE" collation, but only if "expr2" has '%'
+      at the end.         
+    */
+    return ((Item_func_like *)this)->compare_collation() == &my_charset_bin ?
+           COND_TRUE : COND_OK;
+  }
   const char *func_name() const { return "like"; }
   bool fix_fields(THD *thd, Item **ref);
   void cleanup();

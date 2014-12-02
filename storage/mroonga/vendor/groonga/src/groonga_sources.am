@@ -1,0 +1,2 @@
+groonga_SOURCES =				\
+	groonga.c

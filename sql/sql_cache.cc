@@ -328,7 +328,7 @@ TODO list:
       (This could be done with almost no speed penalty)
 */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_cache.h"
 #include "sql_parse.h"                          // check_table_access
@@ -3339,7 +3339,7 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
         There are not callback function for for VIEWs
       */
       if (!insert_table(key_length, key, (*block_table),
-                        tables_used->view_db.length + 1, 0,
+                        tables_used->view_db.length, 0,
                         HA_CACHE_TBL_NONTRANSACT, 0, 0, TRUE))
         DBUG_RETURN(0);
       /*

@@ -211,3 +211,13 @@ tags
 tests/async_queries
 tests/bug25714
 tests/mysql_client_test
+storage/mroonga/config.sh
+storage/mroonga/mrn_version.h
+storage/mroonga/data/install.sql
+storage/mroonga/vendor/groonga/config.h
+storage/mroonga/vendor/groonga/config.sh
+storage/mroonga/vendor/groonga/groonga.pc
+storage/mroonga/vendor/groonga/src/grnslap
+storage/mroonga/vendor/groonga/src/groonga
+storage/mroonga/vendor/groonga/src/groonga-benchmark
+storage/mroonga/vendor/groonga/src/suggest/groonga-suggest-create-dataset

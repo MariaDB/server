@@ -1,0 +1,8 @@
+#
+# MDEV-4285 Server crashes in ptr_compare on NOW and CAST in ORDER BY
+#
+create table t1 (pk int primary key);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+select * from t1 order by now(), cast(pk as char(0));
+drop table t1;
+

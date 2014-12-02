@@ -43,9 +43,10 @@ mtr_block_dirtied(
 Starts a mini-transaction. */
 UNIV_INLINE
 void
-mtr_start(
+mtr_start_trx(
 /*======*/
-	mtr_t*	mtr)	/*!< out: mini-transaction */
+	mtr_t*	mtr,	/*!< out: mini-transaction */
+	trx_t*	trx)	/*!< in: transaction */
 {
 	UNIV_MEM_INVALID(mtr, sizeof *mtr);
 
@@ -58,6 +59,7 @@ mtr_start(
 	mtr->made_dirty = FALSE;
 	mtr->n_log_recs = 0;
 	mtr->n_freed_pages = 0;
+	mtr->trx = trx;
 
 	ut_d(mtr->state = MTR_ACTIVE);
 	ut_d(mtr->magic_n = MTR_MAGIC_N);

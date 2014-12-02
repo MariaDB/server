@@ -58,8 +58,6 @@ INSERT INTO t3 VALUES (201, "initial 2");
 --source include/wait_condition.inc
 --let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=1 AND (SELECT COUNT(*) FROM t2)=1 AND (SELECT COUNT(*) FROM t3)=2
 --source include/wait_condition.inc
---replace_result $SERVER_MYPORT_3 MYPORT_3
-query_vertical SHOW ALL SLAVES STATUS;
 
 --echo *** Now move slave2 to replicate from both master1 and master2 instead of just slave1 ***
 STOP ALL SLAVES;
@@ -93,6 +91,8 @@ set default_master_connection = '';
 --connection slave1
 # Set up so that slave1 will have to start from two different positions
 # in the slave2 binlog (one for each domain_id).
+--let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=2 AND (SELECT COUNT(*) FROM t2)=2 AND (SELECT COUNT(*) FROM t3)=4
+--source include/wait_condition.inc
 STOP SLAVE 'slave1';
 
 --connection master1
@@ -106,6 +106,7 @@ INSERT INTO t3 VALUES (103, "switch 2 a");
 --connection master2
 INSERT INTO t2 VALUES (3, "switch 2");
 INSERT INTO t3 VALUES (203, "switch 2 b");
+--source include/save_master_gtid.inc
 
 --connection slave1
 --let $wait_condition= SELECT (SELECT COUNT(*) FROM t1)=2 AND (SELECT COUNT(*) FROM t2)=3 AND (SELECT COUNT(*) FROM t3)=5
@@ -115,6 +116,12 @@ STOP SLAVE 'slave2';
 --connection master2
 INSERT INTO t2 VALUES (4, "switch 3");
 INSERT INTO t3 VALUES (204, "switch 3 b");
+
+--connection slave2
+# Make sure that slave2 has replicated far enough before connecting slave1 to
+# it (otherwise we get an error that slave1 requested to start from a GTID
+# which is not in slave2's binlogs).
+--source include/sync_with_master_gtid.inc
 
 --connection slave1
 --replace_result $SERVER_MYPORT_4 MYPORT_4 

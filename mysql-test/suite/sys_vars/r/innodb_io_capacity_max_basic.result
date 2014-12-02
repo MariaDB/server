@@ -45,27 +45,42 @@ set global innodb_io_capacity_max=1e1;
 ERROR 42000: Incorrect argument type to variable 'innodb_io_capacity_max'
 set global innodb_io_capacity_max="foo";
 ERROR 42000: Incorrect argument type to variable 'innodb_io_capacity_max'
-set global innodb_io_capacity_max=@start_innodb_capacity - 1;
+set global innodb_io_capacity_max=1000;
+set global innodb_io_capacity=500;
+set global innodb_io_capacity_max=400;
 Warnings:
-Warning	1210	innodb_io_capacity_max cannot be set lower than innodb_io_capacity.
-Warning	1210	Setting innodb_io_capacity_max to 200
+Warning	1210	Setting innodb_io_capacity_max 400 lower than innodb_io_capacity 500.
+Warning	1210	Setting innodb_io_capacity to 400
 select @@global.innodb_io_capacity_max;
 @@global.innodb_io_capacity_max
-200
+400
+select @@global.innodb_io_capacity;
+@@global.innodb_io_capacity
+400
 select * from information_schema.global_variables where variable_name='innodb_io_capacity_max';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_IO_CAPACITY_MAX	200
-set global innodb_io_capacity_max=-7;
+INNODB_IO_CAPACITY_MAX	400
+select * from information_schema.global_variables where variable_name='innodb_io_capacity';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_IO_CAPACITY	400
+set global innodb_io_capacity_max=1000;
+set global innodb_io_capacity=500;
+set global innodb_io_capacity=1400;
 Warnings:
-Warning	1292	Truncated incorrect innodb_io_capacity_max value: '-7'
-Warning	1210	innodb_io_capacity_max cannot be set lower than innodb_io_capacity.
-Warning	1210	Setting innodb_io_capacity_max to 200
+Warning	1210	Setting innodb_io_capacity to 1400 higher than innodb_io_capacity_max 1000
+Warning	1210	Setting innodb_max_io_capacity to 2800
 select @@global.innodb_io_capacity_max;
 @@global.innodb_io_capacity_max
-200
+2800
+select @@global.innodb_io_capacity;
+@@global.innodb_io_capacity
+1400
 select * from information_schema.global_variables where variable_name='innodb_io_capacity_max';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_IO_CAPACITY_MAX	200
+INNODB_IO_CAPACITY_MAX	2800
+select * from information_schema.global_variables where variable_name='innodb_io_capacity';
+VARIABLE_NAME	VARIABLE_VALUE
+INNODB_IO_CAPACITY	1400
 set global innodb_io_capacity=100;
 set global innodb_io_capacity_max=100;
 select @@global.innodb_io_capacity_max;

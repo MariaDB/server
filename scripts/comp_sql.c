@@ -23,6 +23,7 @@
   into other programs
 */
 
+#include <my_config.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>

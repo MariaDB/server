@@ -1,0 +1,26 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+day DATE PRIMARY KEY,
+title TEXT
+) DEFAULT CHARSET=UTF8;
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `day` date NOT NULL,
+  `title` text,
+  PRIMARY KEY (`day`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-14", "clear day")
+ON DUPLICATE KEY UPDATE title = "clear day (duplicated)";
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-14", "rainy day")
+ON DUPLICATE KEY UPDATE title = "rainy day (duplicated)";
+INSERT INTO diaries (day, title)
+VALUES ("2012-02-15", "cloudy day")
+ON DUPLICATE KEY UPDATE title = "cloudy day (duplicated)";
+SELECT * FROM diaries;
+day	title
+2012-02-14	rainy day (duplicated)
+2012-02-15	cloudy day
+DROP TABLE diaries;

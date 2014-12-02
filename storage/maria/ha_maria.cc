@@ -21,7 +21,7 @@
 #endif
 
 #define MYSQL_SERVER 1
-#include <mysql/plugin.h>
+#include <my_global.h>
 #include <m_ctype.h>
 #include <my_dir.h>
 #include <myisampack.h>

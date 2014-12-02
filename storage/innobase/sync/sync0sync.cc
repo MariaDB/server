@@ -457,8 +457,6 @@ mutex_set_waiters(
 
 	ptr = &(mutex->waiters);
 
-        os_wmb;
-
 	*ptr = n;		/* Here we assume that the write of a single
 				word in memory is atomic */
 }
@@ -552,6 +550,11 @@ spin_loop:
 	then the event is set to the signaled state. */
 
 	mutex_set_waiters(mutex, 1);
+
+	/* Make sure waiters store won't pass over mutex_test_and_set */
+#ifdef __powerpc__
+	os_mb;
+#endif
 
 	/* Try to reserve still a few times */
 	for (i = 0; i < 4; i++) {

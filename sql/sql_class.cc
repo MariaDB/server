@@ -28,7 +28,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_class.h"
@@ -4495,6 +4495,7 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
     return 1;
   if (!rgi->commit_id || rgi->commit_id != other_rgi->commit_id)
     return 1;
+  DBUG_EXECUTE_IF("thd_need_ordering_with_force", return 1;);
   /*
     Otherwise, these two threads are doing parallel replication within the same
     replication domain. Their commit order is already fixed, so we do not need
@@ -6485,6 +6486,19 @@ wait_for_commit::reinit()
   opaque_pointer= NULL;
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
+  commit_started= false;
+#ifdef SAFE_MUTEX
+  /*
+    When using SAFE_MUTEX, the ordering between taking the LOCK_wait_commit
+    mutexes is checked. This causes a problem when we re-use a mutex, as then
+    the expected locking order may change.
+
+    So in this case, do a re-init of the mutex. In release builds, we want to
+    avoid the overhead of a re-init though.
+  */
+  mysql_mutex_destroy(&LOCK_wait_commit);
+  mysql_mutex_init(key_LOCK_wait_commit, &LOCK_wait_commit, MY_MUTEX_INIT_FAST);
+#endif
 }
 
 

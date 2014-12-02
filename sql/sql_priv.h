@@ -1,5 +1,5 @@
-/* Copyright (c) 2000, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2013, Monty Program Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2010, 2014, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -58,6 +58,33 @@
       sql_print_warning("The syntax '%s' is deprecated and will be removed " \
                         "in a future release. Please use %s instead.",      \
                         (Old), (New));                                      \
+  } while(0)
+
+
+/*
+  Generates a warning that a feature is deprecated and there is no replacement.
+
+  Using it as
+
+  WARN_DEPRECATED_NO_REPLACEMENT(thd, "BAD");
+
+  Will result in a warning
+ 
+  "'BAD' is deprecated and will be removed in a future release."
+
+   Note that in macro arguments BAD is not quoted.
+*/
+
+#define WARN_DEPRECATED_NO_REPLACEMENT(Thd,Old)                             \
+  do {                                                                      \
+    if (((THD *) Thd) != NULL)                                              \
+      push_warning_printf(((THD *) Thd), Sql_condition::WARN_LEVEL_WARN,    \
+                        ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,           \
+                        ER(ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),       \
+                        (Old));                                             \
+    else                                                                    \
+      sql_print_warning("'%s' is deprecated and will be removed "           \
+                        "in a future release.", (Old));                     \
   } while(0)
 
 /*************************************************************************/
@@ -154,41 +181,6 @@
 */
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
-
-/*
-  Check how many bytes are available on buffer.
-
-  @param buf_start    Pointer to buffer start.
-  @param buf_current  Pointer to the current position on buffer.
-  @param buf_len      Buffer length.
-
-  @return             Number of bytes available on event buffer.
-*/
-template <class T> T available_buffer(const char* buf_start,
-                                      const char* buf_current,
-                                      T buf_len)
-{
-  return buf_len - (buf_current - buf_start);
-}
-
-/*
-  Check if jump value is within buffer limits.
-
-  @param jump         Number of positions we want to advance.
-  @param buf_start    Pointer to buffer start
-  @param buf_current  Pointer to the current position on buffer.
-  @param buf_len      Buffer length.
-
-  @return      True   If jump value is within buffer limits.
-               False  Otherwise.
-*/
-template <class T> bool valid_buffer_range(T jump,
-                                           const char* buf_start,
-                                           const char* buf_current,
-                                           T buf_len)
-{
-  return (jump <= available_buffer(buf_start, buf_current, buf_len));
-}
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT

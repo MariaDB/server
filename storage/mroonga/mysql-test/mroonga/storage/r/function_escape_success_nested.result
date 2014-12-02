@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE diaries(
+title TEXT,
+FULLTEXT KEY (title)
+) DEFAULT CHARSET=utf8;
+INSERT INTO diaries VALUES("Start groonga");
+INSERT INTO diaries VALUES("Start mroonga");
+INSERT INTO diaries VALUES("Start groonga and Ruby");
+SELECT mroonga_escape(mroonga_escape('*groonga*'));
+mroonga_escape(mroonga_escape('*groonga*'))
+\\\*groonga\\\*
+DROP TABLE diaries;

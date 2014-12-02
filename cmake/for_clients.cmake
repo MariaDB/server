@@ -69,7 +69,7 @@ REPLACE_FOR_CLIENTS(CFLAGS "[DU]DBUG_OFF" "[DU]SAFE_MUTEX" "[DU]NDEBUG"
   "[DU]UNIV_MUST_NOT_INLINE" "[DU]FORCE_INIT_OF_VARS" "[DU]EXTRA_DEBUG" "[DU]HAVE_valgrind"
   "O" "O[0-9]" "xO[0-9]" "W[-A-Za-z]*" "mtune=[-A-Za-z0-9]*" "g" "fPIC"
   "mcpu=[-A-Za-z0-9]*" "unroll2" "ip" "mp" "march=[-A-Za-z0-9]*" "Xa"
-  "xstrconst" "xc99=none" "AC99" "restrict")
+  "xstrconst" "xc99=none" "AC99" "restrict" "W[-A-Za-z]*=[-A-Za-z0-9]*")
 
 # Same for --libs
 REPLACE_FOR_CLIENTS(LIBS lmtmalloc static-libcxa i-static static-intel)

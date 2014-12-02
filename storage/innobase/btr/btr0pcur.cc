@@ -486,7 +486,7 @@ btr_pcur_move_backward_from_page(
 
 	mtr_commit(mtr);
 
-	mtr_start(mtr);
+	mtr_start_trx(mtr, mtr->trx);
 
 	btr_pcur_restore_position(latch_mode2, cursor, mtr);
 

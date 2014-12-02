@@ -334,7 +334,7 @@ reap;
 eval KILL CONNECTION $kill2_id;
 
 --connection s6
---error 2013
+--error 2013,ER_CONNECTION_KILLED
 reap;
 
 --connection server_1
@@ -456,7 +456,7 @@ SET sql_slave_skip_counter=1;
 START SLAVE UNTIL master_gtid_pos="3-1-100";
 --let $master_pos=3-1-100
 --source include/sync_with_master_gtid.inc
---source include/wait_for_slave_sql_to_stop.inc
+--source include/wait_for_slave_to_stop.inc
 --error ER_NO_SUCH_TABLE
 SELECT * FROM t2;
 SELECT IF(LOCATE("3-1-100", @@GLOBAL.gtid_slave_pos)>0, "Ok", CONCAT("ERROR! expected GTID 3-1-100 not found in gtid_slave_pos: ", @@GLOBAL.gtid_slave_pos)) AS status;

@@ -22,6 +22,7 @@
   Sorts a database
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "filesort.h"
 #include "unireg.h"                      // REQUIRED by other includes
@@ -39,7 +40,6 @@
 #include "sql_select.h"
 #include "log_slow.h"
 #include "debug_sync.h"
-#include "sql_base.h"
 
 /// How to write record_ref.
 #define WRITE_REF(file,from) \

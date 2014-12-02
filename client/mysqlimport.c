@@ -30,19 +30,15 @@
 
 #include "client_priv.h"
 #include "mysql_version.h"
-#ifdef HAVE_LIBPTHREAD
 #include <my_pthread.h>
-#endif
 
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
 
 /* Global Thread counter */
 uint counter;
-#ifdef HAVE_LIBPTHREAD
 pthread_mutex_t counter_mutex;
 pthread_cond_t count_threshhold;
-#endif
 
 static void db_error_with_table(MYSQL *mysql, char *table);
 static void db_error(MYSQL *mysql);
@@ -502,7 +498,10 @@ static void safe_exit(int error, MYSQL *mysql)
   free_defaults(argv_to_free);
   mysql_library_end();
   my_free(opt_password);
-  my_end(my_end_arg);
+  if (error)
+    sf_leaking_memory= 1; /* dirty exit, some threads are still running */
+  else
+    my_end(my_end_arg); /* clean exit */
   exit(error);
 }
 
@@ -575,7 +574,6 @@ static char *field_escape(char *to,const char *from,uint length)
 
 int exitcode= 0;
 
-#ifdef HAVE_LIBPTHREAD
 pthread_handler_t worker_thread(void *arg)
 {
   int error;
@@ -615,7 +613,6 @@ error:
 
   return 0;
 }
-#endif
 
 
 int main(int argc, char **argv)
@@ -635,7 +632,6 @@ int main(int argc, char **argv)
   }
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
-#ifdef HAVE_LIBPTHREAD
   if (opt_use_threads && !lock_tables)
   {
     pthread_t mainthread;            /* Thread descriptor */
@@ -689,7 +685,6 @@ int main(int argc, char **argv)
     pthread_attr_destroy(&attr);
   }
   else
-#endif
   {
     MYSQL *mysql= 0;
     if (!(mysql= db_connect(current_host,current_db,current_user,opt_password)))

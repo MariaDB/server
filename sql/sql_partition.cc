@@ -47,6 +47,7 @@
 /* Some general useful functions */
 
 #define MYSQL_LEX 1
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_partition.h"
@@ -55,7 +56,6 @@
 #include "sql_cache.h"                      // query_cache_invalidate3
 #include "lock.h"                           // mysql_lock_remove
 #include "sql_show.h"                       // append_identifier
-#include <errno.h>
 #include <m_ctype.h>
 #include "my_md5.h"
 #include "transaction.h"

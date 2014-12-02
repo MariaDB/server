@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS terms;
+SET NAMES utf8;
+CREATE TABLE terms (
+content varchar(64) NOT NULL COLLATE 'utf8_unicode_ci',
+INDEX (content)
+) DEFAULT CHARSET=utf8;
+INSERT INTO terms VALUES ('track');
+INSERT INTO terms VALUES ('trackback');
+SELECT * FROM terms WHERE content LIKE 'TRACK%';
+content
+track
+trackback
+DROP TABLE terms;

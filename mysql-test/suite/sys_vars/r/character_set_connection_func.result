@@ -11,7 +11,7 @@ SELECT @@global.character_set_connection;
 utf8
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+latin1
 '#--------------------FN_DYNVARS_011_02-------------------------#'
 'connection default'
 DROP TABLE IF EXISTS t1;

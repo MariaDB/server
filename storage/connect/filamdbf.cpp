@@ -63,8 +63,6 @@
 #define DBFTYPE        3            /* value of bits 0 and 1 if .dbf        */
 #define EOH         0x0D            /* end-of-header marker in .dbf file    */
 
-extern "C" int trace;                // The general trace value  
-
 /****************************************************************************/
 /*  First 32 bytes of a .dbf file.                                          */
 /*  Note: some reserved fields are used here to store info (Fields)         */
@@ -286,7 +284,8 @@ PQRYRES DBFColumns(PGLOBAL g, char *dp, const char *fn, bool info)
         break;
       default:
         if (!info) {
-          sprintf(g->Message, MSG(BAD_DBF_TYPE), thisfield.Type);
+          sprintf(g->Message, MSG(BAD_DBF_TYPE), thisfield.Type
+                                               , thisfield.Name);
           goto err;
           } // endif info
 
@@ -587,7 +586,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
             case 'D':           // Date
               break;
             default:            // Should never happen
-              sprintf(g->Message, "Unsupported DBF type %c for column %s",
+              sprintf(g->Message, MSG(BAD_DBF_TYPE),
                                   c, cdp->GetName());
               return true;
             } // endswitch c

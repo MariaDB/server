@@ -184,6 +184,9 @@ public:
     enum { CLOSED, OPENING, OPENED, CLOSING, ERROR } m_state;
     int m_error;
     int m_initialize_count;
+
+    uint n_rec_per_key;
+    uint64_t *rec_per_key;
 };
 
 typedef struct st_filter_key_part_info {
@@ -757,7 +760,9 @@ public:
         uchar* buf,
         DBT* key_to_compare
         );
-
+#if TOKU_INCLUDE_ROW_TYPE_COMPRESSION
+    enum row_type get_row_type() const;
+#endif
 private:
     int read_full_row(uchar * buf);
     int __close();

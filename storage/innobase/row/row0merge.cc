@@ -23,6 +23,7 @@ New index creation routines using a merge sort
 Created 12/4/2005 Jan Lindstrom
 Completed by Sunny Bains and Marko Makela
 *******************************************************/
+#include <my_config.h>
 #include <log.h>
 
 #include "row0merge.h"
@@ -2320,7 +2321,7 @@ row_merge_copy_blobs(
 		BLOB pointers are read (row_merge_read_clustered_index())
 		and dereferenced (below). */
 		data = btr_rec_copy_externally_stored_field(
-			mrec, offsets, zip_size, i, &len, heap);
+			mrec, offsets, zip_size, i, &len, heap, NULL);
 		/* Because we have locked the table, any records
 		written by incomplete transactions must have been
 		rolled back already. There must not be any incomplete

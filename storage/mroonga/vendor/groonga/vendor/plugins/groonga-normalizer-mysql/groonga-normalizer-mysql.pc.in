@@ -1,0 +1,5 @@
+plugin_name=normalizers/mysql
+
+Name: groonga-normalizer-mysql
+Description: A MySQL compatible normalizer plugin for groonga
+Version: @VERSION@

@@ -83,6 +83,7 @@ class DllExport TDB: public BLOCK {     // Table Descriptor Block.
 
   // Methods
   virtual bool   IsSame(PTDB tp) {return tp == this;}
+  virtual bool   IsSpecial(PSZ name) = 0;
   virtual bool   GetBlockValues(PGLOBAL g) {return false;}
   virtual int    Cardinality(PGLOBAL g) {return 0;}
   virtual int    GetMaxSize(PGLOBAL) = 0;
@@ -158,6 +159,7 @@ class DllExport TDBASE : public TDB {
   // Methods
   virtual bool   IsUsingTemp(PGLOBAL g) {return false;}
   virtual bool   IsIndexed(void) {return false;}
+  virtual bool   IsSpecial(PSZ name);
   virtual PCATLG GetCat(void);
   virtual PSZ    GetPath(void);
   virtual void   PrintAM(FILE *f, char *m);

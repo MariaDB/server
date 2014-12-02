@@ -4301,6 +4301,7 @@ corrupt:
 					      " because of"
 					      " a corrupt database page.\n",
 					      stderr);
+
 					ut_error;
 				}
 			}
@@ -5064,22 +5065,22 @@ Returns the ratio in percents of modified pages in the buffer pool /
 database pages in the buffer pool.
 @return	modified page percentage ratio */
 UNIV_INTERN
-ulint
+double
 buf_get_modified_ratio_pct(void)
 /*============================*/
 {
-	ulint		ratio;
+	double		percentage = 0.0;
 	ulint		lru_len = 0;
 	ulint		free_len = 0;
 	ulint		flush_list_len = 0;
 
 	buf_get_total_list_len(&lru_len, &free_len, &flush_list_len);
 
-	ratio = (100 * flush_list_len) / (1 + lru_len + free_len);
+	percentage = (100.0 * flush_list_len) / (1.0 + lru_len + free_len);
 
 	/* 1 + is there to avoid division by zero */
 
-	return(ratio);
+	return(percentage);
 }
 
 /*******************************************************************//**
@@ -5292,6 +5293,8 @@ buf_print_io_instance(
 		"Database pages     %lu\n"
 		"Old database pages %lu\n"
 		"Modified db pages  %lu\n"
+		"Percent of dirty pages(LRU & free pages): %.3f\n"
+		"Max dirty pages percent: %.3f\n"
 		"Pending reads %lu\n"
 		"Pending writes: LRU %lu, flush list %lu, single page %lu\n",
 		pool_info->pool_size,
@@ -5299,6 +5302,9 @@ buf_print_io_instance(
 		pool_info->lru_len,
 		pool_info->old_lru_len,
 		pool_info->flush_list_len,
+		(((double) pool_info->flush_list_len) /
+		  (pool_info->lru_len + pool_info->free_list_len + 1.0)) * 100.0,
+		srv_max_buf_pool_modified_pct,
 		pool_info->n_pend_reads,
 		pool_info->n_pending_flush_lru,
 		pool_info->n_pending_flush_list,

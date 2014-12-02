@@ -1,3 +1,4 @@
+#include <my_config.h>
 #include <mysql/plugin.h>
 #include <mysql_version.h>
 #include "table.h"

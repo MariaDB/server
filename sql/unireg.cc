@@ -25,6 +25,7 @@
     str is a (long) to record position where 0 is the first position.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_partition.h"                      // struct partition_info
@@ -32,7 +33,6 @@
 #include "create_options.h"
 #include "discover.h"
 #include <m_ctype.h>
-#include <assert.h>
 
 #define FCOMP			17		/* Bytes for a packed field */
 

@@ -108,6 +108,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "key.h"        // is_key_used, key_copy, key_cmp, key_restore
 #include "sql_parse.h"                          // check_stack_overrun
@@ -3494,6 +3495,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
 
   /*
+    Calculate the selectivity of the range conditions supported by indexes.
+
     First, take into account possible range accesses. 
     range access estimates are the most precise, we prefer them to any other
     estimate sources.
@@ -3539,6 +3542,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 	    break; 
           bitmap_set_bit(&handled_columns, key_part->fieldnr-1);
         }
+        double selectivity_mult;
         if (i)
         {
           /* 
@@ -3554,8 +3558,34 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
             */
             double f1= key_info->actual_rec_per_key(i-1);
             double f2= key_info->actual_rec_per_key(i);
-            table->cond_selectivity*= f1 / f2;
+            if (f1 > 0 && f2 > 0)
+              selectivity_mult= f1 / f2;
+            else
+            {
+              /* 
+                No statistics available, assume the selectivity is proportional
+                to the number of key parts.
+                (i=0 means 1 keypart, i=1 means 2 keyparts, so use i+1)
+              */
+              selectivity_mult= ((double)(i+1)) / i;
+            }
+            table->cond_selectivity*= selectivity_mult;            
           }
+          /*
+            We need to set selectivity for fields supported by indexes.
+            For single-component indexes and for some first components
+            of other indexes we do it here. For the remaining fields
+            we do it later in this function, in the same way as for the
+            fields not used in any indexes.
+	  */
+	  if (i == 1)
+	  {
+            uint fieldnr= key_info->key_part[0].fieldnr;
+            table->field[fieldnr-1]->cond_selectivity= quick_cond_selectivity;
+            if (i != used_key_parts)
+	      table->field[fieldnr-1]->cond_selectivity*= selectivity_mult;
+            bitmap_clear_bit(used_fields, fieldnr-1);
+	  }
         }
       }
     }
@@ -3563,10 +3593,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
    
   /* 
     Second step: calculate the selectivity of the range conditions not 
-    supported by any index
+    supported by any index and selectivity of the range condition
+    over the fields whose selectivity has not been set yet.
   */
-  bitmap_subtract(used_fields, &handled_columns);
-  /* no need to do: my_bitmap_free(&handled_columns); */
 
   if (thd->variables.optimizer_use_condition_selectivity > 2 &&
       !bitmap_is_clear_all(used_fields))
@@ -3643,9 +3672,12 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;   
-      if (bitmap_is_set(table->read_set, table_field->field_index) &&
+      if (bitmap_is_set(used_fields, table_field->field_index) &&
           table_field->cond_selectivity < 1.0)
-        table->cond_selectivity*= table_field->cond_selectivity;
+      {
+        if (!bitmap_is_set(&handled_columns, table_field->field_index))
+          table->cond_selectivity*= table_field->cond_selectivity;
+      }
     }
 
   free_alloc:
@@ -3654,10 +3686,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
   }
 
-  /* Calculate the selectivity of the range conditions supported by indexes */
-
-  bitmap_clear_all(used_fields);
-
+  bitmap_union(used_fields, &handled_columns);
 
   /* Check if we can improve selectivity estimates by using sampling */
   ulong check_rows=
@@ -3745,6 +3774,11 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
       field  Field which key image should be stored
       ptr    Field value in key format
       len    Length of the value, in bytes
+  
+  ATTENTION
+    len is the length of the value not counting the NULL-byte (at the same
+    time, ptr points to the key image, which starts with NULL-byte for 
+    nullable columns)
 
   DESCRIPTION
     Copy the field value from its key image to the table record. The source
@@ -8298,6 +8332,8 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
       !(conf_func->compare_collation()->state & MY_CS_BINSORT &&
         (type == Item_func::EQUAL_FUNC || type == Item_func::EQ_FUNC)))
     goto end;
+  if (value->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
+    goto end;
 
   if (key_part->image_type == Field::itMBR)
   {
@@ -12838,11 +12874,11 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     uint cur_used_key_parts;
     
     /*
-      Check (B1) - if current index is covering. Exclude UNIQUE indexes, because
-      loose scan may still be chosen for them due to imperfect cost calculations.
+      Check (B1) - if current index is covering.
+      (was also: "Exclude UNIQUE indexes ..." but this was removed because 
+      there are cases Loose Scan over a multi-part index is useful).
     */
-    if (!table->covering_keys.is_set(cur_index) ||
-        cur_index_info->flags & HA_NOSAME)
+    if (!table->covering_keys.is_set(cur_index))
       goto next_index;
 
     /*
@@ -12978,6 +13014,16 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       if (key_part_nr <= cur_group_key_parts)
         goto next_index;
       min_max_arg_part= cur_index_info->key_part + key_part_nr - 1;
+    }
+
+    /*
+      Aplly a heuristic: there is no point to use loose index scan when we're
+      using the whole unique index.
+    */
+    if (cur_index_info->flags & HA_NOSAME && 
+        cur_group_key_parts == cur_index_info->user_defined_key_parts)
+    {
+      goto next_index;
     }
 
     /*
@@ -13357,16 +13403,31 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
           DBUG_RETURN(FALSE);
 
         /* Check for compatible string comparisons - similar to get_mm_leaf. */
-        if (args[0] && args[1] && !args[2] && // this is a binary function
-            min_max_arg_item->result_type() == STRING_RESULT &&
-            /*
-              Don't use an index when comparing strings of different collations.
-            */
-            ((args[1]->result_type() == STRING_RESULT &&
-              image_type == Field::itRAW &&
-              min_max_arg_item->field->charset() !=
-              pred->compare_collation())
-             ||
+        if (args[0] && args[1] && !args[2]) // this is a binary function
+        {
+          if (args[1]->cmp_type() == TIME_RESULT &&
+              min_max_arg_item->field->cmp_type() != TIME_RESULT)
+            DBUG_RETURN(FALSE);
+
+          /*
+            Can't use GROUP_MIN_MAX optimization for ENUM and SET,
+            because the values are stored as numbers in index,
+            while MIN() and MAX() work as strings.
+            It would return the records with min and max enum numeric indexes.
+           "Bug#45300 MAX() and ENUM type" should be fixed first.
+          */
+          if (min_max_arg_item->field->real_type() == MYSQL_TYPE_ENUM ||
+              min_max_arg_item->field->real_type() == MYSQL_TYPE_SET)
+            DBUG_RETURN(FALSE);
+
+          if (min_max_arg_item->result_type() == STRING_RESULT &&
+              /*
+                Don't use an index when comparing strings of different collations.
+              */
+              ((args[1]->result_type() == STRING_RESULT &&
+                image_type == Field::itRAW &&
+                min_max_arg_item->field->charset() !=
+                pred->compare_collation()) ||
              /*
                We can't always use indexes when comparing a string index to a
                number.
@@ -13374,6 +13435,7 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
              (args[1]->result_type() != STRING_RESULT &&
               min_max_arg_item->field->cmp_type() != args[1]->result_type())))
           DBUG_RETURN(FALSE);
+        }
       }
       else
         has_other= true;

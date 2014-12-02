@@ -1,0 +1,26 @@
+create table t1 (pk int primary key);
+insert into t1 values (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
+select * from t1 order by now(), cast(pk as char(0));
+pk
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+Warnings:
+Warning	1292	Truncated incorrect CHAR(0) value: '1'
+Warning	1292	Truncated incorrect CHAR(0) value: '2'
+Warning	1292	Truncated incorrect CHAR(0) value: '3'
+Warning	1292	Truncated incorrect CHAR(0) value: '4'
+Warning	1292	Truncated incorrect CHAR(0) value: '5'
+Warning	1292	Truncated incorrect CHAR(0) value: '6'
+Warning	1292	Truncated incorrect CHAR(0) value: '7'
+Warning	1292	Truncated incorrect CHAR(0) value: '8'
+Warning	1292	Truncated incorrect CHAR(0) value: '9'
+Warning	1292	Truncated incorrect CHAR(0) value: '10'
+drop table t1;

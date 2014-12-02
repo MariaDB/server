@@ -29,6 +29,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_select.h"
@@ -632,7 +633,7 @@ inline int setup_without_group(THD *thd, Item **ref_pointer_array,
   res= setup_conds(thd, tables, leaves, conds);
   if (thd->lex->current_select->first_cond_optimization)
   {
-    if (!res && *conds)
+    if (!res && *conds && ! thd->lex->current_select->merged_into)
       (*reserved)= (*conds)->exists2in_reserved_items();
     else
       (*reserved)= 0;
@@ -3845,6 +3846,8 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   if (join->conds && const_count)
   {
     Item* &conds= join->conds;
+    COND_EQUAL *orig_cond_equal = join->cond_equal;
+
     conds->update_used_tables();
     conds= remove_eq_conds(join->thd, conds, &join->cond_value);
     if (conds && conds->type() == Item::COND_ITEM &&
@@ -3871,7 +3874,21 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
         join->cond_equal->current_level.empty();
         join->cond_equal->current_level.push_back((Item_equal*) conds);
       }
-    }     
+    }
+
+    if (orig_cond_equal != join->cond_equal)
+    {
+      /*
+        If join->cond_equal has changed all references to it from COND_EQUAL
+        objects associated with ON expressions must be updated.
+      */
+      for (JOIN_TAB **pos=stat_vector+const_count ; (s= *pos) ; pos++) 
+      {
+        if (*s->on_expr_ref && s->cond_equal &&
+	    s->cond_equal->upper_levels == orig_cond_equal)
+          s->cond_equal->upper_levels= join->cond_equal;
+      }
+    }
   }
 
   /* Calc how many (possible) matched records in each table */
@@ -4424,8 +4441,7 @@ add_key_field(JOIN *join,
       if (is_const)
       {
         stat[0].const_keys.merge(possible_keys);
-        if (possible_keys.is_clear_all())
-          bitmap_set_bit(&field->table->cond_set, field->field_index);
+        bitmap_set_bit(&field->table->cond_set, field->field_index);
       }
       else if (!eq_func)
       {
@@ -4441,6 +4457,32 @@ add_key_field(JOIN *join,
         (*sargables)->num_values= num_values;
       }
       if (!eq_func) // eq_func is NEVER true when num_values > 1
+        return;
+
+      if ((*value)->cmp_type() == TIME_RESULT &&
+          field->cmp_type() != TIME_RESULT)
+        return;
+
+      /*
+        Note, for ITEM/ENUM columns:
+        - field->cmp_type() returns INT_RESULT
+        - field->result_type() returns STRING_RESULT
+        - field->type() returns MYSQL_TYPE_STRING
+
+        Using field->real_type() to detect ENUM/SET,
+        as they need a special handling:
+        - Conditions between a ENUM/SET filter and a TIME expression
+          cannot be optimized. They were filtered out in the previous if block.
+        - It's Ok to use ref access for an ENUM/SET field compared to an
+          INT/REAL/DECIMAL expression.
+        - It's Ok to use ref for an ENUM/SET field compared to a STRING
+          expression if the collation of the field and the collation of
+          the condition match.
+      */
+      if ((field->real_type() == MYSQL_TYPE_ENUM ||
+           field->real_type() == MYSQL_TYPE_SET) &&
+          (*value)->cmp_type () == STRING_RESULT &&
+          field->charset() != cond->compare_collation())
         return;
 
       /*
@@ -7217,17 +7259,20 @@ double table_multi_eq_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         uint i;
         KEYUSE *keyuse= pos->key;
         uint key= keyuse->key;
-
         for (i= 0; i < keyparts; i++)
 	{
+          if (i > 0)
+            keyuse+= ref_keyuse_steps[i-1];
           uint fldno;
           if (is_hash_join_key_no(key))
 	    fldno= keyuse->keypart;
           else
-            fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;        
+            fldno= table->key_info[key].key_part[i].fieldnr - 1;        
           if (fld->field_index == fldno)
             break;
         }
+        keyuse= pos->key;
+
         if (i == keyparts)
 	{
           /* 
@@ -7390,6 +7435,7 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
       already taken into account in table->cond_selectivity.
     */
     keyuse= pos->key;
+    keyparts=0;
     while (keyuse->table == table && keyuse->key == key)
     {
       if (!(keyuse->used_tables & (rem_tables | table->map)))
@@ -8876,6 +8922,9 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   }
   else
     j->type=JT_EQ_REF;
+
+  j->read_record.unlock_row= (j->type == JT_EQ_REF)? 
+                             join_read_key_unlock_row : rr_unlock_row; 
   DBUG_RETURN(0);
 }
 
@@ -10579,6 +10628,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   }
     
   /*
+    Don't use BKA for materialized tables. We could actually have a
+    meaningful use of BKA when linked join buffers are used.
+
+    The problem is, the temp.table is not filled (actually not even opened
+    properly) yet, and this doesn't let us call
+    handler->multi_range_read_info(). It is possible to come up with
+    estimates, etc. without acessing the table, but it seems not to worth the
+    effort now.
+  */
+  if (tab->table->pos_in_table_list->is_materialized_derived())
+    no_bka_cache= true;
+
+  /*
     Don't use join buffering if we're dictated not to by no_jbuf_after
     (This is not meaningfully used currently)
   */
@@ -10643,8 +10705,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       goto no_join_cache;
     if (tab->ref.is_access_triggered())
       goto no_join_cache;
-      
-    if (!tab->is_ref_for_hash_join())
+
+    if (!tab->is_ref_for_hash_join() && !no_bka_cache)
     {
       flags= HA_MRR_NO_NULL_ENDPOINTS | HA_MRR_SINGLE_POINT;
       if (tab->table->covering_keys.is_set(tab->ref.key))
@@ -13207,10 +13269,18 @@ Item *eliminate_item_equal(COND *cond, COND_EQUAL *upper_levels,
     if (upper)
     {
       TABLE_LIST *native_sjm= embedding_sjm(item_equal->context_field);
-      if (item_const && upper->get_const())
+      Item *upper_const= upper->get_const();
+      if (item_const && upper_const)
       {
-        /* Upper item also has "field_item=const". Don't produce equality here */
-        item= 0;
+        /* 
+          Upper item also has "field_item=const".
+          Don't produce equality if const is equal to item_const.
+        */
+        Item_func_eq *func= new Item_func_eq(item_const, upper_const);
+        func->set_cmp_func();
+        func->quick_fix_field();
+        if (func->val_int())
+          item= 0;
       }
       else
       {
@@ -21251,7 +21321,7 @@ find_order_in_list(THD *thd, Item **ref_pointer_array, TABLE_LIST *tables,
         order_item_type == Item::REF_ITEM)
     {
       from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
-                                       NULL, &view_ref, IGNORE_ERRORS, TRUE,
+                                       NULL, &view_ref, IGNORE_ERRORS, FALSE,
                                        FALSE);
       if (!from_field)
         from_field= (Field*) not_found_field;

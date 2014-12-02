@@ -17,6 +17,7 @@
 #pragma implementation                         /* gcc class implementation */
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_cursor.h"

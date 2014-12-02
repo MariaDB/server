@@ -17,6 +17,7 @@
 #define MYSQL_SERVER
 #endif
 
+#include <my_config.h>
 #include <mysql/plugin.h>
 #include <table.h>                              /* ST_SCHEMA_TABLE */
 #include <sql_show.h>

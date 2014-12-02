@@ -87,10 +87,6 @@ bool  Initdone = false;
 bool  plugin = false;  // True when called by the XDB plugin handler 
 
 extern "C" {
-#if defined(XMSG)
-       char  msglang[16] = "ENGLISH";      // Default language
-#endif
-extern int  trace;
 extern char version[];
 } // extern "C"
 
@@ -117,11 +113,17 @@ void CloseXMLFile(PGLOBAL, PFBLOCK, bool);
 
 /***********************************************************************/
 /* Routines for file IO with error reporting to g->Message             */
+/* Note: errno and strerror must be called before the message file     */
+/* is read in the case of XMSG compile.                                */
 /***********************************************************************/
-static void
-global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
+static void global_open_error_msg(GLOBAL *g, int msgid, const char *path, 
+                                                        const char *mode)
 {
-  int len;
+  int  len, rno= (int)errno;
+  char errmsg[256]= "";
+
+  strncat(errmsg, strerror(errno), 255);
+
   switch (msgid)
   {
     case MSGID_CANNOT_OPEN:
@@ -133,19 +135,21 @@ global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
     case MSGID_OPEN_MODE_ERROR:
       len= snprintf(g->Message, sizeof(g->Message) - 1,
                     MSG(OPEN_MODE_ERROR), // "Open(%s) error %d on %s"
-                    mode, (int) errno, path);
+                    mode, rno, path);
       break;
 
     case MSGID_OPEN_MODE_STRERROR:
+      {char fmt[256];
+      strcat(strcpy(fmt, MSG(OPEN_MODE_ERROR)), ": %s");
       len= snprintf(g->Message, sizeof(g->Message) - 1,
-                    MSG(OPEN_MODE_ERROR) ": %s", // Open(%s) error %d on %s: %s
-                    mode, (int) errno, path, strerror(errno));
-      break;
+                    fmt, // Open(%s) error %d on %s: %s
+                    mode, rno, path, errmsg);
+      }break;
 
     case MSGID_OPEN_STRERROR:
       len= snprintf(g->Message, sizeof(g->Message) - 1,
                     MSG(OPEN_STRERROR), // "open error: %s"
-                    strerror(errno));
+                    errmsg);
       break;
 
     case MSGID_OPEN_ERROR_AND_STRERROR:
@@ -153,13 +157,13 @@ global_open_error_msg(GLOBAL *g, int msgid, const char *path, const char *mode)
                     //OPEN_ERROR does not work, as it wants mode %d (not %s)
                     //MSG(OPEN_ERROR) "%s",// "Open error %d in mode %d on %s: %s"
                     "Open error %d in mode %s on %s: %s",
-                    errno, mode, path, strerror(errno));
+                    rno, mode, path, errmsg);
       break;
 
     case MSGID_OPEN_EMPTY_FILE:
       len= snprintf(g->Message, sizeof(g->Message) - 1,
                     MSG(OPEN_EMPTY_FILE), // "Opening empty file %s: %s"
-                    path, strerror(errno));
+                    path, errmsg);
       break;
 
     default:
@@ -287,12 +291,9 @@ PQRYRES PlgAllocResult(PGLOBAL g, int ncol, int maxres, int ids,
       // Get header from message file
 			strncpy(cname, PlugReadMessage(g, ids + crp->Ncol, NULL), NAM_LEN);
 			cname[NAM_LEN] = 0;					// for truncated long names
-//#elif defined(WIN32)
-      // Get header from ressource file
-//    LoadString(s_hModule, ids + crp->Ncol, cname, sizeof(cname));
-#else   // !WIN32
+#else   // !XMSG
       GetRcString(ids + crp->Ncol, cname, sizeof(cname));
-#endif  // !WIN32
+#endif  // !XMSG
       crp->Name = (PSZ)PlugSubAlloc(g, NULL, strlen(cname) + 1);
       strcpy(crp->Name, cname);
     } else
@@ -730,6 +731,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
   char *fmt, c, d, e, W[8][12];
   int   i, k, m, numval;
   int   n, y = 30;
+  bool  b = true;           // true for null dates
 
   if (pdp)
     fmt = pdp->InFmt;
@@ -763,7 +765,8 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
     m = pdp->Num;
 
   for (i = 0; i < m; i++) {
-    n = *(int*)W[i];
+    if ((n = *(int*)W[i]))
+      b = false;
 
     switch (k = pdp->Index[i]) {
       case 0:
@@ -822,7 +825,7 @@ int ExtractDate(char *dts, PDTP pdp, int defy, int val[6])
     htrc("numval=%d val=(%d,%d,%d,%d,%d,%d)\n",
           numval, val[0], val[1], val[2], val[3], val[4], val[5]); 
 
-  return numval;
+  return (b) ? 0 : numval;
   } // end of ExtractDate
 
 /***********************************************************************/
@@ -982,7 +985,7 @@ void PlugCleanup(PGLOBAL g, bool dofree)
     /*  This is the place to reset the pointer on domains.             */
     /*******************************************************************/
     dbuserp->Subcor = false;
-    dbuserp->Step = STEP(PARSING_QUERY);
+    dbuserp->Step = "New query";     // was STEP(PARSING_QUERY);
     dbuserp->ProgMax = dbuserp->ProgCur = dbuserp->ProgSav = 0;
     } // endif dofree
 

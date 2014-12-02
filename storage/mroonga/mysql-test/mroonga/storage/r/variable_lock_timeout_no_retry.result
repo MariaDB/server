@@ -1,0 +1,4 @@
+SET GLOBAL mroonga_lock_timeout = 0;
+SHOW GLOBAL VARIABLES LIKE "mroonga_lock_timeout";
+Variable_name	Value
+mroonga_lock_timeout	0

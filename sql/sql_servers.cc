@@ -33,6 +33,7 @@
   currently running transactions etc will not be disrupted.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_servers.h"
 #include "unireg.h"

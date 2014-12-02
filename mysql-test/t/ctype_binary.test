@@ -10,3 +10,15 @@ set names binary;
 --echo #
 --echo # End of 5.5 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+SET NAMES binary;
+--source include/ctype_like_cond_propagation.inc
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

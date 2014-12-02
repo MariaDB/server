@@ -3591,7 +3591,6 @@ end:
 create_new_string:
   /* There is no columns from before, so let's just add the new ones */
   rc= ER_DYNCOL_OK;
-  my_free(alloc_plan);
   if (not_null != 0)
     rc= dynamic_column_create_many_internal_fmt(str, add_column_count,
                                                 (uint*)column_keys, values,

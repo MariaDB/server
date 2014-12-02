@@ -1,4 +1,4 @@
-.TH PCRE_CONFIG 3 "05 November 2013" "PCRE 8.34"
+.TH PCRE_CONFIG 3 "20 April 2014" "PCRE 8.36"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH SYNOPSIS
@@ -24,8 +24,10 @@ arguments are as follows:
   \fIwhere\fP    Points to where to put the data
 .sp
 The \fIwhere\fP argument must point to an integer variable, except for
-PCRE_CONFIG_MATCH_LIMIT and PCRE_CONFIG_MATCH_LIMIT_RECURSION, when it must
-point to an unsigned long integer. The available codes are:
+PCRE_CONFIG_MATCH_LIMIT, PCRE_CONFIG_MATCH_LIMIT_RECURSION, and
+PCRE_CONFIG_PARENS_LIMIT, when it must point to an unsigned long integer,
+and for PCRE_CONFIG_JITTARGET, when it must point to a const char*.
+The available codes are:
 .sp
   PCRE_CONFIG_JIT           Availability of just-in-time compiler
                               support (1=yes 0=no)

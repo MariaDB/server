@@ -26,6 +26,8 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_config.h>
+
 #define MYSQL_SERVER	// to have THD
 #include <mysql/plugin.h>
 #include "sql_class.h"
@@ -858,7 +860,7 @@ static int parse_latch_string_to_legacy_int(const String& value, int &latch)
   unsigned long int v = strtoul( latchValue.c_ptr_safe(), &eptr, 10);
   if (!*eptr) {
     // we had an unsigned number; remember 0 is valid too ('vertices' aka 'no_search'))
-    if (v >= 0 && v < oqgraph::NUM_SEARCH_OP) {
+    if (v < oqgraph::NUM_SEARCH_OP) {
       latch = v;
       return true;
     }
@@ -1068,7 +1070,7 @@ int ha_oqgraph::rnd_init(bool scan)
 int ha_oqgraph::rnd_next(byte *buf)
 {
   int res;
-  open_query::row row = {};
+  open_query::row row = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
   if (!(res= graph->fetch_row(row)))
     res= fill_record(buf, row);

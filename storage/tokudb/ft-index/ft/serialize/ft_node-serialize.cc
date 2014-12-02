@@ -89,6 +89,8 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
+#include <config.h>
+
 #include "portability/toku_atomic.h"
 
 #include "ft/cachetable/cachetable.h"
@@ -145,7 +147,7 @@ struct toku_thread_pool *get_ft_pool(void) {
 }
 
 void toku_serialize_set_parallel(bool in_parallel) {
-    toku_serialize_in_parallel = in_parallel;
+    toku_drd_unsafe_set(&toku_serialize_in_parallel, in_parallel);
 }
 
 void toku_ft_serialize_layer_init(void) {
@@ -852,7 +854,7 @@ toku_serialize_ftnode_to (int fd, BLOCKNUM blocknum, FTNODE node, FTNODE_DISK_DA
         ft->h->basementnodesize,
         ft->h->compression_method,
         do_rebalancing,
-        toku_serialize_in_parallel, // in_parallel
+        toku_drd_unsafe_fetch(&toku_serialize_in_parallel),
         &n_to_write,
         &n_uncompressed_bytes,
         &compressed_buf

@@ -236,3 +236,124 @@ SELECT AVG(f1) FROM t1;
 drop table t1;
 
 --echo End of 5.3 tests
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6950 Bad results with joins comparing DATE/DATETIME and INT/ENUM/VARCHAR columns
+--echo #
+
+CREATE TABLE t1 (c1 DATE PRIMARY KEY);
+INSERT INTO t1 VALUES ('2001-01-01');
+CREATE TABLE t2 (c1 ENUM('2001-01-01','2001/01/01'));
+INSERT INTO t2 VALUES ('2001-01-01');
+INSERT INTO t2 VALUES ('2001/01/01');
+SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+EXPLAIN SELECT t1.* FROM t1,t2 WHERE t1.c1=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING (c1);
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-6978 Bad results with join comparing case insensitive VARCHAR/ENUM/SET expression to a _bin ENUM column
+--echo #
+CREATE TABLE t1 (c1 ENUM('a') CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (c1 ENUM('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+DROP TABLE IF EXISTS t1,t2;
+
+CREATE TABLE t1 (c1 SET('a') CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (c1 ENUM('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+DROP TABLE IF EXISTS t1,t2;
+
+CREATE TABLE t1 (c1 VARCHAR(10) CHARACTER SET latin1 PRIMARY KEY);
+INSERT INTO t1 VALUES ('a');
+CREATE TABLE t2 (c1 ENUM('a','A') CHARACTER SET latin1 COLLATE latin1_bin);
+INSERT INTO t2 VALUES ('a'),('A');
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.c1 COLLATE latin1_swedish_ci=t2.c1;
+DROP TABLE IF EXISTS t1,t2;
+
+--echo #
+--echo # MDEV-6991 GROUP_MIN_MAX optimization is erroneously applied in some cases
+--echo #
+CREATE TABLE t1 (id INT NOT NULL, a ENUM('04','03','02','01')) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,'01');
+INSERT INTO t1 VALUES (1,'02');
+INSERT INTO t1 VALUES (1,'03');
+INSERT INTO t1 VALUES (1,'04');
+INSERT INTO t1 VALUES (2,'01');
+INSERT INTO t1 VALUES (2,'02');
+INSERT INTO t1 VALUES (2,'03');
+INSERT INTO t1 VALUES (2,'04');
+INSERT INTO t1 VALUES (3,'01');
+INSERT INTO t1 VALUES (3,'02');
+INSERT INTO t1 VALUES (3,'03');
+INSERT INTO t1 VALUES (3,'04');
+INSERT INTO t1 VALUES (4,'01');
+INSERT INTO t1 VALUES (4,'02');
+INSERT INTO t1 VALUES (4,'03');
+INSERT INTO t1 VALUES (4,'04');
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='02' GROUP BY id;
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a<=3 GROUP BY id;
+ALTER TABLE t1 ADD KEY(id,a);
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='02' GROUP BY id;
+--echo # Should NOT use group_min_max optimization
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a>='02' GROUP BY id;
+SELECT id,MIN(a),MAX(a) FROM t1 WHERE a<=3 GROUP BY id;
+--echo # Should NOT use group_min_max optimization
+EXPLAIN SELECT id,MIN(a),MAX(a) FROM t1 WHERE a<=3 GROUP BY id;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-6993 Bad results with join comparing DECIMAL and ENUM/SET columns
+--echo #
+CREATE TABLE t1 (c1 DECIMAL(10,1) PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (c1 ENUM('a','b'));
+INSERT INTO t2 VALUES ('a'),('b');
+SELECT t1.* FROM t1 NATURAL JOIN t2;
+ALTER TABLE t2 ADD PRIMARY KEY(c1);
+SELECT t1.* FROM t1 NATURAL JOIN t2;
+SELECT t1.* FROM t1 LEFT OUTER JOIN t2 USING (c1);
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a DECIMAL(10,1), b ENUM('1','2'));
+INSERT INTO t1 (a) VALUES (1),(2);
+UPDATE t1 SET b=a;
+SELECT * FROM t1;
+ALTER TABLE t1 MODIFY a ENUM('1','2');
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

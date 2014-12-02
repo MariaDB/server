@@ -89,6 +89,8 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
+#include <config.h>
+
 #include "portability/toku_race_tools.h"
 
 #include "ft/cachetable/checkpoint.h"
@@ -325,7 +327,7 @@ toku_txn_manager_get_oldest_living_xid(TXN_MANAGER txn_manager) {
 }
 
 TXNID toku_txn_manager_get_oldest_referenced_xid_estimate(TXN_MANAGER txn_manager) {
-    return txn_manager->last_calculated_oldest_referenced_xid;
+    return toku_drd_unsafe_fetch(&txn_manager->last_calculated_oldest_referenced_xid);
 }
 
 int live_root_txn_list_iter(const TOKUTXN &live_xid, const uint32_t UU(index), TXNID **const referenced_xids);
@@ -385,7 +387,7 @@ static void set_oldest_referenced_xid(TXN_MANAGER txn_manager) {
         oldest_referenced_xid = txn_manager->last_xid;
     }
     invariant(oldest_referenced_xid != TXNID_MAX);
-    txn_manager->last_calculated_oldest_referenced_xid = oldest_referenced_xid;
+    toku_drd_unsafe_set(&txn_manager->last_calculated_oldest_referenced_xid, oldest_referenced_xid);
 }
 
 //Heaviside function to find a TOKUTXN by TOKUTXN (used to find the index)

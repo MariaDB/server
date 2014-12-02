@@ -1570,3 +1570,55 @@ SELECT d1 * d2 FROM t1;
 
 DROP TABLE t1;
 
+#
+# Test for Bug#18469276: MOD FOR SMALL DECIMALS FAILS
+#
+select 0.000000000000000000000000000000000000000000000000001 mod 1;
+
+#
+# incorrect result
+#
+select 0.0000000001 mod 1;
+select 0.01 mod 1;
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
+--echo #
+CREATE TABLE t1 (a DATETIME PRIMARY KEY);
+INSERT INTO t1 VALUES ('1999-01-01 00:00:00');
+CREATE TABLE t2 (a DECIMAL(30,1));
+INSERT INTO t2 VALUES (19990101000000);
+INSERT INTO t2 VALUES (990101000000);  
+SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+ALTER TABLE t2 ADD PRIMARY KEY(a);
+SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a;
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+DROP TABLE t1,t2; 
+
+--echo #
+--echo # MDEV-6971 Bad results with joins comparing TIME and DOUBLE/DECIMAL columns
+--echo #
+CREATE TABLE t1 (a TIME(6) PRIMARY KEY);
+INSERT INTO t1 VALUES ('10:20:30');
+CREATE TABLE t2 (a DECIMAL(30,10));
+INSERT INTO t2 VALUES (102030),(102030.000000001);
+SELECT t1.* FROM t1 JOIN t2 USING(a);
+SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
+ALTER TABLE t2 ADD PRIMARY KEY(a);
+SELECT t1.* FROM t1 JOIN t2 USING(a);
+SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
+--echo # t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
+DROP TABLE t1,t2;
+
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

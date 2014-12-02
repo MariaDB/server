@@ -1,4 +1,5 @@
 --source include/have_utf16.inc
+call mtr.add_suppression("Cannot use utf16 as character_set_client");
 
 #
 # Bug #32391  	Character sets: crash with --character-set-server

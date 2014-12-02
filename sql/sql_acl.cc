@@ -25,7 +25,7 @@
   in the relevant fields. Empty strings comes last.
 */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_acl.h"         // MYSQL_DB_FIELD_COUNT, ACL_ACCESS
 #include "sql_base.h"                           // close_mysql_tables
@@ -12229,12 +12229,13 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
                                      mpvio.auth_info.authenticated_as);
       if (!acl_proxy_user)
       {
+        mysql_mutex_unlock(&acl_cache->lock);
+
         Host_errors errors;
         errors.m_proxy_user_acl= 1;
         inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
         if (!thd->is_error())
           login_failed_error(thd);
-        mysql_mutex_unlock(&acl_cache->lock);
         DBUG_RETURN(1);
       }
       acl_user= acl_proxy_user->copy(thd->mem_root);

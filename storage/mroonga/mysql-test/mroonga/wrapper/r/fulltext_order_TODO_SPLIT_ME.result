@@ -1,0 +1,50 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES UTF8;
+CREATE TABLE ft(
+a INT,
+b TEXT,
+c TEXT,
+PRIMARY KEY(a),
+FULLTEXT KEY ftx1(b),
+FULLTEXT KEY ftx2(c)
+)ENGINE=Mroonga DEFAULT CHARSET=UTF8 COMMENT = 'engine "innodb"';
+SHOW CREATE TABLE ft;
+Table	Create Table
+ft	CREATE TABLE `ft` (
+  `a` int(11) NOT NULL DEFAULT '0',
+  `b` text,
+  `c` text,
+  PRIMARY KEY (`a`),
+  FULLTEXT KEY `ftx1` (`b`),
+  FULLTEXT KEY `ftx2` (`c`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='engine "innodb"'
+INSERT INTO ft VALUES(1,'aaaaa','abcde');
+INSERT INTO ft VALUES(2,'bbbbb','bcdef');
+INSERT INTO ft VALUES(3,'ccccc','cdefg');
+INSERT INTO ft VALUES(4,'ddddd','defgh');
+INSERT INTO ft VALUES(5,'eeeee','efghi');
+SELECT a, b, c FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+2	bbbbb	bcdef
+SELECT a, b, c FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE) ORDER BY MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+2	bbbbb	bcdef
+SELECT a, b, c FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE) ORDER BY MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+2	bbbbb	bcdef
+SELECT a, b, c FROM ft WHERE MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c
+SELECT a, b, c, MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE), MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE) FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE) ORDER BY MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c	MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE)	MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE)
+2	bbbbb	bcdef	1	0
+SELECT a, b, c, MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE), MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE) FROM ft WHERE MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE);
+a	b	c	MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE)	MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE)
+2	bbbbb	bcdef	1	0
+SELECT a, b, c, MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE), MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE) FROM ft ORDER BY MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE), MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE), a;
+a	b	c	MATCH(b) AGAINST('bbbbb' IN BOOLEAN MODE)	MATCH(c) AGAINST('bbbbb' IN BOOLEAN MODE)
+1	aaaaa	abcde	0	0
+3	ccccc	cdefg	0	0
+4	ddddd	defgh	0	0
+5	eeeee	efghi	0	0
+2	bbbbb	bcdef	1	0
+DROP TABLE ft;

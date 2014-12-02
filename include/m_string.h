@@ -34,14 +34,6 @@
 #include <string.h>
 #endif
 
-/* need by my_vsnprintf */
-#include <stdarg.h> 
-
-/*  This is needed for the definitions of bzero... on solaris */
-#if defined(HAVE_STRINGS_H)
-#include <strings.h>
-#endif
-
 /*  This is needed for the definitions of memcpy... on solaris */
 #if defined(HAVE_MEMORY_H) && !defined(__cplusplus)
 #include <memory.h>

@@ -15,14 +15,11 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA
 */
 
+#include <my_global.h>
 #include <m_string.h>
 #include <mysql.h>
 #include <my_getopt.h>
 #include <my_dir.h>
-#include <my_global.h>
-#include <stdio.h>
-#include <string.h>
-
 
 #define SHOW_VERSION "1.0.0"
 #define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \

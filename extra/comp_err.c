@@ -30,7 +30,6 @@
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_getopt.h>
-#include <assert.h>
 #include <my_dir.h>
 
 #define MAX_ROWS  2000

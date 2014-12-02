@@ -18,8 +18,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
 
-#include "my_global.h"                          /* ulonglong */
-#include "mysql_version.h"                      /* FRM_VER */
+#include <mysql_version.h>                      /* FRM_VER */
 
 /*  Extra functions used by unireg library */
 

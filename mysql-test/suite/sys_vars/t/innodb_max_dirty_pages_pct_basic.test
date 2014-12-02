@@ -44,7 +44,7 @@ SELECT @global_start_value;
 ######################################################################## 
 
 SET @@global.innodb_max_dirty_pages_pct = 0;
-SET @@global.innodb_max_dirty_pages_pct = DEFAULT;
+SET @@global.innodb_max_dirty_pages_pct = @global_start_value;
 SELECT @@global.innodb_max_dirty_pages_pct;
 
 --echo '#---------------------FN_DYNVARS_046_02-------------------------#'

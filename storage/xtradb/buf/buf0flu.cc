@@ -2523,7 +2523,14 @@ page_cleaner_flush_pages_if_needed(void)
 	ulint			pct_total = 0;
 	int			age_factor = 0;
 
-	cur_lsn = log_get_lsn();
+	cur_lsn = log_get_lsn_nowait();
+
+	/* log_get_lsn_nowait tries to get log_sys->mutex with
+	mutex_enter_nowait, if this does not succeed function
+	returns 0, do not use that value to update stats. */
+	if (cur_lsn == 0) {
+		return(0);
+	}
 
 	if (prev_lsn == 0) {
 		/* First time around. */
@@ -2751,6 +2758,7 @@ DECLARE_THREAD(buf_flush_page_cleaner_thread)(
 		next_loop_time = ut_time_ms() + page_cleaner_sleep_time;
 
 		server_active = srv_check_activity(last_activity);
+
 		if (server_active
 		    || ut_time_ms() - last_activity_time < 1000) {
 

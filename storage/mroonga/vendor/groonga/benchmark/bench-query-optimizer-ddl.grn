@@ -1,0 +1,16 @@
+table_create Entries TABLE_PAT_KEY ShortText
+column_create Entries name COLUMN_SCALAR ShortText
+column_create Entries description COLUMN_SCALAR Text
+column_create Entries last_modified COLUMN_SCALAR Time
+
+table_create Bigram TABLE_PAT_KEY ShortText \
+  --default_tokenizer TokenBigram \
+  --normalizer NormalizerAuto
+column_create Bigram entries_name COLUMN_INDEX|WITH_POSITION \
+  Entries name
+column_create Bigram entries_description COLUMN_INDEX|WITH_POSITION \
+  Entries description
+
+table_create Times TABLE_PAT_KEY Time
+column_create Times entries_last_modified COLUMN_INDEX \
+  Entries last_modified

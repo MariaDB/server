@@ -1,0 +1,4 @@
+SET NAMES UTF8;
+SELECT mroonga_snippet("Invalid charset test", 10, 2, "nonexistent_charset",
+1, 0, "...", "...", "charset", "<", ">");
+ERROR HY000: Can't initialize function 'mroonga_snippet'; Unknown charset: <nonexistent_charset>

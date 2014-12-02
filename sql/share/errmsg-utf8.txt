@@ -6438,11 +6438,11 @@ ER_BINLOG_UNSAFE_CREATE_REPLACE_SELECT
 ER_BINLOG_UNSAFE_UPDATE_IGNORE
   eng "UPDATE IGNORE is unsafe because the order in which rows are updated determines which (if any) rows are ignored. This order cannot be predicted and may differ on master and the slave."
 
-ER_PLUGIN_NO_UNINSTALL
-  eng "Plugin '%s' is marked as not dynamically uninstallable. You have to stop the server to uninstall it."
+ER_UNUSED_15
+  eng "You should never see it"
 
-ER_PLUGIN_NO_INSTALL
-  eng "Plugin '%s' is marked as not dynamically installable. You have to stop the server to install it."
+ER_UNUSED_16
+  eng "You should never see it"
 
 ER_BINLOG_UNSAFE_WRITE_AUTOINC_SELECT
   eng "Statements writing to a table with an auto-increment column after selecting from another table are unsafe because the order in which rows are retrieved determines what (if any) rows will be written. This order cannot be predicted and may differ on master and the slave."

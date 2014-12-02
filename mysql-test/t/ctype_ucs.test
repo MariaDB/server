@@ -897,6 +897,12 @@ DROP TABLE t1;
 --echo # Start of 10.0 tests
 --echo #
 
+SET NAMES latin1, collation_connection=ucs2_bin;
+--source include/ctype_like_cond_propagation.inc
+SET NAMES latin1, collation_connection=ucs2_general_ci;
+--source include/ctype_like_cond_propagation.inc
+SET NAMES latin1;
+
 --echo #
 --echo # MDEV-6661 PI() does not work well in UCS2/UTF16/UTF32 context
 --echo #

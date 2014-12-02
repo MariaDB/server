@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS items;
+CREATE TABLE items (
+name VARCHAR(255),
+price TINYINT UNSIGNED KEY
+) DEFAULT CHARSET=utf8;
+INSERT INTO items VALUES ("hamburger", 255);
+INSERT INTO items VALUES ("discount", 0);
+INSERT INTO items VALUES ("coke", 100);
+SELECT * FROM items;
+name	price
+discount	0
+coke	100
+hamburger	255
+SELECT * FROM items WHERE price <= 100;
+name	price
+discount	0
+coke	100
+DROP TABLE items;

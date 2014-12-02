@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS numbers;
+CREATE TABLE numbers (
+id INT,
+count INT,
+UNIQUE (id)
+);
+INSERT INTO numbers (id, count) VALUES (1, 1) ON DUPLICATE KEY UPDATE count = 2;
+INSERT INTO numbers (id, count) VALUES (1, 3) ON DUPLICATE KEY UPDATE count = 4;
+SELECT * FROM numbers;
+id	count
+1	4
+INSERT INTO numbers (id, count) VALUES (2, 1) ON DUPLICATE KEY UPDATE count = 2;
+INSERT INTO numbers (id, count) VALUES (2, 3) ON DUPLICATE KEY UPDATE count = 4;
+SELECT * FROM numbers;
+id	count
+1	4
+2	4
+DROP TABLE numbers;

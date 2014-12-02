@@ -20,7 +20,7 @@
   Functions to autenticate and handle reqests for a connection
 */
 
-#include "my_global.h"
+#include <my_global.h>
 #include "sql_priv.h"
 #ifndef __WIN__
 #include <netdb.h>        // getservbyname, servent
@@ -795,14 +795,10 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
    Use server character set and collation if
    - opt_character_set_client_handshake is not set
    - client has not specified a character set
-   - client character set is the same as the servers
    - client character set doesn't exists in server
   */
   if (!opt_character_set_client_handshake ||
-      !(cs= get_charset(cs_number, MYF(0))) ||
-      !my_strcasecmp(&my_charset_latin1,
-                     global_system_variables.character_set_client->name,
-                     cs->name))
+      !(cs= get_charset(cs_number, MYF(0))))
   {
     thd->variables.character_set_client=
       global_system_variables.character_set_client;

@@ -35,6 +35,7 @@ drop table t1;
 
 # test SSL connections
 --connect (ssl_con,localhost,root,,,,,SSL)
+--replace_result DHE-RSA-AES256-GCM-SHA384 DHE-RSA-AES256-SHA
 SHOW STATUS LIKE 'Ssl_cipher';
 --connection default
 

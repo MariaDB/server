@@ -14,3 +14,40 @@ this
 0
 4294967295
 drop table t1;
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
+#
+CREATE TABLE t1 (a DATE PRIMARY KEY);
+INSERT INTO t1 VALUES ('1999-01-01');
+CREATE TABLE t2 (a INT UNSIGNED);
+INSERT INTO t2 VALUES (19990101);
+INSERT INTO t2 VALUES (990101);
+SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a;
+a
+1999-01-01
+1999-01-01
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+a
+1999-01-01
+1999-01-01
+ALTER TABLE t2 ADD PRIMARY KEY(a);
+SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a;
+a
+1999-01-01
+1999-01-01
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+a
+1999-01-01
+1999-01-01
+# t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index
+DROP TABLE t1,t2;
+#
+# End of 10.0 tests
+#

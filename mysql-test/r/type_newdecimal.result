@@ -1988,3 +1988,93 @@ SELECT d1 * d2 FROM t1;
 d1 * d2
 0
 DROP TABLE t1;
+select 0.000000000000000000000000000000000000000000000000001 mod 1;
+0.000000000000000000000000000000000000000000000000001 mod 1
+0.000000000000000000000000000000
+select 0.0000000001 mod 1;
+0.0000000001 mod 1
+0.0000000001
+select 0.01 mod 1;
+0.01 mod 1
+0.01
+#
+# Start of 10.0 tests
+#
+#
+# MDEV-6950 Bad results with joins comparing DATE and INT/ENUM/VARCHAR columns
+#
+CREATE TABLE t1 (a DATETIME PRIMARY KEY);
+INSERT INTO t1 VALUES ('1999-01-01 00:00:00');
+CREATE TABLE t2 (a DECIMAL(30,1));
+INSERT INTO t2 VALUES (19990101000000);
+INSERT INTO t2 VALUES (990101000000);
+SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a;
+a
+1999-01-01 00:00:00
+1999-01-01 00:00:00
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+a
+1999-01-01 00:00:00
+1999-01-01 00:00:00
+ALTER TABLE t2 ADD PRIMARY KEY(a);
+SELECT t1.* FROM t1,t2 WHERE t1.a=t2.a;
+a
+1999-01-01 00:00:00
+1999-01-01 00:00:00
+SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+a
+1999-01-01 00:00:00
+1999-01-01 00:00:00
+# t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	14	NULL	2	Using where; Using index
+DROP TABLE t1,t2;
+#
+# MDEV-6971 Bad results with joins comparing TIME and DOUBLE/DECIMAL columns
+#
+CREATE TABLE t1 (a TIME(6) PRIMARY KEY);
+INSERT INTO t1 VALUES ('10:20:30');
+CREATE TABLE t2 (a DECIMAL(30,10));
+INSERT INTO t2 VALUES (102030),(102030.000000001);
+SELECT t1.* FROM t1 JOIN t2 USING(a);
+a
+10:20:30.000000
+10:20:30.000000
+Warnings:
+Note	1292	Truncated incorrect time value: '102030.0000000000'
+Note	1292	Truncated incorrect time value: '102030.0000000010'
+SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
+a
+10:20:30.000000
+10:20:30.000000
+Warnings:
+Note	1292	Truncated incorrect time value: '102030.0000000000'
+Note	1292	Truncated incorrect time value: '102030.0000000000'
+Note	1292	Truncated incorrect time value: '102030.0000000010'
+ALTER TABLE t2 ADD PRIMARY KEY(a);
+SELECT t1.* FROM t1 JOIN t2 USING(a);
+a
+10:20:30.000000
+10:20:30.000000
+Warnings:
+Note	1292	Truncated incorrect time value: '102030.0000000000'
+Note	1292	Truncated incorrect time value: '102030.0000000010'
+SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
+a
+10:20:30.000000
+10:20:30.000000
+Warnings:
+Note	1292	Truncated incorrect time value: '102030.0000000000'
+Note	1292	Truncated incorrect time value: '102030.0000000000'
+Note	1292	Truncated incorrect time value: '102030.0000000010'
+# t2 should NOT be eliminated
+EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t2	index	PRIMARY	PRIMARY	14	NULL	2	Using where; Using index
+DROP TABLE t1,t2;
+#
+# End of 10.0 tests
+#

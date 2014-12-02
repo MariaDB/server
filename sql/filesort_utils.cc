@@ -125,7 +125,8 @@ void Filesort_buffer::free_sort_buffer()
 
 void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
 {
-  if (count <= 1)
+  size_t size= param->sort_length;
+  if (count <= 1 || size == 0)
     return;
   uchar **keys= get_sort_keys();
   uchar **buffer= NULL;
@@ -138,6 +139,5 @@ void Filesort_buffer::sort_buffer(const Sort_param *param, uint count)
     return;
   }
   
-  size_t size= param->sort_length;
   my_qsort2(keys, count, sizeof(uchar*), get_ptr_compare(size), &size);
 }

@@ -74,6 +74,7 @@ CREATE TABLE t1 (a TIME,b TIME(1));
 INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
 SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
 DROP TABLE t1;
+
 SET @@global.mysql56_temporal_format=false;
 SET @@old_mode=zero_date_time_cast;
 CREATE TABLE t1 (a TIME,b TIME(1));

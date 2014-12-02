@@ -25,8 +25,8 @@
   replication slave.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
-#include "my_global.h"
 #include "slave.h"
 #include "sql_parse.h"                         // execute_init_command
 #include "sql_table.h"                         // mysql_rm_table
@@ -5578,7 +5578,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
       char str_buf[128];
       String str(str_buf, sizeof(str_buf), system_charset_info);
       mi->rli.until_gtid_pos.to_string(&str);
-      sql_print_information("Slave IO thread stops because it reached its"
+      sql_print_information("Slave I/O thread stops because it reached its"
                             " UNTIL master_gtid_pos %s", str.c_ptr_safe());
       mi->abort_slave= true;
     }

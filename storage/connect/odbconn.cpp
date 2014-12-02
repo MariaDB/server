@@ -1,7 +1,7 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 1.9                                     */
+/*  Name: ODBCONN.CPP  Version 2.0                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -63,8 +63,6 @@ extern "C" HINSTANCE s_hModule;           // Saved module handle
 #define ASSERT(f)          ((void)0)
 #define DEBUG_ONLY(f)      ((void)0)
 #endif  // !_DEBUG
-
-extern "C" int trace;
 
 /***********************************************************************/
 /*  GetSQLType: returns the SQL_TYPE corresponding to a PLG type.      */
@@ -832,7 +830,7 @@ DBX::DBX(RETCODE rc, PSZ msg)
 /***********************************************************************/
 /*  This function is called by ThrowDBX.                               */
 /***********************************************************************/
-void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
+bool DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
   {
   if (pdb) {
     SWORD   len;
@@ -845,7 +843,9 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
     rc = SQLError(pdb->m_henv, pdb->m_hdbc, hstmt, state,
                   &native, msg, SQL_MAX_MESSAGE_LENGTH - 1, &len);
 
-    if (rc != SQL_INVALID_HANDLE) {
+    if (rc == SQL_NO_DATA_FOUND)
+      return false;
+    else if (rc != SQL_INVALID_HANDLE) {
     // Skip non-errors
       for (int i = 0; i < MAX_NUM_OF_MSG
               && (rc == SQL_SUCCESS || rc == SQL_SUCCESS_WITH_INFO)
@@ -861,7 +861,7 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
 
         } // endfor i
 
-      return;
+      return true;
     } else {
       snprintf((char*)msg, SQL_MAX_MESSAGE_LENGTH + 1, "%s: %s", m_Msg,
                MSG(BAD_HANDLE_VAL));
@@ -871,7 +871,7 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
       if (trace)
         htrc("%s: rc=%hd\n", SVP(m_ErrMsg[0]), m_RC); 
 
-      return;
+      return true;
     } // endif rc
 
   } else
@@ -880,6 +880,7 @@ void DBX::BuildErrorMessage(ODBConn* pdb, HSTMT hstmt)
   if (trace)
     htrc("%s: rc=%hd (%s)\n", SVP(m_Msg), m_RC, SVP(m_ErrMsg[0])); 
 
+  return true;
   } // end of BuildErrorMessage
 
 const char *DBX::GetErrorMessage(int i)
@@ -912,6 +913,7 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Connect = NULL;
   m_Updatable = true;
   m_Transact = false;
+  m_Scrollable = (tdbp) ? tdbp->Scrollable : false;
   m_IDQuoteChar[0] = '"';
   m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
@@ -934,9 +936,10 @@ bool ODBConn::Check(RETCODE rc)
       if (trace) {
         DBX x(rc);
 
-        x.BuildErrorMessage(this, m_hstmt);
-        htrc("ODBC Success With Info, hstmt=%p %s\n",
-          m_hstmt, x.GetErrorMessage(0));
+        if (x.BuildErrorMessage(this, m_hstmt))
+          htrc("ODBC Success With Info, hstmt=%p %s\n",
+            m_hstmt, x.GetErrorMessage(0));
+
         } // endif trace
 
       // Fall through
@@ -955,8 +958,10 @@ void ODBConn::ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt)
   {
   DBX* xp = new(m_G) DBX(rc, msg);
 
-  xp->BuildErrorMessage(this, hstmt);
-  throw xp;
+  // Don't throw if no error
+  if (xp->BuildErrorMessage(this, hstmt))
+    throw xp;
+
   } // end of ThrowDBX
 
 void ODBConn::ThrowDBX(PSZ msg)
@@ -1300,25 +1305,28 @@ int ODBConn::ExecDirectSQL(char *sql, ODBCCOL *tocols)
     b = false;
 
     if (m_hstmt) {
-//    All this did not seems to make sense and was been commented out
-//    if (IsOpen())
-//      Close(SQL_CLOSE);
-
+      // This is a Requery
       rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
 
-      if (trace && !Check(rc))
-        htrc("Error: SQLFreeStmt rc=%d\n", rc);
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLFreeStmt");
 
-      hstmt = m_hstmt;
       m_hstmt = NULL;
-      ThrowDBX(MSG(SEQUENCE_ERROR));
-    } else {
-      rc = SQLAllocStmt(m_hdbc, &hstmt);
+      } // endif m_hstmt
+
+    rc = SQLAllocStmt(m_hdbc, &hstmt);
+
+    if (!Check(rc))
+      ThrowDBX(rc, "SQLAllocStmt");
+
+    if (m_Scrollable) {
+      rc = SQLSetStmtAttr(hstmt, SQL_ATTR_CURSOR_SCROLLABLE, 
+                          (void*)SQL_SCROLLABLE, 0);
 
       if (!Check(rc))
-        ThrowDBX(SQL_INVALID_HANDLE, "SQLAllocStmt");
+        ThrowDBX(rc, "SQLSetStmtAttr");
 
-    } // endif hstmt
+      } // endif m_Scrollable
 
     OnSetOptions(hstmt);
     b = true;
@@ -2333,6 +2341,34 @@ int ODBConn::GetCatInfo(CATPARM *cap)
 
   return irc;
   } // end of GetCatInfo
+
+/***********************************************************************/
+/*  Restart from beginning of result set                               */
+/***********************************************************************/
+bool ODBConn::Rewind(char *sql, ODBCCOL *tocols)
+  {
+  RETCODE rc;
+
+  if (!m_hstmt)
+    return false;
+
+  if (m_Scrollable) {
+    try {
+      rc = SQLFetchScroll(m_hstmt, SQL_FETCH_ABSOLUTE, 0);
+
+      if (rc != SQL_NO_DATA_FOUND)
+        ThrowDBX(rc, "SQLFetchScroll", m_hstmt);
+
+    } catch(DBX *x) {
+      strcpy(m_G->Message, x->GetErrorMessage(0));
+      return true;
+    } // end try/catch
+
+  } else if (ExecDirectSQL(sql, tocols) < 0)
+    return true;
+
+  return false;
+  } // end of Rewind
 
 /***********************************************************************/
 /*  Disconnect connection                                              */

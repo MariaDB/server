@@ -19,6 +19,7 @@
 #pragma implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 // Required to get server definitions for mysql/plugin.h right
 #include "sql_plugin.h"

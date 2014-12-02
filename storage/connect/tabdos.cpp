@@ -65,14 +65,16 @@
 /***********************************************************************/
 int num_read, num_there, num_eq[2];                 // Statistics
 
-extern "C" int     trace;
-extern "C" USETEMP Use_Temp;
-extern     bool    xinfo;
-
 /***********************************************************************/
 /*  Size of optimize file header.                                      */
 /***********************************************************************/
 #define NZ         4
+
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+bool    ExactInfo(void);
+USETEMP UseTemp(void);
 
 /***********************************************************************/
 /*  Min and Max blocks contains zero ended fields (blank = false).     */
@@ -146,7 +148,7 @@ bool DOSDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Eof = (GetIntCatInfo("EOF", 0) != 0);
   } else if (Recfm == RECFM_DBF) {
     Maxerr = GetIntCatInfo("Maxerr", 0);
-    Accept = (GetIntCatInfo("Accept", 0) != 0);
+    Accept = GetBoolCatInfo("Accept", false);
     ReadMode = GetIntCatInfo("Readmode", 0);
   } else // (Recfm == RECFM_VAR)
     AvgLen = GetIntCatInfo("Avglen", 0);
@@ -316,13 +318,13 @@ bool DOSDEF::InvalidateIndex(PGLOBAL g)
 PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   {
   // Mapping not used for insert
-  USETEMP tmp = Use_Temp;
+  USETEMP tmp = UseTemp();
   bool    map = Mapped && mode != MODE_INSERT &&
                 !(tmp != TMP_NO && Recfm == RECFM_VAR
                                 && mode == MODE_UPDATE) &&
                 !(tmp == TMP_FORCE &&
                 (mode == MODE_UPDATE || mode == MODE_DELETE));
-  PTXF    txfp;
+  PTXF    txfp = NULL;
   PTDBASE tdbp;
 
   /*********************************************************************/
@@ -575,7 +577,6 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   {
   int        i, lg, nrec, rc, n = 0;
   int        curnum, curblk, block, savndv, savnbm;
-  int        last __attribute__((unused));
   void      *savmin, *savmax;
   bool       blocked, xdb2 = false;
 //POOLHEADER save;
@@ -612,7 +613,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   // to Rows+1 by unblocked variable length table access methods.
   curblk = -1;
   curnum = nrec - 1;
-  last = 0;
+//last = 0;
   Txfp->Block = block;                  // This is useful mainly for
   Txfp->CurBlk = curblk;                // blocked tables (ZLBFAM), for
   Txfp->CurNum = curnum;                // others it is just to be clean.
@@ -743,7 +744,7 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
         Txfp->BlkPos[curblk] = Txfp->GetPos();
         } // endif CurNum
 
-      last = curnum + 1;              // curnum is zero based
+//    last = curnum + 1;              // curnum is zero based
       Txfp->CurBlk = curblk;          // Used in COLDOS::SetMinMax
       Txfp->CurNum = curnum;          // Used in COLDOS::SetMinMax
     } // endif blocked
@@ -1353,7 +1354,6 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //bool    conv = false, xdb2 = false, ok = false, b[2];
 //PXOB   *xarg1, *xarg2 = NULL, xp[2];
   int     i, n = 0, type[2] = {0,0};
-  int     ctype __attribute__((unused));
   bool    conv = false, xdb2 = false, ok = false;
   PXOB   *xarg2 = NULL, xp[2];
   PCOL    colp;
@@ -1361,12 +1361,11 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
 //SFROW  *sfr[2];
   PBF    *fp = NULL, bfp = NULL;
 
-  ctype= TYPE_ERROR;
   for (i = 0; i < 2; i++) {
     switch (arg[i]->GetType()) {
       case TYPE_CONST:
         type[i] = 1;
-        ctype = arg[i]->GetResultType();
+ //     ctype = arg[i]->GetResultType();
         break;
       case TYPE_COLBLK:
         conv = cnv[i];
@@ -1391,7 +1390,7 @@ PBF TDBDOS::CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv)
           // correlated subquery, it has a constant value during
           // each execution of the subquery.
           type[i] = 1;
-          ctype = arg[i]->GetResultType();
+//        ctype = arg[i]->GetResultType();
         } // endif this
 
         break;
@@ -1779,8 +1778,13 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted)
   To_Link = (PXOB*)PlugSubAlloc(g, NULL, Knum * sizeof(PXOB));
 
   for (k = 0, kdp = xdp->GetToKeyParts(); kdp; k++, kdp = kdp->GetNext()) {
-    cdp = Key(k)->GetCdp();
-    valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    if ((cdp = Key(k)->GetCdp()))
+      valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    else {                        // Special column ?
+      colp = Key(k);
+      valp = AllocateValue(g, colp->GetResultType(), colp->GetLength());
+    } // endif cdp
+
     To_Link[k]= new(g) CONSTANT(valp);
     } // endfor k
 
@@ -1908,7 +1912,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
     
         } // endif Mode
 
-      if (Mode == MODE_ANY && xinfo) {
+      if (Mode == MODE_ANY && ExactInfo()) {
         // Using index impossible or failed, do it the hard way
         Mode = MODE_READ;
         To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
@@ -2021,8 +2025,10 @@ int TDBDOS::EstimatedLength(PGLOBAL g)
 /***********************************************************************/
 bool TDBDOS::IsUsingTemp(PGLOBAL g)
   {
-  return (Use_Temp == TMP_YES || Use_Temp == TMP_FORCE ||
-         (Use_Temp == TMP_AUTO && Mode == MODE_UPDATE));
+  USETEMP utp = UseTemp();
+
+  return (utp == TMP_YES || utp == TMP_FORCE ||
+         (utp == TMP_AUTO && Mode == MODE_UPDATE));
   } // end of IsUsingTemp
 
 /***********************************************************************/
@@ -2062,7 +2068,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
   } else if (Txfp->Blocked && (Mode == MODE_DELETE ||
-             (Mode == MODE_UPDATE && Use_Temp != TMP_NO))) {
+             (Mode == MODE_UPDATE && UseTemp() != TMP_NO))) {
     /*******************************************************************/
     /*  Delete is not currently handled in block mode neither Update   */
     /*  when using a temporary file.                                   */

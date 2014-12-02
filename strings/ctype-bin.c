@@ -395,7 +395,7 @@ int my_wildcmp_bin_impl(CHARSET_INFO *cs,
 	  if (tmp <= 0)
 	    return(tmp);
 	}
-      } while (str != str_end && wildstr[0] != w_many);
+      } while (str != str_end);
       return(-1);
     }
   }

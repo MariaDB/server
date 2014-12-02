@@ -20,12 +20,10 @@
 #ifndef _maria_h
 #define _maria_h
 #include <my_base.h>
-#include <my_sys.h>
 #include <m_ctype.h>
 #include "my_compare.h"
 #include "ft_global.h"
 #include <myisamchk.h>
-#include <mysql/plugin.h>
 
 #ifdef	__cplusplus
 extern "C" {

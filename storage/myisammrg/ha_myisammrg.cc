@@ -90,12 +90,12 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_cache.h"                          // query_cache_*
 #include "sql_show.h"                           // append_identifier
 #include "sql_table.h"                         // build_table_filename
-#include <mysql/plugin.h>
 #include <m_ctype.h>
 #include "../myisam/ha_myisam.h"
 #include "ha_myisammrg.h"

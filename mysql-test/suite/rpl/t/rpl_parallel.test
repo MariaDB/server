@@ -1466,6 +1466,177 @@ SET sql_slave_skip_counter= 1;
 SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
 
 
+--echo *** MDEV-6775: Wrong binlog order in parallel replication ***
+--connection server_1
+# A bit tricky bug to reproduce. On the master, we binlog in statement-mode
+# two transactions, an UPDATE followed by a DELETE. On the slave, we replicate
+# with binlog-mode set to ROW, which means the DELETE, which modifies no rows,
+# is not binlogged. Then we inject a wait in the group commit code on the
+# slave, shortly before the actual commit of the UPDATE. The bug was that the
+# DELETE could wake up from wait_for_prior_commit() before the commit of the
+# UPDATE. So the test could see the slave position updated to after DELETE,
+# while the UPDATE was still not visible.
+DELETE FROM t4;
+INSERT INTO t4 VALUES (1,NULL), (3,NULL), (4,4), (5, NULL), (6, 6);
+--source include/save_master_gtid.inc
+
+--connection server_2
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,inject_binlog_commit_before_get_LOCK_log";
+SET @old_format=@@GLOBAL.binlog_format;
+SET GLOBAL binlog_format=ROW;
+# Re-spawn the worker threads to be sure they pick up the new binlog format
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+
+--connection con1
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+send UPDATE t4 SET b=NULL WHERE a=6;
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued1';
+
+--connection con2
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+send DELETE FROM t4 WHERE b <= 3;
+
+--connection server_1
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+
+--connection con1
+REAP;
+SET binlog_format= @old_format;
+--connection con2
+REAP;
+SET binlog_format= @old_format;
+SET debug_sync='RESET';
+--save_master_pos
+SELECT * FROM t4 ORDER BY a;
+
+--connection server_2
+--source include/start_slave.inc
+SET debug_sync= 'now WAIT_FOR waiting';
+--sync_with_master
+SELECT * FROM t4 ORDER BY a;
+SET debug_sync= 'now SIGNAL cont';
+
+# Re-spawn the worker threads to remove any DBUG injections or DEBUG_SYNC.
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL binlog_format= @old_format;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+--source include/start_slave.inc
+
+
+--echo *** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
+--connection server_1
+INSERT INTO t2 VALUES (40);
+--save_master_pos
+
+--connection server_2
+--sync_with_master
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+# This DBUG injection causes a DEBUG_SYNC signal "scheduled_gtid_0_x_100" when
+# GTID 0-1-100 has been scheduled for and fetched by a worker thread.
+SET GLOBAL debug_dbug="+d,rpl_parallel_scheduled_gtid_0_x_100";
+# This DBUG injection causes a DEBUG_SYNC signal "wait_for_done_waiting" when
+# STOP SLAVE has signalled all worker threads to stop.
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+# Reset worker threads to make DBUG setting catch on.
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+
+
+--connection server_1
+# Setup some transaction for the slave to replicate.
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+# Need to log the DELETE in statement format, so we can see it in processlist.
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+DELETE FROM t2 WHERE a=40;
+SET binlog_format= @old_format;
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+# Force the slave to switch to a new relay log file.
+FLUSH LOGS;
+INSERT INTO t2 VALUES (45);
+# Inject a GTID 0-1-100, which will trigger a DEBUG_SYNC signal when this
+# transaction has been fetched by a worker thread.
+SET gtid_seq_no=100;
+INSERT INTO t2 VALUES (46);
+--save_master_pos
+
+--connection con_temp2
+# Temporarily block the DELETE on a=40 from completing.
+BEGIN;
+SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+
+
+--connection server_2
+--source include/start_slave.inc
+
+# Wait for a worker thread to start on the DELETE that will be blocked
+# temporarily by the SELECT FOR UPDATE.
+--let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE state='updating' and info LIKE '%DELETE FROM t2 WHERE a=40%'
+--source include/wait_condition.inc
+
+# The DBUG injection set above will make the worker thread signal the following
+# debug_sync when the GTID 0-1-100 has been reached by a worker thread.
+# Thus, at this point, the SQL driver thread has reached the next
+# relay log file name, while a worker thread is still processing a
+# transaction in the previous relay log file, blocked on the SELECT FOR
+# UPDATE.
+SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+# At this point, the SQL driver thread is in the new relay log file, while
+# the DELETE from the old relay log file is not yet complete. We will stop
+# the slave at this point. The bug was that the DELETE statement would
+# update the slave position to the _new_ relay log file name instead of
+# its own old file name. Thus, by stoping and restarting the slave at this
+# point, we would get an error at restart due to incorrect position. (If
+# we would let the slave catch up before stopping, the incorrect position
+# would be corrected by a later transaction).
+
+send STOP SLAVE;
+
+--connection con_temp2
+# Wait for STOP SLAVE to have proceeded sufficiently that it has signalled
+# all worker threads to stop; this ensures that we will stop after the DELETE
+# transaction (and not after a later transaction that might have been able
+# to set a fixed position).
+SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+# Now release the row lock that was blocking the replication of DELETE.
+ROLLBACK;
+
+--connection server_2
+reap;
+--source include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+# Now restart the slave. With the bug present, this would start at an
+# incorrect relay log position, causing relay log read error (or if unlucky,
+# silently skip a number of events).
+--source include/start_slave.inc
+--sync_with_master
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+--source include/start_slave.inc
+
+
+# Clean up.
 --connection server_2
 --source include/stop_slave.inc
 SET GLOBAL slave_parallel_threads=@old_parallel_threads;

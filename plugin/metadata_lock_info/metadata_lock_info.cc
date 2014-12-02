@@ -14,6 +14,7 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #define MYSQL_SERVER 1
+#include "my_config.h"
 #include "mysql_version.h"
 #include "mysql/plugin.h"
 #include "sql_class.h"

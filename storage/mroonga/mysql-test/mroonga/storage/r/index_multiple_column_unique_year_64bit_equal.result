@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS ranges;
+CREATE TABLE ranges (
+id INT PRIMARY KEY,
+start YEAR,
+end YEAR,
+UNIQUE KEY range_key(start, end)
+);
+INSERT INTO ranges VALUES (1, 1901, 2012);
+INSERT INTO ranges VALUES (2, 1901, 2155);
+INSERT INTO ranges VALUES (3, 2012, 2155);
+INSERT INTO ranges VALUES (4, 2155, 1901);
+SELECT * FROM ranges FORCE INDEX(range_key)
+WHERE start = 1901 AND end = 2155;
+id	start	end
+2	1901	2155
+DROP TABLE ranges;

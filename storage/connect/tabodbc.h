@@ -59,6 +59,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   int     Quoted;             /* Identifier quoting level              */
   int     Maxerr;             /* Maxerr for an Exec table              */
   int     Maxres;             /* Maxres for a catalog table            */
+  bool    Scrollable;         /* Use scrollable cursor                 */
   bool    Xsrc;               /* Execution type                        */
   }; // end of ODBCDEF
 
@@ -142,6 +143,7 @@ class TDBODBC : public TDBASE {
   int      Rbuf;              // Number of lines read in buffer
   int      BufSize;           // Size of connect string buffer
   int      Nparm;             // The number of statement parameters
+  bool     Scrollable;        // Use scrollable cursor
   }; // end of class TDBODBC
 
 /***********************************************************************/

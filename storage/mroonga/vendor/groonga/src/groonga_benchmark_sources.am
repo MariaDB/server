@@ -1,0 +1,2 @@
+groonga_benchmark_SOURCES =			\
+	groonga_benchmark.c

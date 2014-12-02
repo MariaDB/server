@@ -84,9 +84,7 @@ TODO:
 #include <mysqld_error.h>
 #include <my_dir.h>
 #include <signal.h>
-#include <stdarg.h>
 #include <sslopt-vars.h>
-#include <sys/types.h>
 #ifndef __WIN__
 #include <sys/wait.h>
 #endif

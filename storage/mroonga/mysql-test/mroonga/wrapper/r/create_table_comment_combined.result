@@ -1,0 +1,12 @@
+DROP TABLE IF EXISTS bugs;
+CREATE TABLE bugs (
+id INT UNSIGNED PRIMARY KEY
+) DEFAULT CHARSET=utf8
+COMMENT='Free style normal comment, engine "InnoDB"';
+SHOW CREATE TABLE bugs;
+Table	Create Table
+bugs	CREATE TABLE `bugs` (
+  `id` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8 COMMENT='Free style normal comment, engine "InnoDB"'
+DROP TABLE bugs;

@@ -259,10 +259,6 @@ lock_wait_suspend_thread(
 		}
 	}
 
-	/* Wake the lock timeout monitor thread, if it is suspended */
-
-	os_event_set(lock_sys->timeout_event);
-
 	lock_wait_mutex_exit();
 	trx_mutex_exit(trx);
 

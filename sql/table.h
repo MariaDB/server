@@ -1378,6 +1378,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
+  void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
   void prepare_triggers_for_insert_stmt_or_event();
