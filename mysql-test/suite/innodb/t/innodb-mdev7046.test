@@ -1,6 +1,10 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
 
+--disable_query_log
+--disable_result_log
+--disable_warnings
+
 # Ignore OS errors
 call mtr.add_suppression("InnoDB: File ./test/t1*");
 call mtr.add_suppression("nnoDB: Error number*");
@@ -32,3 +36,10 @@ drop table t1;
 
 let $datadir=`select @@datadir`;
 --remove_file $datadir/test/db.opt
+
+--enable_query_log
+--enable_result_log
+--enable_warnings
+
+--echo 1
+
