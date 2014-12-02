@@ -9,6 +9,7 @@ CALL mtr.add_suppression("Unsafe statement written to the binary log using state
 INSERT INTO t1 VALUES (1,sleep(2));
 Warnings:
 Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave.
+include/wait_for_slave_param.inc [Seconds_Behind_Master]
 Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
 Seconds_Behind_Master = '0'
 include/stop_slave.inc
