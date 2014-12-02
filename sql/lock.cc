@@ -68,10 +68,6 @@
   table_handler->external_lock(thd, F_UNLCK) for each table that was locked,
   excluding one that caused failure. That means handler must cleanup itself
   in case external_lock() fails.
-
-  @todo
-  Change to use my_malloc() ONLY when using LOCK TABLES command or when
-  we are forced to use mysql_lock_merge.
 */
 
 #include <my_global.h>
@@ -266,19 +262,24 @@ void reset_lock_data(MYSQL_LOCK *sql_lock, bool unlock)
 MYSQL_LOCK *mysql_lock_tables(THD *thd, TABLE **tables, uint count, uint flags)
 {
   MYSQL_LOCK *sql_lock;
+  uint gld_flags= GET_LOCK_STORE_LOCKS;
   DBUG_ENTER("mysql_lock_tables(tables)");
 
   if (lock_tables_check(thd, tables, count, flags))
     DBUG_RETURN(NULL);
 
-  if (! (sql_lock= get_lock_data(thd, tables, count, GET_LOCK_STORE_LOCKS)))
+  if (!(thd->variables.option_bits & OPTION_TABLE_LOCK))
+    gld_flags|= GET_LOCK_ON_THD;
+
+  if (! (sql_lock= get_lock_data(thd, tables, count, gld_flags)))
     DBUG_RETURN(NULL);
 
   if (mysql_lock_tables(thd, sql_lock, flags))
   {
     /* Clear the lock type of all lock data to avoid reusage. */
     reset_lock_data(sql_lock, 1);
-    my_free(sql_lock);
+    if (!(gld_flags & GET_LOCK_ON_THD))
+      my_free(sql_lock);
     sql_lock= 0;
   }
   DBUG_RETURN(sql_lock);
@@ -379,6 +380,13 @@ static int lock_external(THD *thd, TABLE **tables, uint count)
     }
   }
   DBUG_RETURN(0);
+}
+
+
+void mysql_unlock_tables(THD *thd, MYSQL_LOCK *sql_lock)
+{
+  mysql_unlock_tables(thd, sql_lock,
+                      thd->variables.option_bits & OPTION_TABLE_LOCK);
 }
 
 

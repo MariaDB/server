@@ -521,6 +521,8 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
     }
   }
 
+  thd->variables.option_bits|= OPTION_TABLE_LOCK;
+
   /*
     Before opening and locking tables the below call also waits
     for old shares to go away, so the fact that we don't pass
@@ -534,7 +536,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
   if (open_and_lock_tables(thd, all_tables, FALSE,
                            MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK,
                            &lock_tables_prelocking_strategy))
-    goto error;
+    goto error_reset_bits;
 
   if (thd->lex->type & REFRESH_FOR_EXPORT)
   {
@@ -546,15 +548,14 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
                  table_list->db, table_list->table_name);
-        return true;
+        goto error_reset_bits;
       }
     }
   }
 
   if (thd->locked_tables_list.init_locked_tables(thd))
-    goto error;
+    goto error_reset_bits;
 
-  thd->variables.option_bits|= OPTION_TABLE_LOCK;
 
   /*
     We don't downgrade MDL_SHARED_NO_WRITE here as the intended
@@ -565,6 +566,9 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 
   return FALSE;
 
+error_reset_bits:
+  close_thread_tables(thd);
+  thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
 error:
   return TRUE;
 }
