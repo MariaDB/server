@@ -87,6 +87,10 @@ create table t1 (a datetime, b datetime as (utc_time()));
 -- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
 create table t1 (a datetime, b datetime as (utc_timestamp()));
 
+--echo # WEEK() - one argument version
+-- error ER_VIRTUAL_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create table t1 (a datetime, b datetime as (week(a)));
+
 --echo # MATCH()
 if (!$skip_full_text_checks)
 {

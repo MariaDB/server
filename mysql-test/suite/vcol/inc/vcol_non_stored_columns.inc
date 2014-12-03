@@ -141,7 +141,7 @@ show create table t1;
 drop table t1;
 
 --echo # Case 14. ALTER. Changing the expression of a virtual stored column.
-create table t1 (a int, b datetime, c int as (week(b)) persistent);
+create table t1 (a int, b datetime, c int as (week(b,0)) persistent);
 insert into t1 values (1,'2008-09-04',default);
 insert into t1 values (2,'2008-09-05',default);
 select * from t1;
@@ -151,7 +151,7 @@ show create table t1;
 drop table t1;
 
 --echo # Case 15. ALTER. Changing the expression of a virtual non-stored column.
-create table t1 (a int, b datetime, c int as (week(b)));
+create table t1 (a int, b datetime, c int as (week(b,0)));
 insert into t1 values (1,'2008-09-04',default);
 insert into t1 values (2,'2008-09-05',default);
 select * from t1;
