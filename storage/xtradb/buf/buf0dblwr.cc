@@ -50,6 +50,8 @@ UNIV_INTERN buf_dblwr_t*	buf_dblwr = NULL;
 /** Set to TRUE when the doublewrite buffer is being created */
 UNIV_INTERN ibool	buf_dblwr_being_created = FALSE;
 
+#define TRX_SYS_DOUBLEWRITE_BLOCKS 2
+
 /****************************************************************//**
 Determines if a page number is located inside the doublewrite buffer.
 @return TRUE if the location is inside the two blocks of the
@@ -136,7 +138,7 @@ buf_dblwr_init(
 
 	/* There are two blocks of same size in the doublewrite
 	buffer. */
-	buf_size = 2 * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
+	buf_size = TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
 
 	/* There must be atleast one buffer for single page writes
 	and one buffer for batch writes. */
@@ -216,7 +218,7 @@ start_again:
 		"Doublewrite buffer not found: creating new");
 
 	if (buf_pool_get_curr_size()
-	    < ((2 * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE
+	    < ((TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE
 		+ FSP_EXTENT_SIZE / 2 + 100)
 	       * UNIV_PAGE_SIZE)) {
 
@@ -252,7 +254,7 @@ start_again:
 	fseg_header = doublewrite + TRX_SYS_DOUBLEWRITE_FSEG;
 	prev_page_no = 0;
 
-	for (i = 0; i < 2 * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE
+	for (i = 0; i < TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE
 		     + FSP_EXTENT_SIZE / 2; i++) {
 		new_block = fseg_alloc_free_page(
 			fseg_header, prev_page_no + 1, FSP_UP, &mtr);
@@ -437,7 +439,7 @@ buf_dblwr_init_or_load_pages(
 
 	page = buf;
 
-	for (i = 0; i < TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * 2; i++) {
+	for (i = 0; i < TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * TRX_SYS_DOUBLEWRITE_BLOCKS; i++) {
 
 		ulint source_page_no;
 
@@ -604,7 +606,27 @@ buf_dblwr_process()
 	}
 
 	fil_flush_file_spaces(FIL_TABLESPACE);
-	ut_free(unaligned_read_buf);
+
+        {
+		fprintf(stderr,
+			"Clear dblwr buffer after completing "
+			"processing of it...\n");
+
+		size_t bytes = TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE;
+		byte *unaligned_buf = static_cast<byte*>(
+			ut_malloc(bytes + UNIV_PAGE_SIZE - 1));
+
+		byte *buf = static_cast<byte*>(
+			ut_align(unaligned_buf, UNIV_PAGE_SIZE));
+		memset(buf, 0, bytes);
+
+		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
+			buf_dblwr->block1, 0, bytes, buf, NULL, NULL);
+		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
+			buf_dblwr->block2, 0, bytes, buf, NULL, NULL);
+
+		ut_free(unaligned_buf);
+        }
 }
 
 /****************************************************************//**
@@ -676,7 +698,7 @@ buf_dblwr_update(
 		break;
 	case BUF_FLUSH_SINGLE_PAGE:
 		{
-			const ulint size = 2 * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
+			const ulint size = TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
 			ulint i;
 			mutex_enter(&buf_dblwr->mutex);
 			for (i = srv_doublewrite_batch_size; i < size; ++i) {
@@ -1085,7 +1107,7 @@ buf_dblwr_write_single_page(
 	/* total number of slots available for single page flushes
 	starts from srv_doublewrite_batch_size to the end of the
 	buffer. */
-	size = 2 * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
+	size = TRX_SYS_DOUBLEWRITE_BLOCKS * TRX_SYS_DOUBLEWRITE_BLOCK_SIZE;
 	ut_a(size > srv_doublewrite_batch_size);
 	n_slots = size - srv_doublewrite_batch_size;
 

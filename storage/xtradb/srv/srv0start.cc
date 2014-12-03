@@ -71,6 +71,7 @@ Created 2/16/1996 Heikki Tuuri
 #include "buf0flu.h"
 #include "btr0defragment.h"
 #include "ut0timer.h"
+#include "btr0scrub.h"
 
 #ifndef UNIV_HOTBACKUP
 # include "trx0rseg.h"
@@ -2389,6 +2390,11 @@ files_checked:
 		dict_stats_thread_init();
 	}
 
+	if (!srv_read_only_mode && srv_scrub_log) {
+		/* TODO(minliz): have/use log_scrub_thread_init() instead? */
+		log_scrub_event = os_event_create();
+	}
+
 	trx_sys_file_format_init();
 
 	trx_sys_create();
@@ -3016,8 +3022,15 @@ files_checked:
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
 
+		/* Init data for datafile scrub threads */
+		btr_scrub_init();
+
 		/* Create thread(s) that handles key rotation */
 		fil_crypt_threads_init();
+
+		/* Create the log scrub thread */
+		if (srv_scrub_log)
+			os_thread_create(log_scrub_thread, NULL, NULL);
 	}
 
 	/* Initialize online defragmentation. */
@@ -3194,10 +3207,18 @@ innobase_shutdown_for_mysql(void)
 
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
+		if (srv_scrub_log) {
+			/* TODO(minliz): have/use log_scrub_thread_deinit() instead? */
+			os_event_free(log_scrub_event);
+			log_scrub_event = NULL;
+		}
 	}
 
 	if (!srv_read_only_mode) {
 		fil_crypt_threads_cleanup();
+
+		/* Cleanup data for datafile scrubbing */
+		btr_scrub_cleanup();
 	}
 
 #ifdef __WIN__

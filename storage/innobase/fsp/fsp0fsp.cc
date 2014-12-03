@@ -4157,3 +4157,30 @@ fsp_header_get_crypt_offset(
 
 	return FSP_HEADER_OFFSET + iv_offset;
 }
+
+/**********************************************************************//**
+Checks if a single page is free.
+@return	true if free */
+UNIV_INTERN
+bool
+fsp_page_is_free_func(
+/*==============*/
+	ulint		space,		/*!< in: space id */
+	ulint		page_no,	/*!< in: page offset */
+	mtr_t*		mtr,		/*!< in/out: mini-transaction */
+	const char *file,
+	ulint line)
+{
+	ulint		flags;
+
+	ut_ad(mtr);
+
+	mtr_x_lock_func(fil_space_get_latch(space, &flags), file, line, mtr);
+	ulint zip_size = fsp_flags_get_zip_size(flags);
+
+	xdes_t* descr = xdes_get_descriptor(space, zip_size, page_no, mtr);
+	ut_a(descr);
+
+	return xdes_mtr_get_bit(
+		descr, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE, mtr);
+}

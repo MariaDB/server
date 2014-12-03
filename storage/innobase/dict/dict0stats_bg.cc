@@ -427,7 +427,7 @@ dict_stats_process_entry_from_recalc_pool()
 		return;
 	}
 
-	table->stats_bg_flag = BG_STAT_IN_PROGRESS;
+	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
 
 	mutex_exit(&dict_sys->mutex);
 
@@ -454,7 +454,7 @@ dict_stats_process_entry_from_recalc_pool()
 
 	mutex_enter(&dict_sys->mutex);
 
-	table->stats_bg_flag = BG_STAT_NONE;
+	table->stats_bg_flag &= ~BG_STAT_IN_PROGRESS;
 
 	dict_table_close(table, TRUE, FALSE);
 

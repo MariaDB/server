@@ -3258,6 +3258,41 @@ run_again:
 	return(err);
 }
 
+static
+void
+fil_wait_crypt_bg_threads(
+	dict_table_t* table)
+{
+	uint start = time(0);
+	uint last = start;
+
+	if (table->space != 0) {
+		fil_space_crypt_mark_space_closing(table->space);
+	}
+
+	while (table->n_ref_count > 0) {
+		dict_mutex_exit_for_mysql();
+		os_thread_sleep(20000);
+		dict_mutex_enter_for_mysql();
+		uint now = time(0);
+		if (now >= last + 30) {
+			fprintf(stderr,
+				"WARNING: waited %u seconds "
+				"for ref-count on table: %s space: %u\n",
+				now - start, table->name, table->space);
+			last = now;
+		}
+
+		if (now >= start + 300) {
+			fprintf(stderr,
+				"WARNING: after %u seconds, gave up waiting "
+				"for ref-count on table: %s space: %u\n",
+				now - start, table->name, table->space);
+			break;
+		}
+	}
+}
+
 /*********************************************************************//**
 Truncates a table for MySQL.
 @return	error code or DB_SUCCESS */
@@ -4067,6 +4102,9 @@ row_drop_table_for_mysql(
 	preserve existing behaviour we remove the locks but ideally we
 	shouldn't have to. There should never be record locks on a table
 	that is going to be dropped. */
+
+	/* Wait on background threads to stop using table */
+	fil_wait_crypt_bg_threads(table);
 
 	if (table->n_ref_count == 0) {
 		lock_remove_all_on_table(table, TRUE);

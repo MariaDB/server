@@ -1,0 +1,42 @@
+# bool global
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+SET @start_global_value = @@global.innodb_scrub_force_testing;
+
+--echo #
+--echo # exists as global only
+--echo #
+select @@global.innodb_scrub_force_testing;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+select @@session.innodb_scrub_force_testing;
+show global variables like 'innodb_scrub_force_testing';
+show session variables like 'innodb_scrub_force_testing';
+select * from information_schema.global_variables
+where variable_name='innodb_scrub_force_testing';
+select * from information_schema.session_variables
+where variable_name='innodb_scrub_force_testing';
+
+--echo #
+--echo # show that it's writable
+--echo #
+set global innodb_scrub_force_testing=ON;
+select @@global.innodb_scrub_force_testing;
+set global innodb_scrub_force_testing=OFF;
+select @@global.innodb_scrub_force_testing;
+set global innodb_scrub_force_testing=1;
+select @@global.innodb_scrub_force_testing;
+--error ER_GLOBAL_VARIABLE
+set session innodb_scrub_force_testing=1;
+
+--echo #
+--echo # incorrect types
+--echo #
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_scrub_force_testing=1.1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global innodb_scrub_force_testing=1e1;
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_scrub_force_testing="foo";
+
+SET @@global.innodb_scrub_force_testing = @start_global_value;

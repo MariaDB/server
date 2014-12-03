@@ -14,3 +14,4 @@
 --loose-innodb-sys-tables
 --loose-innodb-sys-tablestats
 --loose-innodb-tablespaces-encryption
+--loose-innodb-tablespaces-scrubbing

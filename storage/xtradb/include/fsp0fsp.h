@@ -846,6 +846,22 @@ fsp_header_get_crypt_offset(
 	ulint zip_size,		/*!< in: zip_size */
 	ulint* max_size);	/*!< out: free space after offset */
 
+#define fsp_page_is_free(space,page,mtr) \
+	fsp_page_is_free_func(space,page,mtr, __FILE__, __LINE__)
+
+/**********************************************************************//**
+Checks if a single page is free.
+@return	true if free */
+UNIV_INTERN
+bool
+fsp_page_is_free_func(
+/*==============*/
+	ulint		space,		/*!< in: space id */
+	ulint		page,		/*!< in: page offset */
+	mtr_t*		mtr,		/*!< in/out: mini-transaction */
+	const char *file,
+	ulint line);
+
 #ifndef UNIV_NONINL
 #include "fsp0fsp.ic"
 #endif

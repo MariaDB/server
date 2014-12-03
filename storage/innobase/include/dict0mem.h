@@ -1218,20 +1218,29 @@ struct dict_table_t{
 				calculation; this counter is not protected by
 				any latch, because this is only used for
 				heuristics */
-#define BG_STAT_NONE		0
-#define BG_STAT_IN_PROGRESS	(1 << 0)
+
+#define BG_STAT_IN_PROGRESS	((byte)(1 << 0))
 				/*!< BG_STAT_IN_PROGRESS is set in
 				stats_bg_flag when the background
 				stats code is working on this table. The DROP
 				TABLE code waits for this to be cleared
 				before proceeding. */
-#define BG_STAT_SHOULD_QUIT	(1 << 1)
+#define BG_STAT_SHOULD_QUIT	((byte)(1 << 1))
 				/*!< BG_STAT_SHOULD_QUIT is set in
 				stats_bg_flag when DROP TABLE starts
 				waiting on BG_STAT_IN_PROGRESS to be cleared,
 				the background stats thread will detect this
 				and will eventually quit sooner */
-	byte		stats_bg_flag;
+#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
+				/*!< BG_SCRUB_IN_PROGRESS is set in
+				stats_bg_flag when the background
+				scrub code is working on this table. The DROP
+				TABLE code waits for this to be cleared
+				before proceeding. */
+
+#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
+
+	byte 		stats_bg_flag;
 				/*!< see BG_STAT_* above.
 				Writes are covered by dict_sys->mutex.
 				Dirty reads are possible. */

@@ -1476,6 +1476,14 @@ fil_crypt_set_rotation_iops(
 	uint iops); /*!< in: requested iops */
 
 /*********************************************************************
+Mark a space as closing */
+UNIV_INTERN
+void
+fil_space_crypt_mark_space_closing(
+/*===============*/
+	ulint space);          /*!< in: tablespace id */
+
+/*********************************************************************
 Wait for crypt threads to stop accessing space */
 UNIV_INTERN
 void
@@ -1520,6 +1528,27 @@ void
 fil_crypt_total_stat(
 /*==================*/
 	fil_crypt_stat_t* stat); /*!< out: crypt stat */
+
+/** Struct for retreiving info about scrubbing */
+struct fil_space_scrub_status_t {
+	ulint space;             /*!< tablespace id */
+	bool compressed;        /*!< is space compressed  */
+	time_t last_scrub_completed;  /*!< when was last scrub completed */
+	bool scrubbing;               /*!< is scrubbing ongoing */
+	time_t current_scrub_started; /*!< when started current scrubbing */
+	ulint current_scrub_active_threads; /*!< current scrub active threads */
+	ulint current_scrub_page_number; /*!< current scrub page no */
+	ulint current_scrub_max_page_number; /*!< current scrub max page no */
+};
+
+/*********************************************************************
+Get scrub status for a space
+@return 0 if no scrub info found */
+int
+fil_space_get_scrub_status(
+/*==================*/
+	ulint id,	                           /*!< in: space id */
+	struct fil_space_scrub_status_t * status); /*!< out: status  */
 
 #endif
 

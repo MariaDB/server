@@ -477,6 +477,11 @@ extern ibool	srv_buf_dump_thread_active;
 /* TRUE during the lifetime of the stats thread */
 extern ibool	srv_dict_stats_thread_active;
 
+/* TRUE if enable log scrubbing */
+extern my_bool	srv_scrub_log;
+/* TRUE during the lifetime of the log scrub thread */
+extern ibool	srv_log_scrub_thread_active;
+
 extern ulong	srv_n_spin_wait_rounds;
 extern ulong	srv_n_free_tickets_to_enter;
 extern ulong	srv_thread_sleep_delay;
@@ -1025,6 +1030,13 @@ struct export_var_t{
 	ulint innodb_encryption_rotation_pages_modified;
 	ulint innodb_encryption_rotation_pages_flushed;
 	ulint innodb_encryption_rotation_estimated_iops;
+
+	ulint innodb_scrub_page_reorganizations;
+	ulint innodb_scrub_page_splits;
+	ulint innodb_scrub_page_split_failures_underflow;
+	ulint innodb_scrub_page_split_failures_out_of_filespace;
+	ulint innodb_scrub_page_split_failures_missing_index;
+	ulint innodb_scrub_page_split_failures_unknown;
 };
 
 /** Thread slot in the thread table.  */

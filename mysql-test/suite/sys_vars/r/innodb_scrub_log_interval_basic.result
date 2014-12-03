@@ -1,0 +1,53 @@
+SELECT @@GLOBAL.innodb_scrub_log_interval;
+@@GLOBAL.innodb_scrub_log_interval
+2000
+200 Expected
+SET @@GLOBAL.innodb_scrub_log_interval=100;
+1 Expected
+SELECT @@GLOBAL.innodb_scrub_log_interval;
+@@GLOBAL.innodb_scrub_log_interval
+100
+100 Expected
+SET @@GLOBAL.innodb_scrub_log_interval=DEFAULT;
+1 Expected
+SELECT @@GLOBAL.innodb_scrub_log_interval;
+@@GLOBAL.innodb_scrub_log_interval
+2000
+200 Expected
+SELECT @@GLOBAL.innodb_scrub_log_interval = VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
+WHERE VARIABLE_NAME='innodb_scrub_log_interval';
+@@GLOBAL.innodb_scrub_log_interval = VARIABLE_VALUE
+1
+1 Expected
+SELECT @@GLOBAL.innodb_scrub_log_interval;
+@@GLOBAL.innodb_scrub_log_interval
+2000
+200 Expected
+SELECT VARIABLE_VALUE
+FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES 
+WHERE VARIABLE_NAME='innodb_scrub_log_interval';
+VARIABLE_VALUE
+2000
+200 Expected
+SELECT @@innodb_scrub_log_interval = @@GLOBAL.innodb_scrub_log_interval;
+@@innodb_scrub_log_interval = @@GLOBAL.innodb_scrub_log_interval
+1
+1 Expected
+SELECT @@innodb_scrub_log_interval;
+@@innodb_scrub_log_interval
+2000
+200 Expected
+SELECT @@local.innodb_scrub_log_interval;
+ERROR HY000: Variable 'innodb_scrub_log_interval' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT @@SESSION.innodb_scrub_log_interval;
+ERROR HY000: Variable 'innodb_scrub_log_interval' is a GLOBAL variable
+Expected error 'Variable is a GLOBAL variable'
+SELECT @@GLOBAL.innodb_scrub_log_interval;
+@@GLOBAL.innodb_scrub_log_interval
+2000
+200 Expected
+SELECT innodb_scrub_log_interval;
+ERROR 42S22: Unknown column 'innodb_scrub_log_interval' in 'field list'
+Expected error 'Unknow column in field list'

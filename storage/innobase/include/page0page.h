@@ -162,6 +162,8 @@ directory. */
 #define PAGE_DIR_SLOT_MAX_N_OWNED	8
 #define	PAGE_DIR_SLOT_MIN_N_OWNED	4
 
+extern my_bool srv_immediate_scrub_data_uncompressed;
+
 /************************************************************//**
 Gets the start of a page.
 @return	start of the page */

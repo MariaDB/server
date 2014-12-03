@@ -4926,7 +4926,7 @@ func_exit:
 		ut_ad(btr_blob_op_is_update(op));
 
 		for (i = 0; i < n_freed_pages; i++) {
-			btr_page_free_low(index, freed_pages[i], 0, alloc_mtr);
+			btr_page_free_low(index, freed_pages[i], 0, true, alloc_mtr);
 		}
 
 		DBUG_EXECUTE_IF("btr_store_big_rec_extern",
@@ -5164,7 +5164,7 @@ btr_free_externally_stored_field(
 			}
 			next_page_no = mach_read_from_4(page + FIL_PAGE_NEXT);
 
-			btr_page_free_low(index, ext_block, 0, &mtr);
+			btr_page_free_low(index, ext_block, 0, true, &mtr);
 
 			if (page_zip != NULL) {
 				mach_write_to_4(field_ref + BTR_EXTERN_PAGE_NO,
@@ -5195,7 +5195,7 @@ btr_free_externally_stored_field(
 			because we did not store it on the page (we save the
 			space overhead from an index page header. */
 
-			btr_page_free_low(index, ext_block, 0, &mtr);
+			btr_page_free_low(index, ext_block, 0, true, &mtr);
 
 			mlog_write_ulint(field_ref + BTR_EXTERN_PAGE_NO,
 					 next_page_no,

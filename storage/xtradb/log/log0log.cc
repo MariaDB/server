@@ -90,6 +90,10 @@ UNIV_INTERN log_t*	log_sys	= NULL;
 UNIV_INTERN log_checksum_func_t log_checksum_algorithm_ptr	=
 	log_block_calc_checksum_innodb;
 
+/* Next log block number to do dummy record filling if no log records written
+for a while */
+static ulint		next_lbn_to_pad = 0;
+
 #ifdef UNIV_PFS_RWLOCK
 UNIV_INTERN mysql_pfs_key_t	checkpoint_lock_key;
 # ifdef UNIV_LOG_ARCHIVE
@@ -629,10 +633,9 @@ function_exit:
 	return(lsn);
 }
 
-#ifdef UNIV_LOG_ARCHIVE
 /******************************************************//**
 Pads the current log block full with dummy log records. Used in producing
-consistent archived log files. */
+consistent archived log files and scrubbing redo log. */
 static
 void
 log_pad_current_log_block(void)
@@ -667,7 +670,6 @@ log_pad_current_log_block(void)
 
 	ut_a(lsn % OS_FILE_LOG_BLOCK_SIZE == LOG_BLOCK_HDR_SIZE);
 }
-#endif /* UNIV_LOG_ARCHIVE */
 
 /******************************************************//**
 Calculates the data capacity of a log group, when the log file headers are not
@@ -4162,5 +4164,63 @@ log_mem_free(void)
 
 		log_sys = NULL;
 	}
+}
+
+/** Event to wake up the log scrub thread */
+UNIV_INTERN os_event_t log_scrub_event = NULL;
+
+UNIV_INTERN ibool srv_log_scrub_thread_active = FALSE;
+
+/*****************************************************************//*
+If no log record has been written for a while, fill current log
+block with dummy records. */
+static
+void
+log_scrub()
+/*=========*/
+{
+	ulint cur_lbn = log_block_convert_lsn_to_no(log_sys->lsn);
+	if (next_lbn_to_pad == cur_lbn)
+	{
+		log_pad_current_log_block();
+	}
+	next_lbn_to_pad = log_block_convert_lsn_to_no(log_sys->lsn);
+}
+
+/* log scrubbing interval in ms. */
+UNIV_INTERN ulonglong innodb_scrub_log_interval;
+
+/*****************************************************************//**
+This is the main thread for log scrub. It waits for an event and
+when waked up fills current log block with dummy records and
+sleeps again.
+@return this function does not return, it calls os_thread_exit() */
+extern "C" UNIV_INTERN
+os_thread_ret_t
+DECLARE_THREAD(log_scrub_thread)(
+/*===============================*/
+	void* arg __attribute__((unused)))	/*!< in: a dummy parameter
+						required by os_thread_create */
+{
+	ut_ad(!srv_read_only_mode);
+
+	srv_log_scrub_thread_active = TRUE;
+
+	while(srv_shutdown_state == SRV_SHUTDOWN_NONE)
+	{
+		os_event_wait_time(log_scrub_event, innodb_scrub_log_interval * 1000);
+
+		log_scrub();
+
+		os_event_reset(log_scrub_event);
+	}
+
+	srv_log_scrub_thread_active = FALSE;
+
+	/* We count the number of threads in os_thread_exit(). A created
+	thread should always use that to exit and not use return() to exit. */
+	os_thread_exit(NULL);
+
+	OS_THREAD_DUMMY_RETURN;
 }
 #endif /* !UNIV_HOTBACKUP */

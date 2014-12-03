@@ -1,1 +1,1 @@
---innodb-encrypt-tables=FALSE
+--innodb-encrypt-tables=FALSE --innodb-encryption-threads=0

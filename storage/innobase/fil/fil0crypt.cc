@@ -7,6 +7,8 @@
 #include "mtr0log.h"
 #include "page0zip.h"
 #include "ut0ut.h"
+#include "btr0scrub.h"
+#include "fsp0fsp.h"
 
 #include <my_crypt.h>
 #include <my_crypt_key_management.h>
@@ -53,6 +55,10 @@ static bool fil_crypt_start_converting = false;
 UNIV_INTERN uint srv_n_fil_crypt_iops = 100;	 // 10ms per iop
 static uint srv_alloc_time = 3;		    // allocate iops for 3s at a time
 static uint n_fil_crypt_iops_allocated = 0;
+
+/** Variables for scrubbing */
+extern uint srv_background_scrub_data_interval;
+extern uint srv_background_scrub_data_check_interval;
 
 #define DEBUG_KEYROTATION_THROTTLING 0
 
@@ -107,6 +113,7 @@ struct key_struct
 
 struct fil_space_rotate_state_t
 {
+	time_t start_time;    // time when rotation started
 	ulint active_threads; // active threads in space
 	ulint next_offset;    // next "free" offset
 	ulint max_offset;     // max offset needing to be rotated
@@ -114,6 +121,10 @@ struct fil_space_rotate_state_t
 	lsn_t end_lsn;		     // max lsn created when rotating this space
 	bool starting;		     // initial write of IV
 	bool flushing;		     // space is being flushed at end of rotate
+	struct {
+		bool is_active; // is scrubbing active in this space
+		time_t last_scrub_completed; // when was last scrub completed
+	} scrubbing;
 };
 
 struct fil_space_crypt_struct
@@ -244,18 +255,20 @@ UNIV_INTERN
 fil_space_crypt_t*
 fil_space_create_crypt_data()
 {
-	if (srv_encrypt_tables == FALSE)
-		return NULL;
-
 	const uint iv_length = CRYPT_SCHEME_1_IV_LEN;
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
 	fil_space_crypt_t* crypt_data =
 		static_cast<fil_space_crypt_t*>(malloc(sz));
 	memset(crypt_data, 0, sz);
 
-	crypt_data->type = CRYPT_SCHEME_1;
+	if (srv_encrypt_tables == FALSE) {
+		crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
+		crypt_data->min_key_version = 0;
+	} else {
+		crypt_data->type = CRYPT_SCHEME_1;
+		crypt_data->min_key_version = GetLatestCryptoKeyVersion();
+	}
 
-	crypt_data->min_key_version = GetLatestCryptoKeyVersion();
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->iv_length = iv_length;
@@ -855,7 +868,7 @@ fil_crypt_needs_rotation(uint key_version, const key_state_t *key_state)
 
 /***********************************************************************
 Check if a space is closing (i.e just before drop) */
-static bool
+UNIV_INTERN bool
 fil_crypt_is_closing(ulint space)
 {
 	bool closing;
@@ -871,7 +884,7 @@ Start encrypting a space
 @return true if a pending op (fil_inc_pending_ops/fil_decr_pending_ops) is held
 */
 static bool
-fil_crypt_start_encrypting_space(ulint space) {
+fil_crypt_start_encrypting_space(ulint space, bool *recheck) {
 
 	/* we have a pending op when entering function */
 	bool pending_op = true;
@@ -880,6 +893,9 @@ fil_crypt_start_encrypting_space(ulint space) {
 	fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
 	if (crypt_data != NULL || fil_crypt_start_converting) {
 		/* someone beat us to it */
+		if (fil_crypt_start_converting)
+			*recheck = true;
+
 		mutex_exit(&fil_crypt_threads_mutex);
 		return pending_op;
 	}
@@ -898,6 +914,7 @@ fil_crypt_start_encrypting_space(ulint space) {
 
 	crypt_data->type = CRYPT_SCHEME_UNENCRYPTED;
 	crypt_data->min_key_version = 0; // all pages are unencrypted
+	crypt_data->rotate_state.start_time = time(0);
 	crypt_data->rotate_state.starting = true;
 	crypt_data->rotate_state.active_threads = 1;
 
@@ -1035,7 +1052,7 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 		* space has no crypt data
 		*   start encrypting it...
 		*/
-		pending_op = fil_crypt_start_encrypting_space(space);
+		pending_op = fil_crypt_start_encrypting_space(space, recheck);
 		crypt_data = fil_space_get_crypt_data(space);
 		if (crypt_data == NULL) {
 			if (pending_op) {
@@ -1047,10 +1064,6 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 
 	mutex_enter(&crypt_data->mutex);
 	do {
-		if (crypt_data->type == CRYPT_SCHEME_UNENCRYPTED &&
-		    key_state->key_version == 0)
-			break;
-
 		/* prevent threads from starting to rotate space */
 		if (crypt_data->rotate_state.starting) {
 			/* recheck this space later */
@@ -1065,8 +1078,15 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 		if (crypt_data->rotate_state.flushing)
 			break;
 
-		if (!fil_crypt_needs_rotation(crypt_data->min_key_version,
-					      key_state))
+		bool need_key_rotation = fil_crypt_needs_rotation(
+			crypt_data->min_key_version, key_state);
+
+		time_t diff = time(0) - crypt_data->rotate_state.scrubbing.
+			last_scrub_completed;
+		bool need_scrubbing =
+			diff >= srv_background_scrub_data_interval;
+
+		if (need_key_rotation == false && need_scrubbing == false)
 			break;
 
 		mutex_exit(&crypt_data->mutex);
@@ -1083,7 +1103,7 @@ fil_crypt_space_needs_rotation(uint space, const key_state_t *key_state,
 
 /** State of a rotation thread */
 struct rotate_thread_t {
-	rotate_thread_t(uint no) {
+	explicit rotate_thread_t(uint no) {
 		memset(this, 0, sizeof(* this));
 		thread_no = no;
 		first = true;
@@ -1104,6 +1124,9 @@ struct rotate_thread_t {
 	uint sum_waited_us;	   /*!< wait time during this slot */
 
 	fil_crypt_stat_t crypt_stat; // statistics
+
+	btr_scrub_t scrub_data;      /* thread local data used by btr_scrub-functions
+				     * when iterating pages of tablespace */
 
 	/* check if this thread should shutdown */
 	bool should_shutdown() const {
@@ -1344,6 +1367,8 @@ fil_crypt_start_rotate_space(
 		crypt_data->rotate_state.end_lsn = 0;
 		crypt_data->rotate_state.min_key_version_found =
 			key_state->key_version;
+
+		crypt_data->rotate_state.start_time = time(0);
 	}
 
 	/* count active threads in space */
@@ -1353,6 +1378,10 @@ fil_crypt_start_rotate_space(
 	state->end_lsn = crypt_data->rotate_state.end_lsn;
 	state->min_key_version_found =
 		crypt_data->rotate_state.min_key_version_found;
+
+	/* inform scrubbing */
+	crypt_data->rotate_state.scrubbing.is_active =
+		btr_scrub_start_space(space, &state->scrub_data);
 
 	mutex_exit(&crypt_data->mutex);
 }
@@ -1418,19 +1447,24 @@ fil_crypt_is_page_uninitialized(const byte* frame, uint zip_size)
 	return false;
 }
 
+#define fil_crypt_get_page_throttle(state,space,zip_size,offset,mtr,sleeptime_ms) \
+	fil_crypt_get_page_throttle_func(state, space, zip_size, offset, mtr, \
+					 sleeptime_ms, __FILE__, __LINE__)
+
 /***********************************************************************
 Get a page and compute sleep time  */
 static
 buf_block_t*
-fil_crypt_get_page_throttle(rotate_thread_t *state,
-			    ulint space, uint zip_size, ulint offset,
-			    mtr_t *mtr,
-			    ulint *sleeptime_ms)
+fil_crypt_get_page_throttle_func(rotate_thread_t *state,
+				 ulint space, uint zip_size, ulint offset,
+				 mtr_t *mtr,
+				 ulint *sleeptime_ms,
+				 const char *file,
+				 ulint line)
 {
-	*sleeptime_ms = 0;
 	buf_block_t* block = buf_page_try_get_func(space, offset, RW_X_LATCH,
 						   true,
-						   __FILE__, __LINE__, mtr);
+						   file, line, mtr);
 	if (block != NULL) {
 		/* page was in buffer pool */
 		state->crypt_stat.pages_read_from_cache++;
@@ -1443,7 +1477,7 @@ fil_crypt_get_page_throttle(rotate_thread_t *state,
 	block = buf_page_get_gen(space, zip_size, offset,
 				 RW_X_LATCH,
 				 NULL, BUF_GET_POSSIBLY_FREED,
-				 __FILE__, __LINE__, mtr);
+				 file, line, mtr);
 	ullint end = ut_time_us(NULL);
 
 	if (end < start) {
@@ -1454,17 +1488,74 @@ fil_crypt_get_page_throttle(rotate_thread_t *state,
 	state->sum_waited_us += (end - start);
 
 	/* average page load */
+	ulint add_sleeptime_ms = 0;
 	ulint avg_wait_time_us = state->sum_waited_us / state->cnt_waited;
 	ulint alloc_wait_us = 1000000 / state->allocated_iops;
 	if (avg_wait_time_us < alloc_wait_us) {
 		/* we reading faster than we allocated */
-		*sleeptime_ms = (alloc_wait_us - avg_wait_time_us) / 1000;
+		add_sleeptime_ms = (alloc_wait_us - avg_wait_time_us) / 1000;
 	} else {
 		/* if page load time is longer than we want, skip sleeping */
 	}
 
+	*sleeptime_ms += add_sleeptime_ms;
 	return block;
 }
+
+
+/***********************************************************************
+Get block and allocation status
+
+note: innodb locks fil_space_latch and then block when allocating page
+but locks block and then fil_space_latch when freeing page.
+*/
+static
+buf_block_t*
+btr_scrub_get_block_and_allocation_status(
+	rotate_thread_t *state,
+	ulint space,
+	ulint zip_size,
+	ulint offset,
+	mtr_t *mtr,
+	btr_scrub_page_allocation_status_t *allocation_status,
+	ulint *sleeptime_ms)
+{
+	mtr_t local_mtr;
+	buf_block_t *block = NULL;
+	mtr_start(&local_mtr);
+	*allocation_status = fsp_page_is_free(space, offset, &local_mtr) ?
+		BTR_SCRUB_PAGE_FREE :
+		BTR_SCRUB_PAGE_ALLOCATED;
+
+	if (*allocation_status == BTR_SCRUB_PAGE_FREE) {
+		/* this is easy case, we lock fil_space_latch first and
+		then block */
+		block = fil_crypt_get_page_throttle(state,
+						    space, zip_size,
+						    offset, mtr,
+						    sleeptime_ms);
+		mtr_commit(&local_mtr);
+	} else {
+		/* page is allocated according to xdes */
+
+		/* release fil_space_latch *before* fetching block */
+		mtr_commit(&local_mtr);
+
+		/* NOTE: when we have locked dict_index_get_lock(),
+		* it's safe to release fil_space_latch and then fetch block
+		* as dict_index_get_lock() is needed to make tree modifications
+		* such as free-ing a page
+		*/
+
+		block = fil_crypt_get_page_throttle(state,
+						    space, zip_size,
+						    offset, mtr,
+						    sleeptime_ms);
+	}
+
+	return block;
+}
+
 
 /***********************************************************************
 Rotate one page */
@@ -1496,6 +1587,7 @@ fil_crypt_rotate_page(
 							 &sleeptime_ms);
 
 	bool modified = false;
+	int needs_scrubbing = BTR_SCRUB_SKIP_PAGE;
 	lsn_t block_lsn = block->page.newest_modification;
 	uint kv =  block->page.key_version;
 
@@ -1534,15 +1626,75 @@ fil_crypt_rotate_page(
 				state->min_key_version_found = kv;
 			}
 		}
+
+		needs_scrubbing = btr_page_needs_scrubbing(
+			&state->scrub_data, block,
+			BTR_SCRUB_PAGE_ALLOCATION_UNKNOWN);
 	}
 
 	mtr_commit(&mtr);
+	lsn_t end_lsn = mtr.end_lsn;
+
+	if (needs_scrubbing == BTR_SCRUB_PAGE) {
+		mtr_start(&mtr);
+		/*
+		* refetch page and allocation status
+		*/
+		btr_scrub_page_allocation_status_t allocated;
+		block = btr_scrub_get_block_and_allocation_status(
+			state, space, zip_size, offset, &mtr,
+			&allocated,
+			&sleeptime_ms);
+
+		/* get required table/index and index-locks */
+		needs_scrubbing = btr_scrub_recheck_page(
+			&state->scrub_data, block, allocated, &mtr);
+
+		if (needs_scrubbing == BTR_SCRUB_PAGE) {
+			/* we need to refetch it once more now that we have
+			* index locked */
+			block = btr_scrub_get_block_and_allocation_status(
+				state, space, zip_size, offset, &mtr,
+				&allocated,
+				&sleeptime_ms);
+
+			needs_scrubbing = btr_scrub_page(&state->scrub_data,
+							 block, allocated,
+							 &mtr);
+		}
+
+		/* NOTE: mtr is committed inside btr_scrub_recheck_page()
+		* and/or btr_scrub_page. This is to make sure that
+		* locks & pages are latched in corrected order,
+		* the mtr is in some circumstances restarted.
+		* (mtr_commit() + mtr_start())
+		*/
+	}
+
+	if (needs_scrubbing != BTR_SCRUB_PAGE) {
+		/* if page didn't need scrubbing it might be that cleanups
+		are needed. do those outside of any mtr to prevent deadlocks.
+
+		the information what kinds of cleanups that are needed are
+		encoded inside the needs_scrubbing, but this is opaque to
+		this function (except the value BTR_SCRUB_PAGE) */
+		btr_scrub_skip_page(&state->scrub_data, needs_scrubbing);
+	}
+
+	if (needs_scrubbing == BTR_SCRUB_TURNED_OFF) {
+		/* if we just detected that scrubbing was turned off
+		* update global state to reflect this */
+		fil_space_crypt_t *crypt_data = fil_space_get_crypt_data(space);
+		mutex_enter(&crypt_data->mutex);
+		crypt_data->rotate_state.scrubbing.is_active = false;
+		mutex_exit(&crypt_data->mutex);
+	}
 
 	if (modified) {
 		/* if we modified page, we take lsn from mtr */
-		ut_a(mtr.end_lsn > state->end_lsn);
-		ut_a(mtr.end_lsn > block_lsn);
-		state->end_lsn = mtr.end_lsn;
+		ut_a(end_lsn > state->end_lsn);
+		ut_a(end_lsn > block_lsn);
+		state->end_lsn = end_lsn;
 	} else {
 		/* if we did not modify page, check for max lsn */
 		if (block_lsn > state->end_lsn) {
@@ -1686,7 +1838,21 @@ fil_crypt_complete_rotate_space(
 		crypt_data->min_key_version =
 			crypt_data->rotate_state.min_key_version_found;
 	}
+
+	/* inform scrubbing */
+	crypt_data->rotate_state.scrubbing.is_active = false;
 	mutex_exit(&crypt_data->mutex);
+
+	/* all threads must call btr_scrub_complete_space wo/ mutex held */
+	if (btr_scrub_complete_space(&state->scrub_data) == true) {
+		if (should_flush) {
+			/* only last thread updates last_scrub_completed */
+			mutex_enter(&crypt_data->mutex);
+			crypt_data->rotate_state.scrubbing.
+				last_scrub_completed = time(0);
+			mutex_exit(&crypt_data->mutex);
+		}
+	}
 
 	if (should_flush) {
 		fil_crypt_flush_space(state, space);
@@ -1718,12 +1884,6 @@ DECLARE_THREAD(fil_crypt_thread)(
 	/* state of this thread */
 	rotate_thread_t thr(thread_no);
 
-	/* just idle if encryption is disabled */
-	while (!thr.should_shutdown() && srv_encrypt_tables == false) {
-		os_event_reset(fil_crypt_threads_event);
-		os_event_wait_time(fil_crypt_threads_event, 1000000);
-	}
-
 	/* if we find a space that is starting, skip over it and recheck it later */
 	bool recheck = false;
 
@@ -1741,6 +1901,7 @@ DECLARE_THREAD(fil_crypt_thread)(
 		key_state_t new_state;
 		fil_crypt_get_key_state(&new_state);
 
+		time_t wait_start = time(0);
 		while (!thr.should_shutdown() && key_state == new_state) {
 
 			/* wait for key state changes
@@ -1756,6 +1917,10 @@ DECLARE_THREAD(fil_crypt_thread)(
 				* a space*/
 				break;
 			}
+
+			time_t waited = time(0) - wait_start;
+			if (waited >= srv_background_scrub_data_check_interval)
+				break;
 		}
 
 		recheck = false;
@@ -1892,6 +2057,26 @@ fil_crypt_threads_cleanup() {
 }
 
 /*********************************************************************
+Mark a space as closing */
+UNIV_INTERN
+void
+fil_space_crypt_mark_space_closing(
+	ulint space)
+{
+	mutex_enter(&fil_crypt_threads_mutex);
+	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
+	if (crypt_data == NULL) {
+		mutex_exit(&fil_crypt_threads_mutex);
+		return;
+	}
+
+	mutex_enter(&crypt_data->mutex);
+	mutex_exit(&fil_crypt_threads_mutex);
+	crypt_data->closing = true;
+	mutex_exit(&crypt_data->mutex);
+}
+
+/*********************************************************************
 Wait for crypt threads to stop accessing space */
 UNIV_INTERN
 void
@@ -1914,9 +2099,13 @@ fil_space_crypt_close_tablespace(
 	bool flushing = crypt_data->rotate_state.flushing;
 	while (cnt > 0 || flushing) {
 		mutex_exit(&crypt_data->mutex);
+		/* release dict mutex so that scrub threads can release their
+		* table references */
+		dict_mutex_exit_for_mysql();
 		/* wakeup throttle (all) sleepers */
 		os_event_set(fil_crypt_throttle_sleep_event);
 		os_thread_sleep(20000);
+		dict_mutex_enter_for_mysql();
 		mutex_enter(&crypt_data->mutex);
 		cnt = crypt_data->rotate_state.active_threads;
 		flushing = crypt_data->rotate_state.flushing;
@@ -1983,4 +2172,43 @@ fil_crypt_total_stat(fil_crypt_stat_t *stat)
 	mutex_enter(&crypt_stat_mutex);
 	*stat = crypt_stat;
 	mutex_exit(&crypt_stat_mutex);
+}
+
+/*********************************************************************
+Get scrub status for a space (used by information_schema)
+return 0 if data found */
+int
+fil_space_get_scrub_status(
+/*==================*/
+	ulint id,				  /*!< in: space id */
+	struct fil_space_scrub_status_t* status) /*!< out: status  */
+{
+	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(id);
+	memset(status, 0, sizeof(*status));
+	if (crypt_data != NULL) {
+		status->space = id;
+		status->compressed = fil_space_get_zip_size(id) > 0;
+		mutex_enter(&crypt_data->mutex);
+		status->last_scrub_completed =
+			crypt_data->rotate_state.scrubbing.last_scrub_completed;
+		if (crypt_data->rotate_state.active_threads > 0 &&
+		    crypt_data->rotate_state.scrubbing.is_active) {
+			status->scrubbing = true;
+			status->current_scrub_started =
+				crypt_data->rotate_state.start_time;
+			status->current_scrub_active_threads =
+				crypt_data->rotate_state.active_threads;
+			status->current_scrub_page_number =
+				crypt_data->rotate_state.next_offset;
+			status->current_scrub_max_page_number =
+				crypt_data->rotate_state.max_offset;
+		} else {
+			status->scrubbing = false;
+		}
+		mutex_exit(&crypt_data->mutex);
+	} else {
+		memset(status, 0, sizeof(*status));
+	}
+
+	return crypt_data == NULL ? 1 : 0;
 }

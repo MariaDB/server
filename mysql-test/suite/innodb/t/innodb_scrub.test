@@ -1,0 +1,154 @@
+-- source include/have_innodb.inc
+-- source include/not_embedded.inc
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let ib1_IBD = $MYSQLD_DATADIR/ibdata1;
+let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+
+create table snapshot_status engine = myisam
+select * from information_schema.global_status
+where variable_name like 'innodb_scrub%';
+
+let $rowcount=500;
+let $formatno = 3;
+while ($formatno)
+{
+let $format = `select case $formatno
+               when 1 then 'dynamic'
+               when 2 then 'redundant'
+               when 3 then 'compact'
+               end`;
+dec $formatno;
+
+-- echo #
+-- echo # Test delete of records
+-- echo #
+
+eval create table t1 (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text) engine = innodb row_format=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+--enable_query_log
+
+delete from t1;
+
+-- echo # restart mysqld so that all pages are flushed
+-- source include/restart_mysqld.inc
+-- echo # read all rows from table
+-- disable_result_log
+select * from t1;
+-- enable_result_log
+
+-- echo # $format: delete from: grep -c bicycle t1.ibd
+-- exec grep -c bicycle $t1_IBD || true
+-- echo # $format: delete from: grep -c bicycle ibdata1
+-- exec grep -c bicycle $ib1_IBD || true
+-- echo # $format: delete from: grep -c repairman t1.ibd
+-- exec grep -c repairman $t1_IBD || true
+-- echo # $format: delete from: grep -c repairman ibdata1
+-- exec grep -c repairman $ib1_IBD || true
+
+drop table t1;
+
+-- echo #
+-- echo # Test delete+rollback+delete
+-- echo #
+
+eval create table t1 (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text) engine = innodb row_format=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+--enable_query_log
+
+begin;
+delete from t1;
+rollback;
+delete from t1;
+
+-- echo # restart mysqld so that all pages are flushed
+-- source include/restart_mysqld.inc
+-- echo # read all rows from table
+-- disable_result_log
+select * from t1;
+-- enable_result_log
+
+-- echo # $format: delete rollback: grep -c bicycle t1.ibd
+-- exec grep -c bicycle $t1_IBD || true
+-- echo # $format: delete rollback: grep -c bicycle ibdata1
+-- exec grep -c bicycle $ib1_IBD || true
+-- echo # $format: delete rollback: grep -c repairman t1.ibd
+-- exec grep -c repairman $t1_IBD || true
+-- echo # $format: delete rollback: grep -c repairman ibdata1
+-- exec grep -c repairman $ib1_IBD || true
+
+drop table t1;
+
+-- echo #
+-- echo # Test insert+rollback
+-- echo #
+
+eval create table t1 (
+  a int auto_increment primary key,
+  b varchar(256),
+  c text) engine = innodb row_format=$format;
+
+let $numinserts = $rowcount;
+-- echo # Populate table with rows
+begin;
+--disable_query_log
+while ($numinserts)
+{
+  dec $numinserts;
+  insert into t1(b,c) values ('bicycle', repeat('repairman', 1000));
+}
+--enable_query_log
+
+rollback;
+
+-- echo # restart mysqld so that all pages are flushed
+-- source include/restart_mysqld.inc
+-- echo # read all rows from table
+-- disable_result_log
+select * from t1;
+-- enable_result_log
+
+-- echo # $format: insert rollback: grep -c bicycle t1.ibd
+-- exec grep -c bicycle $t1_IBD || true
+-- echo # $format: insert rollback: grep -c bicycle ibdata1
+-- exec grep -c bicycle $ib1_IBD || true
+-- echo # $format: insert rollback: grep -c repairman t1.ibd
+-- exec grep -c repairman $t1_IBD || true
+-- echo # $format: insert rollback: grep -c repairman ibdata1
+-- exec grep -c repairman $ib1_IBD || true
+
+drop table t1;
+}
+
+show variables like 'innodb_%scrub_data%';
+
+--echo # verify that this test have not caused any background scrubbing
+--sorted_result
+select ss.variable_name, gs.variable_value - ss.variable_value as variable_value
+from snapshot_status ss,
+     information_schema.global_status gs
+where ss.variable_name = gs.variable_name;
+
+drop table snapshot_status;
