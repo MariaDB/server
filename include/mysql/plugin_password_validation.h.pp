@@ -185,6 +185,18 @@ void thd_inc_error_row(void* thd);
 char *thd_get_error_context_description(void* thd,
                                         char *buffer, unsigned int length,
                                         unsigned int max_query_length);
+#include <mysql/service_thd_specifics.h>
+typedef int MYSQL_THD_KEY_T;
+extern struct thd_specifics_service_st {
+  int (*thd_key_create_func)(MYSQL_THD_KEY_T *key);
+  void (*thd_key_delete_func)(MYSQL_THD_KEY_T *key);
+  void *(*thd_getspecific_func)(void* thd, MYSQL_THD_KEY_T key);
+  int (*thd_setspecific_func)(void* thd, MYSQL_THD_KEY_T key, void *value);
+} *thd_specifics_service;
+int thd_key_create(MYSQL_THD_KEY_T *key);
+void thd_key_delete(MYSQL_THD_KEY_T *key);
+void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
+int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

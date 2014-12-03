@@ -22,6 +22,7 @@ SET(MYSQLSERVICES_SOURCES
   thd_timezone_service.c
   thd_autoinc_service.c
   thd_error_context_service.c
+  thd_specifics_service.c
   progress_report_service.c
   debug_sync_service.c
   my_sha1_service.c

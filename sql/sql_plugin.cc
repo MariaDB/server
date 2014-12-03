@@ -4094,3 +4094,51 @@ static void restore_ptr_backup(uint n, st_ptr_backup *backup)
     (backup++)->restore();
 }
 
+/****************************************************************************
+  thd specifics service, see include/mysql/service_thd_specifics.h
+****************************************************************************/
+static const int INVALID_THD_KEY= -1;
+static uint thd_key_no = 42;
+
+int thd_key_create(MYSQL_THD_KEY_T *key)
+{
+  int flags= PLUGIN_VAR_THDLOCAL | PLUGIN_VAR_STR |
+             PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT;
+  char namebuf[256];
+  snprintf(namebuf, sizeof(namebuf), "%u", thd_key_no++);
+  mysql_rwlock_wrlock(&LOCK_system_variables_hash);
+  // non-letters in the name as an extra safety
+  st_bookmark *bookmark= register_var("\a\v\a\t\a\r", namebuf, flags);
+  mysql_rwlock_unlock(&LOCK_system_variables_hash);
+  if (bookmark)
+  {
+    *key= bookmark->offset;
+    return 0;
+  }
+  return ENOMEM;
+}
+
+void thd_key_delete(MYSQL_THD_KEY_T *key)
+{
+  *key= INVALID_THD_KEY;
+}
+
+void* thd_getspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key)
+{
+  DBUG_ASSERT(key != INVALID_THD_KEY);
+  if (key == INVALID_THD_KEY || (!thd && !(thd= current_thd)))
+    return 0;
+
+  return *(void**)(intern_sys_var_ptr(thd, key, true));
+}
+
+int thd_setspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key, void *value)
+{
+  DBUG_ASSERT(key != INVALID_THD_KEY);
+  if (key == INVALID_THD_KEY || (!thd && !(thd= current_thd)))
+    return EINVAL;
+  
+  memcpy(intern_sys_var_ptr(thd, key, true), &value, sizeof(void*));
+  return 0;
+}
+
