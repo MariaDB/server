@@ -64,7 +64,8 @@ buf_calc_page_crc32(
 	there we store the old formula checksum. */
 
 	checksum = ut_crc32(page + FIL_PAGE_OFFSET,
-			    FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+			    FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+			    - FIL_PAGE_OFFSET)
 		^ ut_crc32(page + FIL_PAGE_DATA,
 			   UNIV_PAGE_SIZE - FIL_PAGE_DATA
 			   - FIL_PAGE_END_LSN_OLD_CHKSUM);
@@ -94,7 +95,8 @@ buf_calc_page_new_checksum(
 	there we store the old formula checksum. */
 
 	checksum = ut_fold_binary(page + FIL_PAGE_OFFSET,
-				  FIL_PAGE_FILE_FLUSH_LSN - FIL_PAGE_OFFSET)
+				  FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION
+				  - FIL_PAGE_OFFSET)
 		+ ut_fold_binary(page + FIL_PAGE_DATA,
 				 UNIV_PAGE_SIZE - FIL_PAGE_DATA
 				 - FIL_PAGE_END_LSN_OLD_CHKSUM);
@@ -119,7 +121,7 @@ buf_calc_page_old_checksum(
 {
 	ulint checksum;
 
-	checksum = ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN);
+	checksum = ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
 	checksum = checksum & 0xFFFFFFFFUL;
 

@@ -189,6 +189,14 @@ For 1 - 8 bytes, the flag value must give the length also! @{ */
 						page */
 #define MLOG_BIGGEST_TYPE	((byte)53)	/*!< biggest value (used in
 						assertions) */
+
+#define MLOG_FILE_WRITE_CRYPT_DATA ((byte)100)	/*!< log record for
+						writing/updating crypt data of
+						a tablespace */
+
+#define EXTRA_CHECK_MLOG_NUMBER(x) \
+  ((x) == MLOG_FILE_WRITE_CRYPT_DATA)
+
 /* @} */
 
 /** @name Flags for MLOG_FILE operations

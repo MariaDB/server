@@ -75,7 +75,7 @@ mlog_write_initial_log_record(
 {
 	byte*	log_ptr;
 
-	ut_ad(type <= MLOG_BIGGEST_TYPE);
+	ut_ad(type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(type));
 	ut_ad(type > MLOG_8BYTES);
 
 	log_ptr = mlog_open(mtr, 11);
@@ -111,7 +111,7 @@ mlog_parse_initial_log_record(
 	}
 
 	*type = (byte)((ulint)*ptr & ~MLOG_SINGLE_REC_FLAG);
-	ut_ad(*type <= MLOG_BIGGEST_TYPE);
+	ut_ad(*type <= MLOG_BIGGEST_TYPE || EXTRA_CHECK_MLOG_NUMBER(*type));
 
 	ptr++;
 

@@ -155,7 +155,7 @@ static inline my_bool write_changed_bitmap(MARIA_SHARE *share,
   my_bool res;
   DBUG_ENTER("write_changed_bitmap");
   DBUG_ASSERT(share->pagecache->block_size == bitmap->block_size);
-  DBUG_ASSERT(bitmap->file.write_callback != 0);
+  DBUG_ASSERT(bitmap->file.pre_write_hook != 0);
   DBUG_PRINT("info", ("bitmap->non_flushable: %u", bitmap->non_flushable));
 
   /*
@@ -256,7 +256,7 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
 
   /* Update size for bits */
   /* TODO; Make this dependent of the row size */
-  max_page_size= share->block_size - PAGE_OVERHEAD_SIZE + DIR_ENTRY_SIZE;
+  max_page_size= share->block_size - PAGE_OVERHEAD_SIZE(share) + DIR_ENTRY_SIZE;
   bitmap->sizes[0]= max_page_size;              /* Empty page */
   bitmap->sizes[1]= max_page_size - max_page_size * 30 / 100;
   bitmap->sizes[2]= max_page_size - max_page_size * 60 / 100;
@@ -1233,16 +1233,30 @@ static void fill_block(MARIA_FILE_BITMAP *bitmap,
 */
 
 
-static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
+static my_bool allocate_head(MARIA_SHARE *share,
+                             MARIA_FILE_BITMAP *bitmap, uint size,
                              MARIA_BITMAP_BLOCK *block)
 {
   uint min_bits= size_to_head_pattern(bitmap, size);
   uchar *data= bitmap->map, *end= data + bitmap->used_size;
   uchar *best_data= 0;
   uint best_bits= (uint) -1, UNINIT_VAR(best_pos);
+  uint first_pattern= 0; /* if doing insert_order */
+  my_bool insert_order=
+      MY_TEST(share->base.extra_options & MA_EXTRA_OPTIONS_INSERT_ORDER);
   DBUG_ENTER("allocate_head");
 
-  DBUG_ASSERT(size <= FULL_PAGE_SIZE(bitmap->block_size));
+  DBUG_ASSERT(share != 0);
+  DBUG_ASSERT(size <= FULL_PAGE_SIZE(share));
+
+  if (insert_order)
+  {
+    uint last_insert_page= share->last_insert_page;
+    uint byte= 6 * (last_insert_page / 16);
+    first_pattern= last_insert_page % 16;
+    DBUG_ASSERT(data + byte < end);
+    data+= byte;
+  }
 
   for (; data < end; data+= 6)
   {
@@ -1257,8 +1271,12 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
     */
     if ((!bits && best_data) ||
         ((bits & 04444444444444444LL) == 04444444444444444LL))
+    {
+      first_pattern= 0; // always restart from 0 when moving to new 6-byte
       continue;
-    for (i= 0; i < 16 ; i++, bits >>= 3)
+    }
+    for (i= first_pattern, bits >>= (3 * first_pattern); i < 16 ;
+	 i++, bits >>= 3)
     {
       uint pattern= (uint) (bits & 7);
       if (pattern <= min_bits)
@@ -1279,6 +1297,7 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
         }
       }
     }
+    first_pattern= 0; // always restart from 0 when moving to new 6-byte
   }
   if (!best_data)                               /* Found no place */
   {
@@ -1292,6 +1311,11 @@ static my_bool allocate_head(MARIA_FILE_BITMAP *bitmap, uint size,
   }
 
 found:
+  if (insert_order)
+  {
+    share->last_insert_page=
+        ((uint) (best_data - bitmap->map)) / 6 * 16 + best_pos;
+  }
   fill_block(bitmap, block, best_data, best_pos, best_bits, FULL_HEAD_PAGE);
   DBUG_RETURN(0);
 }
@@ -1594,7 +1618,7 @@ static my_bool find_head(MARIA_HA *info, uint length, uint position)
     We need to have DIRENTRY_SIZE here to take into account that we may
     need an extra directory entry for the row
   */
-  while (allocate_head(bitmap, length + DIR_ENTRY_SIZE, block))
+  while (allocate_head(info->s, bitmap, length + DIR_ENTRY_SIZE, block))
     if (move_to_next_bitmap(info, bitmap))
       return 1;
   return 0;
@@ -1621,7 +1645,7 @@ static my_bool find_tail(MARIA_HA *info, uint length, uint position)
   MARIA_FILE_BITMAP *bitmap= &info->s->bitmap;
   MARIA_BITMAP_BLOCK *block;
   DBUG_ENTER("find_tail");
-  DBUG_ASSERT(length <= info->s->block_size - PAGE_OVERHEAD_SIZE);
+  DBUG_ASSERT(length <= info->s->block_size - PAGE_OVERHEAD_SIZE(info->s));
 
   /* Needed, as there is no error checking in dynamic_element */
   if (allocate_dynamic(&info->bitmap_blocks, position))
@@ -1694,7 +1718,7 @@ static my_bool find_mid(MARIA_HA *info, ulong pages, uint position)
 static my_bool find_blob(MARIA_HA *info, ulong length)
 {
   MARIA_FILE_BITMAP *bitmap= &info->s->bitmap;
-  uint full_page_size= FULL_PAGE_SIZE(info->s->block_size);
+  uint full_page_size= FULL_PAGE_SIZE(info->s);
   ulong pages;
   uint rest_length, used;
   uint first_block_pos;
@@ -1909,7 +1933,7 @@ static my_bool write_rest_of_head(MARIA_HA *info, uint position,
                                   ulong rest_length)
 {
   MARIA_SHARE *share= info->s;
-  uint full_page_size= FULL_PAGE_SIZE(share->block_size);
+  uint full_page_size= FULL_PAGE_SIZE(share);
   MARIA_BITMAP_BLOCK *block;
   DBUG_ENTER("write_rest_of_head");
   DBUG_PRINT("enter", ("position: %u  rest_length: %lu", position,
@@ -1995,7 +2019,7 @@ my_bool _ma_bitmap_find_place(MARIA_HA *info, MARIA_ROW *row,
   */
 
   info->bitmap_blocks.elements= ELEMENTS_RESERVED_FOR_MAIN_PART;
-  max_page_size= (share->block_size - PAGE_OVERHEAD_SIZE);
+  max_page_size= (share->block_size - PAGE_OVERHEAD_SIZE(share));
 
   mysql_mutex_lock(&share->bitmap.bitmap_lock);
 
@@ -2890,12 +2914,10 @@ int _ma_bitmap_create_first(MARIA_SHARE *share)
 */
 
 static my_bool
-flush_log_for_bitmap(uchar *page __attribute__((unused)),
-                     pgcache_page_no_t page_no __attribute__((unused)),
-                     uchar *data_ptr __attribute__((unused)))
+flush_log_for_bitmap(PAGECACHE_IO_HOOK_ARGS *args __attribute__ ((unused)))
 {
 #ifndef DBUG_OFF
-  const MARIA_SHARE *share= (MARIA_SHARE*)data_ptr;
+  const MARIA_SHARE *share= (MARIA_SHARE*)args->data;
 #endif
   DBUG_ENTER("flush_log_for_bitmap");
   DBUG_ASSERT(share->now_transactional);
@@ -2918,22 +2940,23 @@ flush_log_for_bitmap(uchar *page __attribute__((unused)),
 void _ma_bitmap_set_pagecache_callbacks(PAGECACHE_FILE *file,
                                         MARIA_SHARE *share)
 {
+  pagecache_file_set_null_hooks(file);
   file->callback_data= (uchar*) share;
   file->flush_log_callback= maria_flush_log_for_page_none;
-  file->write_fail= maria_page_write_failure;
+  file->post_write_hook= maria_page_write_failure;
 
   if (share->temporary)
   {
-    file->read_callback=  &maria_page_crc_check_none;
-    file->write_callback= &maria_page_filler_set_none;
+    file->post_read_hook=  &maria_page_crc_check_none;
+    file->pre_write_hook= &maria_page_filler_set_none;
   }
   else
   {
-    file->read_callback=  &maria_page_crc_check_bitmap;
+    file->post_read_hook=  &maria_page_crc_check_bitmap;
     if (share->options & HA_OPTION_PAGE_CHECKSUM)
-      file->write_callback= &maria_page_crc_set_normal;
+      file->pre_write_hook= &maria_page_crc_set_normal;
     else
-      file->write_callback= &maria_page_filler_set_bitmap;
+      file->pre_write_hook= &maria_page_filler_set_bitmap;
     if (share->now_transactional)
       file->flush_log_callback= flush_log_for_bitmap;
   }

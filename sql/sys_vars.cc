@@ -62,6 +62,7 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
+#include "my_crypt_key_management.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1123,6 +1124,25 @@ static Sys_var_mybool Sys_locked_in_memory(
 static Sys_var_mybool Sys_log_bin(
        "log_bin", "Whether the binary log is enabled",
        READ_ONLY GLOBAL_VAR(opt_bin_log), NO_CMD_LINE, DEFAULT(FALSE));
+
+
+#ifndef DBUG_OFF
+static Sys_var_mybool Sys_danger_danger_use_dbug_keys(
+       "danger_danger_use_dbug_keys",
+       "Enable use of nonrandom keys for crypto",
+       READ_ONLY GLOBAL_VAR(opt_danger_danger_use_dbug_keys),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static PolyLock_rwlock PLock_sys_danger_danger_dbug_crypto_key_version(
+       &LOCK_dbug_crypto_key_version);
+
+static Sys_var_uint Sys_danger_danger_dbug_crypto_key_version(
+       "danger_danger_dbug_crypto_key_version",
+       "Crypto key version for debugging only",
+       GLOBAL_VAR(opt_danger_danger_dbug_crypto_key_version),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0,UINT_MAX), DEFAULT(0),
+       BLOCK_SIZE(1), &PLock_sys_danger_danger_dbug_crypto_key_version);
+#endif
 
 static Sys_var_mybool Sys_trust_function_creators(
        "log_bin_trust_function_creators",
@@ -5138,6 +5158,12 @@ static bool check_pseudo_slave_mode(sys_var *self, THD *thd, set_var *var)
   longlong previous_val= thd->variables.pseudo_slave_mode;
   longlong val= (longlong) var->save_result.ulonglong_value;
   bool rli_fake= false;
+
+static Sys_var_mybool Sys_encrypt_tmp_disk_tables(
+       "encrypt_tmp_disk_tables",
+       "Encrypt tmp disk tables (created as part of query execution)",
+       GLOBAL_VAR(encrypt_tmp_disk_tables),
+       CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
 #ifndef EMBEDDED_LIBRARY
   rli_fake= thd->rli_fake ? true : false;

@@ -900,6 +900,7 @@ log_init(void)
 	/*----------------------------*/
 
 	log_sys->next_checkpoint_no = 0;
+	log_sys->redo_log_crypt_ver = UNENCRYPTED_KEY_VER;
 	log_sys->last_checkpoint_lsn = log_sys->lsn;
 	log_sys->n_pending_checkpoint_writes = 0;
 
@@ -945,7 +946,7 @@ log_init(void)
 	log_block_set_first_rec_group(log_sys->buf, LOG_BLOCK_HDR_SIZE);
 
 	log_sys->buf_free = LOG_BLOCK_HDR_SIZE;
-	log_sys->lsn = LOG_START_LSN + LOG_BLOCK_HDR_SIZE;
+	log_sys->lsn = LOG_START_LSN + LOG_BLOCK_HDR_SIZE; // TODO(minliz): ensure various LOG_START_LSN?
 
 	MONITOR_SET(MONITOR_LSN_CHECKPOINT_AGE,
 		    log_sys->lsn - log_sys->last_checkpoint_lsn);
@@ -1293,6 +1294,36 @@ log_block_store_checksum(
 }
 
 /******************************************************//**
+Encrypt one or more log block before it is flushed to disk
+@return true if encryption succeeds. */
+static
+bool
+log_group_encrypt_before_write(
+/*===========================*/
+	const log_group_t* group,	/*!< in: log group to be flushed */
+	byte* block,			/*!< in/out: pointer to a log block */
+	const ulint size)		/*!< in: size of log blocks */
+
+{
+	CryptResult result = CRYPT_OK;
+
+	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
+	byte* dst_frame = (byte*)malloc(size);
+
+	//encrypt log blocks content
+	result = log_blocks_encrypt(block, size, dst_frame);
+
+	if (result == CRYPT_OK)
+	{
+		ut_ad(block[0] == dst_frame[0]);
+		memcpy(block, dst_frame, size);
+	}
+	free(dst_frame);
+
+	return (result == CRYPT_OK);
+}
+
+/******************************************************//**
 Writes a buffer to a log file group. */
 UNIV_INTERN
 void
@@ -1397,6 +1428,15 @@ loop:
 		srv_stats.os_log_pending_writes.inc();
 
 		ut_a(next_offset / UNIV_PAGE_SIZE <= ULINT_MAX);
+
+		if (srv_encrypt_log &&
+		    log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER &&
+		    !log_group_encrypt_before_write(group, buf, write_len))
+		{
+			fprintf(stderr,
+				"\nInnodb redo log encryption failed.\n");
+			abort();
+		}
 
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true, group->space_id, 0,
 		       (ulint) (next_offset / UNIV_PAGE_SIZE),
@@ -1884,6 +1924,8 @@ log_group_checkpoint(
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, log_sys->next_checkpoint_no);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, log_sys->next_checkpoint_lsn);
 
+	log_crypt_write_checkpoint_buf(buf);
+
 	lsn_offset = log_group_calc_lsn_offset(log_sys->next_checkpoint_lsn,
 					       group);
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_LOW32,
@@ -2007,6 +2049,8 @@ log_reset_first_header_and_checkpoint(
 
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, 0);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, lsn);
+
+	log_crypt_write_checkpoint_buf(buf);
 
 	mach_write_to_4(buf + LOG_CHECKPOINT_OFFSET_LOW32,
 			LOG_FILE_HDR_SIZE + LOG_BLOCK_HDR_SIZE);
@@ -2146,7 +2190,6 @@ log_checkpoint(
 	}
 
 	log_sys->next_checkpoint_lsn = oldest_lsn;
-
 #ifdef UNIV_DEBUG
 	if (log_debug_writes) {
 		fprintf(stderr, "Making checkpoint no "
@@ -2157,6 +2200,10 @@ log_checkpoint(
 #endif /* UNIV_DEBUG */
 
 	log_groups_write_checkpoint_info();
+
+	/* generate key version and key used to encrypt next log block */
+	log_crypt_set_ver_and_key(log_sys->redo_log_crypt_ver,
+				  log_sys->redo_log_crypt_key);
 
 	MONITOR_INC(MONITOR_NUM_CHECKPOINT);
 
@@ -2291,6 +2338,33 @@ loop:
 }
 
 /******************************************************//**
+Decrypt a specified log segment after they are read from a log file to a buffer.
+@return true if decryption succeeds. */
+static
+bool
+log_group_decrypt_after_read(
+/*==========================*/
+	const log_group_t* group,	/*!< in: log group to be read from */
+	byte* frame,	/*!< in/out: log segment */
+	const ulint size)	/*!< in: log segment size */
+{
+	CryptResult result;
+	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
+	byte* dst_frame = (byte*)malloc(size);
+
+	// decrypt log blocks content
+	result = log_blocks_decrypt(frame, size, dst_frame);
+
+	if (result == CRYPT_OK)
+	{
+		memcpy(frame, dst_frame, size);
+	}
+	free(dst_frame);
+
+	return (result == CRYPT_OK);
+}
+
+/******************************************************//**
 Reads a specified log segment to a buffer. */
 UNIV_INTERN
 void
@@ -2342,6 +2416,13 @@ loop:
 	       (ulint) (source_offset / UNIV_PAGE_SIZE),
 	       (ulint) (source_offset % UNIV_PAGE_SIZE),
 	       len, buf, NULL, 0);
+
+	if (recv_sys->recv_log_crypt_ver != UNENCRYPTED_KEY_VER &&
+	    !log_group_decrypt_after_read(group, buf, len))
+	{
+		fprintf(stderr, "Innodb redo log decryption failed.\n");
+		abort();
+	}
 
 	start_lsn += len;
 	buf += len;
@@ -2565,6 +2646,14 @@ loop:
 	log_sys->n_log_ios++;
 
 	MONITOR_INC(MONITOR_LOG_IO);
+
+	if (srv_encrypt_log &&
+	    log_sys->redo_log_crypt_ver != UNENCRYPTED_KEY_VER &&
+	    !log_group_encrypt_before_write(group, buf, len))
+	{
+		fprintf(stderr, "Innodb redo log encryption failed.\n");
+		abort();
+	}
 
 	fil_io(OS_FILE_WRITE | OS_FILE_LOG, false, group->archive_space_id,
 	       (ulint) (next_offset / UNIV_PAGE_SIZE),

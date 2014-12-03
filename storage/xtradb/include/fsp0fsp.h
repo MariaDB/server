@@ -837,6 +837,15 @@ fsp_flags_get_page_size(
 /*====================*/
 	ulint	flags);		/*!< in: tablespace flags */
 
+/*********************************************************************/
+/* @return offset into fsp header where crypt data is stored */
+UNIV_INTERN
+ulint
+fsp_header_get_crypt_offset(
+/*========================*/
+	ulint zip_size,		/*!< in: zip_size */
+	ulint* max_size);	/*!< out: free space after offset */
+
 #ifndef UNIV_NONINL
 #include "fsp0fsp.ic"
 #endif

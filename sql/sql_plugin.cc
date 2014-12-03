@@ -176,9 +176,13 @@ static struct
     - yet disable explicitly a component needed for the functionality
       to work, by using '--skip-performance-schema' (the plugin)
   */
-  { "performance_schema", PLUGIN_FORCE }
+  { "performance_schema", PLUGIN_FORCE },
 
   /* we disable few other plugins by default */
+  /* TODO: Make it possible to default disable built-in
+  plugins wo/ editing this file. */
+  { "example_key_management_plugin", PLUGIN_OFF}
+
   //,{ "feedback", PLUGIN_OFF }
 };
 

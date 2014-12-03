@@ -1,3 +1,4 @@
 --loose-innodb-buffer-pool-stats
 --loose-innodb-buffer-page
 --loose-innodb-buffer-page-lru
+--loose-innodb-encrypt-tables=FALSE

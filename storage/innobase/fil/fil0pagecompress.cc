@@ -434,7 +434,7 @@ fil_compress_page(
 	/* Set up the correct page type */
 	mach_write_to_2(out_buf+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED);
 	/* Set up the flush lsn to be compression algorithm */
-	mach_write_to_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN, comp_method);
+	mach_write_to_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, comp_method);
 	/* Set up the actual payload lenght */
 	mach_write_to_2(out_buf+FIL_PAGE_DATA, write_size);
 
@@ -443,7 +443,7 @@ fil_compress_page(
 	ut_ad(fil_page_is_compressed(out_buf));
 	ut_ad(mach_read_from_4(out_buf+FIL_PAGE_SPACE_OR_CHKSUM) == BUF_NO_CHECKSUM_MAGIC);
 	ut_ad(mach_read_from_2(out_buf+FIL_PAGE_DATA) == write_size);
-	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN) == (ulint)comp_method);
+	ut_ad(mach_read_from_8(out_buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) == (ulint)comp_method);
 
 	/* Verify that page can be decompressed */
 	{
@@ -571,7 +571,7 @@ fil_decompress_page(
 	}
 
 	/* Get compression algorithm */
-	compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN);
+	compression_alg = mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 
 	/* Get the actual size of compressed page */
 	actual_size = mach_read_from_2(buf+FIL_PAGE_DATA);

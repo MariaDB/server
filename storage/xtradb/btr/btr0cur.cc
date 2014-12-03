@@ -4940,11 +4940,11 @@ alloc_another:
 				change when B-tree nodes are split or
 				merged. */
 				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN,
+						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						 space_id,
 						 MLOG_4BYTES, &mtr);
 				mlog_write_ulint(page
-						 + FIL_PAGE_FILE_FLUSH_LSN + 4,
+						 + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
 						 rec_page_no,
 						 MLOG_4BYTES, &mtr);
 
@@ -4952,9 +4952,10 @@ alloc_another:
 				memset(page + page_zip_get_size(page_zip)
 				       - c_stream.avail_out,
 				       0, c_stream.avail_out);
-				mlog_log_string(page + FIL_PAGE_FILE_FLUSH_LSN,
+				mlog_log_string(page
+						+ FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						page_zip_get_size(page_zip)
-						- FIL_PAGE_FILE_FLUSH_LSN,
+						- FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 						&mtr);
 				/* Copy the page to compressed storage,
 				because it will be flushed to disk

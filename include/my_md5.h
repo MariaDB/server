@@ -28,7 +28,7 @@
 extern "C" {
 #endif
 
-#define compute_md5_hash(A,B,C) my_md5(A,B,C)
+#define compute_md5_hash(A,B,C) my_md5((unsigned char *)A,B,C)
 
 /*
   Convert an array of bytes to a hexadecimal representation.

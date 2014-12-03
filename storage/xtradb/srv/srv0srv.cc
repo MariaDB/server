@@ -74,6 +74,7 @@ Created 10/8/1995 Heikki Tuuri
 #include "btr0defragment.h"
 #include "mysql/plugin.h"
 #include "mysql/service_thd_wait.h"
+#include "fil0fil.h"
 #include "fil0pagecompress.h"
 #include <my_rdtsc.h>
 
@@ -1703,10 +1704,12 @@ srv_export_innodb_status(void)
 	ulint			mem_adaptive_hash, mem_dictionary;
 	read_view_t*		oldest_view;
 	ulint			i;
+	fil_crypt_stat_t	crypt_stat;
 
 	buf_get_total_stat(&stat);
 	buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
 	buf_get_total_list_size_in_bytes(&buf_pools_list_size);
+	fil_crypt_total_stat(&crypt_stat);
 
 	mem_adaptive_hash = 0;
 
@@ -2019,6 +2022,17 @@ srv_export_innodb_status(void)
 		srv_stats.n_sec_rec_cluster_reads;
 	export_vars.innodb_sec_rec_cluster_reads_avoided =
 		srv_stats.n_sec_rec_cluster_reads_avoided;
+
+	export_vars.innodb_encryption_rotation_pages_read_from_cache =
+		crypt_stat.pages_read_from_cache;
+	export_vars.innodb_encryption_rotation_pages_read_from_disk =
+		crypt_stat.pages_read_from_disk;
+	export_vars.innodb_encryption_rotation_pages_modified =
+		crypt_stat.pages_modified;
+	export_vars.innodb_encryption_rotation_pages_flushed =
+		crypt_stat.pages_flushed;
+	export_vars.innodb_encryption_rotation_estimated_iops =
+		crypt_stat.estimated_iops;
 
 	mutex_exit(&srv_innodb_monitor_mutex);
 }

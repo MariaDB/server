@@ -253,6 +253,11 @@ static char*	internal_innobase_data_file_path	= NULL;
 
 static char*	innodb_version_str = (char*) INNODB_VERSION_STR;
 
+extern my_bool srv_encrypt_tables;
+extern uint srv_n_fil_crypt_threads;
+extern uint srv_fil_crypt_rotate_key_age;
+extern uint srv_n_fil_crypt_iops;
+
 /** Possible values for system variable "innodb_stats_method". The values
 are defined the same as its corresponding MyISAM system variable
 "myisam_stats_method"(see "myisam_stats_method_names"), for better usability */
@@ -1045,6 +1050,22 @@ static SHOW_VAR innodb_status_variables[]= {
   {"secondary_index_triggered_cluster_reads_avoided",
   (char*) &export_vars.innodb_sec_rec_cluster_reads_avoided, SHOW_LONG},
 
+  /* Encryption */
+  {"encryption_rotation_pages_read_from_cache",
+   (char*) &export_vars.innodb_encryption_rotation_pages_read_from_cache,
+   SHOW_LONG},
+  {"encryption_rotation_pages_read_from_disk",
+  (char*) &export_vars.innodb_encryption_rotation_pages_read_from_disk,
+   SHOW_LONG},
+  {"encryption_rotation_pages_modified",
+  (char*) &export_vars.innodb_encryption_rotation_pages_modified,
+   SHOW_LONG},
+  {"encryption_rotation_pages_flushed",
+  (char*) &export_vars.innodb_encryption_rotation_pages_flushed,
+   SHOW_LONG},
+  {"encryption_rotation_estimated_iops",
+  (char*) &export_vars.innodb_encryption_rotation_estimated_iops,
+   SHOW_LONG},
 
   {NullS, NullS, SHOW_LONG}
 };
@@ -18648,6 +18669,57 @@ innodb_status_output_update(
 	os_event_set(srv_monitor_event);
 }
 
+/******************************************************************
+Update the system variable innodb_encryption_threads */
+static
+void
+innodb_encryption_threads_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_thread_cnt(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encryption_rotate_key_age */
+static
+void
+innodb_encryption_rotate_key_age_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_rotate_key_age(*static_cast<const uint*>(save));
+}
+
+/******************************************************************
+Update the system variable innodb_encryption_rotation_iops */
+static
+void
+innodb_encryption_rotation_iops_update(
+/*=========================*/
+	THD*				thd,	/*!< in: thread handle */
+	struct st_mysql_sys_var*	var,	/*!< in: pointer to
+						system variable */
+	void*				var_ptr,/*!< out: where the
+						formal string goes */
+	const void*			save)	/*!< in: immediate result
+						from check function */
+{
+	fil_crypt_set_rotation_iops(*static_cast<const uint*>(save));
+}
+
 static SHOW_VAR innodb_status_variables_export[]= {
 	{"Innodb", (char*) &show_innodb_vars, SHOW_FUNC},
 	{NullS, NullS, SHOW_LONG}
@@ -20217,6 +20289,37 @@ static MYSQL_SYSVAR_STR(data_encryption_filekey, innobase_data_encryption_fileke
   "Key to encrypt / decrypt the keyfile.",
   NULL, NULL, NULL);
 
+static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
+			 "Encrypt tables",
+			 0, 0, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_threads, srv_n_fil_crypt_threads,
+			 PLUGIN_VAR_RQCMDARG,
+			 "No of threads performing background key rotation",
+			 NULL,
+			 innodb_encryption_threads_update,
+			 srv_n_fil_crypt_threads, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_rotate_key_age,
+			 srv_fil_crypt_rotate_key_age,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Rotate any page having a key older than this",
+			 NULL,
+			 innodb_encryption_rotate_key_age_update,
+			 srv_fil_crypt_rotate_key_age, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
+			 PLUGIN_VAR_RQCMDARG,
+			 "Use this many iops for background key rotation",
+			 NULL,
+			 innodb_encryption_rotation_iops_update,
+			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  "Enable redo log encryption/decryption.",
+  NULL, NULL, FALSE);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(log_block_size),
   MYSQL_SYSVAR(additional_mem_pool_size),
@@ -20438,6 +20541,13 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(data_encryption_providername),
   MYSQL_SYSVAR(data_encryption_providerurl),
   MYSQL_SYSVAR(data_encryption_filekey),
+  /* Encryption feature */
+  MYSQL_SYSVAR(encrypt_tables),
+  MYSQL_SYSVAR(encryption_threads),
+  MYSQL_SYSVAR(encryption_rotate_key_age),
+  MYSQL_SYSVAR(encryption_rotation_iops),
+  MYSQL_SYSVAR(encrypt_log),
+
   NULL
 };
 
@@ -20488,7 +20598,8 @@ i_s_innodb_sys_foreign,
 i_s_innodb_sys_foreign_cols,
 i_s_innodb_sys_tablespaces,
 i_s_innodb_sys_datafiles,
-i_s_innodb_changed_pages
+i_s_innodb_changed_pages,
+i_s_innodb_tablespaces_encryption
 maria_declare_plugin_end;
 
 /** @brief Initialize the default value of innodb_commit_concurrency.

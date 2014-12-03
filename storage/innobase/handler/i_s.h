@@ -56,5 +56,6 @@ extern struct st_maria_plugin	i_s_innodb_sys_foreign;
 extern struct st_maria_plugin	i_s_innodb_sys_foreign_cols;
 extern struct st_maria_plugin	i_s_innodb_sys_tablespaces;
 extern struct st_maria_plugin	i_s_innodb_sys_datafiles;
+extern struct st_maria_plugin	i_s_innodb_tablespaces_encryption;
 
 #endif /* i_s_h */

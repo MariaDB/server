@@ -16662,7 +16662,8 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
     if (share->db_type() == TMP_ENGINE_HTON)
     {
       if (create_internal_tmp_table(table, param->keyinfo, param->start_recinfo,
-                                    &param->recinfo, select_options))
+                                    &param->recinfo, select_options,
+                                    encrypt_tmp_disk_tables))
         goto err;
     }
     if (open_tmp_table(table))
@@ -16879,7 +16880,8 @@ bool open_tmp_table(TABLE *table)
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options)
+                               ulonglong options,
+                               my_bool encrypt)
 {
   int error;
   MARIA_KEYDEF keydef;
@@ -16988,24 +16990,57 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
     delete the row.  The cases when this can happen is when there is
     a group by and no sum functions or if distinct is used.
   */
-  if ((error= maria_create(share->table_name.str,
-                           table->no_rows ? NO_RECORD :
-                           (share->reclength < 64 &&
-                            !share->blob_fields ? STATIC_RECORD :
-                            table->used_for_duplicate_elimination ||
-                            table->keep_row_order ?
-                            DYNAMIC_RECORD : BLOCK_RECORD),
-                           share->keys, &keydef,
-                           (uint) (*recinfo-start_recinfo),
-                           start_recinfo,
-                           share->uniques, &uniquedef,
-                           &create_info,
-                           HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE)))
   {
-    table->file->print_error(error,MYF(0));	/* purecov: inspected */
-    table->db_stat=0;
-    goto err;
+    enum data_file_type file_type= table->no_rows ? NO_RECORD :
+        (share->reclength < 64 && !share->blob_fields ? STATIC_RECORD :
+         table->used_for_duplicate_elimination || table->keep_row_order ?
+          DYNAMIC_RECORD : BLOCK_RECORD);
+    uint create_flags= HA_CREATE_TMP_TABLE | HA_CREATE_INTERNAL_TABLE;
+
+    if (file_type != NO_RECORD && MY_TEST(encrypt))
+    {
+      /* encryption is only supported for BLOCK_RECORD */
+      file_type= BLOCK_RECORD;
+      create_flags|= HA_CREATE_ENCRYPTED;
+      if (table->keep_row_order)
+      {
+        create_flags|= HA_INSERT_ORDER;
+      }
+
+      if (table->used_for_duplicate_elimination)
+      {
+        /**
+         * sql-layer expect the last column to be stored/restored also
+         * when it's null.
+         *
+         * This is probably a bug (that sql-layer doesn't annotate
+         * the column as not-null) but both heap, aria-static, aria-dynamic and
+         * myisam has this property. aria-block_record does not since it
+         * does not store null-columns at all.
+         *
+         * emulate behaviour by making column not-nullable when creating the
+         * table.
+         */
+        uint cols= (*recinfo-start_recinfo);
+        start_recinfo[cols-1].null_bit= 0;
+      }
+    }
+
+    if ((error= maria_create(share->table_name.str,
+                             file_type,
+                             share->keys, &keydef,
+                             (uint) (*recinfo-start_recinfo),
+                             start_recinfo,
+                             share->uniques, &uniquedef,
+                             &create_info,
+                             create_flags)))
+    {
+      table->file->print_error(error,MYF(0));	/* purecov: inspected */
+      table->db_stat=0;
+      goto err;
+    }
   }
+
   table->in_use->inc_status_created_tmp_disk_tables();
   table->in_use->query_plan_flags|= QPLAN_TMP_DISK;
   share->db_record_offset= 1;
@@ -17051,7 +17086,8 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo,
-                               ulonglong options)
+                               ulonglong options,
+                               my_bool encrypt)
 {
   int error;
   MI_KEYDEF keydef;
@@ -17217,7 +17253,8 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
                                 recinfo,
                                 thd->lex->select_lex.options | 
-			        thd->variables.option_bits))
+                                thd->variables.option_bits,
+                                encrypt_tmp_disk_tables))
     goto err2;
   if (open_tmp_table(&new_table))
     goto err1;

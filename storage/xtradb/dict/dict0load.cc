@@ -1153,6 +1153,12 @@ loop:
 					space_id, name);
 			}
 
+			/* We need to read page 0 to get (optional) IV
+			regardless if encryptions is turned on or not,
+			since if it's off we should decrypt a potentially
+			already encrypted table */
+			bool read_page_0 = true;
+
 			/* We set the 2nd param (fix_dict = true)
 			here because we already have an x-lock on
 			dict_operation_lock and dict_sys->mutex. Besides,
@@ -1160,7 +1166,7 @@ loop:
 			If the filepath is not known, it will need to
 			be discovered. */
 			dberr_t	err = fil_open_single_table_tablespace(
-				false, srv_read_only_mode ? false : true,
+				read_page_0, srv_read_only_mode ? false : true,
 				space_id, dict_tf_to_fsp_flags(flags),
 				name, filepath);
 

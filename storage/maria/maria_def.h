@@ -235,6 +235,10 @@ typedef struct st_maria_state_info
                                        MARIA_MAX_POINTER_LENGTH)
 #define MARIA_DELETE_KEY_NR  255	/* keynr for deleted blocks */
 
+  /* extra options */
+#define MA_EXTRA_OPTIONS_ENCRYPTED (1 << 0)
+#define MA_EXTRA_OPTIONS_INSERT_ORDER (1 << 1)
+
 /*
   Basic information of the Maria table. This is stored on disk
   and not changed (unless we do DLL changes).
@@ -344,6 +348,8 @@ typedef struct st_maria_file_bitmap
 #define MARIA_CHECKPOINT_LOOKS_AT_ME 1
 #define MARIA_CHECKPOINT_SHOULD_FREE_ME 2
 #define MARIA_CHECKPOINT_SEEN_IN_LOOP 4
+
+typedef struct st_maria_crypt_data MARIA_CRYPT_DATA;
 
 typedef struct st_maria_share
 {					/* Shared between opens */
@@ -505,6 +511,17 @@ typedef struct st_maria_share
   MARIA_FILE_BITMAP bitmap;
   mysql_rwlock_t mmap_lock;
   LSN lsn_of_file_id; /**< LSN of its last LOGREC_FILE_ID */
+
+  /**
+     Crypt data
+  */
+  uint crypt_page_header_space;
+  MARIA_CRYPT_DATA *crypt_data;
+
+  /**
+     Keep of track of last insert page, used to implement insert order
+  */
+  uint last_insert_page;
 } MARIA_SHARE;
 
 
@@ -723,14 +740,13 @@ struct st_maria_handler
 #define KEYPAGE_USED_SIZE  2
 #define KEYPAGE_KEYID_SIZE 1
 #define KEYPAGE_FLAG_SIZE  1
+#define KEYPAGE_KEY_VERSION_SIZE 4 /* encryption */
 #define KEYPAGE_CHECKSUM_SIZE 4
 #define MAX_KEYPAGE_HEADER_SIZE (LSN_STORE_SIZE + KEYPAGE_USED_SIZE + \
                                  KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE + \
-                                 TRANSID_SIZE)
+                                 TRANSID_SIZE + KEYPAGE_KEY_VERSION_SIZE)
 #define KEYPAGE_FLAG_ISNOD      1
 #define KEYPAGE_FLAG_HAS_TRANSID 2
-/* Position to KEYPAGE_FLAG for transactional tables */
-#define KEYPAGE_TRANSFLAG_OFFSET LSN_STORE_SIZE + TRANSID_SIZE + KEYPAGE_KEYID_SIZE
 
 #define _ma_get_page_used(share,x) \
   ((uint) mi_uint2korr((x) + (share)->keypage_header - KEYPAGE_USED_SIZE))
@@ -751,6 +767,18 @@ struct st_maria_handler
   (page)->flag|= KEYPAGE_FLAG_HAS_TRANSID;                              \
   (page)->buff[(share)->keypage_header - KEYPAGE_USED_SIZE - KEYPAGE_FLAG_SIZE]= (page)->flag;
 
+#define KEYPAGE_KEY_VERSION(share, x) ((x) + \
+                                       (share)->keypage_header -        \
+                                       (KEYPAGE_USED_SIZE +             \
+                                        KEYPAGE_FLAG_SIZE +             \
+                                        KEYPAGE_KEYID_SIZE +            \
+                                        KEYPAGE_KEY_VERSION_SIZE))
+
+#define _ma_get_key_version(share,x) \
+  ((uint) uint4korr(KEYPAGE_KEY_VERSION((share), (x))))
+
+#define _ma_store_key_version(share,x,kv) \
+  int4store(KEYPAGE_KEY_VERSION((share), (x)), (kv))
 
 /*
   TODO: write int4store_aligned as *((uint32 *) (T))= (uint32) (A) for
@@ -1379,40 +1407,19 @@ void _ma_unpin_all_pages(MARIA_HA *info, LSN undo_lsn);
 
 #define MARIA_NO_CRC_NORMAL_PAGE 0xffffffff
 #define MARIA_NO_CRC_BITMAP_PAGE 0xfffffffe
-extern my_bool maria_page_crc_set_index(uchar *page,
-                                        pgcache_page_no_t page_no,
-                                        uchar *data_ptr);
-extern my_bool maria_page_crc_set_normal(uchar *page,
-                                         pgcache_page_no_t page_no,
-                                         uchar *data_ptr);
-extern my_bool maria_page_crc_check_bitmap(uchar *page,
-                                           pgcache_page_no_t page_no,
-                                           uchar *data_ptr);
-extern my_bool maria_page_crc_check_data(uchar *page,
-                                           pgcache_page_no_t page_no,
-                                           uchar *data_ptr);
-extern my_bool maria_page_crc_check_index(uchar *page,
-                                           pgcache_page_no_t page_no,
-                                           uchar *data_ptr);
-extern my_bool maria_page_crc_check_none(uchar *page,
-                                         pgcache_page_no_t page_no,
-                                         uchar *data_ptr);
-extern my_bool maria_page_filler_set_bitmap(uchar *page,
-                                            pgcache_page_no_t page_no,
-                                            uchar *data_ptr);
-extern my_bool maria_page_filler_set_normal(uchar *page,
-                                            pgcache_page_no_t page_no,
-                                            uchar *data_ptr);
-extern my_bool maria_page_filler_set_none(uchar *page,
-                                          pgcache_page_no_t page_no,
-                                          uchar *data_ptr);
-extern void maria_page_write_failure(uchar* data_ptr);
-extern my_bool maria_flush_log_for_page(uchar *page,
-                                        pgcache_page_no_t page_no,
-                                        uchar *data_ptr);
-extern my_bool maria_flush_log_for_page_none(uchar *page,
-                                             pgcache_page_no_t page_no,
-                                             uchar *data_ptr);
+extern my_bool maria_page_crc_set_index(PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_set_normal(PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_check_bitmap(int, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_check_data(int, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_check_index(int, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_crc_check_none(int, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_filler_set_bitmap(PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_filler_set_normal(PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_page_filler_set_none(PAGECACHE_IO_HOOK_ARGS *args);
+extern void maria_page_write_failure(int error, PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_flush_log_for_page(PAGECACHE_IO_HOOK_ARGS *args);
+extern my_bool maria_flush_log_for_page_none(PAGECACHE_IO_HOOK_ARGS *args);
+
 extern PAGECACHE *maria_log_pagecache;
 extern void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
                                    void *func_arg);

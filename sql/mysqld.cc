@@ -627,6 +627,8 @@ char server_version[SERVER_VERSION_LENGTH];
 char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
 
+my_bool encrypt_tmp_disk_tables= FALSE;
+
 /** name of reference on left expression in rewritten IN subquery */
 const char *in_left_expr_name= "<left expr>";
 /** name of additional condition */

@@ -679,6 +679,9 @@ extern my_bool srv_print_all_deadlocks;
 
 extern my_bool	srv_cmp_per_index_enabled;
 
+/* is encryption enabled */
+extern my_bool	srv_encrypt_tables;
+
 /** Status variables to be passed to MySQL */
 extern struct export_var_t export_vars;
 
@@ -1232,7 +1235,14 @@ struct export_var_t{
 						encryption errors */
 
 	ulint innodb_sec_rec_cluster_reads;	/*!< srv_sec_rec_cluster_reads */
-	ulint innodb_sec_rec_cluster_reads_avoided; /*!< srv_sec_rec_cluster_reads_avoided */
+	ulint innodb_sec_rec_cluster_reads_avoided;
+	/*!< srv_sec_rec_cluster_reads_avoided */
+
+	ulint innodb_encryption_rotation_pages_read_from_cache;
+	ulint innodb_encryption_rotation_pages_read_from_disk;
+	ulint innodb_encryption_rotation_pages_modified;
+	ulint innodb_encryption_rotation_pages_flushed;
+	ulint innodb_encryption_rotation_estimated_iops;
 };
 
 /** Thread slot in the thread table.  */

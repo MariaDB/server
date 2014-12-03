@@ -193,5 +193,5 @@ fil_page_is_lzo_compressed(
 	byte *buf)	/*!< in: page */
 {
 	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED &&
-	       mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN) == PAGE_LZO_ALGORITHM);
+	       mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION) == PAGE_LZO_ALGORITHM);
 }

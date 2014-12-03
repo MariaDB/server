@@ -715,7 +715,7 @@ buf_flush_update_zip_checksum(
 				srv_checksum_algorithm)));
 
 	mach_write_to_8(page + FIL_PAGE_LSN, lsn);
-	memset(page + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
+	memset(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 }
 
@@ -894,7 +894,7 @@ buf_flush_write_block_low(
 
 		mach_write_to_8(frame + FIL_PAGE_LSN,
 				bpage->newest_modification);
-		memset(frame + FIL_PAGE_FILE_FLUSH_LSN, 0, 8);
+		memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 		break;
 	case BUF_BLOCK_FILE_PAGE:
 		frame = bpage->zip.data;
@@ -908,6 +908,8 @@ buf_flush_write_block_low(
 					   bpage->newest_modification);
 		break;
 	}
+
+	frame = buf_page_encrypt_before_write(bpage, frame);
 
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,

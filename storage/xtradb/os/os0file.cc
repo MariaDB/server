@@ -52,6 +52,7 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "srv0srv.h"
 #ifdef HAVE_POSIX_FALLOCATE
+#include "unistd.h"
 #include "fcntl.h"
 #endif
 #ifndef UNIV_HOTBACKUP
@@ -83,6 +84,19 @@ Created 10/21/1995 Heikki Tuuri
 
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
 #include <sys/statvfs.h>
+#endif
+
+#if defined(UNIV_LINUX) && defined(HAVE_LINUX_FALLOC_H)
+#include <linux/falloc.h>
+#endif
+
+#if defined(HAVE_FALLOCATE)
+#ifndef FALLOC_FL_KEEP_SIZE
+#define FALLOC_FL_KEEP_SIZE 0x01
+#endif
+#ifndef FALLOC_FL_PUNCH_HOLE
+#define FALLOC_FL_PUNCH_HOLE 0x02
+#endif
 #endif
 
 #ifdef HAVE_LZO
@@ -4885,7 +4899,6 @@ found:
 
 		/* Take array mutex back */
 		os_mutex_enter(array->mutex);
-
 	}
 
 	/* If the space is page encryption and this is write operation
@@ -5580,7 +5593,7 @@ os_aio_windows_handle(
 			os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
-			if (mach_read_from_8(slot->buf+FIL_PAGE_FILE_FLUSH_LSN) == 3) {
+			if (fil_page_is_lzo_compressed(slot->buf)) {
 				os_slot_alloc_lzo_mem(slot);
 			}
 #endif
@@ -5713,7 +5726,7 @@ retry:
 					os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
-					if (mach_read_from_8(slot->buf+FIL_PAGE_FILE_FLUSH_LSN) == 3) {
+					if (fil_page_is_lzo_compressed(slot->buf)) {
 						os_slot_alloc_lzo_mem(slot);
 					}
 #endif
@@ -6683,7 +6696,7 @@ os_file_trim(
 	}
 
 #ifdef __linux__
-#if defined(POSIX_FALLOCATE)
+#if defined(HAVE_FALLOCATE)
 	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
@@ -6721,7 +6734,7 @@ os_file_trim(
 		*slot->write_size = 0;
 	}
 
-#endif /* HAVE_POSIX_FALLOCATE ... */
+#endif /* HAVE_FALLOCATE ... */
 
 #elif defined(_WIN32)
 	FILE_LEVEL_TRIM flt;

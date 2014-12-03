@@ -15,6 +15,14 @@
 
 INCLUDE(CMakeDependentOption)
 
+INCLUDE_DIRECTORIES(
+${SSL_INCLUDE_DIRS}
+)
+
+IF(SSL_DEFINES)
+SET_SOURCE_FILES_PROPERTIES(ma_crypt.c PROPERTIES COMPILE_FLAGS ${SSL_DEFINES})
+ENDIF()
+
 SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c 
             ma_rnext.c ma_rnext_same.c 
             ma_search.c ma_page.c ma_key_recover.c ma_key.c 
@@ -39,6 +47,7 @@ SET(ARIA_SOURCES ma_init.c ma_open.c ma_extra.c ma_info.c ma_rkey.c
             ma_checkpoint.c ma_recovery.c ma_commit.c ma_pagecrc.c
             ha_maria.h maria_def.h ma_recovery_util.c ma_servicethread.c
             ma_norec.c
+            ma_crypt.c
 )
 
 IF(APPLE)
@@ -54,7 +63,8 @@ IF(NOT WITH_ARIA_STORAGE_ENGINE)
   RETURN()
 ENDIF()
 
-TARGET_LINK_LIBRARIES(aria myisam)
+TARGET_LINK_LIBRARIES(aria myisam
+  mysys mysys_ssl ${LIBCRYPT} ${LIBDL} ${SSL_LIBRARIES})
 
 MYSQL_ADD_EXECUTABLE(aria_ftdump maria_ftdump.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(aria_ftdump aria)
