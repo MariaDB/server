@@ -396,23 +396,23 @@ static int get_geometry_column_record(THD *thd, TABLE_LIST *tables,
       /*F_TABLE_NAME*/
       table->field[2]->store(table_name->str, table_name->length, cs);
       /*G_TABLE_CATALOG*/
-      table->field[3]->store(STRING_WITH_LEN("def"), cs);
+      table->field[4]->store(STRING_WITH_LEN("def"), cs);
       /*G_TABLE_SCHEMA*/
-      table->field[4]->store(db_name->str, db_name->length, cs);
+      table->field[5]->store(db_name->str, db_name->length, cs);
       /*G_TABLE_NAME*/
-      table->field[5]->store(table_name->str, table_name->length, cs);
+      table->field[6]->store(table_name->str, table_name->length, cs);
       /*G_GEOMETRY_COLUMN*/
-      table->field[6]->store(field->field_name, strlen(field->field_name), cs);
+      table->field[7]->store(field->field_name, strlen(field->field_name), cs);
       /*STORAGE_TYPE*/
-      table->field[7]->store(1LL, TRUE); /*Always 1 (binary implementation)*/
+      table->field[8]->store(1LL, TRUE); /*Always 1 (binary implementation)*/
       /*GEOMETRY_TYPE*/
-      table->field[8]->store((longlong) (fg->get_geometry_type()), TRUE);
+      table->field[9]->store((longlong) (fg->get_geometry_type()), TRUE);
       /*COORD_DIMENSION*/
-      table->field[9]->store(2LL, TRUE);
+      table->field[10]->store(2LL, TRUE);
       /*MAX_PPR*/
-      table->field[10]->set_null();
+      table->field[11]->set_null();
       /*SRID*/
-      table->field[11]->store((longlong) (fg->get_srid()), TRUE);
+      table->field[12]->store((longlong) (fg->get_srid()), TRUE);
 
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
@@ -5550,7 +5550,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       field= make_field(&share, (uchar*) 0, field_def->length,
                         (uchar*) "", 0, field_def->pack_flag,
                         field_def->sql_type, field_def->charset,
-                        field_def->geom_type, Field::NONE,
+                        field_def->geom_type, field_def->srid, Field::NONE,
                         field_def->interval, "");
 
       field->table= &tbl;
@@ -5603,7 +5603,7 @@ bool store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
       field= make_field(&share, (uchar*) 0, field_def->length,
                         (uchar*) "", 0, field_def->pack_flag,
                         field_def->sql_type, field_def->charset,
-                        field_def->geom_type, Field::NONE,
+                        field_def->geom_type, field_def->srid, Field::NONE,
                         field_def->interval, spvar->name.str);
 
       field->table= &tbl;
@@ -5702,7 +5702,7 @@ bool store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
           field= make_field(&share, (uchar*) 0, field_def->length,
                             (uchar*) "", 0, field_def->pack_flag,
                             field_def->sql_type, field_def->charset,
-                            field_def->geom_type, Field::NONE,
+                            field_def->geom_type, field_def->srid, Field::NONE,
                             field_def->interval, "");
 
           field->table= &tbl;

@@ -910,6 +910,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   uint vcol_screen_length, UNINIT_VAR(options_len);
   char *vcol_screen_pos;
   const uchar *options= 0;
+  uint UNINIT_VAR(gis_options_len);
+  const uchar *gis_options= 0;
   KEY first_keyinfo;
   uint len;
   uint ext_key_parts= 0;
@@ -987,6 +989,16 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             goto err;
         }
 #endif
+        break;
+      case EXTRA2_GIS:
+#ifdef HAVE_SPATIAL
+        {
+          if (gis_options)
+            goto err;
+          gis_options= extra2;
+          gis_options_len= length;
+        }
+#endif /*HAVE_SPATIAL*/
         break;
       default:
         /* abort frm parsing if it's an unknown but important extra2 value */
@@ -1433,6 +1445,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     LEX_STRING comment;
     Virtual_column_info *vcol_info= 0;
     bool fld_stored_in_db= TRUE;
+    uint gis_length, gis_decimals, srid;
 
     if (new_frm_ver >= 3)
     {
@@ -1449,8 +1462,14 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       if (field_type == MYSQL_TYPE_GEOMETRY)
       {
 #ifdef HAVE_SPATIAL
+        uint gis_opt_read;
+        Field_geom::storage_type st_type;
 	geom_type= (Field::geometry_type) strpos[14];
 	charset= &my_charset_bin;
+        gis_opt_read= gis_field_options_read(gis_options, gis_options_len,
+            &st_type, &gis_length, &gis_decimals, &srid);
+        gis_options+= gis_opt_read;
+        gis_options_len-= gis_opt_read;
 #else
 	goto err;
 #endif
@@ -1611,7 +1630,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 		 pack_flag,
 		 field_type,
 		 charset,
-		 geom_type,
+		 geom_type, srid,
 		 (Field::utype) MTYP_TYPENR(unireg_type),
 		 (interval_nr ?
 		  share->intervals+interval_nr-1 :

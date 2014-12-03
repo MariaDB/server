@@ -2542,18 +2542,22 @@ private:
 class Field_geom :public Field_blob {
 public:
   enum geometry_type geom_type;
+  uint srid;
+  uint precision;
+  enum storage_type { GEOM_STORAGE_WKB= 0, GEOM_STORAGE_BINARY= 1};
+  enum storage_type storage;
 
   Field_geom(uchar *ptr_arg, uchar *null_ptr_arg, uint null_bit_arg,
 	     enum utype unireg_check_arg, const char *field_name_arg,
 	     TABLE_SHARE *share, uint blob_pack_length,
-	     enum geometry_type geom_type_arg)
+	     enum geometry_type geom_type_arg, uint field_srid)
      :Field_blob(ptr_arg, null_ptr_arg, null_bit_arg, unireg_check_arg, 
                  field_name_arg, share, blob_pack_length, &my_charset_bin)
-  { geom_type= geom_type_arg; }
+  { geom_type= geom_type_arg; srid= field_srid; }
   Field_geom(uint32 len_arg,bool maybe_null_arg, const char *field_name_arg,
 	     TABLE_SHARE *share, enum geometry_type geom_type_arg)
     :Field_blob(len_arg, maybe_null_arg, field_name_arg, &my_charset_bin)
-  { geom_type= geom_type_arg; }
+  { geom_type= geom_type_arg; srid= 0; }
   enum ha_base_keytype key_type() const { return HA_KEYTYPE_VARBINARY2; }
   enum_field_types type() const { return MYSQL_TYPE_GEOMETRY; }
   bool match_collation_to_optimize_range() const { return false; }
@@ -2571,8 +2575,13 @@ public:
   int reset(void) { return Field_blob::reset() || !maybe_null(); }
 
   geometry_type get_geometry_type() { return geom_type; };
-  uint get_srid() { return 0; }
+  uint get_srid() { return srid; }
 };
+
+uint gis_field_options_image(uchar *buff, List<Create_field> &create_fields);
+uint gis_field_options_read(const uchar *buf, uint buf_len,
+      Field_geom::storage_type *st_type,uint *precision, uint *scale, uint *srid);
+
 #endif /*HAVE_SPATIAL*/
 
 
@@ -2853,6 +2862,7 @@ public:
                                         // Used only for UCS2 intervals
   List<String> interval_list;
   CHARSET_INFO *charset;
+  uint32 srid;
   Field::geometry_type geom_type;
   Field *field;				// For alter table
   engine_option_value *option_list;
@@ -2877,7 +2887,7 @@ public:
   bool stored_in_db;
 
   Create_field() :after(0), pack_length(0), key_length(0), interval(0),
-                  field(0), option_list(NULL), option_struct(NULL),
+                  srid(0), field(0), option_list(NULL), option_struct(NULL),
                   create_if_not_exists(false), stored_in_db(true)
   {
     interval_list.empty();
@@ -2986,7 +2996,7 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 		  uchar *null_pos, uchar null_bit,
 		  uint pack_flag, enum_field_types field_type,
 		  CHARSET_INFO *cs,
-		  Field::geometry_type geom_type,
+		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
 		  TYPELIB *interval, const char *field_name);
 uint pack_length_to_packflag(uint type);

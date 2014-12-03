@@ -7819,6 +7819,101 @@ uint Field_blob::is_equal(Create_field *new_field)
 
 
 #ifdef HAVE_SPATIAL
+/* Values 1-40 reserved for 1-byte options,
+   41-80 for 2-byte options,
+   81-120 for 4-byte options,
+   121-160 for 8-byte options,
+   other - varied length in next 1-3 bytes.
+*/
+enum extra2_gis_field_options {
+  FIELDGEOM_END=0,
+  FIELDGEOM_STORAGE_MODEL=1,
+  FIELDGEOM_PRECISION=2,
+  FIELDGEOM_SCALE=3,
+  FIELDGEOM_SRID=81,
+};
+
+
+uint gis_field_options_image(uchar *buff, List<Create_field> &create_fields)
+{
+  uint image_size= 0;
+  List_iterator<Create_field> it(create_fields);
+  Create_field *field;
+  while ((field= it++))
+  {
+    if (field->sql_type != MYSQL_TYPE_GEOMETRY)
+      continue;
+   if (buff)
+   {
+     uchar *cbuf= buff + image_size;
+
+     cbuf[0]= FIELDGEOM_STORAGE_MODEL;
+     cbuf[1]= (uchar) Field_geom::GEOM_STORAGE_WKB;
+
+     cbuf[2]= FIELDGEOM_PRECISION;
+     cbuf[3]= (uchar) field->length;
+
+     cbuf[4]= FIELDGEOM_SCALE;
+     cbuf[5]= (uchar) field->decimals;
+
+     cbuf[6]= FIELDGEOM_SRID;
+     int4store(cbuf + 7, ((uint32) field->srid));
+
+     cbuf[11]= FIELDGEOM_END;
+   }
+   image_size+= 12;
+  }
+
+  return image_size;
+}
+
+
+uint gis_field_options_read(const uchar *buf, uint buf_len,
+      Field_geom::storage_type *st_type,uint *precision, uint *scale, uint *srid)
+{
+  const uchar *buf_end= buf + buf_len;
+  const uchar *cbuf= buf;
+  int option_id;
+
+  *precision= *scale= *srid= 0;
+  *st_type= Field_geom::GEOM_STORAGE_WKB;
+
+  while (cbuf < buf_end)
+  {
+    switch ((option_id= *(cbuf++)))
+    {
+    case FIELDGEOM_STORAGE_MODEL:
+      *st_type= (Field_geom::storage_type) cbuf[0];
+      break;
+    case FIELDGEOM_PRECISION:
+      *precision= cbuf[0];
+      break;
+    case FIELDGEOM_SCALE:
+      *scale= cbuf[0];
+      break;
+    case FIELDGEOM_SRID:
+      *srid= uint4korr(cbuf);
+      break;
+    case FIELDGEOM_END:
+      goto end_of_record;
+    }
+    if (option_id > 0 and option_id <= 40)
+      cbuf+= 1;
+    else if (option_id > 40 and option_id <= 80)
+      cbuf+= 2;
+    else if (option_id > 80 and option_id <= 120)
+      cbuf+= 4;
+    else if (option_id > 120 and option_id <= 160)
+      cbuf+= 8;
+    else /* > 160 and <=255 */
+      cbuf+= cbuf[0] ? 1 + cbuf[0] : 3 + uint2korr(cbuf+1);
+  }
+
+end_of_record:
+  return cbuf - buf;
+}
+
+
 
 void Field_geom::sql_type(String &res) const
 {
@@ -9595,7 +9690,7 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
 		  uint pack_flag,
 		  enum_field_types field_type,
 		  CHARSET_INFO *field_charset,
-		  Field::geometry_type geom_type,
+		  Field::geometry_type geom_type, uint srid,
 		  Field::utype unireg_check,
 		  TYPELIB *interval,
 		  const char *field_name)
@@ -9661,7 +9756,7 @@ Field *make_field(TABLE_SHARE *share, uchar *ptr, uint32 field_length,
       status_var_increment(current_thd->status_var.feature_gis);
       return new Field_geom(ptr,null_pos,null_bit,
 			    unireg_check, field_name, share,
-			    pack_length, geom_type);
+			    pack_length, geom_type, srid);
     }
 #endif
     if (f_is_blob(pack_flag))

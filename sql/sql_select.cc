@@ -16673,7 +16673,7 @@ TABLE *create_virtual_tmp_table(THD *thd, List<Create_field> &field_list)
                        (uchar*) (f_maybe_null(cdef->pack_flag) ? "" : 0),
                        f_maybe_null(cdef->pack_flag) ? 1 : 0,
                        cdef->pack_flag, cdef->sql_type, cdef->charset,
-                       cdef->geom_type, cdef->unireg_check,
+                       cdef->geom_type, cdef->srid, cdef->unireg_check,
                        cdef->interval, cdef->field_name);
     if (!*field)
       goto error;

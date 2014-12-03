@@ -108,6 +108,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   ulong key_buff_length;
   ulong filepos, data_offset;
   uint options_len;
+  uint gis_extra2_len= 0;
   uchar fileinfo[FRM_HEADER_SIZE],forminfo[FRM_FORMINFO_SIZE];
   const partition_info *part_info= IF_PARTITIONING(thd->work_part_info, 0);
   int error;
@@ -153,6 +154,9 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   options_len= engine_table_options_frm_length(create_info->option_list,
                                                create_fields,
                                                keys, key_info);
+#ifdef HAVE_SPATIAL
+  gis_extra2_len= gis_field_options_image(NULL, create_fields);
+#endif /*HAVE_SPATIAL*/
   DBUG_PRINT("info", ("Options length: %u", options_len));
 
   if (validate_comment_length(thd, &create_info->comment, TABLE_COMMENT_MAXLEN,
@@ -197,6 +201,10 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
   if (part_info)
     extra2_size+= 1 + 1 + hton_name(part_info->default_engine_type)->length;
 
+  if (gis_extra2_len)
+    extra2_size+= 1 + (gis_extra2_len > 255 ? 3 : 1) + gis_extra2_len;
+
+
   key_buff_length= uint4korr(fileinfo+47);
 
   frm.length= FRM_HEADER_SIZE;                  // fileinfo;
@@ -240,6 +248,15 @@ LEX_CUSTRING build_frm_image(THD *thd, const char *table,
     pos= engine_table_options_frm_image(pos, create_info->option_list,
                                         create_fields, keys, key_info);
   }
+
+#ifdef HAVE_SPATIAL
+  if (gis_extra2_len)
+  {
+    *pos= EXTRA2_GIS;
+    pos= extra2_write_len(pos+1, gis_extra2_len);
+    pos+= gis_field_options_image(pos, create_fields);
+  }
+#endif /*HAVE_SPATIAL*/
 
   int4store(pos, filepos); // end of the extra2 segment
   pos+= 4;
@@ -913,7 +930,7 @@ static bool make_empty_rec(THD *thd, uchar *buff, uint table_options,
                                 field->pack_flag,
                                 field->sql_type,
                                 field->charset,
-                                field->geom_type,
+                                field->geom_type, field->srid,
                                 field->unireg_check,
                                 field->save_interval ? field->save_interval :
                                 field->interval, 

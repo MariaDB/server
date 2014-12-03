@@ -547,6 +547,7 @@ static SYMBOL symbols[] = {
   { "SOURCE",   SYM(SOURCE_SYM)},
   { "SPATIAL",		SYM(SPATIAL_SYM)},
   { "SPECIFIC",         SYM(SPECIFIC_SYM)},
+  { "REF_SYSTEM_ID",    SYM(REF_SYSTEM_ID_SYM)},
   { "SQL",              SYM(SQL_SYM)},
   { "SQLEXCEPTION",     SYM(SQLEXCEPTION_SYM)},
   { "SQLSTATE",         SYM(SQLSTATE_SYM)},

@@ -1023,7 +1023,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
   Currently there are 164 shift/reduce conflicts.
   We should not introduce new conflicts any more.
 */
-%expect 164
+%expect 165
 
 /*
    Comments for TOKENS.
@@ -1568,6 +1568,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  SQL_SMALL_RESULT
 %token  SQL_SYM                       /* SQL-2003-R */
 %token  SQL_THREAD
+%token  REF_SYSTEM_ID_SYM
 %token  SSL_SYM
 %token  STARTING
 %token  STARTS_SYM
@@ -6352,7 +6353,7 @@ field_type:
             Lex->charset=&my_charset_bin;
             $$=MYSQL_TYPE_BLOB;
           }
-        | spatial_type
+        | spatial_type float_options srid_option
           {
 #ifdef HAVE_SPATIAL
             Lex->charset=&my_charset_bin;
@@ -6465,6 +6466,16 @@ real_type:
           { $$=MYSQL_TYPE_DOUBLE; }
         | DOUBLE_SYM PRECISION
           { $$=MYSQL_TYPE_DOUBLE; }
+        ;
+
+srid_option:
+          /* empty */
+          { Lex->last_field->srid= 0; }
+        |
+          REF_SYSTEM_ID_SYM EQ NUM
+          {
+            Lex->last_field->srid=atoi($3.str);
+          }
         ;
 
 float_options:
