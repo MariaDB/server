@@ -9831,7 +9831,7 @@ function_call_conflict:
         | WEEK_SYM '(' expr ')'
           {
             Item *i1;
-            LEX_STRING name= {STRING_WITH_LEN("default_week_format")};
+            LEX_STRING name= {C_STRING_WITH_LEN("default_week_format")};
             if (!(i1= get_system_var(thd, OPT_SESSION,
                                      name, null_lex_str)))
               MYSQL_YYABORT;
