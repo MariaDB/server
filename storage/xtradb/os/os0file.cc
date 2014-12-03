@@ -5377,7 +5377,7 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			if (slot->message1 && slot->page_compression slot->page_compress_success && slot->page_buf) {
+			if (slot->message1 && slot->page_compression && slot->page_compress_success && slot->page_buf) {
 				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
 					                slot->offset, slot->len);
 			} else {
