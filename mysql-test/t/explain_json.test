@@ -1,0 +1,138 @@
+#
+# EXPLAIN FORMAT=JSON tests. These are tests developed for MariaDB.
+#
+--disable_warnings
+drop table if exists t0,t1;
+--enable_warnings
+
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+explain format=json select * from t0;
+
+explain format=json select * from t0 where 1>2;
+
+explain format=json select * from t0 where a<3;
+
+--echo # Try a basic join
+create table t1 (a int, b int, filler char(32), key(a));
+insert into t1 
+select 
+  a.a + b.a* 10 + c.a * 100, 
+  a.a + b.a* 10 + c.a * 100,
+  'filler'
+from t0 a, t0 b, t0 c;
+
+explain format=json select * from t0,t1 where t1.a=t0.a;
+
+--echo # Try range and index_merge
+create table t2 (a1 int, a2 int, b1 int, b2 int, key(a1,a2), key(b1,b2)); 
+insert into t2 select a,a,a,a from t1;
+
+explain format=json select * from t2 where a1<5;
+
+explain format=json select * from t2 where a1=1 or b1=2;
+explain format=json select * from t2 where a1=1 or (b1=2 and b2=3);
+
+--echo # Try ref access on two key components
+
+explain format=json select * from t0,t2 where t2.b1=t0.a and t2.b2=4;
+
+drop table t1,t2;
+
+--echo #
+--echo # Try a UNION
+--echo #
+explain format=json select * from t0 A union     select * from t0 B;
+explain format=json select * from t0 A union all select * from t0 B;
+
+--echo #
+--echo # Subqueries
+--echo #
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+explain format=json select a, a > (select max(b) from t1 where t1.b=t0.a) from t0;
+
+explain format=json 
+select * from t0 where 
+  a > (select max(b) from t1 where t1.b=t0.a) or a < 3 ;
+
+drop table t1;
+
+--echo #
+--echo # Join buffering
+--echo #
+create table t1 (a int, b int);
+insert into t1 select tbl1.a+10*tbl2.a, tbl1.a+10*tbl2.a from t0 tbl1, t0 tbl2;
+
+explain format=json
+select * from t1 tbl1, t1 tbl2 where tbl1.a=tbl2.a and tbl1.b < 3 and tbl2.b < 5;
+
+drop table t1;
+
+--echo #
+--echo # Single-table UPDATE/DELETE, INSERT
+--echo #
+explain format=json delete from t0;
+explain format=json delete from t0 where 1 > 2;
+
+explain format=json delete from t0 where a < 3;
+
+explain format=json update t0 set a=3 where a in (2,3,4);
+
+explain format=json insert into t0 values (1);
+
+create table t1 like t0;
+explain format=json insert into t1 values ((select max(a) from t0));
+
+drop table t1;
+
+--echo #
+--echo # A derived table
+--echo #
+create table t1 (a int, b int);
+insert into t1 select a,a from t0;
+explain format=json
+select * from (select a, count(*) as cnt from t1 group by a) as tbl
+where cnt>0;
+
+explain format=json
+select * from (select a, count(*) as cnt from t1 group by a) as tbl1, t1 as
+tbl2 where cnt=tbl2.a;
+
+--echo #
+--echo # Non-merged semi-join (aka JTBM)
+--echo #
+explain format=json 
+select * from t1 where a in (select max(a) from t1 group by b);
+
+--echo #
+--echo # Semi-join Materialization
+--echo #
+create table t2 like t1;
+insert into t2 select * from t1;
+explain format=json
+select * from t1,t2 where t1.a in ( select a from t0);
+
+--echo # 
+--echo # First-Match
+--echo # 
+explain
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+explain format=json
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+
+--echo # 
+--echo # Duplicate Weedout
+--echo # 
+set @tmp= @@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+explain
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+explain format=json
+select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
+set optimizer_switch=@tmp;
+
+drop table t1,t2;
+drop table t0;
+

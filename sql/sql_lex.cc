@@ -485,6 +485,7 @@ void lex_start(THD *thd)
     lex->select_lex.group_list_ptrs->clear();
   lex->describe= 0;
   lex->analyze_stmt= 0;
+  lex->explain_json= false;
   lex->subqueries= FALSE;
   lex->context_analysis_only= 0;
   lex->derived_tables= 0;
@@ -4268,6 +4269,13 @@ int st_select_lex_unit::save_union_explain(Explain_query *output)
 {
   SELECT_LEX *first= first_select();
   Explain_union *eu= new (output->mem_root) Explain_union;
+
+  if (derived)
+    eu->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
+  /* 
+    Note: Non-merged semi-joins cannot be made out of UNIONs currently, so we
+    dont ever set EXPLAIN_NODE_NON_MERGED_SJ.
+  */
 
   for (SELECT_LEX *sl= first; sl; sl= sl->next_select())
     eu->add_select(sl->select_number);

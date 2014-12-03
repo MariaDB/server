@@ -2370,11 +2370,22 @@ CHANGED_TABLE_LIST* THD::changed_table_dup(const char *key, long key_length)
 int THD::send_explain_fields(select_result *result, uint8 explain_flags, bool is_analyze)
 {
   List<Item> field_list;
-  make_explain_field_list(field_list, explain_flags, is_analyze);
+  if (lex->explain_json)
+    make_explain_json_field_list(field_list);
+  else
+    make_explain_field_list(field_list, explain_flags, is_analyze);
+
   result->prepare(field_list, NULL);
   return (result->send_result_set_metadata(field_list,
                                            Protocol::SEND_NUM_ROWS | 
                                            Protocol::SEND_EOF));
+}
+
+
+void THD::make_explain_json_field_list(List<Item> &field_list)
+{
+  Item *item= new Item_empty_string("EXPLAIN", 78, system_charset_info);
+  field_list.push_back(item);
 }
 
 

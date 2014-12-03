@@ -97,6 +97,8 @@
 #include "log_slow.h"
 #include "sql_bootstrap.h"
 
+#include "my_json_writer.h" 
+
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -5722,19 +5724,27 @@ static bool execute_sqlcom_select(THD *thd, TABLE_LIST *all_tables)
           top-level LIMIT
         */        
         result->reset_offset_limit(); 
-        lex->explain->print_explain(result, lex->describe, lex->analyze_stmt);
-        if (lex->describe & DESCRIBE_EXTENDED)
+        if (lex->explain_json)
         {
-          char buff[1024];
-          String str(buff,(uint32) sizeof(buff), system_charset_info);
-          str.length(0);
-          /*
-            The warnings system requires input in utf8, @see
-            mysqld_show_warnings().
-          */
-          lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
-          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
-                       ER_YES, str.c_ptr_safe());
+          lex->explain->print_explain_json(result, lex->analyze_stmt);
+        }
+        else
+        {
+          lex->explain->print_explain(result, thd->lex->describe,
+                                      thd->lex->analyze_stmt);
+          if (lex->describe & DESCRIBE_EXTENDED)
+          {
+            char buff[1024];
+            String str(buff,(uint32) sizeof(buff), system_charset_info);
+            str.length(0);
+            /*
+              The warnings system requires input in utf8, @see
+              mysqld_show_warnings().
+            */
+            lex->unit.print(&str, QT_TO_SYSTEM_CHARSET);
+            push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                         ER_YES, str.c_ptr_safe());
+          }
         }
       }
 
@@ -7748,6 +7758,9 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   /* allow item list resolving in fake select for ORDER BY */
   fake_select_lex->context.resolve_in_select_list= TRUE;
   fake_select_lex->context.select_lex= fake_select_lex;  
+
+  fake_select_lex->nest_level_base= first_select()->nest_level_base;
+  fake_select_lex->nest_level=first_select()->nest_level;
 
   if (!is_union())
   {

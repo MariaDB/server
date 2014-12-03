@@ -8232,6 +8232,41 @@ JOIN_TAB *next_breadth_first_tab(JOIN *join, enum enum_exec_or_opt tabs_kind,
 }
 
 
+/* 
+  Enumerate JOIN_TABs in "EXPLAIN order". This order
+   - const tabs are included
+   - we enumerate "optimization tabs".
+   - 
+*/
+
+JOIN_TAB *first_explain_order_tab(JOIN* join)
+{
+  JOIN_TAB* tab;
+  tab= join->table_access_tabs;
+  return (tab->bush_children) ? tab->bush_children->start : tab;
+}
+
+
+JOIN_TAB *next_explain_order_tab(JOIN* join, JOIN_TAB* tab)
+{
+  /* If we're inside SJM nest and have reached its end, get out */
+  if (tab->last_leaf_in_bush)
+    return tab->bush_root_tab;
+  
+  /* Move to next tab in the array we're traversing */
+  tab++;
+  
+  if (tab == join->table_access_tabs + join->top_join_tab_count)
+    return NULL; /* Outside SJM nest and reached EOF */
+
+  if (tab->bush_children)
+    return tab->bush_children->start;
+
+  return tab;
+}
+
+
+
 JOIN_TAB *first_top_level_tab(JOIN *join, enum enum_with_const_tables const_tbls)
 {
   JOIN_TAB *tab= join->join_tab;
@@ -16426,6 +16461,7 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
       ((field_count-param->hidden_field_count)+
        (share->uniques ? MY_TEST(null_pack_length) : 0));
     keyinfo->ext_key_parts= keyinfo->user_defined_key_parts;
+    keyinfo->usable_key_parts= keyinfo->user_defined_key_parts;
     table->distinct= 1;
     share->keys= 1;
     if (!(key_part_info= (KEY_PART_INFO*)
@@ -20861,6 +20897,24 @@ static void free_blobs(Field **ptr)
 }
 
 
+/*
+  @brief
+    Remove duplicates from a temporary table.
+
+  @detail
+    Remove duplicate rows from a temporary table. This is used for e.g. queries
+    like
+
+      select distinct count(*) as CNT from tbl group by col
+
+    Here, we get a group table with count(*) values. It is not possible to
+    prevent duplicates from appearing in the table (as we don't know the values
+    before we've done the grouping).  Because of that, we have this function to
+    scan the temptable (maybe, multiple times) and remove the duplicate rows
+
+    Rows that do not satisfy 'having' condition are also removed.
+*/
+
 static int
 remove_duplicates(JOIN *join, TABLE *table, List<Item> &fields, Item *having)
 {
@@ -23121,7 +23175,6 @@ void JOIN::clear()
 
 /*
   Print an EXPLAIN line with all NULLs and given message in the 'Extra' column
-  TODO: is_analyze
 */
 
 int print_explain_message_line(select_result_sink *result, 
@@ -23181,208 +23234,6 @@ int print_explain_message_line(select_result_sink *result,
 
 
 /*
-  Make a comma-separated list of possible_keys names and add it into the string
-*/ 
-
-void make_possible_keys_line(TABLE *table, key_map possible_keys, String *line)
-{
-  if (!possible_keys.is_clear_all())
-  {
-    uint j;
-    for (j=0 ; j < table->s->keys ; j++)
-    {
-      if (possible_keys.is_set(j))
-      {
-        if (line->length())
-          line->append(',');
-        line->append(table->key_info[j].name, 
-                     strlen(table->key_info[j].name),
-                     system_charset_info);
-      }
-    }
-  }
-}
-
-/*
-  Print an EXPLAIN output row, based on information provided in the parameters
-
-  @note
-    Parameters that may have NULL value in EXPLAIN output, should be passed
-    (char*)NULL.
-
-  @return 
-    0  - OK
-    1  - OOM Error
-*/
-
-int print_explain_row(select_result_sink *result,
-                      uint8 options, bool is_analyze,
-                      uint select_number,
-                      const char *select_type,
-                      const char *table_name,
-                      const char *partitions,
-                      enum join_type jtype,
-                      const char *possible_keys,
-                      const char *index,
-                      const char *key_len,
-                      const char *ref,
-                      ha_rows *rows,
-                      ha_rows *r_rows,
-                      double r_filtered,
-                      const char *extra)
-{
-  Item *item_null= new Item_null();
-  List<Item> item_list;
-  Item *item;
-
-  item_list.push_back(new Item_int((int32) select_number));
-  item_list.push_back(new Item_string_sys(select_type));
-  item_list.push_back(new Item_string_sys(table_name));
-  if (options & DESCRIBE_PARTITIONS)
-  {
-    if (partitions)
-    {
-      item_list.push_back(new Item_string_sys(partitions));
-    }
-    else
-      item_list.push_back(item_null);
-  }
-  
-  const char *jtype_str= join_type_str[jtype];
-  item_list.push_back(new Item_string_sys(jtype_str));
-  
-  item= possible_keys? new Item_string_sys(possible_keys) : item_null;
-  item_list.push_back(item);
-  
-  /* 'index */
-  item= index ? new Item_string_sys(index) : item_null;
-  item_list.push_back(item);
-  
-  /* 'key_len */
-  item= key_len ? new Item_string_sys(key_len) : item_null;
-  item_list.push_back(item);
-  
-  /* 'ref' */
-  item= ref ? new Item_string_sys(ref) : item_null;
-  item_list.push_back(item);
-
-  /* 'rows' */
-  if (rows)
-  {
-    item_list.push_back(new Item_int(*rows, 
-                                     MY_INT64_NUM_DECIMAL_DIGITS));
-  }
-  else
-    item_list.push_back(item_null);
-  
-  /* 'r_rows' */
-  if (is_analyze)
-  {
-    if (r_rows)
-    {
-      item_list.push_back(new Item_int(*r_rows, 
-                                       MY_INT64_NUM_DECIMAL_DIGITS));
-    }
-    else
-      item_list.push_back(item_null);
-  }
-
-  /* 'filtered' */
-  const double filtered=100.0;
-  if (options & DESCRIBE_EXTENDED || is_analyze)
-    item_list.push_back(new Item_float(filtered, 2));
-  
-  /* 'r_filtered' */
-  if (is_analyze)
-    item_list.push_back(new Item_float(r_filtered, 2));
-  
-  /* 'Extra' */
-  if (extra)
-    item_list.push_back(new Item_string_sys(extra));
-  else
-    item_list.push_back(item_null);
-
-  if (result->send_data(item_list))
-    return 1;
-  return 0;
-}
-
-
-int print_fake_select_lex_join(select_result_sink *result, bool on_the_fly,
-                               SELECT_LEX *select_lex, uint8 explain_flags)
-{
-  Item *item_null= new Item_null();
-  List<Item> item_list;
-  if (on_the_fly)
-    select_lex->set_explain_type(on_the_fly);
-  /* 
-    here we assume that the query will return at least two rows, so we
-    show "filesort" in EXPLAIN. Of course, sometimes we'll be wrong
-    and no filesort will be actually done, but executing all selects in
-    the UNION to provide precise EXPLAIN information will hardly be
-    appreciated :)
-  */
-  char table_name_buffer[SAFE_NAME_LEN];
-  item_list.empty();
-  /* id */
-  item_list.push_back(new Item_null);
-  /* select_type */
-  item_list.push_back(new Item_string_sys(select_lex->type));
-  /* table */
-  {
-    SELECT_LEX *sl= select_lex->master_unit()->first_select();
-    uint len= 6, lastop= 0;
-    memcpy(table_name_buffer, STRING_WITH_LEN("<union"));
-    for (; sl && len + lastop + 5 < NAME_LEN; sl= sl->next_select())
-    {
-      len+= lastop;
-      lastop= my_snprintf(table_name_buffer + len, NAME_LEN - len,
-                          "%u,", sl->select_number);
-    }
-    if (sl || len + lastop >= NAME_LEN)
-    {
-      memcpy(table_name_buffer + len, STRING_WITH_LEN("...>") + 1);
-      len+= 4;
-    }
-    else
-    {
-      len+= lastop;
-      table_name_buffer[len - 1]= '>';  // change ',' to '>'
-    }
-    item_list.push_back(new Item_string_sys(table_name_buffer, len));
-  }
-  /* partitions */
-  if (explain_flags & DESCRIBE_PARTITIONS)
-    item_list.push_back(item_null);
-  /* type */
-  item_list.push_back(new Item_string_sys(join_type_str[JT_ALL]));
-
-  /* possible_keys */
-  item_list.push_back(item_null);
-  /* key*/
-  item_list.push_back(item_null);
-  /* key_len */
-  item_list.push_back(item_null);
-  /* ref */
-  item_list.push_back(item_null);
-  /* in_rows */
-  if (explain_flags & DESCRIBE_EXTENDED)
-    item_list.push_back(item_null);
-  /* rows */
-  item_list.push_back(item_null);
-  /* extra */
-  if (select_lex->master_unit()->global_parameters()->order_list.first)
-    item_list.push_back(new Item_string_sys("Using filesort", 14));
-  else
-    item_list.push_back(new Item_string_sys("", 0));
-
-  if (result->send_data(item_list))
-    return 1;
-  return 0;
-}
-
-
-/*
   Append MRR information from quick select to the given string
 */
 
@@ -23403,21 +23254,16 @@ void explain_append_mrr_info(QUICK_RANGE_SELECT *quick, String *res)
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// TODO: join with make_possible_keys_line ?
-void append_possible_keys(String *str, TABLE *table, key_map possible_keys)
+int append_possible_keys(MEM_ROOT *alloc, String_list &list, TABLE *table, 
+                         key_map possible_keys)
 {
   uint j;
   for (j=0 ; j < table->s->keys ; j++)
   {
     if (possible_keys.is_set(j))
-    {
-      if (str->length())
-        str->append(',');
-      str->append(table->key_info[j].name, 
-                  strlen(table->key_info[j].name),
-                  system_charset_info);
-    }
+      list.append_str(alloc, table->key_info[j].name);
   }
+  return 0;
 }
 
 // TODO: this function is only applicable for the first non-const optimization
@@ -23450,32 +23296,20 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
   TABLE *table=tab->table;
   TABLE_LIST *table_list= tab->table->pos_in_table_list;
-  char buff4[512];
   my_bool key_read;
   char table_name_buffer[SAFE_NAME_LEN];
-  String tmp4(buff4,sizeof(buff4),cs);
   KEY *key_info= 0;
   uint key_len= 0;
-  tmp4.length(0);
   quick_type= -1;
   QUICK_SELECT_I *quick= NULL;
 
-  eta->key.set(thd->mem_root, NULL, (uint)-1);
+  eta->key.clear();
   eta->quick_info= NULL;
   
   tab->tracker= &eta->tracker;
   tab->jbuf_tracker= &eta->jbuf_tracker;
   
-  /* id */
-  if (tab->bush_root_tab)
-  {
-    JOIN_TAB *first_sibling= tab->bush_root_tab->bush_children->start;
-    eta->sjm_nest_select_id= first_sibling->emb_sj_nest->sj_subq_pred->get_identifier();
-  }
-  else
-    eta->sjm_nest_select_id= 0;
-
-  /* select_type is kept in Explain_select */
+  /* id and select_type are kept in Explain_select */
 
   /* table */
   if (table->derived_select_number)
@@ -23558,7 +23392,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   eta->type= tab_type;
 
   /* Build "possible_keys" value */
-  append_possible_keys(&eta->possible_keys_str, table, tab->keys);
+  // psergey-todo: why does this use thd MEM_ROOT??? Doesn't this 
+  // break ANALYZE ? thd->mem_root will be freed, and after that we will
+  // attempt to print the query plan?
+  append_possible_keys(thd->mem_root, eta->possible_keys, table, tab->keys);
+  // psergey-todo: ^ check for error return code 
 
   /* Build "key", "key_len", and "ref" */
   if (tab_type == JT_NEXT)
@@ -23583,21 +23421,18 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
   if (key_info) /* 'index' or 'ref' access */
   {
-    eta->key.set(thd->mem_root, key_info->name, key_len);
+    eta->key.set(thd->mem_root, key_info, key_len);
 
     if (tab->ref.key_parts && tab_type != JT_FT)
     {
       store_key **ref=tab->ref.key_copy;
       for (uint kp= 0; kp < tab->ref.key_parts; kp++)
       {
-        if (tmp4.length())
-          tmp4.append(',');
-
         if ((key_part_map(1) << kp) & tab->ref.const_ref_part_map)
-          tmp4.append("const");
+          eta->ref_list.append_str(thd->mem_root, "const");
         else
         {
-          tmp4.append((*ref)->name(), strlen((*ref)->name()), cs);
+          eta->ref_list.append_str(thd->mem_root, (*ref)->name());
           ref++;
         }
       }
@@ -23607,21 +23442,13 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
   if (tab_type == JT_HASH_NEXT) /* full index scan + hash join */
   {
     eta->hash_next_key.set(thd->mem_root, 
-                           table->key_info[tab->index].name, 
+                           & table->key_info[tab->index], 
                            table->key_info[tab->index].key_length);
+    // psergey-todo: ^ is the above correct? are we necessarily joining on all
+    // columns?
   }
 
-  if (key_info)
-  {
-    if (key_info && tab_type != JT_NEXT)
-    {
-      eta->ref.copy(tmp4);
-      eta->ref_set= true;
-    }
-    else
-      eta->ref_set= false;
-  }
-  else
+  if (!key_info)
   {
     if (table_list && /* SJM bushes don't have table_list */
         table_list->schema_table &&
@@ -23652,9 +23479,8 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       }
 
       if (key_name_buf.length())
-        eta->key.set(thd->mem_root, key_name_buf.c_ptr_safe(), -1);
+        eta->key.set_pseudo_key(thd->mem_root, key_name_buf.c_ptr_safe());
     }
-    eta->ref_set= false;
   }
   
   /* "rows" */
@@ -23719,7 +23545,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
 
     if (keyno != MAX_KEY && keyno == table->file->pushed_idx_cond_keyno &&
         table->file->pushed_idx_cond)
+    {
       eta->push_extra(ET_USING_INDEX_CONDITION);
+      eta->pushed_index_cond= table->file->pushed_idx_cond;
+    }
     else if (tab->cache_idx_cond)
       eta->push_extra(ET_USING_INDEX_CONDITION_BKA);
 
@@ -23749,7 +23578,11 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
           eta->push_extra(ET_USING_WHERE_WITH_PUSHED_CONDITION);
         }
         else
+        {
+          eta->where_cond= tab->select->cond;
+          eta->cache_cond= tab->cache_select? tab->cache_select->cond : NULL;
           eta->push_extra(ET_USING_WHERE);
+        }
       }
     }
     if (table_list /* SJM bushes don't have table_list */ &&
@@ -23804,9 +23637,16 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
     }
 
     if (tab->first_weedout_table)
+    {
+      eta->start_dups_weedout= true;
       eta->push_extra(ET_START_TEMPORARY);
+    }
     if (tab->check_weed_out_table)
+    {
       eta->push_extra(ET_END_TEMPORARY);
+      eta->end_dups_weedout= true;
+    }
+
     else if (tab->do_firstmatch)
     {
       if (tab->do_firstmatch == /*join->join_tab*/ first_top_tab - 1)
@@ -23844,7 +23684,17 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       tab->cache->save_explain_data(&eta->bka_type);
     }
   }
+
+  /* 
+    In case this is a derived table, here we remember the number of 
+    subselect that used to produce it.
+  */
+  eta->derived_select_number= table->derived_select_number;
+
+  /* The same for non-merged semi-joins */
+  eta->non_merged_sjm_number = get_non_merged_semijoin_select();
 }
+
 
 /*
   Save Query Plan Footprint
@@ -23876,6 +23726,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
     xpl_sel->message= message;
+    if (select_lex->master_unit()->derived)
+      xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
     /* Setting xpl_sel->message means that all other members are invalid */
     output->add_node(xpl_sel);
   }
@@ -23893,13 +23745,23 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     join->select_lex->set_explain_type(true);
     xpl_sel->select_id= join->select_lex->select_number;
     xpl_sel->select_type= join->select_lex->type;
+    if (select_lex->master_unit()->derived)
+      xpl_sel->connection_type= Explain_node::EXPLAIN_NODE_DERIVED;
+
+    if (need_tmp_table)
+      xpl_sel->using_temporary= true;
+
+    if (need_order)
+      xpl_sel->using_filesort= true;
 
     JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
+    JOIN_TAB* prev_bush_root_tab= NULL;
 
-    for (JOIN_TAB *tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS); tab;
-         tab= next_breadth_first_tab(join, WALK_OPTIMIZATION_TABS, tab))
+    Explain_basic_join *cur_parent= xpl_sel;
+    
+    for (JOIN_TAB *tab= first_explain_order_tab(join); tab;
+         tab= next_explain_order_tab(join, tab))
     {
-      
       JOIN_TAB *saved_join_tab= NULL;
       TABLE *table=tab->table;
 
@@ -23910,6 +23772,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
         continue;
       }
 
+
       if (join->table_access_tabs == join->join_tab &&
           tab == (first_top_tab + join->const_tables) && pre_sort_join_tab)
       {
@@ -23918,20 +23781,35 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
       }
 
       Explain_table_access *eta= new (output->mem_root) Explain_table_access;
-      xpl_sel->add_table(eta);
 
+      if (tab->bush_root_tab != prev_bush_root_tab)
+      {
+        if (tab->bush_root_tab)
+        {
+          /* 
+            We've entered an SJ-Materialization nest. Create an object for it.
+          */
+          cur_parent= new Explain_basic_join;
+
+          JOIN_TAB *first_child= tab->bush_root_tab->bush_children->start;
+          cur_parent->select_id=
+            first_child->emb_sj_nest->sj_subq_pred->get_identifier();
+        }
+        else
+        {
+          /* 
+            We've just left an SJ-Materialization nest. We are at the join tab
+            that 'embeds the nest'
+          */
+          DBUG_ASSERT(tab->bush_children);
+          eta->sjm_nest= cur_parent;
+          cur_parent= xpl_sel;
+        }
+      }
+      prev_bush_root_tab= tab->bush_root_tab;
+
+      cur_parent->add_table(eta);
       tab->save_explain_data(eta, used_tables, distinct, first_top_tab);
-
-      if (need_tmp_table)
-      {
-        need_tmp_table=0;
-        xpl_sel->using_temporary= true;
-      }
-      if (need_order)
-      {
-        need_order=0;
-        xpl_sel->using_filesort= true;
-      }
 
       if (saved_join_tab)
         tab= saved_join_tab;

@@ -135,4 +135,11 @@ fil_page_is_compressed(
 /*===================*/
 	byte *buf);	/*!< in: page */
 
+/*******************************************************************//**
+Find out wheather the page is page compressed with lzo method
+@return	true if page is page compressed with lzo method*/
+ibool
+fil_page_is_lzo_compressed(
+/*=======================*/
+	byte *buf);	/*!< in: page */
 #endif

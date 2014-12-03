@@ -2312,8 +2312,9 @@ public:
   void set_impossible_where() { impossible_where= true; }
   void set_no_partitions() { no_partitions= true; }
 
-  void save_explain_data(Explain_query *query);
-  void save_explain_data_intern(Explain_query *query, Explain_update *eu);
+  void save_explain_data(MEM_ROOT *mem_root, Explain_query *query);
+  void save_explain_data_intern(MEM_ROOT *mem_root, Explain_query *query,
+                                Explain_update *eu);
 
   virtual ~Update_plan() {}
 
@@ -2344,7 +2345,7 @@ public:
     scanned_rows= rows_arg;
   }
 
-  void save_explain_data(Explain_query *query);
+  void save_explain_data(MEM_ROOT *mem_root, Explain_query *query);
 };
 
 
@@ -2509,6 +2510,7 @@ struct LEX: public Query_tables_list
   uint table_count;
   uint8 describe;
   bool  analyze_stmt; /* TRUE<=> this is "ANALYZE $stmt" */
+  bool  explain_json;
   /*
     A flag that indicates what kinds of derived tables are present in the
     query (0 if no derived tables, otherwise a combination of flags

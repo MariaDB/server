@@ -100,6 +100,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h
+           ../sql/my_json_writer.cc ../sql/my_json_writer.h
 	   ../sql/rpl_gtid.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
            ../sql/compat56.cc

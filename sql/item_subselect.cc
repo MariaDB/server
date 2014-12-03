@@ -895,6 +895,21 @@ void Item_subselect::update_used_tables()
 
 void Item_subselect::print(String *str, enum_query_type query_type)
 {
+  if (query_type == QT_EXPLAIN)
+  {
+    str->append("(subquery#");
+    if (engine)
+    {
+      char buf[64];
+      ll2str(engine->get_identifier(), buf, 10, 0); 
+      str->append(buf);
+    }
+    else
+      str->append("NULL"); // TODO: what exactly does this mean?
+
+    str->append(")");
+    return;
+  }
   if (engine)
   {
     str->append('(');
@@ -3717,6 +3732,10 @@ int subselect_union_engine::exec()
   return res;
 }
 
+int subselect_union_engine::get_identifier()
+{
+  return unit->first_select()->select_number;
+}
 
 /*
   Search for at least one row satisfying select condition

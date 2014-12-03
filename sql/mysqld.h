@@ -613,8 +613,12 @@ enum enum_query_type
   /// Without character set introducers.
   QT_WITHOUT_INTRODUCERS= (1 << 1),
   /// view internal representation (like QT_ORDINARY except ORDER BY clause)
-  QT_VIEW_INTERNAL= (1 << 2)
+  QT_VIEW_INTERNAL= (1 << 2),
+  /// This value means focus on readability, not on ability to parse back, etc.
+  QT_EXPLAIN= (1 << 4)
 };
+
+
 
 /* query_id */
 typedef int64 query_id_t;

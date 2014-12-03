@@ -182,3 +182,16 @@ fil_space_get_atomic_writes(
 
 	return((atomic_writes_t)0);
 }
+
+/*******************************************************************//**
+Find out wheather the page is page compressed with lzo method
+@return	true if page is page compressed with lzo method, false if not */
+UNIV_INLINE
+ibool
+fil_page_is_lzo_compressed(
+/*=======================*/
+	byte *buf)	/*!< in: page */
+{
+	return(mach_read_from_2(buf+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED &&
+	       mach_read_from_8(buf+FIL_PAGE_FILE_FLUSH_LSN) == PAGE_LZO_ALGORITHM);
+}

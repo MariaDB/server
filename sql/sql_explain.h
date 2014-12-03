@@ -14,7 +14,21 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-/* Data structures for ANALYZE */
+
+class String_list: public List<char>
+{
+public:
+  bool append_str(MEM_ROOT *mem_root, const char *str);
+};
+
+
+/*
+  A class for collecting read statistics.
+  
+  The idea is that we run several scans. Each scans gets rows, and then filters
+  some of them out.  We count scans, rows, and rows left after filtering.
+*/
+
 class Table_access_tracker 
 {
 public:
@@ -29,6 +43,7 @@ public:
   ha_rows r_rows_after_where; /* Rows after applying attached part of WHERE */
 
   bool has_scans() { return (r_scans != 0); }
+  ha_rows get_loops() { return r_scans; }
   ha_rows get_avg_rows()
   {
     return r_scans ? (ha_rows)rint((double) r_rows / r_scans): 0;
@@ -67,23 +82,42 @@ const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 
 class Explain_query;
 
+class Json_writer;
+
 /* 
   A node can be either a SELECT, or a UNION.
 */
 class Explain_node : public Sql_alloc
 {
 public:
+  /* A type specifying what kind of node this is */
   enum explain_node_type 
   {
     EXPLAIN_UNION, 
-    EXPLAIN_SELECT, 
+    EXPLAIN_SELECT,
+    EXPLAIN_BASIC_JOIN,
     EXPLAIN_UPDATE,
     EXPLAIN_DELETE, 
     EXPLAIN_INSERT
   };
+  
+  /* How this node is connected */
+  enum explain_connection_type {
+    EXPLAIN_NODE_OTHER,
+    EXPLAIN_NODE_DERIVED, /* Materialized derived table */
+    EXPLAIN_NODE_NON_MERGED_SJ /* aka JTBM semi-join */
+  };
+
+  Explain_node() : connection_type(EXPLAIN_NODE_OTHER) {}
 
   virtual enum explain_node_type get_type()= 0;
   virtual int get_select_id()= 0;
+
+  /*
+    How this node is connected to its parent.
+    (NOTE: EXPLAIN_NODE_NON_MERGED_SJ is set very late currently)
+  */
+  enum explain_connection_type connection_type;
 
   /* 
     A node may have children nodes. When a node's explain structure is 
@@ -97,14 +131,61 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze)=0;
-  
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer, 
+                                  bool is_analyze)= 0;
+
   int print_explain_for_children(Explain_query *query, select_result_sink *output, 
                                  uint8 explain_flags, bool is_analyze);
+  void print_explain_json_for_children(Explain_query *query,
+                                       Json_writer *writer, bool is_analyze);
   virtual ~Explain_node(){}
 };
 
 
 class Explain_table_access;
+
+
+/* 
+  A basic join. This is only used for SJ-Materialization nests.
+
+  Basic join doesn't have ORDER/GROUP/DISTINCT operations. It also cannot be
+  degenerate.
+
+  It has its own select_id.
+*/
+class Explain_basic_join : public Explain_node
+{
+public:
+  enum explain_node_type get_type() { return EXPLAIN_BASIC_JOIN; }
+  
+  Explain_basic_join() : join_tabs(NULL) {}
+  ~Explain_basic_join();
+
+  bool add_table(Explain_table_access *tab)
+  {
+    if (!join_tabs)
+    {
+      join_tabs= (Explain_table_access**) my_malloc(sizeof(Explain_table_access*) *
+                                                MAX_TABLES, MYF(0));
+      n_join_tabs= 0;
+    }
+    join_tabs[n_join_tabs++]= tab;
+    return false;
+  }
+
+  int get_select_id() { return select_id; }
+
+  int select_id;
+
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
+
+  /* A flat array of Explain structs for tables. */
+  Explain_table_access** join_tabs;
+  uint n_join_tabs;
+};
 
 
 /*
@@ -122,30 +203,16 @@ class Explain_table_access;
   a way get node's children.
 */
 
-class Explain_select : public Explain_node
+class Explain_select : public Explain_basic_join
 {
 public:
   enum explain_node_type get_type() { return EXPLAIN_SELECT; }
 
   Explain_select() : 
-    message(NULL), join_tabs(NULL),
+    message(NULL),
     using_temporary(false), using_filesort(false)
   {}
-  
-  ~Explain_select();
 
-  bool add_table(Explain_table_access *tab)
-  {
-    if (!join_tabs)
-    {
-      join_tabs= (Explain_table_access**) my_malloc(sizeof(Explain_table_access*) *
-                                                MAX_TABLES, MYF(0));
-      n_join_tabs= 0;
-    }
-    join_tabs[n_join_tabs++]= tab;
-    return false;
-  }
-  
   /*
     This is used to save the results of "late" test_if_skip_sort_order() calls
     that are made from JOIN::exec
@@ -153,10 +220,7 @@ public:
   void replace_table(uint idx, Explain_table_access *new_tab);
 
 public:
-  int select_id;
   const char *select_type;
-
-  int get_select_id() { return select_id; }
 
   /*
     If message != NULL, this is a degenerate join plan, and all subsequent
@@ -164,19 +228,14 @@ public:
   */
   const char *message;
   
-  /*
-    A flat array of Explain structs for tables. The order is "just like EXPLAIN
-    would print them".
-  */
-  Explain_table_access** join_tabs;
-  uint n_join_tabs;
-
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;
   bool using_filesort;
   
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
   
   Table_access_tracker *get_using_temporary_read_tracker()
   {
@@ -222,6 +281,8 @@ public:
   }
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
 
   const char *fake_select_type;
   bool using_filesort;
@@ -236,6 +297,8 @@ public:
     return &tmptable_read_tracker;
   }
 private:
+  uint make_union_table_name(char *buf);
+  
   Table_access_tracker fake_select_lex_tracker;
   /* This one is for reading after ORDER BY */
   Table_access_tracker tmptable_read_tracker; 
@@ -310,6 +373,8 @@ public:
   
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
+
+  void print_explain_json(select_result_sink *output, bool is_analyze);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
@@ -407,24 +472,24 @@ class Explain_index_use : public Sql_alloc
 {
   char *key_name;
   uint key_len;
-  /* will add #keyparts here if we implement EXPLAIN FORMAT=JSON */
 public:
-
-  void set(MEM_ROOT *root, const char *key_name_arg, uint key_len_arg)
+  String_list key_parts_list;
+  
+  Explain_index_use()
   {
-    if (key_name_arg)
-    {
-      size_t name_len= strlen(key_name_arg);
-      if ((key_name= (char*)alloc_root(root, name_len+1)))
-        memcpy(key_name, key_name_arg, name_len+1);
-    }
-    else
-      key_name= NULL;
-    key_len= key_len_arg;
+    clear();
   }
 
-  inline const char *get_key_name() { return key_name; }
-  inline uint get_key_len() { return key_len; }
+  void clear()
+  {
+    key_name= NULL;
+    key_len= (uint)-1;
+  }
+  void set(MEM_ROOT *root, KEY *key_name, uint key_len_arg);
+  void set_pseudo_key(MEM_ROOT *root, const char *key_name);
+
+  inline const char *get_key_name() const { return key_name; }
+  inline uint get_key_len() const { return key_len; }
 };
 
 
@@ -438,6 +503,13 @@ public:
   {}
 
   const int quick_type;
+
+  bool is_basic() 
+  {
+    return (quick_type == QUICK_SELECT_I::QS_TYPE_RANGE || 
+            quick_type == QUICK_SELECT_I::QS_TYPE_RANGE_DESC ||
+            quick_type == QUICK_SELECT_I::QS_TYPE_GROUP_MIN_MAX);
+  }
   
   /* This is used when quick_type == QUICK_SELECT_I::QS_TYPE_RANGE */
   Explain_index_use range;
@@ -448,8 +520,11 @@ public:
   void print_extra(String *str);
   void print_key(String *str);
   void print_key_len(String *str);
-private:
+
+  void print_json(Json_writer *writer);
+
   void print_extra_recursive(String *str);
+private:
   const char *get_name_by_type();
 };
 
@@ -461,26 +536,40 @@ private:
 class Explain_table_access : public Sql_alloc
 {
 public:
+  Explain_table_access() :
+    derived_select_number(0),
+    non_merged_sjm_number(0),
+    start_dups_weedout(false),
+    end_dups_weedout(false),
+    where_cond(NULL),
+    cache_cond(NULL),
+    pushed_index_cond(NULL),
+    sjm_nest(NULL)
+  {}
+  ~Explain_table_access() { delete sjm_nest; }
+
   void push_extra(enum explain_extra_tag extra_tag);
 
   /* Internals */
 public:
-  /* 
-    0 means this tab is not inside SJM nest and should use Explain_select's id
-    other value means the tab is inside an SJM nest.
-  */
-  int sjm_nest_select_id;
-
   /* id and 'select_type' are cared-of by the parent Explain_select */
   StringBuffer<32> table_name;
+
+  /* 
+    Non-zero number means this is a derived table. The number can be used to
+    find the query plan for the derived table
+  */
+  int derived_select_number;
+  /* TODO: join with the previous member. */
+  int non_merged_sjm_number;
 
   enum join_type type;
 
   StringBuffer<32> used_partitions;
   bool used_partitions_set;
   
-  /* Empty string means "NULL" will be printed */
-  StringBuffer<32> possible_keys_str;
+  /* Empty means "NULL" will be printed */
+  String_list possible_keys;
   
   /*
     Index use: key name and length.
@@ -498,8 +587,7 @@ public:
   */
   Explain_index_use hash_next_key;
   
-  bool ref_set; /* not set means 'NULL' should be printed */
-  StringBuffer<32> ref;
+  String_list ref_list;
 
   bool rows_set; /* not set means 'NULL' should be printed */
   ha_rows rows;
@@ -530,17 +618,40 @@ public:
   
   StringBuffer<32> firstmatch_table_name;
 
+  bool start_dups_weedout;
+  bool end_dups_weedout;
+  
+  /*
+    Note: lifespan of WHERE condition is less than lifespan of this object.
+    The below two are valid if tags include "ET_USING_WHERE".
+    (TODO: indexsubquery may put ET_USING_WHERE without setting where_cond?)
+  */
+  Item *where_cond;
+  Item *cache_cond;
+
+  Item *pushed_index_cond;
+
+  Explain_basic_join *sjm_nest;
+
   int print_explain(select_result_sink *output, uint8 explain_flags, 
                     bool is_analyze,
                     uint select_id, const char *select_type,
                     bool using_temporary, bool using_filesort);
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze);
 
-  /* ANALYZE members*/
+  /* ANALYZE members */
+
+  /* Tracker for reading the table */
   Table_access_tracker tracker;
   Table_access_tracker jbuf_tracker;
 
 private:
   void append_tag_name(String *str, enum explain_extra_tag tag);
+  void fill_key_str(String *key_str, bool is_json) const;
+  void fill_key_len_str(String *key_len_str) const;
+  double get_r_filtered();
+  void tag_to_json(Json_writer *writer, enum explain_extra_tag tag);
 };
 
 
@@ -567,14 +678,22 @@ public:
   StringBuffer<64> table_name;
 
   enum join_type jtype;
-  StringBuffer<128> possible_keys_line;
-  StringBuffer<128> key_str;
-  StringBuffer<128> key_len_str;
+  String_list possible_keys;
+
+  /* Used key when doing a full index scan (possibly with limit) */
+  Explain_index_use key;
+
+  /* 
+    MRR that's used with quick select. This should probably belong to the
+    quick select
+  */
   StringBuffer<64> mrr_type;
   
   Explain_quick_select *quick_info;
 
   bool using_where;
+  Item *where_cond;
+
   ha_rows rows;
 
   bool using_filesort;
@@ -585,6 +704,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer,
+                                  bool is_analyze);
 };
 
 
@@ -605,6 +726,8 @@ public:
 
   int print_explain(Explain_query *query, select_result_sink *output, 
                     uint8 explain_flags, bool is_analyze);
+  void print_explain_json(Explain_query *query, Json_writer *writer, 
+                          bool is_analyze);
 };
 
 
@@ -626,6 +749,8 @@ public:
 
   virtual int print_explain(Explain_query *query, select_result_sink *output, 
                             uint8 explain_flags, bool is_analyze);
+  virtual void print_explain_json(Explain_query *query, Json_writer *writer,
+                                  bool is_analyze);
 };
 
 

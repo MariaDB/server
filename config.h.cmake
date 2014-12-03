@@ -216,6 +216,8 @@
 #cmakedefine HAVE_POLL 1
 #cmakedefine HAVE_PORT_CREATE 1
 #cmakedefine HAVE_POSIX_FALLOCATE 1
+#cmakedefine HAVE_LINUX_FALLOC_H 1
+#cmakedefine HAVE_FALLOCATE 1
 #cmakedefine HAVE_PREAD 1
 #cmakedefine HAVE_PAUSE_INSTRUCTION 1
 #cmakedefine HAVE_FAKE_PAUSE_INSTRUCTION 1
