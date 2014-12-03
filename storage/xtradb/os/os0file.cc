@@ -50,6 +50,7 @@ Created 10/21/1995 Heikki Tuuri
 #include "srv0mon.h"
 #include "srv0srv.h"
 #ifdef HAVE_POSIX_FALLOCATE
+#include "unistd.h"
 #include "fcntl.h"
 #endif
 #ifndef UNIV_HOTBACKUP
@@ -81,6 +82,19 @@ Created 10/21/1995 Heikki Tuuri
 
 #if defined(UNIV_LINUX) && defined(HAVE_SYS_STATVFS_H)
 #include <sys/statvfs.h>
+#endif
+
+#if defined(UNIV_LINUX) && defined(HAVE_LINUX_FALLOC_H)
+#include <linux/falloc.h>
+#endif
+
+#if defined(HAVE_FALLOCATE)
+#ifndef FALLOC_FL_KEEP_SIZE
+#define FALLOC_FL_KEEP_SIZE 0x01
+#endif
+#ifndef FALLOC_FL_PUNCH_HOLE
+#define FALLOC_FL_PUNCH_HOLE 0x02
+#endif
 #endif
 
 #ifdef HAVE_LZO
@@ -3112,7 +3126,7 @@ try_again:
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, len, NULL);
 		}
 
@@ -3133,7 +3147,7 @@ try_again:
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -3231,7 +3245,7 @@ try_again:
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -3252,7 +3266,7 @@ try_again:
 		as file spaces and they do not have FIL_PAGE_TYPE
 		field, thus we must use here information is the actual
 		file space compressed. */
-		if (compressed && fil_page_is_compressed((byte *)buf)) {
+		if (fil_page_is_compressed((byte *)buf)) {
 			fil_decompress_page(NULL, (byte *)buf, n, NULL);
 		}
 
@@ -4753,12 +4767,10 @@ found:
 
 		// We allocate memory for page compressed buffer if and only
 		// if it is not yet allocated.
-		if (slot->page_buf == NULL) {
-			os_slot_alloc_page_buf(slot);
-		}
+		os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
-		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
+		if (innodb_compression_algorithm == 3) {
 			os_slot_alloc_lzo_mem(slot);
 		}
 #endif
@@ -4786,7 +4798,6 @@ found:
 
 		/* Take array mutex back */
 		os_mutex_enter(array->mutex);
-
 	}
 
 #ifdef WIN_ASYNC_IO
@@ -5176,9 +5187,11 @@ try_again:
 		trx->io_reads++;
 		trx->io_read += n;
 	}
+
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n, space_id,
 					 page_compression, page_compression_level, write_size);
+
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
 			os_n_file_reads++;
@@ -5364,7 +5377,7 @@ os_aio_windows_handle(
 
 		switch (slot->type) {
 		case OS_FILE_WRITE:
-			if (slot->message1 && slot->page_compression && slot->page_buf) {
+			if (slot->message1 && slot->page_compression slot->page_compress_success && slot->page_buf) {
 				ret_val = os_file_write(slot->name, slot->file, slot->page_buf,
 					                slot->offset, slot->len);
 			} else {
@@ -5400,26 +5413,23 @@ os_aio_windows_handle(
 		ret_val = ret && len == slot->len;
 	}
 
-	if (slot->message1 && slot->page_compression) {
-		// We allocate memory for page compressed buffer if and only
-		// if it is not yet allocated.
-		if (slot->page_buf == NULL) {
+	if (slot->type == OS_FILE_READ) {
+		if (fil_page_is_compressed(slot->buf)) {
 			os_slot_alloc_page_buf(slot);
-		}
 
 #ifdef HAVE_LZO
-		if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
-			os_slot_alloc_lzo_mem(slot);
-		}
+			if (fil_page_is_lzo_compressed(slot->buf)) {
+				os_slot_alloc_lzo_mem(slot);
+			}
 #endif
-	        if (slot->type == OS_FILE_READ) {
 			fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-		} else {
-			if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
-				if (srv_use_trim && os_fallocate_failed == FALSE) {
-					// Deallocate unused blocks from file system
-					os_file_trim(slot);
-				}
+		}
+	} else {
+		/* OS_FILE_WRITE */
+		if (slot->page_compress_success && fil_page_is_compressed(slot->page_buf)) {
+			if (srv_use_trim && os_fallocate_failed == FALSE) {
+				// Deallocate unused blocks from file system
+				os_file_trim(slot);
 			}
 		}
 	}
@@ -5513,31 +5523,29 @@ retry:
 			/* We have not overstepped to next segment. */
 			ut_a(slot->pos < end_pos);
 
-			/* If the table is page compressed and this is read,
-			we decompress before we annouce the read is
-			complete. For writes, we free the compressed page. */
-			if (slot->message1 && slot->page_compression) {
-				// We allocate memory for page compressed buffer if and only
-				// if it is not yet allocated.
-				if (slot->page_buf == NULL) {
+			if (slot->type == OS_FILE_READ) {
+				/* If the table is page compressed and this is read,
+				we decompress before we annouce the read is
+				complete. For writes, we free the compressed page. */
+				if (fil_page_is_compressed(slot->buf)) {
+					// We allocate memory for page compressed buffer if and only
+					// if it is not yet allocated.
 					os_slot_alloc_page_buf(slot);
-				}
-
 #ifdef HAVE_LZO
-				if (innodb_compression_algorithm == 3 && slot->lzo_mem == NULL) {
-					os_slot_alloc_lzo_mem(slot);
-				}
+					if (fil_page_is_lzo_compressed(slot->buf)) {
+						os_slot_alloc_lzo_mem(slot);
+					}
 #endif
-				if (slot->type == OS_FILE_READ) {
 					fil_decompress_page(slot->page_buf, slot->buf, slot->len, slot->write_size);
-				} else {
-					if (slot->page_compress_success &&
-					    fil_page_is_compressed(slot->page_buf)) {
-						ut_ad(slot->page_compression_page);
-						if (srv_use_trim && os_fallocate_failed == FALSE) {
-							// Deallocate unused blocks from file system
-							os_file_trim(slot);
-						}
+				}
+			} else {
+				/* OS_FILE_WRITE */
+				if (slot->page_compress_success &&
+				    fil_page_is_compressed(slot->page_buf)) {
+					ut_ad(slot->page_compression_page);
+					if (srv_use_trim && os_fallocate_failed == FALSE) {
+						// Deallocate unused blocks from file system
+						os_file_trim(slot);
 					}
 				}
 			}
@@ -6490,7 +6498,7 @@ os_file_trim(
 	}
 
 #ifdef __linux__
-#if defined(POSIX_FALLOCATE)
+#if defined(HAVE_FALLOCATE)
 	int ret = fallocate(slot->file, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, trim_len);
 
 	if (ret) {
@@ -6528,7 +6536,7 @@ os_file_trim(
 		*slot->write_size = 0;
 	}
 
-#endif /* HAVE_POSIX_FALLOCATE ... */
+#endif /* HAVE_FALLOCATE ... */
 
 #elif defined(_WIN32)
 	FILE_LEVEL_TRIM flt;
@@ -6610,13 +6618,15 @@ os_slot_alloc_page_buf(
 	byte*           cbuf;
 
 	ut_a(slot != NULL);
-	/* We allocate extra to avoid memory overwrite on compression */
-	cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
-	cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
-	slot->page_compression_page = static_cast<byte *>(cbuf2);
-	slot->page_buf = static_cast<byte *>(cbuf);
-	memset(slot->page_buf, 0, UNIV_PAGE_SIZE);
-	ut_a(slot->page_buf != NULL);
+	if (slot->page_compression_page == NULL) {
+		/* We allocate extra to avoid memory overwrite on compression */
+		cbuf2 = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE*2));
+		cbuf = static_cast<byte *>(ut_align(cbuf2, UNIV_PAGE_SIZE));
+		slot->page_compression_page = static_cast<byte *>(cbuf2);
+		slot->page_buf = static_cast<byte *>(cbuf);
+		memset(slot->page_compression_page, 0, UNIV_PAGE_SIZE*2);
+		ut_a(slot->page_buf != NULL);
+	}
 }
 
 #ifdef HAVE_LZO
@@ -6630,9 +6640,11 @@ os_slot_alloc_lzo_mem(
 	os_aio_slot_t*   slot) /*!< in: slot structure     */
 {
 	ut_a(slot != NULL);
-	slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
-	memset(slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
-	ut_a(slot->lzo_mem != NULL);
+	if(slot->lzo_mem == NULL) {
+		slot->lzo_mem = static_cast<byte *>(ut_malloc(LZO1X_1_15_MEM_COMPRESS));
+		memset(slot->lzo_mem, 0, LZO1X_1_15_MEM_COMPRESS);
+		ut_a(slot->lzo_mem != NULL);
+	}
 }
 #endif
 
