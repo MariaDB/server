@@ -1839,8 +1839,6 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   index= key_nr;
   head=  table;
   key_part_info= head->key_info[index].key_part;
-  my_init_dynamic_array(&ranges, sizeof(QUICK_RANGE*), 16, 16,
-                        MYF(MY_THREAD_SPECIFIC));
 
   /* 'thd' is not accessible in QUICK_RANGE_SELECT::reset(). */
   mrr_buf_size= thd->variables.mrr_buff_size;
@@ -1858,9 +1856,12 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
   file= head->file;
   record= head->record[0];
 
-  /* Allocate a bitmap for used columns (Q: why not on MEM_ROOT?) */
-  if (!(bitmap= (my_bitmap_map*) my_malloc(head->s->column_bitmap_size,
-                                           MYF(MY_WME | MY_THREAD_SPECIFIC))))
+  my_init_dynamic_array2(&ranges, sizeof(QUICK_RANGE*),
+                         thd->alloc(sizeof(QUICK_RANGE*) * 16), 16, 16,
+                         MYF(MY_THREAD_SPECIFIC));
+
+  /* Allocate a bitmap for used columns */
+  if (!(bitmap= (my_bitmap_map*) thd->alloc(head->s->column_bitmap_size)))
   {
     column_bitmap.bitmap= 0;
     *create_error= 1;
@@ -1924,7 +1925,6 @@ QUICK_RANGE_SELECT::~QUICK_RANGE_SELECT()
     }
     delete_dynamic(&ranges); /* ranges are allocated in alloc */
     free_root(&alloc,MYF(0));
-    my_free(column_bitmap.bitmap);
   }
   my_free(mrr_buf_desc);
   DBUG_VOID_RETURN;
