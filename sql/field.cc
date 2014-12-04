@@ -9285,8 +9285,8 @@ bool Create_field::check(THD *thd)
 
   if (decimals >= NOT_FIXED_DEC)
   {
-    my_error(ER_TOO_BIG_SCALE, MYF(0), decimals, field_name,
-             static_cast<ulong>(NOT_FIXED_DEC - 1));
+    my_error(ER_TOO_BIG_SCALE, MYF(0), static_cast<ulonglong>(decimals),
+             field_name, static_cast<ulong>(NOT_FIXED_DEC - 1));
     DBUG_RETURN(TRUE);
   }
 

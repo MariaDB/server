@@ -5469,8 +5469,8 @@ ER_SP_NO_RECURSION
         eng "Recursive stored functions and triggers are not allowed."
         ger "Rekursive gespeicherte Routinen und Triggers sind nicht erlaubt"
 ER_TOO_BIG_SCALE 42000 S1009
-        eng "Too big scale %u specified for '%-.192s'. Maximum is %lu."
-        ger "Zu großer Skalierungsfaktor %u für '%-.192s' angegeben. Maximum ist %lu"
+        eng "Too big scale %llu specified for '%-.192s'. Maximum is %u."
+        ger "Zu großer Skalierungsfaktor %llu für '%-.192s' angegeben. Maximum ist %u"
 ER_TOO_BIG_PRECISION 42000 S1009
         eng "Too big precision %llu specified for '%-.192s'. Maximum is %u."
         ger "Zu große Genauigkeit %llu für '%-.192s' angegeben. Maximum ist %u"
