@@ -949,7 +949,9 @@ set statement timestamp=4646464 for select @@timestamp;
 set @save_tm=@@timestamp;
 select @@timestamp != 4646464;
 select @@timestamp != 4646464;
-select @@timestamp != @save_tm;
+let $wait_condition=select @@timestamp != @save_tm;
+source include/wait_condition.inc;
+eval $wait_condition;
 
 #
 # Test of temporary changing default storage engine
