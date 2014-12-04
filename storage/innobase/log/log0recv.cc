@@ -1145,7 +1145,9 @@ recv_parse_or_apply_log_rec_body(
 				      + 0 /*FLST_PREV*/
 				      || offs == PAGE_BTR_IBUF_FREE_LIST_NODE
 				      + PAGE_HEADER + FIL_ADDR_PAGE
-				      + FIL_ADDR_SIZE /*FLST_NEXT*/);
+				      + FIL_ADDR_SIZE /*FLST_NEXT*/
+				      || offs ==
+				      FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
 				break;
 			}
 		}
@@ -4048,4 +4050,3 @@ byte* recv_dblwr_t::find_page(ulint space_id, ulint page_no)
 
 	return(result);
 }
-
