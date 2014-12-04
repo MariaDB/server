@@ -7897,13 +7897,13 @@ uint gis_field_options_read(const uchar *buf, uint buf_len,
     case FIELDGEOM_END:
       goto end_of_record;
     }
-    if (option_id > 0 and option_id <= 40)
+    if (option_id > 0 && option_id <= 40)
       cbuf+= 1;
-    else if (option_id > 40 and option_id <= 80)
+    else if (option_id > 40 && option_id <= 80)
       cbuf+= 2;
-    else if (option_id > 80 and option_id <= 120)
+    else if (option_id > 80 && option_id <= 120)
       cbuf+= 4;
-    else if (option_id > 120 and option_id <= 160)
+    else if (option_id > 120 && option_id <= 160)
       cbuf+= 8;
     else /* > 160 and <=255 */
       cbuf+= cbuf[0] ? 1 + cbuf[0] : 3 + uint2korr(cbuf+1);
