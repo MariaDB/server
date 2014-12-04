@@ -1103,6 +1103,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  DISTINCT                      /* SQL-2003-R */
 %token  DIV_SYM
 %token  DOUBLE_SYM                    /* SQL-2003-R */
+%token  DO_DOMAIN_IDS_SYM
 %token  DO_SYM
 %token  DROP                          /* SQL-2003-R */
 %token  DUAL_SYM
@@ -1190,6 +1191,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
 %token  IDENTIFIED_SYM
 %token  IDENT_QUOTED
 %token  IF_SYM
+%token  IGNORE_DOMAIN_IDS_SYM
 %token  IGNORE_SYM
 %token  IGNORE_SERVER_IDS_SYM
 %token  IMPORT
@@ -2228,6 +2230,14 @@ master_def:
           {
             Lex->mi.repl_ignore_server_ids_opt= LEX_MASTER_INFO::LEX_MI_ENABLE;
            }
+        | DO_DOMAIN_IDS_SYM EQ '(' do_domain_id_list ')'
+          {
+            Lex->mi.repl_do_domain_ids_opt= LEX_MASTER_INFO::LEX_MI_ENABLE;
+          }
+        | IGNORE_DOMAIN_IDS_SYM EQ '(' ignore_domain_id_list ')'
+          {
+            Lex->mi.repl_ignore_domain_ids_opt= LEX_MASTER_INFO::LEX_MI_ENABLE;
+          }
         |
         master_file_def
         ;
@@ -2242,6 +2252,30 @@ ignore_server_id:
           ulong_num
           {
             insert_dynamic(&Lex->mi.repl_ignore_server_ids, (uchar*) &($1));
+          }
+
+do_domain_id_list:
+          /* Empty */
+          | do_domain_id
+          | do_domain_id_list ',' do_domain_id
+        ;
+
+do_domain_id:
+          ulong_num
+          {
+            insert_dynamic(&Lex->mi.repl_do_domain_ids, (uchar*) &($1));
+          }
+
+ignore_domain_id_list:
+          /* Empty */
+          | ignore_domain_id
+          | ignore_domain_id_list ',' ignore_domain_id
+        ;
+
+ignore_domain_id:
+          ulong_num
+          {
+            insert_dynamic(&Lex->mi.repl_ignore_domain_ids, (uchar*) &($1));
           }
 
 master_file_def:

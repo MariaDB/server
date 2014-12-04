@@ -26,6 +26,111 @@
 
 typedef struct st_mysql MYSQL;
 
+/**
+  Domain id based filter to handle DO_DOMAIN_IDS and IGNORE_DOMAIN_IDS used to
+  set filtering on replication slave based on event's GTID domain_id.
+*/
+class Domain_id_filter
+{
+private:
+  /*
+    Flag to tell whether the events in the current GTID group get written to
+    the relay log. It is set according to the domain_id based filtering rule
+    on every GTID_EVENT and reset at the end of current GTID event group.
+   */
+  bool m_filter;
+
+  /*
+    DO_DOMAIN_IDS (0):
+      Ignore all the events which do not belong to any of the domain ids in the
+      list.
+
+    IGNORE_DOMAIN_IDS (1):
+      Ignore the events which belong to one of the domain ids in the list.
+  */
+  DYNAMIC_ARRAY m_domain_ids[2];
+
+public:
+  /* domain id list types */
+  enum enum_list_type {
+    DO_DOMAIN_IDS= 0,
+    IGNORE_DOMAIN_IDS
+  };
+
+  Domain_id_filter();
+
+  ~Domain_id_filter();
+
+  /*
+    Returns whether the current group needs to be filtered.
+  */
+  bool is_group_filtered() { return m_filter; }
+
+  /*
+    Checks whether the group with the specified domain_id needs to be
+    filtered and updates m_filter flag accordingly.
+  */
+  void do_filter(ulong domain_id);
+
+  /*
+    Reset m_filter. It should be called when IO thread receives COMMIT_EVENT or
+    XID_EVENT.
+  */
+  void reset_filter();
+
+  /*
+    Update the do/ignore domain id filter lists.
+
+    @param do_ids     [IN]            domain ids to be kept
+    @param ignore_ids [IN]            domain ids to be filtered out
+    @param using_gtid [IN]            use GTID?
+
+    @retval false                     Success
+            true                      Error
+  */
+  bool update_ids(DYNAMIC_ARRAY *do_ids, DYNAMIC_ARRAY *ignore_ids,
+                  bool using_gtid);
+
+  /*
+    Serialize and store the ids from domain id lists into the thd's protocol
+    buffer.
+
+    @param thd [IN]                   thread handler
+
+    @retval void
+  */
+  void store_ids(THD *thd);
+
+  /*
+    Initialize the given domain id list (DYNAMIC_ARRAY) with the
+    space-separated list of numbers from the specified IO_CACHE where
+    the first number is the total number of entries to follows.
+
+    @param f    [IN]                  IO_CACHE file
+    @param type [IN]                  domain id list type
+
+    @retval false                     Success
+            true                      Error
+  */
+  bool init_ids(IO_CACHE *f, enum_list_type type);
+
+  /*
+    Return the elements of the give domain id list type as string.
+
+    @param type [IN]                  domain id list type
+
+    @retval                           a string buffer storing the total number
+                                      of elements followed by the individual
+                                      elements (space-separated) in the
+                                      specified list.
+
+    Note: Its caller's responsibility to free the returned string buffer.
+  */
+  char *as_string(enum_list_type type);
+
+};
+
+
 /*****************************************************************************
   Replication IO Thread
 
@@ -110,6 +215,13 @@ class Master_info : public Slave_reporting_capability
   uint connect_retry;
 #ifndef DBUG_OFF
   int events_till_disconnect;
+
+  /*
+    The following are auxiliary DBUG variables used to kill IO thread in the
+    middle of a group/transaction (see "kill_slave_io_after_2_events").
+  */
+  bool dbug_do_disconnect;
+  int dbug_event_counter;
 #endif
   bool inited;
   volatile bool abort_slave;
@@ -178,7 +290,11 @@ class Master_info : public Slave_reporting_capability
   uint64 gtid_reconnect_event_skip_count;
   /* gtid_event_seen is false until we receive first GTID event from master. */
   bool gtid_event_seen;
+
+  /* domain-id based filter */
+  Domain_id_filter domain_id_filter;
 };
+
 int init_master_info(Master_info* mi, const char* master_info_fname,
 		     const char* slave_info_fname,
 		     bool abort_if_no_master_info_file,
@@ -187,8 +303,9 @@ void end_master_info(Master_info* mi);
 int flush_master_info(Master_info* mi, 
                       bool flush_relay_log_cache, 
                       bool need_lock_relay_log);
-int change_master_server_id_cmp(ulong *id1, ulong *id2);
 void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
+void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids);
+void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids);
 
 /*
   Multi master are handled trough this struct.

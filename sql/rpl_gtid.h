@@ -201,7 +201,7 @@ struct rpl_slave_state
   (domain_id, server_id) pair.
   This will be logged at the start of the next binlog file as a
   Gtid_list_log_event; this way, it is easy to find the binlog file
-  containing a gigen GTID, by simply scanning backwards from the newest
+  containing a given GTID, by simply scanning backwards from the newest
   one until a lower seq_no is found in the Gtid_list_log_event at the
   start of a binlog for the given domain_id and server_id.
 

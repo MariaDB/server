@@ -2429,6 +2429,16 @@ impossible position";
                         }
                       });
 
+      /* Abort server before it sends the XID_EVENT */
+      DBUG_EXECUTE_IF("crash_before_send_xid",
+                      {
+                        if (event_type == XID_EVENT)
+                        {
+                          my_sleep(2000000);
+                          DBUG_SUICIDE();
+                        }
+                      });
+
       /* reset transmit packet for next loop */
       if (reset_transmit_packet(thd, flags, &ev_offset, &errmsg))
         goto err;
@@ -3224,6 +3234,8 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
   char relay_log_info_file_tmp[FN_REFLEN];
   my_off_t saved_log_pos;
   LEX_MASTER_INFO* lex_mi= &thd->lex->mi;
+  DYNAMIC_ARRAY *do_ids, *ignore_ids;
+
   DBUG_ENTER("change_master");
 
   mysql_mutex_assert_owner(&LOCK_active_mi);
@@ -3355,33 +3367,30 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
     mi->heartbeat_period= (float) MY_MIN(SLAVE_MAX_HEARTBEAT_PERIOD,
                                       (slave_net_timeout/2.0));
   mi->received_heartbeats= 0; // counter lives until master is CHANGEd
+
   /*
-    reset the last time server_id list if the current CHANGE MASTER 
+    Reset the last time server_id list if the current CHANGE MASTER
     is mentioning IGNORE_SERVER_IDS= (...)
   */
   if (lex_mi->repl_ignore_server_ids_opt == LEX_MASTER_INFO::LEX_MI_ENABLE)
-    reset_dynamic(&mi->ignore_server_ids);
-  for (uint i= 0; i < lex_mi->repl_ignore_server_ids.elements; i++)
   {
-    ulong s_id;
-    get_dynamic(&lex_mi->repl_ignore_server_ids, (uchar*) &s_id, i);
-    if (s_id == global_system_variables.server_id && replicate_same_server_id)
+    /* Check if the list contains replicate_same_server_id */
+    for (uint i= 0; i < lex_mi->repl_ignore_server_ids.elements; i ++)
     {
-      my_error(ER_SLAVE_IGNORE_SERVER_IDS, MYF(0), static_cast<int>(s_id));
-      ret= TRUE;
-      goto err;
+      ulong s_id;
+      get_dynamic(&lex_mi->repl_ignore_server_ids, (uchar*) &s_id, i);
+      if (s_id == global_system_variables.server_id && replicate_same_server_id)
+      {
+        my_error(ER_SLAVE_IGNORE_SERVER_IDS, MYF(0), static_cast<int>(s_id));
+        ret= TRUE;
+        goto err;
+      }
     }
-    else
-    {
-      if (bsearch((const ulong *) &s_id,
-                  mi->ignore_server_ids.buffer,
-                  mi->ignore_server_ids.elements, sizeof(ulong),
-                  (int (*) (const void*, const void*))
-                  change_master_server_id_cmp) == NULL)
-        insert_dynamic(&mi->ignore_server_ids, (uchar*) &s_id);
-    }
+
+    /* All ok. Update the old server ids with the new ones. */
+    update_change_master_ids(&lex_mi->repl_ignore_server_ids,
+                             &mi->ignore_server_ids);
   }
-  sort_dynamic(&mi->ignore_server_ids, (qsort_cmp) change_master_server_id_cmp);
 
   if (lex_mi->ssl != LEX_MASTER_INFO::LEX_MI_UNCHANGED)
     mi->ssl= (lex_mi->ssl == LEX_MASTER_INFO::LEX_MI_ENABLE);
@@ -3436,6 +3445,27 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
            lex_mi->log_file_name || lex_mi->pos ||
            lex_mi->relay_log_name || lex_mi->relay_log_pos)
     mi->using_gtid= Master_info::USE_GTID_NO;
+
+  do_ids= ((lex_mi->repl_do_domain_ids_opt ==
+            LEX_MASTER_INFO::LEX_MI_ENABLE) ?
+           &lex_mi->repl_do_domain_ids : NULL);
+
+  ignore_ids= ((lex_mi->repl_ignore_domain_ids_opt ==
+                LEX_MASTER_INFO::LEX_MI_ENABLE) ?
+               &lex_mi->repl_ignore_domain_ids : NULL);
+
+  /*
+    Note: mi->using_gtid stores the previous state in case no MASTER_USE_GTID
+    is specified.
+  */
+  if (mi->domain_id_filter.update_ids(do_ids, ignore_ids, mi->using_gtid))
+  {
+    my_error(ER_MASTER_INFO, MYF(0),
+             (int) lex_mi->connection_name.length,
+             lex_mi->connection_name.str);
+    ret= TRUE;
+    goto err;
+  }
 
   /*
     If user did specify neither host nor port nor any log name nor any log

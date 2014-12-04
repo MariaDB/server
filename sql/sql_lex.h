@@ -217,6 +217,8 @@ typedef struct st_lex_server_options
 struct LEX_MASTER_INFO
 {
   DYNAMIC_ARRAY repl_ignore_server_ids;
+  DYNAMIC_ARRAY repl_do_domain_ids;
+  DYNAMIC_ARRAY repl_ignore_domain_ids;
   char *host, *user, *password, *log_file_name;
   char *ssl_key, *ssl_cert, *ssl_ca, *ssl_capath, *ssl_cipher;
   char *ssl_crl, *ssl_crlpath;
@@ -234,7 +236,8 @@ struct LEX_MASTER_INFO
     changed variable or if it should be left at old value
    */
   enum {LEX_MI_UNCHANGED, LEX_MI_DISABLE, LEX_MI_ENABLE}
-    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt;
+    ssl, ssl_verify_server_cert, heartbeat_opt, repl_ignore_server_ids_opt,
+    repl_do_domain_ids_opt, repl_ignore_domain_ids_opt;
   enum {
     LEX_GTID_UNCHANGED, LEX_GTID_NO, LEX_GTID_CURRENT_POS, LEX_GTID_SLAVE_POS
   } use_gtid_opt;
@@ -244,16 +247,25 @@ struct LEX_MASTER_INFO
     bzero(this, sizeof(*this));
     my_init_dynamic_array(&repl_ignore_server_ids,
                           sizeof(::server_id), 0, 16, MYF(0));
+    my_init_dynamic_array(&repl_do_domain_ids,
+                          sizeof(ulong), 0, 16, MYF(0));
+    my_init_dynamic_array(&repl_ignore_domain_ids,
+                          sizeof(ulong), 0, 16, MYF(0));
   }
   void reset()
   {
     delete_dynamic(&repl_ignore_server_ids);
+    /* Free all the array elements. */
+    delete_dynamic(&repl_do_domain_ids);
+    delete_dynamic(&repl_ignore_domain_ids);
+
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
       ssl_capath= ssl_cipher= relay_log_name= 0;
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
-      repl_ignore_server_ids_opt= LEX_MI_UNCHANGED;
+      repl_ignore_server_ids_opt= repl_do_domain_ids_opt=
+      repl_ignore_domain_ids_opt= LEX_MI_UNCHANGED;
     gtid_pos_str= null_lex_str;
     use_gtid_opt= LEX_GTID_UNCHANGED;
   }
