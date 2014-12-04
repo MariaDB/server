@@ -1,5 +1,5 @@
---- suite/sys_vars/r/sysvars_server_notembedded.result	2014-11-27 11:59:28.000000000 +0100
-+++ suite/sys_vars/r/sysvars_server_notembedded,32bit.reject	2014-12-03 13:58:06.000000000 +0100
+--- suite/sys_vars/r/sysvars_server_notembedded.result	2014-12-04 13:03:53.000000000 +0100
++++ suite/sys_vars/r/sysvars_server_notembedded,32bit.reject	2014-12-04 13:05:00.000000000 +0100
 @@ -55,7 +55,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	1
@@ -473,7 +473,7 @@
  VARIABLE_SCOPE	SESSION
 -VARIABLE_TYPE	BIGINT UNSIGNED
 +VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Maximum number of temporary tables a client can keep open at a time
+ VARIABLE_COMMENT	Unused, will be removed.
  NUMERIC_MIN_VALUE	1
  NUMERIC_MAX_VALUE	4294967295
 @@ -2113,7 +2113,7 @@
@@ -1089,20 +1089,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -3583,10 +3583,10 @@
- GLOBAL_VALUE_ORIGIN	COMPILE-TIME
- DEFAULT_VALUE	0
- VARIABLE_SCOPE	GLOBAL
--VARIABLE_TYPE	BIGINT UNSIGNED
-+VARIABLE_TYPE	INT UNSIGNED
- VARIABLE_COMMENT	Unused, will be removed
- NUMERIC_MIN_VALUE	0
--NUMERIC_MAX_VALUE	18446744073709551615
-+NUMERIC_MAX_VALUE	4294967295
- NUMERIC_BLOCK_SIZE	1
- ENUM_VALUE_LIST	NULL
- READ_ONLY	NO
-@@ -3625,7 +3625,7 @@
+@@ -3611,7 +3611,7 @@
  GLOBAL_VALUE_ORIGIN	CONFIG
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	SESSION
@@ -1111,7 +1098,7 @@
  VARIABLE_COMMENT	Uniquely identifies the server instance in the community of replication partners
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3737,7 +3737,7 @@
+@@ -3723,7 +3723,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -1120,7 +1107,7 @@
  VARIABLE_COMMENT	Maximum number of parallel threads to use on slave for events in a single replication domain. When using multiple domains, this can be used to limit a single domain from grabbing all threads and thus stalling other domains. The default of 0 means to allow a domain to grab as many threads as it wants, up to the value of slave_parallel_threads.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3779,7 +3779,7 @@
+@@ -3765,7 +3765,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	1073741824
  VARIABLE_SCOPE	GLOBAL
@@ -1129,7 +1116,7 @@
  VARIABLE_COMMENT	The maximum packet length to sent successfully from the master to slave.
  NUMERIC_MIN_VALUE	1024
  NUMERIC_MAX_VALUE	1073741824
-@@ -3807,7 +3807,7 @@
+@@ -3793,7 +3793,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	131072
  VARIABLE_SCOPE	GLOBAL
@@ -1138,7 +1125,7 @@
  VARIABLE_COMMENT	Limit on how much memory SQL threads should use per parallel replication thread when reading ahead in the relay log looking for opportunities for parallel replication. Only used when --slave-parallel-threads > 0.
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	2147483647
-@@ -3821,7 +3821,7 @@
+@@ -3807,7 +3807,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	0
  VARIABLE_SCOPE	GLOBAL
@@ -1147,7 +1134,7 @@
  VARIABLE_COMMENT	If non-zero, number of threads to spawn to apply in parallel events on the slave that were group-committed on the master or were logged with GTID in different replication domains. Note that these threads are in addition to the IO and SQL threads, which are always created by a replication slave
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	16383
-@@ -3877,7 +3877,7 @@
+@@ -3863,7 +3863,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	10
  VARIABLE_SCOPE	GLOBAL
@@ -1156,7 +1143,7 @@
  VARIABLE_COMMENT	Number of times the slave SQL thread will retry a transaction in case it failed with a deadlock or elapsed lock wait timeout, before giving up and stopping
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
-@@ -3905,7 +3905,7 @@
+@@ -3891,7 +3891,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	2
  VARIABLE_SCOPE	GLOBAL
@@ -1165,7 +1152,7 @@
  VARIABLE_COMMENT	If creating the thread takes longer than this value (in seconds), the Slow_launch_threads counter will be incremented
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	31536000
-@@ -3964,7 +3964,7 @@
+@@ -3950,7 +3950,7 @@
  VARIABLE_TYPE	BIGINT UNSIGNED
  VARIABLE_COMMENT	Each thread that needs to do a sort allocates a buffer of this size
  NUMERIC_MIN_VALUE	1024
@@ -1174,7 +1161,7 @@
  NUMERIC_BLOCK_SIZE	1
  ENUM_VALUE_LIST	NULL
  READ_ONLY	NO
-@@ -4255,7 +4255,7 @@
+@@ -4241,7 +4241,7 @@
  GLOBAL_VALUE_ORIGIN	COMPILE-TIME
  DEFAULT_VALUE	256
  VARIABLE_SCOPE	GLOBAL
