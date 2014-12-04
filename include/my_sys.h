@@ -78,6 +78,11 @@ typedef struct my_aio_result {
 #define MY_SHORT_WAIT	64	/* my_lock() don't wait if can't lock */
 #define MY_FORCE_LOCK   128     /* use my_lock() even if disable_locking */
 #define MY_NO_WAIT      256	/* my_lock() don't wait at all */
+/*
+  init_dynamic_array() has init buffer; Internal flag, not to be used by
+  caller.
+*/
+#define MY_INIT_BUFFER_USED 256
 #define MY_ZEROFILL	32	/* my_malloc(), fill array with zero */
 #define MY_ALLOW_ZERO_PTR 64	/* my_realloc() ; zero ptr -> malloc */
 #define MY_FREE_ON_ERROR 128	/* my_realloc() ; Free old ptr on error */

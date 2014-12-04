@@ -105,6 +105,13 @@ public:
     init(prealloc, increment);
   }
 
+  Dynamic_array(MEM_ROOT *root, uint prealloc=16, uint increment=16)
+  {
+    void *init_buffer= alloc_root(root, sizeof(Elem) * prealloc);
+    my_init_dynamic_array2(&array, sizeof(Elem), init_buffer, 
+                           prealloc, increment, MYF(0));
+  }
+
   void init(uint prealloc=16, uint increment=16)
   {
     my_init_dynamic_array(&array, sizeof(Elem), prealloc, increment,
