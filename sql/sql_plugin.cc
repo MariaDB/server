@@ -176,10 +176,10 @@ static struct
     - yet disable explicitly a component needed for the functionality
       to work, by using '--skip-performance-schema' (the plugin)
   */
-  { "performance_schema", PLUGIN_FORCE },
+  { "performance_schema", PLUGIN_FORCE }
 
   /* we disable few other plugins by default */
-  { "feedback", PLUGIN_OFF }
+  //,{ "feedback", PLUGIN_OFF }
 };
 
 /* support for Services */
