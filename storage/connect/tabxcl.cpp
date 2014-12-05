@@ -57,8 +57,6 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-extern "C" int trace;
-
 /* -------------- Implementation of the XCOL classes	---------------- */
 
 /***********************************************************************/
@@ -184,8 +182,9 @@ bool TDBXCL::OpenDB(PGLOBAL g)
   /*  Check and initialize the subtable columns.                       */
   /*********************************************************************/
   for (PCOL cp = Columns; cp; cp = cp->GetNext())
-    if (((PXCLCOL)cp)->Init(g))
-      return TRUE;
+    if (!cp->IsSpecial())
+      if (((PPRXCOL)cp)->Init(g))
+        return TRUE;
 
   /*********************************************************************/
   /*  Physically open the object table.                                */
@@ -240,11 +239,24 @@ XCLCOL::XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 			: PRXCOL(cdp, tdbp, cprec, i, "XCL")
   {
   // Set additional XXL access method information for column.
-  Cbuf = (char*)PlugSubAlloc(g, NULL, Long + 1);
+  Cbuf = NULL;                // Will be allocated later
 	Cp = NULL;						      // Pointer to current position in Cbuf
 	Sep = ((PTDBXCL)tdbp)->Sep;
 	AddStatus(BUF_READ);	      // Only evaluated from TDBXCL::ReadDB
   } // end of XCLCOL constructor
+
+/***********************************************************************/
+/*  XCLCOL initialization routine.                                     */
+/*  Allocate Cbuf that will contain the Colp value.                    */
+/***********************************************************************/
+bool XCLCOL::Init(PGLOBAL g, PTDBASE tp)
+  {
+  if (PRXCOL::Init(g, tp))
+    return true;
+
+  Cbuf = (char*)PlugSubAlloc(g, NULL, Colp->GetLength() + 1);
+  return false;
+  } // end of Init
 
 /***********************************************************************/
 /*  What this routine does is to get the comma-separated string        */
@@ -254,8 +266,10 @@ XCLCOL::XCLCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 void XCLCOL::ReadColumn(PGLOBAL g)
   {
 	if (((PTDBXCL)To_Tdb)->New) {
+    Colp->Reset();           // Moved here in case of failed filtering
 		Colp->Eval(g);
-		strcpy(Cbuf, To_Val->GetCharValue());
+		strncpy(Cbuf, To_Val->GetCharValue(), Colp->GetLength());
+    Cbuf[Colp->GetLength()] = 0;
 		Cp = Cbuf;
 		} // endif New
 

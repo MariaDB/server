@@ -18,6 +18,7 @@
 /* A lexical scanner on a temporary buffer with a yacc interface */
 
 #define MYSQL_LEX 1
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"                    // REQUIRED: for other includes
 #include "sql_class.h"                          // sql_lex.h: SQLCOM_END

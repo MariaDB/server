@@ -686,7 +686,7 @@ os_event_wait_time_low(
 		tv.tv_usec += time_in_usec;
 
 		if ((ulint) tv.tv_usec >= MICROSECS_IN_A_SECOND) {
-			tv.tv_sec += time_in_usec / MICROSECS_IN_A_SECOND;
+			tv.tv_sec += tv.tv_usec / MICROSECS_IN_A_SECOND;
 			tv.tv_usec %= MICROSECS_IN_A_SECOND;
 		}
 
@@ -886,6 +886,25 @@ os_fast_mutex_unlock_func(
 	LeaveCriticalSection(fast_mutex);
 #else
 	pthread_mutex_unlock(fast_mutex);
+#endif
+}
+
+/**********************************************************//**
+Releases ownership of a fast mutex. Implies a full memory barrier even on
+platforms such as PowerPC where this is not normally required. */
+UNIV_INTERN
+void
+os_fast_mutex_unlock_full_barrier(
+/*=================*/
+	os_fast_mutex_t*	fast_mutex)	/*!< in: mutex to release */
+{
+#ifdef __WIN__
+	LeaveCriticalSection(&fast_mutex->mutex);
+#else
+	pthread_mutex_unlock(&fast_mutex->mutex);
+#ifdef __powerpc__
+	os_mb;
+#endif
 #endif
 }
 

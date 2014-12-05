@@ -18,6 +18,7 @@
 #pragma implementation                         // gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "transaction.h"
 #include "rpl_handler.h"

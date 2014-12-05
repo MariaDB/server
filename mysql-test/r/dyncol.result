@@ -1777,5 +1777,27 @@ group_concat(cast(column_json(dyn) as char))
 {"name1":"value1","name2":"value2"}
 drop table t1;
 #
+# MDEV-7116: Dynamic column hangs/segfaults
+#
+create table t1 (
+impressions mediumblob
+);
+insert into t1 values ("");
+update  t1
+set     impressions = column_add(impressions,
+'total', 12,
+'2014-10-28 16:00:00', 3,
+'2014-10-30 15:00:00', 3,
+'2014-11-04 09:00:00', 6
+);
+update  t1
+set     impressions = column_add(impressions,
+'total', "a12",
+'2014-10-28 16:00:00', "a3",
+'2014-10-30 15:00:00', "a3",
+'2014-11-04 09:00:00', "a6"
+        );
+drop table t1;
+#
 # end of 10.0 tests
 #

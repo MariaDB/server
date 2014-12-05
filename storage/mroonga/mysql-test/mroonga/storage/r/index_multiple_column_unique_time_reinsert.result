@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS ranges;
+CREATE TABLE ranges (
+id int PRIMARY KEY,
+start time,
+end time,
+UNIQUE KEY range_key(start, end)
+);
+INSERT INTO ranges VALUES (1, "13:21:48", "15:11:12");
+SELECT * FROM ranges;
+id	start	end
+1	13:21:48	15:11:12
+DELETE FROM ranges WHERE id = 1;
+INSERT INTO ranges VALUES (1, "13:21:48", "15:11:12");
+SELECT * FROM ranges;
+id	start	end
+1	13:21:48	15:11:12
+DROP TABLE ranges;

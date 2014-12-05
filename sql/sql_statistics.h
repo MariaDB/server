@@ -280,7 +280,14 @@ public:
 };
 
 
-/* Statistical data on a column */
+/* 
+  Statistical data on a column 
+
+  Note: objects of this class may be "empty", where they have almost all fields
+  as zeros, for example, get_avg_frequency() will return 0.
+
+  objects are allocated in alloc_statistics_for_table[_share].
+*/
 
 class Column_statistics
 {
@@ -296,7 +303,8 @@ public:
     are available for the column
   */
   uint32 column_stat_nulls;
-
+  
+  /* For the below two, see comments in get_column_range_cardinality() */
   /* Minimum value for the column */
   Field *min_value; 
   /* Maximum value for the column */   

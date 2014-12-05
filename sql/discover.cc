@@ -21,6 +21,7 @@
   Functions for discover of frm file from handler
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "discover.h"

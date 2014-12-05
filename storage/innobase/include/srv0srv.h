@@ -126,6 +126,18 @@ struct srv_stats_t {
 
 	/** Number of rows inserted */
 	ulint_ctr_64_t		n_rows_inserted;
+
+	/** Number of system rows read. */
+	ulint_ctr_64_t		n_system_rows_read;
+
+	/** Number of system rows updated */
+	ulint_ctr_64_t		n_system_rows_updated;
+
+	/** Number of system rows deleted */
+	ulint_ctr_64_t		n_system_rows_deleted;
+
+	/** Number of system rows inserted */
+	ulint_ctr_64_t		n_system_rows_inserted;
 };
 
 extern const char*	srv_main_thread_op_info;
@@ -324,10 +336,10 @@ extern ulint	srv_win_file_flush_method;
 
 extern ulint	srv_max_n_open_files;
 
-extern ulong	srv_max_dirty_pages_pct;
-extern ulong	srv_max_dirty_pages_pct_lwm;
+extern double	srv_max_dirty_pages_pct;
+extern double	srv_max_dirty_pages_pct_lwm;
 
-extern ulong	srv_adaptive_flushing_lwm;
+extern double	srv_adaptive_flushing_lwm;
 extern ulong	srv_flushing_avg_loops;
 
 extern ulong	srv_force_recovery;
@@ -348,6 +360,8 @@ extern unsigned long long	srv_stats_transient_sample_pages;
 extern my_bool			srv_stats_persistent;
 extern unsigned long long	srv_stats_persistent_sample_pages;
 extern my_bool			srv_stats_auto_recalc;
+extern unsigned long long	srv_stats_modified_counter;
+extern my_bool			srv_stats_sample_traditional;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
@@ -358,7 +372,7 @@ extern ibool	srv_use_atomic_writes;
 extern ibool	srv_use_posix_fallocate;
 #endif
 
-extern ulong	srv_max_buf_pool_modified_pct;
+extern double	srv_max_buf_pool_modified_pct;
 extern ulong	srv_max_purge_lag;
 extern ulong	srv_max_purge_lag_delay;
 
@@ -850,6 +864,10 @@ struct export_var_t{
 	ulint innodb_rows_inserted;		/*!< srv_n_rows_inserted */
 	ulint innodb_rows_updated;		/*!< srv_n_rows_updated */
 	ulint innodb_rows_deleted;		/*!< srv_n_rows_deleted */
+	ulint innodb_system_rows_read; /*!< srv_n_system_rows_read */
+	ulint innodb_system_rows_inserted; /*!< srv_n_system_rows_inserted */
+	ulint innodb_system_rows_updated; /*!< srv_n_system_rows_updated */
+	ulint innodb_system_rows_deleted; /*!< srv_n_system_rows_deleted*/
 	ulint innodb_num_open_files;		/*!< fil_n_file_opened */
 	ulint innodb_truncated_status_writes;	/*!< srv_truncated_status_writes */
 	ulint innodb_available_undo_logs;       /*!< srv_available_undo_logs */

@@ -14,7 +14,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA */
 
-#include "sql_plugin.h"
+#include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_priv.h"
 #include "unireg.h"
 #include <signal.h>
@@ -121,7 +121,6 @@ ulong  wsrep_running_threads = 0; // # of currently running wsrep threads
 #endif
 
 extern "C" {					// Because of SCO 3.2V4.2
-#include <errno.h>
 #include <sys/stat.h>
 #ifndef __GNU_LIBRARY__
 #define __GNU_LIBRARY__				// Skip warnings in getopt.h
@@ -3398,9 +3397,6 @@ static void init_signals(void)
   sa.sa_flags = 0;
   sa.sa_handler = print_signal_warning;
   sigaction(SIGHUP, &sa, (struct sigaction*) 0);
-#ifdef SIGTSTP
-  sigaddset(&set,SIGTSTP);
-#endif
   if (thd_lib_detected != THD_LIB_LT)
     sigaddset(&set,THR_SERVER_ALARM);
   if (test_flags & TEST_SIGINT)
@@ -3410,7 +3406,12 @@ static void init_signals(void)
     sigdelset(&set, SIGINT);
   }
   else
+  {
     sigaddset(&set,SIGINT);
+#ifdef SIGTSTP
+    sigaddset(&set,SIGTSTP);
+#endif
+  }
 
   sigprocmask(SIG_SETMASK,&set,NULL);
   pthread_sigmask(SIG_SETMASK,&set,NULL);
@@ -4436,7 +4437,15 @@ static int init_common_variables()
   global_system_variables.collation_database=	 default_charset_info;
   global_system_variables.collation_connection=  default_charset_info;
   global_system_variables.character_set_results= default_charset_info;
-  global_system_variables.character_set_client=  default_charset_info;
+  if (default_charset_info->mbminlen > 1)
+  {
+    global_system_variables.character_set_client=  &my_charset_latin1;
+    sql_print_warning("Cannot use %s as character_set_client, %s will be used instead",
+                      default_charset_info->csname,
+                      global_system_variables.character_set_client->csname);
+  }
+  else
+    global_system_variables.character_set_client=  default_charset_info;
 
   if (!(character_set_filesystem=
         get_charset_by_csname(character_set_filesystem_name,
@@ -9166,6 +9175,9 @@ mysqld_get_one_option(int optid,
     test_flags= argument ? (uint) atoi(argument) : 0;
     opt_endinfo=1;
     break;
+  case OPT_THREAD_CONCURRENCY:
+    WARN_DEPRECATED_NO_REPLACEMENT(NULL, "THREAD_CONCURRENCY");
+    break;
   case (int) OPT_ISAM_LOG:
     opt_myisam_log=1;
     break;
@@ -10288,7 +10300,8 @@ PSI_stage_info stage_binlog_waiting_background_tasks= { 0, "Waiting for backgrou
 PSI_stage_info stage_binlog_processing_checkpoint_notify= { 0, "Processing binlog checkpoint notification", 0};
 PSI_stage_info stage_binlog_stopping_background_thread= { 0, "Stopping binlog background thread", 0};
 PSI_stage_info stage_waiting_for_work_from_sql_thread= { 0, "Waiting for work from SQL thread", 0};
-PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
+PSI_stage_info stage_waiting_for_prior_transaction_to_commit= { 0, "Waiting for prior transaction to commit", 0};
+PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit= { 0, "Waiting for prior transaction to start commit before starting next transaction", 0};
 PSI_stage_info stage_waiting_for_room_in_worker_thread= { 0, "Waiting for room in worker thread event queue", 0};
 PSI_stage_info stage_master_gtid_wait_primary= { 0, "Waiting in MASTER_GTID_WAIT() (primary waiter)", 0};
 PSI_stage_info stage_master_gtid_wait= { 0, "Waiting in MASTER_GTID_WAIT()", 0};
@@ -10403,6 +10416,7 @@ PSI_stage_info *all_server_stages[]=
   & stage_waiting_for_master_to_send_event,
   & stage_waiting_for_master_update,
   & stage_waiting_for_prior_transaction_to_commit,
+  & stage_waiting_for_prior_transaction_to_start_commit,
   & stage_waiting_for_query_cache_lock,
   & stage_waiting_for_relay_log_space,
   & stage_waiting_for_room_in_worker_thread,

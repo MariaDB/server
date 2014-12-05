@@ -1,0 +1,29 @@
+This package was debianized by Kouhei Sutou <kou@clear-code.com> on
+Tue, 29 Jan 2013 14:52:04 +0000.
+
+It was downloaded from <http://groonga.org/>
+
+Upstream Author(s):
+
+    Kouhei Sutou <kou at clear-code.com>
+
+Copyright:
+
+    Copyright(C) 2013 Brazil
+
+License:
+
+    This library is free software: you can redistribute it and/or modify
+    it under the terms of the GNU Lesser General Public License as published by
+    the Free Software Foundation, either version 2 of the License.
+
+    This library is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU Lesser General Public License for more details.
+
+    You should have received a copy of the GNU Lesser General Public License
+    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+The Debian packaging is (C) 2013, Kouhei Sutou <kou@clear-code.com> and
+is licensed under the LGPL-2, see `/usr/share/common-licenses/LGPL-2'.

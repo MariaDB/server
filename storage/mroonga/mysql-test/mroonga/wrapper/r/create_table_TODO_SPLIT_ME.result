@@ -1,0 +1,109 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key) COMMENT = 'engine "innodb"';
+create table t2 (c1 int primary key) COMMENT = 'engine "innodb"';
+create table t3 (c1 int primary key) COMMENT = 'engine "innodb"';
+drop table t1,t2,t3;
+create table t1 (c1 int primary key, c2 int, c3 int) COMMENT = 'engine "innodb"';
+drop table t1;
+create table t1 (c1 bit primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	bit(1)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 tinyint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	tinyint(4)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 smallint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	smallint(6)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 mediumint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	mediumint(9)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 int primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	int(11)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 bigint primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	bigint(20)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 double primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	double	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 float primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	float	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 decimal primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	decimal(10,0)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 date primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	date	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 time primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	time	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 timestamp primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	timestamp	NO	PRI	CURRENT_TIMESTAMP	on update CURRENT_TIMESTAMP
+drop table t1;
+create table t1 (c1 datetime primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	datetime	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 year primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	year(4)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 char(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	char(10)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 varchar(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	varchar(10)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 binary(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	binary(10)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 varbinary(10) primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	varbinary(10)	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 enum("yes","no") primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	enum('yes','no')	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 set("A","B","AB","O") primary key) COMMENT = 'engine "innodb"';
+desc t1;
+Field	Type	Null	Key	Default	Extra
+c1	set('A','B','AB','O')	NO	PRI	NULL	
+drop table t1;
+create table t1 (c1 int) COMMENT = 'engine "innodb"';
+ERROR 42000: This table type requires a primary key

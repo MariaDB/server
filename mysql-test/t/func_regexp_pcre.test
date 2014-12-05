@@ -397,3 +397,8 @@ SET default_regex_flags='UNGREEDY';
 SELECT REGEXP_SUBSTR('abc','.+');
 SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
 SET default_regex_flags=DEFAULT;
+
+--echo #
+--echo # MDEV-6965 non-captured group \2 in regexp_replace
+--echo #
+SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');

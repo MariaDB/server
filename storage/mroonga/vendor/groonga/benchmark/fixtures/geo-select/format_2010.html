@@ -1,0 +1,111 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+<head>
+<title>街区レベル位置参照情報 (2010)</title>
+<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
+</head>
+
+  <body>
+    <h3 align="center">街区レベル位置参照情報 (2010年版) データ形式</h3>
+    <table width="90%" align="center">
+      <tr>
+        <td>
+          ファイル形式はCSV(Camma Separated Values)です。<br/>
+          文字コードは、Shift-JISです。<br/>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <table width="100%" align="center" border="1">
+            <tr>
+              <th>項目</th>
+              <th>備考</th>
+              <th>例</th>
+            </tr>
+          <tr>
+            <td>都道府県名</td>
+            <td><br/></td>
+            <td>"東京都"</td>
+          </tr>
+          <tr>
+            <td>市区町村名</td>
+            <td>郡部は郡名、政令指定都市の区名も含む。</td>
+            <td>"千代田区"</td>
+          </tr>
+          <tr>
+            <td>大字・町丁目</td>
+            <td>町丁目の数字は漢数字</td>
+            <td>"霞が関二丁目"</td>
+          </tr>
+          <tr>
+            <td>街区符号・地番</td>
+            <td>原則として半角整数（一部漢字等あり）</td>
+            <td>"1"</td>
+          </tr>
+          <tr>
+            <td>座標系番号</td>
+            <td>平面直角座標系の座標系番号（1～19：半角整数）</td>
+            <td>9</td>
+          </tr>
+          <tr>
+            <td>Ｘ座標</td>
+            <td>
+              平面直角座標系の座標系原点からのずれ<br/>
+              （単位：メートル、北方向がプラス値、小数点以下第1位まで）
+            </td>
+            <td>-35925.9</td>
+          </tr>
+          <tr>
+            <td>Ｙ座標</td>
+            <td>
+              平面直角座標系の座標系原点からのずれ<br/>
+              （単位：メートル、東方向がプラス値、小数点以下第1位まで）
+            </td>
+            <td>-7446.2</td>
+          </tr>
+          <tr>
+            <td>緯度</td>
+            <td>十進経緯度（単位：度、小数点以下第6位まで）</td>
+            <td>35.676155</td>
+          </tr>
+          <tr>
+            <td>経度</td>
+            <td>十進経緯度（単位：度、小数点以下第6位まで）</td>
+            <td>139.751075</td>
+          </tr>
+          <tr>
+            <td>住居表示フラグ</td>
+            <td>1：住居表示実施、0：住居表示未実施</td>
+            <td>1</td>
+          </tr>
+          <tr>
+            <td>代表フラグ</td>
+            <td>
+              1つの街区符号が複数の代表点に対応付けられる場合などに、そのうちの1つに便宜的に代表フラグを立てています。<br/>
+              1：代表する、0：代表しない
+            <td>1</td>
+          </tr>
+          <tr>
+            <td>更新前履歴フラグ</td>
+            <td>2007年度および2008年度データに含まれるフラグを立てています。<br/>
+                1：新規作成、2：名称変更、3：削除、0：変更なし</td>
+            <td>0</td>
+          </tr>
+          <tr>
+            <td>更新後履歴フラグ</td>
+            <td>2009年度以降のデータに含まれるフラグを立てています。<br/>
+                1：新規作成、2：名称変更、3：削除、0：変更なし</td>
+            <td>0</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td align="right">
+        平成23年04月18日作成
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>

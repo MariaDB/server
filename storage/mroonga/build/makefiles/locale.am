@@ -1,0 +1,12 @@
+SUBDIRS = LC_MESSAGES
+
+BUILT_SOURCES =
+EXTRA_DIST =
+
+include $(top_srcdir)/build/makefiles/sphinx.am
+
+init:
+	cd LC_MESSAGES && $(MAKE) $@
+
+update-po:
+	cd LC_MESSAGES && $(MAKE) update

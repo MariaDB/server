@@ -466,7 +466,7 @@ trx_undo_page_fetch_ext(
 {
 	/* Fetch the BLOB. */
 	ulint	ext_len = btr_copy_externally_stored_field_prefix(
-		ext_buf, prefix_len, zip_size, field, *len);
+		ext_buf, prefix_len, zip_size, field, *len, NULL);
 	/* BLOBs should always be nonempty. */
 	ut_a(ext_len);
 	/* Append the BLOB pointer to the prefix. */
@@ -1247,7 +1247,7 @@ trx_undo_report_row_operation(
 
 	rseg = trx->rseg;
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, trx);
 	mutex_enter(&trx->undo_mutex);
 
 	/* If the undo log is not assigned yet, assign one */
@@ -1336,7 +1336,7 @@ trx_undo_report_row_operation(
 				latches, such as SYNC_FSP and SYNC_FSP_PAGE. */
 
 				mtr_commit(&mtr);
-				mtr_start(&mtr);
+				mtr_start_trx(&mtr, trx);
 
 				mutex_enter(&rseg->mutex);
 				trx_undo_free_last_page(trx, undo, &mtr);
@@ -1373,7 +1373,7 @@ trx_undo_report_row_operation(
 		/* We have to extend the undo log by one page */
 
 		ut_ad(++loop_count < 2);
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, trx);
 
 		/* When we add a page to an undo log, this is analogous to
 		a pessimistic insert in a B-tree, and we must reserve the

@@ -1,0 +1,32 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+body TEXT
+) DEFAULT CHARSET UTF8;
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` text,
+  `body` text,
+  PRIMARY KEY (`id`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+ALTER TABLE diaries
+CHANGE body description TEXT FIRST,
+CHANGE title subject TEXT AFTER internal_id,
+CHANGE id internal_id INT;
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `description` text,
+  `internal_id` int(11) NOT NULL DEFAULT '0',
+  `subject` text,
+  PRIMARY KEY (`internal_id`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+INSERT INTO diaries (subject, description)
+VALUES ("groonga (1)", "starting groonga.");
+SELECT * FROM diaries;
+description	internal_id	subject
+starting groonga.	0	groonga (1)
+DROP TABLE diaries;

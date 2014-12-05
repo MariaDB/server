@@ -1,0 +1,29 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 int, c3 text, fulltext index ft(c3));
+insert into t1 values(1,10,"aa ii uu ee oo");
+insert into t1 values(2,20,"ka ki ku ke ko");
+insert into t1 values(3,30,"sa si su se so");
+insert into t1 values(4,40,"ta ti tu te to");
+insert into t1 values(5,50,"aa ii uu ee oo");
+select * from t1;
+c1	c2	c3
+1	10	aa ii uu ee oo
+2	20	ka ki ku ke ko
+3	30	sa si su se so
+4	40	ta ti tu te to
+5	50	aa ii uu ee oo
+select * from t1 where match(c3) against("su");
+c1	c2	c3
+3	30	sa si su se so
+select * from t1 where match(c3) against("ii");
+c1	c2	c3
+1	10	aa ii uu ee oo
+5	50	aa ii uu ee oo
+select * from t1 where match(c3) against("+su" in boolean mode);
+c1	c2	c3
+3	30	sa si su se so
+select * from t1 where match(c3) against("+ii" in boolean mode);
+c1	c2	c3
+1	10	aa ii uu ee oo
+5	50	aa ii uu ee oo
+drop table t1;

@@ -1,0 +1,58 @@
+update mysql.user set password=password("foo") where user='root';
+Phase 1/5: Checking mysql database
+Processing databases
+mysql
+mysql.column_stats                                 OK
+mysql.columns_priv                                 OK
+mysql.db                                           OK
+mysql.event                                        OK
+mysql.func                                         OK
+mysql.gtid_slave_pos                               OK
+mysql.help_category                                OK
+mysql.help_keyword                                 OK
+mysql.help_relation                                OK
+mysql.help_topic                                   OK
+mysql.host                                         OK
+mysql.index_stats                                  OK
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.plugin                                       OK
+mysql.proc                                         OK
+mysql.procs_priv                                   OK
+mysql.proxies_priv                                 OK
+mysql.roles_mapping                                OK
+mysql.servers                                      OK
+mysql.table_stats                                  OK
+mysql.tables_priv                                  OK
+mysql.time_zone                                    OK
+mysql.time_zone_leap_second                        OK
+mysql.time_zone_name                               OK
+mysql.time_zone_transition                         OK
+mysql.time_zone_transition_type                    OK
+mysql.user                                         OK
+
+Repairing tables
+mysql.innodb_index_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+mysql.innodb_table_stats
+Error    : Unknown storage engine 'InnoDB'
+error    : Corrupt
+Phase 2/5: Running 'mysql_fix_privilege_tables'...
+Phase 3/5: Fixing table and database names
+Phase 4/5: Checking and upgrading tables
+Processing databases
+information_schema
+mtr
+mtr.global_suppressions                            OK
+mtr.test_suppressions                              OK
+performance_schema
+test
+Phase 5/5: Running 'FLUSH PRIVILEGES'...
+OK
+update mysql.user set password='' where user='root';
+flush privileges;

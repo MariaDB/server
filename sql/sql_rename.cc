@@ -19,6 +19,7 @@
   Atomic rename of table;  RENAME TABLE t1 to t2, tmp to t1 [,...]
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_rename.h"

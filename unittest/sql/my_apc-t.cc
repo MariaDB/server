@@ -17,10 +17,11 @@
 /*
   This file does standalone APC system tests.
 */
-#include <stdio.h>
 #include <my_global.h>
 #include <my_pthread.h>
 #include <my_sys.h>
+
+#include <stdio.h>
 
 #include <tap.h>
 

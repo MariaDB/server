@@ -496,6 +496,7 @@ private:
 */
 struct inuse_relaylog {
   inuse_relaylog *next;
+  Relay_log_info *rli;
   /* Number of events in this relay log queued for worker threads. */
   int64 queued_count;
   /* Number of events completed by worker threads. */

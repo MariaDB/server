@@ -21,7 +21,7 @@
 #pragma implementation        // gcc: Class implementation
 #endif
 
-#include "sql_class.h"                          // SSV
+#include "sql_class.h"                          // SSV and my_global.h
 #include "sql_table.h"                          // build_table_filename
 #include <myisam.h>                             // T_EXTEND
 

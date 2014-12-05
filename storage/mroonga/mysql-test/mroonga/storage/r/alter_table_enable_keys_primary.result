@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS diaries;
+SET NAMES utf8;
+CREATE TABLE diaries (
+id int PRIMARY KEY,
+title varchar(255)
+) DEFAULT CHARSET=utf8;
+ALTER TABLE diaries DISABLE KEYS;
+INSERT INTO diaries VALUES (1, "Hello");
+INSERT INTO diaries VALUES (2, "天気");
+INSERT INTO diaries VALUES (3, "富士山");
+SELECT *
+FROM diaries
+FORCE INDEX (PRIMARY)
+WHERE id = 2;
+id	title
+2	天気
+ALTER TABLE diaries ENABLE KEYS;
+SELECT *
+FROM diaries
+FORCE INDEX (PRIMARY)
+WHERE id = 2;
+id	title
+2	天気
+DROP TABLE diaries;

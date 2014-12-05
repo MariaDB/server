@@ -20,6 +20,7 @@
   Multi-table deletes were introduced by Monty and Sinisa
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_delete.h"

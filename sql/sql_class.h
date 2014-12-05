@@ -1731,6 +1731,16 @@ struct wait_for_commit
     on that function for details.
   */
   bool wakeup_subsequent_commits_running;
+  /*
+    This flag can be set when a commit starts, but has not completed yet.
+    It is used by binlog group commit to allow a waiting transaction T2 to
+    join the group commit of an earlier transaction T1. When T1 has queued
+    itself for group commit, it will set the commit_started flag. Then when
+    T2 becomes ready to commit and needs to wait for T1 to commit first, T2
+    can queue itself before waiting, and thereby participate in the same
+    group commit as T1.
+  */
+  bool commit_started;
 
   void register_wait_for_prior_commit(wait_for_commit *waitee);
   int wait_for_prior_commit(THD *thd)

@@ -794,7 +794,7 @@ Returns the ratio in percents of modified pages in the buffer pool /
 database pages in the buffer pool.
 @return	modified page percentage ratio */
 UNIV_INTERN
-ulint
+double
 buf_get_modified_ratio_pct(void);
 /*============================*/
 /**********************************************************************//**

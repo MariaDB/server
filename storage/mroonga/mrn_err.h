@@ -1,0 +1,32 @@
+/* Copyright(C) 2011 Kentoku SHIBA
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#ifndef MRN_ERR_H_
+#define MRN_ERR_H_
+
+#define ER_MRN_INVALID_TABLE_PARAM_NUM 16501
+#define ER_MRN_INVALID_TABLE_PARAM_STR "The table parameter '%-.64s' is invalid"
+#define ER_MRN_CHARSET_NOT_SUPPORT_NUM 16502
+#define ER_MRN_CHARSET_NOT_SUPPORT_STR "The character set '%s[%s]' is not supported by groonga"
+#define ER_MRN_GEOMETRY_NOT_SUPPORT_NUM 16503
+#define ER_MRN_GEOMETRY_NOT_SUPPORT_STR "This geometry type is not supported. Groonga is supported point only"
+#define ER_MRN_ERROR_FROM_GROONGA_NUM 16504
+#define ER_MRN_ERROR_FROM_GROONGA_STR "Error from Groonga [%s]"
+#define ER_MRN_INVALID_NULL_VALUE_NUM 16505
+#define ER_MRN_INVALID_NULL_VALUE_STR "NULL value can't be used for %s"
+
+#endif /* MRN_ERR_H_ */

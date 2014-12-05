@@ -1,0 +1,9 @@
+libmrn_no_mysql_la_SOURCES =				\
+	mrn_match_escalation_threshold_scope.cpp	\
+	mrn_match_escalation_threshold_scope.hpp	\
+	mrn_path_mapper.cpp				\
+	mrn_path_mapper.hpp				\
+	mrn_windows.hpp					\
+	mrn_smart_grn_obj.cpp				\
+	mrn_smart_grn_obj.hpp				\
+	mrn_grn.hpp

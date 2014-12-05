@@ -453,6 +453,7 @@ extern PSI_stage_info stage_binlog_processing_checkpoint_notify;
 extern PSI_stage_info stage_binlog_stopping_background_thread;
 extern PSI_stage_info stage_waiting_for_work_from_sql_thread;
 extern PSI_stage_info stage_waiting_for_prior_transaction_to_commit;
+extern PSI_stage_info stage_waiting_for_prior_transaction_to_start_commit;
 extern PSI_stage_info stage_waiting_for_room_in_worker_thread;
 extern PSI_stage_info stage_master_gtid_wait_primary;
 extern PSI_stage_info stage_master_gtid_wait;
@@ -597,6 +598,7 @@ enum options_mysqld
   OPT_SSL_CRL,
   OPT_SSL_CRLPATH,
   OPT_SSL_KEY,
+  OPT_THREAD_CONCURRENCY,
   OPT_WANT_CORE,
   OPT_MYSQL_COMPATIBILITY,
   OPT_MYSQL_TO_BE_IMPLEMENTED,

@@ -295,3 +295,16 @@ CREATE TABLE t2 (d DATE) ENGINE=MyISAM;
 SELECT  * FROM t1,t2 WHERE  1 IS NOT NULL AND t1.b IS NULL;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # Start of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-7001 Bad result for NOT NOT STRCMP('a','b') and NOT NOT NULLIF(2,3) 
+--echo #
+SELECT NOT NOT NULLIF(2,3);
+
+--echo #
+--echo # End of 10.0 tests
+--echo #

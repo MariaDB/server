@@ -1,0 +1,15 @@
+SELECT mroonga_command("register token_filters/stop_word");
+mroonga_command("register token_filters/stop_word")
+true
+SET NAMES utf8;
+CREATE TABLE memos (
+id INT NOT NULL PRIMARY KEY,
+content VARCHAR(64) NOT NULL,
+FULLTEXT INDEX (content) COMMENT 'token_filters "TokenFilterStopWord,TokenFilterStopWord"'
+) COMMENT='engine "InnoDB"' DEFAULT CHARSET=utf8;
+SELECT mroonga_command("dump");
+mroonga_command("dump")
+table_create memos TABLE_HASH_KEY ShortText
+table_create memos-content TABLE_PAT_KEY ShortText --default_tokenizer TokenBigram --normalizer NormalizerMySQLGeneralCI --token_filters TokenFilterStopWord,TokenFilterStopWord
+column_create memos-content index COLUMN_INDEX|WITH_POSITION memos
+DROP TABLE memos;

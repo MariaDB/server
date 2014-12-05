@@ -26,6 +26,8 @@
 #pragma interface     /* gcc class implementation */
 #endif
 
+static char *strz(PGLOBAL g, LEX_STRING &ls);
+
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
 /****************************************************************************/
@@ -174,6 +176,19 @@ class ha_connect: public handler
   CONNECT_SHARE *share;        ///< Shared lock info
   CONNECT_SHARE *get_share();
 
+protected:
+  char *PlugSubAllocStr(PGLOBAL g, void *memp, const char *str, size_t length)
+  {
+    char *ptr= (char*)PlgDBSubAlloc(g, memp, length + 1);
+
+    if (ptr) {
+      memcpy(ptr, str, length);
+      ptr[length]= '\0';
+      } // endif ptr
+
+    return ptr;
+  } // end of PlugSubAllocStr
+
 public:
   ha_connect(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_connect();
@@ -200,6 +215,7 @@ public:
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
   PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
+  bool     CheckVirtualIndex(TABLE_SHARE *s);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
   char    *GetPartName(void);
@@ -225,6 +241,8 @@ public:
                                              uint key_len= 0);
   bool     MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
                                    const void *key, int klen);
+  inline char *Strz(LEX_STRING &ls); 
+
 
   /** @brief
     The name that will be used for display purposes.

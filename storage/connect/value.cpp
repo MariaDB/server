@@ -48,7 +48,6 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "preparse.h"                     // For DATPAR
-//#include "value.h"
 #include "valblk.h"
 #define NO_FUNC                           // Already defined in ODBConn
 #include "plgcnx.h"                       // For DB types
@@ -69,12 +68,6 @@
 #define FOURYEARS    126230400    // Four years in seconds (1 leap)
 
 /***********************************************************************/
-/*  Static variables.                                                  */
-/***********************************************************************/
-
-extern "C" int  trace;
-
-/***********************************************************************/
 /*  Initialize the DTVAL static member.                                */
 /***********************************************************************/
 int DTVAL::Shift = 0;
@@ -90,32 +83,6 @@ PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 }
 #endif   // !WIN32
-
-/***********************************************************************/
-/*  Returns the bitmap representing the conditions that must not be    */
-/*  met when returning from TestValue for a given operator.            */
-/*  Bit one is EQ, bit 2 is LT, and bit 3 is GT.                       */
-/***********************************************************************/
-BYTE OpBmp(PGLOBAL g, OPVAL opc)
-  {
-  BYTE bt;
-
-  switch (opc) {
-    case OP_IN:
-    case OP_EQ: bt = 0x06; break;
-    case OP_NE: bt = 0x01; break;
-    case OP_GT: bt = 0x03; break;
-    case OP_GE: bt = 0x02; break;
-    case OP_LT: bt = 0x05; break;
-    case OP_LE: bt = 0x04; break;
-    case OP_EXIST: bt = 0x00; break;
-    default:
-      sprintf(g->Message, MSG(BAD_FILTER_OP), opc);
-      longjmp(g->jumper[g->jump_level], TYPE_ARRAY);
-    } // endswitch opc
-
-  return bt;
-  } // end of OpBmp
 
 /***********************************************************************/
 /*  Get a long long number from its character representation.          */
@@ -1045,8 +1012,11 @@ TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
 
   if (!s) {
     if (g) {
-      Strp = (char *)PlugSubAlloc(g, NULL, Len + 1);
-      Strp[Len] = '\0';
+      if ((Strp = (char *)PlgDBSubAlloc(g, NULL, Len + 1)))
+        Strp[Len] = '\0';
+      else
+        Len = 0;
+
     } else
       assert(false);
 
@@ -2454,9 +2424,11 @@ bool DTVAL::SetValue_char(char *p, int n)
     if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
-    Null = false;
-  } else
+    Null = (Nullable && ndv == 0);
+  } else {
     rc = TYPVAL<int>::SetValue_char(p, n);
+    Null = (Nullable && Tval == 0);
+  } // endif Pdtp
 
   return rc;
   } // end of SetValue
@@ -2479,9 +2451,11 @@ void DTVAL::SetValue_psz(PSZ p)
     if (trace > 1)
       htrc(" setting date: '%s' -> %d\n", Sdate, Tval);
 
-    Null = false;
-  } else
+    Null = (Nullable && ndv == 0);
+  } else {
     TYPVAL<int>::SetValue_psz(p);
+    Null = (Nullable && Tval == 0);
+  } // endif Pdtp
 
   } // end of SetValue
 
@@ -2522,7 +2496,7 @@ char *DTVAL::GetCharString(char *p)
   } else
     sprintf(p, "%d", Tval);
 
-  Null = false;
+//Null = false;                      ??????????????
   return p;
   } // end of GetCharString
 
@@ -2533,24 +2507,29 @@ char *DTVAL::ShowValue(char *buf, int len)
   {
   if (Pdtp) {
     char  *p;
-    size_t m, n = 0;
-    struct tm tm, *ptm = GetGmTime(&tm);
 
-    if (Len < len) {
-      p = buf;
-      m = len;
-    } else {
-      p = Sdate;
-      m = Len + 1;
-    } // endif Len
+    if (!Null) {
+      size_t m, n = 0;
+      struct tm tm, *ptm = GetGmTime(&tm);
+  
+      if (Len < len) {
+        p = buf;
+        m = len;
+      } else {
+        p = Sdate;
+        m = Len + 1;
+      } // endif Len
+  
+      if (ptm)
+        n = strftime(p, m, Pdtp->OutFmt, ptm);
+  
+      if (!n) {
+        *p = '\0';
+        strncat(p, "Error", m);
+        } // endif n
 
-    if (ptm)
-      n = strftime(p, m, Pdtp->OutFmt, ptm);
-
-    if (!n) {
-      *p = '\0';
-      strncat(p, "Error", m);
-      } // endif n
+    } else
+      p = "";                 // DEFAULT VALUE ???
 
     return p;
   } else

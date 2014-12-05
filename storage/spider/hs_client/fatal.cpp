@@ -7,6 +7,7 @@
  * See COPYRIGHT.txt for details.
  */
 
+#include <my_global.h>
 #include "mysql_version.h"
 #if MYSQL_VERSION_ID < 50500
 #include "mysql_priv.h"

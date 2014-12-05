@@ -1,0 +1,28 @@
+DROP TABLE IF EXISTS items;
+CREATE TABLE items (
+name VARCHAR(255),
+price INT KEY
+) DEFAULT CHARSET=utf8;
+INSERT INTO items VALUES ("car", 2147483647);
+INSERT INTO items VALUES ("note PC", 32767);
+INSERT INTO items VALUES ("discount", -2147483647);
+INSERT INTO items VALUES ("coke", 100);
+INSERT INTO items VALUES ("bike", 16777216);
+SELECT * FROM items;
+name	price
+discount	-2147483647
+coke	100
+note PC	32767
+bike	16777216
+car	2147483647
+SELECT * FROM items WHERE price <= 16777216;
+name	price
+discount	-2147483647
+coke	100
+note PC	32767
+bike	16777216
+SELECT * FROM items WHERE price > 16777215;
+name	price
+bike	16777216
+car	2147483647
+DROP TABLE items;

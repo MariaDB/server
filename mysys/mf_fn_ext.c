@@ -29,7 +29,7 @@
     (normally '.') after the directory name.
 
   RETURN VALUES
-    Pointer to to the extension character. If there isn't any extension,
+    Pointer to the extension character. If there isn't any extension,
     points at the end ASCII(0) of the filename.
 */
 
@@ -49,7 +49,7 @@ char *fn_ext(const char *name)
   if (!(gpos= strrchr(name, FN_LIBCHAR)))
     gpos= name;
 #endif
-  pos=strchr(gpos,FN_EXTCHAR);
+  pos= strchr(gpos, FN_EXTCHAR);
   DBUG_RETURN((char*) (pos ? pos : strend(gpos)));
 } /* fn_ext */
 
@@ -58,7 +58,7 @@ char *fn_ext(const char *name)
   Return a pointer to the extension of the filename.
 
   SYNOPSIS
-    fn_ext()
+    fn_ext2()
     name		Name of file
 
   DESCRIPTION
@@ -66,7 +66,7 @@ char *fn_ext(const char *name)
     (normally '.') after the directory name.
 
   RETURN VALUES
-    Pointer to to the extension character. If there isn't any extension,
+    Pointer to the extension character. If there isn't any extension,
     points at the end ASCII(0) of the filename.
 */
 
@@ -86,6 +86,8 @@ char *fn_ext2(const char *name)
   if (!(gpos= strrchr(name, FN_LIBCHAR)))
     gpos= name;
 #endif
-  pos=strrchr(gpos,FN_EXTCHAR);
+  // locate the last occurence of FN_EXTCHAR
+  pos= strrchr(gpos, FN_EXTCHAR);
   DBUG_RETURN((char*) (pos ? pos : strend(gpos)));
-} /* fn_ext */
+} /* fn_ext2 */
+

@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "event_scheduler.h"
@@ -353,14 +354,7 @@ Event_scheduler::Event_scheduler(Event_queue *queue_arg)
   mysql_mutex_init(key_event_scheduler_LOCK_scheduler_state,
                    &LOCK_scheduler_state, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_event_scheduler_COND_state, &COND_state, NULL);
-
-#ifdef SAFE_MUTEX
-  /* Ensure right mutex order */
-  mysql_mutex_lock(&LOCK_scheduler_state);
-  mysql_mutex_lock(&LOCK_global_system_variables);
-  mysql_mutex_unlock(&LOCK_global_system_variables);
-  mysql_mutex_unlock(&LOCK_scheduler_state);
-#endif
+  mysql_mutex_record_order(&LOCK_scheduler_state, &LOCK_global_system_variables);
 }
 
 

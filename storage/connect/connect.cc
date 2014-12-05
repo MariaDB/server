@@ -49,11 +49,6 @@
 #define my_stricmp(a, b) my_strcasecmp(default_charset_info, (a), (b))
 
 /***********************************************************************/
-/*  DB static variables.                                               */
-/***********************************************************************/
-extern "C" int trace;
-
-/***********************************************************************/
 /*  Routines called internally by semantic routines.                   */
 /***********************************************************************/
 void  CntEndDB(PGLOBAL);
@@ -281,16 +276,13 @@ bool CntOpenTable(PGLOBAL g, PTDB tdbp, MODE mode, char *c1, char *c2,
     if (trace)
       printf("Allocating column %s\n", p);
 
-//    if (*p == '*') {
-//      // This is a special column
-//      cp= new(g) COLUMN(p + 1);
-//      cp->SetTo_Table(tdbp->GetTable());
-//      colp= ((PTDBASE)tdbp)->InsertSpcBlk(g, cp);
-//    } else
-      colp= tdbp->ColDB(g, p, 0);
+    g->Message[0] = 0;    // To check whether ColDB made an error message
+    colp= tdbp->ColDB(g, p, 0);
 
-    if (!colp) {
-      sprintf(g->Message, "Column %s not found in %s", p, tdbp->GetName());
+    if (!colp && !(mode == MODE_INSERT && tdbp->IsSpecial(p))) {
+      if (g->Message[0] == 0)
+        sprintf(g->Message, MSG(COL_ISNOT_TABLE), p, tdbp->GetName());
+
       goto err;
       } // endif colp
 
@@ -421,14 +413,14 @@ RCODE EvalColumns(PGLOBAL g, PTDB tdbp, bool mrr)
 
   for (colp= tdbp->GetColumns(); rc == RC_OK && colp;
        colp= colp->GetNext()) {
-      colp->Reset();
+    colp->Reset();
 
-      // Virtual columns are computed by MariaDB
-      if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
-        if (colp->Eval(g))
-          rc= RC_FX;
+    // Virtual columns are computed by MariaDB
+    if (!colp->GetColUse(U_VIRTUAL) && (!mrr || colp->GetKcol()))
+      if (colp->Eval(g))
+        rc= RC_FX;
 
-      } // endfor colp
+    } // endfor colp
 
  err:
   g->jump_level--;
@@ -659,8 +651,10 @@ int CntIndexInit(PGLOBAL g, PTDB ptdb, int id, bool sorted)
   if (!ptdb)
     return -1;
   else if (!((PTDBASE)ptdb)->GetDef()->Indexable()) {
-    sprintf(g->Message, "CntIndexInit: Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     return 0;
+  } else if (((PTDBASE)ptdb)->GetDef()->Indexable() == 3) {
+    return 1;
   } else
     tdbp= (PTDBDOX)ptdb;
 
@@ -730,12 +724,20 @@ RCODE CntIndexRead(PGLOBAL g, PTDB ptdb, OPVAL op,
     x= ((PTDBASE)ptdb)->GetDef()->Indexable();
 
   if (!x) {
-    sprintf(g->Message, "CntIndexRead: Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     return RC_FX;
   } else if (x == 2) {
     // Remote index
     if (ptdb->ReadKey(g, op, key, len))
       return RC_FX;
+
+    goto rnd;
+  } else if (x == 3) {
+    if (key)
+      ((PTDBASE)ptdb)->SetRecpos(g, *(int*)key);
+
+    if (op == OP_SAME)
+      return RC_NF;
 
     goto rnd;
   } else
@@ -836,12 +838,21 @@ int CntIndexRange(PGLOBAL g, PTDB ptdb, const uchar* *key, uint *len,
   x= ((PTDBASE)ptdb)->GetDef()->Indexable();
 
   if (!x) {
-    sprintf(g->Message, "CntIndexRange: Table %s is not indexable", ptdb->GetName());
+    sprintf(g->Message, MSG(TABLE_NO_INDEX), ptdb->GetName());
     DBUG_PRINT("Range", ("%s", g->Message));
     return -1;
   } else if (x == 2) {
     // Remote index
     return 2;
+  } else if (x == 3) {
+    // Virtual index
+    for (i= 0; i < 2; i++)
+      if (key[i])
+        k[i] = *(int*)key[i] + (incl[i] ? 0 : 1 - 2 * i);
+      else
+        k[i] = (i) ? ptdb->Cardinality(g) : 1;
+
+    return k[1] - k[0] + 1;
   } else
     tdbp= (PTDBDOX)ptdb;
 

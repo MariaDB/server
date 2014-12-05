@@ -16,6 +16,7 @@
 #ifndef WSREP_SST_H
 #define WSREP_SST_H
 
+#include <my_config.h>
 #include <mysql.h>                    // my_bool
 
 #define WSREP_SST_OPT_ROLE     "--role"

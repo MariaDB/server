@@ -17,8 +17,8 @@
 
 /* Basic functions needed by many modules */
 
+#include <my_global.h>
 #include "sql_base.h"                           // setup_table_map
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "debug_sync.h"
@@ -8470,7 +8470,6 @@ bool setup_on_expr(THD *thd, TABLE_LIST *table, bool is_update)
     do
     {
       embedded= embedding;
-      DBUG_PRINT("XXX", ("check: %s", table->alias));
       if (embedded->on_expr)
       {
         thd->where="on clause";

@@ -46,8 +46,6 @@
 #include "filamap.h"
 #include "tabdos.h"
 
-extern "C" int  trace;
-
 /* --------------------------- Class MAPFAM -------------------------- */
 
 /***********************************************************************/
@@ -290,8 +288,8 @@ bool MAPFAM::RecordPos(PGLOBAL g)
 /***********************************************************************/
 int MAPFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   {
-  Fpos = Memory + fpos;
-  Mempos = Memory + spos;
+  Fpos = Memory + (ptrdiff_t)fpos;
+  Mempos = Memory + (ptrdiff_t)spos;
   return RC_OK;
   } // end of InitDelete
 
@@ -360,7 +358,12 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
   while (*Mempos++ != '\n') ;        // What about Unix ???
 
   // Set caller line buffer
-  len = (Mempos - Fpos) - Ending;
+  len = (Mempos - Fpos) - 1;
+
+  // Don't rely on ENDING setting
+  if (len > 0 && *(Mempos - 2) == '\r')
+    len--;             // Line ends by CRLF
+
   memcpy(Tdbp->GetLine(), Fpos, len);
   Tdbp->GetLine()[len] = '\0';
   return RC_OK;
@@ -685,7 +688,7 @@ bool MPXFAM::SetPos(PGLOBAL g, int pos)
 /***********************************************************************/
 int MPXFAM::InitDelete(PGLOBAL g, int fpos, int spos)
   {
-  Fpos = Memory + Headlen + fpos * Lrecl;
+  Fpos = Memory + Headlen + (ptrdiff_t)fpos * Lrecl;
   Mempos = Fpos + Lrecl;
   return RC_OK;
   } // end of InitDelete

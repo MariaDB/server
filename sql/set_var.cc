@@ -16,7 +16,7 @@
 
 /* variable declarations are in sys_vars.cc now !!! */
 
-#include "sql_plugin.h"
+#include "sql_plugin.h"                         // Includes my_global.h
 #include "sql_class.h"                   // set_var.h: session_var_ptr
 #include "set_var.h"
 #include "sql_priv.h"

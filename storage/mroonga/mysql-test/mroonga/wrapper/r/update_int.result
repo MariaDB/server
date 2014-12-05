@@ -1,0 +1,36 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int primary key, c2 int) COMMENT = 'engine "innodb"';
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=Mroonga DEFAULT CHARSET=latin1 COMMENT='engine "innodb"'
+insert into t1 values (1, 100);
+insert into t1 values (2, 101);
+insert into t1 values (3, 102);
+select * from t1;
+c1	c2
+1	100
+2	101
+3	102
+update t1 set c2=c2+100 where c1=1;
+select * from t1;
+c1	c2
+1	200
+2	101
+3	102
+update t1 set c2=c2+100 where c1=2;
+select * from t1;
+c1	c2
+1	200
+2	201
+3	102
+update t1 set c2=c2+100 where c1=3;
+select * from t1;
+c1	c2
+1	200
+2	201
+3	202
+drop table t1;

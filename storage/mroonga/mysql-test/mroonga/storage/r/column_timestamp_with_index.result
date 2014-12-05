@@ -1,0 +1,35 @@
+DROP TABLE IF EXISTS diaries;
+CREATE TABLE diaries (
+id INT PRIMARY KEY AUTO_INCREMENT,
+title TEXT,
+created_at TIMESTAMP,
+updated_at TIMESTAMP,
+KEY (updated_at)
+) DEFAULT CHARSET UTF8;
+SHOW CREATE TABLE diaries;
+Table	Create Table
+diaries	CREATE TABLE `diaries` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `title` text,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (`id`),
+  KEY `updated_at` (`updated_at`)
+) ENGINE=Mroonga DEFAULT CHARSET=utf8
+INSERT INTO diaries (title, created_at, updated_at)
+VALUES ("clear day", "2012-01-29 21:51:01", "2012-01-29 21:51:02");
+INSERT INTO diaries (title, created_at, updated_at)
+VALUES ("rainy day", "2012-01-30 01:23:45", "2012-01-30 01:23:46");
+INSERT INTO diaries (title, created_at, updated_at)
+VALUES ("cloudy day", "2012-01-31 08:32:10", "2012-01-31 08:32:11");
+SELECT * FROM diaries;
+id	title	created_at	updated_at
+1	clear day	2012-01-29 21:51:01	2012-01-29 21:51:02
+2	rainy day	2012-01-30 01:23:45	2012-01-30 01:23:46
+3	cloudy day	2012-01-31 08:32:10	2012-01-31 08:32:11
+SELECT * FROM diaries
+WHERE updated_at BETWEEN "2012-01-29 00:00:00" AND "2012-01-31 00:00:00";
+id	title	created_at	updated_at
+1	clear day	2012-01-29 21:51:01	2012-01-29 21:51:02
+2	rainy day	2012-01-30 01:23:45	2012-01-30 01:23:46
+DROP TABLE diaries;

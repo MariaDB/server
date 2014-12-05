@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS ids;
+CREATE TABLE ids (
+id int AUTO_INCREMENT PRIMARY KEY
+) COMMENT='ENGINE "InnoDB"';
+SELECT last_insert_id();
+last_insert_id()
+0
+INSERT INTO ids VALUES();
+SELECT last_insert_id();
+last_insert_id()
+1
+SELECT * FROM ids;
+id
+1
+DROP TABLE ids;

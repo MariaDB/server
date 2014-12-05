@@ -89,6 +89,8 @@ PATENT RIGHTS GRANT:
 #ident "Copyright (c) 2007-2013 Tokutek Inc.  All rights reserved."
 #ident "The technology is licensed by the Massachusetts Institute of Technology, Rutgers State University of New Jersey, and the Research Foundation of State University of New York at Stony Brook under United States of America Serial No. 11/760379 and to the patents and/or patent applications resulting from it."
 
+#include <config.h>
+
 #include "ft/ft.h"
 #include "ft/ft-cachetable-wrappers.h"
 #include "ft/ft-internal.h"
@@ -600,8 +602,9 @@ handle_split_of_child(
     // We never set the rightmost blocknum to be the root.
     // Instead, we wait for the root to split and let promotion initialize the rightmost
     // blocknum to be the first non-root leaf node on the right extreme to recieve an insert.
-    invariant(ft->h->root_blocknum.b != ft->rightmost_blocknum.b);
-    if (childa->blocknum.b == ft->rightmost_blocknum.b) {
+    BLOCKNUM rightmost_blocknum = toku_drd_unsafe_fetch(&ft->rightmost_blocknum);
+    invariant(ft->h->root_blocknum.b != rightmost_blocknum.b);
+    if (childa->blocknum.b == rightmost_blocknum.b) {
         // The rightmost leaf (a) split into (a) and (b). We want (b) to swap pair values
         // with (a), now that it is the new rightmost leaf. This keeps the rightmost blocknum
         // constant, the same the way we keep the root blocknum constant.
@@ -1428,7 +1431,8 @@ ft_merge_child(
             node->pivotkeys.delete_at(childnuma);
 
             // Handle a merge of the rightmost leaf node.
-            if (did_merge && childb->blocknum.b == ft->rightmost_blocknum.b) {
+            BLOCKNUM rightmost_blocknum = toku_drd_unsafe_fetch(&ft->rightmost_blocknum); 
+            if (did_merge && childb->blocknum.b == rightmost_blocknum.b) {
                 invariant(childb->blocknum.b != ft->h->root_blocknum.b);
                 toku_ftnode_swap_pair_values(childa, childb);
                 BP_BLOCKNUM(node, childnuma) = childa->blocknum;

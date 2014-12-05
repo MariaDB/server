@@ -26,6 +26,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_base.h"
 #include "sql_select.h"
 #include "filesort.h"

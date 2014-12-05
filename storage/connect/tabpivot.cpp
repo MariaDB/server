@@ -51,8 +51,6 @@
 #include "ha_connect.h"
 #include "mycat.h"       // For GetHandler
 
-extern "C" int trace;
-
 /***********************************************************************/
 /*  Make the Pivot table column list.                                  */
 /***********************************************************************/

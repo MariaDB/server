@@ -19,7 +19,7 @@
 /***********************************************************************/
 /*  Types used in some class definitions.                              */
 /***********************************************************************/
-//typedef struct _tabdesc  *PTABD;        // For friend setting
+typedef class STRING *PSTRG;
 
 /***********************************************************************/
 /*  The pointer to the one and only needed void object.                */
@@ -115,5 +115,45 @@ class DllExport CONSTANT : public XOBJECT {
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
   }; // end of class CONSTANT
+
+/***********************************************************************/
+/*  Class STRING handles variable length char strings.                 */
+/*  It is mainly used to avoid buffer overrun.                         */
+/***********************************************************************/
+class DllExport STRING : public BLOCK {
+ public:
+  // Constructor
+  STRING(PGLOBAL g, uint n, PSZ str = NULL);
+
+  // Implementation
+  inline int    GetLength(void) {return (int)Length;}
+  inline PSZ    GetStr(void) {return Strp;}
+  inline uint32 GetSize(void) {return Size;}
+
+  // Methods
+  inline void   Reset(void) {*Strp = 0;}
+         bool   Set(PSZ s);
+         bool   Set(char *s, uint n);
+         bool   Append(PSZ s);
+         bool   Append(STRING &str);
+         bool   Append(char c);
+         bool   Resize(uint n);
+  inline void   Trim(void) {(void)Resize(Length + 1);}
+  inline void   Chop(void) {if (Length) Strp[--Length] = 0;}
+  inline void   RepLast(char c) {if (Length) Strp[Length-1] = c;}
+  inline void   Truncate(uint n) {if (n < Length) {Strp[n] = 0; Length = n;}}
+
+ protected:
+         char  *Realloc(uint len);
+  inline char  *GetNext(void)
+         {return ((char*)G->Sarea)+((PPOOLHEADER)G->Sarea)->To_Free;}
+
+  // Members
+  PGLOBAL G;                   // To avoid parameter
+  PSZ     Strp;                // The char string
+  uint    Length;              // String length
+  uint    Size;                // Allocated size
+  char   *Next;                // Next alloc position
+  }; // end of class STRING
 
 #endif

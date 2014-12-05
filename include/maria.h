@@ -23,12 +23,10 @@
 extern "C" {
 #endif
 #include <my_base.h>
-#include <my_sys.h>
 #include <m_ctype.h>
 #include "my_compare.h"
 #include "ft_global.h"
 #include <myisamchk.h>
-#include <mysql/plugin.h>
 
 #define MARIA_CANNOT_ROLLBACK
 

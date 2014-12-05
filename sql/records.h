@@ -18,7 +18,6 @@
 #ifdef USE_PRAGMA_INTERFACE
 #pragma interface                      /* gcc class implementation */
 #endif
-#include <my_global.h>                /* for uint typedefs */
 
 struct st_join_table;
 class handler;

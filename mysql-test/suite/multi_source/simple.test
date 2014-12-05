@@ -33,6 +33,13 @@ set default_master_connection = '';
 --connection slave
 --sync_with_master 0,'slave2'
 
+# MDEV-7074 (Sporadic test failure due to a race condition)
+let $show_statement = SHOW ALL SLAVES STATUS;
+let $field = Executed_log_entries;
+let $condition = = 7;
+let $wait_for_all = 1;
+--source include/wait_show_condition.inc
+
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2
 show all slaves status;
 

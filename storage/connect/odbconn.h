@@ -95,7 +95,7 @@ class DBX : public BLOCK {
   const char *GetErrorMessage(int i);
 
  protected:
-  void    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
+  bool    BuildErrorMessage(ODBConn* pdb, HSTMT hstmt = SQL_NULL_HSTMT);
 
   // Attributes
   RETCODE m_RC;
@@ -124,6 +124,7 @@ class ODBConn : public BLOCK {
     forceOdbcDialog = 0x0010};    // Always display ODBC connect dialog
 
   int  Open(PSZ ConnectString, DWORD Options = 0);
+  bool Rewind(char *sql, ODBCCOL *tocols);
   void Close(void);
 
   // Attributes
@@ -190,4 +191,5 @@ class ODBConn : public BLOCK {
   PSZ      m_Connect;
   bool     m_Updatable;
   bool     m_Transact;
+  bool     m_Scrollable;
   }; // end of ODBConn class definition

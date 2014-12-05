@@ -1,0 +1,17 @@
+DROP TABLE IF EXISTS scores;
+SET NAMES utf8;
+CREATE TABLE scores (
+value INT,
+INDEX (value)
+);
+INSERT INTO scores VALUES (21);
+INSERT INTO scores VALUES (21);
+INSERT INTO scores VALUES (22);
+SELECT count(*) FROM scores WHERE value >= 20;
+count(*)
+3
+UPDATE scores SET value = 11 WHERE value = 21;
+SELECT count(*) FROM scores WHERE value >= 20;
+count(*)
+1
+DROP TABLE scores;

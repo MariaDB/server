@@ -15,6 +15,7 @@
 
 # Build comp_sql - used for embedding SQL in C or C++ programs
 IF(NOT CMAKE_CROSSCOMPILING)
+ INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include)
  ADD_EXECUTABLE(comp_sql comp_sql.c)
  TARGET_LINK_LIBRARIES(comp_sql)
 ENDIF()

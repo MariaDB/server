@@ -25,6 +25,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"         // REQUIRED: for other includes
 #include "sql_table.h"                         // build_table_filename,

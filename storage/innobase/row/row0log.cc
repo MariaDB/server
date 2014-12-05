@@ -980,7 +980,7 @@ row_log_table_get_pk_col(
 			mem_heap_alloc(heap, field_len));
 
 		len = btr_copy_externally_stored_field_prefix(
-			blob_field, field_len, zip_size, field, len);
+			blob_field, field_len, zip_size, field, len, NULL);
 		if (len >= max_len + 1) {
 			return(DB_TOO_BIG_INDEX_COL);
 		}
@@ -1371,7 +1371,7 @@ row_log_table_apply_convert_mrec(
 			data = btr_rec_copy_externally_stored_field(
 				mrec, offsets,
 				dict_table_zip_size(index->table),
-				i, &len, heap);
+				i, &len, heap, NULL);
 			ut_a(data);
 			dfield_set_data(dfield, data, len);
 blob_done:

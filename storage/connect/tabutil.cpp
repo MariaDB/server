@@ -54,7 +54,6 @@
 #include "tabutil.h"
 #include "ha_connect.h"
 
-extern "C" int trace;
 extern "C" int zconv;
 
 /************************************************************************/

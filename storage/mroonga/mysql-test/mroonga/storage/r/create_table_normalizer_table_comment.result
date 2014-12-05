@@ -1,0 +1,18 @@
+DROP TABLE IF EXISTS memos;
+DROP TABLE IF EXISTS terms;
+SET NAMES utf8;
+CREATE TABLE terms (
+term VARCHAR(64) NOT NULL PRIMARY KEY
+) COMMENT='default_tokenizer "TokenBigram", normalizer "NormalizerAuto"' DEFAULT CHARSET=utf8;
+CREATE TABLE memos (
+id INT NOT NULL PRIMARY KEY,
+content TEXT NOT NULL,
+FULLTEXT INDEX (content) COMMENT 'table "terms"'
+) DEFAULT CHARSET=utf8;
+INSERT INTO memos VALUES (1, "1日の消費㌍は約2000㌔㌍");
+SELECT * FROM memos
+WHERE MATCH (content) AGAINST ("+カロリー" IN BOOLEAN MODE);
+id	content
+1	1日の消費㌍は約2000㌔㌍
+DROP TABLE memos;
+DROP TABLE terms;

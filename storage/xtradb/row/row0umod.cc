@@ -267,7 +267,7 @@ row_undo_mod_clust(
 	pcur = &node->pcur;
 	index = btr_cur_get_index(btr_pcur_get_btr_cur(pcur));
 
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, thr_get_trx(thr));
 
 	online = dict_index_is_online_ddl(index);
 	if (online) {
@@ -296,7 +296,7 @@ row_undo_mod_clust(
 		/* We may have to modify tree structure: do a pessimistic
 		descent down the index tree */
 
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, thr_get_trx(thr));
 
 		err = row_undo_mod_clust_low(
 			node, &offsets, &offsets_heap,
@@ -341,7 +341,7 @@ row_undo_mod_clust(
 
 	if (err == DB_SUCCESS && node->rec_type == TRX_UNDO_UPD_DEL_REC) {
 
-		mtr_start(&mtr);
+		mtr_start_trx(&mtr, thr_get_trx(thr));
 
 		/* It is not necessary to call row_log_table,
 		because the record is delete-marked and would thus
@@ -354,7 +354,7 @@ row_undo_mod_clust(
 			/* We may have to modify tree structure: do a
 			pessimistic descent down the index tree */
 
-			mtr_start(&mtr);
+			mtr_start_trx(&mtr, thr_get_trx(thr));
 
 			err = row_undo_mod_remove_clust_low(node, thr, &mtr,
 							    BTR_MODIFY_TREE);
@@ -401,7 +401,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	enum row_search_result	search_result;
 
 	log_free_check();
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, thr_get_trx(thr));
 
 	if (*index->name == TEMP_INDEX_PREFIX) {
 		/* The index->online_status may change if the
@@ -457,7 +457,7 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	which cannot be purged yet, requires its existence. If some requires,
 	we should delete mark the record. */
 
-	mtr_start(&mtr_vers);
+	mtr_start_trx(&mtr_vers, thr_get_trx(thr));
 
 	success = btr_pcur_restore_position(BTR_SEARCH_LEAF, &(node->pcur),
 					    &mtr_vers);
@@ -573,7 +573,7 @@ row_undo_mod_del_unmark_sec_and_undo_update(
 	ut_ad(trx->id);
 
 	log_free_check();
-	mtr_start(&mtr);
+	mtr_start_trx(&mtr, thr_get_trx(thr));
 
 	if (*index->name == TEMP_INDEX_PREFIX) {
 		/* The index->online_status may change if the

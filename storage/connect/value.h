@@ -256,6 +256,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
 
+ protected:
   // Members
   PSZ         Strp;
   bool        Ci;                   // true if case insensitive
@@ -283,6 +284,7 @@ class DllExport DECVAL: public TYPVAL<PSZ> {
   virtual bool   IsEqual(PVAL vp, bool chktype);
   virtual int    CompareValue(PVAL vp);
 
+ protected:
   // Members
   }; // end of class DECVAL
 
@@ -337,6 +339,7 @@ class DllExport BINVAL: public VALUE {
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
 
+ protected:
   // Members
   void       *Binp;
   char       *Chrp;
@@ -357,6 +360,7 @@ class DllExport DTVAL : public TYPVAL<int> {
   DTVAL(PGLOBAL g, double f);
 
   // Implementation
+  virtual bool   IsZero(void) {return Null;}
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(char *p, int n);
   virtual void   SetValue_psz(PSZ s);

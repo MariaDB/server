@@ -1,0 +1,48 @@
+# Copyright(C) 2013 Kouhei Sutou <kou@clear-code.com>
+#
+# This library is free software; you can redistribute it and/or
+# modify it under the terms of the GNU Lesser General Public
+# License as published by the Free Software Foundation; either
+# version 2.1 of the License, or (at your option) any later version.
+#
+# This library is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this library; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+--source ../../include/mroonga/have_fulltext_index_comment.inc
+--source ../../include/mroonga/have_mroonga.inc
+
+--disable_warnings
+DROP TABLE IF EXISTS variables;
+--enable_warnings
+
+CREATE TABLE variables (
+  id INT PRIMARY KEY AUTO_INCREMENT,
+  name TEXT,
+  FULLTEXT INDEX (name) COMMENT 'parser "off"'
+) DEFAULT CHARSET=utf8;
+SHOW CREATE TABLE variables;
+
+INSERT INTO variables (name) VALUES ("mroonga_database_path_prefix");
+INSERT INTO variables (name) VALUES ("mroonga_default_parser");
+INSERT INTO variables (name) VALUES ("mroonga_default_wrapper_engine");
+INSERT INTO variables (name) VALUES ("mroonga_dry_write");
+INSERT INTO variables (name) VALUES ("mroonga_enable_optimization");
+INSERT INTO variables (name) VALUES ("mroonga_libgroonga_version");
+INSERT INTO variables (name) VALUES ("mroonga_log_file");
+INSERT INTO variables (name) VALUES ("mroonga_log_level");
+INSERT INTO variables (name) VALUES ("mroonga_match_escalation_threshold");
+INSERT INTO variables (name) VALUES ("mroonga_version");
+
+SELECT * FROM variables;
+SELECT * FROM variables
+         WHERE MATCH (name) AGAINST ("mroonga_default*" IN BOOLEAN MODE);
+
+DROP TABLE variables;
+
+--source ../../include/mroonga/have_mroonga_deinit.inc

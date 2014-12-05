@@ -101,3 +101,16 @@ Warnings:
 Warning	1292	Incorrect datetime value: '0000-00-00 00:20:12'
 Warning	1292	Truncated incorrect datetime value: '-00:20:12'
 DROP TABLE t1;
+#
+# MDEV-6649 Different warnings for TIME and TIME(N) when @@old_mode=zero_date_time_cast
+#
+SET @@old_mode=zero_date_time_cast;
+CREATE TABLE t1 (a TIME,b TIME(1));
+INSERT INTO t1 VALUES (TIME'830:20:30',TIME'830:20:30');
+SELECT TO_DAYS(a), TO_DAYS(b) FROM t1;
+TO_DAYS(a)	TO_DAYS(b)
+NULL	NULL
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+Warning	1264	Out of range value for column 'b' at row 1
+DROP TABLE t1;

@@ -1,0 +1,3 @@
+eval_la_SOURCES =				\
+	ruby_plugin.h				\
+	eval.c

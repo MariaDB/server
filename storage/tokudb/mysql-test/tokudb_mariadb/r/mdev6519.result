@@ -1,0 +1,28 @@
+drop table if exists t1;
+SET @tmp_ust= @@use_stat_tables;
+SET @tmp_oucs= @@optimizer_use_condition_selectivity;
+SET use_stat_tables = PREFERABLY;
+SET optimizer_use_condition_selectivity = 2;
+CREATE TABLE t1 (
+code CHAR(2),
+name VARCHAR(32),
+population INT,
+house_seats TINYINT,
+PRIMARY KEY(code),
+KEY (house_seats)
+) ENGINE=TokuDB;
+INSERT INTO t1 VALUES ('AL','Alabama',4833722,7),('AK','Alaska',735132,1);
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ALTER TABLE t1 ADD KEY (name(4),house_seats);
+SELECT * FROM t1 WHERE 
+population BETWEEN 1000000 AND 2000000 
+AND name LIKE 'New %'
+AND house_seats IN (1, 2, 3)
+AND code IN ('NJ', 'NM');
+code	name	population	house_seats
+drop table t1;
+SET use_stat_tables = @tmp_ust;
+SET optimizer_use_condition_selectivity = @tmp_oucs;

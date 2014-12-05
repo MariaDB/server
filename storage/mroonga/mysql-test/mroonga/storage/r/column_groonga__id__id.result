@@ -1,0 +1,13 @@
+DROP TABLE IF EXISTS contents;
+CREATE TABLE contents (
+_id INT,
+content TEXT NOT NULL,
+FULLTEXT INDEX(content)
+) DEFAULT CHARSET=utf8;
+INSERT INTO contents (content) VALUES ('first');
+INSERT INTO contents (content) VALUES ('second');
+SELECT _id, content FROM contents;
+_id	content
+1	first
+2	second
+DROP TABLE contents;

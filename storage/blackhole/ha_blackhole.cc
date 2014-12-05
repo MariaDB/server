@@ -19,6 +19,7 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "ha_blackhole.h"

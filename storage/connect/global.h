@@ -24,11 +24,13 @@
 #endif
 
 #if defined(XMSG)
+//#error Option XMSG is not yet fully implemented
 // Definition used to read messages from message file.
 #include "msgid.h"
 #define MSG(I)   PlugReadMessage(NULL, MSG_##I, #I)
 #define STEP(I)  PlugReadMessage(g, MSG_##I, #I)
 #elif defined(NEWMSG)
+//#error Option NEWMSG is not yet fully implemented
 // Definition used to get messages from resource.
 #include "msgid.h"
 #define MSG(I)   PlugGetMessage(NULL, MSG_##I)
@@ -45,6 +47,11 @@
 #else    // !WIN32
 #define CRLF  1
 #endif  // !WIN32
+
+/***********************************************************************/
+/*  Define access to the thread based trace value.                     */
+/***********************************************************************/
+#define trace  GetTraceValue()
 
 /***********************************************************************/
 /*  Miscellaneous Constants                                            */
@@ -205,7 +212,10 @@ typedef struct _activity {          /* Describes activity and language */
 
 /*----------------  UNIT ??????????    VERSION ? ----------------------*/
 typedef struct _parm {
-  void *Value;
+  union {
+    void *Value;
+    int   Intval;
+    }; // end union
   short Type, Domain;
   PPARM Next;
   } PARM;
@@ -252,6 +262,7 @@ DllExport void   *PlugSubAlloc(PGLOBAL, void *, size_t);
 DllExport char   *PlugDup(PGLOBAL g, const char *str);
 DllExport void   *MakePtr(void *, OFFSET);
 DllExport void    htrc(char const *fmt, ...);
+DllExport int     GetTraceValue(void);
 
 #if defined(__cplusplus)
 } // extern "C"

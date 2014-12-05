@@ -936,9 +936,14 @@ int my_wildcmp_8bit_impl(CHARSET_INFO *cs,
       cmp=likeconv(cs,cmp);
       do
       {
+        /*
+          Find the next character in the subject string equal to 'cmp', then
+          check recursively my_wildcmp_8bit_impl() for the pattern remainder.
+        */
 	while (str != str_end && (uchar) likeconv(cs,*str) != cmp)
 	  str++;
-	if (str++ == str_end) return(-1);
+	if (str++ == str_end)
+	  return(-1); /* 'cmp' was not found in the subject string */
 	{
 	  int tmp=my_wildcmp_8bit_impl(cs,str,str_end,
                                        wildstr,wildend,escape,w_one,
@@ -946,7 +951,13 @@ int my_wildcmp_8bit_impl(CHARSET_INFO *cs,
 	  if (tmp <= 0)
 	    return(tmp);
 	}
-      } while (str != str_end && wildstr[0] != w_many);
+        /*
+          The recursion call did not match. But it returned 1, which means
+          the pattern remainder has some non-special characters.
+          Continue, there is a chance that we'll find another 'cmp'
+          at a different position in the subject string.
+        */
+      } while (str != str_end);
       return(-1);
     }
   }

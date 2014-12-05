@@ -11,6 +11,7 @@
 /***********************************************************************/
 /*  Include required compiler header files.                            */
 /***********************************************************************/
+#include "my_global.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -28,7 +29,6 @@
 #include "osutil.h"
 #define _O_RDONLY O_RDONLY
 #endif  // !WIN32
-#include "my_global.h"
 
 #define INCLUDE_TDBXML
 #define NODE_TYPE_LIST
@@ -49,10 +49,7 @@
 #include "tabxml.h"
 #include "tabmul.h"
 
-extern "C" {
-extern char version[];
-extern int  trace;
-} // "C"
+extern "C" char version[];
 
 #if defined(WIN32) && defined(DOMDOC_SUPPORT)
 #define XMLSUP "MS-DOM"

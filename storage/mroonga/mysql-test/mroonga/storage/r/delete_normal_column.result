@@ -1,0 +1,34 @@
+drop table if exists t1, t2, t3;
+create table t1 (c1 int, c2 int);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c2` int(11) DEFAULT NULL
+) ENGINE=Mroonga DEFAULT CHARSET=latin1
+insert into t1 values (1, 100);
+insert into t1 values (2, 101);
+insert into t1 values (3, 102);
+insert into t1 values (4, 102);
+select * from t1;
+c1	c2
+1	100
+2	101
+3	102
+4	102
+delete from t1 where c1=3;
+select * from t1;
+c1	c2
+1	100
+2	101
+4	102
+flush tables;
+delete from t1 where c1=2;
+select * from t1;
+c1	c2
+1	100
+4	102
+delete from t1;
+select * from t1;
+c1	c2
+drop table t1;

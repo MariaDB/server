@@ -20,6 +20,7 @@
 #endif
 
 #define MYSQL_SERVER 1
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_plugin.h"
 #include "ha_heap.h"

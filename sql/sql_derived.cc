@@ -21,7 +21,7 @@
 */
 
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include <my_global.h>                         /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_derived.h"
@@ -465,8 +465,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     }
   }
 
-  if (!derived->merged_for_insert)
-    dt_select->first_cond_optimization= FALSE; // consider it optimized
 exit_merge:
   if (arena)
     thd->restore_active_arena(arena, &backup);

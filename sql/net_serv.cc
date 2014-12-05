@@ -43,7 +43,6 @@
 #include <my_net.h>
 #include <violite.h>
 #include <signal.h>
-#include <errno.h>
 #include "probes_mysql.h"
 
 #ifdef EMBEDDED_LIBRARY

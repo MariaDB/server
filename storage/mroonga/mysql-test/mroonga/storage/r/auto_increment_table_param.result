@@ -1,0 +1,70 @@
+drop table if exists t1;
+create table t1 (c1 int auto_increment, primary key(c1)) auto_increment=34129;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+c1
+34129
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`c1`)
+) ENGINE=Mroonga AUTO_INCREMENT=34130 DEFAULT CHARSET=latin1
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+c1
+34130
+34129
+insert into t1 values(10);
+select c1 from t1 order by c1 desc;
+c1
+34130
+34129
+10
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+c1
+34131
+34130
+34129
+10
+insert into t1 values(6);
+select c1 from t1 order by c1 desc;
+c1
+34131
+34130
+34129
+10
+6
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+c1
+34132
+34131
+34130
+34129
+10
+6
+truncate table t1;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+c1
+1
+delete from t1;
+insert into t1 values(null);
+select c1 from t1 order by c1 desc;
+c1
+2
+rename table t1 to t2;
+insert into t2 values(null);
+select c1 from t2 order by c1 desc;
+c1
+3
+2
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c1` int(11) NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (`c1`)
+) ENGINE=Mroonga AUTO_INCREMENT=4 DEFAULT CHARSET=latin1
+drop table t2;

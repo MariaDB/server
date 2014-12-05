@@ -1,0 +1,30 @@
+DROP TABLE IF EXISTS mroonga_releases;
+FLUSH STATUS;
+CREATE TABLE mroonga_releases (
+id INT PRIMARY KEY AUTO_INCREMENT,
+release_title TEXT,
+release_year YEAR,
+KEY (release_year),
+FULLTEXT KEY (release_title)
+) DEFAULT CHARSET UTF8;
+INSERT INTO mroonga_releases (release_title, release_year)
+VALUES ("Groonga storage engine (code name Mroonga) 0.1 has been released", "10");
+INSERT INTO mroonga_releases (release_title, release_year)
+VALUES ("Rename Groonga storage engine to Mroonga", "2011");
+INSERT INTO mroonga_releases (release_title, release_year)
+VALUES ("Mroonga 2.0 has been released", "2012");
+INSERT INTO mroonga_releases (release_title, release_year)
+VALUES ("Mroonga 3.0 has been released", "13");
+INSERT INTO mroonga_releases (release_title, release_year)
+VALUES ("Mroonga 4.0 will be released", "2014");
+SELECT * FROM mroonga_releases
+WHERE release_year >= "11" AND
+MATCH(release_title) AGAINST("Mroonga" IN BOOLEAN MODE)
+ORDER BY id ASC LIMIT 2;
+id	release_title	release_year
+2	Rename Groonga storage engine to Mroonga	2011
+3	Mroonga 2.0 has been released	2012
+SHOW STATUS LIKE 'mroonga_fast_order_limit';
+Variable_name	Value
+Mroonga_fast_order_limit	1
+DROP TABLE mroonga_releases;

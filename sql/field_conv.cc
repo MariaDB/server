@@ -27,6 +27,7 @@
     gives much more speed.
 */
 
+#include <my_global.h>
 #include "sql_priv.h"
 #include "sql_class.h"                          // THD
 #include <m_ctype.h>
@@ -791,6 +792,10 @@ Copy_field::get_copy_func(Field *to,Field *from)
     else if (to->real_type() != from->real_type() ||
 	     to_length != from_length)
     {
+      if ((to->real_type() == MYSQL_TYPE_ENUM ||
+           to->real_type() == MYSQL_TYPE_SET) &&
+          from->real_type() == MYSQL_TYPE_NEWDECIMAL)
+        return do_field_decimal;
       if (to->real_type() == MYSQL_TYPE_DECIMAL ||
 	  to->result_type() == STRING_RESULT)
 	return do_field_string;
@@ -837,7 +842,10 @@ bool memcpy_field_possible(Field *to,Field *from)
 {
   const enum_field_types to_real_type= to->real_type();
   const enum_field_types from_real_type= from->real_type();
-  const enum_field_types to_type= from->type();
+  /*
+    Warning: Calling from->type() may be unsafe in some (unclear) circumstances
+    related to SPs. See MDEV-6799.
+  */
   return (to_real_type == from_real_type &&
           !(to->flags & BLOB_FLAG && to->table->copy_blobs) &&
           to->pack_length() == from->pack_length() &&
@@ -850,8 +858,8 @@ bool memcpy_field_possible(Field *to,Field *from)
            to->field_length == from->field_length) &&
           from->charset() == to->charset() &&
           (!sql_mode_for_dates(to->table->in_use) ||
-           (to_type != MYSQL_TYPE_DATE &&
-            to_type != MYSQL_TYPE_DATETIME)) &&
+           (from->type()!= MYSQL_TYPE_DATE &&
+            from->type()!= MYSQL_TYPE_DATETIME)) &&
           (from_real_type != MYSQL_TYPE_VARCHAR ||
            ((Field_varstring*)from)->length_bytes ==
            ((Field_varstring*)to)->length_bytes));

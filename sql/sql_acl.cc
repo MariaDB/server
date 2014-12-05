@@ -25,7 +25,7 @@
   in the relevant fields. Empty strings comes last.
 */
 
-#include "my_global.h"                          /* NO_EMBEDDED_ACCESS_CHECKS */
+#include <my_global.h>                          /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "sql_acl.h"         // MYSQL_DB_FIELD_COUNT, ACL_ACCESS
 #include "sql_base.h"                           // close_mysql_tables
@@ -8684,7 +8684,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   int elements;
   const char *UNINIT_VAR(user);
   const char *UNINIT_VAR(host);
-  const char *UNINIT_VAR(role);
   ACL_USER *acl_user= NULL;
   ACL_ROLE *acl_role= NULL;
   ACL_DB *acl_db= NULL;
@@ -8824,7 +8823,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       role_grant_pair= (ROLE_GRANT_PAIR *) my_hash_element(roles_mappings_hash, idx);
       user= role_grant_pair->u_uname;
       host= role_grant_pair->u_hname;
-      role= role_grant_pair->r_uname;
       break;
 
     default:
@@ -8834,8 +8832,6 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       user= "";
     if (! host)
       host= "";
-    if (! role)
-      role= "";
 
 #ifdef EXTRA_DEBUG
     DBUG_PRINT("loop",("scan struct: %u  index: %u  user: '%s'  host: '%s'",
@@ -8844,6 +8840,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
 
     if (struct_no == ROLES_MAPPINGS_HASH)
     {
+      const char* role= role_grant_pair->r_uname? role_grant_pair->r_uname: "";
       if (user_from->is_role() ? strcmp(user_from->user.str, role) :
           (strcmp(user_from->user.str, user) ||
            my_strcasecmp(system_charset_info, user_from->host.str, host)))
@@ -12174,12 +12171,13 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
                                      mpvio.auth_info.authenticated_as);
       if (!acl_proxy_user)
       {
+        mysql_mutex_unlock(&acl_cache->lock);
+
         Host_errors errors;
         errors.m_proxy_user_acl= 1;
         inc_host_errors(mpvio.thd->security_ctx->ip, &errors);
         if (!thd->is_error())
           login_failed_error(thd);
-        mysql_mutex_unlock(&acl_cache->lock);
         DBUG_RETURN(1);
       }
       acl_user= acl_proxy_user->copy(thd->mem_root);
