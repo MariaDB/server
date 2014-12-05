@@ -1871,6 +1871,128 @@ static Sys_var_ulong Sys_slave_parallel_max_queued(
        VALID_RANGE(0,2147483647), DEFAULT(131072), BLOCK_SIZE(1));
 
 
+bool
+Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
+{
+  ulonglong new_value= var->save_result.ulonglong_value;
+  LEX_STRING *base_name= &var->base;
+  Master_info *mi;
+  ulonglong *value_ptr;
+  bool res= false;
+
+  if ((new_value & (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX)) ==
+      (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX))
+  {
+    my_error(ER_INVALID_SLAVE_PARALLEL_MODE, MYF(0), "transactional");
+    return true;
+  }
+
+  if (!base_name->length)
+    base_name= &thd->variables.default_master_connection;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  mi= master_info_index->
+    get_master_info(base_name, Sql_condition::WARN_LEVEL_WARN);
+
+  if (mi)
+  {
+    if (mi->rli.slave_running)
+    {
+      my_error(ER_SLAVE_MUST_STOP, MYF(0),
+          mi->connection_name.length, mi->connection_name.str);
+      res= true;
+    }
+    else
+    {
+      mi->parallel_mode= new_value;
+      if (!base_name->length)
+        opt_slave_parallel_mode= new_value;
+    }
+  }
+
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  if (!mi)
+  {
+    my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
+    return true;
+  }
+  mi_slave_parallel_mode_ptr(base_name, &value_ptr, false);
+  if (value_ptr)
+    *value_ptr= new_value;
+  return res;
+}
+
+
+uchar *
+Sys_var_slave_parallel_mode::global_value_ptr(THD *thd, const LEX_STRING *base_name)
+{
+  Master_info *mi;
+  ulonglong val= opt_slave_parallel_mode;
+
+  if (!base_name->length)
+    base_name= &thd->variables.default_master_connection;
+
+  mysql_mutex_unlock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_active_mi);
+
+  mi= master_info_index->
+    get_master_info(base_name, Sql_condition::WARN_LEVEL_WARN);
+  if (mi)
+    val= mi->parallel_mode;
+
+  mysql_mutex_unlock(&LOCK_active_mi);
+  mysql_mutex_lock(&LOCK_global_system_variables);
+
+  if (!mi && base_name->length)
+  {
+    my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
+    return NULL;
+  }
+  return (uchar*)set_to_string(thd, 0, val, typelib.type_names);
+}
+
+
+static const char *slave_parallel_mode_names[] = {
+  "domain", "follow_master_commit", "transactional", "waiting", NULL
+};
+TYPELIB slave_parallel_mode_typelib = {
+  array_elements(slave_parallel_mode_names)-1,
+  "",
+  slave_parallel_mode_names,
+  NULL
+};
+
+static Sys_var_slave_parallel_mode Sys_slave_parallel_mode(
+       "slave_parallel_mode",
+       "Controls what transactions are applied in parallel when using "
+       "--slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], "
+       "where \"value\" could be one or more of: \"domain\", to apply different "
+       "replication domains in parallel; \"follow_master_commit\", to apply "
+       "in parallel transactions that group-committed together on the master; "
+       "\"transactional\", to optimistically try to apply all transactional "
+       "DML in parallel; and \"waiting\" to extend \"transactional\" to "
+       "even transactions that had to wait on the master.",
+       GLOBAL_VAR(opt_slave_parallel_mode),
+       NO_CMD_LINE, slave_parallel_mode_names,
+       DEFAULT(SLAVE_PARALLEL_DOMAIN |
+               SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT));
+
+
+static Sys_var_bit Sys_replicate_allow_parallel(
+       "replicate_allow_parallel",
+       "If set when a transaction is written to the binlog, that transaction "
+       "is allowed to replicate in parallel on a slave where "
+       "slave_parallel_mode is set to \"transactional\". Can be cleared for "
+       "transactions that are likely to cause a conflict if replicated in "
+       "parallel, to avoid unnecessary rollback and retry.",
+       SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_ALLOW_PARALLEL,
+       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
 {
@@ -2952,12 +3074,6 @@ static const char *old_mode_names[]=
   0
 };
 
-export bool old_mode_string_representation(THD *thd, ulonglong sql_mode,
-                                           LEX_STRING *ls)
-{
-  set_to_string(thd, ls, sql_mode, old_mode_names);
-  return ls->str == 0;
-}
 /*
   sql_mode should *not* be IN_BINLOG as the slave can't remember this
   anyway on restart.
@@ -3387,6 +3503,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
                  ~(OPTION_BEGIN | OPTION_KEEP_LOG | OPTION_NOT_AUTOCOMMIT |
                    OPTION_GTID_BEGIN);
     thd->transaction.all.modified_non_trans_table= false;
+    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status|= SERVER_STATUS_AUTOCOMMIT;
     return false;
   }
@@ -3396,6 +3513,7 @@ static bool fix_autocommit(sys_var *self, THD *thd, enum_var_type type)
   {
     // disabling autocommit
     thd->transaction.all.modified_non_trans_table= false;
+    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
     thd->server_status&= ~SERVER_STATUS_AUTOCOMMIT;
     thd->variables.option_bits|= OPTION_NOT_AUTOCOMMIT;
     return false;

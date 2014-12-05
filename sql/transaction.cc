@@ -155,6 +155,7 @@ bool trans_begin(THD *thd, uint flags)
     when we come here.  We should at some point change this to an assert.
   */
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
 
   if (res)
     DBUG_RETURN(TRUE);
@@ -243,6 +244,7 @@ bool trans_commit(THD *thd)
     (void) RUN_HOOK(transaction, after_commit, (thd, FALSE));
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
   thd->lex->start_transaction_opt= 0;
 
   DBUG_RETURN(MY_TEST(res));
@@ -290,6 +292,7 @@ bool trans_commit_implicit(THD *thd)
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
 
   /*
     Upon implicit commit, reset the current transaction
@@ -335,6 +338,7 @@ bool trans_rollback(THD *thd)
   /* Reset the binlog transaction marker */
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
   thd->lex->start_transaction_opt= 0;
 
   DBUG_RETURN(MY_TEST(res));
@@ -379,6 +383,7 @@ bool trans_rollback_implicit(THD *thd)
   */
   thd->variables.option_bits&= ~(OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= false;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
 
   /* Rollback should clear transaction_rollback_request flag. */
   DBUG_ASSERT(! thd->transaction_rollback_request);
@@ -891,6 +896,7 @@ bool trans_xa_commit(THD *thd)
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
@@ -940,6 +946,7 @@ bool trans_xa_rollback(THD *thd)
 
   thd->variables.option_bits&= ~(OPTION_BEGIN | OPTION_KEEP_LOG);
   thd->transaction.all.modified_non_trans_table= FALSE;
+  thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
   thd->server_status&=
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));

@@ -1,0 +1,41 @@
+SET SESSION slave_parallel_mode= '';
+ERROR HY000: Variable 'slave_parallel_mode' is a GLOBAL variable and should be set with SET GLOBAL
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+domain
+SELECT @@m1.slave_parallel_mode;
+ERROR HY000: There is no master connection 'm1'
+CHANGE MASTER TO master_host='127.0.0.1', master_port=3310, master_user='root';
+SELECT @@``.slave_parallel_mode;
+@@``.slave_parallel_mode
+domain
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+domain
+Parallel_Mode = 'domain'
+SELECT @@m2.slave_parallel_mode;
+ERROR HY000: There is no master connection 'm2'
+SET GLOBAL m2.slave_parallel_mode = '';
+ERROR HY000: There is no master connection 'm2'
+CHANGE MASTER 'm1' TO master_host='127.0.0.1', master_port=3311, master_user='root';
+SELECT @@m1.slave_parallel_mode;
+@@m1.slave_parallel_mode
+transactional
+Parallel_Mode = 'domain'
+SET GLOBAL m1.slave_parallel_mode= follow_master_commit;
+Parallel_Mode = 'domain'
+SET default_master_connection= 'm1';
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+follow_master_commit
+SET GLOBAL slave_parallel_mode= waiting;
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+waiting
+Parallel_Mode = 'waiting'
+SET default_master_connection= '';
+SELECT @@slave_parallel_mode;
+@@slave_parallel_mode
+domain
+RESET SLAVE ALL;
+RESET SLAVE 'm1' ALL;

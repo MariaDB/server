@@ -2257,7 +2257,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
+/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -3913,7 +3914,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
+/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -4297,7 +4299,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
+/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -4320,7 +4323,7 @@ c_1_n INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-2
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-2 ddl
 /*!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
@@ -4332,7 +4335,7 @@ c_2_n INT -- row number
 ) ENGINE=MyISAM DEFAULT CHARSET latin1
 /*!*/;
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-3
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
@@ -4885,7 +4888,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1
+#010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
+/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;

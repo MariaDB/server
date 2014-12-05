@@ -1600,7 +1600,9 @@ rpl_group_info::reinit(Relay_log_info *rli)
   row_stmt_start_timestamp= 0;
   long_find_row_note_printed= false;
   did_mark_start_commit= false;
+  gtid_ev_flags2= 0;
   gtid_ignore_duplicate_state= GTID_DUPLICATE_NULL;
+  speculation= SPECULATE_NO;
   commit_orderer.reinit();
 }
 

@@ -40,7 +40,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1
+#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1 ddl
+/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -81,7 +82,7 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3
+#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
@@ -128,7 +129,7 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6
+#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6 ddl
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 # at #
 use `new_test3`/*!*/;
@@ -251,7 +252,8 @@ ROLLBACK/*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1
+#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-1 ddl
+/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -292,7 +294,7 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3
+#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # 	Query	thread_id=#	exec_time=#	error_code=0
@@ -339,7 +341,7 @@ SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6
+#010909  4:46:40 server id #  end_log_pos # 	GTID 0-1-6 ddl
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 # at #
 use `new_test3`/*!*/;

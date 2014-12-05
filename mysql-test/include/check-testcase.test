@@ -66,6 +66,7 @@ if ($tmp)
   --echo Gtid_IO_Pos	#
   --echo Replicate_Do_Domain_Ids	
   --echo Replicate_Ignore_Domain_Ids	
+  --echo Parallel_Mode	domain,follow_master_commit
 }
 if (!$tmp) {
   # Note: after WL#5177, fields 13-18 shall not be filtered-out.

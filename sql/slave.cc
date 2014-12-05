@@ -626,8 +626,7 @@ int terminate_slave_threads(Master_info* mi,int thread_mask,bool skip_lock)
   if (thread_mask & (SLAVE_SQL|SLAVE_FORCE_ALL))
   {
     DBUG_PRINT("info",("Terminating SQL thread"));
-    if (opt_slave_parallel_threads > 0 &&
-        mi->rli.abort_slave && mi->rli.stop_for_until)
+    if (mi->using_parallel() && mi->rli.abort_slave && mi->rli.stop_for_until)
     {
       mi->rli.stop_for_until= false;
       mi->rli.parallel.stop_during_until();
@@ -2585,6 +2584,8 @@ static bool send_show_master_info_header(THD *thd, bool full,
                                              FN_REFLEN));
   field_list.push_back(new Item_empty_string("Replicate_Ignore_Domain_Ids",
                                              FN_REFLEN));
+  field_list.push_back(new Item_empty_string("Parallel_Mode",
+             sizeof("domain,follow_master_commit,transactional,waiting")-1));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2717,8 +2718,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
       else
       {
         idle= mi->rli.sql_thread_caught_up;
-        if (opt_slave_parallel_threads > 0 && idle &&
-            !mi->rli.parallel.workers_idle())
+        if (mi->using_parallel() && idle && !mi->rli.parallel.workers_idle())
           idle= false;
       }
       if (idle)
@@ -2773,7 +2773,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     protocol->store(mi->ssl_ca, &my_charset_bin);
     // Master_Ssl_Crlpath
     protocol->store(mi->ssl_capath, &my_charset_bin);
+    // Using_Gtid
     protocol->store(mi->using_gtid_astext(mi->using_gtid), &my_charset_bin);
+    // Gtid_IO_Pos
     {
       char buff[30];
       String tmp(buff, sizeof(buff), system_charset_info);
@@ -2783,6 +2785,26 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     // Replicate_Do_Domain_Ids & Replicate_Ignore_Domain_Ids
     mi->domain_id_filter.store_ids(thd);
+
+    // Parallel_Mode
+    {
+      /* Note how sizeof("domain") has room for "domain," due to traling 0. */
+      char buf[sizeof("domain") + sizeof("follow_master_commit") +
+               sizeof("transactional") + sizeof("waiting") + 1];
+      char *p= buf;
+      uint32 mode= mi->parallel_mode;
+      if (mode & SLAVE_PARALLEL_DOMAIN)
+        p= strmov(p, "domain,");
+      if (mode & SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT)
+        p= strmov(p, "follow_master_commit,");
+      if (mode & SLAVE_PARALLEL_TRX)
+        p= strmov(p, "transactional,");
+      if (mode & SLAVE_PARALLEL_WAITING)
+        p= strmov(p, "waiting,");
+      if (p != buf)
+        --p;                                    // Discard last ','
+      protocol->store(buf, p-buf, &my_charset_bin);
+    }
 
     if (full)
     {
@@ -3492,7 +3514,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
 
     update_state_of_relay_log(rli, ev);
 
-    if (opt_slave_parallel_threads > 0)
+    if (rli->mi->using_parallel())
     {
       int res= rli->parallel.do_event(serial_rgi, ev, event_size);
       if (res >= 0)
@@ -4651,7 +4673,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     }
   }
 
-  if (opt_slave_parallel_threads > 0)
+  if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
 
   /* Thread stopped. Print the current replication position to the log */
@@ -4677,7 +4699,7 @@ log '%s' at position %s, relay log '%s' position: %s%s", RPL_LOG_NAME,
     (We want the first one to be before the printout of stop position to
     get the correct position printed.)
   */
-  if (opt_slave_parallel_threads > 0)
+  if (mi->using_parallel())
     rli->parallel.wait_for_done(thd, rli);
 
   /*
@@ -6382,7 +6404,7 @@ static Log_event* next_event(rpl_group_info *rgi, ulonglong *event_size)
                           llstr(my_b_tell(cur_log),llbuf1),
                           llstr(rli->event_relay_log_pos,llbuf2)));
       DBUG_ASSERT(my_b_tell(cur_log) >= BIN_LOG_HEADER_SIZE);
-      DBUG_ASSERT(opt_slave_parallel_threads > 0 ||
+      DBUG_ASSERT(rli->mi->using_parallel() ||
                   my_b_tell(cur_log) == rli->event_relay_log_pos);
     }
 #endif

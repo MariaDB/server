@@ -804,6 +804,8 @@ typedef struct st_print_event_info
   bool server_id_printed;
   uint32 domain_id;
   bool domain_id_printed;
+  bool allow_parallel;
+  bool allow_parallel_printed;
 
   /*
     Track when @@skip_replication changes so we need to output a SET
@@ -3131,6 +3133,12 @@ public:
     <td>1 byte bitfield</td>
     <td>Bit 0 set indicates stand-alone event (no terminating COMMIT)</td>
     <td>Bit 1 set indicates group commit, and that commit id exists</td>
+    <td>Bit 2 set indicates a transactional event group (can be safely rolled
+        back).</td>
+    <td>Bit 3 set indicates that user allowed optimistic parallel apply (the
+        @@SESSION.replicate_allow_parallel value was true at commit).</td>
+    <td>Bit 4 set indicates that this transaction encountered a row (or other)
+        lock wait during execution.</td>
   </tr>
 
   <tr>
@@ -3163,6 +3171,23 @@ public:
     master. Groups with same commit_id are part of the same group commit.
   */
   static const uchar FL_GROUP_COMMIT_ID= 2;
+  /*
+    FL_TRANSACTIONAL is set for an event group that can be safely rolled back
+    (no MyISAM, eg.).
+  */
+  static const uchar FL_TRANSACTIONAL= 4;
+  /*
+    FL_ALLOW_PARALLEL reflects the value of @@SESSION.replicate_allow_parallel
+    at the time of commit.
+  */
+  static const uchar FL_ALLOW_PARALLEL= 8;
+  /*
+    FL_WAITED is set if a row lock wait (or other wait) is detected during the
+    execution of the transaction.
+  */
+  static const uchar FL_WAITED= 16;
+  /* FL_DDL is set for event group containing DDL. */
+  static const uchar FL_DDL= 32;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,

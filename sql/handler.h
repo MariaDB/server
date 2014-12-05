@@ -1422,7 +1422,11 @@ struct THD_TRANS
   */
   bool modified_non_trans_table;
 
-  void reset() { no_2pc= FALSE; modified_non_trans_table= FALSE; }
+  void reset() {
+    no_2pc= FALSE;
+    modified_non_trans_table= FALSE;
+    m_unsafe_rollback_flags= 0;
+  }
   bool is_empty() const { return ha_list == NULL; }
   THD_TRANS() {}                        /* Remove gcc warning */
 
@@ -1434,11 +1438,16 @@ struct THD_TRANS
   static unsigned int const MODIFIED_NON_TRANS_TABLE= 0x01;
   static unsigned int const CREATED_TEMP_TABLE= 0x02;
   static unsigned int const DROPPED_TEMP_TABLE= 0x04;
+  static unsigned int const DID_WAIT= 0x08;
 
   void mark_created_temp_table()
   {
     DBUG_PRINT("debug", ("mark_created_temp_table"));
     m_unsafe_rollback_flags|= CREATED_TEMP_TABLE;
+  }
+  void mark_trans_did_wait() { m_unsafe_rollback_flags|= DID_WAIT; }
+  bool trans_did_wait() const {
+    return (m_unsafe_rollback_flags & DID_WAIT) != 0;
   }
 
 };

@@ -1,0 +1,295 @@
+include/rpl_init.inc [topology=1->2]
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='domain,transactional';
+INSERT INTO t1 VALUES(1,1);
+BEGIN;
+INSERT INTO t1 VALUES(2,1);
+INSERT INTO t1 VALUES(3,1);
+COMMIT;
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,2);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,3);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,4);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,5);
+DELETE FROM t1 WHERE a=3;
+INSERT INTO t1 VALUES(3,2);
+DELETE FROM t1 WHERE a=1;
+INSERT INTO t1 VALUES(1,2);
+DELETE FROM t1 WHERE a=3;
+INSERT INTO t1 VALUES(3,3);
+DELETE FROM t1 WHERE a=2;
+INSERT INTO t1 VALUES (2,6);
+include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+*** Test a bunch of non-transactional/DDL event groups. ***
+include/stop_slave.inc
+INSERT INTO t1 VALUES (4,4);
+INSERT INTO t1 VALUES (5,5);
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1);
+CREATE TABLE t3 (a INT PRIMARY KEY) ENGINE=MyISAM;
+ALTER TABLE t2 ADD b INT;
+INSERT INTO t2 VALUES (2,2);
+ALTER TABLE t2 DROP b;
+INSERT INTO t2 VALUES (3);
+ALTER TABLE t2 ADD c INT;
+INSERT INTO t2 VALUES (4,5);
+INSERT INTO t2 VALUES (5,5);
+INSERT INTO t3 VALUES (1);
+UPDATE t2 SET c=NULL WHERE a=4;
+ALTER TABLE t2 ADD UNIQUE (c);
+INSERT INTO t2 VALUES (6,6);
+UPDATE t2 SET c=c+100 WHERE a=2;
+INSERT INTO t3(a) VALUES (2);
+DELETE FROM t3 WHERE a=2;
+INSERT INTO t3(a) VALUES (2);
+DELETE FROM t3 WHERE a=2;
+ALTER TABLE t3 CHANGE a c INT NOT NULL;
+INSERT INTO t3(c) VALUES (2);
+DELETE FROM t3 WHERE c=2;
+INSERT INTO t3 SELECT a+200 FROM t2;
+DELETE FROM t3 WHERE c >= 200;
+INSERT INTO t3 SELECT a+200 FROM t2;
+include/save_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+4	4
+5	5
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	5
+6	6
+SELECT * FROM t3 ORDER BY c;
+c
+1
+201
+202
+203
+204
+205
+206
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	3
+4	4
+5	5
+SELECT * FROM t2 ORDER BY a;
+a	c
+1	NULL
+2	NULL
+3	NULL
+4	NULL
+5	5
+6	6
+SELECT * FROM t3 ORDER BY c;
+c
+1
+201
+202
+203
+204
+205
+206
+*** Test @@replicate_allow_parallel. ***
+include/stop_slave.inc
+UPDATE t1 SET b=10 WHERE a=3;
+SET SESSION replicate_allow_parallel=0;
+UPDATE t1 SET b=20 WHERE a=3;
+UPDATE t1 SET b=30 WHERE a=3;
+UPDATE t1 SET b=50 WHERE a=3;
+UPDATE t1 SET b=80 WHERE a=3;
+UPDATE t1 SET b=130 WHERE a=3;
+UPDATE t1 SET b=210 WHERE a=3;
+UPDATE t1 SET b=340 WHERE a=3;
+UPDATE t1 SET b=550 WHERE a=3;
+UPDATE t1 SET b=890 WHERE a=3;
+SET SESSION replicate_allow_parallel=1;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	890
+4	4
+5	5
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	2
+2	6
+3	890
+4	4
+5	5
+status
+Ok, no retry
+*** Test that we do not replicate in parallel transactions that had row lock waits on the master ***
+include/stop_slave.inc
+BEGIN;
+UPDATE t1 SET b=b+1 WHERE a=3;
+SET debug_sync='thd_report_wait_for SIGNAL waiting1';
+UPDATE t1 SET b=1001 WHERE a=3;
+SET debug_sync='now WAIT_FOR waiting1';
+BEGIN;
+UPDATE t1 SET b=1002 WHERE a=5;
+SET debug_sync='thd_report_wait_for SIGNAL waiting2';
+UPDATE t1 SET b=102 WHERE a=3;
+SET debug_sync='now WAIT_FOR waiting2';
+UPDATE t1 SET b=1000 WHERE a=1;
+SET debug_sync='thd_report_wait_for SIGNAL waiting3';
+UPDATE t1 SET b=1003 WHERE a=5;
+SET debug_sync='now WAIT_FOR waiting3';
+SET debug_sync='thd_report_wait_for SIGNAL waiting4';
+UPDATE t1 SET b=1004 WHERE a=3;
+SET debug_sync='now WAIT_FOR waiting4';
+SET debug_sync='thd_report_wait_for SIGNAL waiting5';
+UPDATE t1 SET b=1005 WHERE a=5;
+SET debug_sync='now WAIT_FOR waiting5';
+SET debug_sync='thd_report_wait_for SIGNAL waiting6';
+UPDATE t1 SET b=1006 WHERE a=1;
+SET debug_sync='now WAIT_FOR waiting6';
+SET debug_sync='thd_report_wait_for SIGNAL waiting7';
+UPDATE t1 SET b=1007 WHERE a=5;
+SET debug_sync='now WAIT_FOR waiting7';
+SET debug_sync='thd_report_wait_for SIGNAL waiting8';
+UPDATE t1 SET b=1008 WHERE a=3;
+SET debug_sync='now WAIT_FOR waiting8';
+COMMIT;
+COMMIT;
+SET debug_sync='RESET';
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1006
+2	6
+3	1008
+4	4
+5	1007
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	1006
+2	6
+3	1008
+4	4
+5	1007
+status
+Ok, no retry
+*** Test that we replicate correctly when using READ COMMITTED and binlog_format=MIXED on the slave ***
+include/stop_slave.inc
+SET @old_format= @@GLOBAL.binlog_format;
+SET GLOBAL binlog_format= MIXED;
+SET @old_isolation= @@GLOBAL.tx_isolation;
+SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,0), (2,0), (3,0);
+INSERT INTO t2 VALUES (1,0), (2,0);
+INSERT INTO t1 SELECT 4, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 4, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 5, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 5, COUNT(*) FROM t1;
+INSERT INTO t2 SELECT 6, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 6, COUNT(*) FROM t2;
+INSERT INTO t1 SELECT 7, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 7, COUNT(*) FROM t1;
+INSERT INTO t2 SELECT 8, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 8, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 9, COUNT(*) FROM t1;
+INSERT INTO t1 SELECT 9, COUNT(*) FROM t2;
+INSERT INTO t1 SELECT 10, COUNT(*) FROM t2;
+INSERT INTO t2 SELECT 10, COUNT(*) FROM t1;
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	0
+4	2
+5	3
+6	5
+7	5
+8	7
+9	8
+10	8
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	0
+4	4
+5	5
+6	5
+7	7
+8	7
+9	8
+10	10
+include/save_master_gtid.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t1 ORDER BY a;
+a	b
+1	0
+2	0
+3	0
+4	2
+5	3
+6	5
+7	5
+8	7
+9	8
+10	8
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	0
+2	0
+4	4
+5	5
+6	5
+7	7
+8	7
+9	8
+10	10
+include/stop_slave.inc
+SET GLOBAL binlog_format= @old_format;
+SET GLOBAL tx_isolation= @old_isolation;
+include/start_slave.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+DROP TABLE t1, t2, t3;
+include/rpl_end.inc

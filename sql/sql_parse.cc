@@ -6646,6 +6646,7 @@ void THD::reset_for_next_command()
   {
     thd->variables.option_bits&= ~OPTION_KEEP_LOG;
     thd->transaction.all.modified_non_trans_table= FALSE;
+    thd->transaction.all.m_unsafe_rollback_flags&= ~THD_TRANS::DID_WAIT;
   }
   DBUG_ASSERT(thd->security_ctx== &thd->main_security_ctx);
   thd->thread_specific_used= FALSE;

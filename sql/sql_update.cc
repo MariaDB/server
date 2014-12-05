@@ -969,6 +969,8 @@ int mysql_update(THD *thd,
   
   if (thd->transaction.stmt.modified_non_trans_table)
       thd->transaction.all.modified_non_trans_table= TRUE;
+  thd->transaction.all.m_unsafe_rollback_flags|=
+    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   /*
     error < 0 means really no error at all: we processed all rows until the
@@ -2247,6 +2249,8 @@ void multi_update::abort_result_set()
     }
     thd->transaction.all.modified_non_trans_table= TRUE;
   }
+  thd->transaction.all.m_unsafe_rollback_flags|=
+    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
   DBUG_ASSERT(trans_safe || !updated || thd->transaction.stmt.modified_non_trans_table);
 }
 
@@ -2498,6 +2502,8 @@ bool multi_update::send_eof()
 
   if (thd->transaction.stmt.modified_non_trans_table)
     thd->transaction.all.modified_non_trans_table= TRUE;
+  thd->transaction.all.m_unsafe_rollback_flags|=
+    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 
   if (local_error == 0 || thd->transaction.stmt.modified_non_trans_table)
   {

@@ -1,0 +1,1 @@
+--slave-parallel-mode=domain --m1.slave-parallel-mode=transactional --m2.slave-parallel-mode=domain,follow_master_commit,waiting

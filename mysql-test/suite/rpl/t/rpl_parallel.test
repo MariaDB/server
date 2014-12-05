@@ -1,13 +1,12 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
---let $rpl_topology=1->2
---source include/rpl_init.inc
+--source include/master-slave.inc
 
 # Test various aspects of parallel replication.
 
 --connection server_2
-SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+--let $old_parallel_threads=`SELECT @@GLOBAL.slave_parallel_threads`
 --error ER_SLAVE_MUST_STOP
 SET GLOBAL slave_parallel_threads=10;
 --source include/stop_slave.inc
@@ -1466,6 +1465,71 @@ SET sql_slave_skip_counter= 1;
 SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
 
 
+--echo *** MDEV-6676 - test syntax of @@slave_parallel_mode ***
+--connection server_2
+
+--let $status_items= Parallel_Mode
+--source include/show_slave_status.inc
+--source include/stop_slave.inc
+--error ER_INVALID_SLAVE_PARALLEL_MODE
+SET GLOBAL slave_parallel_mode='domain,follow_master_commit,transactional';
+SET GLOBAL slave_parallel_mode='waiting,transactional,domain';
+--let $status_items= Parallel_Mode
+--source include/show_slave_status.inc
+SET GLOBAL slave_parallel_mode='domain,follow_master_commit';
+--let $status_items= Parallel_Mode
+--source include/show_slave_status.inc
+
+
+--echo *** MDEV-6676 - test that empty parallel_mode does not replicate in parallel ***
+--connection server_1
+INSERT INTO t2 VALUES (40);
+--source include/save_master_gtid.inc
+
+--connection server_2
+SET GLOBAL slave_parallel_mode='';
+# Test that we do not use parallel apply, by injecting an unconditional
+# crash in the parallel apply code.
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,slave_crash_if_parallel_apply";
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+
+
+--echo *** MDEV-6676 - test disabling domain-based parallel replication ***
+--connection server_1
+# Let's do a bunch of transactions that will conflict if run out-of-order in
+# domain-based parallel replication mode.
+SET gtid_domain_id = 1;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+INSERT INTO t2 VALUES (45);
+INSERT INTO t2 VALUES (46);
+DELETE FROM t2 WHERE a >= 41;
+SET gtid_domain_id = 2;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+INSERT INTO t2 VALUES (45);
+INSERT INTO t2 VALUES (46);
+SET gtid_domain_id = 0;
+--source include/save_master_gtid.inc
+--connection server_2
+SET GLOBAL slave_parallel_mode=follow_master_commit;
+--source include/start_slave.inc
+--source include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='domain,follow_master_commit';
+--source include/start_slave.inc
+
+
 --echo *** MDEV-6775: Wrong binlog order in parallel replication ***
 --connection server_1
 # A bit tricky bug to reproduce. On the master, we binlog in statement-mode
@@ -1537,7 +1601,7 @@ SET GLOBAL slave_parallel_threads=10;
 
 --echo *** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
 --connection server_1
-INSERT INTO t2 VALUES (40);
+INSERT INTO t2 VALUES (50);
 --save_master_pos
 
 --connection server_2
@@ -1558,28 +1622,28 @@ SET GLOBAL slave_parallel_threads=10;
 
 --connection server_1
 # Setup some transaction for the slave to replicate.
-INSERT INTO t2 VALUES (41);
-INSERT INTO t2 VALUES (42);
+INSERT INTO t2 VALUES (51);
+INSERT INTO t2 VALUES (52);
 # Need to log the DELETE in statement format, so we can see it in processlist.
 SET @old_format= @@binlog_format;
 SET binlog_format= statement;
-DELETE FROM t2 WHERE a=40;
+DELETE FROM t2 WHERE a=50;
 SET binlog_format= @old_format;
-INSERT INTO t2 VALUES (43);
-INSERT INTO t2 VALUES (44);
+INSERT INTO t2 VALUES (53);
+INSERT INTO t2 VALUES (54);
 # Force the slave to switch to a new relay log file.
 FLUSH LOGS;
-INSERT INTO t2 VALUES (45);
+INSERT INTO t2 VALUES (55);
 # Inject a GTID 0-1-100, which will trigger a DEBUG_SYNC signal when this
 # transaction has been fetched by a worker thread.
 SET gtid_seq_no=100;
-INSERT INTO t2 VALUES (46);
+INSERT INTO t2 VALUES (56);
 --save_master_pos
 
 --connection con_temp2
 # Temporarily block the DELETE on a=40 from completing.
 BEGIN;
-SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+SELECT * FROM t2 WHERE a=50 FOR UPDATE;
 
 
 --connection server_2
@@ -1587,7 +1651,7 @@ SELECT * FROM t2 WHERE a=40 FOR UPDATE;
 
 # Wait for a worker thread to start on the DELETE that will be blocked
 # temporarily by the SELECT FOR UPDATE.
---let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE state='updating' and info LIKE '%DELETE FROM t2 WHERE a=40%'
+--let $wait_condition= SELECT count(*) > 0 FROM information_schema.processlist WHERE state='updating' and info LIKE '%DELETE FROM t2 WHERE a=50%'
 --source include/wait_condition.inc
 
 # The DBUG injection set above will make the worker thread signal the following
@@ -1620,13 +1684,13 @@ ROLLBACK;
 --connection server_2
 reap;
 --source include/wait_for_slave_sql_to_stop.inc
-SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 # Now restart the slave. With the bug present, this would start at an
 # incorrect relay log position, causing relay log read error (or if unlucky,
 # silently skip a number of events).
 --source include/start_slave.inc
 --sync_with_master
-SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 --source include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';
@@ -1639,7 +1703,7 @@ CHANGE MASTER TO master_use_gtid=slave_pos;
 # Clean up.
 --connection server_2
 --source include/stop_slave.inc
-SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+eval SET GLOBAL slave_parallel_threads=$old_parallel_threads;
 --source include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 

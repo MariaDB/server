@@ -2275,3 +2275,24 @@ public:
     return NULL;
   }
 };
+
+
+/**
+   Class for connection_name.slave_parallel_mode.
+*/
+class Sys_var_slave_parallel_mode: public Sys_var_set
+{
+public:
+  Sys_var_slave_parallel_mode(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt, const char *values[], ulonglong def_val)
+    : Sys_var_set(name_arg, comment, flag_args, off, size,
+                  getopt, values, def_val)
+  {
+    option.var_type|= GET_ASK_ADDR;
+    option.value= (uchar**)1; // crash me, please
+    SYSVAR_ASSERT(scope() == GLOBAL);
+  }
+  bool global_update(THD *thd, set_var *var);
+  uchar *global_value_ptr(THD *thd, const LEX_STRING *base);
+};

@@ -567,6 +567,8 @@ ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
 ulong opt_slave_domain_parallel_threads= 0;
+ulonglong opt_slave_parallel_mode=
+  SLAVE_PARALLEL_DOMAIN | SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
@@ -2119,6 +2121,7 @@ void clean_up(bool print_message)
   free_all_rpl_filters();
 #ifdef HAVE_REPLICATION
   end_slave_list();
+  mi_cmdline_destroy();
 #endif
   my_uuid_end();
   delete binlog_filter;
@@ -7317,6 +7320,20 @@ struct my_option my_long_options[]=
   {"skip-slave-start", 0,
    "If set, slave is not autostarted.", &opt_skip_slave_start,
    &opt_skip_slave_start, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+#ifdef HAVE_REPLICATION
+  {"slave-parallel-mode", OPT_SLAVE_PARALLEL_MODE,
+   "Controls what transactions are applied in parallel when using "
+   "--slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], "
+   "where \"value\" could be one or more of: \"domain\", to apply different "
+   "replication domains in parallel; \"follow_master_commit\", to apply "
+   "in parallel transactions that group-committed together on the master; "
+   "\"transactional\", to optimistically try to apply all transactional "
+   "DML in parallel; and \"waiting\" to extend \"transactional\" to "
+   "even transactions that had to wait on the master.",
+   &opt_slave_parallel_mode, &opt_slave_parallel_mode,
+   &slave_parallel_mode_typelib, GET_SET | GET_ASK_ADDR, REQUIRED_ARG,
+   SLAVE_PARALLEL_DOMAIN | SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT, 0, 0, 0, 0, 0},
+#endif
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   {"slow-start-timeout", 0,
    "Maximum number of milliseconds that the service control manager should wait "
@@ -9029,6 +9046,24 @@ mysql_getopt_value(const char *name, uint length,
     }
     return 0;
   }
+#ifdef HAVE_REPLICATION
+  case OPT_SLAVE_PARALLEL_MODE:
+  {
+    ulonglong *ptr;
+    LEX_STRING connection_name;
+    if (!length)
+      return &opt_slave_parallel_mode;
+    connection_name.str= const_cast<char *>(name);
+    connection_name.length= length;
+    if (mi_slave_parallel_mode_ptr(&connection_name, &ptr, true))
+    {
+      if (error)
+        *error= EXIT_OUT_OF_MEMORY;
+      return NULL;
+    }
+    return ptr;
+  }
+#endif
   }
   return option->value;
 }

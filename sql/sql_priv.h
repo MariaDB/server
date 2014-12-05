@@ -181,6 +181,7 @@
 */
 #define OPTION_ALLOW_BATCH              (1ULL << 36) // THD, intern (slave)
 #define OPTION_SKIP_REPLICATION         (1ULL << 37) // THD, user
+#define OPTION_RPL_ALLOW_PARALLEL       (1ULL << 38)
 
 /* The rest of the file is included in the server only */
 #ifndef MYSQL_CLIENT

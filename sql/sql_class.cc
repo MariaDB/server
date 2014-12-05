@@ -1421,6 +1421,9 @@ void THD::init(void)
 
   transaction.all.modified_non_trans_table=
     transaction.stmt.modified_non_trans_table= FALSE;
+  transaction.all.m_unsafe_rollback_flags=
+    transaction.stmt.m_unsafe_rollback_flags= 0;
+
   open_options=ha_open_options;
   update_lock_default= (variables.low_priority_updates ?
 			TL_WRITE_LOW_PRIORITY :
@@ -4372,6 +4375,8 @@ thd_need_wait_for(const MYSQL_THD thd)
 {
   rpl_group_info *rgi;
 
+  if (mysql_bin_log.is_open())
+    return true;
   if (!thd)
     return false;
   rgi= thd->rgi_slave;
@@ -4406,12 +4411,16 @@ thd_need_wait_for(const MYSQL_THD thd)
   not harmful, but could lead to unnecessary kill and retry, so best avoided).
 */
 extern "C" void
-thd_report_wait_for(const MYSQL_THD thd, MYSQL_THD other_thd)
+thd_report_wait_for(MYSQL_THD thd, MYSQL_THD other_thd)
 {
   rpl_group_info *rgi;
   rpl_group_info *other_rgi;
 
-  if (!thd || !other_thd)
+  if (!thd)
+    return;
+  DEBUG_SYNC(thd, "thd_report_wait_for");
+  thd->transaction.stmt.mark_trans_did_wait();
+  if (!other_thd)
     return;
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;

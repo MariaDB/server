@@ -184,6 +184,7 @@ extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
 extern ulong opt_slave_domain_parallel_threads;
 extern ulong opt_slave_parallel_max_queued;
+extern ulonglong opt_slave_parallel_mode;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
 extern my_bool opt_gtid_ignore_duplicates;
@@ -586,6 +587,7 @@ enum options_mysqld
   OPT_SERVER_ID,
   OPT_SKIP_HOST_CACHE,
   OPT_SKIP_RESOLVE,
+  OPT_SLAVE_PARALLEL_MODE,
   OPT_SSL_CA,
   OPT_SSL_CAPATH,
   OPT_SSL_CERT,

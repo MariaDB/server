@@ -1,0 +1,15 @@
+SELECT @@global.replicate_allow_parallel;
+ERROR HY000: Variable 'replicate_allow_parallel' is a SESSION variable
+SET GLOBAL replicate_allow_parallel= 1;
+ERROR HY000: Variable 'replicate_allow_parallel' is a SESSION variable and can't be used with SET GLOBAL
+SELECT @@session.replicate_allow_parallel;
+@@session.replicate_allow_parallel
+1
+SET SESSION replicate_allow_parallel= 0;
+SELECT @@session.replicate_allow_parallel;
+@@session.replicate_allow_parallel
+0
+SET SESSION replicate_allow_parallel= 1;
+SELECT @@session.replicate_allow_parallel;
+@@session.replicate_allow_parallel
+1

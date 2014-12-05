@@ -1,5 +1,5 @@
-include/rpl_init.inc [topology=1->2]
-SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/master-slave.inc
+[connection master]
 SET GLOBAL slave_parallel_threads=10;
 ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
 include/stop_slave.inc
@@ -923,6 +923,61 @@ a
 32
 33
 34
+*** MDEV-6676 - test syntax of @@slave_parallel_mode ***
+Parallel_Mode = 'domain,follow_master_commit'
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='domain,follow_master_commit,transactional';
+ERROR HY000: Invalid use of 'transactional' option for slave_parallel_mode
+SET GLOBAL slave_parallel_mode='waiting,transactional,domain';
+Parallel_Mode = 'domain,transactional,waiting'
+SET GLOBAL slave_parallel_mode='domain,follow_master_commit';
+Parallel_Mode = 'domain,follow_master_commit'
+*** MDEV-6676 - test that empty parallel_mode does not replicate in parallel ***
+INSERT INTO t2 VALUES (40);
+include/save_master_gtid.inc
+SET GLOBAL slave_parallel_mode='';
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,slave_crash_if_parallel_apply";
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+40
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+*** MDEV-6676 - test disabling domain-based parallel replication ***
+SET gtid_domain_id = 1;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+INSERT INTO t2 VALUES (45);
+INSERT INTO t2 VALUES (46);
+DELETE FROM t2 WHERE a >= 41;
+SET gtid_domain_id = 2;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+INSERT INTO t2 VALUES (45);
+INSERT INTO t2 VALUES (46);
+SET gtid_domain_id = 0;
+include/save_master_gtid.inc
+SET GLOBAL slave_parallel_mode=follow_master_commit;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+40
+41
+42
+43
+44
+45
+46
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='domain,follow_master_commit';
+include/start_slave.inc
 *** MDEV-6775: Wrong binlog order in parallel replication ***
 DELETE FROM t4;
 INSERT INTO t4 VALUES (1,NULL), (3,NULL), (4,4), (5, NULL), (6, 6);
@@ -973,7 +1028,7 @@ SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
 include/start_slave.inc
 *** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
-INSERT INTO t2 VALUES (40);
+INSERT INTO t2 VALUES (50);
 include/stop_slave.inc
 CHANGE MASTER TO master_use_gtid=no;
 SET @old_dbug= @@GLOBAL.debug_dbug;
@@ -981,41 +1036,41 @@ SET GLOBAL debug_dbug="+d,rpl_parallel_scheduled_gtid_0_x_100";
 SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
 SET GLOBAL slave_parallel_threads=0;
 SET GLOBAL slave_parallel_threads=10;
-INSERT INTO t2 VALUES (41);
-INSERT INTO t2 VALUES (42);
+INSERT INTO t2 VALUES (51);
+INSERT INTO t2 VALUES (52);
 SET @old_format= @@binlog_format;
 SET binlog_format= statement;
-DELETE FROM t2 WHERE a=40;
+DELETE FROM t2 WHERE a=50;
 SET binlog_format= @old_format;
-INSERT INTO t2 VALUES (43);
-INSERT INTO t2 VALUES (44);
+INSERT INTO t2 VALUES (53);
+INSERT INTO t2 VALUES (54);
 FLUSH LOGS;
-INSERT INTO t2 VALUES (45);
+INSERT INTO t2 VALUES (55);
 SET gtid_seq_no=100;
-INSERT INTO t2 VALUES (46);
+INSERT INTO t2 VALUES (56);
 BEGIN;
-SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+SELECT * FROM t2 WHERE a=50 FOR UPDATE;
 a
-40
+50
 include/start_slave.inc
 SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
 STOP SLAVE;
 SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
 ROLLBACK;
 include/wait_for_slave_sql_to_stop.inc
-SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 a
-41
-42
+51
+52
 include/start_slave.inc
-SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+SELECT * FROM t2 WHERE a >= 50 ORDER BY a;
 a
-41
-42
-43
-44
-45
-46
+51
+52
+53
+54
+55
+56
 include/stop_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
 SET DEBUG_SYNC= 'RESET';
@@ -1024,7 +1079,7 @@ SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_use_gtid=slave_pos;
 include/start_slave.inc
 include/stop_slave.inc
-SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_threads=0;
 include/start_slave.inc
 SET DEBUG_SYNC= 'RESET';
 DROP function foo;
