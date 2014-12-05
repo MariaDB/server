@@ -23574,7 +23574,10 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       if (tab->use_quick == 2)
       {
         eta->push_extra(ET_RANGE_CHECKED_FOR_EACH_RECORD);
-        eta->range_checked_map= tab->keys;
+        eta->range_checked_fer= new (thd->mem_root) Explain_range_checked_fer;
+        eta->range_checked_fer->keys_map= tab->keys;
+        append_possible_keys(thd->mem_root, eta->range_checked_fer->key_set,
+                             table, tab->keys);
       }
       else if (tab->select->cond ||
                (tab->cache_select && tab->cache_select->cond))

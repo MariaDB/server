@@ -539,6 +539,18 @@ private:
 
 
 /*
+  Data structure for "range checked for each record". 
+  It's a set of keys, tabular explain prints hex bitmap, json prints key names.
+*/
+
+class Explain_range_checked_fer : public Sql_alloc
+{
+public:
+  String_list key_set;
+  key_map keys_map;
+};
+
+/*
   EXPLAIN data structure for a single JOIN_TAB.
 */
 
@@ -549,6 +561,7 @@ public:
     derived_select_number(0),
     non_merged_sjm_number(0),
     extra_tags(root),
+    range_checked_fer(NULL),
     start_dups_weedout(false),
     end_dups_weedout(false),
     where_cond(NULL),
@@ -618,9 +631,9 @@ public:
 
   // Valid if ET_USING tag is present
   Explain_quick_select *quick_info;
-
-  // valid with ET_RANGE_CHECKED_FOR_EACH_RECORD
-  key_map range_checked_map;
+  
+  /* Non-NULL values means this tab uses "range checked for each record" */
+  Explain_range_checked_fer *range_checked_fer;
 
   // valid with ET_USING_JOIN_BUFFER
   EXPLAIN_BKA_TYPE bka_type;

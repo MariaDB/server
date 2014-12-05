@@ -691,5 +691,31 @@ EXPLAIN
     }
   }
 }
+# 'Range checked for each record'
+set optimizer_switch=@tmp;
+explain format=json
+select * from t1 tbl1, t1 tbl2 where tbl2.a < tbl1.b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "tbl1",
+      "access_type": "ALL",
+      "rows": 100,
+      "filtered": 100
+    },
+    "range-checked-for-each-record": {
+      "keys": ["a"],
+      "table": {
+        "table_name": "tbl2",
+        "access_type": "ALL",
+        "possible_keys": ["a"],
+        "rows": 100,
+        "filtered": 100
+      }
+    }
+  }
+}
 drop table t1;
 drop table t0;

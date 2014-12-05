@@ -1132,6 +1132,8 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_USING:
       // index merge: case ET_USING 
       break;
+    case ET_RANGE_CHECKED_FOR_EACH_RECORD:
+      /* Handled as range_checked_fer */
     case ET_USING_JOIN_BUFFER:
       /* Do nothing. Join buffer is handled differently */
     case ET_START_TEMPORARY:
@@ -1153,6 +1155,22 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
 }
 
 
+static
+void add_json_keyset(Json_writer *writer, const char *elem_name,
+                     String_list *keyset)
+{
+  if (!keyset->is_empty())
+  {
+    List_iterator_fast<char> it(*keyset);
+    const char *name;
+    writer->add_member(elem_name).start_array();
+    while ((name= it++))
+      writer->add_str(name);
+    writer->end_array();
+  }
+}
+
+
 void Explain_table_access::print_explain_json(Explain_query *query,
                                               Json_writer *writer,
                                               bool is_analyze)
@@ -1164,20 +1182,19 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->add_member("block-nl-join").start_object();
   }
 
+  if (range_checked_fer)
+  {
+    writer->add_member("range-checked-for-each-record").start_object();
+    add_json_keyset(writer, "keys", &possible_keys);
+  }
+
   writer->add_member("table").start_object();
 
   writer->add_member("table_name").add_str(table_name);
   // partitions
   writer->add_member("access_type").add_str(join_type_str[type]);
-  if (!possible_keys.is_empty())
-  {
-    List_iterator_fast<char> it(possible_keys);
-    const char *name;
-    writer->add_member("possible_keys").start_array();
-    while ((name= it++))
-      writer->add_str(name);
-    writer->end_array();
-  }
+
+  add_json_keyset(writer, "possible_keys", &possible_keys);
 
   /* `key` */
   /* For non-basic quick select, 'key' will not be present */
@@ -1271,10 +1288,13 @@ void Explain_table_access::print_explain_json(Explain_query *query,
   {
     tag_to_json(writer, extra_tags.at(i));
   }
+  
+  if (range_checked_fer)
+    writer->end_object(); // "range-checked-for-each-record"
 
   if (bka_type.is_using_jbuf())
   {
-    writer->end_object();
+    writer->end_object(); // "block-nl-join"
     writer->add_member("buffer_type").add_str(bka_type.incremental?
                                               "incremental":"flat");
     writer->add_member("join_type").add_str(bka_type.join_alg);
@@ -1388,7 +1408,7 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       char buf[MAX_KEY / 4 + 1];
       str->append(STRING_WITH_LEN("Range checked for each "
                                    "record (index map: 0x"));
-      str->append(range_checked_map.print(buf));
+      str->append(range_checked_fer->keys_map.print(buf));
       str->append(')');
       break;
     }

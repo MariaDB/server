@@ -145,6 +145,11 @@ set optimizer_switch='mrr=on,mrr_sort_keys=on';
 
 explain format=json select * from t1 where a < 3;
 
+--echo # 'Range checked for each record'
+set optimizer_switch=@tmp;
+explain format=json
+select * from t1 tbl1, t1 tbl2 where tbl2.a < tbl1.b;
+
 drop table t1;
 drop table t0;
 
