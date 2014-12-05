@@ -450,13 +450,24 @@ enum explain_extra_tag
 };
 
 
+/*
+  Explain data structure describing join buffering use.
+*/
+
 class EXPLAIN_BKA_TYPE
 {
 public:
   EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
 
   bool incremental;
+
+  /* 
+    NULL if no join buferring used.
+    Other values: BNL, BNLH, BKA, BKAH.
+  */
   const char *join_alg;
+
+  /* Information about MRR usage.  */
   StringBuffer<64> mrr_type;
   
   bool is_using_jbuf() { return (join_alg != NULL); }

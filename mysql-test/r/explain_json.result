@@ -665,4 +665,31 @@ EXPLAIN
 }
 set optimizer_switch=@tmp;
 drop table t1,t2;
+#
+# MRR for range access (no BKA, just MRR)
+#
+create table t1 (a int, b int, key(a));
+insert into t1 select tbl1.a+10*tbl2.a, 12345 from t0 tbl1, t0 tbl2;
+set @tmp= @@optimizer_switch;
+set optimizer_switch='mrr=on,mrr_sort_keys=on';
+explain format=json select * from t1 where a < 3;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t1",
+      "access_type": "range",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "rows": 1,
+      "filtered": 100,
+      "index_condition": "(t1.a < 3)",
+      "mrr_type": "Rowid-ordered scan"
+    }
+  }
+}
+drop table t1;
 drop table t0;

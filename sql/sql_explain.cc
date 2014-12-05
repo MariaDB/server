@@ -1144,6 +1144,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_LOOSESCAN:
       writer->add_member("loose_scan").add_bool(true);
       break;
+    case ET_USING_MRR:
+      writer->add_member("mrr_type").add_str(mrr_type.c_ptr());
+      break;
     default:
       DBUG_ASSERT(0);
   }

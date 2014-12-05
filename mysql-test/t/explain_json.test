@@ -134,5 +134,17 @@ select * from t2 where t2.a in ( select a from t1 where t1.b=t2.b);
 set optimizer_switch=@tmp;
 
 drop table t1,t2;
+
+--echo #
+--echo # MRR for range access (no BKA, just MRR)
+--echo #
+create table t1 (a int, b int, key(a));
+insert into t1 select tbl1.a+10*tbl2.a, 12345 from t0 tbl1, t0 tbl2;
+set @tmp= @@optimizer_switch;
+set optimizer_switch='mrr=on,mrr_sort_keys=on';
+
+explain format=json select * from t1 where a < 3;
+
+drop table t1;
 drop table t0;
 
