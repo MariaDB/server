@@ -1139,6 +1139,8 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_START_TEMPORARY:
     case ET_END_TEMPORARY:
       /* Handled as "duplicates_removal: { ... } */
+    case ET_FULL_SCAN_ON_NULL_KEY:
+      /* Handled in full_scan_on_null_key */
       break;
     case ET_FIRST_MATCH:
       writer->add_member("first_match").add_str(firstmatch_table_name.c_ptr());
@@ -1187,6 +1189,9 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     writer->add_member("range-checked-for-each-record").start_object();
     add_json_keyset(writer, "keys", &possible_keys);
   }
+
+  if (full_scan_on_null_key)
+    writer->add_member("full-scan-on-null_key").start_object();
 
   writer->add_member("table").start_object();
 
@@ -1289,6 +1294,9 @@ void Explain_table_access::print_explain_json(Explain_query *query,
     tag_to_json(writer, extra_tags.at(i));
   }
   
+  if (full_scan_on_null_key)
+    writer->end_object(); //"full-scan-on-null_key"
+
   if (range_checked_fer)
     writer->end_object(); // "range-checked-for-each-record"
 

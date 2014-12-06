@@ -562,6 +562,7 @@ public:
     non_merged_sjm_number(0),
     extra_tags(root),
     range_checked_fer(NULL),
+    full_scan_on_null_key(false),
     start_dups_weedout(false),
     end_dups_weedout(false),
     where_cond(NULL),
@@ -634,6 +635,8 @@ public:
   
   /* Non-NULL values means this tab uses "range checked for each record" */
   Explain_range_checked_fer *range_checked_fer;
+ 
+  bool full_scan_on_null_key;
 
   // valid with ET_USING_JOIN_BUFFER
   EXPLAIN_BKA_TYPE bka_type;

@@ -23687,6 +23687,7 @@ void JOIN_TAB::save_explain_data(Explain_table_access *eta, table_map prefix_tab
       if (tab->ref.cond_guards[part])
       {
         eta->push_extra(ET_FULL_SCAN_ON_NULL_KEY);
+        eta->full_scan_on_null_key= true;
         break;
       }
     }
