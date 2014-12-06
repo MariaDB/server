@@ -898,10 +898,10 @@ void Item_subselect::print(String *str, enum_query_type query_type)
   if (query_type == QT_EXPLAIN)
   {
     str->append("(subquery#");
-    if (engine)
+    if (unit && unit->first_select())
     {
       char buf[64];
-      ll2str(engine->get_identifier(), buf, 10, 0); 
+      ll2str(unit->first_select()->select_number, buf, 10, 0); 
       str->append(buf);
     }
     else
@@ -3732,10 +3732,6 @@ int subselect_union_engine::exec()
   return res;
 }
 
-int subselect_union_engine::get_identifier()
-{
-  return unit->first_select()->select_number;
-}
 
 /*
   Search for at least one row satisfying select condition

@@ -871,7 +871,6 @@ public:
   bool is_executed() const;
   bool no_rows();
   virtual enum_engine_type engine_type() { return UNION_ENGINE; }
-  int get_identifier();
 };
 
 
