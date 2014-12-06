@@ -1,0 +1,28 @@
+#
+# MariaDB's EXPLAIN FORMAT=JSON tests that require InnoDB.
+#
+--source include/have_innodb.inc
+
+--disable_warnings
+drop table if exists t0,t1,t2;
+--enable_warnings
+
+--echo #
+--echo # MDEV-7266: Assertion `!element_started' failed in Json_writer& Json_writer::add_member
+--echo # 
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (column_name_1 INT, column_name_2 VARCHAR(52)) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (3,'United States');
+
+CREATE TABLE t3 (b INT, c VARCHAR(3), PRIMARY KEY (c,b)) ENGINE=InnoDB;
+INSERT INTO t3 VALUES (4,'USA'),(5,'CAN');
+
+EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE 0 < ALL ( 
+  SELECT tbl_alias1.column_name_1 FROM t2 AS tbl_alias1, t3 AS tbl_alias2 
+  WHERE tbl_alias2.b = tbl_alias1.column_name_1 AND tbl_alias2.c = tbl_alias1.column_name_2 
+);
+
+drop table t1,t2,t3;
