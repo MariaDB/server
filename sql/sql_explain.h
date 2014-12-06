@@ -175,6 +175,9 @@ public:
   void print_explain_json(Explain_query *query, Json_writer *writer, 
                           bool is_analyze);
 
+  void print_explain_json_interns(Explain_query *query, Json_writer *writer,
+                                  bool is_analyze);
+
   /* A flat array of Explain structs for tables. */
   Explain_table_access** join_tabs;
   uint n_join_tabs;
@@ -221,6 +224,9 @@ public:
     members have no info 
   */
   const char *message;
+  
+  /* Expensive constant condition */
+  Item *exec_const_cond;
   
   /* Global join attributes. In tabular form, they are printed on the first row */
   bool using_temporary;

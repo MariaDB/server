@@ -27,6 +27,8 @@ const char * STR_DELETING_ALL_ROWS= "Deleting all rows";
 const char * STR_IMPOSSIBLE_WHERE= "Impossible WHERE";
 const char * STR_NO_ROWS_AFTER_PRUNING= "No matching rows after partition pruning";
 
+static void write_item(Json_writer *writer, Item *item);
+
 Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) : 
   mem_root(root), upd_del_plan(NULL),  insert_plan(NULL),
   unions(root), selects(root),  thd(thd_arg), apc_enabled(false),
@@ -732,7 +734,17 @@ void Explain_select::print_explain_json(Explain_query *query,
          Explain_basic_join does not have ORDER/GROUP.
          A: factor out join tab printing loop into a common func.
     */
-    Explain_basic_join::print_explain_json(query, writer, is_analyze);
+    writer->add_member("query_block").start_object();
+    writer->add_member("select_id").add_ll(select_id);
+    
+    if (exec_const_cond)
+    {
+      writer->add_member("const_condition");
+      write_item(writer, exec_const_cond);
+    }
+
+    Explain_basic_join::print_explain_json_interns(query, writer, is_analyze);
+    writer->end_object();
   }
 
 }
@@ -742,10 +754,20 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
                                             Json_writer *writer, 
                                             bool is_analyze)
 {
-  Json_writer_nesting_guard guard(writer);
-
   writer->add_member("query_block").start_object();
   writer->add_member("select_id").add_ll(select_id);
+  
+  print_explain_json_interns(query, writer, is_analyze);
+
+  writer->end_object();
+}
+
+
+void Explain_basic_join::print_explain_json_interns(Explain_query *query, 
+                                                    Json_writer *writer, 
+                                                    bool is_analyze)
+{
+  Json_writer_nesting_guard guard(writer);
   for (uint i=0; i< n_join_tabs; i++)
   {
     if (join_tabs[i]->start_dups_weedout)
@@ -757,7 +779,6 @@ void Explain_basic_join::print_explain_json(Explain_query *query,
       writer->end_object();
   }
   print_explain_json_for_children(query, writer, is_analyze);
-  writer->end_object();
 }
 
 

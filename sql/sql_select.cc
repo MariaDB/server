@@ -23768,6 +23768,8 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
     if (need_order)
       xpl_sel->using_filesort= true;
 
+    xpl_sel->exec_const_cond= exec_const_cond;
+
     JOIN_TAB* const first_top_tab= first_breadth_first_tab(join, WALK_OPTIMIZATION_TABS);
     JOIN_TAB* prev_bush_root_tab= NULL;
 

@@ -218,7 +218,8 @@ bool Single_line_formatting_helper::on_start_array()
   }
   else
   {
-    state= INACTIVE;
+    if (state != DISABLED)
+      state= INACTIVE;
     // TODO: what if we have accumulated some stuff already? shouldn't we
     // flush it?
     return false; // not handled
@@ -313,6 +314,9 @@ void Single_line_formatting_helper::flush_on_one_line()
 
 void Single_line_formatting_helper::disable_and_flush()
 {
+  if (state == DISABLED)
+    return;
+
   bool start_array= (state == IN_ARRAY);
   state= DISABLED;
   // deactivate ourselves and flush all accumulated calls.
