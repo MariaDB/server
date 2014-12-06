@@ -2,7 +2,7 @@
 # EXPLAIN FORMAT=JSON tests. These are tests developed for MariaDB.
 #
 --disable_warnings
-drop table if exists t0,t1;
+drop table if exists t0,t1,t2;
 --enable_warnings
 
 create table t0(a int);
@@ -166,4 +166,22 @@ INSERT INTO t2 VALUES (3),(4);
 EXPLAIN FORMAT=JSON SELECT * FROM t1 AS outer_t1 WHERE a <> ALL ( SELECT a FROM t1, t2 WHERE b <> outer_t1.a );
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # Join's constant expression
+--echo #
+create table t0(a int);
+insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t1(a int, b int);
+insert into t1 select tbl1.a+10*tbl2.a, 1234 from t0 tbl1, t0 tbl2;
+
+explain format=json 
+select * from t0 
+where 
+  20000 > all (select max(tbl1.a + tbl2.a)
+               from t1 tbl1, t1 tbl2 where tbl1.b=tbl2.b);
+
+drop table t1;
+drop table t0;
 
