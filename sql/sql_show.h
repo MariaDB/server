@@ -76,7 +76,7 @@ typedef struct system_status_var STATUS_VAR;
 
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO  *create_info_arg,
+                      Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
@@ -88,7 +88,7 @@ int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create(THD *thd, TABLE_LIST *table_list);
 bool mysqld_show_create_db(THD *thd, LEX_STRING *db_name,
                            LEX_STRING *orig_db_name,
-                           HA_CREATE_INFO *create);
+                           const DDL_options_st &options);
 
 void mysqld_list_processes(THD *thd,const char *user,bool verbose);
 int mysqld_show_status(THD *thd);

@@ -3188,13 +3188,13 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
   switch (lex->sql_command)
   {
     case SQLCOM_DROP_TABLE:
-      use_cache= (lex->drop_temporary && thd->in_multi_stmt_transaction_mode());
+      use_cache= (lex->tmp_table() && thd->in_multi_stmt_transaction_mode());
     break;
 
     case SQLCOM_CREATE_TABLE:
       trx_cache= (lex->select_lex.item_list.elements &&
                   thd->is_current_stmt_binlog_format_row());
-      use_cache= (lex->create_info.tmp_table() &&
+      use_cache= (lex->tmp_table() &&
                    thd->in_multi_stmt_transaction_mode()) || trx_cache;
       break;
     case SQLCOM_SET_OPTION:
@@ -4335,7 +4335,8 @@ compare_errors:
       has already been dropped. To ignore such irrelevant "table does
       not exist errors", we silently clear the error if TEMPORARY was used.
     */
-    if (thd->lex->sql_command == SQLCOM_DROP_TABLE && thd->lex->drop_temporary &&
+    if (thd->lex->sql_command == SQLCOM_DROP_TABLE &&
+        thd->lex->tmp_table() &&
         thd->is_error() && thd->get_stmt_da()->sql_errno() == ER_BAD_TABLE_ERROR &&
         !expected_error)
       thd->get_stmt_da()->reset_diagnostics_area();

@@ -218,12 +218,12 @@ static bool stmt_causes_implicit_commit(THD *thd, uint mask)
 
   switch (lex->sql_command) {
   case SQLCOM_DROP_TABLE:
-    skip= (lex->drop_temporary ||
+    skip= (lex->tmp_table() ||
            (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_ALTER_TABLE:
     /* If ALTER TABLE of non-temporary table, do implicit commit */
-    skip= (lex->create_info.tmp_table());
+    skip= (lex->tmp_table());
     break;
   case SQLCOM_CREATE_TABLE:
     /*
@@ -232,7 +232,7 @@ static bool stmt_causes_implicit_commit(THD *thd, uint mask)
       This ensures that CREATE ... SELECT will in the same GTID group on the
       master and slave.
     */
-    skip= (lex->create_info.tmp_table() ||
+    skip= (lex->tmp_table() ||
            (thd->variables.option_bits & OPTION_GTID_BEGIN));
     break;
   case SQLCOM_SET_OPTION:
@@ -1165,12 +1165,10 @@ static my_bool deny_updates_if_read_only_option(THD *thd,
     DBUG_RETURN(FALSE);
 
   const my_bool create_temp_tables= 
-    (lex->sql_command == SQLCOM_CREATE_TABLE) &&
-    lex->create_info.tmp_table();
+    (lex->sql_command == SQLCOM_CREATE_TABLE) && lex->tmp_table();
 
   const my_bool drop_temp_tables= 
-    (lex->sql_command == SQLCOM_DROP_TABLE) &&
-    lex->drop_temporary;
+    (lex->sql_command == SQLCOM_DROP_TABLE) && lex->tmp_table();
 
   const my_bool update_real_tables=
     some_non_temp_table_to_be_updated(thd, all_tables) &&
@@ -2554,7 +2552,7 @@ mysql_execute_command(THD *thd)
     if (!(lex->sql_command == SQLCOM_UPDATE_MULTI) &&
 	!(lex->sql_command == SQLCOM_SET_OPTION) &&
 	!(lex->sql_command == SQLCOM_DROP_TABLE &&
-          lex->drop_temporary && lex->check_exists) &&
+          lex->tmp_table() && lex->if_exists()) &&
         all_tables_not_ok(thd, all_tables))
     {
       /* we warn the slave SQL thread */
@@ -3138,7 +3136,7 @@ mysql_execute_command(THD *thd)
       safe. A shallow copy is enough as this code won't modify any memory
       referenced from this structure.
     */
-    HA_CREATE_INFO create_info(lex->create_info);
+    Table_specification_st create_info(lex->create_info);
     /*
       We need to copy alter_info for the same reasons of re-execution
       safety, only in case of Alter_info we have to do (almost) a deep
@@ -3199,11 +3197,13 @@ mysql_execute_command(THD *thd)
       CREATE TABLE OR EXISTS failures by dropping the table and
       retrying the create.
     */
-    create_info.org_options= create_info.options;
     if (thd->slave_thread &&
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT &&
-        !(lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS))
-      create_info.options|= HA_LEX_CREATE_REPLACE;
+        !lex->create_info.if_not_exists())
+    {
+      create_info.add(DDL_options_st::OPT_OR_REPLACE);
+      create_info.add(DDL_options_st::OPT_OR_REPLACE_SLAVE_GENERATED);
+    }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     {
@@ -3289,7 +3289,7 @@ mysql_execute_command(THD *thd)
       /* Copy temporarily the statement flags to thd for lock_table_names() */
       uint save_thd_create_info_options= thd->lex->create_info.options;
       thd->lex->create_info.options|= create_info.options;
-      res= open_and_lock_tables(thd, lex->query_tables, TRUE, 0);
+      res= open_and_lock_tables(thd, create_info, lex->query_tables, TRUE, 0);
       thd->lex->create_info.options= save_thd_create_info_options;
       if (res)
       {
@@ -3300,8 +3300,7 @@ mysql_execute_command(THD *thd)
       }
 
       /* Ensure we don't try to create something from which we select from */
-      if ((create_info.options & HA_LEX_CREATE_REPLACE) &&
-          !create_info.tmp_table())
+      if (create_info.or_replace() && !create_info.tmp_table())
       {
         TABLE_LIST *duplicate;
         if ((duplicate= unique_table(thd, lex->query_tables,
@@ -3354,7 +3353,7 @@ mysql_execute_command(THD *thd)
     else
     {
       /* regular create */
-      if (create_info.options & HA_LEX_CREATE_TABLE_LIKE)
+      if (create_info.like())
       {
         /* CREATE TABLE ... LIKE ... */
         res= mysql_create_like_table(thd, create_table, select_tables,
@@ -3366,13 +3365,12 @@ mysql_execute_command(THD *thd)
            tables, like mysql replication does
         */
         if (WSREP(thd) && (!thd->is_current_stmt_binlog_format_row() ||
-            !(create_info.options & HA_LEX_CREATE_TMP_TABLE)))
+            !create_info.tmp_table()))
         {
 	  WSREP_TO_ISOLATION_BEGIN(create_table->db, create_table->table_name, NULL)
         }
         /* Regular CREATE TABLE */
-        res= mysql_create_table(thd, create_table,
-                                &create_info, &alter_info);
+        res= mysql_create_table(thd, create_table, &create_info, &alter_info);
       }
       if (!res)
       {
@@ -4076,7 +4074,7 @@ end_with_restore_list:
   case SQLCOM_DROP_TABLE:
   {
     DBUG_ASSERT(first_table == all_tables && first_table != 0);
-    if (!lex->drop_temporary)
+    if (!lex->tmp_table())
     {
       if (check_table_access(thd, DROP_ACL, all_tables, FALSE, UINT_MAX, FALSE))
 	goto error;				/* purecov: inspected */
@@ -4090,7 +4088,7 @@ end_with_restore_list:
    {
      for (TABLE_LIST *table= all_tables; table; table= table->next_global)
      {
-       if (!lex->drop_temporary                       &&
+       if (!lex->tmp_table() &&
           (!thd->is_current_stmt_binlog_format_row() ||
 	   !find_temporary_table(thd, table)))
        {
@@ -4107,11 +4105,10 @@ end_with_restore_list:
     */
     if (thd->slave_thread && !thd->slave_expected_error &&
         slave_ddl_exec_mode_options == SLAVE_EXEC_MODE_IDEMPOTENT)
-      lex->check_exists= 1;
-
+      lex->create_info.set(DDL_options_st::OPT_IF_EXISTS);
+    
     /* DDL and binlog write order are protected by metadata locks. */
-    res= mysql_rm_table(thd, first_table, lex->check_exists,
-			lex->drop_temporary);
+    res= mysql_rm_table(thd, first_table, lex->if_exists(), lex->tmp_table());
     break;
   }
   case SQLCOM_SHOW_PROCESSLIST:
@@ -4276,7 +4273,7 @@ end_with_restore_list:
       it, we need to use a copy of LEX::create_info to make execution
       prepared statement- safe.
     */
-    HA_CREATE_INFO create_info(lex->create_info);
+    Schema_specification_st create_info(lex->create_info);
     if (check_db_name(&lex->name))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
@@ -4304,7 +4301,7 @@ end_with_restore_list:
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
-    res= mysql_create_db(thd, lex->name.str, &create_info, 0);
+    res= mysql_create_db(thd, lex->name.str, lex->create_info, &create_info, 0);
     break;
   }
   case SQLCOM_DROP_DB:
@@ -4336,7 +4333,7 @@ end_with_restore_list:
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
-    res= mysql_rm_db(thd, lex->name.str, lex->check_exists, 0);
+    res= mysql_rm_db(thd, lex->name.str, lex->if_exists(), 0);
     break;
   }
   case SQLCOM_ALTER_DB_UPGRADE:
@@ -4422,7 +4419,7 @@ end_with_restore_list:
       my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
       break;
     }
-    res= mysqld_show_create_db(thd, &db_name, &lex->name, &lex->create_info);
+    res= mysqld_show_create_db(thd, &db_name, &lex->name, lex->create_info);
     break;
   }
   case SQLCOM_CREATE_EVENT:
@@ -4445,8 +4442,7 @@ end_with_restore_list:
     switch (lex->sql_command) {
     case SQLCOM_CREATE_EVENT:
     {
-      bool if_not_exists= (lex->create_info.options &
-                           HA_LEX_CREATE_IF_NOT_EXISTS);
+      bool if_not_exists= lex->create_info.if_not_exists();
       res= Events::create_event(thd, lex->event_parse_data, if_not_exists);
       break;
     }
@@ -4479,7 +4475,7 @@ end_with_restore_list:
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
     if (!(res= Events::drop_event(thd,
                                   lex->spname->m_db, lex->spname->m_name,
-                                  lex->check_exists)))
+                                  lex->if_exists())))
       my_ok(thd);
     break;
 #else
@@ -5192,7 +5188,7 @@ create_sp_error:
 
         if (lex->spname->m_db.str == NULL)
         {
-          if (lex->check_exists)
+          if (lex->if_exists())
           {
             push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                 ER_SP_DOES_NOT_EXIST, ER(ER_SP_DOES_NOT_EXIST),
@@ -5262,7 +5258,7 @@ create_sp_error:
 	my_ok(thd);
 	break;
       case SP_KEY_NOT_FOUND:
-	if (lex->check_exists)
+	if (lex->if_exists())
 	{
           res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
 	  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
@@ -5495,7 +5491,7 @@ create_sp_error:
 
     if ((err_code= drop_server(thd, &lex->server_options)))
     {
-      if (! lex->check_exists && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
+      if (! lex->if_exists() && err_code == ER_FOREIGN_SERVER_DOESNT_EXIST)
       {
         DBUG_PRINT("info", ("problem dropping server %s",
                             lex->server_options.server_name.str));
@@ -8448,7 +8444,7 @@ void create_table_set_open_action_and_adjust_tables(LEX *lex)
 {
   TABLE_LIST *create_table= lex->query_tables;
 
-  if (lex->create_info.tmp_table())
+  if (lex->tmp_table())
     create_table->open_type= OT_TEMPORARY_ONLY;
   else
     create_table->open_type= OT_BASE_ONLY;
@@ -8494,12 +8490,11 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     CREATE TABLE ... SELECT, also require INSERT.
   */
 
-  want_priv= lex->create_info.tmp_table() ?  CREATE_TMP_ACL :
+  want_priv= lex->tmp_table() ?  CREATE_TMP_ACL :
              (CREATE_ACL | (select_lex->item_list.elements ? INSERT_ACL : 0));
 
   /* CREATE OR REPLACE on not temporary tables require DROP_ACL */
-  if ((lex->create_info.options & HA_LEX_CREATE_REPLACE) &&
-      !lex->create_info.tmp_table())
+  if (lex->create_info.or_replace() && !lex->tmp_table())
     want_priv|= DROP_ACL;
                           
   if (check_access(thd, want_priv, create_table->db,
@@ -8563,7 +8558,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
                                      UINT_MAX, FALSE))
       goto err;
   }
-  else if (lex->create_info.options & HA_LEX_CREATE_TABLE_LIKE)
+  else if (lex->create_info.like())
   {
     if (check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE))
       goto err;

@@ -3453,7 +3453,8 @@ Open_table_context::recover_from_failed_open()
       break;
     case OT_DISCOVER:
       {
-        if ((result= lock_table_names(m_thd, m_failed_table, NULL,
+        if ((result= lock_table_names(m_thd, m_thd->lex->create_info,
+                                      m_failed_table, NULL,
                                       get_timeout(), 0)))
           break;
 
@@ -3484,7 +3485,8 @@ Open_table_context::recover_from_failed_open()
       }
     case OT_REPAIR:
       {
-        if ((result= lock_table_names(m_thd, m_failed_table, NULL,
+        if ((result= lock_table_names(m_thd, m_thd->lex->create_info,
+                                      m_failed_table, NULL,
                                       get_timeout(), 0)))
           break;
 
@@ -4132,7 +4134,7 @@ extern "C" uchar *schema_set_get_key(const TABLE_LIST *table, size_t *length,
 */
 
 bool
-lock_table_names(THD *thd,
+lock_table_names(THD *thd, const DDL_options_st &options,
                  TABLE_LIST *tables_start, TABLE_LIST *tables_end,
                  ulong lock_wait_timeout, uint flags)
 {
@@ -4176,8 +4178,8 @@ lock_table_names(THD *thd,
     DBUG_RETURN(FALSE);
 
   /* Check if CREATE TABLE without REPLACE was used */
-  create_table= (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                 !(thd->lex->create_info.options & HA_LEX_CREATE_REPLACE));
+  create_table= thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
+                !options.or_replace();
 
   if (!(flags & MYSQL_OPEN_SKIP_SCOPED_MDL_LOCK))
   {
@@ -4231,7 +4233,7 @@ lock_table_names(THD *thd,
     */
     if (ha_table_exists(thd, tables_start->db, tables_start->table_name))
     {
-      if (thd->lex->create_info.options & HA_LEX_CREATE_IF_NOT_EXISTS)
+      if (options.if_not_exists())
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                             ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
@@ -4344,8 +4346,9 @@ open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
   @retval  TRUE   Error, reported.
 */
 
-bool open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
-                Prelocking_strategy *prelocking_strategy)
+bool open_tables(THD *thd, const DDL_options_st &options,
+                 TABLE_LIST **start, uint *counter, uint flags,
+                 Prelocking_strategy *prelocking_strategy)
 {
   /*
     We use pointers to "next_global" member in the last processed
@@ -4434,7 +4437,8 @@ restart:
     else
     {
       TABLE_LIST *table;
-      if (lock_table_names(thd, *start, thd->lex->first_not_own_table(),
+      if (lock_table_names(thd, options, *start,
+                           thd->lex->first_not_own_table(),
                            ot_ctx.get_timeout(), flags))
       {
         error= TRUE;
@@ -5117,7 +5121,8 @@ end:
   @retval TRUE   Error
 */
 
-bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
+bool open_and_lock_tables(THD *thd, const DDL_options_st &options,
+                          TABLE_LIST *tables,
                           bool derived, uint flags,
                           Prelocking_strategy *prelocking_strategy)
 {
@@ -5126,7 +5131,7 @@ bool open_and_lock_tables(THD *thd, TABLE_LIST *tables,
   DBUG_ENTER("open_and_lock_tables");
   DBUG_PRINT("enter", ("derived handling: %d", derived));
 
-  if (open_tables(thd, &tables, &counter, flags, prelocking_strategy))
+  if (open_tables(thd, options, &tables, &counter, flags, prelocking_strategy))
     goto err;
 
   DBUG_EXECUTE_IF("sleep_open_and_lock_after_open", {

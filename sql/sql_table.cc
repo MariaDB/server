@@ -4617,6 +4617,7 @@ int create_table_impl(THD *thd,
                        const char *orig_db, const char *orig_table_name,
                        const char *db, const char *table_name,
                        const char *path,
+                       const DDL_options_st options,
                        HA_CREATE_INFO *create_info,
                        Alter_info *alter_info,
                        int create_table_mode,
@@ -4661,7 +4662,7 @@ int create_table_impl(THD *thd,
     if ((tmp_table= find_temporary_table(thd, db, table_name)))
     {
       bool table_creation_was_logged= tmp_table->s->table_creation_was_logged;
-      if (create_info->options & HA_LEX_CREATE_REPLACE)
+      if (options.or_replace())
       {
         bool is_trans;
         /*
@@ -4671,7 +4672,7 @@ int create_table_impl(THD *thd,
         if (drop_temporary_table(thd, tmp_table, &is_trans))
           goto err;
       }
-      else if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+      else if (options.if_not_exists())
         goto warn;
       else
       {
@@ -4697,7 +4698,7 @@ int create_table_impl(THD *thd,
   {
     if (!internal_tmp_table && ha_table_exists(thd, db, table_name))
     {
-      if (create_info->options & HA_LEX_CREATE_REPLACE)
+      if (options.or_replace())
       {
         TABLE_LIST table_list;
         table_list.init_one_table(db, strlen(db), table_name,
@@ -4733,7 +4734,7 @@ int create_table_impl(THD *thd,
             restart_trans_for_tables(thd, thd->lex->query_tables))
           goto err;
       }
-      else if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+      else if (options.if_not_exists())
         goto warn;
       else
       {
@@ -4889,7 +4890,7 @@ warn:
 
 int mysql_create_table_no_lock(THD *thd,
                                 const char *db, const char *table_name,
-                                HA_CREATE_INFO *create_info,
+                                Table_specification_st *create_info,
                                 Alter_info *alter_info, bool *is_trans,
                                 int create_table_mode)
 {
@@ -4916,7 +4917,8 @@ int mysql_create_table_no_lock(THD *thd,
   }
 
   res= create_table_impl(thd, db, table_name, db, table_name, path,
-                         create_info, alter_info, create_table_mode,
+                         *create_info, create_info,
+                         alter_info, create_table_mode,
                          is_trans, &not_used_1, &not_used_2, &frm);
   my_free(const_cast<uchar*>(frm.str));
   return res;
@@ -4933,7 +4935,7 @@ int mysql_create_table_no_lock(THD *thd,
 */
 
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
-                        HA_CREATE_INFO *create_info,
+                        Table_specification_st *create_info,
                         Alter_info *alter_info)
 {
   const char *db= create_table->db;
@@ -4952,7 +4954,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
   thd->lex->create_info.options|= create_info->options;
 
   /* Open or obtain an exclusive metadata lock on table being created  */
-  result= open_and_lock_tables(thd, create_table, FALSE, 0);
+  result= open_and_lock_tables(thd, *create_info, create_table, FALSE, 0);
 
   thd->lex->create_info.options= save_thd_create_info_options;
 
@@ -4989,7 +4991,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
     on a non temporary table
   */
   if (thd->locked_tables_mode && pos_in_locked_tables &&
-      (create_info->options & HA_LEX_CREATE_REPLACE))
+      create_info->or_replace())
   {
     /*
       Add back the deleted table and re-created table as a locked table
@@ -5230,9 +5232,9 @@ mysql_rename_table(handlerton *base, const char *old_db,
 
 bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
                              TABLE_LIST* src_table,
-                             HA_CREATE_INFO *create_info)
+                             Table_specification_st *create_info)
 {
-  HA_CREATE_INFO local_create_info;
+  Table_specification_st local_create_info;
   TABLE_LIST *pos_in_locked_tables= 0;
   Alter_info local_alter_info;
   Alter_table_ctx local_alter_ctx; // Not used
@@ -5262,6 +5264,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   */
 
   /* Copy temporarily the statement flags to thd for lock_table_names() */
+  // QQ: is this really needed???
   uint save_thd_create_info_options= thd->lex->create_info.options;
   thd->lex->create_info.options|= create_info->options;
   res= open_tables(thd, &thd->lex->query_tables, &not_used, 0);
@@ -5274,8 +5277,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     goto err;
   }
   /* Ensure we don't try to create something from which we select from */
-  if ((create_info->options & HA_LEX_CREATE_REPLACE) &&
-      !create_info->tmp_table())
+  if (create_info->or_replace() && !create_info->tmp_table())
   {
     TABLE_LIST *duplicate;
     if ((duplicate= unique_table(thd, table, src_table, 0)))
@@ -5289,8 +5291,12 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
 
   DEBUG_SYNC(thd, "create_table_like_after_open");
 
-  /* Fill HA_CREATE_INFO and Alter_info with description of source table. */
-  bzero((char*) &local_create_info, sizeof(local_create_info));
+  /*
+    Fill Table_specification_st and Alter_info with the source table description.
+    Set OR REPLACE and IF NOT EXISTS option as in the CREATE TABLE LIKE
+    statement.
+  */
+  local_create_info.init(create_info->create_like_options());
   local_create_info.db_type= src_table->table->s->db_type();
   local_create_info.row_type= src_table->table->s->row_type;
   if (mysql_prepare_alter_table(thd, src_table->table, &local_create_info,
@@ -5311,10 +5317,6 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   */
   if (src_table->schema_table)
     local_create_info.max_rows= 0;
-  /* Set IF NOT EXISTS option as in the CREATE TABLE LIKE statement. */
-  local_create_info.options|= (create_info->options &
-                               (HA_LEX_CREATE_IF_NOT_EXISTS | 
-                                HA_LEX_CREATE_REPLACE));
   /* Replace type of source table with one specified in the statement. */
   local_create_info.options&= ~HA_LEX_CREATE_TMP_TABLE;
   local_create_info.options|= create_info->tmp_table();
@@ -5344,7 +5346,7 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
     on a non temporary table
   */
   if (thd->locked_tables_mode && pos_in_locked_tables &&
-      (create_info->options & HA_LEX_CREATE_REPLACE))
+      create_info->or_replace())
   {
     /*
       Add back the deleted table and re-created table as a locked table
@@ -5454,7 +5456,8 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
         if (!table->view)
         {
           int result __attribute__((unused))=
-            show_create_table(thd, table, &query, create_info, WITHOUT_DB_NAME);
+            show_create_table(thd, table, &query,
+                              create_info, WITHOUT_DB_NAME);
 
           DBUG_ASSERT(result == 0); // show_create_table() always return 0
           do_logging= FALSE;
@@ -5907,10 +5910,11 @@ remove_key:
   
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *tab_part_info= table->part_info;
-  if (tab_part_info && thd->lex->check_exists)
+  if (tab_part_info)
   {
     /* ALTER TABLE ADD PARTITION IF NOT EXISTS */
-    if (alter_info->flags & Alter_info::ALTER_ADD_PARTITION)
+    if ((alter_info->flags & Alter_info::ALTER_ADD_PARTITION) &&
+        thd->lex->create_info.if_not_exists())
     {
       partition_info *alt_part_info= thd->lex->part_info;
       if (alt_part_info)
@@ -5932,7 +5936,8 @@ remove_key:
       }
     }
     /* ALTER TABLE DROP PARTITION IF EXISTS */
-    if (alter_info->flags & Alter_info::ALTER_DROP_PARTITION)
+    if ((alter_info->flags & Alter_info::ALTER_DROP_PARTITION) &&
+        thd->lex->if_exists())
     {
       List_iterator<char> names_it(alter_info->partition_names);
       char *name;
@@ -8634,7 +8639,7 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
                            alter_ctx.db, alter_ctx.table_name,
                            alter_ctx.new_db, alter_ctx.tmp_name,
                            alter_ctx.get_tmp_path(),
-                           create_info, alter_info,
+                           thd->lex->create_info, create_info, alter_info,
                            C_ALTER_TABLE_FRM_ONLY, NULL,
                            &key_info, &key_count, &frm);
   reenable_binlog(thd);

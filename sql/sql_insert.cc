@@ -3856,7 +3856,8 @@ void select_insert::abort_result_set() {
   @retval 0         Error
 */
 
-static TABLE *create_table_from_items(THD *thd, HA_CREATE_INFO *create_info,
+static TABLE *create_table_from_items(THD *thd,
+                                      Table_specification_st *create_info,
                                       TABLE_LIST *create_table,
                                       Alter_info *alter_info,
                                       List<Item> *items,
@@ -4101,7 +4102,7 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
     row-based replication for the statement.  If we are creating a
     temporary table, we need to start a statement transaction.
   */
-  if (!thd->lex->create_info.tmp_table() &&
+  if (!thd->lex->tmp_table() &&
       thd->is_current_stmt_binlog_format_row() &&
       mysql_bin_log.is_open())
   {
@@ -4110,7 +4111,8 @@ select_create::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 
   DEBUG_SYNC(thd,"create_table_select_before_check_if_exists");
 
-  if (!(table= create_table_from_items(thd, create_info, create_table,
+  if (!(table= create_table_from_items(thd, create_info,
+                                       create_table,
                                        alter_info, &values,
                                        &extra_lock, hook_ptr)))
     /* abort() deletes table */
@@ -4193,8 +4195,8 @@ select_create::binlog_show_create_table(TABLE **tables, uint count)
   tmp_table_list.table = *tables;
   query.length(0);      // Have to zero it since constructor doesn't
 
-  result= show_create_table(thd, &tmp_table_list, &query, create_info,
-                            WITH_DB_NAME);
+  result= show_create_table(thd, &tmp_table_list, &query,
+                            create_info, WITH_DB_NAME);
   DBUG_ASSERT(result == 0); /* show_create_table() always return 0 */
 
   if (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open())

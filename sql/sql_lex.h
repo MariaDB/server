@@ -2456,7 +2456,7 @@ struct LEX: public Query_tables_list
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;			// check/repair options
-  HA_CREATE_INFO create_info;
+  Table_specification_st create_info;
   KEY_CREATE_INFO key_create_info;
   LEX_MASTER_INFO mi;				// used by CHANGE MASTER
   LEX_SERVER_OPTIONS server_options;
@@ -2536,7 +2536,7 @@ struct LEX: public Query_tables_list
   uint16 create_view_algorithm;
   uint8 create_view_check;
   uint8 context_analysis_only;
-  bool drop_temporary, local_file;
+  bool local_file;
   bool check_exists;
   bool autocommit;
   bool verbose, no_write_to_binlog;
@@ -2817,6 +2817,39 @@ struct LEX: public Query_tables_list
   void init_last_field(Create_field *field, const char *name, CHARSET_INFO *cs);
   void set_last_field_type(enum enum_field_types type);
   bool set_bincmp(CHARSET_INFO *cs, bool bin);
+  void set_command(enum_sql_command command,
+                   DDL_options_st options)
+  {
+    sql_command= command;
+    create_info.set(options);
+  }
+  void set_command(enum_sql_command command,
+                   uint scope,
+                   DDL_options_st options)
+  {
+    set_command(command, options);
+    create_info.options|= scope; // HA_LEX_CREATE_TMP_TABLE or 0
+  }
+  bool set_command_with_check(enum_sql_command command,
+                              uint scope,
+                              DDL_options_st options)
+  {
+    if (options.or_replace() && options.if_not_exists())
+    {
+      my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE", "IF NOT EXISTS");
+      return true;
+    }
+    set_command(command, scope, options);
+    return false;
+  }
+  /*
+    DROP shares lex->create_info to store TEMPORARY and IF EXISTS options
+    to save on extra initialization in lex_start().
+    Add some wrappers, to avoid direct use of lex->create_info in the
+    caller code processing DROP statements (which might look confusing).
+  */
+  bool tmp_table() const { return create_info.tmp_table(); }
+  bool if_exists() const { return create_info.if_exists(); }
 };
 
 

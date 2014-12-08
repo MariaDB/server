@@ -4218,7 +4218,7 @@ class select_insert :public select_result_interceptor {
 class select_create: public select_insert {
   ORDER *group;
   TABLE_LIST *create_table;
-  HA_CREATE_INFO *create_info;
+  Table_specification_st *create_info;
   TABLE_LIST *select_tables;
   Alter_info *alter_info;
   Field **field;
@@ -4230,7 +4230,7 @@ class select_create: public select_insert {
 
 public:
   select_create (TABLE_LIST *table_arg,
-		 HA_CREATE_INFO *create_info_par,
+                 Table_specification_st *create_info_par,
                  Alter_info *alter_info_arg,
 		 List<Item> &select_fields,enum_duplicates duplic, bool ignore,
                  TABLE_LIST *select_tables_arg)

@@ -5464,8 +5464,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       flags_access_some_set |= flags;
 
       if (lex->sql_command != SQLCOM_CREATE_TABLE ||
-          (lex->sql_command == SQLCOM_CREATE_TABLE &&
-          lex->create_info.tmp_table()))
+          (lex->sql_command == SQLCOM_CREATE_TABLE && lex->tmp_table()))
       {
         my_bool trans= table->table->file->has_transactions();
 

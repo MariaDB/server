@@ -31,6 +31,7 @@ struct handlerton;
 class handler;
 typedef struct st_ha_check_opt HA_CHECK_OPT;
 struct HA_CREATE_INFO;
+struct Table_specification_st;
 typedef struct st_key KEY;
 typedef struct st_key_cache KEY_CACHE;
 typedef struct st_lock_param_type ALTER_PARTITION_PARAM_TYPE;
@@ -151,7 +152,7 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
                                  ALTER_PARTITION_PARAM_TYPE *lpt);
 uint build_tmptable_filename(THD* thd, char *buff, size_t bufflen);
 bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
-                        HA_CREATE_INFO *create_info,
+                        Table_specification_st *create_info,
                         Alter_info *alter_info);
 
 /*
@@ -192,7 +193,7 @@ bool mysql_create_table(THD *thd, TABLE_LIST *create_table,
 
 int mysql_create_table_no_lock(THD *thd, const char *db,
                                const char *table_name,
-                               HA_CREATE_INFO *create_info,
+                               Table_specification_st *create_info,
                                Alter_info *alter_info, bool *is_trans,
                                int create_table_mode);
 
@@ -227,7 +228,7 @@ bool mysql_compare_tables(TABLE *table,
 bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy);
 bool mysql_create_like_table(THD *thd, TABLE_LIST *table,
                              TABLE_LIST *src_table,
-                             HA_CREATE_INFO *create_info);
+                             Table_specification_st *create_info);
 bool mysql_rename_table(handlerton *base, const char *old_db,
                         const char * old_name, const char *new_db,
                         const char * new_name, uint flags);

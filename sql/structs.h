@@ -471,4 +471,79 @@ public:
   Discrete_interval* get_current() const { return current; };
 };
 
+
+/*
+  DDL options:
+  - CREATE IF NOT EXISTS
+  - DROP IF EXISTS
+  - CRESTE LIKE
+  - REPLACE
+*/
+struct DDL_options_st
+{
+public:
+  enum Options
+  {
+    OPT_NONE= 0,
+    OPT_IF_NOT_EXISTS= 2,              // CREATE TABLE IF NOT EXISTS
+    OPT_LIKE= 4,                       // CREATE TABLE LIKE
+    OPT_OR_REPLACE= 16,                // CREATE OR REPLACE TABLE
+    OPT_OR_REPLACE_SLAVE_GENERATED= 32,// REPLACE was added on slave, it was
+                                       // not in the original query on master.
+    OPT_IF_EXISTS= 64
+  };
+
+private:
+  Options m_options;
+
+public:
+  Options create_like_options() const
+  {
+    return (DDL_options_st::Options)
+           (((uint) m_options) & (OPT_IF_NOT_EXISTS | OPT_OR_REPLACE));
+  }
+  void init() { m_options= OPT_NONE; }
+  void init(Options options) { m_options= options; }
+  void set(Options other)
+  {
+    m_options= other;
+  }
+  void set(const DDL_options_st other)
+  {
+    m_options= other.m_options;
+  }
+  bool if_not_exists() const { return m_options & OPT_IF_NOT_EXISTS; }
+  bool or_replace() const { return m_options & OPT_OR_REPLACE; }
+  bool or_replace_slave_generated() const
+  { return m_options & OPT_OR_REPLACE_SLAVE_GENERATED; }
+  bool like() const { return m_options & OPT_LIKE; }
+  bool if_exists() const { return m_options & OPT_IF_EXISTS; }
+  void add(const DDL_options_st::Options other)
+  {
+    m_options= (Options) ((uint) m_options | (uint) other);
+  }
+  void add(const DDL_options_st &other)
+  {
+    add(other.m_options);
+  }
+  DDL_options_st operator|(const DDL_options_st &other)
+  {
+    add(other.m_options);
+    return *this;
+  }
+  DDL_options_st operator|=(DDL_options_st::Options other)
+  {
+    add(other);
+    return *this;
+  }
+};
+
+
+class DDL_options: public DDL_options_st
+{
+public:
+  DDL_options() { init(); }
+};
+
+
 #endif /* STRUCTS_INCLUDED */

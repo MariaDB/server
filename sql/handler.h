@@ -376,10 +376,8 @@ enum enum_alter_inplace_result {
 #define HA_KEY_BLOB_LENGTH	2
 
 #define HA_LEX_CREATE_TMP_TABLE	1
-#define HA_LEX_CREATE_IF_NOT_EXISTS 2
-#define HA_LEX_CREATE_TABLE_LIKE 4
 #define HA_CREATE_TMP_ALTER     8
-#define HA_LEX_CREATE_REPLACE   16
+
 #define HA_MAX_REC_LENGTH	65535
 
 /* Table caching type */
@@ -1580,9 +1578,41 @@ enum enum_stats_auto_recalc { HA_STATS_AUTO_RECALC_DEFAULT= 0,
                               HA_STATS_AUTO_RECALC_ON,
                               HA_STATS_AUTO_RECALC_OFF };
 
-struct HA_CREATE_INFO
+/**
+  A helper struct for schema DDL statements:
+    CREATE SCHEMA [IF NOT EXISTS] name [ schema_specification... ]
+    ALTER SCHEMA name [ schema_specification... ]
+
+  It stores the "schema_specification" part of the CREATE/ALTER statements and
+  is passed to mysql_create_db() and  mysql_alter_db().
+  Currently consists only of the schema default character set and collation.
+*/
+struct Schema_specification_st
 {
-  CHARSET_INFO *table_charset, *default_table_charset;
+  CHARSET_INFO *default_table_charset;
+  void init()
+  {
+    bzero(this, sizeof(*this));
+  }
+};
+
+
+/**
+  A helper struct for table DDL statements, e.g.:
+  CREATE [OR REPLACE] [TEMPORARY]
+    TABLE [IF NOT EXISTS] tbl_name table_contents_source;
+
+  Represents a combinations of:
+  1. The scope, i.e. TEMPORARY or not TEMPORARY
+  2. The "table_contents_source" part of the table DDL statements,
+     which can be initialized from either of these:
+     - table_element_list ...      // Explicit definition (column and key list)
+     - LIKE another_table_name ... // Copy structure from another table
+     - [AS] SELECT ...             // Copy structure from a subquery
+*/
+struct Table_scope_and_contents_source_st
+{
+  CHARSET_INFO *table_charset;
   LEX_CUSTRING tabledef_version;
   LEX_STRING connect_string;
   const char *password, *tablespace;
@@ -1602,7 +1632,6 @@ struct HA_CREATE_INFO
   uint stats_sample_pages;
   uint null_bits;                       /* NULL bits at start of record */
   uint options;				/* OR of HA_CREATE_ options */
-  uint org_options;                     /* original options from query */
   uint merge_insert_method;
   uint extra_size;                      /* length of extra data segment */
   SQL_I_List<TABLE_LIST> merge_list;
@@ -1635,11 +1664,63 @@ struct HA_CREATE_INFO
   MDL_ticket *mdl_ticket;
   bool table_was_deleted;
 
-  bool tmp_table() { return options & HA_LEX_CREATE_TMP_TABLE; }
+  void init()
+  {
+    bzero(this, sizeof(*this));
+  }
+  bool tmp_table() const { return options & HA_LEX_CREATE_TMP_TABLE; }
   void use_default_db_type(THD *thd)
   {
     db_type= tmp_table() ? ha_default_tmp_handlerton(thd)
                          : ha_default_handlerton(thd);
+  }
+};
+
+
+/**
+  This struct is passed to handler table routines, e.g. ha_create().
+  It does not include the "OR REPLACE" and "IF NOT EXISTS" parts, as these
+  parts are handled on the SQL level and are not needed on the handler level.
+*/
+struct HA_CREATE_INFO: public Table_scope_and_contents_source_st,
+                       public Schema_specification_st
+{
+  void init()
+  {
+    Table_scope_and_contents_source_st::init();
+    Schema_specification_st::init();
+  }
+};
+
+
+/**
+  This struct is passed to mysql_create_table() and similar creation functions,
+  as well as to show_create_table().
+*/
+struct Table_specification_st: public HA_CREATE_INFO,
+                               public DDL_options_st
+{
+  // Deep initialization
+  void init()
+  {
+    HA_CREATE_INFO::init();
+    DDL_options_st::init();
+  }
+  void init(DDL_options_st::Options options)
+  {
+    HA_CREATE_INFO::init();
+    DDL_options_st::init(options);
+  }
+  /*
+    Quick initialization, for parser.
+    Most of the HA_CREATE_INFO is left uninitialized.
+    It gets fully initialized in sql_yacc.yy, only when the parser
+    scans a related keyword (e.g. CREATE, ALTER).
+  */
+  void lex_start()
+  {
+    HA_CREATE_INFO::options= 0;
+    DDL_options_st::init();
   }
 };
 

@@ -2080,7 +2080,7 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (lex->sql_command != SQLCOM_CREATE_TABLE)
     return 1;
   // ... create like
-  if (create_info->options & HA_LEX_CREATE_TABLE_LIKE)
+  if (lex->create_info.like())
     return 1;
   // ... create select
   if (lex->select_lex.item_list.elements)
@@ -2089,7 +2089,7 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   if (create_info->tmp_table())
     return 1;
   // ... if exists
-  if (create_info->options & HA_LEX_CREATE_IF_NOT_EXISTS)
+  if (lex->create_info.if_not_exists())
     return 1;
 
   // XXX error out or rather ignore the following:

@@ -1187,7 +1187,7 @@ exit:
 
 bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
                            LEX_STRING *orig_dbname,
-                           HA_CREATE_INFO *create_info)
+                           const DDL_options_st &options)
 {
   char buff[2048];
   String buffer(buff, sizeof(buff), system_charset_info);
@@ -1196,7 +1196,6 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
   uint db_access;
 #endif
   HA_CREATE_INFO create;
-  uint create_options = create_info ? create_info->options : 0;
   Protocol *protocol=thd->protocol;
   DBUG_ENTER("mysql_show_create_db");
 
@@ -1243,7 +1242,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
   protocol->store(orig_dbname->str, orig_dbname->length, system_charset_info);
   buffer.length(0);
   buffer.append(STRING_WITH_LEN("CREATE DATABASE "));
-  if (create_options & HA_LEX_CREATE_IF_NOT_EXISTS)
+  if (options.if_not_exists())
     buffer.append(STRING_WITH_LEN("/*!32312 IF NOT EXISTS*/ "));
   append_identifier(thd, &buffer, dbname->str, dbname->length);
 
@@ -1654,7 +1653,7 @@ static void append_create_options(THD *thd, String *packet,
  */
 
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
-                      HA_CREATE_INFO *create_info_arg,
+                      Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name)
 {
   List<Item> field_list;
@@ -1696,14 +1695,14 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
 
   packet->append(STRING_WITH_LEN("CREATE "));
   if (create_info_arg &&
-      (create_info_arg->org_options & HA_LEX_CREATE_REPLACE ||
+      ((create_info_arg->or_replace() &&
+        !create_info_arg->or_replace_slave_generated()) ||
        create_info_arg->table_was_deleted))
     packet->append(STRING_WITH_LEN("OR REPLACE "));
   if (share->tmp_table)
     packet->append(STRING_WITH_LEN("TEMPORARY "));
   packet->append(STRING_WITH_LEN("TABLE "));
-  if (create_info_arg &&
-      (create_info_arg->options & HA_LEX_CREATE_IF_NOT_EXISTS))
+  if (create_info_arg && create_info_arg->if_not_exists())
     packet->append(STRING_WITH_LEN("IF NOT EXISTS "));
   if (table_list->schema_table)
     alias= table_list->schema_table->table_name;

@@ -2371,7 +2371,7 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
         break;
       }
   }
-  if (create_info->options & HA_LEX_CREATE_TMP_TABLE)
+  if (create_info->tmp_table())
   {
 
     /* CREATE TEMPORARY TABLE LIKE must be skipped from replication */

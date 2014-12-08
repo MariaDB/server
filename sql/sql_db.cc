@@ -233,7 +233,7 @@ void my_dbopt_cleanup(void)
     1 on error.
 */
 
-static my_bool get_dbopt(const char *dbname, HA_CREATE_INFO *create)
+static my_bool get_dbopt(const char *dbname, Schema_specification_st *create)
 {
   my_dbopt_t *opt;
   uint length;
@@ -264,7 +264,7 @@ static my_bool get_dbopt(const char *dbname, HA_CREATE_INFO *create)
     1 on error.
 */
 
-static my_bool put_dbopt(const char *dbname, HA_CREATE_INFO *create)
+static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
 {
   my_dbopt_t *opt;
   uint length;
@@ -333,7 +333,8 @@ static void del_dbopt(const char *path)
   1	Could not create file or write to it.  Error sent through my_error()
 */
 
-static bool write_db_opt(THD *thd, const char *path, HA_CREATE_INFO *create)
+static bool write_db_opt(THD *thd, const char *path,
+                         Schema_specification_st *create)
 {
   register File file;
   char buf[256]; // Should be enough for one option
@@ -379,7 +380,7 @@ static bool write_db_opt(THD *thd, const char *path, HA_CREATE_INFO *create)
 
 */
 
-bool load_db_opt(THD *thd, const char *path, HA_CREATE_INFO *create)
+bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 {
   File file;
   char buf[256];
@@ -491,7 +492,7 @@ err1:
 */
 
 bool load_db_opt_by_name(THD *thd, const char *db_name,
-                         HA_CREATE_INFO *db_create_info)
+                         Schema_specification_st *db_create_info)
 {
   char db_opt_path[FN_REFLEN + 1];
 
@@ -518,7 +519,7 @@ bool load_db_opt_by_name(THD *thd, const char *db_name,
 
 CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
 {
-  HA_CREATE_INFO db_info;
+  Schema_specification_st db_info;
 
   if (thd->db != NULL && strcmp(db_name, thd->db) == 0)
     return thd->db_charset;
@@ -545,6 +546,7 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
   thd		Thread handler
   db		Name of database to create
 		Function assumes that this is already validated.
+  options       DDL options, e.g. IF NOT EXISTS
   create_info	Database create options (like character set)
   silent	Used by replication when internally creating a database.
 		In this case the entry should not be logged.
@@ -561,14 +563,15 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
 
 */
 
-int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create_info,
-                     bool silent)
+int mysql_create_db(THD *thd, char *db,
+                    const DDL_options_st &options,
+                    Schema_specification_st *create_info,
+                    bool silent)
 {
   char	 path[FN_REFLEN+16];
   long result= 1;
   int error= 0;
   MY_STAT stat_info;
-  uint create_options= create_info ? create_info->options : 0;
   uint path_len;
   DBUG_ENTER("mysql_create_db");
 
@@ -598,7 +601,7 @@ int mysql_create_db(THD *thd, char *db, HA_CREATE_INFO *create_info,
 
   if (mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
   {
-    if (!(create_options & HA_LEX_CREATE_IF_NOT_EXISTS))
+    if (!options.if_not_exists())
     {
       my_error(ER_DB_CREATE_EXISTS, MYF(0), db);
       error= -1;
@@ -702,7 +705,8 @@ exit:
 
 /* db-name is already validated when we come here */
 
-bool mysql_alter_db(THD *thd, const char *db, HA_CREATE_INFO *create_info)
+bool mysql_alter_db(THD *thd, const char *db,
+                    Schema_specification_st *create_info)
 {
   char path[FN_REFLEN+16];
   long result=1;
@@ -773,7 +777,7 @@ exit:
   @retval  true   Error
 */
 
-bool mysql_rm_db(THD *thd,char *db,bool if_exists, bool silent)
+bool mysql_rm_db(THD *thd,char *db, bool if_exists, bool silent)
 {
   ulong deleted_tables= 0;
   bool error= true;
@@ -1602,7 +1606,7 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
   int error= 0, change_to_newdb= 0;
   char path[FN_REFLEN+16];
   uint length;
-  HA_CREATE_INFO create_info;
+  Schema_specification_st create_info;
   MY_DIR *dirp;
   TABLE_LIST *table_list;
   SELECT_LEX *sl= thd->lex->current_select;
@@ -1650,7 +1654,7 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
   }
 
   /* Step1: Create the new database */
-  if ((error= mysql_create_db(thd, new_db.str, &create_info, 1)))
+  if ((error= mysql_create_db(thd, new_db.str, DDL_options(), &create_info, 1)))
     goto exit;
 
   /* Step2: Move tables to the new database */

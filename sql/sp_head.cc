@@ -281,13 +281,13 @@ sp_get_flags_for_command(LEX *lex)
     flags= sp_head::CONTAINS_DYNAMIC_SQL;
     break;
   case SQLCOM_CREATE_TABLE:
-    if (lex->create_info.tmp_table())
+    if (lex->tmp_table())
       flags= 0;
     else
       flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
     break;
   case SQLCOM_DROP_TABLE:
-    if (lex->drop_temporary)
+    if (lex->tmp_table())
       flags= 0;
     else
       flags= sp_head::HAS_COMMIT_OR_ROLLBACK;
@@ -4000,7 +4000,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
   SP_TABLE *tab;
 
   if (lex_for_tmp_check->sql_command == SQLCOM_DROP_TABLE &&
-      lex_for_tmp_check->drop_temporary)
+      lex_for_tmp_check->tmp_table())
     return TRUE;
 
   for (uint i= 0 ; i < m_sptabs.records ; i++)
@@ -4065,7 +4065,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
           return FALSE;
         if (lex_for_tmp_check->sql_command == SQLCOM_CREATE_TABLE &&
             lex_for_tmp_check->query_tables == table &&
-            lex_for_tmp_check->create_info.tmp_table())
+            lex_for_tmp_check->tmp_table())
         {
           tab->temp= TRUE;
           tab->qname.length= temp_table_key_length;
