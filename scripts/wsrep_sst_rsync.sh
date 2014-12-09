@@ -83,8 +83,7 @@ WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
 if [ -z "$WSREP_LOG_DIR" ]; then
-    SCRIPT_DIR="$(cd $(dirname "$0"); pwd -P)"
-    WSREP_LOG_DIR=$($SCRIPT_DIR/my_print_defaults --defaults-file \
+    WSREP_LOG_DIR=$($MY_PRINT_DEFAULTS --defaults-file \
                    "$WSREP_SST_OPT_CONF" mysqld server mysqld-5.5 mariadb mariadb-5.5 \
                     | grep -- '--innodb[-_]log[-_]group[-_]home[-_]dir=' \
                     | cut -b 29- )
