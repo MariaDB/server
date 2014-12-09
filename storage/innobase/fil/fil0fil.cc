@@ -6368,7 +6368,7 @@ fil_iterate(
 			readptr = iter.crypt_io_buffer;
 		}
 
-		if (!os_file_read(iter.file, io_buffer, offset,
+		if (!os_file_read(iter.file, readptr, offset,
 				  (ulint) n_bytes,
 				  fil_space_is_page_compressed(space_id))) {
 
