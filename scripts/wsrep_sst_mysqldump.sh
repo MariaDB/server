@@ -54,7 +54,8 @@ then
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep 'Distrib 5.5' >/dev/null
+CLIENT_MINOR=$(mysql --version | cut -d ' ' -f 6 | cut -d '.' -f 2)
+if [ $CLIENT_MINOR -lt "5" ]
 then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 5.5.x"
@@ -75,7 +76,7 @@ STOP_WSREP="SET wsrep_on=OFF;"
 MYSQLDUMP="$MYSQLDUMP $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
---skip-comments --flush-privileges --all-databases"
+--skip-comments --flush-privileges --all-databases --events"
 
 # mysqldump cannot restore CSV tables, fix this issue
 CSV_TABLES_FIX="
