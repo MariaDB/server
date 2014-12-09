@@ -38,14 +38,14 @@ Description: MariaDB database regression test suite
 
 Package: mariadb-galera-server-10.0
 Architecture: any
-Suggests: tinyca, mailx, mariadb-galera-test, netcat-openbsd
+Suggests: tinyca, mailx, mariadb-galera-test, netcat-openbsd, socat
 Recommends: libhtml-template-perl
 Pre-Depends: mariadb-common, adduser (>= 3.40), debconf
 Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl,
          perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc,
          passwd, lsb-base (>= 3.0-10), bsdutils,
          libmariadbclient18 (>= ${binary:Version}), galera (>=25.2),
-         rsync, lsof, socat, grep, gawk, iproute, coreutils, findutils
+         rsync, lsof, grep, gawk, iproute, coreutils, findutils
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5,
           mysql-server-core-10.0, mariadb-server, mysql-server,
           virtual-mysql-server, mariadb-galera-server

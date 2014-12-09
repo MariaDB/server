@@ -121,12 +121,14 @@ SETA(CPACK_RPM_server_PACKAGE_OBSOLETES
 SETA(CPACK_RPM_server_PACKAGE_PROVIDES
   "MariaDB"
   "MySQL"
+  "MariaDB-server"
+  "mariadb-server"
   "MySQL-server"
   "msqlormysql"
   "mysql-server")
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "${CPACK_RPM_PACKAGE_REQUIRES}"
-  "MariaDB-client" "galera" "rsync" "lsof" "socat" "grep" "gawk" "iproute"
+  "MariaDB-client" "galera" "rsync" "lsof" "grep" "gawk" "iproute"
   "coreutils" "findutils")
 
 SETA(CPACK_RPM_shared_PACKAGE_OBSOLETES
