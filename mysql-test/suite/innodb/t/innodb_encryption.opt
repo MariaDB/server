@@ -1,0 +1,1 @@
+--enable-example_key_management_plugin --loose-encrypt-tmp-disk-tables=ON --loose-aria-encrypt-tables=ON --loose-innodb-encryption-threads=4 --loose-innodb-encryption-rotate-key-age=15 --loose-innodb-encrypt-tables=ON --innodb_tablespaces_encryption

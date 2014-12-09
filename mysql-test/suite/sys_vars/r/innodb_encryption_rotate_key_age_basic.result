@@ -1,23 +1,23 @@
 SET @start_global_value = @@global.innodb_encryption_rotate_key_age;
 select @@global.innodb_encryption_rotate_key_age;
 @@global.innodb_encryption_rotate_key_age
-15
+1
 select @@session.innodb_encryption_rotate_key_age;
 ERROR HY000: Variable 'innodb_encryption_rotate_key_age' is a GLOBAL variable
 show global variables like 'innodb_encryption_rotate_key_age';
 Variable_name	Value
-innodb_encryption_rotate_key_age	15
+innodb_encryption_rotate_key_age	1
 show session variables like 'innodb_encryption_rotate_key_age';
 Variable_name	Value
-innodb_encryption_rotate_key_age	15
+innodb_encryption_rotate_key_age	1
 select * from information_schema.global_variables
 where variable_name='innodb_encryption_rotate_key_age';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_ENCRYPTION_ROTATE_KEY_AGE	15
+INNODB_ENCRYPTION_ROTATE_KEY_AGE	1
 select * from information_schema.session_variables
 where variable_name='innodb_encryption_rotate_key_age';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_ENCRYPTION_ROTATE_KEY_AGE	15
+INNODB_ENCRYPTION_ROTATE_KEY_AGE	1
 set global innodb_encryption_rotate_key_age=1;
 select @@global.innodb_encryption_rotate_key_age;
 @@global.innodb_encryption_rotate_key_age

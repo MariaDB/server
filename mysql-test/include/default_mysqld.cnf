@@ -119,19 +119,3 @@ local-infile
 # is read after [mysqld] and [embedded]
 loose-aria
 
-# enable encryption by default in mtr
-enable-example_key_management_plugin
-loose-encrypt-tmp-disk-tables=ON
-loose-aria-encrypt-tables=ON
-loose-innodb-encryption-threads=4
-# with example_key_management_plugin key-age is measured in seconds...
-loose-innodb-encryption-rotate-key-age=15
-loose-innodb-encrypt-tables=ON
-
-# scrubbing
-loose-innodb-immediate-scrub-data-uncompressed=ON
-loose-innodb-background-scrub-data-uncompressed=ON
-loose-innodb-background-scrub-data-compressed=ON
-
-#only for testing (in debug compiled)
-loose-innodb-scrub-force-testing=ON

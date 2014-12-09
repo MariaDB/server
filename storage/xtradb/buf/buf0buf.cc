@@ -56,6 +56,7 @@ Created 11/5/1995 Heikki Tuuri
 #include "buf0checksum.h"
 #include "trx0trx.h"
 #include "srv0start.h"
+#include "ut0byte.h"
 
 #include "fil0pageencryption.h"
 
@@ -1078,6 +1079,7 @@ buf_block_init(
 	block->page.buf_fix_count = 0;
 	block->page.io_fix = BUF_IO_NONE;
 	block->page.crypt_buf = NULL;
+	block->page.crypt_buf_free = NULL;
 	block->page.key_version = 0;
 
 	block->modify_clock = 0;
@@ -3577,6 +3579,7 @@ buf_page_init_low(
 	bpage->oldest_modification = 0;
 	bpage->write_size = 0;
 	bpage->crypt_buf = NULL;
+	bpage->crypt_buf_free = NULL;
 	bpage->key_version = 0;
 
 	HASH_INVALIDATE(bpage, hash);
@@ -5820,7 +5823,8 @@ buf_page_encrypt_before_write(
 	*    considered a lot.
 	*/
 
-	byte* dst_frame = bpage->crypt_buf = (byte*)malloc(page_size);
+	bpage->crypt_buf_free = (byte*)malloc(UNIV_PAGE_SIZE*2);
+	byte *dst_frame = bpage->crypt_buf = (byte *)ut_align(bpage->crypt_buf_free, UNIV_PAGE_SIZE);
 
 	// encrypt page content
 	fil_space_encrypt(bpage->space, bpage->offset,
@@ -5844,8 +5848,9 @@ buf_page_encrypt_after_write(
 /*=========================*/
 	buf_page_t* bpage) /*!< in/out: buffer page flushed */
 {
-	if (bpage->crypt_buf != NULL) {
-		free(bpage->crypt_buf);
+	if (bpage->crypt_buf_free != NULL) {
+		free(bpage->crypt_buf_free);
+		bpage->crypt_buf_free = NULL;
 		bpage->crypt_buf = NULL;
 	}
 	return (TRUE);
@@ -5876,7 +5881,8 @@ unencrypted:
 	}
 
 	// allocate buffer to read data into
-	bpage->crypt_buf = (byte*)malloc(size);
+	bpage->crypt_buf_free = (byte*)malloc(UNIV_PAGE_SIZE*2);
+	bpage->crypt_buf = (byte*)ut_align(bpage->crypt_buf_free, UNIV_PAGE_SIZE);
 	return bpage->crypt_buf;
 }
 
@@ -5918,7 +5924,8 @@ buf_page_decrypt_after_read(
 			/* but we had NOT allocated a crypt buf
 			* malloc a buffer, copy page to it
 			* and then decrypt from that into real page*/
-			src_frame = bpage->crypt_buf = (byte*)malloc(size);
+			bpage->crypt_buf_free = (byte *)malloc(UNIV_PAGE_SIZE*2);
+			src_frame = bpage->crypt_buf = (byte*)ut_align(bpage->crypt_buf_free, UNIV_PAGE_SIZE);
 			memcpy(bpage->crypt_buf, dst_frame, size);
 		}
 		/* decrypt from src_frame to dst_frame */
@@ -5927,10 +5934,11 @@ buf_page_decrypt_after_read(
 	}
 	bpage->key_version = key_version;
 
-	if (bpage->crypt_buf != NULL) {
+	if (bpage->crypt_buf_free != NULL) {
 		// free temp page
-		free(bpage->crypt_buf);
+		free(bpage->crypt_buf_free);
 		bpage->crypt_buf = NULL;
+		bpage->crypt_buf_free = NULL;
 	}
 	return (TRUE);
 }
@@ -5944,7 +5952,8 @@ buf_page_decrypt_cleanup(
 	buf_page_t* bpage) /*!< in/out: buffer page */
 {
 	if (bpage->crypt_buf != NULL) {
-		free(bpage->crypt_buf);
+		free(bpage->crypt_buf_free);
 		bpage->crypt_buf = NULL;
+		bpage->crypt_buf_free = NULL;
 	}
 }

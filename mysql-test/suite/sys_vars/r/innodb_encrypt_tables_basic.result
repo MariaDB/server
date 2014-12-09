@@ -1,23 +1,23 @@
 SET @start_global_value = @@global.innodb_encrypt_tables;
 select @@global.innodb_encrypt_tables;
 @@global.innodb_encrypt_tables
-1
+0
 select @@session.innodb_encrypt_tables;
 ERROR HY000: Variable 'innodb_encrypt_tables' is a GLOBAL variable
 show global variables like 'innodb_encrypt_tables';
 Variable_name	Value
-innodb_encrypt_tables	ON
+innodb_encrypt_tables	OFF
 show session variables like 'innodb_encrypt_tables';
 Variable_name	Value
-innodb_encrypt_tables	ON
+innodb_encrypt_tables	OFF
 select * from information_schema.global_variables
 where variable_name='innodb_encrypt_tables';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_ENCRYPT_TABLES	ON
+INNODB_ENCRYPT_TABLES	OFF
 select * from information_schema.session_variables
 where variable_name='innodb_encrypt_tables';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_ENCRYPT_TABLES	ON
+INNODB_ENCRYPT_TABLES	OFF
 set global innodb_encrypt_tables=ON;
 select @@global.innodb_encrypt_tables;
 @@global.innodb_encrypt_tables

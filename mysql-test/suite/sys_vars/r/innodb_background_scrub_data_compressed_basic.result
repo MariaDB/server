@@ -4,23 +4,23 @@ SET @start_global_value = @@global.innodb_background_scrub_data_compressed;
 #
 select @@global.innodb_background_scrub_data_compressed;
 @@global.innodb_background_scrub_data_compressed
-1
+0
 select @@session.innodb_background_scrub_data_compressed;
 ERROR HY000: Variable 'innodb_background_scrub_data_compressed' is a GLOBAL variable
 show global variables like 'innodb_background_scrub_data_compressed';
 Variable_name	Value
-innodb_background_scrub_data_compressed	ON
+innodb_background_scrub_data_compressed	OFF
 show session variables like 'innodb_background_scrub_data_compressed';
 Variable_name	Value
-innodb_background_scrub_data_compressed	ON
+innodb_background_scrub_data_compressed	OFF
 select * from information_schema.global_variables
 where variable_name='innodb_background_scrub_data_compressed';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_BACKGROUND_SCRUB_DATA_COMPRESSED	ON
+INNODB_BACKGROUND_SCRUB_DATA_COMPRESSED	OFF
 select * from information_schema.session_variables
 where variable_name='innodb_background_scrub_data_compressed';
 VARIABLE_NAME	VARIABLE_VALUE
-INNODB_BACKGROUND_SCRUB_DATA_COMPRESSED	ON
+INNODB_BACKGROUND_SCRUB_DATA_COMPRESSED	OFF
 #
 # show that it's writable
 #

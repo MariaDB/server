@@ -1590,6 +1590,8 @@ struct buf_page_t{
 					copied to a separate buffer before it's
 					encrypted&written. this as a page can be
 					read while it's being flushed */
+	byte* crypt_buf_free;          /*!< for encryption, allocated buffer
+				       that is then alligned */
 
 #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
