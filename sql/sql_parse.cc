@@ -4268,12 +4268,6 @@ end_with_restore_list:
     break;
   case SQLCOM_CREATE_DB:
   {
-    /*
-      As mysql_create_db() may modify HA_CREATE_INFO structure passed to
-      it, we need to use a copy of LEX::create_info to make execution
-      prepared statement- safe.
-    */
-    Schema_specification_st create_info(lex->create_info);
     if (check_db_name(&lex->name))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), lex->name.str);
@@ -4303,7 +4297,8 @@ end_with_restore_list:
                      lex->name.str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
-    res= mysql_create_db(thd, lex->name.str, lex->create_info, &create_info);
+    res= mysql_create_db(thd, lex->name.str,
+                         lex->create_info, &lex->create_info);
     break;
   }
   case SQLCOM_DROP_DB:
@@ -4375,7 +4370,6 @@ end_with_restore_list:
   case SQLCOM_ALTER_DB:
   {
     LEX_STRING *db= &lex->name;
-    HA_CREATE_INFO create_info(lex->create_info);
     if (check_db_name(db))
     {
       my_error(ER_WRONG_DB_NAME, MYF(0), db->str);
@@ -4403,7 +4397,7 @@ end_with_restore_list:
     if (check_access(thd, ALTER_ACL, db->str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(db->str, NULL, NULL)
-    res= mysql_alter_db(thd, db->str, &create_info);
+    res= mysql_alter_db(thd, db->str, &lex->create_info);
     break;
   }
   case SQLCOM_SHOW_CREATE_DB:

@@ -4207,7 +4207,7 @@ static void set_table_default_charset(THD *thd,
   */
   if (!create_info->default_table_charset)
   {
-    HA_CREATE_INFO db_info;
+    Schema_specification_st db_info;
 
     load_db_opt_by_name(thd, db, &db_info);
 

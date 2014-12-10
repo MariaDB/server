@@ -1195,7 +1195,7 @@ bool mysqld_show_create_db(THD *thd, LEX_STRING *dbname,
   Security_context *sctx= thd->security_ctx;
   uint db_access;
 #endif
-  HA_CREATE_INFO create;
+  Schema_specification_st create;
   Protocol *protocol=thd->protocol;
   DBUG_ENTER("mysql_show_create_db");
 
@@ -4679,7 +4679,7 @@ int fill_schema_schemata(THD *thd, TABLE_LIST *tables, COND *cond)
 
   LOOKUP_FIELD_VALUES lookup_field_vals;
   Dynamic_array<LEX_STRING*> db_names;
-  HA_CREATE_INFO create;
+  Schema_specification_st create;
   TABLE *table= tables->table;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   Security_context *sctx= thd->security_ctx;

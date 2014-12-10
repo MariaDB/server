@@ -4058,7 +4058,7 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
 {
   LEX_STRING new_db;
   int expected_error,actual_error= 0;
-  HA_CREATE_INFO db_options;
+  Schema_specification_st db_options;
   uint64 sub_id= 0;
   rpl_gtid gtid;
   Relay_log_info const *rli= rgi->rli;
