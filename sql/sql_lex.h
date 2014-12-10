@@ -2830,17 +2830,26 @@ struct LEX: public Query_tables_list
     set_command(command, options);
     create_info.options|= scope; // HA_LEX_CREATE_TMP_TABLE or 0
   }
-  bool set_command_with_check(enum_sql_command command,
-                              uint scope,
-                              DDL_options_st options)
+  bool check_create_options(DDL_options_st options)
   {
     if (options.or_replace() && options.if_not_exists())
     {
       my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE", "IF NOT EXISTS");
       return true;
     }
-    set_command(command, scope, options);
     return false;
+  }
+  bool add_create_options_with_check(DDL_options_st options)
+  {
+    create_info.add(options);
+    return check_create_options(create_info);
+  }
+  bool set_command_with_check(enum_sql_command command,
+                              uint scope,
+                              DDL_options_st options)
+  {
+    set_command(command, scope, options);
+    return check_create_options(options);
   }
   /*
     DROP shares lex->create_info to store TEMPORARY and IF EXISTS options

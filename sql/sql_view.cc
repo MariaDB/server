@@ -635,6 +635,11 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
                 command[thd->lex->create_view_mode].length);
     view_store_options(thd, views, &buff);
     buff.append(STRING_WITH_LEN("VIEW "));
+
+    /* Appending IF NOT EXISTS if present in the query */
+    if (lex->create_info.if_not_exists())
+      buff.append(STRING_WITH_LEN("IF NOT EXISTS "));
+
     /* Test if user supplied a db (ie: we did not use thd->db) */
     if (views->db && views->db[0] &&
         (thd->db == NULL || strcmp(views->db, thd->db)))
@@ -857,6 +862,14 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   view->definer.host= lex->definer->host;
   view->view_suid= lex->create_view_suid;
   view->with_check= lex->create_view_check;
+
+  DBUG_EXECUTE_IF("simulate_register_view_failure",
+                  {
+                    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+                    error= -1;
+                    goto err;
+                  });
+
   if ((view->updatable_view= (can_be_merged &&
                               view->algorithm != VIEW_ALGORITHM_TMPTABLE)))
   {
@@ -909,7 +922,14 @@ loop_out:
 
     if (ha_table_exists(thd, view->db, view->table_name, NULL))
     {
-      if (mode == VIEW_CREATE_NEW)
+      if (lex->create_info.if_not_exists())
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_TABLE_EXISTS_ERROR, ER(ER_TABLE_EXISTS_ERROR),
+                            view->db, view->table_name);
+        DBUG_RETURN(0);
+      }
+      else if (mode == VIEW_CREATE_NEW)
       {
 	my_error(ER_TABLE_EXISTS_ERROR, MYF(0), view->alias);
         error= -1;

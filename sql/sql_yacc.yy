@@ -2552,6 +2552,7 @@ create:
           }
         | create_or_replace
           {
+            Lex->create_info.set($1);
             Lex->create_view_mode= ($1.or_replace() ? VIEW_CREATE_OR_REPLACE :
                                                       VIEW_CREATE_NEW);
             Lex->create_view_algorithm= DTYPE_ALGORITHM_UNDEFINED;
@@ -2559,6 +2560,7 @@ create:
           }
           view_or_trigger_or_sp_or_event
           {
+            // TODO: remove this when "MDEV-5359 CREATE OR REPLACE..." is done
             if ($1.or_replace() && Lex->sql_command != SQLCOM_CREATE_VIEW)
             {
                my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE",
@@ -16059,12 +16061,14 @@ view_suid:
         ;
 
 view_tail:
-          view_suid VIEW_SYM table_ident
+          view_suid VIEW_SYM opt_if_not_exists table_ident
           {
             LEX *lex= thd->lex;
+            if (lex->add_create_options_with_check($3))
+              MYSQL_YYABORT;
             lex->sql_command= SQLCOM_CREATE_VIEW;
             /* first table in list is target VIEW name */
-            if (!lex->select_lex.add_table_to_list(thd, $3, NULL,
+            if (!lex->select_lex.add_table_to_list(thd, $4, NULL,
                                                    TL_OPTION_UPDATING,
                                                    TL_IGNORE,
                                                    MDL_EXCLUSIVE))
