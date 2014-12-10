@@ -2584,18 +2584,21 @@ create:
           {
             Lex->alter_tablespace_info->ts_cmd_type= CREATE_TABLESPACE;
           }
-        | CREATE server_def
-          {
-            Lex->sql_command= SQLCOM_CREATE_SERVER;
-          }
+        | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
+          server_def
+          { }
         ;
 
 server_def:
-          SERVER_SYM ident_or_text
-          { Lex->server_options.reset($2); }
+          SERVER_SYM opt_if_not_exists ident_or_text
+          {
+            if (Lex->add_create_options_with_check($2))
+              MYSQL_YYABORT;
+            Lex->server_options.reset($3);
+          }
           FOREIGN DATA_SYM WRAPPER_SYM ident_or_text
           OPTIONS_SYM '(' server_options_list ')'
-          { Lex->server_options.scheme= $7; }
+          { Lex->server_options.scheme= $8; }
         ;
 
 server_options_list:

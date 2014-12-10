@@ -582,8 +582,8 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
     This function takes as its arguments a THD object pointer and a pointer
     to a LEX_SERVER_OPTIONS struct from the parser. The member 'server_name'
     of this LEX_SERVER_OPTIONS struct contains the value of the server to be
-    deleted. The mysql.servers table is opened via open_ltable, a table object
-    returned, the servers cache mutex locked, then delete_server_record is
+    deleted. The mysql.servers table is opened via open_ltable,
+    a table object returned, then delete_server_record is
     called with this table object and LEX_SERVER_OPTIONS server_name and
     server_name_length passed, containing the name of the server to be
     dropped/deleted, then delete_server_record_in_cache is called to delete
@@ -594,19 +594,17 @@ int insert_server_record(TABLE *table, FOREIGN_SERVER *server)
     > 0 - error code
 */
 
-int drop_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
+static int drop_server_internal(THD *thd, LEX_SERVER_OPTIONS *server_options)
 {
   int error;
   TABLE_LIST tables;
   TABLE *table;
 
-  DBUG_ENTER("drop_server");
+  DBUG_ENTER("drop_server_internal");
   DBUG_PRINT("info", ("server name server->server_name %s",
                       server_options->server_name.str));
 
   tables.init_one_table("mysql", 5, "servers", 7, "servers", TL_WRITE);
-
-  mysql_rwlock_wrlock(&THR_LOCK_servers);
 
   /* hit the memory hit first */
   if ((error= delete_server_record_in_cache(server_options)))
@@ -630,8 +628,19 @@ int drop_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
   }
 
 end:
-  mysql_rwlock_unlock(&THR_LOCK_servers);
   DBUG_RETURN(error);
+}
+
+
+/**
+  Drop a server with servers cache mutex lock.
+*/
+int drop_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
+{
+  mysql_rwlock_wrlock(&THR_LOCK_servers);
+  int rc= drop_server_internal(thd, server_options);
+  mysql_rwlock_unlock(&THR_LOCK_servers);
+  return rc;
 }
 
 
@@ -989,8 +998,24 @@ int create_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
   /* hit the memory first */
   if (my_hash_search(&servers_cache, (uchar*) server_options->server_name.str,
                      server_options->server_name.length))
-    goto end;
-
+  {
+    if (thd->lex->create_info.or_replace())
+    {
+      if ((error= drop_server_internal(thd, server_options)))
+        goto end;
+    }
+    else if (thd->lex->create_info.if_not_exists())
+    {
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_FOREIGN_SERVER_EXISTS,
+                          ER(ER_FOREIGN_SERVER_EXISTS),
+                          server_options->server_name.str);
+      error= 0;
+      goto end;
+    }
+    else
+      goto end;
+  }
 
   if (!(server= prepare_server_struct_for_insert(server_options)))
   {
@@ -1006,6 +1031,16 @@ int create_server(THD *thd, LEX_SERVER_OPTIONS *server_options)
 
 end:
   mysql_rwlock_unlock(&THR_LOCK_servers);
+
+  if (error)
+  {
+    DBUG_PRINT("info", ("problem creating server <%s>",
+                        server_options->server_name.str));
+    my_error(error, MYF(0), server_options->server_name.str);
+  }
+  else
+    my_ok(thd);
+
   DBUG_RETURN(error);
 }
 

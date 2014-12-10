@@ -5446,21 +5446,13 @@ create_sp_error:
   }
   case SQLCOM_CREATE_SERVER:
   {
-    int error;
     LEX *lex= thd->lex;
     DBUG_PRINT("info", ("case SQLCOM_CREATE_SERVER"));
 
     if (check_global_access(thd, SUPER_ACL))
       break;
 
-    if ((error= create_server(thd, &lex->server_options)))
-    {
-      DBUG_PRINT("info", ("problem creating server <%s>",
-                          lex->server_options.server_name.str));
-      my_error(error, MYF(0), lex->server_options.server_name.str);
-      break;
-    }
-    my_ok(thd, 1);
+    res= create_server(thd, &lex->server_options);
     break;
   }
   case SQLCOM_ALTER_SERVER:

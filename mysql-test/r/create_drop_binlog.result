@@ -27,6 +27,24 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Query	1	#	DROP DATABASE IF EXISTS d1
 RESET MASTER;
 USE test;
+#
+# CREATE SERVER is not logged
+#
+CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test');
+CREATE OR REPLACE SERVER s1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test');
+DROP SERVER s1;
+CREATE SERVER IF NOT EXISTS s1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test');
+CREATE SERVER IF NOT EXISTS s1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'root', HOST 'localhost', DATABASE 'test');
+Warnings:
+Note	1476	The foreign server, s1, you are trying to create already exists.
+DROP SERVER IF EXISTS s1;
+DROP SERVER IF EXISTS s1;
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+RESET MASTER;
 CREATE OR REPLACE VIEW v1 AS SELECT 1;
 CREATE OR REPLACE VIEW v1 AS SELECT 1;
 DROP VIEW v1;
