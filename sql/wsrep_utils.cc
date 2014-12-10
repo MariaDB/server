@@ -150,7 +150,35 @@ process::process (const char* cmd, const char* type)
         goto cleanup_pipe;
     }
 
-    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF |
+    /* make sure that no signlas are masked in child process */
+    sigset_t sigmask_empty; sigemptyset(&sigmask_empty);
+    err_ = posix_spawnattr_setsigmask(&attr, &sigmask_empty);
+    if (err_)
+    {
+        WSREP_ERROR ("posix_spawnattr_setsigmask() failed: %d (%s)",
+                     err_, strerror(err_));
+        goto cleanup_attr;
+    }
+
+    /* make sure the following signals are not ignored in child process */
+    sigset_t default_signals; sigemptyset(&default_signals);
+    sigaddset(&default_signals, SIGHUP);
+    sigaddset(&default_signals, SIGINT);
+    sigaddset(&default_signals, SIGQUIT);
+    sigaddset(&default_signals, SIGPIPE);
+    sigaddset(&default_signals, SIGTERM);
+    sigaddset(&default_signals, SIGCHLD);
+    err_ = posix_spawnattr_setsigdefault(&attr, &default_signals);
+    if (err_)
+    {
+        WSREP_ERROR ("posix_spawnattr_setsigdefault() failed: %d (%s)",
+                     err_, strerror(err_));
+        goto cleanup_attr;
+    }
+
+    err_ = posix_spawnattr_setflags (&attr, POSIX_SPAWN_SETSIGDEF  |
+                                            POSIX_SPAWN_SETSIGMASK |
+            /* start a new process group */ POSIX_SPAWN_SETPGROUP  |
                                             POSIX_SPAWN_USEVFORK);
     if (err_)
     {
