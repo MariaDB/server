@@ -62,6 +62,8 @@ static void mysql_change_db_impl(THD *thd,
                                  LEX_STRING *new_db_name,
                                  ulong new_db_access,
                                  CHARSET_INFO *new_db_charset);
+static bool mysql_rm_db_internal(THD *thd, char *db,
+                                 bool if_exists, bool silent);
 
 
 /* Database options hash */
@@ -542,7 +544,7 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
   Create a database
 
   SYNOPSIS
-  mysql_create_db()
+  mysql_create_db_iternal()
   thd		Thread handler
   db		Name of database to create
 		Function assumes that this is already validated.
@@ -563,14 +565,13 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
 
 */
 
-int mysql_create_db(THD *thd, char *db,
-                    const DDL_options_st &options,
-                    Schema_specification_st *create_info,
-                    bool silent)
+static int
+mysql_create_db_internal(THD *thd, char *db,
+                         const DDL_options_st &options,
+                         Schema_specification_st *create_info,
+                         bool silent)
 {
   char	 path[FN_REFLEN+16];
-  long result= 1;
-  int error= 0;
   MY_STAT stat_info;
   uint path_len;
   DBUG_ENTER("mysql_create_db");
@@ -599,32 +600,45 @@ int mysql_create_db(THD *thd, char *db,
   path_len= build_table_filename(path, sizeof(path) - 1, db, "", "", 0);
   path[path_len-1]= 0;                    // Remove last '/' from path
 
-  if (mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
+  long affected_rows= 1;
+  if (!mysql_file_stat(key_file_misc, path, &stat_info, MYF(0)))
   {
-    if (!options.if_not_exists())
+    // The database directory does not exist, or my_file_stat() failed
+    if (my_errno != ENOENT)
     {
-      my_error(ER_DB_CREATE_EXISTS, MYF(0), db);
-      error= -1;
-      goto exit;
+      my_error(EE_STAT, MYF(0), path, my_errno);
+      DBUG_RETURN(1);
     }
+  }
+  else if (options.or_replace())
+  {
+    if (mysql_rm_db_internal(thd, db, 0, true)) // Removing the old database
+      DBUG_RETURN(1);
+    /*
+      Reset the diagnostics m_status.
+      It might be set ot DA_OK in mysql_rm_db.
+    */
+    thd->get_stmt_da()->reset_diagnostics_area();
+    affected_rows= 2;
+  }
+  else if (options.if_not_exists())
+  {
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-			ER_DB_CREATE_EXISTS, ER(ER_DB_CREATE_EXISTS), db);
-    error= 0;
+                      ER_DB_CREATE_EXISTS, ER(ER_DB_CREATE_EXISTS), db);
+    affected_rows= 0;
     goto not_silent;
   }
   else
   {
-    if (my_errno != ENOENT)
-    {
-      my_error(EE_STAT, MYF(0), path, my_errno);
-      goto exit;
-    }
-    if (my_mkdir(path,0777,MYF(0)) < 0)
-    {
-      my_error(ER_CANT_CREATE_DB, MYF(0), db, my_errno);
-      error= -1;
-      goto exit;
-    }
+    my_error(ER_DB_CREATE_EXISTS, MYF(0), db);
+    DBUG_RETURN(-1);
+  }
+
+
+  if (my_mkdir(path, 0777, MYF(0)) < 0)
+  {
+    my_error(ER_CANT_CREATE_DB, MYF(0), db, my_errno);
+    DBUG_RETURN(-1);
   }
 
   path[path_len-1]= FN_LIBCHAR;
@@ -637,10 +651,7 @@ int mysql_create_db(THD *thd, char *db,
     */
     path[path_len]= 0;
     if (rmdir(path) >= 0)
-    {
-      error= -1;
-      goto exit;
-    }
+      DBUG_RETURN(-1);
     /*
       We come here when we managed to create the database, but not the option
       file.  In this case it's best to just continue as if nothing has
@@ -690,23 +701,20 @@ not_silent:
         metadata lock on the schema
       */
       if (mysql_bin_log.write(&qinfo))
-      {
-        error= -1;
-        goto exit;
-      }
+        DBUG_RETURN(-1);
     }
-    my_ok(thd, result);
+    my_ok(thd, affected_rows);
   }
 
-exit:
-  DBUG_RETURN(error);
+  DBUG_RETURN(0);
 }
 
 
 /* db-name is already validated when we come here */
 
-bool mysql_alter_db(THD *thd, const char *db,
-                    Schema_specification_st *create_info)
+static bool
+mysql_alter_db_internal(THD *thd, const char *db,
+                        Schema_specification_st *create_info)
 {
   char path[FN_REFLEN+16];
   long result=1;
@@ -762,6 +770,31 @@ exit:
 }
 
 
+int mysql_create_db(THD *thd, char *db,
+                    const DDL_options_st &options,
+                    const Schema_specification_st *create_info)
+{
+  /*
+    As mysql_create_db_internal() may modify Db_create_info structure passed
+    to it, we need to use a copy to make execution prepared statement- safe.
+  */
+  Schema_specification_st tmp(*create_info);
+  return mysql_create_db_internal(thd, db, options, &tmp, false);
+}
+
+
+bool mysql_alter_db(THD *thd, const char *db,
+                    const Schema_specification_st *create_info)
+{
+  /*
+    As mysql_alter_db_internal() may modify Db_create_info structure passed
+    to it, we need to use a copy to make execution prepared statement- safe.
+  */
+  Schema_specification_st tmp(*create_info);
+  return mysql_alter_db_internal(thd, db, &tmp);
+}
+
+
 /**
   Drop all tables, routines and events in a database and the database itself.
 
@@ -777,7 +810,8 @@ exit:
   @retval  true   Error
 */
 
-bool mysql_rm_db(THD *thd,char *db, bool if_exists, bool silent)
+static bool
+mysql_rm_db_internal(THD *thd,char *db, bool if_exists, bool silent)
 {
   ulong deleted_tables= 0;
   bool error= true;
@@ -1001,6 +1035,12 @@ exit:
     mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
   my_dirend(dirp);
   DBUG_RETURN(error);
+}
+
+
+bool mysql_rm_db(THD *thd,char *db, bool if_exists)
+{
+  return mysql_rm_db_internal(thd, db, if_exists, false);
 }
 
 
@@ -1654,7 +1694,8 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
   }
 
   /* Step1: Create the new database */
-  if ((error= mysql_create_db(thd, new_db.str, DDL_options(), &create_info, 1)))
+  if ((error= mysql_create_db_internal(thd, new_db.str,
+                                       DDL_options(), &create_info, 1)))
     goto exit;
 
   /* Step2: Move tables to the new database */
@@ -1778,7 +1819,7 @@ bool mysql_upgrade_db(THD *thd, LEX_STRING *old_db)
     to execute them again.
     mysql_rm_db() also "unuses" if we drop the current database.
   */
-  error= mysql_rm_db(thd, old_db->str, 0, 1);
+  error= mysql_rm_db_internal(thd, old_db->str, 0, true);
 
   /* Step8: logging */
   if (mysql_bin_log.is_open())

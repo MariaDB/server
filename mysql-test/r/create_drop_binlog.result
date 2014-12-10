@@ -1,0 +1,29 @@
+CREATE OR REPLACE DATABASE d1;
+CREATE OR REPLACE DATABASE d1;
+DROP DATABASE d1;
+CREATE DATABASE IF NOT EXISTS d1;
+CREATE DATABASE IF NOT EXISTS d1;
+Warnings:
+Note	1007	Can't create database 'd1'; database exists
+DROP DATABASE IF EXISTS d1;
+DROP DATABASE IF EXISTS d1;
+Warnings:
+Note	1008	Can't drop database 'd1'; database doesn't exist
+"Runnig SHOW BINLOG EVENTS"
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	CREATE OR REPLACE DATABASE d1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	CREATE OR REPLACE DATABASE d1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	DROP DATABASE d1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	CREATE DATABASE IF NOT EXISTS d1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	CREATE DATABASE IF NOT EXISTS d1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	DROP DATABASE IF EXISTS d1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	DROP DATABASE IF EXISTS d1
+RESET MASTER;
+USE test;

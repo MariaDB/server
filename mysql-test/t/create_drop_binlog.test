@@ -1,0 +1,20 @@
+--source include/have_log_bin.inc
+
+--let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start=query_get_value(SHOW MASTER STATUS, Position, 1)
+
+CREATE OR REPLACE DATABASE d1;
+CREATE OR REPLACE DATABASE d1;
+DROP DATABASE d1;
+CREATE DATABASE IF NOT EXISTS d1;
+CREATE DATABASE IF NOT EXISTS d1;
+DROP DATABASE IF EXISTS d1;
+DROP DATABASE IF EXISTS d1;
+--echo "Runnig SHOW BINLOG EVENTS"
+--replace_column 1 # 2 # 5 #
+--replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Server.ver.*/VERSIONS/
+--disable_query_log
+--eval SHOW BINLOG EVENTS FROM $binlog_start;
+--enable_query_log
+RESET MASTER;
+USE test;

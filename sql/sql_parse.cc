@@ -4301,7 +4301,7 @@ end_with_restore_list:
     if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
-    res= mysql_create_db(thd, lex->name.str, lex->create_info, &create_info, 0);
+    res= mysql_create_db(thd, lex->name.str, lex->create_info, &create_info);
     break;
   }
   case SQLCOM_DROP_DB:
@@ -4333,7 +4333,7 @@ end_with_restore_list:
     if (check_access(thd, DROP_ACL, lex->name.str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
-    res= mysql_rm_db(thd, lex->name.str, lex->if_exists(), 0);
+    res= mysql_rm_db(thd, lex->name.str, lex->if_exists());
     break;
   }
   case SQLCOM_ALTER_DB_UPGRADE:

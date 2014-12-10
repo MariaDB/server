@@ -2538,7 +2538,7 @@ create:
               MYSQL_YYABORT;
           }
           opt_index_lock_algorithm { }
-        | CREATE DATABASE opt_if_not_exists ident
+        | create_or_replace DATABASE opt_if_not_exists ident
           {
             Lex->create_info.default_table_charset= NULL;
             Lex->create_info.used_fields= 0;
@@ -2546,7 +2546,8 @@ create:
           opt_create_database_options
           {
             LEX *lex=Lex;
-            lex->set_command(SQLCOM_CREATE_DB, $3);
+            if (lex->set_command_with_check(SQLCOM_CREATE_DB, 0, $1 | $3))
+               MYSQL_YYABORT;
             lex->name= $4;
           }
         | create_or_replace
