@@ -4298,7 +4298,9 @@ end_with_restore_list:
       }
     }
 #endif
-    if (check_access(thd, CREATE_ACL, lex->name.str, NULL, NULL, 1, 0))
+    if (check_access(thd, lex->create_info.or_replace() ?
+                          (CREATE_ACL | DROP_ACL) : CREATE_ACL,
+                     lex->name.str, NULL, NULL, 1, 0))
       break;
     WSREP_TO_ISOLATION_BEGIN(lex->name.str, NULL, NULL)
     res= mysql_create_db(thd, lex->name.str, lex->create_info, &create_info);
