@@ -184,15 +184,11 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 	fil_space_crypt_t* crypt_data, uint version, bool page_encrypted)
 {
 	/* TODO: Find a better way to do this */
-	unsigned char keybuf[CRYPT_SCHEME_1_IV_LEN] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
-				      0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0, 0xe0, 0x23};
+	unsigned char keybuf[CRYPT_SCHEME_1_IV_LEN];
 	byte key[CRYPT_SCHEME_1_IV_LEN];
 	uint8 key_len = sizeof(keybuf);
-
-	unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
-					    0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
-
-	ulint iv_len = 16;
+	unsigned char iv[CRYPT_SCHEME_1_IV_LEN];
+	ulint iv_len = sizeof(iv);
 	bool key_error = false;
 
 	if (!page_encrypted) {
@@ -279,7 +275,10 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 		}
 	}
 
-	memcpy(dst, buf, buflen);
+	memcpy(dst, crypt_data->keys[0].key,
+	       sizeof(crypt_data->keys[0].key));
+
+	// memcpy(dst, buf, buflen);
 
 	if (!page_encrypted) {
 		mutex_exit(&crypt_data->mutex);
@@ -610,12 +609,19 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	fil_space_crypt_t* crypt_data;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
+	fprintf(stderr, "JAN: page_size %lu\n", page_size);
+
 	// get key (L)
 	uint key_version;
 	byte key[CRYPT_SCHEME_1_IV_LEN];
 
 	if (srv_encrypt_tables) {
 		crypt_data = fil_space_get_crypt_data(space);
+		if (crypt_data == NULL) {
+			//TODO: Is this really needed ?
+			memcpy(dst_frame, src_frame, page_size);
+			return;
+		}
 		fil_crypt_get_latest_key(key, sizeof(key), crypt_data, &key_version);
 	} else {
 		key_version = encryption_key;
@@ -654,7 +660,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 
 	// encrypt page data
 	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
-	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
+	ulint srclen = page_size - unencrypted_bytes;
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
 	int dstlen;
@@ -778,6 +784,8 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 
 	if (key_version == 0 && !page_encrypted) {
 		fprintf(stderr, "JAN: unencrypted\n");
+		//TODO: is this really needed ?
+		memcpy(dst_frame, src_frame, page_size);
 		return false; /* page not decrypted */
 	}
 
