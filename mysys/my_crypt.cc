@@ -1,3 +1,7 @@
+// TODO: add Windows support
+
+#ifdef __linux__
+
 #include "my_crypt.h"
 
 #include <openssl/aes.h>
@@ -300,3 +304,5 @@ CryptResult RandomBytes(unsigned char* buf, int num) {
 }
 
 } // extern "C"
+
+#endif // __linux__

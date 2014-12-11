@@ -1548,18 +1548,23 @@ struct buf_page_t{
 					zip.data == NULL means an active
 					buf_pool->watch */
 
-	ulint           write_size;     /* Write size is set when this
+	ulint           write_size;	/* Write size is set when this
 					page is first time written and then
 					if written again we check is TRIM
 					operation needed. */
 
-	unsigned key_version;          /*!< key version for this block */
-	byte* crypt_buf;	       /*!< for encryption the data needs to be
+	unsigned        key_version;	/*!< key version for this block */
+	byte*           crypt_buf;	/*!< for encryption the data needs to be
 					copied to a separate buffer before it's
 					encrypted&written. this as a page can be
 					read while it's being flushed */
-	byte* crypt_buf_free;          /*!< for encryption, allocated buffer
-				       that is then alligned */
+	byte*		crypt_buf_free; /*!< for encryption, allocated buffer
+					that is then alligned */
+	byte*		comp_buf;	/*!< for compression we need
+					temporal buffer because page
+					can be read while it's being flushed */
+	byte*		comp_buf_free;	/*!< for compression, allocated
+					buffer that is then alligned */
 
  #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to

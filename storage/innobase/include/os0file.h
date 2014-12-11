@@ -314,11 +314,12 @@ The wrapper functions have the prefix of "innodb_". */
 # define os_aio(type, mode, name, file, buf, offset,			\
 	n, message1, message2, write_size,                              \
 	page_compression, page_compression_level,			\
-	page_encryption, page_encryption_key)				\
+	page_encryption, page_encryption_key, lsn)			\
 	pfs_os_aio_func(type, mode, name, file, buf, offset,		\
 			n, message1, message2, write_size,              \
 		        page_compression, page_compression_level,	\
-		        page_encryption, page_encryption_key, __FILE__, __LINE__)
+		        page_encryption, page_encryption_key,		\
+		        lsn, __FILE__, __LINE__)
 
 
 # define os_file_read(file, buf, offset, n, compressed)			\
@@ -362,11 +363,11 @@ to original un-instrumented file I/O APIs */
 
 # define os_aio(type, mode, name, file, buf, offset, n, message1,	\
 	message2, write_size, page_compression, page_compression_level, \
-	page_encryption, page_encryption_key)				\
+	page_encryption, page_encryption_key, lsn)			\
 	os_aio_func(type, mode, name, file, buf, offset, n,		\
 		message1, message2, write_size,				\
 		page_compression, page_compression_level,		\
-		page_encryption, page_encryption_key)
+		page_encryption, page_encryption_key, lsn)
 
 # define os_file_read(file, buf, offset, n, compressed)	\
 	os_file_read_func(file, buf, offset, n, compressed)
@@ -788,6 +789,7 @@ pfs_os_aio_func(
 	                              on this file space */
 	ulint		page_encryption_key, /*!< page encryption
 	                                 key to be used */
+	lsn_t		lsn,		/* lsn of the newest modification */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line);/*!< in: line where the func invoked */
 /*******************************************************************//**
@@ -1168,8 +1170,9 @@ os_aio_func(
 						 level to be used */
 	ibool		page_encryption, /*!< in: is page encryption used
 					  on this file space */
-	ulint		page_encryption_key); /*!< page encryption key
+	ulint		page_encryption_key, /*!< page encryption key
 						 to be used */
+	lsn_t		lsn);		/* lsn of the newest modification */
 /************************************************************************//**
 Wakes up all async i/o threads so that they know to exit themselves in
 shutdown. */

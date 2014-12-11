@@ -913,10 +913,16 @@ buf_flush_write_block_low(
 
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
-		       sync, buf_page_get_space(bpage), zip_size,
-		       buf_page_get_page_no(bpage), 0,
+		       sync,
+		       buf_page_get_space(bpage),
+		       zip_size,
+		       buf_page_get_page_no(bpage),
+		       0,
 		       zip_size ? zip_size : UNIV_PAGE_SIZE,
-		       frame, bpage, &bpage->write_size);
+		       frame,
+		       bpage,
+		       &bpage->write_size,
+		       bpage->newest_modification);
 	} else {
 
 		/* InnoDB uses doublewrite buffer and doublewrite buffer
@@ -928,10 +934,16 @@ buf_flush_write_block_low(
 
 		if (awrites == ATOMIC_WRITES_ON) {
 			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
-				FALSE, buf_page_get_space(bpage), zip_size,
-				buf_page_get_page_no(bpage), 0,
+				FALSE,
+				buf_page_get_space(bpage),
+				zip_size,
+				buf_page_get_page_no(bpage),
+				0,
 				zip_size ? zip_size : UNIV_PAGE_SIZE,
-				frame, bpage, &bpage->write_size);
+				frame,
+				bpage,
+				&bpage->write_size,
+				bpage->newest_modification);
 		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 			buf_dblwr_write_single_page(bpage, sync);
 		} else {

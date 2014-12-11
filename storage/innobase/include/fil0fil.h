@@ -173,6 +173,8 @@ static const ulint FIL_PAGE_COMPRESS_SIZE_V1 = FIL_PAGE_ORIGINAL_SIZE_V1 + 2;
 /* @} */
 
 /** File page types (values of FIL_PAGE_TYPE) @{ */
+#define FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED 35631 /* page compressed +
+						 encrypted page */
 #define FIL_PAGE_PAGE_COMPRESSED 34354  /*!< page compressed page */
 #define FIL_PAGE_PAGE_ENCRYPTED  34355  /*!< Page encrypted page  */
 #define FIL_PAGE_INDEX		17855	/*!< B-tree node */
@@ -993,11 +995,12 @@ fil_io(
 				appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
 				aio used, else ignored */
-	ulint*	write_size)	/*!< in/out: Actual write size initialized
+	ulint*	write_size,	/*!< in/out: Actual write size initialized
 			       after fist successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	lsn_t	lsn)		/* lsn of the newest modification */
 	__attribute__((nonnull(8)));
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
@@ -1404,7 +1407,9 @@ fil_space_encrypt(
 	lsn_t lsn,            /*!< in: page lsn */
 	const byte* src_frame,/*!< in: page frame */
 	ulint size,           /*!< in: size of data to encrypt */
-	byte* dst_frame);     /*!< in: where to encrypt to */
+	byte* dst_frame,      /*!< in: where to encrypt to */
+	ulint page_encryption_key); /*!< in: page encryption key id if page
+				    encrypted */
 
 /*********************************************************************
 Decrypt buffer page */

@@ -42,8 +42,6 @@ Created 12/9/1995 Heikki Tuuri
 #endif /* !UNIV_HOTBACKUP */
 #include "log0crypt.h"
 
-/* Type used for all log sequence number storage and arithmetics */
-typedef	ib_uint64_t		lsn_t;
 #define LSN_MAX			IB_UINT64_MAX
 
 #define LSN_PF			UINT64PF

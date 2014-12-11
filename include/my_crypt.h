@@ -1,8 +1,12 @@
+// TODO: Add Windows support
+
+#ifdef __linux__
 
 #ifndef MYSYS_MY_CRYPT_H_
 #define MYSYS_MY_CRYPT_H_
 
 #include <assert.h>
+
 #include <openssl/evp.h>
 
 #include "my_global.h"
@@ -282,3 +286,5 @@ enum CryptResult RandomBytes(unsigned char* buf, int num);
 C_MODE_END
 
 #endif // MYSYS_MY_CRYPT_H_
+
+#endif // __linux__

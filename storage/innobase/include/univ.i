@@ -478,6 +478,9 @@ typedef uint32_t ib_uint32_t;
 
 # define IB_ID_FMT	UINT64PF
 
+/* Type used for all log sequence number storage and arithmetics */
+typedef	ib_uint64_t		lsn_t;
+
 #ifdef _WIN64
 typedef unsigned __int64	ulint;
 typedef __int64			lint;

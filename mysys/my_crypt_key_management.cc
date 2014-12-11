@@ -1,9 +1,10 @@
 
 #include "my_crypt_key_management.h"
 
-#include <arpa/inet.h>
 #include <cstring>
-
+#ifdef __linux__
+#include <arpa/inet.h>
+#endif
 #include "my_pthread.h"
 
 #ifndef DBUG_OFF
@@ -57,6 +58,7 @@ int GetCryptoKey(unsigned int version, unsigned char* key, unsigned int size) {
     if (size < sizeof(version)) {
       return 1;
     }
+
     version = htonl(version);
     memcpy(key, &version, sizeof(version));
     return 0;
