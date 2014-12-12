@@ -1131,9 +1131,9 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    my_atomic_rwlock_wrlock(&ir->rli->inuse_relaylog_atomic_lock);
+    my_atomic_rwlock_wrlock(&ir->inuse_relaylog_atomic_lock);
     my_atomic_add64(&ir->dequeued_count, accumulated_ir_count);
-    my_atomic_rwlock_wrunlock(&ir->rli->inuse_relaylog_atomic_lock);
+    my_atomic_rwlock_wrunlock(&ir->inuse_relaylog_atomic_lock);
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }
