@@ -194,5 +194,6 @@ class ODBConn : public BLOCK {
   bool     m_Updatable;
   bool     m_Transact;
   bool     m_Scrollable;
-  bool     m_Memory;
+  bool     m_First;
+  bool     m_Full;
   }; // end of ODBConn class definition

@@ -95,7 +95,7 @@ ODBCDEF::ODBCDEF(void)
   {
   Connect= Tabname= Tabschema= Tabcat= Srcdef= Qchar= Qrystr= Sep= NULL;
   Catver = Options = Quoted = Maxerr = Maxres = 0;
-  Scrollable = Xsrc = false;
+  Scrollable = Memory = Xsrc = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -880,7 +880,7 @@ int TDBODBC::ReadDB(PGLOBAL g)
   if (To_Kindex) {
     // Direct access of ODBC tables is not implemented yet
     strcpy(g->Message, MSG(NO_ODBC_DIRECT));
-    longjmp(g->jumper[g->jump_level], GetAmType());
+    return RC_FX;
     } // endif To_Kindex
 
   /*********************************************************************/
@@ -1152,7 +1152,7 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
       Name, tdbp->Rows, Bufp, Buf_Type, Value->GetCharString(buf));
     } // endif Trace
 
-put:
+ put:
   if (tdbp->Memory != 2)
     return;
 

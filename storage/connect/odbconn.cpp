@@ -922,6 +922,8 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Updatable = true;
   m_Transact = false;
   m_Scrollable = (tdbp) ? tdbp->Scrollable : false;
+  m_First = true;
+  m_Full = false;
   m_IDQuoteChar[0] = '"';
   m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
@@ -1508,6 +1510,16 @@ int ODBConn::Fetch()
       ThrowDBX(rc, "Fetch", m_hstmt);
 
     irc = (rc == SQL_NO_DATA_FOUND) ? 0 : (int)crow;
+
+    if (m_First) {
+      // First fetch. Check whether the full table was read
+      if ((m_Full = irc < (signed)m_RowsetSize)) {
+        m_Tdb->Memory = 0;     // Not needed anymore
+        m_Rows = irc;          // Table size
+        } // endif m_Full
+
+      m_First = false;
+      } // endif m_First
 
     if (m_Tdb->Memory == 1)
       m_Rows += irc;
@@ -2441,12 +2453,13 @@ PQRYRES ODBConn::AllocateResult(PGLOBAL g)
 /***********************************************************************/
 int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
   {
-  int rc, rbuf = -1;
+  int rc, rbuf;
 
   if (!m_hstmt)
-    return rbuf;
-
-  if (m_Scrollable) {
+    rbuf = -1;
+  else if (m_Full)
+    rbuf = m_Rows;           // No need to "rewind"
+  else if (m_Scrollable) {
     SQLULEN  crow;
 
     try {
@@ -2458,6 +2471,7 @@ int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
       rbuf = (int)crow;
     } catch(DBX *x) {
       strcpy(m_G->Message, x->GetErrorMessage(0));
+      rbuf = -1;
     } // end try/catch
 
   } else if (ExecDirectSQL(sql, tocols) >= 0)

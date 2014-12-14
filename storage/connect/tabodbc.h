@@ -1,7 +1,7 @@
 /*************** Tabodbc H Declares Source Code File (.H) **************/
-/*  Name: TABODBC.H   Version 1.6                                      */
+/*  Name: TABODBC.H   Version 1.7                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
