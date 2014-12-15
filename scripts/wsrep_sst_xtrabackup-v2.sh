@@ -557,8 +557,8 @@ fi
 
 INNOEXTRA=""
 INNOAPPLY="${INNOBACKUPEX_BIN} $disver $iapts --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
-INNOMOVE="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
-INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
+INNOMOVE="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} --defaults-group=mysqld${WSREP_SST_OPT_CONF_SUFFIX} $disver $impts  --move-back --force-non-empty-directories \${DATA} &>\${DATA}/innobackup.move.log"
+INNOBACKUP="${INNOBACKUPEX_BIN} --defaults-file=${WSREP_SST_OPT_CONF} --defaults-group=mysqld${WSREP_SST_OPT_CONF_SUFFIX} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2>\${DATA}/innobackup.backup.log"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
@@ -879,7 +879,7 @@ then
 
         if [[ $incremental -eq 1 ]];then 
             # Added --ibbackup=xtrabackup_55 because it fails otherwise citing connection issues.
-            INNOAPPLY="${INNOBACKUPEX_BIN} $disver --defaults-file=${WSREP_SST_OPT_CONF} \
+            INNOAPPLY="${INNOBACKUPEX_BIN} $disver --defaults-file=${WSREP_SST_OPT_CONF} --defaults-group=mysqld${WSREP_SST_OPT_CONF_SUFFIX} \
                 --ibbackup=xtrabackup_56 --apply-log $rebuildcmd --redo-only $BDATA --incremental-dir=${DATA} &>>${BDATA}/innobackup.prepare.log"
         fi
 

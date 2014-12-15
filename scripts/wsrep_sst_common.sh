@@ -44,6 +44,10 @@ case "$1" in
         readonly WSREP_SST_OPT_CONF="$2"
         shift
         ;;
+    '--defaults-group-suffix')
+        readonly WSREP_SST_OPT_CONF_SUFFIX="$2"
+        shift
+        ;;
     '--host')
         readonly WSREP_SST_OPT_HOST="$2"
         shift
