@@ -29,6 +29,12 @@ ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'db2'
 USE db1;
 CREATE OR REPLACE TABLE t1(id INT);
 ERROR 42000: DROP command denied to user 'mysqltest_1'@'localhost' for table 't1'
+CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN END;
+ERROR 42000: alter routine command denied to user 'mysqltest_1'@'localhost' for routine 'db1.proc1'
+CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "udf_example.so";
+ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysql'
+CREATE OR REPLACE FUNCTION hello(str char(20)) RETURNS TEXT RETURN CONCAT('Hello, ', str, '!');
+ERROR 42000: alter routine command denied to user 'mysqltest_1'@'localhost' for routine 'db1.hello'
 SELECT CURRENT_USER;
 CURRENT_USER
 root@localhost

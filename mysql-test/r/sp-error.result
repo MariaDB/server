@@ -1223,9 +1223,7 @@ END' at line 1
 CREATE PROCEDURE IF NOT EXISTS bug14702()
 BEGIN
 END;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IF NOT EXISTS bug14702()
-BEGIN
-END' at line 1
+DROP PROCEDURE IF EXISTS bug14702;
 DROP TABLE IF EXISTS t1;
 CREATE TABLE t1 (i INT);
 CREATE PROCEDURE bug20953() CREATE VIEW v AS SELECT 1 INTO @a;

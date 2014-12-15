@@ -1,0 +1,41 @@
+SET timestamp=UNIX_TIMESTAMP('2014-09-30 08:00:00');
+
+CREATE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello, ', str, '!');
+SELECT * FROM mysql.proc WHERE name like 'f1';
+SELECT f1('world');
+
+--error ER_SP_ALREADY_EXISTS
+CREATE FUNCTION f1(str char(20))
+RETURNS TEXT
+RETURN CONCAT('Hello2, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+CREATE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello3, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello4, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+CREATE OR REPLACE FUNCTION f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello5, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+
+DROP FUNCTION f1;
+CREATE FUNCTION IF NOT EXISTS f1(str char(20))
+RETURNS CHAR(100)
+RETURN CONCAT('Hello6, ', str, '!');
+SELECT body FROM mysql.proc WHERE name like 'f1';
+SELECT f1('world');
+
+DROP FUNCTION IF EXISTS f1;
+SELECT body FROM mysql.proc WHERE name like 'f1';
+DROP FUNCTION IF EXISTS f1;
+

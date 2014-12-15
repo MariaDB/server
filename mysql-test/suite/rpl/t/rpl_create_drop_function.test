@@ -1,0 +1,54 @@
+--source include/master-slave.inc
+
+connection master;
+
+CREATE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+
+--error ER_SP_ALREADY_EXISTS
+CREATE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+
+sync_slave_with_master;
+
+SHOW CREATE FUNCTION hello;
+
+connection master;
+
+--error ER_WRONG_USAGE
+CREATE OR REPLACE FUNCTION IF NOT EXISTS hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+
+CREATE OR REPLACE FUNCTION hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+
+SELECT hello('master');
+sync_slave_with_master;
+
+SELECT hello('slave');
+
+connection master;
+CREATE FUNCTION IF NOT EXISTS hello (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Hello, ', str, '!');
+
+CREATE OR REPLACE FUNCTION bye (str CHAR(20)) RETURNS CHAR(50) DETERMINISTIC RETURN
+CONCAT('Bye, ', str, '!');
+
+SELECT hello('master');
+SELECT bye('master');
+sync_slave_with_master;
+
+SELECT hello('slave');
+SELECT bye('slave');
+
+connection master;
+DROP FUNCTION hello;
+DROP FUNCTION IF EXISTS bye;
+sync_slave_with_master;
+
+--error ER_SP_DOES_NOT_EXIST
+DROP FUNCTION hello;
+
+DROP FUNCTION IF EXISTS bye;
+
+--source include/rpl_end.inc

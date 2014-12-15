@@ -1936,7 +1936,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
         view_algorithm view_or_trigger_or_sp_or_event
         definer_tail no_definer_tail
         view_suid view_tail view_list_opt view_list view_select
-        view_check_option trigger_tail sp_tail sf_tail udf_tail event_tail
+        view_check_option trigger_tail sp_tail sf_tail event_tail
+        udf_tail udf_tail2
         install uninstall partition_entry binlog_base64_event
         init_key_options normal_key_options normal_key_opts all_key_opt 
         spatial_key_options fulltext_key_options normal_key_opt 
@@ -2561,7 +2562,11 @@ create:
           view_or_trigger_or_sp_or_event
           {
             // TODO: remove this when "MDEV-5359 CREATE OR REPLACE..." is done
-            if ($1.or_replace() && Lex->sql_command != SQLCOM_CREATE_VIEW)
+            if ($1.or_replace() &&
+                Lex->sql_command != SQLCOM_CREATE_VIEW &&
+                Lex->sql_command != SQLCOM_CREATE_FUNCTION &&
+                Lex->sql_command != SQLCOM_CREATE_SPFUNCTION &&
+                Lex->sql_command != SQLCOM_CREATE_PROCEDURE)
             {
                my_error(ER_WRONG_USAGE, MYF(0), "OR REPLACE",
                        "TRIGGERS / SP / EVENT");
@@ -16218,45 +16223,32 @@ trigger_tail:
 **************************************************************************/
 
 udf_tail:
-          AGGREGATE_SYM remember_name FUNCTION_SYM ident
+          AGGREGATE_SYM udf_tail2 { thd->lex->udf.type= UDFTYPE_AGGREGATE; }
+        | udf_tail2               { thd->lex->udf.type= UDFTYPE_FUNCTION;  }
+        ;
+
+udf_tail2:
+          FUNCTION_SYM opt_if_not_exists ident
           RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
           {
             LEX *lex= thd->lex;
-            if (is_native_function(thd, & $4))
-            {
-              my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0),
-                       $4.str);
+            if (lex->add_create_options_with_check($2))
               MYSQL_YYABORT;
-            }
-            lex->sql_command = SQLCOM_CREATE_FUNCTION;
-            lex->udf.type= UDFTYPE_AGGREGATE;
-            lex->stmt_definition_begin= $2;
-            lex->udf.name = $4;
-            lex->udf.returns=(Item_result) $6;
-            lex->udf.dl=$8.str;
-          }
-        | remember_name FUNCTION_SYM ident
-          RETURNS_SYM udf_type SONAME_SYM TEXT_STRING_sys
-          {
-            LEX *lex= thd->lex;
             if (is_native_function(thd, & $3))
             {
-              my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0),
-                       $3.str);
+              my_error(ER_NATIVE_FCT_NAME_COLLISION, MYF(0), $3.str);
               MYSQL_YYABORT;
             }
-            lex->sql_command = SQLCOM_CREATE_FUNCTION;
-            lex->udf.type= UDFTYPE_FUNCTION;
-            lex->stmt_definition_begin= $1;
-            lex->udf.name = $3;
-            lex->udf.returns=(Item_result) $5;
-            lex->udf.dl=$7.str;
+            lex->sql_command= SQLCOM_CREATE_FUNCTION;
+            lex->udf.name= $3;
+            lex->udf.returns= (Item_result) $5;
+            lex->udf.dl= $7.str;
           }
         ;
 
 sf_tail:
-          remember_name /* $1 */
-          FUNCTION_SYM /* $2 */
+          FUNCTION_SYM /* $1 */
+          opt_if_not_exists /* $2 */
           sp_name /* $3 */
           '(' /* $4 */
           { /* $5 */
@@ -16264,7 +16256,8 @@ sf_tail:
             Lex_input_stream *lip= YYLIP;
             const char* tmp_param_begin;
 
-            lex->stmt_definition_begin= $1;
+            if (lex->add_create_options_with_check($2))
+              MYSQL_YYABORT;
             lex->spname= $3;
 
             if (lex->sphead)
@@ -16359,18 +16352,20 @@ sf_tail:
         ;
 
 sp_tail:
-          PROCEDURE_SYM remember_name sp_name
+          PROCEDURE_SYM opt_if_not_exists sp_name
           {
+            if (Lex->add_create_options_with_check($2))
+              MYSQL_YYABORT;
+
             if (Lex->sphead)
             {
               my_error(ER_SP_NO_RECURSIVE_CREATE, MYF(0), "PROCEDURE");
               MYSQL_YYABORT;
             }
 
-            Lex->stmt_definition_begin= $2;
-
             if (!make_sp_head(thd, $3, TYPE_ENUM_PROCEDURE))
               MYSQL_YYABORT;
+            Lex->spname= $3;
           }
           '('
           {

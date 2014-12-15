@@ -27,6 +27,111 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Query	1	#	DROP DATABASE IF EXISTS d1
 RESET MASTER;
 USE test;
+CREATE OR REPLACE FUNCTION f1() RETURNS INT RETURN 1;
+CREATE OR REPLACE FUNCTION f1() RETURNS INT RETURN 1;
+DROP FUNCTION f1;
+CREATE FUNCTION IF NOT EXISTS f1() RETURNS INT RETURN 1;
+CREATE FUNCTION IF NOT EXISTS f1() RETURNS INT RETURN 1;
+Warnings:
+Note	1304	FUNCTION f1 already exists
+DROP FUNCTION IF EXISTS f1;
+DROP FUNCTION IF EXISTS f1;
+Warnings:
+Note	1305	FUNCTION test.f1 does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION f1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` FUNCTION IF NOT EXISTS `f1`() RETURNS int(11)
+RETURN 1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS f1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS f1
+RESET MASTER;
+CREATE TABLE t1 (a DATETIME);
+CREATE OR REPLACE PROCEDURE p1() DELETE FROM t1;
+CREATE OR REPLACE PROCEDURE p1() DELETE FROM t1;
+DROP PROCEDURE p1;
+CREATE PROCEDURE IF NOT EXISTS p1() DELETE FROM t1;
+CREATE PROCEDURE IF NOT EXISTS p1() DELETE FROM t1;
+Warnings:
+Note	1304	PROCEDURE p1 already exists
+DROP PROCEDURE IF EXISTS p1;
+DROP PROCEDURE IF EXISTS p1;
+Warnings:
+Note	1305	PROCEDURE test.p1 does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE TABLE t1 (a DATETIME)
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` PROCEDURE `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP PROCEDURE p1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE IF NOT EXISTS `p1`()
+DELETE FROM t1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP PROCEDURE IF EXISTS p1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP PROCEDURE IF EXISTS p1
+DROP TABLE t1;
+RESET MASTER;
+CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+DROP FUNCTION metaphon;
+CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDF_EXAMPLE_LIB';
+Warnings:
+Note	1125	Function 'metaphon' already exists
+DROP FUNCTION IF EXISTS metaphon;
+DROP FUNCTION IF EXISTS metaphon;
+Warnings:
+Note	1305	FUNCTION test.metaphon does not exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION metaphon
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME 'UDM_EXAMPLE_LIB'
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS metaphon
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP FUNCTION IF EXISTS metaphon
+RESET MASTER;
 #
 # CREATE SERVER is not logged
 #

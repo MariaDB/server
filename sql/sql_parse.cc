@@ -4480,7 +4480,9 @@ end_with_restore_list:
 #endif
   case SQLCOM_CREATE_FUNCTION:                  // UDF function
   {
-    if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 0))
+    if (check_access(thd, lex->create_info.or_replace() ?
+                          (INSERT_ACL | DELETE_ACL) : INSERT_ACL,
+                     "mysql", NULL, NULL, 1, 0))
       break;
 #ifdef HAVE_DLOPEN
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
@@ -4948,6 +4950,15 @@ end_with_restore_list:
     {
       my_error(ER_BAD_DB_ERROR, MYF(0), lex->sphead->m_db.str);
       goto create_sp_error;
+    }
+
+    /* Checking the drop permissions if CREATE OR REPLACE is used */
+    if (lex->create_info.or_replace())
+    {
+      if (check_routine_access(thd, ALTER_PROC_ACL, lex->spname->m_db.str,
+                               lex->spname->m_name.str,
+                               lex->sql_command == SQLCOM_DROP_PROCEDURE, 0))
+        goto create_sp_error;
     }
 
     name= lex->sphead->name(&namelen);
