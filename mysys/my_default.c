@@ -94,7 +94,7 @@ static my_bool defaults_already_read= FALSE;
   which seems to be otherwise unavailable.
 */
 char wsrep_defaults_file[FN_REFLEN + 10]= {0,};
-char wsrep_defaults_group_suffix[FN_REFLEN]= {0,};
+char wsrep_defaults_group_suffix[FN_EXTLEN]= {0,};
 #endif /* WITH_WSREP */
 
 /* Which directories are searched for options (and in which order) */
