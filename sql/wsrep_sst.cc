@@ -763,11 +763,10 @@ static int sst_donate_mysqldump (const char*         addr,
               WSREP_SST_OPT_LPORT" '%u' "
               WSREP_SST_OPT_SOCKET" '%s' "
               WSREP_SST_OPT_CONF" '%s' "
-              WSREP_SST_OPT_CONF_SUFFIX" '%s' "
               WSREP_SST_OPT_GTID" '%s:%lld'"
               "%s",
               user, pswd, host, port, mysqld_port, mysqld_unix_port,
-              wsrep_defaults_file, wsrep_defaults_group_suffix, uuid_str,
+              wsrep_defaults_file, uuid_str,
               (long long)seqno, bypass ? " "WSREP_SST_OPT_BYPASS : "");
 
     WSREP_DEBUG("Running: '%s'", cmd_str);
