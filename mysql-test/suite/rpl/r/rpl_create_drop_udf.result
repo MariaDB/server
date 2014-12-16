@@ -4,28 +4,28 @@ CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 SELECT metaphon('master');
 metaphon('master')
 MSTR
-CREATE FUNCTION metaphon RETURNS INT SONAME "udf_example.so";
+CREATE FUNCTION metaphon RETURNS INT SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Function 'metaphon' already exists
 SELECT metaphon('slave');
 metaphon('slave')
 SLF
-CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "udf_example.so";
+CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 Warnings:
 Note	1125	Function 'metaphon' already exists
 DROP FUNCTION IF EXISTS random_function_name;
 Warnings:
 Note	1305	FUNCTION test.random_function_name does not exist
-CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "udf_example.so";
+CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 Warnings:
 Note	1125	Function 'metaphon' already exists
-CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "udf_example.so";
+CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 SELECT metaphon('slave');
 metaphon('slave')
 SLF
 DROP FUNCTION metaphon;
-CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME "udf_example.so";
-CREATE FUNCTION metaphon RETURNS STRING SONAME "udf_example.so";
+CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
+CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Function 'metaphon' already exists
 SELECT metaphon('slave');
 metaphon('slave')

@@ -18,7 +18,7 @@ CREATE FUNCTION IF NOT EXISTS metaphon RETURNS REAL SONAME "UDF_EXAMPLE_LIB";
 SELECT ret FROM mysql.func WHERE name like 'metaphon';
 ret
 1
-CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "udf_example.so";
+CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 SELECT ret FROM mysql.func WHERE name like 'metaphon';
 ret
@@ -27,7 +27,7 @@ CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 SELECT ret FROM mysql.func WHERE name like 'metaphon';
 ret
 0
-CREATE FUNCTION metaphon RETURNS STRING SONAME "udf_example.so";
+CREATE FUNCTION metaphon RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR HY000: Function 'metaphon' already exists
 SELECT metaphon('mariadb');
 metaphon('mariadb')

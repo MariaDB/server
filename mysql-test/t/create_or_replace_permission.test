@@ -1,3 +1,4 @@
+--source include/have_udf.inc
 # Grant tests not performed with embedded server
 -- source include/not_embedded.inc
 
@@ -44,8 +45,9 @@ CREATE OR REPLACE TABLE t1(id INT);
 --error ER_PROCACCESS_DENIED_ERROR
 CREATE OR REPLACE PROCEDURE proc1 (OUT cnt INT) BEGIN END;
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 --error ER_DBACCESS_DENIED_ERROR
-CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "udf_example.so";
+eval CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 
 --error ER_PROCACCESS_DENIED_ERROR
 CREATE OR REPLACE FUNCTION hello(str char(20)) RETURNS TEXT RETURN CONCAT('Hello, ', str, '!');

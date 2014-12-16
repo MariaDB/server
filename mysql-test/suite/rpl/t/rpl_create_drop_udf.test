@@ -1,11 +1,13 @@
+--source include/have_udf.inc
 --source include/master-slave.inc
---replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 
 connection master;
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 SELECT metaphon('master');
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 --error ER_UDF_EXISTS
 eval CREATE FUNCTION metaphon RETURNS INT SONAME "$UDF_EXAMPLE_SO";
 
@@ -15,10 +17,13 @@ SELECT metaphon('slave');
 
 connection master;
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 DROP FUNCTION IF EXISTS random_function_name;
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 --error ER_WRONG_USAGE
 eval CREATE OR REPLACE FUNCTION IF NOT EXISTS metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 sync_slave_with_master;
@@ -28,8 +33,10 @@ SELECT metaphon('slave');
 connection master;
 DROP FUNCTION metaphon;
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 eval CREATE OR REPLACE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 
+--replace_result $UDF_EXAMPLE_SO UDF_EXAMPLE_LIB
 --error ER_UDF_EXISTS
 eval CREATE FUNCTION metaphon RETURNS STRING SONAME "$UDF_EXAMPLE_SO";
 sync_slave_with_master;

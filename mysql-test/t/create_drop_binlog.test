@@ -1,3 +1,4 @@
+--source include/have_udf.inc
 --source include/have_log_bin.inc
 
 --let $binlog_file=query_get_value(SHOW MASTER STATUS, File, 1)
