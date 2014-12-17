@@ -1724,6 +1724,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     MYSQL_COMMAND_DONE(res);
   }
+  DEBUG_SYNC(thd,"dispatch_command_end");
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
@@ -7345,7 +7346,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
       host.str[0] == '%' means that host name was not given. See sql_yacc.yy
     */
     if (((user->host.str[0] == '%' && !user->host.str[1]) ||
-         !strcmp(tmp->security_ctx->host, user->host.str)) &&
+         !strcmp(tmp->security_ctx->host_or_ip, user->host.str)) &&
         !strcmp(tmp->security_ctx->user, user->user.str))
     {
       if (!(thd->security_ctx->master_access & SUPER_ACL) &&

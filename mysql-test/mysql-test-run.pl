@@ -330,7 +330,7 @@ sub testcase_timeout ($) {
   return $opt_testcase_timeout * 60;
 }
 
-sub check_timeout ($) { return testcase_timeout($_[0]) / 10; }
+sub check_timeout ($) { return testcase_timeout($_[0]); }
 
 our $opt_warnings= 1;
 
@@ -4842,6 +4842,8 @@ sub extract_warning_lines ($$) {
      qr|feedback plugin: failed to retrieve the MAC address|,
      qr|Plugin 'FEEDBACK' init function returned error|,
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
+     qr|Failed to setup SSL|,
+     qr|SSL error: Failed to set ciphers to use|,
 
      # Galera-related warnings.
      qr|WSREP:.*down context.*|,

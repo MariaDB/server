@@ -113,6 +113,7 @@ PATENT RIGHTS GRANT:
 #endif
 #define TOKU_INCLUDE_OPTION_STRUCTS 1
 #define TOKU_OPTIMIZE_WITH_RECREATE 1
+#define TOKU_CLUSTERING_IS_COVERING 1
 
 #elif 50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799
 // mysql 5.7 with no patches
@@ -152,7 +153,7 @@ PATENT RIGHTS GRANT:
 #define TOKU_USE_DB_TYPE_TOKUDB 1
 #define TOKU_INCLUDE_ALTER_56 0         /* MariaDB 5.5 */
 #define TOKU_INCLUDE_ALTER_55 0         /* MariaDB 5.5 */
-#define TOKU_INCLUDE_ROW_TYPE_COMPRESSION 1
+#define TOKU_INCLUDE_ROW_TYPE_COMPRESSION 0 /* MariaDB 5.5 */
 #define TOKU_INCLUDE_XA 1
 #define TOKU_PARTITION_WRITE_FRM_DATA 0 /* MariaDB 5.5 */
 #define TOKU_INCLUDE_WRITE_FRM_DATA 0   /* MariaDB 5.5 */
@@ -160,6 +161,7 @@ PATENT RIGHTS GRANT:
 #if defined(MARIADB_BASE_VERSION)
 #define TOKU_INCLUDE_EXTENDED_KEYS 1
 #define TOKU_INCLUDE_OPTION_STRUCTS 1
+#define TOKU_CLUSTERING_IS_COVERING 1
 #endif
 #define TOKU_INCLUDE_HANDLERTON_HANDLE_FATAL_SIGNAL 0 /* MariaDB 5.5 */
 
@@ -440,6 +442,8 @@ static inline void *tokudb_my_malloc(size_t s, myf flags) {
 }
 
 static inline void *tokudb_my_realloc(void *p, size_t s, myf flags) {
+    if (s == 0)
+        return p;
 #if 50700 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 50799
     return my_realloc(0, p, s, flags);
 #else
@@ -448,7 +452,8 @@ static inline void *tokudb_my_realloc(void *p, size_t s, myf flags) {
 }
 
 static inline void tokudb_my_free(void *ptr) {
-    my_free(ptr);
+    if (ptr)
+        my_free(ptr);
 }
 
 static inline char *tokudb_my_strdup(const char *p, myf flags) {

@@ -342,7 +342,7 @@ static void check_locks(THR_LOCK *lock, const char *where,
 	    found_errors++;
 	    fprintf(stderr,
 		    "Warning at '%s': Write lock %d waiting while no exclusive read locks\n",where,(int) lock->write_wait.data->type);
-            DBUG_PRINT("warning", ("Warning at '%s': Write lock %d waiting while no exclusive read locks\n",where,(int) lock->write_wait.data->type));
+            DBUG_PRINT("warning", ("Warning at '%s': Write lock %d waiting while no exclusive read locks",where,(int) lock->write_wait.data->type));
 	  }
 	}	      
       }
@@ -362,7 +362,7 @@ static void check_locks(THR_LOCK *lock, const char *where,
               fprintf(stderr,
                       "Warning at '%s': Found TL_WRITE_CONCURRENT_INSERT lock mixed with other write lock: %d\n",
                       where, data->type);
-              DBUG_PRINT("warning", ("Warning at '%s': Found TL_WRITE_CONCURRENT_INSERT lock mixed with other write lock: %d\n",
+              DBUG_PRINT("warning", ("Warning at '%s': Found TL_WRITE_CONCURRENT_INSERT lock mixed with other write lock: %d",
                                      where, data->type));
               break;
             }
@@ -378,7 +378,7 @@ static void check_locks(THR_LOCK *lock, const char *where,
 	    fprintf(stderr,
 		    "Warning at '%s': Found WRITE_ALLOW_WRITE lock waiting for WRITE_ALLOW_WRITE lock\n",
 		    where);
-            DBUG_PRINT("warning", ("Warning at '%s': Found WRITE_ALLOW_WRITE lock waiting for WRITE_ALLOW_WRITE lock\n",
+            DBUG_PRINT("warning", ("Warning at '%s': Found WRITE_ALLOW_WRITE lock waiting for WRITE_ALLOW_WRITE lock",
                                    where));
 
 	  }
@@ -401,7 +401,7 @@ static void check_locks(THR_LOCK *lock, const char *where,
                       "Warning at '%s' for lock: %d: Found lock of type %d that is write and read locked. Read_no_write_count: %d\n",
                       where, (int) type, lock->write.data->type,
                       lock->read_no_write_count);
-              DBUG_PRINT("warning",("At '%s' for lock %d: Found lock of type %d that is write and read locked\n",
+              DBUG_PRINT("warning",("At '%s' for lock %d: Found lock of type %d that is write and read locked",
                                     where, (int) type,
                                     lock->write.data->type));
             }
@@ -914,7 +914,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
         The idea is to allow us to get a lock at once if we already have
         a write lock or if there is no pending write locks and if all
         write locks are of the same type and are either
-        TL_WRITE_ALLOW_WRITE or TL_WRITE_CONCURRENT_INSERT
+        TL_WRITE_ALLOW_WRITE or TL_WRITE_CONCURRENT_INSERT and
+        there is no TL_READ_NO_INSERT lock.
 
         Note that, since lock requests for the same table are sorted in
         such way that requests with higher thr_lock_type value come first
@@ -931,7 +932,7 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
             situation.
         **) The exceptions are situations when:
             - when old lock type is TL_WRITE_DELAYED
-            But these should never happen within MySQL.
+            But these should never happen within MariaDB.
         Therefore it is OK to allow acquiring write lock on the table if
         this thread already holds some write lock on it.
 
@@ -949,7 +950,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
            (lock_type == TL_WRITE_CONCURRENT_INSERT &&
              lock->allow_multiple_concurrent_insert)) &&
            ! lock->write_wait.data &&
-           lock->write.data->type == lock_type) ||
+           lock->write.data->type == lock_type &&
+           ! lock->read_no_write_count) ||
           has_old_lock(lock->write.data, data->owner))
       {
         DBUG_PRINT("info", ("write_wait.data: 0x%lx  old_type: %d",

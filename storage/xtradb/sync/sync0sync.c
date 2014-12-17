@@ -482,8 +482,6 @@ mutex_set_waiters(
 
 	ptr = &(mutex->waiters);
 
-        os_wmb;
-
 	*ptr = n;		/* Here we assume that the write of a single
 				word in memory is atomic */
 #endif
@@ -589,6 +587,11 @@ spin_loop:
 	then the event is set to the signaled state. */
 
 	mutex_set_waiters(mutex, 1);
+
+	/* Make sure waiters store won't pass over mutex_test_and_set */
+#ifdef __powerpc__
+	os_mb;
+#endif
 
 	/* Try to reserve still a few times */
 	for (i = 0; i < 4; i++) {
@@ -1643,4 +1646,14 @@ sync_print(
 	sync_array_print_info(file, sync_primary_wait_array);
 
 	sync_print_wait_info(file);
+}
+
+/*******************************************************************//**
+Get sync array */
+UNIV_INTERN
+sync_array_t*
+sync_array_get(void)
+/*================*/
+{
+	return sync_primary_wait_array;
 }

@@ -222,6 +222,19 @@ static void test_10(DB_ENV *env) {
         
         error = txn->commit(txn, 0);
         assert(error == 0);
+
+        // test delete card
+        error = env->txn_begin(env, NULL, &txn, 0);
+        assert(error == 0);
+
+        error = tokudb::delete_card_from_status(status_db, txn);
+        assert(error == 0);
+
+        error = tokudb::get_card_from_status(status_db, txn, 0, NULL);
+        assert(error == DB_NOTFOUND);
+
+        error = txn->commit(txn, 0);
+        assert(error == 0);
         
         error = tokudb::close_status(&status_db);
         assert(error == 0);

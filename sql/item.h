@@ -3939,6 +3939,7 @@ public:
     return arg->walk(processor, walk_subquery, args) ||
 	    (this->*processor)(args);
   }
+  bool check_partition_func_processor(uchar *int_arg) {return TRUE;}
   bool check_vcol_func_processor(uchar *arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor("values");
@@ -4037,7 +4038,7 @@ private:
 /**
   @todo
   Implement the is_null() method for this class. Currently calling is_null()
-  on any Item_cache object resolves to Item::is_null(), which reutns FALSE
+  on any Item_cache object resolves to Item::is_null(), which returns FALSE
   for any value.
 */
 
