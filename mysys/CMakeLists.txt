@@ -41,9 +41,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c checksum.c my_default.c
 				my_atomic.c my_getncpus.c my_safehash.c my_chmod.c my_rnd.c
                                 my_uuid.c wqueue.c waiting_threads.c ma_dyncol.c
 				my_rdtsc.c my_context.c psi_noop.c
-                                file_logger.c my_crypt.cc
-                                my_crypt_key_management.cc
-                                my_crypt_key_management_impl.cc)
+                                file_logger.c)
 
 IF (WIN32)
  SET (MYSYS_SOURCES ${MYSYS_SOURCES} my_winthread.c my_wincond.c my_winerr.c my_winfile.c my_windac.c my_conio.c)

@@ -94,6 +94,7 @@ enum charset_enum {IN_SYSTEM_CHARSET, IN_FS_CHARSET};
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
+extern const char *encrypt_algorithm_names[];
 
 /**
   A small wrapper class to pass getopt arguments as a pair

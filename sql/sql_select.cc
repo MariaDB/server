@@ -16661,9 +16661,9 @@ create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
   {
     if (share->db_type() == TMP_ENGINE_HTON)
     {
-      if (create_internal_tmp_table(table, param->keyinfo, param->start_recinfo,
-                                    &param->recinfo, select_options,
-                                    encrypt_tmp_disk_tables))
+      if (create_internal_tmp_table(table, param->keyinfo,
+                                    param->start_recinfo,
+                                    &param->recinfo, select_options))
         goto err;
     }
     if (open_tmp_table(table))
@@ -16880,14 +16880,14 @@ bool open_tmp_table(TABLE *table)
 bool create_internal_tmp_table(TABLE *table, KEY *keyinfo, 
                                TMP_ENGINE_COLUMNDEF *start_recinfo,
                                TMP_ENGINE_COLUMNDEF **recinfo, 
-                               ulonglong options,
-                               my_bool encrypt)
+                               ulonglong options)
 {
   int error;
   MARIA_KEYDEF keydef;
   MARIA_UNIQUEDEF uniquedef;
   TABLE_SHARE *share= table->s;
   MARIA_CREATE_INFO create_info;
+  my_bool encrypt= encrypt_tmp_disk_tables;
   DBUG_ENTER("create_internal_tmp_table");
 
   if (share->keys)
@@ -17009,18 +17009,17 @@ bool create_internal_tmp_table(TABLE *table, KEY *keyinfo,
 
       if (table->used_for_duplicate_elimination)
       {
-        /**
-         * sql-layer expect the last column to be stored/restored also
-         * when it's null.
-         *
-         * This is probably a bug (that sql-layer doesn't annotate
-         * the column as not-null) but both heap, aria-static, aria-dynamic and
-         * myisam has this property. aria-block_record does not since it
-         * does not store null-columns at all.
-         *
-         * emulate behaviour by making column not-nullable when creating the
-         * table.
-         */
+        /*
+          sql-layer expect the last column to be stored/restored also
+          when it's null.
+
+          This is probably a bug (that sql-layer doesn't annotate
+          the column as not-null) but both heap, aria-static, aria-dynamic and
+          myisam has this property. aria-block_record does not since it
+          does not store null-columns at all.
+          Emulate behaviour by making column not-nullable when creating the
+          table.
+        */
         uint cols= (*recinfo-start_recinfo);
         start_recinfo[cols-1].null_bit= 0;
       }
@@ -17253,8 +17252,7 @@ create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
   if (create_internal_tmp_table(&new_table, table->key_info, start_recinfo,
                                 recinfo,
                                 thd->lex->select_lex.options | 
-                                thd->variables.option_bits,
-                                encrypt_tmp_disk_tables))
+                                thd->variables.option_bits))
     goto err2;
   if (open_tmp_table(&new_table))
     goto err1;

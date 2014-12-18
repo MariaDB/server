@@ -5806,7 +5806,6 @@ buf_page_encrypt_before_write(
 	}
 
 	ulint zip_size = buf_page_get_zip_size(bpage);
-	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
 	/**
 	* TODO(jonaso): figure out more clever malloc strategy
@@ -5865,7 +5864,6 @@ buf_page_decrypt_before_read(
 	buf_page_t* bpage) /*!< in/out: buffer page to be read */
 {
 	ulint zip_size = buf_page_get_zip_size(bpage);
-	ulint size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
 
 	if (bpage->offset == 0) {
 		/* File header pages are not encrypted */

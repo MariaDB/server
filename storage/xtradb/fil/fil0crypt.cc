@@ -173,9 +173,12 @@ fil_space_crypt_cleanup()
 Get key bytes for a space/key-version */
 static
 void
-fil_crypt_get_key(byte *dst, uint dstlen,
+fil_crypt_get_key(uchar *dst, uint dstlen,
 		  fil_space_crypt_t* crypt_data, uint version)
 {
+#ifndef HAVE_EncryptAes128Ctr
+  return;
+#else
 	mutex_enter(&crypt_data->mutex);
 
 	// Check if we already have key
@@ -214,9 +217,10 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 	const int srclen = crypt_data->iv_length;
 	unsigned char* buf = crypt_data->keys[0].key;
 	int buflen = sizeof(crypt_data->keys[0].key);
-	rc = EncryptAes128Ecb(keybuf,
-			      src, srclen,
-			      buf, &buflen);
+	rc = my_aes_encrypt_ecb(src, srclen,
+                                buf, &buflen,
+                                keybuf, sizeof(keybuf),
+                                0,0,0);
 	if (rc != CRYPT_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt key-block "
@@ -236,13 +240,14 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 	memcpy(dst, crypt_data->keys[0].key,
 	       sizeof(crypt_data->keys[0].key));
 	mutex_exit(&crypt_data->mutex);
+#endif
 }
 
 /******************************************************************
 Get key bytes for a space/latest(key-version) */
 static inline
 void
-fil_crypt_get_latest_key(byte *dst, uint dstlen,
+fil_crypt_get_latest_key(uchar *dst, uint dstlen,
 			 fil_space_crypt_t* crypt_data, uint *version)
 {
 	*version = GetLatestCryptoKeyVersion();
@@ -255,6 +260,9 @@ UNIV_INTERN
 fil_space_crypt_t*
 fil_space_create_crypt_data()
 {
+#ifndef HAVE_EncryptAes128Ctr
+  return 0;
+#else
 	const uint iv_length = CRYPT_SCHEME_1_IV_LEN;
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
 	fil_space_crypt_t* crypt_data =
@@ -272,8 +280,9 @@ fil_space_create_crypt_data()
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->iv_length = iv_length;
-	RandomBytes(crypt_data->iv, iv_length);
+	my_random_bytes(crypt_data->iv, iv_length);
 	return crypt_data;
+#endif
 }
 
 /******************************************************************
@@ -549,6 +558,7 @@ fil_space_check_encryption_write(
 }
 
 /******************************************************************
+
 Encrypt a page */
 UNIV_INTERN
 void
@@ -564,7 +574,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 
 	// get key (L)
 	uint key_version;
-	byte key[CRYPT_SCHEME_1_IV_LEN];
+	uchar key[CRYPT_SCHEME_1_IV_LEN];
 	fil_crypt_get_latest_key(key, sizeof(key), crypt_data, &key_version);
 
 	// copy page header
@@ -575,7 +585,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 			key_version);
 
 	// create counter block (C)
-	unsigned char counter[AES_128_BLOCK_SIZE];
+	unsigned char counter[MY_AES_BLOCK_SIZE];
 	mach_write_to_4(counter + 0, space);
 	mach_write_to_4(counter + 4, offset);
 	mach_write_to_8(counter + 8, lsn);
@@ -583,14 +593,17 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	// encrypt page data
 	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
 
-	const byte* src = src_frame + FIL_PAGE_DATA;
-	byte* dst = dst_frame + FIL_PAGE_DATA;
-	int dstlen;
-	int rc = EncryptAes128Ctr(key, counter, sizeof(counter),
-				  src, (page_size - unencrypted_bytes),
-				  dst, &dstlen);
-	if (! ((rc == CRYPT_OK) &&
-	       ((ulint) dstlen == (page_size - unencrypted_bytes)))) {
+	const uchar* src = (uchar*) src_frame + FIL_PAGE_DATA;
+	uchar* dst = (uchar*) dst_frame + FIL_PAGE_DATA;
+	uint32 dstlen;
+	int rc = my_aes_encrypt_dynamic(src, (page_size - unencrypted_bytes),
+                                        dst, &dstlen,
+                                        key, sizeof(key),
+                                        counter, sizeof(counter),
+                                        0);
+	if (! ((rc == AES_OK) &&
+	       ((ulint) dstlen == (page_size - unencrypted_bytes))))
+        {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -672,6 +685,12 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		return false; /* page not decrypted */
 	}
 
+#ifndef HAVE_EncryptAes128Ctr
+        ib_logf(IB_LOG_LEVEL_FATAL,
+                "Unable to decrypt data-block as server not compiled with CTR encyption");
+        ut_error;
+        return false;
+#else
 	// read space & offset & lsn
 	ulint space = mach_read_from_4(
 		src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -689,7 +708,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
 
 	// create counter block
-	unsigned char counter[AES_128_BLOCK_SIZE];
+	unsigned char counter[MY_AES_BLOCK_SIZE];
 	mach_write_to_4(counter + 0, space);
 	mach_write_to_4(counter + 4, offset);
 	mach_write_to_8(counter + 8, lsn);
@@ -700,10 +719,10 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
 	int dstlen;
-	int rc = DecryptAes128Ctr(key, counter, sizeof(counter),
-				  src, (page_size - unencrypted_bytes),
-				  dst, &dstlen);
-	if (! ((rc == CRYPT_OK) &&
+	int rc = my_aes_decrypt_ctr(src, (page_size - unencrypted_bytes),
+                                    dst, &dstlen, key, sizeof(key),
+                                    counter, sizeof(counter), 0);
+	if (! ((rc == AES_OK) &&
 	       ((ulint) dstlen == (page_size - unencrypted_bytes)))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
@@ -723,6 +742,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 
 	return true; /* page was decrypted */
+#endif
 }
 
 /******************************************************************

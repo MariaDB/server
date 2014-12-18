@@ -37,7 +37,7 @@ KeySingleton & KeySingleton::getInstance() {
 		fprintf(stderr, "Encryption / decryption keys were not initialized. "
 				"You can not read encrypted tables or columns\n");
 	}
-#endif UNIV_DEBUG
+#endif /* UNIV_DEBUG */
 	return theInstance;
 }
 

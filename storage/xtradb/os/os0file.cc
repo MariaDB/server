@@ -5370,14 +5370,12 @@ try_again:
 			if (page_encryption && slot->page_encryption_success) {
 				buffer = slot->page_buf2;
 				n = slot->len;
+			} else if (page_compression && slot->page_compression_success) {
+                                buffer = slot->page_buf;
+                                n = slot->len;
 			} else {
-				if (page_compression && slot->page_compression_success) {
-					buffer = slot->page_buf;
-					n = slot->len;
-				} else {
-					buffer = buf;
-				}
-			}
+                                buffer = buf;
+                        }
 			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
 

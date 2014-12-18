@@ -796,7 +796,7 @@ struct log_t{
 					buffer */
 	uint		redo_log_crypt_ver;
 					/*!< 32-bit crypto ver */
-	byte		redo_log_crypt_key[AES_128_BLOCK_SIZE];
+	byte		redo_log_crypt_key[MY_AES_BLOCK_SIZE];
 					/*!< crypto key to encrypt redo log */
 #ifndef UNIV_HOTBACKUP
 	ib_mutex_t		mutex;		/*!< mutex protecting the log */

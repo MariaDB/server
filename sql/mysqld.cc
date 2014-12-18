@@ -105,6 +105,7 @@
 #include "sp_rcontext.h"
 #include "sp_cache.h"
 #include "sql_reload.h"  // reload_acl_and_cache
+#include <my_aes.h>
 
 #ifdef HAVE_POLL_H
 #include <poll.h>
@@ -627,7 +628,8 @@ char server_version[SERVER_VERSION_LENGTH];
 char *mysqld_unix_port, *opt_mysql_tmpdir;
 ulong thread_handling;
 
-my_bool encrypt_tmp_disk_tables= FALSE;
+my_bool encrypt_tmp_disk_tables;
+ulong   encrypt_algorithm;
 
 /** name of reference on left expression in rewritten IN subquery */
 const char *in_left_expr_name= "<left expr>";
@@ -4799,6 +4801,14 @@ static int init_server_components()
   my_rnd_init(&sql_rand,(ulong) server_start_time,(ulong) server_start_time/2);
   setup_fpu();
   init_thr_lock();
+  if (my_aes_init_dynamic_encrypt((enum_my_aes_encryption_algorithm)
+                                  encrypt_algorithm))
+  {
+    fprintf(stderr, "Can't initialize encryption algorithm to \"%s\".\nCheck that the program is linked with the right library (openssl?)\n",
+            encrypt_algorithm_names[encrypt_algorithm]);
+    unireg_abort(1);
+  }
+
 #ifndef EMBEDDED_LIBRARY
   if (init_thr_timer(thread_scheduler->max_threads + extra_max_connections))
   {

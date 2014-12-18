@@ -66,7 +66,7 @@ ma_crypt_create(MARIA_SHARE* share)
   bzero(crypt_data, sz);
   crypt_data->type= CRYPT_SCHEME_1;
   crypt_data->iv_length= iv_length;
-  RandomBytes(crypt_data->iv, iv_length);
+  my_random_bytes(crypt_data->iv, iv_length);
   share->crypt_data= crypt_data;
   share->crypt_page_header_space= CRYPT_SCHEME_1_KEY_VERSION_SIZE;
   return 0;
@@ -284,10 +284,14 @@ void ma_crypt_set_data_pagecache_callbacks(PAGECACHE_FILE *file,
                                            MARIA_SHARE *share
                                            __attribute__((unused)))
 {
-  file->pre_read_hook= ma_crypt_pre_read_hook;
-  file->post_read_hook= ma_crypt_data_post_read_hook;
-  file->pre_write_hook= ma_crypt_data_pre_write_hook;
-  file->post_write_hook= ma_crypt_post_write_hook;
+  /* Only use encryption if we have defined it */
+  if (likely(current_aes_dynamic_method != MY_AES_ALGORITHM_NONE))
+  {
+    file->pre_read_hook= ma_crypt_pre_read_hook;
+    file->post_read_hook= ma_crypt_data_post_read_hook;
+    file->pre_write_hook= ma_crypt_data_pre_write_hook;
+    file->post_write_hook= ma_crypt_post_write_hook;
+  }
 }
 
 static my_bool ma_crypt_index_post_read_hook(int res,
@@ -390,12 +394,7 @@ void ma_crypt_set_index_pagecache_callbacks(PAGECACHE_FILE *file,
   file->post_write_hook= ma_crypt_post_write_hook;
 }
 
-/**
-   stupid c-language is unhappy with an
-   array[] of length AES_128_BLOCK_SIZE so duplicate definition here
-   and assert that they are the same
-*/
-#define COUNTER_LEN 16
+#define COUNTER_LEN MY_AES_BLOCK_SIZE
 
 static void ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
                        const uchar *src, uchar *dst, uint size,
@@ -403,25 +402,24 @@ static void ma_encrypt(MARIA_CRYPT_DATA *crypt_data,
                        uint *key_version)
 {
   int rc;
-  int dstlen;
+  uint32 dstlen;
   uchar counter[COUNTER_LEN];
   uchar *key= crypt_data->iv;
-
-  DBUG_ASSERT(sizeof(counter) == AES_128_BLOCK_SIZE);
 
   // create counter block
   memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
   int4store(counter + 4, pageno);
   int8store(counter + 8, lsn);
 
-  rc = EncryptAes128Ctr(key,
-                        counter, sizeof(counter),
-                        src, size,
-                        dst, &dstlen);
+  rc = my_aes_encrypt_dynamic(src, size,
+                              dst, &dstlen,
+                              key, sizeof(crypt_data->iv),
+                              counter, sizeof(counter),
+                              1);
 
-  DBUG_ASSERT(rc == CRYPT_OK);
-  DBUG_ASSERT(dstlen == (int)size);
-  if (! (rc == CRYPT_OK && dstlen == (int)size))
+  DBUG_ASSERT(rc == AES_OK);
+  DBUG_ASSERT(dstlen == size);
+  if (! (rc == AES_OK && dstlen == size))
   {
     fatal("failed to encrypt! rc: %d, dstlen: %d size: %d\n",
           rc, dstlen, (int)size);
@@ -436,25 +434,24 @@ static void ma_decrypt(MARIA_CRYPT_DATA *crypt_data,
                        uint key_version)
 {
   int rc;
-  int dstlen;
+  uint32 dstlen;
   uchar counter[COUNTER_LEN];
   uchar *key= crypt_data->iv;
-
-  DBUG_ASSERT(sizeof(counter) == AES_128_BLOCK_SIZE);
 
   // create counter block
   memcpy(counter + 0, crypt_data->iv + CRYPT_SCHEME_1_IV_LEN, 4);
   int4store(counter + 4, pageno);
   int8store(counter + 8, lsn);
 
-  rc = DecryptAes128Ctr(key,
-                        counter, sizeof(counter),
-                        src, size,
-                        dst, &dstlen);
+  rc = my_aes_decrypt_dynamic(src, size,
+                              dst, &dstlen,
+                              key, sizeof(crypt_data->iv),
+                              counter, sizeof(counter),
+                              1);
 
-  DBUG_ASSERT(rc == CRYPT_OK);
-  DBUG_ASSERT(dstlen == (int)size);
-  if (! (rc == CRYPT_OK && dstlen == (int)size))
+  DBUG_ASSERT(rc == AES_OK);
+  DBUG_ASSERT(dstlen == size);
+  if (! (rc == AES_OK && dstlen == size))
   {
     fatal("failed to decrypt! rc: %d, dstlen: %d size: %d\n",
           rc, dstlen, (int)size);

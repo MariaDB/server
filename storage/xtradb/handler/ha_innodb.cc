@@ -11902,7 +11902,7 @@ ha_innobase::check_table_options(
 			return "PAGE_ENCRYPTION_KEY";
 		}
 
-		if (!KeySingleton::getInstance().isAvailable() || KeySingleton::getInstance().getKeys(options->page_encryption_key)==NULL) {
+		if (KeySingleton::getInstance().getKeys(options->page_encryption_key)==NULL) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,

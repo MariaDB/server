@@ -131,7 +131,7 @@ The function for decrypting the page should already be executed before this.
 */
 UNIV_INLINE
 ulint
-fil_page_can_not_decrypt(
+fil_page_encryption_status(
 /*===================*/
     const byte *buf)	/*!< in: page */
 {

@@ -339,7 +339,7 @@ C_MODE_END
 
 C_MODE_START
 
-Crypt_result RandomBytes(uchar* buf, int num)
+Crypt_result my_random_bytes(uchar* buf, int num)
 {
   TaoCrypt::RandomNumberGenerator rand;
   rand.GenerateBlock((TaoCrypt::byte*) buf, num);
@@ -352,7 +352,7 @@ C_MODE_END
 
 C_MODE_START
 
-Crypt_result RandomBytes(uchar* buf, int num)
+Crypt_result my_random_bytes(uchar* buf, int num)
 {
   /*
     Unfortunately RAND_bytes manual page does not provide any guarantees

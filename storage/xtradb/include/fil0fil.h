@@ -26,7 +26,7 @@ Created 10/25/1995 Heikki Tuuri
 
 #ifndef fil0fil_h
 #define fil0fil_h
-
+#define MSG_CANNOT_DECRYPT "can not decrypt"
 #include "univ.i"
 
 #ifndef UNIV_INNOCHECKSUM

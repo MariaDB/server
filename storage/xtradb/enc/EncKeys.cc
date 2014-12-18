@@ -78,7 +78,7 @@ openssl enc –aes-256-cbc –md sha1 –k <initialPwd> –in secret –out secr
 
 
 const char* EncKeys::strMAGIC = "Salted__";
-const int EncKeys::magicSize = 8;//strlen(strMAGIC); // 8 byte
+#define magicSize 8		//strlen(strMAGIC); // 8 byte
 const char* EncKeys::newLine = "\n";
 
 const char* EncKeys::errorNoKeyId = "KeyID = %u not found or with error. Check the key and the log file.\n";
@@ -174,62 +174,81 @@ int EncKeys::initKeysThroughServer( const char *name, const char *path, const ch
 	return ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
 }
 
-/*
- * secret is limited to MAX_SECRET_SIZE characters
- */
-void EncKeys::parseSecret( const char *secretfile, char *secret ) {
-	int maxSize = (MAX_SECRET_SIZE +16 + magicSize*2) ;
-	char* buf = (char*)malloc((maxSize) * sizeof(char));
-	char* _initPwd = (char*)malloc((strlen(initialPwd)+1) * sizeof(char));
 
-	FILE *fp = fopen(secretfile, "rb");
-	fseek(fp, 0L, SEEK_END);
-	long file_size = ftell(fp);
-	rewind(fp);
-	int bytes_to_read = (maxSize >= file_size)? file_size:(maxSize);
-	fread(buf, 1, bytes_to_read, fp);
-	if (memcmp(buf, strMAGIC, magicSize)) {
-		bytes_to_read = (bytes_to_read>MAX_SECRET_SIZE) ? MAX_SECRET_SIZE : bytes_to_read;
-		memcpy(secret, buf, bytes_to_read);
-		secret[bytes_to_read] = '\0';
-	} else {
-		unsigned char salt[magicSize];
-		unsigned char *key = new unsigned char[keySize32];
-		unsigned char *iv = new unsigned char[ivSize16];
-		memcpy(&salt, buf + magicSize, magicSize);
-		memcpy(_initPwd, initialPwd, strlen(initialPwd));
-		_initPwd[strlen(initialPwd)]= '\0';
-		my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
-		uint32 d_size = 0;
-		int res = my_aes_decrypt_cbc((const char*)buf + 2 * magicSize, bytes_to_read - 2 * magicSize,
-				secret, &d_size, key, keySize32, iv, ivSize16, 0);
-		if (d_size>EncKeys::MAX_SECRET_SIZE) {
-			d_size = EncKeys::MAX_SECRET_SIZE;
-		}
-		secret[d_size] = '\0';
-		delete[] key;
-		delete[] iv;
-	}
-	free(buf);
-	free(_initPwd);
-	fclose(fp);
+/*
+  secret is limited to MAX_SECRET_SIZE characters
+*/
+
+void EncKeys::parseSecret(const char *secretfile, char *secret)
+{
+  int maxSize = (MAX_SECRET_SIZE +16 + magicSize*2) ;
+  uchar* buf = (uchar*)malloc((maxSize) * sizeof(uchar));
+  char* _initPwd = (char*)malloc((strlen(initialPwd)+1) * sizeof(char));
+
+  FILE *fp = fopen(secretfile, "rb");
+  fseek(fp, 0L, SEEK_END);
+  long file_size = ftell(fp);
+  rewind(fp);
+  int bytes_to_read = MY_MIN(maxSize, file_size);
+  if ((fread(buf, 1, bytes_to_read, fp)) != bytes_to_read)
+  {
+    secret[0]=0;
+    goto err;
+  }
+
+  if (memcmp(buf, strMAGIC, magicSize))
+  {
+    bytes_to_read = ((unsigned int) bytes_to_read>MAX_SECRET_SIZE) ? MAX_SECRET_SIZE : bytes_to_read;
+    memcpy(secret, buf, bytes_to_read);
+    secret[bytes_to_read] = '\0';
+  }
+  else
+  {
+    unsigned char salt[magicSize];
+    unsigned char *key = new unsigned char[keySize32];
+    unsigned char *iv = new unsigned char[ivSize16];
+    memcpy(&salt, buf + magicSize, magicSize);
+    memcpy(_initPwd, initialPwd, strlen(initialPwd));
+    _initPwd[strlen(initialPwd)]= '\0';
+    my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
+    uint32 d_size = 0;
+
+    /* This file is always encoded with cbc */
+    enum_my_aes_encryption_algorithm org_method= current_aes_dynamic_method;
+    my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CBC);
+    int res = my_aes_decrypt_dynamic((const uchar*)buf + 2 * magicSize,
+                                     bytes_to_read - 2 * magicSize,
+                                     (uchar*)secret, &d_size, (const uchar*)key, keySize32,
+                                     iv, ivSize16, 0);
+    my_aes_init_dynamic_encrypt(org_method);
+    /* We would prefer a better error handling, but this will due for now */
+    if (res != 0)
+      d_size= 0;
+    if (d_size>EncKeys::MAX_SECRET_SIZE)
+      d_size = EncKeys::MAX_SECRET_SIZE;
+    secret[d_size] = '\0';
+    delete[] key;
+    delete[] iv;
+  }
+
+err:
+  free(buf);
+  free(_initPwd);
+  fclose(fp);
 }
 
 /**
  * Returns a struct keyentry with the asked 'id' or NULL.
  */
-keyentry *EncKeys::getKeys(int id) {
-	if (KEY_MIN <= id && KEY_MAX >= id && (&keys[id - 1])->iv)
-	{
-		return &keys[id - 1];
-	}
-#ifdef UNIV_DEBUG
-	else {
 
-		fprintf(stderr, errorNoKeyId, id);
-		return NULL;
-	}
-#endif //UNIV_DEBUG
+keyentry *EncKeys::getKeys(int id)
+{
+  if (KEY_MIN <= id && KEY_MAX >= id && (&keys[id - 1])->iv)
+  {
+    return &keys[id - 1];
+  }
+  DBUG_PRINT("error", (errorNoKeyId, id));
+  return NULL;
 }
 
 /**
@@ -254,7 +273,7 @@ int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *s
 			keys[oneKey->id - 1] = *oneKey;
 			delete(oneKey);
 			countKeys++;
-			fprintf(stderr, "Line: %u --> ", keyLineInKeyFile); printKeyEntry(id);
+			fprintf(stderr, "Line: %u --> ", (uint) keyLineInKeyFile); printKeyEntry(id);
 			break;
 		case ERROR_ID_TOO_BIG:
 			fprintf(stderr, errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
@@ -339,10 +358,11 @@ int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 }
 
 /**
- * Decrypt the key file 'filename' if it is encrypted with the key 'secret'.
- * Store the content of the decrypted file in 'buffer'. The buffer has to be freed
- * in the calling function.
- */
+   Decrypt the key file 'filename' if it is encrypted with the key 'secret'.
+   Store the content of the decrypted file in 'buffer'. The buffer has to be freed
+   in the calling function.
+*/
+
 char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorCode) {
 	*errorCode = NO_ERROR_PARSE_OK;
 	fprintf(stderr, "Reading %s\n\n", filename);
@@ -373,20 +393,29 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	rewind(fp);
 	//Read file into buffer
 	uchar *buffer = new uchar[file_size + 1];
-	size_t read_bytes = fread(buffer, 1, file_size, fp);
+	file_size= fread(buffer, 1, file_size, fp);
 	buffer[file_size] = '\0';
 	fclose(fp);
 	//Check for file encryption
-	if (0 == memcmp(buffer, strMAGIC, magicSize)) { //If file is encrypted, decrypt it first.
+	if (0 == memcmp(buffer, strMAGIC, magicSize))
+        { //If file is encrypted, decrypt it first.
 		unsigned char salt[magicSize];
 		unsigned char *key = new unsigned char[keySize32];
 		unsigned char *iv = new unsigned char[ivSize16];
-		char *decrypted = new char[file_size];
+		uchar *decrypted = new uchar[file_size];
 		memcpy(&salt, buffer + magicSize, magicSize);
 		my_bytes_to_key((unsigned char *) salt, secret, key, iv);
 		uint32 d_size = 0;
-		int res = my_aes_decrypt_cbc((const char*)buffer + 2 * magicSize, file_size - 2 * magicSize,
-				decrypted, &d_size, key, keySize32, iv, ivSize16, 0);
+
+                /* This file is always encoded with cbc */
+                enum_my_aes_encryption_algorithm org_method= current_aes_dynamic_method;
+                my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CBC);
+		int res = my_aes_decrypt_dynamic((const uchar*)buffer + 2 * magicSize,
+                                                 file_size - 2 * magicSize,
+                                                 decrypted, &d_size,
+                                                 (const uchar*) key, keySize32,
+                                                 iv, ivSize16, 0);
+                my_aes_init_dynamic_encrypt(org_method);
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
 			delete[] buffer;	buffer = NULL;

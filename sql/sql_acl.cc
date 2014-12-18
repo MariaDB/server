@@ -2777,6 +2777,15 @@ bool change_password(THD *thd, LEX_USER *user)
   */
   save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
 
+  /*
+    This statement will be replicated as a statement, even when using
+    row-based replication.  The flag will be reset at the end of the
+    statement.
+    This has to be handled here as it's called by set_var.cc, which is
+    not automaticly handled by sql_parse.cc
+  */
+  save_binlog_format= thd->set_current_stmt_binlog_format_stmt();
+
   if (mysql_bin_log.is_open() ||
       (WSREP(thd) && !IF_WSREP(thd->wsrep_applier, 0)))
   {

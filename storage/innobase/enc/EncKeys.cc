@@ -189,7 +189,7 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 	int bytes_to_read = (maxSize >= file_size)? file_size:(maxSize);
 	fread(buf, 1, bytes_to_read, fp);
 	if (memcmp(buf, strMAGIC, magicSize)) {
-		bytes_to_read = (bytes_to_read>MAX_SECRET_SIZE) ? MAX_SECRET_SIZE : bytes_to_read;
+          bytes_to_read = ((unsigned long) bytes_to_read>MAX_SECRET_SIZE) ? MAX_SECRET_SIZE : bytes_to_read;
 		memcpy(secret, buf, bytes_to_read);
 		secret[bytes_to_read] = '\0';
 	} else {
@@ -201,8 +201,12 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 		_initPwd[strlen(initialPwd)]= '\0';
 		my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
 		uint32 d_size = 0;
-		int res = my_aes_decrypt_cbc((const char*)buf + 2 * magicSize, bytes_to_read - 2 * magicSize,
-				secret, &d_size, key, keySize32, iv, ivSize16, 0);
+                /* This should be checked! */
+		(void) my_aes_decrypt_dynamic((const uchar*)buf + 2 * magicSize,
+                                              bytes_to_read - 2 * magicSize,
+                                              (uchar*)secret, &d_size,
+                                              (const uchar*)key, keySize32,
+                                              iv, ivSize16, 0);
 		if (d_size>EncKeys::MAX_SECRET_SIZE) {
 			d_size = EncKeys::MAX_SECRET_SIZE;
 		}
@@ -254,7 +258,7 @@ int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *s
 			keys[oneKey->id - 1] = *oneKey;
 			delete(oneKey);
 			countKeys++;
-			fprintf(stderr, "Line: %u --> ", keyLineInKeyFile); printKeyEntry(id);
+			fprintf(stderr, "Line: %lu --> ", keyLineInKeyFile); printKeyEntry(id);
 			break;
 		case ERROR_ID_TOO_BIG:
 			fprintf(stderr, errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
@@ -373,7 +377,7 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 	rewind(fp);
 	//Read file into buffer
 	uchar *buffer = new uchar[file_size + 1];
-	size_t read_bytes = fread(buffer, 1, file_size, fp);
+	file_size= fread(buffer, 1, file_size, fp);
 	buffer[file_size] = '\0';
 	fclose(fp);
 	//Check for file encryption
@@ -381,12 +385,12 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		unsigned char salt[magicSize];
 		unsigned char *key = new unsigned char[keySize32];
 		unsigned char *iv = new unsigned char[ivSize16];
-		char *decrypted = new char[file_size];
+		uchar *decrypted = new uchar[file_size];
 		memcpy(&salt, buffer + magicSize, magicSize);
 		my_bytes_to_key((unsigned char *) salt, secret, key, iv);
 		uint32 d_size = 0;
-		int res = my_aes_decrypt_cbc((const char*)buffer + 2 * magicSize, file_size - 2 * magicSize,
-				decrypted, &d_size, key, keySize32, iv, ivSize16, 0);
+		int res = my_aes_encrypt_dynamic((const uchar*)buffer + 2 * magicSize, file_size - 2 * magicSize,
+		                                 decrypted, &d_size, (const uchar*) key, keySize32, iv, ivSize16, 0);
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
 			delete[] buffer;	buffer = NULL;

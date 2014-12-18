@@ -3092,8 +3092,8 @@ recv_recovery_from_checkpoint_start_func(
 	{
 		log_init_crypt_msg_and_nonce();
 	} else {
-		ut_memcpy(redo_log_crypt_msg, buf + LOG_CRYPT_MSG, AES_128_BLOCK_SIZE);
-		ut_memcpy(aes_ctr_nonce, buf + LOG_CRYPT_IV, AES_128_BLOCK_SIZE);
+		ut_memcpy(redo_log_crypt_msg, buf + LOG_CRYPT_MSG, MY_AES_BLOCK_SIZE);
+		ut_memcpy(aes_ctr_nonce, buf + LOG_CRYPT_IV, MY_AES_BLOCK_SIZE);
 	}
 
 	/* Read the first log file header to print a note if this is

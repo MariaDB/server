@@ -859,8 +859,7 @@ bool mysql_derived_create(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   result->tmp_table_param.start_recinfo,
                                   &result->tmp_table_param.recinfo,
                                   (unit->first_select()->options |
-                                   thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS),
-                                  encrypt_tmp_disk_tables))
+                                   thd->variables.option_bits | TMP_TABLE_ALL_COLUMNS)))
       DBUG_RETURN(TRUE);
   }
   if (open_tmp_table(table))

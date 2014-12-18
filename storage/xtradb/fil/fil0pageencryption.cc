@@ -31,7 +31,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "page0zip.h"
 
 #include "buf0checksum.h"
-
+#include <my_global.h>
 #include <my_aes.h>
 #include <KeySingleton.h>
 #include <math.h>
@@ -244,22 +244,22 @@ fil_encrypt_page(
 			return (buf);
 		}
 		key_len = strlen(keyString)/2;
-		my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
-		my_aes_hexToUint(ivString, (unsigned char*)&iv, 16);
+		my_aes_hex2uint(keyString, (unsigned char*)&rkey, key_len);
+		my_aes_hex2uint(ivString, (unsigned char*)&iv, 16);
 	}
 
 	/* 1st encryption: data_size bytes starting from FIL_PAGE_DATA */
 	if (err == AES_OK) {
-		err = my_aes_encrypt_cbc(
-			(char*) buf + FIL_PAGE_DATA,
-			data_size,
-			(char *) out_buf + FIL_PAGE_DATA,
-			&write_size,
-			(const unsigned char *) &rkey,
-			key_len,
-			(const unsigned char *) &iv,
-			iv_len,
-			1);
+		err = my_aes_encrypt_dynamic(
+                                             (uchar*) buf + FIL_PAGE_DATA,
+                                             data_size,
+                                             (uchar *) out_buf + FIL_PAGE_DATA,
+                                             &write_size,
+                                             (const unsigned char *) &rkey,
+                                             key_len,
+                                             (const unsigned char *) &iv,
+                                             iv_len,
+                                             1);
 
 		ut_ad(write_size == data_size);
 
@@ -281,14 +281,14 @@ fil_encrypt_page(
 
 			/* 2nd encryption: 64 bytes from out_buf,
 			result length is 64 bytes */
-			err = my_aes_encrypt_cbc((char*)out_buf + len -offset -64,
-					64,
-					(char*)tmp_buf,
-					&write_size,
-					(const unsigned char *)&rkey,
-					key_len,
-					(const unsigned char *)&iv,
-					iv_len, 1);
+			err = my_aes_encrypt_dynamic((uchar*)out_buf + len -offset -64,
+                                                     64,
+                                                     (uchar*)tmp_buf,
+                                                     &write_size,
+                                                     (const unsigned char *)&rkey,
+                                                     key_len,
+                                                     (const unsigned char *)&iv,
+                                                     iv_len, 1);
 			ut_ad(write_size == 64);
 
 			/* copy 64 bytes from 2nd encryption to out_buf*/
@@ -473,8 +473,8 @@ fil_decrypt_page(
 			return err;
 		}
 
-		my_aes_hexToUint(keyString, (unsigned char*)&rkey, key_len);
-		my_aes_hexToUint(ivString, (unsigned char*)&iv, 16);
+		my_aes_hex2uint(keyString, (unsigned char*)&rkey, key_len);
+		my_aes_hex2uint(ivString, (unsigned char*)&iv, 16);
 	}
 
 	if (err != AES_OK) {
@@ -509,16 +509,16 @@ fil_decrypt_page(
 	 * These are the last 64 of the (encrypted) payload */
 	memcpy(tmp_buf, buf + len - offset - 64, 64);
 
-	err = my_aes_decrypt_cbc(
-		(const char*) tmp_buf,
-		64,
-		(char *) in_buf + len - offset - 64,
-		&tmp_write_size,
-		(const unsigned char *) &rkey,
-		key_len,
-		(const unsigned char *) &iv,
-		iv_len,
-		1);
+	err = my_aes_decrypt_dynamic(
+                                     (const uchar*) tmp_buf,
+                                     64,
+                                     (uchar *) in_buf + len - offset - 64,
+                                     &tmp_write_size,
+                                     (const unsigned char *) &rkey,
+                                     key_len,
+                                     (const unsigned char *) &iv,
+                                     iv_len,
+                                     1);
 
 	ut_ad(tmp_write_size == 64);
 
@@ -548,15 +548,15 @@ fil_decrypt_page(
 
 
 	/* Decrypt rest of the page */
-	err = my_aes_decrypt_cbc((char*) in_buf + FIL_PAGE_DATA,
-			data_size,
-			(char *) buf + FIL_PAGE_DATA,
-			&tmp_write_size,
-			(const unsigned char *)&rkey,
-			key_len,
-			(const unsigned char *)&iv,
-			iv_len,
-			1);
+	err = my_aes_decrypt_dynamic((uchar*) in_buf + FIL_PAGE_DATA,
+                                     data_size,
+                                     (uchar *) buf + FIL_PAGE_DATA,
+                                     &tmp_write_size,
+                                     (const unsigned char *)&rkey,
+                                     key_len,
+                                     (const unsigned char *)&iv,
+                                     iv_len,
+                                     1);
 
 	ut_ad(tmp_write_size = data_size);
 

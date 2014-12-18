@@ -650,15 +650,16 @@ fil_node_open_file(
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE,
 			               space->flags);
 
-		if (fil_page_can_not_decrypt(page)) {
+		if (fil_page_encryption_status(page)) {
 			/* if page is (still) encrypted, write an error and return.
 			* Otherwise the server would crash if decrypting is not possible.
 			* This may be the case, if the key file could not be
 			* opened on server startup.
 			*/
-			fprintf(stderr,
-				"InnoDB: can not decrypt %s\n",
-				node->name);
+			ib_logf(IB_LOG_LEVEL_ERROR,
+                               "InnoDB: can not decrypt page, because "
+                               "keys could not be read.\n"
+                               );
 				return false;
 
 		}
@@ -1952,7 +1953,7 @@ fil_check_first_page(
 {
 	ulint	space_id;
 	ulint	flags;
-	ulint page_is_encrypted = 0;
+	ulint page_is_encrypted;
 
 	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
 		return(NULL);
@@ -1964,9 +1965,8 @@ fil_check_first_page(
 	or the encryption key is not available, the
 	check for reading the first page should intentionally fail
 	with "can not decrypt" message. */
-	page_is_encrypted = fil_page_can_not_decrypt(page);
-	if ((!KeySingleton::getInstance().isAvailable()
-	     || (page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING)) && page_is_encrypted) {
+	page_is_encrypted = fil_page_encryption_status(page);
+	if (page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING && page_is_encrypted) {
 		page_is_encrypted = 1;
 	} else {
 		page_is_encrypted = 0;
@@ -2001,7 +2001,7 @@ fil_check_first_page(
 			/* this error message is interpreted by the calling method, which is
 			 * executed if the server starts in recovery mode.
 			 */
-			return("can not decrypt");
+			return(MSG_CANNOT_DECRYPT);
 
 		}
 	}
@@ -4244,7 +4244,7 @@ check_first_page:
 			"%s in tablespace %s (table %s)",
 			check_msg, fsp->filepath, tablename);
 		fsp->success = FALSE;
-		if (strncmp(check_msg, "can not decrypt", strlen(check_msg))==0) {
+		if (strncmp(check_msg, MSG_CANNOT_DECRYPT, strlen(check_msg))==0) {
 			/* by returning here, it should be avoided, that the server crashes,
 			 * if started in recovery mode and can not decrypt tables, if
 			 * the key file can not be read.
@@ -5641,8 +5641,8 @@ _fil_io(
 	ibool		ignore_nonexistent_pages;
 	ibool		page_compressed = FALSE;
 	ulint		page_compression_level = 0;
-	ibool		page_encrypted = FALSE;
-	ulint		page_encryption_key = 0;
+	ibool		page_encrypted;
+	ulint		page_encryption_key;
 
 	is_log = type & OS_FILE_LOG;
 	type = type & ~OS_FILE_LOG;

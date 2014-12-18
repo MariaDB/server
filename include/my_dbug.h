@@ -52,9 +52,6 @@ extern  void _db_return_(uint _line_, struct _db_stack_frame_ *_stack_frame_);
 extern  void _db_pargs_(uint _line_,const char *keyword);
 extern  void _db_doprnt_(const char *format,...)
   ATTRIBUTE_FORMAT(printf, 1, 2);
-
-extern void dump_buffer(unsigned n, const unsigned char* buf);
-
 extern  void _db_dump_(uint _line_,const char *keyword,
                        const unsigned char *memory, size_t length);
 extern  void _db_end_(void);
@@ -179,6 +176,9 @@ extern void _db_suicide_();
 #define DBUG_SYNC_POINT(lock_name,lock_timeout) \
  debug_sync_point(lock_name,lock_timeout)
 void debug_sync_point(const char* lock_name, uint lock_timeout);
+
+/* Extern function for debugging */
+extern void dump_buffer(FILE *stream, unsigned n, const unsigned char* buf);
 #else
 #define DBUG_SYNC_POINT(lock_name,lock_timeout)
 #endif /* EXTRA_DEBUG */

@@ -23,6 +23,7 @@ Created 09/13/2014
 
 #include "KeySingleton.h"
 #include <stdlib.h>
+#include <my_aes.h>
 
 
 bool KeySingleton::instanceInited = false;
@@ -37,7 +38,7 @@ KeySingleton & KeySingleton::getInstance() {
 		fprintf(stderr, "Encryption / decryption keys were not initialized. "
 				"You can not read encrypted tables or columns\n");
 	}
-#endif UNIV_DEBUG
+#endif /* UNIV_DEBUG */
 	return theInstance;
 }
 
@@ -50,6 +51,8 @@ KeySingleton & KeySingleton::getInstance(const char *name, const char *url,
 		fprintf(stderr, "Could not initialize any of the encryption / decryption keys. "
 				"You can not read encrypted tables\n\n");
 		fflush(stderr);
+	} else {
+		my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CTR);
 	}
 
 	return theInstance;

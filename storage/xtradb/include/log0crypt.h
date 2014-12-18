@@ -11,19 +11,19 @@ Created 11/25/2013 Minli Zhu
 #include "ut0byte.h"
 #include "ut0lst.h"
 #include "ut0rnd.h"
-#include "my_crypt.h"
+#include "my_aes.h"
 #include "my_crypt_key_management.h"	// for key version and key 
 
-#define PURPOSE_BYTE_LEN	AES_128_BLOCK_SIZE - 1
+#define PURPOSE_BYTE_LEN	MY_AES_BLOCK_SIZE - 1
 #define PURPOSE_BYTE_OFFSET	0
 #define UNENCRYPTED_KEY_VER	0
 
 /* If true, enable redo log encryption. */
 extern my_bool srv_encrypt_log;
 /* Plain text used by AES_ECB to generate redo log crypt key. */
-extern byte redo_log_crypt_msg[AES_128_BLOCK_SIZE];
+extern byte redo_log_crypt_msg[MY_AES_BLOCK_SIZE];
 /* IV to concatenate with counter used by AES_CTR for redo log crypto. */
-extern byte aes_ctr_nonce[AES_128_BLOCK_SIZE];
+extern byte aes_ctr_nonce[MY_AES_BLOCK_SIZE];
 
 /*********************************************************************//**
 Generate a 128-bit random message used to generate redo log crypto key.
@@ -45,7 +45,7 @@ log_init_crypt_key(
 /*********************************************************************//**
 Encrypt log blocks. */
 UNIV_INTERN
-CryptResult
+Crypt_result
 log_blocks_encrypt(
 /*===============*/
 	const byte* blocks,		/*!< in: blocks before encryption */
@@ -55,7 +55,7 @@ log_blocks_encrypt(
 /*********************************************************************//**
 Decrypt log blocks. */
 UNIV_INTERN
-CryptResult
+Crypt_result
 log_blocks_decrypt(
 /*===============*/
 	const byte* blocks,		/*!< in: blocks before decryption */

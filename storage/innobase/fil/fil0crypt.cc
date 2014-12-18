@@ -233,8 +233,8 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 			if (keyString == NULL || ivString == NULL) {
 				key_error=true;
 			} else {
-				my_aes_hexToUint(keyString, (unsigned char*)&keybuf, key_len);
-				my_aes_hexToUint(ivString, (unsigned char*)&iv, iv_len);
+				my_aes_hex2uint(keyString, (unsigned char*)&keybuf, key_len);
+				my_aes_hex2uint(ivString, (unsigned char*)&iv, iv_len);
 			}
 		} else {
 			key_error = true;
@@ -251,13 +251,17 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 	const unsigned char* src = page_encrypted ? iv : crypt_data->iv;
 	const int srclen = page_encrypted ? iv_len : crypt_data->iv_length;
 	unsigned char* buf = page_encrypted ? key : crypt_data->keys[0].key;
-	int buflen = page_encrypted ? key_len : sizeof(crypt_data->keys[0].key);
+	uint32 buflen = page_encrypted ? key_len : sizeof(crypt_data->keys[0].key);
 
-	int rc = EncryptAes128Ecb(keybuf,
-			      src, srclen,
-			      buf, &buflen);
+	// call ecb explicit
+	my_aes_encrypt_dynamic_type func= get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
+	int rc = (*func)(src, srclen,
+                         buf, &buflen,
+                         (unsigned char*)&keybuf, key_len,
+                         NULL, 0,
+                         1);
 
-	if (rc != CRYPT_OK) {
+	if (rc != AES_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt key-block "
 			" src: %p srclen: %d buf: %p buflen: %d."
@@ -275,10 +279,7 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 		}
 	}
 
-	memcpy(dst, crypt_data->keys[0].key,
-	       sizeof(crypt_data->keys[0].key));
-
-	// memcpy(dst, buf, buflen);
+	memcpy(dst, buf, buflen);
 
 	if (!page_encrypted) {
 		mutex_exit(&crypt_data->mutex);
@@ -323,7 +324,7 @@ fil_space_create_crypt_data()
 	mutex_create(fil_crypt_data_mutex_key,
 		     &crypt_data->mutex, SYNC_NO_ORDER_CHECK);
 	crypt_data->iv_length = iv_length;
-	RandomBytes(crypt_data->iv, iv_length);
+	my_random_bytes(crypt_data->iv, iv_length);
 	return crypt_data;
 }
 
@@ -630,12 +631,21 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
 	ibool page_encrypted  = fil_space_is_page_encrypted(space);
+
 	ulint compression_alg = mach_read_from_8(src_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
+	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
+			|| orig_page_type==FIL_PAGE_TYPE_XDES
+			|| orig_page_type== FIL_PAGE_PAGE_ENCRYPTED
+			|| orig_page_type== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		memcpy(dst_frame, src_frame, page_size);
+		return;
+	}
 
 	// copy page header
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
 
-	ulint orig_page_type = mach_read_from_2(dst_frame+FIL_PAGE_TYPE);
 
 	if (page_encrypted && !page_compressed) {
 		// key id
@@ -653,9 +663,11 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	}
 
 	// create counter block (C)
-	unsigned char counter[AES_128_BLOCK_SIZE];
+	unsigned char counter[MY_AES_BLOCK_SIZE];
 	mach_write_to_4(counter + 0, space);
-	mach_write_to_4(counter + 4, offset);
+	ulint space_offset = mach_read_from_4(
+			src_frame + FIL_PAGE_OFFSET);
+	mach_write_to_4(counter + 4, space_offset);
 	mach_write_to_8(counter + 8, lsn);
 
 	// encrypt page data
@@ -663,17 +675,20 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	ulint srclen = page_size - unencrypted_bytes;
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
-	int dstlen;
+	uint32 dstlen;
 
 	if (page_compressed) {
 		srclen = page_size;
 	}
 
-	int rc = EncryptAes128Ctr(key, counter, sizeof(counter),
-				  src, srclen,
-				  dst, &dstlen);
 
-	if (! ((rc == CRYPT_OK) && ((ulint) dstlen == srclen))) {
+	int rc = (* my_aes_encrypt_dynamic)(src, srclen,
+	                                dst, &dstlen,
+	                                (unsigned char*)&key, sizeof(key),
+	                                (unsigned char*)&counter, sizeof(counter),
+	                                1);
+
+	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -733,6 +748,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 		/* Set up the compression method */
 		mach_write_to_1(dst_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+7, compression_alg);
 	}
+
 }
 
 /*********************************************************************
@@ -766,14 +782,16 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	bool page_encrypted = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
 		               || page_type == FIL_PAGE_PAGE_ENCRYPTED);
 
-	ulint orig_page_type=0;
+	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+            || page_type == FIL_PAGE_PAGE_COMPRESSED);
 
+	ulint orig_page_type=0;
 	fprintf(stderr, "JAN: page type %lu\n", page_type);
 
 	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
 		key_version = mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		fprintf(stderr, "JAN: key_version %lu\n", key_version);
+		fprintf(stderr, "JAN: key_version %u\n", key_version);
 		orig_page_type =  mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 2);
 		fprintf(stderr, "JAN: decrypt: orig_page_type %lu\n", orig_page_type);
@@ -811,7 +829,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	}
 
 	// create counter block
-	unsigned char counter[AES_128_BLOCK_SIZE];
+	unsigned char counter[MY_AES_BLOCK_SIZE];
 	mach_write_to_4(counter + 0, space);
 	mach_write_to_4(counter + 4, offset);
 	mach_write_to_8(counter + 8, lsn);
@@ -821,22 +839,30 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
-	int dstlen;
+	uint32 dstlen;
 	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
 
-	orig_page_type = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4);
-	ulint compressed_len = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+6);
-	ulint compression_method = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+7);
+	ulint compressed_len;
+	ulint compression_method;
+	if (page_compressed) {
+		orig_page_type = mach_read_from_2(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4);
+		compressed_len = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+6);
+		compression_method = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+7);
+	}
+	if (page_encrypted && !page_compressed) {
+		orig_page_type = mach_read_from_2(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+2);
+	}
 
 	if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		srclen = pow((double)2, (double)((int)compressed_len));
 	}
+	int rc = (* my_aes_decrypt_dynamic)(src, srclen,
+	                                dst, &dstlen,
+	                                (unsigned char*)&key, sizeof(key),
+	                                (unsigned char*)&counter, sizeof(counter),
+	                                1);
 
-	int rc = DecryptAes128Ctr(key, counter, sizeof(counter),
-				  src, srclen,
-				  dst, &dstlen);
-
-	if (! ((rc == CRYPT_OK) && ((ulint) dstlen == srclen))) {
+	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."

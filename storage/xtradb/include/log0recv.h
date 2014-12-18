@@ -474,7 +474,7 @@ struct recv_sys_t{
 	uint		recv_log_crypt_ver;
 				/*!< mysqld key version to generate redo
 				log crypt key for recovery */
-	byte		recv_log_crypt_key[AES_128_BLOCK_SIZE];
+	byte		recv_log_crypt_key[MY_AES_BLOCK_SIZE];
 				/*!< crypto key to decrypt redo log for recovery */
 #ifdef UNIV_LOG_ARCHIVE
 	log_group_t*	archive_group;

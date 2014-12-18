@@ -1415,7 +1415,7 @@ log_group_encrypt_before_write(
 	const ulint size)		/*!< in: size of log blocks */
 
 {
-	CryptResult result = CRYPT_OK;
+	Crypt_result result = AES_OK;
 
 	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	byte* dst_frame = (byte*)malloc(size);
@@ -1423,14 +1423,14 @@ log_group_encrypt_before_write(
 	//encrypt log blocks content
 	result = log_blocks_encrypt(block, size, dst_frame);
 
-	if (result == CRYPT_OK)
+	if (result == AES_OK)
 	{
 		ut_ad(block[0] == dst_frame[0]);
 		memcpy(block, dst_frame, size);
 	}
 	free(dst_frame);
 
-	return (result == CRYPT_OK);
+	return (result == AES_OK);
 }
 
 /******************************************************//**
@@ -2565,20 +2565,20 @@ log_group_decrypt_after_read(
 	byte* frame,	/*!< in/out: log segment */
 	const ulint size)	/*!< in: log segment size */
 {
-	CryptResult result;
+	Crypt_result result;
 	ut_ad(size % OS_FILE_LOG_BLOCK_SIZE == 0);
 	byte* dst_frame = (byte*)malloc(size);
 
 	// decrypt log blocks content
 	result = log_blocks_decrypt(frame, size, dst_frame);
 
-	if (result == CRYPT_OK)
+	if (result == AES_OK)
 	{
 		memcpy(frame, dst_frame, size);
 	}
 	free(dst_frame);
 
-	return (result == CRYPT_OK);
+	return (result == AES_OK);
 }
 
 /******************************************************//**

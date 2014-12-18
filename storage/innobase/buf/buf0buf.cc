@@ -5775,7 +5775,7 @@ buf_page_decrypt_after_read(
 
 	bool page_compressed_encrypted = fil_page_is_compressed_encrypted(dst_frame);
 
-	fprintf(stderr, "JAN: key_version %lu, page_type %lu\n", key_version,
+	fprintf(stderr, "JAN: key_version %u, page_type %lu\n", key_version,
 		mach_read_from_2(src_frame+FIL_PAGE_TYPE));
 
 	if (key_version == 0) {
