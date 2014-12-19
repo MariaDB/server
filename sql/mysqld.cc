@@ -5167,9 +5167,18 @@ a file name for --log-bin-index option", opt_binlog_index_name);
     unireg_abort(1);
   }
 
-  if (opt_bin_log && mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
-                                        WRITE_CACHE, max_binlog_size, 0, TRUE))
-    unireg_abort(1);
+  if (opt_bin_log)
+  {
+    /**
+     * mutex lock is not needed here.
+     * but to be able to have mysql_mutex_assert_owner() in code,
+     * we do it anyway */
+    mysql_mutex_lock(mysql_bin_log.get_log_lock());
+    if (mysql_bin_log.open(opt_bin_logname, LOG_BIN, 0,
+                           WRITE_CACHE, max_binlog_size, 0, TRUE))
+      unireg_abort(1);
+    mysql_mutex_unlock(mysql_bin_log.get_log_lock());
+  }
 
 #ifdef HAVE_REPLICATION
   if (opt_bin_log && expire_logs_days)

@@ -3133,6 +3133,7 @@ void MYSQL_BIN_LOG::cleanup()
     mysql_mutex_destroy(&LOCK_index);
     mysql_mutex_destroy(&LOCK_xid_list);
     mysql_mutex_destroy(&LOCK_binlog_background_thread);
+    mysql_mutex_destroy(&LOCK_binlog_end_pos);
     mysql_cond_destroy(&update_cond);
     mysql_cond_destroy(&COND_queue_busy);
     mysql_cond_destroy(&COND_xid_list);
@@ -3178,6 +3179,9 @@ void MYSQL_BIN_LOG::init_pthread_objects()
                   &COND_binlog_background_thread, 0);
   mysql_cond_init(key_BINLOG_COND_binlog_background_thread_end,
                   &COND_binlog_background_thread_end, 0);
+
+  mysql_mutex_init(m_key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
+                   MY_MUTEX_INIT_SLOW);
 }
 
 
@@ -3524,10 +3528,19 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
     if (flush_io_cache(&log_file) ||
         mysql_file_sync(log_file.file, MYF(MY_WME|MY_SYNC_FILESIZE)))
       goto err;
-    mysql_mutex_lock(&LOCK_commit_ordered);
-    strmake_buf(last_commit_pos_file, log_file_name);
-    last_commit_pos_offset= my_b_tell(&log_file);
-    mysql_mutex_unlock(&LOCK_commit_ordered);
+
+    my_off_t offset= my_b_tell(&log_file);
+
+    if (!is_relay_log)
+    {
+      /* update binlog_end_pos so that it can be read by after sync hook */
+      reset_binlog_end_pos(log_file_name, offset);
+
+      mysql_mutex_lock(&LOCK_commit_ordered);
+      strmake_buf(last_commit_pos_file, log_file_name);
+      last_commit_pos_offset= offset;
+      mysql_mutex_unlock(&LOCK_commit_ordered);
+    }
 
     if (write_file_name_to_index_file)
     {
@@ -3632,6 +3645,7 @@ int MYSQL_BIN_LOG::get_current_log(LOG_INFO* linfo)
 
 int MYSQL_BIN_LOG::raw_get_current_log(LOG_INFO* linfo)
 {
+  mysql_mutex_assert_owner(&LOCK_log);
   strmake_buf(linfo->log_file_name, log_file_name);
   linfo->pos = my_b_tell(&log_file);
   return 0;
@@ -4797,6 +4811,20 @@ void MYSQL_BIN_LOG::make_log_name(char* buf, const char* log_ident)
 
 bool MYSQL_BIN_LOG::is_active(const char *log_file_name_arg)
 {
+  /**
+   * there should/must be mysql_mutex_assert_owner(&LOCK_log) here...
+   * but code violates this! (scary monsters and super creeps!)
+   *
+   * example stacktrace:
+   * #8  MYSQL_BIN_LOG::is_active
+   * #9  MYSQL_BIN_LOG::can_purge_log
+   * #10 MYSQL_BIN_LOG::purge_logs
+   * #11 MYSQL_BIN_LOG::purge_first_log
+   * #12 next_event
+   * #13 exec_relay_log_event
+   *
+   * I didn't investigate if this is ligit...(i.e if my comment is wrong)
+   */
   return !strcmp(log_file_name, log_file_name_arg);
 }
 
@@ -5359,6 +5387,7 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
   binlog_cache_mngr *const cache_mngr= thd->binlog_setup_trx_data();
 
   /* Server layer calls us with LOCK_commit_ordered locked, so this is safe. */
+  mysql_mutex_assert_owner(&LOCK_commit_ordered);
   strmake_buf(cache_mngr->last_commit_pos_file, mysql_bin_log.last_commit_pos_file);
   cache_mngr->last_commit_pos_offset= mysql_bin_log.last_commit_pos_offset;
 
@@ -6013,6 +6042,14 @@ err:
         } 
         else
         {
+          /* update binlog_end_pos so it can be read by dump thread
+           *
+           * note: must be _after_ the RUN_HOOK(after_flush) or else
+           * semi-sync-plugin might not have put the transaction into
+           * it's list before dump-thread tries to send it
+           */
+          update_binlog_end_pos(offset);
+
           signal_update();
           if ((error= rotate(false, &check_purge)))
             check_purge= false;
@@ -6664,6 +6701,9 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
     }
 
     offset= my_b_tell(&log_file);
+
+    update_binlog_end_pos(offset);
+
     /*
       Take mutex to protect against a reader seeing partial writes of 64-bit
       offset on 32-bit CPUs.
@@ -6709,6 +6749,9 @@ MYSQL_BIN_LOG::write_binlog_checkpoint_event_already_locked(const char *name,
   }
 
   offset= my_b_tell(&log_file);
+
+  update_binlog_end_pos(offset);
+
   /*
     Take mutex to protect against a reader seeing partial writes of 64-bit
     offset on 32-bit CPUs.
@@ -7335,7 +7378,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       {
         if (!current->error &&
             RUN_HOOK(binlog_storage, after_flush,
-                (current->thd, log_file_name,
+                (current->thd,
+                 current->cache_mngr->last_commit_pos_file,
                  current->cache_mngr->last_commit_pos_offset, synced)))
         {
           current->error= ER_ERROR_ON_WRITE;
@@ -7346,6 +7390,14 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         else
           all_error= false;
       }
+
+      /* update binlog_end_pos so it can be read by dump thread
+       *
+       * note: must be _after_ the RUN_HOOK(after_flush) or else
+       * semi-sync-plugin might not have put the transaction into
+       * it's list before dump-thread tries to send it
+       */
+      update_binlog_end_pos(commit_offset);
 
       if (any_error)
         sql_print_error("Failed to run 'after_flush' hooks");
@@ -7387,6 +7439,10 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
   mysql_mutex_lock(&LOCK_commit_ordered);
+    /**
+     * TODO(jonaso): Check with Kristian,
+     * if we rotate:d above, this offset is "wrong"
+     */
   last_commit_pos_offset= commit_offset;
   /*
     We cannot unlock LOCK_log until we have locked LOCK_commit_ordered;
@@ -7625,6 +7681,7 @@ void MYSQL_BIN_LOG::wait_for_update_relay_log(THD* thd)
   PSI_stage_info old_stage;
   DBUG_ENTER("wait_for_update_relay_log");
 
+  mysql_mutex_assert_owner(&LOCK_log);
   thd->ENTER_COND(&update_cond, &LOCK_log,
                   &stage_slave_has_read_all_relay_log,
                   &old_stage);
@@ -7655,11 +7712,27 @@ int MYSQL_BIN_LOG::wait_for_update_bin_log(THD* thd,
   int ret= 0;
   DBUG_ENTER("wait_for_update_bin_log");
 
+  mysql_mutex_assert_owner(&LOCK_log);
   if (!timeout)
     mysql_cond_wait(&update_cond, &LOCK_log);
   else
     ret= mysql_cond_timedwait(&update_cond, &LOCK_log,
                               const_cast<struct timespec *>(timeout));
+  DBUG_RETURN(ret);
+}
+
+int MYSQL_BIN_LOG::wait_for_update_binlog_end_pos(THD* thd,
+                                                  struct timespec *timeout)
+{
+  int ret= 0;
+  DBUG_ENTER("wait_for_update_binlog_end_pos");
+
+  mysql_mutex_assert_owner(get_binlog_end_pos_lock());
+  if (!timeout)
+    mysql_cond_wait(&update_cond, get_binlog_end_pos_lock());
+  else
+    ret= mysql_cond_timedwait(&update_cond, get_binlog_end_pos_lock(),
+                              timeout);
   DBUG_RETURN(ret);
 }
 
@@ -9701,6 +9774,14 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
     set_binlog_snapshot_file(cache_mngr->last_commit_pos_file);
     binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
   }
+}
+
+void assert_LOCK_log_owner(bool owner)
+{
+  if (owner)
+    mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
+  else
+    mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
 }
 
 struct st_mysql_storage_engine binlog_storage_engine=
