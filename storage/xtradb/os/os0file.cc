@@ -3152,6 +3152,7 @@ try_again:
 
 	if (ret && len == n) {
 		/* If page is encrypted we need to decrypt it first */
+		/*
 		if (fil_page_is_encrypted((byte *)buf)) {
 			if (fil_decrypt_page(
 					NULL,
@@ -3162,6 +3163,22 @@ try_again:
 					NULL)) {
 				return FALSE;
 			}
+		}
+		*/
+
+		if (fil_page_is_compressed_encrypted((byte *)buf) ||
+			fil_page_is_encrypted((byte *)buf)) {
+
+			byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+			// Decrypt the data
+			fil_space_decrypt(
+				(fil_space_crypt_t* ) NULL,
+				(byte *)buf,
+				n,
+				dst_frm);
+			// Copy decrypted buffer back to buf
+			memcpy(buf, dst_frm, n);
+			ut_free(dst_frm);
 		}
 
 		/* Note that InnoDB writes files that are not formated
@@ -3185,6 +3202,7 @@ try_again:
 
 	if ((ulint) ret == n) {
 		/* If page is encrypted we need to decrypt it first */
+		/*
 		if (fil_page_is_encrypted((byte *)buf)) {
 			if (fil_decrypt_page(
 					NULL,
@@ -3195,6 +3213,21 @@ try_again:
 					NULL)) {
 				return FALSE;
 			}
+		}
+		*/
+		if (fil_page_is_compressed_encrypted((byte *)buf) ||
+			fil_page_is_encrypted((byte *)buf)) {
+
+			byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+			// Decrypt the data
+			fil_space_decrypt(
+				(fil_space_crypt_t*) NULL,
+				(byte *)buf,
+				n,
+				dst_frm);
+			// Copy decrypted buffer back to buf
+			memcpy(buf, dst_frm, n);
+			ut_free(dst_frm);
 		}
 
 		/* Note that InnoDB writes files that are not formated
@@ -3296,6 +3329,7 @@ try_again:
 
 	if (ret && len == n) {
 		/* If page is encrypted we need to decrypt it first */
+		/*
 		if (fil_page_is_encrypted((byte *)buf)) {
 			if (fil_decrypt_page(
 					NULL,
@@ -3306,6 +3340,20 @@ try_again:
 					NULL)) {
 				return (FALSE);
 			}
+		}
+		*/
+		if (fil_page_is_compressed_encrypted((byte *)buf) ||
+			fil_page_is_encrypted((byte *)buf)) {
+			byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+			// Decrypt the data
+			fil_space_decrypt(
+				(fil_space_crypt_t* ) NULL,
+				(byte *)buf,
+				n,
+				dst_frm);
+			// Copy decrypted buffer back to buf
+			memcpy(buf, dst_frm, n);
+			ut_free(dst_frm);
 		}
 
 		/* Note that InnoDB writes files that are not formated
@@ -3330,6 +3378,7 @@ try_again:
 	if ((ulint) ret == n) {
 
 		/* If the page is encrypted we need to decrypt it first */
+		/*
 		if (fil_page_is_encrypted((byte *)buf)) {
 			if (fil_decrypt_page(
 					NULL,
@@ -3341,6 +3390,23 @@ try_again:
 				return (FALSE);
 			}
 		}
+		*/
+
+		if (fil_page_is_compressed_encrypted((byte *)buf) ||
+			fil_page_is_encrypted((byte *)buf)) {
+
+			byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
+			// Decrypt the data
+			fil_space_decrypt(
+				(fil_space_crypt_t* ) NULL,
+				(byte *)buf,
+				n,
+				dst_frm);
+			// Copy decrypted buffer back to buf
+			memcpy(buf, dst_frm, n);
+			ut_free(dst_frm);
+		}
+
 
 		/* Note that InnoDB writes files that are not formated
 		as file spaces and they do not have FIL_PAGE_TYPE
@@ -4901,6 +4967,10 @@ found:
 		os_mutex_enter(array->mutex);
 	}
 
+//	if (srv_encrypt_tables) {
+//		page_encryption = TRUE;
+//	}
+
 	/* If the space is page encryption and this is write operation
 	   then we encrypt the page */
 	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
@@ -4915,28 +4985,18 @@ found:
 		// if it is not yet allocated.
 		os_slot_alloc_page_buf2(slot);
 		os_slot_alloc_tmp_encryption_buf(slot);
-
-		tmp = fil_encrypt_page(
+		/* ctr not yet supported in xtradb, lsn is null*/
+		fil_space_encrypt(
 			fil_node_get_space_id(slot->message1),
+			slot->offset,
+			NULL,
 			(byte *)buf,
+			slot->len,
 			slot->page_buf2,
-			len,
-			page_encryption_key,
-			&real_len,
-			&ec,
-			slot->tmp_encryption_buf);
+			slot->page_encryption_key);
 
-		/* If encryption succeeded, set up the length and buffer */
-		if (tmp != buf) {
-			len = real_len;
-			buf = slot->page_buf2;
-			slot->len = real_len;
-			slot->page_encryption_success = TRUE;
-		} else {
-			/* Use original not encrypted page */
-			slot->page_encryption_success = FALSE;
-			buf = slot->buf;
-		}
+		slot->page_encryption_success = TRUE;
+		buf = slot->page_buf2;
 
 		/* Take array mutex back */
 		os_mutex_enter(array->mutex);
@@ -5575,16 +5635,20 @@ os_aio_windows_handle(
 	}
 
 	if (slot->type == OS_FILE_READ) {
-		if (fil_page_is_encrypted(slot->buf)) {
+		if (fil_page_is_compressed_encrypted(slot->buf) ||
+			fil_page_is_encrypted(slot->buf)) {
+			ut_ad(slot->message1 != NULL);
 			os_slot_alloc_page_buf2(slot);
 			os_slot_alloc_tmp_encryption_buf(slot);
-			fil_decrypt_page(
-				slot->page_buf2,
+
+			// Decrypt the data
+			fil_space_decrypt(
+				fil_node_get_space_id(slot->message1),
 				slot->buf,
 				slot->len,
-				slot->write_size,
-				NULL,
-				slot->tmp_encryption_buf);
+				slot->page_buf2);
+			// Copy decrypted buffer back to buf
+			memcpy(slot->buf, slot->page_buf2, slot->len);
 		}
 
 		if (fil_page_is_compressed(slot->buf)) {
@@ -5702,16 +5766,21 @@ retry:
 			ut_a(slot->pos < end_pos);
 
 			if (slot->type == OS_FILE_READ) {
-				if (fil_page_is_encrypted(slot->buf)) {
+				/* If the page is page encrypted we decrypt */
+				if (fil_page_is_compressed_encrypted(slot->buf) ||
+					fil_page_is_encrypted(slot->buf)) {
 					os_slot_alloc_page_buf2(slot);
 					os_slot_alloc_tmp_encryption_buf(slot);
-					fil_decrypt_page(
-						slot->page_buf2,
+					ut_ad(slot->message1 != NULL);
+
+					// Decrypt the data
+					fil_space_decrypt(
+						fil_node_get_space_id(slot->message1),
 						slot->buf,
 						slot->len,
-						slot->write_size,
-						NULL,
-						slot->tmp_encryption_buf);
+						slot->page_buf2);
+					// Copy decrypted buffer back to buf
+					memcpy(slot->buf, slot->page_buf2, slot->len);
 				}
 
 				/* If the page is page compressed and this is read,

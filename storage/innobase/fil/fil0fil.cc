@@ -30,7 +30,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "fil0pageencryption.h"
 #include "fsp0pageencryption.h"
 
-#include "KeySingleton.h"
 #include <debug_sync.h>
 #include <my_dbug.h>
 
@@ -649,7 +648,7 @@ fil_node_open_file(
 		success = os_file_read(node->handle, page, 0, UNIV_PAGE_SIZE,
 			               space->flags);
 
-		if (fil_page_can_not_decrypt(page)) {
+		if (fil_page_encryption_status(page)) {
 			/* if page is (still) encrypted, write an error and return.
 			* Otherwise the server would crash if decrypting is not possible.
 			* This may be the case, if the key file could not be
@@ -1154,8 +1153,7 @@ fil_space_create(
 	ut_a(fil_system);
 
 	if (fsp_flags_is_page_encrypted(flags)) {
-		if (!KeySingleton::getInstance().isAvailable()
-		    || KeySingleton::getInstance().getKeys(fsp_flags_get_page_encryption_key(flags))==NULL) {
+		if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
 			/* by returning here it should be avoided that
 			 * the server crashes, if someone tries to access an
 			 * encrypted table and the encryption key is not available.
@@ -1924,7 +1922,7 @@ fil_check_first_page(
 	or the encryption key is not available, the
 	check for reading the first page should intentionally fail
 	with "can not decrypt" message. */
-	page_is_encrypted = fil_page_can_not_decrypt(page);
+	page_is_encrypted = fil_page_encryption_status(page);
 	if ((page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING) && page_is_encrypted) {
 		page_is_encrypted = 1;
 	} else {

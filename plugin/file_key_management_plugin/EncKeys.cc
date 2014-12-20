@@ -23,36 +23,42 @@ Example
 
 [mysqld]
 ...
-innodb_data_encryption_providertype = 1
-innodb_data_encryption_providername = keys.enc
-innodb_data_encryption_providerurl = /home/mdb/
-innodb_data_encryption_filekey = secret
-...
+file_key_management_plugin_filename = /home/mdb/keys.enc
+file_key_management_plugin_filekey = secret
+file_key_management_plugin_encryption_method = aes_cbc
 
-As provider type currently only value 1 is supported, which means, the keys are read from a file.
-The filename is set up via the innodb_data_encryption_providername configuration value.
-innodb_data_encryption_providerurl is used to configure the path to this file. This is usually
-a folder name.
+...
+Optional configuration value file_key_management_plugin_encryption_method determines the method used for encryption.
+Supported are aes_cbc, aes_ecb or aes_ctr. aes_cbc is default.
+The plug-in sets the default aes encryption/decryption method to the given method.
+
+The keys are read from a file.
+The filename is set up via the file_key_management_plugin_filename configuration value.
+file_key_management_plugin_filename is used to configure the absolute path to this file.
+
 Examples:
-innodb_data_encryption_providerurl = \\\\unc 	(windows share)
-innodb_data_encryption_providerurl = e:/tmp/ 	(windows path)
-innodb_data_encryption_providerurl = /tmp    	(linux path)
+file_key_management_plugin_filename = \\\\unc\\keys.enc 	(windows share)
+file_key_management_plugin_filename = e:/tmp/keys.enc 		(windows path)
+file_key_management_plugin_filename = /tmp/keys.enc    		(linux path)
 
 The key file contains AES keys and initialization vectors as hex-encoded Strings.
 Supported are keys of size 128, 192 or 256 bits. IV consists of 16 bytes.
+Example:
+1;F5502320F8429037B8DAEF761B189D12;770A8A65DA156D24EE2A093277530142
+
+1 is the key identifier which can be used for table creation, a 16 byte IV follows, and finally a 16 byte AES key.
+255 entries are supported.
 
 The key file should be encrypted and the key to decrypt the file can be given with the
-innodb_data_encryption_filekey parameter.
+optional file_key_management_plugin_filekey parameter.
 
 The file key can also be located if FILE: is prepended to the key. Then the following part is interpreted
-as absolut to the file containing the file key. This file can optionally be encrypted, currently with a fix key.
+as absolute path to the file containing the file key. This file can optionally be encrypted, currently with a fix key.
 Example:
-innodb_data_encryption_filekey = FILE:y:/secret256.enc
+file_key_management_plugin_filekey = FILE:y:/secret256.enc
 
 If the key file can not be read at server startup, for example if the file key is not present,
 page_encryption feature is not availabe and access to page_encryption tables is not possible.
-
-Example files can be found inside the unittest/eperi folder.
 
 Open SSL command line utility can be used to create an encrypted key file.
 Examples:
@@ -67,6 +73,7 @@ openssl enc –aes-256-cbc –md sha1 –k <initialPwd> –in secret –out secr
 
 #include "EncKeys.h"
 #include <my_global.h>
+
 #include <my_aes.h>
 #include <memory.h>
 #include <my_sys.h>
@@ -119,59 +126,34 @@ EncKeys::~EncKeys() {
 	}
 }
 
-bool EncKeys::initKeys(const char *name, const char *url, const int initType, const char *filekey) {
-	if (KEYINITTYPE_FILE == initType)
-	{
-		int result = initKeysThroughFile(name, url, filekey);
-		return ERROR_FALSE_FILE_KEY != result && ERROR_OPEN_FILE != result && ERROR_READING_FILE != result;
-	}
-	else if (KEYINITTYPE_SERVER == initType)
-	{
-		return NO_ERROR_KEY_FILE_PARSE_OK == initKeysThroughServer(name, url, filekey);
-	}
-	return false;
-}
+bool EncKeys::initKeys(const char *filename, const char *filekey) {
+	if (filename==NULL)
+	  return ERROR_OPEN_FILE;
 
-int EncKeys::initKeysThroughFile(const char *name, const char *path, const char *filekey) {
-	if (path==NULL || name==NULL) return ERROR_OPEN_FILE;
-	size_t len1 = strlen(path);
-	size_t len2 = strlen(name);
 	const char *MAGIC = "FILE:";
 	const short MAGIC_LEN = 5;
-	int ret = NO_ERROR_KEY_FILE_PARSE_OK;
-	bool isUncPath= (len1>2) ? ((strncmp("\\\\", path, 2)==0) ? TRUE : FALSE) : FALSE;
-		bool isSlash = ((isUncPath? '\\':'/') == path[len1 - 1]);
-		char *secret = (char*) malloc(MAX_SECRET_SIZE +1 * sizeof(char));
-		char *filename = (char*) malloc((len1 + len2 + (isSlash ? 1 : 2)) * sizeof(char));
-		if(filekey != NULL)
-		{
-			//If secret starts with FILE: interpret the secret as filename.
-			if(memcmp(MAGIC, filekey, MAGIC_LEN) == 0) {
-				int fk_len = strlen(filekey);
-				char *secretfile = (char*)malloc( (1 + fk_len - MAGIC_LEN)* sizeof(char));
-				memcpy(secretfile, filekey+MAGIC_LEN, fk_len - MAGIC_LEN);
-				secretfile[fk_len-MAGIC_LEN] = '\0';
-				parseSecret(secretfile, secret);
-				free(secretfile);
-			} else
-			{
-				sprintf(secret, "%s", filekey);
-			}
-		}
-		sprintf(filename, "%s%s%s", path, isSlash ? "" : (isUncPath ? "\\":"/"), name);
-		ret = parseFile((const char *)filename, 254, secret);
-		free(filename);
-		free(secret);
-	return ret;
-}
 
-int EncKeys::initKeysThroughServer( const char *name, const char *path, const char *filekey)
-{
-	//TODO
-#ifdef UNIV_DEBUG
-	fprintf(stderr, errorNotImplemented);
-#endif //UNIV_DEBUG
-	return ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED;
+	char *secret = (char*) malloc(MAX_SECRET_SIZE +1 * sizeof(char));
+
+	if(filekey != NULL)
+	{
+		//If secret starts with FILE: interpret the secret as filename.
+		if(memcmp(MAGIC, filekey, MAGIC_LEN) == 0) {
+			int fk_len = strlen(filekey);
+			char *secretfile = (char*)malloc( (1 + fk_len - MAGIC_LEN)* sizeof(char));
+			memcpy(secretfile, filekey+MAGIC_LEN, fk_len - MAGIC_LEN);
+			secretfile[fk_len-MAGIC_LEN] = '\0';
+			parseSecret(secretfile, secret);
+			free(secretfile);
+		} else
+		{
+			sprintf(secret, "%s", filekey);
+		}
+	}
+
+	int ret = parseFile((const char *)filename, 254, secret);
+	free(secret);
+	return (ret==NO_ERROR_KEY_FILE_PARSE_OK);
 }
 
 /*
@@ -181,7 +163,6 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 	int maxSize = (MAX_SECRET_SIZE +16 + magicSize*2) ;
 	char* buf = (char*)malloc((maxSize) * sizeof(char));
 	char* _initPwd = (char*)malloc((strlen(initialPwd)+1) * sizeof(char));
-
 	FILE *fp = fopen(secretfile, "rb");
 	fseek(fp, 0L, SEEK_END);
 	long file_size = ftell(fp);
@@ -201,8 +182,9 @@ void EncKeys::parseSecret( const char *secretfile, char *secret ) {
 		_initPwd[strlen(initialPwd)]= '\0';
 		my_bytes_to_key((unsigned char *) salt, _initPwd, key, iv);
 		uint32 d_size = 0;
-		int res = my_aes_decrypt_cbc((const char*)buf + 2 * magicSize, bytes_to_read - 2 * magicSize,
-				secret, &d_size, key, keySize32, iv, ivSize16, 0);
+		my_aes_decrypt_dynamic_type func = get_aes_decrypt_func(MY_AES_ALGORITHM_CBC);
+		int res = (* func)((const uchar*)buf + 2 * magicSize, bytes_to_read - 2 * magicSize,
+		                             (uchar*)secret, &d_size, (const uchar*)key, keySize32, iv, ivSize16, 0);
 		if (d_size>EncKeys::MAX_SECRET_SIZE) {
 			d_size = EncKeys::MAX_SECRET_SIZE;
 		}
@@ -237,10 +219,10 @@ keyentry *EncKeys::getKeys(int id) {
  * Store the keys with id smaller then <maxKeyId> in an array of structs keyentry.
  * Returns NO_ERROR_PARSE_OK or an appropriate error code.
  */
-int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *secret) {
+int EncKeys::parseFile(const char* filename, const uint32 maxKeyId, const char *secret) {
 	int errorCode = 0;
 	char *buffer = decryptFile(filename, secret, &errorCode);
-	ulint id = 0;
+	uint32 id = 0;
 
 	if (NO_ERROR_PARSE_OK != errorCode)	return errorCode;
 	else								errorCode = NO_ERROR_KEY_FILE_PARSE_OK;
@@ -258,17 +240,17 @@ int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *s
 			break;
 		case ERROR_ID_TOO_BIG:
 			fprintf(stderr, errorExceedKeySize, KEY_MAX, keyLineInKeyFile);
-			fprintf(stderr, " --> %s\n", line);
+			fprintf(stderr, " ---> %s\n", line);
 			errorCode = ERROR_KEY_FILE_EXCEEDS_MAX_NUMBERS_OF_KEYS;
 			break;
 		case ERROR_NOINITIALIZEDKEY:
 			fprintf(stderr, errorNoInitializedKey);
-			fprintf(stderr, " --> %s\n", line);
+			fprintf(stderr, " ----> %s\n", line);
 			errorCode = ERROR_KEY_FILE_PARSE_NULL;
 			break;
 		case ERROR_WRONG_NUMBER_OF_MATCHES:
 			fprintf(stderr, errorInMatches, keyLineInKeyFile);
-			fprintf(stderr, " --> %s\n", line);
+			fprintf(stderr, " -----> %s\n", line);
 			errorCode = ERROR_KEY_FILE_PARSE_NULL;
 			break;
 		case NO_ERROR_KEY_GREATER_THAN_ASKED:
@@ -287,7 +269,7 @@ int EncKeys::parseFile(const char* filename, const ulint maxKeyId, const char *s
 	return errorCode;
 }
 
-int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
+int EncKeys::parseLine(const char *line, const uint32 maxKeyId) {
 	int ret = NO_ERROR_PARSE_OK;
 	if (isComment(line))
 		ret = NO_ERROR_ISCOMMENT;
@@ -314,7 +296,7 @@ int EncKeys::parseLine(const char *line, const ulint maxKeyId) {
 			else {
 				char buffer[4];
 				sprintf(buffer, "%.*s", substr_length, substring_start);
-				ulint id = atoi(buffer);
+				uint32 id = atoi(buffer);
 				if (0 == id)			ret = ERROR_NOINITIALIZEDKEY;
 				else if (KEY_MAX < id)	ret = ERROR_ID_TOO_BIG;
 				else if (maxKeyId < id)	ret = NO_ERROR_KEY_GREATER_THAN_ASKED;
@@ -381,12 +363,13 @@ char* EncKeys::decryptFile(const char* filename, const char *secret, int *errorC
 		unsigned char salt[magicSize];
 		unsigned char *key = new unsigned char[keySize32];
 		unsigned char *iv = new unsigned char[ivSize16];
-		char *decrypted = new char[file_size];
+		uchar *decrypted = new uchar[file_size];
 		memcpy(&salt, buffer + magicSize, magicSize);
 		my_bytes_to_key((unsigned char *) salt, secret, key, iv);
 		uint32 d_size = 0;
-		int res = my_aes_decrypt_cbc((const char*)buffer + 2 * magicSize, file_size - 2 * magicSize,
-				decrypted, &d_size, key, keySize32, iv, ivSize16, 0);
+		my_aes_decrypt_dynamic_type func = get_aes_decrypt_func(MY_AES_ALGORITHM_CBC);
+		int res = (* func)((const uchar*)buffer + 2 * magicSize, file_size - 2 * magicSize,
+		                                 decrypted, &d_size, (const uchar*) key, keySize32, iv, ivSize16, 0);
 		if(0 != res) {
 			*errorCode = ERROR_FALSE_FILE_KEY;
 			delete[] buffer;	buffer = NULL;
@@ -415,7 +398,7 @@ bool EncKeys::isComment(const char *line) {
 }
 
 
-void EncKeys::printKeyEntry( ulint id)
+void EncKeys::printKeyEntry( uint32 id)
 {
 #ifdef UNIV_DEBUG
 	keyentry *entry = getKeys(id);

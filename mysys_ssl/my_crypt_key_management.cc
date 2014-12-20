@@ -18,9 +18,13 @@ unsigned int opt_danger_danger_dbug_crypto_key_version = 0;
 /**
  * Default functions
  */
-unsigned int GetLatestCryptoKeyVersionImpl();
+int GetLatestCryptoKeyVersionImpl();
+unsigned int HasCryptoKeyImpl(unsigned int version);
+int GetCryptoKeySizeImpl(unsigned int version);
 int GetCryptoKeyImpl(unsigned int version, unsigned char* key_buffer,
                      unsigned int size);
+int GetCryptoIVImpl(unsigned int version, unsigned char* key_buffer,
+                    unsigned int size);
 
 /**
  * Function pointers for
@@ -30,11 +34,14 @@ int GetCryptoKeyImpl(unsigned int version, unsigned char* key_buffer,
 static
 struct CryptoKeyFuncs_t cryptoKeyFuncs = {
   GetLatestCryptoKeyVersionImpl,
-  GetCryptoKeyImpl
+  HasCryptoKeyImpl,
+  GetCryptoKeySizeImpl,
+  GetCryptoKeyImpl,
+  GetCryptoIVImpl
 };
 
 extern "C"
-unsigned int GetLatestCryptoKeyVersion() {
+int GetLatestCryptoKeyVersion() {
 #ifndef DBUG_OFF
   if (opt_danger_danger_use_dbug_keys) {
     mysql_rwlock_rdlock(&LOCK_dbug_crypto_key_version);
@@ -45,6 +52,16 @@ unsigned int GetLatestCryptoKeyVersion() {
 #endif
 
   return (* cryptoKeyFuncs.getLatestCryptoKeyVersionFunc)();
+}
+
+extern "C"
+unsigned int HasCryptoKey(unsigned int version) {
+  return (* cryptoKeyFuncs.hasCryptoKeyFunc)(version);
+}
+
+extern "C"
+int GetCryptoKeySize(unsigned int version) {
+  return (* cryptoKeyFuncs.getCryptoKeySize)(version);
 }
 
 extern "C"
@@ -67,16 +84,27 @@ int GetCryptoKey(unsigned int version, unsigned char* key, unsigned int size) {
 }
 
 extern "C"
+int GetCryptoIV(unsigned int version, unsigned char* key, unsigned int size) {
+  return (* cryptoKeyFuncs.getCryptoIVFunc)(version, key, size);
+}
+
+extern "C"
 void
 InstallCryptoKeyFunctions(const struct CryptoKeyFuncs_t* _cryptoKeyFuncs)
 {
   if (_cryptoKeyFuncs == NULL)
   {
-    /* restore defaults when called with NULL argument */
+    /* restore defaults wHashhen called with NULL argument */
     cryptoKeyFuncs.getLatestCryptoKeyVersionFunc =
         GetLatestCryptoKeyVersionImpl;
+    cryptoKeyFuncs.hasCryptoKeyFunc =
+	HasCryptoKeyImpl;
+    cryptoKeyFuncs.getCryptoKeySize =
+	GetCryptoKeySizeImpl;
     cryptoKeyFuncs.getCryptoKeyFunc =
         GetCryptoKeyImpl;
+    cryptoKeyFuncs.getCryptoIVFunc =
+        GetCryptoIVImpl;
   }
   else
   {

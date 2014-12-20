@@ -32,8 +32,16 @@ typedef int Crypt_result;
 #define AES_BAD_KEYSIZE -5
 #define AES_KEY_CREATION_FAILED -10
 
+#define CRYPT_KEY_OK 0
+#define CRYPT_BUFFER_TO_SMALL -11;
+#define CRYPT_KEY_UNKNOWN -48;
+
 /* The max block sizes of all supported algorithms */
 #define MY_AES_BLOCK_SIZE 16
+
+/* The max key length of all supported algorithms */
+#define MY_AES_MAX_KEY_LENGTH 32
+
 
 #include "rijndael.h"
 
@@ -54,8 +62,7 @@ C_MODE_START
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must
-                                 be a mulitple of the AES block size
+     @param noPadding	   [in]  if set, algorithm specific padding behaviour is used
 
   Method used defined by calling my_aes_init_dynamic_encrypt() at startup.
 
@@ -85,7 +92,7 @@ extern my_aes_encrypt_dynamic_type my_aes_encrypt_dynamic;
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
+     @param noPadding	   [in]  if set, algorithm specific padding behaviour is used
 
   @return
     != 0           error

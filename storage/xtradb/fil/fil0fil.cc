@@ -26,7 +26,6 @@ Created 10/25/1995 Heikki Tuuri
 
 #include "fil0fil.h"
 
-#include "KeySingleton.h"
 #include <debug_sync.h>
 #include <my_dbug.h>
 
@@ -1187,8 +1186,7 @@ fil_space_create(
 	ut_a(fil_system);
 
 	if (fsp_flags_is_page_encrypted(flags)) {
-		if (!KeySingleton::getInstance().isAvailable()
-		    || KeySingleton::getInstance().getKeys(fsp_flags_get_page_encryption_key(flags))==NULL) {
+		if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
 			/* by returning here it should be avoided that
 			 * the server crashes, if someone tries to access an
 			 * encrypted table and the encryption key is not available.

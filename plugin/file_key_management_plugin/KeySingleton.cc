@@ -41,11 +41,10 @@ KeySingleton & KeySingleton::getInstance() {
 	return theInstance;
 }
 
-KeySingleton & KeySingleton::getInstance(const char *name, const char *url,
-		const int initType, const char *filekey) {
+KeySingleton & KeySingleton::getInstance(const char *filename, const char *filekey) {
 
 	if(instanceInited)	return theInstance;
-	instanceInited = encKeys.initKeys(name, url, initType, filekey);
+	instanceInited = encKeys.initKeys(filename, filekey);
 	if( !instanceInited) {
 		fprintf(stderr, "Could not initialize any of the encryption / decryption keys. "
 				"You can not read encrypted tables\n\n");
@@ -59,7 +58,7 @@ keyentry *KeySingleton::getKeys(int id) {
 	return encKeys.getKeys(id);
 }
 
-ibool KeySingleton::hasKey(int id) {
+bool KeySingleton::hasKey(int id) {
 	return encKeys.getKeys(id) != NULL;
 }
 

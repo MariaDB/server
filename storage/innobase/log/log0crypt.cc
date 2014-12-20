@@ -4,11 +4,13 @@ Innodb log encrypt/decrypt
 
 Created 11/25/2013 Minli Zhu
 *******************************************************/
+#include "m_string.h"
 #include "log0crypt.h"
+#include <my_crypt.h>
+
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
-#include <my_crypt.h>
 
 /* If true, enable redo log encryption. */
 UNIV_INTERN my_bool srv_encrypt_log = FALSE;

@@ -23,15 +23,16 @@ Created 09/15/2014
 #ifndef ENCKEYS_H_
 #define ENCKEYS_H_
 
-#include "my_global.h"
+#include <my_global.h>
 #include <sys/types.h>
 #include <stdio.h>
 
 
 
 
+
 struct keyentry {
-	ulint id;
+	uint32 id;
 	char *iv;
 	char *key;
 };
@@ -58,16 +59,14 @@ private:
 		*errorNotImplemented, *errorOpenFile, *errorReadingFile, *errorFileSize;
 
 	static const char* initialPwd;
-	ulint countKeys, keyLineInKeyFile;
+	uint32 countKeys, keyLineInKeyFile;
 	keyentry keys[MAX_KEYS], *oneKey;
 
-	void printKeyEntry( ulint id);
-	int initKeysThroughFile( const char *name, const char *path, const char *filekey);
-	int initKeysThroughServer( const char *name, const char *path, const char *filekey);
+	void printKeyEntry( uint32 id);
 	bool isComment( const char *line);
 	char * decryptFile( const char* filename, const char *secret, int *errorCode);
-	int parseFile( const char* filename, const ulint maxKeyId, const char *secret);
-	int parseLine( const char *line, const ulint maxKeyId);
+	int parseFile( const char* filename, const uint32 maxKeyId, const char *secret);
+	int parseLine( const char *line, const uint32 maxKeyId);
 
 public:
 	static const size_t MAX_SECRET_SIZE = 256;
@@ -78,7 +77,7 @@ public:
 		ERROR_KEYINITTYPE_SERVER_NOT_IMPLEMENTED = 170, ERROR_ENCRYPTION_SECRET_NULL = 180 };
 	EncKeys();
 	virtual ~EncKeys();
-	bool initKeys( const char *name, const char *url, const int initType, const char *filekey);
+	bool initKeys( const char *filename, const char *filekey);
 	keyentry *getKeys( int id);
 	/* made public for unit testing */
 	static void parseSecret( const char *filename, char *secret );

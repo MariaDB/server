@@ -88,7 +88,8 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_AUDIT_PLUGIN           5
 #define MYSQL_REPLICATION_PLUGIN     6
 #define MYSQL_AUTHENTICATION_PLUGIN  7
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    9  /* The number of plugin types   */
+#define MYSQL_KEY_MANAGEMENT_PLUGIN  9
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    10  /* The number of plugin types   */
 
 /* MariaDB plugin types */
 #define MariaDB_PASSWORD_VALIDATION_PLUGIN 8

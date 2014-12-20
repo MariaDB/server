@@ -16,7 +16,6 @@
 #include <my_crypt_key_management.h>
 
 #include <my_aes.h>
-#include <KeySingleton.h>
 #include <math.h>
 
 
@@ -180,18 +179,14 @@ fil_space_crypt_cleanup()
 Get key bytes for a space/key-version */
 static
 void
-fil_crypt_get_key(byte *dst, uint dstlen,
+fil_crypt_get_key(byte *dst, uint* key_length,
 	fil_space_crypt_t* crypt_data, uint version, bool page_encrypted)
 {
-	/* TODO: Find a better way to do this */
-	unsigned char keybuf[CRYPT_SCHEME_1_IV_LEN];
-	byte key[CRYPT_SCHEME_1_IV_LEN];
-	uint8 key_len = sizeof(keybuf);
+        unsigned char keybuf[MY_AES_MAX_KEY_LENGTH];
 	unsigned char iv[CRYPT_SCHEME_1_IV_LEN];
 	ulint iv_len = sizeof(iv);
-	bool key_error = false;
 
-	if (!page_encrypted) {
+        if (!page_encrypted) {
 		mutex_enter(&crypt_data->mutex);
 
 		// Check if we already have key
@@ -210,76 +205,81 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 		for (uint i = 1; i < array_elements(crypt_data->keys); i++) {
 			crypt_data->keys[i] = crypt_data->keys[i - 1];
 		}
+        }
+        else
+        {
+            // load iv
 
-		// TODO(jonaso): Integrate with real key server
-		int rc = GetCryptoKey(version, keybuf, key_len);
-		if (rc != 0) {
-			ib_logf(IB_LOG_LEVEL_FATAL,
-				"Unable to retrieve key with"
-				" version %u return-code: %d. Can't continue!\n",
-				version, rc);
-			ut_error;
-		}
-	} else {
-		/* For page encrypted tables we need to get the L */
+	    int rc = GetCryptoIV(version, (unsigned char*)iv, iv_len);
 
-		/* Get key and IV */
-		KeySingleton& keys = KeySingleton::getInstance();
-
-		if (keys.isAvailable() && keys.getKeys(version) != NULL) {
-			char* keyString = keys.getKeys(version)->key;
-			char* ivString = keys.getKeys(version)->iv;
-
-			if (keyString == NULL || ivString == NULL) {
-				key_error=true;
-			} else {
-				my_aes_hex2uint(keyString, (unsigned char*)&keybuf, key_len);
-				my_aes_hex2uint(ivString, (unsigned char*)&iv, iv_len);
-			}
-		} else {
-			key_error = true;
-		}
-
-		if (key_error == true) {
-			ib_logf(IB_LOG_LEVEL_FATAL,
-				"Key file not found");
-			ut_error;
-		}
-	}
-
-	// Now compute L by encrypting IV using this key
-	const unsigned char* src = page_encrypted ? iv : crypt_data->iv;
-	const int srclen = page_encrypted ? iv_len : crypt_data->iv_length;
-	unsigned char* buf = page_encrypted ? key : crypt_data->keys[0].key;
-	uint32 buflen = page_encrypted ? key_len : sizeof(crypt_data->keys[0].key);
-
-	// call ecb explicit
-	my_aes_encrypt_dynamic_type func= get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
-	int rc = (*func)(src, srclen,
-                         buf, &buflen,
-                         (unsigned char*)&keybuf, key_len,
-                         NULL, 0,
-                         1);
-
-	if (rc != AES_OK) {
+	    if (rc != CRYPT_KEY_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unable to encrypt key-block "
-			" src: %p srclen: %d buf: %p buflen: %d."
-			" return-code: %d. Can't continue!\n",
-			src, srclen, buf, buflen, rc);
+			"IV %d can not be found. Reason=%d", version, rc);
+		ut_error;
+	    }
+        }
+
+	if (HasCryptoKey(version)) {
+	    *key_length = GetCryptoKeySize(version);
+
+	    int rc = GetCryptoKey(version, (unsigned char*)keybuf, *key_length);
+
+	    if (rc != CRYPT_KEY_OK) {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Key %d can not be found. Reason=%d", version, rc);
+		ut_error;
+	    }
+	} else {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Key %d not found", version);
 		ut_error;
 	}
 
-	if (!page_encrypted) {
-		crypt_data->keys[0].key_version = version;
-		crypt_data->key_count++;
 
-		if (crypt_data->key_count > array_elements(crypt_data->keys)) {
-			crypt_data->key_count = array_elements(crypt_data->keys);
-		}
+	// do ctr key initialization
+	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
+	{
+	  // Now compute L by encrypting IV using this key
+	  const unsigned char* src = page_encrypted ? iv : crypt_data->iv;
+	  const int srclen = page_encrypted ? iv_len : crypt_data->iv_length;
+	  unsigned char* buf = page_encrypted ? keybuf : crypt_data->keys[0].key;
+	  uint32 buflen = page_encrypted ? *key_length : sizeof(crypt_data->keys[0].key);
+
+	  // call ecb explicit
+	  my_aes_encrypt_dynamic_type func = get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
+	  int rc = (*func)(src, srclen,
+		       buf, &buflen,
+		       (unsigned char*)keybuf, *key_length,
+		       NULL, 0,
+		       1);
+
+	  if (rc != AES_OK) {
+		  ib_logf(IB_LOG_LEVEL_FATAL,
+			  "Unable to encrypt key-block "
+			  " src: %p srclen: %d buf: %p buflen: %d."
+			  " return-code: %d. Can't continue!\n",
+			  src, srclen, buf, buflen, rc);
+		  ut_error;
+	  }
+
+	  if (!page_encrypted) {
+		  crypt_data->keys[0].key_version = version;
+		  crypt_data->key_count++;
+
+		  if (crypt_data->key_count > array_elements(crypt_data->keys)) {
+			  crypt_data->key_count = array_elements(crypt_data->keys);
+		  }
+	  }
+
+	  // set the key size to the aes block size because this encrypted data is the key
+	  *key_length = MY_AES_BLOCK_SIZE;
+	  memcpy(dst, buf, buflen);
 	}
-
-	memcpy(dst, buf, buflen);
+	else
+	{
+	    // otherwise keybuf contains the right key
+	    memcpy(dst, keybuf, *key_length);
+	}
 
 	if (!page_encrypted) {
 		mutex_exit(&crypt_data->mutex);
@@ -290,14 +290,22 @@ fil_crypt_get_key(byte *dst, uint dstlen,
 Get key bytes for a space/latest(key-version) */
 static inline
 void
-fil_crypt_get_latest_key(byte *dst, uint dstlen,
+fil_crypt_get_latest_key(byte *dst, uint* key_length,
 			 fil_space_crypt_t* crypt_data, uint *version)
 {
 	if (srv_encrypt_tables) {
-		*version = GetLatestCryptoKeyVersion();
-		return fil_crypt_get_key(dst, dstlen, crypt_data, *version, false);
+	        // used for key rotation - get the next key id from the key provider
+		int rc = GetLatestCryptoKeyVersion();
+
+		// if no new key was created use the last one
+		if (rc >= 0)
+		{
+		    *version = rc;
+		}
+
+		return fil_crypt_get_key(dst, key_length, crypt_data, *version, false);
 	} else {
-		return fil_crypt_get_key(dst, dstlen, NULL, *version, true);
+		return fil_crypt_get_key(dst, key_length, NULL, *version, true);
 	}
 }
 
@@ -614,7 +622,8 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 
 	// get key (L)
 	uint key_version;
-	byte key[CRYPT_SCHEME_1_IV_LEN];
+	byte key[MY_AES_MAX_KEY_LENGTH];
+	uint key_length;
 
 	if (srv_encrypt_tables) {
 		crypt_data = fil_space_get_crypt_data(space);
@@ -623,11 +632,44 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 			memcpy(dst_frame, src_frame, page_size);
 			return;
 		}
-		fil_crypt_get_latest_key(key, sizeof(key), crypt_data, &key_version);
+		fil_crypt_get_latest_key(key, &key_length, crypt_data, &key_version);
 	} else {
 		key_version = encryption_key;
-		fil_crypt_get_latest_key(key, sizeof(key), NULL, (uint*)&key_version);
+		fil_crypt_get_latest_key(key, &key_length, NULL, (uint*)&key_version);
 	}
+
+
+	/* Load the iv or counter (depending to the encryption algorithm used) */
+	unsigned char iv[MY_AES_BLOCK_SIZE];
+
+	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
+	{
+	  // create counter block (C)
+	  mach_write_to_4(iv + 0, space);
+	  ulint space_offset = mach_read_from_4(
+			  src_frame + FIL_PAGE_OFFSET);
+	  mach_write_to_4(iv + 4, space_offset);
+	  mach_write_to_8(iv + 8, lsn);
+	}
+	else
+	{
+	    // take the iv from the key provider
+
+	    int load_iv_rc = GetCryptoIV(key_version, (uchar *) iv, sizeof(iv));
+
+	    // if the iv can not be loaded the whole page can not be encrypted
+	    if (load_iv_rc != CRYPT_KEY_OK)
+	    {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unable to decrypt data-block. "
+			" Can not load iv for key %d"
+			" return-code: %d. Can't continue!\n",
+			key_version, load_iv_rc);
+
+		ut_error;
+	    }
+	}
+
 
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
 	ibool page_encrypted  = fil_space_is_page_encrypted(space);
@@ -662,14 +704,6 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 			        key_version);
 	}
 
-	// create counter block (C)
-	unsigned char counter[MY_AES_BLOCK_SIZE];
-	mach_write_to_4(counter + 0, space);
-	ulint space_offset = mach_read_from_4(
-			src_frame + FIL_PAGE_OFFSET);
-	mach_write_to_4(counter + 4, space_offset);
-	mach_write_to_8(counter + 8, lsn);
-
 	// encrypt page data
 	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
 	ulint srclen = page_size - unencrypted_bytes;
@@ -683,10 +717,10 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 
 
 	int rc = (* my_aes_encrypt_dynamic)(src, srclen,
-	                                dst, &dstlen,
-	                                (unsigned char*)&key, sizeof(key),
-	                                (unsigned char*)&counter, sizeof(counter),
-	                                1);
+	                                    dst, &dstlen,
+	                                    (unsigned char*)key, key_length,
+	                                    (unsigned char*)iv, sizeof(iv),
+	                                    1);
 
 	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -776,6 +810,7 @@ bool
 fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		  const byte* src_frame, ulint page_size, byte* dst_frame)
 {
+	ulint space_id = mach_read_from_4(src_frame + FIL_PAGE_SPACE_ID);
 	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	// key version
 	uint key_version;
@@ -791,7 +826,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
 		key_version = mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		fprintf(stderr, "JAN: key_version %u\n", key_version);
+		fprintf(stderr, "JAN: key_version %lu\n", key_version);
 		orig_page_type =  mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 2);
 		fprintf(stderr, "JAN: decrypt: orig_page_type %lu\n", orig_page_type);
@@ -816,10 +851,6 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 
 	fprintf(stderr, "JAN: space %lu, offset %lu lsn %lu\n", space, offset, lsn);
 
-	// get key (L)
-	byte key[CRYPT_SCHEME_1_IV_LEN];
-	fil_crypt_get_key(key, sizeof(key), crypt_data, key_version, page_encrypted);
-
 	// copy page header
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
 
@@ -828,11 +859,41 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		mach_write_to_2(dst_frame+FIL_PAGE_TYPE, orig_page_type);
 	}
 
-	// create counter block
-	unsigned char counter[MY_AES_BLOCK_SIZE];
-	mach_write_to_4(counter + 0, space);
-	mach_write_to_4(counter + 4, offset);
-	mach_write_to_8(counter + 8, lsn);
+
+	// get key
+	byte key[MY_AES_MAX_KEY_LENGTH];
+	uint key_length;
+	fil_crypt_get_key(key, &key_length, crypt_data, key_version, page_encrypted);
+
+	// get the iv
+	unsigned char iv[MY_AES_BLOCK_SIZE];
+
+	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
+	{
+	  // create counter block
+
+	  mach_write_to_4(iv + 0, space);
+	  mach_write_to_4(iv + 4, offset);
+	  mach_write_to_8(iv + 8, lsn);
+	}
+	else
+	{
+	    // take the iv from the key provider
+
+	    int load_iv_rc = GetCryptoIV(key_version, (uchar *) iv, sizeof(iv));
+
+	    // if the iv can not be loaded the whole page can not be decrypted
+	    if (load_iv_rc != CRYPT_KEY_OK)
+	    {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unable to decrypt data-block. "
+			" Can not load iv for key %d"
+			" return-code: %d. Can't continue!\n",
+			key_version, load_iv_rc);
+
+		return AES_KEY_CREATION_FAILED;
+	    }
+	}
 
 	// decrypt page data
 	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
@@ -857,10 +918,10 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		srclen = pow((double)2, (double)((int)compressed_len));
 	}
 	int rc = (* my_aes_decrypt_dynamic)(src, srclen,
-	                                dst, &dstlen,
-	                                (unsigned char*)&key, sizeof(key),
-	                                (unsigned char*)&counter, sizeof(counter),
-	                                1);
+	                                    dst, &dstlen,
+	                                    (unsigned char*)key, key_length,
+	                                    (unsigned char*)iv, sizeof(iv),
+	                                    1);
 
 	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,

@@ -69,7 +69,7 @@ Find out whether the page can be decrypted
 @return	true if page can be decrypted, false if not. */
 UNIV_INLINE
 ulint
-fil_page_can_not_decrypt(
+fil_page_encryption_status(
 /*===================*/
     const byte *buf);	/*!< in: page */
 

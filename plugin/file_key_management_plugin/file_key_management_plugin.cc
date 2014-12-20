@@ -1,4 +1,4 @@
-/* Copyright (c) 2002, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2002, 2012, eperi GmbH.
 
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -17,23 +17,176 @@
 #include <my_global.h>
 #include <mysql_version.h>
 #include <my_aes.h>
+#include <my_crypt_key_management.h>
+#include <string.h>
+#include "sql_class.h"
+
+//#include "file_key_management_plugin.h"
+#include "KeySingleton.h"
+#include "EncKeys.h"
+
+
+/* Encryption for tables and columns */
+static char* filename = NULL;
+static char* filekey = NULL;
+static char* encryption_method = NULL;
+
+static MYSQL_SYSVAR_STR(encryption_method, encryption_method,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Name of the encryption method. This can be aes_cbc (default) or aes_ctr (requires OpenSSL on Linux).",
+  NULL, NULL, "aes_cbc");
+
+static MYSQL_SYSVAR_STR(filename, filename,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Path and name of the key file.",
+  NULL, NULL, NULL);
+
+static MYSQL_SYSVAR_STR(filekey, filekey,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Key to encrypt / decrypt the keyfile.",
+  NULL, NULL, NULL);
+
+static struct st_mysql_sys_var* settings[] = {
+  MYSQL_SYSVAR(encryption_method),
+  MYSQL_SYSVAR(filename),
+  MYSQL_SYSVAR(filekey),
+  NULL
+};
+
+
+
+/**
+ * This method is using with the id 0 if exists. This method is used by innobase/xtradb for the key
+ * rotation feature of encrypting log files.
+ */
+static int get_highest_key_used_in_key_file()
+{
+  if (KeySingleton::getInstance().hasKey(0))
+  {
+      return 0;
+  }
+  else
+    return CRYPT_KEY_UNKNOWN;
+}
+
+static unsigned int has_key_from_key_file(unsigned int keyID)
+{
+  keyentry* entry = KeySingleton::getInstance().getKeys(keyID);
+
+  return entry != NULL;
+}
+
+static int get_key_size_from_key_file(unsigned int keyID)
+{
+  keyentry* entry = KeySingleton::getInstance().getKeys(keyID);
+
+  if (entry != NULL)
+  {
+    char* keyString = entry->key;
+    size_t key_len = strlen(keyString)/2;
+
+    return key_len;
+  }
+  else
+  {
+    return CRYPT_KEY_UNKNOWN;
+  }
+}
+
+static int get_key_from_key_file(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
+{
+  keyentry* entry = KeySingleton::getInstance().getKeys((int)keyID);
+
+  if (entry != NULL)
+  {
+    char* keyString = entry->key;
+    size_t key_len = strlen(keyString)/2;
+
+    if (buflen < key_len)
+    {
+      return CRYPT_BUFFER_TO_SMALL;
+    }
+
+    my_aes_hex2uint(keyString, (unsigned char*)dstbuf, key_len);
+
+    return CRYPT_KEY_OK;
+  }
+  else
+  {
+    return CRYPT_KEY_UNKNOWN;
+  }
+}
+
+static int get_iv_from_key_file(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
+{
+  keyentry* entry = KeySingleton::getInstance().getKeys((int)keyID);
+
+  if (entry != NULL)
+  {
+    char* ivString = entry->iv;
+    size_t iv_len = strlen(ivString)/2;
+
+    if (buflen < iv_len)
+    {
+      return CRYPT_BUFFER_TO_SMALL;
+    }
+
+    my_aes_hex2uint(ivString, (unsigned char*)dstbuf, iv_len);
+
+    return CRYPT_KEY_OK;
+  }
+  else
+  {
+    return CRYPT_KEY_UNKNOWN;
+  }
+}
+
 
 static int file_key_management_plugin_init(void *p)
 {
   /* init */
-  printf("TO_BE_REMOVED: Loading file_key_management_plugin_init\n");
+  printf("@DE: Loading file_key_management_plugin_init \n");
 
-  /* Setting to MY_AES_METHOD_CBC for page encryption */
-  my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CBC);
+  /* Setting encryption method */
+  if (encryption_method != NULL && strcmp("aes_ctr", encryption_method) == 0)
+  {
+      my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CTR);
+  } else if (encryption_method != NULL && strcmp("aes_ecb", encryption_method) == 0)
+  {
+      my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_ECB);
+  }
+  else
+  {
+      my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CBC);
+  }
+
+
+  /* Initializing the key provider */
+  struct CryptoKeyFuncs_t func;
+  func.getLatestCryptoKeyVersionFunc = get_highest_key_used_in_key_file;
+  func.hasCryptoKeyFunc = has_key_from_key_file;
+  func.getCryptoKeySize = get_key_size_from_key_file;
+  func.getCryptoKeyFunc = get_key_from_key_file;
+  func.getCryptoIVFunc = get_iv_from_key_file;
+
+  InstallCryptoKeyFunctions(&func);
+
+  if (filename == NULL || strcmp("", filename) == 0)
+  {
+      sql_print_error("Parameter file_key_management_plugin_filename is required");
+
+      return 1;
+     }
+
+  KeySingleton::getInstance(filename, filekey);
 
   return 0;
 }
 
 static int file_key_management_plugin_deinit(void *p)
 {
-  /**
-   * don't uninstall...
-   */
+  KeySingleton::getInstance().~KeySingleton();
+
   return 0;
 }
 
@@ -46,7 +199,7 @@ struct st_mysql_daemon file_key_management_plugin= {
 */
 maria_declare_plugin(file_key_management_plugin)
 {
-  MYSQL_DAEMON_PLUGIN,
+  MYSQL_KEY_MANAGEMENT_PLUGIN,
   &file_key_management_plugin,
   "file_key_management_plugin",
   "Denis Endro eperi GmbH",
@@ -56,7 +209,7 @@ maria_declare_plugin(file_key_management_plugin)
   file_key_management_plugin_deinit, /* Plugin Deinit */
   0x0100 /* 1.0 */,
   NULL,	/* status variables */
-  NULL,	/* system variables */
+  settings,
   "1.0",
   MariaDB_PLUGIN_MATURITY_UNKNOWN
 }

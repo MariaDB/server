@@ -4703,9 +4703,9 @@ found:
 
 	}
 
-	if (srv_encrypt_tables) {
-		page_encryption = TRUE;
-	}
+//	if (srv_encrypt_tables) {
+		//page_encryption = TRUE;
+//	}
 
 	/* If the space is page encryption and this is write operation
 	   then we encrypt the page */

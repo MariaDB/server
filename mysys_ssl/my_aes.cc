@@ -139,7 +139,7 @@ void my_aes_hex2uint(const char* in, unsigned char *out, int dest_length)
 void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned char *key,
                      unsigned char *iv)
 {
-  #ifdef HAVE_YASSL
+#ifdef HAVE_YASSL
   /* the yassl function has no support for SHA1. Reason unknown. */
   int keyLen = 32;
   int ivLen  = 16;
@@ -188,7 +188,7 @@ void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned cha
       ivLeft    -= store;
     }
   }
-#elif HAVE_OPENSSL
+#elif defined(HAVE_OPENSSL)
   const EVP_CIPHER *type = EVP_aes_256_cbc();
   const EVP_MD *digest = EVP_sha1();
   EVP_BytesToKey(type, digest, salt, (uchar*) secret, strlen(secret), 1, key, iv);
@@ -208,8 +208,9 @@ void my_bytes_to_key(const unsigned char *salt, const char *secret, unsigned cha
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must
-                                 be a multiple of the AES block size
+     @param noPadding	   [in]  if set to true, no padding is used. if the input length is not a
+      	  	  	  	  	  	  	 multiple of the AES block size, trailing bytes are only copied to destination buffer.
+      	  	  	  	  	  	  	 This allows currently the same interface for CBC, ECB and CTR encryption.
   @return
     != 0           error
     0             no error
@@ -221,8 +222,8 @@ static int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
                               const unsigned char* iv, uint8 iv_length,
                               uint noPadding)
 {
-  if (noPadding && (source_length % MY_AES_BLOCK_SIZE) !=0)
-    return AES_BAD_DATA;
+  uint8 remaining_bytes = (noPadding == 0) ? 0 : source_length % MY_AES_BLOCK_SIZE;
+  source_length = source_length - remaining_bytes;
 
 #ifdef HAVE_YASSL
   TaoCrypt::AES_CBC_Encryption enc;
@@ -254,7 +255,10 @@ static int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
   }
 
   if (noPadding) {
-    *dest_length = MY_AES_BLOCK_SIZE * (num_blocks);
+	if (remaining_bytes!=0) {
+	   memcpy(dest + source_length, source + source_length, remaining_bytes);
+	}
+    *dest_length = MY_AES_BLOCK_SIZE * (num_blocks) + remaining_bytes;
     return AES_OK;
 
   }
@@ -305,7 +309,11 @@ static int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
     return AES_BAD_DATA;                        /* Error */
   if (! EVP_EncryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
     return AES_BAD_DATA;                        /* Error */
-  *dest_length = (unsigned long int) (u_len + f_len);
+
+  if (remaining_bytes!=0) {
+ 	  memcpy(dest + source_length, source + source_length, remaining_bytes);
+   }
+  *dest_length = (unsigned long int) (u_len + f_len + remaining_bytes);
 
   return AES_OK;
 #else
@@ -328,8 +336,9 @@ static int my_aes_encrypt_cbc(const uchar* source, uint32 source_length,
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must
-                                 be a multiple of the AES block size
+     @param noPadding	   [in]  if set to true, no padding is used. if the input length is not a
+      	  	  	  	  	  	  	 multiple of the AES block size, trailing bytes are only copied to destination buffer.
+      	  	  	  	  	  	  	 This allows currently the same interface for CBC, ECB and CTR encryption.
   @return
     != 0           error
     0             no error
@@ -341,8 +350,8 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
                               const unsigned char* iv, uint8 iv_length,
                               uint noPadding)
 {
-  if (noPadding && (source_length % MY_AES_BLOCK_SIZE) !=0)
-    return AES_BAD_DATA;
+  uint8 remaining_bytes = (noPadding == 0) ? 0 : source_length % MY_AES_BLOCK_SIZE;
+  source_length = source_length - remaining_bytes;
 
 #ifdef HAVE_YASSL
   TaoCrypt::AES_ECB_Encryption enc;
@@ -374,7 +383,10 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
   }
 
   if (noPadding) {
-    *dest_length = MY_AES_BLOCK_SIZE * (num_blocks);
+	if (remaining_bytes!=0) {
+	   memcpy(dest + source_length, source + source_length, remaining_bytes);
+	}
+	*dest_length = MY_AES_BLOCK_SIZE * (num_blocks) + remaining_bytes;
     return AES_OK;
 
   }
@@ -425,7 +437,11 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
     return AES_BAD_DATA;                        /* Error */
   if (! EVP_EncryptFinal_ex(&ctx.ctx, (unsigned char *) dest + u_len, &f_len))
     return AES_BAD_DATA;                        /* Error */
-  *dest_length = (unsigned long int) (u_len + f_len);
+
+  if (remaining_bytes!=0) {
+   	  memcpy(dest + source_length, source + source_length, remaining_bytes);
+     }
+  *dest_length = (unsigned long int) (u_len + f_len + remaining_bytes);
 
   return AES_OK;
 #else
@@ -449,7 +465,9 @@ static int my_aes_encrypt_ecb(const uchar* source, uint32 source_length,
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
+ 	 @param noPadding	   [in]  if set to true, no padding is used. if the input length is not a
+      	  	  	  	  	  	  	 multiple of the AES block size, trailing bytes are only copied to destination buffer.
+      	  	  	  	  	  	  	 This allows currently the same interface for CBC, ECB and CTR encryption.
 
   @return
     != 0           error
@@ -462,8 +480,9 @@ static int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
                               const unsigned char* iv, uint8 iv_length,
                               uint noPadding)
 {
-  if (noPadding && (source_length % MY_AES_BLOCK_SIZE) !=0)
-    return AES_BAD_DATA;
+	uint8 remaining_bytes = (noPadding == 0) ? 0 : source_length % MY_AES_BLOCK_SIZE;
+	source_length = source_length - remaining_bytes;
+
 
 #ifdef HAVE_YASSL
   TaoCrypt::AES_CBC_Decryption dec;
@@ -504,7 +523,10 @@ static int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
 
   if (noPadding) {
     memcpy(dest, block, MY_AES_BLOCK_SIZE);
-    *dest_length = MY_AES_BLOCK_SIZE * num_blocks;
+    if (remaining_bytes!=0) {
+            	  memcpy(dest + source_length, source + source_length, remaining_bytes);
+    }
+    *dest_length = MY_AES_BLOCK_SIZE * num_blocks + remaining_bytes;
     return AES_OK;
   }
 
@@ -554,7 +576,10 @@ static int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
     *dest_length = (unsigned long int) u_len;
     return AES_BAD_DATA;
   }
-  *dest_length = (unsigned long int) (u_len + f_len);
+  if (remaining_bytes!=0) {
+      	  memcpy(dest + source_length, source + source_length, remaining_bytes);
+  }
+  *dest_length = (unsigned long int) (u_len + f_len) + remaining_bytes;
 #endif
   return AES_OK;
 }
@@ -572,7 +597,9 @@ static int my_aes_decrypt_cbc(const uchar* source, uint32 source_length,
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must be a mulitple of the AES block size
+     @param noPadding	   [in]  if set to true, no padding is used. if the input length is not a
+      	  	  	  	  	  	  	 multiple of the AES block size, trailing bytes are only copied to destination buffer.
+      	  	  	  	  	  	  	 This allows currently the same interface for CBC, ECB and CTR encryption.
 
   @return
     != 0           error
@@ -585,8 +612,9 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
                               const unsigned char* iv, uint8 iv_length,
                               uint noPadding)
 {
-  if (noPadding && (source_length % MY_AES_BLOCK_SIZE) !=0)
-    return AES_BAD_DATA;
+  uint8 remaining_bytes = (noPadding == 0) ? 0 : source_length % MY_AES_BLOCK_SIZE;
+  source_length = source_length - remaining_bytes;
+
 
 #ifdef HAVE_YASSL
   TaoCrypt::AES_ECB_Decryption dec;
@@ -627,7 +655,10 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
 
   if (noPadding) {
     memcpy(dest, block, MY_AES_BLOCK_SIZE);
-    *dest_length = MY_AES_BLOCK_SIZE * num_blocks;
+    if (remaining_bytes!=0) {
+      memcpy(dest + source_length, source + source_length, remaining_bytes);
+    }
+    *dest_length = MY_AES_BLOCK_SIZE * num_blocks + remaining_bytes;
     return AES_OK;
   }
 
@@ -677,7 +708,11 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
     *dest_length = (unsigned long int) u_len;
     return AES_BAD_DATA;
   }
-  *dest_length = (unsigned long int) (u_len + f_len);
+  if (remaining_bytes!=0) {
+    memcpy(dest + source_length, source + source_length, remaining_bytes);
+  }
+  *dest_length = (unsigned long int) (u_len + f_len) + remaining_bytes;
+
 #endif
   return AES_OK;
 }
@@ -687,7 +722,7 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
 
 
 /**
-   Encryption interface that doesn't do anyting (for testing)
+   Encryption interface that doesn't do anything (for testing)
 
    SYNOPSIS
      my_aes_encrypt_none()
@@ -699,8 +734,7 @@ static int my_aes_decrypt_ecb(const uchar* source, uint32 source_length,
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must
-                                 be a multiple of the AES block size
+     @param noPadding	   [in]  unused
   @return
     != 0           error
     0             no error
@@ -719,7 +753,7 @@ static int my_aes_encrypt_none(const uchar* source, uint32 source_length,
 
 
 /**
-   Decryption interface that doesn't do anyting (for testing)
+   Decryption interface that doesn't do anything (for testing)
 
    SYNOPSIS
      my_aes_decrypt_none()
@@ -731,7 +765,7 @@ static int my_aes_encrypt_none(const uchar* source, uint32 source_length,
      @param key_length     [in]  Length of the key. 16, 24 or 32
      @param iv             [in]  Iv to be used for encryption
      @param iv_length      [in]  Length of the iv. should be 16.
-     @param noPadding	   [in]  if set to true, no padding is used, input data size must be a multiple of the AES block size
+     @param noPadding	   [in]  unused
 
   @return
     != 0           error

@@ -24,8 +24,8 @@ Created 08/28/2014
 ***********************************************************************/
 
 #include "fsp0fsp.h"
-#include "KeySingleton.h"
 #include "fil0pageencryption.h"
+#include <my_crypt_key_management.h>
 
 
 /********************************************************************//**
@@ -138,7 +138,7 @@ The function for decrypting the page should already be executed before this.
 */
 UNIV_INLINE
 ulint
-fil_page_can_not_decrypt(
+fil_page_encryption_status(
 /*=====================*/
     const byte *buf)	/*!< in: page */
 {
@@ -147,11 +147,9 @@ fil_page_can_not_decrypt(
 	if (page_type == FIL_PAGE_TYPE_FSP_HDR) {
 		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 		if (fsp_flags_is_page_encrypted(flags)) {
-			if (!KeySingleton::getInstance().isAvailable() ||
-				!KeySingleton::getInstance().hasKey(fsp_flags_get_page_encryption_key(flags))) {
+			if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
 				/* accessing table would surely fail, because no key or no key provider available */
-				if (KeySingleton::getInstance().isAvailable() &&
-					!KeySingleton::getInstance().hasKey(fsp_flags_get_page_encryption_key(flags))) {
+				if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
 					return PAGE_ENCRYPTION_KEY_MISSING;
 				}
 				return PAGE_ENCRYPTION_ERROR;
@@ -161,8 +159,7 @@ fil_page_can_not_decrypt(
 
 	if(page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		ulint key = mach_read_from_4(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		if (KeySingleton::getInstance().isAvailable() &&
-			!KeySingleton::getInstance().hasKey(key)) {
+		if (!HasCryptoKey(key)) {
 						return PAGE_ENCRYPTION_KEY_MISSING;
 		}
 		return PAGE_ENCRYPTION_ERROR;

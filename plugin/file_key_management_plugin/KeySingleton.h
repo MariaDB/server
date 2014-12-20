@@ -47,10 +47,9 @@ public:
 	virtual ~KeySingleton() {encKeys.~EncKeys();}
 	static KeySingleton& getInstance();
 	// Init the instance for only one time
-	static KeySingleton& getInstance(const char *name, const char *url,
-			const int initType, const char *filekey);
+	static KeySingleton& getInstance(const char *filename, const char *filekey);
 	keyentry *getKeys(int id);
-	ibool hasKey(int id);
+	bool hasKey(int id);
 	static bool isAvailable() {
 		return instanceInited;
 	}

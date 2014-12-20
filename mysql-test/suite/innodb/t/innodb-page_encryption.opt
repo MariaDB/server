@@ -1,1 +1,1 @@
---innodb_data_encryption_providertype=1 --innodb_data_encryption_providername=keys.txt --innodb_data_encryption_providerurl=$MYSQL_TEST_DIR/suite/innodb/include
+--enable-file_key_management_plugin --file_key_management_plugin_filename=$MYSQL_TEST_DIR/suite/innodb/include/keys.txt

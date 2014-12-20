@@ -1239,7 +1239,17 @@ static void reap_plugins(void)
 
   list= reap;
   while ((plugin= *(--list)))
-    plugin_deinitialize(plugin, true);
+  {
+    if (plugin->plugin->type != MYSQL_KEY_MANAGEMENT_PLUGIN)
+      plugin_deinitialize(plugin, true);
+  }
+
+  list= reap;
+  while ((plugin= *(--list)))
+  {
+    if (plugin->plugin->type == MYSQL_KEY_MANAGEMENT_PLUGIN)
+      plugin_deinitialize(plugin, true);
+  }
 
   mysql_mutex_lock(&LOCK_plugin);
 
@@ -1539,6 +1549,65 @@ int plugin_init(int *argc, char **argv, int flags)
   /*
     First we register builtin plugins
   */
+  mandatory = false;
+  for (builtins= mysql_optional_plugins; *builtins; builtins++)
+  {
+    for (plugin= *builtins; plugin->info; plugin++)
+    {
+      if (opt_ignore_builtin_innodb &&
+          !my_strnncoll(&my_charset_latin1, (const uchar*) plugin->name,
+                        6, (const uchar*) "InnoDB", 6))
+        continue;
+
+      if (plugin->type != MYSQL_KEY_MANAGEMENT_PLUGIN)
+	continue;
+
+      bzero(&tmp, sizeof(tmp));
+      tmp.plugin= plugin;
+      tmp.name.str= (char *)plugin->name;
+      tmp.name.length= strlen(plugin->name);
+      tmp.state= 0;
+      tmp.load_option= mandatory ? PLUGIN_FORCE : PLUGIN_ON;
+
+      for (i=0; i < array_elements(override_plugin_load_policy); i++)
+      {
+        if (!my_strcasecmp(&my_charset_latin1, plugin->name,
+                           override_plugin_load_policy[i].plugin_name))
+        {
+          tmp.load_option= override_plugin_load_policy[i].override;
+          break;
+        }
+      }
+
+      free_root(&tmp_root, MYF(MY_MARK_BLOCKS_FREE));
+      tmp.state= PLUGIN_IS_UNINITIALIZED;
+      if (register_builtin(plugin, &tmp, &plugin_ptr))
+        goto err_unlock;
+
+      is_myisam= !my_strcasecmp(&my_charset_latin1, plugin->name, "MyISAM");
+
+      if (plugin_initialize(&tmp_root, plugin_ptr, argc, argv, !is_myisam &&
+                            (flags & PLUGIN_INIT_SKIP_INITIALIZATION)))
+      {
+        if (plugin_ptr->load_option == PLUGIN_FORCE)
+          goto err_unlock;
+        plugin_ptr->state= PLUGIN_IS_DISABLED;
+      }
+
+      if (is_myisam)
+      {
+        DBUG_ASSERT(!global_system_variables.table_plugin);
+        global_system_variables.table_plugin=
+          intern_plugin_lock(NULL, plugin_int_to_ref(plugin_ptr));
+        DBUG_ASSERT(plugin_ptr->ref_count == 1);
+      }
+    }
+  }
+
+  /*
+    First we register builtin plugins
+  */
+  mandatory = true;
   for (builtins= mysql_mandatory_plugins; *builtins || mandatory; builtins++)
   {
     if (!*builtins)
@@ -1554,6 +1623,9 @@ int plugin_init(int *argc, char **argv, int flags)
           !my_strnncoll(&my_charset_latin1, (const uchar*) plugin->name,
                         6, (const uchar*) "InnoDB", 6))
         continue;
+
+      if (plugin->type == MYSQL_KEY_MANAGEMENT_PLUGIN)
+	continue;
 
       bzero(&tmp, sizeof(tmp));
       tmp.plugin= plugin;

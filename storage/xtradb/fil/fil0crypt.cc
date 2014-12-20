@@ -9,9 +9,15 @@
 #include "ut0ut.h"
 #include "btr0scrub.h"
 #include "fsp0fsp.h"
+#include "fil0pagecompress.h"
+#include "fil0pageencryption.h"
 
 #include <my_crypt.h>
 #include <my_crypt_key_management.h>
+
+#include <my_aes.h>
+#include <math.h>
+
 
 /** Mutex for keys */
 UNIV_INTERN ib_mutex_t fil_crypt_key_mutex;
@@ -173,85 +179,136 @@ fil_space_crypt_cleanup()
 Get key bytes for a space/key-version */
 static
 void
-fil_crypt_get_key(uchar *dst, uint dstlen,
-		  fil_space_crypt_t* crypt_data, uint version)
+fil_crypt_get_key(byte *dst, uint* key_length,
+	fil_space_crypt_t* crypt_data, uint version, bool page_encrypted)
 {
-#ifndef HAVE_EncryptAes128Ctr
-  return;
-#else
-	mutex_enter(&crypt_data->mutex);
+        unsigned char keybuf[MY_AES_MAX_KEY_LENGTH];
+	unsigned char iv[CRYPT_SCHEME_1_IV_LEN];
+	ulint iv_len = sizeof(iv);
 
-	// Check if we already have key
-	for (uint i = 0; i < crypt_data->key_count; i++) {
-		if (crypt_data->keys[i].key_version == version) {
-			memcpy(dst, crypt_data->keys[i].key,
-			       sizeof(crypt_data->keys[i].key));
-			mutex_exit(&crypt_data->mutex);
-			return;
+        if (!page_encrypted) {
+		mutex_enter(&crypt_data->mutex);
+
+		// Check if we already have key
+		for (uint i = 0; i < crypt_data->key_count; i++) {
+			if (crypt_data->keys[i].key_version == version) {
+				memcpy(dst, crypt_data->keys[i].key,
+					sizeof(crypt_data->keys[i].key));
+				mutex_exit(&crypt_data->mutex);
+				return;
+			}
 		}
-	}
-	// Not found!
-	crypt_data->keyserver_requests++;
+		// Not found!
+		crypt_data->keyserver_requests++;
 
-	// Rotate keys to make room for a new
-	for (uint i = 1; i < array_elements(crypt_data->keys); i++) {
-		crypt_data->keys[i] = crypt_data->keys[i - 1];
-	}
+		// Rotate keys to make room for a new
+		for (uint i = 1; i < array_elements(crypt_data->keys); i++) {
+			crypt_data->keys[i] = crypt_data->keys[i - 1];
+		}
+        }
+        else
+        {
+            // load iv
+        fprintf(stderr, "%d... %d\n",iv_len, version);
 
-	// TODO(jonaso): Integrate with real key server
+	    int rc = GetCryptoIV(version, (unsigned char*)iv, iv_len);
+	    fprintf(stderr, " %d\n",rc);
 
-	// Get new key from key server
-	unsigned char keybuf[CRYPT_SCHEME_1_IV_LEN];
-	unsigned keylen = sizeof(keybuf);
-	int rc = GetCryptoKey(version, keybuf, keylen);
-	if (rc != 0) {
+	    if (rc != CRYPT_KEY_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unable to retrieve key with"
-			" version %u return-code: %d. Can't continue!\n",
-			version, rc);
+			"IV %d can not be found. Reason=%d", version, rc);
+		ut_error;
+	    }
+        }
+
+	if (HasCryptoKey(version)) {
+	    *key_length = GetCryptoKeySize(version);
+
+	    int rc = GetCryptoKey(version, (unsigned char*)keybuf, *key_length);
+
+	    if (rc != CRYPT_KEY_OK) {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Key %d can not be found. Reason=%d", version, rc);
+		ut_error;
+	    }
+	} else {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Key %d not found", version);
 		ut_error;
 	}
 
-	// Now compute L by encrypting IV using this key
-	const unsigned char* src = crypt_data->iv;
-	const int srclen = crypt_data->iv_length;
-	unsigned char* buf = crypt_data->keys[0].key;
-	int buflen = sizeof(crypt_data->keys[0].key);
-	rc = my_aes_encrypt_ecb(src, srclen,
-                                buf, &buflen,
-                                keybuf, sizeof(keybuf),
-                                0,0,0);
-	if (rc != CRYPT_OK) {
-		ib_logf(IB_LOG_LEVEL_FATAL,
-			"Unable to encrypt key-block "
-			" src: %p srclen: %d buf: %p buflen: %d."
-			" return-code: %d. Can't continue!\n",
-			src, srclen, buf, buflen, rc);
-		ut_error;
+
+	// do ctr key initialization
+	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
+	{
+	  // Now compute L by encrypting IV using this key
+	  const unsigned char* src = page_encrypted ? iv : crypt_data->iv;
+	  const int srclen = page_encrypted ? iv_len : crypt_data->iv_length;
+	  unsigned char* buf = page_encrypted ? keybuf : crypt_data->keys[0].key;
+	  uint32 buflen = page_encrypted ? *key_length : sizeof(crypt_data->keys[0].key);
+
+	  // call ecb explicit
+	  my_aes_encrypt_dynamic_type func = get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
+	  int rc = (*func)(src, srclen,
+		       buf, &buflen,
+		       (unsigned char*)keybuf, *key_length,
+		       NULL, 0,
+		       1);
+
+	  if (rc != AES_OK) {
+		  ib_logf(IB_LOG_LEVEL_FATAL,
+			  "Unable to encrypt key-block "
+			  " src: %p srclen: %d buf: %p buflen: %d."
+			  " return-code: %d. Can't continue!\n",
+			  src, srclen, buf, buflen, rc);
+		  ut_error;
+	  }
+
+	  if (!page_encrypted) {
+		  crypt_data->keys[0].key_version = version;
+		  crypt_data->key_count++;
+
+		  if (crypt_data->key_count > array_elements(crypt_data->keys)) {
+			  crypt_data->key_count = array_elements(crypt_data->keys);
+		  }
+	  }
+
+	  // set the key size to the aes block size because this encrypted data is the key
+	  *key_length = MY_AES_BLOCK_SIZE;
+	  memcpy(dst, buf, buflen);
+	}
+	else
+	{
+	    // otherwise keybuf contains the right key
+	    memcpy(dst, keybuf, *key_length);
 	}
 
-	crypt_data->keys[0].key_version = version;
-	crypt_data->key_count++;
-
-	if (crypt_data->key_count > array_elements(crypt_data->keys)) {
-		crypt_data->key_count = array_elements(crypt_data->keys);
+	if (!page_encrypted) {
+		mutex_exit(&crypt_data->mutex);
 	}
-
-	memcpy(dst, crypt_data->keys[0].key,
-	       sizeof(crypt_data->keys[0].key));
-	mutex_exit(&crypt_data->mutex);
-#endif
 }
 
 /******************************************************************
 Get key bytes for a space/latest(key-version) */
 static inline
 void
-fil_crypt_get_latest_key(uchar *dst, uint dstlen,
+fil_crypt_get_latest_key(byte *dst, uint* key_length,
 			 fil_space_crypt_t* crypt_data, uint *version)
 {
-	*version = GetLatestCryptoKeyVersion();
-	return fil_crypt_get_key(dst, dstlen, crypt_data, *version);
+	if (srv_encrypt_tables) {
+	        // used for key rotation - get the next key id from the key provider
+		int rc = GetLatestCryptoKeyVersion();
+
+		// if no new key was created use the last one
+		if (rc >= 0)
+		{
+		    *version = rc;
+		}
+
+		return fil_crypt_get_key(dst, key_length, crypt_data, *version, false);
+	} else {
+		return fil_crypt_get_key(dst, key_length, NULL, *version, true);
+	}
 }
 
 /******************************************************************
@@ -260,9 +317,6 @@ UNIV_INTERN
 fil_space_crypt_t*
 fil_space_create_crypt_data()
 {
-#ifndef HAVE_EncryptAes128Ctr
-  return 0;
-#else
 	const uint iv_length = CRYPT_SCHEME_1_IV_LEN;
 	const uint sz = sizeof(fil_space_crypt_t) + iv_length;
 	fil_space_crypt_t* crypt_data =
@@ -282,7 +336,6 @@ fil_space_create_crypt_data()
 	crypt_data->iv_length = iv_length;
 	my_random_bytes(crypt_data->iv, iv_length);
 	return crypt_data;
-#endif
 }
 
 /******************************************************************
@@ -558,52 +611,120 @@ fil_space_check_encryption_write(
 }
 
 /******************************************************************
-
 Encrypt a page */
 UNIV_INTERN
 void
 fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
-		  const byte* src_frame, ulint zip_size, byte* dst_frame)
+	const byte* src_frame, ulint zip_size, byte* dst_frame, ulint encryption_key)
 {
-	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
+	fil_space_crypt_t* crypt_data;
 	ulint page_size = (zip_size) ? zip_size : UNIV_PAGE_SIZE;
-	if (crypt_data == NULL || srv_encrypt_tables == FALSE) {
+
+	fprintf(stderr, "JAN: page_size %lu\n", page_size);
+
+	// get key (L)
+	uint key_version;
+	byte key[MY_AES_MAX_KEY_LENGTH];
+	uint key_length;
+
+	if (srv_encrypt_tables) {
+		crypt_data = fil_space_get_crypt_data(space);
+		if (crypt_data == NULL) {
+			//TODO: Is this really needed ?
+			memcpy(dst_frame, src_frame, page_size);
+			return;
+		}
+		fil_crypt_get_latest_key(key, &key_length, crypt_data, &key_version);
+	} else {
+		key_version = encryption_key;
+		fil_crypt_get_latest_key(key, &key_length, NULL, (uint*)&key_version);
+	}
+
+
+	/* Load the iv or counter (depending to the encryption algorithm used) */
+	unsigned char iv[MY_AES_BLOCK_SIZE];
+
+	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
+	{
+	  // create counter block (C)
+	  mach_write_to_4(iv + 0, space);
+	  ulint space_offset = mach_read_from_4(
+			  src_frame + FIL_PAGE_OFFSET);
+	  mach_write_to_4(iv + 4, space_offset);
+	  mach_write_to_8(iv + 8, lsn);
+	}
+	else
+	{
+	    // take the iv from the key provider
+
+	    int load_iv_rc = GetCryptoIV(key_version, (uchar *) iv, sizeof(iv));
+
+	    // if the iv can not be loaded the whole page can not be encrypted
+	    if (load_iv_rc != CRYPT_KEY_OK)
+	    {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unable to decrypt data-block. "
+			" Can not load iv for key %d"
+			" return-code: %d. Can't continue!\n",
+			key_version, load_iv_rc);
+
+		ut_error;
+	    }
+	}
+
+
+	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
+	ibool page_encrypted  = fil_space_is_page_encrypted(space);
+
+	ulint compression_alg = mach_read_from_8(src_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
+	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
+			|| orig_page_type==FIL_PAGE_TYPE_XDES
+			|| orig_page_type== FIL_PAGE_PAGE_ENCRYPTED
+			|| orig_page_type== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		memcpy(dst_frame, src_frame, page_size);
 		return;
 	}
 
-	// get key (L)
-	uint key_version;
-	uchar key[CRYPT_SCHEME_1_IV_LEN];
-	fil_crypt_get_latest_key(key, sizeof(key), crypt_data, &key_version);
-
 	// copy page header
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
 
-	// store key version
-	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
-			key_version);
 
-	// create counter block (C)
-	unsigned char counter[MY_AES_BLOCK_SIZE];
-	mach_write_to_4(counter + 0, space);
-	mach_write_to_4(counter + 4, offset);
-	mach_write_to_8(counter + 8, lsn);
+	if (page_encrypted && !page_compressed) {
+		// key id
+		mach_write_to_2(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+			key_version);
+		// original page type
+		mach_write_to_2(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 2,
+			orig_page_type);
+		// new page type
+		mach_write_to_2(dst_frame+FIL_PAGE_TYPE, FIL_PAGE_PAGE_ENCRYPTED);
+	} else {
+		// store key version
+		mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
+			        key_version);
+	}
 
 	// encrypt page data
 	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
-
-	const uchar* src = (uchar*) src_frame + FIL_PAGE_DATA;
-	uchar* dst = (uchar*) dst_frame + FIL_PAGE_DATA;
+	ulint srclen = page_size - unencrypted_bytes;
+	const byte* src = src_frame + FIL_PAGE_DATA;
+	byte* dst = dst_frame + FIL_PAGE_DATA;
 	uint32 dstlen;
-	int rc = my_aes_encrypt_dynamic(src, (page_size - unencrypted_bytes),
-                                        dst, &dstlen,
-                                        key, sizeof(key),
-                                        counter, sizeof(counter),
-                                        0);
-	if (! ((rc == AES_OK) &&
-	       ((ulint) dstlen == (page_size - unencrypted_bytes))))
-        {
+
+	if (page_compressed) {
+		srclen = page_size;
+	}
+
+
+	int rc = (* my_aes_encrypt_dynamic)(src, srclen,
+	                                    dst, &dstlen,
+	                                    (unsigned char*)key, key_length,
+	                                    (unsigned char*)iv, sizeof(iv),
+	                                    1);
+
+	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to encrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -613,42 +734,57 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 		ut_error;
 	}
 
-	// copy page trailer
-	memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
-	       src_frame + page_size - FIL_PAGE_DATA_END,
-	       FIL_PAGE_DATA_END);
+	if (!page_compressed) {
+		// copy page trailer
+		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
+			src_frame + page_size - FIL_PAGE_DATA_END,
+			FIL_PAGE_DATA_END);
 
-	/* handle post encryption checksum */
-	ib_uint32_t checksum = 0;
-	srv_checksum_algorithm_t algorithm =
-		static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
+		/* handle post encryption checksum */
+		ib_uint32_t checksum = 0;
+		srv_checksum_algorithm_t algorithm =
+			static_cast<srv_checksum_algorithm_t>(srv_checksum_algorithm);
 
-	if (zip_size == 0) {
-		switch (algorithm) {
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t) buf_calc_page_new_checksum(
-				dst_frame);
-			break;
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-			/* no default so the compiler will emit a warning
-			* if new enum is added and not handled here */
+		if (zip_size == 0) {
+			switch (algorithm) {
+			case SRV_CHECKSUM_ALGORITHM_CRC32:
+			case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+				checksum = buf_calc_page_crc32(dst_frame);
+				break;
+			case SRV_CHECKSUM_ALGORITHM_INNODB:
+			case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
+				checksum = (ib_uint32_t) buf_calc_page_new_checksum(
+					dst_frame);
+				break;
+			case SRV_CHECKSUM_ALGORITHM_NONE:
+			case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
+				checksum = BUF_NO_CHECKSUM_MAGIC;
+				break;
+				/* no default so the compiler will emit a warning
+				* if new enum is added and not handled here */
+			}
+		} else {
+			checksum = page_zip_calc_checksum(dst_frame, zip_size,
+				                          algorithm);
 		}
+
+		// store the post-encryption checksum after the key-version
+		mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
+			        checksum);
 	} else {
-		checksum = page_zip_calc_checksum(dst_frame, zip_size,
-						  algorithm);
+		/* Page compressed and encrypted tables have different
+		FIL_HEADER */
+		ulint page_len = log10((double)srclen)/log10((double)2);
+		/* Set up the correct page type */
+		mach_write_to_2(dst_frame+FIL_PAGE_TYPE, FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED);
+		/* Set up the compression algorithm */
+		mach_write_to_2(dst_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4, orig_page_type);
+		/* Set up the compressed size */
+		mach_write_to_1(dst_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+6, page_len);
+		/* Set up the compression method */
+		mach_write_to_1(dst_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+7, compression_alg);
 	}
 
-	// store the post-encryption checksum after the key-version
-	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-			checksum);
 }
 
 /*********************************************************************
@@ -676,21 +812,38 @@ bool
 fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		  const byte* src_frame, ulint page_size, byte* dst_frame)
 {
+	ulint space_id = mach_read_from_4(src_frame + FIL_PAGE_SPACE_ID);
+	ulint page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
 	// key version
-	uint key_version = mach_read_from_4(
-		src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	uint key_version;
+	bool page_encrypted = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+		               || page_type == FIL_PAGE_PAGE_ENCRYPTED);
 
-	if (key_version == 0) {
+	bool page_compressed = (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+            || page_type == FIL_PAGE_PAGE_COMPRESSED);
+
+	ulint orig_page_type=0;
+	fprintf(stderr, "JAN: page type %lu\n", page_type);
+
+	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
+		key_version = mach_read_from_2(
+			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+		fprintf(stderr, "JAN: key_version %lu\n", key_version);
+		orig_page_type =  mach_read_from_2(
+			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 2);
+		fprintf(stderr, "JAN: decrypt: orig_page_type %lu\n", orig_page_type);
+	} else {
+		key_version = mach_read_from_4(
+			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	}
+
+	if (key_version == 0 && !page_encrypted) {
+		fprintf(stderr, "JAN: unencrypted\n");
+		//TODO: is this really needed ?
 		memcpy(dst_frame, src_frame, page_size);
 		return false; /* page not decrypted */
 	}
 
-#ifndef HAVE_EncryptAes128Ctr
-        ib_logf(IB_LOG_LEVEL_FATAL,
-                "Unable to decrypt data-block as server not compiled with CTR encyption");
-        ut_error;
-        return false;
-#else
 	// read space & offset & lsn
 	ulint space = mach_read_from_4(
 		src_frame + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -698,32 +851,81 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		src_frame + FIL_PAGE_OFFSET);
 	ib_uint64_t lsn = mach_read_from_8(src_frame + FIL_PAGE_LSN);
 
-	ut_a(crypt_data != NULL);
-
-	// get key (L)
-	byte key[CRYPT_SCHEME_1_IV_LEN];
-	fil_crypt_get_key(key, sizeof(key), crypt_data, key_version);
+	fprintf(stderr, "JAN: space %lu, offset %lu lsn %lu\n", space, offset, lsn);
 
 	// copy page header
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
 
-	// create counter block
-	unsigned char counter[MY_AES_BLOCK_SIZE];
-	mach_write_to_4(counter + 0, space);
-	mach_write_to_4(counter + 4, offset);
-	mach_write_to_8(counter + 8, lsn);
+	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
+		// orig page type
+		mach_write_to_2(dst_frame+FIL_PAGE_TYPE, orig_page_type);
+	}
+
+
+	// get key
+	byte key[MY_AES_MAX_KEY_LENGTH];
+	uint key_length;
+	fil_crypt_get_key(key, &key_length, crypt_data, key_version, page_encrypted);
+
+	// get the iv
+	unsigned char iv[MY_AES_BLOCK_SIZE];
+
+	if (current_aes_dynamic_method == MY_AES_ALGORITHM_CTR)
+	{
+	  // create counter block
+
+	  mach_write_to_4(iv + 0, space);
+	  mach_write_to_4(iv + 4, offset);
+	  mach_write_to_8(iv + 8, lsn);
+	}
+	else
+	{
+	    // take the iv from the key provider
+
+	    int load_iv_rc = GetCryptoIV(key_version, (uchar *) iv, sizeof(iv));
+
+	    // if the iv can not be loaded the whole page can not be decrypted
+	    if (load_iv_rc != CRYPT_KEY_OK)
+	    {
+		ib_logf(IB_LOG_LEVEL_FATAL,
+			"Unable to decrypt data-block. "
+			" Can not load iv for key %d"
+			" return-code: %d. Can't continue!\n",
+			key_version, load_iv_rc);
+
+		return AES_KEY_CREATION_FAILED;
+	    }
+	}
 
 	// decrypt page data
 	ulint unencrypted_bytes = FIL_PAGE_DATA + FIL_PAGE_DATA_END;
 
 	const byte* src = src_frame + FIL_PAGE_DATA;
 	byte* dst = dst_frame + FIL_PAGE_DATA;
-	int dstlen;
-	int rc = my_aes_decrypt_ctr(src, (page_size - unencrypted_bytes),
-                                    dst, &dstlen, key, sizeof(key),
-                                    counter, sizeof(counter), 0);
-	if (! ((rc == AES_OK) &&
-	       ((ulint) dstlen == (page_size - unencrypted_bytes)))) {
+	uint32 dstlen;
+	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
+
+	ulint compressed_len;
+	ulint compression_method;
+	if (page_compressed) {
+		orig_page_type = mach_read_from_2(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+4);
+		compressed_len = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+6);
+		compression_method = mach_read_from_1(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+7);
+	}
+	if (page_encrypted && !page_compressed) {
+		orig_page_type = mach_read_from_2(src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION+2);
+	}
+
+	if (page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		srclen = pow((double)2, (double)((int)compressed_len));
+	}
+	int rc = (* my_aes_decrypt_dynamic)(src, srclen,
+	                                    dst, &dstlen,
+	                                    (unsigned char*)key, key_length,
+	                                    (unsigned char*)iv, sizeof(iv),
+	                                    1);
+
+	if (! ((rc == AES_OK) && ((ulint) dstlen == srclen))) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
 			"Unable to decrypt data-block "
 			" src: %p srclen: %ld buf: %p buflen: %d."
@@ -733,16 +935,26 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		ut_error;
 	}
 
-	// copy page trailer
-	memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
-	       src_frame + page_size - FIL_PAGE_DATA_END,
-	       FIL_PAGE_DATA_END);
+	if (page_type != FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		fprintf(stderr, "JAN: trailer...\n");
+		// copy page trailer
+		memcpy(dst_frame + page_size - FIL_PAGE_DATA_END,
+		       src_frame + page_size - FIL_PAGE_DATA_END,
+		       FIL_PAGE_DATA_END);
 
-	// clear key-version & crypt-checksum from dst
-	memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+		// clear key-version & crypt-checksum from dst
+		memset(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
+	} else {
+		/* For page compressed tables we set up the FIL_HEADER again */
+		/* setting original page type */
+		mach_write_to_2(dst_frame + FIL_PAGE_TYPE, orig_page_type);
+		/* page_compression uses BUF_NO_CHECKSUM_MAGIC as checksum */
+		mach_write_to_4(dst_frame + FIL_PAGE_SPACE_OR_CHKSUM, BUF_NO_CHECKSUM_MAGIC);
+		/* Set up the flush lsn to be compression algorithm */
+		mach_write_to_8(dst_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, compression_method);
+	}
 
 	return true; /* page was decrypted */
-#endif
 }
 
 /******************************************************************

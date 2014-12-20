@@ -104,8 +104,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "page0zip.h"
 #include "fil0pagecompress.h"
 
-#include "KeySingleton.h"
-
 
 #define thd_get_trx_isolation(X) ((enum_tx_isolation)thd_tx_isolation(X))
 
@@ -202,12 +200,6 @@ static char*	innobase_enable_monitor_counter		= NULL;
 static char*	innobase_disable_monitor_counter	= NULL;
 static char*	innobase_reset_monitor_counter		= NULL;
 static char*	innobase_reset_all_monitor_counter	= NULL;
-
-/* Encryption for tables and columns */
-static char*	innobase_data_encryption_providername	= NULL;
-static char*	innobase_data_encryption_providerurl	= NULL;
-static uint innobase_data_encryption_providertype = 0; // 1 == file, 2 == server
-static char*	innobase_data_encryption_filekey	= NULL;
 
 /* The highest file format being used in the database. The value can be
 set by user, however, it will be adjusted to the newer file format if
@@ -3154,10 +3146,6 @@ innobase_init(
 
 	ut_a(DATA_MYSQL_TRUE_VARCHAR == (ulint)MYSQL_TYPE_VARCHAR);
 
-	KeySingleton::getInstance(
-			innobase_data_encryption_providername, innobase_data_encryption_providerurl,
-			innobase_data_encryption_providertype, innobase_data_encryption_filekey);
-
 #ifndef DBUG_OFF
 	static const char	test_filename[] = "-@";
 	char			test_tablename[sizeof test_filename
@@ -3782,8 +3770,6 @@ innobase_end(
 		mysql_cond_destroy(&commit_cond);
 		mysql_mutex_destroy(&pending_checkpoint_mutex);
 	}
-
-	KeySingleton::getInstance().~KeySingleton();
 
 	DBUG_RETURN(err);
 }
@@ -11297,15 +11283,6 @@ ha_innobase::check_table_options(
 				" innodb_file_per_table.");
 			return "PAGE_ENCRYPTION";
 		}
-
-		if (!KeySingleton::getInstance().isAvailable()) {
-			push_warning(
-				thd, Sql_condition::WARN_LEVEL_WARN,
-				HA_WRONG_CREATE_OPTION,
-				"InnoDB: PAGE_ENCRYPTION needs a key provider"
-			);
-			return "PAGE_ENCRYPTION";
-		}
 	}
 
 	/* Check page compression requirements */
@@ -11395,7 +11372,7 @@ ha_innobase::check_table_options(
 			return "PAGE_ENCRYPTION_KEY";
 		}
 
-		if (!KeySingleton::getInstance().isAvailable() || KeySingleton::getInstance().getKeys(options->page_encryption_key)==NULL) {
+		if (!HasCryptoKey(options->page_encryption_key)) {
 			push_warning_printf(
 				thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
@@ -19118,26 +19095,6 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   UINT_MAX32, /* Maximum setting */
   0);
 
-static MYSQL_SYSVAR_UINT(data_encryption_providertype, innobase_data_encryption_providertype,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Use table or column encryption / decryption. Default is 0 for no use, 1 for keyfile and 2 for keyserver.",
-  NULL, NULL, 1, 0, 2, 0);
-
-static MYSQL_SYSVAR_STR(data_encryption_providername, innobase_data_encryption_providername,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Name of keyfile or keyserver.",
-  NULL, NULL, NULL);
-
-static MYSQL_SYSVAR_STR(data_encryption_providerurl, innobase_data_encryption_providerurl,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Path or URL for keyfile or keyserver.",
-  NULL, NULL, NULL);
-
-static MYSQL_SYSVAR_STR(data_encryption_filekey, innobase_data_encryption_filekey,
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Key to encrypt / decrypt the keyfile.",
-  NULL, NULL, NULL);
-
 static MYSQL_SYSVAR_BOOL(encrypt_tables, srv_encrypt_tables, 0,
 			 "Encrypt tables",
 			 0, 0, 0);
@@ -19418,11 +19375,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_algorithm),
   MYSQL_SYSVAR(mtflush_threads),
   MYSQL_SYSVAR(use_mtflush),
-  /* Table encryption feature */
-  MYSQL_SYSVAR(data_encryption_providertype),
-  MYSQL_SYSVAR(data_encryption_providername),
-  MYSQL_SYSVAR(data_encryption_providerurl),
-  MYSQL_SYSVAR(data_encryption_filekey),
   /* Encryption feature */
   MYSQL_SYSVAR(encrypt_tables),
   MYSQL_SYSVAR(encryption_threads),

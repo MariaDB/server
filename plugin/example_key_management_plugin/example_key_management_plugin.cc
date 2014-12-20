@@ -2,6 +2,7 @@
 
 #include <mysql_version.h>
 #include <my_global.h>
+#include <my_aes.h>
 #include <my_crypt_key_management.h>
 #include <my_md5.h>
 
@@ -15,7 +16,7 @@ static unsigned int next_key_version = 0;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static
-unsigned int
+int
 get_latest_key_version()
 {
   uint now = time(0);
@@ -50,15 +51,44 @@ get_key(unsigned int version, unsigned char* dstbuf, unsigned buflen)
   return 0;
 }
 
+static unsigned int has_key_func(unsigned int keyID)
+{
+  return true;
+}
+
+static int get_key_size(unsigned int keyID)
+{
+	return 16;
+}
+
+static int get_iv(unsigned int keyID, unsigned char* dstbuf, unsigned buflen)
+{
+  if (buflen < 16)
+  {
+	  return CRYPT_BUFFER_TO_SMALL;
+  }
+
+  for (int i=0; i<16; i++)
+	  dstbuf[i] = 0;
+
+  return CRYPT_KEY_OK;
+}
+
+
 static int example_key_management_plugin_init(void *p)
 {
   /* init */
   seed = time(0);
   get_latest_key_version();
 
+  my_aes_init_dynamic_encrypt(MY_AES_ALGORITHM_CTR);
+
   struct CryptoKeyFuncs_t func;
   func.getLatestCryptoKeyVersionFunc = get_latest_key_version;
+  func.hasCryptoKeyFunc = has_key_func;
+  func.getCryptoKeySize = get_key_size;
   func.getCryptoKeyFunc = get_key;
+  func.getCryptoIVFunc = get_iv;
   InstallCryptoKeyFunctions(&func);
   return 0;
 }

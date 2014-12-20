@@ -5828,7 +5828,7 @@ buf_page_encrypt_before_write(
 	// encrypt page content
 	fil_space_encrypt(bpage->space, bpage->offset,
 			  bpage->newest_modification,
-			  src_frame, zip_size, dst_frame);
+			  src_frame, zip_size, dst_frame, 0);
 
 	unsigned key_version =
 		mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);

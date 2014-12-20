@@ -33,7 +33,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "buf0checksum.h"
 #include <my_global.h>
 #include <my_aes.h>
-#include <KeySingleton.h>
 #include <math.h>
 
 /*
@@ -217,35 +216,28 @@ fil_encrypt_page(
 	data_size = ((len - FIL_PAGE_DATA - FIL_PAGE_DATA_END) / MY_AES_BLOCK_SIZE) * MY_AES_BLOCK_SIZE;
 
 
-	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
-				      0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0, 0xe0, 0x23,
-				      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-				      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-	uint8 key_len = 16;
+	unsigned char rkey[GetCryptoKeySize(encryption_key)];
+	uint key_len = sizeof(rkey);
 
-	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
-		0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
+	unsigned char iv[16];
+	uint iv_len = sizeof(iv);
 
-	ulint iv_len = 16;
-
-	KeySingleton& keys = KeySingleton::getInstance();
-
-	if (!keys.isAvailable()) {
-		err = AES_KEY_CREATION_FAILED;
-	} else if (keys.getKeys(encryption_key) == NULL) {
+	if (!HasCryptoKey(encryption_key)) {
 		err = PAGE_ENCRYPTION_KEY_MISSING;
 	} else {
-		char* keyString = keys.getKeys(encryption_key)->key;
-		char* ivString = keys.getKeys(encryption_key)->iv;
+		int rc;
 
-		if (keyString == NULL || ivString == NULL) {
-			*errorCode = PAGE_ENCRYPTION_WILL_NOT_ENCRYPT;
-			*out_len = len;
-			return (buf);
+		rc = GetCryptoKey(encryption_key, rkey, key_len);
+		if (rc != AES_OK)
+		{
+		    err = PAGE_ENCRYPTION_KEY_MISSING;
 		}
-		key_len = strlen(keyString)/2;
-		my_aes_hex2uint(keyString, (unsigned char*)&rkey, key_len);
-		my_aes_hex2uint(ivString, (unsigned char*)&iv, 16);
+
+		rc = GetCryptoIV(encryption_key, iv, iv_len);
+		if (rc != AES_OK)
+		{
+		    err = PAGE_ENCRYPTION_KEY_MISSING;
+		}
 	}
 
 	/* 1st encryption: data_size bytes starting from FIL_PAGE_DATA */
@@ -255,9 +247,9 @@ fil_encrypt_page(
                                              data_size,
                                              (uchar *) out_buf + FIL_PAGE_DATA,
                                              &write_size,
-                                             (const unsigned char *) &rkey,
+                                             (const unsigned char *) rkey,
                                              key_len,
-                                             (const unsigned char *) &iv,
+                                             (const unsigned char *) iv,
                                              iv_len,
                                              1);
 
@@ -285,9 +277,9 @@ fil_encrypt_page(
                                                      64,
                                                      (uchar*)tmp_buf,
                                                      &write_size,
-                                                     (const unsigned char *)&rkey,
+                                                     (const unsigned char *)rkey,
                                                      key_len,
-                                                     (const unsigned char *)&iv,
+                                                     (const unsigned char *)iv,
                                                      iv_len, 1);
 			ut_ad(write_size == 64);
 
@@ -449,33 +441,31 @@ fil_decrypt_page(
 
 	data_size = ((len - FIL_PAGE_DATA - FIL_PAGE_DATA_END) / MY_AES_BLOCK_SIZE) * MY_AES_BLOCK_SIZE;
 
-	const unsigned char rkey[] = {0xbd, 0xe4, 0x72, 0xa2, 0x95, 0x67, 0x5c, 0xa9,
-			0x2e, 0x04, 0x67, 0xea, 0xdb, 0xc0,0xe0, 0x23,
-			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-			0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-	uint8 key_len = 16;
-	const unsigned char iv[] = {0x2d, 0x1a, 0xf8, 0xd3, 0x97, 0x4e, 0x0b, 0xd3, 0xef, 0xed,
-			0x5a, 0x6f, 0x82, 0x59, 0x4f,0x5e};
 
-	uint8 iv_len = 16;
+	unsigned char rkey[GetCryptoKeySize(page_decryption_key)];
+	uint key_len = sizeof(rkey);
 
-	KeySingleton& keys = KeySingleton::getInstance();
+	unsigned char iv[16];
+	uint iv_len = sizeof(iv);
 
-	if (!keys.isAvailable()) {
-		err = PAGE_ENCRYPTION_ERROR;
-	} else if (keys.getKeys(page_decryption_key) == NULL) {
+	if (!HasCryptoKey(page_decryption_key)) {
 		err = PAGE_ENCRYPTION_KEY_MISSING;
 	} else {
-		char* keyString = keys.getKeys(page_decryption_key)->key;
-		char* ivString = keys.getKeys(page_decryption_key)->iv;
-		key_len = strlen(keyString)/2;
-		if (keyString == NULL || ivString == NULL) {
-			return err;
+		int rc;
+
+		rc = GetCryptoKey(page_decryption_key, rkey, key_len);
+		if (rc != AES_OK)
+		{
+		    err = PAGE_ENCRYPTION_KEY_MISSING;
 		}
 
-		my_aes_hex2uint(keyString, (unsigned char*)&rkey, key_len);
-		my_aes_hex2uint(ivString, (unsigned char*)&iv, 16);
+		rc = GetCryptoIV(page_decryption_key, iv, iv_len);
+		if (rc != AES_OK)
+		{
+		    err = PAGE_ENCRYPTION_KEY_MISSING;
+		}
 	}
+
 
 	if (err != AES_OK) {
 		/* surely key could not be determined. */
@@ -514,9 +504,9 @@ fil_decrypt_page(
                                      64,
                                      (uchar *) in_buf + len - offset - 64,
                                      &tmp_write_size,
-                                     (const unsigned char *) &rkey,
+                                     (const unsigned char *) rkey,
                                      key_len,
-                                     (const unsigned char *) &iv,
+                                     (const unsigned char *) iv,
                                      iv_len,
                                      1);
 

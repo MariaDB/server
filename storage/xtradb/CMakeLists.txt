@@ -359,8 +359,6 @@ SET(INNOBASE_SOURCES
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
 	dyn/dyn0dyn.cc
-	enc/EncKeys.cc
-	enc/KeySingleton.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
