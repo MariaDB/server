@@ -175,6 +175,10 @@ storage/tokudb/ft-index/ft/log_code.cc
 storage/tokudb/ft-index/ft/log_header.h
 storage/tokudb/ft-index/ft/log_print.cc
 storage/tokudb/ft-index/ft/logformat
+storage/tokudb/ft-index/ft/ftverify
+storage/tokudb/ft-index/ft/tdb-recover
+storage/tokudb/ft-index/ft/tdb_logprint
+storage/tokudb/ft-index/ft/tokuftdump
 storage/tokudb/ft-index/portability/merge_archives_tokuportability_static.cmake
 storage/tokudb/ft-index/portability/toku_config.h
 storage/tokudb/ft-index/portability/tokuportability_static_depends.cc

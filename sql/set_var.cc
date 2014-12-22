@@ -1152,7 +1152,7 @@ end:
 
 void mark_sys_var_value_origin(void *ptr, enum sys_var::where here)
 {
-  bool found= false;
+  bool found __attribute__((unused))= false;
   DBUG_ASSERT(!mysqld_server_started); // only to be used during startup
 
   for (uint i= 0; i < system_variable_hash.records; i++)

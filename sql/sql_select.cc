@@ -23786,7 +23786,7 @@ int JOIN::save_explain_data_intern(Explain_query *output, bool need_tmp_table,
                                    bool need_order, bool distinct, 
                                    const char *message)
 {
-  Explain_node *explain_node;
+  Explain_node *explain_node= 0;
   JOIN *join= this; /* Legacy: this code used to be a non-member function */
   int error= 0;
   DBUG_ENTER("JOIN::save_explain_data_intern");
