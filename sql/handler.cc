@@ -32,6 +32,7 @@
 #include "sql_acl.h"            // SUPER_ACL
 #include "sql_base.h"           // free_io_cache
 #include "discover.h"           // extension_based_table_discovery, etc
+#include "log.h"                // for assert_LOCK_log_owner
 #include "log_event.h"          // *_rows_log_event
 #include "create_options.h"
 #include "rpl_filter.h"
@@ -1479,6 +1480,12 @@ int ha_commit_trans(THD *thd, bool all)
 
 done:
   DBUG_EXECUTE_IF("crash_commit_after", DBUG_SUICIDE(););
+
+  /* documentation of which mutexes are (not) owned */
+  mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+  assert_LOCK_log_owner(false);
+  mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
   RUN_HOOK(transaction, after_commit, (thd, FALSE));
   goto end;
 

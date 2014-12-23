@@ -24,6 +24,8 @@
 
 /* This indicates whether semi-synchronous replication is enabled. */
 char rpl_semi_sync_master_enabled;
+unsigned long rpl_semi_sync_master_wait_point       =
+    SEMI_SYNC_MASTER_WAIT_POINT_AFTER_STORAGE_COMMIT;
 unsigned long rpl_semi_sync_master_timeout;
 unsigned long rpl_semi_sync_master_trace_level;
 char rpl_semi_sync_master_status                    = 0;

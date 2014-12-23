@@ -93,6 +93,7 @@ ulong opt_binlog_dbug_fsync_sleep= 0;
 
 mysql_mutex_t LOCK_prepare_ordered;
 mysql_cond_t COND_prepare_ordered;
+mysql_mutex_t LOCK_after_binlog_sync;
 mysql_mutex_t LOCK_commit_ordered;
 
 static ulonglong binlog_status_var_num_commits;
@@ -3938,7 +3939,8 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
       Without binlog, we cannot XA recover prepared-but-not-committed
       transactions in engines. So force a commit checkpoint first.
 
-      Note that we take and immediately release LOCK_commit_ordered. This has
+      Note that we take and immediately
+      release LOCK_after_binlog_sync/LOCK_commit_ordered. This has
       the effect to ensure that any on-going group commit (in
       trx_group_commit_leader()) has completed before we request the checkpoint,
       due to the chaining of LOCK_log and LOCK_commit_ordered in that function.
@@ -3949,7 +3951,10 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
       commit_ordered() in the engine of some transaction, and then a crash
       later would leave such transaction not recoverable.
     */
+
+    mysql_mutex_lock(&LOCK_after_binlog_sync);
     mysql_mutex_lock(&LOCK_commit_ordered);
+    mysql_mutex_unlock(&LOCK_after_binlog_sync);
     mysql_mutex_unlock(&LOCK_commit_ordered);
 
     mark_xids_active(current_binlog_id, 1);
@@ -6035,11 +6040,6 @@ err:
         if ((error= flush_and_sync(&synced)))
         {
         }
-        else if ((error= RUN_HOOK(binlog_storage, after_flush,
-                 (thd, log_file_name, file->pos_in_file, synced))))
-        {
-          sql_print_error("Failed to run 'after_flush' hooks");
-        } 
         else
         {
           /* update binlog_end_pos so it can be read by dump thread
@@ -6050,23 +6050,58 @@ err:
            */
           update_binlog_end_pos(offset);
 
-          signal_update();
-          if ((error= rotate(false, &check_purge)))
-            check_purge= false;
+          /* documentation of which mutexes are (not) owned */
+          mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+          mysql_mutex_assert_owner(&LOCK_log);
+          mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+          mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+          bool first= true;
+          bool last= true;
+          if ((error= RUN_HOOK(binlog_storage, after_flush,
+                               (thd, log_file_name, file->pos_in_file,
+                                synced, first, last))))
+          {
+            sql_print_error("Failed to run 'after_flush' hooks");
+            error= 1;
+          }
+          else
+          {
+            signal_update();
+            if ((error= rotate(false, &check_purge)))
+              check_purge= false;
+          }
         }
       }
 
       status_var_add(thd->status_var.binlog_bytes_written,
                      offset - my_org_b_tell);
 
+      mysql_mutex_lock(&LOCK_after_binlog_sync);
+      mysql_mutex_unlock(&LOCK_log);
+
+      /* documentation of which mutexes are (not) owned */
+      mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+      mysql_mutex_assert_not_owner(&LOCK_log);
+      mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
+      mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+      bool first= true;
+      bool last= true;
+      if (RUN_HOOK(binlog_storage, after_sync,
+                   (thd, log_file_name, file->pos_in_file,
+                    first, last)))
+      {
+        error=1;
+        /* error is already printed inside hook */
+      }
+
       /*
         Take mutex to protect against a reader seeing partial writes of 64-bit
         offset on 32-bit CPUs.
       */
       mysql_mutex_lock(&LOCK_commit_ordered);
+      mysql_mutex_unlock(&LOCK_after_binlog_sync);
       last_commit_pos_offset= offset;
       mysql_mutex_unlock(&LOCK_commit_ordered);
-      mysql_mutex_unlock(&LOCK_log);
 
       if (check_purge)
         checkpoint_and_purge(prev_binlog_id);
@@ -7374,13 +7409,22 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     {
       bool any_error= false;
       bool all_error= true;
+
+      /* documentation of which mutexes are (not) owned */
+      mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+      mysql_mutex_assert_owner(&LOCK_log);
+      mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+      mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+      bool first= true, last;
       for (current= queue; current != NULL; current= current->next)
       {
+        last= current->next == NULL;
         if (!current->error &&
             RUN_HOOK(binlog_storage, after_flush,
                 (current->thd,
                  current->cache_mngr->last_commit_pos_file,
-                 current->cache_mngr->last_commit_pos_offset, synced)))
+                 current->cache_mngr->last_commit_pos_offset, synced,
+                 first, last)))
         {
           current->error= ER_ERROR_ON_WRITE;
           current->commit_errno= -1;
@@ -7389,6 +7433,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
         }
         else
           all_error= false;
+        first= false;
       }
 
       /* update binlog_end_pos so it can be read by dump thread
@@ -7437,22 +7482,55 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     }
   }
 
-  DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
-  mysql_mutex_lock(&LOCK_commit_ordered);
-    /**
-     * TODO(jonaso): Check with Kristian,
-     * if we rotate:d above, this offset is "wrong"
-     */
-  last_commit_pos_offset= commit_offset;
+  DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_after_binlog_sync");
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
   /*
-    We cannot unlock LOCK_log until we have locked LOCK_commit_ordered;
+    We cannot unlock LOCK_log until we have locked LOCK_after_binlog_sync;
     otherwise scheduling could allow the next group commit to run ahead of us,
     messing up the order of commit_ordered() calls. But as soon as
-    LOCK_commit_ordered is obtained, we can let the next group commit start.
+    LOCK_after_binlog_sync is obtained, we can let the next group commit start.
   */
   mysql_mutex_unlock(&LOCK_log);
 
   DEBUG_SYNC(leader->thd, "commit_after_release_LOCK_log");
+
+  /*
+    Loop through threads and run the binlog_sync hook
+  */
+  {
+    /* documentation of which mutexes are (not) owned */
+    mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+    mysql_mutex_assert_not_owner(&LOCK_log);
+    mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
+    mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+
+    bool first= true, last;
+    for (current= queue; current != NULL; current= current->next)
+    {
+      last= current->next == NULL;
+      if (!current->error &&
+          RUN_HOOK(binlog_storage, after_sync,
+                   (current->thd, log_file_name,
+                    current->cache_mngr->last_commit_pos_offset,
+                    first, last)))
+      {
+      /* error is already printed inside hook */
+      }
+      first= false;
+    }
+  }
+
+  DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  last_commit_pos_offset= commit_offset;
+
+  /*
+    Unlock LOCK_after_binlog_sync only *after* LOCK_commit_ordered has been
+    acquired so that groups can not reorder for the different stages of
+    the group commit procedure.
+  */
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  DEBUG_SYNC(leader->thd, "commit_after_release_LOCK_after_binlog_sync");
   ++num_group_commits;
 
   if (!opt_optimize_thread_scheduling)

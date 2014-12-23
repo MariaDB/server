@@ -24,6 +24,7 @@
 #include "rpl_handler.h"
 #include "debug_sync.h"         // DEBUG_SYNC
 #include "sql_acl.h"
+#include "log.h"                // for assert_LOCK_log_owner
 
 /* Conditions under which the transaction state must not change. */
 static bool trans_check(THD *thd)
@@ -232,6 +233,13 @@ bool trans_commit(THD *thd)
     ~(SERVER_STATUS_IN_TRANS | SERVER_STATUS_IN_TRANS_READONLY);
   DBUG_PRINT("info", ("clearing SERVER_STATUS_IN_TRANS"));
   res= ha_commit_trans(thd, TRUE);
+
+  /* documentation of which mutexes are (not) owned */
+  mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+  assert_LOCK_log_owner(false);
+  mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
+
   if (WSREP_ON)
     wsrep_post_commit(thd, TRUE);
     /*
@@ -432,6 +440,12 @@ bool trans_commit_stmt(THD *thd)
         wsrep_post_commit(thd, FALSE);
     }
   }
+
+  /* documentation of which mutexes are (not) owned */
+  mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
+  assert_LOCK_log_owner(false);
+  mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
+  mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
     /*
       if res is non-zero, then ha_commit_trans has rolled back the

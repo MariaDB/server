@@ -59,7 +59,6 @@ show variables like 'rpl_semi_sync_master_enabled';
 echo [ status of semi-sync on master should be ON even without any semi-sync slaves ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 --echo #
@@ -120,7 +119,6 @@ echo [ initial master state after the semi-sync slave connected ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 replace_result $engine_type ENGINE_TYPE;
@@ -129,7 +127,6 @@ eval create table t1(a int) engine = $engine_type;
 echo [ master state after CREATE TABLE statement ];
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 # After fix of BUG#45848, semi-sync slave should not create any extra
@@ -153,7 +150,6 @@ insert t1 values (1);
 echo [ master status after inserts ];
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 305 304
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 sync_slave_with_master;
@@ -302,14 +298,12 @@ source include/stop_slave.inc;
 connection master;
 echo [ Semi-sync master status variables before FLUSH STATUS ];
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
---replace_result 306 305
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 # Do not write the FLUSH STATUS to binlog, to make sure we'll get a
 # clean status after this.
 FLUSH NO_WRITE_TO_BINLOG STATUS;
 echo [ Semi-sync master status variables after FLUSH STATUS ];
 SHOW STATUS LIKE 'Rpl_semi_sync_master_no_tx';
---replace_result 306 305
 SHOW STATUS LIKE 'Rpl_semi_sync_master_yes_tx';
 
 connection master;
@@ -358,7 +352,6 @@ reset master;
 
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 306 305
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 connection slave;
@@ -410,7 +403,6 @@ echo [ on master ];
 echo [ master semi-sync status should be ON ];
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 306 305
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 --echo #
@@ -460,7 +452,6 @@ echo [ master semi-sync should be ON ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 306 305
 show status like 'Rpl_semi_sync_master_yes_tx';
 insert into t1 values (4);
 insert into t1 values (5);
@@ -468,7 +459,6 @@ echo [ master semi-sync should be ON ];
 show status like 'Rpl_semi_sync_master_clients';
 show status like 'Rpl_semi_sync_master_status';
 show status like 'Rpl_semi_sync_master_no_tx';
---replace_result 306 305
 show status like 'Rpl_semi_sync_master_yes_tx';
 
 --echo #

@@ -88,9 +88,11 @@ protected:
 */
 extern mysql_mutex_t LOCK_prepare_ordered;
 extern mysql_cond_t COND_prepare_ordered;
+extern mysql_mutex_t LOCK_after_binlog_sync;
 extern mysql_mutex_t LOCK_commit_ordered;
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
+extern PSI_mutex_key key_LOCK_after_binlog_sync;
 extern PSI_cond_key key_COND_prepare_ordered;
 #endif
 
@@ -1154,6 +1156,8 @@ static inline TC_LOG *get_tc_log_implementation()
     return &mysql_bin_log;
   return &tc_log_mmap;
 }
+
+void assert_LOCK_log_owner(bool owner);
 
 void assert_LOCK_log_owner(bool owner);
 
