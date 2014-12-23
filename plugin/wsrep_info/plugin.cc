@@ -231,7 +231,7 @@ static struct st_mysql_information_schema wsrep_status_plugin=
   Plugin library descriptor
 */
 
-maria_declare_plugin(wsrep_status)
+maria_declare_plugin(wsrep_info)
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
   &wsrep_memb_plugin,
