@@ -1445,7 +1445,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     LEX_STRING comment;
     Virtual_column_info *vcol_info= 0;
     bool fld_stored_in_db= TRUE;
-    uint gis_length, gis_decimals, srid;
+    uint gis_length, gis_decimals, srid= 0;
 
     if (new_frm_ver >= 3)
     {
