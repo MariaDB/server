@@ -114,7 +114,6 @@ public:
 };
 
 #define TC_LOG_PAGE_SIZE   8192
-#define TC_LOG_MIN_SIZE    (3*TC_LOG_PAGE_SIZE)
 
 #ifdef HAVE_MMAP
 class TC_LOG_MMAP: public TC_LOG
@@ -129,7 +128,7 @@ class TC_LOG_MMAP: public TC_LOG
   struct pending_cookies {
     uint count;
     uint pending_count;
-    ulong cookies[TC_LOG_PAGE_SIZE/sizeof(my_xid)];
+    ulong cookies[1];
   };
 
   private:

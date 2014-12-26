@@ -5107,3 +5107,13 @@ static Sys_var_mybool Sys_pseudo_slave_mode(
        SESSION_ONLY(pseudo_slave_mode), NO_CMD_LINE, DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_pseudo_slave_mode));
 
+#ifdef HAVE_MMAP
+static Sys_var_ulong Sys_log_tc_size(
+       "log_tc_size",
+       "Size of transaction coordinator log.",
+       READ_ONLY GLOBAL_VAR(opt_tc_log_size),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(my_getpagesize() * 3, ULONG_MAX),
+       DEFAULT(my_getpagesize() * 6),
+       BLOCK_SIZE(my_getpagesize()));
+#endif

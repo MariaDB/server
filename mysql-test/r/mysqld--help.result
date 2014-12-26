@@ -1248,7 +1248,6 @@ log-slow-rate-limit 1
 log-slow-slave-statements FALSE
 log-slow-verbosity 
 log-tc tc.log
-log-tc-size 24576
 log-warnings 1
 long-query-time 10
 low-priority-updates FALSE
