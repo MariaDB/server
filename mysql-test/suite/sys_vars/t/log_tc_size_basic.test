@@ -1,0 +1,5 @@
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET GLOBAL log_tc_size=1;
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET SESSION log_tc_size=1;

@@ -18,7 +18,7 @@ variable_name not in (
 'system_time_zone',
 'version_comment',
 'version_compile_machine', 'version_compile_os',
-'version_malloc_library', 'version'
+'version_malloc_library', 'log_tc_size', 'version'
         )
 order by variable_name;
 VARIABLE_NAME	AUTOCOMMIT
@@ -4887,4 +4887,19 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	NULL
+select VARIABLE_NAME, GLOBAL_VALUE_ORIGIN, VARIABLE_SCOPE, VARIABLE_TYPE,
+VARIABLE_COMMENT, ENUM_VALUE_LIST, READ_ONLY, COMMAND_LINE_ARGUMENT
+from information_schema.system_variables
+where variable_name in (
+'log_tc_size'
+        )
+order by variable_name;
+VARIABLE_NAME	LOG_TC_SIZE
+GLOBAL_VALUE_ORIGIN	AUTO
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Size of transaction coordinator log.
+ENUM_VALUE_LIST	NULL
+READ_ONLY	YES
+COMMAND_LINE_ARGUMENT	REQUIRED
 set global div_precision_increment=default;

@@ -4124,6 +4124,7 @@ static int init_common_variables()
   strmake(pidfile_name, opt_log_basename, sizeof(pidfile_name)-5);
   strmov(fn_ext(pidfile_name),".pid");		// Add proper extension
   SYSVAR_AUTOSIZE(pidfile_name_ptr, pidfile_name);
+  mark_sys_var_value_origin(&opt_tc_log_size, sys_var::AUTO);
 
   /*
     The default-storage-engine entry in my_long_options should have a
@@ -7224,12 +7225,6 @@ struct my_option my_long_options[]=
    "more than one storage engine, when binary log is disabled).",
    &opt_tc_log_file, &opt_tc_log_file, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef HAVE_MMAP
-  {"log-tc-size", 0, "Size of transaction coordinator log.",
-   &opt_tc_log_size, &opt_tc_log_size, 0, GET_ULONG,
-   REQUIRED_ARG, TC_LOG_MIN_SIZE, TC_LOG_MIN_SIZE, (ulonglong) ULONG_MAX, 0,
-   TC_LOG_PAGE_SIZE, 0},
-#endif
   {"master-info-file", 0,
    "The location and name of the file that remembers the master and where "
    "the I/O replication thread is in the master's binlogs. Defaults to "

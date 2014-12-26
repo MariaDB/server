@@ -28,7 +28,7 @@ select * from information_schema.system_variables
           'system_time_zone',
           'version_comment',
           'version_compile_machine', 'version_compile_os',
-          'version_malloc_library', 'version'
+          'version_malloc_library', 'log_tc_size', 'version'
         )
   order by variable_name;
 
@@ -50,6 +50,15 @@ select VARIABLE_NAME, VARIABLE_SCOPE, VARIABLE_TYPE, VARIABLE_COMMENT,
           'version_comment',
           'version_compile_machine', 'version_compile_os',
           'version_malloc_library', 'version'
+        )
+  order by variable_name;
+
+# yet less data: no values, no blocks size, no min/max value.
+select VARIABLE_NAME, GLOBAL_VALUE_ORIGIN, VARIABLE_SCOPE, VARIABLE_TYPE,
+       VARIABLE_COMMENT, ENUM_VALUE_LIST, READ_ONLY, COMMAND_LINE_ARGUMENT
+  from information_schema.system_variables
+  where variable_name in (
+          'log_tc_size'
         )
   order by variable_name;
 

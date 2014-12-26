@@ -8428,7 +8428,7 @@ ulong tc_log_page_waits= 0;
 
 static const uchar tc_log_magic[]={(uchar) 254, 0x23, 0x05, 0x74};
 
-ulong opt_tc_log_size= TC_LOG_MIN_SIZE;
+ulong opt_tc_log_size;
 ulong tc_log_max_pages_used=0, tc_log_page_size=0, tc_log_cur_pages_used=0;
 
 int TC_LOG_MMAP::open(const char *opt_name)
@@ -8441,7 +8441,6 @@ int TC_LOG_MMAP::open(const char *opt_name)
   DBUG_ASSERT(opt_name && opt_name[0]);
 
   tc_log_page_size= my_getpagesize();
-  DBUG_ASSERT(TC_LOG_PAGE_SIZE % tc_log_page_size == 0);
 
   fn_format(logname,opt_name,mysql_data_home,"",MY_UNPACK_FILENAME);
   if ((fd= mysql_file_open(key_file_tclog, logname, O_RDWR, MYF(0))) < 0)
@@ -8780,6 +8779,7 @@ mmap_do_checkpoint_callback(void *data)
 int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
 {
   pending_cookies *full_buffer= NULL;
+  uint32 ncookies= tc_log_page_size / sizeof(my_xid);
   DBUG_ASSERT(*(my_xid *)(data+cookie) == xid);
 
   /*
@@ -8793,7 +8793,7 @@ int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
   mysql_mutex_lock(&LOCK_pending_checkpoint);
   if (pending_checkpoint == NULL)
   {
-    uint32 size= sizeof(*pending_checkpoint);
+    uint32 size= sizeof(*pending_checkpoint) + sizeof(ulong) * (ncookies - 1);
     if (!(pending_checkpoint=
           (pending_cookies *)my_malloc(size, MYF(MY_ZEROFILL))))
     {
@@ -8804,8 +8804,7 @@ int TC_LOG_MMAP::unlog(ulong cookie, my_xid xid)
   }
 
   pending_checkpoint->cookies[pending_checkpoint->count++]= cookie;
-  if (pending_checkpoint->count == sizeof(pending_checkpoint->cookies) /
-      sizeof(pending_checkpoint->cookies[0]))
+  if (pending_checkpoint->count == ncookies)
   {
     full_buffer= pending_checkpoint;
     pending_checkpoint= NULL;
@@ -8839,7 +8838,7 @@ TC_LOG_MMAP::commit_checkpoint_notify(void *cookie)
   if (count == 0)
   {
     uint i;
-    for (i= 0; i < sizeof(pending->cookies)/sizeof(pending->cookies[0]); ++i)
+    for (i= 0; i < tc_log_page_size / sizeof(my_xid); ++i)
       delete_entry(pending->cookies[i]);
     my_free(pending);
   }

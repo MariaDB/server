@@ -5202,3 +5202,14 @@ static Sys_var_mybool Sys_strict_password_validation(
        "that cannot be validated (passwords specified as a hash)",
        GLOBAL_VAR(strict_password_validation),
        CMD_LINE(OPT_ARG), DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
+#ifdef HAVE_MMAP
+static Sys_var_ulong Sys_log_tc_size(
+       "log_tc_size",
+       "Size of transaction coordinator log.",
+       READ_ONLY GLOBAL_VAR(opt_tc_log_size),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(my_getpagesize() * 3, ULONG_MAX),
+       DEFAULT(my_getpagesize() * 6),
+       BLOCK_SIZE(my_getpagesize()));
+#endif
