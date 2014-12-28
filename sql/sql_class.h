@@ -3769,6 +3769,8 @@ public:
             (rgi_slave && rgi_have_temporary_tables()));
   }
 
+  LF_PINS *tdc_hash_pins;
+
   inline ulong wsrep_binlog_format() const
   {
     return WSREP_FORMAT(variables.binlog_format);

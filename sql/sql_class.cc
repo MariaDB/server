@@ -912,7 +912,8 @@ THD::THD(bool is_wsrep_applier)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
    wait_for_commit_ptr(0),
    main_da(0, false, false),
-   m_stmt_da(&main_da)
+   m_stmt_da(&main_da),
+   tdc_hash_pins(0)
 #ifdef WITH_WSREP
   ,
    wsrep_applier(is_wsrep_applier),
@@ -1701,6 +1702,8 @@ THD::~THD()
 
   free_root(&main_mem_root, MYF(0));
   main_da.free_memory();
+  if (tdc_hash_pins)
+    lf_hash_put_pins(tdc_hash_pins);
   if (status_var.memory_used != 0)
   {
     DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));

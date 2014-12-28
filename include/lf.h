@@ -231,6 +231,9 @@ void lf_hash_init(LF_HASH *hash, uint element_size, uint flags,
 void lf_hash_destroy(LF_HASH *hash);
 int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data);
 void *lf_hash_search(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen);
+void *lf_hash_search_using_hash_value(LF_HASH *hash, LF_PINS *pins,
+                                      my_hash_value_type hash_value,
+                                      const void *key, uint keylen);
 int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen);
 int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
                     my_hash_walk_action action, void *argument);

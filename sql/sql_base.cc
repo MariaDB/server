@@ -270,58 +270,75 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
     #		Pointer to list of names of open tables.
 */
 
+struct list_open_tables_arg
+{
+  THD *thd;
+  const char *db;
+  const char *wild;
+  TABLE_LIST table_list;
+  OPEN_TABLE_LIST **start_list, *open_list;
+};
+
+
+static my_bool list_open_tables_callback(TDC_element *element,
+                                         list_open_tables_arg *arg)
+{
+  char *db= (char*) element->m_key;
+  char *table_name= (char*) element->m_key + strlen((char*) element->m_key) + 1;
+
+  if (arg->db && my_strcasecmp(system_charset_info, arg->db, db))
+    return FALSE;
+  if (arg->wild && wild_compare(table_name, arg->wild, 0))
+    return FALSE;
+
+  /* Check if user has SELECT privilege for any column in the table */
+  arg->table_list.db= db;
+  arg->table_list.table_name= table_name;
+  arg->table_list.grant.privilege= 0;
+
+  if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
+    return FALSE;
+
+  if (!(*arg->start_list= (OPEN_TABLE_LIST *) arg->thd->alloc(
+                    sizeof(**arg->start_list) + element->m_key_length)))
+    return TRUE;
+
+  strmov((*arg->start_list)->table=
+         strmov(((*arg->start_list)->db= (char*) ((*arg->start_list) + 1)),
+                db) + 1, table_name);
+  (*arg->start_list)->in_use= 0;
+
+  mysql_mutex_lock(&element->LOCK_table_share);
+  TDC_element::All_share_tables_list::Iterator it(element->all_tables);
+  TABLE *table;
+  while ((table= it++))
+    if (table->in_use)
+      ++(*arg->start_list)->in_use;
+  mysql_mutex_unlock(&element->LOCK_table_share);
+  (*arg->start_list)->locked= 0;                   /* Obsolete. */
+  arg->start_list= &(*arg->start_list)->next;
+  *arg->start_list= 0;
+  return FALSE;
+}
+
+
 OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
 {
-  OPEN_TABLE_LIST **start_list, *open_list;
-  TABLE_LIST table_list;
-  TABLE_SHARE *share;
-  TDC_iterator tdc_it;
+  list_open_tables_arg argument;
   DBUG_ENTER("list_open_tables");
 
-  bzero((char*) &table_list,sizeof(table_list));
-  start_list= &open_list;
-  open_list=0;
+  argument.thd= thd;
+  argument.db= db;
+  argument.wild= wild;
+  bzero((char*) &argument.table_list, sizeof(argument.table_list));
+  argument.start_list= &argument.open_list;
+  argument.open_list= 0;
 
-  tdc_it.init();
-  while ((share= tdc_it.next()))
-  {
-    if (db && my_strcasecmp(system_charset_info, db, share->db.str))
-      continue;
-    if (wild && wild_compare(share->table_name.str, wild, 0))
-      continue;
+  if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
+                  &argument, true))
+    DBUG_RETURN(0);
 
-    /* Check if user has SELECT privilege for any column in the table */
-    table_list.db=         share->db.str;
-    table_list.table_name= share->table_name.str;
-    table_list.grant.privilege=0;
-
-    if (check_table_access(thd,SELECT_ACL,&table_list, TRUE, 1, TRUE))
-      continue;
-
-    if (!(*start_list = (OPEN_TABLE_LIST *)
-	  sql_alloc(sizeof(**start_list)+share->table_cache_key.length)))
-    {
-      open_list=0;				// Out of memory
-      break;
-    }
-    strmov((*start_list)->table=
-	   strmov(((*start_list)->db= (char*) ((*start_list)+1)),
-		  share->db.str)+1,
-	   share->table_name.str);
-    (*start_list)->in_use= 0;
-    mysql_mutex_lock(&share->tdc.LOCK_table_share);
-    TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
-    TABLE *table;
-    while ((table= it++))
-      if (table->in_use)
-        ++(*start_list)->in_use;
-    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
-    (*start_list)->locked= 0;                   /* Obsolete. */
-    start_list= &(*start_list)->next;
-    *start_list=0;
-  }
-  tdc_it.deinit();
-  DBUG_RETURN(open_list);
+  DBUG_RETURN(argument.open_list);
 }
 
 /*****************************************************************************
@@ -371,12 +388,12 @@ void free_io_cache(TABLE *table)
    @pre Caller should have TABLE_SHARE::tdc.LOCK_table_share mutex.
 */
 
-void kill_delayed_threads_for_table(TABLE_SHARE *share)
+void kill_delayed_threads_for_table(TDC_element *element)
 {
-  TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
+  TDC_element::All_share_tables_list::Iterator it(element->all_tables);
   TABLE *tab;
 
-  mysql_mutex_assert_owner(&share->tdc.LOCK_table_share);
+  mysql_mutex_assert_owner(&element->LOCK_table_share);
 
   if (!delayed_insert_threads)
     return;
@@ -385,7 +402,7 @@ void kill_delayed_threads_for_table(TABLE_SHARE *share)
   {
     THD *in_use= tab->in_use;
 
-    DBUG_ASSERT(in_use && tab->s->tdc.flushed);
+    DBUG_ASSERT(in_use && tab->s->tdc->flushed);
     if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
         ! in_use->killed)
     {
@@ -421,6 +438,30 @@ void kill_delayed_threads_for_table(TABLE_SHARE *share)
         ALTER TABLE) we have to rely on additional global shared metadata
         lock taken by thread trying to obtain global read lock.
 */
+
+
+struct close_cached_tables_arg
+{
+  ulong refresh_version;
+  TDC_element *element;
+};
+
+
+static my_bool close_cached_tables_callback(TDC_element *element,
+                                            close_cached_tables_arg *arg)
+{
+  mysql_mutex_lock(&element->LOCK_table_share);
+  if (element->share && element->flushed &&
+      element->version < arg->refresh_version)
+  {
+    /* wait_for_old_version() will unlock mutex and free share */
+    arg->element= element;
+    return TRUE;
+  }
+  mysql_mutex_unlock(&element->LOCK_table_share);
+  return FALSE;
+}
+
 
 bool close_cached_tables(THD *thd, TABLE_LIST *tables,
                          bool wait_for_refresh, ulong timeout)
@@ -517,38 +558,21 @@ bool close_cached_tables(THD *thd, TABLE_LIST *tables,
 
   if (!tables)
   {
-    bool found= true;
+    int r= 0;
+    close_cached_tables_arg argument;
+    argument.refresh_version= refresh_version;
     set_timespec(abstime, timeout);
-    while (found && !thd->killed)
-    {
-      TABLE_SHARE *share;
-      TDC_iterator tdc_it;
-      found= false;
 
-      tdc_it.init();
-      while ((share= tdc_it.next()))
-      {
-        mysql_mutex_lock(&share->tdc.LOCK_table_share);
-        if (share->tdc.flushed && share->tdc.version < refresh_version)
-        {
-          /* wait_for_old_version() will unlock mutex and free share */
-          found= true;
-          break;
-        }
-        mysql_mutex_unlock(&share->tdc.LOCK_table_share);
-      }
-      tdc_it.deinit();
+    while (!thd->killed &&
+           (r= tdc_iterate(thd,
+                           (my_hash_walk_action) close_cached_tables_callback,
+                           &argument)) == 1 &&
+           !argument.element->share->wait_for_old_version(thd, &abstime,
+                                    MDL_wait_for_subgraph::DEADLOCK_WEIGHT_DDL))
+      /* no-op */;
 
-      if (found)
-      {
-        if (share->wait_for_old_version(thd, &abstime,
-                                        MDL_wait_for_subgraph::DEADLOCK_WEIGHT_DDL))
-        {
-          result= TRUE;
-          break;
-        }
-      }
-    }
+    if (r)
+      result= TRUE;
   }
   else
   {
@@ -592,53 +616,72 @@ err_with_reopen:
   if specified string is NULL, then any table with a connection string.
 */
 
+struct close_cached_connection_tables_arg
+{
+  THD *thd;
+  LEX_STRING *connection;
+  TABLE_LIST *tables;
+};
+
+
+static my_bool close_cached_connection_tables_callback(
+  TDC_element *element, close_cached_connection_tables_arg *arg)
+{
+  TABLE_LIST *tmp;
+
+  mysql_mutex_lock(&element->LOCK_table_share);
+  /* Ignore if table is not open or does not have a connect_string */
+  if (!element->share || !element->share->connect_string.length ||
+      !element->ref_count)
+  {
+    mysql_mutex_unlock(&element->LOCK_table_share);
+    return FALSE;
+  }
+
+  /* Compare the connection string */
+  if (arg->connection &&
+      (arg->connection->length > element->share->connect_string.length ||
+       (arg->connection->length < element->share->connect_string.length &&
+        (element->share->connect_string.str[arg->connection->length] != '/' &&
+         element->share->connect_string.str[arg->connection->length] != '\\')) ||
+       strncasecmp(arg->connection->str, element->share->connect_string.str,
+                   arg->connection->length)))
+    return FALSE;
+
+  /* close_cached_tables() only uses these elements */
+  if (!(tmp= (TABLE_LIST*) alloc_root(arg->thd->mem_root, sizeof(TABLE_LIST))) ||
+      !(tmp->db= strdup_root(arg->thd->mem_root, element->share->db.str)) ||
+      !(tmp->table_name= strdup_root(arg->thd->mem_root,
+                                     element->share->table_name.str)))
+    return TRUE;
+
+  tmp->next_local= arg->tables;
+  arg->tables= tmp;
+
+  mysql_mutex_unlock(&element->LOCK_table_share);
+
+  return FALSE;
+}
+
+
 bool close_cached_connection_tables(THD *thd, LEX_STRING *connection)
 {
-  TABLE_LIST tmp, *tables= NULL;
-  bool result= FALSE;
-  TABLE_SHARE *share;
-  TDC_iterator tdc_it;
+  close_cached_connection_tables_arg argument;
   DBUG_ENTER("close_cached_connections");
   DBUG_ASSERT(thd);
 
-  bzero(&tmp, sizeof(TABLE_LIST));
+  argument.thd= thd;
+  argument.connection= connection;
+  argument.tables= NULL;
 
-  tdc_it.init();
-  while ((share= tdc_it.next()))
-  {
-    mysql_mutex_lock(&share->tdc.LOCK_table_share);
-    /* Ignore if table is not open or does not have a connect_string */
-    if (!share->connect_string.length || !share->tdc.ref_count)
-    {
-      mysql_mutex_unlock(&share->tdc.LOCK_table_share);
-      continue;
-    }
-    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
+  if (tdc_iterate(thd,
+                  (my_hash_walk_action) close_cached_connection_tables_callback,
+                  &argument))
+    DBUG_RETURN(true);
 
-    /* Compare the connection string */
-    if (connection &&
-        (connection->length > share->connect_string.length ||
-         (connection->length < share->connect_string.length &&
-          (share->connect_string.str[connection->length] != '/' &&
-           share->connect_string.str[connection->length] != '\\')) ||
-         strncasecmp(connection->str, share->connect_string.str,
-                     connection->length)))
-      continue;
-
-    /* close_cached_tables() only uses these elements */
-    tmp.db= share->db.str;
-    tmp.table_name= share->table_name.str;
-    tmp.next_local= tables;
-
-    tables= (TABLE_LIST *) memdup_root(thd->mem_root, (char*)&tmp, 
-                                       sizeof(TABLE_LIST));
-  }
-  tdc_it.deinit();
-
-  if (tables)
-    result= close_cached_tables(thd, tables, FALSE, LONG_TIMEOUT);
-
-  DBUG_RETURN(result);
+  DBUG_RETURN(argument.tables ?
+              close_cached_tables(thd, argument.tables, FALSE, LONG_TIMEOUT) :
+              false);
 }
 
 
@@ -1775,7 +1818,7 @@ bool wait_while_table_is_used(THD *thd, TABLE *table,
   DBUG_ENTER("wait_while_table_is_used");
   DBUG_PRINT("enter", ("table: '%s'  share: 0x%lx  db_stat: %u  version: %lu",
                        table->s->table_name.str, (ulong) table->s,
-                       table->db_stat, table->s->tdc.version));
+                       table->db_stat, table->s->tdc->version));
 
   if (thd->mdl_context.upgrade_shared_lock(
              table->mdl_ticket, MDL_EXCLUSIVE,
@@ -2388,10 +2431,10 @@ retry_share:
 
   if (!(flags & MYSQL_OPEN_IGNORE_FLUSH))
   {
-    if (share->tdc.flushed)
+    if (share->tdc->flushed)
     {
       DBUG_PRINT("info", ("Found old share version: %lu  current: %lu",
-                          share->tdc.version, tdc_refresh_version()));
+                          share->tdc->version, tdc_refresh_version()));
       /*
         We already have an MDL lock. But we have encountered an old
         version of table in the table definition cache which is possible
@@ -2422,7 +2465,7 @@ retry_share:
       goto retry_share;
     }
 
-    if (thd->open_tables && thd->open_tables->s->tdc.flushed)
+    if (thd->open_tables && thd->open_tables->s->tdc->flushed)
     {
       /*
         If the version changes while we're opening the tables,

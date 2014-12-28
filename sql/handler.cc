@@ -5001,12 +5001,12 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
   else if (engines_with_discover)
     hton= &dummy;
 
-  TABLE_SHARE *share= tdc_lock_share(db, table_name);
-  if (share)
+  TDC_element *element= tdc_lock_share(thd, db, table_name);
+  if (element && element != MY_ERRPTR)
   {
     if (hton)
-      *hton= share->db_type();
-    tdc_unlock_share(share);
+      *hton= element->share->db_type();
+    tdc_unlock_share(element);
     DBUG_RETURN(TRUE);
   }
 

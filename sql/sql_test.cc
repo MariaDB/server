@@ -76,35 +76,37 @@ print_where(COND *cond,const char *info, enum_query_type query_type)
 	/* This is for debugging purposes */
 
 
+static my_bool print_cached_tables_callback(TDC_element *element,
+                                            void *arg __attribute__((unused)))
+{
+  TABLE *entry;
+
+  mysql_mutex_lock(&element->LOCK_table_share);
+  TDC_element::All_share_tables_list::Iterator it(element->all_tables);
+  while ((entry= it++))
+  {
+    THD *in_use= entry->in_use;
+    printf("%-14.14s %-32s%6ld%8ld%6d  %s\n",
+           entry->s->db.str, entry->s->table_name.str, element->version,
+           in_use ? in_use->thread_id : 0,
+           entry->db_stat ? 1 : 0,
+           in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
+                    "Not in use");
+  }
+  mysql_mutex_unlock(&element->LOCK_table_share);
+  return FALSE;
+}
+
+
 static void print_cached_tables(void)
 {
-  TABLE_SHARE *share;
-  TABLE *entry;
-  TDC_iterator tdc_it;
-
   compile_time_assert(TL_WRITE_ONLY+1 == array_elements(lock_descriptions));
 
   /* purecov: begin tested */
   puts("DB             Table                            Version  Thread  Open  Lock");
 
-  tdc_it.init();
-  while ((share= tdc_it.next()))
-  {
-    mysql_mutex_lock(&share->tdc.LOCK_table_share);
-    TABLE_SHARE::All_share_tables_list::Iterator it(share->tdc.all_tables);
-    while ((entry= it++))
-    {
-      THD *in_use= entry->in_use;
-      printf("%-14.14s %-32s%6ld%8ld%6d  %s\n",
-             entry->s->db.str, entry->s->table_name.str, entry->s->tdc.version,
-             in_use ? in_use->thread_id : 0,
-             entry->db_stat ? 1 : 0,
-             in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
-                      "Not in use");
-    }
-    mysql_mutex_unlock(&share->tdc.LOCK_table_share);
-  }
-  tdc_it.deinit();
+  tdc_iterate(0, (my_hash_walk_action) print_cached_tables_callback, NULL, true);
+
   printf("\nCurrent refresh version: %ld\n", tdc_refresh_version());
   fflush(stdout);
   /* purecov: end */

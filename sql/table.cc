@@ -325,7 +325,7 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
                      &share->LOCK_share, MY_MUTEX_INIT_SLOW);
     mysql_mutex_init(key_TABLE_SHARE_LOCK_ha_data,
                      &share->LOCK_ha_data, MY_MUTEX_INIT_FAST);
-    tdc_init_share(share);
+    tdc_assign_new_table_id(share);
   }
   DBUG_RETURN(share);
 }
@@ -422,7 +422,6 @@ void TABLE_SHARE::destroy()
   {
     mysql_mutex_destroy(&LOCK_share);
     mysql_mutex_destroy(&LOCK_ha_data);
-    tdc_deinit_share(this);
   }
   my_hash_free(&name_hash);
 
@@ -3866,11 +3865,11 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
     because we won't try to acquire tdc.LOCK_table_share while
     holding a write-lock on MDL_lock::m_rwlock.
   */
-  mysql_mutex_lock(&tdc.LOCK_table_share);
-  tdc.all_tables_refs++;
-  mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_lock(&tdc->LOCK_table_share);
+  tdc->all_tables_refs++;
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
-  All_share_tables_list::Iterator tables_it(tdc.all_tables);
+  TDC_element::All_share_tables_list::Iterator tables_it(tdc->all_tables);
 
   /*
     In case of multiple searches running in parallel, avoid going
@@ -3888,7 +3887,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
 
   while ((table= tables_it++))
   {
-    DBUG_ASSERT(table->in_use && tdc.flushed);
+    DBUG_ASSERT(table->in_use && tdc->flushed);
     if (gvisitor->inspect_edge(&table->in_use->mdl_context))
     {
       goto end_leave_node;
@@ -3898,7 +3897,7 @@ bool TABLE_SHARE::visit_subgraph(Wait_for_flush *wait_for_flush,
   tables_it.rewind();
   while ((table= tables_it++))
   {
-    DBUG_ASSERT(table->in_use && tdc.flushed);
+    DBUG_ASSERT(table->in_use && tdc->flushed);
     if (table->in_use->mdl_context.visit_subgraph(gvisitor))
     {
       goto end_leave_node;
@@ -3911,10 +3910,10 @@ end_leave_node:
   gvisitor->leave_node(src_ctx);
 
 end:
-  mysql_mutex_lock(&tdc.LOCK_table_share);
-  if (!--tdc.all_tables_refs)
-    mysql_cond_broadcast(&tdc.COND_release);
-  mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_lock(&tdc->LOCK_table_share);
+  if (!--tdc->all_tables_refs)
+    mysql_cond_broadcast(&tdc->COND_release);
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
   return result;
 }
@@ -3949,14 +3948,14 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   Wait_for_flush ticket(mdl_context, this, deadlock_weight);
   MDL_wait::enum_wait_status wait_status;
 
-  mysql_mutex_assert_owner(&tdc.LOCK_table_share);
-  DBUG_ASSERT(tdc.flushed);
+  mysql_mutex_assert_owner(&tdc->LOCK_table_share);
+  DBUG_ASSERT(tdc->flushed);
 
-  tdc.m_flush_tickets.push_front(&ticket);
+  tdc->m_flush_tickets.push_front(&ticket);
 
   mdl_context->m_wait.reset_status();
 
-  mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
   mdl_context->will_wait_for(&ticket);
 
@@ -3967,21 +3966,10 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
   mdl_context->done_waiting_for();
 
-  mysql_mutex_lock(&tdc.LOCK_table_share);
-
-  tdc.m_flush_tickets.remove(&ticket);
-
-  if (tdc.m_flush_tickets.is_empty() && tdc.ref_count == 0)
-  {
-    /*
-      If our thread was the last one using the share,
-      we must destroy it here.
-    */
-    mysql_mutex_unlock(&tdc.LOCK_table_share);
-    destroy();
-  }
-  else
-    mysql_mutex_unlock(&tdc.LOCK_table_share);
+  mysql_mutex_lock(&tdc->LOCK_table_share);
+  tdc->m_flush_tickets.remove(&ticket);
+  mysql_cond_broadcast(&tdc->COND_release);
+  mysql_mutex_unlock(&tdc->LOCK_table_share);
 
 
   /*
@@ -4027,7 +4015,7 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
 
 void TABLE::init(THD *thd, TABLE_LIST *tl)
 {
-  DBUG_ASSERT(s->tdc.ref_count > 0 || s->tmp_table != NO_TMP_TABLE);
+  DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->tdc->ref_count > 0);
 
   if (thd->lex->need_correct_ident())
     alias_name_used= my_strcasecmp(table_alias_charset,

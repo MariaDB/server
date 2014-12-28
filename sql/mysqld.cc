@@ -4789,7 +4789,8 @@ static int init_server_components()
     all things are initialized so that unireg_abort() doesn't fail
   */
   mdl_init();
-  if (tdc_init() | hostname_cache_init())
+  tdc_init();
+  if (hostname_cache_init())
     unireg_abort(1);
 
   query_cache_set_min_res_unit(query_cache_min_res_unit);

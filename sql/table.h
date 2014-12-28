@@ -47,6 +47,7 @@ class ACL_internal_schema_access;
 class ACL_internal_table_access;
 class Field;
 class Table_statistics;
+class TDC_element;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -611,32 +612,7 @@ struct TABLE_SHARE
   mysql_mutex_t LOCK_ha_data;           /* To protect access to ha_data */
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
 
-  typedef I_P_List <TABLE, TABLE_share> TABLE_list;
-  typedef I_P_List <TABLE, All_share_tables> All_share_tables_list;
-  struct
-  {
-    /**
-      Protects ref_count, m_flush_tickets, all_tables, free_tables, flushed,
-      all_tables_refs.
-    */
-    mysql_mutex_t LOCK_table_share;
-    mysql_cond_t COND_release;
-    TABLE_SHARE *next, **prev;            /* Link to unused shares */
-    uint ref_count;                       /* How many TABLE objects uses this */
-    uint all_tables_refs;                 /* Number of refs to all_tables */
-    /**
-      List of tickets representing threads waiting for the share to be flushed.
-    */
-    Wait_for_flush_list m_flush_tickets;
-    /*
-      Doubly-linked (back-linked) lists of used and unused TABLE objects
-      for this share.
-    */
-    All_share_tables_list all_tables;
-    TABLE_list free_tables;
-    ulong version;
-    bool flushed;
-  } tdc;
+  TDC_element *tdc;
 
   LEX_CUSTRING tabledef_version;
 

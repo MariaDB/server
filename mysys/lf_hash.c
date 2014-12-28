@@ -122,7 +122,7 @@ retry:
     {
       if (unlikely(callback))
       {
-        if (callback(cursor->curr + 1, (void*)key))
+        if (cur_hashnr & 1 && callback(cursor->curr + 1, (void*)key))
           return 1;
       }
       else if (cur_hashnr >= hashnr)
@@ -467,12 +467,13 @@ int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
   NOTE
     see lsearch() for pin usage notes
 */
-void *lf_hash_search(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
+void *lf_hash_search_using_hash_value(LF_HASH *hash, LF_PINS *pins,
+                                      my_hash_value_type hashnr,
+                                      const void *key, uint keylen)
 {
   LF_SLIST * volatile *el, *found;
-  uint bucket, hashnr= calc_hash(hash, (uchar *)key, keylen);
+  uint bucket= hashnr % hash->size;
 
-  bucket= hashnr % hash->size;
   lf_rwlock_by_pins(pins);
   el= _lf_dynarray_lvalue(&hash->array, bucket);
   if (unlikely(!el))
@@ -519,6 +520,13 @@ int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
   _lf_unpin(pins, 0);
   lf_rwunlock_by_pins(pins);
   return res;
+}
+
+void *lf_hash_search(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
+{
+  return lf_hash_search_using_hash_value(hash, pins,
+                                         calc_hash(hash, (uchar*) key, keylen),
+                                         key, keylen);
 }
 
 static const uchar *dummy_key= (uchar*)"";
