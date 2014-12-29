@@ -4,7 +4,10 @@ Innodb log encrypt/decrypt
 
 Created 11/25/2013 Minli Zhu
 *******************************************************/
+#include "m_string.h"
 #include "log0crypt.h"
+#include <my_crypt.h>
+
 #include "log0log.h"
 #include "srv0start.h" // for srv_start_lsn
 #include "log0recv.h"  // for recv_sys
@@ -43,9 +46,6 @@ void
 log_init_crypt_msg_and_nonce(void)
 /*==============================*/
 {
-#ifndef HAVE_EncryptAes128Ctr
-  return;
-#else
 	mach_write_to_1(redo_log_crypt_msg, redo_log_purpose_byte);
 	if (my_random_bytes(redo_log_crypt_msg + 1, PURPOSE_BYTE_LEN) != AES_OK)
 	{
@@ -64,7 +64,6 @@ log_init_crypt_msg_and_nonce(void)
 			MY_AES_BLOCK_SIZE);
 		abort();
 	}
-#endif
 }
 
 /*********************************************************************//**
@@ -77,9 +76,6 @@ log_init_crypt_key(
 	const uint crypt_ver,		/*< in: key version */
 	byte* key)			/*< out: crypt key*/
 {
-#ifndef HAVE_EncryptAes128Ctr
-  return;
-#else
 	if (crypt_ver == UNENCRYPTED_KEY_VER)
 	{
 		fprintf(stderr, "\nInnodb redo log crypto: unencrypted key ver.\n\n");
@@ -105,10 +101,14 @@ log_init_crypt_key(
 		abort();
 	}
 
-	int dst_len;
-	int rc = EncryptAes128Ecb(mysqld_key, //key
-                                  crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
-                                  key, &dst_len); //dst, &dstlen
+	uint32 dst_len;
+	my_aes_encrypt_dynamic_type func= get_aes_encrypt_func(MY_AES_ALGORITHM_ECB);
+	int rc= (*func)(crypt_msg, MY_AES_BLOCK_SIZE, //src, srclen
+                        key, &dst_len, //dst, &dstlen
+                        (unsigned char*)&mysqld_key, sizeof(mysqld_key),
+                        NULL, 0,
+                        1);
+
 	if (rc != AES_OK || dst_len != MY_AES_BLOCK_SIZE)
 	{
 		fprintf(stderr,
@@ -116,7 +116,6 @@ log_init_crypt_key(
 			"failed.\n");
 		abort();
 	}
-#endif
 }
 
 /*********************************************************************//**
@@ -146,12 +145,9 @@ log_blocks_crypt(
 	byte* dst_block,		/*!< out: blocks after encrypt/decrypt */
 	const bool is_encrypt)		/*!< in: encrypt or decrypt*/
 {
-#ifndef HAVE_EncryptAes128Ctr
-        ut_error;                      // We should never be called
-#else
 	byte *log_block = (byte*)block;
 	Crypt_result rc = AES_OK;
-	int src_len, dst_len;
+	uint32 src_len, dst_len;
 	byte aes_ctr_counter[MY_AES_BLOCK_SIZE];
 	ulint log_block_no, log_block_start_lsn;
 	byte *key;
@@ -185,17 +181,20 @@ log_blocks_crypt(
 		mach_write_to_8(aes_ctr_counter + 3, log_block_start_lsn);
 		mach_write_to_4(aes_ctr_counter + 11, log_block_no);
 		bzero(aes_ctr_counter + 15, 1);
-		rc = EncryptAes128Ctr(key, aes_ctr_counter, MY_AES_BLOCK_SIZE, // key, counter, block size
-			log_block + LOG_BLOCK_HDR_SIZE, src_len, // src, src_len
-			dst_block + LOG_BLOCK_HDR_SIZE, &dst_len); // dst, dst_len
-		ut_a(rc == CRYPT_OK);
+
+		int rc = (* my_aes_encrypt_dynamic)(log_block + LOG_BLOCK_HDR_SIZE, src_len,
+		                                dst_block + LOG_BLOCK_HDR_SIZE, &dst_len,
+		                                (unsigned char*)key, 16,
+		                                aes_ctr_counter, MY_AES_BLOCK_SIZE,
+		                                1);
+
+		ut_a(rc == AES_OK);
 		ut_a(dst_len == src_len);
 		log_block += OS_FILE_LOG_BLOCK_SIZE;
 		dst_block += OS_FILE_LOG_BLOCK_SIZE;
 	}
 
 	return rc;
-#endif
 }
 
 /*********************************************************************//**

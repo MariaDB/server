@@ -283,10 +283,12 @@ fil_compress_page(
 
 	/* Let's not compress file space header or
 	extent descriptor */
-	if ((orig_page_type == FIL_PAGE_TYPE_FSP_HDR) || (orig_page_type == FIL_PAGE_TYPE_XDES) ) {
+	if ((orig_page_type == FIL_PAGE_TYPE_FSP_HDR)
+	     || (orig_page_type == FIL_PAGE_TYPE_XDES) ) {
 		*out_len = len;
 		return (buf);
 	}
+
         level = compression_level;
 	ut_ad(fil_space_is_page_compressed(space_id));
 

@@ -96,6 +96,21 @@ dict_stats_pool_deinit()
 
 	recalc_pool.clear();
 	defrag_pool.clear();
+
+ /*
+          recalc_pool may still have its buffer allocated. It will free it when
+          its destructor is called.
+          The problem is, memory leak detector is run before the recalc_pool's
+          destructor is invoked, and will report recalc_pool's buffer as leaked
+          memory.  To avoid that, we force recalc_pool to surrender its buffer
+          to empty_pool object, which will free it when leaving this function:
+        */
+	recalc_pool_t recalc_empty_pool;
+	defrag_pool_t defrag_empty_pool;
+	memset(&recalc_empty_pool, 0, sizeof(recalc_pool_t));
+	memset(&defrag_empty_pool, 0, sizeof(defrag_pool_t));
+        recalc_pool.swap(recalc_empty_pool);
+	defrag_pool.swap(defrag_empty_pool);
 }
 
 /*****************************************************************//**

@@ -36,16 +36,15 @@ Helper functions for encryption/decryption page data on to table space.
 Created 08/25/2014
 ***********************************************************************/
 
-
-/******************************PAGE_ENCRYPTION_ERROR*************************************//**
+/*******************************************************************//**
+Find out whether the page is page encrypted.
 Returns the page encryption flag of the space, or false if the space
 is not encrypted. The tablespace must be cached in the memory cache.
 @return	true if page encrypted, false if not or space not found */
 ibool
 fil_space_is_page_encrypted(
-/*=========================*/
+/*========================*/
     ulint   id);	/*!< in: space id */
-
 
 /*******************************************************************//**
 Find out whether the page is page encrypted
@@ -53,9 +52,16 @@ Find out whether the page is page encrypted
 UNIV_INLINE
 ibool
 fil_page_is_encrypted(
-/*===================*/
+/*==================*/
     const byte *buf);	/*!< in: page */
-
+/*******************************************************************//**
+Find out whether the page is page compressed and then encrypted
+@return	true if page is page compressed+encrypted, false if not */
+UNIV_INLINE
+ibool
+fil_page_is_compressed_encrypted(
+/*=============================*/
+    const byte *buf);	/*!< in: page */
 
 /*******************************************************************//**
 Find out whether the page can be decrypted
@@ -63,40 +69,8 @@ Find out whether the page can be decrypted
 UNIV_INLINE
 ulint
 fil_page_encryption_status(
-/*===================*/
+/*=======================*/
     const byte *buf);	/*!< in: page */
 
-
-/****************************************************************//**
-For page encrypted pages encrypt the page before actual write
-operation.
-@return encrypted page to be written*/
-byte*
-fil_encrypt_page(
-/*==============*/
-	ulint 		space_id, 	/*!< in: tablespace id of the table. */
-	byte* 		buf, 		/*!< in: buffer from which to write; in aio
-					this must be appropriately aligned */
-	byte* 		out_buf, 	/*!< out: encrypted buffer */
-	ulint 		len, 		/*!< in: length of input buffer.*/
-	ulint 		encryption_key, /*!< in: encryption key */
-	ulint* 		out_len, 	/*!< out: actual length of encrypted page */
-	ulint* 		errorCode, 	/*!< out: an error code. set, if page is intentionally not encrypted */
-	byte*  		tmp_encryption_buf); /*!< in: temporary buffer or NULL */
-
-/****************************************************************//**
-For page encrypted pages decrypt the page after actual read
-operation.
-@return decrypted page */
-ulint
-fil_decrypt_page(
-/*================*/
-	byte* 		page_buf, 	/*!< in: preallocated buffer or NULL */
-	byte* 		buf, 		/*!< in/out: buffer from which to read; in aio
-					this must be appropriately aligned */
-	ulint 		len, 		/*!< in: length buffer, which should be decrypted.*/
-	ulint* 		write_size, 	/*!< out: size of the decrypted data. If no error occurred equal to len */
-	ibool* 		page_compressed,/*!<out: is page compressed.*/
-	byte*  		tmp_encryption_buf); /*!< in: temporary buffer or NULL */
 
 #endif // fil0pageencryption_h

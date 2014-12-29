@@ -25,6 +25,10 @@ Created 10/25/1995 Heikki Tuuri
 *******************************************************/
 
 #include "fil0fil.h"
+#include "fil0pagecompress.h"
+#include "fsp0pagecompress.h"
+#include "fil0pageencryption.h"
+#include "fsp0pageencryption.h"
 
 #include <debug_sync.h>
 #include <my_dbug.h>
@@ -46,6 +50,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "page0zip.h"
 #include "trx0sys.h"
 #include "row0mysql.h"
+#include "os0file.h"
 #ifndef UNIV_HOTBACKUP
 # include "buf0lru.h"
 # include "ibuf0ibuf.h"
@@ -55,10 +60,6 @@ Created 10/25/1995 Heikki Tuuri
 # include "srv0srv.h"
 static ulint srv_data_read, srv_data_written;
 #endif /* !UNIV_HOTBACKUP */
-#include "fil0pagecompress.h"
-
-#include "fil0pageencryption.h"
-#include "fsp0pageencryption.h"
 
 #include "zlib.h"
 #ifdef __linux__
@@ -278,7 +279,7 @@ fil_read(
 	void*	buf,		/*!< in/out: buffer where to store data read;
 				in aio this must be appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
- 				aio used, else ignored */
+				aio used, else ignored */
 	ulint*	write_size)	/*!< in/out: Actual write size initialized
 				after fist successfull trim
 				operation for this page and if
@@ -286,7 +287,7 @@ fil_read(
 				actual page size does not decrease. */
 {
 	return(fil_io(OS_FILE_READ, sync, space_id, zip_size, block_offset,
-		      byte_offset, len, buf, message, write_size));
+		      byte_offset, len, buf, message, write_size, 0));
 }
 
 /********************************************************************//**
@@ -312,17 +313,18 @@ fil_write(
 	void*	buf,		/*!< in: buffer from which to write; in aio
 				this must be appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
- 				aio used, else ignored */
-	ulint*	write_size)	/*!< in/out: Actual write size initialized
+				aio used, else ignored */
+	ulint*	write_size,	/*!< in/out: Actual write size initialized
 				after fist successfull trim
 				operation for this page and if
 				initialized we do not trim again if
 				actual page size does not decrease. */
+	lsn_t	lsn)		/* lsn of the newest modification */
 {
 	ut_ad(!srv_read_only_mode);
 
 	return(fil_io(OS_FILE_WRITE, sync, space_id, zip_size, block_offset,
-		      byte_offset, len, buf, message, write_size));
+		      byte_offset, len, buf, message, write_size, lsn));
 }
 
 /*******************************************************************//**
@@ -1872,7 +1874,7 @@ fil_write_lsn_and_arch_no_to_file(
 				lsn);
 
 		err = fil_write(TRUE, space, 0, sum_of_sizes, 0,
-				UNIV_PAGE_SIZE, buf, NULL, 0);
+			        UNIV_PAGE_SIZE, buf, NULL, 0, 0);
 	}
 
 	mem_free(buf1);
@@ -5246,7 +5248,7 @@ retry:
 		success = os_aio(OS_FILE_WRITE, OS_AIO_SYNC,
 				 node->name, node->handle, buf,
 				 offset, page_size * n_pages,
-				 node, NULL, space_id, NULL, 0, 0, 0, 0, 0);
+			         node, NULL, space_id, NULL, 0, 0, 0, 0, 0, 0);
 #endif /* UNIV_HOTBACKUP */
 		if (success) {
 			os_has_said_disk_full = FALSE;
@@ -5340,7 +5342,7 @@ fil_extend_tablespaces_to_stored_len(void)
 					      single-threaded operation */
 		error = fil_read(TRUE, space->id,
 				 fsp_flags_get_zip_size(space->flags),
-				 0, 0, UNIV_PAGE_SIZE, buf, NULL);
+			         0, 0, UNIV_PAGE_SIZE, buf, NULL, 0);
 		ut_a(error == DB_SUCCESS);
 
 		size_in_header = fsp_get_size_low(buf);
@@ -5621,13 +5623,15 @@ _fil_io(
 				or from where to write; in aio this must be
 				appropriately aligned */
 	void*	message,	/*!< in: message for aio handler if non-sync
- 				aio used, else ignored */
+				aio used, else ignored */
 	ulint*	write_size,	/*!< in/out: Actual write size initialized
 				after fist successfull trim
 				operation for this page and if
 				initialized we do not trim again if
 				actual page size does not decrease. */
-	trx_t*	trx)
+	trx_t*	trx,
+	lsn_t	lsn)		/* lsn of the newest modification */
+
 {
 	ulint		mode;
 	fil_space_t*	space;
@@ -5875,7 +5879,8 @@ _fil_io(
 		page_compression_level,
 		write_size,
 		page_encrypted,
-		page_encryption_key);
+		page_encryption_key,
+	        lsn);
 
 #else
 	/* In mysqlbackup do normal i/o, not aio */

@@ -524,7 +524,7 @@ buf_dblwr_process()
 			fil_io(OS_FILE_READ, true, space_id, zip_size,
 			       page_no, 0,
 			       zip_size ? zip_size : UNIV_PAGE_SIZE,
-			       read_buf, NULL, 0);
+			       read_buf, NULL, 0, 0);
 
 			if (fil_space_verify_crypt_checksum(read_buf, zip_size)) {
 				/* page is encrypted and checksum is OK */
@@ -579,7 +579,7 @@ buf_dblwr_process()
 				fil_io(OS_FILE_WRITE, true, space_id,
 				       zip_size, page_no, 0,
 				       zip_size ? zip_size : UNIV_PAGE_SIZE,
-				       page, NULL, 0);
+				       page, NULL, 0, 0);
 
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"Recovered the page from"
@@ -599,7 +599,7 @@ buf_dblwr_process()
 					       zip_size, page_no, 0,
 					       zip_size ? zip_size
 							: UNIV_PAGE_SIZE,
-						page, NULL, 0);
+					       page, NULL, 0, 0);
 				}
 			}
 		}
@@ -621,9 +621,9 @@ buf_dblwr_process()
 		memset(buf, 0, bytes);
 
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-			buf_dblwr->block1, 0, bytes, buf, NULL, NULL);
+		       buf_dblwr->block1, 0, bytes, buf, NULL, NULL, 0);
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-			buf_dblwr->block2, 0, bytes, buf, NULL, NULL);
+		       buf_dblwr->block2, 0, bytes, buf, NULL, NULL, 0);
 
 		ut_free(unaligned_buf);
         }
@@ -833,7 +833,8 @@ buf_dblwr_write_block_to_datafile(
 		       buf_page_get_page_no(bpage), 0,
 		       buf_page_get_zip_size(bpage),
 		       frame,
-		       (void*) bpage, 0);
+		       (void*) bpage, 0,
+		       bpage->newest_modification);
 
 		return;
 	}
@@ -846,7 +847,7 @@ buf_dblwr_write_block_to_datafile(
 	fil_io(flags, sync, buf_block_get_space(block), 0,
 	       buf_block_get_page_no(block), 0, UNIV_PAGE_SIZE,
 	       frame, (void*) block,
-	       (ulint *)&bpage->write_size);
+	       (ulint *)&bpage->write_size, bpage->newest_modification);
 }
 
 /********************************************************************//**
@@ -940,7 +941,7 @@ try_again:
 
 	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 	       buf_dblwr->block1, 0, len,
-	       (void*) write_buf, NULL, 0);
+	       (void*) write_buf, NULL, 0, 0);
 
 	if (buf_dblwr->first_free <= TRX_SYS_DOUBLEWRITE_BLOCK_SIZE) {
 		/* No unwritten pages in the second block. */
@@ -956,7 +957,7 @@ try_again:
 
 	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 	       buf_dblwr->block2, 0, len,
-	       (void*) write_buf, NULL, 0);
+	       (void*) write_buf, NULL, 0, 0);
 
 flush:
 	/* increment the doublewrite flushed pages counter */
@@ -1189,14 +1190,14 @@ retry:
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 		       offset, 0, UNIV_PAGE_SIZE,
 		       (void*) (buf_dblwr->write_buf
-			       + UNIV_PAGE_SIZE * i), NULL, 0);
+			       + UNIV_PAGE_SIZE * i), NULL, 0,bpage->newest_modification);
 	} else {
 		/* It is a regular page. Write it directly to the
 		doublewrite buffer */
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
 		       offset, 0, UNIV_PAGE_SIZE,
 		       frame,
-		       NULL, 0);
+		       NULL, 0, bpage->newest_modification);
 	}
 
 	/* Now flush the doublewrite buffer data to disk */

@@ -36,14 +36,14 @@ Helper functions for encryption/decryption page data on to table space.
 Created 08/25/2014
 ***********************************************************************/
 
-
-/******************************PAGE_ENCRYPTION_ERROR*************************************//**
+/*******************************************************************//**
+Find out whether the page is page encrypted
 Returns the page encryption flag of the space, or false if the space
 is not encrypted. The tablespace must be cached in the memory cache.
 @return	true if page encrypted, false if not or space not found */
 ibool
 fil_space_is_page_encrypted(
-/*=========================*/
+/*========================*/
     ulint   id);	/*!< in: space id */
 
 /*******************************************************************//**
@@ -70,7 +70,7 @@ Find out whether the page can be decrypted
 UNIV_INLINE
 ulint
 fil_page_encryption_status(
-/*===================*/
+/*=======================*/
     const byte *buf);	/*!< in: page */
 
 #endif // fil0pageencryption_h

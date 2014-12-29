@@ -252,9 +252,9 @@ struct os_aio_slot_t{
 	byte*           tmp_encryption_buf; /*!< a temporal buffer used by page encryption */
 
 	ibool           page_compression_success;
+	/*!< TRUE if page compression was successfull, false if not */
 	ibool           page_encryption_success;
-	/*!< TRUE if page compression was
-	successfull, false if not */
+	/*!< TRUE if page encryption was successfull, false if not */
 
 	lsn_t           lsn;       /* lsn of the newest modification */
 
@@ -4697,10 +4697,6 @@ found:
 		os_mutex_enter(array->mutex);
 
 	}
-
-//	if (srv_encrypt_tables) {
-		//page_encryption = TRUE;
-//	}
 
 	/* If the space is page encryption and this is write operation
 	   then we encrypt the page */

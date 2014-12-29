@@ -266,9 +266,11 @@ struct os_aio_slot_t{
 	byte*           tmp_encryption_buf; /*!< a temporal buffer used by page encryption */
 
 	ibool           page_compression_success;
+	/*!< TRUE if page compression was successfull, false if not */
 	ibool           page_encryption_success;
-	/*!< TRUE if page compression was
-	successfull, false if not */
+	/*!< TRUE if page encryption was successfull, false if not */
+
+	lsn_t           lsn;       /* lsn of the newest modification */
 
 	ulint           file_block_size;/*!< file block size */
 
@@ -3148,29 +3150,6 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
-		/* If page is encrypted we need to decrypt it first */
-		if (fil_page_is_compressed_encrypted((byte *)buf) ||
-			fil_page_is_encrypted((byte *)buf)) {
-
-			byte *dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
-			// Decrypt the data
-			fil_space_decrypt((fil_space_crypt_t* ) NULL,
-                                          (byte *)buf,
-                                          n,
-                                          dst_frm);
-			// Copy decrypted buffer back to buf
-			memcpy(buf, dst_frm, n);
-			ut_free(dst_frm);
-		}
-
-		/* Note that InnoDB writes files that are not formated
-		as file spaces and they do not have FIL_PAGE_TYPE
-		field, thus we must use here information is the actual
-		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
-			fil_decompress_page(NULL, (byte *)buf, len, NULL);
-		}
-
 		return(TRUE);
 	}
 #else /* __WIN__ */
@@ -3183,29 +3162,6 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset, trx);
 
 	if ((ulint) ret == n) {
-		/* If page is encrypted we need to decrypt it first */
-		if (fil_page_is_compressed_encrypted((byte *)buf) ||
-                    fil_page_is_encrypted((byte *)buf)) {
-
-                  byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
-                  // Decrypt the data
-                  fil_space_decrypt((fil_space_crypt_t*) NULL,
-                                    (byte *)buf,
-                                    n,
-                                    dst_frm);
-                  // Copy decrypted buffer back to buf
-                  memcpy(buf, dst_frm, n);
-                  ut_free(dst_frm);
-		}
-
-		/* Note that InnoDB writes files that are not formated
-		as file spaces and they do not have FIL_PAGE_TYPE
-		field, thus we must use here information is the actual
-		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
-			fil_decompress_page(NULL, (byte *)buf, n, NULL);
-		}
-
 		return(TRUE);
 	}
 
@@ -3294,28 +3250,6 @@ try_again:
 	os_mutex_exit(os_file_count_mutex);
 
 	if (ret && len == n) {
-		/* If page is encrypted we need to decrypt it first */
-		if (fil_page_is_compressed_encrypted((byte *)buf) ||
-                    fil_page_is_encrypted((byte *)buf)) {
-                  byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
-                  // Decrypt the data
-                  fil_space_decrypt((fil_space_crypt_t* ) NULL,
-                                    (byte *)buf,
-                                    n,
-                                    dst_frm);
-                  // Copy decrypted buffer back to buf
-                  memcpy(buf, dst_frm, n);
-                  ut_free(dst_frm);
-		}
-
-		/* Note that InnoDB writes files that are not formated
-		as file spaces and they do not have FIL_PAGE_TYPE
-		field, thus we must use here information is the actual
-		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
-			fil_decompress_page(NULL, (byte *)buf, n, NULL);
-		}
-
 		return(TRUE);
 	}
 #else /* __WIN__ */
@@ -3328,28 +3262,6 @@ try_again:
 	ret = os_file_pread(file, buf, n, offset, NULL);
 
 	if ((ulint) ret == n) {
-		/* If the page is encrypted we need to decrypt it first */
-		if (fil_page_is_compressed_encrypted((byte *)buf) ||
-                    fil_page_is_encrypted((byte *)buf)) {
-                  byte * dst_frm = static_cast<byte *>(ut_malloc(UNIV_PAGE_SIZE));
-                  // Decrypt the data
-                  fil_space_decrypt((fil_space_crypt_t* ) NULL,
-                                    (byte *)buf,
-                                    n,
-                                    dst_frm);
-                  // Copy decrypted buffer back to buf
-                  memcpy(buf, dst_frm, n);
-                  ut_free(dst_frm);
-                }
-
-		/* Note that InnoDB writes files that are not formated
-		as file spaces and they do not have FIL_PAGE_TYPE
-		field, thus we must use here information is the actual
-		file space compressed. */
-		if (fil_page_is_compressed((byte *)buf)) {
-			fil_decompress_page(NULL, (byte *)buf, n, NULL);
-		}
-
 		return(TRUE);
 	}
 #endif /* __WIN__ */
@@ -4746,11 +4658,12 @@ os_aio_array_reserve_slot(
 					  on this file space */
 	ulint		page_encryption_key, /*!< page encryption key
 						 to be used */
-	ulint*		write_size)/*!< in/out: Actual write size initialized
+	ulint*		write_size,/*!< in/out: Actual write size initialized
 			       after first successfull trim
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
+	lsn_t		lsn)		/* lsn of the newest modification */
 {
 	os_aio_slot_t*	slot = NULL;
 #ifdef WIN_ASYNC_IO
@@ -4839,6 +4752,7 @@ found:
 	slot->type     = type;
 	slot->buf      = static_cast<byte*>(buf);
 	slot->offset   = offset;
+	slot->lsn      = lsn;
 	slot->io_already_done = FALSE;
 	slot->space_id = space_id;
 
@@ -4855,13 +4769,14 @@ found:
 		slot->file_block_size = fil_node_get_block_size(message1);
 	}
 
+
 	/* If the space is page compressed and this is write operation
-	   then we compress the page */
-	if (message1 && type == OS_FILE_WRITE && page_compression ) {
+	   then we encrypt the page */
+	if (message1 && type == OS_FILE_WRITE && page_compression) {
 		ulint           real_len = len;
 		byte*           tmp = NULL;
 
-		/* Release the array mutex while compressing */
+		/* Release the array mutex while encrypting */
 		os_mutex_exit(array->mutex);
 
 		// We allocate memory for page compressed buffer if and only
@@ -4875,7 +4790,8 @@ found:
 #endif
 
 		/* Call page compression */
-		tmp = fil_compress_page(fil_node_get_space_id(slot->message1),
+		tmp = fil_compress_page(
+                        fil_node_get_space_id(slot->message1),
 			(byte *)buf,
 			slot->page_buf,
 			len,
@@ -4895,25 +4811,26 @@ found:
 			slot->page_compression_success = FALSE;
 		}
 
-		/* Take array mutex back */
+		/* Take array mutex back, not sure if this is really needed
+		below */
 		os_mutex_enter(array->mutex);
+
 	}
 
 	/* If the space is page encryption and this is write operation
 	   then we encrypt the page */
-	if (message1 && type == OS_FILE_WRITE && page_encryption) {
+	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
 		/* Release the array mutex while encrypting */
 		os_mutex_exit(array->mutex);
 
 		// We allocate memory for page encrypted buffer if and only
 		// if it is not yet allocated.
 		os_slot_alloc_page_buf2(slot);
-		os_slot_alloc_tmp_encryption_buf(slot);
-		/* ctr not yet supported in xtradb, lsn is null*/
+
 		fil_space_encrypt(
 			fil_node_get_space_id(slot->message1),
 			slot->offset,
-			0, /* QQ: Needs to be fixed to slot->lsn */
+			slot->lsn,
 			(byte *)buf,
 			slot->len,
 			slot->page_buf2,
@@ -5213,9 +5130,9 @@ os_aio_func(
 			       actual page size does not decrease. */
    	ibool		page_encryption, /*!< in: is page encryption used
 					  on this file space */
-	ulint		page_encryption_key) /*!< page encryption key
+	ulint		page_encryption_key, /*!< page encryption key
 						 to be used */
-
+	lsn_t		lsn)		/* lsn of the newest modification */
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
@@ -5250,8 +5167,7 @@ os_aio_func(
 		if (type == OS_FILE_READ) {
 			ret = os_file_read_func(file, buf, offset, n, trx,
 				                page_compression);
-		}
-		else {
+		} else {
 			ut_ad(!srv_read_only_mode);
 			ut_a(type == OS_FILE_WRITE);
 
@@ -5323,7 +5239,8 @@ try_again:
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n, space_id,
 					 page_compression, page_compression_level,
-					 page_encryption, page_encryption_key, write_size);
+		                         page_encryption, page_encryption_key, write_size, lsn);
+
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
 			os_n_file_reads++;
@@ -5576,6 +5493,8 @@ os_aio_windows_handle(
 		}
 
 		if (fil_page_is_compressed(slot->buf)) {
+			/* We allocate memory for page compressed buffer if
+                           and only if it is not yet allocated. */
 			os_slot_alloc_page_buf(slot);
 
 #ifdef HAVE_LZO
@@ -5589,7 +5508,8 @@ os_aio_windows_handle(
 	} else {
 		/* OS_FILE_WRITE */
 		if (slot->page_compression_success &&
-                    fil_page_is_compressed(slot->page_buf)) {
+			(fil_page_is_compressed(slot->page_buf) ||
+			 fil_page_is_compressed_encrypted(slot->buf))) {
 			if (srv_use_trim && os_fallocate_failed == FALSE) {
 				// Deallocate unused blocks from file system
 				os_file_trim(slot);
@@ -5721,7 +5641,8 @@ retry:
 			} else {
 				/* OS_FILE_WRITE */
 				if (slot->page_compression_success &&
-				    fil_page_is_compressed(slot->page_buf)) {
+					(fil_page_is_compressed(slot->page_buf) ||
+					 fil_page_is_compressed_encrypted(slot->buf))) {
 					ut_ad(slot->page_compression_page);
 					if (srv_use_trim && os_fallocate_failed == FALSE) {
 						// Deallocate unused blocks from file system

@@ -25,6 +25,7 @@ Created 08/28/2014
 
 #include "fsp0fsp.h"
 #include "fil0pageencryption.h"
+#include <my_crypt_key_management.h>
 
 
 
@@ -146,17 +147,22 @@ fil_page_encryption_status(
     const byte *buf)	/*!< in: page */
 {
 	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+
 	if (page_type == FIL_PAGE_TYPE_FSP_HDR) {
 		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 		if (fsp_flags_is_page_encrypted(flags)) {
 			if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
 				/* accessing table would surely fail, because no key or no key provider available */
-				return PAGE_ENCRYPTION_KEY_MISSING;
+				if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
+					return PAGE_ENCRYPTION_KEY_MISSING;
+				}
+				return PAGE_ENCRYPTION_ERROR;
 			}
 		}
 	}
-	if(page_type == FIL_PAGE_PAGE_ENCRYPTED) {
-		ulint key = mach_read_from_1(buf + FIL_PAGE_SPACE_OR_CHKSUM);
+
+	if(page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		ulint key = mach_read_from_4(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		if (!HasCryptoKey(key)) {
 			return PAGE_ENCRYPTION_KEY_MISSING;
 		}

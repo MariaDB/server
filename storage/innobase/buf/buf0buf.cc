@@ -5668,9 +5668,6 @@ buf_page_encrypt_before_write(
 			mach_read_from_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
 		ut_ad(key_version == 0 || key_version >= bpage->key_version);
 		bpage->key_version = key_version;
-
-		// return dst_frame which will be written
-		return dst_frame;
 	} else {
 		// We do compression and encryption later on os0file.cc
 		dst_frame = (byte *)src_frame;
@@ -5765,10 +5762,21 @@ buf_page_decrypt_after_read(
 
 	if (key_version == 0) {
 		/* the page we read is unencrypted */
-		if (dst_frame != src_frame) {
-			/* but we had allocated a crypt_buf */
-			// TODO: Can this be avoided ?
-			memcpy(dst_frame, src_frame, size);
+
+		if (fil_page_is_compressed(dst_frame)) {
+			if (bpage->comp_buf_free == NULL) {
+				bpage->comp_buf_free = (byte *)malloc(UNIV_PAGE_SIZE*2);
+				// TODO: is 4k aligment enough ?
+				bpage->comp_buf = (byte*)ut_align(bpage->comp_buf_free, UNIV_PAGE_SIZE);
+			}
+
+			fil_decompress_page(bpage->comp_buf, dst_frame, size, NULL);
+		} else {
+			if (dst_frame != src_frame) {
+				/* but we had allocated a crypt_buf */
+				// TODO: Can this be avoided ?
+				memcpy(dst_frame, src_frame, size);
+			}
 		}
 	} else {
 		/* the page we read is encrypted */
@@ -5798,6 +5806,7 @@ buf_page_decrypt_after_read(
 			fil_decompress_page(bpage->comp_buf, dst_frame, size, NULL);
 		}
 	}
+
 	bpage->key_version = key_version;
 
 	if (bpage->crypt_buf_free != NULL) {
@@ -5806,6 +5815,14 @@ buf_page_decrypt_after_read(
 		bpage->crypt_buf = NULL;
 		bpage->crypt_buf_free = NULL;
 	}
+
+	if (bpage->comp_buf_free != NULL) {
+		// free temp page
+		free(bpage->comp_buf_free);
+		bpage->comp_buf = NULL;
+		bpage->comp_buf_free = NULL;
+	}
+
 	return (TRUE);
 }
 

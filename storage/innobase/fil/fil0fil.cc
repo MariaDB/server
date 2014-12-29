@@ -1923,7 +1923,7 @@ fil_check_first_page(
 	check for reading the first page should intentionally fail
 	with "can not decrypt" message. */
 	page_is_encrypted = fil_page_encryption_status(page);
-	if ((page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING) && page_is_encrypted) {
+	if (page_is_encrypted == PAGE_ENCRYPTION_KEY_MISSING && page_is_encrypted) {
 		page_is_encrypted = 1;
 	} else {
 		page_is_encrypted = 0;
@@ -5841,7 +5841,8 @@ fil_io(
 	if (!ret) {
 		return(DB_OUT_OF_FILE_SPACE);
 	} else {
-	}	return(DB_SUCCESS);
+		return(DB_SUCCESS);
+	}
 }
 
 #ifndef UNIV_HOTBACKUP

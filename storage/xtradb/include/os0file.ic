@@ -234,6 +234,7 @@ pfs_os_aio_func(
 	ulint		page_encryption_key, /*!< page encryption
 					     key to be used */
 
+	lsn_t		lsn,		/* lsn of the newest modification */
 	const char*	src_file,/*!< in: file name where func invoked */
 	ulint		src_line)/*!< in: line where the func invoked */
 {
@@ -251,7 +252,7 @@ pfs_os_aio_func(
 	result = os_aio_func(type, mode, name, file, buf, offset,
 			     n, message1, message2, space_id, trx,
 			     page_compression, page_compression_level, write_size ,
-		             page_encryption, page_encryption_key);
+		             page_encryption, page_encryption_key, lsn);
 
 	register_pfs_file_io_end(locker, n);
 

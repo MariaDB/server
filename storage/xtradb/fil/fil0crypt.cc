@@ -209,8 +209,8 @@ fil_crypt_get_key(byte *dst, uint* key_length,
         else
         {
             // load iv
+
 	    int rc = GetCryptoIV(version, (unsigned char*)iv, iv_len);
-	    fprintf(stderr, " %d\n",rc);
 
 	    if (rc != CRYPT_KEY_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -817,7 +817,6 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
             || page_type == FIL_PAGE_PAGE_COMPRESSED);
 
 	ulint orig_page_type=0;
-
 	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
 		key_version = mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);

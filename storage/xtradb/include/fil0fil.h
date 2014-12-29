@@ -959,8 +959,8 @@ fil_space_get_n_reserved_extents(
 Reads or writes data. This operation is asynchronous (aio).
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED if we are trying to do
 i/o on a tablespace which does not exist */
-#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size) \
-	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL)
+#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, lsn) \
+	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL, lsn)
 
 UNIV_INTERN
 dberr_t
@@ -996,7 +996,9 @@ _fil_io(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	trx_t*	trx)
+	trx_t*	trx,
+	lsn_t	lsn)		/* lsn of the newest modification */
+
 	__attribute__((nonnull(8)));
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the
