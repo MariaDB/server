@@ -1251,3 +1251,12 @@
  VARIABLE_COMMENT	If this is not 0, then mysqld will use this value to reserve file descriptors to use with setrlimit(). If this value is 0 then mysqld will reserve max_connections*5 or max_connections + table_cache*2 (whichever is larger) number of file descriptors
  NUMERIC_MIN_VALUE	0
  NUMERIC_MAX_VALUE	4294967295
+@@ -4897,7 +4897,7 @@
+ VARIABLE_NAME	LOG_TC_SIZE
+ GLOBAL_VALUE_ORIGIN	AUTO
+ VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BIGINT UNSIGNED
++VARIABLE_TYPE	INT UNSIGNED
+ VARIABLE_COMMENT	Size of transaction coordinator log.
+ ENUM_VALUE_LIST	NULL
+ READ_ONLY	YES

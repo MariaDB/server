@@ -428,9 +428,6 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   PSI_file_key m_key_file_log_index;
 
   PSI_file_key m_key_COND_queue_busy;
-
-  /** The instrumentation key to use for @ LOCK_binlog_end_pos */
-  PSI_mutex_key m_key_LOCK_binlog_end_pos;
 #endif
 
   struct group_commit_entry
