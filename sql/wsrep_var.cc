@@ -365,7 +365,14 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   */
   mysql_mutex_unlock(&LOCK_global_system_variables);
   wsrep_stop_replication(thd);
+
+  /*
+    Unlock and lock LOCK_wsrep_slave_threads to maintain lock order & avoid
+    any potential deadlock.
+  */
+  mysql_mutex_unlock(&LOCK_wsrep_slave_threads);
   mysql_mutex_lock(&LOCK_global_system_variables);
+  mysql_mutex_lock(&LOCK_wsrep_slave_threads);
 
   if (wsrep_start_replication())
   {
