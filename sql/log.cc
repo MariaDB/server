@@ -9885,6 +9885,7 @@ maria_declare_plugin_end;
 #ifdef WITH_WSREP
 IO_CACHE * get_trans_log(THD * thd)
 {
+  DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
   binlog_cache_mngr *cache_mngr = (binlog_cache_mngr*)
     thd_get_ha_data(thd, binlog_hton);
   if (cache_mngr)

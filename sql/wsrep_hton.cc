@@ -158,11 +158,14 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
       (thd->variables.wsrep_on && !wsrep_trans_cache_is_empty(thd)))
   {
     int res= wsrep_run_wsrep_commit(thd, hton, all);
-    if (res == WSREP_TRX_SIZE_EXCEEDED)
-      res= EMSGSIZE;
-    else
-      res= EDEADLK; // for a better error message
-    DBUG_RETURN (wsrep_run_wsrep_commit(thd, hton, all));
+    if (res != 0)
+    {
+      if (res == WSREP_TRX_SIZE_EXCEEDED)
+        res= EMSGSIZE;
+      else
+        res= EDEADLK;                           // for a better error message
+    }
+    DBUG_RETURN (res);
   }
   DBUG_RETURN(0);
 }
@@ -554,7 +557,6 @@ static int wsrep_hton_init(void *p)
   wsrep_hton->rollback= wsrep_rollback;
   wsrep_hton->prepare= wsrep_prepare;
   wsrep_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN; // todo: fix flags
-  wsrep_hton->slot= 0;
   return 0;
 }
 
