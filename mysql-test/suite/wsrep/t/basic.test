@@ -22,5 +22,27 @@ SELECT * FROM test.t1;
 # Cleanup
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-7397: SIGSEGV on inserting into a key-less table
+--echo #
+
+--echo
+--echo # On node_1
+--connection node_1
+USE test;
+CREATE TABLE t1(c1 INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+
+--echo
+--echo # On node_2
+--connection node_2
+SELECT * FROM test.t1;
+
+--let $galera_diff_statement = SELECT * FROM t1
+--source include/galera_diff.inc
+# Cleanup
+DROP TABLE t1;
+
 --source include/galera_end.inc
 --echo # End of test

@@ -27,4 +27,21 @@ c1
 4
 5
 DROP TABLE t1;
+#
+# MDEV-7397: SIGSEGV on inserting into a key-less table
+#
+
+# On node_1
+USE test;
+CREATE TABLE t1(c1 INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+c1
+1
+
+# On node_2
+SELECT * FROM test.t1;
+c1
+1
+DROP TABLE t1;
 # End of test
