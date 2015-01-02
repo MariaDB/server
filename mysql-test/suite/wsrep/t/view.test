@@ -1,0 +1,11 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-7222: Cluster Node Crash at CREATE DEFINER statement
+--echo #
+USE test;
+CREATE DEFINER=CURRENT_USER VIEW v1 AS SELECT 1;
+DROP VIEW v1;
+
+--echo # End of tests
