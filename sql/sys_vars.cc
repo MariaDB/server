@@ -62,7 +62,7 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
-#include <my_crypt_key_management.h>
+#include "encryption_keys.h"
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var

@@ -22,7 +22,6 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 #include <signal.h>
-#include <my_crypt_key_management.h>
 
 pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,

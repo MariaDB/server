@@ -197,6 +197,19 @@ int thd_key_create(MYSQL_THD_KEY_T *key);
 void thd_key_delete(MYSQL_THD_KEY_T *key);
 void* thd_getspecific(void* thd, MYSQL_THD_KEY_T key);
 int thd_setspecific(void* thd, MYSQL_THD_KEY_T key, void *value);
+#include <mysql/service_encryption_keys.h>
+extern struct encryption_keys_service_st {
+  unsigned int (*get_latest_encryption_key_version_func)();
+  unsigned int (*has_encryption_key_func)(unsigned int);
+  unsigned int (*get_encryption_key_size_func)(unsigned int);
+  int (*get_encryption_key_func)(unsigned int, unsigned char*, unsigned int);
+  int (*get_encryption_iv_func)(unsigned int, unsigned char*, unsigned int);
+} *encryption_keys_service;
+unsigned int get_latest_encryption_key_version();
+unsigned int has_encryption_key(unsigned int version);
+unsigned int get_encryption_key_size(unsigned int version);
+int get_encryption_key(unsigned int version, unsigned char* key, unsigned int keybufsize);
+int get_encryption_iv(unsigned int version, unsigned char* iv, unsigned int ivbufsize);
 struct st_mysql_xid {
   long formatID;
   long gtrid_length;

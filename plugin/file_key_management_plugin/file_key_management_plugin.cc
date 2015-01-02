@@ -18,7 +18,6 @@
 #include <mysql_version.h>
 #include <mysql/plugin_encryption_key_management.h>
 #include <my_aes.h>
-#include <my_crypt_key_management.h>
 #include "sql_class.h"
 #include "KeySingleton.h"
 #include "EncKeys.h"

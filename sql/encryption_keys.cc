@@ -1,6 +1,6 @@
 #include <my_global.h>
 #include <mysql/plugin_encryption_key_management.h>
-#include <my_crypt_key_management.h>
+#include "encryption_keys.h"
 #include "log.h"
 #include "sql_plugin.h"
 
