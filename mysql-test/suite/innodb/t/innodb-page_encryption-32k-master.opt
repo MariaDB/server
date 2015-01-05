@@ -1,4 +1,0 @@
---default-storage-engine=InnoDB
---encryption-algorithm=aes_cbs
---file-key-management-plugin-filename=$MYSQL_TEST_DIR/suite/innodb/include/keys.txt
---innodb-buffer-pool-size=24M

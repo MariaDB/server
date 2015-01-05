@@ -21,11 +21,12 @@ Name	Status	Type	Library	License
 EXAMPLE	NOT INSTALLED	STORAGE ENGINE	ha_example.so	GPL
 UNUSABLE	NOT INSTALLED	DAEMON	ha_example.so	GPL
 daemon_example	NOT INSTALLED	DAEMON	libdaemon_example.so	GPL
+example_key_management_plugin	NOT INSTALLED	ENCRYPTION KEY MANAGEMENT	example_key_management_plugin.so	GPL
 three_attempts	NOT INSTALLED	AUTHENTICATION	dialog_examples.so	GPL
 two_questions	NOT INSTALLED	AUTHENTICATION	dialog_examples.so	GPL
 show status like '%libraries%';
 Variable_name	Value
-Opened_plugin_libraries	6
+Opened_plugin_libraries	7
 show plugins soname where library = 'ha_example.so';
 Name	Status	Type	Library	License
 EXAMPLE	NOT INSTALLED	STORAGE ENGINE	ha_example.so	GPL

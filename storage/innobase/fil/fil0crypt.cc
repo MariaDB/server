@@ -210,7 +210,7 @@ fil_crypt_get_key(byte *dst, uint* key_length,
         {
             // load iv
 
-	    int rc = GetCryptoIV(version, (unsigned char*)iv, iv_len);
+	    int rc = get_encryption_iv(version, (unsigned char*)iv, iv_len);
 
 	    if (rc != CRYPT_KEY_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -219,10 +219,10 @@ fil_crypt_get_key(byte *dst, uint* key_length,
 	    }
         }
 
-	if (HasCryptoKey(version)) {
-	    *key_length = GetCryptoKeySize(version);
+	if (has_encryption_key(version)) {
+	    *key_length = get_encryption_key_size(version);
 
-	    int rc = GetCryptoKey(version, (unsigned char*)keybuf, *key_length);
+	    int rc = get_encryption_key(version, (unsigned char*)keybuf, *key_length);
 
 	    if (rc != CRYPT_KEY_OK) {
 		ib_logf(IB_LOG_LEVEL_FATAL,
@@ -295,7 +295,7 @@ fil_crypt_get_latest_key(byte *dst, uint* key_length,
 {
 	if (srv_encrypt_tables) {
 	        // used for key rotation - get the next key id from the key provider
-		int rc = GetLatestCryptoKeyVersion();
+		int rc = get_latest_encryption_key_version();
 
 		// if no new key was created use the last one
 		if (rc >= 0)
@@ -325,7 +325,7 @@ fil_space_create_crypt_data()
 		crypt_data->min_key_version = 0;
 	} else {
 		crypt_data->type = CRYPT_SCHEME_1;
-		crypt_data->min_key_version = GetLatestCryptoKeyVersion();
+		crypt_data->min_key_version = get_latest_encryption_key_version();
 	}
 
 	mutex_create(fil_crypt_data_mutex_key,
@@ -652,7 +652,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	{
 	    // take the iv from the key provider
 
-	    int load_iv_rc = GetCryptoIV(key_version, (uchar *) iv, sizeof(iv));
+	    int load_iv_rc = get_encryption_iv(key_version, (uchar *) iv, sizeof(iv));
 
 	    // if the iv can not be loaded the whole page can not be encrypted
 	    if (load_iv_rc != CRYPT_KEY_OK)
@@ -869,7 +869,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	{
 	    // take the iv from the key provider
 
-	    int load_iv_rc = GetCryptoIV(key_version, (uchar *) iv, sizeof(iv));
+	    int load_iv_rc = get_encryption_iv(key_version, (uchar *) iv, sizeof(iv));
 
 	    // if the iv can not be loaded the whole page can not be decrypted
 	    if (load_iv_rc != CRYPT_KEY_OK)
@@ -1049,7 +1049,7 @@ fil_crypt_get_key_state(
 	key_state_t *new_state)
 {
 	if (srv_encrypt_tables == TRUE) {
-		new_state->key_version = GetLatestCryptoKeyVersion();
+		new_state->key_version = get_latest_encryption_key_version();
 		new_state->rotate_key_age = srv_fil_crypt_rotate_key_age;
 		ut_a(new_state->key_version > 0);
 	} else {
@@ -2375,7 +2375,7 @@ fil_space_crypt_get_status(
 	}
 
 	if (srv_encrypt_tables == TRUE) {
-		status->current_key_version = GetLatestCryptoKeyVersion();
+		status->current_key_version = get_latest_encryption_key_version();
 	} else {
 		status->current_key_version = 0;
 	}

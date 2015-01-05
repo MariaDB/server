@@ -37,7 +37,7 @@ Note:
 We should not use flags and conditions such as:
 	(srv_encrypt_log &&
 	 debug_use_static_keys &&
-	 GetLatestCryptoKeyVersion() == UNENCRYPTED_KEY_VER)
+	 get_latest_encryption_key_version() == UNENCRYPTED_KEY_VER)
 because they haven't been read and set yet in the situation of resetting
 redo logs.
 */
@@ -93,7 +93,7 @@ log_init_crypt_key(
 	}
 
 	byte mysqld_key[MY_AES_BLOCK_SIZE] = {0};
-	if (GetCryptoKey(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
+	if (get_encryption_key(crypt_ver, mysqld_key, MY_AES_BLOCK_SIZE))
 	{
 		fprintf(stderr,
 			"\nInnodb redo log crypto: getting mysqld crypto key "
@@ -234,7 +234,7 @@ log_crypt_set_ver_and_key(
 	byte* crypt_key)		/*!< out: crypto key */
 {
 	if (!srv_encrypt_log ||
-	    (key_ver = GetLatestCryptoKeyVersion()) == UNENCRYPTED_KEY_VER)
+	    (key_ver = get_latest_encryption_key_version()) == UNENCRYPTED_KEY_VER)
 	{
 		key_ver = UNENCRYPTED_KEY_VER;
 		memset(crypt_key, 0, MY_AES_BLOCK_SIZE);

@@ -1,8 +1,7 @@
---enable-example-key-management-plugin
---encrypt-tmp-disk-tables=ON
 --aria-encrypt-tables=ON
---innodb-encryption-threads=4
---innodb-encryption-rotate-key-age=15
+--encrypt-tmp-disk-tables=ON
 --innodb-encrypt-tables=ON
+--innodb-encryption-rotate-key-age=15
+--innodb-encryption-threads=4
 --innodb-tablespaces-encryption
 --encryption-algorithm=aes_ctr

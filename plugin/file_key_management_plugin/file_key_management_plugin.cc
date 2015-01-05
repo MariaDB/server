@@ -16,6 +16,7 @@
 
 #include <my_global.h>
 #include <mysql_version.h>
+#include <mysql/plugin_encryption_key_management.h>
 #include <my_aes.h>
 #include <my_crypt_key_management.h>
 #include "sql_class.h"
@@ -50,7 +51,7 @@ static struct st_mysql_sys_var* settings[] = {
    rotation feature of encrypting log files.
 */
 
-static int get_highest_key_used_in_key_file()
+static unsigned int get_highest_key_used_in_key_file()
 {
   if (KeySingleton::getInstance().hasKey(0))
   {
@@ -67,7 +68,7 @@ static unsigned int has_key_from_key_file(unsigned int keyID)
   return entry != NULL;
 }
 
-static int get_key_size_from_key_file(unsigned int keyID)
+static unsigned int get_key_size_from_key_file(unsigned int keyID)
 {
   keyentry* entry = KeySingleton::getInstance().getKeys(keyID);
 
@@ -146,16 +147,6 @@ static int file_key_management_plugin_init(void *p)
     return 1;
   }
 
-  /* Initializing the key provider */
-  struct CryptoKeyFuncs_t func;
-  func.getLatestCryptoKeyVersionFunc = get_highest_key_used_in_key_file;
-  func.hasCryptoKeyFunc = has_key_from_key_file;
-  func.getCryptoKeySize = get_key_size_from_key_file;
-  func.getCryptoKeyFunc = get_key_from_key_file;
-  func.getCryptoIVFunc = get_iv_from_key_file;
-
-  InstallCryptoKeyFunctions(&func);
-
   if (filename == NULL || strcmp("", filename) == 0)
   {
     sql_print_error("Parameter file_key_management_plugin_filename is required");
@@ -175,8 +166,13 @@ static int file_key_management_plugin_deinit(void *p)
   return 0;
 }
 
-struct st_mysql_daemon file_key_management_plugin= {
-  MYSQL_DAEMON_INTERFACE_VERSION
+struct st_mariadb_encryption_key_management file_key_management_plugin= {
+  MariaDB_ENCRYPTION_KEY_MANAGEMENT_INTERFACE_VERSION,
+  get_highest_key_used_in_key_file,
+  has_key_from_key_file,
+  get_key_size_from_key_file,
+  get_key_from_key_file,
+  get_iv_from_key_file
 };
 
 /*
@@ -184,7 +180,7 @@ struct st_mysql_daemon file_key_management_plugin= {
 */
 maria_declare_plugin(file_key_management_plugin)
 {
-  MYSQL_KEY_MANAGEMENT_PLUGIN,
+  MariaDB_ENCRYPTION_KEY_MANAGEMENT_PLUGIN,
   &file_key_management_plugin,
   "file_key_management_plugin",
   "Denis Endro eperi GmbH",

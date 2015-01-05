@@ -27,9 +27,6 @@ Created 08/28/2014
 #include "fil0pageencryption.h"
 #include <my_crypt_key_management.h>
 
-
-
-
 /********************************************************************//**
 Determine if the tablespace is page encrypted from dict_table_t::flags.
 @return	TRUE if page encrypted, FALSE if not page encrypted */
@@ -151,9 +148,9 @@ fil_page_encryption_status(
 	if (page_type == FIL_PAGE_TYPE_FSP_HDR) {
 		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 		if (fsp_flags_is_page_encrypted(flags)) {
-			if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
+			if (!has_encryption_key(fsp_flags_get_page_encryption_key(flags))) {
 				/* accessing table would surely fail, because no key or no key provider available */
-				if (!HasCryptoKey(fsp_flags_get_page_encryption_key(flags))) {
+				if (!has_encryption_key(fsp_flags_get_page_encryption_key(flags))) {
 					return PAGE_ENCRYPTION_KEY_MISSING;
 				}
 				return PAGE_ENCRYPTION_ERROR;
@@ -163,7 +160,7 @@ fil_page_encryption_status(
 
 	if(page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		ulint key = mach_read_from_4(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-		if (!HasCryptoKey(key)) {
+		if (!has_encryption_key(key)) {
 			return PAGE_ENCRYPTION_KEY_MISSING;
 		}
 		return PAGE_ENCRYPTION_ERROR;

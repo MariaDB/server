@@ -40,8 +40,6 @@ SET(MYSYS_SSL_SOURCES
     my_md5.cc
     my_rnd.cc
     my_crypt.cc
-    my_crypt_key_management.cc
-    my_crypt_key_management_impl.cc
    )
 
 ADD_CONVENIENCE_LIBRARY(mysys_ssl ${MYSYS_SSL_SOURCES})

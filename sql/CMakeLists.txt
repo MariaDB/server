@@ -115,7 +115,7 @@ SET (SQL_SOURCE
                my_json_writer.cc my_json_writer.h
                rpl_gtid.cc rpl_parallel.cc
 	       ${WSREP_SOURCES}
-               table_cache.cc
+               table_cache.cc encryption_keys.cc
                ${CMAKE_CURRENT_BINARY_DIR}/sql_builtin.cc
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}

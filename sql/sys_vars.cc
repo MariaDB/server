@@ -62,7 +62,7 @@
 #include "sql_repl.h"
 #include "opt_range.h"
 #include "rpl_parallel.h"
-#include "my_crypt_key_management.h"
+#include <my_crypt_key_management.h>
 
 /*
   The rule for this file: everything should be 'static'. When a sys_var
@@ -1134,15 +1134,12 @@ static Sys_var_mybool Sys_debug_use_static_keys(
        READ_ONLY GLOBAL_VAR(debug_use_static_encryption_keys),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static PolyLock_rwlock PLock_sys_debug_encryption_key_version(
-       &LOCK_dbug_encryption_key_version);
-
 static Sys_var_uint Sys_debug_encryption_key_version(
        "debug_encryption_key_version",
        "Encryption key version. Only to be used in internal testing.",
        GLOBAL_VAR(opt_debug_encryption_key_version),
        CMD_LINE(REQUIRED_ARG), VALID_RANGE(0,UINT_MAX), DEFAULT(0),
-       BLOCK_SIZE(1), &PLock_sys_debug_encryption_key_version);
+       BLOCK_SIZE(1));
 #endif
 
 static Sys_var_mybool Sys_trust_function_creators(

@@ -1,5 +1,6 @@
 -- source include/have_innodb.inc
 -- source include/not_embedded.inc
+-- source include/have_example_key_management_plugin.inc
 
 let $MYSQLD_DATADIR=`select @@datadir`;
 let ib1_IBD = $MYSQLD_DATADIR/ibdata1;
