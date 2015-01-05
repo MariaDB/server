@@ -879,8 +879,8 @@ struct validation_data { LEX_STRING *user, *password; };
 static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 {
   struct validation_data *data= (struct validation_data *)arg;
-  struct st_mysql_password_validation *handler=
-    (st_mysql_password_validation *)plugin_decl(plugin)->info;
+  struct st_mariadb_password_validation *handler=
+    (st_mariadb_password_validation *)plugin_decl(plugin)->info;
   return handler->validate_password(data->user, data->password);
 }
 
