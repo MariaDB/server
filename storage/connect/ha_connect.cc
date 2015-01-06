@@ -1055,6 +1055,14 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->colist;
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
+  else if (!stricmp(opname, "Table_charset")) {
+    const CHARSET_INFO *chif= (tshp) ? tshp->table_charset 
+                                     : table->s->table_charset;
+
+    if (chif)
+      opval= (char*)chif->csname;
+
+  } // endif Table_charset
 
   if (!opval && options && options->oplist)
     opval= GetListOption(xp->g, opname, options->oplist);
@@ -3806,6 +3814,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
+//  case TAB_JSON:
       if (options->filename && *options->filename) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(WIN32)

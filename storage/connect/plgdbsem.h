@@ -74,9 +74,11 @@ enum TABTYPE {TAB_UNDEF =  0,   /* Table of undefined type             */
               TAB_PLG   = 20,   /* PLG NIY                             */
               TAB_PIVOT = 21,   /* PIVOT table                         */
               TAB_VIR   = 22,   /* Virtual tables                      */
-              TAB_JCT   = 23,   /* Junction tables NIY                 */
-              TAB_DMY   = 24,   /* DMY Dummy tables NIY                */
-              TAB_NIY   = 25};  /* Table not implemented yet           */
+              TAB_JSON  = 23,   /* JSON tables                         */
+              TAB_JSN   = 24,   /* Semi-json tables                    */
+              TAB_JCT   = 25,   /* Junction tables NIY                 */
+              TAB_DMY   = 26,   /* DMY Dummy tables NIY                */
+              TAB_NIY   = 27};  /* Table not implemented yet           */
 
 enum AMT {TYPE_AM_ERROR =   0,        /* Type not defined              */
           TYPE_AM_ROWID =   1,        /* ROWID type (special column)   */

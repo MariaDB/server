@@ -330,7 +330,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
 /***********************************************************************/
 /*  AllocateConstant: allocates a constant Value.                      */
 /***********************************************************************/
-PVAL AllocateValue(PGLOBAL g, void *value, short type)
+PVAL AllocateValue(PGLOBAL g, void *value, short type, short prec)
   {
   PVAL valp;
 
@@ -351,7 +351,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
       valp = new(g) TYPVAL<longlong>(*(longlong*)value, TYPE_BIGINT);
       break;
     case TYPE_DOUBLE:
-      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_DOUBLE, 2);
+      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_DOUBLE, prec);
       break;
     case TYPE_TINY:
       valp = new(g) TYPVAL<char>(*(char *)value, TYPE_TINY);
@@ -475,7 +475,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
       break;
     case TYPE_DOUBLE:
       valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
-                                   valp->GetValPrec());
+                     (uns) ? uns : valp->GetValPrec());
       break;
     case TYPE_TINY:
       if (un)
@@ -541,6 +541,15 @@ BYTE VALUE::TestValue(PVAL vp)
 
   return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
   } // end of TestValue
+
+/***********************************************************************/
+/*  Compute a function on a string.                                    */
+/***********************************************************************/
+bool VALUE::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  strcpy(g->Message, "Compute not implemented for this value type");
+  return true;
+  } // end of Compute
 
 /* -------------------------- Class TYPVAL ---------------------------- */
 
@@ -929,6 +938,188 @@ int TYPVAL<TYPE>::CompareValue(PVAL vp)
 
   return (Tval > n) ? 1 : (Tval < n) ? (-1) : 0;
   } // end of CompareValue
+
+#if 0
+/***********************************************************************/
+/*  Return max type value if b is true, else min type value.           */
+/***********************************************************************/
+template <>
+short TYPVAL<short>::MinMaxVal(bool b)
+  {return (b) ? MAXINT16 : MININT16;}
+
+template <>
+USHORT TYPVAL<USHORT>::MinMaxVal(bool b)
+  {return (b) ? MAXUINT16 : 0;}
+
+template <>
+int TYPVAL<int>::MinMaxVal(bool b)
+  {return (b) ? MAXINT32 : MININT32;}
+
+template <>
+UINT TYPVAL<UINT>::MinMaxVal(bool b)
+  {return (b) ? MAXUINT32 : 0;}
+
+template <>
+longlong TYPVAL<longlong>::MinMaxVal(bool b)
+  {return (b) ? MAXINT64 : MININT64;}
+
+template <>
+ulonglong TYPVAL<ulonglong>::MinMaxVal(bool b)
+  {return (b) ? MAXUINT64 : 0;}
+
+template <>
+double TYPVAL<double>::MinMaxVal(bool b)
+  {assert(false); return 0.0;}
+
+template <>
+char TYPVAL<char>::MinMaxVal(bool b)
+  {return (b) ? MAXINT8 : MININT8;}
+
+template <>
+UCHAR TYPVAL<UCHAR>::MinMaxVal(bool b)
+  {return (b) ? MAXUINT8 : 0;}
+
+/***********************************************************************/
+/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
+/***********************************************************************/
+template <class TYPE>
+TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
+  {
+  PGLOBAL& g = Global;
+  TYPE     n = n1 + n2;
+
+  if ((n2 > 0) && (n < n1)) {
+    // Overflow
+    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
+    longjmp(g->jumper[g->jump_level], 138);
+  } else if ((n2 < 0) && (n > n1)) {
+    // Underflow
+    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
+    longjmp(g->jumper[g->jump_level], 138);
+  } // endif's n2
+
+  return n;
+  } // end of SafeAdd
+
+template <>
+inline double TYPVAL<double>::SafeAdd(double n1, double n2)
+  {
+  assert(false); return 0;
+  } // end of SafeAdd
+
+/***********************************************************************/
+/*  SafeMult: multiply values and test whether overflow occured.       */
+/***********************************************************************/
+template <class TYPE>
+TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
+  {
+  PGLOBAL& g = Global;
+  double   n = (double)n1 * (double)n2;
+
+  if (n > MinMaxVal(true)) {
+    // Overflow
+    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
+    longjmp(g->jumper[g->jump_level], 138);
+  } else if (n < MinMaxVal(false)) {
+    // Underflow
+    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
+    longjmp(g->jumper[g->jump_level], 138);
+  } // endif's n2
+
+  return (TYPE)n;
+  } // end of SafeMult
+
+template <>
+inline double TYPVAL<double>::SafeMult(double n1, double n2)
+  {
+  assert(false); return 0;
+  } // end of SafeMult
+#endif // 0
+
+/***********************************************************************/
+/*  Compute defined functions for the type.                            */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  bool rc = false;
+  TYPE val[2];
+
+  assert(np == 2);
+
+  for (int i = 0; i < np; i++)
+    val[i] = GetTypedValue(vp[i]);
+
+  switch (op) {
+    case OP_ADD:
+//    Tval = SafeAdd(val[0], val[1]);
+      Tval = val[0] + val[1];
+      break;
+    case OP_MULT:
+//    Tval = SafeMult(val[0], val[1]);
+      Tval = val[0] * val[1];
+      break;
+    default:
+      rc = Compall(g, vp, np, op);
+      break;
+    } // endswitch op
+
+  return rc;
+  } // end of Compute
+
+#if 0
+template <>
+bool TYPVAL<double>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  bool   rc = false;
+  double val[2];
+
+  assert(np == 2);
+
+  for (int i = 0; i < np; i++)
+    val[i] = vp[i]->GetFloatValue();
+
+  switch (op) {
+    case OP_ADD:
+      Tval = val[0] + val[1];
+      break;
+    case OP_MULT:
+      Tval = val[0] * val[1];
+      break;
+    default:
+      rc = Compall(g, vp, np, op);
+    } // endswitch op
+
+  return rc;
+  } // end of Compute
+#endif // 0
+
+/***********************************************************************/
+/*  Compute a function for all types.                                  */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  TYPE val[2];
+
+  for (int i = 0; i < np; i++)
+    val[i] = GetTypedValue(vp[i]);
+
+  switch (op) {
+    case OP_MIN:
+      Tval = MY_MIN(val[0], val[1]);
+      break;
+    case OP_MAX:
+      Tval = MY_MAX(val[0], val[1]);
+      break;
+    default:
+//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+      strcpy(g->Message, "Function not supported");
+      return true;
+    } // endswitch op
+
+  return false;
+  } // end of Compall
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
@@ -1408,6 +1599,45 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
 
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
   } // end of CompareValue
+
+/***********************************************************************/
+/*  Compute a function on a string.                                    */
+/***********************************************************************/
+bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  char *p[2], val[2][32];
+  int   i;
+
+  for (i = 0; i < np; i++)
+    p[i] = vp[i]->GetCharString(val[i]);
+
+  switch (op) {
+    case OP_CNC:
+      assert(np == 1 || np == 2);
+
+      if (np == 2)
+        strncpy(Strp, p[0], Len);
+
+      if ((i = Len - (signed)strlen(Strp)) > 0)
+        strncat(Strp, p[np - 1], i);
+
+      break;
+    case OP_MIN:
+      assert(np == 2);
+      strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+      break;
+    case OP_MAX:
+      assert(np == 2);
+      strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+      break;
+    default:
+//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+      strcpy(g->Message, "Function not supported");
+      return true;
+    } // endswitch op
+
+  return false;
+  } // end of Compute
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
