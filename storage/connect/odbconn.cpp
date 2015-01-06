@@ -2453,7 +2453,7 @@ PQRYRES ODBConn::AllocateResult(PGLOBAL g)
 /***********************************************************************/
 int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
   {
-  int rc, rbuf;
+  int rc, rbuf = -1;
 
   if (!m_hstmt)
     rbuf = -1;
