@@ -11,7 +11,6 @@
 #include "mysql.h"
 #include <openssl/evp.h>
 #include <openssl/aes.h>
-#include <openssl/rand.h>
 
 static const int CRYPT_ENCRYPT = 1;
 static const int CRYPT_DECRYPT = 0;
@@ -349,6 +348,8 @@ Crypt_result my_random_bytes(uchar* buf, int num)
 C_MODE_END
 
 #else  /* OpenSSL */
+
+#include <openssl/rand.h>
 
 C_MODE_START
 

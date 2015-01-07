@@ -7,8 +7,6 @@
 
 #if !defined(HAVE_YASSL) && defined(HAVE_OPENSSL)
 
-#define HAVE_EncryptAes128Ctr
-
 C_MODE_START
 Crypt_result my_aes_encrypt_ctr(const uchar* source, uint32 source_length,
                                 uchar* dest, uint32* dest_length,

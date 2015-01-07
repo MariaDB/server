@@ -589,6 +589,7 @@
 #cmakedefine HAVE_CHARSET_utf32 1
 #cmakedefine HAVE_UCA_COLLATIONS 1
 #cmakedefine HAVE_COMPRESS 1
+#cmakedefine HAVE_EncryptAes128Ctr 1
 
 
 /*
