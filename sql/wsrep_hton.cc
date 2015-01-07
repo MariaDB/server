@@ -484,7 +484,8 @@ wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
   case WSREP_BF_ABORT:
     DBUG_ASSERT(thd->wsrep_trx_meta.gtid.seqno != WSREP_SEQNO_UNDEFINED);
   case WSREP_TRX_FAIL:
-    WSREP_DEBUG("commit failed for reason: %d", rcode);
+    WSREP_DEBUG("commit failed for reason: %d %lu %s", rcode, thd->thread_id,
+                thd->query());
     DBUG_PRINT("wsrep", ("replicating commit fail"));
 
     thd->wsrep_query_state= QUERY_EXEC;

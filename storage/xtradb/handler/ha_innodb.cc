@@ -6871,6 +6871,14 @@ no_commit:
 #ifdef WITH_WSREP
 			/* workaround for LP bug #355000, retrying the insert */
 			case SQLCOM_INSERT:
+
+				WSREP_DEBUG("DUPKEY error for autoinc\n"
+				      "THD %ld, value %llu, off %llu inc %llu",
+				      wsrep_thd_thread_id(current_thd),
+				      auto_inc,
+				      prebuilt->autoinc_offset,
+				      prebuilt->autoinc_increment);
+
 				if (wsrep_on(current_thd)          &&
 				    auto_inc_inserted              &&
 				    wsrep_drupal_282555_workaround &&
@@ -8443,10 +8451,10 @@ wsrep_append_key(
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s ", 
+	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",
 		(shared) ? "Shared" : "Exclusive",
 		wsrep_thd_thread_id(thd), trx->id, key_len, 
-		table_share->table_name.str);
+		table_share->table_name.str, wsrep_thd_query(thd));
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
 	}
@@ -12591,7 +12599,20 @@ ha_innobase::get_auto_increment(
 		next value in the series. */
 		if (prebuilt->autoinc_increment > increment) {
 
+#ifdef WITH_WSREP
+			WSREP_DEBUG("autoinc decrease: %llu -> %llu\n"
+				    "THD: %ld, current: %llu, autoinc: %llu", 
+				    prebuilt->autoinc_increment,
+				    increment,
+				    wsrep_thd_thread_id(ha_thd()),
+				    current, autoinc);
+			if (!wsrep_on(ha_thd()))
+			{
+#endif /* WITH_WSREP */
 			current = autoinc - prebuilt->autoinc_increment;
+#ifdef WITH_WSREP
+			}
+#endif /* WITH_WSREP */
 
 			current = innobase_next_autoinc(
 				current, 1, increment, 1, col_max_value);
