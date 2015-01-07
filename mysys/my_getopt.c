@@ -56,7 +56,7 @@ enum enum_special_opt
 char *disabled_my_option= (char*) "0";
 char *enabled_my_option= (char*) "1";
 
-/* 
+/*
    This is a flag that can be set in client programs. 0 means that
    my_getopt will not print error messages, but the client should do
    it by itself
@@ -64,12 +64,20 @@ char *enabled_my_option= (char*) "1";
 
 my_bool my_getopt_print_errors= 1;
 
-/* 
+/*
    This is a flag that can be set in client programs. 1 means that
    my_getopt will skip over options it does not know how to handle.
 */
 
 my_bool my_getopt_skip_unknown= 0;
+
+
+/*
+   This is a flag that can be set in client programs. 1 means that
+   my_getopt will reconize command line options by their unambiguous
+   prefixes. 0 means an option must be always specified in full.
+*/
+my_bool my_getopt_prefix_matching= 1;
 
 static void default_reporter(enum loglevel level,
                              const char *format, ...)
@@ -851,6 +859,9 @@ static int findopt(char *optpat, uint length,
       if (!opt->name[length])		/* Exact match */
 	DBUG_RETURN(1);
 
+      if (!my_getopt_prefix_matching)
+        continue;
+
       if (!count)
       {
         /* We only need to know one prev */
@@ -867,6 +878,14 @@ static int findopt(char *optpat, uint length,
       }
     }
   }
+
+  if (count == 1)
+    my_getopt_error_reporter(INFORMATION_LEVEL,
+                             "Using unique option prefix '%.*s' is error-prone "
+                             "and can break in the future. "
+                             "Please use the full name '%s' instead.",
+                             length, optpat, *ffname);
+
   DBUG_RETURN(count);
 }
 

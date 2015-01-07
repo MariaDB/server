@@ -839,8 +839,12 @@ static struct my_option pfs_early_options[]=
     "Default startup value for the statements_digest consumer.",
     &pfs_param.m_consumer_statement_digest_enabled,
     &pfs_param.m_consumer_statement_digest_enabled, 0,
-    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0}
+    GET_BOOL, OPT_ARG, TRUE, 0, 0, 0, 0, 0},
 #endif /* WITH_PERFSCHEMA_STORAGE_ENGINE */
+  {"getopt-prefix-matching", 0,
+    "Recognize command-line options by their unambiguos prefixes.",
+    &my_getopt_prefix_matching, &my_getopt_prefix_matching, 0, GET_BOOL,
+    NO_ARG, 1, 0, 1, 0, 0, 0}
 };
 
 #ifdef HAVE_PSI_INTERFACE

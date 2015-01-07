@@ -205,6 +205,10 @@ The following options may be given as the first argument:
  mysql.general_logif --log-output=TABLE is used
  --general-log-file=name 
  Log connections and queries to given file
+ --getopt-prefix-matching 
+ Recognize command-line options by their unambiguos
+ prefixes.
+ (Defaults to on; use --skip-getopt-prefix-matching to disable.)
  --group-concat-max-len=# 
  The maximum length of the result of function 
  GROUP_CONCAT()
@@ -1152,6 +1156,7 @@ ft-query-expansion-limit 20
 ft-stopword-file (No default value)
 gdb FALSE
 general-log FALSE
+getopt-prefix-matching TRUE
 group-concat-max-len 1024
 gtid-domain-id 0
 gtid-ignore-duplicates FALSE
