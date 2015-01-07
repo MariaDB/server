@@ -106,9 +106,10 @@ handle_queued_pos_update(THD *thd, rpl_parallel_thread::queued_event *qev)
 
 
 static void
-finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
-                   rpl_group_info *rgi)
+finish_event_group(rpl_parallel_thread *rpt, uint64 sub_id,
+                   rpl_parallel_entry *entry, rpl_group_info *rgi)
 {
+  THD *thd= rpt->thd;
   wait_for_commit *wfc= &rgi->commit_orderer;
   int err;
 
@@ -139,24 +140,46 @@ finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
     signal_error_to_sql_driver_thread(thd, rgi, err);
   thd->wait_for_commit_ptr= NULL;
 
-  /*
-    Record that this event group has finished (eg. transaction is
-    committed, if transactional), so other event groups will no longer
-    attempt to wait for us to commit. Once we have increased
-    entry->last_committed_sub_id, no other threads will execute
-    register_wait_for_prior_commit() against us. Thus, by doing one
-    extra (usually redundant) wakeup_subsequent_commits() we can ensure
-    that no register_wait_for_prior_commit() can ever happen without a
-    subsequent wakeup_subsequent_commits() to wake it up.
-
-    We can race here with the next transactions, but that is fine, as
-    long as we check that we do not decrease last_committed_sub_id. If
-    this commit is done, then any prior commits will also have been
-    done and also no longer need waiting for.
-  */
   mysql_mutex_lock(&entry->LOCK_parallel_entry);
+  /*
+    We need to mark that this event group started its commit phase, in case we
+    missed it before (otherwise we would deadlock the next event group that is
+    waiting for this). In most cases (normal DML), it will be a no-op.
+  */
+  rgi->mark_start_commit_no_lock();
+
   if (entry->last_committed_sub_id < sub_id)
+  {
+    /*
+      Record that this event group has finished (eg. transaction is
+      committed, if transactional), so other event groups will no longer
+      attempt to wait for us to commit. Once we have increased
+      entry->last_committed_sub_id, no other threads will execute
+      register_wait_for_prior_commit() against us. Thus, by doing one
+      extra (usually redundant) wakeup_subsequent_commits() we can ensure
+      that no register_wait_for_prior_commit() can ever happen without a
+      subsequent wakeup_subsequent_commits() to wake it up.
+
+      We can race here with the next transactions, but that is fine, as
+      long as we check that we do not decrease last_committed_sub_id. If
+      this commit is done, then any prior commits will also have been
+      done and also no longer need waiting for.
+    */
     entry->last_committed_sub_id= sub_id;
+
+    /* Now free any GCOs in which all transactions have committed. */
+    group_commit_orderer *tmp_gco= rgi->gco;
+    while (tmp_gco &&
+           (!tmp_gco->next_gco || tmp_gco->last_sub_id > sub_id))
+      tmp_gco= tmp_gco->prev_gco;
+    while (tmp_gco)
+    {
+      group_commit_orderer *prev_gco= tmp_gco->prev_gco;
+      tmp_gco->next_gco->prev_gco= NULL;
+      rpt->loc_free_gco(tmp_gco);
+      tmp_gco= prev_gco;
+    }
+  }
 
   /*
     If this event group got error, then any following event groups that have
@@ -166,12 +189,6 @@ finish_event_group(THD *thd, uint64 sub_id, rpl_parallel_entry *entry,
   if (unlikely(rgi->worker_error) &&
       entry->stop_on_error_sub_id == (uint64)ULONGLONG_MAX)
     entry->stop_on_error_sub_id= sub_id;
-  /*
-    We need to mark that this event group started its commit phase, in case we
-    missed it before (otherwise we would deadlock the next event group that is
-    waiting for this). In most cases (normal DML), it will be a no-op.
-  */
-  rgi->mark_start_commit_no_lock();
   mysql_mutex_unlock(&entry->LOCK_parallel_entry);
 
   thd->clear_error();
@@ -329,6 +346,7 @@ do_retry:
     until after the unmark.
   */
   rgi->unmark_start_commit();
+  DEBUG_SYNC(thd, "rpl_parallel_retry_after_unmark");
 
   /*
     We might get the deadlock error that causes the retry during commit, while
@@ -517,7 +535,7 @@ handle_rpl_parallel_thread(void *arg)
   bool in_event_group= false;
   bool skip_event_group= false;
   rpl_group_info *group_rgi= NULL;
-  group_commit_orderer *gco, *tmp_gco;
+  group_commit_orderer *gco;
   uint64 event_gtid_sub_id= 0;
   rpl_sql_thread_info sql_info(NULL);
   int err;
@@ -610,7 +628,7 @@ handle_rpl_parallel_thread(void *arg)
           */
           group_rgi->cleanup_context(thd, 1);
           in_event_group= false;
-          finish_event_group(thd, group_rgi->gtid_sub_id,
+          finish_event_group(rpt, group_rgi->gtid_sub_id,
                              qev->entry_for_queued, group_rgi);
 
           rpt->loc_free_rgi(group_rgi);
@@ -664,8 +682,12 @@ handle_rpl_parallel_thread(void *arg)
         mysql_mutex_lock(&entry->LOCK_parallel_entry);
         if (!gco->installed)
         {
-          if (gco->prev_gco)
-            gco->prev_gco->next_gco= gco;
+          group_commit_orderer *prev_gco= gco->prev_gco;
+          if (prev_gco)
+          {
+            prev_gco->last_sub_id= gco->prior_sub_id;
+            prev_gco->next_gco= gco;
+          }
           gco->installed= true;
         }
         wait_count= gco->wait_count;
@@ -682,6 +704,8 @@ handle_rpl_parallel_thread(void *arg)
             if (thd->check_killed() && !rgi->worker_error)
             {
               DEBUG_SYNC(thd, "rpl_parallel_start_waiting_for_prior_killed");
+              thd->clear_error();
+              thd->get_stmt_da()->reset_diagnostics_area();
               thd->send_kill_message();
               slave_output_error_info(rgi, thd);
               signal_error_to_sql_driver_thread(thd, rgi, 1);
@@ -696,18 +720,6 @@ handle_rpl_parallel_thread(void *arg)
             mysql_cond_wait(&gco->COND_group_commit_orderer,
                             &entry->LOCK_parallel_entry);
           } while (wait_count > entry->count_committing_event_groups);
-        }
-
-        if ((tmp_gco= gco->prev_gco))
-        {
-          /*
-            Now all the event groups in the previous batch have entered their
-            commit phase, and will no longer access their gco. So we can free
-            it here.
-          */
-          DBUG_ASSERT(!tmp_gco->prev_gco);
-          gco->prev_gco= NULL;
-          rpt->loc_free_gco(tmp_gco);
         }
 
         if (entry->force_abort && wait_count > entry->stop_count)
@@ -773,6 +785,7 @@ handle_rpl_parallel_thread(void *arg)
       {
         DEBUG_SYNC(thd, "rpl_parallel_before_mark_start_commit");
         rgi->mark_start_commit();
+        DEBUG_SYNC(thd, "rpl_parallel_after_mark_start_commit");
       }
 
       /*
@@ -793,6 +806,7 @@ handle_rpl_parallel_thread(void *arg)
             thd->get_stmt_da()->reset_diagnostics_area();
             my_error(ER_LOCK_DEADLOCK, MYF(0));
             err= 1;
+            DEBUG_SYNC(thd, "rpl_parallel_simulate_temp_err_xid");
           });
         if (!err)
 #endif
@@ -832,7 +846,7 @@ handle_rpl_parallel_thread(void *arg)
       if (end_of_group)
       {
         in_event_group= false;
-        finish_event_group(thd, event_gtid_sub_id, entry, rgi);
+        finish_event_group(rpt, event_gtid_sub_id, entry, rgi);
         rpt->loc_free_rgi(rgi);
         thd->rgi_slave= group_rgi= rgi= NULL;
         skip_event_group= false;
@@ -873,7 +887,7 @@ handle_rpl_parallel_thread(void *arg)
       */
       mysql_mutex_unlock(&rpt->LOCK_rpl_thread);
       signal_error_to_sql_driver_thread(thd, group_rgi, 1);
-      finish_event_group(thd, group_rgi->gtid_sub_id,
+      finish_event_group(rpt, group_rgi->gtid_sub_id,
                          group_rgi->parallel_entry, group_rgi);
       in_event_group= false;
       mysql_mutex_lock(&rpt->LOCK_rpl_thread);
@@ -922,7 +936,6 @@ handle_rpl_parallel_thread(void *arg)
 static void
 dealloc_gco(group_commit_orderer *gco)
 {
-  DBUG_ASSERT(!gco->prev_gco /* Must only free after dealloc previous */);
   mysql_cond_destroy(&gco->COND_group_commit_orderer);
   my_free(gco);
 }
@@ -1303,7 +1316,8 @@ rpl_parallel_thread::free_rgi(rpl_group_info *rgi)
 
 
 group_commit_orderer *
-rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev)
+rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev,
+                             uint64 prior_sub_id)
 {
   group_commit_orderer *gco;
   mysql_mutex_assert_owner(&LOCK_rpl_thread);
@@ -1319,6 +1333,7 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev)
   gco->wait_count= wait_count;
   gco->prev_gco= prev;
   gco->next_gco= NULL;
+  gco->prior_sub_id= prior_sub_id;
   gco->installed= false;
   return gco;
 }
@@ -1327,7 +1342,6 @@ rpl_parallel_thread::get_gco(uint64 wait_count, group_commit_orderer *prev)
 void
 rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
 {
-  DBUG_ASSERT(!gco->prev_gco /* Must not free until wait has completed. */);
   if (!loc_gco_list)
     loc_gco_last_ptr_ptr= &gco->next_gco;
   else
@@ -1534,8 +1548,12 @@ static void
 free_rpl_parallel_entry(void *element)
 {
   rpl_parallel_entry *e= (rpl_parallel_entry *)element;
-  if (e->current_gco)
+  while (e->current_gco)
+  {
+    group_commit_orderer *prev_gco= e->current_gco->prev_gco;
     dealloc_gco(e->current_gco);
+    e->current_gco= prev_gco;
+  }
   mysql_cond_destroy(&e->COND_parallel_entry);
   mysql_mutex_destroy(&e->LOCK_parallel_entry);
   my_free(e);
@@ -2007,7 +2025,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
       uint64 count= e->count_queued_event_groups;
       group_commit_orderer *gco;
 
-      if (!(gco= cur_thread->get_gco(count, e->current_gco)))
+      if (!(gco= cur_thread->get_gco(count, e->current_gco, e->current_sub_id)))
       {
         cur_thread->free_rgi(rgi);
         cur_thread->free_qev(qev);
