@@ -424,7 +424,6 @@ int lf_hash_insert(LF_HASH *hash, LF_PINS *pins, const void *data)
   RETURN
     0 - deleted
     1 - didn't (not found)
-   -1 - out of memory
   NOTE
     see ldelete() for pin usage notes
 */
@@ -433,19 +432,16 @@ int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
   LF_SLIST * volatile *el;
   uint bucket, hashnr= calc_hash(hash, (uchar *)key, keylen);
 
-  bucket= hashnr % hash->size;
   lf_rwlock_by_pins(pins);
-  el= _lf_dynarray_lvalue(&hash->array, bucket);
-  if (unlikely(!el))
-    return -1;
-  /*
-    note that we still need to initialize_bucket here,
-    we cannot return "node not found", because an old bucket of that
-    node may've been split and the node was assigned to a new bucket
-    that was never accessed before and thus is not initialized.
-  */
-  if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
-    return -1;
+  /* hide OOM errors - if we cannot initalize a bucket, try the previous one */
+  for (bucket= hashnr % hash->size; ;bucket= my_clear_highest_bit(bucket))
+  {
+    el= _lf_dynarray_lvalue(&hash->array, bucket);
+    if (el && (*el || initialize_bucket(hash, el, bucket, pins) == 0))
+      break;
+    if (unlikely(bucket == 0))
+      return 1; /* if there's no bucket==0, the hash is empty */
+  }
   if (ldelete(el, hash->charset, my_reverse_bits(hashnr) | 1,
               (uchar *)key, keylen, pins))
   {
@@ -462,7 +458,6 @@ int lf_hash_delete(LF_HASH *hash, LF_PINS *pins, const void *key, uint keylen)
     a pointer to an element with the given key (if a hash is not unique and
     there're many elements with this key - the "first" matching element)
     NULL         if nothing is found
-    MY_ERRPTR    if OOM
 
   NOTE
     see lsearch() for pin usage notes
@@ -472,14 +467,18 @@ void *lf_hash_search_using_hash_value(LF_HASH *hash, LF_PINS *pins,
                                       const void *key, uint keylen)
 {
   LF_SLIST * volatile *el, *found;
-  uint bucket= hashnr % hash->size;
+  uint bucket;
 
   lf_rwlock_by_pins(pins);
-  el= _lf_dynarray_lvalue(&hash->array, bucket);
-  if (unlikely(!el))
-    return MY_ERRPTR;
-  if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
-    return MY_ERRPTR;
+  /* hide OOM errors - if we cannot initalize a bucket, try the previous one */
+  for (bucket= hashnr % hash->size; ;bucket= my_clear_highest_bit(bucket))
+  {
+    el= _lf_dynarray_lvalue(&hash->array, bucket);
+    if (el && (*el || initialize_bucket(hash, el, bucket, pins) == 0))
+      break;
+    if (unlikely(bucket == 0))
+      return 0; /* if there's no bucket==0, the hash is empty */
+  }
   found= lsearch(el, hash->charset, my_reverse_bits(hashnr) | 1,
                  (uchar *)key, keylen, pins);
   lf_rwunlock_by_pins(pins);
@@ -496,7 +495,6 @@ void *lf_hash_search_using_hash_value(LF_HASH *hash, LF_PINS *pins,
 
    @retval 0    ok
    @retval 1    error (action returned 1)
-   @retval EE_OUTOFMEMORY
 */
 int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
                     my_hash_walk_action action, void *argument)
@@ -509,9 +507,9 @@ int lf_hash_iterate(LF_HASH *hash, LF_PINS *pins,
   lf_rwlock_by_pins(pins);
   el= _lf_dynarray_lvalue(&hash->array, bucket);
   if (unlikely(!el))
-    return EE_OUTOFMEMORY;
+    return 0; /* if there's no bucket==0, the hash is empty */
   if (*el == NULL && unlikely(initialize_bucket(hash, el, bucket, pins)))
-    return EE_OUTOFMEMORY;
+    return 0; /* if there's no bucket==0, the hash is empty */
 
   res= lfind(el, 0, 0, (uchar*)argument, 0, &cursor, pins, action);
 
