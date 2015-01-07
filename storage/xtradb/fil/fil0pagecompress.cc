@@ -283,11 +283,15 @@ fil_compress_page(
 
 	/* Let's not compress file space header or
 	extent descriptor */
-	if ((orig_page_type == FIL_PAGE_TYPE_FSP_HDR)
-	     || (orig_page_type == FIL_PAGE_TYPE_XDES) ) {
+	if (orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
+	    orig_page_type == FIL_PAGE_TYPE_XDES ||
+	    orig_page_type == FIL_PAGE_PAGE_COMPRESSED ||
+	    orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
 		*out_len = len;
 		return (buf);
 	}
+
+	fprintf(stderr, "JAN: orig_page_type %lu\n", orig_page_type);
 
         level = compression_level;
 	ut_ad(fil_space_is_page_compressed(space_id));

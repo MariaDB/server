@@ -670,10 +670,9 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
 	ibool page_encrypted  = fil_space_is_page_encrypted(space);
-
 	ulint compression_alg = mach_read_from_8(src_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-
 	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
+
 	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
 			|| orig_page_type==FIL_PAGE_TYPE_XDES
 			|| orig_page_type== FIL_PAGE_PAGE_ENCRYPTED

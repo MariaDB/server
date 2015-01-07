@@ -843,6 +843,9 @@ buf_dblwr_write_block_to_datafile(
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 	buf_dblwr_check_page_lsn(block->frame);
 
+	fprintf(stderr, "JAN: space %lu page_type %lu\n",  buf_block_get_space(block),
+		mach_read_from_2((byte *)frame+FIL_PAGE_TYPE));
+
 	fil_io(flags, sync, buf_block_get_space(block), 0,
 	       buf_block_get_page_no(block), 0, UNIV_PAGE_SIZE,
 		frame, (void*) block, (ulint *)&bpage->write_size, bpage->newest_modification );
