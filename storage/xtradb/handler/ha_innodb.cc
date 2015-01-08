@@ -145,7 +145,6 @@ wsrep_ws_handle(THD* thd, const trx_t* trx) {
 				       (wsrep_trx_id_t)trx->id);
 }
 
-extern handlerton * wsrep_hton;
 extern TC_LOG* tc_log;
 extern void wsrep_cleanup_transaction(THD *thd);
 static int
@@ -8102,7 +8101,7 @@ no_commit:
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
 			if (wsrep_on(user_thd)) {
-				switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
+				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
 					break;
@@ -8129,7 +8128,7 @@ no_commit:
 		} else {
 #ifdef WITH_WSREP
 			if (wsrep_on(user_thd)) {
-				switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
+				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
 					break;

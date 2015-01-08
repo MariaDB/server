@@ -7641,7 +7641,7 @@ no_commit:
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
 			if (wsrep_on(user_thd)) {
-				switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
+				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
 					break;
@@ -7668,7 +7668,7 @@ no_commit:
 		} else {
 #ifdef WITH_WSREP
 			if (wsrep_on(user_thd)) {
-				switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
+				switch (wsrep_run_wsrep_commit(user_thd, 1))
 				{
 				case WSREP_TRX_OK:
 					break;

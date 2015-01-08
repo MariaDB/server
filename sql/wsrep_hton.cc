@@ -27,9 +27,6 @@ extern ulonglong thd_to_trx_id(THD *thd);
 extern "C" int thd_binlog_format(const MYSQL_THD thd);
 // todo: share interface with ha_innodb.c
 
-enum wsrep_trx_status wsrep_run_wsrep_commit(THD *thd, handlerton *hton,
-                                             bool all);
-
 /*
   Cleanup after local transaction commit/rollback, replay or TOI.
 */
@@ -157,7 +154,7 @@ static int wsrep_prepare(handlerton *hton, THD *thd, bool all)
       !thd_test_options(thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)) &&
       (thd->variables.wsrep_on && !wsrep_trans_cache_is_empty(thd)))
   {
-    int res= wsrep_run_wsrep_commit(thd, hton, all);
+    int res= wsrep_run_wsrep_commit(thd, all);
     if (res != 0)
     {
       if (res == WSREP_TRX_SIZE_EXCEEDED)
@@ -281,19 +278,18 @@ extern Rpl_filter* binlog_filter;
 extern my_bool opt_log_slave_updates;
 
 enum wsrep_trx_status
-wsrep_run_wsrep_commit(THD *thd, handlerton *hton, bool all)
+wsrep_run_wsrep_commit(THD *thd, bool all)
 {
   int rcode= -1;
   size_t data_len= 0;
   IO_CACHE *cache;
   int replay_round= 0;
+  DBUG_ENTER("wsrep_run_wsrep_commit");
 
   if (thd->get_stmt_da()->is_error()) {
     WSREP_ERROR("commit issue, error: %d %s",
                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
   }
-
-  DBUG_ENTER("wsrep_run_wsrep_commit");
 
   if (thd->slave_thread && !opt_log_slave_updates) DBUG_RETURN(WSREP_TRX_OK);
 
