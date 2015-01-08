@@ -122,7 +122,7 @@
  tc-heuristic-recover COMMIT
  thread-cache-size 0
 -thread-pool-idle-timeout 60
- thread-pool-max-threads 500
+ thread-pool-max-threads 1000
 -thread-pool-oversubscribe 3
 -thread-pool-stall-limit 500
 +thread-pool-min-threads 1
