@@ -118,7 +118,7 @@ static void get_cs_converted_string_value(THD *thd,
 
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 
-static void append_algorithm(TABLE_LIST *table, String *buff);
+static const LEX_STRING *view_algorithm(TABLE_LIST *table);
 
 bool get_lookup_field_values(THD *, COND *, TABLE_LIST *, LOOKUP_FIELD_VALUES *);
 
@@ -2137,7 +2137,9 @@ static void store_key_options(THD *thd, String *packet, TABLE *table,
 void
 view_store_options(THD *thd, TABLE_LIST *table, String *buff)
 {
-  append_algorithm(table, buff);
+  buff->append(STRING_WITH_LEN("ALGORITHM="));
+  buff->append(view_algorithm(table));
+  buff->append(' ');
   append_definer(thd, buff, &table->definer.user, &table->definer.host);
   if (table->view_suid)
     buff->append(STRING_WITH_LEN("SQL SECURITY DEFINER "));
@@ -2157,21 +2159,20 @@ view_store_options(THD *thd, TABLE_LIST *table, String *buff)
     definer_host  [in] host name part of definer
 */
 
-static void append_algorithm(TABLE_LIST *table, String *buff)
+static const LEX_STRING *view_algorithm(TABLE_LIST *table)
 {
-  buff->append(STRING_WITH_LEN("ALGORITHM="));
-  switch ((int16)table->algorithm) {
-  case VIEW_ALGORITHM_UNDEFINED:
-    buff->append(STRING_WITH_LEN("UNDEFINED "));
-    break;
+  static const LEX_STRING undefined= { C_STRING_WITH_LEN("UNDEFINED") };
+  static const LEX_STRING merge=     { C_STRING_WITH_LEN("MERGE") };
+  static const LEX_STRING temptable= { C_STRING_WITH_LEN("TEMPTABLE") };
+  switch (table->algorithm) {
   case VIEW_ALGORITHM_TMPTABLE:
-    buff->append(STRING_WITH_LEN("TEMPTABLE "));
-    break;
+    return &temptable;
   case VIEW_ALGORITHM_MERGE:
-    buff->append(STRING_WITH_LEN("MERGE "));
-    break;
+    return &merge;
   default:
     DBUG_ASSERT(0); // never should happen
+  case VIEW_ALGORITHM_UNDEFINED:
+    return &undefined;
   }
 }
 
@@ -6062,6 +6063,7 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
                            strlen(tables->view_creation_ctx->
                                   get_connection_cl()->name), cs);
 
+    table->field[10]->store(view_algorithm(tables), cs);
 
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
@@ -8376,6 +8378,7 @@ ST_FIELD_INFO view_fields_info[]=
    OPEN_FRM_ONLY},
   {"COLLATION_CONNECTION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FRM_ONLY},
+  {"ALGORITHM", 10, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FRM_ONLY},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };
 

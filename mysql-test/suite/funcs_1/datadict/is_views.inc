@@ -165,8 +165,13 @@ CREATE USER 'testuser1'@'localhost';
 SELECT * FROM information_schema.views
 WHERE table_name LIKE 't1_%';
 CREATE VIEW test.t1_view AS SELECT DISTINCT f1 FROM test.t1_table;
+CREATE ALGORITHM=MERGE VIEW test.t1_view1 AS SELECT f1 FROM test.t1_table;
+CREATE ALGORITHM=TEMPTABLE VIEW test.t1_view2 AS SELECT f1 FROM test.t1_table;
 SELECT * FROM information_schema.views
 WHERE table_name LIKE 't1_%';
+DROP VIEW test.t1_view1;
+DROP VIEW test.t1_view2;
+
 #
 # Check modification of DEFINER, SECURITY_TYPE, IS_UPDATABLE, VIEW_DEFINITION,
 # CHECK_OPTION
