@@ -1598,6 +1598,8 @@ struct buf_page_t{
 					can be read while it's being flushed */
 	byte*		comp_buf_free;	/*!< for compression, allocated
 					buffer that is then alligned */
+	bool		encrypt_later;  /*!< should we encrypt the page
+					at os0file.cc ? */
 #ifndef UNIV_HOTBACKUP
 	buf_page_t*	hash;		/*!< node used in chaining to
 					buf_pool->page_hash or

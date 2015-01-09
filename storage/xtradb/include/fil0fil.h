@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -340,6 +340,7 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
         fil_space_crypt_t* crypt_data;
+	ulint		file_block_size;/*!< file system block size */
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 
@@ -959,8 +960,8 @@ fil_space_get_n_reserved_extents(
 Reads or writes data. This operation is asynchronous (aio).
 @return DB_SUCCESS, or DB_TABLESPACE_DELETED if we are trying to do
 i/o on a tablespace which does not exist */
-#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, lsn) \
-	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL, lsn)
+#define fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, lsn, encrypt) \
+	_fil_io(type, sync, space_id, zip_size, block_offset, byte_offset, len, buf, message, write_size, NULL, lsn, encrypt)
 
 UNIV_INTERN
 dberr_t
@@ -997,7 +998,8 @@ _fil_io(
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
 	trx_t*	trx,
-	lsn_t	lsn)		/* lsn of the newest modification */
+	lsn_t	lsn,		/*!< in: lsn of the newest modification */
+	bool	encrypt_later)  /*!< in: encrypt later ? */
 
 	__attribute__((nonnull(8)));
 /**********************************************************************//**

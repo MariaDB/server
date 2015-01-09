@@ -521,10 +521,18 @@ buf_dblwr_process()
 			ulint	zip_size = fil_space_get_zip_size(space_id);
 
 			/* Read in the actual page from the file */
-			fil_io(OS_FILE_READ, true, space_id, zip_size,
-			       page_no, 0,
-			       zip_size ? zip_size : UNIV_PAGE_SIZE,
-			       read_buf, NULL, 0, 0);
+			fil_io(OS_FILE_READ,
+				true,
+				space_id,
+				zip_size,
+				page_no,
+				0,
+				zip_size ? zip_size : UNIV_PAGE_SIZE,
+				read_buf,
+				NULL,
+				0,
+				0,
+				false);
 
 			if (fil_space_verify_crypt_checksum(read_buf, zip_size)) {
 				/* page is encrypted and checksum is OK */
@@ -576,10 +584,18 @@ buf_dblwr_process()
 				doublewrite buffer to the intended
 				position */
 
-				fil_io(OS_FILE_WRITE, true, space_id,
-				       zip_size, page_no, 0,
-				       zip_size ? zip_size : UNIV_PAGE_SIZE,
-				       page, NULL, 0, 0);
+				fil_io(OS_FILE_WRITE,
+					true,
+					space_id,
+					zip_size,
+					page_no,
+					0,
+					zip_size ? zip_size : UNIV_PAGE_SIZE,
+					page,
+					NULL,
+					0,
+					0,
+					false);
 
 				ib_logf(IB_LOG_LEVEL_INFO,
 					"Recovered the page from"
@@ -595,11 +611,17 @@ buf_dblwr_process()
 					zeroes, while a valid copy is
 					available in dblwr buffer. */
 
-					fil_io(OS_FILE_WRITE, true, space_id,
-					       zip_size, page_no, 0,
-					       zip_size ? zip_size
-							: UNIV_PAGE_SIZE,
-					       page, NULL, 0, 0);
+					fil_io(OS_FILE_WRITE,
+						true,
+						space_id,
+						zip_size,
+						page_no, 0,
+						zip_size ? zip_size : UNIV_PAGE_SIZE,
+						page,
+						NULL,
+						0,
+						0,
+						false);
 				}
 			}
 		}
@@ -621,9 +643,9 @@ buf_dblwr_process()
 		memset(buf, 0, bytes);
 
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-		       buf_dblwr->block1, 0, bytes, buf, NULL, NULL, 0);
+			buf_dblwr->block1, 0, bytes, buf, NULL, NULL, 0, false);
 		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-		       buf_dblwr->block2, 0, bytes, buf, NULL, NULL, 0);
+			buf_dblwr->block2, 0, bytes, buf, NULL, NULL, 0, false);
 
 		ut_free(unaligned_buf);
         }
@@ -828,13 +850,18 @@ buf_dblwr_write_block_to_datafile(
 	void * frame = buf_page_get_frame(bpage);
 
 	if (bpage->zip.data) {
-		fil_io(flags, sync, buf_page_get_space(bpage),
-		       buf_page_get_zip_size(bpage),
-		       buf_page_get_page_no(bpage), 0,
-		       buf_page_get_zip_size(bpage),
-		       frame,
-		       (void*) bpage, 0,
-		       bpage->newest_modification);
+		fil_io(flags,
+			sync,
+			buf_page_get_space(bpage),
+			buf_page_get_zip_size(bpage),
+			buf_page_get_page_no(bpage),
+			0,
+			buf_page_get_zip_size(bpage),
+			frame,
+			(void*) bpage,
+			0,
+			bpage->newest_modification,
+			bpage->encrypt_later);
 
 		return;
 	}
@@ -844,10 +871,18 @@ buf_dblwr_write_block_to_datafile(
 	ut_a(buf_block_get_state(block) == BUF_BLOCK_FILE_PAGE);
 	buf_dblwr_check_page_lsn(block->frame);
 
-	fil_io(flags, sync, buf_block_get_space(block), 0,
-	       buf_block_get_page_no(block), 0, UNIV_PAGE_SIZE,
-	       frame, (void*) block,
-	       (ulint *)&bpage->write_size, bpage->newest_modification);
+	fil_io(flags,
+		sync,
+		buf_block_get_space(block),
+		0,
+		buf_block_get_page_no(block),
+		0,
+		UNIV_PAGE_SIZE,
+		frame,
+		(void*) block,
+		(ulint *)&bpage->write_size,
+		bpage->newest_modification,
+		bpage->encrypt_later);
 }
 
 /********************************************************************//**
@@ -939,9 +974,19 @@ try_again:
 	len = ut_min(TRX_SYS_DOUBLEWRITE_BLOCK_SIZE,
 		     buf_dblwr->first_free) * UNIV_PAGE_SIZE;
 
-	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-	       buf_dblwr->block1, 0, len,
-	       (void*) write_buf, NULL, 0, 0);
+	fil_io(OS_FILE_WRITE,
+		true,
+		TRX_SYS_SPACE,
+		0,
+		buf_dblwr->block1,
+		0,
+		len,
+		(void*)
+		write_buf,
+		NULL,
+		0,
+		0,
+		false);
 
 	if (buf_dblwr->first_free <= TRX_SYS_DOUBLEWRITE_BLOCK_SIZE) {
 		/* No unwritten pages in the second block. */
@@ -955,9 +1000,18 @@ try_again:
 	write_buf = buf_dblwr->write_buf
 		    + TRX_SYS_DOUBLEWRITE_BLOCK_SIZE * UNIV_PAGE_SIZE;
 
-	fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-	       buf_dblwr->block2, 0, len,
-	       (void*) write_buf, NULL, 0, 0);
+	fil_io(OS_FILE_WRITE,
+		true,
+		TRX_SYS_SPACE,
+		0,
+		buf_dblwr->block2,
+		0,
+		len,
+		(void*) write_buf,
+		NULL,
+		0,
+		0,
+		false);
 
 flush:
 	/* increment the doublewrite flushed pages counter */
@@ -1187,17 +1241,32 @@ retry:
 		memset(buf_dblwr->write_buf + UNIV_PAGE_SIZE * i
 		       + zip_size, 0, UNIV_PAGE_SIZE - zip_size);
 
-		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-		       offset, 0, UNIV_PAGE_SIZE,
-		       (void*) (buf_dblwr->write_buf
-			       + UNIV_PAGE_SIZE * i), NULL, 0,bpage->newest_modification);
+		fil_io(OS_FILE_WRITE,
+			true,
+			TRX_SYS_SPACE,
+			0,
+			offset,
+			0,
+			UNIV_PAGE_SIZE,
+			(void*) (buf_dblwr->write_buf + UNIV_PAGE_SIZE * i),
+			NULL,
+			0,
+			bpage->newest_modification,
+			bpage->encrypt_later);
 	} else {
 		/* It is a regular page. Write it directly to the
 		doublewrite buffer */
-		fil_io(OS_FILE_WRITE, true, TRX_SYS_SPACE, 0,
-		       offset, 0, UNIV_PAGE_SIZE,
-		       frame,
-		       NULL, 0, bpage->newest_modification);
+		fil_io(OS_FILE_WRITE,
+			true,
+			TRX_SYS_SPACE,
+			0,
+			offset,
+			0, UNIV_PAGE_SIZE,
+			frame,
+			NULL,
+			0,
+			bpage->newest_modification,
+			bpage->encrypt_later);
 	}
 
 	/* Now flush the doublewrite buffer data to disk */

@@ -260,6 +260,9 @@ struct os_aio_slot_t{
 
 	ulint           file_block_size;/*!< file block size */
 
+	bool            encrypt_later;  /*!< should the page be encrypted
+					before write */
+
 #ifdef WIN_ASYNC_IO
 	HANDLE		handle;		/*!< handle object we need in the
 					OVERLAPPED struct */
@@ -4546,9 +4549,11 @@ os_aio_array_reserve_slot(
 						level to be used */
 	ibool		page_encryption, /*!< in: is page encryption used
 					  on this file space */
-	ulint		page_encryption_key, /*!< page encryption key
+	ulint		page_encryption_key, /*!< in: page encryption key
 						 to be used */
-	lsn_t		lsn)		/* lsn of the newest modification */
+	lsn_t		lsn,		/*!< in: lsn of the newest modification */
+	bool		encrypt_later)  /*!< in: should we encrypt before
+					writing the page */
 {
 	os_aio_slot_t*	slot = NULL;
 #ifdef WIN_ASYNC_IO
@@ -4635,7 +4640,6 @@ found:
 	slot->name     = name;
 	slot->len      = len;
 	slot->type     = type;
-	slot->buf      = static_cast<byte*>(buf);
 	slot->offset   = offset;
 	slot->lsn      = lsn;
 	slot->io_already_done = FALSE;
@@ -4646,6 +4650,7 @@ found:
 	slot->page_compression = page_compression;
 	slot->page_encryption_key = page_encryption_key;
 	slot->page_encryption = page_encryption;
+	slot->encrypt_later = encrypt_later;
 
 	if (message1) {
 		slot->file_block_size = fil_node_get_block_size(message1);
@@ -4700,7 +4705,8 @@ found:
 
 	/* If the space is page encryption and this is write operation
 	   then we encrypt the page */
-	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
+	if (message1 && type == OS_FILE_WRITE && (page_encryption == 1 || encrypt_later)) {
+		ut_a(page_encryption == 1 || srv_encrypt_tables == 1);
 		/* Release the array mutex while encrypting */
 		os_mutex_exit(array->mutex);
 
@@ -4723,6 +4729,8 @@ found:
 		/* Take array mutex back */
 		os_mutex_enter(array->mutex);
 	}
+
+	slot->buf      = static_cast<byte*>(buf);
 
 #ifdef WIN_ASYNC_IO
 	control = &slot->control;
@@ -5012,9 +5020,11 @@ os_aio_func(
 						 level to be used */
    	ibool		page_encryption, /*!< in: is page encryption used
 					  on this file space */
-	ulint		page_encryption_key, /*!< page encryption key
+	ulint		page_encryption_key, /*!< in: page encryption key
 					     to be used */
-	lsn_t		lsn)		/* lsn of the newest modification */
+	lsn_t		lsn,		/*!< in: lsn of the newest modification */
+	bool		encrypt_later)  /*!< in: should we encrypt page
+					before write */
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
@@ -5131,7 +5141,7 @@ try_again:
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 		name, buf, offset, n, write_size,
 		page_compression, page_compression_level,
-		page_encryption, page_encryption_key, lsn);
+		page_encryption, page_encryption_key, lsn, encrypt_later);
 
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {
@@ -5169,6 +5179,7 @@ try_again:
 					buffer = buf;
 				}
 			}
+
 			ret = WriteFile(file, buffer, (DWORD) n, &len,
 					&(slot->control));
 

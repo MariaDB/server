@@ -3101,7 +3101,7 @@ recv_recovery_from_checkpoint_start_func(
 
 	fil_io(OS_FILE_READ | OS_FILE_LOG, true, max_cp_group->space_id, 0,
 	       0, 0, LOG_FILE_HDR_SIZE,
-		log_hdr_buf, max_cp_group, 0, 0);
+		log_hdr_buf, max_cp_group, 0, 0, false);
 
 	if (0 == ut_memcmp(log_hdr_buf + LOG_FILE_WAS_CREATED_BY_HOT_BACKUP,
 			   (byte*)"ibbackup", (sizeof "ibbackup") - 1)) {
@@ -3132,7 +3132,7 @@ recv_recovery_from_checkpoint_start_func(
 		fil_io(OS_FILE_WRITE | OS_FILE_LOG, true,
 		       max_cp_group->space_id, 0,
 		       0, 0, OS_FILE_LOG_BLOCK_SIZE,
-			log_hdr_buf, max_cp_group, 0, 0);
+			log_hdr_buf, max_cp_group, 0, 0, false);
 	}
 
 #ifdef UNIV_LOG_ARCHIVE

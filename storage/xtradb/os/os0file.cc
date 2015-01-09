@@ -273,6 +273,7 @@ struct os_aio_slot_t{
 	lsn_t           lsn;       /* lsn of the newest modification */
 
 	ulint           file_block_size;/*!< file block size */
+	bool            encrypt_later;	/*!< should we encrypt the page */
 
 #ifdef LINUX_NATIVE_AIO
 	struct iocb	control;	/* Linux control block for aio */
@@ -1981,6 +1982,9 @@ os_file_create_func(
 	attributes |= FILE_FLAG_NO_BUFFERING;
 #else
 	if (purpose == OS_FILE_AIO) {
+
+	bool            encrypt_later;  /*!< should the page be encrypted
+					before write */
 
 #ifdef WIN_ASYNC_IO
 		/* If specified, use asynchronous (overlapped) io and no
@@ -4663,7 +4667,9 @@ os_aio_array_reserve_slot(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	lsn_t		lsn)		/* lsn of the newest modification */
+	lsn_t		lsn,		/*!< in: lsn of the newest
+					modification */
+	bool		encrypt_later)  /*!< in: should we encrypt the page */
 {
 	os_aio_slot_t*	slot = NULL;
 #ifdef WIN_ASYNC_IO
@@ -4755,15 +4761,14 @@ found:
 	slot->lsn      = lsn;
 	slot->io_already_done = FALSE;
 	slot->space_id = space_id;
-
 	slot->page_compression_success = FALSE;
 	slot->page_encryption_success = FALSE;
-
 	slot->write_size = write_size;
 	slot->page_compression_level = page_compression_level;
 	slot->page_compression = page_compression;
 	slot->page_encryption_key = page_encryption_key;
 	slot->page_encryption = page_encryption;
+	slot->encrypt_later = encrypt_later;
 
 	if (message1) {
 		slot->file_block_size = fil_node_get_block_size(message1);
@@ -4819,7 +4824,7 @@ found:
 
 	/* If the space is page encryption and this is write operation
 	   then we encrypt the page */
-	if (message1 && type == OS_FILE_WRITE && page_encryption ) {
+	if (message1 && type == OS_FILE_WRITE && (page_encryption || encrypt_later)) {
 		/* Release the array mutex while encrypting */
 		os_mutex_exit(array->mutex);
 
@@ -4842,6 +4847,8 @@ found:
 		/* Take array mutex back */
 		os_mutex_enter(array->mutex);
 	}
+
+	slot->buf = (byte *)buf;
 
 #ifdef WIN_ASYNC_IO
 	control = &slot->control;
@@ -5130,9 +5137,11 @@ os_aio_func(
 			       actual page size does not decrease. */
    	ibool		page_encryption, /*!< in: is page encryption used
 					  on this file space */
-	ulint		page_encryption_key, /*!< page encryption key
+	ulint		page_encryption_key, /*!< in: page encryption key
 						 to be used */
-	lsn_t		lsn)		/* lsn of the newest modification */
+	lsn_t		lsn,		/*!< in: lsn of the newest modification */
+	bool		encrypt_later)  /*!< in: should we encrypt before
+					writing the page */
 {
 	os_aio_array_t*	array;
 	os_aio_slot_t*	slot;
@@ -5239,7 +5248,8 @@ try_again:
 	slot = os_aio_array_reserve_slot(type, array, message1, message2, file,
 					 name, buf, offset, n, space_id,
 					 page_compression, page_compression_level,
-		                         page_encryption, page_encryption_key, write_size, lsn);
+		                         page_encryption, page_encryption_key,
+		                         write_size, lsn, encrypt_later);
 
 	if (type == OS_FILE_READ) {
 		if (srv_use_native_aio) {

@@ -184,17 +184,17 @@ buf_read_page_low(
 
 	if (zip_size) {
 		*err = fil_io(OS_FILE_READ | wake_later
-			      | ignore_nonexistent_pages,
-			      sync, space, zip_size, offset, 0, zip_size,
-			      frame, bpage, &bpage->write_size, 0);
+			| ignore_nonexistent_pages,
+			sync, space, zip_size, offset, 0, zip_size,
+			frame, bpage, &bpage->write_size, 0, false);
 	} else {
 		ut_a(buf_page_get_state(bpage) == BUF_BLOCK_FILE_PAGE);
 
 		*err = fil_io(OS_FILE_READ | wake_later
-			      | ignore_nonexistent_pages,
-			      sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
-			      frame, bpage,
-			      &bpage->write_size, 0);
+			| ignore_nonexistent_pages,
+			sync, space, 0, offset, 0, UNIV_PAGE_SIZE,
+			frame, bpage,
+			&bpage->write_size, 0, false);
 	}
 
 	if (sync) {

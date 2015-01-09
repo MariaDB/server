@@ -621,13 +621,25 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	byte key[MY_AES_MAX_KEY_LENGTH];
 	uint key_length;
 
+	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
+	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
+			|| orig_page_type==FIL_PAGE_TYPE_XDES
+			|| orig_page_type== FIL_PAGE_PAGE_ENCRYPTED
+			|| orig_page_type== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
+		//TODO: is this really needed ?
+		memcpy(dst_frame, src_frame, page_size);
+		return;
+	}
+
 	if (srv_encrypt_tables) {
 		crypt_data = fil_space_get_crypt_data(space);
+
 		if (crypt_data == NULL) {
 			//TODO: Is this really needed ?
 			memcpy(dst_frame, src_frame, page_size);
 			return;
 		}
+
 		fil_crypt_get_latest_key(key, &key_length, crypt_data, &key_version);
 	} else {
 		key_version = encryption_key;
@@ -646,9 +658,7 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 			  src_frame + FIL_PAGE_OFFSET);
 	  mach_write_to_4(iv + 4, space_offset);
 	  mach_write_to_8(iv + 8, lsn);
-	}
-	else
-	{
+	} else {
 	    // take the iv from the key provider
 
 	    int load_iv_rc = get_encryption_iv(key_version, (uchar *) iv, sizeof(iv));
@@ -666,20 +676,9 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	    }
 	}
 
-
 	ibool page_compressed = (mach_read_from_2(src_frame+FIL_PAGE_TYPE) == FIL_PAGE_PAGE_COMPRESSED);
 	ibool page_encrypted  = fil_space_is_page_encrypted(space);
-
 	ulint compression_alg = mach_read_from_8(src_frame+FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
-
-	ulint orig_page_type = mach_read_from_2(src_frame+FIL_PAGE_TYPE);
-	if (orig_page_type==FIL_PAGE_TYPE_FSP_HDR
-			|| orig_page_type==FIL_PAGE_TYPE_XDES
-			|| orig_page_type== FIL_PAGE_PAGE_ENCRYPTED
-			|| orig_page_type== FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {
-		memcpy(dst_frame, src_frame, page_size);
-		return;
-	}
 
 	// copy page header
 	memcpy(dst_frame, src_frame, FIL_PAGE_DATA);
@@ -710,7 +709,6 @@ fil_space_encrypt(ulint space, ulint offset, lsn_t lsn,
 	if (page_compressed) {
 		srclen = page_size -  FIL_PAGE_DATA;;
 	}
-
 
 	int rc = (* my_aes_encrypt_dynamic)(src, srclen,
 	                                    dst, &dstlen,
@@ -790,6 +788,7 @@ fil_space_check_encryption_read(
 	ulint space)          /*!< in: tablespace id */
 {
 	fil_space_crypt_t* crypt_data = fil_space_get_crypt_data(space);
+
 	if (crypt_data == NULL)
 		return false;
 
@@ -816,6 +815,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
             || page_type == FIL_PAGE_PAGE_COMPRESSED);
 
 	ulint orig_page_type=0;
+
 	if (page_type == FIL_PAGE_PAGE_ENCRYPTED) {
 		key_version = mach_read_from_2(
 			src_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -847,7 +847,6 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 		mach_write_to_2(dst_frame+FIL_PAGE_TYPE, orig_page_type);
 	}
 
-
 	// get key
 	byte key[MY_AES_MAX_KEY_LENGTH];
 	uint key_length;
@@ -863,9 +862,7 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	  mach_write_to_4(iv + 0, space);
 	  mach_write_to_4(iv + 4, offset);
 	  mach_write_to_8(iv + 8, lsn);
-	}
-	else
-	{
+	} else {
 	    // take the iv from the key provider
 
 	    int load_iv_rc = get_encryption_iv(key_version, (uchar *) iv, sizeof(iv));
@@ -887,7 +884,6 @@ fil_space_decrypt(fil_space_crypt_t* crypt_data,
 	byte* dst = dst_frame + FIL_PAGE_DATA;
 	uint32 dstlen;
 	ulint srclen = page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
-
 	ulint compressed_len;
 	ulint compression_method;
 

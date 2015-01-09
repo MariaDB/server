@@ -283,7 +283,8 @@ fil_compress_page(
 
 	/* Let's not compress file space header or
 	extent descriptor */
-	if (orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
+	if (orig_page_type == 0 ||
+	    orig_page_type == FIL_PAGE_TYPE_FSP_HDR ||
 	    orig_page_type == FIL_PAGE_TYPE_XDES ||
 	    orig_page_type == FIL_PAGE_PAGE_COMPRESSED ||
 	    orig_page_type == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED) {

@@ -955,16 +955,17 @@ buf_flush_write_block_low(
 
 	if (!srv_use_doublewrite_buf || !buf_dblwr) {
 		fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
-		       sync,
-		       buf_page_get_space(bpage),
-		       zip_size,
-		       buf_page_get_page_no(bpage),
-		       0,
-		       zip_size ? zip_size : UNIV_PAGE_SIZE,
-		       frame,
-		       bpage,
-		       &bpage->write_size,
-		       bpage->newest_modification);
+			sync,
+			buf_page_get_space(bpage),
+			zip_size,
+			buf_page_get_page_no(bpage),
+			0,
+			zip_size ? zip_size : UNIV_PAGE_SIZE,
+			frame,
+			bpage,
+			&bpage->write_size,
+			bpage->newest_modification,
+			bpage->encrypt_later);
 	} else {
 		/* InnoDB uses doublewrite buffer and doublewrite buffer
 		is initialized. User can define do we use atomic writes
@@ -975,16 +976,17 @@ buf_flush_write_block_low(
 
 		if (awrites == ATOMIC_WRITES_ON) {
 			fil_io(OS_FILE_WRITE | OS_AIO_SIMULATED_WAKE_LATER,
-			       FALSE,
-			       buf_page_get_space(bpage),
-			       zip_size,
-			       buf_page_get_page_no(bpage),
-			       0,
-			       zip_size ? zip_size : UNIV_PAGE_SIZE,
-			       frame,
-			       bpage,
-			       &bpage->write_size,
-			       bpage->newest_modification);
+				FALSE,
+				buf_page_get_space(bpage),
+				zip_size,
+				buf_page_get_page_no(bpage),
+				0,
+				zip_size ? zip_size : UNIV_PAGE_SIZE,
+				frame,
+				bpage,
+				&bpage->write_size,
+				bpage->newest_modification,
+				bpage->encrypt_later);
 		} else if (flush_type == BUF_FLUSH_SINGLE_PAGE) {
 			buf_dblwr_write_single_page(bpage, sync);
 		} else {

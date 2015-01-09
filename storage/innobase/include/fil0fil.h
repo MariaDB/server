@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (c) 2013, 2015, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -346,6 +346,7 @@ struct fil_space_t {
 	UT_LIST_NODE_T(fil_space_t) space_list;
 				/*!< list of all spaces */
         fil_space_crypt_t* crypt_data;
+	ulint		file_block_size;/*!< file system block size */
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 };
 
@@ -998,7 +999,8 @@ fil_io(
 			       operation for this page and if
 			       initialized we do not trim again if
 			       actual page size does not decrease. */
-	lsn_t	lsn)		/* lsn of the newest modification */
+	lsn_t	lsn,		/*!< in: lsn of the newest modification */
+	bool	encrypt_later)	/*!< in: should we encrypt the page */
 	__attribute__((nonnull(8)));
 /**********************************************************************//**
 Waits for an aio operation to complete. This function is used to write the

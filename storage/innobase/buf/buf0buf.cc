@@ -1006,6 +1006,7 @@ buf_block_init(
 	block->page.comp_buf = NULL;
 	block->page.comp_buf_free = NULL;
 	block->page.key_version = 0;
+	block->page.encrypt_later = false;
 
 	block->modify_clock = 0;
 
@@ -3498,6 +3499,7 @@ buf_page_init_low(
 	bpage->comp_buf = NULL;
 	bpage->comp_buf_free = NULL;
 	bpage->key_version = 0;
+	bpage->encrypt_later = false;
 
 	HASH_INVALIDATE(bpage, hash);
 #if defined UNIV_DEBUG_FILE_ACCESSES || defined UNIV_DEBUG
@@ -5609,6 +5611,8 @@ buf_page_encrypt_before_write(
 	buf_page_t* bpage,     /*!< in/out: buffer page to be flushed */
 	const byte* src_frame) /*!< in: src frame */
 {
+	bpage->encrypt_later = false;
+
 	if (srv_encrypt_tables == FALSE) {
 		/* Encryption is disabled */
 		return const_cast<byte*>(src_frame);
@@ -5669,7 +5673,8 @@ buf_page_encrypt_before_write(
 		ut_ad(key_version == 0 || key_version >= bpage->key_version);
 		bpage->key_version = key_version;
 	} else {
-		// We do compression and encryption later on os0file.cc
+		/** Compression and encryption is done later at os0file.cc */
+		bpage->encrypt_later = true;
 		dst_frame = (byte *)src_frame;
 	}
 
