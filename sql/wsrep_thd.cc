@@ -99,12 +99,27 @@ static rpl_group_info* wsrep_relay_group_init(const char* log_fname)
     rli->relay_log.description_event_for_exec=
       new Format_description_log_event(4);
   }
-  static LEX_STRING dbname= { C_STRING_WITH_LEN("mysql") };
 
-  rli->mi = new Master_info( &dbname,  false);
+  static LEX_STRING connection_name= { C_STRING_WITH_LEN("wsrep") };
 
-  rli->mi->rpl_filter = new Rpl_filter;
-  copy_filter_setting(rli->mi->rpl_filter, get_or_create_rpl_filter("", 0));
+  /*
+    Master_info's constructor initializes rpl_filter by either an already
+    constructed Rpl_filter object from global 'rpl_filters' list if the
+    specified connection name is same, or it constructs a new Rpl_filter
+    object and adds it to rpl_filters. This object is later destructed by
+    Mater_info's destructor by looking it up based on connection name in
+    rpl_filters list.
+
+    However, since all Master_info objects created here would share same
+    connection name ("wsrep"), destruction of any of the existing Master_info
+    objects (in wsrep_return_from_bf_mode()) would free rpl_filter referenced
+    by any/all existing Master_info objects.
+
+    In order to avoid that, we have added a check in Master_info's destructor
+    to not free the "wsrep" rpl_filter. It will eventually be freed by
+    free_all_rpl_filters() when server terminates.
+  */
+  rli->mi = new Master_info(&connection_name, false);
 
   rli->sql_driver_thd= current_thd;
 
@@ -155,7 +170,6 @@ static void wsrep_return_from_bf_mode(THD *thd, struct wsrep_thd_shadow* shadow)
   thd->reset_db(shadow->db, shadow->db_length);
 
   delete thd->system_thread_info.rpl_sql_info;
-  delete thd->wsrep_rgi->rli->mi->rpl_filter;
   delete thd->wsrep_rgi->rli->mi;
   delete thd->wsrep_rgi->rli;
   delete thd->wsrep_rgi;
