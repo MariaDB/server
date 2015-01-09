@@ -21,14 +21,14 @@ select * from information_schema.system_variables
           'have_openssl',
           'have_symlink',
           'hostname',
-          'large_files_support',
+          'large_files_support', 'log_tc_size',
           'lower_case_file_system',
           'lower_case_table_names',
           'open_files_limit',
           'system_time_zone',
           'version_comment',
           'version_compile_machine', 'version_compile_os',
-          'version_malloc_library', 'log_tc_size', 'version'
+          'version_malloc_library', 'version_ssl_library', 'version'
         )
   order by variable_name;
 
@@ -49,7 +49,7 @@ select VARIABLE_NAME, VARIABLE_SCOPE, VARIABLE_TYPE, VARIABLE_COMMENT,
           'system_time_zone',
           'version_comment',
           'version_compile_machine', 'version_compile_os',
-          'version_malloc_library', 'version'
+          'version_malloc_library', 'version_ssl_library', 'version'
         )
   order by variable_name;
 

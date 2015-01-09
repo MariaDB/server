@@ -3377,6 +3377,22 @@ static Sys_var_charptr Sys_malloc_library(
        READ_ONLY GLOBAL_VAR(malloc_library), CMD_LINE_HELP_ONLY,
        IN_SYSTEM_CHARSET, DEFAULT(MALLOC_LIBRARY));
 
+#ifdef HAVE_YASSL
+#include <openssl/ssl.h>
+#define SSL_LIBRARY "YaSSL " YASSL_VERSION
+#elif HAVE_OPENSSL
+#include <openssl/opensslv.h>
+#define SSL_LIBRARY OPENSSL_VERSION_TEXT
+#else
+#error No SSL?
+#endif
+
+static char *ssl_library;
+static Sys_var_charptr Sys_ssl_library(
+       "version_ssl_library", "Version of the used SSL library",
+       READ_ONLY GLOBAL_VAR(ssl_library), CMD_LINE_HELP_ONLY,
+       IN_SYSTEM_CHARSET, DEFAULT(SSL_LIBRARY));
+
 static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
        "The number of seconds the server waits for activity on a "
