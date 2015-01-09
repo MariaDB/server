@@ -714,7 +714,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   datapath= "./";
 #endif  // !WIN32
   tdbp= NULL;
-  sdvalin= NULL;
+  sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
@@ -1815,7 +1815,7 @@ int ha_connect::CloseTable(PGLOBAL g)
 {
   int rc= CntCloseTable(g, tdbp, nox, abort);
   tdbp= NULL;
-  sdvalin=NULL;
+  sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout=NULL;
   valid_info= false;
   indexing= -1;
@@ -1969,7 +1969,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
   char   *fmt;
   int     rc= 0;
   PCOL    colp;
-  PVAL    value;
+  PVAL    value, sdvalin;
   Field  *fp;
   PTDBASE tp= (PTDBASE)tdbp;
   String  attribute(attr_buffer, sizeof(attr_buffer),
@@ -2012,25 +2012,45 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           value->SetValue(fp->val_real());
           break;
         case TYPE_DATE:
-          if (!sdvalin)
-            sdvalin= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
-
           // Get date in the format produced by MySQL fields
           switch (fp->type()) {
             case MYSQL_TYPE_DATE:
-              fmt= "YYYY-MM-DD";
+              if (!sdvalin2) {
+                sdvalin2= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "YYYY-MM-DD";
+                ((DTVAL*)sdvalin2)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin2;
               break;
             case MYSQL_TYPE_TIME:
-              fmt= "hh:mm:ss";
+              if (!sdvalin3) {
+                sdvalin3= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "hh:mm:ss";
+                ((DTVAL*)sdvalin3)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin3;
               break;
             case MYSQL_TYPE_YEAR:
-              fmt= "YYYY";
+              if (!sdvalin4) {
+                sdvalin4= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "YYYY";
+                ((DTVAL*)sdvalin4)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin4;
               break;
             default:
-              fmt= "YYYY-MM-DD hh:mm:ss";
+              if (!sdvalin1) {
+                sdvalin1= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "YYYY-MM-DD hh:mm:ss";
+                ((DTVAL*)sdvalin1)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin1;
             } // endswitch type
 
-          ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
           sdvalin->SetNullable(colp->IsNullable());
           fp->val_str(&attribute);
           sdvalin->SetValue_psz(attribute.c_ptr_safe());
