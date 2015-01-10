@@ -13,7 +13,9 @@ INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
 i
 1
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 i
 1
@@ -34,7 +36,9 @@ i
 1
 2
 3
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 i
 1
@@ -60,7 +64,9 @@ i
 3
 4
 5
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 i
 1
@@ -98,7 +104,9 @@ INSERT INTO t1 VALUES(13);
 COMMIT;
 INSERT INTO t1 VALUES(14);
 INSERT INTO t1 VALUES(15);
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 i
 1
@@ -132,8 +140,10 @@ include/wait_for_slave_to_stop.inc
 INSERT INTO t2 VALUES(2);
 INSERT INTO t3 VALUES(2);
 COMMIT;
+include/save_master_gtid.inc
 # On slave
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 SELECT * FROM t2;
 i
 SELECT * FROM t3;
@@ -155,7 +165,9 @@ IGNORE_DOMAIN_IDS (AFTER) :
 INSERT INTO t2 VALUES(4);
 INSERT INTO t3 VALUES(4);
 COMMIT;
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t2;
 i
 4
@@ -180,7 +192,9 @@ IGNORE_DOMAIN_IDS (AFTER) : 1
 INSERT INTO t2 VALUES(6);
 INSERT INTO t3 VALUES(6);
 COMMIT;
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t2;
 i
 4
@@ -203,7 +217,9 @@ BEGIN;
 INSERT INTO t2 VALUES(7);
 INSERT INTO t3 VALUES(7);
 COMMIT;
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 DO_DOMAIN_IDS (BEFORE)     : 
 IGNORE_DOMAIN_IDS (BEFORE) : 2
@@ -217,6 +233,9 @@ BEGIN;
 INSERT INTO t2 VALUES(8);
 INSERT INTO t3 VALUES(8);
 COMMIT;
+include/save_master_gtid.inc
+# On slave
+include/sync_with_master_gtid.inc
 SELECT * FROM t2;
 i
 4
@@ -254,7 +273,9 @@ include/start_slave.inc
 # On master
 SET @@session.gtid_domain_id=2;
 DROP TABLE t1, t2, t3;
+include/save_master_gtid.inc
 # On slave
+include/sync_with_master_gtid.inc
 include/stop_slave.inc
 CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
 include/start_slave.inc
