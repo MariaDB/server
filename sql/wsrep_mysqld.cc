@@ -123,7 +123,7 @@ PSI_mutex_key key_LOCK_wsrep_rollback, key_LOCK_wsrep_thd,
   key_LOCK_wsrep_slave_threads, key_LOCK_wsrep_desync,
   key_LOCK_wsrep_config_state;
 
-PSI_cond_key key_COND_wsrep_rollback, key_COND_wsrep_thd,
+PSI_cond_key key_COND_wsrep_rollback,
   key_COND_wsrep_replaying, key_COND_wsrep_ready, key_COND_wsrep_sst,
   key_COND_wsrep_sst_init, key_COND_wsrep_sst_thread;
 
@@ -149,7 +149,6 @@ static PSI_cond_info wsrep_conds[]=
   { &key_COND_wsrep_sst_init, "COND_wsrep_sst_init", PSI_FLAG_GLOBAL},
   { &key_COND_wsrep_sst_thread, "wsrep_sst_thread", 0},
   { &key_COND_wsrep_rollback, "COND_wsrep_rollback", PSI_FLAG_GLOBAL},
-  { &key_COND_wsrep_thd, "THD::COND_wsrep_thd", 0},
   { &key_COND_wsrep_replaying, "COND_wsrep_replaying", PSI_FLAG_GLOBAL}
 };
 #else
