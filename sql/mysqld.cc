@@ -1418,7 +1418,7 @@ my_bool plugins_are_initialized= FALSE;
 #ifndef DBUG_OFF
 static const char* default_dbug_option;
 #endif
-static const char *current_dbug_option="disabled";
+const char *current_dbug_option="";
 #ifdef HAVE_LIBWRAP
 const char *libwrapName= NULL;
 int allow_severity = LOG_INFO;
@@ -8641,6 +8641,7 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     if (argument[0] == '1' && !argument[1])
       break;
     DBUG_SET_INITIAL(argument);
+    current_dbug_option= argument;
     opt_endinfo=1;				/* unireg: memory allocation */
 #else
     sql_print_warning("'%s' is disabled in this build", opt->name);

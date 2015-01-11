@@ -742,7 +742,7 @@ public:
                on_update_function on_update_func=0,
                const char *substitute=0)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args,
-              - (ptrdiff_t) &global_system_variables, getopt.id,
+              (char*)&current_dbug_option-(char*)&global_system_variables, getopt.id,
               getopt.arg_type, SHOW_CHAR, (intptr)def_val,
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
