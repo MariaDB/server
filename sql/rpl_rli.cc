@@ -108,7 +108,6 @@ Relay_log_info::~Relay_log_info()
   {
     DBUG_ASSERT(cur->queued_count == cur->dequeued_count);
     inuse_relaylog *next= cur->next;
-    my_atomic_rwlock_destroy(&cur->inuse_relaylog_atomic_lock);
     my_free(cur);
     cur= next;
   }
@@ -1401,7 +1400,6 @@ Relay_log_info::alloc_inuse_relaylog(const char *name)
     last_inuse_relaylog->next= ir;
   }
   last_inuse_relaylog= ir;
-  my_atomic_rwlock_init(&ir->inuse_relaylog_atomic_lock);
 
   return 0;
 }

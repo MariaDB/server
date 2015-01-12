@@ -17,7 +17,6 @@
 
 volatile uint32 b32;
 volatile int32  c32;
-my_atomic_rwlock_t rwl;
 
 /* add and sub a random number in a loop. Must get 0 at the end */
 pthread_handler_t test_atomic_add(void *arg)
@@ -27,13 +26,8 @@ pthread_handler_t test_atomic_add(void *arg)
   for (x= ((int)(intptr)(&m)); m ; m--)
   {
     x= (x*m+0x87654321) & INT_MAX32;
-    my_atomic_rwlock_wrlock(&rwl);
     my_atomic_add32(&bad, x);
-    my_atomic_rwlock_wrunlock(&rwl);
-
-    my_atomic_rwlock_wrlock(&rwl);
     my_atomic_add32(&bad, -x);
-    my_atomic_rwlock_wrunlock(&rwl);
   }
   pthread_mutex_lock(&mutex);
   if (!--running_threads) pthread_cond_signal(&cond);
@@ -50,13 +44,8 @@ pthread_handler_t test_atomic_add64(void *arg)
   for (x= ((int64)(intptr)(&m)); m ; m--)
   {
     x= (x*m+0xfdecba987654321LL) & INT_MAX64;
-    my_atomic_rwlock_wrlock(&rwl);
     my_atomic_add64(&a64, x);
-    my_atomic_rwlock_wrunlock(&rwl);
-
-    my_atomic_rwlock_wrlock(&rwl);
     my_atomic_add64(&a64, -x);
-    my_atomic_rwlock_wrunlock(&rwl);
   }
   pthread_mutex_lock(&mutex);
   if (!--running_threads)
@@ -82,31 +71,17 @@ pthread_handler_t test_atomic_fas(void *arg)
   int    m= *(int *)arg;
   int32  x;
 
-  my_atomic_rwlock_wrlock(&rwl);
   x= my_atomic_add32(&b32, 1);
-  my_atomic_rwlock_wrunlock(&rwl);
 
-  my_atomic_rwlock_wrlock(&rwl);
   my_atomic_add32(&bad, x);
-  my_atomic_rwlock_wrunlock(&rwl);
 
   for (; m ; m--)
-  {
-    my_atomic_rwlock_wrlock(&rwl);
     x= my_atomic_fas32(&c32, x);
-    my_atomic_rwlock_wrunlock(&rwl);
-  }
 
   if (!x)
-  {
-    my_atomic_rwlock_wrlock(&rwl);
     x= my_atomic_fas32(&c32, x);
-    my_atomic_rwlock_wrunlock(&rwl);
-  }
 
-  my_atomic_rwlock_wrlock(&rwl);
   my_atomic_add32(&bad, -x);
-  my_atomic_rwlock_wrunlock(&rwl);
 
   pthread_mutex_lock(&mutex);
   if (!--running_threads) pthread_cond_signal(&cond);
@@ -125,19 +100,13 @@ pthread_handler_t test_atomic_cas(void *arg)
   int32 x, y;
   for (x= ((int)(intptr)(&m)); m ; m--)
   {
-    my_atomic_rwlock_wrlock(&rwl);
     y= my_atomic_load32(&bad);
-    my_atomic_rwlock_wrunlock(&rwl);
     x= (x*m+0x87654321) & INT_MAX32;
     do {
-      my_atomic_rwlock_wrlock(&rwl);
       ok= my_atomic_cas32(&bad, &y, (uint32)y+x);
-      my_atomic_rwlock_wrunlock(&rwl);
     } while (!ok) ;
     do {
-      my_atomic_rwlock_wrlock(&rwl);
       ok= my_atomic_cas32(&bad, &y, y-x);
-      my_atomic_rwlock_wrunlock(&rwl);
     } while (!ok) ;
   }
   pthread_mutex_lock(&mutex);
@@ -154,7 +123,6 @@ void do_tests()
   bad= my_atomic_initialize();
   ok(!bad, "my_atomic_initialize() returned %d", bad);
 
-  my_atomic_rwlock_init(&rwl);
 
   b32= c32= 0;
   test_concurrently("my_atomic_add32", test_atomic_add, THREADS, CYCLES);
@@ -178,6 +146,4 @@ void do_tests()
   }
   a64=0;
   test_concurrently("my_atomic_add64", test_atomic_add64, THREADS, CYCLES);
-
-  my_atomic_rwlock_destroy(&rwl);
 }

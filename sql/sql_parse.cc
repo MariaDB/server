@@ -840,7 +840,7 @@ end:
   delete thd;
 
 #ifndef EMBEDDED_LIBRARY
-  thread_safe_decrement32(&thread_count, &thread_count_lock);
+  thread_safe_decrement32(&thread_count);
   in_bootstrap= FALSE;
 
   mysql_mutex_lock(&LOCK_thread_count);

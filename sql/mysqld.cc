@@ -507,11 +507,6 @@ ulonglong query_cache_size=0;
 ulong query_cache_limit=0;
 ulong executed_events=0;
 query_id_t global_query_id;
-my_atomic_rwlock_t global_query_id_lock;
-my_atomic_rwlock_t thread_running_lock;
-my_atomic_rwlock_t thread_count_lock;
-my_atomic_rwlock_t statistics_lock;
-my_atomic_rwlock_t slave_executed_entries_lock;
 ulong aborted_threads, aborted_connects;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
 ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
@@ -2152,11 +2147,6 @@ void clean_up(bool print_message)
   /* Tell main we are ready */
   logger.cleanup_end();
   sys_var_end();
-  my_atomic_rwlock_destroy(&global_query_id_lock);
-  my_atomic_rwlock_destroy(&thread_running_lock);
-  my_atomic_rwlock_destroy(&thread_count_lock);
-  my_atomic_rwlock_destroy(&statistics_lock); 
-  my_atomic_rwlock_destroy(&slave_executed_entries_lock);
   free_charsets();
   mysql_mutex_lock(&LOCK_thread_count);
   DBUG_PRINT("quit", ("got thread count lock"));
@@ -2829,7 +2819,7 @@ void delete_running_thd(THD *thd)
 
   delete thd;
   dec_thread_running();
-  thread_safe_decrement32(&thread_count, &thread_count_lock);
+  thread_safe_decrement32(&thread_count);
   if (!thread_count)
   {
     mysql_mutex_lock(&LOCK_thread_count);
@@ -2871,7 +2861,7 @@ void unlink_thd(THD *thd)
   mysql_mutex_unlock(&LOCK_thread_count);
 
   delete thd;
-  thread_safe_decrement32(&thread_count, &thread_count_lock);
+  thread_safe_decrement32(&thread_count);
 
   DBUG_VOID_RETURN;
 }
@@ -6221,7 +6211,7 @@ void create_thread_to_handle_connection(THD *thd)
     thd->unlink();
     mysql_mutex_unlock(&LOCK_thread_count);
     delete thd;
-    thread_safe_decrement32(&thread_count, &thread_count_lock);
+    thread_safe_decrement32(&thread_count);
     return;
     /* purecov: end */
   }
@@ -6275,7 +6265,7 @@ static void create_new_thread(THD *thd)
 
   mysql_mutex_unlock(&LOCK_connection_count);
 
-  thread_safe_increment32(&thread_count, &thread_count_lock);
+  thread_safe_increment32(&thread_count);
 
   /* Start a new thread to handle connection. */
   mysql_mutex_lock(&LOCK_thread_count);
@@ -8477,11 +8467,6 @@ static int mysql_init_variables(void)
   denied_connections= 0;
   executed_events= 0;
   global_query_id= thread_id= 1L;
-  my_atomic_rwlock_init(&global_query_id_lock);
-  my_atomic_rwlock_init(&thread_running_lock);
-  my_atomic_rwlock_init(&thread_count_lock);
-  my_atomic_rwlock_init(&statistics_lock);
-  my_atomic_rwlock_init(&slave_executed_entries_lock);
   strmov(server_version, MYSQL_SERVER_VERSION);
   threads.empty();
   thread_cache.empty();

@@ -20,7 +20,7 @@
 #include "sql_bitmap.h"                         /* Bitmap */
 #include "my_decimal.h"                         /* my_decimal */
 #include "mysql_com.h"                     /* SERVER_VERSION_LENGTH */
-#include "my_atomic.h"                     /* my_atomic_rwlock_t */
+#include "my_atomic.h"
 #include "mysql/psi/mysql_file.h"          /* MYSQL_FILE */
 #include "sql_list.h"                      /* I_List */
 #include "sql_cmd.h"
@@ -538,8 +538,6 @@ extern mysql_cond_t COND_manager;
 extern mysql_cond_t COND_slave_init;
 extern int32 thread_running;
 extern int32 thread_count;
-extern my_atomic_rwlock_t thread_running_lock, thread_count_lock;
-extern my_atomic_rwlock_t slave_executed_entries_lock;
 
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,
   *opt_ssl_key, *opt_ssl_crl, *opt_ssl_crlpath;
@@ -627,28 +625,18 @@ enum enum_query_type
 /* query_id */
 typedef int64 query_id_t;
 extern query_id_t global_query_id;
-extern my_atomic_rwlock_t global_query_id_lock;
-extern my_atomic_rwlock_t statistics_lock;
 
 void unireg_end(void) __attribute__((noreturn));
 
 /* increment query_id and return it.  */
 inline __attribute__((warn_unused_result)) query_id_t next_query_id()
 {
-  query_id_t id;
-  my_atomic_rwlock_wrlock(&global_query_id_lock);
-  id= my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(&global_query_id_lock);
-  return (id);
+  return my_atomic_add64_explicit(&global_query_id, 1, MY_MEMORY_ORDER_RELAXED);
 }
 
 inline query_id_t get_query_id()
 {
-  query_id_t id;
-  my_atomic_rwlock_wrlock(&global_query_id_lock);
-  id= my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(&global_query_id_lock);
-  return id;
+  return my_atomic_load64_explicit(&global_query_id, MY_MEMORY_ORDER_RELAXED);
 }
 
 
@@ -669,44 +657,34 @@ inline void table_case_convert(char * name, uint length)
                                      name, length, name, length);
 }
 
-inline void thread_safe_increment32(int32 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_increment32(int32 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add32_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void thread_safe_decrement32(int32 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_decrement32(int32 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add32_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void thread_safe_increment64(int64 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_increment64(int64 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add64_explicit(value, 1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void thread_safe_decrement64(int64 *value, my_atomic_rwlock_t *lock)
+inline void thread_safe_decrement64(int64 *value)
 {
-  my_atomic_rwlock_wrlock(lock);
   (void) my_atomic_add64_explicit(value, -1, MY_MEMORY_ORDER_RELAXED);
-  my_atomic_rwlock_wrunlock(lock);
 }
 
-inline void
-inc_thread_running()
+inline void inc_thread_running()
 {
-  thread_safe_increment32(&thread_running, &thread_running_lock);
+  thread_safe_increment32(&thread_running);
 }
 
-inline void
-dec_thread_running()
+inline void dec_thread_running()
 {
-  thread_safe_decrement32(&thread_running, &thread_running_lock);
+  thread_safe_decrement32(&thread_running);
 }
 
 void set_server_version(void);

@@ -964,8 +964,6 @@ MARK_AS_ADVANCED(NO_ALARM)
 IF(CMAKE_COMPILER_IS_GNUCXX)
 IF(WITH_ATOMIC_OPS STREQUAL "up")
   SET(MY_ATOMIC_MODE_DUMMY 1 CACHE BOOL "Assume single-CPU mode, no concurrency")
-ELSEIF(WITH_ATOMIC_OPS STREQUAL "rwlocks")
-  SET(MY_ATOMIC_MODE_RWLOCKS 1 CACHE BOOL "Use pthread rwlocks for atomic ops")
 ELSEIF(WITH_ATOMIC_OPS STREQUAL "smp")
 ELSEIF(NOT WITH_ATOMIC_OPS)
   CHECK_CXX_SOURCE_COMPILES("
@@ -997,12 +995,8 @@ ELSE()
 ENDIF()
 ENDIF()
 
-SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING
-  "Implement atomic operations using pthread rwlocks (rwlocks); or atomic CPU
-instructions for multi-processor (smp) or uniprocessor (up)
-configuration. By default gcc built-in sync functions are used,
-if available and 'smp' configuration otherwise.")
-MARK_AS_ADVANCED(WITH_ATOMIC_OPS MY_ATOMIC_MODE_RWLOCK MY_ATOMIC_MODE_DUMMY)
+SET(WITH_ATOMIC_OPS "${WITH_ATOMIC_OPS}" CACHE STRING "Implement atomic operations using atomic CPU instructions for multi-processor (smp) or uniprocessor (up) configuration. By default gcc built-in sync functions are used, if available and 'smp' configuration otherwise.")
+MARK_AS_ADVANCED(WITH_ATOMIC_OPS MY_ATOMIC_MODE_DUMMY)
 
 IF(WITH_VALGRIND)
   SET(HAVE_valgrind 1)

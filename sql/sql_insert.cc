@@ -2061,7 +2061,7 @@ public:
     thd.security_ctx->user= thd.security_ctx->host=0;
     delayed_insert_threads--;
     mysql_mutex_unlock(&LOCK_thread_count);
-    thread_safe_decrement32(&thread_count, &thread_count_lock);
+    thread_safe_decrement32(&thread_count);
     mysql_cond_broadcast(&COND_thread_count); /* Tell main we are ready */
   }
 
@@ -2197,7 +2197,7 @@ bool delayed_get_table(THD *thd, MDL_request *grl_protection_request,
       if (!(di= new Delayed_insert()))
         goto end_create;
 
-      thread_safe_increment32(&thread_count, &thread_count_lock);
+      thread_safe_increment32(&thread_count);
 
       /*
         Annotating delayed inserts is not supported.

@@ -47,8 +47,7 @@ rpt_handle_event(rpl_parallel_thread::queued_event *qev,
   /* Mutex will be released in apply_event_and_update_pos(). */
   err= apply_event_and_update_pos(ev, thd, rgi, rpt);
 
-  thread_safe_increment64(&rli->executed_entries,
-                          &slave_executed_entries_lock);
+  thread_safe_increment64(&rli->executed_entries);
   /* ToDo: error handling. */
   return err;
 }
@@ -1193,9 +1192,7 @@ rpl_parallel_thread::inuse_relaylog_refcount_update()
   inuse_relaylog *ir= accumulated_ir_last;
   if (ir)
   {
-    my_atomic_rwlock_wrlock(&ir->rli->inuse_relaylog_atomic_lock);
     my_atomic_add64(&ir->dequeued_count, accumulated_ir_count);
-    my_atomic_rwlock_wrunlock(&ir->rli->inuse_relaylog_atomic_lock);
     accumulated_ir_count= 0;
     accumulated_ir_last= NULL;
   }

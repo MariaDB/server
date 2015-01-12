@@ -4187,7 +4187,6 @@ int MYSQL_BIN_LOG::purge_first_log(Relay_log_info* rli, bool included)
       included= 1;
       to_purge_if_included= my_strdup(ir->name, MYF(0));
     }
-    my_atomic_rwlock_destroy(&ir->inuse_relaylog_atomic_lock);
     my_free(ir);
     ir= next;
   }

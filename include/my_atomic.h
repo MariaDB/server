@@ -100,19 +100,9 @@
                             acquire-release operation, and additionally has
                             sequentially-consistent operation ordering.
 
-  NOTE This operations are not always atomic, so they always must be
-  enclosed in my_atomic_rwlock_rdlock(lock)/my_atomic_rwlock_rdunlock(lock)
-  or my_atomic_rwlock_wrlock(lock)/my_atomic_rwlock_wrunlock(lock).
-  Hint: if a code block makes intensive use of atomic ops, it make sense
-  to take/release rwlock once for the whole block, not for every statement.
-
-  On architectures where these operations are really atomic, rwlocks will
-  be optimized away.
   8- and 16-bit atomics aren't implemented for windows (see generic-msvc.h),
   but can be added, if necessary.
 */
-
-#ifndef my_atomic_rwlock_init
 
 #define intptr         void *
 /**
@@ -121,16 +111,14 @@
 */
 #undef MY_ATOMIC_HAS_8_16
 
-#ifndef MY_ATOMIC_MODE_RWLOCKS
 /*
  * Attempt to do atomic ops without locks
  */
 #include "atomic/nolock.h"
-#endif
 
 #ifndef make_atomic_cas_body
 /* nolock.h was not able to generate even a CAS function, fall back */
-#include "atomic/rwlock.h"
+#error atomic ops for this platform are not implemented
 #endif
 
 /* define missing functions by using the already generated ones */
@@ -339,8 +327,6 @@ make_atomic_store(ptr)
 #define MY_ATOMIC_OK       0
 #define MY_ATOMIC_NOT_1CPU 1
 extern int my_atomic_initialize();
-
-#endif
 
 #ifdef __ATOMIC_SEQ_CST
 #define MY_MEMORY_ORDER_RELAXED __ATOMIC_RELAXED

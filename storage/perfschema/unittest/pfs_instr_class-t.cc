@@ -655,8 +655,6 @@ void test_instruments_reset()
 
 void do_all_tests()
 {
-  PFS_atomic::init();
-
   test_no_registration();
   test_mutex_registration();
   test_rwlock_registration();
@@ -666,8 +664,6 @@ void do_all_tests()
   test_socket_registration();
   test_table_registration();
   test_instruments_reset();
-
-  PFS_atomic::cleanup();
 }
 
 int main(int argc, char **argv)

@@ -3652,8 +3652,7 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
                             serial_rgi->trans_retries));
       }
     }
-    thread_safe_increment64(&rli->executed_entries,
-                            &slave_executed_entries_lock);
+    thread_safe_increment64(&rli->executed_entries);
     DBUG_RETURN(exec_res);
   }
   mysql_mutex_unlock(&rli->data_lock);

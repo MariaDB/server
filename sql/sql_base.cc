@@ -1732,7 +1732,7 @@ void close_temporary_table(THD *thd, TABLE *table,
   {
     /* natural invariant of temporary_tables */
     DBUG_ASSERT(slave_open_temp_tables || !thd->temporary_tables);
-    thread_safe_decrement32(&slave_open_temp_tables, &thread_running_lock);
+    thread_safe_decrement32(&slave_open_temp_tables);
     table->in_use= 0;                           // No statistics
   }
   thd->unlock_temporary_tables();
@@ -5721,7 +5721,7 @@ TABLE *open_table_uncached(THD *thd, handlerton *hton,
     thd->temporary_tables->prev= 0;
     if (thd->rgi_slave)
     {
-      thread_safe_increment32(&slave_open_temp_tables, &thread_running_lock);
+      thread_safe_increment32(&slave_open_temp_tables);
     }
     thd->unlock_temporary_tables();
   }

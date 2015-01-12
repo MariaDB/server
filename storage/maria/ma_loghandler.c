@@ -419,8 +419,6 @@ static ulonglong flush_start= 0;
 #include <my_atomic.h>
 /* an array that maps id of a MARIA_SHARE to this MARIA_SHARE */
 static MARIA_SHARE **id_to_share= NULL;
-/* lock for id_to_share */
-static my_atomic_rwlock_t LOCK_id_to_share;
 
 static my_bool translog_dummy_callback(uchar *page,
                                        pgcache_page_no_t page_no,
@@ -4042,7 +4040,6 @@ my_bool translog_init_with_table(const char *directory,
     Log records will refer to a MARIA_SHARE by a unique 2-byte id; set up
     structures for generating 2-byte ids:
   */
-  my_atomic_rwlock_init(&LOCK_id_to_share);
   id_to_share= (MARIA_SHARE **) my_malloc(SHARE_ID_MAX * sizeof(MARIA_SHARE*),
                                           MYF(MY_WME | MY_ZEROFILL));
   if (unlikely(!id_to_share))
@@ -4286,7 +4283,6 @@ void translog_destroy()
 
   if (log_descriptor.directory_fd >= 0)
     mysql_file_close(log_descriptor.directory_fd, MYF(MY_WME));
-  my_atomic_rwlock_destroy(&LOCK_id_to_share);
   if (id_to_share != NULL)
     my_free(id_to_share + 1);
   DBUG_VOID_RETURN;
@@ -8125,7 +8121,6 @@ int translog_assign_id_to_share(MARIA_HA *tbl_info, TRN *trn)
     id= 0;
     do
     {
-      my_atomic_rwlock_wrlock(&LOCK_id_to_share);
       for ( ; i <= SHARE_ID_MAX ; i++) /* the range is [1..SHARE_ID_MAX] */
       {
         void *tmp= NULL;
@@ -8136,7 +8131,6 @@ int translog_assign_id_to_share(MARIA_HA *tbl_info, TRN *trn)
           break;
         }
       }
-      my_atomic_rwlock_wrunlock(&LOCK_id_to_share);
       i= 1; /* scan the whole array */
     } while (id == 0);
     DBUG_PRINT("info", ("id_to_share: 0x%lx -> %u", (ulong)share, id));
@@ -8199,9 +8193,7 @@ void translog_deassign_id_from_share(MARIA_SHARE *share)
     mutex:
   */
   mysql_mutex_assert_owner(&share->intern_lock);
-  my_atomic_rwlock_rdlock(&LOCK_id_to_share);
   my_atomic_storeptr((void **)&id_to_share[share->id], 0);
-  my_atomic_rwlock_rdunlock(&LOCK_id_to_share);
   share->id= 0;
   /* useless but safety: */
   share->lsn_of_file_id= LSN_IMPOSSIBLE;

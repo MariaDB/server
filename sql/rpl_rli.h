@@ -504,8 +504,6 @@ struct inuse_relaylog {
   /* Set when all events have been read from a relaylog. */
   bool completed;
   char name[FN_REFLEN];
-  /* Lock used to protect inuse_relaylog::dequeued_count */
-  my_atomic_rwlock_t inuse_relaylog_atomic_lock;
 };
 
 

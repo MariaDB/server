@@ -192,19 +192,12 @@ uint32 wt_wait_stats[WT_WAIT_STATS+1];
 uint32 wt_cycle_stats[2][WT_CYCLE_STATS+1];
 uint32 wt_success_stats;
 
-static my_atomic_rwlock_t cycle_stats_lock, wait_stats_lock, success_stats_lock;
-
 #ifdef HAVE_PSI_INTERFACE
 extern PSI_cond_key key_WT_RESOURCE_cond;
 #endif
 
 #ifdef SAFE_STATISTICS
-#define incr(VAR, LOCK)                           \
-  do {                                            \
-    my_atomic_rwlock_wrlock(&(LOCK));             \
-    my_atomic_add32(&(VAR), 1);                   \
-    my_atomic_rwlock_wrunlock(&(LOCK));           \
-  } while(0)
+#define incr(VAR, LOCK) do { my_atomic_add32(&(VAR), 1); } while(0)
 #else
 #define incr(VAR,LOCK)  do { (VAR)++; } while(0)
 #endif
@@ -458,9 +451,6 @@ void wt_init()
       DBUG_ASSERT(i == 0 || wt_wait_table[i-1] != wt_wait_table[i]);
     }
   }
-  my_atomic_rwlock_init(&cycle_stats_lock);
-  my_atomic_rwlock_init(&success_stats_lock);
-  my_atomic_rwlock_init(&wait_stats_lock);
   wt_init_done= 1;
   DBUG_VOID_RETURN;
 }
@@ -473,9 +463,6 @@ void wt_end()
 
   DBUG_ASSERT(reshash.count == 0);
   lf_hash_destroy(&reshash);
-  my_atomic_rwlock_destroy(&cycle_stats_lock);
-  my_atomic_rwlock_destroy(&success_stats_lock);
-  my_atomic_rwlock_destroy(&wait_stats_lock);
   reshash.alloc.constructor= NULL;
   wt_init_done= 0;
   DBUG_VOID_RETURN;
