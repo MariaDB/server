@@ -7,7 +7,7 @@
 
 
 # Ignore OS errors
-call mtr.add_suppression("InnoDB: File ./test/t1*");
+call mtr.add_suppression("InnoDB: File *");
 call mtr.add_suppression("InnoDB: Error number*");
 
 # MDEV-7046: MySQL#74480 - Failing assertion: os_file_status(newpath, &exists, &type) 
