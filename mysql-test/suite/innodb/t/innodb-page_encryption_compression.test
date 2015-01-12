@@ -35,7 +35,7 @@ delimiter ;//
 commit;
 
 set autocommit=0;
-call innodb_insert_proc(5000);
+call innodb_insert_proc(2000);
 commit;
 set autocommit=1;
 
@@ -48,6 +48,10 @@ update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_normal;
 select count(*) from innodb_compact where c1 < 1500000;
 select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
 
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
@@ -68,6 +72,10 @@ update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_normal;
 select count(*) from innodb_compact where c1 < 1500000;
 select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
 
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';
@@ -97,6 +105,10 @@ update innodb_dynamic set c1 = c1 + 1;
 select count(*) from innodb_normal;
 select count(*) from innodb_compact where c1 < 1500000;
 select count(*) from innodb_dynamic where c1 < 1500000;
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
 
 SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_decrypted';

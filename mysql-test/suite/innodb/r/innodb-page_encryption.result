@@ -40,29 +40,46 @@ end while;
 end//
 commit;
 set autocommit=0;
-call innodb_insert_proc(5000);
+call innodb_insert_proc(2000);
 commit;
 set autocommit=1;
 insert into innodb_compact select * from innodb_normal;
 insert into innodb_compressed select * from innodb_normal;
 insert into innodb_dynamic select * from innodb_normal;
 insert into innodb_redundant select * from innodb_normal;
+update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 update innodb_redundant set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_compressed where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_redundant where c1 < 1500000;
 count(*)
-5000
+2000
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_compressed t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 variable_value >= 0
 1
@@ -74,22 +91,39 @@ variable_value = 0
 1
 SET GLOBAL innodb_file_format = `Barracuda`;
 SET GLOBAL innodb_file_per_table = ON;
+update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 update innodb_redundant set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_compressed where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_redundant where c1 < 1500000;
 count(*)
-5000
+2000
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_compressed t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
 SELECT variable_value >= 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 variable_value >= 0
 1
@@ -153,22 +187,39 @@ innodb_redundant	CREATE TABLE `innodb_redundant` (
   `c1` bigint(20) NOT NULL,
   `b` char(200) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 ROW_FORMAT=REDUNDANT
+update innodb_normal set c1 = c1 +1;
 update innodb_compact set c1 = c1 + 1;
 update innodb_compressed set c1 = c1 + 1;
 update innodb_dynamic set c1 = c1 + 1;
 update innodb_redundant set c1 = c1 + 1;
 select count(*) from innodb_compact where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_compressed where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_dynamic where c1 < 1500000;
 count(*)
-5000
+2000
 select count(*) from innodb_redundant where c1 < 1500000;
 count(*)
-5000
+2000
+select count(*) from innodb_compact t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_dynamic t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_compressed t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
+select count(*) from innodb_redundant t1, innodb_normal t2 where
+t1.c1 = t2.c1 and t1.b = t2.b;
+count(*)
+2000
 SELECT variable_value = 0 FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_num_pages_page_encrypted';
 variable_value = 0
 1

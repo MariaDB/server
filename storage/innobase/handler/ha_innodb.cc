@@ -11286,6 +11286,14 @@ ha_innobase::check_table_options(
 	/* Check page compression requirements */
 	if (options->page_compressed) {
 
+		if (srv_encrypt_tables) {
+			push_warning(
+				thd, Sql_condition::WARN_LEVEL_WARN,
+				HA_WRONG_CREATE_OPTION,
+				"InnoDB: PAGE_COMPRESSION not available if innodb_encrypt_tables=ON");
+			return "PAGE_COMPRESSED";
+		}
+
 		if (row_format == ROW_TYPE_COMPRESSED) {
 			push_warning(
 				thd, Sql_condition::WARN_LEVEL_WARN,

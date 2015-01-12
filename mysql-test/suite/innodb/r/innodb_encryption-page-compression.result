@@ -1,0 +1,9 @@
+SET GLOBAL innodb_file_format = `Barracuda`;
+SET GLOBAL innodb_file_per_table = ON;
+set global innodb_compression_algorithm = 1;
+create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb page_compressed=1;
+ERROR HY000: Can't create table `test`.`innodb_normal` (errno: 140 "Wrong create options")
+create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact page_compressed=1;
+ERROR HY000: Can't create table `test`.`innodb_compact` (errno: 140 "Wrong create options")
+create table innodb_dynamic(c1 bigint not null, b char(200)) engine=innodb row_format=dynamic page_compressed=1;
+ERROR HY000: Can't create table `test`.`innodb_dynamic` (errno: 140 "Wrong create options")
