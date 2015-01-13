@@ -6041,14 +6041,6 @@ err:
         }
         else
         {
-          /* update binlog_end_pos so it can be read by dump thread
-           *
-           * note: must be _after_ the RUN_HOOK(after_flush) or else
-           * semi-sync-plugin might not have put the transaction into
-           * it's list before dump-thread tries to send it
-           */
-          update_binlog_end_pos(offset);
-
           /* documentation of which mutexes are (not) owned */
           mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
           mysql_mutex_assert_owner(&LOCK_log);
@@ -6065,6 +6057,14 @@ err:
           }
           else
           {
+            /* update binlog_end_pos so it can be read by dump thread
+             *
+             * note: must be _after_ the RUN_HOOK(after_flush) or else
+             * semi-sync-plugin might not have put the transaction into
+             * it's list before dump-thread tries to send it
+             */
+            update_binlog_end_pos(offset);
+
             signal_update();
             if ((error= rotate(false, &check_purge)))
               check_purge= false;
