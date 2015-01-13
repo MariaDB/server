@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2014
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -170,7 +170,7 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0005 November 08, 2014";
+       char  version[]= "Version 1.03.0005 January 13, 2015";
        char  compver[]= "Version 1.03.0005 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
@@ -4830,6 +4830,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // WIN32
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused)) = 0;
+#if defined(ODBC_SUPPORT)
+  int         cto= -1, qto= -1;
+#endif   // ODBC_SUPPORT
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
@@ -4889,6 +4892,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+    cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
+    qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
 #endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
@@ -5107,14 +5112,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           case FNC_NO:
           case FNC_COL:
             if (src) {
-              qrp= ODBCSrcCols(g, dsn, (char*)src);
+              qrp= ODBCSrcCols(g, dsn, (char*)src, cto, qto);
               src= NULL;     // for next tests
             } else
-              qrp= ODBCColumns(g, dsn, shm, tab, NULL, mxr, fnc == FNC_COL);
+              qrp= ODBCColumns(g, dsn, shm, tab, NULL,
+                               mxr, cto, qto, fnc == FNC_COL);
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, true);
+            qrp= ODBCTables(g, dsn, shm, tab, mxr, cto, qto, true);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);

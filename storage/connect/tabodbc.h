@@ -1,7 +1,7 @@
 /*************** Tabodbc H Declares Source Code File (.H) **************/
-/*  Name: TABODBC.H   Version 1.7                                      */
+/*  Name: TABODBC.H   Version 1.8                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
@@ -24,6 +24,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   friend class TDBODBC;
   friend class TDBXDBC;
   friend class TDBDRV;
+  friend class TDBOTB;
  public:
   // Constructor
   ODBCDEF(void);
@@ -56,6 +57,8 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Sep;                /* Decimal separator                     */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
+  int     Cto;                /* Open connection timeout               */
+  int     Qto;                /* Query (command) timeout               */
   int     Quoted;             /* Identifier quoting level              */
   int     Maxerr;             /* Maxerr for an Exec table              */
   int     Maxres;             /* Maxres for a catalog table            */
@@ -135,6 +138,8 @@ class TDBODBC : public TDBASE {
   char    *Qrystr;            // The original query
   char     Sep;               // The decimal separator
   int      Options;           // Connect options
+  int      Cto;               // Connect timeout
+  int      Qto;               // Query timeout
   int      Quoted;            // The identifier quoting level
   int      Fpos;              // Position of last read record
   int      AftRows;           // The number of affected rows
@@ -311,6 +316,8 @@ class TDBOTB : public TDBDRV {
   char    *Dsn;               // Points to connection string
   char    *Schema;            // Points to schema name or NULL
   char    *Tab;               // Points to ODBC table name or pattern
+  int      Cto;               // Connect timeout
+  int      Qto;               // Query timeout
   }; // end of class TDBOTB
 
 /***********************************************************************/

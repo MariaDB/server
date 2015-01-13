@@ -1,7 +1,7 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 2.0                                     */
+/*  Name: ODBCONN.CPP  Version 2.1                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -291,7 +291,7 @@ static void ResetNullValues(CATPARM *cap)
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /***********************************************************************/
 PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
-                               char *colpat, int maxres, bool info)
+                    char *colpat, int maxres, int cto, int qto, bool info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
                    TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
@@ -310,6 +310,8 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   /************************************************************************/
   if (!info) {
     ocp = new(g) ODBConn(g, NULL);
+    ocp->SetLoginTimeout((DWORD)cto);
+    ocp->SetQueryTimeout((DWORD)qto);
 
     if (ocp->Open(dsn, 10) < 1)  // openReadOnly + noODBCdialog
       return NULL;
@@ -386,10 +388,12 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
 /*  ODBCSrcCols: constructs the result blocks containing the              */
 /*  description of all the columns of a Srcdef option.                    */
 /**************************************************************************/
-PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src)
+PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, int cto, int qto)
   {
   ODBConn *ocp = new(g) ODBConn(g, NULL);
 
+  ocp->SetLoginTimeout((DWORD)cto);
+  ocp->SetQueryTimeout((DWORD)qto);
   return ocp->GetMetaData(g, dsn, src);
   } // end of ODBCSrcCols
 
@@ -570,7 +574,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
 /*  an ODBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                              int maxres, bool info)
+                              int maxres, int cto, int qto, bool info)
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
@@ -590,6 +594,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
     /*  Open the connection with the ODBC data source.                    */
     /**********************************************************************/
     ocp = new(g) ODBConn(g, NULL);
+    ocp->SetLoginTimeout((DWORD)cto);
+    ocp->SetQueryTimeout((DWORD)qto);
 
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
@@ -1134,10 +1140,13 @@ void ODBConn::AllocConnect(DWORD Options)
     } // endif
 #endif // _DEBUG
 
-  rc = SQLSetConnectOption(m_hdbc, SQL_LOGIN_TIMEOUT, m_LoginTimeout);
+  if ((signed)m_LoginTimeout >= 0) {
+    rc = SQLSetConnectOption(m_hdbc, SQL_LOGIN_TIMEOUT, m_LoginTimeout);
 
-  if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
-    htrc("Warning: Failure setting login timeout\n");
+    if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
+      htrc("Warning: Failure setting login timeout\n");
+
+    } // endif Timeout
 
   if (!m_Updatable) {
     rc = SQLSetConnectOption(m_hdbc, SQL_ACCESS_MODE, SQL_MODE_READ_ONLY);

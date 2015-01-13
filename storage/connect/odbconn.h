@@ -33,10 +33,6 @@
 typedef unsigned char *PUCHAR;
 #endif   // !WIN32
 
-// Timeout and net wait defaults
-#define DEFAULT_LOGIN_TIMEOUT 15    // seconds to before fail on connect
-#define DEFAULT_QUERY_TIMEOUT 15    // seconds to before fail waiting for results
-
 // Field Flags, used to indicate status of fields
 //efine SQL_FIELD_FLAG_DIRTY    0x1
 //efine SQL_FIELD_FLAG_NULL     0x2

@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.8                                                        */
+/*  Version 2.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -94,7 +94,7 @@ bool ExactInfo(void);
 ODBCDEF::ODBCDEF(void)
   {
   Connect= Tabname= Tabschema= Tabcat= Srcdef= Qchar= Qrystr= Sep= NULL;
-  Catver = Options = Quoted = Maxerr = Maxres = 0;
+  Catver = Options = Cto = Qto = Quoted = Maxerr = Maxres = 0;
   Scrollable = Memory = Xsrc = false;
   }  // end of ODBCDEF constructor
 
@@ -130,6 +130,8 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Quoted = GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
 //Options = ODBConn::noOdbcDialog | ODBConn::useCursorLib;
+  Cto= GetIntCatInfo("ConnectTimeout", DEFAULT_LOGIN_TIMEOUT);
+  Qto= GetIntCatInfo("QueryTimeout", DEFAULT_QUERY_TIMEOUT);
   Scrollable = GetBoolCatInfo("Scrollable", false);
   Memory = GetBoolCatInfo("Memory", false);
   Pseudo = 2;    // FILID is Ok but not ROWID
@@ -193,6 +195,8 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qrystr = tdp->Qrystr;
     Sep = tdp->GetSep();
     Options = tdp->Options;
+    Cto = tdp->Cto;
+    Qto = tdp->Qto;
     Quoted = MY_MAX(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
@@ -207,6 +211,8 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qrystr = NULL;
     Sep = 0;
     Options = 0;
+    Cto = DEFAULT_LOGIN_TIMEOUT;
+    Qto = DEFAULT_QUERY_TIMEOUT;
     Quoted = 0;
     Rows = 0;
     Catver = 0;
@@ -248,6 +254,8 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   MulConn = tdbp->MulConn;
   DBQ = tdbp->DBQ;
   Options = tdbp->Options;
+  Cto = tdbp->Cto;
+  Qto = tdbp->Qto;
   Quoted = tdbp->Quoted;
   Rows = tdbp->Rows;
   Fpos = tdbp->Fpos;
@@ -690,6 +698,9 @@ int TDBODBC::Cardinality(PGLOBAL g)
     char     qry[96], tbn[64];
     ODBConn *ocp = new(g) ODBConn(g, this);
 
+    ocp->SetLoginTimeout((DWORD)Cto);
+    ocp->SetQueryTimeout((DWORD)Qto);
+
     if (ocp->Open(Connect, Options) < 1)
       return -1;
 
@@ -791,9 +802,11 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   /*  and if so to allocate just a new result set. But this only for   */
   /*  drivers allowing concurency in getting results ???               */
   /*********************************************************************/
-  if (!Ocp)
+  if (!Ocp) {
     Ocp = new(g) ODBConn(g, this);
-  else if (Ocp->IsOpen())
+    Ocp->SetLoginTimeout((DWORD)Cto);
+    Ocp->SetQueryTimeout((DWORD)Qto);
+  } else if (Ocp->IsOpen())
     Ocp->Close();
 
   if (Ocp->Open(Connect, Options) < 1)
@@ -1400,9 +1413,11 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   /*  and if so to allocate just a new result set. But this only for   */
   /*  drivers allowing concurency in getting results ???               */
   /*********************************************************************/
-  if (!Ocp)
+  if (!Ocp) {
     Ocp = new(g) ODBConn(g, this);
-  else if (Ocp->IsOpen())
+    Ocp->SetLoginTimeout((DWORD)Cto);
+    Ocp->SetQueryTimeout((DWORD)Qto);
+  } else if (Ocp->IsOpen())
     Ocp->Close();
 
   if (Ocp->Open(Connect, Options) < 1)
@@ -1539,6 +1554,8 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   Dsn = tdp->GetConnect();
   Schema = tdp->GetTabschema();
   Tab = tdp->GetTabname();
+  Cto = tdp->Cto;
+  Qto = tdp->Qto;
   } // end of TDBOTB constructor
 
 /***********************************************************************/
@@ -1546,7 +1563,7 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
 /***********************************************************************/
 PQRYRES TDBOTB::GetResult(PGLOBAL g)
   {
-  return ODBCTables(g, Dsn, Schema, Tab, Maxres, false);
+  return ODBCTables(g, Dsn, Schema, Tab, Maxres, Cto, Qto, false);
 	} // end of GetResult
 
 /* ---------------------------TDBOCL class --------------------------- */
@@ -1556,7 +1573,7 @@ PQRYRES TDBOTB::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBOCL::GetResult(PGLOBAL g)
   {
-  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, false);
+  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, Cto, Qto, false);
 	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */
