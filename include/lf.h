@@ -83,7 +83,6 @@ typedef struct {
   } while(0)
 
 #define lf_unpin(PINS, PIN)        lf_pin(PINS, PIN, NULL)
-#define lf_unpin(PINS, PIN)        lf_pin(PINS, PIN, NULL)
 #define lf_assert_pin(PINS, PIN)   assert((PINS)->pin[PIN] != 0)
 #define lf_assert_unpin(PINS, PIN) assert((PINS)->pin[PIN] == 0)
 
