@@ -4498,7 +4498,9 @@ end_with_restore_list:
   case SQLCOM_CREATE_USER:
   case SQLCOM_CREATE_ROLE:
   {
-    if (check_access(thd, INSERT_ACL, "mysql", NULL, NULL, 1, 1) &&
+    if (check_access(thd, lex->create_info.or_replace() ?
+                          INSERT_ACL | DELETE_ACL : INSERT_ACL,
+                     "mysql", NULL, NULL, 1, 1) &&
         check_global_access(thd,CREATE_USER_ACL))
       break;
     WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)

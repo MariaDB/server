@@ -35,6 +35,10 @@ CREATE OR REPLACE FUNCTION lookup RETURNS STRING SONAME "UDF_EXAMPLE_LIB";
 ERROR 42000: Access denied for user 'mysqltest_1'@'localhost' to database 'mysql'
 CREATE OR REPLACE FUNCTION hello(str char(20)) RETURNS TEXT RETURN CONCAT('Hello, ', str, '!');
 ERROR 42000: alter routine command denied to user 'mysqltest_1'@'localhost' for routine 'db1.hello'
+CREATE OR REPLACE USER u1@localhost;
+ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
+CREATE OR REPLACE ROLE developer;
+ERROR 42000: Access denied; you need (at least one of) the CREATE USER privilege(s) for this operation
 SELECT CURRENT_USER;
 CURRENT_USER
 root@localhost

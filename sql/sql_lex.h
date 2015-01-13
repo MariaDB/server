@@ -2851,6 +2851,11 @@ struct LEX: public Query_tables_list
     set_command(command, scope, options);
     return check_create_options(options);
   }
+  bool set_command_with_check(enum_sql_command command, DDL_options_st options)
+  {
+    set_command(command, options);
+    return check_create_options(options);
+  }
   /*
     DROP shares lex->create_info to store TEMPORARY and IF EXISTS options
     to save on extra initialization in lex_start().

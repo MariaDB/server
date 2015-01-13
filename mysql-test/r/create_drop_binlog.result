@@ -181,3 +181,65 @@ Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Gtid	1	#	GTID #-#-#
 #	#	Query	1	#	use `test`; DROP VIEW IF EXISTS v1
 RESET MASTER;
+CREATE OR REPLACE ROLE r1;
+CREATE OR REPLACE ROLE r1;
+DROP ROLE r1;
+CREATE ROLE IF NOT EXISTS r1;
+CREATE ROLE IF NOT EXISTS r1;
+Warnings:
+Note	1974	Can't create role 'r1'; it already exists
+DROP ROLE IF EXISTS r1;
+DROP ROLE IF EXISTS r1;
+Warnings:
+Note	1975	Can't drop role 'r1'; it doesn't exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE ROLE r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE ROLE r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP ROLE r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE ROLE IF NOT EXISTS r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE ROLE IF NOT EXISTS r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP ROLE IF EXISTS r1
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP ROLE IF EXISTS r1
+RESET MASTER;
+CREATE OR REPLACE USER u1@localhost;
+CREATE OR REPLACE USER u1@localhost;
+DROP USER u1@localhost;
+CREATE USER IF NOT EXISTS u1@localhost;
+CREATE USER IF NOT EXISTS u1@localhost;
+Warnings:
+Note	1972	Can't create user 'u1'@'localhost'; it already exists
+DROP USER IF EXISTS u1@localhost;
+DROP USER IF EXISTS u1@localhost;
+Warnings:
+Note	1973	Can't drop user 'u1'@'localhost'; it doesn't exist
+SHOW BINLOG EVENTS;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+#	#	Format_desc	1	#	VER
+#	#	Gtid_list	1	#	[]
+#	#	Binlog_checkpoint	1	#	master-bin.000001
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE USER u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE OR REPLACE USER u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP USER u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE USER IF NOT EXISTS u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; CREATE USER IF NOT EXISTS u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP USER IF EXISTS u1@localhost
+#	#	Gtid	1	#	GTID #-#-#
+#	#	Query	1	#	use `test`; DROP USER IF EXISTS u1@localhost
+RESET MASTER;

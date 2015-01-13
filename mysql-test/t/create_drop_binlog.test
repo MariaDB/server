@@ -95,3 +95,27 @@ DROP VIEW IF EXISTS v1;
 --replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Server.ver.*/VER/
 SHOW BINLOG EVENTS;
 RESET MASTER;
+
+CREATE OR REPLACE ROLE r1;
+CREATE OR REPLACE ROLE r1;
+DROP ROLE r1;
+CREATE ROLE IF NOT EXISTS r1;
+CREATE ROLE IF NOT EXISTS r1;
+DROP ROLE IF EXISTS r1;
+DROP ROLE IF EXISTS r1;
+--replace_column 1 # 2 # 5 #
+--replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Server.ver.*/VER/
+SHOW BINLOG EVENTS;
+RESET MASTER;
+
+CREATE OR REPLACE USER u1@localhost;
+CREATE OR REPLACE USER u1@localhost;
+DROP USER u1@localhost;
+CREATE USER IF NOT EXISTS u1@localhost;
+CREATE USER IF NOT EXISTS u1@localhost;
+DROP USER IF EXISTS u1@localhost;
+DROP USER IF EXISTS u1@localhost;
+--replace_column 1 # 2 # 5 #
+--replace_regex /xid=[0-9]+/xid=XX/ /GTID [0-9]+-[0-9]+-[0-9]+/GTID #-#-#/ /Server.ver.*/VER/
+SHOW BINLOG EVENTS;
+RESET MASTER;

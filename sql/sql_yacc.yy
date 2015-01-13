@@ -2573,13 +2573,16 @@ create:
                MYSQL_YYABORT;
             }
           }
-        | CREATE USER clear_privileges grant_list
+        | create_or_replace USER opt_if_not_exists clear_privileges grant_list
           {
-            Lex->sql_command = SQLCOM_CREATE_USER;
+            if (Lex->set_command_with_check(SQLCOM_CREATE_USER, $1 | $3))
+              MYSQL_YYABORT;
           }
-        | CREATE ROLE_SYM clear_privileges role_list opt_with_admin
+        | create_or_replace ROLE_SYM opt_if_not_exists
+          clear_privileges role_list opt_with_admin
           {
-            Lex->sql_command = SQLCOM_CREATE_ROLE;
+            if (Lex->set_command_with_check(SQLCOM_CREATE_ROLE, $1 | $3))
+              MYSQL_YYABORT;
           }
         | CREATE LOGFILE_SYM GROUP_SYM logfile_group_info 
           {
@@ -11866,13 +11869,13 @@ drop:
             lex->set_command(SQLCOM_DROP_PROCEDURE, $3);
             lex->spname= $4;
           }
-        | DROP USER clear_privileges user_list
+        | DROP USER opt_if_exists clear_privileges user_list
           {
-            Lex->sql_command = SQLCOM_DROP_USER;
+            Lex->set_command(SQLCOM_DROP_USER, $3);
           }
-        | DROP ROLE_SYM clear_privileges role_list
+        | DROP ROLE_SYM opt_if_exists clear_privileges role_list
           {
-            Lex->sql_command = SQLCOM_DROP_ROLE;
+            Lex->set_command(SQLCOM_DROP_ROLE, $3);
           }
         | DROP VIEW_SYM opt_if_exists
           {

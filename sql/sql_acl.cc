@@ -9346,7 +9346,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name;
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[TABLES_MAX];
-  bool some_users_created= FALSE;
+  bool binlog= false;
   DBUG_ENTER("mysql_create_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
 
@@ -9402,12 +9402,41 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
     */
     if (handle_grant_data(tables, 0, user_name, NULL))
     {
-      append_user(thd, &wrong_users, user_name);
-      result= TRUE;
-      continue;
+      if (thd->lex->create_info.or_replace())
+      {
+        // Drop the existing user
+        if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
+        {
+          // DROP failed
+          append_user(thd, &wrong_users, user_name);
+          result= true;
+          continue;
+        }
+        // Proceed with the creation
+      }
+      else if (thd->lex->create_info.if_not_exists())
+      {
+        binlog= true;
+        if (handle_as_role)
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_ROLE_CREATE_EXISTS, ER(ER_ROLE_CREATE_EXISTS),
+                              user_name->user.str);
+        else
+          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                              ER_USER_CREATE_EXISTS, ER(ER_USER_CREATE_EXISTS),
+                              user_name->user.str, user_name->host.str);
+        continue;
+      }
+      else
+      {
+        // "CREATE USER user1" for an existing user
+        append_user(thd, &wrong_users, user_name);
+        result= true;
+        continue;
+      }
     }
 
-    some_users_created= TRUE;
+    binlog= true;
     if (replace_user_table(thd, tables[USER_TABLE].table, *user_name, 0, 0, 1, 0))
     {
       append_user(thd, &wrong_users, user_name);
@@ -9454,7 +9483,7 @@ bool mysql_create_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              (handle_as_role) ? "CREATE ROLE" : "CREATE USER",
              wrong_users.c_ptr_safe());
 
-  if (some_users_created)
+  if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
@@ -9481,7 +9510,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
   LEX_USER *user_name, *tmp_user_name;
   List_iterator <LEX_USER> user_list(list);
   TABLE_LIST tables[TABLES_MAX];
-  bool some_users_deleted= FALSE;
+  bool binlog= false;
   ulonglong old_sql_mode= thd->variables.sql_mode;
   DBUG_ENTER("mysql_drop_user");
   DBUG_PRINT("entry", ("Handle as %s", handle_as_role ? "role" : "user"));
@@ -9500,6 +9529,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
 
   while ((tmp_user_name= user_list++))
   {
+    int rc;
     user_name= get_current_user(thd, tmp_user_name, false);
     if (!user_name)
     {
@@ -9516,14 +9546,30 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
       continue;
     }
 
-    if (handle_grant_data(tables, 1, user_name, NULL) <= 0)
+    if ((rc= handle_grant_data(tables, 1, user_name, NULL)) > 0)
     {
-      append_user(thd, &wrong_users, user_name);
-      result= TRUE;
+      // The user or role was successfully deleted
+      binlog= true;
       continue;
     }
 
-    some_users_deleted= TRUE;
+    if (rc == 0 && thd->lex->if_exists())
+    {
+      // "DROP USER IF EXISTS user1" for a non-existing user or role
+      if (handle_as_role)
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_ROLE_DROP_EXISTS, ER(ER_ROLE_DROP_EXISTS),
+                            user_name->user.str);
+      else
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                            ER_USER_DROP_EXISTS, ER(ER_USER_DROP_EXISTS),
+                            user_name->user.str, user_name->host.str);
+      binlog= true;
+      continue;
+    }
+    // Internal error, or "DROP USER user1" for a non-existing user
+    append_user(thd, &wrong_users, user_name);
+    result= TRUE;
   }
 
   if (!handle_as_role)
@@ -9545,7 +9591,7 @@ bool mysql_drop_user(THD *thd, List <LEX_USER> &list, bool handle_as_role)
              (handle_as_role) ? "DROP ROLE" : "DROP USER",
              wrong_users.c_ptr_safe());
 
-  if (some_users_deleted)
+  if (binlog)
     result |= write_bin_log(thd, FALSE, thd->query(), thd->query_length());
 
   mysql_rwlock_unlock(&LOCK_grant);
