@@ -215,6 +215,7 @@ EOF
 wait
 EOF
 SET GLOBAL debug_dbug="+d,inject_crash_before_flush_rli";
+--error 0,2006,2013
 START SLAVE;
 
 --connection server_1
@@ -239,6 +240,7 @@ EOF
 wait
 EOF
 SET GLOBAL debug_dbug="+d,inject_crash_after_flush_rli";
+--error 0,2006,2013
 START SLAVE;
 
 --connection server_1
