@@ -2741,11 +2741,6 @@ files_checked:
 				srv_mtflush_threads,
 				mtflush_ctx,
 				(thread_ids + 6 + 32));
-
-#if UNIV_DEBUG
-			fprintf(stderr, "InnoDB: Note: %s:%d buf-pool-instances:%lu mtflush_threads %lu\n",
-				__FILE__, __LINE__, srv_buf_pool_instances, srv_mtflush_threads);
-#endif
 		}
 
 		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);

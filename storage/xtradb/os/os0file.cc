@@ -2037,7 +2037,7 @@ os_file_create_func(
 	try to set atomic writes and if that fails when creating a new
 	table, produce a error. If atomic writes are used on existing
 	file, ignore error and use traditional writes for that file */
-	if (file != INVALID_HANDLE_VALUE
+	if (file != INVALID_HANDLE_VALUE && type == OS_DATA_FILE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {
@@ -2186,7 +2186,7 @@ os_file_create_func(
 	try to set atomic writes and if that fails when creating a new
 	table, produce a error. If atomic writes are used on existing
 	file, ignore error and use traditional writes for that file */
-	if (file != -1
+	if (file != -1 && type == OS_DATA_FILE
 	    && (awrites == ATOMIC_WRITES_ON ||
 		(srv_use_atomic_writes && awrites == ATOMIC_WRITES_DEFAULT))
 	    && !os_file_set_atomic_writes(name, file)) {

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014, Fusion-io. All Rights Reserved.
-Copyright (C) 2013, 2014, SkySQL Ab. All Rights Reserved.
+Copyright (C) 2013, 2015, MariaDB Corporation. All Rights Reserved.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -202,6 +202,7 @@ buf_mtflu_flush_pool_instance(
 		return 0;
 	}
 
+	memset(&n, 0, sizeof(flush_counters_t));
 
     	if (work_item->wr.flush_type == BUF_FLUSH_LRU) {
         	/* srv_LRU_scan_depth can be arbitrarily large value.
@@ -379,9 +380,6 @@ buf_mtflu_io_thread_exit(void)
 
 	mtflush_io->gwt_status = WTHR_KILL_IT;
 
-	fprintf(stderr, "InnoDB: [Note]: Signal mtflush_io_threads to exit [%lu]\n",
-		srv_mtflush_threads);
-
 	/* This lock is to safequard against timing bug: flush request take
 	this mutex before sending work items to be processed by flush
 	threads. Inside flush thread we assume that work queue contains only
@@ -409,6 +407,9 @@ buf_mtflu_io_thread_exit(void)
 			mtflush_io->wheap);
 	}
 
+	/* Requests sent */
+	os_fast_mutex_unlock(&mtflush_mtx);
+
 	/* Wait until all work items on a work queue are processed */
 	while(!ib_wqueue_is_empty(mtflush_io->wq)) {
 		/* Wait */
@@ -433,10 +434,13 @@ buf_mtflu_io_thread_exit(void)
 	/* Wait about 1/2 sec to allow threads really exit */
 	os_thread_sleep(MT_WAIT_IN_USECS);
 
+	/* Make sure that work queue is empty */
 	while(!ib_wqueue_is_empty(mtflush_io->wq))
 	{
 		ib_wqueue_nowait(mtflush_io->wq);
 	}
+
+	os_fast_mutex_lock(&mtflush_mtx);
 
 	ut_a(ib_wqueue_is_empty(mtflush_io->wq));
 	ut_a(ib_wqueue_is_empty(mtflush_io->wr_cq));
@@ -447,14 +451,18 @@ buf_mtflu_io_thread_exit(void)
 	ib_wqueue_free(mtflush_io->wr_cq);
 	ib_wqueue_free(mtflush_io->rd_cq);
 
-	/* Requests sent */
-	os_fast_mutex_unlock(&mtflush_mtx);
-	os_fast_mutex_free(&mtflush_mtx);
-	os_fast_mutex_free(&mtflush_io->thread_global_mtx);
+	mtflush_io->wq = NULL;
+	mtflush_io->wr_cq  = NULL;
+	mtflush_io->rd_cq = NULL;
+	mtflush_work_initialized = 0;
 
 	/* Free heap */
 	mem_heap_free(mtflush_io->wheap);
 	mem_heap_free(mtflush_io->rheap);
+
+	os_fast_mutex_unlock(&mtflush_mtx);
+	os_fast_mutex_free(&mtflush_mtx);
+	os_fast_mutex_free(&mtflush_io->thread_global_mtx);
 }
 
 /******************************************************************//**
@@ -540,6 +548,10 @@ buf_mtflu_flush_work_items(
 	mem_heap_t* work_heap;
 	mem_heap_t* reply_heap;
 	wrk_t work_item[MTFLUSH_MAX_WORKER];
+
+	if (mtflush_ctx->gwt_status == WTHR_KILL_IT) {
+		return 0;
+	}
 
 	/* Allocate heap where all work items used and queue
 	node items areallocated */
