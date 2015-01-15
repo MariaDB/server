@@ -3757,7 +3757,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
 
     options->name= optname;
     options->comment= opt->comment;
-    options->app_type= opt;
+    options->app_type= (opt->flags & PLUGIN_VAR_NOSYSVAR) ? NULL : opt;
     options->id= 0;
 
     plugin_opt_set_limits(options, opt);
@@ -3913,6 +3913,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
         v= new (mem_root) sys_var_pluginvar(&chain, varname, tmp, o);
         if (!(o->flags & PLUGIN_VAR_NOCMDOPT))
         {
+          // update app_type, used for I_S.SYSTEM_VARIABLES
           for (my_option *mo=opts; mo->name; mo++)
             if (mo->app_type == o)
               mo->app_type= v;
