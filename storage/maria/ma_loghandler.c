@@ -8653,8 +8653,8 @@ void translog_set_file_size(uint32 size)
   DBUG_ENTER("translog_set_file_size");
   translog_lock();
   DBUG_PRINT("enter", ("Size: %lu", (ulong) size));
-  DBUG_ASSERT(size % TRANSLOG_PAGE_SIZE == 0 &&
-              size >= TRANSLOG_MIN_FILE_SIZE);
+  DBUG_ASSERT(size % TRANSLOG_PAGE_SIZE == 0);
+  DBUG_ASSERT(size >= TRANSLOG_MIN_FILE_SIZE);
   log_descriptor.log_file_max_size= size;
   /* if current file longer then finish it*/
   if (LSN_OFFSET(log_descriptor.horizon) >=  log_descriptor.log_file_max_size)
