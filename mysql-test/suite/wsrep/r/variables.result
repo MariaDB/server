@@ -1,3 +1,4 @@
+SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 
 # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
 #
@@ -194,10 +195,9 @@ SET GLOBAL wsrep_slave_threads= 10;
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_provider= none;
-SET GLOBAL wsrep_cluster_address= '';
-SET GLOBAL wsrep_provider_options= '';
+SHOW STATUS LIKE 'wsrep_thread_count';
+Variable_name	Value
+wsrep_thread_count	11
 #
 # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
 #
@@ -215,4 +215,8 @@ SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 NULL
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
+SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SET GLOBAL wsrep_provider= none;
+SET GLOBAL wsrep_cluster_address= '';
+SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 # End of test.

@@ -1,1 +1,1 @@
---wsrep-provider=$WSREP_PROVIDER --wsrep-cluster-address=gcomm:// --wsrep_provider_options='base_port=$GALERA_BASE_PORT' --wsrep-on=1 --wsrep_causal_reads=ON
+--wsrep-provider=$WSREP_PROVIDER --wsrep-cluster-address=gcomm:// --wsrep-on=1 --wsrep_causal_reads=ON

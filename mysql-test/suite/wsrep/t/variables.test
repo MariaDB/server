@@ -1,19 +1,11 @@
 --source include/have_wsrep.inc
 
-# Set galera's base_port so that test can run in parallel with other galera
-# tests.
---disable_query_log
-eval SET GLOBAL wsrep_provider_options='base_port=$GALERA_BASE_PORT';
---enable_query_log
+SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
 
 --echo
 --echo # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
 --echo #
 --echo # Testing wsrep_replicate_myisam variable.
-
---disable_query_log
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
---enable_query_log
 
 --error ER_INCORRECT_GLOBAL_LOCAL_VAR
 SELECT @@session.wsrep_replicate_myisam;
@@ -119,14 +111,9 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
 --echo # Wait for applier threads to get created.
-sleep 5; 
+sleep 3; 
 SHOW STATUS LIKE 'threads_connected';
-
-# reset (for mtr internal checks)
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-SET GLOBAL wsrep_provider= none;
-SET GLOBAL wsrep_cluster_address= '';
-SET GLOBAL wsrep_provider_options= '';
+SHOW STATUS LIKE 'wsrep_thread_count';
 
 --echo #
 --echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
@@ -139,6 +126,12 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= NULL;
 SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
+
+# Reset (for mtr internal checks)
+SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SET GLOBAL wsrep_provider= none;
+SET GLOBAL wsrep_cluster_address= '';
+SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 
 --echo # End of test.
 
