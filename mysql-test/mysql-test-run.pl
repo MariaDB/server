@@ -136,6 +136,8 @@ my $opt_start_dirty;
 my $opt_start_exit;
 my $start_only;
 
+our @global_suppressions;
+
 END {
   if ( defined $opt_tmpdir_pid and $opt_tmpdir_pid == $$ )
   {
@@ -186,6 +188,8 @@ my @DEFAULT_SUITES= qw(
     sys_vars-
     unit-
     vcol-
+    wsrep-
+    galera-
   );
 my $opt_suites;
 
@@ -416,7 +420,6 @@ sub main {
   check_ndbcluster_support();
   check_ssl_support();
   check_debug_support();
-  check_wsrep_support();
 
   mtr_report("Collecting tests...");
   my $tests= collect_test_cases($opt_reorder, $opt_suites, \@opt_cases, \@opt_skip_test_list);
@@ -3168,47 +3171,6 @@ sub ndbcluster_start ($) {
   return 0;
 }
 
-sub have_wsrep() {
-  my $wsrep_on= $mysqld_variables{'wsrep-on'};
-  return defined $wsrep_on
-}
-
-sub check_wsrep_support() {
-  if (have_wsrep())
-  {
-    mtr_report(" - binaries built with wsrep patch");
-
-    # Add galera test suites
-    mtr_report(" - adding wsrep, galera to default test suites");
-    push @DEFAULT_SUITES, qw(wsrep galera);
-
-    # Check whether WSREP_PROVIDER environment variable is set.
-    if (defined $ENV{'WSREP_PROVIDER'}) {
-      if ((mtr_file_exists($ENV{'WSREP_PROVIDER'}) eq "")  &&
-          ($ENV{'WSREP_PROVIDER'} ne "none")) {
-        mtr_error("WSREP_PROVIDER env set to an invalid path");
-      }
-      # WSREP_PROVIDER is valid; set to a valid path or "none").
-      mtr_verbose("WSREP_PROVIDER env set to $ENV{'WSREP_PROVIDER'}");
-    } else {
-      # WSREP_PROVIDER env not defined. Lets try to locate the wsrep provider
-      # library.
-      my $file_wsrep_provider=
-        mtr_file_exists("/usr/lib/galera/libgalera_smm.so",
-                        "/usr/lib64/galera/libgalera_smm.so");
-
-      if ($file_wsrep_provider ne "") {
-        # wsrep provider library found !
-        mtr_verbose("wsrep provider library found : $file_wsrep_provider");
-        $ENV{'WSREP_PROVIDER'}= $file_wsrep_provider;
-      } else {
-        mtr_verbose("Could not find wsrep provider library, setting it to 'none'");
-        $ENV{'WSREP_PROVIDER'}= "none";
-      }
-    }
-  }
-}
-
 sub mysql_server_start($) {
   my ($mysqld, $tinfo) = @_;
 
@@ -4803,6 +4765,7 @@ sub extract_warning_lines ($$) {
   # Perl code.
   my @antipatterns =
     (
+     @global_suppressions,
      qr/error .*connecting to master/,
      qr/Plugin 'ndbcluster' will be forced to shutdown/,
      qr/InnoDB: Error: in ALTER TABLE `test`.`t[12]`/,
@@ -4855,11 +4818,6 @@ sub extract_warning_lines ($$) {
      qr|Plugin 'FEEDBACK' registration as a INFORMATION SCHEMA failed|,
      qr|Failed to setup SSL|,
      qr|SSL error: Failed to set ciphers to use|,
-
-     # Galera-related warnings.
-     qr|WSREP:.*down context.*|,
-     qr|WSREP: Failed to send state UUID:.*|,
-     qr|WSREP: wsrep_sst_receive_address.*|,
     );
 
   my $matched_lines= [];
