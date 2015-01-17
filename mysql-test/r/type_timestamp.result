@@ -648,6 +648,7 @@ End of 5.5 tests
 #
 # MDEV-7254: Assigned expression is evaluated twice when updating column TIMESTAMP NOT NULL
 #
+SET time_zone='+02:00';
 create table t1(value timestamp not null);
 set @a:=0;
 create function f1 () returns timestamp
@@ -688,4 +689,5 @@ select @a, value from t1;
 drop table t1;
 drop function f1;
 set timestamp=0;
+SET time_zone=DEFAULT;
 End of 10.0 tests
