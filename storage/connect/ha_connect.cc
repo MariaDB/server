@@ -4867,7 +4867,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
-  spc= (!sep || !strcmp(sep, "\\t")) ? '\t' : *sep;
+  spc= (!sep) ? ',' : (!strcmp(sep, "\\t")) ? '\t' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
   tbl= topt->tablist;
@@ -5237,7 +5237,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
             case FLD_NAME:
-              cnm= encode(g, crp->Kdata->GetCharValue(i));
+              if (ttp == TAB_CSV && topt->data_charset &&
+                 (!stricmp(topt->data_charset, "UTF8") ||
+                  !stricmp(topt->data_charset, "UTF-8")))
+                cnm= crp->Kdata->GetCharValue(i);
+              else
+                cnm= encode(g, crp->Kdata->GetCharValue(i));
+
               break;
             case FLD_TYPE:
               typ= crp->Kdata->GetIntValue(i);
