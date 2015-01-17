@@ -13136,5 +13136,28 @@ SELECT BINARY 'A' = 'a';
 BINARY 'A' = 'a'
 0
 #
+# Wrong result set for WHERE a='oe' COLLATE utf8_german2_ci AND a='oe'
+#
+SET NAMES utf8 COLLATE utf8_german2_ci;
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('ö'),('oe');
+SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
+a
+oe
+SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+a
+oe
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'oe') and (`test`.`t1`.`a` = 'oe'))
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where ((`test`.`t1`.`a` = 'oe') and (`test`.`t1`.`a` = 'oe'))
+DROP TABLE t1;
+#
 # End of MariaDB-10.0 tests
 #

@@ -595,5 +595,17 @@ SELECT 'a' = BINARY 'A';
 SELECT BINARY 'A' = 'a';
 
 --echo #
+--echo # Wrong result set for WHERE a='oe' COLLATE utf8_german2_ci AND a='oe'
+--echo #
+SET NAMES utf8 COLLATE utf8_german2_ci;
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('ö'),('oe');
+SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
+SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+DROP TABLE t1;
+
+--echo #
 --echo # End of MariaDB-10.0 tests
 --echo #

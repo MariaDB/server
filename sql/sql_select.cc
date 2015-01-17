@@ -12213,8 +12213,8 @@ public:
   { TRASH(ptr, size); }
 
   Item *and_level;
-  Item_func *cmp_func;
-  COND_CMP(Item *a,Item_func *b) :and_level(a),cmp_func(b) {}
+  Item_bool_func2 *cmp_func;
+  COND_CMP(Item *a,Item_bool_func2 *b) :and_level(a),cmp_func(b) {}
 };
 
 /**
@@ -13603,6 +13603,75 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
 }
 
 
+/**
+  Check if
+    WHERE expr=value AND expr=const
+  can be rewritten as:
+    WHERE const=value AND expr=const
+
+  @param target       - the target operator whose "expr" argument will be
+                        replaced to "const".
+  @param target_expr  - the target's "expr" which will be replaced to "const".
+  @param target_value - the target's second argument, it will remain unchanged.
+  @param source       - the equality expression ("=" or "<=>") that
+                        can be used to rewrite the "target" part
+                        (under certain conditions, see the code).
+  @param source_expr  - the source's "expr". It should be exactly equal to 
+                        the target's "expr" to make condition rewrite possible.
+  @param source_const - the source's "const" argument, it will be inserted
+                        into "target" instead of "expr".
+*/
+static bool
+can_change_cond_ref_to_const(Item_bool_func2 *target,
+                             Item *target_expr, Item *target_value,
+                             Item_bool_func2 *source,
+                             Item *source_expr, Item *source_const)
+{
+  if (!target_expr->eq(source_expr,0) ||
+       target_value == source_const ||
+       target_expr->cmp_context != source_expr->cmp_context)
+    return false;
+  if (target_expr->cmp_context == STRING_RESULT)
+  {
+    /*
+      In this example:
+        SET NAMES utf8 COLLATE utf8_german2_ci;
+        DROP TABLE IF EXISTS t1;
+        CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8);
+        INSERT INTO t1 VALUES ('o-umlaut'),('oe');
+        SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+
+      the query should return only the row with 'oe'.
+      It should not return 'o-umlaut', because 'o-umlaut' does not match
+      the right part of the condition: a='oe'
+      ('o-umlaut' is not equal to 'oe' in utf8_general_ci,
+       which is the collation of the field "a").
+
+      If we change the right part from:
+         ... AND a='oe'
+      to
+         ... AND 'oe' COLLATE utf8_german2_ci='oe'
+      it will be evalulated to TRUE and removed from the condition,
+      so the overall query will be simplified to:
+
+        SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci;
+
+      which will erroneously start to return both 'oe' and 'o-umlaut'.
+      So changing "expr" to "const" is not possible if the effective
+      collations of "target" and "source" are not exactly the same.
+
+      Note, the code before the fix for MDEV-7152 only checked that
+      collations of "source_const" and "target_value" are the same.
+      This was not enough, as the bug report demonstrated.
+    */
+    return
+      target->compare_collation() == source->compare_collation() &&
+      target_value->collation.collation == source_const->collation.collation;
+  }
+  return true; // Non-string comparison
+}
+
+
 /*
   change field = field to field = const for each found field = const in the
   and_level
@@ -13611,6 +13680,7 @@ static void update_const_equal_items(COND *cond, JOIN_TAB *tab, bool const_key)
 static void
 change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
                          Item *and_father, Item *cond,
+                         Item_bool_func2 *field_value_owner,
                          Item *field, Item *value)
 {
   if (cond->type() == Item::COND_ITEM)
@@ -13621,7 +13691,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
     Item *item;
     while ((item=li++))
       change_cond_ref_to_const(thd, save_list,and_level ? cond : item, item,
-			       field, value);
+			       field_value_owner, field, value);
     return;
   }
   if (cond->eq_cmp_result() == Item::COND_OK)
@@ -13633,11 +13703,8 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
   Item *right_item= args[1];
   Item_func::Functype functype=  func->functype();
 
-  if (right_item->eq(field,0) && left_item != value &&
-      right_item->cmp_context == field->cmp_context &&
-      (left_item->result_type() != STRING_RESULT ||
-       value->result_type() != STRING_RESULT ||
-       left_item->collation.collation == value->collation.collation))
+  if (can_change_cond_ref_to_const(func, right_item, left_item,
+                                   field_value_owner, field, value))
   {
     Item *tmp=value->clone_item();
     if (tmp)
@@ -13656,11 +13723,8 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
       func->set_cmp_func();
     }
   }
-  else if (left_item->eq(field,0) && right_item != value &&
-           left_item->cmp_context == field->cmp_context &&
-           (right_item->result_type() != STRING_RESULT ||
-            value->result_type() != STRING_RESULT ||
-            right_item->collation.collation == value->collation.collation))
+  else if (can_change_cond_ref_to_const(func, left_item, right_item,
+                                        field_value_owner, field, value))
   {
     Item *tmp= value->clone_item();
     if (tmp)
@@ -13709,7 +13773,8 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
         Item **args= cond_cmp->cmp_func->arguments();
         if (!args[0]->const_item())
           change_cond_ref_to_const(thd, &save,cond_cmp->and_level,
-                                   cond_cmp->and_level, args[0], args[1]);
+                                   cond_cmp->and_level,
+                                   cond_cmp->cmp_func, args[0], args[1]);
       }
     }
   }
@@ -13731,14 +13796,14 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
           resolve_const_item(thd, &args[1], args[0]);
 	  func->update_used_tables();
           change_cond_ref_to_const(thd, save_list, and_father, and_father,
-                                   args[0], args[1]);
+                                   func, args[0], args[1]);
 	}
 	else if (left_const)
 	{
           resolve_const_item(thd, &args[0], args[1]);
 	  func->update_used_tables();
           change_cond_ref_to_const(thd, save_list, and_father, and_father,
-                                   args[1], args[0]);
+                                   func, args[1], args[0]);
 	}
       }
     }
