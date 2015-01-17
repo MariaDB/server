@@ -13126,5 +13126,15 @@ DROP TABLE t1;
 # END of ctype_myanmar.inc
 #
 #
+# MDEV-7366 SELECT 'a' = BINARY 'A' returns 1 (utf8 charset, utf8_unicode_ci collation)
+#
+SET NAMES utf8 COLLATE utf8_unicode_ci;
+SELECT 'a' = BINARY 'A';
+'a' = BINARY 'A'
+0
+SELECT BINARY 'A' = 'a';
+BINARY 'A' = 'a'
+0
+#
 # End of MariaDB-10.0 tests
 #

@@ -588,5 +588,12 @@ SET collation_connection=ucs2_myanmar_ci;
 --source include/ctype_myanmar.inc
 
 --echo #
+--echo # MDEV-7366 SELECT 'a' = BINARY 'A' returns 1 (utf8 charset, utf8_unicode_ci collation)
+--echo #
+SET NAMES utf8 COLLATE utf8_unicode_ci; 
+SELECT 'a' = BINARY 'A';
+SELECT BINARY 'A' = 'a';
+
+--echo #
 --echo # End of MariaDB-10.0 tests
 --echo #
