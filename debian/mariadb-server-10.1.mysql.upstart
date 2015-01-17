@@ -2,7 +2,7 @@ description     "MariaDB 10.1 Server"
 author          "Mario Limonciello <superm1@ubuntu.com>"
 
 start on runlevel [2345]
-stop on starting rc RUNLEVEL=[016]
+stop on runlevel [016]
 
 respawn
 respawn limit 2 5
