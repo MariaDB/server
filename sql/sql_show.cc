@@ -8081,12 +8081,13 @@ bool get_schema_tables_result(JOIN *join,
   THD *thd= join->thd;
   LEX *lex= thd->lex;
   bool result= 0;
-  const char *old_proc_info;
+  PSI_stage_info org_stage;
   DBUG_ENTER("get_schema_tables_result");
 
   Warnings_only_error_handler err_handler;
   thd->push_internal_handler(&err_handler);
-  old_proc_info= thd_proc_info(thd, "Filling schema table");
+  thd->enter_stage(&stage_filling_schema_table, &org_stage, __func__, __FILE__,
+                   __LINE__);
   
   JOIN_TAB *tab;
   for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITH_CONST_TABLES);
@@ -8190,7 +8191,7 @@ bool get_schema_tables_result(JOIN *join,
   }
   else if (result)
     my_error(ER_UNKNOWN_ERROR, MYF(0));
-  thd_proc_info(thd, old_proc_info);
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(result);
 }
 

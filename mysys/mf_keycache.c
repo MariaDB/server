@@ -1020,11 +1020,11 @@ void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
 */
 
 static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
-                                   struct st_my_thread_var *thread)
+                            struct st_my_thread_var *thread)
 {
   struct st_my_thread_var *last;
-
   DBUG_ASSERT(!thread->next && !thread->prev);
+
   if (! (last= wqueue->last_thread))
   {
     /* Queue is empty */
@@ -1033,10 +1033,15 @@ static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
   }
   else
   {
-    thread->prev= last->next->prev;
-    last->next->prev= &thread->next;
-    thread->next= last->next;
-    last->next= thread;
+    DBUG_ASSERT(last->next->prev == &last->next);
+    /* Add backlink to previous element */
+    thread->prev=      last->next->prev;
+    /* Fix first in list to point backwords to current */
+    last->next->prev=  &thread->next;
+    /* Next should point to the first element in list */
+    thread->next=      last->next;
+    /* Fix old element to point to new one */
+    last->next=        thread;
   }
   wqueue->last_thread= thread;
 }
@@ -1057,17 +1062,22 @@ static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
 */
 
 static void unlink_from_queue(KEYCACHE_WQUEUE *wqueue,
-                                     struct st_my_thread_var *thread)
+                              struct st_my_thread_var *thread)
 {
   KEYCACHE_DBUG_PRINT("unlink_from_queue", ("thread %ld", thread->id));
   DBUG_ASSERT(thread->next && thread->prev);
+
   if (thread->next == thread)
+  {
     /* The queue contains only one member */
     wqueue->last_thread= NULL;
+  }
   else
   {
+    /* Remove current element from list */
     thread->next->prev= thread->prev;
-    *thread->prev=thread->next;
+    *thread->prev=      thread->next;
+    /* If first element, change list pointer to point to previous element */
     if (wqueue->last_thread == thread)
       wqueue->last_thread= STRUCT_PTR(struct st_my_thread_var, next,
                                       thread->prev);
@@ -1111,10 +1121,10 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
 {
   struct st_my_thread_var *last;
   struct st_my_thread_var *thread= my_thread_var;
-
-  /* Add to queue. */
   DBUG_ASSERT(!thread->next);
   DBUG_ASSERT(!thread->prev); /* Not required, but must be true anyway. */
+
+  /* Add to queue. */
   if (! (last= wqueue->last_thread))
     thread->next= thread;
   else
@@ -1125,7 +1135,7 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
   wqueue->last_thread= thread;
 
   /*
-    Wait until thread is removed from queue by the signalling thread.
+    Wait until thread is removed from queue by the signaling thread.
     The loop protects against stray signals.
   */
   do
@@ -1163,10 +1173,11 @@ static void release_whole_queue(KEYCACHE_WQUEUE *wqueue)
   if (!(last= wqueue->last_thread))
     return;
 
-  next= last->next;
+  next= last->next;                             /* First (oldest) element */
   do
   {
     thread=next;
+    DBUG_ASSERT(thread);
     KEYCACHE_DBUG_PRINT("release_whole_queue: signal",
                         ("thread %ld", thread->id));
     /* Signal the thread. */
