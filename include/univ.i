@@ -47,7 +47,7 @@ Created 1/20/1994 Heikki Tuuri
 #define INNODB_VERSION_BUGFIX	MYSQL_VERSION_PATCH
 
 #ifndef PERCONA_INNODB_VERSION
-#define PERCONA_INNODB_VERSION 70.0
+#define PERCONA_INNODB_VERSION 71.0
 #endif
 
 /* Enable UNIV_LOG_ARCHIVE in XtraDB */
@@ -119,6 +119,10 @@ if we are compiling on Windows. */
 
 # ifdef HAVE_SCHED_H
 #  include <sched.h>
+# endif
+
+# ifdef HAVE_MALLOC_H
+#  include <malloc.h>
 # endif
 
 /* We only try to do explicit inlining of functions with gcc and

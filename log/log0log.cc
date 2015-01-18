@@ -225,7 +225,7 @@ log_buffer_extend(
 {
 	ulint	move_start;
 	ulint	move_end;
-	byte	tmp_buf[OS_FILE_LOG_BLOCK_SIZE];
+	byte*	tmp_buf = static_cast<byte *>(alloca(OS_FILE_LOG_BLOCK_SIZE));
 
 	mutex_enter(&(log_sys->mutex));
 
@@ -2932,9 +2932,9 @@ log_archive_do(
 	ulint*	n_bytes)/*!< out: archive log buffer size, 0 if nothing to
 			archive */
 {
-	ibool		calc_new_limit;
-	ib_uint64_t	start_lsn;
-	ib_uint64_t	limit_lsn;
+	ibool   calc_new_limit;
+	lsn_t	start_lsn;
+	lsn_t	limit_lsn	= LSN_MAX;
 
 	calc_new_limit = TRUE;
 loop:
@@ -3596,8 +3596,14 @@ loop:
 
 	lsn = log_sys->lsn;
 
-	if (lsn != log_sys->last_checkpoint_lsn
-	    || (srv_track_changed_pages	&& (tracked_lsn != log_sys->last_checkpoint_lsn))
+	ut_ad(srv_force_recovery != SRV_FORCE_NO_LOG_REDO
+	      || lsn == log_sys->last_checkpoint_lsn + LOG_BLOCK_HDR_SIZE);
+
+
+	if ((srv_force_recovery != SRV_FORCE_NO_LOG_REDO
+	     && lsn != log_sys->last_checkpoint_lsn)
+	    || (srv_track_changed_pages
+		&& (tracked_lsn != log_sys->last_checkpoint_lsn))
 #ifdef UNIV_LOG_ARCHIVE
 	    || (srv_log_archive_on
 		&& lsn != log_sys->archived_lsn + LOG_BLOCK_HDR_SIZE)

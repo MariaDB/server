@@ -1356,7 +1356,10 @@ buf_pool_watch_is_sentinel(
 	const buf_page_t*	bpage)		/*!< in: block */
 	__attribute__((nonnull, warn_unused_result));
 /****************************************************************//**
-Add watch for the given page to be read in. Caller must have the buffer pool
+Add watch for the given page to be read in. Caller must have
+appropriate hash_lock for the bpage and hold the LRU list mutex to avoid a race
+condition with buf_LRU_free_page inserting the same page into the page hash.
+This function may release the hash_lock and reacquire it.
 @return NULL if watch set, block if the page is in the buffer pool */
 UNIV_INTERN
 buf_page_t*

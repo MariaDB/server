@@ -3090,7 +3090,8 @@ recv_recovery_from_checkpoint_start_func(
 #endif /* UNIV_LOG_ARCHIVE */
 	byte*		buf;
 	byte*		log_hdr_buf;
-	byte		log_hdr_buf_base[LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE];
+	byte*		log_hdr_buf_base = static_cast<byte *>
+		(alloca(LOG_FILE_HDR_SIZE + OS_FILE_LOG_BLOCK_SIZE));
 	dberr_t		err;
 	ut_when_dtor<recv_dblwr_t> tmp(recv_sys->dblwr);
 

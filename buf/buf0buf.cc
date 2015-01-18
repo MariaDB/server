@@ -592,9 +592,14 @@ buf_page_is_corrupted(
 	checksum_field2 = mach_read_from_4(
 		read_buf + UNIV_PAGE_SIZE - FIL_PAGE_END_LSN_OLD_CHKSUM);
 
+#if FIL_PAGE_LSN % 8
+#error "FIL_PAGE_LSN must be 64 bit aligned"
+#endif
+
 	/* declare empty pages non-corrupted */
 	if (checksum_field1 == 0 && checksum_field2 == 0
-	    && mach_read_from_4(read_buf + FIL_PAGE_LSN) == 0) {
+	    && *reinterpret_cast<const ib_uint64_t*>(read_buf +
+						     FIL_PAGE_LSN) == 0) {
 		/* make sure that the page is really empty */
 		for (ulint i = 0; i < UNIV_PAGE_SIZE; i++) {
 			if (read_buf[i] != 0) {
@@ -1649,8 +1654,9 @@ buf_pool_watch_is_sentinel(
 
 /****************************************************************//**
 Add watch for the given page to be read in. Caller must have
-appropriate hash_lock for the bpage. This function may release the
-hash_lock and reacquire it.
+appropriate hash_lock for the bpage and hold the LRU list mutex to avoid a race
+condition with buf_LRU_free_page inserting the same page into the page hash.
+This function may release the hash_lock and reacquire it.
 @return NULL if watch set, block if the page is in the buffer pool */
 UNIV_INTERN
 buf_page_t*
@@ -1664,6 +1670,8 @@ buf_pool_watch_set(
 	ulint		i;
 	buf_pool_t*	buf_pool = buf_pool_get(space, offset);
 	prio_rw_lock_t*	hash_lock;
+
+	ut_ad(mutex_own(&buf_pool->LRU_list_mutex));
 
 	hash_lock = buf_page_hash_lock_get(buf_pool, fold);
 
@@ -1733,6 +1741,7 @@ page_found:
 			bpage->space = static_cast<ib_uint32_t>(space);
 			bpage->offset = static_cast<ib_uint32_t>(offset);
 			bpage->buf_fix_count = 1;
+			bpage->buf_pool_index = buf_pool_index(buf_pool);
 
 			mutex_exit(&buf_pool->zip_mutex);
 
@@ -2678,9 +2687,11 @@ loop:
 		/* Page not in buf_pool: needs to be read from file */
 
 		if (mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
+			mutex_enter(&buf_pool->LRU_list_mutex);
 			rw_lock_x_lock(hash_lock);
 			block = (buf_block_t*) buf_pool_watch_set(
 				space, offset, fold);
+			mutex_exit(&buf_pool->LRU_list_mutex);
 
 			if (UNIV_LIKELY_NULL(block)) {
 				/* We can release hash_lock after we
@@ -3012,15 +3023,19 @@ got_block:
 		if (buf_LRU_free_page(&fix_block->page, true)) {
 
 			mutex_exit(fix_mutex);
-			rw_lock_x_lock(hash_lock);
 
 			if (mode == BUF_GET_IF_IN_POOL_OR_WATCH) {
+				mutex_enter(&buf_pool->LRU_list_mutex);
+				rw_lock_x_lock(hash_lock);
+
 				/* Set the watch, as it would have
 				been set if the page were not in the
 				buffer pool in the first place. */
 				block = (buf_block_t*) buf_pool_watch_set(
 					space, offset, fold);
+				mutex_exit(&buf_pool->LRU_list_mutex);
 			} else {
+				rw_lock_x_lock(hash_lock);
 				block = (buf_block_t*) buf_page_hash_get_low(
 					buf_pool, space, offset, fold);
 			}
