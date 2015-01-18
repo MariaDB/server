@@ -45,7 +45,7 @@ Depends: mariadb-client-10.0 (>= ${source:Version}), libdbi-perl,
          perl (>= 5.6), ${shlibs:Depends}, ${misc:Depends}, psmisc,
          passwd, lsb-base (>= 3.0-10), bsdutils,
          libmariadbclient18 (>= ${binary:Version}), galera (>=25.2),
-         rsync, lsof, grep, gawk, iproute, coreutils, findutils
+         rsync, lsof, grep, gawk, iproute, coreutils, findutils, tar
 Provides: mysql-server-core, mysql-server-core-5.1, mysql-server-core-5.5,
           mysql-server-core-10.0, mariadb-server, mysql-server,
           virtual-mysql-server, mariadb-galera-server
