@@ -833,7 +833,8 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
 
       if (((lock_type == TL_WRITE_ALLOW_WRITE ||
            (lock_type == TL_WRITE_CONCURRENT_INSERT &&
-             lock->allow_multiple_concurrent_insert)) &&
+             lock->allow_multiple_concurrent_insert &&
+            !lock->read_no_write_count)) &&
            ! lock->write_wait.data &&
            lock->write.data->type == lock_type) ||
           has_old_lock(lock->write.data, data->owner))
