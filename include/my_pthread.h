@@ -724,7 +724,7 @@ struct st_my_thread_var
   int volatile abort;
   my_bool init;
   struct st_my_thread_var *next,**prev;
-  void *opt_info;
+  void *keycache_link;
   uint  lock_type; /* used by conditional release the queue */
   void  *stack_ends_here;
   safe_mutex_t *mutex_in_use;

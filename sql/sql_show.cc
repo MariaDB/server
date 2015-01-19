@@ -4275,7 +4275,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result && thd->is_error() &&
+  if (!is_show_fields_or_keys && result &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT))
   {
@@ -5282,12 +5282,11 @@ err:
       column with the error text, and clear the error so that the operation
       can continue.
     */
-    const char *error= thd->is_error() ? thd->get_stmt_da()->message() : "";
+    const char *error= thd->get_stmt_da()->message();
     table->field[20]->store(error, strlen(error), cs);
 
     push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                 thd->get_stmt_da()->sql_errno(),
-                 thd->get_stmt_da()->message());
+                 thd->get_stmt_da()->sql_errno(), error);
     thd->clear_error();
   }
 
