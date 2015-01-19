@@ -4179,9 +4179,10 @@ void mysql_ull_set_explicit_lock_duration(THD *thd)
   When MDL detects a lock wait timeout, it pushes
   an error into the statement diagnostics area.
   For GET_LOCK(), lock wait timeout is not an error,
-  but a special return value (0). NULL is returned in
-  case of error.
-  Capture and suppress lock wait timeout.
+  but a special return value (0).
+  Similarly, killing get_lock wait is not an error either,
+  but a return value NULL.
+  Capture and suppress lock wait timeouts and kills.
 */
 
 class Lock_wait_timeout_handler: public Internal_error_handler
@@ -4200,7 +4201,7 @@ public:
 
 bool
 Lock_wait_timeout_handler::
-handle_condition(THD * /* thd */, uint sql_errno,
+handle_condition(THD *thd, uint sql_errno,
                  const char * /* sqlstate */,
                  Sql_condition::enum_warning_level /* level */,
                  const char *message,
@@ -4211,6 +4212,9 @@ handle_condition(THD * /* thd */, uint sql_errno,
     m_lock_wait_timeout= true;
     return true;                                /* condition handled */
   }
+  if (thd->is_killed())
+    return true;
+
   return false;
 }
 
