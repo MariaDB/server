@@ -33,6 +33,8 @@ using namespace std;
 #include "univ.i"
 #include "dict0types.h"
 #include "mtr0types.h"
+#include "sync0types.h"
+#include "os0thread.h"
 
 /** Eliminates a name collision on HP-UX */
 #define page_t	   ib_page_t

@@ -28,11 +28,10 @@ Created Aug 11, 2011 Vasil Dimov
 
 #include "univ.i"
 
-#ifndef UNIV_INNOCHECKSUM
-
 #include "buf0types.h"
 
-#endif /* !UNIV_INNOCHECKSUM */
+/** Magic value to use instead of checksums when they are disabled */
+#define BUF_NO_CHECKSUM_MAGIC 0xDEADBEEFUL
 
 /********************************************************************//**
 Calculates a page CRC32 which is stored to the page when it is written
@@ -70,8 +69,6 @@ buf_calc_page_old_checksum(
 /*=======================*/
 	const byte*	page);	/*!< in: buffer page */
 
-#ifndef UNIV_INNOCHECKSUM
-
 /********************************************************************//**
 Return a printable string describing the checksum algorithm.
 @return	algorithm name */
@@ -82,7 +79,5 @@ buf_checksum_algorithm_name(
 	srv_checksum_algorithm_t	algo);	/*!< in: algorithm */
 
 extern ulong	srv_checksum_algorithm;
-
-#endif /* !UNIV_INNOCHECKSUM */
 
 #endif /* buf0checksum_h */

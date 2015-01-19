@@ -1,0 +1,70 @@
+#
+# Test innochecksum
+#
+
+# Don't test under embedded
+source include/not_embedded.inc;
+# Require InnoDB
+source include/have_innodb.inc;
+
+if (!$INNOCHECKSUM) {
+  --echo Need innochecksum binary
+  --die Need innochecksum binary
+}
+
+--echo # Create and populate a table
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+INSERT INTO t1 (b) VALUES ('corrupt me');
+--disable_query_log
+--let $i = 1000
+while ($i)
+{
+  INSERT INTO t1 (b) VALUES (REPEAT('abcdefghijklmnopqrstuvwxyz', 100));
+  dec $i;
+}
+--enable_query_log
+INSERT INTO t1 (b) VALUES ('corrupt me');
+
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT)
+ROW_FORMAT=COMPRESSED ENGINE=InnoDB ;
+
+INSERT INTO t2(b) SELECT b from t1;
+
+CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT)
+ROW_FORMAT=COMPRESSED ENGINE=InnoDB KEY_BLOCK_SIZE=16;
+
+INSERT INTO t3(b) SELECT b from t1;
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let t1_IBD = $MYSQLD_DATADIR/test/t1.ibd;
+let t2_IBD = $MYSQLD_DATADIR/test/t2.ibd;
+let t3_IBD = $MYSQLD_DATADIR/test/t3.ibd;
+
+--echo # Write file to make mysql-test-run.pl expect the "crash", but don't
+--echo # start it until it's told to
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+
+--echo # We give 30 seconds to do a clean shutdown because we do not want
+--echo # to redo apply the pages of t1.ibd at the time of recovery.
+--echo # We want SQL to initiate the first access to t1.ibd.
+shutdown_server 30;
+
+--echo # Wait until disconnected.
+--source include/wait_until_disconnected.inc
+
+--echo # Run innochecksum on t1
+--exec $INNOCHECKSUM $t1_IBD
+
+--echo # Run innochecksum on t2
+--exec $INNOCHECKSUM $t2_IBD
+
+--echo # Run innochecksum on t3
+--exec $INNOCHECKSUM $t3_IBD
+
+--echo # Write file to make mysql-test-run.pl start up the server again
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--echo # Cleanup
+DROP TABLE t1, t2, t3;

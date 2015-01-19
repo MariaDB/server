@@ -26,11 +26,13 @@ Created 5/30/1994 Heikki Tuuri
 #ifndef rem0rec_h
 #define rem0rec_h
 
+#ifndef UNIV_INNOCHECKSUM
 #include "univ.i"
 #include "data0data.h"
 #include "rem0types.h"
 #include "mtr0types.h"
 #include "page0types.h"
+#endif /* !UNIV_INNOCHECKSUM */
 
 /* Info bit denoting the predefined minimum record: this bit is set
 if and only if the record is the first user record on a non-leaf
@@ -88,6 +90,7 @@ offsets[] array, first passed to rec_get_offsets() */
 #define REC_OFFS_NORMAL_SIZE	100
 #define REC_OFFS_SMALL_SIZE	10
 
+#ifndef UNIV_INNOCHECKSUM
 /******************************************************//**
 The following function is used to get the pointer of the next chained record
 on the same page.
@@ -985,4 +988,5 @@ two upmost bits in a two byte offset for special purposes */
 #include "rem0rec.ic"
 #endif
 
+#endif /* !UNIV_INNOCHECKSUM */
 #endif

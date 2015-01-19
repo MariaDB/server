@@ -2491,6 +2491,17 @@ sub environment_setup {
                                  "$bindir/sql$opt_vs_config/mysql_tzinfo_to_sql");
   $ENV{'MYSQL_TZINFO_TO_SQL'}= native_path($exe_mysql_tzinfo_to_sql);
 
+  # ----------------------------------------------------
+  # innochecksum
+  # ----------------------------------------------------
+  my $exe_innochecksum=
+    mtr_exe_maybe_exists("$bindir/extra$opt_vs_config/innochecksum",
+		         "$path_client_bindir/innochecksum");
+  if ($exe_innochecksum)
+  {
+    $ENV{'INNOCHECKSUM'}= native_path($exe_innochecksum);
+  }
+
   # Create an environment variable to make it possible
   # to detect that valgrind is being used from test cases
   $ENV{'VALGRIND_TEST'}= $opt_valgrind;
