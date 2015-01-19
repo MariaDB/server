@@ -1124,6 +1124,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->enable_slow_log= TRUE;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
+  thd->reset_kill_query();
 
   DEBUG_SYNC(thd,"dispatch_command_before_set_time");
 
@@ -5111,11 +5112,7 @@ finish:
         if (! thd->get_stmt_da()->is_set())
           thd->send_kill_message();
       }
-      if (thd->killed < KILL_CONNECTION)
-      {
-        thd->reset_killed();
-        thd->mysys_var->abort= 0;
-      }
+      thd->reset_kill_query();
     }
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
       trans_rollback_stmt(thd);

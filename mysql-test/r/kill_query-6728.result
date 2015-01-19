@@ -1,0 +1,7 @@
+connect  con1,localhost,root,,;
+connection default;
+kill query id;
+connection con1;
+select count(*) > 0 from mysql.user;
+count(*) > 0
+1
