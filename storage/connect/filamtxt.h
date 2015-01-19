@@ -26,6 +26,7 @@ class DllExport TXTFAM : public BLOCK {
   friend class TDBCSV;
   friend class TDBFIX;
   friend class TDBVCT;
+  friend class TDBJSON;
   friend class DOSCOL;
   friend class BINCOL;
   friend class VCTCOL;

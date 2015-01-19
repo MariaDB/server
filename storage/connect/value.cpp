@@ -67,6 +67,22 @@
 
 #define FOURYEARS    126230400    // Four years in seconds (1 leap)
 
+#define MAXUINT8     ((UINT8)~((UINT8)0))
+#define MAXINT8      ((INT8)(MAXUINT8 >> 1))
+#define MININT8      ((INT8)~MAXINT8)
+
+#define MAXUINT16    ((UINT16)~((UINT16)0))
+#define MAXINT16     ((INT16)(MAXUINT16 >> 1))
+#define MININT16     ((INT16)~MAXINT16)
+                     
+#define MAXUINT32    ((UINT32)~((UINT32)0))
+#define MAXINT32     ((INT32)(MAXUINT32 >> 1))
+#define MININT32     ((INT32)~MAXINT32)
+                     
+#define MAXUINT64    ((UINT64)~((UINT64)0))
+#define MAXINT64     ((INT64)(MAXUINT64 >> 1))
+#define MININT64     ((INT64)~MAXINT64)
+
 /***********************************************************************/
 /*  Initialize the DTVAL static member.                                */
 /***********************************************************************/
@@ -434,6 +450,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
   {
   PSZ  p, sp;
   bool un = (uns < 0) ? false : (uns > 0) ? true : valp->IsUnsigned();
+  PVAL vp;
 
   if (newtype == TYPE_VOID)  // Means allocate a value of the same type
     newtype = valp->GetType();
@@ -445,53 +462,55 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
       if ((sp = valp->GetCharString(p)) != p)
         strcpy (p, sp);
 
-      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
+      vp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
     case TYPE_SHORT:
       if (un)
-        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(),
-                                     TYPE_SHORT, 0, true);
+        vp = new(g) TYPVAL<ushort>(valp->GetUShortValue(),
+                                   TYPE_SHORT, 0, true);
       else
-        valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
+        vp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
 
       break;
     case TYPE_INT:
       if (un)
-        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
+        vp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
       else
-        valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
+        vp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
 
       break;
     case TYPE_BIGINT:
       if (un)
-        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(),
-                                        TYPE_BIGINT, 0, true);
+        vp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(),
+                                      TYPE_BIGINT, 0, true);
       else
-        valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
+        vp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
 
       break;
     case TYPE_DATE:
-      valp = new(g) DTVAL(g, valp->GetIntValue());
+      vp = new(g) DTVAL(g, valp->GetIntValue());
       break;
     case TYPE_DOUBLE:
-      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
-                     (uns) ? uns : valp->GetValPrec());
+      vp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
+                   (uns) ? uns : valp->GetValPrec());
       break;
     case TYPE_TINY:
       if (un)
-        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(),
+        vp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(),
                                     TYPE_TINY, 0, true);
       else
-        valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
+        vp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
 
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
       return NULL;
     } // endswitch type
-
-  valp->SetGlobal(g);
-  return valp;
+  
+  vp->SetNullable(valp->GetNullable());
+  vp->SetNull(valp->IsNull());
+  vp->SetGlobal(g);
+  return vp;
   } // end of AllocateValue
 
 /* -------------------------- Class VALUE ---------------------------- */
@@ -939,7 +958,6 @@ int TYPVAL<TYPE>::CompareValue(PVAL vp)
   return (Tval > n) ? 1 : (Tval < n) ? (-1) : 0;
   } // end of CompareValue
 
-#if 0
 /***********************************************************************/
 /*  Return max type value if b is true, else min type value.           */
 /***********************************************************************/
@@ -1004,7 +1022,7 @@ TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
 template <>
 inline double TYPVAL<double>::SafeAdd(double n1, double n2)
   {
-  assert(false); return 0;
+  return n1 + n2;
   } // end of SafeAdd
 
 /***********************************************************************/
@@ -1032,9 +1050,8 @@ TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
 template <>
 inline double TYPVAL<double>::SafeMult(double n1, double n2)
   {
-  assert(false); return 0;
+  return n1 * n2;
   } // end of SafeMult
-#endif // 0
 
 /***********************************************************************/
 /*  Compute defined functions for the type.                            */
@@ -1052,12 +1069,18 @@ bool TYPVAL<TYPE>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
   switch (op) {
     case OP_ADD:
-//    Tval = SafeAdd(val[0], val[1]);
-      Tval = val[0] + val[1];
+      Tval = SafeAdd(val[0], val[1]);
       break;
     case OP_MULT:
-//    Tval = SafeMult(val[0], val[1]);
-      Tval = val[0] * val[1];
+      Tval = SafeMult(val[0], val[1]);
+      break;
+    case OP_DIV:
+      if (!val[1]) {
+        strcpy(g->Message, MSG(ZERO_DIVIDE));
+        return true;
+        } // endif
+
+      Tval = val[0] / val[1];
       break;
     default:
       rc = Compall(g, vp, np, op);
@@ -1067,7 +1090,6 @@ bool TYPVAL<TYPE>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   return rc;
   } // end of Compute
 
-#if 0
 template <>
 bool TYPVAL<double>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
   {
@@ -1092,7 +1114,6 @@ bool TYPVAL<double>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
 
   return rc;
   } // end of Compute
-#endif // 0
 
 /***********************************************************************/
 /*  Compute a function for all types.                                  */
@@ -1106,6 +1127,18 @@ bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
     val[i] = GetTypedValue(vp[i]);
 
   switch (op) {
+    case OP_DIV:
+      if (val[0]) {
+        if (!val[1]) {
+          strcpy(g->Message, MSG(ZERO_DIVIDE));
+          return true;
+          } // endif
+    
+        Tval = val[0] / val[1];
+      } else
+        Tval = 0;
+
+      break;
     case OP_MIN:
       Tval = MY_MIN(val[0], val[1]);
       break;

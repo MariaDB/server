@@ -318,3 +318,8 @@
 #define MSG_XPATH_CNTX_ERR     517
 #define MSG_XPATH_EVAL_ERR     518
 #define MSG_XPATH_NOT_SUPP     519
+#define MSG_ZERO_DIVIDE        520
+#define MSG_FIX_OVFLW_ADD      521
+#define MSG_FIX_OVFLW_TIMES    522
+#define MSG_FIX_UNFLW_ADD      523
+#define MSG_FIX_UNFLW_TIMES    524

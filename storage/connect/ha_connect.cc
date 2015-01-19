@@ -170,8 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0005 January 13, 2015";
-       char  compver[]= "Version 1.03.0005 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0006 January 13, 2015";
+       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
        char slash= '\\';
@@ -3834,7 +3834,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
-//  case TAB_JSON:
+    case TAB_JSON:
       if (options->filename && *options->filename) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(WIN32)
