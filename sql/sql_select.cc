@@ -3032,6 +3032,7 @@ void JOIN::exec_inner()
       const ha_rows select_limit_arg=
         select_options & OPTION_FOUND_ROWS
         ? HA_POS_ERROR : unit->select_limit_cnt;
+      curr_join->filesort_found_rows= filesort_limit_arg != HA_POS_ERROR;
 
       DBUG_PRINT("info", ("has_group_by %d "
                           "curr_join->table_count %d "
@@ -3079,7 +3080,8 @@ void JOIN::exec_inner()
                                    Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF);
   error= do_select(curr_join, curr_fields_list, NULL, procedure);
   thd->limit_found_rows= curr_join->send_records;
-  if (curr_join->order && curr_join->filesort_found_rows)
+  if (curr_join->order && curr_join->sortorder &&
+      curr_join->filesort_found_rows)
   {
     /* Use info provided by filesort. */
     DBUG_ASSERT(curr_join->table_count > curr_join->const_tables);
@@ -18900,7 +18902,8 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
         records are read. Because of optimization in some cases it can
         provide only select_limit_cnt+1 records.
       */
-      if (join->order && join->filesort_found_rows &&
+      if (join->order && join->sortorder &&
+          join->filesort_found_rows &&
           join->select_options & OPTION_FOUND_ROWS)
       {
         DBUG_PRINT("info", ("filesort NESTED_LOOP_QUERY_LIMIT"));
@@ -18922,8 +18925,9 @@ end_send(JOIN *join, JOIN_TAB *join_tab __attribute__((unused)),
 	  /* Join over all rows in table;  Return number of found rows */
 	  TABLE *table=jt->table;
 
-          join->select_options ^= OPTION_FOUND_ROWS;
-          if (join->filesort_found_rows)
+	  join->select_options ^= OPTION_FOUND_ROWS;
+	  if (table->sort.record_pointers ||
+	      (table->sort.io_cache && my_b_inited(table->sort.io_cache)))
 	  {
 	    /* Using filesort */
 	    join->send_records= table->sort.found_records;
@@ -20754,11 +20758,7 @@ create_sort_index(THD *thd, JOIN *join, ORDER *order,
                             select, filesort_limit, 0,
                             &examined_rows, &found_rows);
   table->sort.found_records= filesort_retval;
-  if (found_rows != HA_POS_ERROR)
-  {
-    tab->records= found_rows;                     // For SQL_CALC_ROWS
-    join->filesort_found_rows= true;
-  }
+  tab->records= found_rows;                     // For SQL_CALC_ROWS
 
   if (quick_created)
   {
