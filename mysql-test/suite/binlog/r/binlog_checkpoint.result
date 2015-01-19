@@ -112,6 +112,18 @@ master-bin.000003	#
 master-bin.000004	#
 master-bin.000005	#
 master-bin.000006	#
+SET debug_sync = 'reset';
+*** MDEV-7402: 'reset master' hangs, waits for signalled COND_xid_list ***
+SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont";
+RESET MASTER;
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
+SET debug_sync="now WAIT_FOR reset_master_ready";
+RESET MASTER;
+SET debug_sync="now WAIT_FOR injected_binlog_background_thread";
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync="now SIGNAL reset_master_cont";
+SET debug_sync = 'reset';
 DROP TABLE t1, t2;
 SET GLOBAL max_binlog_size= @old_max_binlog_size;
 SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;

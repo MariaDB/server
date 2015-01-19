@@ -3031,7 +3031,7 @@ const char *MYSQL_LOG::generate_name(const char *log_name,
 
 
 MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
-  :reset_master_pending(false), mark_xid_done_waiting(0),
+  :reset_master_pending(0), mark_xid_done_waiting(0),
    bytes_written(0), file_id(1), open_count(1),
    group_commit_queue(0), group_commit_queue_busy(FALSE),
    num_commits(0), num_group_commits(0),
@@ -3867,12 +3867,13 @@ bool MYSQL_BIN_LOG::reset_logs(THD* thd, bool create_new_log,
       do this before we take the LOCK_log to not deadlock.
     */
     mysql_mutex_lock(&LOCK_xid_list);
-    reset_master_pending= true;
+    reset_master_pending++;
     while (mark_xid_done_waiting > 0)
       mysql_cond_wait(&COND_xid_list, &LOCK_xid_list);
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 
+  DEBUG_SYNC(thd, "reset_logs_after_set_reset_master_pending");
   if (thd)
     ha_reset_logs(thd);
   /*
@@ -4054,7 +4055,7 @@ err:
       DBUG_ASSERT(b->xid_count == 0);
       my_free(binlog_xid_count_list.get());
     }
-    reset_master_pending= false;
+    reset_master_pending--;
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 

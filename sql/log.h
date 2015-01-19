@@ -470,7 +470,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     anyway). Instead we should signal COND_xid_list whenever a new binlog
     checkpoint arrives - when all have arrived, RESET MASTER will complete.
   */
-  bool reset_master_pending;
+  uint reset_master_pending;
   ulong mark_xid_done_waiting;
 
   /* LOCK_log and LOCK_index are inited by init_pthread_objects() */
