@@ -6187,7 +6187,6 @@ sub debugger_arguments {
   }
 }
 
-
 #
 # Modify the exe and args so that program is run in valgrind
 #
@@ -6209,10 +6208,14 @@ sub valgrind_arguments {
       if -f "$glob_mysql_test_dir/valgrind.supp";
 
     # Ensure the jemalloc works with mysqld
-    if ($mysqld_variables{'version-malloc-library'} ne "system" &&
-        $$exe =~ /mysqld/)
+    if ($$exe =~ /mysqld/)
     {
-      mtr_add_arg($args, "--soname-synonyms=somalloc=NONE" );
+      my %somalloc=(
+        'system jemalloc' => 'libjemalloc*',
+        'bundled jemalloc' => 'NONE'
+      );
+      my ($syn) = $somalloc{$mysqld_variables{'version-malloc-library'}};
+      mtr_add_arg($args, '--soname-synonyms=somalloc=%s', $syn) if $syn;
     }
   }
 
