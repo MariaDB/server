@@ -89,7 +89,7 @@
 #include "tabpivot.h"
 #endif   // PIVOT_SUPPORT
 #include "tabvir.h"
-//#include "tabjson.h"
+#include "tabjson.h"
 #include "ha_connect.h"
 #include "mycat.h"
 
@@ -140,7 +140,7 @@ TABTYPE GetTypeID(const char *type)
                  : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
 #endif
                  : (!stricmp(type, "VIR"))   ? TAB_VIR
-//               : (!stricmp(type, "JSON"))  ? TAB_JSON
+                 : (!stricmp(type, "JSON"))  ? TAB_JSON
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -161,7 +161,7 @@ bool IsFileType(TABTYPE type)
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
-//  case TAB_JSON:
+    case TAB_JSON:
       isfile= true;
       break;
     default:
@@ -254,6 +254,7 @@ bool IsTypeIndexable(TABTYPE type)
     case TAB_BIN:
     case TAB_VEC:
     case TAB_DBF:
+    case TAB_JSON:
       idx= true;
       break;
     default:
@@ -279,6 +280,7 @@ int GetIndexType(TABTYPE type)
     case TAB_BIN:
     case TAB_VEC:
     case TAB_DBF:
+    case TAB_JSON:
       xtyp= 1;
       break;
     case TAB_MYSQL:
@@ -542,7 +544,7 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
 #endif   // PIVOT_SUPPORT
     case TAB_VIR: tdp= new(g) VIRDEF;   break;
-//  case TAB_JSON: tdp= new(g) JSONDEF; break;
+    case TAB_JSON: tdp= new(g) JSONDEF; break;
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch

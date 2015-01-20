@@ -190,9 +190,9 @@ class DllExport TYPVAL : public VALUE {
   virtual void   Print(PGLOBAL g, char *, uint);
 
  protected:
-//static  TYPE   MinMaxVal(bool b);
-//        TYPE   SafeAdd(TYPE n1, TYPE n2);
-//        TYPE   SafeMult(TYPE n1, TYPE n2);
+  static  TYPE   MinMaxVal(bool b);
+          TYPE   SafeAdd(TYPE n1, TYPE n2);
+          TYPE   SafeMult(TYPE n1, TYPE n2);
           bool   Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op);
 
   // Default constructor not to be used
