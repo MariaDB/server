@@ -89,6 +89,13 @@ Master_info::Master_info(LEX_STRING *connection_name_arg,
 
 Master_info::~Master_info()
 {
+#ifdef WITH_WSREP
+  /*
+    Do not free "wsrep" rpl_filter. It will eventually be freed by
+    free_all_rpl_filters() when server terminates.
+  */
+  if (strncmp(connection_name.str, STRING_WITH_LEN("wsrep")))
+#endif
   rpl_filters.delete_element(connection_name.str, connection_name.length,
                              (void (*)(const char*, uchar*)) free_rpl_filter);
   my_free(connection_name.str);

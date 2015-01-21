@@ -223,6 +223,7 @@ Rpl_filter *get_or_create_rpl_filter(const char *name, uint length)
 void free_rpl_filter(const char *name, Rpl_filter *filter)
 {
   delete filter;
+  filter= 0;
 }
 
 void free_all_rpl_filters()
