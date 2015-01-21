@@ -2211,7 +2211,8 @@ int TDBDOS::WriteDB(PGLOBAL g)
     htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
 
   // Make the line to write
-  (void)PrepareWriting(g);
+  if (PrepareWriting(g))
+    return true;
 
   if (trace > 1)
     htrc("Write: line is='%s'\n", To_Line);

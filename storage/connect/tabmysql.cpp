@@ -777,7 +777,7 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
     char   query[96];
     MYSQLC myc;
 
-    if (myc.Open(g, Host, Database, User, Pwd, Port))
+    if (myc.Open(g, Host, Database, User, Pwd, Port, csname))
       return -1;
 
     strcpy(query, "SELECT COUNT(*) FROM ");
@@ -871,7 +871,7 @@ bool TDBMYSQL::OpenDB(PGLOBAL g)
   /*  servers allowing concurency in getting results ???               */
   /*********************************************************************/
   if (!Myc.Connected()) {
-    if (Myc.Open(g, Host, Database, User, Pwd, Port))
+    if (Myc.Open(g, Host, Database, User, Pwd, Port, csname))
       return true;
 
     } // endif Connected

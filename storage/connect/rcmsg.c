@@ -31,6 +31,8 @@ char *GetMsgid(int id)
   {
   char *p = NULL;
 
+  // This conditional until a real fix is found for MDEV-7304
+#if defined(FRENCH)
   if (!stricmp(msglang(), "french"))
     switch (id) {
 #include "frids.h"
@@ -40,6 +42,7 @@ char *GetMsgid(int id)
     } // endswitch(id)
 
   else    // English
+#endif   // FRENCH
     switch (id) {
 #include "enids.h"
 #if defined(NEWMSG)

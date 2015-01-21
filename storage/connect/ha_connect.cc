@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2014
+/* Copyright (C) Olivier Bertrand 2004 - 2015
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -170,8 +170,8 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0005 November 08, 2014";
-       char  compver[]= "Version 1.03.0005 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0006 January 13, 2015";
+       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
 
 #if defined(WIN32)
        char slash= '\\';
@@ -714,7 +714,7 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   datapath= "./";
 #endif  // !WIN32
   tdbp= NULL;
-  sdvalin= NULL;
+  sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout= NULL;
   xmod= MODE_ANY;
   istable= false;
@@ -1055,6 +1055,14 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
     opval= (char*)options->colist;
   else if (!stricmp(opname, "Data_charset"))
     opval= (char*)options->data_charset;
+  else if (!stricmp(opname, "Table_charset")) {
+    const CHARSET_INFO *chif= (tshp) ? tshp->table_charset 
+                                     : table->s->table_charset;
+
+    if (chif)
+      opval= (char*)chif->csname;
+
+  } // endif Table_charset
 
   if (!opval && options && options->oplist)
     opval= GetListOption(xp->g, opname, options->oplist);
@@ -1326,6 +1334,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
           datm.tm_mday= 12;
           datm.tm_mon= 11;
           datm.tm_year= 112;
+          mktime(&datm); // set other fields get proper day name
           len= strftime(buf, 256, pdtp->OutFmt, &datm);
         } else
           len= 0;
@@ -1806,7 +1815,7 @@ int ha_connect::CloseTable(PGLOBAL g)
 {
   int rc= CntCloseTable(g, tdbp, nox, abort);
   tdbp= NULL;
-  sdvalin=NULL;
+  sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout=NULL;
   valid_info= false;
   indexing= -1;
@@ -1960,7 +1969,7 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
   char   *fmt;
   int     rc= 0;
   PCOL    colp;
-  PVAL    value;
+  PVAL    value, sdvalin;
   Field  *fp;
   PTDBASE tp= (PTDBASE)tdbp;
   String  attribute(attr_buffer, sizeof(attr_buffer),
@@ -2003,25 +2012,45 @@ int ha_connect::ScanRecord(PGLOBAL g, uchar *buf)
           value->SetValue(fp->val_real());
           break;
         case TYPE_DATE:
-          if (!sdvalin)
-            sdvalin= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
-
           // Get date in the format produced by MySQL fields
           switch (fp->type()) {
             case MYSQL_TYPE_DATE:
-              fmt= "YYYY-MM-DD";
+              if (!sdvalin2) {
+                sdvalin2= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "YYYY-MM-DD";
+                ((DTVAL*)sdvalin2)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin2;
               break;
             case MYSQL_TYPE_TIME:
-              fmt= "hh:mm:ss";
+              if (!sdvalin3) {
+                sdvalin3= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "hh:mm:ss";
+                ((DTVAL*)sdvalin3)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin3;
               break;
             case MYSQL_TYPE_YEAR:
-              fmt= "YYYY";
+              if (!sdvalin4) {
+                sdvalin4= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "YYYY";
+                ((DTVAL*)sdvalin4)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin4;
               break;
             default:
-              fmt= "YYYY-MM-DD hh:mm:ss";
+              if (!sdvalin1) {
+                sdvalin1= (DTVAL*)AllocateValue(xp->g, TYPE_DATE, 19);
+                fmt= "YYYY-MM-DD hh:mm:ss";
+                ((DTVAL*)sdvalin1)->SetFormat(g, fmt, strlen(fmt));
+                } // endif sdvalin1
+
+              sdvalin= sdvalin1;
             } // endswitch type
 
-          ((DTVAL*)sdvalin)->SetFormat(g, fmt, strlen(fmt));
           sdvalin->SetNullable(colp->IsNullable());
           fp->val_str(&attribute);
           sdvalin->SetValue_psz(attribute.c_ptr_safe());
@@ -3805,6 +3834,7 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn)
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
+    case TAB_JSON:
       if (options->filename && *options->filename) {
         char *s, path[FN_REFLEN], dbpath[FN_REFLEN];
 #if defined(WIN32)
@@ -4800,6 +4830,9 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // WIN32
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused)) = 0;
+#if defined(ODBC_SUPPORT)
+  int         cto= -1, qto= -1;
+#endif   // ODBC_SUPPORT
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
@@ -4834,7 +4867,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   fncn= topt->catfunc;
   fnc= GetFuncID(fncn);
   sep= topt->separator;
-  spc= (!sep || !strcmp(sep, "\\t")) ? '\t' : *sep;
+  spc= (!sep) ? ',' : (!strcmp(sep, "\\t")) ? '\t' : *sep;
   qch= topt->qchar ? *topt->qchar : (signed)topt->quoted >= 0 ? '"' : 0;
   hdr= (int)topt->header;
   tbl= topt->tablist;
@@ -4859,6 +4892,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
+    cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
+    qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
 #endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
@@ -5077,14 +5112,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           case FNC_NO:
           case FNC_COL:
             if (src) {
-              qrp= ODBCSrcCols(g, dsn, (char*)src);
+              qrp= ODBCSrcCols(g, dsn, (char*)src, cto, qto);
               src= NULL;     // for next tests
             } else
-              qrp= ODBCColumns(g, dsn, shm, tab, NULL, mxr, fnc == FNC_COL);
+              qrp= ODBCColumns(g, dsn, shm, tab, NULL,
+                               mxr, cto, qto, fnc == FNC_COL);
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, true);
+            qrp= ODBCTables(g, dsn, shm, tab, mxr, cto, qto, true);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);
@@ -5190,6 +5226,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         tm= NOT_NULL_FLAG;
         cnm= (char*)"noname";
         dft= xtra= key= NULL;
+        v= ' ';
 #if defined(NEW_WAY)
         rem= "";
 //      cs= NULL;
@@ -5200,7 +5237,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         for (crp= qrp->Colresp; crp; crp= crp->Next)
           switch (crp->Fld) {
             case FLD_NAME:
-              cnm= encode(g, crp->Kdata->GetCharValue(i));
+              if (ttp == TAB_CSV && topt->data_charset &&
+                 (!stricmp(topt->data_charset, "UTF8") ||
+                  !stricmp(topt->data_charset, "UTF-8")))
+                cnm= crp->Kdata->GetCharValue(i);
+              else
+                cnm= encode(g, crp->Kdata->GetCharValue(i));
+
               break;
             case FLD_TYPE:
               typ= crp->Kdata->GetIntValue(i);

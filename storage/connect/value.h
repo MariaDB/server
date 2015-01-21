@@ -29,12 +29,9 @@ enum CONV {CNV_ANY     =   0,         /* Convert to any type           */
 class CONSTANT;                       // For friend setting
 typedef struct _datpar *PDTP;         // For DTVAL
 
-
 /***********************************************************************/
 /*  Utilities used to test types and to allocated values.              */
 /***********************************************************************/
-PVAL  AllocateValue(PGLOBAL, void *, short);
-
 // Exported functions
 DllExport PSZ   GetTypeName(int);
 DllExport int   GetTypeSize(int, int);
@@ -47,6 +44,7 @@ DllExport int   GetFormatType(char);
 DllExport bool  IsTypeChar(int type);
 DllExport bool  IsTypeNum(int type);
 DllExport int   ConvertType(int, int, CONV, bool match = false);
+DllExport PVAL  AllocateValue(PGLOBAL, void *, short, short = 2);
 DllExport PVAL  AllocateValue(PGLOBAL, PVAL, int = TYPE_VOID, int = 0);
 DllExport PVAL  AllocateValue(PGLOBAL, int, int len = 0, int prec = 0,
                               bool uns = false, PSZ fmt = NULL);
@@ -114,6 +112,7 @@ class DllExport VALUE : public BLOCK {
   virtual char  *ShowValue(char *buf, int len = 0) = 0;
   virtual char  *GetCharString(char *p) = 0;
   virtual bool   IsEqual(PVAL vp, bool chktype) = 0;
+  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, char *fmt) = 0;
 
  protected:
@@ -149,9 +148,9 @@ class DllExport TYPVAL : public VALUE {
   virtual bool   IsZero(void) {return Tval == 0;}
   virtual void   Reset(void) {Tval = 0;}
   virtual int    GetValLen(void);
-  virtual int    GetValPrec() {return 0;}
+  virtual int    GetValPrec() {return Prec;}
   virtual int    GetSize(void) {return sizeof(TYPE);}
-  virtual PSZ    GetCharValue(void) {return VALUE::GetCharValue();}
+//virtual PSZ    GetCharValue(void) {return VALUE::GetCharValue();}
   virtual char   GetTinyValue(void) {return (char)Tval;}
   virtual uchar  GetUTinyValue(void) {return (uchar)Tval;}
   virtual short  GetShortValue(void) {return (short)Tval;}
@@ -184,12 +183,18 @@ class DllExport TYPVAL : public VALUE {
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual void   Print(PGLOBAL g, FILE *, uint);
   virtual void   Print(PGLOBAL g, char *, uint);
 
  protected:
+  static  TYPE   MinMaxVal(bool b);
+          TYPE   SafeAdd(TYPE n1, TYPE n2);
+          TYPE   SafeMult(TYPE n1, TYPE n2);
+          bool   Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op);
+
   // Default constructor not to be used
   TYPVAL(void) : VALUE(TYPE_ERROR) {}
 
@@ -253,6 +258,7 @@ class DllExport TYPVAL<PSZ>: public VALUE {
   virtual char  *ShowValue(char *buf, int);
   virtual char  *GetCharString(char *p);
   virtual bool   IsEqual(PVAL vp, bool chktype);
+  virtual bool   Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op);
   virtual bool   FormatValue(PVAL vp, char *fmt);
   virtual bool   SetConstFormat(PGLOBAL, FORMAT&);
 
