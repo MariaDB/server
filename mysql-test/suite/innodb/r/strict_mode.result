@@ -234,6 +234,8 @@ col226 text,
 col227 text,
 col228 text
 ) ENGINE=InnoDB;
+Warnings:
+Warning	139	Row size too large (> 8126). Changing some columns to TEXT or BLOB or using ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED may help. In current row format, BLOB prefix of 768 bytes is stored inline.
 set innodb_strict_mode = 1;
 alter table t1 engine=InnoDB;
 ERROR 42000: Row size too large. The maximum row size for the used table type, not counting BLOBs, is 8126. This includes storage overhead, check the manual. You have to change some columns to TEXT or BLOBs
