@@ -55,6 +55,8 @@ Created 10/25/1995 Heikki Tuuri
 static ulint srv_data_read, srv_data_written;
 #endif /* !UNIV_HOTBACKUP */
 
+MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
+
 /*
 		IMPLEMENTATION OF THE TABLESPACE MEMORY CACHE
 		=============================================
