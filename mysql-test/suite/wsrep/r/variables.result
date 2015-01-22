@@ -137,7 +137,6 @@ wsrep_last_committed	#
 #
 # MDEV#6206: wsrep_slave_threads subtracts from max_connections
 #
-call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_slave_threads' and 'LOCK_global_system_variables'");
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
 libgalera_smm.so

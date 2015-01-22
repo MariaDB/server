@@ -52,7 +52,6 @@ SHOW STATUS LIKE 'wsrep_last_committed';
 --echo #
 --echo # MDEV#6206: wsrep_slave_threads subtracts from max_connections
 --echo #
-call mtr.add_suppression("safe_mutex: Found wrong usage of mutex 'LOCK_wsrep_slave_threads' and 'LOCK_global_system_variables'");
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
