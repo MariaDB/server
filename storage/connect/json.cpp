@@ -312,18 +312,19 @@ err:
 /***********************************************************************/
 char *ParseString(PGLOBAL g, int& i, STRG& src)
 {
-  char *p, *s = src.str;
-  int   n = 0, len = src.len;
+  char  *s = src.str;
+  uchar *p;
+  int    n = 0, len = src.len;
 
   // The size to allocate is not known yet
-  p = (char*)PlugSubAlloc(g, NULL, 0);
+  p = (uchar*)PlugSubAlloc(g, NULL, 0);
 
   for (; i < len; i++)
     switch (s[i]) {
       case '"':
         p[n++] = 0;
         PlugSubAlloc(g, NULL, n);
-        return p;
+        return (char*)p;
       case '\\':
         if (++i < len) {
           if (s[i] == 'u') {
@@ -675,12 +676,13 @@ bool JOUTSTR::Escape(const char *s)
 
   for (unsigned int i = 0; i < strlen(s); i++)
     switch (s[i]) {
+      case '"':  
+      case '\\':
       case '\t':
       case '\n':
       case '\r':
       case '\b':
-      case '\f':
-      case '"':  WriteChr('\\');
+      case '\f': WriteChr('\\');
         // passthru
       default:
         WriteChr(s[i]);

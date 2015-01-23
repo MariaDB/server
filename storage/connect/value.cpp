@@ -443,8 +443,13 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
     case TYPE_STRING:
       p = (PSZ)PlugSubAlloc(g, NULL, 1 + valp->GetValLen());
 
-      if ((sp = valp->GetCharString(p)) != p)
-        strcpy (p, sp);
+      if ((sp = valp->GetCharString(p)) != p) {
+        if (sp)
+          strcpy (p, sp);
+        else
+          *p = 0;
+
+        } // endif sp
 
       vp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
