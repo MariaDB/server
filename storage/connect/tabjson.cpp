@@ -507,7 +507,15 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
 
   if (Parsed)
     return false;                       // Already done
-  else if (InitValue(g))
+    
+  if (InitValue(g))
+    return true;
+  else
+    MulVal = Value;
+    
+  Value = NULL;
+    
+  if (InitValue(g))
     return true;
   else if (!Jpath)
     Jpath = Name;
@@ -540,7 +548,6 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
 
     } // endfor i, p
 
-  MulVal = AllocateValue(g, Value);
   Parsed = true;
   return false;
   } // end of ParseJpath
