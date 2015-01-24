@@ -1224,7 +1224,7 @@ TYPVAL<PSZ>::TYPVAL(PGLOBAL g, PSZ s, int n, int c)
   if (!s) {
     if (g) {
       if ((Strp = (char *)PlgDBSubAlloc(g, NULL, Len + 1)))
-        Strp[Len] = '\0';
+        memset(Strp, 0, Len + 1);
       else
         Len = 0;
 
