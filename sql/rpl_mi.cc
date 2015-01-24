@@ -864,6 +864,7 @@ Master_info_index::Master_info_index()
   memcpy(index_file_name + dir_length, "multi-", 6);
 
   bzero((char*) &index_file, sizeof(index_file));
+  index_file.file= -1;
 }
 
 Master_info_index::~Master_info_index()
@@ -871,7 +872,7 @@ Master_info_index::~Master_info_index()
   /* This will close connection for all objects in the cache */
   my_hash_free(&master_info_hash);
   end_io_cache(&index_file);
-  if (index_file.file > 0)
+  if (index_file.file >= 0)
     my_close(index_file.file, MYF(MY_WME));
 }
 
