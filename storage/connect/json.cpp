@@ -725,12 +725,13 @@ bool JOUTFILE::Escape(const char *s)
 
   for (unsigned int i = 0; i < strlen(s); i++)
     switch (s[i]) {
-      case '\t': fputs("\\t", Stream); break;
-      case '\n': fputs("\\n", Stream); break;
-      case '\r': fputs("\\r", Stream); break;
-      case '\b': fputs("\\b", Stream); break;
-      case '\f': fputs("\\f", Stream); break;
-      case '"': fputs("\\\"", Stream); break;
+      case '\t': fputs("\\t",  Stream); break;
+      case '\n': fputs("\\n",  Stream); break;
+      case '\r': fputs("\\r",  Stream); break;
+      case '\b': fputs("\\b",  Stream); break;
+      case '\f': fputs("\\f",  Stream); break;
+      case '\\': fputs("\\\\", Stream); break;
+      case '"':  fputs("\\\"", Stream); break;
       default:
         fputc(s[i], Stream);
         break;
