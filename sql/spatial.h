@@ -305,7 +305,8 @@ public:
   virtual int interior_ring_n(uint32 num, String *result) const { return -1; }
   virtual int geometry_n(uint32 num, String *result) const { return -1; }
   virtual int store_shapes(Gcalc_shape_transporter *trn) const=0;
-
+  virtual int is_clockwise(int *result) const { return -1; }
+  virtual int make_clockwise(String *result) const{ return -1; }
 public:
   static Geometry *create_by_typeid(Geometry_buffer *buffer, int type_id);
 
@@ -498,6 +499,7 @@ public:
     return 0;
   }
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int is_clockwise(int *result) const override;
   const Class_info *get_class_info() const override;
 };
 
@@ -533,6 +535,7 @@ public:
     return 0;
   }
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int make_clockwise(String *result) const override;
   const Class_info *get_class_info() const override;
 };
 
@@ -634,6 +637,7 @@ public:
     return 0;
   }
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int make_clockwise(String *result) const override;
   const Class_info *get_class_info() const override;
   uint init_from_opresult(String *bin, const char *opres, uint res_len) override;
 };
@@ -663,6 +667,7 @@ public:
   int geometry_n(uint32 num, String *result) const override;
   bool dimension(uint32 *dim, const char **end) const override;
   int store_shapes(Gcalc_shape_transporter *trn) const override;
+  int make_clockwise(String *result) const override;
   const Class_info *get_class_info() const override;
 };
 
