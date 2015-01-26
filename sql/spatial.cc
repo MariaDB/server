@@ -1739,6 +1739,59 @@ int Gis_line_string::store_shapes(Gcalc_shape_transporter *trn) const
   return trn->complete_line();
 }
 
+
+/*
+  Calculate the internal area using the shoelace formula
+  (https://en.wikipedia.org/wiki/Shoelace_formula). If the area is < 0 then
+  it is clockwise. If the area is > 0 it is counterclockwise.
+  If it is 0 is degenerate.
+*/
+int Gis_line_string::is_clockwise(int *result) const
+{
+  uint32 num_points;
+  double area= 0;
+
+  if (this->num_points(&num_points))
+    return 1;
+
+  for (uint32 i= 1; i <= num_points; i++)
+  {
+    Geometry_buffer buffer_first, buffer_second;
+    Geometry *point_first, *point_second;
+    String wkb_first, wkb_second;
+
+    if (wkb_first.reserve(SRID_SIZE + WKB_HEADER_SIZE) ||
+        wkb_second.reserve(SRID_SIZE + WKB_HEADER_SIZE))
+      return 1;
+
+    wkb_first.q_append(SRID_PLACEHOLDER);
+    wkb_second.q_append(SRID_PLACEHOLDER);
+
+    if (this->point_n(i, &wkb_first) ||
+        this->point_n((i == num_points) ? 1 : i + 1, &wkb_second))
+      return 1;
+
+    if (!(point_first=
+           Geometry::construct(&buffer_first, wkb_first.ptr(),
+                                wkb_first.length())) ||
+        !(point_second=
+           Geometry::construct(&buffer_second, wkb_second.ptr(),
+                                wkb_second.length())))
+      return 1;
+
+    double x1, x2, y1, y2;
+    if (((Gis_point *) point_first)->get_xy(&x1, &y1) ||
+        ((Gis_point *) point_second)->get_xy(&x2, &y2))
+      return 1;
+
+    area+= (x1 * y2) - (x2 * y1);
+  }
+
+  *result= (area < 0);
+  return 0;
+}
+
+
 const Geometry::Class_info *Gis_line_string::get_class_info() const
 {
   return &linestring_class;
@@ -2440,6 +2493,68 @@ single_point_ring:
   }
 
   trn->complete_poly();
+  return 0;
+}
+
+
+int Gis_polygon::make_clockwise(String *result) const
+{
+  String ring_wkb= 0;
+  uint32 num_interior_ring;
+  Geometry *ring;
+  Geometry_buffer buffer;
+  int is_clockwise;
+  uint32 ring_points;
+
+  if(ring_wkb.reserve(SRID_SIZE + WKB_HEADER_SIZE) ||
+     result->reserve(SRID_SIZE + WKB_HEADER_SIZE))
+    return 1;
+
+  if (this->num_interior_ring(&num_interior_ring) ||
+      this->exterior_ring(&ring_wkb))
+    return 1;
+
+  result->length(0);
+  result->append((char) wkb_ndr);
+  result->q_append((uint32) wkb_polygon);
+  result->q_append((uint32) num_interior_ring + 1);
+  result->append(ring_wkb.ptr() + WKB_HEADER_SIZE,
+                 ring_wkb.length() - WKB_HEADER_SIZE);
+
+  for(uint32 i= 1; i <= num_interior_ring; i++)
+  {
+    ring_wkb.length(0);
+    ring_wkb.q_append(SRID_PLACEHOLDER);
+    if (this->interior_ring_n(i, &ring_wkb))
+      return 1;
+
+    if (!(ring= Geometry::construct(&buffer, ring_wkb.ptr(),
+                                    ring_wkb.length())))
+      return 1;
+
+    if (ring->is_clockwise(&is_clockwise))
+      return 1;
+
+    if (is_clockwise)
+    {
+      result->append(ring_wkb.ptr() + WKB_HEADER_SIZE + SRID_SIZE,
+                     ring_wkb.length() - (WKB_HEADER_SIZE + SRID_SIZE));
+      continue;
+    }
+
+    if (ring->num_points(&ring_points))
+      return 1;
+    result->q_append((uint32) ring_points);
+
+    for (uint32 i= ring_points; i > 0; i--)
+    {
+      String point= 0;
+      ring->point_n(i, &point);
+      result->append(point.ptr() + WKB_HEADER_SIZE,
+                     point.length() - WKB_HEADER_SIZE);
+    }
+  }
+
   return 0;
 }
 
@@ -3777,6 +3892,43 @@ int Gis_multi_polygon::store_shapes(Gcalc_shape_transporter *trn) const
 }
 
 
+int Gis_multi_polygon::make_clockwise(String *result) const
+{
+  Geometry_buffer buffer;
+  uint32 num_polygons;
+  Geometry *polygon;
+
+  if(this->num_geometries(&num_polygons) ||
+     result->reserve(SRID_SIZE + WKB_HEADER_SIZE))
+    return 1;
+
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_multipolygon);
+  result->q_append((uint32) num_polygons);
+  for (uint32 i= 1; i <= num_polygons; i++)
+  {
+    String wkb= 0, clockwise_wkb= 0;
+    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+      return 0;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    if (this->geometry_n(i, &wkb) ||
+        !(polygon= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+
+    if(polygon->make_clockwise(&clockwise_wkb))
+      return 1;
+
+    result->q_append((char) wkb_ndr);
+    result->q_append((uint32) wkb_polygon);
+    result->append(clockwise_wkb.ptr() + WKB_HEADER_SIZE,
+                   clockwise_wkb.length() - WKB_HEADER_SIZE);
+  }
+
+  return 0;
+}
+
+
 const Geometry::Class_info *Gis_multi_polygon::get_class_info() const
 {
   return &multipolygon_class;
@@ -4424,6 +4576,53 @@ int Gis_geometry_collection::store_shapes(Gcalc_shape_transporter *trn) const
 
     data+= geom->get_data_size();
   }
+  return 0;
+}
+
+
+int Gis_geometry_collection::make_clockwise(String *result) const
+{
+  Geometry_buffer buffer;
+  uint32 num_geometries;
+  Geometry *geometry;
+
+  if(this->num_geometries(&num_geometries) ||
+     result->reserve(SRID_SIZE + WKB_HEADER_SIZE))
+    return 1;
+
+  result->q_append((char) wkb_ndr);
+  result->q_append((uint32) wkb_geometrycollection);
+  result->q_append((uint32) num_geometries);
+  for (uint32 i= 1; i <= num_geometries; i++)
+  {
+    String wkb= 0, clockwise_wkb= 0;
+    if (wkb.reserve(SRID_SIZE + BYTE_ORDER_SIZE + WKB_HEADER_SIZE))
+      return 0;
+
+    wkb.q_append(SRID_PLACEHOLDER);
+    if (this->geometry_n(i, &wkb) ||
+        !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
+      return 1;
+
+    result->q_append((char) wkb_ndr);
+    result->q_append((uint32) geometry->get_class_info()->m_type_id);
+    if (geometry->get_class_info()->m_type_id == Geometry::wkb_polygon ||
+        geometry->get_class_info()->m_type_id == Geometry::wkb_multipolygon ||
+        geometry->get_class_info()->m_type_id ==
+          Geometry::wkb_geometrycollection)
+    {
+      if(geometry->make_clockwise(&clockwise_wkb))
+        return 1;
+      result->append(clockwise_wkb.ptr() + WKB_HEADER_SIZE,
+                    clockwise_wkb.length() - WKB_HEADER_SIZE);
+    }
+    else
+    {
+      result->append(wkb.ptr() + SRID_SIZE + WKB_HEADER_SIZE,
+                     wkb.length() - (SRID_SIZE + WKB_HEADER_SIZE));
+    }
+  }
+
   return 0;
 }
 

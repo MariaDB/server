@@ -1,0 +1,101 @@
+# Copyright (c) 2014, Oracle and/or its affiliates
+# Copyright (c) 2024, MariaDB Corporation.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+
+
+############################################################################################
+# Creating the spatial objects                                                             #
+############################################################################################
+
+--echo # Creating the spatial Geometry object
+USE test;
+
+--echo # ST_VALIDATE must return null when its parameter is NULL
+SELECT ST_ASTEXT(ST_VALIDATE( NULL ));
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT(NULL,0)));
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT(NULL,4053)));
+
+--echo # ST_VALIDATE raises an error if the data is malformed
+--error ER_GIS_INVALID_DATA
+SELECT ST_VALIDATE( x'00000000DEADBEEF');
+
+--echo # ST_VALIDATE return the input if it is valid
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('POINT(15 25)')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTIPOINT(5 0,25 0,15 10,15 25)')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('LINESTRING(10 15,20 15)')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTILINESTRING((25 0,0 15,15 30,0 5))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('POLYGON((5 0,7 10,0 15,10 15,15 25,20 15,30 15,22 10,25 0,15 5,5 0))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0,0 10,10 10,0 0)),((10 10,10 15,15 15,10 10)))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POINT(10 10),'
+                                                     'MULTIPOINT(0 0,10 10),'
+                                                     'LINESTRING(1 1,2 2,3 3),'
+                                                     'MULTILINESTRING((0 0,0 10,10 10,10 0),(10 10,10 15,15 15,10 10)))')));
+
+--echo # The only valid empty geometry is the empty geometrycollection
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('POINT()')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTIPOINT()')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('LINESTRING()')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTILINESTRING(())')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('POLYGON(())')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTIPOLYGON((()),(()))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION()')));
+
+--echo # Invalid geometries return null
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('LINESTRING(0 0,-0.00 0,0.0 0)')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTILINESTRING((0 0))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('POLYGON((0 0))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTIPOLYGON(((1 1, 1 1, 1 1, 1 1, 1 1)))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(LINESTRING(0 0))')));
+
+--echo # If a polygon or multipolygon has counterclockwise internal rings, the rings are returned counterclockwise
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('POLYGON((0 0, 10 0, 10 10, 0 10, 0 0),(1 1, 2 1, 2 2, 1 2, 1 1))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('MULTIPOLYGON(((0 0, 10 0, 10 10, 0 10, 0 0),(1 1, 2 1, 2 2, 1 2, 1 1)))')));
+SELECT ST_ASTEXT(ST_VALIDATE(ST_GEOMFROMTEXT('GEOMETRYCOLLECTION(POLYGON((0 0, 10 0, 10 10, 0 10, 0 0),(1 1, 2 1, 2 2, 1 2, 1 1)))')));
+
+--echo # ST_VALIDATE raises an error if longitude is out of range
+--error ER_LONGITUDE_OUT_OF_RANGE
+SELECT ST_VALIDATE(ST_GEOMFROMTEXT('POINT(0 270)', 4326));
+
+--echo # ST_VALIDATE raises an error if latitude is out of range
+--error ER_LATITUDE_OUT_OF_RANGE
+SELECT ST_VALIDATE(ST_GEOMFROMTEXT('POINT(270 0)', 4326));
+
+--echo # ST_VALIDATE returns the same geometry as it was given when it is valid
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 0.25 0.75, 0.75 0.75, 0.75 0.25, 0.25 0.25))'))) AS
+valid_polygon;
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 0.25 0.75, 0.75 0.75, 0.75 0.25, 0.25 0.25))',4053))) AS
+valid_polygon;
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 0.25 0.75, 0.75 0.75, 0.75 0.25, 0.25 0.25))',2000))) AS
+valid_polygon;
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 0.25 0.75, 0.75 0.75, 0.75 0.25, 0.25 0.25))',4326))) AS
+valid_polygon;
+
+--echo # ST_VALIDATE returns NULL if the geometry is invalid
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 1.75 0.25, 0.75 0.75, 0.25 0.75, 0.25 0.25))'))) AS
+should_be_null;
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 1.75 0.25, 0.75 0.75, 0.25 0.75, 0.25 0.25))',4053))) AS
+should_be_null;
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 1.75 0.25, 0.75 0.75, 0.25 0.75, 0.25 0.25))',2000))) AS
+should_be_null;
+SELECT ST_ASTEXT(ST_VALIDATE( ST_GEOMFROMTEXT('POLYGON((0 0, 1 0, 1 1, 0 1, 0
+0),( 0.25 0.25, 1.75 0.25, 0.75 0.75, 0.25 0.75, 0.25 0.25))',4326))) AS
+should_be_null;

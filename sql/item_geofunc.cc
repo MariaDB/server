@@ -2082,6 +2082,7 @@ mem_error:
   DBUG_RETURN(str_result);
 }
 
+
 longlong Item_func_isvalid::val_int()
 {
   String *wkb= args[0]->val_str(&tmp);
@@ -2105,6 +2106,73 @@ longlong Item_func_isvalid::val_int()
 
   return (longlong) valid;
 }
+
+
+String *Item_func_validate::val_str(String *str_value)
+{
+  DBUG_ENTER("Item_func_buffer::val_str");
+  DBUG_ASSERT(fixed());
+  String *wkb= args[0]->val_str(&tmp);
+  Geometry_buffer buffer;
+  Geometry *geometry;
+  int valid= 1;
+  str_value= NULL;
+  null_value= 1;
+
+  if(args[0]->null_value)
+    DBUG_RETURN(str_value);
+
+  if (!(geometry= Geometry::construct(&buffer, wkb->ptr(), wkb->length())))
+  {
+    my_error(ER_GIS_INVALID_DATA, MYF(0), func_name());
+    DBUG_RETURN(str_value);
+  }
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_point)
+  {
+    double x, y;
+    if(((Gis_point *) geometry)->get_xy(&x, &y))
+      DBUG_RETURN(str_value);
+
+    if (x > MAX_LONGITUDE || x <= MIN_LONGITUDE)
+    {
+      my_error(ER_LATITUDE_OUT_OF_RANGE, MYF(0), x, "st_validate");
+      DBUG_RETURN(str_value);
+    }
+    else if(y > MAX_LATITUDE || y < MIN_LATITUDE) {
+      my_error(ER_LONGITUDE_OUT_OF_RANGE, MYF(0), y,"st_validate");
+      DBUG_RETURN(str_value);
+    }
+
+    null_value= 0;
+    str_value= wkb;
+    DBUG_RETURN(str_value);
+  }
+
+  if (geometry->is_valid(&valid))
+    DBUG_RETURN(str_value);
+
+  if (!valid)
+    DBUG_RETURN(str_value);
+
+  if (geometry->get_class_info()->m_type_id == Geometry::wkb_polygon ||
+      geometry->get_class_info()->m_type_id == Geometry::wkb_multipolygon ||
+      geometry->get_class_info()->m_type_id ==
+      Geometry::wkb_geometrycollection)
+  {
+    String clockwise_wkb;
+    if(geometry->make_clockwise(&clockwise_wkb))
+      DBUG_RETURN(str_value);
+
+    wkb->length(4); // keep the SRID
+    wkb->append(clockwise_wkb.ptr(), clockwise_wkb.length());
+  }
+
+  null_value= 0;
+  str_value= wkb;
+  DBUG_RETURN(str_value);
+}
+
 
 bool Item_func_isempty::val_bool()
 {
@@ -4299,36 +4367,20 @@ protected:
   virtual ~Create_func_isvalid() = default;
 };
 
-class Create_func_isvalid : public Create_func_arg1
+class Create_func_validate : public Create_func_arg1
 {
 public:
   Item *create_1_arg(THD *thd, Item *arg1) override
   {
-    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
+    return new (thd->mem_root) Item_func_validate(thd, arg1);
   }
 
-  static Create_func_isvalid s_singleton;
+  static Create_func_validate s_singleton;
 
 protected:
-  Create_func_isvalid() = default;
-  virtual ~Create_func_isvalid() = default;
+  Create_func_validate() = default;
+  virtual ~Create_func_validate() = default;
 };
-
-class Create_func_isvalid : public Create_func_arg1
-{
-public:
-  Item *create_1_arg(THD *thd, Item *arg1) override
-  {
-    return new (thd->mem_root) Item_func_isvalid(thd, arg1);
-  }
-
-  static Create_func_isvalid s_singleton;
-
-protected:
-  Create_func_isvalid() = default;
-  virtual ~Create_func_isvalid() = default;
-};
-
 
 class Create_func_issimple : public Create_func_arg1
 {
@@ -4632,6 +4684,7 @@ Create_func_intersects Create_func_intersects::s_singleton;
 Create_func_isclosed Create_func_isclosed::s_singleton;
 Create_func_isempty Create_func_isempty::s_singleton;
 Create_func_isvalid Create_func_isvalid::s_singleton;
+Create_func_validate Create_func_validate::s_singleton;
 Create_func_isring Create_func_isring::s_singleton;
 Create_func_issimple Create_func_issimple::s_singleton;
 Create_func_simplify Create_func_simplify::s_singleton;
@@ -4703,6 +4756,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
   { { STRING_WITH_LEN("ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
+  { { STRING_WITH_LEN("VALIDATE") }, GEOM_BUILDER(Create_func_validate)},
   { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("SIMPLIFY") }, GEOM_BUILDER(Create_func_simplify)},
@@ -4787,6 +4841,7 @@ static Native_func_registry func_array_geom[] =
   { { STRING_WITH_LEN("ST_ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
   { { STRING_WITH_LEN("ST_ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
   { { STRING_WITH_LEN("ST_ISVALID") }, GEOM_BUILDER(Create_func_isvalid)},
+  { { STRING_WITH_LEN("ST_VALIDATE") }, GEOM_BUILDER(Create_func_validate)},
   { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
   { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
   { { STRING_WITH_LEN("ST_SIMPLIFY") }, GEOM_BUILDER(Create_func_simplify)},
