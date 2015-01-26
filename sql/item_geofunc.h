@@ -1044,6 +1044,26 @@ public:
   { return get_item_copy<Item_func_isvalid>(thd, this); }
 };
 
+class Item_func_validate: public Item_geometry_func_args_geometry
+{
+public:
+  String tmp;
+  Item_func_validate(THD *thd, Item *a):
+    Item_geometry_func_args_geometry(thd, a) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_validate") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_point;
+  }
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_validate>(thd, this); }
+};
+
 class Item_func_dimension: public Item_long_func_args_geometry
 {
 public:
