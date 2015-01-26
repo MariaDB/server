@@ -12301,3 +12301,7 @@ ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
 	eng "Cannot modify @@session.gtid_domain_id while there are open temporary tables being binlogged"
 ER_NOT_IMPLEMENTED_FOR_GEOGRAPHIC_SRS
         eng "%s has not been implemented for geographic spatial reference systems."
+ER_LONGITUDE_OUT_OF_RANGE
+        eng "Longitude %f is out of range in function %s. It must be within (-180.000000, 180.000000]."
+ER_LATITUDE_OUT_OF_RANGE
+        eng "Latitude %f is out of range in function %s. It must be within [-90.000000, 90.000000]."
