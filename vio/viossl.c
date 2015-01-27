@@ -40,41 +40,6 @@
 #define SSL_errno(X,Y) ERR_get_error()
 #endif
 
-#ifndef DBUG_OFF
-
-static void
-report_errors(SSL* ssl)
-{
-  unsigned long	l;
-  const char *file;
-  const char *data;
-  int line, flags;
-  char buf[512];
-
-  DBUG_ENTER("report_errors");
-
-  while ((l= ERR_get_error_line_data(&file,&line,&data,&flags)))
-  {
-    DBUG_PRINT("error", ("OpenSSL: %s:%s:%d:%s\n", ERR_error_string(l,buf),
-			 file,line,(flags&ERR_TXT_STRING)?data:"")) ;
-  }
-
-  if (ssl)
-  {
-#ifndef DBUG_OFF
-    ulong error= SSL_errno(ssl, l);
-    DBUG_PRINT("error", ("error: %s (%lu)",
-                         ERR_error_string(error, buf), error));
-#endif
-  }
-
-  DBUG_PRINT("info", ("socket_errno: %d", socket_errno));
-  DBUG_VOID_RETURN;
-}
-
-#endif
-
-
 /**
   Obtain the equivalent system error status for the last SSL I/O operation.
 
@@ -157,9 +122,6 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
     *event= VIO_IO_EVENT_WRITE;
     break;
   default:
-#ifndef DBUG_OFF
-    report_errors(ssl);
-#endif
     should_retry= FALSE;
     ssl_set_sys_error(ssl_error);
     break;
@@ -195,10 +157,6 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
     }
   }
 
-#ifndef DBUG_OFF
-  if (ret < 0)
-    report_errors((SSL*) vio->ssl_arg);
-#endif
   DBUG_PRINT("exit", ("%d", (int) ret));
   DBUG_RETURN(ret < 0 ? -1 : ret);
 
@@ -233,10 +191,6 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
     }
   }
 
-#ifndef DBUG_OFF
-  if (ret < 0)
-    report_errors((SSL*) vio->ssl_arg);
-#endif
   DBUG_RETURN(ret < 0 ? -1 : ret);
 }
 

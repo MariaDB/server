@@ -25,6 +25,13 @@ INSERT INTO t1 VALUES (1,sleep(2));
 --connection server_2
 --sync_with_master
 
+# The slave position (which --sync_with_master waits for) is updated just
+# before the Seconds_Behind_Master. So we have to wait for the zero status
+# to appear, otherwise there is a small window between --sync_with_master
+# and SHOW SLAVE STATUS where we can see a non-zero value.
+--let $slave_param= Seconds_Behind_Master
+--let $slave_param_value= 0
+--source include/wait_for_slave_param.inc
 --echo Seconds_Behind_Master should be zero here because the slave is fully caught up and idle.
 --let $status_items= Seconds_Behind_Master
 --source include/show_slave_status.inc

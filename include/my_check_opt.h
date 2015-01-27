@@ -64,9 +64,11 @@ extern "C" {
 #define T_ZEROFILL_KEEP_LSN     (1ULL << 33)
 /** If repair should not bump create_rename_lsn */
 #define T_NO_CREATE_RENAME_LSN  (1ULL << 34)
-#define T_CREATE_UNIQUE_BY_SORT (1ULL << 35)
-#define T_SUPPRESS_ERR_HANDLING (1ULL << 36)
-#define T_FORCE_SORT_MEMORY     (1ULL << 37)
+/** If repair shouldn't do any locks */
+#define T_NO_LOCKS		(1ULL << 35)
+#define T_CREATE_UNIQUE_BY_SORT (1ULL << 36)
+#define T_SUPPRESS_ERR_HANDLING (1ULL << 37)
+#define T_FORCE_SORT_MEMORY     (1ULL << 38)
 
 #define T_REP_ANY		(T_REP | T_REP_BY_SORT | T_REP_PARALLEL)
 

@@ -418,6 +418,8 @@ extern PSI_stage_info stage_statistics;
 extern PSI_stage_info stage_storing_result_in_query_cache;
 extern PSI_stage_info stage_storing_row_into_queue;
 extern PSI_stage_info stage_system_lock;
+extern PSI_stage_info stage_table_lock;
+extern PSI_stage_info stage_filling_schema_table;
 extern PSI_stage_info stage_update;
 extern PSI_stage_info stage_updating;
 extern PSI_stage_info stage_updating_main_table;

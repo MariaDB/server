@@ -6254,6 +6254,7 @@ int mysqld_main(int argc, char **argv)
                          (char*) "" : mysqld_unix_port),
                          mysqld_port,
                          MYSQL_COMPILATION_COMMENT);
+  fclose(stdin);
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   Service.SetRunning();
 #endif
@@ -10266,6 +10267,8 @@ PSI_stage_info stage_sql_thd_waiting_until_delay= { 0, "Waiting until MASTER_DEL
 PSI_stage_info stage_storing_result_in_query_cache= { 0, "storing result in query cache", 0};
 PSI_stage_info stage_storing_row_into_queue= { 0, "storing row into queue", 0};
 PSI_stage_info stage_system_lock= { 0, "System lock", 0};
+PSI_stage_info stage_table_lock= { 0, "Table lock", 0};
+PSI_stage_info stage_filling_schema_table= { 0, "Filling schema table", 0};
 PSI_stage_info stage_update= { 0, "update", 0};
 PSI_stage_info stage_updating= { 0, "updating", 0};
 PSI_stage_info stage_updating_main_table= { 0, "updating main table", 0};
@@ -10399,6 +10402,8 @@ PSI_stage_info *all_server_stages[]=
   & stage_storing_result_in_query_cache,
   & stage_storing_row_into_queue,
   & stage_system_lock,
+  & stage_table_lock,
+  & stage_filling_schema_table,
   & stage_update,
   & stage_updating,
   & stage_updating_main_table,

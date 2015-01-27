@@ -146,6 +146,7 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   Knum = 0;
   Read_Only = (tdp) ? tdp->IsReadOnly() : false;
   m_data_charset=  (tdp) ? tdp->data_charset() : NULL;
+  csname = (tdp) ? tdp->csname : NULL;
   } // end of TDBASE constructor
 
 TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
@@ -161,6 +162,7 @@ TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   Knum = tdbp->Knum;
   Read_Only = tdbp->Read_Only;
   m_data_charset= tdbp->m_data_charset;
+  csname = tdbp->csname;
   } // end of TDBASE copy constructor
 
 /***********************************************************************/

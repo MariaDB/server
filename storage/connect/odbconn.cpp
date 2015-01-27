@@ -1,7 +1,7 @@
 /************ Odbconn C++ Functions Source Code File (.CPP) ************/
-/*  Name: ODBCONN.CPP  Version 2.0                                     */
+/*  Name: ODBCONN.CPP  Version 2.1                                     */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          1998-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          1998-2015    */
 /*                                                                     */
 /*  This file contains the ODBC connection classes functions.          */
 /***********************************************************************/
@@ -146,18 +146,25 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
       type = TYPE_DOUBLE;
       break;
     case SQL_DATETIME:                      //    9
-//  case SQL_DATE:                          //    9
+      type = TYPE_DATE;
+      len = 19;
+      break;
+    case SQL_TYPE_DATE:                     //   91
       type = TYPE_DATE;
       len = 10;
+      v = 'D';
       break;
     case SQL_INTERVAL:                      //   10
-//  case SQL_TIME:                          //   10
+    case SQL_TYPE_TIME:                     //   92
       type = TYPE_STRING;
       len = 8 + ((prec) ? (prec+1) : 0);
+      v = 'T';
       break;
     case SQL_TIMESTAMP:                     //   11
+    case SQL_TYPE_TIMESTAMP:                //   93
       type = TYPE_DATE;
       len = 19 + ((prec) ? (prec+1) : 0);
+      v = 'S';
       break;
     case SQL_BIGINT:                        //  (-5)
       type = TYPE_BIGINT;
@@ -284,7 +291,7 @@ static void ResetNullValues(CATPARM *cap)
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /***********************************************************************/
 PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
-                               char *colpat, int maxres, bool info)
+                    char *colpat, int maxres, int cto, int qto, bool info)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
                    TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
@@ -303,6 +310,8 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   /************************************************************************/
   if (!info) {
     ocp = new(g) ODBConn(g, NULL);
+    ocp->SetLoginTimeout((DWORD)cto);
+    ocp->SetQueryTimeout((DWORD)qto);
 
     if (ocp->Open(dsn, 10) < 1)  // openReadOnly + noODBCdialog
       return NULL;
@@ -379,10 +388,12 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
 /*  ODBCSrcCols: constructs the result blocks containing the              */
 /*  description of all the columns of a Srcdef option.                    */
 /**************************************************************************/
-PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src)
+PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, int cto, int qto)
   {
   ODBConn *ocp = new(g) ODBConn(g, NULL);
 
+  ocp->SetLoginTimeout((DWORD)cto);
+  ocp->SetQueryTimeout((DWORD)qto);
   return ocp->GetMetaData(g, dsn, src);
   } // end of ODBCSrcCols
 
@@ -563,7 +574,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
 /*  an ODBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                              int maxres, bool info)
+                              int maxres, int cto, int qto, bool info)
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
@@ -583,6 +594,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
     /*  Open the connection with the ODBC data source.                    */
     /**********************************************************************/
     ocp = new(g) ODBConn(g, NULL);
+    ocp->SetLoginTimeout((DWORD)cto);
+    ocp->SetQueryTimeout((DWORD)qto);
 
     if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
       return NULL;
@@ -910,10 +923,13 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_UpdateOptions = 0;
   m_RowsetSize = (DWORD)((tdbp) ? tdbp->Rows : 10);
   m_Catver = (tdbp) ? tdbp->Catver : 0;
+  m_Rows = 0;
   m_Connect = NULL;
   m_Updatable = true;
   m_Transact = false;
   m_Scrollable = (tdbp) ? tdbp->Scrollable : false;
+  m_First = true;
+  m_Full = false;
   m_IDQuoteChar[0] = '"';
   m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
@@ -1068,6 +1084,9 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
       } // endif
 
     /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
+    // Verify support for required functionality and cache info
+//  VerifyConnect();         Deprecated
+    GetConnectInfo();
   } catch(DBX *xp) {
 //    strcpy(g->Message, xp->m_ErrMsg[0]);
     strcpy(g->Message, xp->GetErrorMessage(0));
@@ -1076,9 +1095,6 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
     return -1;
   } // end try-catch
 
-  // Verify support for required functionality and cache info
-  VerifyConnect();
-  GetConnectInfo();
   return 1;
   } // end of Open
 
@@ -1124,10 +1140,13 @@ void ODBConn::AllocConnect(DWORD Options)
     } // endif
 #endif // _DEBUG
 
-  rc = SQLSetConnectOption(m_hdbc, SQL_LOGIN_TIMEOUT, m_LoginTimeout);
+  if ((signed)m_LoginTimeout >= 0) {
+    rc = SQLSetConnectOption(m_hdbc, SQL_LOGIN_TIMEOUT, m_LoginTimeout);
 
-  if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
-    htrc("Warning: Failure setting login timeout\n");
+    if (trace && rc != SQL_SUCCESS && rc != SQL_SUCCESS_WITH_INFO)
+      htrc("Warning: Failure setting login timeout\n");
+
+    } // endif Timeout
 
   if (!m_Updatable) {
     rc = SQLSetConnectOption(m_hdbc, SQL_ACCESS_MODE, SQL_MODE_READ_ONLY);
@@ -1500,6 +1519,20 @@ int ODBConn::Fetch()
       ThrowDBX(rc, "Fetch", m_hstmt);
 
     irc = (rc == SQL_NO_DATA_FOUND) ? 0 : (int)crow;
+
+    if (m_First) {
+      // First fetch. Check whether the full table was read
+      if ((m_Full = irc < (signed)m_RowsetSize)) {
+        m_Tdb->Memory = 0;     // Not needed anymore
+        m_Rows = irc;          // Table size
+        } // endif m_Full
+
+      m_First = false;
+      } // endif m_First
+
+    if (m_Tdb->Memory == 1)
+      m_Rows += irc;
+
   } catch(DBX *x) {
     if (trace)
       for (int i = 0; i < MAX_NUM_OF_MSG && x->m_ErrMsg[i]; i++)
@@ -2150,6 +2183,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   HSTMT    hstmt = NULL;
   SQLLEN  *vl, *vlen = NULL;
   PVAL    *pval = NULL;
+  char*   *pbuf = NULL;
 
   try {
     b = false;
@@ -2226,6 +2260,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
     // Unconditional to handle STRBLK's
     pval = (PVAL *)PlugSubAlloc(g, NULL, n * sizeof(PVAL));
     vlen = (SQLLEN *)PlugSubAlloc(g, NULL, n * sizeof(SQLLEN));
+    pbuf = (char**)PlugSubAlloc(g, NULL, n * sizeof(char*));
 
     // Now bind the column buffers
     for (n = 0, crp = qrp->Colresp; crp; crp = crp->Next) {
@@ -2240,7 +2275,13 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         } // endif len
 
       pval[n] = AllocateValue(g, crp->Type, len);
-      buffer = pval[n]->GetTo_Val();
+
+      if (crp->Type == TYPE_STRING) {
+        pbuf[n] = (char*)PlugSubAlloc(g, NULL, len);
+        buffer = pbuf[n];
+      } else
+        buffer = pval[n]->GetTo_Val();
+
       vl = vlen + n;
 
       // n + 1 because column numbers begin with 1
@@ -2288,7 +2329,13 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         } // endif rc
 
       for (n = 0, crp = qrp->Colresp; crp; n++, crp = crp->Next) {
-        pval[n]->SetNull(vlen[n] == SQL_NULL_DATA);
+        if (vlen[n] == SQL_NULL_DATA)
+          pval[n]->SetNull(true);
+        else if (crp->Type == TYPE_STRING && vlen[n] != SQL_NULL_DATA)
+          pval[n]->SetValue_char(pbuf[n], vlen[n]);
+        else
+          pval[n]->SetNull(false);
+
         crp->Kdata->SetValue(pval[n], i);
         cap->Vlen[n][i] = vlen[n];
         } // endfor crp
@@ -2343,31 +2390,103 @@ int ODBConn::GetCatInfo(CATPARM *cap)
   } // end of GetCatInfo
 
 /***********************************************************************/
+/*  Allocate a CONNECT result structure from the ODBC result.          */
+/***********************************************************************/
+PQRYRES ODBConn::AllocateResult(PGLOBAL g)
+  {
+  bool         uns;
+  PODBCCOL     colp;
+  PCOLRES     *pcrp, crp;
+  PQRYRES      qrp;
+
+  if (!m_Rows) {
+    strcpy(g->Message, "Void result");
+    return NULL;
+    } // endif m_Res
+
+  /*********************************************************************/
+  /*  Allocate the result storage for future retrieval.                */
+  /*********************************************************************/
+  qrp = (PQRYRES)PlugSubAlloc(g, NULL, sizeof(QRYRES));
+  pcrp = &qrp->Colresp;
+  qrp->Continued = FALSE;
+  qrp->Truncated = FALSE;
+  qrp->Info = FALSE;
+  qrp->Suball = TRUE;
+  qrp->BadLines = 0;
+  qrp->Maxsize = m_Rows;
+  qrp->Maxres = m_Rows;
+  qrp->Nbcol = 0;
+  qrp->Nblin = 0;
+  qrp->Cursor = 0;
+
+  for (colp = (PODBCCOL)m_Tdb->Columns; colp; 
+       colp = (PODBCCOL)colp->GetNext())
+    if (!colp->IsSpecial()) {
+      *pcrp = (PCOLRES)PlugSubAlloc(g, NULL, sizeof(COLRES));
+      crp = *pcrp;
+      pcrp = &crp->Next;
+      memset(crp, 0, sizeof(COLRES));
+      crp->Ncol = ++qrp->Nbcol;
+      crp->Name = colp->GetName();
+      crp->Type = colp->GetResultType();
+      crp->Prec = colp->GetScale();
+      crp->Length = colp->GetLength();
+      crp->Clen = colp->GetBuflen();
+      uns = colp->IsUnsigned();
+
+      if (!(crp->Kdata = AllocValBlock(g, NULL, crp->Type, m_Rows,
+                                     crp->Clen, 0, FALSE, TRUE, uns))) {
+        sprintf(g->Message, MSG(INV_RESULT_TYPE),
+                          GetFormatType(crp->Type));
+        return NULL;
+        } // endif Kdata
+
+      if (!colp->IsNullable())
+        crp->Nulls = NULL;
+      else {
+        crp->Nulls = (char*)PlugSubAlloc(g, NULL, m_Rows);
+        memset(crp->Nulls, ' ', m_Rows);
+      } // endelse Nullable
+
+      colp->SetCrp(crp);
+      } // endif colp
+
+  *pcrp = NULL;
+//qrp->Nblin = n;
+  return qrp;
+  } // end of AllocateResult
+
+/***********************************************************************/
 /*  Restart from beginning of result set                               */
 /***********************************************************************/
-bool ODBConn::Rewind(char *sql, ODBCCOL *tocols)
+int ODBConn::Rewind(char *sql, ODBCCOL *tocols)
   {
-  RETCODE rc;
+  int rc, rbuf = -1;
 
   if (!m_hstmt)
-    return false;
+    rbuf = -1;
+  else if (m_Full)
+    rbuf = m_Rows;           // No need to "rewind"
+  else if (m_Scrollable) {
+    SQLULEN  crow;
 
-  if (m_Scrollable) {
     try {
-      rc = SQLFetchScroll(m_hstmt, SQL_FETCH_ABSOLUTE, 0);
+      rc = SQLExtendedFetch(m_hstmt, SQL_FETCH_FIRST, 1, &crow, NULL);
 
-      if (rc != SQL_NO_DATA_FOUND)
-        ThrowDBX(rc, "SQLFetchScroll", m_hstmt);
+      if (!Check(rc))
+        ThrowDBX(rc, "SQLExtendedFetch", m_hstmt);
 
+      rbuf = (int)crow;
     } catch(DBX *x) {
       strcpy(m_G->Message, x->GetErrorMessage(0));
-      return true;
+      rbuf = -1;
     } // end try/catch
 
-  } else if (ExecDirectSQL(sql, tocols) < 0)
-    return true;
+  } else if (ExecDirectSQL(sql, tocols) >= 0)
+    rbuf = 0;
 
-  return false;
+  return rbuf;
   } // end of Rewind
 
 /***********************************************************************/
@@ -2382,7 +2501,7 @@ void ODBConn::Close()
     rc = SQLFreeStmt(m_hstmt, SQL_DROP);
     m_hstmt = NULL;
     } // endif m_hstmt
-
+                                       
   if (m_hdbc != SQL_NULL_HDBC) {
     if (m_Transact) {
       rc = SQLEndTran(SQL_HANDLE_DBC, m_hdbc, SQL_COMMIT);

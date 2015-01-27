@@ -446,3 +446,50 @@ SELECT MAX(dt) = '2011-01-06 12:34:30' FROM t1;
 DROP TABLE t1;
 
 --echo End of 5.5 tests
+
+--echo #
+--echo # MDEV-7254: Assigned expression is evaluated twice when updating column TIMESTAMP NOT NULL
+--echo #
+
+SET time_zone='+02:00';
+create table t1(value timestamp not null);
+set @a:=0;
+delimiter //;
+create function f1 () returns timestamp
+begin
+  set @a = @a + 1;
+  return NULL;
+end//
+delimiter ;//
+set timestamp=12340;
+insert t1 values (f1());
+select @a, value from t1;
+set timestamp=12350;
+update t1 set value = f1();
+select @a, value from t1;
+drop table t1;
+drop function f1;
+set timestamp=0;
+
+# Verify no regressions to TIMESTAMP NULL
+create table t1(value timestamp null);
+set @a:=0;
+delimiter //;
+create function f1 () returns timestamp
+begin
+  set @a = @a + 1;
+  return NULL;
+end//
+delimiter ;//
+set timestamp=12340;
+insert t1 values (f1());
+select @a, value from t1;
+set timestamp=12350;
+update t1 set value = f1();
+select @a, value from t1;
+drop table t1;
+drop function f1;
+set timestamp=0;
+SET time_zone=DEFAULT;
+
+--echo End of 10.0 tests

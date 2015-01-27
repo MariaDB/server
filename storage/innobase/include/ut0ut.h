@@ -36,6 +36,8 @@ Created 1/20/1994 Heikki Tuuri
 # include "os0sync.h" /* for HAVE_ATOMIC_BUILTINS */
 #endif /* UNIV_HOTBACKUP */
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 #include <time.h>
 #ifndef MYSQL_SERVER
 #include <ctype.h>
@@ -64,6 +66,7 @@ private:
 	F& f;
 };
 
+#ifndef UNIV_INNOCHECKSUM
 #ifndef UNIV_HOTBACKUP
 # if defined(HAVE_PAUSE_INSTRUCTION)
    /* According to the gcc info page, asm volatile means that the
@@ -162,6 +165,7 @@ ut_pair_cmp(
 	ulint	a2,	/*!< in: less significant part of first pair */
 	ulint	b1,	/*!< in: more significant part of second pair */
 	ulint	b2);	/*!< in: less significant part of second pair */
+#endif /* !UNIV_INNOCHECKSUM */
 /*************************************************************//**
 Determines if a number is zero or a power of two.
 @param n	in: number
@@ -192,6 +196,7 @@ when m is a power of two.  In other words, rounds n up to m * k.
 @param m	in: alignment, must be a power of two
 @return		n rounded up to the smallest possible integer multiple of m */
 #define ut_calc_align(n, m) (((n) + ((m) - 1)) & ~((m) - 1))
+#ifndef UNIV_INNOCHECKSUM
 /*************************************************************//**
 Calculates fast the 2-logarithm of a number, rounded upward to an
 integer.

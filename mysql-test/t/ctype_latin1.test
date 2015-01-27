@@ -210,6 +210,13 @@ set names latin1;
 let $ctype_unescape_combinations=selected;
 --source include/ctype_unescape.inc
 
+SET NAMES latin1;
+--source include/ctype_like_cond_propagation.inc
+
+SET NAMES latin1 COLLATE latin1_bin;
+--source include/ctype_like_cond_propagation.inc
+
+
 --echo #
 --echo # MDEV-6752 Trailing incomplete characters are not replaced to question marks on conversion
 --echo #

@@ -330,7 +330,7 @@ int ConvertType(int target, int type, CONV kind, bool match)
 /***********************************************************************/
 /*  AllocateConstant: allocates a constant Value.                      */
 /***********************************************************************/
-PVAL AllocateValue(PGLOBAL g, void *value, short type)
+PVAL AllocateValue(PGLOBAL g, void *value, short type, short prec)
   {
   PVAL valp;
 
@@ -351,7 +351,7 @@ PVAL AllocateValue(PGLOBAL g, void *value, short type)
       valp = new(g) TYPVAL<longlong>(*(longlong*)value, TYPE_BIGINT);
       break;
     case TYPE_DOUBLE:
-      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_DOUBLE, 2);
+      valp = new(g) TYPVAL<double>(*(double *)value, TYPE_DOUBLE, prec);
       break;
     case TYPE_TINY:
       valp = new(g) TYPVAL<char>(*(char *)value, TYPE_TINY);
@@ -434,6 +434,7 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
   {
   PSZ  p, sp;
   bool un = (uns < 0) ? false : (uns > 0) ? true : valp->IsUnsigned();
+  PVAL vp;
 
   if (newtype == TYPE_VOID)  // Means allocate a value of the same type
     newtype = valp->GetType();
@@ -445,53 +446,55 @@ PVAL AllocateValue(PGLOBAL g, PVAL valp, int newtype, int uns)
       if ((sp = valp->GetCharString(p)) != p)
         strcpy (p, sp);
 
-      valp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
+      vp = new(g) TYPVAL<PSZ>(g, p, valp->GetValLen(), valp->GetValPrec());
       break;
     case TYPE_SHORT:
       if (un)
-        valp = new(g) TYPVAL<ushort>(valp->GetUShortValue(),
-                                     TYPE_SHORT, 0, true);
+        vp = new(g) TYPVAL<ushort>(valp->GetUShortValue(),
+                                   TYPE_SHORT, 0, true);
       else
-        valp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
+        vp = new(g) TYPVAL<short>(valp->GetShortValue(), TYPE_SHORT);
 
       break;
     case TYPE_INT:
       if (un)
-        valp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
+        vp = new(g) TYPVAL<uint>(valp->GetUIntValue(), TYPE_INT, 0, true);
       else
-        valp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
+        vp = new(g) TYPVAL<int>(valp->GetIntValue(), TYPE_INT);
 
       break;
     case TYPE_BIGINT:
       if (un)
-        valp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(),
-                                        TYPE_BIGINT, 0, true);
+        vp = new(g) TYPVAL<ulonglong>(valp->GetUBigintValue(),
+                                      TYPE_BIGINT, 0, true);
       else
-        valp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
+        vp = new(g) TYPVAL<longlong>(valp->GetBigintValue(), TYPE_BIGINT);
 
       break;
     case TYPE_DATE:
-      valp = new(g) DTVAL(g, valp->GetIntValue());
+      vp = new(g) DTVAL(g, valp->GetIntValue());
       break;
     case TYPE_DOUBLE:
-      valp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
-                                   valp->GetValPrec());
+      vp = new(g) TYPVAL<double>(valp->GetFloatValue(), TYPE_DOUBLE,
+                   (uns) ? uns : valp->GetValPrec());
       break;
     case TYPE_TINY:
       if (un)
-        valp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(),
+        vp = new(g) TYPVAL<uchar>(valp->GetUTinyValue(),
                                     TYPE_TINY, 0, true);
       else
-        valp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
+        vp = new(g) TYPVAL<char>(valp->GetTinyValue(), TYPE_TINY);
 
       break;
     default:
       sprintf(g->Message, MSG(BAD_VALUE_TYPE), newtype);
       return NULL;
     } // endswitch type
-
-  valp->SetGlobal(g);
-  return valp;
+  
+  vp->SetNullable(valp->GetNullable());
+  vp->SetNull(valp->IsNull());
+  vp->SetGlobal(g);
+  return vp;
   } // end of AllocateValue
 
 /* -------------------------- Class VALUE ---------------------------- */
@@ -541,6 +544,15 @@ BYTE VALUE::TestValue(PVAL vp)
 
   return (n > 0) ? 0x04 : (n < 0) ? 0x02 : 0x01;
   } // end of TestValue
+
+/***********************************************************************/
+/*  Compute a function on a string.                                    */
+/***********************************************************************/
+bool VALUE::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  strcpy(g->Message, "Compute not implemented for this value type");
+  return true;
+  } // end of Compute
 
 /* -------------------------- Class TYPVAL ---------------------------- */
 
@@ -929,6 +941,202 @@ int TYPVAL<TYPE>::CompareValue(PVAL vp)
 
   return (Tval > n) ? 1 : (Tval < n) ? (-1) : 0;
   } // end of CompareValue
+
+/***********************************************************************/
+/*  Return max type value if b is true, else min type value.           */
+/***********************************************************************/
+template <>
+short TYPVAL<short>::MinMaxVal(bool b)
+  {return (b) ? INT_MAX16 : INT_MIN16;}
+
+template <>
+ushort TYPVAL<ushort>::MinMaxVal(bool b)
+  {return (b) ? UINT_MAX16 : 0;}
+
+template <>
+int TYPVAL<int>::MinMaxVal(bool b)
+  {return (b) ? INT_MAX32 : INT_MIN32;}
+
+template <>
+uint TYPVAL<uint>::MinMaxVal(bool b)
+  {return (b) ? UINT_MAX32 : 0;}
+
+template <>
+longlong TYPVAL<longlong>::MinMaxVal(bool b)
+  {return (b) ? INT_MAX64 : INT_MIN64;}
+
+template <>
+ulonglong TYPVAL<ulonglong>::MinMaxVal(bool b)
+  {return (b) ? 0xFFFFFFFFFFFFFFFFLL : 0;}
+
+template <>
+double TYPVAL<double>::MinMaxVal(bool b)
+  {assert(false); return 0.0;}
+
+template <>
+char TYPVAL<char>::MinMaxVal(bool b)
+  {return (b) ? INT_MAX8 : INT_MIN8;}
+
+template <>
+uchar TYPVAL<uchar>::MinMaxVal(bool b)
+  {return (b) ? UINT_MAX8 : 0;}
+
+/***********************************************************************/
+/*  SafeAdd: adds a value and test whether overflow/underflow occured. */
+/***********************************************************************/
+template <class TYPE>
+TYPE TYPVAL<TYPE>::SafeAdd(TYPE n1, TYPE n2)
+  {
+  PGLOBAL& g = Global;
+  TYPE     n = n1 + n2;
+
+  if ((n2 > 0) && (n < n1)) {
+    // Overflow
+    strcpy(g->Message, MSG(FIX_OVFLW_ADD));
+    longjmp(g->jumper[g->jump_level], 138);
+  } else if ((n2 < 0) && (n > n1)) {
+    // Underflow
+    strcpy(g->Message, MSG(FIX_UNFLW_ADD));
+    longjmp(g->jumper[g->jump_level], 138);
+  } // endif's n2
+
+  return n;
+  } // end of SafeAdd
+
+template <>
+inline double TYPVAL<double>::SafeAdd(double n1, double n2)
+  {
+  return n1 + n2;
+  } // end of SafeAdd
+
+/***********************************************************************/
+/*  SafeMult: multiply values and test whether overflow occured.       */
+/***********************************************************************/
+template <class TYPE>
+TYPE TYPVAL<TYPE>::SafeMult(TYPE n1, TYPE n2)
+  {
+  PGLOBAL& g = Global;
+  double   n = (double)n1 * (double)n2;
+
+  if (n > MinMaxVal(true)) {
+    // Overflow
+    strcpy(g->Message, MSG(FIX_OVFLW_TIMES));
+    longjmp(g->jumper[g->jump_level], 138);
+  } else if (n < MinMaxVal(false)) {
+    // Underflow
+    strcpy(g->Message, MSG(FIX_UNFLW_TIMES));
+    longjmp(g->jumper[g->jump_level], 138);
+  } // endif's n2
+
+  return (TYPE)n;
+  } // end of SafeMult
+
+template <>
+inline double TYPVAL<double>::SafeMult(double n1, double n2)
+  {
+  return n1 * n2;
+  } // end of SafeMult
+
+/***********************************************************************/
+/*  Compute defined functions for the type.                            */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  bool rc = false;
+  TYPE val[2];
+
+  assert(np == 2);
+
+  for (int i = 0; i < np; i++)
+    val[i] = GetTypedValue(vp[i]);
+
+  switch (op) {
+    case OP_ADD:
+      Tval = SafeAdd(val[0], val[1]);
+      break;
+    case OP_MULT:
+      Tval = SafeMult(val[0], val[1]);
+      break;
+    case OP_DIV:
+      if (!val[1]) {
+        strcpy(g->Message, MSG(ZERO_DIVIDE));
+        return true;
+        } // endif
+
+      Tval = val[0] / val[1];
+      break;
+    default:
+      rc = Compall(g, vp, np, op);
+      break;
+    } // endswitch op
+
+  return rc;
+  } // end of Compute
+
+template <>
+bool TYPVAL<double>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  bool   rc = false;
+  double val[2];
+
+  assert(np == 2);
+
+  for (int i = 0; i < np; i++)
+    val[i] = vp[i]->GetFloatValue();
+
+  switch (op) {
+    case OP_ADD:
+      Tval = val[0] + val[1];
+      break;
+    case OP_MULT:
+      Tval = val[0] * val[1];
+      break;
+    default:
+      rc = Compall(g, vp, np, op);
+    } // endswitch op
+
+  return rc;
+  } // end of Compute
+
+/***********************************************************************/
+/*  Compute a function for all types.                                  */
+/***********************************************************************/
+template <class TYPE>
+bool TYPVAL<TYPE>::Compall(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  TYPE val[2];
+
+  for (int i = 0; i < np; i++)
+    val[i] = GetTypedValue(vp[i]);
+
+  switch (op) {
+    case OP_DIV:
+      if (val[0]) {
+        if (!val[1]) {
+          strcpy(g->Message, MSG(ZERO_DIVIDE));
+          return true;
+          } // endif
+    
+        Tval = val[0] / val[1];
+      } else
+        Tval = 0;
+
+      break;
+    case OP_MIN:
+      Tval = MY_MIN(val[0], val[1]);
+      break;
+    case OP_MAX:
+      Tval = MY_MAX(val[0], val[1]);
+      break;
+    default:
+//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+      strcpy(g->Message, "Function not supported");
+      return true;
+    } // endswitch op
+
+  return false;
+  } // end of Compall
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
@@ -1408,6 +1616,45 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
 
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
   } // end of CompareValue
+
+/***********************************************************************/
+/*  Compute a function on a string.                                    */
+/***********************************************************************/
+bool TYPVAL<PSZ>::Compute(PGLOBAL g, PVAL *vp, int np, OPVAL op)
+  {
+  char *p[2], val[2][32];
+  int   i;
+
+  for (i = 0; i < np; i++)
+    p[i] = vp[i]->GetCharString(val[i]);
+
+  switch (op) {
+    case OP_CNC:
+      assert(np == 1 || np == 2);
+
+      if (np == 2)
+        strncpy(Strp, p[0], Len);
+
+      if ((i = Len - (signed)strlen(Strp)) > 0)
+        strncat(Strp, p[np - 1], i);
+
+      break;
+    case OP_MIN:
+      assert(np == 2);
+      strcpy(Strp, (strcmp(p[0], p[1]) < 0) ? p[0] : p[1]);
+      break;
+    case OP_MAX:
+      assert(np == 2);
+      strcpy(Strp, (strcmp(p[0], p[1]) > 0) ? p[0] : p[1]);
+      break;
+    default:
+//    sprintf(g->Message, MSG(BAD_EXP_OPER), op);
+      strcpy(g->Message, "Function not supported");
+      return true;
+    } // endswitch op
+
+  return false;
+  } // end of Compute
 
 /***********************************************************************/
 /*  FormatValue: This function set vp (a STRING value) to the string   */
@@ -2187,10 +2434,11 @@ static void TIME_to_localtime(struct tm *tm, const MYSQL_TIME *ltime)
   tm->tm_year= ltime->year - 1900;
   tm->tm_mon=  ltime->month - 1;
   tm->tm_mday= ltime->day;
+  mktime(tm);  // set tm->tm_wday tm->yday fields to get proper day name (OB)
   tm->tm_hour= ltime->hour;
   tm->tm_min=  ltime->minute;
   tm->tm_sec=  ltime->second;
-}
+} // end of TIME_to_localtime
 
 // Added by Alexander Barkov
 static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
@@ -2199,7 +2447,7 @@ static struct tm *gmtime_mysql(const time_t *timep, struct tm *tm)
   thd_gmt_sec_to_TIME(current_thd, &ltime, (my_time_t) *timep);
   TIME_to_localtime(tm, &ltime);
   return tm;
-}
+} // end of gmtime_mysql
 
 /***********************************************************************/
 /*  GetGmTime: returns a pointer to a static tm structure obtained     */
@@ -2511,6 +2759,8 @@ char *DTVAL::ShowValue(char *buf, int len)
     if (!Null) {
       size_t m, n = 0;
       struct tm tm, *ptm = GetGmTime(&tm);
+
+
   
       if (Len < len) {
         p = buf;
@@ -2596,7 +2846,7 @@ bool DTVAL::WeekNum(PGLOBAL g, int& nval)
 /***********************************************************************/
 bool DTVAL::FormatValue(PVAL vp, char *fmt)
   {
-  char      *buf = (char*)vp->GetTo_Val();       // Should be big enough
+  char     *buf = (char*)vp->GetTo_Val();       // Should be big enough
   struct tm tm, *ptm = GetGmTime(&tm);
 
   if (trace > 1)

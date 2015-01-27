@@ -453,8 +453,10 @@ enum legacy_db_type
 
 enum row_type { ROW_TYPE_NOT_USED=-1, ROW_TYPE_DEFAULT, ROW_TYPE_FIXED,
 		ROW_TYPE_DYNAMIC, ROW_TYPE_COMPRESSED,
-		ROW_TYPE_REDUNDANT, ROW_TYPE_COMPACT,
-                ROW_TYPE_PAGE };
+		ROW_TYPE_REDUNDANT, ROW_TYPE_COMPACT, ROW_TYPE_PAGE };
+
+/* not part of the enum, so that it shouldn't be in switch(row_type) */
+#define ROW_TYPE_MAX ((uint)ROW_TYPE_PAGE + 1)
 
 /* Specifies data storage format for individual columns */
 enum column_format_type {
@@ -1397,6 +1399,9 @@ static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
 #define HTON_NO_BINLOG_ROW_OPT       (1 << 9)
 #define HTON_SUPPORTS_EXTENDED_KEYS  (1 <<10) //supports extended keys
 
+// MySQL compatibility. Unused.
+#define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
+
 class Ha_trx_info;
 
 struct THD_TRANS
@@ -1578,7 +1583,7 @@ class partition_info;
 
 struct st_partition_iter;
 
-enum ha_choice { HA_CHOICE_UNDEF, HA_CHOICE_NO, HA_CHOICE_YES };
+enum ha_choice { HA_CHOICE_UNDEF, HA_CHOICE_NO, HA_CHOICE_YES, HA_CHOICE_MAX };
 
 enum enum_stats_auto_recalc { HA_STATS_AUTO_RECALC_DEFAULT= 0,
                               HA_STATS_AUTO_RECALC_ON,

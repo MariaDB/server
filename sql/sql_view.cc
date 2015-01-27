@@ -685,7 +685,7 @@ err:
 
 
 /* number of required parameters for making view */
-static const int required_view_parameters= 14;
+static const int required_view_parameters= 15;
 
 /*
   table of VIEW .frm field descriptors
@@ -736,6 +736,9 @@ static File_option view_parameters[]=
  {{(char*) STRING_WITH_LEN("view_body_utf8")},
   my_offsetof(TABLE_LIST, view_body_utf8),
   FILE_OPTIONS_ESTRING},
+ {{ C_STRING_WITH_LEN("mariadb-version")},
+  my_offsetof(TABLE_LIST, mariadb_version),
+  FILE_OPTIONS_ULONGLONG},
  {{NullS, 0},			0,
   FILE_OPTIONS_STRING}
 };
@@ -836,6 +839,7 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
     version 2 - empty definer_host means a role
   */
   view->file_version= 2;
+  view->mariadb_version= MYSQL_VERSION_ID;
   view->calc_md5(md5);
   if (!(view->md5.str= (char*) thd->memdup(md5, 32)))
   {

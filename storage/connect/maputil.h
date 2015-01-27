@@ -11,8 +11,8 @@ typedef struct {
   DWORD lenH;
   } MEMMAP;
 
-HANDLE  CreateFileMap(PGLOBAL, LPCSTR, MEMMAP *, MODE, bool);
-bool    CloseMemMap(void *memory, size_t dwSize);
+DllExport HANDLE  CreateFileMap(PGLOBAL, LPCSTR, MEMMAP *, MODE, bool);
+DllExport bool    CloseMemMap(void *memory, size_t dwSize);
 
 #ifdef __cplusplus
 }

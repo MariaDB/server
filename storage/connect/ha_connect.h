@@ -543,7 +543,10 @@ protected:
   query_id_t    creat_query_id;       // The one when handler was allocated
   char         *datapath;             // Is the Path of DB data directory
   PTDB          tdbp;                 // To table class object
-  PVAL          sdvalin;              // Used to convert date values
+  PVAL          sdvalin1;             // Used to convert date values
+  PVAL          sdvalin2;             // Used to convert date values
+  PVAL          sdvalin3;             // Used to convert date values
+  PVAL          sdvalin4;             // Used to convert date values
   PVAL          sdvalout;             // Used to convert date values
   bool          istable;              // True for table handler
   char          partname[64];         // The partition name

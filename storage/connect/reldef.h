@@ -68,6 +68,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   friend class CATALOG;
   friend class PLUGCAT;
   friend class MYCAT;
+  friend class TDBASE;
  public:
   // Constructor
   TABDEF(void);                  // Constructor
@@ -110,6 +111,7 @@ class DllExport TABDEF : public RELDEF {   /* Logical table descriptor */
   int     Pseudo;               /* Bit: 1 ROWID Ok, 2 FILEID Ok        */
   bool    Read_Only;            /* true for read only tables           */
   const CHARSET_INFO *m_data_charset;
+  const char *csname;           /* Table charset name                  */
   }; // end of TABDEF
 
 /***********************************************************************/

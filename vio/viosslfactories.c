@@ -51,27 +51,6 @@ static DH *get_dh512(void)
 }
 
 
-static void
-report_errors()
-{
-  unsigned long	l;
-  const char*	file;
-  const char*	data;
-  int		line,flags;
-
-  DBUG_ENTER("report_errors");
-
-  while ((l=ERR_get_error_line_data(&file,&line,&data,&flags)) != 0)
-  {
-#ifndef DBUG_OFF				/* Avoid warning */
-    char buf[200];
-    DBUG_PRINT("error", ("OpenSSL: %s:%s:%d:%s\n", ERR_error_string(l,buf),
-			 file,line,(flags & ERR_TXT_STRING) ? data : "")) ;
-#endif
-  }
-  DBUG_VOID_RETURN;
-}
-
 static const char*
 ssl_error_string[] = 
 {
@@ -198,7 +177,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   {
     *error= SSL_INITERR_MEMFAIL;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    report_errors();
     my_free(ssl_fd);
     DBUG_RETURN(0);
   }
@@ -215,7 +193,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   {
     *error= SSL_INITERR_CIPHERS;
     DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-    report_errors();
     SSL_CTX_free(ssl_fd->ssl_context);
     my_free(ssl_fd);
     DBUG_RETURN(0);
@@ -232,7 +209,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("SSL_CTX_load_verify_locations failed : %s", 
                  sslGetErrString(*error)));
-      report_errors();
       SSL_CTX_free(ssl_fd->ssl_context);
       my_free(ssl_fd);
       DBUG_RETURN(0);
@@ -243,7 +219,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     {
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-      report_errors();
       SSL_CTX_free(ssl_fd->ssl_context);
       my_free(ssl_fd);
       DBUG_RETURN(0);
@@ -266,7 +241,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
       DBUG_PRINT("warning", ("X509_STORE_load_locations for CRL failed"));
       *error= SSL_INITERR_BAD_PATHS;
       DBUG_PRINT("error", ("%s", sslGetErrString(*error)));
-      report_errors();
       SSL_CTX_free(ssl_fd->ssl_context);
       my_free(ssl_fd);
       DBUG_RETURN(0);
@@ -277,7 +251,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   if (vio_set_cert_stuff(ssl_fd->ssl_context, cert_file, key_file, error))
   {
     DBUG_PRINT("error", ("vio_set_cert_stuff failed"));
-    report_errors();
     SSL_CTX_free(ssl_fd->ssl_context);
     my_free(ssl_fd);
     DBUG_RETURN(0);

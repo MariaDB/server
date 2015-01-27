@@ -986,11 +986,11 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
   if (rgi->is_parallel_exec)
   {
     /* In case of parallel replication, do not update the position backwards. */
-    int cmp= strcmp(group_relay_log_name, event_relay_log_name);
+    int cmp= strcmp(group_relay_log_name, rgi->event_relay_log_name);
     if (cmp < 0)
     {
       group_relay_log_pos= rgi->future_event_relay_log_pos;
-      strmake_buf(group_relay_log_name, event_relay_log_name);
+      strmake_buf(group_relay_log_name, rgi->event_relay_log_name);
       notify_group_relay_log_name_update();
     } else if (cmp == 0 && group_relay_log_pos < rgi->future_event_relay_log_pos)
       group_relay_log_pos= rgi->future_event_relay_log_pos;
@@ -1717,6 +1717,11 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
     trans_rollback_stmt(thd); // if a "statement transaction"
     /* trans_rollback() also resets OPTION_GTID_BEGIN */
     trans_rollback(thd);      // if a "real transaction"
+    /*
+      Now that we have rolled back the transaction, make sure we do not
+      errorneously update the GTID position.
+    */
+    gtid_pending= false;
   }
   m_table_map.clear_tables();
   slave_close_thread_tables(thd);
@@ -1844,11 +1849,20 @@ void rpl_group_info::slave_close_thread_tables(THD *thd)
 
 
 static void
-mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco)
+mark_start_commit_inner(rpl_parallel_entry *e, group_commit_orderer *gco,
+                        rpl_group_info *rgi)
 {
+  group_commit_orderer *tmp;
   uint64 count= ++e->count_committing_event_groups;
-  if (gco->next_gco && gco->next_gco->wait_count == count)
-    mysql_cond_broadcast(&gco->next_gco->COND_group_commit_orderer);
+  /* Signal any following GCO whose wait_count has been reached now. */
+  tmp= gco;
+  while ((tmp= tmp->next_gco))
+  {
+    uint64 wait_count= tmp->wait_count;
+    if (wait_count > count)
+      break;
+    mysql_cond_broadcast(&tmp->COND_group_commit_orderer);
+  }
 }
 
 
@@ -1857,7 +1871,7 @@ rpl_group_info::mark_start_commit_no_lock()
 {
   if (did_mark_start_commit)
     return;
-  mark_start_commit_inner(parallel_entry, gco);
+  mark_start_commit_inner(parallel_entry, gco, this);
   did_mark_start_commit= true;
 }
 
@@ -1872,7 +1886,7 @@ rpl_group_info::mark_start_commit()
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
-  mark_start_commit_inner(e, gco);
+  mark_start_commit_inner(e, gco, this);
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
   did_mark_start_commit= true;
 }

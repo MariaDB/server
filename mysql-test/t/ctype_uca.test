@@ -571,6 +571,14 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_520_ci;
 --echo #
 --echo
 
+SET NAMES utf8 COLLATE utf8_unicode_ci;
+--source include/ctype_like_cond_propagation.inc
+--source include/ctype_like_cond_propagation_utf8_german.inc
+
+SET NAMES utf8 COLLATE utf8_german2_ci;
+--source include/ctype_like_cond_propagation.inc
+--source include/ctype_like_cond_propagation_utf8_german.inc
+
 --echo #
 --echo # MDEV-4929 Myanmar collation
 --echo #
@@ -578,6 +586,25 @@ SET NAMES utf8 COLLATE utf8_myanmar_ci;
 --source include/ctype_myanmar.inc
 SET collation_connection=ucs2_myanmar_ci;
 --source include/ctype_myanmar.inc
+
+--echo #
+--echo # MDEV-7366 SELECT 'a' = BINARY 'A' returns 1 (utf8 charset, utf8_unicode_ci collation)
+--echo #
+SET NAMES utf8 COLLATE utf8_unicode_ci; 
+SELECT 'a' = BINARY 'A';
+SELECT BINARY 'A' = 'a';
+
+--echo #
+--echo # Wrong result set for WHERE a='oe' COLLATE utf8_german2_ci AND a='oe'
+--echo #
+SET NAMES utf8 COLLATE utf8_german2_ci;
+CREATE TABLE t1 (a CHAR(10) CHARACTER SET utf8);
+INSERT INTO t1 VALUES ('ö'),('oe');
+SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
+SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' AND a='oe' COLLATE utf8_german2_ci;
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a='oe' COLLATE utf8_german2_ci AND a='oe';
+DROP TABLE t1;
 
 --echo #
 --echo # End of MariaDB-10.0 tests
