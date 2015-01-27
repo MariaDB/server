@@ -287,14 +287,17 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
   if (WSREP(thd) &&
       var->save_result.ulonglong_value != BINLOG_FORMAT_ROW)
   {
-    WSREP_ERROR("MariaDB Galera does not support binlog format: %s",
-                binlog_format_names[var->save_result.ulonglong_value]);
-
-    // Also push a warning because error message is general.
+    // Push a warning to the error log.
     push_warning_printf(thd, MYSQL_ERROR::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
                         "MariaDB Galera does not support binlog format: %s",
                         binlog_format_names[var->save_result.ulonglong_value]);
-    return true;
+
+    if (var->type == OPT_GLOBAL)
+    {
+      WSREP_ERROR("MariaDB Galera does not support binlog format: %s",
+                  binlog_format_names[var->save_result.ulonglong_value]);
+      return true;
+    }
   }
 #endif
 
