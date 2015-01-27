@@ -266,7 +266,7 @@ bool TDBTBL::InitTableList(PGLOBAL g)
       // Real initialization will be done later.
       for (colp = Columns; colp; colp = colp->GetNext())
         if (!colp->IsSpecial())
-          if (((PPRXCOL)colp)->Init(g) && !Accept)
+          if (((PPRXCOL)colp)->Init(g, NULL) && !Accept)
             return TRUE;
 
       if (Tablist)
@@ -468,7 +468,7 @@ bool TDBTBL::OpenDB(PGLOBAL g)
     for (PCOL cp = Columns; cp; cp = cp->GetNext())
       if (cp->GetAmType() == TYPE_AM_TABID)
         cp->COLBLK::Reset();
-      else if (((PPRXCOL)cp)->Init(g) && !Accept)
+      else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
         return TRUE;
         
     if (trace)
@@ -523,7 +523,7 @@ int TDBTBL::ReadDB(PGLOBAL g)
           if (cp->GetAmType() == TYPE_AM_TABID ||
               cp->GetAmType() == TYPE_AM_SRVID)
             cp->COLBLK::Reset();
-          else if (((PPRXCOL)cp)->Init(g) && !Accept)
+          else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
             return RC_FX;
 
         if (trace)
@@ -716,7 +716,7 @@ bool TDBTBM::OpenDB(PGLOBAL g)
     for (PCOL cp = Columns; cp; cp = cp->GetNext())
       if (cp->GetAmType() == TYPE_AM_TABID)
         cp->COLBLK::Reset();
-      else if (((PPRXCOL)cp)->Init(g) && !Accept)
+      else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
         return TRUE;
         
     if (trace)
@@ -807,7 +807,7 @@ int TDBTBM::ReadNextRemote(PGLOBAL g)
   for (PCOL cp = Columns; cp; cp = cp->GetNext())
     if (cp->GetAmType() == TYPE_AM_TABID)
       cp->COLBLK::Reset();
-    else if (((PPRXCOL)cp)->Init(g) && !Accept)
+    else if (((PPRXCOL)cp)->Init(g, NULL) && !Accept)
       return RC_FX;
 
   if (trace)
