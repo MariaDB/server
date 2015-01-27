@@ -1,0 +1,46 @@
+#
+# Check the handling of @@wsrep_dirty_reads
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_2
+--let $wsrep_cluster_address_saved = `SELECT @@global.wsrep_cluster_address`
+
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+SELECT * FROM t1;
+
+SET @@global.wsrep_cluster_address = '';
+SET @@session.wsrep_dirty_reads=OFF;
+
+# Set wsrep_sync_wait to avoid ER_LOCK_WAIT_TIMEOUT (MDEV-6832).
+SET SESSION wsrep_sync_wait=0;
+
+# Must return 'OFF'
+SHOW STATUS LIKE 'wsrep_ready';
+
+# Must return 'Non-primary'
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+--error ER_UNKNOWN_COM_ERROR
+SELECT * FROM t1;
+
+SET @@session.wsrep_dirty_reads=ON;
+
+SELECT * FROM t1;
+
+--disable_query_log
+--eval SET @@global.wsrep_cluster_address = '$wsrep_cluster_address_saved'
+--enable_query_log
+--source include/wait_until_connected_again.inc
+
+--connection node_1
+SELECT * FROM t1;
+# Cleanup
+DROP TABLE t1;
+
+--source include/galera_end.inc
+--echo # End of test
+

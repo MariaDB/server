@@ -2615,11 +2615,13 @@ mysql_execute_command(THD *thd)
     }
 
     /*
-     * bail out if DB snapshot has not been installed. We however,
-     * allow SET and SHOW queries
-     */
+      Bail out if DB snapshot has not been installed. We however,
+      allow SET and SHOW queries.
+    */
     if (thd->variables.wsrep_on && !thd->wsrep_applier && !wsrep_ready &&
         lex->sql_command != SQLCOM_SET_OPTION &&
+        !(thd->variables.wsrep_dirty_reads &&
+          lex->sql_command == SQLCOM_SELECT) &&
         !wsrep_is_show_query(lex->sql_command))
     {
 #if DIRTY_HACK
