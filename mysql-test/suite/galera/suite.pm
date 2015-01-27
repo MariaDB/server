@@ -34,6 +34,7 @@ push @::global_suppressions,
      qr(WSREP: Failed to send state UUID:),
      qr(WSREP: last inactive check more than .* skipping check),
      qr(WSREP: SQL statement was ineffective),
+     qr(WSREP: Releasing seqno [0-9]* before [0-9]* was assigned.),
    );
 
 

@@ -3951,6 +3951,12 @@ static Sys_var_mybool Sys_wsrep_slave_UK_checks(
 static Sys_var_mybool Sys_wsrep_restart_slave(
        "wsrep_restart_slave", "Should MySQL slave be restarted automatically, when node joins back to cluster",
        GLOBAL_VAR(wsrep_restart_slave), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+
+static Sys_var_mybool Sys_wsrep_dirty_reads(
+       "wsrep_dirty_reads", "Do not reject SELECT queries even when the node "
+       "is not ready.", SESSION_ONLY(wsrep_dirty_reads), NO_CMD_LINE,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+
 #endif /* WITH_WSREP */
 
 static Sys_var_charptr Sys_ignore_db_dirs(
