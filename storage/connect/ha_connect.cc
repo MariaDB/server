@@ -1064,8 +1064,15 @@ char *ha_connect::GetStringOption(char *opname, char *sdef)
 
   } // endif Table_charset
 
-  if (!opval && options && options->oplist)
+  if (!opval && options && options->oplist) {
     opval= GetListOption(xp->g, opname, options->oplist);
+
+    if (opval && (!stricmp(opname, "connect") 
+               || !stricmp(opname, "tabname") 
+               || !stricmp(opname, "filename")))
+      opval = GetRealString(opval);
+
+    } // endif opval
 
   if (!opval) {
     if (sdef && !strcmp(sdef, "*")) {
