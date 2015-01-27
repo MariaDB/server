@@ -1,3 +1,5 @@
+--source include/wait_until_ready.inc
+
 # ==== Purpose ====
 #
 # This test is executed twice for each test case. Before every
