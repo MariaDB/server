@@ -171,6 +171,8 @@ class JOBJECT : public JSON {
  public:
   JOBJECT(void) : JSON() {First = Last = NULL;}
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JOB;}
   virtual PJPR  AddPair(PGLOBAL g, PSZ key);
@@ -192,6 +194,8 @@ class JARRAY : public JSON {
  public:
   JARRAY(void) : JSON() {Alloc = 0; First = Last = NULL; Mvals = NULL;}
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void  Clear(void) {First = Last = NULL; Size = 0;}
   virtual JTYP  GetType(void) {return TYPE_JAR;}
   virtual PJAR  GetArray(void) {return this;}
@@ -223,6 +227,8 @@ class JVALUE : public JSON {
                 {Jsp = jsp; Value = NULL; Next = NULL; Del = false;}
   JVALUE(PGLOBAL g, PVAL valp);
 
+  using JSON::GetValue;
+  using JSON::SetValue;
   virtual void   Clear(void)
           {Jsp = NULL; Value = NULL; Next = NULL; Del = false; Size = 0;}
   virtual JTYP   GetType(void) {return TYPE_JVAL;}

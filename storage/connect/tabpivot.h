@@ -180,9 +180,10 @@ class SRCCOL : public PRXCOL {
   virtual int  GetAmType(void) {return TYPE_AM_SRC;}
 
   // Methods
+  using PRXCOL::Init;
   virtual void Reset(void) {}
           void SetColumn(void);
-          bool Init(PGLOBAL g);
+  virtual bool Init(PGLOBAL g);
           bool CompareLast(void);
 
  protected:

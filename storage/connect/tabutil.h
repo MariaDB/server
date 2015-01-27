@@ -108,13 +108,14 @@ class DllExport PRXCOL : public COLBLK {
   virtual int  GetAmType(void) {return TYPE_AM_PRX;}
 
   // Methods
+  using COLBLK::Init;
   virtual void Reset(void);
   virtual bool IsSpecial(void) {return Pseudo;}
   virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
                 {return false;}
   virtual void ReadColumn(PGLOBAL g);
   virtual void WriteColumn(PGLOBAL g);
-  virtual bool Init(PGLOBAL g, PTDBASE tp = NULL);
+  virtual bool Init(PGLOBAL g, PTDBASE tp);
 
  protected:
   // Default constructor not to be used

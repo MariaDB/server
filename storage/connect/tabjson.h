@@ -77,7 +77,7 @@ class TDBJSN : public TDBDOS {
   virtual PTDB CopyOne(PTABS t);
   virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
   virtual PCOL InsertSpecialColumn(PGLOBAL g, PCOL colp);
-  virtual int  RowNumber(PGLOBAL g, BOOL b = FALSE)
+  virtual int  RowNumber(PGLOBAL g, bool b = FALSE)
                 {return (b) ? N : Fpos + 1;}
 
   // Database routines
