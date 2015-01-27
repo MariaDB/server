@@ -24,13 +24,16 @@ return "No my_print_defaults" unless $epath;
 
 push @::global_suppressions,
   (
-     qr(WSREP:.*down context.*),
-     qr(WSREP: Failed to send state UUID:.*),
-     qr(WSREP: wsrep_sst_receive_address.*),
-     qr(WSREP: Could not open saved state file for reading: .*),
-     qr(WSREP: last inactive check more than .* skipping check),
+     qr(WSREP: Failed to guess base node address),
+     qr(WSREP: Guessing address for incoming client connections failed),
+     qr(WSREP: wsrep_sst_receive_address is set to '127.0.0.1),
+     qr(WSREP: Could not open saved state file for reading: ),
      qr(WSREP: Gap in state sequence. Need state transfer.),
-     qr(WSREP: Failed to prepare for incremental state transfer: .*),
+     qr(WSREP: Failed to prepare for incremental state transfer:),
+     qr(WSREP:.*down context.*),
+     qr(WSREP: Failed to send state UUID:),
+     qr(WSREP: last inactive check more than .* skipping check),
+     qr(WSREP: SQL statement was ineffective),
    );
 
 
