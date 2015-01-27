@@ -28,8 +28,6 @@
 
 int TDB::Tnum = 0;
 
-extern "C" int trace;       // The general trace value
-
 /***********************************************************************/
 /*  Utility routines.                                                  */
 /***********************************************************************/
@@ -148,6 +146,7 @@ TDBASE::TDBASE(PTABDEF tdp) : TDB(tdp)
   Knum = 0;
   Read_Only = (tdp) ? tdp->IsReadOnly() : false;
   m_data_charset=  (tdp) ? tdp->data_charset() : NULL;
+  csname = (tdp) ? tdp->csname : NULL;
   } // end of TDBASE constructor
 
 TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
@@ -163,6 +162,7 @@ TDBASE::TDBASE(PTDBASE tdbp) : TDB(tdbp)
   Knum = tdbp->Knum;
   Read_Only = tdbp->Read_Only;
   m_data_charset= tdbp->m_data_charset;
+  csname = tdbp->csname;
   } // end of TDBASE copy constructor
 
 /***********************************************************************/
@@ -191,6 +191,18 @@ PSZ TDBASE::GetPath(void)
   {
   return To_Def->GetPath();
   }  // end of GetPath
+
+/***********************************************************************/
+/*  Return true if name is a special column of this table.             */
+/***********************************************************************/
+bool TDBASE::IsSpecial(PSZ name)
+  {
+  for (PCOLDEF cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
+    if (!stricmp(cdp->GetName(), name) && (cdp->Flags & U_SPECIAL))
+      return true;   // Special column to ignore while inserting
+
+  return false;    // Not found or not special or not inserting
+  }  // end of IsSpecial
 
 /***********************************************************************/
 /*  Initialize TDBASE based column description block construction.     */

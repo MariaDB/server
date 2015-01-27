@@ -22,7 +22,7 @@ let MYSQLD_DATADIR =`SELECT @@datadir`;
 let $innodb_file_per_table = `SELECT @@innodb_file_per_table`;
 let $innodb_file_format = `SELECT @@innodb_file_format`;
 let $innodb_strict_mode_orig=`select @@session.innodb_strict_mode`;
-let $pathfix=/: '.*test_wl5522.*t1.ibd'/: 'test_wl5522\\t1.ibd'/;
+let $pathfix=/: '.*test_wl5522.*t1.ibd'/: 'test_wl5522_t1.ibd'/;
 
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
@@ -233,8 +233,7 @@ SET SESSION debug_dbug="-d,ib_import_reset_space_and_lsn_failure";
 # Test failure after attempting a tablespace open
 SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
 
---replace_regex /file: '.*t1.ibd'/'t1.ibd'/
-
+--replace_regex /'.*[\/\\]/'/
 --error ER_GET_ERRMSG
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
@@ -637,8 +636,7 @@ EOF
 
 SET SESSION debug_dbug="+d,fil_space_create_failure";
 
---replace_regex $pathfix
-
+--replace_regex /'.*[\/\\]/'/
 --error ER_GET_ERRMSG
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 
@@ -669,8 +667,7 @@ EOF
 
 SET SESSION debug_dbug="+d,dict_tf_to_fsp_flags_failure";
 
---replace_regex $pathfix
-
+--replace_regex /'.*[\/\\]/'/
 --error ER_GET_ERRMSG
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
 

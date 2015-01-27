@@ -4,6 +4,7 @@
 
 --source include/not_embedded.inc
 --source include/have_xtradb.inc
+--source include/have_perfschema.inc
 --source include/not_staging.inc
 
 use INFORMATION_SCHEMA;

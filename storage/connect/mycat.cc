@@ -1,4 +1,4 @@
-/* Copyright (C) Olivier Bertrand 2004 - 2013
+/* Copyright (C) Olivier Bertrand 2004 - 2014
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 /* -------------                                                       */
 /*  Version 1.4                                                        */
 /*                                                                     */
-/*  Author: Olivier Bertrand                       2012 - 2013         */
+/*  Author: Olivier Bertrand                       2012 - 2014         */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -88,6 +88,8 @@
 #if defined(PIVOT_SUPPORT)
 #include "tabpivot.h"
 #endif   // PIVOT_SUPPORT
+#include "tabvir.h"
+#include "tabjson.h"
 #include "ha_connect.h"
 #include "mycat.h"
 
@@ -97,8 +99,6 @@
 #if defined(WIN32)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif  // !WIN32
-
-extern "C" int trace;
 
 PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char *tab, char *db, bool info);
 
@@ -139,6 +139,8 @@ TABTYPE GetTypeID(const char *type)
 #ifdef PIVOT_SUPPORT
                  : (!stricmp(type, "PIVOT")) ? TAB_PIVOT
 #endif
+                 : (!stricmp(type, "VIR"))   ? TAB_VIR
+                 : (!stricmp(type, "JSON"))  ? TAB_JSON
                  : (!stricmp(type, "OEM"))   ? TAB_OEM : TAB_NIY;
   } // end of GetTypeID
 
@@ -159,6 +161,7 @@ bool IsFileType(TABTYPE type)
     case TAB_XML:
     case TAB_INI:
     case TAB_VEC:
+    case TAB_JSON:
       isfile= true;
       break;
     default:
@@ -181,7 +184,9 @@ bool IsExactType(TABTYPE type)
     case TAB_BIN:
     case TAB_DBF:
 //  case TAB_XML:     depends on Multiple || Xpand || Coltype
+//  case TAB_JSON:    depends on Multiple || Xpand || Coltype
     case TAB_VEC:
+    case TAB_VIR:
       exact= true;
       break;
     default:
@@ -213,7 +218,7 @@ bool IsTypeNullable(TABTYPE type)
   } // end of IsTypeNullable
 
 /***********************************************************************/
-/*  Return true for indexable table by XINDEX.                         */
+/*  Return true for fixed record length tables.                        */
 /***********************************************************************/
 bool IsTypeFixed(TABTYPE type)
   {
@@ -249,6 +254,7 @@ bool IsTypeIndexable(TABTYPE type)
     case TAB_BIN:
     case TAB_VEC:
     case TAB_DBF:
+    case TAB_JSON:
       idx= true;
       break;
     default:
@@ -274,11 +280,15 @@ int GetIndexType(TABTYPE type)
     case TAB_BIN:
     case TAB_VEC:
     case TAB_DBF:
+    case TAB_JSON:
       xtyp= 1;
       break;
     case TAB_MYSQL:
 //  case TAB_ODBC:
       xtyp= 2;
+      break;
+    case TAB_VIR:
+      xtyp= 3;
       break;
     case TAB_ODBC:
     default:
@@ -533,6 +543,8 @@ PRELDEF MYCAT::MakeTableDesc(PGLOBAL g, LPCSTR name, LPCSTR am)
 #if defined(PIVOT_SUPPORT)
     case TAB_PIVOT: tdp= new(g) PIVOTDEF; break;
 #endif   // PIVOT_SUPPORT
+    case TAB_VIR: tdp= new(g) VIRDEF;   break;
+    case TAB_JSON: tdp= new(g) JSONDEF; break;
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
     } // endswitch

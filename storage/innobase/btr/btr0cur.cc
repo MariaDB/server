@@ -1247,7 +1247,7 @@ btr_cur_optimistic_insert(
 	rec_t*		dummy;
 	ibool		leaf;
 	ibool		reorg;
-	ibool		inherit;
+	ibool		inherit = TRUE;
 	ulint		zip_size;
 	ulint		rec_size;
 	dberr_t		err;
@@ -1525,7 +1525,7 @@ btr_cur_pessimistic_insert(
 	ulint		zip_size	= dict_table_zip_size(index->table);
 	big_rec_t*	big_rec_vec	= NULL;
 	dberr_t		err;
-	ibool		dummy_inh;
+	ibool		inherit = FALSE;
 	ibool		success;
 	ulint		n_reserved	= 0;
 
@@ -1547,7 +1547,7 @@ btr_cur_pessimistic_insert(
 	/* Check locks and write to undo log, if specified */
 
 	err = btr_cur_ins_lock_and_undo(flags, cursor, entry,
-					thr, mtr, &dummy_inh);
+					thr, mtr, &inherit);
 
 	if (err != DB_SUCCESS) {
 
@@ -1607,10 +1607,31 @@ btr_cur_pessimistic_insert(
 
 	ut_ad(page_rec_get_next(btr_cur_get_rec(cursor)) == *rec);
 
+	if (!(flags & BTR_NO_LOCKING_FLAG)) {
+		/* The cursor might be moved to the other page,
+		and the max trx id field should be updated after
+		the cursor was fixed. */
+		if (!dict_index_is_clust(index)) {
+			page_update_max_trx_id(
+				btr_cur_get_block(cursor),
+				btr_cur_get_page_zip(cursor),
+				thr_get_trx(thr)->id, mtr);
+		}
+		if (!page_rec_is_infimum(btr_cur_get_rec(cursor))
+		    || btr_page_get_prev(
+			buf_block_get_frame(
+				btr_cur_get_block(cursor)), mtr)
+		       == FIL_NULL) {
+			/* split and inserted need to call
+			lock_update_insert() always. */
+			inherit = TRUE;
+		}
+	}
+
 #ifdef BTR_CUR_ADAPT
 	btr_search_update_hash_on_insert(cursor);
 #endif
-	if (!(flags & BTR_NO_LOCKING_FLAG)) {
+	if (inherit && !(flags & BTR_NO_LOCKING_FLAG)) {
 
 		lock_update_insert(btr_cur_get_block(cursor), *rec);
 	}
@@ -2344,6 +2365,38 @@ btr_cur_pess_upd_restore_supremum(
 }
 
 /*************************************************************//**
+Check if the total length of the modified blob for the row is within 10%
+of the total redo log size.  This constraint on the blob length is to
+avoid overwriting the redo logs beyond the last checkpoint lsn.
+@return	DB_SUCCESS or DB_TOO_BIG_RECORD. */
+static
+dberr_t
+btr_check_blob_limit(const big_rec_t*	big_rec_vec)
+{
+	const	ib_uint64_t redo_size = srv_n_log_files * srv_log_file_size
+		* UNIV_PAGE_SIZE;
+	const	ulint redo_10p = redo_size / 10;
+	ulint	total_blob_len = 0;
+	dberr_t	err = DB_SUCCESS;
+
+	/* Calculate the total number of bytes for blob data */
+	for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
+		total_blob_len += big_rec_vec->fields[i].len;
+	}
+
+	if (total_blob_len > redo_10p) {
+		ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data"
+			" length (" ULINTPF ") is greater than"
+			" 10%% of the total redo log size (" UINT64PF
+			"). Please increase total redo log size.",
+			total_blob_len, redo_size);
+		err = DB_TOO_BIG_RECORD;
+	}
+
+	return(err);
+}
+
+/*************************************************************//**
 Performs an update of a record on a page of a tree. It is assumed
 that mtr holds an x-latch on the tree and on the cursor page. If the
 update is made on the leaf level, to avoid deadlocks, mtr must also
@@ -2558,26 +2611,14 @@ make_external:
 	}
 
 	if (big_rec_vec) {
-		const ulint redo_10p = srv_log_file_size * UNIV_PAGE_SIZE / 10;
-		ulint total_blob_len = 0;
 
-		/* Calculate the total number of bytes for blob data */
-		for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
-			total_blob_len += big_rec_vec->fields[i].len;
-		}
+		err = btr_check_blob_limit(big_rec_vec);
 
-		if (total_blob_len > redo_10p) {
-			ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data"
-				" length (" ULINTPF ") is greater than"
-				" 10%% of the redo log file size (" UINT64PF
-				"). Please increase innodb_log_file_size.",
-				total_blob_len, srv_log_file_size);
+		if (err != DB_SUCCESS) {
 			if (n_reserved > 0) {
 				fil_space_release_free_extents(
 					index->space, n_reserved);
 			}
-
-			err = DB_TOO_BIG_RECORD;
 			goto err_exit;
 		}
 	}
@@ -3823,7 +3864,7 @@ btr_estimate_number_of_different_key_vals(
 	ib_uint64_t*	n_diff;
 	ib_uint64_t*	n_not_null;
 	ibool		stats_null_not_equal;
-	ullint		n_sample_pages; /* number of pages to sample */
+	ullint		n_sample_pages = 1; /* number of pages to sample */
 	ulint		not_empty_flag	= 0;
 	ulint		total_external_size = 0;
 	ulint		i;
@@ -3870,17 +3911,62 @@ btr_estimate_number_of_different_key_vals(
 		ut_error;
         }
 
-	/* It makes no sense to test more pages than are contained
-	in the index, thus we lower the number if it is too high */
-	if (srv_stats_transient_sample_pages > index->stat_index_size) {
-		if (index->stat_index_size > 0) {
-			n_sample_pages = index->stat_index_size;
+	if (srv_stats_sample_traditional) {
+		/* It makes no sense to test more pages than are contained
+		in the index, thus we lower the number if it is too high */
+		if (srv_stats_transient_sample_pages > index->stat_index_size) {
+			if (index->stat_index_size > 0) {
+				n_sample_pages = index->stat_index_size;
+			}
 		} else {
-			n_sample_pages = 1;
+			n_sample_pages = srv_stats_transient_sample_pages;
 		}
 	} else {
-		n_sample_pages = srv_stats_transient_sample_pages;
+		/* New logaritmic number of pages that are estimated.
+		Number of pages estimated should be between 1 and
+		index->stat_index_size.
+
+		If we have only 0 or 1 index pages then we can only take 1
+		sample. We have already initialized n_sample_pages to 1.
+
+		So taking index size as I and sample as S and log(I)*S as L
+
+		requirement 1) we want the out limit of the expression to not exceed I;
+		requirement 2) we want the ideal pages to be at least S;
+		so the current expression is min(I, max( min(S,I), L)
+
+		looking for simplifications:
+
+		case 1: assume S < I
+		min(I, max( min(S,I), L) -> min(I , max( S, L))
+
+		but since L=LOG2(I)*S and log2(I) >=1   L>S always so max(S,L) = L.
+
+		so we have: min(I , L)
+
+		case 2: assume I < S
+		    min(I, max( min(S,I), L) -> min(I, max( I, L))
+
+		case 2a: L > I
+		    min(I, max( I, L)) -> min(I, L) -> I
+
+		case 2b: when L < I
+		    min(I, max( I, L))  ->  min(I, I ) -> I
+
+		so taking all case2 paths is I, our expression is:
+		n_pages = S < I? min(I,L) : I
+                */
+		if (index->stat_index_size > 1) {
+			n_sample_pages = (srv_stats_transient_sample_pages < index->stat_index_size) ?
+				ut_min(index->stat_index_size,
+				       log2(index->stat_index_size)*srv_stats_transient_sample_pages)
+				: index->stat_index_size;
+
+		}
 	}
+
+	/* Sanity check */
+	ut_ad(n_sample_pages > 0 && n_sample_pages <= (index->stat_index_size <= 1 ? 1 : index->stat_index_size));
 
 	/* We sample some pages in the index to get an estimate */
 
@@ -4404,7 +4490,6 @@ btr_store_big_rec_extern_fields(
 	buf_block_t**	freed_pages	= NULL;
 	ulint		n_freed_pages	= 0;
 	dberr_t		error		= DB_SUCCESS;
-	ulint		total_blob_len	= 0;
 
 	ut_ad(rec_offs_validate(rec, index, offsets));
 	ut_ad(rec_offs_any_extern(offsets));
@@ -4424,21 +4509,11 @@ btr_store_big_rec_extern_fields(
 	rec_page_no = buf_block_get_page_no(rec_block);
 	ut_a(fil_page_get_type(page_align(rec)) == FIL_PAGE_INDEX);
 
-	const ulint redo_10p = (srv_log_file_size * UNIV_PAGE_SIZE / 10);
+	error = btr_check_blob_limit(big_rec_vec);
 
-	/* Calculate the total number of bytes for blob data */
-	for (ulint i = 0; i < big_rec_vec->n_fields; i++) {
-		total_blob_len += big_rec_vec->fields[i].len;
-	}
-
-	if (total_blob_len > redo_10p) {
+	if (error != DB_SUCCESS) {
 		ut_ad(op == BTR_STORE_INSERT);
-		ib_logf(IB_LOG_LEVEL_ERROR, "The total blob data length"
-			" (" ULINTPF ") is greater than 10%% of the"
-			" redo log file size (" UINT64PF "). Please"
-			" increase innodb_log_file_size.",
-			total_blob_len, srv_log_file_size);
-		return(DB_TOO_BIG_RECORD);
+		return(error);
 	}
 
 	if (page_zip) {

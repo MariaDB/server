@@ -98,21 +98,15 @@ set(MRN_C_COMPILE_FLAGS "")
 set(MRN_CXX_COMPILE_FLAGS "")
 
 macro(mrn_check_cflag flag)
-  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
-  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
-  set(temporary_variable_name "CFLAG${temporary_variable_name}")
-  check_c_compiler_flag(${flag} ${temporary_variable_name})
-  if(${temporary_variable_name})
+  check_c_compiler_flag(${flag} "HAVE_C_${flag}")
+  if(HAVE_C_${flag})
     set(MRN_C_COMPILE_FLAGS "${MRN_C_COMPILE_FLAGS} ${flag}")
   endif()
 endmacro()
 
 macro(mrn_check_cxxflag flag)
-  string(REGEX REPLACE "[-=]" "_" temporary_variable_name ${flag})
-  string(TOUPPER "${temporary_variable_name}" temporary_variable_name)
-  set(temporary_variable_name "CXXFLAG${temporary_variable_name}")
-  check_cxx_compiler_flag(${flag} ${temporary_variable_name})
-  if(${temporary_variable_name})
+  check_cxx_compiler_flag(${flag} "HAVE_CXX_${flag}")
+  if(HAVE_CXX_${flag})
     set(MRN_CXX_COMPILE_FLAGS "${MRN_CXX_COMPILE_FLAGS} ${flag}")
   endif()
 endmacro()
@@ -256,15 +250,7 @@ if(MRN_BUNDLED)
       STORAGE_ENGINE MODULE_ONLY
       LINK_LIBRARIES ${GROONGA_LIBRARIES})
   endif()
-  set(EXPANDED_INSTALL_LIBDIR "${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBDIR}")
-  list(FIND
-    CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES
-    "${EXPANDED_INSTALL_LIBDIR}"
-    EXPANDED_INSTALL_LIBDIR_INDEX_IN_IMPLICIT_LINK_DIRECTORIES)
-  if(EXPANDED_INSTALL_LIBDIR_INDEX_IN_IMPLICIT_LINK_DIRECTORIES EQUAL -1)
-    set_property(TARGET mroonga APPEND PROPERTY
-      INSTALL_RPATH "${EXPANDED_INSTALL_LIBDIR}")
-  endif()
+ else()
 else()
   add_library(mroonga MODULE
     ${MROONGA_SOURCES}
@@ -336,11 +322,9 @@ endif()
 
 if(GROONGA_NORMALIZER_MYSQL_FOUND)
   set(WITH_GROONGA_NORMALIZER_MYSQL 1)
-  set_property(TARGET mroonga APPEND PROPERTY
-    COMPILE_DEFINITIONS "WITH_GROONGA_NORMALIZER_MYSQL=1")
+  ADD_DEFINITIONS(-DWITH_GROONGA_NORMALIZER_MYSQL=1)
   if(MRN_GROONGA_BUNDLED)
-    set_property(TARGET mroonga APPEND PROPERTY
-      COMPILE_DEFINITIONS "GROONGA_NORMALIZER_MYSQL_PLUGIN_IS_BUNDLED_STATIC=1")
+    ADD_DEFINITIONS(-DGROONGA_NORMALIZER_MYSQL_PLUGIN_IS_BUNDLED_STATIC=1)
   else()
     set(GROONGA_NORMALIZER_MYSQL_PLUGIN_NAME \"normalizers/mysql\")
     set_property(TARGET mroonga APPEND PROPERTY
@@ -349,8 +333,7 @@ if(GROONGA_NORMALIZER_MYSQL_FOUND)
 endif()
 
 set(MRN_DEFAULT_PARSER "TokenBigram" CACHE STRING "The default fulltext parser")
-set_property(TARGET mroonga APPEND PROPERTY
-  COMPILE_DEFINITIONS "MRN_PARSER_DEFAULT=\"${MRN_DEFAULT_PARSER}\"")
+ADD_DEFINITIONS(-DMRN_PARSER_DEFAULT="${MRN_DEFAULT_PARSER}")
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/mrn_version.h.in"

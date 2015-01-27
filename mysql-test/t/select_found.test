@@ -257,3 +257,23 @@ select sql_calc_found_rows 1 as res from t1 left join t2 on i1 = i2 where v2 = 5
 select found_rows() as count;
 drop table t1, t2;
 
+#
+# MDEV-7219 SQL_CALC_FOUND_ROWS yields wrong result
+#
+create table t1 (i int, v varchar(64), key (i));
+
+--disable_query_log
+let $1=150;
+while ($1) 
+{
+  eval insert into t1 values ($1 % 2, 'foo');
+  dec $1;
+}
+--enable_query_log
+
+select sql_calc_found_rows * from t1 where i = 0 order by v limit 59,2;
+select found_rows();
+select sql_calc_found_rows * from t1 ignore index (i) where i = 0 order by v limit 59,2;
+select found_rows();
+drop table t1;
+

@@ -26,6 +26,8 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0undo_h
 #define trx0undo_h
 
+#ifndef UNIV_INNOCHECKSUM
+
 #include "univ.i"
 #include "trx0types.h"
 #include "mtr0mtr.h"
@@ -385,6 +387,8 @@ trx_undo_mem_free(
 /*==============*/
 	trx_undo_t*	undo);		/* in: the undo object to be freed */
 
+#endif /* !UNIV_INNOCHECKSUM */
+
 /* Types of an undo log segment */
 #define	TRX_UNDO_INSERT		1	/* contains undo entries for inserts */
 #define	TRX_UNDO_UPDATE		2	/* contains undo entries for updates
@@ -403,6 +407,7 @@ trx_undo_mem_free(
 					prepared transaction */
 
 #ifndef UNIV_HOTBACKUP
+#ifndef UNIV_INNOCHECKSUM
 /** Transaction undo log memory object; this is protected by the undo_mutex
 in the corresponding transaction object */
 
@@ -461,6 +466,7 @@ struct trx_undo_t{
 					/*!< undo log objects in the rollback
 					segment are chained into lists */
 };
+#endif /* !UNIV_INNOCHECKSUM */
 #endif /* !UNIV_HOTBACKUP */
 
 /** The offset of the undo log page header on pages of the undo log */
@@ -588,8 +594,10 @@ quite a large overhead. */
 					with the XA XID */
 /* @} */
 
+#ifndef UNIV_INNOCHECKSUM
 #ifndef UNIV_NONINL
 #include "trx0undo.ic"
 #endif
+#endif /* !UNIV_INNOCHECKSUM */
 
 #endif

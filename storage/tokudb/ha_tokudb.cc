@@ -244,23 +244,20 @@ void TOKUDB_SHARE::destroy(void) {
     tokudb_pthread_mutex_destroy(&mutex);
     rwlock_destroy(&num_DBs_lock);
     tokudb_pthread_cond_destroy(&m_openclose_cond);
+    tokudb_my_free(rec_per_key);
+    rec_per_key = NULL;
 }
 
 // MUST have tokudb_mutex locked on input    
 static TOKUDB_SHARE *get_share(const char *table_name, TABLE_SHARE* table_share) {
     TOKUDB_SHARE *share = NULL;
     int error = 0;
-    uint length;
-
-    length = (uint) strlen(table_name);
-
+    uint length = (uint) strlen(table_name);
     if (!(share = (TOKUDB_SHARE *) my_hash_search(&tokudb_open_tables, (uchar *) table_name, length))) {
         char *tmp_name;
 
-        //
         // create share and fill it with all zeroes
         // hence, all pointers are initialized to NULL
-        //
         share = (TOKUDB_SHARE *) tokudb_my_multi_malloc(MYF(MY_WME | MY_ZEROFILL), 
             &share, sizeof(*share),
             &tmp_name, length + 1, 
@@ -1597,11 +1594,7 @@ exit:
     return ret_val;
 }
 
-int ha_tokudb::initialize_share(
-    const char* name,
-    int mode
-    )
-{
+int ha_tokudb::initialize_share(const char* name, int mode) {
     int error = 0;
     uint64_t num_rows = 0;
     DB_TXN* txn = NULL;
@@ -1748,17 +1741,12 @@ int ha_tokudb::initialize_share(
     init_hidden_prim_key_info(txn);
 
     // initialize cardinality info from the status dictionary
-    {
-        uint total_key_parts = tokudb::compute_total_key_parts(table_share);
-        uint64_t rec_per_key[total_key_parts];
-        error = tokudb::get_card_from_status(share->status_block, txn, total_key_parts, rec_per_key);
-        if (error == 0) {
-            tokudb::set_card_in_key_info(table, total_key_parts, rec_per_key);
-        } else {
-            for (uint i = 0; i < total_key_parts; i++)
-                rec_per_key[i] = 0;
-            tokudb::set_card_in_key_info(table, total_key_parts, rec_per_key);
-        }
+    share->n_rec_per_key = tokudb::compute_total_key_parts(table_share);
+    share->rec_per_key = (uint64_t *) tokudb_my_realloc(share->rec_per_key, share->n_rec_per_key * sizeof (uint64_t), MYF(MY_FAE + MY_ALLOW_ZERO_PTR));
+    error = tokudb::get_card_from_status(share->status_block, txn, share->n_rec_per_key, share->rec_per_key);
+    if (error) {
+        for (uint i = 0; i < share->n_rec_per_key; i++)
+            share->rec_per_key[i] = 0;
     }
 
     error = 0;
@@ -2995,12 +2983,7 @@ void ha_tokudb::init_hidden_prim_key_info(DB_TXN *txn) {
     if (!(share->status & STATUS_PRIMARY_KEY_INIT)) {
         int error = 0;
         DBC* c = NULL;        
-        error = share->key_file[primary_key]->cursor(
-            share->key_file[primary_key],
-            txn,
-            &c,
-            0
-            );
+        error = share->key_file[primary_key]->cursor(share->key_file[primary_key], txn, &c, 0);
         assert(error == 0);
         DBT key,val;        
         memset(&key, 0, sizeof(key));
@@ -3220,11 +3203,12 @@ bool ha_tokudb::may_table_be_empty(DB_TXN *txn) {
     error = share->file->cursor(share->file, txn, &tmp_cursor, 0);
     if (error)
         goto cleanup;
-     
+    tmp_cursor->c_set_check_interrupt_callback(tmp_cursor, tokudb_killed_thd_callback, ha_thd());
     if (empty_scan == TOKUDB_EMPTY_SCAN_LR)
         error = tmp_cursor->c_getf_next(tmp_cursor, 0, smart_dbt_do_nothing, NULL);
     else
         error = tmp_cursor->c_getf_prev(tmp_cursor, 0, smart_dbt_do_nothing, NULL);
+    error = map_to_handler_error(error);
     if (error == DB_NOTFOUND)
         ret_val = true;
     else 
@@ -3544,6 +3528,7 @@ int ha_tokudb::is_val_unique(bool* is_unique, uchar* record, KEY* key_info, uint
             goto cleanup;
         }
         else if (error) {
+            error = map_to_handler_error(error);
             goto cleanup;
         }
         if (ir_info.cmp) {
@@ -4501,8 +4486,10 @@ int ha_tokudb::index_init(uint keynr, bool sorted) {
     }
     tokudb_active_index = keynr;
     
+#if TOKU_CLUSTERING_IS_COVERING
     if (keynr < table->s->keys && table->key_info[keynr].option_struct->clustering)
-      key_read = false;
+        key_read = false;
+#endif
 
     last_cursor_error = 0;
     range_lock_grabbed = false;
@@ -4530,6 +4517,7 @@ int ha_tokudb::index_init(uint keynr, bool sorted) {
         cursor = NULL;             // Safety
         goto exit;
     }
+    cursor->c_set_check_interrupt_callback(cursor, tokudb_killed_thd_callback, thd);
     memset((void *) &last_key, 0, sizeof(last_key));
 
     add_to_trx_handler_list();
@@ -5852,16 +5840,14 @@ void ha_tokudb::position(const uchar * record) {
 //      0, always success
 //
 int ha_tokudb::info(uint flag) {
-    TOKUDB_HANDLER_DBUG_ENTER("%d %lld", flag, (long long) share->rows);
-    int error;
-    DB_TXN* txn = NULL;
-    uint curr_num_DBs = table->s->keys + tokudb_test(hidden_primary_key);
-    DB_BTREE_STAT64 dict_stats;
-
+    TOKUDB_HANDLER_DBUG_ENTER("%d", flag);
+    int error = 0;
+#if TOKU_CLUSTERING_IS_COVERING
     for (uint i=0; i < table->s->keys; i++)
-      if (table->key_info[i].option_struct->clustering)
-        table->covering_keys.set_bit(i);
-
+        if (key_is_clustering(&table->key_info[i]))
+            table->covering_keys.set_bit(i);
+#endif
+    DB_TXN* txn = NULL;
     if (flag & HA_STATUS_VARIABLE) {
         // Just to get optimizations right
         stats.records = share->rows + share->rows_from_locked_table;
@@ -5891,18 +5877,12 @@ int ha_tokudb::info(uint flag) {
             else {
                 goto cleanup;
             }
-            error = share->file->get_fragmentation(
-                share->file,
-                &frag_info
-                );
+            error = share->file->get_fragmentation(share->file, &frag_info);
             if (error) { goto cleanup; }
             stats.delete_length = frag_info.unused_bytes;
 
-            error = share->file->stat64(
-                share->file, 
-                txn, 
-                &dict_stats
-                );
+            DB_BTREE_STAT64 dict_stats;
+            error = share->file->stat64(share->file, txn, &dict_stats);
             if (error) { goto cleanup; }
             
             stats.create_time = dict_stats.bt_create_time_sec;
@@ -5938,6 +5918,7 @@ int ha_tokudb::info(uint flag) {
             //
             // this solution is much simpler than trying to maintain an 
             // accurate number of valid keys at the handlerton layer.
+            uint curr_num_DBs = table->s->keys + tokudb_test(hidden_primary_key);
             for (uint i = 0; i < curr_num_DBs; i++) {
                 // skip the primary key, skip dropped indexes
                 if (i == primary_key || share->key_file[i] == NULL) {
@@ -5962,6 +5943,7 @@ int ha_tokudb::info(uint flag) {
     }
     if ((flag & HA_STATUS_CONST)) {
         stats.max_data_file_length=  9223372036854775807ULL;
+        tokudb::set_card_in_key_info(table, share->n_rec_per_key, share->rec_per_key);
     }
 
     /* Don't return key if we got an error for the internal primary key */
@@ -6010,6 +5992,9 @@ int ha_tokudb::extra(enum ha_extra_function operation) {
     case HA_EXTRA_NO_IGNORE_NO_KEY:
         using_ignore_no_key = false;
         break;
+    case HA_EXTRA_NOT_USED:
+    case HA_EXTRA_PREPARE_FOR_RENAME:
+        break; // must do nothing and return 0
     default:
         break;
     }
@@ -6026,7 +6011,6 @@ int ha_tokudb::reset(void) {
     TOKUDB_HANDLER_DBUG_RETURN(0);
 }
 
-
 //
 // helper function that iterates through all DB's 
 // and grabs a lock (either read or write, but not both)
@@ -6038,6 +6022,7 @@ int ha_tokudb::reset(void) {
 //      error otherwise
 //
 int ha_tokudb::acquire_table_lock (DB_TXN* trans, TABLE_LOCK_TYPE lt) {
+    TOKUDB_HANDLER_DBUG_ENTER("%p %s", trans, lt == lock_read ? "r" : "w");
     int error = ENOSYS;
     if (!num_DBs_locked_in_bulk) {
         rw_rdlock(&share->num_DBs_lock);
@@ -6069,9 +6054,8 @@ cleanup:
     if (!num_DBs_locked_in_bulk) {
         rw_unlock(&share->num_DBs_lock);
     }
-    return error;
+    TOKUDB_HANDLER_DBUG_RETURN(error);
 }
-
 
 int ha_tokudb::create_txn(THD* thd, tokudb_trx_data* trx) {
     int error;
@@ -6249,7 +6233,6 @@ cleanup:
   TABLE LOCK is done.
   Under LOCK TABLES, each used tables will force a call to start_stmt.
 */
-
 int ha_tokudb::start_stmt(THD * thd, thr_lock_type lock_type) {
     TOKUDB_HANDLER_DBUG_ENTER("cmd %d lock %d %s", thd_sql_command(thd), lock_type, share->table_name);
     if (0)
@@ -6257,7 +6240,11 @@ int ha_tokudb::start_stmt(THD * thd, thr_lock_type lock_type) {
 
     int error = 0;
     tokudb_trx_data *trx = (tokudb_trx_data *) thd_get_ha_data(thd, tokudb_hton);
-    DBUG_ASSERT(trx);
+    if (!trx) {
+        error = create_tokudb_trx_data_instance(&trx);
+        if (error) { goto cleanup; }
+        thd_set_ha_data(thd, tokudb_hton, trx);
+    }
 
     /*
        note that trx->stmt may have been already initialized as start_stmt()
@@ -6278,27 +6265,6 @@ int ha_tokudb::start_stmt(THD * thd, thr_lock_type lock_type) {
             TOKUDB_HANDLER_TRACE("trx->stmt %p already existed", trx->stmt);
         }
     }
-    //
-    // we know we are in lock tables
-    // attempt to grab a table lock
-    // if fail, continue, do not return error
-    // This is because a failure ok, it simply means
-    // another active transaction has some locks.
-    // That other transaction modify this table
-    // until it is unlocked, therefore having acquire_table_lock
-    // potentially grab some locks but not all is ok.
-    //
-    if (lock.type <= TL_READ_NO_INSERT) {
-        acquire_table_lock(trx->sub_sp_level,lock_read);
-    }
-    else {
-        if (!(thd_sql_command(thd) == SQLCOM_CREATE_INDEX ||
-            thd_sql_command(thd) == SQLCOM_ALTER_TABLE ||
-            thd_sql_command(thd) == SQLCOM_DROP_INDEX ||
-            thd_sql_command(thd) == SQLCOM_TRUNCATE)) {
-            acquire_table_lock(trx->sub_sp_level,lock_write);
-        }
-    }    
     if (added_rows > deleted_rows) {
         share->rows_from_locked_table = added_rows - deleted_rows;
     }
@@ -6410,6 +6376,13 @@ static toku_compression_method get_compression_method(DB *file) {
     assert(r == 0);
     return method;
 }
+
+#if TOKU_INCLUDE_ROW_TYPE_COMPRESSION
+enum row_type ha_tokudb::get_row_type(void) const {
+    toku_compression_method compression_method = get_compression_method(share->file);
+    return toku_compression_method_to_row_type(compression_method);
+}
+#endif
 
 static int create_sub_table(
     const char *table_name, 
@@ -6809,11 +6782,13 @@ int ha_tokudb::create(const char *name, TABLE * form, HA_CREATE_INFO * create_in
 
     memset(&kc_info, 0, sizeof(kc_info));
 
+#if 100000 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID <= 100999
     // TokuDB does not support discover_table_names() and writes no files
     // in the database directory, so automatic filename-based
     // discover_table_names() doesn't work either. So, it must force .frm
     // file to disk.
     form->s->write_frm_image();
+#endif
 
 #if TOKU_INCLUDE_OPTION_STRUCTS
     const srv_row_format_t row_format = (srv_row_format_t) form->s->option_struct->row_format;
@@ -7060,17 +7035,17 @@ int ha_tokudb::delete_or_rename_table (const char* from_name, const char* to_nam
 
     error = status_db->cursor(status_db, txn, &status_cursor, 0);
     if (error) { goto cleanup; }
+    status_cursor->c_set_check_interrupt_callback(status_cursor, tokudb_killed_thd_callback, thd);
 
     while (error != DB_NOTFOUND) {
-        error = status_cursor->c_get(
-            status_cursor,
-            &curr_key,
-            &curr_val,
-            DB_NEXT
-            );
-        if (error && error != DB_NOTFOUND) { goto cleanup; }
-        if (error == DB_NOTFOUND) { break; }
-
+        error = status_cursor->c_get(status_cursor, &curr_key, &curr_val, DB_NEXT);
+        if (error && error != DB_NOTFOUND) {
+            error = map_to_handler_error(error);
+            goto cleanup;
+        }
+        if (error == DB_NOTFOUND) {
+            break;
+        }
         HA_METADATA_KEY mk = *(HA_METADATA_KEY *)curr_key.data;
         if (mk != hatoku_key_name) {
             continue;
@@ -7945,23 +7920,33 @@ void ha_tokudb::restore_drop_indexes(TABLE *table_arg, uint *key_num, uint num_o
 }
 
 int ha_tokudb::map_to_handler_error(int error) {
-    if (error == DB_LOCK_DEADLOCK)
+    switch (error) {
+    case DB_LOCK_DEADLOCK:
         error = HA_ERR_LOCK_DEADLOCK;
-    if (error == DB_LOCK_NOTGRANTED)
+        break;
+    case DB_LOCK_NOTGRANTED:
         error = HA_ERR_LOCK_WAIT_TIMEOUT;
+        break;
 #if defined(HA_ERR_DISK_FULL)
-    if (error == ENOSPC) {
+    case ENOSPC:
         error = HA_ERR_DISK_FULL;
-    }
+        break;
 #endif
-    if (error == DB_KEYEXIST) {
+    case DB_KEYEXIST:
         error = HA_ERR_FOUND_DUPP_KEY;
-    }
+        break;
 #if defined(HA_ALTER_ERROR)
-    if (error == HA_ALTER_ERROR) {
+    case HA_ALTER_ERROR:
         error = HA_ERR_UNSUPPORTED;
-    }
+        break;
 #endif
+    case TOKUDB_INTERRUPTED:
+        error = ER_QUERY_INTERRUPTED;
+        break;
+    case TOKUDB_OUT_OF_LOCKS:
+        error = HA_ERR_LOCK_TABLE_FULL;
+        break;
+    }
     return error;
 }
 

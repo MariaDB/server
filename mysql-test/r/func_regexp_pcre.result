@@ -839,3 +839,9 @@ SELECT REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2');
 REGEXP_REPLACE('abc','^(.*)(.*)$','\\1/\\2')
 /abc
 SET default_regex_flags=DEFAULT;
+#
+# MDEV-6965 non-captured group \2 in regexp_replace
+#
+SELECT REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that');
+REGEXP_REPLACE('1 foo and bar', '(\\d+) foo and (\\d+ )?bar', '\\1 this and \\2that')
+1 this and that

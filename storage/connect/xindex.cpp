@@ -58,12 +58,11 @@
 #endif
 
 /***********************************************************************/
-/*  DB static external variables.                                      */
+/*  DB external variables.                                             */
 /***********************************************************************/
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
-extern "C" int  trace;
 #if defined(XMAP)
-extern     bool xmap;
+extern my_bool xmap;
 #endif   // XMAP
 
 /***********************************************************************/

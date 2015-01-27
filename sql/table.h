@@ -1377,6 +1377,7 @@ public:
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_default_fields();
+  void reset_default_fields();
   inline ha_rows stat_records() { return used_stat_records; }
 
   void prepare_triggers_for_insert_stmt_or_event();
@@ -1897,6 +1898,7 @@ struct TABLE_LIST
   LEX_STRING	timestamp;		/* GMT time stamp of last operation */
   st_lex_user   definer;                /* definer of view */
   ulonglong	file_version;		/* version of file's field set */
+  ulonglong	mariadb_version;	/* version of server on creation */
   ulonglong     updatable_view;         /* VIEW can be updated */
   /** 
       @brief The declared algorithm, if this is a view.

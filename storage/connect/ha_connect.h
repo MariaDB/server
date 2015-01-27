@@ -26,6 +26,8 @@
 #pragma interface     /* gcc class implementation */
 #endif
 
+static char *strz(PGLOBAL g, LEX_STRING &ls);
+
 /****************************************************************************/
 /*  Structures used to pass info between CONNECT and ha_connect.            */
 /****************************************************************************/
@@ -177,13 +179,16 @@ class ha_connect: public handler
 protected:
   char *PlugSubAllocStr(PGLOBAL g, void *memp, const char *str, size_t length)
   {
-    char *ptr;
-    if (!(ptr= (char*) PlugSubAlloc(g, memp, length + 1)))
-      return NULL;
-    memcpy(ptr, str, length);
-    ptr[length]= '\0';
+    char *ptr= (char*)PlgDBSubAlloc(g, memp, length + 1);
+
+    if (ptr) {
+      memcpy(ptr, str, length);
+      ptr[length]= '\0';
+      } // endif ptr
+
     return ptr;
-  }
+  } // end of PlugSubAllocStr
+
 public:
   ha_connect(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_connect();
@@ -210,6 +215,7 @@ public:
   void    *GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf);
   PXOS     GetIndexOptionStruct(KEY *kp);
   PIXDEF   GetIndexInfo(TABLE_SHARE *s= NULL);
+  bool     CheckVirtualIndex(TABLE_SHARE *s);
   const char *GetDBName(const char *name);
   const char *GetTableName(void);
   char    *GetPartName(void);
@@ -235,6 +241,8 @@ public:
                                              uint key_len= 0);
   bool     MakeKeyWhere(PGLOBAL g, char *qry, OPVAL op, char *q,
                                    const void *key, int klen);
+  inline char *Strz(LEX_STRING &ls); 
+
 
   /** @brief
     The name that will be used for display purposes.
@@ -535,7 +543,10 @@ protected:
   query_id_t    creat_query_id;       // The one when handler was allocated
   char         *datapath;             // Is the Path of DB data directory
   PTDB          tdbp;                 // To table class object
-  PVAL          sdvalin;              // Used to convert date values
+  PVAL          sdvalin1;             // Used to convert date values
+  PVAL          sdvalin2;             // Used to convert date values
+  PVAL          sdvalin3;             // Used to convert date values
+  PVAL          sdvalin4;             // Used to convert date values
   PVAL          sdvalout;             // Used to convert date values
   bool          istable;              // True for table handler
   char          partname[64];         // The partition name

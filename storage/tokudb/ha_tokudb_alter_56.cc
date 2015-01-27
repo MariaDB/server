@@ -528,7 +528,7 @@ bool ha_tokudb::inplace_alter_table(TABLE *altered_table, Alter_inplace_info *ha
         error = alter_table_expand_blobs(altered_table, ha_alter_info);
 
     if (error == 0 && ctx->reset_card) {
-        error = tokudb::set_card_from_status(share->status_block, ctx->alter_txn, table->s, altered_table->s);
+        error = tokudb::alter_card(share->status_block, ctx->alter_txn, table->s, altered_table->s);
     }
     if (error == 0 && ctx->optimize_needed) {
         error = do_optimize(ha_thd());
@@ -765,7 +765,9 @@ bool ha_tokudb::commit_inplace_alter_table(TABLE *altered_table, Alter_inplace_i
 #else
             THD::killed_state saved_killed_state = thd->killed;
             thd->killed = THD::NOT_KILLED;
-            for (volatile uint i = 0; wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED); i++) {
+            // MySQL does not handle HA_EXTRA_NOT_USED so we use HA_EXTRA_PREPARE_FOR_RENAME since it is passed through 
+            // the partition storage engine and is treated as a NOP by tokudb
+            for (volatile uint i = 0; wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME); i++) {
                 if (thd->killed != THD::NOT_KILLED)
                     thd->killed = THD::NOT_KILLED;
                 sleep(1);

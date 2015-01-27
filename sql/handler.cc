@@ -83,9 +83,7 @@ static const LEX_STRING sys_table_aliases[]=
 };
 
 const char *ha_row_type[] = {
-  "", "FIXED", "DYNAMIC", "COMPRESSED", "REDUNDANT", "COMPACT",
-  "PAGE",
-  "?","?","?"
+  "", "FIXED", "DYNAMIC", "COMPRESSED", "REDUNDANT", "COMPACT", "PAGE"
 };
 
 const char *tx_isolation_names[] =
@@ -1327,10 +1325,7 @@ int ha_commit_trans(THD *thd, bool all)
       Free resources and perform other cleanup even for 'empty' transactions.
     */
     if (is_real_trans)
-    {
       thd->transaction.cleanup();
-      thd->wakeup_subsequent_commits(error);
-    }
     DBUG_RETURN(0);
   }
 
@@ -1364,7 +1359,6 @@ int ha_commit_trans(THD *thd, bool all)
                                       thd->variables.lock_wait_timeout))
     {
       ha_rollback_trans(thd, all);
-      thd->wakeup_subsequent_commits(1);
       DBUG_RETURN(1);
     }
 
@@ -1452,7 +1446,6 @@ done:
 err:
   error= 1;                                  /* Transaction was rolled back */
   ha_rollback_trans(thd, all);
-  thd->wakeup_subsequent_commits(error);
 
 end:
   if (rw_trans && mdl_request.ticket)
@@ -1546,10 +1539,7 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
   }
   /* Free resources and perform other cleanup even for 'empty' transactions. */
   if (is_real_trans)
-  {
-    thd->wakeup_subsequent_commits(error);
     thd->transaction.cleanup();
-  }
 
   DBUG_RETURN(error);
 }

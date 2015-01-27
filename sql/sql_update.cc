@@ -603,7 +603,10 @@ int mysql_update(THD *thd,
       if (query_plan.index == MAX_KEY || (select && select->quick))
       {
         if (init_read_record(&info, thd, table, select, 0, 1, FALSE))
+        {
+          close_cached_file(&tempfile);
           goto err;
+        }
       }
       else
         init_read_record_idx(&info, thd, table, 1, query_plan.index, reverse);
@@ -716,6 +719,8 @@ int mysql_update(THD *thd,
   */
   if (table->file->ha_table_flags() & HA_PARTIAL_COLUMN_READ)
     table->prepare_for_position();
+
+  table->reset_default_fields();
 
   /*
     We can use compare_record() to optimize away updates if
@@ -1693,6 +1698,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       table->covering_keys.clear_all();
       table->pos_in_table_list= tl;
       table->prepare_triggers_for_update_stmt_or_event();
+      table->reset_default_fields();
     }
   }
 
@@ -2047,8 +2053,7 @@ int multi_update::send_data(List<Item> &not_used_values)
       store_record(table,record[1]);
       if (fill_record_n_invoke_before_triggers(thd, table, *fields_for_table[offset],
                                                *values_for_table[offset], 0,
-                                               TRG_EVENT_UPDATE) ||
-          (table->default_field && table->update_default_fields()))
+                                               TRG_EVENT_UPDATE))
 	DBUG_RETURN(1);
 
       /*
@@ -2060,6 +2065,10 @@ int multi_update::send_data(List<Item> &not_used_values)
       if (!can_compare_record || compare_record(table))
       {
 	int error;
+
+        if (table->default_field && table->update_default_fields())
+          DBUG_RETURN(1);
+
         if ((error= cur_table->view_check_option(thd, ignore)) !=
             VIEW_CHECK_OK)
         {

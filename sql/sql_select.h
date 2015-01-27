@@ -1341,7 +1341,6 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
-    filesort_found_rows= false;
     exec_saved_explain= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 

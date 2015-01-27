@@ -1,7 +1,7 @@
 #ifndef ITEM_FUNC_INCLUDED
 #define ITEM_FUNC_INCLUDED
-/* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+/* Copyright (c) 2000, 2014, Oracle and/or its affiliates.
+   Copyright (c) 2009, 2014, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -287,7 +287,8 @@ public:
   inline longlong check_integer_overflow(longlong value, bool val_unsigned)
   {
     if ((unsigned_flag && !val_unsigned && value < 0) ||
-        (!unsigned_flag && val_unsigned && (ulonglong) value > LONGLONG_MAX))
+        (!unsigned_flag && val_unsigned &&
+         (ulonglong) value > (ulonglong) LONGLONG_MAX))
       return raise_integer_overflow();
     return value;
   }
@@ -1740,6 +1741,7 @@ public:
   bool register_field_in_bitmap(uchar *arg);
   bool set_entry(THD *thd, bool create_if_not_exists);
   void cleanup();
+  bool check_vcol_func_processor(uchar *int_arg) {return TRUE;}
 };
 
 
@@ -1779,6 +1781,7 @@ public:
   {
     return this;
   }
+  bool check_vcol_func_processor(uchar *int_arg) { return TRUE;}
 };
 
 
@@ -1861,6 +1864,7 @@ public:
   bool eq(const Item *item, bool binary_cmp) const;
 
   void cleanup();
+  bool check_vcol_func_processor(uchar *int_arg) { return TRUE;}
 };
 
 
@@ -2159,7 +2163,6 @@ public:
   longlong val_int();
   void fix_length_and_dec()
   { max_length= 21; unsigned_flag=1; }
-  bool check_partition_func_processor(uchar *int_arg) {return FALSE;}
   bool check_vcol_func_processor(uchar *int_arg) 
   {
     return trace_unsupported_by_check_vcol_func_processor(func_name());

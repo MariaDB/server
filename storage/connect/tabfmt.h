@@ -161,7 +161,7 @@ class TDBFMT : public TDBCSV {
 
  protected:
   virtual bool PrepareWriting(PGLOBAL g) 
-              {strcpy(g->Message, "FMT is read only"); return true;}
+       {sprintf(g->Message, MSG(TABLE_READ_ONLY), "FMT"); return true;}
 
   // Members
   PSZ  *FldFormat;                      // Field read format

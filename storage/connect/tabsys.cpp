@@ -53,8 +53,6 @@
         GetPrivateProfileString(NULL,NULL,"",S,L,I)
 #endif   // !WIN32
 
-extern "C" int  trace;
-
 /* -------------- Implementation of the INI classes ------------------ */
 
 /***********************************************************************/

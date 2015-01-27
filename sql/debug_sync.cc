@@ -1394,8 +1394,9 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
     if (action->wait_for.length())
     {
-      mysql_mutex_t *old_mutex;
+      mysql_mutex_t *old_mutex= NULL;
       mysql_cond_t  *old_cond= NULL;
+      bool           restore_current_mutex;
       int             error= 0;
       struct timespec abstime;
 
@@ -1412,11 +1413,12 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
       {
         old_mutex= thd->mysys_var->current_mutex;
         old_cond= thd->mysys_var->current_cond;
+        restore_current_mutex = true;
         thd->mysys_var->current_mutex= &debug_sync_global.ds_mutex;
         thd->mysys_var->current_cond= &debug_sync_global.ds_cond;
       }
       else
-        old_mutex= NULL;
+        restore_current_mutex = false;
 
       set_timespec(abstime, action->timeout);
       DBUG_EXECUTE("debug_sync_exec", {
@@ -1476,7 +1478,7 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         is locked. (See comment in THD::exit_cond().)
       */
       mysql_mutex_unlock(&debug_sync_global.ds_mutex);
-      if (old_mutex)
+      if (restore_current_mutex)
       {
         mysql_mutex_lock(&thd->mysys_var->mutex);
         thd->mysys_var->current_mutex= old_mutex;

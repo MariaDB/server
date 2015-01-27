@@ -2355,8 +2355,14 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   int rc= 0;
   KEY *key_info= &table->key_info[index];
   ha_rows rows= 0;
-  Index_prefix_calc index_prefix_calc(table, key_info);
+
   DBUG_ENTER("collect_statistics_for_index");
+
+  /* No statistics for FULLTEXT indexes. */
+  if (key_info->flags & HA_FULLTEXT)
+    DBUG_RETURN(rc);
+
+  Index_prefix_calc index_prefix_calc(table, key_info);
 
   DEBUG_SYNC(table->in_use, "statistics_collection_start1");
   DEBUG_SYNC(table->in_use, "statistics_collection_start2");
@@ -2391,7 +2397,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   if (!rc)
     index_prefix_calc.get_avg_frequency();
 
-  DBUG_RETURN(rc);            
+  DBUG_RETURN(rc);
 }
 
 
@@ -2467,6 +2473,8 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       continue; 
     table_field->collected_stats->init(thd, table_field);
   }
+
+  restore_record(table, s->default_values);
 
   /* Perform a full table scan to collect statistics on 'table's columns */
   if (!(rc= file->ha_rnd_init(TRUE)))

@@ -57,8 +57,6 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-extern "C" int trace;
-
 /* -------------- Implementation of the XCOL classes	---------------- */
 
 /***********************************************************************/
@@ -184,8 +182,9 @@ bool TDBXCL::OpenDB(PGLOBAL g)
   /*  Check and initialize the subtable columns.                       */
   /*********************************************************************/
   for (PCOL cp = Columns; cp; cp = cp->GetNext())
-    if (((PPRXCOL)cp)->Init(g))
-      return TRUE;
+    if (!cp->IsSpecial())
+      if (((PPRXCOL)cp)->Init(g))
+        return TRUE;
 
   /*********************************************************************/
   /*  Physically open the object table.                                */
@@ -267,6 +266,7 @@ bool XCLCOL::Init(PGLOBAL g, PTDBASE tp)
 void XCLCOL::ReadColumn(PGLOBAL g)
   {
 	if (((PTDBXCL)To_Tdb)->New) {
+    Colp->Reset();           // Moved here in case of failed filtering
 		Colp->Eval(g);
 		strncpy(Cbuf, To_Val->GetCharValue(), Colp->GetLength());
     Cbuf[Colp->GetLength()] = 0;

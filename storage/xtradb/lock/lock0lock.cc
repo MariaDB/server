@@ -5535,6 +5535,7 @@ loop:
 			ulint	space	= lock->un_member.rec_lock.space;
 			ulint	zip_size= fil_space_get_zip_size(space);
 			ulint	page_no = lock->un_member.rec_lock.page_no;
+			ibool	tablespace_being_deleted = FALSE;
 
 			if (UNIV_UNLIKELY(zip_size == ULINT_UNDEFINED)) {
 
@@ -5555,14 +5556,31 @@ loop:
 
 			if (srv_show_verbose_locks) {
 
-				mtr_start(&mtr);
+				DEBUG_SYNC_C("innodb_monitor_before_lock_page_read");
 
-				buf_page_get_gen(space, zip_size, page_no,
-						 RW_NO_LATCH, NULL,
-						 BUF_GET_POSSIBLY_FREED,
-						 __FILE__, __LINE__, &mtr);
+				/* Check if the space is exists or not. only
+                                when the space is valid, try to get the page. */
+				tablespace_being_deleted
+					= fil_inc_pending_ops(space, false);
 
-				mtr_commit(&mtr);
+				if (!tablespace_being_deleted) {
+					mtr_start(&mtr);
+
+					buf_page_get_gen(space, zip_size,
+							 page_no, RW_NO_LATCH,
+							 NULL,
+							 BUF_GET_POSSIBLY_FREED,
+							 __FILE__, __LINE__,
+							 &mtr);
+
+					mtr_commit(&mtr);
+
+					fil_decr_pending_ops(space);
+				} else {
+					fprintf(file, "RECORD LOCKS on"
+						" non-existing space %lu\n",
+						(ulong) space);
+				}
 			}
 
 			load_page_first = FALSE;
@@ -5990,7 +6008,7 @@ lock_rec_block_validate(
 
 	/* Make sure that the tablespace is not deleted while we are
 	trying to access the page. */
-	if (!fil_inc_pending_ops(space)) {
+	if (!fil_inc_pending_ops(space, true)) {
 		mtr_start(&mtr);
 		block = buf_page_get_gen(
 			space, fil_space_get_zip_size(space),
@@ -6084,11 +6102,13 @@ lock_rec_insert_check_and_lock(
 	lock_t*		lock;
 	dberr_t		err;
 	ulint		next_rec_heap_no;
+	ibool		inherit_in = *inherit;
 
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(!dict_index_is_online_ddl(index)
 	      || dict_index_is_clust(index)
 	      || (flags & BTR_CREATE_FLAG));
+	ut_ad((flags & BTR_NO_LOCKING_FLAG) || thr);
 
 	if (flags & BTR_NO_LOCKING_FLAG) {
 
@@ -6121,7 +6141,7 @@ lock_rec_insert_check_and_lock(
 
 		lock_mutex_exit();
 
-		if (!dict_index_is_clust(index)) {
+		if (inherit_in && !dict_index_is_clust(index)) {
 			/* Update the page max trx id field */
 			page_update_max_trx_id(block,
 					       buf_block_get_page_zip(block),
@@ -6169,7 +6189,7 @@ lock_rec_insert_check_and_lock(
 		err = DB_SUCCESS;
 		/* fall through */
 	case DB_SUCCESS:
-		if (dict_index_is_clust(index)) {
+		if (!inherit_in || dict_index_is_clust(index)) {
 			break;
 		}
 		/* Update the page max trx id field */

@@ -1,4 +1,6 @@
 drop table if exists t1;
+call mtr.add_suppression("option 'innodb-purge-threads': unsigned value 0 adjusted to*");
+set global innodb_stats_persistent = false;
 CREATE TABLE t1 (a int not null primary key) engine=InnoDB;
 set global innodb_limit_optimistic_insert_debug = 2;
 insert into t1 values (1);
@@ -9,45 +11,55 @@ insert into t1 values (2);
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-select DATA_LENGTH / 16384 from information_schema.TABLES where TABLE_SCHEMA = 'test' and TABLE_NAME = 't1';
-DATA_LENGTH / 16384
-10.0000
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+CLUST_INDEX_SIZE
+10
 delete from t1 where a=4;
+set global innodb_purge_stop_now=ON;
+set global innodb_purge_run_now=ON;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-select DATA_LENGTH / 16384 from information_schema.TABLES where TABLE_SCHEMA = 'test' and TABLE_NAME = 't1';
-DATA_LENGTH / 16384
-8.0000
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+CLUST_INDEX_SIZE
+8
 delete from t1 where a=5;
+set global innodb_purge_stop_now=ON;
+set global innodb_purge_run_now=ON;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-select DATA_LENGTH / 16384 from information_schema.TABLES where TABLE_SCHEMA = 'test' and TABLE_NAME = 't1';
-DATA_LENGTH / 16384
-5.0000
-set global innodb_limit_optimistic_insert_debug = 10000;
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+CLUST_INDEX_SIZE
+5
+set global innodb_limit_optimistic_insert_debug = 0;
 delete from t1 where a=2;
+set global innodb_purge_stop_now=ON;
+set global innodb_purge_run_now=ON;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-select DATA_LENGTH / 16384 from information_schema.TABLES where TABLE_SCHEMA = 'test' and TABLE_NAME = 't1';
-DATA_LENGTH / 16384
-3.0000
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+CLUST_INDEX_SIZE
+3
 insert into t1 values (2);
 delete from t1 where a=2;
+set global innodb_purge_stop_now=ON;
+set global innodb_purge_run_now=ON;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-select DATA_LENGTH / 16384 from information_schema.TABLES where TABLE_SCHEMA = 'test' and TABLE_NAME = 't1';
-DATA_LENGTH / 16384
-2.0000
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+CLUST_INDEX_SIZE
+2
 insert into t1 values (2);
 delete from t1 where a=2;
+set global innodb_purge_stop_now=ON;
+set global innodb_purge_run_now=ON;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK
-select DATA_LENGTH / 16384 from information_schema.TABLES where TABLE_SCHEMA = 'test' and TABLE_NAME = 't1';
-DATA_LENGTH / 16384
-1.0000
+select CLUST_INDEX_SIZE from information_schema.INNODB_SYS_TABLESTATS where NAME = 'test/t1';
+CLUST_INDEX_SIZE
+1
 drop table t1;

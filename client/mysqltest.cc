@@ -5908,6 +5908,7 @@ void do_connect(struct st_command *command)
 {
   int con_port= opt_port;
   char *con_options;
+  char *ssl_cipher __attribute__((unused))= 0;
   my_bool con_ssl= 0, con_compress= 0;
   my_bool con_pipe= 0;
   my_bool con_shm __attribute__ ((unused))= 0;
@@ -5996,6 +5997,11 @@ void do_connect(struct st_command *command)
     length= (size_t) (end - con_options);
     if (length == 3 && !strncmp(con_options, "SSL", 3))
       con_ssl= 1;
+    else if (!strncmp(con_options, "SSL-CIPHER=", 11))
+    {
+      con_ssl= 1;
+      ssl_cipher=con_options + 11;
+    }
     else if (length == 8 && !strncmp(con_options, "COMPRESS", 8))
       con_compress= 1;
     else if (length == 4 && !strncmp(con_options, "PIPE", 4))
@@ -6052,7 +6058,7 @@ void do_connect(struct st_command *command)
   {
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
     mysql_ssl_set(con_slot->mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
+		  opt_ssl_capath, ssl_cipher ? ssl_cipher : opt_ssl_cipher);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
     mysql_options(con_slot->mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
 #if MYSQL_VERSION_ID >= 50000

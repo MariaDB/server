@@ -457,6 +457,14 @@ UNIV_INTERN my_bool		srv_stats_persistent = TRUE;
 UNIV_INTERN unsigned long long	srv_stats_persistent_sample_pages = 20;
 UNIV_INTERN my_bool		srv_stats_auto_recalc = TRUE;
 
+/* The number of rows modified before we calculate new statistics (default 0
+= current limits) */
+UNIV_INTERN unsigned long long srv_stats_modified_counter = 0;
+
+/* Enable traditional statistic calculation based on number of configured
+pages default true. */
+UNIV_INTERN my_bool	srv_stats_sample_traditional = TRUE;
+
 UNIV_INTERN ibool	srv_use_doublewrite_buf	= TRUE;
 UNIV_INTERN ibool       srv_use_atomic_writes = FALSE;
 #ifdef HAVE_POSIX_FALLOCATE
@@ -1149,6 +1157,8 @@ srv_init(void)
 	trx_i_s_cache_init(trx_i_s_cache);
 
 	ut_crc32_init();
+
+	dict_mem_init();
 }
 
 /*********************************************************************//**
@@ -1603,15 +1613,6 @@ srv_printf_innodb_monitor(
 	srv_n_system_rows_updated_old = srv_stats.n_system_rows_updated;
 	srv_n_system_rows_deleted_old = srv_stats.n_system_rows_deleted;
 	srv_n_system_rows_read_old = srv_stats.n_system_rows_read;
-
-	/* Only if lock_print_info_summary proceeds correctly,
-	before we call the lock_print_info_all_transactions
-	to print all the lock information. */
-	ret = lock_print_info_summary(file, nowait);
-
-	if (ret) {
-		lock_print_info_all_transactions(file);
-	}
 
 	fputs("----------------------------\n"
 	      "END OF INNODB MONITOR OUTPUT\n"

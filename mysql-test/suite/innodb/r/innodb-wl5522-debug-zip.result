@@ -104,7 +104,7 @@ restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="-d,ib_import_reset_space_and_lsn_failure";
 SET SESSION debug_dbug="+d,ib_import_open_tablespace_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Got error 44 'Tablespace not found' from ./test_wl5522/t1.ibd
+ERROR HY000: Got error 44 't1.ibd
 SET SESSION debug_dbug="-d,ib_import_open_tablespace_failure";
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,ib_import_check_bitmap_failure";
@@ -537,7 +537,7 @@ ERROR HY000: Tablespace has been discarded for table 't1'
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,fil_space_create_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Got error 11 'Generic error' from ./test_wl5522/t1.ibd
+ERROR HY000: Got error 11 't1.ibd
 SET SESSION debug_dbug="-d,fil_space_create_failure";
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd
@@ -550,7 +550,7 @@ ERROR HY000: Tablespace has been discarded for table 't1'
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,dict_tf_to_fsp_flags_failure";
 ALTER TABLE test_wl5522.t1 IMPORT TABLESPACE;
-ERROR HY000: Got error 39 'Data structure corruption' from ./test_wl5522/t1.ibd
+ERROR HY000: Got error 39 't1.ibd
 SET SESSION debug_dbug="-d,dict_tf_to_fsp_flags_failure";
 DROP TABLE test_wl5522.t1;
 unlink: t1.ibd

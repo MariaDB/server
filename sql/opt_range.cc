@@ -8252,6 +8252,8 @@ get_mm_leaf(RANGE_OPT_PARAM *param, COND *conf_func, Field *field,
       !(conf_func->compare_collation()->state & MY_CS_BINSORT &&
         (type == Item_func::EQUAL_FUNC || type == Item_func::EQ_FUNC)))
     goto end;
+  if (value->cmp_type() == TIME_RESULT && field->cmp_type() != TIME_RESULT)
+    goto end;
 
   if (key_part->image_type == Field::itMBR)
   {
@@ -12799,11 +12801,11 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
     uint cur_used_key_parts;
     
     /*
-      Check (B1) - if current index is covering. Exclude UNIQUE indexes, because
-      loose scan may still be chosen for them due to imperfect cost calculations.
+      Check (B1) - if current index is covering.
+      (was also: "Exclude UNIQUE indexes ..." but this was removed because 
+      there are cases Loose Scan over a multi-part index is useful).
     */
-    if (!table->covering_keys.is_set(cur_index) ||
-        cur_index_info->flags & HA_NOSAME)
+    if (!table->covering_keys.is_set(cur_index))
       goto next_index;
 
     /*
@@ -12939,6 +12941,16 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
       if (key_part_nr <= cur_group_key_parts)
         goto next_index;
       min_max_arg_part= cur_index_info->key_part + key_part_nr - 1;
+    }
+
+    /*
+      Aplly a heuristic: there is no point to use loose index scan when we're
+      using the whole unique index.
+    */
+    if (cur_index_info->flags & HA_NOSAME && 
+        cur_group_key_parts == cur_index_info->user_defined_key_parts)
+    {
+      goto next_index;
     }
 
     /*
@@ -13155,12 +13167,13 @@ get_best_group_min_max(PARAM *param, SEL_TREE *tree, double read_time)
 
   SYNOPSIS
     check_group_min_max_predicates()
-    cond        [in]  the expression tree being analyzed
-    min_max_arg [in]  the field referenced by the MIN/MAX function(s)
-    image_type  [in]
-    has_min_max_arg [out] true if the subtree being analyzed references min_max_arg
-    has_other_arg   [out] true if the subtree being analyzed references a column
-                          other min_max_arg
+    cond            [in]  the expression tree being analyzed
+    min_max_arg     [in]  the field referenced by the MIN/MAX function(s)
+    image_type      [in]
+    has_min_max_arg [out] true if the subtree being analyzed references
+                          min_max_arg
+    has_other_arg   [out] true if the subtree being analyzed references a
+                          column other min_max_arg
 
   DESCRIPTION
     The function walks recursively over the cond tree representing a WHERE
@@ -13204,7 +13217,7 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
         (2) the subtree passes the test, but it is an OR and it references both
             the min/max argument and other columns.
       */
-      if (!check_group_min_max_predicates(and_or_arg, min_max_arg_item,      //1
+      if (!check_group_min_max_predicates(and_or_arg, min_max_arg_item,     //1
                                           image_type,
                                           &has_min_max, &has_other) ||
           (func_type == Item_func::COND_OR_FUNC && has_min_max && has_other))//2
@@ -13220,7 +13233,7 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
     a subquery in the WHERE clause.
   */
 
-  if (cond_type == Item::SUBSELECT_ITEM)
+  if (unlikely(cond_type == Item::SUBSELECT_ITEM))
   {
     Item_subselect *subs_cond= (Item_subselect*) cond;
     if (subs_cond->is_correlated)
@@ -13237,7 +13250,14 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
     }
     DBUG_RETURN(TRUE);
   }
-
+  /*
+    Subquery with IS [NOT] NULL
+    TODO: Look into the cache_item and optimize it like we do for
+    subselect's above
+   */
+  if (unlikely(cond_type == Item::CACHE_ITEM))
+    DBUG_RETURN(cond->const_item());
+  
   /*
     Condition of the form 'field' is equivalent to 'field <> 0' and thus
     satisfies the SA3 condition.
@@ -13254,7 +13274,9 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
 
   /* We presume that at this point there are no other Items than functions. */
   DBUG_ASSERT(cond_type == Item::FUNC_ITEM);
-
+  if (unlikely(cond_type != Item::FUNC_ITEM))   /* Safety */
+    DBUG_RETURN(FALSE);
+  
   /* Test if cond references only group-by or non-group fields. */
   Item_func *pred= (Item_func*) cond;
   Item_func::Functype pred_type= pred->functype();
@@ -13318,16 +13340,31 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
           DBUG_RETURN(FALSE);
 
         /* Check for compatible string comparisons - similar to get_mm_leaf. */
-        if (args[0] && args[1] && !args[2] && // this is a binary function
-            min_max_arg_item->result_type() == STRING_RESULT &&
-            /*
-              Don't use an index when comparing strings of different collations.
-            */
-            ((args[1]->result_type() == STRING_RESULT &&
-              image_type == Field::itRAW &&
-              min_max_arg_item->field->charset() !=
-              pred->compare_collation())
-             ||
+        if (args[0] && args[1] && !args[2]) // this is a binary function
+        {
+          if (args[1]->cmp_type() == TIME_RESULT &&
+              min_max_arg_item->field->cmp_type() != TIME_RESULT)
+            DBUG_RETURN(FALSE);
+
+          /*
+            Can't use GROUP_MIN_MAX optimization for ENUM and SET,
+            because the values are stored as numbers in index,
+            while MIN() and MAX() work as strings.
+            It would return the records with min and max enum numeric indexes.
+           "Bug#45300 MAX() and ENUM type" should be fixed first.
+          */
+          if (min_max_arg_item->field->real_type() == MYSQL_TYPE_ENUM ||
+              min_max_arg_item->field->real_type() == MYSQL_TYPE_SET)
+            DBUG_RETURN(FALSE);
+
+          if (min_max_arg_item->result_type() == STRING_RESULT &&
+              /*
+                Don't use an index when comparing strings of different collations.
+              */
+              ((args[1]->result_type() == STRING_RESULT &&
+                image_type == Field::itRAW &&
+                min_max_arg_item->field->charset() !=
+                pred->compare_collation()) ||
              /*
                We can't always use indexes when comparing a string index to a
                number.
@@ -13335,6 +13372,7 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
              (args[1]->result_type() != STRING_RESULT &&
               min_max_arg_item->field->cmp_type() != args[1]->result_type())))
           DBUG_RETURN(FALSE);
+        }
       }
       else
         has_other= true;

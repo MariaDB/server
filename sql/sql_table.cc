@@ -3047,10 +3047,6 @@ int prepare_create_field(Create_field *sql_field,
                           (sql_field->decimals << FIELDFLAG_DEC_SHIFT));
     break;
   }
-  if (sql_field->flags & NOT_NULL_FLAG)
-    DBUG_PRINT("info", ("1"));
-  if (sql_field->vcol_info)
-    DBUG_PRINT("info", ("2"));
   if (!(sql_field->flags & NOT_NULL_FLAG) ||
       (sql_field->vcol_info))  /* Make virtual columns allow NULL values */
     sql_field->pack_flag|= FIELDFLAG_MAYBE_NULL;
@@ -8380,9 +8376,21 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
   }
 
   /*
-   If this is an ALTER TABLE and no explicit row type specified reuse
-   the table's row type.
-   Note : this is the same as if the row type was specified explicitly.
+   If foreign key is added then check permission to access parent table.
+
+   In function "check_fk_parent_table_access", create_info->db_type is used
+   to identify whether engine supports FK constraint or not. Since
+   create_info->db_type is set here, check to parent table access is delayed
+   till this point for the alter operation.
+  */
+  if ((alter_info->flags & Alter_info::ADD_FOREIGN_KEY) &&
+      check_fk_parent_table_access(thd, create_info, alter_info))
+    DBUG_RETURN(true);
+
+  /*
+    If this is an ALTER TABLE and no explicit row type specified reuse
+    the table's row type.
+    Note: this is the same as if the row type was specified explicitly.
   */
   if (create_info->row_type == ROW_TYPE_NOT_USED)
   {
@@ -8727,6 +8735,9 @@ bool mysql_alter_table(THD *thd,char *new_db, char *new_name,
     */
     altered_table->column_bitmaps_set_no_signal(&altered_table->s->all_set,
                                                 &altered_table->s->all_set);
+    restore_record(altered_table, s->default_values); // Create empty record
+    if (altered_table->default_field && altered_table->update_default_fields())
+      goto err_new_table_cleanup;
 
     // Ask storage engine whether to use copy or in-place
     enum_alter_inplace_result inplace_supported=
@@ -9369,14 +9380,14 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   to->use_all_columns();
   to->mark_virtual_columns_for_write(TRUE);
   if (init_read_record(&info, thd, from, (SQL_SELECT *) 0, 1, 1, FALSE))
-  {
-    error= 1;
     goto err;
-  }
+
   if (ignore && !alter_ctx->fk_error_if_delete_row)
     to->file->extra(HA_EXTRA_IGNORE_DUP_KEY);
   thd->get_stmt_da()->reset_current_row_for_warning();
   restore_record(to, s->default_values);        // Create empty record
+  if (to->default_field && to->update_default_fields())
+    goto err;
 
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
@@ -9419,11 +9430,6 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
     prev_insert_id= to->file->next_insert_id;
     if (to->vfield)
       update_virtual_fields(thd, to, VCOL_UPDATE_FOR_WRITE);
-    if (to->default_field && to->update_default_fields())
-    {
-      error= 1;
-      break;
-    }
     if (thd->is_error())
     {
       error= 1;
@@ -9527,12 +9533,12 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
 
 /*
-  Recreates tables by calling mysql_alter_table().
+  Recreates one table by calling mysql_alter_table().
 
   SYNOPSIS
     mysql_recreate_table()
     thd			Thread handler
-    tables		Tables to recreate
+    table_list          Table to recreate
     table_copy          Recreate the table by using
                         ALTER TABLE COPY algorithm
 
@@ -9544,13 +9550,15 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 {
   HA_CREATE_INFO create_info;
   Alter_info alter_info;
-  DBUG_ENTER("mysql_recreate_table");
-  DBUG_ASSERT(!table_list->next_global);
+  TABLE_LIST *next_table= table_list->next_global;
 
+  DBUG_ENTER("mysql_recreate_table");
   /* Set lock type which is appropriate for ALTER TABLE. */
   table_list->lock_type= TL_READ_NO_INSERT;
   /* Same applies to MDL request. */
   table_list->mdl_request.set_type(MDL_SHARED_NO_WRITE);
+  /* hide following tables from open_tables() */
+  table_list->next_global= NULL;
 
   bzero((char*) &create_info, sizeof(create_info));
   create_info.row_type=ROW_TYPE_NOT_USED;
@@ -9562,9 +9570,11 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
   if (table_copy)
     alter_info.requested_algorithm= Alter_info::ALTER_TABLE_ALGORITHM_COPY;
 
-  DBUG_RETURN(mysql_alter_table(thd, NullS, NullS, &create_info,
+  bool res= mysql_alter_table(thd, NullS, NullS, &create_info,
                                 table_list, &alter_info, 0,
-                                (ORDER *) 0, 0));
+                                (ORDER *) 0, 0);
+  table_list->next_global= next_table;
+  DBUG_RETURN(res);
 }
 
 

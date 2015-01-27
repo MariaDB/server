@@ -65,14 +65,16 @@
 /***********************************************************************/
 int num_read, num_there, num_eq[2];                 // Statistics
 
-extern "C" int     trace;
-extern "C" USETEMP Use_Temp;
-extern     bool    xinfo;
-
 /***********************************************************************/
 /*  Size of optimize file header.                                      */
 /***********************************************************************/
 #define NZ         4
+
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+bool    ExactInfo(void);
+USETEMP UseTemp(void);
 
 /***********************************************************************/
 /*  Min and Max blocks contains zero ended fields (blank = false).     */
@@ -316,7 +318,7 @@ bool DOSDEF::InvalidateIndex(PGLOBAL g)
 PTDB DOSDEF::GetTable(PGLOBAL g, MODE mode)
   {
   // Mapping not used for insert
-  USETEMP tmp = Use_Temp;
+  USETEMP tmp = UseTemp();
   bool    map = Mapped && mode != MODE_INSERT &&
                 !(tmp != TMP_NO && Recfm == RECFM_VAR
                                 && mode == MODE_UPDATE) &&
@@ -1776,8 +1778,13 @@ bool TDBDOS::InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted)
   To_Link = (PXOB*)PlugSubAlloc(g, NULL, Knum * sizeof(PXOB));
 
   for (k = 0, kdp = xdp->GetToKeyParts(); kdp; k++, kdp = kdp->GetNext()) {
-    cdp = Key(k)->GetCdp();
-    valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    if ((cdp = Key(k)->GetCdp()))
+      valp = AllocateValue(g, cdp->GetType(), cdp->GetLength());
+    else {                        // Special column ?
+      colp = Key(k);
+      valp = AllocateValue(g, colp->GetResultType(), colp->GetLength());
+    } // endif cdp
+
     To_Link[k]= new(g) CONSTANT(valp);
     } // endfor k
 
@@ -1905,7 +1912,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
     
         } // endif Mode
 
-      if (Mode == MODE_ANY && xinfo) {
+      if (Mode == MODE_ANY && ExactInfo()) {
         // Using index impossible or failed, do it the hard way
         Mode = MODE_READ;
         To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
@@ -2018,8 +2025,10 @@ int TDBDOS::EstimatedLength(PGLOBAL g)
 /***********************************************************************/
 bool TDBDOS::IsUsingTemp(PGLOBAL g)
   {
-  return (Use_Temp == TMP_YES || Use_Temp == TMP_FORCE ||
-         (Use_Temp == TMP_AUTO && Mode == MODE_UPDATE));
+  USETEMP utp = UseTemp();
+
+  return (utp == TMP_YES || utp == TMP_FORCE ||
+         (utp == TMP_AUTO && Mode == MODE_UPDATE));
   } // end of IsUsingTemp
 
 /***********************************************************************/
@@ -2059,7 +2068,7 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
     Txfp->SetTdbp(this);
   } else if (Txfp->Blocked && (Mode == MODE_DELETE ||
-             (Mode == MODE_UPDATE && Use_Temp != TMP_NO))) {
+             (Mode == MODE_UPDATE && UseTemp() != TMP_NO))) {
     /*******************************************************************/
     /*  Delete is not currently handled in block mode neither Update   */
     /*  when using a temporary file.                                   */
@@ -2202,7 +2211,8 @@ int TDBDOS::WriteDB(PGLOBAL g)
     htrc("DOS WriteDB: R%d Mode=%d \n", Tdb_No, Mode);
 
   // Make the line to write
-  (void)PrepareWriting(g);
+  if (PrepareWriting(g))
+    return true;
 
   if (trace > 1)
     htrc("Write: line is='%s'\n", To_Line);

@@ -1,7 +1,7 @@
 /*************** Tabodbc H Declares Source Code File (.H) **************/
-/*  Name: TABODBC.H   Version 1.6                                      */
+/*  Name: TABODBC.H   Version 1.8                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2013    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /*  This file contains the TDBODBC classes declares.                   */
 /***********************************************************************/
@@ -24,6 +24,7 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   friend class TDBODBC;
   friend class TDBXDBC;
   friend class TDBDRV;
+  friend class TDBOTB;
  public:
   // Constructor
   ODBCDEF(void);
@@ -56,9 +57,13 @@ class DllExport ODBCDEF : public TABDEF { /* Logical table description */
   PSZ     Sep;                /* Decimal separator                     */
   int     Catver;             /* ODBC version for catalog functions    */
   int     Options;            /* Open connection options               */
+  int     Cto;                /* Open connection timeout               */
+  int     Qto;                /* Query (command) timeout               */
   int     Quoted;             /* Identifier quoting level              */
   int     Maxerr;             /* Maxerr for an Exec table              */
   int     Maxres;             /* Maxres for a catalog table            */
+  bool    Scrollable;         /* Use scrollable cursor                 */
+  bool    Memory;             /* Put result set in memory              */
   bool    Xsrc;               /* Execution type                        */
   }; // end of ODBCDEF
 
@@ -133,6 +138,8 @@ class TDBODBC : public TDBASE {
   char    *Qrystr;            // The original query
   char     Sep;               // The decimal separator
   int      Options;           // Connect options
+  int      Cto;               // Connect timeout
+  int      Qto;               // Query timeout
   int      Quoted;            // The identifier quoting level
   int      Fpos;              // Position of last read record
   int      AftRows;           // The number of affected rows
@@ -142,6 +149,9 @@ class TDBODBC : public TDBASE {
   int      Rbuf;              // Number of lines read in buffer
   int      BufSize;           // Size of connect string buffer
   int      Nparm;             // The number of statement parameters
+  int      Memory;            // 0: No 1: Alloc 2: Put 3: Get
+  bool     Scrollable;        // Use scrollable cursor
+  PQRYRES  Qrp;               // Points to storage result
   }; // end of class TDBODBC
 
 /***********************************************************************/
@@ -160,6 +170,7 @@ class ODBCCOL : public COLBLK {
           SQLLEN *GetStrLen(void) {return StrLen;}
           int     GetRank(void) {return Rank;}
 //        PVBLK   GetBlkp(void) {return Blkp;}
+          void    SetCrp(PCOLRES crp) {Crp = crp;}
 
   // Methods
   virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -176,6 +187,7 @@ class ODBCCOL : public COLBLK {
 
   // Members
   TIMESTAMP_STRUCT *Sqlbuf;    // To get SQL_TIMESTAMP's
+  PCOLRES Crp;                 // To storage result
   void   *Bufp;                // To extended buffer
   PVBLK   Blkp;                // To Value Block
 //char    F_Date[12];          // Internal Date format
@@ -304,6 +316,8 @@ class TDBOTB : public TDBDRV {
   char    *Dsn;               // Points to connection string
   char    *Schema;            // Points to schema name or NULL
   char    *Tab;               // Points to ODBC table name or pattern
+  int      Cto;               // Connect timeout
+  int      Qto;               // Query timeout
   }; // end of class TDBOTB
 
 /***********************************************************************/

@@ -1124,6 +1124,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   thd->enable_slow_log= TRUE;
   thd->query_plan_flags= QPLAN_INIT;
   thd->lex->sql_command= SQLCOM_END; /* to avoid confusing VIEW detectors */
+  thd->reset_kill_query();
 
   DEBUG_SYNC(thd,"dispatch_command_before_set_time");
 
@@ -1759,6 +1760,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     MYSQL_COMMAND_DONE(res);
   }
+  DEBUG_SYNC(thd,"dispatch_command_end");
 
   /* Check that some variables are reset properly */
   DBUG_ASSERT(thd->abort_on_warning == 0);
@@ -5110,11 +5112,7 @@ finish:
         if (! thd->get_stmt_da()->is_set())
           thd->send_kill_message();
       }
-      if (thd->killed < KILL_CONNECTION)
-      {
-        thd->reset_killed();
-        thd->mysys_var->abort= 0;
-      }
+      thd->reset_kill_query();
     }
     if (thd->is_error() || (thd->variables.option_bits & OPTION_MASTER_SQL_ERROR))
       trans_rollback_stmt(thd);
@@ -5983,6 +5981,115 @@ bool check_global_access(THD *thd, ulong want_access, bool no_errors)
   return 0;
 #endif
 }
+
+
+/**
+  Checks foreign key's parent table access.
+
+  @param thd	       [in]	Thread handler
+  @param create_info   [in]     Create information (like MAX_ROWS, ENGINE or
+                                temporary table flag)
+  @param alter_info    [in]     Initial list of columns and indexes for the
+                                table to be created
+
+  @retval
+   false  ok.
+  @retval
+   true	  error or access denied. Error is sent to client in this case.
+*/
+bool check_fk_parent_table_access(THD *thd,
+                                  HA_CREATE_INFO *create_info,
+                                  Alter_info *alter_info)
+{
+  Key *key;
+  List_iterator<Key> key_iterator(alter_info->key_list);
+
+  while ((key= key_iterator++))
+  {
+    if (key->type == Key::FOREIGN_KEY)
+    {
+      TABLE_LIST parent_table;
+      bool is_qualified_table_name;
+      Foreign_key *fk_key= (Foreign_key *)key;
+      LEX_STRING db_name;
+      LEX_STRING table_name= { fk_key->ref_table.str,
+                               fk_key->ref_table.length };
+      const ulong privileges= (SELECT_ACL | INSERT_ACL | UPDATE_ACL |
+                               DELETE_ACL | REFERENCES_ACL);
+
+      // Check if tablename is valid or not.
+      DBUG_ASSERT(table_name.str != NULL);
+      if (check_table_name(table_name.str, table_name.length, false))
+      {
+        my_error(ER_WRONG_TABLE_NAME, MYF(0), table_name.str);
+        return true;
+      }
+
+      if (fk_key->ref_db.str)
+      {
+        is_qualified_table_name= true;
+        db_name.str= (char *) thd->memdup(fk_key->ref_db.str,
+                                          fk_key->ref_db.length+1);
+        db_name.length= fk_key->ref_db.length;
+
+        // Check if database name is valid or not.
+        if (fk_key->ref_db.str && check_db_name(&db_name))
+        {
+          my_error(ER_WRONG_DB_NAME, MYF(0), db_name.str);
+          return true;
+        }
+      }
+      else if (thd->lex->copy_db_to(&db_name.str, &db_name.length))
+        return true;
+      else
+        is_qualified_table_name= false;
+
+      // if lower_case_table_names is set then convert tablename to lower case.
+      if (lower_case_table_names)
+      {
+        table_name.str= (char *) thd->memdup(fk_key->ref_table.str,
+                                             fk_key->ref_table.length+1);
+        table_name.length= my_casedn_str(files_charset_info, table_name.str);
+      }
+
+      parent_table.init_one_table(db_name.str, db_name.length,
+                                  table_name.str, table_name.length,
+                                  table_name.str, TL_IGNORE);
+
+      /*
+       Check if user has any of the "privileges" at table level on
+       "parent_table".
+       Having privilege on any of the parent_table column is not
+       enough so checking whether user has any of the "privileges"
+       at table level only here.
+      */
+      if (check_some_access(thd, privileges, &parent_table) ||
+          parent_table.grant.want_privilege)
+      {
+        if (is_qualified_table_name)
+        {
+          const size_t qualified_table_name_len= NAME_LEN + 1 + NAME_LEN + 1;
+          char *qualified_table_name= (char *) thd->alloc(qualified_table_name_len);
+
+          my_snprintf(qualified_table_name, qualified_table_name_len, "%s.%s",
+                      db_name.str, table_name.str);
+          table_name.str= qualified_table_name;
+        }
+
+        my_error(ER_TABLEACCESS_DENIED_ERROR, MYF(0),
+                 "REFERENCES",
+                 thd->security_ctx->priv_user,
+                 thd->security_ctx->host_or_ip,
+                 table_name.str);
+
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 
 /****************************************************************************
 	Check stack size; Send error if there isn't enough stack to continue
@@ -7393,7 +7500,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
       host.str[0] == '%' means that host name was not given. See sql_yacc.yy
     */
     if (((user->host.str[0] == '%' && !user->host.str[1]) ||
-         !strcmp(tmp->security_ctx->host, user->host.str)) &&
+         !strcmp(tmp->security_ctx->host_or_ip, user->host.str)) &&
         !strcmp(tmp->security_ctx->user, user->user.str))
     {
       if (!(thd->security_ctx->master_access & SUPER_ACL) &&
@@ -8049,13 +8156,17 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
     if (check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE))
       goto err;
   }
-  error= FALSE;
+
+  if (check_fk_parent_table_access(thd, &lex->create_info, &lex->alter_info))
+    goto err;
 
   /*
     For CREATE TABLE we should not open the table even if it exists.
     If the table exists, we should either not create it or replace it
   */
   lex->query_tables->open_strategy= TABLE_LIST::OPEN_STUB;
+
+  error= FALSE;
 
 err:
   DBUG_RETURN(error);

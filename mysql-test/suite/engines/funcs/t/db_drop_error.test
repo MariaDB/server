@@ -6,5 +6,6 @@ SHOW DATABASES;
 --error 1008
 DROP DATABASE nond5;
 DROP DATABASE d5;
+--sorted_result
 SHOW DATABASES;
 

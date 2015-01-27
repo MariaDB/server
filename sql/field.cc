@@ -4899,7 +4899,7 @@ void Field_timestamp::set_explicit_default(Item *value)
 {
   if (((value->type() == Item::DEFAULT_VALUE_ITEM &&
         !((Item_default_value*)value)->arg) ||
-       (!maybe_null() && value->is_null())))
+       (!maybe_null() && value->null_value)))
     return;
   set_has_explicit_value();
 }

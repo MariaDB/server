@@ -1,17 +1,10 @@
 --source include/have_innodb.inc
 --source include/master-slave.inc
+--source include/have_binlog_format_row.inc
 
 #
 # Bug#68220: innodb_rows_updated is misleading on slave when *info_repository=TABLE
 #
-
-# clean previous tests
---connection master
---disable_warnings
-DROP TABLE IF EXISTS testdb.t1;
-DROP DATABASE IF EXISTS testdb;
---enable_warnings
---sync_slave_with_master
 
 # created all the base variables at the beginning at the test
 --connection master
@@ -45,6 +38,7 @@ INSERT INTO testdb.t1 VALUES (1);
 
 # update the row and show counters on master and slave
 UPDATE t1 SET i=2 WHERE i=1;
+--sync_slave_with_master
 --source suite/rpl/include/rpl_innodb_rows_counters.inc
 
 # delete the row and show counters on master and slave

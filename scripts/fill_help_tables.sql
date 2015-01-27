@@ -23,6 +23,8 @@
 
 set names 'utf8';
 
+set sql_log_bin = 0;
+
 delete from help_topic;
 delete from help_category;
 delete from help_keyword;

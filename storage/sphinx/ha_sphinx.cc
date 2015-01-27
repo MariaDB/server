@@ -1,5 +1,5 @@
 //
-// $Id: ha_sphinx.cc 4761 2014-07-03 07:24:02Z deogar $
+// $Id: ha_sphinx.cc 4842 2014-11-12 21:03:06Z deogar $
 //
 
 //
@@ -153,7 +153,7 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 #define SPHINXSE_MAX_ALLOC			(16*1024*1024)
 #define SPHINXSE_MAX_KEYWORDSTATS	4096
 
-#define SPHINXSE_VERSION			"2.1.9-release"
+#define SPHINXSE_VERSION			"2.2.6-release"
 
 // FIXME? the following is cut-n-paste from sphinx.h and searchd.cpp
 // cut-n-paste is somewhat simpler that adding dependencies however..
@@ -425,7 +425,7 @@ public:
 };
 
 /// thread local storage
-struct CSphSEThreadData
+struct CSphSEThreadTable
 {
 	static const int	MAX_QUERY_LEN	= 262144; // 256k should be enough, right?
 
@@ -447,7 +447,10 @@ struct CSphSEThreadData
 	longlong			m_iCondId;		///< value acquired from id=value condition pushdown
 	bool				m_bCondDone;	///< index_read() is now over
 
-	CSphSEThreadData ()
+	const ha_sphinx *	m_pHandler;
+	CSphSEThreadTable *	m_pTableNext;
+
+	CSphSEThreadTable ( const ha_sphinx * pHandler )
 		: m_bStats ( false )
 		, m_bQuery ( false )
 		, m_pQueryCharset ( NULL )
@@ -455,8 +458,33 @@ struct CSphSEThreadData
 		, m_bCondId ( false )
 		, m_iCondId ( 0 )
 		, m_bCondDone ( false )
+		, m_pHandler ( pHandler )
+		, m_pTableNext ( NULL )
 	{}
 };
+
+
+struct CSphTLS
+{
+	CSphSEThreadTable *	m_pHeadTable;
+
+	explicit CSphTLS ( const ha_sphinx * pHandler )
+	{
+		m_pHeadTable = new CSphSEThreadTable ( pHandler );
+	}
+
+	~CSphTLS()
+	{
+		CSphSEThreadTable * pCur = m_pHeadTable;
+		while ( pCur )
+		{
+			CSphSEThreadTable * pNext = pCur->m_pTableNext;
+			SafeDelete ( pCur );
+			pCur = pNext;
+		}
+	}
+};
+
 
 /// filter types
 enum ESphFilter
@@ -737,7 +765,7 @@ static int sphinx_close_connection ( handlerton * hton, THD * thd )
 	// deallocate common handler data
 	SPH_ENTER_FUNC();
 	void ** tmp = thd_ha_data ( thd, hton );
-	CSphSEThreadData * pTls = (CSphSEThreadData*) (*tmp);
+	CSphTLS * pTls = (CSphTLS *) (*tmp);
 	SafeDelete ( pTls );
 	*tmp = NULL;
 	SPH_RET(0);
@@ -773,7 +801,7 @@ static int sphinx_close_connection ( THD * thd )
 {
 	// deallocate common handler data
 	SPH_ENTER_FUNC();
-	CSphSEThreadData * pTls = (CSphSEThreadData*) thd->ha_data[sphinx_hton.slot];
+	CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
 	SafeDelete ( pTls );
 	thd->ha_data[sphinx_hton.slot] = NULL;
 	SPH_RET(0);
@@ -811,7 +839,7 @@ bool sphinx_show_status ( THD * thd )
 
 #if MYSQL_VERSION_ID>50100
 	// 5.1.x style stats
-	CSphSEThreadData * pTls = (CSphSEThreadData*) ( *thd_ha_data ( thd, hton ) );
+	CSphTLS * pTls = (CSphTLS*) ( *thd_ha_data ( thd, hton ) );
 
 #define LOC_STATS(_key,_keylen,_val,_vallen) \
 	stat_print ( thd, sphinx_hton_name, strlen(sphinx_hton_name), _key, _keylen, _val, _vallen );
@@ -825,7 +853,7 @@ bool sphinx_show_status ( THD * thd )
 			MYF(0) );
 		SPH_RET(TRUE);
 	}
-	CSphSEThreadData * pTls = (CSphSEThreadData*) thd->ha_data[sphinx_hton.slot];
+	CSphTLS * pTls = (CSphTLS*) thd->ha_data[sphinx_hton.slot];
 
 	field_list.push_back ( new Item_empty_string ( "Type", 10 ) );
 	field_list.push_back ( new Item_empty_string ( "Name", FN_REFLEN ) );
@@ -845,9 +873,9 @@ bool sphinx_show_status ( THD * thd )
 
 
 	// show query stats
-	if ( pTls && pTls->m_bStats )
+	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
 	{
-		const CSphSEStats * pStats = &pTls->m_tStats;
+		const CSphSEStats * pStats = &pTls->m_pHeadTable->m_tStats;
 		buf1len = my_snprintf ( buf1, sizeof(buf1),
 			"total: %d, total found: %d, time: %d, words: %d",
 			pStats->m_iMatchesTotal, pStats->m_iMatchesFound, pStats->m_iQueryMsec, pStats->m_iWords );
@@ -868,10 +896,10 @@ bool sphinx_show_status ( THD * thd )
 			int iWord = buf2len;
 
 			String sBuf3;
-			if ( pTls->m_pQueryCharset )
+			if ( pTls->m_pHeadTable->m_pQueryCharset )
 			{
 				uint iErrors;
-				sBuf3.copy ( buf2, buf2len, pTls->m_pQueryCharset, system_charset_info, &iErrors );
+				sBuf3.copy ( buf2, buf2len, pTls->m_pHeadTable->m_pQueryCharset, system_charset_info, &iErrors );
 				sWord = sBuf3.c_ptr();
 				iWord = sBuf3.length();
 			}
@@ -881,13 +909,13 @@ bool sphinx_show_status ( THD * thd )
 	}
 
 	// show last error or warning (either in addition to stats, or on their own)
-	if ( pTls && pTls->m_tStats.m_sLastMessage && pTls->m_tStats.m_sLastMessage[0] )
+	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_tStats.m_sLastMessage && pTls->m_pHeadTable->m_tStats.m_sLastMessage[0] )
 	{
-		const char * sMessageType = pTls->m_tStats.m_bLastError ? "error" : "warning";
+		const char * sMessageType = pTls->m_pHeadTable->m_tStats.m_bLastError ? "error" : "warning";
 
 		LOC_STATS (
 			sMessageType, strlen ( sMessageType ),
-			pTls->m_tStats.m_sLastMessage, strlen ( pTls->m_tStats.m_sLastMessage ) );
+			pTls->m_pHeadTable->m_tStats.m_sLastMessage, strlen ( pTls->m_pHeadTable->m_tStats.m_sLastMessage ) );
 
 	} else
 	{
@@ -1272,7 +1300,7 @@ CSphSEQuery::CSphSEQuery ( const char * sQuery, int iLength, const char * sIndex
 	, m_fGeoLatitude ( 0.0f )
 	, m_fGeoLongitude ( 0.0f )
 	, m_sComment ( "" )
-	, m_sSelect ( "" )
+	, m_sSelect ( "*" )
 
 	, m_pBuf ( NULL )
 	, m_pCur ( NULL )
@@ -2073,13 +2101,7 @@ int ha_sphinx::open ( const char * name, int, uint )
 	thr_lock_data_init ( &m_pShare->m_tLock, &m_tLock, NULL );
 
 	#if MYSQL_VERSION_ID>50100
-	void **tmp= thd_ha_data(table->in_use, ht);
-        if (*tmp)
-        {
-          CSphSEThreadData* pTls = (CSphSEThreadData*) *tmp;
-          SafeDelete(pTls);
-          *tmp= NULL;
-        }
+	*thd_ha_data ( table->in_use, ht ) = NULL;
 	#else
 	table->in_use->ha_data [ sphinx_hton.slot ] = NULL;
 	#endif
@@ -2249,29 +2271,29 @@ int ha_sphinx::close()
 
 int ha_sphinx::HandleMysqlError ( MYSQL * pConn, int iErrCode )
 {
-	CSphSEThreadData * pTls = GetTls ();
-	if ( pTls )
+	CSphSEThreadTable * pTable = GetTls ();
+	if ( pTable )
 	{
-		strncpy ( pTls->m_tStats.m_sLastMessage, mysql_error ( pConn ), sizeof ( pTls->m_tStats.m_sLastMessage ) );
-		pTls->m_tStats.m_bLastError = true;
+		strncpy ( pTable->m_tStats.m_sLastMessage, mysql_error ( pConn ), sizeof ( pTable->m_tStats.m_sLastMessage ) );
+		pTable->m_tStats.m_bLastError = true;
 	}
 
 	mysql_close ( pConn );
 
-	my_error ( iErrCode, MYF(0), pTls->m_tStats.m_sLastMessage );
+	my_error ( iErrCode, MYF(0), pTable->m_tStats.m_sLastMessage );
 	return -1;
 }
 
 
 int ha_sphinx::extra ( enum ha_extra_function op )
 {
-	CSphSEThreadData * pTls = GetTls();
-	if ( pTls )
+	CSphSEThreadTable * pTable = GetTls();
+	if ( pTable )
 	{
 		if ( op==HA_EXTRA_WRITE_CAN_REPLACE )
-			pTls->m_bReplace = true;
+			pTable->m_bReplace = true;
 		else if ( op==HA_EXTRA_WRITE_CANNOT_REPLACE )
-			pTls->m_bReplace = false;
+			pTable->m_bReplace = false;
 	}
 	return 0;
 }
@@ -2292,8 +2314,8 @@ int ha_sphinx::write_row ( byte * )
 	sQuery.length ( 0 );
 	sValue.length ( 0 );
 
-	CSphSEThreadData * pTls = GetTls ();
-	sQuery.append ( pTls && pTls->m_bReplace ? "REPLACE INTO " : "INSERT INTO " );
+	CSphSEThreadTable * pTable = GetTls ();
+	sQuery.append ( pTable && pTable->m_bReplace ? "REPLACE INTO " : "INSERT INTO " );
 	sQuery.append ( m_pShare->m_sIndex );
 	sQuery.append ( " (" );
 
@@ -2438,9 +2460,9 @@ int ha_sphinx::index_init ( uint keynr, bool )
 	SPH_ENTER_METHOD();
 	active_index = keynr;
 
-	CSphSEThreadData * pTls = GetTls();
-	if ( pTls )
-		pTls->m_bCondDone = false;
+	CSphSEThreadTable * pTable = GetTls();
+	if ( pTable )
+		pTable->m_bCondDone = false;
 
 	SPH_RET(0);
 }
@@ -2521,11 +2543,11 @@ bool ha_sphinx::UnpackSchema ()
 	if ( uStatus!=SEARCHD_OK )
 	{
 		sMessage = UnpackString ();
-		CSphSEThreadData * pTls = GetTls ();
-		if ( pTls )
+		CSphSEThreadTable * pTable = GetTls ();
+		if ( pTable )
 		{
-			strncpy ( pTls->m_tStats.m_sLastMessage, sMessage, sizeof(pTls->m_tStats.m_sLastMessage) );
-			pTls->m_tStats.m_bLastError = ( uStatus==SEARCHD_ERROR );
+			strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof(pTable->m_tStats.m_sLastMessage) );
+			pTable->m_tStats.m_bLastError = ( uStatus==SEARCHD_ERROR );
 		}
 
 		if ( uStatus==SEARCHD_ERROR )
@@ -2703,8 +2725,8 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 			break;
 
 		// get my tls
-		CSphSEThreadData * pTls = GetTls ();
-		if ( !pTls )
+		CSphSEThreadTable * pTable = GetTls ();
+		if ( !pTable )
 			break;
 
 		Item ** args = condf->arguments();
@@ -2720,10 +2742,10 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 
 			// copy the query, and let know that we intercepted this condition
 			String *pString= args[1]->val_str(NULL);
-			pTls->m_bQuery = true;
-			strncpy ( pTls->m_sQuery, pString->c_ptr(), sizeof(pTls->m_sQuery) );
-			pTls->m_sQuery[sizeof(pTls->m_sQuery)-1] = '\0';
-			pTls->m_pQueryCharset = pString->charset();
+			pTable->m_bQuery = true;
+			strncpy ( pTable->m_sQuery, pString->c_ptr(), sizeof(pTable->m_sQuery) );
+			pTable->m_sQuery[sizeof(pTable->m_sQuery)-1] = '\0';
+			pTable->m_pQueryCharset = pString->charset();
 
 		} else
 		{
@@ -2736,8 +2758,8 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 				break;
 
 			Item_int * pVal = (Item_int *) args[1];
-			pTls->m_iCondId = pVal->val_int();
-			pTls->m_bCondId = true;
+			pTable->m_iCondId = pVal->val_int();
+			pTable->m_bCondId = true;
 		}
 
 		// we intercepted this condition
@@ -2752,29 +2774,47 @@ const Item * ha_sphinx::cond_push ( const Item *cond )
 /// condition popup
 void ha_sphinx::cond_pop ()
 {
-	CSphSEThreadData * pTls = GetTls ();
-	if ( pTls )
-		pTls->m_bQuery = false;
+	CSphSEThreadTable * pTable = GetTls ();
+	if ( pTable )
+		pTable->m_bQuery = false;
 }
 
 
 /// get TLS (maybe allocate it, too)
-CSphSEThreadData * ha_sphinx::GetTls()
+CSphSEThreadTable * ha_sphinx::GetTls()
 {
+	SPH_ENTER_METHOD()
 	// where do we store that pointer in today's version?
-	CSphSEThreadData ** ppTls;
+	CSphTLS ** ppTls;
 #if MYSQL_VERSION_ID>50100
-	ppTls = (CSphSEThreadData**) thd_ha_data ( table->in_use, ht );
+	ppTls = (CSphTLS**) thd_ha_data ( table->in_use, ht );
 #else
-	ppTls = (CSphSEThreadData**) &current_thd->ha_data[sphinx_hton.slot];
+	ppTls = (CSphTLS**) &current_thd->ha_data[sphinx_hton.slot];
 #endif // >50100
 
+	CSphSEThreadTable * pTable = NULL;
 	// allocate if needed
 	if ( !*ppTls )
-		*ppTls = new CSphSEThreadData ();
+	{
+		*ppTls = new CSphTLS ( this );
+		pTable = (*ppTls)->m_pHeadTable;
+	} else
+	{
+		pTable = (*ppTls)->m_pHeadTable;
+	}
+
+	while ( pTable && pTable->m_pHandler!=this )
+		pTable = pTable->m_pTableNext;
+
+	if ( !pTable )
+	{
+		pTable = new CSphSEThreadTable ( this );
+		pTable->m_pTableNext = (*ppTls)->m_pHeadTable;
+		(*ppTls)->m_pHeadTable = pTable;
+	}
 
 	// errors will be handled by caller
-	return *ppTls;
+	return pTable;
 }
 
 
@@ -2787,26 +2827,26 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 	char sError[256];
 
 	// set new data for thd->ha_data, it is used in show_status
-	CSphSEThreadData * pTls = GetTls();
-	if ( !pTls )
+	CSphSEThreadTable * pTable = GetTls();
+	if ( !pTable )
 	{
 		my_error ( ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), "INTERNAL ERROR: TLS malloc() failed" );
 		SPH_RET ( HA_ERR_END_OF_FILE );
 	}
-	pTls->m_tStats.Reset ();
+	pTable->m_tStats.Reset ();
 
 	// sphinxql table, just return the key once
 	if ( m_pShare->m_bSphinxQL )
 	{
 		// over and out
-		if ( pTls->m_bCondDone )
+		if ( pTable->m_bCondDone )
 			SPH_RET ( HA_ERR_END_OF_FILE );
 
 		// return a value from pushdown, if any
-		if ( pTls->m_bCondId )
+		if ( pTable->m_bCondId )
 		{
-			table->field[0]->store ( pTls->m_iCondId, 1 );
-			pTls->m_bCondDone = true;
+			table->field[0]->store ( pTable->m_iCondId, 1 );
+			pTable->m_bCondDone = true;
 			SPH_RET(0);
 		}
 
@@ -2823,22 +2863,22 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 		}
 
 		table->field[0]->store ( iRef, 1 );
-		pTls->m_bCondDone = true;
+		pTable->m_bCondDone = true;
 		SPH_RET(0);
 	}
 
 	// parse query
-	if ( pTls->m_bQuery )
+	if ( pTable->m_bQuery )
 	{
 		// we have a query from condition pushdown
-		m_pCurrentKey = (const byte *) pTls->m_sQuery;
-		m_iCurrentKeyLen = strlen(pTls->m_sQuery);
+		m_pCurrentKey = (const byte *) pTable->m_sQuery;
+		m_iCurrentKeyLen = strlen(pTable->m_sQuery);
 	} else
 	{
 		// just use the key (might be truncated)
 		m_pCurrentKey = key+HA_KEY_BLOB_LENGTH;
 		m_iCurrentKeyLen = uint2korr(key); // or maybe key_len?
-		pTls->m_pQueryCharset = m_pShare ? m_pShare->m_pTableQueryCharset : NULL;
+		pTable->m_pQueryCharset = m_pShare ? m_pShare->m_pTableQueryCharset : NULL;
 	}
 
 	CSphSEQuery q ( (const char*)m_pCurrentKey, m_iCurrentKeyLen, m_pShare->m_sIndex );
@@ -2912,7 +2952,7 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 	}
 
 	// we'll have a message, at least
-	pTls->m_bStats = true;
+	pTable->m_bStats = true;
 
 	// parse reply
 	m_iCurrentPos = 0;
@@ -2930,15 +2970,15 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 			SPH_RET ( HA_ERR_END_OF_FILE );
 		}
 
-		strncpy ( pTls->m_tStats.m_sLastMessage, sMessage, sizeof(pTls->m_tStats.m_sLastMessage) );
+		strncpy ( pTable->m_tStats.m_sLastMessage, sMessage, sizeof(pTable->m_tStats.m_sLastMessage) );
 		SafeDeleteArray ( sMessage );
 
 		if ( uRespStatus!=SEARCHD_WARNING )
 		{
-			my_snprintf ( sError, sizeof(sError), "searchd error: %s", pTls->m_tStats.m_sLastMessage );
+			my_snprintf ( sError, sizeof(sError), "searchd error: %s", pTable->m_tStats.m_sLastMessage );
 			my_error ( ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), sError );
 
-			pTls->m_tStats.m_bLastError = true;
+			pTable->m_tStats.m_bLastError = true;
 			SPH_RET ( HA_ERR_END_OF_FILE );
 		}
 	}
@@ -2946,7 +2986,7 @@ int ha_sphinx::index_read ( byte * buf, const byte * key, uint key_len, enum ha_
 	if ( !UnpackSchema () )
 		SPH_RET ( HA_ERR_END_OF_FILE );
 
-	if ( !UnpackStats ( &pTls->m_tStats ) )
+	if ( !UnpackStats ( &pTable->m_tStats ) )
 	{
 		my_error ( ER_QUERY_ON_FOREIGN_DATA_SOURCE, MYF(0), "INTERNAL ERROR: UnpackStats() failed" );
 		SPH_RET ( HA_ERR_END_OF_FILE );
@@ -3241,9 +3281,9 @@ void ha_sphinx::info ( uint )
 int ha_sphinx::reset ()
 {
 	SPH_ENTER_METHOD();
-	CSphSEThreadData * pTls = GetTls ();
-	if ( pTls )
-		pTls->m_bQuery = false;
+	CSphSEThreadTable * pTable = GetTls ();
+	if ( pTable )
+		pTable->m_bQuery = false;
 	SPH_RET(0);
 }
 
@@ -3450,7 +3490,7 @@ int ha_sphinx::create ( const char * name, TABLE * table, HA_CREATE_INFO * )
 	if ( sError[0] )
 	{
 		my_error ( ER_CANT_CREATE_TABLE, MYF(0),
-                           table->s->db.str, table->s->table_name, sError );
+		table->s->db.str, table->s->table_name, sError );
 		SPH_RET(-1);
 	}
 
@@ -3468,15 +3508,15 @@ CSphSEStats * sphinx_get_stats ( THD * thd, SHOW_VAR * out )
 #if MYSQL_VERSION_ID>50100
 	if ( sphinx_hton_ptr )
 	{
-		CSphSEThreadData *pTls = (CSphSEThreadData *) *thd_ha_data ( thd, sphinx_hton_ptr );
+		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
 
-		if ( pTls && pTls->m_bStats )
-			return &pTls->m_tStats;
+		if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
+			return &pTls->m_pHeadTable->m_tStats;
 	}
 #else
-	CSphSEThreadData *pTls = (CSphSEThreadData *) thd->ha_data[sphinx_hton.slot];
-	if ( pTls && pTls->m_bStats )
-		return &pTls->m_tStats;
+	CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
+	if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
+		return &pTls->m_pHeadTable->m_tStats;
 #endif
 
 	out->type = SHOW_CHAR;
@@ -3533,14 +3573,14 @@ int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, char * sBuffer )
 #if MYSQL_VERSION_ID>50100
 	if ( sphinx_hton_ptr )
 	{
-		CSphSEThreadData * pTls = (CSphSEThreadData *) *thd_ha_data ( thd, sphinx_hton_ptr );
+		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
 #else
 	{
-		CSphSEThreadData * pTls = (CSphSEThreadData *) thd->ha_data[sphinx_hton.slot];
+		CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];
 #endif
-		if ( pTls && pTls->m_bStats )
+		if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
 		{
-			CSphSEStats * pStats = &pTls->m_tStats;
+			CSphSEStats * pStats = &pTls->m_pHeadTable->m_tStats;
 			if ( pStats && pStats->m_iWords )
 			{
 				uint uBuffLen = 0;
@@ -3562,7 +3602,7 @@ int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, char * sBuffer )
 					// trim last space
 					sBuffer [ --uBuffLen ] = 0;
 
-					if ( pTls->m_pQueryCharset )
+					if ( pTls->m_pHeadTable->m_pQueryCharset )
 					{
 						// String::c_ptr() will nul-terminate the buffer.
 						//
@@ -3570,7 +3610,7 @@ int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, char * sBuffer )
 
 						String sConvert;
 						uint iErrors;
-						sConvert.copy ( sBuffer, uBuffLen, pTls->m_pQueryCharset, system_charset_info, &iErrors );
+						sConvert.copy ( sBuffer, uBuffLen, pTls->m_pHeadTable->m_pQueryCharset, system_charset_info, &iErrors );
 						memcpy ( sBuffer, sConvert.c_ptr(), sConvert.length() + 1 );
 					}
 				}
@@ -3626,16 +3666,16 @@ maria_declare_plugin(sphinx)
 	PLUGIN_LICENSE_GPL,
 	sphinx_init_func, // Plugin Init
 	sphinx_done_func, // Plugin Deinit
-	0x0200, // 2.0
+	0x0202, // 2.2
 	sphinx_status_vars,
 	NULL,
-        SPHINXSE_VERSION, // string version
-	MariaDB_PLUGIN_MATURITY_GAMMA
+	SPHINXSE_VERSION, // string version
+MariaDB_PLUGIN_MATURITY_GAMMA
 }
 maria_declare_plugin_end;
 
 #endif // >50100
 
 //
-// $Id: ha_sphinx.cc 4761 2014-07-03 07:24:02Z deogar $
+// $Id: ha_sphinx.cc 4842 2014-11-12 21:03:06Z deogar $
 //

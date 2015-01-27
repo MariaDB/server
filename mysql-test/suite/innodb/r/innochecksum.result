@@ -1,0 +1,31 @@
+# Create and populate a table
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT) ENGINE=InnoDB;
+INSERT INTO t1 (b) VALUES ('corrupt me');
+INSERT INTO t1 (b) VALUES ('corrupt me');
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT)
+ROW_FORMAT=COMPRESSED ENGINE=InnoDB ;
+INSERT INTO t2(b) SELECT b from t1;
+CREATE TABLE t3 (a INT AUTO_INCREMENT PRIMARY KEY, b TEXT)
+ROW_FORMAT=COMPRESSED ENGINE=InnoDB KEY_BLOCK_SIZE=16;
+INSERT INTO t3(b) SELECT b from t1;
+# Write file to make mysql-test-run.pl expect the "crash", but don't
+# start it until it's told to
+# We give 30 seconds to do a clean shutdown because we do not want
+# to redo apply the pages of t1.ibd at the time of recovery.
+# We want SQL to initiate the first access to t1.ibd.
+# Wait until disconnected.
+# Run innochecksum on t1
+InnoDB offline file checksum utility.
+Table is uncompressed
+Page size is 16384
+# Run innochecksum on t2
+InnoDB offline file checksum utility.
+Table is compressed
+Key block size is 8192
+# Run innochecksum on t3
+InnoDB offline file checksum utility.
+Table is compressed
+Key block size is 16384
+# Write file to make mysql-test-run.pl start up the server again
+# Cleanup
+DROP TABLE t1, t2, t3;

@@ -46,8 +46,6 @@
 #include "filamap.h"
 #include "tabdos.h"
 
-extern "C" int  trace;
-
 /* --------------------------- Class MAPFAM -------------------------- */
 
 /***********************************************************************/
@@ -360,7 +358,12 @@ int MAPFAM::ReadBuffer(PGLOBAL g)
   while (*Mempos++ != '\n') ;        // What about Unix ???
 
   // Set caller line buffer
-  len = (Mempos - Fpos) - Ending;
+  len = (Mempos - Fpos) - 1;
+
+  // Don't rely on ENDING setting
+  if (len > 0 && *(Mempos - 2) == '\r')
+    len--;             // Line ends by CRLF
+
   memcpy(Tdbp->GetLine(), Fpos, len);
   Tdbp->GetLine()[len] = '\0';
   return RC_OK;

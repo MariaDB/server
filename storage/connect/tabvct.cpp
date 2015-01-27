@@ -76,8 +76,10 @@
 char *strerror(int num);
 #endif   // UNIX
 
-extern "C" int     trace;
-extern "C" USETEMP Use_Temp;
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+USETEMP UseTemp(void);
 
 /***********************************************************************/
 /*  Char VCT column blocks are right filled with blanks (blank = true) */
@@ -209,7 +211,7 @@ PTDB VCTDEF::GetTable(PGLOBAL g, MODE mode)
   // Mapping not used for insert (except for true VEC not split tables)
   // or when UseTemp is forced
   bool map = Mapped && (Estimate || mode != MODE_INSERT) &&
-             !(Use_Temp == TMP_FORCE &&
+             !(UseTemp() == TMP_FORCE &&
              (mode == MODE_UPDATE || mode == MODE_DELETE));
   PTXF txfp;
   PTDB tdbp;
@@ -291,7 +293,7 @@ PCOL TDBVCT::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 bool TDBVCT::IsUsingTemp(PGLOBAL g)
   {
   // For developpers
-  return (Use_Temp == TMP_TEST);
+  return (UseTemp() == TMP_TEST);
   } // end of IsUsingTemp
 
 /***********************************************************************/

@@ -1,11 +1,11 @@
 /************* Tabodbc C++ Program Source Code File (.CPP) *************/
 /* PROGRAM NAME: TABODBC                                               */
 /* -------------                                                       */
-/*  Version 2.8                                                        */
+/*  Version 2.9                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          2000-2014    */
+/*  (C) Copyright to the author Olivier BERTRAND          2000-2015    */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -75,14 +75,16 @@
 
 #include "sql_string.h"
 
-extern "C" int   trace;
-extern     bool  xinfo;
-
 /***********************************************************************/
 /*  DB static variables.                                               */
 /***********************************************************************/
 //     int num_read, num_there, num_eq[2], num_nf;        // Statistics
 extern int num_read, num_there, num_eq[2];                // Statistics
+
+/***********************************************************************/
+/*  External function.                                                 */
+/***********************************************************************/
+bool ExactInfo(void);
 
 /* -------------------------- Class ODBCDEF -------------------------- */
 
@@ -92,8 +94,8 @@ extern int num_read, num_there, num_eq[2];                // Statistics
 ODBCDEF::ODBCDEF(void)
   {
   Connect= Tabname= Tabschema= Tabcat= Srcdef= Qchar= Qrystr= Sep= NULL;
-  Catver = Options = Quoted = Maxerr = Maxres = 0;
-  Xsrc = false;
+  Catver = Options = Cto = Qto = Quoted = Maxerr = Maxres = 0;
+  Scrollable = Memory = Xsrc = false;
   }  // end of ODBCDEF constructor
 
 /***********************************************************************/
@@ -127,6 +129,11 @@ bool ODBCDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Maxres = GetIntCatInfo("Maxres", 0);
   Quoted = GetIntCatInfo("Quoted", 0);
   Options = ODBConn::noOdbcDialog;
+//Options = ODBConn::noOdbcDialog | ODBConn::useCursorLib;
+  Cto= GetIntCatInfo("ConnectTimeout", DEFAULT_LOGIN_TIMEOUT);
+  Qto= GetIntCatInfo("QueryTimeout", DEFAULT_QUERY_TIMEOUT);
+  Scrollable = GetBoolCatInfo("Scrollable", false);
+  Memory = GetBoolCatInfo("Memory", false);
   Pseudo = 2;    // FILID is Ok but not ROWID
   return false;
   } // end of DefineAM
@@ -188,9 +195,13 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qrystr = tdp->Qrystr;
     Sep = tdp->GetSep();
     Options = tdp->Options;
+    Cto = tdp->Cto;
+    Qto = tdp->Qto;
     Quoted = MY_MAX(0, tdp->GetQuoted());
     Rows = tdp->GetElemt();
     Catver = tdp->Catver;
+    Memory = (tdp->Memory) ? 1 : 0;
+    Scrollable = tdp->Scrollable;
   } else {
     Connect = NULL;
     TableName = NULL;
@@ -200,9 +211,13 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
     Qrystr = NULL;
     Sep = 0;
     Options = 0;
+    Cto = DEFAULT_LOGIN_TIMEOUT;
+    Qto = DEFAULT_QUERY_TIMEOUT;
     Quoted = 0;
     Rows = 0;
     Catver = 0;
+    Memory = 0;
+    Scrollable = false;
   } // endif tdp
 
   Quote = NULL;
@@ -211,6 +226,7 @@ TDBODBC::TDBODBC(PODEF tdp) : TDBASE(tdp)
 //Where = NULL;
   MulConn = NULL;
   DBQ = NULL;
+  Qrp = NULL;
   Fpos = 0;
   AftRows = 0;
   CurNum = 0;
@@ -229,6 +245,8 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Catalog = tdbp->Catalog;
   Srcdef = tdbp->Srcdef;
   Qrystr = tdbp->Qrystr;
+  Memory = tdbp->Memory;
+  Scrollable = tdbp->Scrollable;
   Quote = tdbp->Quote;
   Query = tdbp->Query;
   Count = tdbp->Count;
@@ -236,6 +254,8 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   MulConn = tdbp->MulConn;
   DBQ = tdbp->DBQ;
   Options = tdbp->Options;
+  Cto = tdbp->Cto;
+  Qto = tdbp->Qto;
   Quoted = tdbp->Quoted;
   Rows = tdbp->Rows;
   Fpos = tdbp->Fpos;
@@ -246,6 +266,7 @@ TDBODBC::TDBODBC(PTDBODBC tdbp) : TDBASE(tdbp)
   Rbuf = tdbp->Rbuf;
   BufSize = tdbp->BufSize;
   Nparm = tdbp->Nparm;
+  Qrp = tdbp->Qrp;
   } // end of TDBODBC copy constructor
 
 // Method
@@ -672,10 +693,13 @@ int TDBODBC::Cardinality(PGLOBAL g)
   if (!g)
     return (Mode == MODE_ANY && !Srcdef) ? 1 : 0;
 
-  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef && xinfo) {
+  if (Cardinal < 0 && Mode == MODE_ANY && !Srcdef && ExactInfo()) {
     // Info command, we must return the exact table row number
     char     qry[96], tbn[64];
     ODBConn *ocp = new(g) ODBConn(g, this);
+
+    ocp->SetLoginTimeout((DWORD)Cto);
+    ocp->SetQueryTimeout((DWORD)Qto);
 
     if (ocp->Open(Connect, Options) < 1)
       return -1;
@@ -748,13 +772,26 @@ bool TDBODBC::OpenDB(PGLOBAL g)
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
     /*******************************************************************/
-//  if (To_Kindex)
-      /*****************************************************************/
-      /*  Table is to be accessed through a sorted index table.        */
-      /*****************************************************************/
-//    To_Kindex->Reset();
+    if (Memory == 1) {
+      if ((Qrp = Ocp->AllocateResult(g)))
+        Memory = 2;            // Must be filled
+      else
+        Memory = 0;            // Allocation failed, don't use it
 
-//  rewind(Stream);    >>>>>>> Something to be done with Cursor <<<<<<<
+    } else if (Memory == 2)
+      Memory = 3;              // Ok to use memory result
+
+    if (Memory < 3) {
+      // Method will depend on cursor type
+      if ((Rbuf = Ocp->Rewind(Query, (PODBCCOL)Columns)) < 0) {
+        Ocp->Close();
+        return true;
+        } // endif Rewind
+
+      } // endif Memory
+
+    CurNum = 0;
+    Fpos = 0;
     return false;
     } // endif use
 
@@ -765,9 +802,11 @@ bool TDBODBC::OpenDB(PGLOBAL g)
   /*  and if so to allocate just a new result set. But this only for   */
   /*  drivers allowing concurency in getting results ???               */
   /*********************************************************************/
-  if (!Ocp)
+  if (!Ocp) {
     Ocp = new(g) ODBConn(g, this);
-  else if (Ocp->IsOpen())
+    Ocp->SetLoginTimeout((DWORD)Cto);
+    Ocp->SetQueryTimeout((DWORD)Qto);
+  } else if (Ocp->IsOpen())
     Ocp->Close();
 
   if (Ocp->Open(Connect, Options) < 1)
@@ -854,20 +893,29 @@ int TDBODBC::ReadDB(PGLOBAL g)
   if (To_Kindex) {
     // Direct access of ODBC tables is not implemented yet
     strcpy(g->Message, MSG(NO_ODBC_DIRECT));
-    longjmp(g->jumper[g->jump_level], GetAmType());
+    return RC_FX;
     } // endif To_Kindex
 
   /*********************************************************************/
   /*  Now start the reading process.                                   */
   /*  Here is the place to fetch the line(s).                          */
   /*********************************************************************/
-  if (++CurNum >= Rbuf) {
-    Rbuf = Ocp->Fetch();
-    CurNum = 0;
-    } // endif CurNum
+  if (Memory != 3) {
+    if (++CurNum >= Rbuf) {
+      Rbuf = Ocp->Fetch();
+      CurNum = 0;
+      } // endif CurNum
 
-  rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
-  Fpos++;                // Used for progress info
+    rc = (Rbuf > 0) ? RC_OK : (Rbuf == 0) ? RC_EF : RC_FX;
+  } else                 // Getting result from memory
+    rc = (Fpos < Qrp->Nblin) ? RC_OK : RC_EF;
+
+  if (rc == RC_OK) {
+    if (Memory == 2)
+      Qrp->Nblin++;
+
+    Fpos++;                // Used for memory
+    } // endif rc
 
   if (trace > 1)
     htrc(" Read: Rbuf=%d rc=%d\n", Rbuf, rc);
@@ -950,6 +998,7 @@ ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
   } // endif cprec
 
   // Set additional ODBC access method information for column.
+  Crp = NULL;
 //Long = cdp->GetLong();
   Long = Precision;
 //strcpy(F_Date, cdp->F_Date);
@@ -971,6 +1020,7 @@ ODBCCOL::ODBCCOL(PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i, PSZ am)
 /***********************************************************************/
 ODBCCOL::ODBCCOL(void) : COLBLK()
   {
+  Crp = NULL;
   Buf_Type = TYPE_INT;     // This is a count(*) column
   // Set additional Dos access method information for column.
   Long = sizeof(int);
@@ -989,6 +1039,7 @@ ODBCCOL::ODBCCOL(void) : COLBLK()
 /***********************************************************************/
 ODBCCOL::ODBCCOL(ODBCCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
   {
+  Crp = col1->Crp;
   Long = col1->Long;
 //strcpy(F_Date, col1->F_Date);
   To_Val = col1->To_Val;
@@ -1054,7 +1105,20 @@ bool ODBCCOL::SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check)
 void ODBCCOL::ReadColumn(PGLOBAL g)
   {
   PTDBODBC tdbp = (PTDBODBC)To_Tdb;
-  int n = tdbp->CurNum;
+  int i = tdbp->Fpos - 1, n = tdbp->CurNum;
+
+  if (tdbp->Memory == 3) {
+    // Get the value from the stored memory
+    if (Crp->Nulls && Crp->Nulls[i] == '*') {
+      Value->Reset();
+      Value->SetNull(true);
+    } else {
+      Value->SetValue_pvblk(Crp->Kdata, i);
+      Value->SetNull(false);
+    } // endif Nulls
+
+    return;
+  } // endif Memory
 
   if (StrLen[n] == SQL_NULL_DATA) {
     // Null value
@@ -1062,7 +1126,7 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
       Value->SetNull(true);
 
     Value->Reset();
-    return;
+    goto put;
   } else
     Value->SetNull(false);
 
@@ -1100,6 +1164,21 @@ void ODBCCOL::ReadColumn(PGLOBAL g)
     htrc("ODBC Column %s: rows=%d buf=%p type=%d value=%s\n",
       Name, tdbp->Rows, Bufp, Buf_Type, Value->GetCharString(buf));
     } // endif Trace
+
+ put:
+  if (tdbp->Memory != 2)
+    return;
+
+  /*********************************************************************/
+  /*  Fill the allocated result structure.                             */
+  /*********************************************************************/
+  if (Value->IsNull()) {
+    if (Crp->Nulls)
+      Crp->Nulls[i] = '*';           // Null value
+
+    Crp->Kdata->Reset(i);
+  } else
+    Crp->Kdata->SetValue(Value, i);
 
   } // end of ReadColumn
 
@@ -1334,9 +1413,11 @@ bool TDBXDBC::OpenDB(PGLOBAL g)
   /*  and if so to allocate just a new result set. But this only for   */
   /*  drivers allowing concurency in getting results ???               */
   /*********************************************************************/
-  if (!Ocp)
+  if (!Ocp) {
     Ocp = new(g) ODBConn(g, this);
-  else if (Ocp->IsOpen())
+    Ocp->SetLoginTimeout((DWORD)Cto);
+    Ocp->SetQueryTimeout((DWORD)Qto);
+  } else if (Ocp->IsOpen())
     Ocp->Close();
 
   if (Ocp->Open(Connect, Options) < 1)
@@ -1473,6 +1554,8 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   Dsn = tdp->GetConnect();
   Schema = tdp->GetTabschema();
   Tab = tdp->GetTabname();
+  Cto = tdp->Cto;
+  Qto = tdp->Qto;
   } // end of TDBOTB constructor
 
 /***********************************************************************/
@@ -1480,7 +1563,7 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
 /***********************************************************************/
 PQRYRES TDBOTB::GetResult(PGLOBAL g)
   {
-  return ODBCTables(g, Dsn, Schema, Tab, Maxres, false);
+  return ODBCTables(g, Dsn, Schema, Tab, Maxres, Cto, Qto, false);
 	} // end of GetResult
 
 /* ---------------------------TDBOCL class --------------------------- */
@@ -1490,7 +1573,7 @@ PQRYRES TDBOTB::GetResult(PGLOBAL g)
 /***********************************************************************/
 PQRYRES TDBOCL::GetResult(PGLOBAL g)
   {
-  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, false);
+  return ODBCColumns(g, Dsn, Schema, Tab, NULL, Maxres, Cto, Qto, false);
 	} // end of GetResult
 
 /* ------------------------ End of Tabodbc --------------------------- */

@@ -134,6 +134,21 @@ static ulint		n[SRV_MAX_N_IO_THREADS + 6];
 static os_thread_id_t	thread_ids[SRV_MAX_N_IO_THREADS + 6
 				   + SRV_MAX_N_PURGE_THREADS];
 
+/** Thead handles */
+static os_thread_t	thread_handles[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS];
+static os_thread_t	buf_flush_page_cleaner_thread_handle;
+static os_thread_t	buf_dump_thread_handle;
+static os_thread_t	dict_stats_thread_handle;
+static os_thread_t	buf_flush_lru_manager_thread_handle;
+static os_thread_t	srv_redo_log_follow_thread_handle;
+/** Status variables, is thread started ?*/
+static bool		thread_started[SRV_MAX_N_IO_THREADS + 6 + SRV_MAX_N_PURGE_THREADS] = {false};
+static bool		buf_flush_page_cleaner_thread_started = false;
+static bool		buf_dump_thread_started = false;
+static bool		dict_stats_thread_started = false;
+static bool		buf_flush_lru_manager_thread_started = false;
+static bool		srv_redo_log_follow_thread_started = false;
+
 /** We use this mutex to test the return value of pthread_mutex_trylock
    on successful locking. HP-UX does NOT return 0, though Linux et al do. */
 static os_fast_mutex_t	srv_os_test_mutex;
@@ -1532,8 +1547,9 @@ init_log_online(void)
 
 		/* Create the thread that follows the redo log to output the
 		   changed page bitmap */
-		os_thread_create(&srv_redo_log_follow_thread, NULL,
+		srv_redo_log_follow_thread_handle = os_thread_create(&srv_redo_log_follow_thread, NULL,
 				 thread_ids + 5 + SRV_MAX_N_IO_THREADS);
+		srv_redo_log_follow_thread_started = true;
 	}
 }
 
@@ -1550,8 +1566,8 @@ innobase_start_or_create_for_mysql(void)
 	lsn_t		min_flushed_lsn;
 	lsn_t		max_flushed_lsn;
 #ifdef UNIV_LOG_ARCHIVE
-	lsn_t		min_arch_log_no;
-	lsn_t		max_arch_log_no;
+	lsn_t		min_arch_log_no	= LSN_MAX;
+	lsn_t		max_arch_log_no	= LSN_MAX;
 #endif /* UNIV_LOG_ARCHIVE */
 	ulint		sum_of_new_sizes;
 	ulint		sum_of_data_file_sizes;
@@ -1633,7 +1649,7 @@ innobase_start_or_create_for_mysql(void)
 	stacktrace feature. */
 
 	if (srv_use_stacktrace) {
-#ifdef __linux__
+#if defined (__linux__) && HAVE_BACKTRACE && HAVE_BACKTRACE_SYMBOLS
 		 struct sigaction sigact;
 
 		 sigact.sa_sigaction = os_stacktrace_print;
@@ -1646,7 +1662,7 @@ innobase_start_or_create_for_mysql(void)
 			 srv_use_stacktrace = FALSE;
 
 		 }
-#endif /* __linux__ */
+#endif /* defined (__linux__) && HAVE_BACKTRACE && HAVE_BACKTRACE_SYMBOLS */
 	}
 
 #ifdef UNIV_DEBUG
@@ -2059,7 +2075,8 @@ innobase_start_or_create_for_mysql(void)
 
 		n[i] = i;
 
-		os_thread_create(io_handler_thread, n + i, thread_ids + i);
+		thread_handles[i] = os_thread_create(io_handler_thread, n + i, thread_ids + i);
+		thread_started[i] = true;
 	}
 
 	if (srv_n_log_files * srv_log_file_size * UNIV_PAGE_SIZE
@@ -2722,19 +2739,22 @@ files_checked:
 	if (!srv_read_only_mode) {
 		/* Create the thread which watches the timeouts
 		for lock waits */
-		os_thread_create(
+		thread_handles[2 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			lock_wait_timeout_thread,
 			NULL, thread_ids + 2 + SRV_MAX_N_IO_THREADS);
+		thread_started[2 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which warns of long semaphore waits */
-		os_thread_create(
+		thread_handles[3 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_error_monitor_thread,
 			NULL, thread_ids + 3 + SRV_MAX_N_IO_THREADS);
+		thread_started[3 + SRV_MAX_N_IO_THREADS] = true;
 
 		/* Create the thread which prints InnoDB monitor info */
-		os_thread_create(
+		thread_handles[4 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_monitor_thread,
 			NULL, thread_ids + 4 + SRV_MAX_N_IO_THREADS);
+		thread_started[4 + SRV_MAX_N_IO_THREADS] = true;
 	}
 
 	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
@@ -2761,26 +2781,30 @@ files_checked:
 
 	if (!srv_read_only_mode) {
 
-		os_thread_create(
+		thread_handles[1 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_master_thread,
 			NULL, thread_ids + (1 + SRV_MAX_N_IO_THREADS));
+		thread_started[1 + SRV_MAX_N_IO_THREADS] = true;
 	}
 
 	if (!srv_read_only_mode
 	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
 
-		os_thread_create(
+		thread_handles[5 + SRV_MAX_N_IO_THREADS] = os_thread_create(
 			srv_purge_coordinator_thread,
 			NULL, thread_ids + 5 + SRV_MAX_N_IO_THREADS);
+
+		thread_started[5 + SRV_MAX_N_IO_THREADS] = true;
 
 		ut_a(UT_ARR_SIZE(thread_ids)
 		     > 5 + srv_n_purge_threads + SRV_MAX_N_IO_THREADS);
 
 		/* We've already created the purge coordinator thread above. */
 		for (i = 1; i < srv_n_purge_threads; ++i) {
-			os_thread_create(
+			thread_handles[5 + i + SRV_MAX_N_IO_THREADS] = os_thread_create(
 				srv_worker_thread, NULL,
 				thread_ids + 5 + i + SRV_MAX_N_IO_THREADS);
+			thread_started[5 + i + SRV_MAX_N_IO_THREADS] = true;
 		}
 
 		srv_start_wait_for_purge_to_start();
@@ -2790,9 +2814,12 @@ files_checked:
 	}
 
 	if (!srv_read_only_mode) {
-		os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
+		buf_flush_page_cleaner_thread_handle = os_thread_create(buf_flush_page_cleaner_thread, NULL, NULL);
+		buf_flush_page_cleaner_thread_started = true;
 	}
-	os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
+
+	buf_flush_lru_manager_thread_handle = os_thread_create(buf_flush_lru_manager_thread, NULL, NULL);
+	buf_flush_lru_manager_thread_started = true;
 
 #ifdef UNIV_DEBUG
 	/* buf_debug_prints = TRUE; */
@@ -2943,10 +2970,12 @@ files_checked:
 
 	if (!srv_read_only_mode) {
 		/* Create the buffer pool dump/load thread */
-		os_thread_create(buf_dump_thread, NULL, NULL);
+		buf_dump_thread_handle = os_thread_create(buf_dump_thread, NULL, NULL);
+		buf_dump_thread_started = true;
 
 		/* Create the dict stats gathering thread */
-		os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_handle = os_thread_create(dict_stats_thread, NULL, NULL);
+		dict_stats_thread_started = true;
 
 		/* Create the thread that will optimize the FTS sub-system. */
 		fts_optimize_init();
@@ -3114,6 +3143,42 @@ innobase_shutdown_for_mysql(void)
 	if (!srv_read_only_mode) {
 		dict_stats_thread_deinit();
 	}
+
+#ifdef __WIN__
+	/* MDEV-361: ha_innodb.dll leaks handles on Windows
+	MDEV-7403: should not pass recv_writer_thread_handle to
+	CloseHandle().
+
+	On Windows we should call CloseHandle() for all
+	open thread handles. */
+	if (os_thread_count == 0) {
+		for (i = 0; i < SRV_MAX_N_IO_THREADS + 6 + 32; ++i) {
+			if (thread_started[i]) {
+				CloseHandle(thread_handles[i]);
+			}
+		}
+
+		if (buf_flush_page_cleaner_thread_started) {
+			CloseHandle(buf_flush_page_cleaner_thread_handle);
+		}
+
+		if (buf_dump_thread_started) {
+			CloseHandle(buf_dump_thread_handle);
+		}
+
+		if (dict_stats_thread_started) {
+			CloseHandle(dict_stats_thread_handle);
+		}
+
+		if (buf_flush_lru_manager_thread_started) {
+			CloseHandle(buf_flush_lru_manager_thread_handle);
+		}
+
+		if (srv_redo_log_follow_thread_started) {
+			CloseHandle(srv_redo_log_follow_thread_handle);
+		}
+	}
+#endif /* __WIN __ */
 
 	/* This must be disabled before closing the buffer pool
 	and closing the data dictionary.  */

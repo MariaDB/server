@@ -436,7 +436,9 @@ CREATE OR REPLACE TEMPORARY TABLE tmp LIKE t1;
 LOCK TABLE t1 WRITE;
 CREATE OR REPLACE TABLE t1 LIKE tmp;
 KILL QUERY con_id;
+ERROR 70100: Query execution was interrupted
 CREATE OR REPLACE TABLE t1 (a int);
 KILL QUERY con_id;
+ERROR 70100: Query execution was interrupted
 drop table t1;
 DROP TABLE t2;

@@ -1314,7 +1314,7 @@ static void link_block(PAGECACHE *pagecache, PAGECACHE_BLOCK_LINK *block,
     struct st_my_thread_var *first_thread= last_thread->next;
     struct st_my_thread_var *next_thread= first_thread;
     PAGECACHE_HASH_LINK *hash_link=
-      (PAGECACHE_HASH_LINK *) first_thread->opt_info;
+      (PAGECACHE_HASH_LINK *) first_thread->keycache_link;
     struct st_my_thread_var *thread;
 
     DBUG_ASSERT(block->requests + block->wlocks  + block->rlocks +
@@ -1329,7 +1329,7 @@ static void link_block(PAGECACHE *pagecache, PAGECACHE_BLOCK_LINK *block,
          We notify about the event all threads that ask
          for the same page as the first thread in the queue
       */
-      if ((PAGECACHE_HASH_LINK *) thread->opt_info == hash_link)
+      if ((PAGECACHE_HASH_LINK *) thread->keycache_link == hash_link)
       {
         DBUG_PRINT("signal", ("thread: %s %ld", thread->name, thread->id));
         pagecache_pthread_cond_signal(&thread->suspend);
@@ -1642,7 +1642,7 @@ static void unlink_hash(PAGECACHE *pagecache, PAGECACHE_HASH_LINK *hash_link)
                                pagecache->waiting_for_hash_link.last_thread;
     struct st_my_thread_var *first_thread= last_thread->next;
     struct st_my_thread_var *next_thread= first_thread;
-    PAGECACHE_PAGE *first_page= (PAGECACHE_PAGE *) (first_thread->opt_info);
+    PAGECACHE_PAGE *first_page= (PAGECACHE_PAGE *) (first_thread->keycache_link);
     struct st_my_thread_var *thread;
 
     hash_link->file= first_page->file;
@@ -1652,7 +1652,7 @@ static void unlink_hash(PAGECACHE *pagecache, PAGECACHE_HASH_LINK *hash_link)
     {
       PAGECACHE_PAGE *page;
       thread= next_thread;
-      page= (PAGECACHE_PAGE *) thread->opt_info;
+      page= (PAGECACHE_PAGE *) thread->keycache_link;
       next_thread= thread->next;
       /*
          We notify about the event all threads that ask
@@ -1798,13 +1798,13 @@ restart:
       PAGECACHE_PAGE page;
       page.file= *file;
       page.pageno= pageno;
-      thread->opt_info= (void *) &page;
+      thread->keycache_link= (void *) &page;
       wqueue_link_into_queue(&pagecache->waiting_for_hash_link, thread);
       DBUG_PRINT("wait",
                  ("suspend thread %s %ld", thread->name, thread->id));
       pagecache_pthread_cond_wait(&thread->suspend,
                                  &pagecache->cache_lock);
-      thread->opt_info= NULL;
+      thread->keycache_link= NULL;
       DBUG_PRINT("thread", ("restarting..."));
       goto restart;
     }
@@ -2067,7 +2067,7 @@ restart:
           */
 
           struct st_my_thread_var *thread= my_thread_var;
-          thread->opt_info= (void *) hash_link;
+          thread->keycache_link= (void *) hash_link;
           wqueue_link_into_queue(&pagecache->waiting_for_block, thread);
           do
           {
@@ -2077,7 +2077,7 @@ restart:
                                        &pagecache->cache_lock);
           }
           while (thread->next);
-          thread->opt_info= NULL;
+          thread->keycache_link= NULL;
           block= hash_link->block;
           /* Ensure that the block is registered */
           DBUG_ASSERT(block->requests >= 1);
@@ -5057,7 +5057,7 @@ static void pagecache_dump(PAGECACHE *pagecache)
     do
     {
       thread= thread->next;
-      page= (PAGECACHE_PAGE *) thread->opt_info;
+      page= (PAGECACHE_PAGE *) thread->keycache_link;
       fprintf(pagecache_dump_file,
               "thread: %s %ld, (file,pageno)=(%u,%lu)\n",
               thread->name, thread->id,
@@ -5074,7 +5074,7 @@ static void pagecache_dump(PAGECACHE *pagecache)
     do
     {
       thread=thread->next;
-      hash_link= (PAGECACHE_HASH_LINK *) thread->opt_info;
+      hash_link= (PAGECACHE_HASH_LINK *) thread->keycache_link;
       fprintf(pagecache_dump_file,
               "thread: %s %u hash_link:%u (file,pageno)=(%u,%lu)\n",
               thread->name, thread->id,

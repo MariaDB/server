@@ -1,4 +1,4 @@
-.TH PCRE_FULLINFO 3 "24 June 2012" "PCRE 8.30"
+.TH PCRE_FULLINFO 3 "21 April 2014" "PCRE 8.36"
 .SH NAME
 PCRE - Perl-compatible regular expressions
 .SH SYNOPSIS
@@ -43,6 +43,10 @@ The following information is available:
   PCRE_INFO_JITSIZE         Size of JIT compiled code
   PCRE_INFO_LASTLITERAL     Literal last data unit required
   PCRE_INFO_MINLENGTH       Lower bound length of matching strings
+  PCRE_INFO_MATCHEMPTY      Return 1 if the pattern can match an empty string,
+                               0 otherwise
+  PCRE_INFO_MATCHLIMIT      Match limit if set, otherwise PCRE_RROR_UNSET
+  PCRE_INFO_MAXLOOKBEHIND   Length (in characters) of the longest lookbehind assertion
   PCRE_INFO_NAMECOUNT       Number of named subpatterns
   PCRE_INFO_NAMEENTRYSIZE   Size of name table entry
   PCRE_INFO_NAMETABLE       Pointer to name table
@@ -58,6 +62,7 @@ The following information is available:
                                   2 if the first character is at the start of the data
                                     string or after a newline, and
                                   0 otherwise
+  PCRE_INFO_RECURSIONLIMIT    Recursion limit if set, otherwise PCRE_ERROR_UNSET
   PCRE_INFO_REQUIREDCHAR      Literal last data unit required
   PCRE_INFO_REQUIREDCHARFLAGS Returns 1 if the last data character is set (which can then
                               be retrieved using PCRE_INFO_REQUIREDCHAR); 0 otherwise
@@ -65,14 +70,18 @@ The following information is available:
 The \fIwhere\fP argument must point to an integer variable, except for the
 following \fIwhat\fP values:
 .sp
-  PCRE_INFO_DEFAULT_TABLES  const unsigned char *
-  PCRE_INFO_FIRSTTABLE      const unsigned char *
+  PCRE_INFO_DEFAULT_TABLES  const uint8_t *
+  PCRE_INFO_FIRSTCHARACTER  uint32_t
+  PCRE_INFO_FIRSTTABLE      const uint8_t *
+  PCRE_INFO_JITSIZE         size_t
+  PCRE_INFO_MATCHLIMIT      uint32_t
   PCRE_INFO_NAMETABLE       PCRE_SPTR16           (16-bit library)
   PCRE_INFO_NAMETABLE       PCRE_SPTR32           (32-bit library)
   PCRE_INFO_NAMETABLE       const unsigned char * (8-bit library)
   PCRE_INFO_OPTIONS         unsigned long int
   PCRE_INFO_SIZE            size_t
-  PCRE_INFO_FIRSTCHARACTER  uint32_t
+  PCRE_INFO_STUDYSIZE       size_t
+  PCRE_INFO_RECURSIONLIMIT  uint32_t
   PCRE_INFO_REQUIREDCHAR    uint32_t
 .sp
 The yield of the function is zero on success or:
@@ -81,6 +90,7 @@ The yield of the function is zero on success or:
                             the argument \fIwhere\fP was NULL
   PCRE_ERROR_BADMAGIC       the "magic number" was not found
   PCRE_ERROR_BADOPTION      the value of \fIwhat\fP was invalid
+  PCRE_ERROR_UNSET          the option was not set
 .P
 There is a complete description of the PCRE native API in the
 .\" HREF

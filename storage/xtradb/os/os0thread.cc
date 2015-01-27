@@ -138,6 +138,9 @@ os_thread_create_func(
 	os_thread_id_t*		thread_id)	/*!< out: id of the created
 						thread, or NULL */
 {
+	/* the new thread should look recent changes up here so far. */
+	os_wmb;
+
 #ifdef __WIN__
 	os_thread_t	thread;
 	DWORD		win_thread_id;
@@ -156,10 +159,8 @@ os_thread_create_func(
 	if (thread_id) {
 		*thread_id = win_thread_id;
 	}
-	if (thread) {
-		CloseHandle(thread);
-	}
-	return((os_thread_t)win_thread_id);
+
+	return((os_thread_t)thread);
 #else
 	int		ret;
 	os_thread_t	pthread;
@@ -310,5 +311,23 @@ os_thread_set_priority(
 	return(19 - getpriority(PRIO_PROCESS, thread_id));
 #else
 	return(relative_priority);
+#endif
+}
+
+/*****************************************************************//**
+Get priority for a given thread on Linux.  Currently a
+no-op on other systems.
+
+@return An actual thread priority */
+UNIV_INTERN
+ulint
+os_thread_get_priority(
+/*===================*/
+	os_tid_t	thread_id)		/*!< in: thread id */
+{
+#ifdef UNIV_LINUX
+	return (getpriority(PRIO_PROCESS, thread_id));
+#else
+	return (0);
 #endif
 }

@@ -39,6 +39,16 @@ UNIV_INTERN dict_index_t*	dict_ind_redundant;
 /** dummy index for ROW_FORMAT=COMPACT supremum and infimum records */
 UNIV_INTERN dict_index_t*	dict_ind_compact;
 
+#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
+/** Flag to control insert buffer debugging. */
+extern UNIV_INTERN uint	ibuf_debug;
+#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
+
+/**********************************************************************
+Issue a warning that the row is too big. */
+void
+ib_warn_row_too_big(const dict_table_t*	table);
+
 #ifndef UNIV_HOTBACKUP
 #include "buf0buf.h"
 #include "data0type.h"
@@ -1698,6 +1708,10 @@ dict_table_rename_in_cache(
 
 		foreign = *it;
 
+		if (foreign->referenced_table) {
+			foreign->referenced_table->referenced_set.erase(foreign);
+		}
+
 		if (ut_strlen(foreign->foreign_table_name)
 		    < ut_strlen(table->name)) {
 			/* Allocate a longer name buffer;
@@ -1849,6 +1863,10 @@ dict_table_rename_in_cache(
 
 		table->foreign_set.erase(it);
 		fk_set.insert(foreign);
+
+		if (foreign->referenced_table) {
+			foreign->referenced_table->referenced_set.insert(foreign);
+		}
 	}
 
 	ut_a(table->foreign_set.empty());
@@ -2402,11 +2420,18 @@ dict_index_add_to_cache(
 	new_index->n_fields = new_index->n_def;
 	new_index->trx_id = index->trx_id;
 
-	if (strict && dict_index_too_big_for_tree(table, new_index)) {
+	if (dict_index_too_big_for_tree(table, new_index)) {
+
+		if (strict) {
 too_big:
-		dict_mem_index_free(new_index);
-		dict_mem_index_free(index);
-		return(DB_TOO_BIG_RECORD);
+			dict_mem_index_free(new_index);
+			dict_mem_index_free(index);
+			return(DB_TOO_BIG_RECORD);
+		} else {
+
+			ib_warn_row_too_big(table);
+
+		}
 	}
 
 	if (dict_index_is_univ(index)) {
@@ -3260,6 +3285,9 @@ dict_foreign_find(
 	dict_foreign_t*	foreign)	/*!< in: foreign constraint */
 {
 	ut_ad(mutex_own(&(dict_sys->mutex)));
+
+	ut_ad(dict_foreign_set_validate(table->foreign_set));
+	ut_ad(dict_foreign_set_validate(table->referenced_set));
 
 	dict_foreign_set::iterator it = table->foreign_set.find(foreign);
 
@@ -5595,6 +5623,11 @@ dict_find_table_by_space(
 
 	ut_ad(space_id > 0);
 
+	if (dict_sys == NULL) {
+		/* This could happen when it's in redo processing. */
+		return(NULL);
+	}
+
 	table = UT_LIST_GET_FIRST(dict_sys->table_LRU);
 	num_item =  UT_LIST_GET_LEN(dict_sys->table_LRU);
 
@@ -5709,11 +5742,11 @@ dict_set_corrupted(
 
 	dict_index_copy_types(tuple, sys_index, 2);
 
-	btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_GE,
+	btr_cur_search_to_nth_level(sys_index, 0, tuple, PAGE_CUR_LE,
 				    BTR_MODIFY_LEAF,
 				    &cursor, 0, __FILE__, __LINE__, &mtr);
 
-	if (cursor.up_match == dtuple_get_n_fields(tuple)) {
+	if (cursor.low_match == dtuple_get_n_fields(tuple)) {
 		/* UPDATE SYS_INDEXES SET TYPE=index->type
 		WHERE TABLE_ID=index->table->id AND INDEX_ID=index->id */
 		ulint	len;

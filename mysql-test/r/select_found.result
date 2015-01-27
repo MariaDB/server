@@ -332,3 +332,19 @@ select found_rows() as count;
 count
 2
 drop table t1, t2;
+create table t1 (i int, v varchar(64), key (i));
+select sql_calc_found_rows * from t1 where i = 0 order by v limit 59,2;
+i	v
+0	foo
+0	foo
+select found_rows();
+found_rows()
+75
+select sql_calc_found_rows * from t1 ignore index (i) where i = 0 order by v limit 59,2;
+i	v
+0	foo
+0	foo
+select found_rows();
+found_rows()
+75
+drop table t1;

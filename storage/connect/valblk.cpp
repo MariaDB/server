@@ -43,7 +43,6 @@
 #define CheckBlanks      assert(!Blanks);
 #define CheckParms(V, N) ChkIndx(N); ChkTyp(V);
 
-extern "C" int  trace;
 extern MBLOCK Nmblk;                /* Used to initialize MBLOCK's     */
 
 /***********************************************************************/

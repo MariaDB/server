@@ -1,5 +1,0 @@
-# Default
-#GROONGA_HTTPD_ARGS=""
-TIMEOUT=3
-# Comment out this to disable groonga-httpd daemon.
-ENABLE=yes

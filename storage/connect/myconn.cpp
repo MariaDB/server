@@ -46,11 +46,11 @@
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 //#include "value.h"
-#include "valblk.h"
+//#include "valblk.h"
+#include "xobject.h"
 #define  DLL_EXPORT            // Items are exported from this DLL
 #include "myconn.h"
 
-extern "C" int   trace;
 extern "C" int   zconv;
 extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
@@ -135,7 +135,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                    FLD_REM,  FLD_NO,    FLD_DEFAULT,  FLD_EXTRA,
                    FLD_CHARSET};
   unsigned int length[] = {0, 4, 16, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0};
-  char   *fld, *colname, *chset, *fmt, v, cmd[128], uns[16], zero[16];
+  char   *fld, *colname, *chset, *fmt, v, buf[128], uns[16], zero[16];
   int     i, n, nf, ncol = sizeof(buftyp) / sizeof(int);
   int     len, type, prec, rc, k = 0;
   PQRYRES qrp;
@@ -155,16 +155,26 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     /********************************************************************/
     /*  Do an evaluation of the result size.                            */
     /********************************************************************/
-    sprintf(cmd, "SHOW FULL COLUMNS FROM %s", table);
-    strcat(strcat(cmd, " FROM "), (db) ? db : PlgGetUser(g)->DBName);
+    STRING cmd(g, 64, "SHOW FULL COLUMNS FROM ");
+    bool   b = cmd.Append((PSZ)table);
 
-    if (colpat)
-      strcat(strcat(cmd, " LIKE "), colpat);
+    b |= cmd.Append(" FROM ");
+    b |= cmd.Append((PSZ)(db ? db : PlgGetUser(g)->DBName));
+
+    if (colpat) {
+      b |= cmd.Append(" LIKE ");
+      b |= cmd.Append((PSZ)colpat);
+      } // endif colpat
+
+    if (b) {
+      strcpy(g->Message, "Out of memory");
+      return NULL;
+      } // endif b
 
     if (trace)
-      htrc("MyColumns: cmd='%s'\n", cmd);
+      htrc("MyColumns: cmd='%s'\n", cmd.GetStr());
 
-    if ((n = myc.GetResultSize(g, cmd)) < 0) {
+    if ((n = myc.GetResultSize(g, cmd.GetStr())) < 0) {
       myc.Close();
       return NULL;
       } // endif n
@@ -225,15 +235,15 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
     *uns = 0;
     *zero = 0;
 
-    switch ((nf = sscanf(fld, "%[^(](%d,%d", cmd, &len, &prec))) {
+    switch ((nf = sscanf(fld, "%[^(](%d,%d", buf, &len, &prec))) {
       case 3:
-        nf = sscanf(fld, "%[^(](%d,%d) %s %s", cmd, &len, &prec, uns, zero);
+        nf = sscanf(fld, "%[^(](%d,%d) %s %s", buf, &len, &prec, uns, zero);
         break;
       case 2:
-        nf = sscanf(fld, "%[^(](%d) %s %s", cmd, &len, uns, zero) + 1;
+        nf = sscanf(fld, "%[^(](%d) %s %s", buf, &len, uns, zero) + 1;
         break;
       case 1:
-        nf = sscanf(fld, "%s %s %s", cmd, uns, zero) + 2;
+        nf = sscanf(fld, "%s %s %s", buf, uns, zero) + 2;
         break;
       default:
         sprintf(g->Message, MSG(BAD_FIELD_TYPE), fld);
@@ -241,16 +251,16 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
         return NULL;
       } // endswitch nf
 
-    if ((type = MYSQLtoPLG(cmd, &v)) == TYPE_ERROR) {
+    if ((type = MYSQLtoPLG(buf, &v)) == TYPE_ERROR) {
       if (v == 'K') {
         // Skip this column
         sprintf(g->Message, "Column %s skipped (unsupported type %s)",
-                colname, cmd);
+                colname, buf);
         PushWarning(g, thd);
         continue;
         } // endif v
 
-      sprintf(g->Message, "Column %s unsupported type %s", colname, cmd);
+      sprintf(g->Message, "Column %s unsupported type %s", colname, buf);
       myc.Close();
       return NULL;
     } else if (type == TYPE_STRING) {
@@ -276,11 +286,11 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       } // endswitch nf
 
     crp = crp->Next;                       // Type_Name
-    crp->Kdata->SetValue(cmd, i);
+    crp->Kdata->SetValue(buf, i);
 
     if (type == TYPE_DATE) {
       // When creating tables we do need info about date columns
-      fmt = MyDateFmt(cmd);
+      fmt = MyDateFmt(buf);
       len = strlen(fmt);
     } else
       fmt = NULL;
@@ -420,10 +430,11 @@ int MYSQLC::GetResultSize(PGLOBAL g, PSZ sql)
 /***********************************************************************/
 int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
                             const char *user, const char *pwd,
-                            int pt)
+                            int pt, const char *csname)
   {
   const char *pipe = NULL;
-  uint cto = 6000, nrt = 12000;
+  uint        cto = 6000, nrt = 12000;
+  my_bool     my_true= 1;
 
   m_DB = mysql_init(NULL);
 
@@ -459,6 +470,18 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
 
     } // endif pwd
 #endif // 0
+
+/***********************************************************************/
+/*	BUG# 17044 Federated Storage Engine is not UTF8 clean              */
+/*	Add set names to whatever charset the table is at open of table    */
+/*  this sets the csname like 'set names utf8'.                        */
+/***********************************************************************/
+  if (csname)
+    mysql_options(m_DB, MYSQL_SET_CHARSET_NAME, csname);
+
+  // Don't know what this one do but FEDERATED does it
+  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+                  (char*)&my_true);
 
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe, CLIENT_MULTI_RESULTS)) {
 #if defined(_DEBUG)

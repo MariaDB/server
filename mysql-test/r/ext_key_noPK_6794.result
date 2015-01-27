@@ -1,0 +1,20 @@
+create table t1 (c1 int not null, c2 int, unique index(c1), index (c2)) engine=innodb;
+insert into t1 (c1, c2) select 1, round(rand()*100);
+insert into t1 (c1, c2) select (select max(c1) from t1) + c1, c1*93563%100 from t1;
+insert into t1 (c1, c2) select (select max(c1) from t1) + c1, c1*93563%100 from t1;
+insert into t1 (c1, c2) select (select max(c1) from t1) + c1, c1*93563%100 from t1;
+select count(*) from t1;
+count(*)
+8
+explain select * from t1 where c2 = 1 order by c1;
+id	1
+select_type	SIMPLE
+table	t1
+type	ref
+possible_keys	c2
+key	c2
+key_len	5
+ref	const
+rows	1
+Extra	Using where; Using index
+drop table t1;

@@ -4,6 +4,8 @@
 
 -- source include/have_innodb.inc
 
+call mtr.add_suppression("InnoDB: Error: Fetch of persistent statistics requested for table*");
+
 -- vertical_results
 
 CREATE TABLE test_ps_fetch_nonexistent

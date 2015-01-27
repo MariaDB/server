@@ -1,6 +1,8 @@
 -- source include/have_query_cache.inc
 -- source include/have_ucs2.inc
 
+call mtr.add_suppression("Cannot use ucs2 as character_set_client");
+
 --echo #
 --echo # Start of 5.5 tests
 --echo #

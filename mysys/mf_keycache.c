@@ -1020,11 +1020,11 @@ void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
 */
 
 static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
-                                   struct st_my_thread_var *thread)
+                            struct st_my_thread_var *thread)
 {
   struct st_my_thread_var *last;
-
   DBUG_ASSERT(!thread->next && !thread->prev);
+
   if (! (last= wqueue->last_thread))
   {
     /* Queue is empty */
@@ -1033,10 +1033,15 @@ static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
   }
   else
   {
-    thread->prev= last->next->prev;
-    last->next->prev= &thread->next;
-    thread->next= last->next;
-    last->next= thread;
+    DBUG_ASSERT(last->next->prev == &last->next);
+    /* Add backlink to previous element */
+    thread->prev=      last->next->prev;
+    /* Fix first in list to point backwords to current */
+    last->next->prev=  &thread->next;
+    /* Next should point to the first element in list */
+    thread->next=      last->next;
+    /* Fix old element to point to new one */
+    last->next=        thread;
   }
   wqueue->last_thread= thread;
 }
@@ -1057,17 +1062,22 @@ static void link_into_queue(KEYCACHE_WQUEUE *wqueue,
 */
 
 static void unlink_from_queue(KEYCACHE_WQUEUE *wqueue,
-                                     struct st_my_thread_var *thread)
+                              struct st_my_thread_var *thread)
 {
   KEYCACHE_DBUG_PRINT("unlink_from_queue", ("thread %ld", thread->id));
   DBUG_ASSERT(thread->next && thread->prev);
+
   if (thread->next == thread)
+  {
     /* The queue contains only one member */
     wqueue->last_thread= NULL;
+  }
   else
   {
+    /* Remove current element from list */
     thread->next->prev= thread->prev;
-    *thread->prev=thread->next;
+    *thread->prev=      thread->next;
+    /* If first element, change list pointer to point to previous element */
     if (wqueue->last_thread == thread)
       wqueue->last_thread= STRUCT_PTR(struct st_my_thread_var, next,
                                       thread->prev);
@@ -1111,10 +1121,10 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
 {
   struct st_my_thread_var *last;
   struct st_my_thread_var *thread= my_thread_var;
-
-  /* Add to queue. */
   DBUG_ASSERT(!thread->next);
   DBUG_ASSERT(!thread->prev); /* Not required, but must be true anyway. */
+
+  /* Add to queue. */
   if (! (last= wqueue->last_thread))
     thread->next= thread;
   else
@@ -1125,7 +1135,7 @@ static void wait_on_queue(KEYCACHE_WQUEUE *wqueue,
   wqueue->last_thread= thread;
 
   /*
-    Wait until thread is removed from queue by the signalling thread.
+    Wait until thread is removed from queue by the signaling thread.
     The loop protects against stray signals.
   */
   do
@@ -1163,10 +1173,11 @@ static void release_whole_queue(KEYCACHE_WQUEUE *wqueue)
   if (!(last= wqueue->last_thread))
     return;
 
-  next= last->next;
+  next= last->next;                             /* First (oldest) element */
   do
   {
     thread=next;
+    DBUG_ASSERT(thread);
     KEYCACHE_DBUG_PRINT("release_whole_queue: signal",
                         ("thread %ld", thread->id));
     /* Signal the thread. */
@@ -1359,7 +1370,7 @@ static void link_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block,
                                keycache->waiting_for_block.last_thread;
     struct st_my_thread_var *first_thread= last_thread->next;
     struct st_my_thread_var *next_thread= first_thread;
-    HASH_LINK *hash_link= (HASH_LINK *) first_thread->opt_info;
+    HASH_LINK *hash_link= (HASH_LINK *) first_thread->keycache_link;
     struct st_my_thread_var *thread;
     do
     {
@@ -1369,7 +1380,7 @@ static void link_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block,
          We notify about the event all threads that ask
          for the same page as the first thread in the queue
       */
-      if ((HASH_LINK *) thread->opt_info == hash_link)
+      if ((HASH_LINK *) thread->keycache_link == hash_link)
       {
         KEYCACHE_DBUG_PRINT("link_block: signal", ("thread %ld", thread->id));
         keycache_pthread_cond_signal(&thread->suspend);
@@ -1703,7 +1714,7 @@ static void unlink_hash(SIMPLE_KEY_CACHE_CB *keycache, HASH_LINK *hash_link)
                                keycache->waiting_for_hash_link.last_thread;
     struct st_my_thread_var *first_thread= last_thread->next;
     struct st_my_thread_var *next_thread= first_thread;
-    KEYCACHE_PAGE *first_page= (KEYCACHE_PAGE *) (first_thread->opt_info);
+    KEYCACHE_PAGE *first_page= (KEYCACHE_PAGE *) (first_thread->keycache_link);
     struct st_my_thread_var *thread;
 
     hash_link->file= first_page->file;
@@ -1712,7 +1723,7 @@ static void unlink_hash(SIMPLE_KEY_CACHE_CB *keycache, HASH_LINK *hash_link)
     {
       KEYCACHE_PAGE *page;
       thread= next_thread;
-      page= (KEYCACHE_PAGE *) thread->opt_info;
+      page= (KEYCACHE_PAGE *) thread->keycache_link;
       next_thread= thread->next;
       /*
          We notify about the event all threads that ask
@@ -1801,13 +1812,13 @@ restart:
       KEYCACHE_DBUG_PRINT("get_hash_link", ("waiting"));
       page.file= file;
       page.filepos= filepos;
-      thread->opt_info= (void *) &page;
+      thread->keycache_link= (void *) &page;
       link_into_queue(&keycache->waiting_for_hash_link, thread);
       KEYCACHE_DBUG_PRINT("get_hash_link: wait",
                         ("suspend thread %ld", thread->id));
       keycache_pthread_cond_wait(&thread->suspend,
                                  &keycache->cache_lock);
-      thread->opt_info= NULL;
+      thread->keycache_link= NULL;
       goto restart;
     }
     hash_link->file= file;
@@ -1965,7 +1976,7 @@ restart:
         for another file/pos.
       */
       thread= my_thread_var;
-      thread->opt_info= (void *) hash_link;
+      thread->keycache_link= (void *) hash_link;
       link_into_queue(&keycache->waiting_for_block, thread);
       do
       {
@@ -1974,7 +1985,7 @@ restart:
         keycache_pthread_cond_wait(&thread->suspend,
                                    &keycache->cache_lock);
       } while (thread->next);
-      thread->opt_info= NULL;
+      thread->keycache_link= NULL;
       /*
         A block should now be assigned to the hash_link. But it may
         still need to be evicted. Anyway, we should re-check the
@@ -2312,7 +2323,7 @@ restart:
           */
 
           struct st_my_thread_var *thread= my_thread_var;
-          thread->opt_info= (void *) hash_link;
+          thread->keycache_link= (void *) hash_link;
           link_into_queue(&keycache->waiting_for_block, thread);
           do
           {
@@ -2322,7 +2333,7 @@ restart:
                                        &keycache->cache_lock);
           }
           while (thread->next);
-          thread->opt_info= NULL;
+          thread->keycache_link= NULL;
           /* Assert that block has a request registered. */
           DBUG_ASSERT(hash_link->block->requests);
           /* Assert that block is not in LRU ring. */
@@ -4577,7 +4588,7 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
     do
     {
       thread=thread->next;
-      page= (KEYCACHE_PAGE *) thread->opt_info;
+      page= (KEYCACHE_PAGE *) thread->keycache_link;
       fprintf(keycache_dump_file,
               "thread:%u, (file,filepos)=(%u,%lu)\n",
               thread->id,(uint) page->file,(ulong) page->filepos);
@@ -4593,7 +4604,7 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
     do
     {
       thread=thread->next;
-      hash_link= (HASH_LINK *) thread->opt_info;
+      hash_link= (HASH_LINK *) thread->keycache_link;
       fprintf(keycache_dump_file,
         "thread:%u hash_link:%u (file,filepos)=(%u,%lu)\n",
         thread->id, (uint) HASH_LINK_NUMBER(hash_link),

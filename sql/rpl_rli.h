@@ -496,6 +496,7 @@ private:
 */
 struct inuse_relaylog {
   inuse_relaylog *next;
+  Relay_log_info *rli;
   /* Number of events in this relay log queued for worker threads. */
   int64 queued_count;
   /* Number of events completed by worker threads. */
@@ -562,6 +563,10 @@ struct rpl_group_info
     (When we execute in parallel the transactions that group committed
     together on the master, we still need to wait for any prior transactions
     to have reached the commit stage).
+
+    The pointed-to gco is only valid for as long as
+    gtid_sub_id < parallel_entry->last_committed_sub_id. After that, it can
+    be freed by another thread.
   */
   group_commit_orderer *gco;
 

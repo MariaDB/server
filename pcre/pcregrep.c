@@ -455,7 +455,7 @@ Arguments:
   s          pattern string to add
   after      if not NULL points to item to insert after
 
-Returns:     new pattern block
+Returns:     new pattern block or NULL on error
 */
 
 static patstr *
@@ -471,6 +471,7 @@ if (strlen(s) > MAXPATLEN)
   {
   fprintf(stderr, "pcregrep: pattern is too long (limit is %d bytes)\n",
     MAXPATLEN);
+  free(p);
   return NULL;
   }
 p->next = NULL;
@@ -2549,7 +2550,11 @@ while (fgets(buffer, PATBUFSIZE, f) != NULL)
   afterwards, as a precaution against any later code trying to use it. */
 
   *patlastptr = add_pattern(buffer, *patlastptr);
-  if (*patlastptr == NULL) return FALSE;
+  if (*patlastptr == NULL)
+    {
+    if (f != stdin) fclose(f);
+    return FALSE;
+    }
   if (*patptr == NULL) *patptr = *patlastptr;
 
   /* This loop is needed because compiling a "pattern" when -F is set may add
@@ -2561,7 +2566,10 @@ while (fgets(buffer, PATBUFSIZE, f) != NULL)
     {
     if (!compile_pattern(*patlastptr, pcre_options, popts, TRUE, filename,
         linenumber))
+      {
+      if (f != stdin) fclose(f);
       return FALSE;
+      }
     (*patlastptr)->string = NULL;            /* Insurance */
     if ((*patlastptr)->next == NULL) break;
     *patlastptr = (*patlastptr)->next;
@@ -2962,8 +2970,8 @@ if (locale == NULL)
   locale_from = "LC_CTYPE";
   }
 
-/* If a locale has been provided, set it, and generate the tables the PCRE
-needs. Otherwise, pcretables==NULL, which causes the use of default tables. */
+/* If a locale is set, use it to generate the tables the PCRE needs. Otherwise,
+pcretables==NULL, which causes the use of default tables. */
 
 if (locale != NULL)
   {
@@ -2971,7 +2979,7 @@ if (locale != NULL)
     {
     fprintf(stderr, "pcregrep: Failed to set locale %s (obtained from %s)\n",
       locale, locale_from);
-    return 2;
+    goto EXIT2;
     }
   pcretables = pcre_maketables();
   }
@@ -2986,7 +2994,7 @@ if (colour_option != NULL && strcmp(colour_option, "never") != 0)
     {
     fprintf(stderr, "pcregrep: Unknown colour setting \"%s\"\n",
       colour_option);
-    return 2;
+    goto EXIT2;
     }
   if (do_colour)
     {
@@ -3026,7 +3034,7 @@ else if (strcmp(newline, "anycrlf") == 0 || strcmp(newline, "ANYCRLF") == 0)
 else
   {
   fprintf(stderr, "pcregrep: Invalid newline specifier \"%s\"\n", newline);
-  return 2;
+  goto EXIT2;
   }
 
 /* Interpret the text values for -d and -D */
@@ -3039,7 +3047,7 @@ if (dee_option != NULL)
   else
     {
     fprintf(stderr, "pcregrep: Invalid value \"%s\" for -d\n", dee_option);
-    return 2;
+    goto EXIT2;
     }
   }
 
@@ -3050,7 +3058,7 @@ if (DEE_option != NULL)
   else
     {
     fprintf(stderr, "pcregrep: Invalid value \"%s\" for -D\n", DEE_option);
-    return 2;
+    goto EXIT2;
     }
   }
 
@@ -3251,7 +3259,8 @@ EXIT:
 if (jit_stack != NULL) pcre_jit_stack_free(jit_stack);
 #endif
 
-if (main_buffer != NULL) free(main_buffer);
+free(main_buffer);
+free((void *)pcretables);
 
 free_pattern_chain(patterns);
 free_pattern_chain(include_patterns);

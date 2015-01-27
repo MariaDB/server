@@ -39,8 +39,10 @@ arguments are as follows:
   <i>where</i>    Points to where to put the data
 </pre>
 The <i>where</i> argument must point to an integer variable, except for
-PCRE_CONFIG_MATCH_LIMIT and PCRE_CONFIG_MATCH_LIMIT_RECURSION, when it must
-point to an unsigned long integer. The available codes are:
+PCRE_CONFIG_MATCH_LIMIT, PCRE_CONFIG_MATCH_LIMIT_RECURSION, and
+PCRE_CONFIG_PARENS_LIMIT, when it must point to an unsigned long integer,
+and for PCRE_CONFIG_JITTARGET, when it must point to a const char*.
+The available codes are:
 <pre>
   PCRE_CONFIG_JIT           Availability of just-in-time compiler
                               support (1=yes 0=no)

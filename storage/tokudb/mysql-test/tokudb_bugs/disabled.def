@@ -9,3 +9,6 @@ fileops-3: how this could work, if alter needs an exclusive mdl lock?
 
 checkpoint_lock_2: test can not work when the checkpoint_safe_lock is a fair rwlock
 
+# this test was added in 7.5.4 and fails in 10.0
+# but running this very test in 7.5.3 fails in exactly the same manner
+db768: never worked. tokutek was informed, 2015-01-14

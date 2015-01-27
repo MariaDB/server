@@ -39,9 +39,12 @@ struct inuse_relaylog;
      rpl_parallel_entry::count_committing_event_groups has reached
      gco->next_gco->wait_count.
 
-   - When gco->wait_count is reached for a worker and the wait completes,
-     the worker frees gco->prev_gco; at this point it is guaranteed not to
-     be needed any longer.
+   - The gco lives until all its event groups have completed their commit.
+     This is detected by rpl_parallel_entry::last_committed_sub_id being
+     greater than or equal gco->last_sub_id. Once this happens, the gco is
+     freed. Note that since update of last_committed_sub_id can happen
+     out-of-order, the thread that frees a given gco can be for any later
+     event group, not necessarily an event group from the gco being freed.
 */
 struct group_commit_orderer {
   /* Wakeup condition, used with rpl_parallel_entry::LOCK_parallel_entry. */
@@ -49,6 +52,16 @@ struct group_commit_orderer {
   uint64 wait_count;
   group_commit_orderer *prev_gco;
   group_commit_orderer *next_gco;
+  /*
+    The sub_id of last event group in this the previous GCO.
+    Only valid if prev_gco != NULL.
+  */
+  uint64 prior_sub_id;
+  /*
+    The sub_id of the last event group in this GCO. Only valid when next_gco
+    is non-NULL.
+  */
+  uint64 last_sub_id;
   bool installed;
 };
 
@@ -96,9 +109,28 @@ struct rpl_parallel_thread {
     size_t event_size;
   } *event_queue, *last_in_queue;
   uint64 queued_size;
+  /* These free lists are protected by LOCK_rpl_thread. */
   queued_event *qev_free_list;
   rpl_group_info *rgi_free_list;
   group_commit_orderer *gco_free_list;
+  /*
+    These free lists are local to the thread, so need not be protected by any
+    lock. They are moved to the global free lists in batches in the function
+    batch_free(), to reduce LOCK_rpl_thread contention.
+
+    The lists are not NULL-terminated (as we do not need to traverse them).
+    Instead, if they are non-NULL, the loc_XXX_last_ptr_ptr points to the
+    `next' pointer of the last element, which is used to link into the front
+    of the global freelists.
+  */
+  queued_event *loc_qev_list, **loc_qev_last_ptr_ptr;
+  size_t loc_qev_size;
+  uint64 qev_free_pending;
+  rpl_group_info *loc_rgi_list, **loc_rgi_last_ptr_ptr;
+  group_commit_orderer *loc_gco_list, **loc_gco_last_ptr_ptr;
+  /* These keep track of batch update of inuse_relaylog refcounts. */
+  inuse_relaylog *accumulated_ir_last;
+  uint64 accumulated_ir_count;
 
   void enqueue(queued_event *qev)
   {
@@ -127,12 +159,42 @@ struct rpl_parallel_thread {
   queued_event *retry_get_qev(Log_event *ev, queued_event *orig_qev,
                               const char *relay_log_name,
                               ulonglong event_pos, ulonglong event_size);
+  /*
+    Put a qev on the local free list, to be later released to the global free
+    list by batch_free().
+  */
+  void loc_free_qev(queued_event *qev);
+  /*
+    Release an rgi immediately to the global free list. Requires holding the
+    LOCK_rpl_thread mutex.
+  */
   void free_qev(queued_event *qev);
   rpl_group_info *get_rgi(Relay_log_info *rli, Gtid_log_event *gtid_ev,
                           rpl_parallel_entry *e, ulonglong event_size);
+  /*
+    Put an gco on the local free list, to be later released to the global free
+    list by batch_free().
+  */
+  void loc_free_rgi(rpl_group_info *rgi);
+  /*
+    Release an rgi immediately to the global free list. Requires holding the
+    LOCK_rpl_thread mutex.
+  */
   void free_rgi(rpl_group_info *rgi);
-  group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev);
-  void free_gco(group_commit_orderer *gco);
+  group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev,
+                                uint64 first_sub_id);
+  /*
+    Put a gco on the local free list, to be later released to the global free
+    list by batch_free().
+  */
+  void loc_free_gco(group_commit_orderer *gco);
+  /*
+    Move all local free lists to the global ones. Requires holding
+    LOCK_rpl_thread.
+  */
+  void batch_free();
+  /* Update inuse_relaylog refcounts with what we have accumulated so far. */
+  void inuse_relaylog_refcount_update();
 };
 
 

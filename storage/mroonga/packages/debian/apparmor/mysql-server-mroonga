@@ -1,5 +1,0 @@
-/usr/lib/groonga/plugins/ r,
-/usr/lib/groonga/plugins/** rm,
-/etc/mecabrc r,
-/var/lib/mecab/dic/** r,
-#include <local/mysql-server-mroonga>

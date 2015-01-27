@@ -4275,7 +4275,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
     Again we don't do this for SHOW COLUMNS/KEYS because
     of backward compatibility.
   */
-  if (!is_show_fields_or_keys && result && thd->is_error() &&
+  if (!is_show_fields_or_keys && result &&
       (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT))
   {
@@ -5282,16 +5282,12 @@ err:
       column with the error text, and clear the error so that the operation
       can continue.
     */
-    const char *error= thd->is_error() ? thd->get_stmt_da()->message() : "";
+    const char *error= thd->get_stmt_da()->message();
     table->field[20]->store(error, strlen(error), cs);
 
-    if (thd->is_error())
-    {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   thd->get_stmt_da()->sql_errno(),
-                   thd->get_stmt_da()->message());
-      thd->clear_error();
-    }
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 thd->get_stmt_da()->sql_errno(), error);
+    thd->clear_error();
   }
 
   DBUG_RETURN(schema_table_store_record(thd, table));
@@ -5452,10 +5448,9 @@ static int get_schema_column_record(THD *thd, TABLE_LIST *tables,
         I.e. we are in SELECT FROM INFORMATION_SCHEMA.COLUMS
         rather than in SHOW COLUMNS
       */
-      if (thd->is_error())
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                     thd->get_stmt_da()->sql_errno(),
-                     thd->get_stmt_da()->message());
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   thd->get_stmt_da()->sql_errno(),
+                   thd->get_stmt_da()->message());
       thd->clear_error();
       res= 0;
     }
@@ -8085,12 +8080,13 @@ bool get_schema_tables_result(JOIN *join,
   THD *thd= join->thd;
   LEX *lex= thd->lex;
   bool result= 0;
-  const char *old_proc_info;
+  PSI_stage_info org_stage;
   DBUG_ENTER("get_schema_tables_result");
 
   Warnings_only_error_handler err_handler;
   thd->push_internal_handler(&err_handler);
-  old_proc_info= thd_proc_info(thd, "Filling schema table");
+  thd->enter_stage(&stage_filling_schema_table, &org_stage, __func__, __FILE__,
+                   __LINE__);
   
   JOIN_TAB *tab;
   for (tab= first_linear_tab(join, WITHOUT_BUSH_ROOTS, WITH_CONST_TABLES);
@@ -8194,7 +8190,7 @@ bool get_schema_tables_result(JOIN *join,
   }
   else if (result)
     my_error(ER_UNKNOWN_ERROR, MYF(0));
-  thd_proc_info(thd, old_proc_info);
+  THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(result);
 }
 

@@ -148,6 +148,12 @@ sync_array_t*
 sync_array_get(void);
 /*================*/
 
+/**********************************************************************//**
+Prints info of the wait array without using any mutexes/semaphores. */
+UNIV_INTERN
+void
+sync_array_print_xtradb(void);
+
 #ifndef UNIV_NONINL
 #include "sync0arr.ic"
 #endif
