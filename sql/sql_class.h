@@ -4108,7 +4108,7 @@ public:
   virtual bool check_simple_select() const { return FALSE; }
   void abort_result_set();
   virtual void cleanup();
-  bool is_result_interceptor() { return true; }
+  bool is_result_interceptor() { return false; }
 };
 
 
