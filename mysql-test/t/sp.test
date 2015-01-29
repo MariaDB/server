@@ -9324,3 +9324,64 @@ BEGIN
 END|
 DROP FUNCTION f|
 DELIMITER ;|
+
+--echo #
+--echo # MDEV-7023: Error 2027: Malformed packet and assertion
+--echo # `field_types == 0 || field_types[field_pos] == MYSQL_TYPE_INT24 ||
+--echo #field_types[field_pos] == MYSQL_TYPE_LONG' failure in
+--echo #Protocol_text::store_long
+--echo #
+create table t1 (i int);
+create table t2 (i int);
+--delimiter |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze insert into t1 values (1); 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze insert t1 select * from t2; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze delete from t1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze delete t1 from t1,t2; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze update t1 set i=1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze update t1,t2 set i=1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze replace t1 set i=1; 
+  return 1; 
+end |
+--error ER_SP_NO_RETSET
+create function f() returns int 
+begin 
+  analyze replace t1 select * from t2; 
+  return 1; 
+end |
+--delimiter ;
+
+drop table t1,t2;
