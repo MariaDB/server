@@ -6808,10 +6808,10 @@ innobase_read_from_2_little_endian(
 	return((uint) ((ulint)(buf[0]) + 256 * ((ulint)(buf[1]))));
 }
 
+#ifdef WITH_WSREP
 /*******************************************************************//**
 Stores a key value for a row to a buffer.
 @return	key value length as stored in buff */
-#ifdef WITH_WSREP
 UNIV_INTERN
 uint
 wsrep_store_key_val_for_row(
@@ -7959,11 +7959,11 @@ ha_innobase::write_row(
 	dberr_t		error;
 	int		error_result= 0;
 	ibool		auto_inc_used= FALSE;
-	ulint		sql_command;
-	trx_t*		trx = thd_to_trx(user_thd);
 #ifdef WITH_WSREP
 	ibool           auto_inc_inserted= FALSE; /* if NULL was inserted */
 #endif
+	ulint		sql_command;
+	trx_t*		trx = thd_to_trx(user_thd);
 
 	DBUG_ENTER("ha_innobase::write_row");
 
@@ -8001,7 +8001,9 @@ ha_innobase::write_row(
 	     || sql_command == SQLCOM_CREATE_INDEX
 #ifdef WITH_WSREP
 	     || (wsrep_on(user_thd) && wsrep_load_data_splitting &&
-		 sql_command == SQLCOM_LOAD)
+		 sql_command == SQLCOM_LOAD                      &&
+		 !thd_test_options(
+			user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
 #endif /* WITH_WSREP */
 	     || sql_command == SQLCOM_DROP_INDEX)
 	    && num_write_row >= 10000) {
@@ -8045,15 +8047,19 @@ no_commit:
 			;
 		} else if (src_table == prebuilt->table) {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)) {
+			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			    sql_command == SQLCOM_LOAD                      &&
+			    !thd_test_options(
+					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			{
 				switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
 				{
 				case WSREP_TRX_OK:
-					break;
+				  break;
 				case WSREP_TRX_SIZE_EXCEEDED:
 				case WSREP_TRX_CERT_FAIL:
 				case WSREP_TRX_ERROR:
-					DBUG_RETURN(1);
+				  DBUG_RETURN(1);
 				}
 
 				if (binlog_hton->commit(binlog_hton, user_thd, 1))
@@ -8072,15 +8078,19 @@ no_commit:
 			prebuilt->sql_stat_start = TRUE;
 		} else {
 #ifdef WITH_WSREP
-			if (wsrep_on(user_thd)) {
+			if (wsrep_on(user_thd) && wsrep_load_data_splitting &&
+			    sql_command == SQLCOM_LOAD                      &&
+			    !thd_test_options(
+					      user_thd, OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN))
+			{
 				switch (wsrep_run_wsrep_commit(user_thd, wsrep_hton, 1))
 				{
 				case WSREP_TRX_OK:
-					break;
+				  break;
 				case WSREP_TRX_SIZE_EXCEEDED:
 				case WSREP_TRX_CERT_FAIL:
 				case WSREP_TRX_ERROR:
-					DBUG_RETURN(1);
+				  DBUG_RETURN(1);
 				}
 
 				if (binlog_hton->commit(binlog_hton, user_thd, 1))
