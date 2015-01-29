@@ -34,6 +34,7 @@
 #include "sp.h"
 #include "sp_cache.h"
 #include "datadict.h"   // dd_frm_is_view()
+#include "sql_derived.h"
 
 #define MD5_BUFF_LENGTH 33
 
@@ -1063,6 +1064,15 @@ bool mysql_make_view(THD *thd, File_parser *parser, TABLE_LIST *table,
     DBUG_PRINT("info",
                ("VIEW %s.%s is already processed on previous PS/SP execution",
                 table->view_db.str, table->view_name.str));
+
+    /*
+      Clear old variables in the TABLE_LIST that could be left from an old view
+      This is only needed if there was an error at last usage of view,
+      in which case the reinit call wasn't done.
+      See MDEV-6668 for details.
+    */
+    mysql_derived_reinit(thd, NULL, table);
+
     DBUG_RETURN(0);
   }
 

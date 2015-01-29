@@ -4728,23 +4728,26 @@ bool TABLE_LIST::check_single_table(TABLE_LIST **table_arg,
 
 bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
 {
+  DBUG_ENTER("set_insert_values");
   if (table)
   {
+    DBUG_PRINT("info", ("setting insert_value for table"));
     if (!table->insert_values &&
         !(table->insert_values= (uchar *)alloc_root(mem_root,
                                                    table->s->rec_buff_length)))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
   else
   {
+    DBUG_PRINT("info", ("setting insert_value for view"));
     DBUG_ASSERT(is_view_or_derived() && is_merged_derived());
     for (TABLE_LIST *tbl= (TABLE_LIST*)view->select_lex.table_list.first;
          tbl;
          tbl= tbl->next_local)
       if (tbl->set_insert_values(mem_root))
-        return TRUE;
+        DBUG_RETURN(TRUE);
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -6897,15 +6900,16 @@ void TABLE_LIST::reset_const_table()
 
 bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
-  SELECT_LEX_UNIT *unit= get_unit();
-  if (unit)
+  SELECT_LEX_UNIT *unit;
+  DBUG_ENTER("handle_derived");
+  if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
       if (sl->handle_derived(lex, phases))
-        return TRUE;
-    return mysql_handle_single_derived(lex, this, phases);
+        DBUG_RETURN(TRUE);
+    DBUG_RETURN(mysql_handle_single_derived(lex, this, phases));
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
