@@ -211,11 +211,12 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
       my_free(share);
       goto err;
     }
-    thr_lock_init(&share->lock);
-    mysql_mutex_init(hp_key_mutex_HP_SHARE_intern_lock,
-                     &share->intern_lock, MY_MUTEX_INIT_FAST);
+
     if (!create_info->internal_table)
     {
+      thr_lock_init(&share->lock);
+      mysql_mutex_init(hp_key_mutex_HP_SHARE_intern_lock,
+                       &share->intern_lock, MY_MUTEX_INIT_FAST);
       share->open_list.data= (void*) share;
       heap_share_list= list_add(heap_share_list,&share->open_list);
     }
@@ -340,11 +341,13 @@ void heap_drop_table(HP_INFO *info)
 
 void hp_free(HP_SHARE *share)
 {
-  if (share->open_list.data)                    /* If not internal table */
+  if (!share->internal)
+  {
     heap_share_list= list_delete(heap_share_list, &share->open_list);
+    thr_lock_delete(&share->lock);
+    mysql_mutex_destroy(&share->intern_lock);
+  }
   hp_clear(share);			/* Remove blocks from memory */
-  thr_lock_delete(&share->lock);
-  mysql_mutex_destroy(&share->intern_lock);
   my_free(share->name);
   my_free(share);
   return;
