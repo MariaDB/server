@@ -15,6 +15,7 @@ enum JMODE {MODE_OBJECT, MODE_ARRAY, MODE_VALUE};
 typedef class JSONDEF *PJDEF;
 typedef class TDBJSON *PJTDB;
 typedef class JSONCOL *PJCOL;
+typedef class JARLST  *PJARS;
 
 class TDBJSN;
 
@@ -25,7 +26,9 @@ typedef struct _jnode {
   PSZ   Key;                    // The key used for object
   OPVAL Op;                     // Operator used for this node
   PVAL  CncVal;                 // To cont value used for OP_CNC
+  PVAL  Valp;                   // The internal array VALUE
   int   Rank;                   // The rank in array
+  int   Nx;                     // Same row number
 } JNODE, *PJNODE;
 
 /***********************************************************************/
@@ -98,11 +101,11 @@ class TDBJSN : public TDBDOS {
   int   N;                         // The current Rownum
 	int   Limit;		    				     // Limit of multiple values
   int   Pretty;                    // Depends on file structure
-  bool  Strict;                    // Strict syntax checking
-  bool  NextSame;                  // Same next row
-  bool  Comma;                     // Row has final comma
+  int   NextSame;                  // Same next row
   int   SameRow;                   // Same row nb
   int   Xval;                      // Index of expandable array
+  bool  Strict;                    // Strict syntax checking
+  bool  Comma;                     // Row has final comma
   }; // end of class TDBJSN
 
 /* -------------------------- JSONCOL class -------------------------- */
@@ -130,8 +133,11 @@ class JSONCOL : public DOSCOL {
  protected:
   bool    CheckExpand(PGLOBAL g, int i, PSZ nm, bool b);
   bool    SetArrayOptions(PGLOBAL g, char *p, int i, PSZ nm);
-  PJSON   GetRow(PGLOBAL g, int mode);
+  PVAL    GetColumnValue(PGLOBAL g, PJSON row, int i);
+  PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
+  PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
   void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+  PJSON   GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   JSONCOL(void) {}
@@ -139,12 +145,10 @@ class JSONCOL : public DOSCOL {
   // Members
   TDBJSN *Tjp;                  // To the JSN table block
   PVAL    MulVal;               // To value used by multiple column
-  PJAR    Arp;                  // The intermediate array
   char   *Jpath;                // The json path
-  JNODE  *Nodes  ;              // The intermediate objects
+  JNODE  *Nodes;                // The intermediate objects
   int     Nod;                  // The number of intermediate objects
-  int     Ival;                 // Index of multiple values
-  int     Nx;                   // The last read sub-row
+  int     Xnod;                 // Index of multiple values
   bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   }; // end of class JSONCOL

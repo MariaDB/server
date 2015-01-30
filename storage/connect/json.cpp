@@ -576,9 +576,9 @@ bool SerializeObject(JOUT *js, PJOB jobp)
     else if (js->WriteChr(','))
       return true;
 
-    if (js->WriteChr('\"') ||
+    if (js->WriteChr('"') ||
         js->WriteStr(pair->Key) ||
-        js->WriteChr('\"') ||
+        js->WriteChr('"') ||
         js->WriteChr(':') ||
         SerializeValue(js, pair->Val))
       return true;
@@ -725,13 +725,13 @@ bool JOUTFILE::Escape(const char *s)
 
   for (unsigned int i = 0; i < strlen(s); i++)
     switch (s[i]) {
+      case '"':  fputs("\\\"", Stream); break;
+      case '\\': fputs("\\\\", Stream); break;
       case '\t': fputs("\\t",  Stream); break;
       case '\n': fputs("\\n",  Stream); break;
       case '\r': fputs("\\r",  Stream); break;
       case '\b': fputs("\\b",  Stream); break;
       case '\f': fputs("\\f",  Stream); break;
-      case '\\': fputs("\\\\", Stream); break;
-      case '"':  fputs("\\\"", Stream); break;
       default:
         fputc(s[i], Stream);
         break;

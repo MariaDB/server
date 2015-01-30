@@ -997,8 +997,12 @@ char *ha_connect::GetRealString(const char *s)
   char *sv;
 
   if (IsPartitioned() && s) {
-    sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
+//  sv= (char*)PlugSubAlloc(xp->g, NULL, strlen(s) + strlen(partname));
+    // With wrong string pattern, the size of the constructed string
+    // can be more than strlen(s) + strlen(partname)
+    sv= (char*)PlugSubAlloc(xp->g, NULL, 0);
     sprintf(sv, s, partname);
+    PlugSubAlloc(xp->g, NULL, strlen(sv) + 1);
   } else
     sv= (char*)s;
 

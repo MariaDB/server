@@ -18,7 +18,8 @@ enum JTYP {TYPE_STRG = 1,
            TYPE_BOOL = 4,
            TYPE_INTG = 7, 
            TYPE_JSON = 12, 
-           TYPE_JAR, TYPE_JOB, 
+           TYPE_JAR, 
+           TYPE_JOB, 
            TYPE_JVAL};
 
 class JOUT;
