@@ -1370,7 +1370,6 @@ public:
     emb_sjm_nest= NULL;
     sjm_lookup_tables= 0;
 
-    filesort_found_rows= false;
     /* 
       The following is needed because JOIN::cleanup(true) may be called for 
       joins for which JOIN::optimize was aborted with an error before a proper

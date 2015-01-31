@@ -2,7 +2,7 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 FUNCTION(CHECK_OQGRAPH)
 MESSAGE(STATUS "Configuring OQGraph")
-FIND_PACKAGE(Boost)
+FIND_PACKAGE(Boost 1.40.0)
 IF(NOT Boost_FOUND)
   MESSAGE(STATUS "Boost not found. OQGraph will not be compiled")
   RETURN()

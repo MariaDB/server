@@ -88,7 +88,7 @@ dict_get_referenced_table(
 	mem_heap_t*	heap);		/*!< in: heap memory */
 /*********************************************************************//**
 Frees a foreign key struct. */
-UNIV_INTERN
+
 void
 dict_foreign_free(
 /*==============*/

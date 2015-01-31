@@ -442,7 +442,6 @@ extern my_bool			srv_stats_sample_traditional;
 
 extern ibool	srv_use_doublewrite_buf;
 extern ulong	srv_doublewrite_batch_size;
-extern ulong	srv_checksum_algorithm;
 
 extern my_bool	srv_force_primary_key;
 

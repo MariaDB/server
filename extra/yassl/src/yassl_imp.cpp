@@ -24,7 +24,7 @@
 #include "handshake.hpp"
 
 #include "asn.hpp"  // provide crypto wrapper??
-
+#include <my_attribute.h>
 
 
 namespace yaSSL {
@@ -947,7 +947,7 @@ void Alert::Process(input_buffer& input, SSL& ssl)
 
         if (ssl.getSecurity().get_parms().cipher_type_ == block) {
             int    ivExtra = 0;
-            opaque fill;
+            opaque fill __attribute__((unused));
 
             if (ssl.isTLSv1_1())
                 ivExtra = ssl.getCrypto().get_cipher().get_blockSize();
@@ -2395,7 +2395,7 @@ void Finished::Process(input_buffer& input, SSL& ssl)
         if (ssl.isTLSv1_1())
             ivExtra = ssl.getCrypto().get_cipher().get_blockSize();
 
-    opaque fill;
+    opaque fill __attribute__((unused));
     int    padSz = ssl.getSecurity().get_parms().encrypt_size_ - ivExtra -
                      HANDSHAKE_HEADER - finishedSz - digestSz;
     for (int i = 0; i < padSz; i++) 

@@ -148,9 +148,11 @@ bool check_view_single_update(List<Item> &fields, List<Item> *values,
   if (view->check_single_table(&tbl, tables, view) || tbl == 0)
     goto error;
 
+  /* view->table should have been set in mysql_derived_merge_for_insert */
+  DBUG_ASSERT(view->table);
+
   /*
-    A buffer for the insert values was allocated for the merged view.
-    Use it.
+    Use buffer for the insert values that was allocated for the merged view.
   */
   tbl->table->insert_values= view->table->insert_values;
   view->table= tbl->table;
@@ -195,11 +197,12 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                                table_map *map)
 {
   TABLE *table= table_list->table;
+  DBUG_ENTER("check_insert_fields");
 
   if (!table_list->single_table_updatable())
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
-    return -1;
+    DBUG_RETURN(-1);
   }
 
   if (fields.elements == 0 && values.elements != 0)
@@ -208,18 +211,18 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),
                table_list->view_db.str, table_list->view_name.str);
-      return -1;
+      DBUG_RETURN(-1);
     }
     if (values.elements != table->s->fields)
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
-      return -1;
+      DBUG_RETURN(-1);
     }
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     Field_iterator_table_ref field_it;
     field_it.set(table_list);
     if (check_grant_all_columns(thd, INSERT_ACL, &field_it))
-      return -1;
+      DBUG_RETURN(-1);
 #endif
     /*
       No fields are provided so all fields must be provided in the values.
@@ -237,7 +240,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     if (fields.elements != values.elements)
     {
       my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), 1L);
-      return -1;
+      DBUG_RETURN(-1);
     }
 
     thd->dup_field= 0;
@@ -263,7 +266,7 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
     thd->lex->select_lex.no_wrap_view_item= FALSE;
 
     if (res)
-      return -1;
+      DBUG_RETURN(-1);
 
     if (table_list->is_view() && table_list->is_merged_derived())
     {
@@ -271,14 +274,14 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
                                    fields_and_values_from_different_maps ?
                                    (List<Item>*) 0 : &values,
                                    table_list, map, true))
-        return -1;
+        DBUG_RETURN(-1);
       table= table_list->table;
     }
 
     if (check_unique && thd->dup_field)
     {
       my_error(ER_FIELD_SPECIFIED_TWICE, MYF(0), thd->dup_field->field_name);
-      return -1;
+      DBUG_RETURN(-1);
     }
     if (table->default_field)
       table->mark_default_fields_for_write();
@@ -296,10 +299,10 @@ static int check_insert_fields(THD *thd, TABLE_LIST *table_list,
        check_view_insertability(thd, table_list)))
   {
     my_error(ER_NON_INSERTABLE_TABLE, MYF(0), table_list->alias, "INSERT");
-    return -1;
+    DBUG_RETURN(-1);
   }
 
-  return 0;
+  DBUG_RETURN(0);
 }
 
 
@@ -1765,7 +1768,7 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
 
           table->file->adjust_next_insert_id_after_explicit_value(table->next_number_field->val_int());
         }
-        else
+        else if (prev_insert_id_for_cur_row)
         {
           table->file->restore_auto_increment(prev_insert_id_for_cur_row);
         }

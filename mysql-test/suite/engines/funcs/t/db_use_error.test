@@ -6,5 +6,6 @@ SHOW DATABASES;
 --error 1064
 USE DATABASE nond6;
 DROP DATABASE d6;
+--sorted_result
 SHOW DATABASES;
 

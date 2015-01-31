@@ -22,6 +22,7 @@ INSERT INTO t2 VALUE (4, 1);
 INSERT INTO t2 VALUE (5, 1);
 INSERT INTO t1 SELECT * FROM t2;
 DROP TEMPORARY TABLE t2;
+include/save_master_gtid.inc
 Contents on master:
 SELECT * FROM t1 ORDER BY a;
 a	b
@@ -41,6 +42,7 @@ SET sql_log_bin= 0;
 DELETE FROM t1 WHERE a=1;
 SET sql_log_bin= 1;
 include/start_slave.inc
+include/sync_with_master_gtid.inc
 Contents on slave after:
 SELECT * FROM t1 ORDER BY a;
 a	b

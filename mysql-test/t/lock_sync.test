@@ -1186,7 +1186,6 @@ DROP TABLE t1;
 disconnect con1;
 disconnect con2;
 
-
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc

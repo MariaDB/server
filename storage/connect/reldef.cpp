@@ -202,6 +202,8 @@ TABDEF::TABDEF(void)
   Degree = 0;
   Pseudo = 0;
   Read_Only = false;
+  m_data_charset = NULL;
+  csname = NULL;
   } // end of TABDEF constructor
 
 /***********************************************************************/
@@ -224,6 +226,7 @@ bool TABDEF::Define(PGLOBAL g, PCATLG cat, LPCSTR name, LPCSTR am)
   m_data_charset= data_charset_name ?
                   get_charset_by_csname(data_charset_name, MY_CS_PRIMARY, 0):
                   NULL;
+  csname = GetStringCatInfo(g, "Table_charset", NULL);
 
   // Get The column definitions
   if ((poff = GetColCatInfo(g)) < 0)

@@ -1,3 +1,4 @@
+call mtr.add_suppression("InnoDB: Warning: database page corruption or a failed");
 CREATE TABLE t1(a CHAR(255),
 b CHAR(255),
 c CHAR(255),

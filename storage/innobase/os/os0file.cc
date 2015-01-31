@@ -2278,8 +2278,6 @@ os_file_close_func(
 #ifdef __WIN__
 	BOOL	ret;
 
-	ut_a(file);
-
 	ret = CloseHandle(file);
 
 	if (ret) {
@@ -2316,8 +2314,6 @@ os_file_close_no_error_handling(
 {
 #ifdef __WIN__
 	BOOL	ret;
-
-	ut_a(file);
 
 	ret = CloseHandle(file);
 
@@ -2546,8 +2542,6 @@ os_file_flush_func(
 {
 #ifdef __WIN__
 	BOOL	ret;
-
-	ut_a(file);
 
 	os_n_fsyncs++;
 
@@ -2882,7 +2876,6 @@ os_file_read_func(
 	os_bytes_read_since_printout += n;
 
 try_again:
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3026,7 +3019,6 @@ os_file_read_no_error_handling_func(
 	os_bytes_read_since_printout += n;
 
 try_again:
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -3178,7 +3170,6 @@ os_file_write_func(
 
 	os_n_file_writes++;
 
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 
@@ -4987,7 +4978,6 @@ os_aio_func(
 #endif /* WIN_ASYNC_IO */
 	ulint		wake_later;
 
-	ut_ad(file);
 	ut_ad(buf);
 	ut_ad(n > 0);
 	ut_ad(n % OS_FILE_LOG_BLOCK_SIZE == 0);

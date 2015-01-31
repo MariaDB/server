@@ -780,7 +780,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -1611,7 +1611,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -2461,7 +2461,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -3375,7 +3375,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -4574,7 +4574,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -5978,7 +5978,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -8049,7 +8049,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'0';
 0 + b'0'
 0
@@ -11227,7 +11227,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -12009,7 +12009,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -12840,7 +12840,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -13690,7 +13690,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -14604,7 +14604,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -15803,7 +15803,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -17207,7 +17207,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -19278,7 +19278,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1';
 0 + b'1'
 1
@@ -22456,7 +22456,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -23244,7 +23244,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -24081,7 +24081,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -24931,7 +24931,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -25845,7 +25845,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -27044,7 +27044,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -28448,7 +28448,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -30519,7 +30519,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'10';
 0 + b'10'
 2
@@ -33697,7 +33697,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -34485,7 +34485,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -35322,7 +35322,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -36178,7 +36178,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -37092,7 +37092,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -38291,7 +38291,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -39695,7 +39695,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -41766,7 +41766,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010';
 0 + b'1010'
 10
@@ -44944,7 +44944,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -45732,7 +45732,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -46569,7 +46569,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -47425,7 +47425,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -48345,7 +48345,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -49550,7 +49550,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -50954,7 +50954,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -53025,7 +53025,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'1010101010101010';
 0 + b'1010101010101010'
 43690
@@ -56203,7 +56203,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -56993,7 +56993,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -57832,7 +57832,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -58690,7 +58690,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -59612,7 +59612,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -60819,7 +60819,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -62231,7 +62231,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -64304,7 +64304,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + b'101010101010101010101010101010';
 0 + b'101010101010101010101010101010'
 715827882
@@ -67484,7 +67484,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<0);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<0)
 9223372036854775807
@@ -68271,7 +68271,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<1);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<1)
 18446744073709551614
@@ -69107,7 +69107,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<2);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<2)
 18446744073709551612
@@ -69962,7 +69962,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<4);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<4)
 18446744073709551600
@@ -70881,7 +70881,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<8);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<8)
 18446744073709551360
@@ -72085,7 +72085,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<16);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<16)
 18446744073709486080
@@ -73494,7 +73494,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<32);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<32)
 18446744069414584320
@@ -75570,7 +75570,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (1010101010101010101010101010101010101010101010101010101010101010<<64);
 0 + (1010101010101010101010101010101010101010101010101010101010101010<<64)
 0
@@ -78747,7 +78747,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<0);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<0)
 9223372036854775807
@@ -79534,7 +79534,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<1);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<1)
 18446744073709551614
@@ -80370,7 +80370,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<2);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<2)
 18446744073709551612
@@ -81225,7 +81225,7 @@ hex(c1)	hex(c2)
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<4);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<4)
 18446744073709551600
@@ -82144,7 +82144,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<8);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<8)
 18446744073709551360
@@ -83348,7 +83348,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<16);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<16)
 18446744073709486080
@@ -84757,7 +84757,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<32);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<32)
 18446744069414584320
@@ -86833,7 +86833,7 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'
 SELECT 0 + (10101010101010101010101010101010101010101010101010101010101010101<<64);
 0 + (10101010101010101010101010101010101010101010101010101010101010101<<64)
 0
@@ -90016,4 +90016,4 @@ A	A
 DELETE t5,t6 FROM t5,t6 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 DROP TABLE IF EXISTS t1,t2,t3,t4,t5,t6,t7;
 Warnings:
-Note	1051	Unknown table 't3'
+Note	1051	Unknown table 'test.t3'

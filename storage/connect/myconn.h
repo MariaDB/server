@@ -67,7 +67,7 @@ class DllItem MYSQLC {
   int     GetTableSize(PGLOBAL g, PSZ query);
   int     Open(PGLOBAL g, const char *host, const char *db,
                           const char *user= "root", const char *pwd= "*",
-                          int pt= 0);
+                          int pt= 0, const char *csname = NULL);
   int     KillQuery(ulong id);
   int     ExecSQL(PGLOBAL g, const char *query, int *w = NULL);
   int     ExecSQLcmd(PGLOBAL g, const char *query, int *w);
@@ -98,5 +98,6 @@ class DllItem MYSQLC {
   int         m_Fields;     // The number of result fields
   int         m_Afrw;       // The number of affected rows
   bool        m_Use;        // Use or store result set
+  const char *csname;       // Table charset name
   }; // end of class MYSQLC
 

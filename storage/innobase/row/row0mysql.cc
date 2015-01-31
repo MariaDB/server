@@ -3793,6 +3793,10 @@ row_drop_table_for_mysql(
 	pars_info_t*	info			= NULL;
 	mem_heap_t*	heap			= NULL;
 
+	DBUG_ENTER("row_drop_table_for_mysql");
+
+	DBUG_PRINT("row_drop_table_for_mysql", ("table: %s", name));
+
 	ut_a(name != NULL);
 
 	if (srv_created_new_raw) {
@@ -3802,7 +3806,7 @@ row_drop_table_for_mysql(
 		      "InnoDB: Shut down mysqld and edit my.cnf so that newraw"
 		      " is replaced with raw.\n", stderr);
 
-		return(DB_ERROR);
+		DBUG_RETURN(DB_ERROR);
 	}
 
 	/* The table name is prefixed with the database name and a '/'.
@@ -4432,7 +4436,7 @@ funct_exit:
 
 	srv_wake_master_thread();
 
-	return(err);
+	DBUG_RETURN(err);
 }
 
 /*********************************************************************//**

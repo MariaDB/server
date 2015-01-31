@@ -39,9 +39,12 @@ struct inuse_relaylog;
      rpl_parallel_entry::count_committing_event_groups has reached
      gco->next_gco->wait_count.
 
-   - When gco->wait_count is reached for a worker and the wait completes,
-     the worker frees gco->prev_gco; at this point it is guaranteed not to
-     be needed any longer.
+   - The gco lives until all its event groups have completed their commit.
+     This is detected by rpl_parallel_entry::last_committed_sub_id being
+     greater than or equal gco->last_sub_id. Once this happens, the gco is
+     freed. Note that since update of last_committed_sub_id can happen
+     out-of-order, the thread that frees a given gco can be for any later
+     event group, not necessarily an event group from the gco being freed.
 */
 struct group_commit_orderer {
   /* Wakeup condition, used with rpl_parallel_entry::LOCK_parallel_entry. */
@@ -49,6 +52,16 @@ struct group_commit_orderer {
   uint64 wait_count;
   group_commit_orderer *prev_gco;
   group_commit_orderer *next_gco;
+  /*
+    The sub_id of last event group in this the previous GCO.
+    Only valid if prev_gco != NULL.
+  */
+  uint64 prior_sub_id;
+  /*
+    The sub_id of the last event group in this GCO. Only valid when next_gco
+    is non-NULL.
+  */
+  uint64 last_sub_id;
   /*
     This flag is set when this GCO has been installed into the next_gco pointer
     of the previous GCO.
@@ -190,7 +203,8 @@ struct rpl_parallel_thread {
     LOCK_rpl_thread mutex.
   */
   void free_rgi(rpl_group_info *rgi);
-  group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev);
+  group_commit_orderer *get_gco(uint64 wait_count, group_commit_orderer *prev,
+                                uint64 first_sub_id);
   /*
     Put a gco on the local free list, to be later released to the global free
     list by batch_free().

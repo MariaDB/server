@@ -1,0 +1,30 @@
+# Test cases that cover the crashes within:
+# MDEV-7362 ANALYZE TABLES crash with table-independent-statistics gathering
+# MDEV-7380 engine-independent stats SEGV on ANALYZE TABLE (#2)
+
+--source include/have_stat_tables.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (a longtext, FULLTEXT KEY (`a`)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (unhex('3E0D0A4141414142334E7A6143317963324541414141424977414141674541726D'));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+--sorted_result
+SELECT * FROM mysql.index_stats WHERE index_name='a' AND table_name='t1';
+DROP TABLE t1;
+
+CREATE TABLE t1 (a longtext, FULLTEXT KEY (`a`)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (unhex('3E0D0A4141414142334E7A6143317963324541414141424977414141674541726D'));
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+--sorted_result
+SELECT * FROM mysql.index_stats WHERE index_name='a' AND table_name='t1';
+DROP TABLE t1;
+
+CREATE TABLE geom (g GEOMETRY NOT NULL, SPATIAL INDEX(g)) ENGINE=MyISAM;
+INSERT INTO geom VALUES
+    (MultiPolygonFromText('MULTIPOLYGON(((28 26,28 0,84 0,84 42,28 26),(52 18,66 23,73 9,48 6,52 18)),((59 18,67 18,67 13,59 13,59 18)))')),
+    (MPolyFromText('MULTIPOLYGON(((28 26,28 0,84 0,84 42,28 26),(52 18,66 23,73 9,48 6,52 18)),((59 18,67 18,67 13,59 13,59 18)))')),
+    (MPolyFromWKB(AsWKB(MultiPolygon(Polygon(LineString(Point(0, 3), Point(3, 3), Point(3, 0), Point(0, 3)))))));
+ANALYZE TABLE geom PERSISTENT FOR ALL;
+--sorted_result
+SELECT * FROM mysql.index_stats WHERE index_name='g' AND table_name='geom';
+DROP TABLE geom;

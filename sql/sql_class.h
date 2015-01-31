@@ -3244,6 +3244,14 @@ public:
       mysql_mutex_unlock(&LOCK_thd_data);
     }
   }
+  inline void reset_kill_query()
+  {
+    if (killed < KILL_CONNECTION)
+    {
+      reset_killed();
+      mysys_var->abort= 0;
+    }
+  }
   inline void send_kill_message() const
   {
     int err= killed_errno();

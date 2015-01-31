@@ -60,6 +60,8 @@ WHERE name like "%wait/io/table/sql/handler%";
 --echo #
 --echo # Stop server
 --send_shutdown
+--source include/wait_until_disconnected.inc
+
 --echo # Restart server with wait/io/table/sql/handler disabled
 
 --exec echo "restart:--loose-performance-schema-instrument=%wait/io/table/sql/%=off" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect

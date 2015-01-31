@@ -64,6 +64,8 @@ static ulint srv_data_read, srv_data_written;
 #endif
 #include "row0mysql.h"
 
+MYSQL_PLUGIN_IMPORT extern my_bool lower_case_file_system;
+
 /*
 		IMPLEMENTATION OF THE TABLESPACE MEMORY CACHE
 		=============================================
@@ -2041,7 +2043,8 @@ UNIV_INTERN
 ibool
 fil_inc_pending_ops(
 /*================*/
-	ulint	id)	/*!< in: space id */
+	ulint	id,		/*!< in: space id */
+	ibool	print_err)	/*!< in: need to print error or not */
 {
 	fil_space_t*	space;
 
@@ -2050,10 +2053,12 @@ fil_inc_pending_ops(
 	space = fil_space_get_by_id(id);
 
 	if (space == NULL) {
-		fprintf(stderr,
-			"InnoDB: Error: trying to do an operation on a"
-			" dropped tablespace %lu\n",
-			(ulong) id);
+		if (print_err) {
+			fprintf(stderr,
+				"InnoDB: Error: trying to do an operation on a"
+				" dropped tablespace %lu\n",
+				(ulong) id);
+		}
 	}
 
 	if (space == NULL || space->stop_new_ops) {
@@ -4221,7 +4226,18 @@ fil_load_single_table_tablespace(
 	/* Build up the tablename in the standard form database/table. */
 	tablename = static_cast<char*>(
 		mem_alloc(dbname_len + filename_len + 2));
-	sprintf(tablename, "%s/%s", dbname, filename);
+
+	/* When lower_case_table_names = 2 it is possible that the
+	dbname is in upper case ,but while storing it in fil_space_t
+	we must convert it into lower case */
+	sprintf(tablename, "%s" , dbname);
+	tablename[dbname_len] = '\0';
+
+        if (lower_case_file_system) {
+                dict_casedn_str(tablename);
+        }
+
+	sprintf(tablename+dbname_len,"/%s",filename);
 	tablename_len = strlen(tablename) - strlen(".ibd");
 	tablename[tablename_len] = '\0';
 

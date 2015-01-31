@@ -374,6 +374,9 @@ CREATE VIEW v1 AS SELECT f1('a') FROM t1;
 --send SELECT * FROM v1
 
 --connection default
+let $wait_condition=
+  select count(*) = 2 from information_schema.processlist where state = "User sleep";
+--source include/wait_condition.inc
 --disable_query_log
 --eval KILL QUERY $ID_2
 --eval KILL QUERY $ID_1

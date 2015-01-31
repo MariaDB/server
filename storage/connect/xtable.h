@@ -209,6 +209,7 @@ class DllExport TDBASE : public TDB {
   int      Knum;              // Size of key arrays
   bool     Read_Only;         // True for read only tables
   const CHARSET_INFO *m_data_charset;
+  const char *csname;         // Table charset name
   }; // end of class TDBASE
 
 /***********************************************************************/

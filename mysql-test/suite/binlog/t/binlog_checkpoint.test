@@ -138,8 +138,39 @@ SET DEBUG_SYNC= "now WAIT_FOR injected_binlog_background_thread";
 SET GLOBAL debug_dbug= @old_dbug;
 INSERT INTO t1 VALUES (31, REPEAT("x", 4100));
 --source include/show_binary_logs.inc
+SET debug_sync = 'reset';
 
 
+--echo *** MDEV-7402: 'reset master' hangs, waits for signalled COND_xid_list ***
+
+--source include/wait_for_binlog_checkpoint.inc
+
+connect(con3,localhost,root,,);
+# Make the binlog background thread wait before clearing the pending checkpoint.
+# The bug was that one RESET MASTER would clear the reset_master_pending
+# flag set by another RESET MASTER; this could cause the wakeup from the
+# binlog background thread not to be sent, and thus the second RESET MASTER
+# to wait infinitely.
+SET debug_sync="reset_logs_after_set_reset_master_pending SIGNAL reset_master_ready WAIT_FOR reset_master_cont";
+send RESET MASTER;
+
+--connection default
+SET @old_dbug= @@global.DEBUG_DBUG;
+SET GLOBAL debug_dbug="+d,inject_binlog_background_thread_before_mark_xid_done";
+SET debug_sync="now WAIT_FOR reset_master_ready";
+RESET MASTER;
+SET debug_sync="now WAIT_FOR injected_binlog_background_thread";
+SET GLOBAL debug_dbug=@old_dbug;
+SET debug_sync="now SIGNAL reset_master_cont";
+
+--connection con3
+REAP;
+
+--connection default
+SET debug_sync = 'reset';
+
+
+# Clean up.
 DROP TABLE t1, t2;
 SET GLOBAL max_binlog_size= @old_max_binlog_size;
 SET GLOBAL innodb_flush_log_at_trx_commit= @old_innodb_flush_log_at_trx_commit;

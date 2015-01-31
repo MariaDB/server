@@ -617,7 +617,8 @@ UNIV_INTERN
 ibool
 fil_inc_pending_ops(
 /*================*/
-	ulint	id);	/*!< in: space id */
+	ulint	id,		/*!< in: space id */
+	ibool	print_err);	/*!< in: need to print error or not */
 /*******************************************************************//**
 Decrements the count of pending operations. */
 UNIV_INTERN

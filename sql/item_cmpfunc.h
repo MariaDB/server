@@ -48,6 +48,14 @@ class Arg_comparator: public Sql_alloc
   THD *thd;
   Item *a_cache, *b_cache;         // Cached values of a and b items
                                    //   when one of arguments is NULL.
+  int set_compare_func(Item_result_field *owner, Item_result type);
+  inline int set_compare_func(Item_result_field *owner_arg)
+  {
+    return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
+                                                     (*b)->result_type()));
+  }
+  bool agg_arg_charsets_for_comparison();
+
 public:
   DTCollation cmp_collation;
   /* Allow owner function to use string buffers. */
@@ -58,12 +66,6 @@ public:
   Arg_comparator(Item **a1, Item **a2): a(a1), b(a2),  set_null(TRUE),
     comparators(0), thd(0), a_cache(0), b_cache(0) {};
 
-  int set_compare_func(Item_result_field *owner, Item_result type);
-  inline int set_compare_func(Item_result_field *owner_arg)
-  {
-    return set_compare_func(owner_arg, item_cmp_type((*a)->result_type(),
-                                                     (*b)->result_type()));
-  }
   int set_cmp_func(Item_result_field *owner_arg,
 			  Item **a1, Item **a2,
 			  Item_result type);

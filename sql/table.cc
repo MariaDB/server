@@ -827,6 +827,24 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
 }
 
 
+/** ensures that the enum value (read from frm) is within limits
+
+    if not - issues a warning and resets the value to 0
+    (that is, 0 is assumed to be a default value)
+*/
+
+static uint enum_value_with_check(THD *thd, TABLE_SHARE *share,
+                                  const char *name, uint value, uint limit)
+{
+  if (value < limit)
+    return value;
+
+  sql_print_warning("%s.frm: invalid value %d for the field %s",
+                share->normalized_path.str, value, name);
+  return 0;
+}
+
+
 /**
    Check if a collation has changed number
 
@@ -836,8 +854,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
    @retval new collation number (same as current collation number of no change)
 */
 
-static uint
-upgrade_collation(ulong mysql_version, uint cs_number)
+static uint upgrade_collation(ulong mysql_version, uint cs_number)
 {
   if (mysql_version >= 50300 && mysql_version <= 50399)
   {
@@ -859,8 +876,6 @@ upgrade_collation(ulong mysql_version, uint cs_number)
   }
   return cs_number;
 }
-
-
 
 
 /**
@@ -1058,9 +1073,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       share->incompatible_version|= HA_CREATE_USED_CHARSET;
     
     share->avg_row_length= uint4korr(frm_image+34);
-    share->transactional= (ha_choice) (frm_image[39] & 3);
-    share->page_checksum= (ha_choice) ((frm_image[39] >> 2) & 3);
-    share->row_type= (enum row_type) frm_image[40];
+    share->transactional= (ha_choice)
+      enum_value_with_check(thd, share, "transactional", frm_image[39] & 3, HA_CHOICE_MAX);
+    share->page_checksum= (ha_choice)
+      enum_value_with_check(thd, share, "page_checksum", (frm_image[39] >> 2) & 3, HA_CHOICE_MAX);
+    share->row_type= (enum row_type)
+      enum_value_with_check(thd, share, "row_format", frm_image[40], ROW_TYPE_MAX);
 
     if (cs_new && !(share->table_charset= get_charset(cs_new, MYF(MY_WME))))
       goto err;
@@ -4719,23 +4737,26 @@ bool TABLE_LIST::check_single_table(TABLE_LIST **table_arg,
 
 bool TABLE_LIST::set_insert_values(MEM_ROOT *mem_root)
 {
+  DBUG_ENTER("set_insert_values");
   if (table)
   {
+    DBUG_PRINT("info", ("setting insert_value for table"));
     if (!table->insert_values &&
         !(table->insert_values= (uchar *)alloc_root(mem_root,
                                                    table->s->rec_buff_length)))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
   else
   {
+    DBUG_PRINT("info", ("setting insert_value for view"));
     DBUG_ASSERT(is_view_or_derived() && is_merged_derived());
     for (TABLE_LIST *tbl= (TABLE_LIST*)view->select_lex.table_list.first;
          tbl;
          tbl= tbl->next_local)
       if (tbl->set_insert_values(mem_root))
-        return TRUE;
+        DBUG_RETURN(TRUE);
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -6888,15 +6909,16 @@ void TABLE_LIST::reset_const_table()
 
 bool TABLE_LIST::handle_derived(LEX *lex, uint phases)
 {
-  SELECT_LEX_UNIT *unit= get_unit();
-  if (unit)
+  SELECT_LEX_UNIT *unit;
+  DBUG_ENTER("handle_derived");
+  if ((unit= get_unit()))
   {
     for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
       if (sl->handle_derived(lex, phases))
-        return TRUE;
-    return mysql_handle_single_derived(lex, this, phases);
+        DBUG_RETURN(TRUE);
+    DBUG_RETURN(mysql_handle_single_derived(lex, this, phases));
   }
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
