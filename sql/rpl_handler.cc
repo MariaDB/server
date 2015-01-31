@@ -300,7 +300,7 @@ int Binlog_storage_delegate::after_sync(THD *thd,
     flags|= BINLOG_GROUP_COMMIT_TRAILER;
 
   int ret= 0;
-  FOREACH_OBSERVER(ret, after_sync, thd,
+  FOREACH_OBSERVER(ret, after_sync, false,
                    (&param, log_file+dirname_length(log_file), log_pos, flags));
 
   return ret;
