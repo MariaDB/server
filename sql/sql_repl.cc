@@ -2655,7 +2655,7 @@ static int send_one_binlog_file(binlog_send_info *info,
                                 LOG_INFO* linfo,
                                 my_off_t start_pos)
 {
-  assert_LOCK_log_owner(false); // we don't have LOCK_log
+  mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
 
   /* seek to the requested position, to start the requested dump */
   if (start_pos != BIN_LOG_HEADER_SIZE)

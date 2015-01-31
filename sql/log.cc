@@ -6042,7 +6042,6 @@ err:
         }
         else
         {
-          /* documentation of which mutexes are (not) owned */
           mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
           mysql_mutex_assert_owner(&LOCK_log);
           mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
@@ -6079,7 +6078,6 @@ err:
       mysql_mutex_lock(&LOCK_after_binlog_sync);
       mysql_mutex_unlock(&LOCK_log);
 
-      /* documentation of which mutexes are (not) owned */
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
       mysql_mutex_assert_not_owner(&LOCK_log);
       mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
@@ -7410,7 +7408,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       bool any_error= false;
       bool all_error= true;
 
-      /* documentation of which mutexes are (not) owned */
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
       mysql_mutex_assert_owner(&LOCK_log);
       mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
@@ -7498,7 +7495,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     Loop through threads and run the binlog_sync hook
   */
   {
-    /* documentation of which mutexes are (not) owned */
     mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);
     mysql_mutex_assert_not_owner(&LOCK_log);
     mysql_mutex_assert_owner(&LOCK_after_binlog_sync);
@@ -9851,14 +9847,6 @@ TC_LOG_BINLOG::set_status_variables(THD *thd)
     set_binlog_snapshot_file(cache_mngr->last_commit_pos_file);
     binlog_snapshot_position= cache_mngr->last_commit_pos_offset;
   }
-}
-
-void assert_LOCK_log_owner(bool owner)
-{
-  if (owner)
-    mysql_mutex_assert_owner(mysql_bin_log.get_log_lock());
-  else
-    mysql_mutex_assert_not_owner(mysql_bin_log.get_log_lock());
 }
 
 struct st_mysql_storage_engine binlog_storage_engine=

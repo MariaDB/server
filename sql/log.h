@@ -343,7 +343,6 @@ public:
   PSI_file_key m_log_file_key;
 #endif
   /* for documentation of mutexes held in various places in code */
-  friend void assert_LOCK_log_owner(bool owner);
 };
 
 class MYSQL_QUERY_LOG: public MYSQL_LOG
@@ -1152,9 +1151,5 @@ static inline TC_LOG *get_tc_log_implementation()
     return &mysql_bin_log;
   return &tc_log_mmap;
 }
-
-void assert_LOCK_log_owner(bool owner);
-
-void assert_LOCK_log_owner(bool owner);
 
 #endif /* LOG_H */
