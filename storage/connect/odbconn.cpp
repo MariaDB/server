@@ -37,8 +37,8 @@
 #include "xobject.h"
 //#include "kindex.h"
 #include "xtable.h"
-#include "tabodbc.h"
 #include "odbccat.h"
+#include "tabodbc.h"
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
 #include "valblk.h"
@@ -291,7 +291,7 @@ static void ResetNullValues(CATPARM *cap)
 /*  of an ODBC table that will be retrieved by GetData commands.       */
 /***********************************************************************/
 PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
-                    char *colpat, int maxres, int cto, int qto, bool info)
+                    char *colpat, int maxres, bool info, POPARM sop)
   {
   int  buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING, TYPE_STRING,
                    TYPE_SHORT,  TYPE_STRING, TYPE_INT,    TYPE_INT,
@@ -310,10 +310,8 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   /************************************************************************/
   if (!info) {
     ocp = new(g) ODBConn(g, NULL);
-    ocp->SetLoginTimeout((DWORD)cto);
-    ocp->SetQueryTimeout((DWORD)qto);
 
-    if (ocp->Open(dsn, 10) < 1)  // openReadOnly + noODBCdialog
+    if (ocp->Open(dsn, sop, 10) < 1)  // openReadOnly + noODBCdialog
       return NULL;
 
     if (table && !strchr(table, '%')) {
@@ -388,12 +386,13 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
 /*  ODBCSrcCols: constructs the result blocks containing the              */
 /*  description of all the columns of a Srcdef option.                    */
 /**************************************************************************/
-PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, int cto, int qto)
+PQRYRES ODBCSrcCols(PGLOBAL g, char *dsn, char *src, POPARM sop)
   {
   ODBConn *ocp = new(g) ODBConn(g, NULL);
 
-  ocp->SetLoginTimeout((DWORD)cto);
-  ocp->SetQueryTimeout((DWORD)qto);
+  if (ocp->Open(dsn, sop, 10) < 1)   // openReadOnly + noOdbcDialog
+    return NULL;
+
   return ocp->GetMetaData(g, dsn, src);
   } // end of ODBCSrcCols
 
@@ -574,7 +573,7 @@ PQRYRES ODBCDataSources(PGLOBAL g, int maxres, bool info)
 /*  an ODBC database that will be retrieved by GetData commands.          */
 /**************************************************************************/
 PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
-                              int maxres, int cto, int qto, bool info)
+                   int maxres, bool info, POPARM sop)
   {
   int      buftyp[] = {TYPE_STRING, TYPE_STRING, TYPE_STRING,
                        TYPE_STRING, TYPE_STRING};
@@ -594,10 +593,8 @@ PQRYRES ODBCTables(PGLOBAL g, char *dsn, char *db, char *tabpat,
     /*  Open the connection with the ODBC data source.                    */
     /**********************************************************************/
     ocp = new(g) ODBConn(g, NULL);
-    ocp->SetLoginTimeout((DWORD)cto);
-    ocp->SetQueryTimeout((DWORD)qto);
 
-    if (ocp->Open(dsn, 2) < 1)        // 2 is openReadOnly
+    if (ocp->Open(dsn, sop, 2) < 1)        // 2 is openReadOnly
       return NULL;
 
     if (!maxres)
@@ -925,6 +922,8 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Catver = (tdbp) ? tdbp->Catver : 0;
   m_Rows = 0;
   m_Connect = NULL;
+  m_User = NULL;
+  m_Pwd = NULL;
   m_Updatable = true;
   m_Transact = false;
   m_Scrollable = (tdbp) ? tdbp->Scrollable : false;
@@ -1061,7 +1060,7 @@ void ODBConn::OnSetOptions(HSTMT hstmt)
 /***********************************************************************/
 /*  Open: connect to a data source.                                    */
 /***********************************************************************/
-int ODBConn::Open(PSZ ConnectString, DWORD options)
+int ODBConn::Open(PSZ ConnectString, POPARM sop, DWORD options)
   {
   PGLOBAL& g = m_G;
 //ASSERT_VALID(this);
@@ -1070,6 +1069,11 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
 
   m_Updatable = !(options & openReadOnly);
   m_Connect = ConnectString;
+  m_User = sop->User;
+  m_Pwd = sop->Pwd;
+  m_LoginTimeout = sop->Cto;
+  m_QueryTimeout = sop->Qto;
+  m_UseCnc = sop->UseCnc;
 
   // Allocate the HDBC and make connection
   try {
@@ -1078,10 +1082,22 @@ int ODBConn::Open(PSZ ConnectString, DWORD options)
     AllocConnect(options);
     /*ver = GetStringInfo(SQL_ODBC_VER);*/
 
-    if (Connect(options)) {
+#if 0
+    // Connect using SQLDriverConnect
+    if (DriverConnect(options)) {
       strcpy(g->Message, MSG(CONNECT_CANCEL));
       return 0;
       } // endif
+#endif // 0
+
+    if (!m_UseCnc) {
+      if (DriverConnect(options)) {
+        strcpy(g->Message, MSG(CONNECT_CANCEL));
+        return 0;
+        } // endif
+
+    } else           // Connect using SQLConnect
+      Connect();
 
     /*ver = GetStringInfo(SQL_DRIVER_ODBC_VER);*/
     // Verify support for required functionality and cache info
@@ -1164,9 +1180,26 @@ void ODBConn::AllocConnect(DWORD Options)
   } // end of AllocConnect
 
 /***********************************************************************/
+/*  Connect to data source using SQLConnect.                           */
+/***********************************************************************/
+void ODBConn::Connect(void)
+  {
+  SQLRETURN   rc;
+  SQLSMALLINT ul = (m_User ? SQL_NTS : 0); 
+  SQLSMALLINT pl = (m_Pwd ? SQL_NTS : 0);
+
+  rc = SQLConnect(m_hdbc, (SQLCHAR*)m_Connect, SQL_NTS, 
+                          (SQLCHAR*)m_User, ul, (SQLCHAR*)m_Pwd, pl);
+                  
+  if (!Check(rc))
+    ThrowDBX(rc, "SQLConnect");
+
+  } // end of Connect
+
+/***********************************************************************/
 /*  Connect to data source using SQLDriverConnect.                     */
 /***********************************************************************/
-bool ODBConn::Connect(DWORD Options)
+bool ODBConn::DriverConnect(DWORD Options)
   {
   RETCODE rc;
   SWORD   nResult;
@@ -1213,7 +1246,7 @@ bool ODBConn::Connect(DWORD Options)
 
   // All done
   return false;
-  } // end of Connect
+  } // end of DriverConnect
 
 void ODBConn::VerifyConnect()
   {
@@ -1864,9 +1897,6 @@ PQRYRES ODBConn::GetMetaData(PGLOBAL g, char *dsn, char *src)
   SWORD   ncol;
   RETCODE rc;
   HSTMT   hstmt;
-
-  if (Open(dsn, 10) < 1)   // openReadOnly + noOdbcDialog
-    return NULL;
 
   try {
     rc = SQLAllocStmt(m_hdbc, &hstmt);

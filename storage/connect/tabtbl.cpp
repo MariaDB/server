@@ -352,7 +352,9 @@ bool TDBTBL::TestFil(PGLOBAL g, PCFIL filp, PTABLE tabp)
 /***********************************************************************/
 int TDBTBL::Cardinality(PGLOBAL g)
   {
-  if (Cardinal < 0) {
+  if (!g)
+    return 0;                 // Cannot make the table list
+  else if (Cardinal < 0) {
     int tsz;
 
     if (!Tablist && InitTableList(g))

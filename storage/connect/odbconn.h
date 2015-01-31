@@ -119,7 +119,7 @@ class ODBConn : public BLOCK {
     noOdbcDialog =    0x0008,     // Don't display ODBC Connect dialog
     forceOdbcDialog = 0x0010};    // Always display ODBC connect dialog
 
-  int  Open(PSZ ConnectString, DWORD Options = 0);
+  int  Open(PSZ ConnectString, POPARM sop, DWORD Options = 0);
   int  Rewind(char *sql, ODBCCOL *tocols);
   void Close(void);
   PQRYRES AllocateResult(PGLOBAL g);
@@ -135,8 +135,10 @@ class ODBConn : public BLOCK {
 
  public:
   // Operations
-  void SetLoginTimeout(DWORD sec) {m_LoginTimeout = sec;}
-  void SetQueryTimeout(DWORD sec) {m_QueryTimeout = sec;}
+//void SetLoginTimeout(DWORD sec) {m_LoginTimeout = sec;}
+//void SetQueryTimeout(DWORD sec) {m_QueryTimeout = sec;}
+//void SetUserName(PSZ user) {m_User = user;}
+//void SetUserPwd(PSZ pwd) {m_Pwd = pwd;}
   int  GetResultSize(char *sql, ODBCCOL *colp);
   int  ExecDirectSQL(char *sql, ODBCCOL *tocols);
   int  Fetch(void);
@@ -155,7 +157,7 @@ class ODBConn : public BLOCK {
 
   // Implementation
  public:
-//  virtual ~ODBConn();
+//virtual ~ODBConn();
 
   // ODBC operations
  protected:
@@ -163,7 +165,8 @@ class ODBConn : public BLOCK {
   void ThrowDBX(RETCODE rc, PSZ msg, HSTMT hstmt = SQL_NULL_HSTMT);
   void ThrowDBX(PSZ msg);
   void AllocConnect(DWORD dwOptions);
-  bool Connect(DWORD Options);
+  void Connect(void);
+  bool DriverConnect(DWORD Options);
   void VerifyConnect(void);
   void GetConnectInfo(void);
   void Free(void);
@@ -185,11 +188,14 @@ class ODBConn : public BLOCK {
   DWORD    m_RowsetSize;
   char     m_IDQuoteChar[2];
   PSZ      m_Connect;
+  PSZ      m_User;
+  PSZ      m_Pwd;
   int      m_Catver;
   int      m_Rows;
   bool     m_Updatable;
   bool     m_Transact;
   bool     m_Scrollable;
+  bool     m_UseCnc;
   bool     m_First;
   bool     m_Full;
   }; // end of ODBConn class definition

@@ -934,6 +934,9 @@ ulonglong ha_connect::table_flags() const
 char *GetListOption(PGLOBAL g, const char *opname,
                                const char *oplist, const char *def)
 {
+  if (!oplist)
+    return (char*)def;
+
   char  key[16], val[256];
   char *pk, *pv, *pn;
   char *opval= (char*) def;
@@ -4847,10 +4850,12 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused)) = 0;
 #if defined(ODBC_SUPPORT)
+  POPARM      sop;
+  char       *ucnc;
   int         cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
-  bool        bif, ok= false, dbf= false;
+  bool        bif, ok= false, dbf= false, cnc= false;;
   TABTYPE     ttp= TAB_UNDEF;
   PQRYRES     qrp= NULL;
   PCOLRES     crp;
@@ -4891,7 +4896,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
   if (topt->oplist) {
     host= GetListOption(g, "host", topt->oplist, "localhost");
-    user= GetListOption(g, "user", topt->oplist, "root");
+    user= GetListOption(g, "user", topt->oplist, 
+                       (ttp == TAB_ODBC ? NULL : "root"));
     // Default value db can come from the DBNAME=xxx option.
     db= GetListOption(g, "database", topt->oplist, db);
     col= GetListOption(g, "colist", topt->oplist, col);
@@ -4910,6 +4916,8 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
     cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
     qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
+    if ((ucnc= GetListOption(g, "UseDSN", topt->oplist)))
+      cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
     mxe= atoi(GetListOption(g,"maxerr", topt->oplist, "0"));
 #if defined(PROMPT_OK)
@@ -4994,10 +5002,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           } // endif dsn
 #endif   // PROMPT_OK
 
-      } else if (!dsn)
+      } else if (!dsn) {
         sprintf(g->Message, "Missing %s connection string", topt->type);
-      else
+      } else {
+        // Store ODBC additional parameters
+        sop= (POPARM)PlugSubAlloc(g, NULL, sizeof(ODBCPARM));
+        sop->User= (char*)user;
+        sop->Pwd= (char*)pwd;
+        sop->Cto= cto;
+        sop->Qto= qto;
+        sop->UseCnc=cnc;
         ok= true;
+      } // endif's
 
       supfnc |= (FNC_TABLE | FNC_DSN | FNC_DRIVER);
       break;
@@ -5128,15 +5144,15 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
           case FNC_NO:
           case FNC_COL:
             if (src) {
-              qrp= ODBCSrcCols(g, dsn, (char*)src, cto, qto);
+              qrp= ODBCSrcCols(g, dsn, (char*)src, sop); 
               src= NULL;     // for next tests
             } else
-              qrp= ODBCColumns(g, dsn, shm, tab, NULL,
-                               mxr, cto, qto, fnc == FNC_COL);
+              qrp= ODBCColumns(g, dsn, shm, tab, NULL, 
+                               mxr, fnc == FNC_COL, sop);
 
             break;
           case FNC_TABLE:
-            qrp= ODBCTables(g, dsn, shm, tab, mxr, cto, qto, true);
+            qrp= ODBCTables(g, dsn, shm, tab, mxr, true, sop);
             break;
           case FNC_DSN:
             qrp= ODBCDataSources(g, mxr, true);
