@@ -3132,7 +3132,6 @@ my_decimal *Item_null::val_decimal(my_decimal *decimal_value)
 
 Item *Item_null::safe_charset_converter(CHARSET_INFO *tocs)
 {
-  collation.set(tocs);
   return this;
 }
 
