@@ -2751,20 +2751,20 @@ bool Item_func_if::date_op(MYSQL_TIME *ltime, uint fuzzydate)
 void
 Item_func_nullif::fix_length_and_dec()
 {
-  if (!args[0])					// Only false if EOM
+  if (!m_args0_copy)					// Only false if EOM
     return;
 
-  cached_result_type= args[0]->result_type();
-  cached_field_type= args[0]->field_type();
-  collation.set(args[0]->collation);
-  decimals= args[0]->decimals;
-  unsigned_flag= args[0]->unsigned_flag;
-  fix_char_length(args[0]->max_char_length());
+  cached_result_type= m_args0_copy->result_type();
+  cached_field_type= m_args0_copy->field_type();
+  collation.set(m_args0_copy->collation);
+  decimals= m_args0_copy->decimals;
+  unsigned_flag= m_args0_copy->unsigned_flag;
+  fix_char_length(m_args0_copy->max_char_length());
 
   convert_const_compared_to_int_field(current_thd);
-  args[0]->cmp_context= args[1]->cmp_context=
-    item_cmp_type(args[0]->result_type(), args[1]->result_type());
-  cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, args[0]->cmp_context);
+  m_args0_copy->cmp_context= args[1]->cmp_context=
+    item_cmp_type(m_args0_copy->result_type(), args[1]->result_type());
+  cmp.set_cmp_func(this, tmp_arg, tmp_arg + 1, m_args0_copy->cmp_context);
   maybe_null=1;
 }
 
