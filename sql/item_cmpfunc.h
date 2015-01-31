@@ -765,8 +765,8 @@ public:
    :Item_func_hybrid_field_type(a, b) { }
   Item_func_case_abbreviation2(Item *a, Item *b, Item *c)
    :Item_func_hybrid_field_type(a, b, c) { }
-  void fix_length_and_dec(Item **args);
-  uint decimal_precision(Item **args) const;
+  void fix_length_and_dec2(Item **args);
+  uint decimal_precision2(Item **args) const;
 };
 
 
@@ -781,7 +781,7 @@ public:
   bool date_op(MYSQL_TIME *ltime,uint fuzzydate);
   void fix_length_and_dec()
   {
-    Item_func_case_abbreviation2::fix_length_and_dec(args);
+    Item_func_case_abbreviation2::fix_length_and_dec2(args);
     maybe_null= args[1]->maybe_null;
   }
   const char *func_name() const { return "ifnull"; }
@@ -789,7 +789,7 @@ public:
   table_map not_null_tables() const { return 0; }
   uint decimal_precision() const
   {
-    return Item_func_case_abbreviation2::decimal_precision(args);
+    return Item_func_case_abbreviation2::decimal_precision2(args);
   }
 };
 
@@ -809,7 +809,7 @@ public:
   void fix_length_and_dec();
   uint decimal_precision() const
   {
-    return Item_func_case_abbreviation2::decimal_precision(args + 1);
+    return Item_func_case_abbreviation2::decimal_precision2(args + 1);
   }
   const char *func_name() const { return "if"; }
   bool eval_not_null_tables(uchar *opt_arg);

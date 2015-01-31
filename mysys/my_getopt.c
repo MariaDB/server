@@ -1426,7 +1426,7 @@ void my_print_help(const struct my_option *options)
       if (typelib_help &&
           strstr(optp->comment, optp->typelib->type_names[0]) == NULL)
       {
-        int i;
+        uint i;
         col= print_comment(typelib_help, col, name_space, comment_space);
         col= print_comment(optp->typelib->type_names[0], col, name_space, comment_space);
         for (i= 1; i < count; i++)

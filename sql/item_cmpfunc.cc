@@ -2462,7 +2462,7 @@ void Item_func_between::print(String *str, enum_query_type query_type)
 
 
 void
-Item_func_case_abbreviation2::fix_length_and_dec(Item **args)
+Item_func_case_abbreviation2::fix_length_and_dec2(Item **args)
 {
   uint32 char_length;
   agg_result_type(&cached_result_type, args, 2);
@@ -2505,7 +2505,7 @@ Item_func_case_abbreviation2::fix_length_and_dec(Item **args)
 
 
 
-uint Item_func_case_abbreviation2::decimal_precision(Item **args) const
+uint Item_func_case_abbreviation2::decimal_precision2(Item **args) const
 {
   int arg0_int_part= args[0]->decimal_int_part();
   int arg1_int_part= args[1]->decimal_int_part();
@@ -2692,7 +2692,7 @@ Item_func_if::fix_length_and_dec()
     maybe_null= true;
     return;
   }
-  Item_func_case_abbreviation2::fix_length_and_dec(args + 1);
+  Item_func_case_abbreviation2::fix_length_and_dec2(args + 1);
 }
 
 
