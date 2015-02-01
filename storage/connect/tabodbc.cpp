@@ -1560,6 +1560,7 @@ TDBOTB::TDBOTB(PODEF tdp) : TDBDRV(tdp)
   Ops.Pwd = tdp->Password;
   Ops.Cto = tdp->Cto;
   Ops.Qto = tdp->Qto;
+  Ops.UseCnc = tdp->UseCnc;
   } // end of TDBOTB constructor
 
 /***********************************************************************/

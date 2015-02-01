@@ -929,6 +929,7 @@ ODBConn::ODBConn(PGLOBAL g, TDBODBC *tdbp)
   m_Scrollable = (tdbp) ? tdbp->Scrollable : false;
   m_First = true;
   m_Full = false;
+  m_UseCnc = false;
   m_IDQuoteChar[0] = '"';
   m_IDQuoteChar[1] = 0;
 //*m_ErrMsg = '\0';
@@ -1081,14 +1082,6 @@ int ODBConn::Open(PSZ ConnectString, POPARM sop, DWORD options)
 
     AllocConnect(options);
     /*ver = GetStringInfo(SQL_ODBC_VER);*/
-
-#if 0
-    // Connect using SQLDriverConnect
-    if (DriverConnect(options)) {
-      strcpy(g->Message, MSG(CONNECT_CANCEL));
-      return 0;
-      } // endif
-#endif // 0
 
     if (!m_UseCnc) {
       if (DriverConnect(options)) {

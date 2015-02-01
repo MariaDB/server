@@ -4850,12 +4850,13 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
   int         port= 0, hdr= 0, mxr __attribute__((unused))= 0, mxe= 0, rc= 0;
   int         cop __attribute__((unused)) = 0;
 #if defined(ODBC_SUPPORT)
-  POPARM      sop;
-  char       *ucnc;
+  POPARM      sop = NULL;
+  char       *ucnc = NULL;
+  bool        cnc= false;
   int         cto= -1, qto= -1;
 #endif   // ODBC_SUPPORT
   uint        tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
-  bool        bif, ok= false, dbf= false, cnc= false;;
+  bool        bif, ok= false, dbf= false;
   TABTYPE     ttp= TAB_UNDEF;
   PQRYRES     qrp= NULL;
   PCOLRES     crp;
@@ -4916,6 +4917,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
     mxr= atoi(GetListOption(g,"maxres", topt->oplist, "0"));
     cto= atoi(GetListOption(g,"ConnectTimeout", topt->oplist, "-1"));
     qto= atoi(GetListOption(g,"QueryTimeout", topt->oplist, "-1"));
+    
     if ((ucnc= GetListOption(g, "UseDSN", topt->oplist)))
       cnc= (!*ucnc || *ucnc == 'y' || *ucnc == 'Y' || atoi(ucnc) != 0);
 #endif
@@ -4925,7 +4927,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 #endif   // PROMPT_OK
   } else {
     host= "localhost";
-    user= "root";
+    user= (ttp == TAB_ODBC ? NULL : "root");
   } // endif option_list
 
   if (!(shm= (char*)db))
@@ -5011,7 +5013,7 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
         sop->Pwd= (char*)pwd;
         sop->Cto= cto;
         sop->Qto= qto;
-        sop->UseCnc=cnc;
+        sop->UseCnc= cnc;
         ok= true;
       } // endif's
 
