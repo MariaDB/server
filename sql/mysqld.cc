@@ -2120,7 +2120,6 @@ void clean_up(bool print_message)
   free_all_rpl_filters();
 #ifdef HAVE_REPLICATION
   end_slave_list();
-  mi_cmdline_destroy();
 #endif
   my_uuid_end();
   delete binlog_filter;
@@ -8849,6 +8848,12 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
     cur_rpl_filter->add_db_rewrite(key, val);
     break;
   }
+  case (int)OPT_SLAVE_PARALLEL_MODE:
+  {
+    /* Store latest mode for Master::Info */
+    cur_rpl_filter->set_parallel_mode(opt_slave_parallel_mode);
+    break;
+  }
 
   case (int)OPT_BINLOG_IGNORE_DB:
   {
@@ -9094,6 +9099,7 @@ mysql_getopt_value(const char *name, uint length,
       return (uchar**) &key_cache->changed_blocks_hash_size;
     }
   }
+#ifdef HAVE_REPLICATION
   case OPT_REPLICATE_DO_DB:
   case OPT_REPLICATE_DO_TABLE:
   case OPT_REPLICATE_IGNORE_DB:
@@ -9101,6 +9107,7 @@ mysql_getopt_value(const char *name, uint length,
   case OPT_REPLICATE_WILD_DO_TABLE:
   case OPT_REPLICATE_WILD_IGNORE_TABLE:
   case OPT_REPLICATE_REWRITE_DB:
+  case OPT_SLAVE_PARALLEL_MODE:
   {
     /* Store current filter for mysqld_get_one_option() */
     if (!(cur_rpl_filter= get_or_create_rpl_filter(name, length)))
@@ -9108,24 +9115,15 @@ mysql_getopt_value(const char *name, uint length,
       if (error)
         *error= EXIT_OUT_OF_MEMORY;
     }
-    return 0;
-  }
-#ifdef HAVE_REPLICATION
-  case OPT_SLAVE_PARALLEL_MODE:
-  {
-    ulonglong *ptr;
-    LEX_STRING connection_name;
-    if (!length)
-      return &opt_slave_parallel_mode;
-    connection_name.str= const_cast<char *>(name);
-    connection_name.length= length;
-    if (mi_slave_parallel_mode_ptr(&connection_name, &ptr, true))
+    if (option->id == OPT_SLAVE_PARALLEL_MODE)
     {
-      if (error)
-        *error= EXIT_OUT_OF_MEMORY;
-      return NULL;
+      /*
+        Ensure parallel_mode variable is shown in --help. The other
+        variables are not easily printable here.
+       */
+      return (char**) &opt_slave_parallel_mode;
     }
-    return ptr;
+    return 0;
   }
 #endif
   }

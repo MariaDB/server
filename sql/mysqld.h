@@ -60,6 +60,16 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_SESSION SHOW_OPT_SESSION
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
 
+/*
+  Bit masks for the values in --slave-parallel-mode.
+  Note that these values cannot be changed - they are stored in master.info,
+  so need to be possible to read back in a different version of the server.
+*/
+#define SLAVE_PARALLEL_DOMAIN               (1ULL << 0)
+#define SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT (1ULL << 1)
+#define SLAVE_PARALLEL_TRX                  (1ULL << 2)
+#define SLAVE_PARALLEL_WAITING              (1ULL << 3)
+
 /* Function prototypes */
 void kill_mysql(void);
 void close_connection(THD *thd, uint sql_errno= 0);

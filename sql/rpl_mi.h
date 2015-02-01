@@ -16,18 +16,6 @@
 #ifndef RPL_MI_H
 #define RPL_MI_H
 
-
-/*
-  Bit masks for the values in --slave-parallel-mode.
-  Note that these values cannot be changed - they are stored in master.info,
-  so need to be possible to read back in a different version of the server.
-*/
-#define SLAVE_PARALLEL_DOMAIN               (1ULL << 0)
-#define SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT (1ULL << 1)
-#define SLAVE_PARALLEL_TRX                  (1ULL << 2)
-#define SLAVE_PARALLEL_WAITING              (1ULL << 3)
-
-
 #ifdef HAVE_REPLICATION
 
 #include "rpl_rli.h"
@@ -383,14 +371,5 @@ void create_logfile_name_with_suffix(char *res_file_name, size_t length,
 uchar *get_key_master_info(Master_info *mi, size_t *length,
                            my_bool not_used __attribute__((unused)));
 void free_key_master_info(Master_info *mi);
-int mi_cmdline_init();
-void mi_cmdline_destroy();
-void mi_slave_parallel_mode_lookup(LEX_STRING *connection_name,
-                                   ulonglong *out_mode);
-int mi_slave_parallel_mode_ptr(LEX_STRING *connection_name,
-                               ulonglong **out_mode_ptr,
-                               bool create_if_missing);
-
-
 #endif /* HAVE_REPLICATION */
 #endif /* RPL_MI_H */

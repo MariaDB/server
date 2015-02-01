@@ -76,6 +76,16 @@ public:
   int set_do_db(const char* db_spec);
   int set_ignore_db(const char* db_spec);
 
+  void set_parallel_mode(ulonglong mode)
+  {
+    parallel_mode= mode;
+  }
+  /* Return given parallel mode or if one is not given, the default mode */
+  int get_parallel_mode()
+  {
+    return parallel_mode;
+  }
+
   void add_db_rewrite(const char* from_db, const char* to_db);
 
   /* Getters - to get information about current rules */
@@ -97,7 +107,6 @@ public:
   void get_ignore_db(String* str);
 
 private:
-  bool table_rules_on;
 
   void init_table_rule_hash(HASH* h, bool* h_inited);
   void init_table_rule_array(DYNAMIC_ARRAY* a, bool* a_inited);
@@ -128,7 +137,9 @@ private:
   HASH ignore_table;
   DYNAMIC_ARRAY wild_do_table;
   DYNAMIC_ARRAY wild_ignore_table;
+  ulonglong parallel_mode;
 
+  bool table_rules_on;
   bool do_table_inited;
   bool ignore_table_inited;
   bool wild_do_table_inited;
