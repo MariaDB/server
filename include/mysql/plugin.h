@@ -182,6 +182,11 @@ enum enum_mysql_show_type
 #define SHOW_LONG     SHOW_ULONG
 #define SHOW_LONGLONG SHOW_ULONGLONG
 
+enum enum_var_type
+{
+  SHOW_OPT_DEFAULT= 0, SHOW_OPT_SESSION, SHOW_OPT_GLOBAL
+};
+
 struct st_mysql_show_var {
   const char *name;
   char *value;
@@ -189,7 +194,7 @@ struct st_mysql_show_var {
 };
 
 #define SHOW_VAR_FUNC_BUFF_SIZE (256 * sizeof(void*))
-typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, char *);
+typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, char *, enum enum_var_type);
 
 
 /*

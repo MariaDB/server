@@ -67,6 +67,7 @@
 #include "wsrep_mysqld.h"
 #include "wsrep_thd.h"
 #include "sql_connect.h"
+#include "my_atomic.h"
 
 /*
   The following is used to initialise Table_ident with a internal
@@ -934,7 +935,7 @@ THD::THD(bool is_wsrep_applier)
   */
   THD *old_THR_THD= current_thd;
   set_current_thd(this);
-  status_var.memory_used= 0;
+  status_var.local_memory_used= status_var.global_memory_used= 0;
   main_da.init();
 
   /*
@@ -1703,11 +1704,12 @@ THD::~THD()
   main_da.free_memory();
   if (tdc_hash_pins)
     lf_hash_put_pins(tdc_hash_pins);
-  if (status_var.memory_used != 0)
+  /* Ensure everything is freed */
+  if (status_var.local_memory_used != 0)
   {
-    DBUG_PRINT("error", ("memory_used: %lld", status_var.memory_used));
+    DBUG_PRINT("error", ("memory_used: %lld", status_var.local_memory_used));
     SAFEMALLOC_REPORT_MEMORY(my_thread_dbug_id());
-    DBUG_ASSERT(status_var.memory_used == 0);  // Ensure everything is freed
+    DBUG_ASSERT(status_var.local_memory_used == 0);
   }
 
   set_current_thd(orig_thd);
@@ -1747,6 +1749,16 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var)
   to_var->binlog_bytes_written+= from_var->binlog_bytes_written;
   to_var->cpu_time+=            from_var->cpu_time;
   to_var->busy_time+=           from_var->busy_time;
+  to_var->local_memory_used+=   from_var->local_memory_used;
+
+  /*
+    Update global_memory_used. We have to do this with atomic_add as the
+    global value can change outside of LOCK_status.
+  */
+  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
+  int64 volatile * volatile ptr= &to_var->global_memory_used;
+  my_atomic_add64_explicit(ptr, from_var->global_memory_used,
+                           MY_MEMORY_ORDER_RELAXED);
 }
 
 /*
@@ -1784,6 +1796,11 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                                  dec_var->binlog_bytes_written;
   to_var->cpu_time+=             from_var->cpu_time - dec_var->cpu_time;
   to_var->busy_time+=            from_var->busy_time - dec_var->busy_time;
+
+  /*
+    We don't need to accumulate memory_used as these are not reset or used by
+    the calling functions.  See execute_show_status().
+  */
 }
 
 #define SECONDS_TO_WAIT_FOR_KILL 2

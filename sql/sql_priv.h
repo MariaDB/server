@@ -347,11 +347,6 @@ enum enum_parsing_place
 };
 
 
-enum enum_var_type
-{
-  OPT_DEFAULT= 0, OPT_SESSION, OPT_GLOBAL
-};
-
 class sys_var;
 
 enum enum_yes_no_unknown

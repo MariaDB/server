@@ -3956,10 +3956,10 @@ extern "C" my_thread_id mariadb_dbug_id()
 extern "C" {
 static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
 {
+  THD *thd= current_thd;
   /* If thread specific memory */
-  if (is_thread_specific)
+  if (likely(is_thread_specific))
   {
-    THD *thd= current_thd;
     if (mysqld_server_initialized || thd)
     {
       /*
@@ -3972,18 +3972,23 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
       if (thd)
       {
         DBUG_PRINT("info", ("memory_used: %lld  size: %lld",
-                            (longlong) thd->status_var.memory_used, size));
-        thd->status_var.memory_used+= size;
-        DBUG_ASSERT((longlong) thd->status_var.memory_used >= 0);
+                            (longlong) thd->status_var.local_memory_used,
+                            size));
+        thd->status_var.local_memory_used+= size;
+        DBUG_ASSERT((longlong) thd->status_var.local_memory_used >= 0);
       }
     }
   }
-  // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
-  int64 volatile * volatile ptr=&global_status_var.memory_used;
-  my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+  else if (likely(thd))
+    thd->status_var.global_memory_used+= size;
+  else
+  {
+    // workaround for gcc 4.2.4-1ubuntu4 -fPIE (from DEB_BUILD_HARDENING=1)
+    int64 volatile * volatile ptr=&global_status_var.global_memory_used;
+    my_atomic_add64_explicit(ptr, size, MY_MEMORY_ORDER_RELAXED);
+  }
 }
 }
-
 
 static int init_common_variables()
 {
@@ -7469,7 +7474,8 @@ struct my_option my_long_options[]=
   MYSQL_TO_BE_IMPLEMENTED_OPTION("validate-user-plugins") // NO_EMBEDDED_ACCESS_CHECKS
 };
 
-static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
+static int show_queries(THD *thd, SHOW_VAR *var, char *buff,
+                        enum enum_var_type scope)
 {
   var->type= SHOW_LONGLONG;
   var->value= (char *)&thd->query_id;
@@ -7477,14 +7483,16 @@ static int show_queries(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff)
+static int show_net_compression(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
 {
   var->type= SHOW_MY_BOOL;
   var->value= (char *)&thd->net.compress;
   return 0;
 }
 
-static int show_starttime(THD *thd, SHOW_VAR *var, char *buff)
+static int show_starttime(THD *thd, SHOW_VAR *var, char *buff,
+                          enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7493,7 +7501,8 @@ static int show_starttime(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 #ifdef ENABLED_PROFILING
-static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff)
+static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7503,14 +7512,16 @@ static int show_flushstatustime(THD *thd, SHOW_VAR *var, char *buff)
 #endif
 
 #ifdef HAVE_REPLICATION
-static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff)
+static int show_rpl_status(THD *thd, SHOW_VAR *var, char *buff,
+                           enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   var->value= const_cast<char*>(rpl_status_type[(int)rpl_status]);
   return 0;
 }
 
-static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
+static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff,
+                              enum enum_var_type scope)
 {
   Master_info *mi= NULL;
   bool tmp;
@@ -7537,7 +7548,8 @@ static int show_slave_running(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
+static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff,
+                                          enum enum_var_type scope)
 {
   Master_info *mi= NULL;
   longlong tmp;
@@ -7563,7 +7575,8 @@ static int show_slave_received_heartbeats(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
+static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
 {
   Master_info *mi= NULL;
   float tmp;
@@ -7591,7 +7604,8 @@ static int show_heartbeat_period(THD *thd, SHOW_VAR *var, char *buff)
 
 #endif /* HAVE_REPLICATION */
 
-static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff)
+static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff,
+                            enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7599,7 +7613,8 @@ static int show_open_tables(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff)
+static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7609,7 +7624,8 @@ static int show_prepared_stmt_count(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff)
+static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff,
+                                  enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7618,7 +7634,8 @@ static int show_table_definitions(THD *thd, SHOW_VAR *var, char *buff)
 }
 
 
-static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff)
+static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff,
+                               enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7629,7 +7646,8 @@ static int show_flush_commands(THD *thd, SHOW_VAR *var, char *buff)
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 /* Functions relying on CTX */
-static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7638,7 +7656,8 @@ static int show_ssl_ctx_sess_accept(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff,
+                                         enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7647,7 +7666,8 @@ static int show_ssl_ctx_sess_accept_good(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff,
+                                          enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7656,7 +7676,9 @@ static int show_ssl_ctx_sess_connect_good(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var,
+                                                char *buff,
+                                                enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7665,7 +7687,9 @@ static int show_ssl_ctx_sess_accept_renegotiate(THD *thd, SHOW_VAR *var, char *b
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var,
+                                                 char *buff,
+                                                 enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7674,7 +7698,8 @@ static int show_ssl_ctx_sess_connect_renegotiate(THD *thd, SHOW_VAR *var, char *
   return 0;
 }
 
-static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff,
+                                     enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7683,7 +7708,8 @@ static int show_ssl_ctx_sess_cb_hits(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff,
+                                  enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7692,7 +7718,8 @@ static int show_ssl_ctx_sess_hits(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7701,7 +7728,8 @@ static int show_ssl_ctx_sess_cache_full(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7710,7 +7738,8 @@ static int show_ssl_ctx_sess_misses(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff,
+                                      enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7719,7 +7748,8 @@ static int show_ssl_ctx_sess_timeouts(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7728,7 +7758,8 @@ static int show_ssl_ctx_sess_number(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff,
+                                     enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7737,7 +7768,9 @@ static int show_ssl_ctx_sess_connect(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var,
+                                            char *buff,
+                                            enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7746,7 +7779,8 @@ static int show_ssl_ctx_sess_get_cache_size(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7755,7 +7789,8 @@ static int show_ssl_ctx_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
+                                         enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7764,7 +7799,9 @@ static int show_ssl_ctx_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var,
+                                               char *buff,
+                                               enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if (!ssl_acceptor_fd)
@@ -7797,7 +7834,9 @@ static int show_ssl_ctx_get_session_cache_mode(THD *thd, SHOW_VAR *var, char *bu
          when session_status or global_status is requested from
          inside an Event.
  */
-static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff)
+
+static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff,
+                                enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7807,7 +7846,8 @@ static int show_ssl_get_version(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff,
+                                   enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7818,7 +7858,8 @@ static int show_ssl_session_reused(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7829,7 +7870,8 @@ static int show_ssl_get_default_timeout(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7840,7 +7882,8 @@ static int show_ssl_get_verify_mode(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff,
+                                     enum enum_var_type scope)
 {
   var->type= SHOW_LONG;
   var->value= buff;
@@ -7851,7 +7894,8 @@ static int show_ssl_get_verify_depth(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
+                               enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if( thd->vio_ok() && thd->net.vio->ssl_arg )
@@ -7861,7 +7905,8 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
-static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff)
+static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
+                                    enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   var->value= buff;
@@ -7935,7 +7980,8 @@ end:
 */
 
 static int
-show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff)
+show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff,
+                               enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7968,7 +8014,8 @@ show_ssl_get_server_not_before(THD *thd, SHOW_VAR *var, char *buff)
 */
 
 static int
-show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff)
+show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff,
+                              enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   if(thd->vio_ok() && thd->net.vio->ssl_arg)
@@ -7989,7 +8036,8 @@ show_ssl_get_server_not_after(THD *thd, SHOW_VAR *var, char *buff)
 
 #endif /* HAVE_OPENSSL && !EMBEDDED_LIBRARY */
 
-static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
+static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
 {
   struct st_data {
     KEY_CACHE_STATISTICS stats;
@@ -8029,8 +8077,24 @@ static int show_default_keycache(THD *thd, SHOW_VAR *var, char *buff)
   return 0;
 }
 
+
+static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
+                            enum enum_var_type scope)
+{
+  var->type= SHOW_LONGLONG;
+  var->value= buff;
+  if (scope == OPT_GLOBAL)
+    *(longlong*) buff= (global_status_var.local_memory_used +
+                        global_status_var.global_memory_used);
+  else
+    *(longlong*) buff= thd->status_var.local_memory_used;
+  return 0;
+}
+
+
 #ifndef DBUG_OFF
-static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff)
+static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff,
+                             enum enum_var_type scope)
 {
 #define add_var(X,Y,Z)                  \
   v->name= X;                           \
@@ -8066,7 +8130,8 @@ static int debug_status_func(THD *thd, SHOW_VAR *var, char *buff)
 #endif
 
 #ifdef HAVE_POOL_OF_THREADS
-int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff)
+int show_threadpool_idle_threads(THD *thd, SHOW_VAR *var, char *buff,
+                                 enum enum_var_type scope)
 {
   var->type= SHOW_INT;
   var->value= buff;
@@ -8152,7 +8217,7 @@ SHOW_VAR status_vars[]= {
   {"Last_query_cost",          (char*) offsetof(STATUS_VAR, last_query_cost), SHOW_DOUBLE_STATUS},
   {"Max_statement_time_exceeded", (char*) offsetof(STATUS_VAR, max_statement_time_exceeded), SHOW_LONG_STATUS},
   {"Max_used_connections",     (char*) &max_used_connections,  SHOW_LONG},
-  {"Memory_used",              (char*) offsetof(STATUS_VAR, memory_used), SHOW_LONGLONG_STATUS},
+  {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
   {"Open_files",               (char*) &my_file_opened,         SHOW_LONG_NOFLUSH},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},

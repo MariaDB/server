@@ -27,6 +27,9 @@
 // MySQL variables funcs
 
 #include "sql_priv.h"
+#include <sql_plugin.h>
+#include <mysql/plugin.h>
+
 class sys_var;
 class set_var;
 class THD;

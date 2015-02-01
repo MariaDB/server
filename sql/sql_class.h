@@ -760,7 +760,10 @@ typedef struct system_status_var
   double last_query_cost;
   double cpu_time, busy_time;
   /* Don't initialize */
-  volatile int64 memory_used;             /* This shouldn't be accumulated */
+  /* Memory used for thread local storage */
+  volatile int64 local_memory_used;
+  /* Memory allocated for global usage */
+  volatile int64 global_memory_used;
 } STATUS_VAR;
 
 /*
@@ -770,7 +773,7 @@ typedef struct system_status_var
 */
 
 #define last_system_status_var questions
-#define last_cleared_system_status_var memory_used
+#define last_cleared_system_status_var local_memory_used
 
 /*
   Global status variables

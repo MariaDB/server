@@ -38,12 +38,13 @@ static volatile int32 wsrep_bf_aborts_counter(0);
 #define WSREP_ATOMIC_ADD_LONG  my_atomic_add32
 #endif
 
-int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff)
+int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
+                          enum enum_var_type scope)
 {
-    wsrep_local_bf_aborts = WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
-    var->type = SHOW_LONGLONG;
-    var->value = (char*)&wsrep_local_bf_aborts;
-    return 0;
+  wsrep_local_bf_aborts = WSREP_ATOMIC_LOAD_LONG(&wsrep_bf_aborts_counter);
+  var->type = SHOW_LONGLONG;
+  var->value = (char*)&wsrep_local_bf_aborts;
+  return 0;
 }
 
 /* must have (&thd->LOCK_wsrep_thd) */

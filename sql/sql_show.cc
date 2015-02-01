@@ -2822,7 +2822,7 @@ int fill_schema_processlist(THD* thd, TABLE_LIST* tables, COND* cond)
         thread in this thread. However it's better that we notice it eventually
         than hide it.
       */
-      table->field[12]->store((longlong) (tmp->status_var.memory_used +
+      table->field[12]->store((longlong) (tmp->status_var.local_memory_used +
                                           sizeof(THD)),
                               FALSE);
       table->field[12]->set_notnull();
@@ -3117,8 +3117,8 @@ static bool show_status_array(THD *thd, const char *wild,
     */
     for (var=variables; var->type == SHOW_FUNC ||
            var->type == SHOW_SIMPLE_FUNC; var= &tmp)
-      ((mysql_show_var_func)(var->value))(thd, &tmp, buff);
-
+      ((mysql_show_var_func)(var->value))(thd, &tmp, buff, scope);
+    
     SHOW_TYPE show_type=var->type;
     if (show_type == SHOW_ARRAY)
     {
