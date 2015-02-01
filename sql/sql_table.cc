@@ -4452,8 +4452,7 @@ handler *mysql_create_frm_image(THD *thd,
       {
         if (part_info->default_engine_type == NULL)
         {
-          part_info->default_engine_type= ha_checktype(thd,
-                                          DB_TYPE_DEFAULT, 0, 0);
+          part_info->default_engine_type= ha_default_handlerton(thd);
         }
       }
     }
@@ -9748,10 +9747,10 @@ static bool check_engine(THD *thd, const char *db_name,
   DBUG_ENTER("check_engine");
   handlerton **new_engine= &create_info->db_type;
   handlerton *req_engine= *new_engine;
-  bool no_substitution=
-        MY_TEST(thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION);
-  if (!(*new_engine= ha_checktype(thd, ha_legacy_type(req_engine),
-                                  no_substitution, 1)))
+  bool no_substitution= thd->variables.sql_mode & MODE_NO_ENGINE_SUBSTITUTION;
+  *new_engine= ha_checktype(thd, req_engine, no_substitution);
+  DBUG_ASSERT(*new_engine);
+  if (!*new_engine)
     DBUG_RETURN(true);
 
   if (req_engine && req_engine != *new_engine)

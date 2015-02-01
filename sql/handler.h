@@ -4061,9 +4061,13 @@ plugin_ref ha_lock_engine(THD *thd, const handlerton *hton);
 handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type);
 handler *get_new_handler(TABLE_SHARE *share, MEM_ROOT *alloc,
                          handlerton *db_type);
-handlerton *ha_checktype(THD *thd, enum legacy_db_type database_type,
-                          bool no_substitute, bool report_error);
+handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute);
 
+static inline handlerton *ha_checktype(THD *thd, enum legacy_db_type type,
+                                       bool no_substitute = 0)
+{
+  return ha_checktype(thd, ha_resolve_by_legacy_type(thd, type), no_substitute);
+}
 
 static inline enum legacy_db_type ha_legacy_type(const handlerton *db_type)
 {

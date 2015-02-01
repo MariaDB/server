@@ -1047,8 +1047,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (frm_image[61] && !share->default_part_plugin)
   {
     enum legacy_db_type db_type= (enum legacy_db_type) (uint) frm_image[61];
-    share->default_part_plugin=
-                ha_lock_engine(NULL, ha_checktype(thd, db_type, 1, 0));
+    share->default_part_plugin= ha_lock_engine(NULL, ha_checktype(thd, db_type));
     if (!share->default_part_plugin)
       goto err;
   }
@@ -1060,7 +1059,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   */
   if (legacy_db_type > DB_TYPE_UNKNOWN && 
       legacy_db_type < DB_TYPE_FIRST_DYNAMIC)
-    se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type, 0, 0));
+    se_plugin= ha_lock_engine(NULL, ha_checktype(thd, legacy_db_type));
   share->db_create_options= db_create_options= uint2korr(frm_image+30);
   share->db_options_in_use= share->db_create_options;
   share->mysql_version= uint4korr(frm_image+51);
@@ -3305,8 +3304,8 @@ void prepare_frm_header(THD *thd, uint reclength, uchar *fileinfo,
   fileinfo[1]= 1;
   fileinfo[2]= FRM_VER + 3 + MY_TEST(create_info->varchar);
 
-  fileinfo[3]= (uchar) ha_legacy_type(
-        ha_checktype(thd,ha_legacy_type(create_info->db_type),0,0));
+  DBUG_ASSERT(ha_storage_engine_is_enabled(create_info->db_type));
+  fileinfo[3]= (uchar) ha_legacy_type(create_info->db_type);
 
   /*
     Keep in sync with pack_keys() in unireg.cc

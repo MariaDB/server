@@ -231,24 +231,13 @@ handlerton *ha_resolve_by_legacy_type(THD *thd, enum legacy_db_type db_type)
 /**
   Use other database handler if databasehandler is not compiled in.
 */
-handlerton *ha_checktype(THD *thd, enum legacy_db_type database_type,
-                          bool no_substitute, bool report_error)
+handlerton *ha_checktype(THD *thd, handlerton *hton, bool no_substitute)
 {
-  handlerton *hton= ha_resolve_by_legacy_type(thd, database_type);
   if (ha_storage_engine_is_enabled(hton))
     return hton;
 
   if (no_substitute)
-  {
-    if (report_error)
-    {
-      const char *engine_name= ha_resolve_storage_engine_name(hton);
-      my_error(ER_FEATURE_DISABLED,MYF(0),engine_name,engine_name);
-    }
     return NULL;
-  }
-
-  (void) RUN_HOOK(transaction, after_rollback, (thd, FALSE));
 
   return ha_default_handlerton(thd);
 } /* ha_checktype */
