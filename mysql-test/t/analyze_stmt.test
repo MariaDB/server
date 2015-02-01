@@ -233,3 +233,14 @@ analyze select * into outfile '../../tmp/data1.tmp' from t1;
 --remove_file $MYSQLTEST_VARDIR/tmp/data1.tmp
 
 drop table t1;
+
+
+--echo #
+--echo # MDEV-7024: Assertion `! is_set()' failed in 
+--echo # Diagnostics_area::set_eof_status on executing ANALYZE SELECT via PS
+--echo #
+
+create table t1(a int);
+prepare stmt from "analyze select * from t1";
+execute stmt;
+drop table t1;

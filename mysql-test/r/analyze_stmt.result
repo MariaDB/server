@@ -293,3 +293,13 @@ analyze select * into outfile '../../tmp/data1.tmp' from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	4	100.00	100.00	
 drop table t1;
+#
+# MDEV-7024: Assertion `! is_set()' failed in 
+# Diagnostics_area::set_eof_status on executing ANALYZE SELECT via PS
+#
+create table t1(a int);
+prepare stmt from "analyze select * from t1";
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	no matching row in const table
+drop table t1;
