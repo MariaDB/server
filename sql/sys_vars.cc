@@ -1920,9 +1920,6 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
     my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
     return true;
   }
-  mi_slave_parallel_mode_ptr(base_name, &value_ptr, false);
-  if (value_ptr)
-    *value_ptr= new_value;
   return res;
 }
 
