@@ -340,7 +340,7 @@ PQRYRES ODBCColumns(PGLOBAL g, char *dsn, char *db, char *table,
   } // endif ocp
 
   if (trace)
-    htrc("ODBCColumns: max=%d len=%d,%d,%d\n",
+    htrc("ODBCColumns: max=%d len=%d,%d,%d,%d\n",
          maxres, length[0], length[1], length[2], length[3]);
 
   /************************************************************************/

@@ -483,6 +483,9 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 
   if (To_CondFil)
     strcat(strcat(sql, " WHERE "), To_CondFil->Body);
+    
+  if (trace)
+    htrc("sql: '%s'\n", sql); 
 
   return sql;
   } // end of MakeSQL
