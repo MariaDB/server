@@ -379,7 +379,7 @@ int TDBODBC::Decode(char *txt, char *buf, size_t n)
 /***********************************************************************/
 char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
   {
-  char   *colist, *tabname, *sql, buf[64];
+  char   *colist, *tabname, *sql, buf[NAM_LEN * 3];
   LPCSTR  schmp = NULL, catp = NULL;
   int     len, ncol = 0;
   bool    first = true;
@@ -492,7 +492,7 @@ char *TDBODBC::MakeSQL(PGLOBAL g, bool cnt)
 /***********************************************************************/
 char *TDBODBC::MakeInsert(PGLOBAL g)
   {
-  char *stmt, *colist, *valist;
+  char *stmt, *colist, *valist, buf[NAM_LEN * 3];
 //  char *tk = "`";
   int   len = 0;
   bool  b = FALSE;
@@ -519,10 +519,13 @@ char *TDBODBC::MakeInsert(PGLOBAL g)
     } else
       b = true;
 
+    // Column name can be in UTF-8 encoding
+    Decode(colp->GetName(), buf, sizeof(buf));
+
     if (Quote)
-      strcat(strcat(strcat(colist, Quote), colp->GetName()), Quote);
+      strcat(strcat(strcat(colist, Quote), buf), Quote);
     else
-      strcat(colist, colp->GetName());
+      strcat(colist, buf);
 
     strcat(valist, "?");        // Parameter marker
     } // endfor colp
