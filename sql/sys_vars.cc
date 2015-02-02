@@ -1956,7 +1956,7 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd, const LEX_STRING *base_n
 static const char *slave_parallel_mode_names[] = {
   "domain", "follow_master_commit", "transactional", "waiting", NULL
 };
-TYPELIB slave_parallel_mode_typelib = {
+export TYPELIB slave_parallel_mode_typelib = {
   array_elements(slave_parallel_mode_names)-1,
   "",
   slave_parallel_mode_names,
