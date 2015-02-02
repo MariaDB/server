@@ -1,6 +1,7 @@
 *-t
 *.a
 *.ctest
+*.o
 *.reject
 *.so
 *.so.*
@@ -74,7 +75,7 @@ mariadb-*.*.*/
 mysql-test/lib/My/SafeProcess/my_safe_process
 mysql-test/mtr
 mysql-test/mysql-test-run
-mysql-test/var/
+mysql-test/var
 mysys/thr_lock
 mysys/thr_timer
 packaging/rpm-oel/mysql.spec

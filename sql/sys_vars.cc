@@ -1877,7 +1877,6 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
   ulonglong new_value= var->save_result.ulonglong_value;
   LEX_STRING *base_name= &var->base;
   Master_info *mi;
-  ulonglong *value_ptr;
   bool res= false;
 
   if ((new_value & (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX)) ==
@@ -1894,7 +1893,9 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
   mysql_mutex_lock(&LOCK_active_mi);
 
   mi= master_info_index->
-    get_master_info(base_name, Sql_condition::WARN_LEVEL_WARN);
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
 
   if (mi)
   {
@@ -1908,24 +1909,23 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
     {
       mi->parallel_mode= new_value;
       if (!base_name->length)
+      {
+        /* Use as default value for new connections */
         opt_slave_parallel_mode= new_value;
+      }
     }
   }
 
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
 
-  if (!mi)
-  {
-    my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
-    return true;
-  }
   return res;
 }
 
 
 uchar *
-Sys_var_slave_parallel_mode::global_value_ptr(THD *thd, const LEX_STRING *base_name)
+Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
+                                              const LEX_STRING *base_name)
 {
   Master_info *mi;
   ulonglong val= opt_slave_parallel_mode;
@@ -1937,18 +1937,17 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd, const LEX_STRING *base_n
   mysql_mutex_lock(&LOCK_active_mi);
 
   mi= master_info_index->
-    get_master_info(base_name, Sql_condition::WARN_LEVEL_WARN);
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
   if (mi)
     val= mi->parallel_mode;
 
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
-
-  if (!mi && base_name->length)
-  {
-    my_error(WARN_NO_MASTER_INFO, MYF(0), base_name->length, base_name->str);
-    return NULL;
-  }
+  if (!mi)
+    return 0;
+  
   return (uchar*)set_to_string(thd, 0, val, typelib.type_names);
 }
 
@@ -4189,23 +4188,18 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 {
   bool result= true;                            // Assume error
   Master_info *mi;
+  LEX_STRING *base_name= &var->base;
+
+  if (!base_name->length)
+    base_name= &thd->variables.default_master_connection;
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
   
-  if (!var->base.length) // no base name
-  {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_ERROR);
-  }
-  else // has base name
-  {
-    mi= master_info_index->
-      get_master_info(&var->base, 
-                      Sql_condition::WARN_LEVEL_WARN);
-  }
-
+  mi= master_info_index->
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
   if (mi)
   {
     if (mi->rli.slave_running)
@@ -4229,7 +4223,7 @@ bool Sys_var_rpl_filter::global_update(THD *thd, set_var *var)
 bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
 {
   bool status= true;
-  Rpl_filter* rpl_filter= mi ? mi->rpl_filter : global_rpl_filter;
+  Rpl_filter* rpl_filter= mi->rpl_filter;
 
   switch (opt_id) {
   case OPT_REPLICATE_DO_DB:
@@ -4255,7 +4249,8 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, const LEX_STRING *base)
+uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
+                                            const LEX_STRING *base_name)
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -4265,18 +4260,12 @@ uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd, const LEX_STRING *base)
 
   mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(&LOCK_active_mi);
-  if (!base->length) // no base name
-  {
-    mi= master_info_index->
-      get_master_info(&thd->variables.default_master_connection,
-                      Sql_condition::WARN_LEVEL_ERROR);
-  }
-  else // has base name
-  {
-    mi= master_info_index->
-      get_master_info(base, 
-                      Sql_condition::WARN_LEVEL_WARN);
-  }
+
+  mi= master_info_index->
+    get_master_info(base_name, !base_name->length ?
+                    Sql_condition::WARN_LEVEL_ERROR :
+                    Sql_condition::WARN_LEVEL_WARN);
+
   mysql_mutex_lock(&LOCK_global_system_variables);
 
   if (!mi)
