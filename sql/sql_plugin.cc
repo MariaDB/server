@@ -1775,7 +1775,6 @@ static void plugin_load(MEM_ROOT *tmp_root)
 end:
   /* Remember that we don't have a THD */
   delete new_thd;
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

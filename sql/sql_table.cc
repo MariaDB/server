@@ -1674,8 +1674,6 @@ void execute_ddl_log_recovery()
   global_ddl_log.recovery_phase= FALSE;
   mysql_mutex_unlock(&LOCK_gdl);
   delete thd;
-  /* Remember that we don't have a THD */
-  set_current_thd(0);
   DBUG_VOID_RETURN;
 }
 

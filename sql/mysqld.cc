@@ -2973,8 +2973,6 @@ bool one_thread_per_connection_end(THD *thd, bool put_in_cache)
   const bool wsrep_applier= IF_WSREP(thd->wsrep_applier, false);
 
   unlink_thd(thd);
-  /* Mark that current_thd is not valid anymore */
-  set_current_thd(0);
 
   if (put_in_cache && cache_thread() && !wsrep_applier)
     DBUG_RETURN(0);                             // Thread is reused
@@ -6555,7 +6553,6 @@ void handle_connections_sockets()
 	(void) mysql_socket_close(new_sock);
       }
       delete thd;
-      set_current_thd(0);
       statistic_increment(connection_errors_internal, &LOCK_status);
       continue;
     }
@@ -6670,7 +6667,6 @@ pthread_handler_t handle_connections_namedpipes(void *arg)
     {
       close_connection(thd, ER_OUT_OF_RESOURCES);
       delete thd;
-      set_current_thd(0);
       continue;
     }
     /* Host is unknown */

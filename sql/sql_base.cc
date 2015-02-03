@@ -9024,7 +9024,6 @@ my_bool mysql_rm_tmp_tables(void)
     my_dirend(dirp);
   }
   delete thd;
-  set_current_thd(0);
   DBUG_RETURN(0);
 }
 
