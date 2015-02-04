@@ -1007,6 +1007,7 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
                                  uint32 new_count, bool skip_check)
 {
   uint32 i;
+  rpl_parallel_thread **old_list= NULL;
   rpl_parallel_thread **new_list= NULL;
   rpl_parallel_thread *new_free_list= NULL;
   rpl_parallel_thread *rpt_array= NULL;
@@ -1111,10 +1112,14 @@ rpl_parallel_change_thread_count(rpl_parallel_thread_pool *pool,
     }
   }
 
-  my_free(pool->threads);
+  old_list= pool->threads;
+  if (new_count < pool->count)
+    pool->count= new_count;
   pool->threads= new_list;
+  if (new_count > pool->count)
+    pool->count= new_count;
+  my_free(old_list);
   pool->free_list= new_free_list;
-  pool->count= new_count;
   for (i= 0; i < pool->count; ++i)
   {
     mysql_mutex_lock(&pool->threads[i]->LOCK_rpl_thread);
