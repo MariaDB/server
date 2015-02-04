@@ -1,2 +1,2 @@
 MYSQL_ADD_PLUGIN(EXAMPLE_KEY_MANAGEMENT_PLUGIN example_key_management_plugin.cc
-                 MODULE_ONLY)
+  MODULE_ONLY ONLY_IF HAVE_EncryptAes128Ctr)
