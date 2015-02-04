@@ -12,14 +12,22 @@
 # this program; if not, write to the Free Software Foundation, Inc.,
 # 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 
+SET(WITH_INNODB_LZMA AUTO CACHE STRING
+  "Build with lzma. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
+
 MACRO (MYSQL_CHECK_LZMA)
+  IF (WITH_INNODB_LZMA STREQUAL "ON" OR WITH_INNODB_LZMA STREQUAL "AUTO")
+    CHECK_INCLUDE_FILES(lzma.h HAVE_LZMA_H)
+    CHECK_LIBRARY_EXISTS(lzma lzma_stream_buffer_decode "" HAVE_LZMA_DECODE)
+    CHECK_LIBRARY_EXISTS(lzma lzma_easy_buffer_encode "" HAVE_LZMA_ENCODE)
 
-CHECK_INCLUDE_FILES(lzma.h HAVE_LZMA_H)
-CHECK_LIBRARY_EXISTS(lzma lzma_stream_buffer_decode "" HAVE_LZMA_DECODE)
-CHECK_LIBRARY_EXISTS(lzma lzma_easy_buffer_encode "" HAVE_LZMA_ENCODE)
-
-IF (HAVE_LZMA_DECODE AND HAVE_LZMA_ENCODE AND HAVE_LZMA_H)
-  ADD_DEFINITIONS(-DHAVE_LZMA=1)
-  LINK_LIBRARIES(lzma) 
-ENDIF()
+    IF (HAVE_LZMA_DECODE AND HAVE_LZMA_ENCODE AND HAVE_LZMA_H)
+      ADD_DEFINITIONS(-DHAVE_LZMA=1)
+      LINK_LIBRARIES(lzma) 
+    ELSE()
+      IF (WITH_INNODB_LZMA STREQUAL "ON")
+	MESSAGE(FATAL_ERROR "Required lzma library is not found")
+      ENDIF()
+    ENDIF()
+  ENDIF()
 ENDMACRO()
