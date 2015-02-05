@@ -27,14 +27,6 @@
 #include <sys/syscall.h>
 #endif
 
-enum thread_state
-{
-  NOT_RUNNING= -1, RUNNING= 0, ABORTING=1
-};
-
-static enum thread_state timer_thread_state= NOT_RUNNING;
-
-volatile my_bool timer_thread_running= 0;
 struct timespec next_timer_expire_time;
 
 static my_bool thr_timer_inited= 0;
@@ -75,7 +67,7 @@ static thr_timer_t max_timer_data;
 my_bool init_thr_timer(uint alloc_timers)
 {
   pthread_attr_t thr_attr;
-  my_bool res;
+  my_bool res= 0;
   DBUG_ENTER("init_thr_timer");
 
   init_queue(&timer_queue, alloc_timers+2, offsetof(thr_timer_t,expire_time),
@@ -93,45 +85,39 @@ my_bool init_thr_timer(uint alloc_timers)
   /* Create a thread to handle timers */
   pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
-  pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
   pthread_attr_setstacksize(&thr_attr,8196);
-  res= mysql_thread_create(key_thread_timer,
-                           &timer_thread, &thr_attr, timer_handler, NULL) != 0;
+  thr_timer_inited= 1;
+  if (mysql_thread_create(key_thread_timer, &timer_thread, &thr_attr,
+                          timer_handler, NULL))
+  {
+    thr_timer_inited= 0;
+    res= 1;
+    mysql_mutex_destroy(&LOCK_timer);
+    mysql_cond_destroy(&COND_timer);
+    delete_queue(&timer_queue);
+  }
   pthread_attr_destroy(&thr_attr);
 
-  thr_timer_inited= 1;
   DBUG_RETURN(res);
 }
 
 
 void end_thr_timer(void)
 {
-  struct timespec abstime;
   DBUG_ENTER("end_thr_timer");
-  
+
   if (!thr_timer_inited)
     DBUG_VOID_RETURN;
 
   mysql_mutex_lock(&LOCK_timer);
-  timer_thread_state= ABORTING;                 /* Signal abort */
+  thr_timer_inited= 0;                          /* Signal abort */
   mysql_cond_signal(&COND_timer);
-
-  /* Wait until timer thread dies */
-  set_timespec(abstime, 10*1000);          /* Wait up to 10 seconds */
-  while (timer_thread_state == ABORTING)
-  {
-    int error= mysql_cond_timedwait(&COND_timer, &LOCK_timer, &abstime);
-    if (error == ETIME || error == ETIMEDOUT)
-      break;				/* Don't wait forever */
-  }
   mysql_mutex_unlock(&LOCK_timer);
-  if (timer_thread_state == NOT_RUNNING)
-  {
-    mysql_mutex_destroy(&LOCK_timer);
-    mysql_cond_destroy(&COND_timer);
-    delete_queue(&timer_queue);
-    thr_timer_inited= 0;
-  }
+  pthread_join(timer_thread, NULL);
+
+  mysql_mutex_destroy(&LOCK_timer);
+  mysql_cond_destroy(&COND_timer);
+  delete_queue(&timer_queue);
   DBUG_VOID_RETURN;
 }
 
@@ -277,18 +263,15 @@ static sig_handler process_timers(struct timespec *now)
 
 /*
   set up a timer thread to handle timeouts
-  This will be killed when timer_thread_state is set to ABORTING.
-  At end timer_aborted will be set to NOT_RUNNING
+  This will be killed when thr_timer_inited is set to false.
 */
 
 static void *timer_handler(void *arg __attribute__((unused)))
 {
   my_thread_init();
 
-  timer_thread_state= RUNNING;
-
   mysql_mutex_lock(&LOCK_timer);
-  while (likely(timer_thread_state == RUNNING))
+  while (likely(thr_timer_inited))
   {
     int error;
     struct timespec *top_time;
@@ -315,8 +298,6 @@ static void *timer_handler(void *arg __attribute__((unused)))
 #endif
     }
   }
-  timer_thread_state= NOT_RUNNING;		/* Mark thread ended */
-  mysql_cond_signal(&COND_timer);         	/* signal end_thr_timer() */
   mysql_mutex_unlock(&LOCK_timer);
   my_thread_end();
   pthread_exit(0);
