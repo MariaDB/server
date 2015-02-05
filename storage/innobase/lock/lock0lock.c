@@ -989,7 +989,7 @@ lock_rec_has_to_wait(
 
 			if (wsrep_debug) {
 				fprintf(stderr, 
-					"BF-BF lock conflict, locking: %d \n",
+					"BF-BF lock conflict, locking: %lu \n",
 					for_locking);
 				lock_rec_print(stderr, lock2);
 			}
