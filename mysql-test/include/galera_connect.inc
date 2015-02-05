@@ -40,6 +40,9 @@ if ($galera_debug)
   --echo connect($galera_connection_name,127.0.0.1,root,,test,$_galera_port,)
 }
 
+# Temporal solution to avoid concurrent IST MDEV-7178
+--sleep 1
+
 # Open a connection
 --connect($galera_connection_name,127.0.0.1,root,,test,$_galera_port,)
 

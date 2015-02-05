@@ -32,6 +32,7 @@ push @::global_suppressions,
      qr(WSREP: Gap in state sequence. Need state transfer.),
      qr(WSREP: Failed to prepare for incremental state transfer: .*),
      qr(WSREP: Releasing seqno [0-9]* before [0-9]* was assigned.),
+     qr(WSREP: SYNC message from member 1 in non-primary configuration. Ignored.),
    );
 
 
