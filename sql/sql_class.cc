@@ -6360,8 +6360,8 @@ int THD::binlog_query(THD::enum_binlog_query_type qtype, char const *query_arg,
   DBUG_PRINT("enter", ("qtype: %s  query: '%-.*s'",
                        show_query_type(qtype), (int) query_len, query_arg));
 
-  DBUG_ASSERT(query_arg &&
-                        (WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open()));
+  DBUG_ASSERT(query_arg);
+  DBUG_ASSERT(WSREP_EMULATE_BINLOG(this) || mysql_bin_log.is_open());
 
   /* If this is withing a BEGIN ... COMMIT group, don't log it */
   if (variables.option_bits & OPTION_GTID_BEGIN)

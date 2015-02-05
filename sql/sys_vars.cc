@@ -987,8 +987,7 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
   tmp.length= var->save_result.string_value.length;
   if (!tmp.str || check_master_connection_name(&tmp))
   {
-    my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
-             var->var->name.str);
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), var->var->name.str);
     return true;
   }
   return false;
@@ -4751,11 +4750,12 @@ static bool fix_wsrep_causal_reads(sys_var *self, THD* thd, enum_var_type var_ty
   return false;
 }
 static Sys_var_mybool Sys_wsrep_causal_reads(
-       "wsrep_causal_reads", "(DEPRECATED) Setting this variable is equivalent "
+       "wsrep_causal_reads", "Setting this variable is equivalent "
        "to setting wsrep_sync_wait READ flag",
        SESSION_VAR(wsrep_causal_reads), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_wsrep_causal_reads));
+       ON_UPDATE(fix_wsrep_causal_reads),
+       DEPRECATED("'@@wsrep_sync_wait=1'"));
 
 static Sys_var_uint Sys_wsrep_sync_wait(
        "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "
