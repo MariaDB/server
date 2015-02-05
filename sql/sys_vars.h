@@ -219,6 +219,7 @@ public:
     return scope() == SESSION ? (T*)(((uchar*)&max_system_variables) + offset)
                               : 0;
   }
+  uchar *default_value_ptr(THD *thd) { return (uchar*) &option.def_value; }
 };
 
 typedef Sys_var_integer<int, GET_INT, SHOW_SINT> Sys_var_int;
@@ -227,6 +228,31 @@ typedef Sys_var_integer<ulong, GET_ULONG, SHOW_ULONG> Sys_var_ulong;
 typedef Sys_var_integer<ha_rows, GET_HA_ROWS, SHOW_HA_ROWS> Sys_var_harows;
 typedef Sys_var_integer<ulonglong, GET_ULL, SHOW_ULONGLONG> Sys_var_ulonglong;
 typedef Sys_var_integer<long, GET_LONG, SHOW_SLONG> Sys_var_long;
+
+
+template<> uchar *Sys_var_int::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.int_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.int_value;
+}
+
+template<> uchar *Sys_var_uint::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.uint_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.uint_value;
+}
+
+template<> uchar *Sys_var_long::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.long_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.long_value;
+}
+
+template<> uchar *Sys_var_ulong::default_value_ptr(THD *thd)
+{
+  thd->sys_var_tmp.ulong_value= option.def_value;
+  return (uchar*) &thd->sys_var_tmp.ulong_value;
+}
 
 
 /**
@@ -386,6 +412,11 @@ public:
   { var->save_result.ulonglong_value= (ulonglong)*(my_bool *)global_value_ptr(thd, 0); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
+  uchar *default_value_ptr(THD *thd)
+  {
+    thd->sys_var_tmp.my_bool_value= option.def_value;
+    return (uchar*) &thd->sys_var_tmp.my_bool_value;
+  }
 };
 
 /**

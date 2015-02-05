@@ -2731,10 +2731,13 @@ public:
   union
   {
     my_bool   my_bool_value;
+    int       int_value;
+    uint      uint_value;
     long      long_value;
     ulong     ulong_value;
     ulonglong ulonglong_value;
     double    double_value;
+    void      *ptr_value;
   } sys_var_tmp;
 
   struct {
