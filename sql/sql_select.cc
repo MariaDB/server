@@ -7451,8 +7451,12 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             else
               fldno= table->key_info[key].key_part[keyparts-1].fieldnr - 1;
             if (keyuse->val->const_item())
-            {              
-              sel /= table->field[fldno]->cond_selectivity;
+            { 
+              if (table->field[fldno]->cond_selectivity > 0)
+	      {            
+                sel /= table->field[fldno]->cond_selectivity;
+                set_if_smaller(sel, 1.0);
+              }
               /* 
                TODO: we could do better here:
                  1. cond_selectivity might be =1 (the default) because quick 
@@ -7506,7 +7510,10 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
         if (!(next_field->table->map & rem_tables) && next_field->table != table)
         { 
           if (field->cond_selectivity > 0)
+	  {
             sel/= field->cond_selectivity;
+            set_if_smaller(sel, 1.0);
+          }
           break;
         }
       }
