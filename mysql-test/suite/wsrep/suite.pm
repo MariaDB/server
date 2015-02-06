@@ -24,16 +24,12 @@ return "No my_print_defaults" unless $epath;
 
 push @::global_suppressions,
   (
-     qr(WSREP:.*down context.*),
-     qr(WSREP: Failed to send state UUID:.*),
-     qr(WSREP: wsrep_sst_receive_address.*),
-     qr(WSREP: Could not open saved state file for reading: .*),
-     qr(WSREP: last inactive check more than .* skipping check),
-     qr(WSREP: Gap in state sequence. Need state transfer.),
-     qr(WSREP: Failed to prepare for incremental state transfer: .*),
-     qr(WSREP: Releasing seqno [0-9]* before [0-9]* was assigned.),
+     qr(WSREP: Failed to guess base node address),
+     qr(WSREP: Guessing address for incoming client connections failed),
+     qr(WSREP: Could not open saved state file for reading: ),
+     qr(WSREP: option --wsrep-casual-reads is deprecated),
+     qr(WSREP: --wsrep-casual-reads=ON takes precedence over --wsrep-sync-wait=0),
    );
-
 
 $ENV{PATH}="$epath:$ENV{PATH}";
 $ENV{PATH}="$spath:$ENV{PATH}" unless $epath eq $spath;

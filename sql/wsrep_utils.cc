@@ -325,10 +325,6 @@ thd::~thd ()
 /* Returns INADDR_NONE, INADDR_ANY, INADDR_LOOPBACK or something else */
 unsigned int wsrep_check_ip (const char* const addr)
 {
-#if 0
-  if (addr && 0 == strcasecmp(addr, MY_BIND_ALL_ADDRESSES)) return INADDR_ANY;
-#endif
-
   unsigned int ret = INADDR_NONE;
   struct addrinfo *res, hints;
 
@@ -380,11 +376,12 @@ size_t wsrep_guess_ip (char* buf, size_t buf_len)
     unsigned int const ip_type= wsrep_check_ip(my_bind_addr_str);
 
     if (INADDR_NONE == ip_type) {
-      WSREP_ERROR("Networking not configured, cannot receive state transfer.");
+      WSREP_ERROR("Networking not configured, cannot receive state "
+                  "transfer.");
       return 0;
     }
 
-    if (INADDR_ANY != ip_type) {;
+    if (INADDR_ANY != ip_type) {
       strncpy (buf, my_bind_addr_str, buf_len);
       return strlen(buf);
     }

@@ -1,5 +1,7 @@
 --source include/have_wsrep.inc
---source include/have_innodb.inc
+
+SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
+SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
 
 --echo
 --echo # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
@@ -16,11 +18,18 @@ SET GLOBAL wsrep_replicate_myisam= ON;
 
 # Reset it back.
 SET GLOBAL wsrep_replicate_myisam= OFF;
+SET GLOBAL wsrep_provider=none;
 
 --echo #
 --echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 --echo # variables when using "_"
 --echo #
+
+CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
+
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep%';
@@ -35,9 +44,16 @@ SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 --echo # Should show nothing.
 SHOW STATUS LIKE 'x';
 
+# Reset it back.
+SET GLOBAL wsrep_provider=none;
+
 --echo #
 --echo # MDEV#6079: xtrabackup SST failing with maria-10.0-galera
 --echo #
+
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
 
 # The following 2 variables are used in innobackupex during xtrabackup-based
 # SST.
@@ -48,10 +64,18 @@ SHOW STATUS LIKE 'wsrep_local_state_uuid';
 --replace_column 2 #
 SHOW STATUS LIKE 'wsrep_last_committed';
 
+# Reset it back.
+SET GLOBAL wsrep_provider=none;
+
 --echo
 --echo #
 --echo # MDEV#6206: wsrep_slave_threads subtracts from max_connections
 --echo #
+call mtr.add_suppression("WSREP: Failed to get provider options");
+
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
@@ -61,15 +85,36 @@ SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 --echo
 
+--disable_query_log
+eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+--enable_query_log
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
+SELECT @@global.wsrep_provider;
+SELECT @@global.wsrep_cluster_address;
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+--echo
+
+--echo # Setting wsrep_cluster_address triggers the creation of
+--echo # applier/rollbacker threads.
+SET GLOBAL wsrep_cluster_address= 'gcomm://';
+--echo # Wait for applier threads to get created.
+sleep 3; 
+
+--replace_regex /.*libgalera_smm.*/libgalera_smm.so/
+SELECT @@global.wsrep_provider;
+SELECT @@global.wsrep_cluster_address;
+SHOW STATUS LIKE 'threads_connected';
+SHOW STATUS LIKE 'wsrep_thread_count';
+--echo
+
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
 --echo # Wait for applier threads to get created.
-sleep 5; 
-SHOW STATUS LIKE 'wsrep_thread_count';
+sleep 3; 
 SHOW STATUS LIKE 'threads_connected';
-
-# reset (for mtr internal checks)
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SHOW STATUS LIKE 'wsrep_thread_count';
 
 --echo #
 --echo # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
@@ -82,6 +127,12 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= NULL;
 SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
+
+# Reset (for mtr internal checks)
+SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SET GLOBAL wsrep_provider= none;
+SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
+SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 
 --echo # End of test.
 

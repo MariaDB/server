@@ -4976,7 +4976,7 @@ a file name for --log-bin-index option", opt_binlog_index_name);
       - SST may modify binlog index file, so it must be opened
         after SST has happened
      */
-  if (WSREP_ON && !wsrep_recovery) /* WSREP BEFORE SE */
+  if (WSREP_ON && !wsrep_recovery && !opt_abort) /* WSREP BEFORE SE */
   {
     if (opt_bootstrap) // bootsrap option given - disable wsrep functionality
     {
@@ -9239,6 +9239,16 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     global_system_variables.option_bits|= OPTION_BIG_SELECTS;
   else
     global_system_variables.option_bits&= ~OPTION_BIG_SELECTS;
+
+  if (!opt_bootstrap && WSREP_PROVIDER_EXISTS &&
+      global_system_variables.binlog_format != BINLOG_FORMAT_ROW)
+  {
+
+    WSREP_ERROR ("Only binlog_format = 'ROW' is currently supported. "
+                 "Configured value: '%s'. Please adjust your configuration.",
+                 binlog_format_names[global_system_variables.binlog_format]);
+    return 1;
+  }
 
   // Synchronize @@global.autocommit on --autocommit
   const ulonglong turn_bit_on= opt_autocommit ?

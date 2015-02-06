@@ -437,6 +437,24 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
   if (check_has_super(self, thd, var))
     return true;
 
+  /*
+    MariaDB Galera does not support STATEMENT or MIXED binlog format currently.
+  */
+  if (WSREP(thd) && var->save_result.ulonglong_value != BINLOG_FORMAT_ROW)
+  {
+    // Push a warning to the error log.
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                        "MariaDB Galera does not support binlog format: %s",
+                        binlog_format_names[var->save_result.ulonglong_value]);
+
+    if (var->type == OPT_GLOBAL)
+    {
+      WSREP_ERROR("MariaDB Galera does not support binlog format: %s",
+                  binlog_format_names[var->save_result.ulonglong_value]);
+      return true;
+    }
+  }
+
   if (var->type == OPT_GLOBAL)
     return false;
 
@@ -464,26 +482,6 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
          ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT))
     return true;
-
-#ifdef WITH_WSREP
-  /* MariaDB Galera does not support STATEMENT or MIXED binlog
-  format currently */
-  if (WSREP(thd) &&
-     (var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ||
-      var->save_result.ulonglong_value == BINLOG_FORMAT_MIXED))
-  {
-    WSREP_DEBUG("MariaDB Galera does not support binlog format : %s",
-                var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
-                "STATEMENT" : "MIXED");
-    /* Push also warning, because error message is general */
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_ERROR,
-                        "MariaDB Galera does not support binlog format: %s",
-                        var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
-                        "STATEMENT" : "MIXED");
-    return true;
-  }
-#endif
 
   return false;
 }
@@ -4587,7 +4585,7 @@ static Sys_var_charptr Sys_wsrep_provider_options(
 static Sys_var_charptr Sys_wsrep_data_home_dir(
        "wsrep_data_home_dir", "home directory for wsrep provider",
        READ_ONLY GLOBAL_VAR(wsrep_data_home_dir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(""));
+       IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
 
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",

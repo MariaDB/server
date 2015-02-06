@@ -162,7 +162,7 @@ extern wsrep_seqno_t wsrep_locked_seqno;
   (global_system_variables.wsrep_on)
 
 #define WSREP(thd) \
-  (WSREP_ON && (thd && thd->variables.wsrep_on))
+  (WSREP_ON && wsrep && (thd && thd->variables.wsrep_on))
 
 #define WSREP_CLIENT(thd) \
     (WSREP(thd) && thd->wsrep_client_thread)
@@ -315,6 +315,7 @@ int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 #define WSREP_EMULATE_BINLOG(thd) (0)
 #define WSREP_CLIENT(thd) (0)
 #define WSREP_FORMAT(my_format) ((ulong)my_format)
+#define WSREP_PROVIDER_EXISTS (0)
 #define wsrep_emulate_bin_log (0)
 #define wsrep_xid_seqno(X) (0)
 #define wsrep_to_isolation (0)

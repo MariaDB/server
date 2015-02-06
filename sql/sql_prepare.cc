@@ -3657,7 +3657,7 @@ reexecute:
         break;
 
       case MUST_REPLAY:
-        (void)wsrep_replay_transaction(thd);
+        (void) wsrep_replay_transaction(thd);
         break;
 
       default:
