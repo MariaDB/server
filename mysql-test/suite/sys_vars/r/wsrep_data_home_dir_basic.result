@@ -4,45 +4,21 @@
 # default
 SELECT @@global.wsrep_data_home_dir;
 @@global.wsrep_data_home_dir
-
+DATADIR
 
 # scope
 SELECT @@session.wsrep_data_home_dir;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a GLOBAL variable
-SET @@global.wsrep_data_home_dir='/tmp/data';
-ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
 
 # valid values
 SET @@global.wsrep_data_home_dir='/tmp/data';
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
 SELECT @@global.wsrep_data_home_dir;
 @@global.wsrep_data_home_dir
-
-SET @@global.wsrep_data_home_dir=junk-dir;
-ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
-SET @@global.wsrep_data_home_dir=junk/dir;
-ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
-SET @@global.wsrep_data_home_dir=OFF;
-ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
-SELECT @@global.wsrep_data_home_dir;
-@@global.wsrep_data_home_dir
-
+DATADIR
 SET @@global.wsrep_data_home_dir=default;
 ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
 SELECT @@global.wsrep_data_home_dir;
 @@global.wsrep_data_home_dir
-
-
-# invalid values
-SET @@global.wsrep_data_home_dir=NULL;
-ERROR HY000: Variable 'wsrep_data_home_dir' is a read only variable
+DATADIR
 # End of test

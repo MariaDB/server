@@ -984,10 +984,8 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
   tmp.str= var->save_result.string_value.str;
   tmp.length= var->save_result.string_value.length;
   if (!tmp.str || check_master_connection_name(&tmp))
-  {
-    my_error(ER_WRONG_ARGUMENTS, MYF(0), var->var->name.str);
     return true;
-  }
+
   return false;
 }
 
