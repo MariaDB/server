@@ -5040,11 +5040,6 @@ a file name for --log-bin-index option", opt_binlog_index_name);
   }
   plugins_are_initialized= TRUE;  /* Don't separate from init function */
 
-#ifdef WITH_WSREP
-  if (WSREP_ON && wsrep_check_opts())
-    global_system_variables.wsrep_on= 0;
-#endif
-
   /* we do want to exit if there are any other unknown options */
   if (remaining_argc > 1)
   {
@@ -5606,6 +5601,9 @@ int mysqld_main(int argc, char **argv)
 #endif
       set_user(mysqld_user, user_info);
   }
+
+  if (WSREP_ON && wsrep_check_opts())
+    global_system_variables.wsrep_on= 0;
 
   if (opt_bin_log && !global_system_variables.server_id)
   {
