@@ -184,7 +184,8 @@ class Master_info : public Slave_reporting_capability
   static const char *using_gtid_astext(enum enum_using_gtid arg);
   bool using_parallel()
   {
-    return opt_slave_parallel_threads > 0 && parallel_mode != 0;
+    return opt_slave_parallel_threads > 0 &&
+      parallel_mode > SLAVE_PARALLEL_NONE;
   }
 
   /* the variables below are needed because we can change masters on the fly */
@@ -300,12 +301,8 @@ class Master_info : public Slave_reporting_capability
   /* domain-id based filter */
   Domain_id_filter domain_id_filter;
 
-  /*
-    The parallel replication modes, if any. A combination (binary OR) of any
-    of SLAVE_PARALLEL_DOMAIN, SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT,
-    SLAVE_PARALLEL_TRX, and SLAVE_PARALLEL_WAITING.
-  */
-  ulonglong parallel_mode;
+  /* The parallel replication mode. */
+  enum_slave_parallel_mode parallel_mode;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,

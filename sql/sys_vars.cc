@@ -1874,17 +1874,11 @@ static Sys_var_ulong Sys_slave_parallel_max_queued(
 bool
 Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 {
-  ulonglong new_value= var->save_result.ulonglong_value;
+  enum_slave_parallel_mode new_value=
+    (enum_slave_parallel_mode)var->save_result.ulonglong_value;
   LEX_STRING *base_name= &var->base;
   Master_info *mi;
   bool res= false;
-
-  if ((new_value & (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX)) ==
-      (SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT|SLAVE_PARALLEL_TRX))
-  {
-    my_error(ER_INVALID_SLAVE_PARALLEL_MODE, MYF(0), "transactional");
-    return true;
-  }
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
@@ -1928,7 +1922,8 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
                                               const LEX_STRING *base_name)
 {
   Master_info *mi;
-  ulonglong val= opt_slave_parallel_mode;
+  enum_slave_parallel_mode val=
+    (enum_slave_parallel_mode)opt_slave_parallel_mode;
 
   if (!base_name->length)
     base_name= &thd->variables.default_master_connection;
@@ -1947,13 +1942,14 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
   mysql_mutex_lock(&LOCK_global_system_variables);
   if (!mi)
     return 0;
-  
-  return (uchar*)set_to_string(thd, 0, val, typelib.type_names);
+
+  return valptr(thd, val);
 }
 
 
+/* The order here must match enum_slave_parallel_mode in mysqld.h. */
 static const char *slave_parallel_mode_names[] = {
-  "domain", "follow_master_commit", "transactional", "waiting", NULL
+  "none", "minimal", "conservative", "optimistic", "aggressive", NULL
 };
 export TYPELIB slave_parallel_mode_typelib = {
   array_elements(slave_parallel_mode_names)-1,
@@ -1965,28 +1961,26 @@ export TYPELIB slave_parallel_mode_typelib = {
 static Sys_var_slave_parallel_mode Sys_slave_parallel_mode(
        "slave_parallel_mode",
        "Controls what transactions are applied in parallel when using "
-       "--slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], "
-       "where \"value\" could be one or more of: \"domain\", to apply different "
-       "replication domains in parallel; \"follow_master_commit\", to apply "
-       "in parallel transactions that group-committed together on the master; "
-       "\"transactional\", to optimistically try to apply all transactional "
-       "DML in parallel; and \"waiting\" to extend \"transactional\" to "
-       "even transactions that had to wait on the master.",
-       GLOBAL_VAR(opt_slave_parallel_mode),
-       NO_CMD_LINE, slave_parallel_mode_names,
-       DEFAULT(SLAVE_PARALLEL_DOMAIN |
-               SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT));
+       "--slave-parallel-threads. Possible values: \"optimistic\" tries to "
+       "apply most transactional DML in parallel, and handles any conflicts "
+       "with rollback and retry. \"conservative\" limits parallelism in an "
+       "effort to avoid any conflicts. \"aggressive\" tries to maximise the "
+       "parallelism, possibly at the cost of increased conflict rate. "
+       "\"minimal\" only parallelizes the commit steps of transactions. "
+       "\"none\" disables parallel apply completely.",
+       GLOBAL_VAR(opt_slave_parallel_mode), NO_CMD_LINE,
+       slave_parallel_mode_names, DEFAULT(SLAVE_PARALLEL_CONSERVATIVE));
 
 
-static Sys_var_bit Sys_replicate_allow_parallel(
-       "replicate_allow_parallel",
-       "If set when a transaction is written to the binlog, that transaction "
-       "is allowed to replicate in parallel on a slave where "
-       "slave_parallel_mode is set to \"transactional\". Can be cleared for "
-       "transactions that are likely to cause a conflict if replicated in "
-       "parallel, to avoid unnecessary rollback and retry.",
-       SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_ALLOW_PARALLEL,
-       DEFAULT(TRUE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
+static Sys_var_bit Sys_skip_parallel_replication(
+       "skip_parallel_replication",
+       "If set when a transaction is written to the binlog, parallel apply of "
+       "that transaction will be avoided on a slave where slave_parallel_mode "
+       "is not \"aggressive\". Can be used to avoid unnecessary rollback and "
+       "retry for transactions that are likely to cause a conflict if "
+       "replicated in parallel.",
+       SESSION_ONLY(option_bits), NO_CMD_LINE, OPTION_RPL_SKIP_PARALLEL,
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);
 
 
 static bool

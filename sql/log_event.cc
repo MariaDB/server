@@ -6400,7 +6400,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= FL_DDL;
   else if (is_transactional)
     flags2|= FL_TRANSACTIONAL;
-  if (thd_arg->variables.option_bits & OPTION_RPL_ALLOW_PARALLEL)
+  if (!(thd_arg->variables.option_bits & OPTION_RPL_SKIP_PARALLEL))
     flags2|= FL_ALLOW_PARALLEL;
   /* Preserve any DDL or WAITED flag in the slave's binlog. */
   if (thd_arg->rgi_slave)
@@ -6545,9 +6545,9 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
   /* Execute this like a BEGIN query event. */
   bits|= OPTION_GTID_BEGIN;
   if (flags2 & FL_ALLOW_PARALLEL)
-    bits|= (ulonglong)OPTION_RPL_ALLOW_PARALLEL;
+    bits&= ~(ulonglong)OPTION_RPL_SKIP_PARALLEL;
   else
-    bits&= ~(ulonglong)OPTION_RPL_ALLOW_PARALLEL;
+    bits|= (ulonglong)OPTION_RPL_SKIP_PARALLEL;
   thd->variables.option_bits= bits;
   DBUG_PRINT("info", ("Set OPTION_GTID_BEGIN"));
   thd->set_query_and_id(gtid_begin_string, sizeof(gtid_begin_string)-1,
@@ -6638,8 +6638,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->allow_parallel != !!(flags2 & FL_ALLOW_PARALLEL))
     {
       my_b_printf(&cache,
-                  "/*!100101 SET @@session.replicate_allow_parallel=%u*/%s\n",
-                  !!(flags2 & FL_ALLOW_PARALLEL), print_event_info->delimiter);
+                  "/*!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
+                  !(flags2 & FL_ALLOW_PARALLEL), print_event_info->delimiter);
       print_event_info->allow_parallel= !!(flags2 & FL_ALLOW_PARALLEL);
       print_event_info->allow_parallel_printed= true;
     }

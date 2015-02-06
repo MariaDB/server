@@ -562,8 +562,7 @@ ulong stored_program_cache_size= 0;
 
 ulong opt_slave_parallel_threads= 0;
 ulong opt_slave_domain_parallel_threads= 0;
-ulonglong opt_slave_parallel_mode=
-  SLAVE_PARALLEL_DOMAIN | SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT;
+ulong opt_slave_parallel_mode= SLAVE_PARALLEL_CONSERVATIVE;
 ulong opt_binlog_commit_wait_count= 0;
 ulong opt_binlog_commit_wait_usec= 0;
 ulong opt_slave_parallel_max_queued= 131072;
@@ -7326,16 +7325,16 @@ struct my_option my_long_options[]=
 #ifdef HAVE_REPLICATION
   {"slave-parallel-mode", OPT_SLAVE_PARALLEL_MODE,
    "Controls what transactions are applied in parallel when using "
-   "--slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], "
-   "where \"value\" could be one or more of: \"domain\", to apply different "
-   "replication domains in parallel; \"follow_master_commit\", to apply "
-   "in parallel transactions that group-committed together on the master; "
-   "\"transactional\", to optimistically try to apply all transactional "
-   "DML in parallel; and \"waiting\" to extend \"transactional\" to "
-   "even transactions that had to wait on the master.",
+   "--slave-parallel-threads. Possible values: \"optimistic\" tries to "
+   "apply most transactional DML in parallel, and handles any conflicts "
+   "with rollback and retry. \"conservative\" limits parallelism in an "
+   "effort to avoid any conflicts. \"aggressive\" tries to maximise the "
+   "parallelism, possibly at the cost of increased conflict rate. "
+   "\"minimal\" only parallelizes the commit steps of transactions. "
+   "\"none\" disables parallel apply completely.",
    &opt_slave_parallel_mode, &opt_slave_parallel_mode,
-   &slave_parallel_mode_typelib, GET_SET | GET_ASK_ADDR, REQUIRED_ARG,
-   SLAVE_PARALLEL_DOMAIN | SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT, 0, 0, 0, 0, 0},
+   &slave_parallel_mode_typelib, GET_ENUM | GET_ASK_ADDR, REQUIRED_ARG,
+   SLAVE_PARALLEL_CONSERVATIVE, 0, 0, 0, 0, 0},
 #endif
 #if defined(_WIN32) && !defined(EMBEDDED_LIBRARY)
   {"slow-start-timeout", 0,
@@ -8847,7 +8846,8 @@ mysqld_get_one_option(int optid, const struct my_option *opt, char *argument)
   case (int)OPT_SLAVE_PARALLEL_MODE:
   {
     /* Store latest mode for Master::Info */
-    cur_rpl_filter->set_parallel_mode(opt_slave_parallel_mode);
+    cur_rpl_filter->set_parallel_mode
+      ((enum_slave_parallel_mode)opt_slave_parallel_mode);
     break;
   }
 

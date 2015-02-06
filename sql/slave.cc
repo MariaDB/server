@@ -2585,7 +2585,7 @@ static bool send_show_master_info_header(THD *thd, bool full,
   field_list.push_back(new Item_empty_string("Replicate_Ignore_Domain_Ids",
                                              FN_REFLEN));
   field_list.push_back(new Item_empty_string("Parallel_Mode",
-             sizeof("domain,follow_master_commit,transactional,waiting")-1));
+                                             sizeof("conservative")-1));
   if (full)
   {
     field_list.push_back(new Item_return_int("Retried_transactions",
@@ -2788,22 +2788,9 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
     // Parallel_Mode
     {
-      /* Note how sizeof("domain") has room for "domain," due to traling 0. */
-      char buf[sizeof("domain") + sizeof("follow_master_commit") +
-               sizeof("transactional") + sizeof("waiting") + 1];
-      char *p= buf;
-      uint32 mode= mi->parallel_mode;
-      if (mode & SLAVE_PARALLEL_DOMAIN)
-        p= strmov(p, "domain,");
-      if (mode & SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT)
-        p= strmov(p, "follow_master_commit,");
-      if (mode & SLAVE_PARALLEL_TRX)
-        p= strmov(p, "transactional,");
-      if (mode & SLAVE_PARALLEL_WAITING)
-        p= strmov(p, "waiting,");
-      if (p != buf)
-        --p;                                    // Discard last ','
-      protocol->store(buf, p-buf, &my_charset_bin);
+      const char *mode_name= get_type(&slave_parallel_mode_typelib,
+                                      mi->parallel_mode);
+      protocol->store(mode_name, strlen(mode_name), &my_charset_bin);
     }
 
     if (full)

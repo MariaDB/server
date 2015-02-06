@@ -3177,8 +3177,8 @@ public:
   */
   static const uchar FL_TRANSACTIONAL= 4;
   /*
-    FL_ALLOW_PARALLEL reflects the value of @@SESSION.replicate_allow_parallel
-    at the time of commit.
+    FL_ALLOW_PARALLEL reflects the (negation of the) value of
+    @@SESSION.skip_parallel_replication at the time of commit.
   */
   static const uchar FL_ALLOW_PARALLEL= 8;
   /*

@@ -2013,7 +2013,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   {
     Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
     uint32 domain_id= (rli->mi->using_gtid == Master_info::USE_GTID_NO ||
-                       !(rli->mi->parallel_mode & SLAVE_PARALLEL_DOMAIN) ?
+                       rli->mi->parallel_mode <= SLAVE_PARALLEL_MINIMAL ?
                        0 : gtid_ev->domain_id);
     if (!(e= find(domain_id)))
     {
@@ -2054,7 +2054,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
   {
     Gtid_log_event *gtid_ev= static_cast<Gtid_log_event *>(ev);
     bool new_gco;
-    ulonglong mode= rli->mi->parallel_mode;
+    enum_slave_parallel_mode mode= rli->mi->parallel_mode;
     uchar gtid_flags= gtid_ev->flags2;
     group_commit_orderer *gco;
     uint8 force_switch_flag;
@@ -2093,7 +2093,8 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
     {
       uint8 flags= gco->flags;
 
-      if (!(gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID) ||
+      if (mode <= SLAVE_PARALLEL_MINIMAL ||
+          !(gtid_flags & Gtid_log_event::FL_GROUP_COMMIT_ID) ||
           e->last_commit_id != gtid_ev->commit_id)
         flags|= group_commit_orderer::MULTI_BATCH;
       /* Make sure we do not attempt to run DDL in parallel speculatively. */
@@ -2108,7 +2109,7 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         */
         new_gco= false;
       }
-      else if ((mode & SLAVE_PARALLEL_TRX) &&
+      else if ((mode >= SLAVE_PARALLEL_OPTIMISTIC) &&
                !(flags & group_commit_orderer::FORCE_SWITCH))
       {
         /*
@@ -2124,9 +2125,9 @@ rpl_parallel::do_event(rpl_group_info *serial_rgi, Log_event *ev,
         */
         new_gco= false;
         if (!(gtid_flags & Gtid_log_event::FL_TRANSACTIONAL) ||
-            !(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL) ||
-            ((gtid_flags & Gtid_log_event::FL_WAITED) &&
-             !(mode & SLAVE_PARALLEL_WAITING)))
+            ( (!(gtid_flags & Gtid_log_event::FL_ALLOW_PARALLEL) ||
+               (gtid_flags & Gtid_log_event::FL_WAITED)) &&
+              (mode < SLAVE_PARALLEL_AGGRESSIVE)))
         {
           /*
             This transaction should not be speculatively run in parallel with

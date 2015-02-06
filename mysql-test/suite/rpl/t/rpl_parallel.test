@@ -1847,12 +1847,10 @@ SET GLOBAL slave_parallel_threads=10;
 --let $status_items= Parallel_Mode
 --source include/show_slave_status.inc
 --source include/stop_slave.inc
---error ER_INVALID_SLAVE_PARALLEL_MODE
-SET GLOBAL slave_parallel_mode='domain,follow_master_commit,transactional';
-SET GLOBAL slave_parallel_mode='waiting,transactional,domain';
+SET GLOBAL slave_parallel_mode='aggressive';
 --let $status_items= Parallel_Mode
 --source include/show_slave_status.inc
-SET GLOBAL slave_parallel_mode='domain,follow_master_commit';
+SET GLOBAL slave_parallel_mode='conservative';
 --let $status_items= Parallel_Mode
 --source include/show_slave_status.inc
 
@@ -1863,7 +1861,7 @@ INSERT INTO t2 VALUES (1040);
 --source include/save_master_gtid.inc
 
 --connection server_2
-SET GLOBAL slave_parallel_mode='';
+SET GLOBAL slave_parallel_mode='none';
 # Test that we do not use parallel apply, by injecting an unconditional
 # crash in the parallel apply code.
 SET @old_dbug= @@GLOBAL.debug_dbug;
@@ -1897,12 +1895,12 @@ INSERT INTO t2 VALUES (1046);
 SET gtid_domain_id = 0;
 --source include/save_master_gtid.inc
 --connection server_2
-SET GLOBAL slave_parallel_mode=follow_master_commit;
+SET GLOBAL slave_parallel_mode=minimal;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t2 WHERE a >= 1040 ORDER BY a;
 --source include/stop_slave.inc
-SET GLOBAL slave_parallel_mode='domain,follow_master_commit';
+SET GLOBAL slave_parallel_mode='conservative';
 --source include/start_slave.inc
 
 

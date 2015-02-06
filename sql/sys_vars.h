@@ -2312,14 +2312,15 @@ public:
 /**
    Class for connection_name.slave_parallel_mode.
 */
-class Sys_var_slave_parallel_mode: public Sys_var_set
+class Sys_var_slave_parallel_mode: public Sys_var_enum
 {
 public:
   Sys_var_slave_parallel_mode(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
-          CMD_LINE getopt, const char *values[], ulonglong def_val)
-    : Sys_var_set(name_arg, comment, flag_args, off, size,
-                  getopt, values, def_val)
+          CMD_LINE getopt, const char *values[],
+          enum_slave_parallel_mode def_val)
+    : Sys_var_enum(name_arg, comment, flag_args, off, size,
+                   getopt, values, def_val)
   {
     option.var_type|= GET_ASK_ADDR;
     option.value= (uchar**)1; // crash me, please

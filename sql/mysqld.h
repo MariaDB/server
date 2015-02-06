@@ -61,14 +61,16 @@ typedef Bitmap<((MAX_INDEXES+7)/8*8)> key_map; /* Used for finding keys */
 #define OPT_GLOBAL SHOW_OPT_GLOBAL
 
 /*
-  Bit masks for the values in --slave-parallel-mode.
-  Note that these values cannot be changed - they are stored in master.info,
-  so need to be possible to read back in a different version of the server.
+  Values for --slave-parallel-mode
+  Must match order in slave_parallel_mode_typelib in sys_vars.cc.
 */
-#define SLAVE_PARALLEL_DOMAIN               (1ULL << 0)
-#define SLAVE_PARALLEL_FOLLOW_MASTER_COMMIT (1ULL << 1)
-#define SLAVE_PARALLEL_TRX                  (1ULL << 2)
-#define SLAVE_PARALLEL_WAITING              (1ULL << 3)
+enum enum_slave_parallel_mode {
+  SLAVE_PARALLEL_NONE,
+  SLAVE_PARALLEL_MINIMAL,
+  SLAVE_PARALLEL_CONSERVATIVE,
+  SLAVE_PARALLEL_OPTIMISTIC,
+  SLAVE_PARALLEL_AGGRESSIVE
+};
 
 /* Function prototypes */
 void kill_mysql(void);
@@ -201,7 +203,7 @@ extern ulong stored_program_cache_size;
 extern ulong opt_slave_parallel_threads;
 extern ulong opt_slave_domain_parallel_threads;
 extern ulong opt_slave_parallel_max_queued;
-extern ulonglong opt_slave_parallel_mode;
+extern ulong opt_slave_parallel_mode;
 extern ulong opt_binlog_commit_wait_count;
 extern ulong opt_binlog_commit_wait_usec;
 extern my_bool opt_gtid_ignore_duplicates;

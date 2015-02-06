@@ -3395,20 +3395,6 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	REQUIRED
-VARIABLE_NAME	REPLICATE_ALLOW_PARALLEL
-SESSION_VALUE	ON
-GLOBAL_VALUE	NULL
-GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	ON
-VARIABLE_SCOPE	SESSION ONLY
-VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	If set when a transaction is written to the binlog, that transaction is allowed to replicate in parallel on a slave where slave_parallel_mode is set to "transactional". Can be cleared for transactions that are likely to cause a conflict if replicated in parallel, to avoid unnecessary rollback and retry.
-NUMERIC_MIN_VALUE	NULL
-NUMERIC_MAX_VALUE	NULL
-NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	OFF,ON
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	REPLICATE_ANNOTATE_ROW_EVENTS
 SESSION_VALUE	NULL
 GLOBAL_VALUE	OFF
@@ -3675,6 +3661,20 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	OFF,ON
 READ_ONLY	YES
 COMMAND_LINE_ARGUMENT	OPTIONAL
+VARIABLE_NAME	SKIP_PARALLEL_REPLICATION
+SESSION_VALUE	OFF
+GLOBAL_VALUE	NULL
+GLOBAL_VALUE_ORIGIN	COMPILE-TIME
+DEFAULT_VALUE	OFF
+VARIABLE_SCOPE	SESSION ONLY
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	If set when a transaction is written to the binlog, parallel apply of that transaction will be avoided on a slave where slave_parallel_mode is not "aggressive". Can be used to avoid unnecessary rollback and retry for transactions that are likely to cause a conflict if replicated in parallel.
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SKIP_REPLICATION
 SESSION_VALUE	OFF
 GLOBAL_VALUE	NULL
@@ -3817,16 +3817,16 @@ READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_PARALLEL_MODE
 SESSION_VALUE	NULL
-GLOBAL_VALUE	domain,follow_master_commit
+GLOBAL_VALUE	conservative
 GLOBAL_VALUE_ORIGIN	COMPILE-TIME
-DEFAULT_VALUE	domain,follow_master_commit
+DEFAULT_VALUE	conservative
 VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	SET
-VARIABLE_COMMENT	Controls what transactions are applied in parallel when using --slave-parallel-threads. Syntax: slave_parallel_mode=value[,value...], where "value" could be one or more of: "domain", to apply different replication domains in parallel; "follow_master_commit", to apply in parallel transactions that group-committed together on the master; "transactional", to optimistically try to apply all transactional DML in parallel; and "waiting" to extend "transactional" to even transactions that had to wait on the master.
+VARIABLE_TYPE	ENUM
+VARIABLE_COMMENT	Controls what transactions are applied in parallel when using --slave-parallel-threads. Possible values: "optimistic" tries to apply most transactional DML in parallel, and handles any conflicts with rollback and retry. "conservative" limits parallelism in an effort to avoid any conflicts. "aggressive" tries to maximise the parallelism, possibly at the cost of increased conflict rate. "minimal" only parallelizes the commit steps of transactions. "none" disables parallel apply completely.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	domain,follow_master_commit,transactional,waiting
+ENUM_VALUE_LIST	none,minimal,conservative,optimistic,aggressive
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
 VARIABLE_NAME	SLAVE_PARALLEL_THREADS

@@ -2258,7 +2258,7 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -3892,7 +3892,7 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -4271,7 +4271,7 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
@@ -4850,7 +4850,7 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id 1  end_log_pos # 	Binlog checkpoint master-bin.000001
 # at #
 #010909  4:46:40 server id 1  end_log_pos # 	GTID 0-1-1 ddl
-/*!100101 SET @@session.replicate_allow_parallel=1*//*!*/;
+/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
 /*!100001 SET @@session.gtid_domain_id=0*//*!*/;
 /*!100001 SET @@session.server_id=1*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;

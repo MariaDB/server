@@ -922,15 +922,14 @@ The following options may be given as the first argument:
  replication. Only used when --slave-parallel-threads > 0.
  --slave-parallel-mode=name 
  Controls what transactions are applied in parallel when
- using --slave-parallel-threads. Syntax:
- slave_parallel_mode=value[,value...], where "value" could
- be one or more of: "domain", to apply different
- replication domains in parallel; "follow_master_commit",
- to apply in parallel transactions that group-committed
- together on the master; "transactional", to
- optimistically try to apply all transactional DML in
- parallel; and "waiting" to extend "transactional" to even
- transactions that had to wait on the master.
+ using --slave-parallel-threads. Possible values:
+ "optimistic" tries to apply most transactional DML in
+ parallel, and handles any conflicts with rollback and
+ retry. "conservative" limits parallelism in an effort to
+ avoid any conflicts. "aggressive" tries to maximise the
+ parallelism, possibly at the cost of increased conflict
+ rate. "minimal" only parallelizes the commit steps of
+ transactions. "none" disables parallel apply completely.
  --slave-parallel-threads=# 
  If non-zero, number of threads to spawn to apply in
  parallel events on the slave that were group-committed on
@@ -1351,7 +1350,7 @@ slave-exec-mode STRICT
 slave-max-allowed-packet 1073741824
 slave-net-timeout 3600
 slave-parallel-max-queued 131072
-slave-parallel-mode domain,follow_master_commit
+slave-parallel-mode conservative
 slave-parallel-threads 0
 slave-run-triggers-for-rbr NO
 slave-skip-errors (No default value)
