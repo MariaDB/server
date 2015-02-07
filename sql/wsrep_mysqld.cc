@@ -333,7 +333,13 @@ wsrep_view_handler_cb (void*                    app_ctx,
              wsrep_cluster_size, wsrep_local_index, view->proto_ver);
 
   /* Proceed further only if view is PRIMARY */
-  if (WSREP_VIEW_PRIMARY != view->status) {
+  if (WSREP_VIEW_PRIMARY != view->status)
+  {
+#ifdef HAVE_QUERY_CACHE
+    // query cache must be initialised by now
+    query_cache.flush();
+#endif /* HAVE_QUERY_CACHE */
+
     wsrep_ready_set(FALSE);
     memb_status= WSREP_MEMBER_UNDEFINED;
     /* Always record local_uuid and local_seqno in non-prim since this
@@ -380,9 +386,16 @@ wsrep_view_handler_cb (void*                    app_ctx,
     wsrep_ready_set(FALSE);
 
     /* Close client connections to ensure that they don't interfere
-     * with SST */
-    WSREP_DEBUG("[debug]: closing client connections for PRIM");
-    wsrep_close_client_connections(TRUE);
+     * with SST. Necessary only if storage engines are initialized
+     * before SST.
+     * TODO: Just killing all ongoing transactions should be enough
+     * since wsrep_ready is OFF and no new transactions can start.
+     */
+    if (!wsrep_before_SE())
+    {
+        WSREP_DEBUG("[debug]: closing client connections for PRIM");
+        wsrep_close_client_connections(TRUE);
+    }
 
     ssize_t const req_len= wsrep_sst_prepare (sst_req);
 
@@ -661,9 +674,6 @@ int wsrep_init()
     strncpy(provider_vendor,
             wsrep->provider_vendor,  sizeof(provider_vendor) - 1);
   }
-
-  if (!wsrep_data_home_dir || strlen(wsrep_data_home_dir) == 0)
-    wsrep_data_home_dir = mysql_real_data_home;
 
   char node_addr[512]= { 0, };
   size_t const node_addr_max= sizeof(node_addr) - 1;
@@ -1686,7 +1696,6 @@ wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
 pthread_handler_t start_wsrep_THD(void *arg)
 {
   THD *thd;
-  rpl_sql_thread_info sql_info(NULL);
   wsrep_thd_processor_fun processor= (wsrep_thd_processor_fun)arg;
 
   if (my_thread_init())
@@ -1717,7 +1726,6 @@ pthread_handler_t start_wsrep_THD(void *arg)
   thd->bootstrap=1;
   thd->max_client_packet_length= thd->net.max_packet;
   thd->security_ctx->master_access= ~(ulong)0;
-  thd->system_thread_info.rpl_sql_info= &sql_info;
 
   /* from handle_one_connection... */
   pthread_detach_this_thread();

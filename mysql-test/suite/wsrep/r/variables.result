@@ -1,3 +1,5 @@
+SET @wsrep_provider_options_saved= @@global.wsrep_provider_options;
+SET @wsrep_cluster_address_saved= @@global.wsrep_cluster_address;
 
 # MDEV#5534: mysql_tzinfo_to_sql generates wrong query
 #
@@ -11,10 +13,12 @@ SET SESSION wsrep_replicate_myisam= ON;
 ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable and should be set with SET GLOBAL
 SET GLOBAL wsrep_replicate_myisam= ON;
 SET GLOBAL wsrep_replicate_myisam= OFF;
+SET GLOBAL wsrep_provider=none;
 #
 # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 # variables when using "_"
 #
+CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
 SHOW GLOBAL STATUS LIKE 'wsrep%';
 Variable_name	Value
 wsrep_apply_oooe	#
@@ -122,6 +126,7 @@ wsrep_local_state_comment	#
 # Should show nothing.
 SHOW STATUS LIKE 'x';
 Variable_name	Value
+SET GLOBAL wsrep_provider=none;
 #
 # MDEV#6079: xtrabackup SST failing with maria-10.0-galera
 #
@@ -133,16 +138,48 @@ wsrep_local_state_uuid	#
 SHOW STATUS LIKE 'wsrep_last_committed';
 Variable_name	Value
 wsrep_last_committed	#
+SET GLOBAL wsrep_provider=none;
 
 #
 # MDEV#6206: wsrep_slave_threads subtracts from max_connections
 #
+call mtr.add_suppression("WSREP: Failed to get provider options");
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
 libgalera_smm.so
 SELECT @@global.wsrep_slave_threads;
 @@global.wsrep_slave_threads
 1
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+NULL
+SHOW STATUS LIKE 'threads_connected';
+Variable_name	Value
+Threads_connected	1
+SHOW STATUS LIKE 'wsrep_thread_count';
+Variable_name	Value
+wsrep_thread_count	0
+
+SELECT @@global.wsrep_provider;
+@@global.wsrep_provider
+libgalera_smm.so
+SELECT @@global.wsrep_cluster_address;
+@@global.wsrep_cluster_address
+NULL
+SHOW STATUS LIKE 'threads_connected';
+Variable_name	Value
+Threads_connected	1
+SHOW STATUS LIKE 'wsrep_thread_count';
+Variable_name	Value
+wsrep_thread_count	0
+
+# Setting wsrep_cluster_address triggers the creation of
+# applier/rollbacker threads.
+SET GLOBAL wsrep_cluster_address= 'gcomm://';
+# Wait for applier threads to get created.
+SELECT @@global.wsrep_provider;
+@@global.wsrep_provider
+libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
 gcomm://
@@ -156,13 +193,12 @@ wsrep_thread_count	2
 SET @wsrep_slave_threads_saved= @@global.wsrep_slave_threads;
 SET GLOBAL wsrep_slave_threads= 10;
 # Wait for applier threads to get created.
-SHOW STATUS LIKE 'wsrep_thread_count';
-Variable_name	Value
-wsrep_thread_count	11
 SHOW STATUS LIKE 'threads_connected';
 Variable_name	Value
 Threads_connected	1
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SHOW STATUS LIKE 'wsrep_thread_count';
+Variable_name	Value
+wsrep_thread_count	11
 #
 # MDEV#6411: Setting set @@global.wsrep_sst_auth=NULL causes crash
 #
@@ -180,4 +216,8 @@ SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
 NULL
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
+SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
+SET GLOBAL wsrep_provider= none;
+SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
+SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
 # End of test.

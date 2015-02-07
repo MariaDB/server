@@ -1,0 +1,23 @@
+#
+# MDEV-6924 : Server crashed on CREATE TABLE ... SELECT
+#
+SET @wsrep_forced_binlog_format_saved=@@GLOBAL.wsrep_forced_binlog_format;
+SET @@GLOBAL.wsrep_forced_binlog_format=STATEMENT;
+SHOW VARIABLES LIKE '%log%bin%';
+Variable_name	Value
+log_bin	OFF
+log_bin_trust_function_creators	ON
+sql_log_bin	ON
+USE test;
+CREATE TABLE t1(i INT) ENGINE=INNODB;
+INSERT INTO t1 VALUES(1);
+CREATE TEMPORARY TABLE `t1_temp` AS SELECT * FROM `t1` WHERE i = 1;
+SELECT * FROM t1;
+i
+1
+SELECT * FROM t1_temp;
+i
+1
+DROP TABLE t1;
+SET @@GLOBAL.wsrep_forced_binlog_format=@wsrep_forced_binlog_format_saved;
+# End of tests

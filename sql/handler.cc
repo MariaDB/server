@@ -6034,6 +6034,9 @@ void handler::set_lock_type(enum thr_lock_type lock)
   implementing the wsrep API should provide this service to support
   multi-master operation.
 
+  @note Aborting the transaction does NOT end it, it still has to
+  be rolled back with hton->rollback().
+
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
 
@@ -6061,7 +6064,6 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     else
       hton->abort_transaction(hton, bf_thd, victim_thd, signal);
     ha_info_next= ha_info->next();
-    ha_info->reset(); /* keep it conveniently zero-filled */
   }
   DBUG_RETURN(0);
 }

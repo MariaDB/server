@@ -7798,6 +7798,14 @@ no_commit:
 #ifdef WITH_WSREP
 			/* workaround for LP bug #355000, retrying the insert */
 			case SQLCOM_INSERT:
+
+				WSREP_DEBUG("DUPKEY error for autoinc\n"
+				      "THD %ld, value %llu, off %llu inc %llu",
+				      thd_get_thread_id(current_thd),
+				      auto_inc,
+				      prebuilt->autoinc_offset,
+				      prebuilt->autoinc_increment);
+
                                if (wsrep_on(current_thd)                     &&
                                    auto_inc_inserted                         &&
                                    wsrep_drupal_282555_workaround            &&
@@ -7813,8 +7821,7 @@ no_commit:
 					error= DB_SUCCESS;
 					wsrep_thd_set_conflict_state(
 						current_thd, MUST_ABORT);
-                                        innobase_srv_conc_exit_innodb(
-						prebuilt->trx);
+                                        innobase_srv_conc_exit_innodb(prebuilt->trx);
                                         /* jump straight to func exit over
                                          * later wsrep hooks */
                                         goto func_exit;
@@ -9877,10 +9884,10 @@ wsrep_append_key(
 	DBUG_ENTER("wsrep_append_key");
 	bool const copy = true;
 #ifdef WSREP_DEBUG_PRINT
-	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s ",
+	fprintf(stderr, "%s conn %ld, trx %llu, keylen %d, table %s\n Query: %s ",
 		(shared) ? "Shared" : "Exclusive",
 		thd_get_thread_id(thd), (long long)trx->id, key_len,
-		table_share->table_name.str);
+		table_share->table_name.str, wsrep_thd_query(thd));
 	for (int i=0; i<key_len; i++) {
 		fprintf(stderr, "%hhX, ", key[i]);
 	}
@@ -15168,7 +15175,16 @@ ha_innobase::get_auto_increment(
 		next value in the series. */
 		if (prebuilt->autoinc_increment > increment) {
 
+			WSREP_DEBUG("autoinc decrease: %llu -> %llu\n"
+				    "THD: %ld, current: %llu, autoinc: %llu",
+				    prebuilt->autoinc_increment,
+				    increment,
+				    thd_get_thread_id(ha_thd()),
+				    current, autoinc);
+			if (!wsrep_on(ha_thd()))
+			{
 			current = autoinc - prebuilt->autoinc_increment;
+			}
 
 			current = innobase_next_autoinc(
 				current, 1, increment, 1, col_max_value);

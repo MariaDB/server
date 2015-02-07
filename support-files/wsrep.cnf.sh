@@ -21,13 +21,6 @@ default-storage-engine=innodb
 # to avoid issues with 'bulk mode inserts' using autoinc
 innodb_autoinc_lock_mode=2
 
-# This is a must for paralell applying
-innodb_locks_unsafe_for_binlog=1
-
-# Query Cache is not supported with wsrep
-query_cache_size=0
-query_cache_type=0
-
 # Override bind-address
 # In some systems bind-address defaults to 127.0.0.1, and with mysqldump SST
 # it will have (most likely) disastrous consequences on donor node

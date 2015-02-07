@@ -437,6 +437,24 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
   if (check_has_super(self, thd, var))
     return true;
 
+  /*
+    MariaDB Galera does not support STATEMENT or MIXED binlog format currently.
+  */
+  if (WSREP(thd) && var->save_result.ulonglong_value != BINLOG_FORMAT_ROW)
+  {
+    // Push a warning to the error log.
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR,
+                        "MariaDB Galera does not support binlog format: %s",
+                        binlog_format_names[var->save_result.ulonglong_value]);
+
+    if (var->type == OPT_GLOBAL)
+    {
+      WSREP_ERROR("MariaDB Galera does not support binlog format: %s",
+                  binlog_format_names[var->save_result.ulonglong_value]);
+      return true;
+    }
+  }
+
   if (var->type == OPT_GLOBAL)
     return false;
 
@@ -464,26 +482,6 @@ static bool binlog_format_check(sys_var *self, THD *thd, set_var *var)
          ER_STORED_FUNCTION_PREVENTS_SWITCH_BINLOG_FORMAT,
          ER_INSIDE_TRANSACTION_PREVENTS_SWITCH_BINLOG_FORMAT))
     return true;
-
-#ifdef WITH_WSREP
-  /* MariaDB Galera does not support STATEMENT or MIXED binlog
-  format currently */
-  if (WSREP(thd) &&
-     (var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ||
-      var->save_result.ulonglong_value == BINLOG_FORMAT_MIXED))
-  {
-    WSREP_DEBUG("MariaDB Galera does not support binlog format : %s",
-                var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
-                "STATEMENT" : "MIXED");
-    /* Push also warning, because error message is general */
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_UNKNOWN_ERROR,
-                        "MariaDB Galera does not support binlog format: %s",
-                        var->save_result.ulonglong_value == BINLOG_FORMAT_STMT ?
-                        "STATEMENT" : "MIXED");
-    return true;
-  }
-#endif
 
   return false;
 }
@@ -986,11 +984,8 @@ static bool check_master_connection(sys_var *self, THD *thd, set_var *var)
   tmp.str= var->save_result.string_value.str;
   tmp.length= var->save_result.string_value.length;
   if (!tmp.str || check_master_connection_name(&tmp))
-  {
-    my_error(ER_WRONG_ARGUMENTS, MYF(ME_JUST_WARNING),
-             var->var->name.str);
     return true;
-  }
+
   return false;
 }
 
@@ -4582,7 +4577,7 @@ static Sys_var_charptr Sys_wsrep_provider_options(
 static Sys_var_charptr Sys_wsrep_data_home_dir(
        "wsrep_data_home_dir", "home directory for wsrep provider",
        READ_ONLY GLOBAL_VAR(wsrep_data_home_dir), CMD_LINE(REQUIRED_ARG),
-       IN_FS_CHARSET, DEFAULT(""));
+       IN_FS_CHARSET, DEFAULT(mysql_real_data_home));
 
 static Sys_var_charptr Sys_wsrep_cluster_name(
        "wsrep_cluster_name", "Name for the cluster",
@@ -4745,11 +4740,12 @@ static bool fix_wsrep_causal_reads(sys_var *self, THD* thd, enum_var_type var_ty
   return false;
 }
 static Sys_var_mybool Sys_wsrep_causal_reads(
-       "wsrep_causal_reads", "(DEPRECATED) Setting this variable is equivalent "
+       "wsrep_causal_reads", "Setting this variable is equivalent "
        "to setting wsrep_sync_wait READ flag",
        SESSION_VAR(wsrep_causal_reads), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(fix_wsrep_causal_reads));
+       ON_UPDATE(fix_wsrep_causal_reads),
+       DEPRECATED("'@@wsrep_sync_wait=1'"));
 
 static Sys_var_uint Sys_wsrep_sync_wait(
        "wsrep_sync_wait", "Ensure \"synchronous\" read view before executing "

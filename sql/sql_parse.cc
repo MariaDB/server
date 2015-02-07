@@ -2820,8 +2820,6 @@ mysql_execute_command(THD *thd)
 #endif
   case SQLCOM_SHOW_STATUS:
   {
-    if (WSREP_CLIENT(thd) && wsrep_sync_wait(thd))
-      goto error;
     execute_show_status(thd, all_tables);
     break;
   }
@@ -6965,7 +6963,7 @@ static void wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
         WSREP_DEBUG("abort in exec query state, avoiding autocommit");
       }
 
-      if (thd->wsrep_conflict_state== MUST_REPLAY) 
+      if (thd->wsrep_conflict_state == MUST_REPLAY)
       {
         wsrep_replay_transaction(thd);
       }

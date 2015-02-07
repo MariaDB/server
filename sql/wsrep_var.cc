@@ -66,6 +66,7 @@ bool wsrep_causal_reads_update (SV *sv)
   } else {
     sv->wsrep_sync_wait &= ~WSREP_SYNC_WAIT_BEFORE_READ;
   }
+
   return false;
 }
 
