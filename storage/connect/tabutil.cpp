@@ -54,7 +54,8 @@
 #include "tabutil.h"
 #include "ha_connect.h"
 
-extern "C" int zconv;
+//extern "C" int zconv;
+int GetConvSize(void);
 
 /************************************************************************/
 /*  Used by MYSQL tables to get MySQL parameters from the calling proxy */
@@ -132,6 +133,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
   char        *fld, *colname, *chset, *fmt, v;
   int          i, n, ncol = sizeof(buftyp) / sizeof(int);
   int          prec, len, type, scale;
+  int          zconv = GetConvSize();
   bool         mysql;
   TABLE_SHARE *s = NULL;
   Field*      *field;

@@ -170,18 +170,18 @@
 #define SZWMIN 4194304             // Minimum work area size  4M
 
 extern "C" {
-       char  version[]= "Version 1.03.0006 January 13, 2015";
-       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
+       char  version[]= "Version 1.03.0006 February 06, 2015";
 
 #if defined(WIN32)
+       char  compver[]= "Version 1.03.0006 " __DATE__ " "  __TIME__;
        char slash= '\\';
 #else   // !WIN32
        char slash= '/';
 #endif  // !WIN32
 
 //     int   trace= 0;             // The general trace value
-       ulong xconv= 0;             // The type conversion option
-       int   zconv= 0;             // The text conversion size
+//     ulong xconv= 0;             // The type conversion option
+//     int   zconv= 0;             // The text conversion size
 } // extern "C"
 
 #if defined(XMAP)
@@ -289,6 +289,38 @@ static MYSQL_THDVAR_UINT(work_size,
        "Size of the CONNECT work area.",
        NULL, NULL, SZWORK, SZWMIN, UINT_MAX, 1);
 
+// Size used when converting TEXT columns to VARCHAR
+static MYSQL_THDVAR_INT(conv_size,
+       PLUGIN_VAR_RQCMDARG,             // opt
+       "Size used when converting TEXT columns.",
+       NULL, NULL, SZCONV, 0, 65500, 1);
+
+/**
+  Type conversion:
+    no:   Unsupported types -> TYPE_ERROR
+    yes:  TEXT -> VARCHAR
+    skip: skip unsupported type columns in Discovery
+*/
+const char *xconv_names[]=
+{
+  "NO", "YES", "SKIP", NullS
+};
+
+TYPELIB xconv_typelib=
+{
+  array_elements(xconv_names) - 1, "xconv_typelib",
+  xconv_names, NULL
+};
+
+static MYSQL_THDVAR_ENUM(
+  type_conv,                       // name
+  PLUGIN_VAR_RQCMDARG,             // opt
+  "Unsupported types conversion.", // comment
+  NULL,                            // check
+  NULL,                            // update function
+  0,                               // def (no)
+  &xconv_typelib);                 // typelib
+
 #if defined(XMSG) || defined(NEWMSG)
 const char *language_names[]=
 {
@@ -317,6 +349,8 @@ static MYSQL_THDVAR_ENUM(
 extern "C" int GetTraceValue(void) {return THDVAR(current_thd, xtrace);}
 bool ExactInfo(void) {return THDVAR(current_thd, exact_info);}
 USETEMP UseTemp(void) {return (USETEMP)THDVAR(current_thd, use_tempfile);}
+int GetConvSize(void) {return THDVAR(current_thd, conv_size);}
+TYPCONV GetTypeConv(void) {return (TYPCONV)THDVAR(current_thd, type_conv);}
 uint GetWorkSize(void) {return THDVAR(current_thd, work_size);}
 void SetWorkSize(uint n) 
 {
@@ -598,7 +632,11 @@ static int connect_init_func(void *p)
   }
 #endif   // 0 (LINUX)
 
+#if defined(WIN32)
   sql_print_information("CONNECT: %s", compver);
+#else   // !WIN32
+  sql_print_information("CONNECT: %s", version);
+#endif  // !WIN32
 
 #ifdef LIBXML2_SUPPORT
   XmlInitParserLib();
@@ -5333,9 +5371,18 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 
           // typ must be PLG type, not SQL type
           if (!(plgtyp= TranslateSQLType(typ, dec, prec, v))) {
-            sprintf(g->Message, "Unsupported SQL type %d", typ);
-            my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
-            goto err;
+            if (GetTypeConv() == TPC_SKIP) {
+              // Skip this column
+              sprintf(g->Message, "Column %s skipped (unsupported type %d)",
+                      cnm, typ);
+              push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+              continue;
+            } else {
+              sprintf(g->Message, "Unsupported SQL type %d", typ);
+              my_message(ER_UNKNOWN_ERROR, g->Message, MYF(0));
+              goto err;
+            } // endif type_conv
+
           } else
             typ= plgtyp;
 
@@ -6375,58 +6422,6 @@ struct st_mysql_storage_engine connect_storage_engine=
 /***********************************************************************/
 /*  CONNECT global variables definitions.                              */
 /***********************************************************************/
-// Size used when converting TEXT columns to VARCHAR
-#if defined(_DEBUG)
-static MYSQL_SYSVAR_INT(conv_size, zconv,
-       PLUGIN_VAR_RQCMDARG,             // opt
-       "Size used when converting TEXT columns.",
-       NULL, NULL, SZCONV, 0, 65500, 1);
-#else
-static MYSQL_SYSVAR_INT(conv_size, zconv,
-       PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,  // opt
-       "Size used when converting TEXT columns.",
-       NULL, NULL, SZCONV, 0, 65500, 1);
-#endif
-
-/**
-  Type conversion:
-    no:   Unsupported types -> TYPE_ERROR
-    yes:  TEXT -> VARCHAR
-    skip: skip unsupported type columns in Discovery
-*/
-const char *xconv_names[]=
-{
-  "NO", "YES", "SKIP", NullS
-};
-
-TYPELIB xconv_typelib=
-{
-  array_elements(xconv_names) - 1, "xconv_typelib",
-  xconv_names, NULL
-};
-
-#if defined(_DEBUG)
-static MYSQL_SYSVAR_ENUM(
-  type_conv,                       // name
-  xconv,                           // varname
-  PLUGIN_VAR_RQCMDARG,             // opt
-  "Unsupported types conversion.", // comment
-  NULL,                            // check
-  NULL,                            // update function
-  0,                               // def (no)
-  &xconv_typelib);                 // typelib
-#else
-static MYSQL_SYSVAR_ENUM(
-  type_conv,                       // name
-  xconv,                           // varname
-  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
-  "Unsupported types conversion.", // comment
-  NULL,                            // check
-  NULL,                            // update function
-  0,                               // def (no)
-  &xconv_typelib);                 // typelib
-#endif
-
 #if defined(XMAP)
 // Using file mapping for indexes if true
 static MYSQL_SYSVAR_BOOL(indx_map, xmap, PLUGIN_VAR_RQCMDARG,

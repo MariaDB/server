@@ -51,7 +51,8 @@
 #define  DLL_EXPORT            // Items are exported from this DLL
 #include "myconn.h"
 
-extern "C" int   zconv;
+//extern "C" int   zconv;
+int GetConvSize(void);
 extern MYSQL_PLUGIN_IMPORT uint  mysqld_port;
 extern MYSQL_PLUGIN_IMPORT char *mysqld_unix_port;
 
@@ -265,7 +266,7 @@ PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
       return NULL;
     } else if (type == TYPE_STRING) {
       if (v == 'X') {
-        len = zconv;
+        len = GetConvSize();
         sprintf(g->Message, "Column %s converted to varchar(%d)",
                 colname, len);
         PushWarning(g, thd);

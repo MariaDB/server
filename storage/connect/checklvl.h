@@ -40,4 +40,11 @@ enum USETEMP {TMP_NO    =  0,         /* Never                         */
               TMP_FORCE =  3,         /* Forced for MAP tables         */
               TMP_TEST  =  4};        /* Testing value                 */
 
+/***********************************************************************/
+/*  Following definitions indicate conversion of TEXT columns.         */
+/***********************************************************************/
+enum TYPCONV {TPC_NO   =  0,          /* Never                         */
+              TPC_YES  =  1,          /* Always                        */
+              TPC_SKIP =  2};         /* Skip TEXT columns             */
+
 #endif    // _CHKLVL_DEFINED_

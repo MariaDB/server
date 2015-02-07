@@ -53,6 +53,8 @@
 extern "C" HINSTANCE s_hModule;           // Saved module handle
 #endif // WIN32
 
+int GetConvSize();
+
 /***********************************************************************/
 /*  Some macro's (should be defined elsewhere to be more accessible)   */
 /***********************************************************************/
@@ -122,7 +124,7 @@ int TranslateSQLType(int stp, int prec, int& len, char& v)
     case SQL_LONGVARCHAR:                   //  (-1)
       v = 'V';
       type = TYPE_STRING;
-      len = MY_MIN(abs(len), 256);
+      len = MY_MIN(abs(len), GetConvSize());
       break;
     case SQL_NUMERIC:                       //    2
     case SQL_DECIMAL:                       //    3
