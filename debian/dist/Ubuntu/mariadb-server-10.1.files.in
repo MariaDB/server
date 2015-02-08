@@ -1,7 +1,11 @@
 usr/lib/mysql/plugin/auth_pam.so
 usr/lib/mysql/plugin/auth_socket.so
-usr/lib/mysql/plugin/ha_sphinx.so
+usr/lib/mysql/plugin/ha_archive.so
+usr/lib/mysql/plugin/ha_blackhole.so
+usr/lib/mysql/plugin/ha_federated.so
+usr/lib/mysql/plugin/ha_federatedx.so
 usr/lib/mysql/plugin/ha_innodb.so
+usr/lib/mysql/plugin/ha_sphinx.so
 usr/lib/mysql/plugin/handlersocket.so
 usr/lib/mysql/plugin/locales.so
 usr/lib/mysql/plugin/metadata_lock_info.so
@@ -9,8 +13,9 @@ usr/lib/mysql/plugin/query_cache_info.so
 usr/lib/mysql/plugin/query_response_time.so
 usr/lib/mysql/plugin/semisync_master.so
 usr/lib/mysql/plugin/semisync_slave.so
-usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/server_audit.so
+usr/lib/mysql/plugin/simple_password_check.so
+usr/lib/mysql/plugin/sql_errlog.so
 usr/lib/mysql/plugin/wsrep_info.so
 usr/lib/libhsclient.so.*
 etc/apparmor.d/usr.sbin.mysqld
