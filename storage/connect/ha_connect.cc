@@ -215,6 +215,8 @@ bool    CheckSelf(PGLOBAL g, TABLE_SHARE *s, const char *host,
                   const char *db, char *tab, const char *src, int port);
 bool    ExactInfo(void);
 USETEMP UseTemp(void);
+int     GetConvSize(void);
+TYPCONV GetTypeConv(void);
 uint    GetWorkSize(void);
 void    SetWorkSize(uint);
 extern "C" const char *msglang(void);
