@@ -2519,6 +2519,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
   char *body= filp->Body;
   unsigned int i;
   bool  ismul= false, x= (tty == TYPE_AM_MYX || tty == TYPE_AM_XDBC);
+  bool  nonul= (tty == TYPE_AM_ODBC && (tdbp->GetMode() == MODE_INSERT ||
+                                        tdbp->GetMode() == MODE_DELETE));
   OPVAL vop= OP_XX;
 
   if (!cond)
@@ -2536,7 +2538,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
     if (trace)
       htrc("Cond: Ftype=%d name=%s\n", cond_item->functype(),
-                                         cond_item->func_name());
+                                       cond_item->func_name());
 
     switch (cond_item->functype()) {
       case Item_func::COND_AND_FUNC: vop= OP_AND; break;
@@ -2555,7 +2557,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
     for (i= 0; i < arglist->elements; i++)
       if ((subitem= li++)) {
         if (!CheckCond(g, filp, tty, subitem)) {
-          if (vop == OP_OR)
+          if (vop == OP_OR || nonul)
             return NULL;
           else
             *p2= 0;
@@ -2651,6 +2653,8 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         if (trace) {
           htrc("Field index=%d\n", pField->field->field_index);
           htrc("Field name=%s\n", pField->field->field_name);
+          htrc("Field type=%d\n", pField->field->type());
+          htrc("Field_type=%d\n", args[i]->field_type());
           } // endif trace
 
         // IN and BETWEEN clauses should be col VOP list
@@ -2670,8 +2674,9 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
         char    buff[256];
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
         Item_basic_constant *pval= (Item_basic_constant *)args[i];
+        Item::Type type= args[i]->real_type();
 
-        switch (args[i]->real_type()) {
+        switch (type) {
           case COND::STRING_ITEM:
           case COND::INT_ITEM:
           case COND::REAL_ITEM:
@@ -2696,10 +2701,64 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, AMT tty, Item *cond)
 
         if (!x) {
           // Append the value to the filter
-          if (args[i]->field_type() == MYSQL_TYPE_VARCHAR)
-            strcat(strncat(strcat(body, "'"), res->ptr(), res->length()), "'");
-          else
-            strncat(body, res->ptr(), res->length());
+          switch (args[i]->field_type()) {
+            case MYSQL_TYPE_TIMESTAMP:
+            case MYSQL_TYPE_DATETIME:
+              if (tty == TYPE_AM_ODBC) {
+                strcat(body, "{ts '");
+                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                break;
+                } // endif ODBC
+
+            case MYSQL_TYPE_DATE:
+              if (tty == TYPE_AM_ODBC) {
+                strcat(body, "{d '");
+                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                break;
+                } // endif ODBC
+
+            case MYSQL_TYPE_TIME:
+              if (tty == TYPE_AM_ODBC) {
+                strcat(body, "{t '");
+                strcat(strncat(body, res->ptr(), res->length()), "'}");
+                break;
+                } // endif ODBC
+
+            case MYSQL_TYPE_VARCHAR:
+              if (tty == TYPE_AM_ODBC && i) {
+                switch (args[0]->field_type()) {
+                  case MYSQL_TYPE_TIMESTAMP:
+                  case MYSQL_TYPE_DATETIME:
+                    strcat(body, "{ts '");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'}");
+                    break;
+                  case MYSQL_TYPE_DATE:
+                    strcat(body, "{d '");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'}");
+                    break;
+                  case MYSQL_TYPE_TIME:
+                    strcat(body, "{t '");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'}");
+                    break;
+                  default:
+                    strcat(body, "'");
+                    strncat(body, res->ptr(), res->length());
+                    strcat(body, "'");
+                  } // endswitch field type
+
+              } else {
+                strcat(body, "'");
+                strncat(body, res->ptr(), res->length());
+                strcat(body, "'");
+              } // endif tty
+
+              break;
+            default:
+              strncat(body, res->ptr(), res->length());
+            } // endswitch field type
 
         } else {
           if (args[i]->field_type() == MYSQL_TYPE_VARCHAR) {

@@ -573,8 +573,7 @@ bool TDBODBC::BindParameters(PGLOBAL g)
 /***********************************************************************/
 char *TDBODBC::MakeCommand(PGLOBAL g)
   {
-  char *p, name[68], *qc = Ocp->GetQuoteChar();
-  char *stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  char *p, *stmt, name[68], *body = NULL, *qc = Ocp->GetQuoteChar();
   char *qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 1);
   bool  qtd = Quoted > 0;
   int   i = 0, k = 0;
@@ -584,6 +583,15 @@ char *TDBODBC::MakeCommand(PGLOBAL g)
   do {
     qrystr[i] = (Qrystr[i] == '`') ? *qc : tolower(Qrystr[i]);
     } while (Qrystr[i++]);
+
+  if (To_CondFil && (p = strstr(qrystr, " where "))) {
+    p[7] = 0;           // Remove where clause
+    Qrystr[(p - qrystr) + 7] = 0;
+    body = To_CondFil->Body;
+    stmt = (char*)PlugSubAlloc(g, NULL, strlen(qrystr) 
+                                      + strlen(body) + 64);
+  } else
+    stmt = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
 
   // Check whether the table name is equal to a keyword
   // If so, it must be quoted in the original query
@@ -611,6 +619,9 @@ char *TDBODBC::MakeCommand(PGLOBAL g)
     do {
       stmt[i++] = (Qrystr[k] == '`') ? *qc : Qrystr[k];
       } while (Qrystr[k++]);
+
+    if (body)
+      strcat(stmt, body);
 
   } else {
     sprintf(g->Message, "Cannot use this %s command",
@@ -774,7 +785,7 @@ int TDBODBC::GetProgMax(PGLOBAL g)
 /***********************************************************************/
 bool TDBODBC::OpenDB(PGLOBAL g)
   {
-  bool rc = false;
+  bool rc = true;
 
   if (g->Trace)
     htrc("ODBC OpenDB: tdbp=%p tdb=R%d use=%dmode=%d\n",
@@ -849,12 +860,12 @@ bool TDBODBC::OpenDB(PGLOBAL g)
 
       } // endif Query
 
-  } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE)
-    Query = MakeCommand(g);
-  else
+  } else if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    rc = false;  // wait for CheckCond before calling MakeCommand(g);
+  } else
     sprintf(g->Message, "Invalid mode %d", Mode);
 
-  if (!Query || rc) {
+  if (rc) {
     Ocp->Close();
     return true;
     } // endif rc
@@ -886,6 +897,9 @@ int TDBODBC::ReadDB(PGLOBAL g)
       GetTdb_No(), Mode, To_Key_Col, To_Link, To_Kindex);
 
   if (Mode == MODE_UPDATE || Mode == MODE_DELETE) {
+    if (!Query && !(Query = MakeCommand(g)))
+      return RC_FX;
+
     // Send the UPDATE/DELETE command to the remote table
     if (!Ocp->ExecSQLcommand(Query)) {
       sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);
@@ -955,6 +969,9 @@ int TDBODBC::WriteDB(PGLOBAL g)
 int TDBODBC::DeleteDB(PGLOBAL g, int irc)
   {
   if (irc == RC_FX) {
+    if (!Query && !(Query = MakeCommand(g)))
+      return RC_FX;
+
     // Send the DELETE (all) command to the remote table
     if (!Ocp->ExecSQLcommand(Query)) {
       sprintf(g->Message, "%s: %d affected rows", TableName, AftRows);

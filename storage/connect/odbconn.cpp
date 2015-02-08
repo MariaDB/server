@@ -1740,6 +1740,8 @@ bool ODBConn::BindParam(ODBCCOL *colp)
     strcpy(m_G->Message, x->GetErrorMessage(0));
     colsize = colp->GetPrecision();
     sqlt = GetSQLType(buftype);
+    dec = IsTypeChar(buftype) ? 0 : colp->GetScale();
+    nul = SQL_NULLABLE_UNKNOWN;
   } // end try/catch
 
   buf = colp->GetBuffer(0);
