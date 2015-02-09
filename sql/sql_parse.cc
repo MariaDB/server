@@ -693,7 +693,11 @@ bool do_command(THD *thd)
 {
   bool return_value;
   char *packet= 0;
+#ifdef WITH_WSREP
+  ulong packet_length= 0; // just to avoid (false positive) compiler warning
+#else
   ulong packet_length;
+#endif /* WITH_WSREP */
   NET *net= &thd->net;
   enum enum_server_command command;
   DBUG_ENTER("do_command");
